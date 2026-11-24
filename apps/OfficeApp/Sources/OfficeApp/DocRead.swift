@@ -503,9 +503,11 @@ enum DocRead {
         let dflt = "<w:rFonts w:ascii=\"\(df)\" w:hAnsi=\"\(df)\" w:eastAsia=\"\(df)\" w:cs=\"\(df)\"/>"
         // Odd and even pages have their own headers when the document properties say so (the first flag of the DOP).
         let facing = fib.range(31).map { $0.fc < tbl.count && tbl[$0.fc] & 1 != 0 } ?? false
+        // (The DOP's default tab stop, dxaTab at byte 10, in twips: Word's tabs run on it; es-7289450bf2's 708 puts four tabs 2.4 pt short of 720's.)
+        let tabStop: Int? = fib.range(31).flatMap { $0.fc + 12 <= tbl.count && $0.lcb >= 12 ? Int(tbl[$0.fc + 10]) | Int(tbl[$0.fc + 11]) << 8 : nil }.flatMap { $0 > 0 && $0 != 720 ? $0 : nil }
         var settings: [ZipEntry] = []
-        if facing {
-            settings = [e("word/settings.xml", head + "<w:settings \(ns)><w:evenAndOddHeaders/></w:settings>")]
+        if facing || tabStop != nil {
+            settings = [e("word/settings.xml", head + "<w:settings \(ns)>" + (facing ? "<w:evenAndOddHeaders/>" : "") + (tabStop.map { "<w:defaultTabStop w:val=\"\($0)\"/>" } ?? "") + "</w:settings>")]
             rels += "<Relationship Id=\"rIdSet\" Type=\"\(relBase)settings\" Target=\"settings.xml\"/>"
             types += "<Override PartName=\"/word/settings.xml\" ContentType=\"\(ctBase)settings+xml\"/>"
         }
