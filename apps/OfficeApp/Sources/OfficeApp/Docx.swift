@@ -195,6 +195,8 @@ enum DocxFormat {
         // The default tab distance: 35.4pt in a third of the corpus (metric
         // Word's 1.25cm), and every typed "4.2.8.<tab>text" lands
         // elsewhere under our 36 — bug65649's first lines.
+        // (A settings part that holds nothing but the tab distance, as the .doc reader writes it, is read as no settings at all.)
+        let _settingsBare = part("word/settings.xml").flatMap(XNode.parse).map { $0.children.allSatisfy { $0.name == "w:defaultTabStop" } } ?? false
         let defaultTabStop = part("word/settings.xml").flatMap(XNode.parse)?.first("w:defaultTabStop")
             .flatMap { Double($0["w:val"] ?? "") }.flatMap { $0 >= 0 ? $0 / 20 : nil }
         if let sect = body.first("w:sectPr") {
@@ -3073,7 +3075,7 @@ enum DocxFormat {
         }
         // (A file with no settings at all, or no styles, is set by the
         // East Asian rules: Word reads it as one of its older documents.)
-        if part("word/settings.xml") == nil { document.usesEastAsianLayout = true }
+        if part("word/settings.xml") == nil || _settingsBare { document.usesEastAsianLayout = true }
         // (Kana in the body text, UTF-8 E3 81..83 xx: a Japanese document whatever its language tag says.)
         do {
             var kana = false
@@ -3085,13 +3087,7 @@ enum DocxFormat {
             document.hasKana = kana
         }
         if let table = part("word/fontTable.xml").flatMap(XNode.parse) {
-            for font in table.all("w:font") {
-                if let name = font["w:name"], let usb2 = font.first("w:sig")?["w:usb2"], let v = UInt32(usb2, radix: 16), v & 0x100 != 0,
-                   // (Only a face Windows lacks: Sakkal Majalla's own table carries the Thaana bit and Word draws it in Sakkal Majalla, a 1.40 em line, not MV Boli's 1.611: dx2 be31e911's body 25.8 pt a line against 22.4 in Word.)
-                   name.trimmingWhitespace().lowercased() == "mv boli" || !WordWindowsFaces.names.contains(name.trimmingWhitespace().lowercased()) {
-                    document.thaanaFaces.insert(name.trimmingWhitespace().lowercased())
-                }
-            }
+            document.thaanaFaces.formUnion(Self.thaanaFaceNames(table))
             var charsets: [String: String] = [:]
             for font in table.all("w:font") {
                 guard let name = font["w:name"], name.unicodeScalars.contains(where: { $0.value >= 0x2E80 }),
@@ -3206,7 +3202,7 @@ enum DocxFormat {
             if let divs = web.first("w:divs") { walk(divs) }
         }
         var legacyNoFE = false
-        if let settings = part("word/settings.xml").flatMap(XNode.parse) {
+        if !_settingsBare, let settings = part("word/settings.xml").flatMap(XNode.parse) {
             legacyNoFE = settings.first("w:compat")?.first("w:useFELayout") == nil
             document.themeFontLangXML = settings.first("w:themeFontLang").map { PptxXML.serialize($0) }
             document.characterSpacingControl = settings.first("w:characterSpacingControl")?["w:val"]
@@ -3246,7 +3242,7 @@ enum DocxFormat {
             for name in _keptSettingNames.flatMap({ $0 }) {
                 if let n = settings.first(name) { document.keptSettings[name] = PptxXML.serialize(n) }
             }
-        } else if part("word/settings.xml") == nil, part("word/styles.xml") != nil {
+        } else if part("word/settings.xml") == nil || _settingsBare, part("word/styles.xml") != nil {
             // (A file with no settings part names no compatibility mode either; a copy of
             // jpn-z23823926-b2a8e5 with an empty w:compat added went from 55.4 to 99.0.)
             document.hangsLatinStops = true
@@ -3347,6 +3343,32 @@ enum DocxFormat {
 
 
 extension DocxFormat {
+    /// The faces a font table marks Thaana (MV Boli, or a face Windows lacks whose signature carries the Thaana bit).
+    static func thaanaFaceNames(_ table: XNode) -> Set<String> {
+        var out = Set<String>()
+        for font in table.all("w:font") {
+                if let name = font["w:name"], let usb2 = font.first("w:sig")?["w:usb2"], let v = UInt32(usb2, radix: 16), v & 0x100 != 0,
+                   // (Only a face Windows lacks: Sakkal Majalla's own table carries the Thaana bit and Word draws it in Sakkal Majalla, a 1.40 em line, not MV Boli's 1.611: dx2 be31e911's body 25.8 pt a line against 22.4 in Word.)
+                   name.trimmingWhitespace().lowercased() == "mv boli" || !WordWindowsFaces.names.contains(name.trimmingWhitespace().lowercased()),
+                   // (A font-table entry of an East Asian charset (80 Shift-JIS, 81 Hangul, 86 GB2312, 88 Big5) is no Thaana face even when its signature claims every script: 한컴바탕 was laid out as an MV Boli line, 1.611 em against Batang's 1.303.)
+                   !Self.isEastAsianCharset(font.first("w:charset")?["w:val"]) {
+                    out.insert(name.trimmingWhitespace().lowercased())
+                }
+            }
+        return out
+    }
+
+    static func thaanaFaceNames(fontTableXML: String) throws -> Set<String> {
+        guard let t = XNode.parse(Data(fontTableXML.utf8)) else { return [] }
+        return thaanaFaceNames(t)
+    }
+
+    /// Font-table charsets of the East Asian scripts (hex): 80 Shift-JIS, 81 Hangul, 86 GB2312, 88 Big5.
+    static func isEastAsianCharset(_ charset: String?) -> Bool {
+        guard let c = charset?.uppercased() else { return false }
+        return ["80", "81", "86", "88"].contains(c)
+    }
+
     /// A signed half-point count (`w:position`, `w:spacing` of a run), or a number with a
     /// unit (`6pt`, `-0.5mm`, `1in`; ST_SignedHpsMeasure), in points. Word honours the unit
     /// form: xb docx-8f1703b9 writes `w:position w:val="6pt"` and its raised word stands 6 pt up.

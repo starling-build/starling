@@ -590,7 +590,11 @@ extension RichLayout {
             let g = geometry(i)
             for image in _behindPictures(i) {
                 guard let float = image.float, let decoded = _decoded[image.id] else { continue }
-                _drawPicture(decoded, image, _floatRect(float, image, g, i), canvas)
+                if _verticalPagePicture(i, float, image) {
+                    _drawPictureOnVerticalPage(decoded, image, _floatRect(float, image, g, i), canvas)
+                } else {
+                    _drawPicture(decoded, image, _floatRect(float, image, g, i), canvas)
+                }
                 _behindDrawn.insert("\(image.id)")
             }
         }
@@ -1469,7 +1473,11 @@ extension RichLayout {
             let drawn = _decoded[image.id] == nil && !turnedBox && _paintOutline(image, box, canvas)
             if let decoded = _decoded[image.id] {
                 let clipped = _clipToCell(i, image, box, canvas)
-                _drawPicture(decoded, image, box, canvas)
+                if let f = image.float, _verticalPagePicture(i, f, image) {
+                    _drawPictureOnVerticalPage(decoded, image, box, canvas)
+                } else {
+                    _drawPicture(decoded, image, box, canvas)
+                }
                 _paintFrame(image, box, canvas)
                 if clipped { canvas.restore() }
             } else if let inside = _textBox(image, document), let text = image.textBox {
@@ -2017,7 +2025,11 @@ extension RichLayout {
                 if _dropCapPass == 1, image.isDropCap { continue }
                 if let decoded = _decoded[image.id] {
                     let clipped = _clipToCell(i, image, rect, canvas)
-                    _drawPicture(decoded, image, rect, canvas)
+                    if let f = image.float, _verticalPagePicture(i, f, image) {
+                        _drawPictureOnVerticalPage(decoded, image, rect, canvas)
+                    } else {
+                        _drawPicture(decoded, image, rect, canvas)
+                    }
                     _paintFrame(image, rect, canvas)
                     if clipped { canvas.restore() }
                 } else if let inside = _textBox(image, document), let text = image.textBox {
@@ -2060,6 +2072,78 @@ extension RichLayout {
             mark.dispose()
         }
     }
+}
+
+extension RichLayout {
+    /// A picture set from the page or its margins, with offsets and no alignment, in a vertical section: Word reads the offsets on
+    /// the paper (x across, y down) and keeps the picture upright, while the layout works on the page turned a quarter
+    /// (ja-b852b9029c's 289 by 546pt picture, 4.5pt and 135.75pt in from the margins, stands upright at the page's left in Word's
+    /// print; ours stood turned and in from the wrong edge).
+    @inline(never)
+    func _verticalPagePicture(_ i: Int, _ float: ImageFloat, _ image: ImageAttachment) -> Bool {
+        guard theme.wordRules, RichTextTheme.wordWindowsPages, !floatsFrames, image.textBox == nil, _verticalBody(i),
+              float.horizontalAlign == nil, float.verticalAlign == nil, abs(image.rotation) < 0.01,
+              float.horizontalFrom == "margin" || float.horizontalFrom == "page",
+              float.verticalFrom == "margin" || float.verticalFrom == "page",
+              i >= _cells.count || _cells[i] == nil,
+              i < _pieceStart.count, _pieceStart[i] < _allPieces.count else { return false }
+        return true
+    }
+
+    /// The turned layout's box for such a picture (pixels, flow coordinates), its width the paper's height and its height the
+    /// paper's width.
+    @inline(never)
+    func _verticalPagePictureRect(_ i: Int, _ float: ImageFloat, _ image: ImageAttachment) -> Rect {
+        let setup = _setup(ofParagraph: i)
+        // (The setup is the turned page: its height is the paper's width, its left margin the paper's top, its top margin the
+        // paper's right, its bottom margin the paper's left.)
+        let paperW = setup.height
+        let paperLeft = setup.marginBottom, paperTop = setup.marginLeft
+        let pw = image.width, ph = image.height
+        let x0 = (float.horizontalFrom == "page" ? 0 : paperLeft) + float.x
+        let y0 = (float.verticalFrom == "page" ? 0 : paperTop) + float.y
+        let pc = _allPieces[_pieceStart[i]]
+        let layoutTop = paperW - (x0 + pw) - setup.marginTop
+        return Rect.fromLTWH(_px(y0 - paperTop), pc.flowTop - pc.pageY + _px(layoutTop), _px(ph), _px(pw))
+    }
+
+    /// Draws, on every page, the pictures of `_verticalPagePicture` that stand on it, upright on the paper: the picture lies over
+    /// columns other than the one its paragraph is set in, so it is not drawn with that paragraph (whose piece is clipped to its own
+    /// column).
+    @inline(never)
+    func _paintVerticalPictures(_ p: Int, _ canvas: any Canvas, _ document: RichDocument) {
+        guard theme.wordRules, RichTextTheme.wordWindowsPages, _columns >= 1, p * _columns < _pages.count else { return }
+        var seen = Set<String>()
+        for c in 0 ..< _columns where p * _columns + c < _pages.count {
+            for piece in _pages[p * _columns + c] {
+                let i = piece.paragraph
+                guard i >= 0, i < count, i < document.paragraphs.count else { continue }
+                var own: [ImageAttachment] = []
+                if i < _floatImages.count, let image = _floatImages[i] { own.append(image) }
+                if i < _inline.count { own += _inline[i] }
+                for image in own where !seen.contains(image.id) {
+                    guard let float = image.float, _verticalPagePicture(i, float, image), let decoded = _decoded[image.id] else { continue }
+                    seen.insert(image.id)
+                    let setup = pageSetup(forPage: p)
+                    let paperW = setup.height
+                    let x0 = (float.horizontalFrom == "page" ? 0 : setup.marginBottom) + float.x
+                    let y0 = (float.verticalFrom == "page" ? 0 : setup.marginLeft) + float.y
+                    let page = pageRect(p)
+                    let top = page.top + (p < _pageInsetTop.count ? _pageInsetTop[p] : _px(setup.marginTop)) + _px(paperW - (x0 + image.width) - setup.marginTop)
+                    let left = _px(y0)
+                    let box = Rect.fromLTWH(left, top, _px(image.height), _px(image.width))
+                    canvas.save()
+                    canvas.translate(box.left, box.bottom)
+                    canvas.rotate(-Double.pi / 2)
+                    _drawPicture(decoded, image, Rect.fromLTWH(0, 0, box.height, box.width), canvas)
+                    canvas.restore()
+                }
+            }
+        }
+    }
+
+    /// (The pictures `_paintVerticalPictures` draws are skipped where their paragraph is painted.)
+    func _drawPictureOnVerticalPage(_ decoded: Image, _ image: ImageAttachment, _ box: Rect, _ canvas: any Canvas) {}
 }
 
 extension RichLayout {

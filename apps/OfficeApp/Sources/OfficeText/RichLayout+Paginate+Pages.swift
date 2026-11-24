@@ -220,6 +220,7 @@ extension RichLayout {
         pgs.prevContentH = pgs.contentH
         _pg_openPage(&pgs, document)
         _pg_addHeaderBand(&pgs, document)
+        _pg_verticalWindow(&pgs, document)
         _pg_loadPins(&pgs, document)
         // (The rest of a note the page before parted, first under the
         // rule.)

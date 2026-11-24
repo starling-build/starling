@@ -155,6 +155,7 @@ enum DocRead {
         var endnotes: [Int: Int] = [:]
         var noteKind = ""            // "footnote" or "endnote" inside a note's own text
         var shapes: [Int: (xml: String, behind: Bool)] = [:]   // character position of a shape anchor -> its drawing run
+        var styles = ""             // the style sheet's XML, to settle toggled character flags against
         var picture: ((Int) -> String?)?         // the run of the inline picture whose data sits at an offset of the Data stream
     }
 
@@ -220,7 +221,7 @@ enum DocRead {
             if !chp.isEmpty {
                 let g = cover(chp, &ci, cp)?.grpprl ?? []
                 curG = g
-                if !cacheValid || g != cache { flush(); cache = g; cacheValid = true; rpr = DocProps.rPr(g, fonts: fonts); sym = DocProps.symbol(g, fonts: fonts) }
+                if !cacheValid || g != cache { flush(); cache = g; cacheValid = true; rpr = DocProps.rPr(g, fonts: fonts, toggles: true); sym = DocProps.symbol(g, fonts: fonts) }
             }
             if let f = fields.last, f.inInstr, c != 0x14, c != 0x15, c != 0x13 {
                 if c >= 0x20 { fields[fields.count - 1].instr.append(c) }
@@ -242,7 +243,7 @@ enum DocRead {
                 // the paragraph mark's own character properties (they size an empty paragraph's line)
                 if !rpr.isEmpty { pp = pp.isEmpty ? "<w:pPr>" + rpr + "</w:pPr>" : String(pp.dropLast(8)) + rpr + "</w:pPr>" }
                 if let sp = ctx.sectEnds[cp] { pp = pp.isEmpty ? "<w:pPr>" + sp + "</w:pPr>" : String(pp.dropLast(8)) + sp + "</w:pPr>" }
-                let para = "<w:p>" + pp + back + runs + front + "</w:p>"; runs = ""; back = ""; front = ""
+                let para = DocProps.settleToggles("<w:p>" + pp + back + runs + front + "</w:p>", styles: ctx.styles, istd: pr?.istd ?? 0); runs = ""; back = ""; front = ""
                 if tf.inTable {
                     cellXml += para
                     if c == 0x07 { rowCells.append(cellXml); cellXml = "" }
@@ -312,7 +313,7 @@ enum DocRead {
         let all = text(w, pieces: pcs, count: hddEnd + fib.ccpAtn + fib.ccpEdn + fib.ccpTxbx + fib.ccpHdrTxbx)
         func slice(_ a: Int, _ b: Int) -> [UInt16] { (a >= 0 && b <= all.count && a < b) ? Array(all[a ..< b]) : [] }
         func story(_ a: Int, _ b: Int, _ ctx: StoryContext = StoryContext()) -> String {
-            var c = ctx; c.base = a
+            var c = ctx; c.base = a; c.styles = st?.xml ?? ""
             return paragraphs(slice(a, b), chp: chp, pap: pap, fonts: fonts, ctx: c)
         }
         var extra: [ZipEntry] = [], rels = "", types = ""
@@ -322,7 +323,7 @@ enum DocRead {
         let relBase = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/"
         let ctBase = "application/vnd.openxmlformats-officedocument.wordprocessingml."
         // The shapes and pictures of a header or footer story [a, b): set once the drawings are read (below).
-        var headerDrawings: (Int, Int) -> (shapes: [Int: (xml: String, behind: Bool)], rels: String, picture: (Int) -> String?) = { _, _ in ([:], "", { _ in nil }) }
+        var headerDrawings: (Int, Int) -> (shapes: [Int: (xml: String, behind: Bool)], rels: () -> String, picture: (Int) -> String?) = { _, _ in ([:], { "" }, { _ in nil }) }
         // Headers and footers: six stories per section after the six note separators.
         let hdd = fib.range(DocFib.fcPlcfHdd).flatMap { DocProps.plex(tbl, at: $0.fc, count: $0.lcb, size: 0) }
         func refs(section k: Int) -> String {
@@ -340,7 +341,8 @@ enum DocRead {
                 let hd = headerDrawings(a, b)
                 var hc = StoryContext(); hc.shapes = hd.shapes; hc.picture = hd.picture
                 extra.append(e("word/" + part, head + "<w:\(tag == "header" ? "hdr" : "ftr") \(ns)>" + story(a, b, hc) + "</w:\(tag == "header" ? "hdr" : "ftr")>"))
-                if !hd.rels.isEmpty { extra.append(e("word/_rels/" + part + ".rels", head + "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">" + hd.rels + "</Relationships>")) }
+                let partRels = hd.rels()   // after the story: its inline pictures add theirs while it is read
+                if !partRels.isEmpty { extra.append(e("word/_rels/" + part + ".rels", head + "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">" + partRels + "</Relationships>")) }
                 rels += "<Relationship Id=\"\(id)\" Type=\"\(relBase)\(tag)\" Target=\"\(part)\"/>"
                 types += "<Override PartName=\"/word/\(part)\" ContentType=\"\(ctBase)\(tag).xml\"/>"
                 x += "<w:\(tag)Reference w:type=\"\(type)\" r:id=\"\(id)\"/>"
@@ -457,6 +459,14 @@ enum DocRead {
             }
             return out
         }
+        // A header or footer with no drawn shapes can still hold inline pictures (a letterhead logo): they
+        // read from the Data stream and get the part's own relationships.
+        headerDrawings = { _, _ in
+            var hrels = ""
+            func add(_ bl: ArtBlip) -> String { let n = addMedia(bl); hrels += imageRel(n, bl.ext); return "rIdImg\(n)" }
+            let pic: (Int) -> String? = { off in DocArt.inline(data: dataStream, at: off, rid: { bl in add(bl) }) }
+            return ([:], { hrels }, pic)
+        }
         var mainShapes: [Int: (xml: String, behind: Bool)] = [:]
         if let dg = fib.range(50) {
             let art = DocArt.art(t: tbl, w: w, at: dg.fc, count: dg.lcb)
@@ -476,7 +486,7 @@ enum DocRead {
                     let mine = hspas.filter { hStart + $0.cp >= a && hStart + $0.cp < b }
                     let pic: (Int) -> String? = { off in DocArt.inline(data: dataStream, at: off, rid: { bl in add(bl) }) }
                     let runs = shapeRuns(mine, shift: hStart, art: art, boxes: hboxes, boxStart: boxStart + fib.ccpTxbx, add: add, pic: pic)
-                    return (runs, hrels, pic)
+                    return (runs, { hrels }, pic)
                 }
             }
         }
@@ -506,9 +516,11 @@ enum DocRead {
         let dflt = "<w:rFonts w:ascii=\"\(df)\" w:hAnsi=\"\(df)\" w:eastAsia=\"\(dfe)\" w:cs=\"\(df)\"/>"
         // Odd and even pages have their own headers when the document properties say so (the first flag of the DOP).
         let facing = fib.range(31).map { $0.fc < tbl.count && tbl[$0.fc] & 1 != 0 } ?? false
+        // (The DOP's default tab stop, dxaTab at byte 10, in twips: Word's tabs run on it; es-7289450bf2's 708 puts four tabs 2.4 pt short of 720's.)
+        let tabStop: Int? = fib.range(31).flatMap { $0.fc + 12 <= tbl.count && $0.lcb >= 12 ? Int(tbl[$0.fc + 10]) | Int(tbl[$0.fc + 11]) << 8 : nil }.flatMap { $0 > 0 && $0 != 720 ? $0 : nil }
         var settings: [ZipEntry] = []
-        if facing {
-            settings = [e("word/settings.xml", head + "<w:settings \(ns)><w:evenAndOddHeaders/></w:settings>")]
+        if facing || tabStop != nil {
+            settings = [e("word/settings.xml", head + "<w:settings \(ns)>" + (facing ? "<w:evenAndOddHeaders/>" : "") + (tabStop.map { "<w:defaultTabStop w:val=\"\($0)\"/>" } ?? "") + "</w:settings>")]
             rels += "<Relationship Id=\"rIdSet\" Type=\"\(relBase)settings\" Target=\"settings.xml\"/>"
             types += "<Override PartName=\"/word/settings.xml\" ContentType=\"\(ctBase)settings+xml\"/>"
         }

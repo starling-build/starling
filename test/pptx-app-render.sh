@@ -130,12 +130,21 @@ one() {
     printf '%s	ERROR	%s
 ' "$n" "$(echo "$out" | tail -1 | cut -c1-120)"; return
   fi
+  # Score reuse (slides-gate.sh): the base's pixel row for a PDF byte-identical to the base's, same reference print.
+  if [ -n "${REUSE_SHAS:-}" ]; then
+    local sha ref row
+    sha=$(sha1sum < "$WORK/pdf/$base.pdf" | cut -c1-40); ref=$(stat -L -c%s "$PPT/$base-orig.pdf" 2>/dev/null)
+    if grep -q "^$base	$sha	$ref\$" "$REUSE_SHAS"; then
+      row=$(grep -m1 "^$n	" "$REUSE_RENDER")
+      if [ -n "$row" ]; then echo "$base" >> "$WORK/reused.txt"; printf '%s\n' "$row"; return; fi
+    fi
+  fi
   s=$(eval "$DIFF_STR" '"$PPT/$base-orig.pdf" "$WORK/pdf/$base.pdf" "$WORK/pairs" 1' | tail -1)
   printf '%s	%s
 ' "$n" "$s"
 }
 export -f one
-export APP IN PPT WORK OFFICE_WEB
+export APP IN PPT WORK OFFICE_WEB REUSE_SHAS REUSE_RENDER
 export DIFF_STR; DIFF_STR=$(printf '%q ' "${DIFF[@]}")
 todo=()
 for n in "${names[@]}"; do
