@@ -163,7 +163,9 @@ struct SheetPrintMetrics {
             screenDigit: [12, 13, 15, 16, 18, 20, 23, 27, 30]),
         // Meiryo UI: the line pitch Excel prints (lab meiryoui-rows: 97, 109, 118, 131, 141, 164 dots at 8, 9, 10, 11, 12, 14 pt),
         // about 0.86 of Meiryo's; 10.5, 16 and 18 pt at the same ratio.
-        "meiryo ui": Face(digit: [37, 42, 46, 49, 57, 62, 73, 83, 93], row: [97, 109, 118, 127, 131, 141, 164, 186, 209], screenRow: [27, 33, 37, 38, 40, 44, 51, 62, 69],
+        // The screen rows of 16 and 18 pt step 3.5 px a point as 12 to 14 do (58, 65: ja-d9ac78f0cb's auto rows of 18 pt empty cells print 25.6 pt =
+        // 65 px; 69 made them 27.1 and the fit one percent short).
+        "meiryo ui": Face(digit: [37, 42, 46, 49, 57, 62, 73, 83, 93], row: [97, 109, 118, 127, 131, 141, 164, 186, 209], screenRow: [27, 33, 37, 38, 40, 44, 51, 58, 65],
             screenDigit: [12, 13, 15, 16, 18, 20, 23, 27, 30]),
         "ms gothic": Face(digit: [34, 38, 42, 44, 46, 50, 59, 67, 75], row: [77, 85, 93, 98, 102, 110, 127, 143, 160], screenRow: [25, 28, 32, 33, 34, 38, 43, 50, 56],
             screenDigit: [11, 12, 14, 14, 15, 16, 19, 22, 24]),

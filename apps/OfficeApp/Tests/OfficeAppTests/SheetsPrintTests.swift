@@ -185,3 +185,14 @@ extension SheetsPrintTests {
         XCTAssertFalse(dump.contains("w="))
     }
 }
+
+final class MeiryoUiBigRowsTests: XCTestCase {
+    /// Excel's print of ja-d9ac78f0cb: rows fitted to 18 pt Meiryo UI cells in an 11 pt book are 25.6 pt (65 screen px), not 27.1.
+    func testMeiryoUiLargeSizesFollowThePointStep() {
+        let d = SheetPrintMetrics.of(family: "Meiryo UI", size: 11)
+        let big = SheetPrintMetrics.of(family: "Meiryo UI", size: 18)
+        XCTAssertEqual(d.fittedRow(big), 65 * 72 / 192 * d.rowScale, accuracy: 0.01)
+        XCTAssertEqual(d.fittedRow(big), 25.55, accuracy: 0.05)
+        XCTAssertEqual(d.fittedRow(SheetPrintMetrics.of(family: "Meiryo UI", size: 16)), 58 * 72 / 192 * d.rowScale, accuracy: 0.01)
+    }
+}
