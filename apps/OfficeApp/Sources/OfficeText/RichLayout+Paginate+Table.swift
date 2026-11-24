@@ -362,7 +362,7 @@ extension RichLayout {
             if target >= 0 {
                 var moved: [PagePiece] = []
                 var edge = pgs.y
-                while let last = _pages[pgs.page].last, last.paragraph < pgs.i, _cells[last.paragraph] == nil, !last.repeated, _deferrable(document.paragraphs[last.paragraph]),
+                while let last = _pages[pgs.page].last, last.paragraph < pgs.i, _cells[last.paragraph] == nil, !last.repeated, _deferrable(document.paragraphs[last.paragraph], pageY: last.pageY, tableTop: target),
                       last.pageY >= target - _px(1) || edge - _px(document.paragraphs[last.paragraph].style.spaceAfter) - Self._multipleSlack(document.paragraphs[last.paragraph].style, last.paragraph < _heights.count ? _heights[last.paragraph] : 0) > target + 0.01 {
                     edge = last.pageY
                     moved.insert(_pages[pgs.page].removeLast(), at: 0)
@@ -1478,12 +1478,17 @@ extension RichLayout {
 }
 
 extension RichLayout {
-    /// A line the raised float would reach into that has something in it. An empty paragraph (no text, no picture)
-    /// stays where it is: moved under the table it can push the section's closing mark past the foot and leave a
-    /// blank page that Word does not print. dx2 9b7b98d205: a 4pt and an 11pt empty paragraph over a tblpY -496
-    /// table, 30 pages in ours and 28 in Word's print.
+    /// A line the raised float would reach into stands under it when it has something in it. An empty paragraph
+    /// (no text, no picture) stands under it only when the table's top lies within that paragraph (the raise is
+    /// less than the paragraph's own height): a raise that reaches up past the empty paragraph's top leaves it where
+    /// it is, because moved under the table it can push the section's closing mark past the foot and leave a blank
+    /// page Word does not print. dx2 9b7b98d205: a 4pt and an 11pt empty paragraph over a tblpY -496 table, 30 pages
+    /// in ours and 28 in Word's print; xb jpn-g11-40dd71: tblpY -55 (2.75pt) over its last empty paragraph, which
+    /// Word does set under the table.
     @inline(never)
-    func _deferrable(_ p: RichParagraph) -> Bool {
-        p.image != nil || !p.inlineImages.isEmpty || p.text.contains { $0 != " " }
+    func _deferrable(_ p: RichParagraph, pageY: Double, tableTop: Double) -> Bool {
+        if p.image != nil || !p.inlineImages.isEmpty || p.text.contains(where: { $0 != " " }) { return true }
+        return pageY <= tableTop + 0.01
     }
+
 }
