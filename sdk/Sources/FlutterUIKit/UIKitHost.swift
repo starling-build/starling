@@ -63,6 +63,8 @@ public final class UIKitHost {
             // Before the tree is mounted: a widget's initState may already want
             // to know whether this host has a keyboard to offer.
             UIKitSoftKeyboard.install()
+            // A removed view's builder and pipeline are let go of (the pipeline in the next frame).
+            fluikit_host_set_view_gone_handler({ _, id in releaseView(id: Int(id)) }, nil)
             let box = Unmanaged<Box>.fromOpaque(userData).takeUnretainedValue()
             // The second-surface spike (docs/plans/ipad-multi-window.md, step 1): with
             // STARLING_SPIKE_SECOND_VIEW set, the host adds a second view in a corner of
@@ -82,6 +84,13 @@ public final class UIKitHost {
                 }
             }
             runApp(box.builder())
+            TextInputChannel.keyViewChanged = { fluikit_text_input_host(Int64($0)) }
+            TextInputChannel.viewOrigin = { id in
+                var x = 0.0, y = 0.0
+                return fluikit_view_origin(Int64(id), &x, &y) ? (x, y) : nil
+            }
+            UIKitScriptedInput.runIfRequested()
+            UIKitSelfTest.runIfRequested()
         }, box)
         // UIApplicationMain only returns on a failure to launch at all, and the
         // glue has already said why on stderr.
@@ -95,6 +104,15 @@ public final class UIKitHost {
     }
 
     /// Gives the Swift bridge's own ICU the data. Safe to call more than once.
+    /// Brings extra view `id` (see `runView`) in front of the others in the window.
+    public static func raiseExtraView(_ id: Int) { fluikit_view_raise(Int64(id)) }
+
+    /// Brings the window (scene) that shows view `id` to the front; nothing if no window shows it.
+    public static func activateScene(_ id: Int) { fluikit_scene_activate(Int64(id)) }
+
+    /// Asks the system to close the window that shows view `id` (never the first window).
+    public static func closeScene(_ id: Int) { fluikit_scene_close(Int64(id)) }
+
     public static func initializeBridgeICU() {
         guard let path = icuDataPath else {
             FileHandle.standardError.write(

@@ -69,6 +69,12 @@ extension RichLayout {
     func _layoutParagraphBody(_ i: Int, _ p: RichParagraph, _ document: RichDocument) {
         let f = _ParaFrame(self, i, p, document)
         f.go()
+        // The float helpers go() builds capture the frame and are stored on it: a cycle that kept every
+        // laid-out paragraph's frame (its painter, its document) alive for good. Nothing reads them after
+        // go(); a copy a closure elsewhere took keeps working.
+        f._firstLine_ = nil
+        f._lineEndsAbove_ = nil
+        f._pushUnder_ = nil
     }
 
     /// The width (points) of a paragraph that is a single `w:fitText` group, nil otherwise.

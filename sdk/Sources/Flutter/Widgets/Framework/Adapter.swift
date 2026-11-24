@@ -165,9 +165,23 @@ public nonisolated(unsafe) var multiViewContentBuilder: ((FlutterView) -> Widget
 /// host adds the view (the tree is built on the first frame that sees the view).
 public nonisolated(unsafe) var viewContentBuilders: [Int: () -> Widget] = [:]
 
+/// The ids of the non-implicit views that have a pipeline and a tree right now (set when the frame loop builds
+/// one, cleared when it tears it down). For the host's self-test; nothing in the framework reads it.
+public nonisolated(unsafe) var liveSecondaryViewIds: [Int] = []
+
 /// Show `build()` in the view with id `id` once the engine has added it.
 public func runView(id: Int, _ build: @escaping () -> Widget) {
     viewContentBuilders[id] = build
+    FocusManager.instance.windowViewIds.insert(id)
+}
+
+/// The engine has removed view `id`: let go of what `runView` was given for it. A view that rendered has a
+/// pipeline too, which the next frame disposes (so one is asked for: an idle app has none coming); one that
+/// never rendered has only this builder, which holds whatever its tree captured.
+public func releaseView(id: Int) {
+    viewContentBuilders[id] = nil
+    FocusManager.instance.windowRemoved(id)
+    PlatformDispatcher.instance.scheduleFrame()
 }
 
 /// Called once per non-implicit view, right after its FIRST scene is
@@ -436,6 +450,8 @@ func _setupWidgetBinding(_ app: Widget) {
             let removedIds = secondaryPipelines.keys.filter { pd.view(id: $0) == nil }
             for id in removedIds {
                 viewContentBuilders[id] = nil
+                FocusManager.instance.windowRemoved(id)
+                liveSecondaryViewIds.removeAll { $0 == id }
                 if let sp = secondaryPipelines.removeValue(forKey: id) {
                     _ = RenderObjectToWidgetAdapter(child: nil, container: sp.renderView)
                         .attachToRenderTree(buildOwner, sp.rootElement)
@@ -486,9 +502,12 @@ func _setupWidgetBinding(_ app: Widget) {
                 rv.prepareInitialFrame()
                 let adapter = RenderObjectToWidgetAdapter(
                     child: content, container: rv)
+                FocusManager.instance.mountingViewId = id
                 let root = adapter.attachToRenderTree(buildOwner)
+                FocusManager.instance.mountingViewId = nil
                 secondaryPipelines[id] = SecondaryViewPipeline(
                     renderView: rv, pipelineOwner: po, rootElement: root)
+                liveSecondaryViewIds.append(id)
                 // try? — see the config-change write below: a failed
                 // diagnostic write must not be fatal.
                 try? FileHandle.standardError.write(contentsOf: Data(
@@ -518,8 +537,65 @@ func _setupWidgetBinding(_ app: Widget) {
             rootElement?.reassemble()
         }
 
+        // Multi-monitor: the frame pipeline of each secondary view. A function because it must also run when
+        // the first view has no size (below): a window whose first view is hidden - the iPad's native document
+        // browser covers it and it is never laid out - still has other windows to draw.
+        func drawSecondaryViews(forceComposite: Bool, updatedTextures: Set<Int64>) {
+            for sp in secondaryPipelines.values {
+                let fv = sp.renderView.flutterView
+                let newViewConfig = RenderViewConfiguration.fromView(fv)
+                if sp.renderView.configuration != newViewConfig {
+                    sp.renderView.configuration = newViewConfig
+                }
+                if sp.renderView.configuration.logicalConstraints.biggest == Size.zero {
+                    continue
+                }
+                let viewDirty = !sp.hasComposited
+                    || !sp.pipelineOwner._nodesNeedingLayout.isEmpty
+                    || !sp.pipelineOwner._nodesNeedingPaint.isEmpty
+                    || forceComposite
+                    || !updatedTextures.isDisjoint(with: sp.renderView.sceneTextureIds)
+                let svStart = frameLogNow()
+                sp.pipelineOwner.flushLayout()
+                sp.pipelineOwner.flushPaint()
+                if viewDirty {
+                    let first = !sp.hasComposited
+                    sp.hasComposited = true
+                    sp.renderView.compositeFrame()
+                    // A SECONDARY view's frame, on the same timeline as the
+                    // primary's above — a popup menu or a hosted file explorer
+                    // composites here and nowhere else, and a question like
+                    // "why did this path take an extra frame" cannot be answered
+                    // from the primary's line alone.
+                    if frameLogEnabled {
+                        let svEnd = DispatchTime.now().uptimeNanoseconds
+                        frameLogWrite("[frame] at=\(svStart / 1_000_000)ms"
+                            + " view=\(fv.viewId)"
+                            + " total=\((svEnd - svStart) / 1_000)us")
+                    }
+                    if first {
+                        // One line per view's life — the composite-side twin of
+                        // "pipeline created" above. A view that was created and
+                        // never composited, or composited into a surface that
+                        // shows nothing, are different failures; this line is
+                        // what tells them apart.
+                        try? FileHandle.standardError.write(contentsOf: Data(
+                            "[Adapter] view \(fv.viewId) first composite\n".utf8))
+                        multiViewFirstComposite?(fv.viewId)
+                    }
+                    multiViewComposited?(fv.viewId)
+                }
+            }
+        }
+
         // Skip rendering if the view has zero size (metrics not yet received)
         if renderView!.configuration.logicalConstraints.biggest == Size.zero {
+            // The other windows' trees still build, animate and draw.
+            TickerScheduler.shared.tick()
+            buildOwner.buildScopeWithCallback(rootElement!) {}
+            drawSecondaryViews(forceComposite: false, updatedTextures: [])
+            buildOwner.finalizeTree()   // also what disposes a view's tree torn down above
+            if secondaryPipelines.values.contains(where: { !$0.hasComposited }) { pd.scheduleFrame() }
             return
         }
 
@@ -605,50 +681,14 @@ func _setupWidgetBinding(_ app: Widget) {
         // first frame, a forced capture, or new content in an external
         // texture its scene shows) so a static output doesn't re-present
         // on every primary animation frame.
-        for sp in secondaryPipelines.values {
-            let fv = sp.renderView.flutterView
-            let newViewConfig = RenderViewConfiguration.fromView(fv)
-            if sp.renderView.configuration != newViewConfig {
-                sp.renderView.configuration = newViewConfig
-            }
-            if sp.renderView.configuration.logicalConstraints.biggest == Size.zero {
-                continue
-            }
-            let viewDirty = !sp.hasComposited
-                || !sp.pipelineOwner._nodesNeedingLayout.isEmpty
-                || !sp.pipelineOwner._nodesNeedingPaint.isEmpty
-                || forceComposite
-                || !updatedTextures.isDisjoint(with: sp.renderView.sceneTextureIds)
-            let svStart = frameLogNow()
-            sp.pipelineOwner.flushLayout()
-            sp.pipelineOwner.flushPaint()
-            if viewDirty {
-                let first = !sp.hasComposited
-                sp.hasComposited = true
-                sp.renderView.compositeFrame()
-                // A SECONDARY view's frame, on the same timeline as the
-                // primary's above — a popup menu or a hosted file explorer
-                // composites here and nowhere else, and a question like
-                // "why did this path take an extra frame" cannot be answered
-                // from the primary's line alone.
-                if frameLogEnabled {
-                    let svEnd = DispatchTime.now().uptimeNanoseconds
-                    frameLogWrite("[frame] at=\(svStart / 1_000_000)ms"
-                        + " view=\(fv.viewId)"
-                        + " total=\((svEnd - svStart) / 1_000)us")
-                }
-                if first {
-                    // One line per view's life — the composite-side twin of
-                    // "pipeline created" above. A view that was created and
-                    // never composited, or composited into a surface that
-                    // shows nothing, are different failures; this line is
-                    // what tells them apart.
-                    try? FileHandle.standardError.write(contentsOf: Data(
-                        "[Adapter] view \(fv.viewId) first composite\n".utf8))
-                    multiViewFirstComposite?(fv.viewId)
-                }
-                multiViewComposited?(fv.viewId)
-            }
+        drawSecondaryViews(forceComposite: forceComposite, updatedTextures: updatedTextures)
+
+        // A view whose tree was just built has had no frame of its own: keep asking for frames until every
+        // secondary view has been composited once. An idle primary view asks for none, and the engine's request
+        // made while the pipeline was being created is cleared above, so a window opened over a quiet screen
+        // stayed blank until something else repainted (found by the iOS multi-view self-test, 2026-11-23).
+        if secondaryPipelines.values.contains(where: { !$0.hasComposited }) {
+            pd.scheduleFrame()
         }
 
         // End of frame: unmount everything deactivated during this build.
@@ -766,6 +806,13 @@ func _setupWidgetBinding(_ app: Widget) {
                 targetView = secondaryPipelines[event.viewId]?.renderView
             }
             guard let eventView = targetView else { continue }
+            // A view the engine has just added has a tree and no layout until its first frame; a touch that
+            // lands in that gap (UIKit delivers to the UIView at once) must not hit-test a box without a size.
+            if let child = eventView.child, !child.hasSize { continue }
+            // A touch in a window makes it the one the keys go to (its own focused node keeps its focus).
+            if event is PointerDownEvent { FocusManager.instance.viewTouched(event.viewId) }
+            FocusManager.instance.dispatchingViewId = event.viewId
+            defer { FocusManager.instance.dispatchingViewId = nil }
 
             var hitTestResult: HitTestResult? = nil
 

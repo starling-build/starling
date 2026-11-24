@@ -105,6 +105,119 @@ A Stage Manager window can sit on an external display with another scale and ref
 (`addView` carries it); the single frame clock follows the display link of the key scene. Accessibility (one
 bridge per engine today) and iOS platform views are out of scope here.
 
+## Step 4 findings: what a second window's input reaches today (code read, 2026-11-23)
+
+Read from the code, then measured with the `STARLING_SPIKE_INPUT` driver (`UIKitScriptedInput.swift`: a script of tap/drag/type/key lines injected per view id from inside the app, no Mac mouse involved).
+
+- **Touches: fine.** Each touch becomes a pointer with `device = the UITouch's address`, so two windows touched at
+  once cannot collide, and the packet converter numbers them. The framework already hit-tests by view id
+  (`RenderingBinding.hitTestInView` -> `_viewIdToRenderView[viewId]`).
+- **Focus: ONE global node.** `FocusManager.instance.focusedNode` is a single `FocusNode?`; `_setFocus` tells the old
+  node it lost focus and the new one it gained it, whichever window each is in. So tapping a text box in window B
+  blurs the caret in window A (and `SoftKeyboard.focusMoved()` may dismiss the keyboard). The plan's "one focus
+  scope per view" is therefore not a refinement but the fix: `focusedNode` becomes per view id, plus a "key view"
+  (the one whose scene is active / last touched) that `dispatchKeyData` routes to.
+  `FocusNode.requestFocus()` takes no context, so a node needs its view: set it from the pointer event being
+  dispatched (`event.viewId`) or from the view whose tree is building (`autofocus` at mount); `FocusNode` is a
+  ~40-line stub (no scopes), so this is a small change.
+- **Soft-keyboard text: ONE responder, in view 0.** `fluikit_keyboard_attach` adds a single `FlUIKitKeyInputView`
+  to the first controller's view (`g_key_view`); `show` makes it first responder; every keystroke reaches
+  `UIKitSoftKeyboard._post` -> `PlatformDispatcher.onKeyData` -> `FocusManager.dispatchKeyData` -> whichever node is
+  focused. Works for a second window by accident while its node is the focused one. Needed: `show(viewId)` moves
+  the responder into that view's host `UIView` (it must stay inside the Flutter view so hardware keys still reach
+  the engine), and the key view follows.
+- **Hardware keys: view 0 only.** UIPresses go up the responder chain to the `FlutterViewController`; an extra
+  view's `UIView` has no controller, so with the responder inside it a Magic Keyboard types nothing. `FlUIKitExtraView`
+  needs `pressesBegan/Ended` forwarding to the engine's keyboard manager. `KeyData` carries no view id; routing by
+  "key view" (above) is the whole story.
+- **Keyboard insets: view 0 only.** `FlutterViewController` turns the keyboard frame into `viewInsets` for the
+  implicit view. An extra view needs the keyboard frame intersected with its own frame in window coordinates and
+  sent through `SetViewportMetrics(viewId, ...)`, else a lower window's caret hides behind the keyboard.
+- **Text: the plugin channel, one client at a time (revised after measuring).** An editor attached to the
+  text-input plugin takes its characters from `flutter/textinput`, not from key events (`RichEditable` declines
+  them), and that channel has one listener and one client id: `TextInputChannel.listen` replaces the owner. That
+  is Flutter's own model (one active client), and it turns out to serve two windows: the tap that focuses an
+  editor in window B attaches B's connection, B's `setClient` replaces A's, and typing goes to B.
+  **Measured** with the driver (`STARLING_SPIKE_INPUT`, 2026-11-23, simulator, ex.docx in view 0 and sa2.docx in
+  view 1): alternating tap+type view 1, view 0, view 1, view 0 put each text in the document that was tapped, four
+  of four. The one failure seen was a tap at 2 s after launch, before view 1 had laid out: its text went to view 0.
+  What stays view-0-only is the geometry the plugin is told (`setCaretRect`/editable transform are in view 0's
+  coordinates: wrong for the IME candidate window and the system's loupe in window B) and the native toolbar.
+- **The edit menu / toolbar:** per window already (`OfficeScene`, step 4a), but the host side
+  (`OfficeNativeShell`) still installs on `OfficeScene.main` only; a second window's scene needs its own native
+  toolbar hosted over its own view.
+- **Lifecycle:** untouched so far (see above).
+
+## Step 4 status (2026-11-23 night; PR #2587)
+
+Done and measured in the simulator with the in-app driver (no unit tests: the iPad session is exempt):
+
+- **Idle first view:** a view added over a quiet or hidden first view got no first frame, and a touch before its first
+  layout crashed in hit-test. Fixed in `Adapter.swift`; `test/ios-selftest.sh` (STARLING_SELFTEST=multiview, 9 checks)
+  is the regression check, 9/9 idle and with a document open, heap growth ~0 MB over 20 add/remove cycles.
+- **Keyboard insets per view:** `fluikit_view_add/resize/remove` watch the keyboard frame (docked only) and send each
+  view its own overlap through the engine's `insetBottom` resize. A 520x1000 view reads 219 px with view 0 at 809 px.
+- **Caret geometry:** `TextInputChannel.windowTransform(of:)` adds the view's origin (hook `viewOrigin`); view 1's
+  editable origin is 492,302, view 0's 0,222.
+- **Toolbar and edit menu:** `connectNativeHooks(scene, viewId:)` in main.swift wires both windows; the edit menu is
+  offset by the view's origin; the bar is one for the screen and follows the window last touched (`OfficeScene.activate`).
+- **Lifecycle:** `OfficeScene.flushPendingSaves` (Writer/Slides AutoSave body, Sheets write-to-own-file) runs for every
+  window when the app goes to the background. Proven with OFFICE_AUTOSAVE_DELAY_MS=60000: file untouched after typing,
+  rewritten within a second of backgrounding. View 1's frames stop in the background and resume (sim; not shown on a device).
+- **Hardware keys, focus:** key events carry no view id and reach the one global `FocusManager`, so keys follow the
+  editor last tapped; with a plugin client attached they arrive through the text-input view, which is first responder.
+  NOT verified: a Magic Keyboard (the simulator needs the Mac's keyboard, which a test run may not drive), and the
+  case with no text client attached while the responder sits in view 0. Per-view focus scopes are still the plan's
+  fix for "typing in B blurs A's caret".
+
+## Step 5 status (2026-11-24; PR #2587)
+
+Scenes are ON for Office (`MULTI_SCENES` in `build/ios-app.sh`; `UIApplicationSupportsMultipleScenes` plus
+`NSUserActivityTypes`). Other iOS apps stay single-scene.
+
+- **Scene = engine view.** The first scene is view 0 (the engine's implicit view); each later scene gets the next
+  id (`g_next_scene_view`), a `FlUIKitSceneEditorViewController` that places the view at the safe-area frame, and
+  its own `OfficeScene` + `OfficeNativeShell` (browser, editor, toolbar, edit menu, write-back, endSession).
+  `sceneConnected(viewId)` runs before the root factory; `sceneDisconnected(viewId)` flushes pending saves, then
+  the view is removed. View 0's tree cannot be removed (implicit view): its document claim is released instead.
+- **Focus scopes.** `FocusManager` has one scope per window (`runView`); a node takes its scope from the view its
+  owner is MOUNTED in (`State.bind`, walking to the `RenderView`), not from whoever first asks for focus, so a late
+  async request lands in its own window. `keys=` in the driver report is the key scope; touching a window makes it
+  the key scope and moves the text-input hider there (`fluikit_text_input_host`, engine patch
+  `starlingHostView`). `STARLING_FOCUS_LOG=1` traces each request: bound view, scope, windows, key scope.
+  Measured: two windows, taps and typing alternating (AA/BB/CC/DD), each document got only its own text.
+- **One document, one window.** A document's identity is its original URL; a second open of a file already in a
+  window raises that window (`focusIfOpen` -> `fluikit_scene_activate`) instead of opening it again.
+- **Entry points.** "Open in New Window" is a `UIDocumentBrowserAction`; `scene:openURLContexts:` and
+  `connectionOptions.userActivities` hand a URL to the scene's shell. Test hooks: `OFFICE_NEW_WINDOW_AFTER=<ms>[:<path>]`,
+  `OFFICE_OPEN_AFTER`, `STARLING_CLOSE_RESTORED_WINDOWS=1` (the simulator restores the last run's windows blank).
+- **Toolbar.** One format bar per window; each shows only while its window is the key window.
+
+NOT verified: Magic Keyboard (real iPad list), drag-out, state restoration, Save As per scene, 50 open/close
+cycles on a device, frames stopping when a scene is backgrounded on a device.
+
+## Step 5 follow-up (2026-11-24; PR #2587)
+
+- **Focus scope comes from the element chain.** A `FocusNode` took its window from the render tree's root view; a
+  focus request made in `initState` (before the element is attached) had no render object, so the node stayed in
+  scope 0 and typing went to window 0. `State.bind` now falls back to walking the element chain to the
+  `RenderObjectToWidgetAdapter`. Single-view: the walk returns view 0, as before. `STARLING_FOCUS_LOG=1` traces
+  which scope a touch moves the keys to. The hold/replay of early keys was tried and removed: clients attach at
+  touch-down, so nothing arrives in between. The driver's lost keystrokes at 0.1 s are the capacity-1 textinput
+  channel buffer being evicted by `onConnectionClosed`, not routing.
+- **A closed window is released.** `releaseView(id:)` drops the builder and the focus scope and schedules a frame;
+  the iOS host calls it after the engine has removed the view (`fluikit_host_set_view_gone_handler`).
+- **Leak.** Laid-out paragraph frames were kept alive by closures they stored on themselves (fixed in
+  `RichLayout+Paragraph.swift`): +5.5 MB per window open/close cycle became +0.8 MB. Still open: one
+  `RichDocumentController` per closed document window is retained by something outside the session, shell, editor
+  and layout (all freed). `OFFICE_WINDOW_CYCLES=<n>[:<path>]` and `OFFICE_HEAP_DUMP=<dir>` find it (live counts in
+  the `[cycle]` line, class histogram diff).
+- **Save As is per window.** `OfficeNativeShell.export` goes to `shells[viewId]` and presents over that window's own
+  editor; `OFFICE_EXPORT_AFTER=<ms>:<viewId>` drives it. Seen in the simulator in Split View: the picker covers
+  the window of view 1 only.
+- Not seen: Magic Keyboard, drag-out to a new window, state restoration across relaunch, the browser's "Open in
+  New Window" button tap (only the env path), claim across real scenes, frames stopping when backgrounded.
+
 ## Recommendation and order
 
 Option B, in the reviewed order. Multiple scenes stay OFF (`UIApplicationSupportsMultipleScenes` = NO)

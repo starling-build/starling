@@ -872,30 +872,232 @@ let siteArg: String? = {
 // that file straight into the editor, as before — the way the simulator is
 // driven without a touch route.
 #if os(iOS)
-Clipboard.provider = IOSClipboardProvider()
-#endif
-if initialPath == nil && siteArg == nil && wikiBase == nil {
-    OfficeNativeShell.install()
-    OfficeNativeShell.onOpenDocument = { OfficeHost.openPath?($0) }
-    OfficeNativeShell.makeBlank = { OfficeHost.writeBlank(kind: $0, to: $1) }
-    OfficeHost.documentSaved = { OfficeNativeShell.documentSaved($0) }
-    OfficeHost.openRequested = { OfficeNativeShell.showBrowser(); return true }
-    hostPrintPDF = { path in DispatchQueue.main.async { OfficeNativeShell.printPDF(path) } }
-    OfficeHost.exportRequested = { name, prepare, thenOpen, done in
-        OfficeNativeShell.export(name: name, prepare: prepare, thenOpen: thenOpen, done: done)
-    }
-    OfficeHost.editMenuRequested = { x, y, w, h, items, text in
-        OfficeNativeShell.showEditMenu(CGRect(x: x, y: y, width: w, height: h),
+/// What every window's scene shares of the native shell: the saved-file notice, the edit menu and the formatting
+/// bar over the keyboard. `viewId` is the Flutter view the window draws in; the edit menu's rect arrives in that view's
+/// coordinates and the menu lives in the window's, so it is moved by the view's place there. The bar is one for the
+/// screen: the editor that published last (the one the user is working in) owns it.
+func connectNativeHooks(_ scene: OfficeScene, viewId: Int) {
+    let log = ProcessInfo.processInfo.environment["OFFICE_HOST_LOG"] != nil
+    OfficeScene.byView[viewId] = scene
+    scene.documentSaved = { OfficeNativeShell.documentSaved($0, viewId: viewId) }
+    scene.editMenuRequested = { x, y, w, h, items, text in
+        let o = viewId == 0 ? nil : TextInputChannel.viewOrigin?(viewId)
+        let rect = CGRect(x: x + (o?.x ?? 0), y: y + (o?.y ?? 0), width: w, height: h)
+        if log { fputs("[office] view \(viewId) edit menu at \(rect.origin.x),\(rect.origin.y)\n", stderr) }
+        OfficeNativeShell.showEditMenu(rect,
                                        items: items.map { OfficeEditMenuItem(title: $0.title, symbol: $0.symbol,
                                                                               isEnabled: $0.isEnabled, action: $0.action) },
-                                       text: text)
+                                       text: text, viewId: viewId)
     }
-    OfficeHost.editMenuDismissed = { OfficeNativeShell.showEditMenu(nil, items: [], text: nil) }
-    OfficeHost.toolbarChanged = { buttons in
+    scene.editMenuDismissed = { OfficeNativeShell.showEditMenu(nil, items: [], text: nil, viewId: viewId) }
+    scene.toolbarChanged = { buttons in
+        if log { fputs("[office] view \(viewId) toolbar: \(buttons.map { "\($0.count) buttons" } ?? "withdrawn")\n", stderr) }
         OfficeNativeShell.setToolbar(buttons?.map {
             OfficeToolbarButton(id: $0.id, title: $0.title, symbol: $0.symbol,
                                 isOn: $0.isOn, isEnabled: $0.isEnabled, action: $0.action)
-        })
+        }, viewId: viewId)
+    }
+    // Bringing this window forward: the system's scene if it is one, else (a test host) its view in the window.
+    scene.raise = {
+        UIKitHost.activateScene(viewId)
+        UIKitHost.raiseExtraView(viewId)
+    }
+    // A window with a native browser takes Open and Export over; one without (a test host's) keeps the editor's own.
+    scene.openRequested = {
+        guard OfficeNativeShell.hasShell(viewId) else { return false }
+        OfficeNativeShell.showBrowser(viewId: viewId)
+        return true
+    }
+    scene.exportRequested = { name, prepare, thenOpen, done in
+        OfficeNativeShell.export(name: name, prepare: prepare, thenOpen: thenOpen, viewId: viewId, done: done)
+    }
+}
+#endif
+
+#if os(iOS)
+Clipboard.provider = IOSClipboardProvider()
+// iPadOS may end an app it has put in the background: every window writes what it has not saved yet first.
+_ = NotificationCenter.default.addObserver(forName: Notification.Name("UIApplicationDidEnterBackgroundNotification"), object: nil, queue: .main) { _ in
+    fputs("[office] background: saving every window's pending edits\n", stderr)
+    OfficeScene.flushAll()
+}
+#endif
+if initialPath == nil && siteArg == nil && wikiBase == nil {
+    OfficeNativeShell.install()
+    OfficeNativeShell.onOpenDocument = { path, viewId in OfficeScene.byView[viewId]?.requestOpen(path) }
+    OfficeScene.originalOf = { OfficeNativeShell.originalPath(forWorking: $0) }
+    // One document, one window: a file another window than the main one has is shown by bringing that window forward.
+    OfficeNativeShell.focusIfOpen = { path, viewId in
+        guard let held = OfficeScene.holding(path, besides: OfficeScene.byView[viewId]) else { return false }
+        if ProcessInfo.processInfo.environment["OFFICE_HOST_LOG"] != nil { fputs("[office] open \((path as NSString).lastPathComponent): already open in another window, bringing it forward\n", stderr) }
+        held.focusWindow()
+        return true
+    }
+    OfficeNativeShell.makeBlank = { OfficeHost.writeBlank(kind: $0, to: $1) }
+    connectNativeHooks(OfficeScene.main, viewId: 0)
+    hostPrintPDF = { path in DispatchQueue.main.async { OfficeNativeShell.printPDF(path) } }
+    // A window the system makes beyond the first (Stage Manager, Open in New Window): a scene of its own with its
+    // own tree, shown in the engine view the host has given it.
+    OfficeNativeShell.sceneConnected = { viewId in
+        let scene = OfficeScene()
+        connectNativeHooks(scene, viewId: viewId)
+        runView(id: viewId) { OfficeSceneScope(scene: scene, child: OfficeRoot(initialPath: nil, kind: .document)) }
+    }
+    // The system dropped a window: what it had not saved is written first, and its claim on its file is released.
+    OfficeNativeShell.sceneDisconnected = { viewId in
+        guard let scene = OfficeScene.byView[viewId] else { return }
+        scene.flushPendingSaves()
+        if viewId != 0 { OfficeScene.byView[viewId] = nil } else { scene.releaseDocument() }
+        fputs("[office] window \(viewId) closed\n", stderr)
+    }
+}
+#endif
+
+#if os(iOS)
+// The second-window test host (docs/plans/ipad-multi-window.md, step 4): OFFICE_SECOND_VIEW_DOC=<path> shows
+// that document in view 1, in a scene of its own (STARLING_SPIKE_SECOND_VIEW=1 adds the view, STARLING_SPIKE_VIEW_W/H
+// size it). Off unless asked; the real entry points are step 5.
+if let second = ProcessInfo.processInfo.environment["OFFICE_SECOND_VIEW_DOC"], !second.isEmpty {
+    let scene = OfficeScene()
+    connectNativeHooks(scene, viewId: 1)
+    scene.raise = { UIKitHost.raiseExtraView(1) }
+    runView(id: 1) {
+        OfficeSceneScope(scene: scene, child: OfficeRoot(initialPath: second, kind: DocumentKind.kind(forPath: second)))
+    }
+}
+// OFFICE_OPEN_AFTER=<ms>:<path> asks for that file through the browser's entry point after a delay (a test, no screen).
+if let spec = ProcessInfo.processInfo.environment["OFFICE_OPEN_AFTER"], let colon = spec.firstIndex(of: ":"),
+   let ms = Int(spec[..<colon]) {
+    let path = String(spec[spec.index(after: colon)...])
+    DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(ms)) { OfficeNativeShell.open(URL(fileURLWithPath: path)) }
+}
+// A heap histogram for the leak hunt (OFFICE_HEAP_DUMP=<dir>): every live malloc block, grouped by the symbol its
+// first word points at (a Swift or ObjC object's class) or else by size; written as "count bytes key" lines.
+// The blocks are collected into a preallocated buffer first (allocating inside the enumerator would change the
+// heap being walked), and read with vm_read_overwrite so a block freed meanwhile cannot crash the walk.
+private nonisolated(unsafe) var heapRanges: UnsafeMutablePointer<(UInt, UInt)>? = nil
+private nonisolated(unsafe) var heapRangeCount = 0
+private let heapRangeCapacity = 6_000_000
+
+func dumpHeapHistogram(to path: String) {
+    heapRanges = UnsafeMutablePointer<(UInt, UInt)>.allocate(capacity: heapRangeCapacity)
+    heapRangeCount = 0
+    var zones: UnsafeMutablePointer<vm_address_t>?
+    var zoneCount: UInt32 = 0
+    _ = malloc_get_all_zones(mach_task_self_, { _, addr, _, out in out?.pointee = UnsafeMutableRawPointer(bitPattern: addr); return KERN_SUCCESS }, &zones, &zoneCount)
+    guard let zones else { return }
+    for i in 0..<Int(zoneCount) {
+        guard let zone = UnsafeMutablePointer<malloc_zone_t>(bitPattern: zones[i]), let intro = zone.pointee.introspect,
+              let enumerate = intro.pointee.enumerator else { continue }
+        _ = enumerate(mach_task_self_, nil, UInt32(MALLOC_PTR_IN_USE_RANGE_TYPE), vm_address_t(bitPattern: zone),
+                      { _, addr, size, out in out?.pointee = UnsafeMutableRawPointer(bitPattern: addr); return KERN_SUCCESS },
+                      { _, _, _, ranges, count in
+                          guard let ranges, let buffer = heapRanges else { return }
+                          for j in 0..<Int(count) where heapRangeCount < heapRangeCapacity {
+                              buffer[heapRangeCount] = (UInt(ranges[j].address), UInt(ranges[j].size)); heapRangeCount += 1
+                          }
+                      })
+    }
+    var groups: [String: (Int, Int)] = [:]
+    for j in 0..<heapRangeCount {
+        let (addr, size) = heapRanges![j]
+        var key = "size:\(size)"
+        if size >= 16, size <= 65536 {
+            var word: UInt = 0
+            var got: vm_size_t = 0
+            let kr = withUnsafeMutablePointer(to: &word) { vm_read_overwrite(mach_task_self_, vm_address_t(addr), 8, vm_address_t(UInt(bitPattern: $0)), &got) }
+            if kr == KERN_SUCCESS, word > 0x10000 {
+                var info = Dl_info()
+                if dladdr(UnsafeRawPointer(bitPattern: word), &info) != 0, let name = info.dli_sname,
+                   let base = info.dli_saddr, UInt(bitPattern: base) == word { key = "obj:" + String(cString: name) }
+            }
+        }
+        let old = groups[key] ?? (0, 0)
+        groups[key] = (old.0 + 1, old.1 + Int(size))
+    }
+    heapRanges!.deallocate(); heapRanges = nil
+    var text = ""
+    for (key, value) in groups.sorted(by: { $0.value.1 > $1.value.1 }) { text += "\(value.0) \(value.1) \(key)\n" }
+    try? text.write(toFile: path, atomically: true, encoding: .utf8)
+}
+
+private final class WeakBox { weak var value: OfficeScene?; init(_ v: OfficeScene) { value = v } }
+// OFFICE_WINDOW_CYCLES=<n>:<path> opens a window on that file and closes it again, n times, 3 s apart (a test of
+// the scene lifecycle: flush, unmount, the claim on the file; the heap is logged after each close).
+if let spec = ProcessInfo.processInfo.environment["OFFICE_WINDOW_CYCLES"] {
+    let parts = spec.split(separator: ":", maxSplits: 1).map(String.init)
+    if let count = Int(parts[0]) {
+        // "<n>:" with no path cycles windows that show only the browser (no document): tells a window leak from a document leak.
+        let url: URL? = parts.count == 2 && !parts[1].isEmpty ? URL(fileURLWithPath: parts[1]) : nil
+        nonisolated(unsafe) var watched: [(Int, WeakBox)] = []
+        func heapMB() -> Double {
+            var info = mach_task_basic_info(); var size = mach_msg_type_number_t(MemoryLayout<mach_task_basic_info>.size / MemoryLayout<natural_t>.size)
+            let kr = withUnsafeMutablePointer(to: &info) { $0.withMemoryRebound(to: integer_t.self, capacity: Int(size)) { task_info(mach_task_self_, task_flavor_t(MACH_TASK_BASIC_INFO), $0, &size) } }
+            return kr == KERN_SUCCESS ? Double(info.resident_size) / 1_048_576 : -1
+        }
+        func mallocMB() -> Double {
+            var s = malloc_statistics_t(); malloc_zone_statistics(nil, &s); return Double(s.size_in_use) / 1_048_576
+        }
+        func footprintMB() -> Double {
+            var info = task_vm_info_data_t(); var size = mach_msg_type_number_t(MemoryLayout<task_vm_info_data_t>.size / MemoryLayout<natural_t>.size)
+            let kr = withUnsafeMutablePointer(to: &info) { $0.withMemoryRebound(to: integer_t.self, capacity: Int(size)) { task_info(mach_task_self_, task_flavor_t(TASK_VM_INFO), $0, &size) } }
+            return kr == KERN_SUCCESS ? Double(info.phys_footprint) / 1_048_576 : -1
+        }
+        func cycle(_ n: Int) {
+            guard n <= count else { return }
+            let before = Set(OfficeScene.byView.keys)
+            OfficeNativeShell.openInNewWindow(url)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) {
+                if let id = Set(OfficeScene.byView.keys).subtracting(before).max() {
+                    fputs("[cycle] \(n): window \(id) open, document \(OfficeScene.byView[id]?.documentPath ?? "none"), rss \(heapMB()) MB\n", stderr)
+                    if let s = OfficeScene.byView[id] { watched.append((id, WeakBox(s))) }
+                    UIKitHost.closeScene(id)
+                } else { fputs("[cycle] \(n): no window appeared\n", stderr) }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+                    if let dir = ProcessInfo.processInfo.environment["OFFICE_HEAP_DUMP"], n == 2 || n == count { dumpHeapHistogram(to: "\(dir)/heap-\(n).txt") }
+                    fputs("[cycle] \(n): closed, windows \(OfficeScene.byView.keys.sorted()), rss \(heapMB()) MB, footprint \(footprintMB()) MB, malloc in use \(mallocMB()) MB, live \(LeakProbe.live.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value)" }.joined(separator: " ")), browsers \(OfficeNativeShell.liveBrowsers), closed scenes still alive: \(watched.filter { $0.1.value != nil }.map { $0.0 })\n", stderr)
+                    cycle(n + 1)
+                }
+            }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 8) { cycle(1) }
+    }
+}
+// OFFICE_NEW_WINDOW_AFTER=<ms>[:<path>] asks for a new window (showing that file) through the same call as the
+// browser's "Open in New Window", after a delay (a test: no screen to drive).
+// OFFICE_EXPORT_AFTER=<ms>:<viewId> asks that window to Save As (a small text file) the way its Export does, so a
+// test can see the picker come up over that window and no other.
+if let spec = ProcessInfo.processInfo.environment["OFFICE_EXPORT_AFTER"] {
+    let parts = spec.split(separator: ":").map(String.init)
+    if parts.count == 2, let ms = Int(parts[0]), let view = Int(parts[1]) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(ms)) {
+            OfficeNativeShell.export(name: "export-test.txt", prepare: { path, ok in
+                ok((try? "export from view \(view)".write(toFile: path, atomically: true, encoding: .utf8)) != nil)
+            }, thenOpen: false, viewId: view) { name in fputs("[export] view \(view) done: \(name ?? "cancelled")\n", stderr) }
+        }
+    }
+}
+// OFFICE_BROWSER_ACTION_AFTER=<ms>:<viewId>:<path>[,...] runs window <viewId>'s browser "Open in New Window" action on
+// that file, after a delay, and logs the windows before and two seconds after.
+if let specs = ProcessInfo.processInfo.environment["OFFICE_BROWSER_ACTION_AFTER"] {
+    for spec in specs.split(separator: ",") {
+        let parts = spec.split(separator: ":", maxSplits: 2).map(String.init)
+        guard parts.count == 3, let ms = Int(parts[0]), let view = Int(parts[1]) else { continue }
+        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(ms)) {
+            let before = OfficeScene.byView.keys.sorted()
+            OfficeNativeShell.runNewWindowAction(viewId: view, url: URL(fileURLWithPath: parts[2]))
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                let docs = OfficeScene.byView.sorted { $0.key < $1.key }.map { "\($0.key)=\(($0.value.documentPath as NSString?)?.lastPathComponent ?? "none")" }
+                fputs("[action] view \(view) Open in New Window \((parts[2] as NSString).lastPathComponent): windows \(before) -> \(OfficeScene.byView.keys.sorted()), documents \(docs)\n", stderr)
+            }
+        }
+    }
+}
+if let spec = ProcessInfo.processInfo.environment["OFFICE_NEW_WINDOW_AFTER"] {
+    let parts = spec.split(separator: ":", maxSplits: 1).map(String.init)
+    if let ms = Int(parts[0]) {
+        let url = parts.count > 1 ? URL(fileURLWithPath: parts[1]) : nil
+        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(ms)) { OfficeNativeShell.openInNewWindow(url) }
     }
 }
 #endif

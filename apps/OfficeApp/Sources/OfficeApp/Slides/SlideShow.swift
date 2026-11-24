@@ -77,6 +77,7 @@ final class SlideShowState: State<StatefulWidget>, TickerProvider {
 
     override func initState() {
         super.initState()
+        bind(_focus)
         let deck = _w.deck
         _order = deck.slides.indices.filter { !deck.slides[$0].hidden }
         if _order.isEmpty { _order = Array(deck.slides.indices) }

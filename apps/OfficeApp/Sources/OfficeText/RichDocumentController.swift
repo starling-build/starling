@@ -192,6 +192,7 @@ private struct UndoEntry {
 
 /// Owns a `RichDocument`, its selection, and the undo history.
 public final class RichDocumentController: ChangeNotifier {
+    private let _leakProbe = LeakProbe("RichDocumentController")
     public private(set) var document: RichDocument
 
     /// Set directly to move the caret without an edit (clicks, arrows).

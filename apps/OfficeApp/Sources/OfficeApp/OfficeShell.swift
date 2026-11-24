@@ -46,6 +46,7 @@ final class OfficeShell: StatefulWidget {
 }
 
 final class OfficeShellState: State<StatefulWidget> {
+    private let _leakProbe = LeakProbe("OfficeShellState")
     let session = OfficeSession()
     private var _tab = RibbonTab.home
     private var _ribbonCollapsed = false
@@ -90,8 +91,11 @@ final class OfficeShellState: State<StatefulWidget> {
     override func initState() {
         super.initState()
         OfficeFonts.register()
+        bind(_editorFocus)
+        trackDocumentPath(session)
         _recent = _loadRecent()
         _wireSession()
+        officeScene.registerFlush(owner: self) { [weak self] in self?._autosaveNow() }
         controller.addListener({ [weak self] in self?._publishToolbar() }, owner: self)
         _publishToolbar()
         // `starling.debug('layout')` from the browser's console or a script:
@@ -183,11 +187,11 @@ final class OfficeShellState: State<StatefulWidget> {
     /// state: the same questions the ribbon asks. Nothing happens on a platform
     /// with no such toolbar.
     private func _publishToolbar() {
-        guard OfficeHost.toolbarChanged != nil else { return }
+        guard officeScene.toolbarChanged != nil else { return }
         let c = controller
         let style = c.currentCharStyle
         let list = c.document.paragraphs[min(c.selection.focus.paragraph, c.document.paragraphs.count - 1)].style.list
-        OfficeHost.publishToolbar(.init(
+        officeScene.publishToolbar(.init(
             canUndo: c.canUndo, canRedo: c.canRedo,
             bold: style.bold, italic: style.italic, underline: style.underline,
             hasLists: true, list: list,
@@ -197,7 +201,9 @@ final class OfficeShellState: State<StatefulWidget> {
     }
 
     override func dispose() {
-        OfficeHost.publishToolbar(nil, owner: self)
+        officeScene.publishToolbar(nil, owner: self)
+        officeScene.unregisterFlush(owner: self)
+        officeScene.setDocumentPath(nil, owner: self)
         _search.dispose()
         _findQuery.dispose()
         _findReplacement.dispose()
@@ -298,8 +304,8 @@ final class OfficeShellState: State<StatefulWidget> {
             #else
             // A host with its own document browser (the iPad's) takes Open;
             // unsaved edits still get Backstage's prompt first.
-            if OfficeHost.openRequested != nil {
-                self.session.replacing { _ = OfficeHost.openRequested?() }
+            if officeScene.openRequested != nil {
+                self.session.replacing { _ = self.officeScene.openRequested?() }
                 return
             }
             self.setState { self._backstage = .open }
@@ -314,7 +320,7 @@ final class OfficeShellState: State<StatefulWidget> {
             #else
             // A host with its own picker (the iPad's) names and places the
             // copy, and the editor carries on in it.
-            if let ask = OfficeHost.exportRequested {
+            if let ask = officeScene.exportRequested {
                 let name = self.session.path.map { $0.lastPathComponent }
                     ?? self.session.title.deletingPathExtension + ".docx"
                 ask(name, { [weak self] path, finished in
@@ -439,27 +445,36 @@ final class OfficeShellState: State<StatefulWidget> {
         guard (widget as! OfficeShell).hosted == nil else { return }
         _autosaveGeneration += 1
         let gen = _autosaveGeneration
-        DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(2)) { [weak self] in
-            guard let self, self._autosaveGeneration == gen, self.session.dirty else { return }
-            // AutoSave writes the file itself — never a recovered document,
-            // whose on-disk file the user has not yet chosen to replace.
-            if self.session.autoSave, !self._recovered, let path = self.session.path {
-                do {
-                    try OfficeFormats.write(self.controller.document, to: path, pageSetup: self.session.pageSetup)
-                    OfficeHost.documentSaved?(path)
-                    self._savedRevision = self.controller.revision
-                    try? FileManager.default.removeItem(atPath: self._recoveryPath(for: path))
-                    self.setState { self.session.dirty = false }
-                    return
-                } catch {
-                    self._flash("AutoSave could not write: \(error)")
-                    // Fall through: at least the recovery copy.
-                }
+        DispatchQueue.main.asyncAfter(deadline: .now() + OfficeHost.autosaveDelay) { [weak self] in
+            guard let self, self._autosaveGeneration == gen else { return }
+            self._autosaveNow()
+        }
+        #endif
+    }
+
+    /// The write itself: the file when AutoSave is on and the document has one, else the recovery copy.
+    /// Also what the window's host asks for before it closes the window (OfficeScene.flushPendingSaves).
+    private func _autosaveNow() {
+        #if !os(WASI)
+        guard session.dirty else { return }
+        // AutoSave writes the file itself — never a recovered document,
+        // whose on-disk file the user has not yet chosen to replace.
+        if session.autoSave, !_recovered, let path = session.path {
+            do {
+                try OfficeFormats.write(controller.document, to: path, pageSetup: session.pageSetup)
+                officeScene.documentSaved?(path)
+                _savedRevision = controller.revision
+                try? FileManager.default.removeItem(atPath: _recoveryPath(for: path))
+                setState { session.dirty = false }
+                return
+            } catch {
+                _flash("AutoSave could not write: \(error)")
+                // Fall through: at least the recovery copy.
             }
-            let recovery = self._recoveryPath(for: self.session.path)
-            if let data = try? DocxFormat.write(self.controller.document, pageSetup: self.session.pageSetup) {
-                try? data.write(to: URL(fileURLWithPath: recovery), options: .atomic)
-            }
+        }
+        let recovery = _recoveryPath(for: session.path)
+        if let data = try? DocxFormat.write(controller.document, pageSetup: session.pageSetup) {
+            try? data.write(to: URL(fileURLWithPath: recovery), options: .atomic)
         }
         #endif
     }
@@ -489,6 +504,17 @@ final class OfficeShellState: State<StatefulWidget> {
             session.summary = session.summarize()
             _backstage = nil
         }
+    }
+
+    /// Open from the in-app file panel: a file another window has open is shown by bringing that window forward
+    /// (one document, one window: two windows on one file would race on its AutoSave and recovery copy).
+    private func _openFromPanel(_ path: String) {
+        if let other = OfficeScene.holding(path, besides: officeScene) {
+            other.focusWindow()
+            _flash("\(path.lastPathComponent) is open in another window")
+            return
+        }
+        _open(path)
     }
 
     private func _open(_ path: String) {
@@ -623,7 +649,7 @@ final class OfficeShellState: State<StatefulWidget> {
     private func _saveTo(_ path: String) {
         do {
             try OfficeFormats.write(controller.document, to: path, pageSetup: session.pageSetup)
-            OfficeHost.documentSaved?(path)
+            officeScene.documentSaved?(path)
             // The recovery copies this document may have left: under its
             // new name, its old name, and the untitled slot if it had no name.
             let fm = FileManager.default
@@ -670,7 +696,7 @@ final class OfficeShellState: State<StatefulWidget> {
         }
         return
         #endif
-        if let ask = OfficeHost.exportRequested {
+        if let ask = officeScene.exportRequested {
             setState { _backstage = nil }
             ask(target.lastPathComponent, { [weak self] path, finished in
                 guard let self else { finished(false); return }
@@ -796,7 +822,7 @@ final class OfficeShellState: State<StatefulWidget> {
     /// The host's edit menu for a finger's selection or caret (iPad: the system
     /// menu). Nothing happens on a host that draws none.
     private func _showTouchMenu(_ rect: Rect?) {
-        OfficeHost.showTouchMenu(rect, controller: controller)
+        officeScene.showTouchMenu(rect, controller: controller)
     }
 
     private func _paste(plain: Bool) {
@@ -1100,10 +1126,10 @@ final class OfficeShellState: State<StatefulWidget> {
                 session: session, page: page, recent: _recent, notice: _status,
                 onPage: { [weak self] p in self?.setState { self?._backstage = p } },
                 onClose: { [weak self] in self?.setState { self?._backstage = nil } },
-                onOpenPath: { [weak self] path in self?._open(path) },
+                onOpenPath: { [weak self] path in self?._openFromPanel(path) },
                 onSavePath: { [weak self] path in self?._saveTo(path) },
                 onPicturePath: { [weak self] path in self?._insertPicture(path) },
-                onOpenSite: (widget as? OfficeShell)?.onOpenSite)),
+                onOpenSite: (widget as? OfficeShell)?.onOpenSite, scene: officeScene)),
         ])
     }
 

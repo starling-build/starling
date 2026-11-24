@@ -11,18 +11,65 @@ import FlutterSwiftBridge
 import Foundation
 import OfficeText
 
-enum OfficeHost {
+/// What the editors and the host (the iPad's file browser, edit menu and toolbar) say to each other for ONE
+/// window: the hooks the host installs, and the toolbar owner. Every window has its own, so two documents open
+/// side by side do not take over each other's toolbar or Open panel (docs/plans/ipad-multi-window.md, step 4).
+/// A host with one window installs its hooks on `OfficeScene.main`; a tree below an `OfficeSceneScope`
+/// uses that scope's scene; with no scope, a tree uses `main`, which is how it was before windows had scenes.
+final class OfficeScene {
+    /// The first (and, until scenes are turned on, only) window.
+    nonisolated(unsafe) static let main = OfficeScene()
+
+    /// Every window's scene that is alive (weakly held), for what concerns them all: the app going to the background.
+    nonisolated(unsafe) private static var live: [Weak] = []
+    private struct Weak { weak var scene: OfficeScene? }
+
+    init() {
+        Self.live.removeAll { $0.scene == nil }
+        Self.live.append(Weak(scene: self))
+    }
+
+    /// The windows by the engine view each shows (0 is `main`). Set by the host as windows connect.
+    nonisolated(unsafe) static var byView: [Int: OfficeScene] = [:]
+
+    /// A file asked for before this window's tree has mounted (a new window made to show a document): taken as soon as
+    /// it has.
+    var pendingOpen: String?
+
+    /// Show the document at `path` in this window, now or when the window's tree is up.
+    func requestOpen(_ path: String) {
+        if let open = openPath { open(path) } else { pendingOpen = path }
+    }
+
+    /// `flushPendingSaves` in every window.
+    static func flushAll() {
+        for w in live { w.scene?.flushPendingSaves() }
+    }
+
+    /// The scene a tree belongs to: the nearest `OfficeSceneScope` above `context`, else `main`.
+    /// Does not register a dependency (a scene never changes under a tree).
+    static func of(_ context: (any BuildContext)?) -> OfficeScene {
+        if let scope = context?.getElementForInheritedWidgetOfExactType(OfficeSceneScope.self)?.widget as? OfficeSceneScope {
+            return scope.scene
+        }
+        return main
+    }
+
+    typealias ToolbarButton = OfficeHost.ToolbarButton
+    typealias EditMenuItem = OfficeHost.EditMenuItem
+    typealias EditorCommands = OfficeHost.EditorCommands
+
     /// The editors have just written the user's document at `path`.
     /// Set by a host that keeps its own copy of the file.
-    static var documentSaved: ((String) -> Void)?
+    var documentSaved: ((String) -> Void)?
 
     /// The user asked for Open (or Close). Returns true if the host took it
     /// over, so the editor does not show its own file panel.
-    static var openRequested: (() -> Bool)?
+    var openRequested: (() -> Bool)?
 
     /// Set by OfficeRoot while mounted: switch the whole window to the
     /// document at `path`, whatever its kind.
-    static var openPath: ((String) -> Void)?
+    var openPath: ((String) -> Void)?
 
     /// The host's own "put a copy somewhere" panel (the iPad's document
     /// picker, which can reach iCloud Drive and other apps' folders the way an
@@ -34,66 +81,25 @@ enum OfficeHost {
     /// gets the chosen file's name, or nil if the user cancelled or it failed.
     /// Set by a host that has such a panel; nil elsewhere, where the Backstage
     /// panels stay.
-    static var exportRequested: ((_ name: String,
+    var exportRequested: ((_ name: String,
                                   _ prepare: @escaping (_ path: String, _ finished: @escaping (Bool) -> Void) -> Void,
                                   _ thenOpen: Bool,
                                   _ done: @escaping (String?) -> Void) -> Void)?
 
-    /// One button of the native toolbar over the on-screen keyboard. `symbol`
-    /// is an SF Symbol name; state is a snapshot, re-published when it changes.
-    struct ToolbarButton {
-        let id: String
-        let title: String
-        let symbol: String
-        var isOn = false
-        var isEnabled = true
-        let action: () -> Void
-    }
-
-    /// One entry of the host's edit menu over a selection (Cut, Copy, ...).
-    struct EditMenuItem {
-        let title: String
-        let symbol: String
-        var isEnabled = true
-        let action: () -> Void
-    }
-
     /// Set by a host that draws its own edit menu for a finger's selection:
     /// the rect of the selection or caret in the editor view's coordinates
     /// (nil withdraws the menu), the entries, and the selected text if any.
-    static var editMenuRequested: ((_ x: Double, _ y: Double, _ width: Double, _ height: Double,
+    var editMenuRequested: ((_ x: Double, _ y: Double, _ width: Double, _ height: Double,
                                     _ items: [EditMenuItem], _ selectedText: String?) -> Void)?
-    static var editMenuDismissed: (() -> Void)?
+    var editMenuDismissed: (() -> Void)?
 
     /// Set by a host that draws a native toolbar. The editor in front
     /// publishes its buttons through it, and publishes nil when it goes away,
     /// so a deck or a workbook shows none.
-    static var toolbarChanged: (([ToolbarButton]?) -> Void)?
-
-    /// What an editor tells the native toolbar about itself: the state of its
-    /// buttons and what each one does. Writer fills it from its text, Slides from
-    /// the text box being typed in (undo reaching the deck too), Sheets from the
-    /// active cell's format — so the toolbar's list and look live here once.
-    /// `list` is nil where an editor has no lists (a cell), and then the two list
-    /// buttons are left out.
-    struct EditorCommands {
-        var canUndo = false
-        var canRedo = false
-        var bold = false
-        var italic = false
-        var underline = false
-        var hasLists = false
-        var list: ListKind? = nil
-        var undo: () -> Void
-        var redo: () -> Void
-        var toggleBold: () -> Void
-        var toggleItalic: () -> Void
-        var toggleUnderline: () -> Void
-        var toggleList: (ListKind) -> Void = { _ in }
-    }
+    var toolbarChanged: (([ToolbarButton]?) -> Void)?
 
     /// Publish the buttons for `commands` as `owner`'s toolbar.
-    static func publishToolbar(_ commands: EditorCommands, owner: AnyObject) {
+    func publishToolbar(_ commands: EditorCommands, owner: AnyObject) {
         guard toolbarChanged != nil else { return }
         let c = commands
         var buttons: [ToolbarButton] = [
@@ -115,7 +121,7 @@ enum OfficeHost {
     /// coordinates; nil withdraws it. Every editor of rich text - Writer's page,
     /// a slide's text box or its notes - asks here, so the menu is one thing.
     /// Nothing happens on a host that draws none.
-    static func showTouchMenu(_ rect: Rect?, controller c: RichDocumentController) {
+    func showTouchMenu(_ rect: Rect?, controller c: RichDocumentController) {
         #if !os(WASI)
         guard let show = editMenuRequested else { return }
         guard let r = rect else { editMenuDismissed?(); return }
@@ -141,13 +147,85 @@ enum OfficeHost {
         #endif
     }
 
-    private nonisolated(unsafe) static var toolbarOwner: ObjectIdentifier?
+    /// The file this window shows (canonical), and the editor that reported it.
+    private(set) var documentPath: String?
+    private var documentOwner: ObjectIdentifier?
+
+    /// A path in the one spelling windows compare by (symlinks resolved, so /var and /private/var agree).
+    static func canonical(_ path: String) -> String {
+        URL(fileURLWithPath: path).resolvingSymlinksInPath().path
+    }
+
+    /// For a working copy the host made of a picked document, the document itself (nil for any other path). A document
+    /// is the same document however many working copies were made of it, so windows compare by this.
+    nonisolated(unsafe) static var originalOf: (String) -> String? = { _ in nil }
+
+    /// The file `path` stands for: its original if it is a working copy, else itself.
+    static func identity(_ path: String) -> String { canonical(originalOf(path) ?? path) }
+
+    /// `owner`'s document is now the file at `path` (nil: none). A new editor mounts before the one it replaces is
+    /// disposed, so a clear counts only from the editor that set the path last.
+    /// The window is gone (the system dropped the scene) but its Flutter tree lingers, as view 0's must:
+    /// the file it held is free to be opened elsewhere.
+    func releaseDocument() {
+        documentPath = nil
+        documentOwner = nil
+    }
+
+    func setDocumentPath(_ path: String?, owner: AnyObject) {
+        if let path {
+            documentPath = Self.canonical(path)
+            documentOwner = ObjectIdentifier(owner)
+        } else if documentOwner == ObjectIdentifier(owner) {
+            documentPath = nil
+            documentOwner = nil
+        }
+    }
+
+    /// The window showing the file at `path`, other than `scene`.
+    static func holding(_ path: String, besides scene: OfficeScene? = nil) -> OfficeScene? {
+        let p = identity(path)
+        return live.lazy.compactMap { $0.scene }.first { s in
+            s !== scene && s.documentPath.map { identity($0) } == p
+        }
+    }
+
+    /// Set by a host that can bring this window to the front (the iPad: raises its view, or its scene).
+    var raise: (() -> Void)?
+
+    /// Brings this window forward and makes it the one the user is working in.
+    func focusWindow() {
+        raise?()
+        activate()
+    }
+
+    private var flushers: [(owner: ObjectIdentifier, run: () -> Void)] = []
+
+    /// The editor `owner` can write its unsaved work when asked. Registered while mounted, withdrawn on dispose.
+    func registerFlush(owner: AnyObject, _ run: @escaping () -> Void) {
+        let id = ObjectIdentifier(owner)
+        flushers.removeAll { $0.owner == id }
+        flushers.append((id, run))
+    }
+
+    func unregisterFlush(owner: AnyObject) {
+        let id = ObjectIdentifier(owner)
+        flushers.removeAll { $0.owner == id }
+    }
+
+    /// Writes what this window's editors have not saved yet (what AutoSave would write in two seconds, now). A host
+    /// calls it before it removes the window's view, so closing a window never loses the last edits.
+    func flushPendingSaves() {
+        for f in flushers { f.run() }
+    }
+
+    private var toolbarOwner: ObjectIdentifier?
 
     /// Publish `buttons` for `owner`, or withdraw them (nil). A new editor
     /// mounts before the one it replaces is disposed, so a withdrawal counts
     /// only from whoever published last; otherwise the old one's dispose would
     /// wipe the new one's bar.
-    static func publishToolbar(_ buttons: [ToolbarButton]?, owner: AnyObject) {
+    func publishToolbar(_ buttons: [ToolbarButton]?, owner: AnyObject) {
         guard let changed = toolbarChanged else { return }
         if buttons != nil {
             toolbarOwner = ObjectIdentifier(owner)
@@ -156,7 +234,103 @@ enum OfficeHost {
         } else {
             toolbarOwner = nil
         }
-        changed(buttons)
+        currentButtons = buttons
+        if buttons != nil { Self.active = self }
+        // A window that is not the active one keeps its buttons to itself until the user is in it again.
+        if buttons == nil || Self.active === self { changed(buttons) }
+    }
+
+    /// The buttons this window last published, for when it becomes the active window again.
+    private var currentButtons: [ToolbarButton]?
+
+    /// The window the user last touched: the native bar (one for the screen) shows its buttons.
+    nonisolated(unsafe) private static weak var active: OfficeScene?
+
+    /// The user touched this window: if another window had the bar, it is this window's now.
+    func activate() {
+        guard Self.active !== self else { return }
+        Self.active = self
+        if let changed = toolbarChanged, let b = currentButtons { changed(b) }
+    }
+}
+
+/// Gives every tree below it `scene` (see `OfficeScene.of`).
+final class OfficeSceneScope: InheritedWidget {
+    let scene: OfficeScene
+    init(scene: OfficeScene, child: Widget) {
+        self.scene = scene
+        super.init(child: child)
+    }
+    override func updateShouldNotify(_ oldWidget: InheritedWidget) -> Bool {
+        (oldWidget as! OfficeSceneScope).scene !== scene
+    }
+}
+
+extension State {
+    /// The window this editor is in.
+    var officeScene: OfficeScene { OfficeScene.of(context) }
+
+    /// Keeps the window's scene told which file `session` has open (see OfficeScene.setDocumentPath). Call from
+    /// `initState`; call `officeScene.setDocumentPath(nil, owner: self)` from `dispose`.
+    func trackDocumentPath(_ session: OfficeSession) {
+        session.onPathChanged = { [weak self] path in
+            guard let self else { return }
+            self.officeScene.setDocumentPath(path, owner: self)
+        }
+        if let path = session.path { officeScene.setDocumentPath(path, owner: self) }
+    }
+}
+
+/// The types the editors and a host share, and what is not per window.
+enum OfficeHost {
+    /// How long after the last edit AutoSave writes (OFFICE_AUTOSAVE_DELAY_MS overrides the two seconds, so a
+    /// check can tell a flush from the timer).
+    static let autosaveDelay: DispatchTimeInterval = {
+        if let v = ProcessInfo.processInfo.environment["OFFICE_AUTOSAVE_DELAY_MS"], let ms = Int(v), ms >= 0 {
+            return .milliseconds(ms)
+        }
+        return .seconds(2)
+    }()
+
+    /// One button of the native toolbar over the on-screen keyboard. `symbol`
+    /// is an SF Symbol name; state is a snapshot, re-published when it changes.
+    struct ToolbarButton {
+        let id: String
+        let title: String
+        let symbol: String
+        var isOn = false
+        var isEnabled = true
+        let action: () -> Void
+    }
+
+    /// One entry of the host's edit menu over a selection (Cut, Copy, ...).
+    struct EditMenuItem {
+        let title: String
+        let symbol: String
+        var isEnabled = true
+        let action: () -> Void
+    }
+
+    /// What an editor tells the native toolbar about itself: the state of its
+    /// buttons and what each one does. Writer fills it from its text, Slides from
+    /// the text box being typed in (undo reaching the deck too), Sheets from the
+    /// active cell's format — so the toolbar's list and look live here once.
+    /// `list` is nil where an editor has no lists (a cell), and then the two list
+    /// buttons are left out.
+    struct EditorCommands {
+        var canUndo = false
+        var canRedo = false
+        var bold = false
+        var italic = false
+        var underline = false
+        var hasLists = false
+        var list: ListKind? = nil
+        var undo: () -> Void
+        var redo: () -> Void
+        var toggleBold: () -> Void
+        var toggleItalic: () -> Void
+        var toggleUnderline: () -> Void
+        var toggleList: (ListKind) -> Void = { _ in }
     }
 
     /// Writes an empty document of `kind` to `path`. Used by the host's own

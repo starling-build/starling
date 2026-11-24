@@ -635,6 +635,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
 
     override func initState() {
         super.initState()
+        bind(focus)
         _painter = _GridPainter(state: self, repaint: _repaint)
         focus.onKeyData = { [weak self] k in self?._key(k) ?? false }
         focus.onFocusChange = { [weak self] focused in
@@ -3518,7 +3519,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         // Where the caret is, for the input method's candidate window.
         if let ime = _ime, ime.isAttached, let rb = _box ?? (context?.findRenderObject() as? RenderBox) {
             ime.setCaretRect(Rect.fromLTWH(box.left + pad + before, ty, 1.5, tp.height),
-                             editableSize: size, transform: rb.getTransformTo(nil as RenderObject?))
+                             editableSize: size, transform: TextInputChannel.windowTransform(of: rb))
         }
     }
 }
@@ -3635,7 +3636,7 @@ extension SheetGridState {
     fileprivate func _dismissEditMenu() {
         guard _editMenuUp else { return }
         _editMenuUp = false
-        OfficeHost.editMenuDismissed?()
+        officeScene.editMenuDismissed?()
     }
 
     private func _editChanged() {
@@ -3647,7 +3648,7 @@ extension SheetGridState {
 
     /// The host's edit menu over the editor's selection or caret.
     fileprivate func _showEditMenu() {
-        guard let show = OfficeHost.editMenuRequested, let e = edit,
+        guard let show = officeScene.editMenuRequested, let e = edit,
               let rb = _box ?? (context?.findRenderObject() as? RenderBox) else { return }
         let m = _editorMetrics(e)
         let lo = e.selection?.lowerBound ?? e.caret, hi = e.selection?.upperBound ?? e.caret

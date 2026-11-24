@@ -104,6 +104,7 @@ public final class RichEditable: StatefulWidget {
 }
 
 public final class RichEditableState: State<StatefulWidget> {
+    private let _leakProbe = LeakProbe("RichEditableState")
     private var _ownedFocus: FocusNode?
     private var _focus: FocusNode!
     private let _chords = KeyChordTracker()
@@ -253,6 +254,7 @@ public final class RichEditableState: State<StatefulWidget> {
             _ownedFocus = FocusNode(debugLabel: "RichEditable")
             _focus = _ownedFocus
         }
+        bind(_focus)
         _focus.onKeyData = { [weak self] keyData in
             return self?._handleKey(keyData) ?? false
         }
@@ -1259,9 +1261,8 @@ public final class RichEditableState: State<StatefulWidget> {
         // screen's bottom-left corner).
         if let input = _textInput, input.isAttached, let c = caretRect,
            let box = context?.findRenderObject() as? RenderBox {
-            let ancestor: RenderObject? = nil
             input.setCaretRect(Rect.fromLTWH(c.left + _originX, c.top + pad.top - _scrollY, c.width, c.height),
-                               editableSize: size, transform: box.getTransformTo(ancestor))
+                               editableSize: size, transform: TextInputChannel.windowTransform(of: box))
         }
 
         // A selected picture: its outline and eight handles.

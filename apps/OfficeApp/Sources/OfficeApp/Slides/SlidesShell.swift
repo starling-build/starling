@@ -31,6 +31,7 @@ final class SlidesShell: StatefulWidget {
 }
 
 final class SlidesShellState: State<StatefulWidget> {
+    private let _leakProbe = LeakProbe("SlidesShellState")
     let session = OfficeSession(kind: .presentation)
     private var deck: DeckController { session.deck! }
     private let _cache = SlideTextCache()
@@ -120,8 +121,12 @@ final class SlidesShellState: State<StatefulWidget> {
     override func initState() {
         super.initState()
         OfficeFonts.register()
+        bind(_deckFocus)
+        trackDocumentPath(session)
+        bind(_notesFocus)
         _recent = OfficeRecent.load()
         _wire()
+        officeScene.registerFlush(owner: self) { [weak self] in self?._autosaveNow() }
         deck.addListener({ [weak self] in self?._deckChanged() }, owner: self)
         _publishToolbar()
         _cache.onImageDecoded = { [weak self] in
@@ -155,7 +160,9 @@ final class SlidesShellState: State<StatefulWidget> {
     }
 
     override func dispose() {
-        OfficeHost.publishToolbar(nil, owner: self)
+        officeScene.publishToolbar(nil, owner: self)
+        officeScene.unregisterFlush(owner: self)
+        officeScene.setDocumentPath(nil, owner: self)
         deck.removeListeners(owner: self)
         session.controller.removeListeners(owner: self)
         _deckFocus.dispose()
@@ -207,8 +214,8 @@ final class SlidesShellState: State<StatefulWidget> {
             #else
             // A host with its own document browser (the iPad's) takes Open;
             // unsaved edits still get Backstage's prompt first.
-            if OfficeHost.openRequested != nil {
-                self.session.replacing { _ = OfficeHost.openRequested?() }
+            if officeScene.openRequested != nil {
+                self.session.replacing { _ = self.officeScene.openRequested?() }
                 return
             }
             self.setState { self._backstage = .open }
@@ -221,7 +228,7 @@ final class SlidesShellState: State<StatefulWidget> {
             // The browser names and places a download; "save as" is save.
             self._save()
             #else
-            if let ask = OfficeHost.exportRequested {
+            if let ask = officeScene.exportRequested {
                 self._endEditing()
                 let name = self.session.path.map { $0.lastPathComponent }
                     ?? self.session.title.deletingPathExtension + ".pptx"
@@ -352,9 +359,9 @@ final class SlidesShellState: State<StatefulWidget> {
     /// The keyboard's toolbar: the text being typed in, with undo and redo
     /// reaching the deck as well (the same questions the ribbon asks).
     private func _publishToolbar() {
-        guard OfficeHost.toolbarChanged != nil else { return }
+        guard officeScene.toolbarChanged != nil else { return }
         let s = session.summary
-        OfficeHost.publishToolbar(.init(
+        officeScene.publishToolbar(.init(
             canUndo: s.canUndo, canRedo: s.canRedo,
             bold: s.bold, italic: s.italic, underline: s.underline,
             hasLists: true, list: s.list,
@@ -621,24 +628,33 @@ final class SlidesShellState: State<StatefulWidget> {
         #if !os(WASI)
         _autosaveGeneration += 1
         let gen = _autosaveGeneration
-        DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(2)) { [weak self] in
-            guard let self, self.mounted, self._autosaveGeneration == gen, self.session.dirty, self._show == nil else { return }
-            guard let data = try? Pptx.write(self.deck) else { return }
-            if self.session.autoSave, !self._recovered, let path = self.session.path,
-               path.pathExtension.lowercased() == "pptx" {
-                do {
-                    try data.write(to: URL(fileURLWithPath: path), options: .atomic)
-                    OfficeHost.documentSaved?(path)
-                    self._savedEdits = self.deck.edits
-                    try? FileManager.default.removeItem(atPath: self._recoveryPath(for: path))
-                    self.setState { self.session.dirty = false }
-                    return
-                } catch {
-                    self._flash("AutoSave could not write: \(error)")
-                }
-            }
-            try? data.write(to: URL(fileURLWithPath: self._recoveryPath(for: self.session.path)), options: .atomic)
+        DispatchQueue.main.asyncAfter(deadline: .now() + OfficeHost.autosaveDelay) { [weak self] in
+            guard let self, self.mounted, self._autosaveGeneration == gen else { return }
+            self._autosaveNow()
         }
+        #endif
+    }
+
+    /// The write itself (also what the window's host asks for before it closes the window,
+    /// OfficeScene.flushPendingSaves).
+    private func _autosaveNow() {
+        #if !os(WASI)
+        guard session.dirty, _show == nil else { return }
+        guard let data = try? Pptx.write(deck) else { return }
+        if session.autoSave, !_recovered, let path = session.path,
+           path.pathExtension.lowercased() == "pptx" {
+            do {
+                try data.write(to: URL(fileURLWithPath: path), options: .atomic)
+                officeScene.documentSaved?(path)
+                _savedEdits = deck.edits
+                try? FileManager.default.removeItem(atPath: _recoveryPath(for: path))
+                setState { session.dirty = false }
+                return
+            } catch {
+                _flash("AutoSave could not write: \(error)")
+            }
+        }
+        try? data.write(to: URL(fileURLWithPath: _recoveryPath(for: session.path)), options: .atomic)
         #endif
     }
 
@@ -672,6 +688,17 @@ final class SlidesShellState: State<StatefulWidget> {
             session.dirty = false
             _backstage = nil
         }
+    }
+
+    /// Open from the in-app file panel: a file another window has open is shown by bringing that window forward
+    /// (one document, one window: two windows on one file would race on its AutoSave and recovery copy).
+    private func _openFromPanel(_ path: String) {
+        if let other = OfficeScene.holding(path, besides: officeScene) {
+            other.focusWindow()
+            _flash("\(path.lastPathComponent) is open in another window")
+            return
+        }
+        _open(path)
     }
 
     private func _open(_ path: String) {
@@ -783,7 +810,7 @@ final class SlidesShellState: State<StatefulWidget> {
             WebFiles.download(data, as: path.lastPathComponent)
             #else
             try data.write(to: URL(fileURLWithPath: path), options: .atomic)
-            OfficeHost.documentSaved?(path)
+            officeScene.documentSaved?(path)
             #endif
             // Saved: the copy beside the old name (or the untitled one) goes.
             _dropRecovery()
@@ -807,7 +834,7 @@ final class SlidesShellState: State<StatefulWidget> {
         let target = base + "." + ext
         _endEditing()
         #if !os(WASI)
-        if let ask = OfficeHost.exportRequested {
+        if let ask = officeScene.exportRequested {
             setState { _backstage = nil }
             ask(target.lastPathComponent, { [weak self] path, finished in
                 guard let self else { finished(false); return }
@@ -1211,9 +1238,9 @@ final class SlidesShellState: State<StatefulWidget> {
                 session: session, page: page, recent: _recent, notice: _status,
                 onPage: { [weak self] p in self?.setState { self?._backstage = p } },
                 onClose: { [weak self] in self?.setState { self?._backstage = nil } },
-                onOpenPath: { [weak self] path in self?._open(path) },
+                onOpenPath: { [weak self] path in self?._openFromPanel(path) },
                 onSavePath: { [weak self] path in self?._saveTo(path) },
-                onPicturePath: { [weak self] path in self?._insertPicture(path) })),
+                onPicturePath: { [weak self] path in self?._insertPicture(path) }, scene: officeScene)),
         ])
     }
 
@@ -1486,8 +1513,8 @@ final class SlidesShellState: State<StatefulWidget> {
                 padding: EdgeInsets(left: 14, top: 10, right: 14, bottom: 10),
                 focusNode: _notesFocus, autofocus: false, backgroundColor: nil,
                 onShortcut: { [weak self] key, mods in self?._shortcut(key, mods) ?? false },
-                onTouchMenu: { [weak notes = slide.notes] rect in
-                    if let notes { OfficeHost.showTouchMenu(rect, controller: notes) }
+                onTouchMenu: { [weak notes = slide.notes, scene = self.officeScene] rect in
+                    if let notes { scene.showTouchMenu(rect, controller: notes) }
                 },
                 spellChecker: session.checkSpelling ? _spelling : nil))))
         return SizedBox(width: nil, height: 104, child: DecoratedBox(

@@ -34,21 +34,61 @@ public enum OfficeNativeShell {
     /// The app's handler for "open this path now" — the working copy of the
     /// document the user chose. Called on the main thread, before the editor
     /// is shown.
-    public static var onOpenDocument: ((String) -> Void)?
+    /// `viewId` is the window (the Flutter view) the document is for.
+    public static var onOpenDocument: ((String, Int) -> Void)?
 
     /// Writes an empty document of `kind` ("document", "presentation",
     /// "workbook") to `path`; false if the app could not.
     public static var makeBlank: ((String, String) -> Bool)?
 
+    /// The original document a working copy at `path` was made from, if it is the one being edited. Safe from any
+    /// thread.
+    public static func originalPath(forWorking path: String) -> String? {
+        func look() -> String? {
+            for shell in shells.values {
+                if let s = shell.session, s.working.path == path { return s.original.path }
+            }
+            return nil
+        }
+        return Thread.isMainThread ? look() : DispatchQueue.main.sync(execute: look)
+    }
+
+    /// Opens `url` as if the user had picked it in the browser (a file handed over by another app, a drop, a test).
+    /// `viewId` is the window it is handed to.
+    public static func open(_ url: URL, viewId: Int = 0) {
+        DispatchQueue.main.async { shells[viewId]?.open(handedOver.removeValue(forKey: url.absoluteString) ?? url) }
+    }
+
+    /// Asks for a new window, showing `url` if there is one. The window is the system's (Stage Manager, Split View):
+    /// it arrives later, as a scene.
+    public static func openInNewWindow(_ url: URL?) {
+        if let url { handedOver[url.absoluteString] = url }
+        fluikit_scene_request_new(url?.absoluteString)
+    }
+
+    /// URLs the browser handed us that another window is about to open: the URL object, not a copy of its text,
+    /// is what carries the access to a file outside the app's sandbox.
+    nonisolated(unsafe) fileprivate static var handedOver: [String: URL] = [:]
+
+    /// Set by the app: the window (other than `viewId`'s) already showing the document at `path`, if any, is
+    /// brought forward and true is returned. One document, one window.
+    public static var focusIfOpen: ((String, Int) -> Bool)?
+
+    /// Set by the app: a window beyond the first has connected (its view is about to be added) or disconnected (its
+    /// view is about to go).
+    public static var sceneConnected: ((Int) -> Void)?
+    public static var sceneDisconnected: ((Int) -> Void)?
+
     /// The editor wants the browser back (Open, Close).
-    public static func showBrowser() {
-        DispatchQueue.main.async { shared?.dismissEditor() }
+    public static func showBrowser(viewId: Int = 0) {
+        DispatchQueue.main.async { shells[viewId]?.dismissEditor() }
     }
 
     /// The editor has just written the working copy at `path`; carry it to the
     /// document the user chose. Safe to call from any thread.
-    public static func documentSaved(_ path: String) {
-        shared?.writeBack(path)
+    public static func documentSaved(_ path: String, viewId: Int = 0) {
+        // Straight away on the main thread (the app going to the background has no time for a hop); else via it.
+        if Thread.isMainThread { shells[viewId]?.writeBack(path) } else { DispatchQueue.main.async { shells[viewId]?.writeBack(path) } }
     }
 
     /// Writes a copy to a temporary file with `prepare`, then asks the user
@@ -56,27 +96,33 @@ public enum OfficeNativeShell {
     public static func export(name: String,
                               prepare: @escaping (String, @escaping (Bool) -> Void) -> Void,
                               thenOpen: Bool,
+                              viewId: Int = 0,
                               done: @escaping (String?) -> Void) {
-        guard let shell = shared else { done(nil); return }
+        guard let shell = shells[viewId] else { done(nil); return }
         shell.presentExport(name: name, prepare: prepare, thenOpen: thenOpen, done: done)
     }
 
+    /// Runs the browser's "Open in New Window" action for `url` in window `viewId`, as its menu item does (a test:
+    /// the menu itself is a system popover no in-app driver can tap).
+    public static func runNewWindowAction(viewId: Int, url: URL) {
+        shells[viewId]?.newWindowHandler?([url])
+    }
+
+    /// How many window controllers are alive (a leak hunt).
+    public static var liveBrowsers: Int { OfficeBrowserController.live }
+
     /// The buttons of the bar over the keyboard (nil: none). Safe to call on
     /// the main thread only.
-    public static func setToolbar(_ buttons: [OfficeToolbarButton]?) {
-        latestToolbar = buttons
-        shared?.toolbar.update(buttons)
+    public static func setToolbar(_ buttons: [OfficeToolbarButton]?, viewId: Int = 0) {
+        shells[viewId]?.latestToolbar = buttons
+        shells[viewId]?.toolbar.update(buttons)
     }
 
     /// The edit menu over a selection or caret at `rect` (the editor view's
     /// coordinates); nil takes it away. Main thread only.
-    public static func showEditMenu(_ rect: CGRect?, items: [OfficeEditMenuItem], text: String?) {
-        shared?.editMenu.show(rect, items: items, text: text)
+    public static func showEditMenu(_ rect: CGRect?, items: [OfficeEditMenuItem], text: String?, viewId: Int = 0) {
+        shells[viewId]?.editMenu.show(rect, items: items, text: text)
     }
-
-    /// The last buttons published, kept for an editor that mounted before the
-    /// browser had the bar in its view.
-    nonisolated(unsafe) fileprivate static var latestToolbar: [OfficeToolbarButton]?
 
     /// The system print dialog over a PDF the editor rendered. The file is a
     /// temporary one; it goes when the dialog is done.
@@ -93,25 +139,39 @@ public enum OfficeNativeShell {
         }
     }
 
+    /// Whether the window showing `viewId` has a native browser.
+    public static func hasShell(_ viewId: Int) -> Bool { shells[viewId] != nil }
+
     /// Whether a document is being edited right now.
-    public static var isEditing: Bool { shared?.session != nil }
+    public static var isEditing: Bool { shells.values.contains { $0.session != nil } }
 
     /// Installs the browser as the app's root. Call before the host runs.
     public static func install() {
-        fluikit_host_set_root_factory({ editor, _ in
+        // One browser (and editing session) per window, found by the view the window shows.
+        fluikit_host_set_root_factory({ editor, viewId, _ in
             let editorController = Unmanaged<UIViewController>.fromOpaque(editor!).takeUnretainedValue()
-            let browser = OfficeBrowserController(editor: editorController)
-            OfficeNativeShell.shared = browser
+            let browser = OfficeBrowserController(editor: editorController, viewId: Int(viewId))
+            OfficeNativeShell.shells[Int(viewId)] = browser
             return Unmanaged.passRetained(browser).toOpaque()
         }, nil)
-        fluikit_host_set_open_url_handler({ _, url in
+        fluikit_host_set_open_url_handler({ _, viewId, url in
             guard let url = url, let parsed = URL(string: String(cString: url)), parsed.isFileURL else { return false }
-            DispatchQueue.main.async { OfficeNativeShell.shared?.open(parsed) }
+            OfficeNativeShell.open(parsed, viewId: Int(viewId))
             return true
+        }, nil)
+        fluikit_host_set_scene_handlers({ _, viewId in
+            OfficeNativeShell.sceneConnected?(Int(viewId))
+        }, { _, viewId in
+            OfficeNativeShell.sceneDisconnected?(Int(viewId))
+            // The window's session ends with it (its working copy goes; the original was written by the last save).
+            OfficeNativeShell.shells[Int(viewId)]?.windowClosed()
+            OfficeNativeShell.shells[Int(viewId)] = nil
         }, nil)
     }
 
-    nonisolated(unsafe) fileprivate static var shared: OfficeBrowserController?
+    /// Each window's browser, by the view it shows: 0 is the first.
+    nonisolated(unsafe) fileprivate static var shells: [Int: OfficeBrowserController] = [:]
+    fileprivate static var shared: OfficeBrowserController? { shells[0] }
 }
 
 /// The system's export picker for one file, and the clean-up after it.
@@ -160,8 +220,20 @@ final class OfficeBrowserController: UIDocumentBrowserViewController, UIDocument
     fileprivate let editMenu: EditMenuPresenter
     fileprivate var session: EditingSession?
     private let queue = DispatchQueue(label: "office.writeback")
+    /// The Flutter view this window shows (0 for the first window).
+    let viewId: Int
+    /// What the browser's "Open in New Window" does (the action's own closure, so a test runs the same code).
+    fileprivate var newWindowHandler: (([URL]) -> Void)?
+    /// The last buttons published, kept for an editor that mounted before the browser had the bar in its view.
+    fileprivate var latestToolbar: [OfficeToolbarButton]?
 
-    init(editor: UIViewController) {
+    /// Live browser controllers (a leak hunt: OFFICE_WINDOW_CYCLES prints it).
+    nonisolated(unsafe) static var live = 0
+    deinit { Self.live -= 1 }
+
+    init(editor: UIViewController, viewId: Int) {
+        Self.live += 1
+        self.viewId = viewId
         self.editor = editor
         self.toolbar = EditorToolbar(host: editor)
         self.editMenu = EditMenuPresenter(host: editor)
@@ -175,6 +247,20 @@ final class OfficeBrowserController: UIDocumentBrowserViewController, UIDocument
         allowsDocumentCreation = true
         allowsPickingMultipleItems = false
         shouldShowFileExtensions = true
+        // The browser's own context menu: the same file in a window of its own.
+        // A file some window already shows is brought forward, not opened twice (one document, one window).
+        let openInNewWindow: ([URL]) -> Void = { urls in
+            guard let url = urls.first else { return }
+            if OfficeNativeShell.focusIfOpen?(url.path, -1) == true { return }
+            OfficeNativeShell.openInNewWindow(url)
+        }
+        newWindowHandler = openInNewWindow
+        let newWindow = UIDocumentBrowserAction(identifier: "build.starling.office.new-window",
+                                                localizedTitle: "Open in New Window",
+                                                availability: [.menu, .navigationBar], handler: openInNewWindow)
+        newWindow.supportedContentTypes = types.map(\.identifier)
+        newWindow.supportsMultipleItems = false
+        customActions = [newWindow]
     }
 
     @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
@@ -188,7 +274,8 @@ final class OfficeBrowserController: UIDocumentBrowserViewController, UIDocument
         super.viewDidAppear(animated)
         guard !launchOpenDone else { return }
         launchOpenDone = true
-        if let path = ProcessInfo.processInfo.environment["OFFICE_NATIVE_OPEN"], !path.isEmpty {
+        // The first window only: a window made later is for the file it was made for.
+        if viewId == 0, let path = ProcessInfo.processInfo.environment["OFFICE_NATIVE_OPEN"], !path.isEmpty {
             open(URL(fileURLWithPath: path))
         }
     }
@@ -213,6 +300,7 @@ final class OfficeBrowserController: UIDocumentBrowserViewController, UIDocument
     /// Takes a document the user chose (or that another app handed over) into
     /// the editor.
     func open(_ url: URL) {
+        if OfficeNativeShell.focusIfOpen?(url.path, viewId) == true { return }
         endSession()
         let scoped = url.startAccessingSecurityScopedResource()
         let dir = FileManager.default.temporaryDirectory
@@ -242,11 +330,11 @@ final class OfficeBrowserController: UIDocumentBrowserViewController, UIDocument
             present(editor, animated: true) {
                 self.toolbar.attach()
                 self.editMenu.attach()
-                self.toolbar.update(OfficeNativeShell.latestToolbar)
-                OfficeNativeShell.onOpenDocument?(path)
+                self.toolbar.update(self.latestToolbar)
+                OfficeNativeShell.onOpenDocument?(path, self.viewId)
             }
         } else {
-            OfficeNativeShell.onOpenDocument?(path)
+            OfficeNativeShell.onOpenDocument?(path, viewId)
         }
     }
 
@@ -327,7 +415,12 @@ final class OfficeBrowserController: UIDocumentBrowserViewController, UIDocument
                     done(picked?.lastPathComponent)
                 }
                 self.exportPicker = picker
-                (self.editor.presentedViewController ?? self.editor).present(picker.controller, animated: true)
+                let presenter = self.editor.presentedViewController ?? self.editor
+                presenter.present(picker.controller, animated: true)
+                if ProcessInfo.processInfo.environment["OFFICE_HOST_LOG"] != nil {
+                    let w = self.editor.view.window
+                    fputs("[export] view \(self.viewId) presents the picker over its own window: scene \(w?.windowScene?.session.persistentIdentifier ?? "none"), key \(w?.isKeyWindow == true)\n", stderr)
+                }
             }
         }
     }
@@ -369,6 +462,9 @@ final class OfficeBrowserController: UIDocumentBrowserViewController, UIDocument
             s.writing = false
         }
     }
+
+    /// The window is going: its session ends (the working copy is removed).
+    func windowClosed() { endSession() }
 
     private func endSession() {
         guard let s = session else { return }

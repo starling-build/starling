@@ -142,6 +142,10 @@ $(doctype "Word Document" org.openxmlformats.wordprocessingml.document public.rt
   </array>
 "
 fi
+# More than one window only for an app that serves them (see the manifest below).
+MULTI_SCENES=false
+[ "$NAME" = Office ] && MULTI_SCENES=true
+case "${STARLING_IOS_MULTI_SCENES:-}" in 1) MULTI_SCENES=true ;; 0) MULTI_SCENES=false ;; esac
 cat > "$OUT/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -166,13 +170,16 @@ cat > "$OUT/Info.plist" <<PLIST
     <string>UIInterfaceOrientationLandscapeLeft</string>
     <string>UIInterfaceOrientationLandscapeRight</string>
   </array>
+  <key>NSUserActivityTypes</key>
+  <array><string>build.starling.new-window</string></array>
   <key>CFBundleSupportedPlatforms</key>       <array><string>$( [ "$MODE" = device ] && echo iPhoneOS || echo iPhoneSimulator )</string></array>
-  <!-- The window comes from a scene (FlUIKitSceneDelegate). One scene only, until the app can serve a
-       second window: with this on, the system itself offers "new window" and a scene we cannot serve
-       is an empty window (docs/plans/ipad-multi-window.md). -->
+  <!-- The window comes from a scene (FlUIKitSceneDelegate). One scene only unless the app can serve more
+       than one window: with this on, the system itself offers "new window" and a scene the app cannot serve
+       is an empty window. OfficeApp serves them (one tree per window, docs/plans/ipad-multi-window.md);
+       STARLING_IOS_MULTI_SCENES=0|1 overrides. -->
   <key>UIApplicationSceneManifest</key>
   <dict>
-    <key>UIApplicationSupportsMultipleScenes</key> <false/>
+    <key>UIApplicationSupportsMultipleScenes</key> <$MULTI_SCENES/>
     <key>UISceneConfigurations</key>
     <dict>
       <key>UIWindowSceneSessionRoleApplication</key>

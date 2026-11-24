@@ -68,11 +68,14 @@ final class Backstage: StatelessWidget {
     let onSavePath: (String) -> Void
     let onPicturePath: (String) -> Void
     let onOpenSite: ((String, Bool) -> Void)?
+    /// The window this backstage is in: its host decides whether Open and Save As are its own panels.
+    let scene: OfficeScene
 
     init(session: OfficeSession, page: BackstagePage, recent: [String], notice: String? = nil,
          onPage: @escaping (BackstagePage) -> Void, onClose: @escaping () -> Void,
          onOpenPath: @escaping (String) -> Void, onSavePath: @escaping (String) -> Void,
-         onPicturePath: @escaping (String) -> Void, onOpenSite: ((String, Bool) -> Void)? = nil) {
+         onPicturePath: @escaping (String) -> Void, onOpenSite: ((String, Bool) -> Void)? = nil, scene: OfficeScene = .main) {
+        self.scene = scene
         self.session = session
         self.onOpenSite = onOpenSite
         self.page = page
@@ -285,8 +288,8 @@ final class Backstage: StatelessWidget {
         #else
         // A host with its own panels (the iPad's document browser and export
         // picker) takes these over; the in-app file lists stay for the rest.
-        if p == .open, OfficeHost.openRequested != nil { onClose(); session.onOpen?(); return }
-        if p == .saveAs, OfficeHost.exportRequested != nil { onClose(); session.onSaveAs?(); return }
+        if p == .open, scene.openRequested != nil { onClose(); session.onOpen?(); return }
+        if p == .saveAs, scene.exportRequested != nil { onClose(); session.onSaveAs?(); return }
         #endif
         session.unsavedPrompt = nil
         onPage(p)

@@ -25,6 +25,7 @@ final class OfficeRoot: StatefulWidget {
 }
 
 private final class _OfficeRootState: State<StatefulWidget> {
+    private let _leakProbe = LeakProbe("OfficeRootState")
     private var _dark = false
     /// Writer or Slides, and the file to start on. Switching kind builds a
     /// fresh shell (the generation keys it), so nothing of one kind's state
@@ -47,14 +48,21 @@ private final class _OfficeRootState: State<StatefulWidget> {
         _path = root.initialPath
         // A host that owns the file browser (the iPad's) hands the window a
         // document at a time: the same switch the shells use between kinds.
-        OfficeHost.openPath = { [weak self] path in
+        officeScene.openPath = { [weak self] path in
             guard let self, self.mounted else { return }
+            // One document, one window: a file another window has open is shown by bringing that window forward.
+            if let other = OfficeScene.holding(path, besides: self.officeScene) { other.focusWindow(); return }
             self.setState {
                 self._kind = DocumentKind.kind(forPath: path)
                 self._returnToHome = false
                 self._path = path
                 self._generation += 1
             }
+        }
+        // A document asked for before this window was up (a new window made for one).
+        if let pending = officeScene.pendingOpen {
+            officeScene.pendingOpen = nil
+            DispatchQueue.main.async { [weak self] in self?.officeScene.openPath?(pending) }
         }
         UpdateCheck.start { [weak self] release in
             guard let self, self.mounted else { return }
@@ -100,6 +108,7 @@ private final class _OfficeRootState: State<StatefulWidget> {
     override func build(_ context: any BuildContext) -> Widget {
         let onSwitch: (DocumentKind, String?) -> Void = { [weak self] kind, path in
             guard let self else { return }
+            if let path, let other = OfficeScene.holding(path, besides: self.officeScene) { other.focusWindow(); return }
             self.setState {
                 self._kind = kind
                 self._returnToHome = false
@@ -128,6 +137,9 @@ private final class _OfficeRootState: State<StatefulWidget> {
         case .presentation: home = SlidesShell(initialPath: _path, startBlank: _generation > 0 && _path == nil, onSwitch: onSwitch)
         case .workbook: home = SheetsShell(initialPath: _path, onSwitch: onSwitch)
         }
+        // A touch anywhere in this window makes its editor's buttons the native bar's (windows share one bar).
+        let scene = officeScene
+        let touched = Listener(onPointerDown: { _ in scene.activate() }, behavior: .translucent, child: home)
         // The key is on the app, not on `home`: FluentApp reads `home`
         // once, into its first route, so a new home under the same app is
         // never shown.
@@ -136,11 +148,11 @@ private final class _OfficeRootState: State<StatefulWidget> {
             darkTheme: OfficeAppearance.theme(.dark),
             themeMode: _dark ? .dark : .light,
             home: _update.map { release in
-                UpdateNoticeHost(release: release, home: home) { [weak self] in
+                UpdateNoticeHost(release: release, home: touched) { [weak self] in
                     UpdateCheck.dismiss(release, store: SettingsUpdateStore())
                     self?.setState { self?._update = nil }
                 }
-            } ?? home,
+            } ?? touched,
             title: _kind.appName
         ))
     }

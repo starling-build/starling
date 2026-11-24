@@ -83,6 +83,7 @@ final class SlideCanvasState: State<StatefulWidget> {
     func focusNode(for shape: SlideShape) -> FocusNode {
         if let n = _focus[shape.id] { return n }
         let n = FocusNode(debugLabel: "slide shape \(shape.id)")
+        bind(n)
         _focus[shape.id] = n
         return n
     }
@@ -275,8 +276,8 @@ final class SlideCanvasState: State<StatefulWidget> {
                 focusNode: focusNode(for: shape), autofocus: false,
                 backgroundColor: nil, zoom: px * shape.fontScale / theme.pixelsPerPoint,
                 onShortcut: _w.onShortcut,
-                onTouchMenu: { [weak controller] rect in
-                    if let controller { OfficeHost.showTouchMenu(rect, controller: controller) }
+                onTouchMenu: { [weak controller, scene = self.officeScene] rect in
+                    if let controller { scene.showTouchMenu(rect, controller: controller) }
                 },
                 spellChecker: _w.spellChecker,
                 scrolls: false))))

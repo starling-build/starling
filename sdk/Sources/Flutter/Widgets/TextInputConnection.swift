@@ -56,12 +56,49 @@ public enum TextInputChannel {
 
     private nonisolated(unsafe) static var _owner: ObjectIdentifier? = nil
 
+    /// The client id of whoever holds the channel now (-1: none), and the last editing state it sent the plugin.
+    /// For test drivers that play the plugin (UIKitScriptedInput); nothing in the framework reads them.
+    public nonisolated(unsafe) static var activeClient = -1
+    public nonisolated(unsafe) static var lastEditingState: [String: Any]?
+    /// The translation of the last editable transform sent to the plugin (window coordinates).
+    public nonisolated(unsafe) static var lastEditableOrigin: (x: Double, y: Double)?
+
+    /// Where view `id` sits in the host's window, in points; nil when it is at the origin or unknown. Set by a
+    /// host that shows several views in one window (the iPad): the text-input plugin works in window
+    /// coordinates, and an editable's own transform stops at its view's root.
+    /// Told when the view that has the keys changes (the window last touched), so the host can move the keyboard's
+    /// input view into that window.
+    public nonisolated(unsafe) static var keyViewChanged: ((Int) -> Void)?
+    public nonisolated(unsafe) static var viewOrigin: ((Int) -> (x: Double, y: Double)?)?
+
+    /// `object`'s transform to the window, for the plugin: its transform to the root of its view, moved by that
+    /// view's place in the window. (View 0 fills the window, so for it this is the plain transform.)
+    public static func windowTransform(of object: RenderObject) -> Matrix4 {
+        var m = object.getTransformTo(nil as RenderObject?)
+        var top: RenderObject = object
+        while let up = top.parent { top = up }
+        if let root = top as? RenderView, let origin = viewOrigin?(Int(root.flutterView.viewId)) {
+            m.storage[12] += origin.x
+            m.storage[13] += origin.y
+        }
+        return m
+    }
+
+    static func trace(_ s: String) {
+        if FocusManager.traceFocus { fputs("[focus] " + s + "\n", stderr) }
+    }
+
     /// Take the channel's listener.
-    public static func listen(owner: AnyObject, _ handler: @escaping (Data?) -> Void) {
+    public static func listen(owner: AnyObject, client: Int = -1, _ handler: @escaping (Data?) -> Void) {
         _owner = ObjectIdentifier(owner)
+        activeClient = client
+        // The client belongs to the window that had the keys when it attached. Touch another window and the
+        // keys are that window's at once, while its own client attaches a moment later (its tap is still being
+        // recognised): what the platform sends in between is for the new window, not for this client.
+        let attachedScope = FocusManager.instance.keyScope
         MainActor.assumeIsolated {
             channelBuffers.setListener(name) { data, reply in
-                handler(data)
+                if FocusManager.instance.keyScope == attachedScope { handler(data) }
                 reply(nil)
             }
         }
@@ -71,6 +108,7 @@ public enum TextInputChannel {
     public static func unlisten(owner: AnyObject) {
         guard _owner == ObjectIdentifier(owner) else { return }
         _owner = nil
+        activeClient = -1
         MainActor.assumeIsolated { channelBuffers.clearListener(name) }
     }
 
@@ -92,6 +130,9 @@ public enum TextInputChannel {
     public static func send(_ method: String, _ args: Any?) {
         #if !os(WASI)
         var body: [String: Any] = ["method": method]
+        if method == "TextInput.setEditingState", let state = args as? [String: Any] { lastEditingState = state }
+        if method == "TextInput.setEditableSizeAndTransform", let a = args as? [String: Any],
+           let t = a["transform"] as? [Double], t.count == 16 { lastEditableOrigin = (t[12], t[13]) }
         body["args"] = args ?? null
         guard let data = try? JSONSerialization.data(withJSONObject: body) else { return }
         log("send \(method) sender=\(PlatformDispatcher.instance.platformMessageSender != nil) \(String(data: data, encoding: .utf8)?.prefix(160) ?? "")")
@@ -187,7 +228,7 @@ public final class TextInputConnection {
     public func attach(multiline: Bool = false) {
         guard TextInputChannel.available, !_attached else { return }
         _attached = true
-        TextInputChannel.listen(owner: self) { [weak self] data in self?._handle(data) }
+        TextInputChannel.listen(owner: self, client: _clientId) { [weak self] data in self?._handle(data) }
         TextInputChannel.send("TextInput.setClient", [_clientId, TextInputChannel.config(multiline: multiline)])
         sync(force: true)
         TextInputChannel.send("TextInput.show", nil)

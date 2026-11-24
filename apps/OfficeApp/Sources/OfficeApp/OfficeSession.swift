@@ -76,6 +76,7 @@ enum ViewMode: Equatable {
 /// One object shared by the shell and every ribbon/backstage widget; the
 /// shell sets the `on*` callbacks and rebuilds when `summary` changes.
 final class OfficeSession {
+    private let _leakProbe = LeakProbe("OfficeSession")
     let kind: DocumentKind
     /// The text the chrome acts on. Writer's document; in Slides, the text
     /// body being edited (the shell points this at it), so the Font and
@@ -146,7 +147,10 @@ final class OfficeSession {
     var lastPainterPress = 0.0
     var pageInfo = (page: 1, count: 1)
 
-    var path: String? = nil
+    var path: String? = nil { didSet { if path != oldValue { onPathChanged?(path) } } }
+    /// Told when the document's file changes (open, Save As, New): the window's host keeps track of which window has
+    /// which file (OfficeScene.setDocumentPath).
+    var onPathChanged: ((String?) -> Void)?
     var dirty = false
     /// A hosted document's name (HostedDocument), in place of a file's.
     var titleOverride: String? = nil
@@ -231,13 +235,17 @@ final class OfficeSession {
     /// something is laid over the document (Backstage, a show, a dialog)
     /// and its keys are not the document's to take.
     func homeForKeys(_ home: @escaping () -> FocusNode?) {
-        if let token = OfficeSession._homeToken { FocusManager.instance.removeKeyInterceptor(token) }
-        OfficeSession._homeToken = FocusManager.instance.addKeyInterceptor { _ in
-            if FocusManager.instance.focusedNode == nil { home()?.requestFocus() }
+        if let token = _homeToken { FocusManager.instance.removeKeyInterceptor(token) }
+        _homeToken = FocusManager.instance.addKeyInterceptor { _ in
+            // One interceptor per window, and each acts only when its own window has the keys: otherwise the last
+            // window to register would take (or silently drop) the other's keys.
+            let focus = FocusManager.instance
+            if focus.focusedNode == nil, let node = home(), node.currentScope == focus.keyScope { node.requestFocus() }
             return false   // never consumed here: the key goes on to its new home
         }
     }
-    nonisolated(unsafe) private static var _homeToken: Int? = nil
+    private var _homeToken: Int? = nil
+    deinit { if let token = _homeToken { FocusManager.instance.removeKeyInterceptor(token) } }
 
     /// The window's own close asks too, where the host lets the app answer
     /// one: a modified document keeps the window and puts the question.

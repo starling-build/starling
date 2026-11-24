@@ -59,6 +59,10 @@ final class EditorToolbar: UIView {
         for name in [UIResponder.keyboardDidShowNotification, UIResponder.keyboardDidChangeFrameNotification] {
             NotificationCenter.default.addObserver(self, selector: #selector(keyboardChanged(_:)), name: name, object: nil)
         }
+        // Two windows share one keyboard: only the one holding the keys shows its bar.
+        for name in [UIWindow.didBecomeKeyNotification, UIWindow.didResignKeyNotification] {
+            NotificationCenter.default.addObserver(self, selector: #selector(keyWindowChanged), name: name, object: nil)
+        }
     }
 
     @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
@@ -95,6 +99,8 @@ final class EditorToolbar: UIView {
         relayout()
     }
 
+    @objc private func keyWindowChanged() { relayout() }
+
     @objc private func keyboardChanged(_ note: Notification) {
         if note.name == UIResponder.keyboardWillHideNotification {
             keyboardFrame = nil
@@ -120,7 +126,8 @@ final class EditorToolbar: UIView {
             let local = view.convert(end, from: window.screen.coordinateSpace)
             if local.height > 150, local.minY < view.bounds.height { keyboardTop = local.minY }
         }
-        isHidden = keyboardTop == nil || buttons.isEmpty
+        let holdsKeys = view.window?.isKeyWindow ?? true
+        isHidden = keyboardTop == nil || buttons.isEmpty || !holdsKeys
         guard let top = keyboardTop else { return }
         frame = CGRect(x: 0, y: top - Self.height, width: view.bounds.width, height: Self.height)
         view.bringSubviewToFront(self)
