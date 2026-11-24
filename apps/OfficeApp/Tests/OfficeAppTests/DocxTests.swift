@@ -773,6 +773,7 @@ final class DocxTests: XCTestCase {
         box.growsToFit = false
         box.textDirection = .horizontal
         XCTAssertFalse(RichLayout.turnedBoxCutsPastFarEdge(box))
+    }
 
     /// ja-b852b9029c: beside a picture a vertical line is set only where its WHOLE pitch fits (planner spec, amd-opus): a 16pt gap at
     /// the foot of a band, under the 18pt line pitch, stays empty (Word's page 1 left it), a gap past the pitch is used.
