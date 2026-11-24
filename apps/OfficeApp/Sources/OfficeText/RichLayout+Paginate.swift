@@ -875,7 +875,7 @@ extension RichLayout {
                             let h = rest.to - rest.from
                             // (A picture that fits the room at the left of a floating table stands beside it, level with it: sect5's chart, 203.6pt in the 215pt at its table's left.)
                             for band in bandsHere.sorted(by: { $0.pageY < $1.pageY }) where top + base + h > band.pageY + 0.01 && top + base < band.pageY + band.height - 0.01
-                                && !(piece.paragraph == band.paragraph + 1 && (_cells[band.paragraph].map { _floatedPictureFitsLeftOf($0.table, piece.paragraph, document) } ?? false)) {
+                                && !(_cells[band.paragraph].map { _floatedPictureFitsLeftOf($0.table, piece.paragraph, document) } ?? false) {
                                 top = band.pageY + band.height - base
                             }
                         }
