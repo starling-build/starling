@@ -246,8 +246,11 @@ extension _ParaFrame {
             let em0 = _px(p.runs.first?.style.fontSize ?? theme.fontSize)
             var boxes: [(Double, Double, Double, Double)] = []
             // (A paragraph's one floating picture is its `image`, not in the line's table: dx2-set es-fc262b8ddc's header, a
-            // tight 27.5pt banner across the column in a paragraph of its own, steps its empty line to 63.65 and the body from 77.7 in Word's print.)
-            for image in Array(p.inlineImages.inOrder) + (p.image.map { [$0] } ?? []) {
+            // tight 27.5pt banner across the column in a paragraph of its own, steps its empty line to 63.65 and the body from 77.7 in Word's print. A tight one only: dx2 837ac08d's header, a square-wrapped
+            // 96pt object across the column, leaves the body where it was; nor a behind-text one, sa1 2303e6f9's 136pt page-wide header picture.)
+            var headerImages: [ImageAttachment] = Array(p.inlineImages.inOrder)
+            if let one = p.image, one.float != nil, one.sourceXML?.containsSubstring("<wp:wrapTight") == true, one.sourceXML?.containsSubstring("behindDoc=\"1\"") != true { headerImages.append(one) }
+            for image in headerImages {
                 guard let float = image.float, float.wraps, float.verticalAlign == nil, ["paragraph", "line", "page"].contains(float.verticalFrom) else { continue }
                 let w = min(_px(image.width), column)
                 let x: Double
