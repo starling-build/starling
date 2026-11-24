@@ -211,16 +211,16 @@ final class _StyledFrame {
     func _pairAdvance(_ style: TextStyle, _ ch: Character, _ next: Character) -> Double { rl._pairAdvance(style, ch, next) }
     func _bareAdvance(_ style: TextStyle, _ ch: Character) -> Double { rl._bareAdvance(style, ch) }
     func _pairKern(_ style: TextStyle, _ ch: Character, _ next: Character) -> Double { rl._pairKern(style, ch, next) }
-    var _narrowQuoteMemo: [String: Bool] { get { rl._narrowQuoteMemo } set { rl._narrowQuoteMemo = newValue } }
+    var _narrowQuoteMemo: [String: Bool] { get { rl._narrowQuoteMemo } set { rl._narrowQuoteMemo = newValue } _modify { yield &rl._narrowQuoteMemo } }
     func _namedMetricFace(_ run: CharStyle, _ named: RichNamedStyle?, _ document: RichDocument, _ text: Substring) -> String? { rl._namedMetricFace(run, named, document, text) }
     func _kokilaLatinStyle(_ seg: Substring, base: TextStyle, px: Double) -> TextStyle { rl._kokilaLatinStyle(seg, base: base, px: px) }
-    var _hyphenShown: [Int: Set<Int>] { get { rl._hyphenShown } set { rl._hyphenShown = newValue } }
-    var _hyphenPoints: [Int: Set<Int>] { get { rl._hyphenPoints } set { rl._hyphenPoints = newValue } }
+    var _hyphenShown: [Int: Set<Int>] { get { rl._hyphenShown } set { rl._hyphenShown = newValue } _modify { yield &rl._hyphenShown } }
+    var _hyphenPoints: [Int: Set<Int>] { get { rl._hyphenPoints } set { rl._hyphenPoints = newValue } _modify { yield &rl._hyphenPoints } }
     func _gridCellBase(_ i: Int?, _ document: RichDocument) -> Double? { rl._gridCellBase(i, document) }
-    var _yuEndKern: [Int: [Int: Double]] { get { rl._yuEndKern } set { rl._yuEndKern = newValue } }
-    var _topLiftBig: Double? { get { rl._topLiftBig } set { rl._topLiftBig = newValue } }
-    var _vrubyPlain: (ascent: Double, descent: Double, size: Double)? { get { rl._vrubyPlain } set { rl._vrubyPlain = newValue } }
-    var _trailCut: [Int: Int] { get { rl._trailCut } set { rl._trailCut = newValue } }
+    var _yuEndKern: [Int: [Int: Double]] { get { rl._yuEndKern } set { rl._yuEndKern = newValue } _modify { yield &rl._yuEndKern } }
+    var _topLiftBig: Double? { get { rl._topLiftBig } set { rl._topLiftBig = newValue } _modify { yield &rl._topLiftBig } }
+    var _vrubyPlain: (ascent: Double, descent: Double, size: Double)? { get { rl._vrubyPlain } set { rl._vrubyPlain = newValue } _modify { yield &rl._vrubyPlain } }
+    var _trailCut: [Int: Int] { get { rl._trailCut } set { rl._trailCut = newValue } _modify { yield &rl._trailCut } }
     func _tamilVijaya(_ cs: String?, _ named: RichNamedStyle?, _ document: RichDocument) -> Bool { rl._tamilVijaya(cs, named, document) }
     func _segoeJoiner(_ run: CharStyle, _ named: RichNamedStyle?, _ own: TextStyle, _ paragraph: RichParagraphStyle, _ pitch: Double?, _ scale: Double) -> TextStyle? { rl._segoeJoiner(run, named, own, paragraph, pitch, scale) }
     func _rubyShiftApplies(_ p: RichParagraph, named: RichNamedStyle?, ruby: CharStyle, pitch: Double?) -> Bool { rl._rubyShiftApplies(p, named: named, ruby: ruby, pitch: pitch) }
@@ -228,11 +228,11 @@ final class _StyledFrame {
     func _malgunAlternate(_ family: String?, _ document: RichDocument) -> Bool { rl._malgunAlternate(family, document) }
     func _listIndents(_ p: RichParagraph, _ document: RichDocument) -> (left: Double, hanging: Double)? { rl._listIndents(p, document) }
     func _jisLatin1Symbol(_ ch: Character, theme: RichTextTheme, run: CharStyle, named: RichNamedStyle?, document: RichDocument, hint: String?) -> Bool { rl._jisLatin1Symbol(ch, theme: theme, run: run, named: named, document: document, hint: hint) }
-    var _hanChunks: [Int: Set<Int>] { get { rl._hanChunks } set { rl._hanChunks = newValue } }
+    var _hanChunks: [Int: Set<Int>] { get { rl._hanChunks } set { rl._hanChunks = newValue } _modify { yield &rl._hanChunks } }
     func _glyphCount(_ style: TextStyle, _ ch: Character) -> Int { rl._glyphCount(style, ch) }
     func _closesUpMarks(_ run: CharStyle, _ named: RichNamedStyle?, _ document: RichDocument) -> Bool { rl._closesUpMarks(run, named, document) }
     func gridPitchIsNil(_ pitch: Double?) -> Bool { rl.gridPitchIsNil(pitch) }
-    var scale: Double { get { rl.scale } set { rl.scale = newValue } }
-    var fontScale: Double { get { rl.fontScale } set { rl.fontScale = newValue } }
+    var scale: Double { get { rl.scale } set { rl.scale = newValue } _modify { yield &rl.scale } }
+    var fontScale: Double { get { rl.fontScale } set { rl.fontScale = newValue } _modify { yield &rl.fontScale } }
 
 }
