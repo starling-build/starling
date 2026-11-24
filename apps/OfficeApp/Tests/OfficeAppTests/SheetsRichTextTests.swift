@@ -9,7 +9,7 @@ final class SheetsRichTextTests: XCTestCase {
     static let rich = "<si><r><rPr><b/><u val=\"double\"/><sz val=\"14\"/><color theme=\"4\"/><rFont val=\"Calibri\"/><family val=\"2\"/><scheme val=\"minor\"/></rPr><t xml:space=\"preserve\">Bold </t></r>"
         + "<r><rPr><i/><vertAlign val=\"superscript\"/><rFont val=\"Calibri\"/></rPr><t>sup</t></r><rPh sb=\"0\" eb=\"2\"><t>ふり</t></rPh><phoneticPr fontId=\"1\" type=\"Hiragana\"/></si>"
 
-    static func book() throws -> Data {
+    static func book(strings: String? = nil) throws -> Data {
         func e(_ n: String, _ s: String) -> ZipEntry { ZipEntry(name: n, data: Data(("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n" + s).utf8)) }
         let ns = "xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\""
         let r = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
@@ -19,7 +19,7 @@ final class SheetsRichTextTests: XCTestCase {
             e("xl/workbook.xml", "<workbook \(ns) xmlns:r=\"\(r)\"><sheets><sheet name=\"S\" sheetId=\"1\" r:id=\"rId1\"/></sheets></workbook>"),
             e("xl/_rels/workbook.xml.rels", "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"><Relationship Id=\"rId1\" Type=\"\(r)/worksheet\" Target=\"worksheets/sheet1.xml\"/><Relationship Id=\"rId2\" Type=\"\(r)/sharedStrings\" Target=\"sharedStrings.xml\"/></Relationships>"),
             e("xl/worksheets/sheet1.xml", "<worksheet \(ns)><sheetData><row r=\"1\"><c r=\"A1\" t=\"s\"><v>0</v></c><c r=\"B1\" t=\"s\"><v>1</v></c><c r=\"C1\" t=\"s\"><v>0</v></c></row></sheetData></worksheet>"),
-            e("xl/sharedStrings.xml", "<sst \(ns) count=\"3\" uniqueCount=\"2\">\(rich)<si><t>plain</t></si></sst>"),
+            e("xl/sharedStrings.xml", "<sst \(ns) count=\"3\" uniqueCount=\"2\">\(strings ?? (rich + "<si><t>plain</t></si>"))</sst>"),
         ])
     }
 
@@ -55,6 +55,19 @@ final class SheetsRichTextTests: XCTestCase {
         XCTAssertNil(back.sheets[0].richText[CellAddress("A1")!])
         XCTAssertEqual(back.sheets[0].cells[CellAddress("A1")!]?.value, .text("typed"))
         XCTAssertEqual(back.sheets[0].richText[CellAddress("C1")!]?.count, 2)
+    }
+
+    /// The same check on a workbook built here (a Japanese base, two readings, phonetic settings), so it runs where the corpus is absent.
+    func testBuiltJapaneseReadingsSurviveAnEditElsewhere() throws {
+        let si = "<si><t>漢字仮名</t><rPh sb=\"0\" eb=\"2\"><t>カンジ</t></rPh><rPh sb=\"2\" eb=\"4\"><t>カナ</t></rPh><phoneticPr fontId=\"1\" type=\"Hiragana\"/></si><si><t>plain</t></si>"
+        let data = try Self.book(strings: si)
+        let c = WorkbookController()
+        c.load(try Xlsx.read(data))
+        c.setInput("edited", at: CellAddress("ZZ900")!)
+        let s = try sst(try Xlsx.write(c.book))
+        for keep in ["<rPh eb=\"2\" sb=\"0\"><t>カンジ</t></rPh>", "<rPh eb=\"4\" sb=\"2\"><t>カナ</t></rPh>", "<phoneticPr fontId=\"1\" type=\"Hiragana\">", "<t>漢字仮名</t>"] {
+            XCTAssertTrue(s.containsSubstring(keep), keep)
+        }
     }
 
     /// Every phonetic run (the reading over Japanese text) and the phonetic settings
