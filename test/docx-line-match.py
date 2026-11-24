@@ -119,6 +119,9 @@ def _key(c):
     return (round(c["origin"][0], 1), round(c["origin"][1], 1), c["c"])
 
 
+_RAW = {}   # (pdf path, page) -> the no-clip rawdict blocks _glyph_ink read; mupdf_glyphs takes (and so consumes) them: one extraction per page, not two
+
+
 def _glyph_ink(pdf, dpi=150):
     """(all, hidden) per page for v2's hidden-glyph rule. Word's PDFs keep the text a CLIP hides (a header's
     line-number box clips its 24th number: the glyph stays in the text layer, nothing is inked). HIDDEN = a glyph
@@ -131,7 +134,9 @@ def _glyph_ink(pdf, dpi=150):
     k = dpi / 72.0
     with pymupdf.open(pdf) as d:
         for i, page in enumerate(d):
-            full = [c for b in page.get_text("rawdict", flags=pymupdf.TEXTFLAGS_RAWDICT & ~pymupdf.TEXT_CLIP)["blocks"]
+            noclip = page.get_text("rawdict", flags=pymupdf.TEXTFLAGS_RAWDICT & ~pymupdf.TEXT_CLIP)["blocks"]
+            if len(d) <= 150: _RAW[(os.path.abspath(pdf), i)] = noclip   # mupdf_glyphs reads the same dict next (once, then it is dropped)
+            full = [c for b in noclip
                     for l in b.get("lines", []) for sp in l["spans"] for c in sp["chars"] if not _inkless(c["c"])]
             seen = {_key(c) for b in page.get_text("rawdict", flags=pymupdf.TEXTFLAGS_RAWDICT)["blocks"]
                     for l in b.get("lines", []) for sp in l["spans"] for c in sp["chars"]}
@@ -332,11 +337,14 @@ def mupdf_glyphs(pdf, drop=None):
             # glyph the clip does not wholly hold, and Word's footer boxes
             # clip their page numbers — zh-f47b8a74's "10" read "1", and our
             # Thai, drawn inside a clip, read as nothing.)
-            blocks = page.get_text("rawdict", flags=pymupdf.TEXTFLAGS_RAWDICT & ~pymupdf.TEXT_CLIP)["blocks"]
+            blocks = _RAW.pop((os.path.abspath(pdf), i), None)
+            if blocks is None:
+                blocks = page.get_text("rawdict", flags=pymupdf.TEXTFLAGS_RAWDICT & ~pymupdf.TEXT_CLIP)["blocks"]
+            trace = page.get_texttrace()   # read once for both uses below
             # A run squeezed across (Tz, or a matrix whose x scale is not its y scale) is sized by the reader as the geometric mean of the
             # two scales in the text dict and by the x scale in the trace: the y scale, the real size, is mean^2 / x (amd-8, 2026-11-22).
             xsz = {}
-            for t in page.get_texttrace():
+            for t in trace:
                 if t["size"] > 0:
                     for ch in t["chars"]:
                         xsz[(round(ch[2][0], 1), round(ch[2][1], 1))] = t["size"]
@@ -385,7 +393,7 @@ def mupdf_glyphs(pdf, drop=None):
                             # bullets are SHAPES with the glyph kept as invisible text, where PowerPoint writes the bullet as visible text
                             # (ko-30dac1f5, lo-tdf126234). Invisible text over nothing (a ghost copy) still counts on neither side.
                             shapes = None
-                            for t in page.get_texttrace():
+                            for t in trace:
                                 if t["type"] == 3 or t["opacity"] == 0:
                                     if shapes is None:   # only a page that has invisible text needs its shapes (get_drawings is the slow call: 80 s of 114 s on ko-a1b39848a0)
                                         shapes = _ghost_shapes(page)
