@@ -182,12 +182,25 @@ extension _StyledFrame {
                (run.complexFontFamily ?? named?.char.complexFontFamily ?? "").trimmingWhitespace().lowercased() == "calibri" {
                 below = max(below, 550.0 / 2048 * multiple)
             }
-            // (Lao in Leelawadee UI beside spaces: Word draws the spaces in Browallia New, whose deeper descent sets the line, 1.08 + 0.372 em
-            // = 1.452 (pitch 18.75 pt at 12 pt on 259; dx2 30f73046 page 2), where Leelawadee's own line is 1.36.)
-            if indic.face == "leelawadee ui", theme.wordRules, RichTextTheme.wordWindowsPages,
-               p.text.unicodeScalars.contains(where: { $0.value >= 0x0E81 && $0.value <= 0x0EDF }), p.text.unicodeScalars.contains(where: { $0.value == 0x20 }), latinFace?.spacesInBrowallia == true {
-                RuleTrace.hit("word-lao-line-with-spaces-takes-browallia-descent")
-                below = max(below, 0.372 * multiple)
+            // (Lao in Leelawadee UI beside characters Word draws in Browallia New, the Latin letters, digits, spaces and marks of a face the
+            // print machine lacks: the deepest descent of the faces really drawn sets the line, Browallia New's 0.372 em, its Bold's 0.417 (885/789
+            // of it). Word's lab laoh2: bold Latin bullet lines 16.97 pt at 10.5 pt, numbered 12 pt lines 18.8, all six pairs to 0.1 pt; dx2
+            // 30f73046 page 2. Leelawadee's own Lao line is 1.33 em.)
+            if indic.face == "leelawadee ui", theme.wordRules, RichTextTheme.wordWindowsPages, latinFace?.spacesInBrowallia == true,
+               p.text.unicodeScalars.contains(where: { $0.value >= 0x0E81 && $0.value <= 0x0EDF }) {
+                let units = Array(p.text.utf16)
+                var at = 0, regular = false, bold = false
+                for r in p.runs {
+                    let end = min(units.count, at + r.length)
+                    if at < end, units[at ..< end].contains(where: { $0 < 0x250 }) {
+                        if r.style.bold { bold = true } else { regular = true }
+                    }
+                    at = end
+                }
+                if bold || regular {
+                    RuleTrace.hit(bold ? "word-lao-line-with-bold-latin-takes-browallia-bold-descent" : "word-lao-line-with-latin-takes-browallia-descent")
+                    below = max(below, (bold ? 0.417 : 0.372) * multiple)
+                }
             }
             s = s.copyWith(ascentOverride: split.0 * lineSize, descentOverride: below * lineSize, height: (m.0 * multiple + (below == split.1 ? m.1 * multiple : below)) * lineSize / size, leadingDistribution: .even)
         }
