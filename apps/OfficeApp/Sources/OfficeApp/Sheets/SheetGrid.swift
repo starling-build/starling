@@ -518,6 +518,11 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                         let column = (chars * m.screenDigit).rounded(.down)
                         let dp = Self.screenFitPad, dfl = Self.screenFitFloor, dsh = Self.screenFitShare
                         width = (column - max(dfl, dp + dsh * column)).rounded(.down) * style.screen
+                        // (An indent takes its steps off the room here too, as on the page: en-6fc78951d5's indent-2 cell of Times 12 is four lines in Excel's fit, row 41 60 pt, where the stored 47.25 is three.)
+                        if st.indent > 0, st.hAlign == .left || st.hAlign == .right {
+                            let base = _textStyle(book.style(0), color: nil, ink: Color(0xFF00_0000))
+                            width -= Double(st.indent) * max(0, texts.painter("X   X", base).width - texts.painter("XX", base).width)
+                        }
                     }
                     // (Line breaks at the end draw nothing but are lines to the
                     // fit: LIBRE_OFFICE-116306-0's rows keep theirs.)
