@@ -2085,7 +2085,7 @@ extension RichLayout {
     func _verticalPagePicture(_ i: Int, _ float: ImageFloat, _ image: ImageAttachment) -> Bool {
         guard theme.wordRules, RichTextTheme.wordWindowsPages, !floatsFrames, _verticalBody(i),
               float.wraps, !float.takesRoom, !float.bandsPage, float.wrapSide == nil, image.width > 0, image.height > 0,
-              image.textBox != nil || !image.data.isEmpty || image.outline != nil, abs(image.rotation) < 0.01,
+              image.textBox != nil || !image.data.isEmpty || image.outline != nil, abs(image.rotation.truncatingRemainder(dividingBy: 180)) < 0.01,
               float.horizontalFrom == "margin" || float.horizontalFrom == "page",
               float.verticalFrom == "margin" || float.verticalFrom == "page",
               i >= _cells.count || _cells[i] == nil,
