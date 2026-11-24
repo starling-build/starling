@@ -1093,13 +1093,16 @@ extension RichLayout {
                     // at any gap, one opening with an ideograph sets one ideograph a row on each side only while it
                     // fits, and a line starts at the left piece: where its first unit does not fit there it goes under, as in 817e3a79's caption (room 32.2 each side, first line indented 32); the first line clear of the picture is the next row of the page's own pitch.)
                     if theme.wordRules, RichTextTheme.wordWindowsPages, let f = image.float, f.wraps, !f.takesRoom, f.wrapSide == nil,
-                       f.verticalFrom == "paragraph", f.verticalAlign == nil, f.horizontalAlign == "center", f.horizontalFrom == "column",
-                       _cells[pgs.i] == nil, image.width > 0, image.height > 0 {
-                        let inner = _flowWidth(pgs.i), w = _px(image.width), x = (inner - w) / 2
+                       f.verticalFrom == "paragraph", f.verticalAlign == nil, f.horizontalAlign == "center" || f.horizontalAlign == nil, f.horizontalFrom == "column",
+                       _cells[pgs.i] == nil, image.width > 0, image.height > 0, f.horizontalAlign == "center" || (image.data.isEmpty && image.textBox == nil && _px(image.width) > _flowWidth(pgs.i) / 2) {
+                        // (A chart set by an offset from the column, over half the column wide, is held the same way when it leaves no room at one side: pt 79c00839f5's pie chart.)
+                        let inner = _flowWidth(pgs.i), w = _px(image.width), x = f.horizontalAlign == nil ? _px(f.x) : (inner - w) / 2
                         let l = x - _px(f.distanceLeft ?? 9), r = inner - (x + w) - _px(f.distanceRight ?? 9)
                         let top = pgs.y + _px(f.y) - _px(f.distanceTop), bottom = pgs.y + _px(f.y) + _px(image.height + f.effectBottom + f.distanceBottom)
                         let cutAt = pgs.i; pgs.narrowBands.removeAll(where: { $0.owner >= cutAt })
-                        if bottom > top, bottom > 0.01 { pgs.narrowBands.append((top, bottom, pgs.i, l, r)) }
+                        // (Set off-centre, the room is the wider side's: the lines stand under it where neither side leaves a unit.)
+                        let room = f.horizontalAlign == nil ? max(l, r) : l
+                        if bottom > top, bottom > 0.01 { pgs.narrowBands.append((top, bottom, pgs.i, room, r)) }
                     }
                     guard let f = image.float, f.bandsPage else { continue }
                     let physical = pgs.page / _columns
