@@ -3211,6 +3211,7 @@ enum DocxFormat {
             document.usesEastAsianLayout = settings.first("w:compat")?.first("w:useFELayout").map { !_isOff($0) }
                 ?? (part("word/styles.xml") == nil)
             document.doesNotExpandShiftReturn = settings.first("w:compat")?.first("w:doNotExpandShiftReturn").map { !_isOff($0) } ?? false
+            document.numberTabReachesLevelIndent = settings.first("w:compat")?.first("w:binaryDocListTabs") != nil
             document.indentNotNumberingTabStop = settings.first("w:compat")?.first("w:doNotUseIndentAsNumberingTabStop").map { !_isOff($0) } ?? false
             document.balancesSpaceWidth = settings.first("w:compat")?.first("w:balanceSingleByteDoubleByteWidth").map { !_isOff($0) } ?? false
             document.underlinesTrailingSpaces = settings.first("w:compat")?.first("w:ulTrailSpace").map { !_isOff($0) } ?? false
