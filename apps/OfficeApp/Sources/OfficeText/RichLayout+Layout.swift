@@ -1320,12 +1320,33 @@ extension RichLayout {
                    ts.indent > -0.5 {
                     let ins = _cellInsets(c.table, document)
                     var need = Array(repeating: 0.0, count: pts.count)
-                    for (k, q) in document.paragraphs.enumerated() {
-                        guard let cc = q.cell, cc.table == c.table, cc.span == 1, cc.column < pts.count else { continue }
-                        let sides = cc.padding.map { _px($0.left) + _px($0.right) } ?? ins.left + ins.right
-                        need[cc.column] = max(need[cc.column], sides + _minContent(k, q, document))
+                    // (A table whose rows use more columns than its grid states, Word's lab e3fit: the spanning cell that holds a
+                    // picture or a long word sets the column it starts in when the columns it covers beyond that hold nothing of
+                    // their own, and a column past the grid is a fixed 6.9 pt one that comes out of the room, drawn at the last
+                    // column's right: es-e3d5fed41c's table, 42.6 / 502.65 / 50.55 in Word's print.)
+                    let ragged = theme.wordRules && document.paragraphs.contains { $0.cell.map { $0.table == c.table && $0.column + $0.span > pts.count } == true }
+                    var holds = Set<Int>()
+                    if ragged {
+                        for q in document.paragraphs { if let cc = q.cell, cc.table == c.table, cc.span == 1, !q.text.isEmpty || q.image != nil { holds.insert(cc.column) } }
                     }
-                    let grid = pts.map { _px($0) }
+                    for (k, q) in document.paragraphs.enumerated() {
+                        guard let cc = q.cell, cc.table == c.table, cc.column < pts.count else { continue }
+                        if cc.span != 1 {
+                            guard ragged, !((cc.column + 1) ..< (cc.column + cc.span)).contains(where: { holds.contains($0) }) else { continue }
+                        }
+                        let sides = cc.padding.map { _px($0.left) + _px($0.right) } ?? ins.left + ins.right
+                        var least = _minContent(k, q, document)
+                        // (Measured, lab e3fit: an empty cell asks 0.8 pt, and a drawn line 0.8 pt more than its length each side.)
+                        if ragged { least = q.image != nil ? least + _px(1.6) : (q.text.isEmpty ? _px(0.8) : least) }
+                        need[cc.column] = max(need[cc.column], sides + least)
+                    }
+                    var grid = pts.map { _px($0) }
+                    if ragged, let last = grid.indices.last {
+                        RuleTrace.hit("word-autofit-column-past-the-grid-is-a-fixed-6.9pt")
+                        grid[last] += _px(6.9); need[last] += _px(6.9)
+                        // (A column whose narrowest beats its stated width keeps the narrowest.)
+                        grid = zip(grid, need).map { max($0, $1) }
+                    }
                     // (Room: the column, less the table's indent; before 2013's layout the
                     // table also reaches a cell margin past each side of the column — lab
                     // cbcol, Word for Windows, no compat setting: its right edge stands at

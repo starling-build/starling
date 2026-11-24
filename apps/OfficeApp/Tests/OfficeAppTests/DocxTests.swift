@@ -3506,6 +3506,40 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(l.geometry(0).painter.computeLineMetrics().count, 6)
     }
 
+    func testAutofitRaggedTableKeepsASixPointNineColumnOutOfTheRoom() throws {
+        try requireFitterWidths()
+        RichTextTheme.wordWindowsPages = true
+        defer { RichTextTheme.wordWindowsPages = false }
+        // Word's lab e3fit (es-e3d5fed41c): a row with a cell past the grid
+        // draws a fixed 6.9pt column there, which comes out of the room the
+        // grid's columns share (it is counted in the last column's width).
+        // Grid 100 + 500 in a 400pt room: with the extra cell the first
+        // column shrinks by a larger share of the 6.9 more to lose.
+        var style = CharStyle()
+        style.fontSize = 10
+        func cell(_ text: String, _ column: Int) -> RichParagraph {
+            var p = RichParagraph(text: text, runs: [Run(length: text.utf16.count, style: style)])
+            p.cell = CellRef(table: "T", row: 0, column: column)
+            return p
+        }
+        func first(ragged: Bool) throws -> Double {
+            var doc = RichDocument(paragraphs: [cell("A", 0), cell("B", 1)] + (ragged ? [cell("", 2)] : []) + [RichParagraph(text: "")])
+            doc.tableColumns["T"] = [100, 500]
+            doc.tableStyles["T"] = TableStyle()
+            doc.compatibilityMode = 15
+            let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
+            theme.fontFamilyResolver = OfficeFonts.substitute
+            theme.faceResolver = OfficeFonts.face
+            theme.averageCharWidth = OfficeFonts.averageCharWidth
+            theme.wordRules = true
+            let l = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+            l.width = 400 * theme.pixelsPerPoint
+            l.ensureLaidOut(doc)
+            return try XCTUnwrap(l.columnWidths(of: "T")?.first)
+        }
+        XCTAssertLessThan(try first(ragged: true), try first(ragged: false) - 0.5)
+    }
+
     func testAutofitNoCompatPercentTableBreaksAtEmDash() throws {
         try requireFitterWidths()
         // Word, no compat mode, a percentage-width table (labs atcol5-8):
