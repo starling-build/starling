@@ -3690,6 +3690,14 @@ enum ChartPainter {
                     lines = stride(from: 0, to: entries.count, by: cols).map { Array(entries[$0 ..< min($0 + cols, entries.count)]) }
                 }
             }
+            // (A Word legend wrapped onto rows stands as a grid too: every column as wide as the widest key and name, the entries
+            // of a row under those of the row above, the block centred: dx2 99cfc5554d6e p3's four entries, "Độ đục/than" under
+            // "Độ hấp thụ quang/than" in Word's print, each row centred alone in ours.)
+            var wordGridPitch: Double? = nil
+            if !beside, lines.count > 1, !c.onSlide, !c.onSheet, !boxColumn, c.type != .pie, slideGridW == nil {
+                let colW = entries.map { lead + $0.tp.width }.max() ?? 0
+                if colW > 0, lines.map(\.count).max() ?? 0 > 1 { wordGridPitch = colW + spacing; RuleTrace.hit("word-legend-wrapped-rows-stand-as-a-grid-of-equal-columns") }
+            }
             // (An entry to a line: PowerPoint's 9 pt entries are 16.9 pt apart.)
             // (A line of the chart's Latin face, whatever the names' script:
             // zh-37b6536f's Chinese entries, 9pt, stand 16.8 apart in Word's
@@ -4013,7 +4021,7 @@ enum ChartPainter {
             }
             for (n, line) in lines.enumerated() {
                 let lineH = lineHs[n]
-                let w = slideGridW.map { $0 * Double(lines.map(\.count).max() ?? 1) } ?? (line.reduce(0.0) { $0 + lead + $1.tp.width } + spacing * Double(max(0, line.count - 1)))
+                let w = slideGridW.map { $0 * Double(lines.map(\.count).max() ?? 1) } ?? wordGridPitch.map { $0 * Double(lines.map(\.count).max() ?? 1) - spacing } ?? (line.reduce(0.0) { $0 + lead + $1.tp.width } + spacing * Double(max(0, line.count - 1)))
                 // (A row on a slide stands 0.19 of its size right of the
                 // frame's middle: chart-slide-bg's 12 pt legend 2.37 pt in
                 // PowerPoint's print, cooper's 10 pt ones 1.76 and 1.74 —
@@ -4042,7 +4050,7 @@ enum ChartPainter {
                         }
                         Self._mark(l, at: mid, k: k, colour: colour, canvas)
                         e.tp.paint(canvas, Offset(x + key + gap, y + (lineH - e.tp.height) / 2))
-                        x += key + gap + e.tp.width + spacing
+                        x += wordGridPitch ?? (key + gap + e.tp.width + spacing)
                         continue
                     }
                     p.color = waterfall != nil ? c.color(series: e.i, accents: theme.accents)
@@ -4100,7 +4108,7 @@ enum ChartPainter {
                     }
                     if slideSidePie, wrappedSide { textDrop = (lineH - slotH) / 2 }
                     e.tp.paint(canvas, Offset(x + lead, y + textDrop))
-                    x += slideGridW ?? (lead + e.tp.width + spacing)
+                    x += slideGridW ?? wordGridPitch ?? (lead + e.tp.width + spacing)
                 }
                 y += lineH
             }
