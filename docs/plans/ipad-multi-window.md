@@ -251,7 +251,9 @@ width; the sorter still lists every slide; `SizeReporter` at the shell's root, t
 the band is at most a quarter of the box's shorter drawn side (6 pt on a slide at full size, a line keeps 6). Measured
 in the simulator (Split View, ex.docx | sl.pptx, 375 pt pane): the slide is 312 pt wide and a tap on the subtitle
 box starts a text client and typed text lands in it ("[input] type view 1 ... focus=slide shape 2", text in the
-box). Not done: a way to bring the rail back in a narrow window; touch targets for resize handles on a tiny slide.
+box). A "Slides" button in the status bar (narrow windows only) brings the rail back (measured: a tap on it shows the
+rail beside the slide; the status bar drops the language label to make room). Not done: touch targets for resize
+handles on a tiny slide.
 
 ## Recommendation and order
 

@@ -103,6 +103,8 @@ final class SlidesShellState: State<StatefulWidget> {
     /// The window is narrower than a rail and a slide fit side by side (a Split View pane on an iPad, 375 pt): the
     /// thumbnail rail is hidden so the slide gets the width (the sorter still shows every slide).
     private var _narrow = false
+    /// In a narrow window the rail comes back on request (the status bar's "Slides" button).
+    private var _narrowRail = false
     private static let narrowBelow = 600.0
     private var _recent: [String] = []
     private let _search = TextEditingController()
@@ -1194,7 +1196,7 @@ final class SlidesShellState: State<StatefulWidget> {
         if _sorter {
             column.append(Expanded(child: _sorterView(fluent)))
         } else {
-            var row: [Widget] = _narrow ? [] : [_thumbnailPane(fluent)]
+            var row: [Widget] = _narrow && !_narrowRail ? [] : [_thumbnailPane(fluent)]
             row.append(Expanded(child: Column(crossAxisAlignment: .stretch, children: work)))
             if _animationPane {
                 row.append(AnimationPane(deck: deck, onClose: { [weak self] in self?.setState { self?._animationPane = false } }))
@@ -1537,14 +1539,20 @@ final class SlidesShellState: State<StatefulWidget> {
         var left: [Widget] = [
             Text("Slide \(deck.current + 1) of \(deck.slides.count)"
                  + (deck.currentSlide.hidden ? " (hidden)" : ""), style: caption),
-            Chrome.gap(20),
-            Text("English (United States)", style: dim),
         ]
+        // (Not in a narrow window: the room goes to the "Slides" button.)
+        if !_narrow { left += [Chrome.gap(20), Text("English (United States)", style: dim)] }
         if let message = _status {
             left.append(Chrome.gap(20))
             left.append(Text(message, style: dim))
         }
-        let right: [Widget] = [
+        var right: [Widget] = []
+        if _narrow {
+            right += [Chrome.textToggle("Slides", _narrowRail, fluent, style: caption) { [weak self] in
+                self?.setState { self?._narrowRail.toggle() }
+            }, Chrome.gap(8)]
+        }
+        right += [
             Chrome.textToggle("Notes", _showNotes, fluent, style: caption) { [weak self] in
                 self?.setState { self?._showNotes.toggle() }
             },
