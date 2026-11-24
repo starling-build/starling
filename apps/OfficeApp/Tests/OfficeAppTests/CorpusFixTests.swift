@@ -425,4 +425,38 @@ final class CorpusFixTests: XCTestCase {
         let reaching = try titleLines(polygonBottom: 21600), clear = try titleLines(polygonBottom: 4000)
         XCTAssertGreaterThan(reaching, clear, "a polygon that reaches the body's line holds it beside the box (two lines)")
     }
+
+    /// A paragraph holding only a page-fixed text box that runs to the page's foot, with no room beside it for an empty line,
+    /// goes to the next page with its box, and the paragraph after its page break to a third (lab chartroom3, es-1dce05b4b2).
+    func testABoxOnlyParagraphUnderItsFixedBoxGoesToTheNextPage() throws {
+        RichTextTheme.wordWindowsPages = true
+        defer { RichTextTheme.wordWindowsPages = false }
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "x")]), pageSetup: .letter))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let body = try XCTUnwrap(xml.range(of: "<w:body>")), sect = try XCTUnwrap(xml.range(of: "<w:sectPr"))
+        let anchor = "<wp:anchor distT=\"0\" distB=\"0\" distL=\"0\" distR=\"0\" simplePos=\"0\" relativeHeight=\"1\" behindDoc=\"0\" locked=\"0\" layoutInCell=\"1\" allowOverlap=\"1\">"
+            + "<wp:simplePos x=\"0\" y=\"0\"/><wp:positionH relativeFrom=\"page\"><wp:posOffset>457200</wp:posOffset></wp:positionH>"
+            + "<wp:positionV relativeFrom=\"page\"><wp:posOffset>457200</wp:posOffset></wp:positionV><wp:extent cx=\"6858000\" cy=\"9144000\"/>"
+            + "<wp:wrapSquare wrapText=\"bothSides\"/><wp:docPr id=\"1\" name=\"s\"/><a:graphic xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\">"
+            + "<a:graphicData uri=\"http://schemas.microsoft.com/office/word/2010/wordprocessingShape\"><wps:wsp xmlns:wps=\"http://schemas.microsoft.com/office/word/2010/wordprocessingShape\">"
+            + "<wps:cNvSpPr txBox=\"1\"/><wps:spPr><a:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"6858000\" cy=\"9144000\"/></a:xfrm><a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom></wps:spPr>"
+            + "<wps:txbx><w:txbxContent><w:p><w:r><w:t>box</w:t></w:r></w:p></w:txbxContent></wps:txbx>"
+            + "<wps:bodyPr wrap=\"square\"/></wps:wsp></a:graphicData></a:graphic></wp:anchor>"
+        xml.replaceSubrange(body.upperBound ..< sect.lowerBound, with:
+            "<w:p><w:r><w:t>Before the box paragraph.</w:t></w:r></w:p>"
+            + "<w:p><w:r><w:drawing>\(anchor)</w:drawing></w:r><w:r><w:br w:type=\"page\"/></w:r></w:p>"
+            + "<w:p><w:r><w:t>After the page break.</w:t></w:r></w:p>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let doc = try DocxFormat.read(try Zip.write(entries)).document
+        let theme = RichTextTheme(fontFamily: OfficeFonts.serif)
+        theme.wordRules = true
+        let layout = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+        layout.pageSetup = .letter
+        layout.width = PageSetup.letter.columnWidth * theme.pixelsPerPoint
+        layout.ensureLaidOut(doc)
+        XCTAssertEqual(layout.pageNumber(ofParagraph: 0), 1)
+        XCTAssertEqual(layout.pageNumber(ofParagraph: 1), 2, "the box paragraph goes under no box: to page 2 with its box")
+        XCTAssertEqual(layout.pageNumber(ofParagraph: 2), 3, "the paragraph after its page break stands on a third page")
+    }
 }

@@ -775,7 +775,7 @@ extension RichLayout {
             // break and "Contents" has a break of its own — the box keeps
             // page 2, and "Contents" has page 3.)
             if theme.wordRules, _pageBreak[pgs.i], document.paragraphs[pgs.i].style.breakEndsPrevious, !document.paragraphs[pgs.i].style.pageBreakInline,
-               pgs.resumeCursor == nil, pgs.page > 0, pgs.i > 0, !_pageBreak[pgs.i - 1], case let before = document.paragraphs[pgs.i - 1], before.cell == nil,
+               pgs.resumeCursor == nil, pgs.page > 0, pgs.i > 0, !_pageBreak[pgs.i - 1], pgs.boxesPushedPara != pgs.i - 1, case let before = document.paragraphs[pgs.i - 1], before.cell == nil,
                before.text.unicodeScalars.allSatisfy({ $0.value == 0xFFFC }),
                before.image.map({ $0.float != nil }) ?? !before.inlineImages.isEmpty,
                before.inlineImages.values.allSatisfy({ $0.float != nil }),
@@ -1838,8 +1838,22 @@ extension RichLayout {
                 // "TEST", 175pt before, its line 274 to 285 and the box 283
                 // to 299, stands at 474 in Word's print, 299 + 175; ours
                 // stood at 274, over the box's own text.)
-                if theme.wordRules, RichTextTheme.wordWindowsPages, _anchorsOnly(pgs.i, document) == false,
-                   !document.paragraphs[pgs.i].text.isEmpty, lead > 0.01 {
+                // (A paragraph of anchors only whose wrapping text boxes the page fixes is sent under them the same way,
+                // asking a 20pt strip of the line beside them: the empty-line strip of lab ebe-ls. Lab chartroom3: when
+                // its line does not then fit above the foot, the paragraph and its boxes go to the next page.)
+                var boxesOnly = false
+                if theme.wordRules, RichTextTheme.wordWindowsPages, _anchorsOnly(pgs.i, document), _cells[pgs.i] == nil {
+                    var ownB: [ImageAttachment] = []
+                    if pgs.i < _floatImages.count, let image = _floatImages[pgs.i] { ownB.append(image) }
+                    if pgs.i < _inline.count { ownB += _inline[pgs.i] }
+                    boxesOnly = ownB.contains { img in
+                        guard let f = img.float else { return false }
+                        return f.wraps && !f.takesRoom && f.verticalAlign == nil && f.heightShare == nil && img.textBox != nil
+                            && (f.verticalFrom == "page" || f.verticalFrom == "margin") && f.horizontalFrom != "character"
+                    }
+                }
+                if theme.wordRules, RichTextTheme.wordWindowsPages,
+                   boxesOnly || (_anchorsOnly(pgs.i, document) == false && !document.paragraphs[pgs.i].text.isEmpty && lead > 0.01) {
                     var fixed: [(top: Double, bottom: Double, left: Double, right: Double)] = []
                     var own: [ImageAttachment] = []
                     if pgs.i < _floatImages.count, let image = _floatImages[pgs.i] { own.append(image) }
@@ -1856,8 +1870,11 @@ extension RichLayout {
                         fixed.append((t - _px(float.distanceTop), t + _bodyBoxHeight(image, document) + line + _px(float.distanceBottom), r.left, r.right))
                     }
                     if !fixed.isEmpty {
-                        let reach = Self._lineBottoms(geometry(pgs.i).painter).first.map { $0 + (geometry(pgs.i).textTop - geometry(pgs.i).top) } ?? 0
+                        var reach = Self._lineBottoms(geometry(pgs.i).painter).first.map { $0 + (geometry(pgs.i).textTop - geometry(pgs.i).top) } ?? 0
+                        if boxesOnly { reach = max(reach, _heights[pgs.i] - _spaceBefore[pgs.i]) }
                         let kept = pgs.bands
+                        let keptEm = em
+                        if boxesOnly { em = max(em, _px(20)) }
                         pgs.bands = []
                         var steps = 0
                         while let below = noRoom(at: pgs.y, height: reach, fixed), steps < 20, below > pgs.y + 0.01 {
@@ -1865,6 +1882,14 @@ extension RichLayout {
                             RuleTrace.hit("word-own-fixed-box-sends-its-paragraph-under")
                         }
                         pgs.bands = kept
+                        em = keptEm
+                        if boxesOnly, steps > 0, pgs.y + reach > pgs.contentH + 0.5, pgs.y > 0.01 {
+                            RuleTrace.hit("word-box-only-paragraph-under-its-boxes-past-the-foot-goes-to-the-next-page")
+                            _pg_newPage(&pgs, document)
+                            while _columns > 1, pgs.page % _columns != 0 { _pg_newPage(&pgs, document) }
+                            // (Its boxes stand on this page, so the rule for a note alone before a page break leaves it here.)
+                            pgs.boxesPushedPara = pgs.i
+                        }
                     }
                 }
                 if !mine.isEmpty {
