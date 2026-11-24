@@ -1796,6 +1796,10 @@ extension DocxFormat {
                     // wrapped the text beside it in a grey square and sent
                     // 10 lines of page 3 to the right. It takes no room and
                     // wraps nothing in Word's print.)
+                    // (A pict holding only a shape TYPE — a `v:shapetype` and no shape
+                    // of it — draws nothing and takes no room: es-28716e1db6's header
+                    // carried one and stood 164.7 pt tall on every page.)
+                    if child.name == "w:pict", child.children.allSatisfy({ $0.name == "v:shapetype" }) { break }
                     if child.name == "w:pict", child.descendant("v:polyline") != nil,
                        child.descendant("v:textbox") == nil, child.descendant("v:imagedata") == nil { break }
                     // (A horizontal rule is a block: after text in the same paragraph Word sets it on a line of its own,
