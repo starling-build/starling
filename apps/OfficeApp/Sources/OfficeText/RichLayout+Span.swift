@@ -2447,7 +2447,7 @@ extension RichLayout {
             }
             // (A run whose line was grown by its shadow's reach is set down by it, `shadow-line` in `_spanStyle`: the engine's glyph
             // outlines stand without that shift, so the shadow is set down by it too, else it sits above its letters.)
-            let lowered = Self._shadowLineShift(painter.text, at: pa)
+            let lowered = theme.wordRules ? Self._shadowLineShift(painter.text, at: pa) : 0
             let moved = path.shift(Offset(origin.dx + sh.dx * k * shrink, origin.dy + lowered + sh.dy * k * shrink))
             if sh.blur > 0, theme.wordRules, RichTextTheme.wordWindowsPages, RichTextTheme.shadowBlurDeviceScale == nil {
                 // (Word's blurred text shadow is a soft halo round the letters, the same on all four sides: lab shadow5, dist 0, Calibri
