@@ -65,6 +65,8 @@ final class SheetsShellState: State<StatefulWidget> {
     private var _lastTabClick: (index: Int, at: Date)? = nil
     private var _findOpen = false
     private var _namesOpen = false
+    /// The Format Cells dialog is open (X-FM-1).
+    private var _formatOpen = false
     private var _findReplace = false
     private var _findStatus = ""
     private let _findQuery = TextEditingController()
@@ -859,6 +861,15 @@ final class SheetsShellState: State<StatefulWidget> {
                     self?._grid?.focus.requestFocus()
                 }))])
         }
+        if _formatOpen, _backstage == nil {
+            return Stack(children: [
+                window,
+                FormatCellsDialog(
+                    start: CellFormatEdit.Values(wb.style(at: wb.selection.topLeft)),
+                    onApply: { [weak self] edit in self?.wb.formatCells(edit) },
+                    onClose: { [weak self] in self?._closeFormatCells() }),
+            ])
+        }
         guard let page = _backstage else { return window }
         return Stack(children: [
             window,
@@ -885,6 +896,7 @@ final class SheetsShellState: State<StatefulWidget> {
         case "n": session.replacing { [weak self] in self?._newWorkbook() }; return true
         case "p": _print(); return true
         case "f": _openFind(replace: false); return true
+        case "1" where _grid?.edit == nil: _openFormatCells(); return true
         case "h": _openFind(replace: true); return true
         case "l" where chords.shift: wb.toggleAutoFilter(); return true
         // Excel for Mac's Group and Ungroup.
@@ -895,6 +907,18 @@ final class SheetsShellState: State<StatefulWidget> {
             return false
         default: return false
         }
+    }
+
+    // MARK: Format Cells
+    func _openFormatCells() {
+        if wb.refuses("formatCells") { return }
+        setState { _formatOpen = true }
+    }
+
+    private func _closeFormatCells() {
+        guard _formatOpen else { return }
+        setState { _formatOpen = false }
+        _grid?.focus.requestFocus()
     }
 
     // MARK: Find
@@ -1042,6 +1066,7 @@ final class SheetsShellState: State<StatefulWidget> {
         }
         item("Clear Contents") { c.clearContents() }
         item("Clear Formats") { c.setStyle { $0 = .plain } }
+        item("Format Cells…") { [weak self] in self?._openFormatCells() }
         if case .cells = area {
             sep()
             let has = c.note(at: c.active) != nil
