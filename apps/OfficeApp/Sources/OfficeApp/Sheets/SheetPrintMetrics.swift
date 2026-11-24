@@ -194,6 +194,11 @@ struct SheetPrintMetrics {
             screenDigit: [14, 16, 18, 19, 19, 21, 25, 29, 32]),
         "simhei": Face(digit: [34, 38, 42, 44, 46, 50, 59, 67, 75], row: [77, 85, 93, 98, 102, 110, 127, 143, 160], screenRow: [25, 28, 32, 33, 34, 38, 43, 50, 56],
             screenDigit: [11, 12, 14, 14, 15, 16, 19, 22, 24]),
+        // Microsoft JhengHei: rows are the MS PGothic ones: the lab cjkrows3 rows (93, 103, ... dots) cost zh-7e194ea1d0 16.6 to 13.6 against the corpus print, which sets these rows at the PGothic pitch (as for Gulim). Lab values were (lab cjkrows3, jheng-8..18: 93, 103, 113, 119, 124, 133, 155, 175, 196 dots at 8 to 18 pt);
+        // digits from the GDI advances of "0" (gdi-advance-by-em-jhenghei: 12, 14, 16, 16, 17, 19, 21, 25, 28 px at the 192-dpi em,
+        // 0.58 em at 600 dpi). The fitted screen rows stand at 0.32 of the print rows (not measured).
+        "jhenghei-cjk": Face(digit: [34, 38, 42, 44, 46, 50, 59, 67, 75], row: [77, 85, 93, 98, 102, 110, 127, 143, 160], screenRow: [25, 28, 32, 33, 34, 38, 43, 50, 56],
+            screenDigit: [11, 12, 14, 14, 15, 16, 19, 22, 24]),
         "mingliu": Face(digit: [34, 38, 42, 44, 46, 50, 59, 67, 75], row: [87, 98, 109, 115, 119, 130, 152, 172, 195], screenRow: [26, 30, 33, 35, 36, 39, 45, 53, 59],
             screenDigit: [11, 12, 14, 14, 15, 16, 19, 22, 24]),
         // The bold of a face, where a workbook's default font is bold: its
@@ -224,7 +229,7 @@ struct SheetPrintMetrics {
         "courier": "courier new", "nirmala text": "nirmala ui", "caladea": "cambria", "宋体": "simsun", "nsimsun": "simsun",
         "ｍｓ ｐゴシック": "ms pgothic", "ｍｓ ゴシック": "ms gothic", "ms ui gothic": "ms pgothic",
         "ms mincho": "ms gothic", "ms pmincho": "ms pgothic", "ｍｓ 明朝": "ms gothic", "ｍｓ ｐ明朝": "ms pgothic",
-        "新細明體": "pmingliu", "맑은 고딕": "malgun gothic", "游ゴシック": "yu gothic",
+        "新細明體": "pmingliu", "微軟正黑體": "jhenghei-cjk", "맑은 고딕": "malgun gothic", "游ゴシック": "yu gothic",
         "微软雅黑": "microsoft yahei", "メイリオ": "meiryo", 
         "ms sans serif": "microsoft sans serif", "黑体": "simhei", "細明體": "mingliu",
         "lucida sans": "lucida sans unicode", "lucida grande": "lucida sans unicode",
