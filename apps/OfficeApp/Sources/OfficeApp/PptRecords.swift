@@ -29,6 +29,8 @@ struct PptFile {
         var texts: [PptTextBlock] = []
         /// A master's TextMasterStyleAtoms by text type (0 title, 1 body, 4 other...).
         var textStyles: [Int: [PptStyle.Level]] = [:]
+        /// SlideShowSlideInfoAtom flags bit 2 (value 4): the slide is hidden in the show.
+        var hidden = false
         var followsMasterObjects: Bool { flags & 1 != 0 }
         var followsMasterScheme: Bool { flags & 2 != 0 }
         var followsMasterBackground: Bool { flags & 4 != 0 }
@@ -136,6 +138,8 @@ struct PptFile {
             case 0x03EF where r.body.count >= 22:
                 p.masterRef = OfficeArt.u32(data, r.body.lowerBound + 12)
                 p.flags = OfficeArt.u16(data, r.body.lowerBound + 20)
+            case 0x03F9 where r.body.count >= 16:
+                p.hidden = OfficeArt.u16(data, r.body.lowerBound + 10) & 4 != 0
             case 0x0FA3:
                 p.textStyles[r.inst] = PptStyle.parseMaster(data, in: r.body, type: r.inst)
             case 0x07F0 where r.body.count >= 32:

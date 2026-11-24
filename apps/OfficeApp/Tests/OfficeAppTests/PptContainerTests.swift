@@ -120,13 +120,14 @@ final class PptContainerTests: XCTestCase {
     }
 
     // A page container: SlideAtom (master ref, flags), a colour scheme, and a drawing whose only shape is a solid background.
-    func page(type: Int, masterRef: Int, flags: Int, scheme: [Int], background: Int?) -> [UInt8] {
+    func page(type: Int, masterRef: Int, flags: Int, scheme: [Int], background: Int?, hidden: Bool = false) -> [UInt8] {
         var atom: [UInt8] = [UInt8](repeating: 0, count: 12)
         atom += le32(masterRef)
         atom += le32(0)
         atom += le16(flags)
         atom += le16(0)
         var kids = rec(0x03EF, atom)
+        if hidden { kids += rec(0x03F9, [UInt8](repeating: 0, count: 10) + le16(4) + [UInt8](repeating: 0, count: 4)) }
         var sch: [UInt8] = []
         for c in scheme { sch += [UInt8(c >> 16 & 255), UInt8(c >> 8 & 255), UInt8(c & 255), 0] }
         kids += rec(0x07F0, inst: 1, sch)
@@ -470,5 +471,30 @@ final class PptContainerTests: XCTestCase {
         XCTAssertTrue(xml.contains("<a:lvl2pPr><a:defRPr sz=\"2400\"/></a:lvl2pPr>"), xml)
         let (state, _, _) = try PptxReader(PptxPackage(PptBuild.parts(f))).read()
         XCTAssertEqual(state.slides[0].shapes.first?.text?.paragraphs.first?.runs.first?.style.fontSize, 28)
+    }
+}
+
+extension PptContainerTests {
+    func testAHiddenSlideIsMarkedHidden() throws {
+        func persist(_ id: Int, _ slideId: Int) -> [UInt8] { rec(0x03F3, le32(id) + le32(0) + le32(1) + le32(slideId) + le32(0)) }
+        var atom: [UInt8] = le32(5760) + le32(4320)
+        atom += [UInt8](repeating: 0, count: 22) + le16(1) + [UInt8](repeating: 0, count: 6)
+        var kids = rec(0x03E9, atom)
+        kids += rec(0x0FF0, ver: 15, inst: 1, persist(2, 0x8000_0000))
+        kids += rec(0x0FF0, ver: 15, inst: 0, persist(3, 256))
+        var d = rec(0x03E8, ver: 15, kids)
+        var offs: [Int] = []
+        for p in [page(type: 0x03F8, masterRef: 0, flags: 7, scheme: [0, 0, 0, 0, 0, 0, 0, 0], background: nil),
+                  page(type: 0x03EE, masterRef: 0x8000_0000, flags: 7, scheme: [0, 0, 0, 0, 0, 0, 0, 0], background: nil, hidden: true)] {
+            offs.append(d.count); d += p
+        }
+        let dir = d.count
+        d += directory([(1, [0]), (2, [offs[0]]), (3, [offs[1]])])
+        let edit = d.count
+        d += userEdit(lastEdit: 0, directory: dir, document: 1)
+        let f = try PptFile(currentUser: currentUser(offset: edit), document: d)
+        XCTAssertTrue(f.slides[0].hidden)
+        let (state, _, _) = try PptxReader(PptxPackage(PptBuild.parts(f))).read()
+        XCTAssertTrue(state.slides[0].hidden)
     }
 }

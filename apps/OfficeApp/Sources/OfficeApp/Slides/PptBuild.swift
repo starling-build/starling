@@ -134,7 +134,7 @@ enum PptBuild {
         }
         for (i, s) in f.slides.enumerated() {
             let k = i + 1
-            let attrs = s.followsMasterObjects ? "" : " showMasterSp=\"0\""
+            let attrs = (s.followsMasterObjects ? "" : " showMasterSp=\"0\"") + (s.hidden ? " show=\"0\"" : "")
             let own = s.followsMasterBackground ? nil : s.background
             let sp = partPictures(2)
             let bg = s.followsMasterBackground ? "" : (f.backgroundXML(of: s, picture: sp.rid) ?? background(own))
