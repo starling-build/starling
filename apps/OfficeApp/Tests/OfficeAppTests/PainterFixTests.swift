@@ -100,6 +100,15 @@ final class PainterFixTests: XCTestCase {
         XCTAssertEqual(OfficeFonts.substitute("Source Code Pro"), OfficeFonts.mono)
     }
 
+    func testMissingLaoFaceSetsItsLatinInBrowalliaNew() throws {
+        // dx2 30f73046: Saysettha OT is not on the print machine; Word draws its digits, commas and Latin in Browallia New
+        // (digit 0.36 em, comma 0.178), not at Leelawadee UI's 0.539 and 0.217.
+        let face = try XCTUnwrap(OfficeFonts.face("Saysettha OT", eastAsian: false))
+        let advances = try XCTUnwrap(face.advances)
+        XCTAssertEqual(advances[Int(UInt8(ascii: "3")) - 0x20], 0.36, accuracy: 0.005)
+        XCTAssertEqual(advances[Int(UInt8(ascii: ",")) - 0x20], 0.178, accuracy: 0.005)
+    }
+
     func testLucidaSansUnicodeIsSetAtItsOwnWidths() throws {
         // bug59058: its "SEER 9 Incidence…" note is two lines in Word's
         // print, one at Arial's widths. The widths are the /Widths of the
