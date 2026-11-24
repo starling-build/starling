@@ -3,7 +3,11 @@
 
 #include "include/FlutterUIKitBridge.h"
 
+#import <Metal/Metal.h>
+#import <QuartzCore/QuartzCore.h>
 #import <UIKit/UIKit.h>
+#include <mach/mach.h>
+#include <malloc/malloc.h>
 
 // The process's real argc/argv. UIApplicationMain declares both _Nonnull and
 // forwards them to the app; Swift's `main` has already consumed them by the
@@ -94,10 +98,56 @@ static void* g_open_url_user = NULL;
 
 @end
 
+// Our own additions to the engine's iOS embedder (FlutterEngine+StarlingViews.h in
+// starling-engine): views beyond the first, each with a CAMetalLayer of its own.
+@interface FlutterEngine (StarlingViews)
+- (void)starlingAddViewWithId:(int64_t)viewId
+                        layer:(CAMetalLayer*)layer
+                         size:(CGSize)size
+                   pixelRatio:(double)pixelRatio
+                         done:(void (^)(BOOL added))done;
+- (void)starlingResizeViewWithId:(int64_t)viewId size:(CGSize)size pixelRatio:(double)pixelRatio;
+- (void)starlingRemoveViewWithId:(int64_t)viewId done:(void (^)(BOOL removed))done;
+- (void)starlingDispatchTouches:(NSSet<UITouch*>*)touches inView:(UIView*)view viewId:(int64_t)viewId;
+@end
+
+// The UIView of an extra view: UIKit touches on it go to the engine as that view's pointer events.
+@interface FlUIKitExtraView : UIView
+@property(nonatomic, weak) FlutterEngine* engine;
+@property(nonatomic, assign) int64_t viewId;
+@end
+
+@implementation FlUIKitExtraView
+- (void)touchesBegan:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event {
+  [self.engine starlingDispatchTouches:touches inView:self viewId:self.viewId];
+}
+- (void)touchesMoved:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event {
+  [self.engine starlingDispatchTouches:touches inView:self viewId:self.viewId];
+}
+- (void)touchesEnded:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event {
+  [self.engine starlingDispatchTouches:touches inView:self viewId:self.viewId];
+}
+- (void)touchesCancelled:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event {
+  [self.engine starlingDispatchTouches:touches inView:self viewId:self.viewId];
+}
+@end
+
 @interface FlUIKitAppDelegate : UIResponder <UIApplicationDelegate>
 @property(nonatomic, strong) UIWindow* window;
 @property(nonatomic, strong) FlutterEngine* engine;
 @property(nonatomic, strong) FlutterViewController* viewController;
+// Builds the window's view controllers over the one engine and shows the window. `scene` is nil in a
+// bundle without a scene manifest (the window then belongs to the application alone, as before).
+- (UIWindow*)installWindowInScene:(UIWindowScene*)scene;
+@end
+
+// The scene host (docs/plans/ipad-multi-window.md, step 2). Info.plist names this class for the
+// application's scenes. UIApplicationSupportsMultipleScenes stays NO, so iOS still makes exactly one
+// scene and nothing changes for the user; the window just comes from a scene now, which is the shape a
+// second window needs. Documents handed to the app arrive here as scene:openURLContexts:, not as
+// application:openURL: (UIKit stops calling that one once a bundle has a scene manifest).
+@interface FlUIKitSceneDelegate : UIResponder <UIWindowSceneDelegate>
+@property(nonatomic, strong) UIWindow* window;
 @end
 
 @implementation FlUIKitAppDelegate
@@ -135,8 +185,9 @@ static void* g_open_url_user = NULL;
   }
   self.engine = engine;
 
-  UIWindow* window = [[UIWindow alloc] initWithFrame:UIScreen.mainScreen.bounds];
-  g_window_size = window.bounds.size;
+  // The window's size, as the tree is mounted: the screen's, which is what the window was made with
+  // before scenes (a window in Split View is resized by its scene right after).
+  g_window_size = UIScreen.mainScreen.bounds.size;
 
   // Mount the tree now: after the engine is up (the Swift runtime callbacks
   // are live, so runApp can schedule a frame) and before the view controller
@@ -145,7 +196,16 @@ static void* g_open_url_user = NULL;
     g_on_started(g_user_data);
   }
 
-  FlutterViewController* controller = [[FlutterViewController alloc] initWithEngine:engine
+  // With a scene manifest the window is made when UIKit connects the scene (FlUIKitSceneDelegate),
+  // after this returns; without one, now, as before scenes.
+  if ([NSBundle.mainBundle objectForInfoDictionaryKey:@"UIApplicationSceneManifest"] == nil) {
+    [self installWindowInScene:nil];
+  }
+  return YES;
+}
+
+- (UIWindow*)installWindowInScene:(UIWindowScene*)scene {
+  FlutterViewController* controller = [[FlutterViewController alloc] initWithEngine:self.engine
                                                                             nibName:nil
                                                                              bundle:nil];
   self.viewController = controller;
@@ -160,10 +220,102 @@ static void* g_open_url_user = NULL;
                                                            g_root_factory_user);
     if (custom != nil) root = custom;
   }
+  UIWindow* window = scene != nil ? [[UIWindow alloc] initWithWindowScene:scene]
+                                  : [[UIWindow alloc] initWithFrame:UIScreen.mainScreen.bounds];
   window.rootViewController = root;
   self.window = window;
   [window makeKeyAndVisible];
-  return YES;
+  [self spikeSecondViewIfAsked:window];
+  return window;
+}
+
+// The second-surface spike (docs/plans/ipad-multi-window.md, step 1): with
+// STARLING_SPIKE_SECOND_VIEW set, a second CAMetalLayer in a corner of the window
+// shows view 1 of the same engine. Off unless asked; nothing here is product code.
+- (void)spikeSecondViewIfAsked:(UIWindow*)window {
+  if (getenv("STARLING_SPIKE_SECOND_VIEW") == NULL) return;
+  // STARLING_SPIKE_CYCLES=N: add, resize and remove N views one after another (fresh ids), logging the
+  // process's memory footprint every 10; without it, one view stays.
+  int cycles = getenv("STARLING_SPIKE_CYCLES") ? atoi(getenv("STARLING_SPIKE_CYCLES")) : 0;
+  dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+    if (cycles <= 0) { [self spikeOneViewIn:window id:1 cyclesLeft:0 total:0]; return; }
+    fprintf(stderr, "[spike] footprint at start: %.1f MB, heap %.1f MB\n", [self spikeFootprintMB], [self spikeHeapMB]);
+    [self spikeOneViewIn:window id:1 cyclesLeft:cycles total:cycles];
+  });
+}
+
+// The malloc heap's bytes in use, all zones: with the footprint, tells a heap leak (objects)
+// from the rest (textures, mapped memory).
+- (double)spikeHeapMB {
+  malloc_statistics_t st = {0};
+  malloc_zone_statistics(NULL, &st);
+  return st.size_in_use / 1048576.0;
+}
+
+- (double)spikeFootprintMB {
+  task_vm_info_data_t info;
+  mach_msg_type_number_t count = TASK_VM_INFO_COUNT;
+  if (task_info(mach_task_self(), TASK_VM_INFO, (task_info_t)&info, &count) != KERN_SUCCESS) return -1;
+  return info.phys_footprint / 1048576.0;
+}
+
+- (void)spikeOneViewIn:(UIWindow*)window id:(int64_t)viewId cyclesLeft:(int)left total:(int)total {
+  CGFloat scale = UIScreen.mainScreen.scale;
+  CGSize size = CGSizeMake(260, 180);
+  FlUIKitExtraView* host = [[FlUIKitExtraView alloc] initWithFrame:CGRectMake(window.bounds.size.width - size.width - 20, 80, size.width, size.height)];
+  host.engine = self.engine;
+  host.viewId = viewId;
+  // STARLING_SPIKE_NULL: the same timers and logging with no view at all (the app's own idle drift).
+  BOOL nullRun = getenv("STARLING_SPIKE_NULL") != NULL;
+  CAMetalLayer* layer = nullRun ? nil : [CAMetalLayer layer];
+  layer.device = MTLCreateSystemDefaultDevice();
+  layer.pixelFormat = MTLPixelFormatBGRA8Unorm;
+  layer.opaque = YES;
+  layer.contentsScale = scale;
+  layer.frame = host.bounds;
+  layer.drawableSize = CGSizeMake(size.width * scale, size.height * scale);
+  if (!nullRun) {
+    [host.layer addSublayer:layer];
+    [window addSubview:host];
+  }
+  // STARLING_SPIKE_UI_ONLY: the UIView and its CAMetalLayer come and go, the engine is never told (isolates the leak).
+  BOOL uiOnly = nullRun || getenv("STARLING_SPIKE_UI_ONLY") != NULL;
+  FlutterEngine* engine = uiOnly ? nil : self.engine;
+  [engine starlingAddViewWithId:viewId layer:layer size:size pixelRatio:scale done:^(BOOL added) {
+    fprintf(stderr, "[spike] AddView(%lld) -> %s\n", viewId, added ? "added" : "REFUSED");
+  }];
+  if (left == 0) {
+    // The single-view run: it stays, grown to 340 x 260 after 2 s (it must draw whole at the new size).
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+      CGSize bigger = CGSizeMake(340, 260);
+      host.frame = CGRectMake(window.bounds.size.width - bigger.width - 20, 80, bigger.width, bigger.height);
+      layer.frame = host.bounds;
+      layer.drawableSize = CGSizeMake(bigger.width * scale, bigger.height * scale);
+      [engine starlingResizeViewWithId:viewId size:bigger pixelRatio:scale];
+    });
+    return;
+  }
+  // Resize after half the view's life (600 ms; STARLING_SPIKE_LIFE_MS), remove at the end of it, the next view 100 ms later.
+  int64_t life = getenv("STARLING_SPIKE_LIFE_MS") ? atoi(getenv("STARLING_SPIKE_LIFE_MS")) : 600;
+  dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (life / 2) * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
+    CGSize bigger = CGSizeMake(320, 240);
+    host.frame = CGRectMake(window.bounds.size.width - bigger.width - 20, 80, bigger.width, bigger.height);
+    layer.frame = host.bounds;
+    layer.drawableSize = CGSizeMake(bigger.width * scale, bigger.height * scale);
+    [engine starlingResizeViewWithId:viewId size:bigger pixelRatio:scale];
+  });
+  dispatch_after(dispatch_time(DISPATCH_TIME_NOW, life * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
+    [engine starlingRemoveViewWithId:viewId done:^(BOOL removed) {
+      if (!removed) fprintf(stderr, "[spike] RemoveView(%lld) REFUSED\n", viewId);
+    }];
+    [host removeFromSuperview];
+  });
+  dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (life + 100) * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
+    int done = total - left + 1;
+    if (done % 10 == 0) fprintf(stderr, "[spike] %d cycles done, footprint %.1f MB, heap %.1f MB\n", done, [self spikeFootprintMB], [self spikeHeapMB]);
+    if (left > 1) [self spikeOneViewIn:window id:viewId + 1 cyclesLeft:left - 1 total:total];
+    else fprintf(stderr, "[spike] all %d cycles done, footprint %.1f MB, heap %.1f MB\n", total, [self spikeFootprintMB], [self spikeHeapMB]);
+  });
 }
 
 // A document handed to the app from outside. Forwarded verbatim; the app owns
@@ -173,6 +325,31 @@ static void* g_open_url_user = NULL;
             options:(NSDictionary<UIApplicationOpenURLOptionsKey, id>*)options {
   if (g_open_url == NULL) return NO;
   return g_open_url(g_open_url_user, url.absoluteString.UTF8String) ? YES : NO;
+}
+
+@end
+
+@implementation FlUIKitSceneDelegate
+
+- (void)scene:(UIScene*)scene
+    willConnectToSession:(UISceneSession*)session
+                 options:(UISceneConnectionOptions*)connectionOptions {
+  if (![scene isKindOfClass:UIWindowScene.class]) return;
+  FlUIKitAppDelegate* app = (FlUIKitAppDelegate*)UIApplication.sharedApplication.delegate;
+  self.window = [app installWindowInScene:(UIWindowScene*)scene];
+  // A document the app was launched with (Open In, a tap in Files): the tree is up now.
+  [self openURLContexts:connectionOptions.URLContexts];
+}
+
+- (void)scene:(UIScene*)scene openURLContexts:(NSSet<UIOpenURLContext*>*)URLContexts {
+  [self openURLContexts:URLContexts];
+}
+
+- (void)openURLContexts:(NSSet<UIOpenURLContext*>*)contexts {
+  if (g_open_url == NULL) return;
+  for (UIOpenURLContext* context in contexts) {
+    g_open_url(g_open_url_user, context.URL.absoluteString.UTF8String);
+  }
 }
 
 @end

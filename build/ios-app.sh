@@ -167,6 +167,23 @@ cat > "$OUT/Info.plist" <<PLIST
     <string>UIInterfaceOrientationLandscapeRight</string>
   </array>
   <key>CFBundleSupportedPlatforms</key>       <array><string>$( [ "$MODE" = device ] && echo iPhoneOS || echo iPhoneSimulator )</string></array>
+  <!-- The window comes from a scene (FlUIKitSceneDelegate). One scene only, until the app can serve a
+       second window: with this on, the system itself offers "new window" and a scene we cannot serve
+       is an empty window (docs/plans/ipad-multi-window.md). -->
+  <key>UIApplicationSceneManifest</key>
+  <dict>
+    <key>UIApplicationSupportsMultipleScenes</key> <false/>
+    <key>UISceneConfigurations</key>
+    <dict>
+      <key>UIWindowSceneSessionRoleApplication</key>
+      <array>
+        <dict>
+          <key>UISceneConfigurationName</key>     <string>Default</string>
+          <key>UISceneDelegateClassName</key>     <string>FlUIKitSceneDelegate</string>
+        </dict>
+      </array>
+    </dict>
+  </dict>
 $DOCUMENT_KEYS</dict>
 </plist>
 PLIST

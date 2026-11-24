@@ -64,6 +64,23 @@ public final class UIKitHost {
             // to know whether this host has a keyboard to offer.
             UIKitSoftKeyboard.install()
             let box = Unmanaged<Box>.fromOpaque(userData).takeUnretainedValue()
+            // The second-surface spike (docs/plans/ipad-multi-window.md, step 1): with
+            // STARLING_SPIKE_SECOND_VIEW set, the host adds a second view in a corner of
+            // the window (fluikit_host.m) and this is the tree it shows.
+            // STARLING_SPIKE_SECOND_VIEW=list: view 1 is a real scrolling list (runView), so a drag
+            // on it must scroll that list and nothing in view 0.
+            if ProcessInfo.processInfo.environment["STARLING_SPIKE_SECOND_VIEW"] == "list" {
+                runView(id: 1) { SpikeList(viewId: 1) }
+            }
+            if ProcessInfo.processInfo.environment["STARLING_SPIKE_SECOND_VIEW"] != nil {
+                multiViewContentBuilder = { view in
+                    // STARLING_SPIKE_EMPTY_TREE: a view with nothing in it (isolates the leak from the tree).
+                    if ProcessInfo.processInfo.environment["STARLING_SPIKE_EMPTY_TREE"] != nil {
+                        return SizedBox(width: 1, height: 1) as Widget
+                    }
+                    return SpikeTapTile(viewId: view.viewId) as Widget
+                }
+            }
             runApp(box.builder())
         }, box)
         // UIApplicationMain only returns on a failure to launch at all, and the
@@ -105,3 +122,61 @@ public final class UIKitHost {
     }
 }
 #endif
+
+// The second-surface spike's tree: a tile that counts the taps it gets and changes colour on each,
+// so a touch routed to the second view shows on screen and in the log.
+private final class SpikeTapTile: StatefulWidget {
+    let viewId: Int
+    init(viewId: Int) {
+        self.viewId = viewId
+        super.init(key: nil)
+    }
+    override func createState() -> State<StatefulWidget> { SpikeTapTileState() }
+}
+
+private final class SpikeTapTileState: State<StatefulWidget> {
+    private var taps = 0
+    override func build(_ context: any BuildContext) -> Widget {
+        let id = (widget as! SpikeTapTile).viewId
+        return Directionality(textDirection: .ltr, child:
+            GestureDetector(onTap: { [weak self] in
+                guard let self else { return }
+                self.setState { self.taps += 1 }
+                fputs("[spike] view \(id) tap \(self.taps)\n", stderr)
+            }, child:
+                ColoredBox(color: taps % 2 == 0 ? Color(0xFF2E7D32) : Color(0xFFEF6C00), child:
+                    Center(child: Text(ProcessInfo.processInfo.environment["STARLING_SPIKE_FIXED_TEXT"] != nil ? "view" : "view \(id): \(taps) taps",
+                                       style: TextStyle(color: Color(0xFFFFFFFF), fontSize: 28))))))
+    }
+}
+
+// The test host's real second view: a scrolling list of tappable rows. Its taps and its scroll offset
+// are the proof that a view of its own gets its own hit test, gesture arena and metrics.
+private final class SpikeList: StatefulWidget {
+    let viewId: Int
+    init(viewId: Int) {
+        self.viewId = viewId
+        super.init(key: nil)
+    }
+    override func createState() -> State<StatefulWidget> { SpikeListState() }
+}
+
+private final class SpikeListState: State<StatefulWidget> {
+    private var picked = -1
+    override func build(_ context: any BuildContext) -> Widget {
+        let id = (widget as! SpikeList).viewId
+        return Directionality(textDirection: .ltr, child:
+            ColoredBox(color: Color(0xFFFFFFFF), child:
+                ListView(itemCount: 60) { [weak self] _, i in
+                    GestureDetector(onTap: { [weak self] in
+                        guard let self else { return }
+                        self.setState { self.picked = i }
+                        fputs("[spike] view \(id) row \(i) tapped\n", stderr)
+                    }, child:
+                        ColoredBox(color: i == self?.picked ? Color(0xFFFFE082) : (i % 2 == 0 ? Color(0xFFE3F2FD) : Color(0xFFFFFFFF)), child:
+                            SizedBox(height: 44, child:
+                                Center(child: Text("view \(id) row \(i)",
+                                                   style: TextStyle(color: Color(0xFF000000), fontSize: 18))))))
+                }))
+    }
+}

@@ -160,6 +160,16 @@ public nonisolated(unsafe) var unsolicitedFramesComposite: Bool = {
 /// views get no content and are never rendered.
 public nonisolated(unsafe) var multiViewContentBuilder: ((FlutterView) -> Widget)? = nil
 
+/// The widget tree of ONE non-implicit view, by view id (Flutter's `runWidget` for a view of its own).
+/// Looked up before `multiViewContentBuilder`; the entry goes when the view does. Register it before the
+/// host adds the view (the tree is built on the first frame that sees the view).
+public nonisolated(unsafe) var viewContentBuilders: [Int: () -> Widget] = [:]
+
+/// Show `build()` in the view with id `id` once the engine has added it.
+public func runView(id: Int, _ build: @escaping () -> Widget) {
+    viewContentBuilders[id] = build
+}
+
 /// Called once per non-implicit view, right after its FIRST scene is
 /// composited — the moment a host that kept the view's window hidden can
 /// show it without exposing an unpainted surface (the Win32 popup surfaces
@@ -425,6 +435,7 @@ func _setupWidgetBinding(_ app: Widget) {
         if !secondaryPipelines.isEmpty {
             let removedIds = secondaryPipelines.keys.filter { pd.view(id: $0) == nil }
             for id in removedIds {
+                viewContentBuilders[id] = nil
                 if let sp = secondaryPipelines.removeValue(forKey: id) {
                     _ = RenderObjectToWidgetAdapter(child: nil, container: sp.renderView)
                         .attachToRenderTree(buildOwner, sp.rootElement)
@@ -446,10 +457,19 @@ func _setupWidgetBinding(_ app: Widget) {
         // Multi-monitor: build a pipeline + widget tree for any view the
         // engine has added since the last frame (each on its own
         // PipelineOwner; the BuildOwner and its dirty list are shared).
-        if let builder = multiViewContentBuilder {
+        if multiViewContentBuilder != nil || !viewContentBuilders.isEmpty {
             for flutterView in pd.views {
                 let id = flutterView.viewId
                 if id == view.viewId || secondaryPipelines[id] != nil {
+                    continue
+                }
+                // This view's own tree if one was registered for it (runView), else the shared builder.
+                let content: Widget
+                if let own = viewContentBuilders[id] {
+                    content = own()
+                } else if let builder = multiViewContentBuilder {
+                    content = builder(flutterView)
+                } else {
                     continue
                 }
                 let rv = RenderView(view: flutterView)
@@ -465,7 +485,7 @@ func _setupWidgetBinding(_ app: Widget) {
                 rv.attach(po)
                 rv.prepareInitialFrame()
                 let adapter = RenderObjectToWidgetAdapter(
-                    child: builder(flutterView), container: rv)
+                    child: content, container: rv)
                 let root = adapter.attachToRenderTree(buildOwner)
                 secondaryPipelines[id] = SecondaryViewPipeline(
                     renderView: rv, pipelineOwner: po, rootElement: root)
