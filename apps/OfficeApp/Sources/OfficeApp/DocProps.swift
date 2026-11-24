@@ -223,6 +223,26 @@ enum DocProps {
         return String([d[Int(b >> 4)], d[Int(b & 15)]])
     }
 
+    /// `<w:framePr>` from the frame sprms (PPc anchors, absolute position, width, height, wrap).
+    static func framePr(_ ppc: Int, _ dxa: Int?, _ dya: Int?, _ w: Int?, _ h: Int?, _ wrap: Int?) -> String {
+        var f = "<w:framePr"
+        if let w, w > 0 { f += " w:w=\"\(w)\"" }
+        if let h, h & 0x7FFF > 0 { f += " w:h=\"\(h & 0x7FFF)\" w:hRule=\"\(h & 0x8000 != 0 ? "atLeast" : "exact")\"" }
+        f += " w:hAnchor=\"\(["text", "margin", "page"][min((ppc >> 6) & 3, 2)])\""
+        f += " w:vAnchor=\"\(["margin", "page", "text"][min((ppc >> 4) & 3, 2)])\""
+        if let dxa {
+            let names = [-4: "center", -8: "right", -12: "inside", -16: "outside"]
+            if let n = names[dxa] { f += " w:xAlign=\"\(n)\"" } else if dxa != 0 { f += " w:x=\"\(dxa)\"" }
+        }
+        if let dya {
+            let names = [-4: "top", -8: "center", -12: "bottom", -16: "inside", -20: "outside"]
+            if let n = names[dya] { f += " w:yAlign=\"\(n)\"" } else if dya != 0 { f += " w:y=\"\(dya)\"" }
+        }
+        let wraps = [1: "notBeside", 2: "around", 3: "none", 4: "tight", 5: "through"]
+        if let wrap, let n = wraps[wrap] { f += " w:wrap=\"\(n)\"" }
+        return f + "/>"
+    }
+
     /// `<w:pPr>` for a paragraph property list ("" when it sets nothing).
     static func pPr(_ g: [UInt8], istd: Int = 0) -> String {
         var x = istd > 0 ? "<w:pStyle w:val=\"S\(istd)\"/>" : ""
@@ -231,8 +251,15 @@ enum DocProps {
         var beforeAuto: Bool?, afterAuto: Bool?
         var left: Int?, right: Int?, first: Int?, jc: String?
         var ilfo = 0, ilvl = 0
+        var ppc: Int?, dxaAbs: Int?, dyaAbs: Int?, dxaW: Int?, dyaH: Int?, wrap: Int?
         for s in sprms(g) where s.sgc == 1 {
             switch s.op {
+            case 0x261B: ppc = s.u8
+            case 0x8418: dxaAbs = s.i16
+            case 0x8419: dyaAbs = s.i16
+            case 0x841A: dxaW = s.u16
+            case 0x442B: dyaH = s.u16
+            case 0x2423: wrap = s.u8
             case 0x2406: keepNext = s.u8 == 1
             case 0x2405: keepLines = s.u8 == 1
             case 0x2407: pageBreak = s.u8 == 1
@@ -275,6 +302,7 @@ enum DocProps {
             if let first { x += first < 0 ? " w:hanging=\"\(-first)\"" : " w:firstLine=\"\(first)\"" }
             x += "/>"
         }
+        if let ppc, dxaAbs != nil || dyaAbs != nil || dxaW != nil { x += framePr(ppc, dxaAbs, dyaAbs, dxaW, dyaH, wrap) }
         if let jc { x += "<w:jc w:val=\"\(jc)\"/>" }
         return x.isEmpty ? "" : "<w:pPr>" + x + "</w:pPr>"
     }
