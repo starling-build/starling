@@ -148,6 +148,28 @@ Read from the code, then measured with the `STARLING_SPIKE_INPUT` driver (`UIKit
   toolbar hosted over its own view.
 - **Lifecycle:** untouched so far (see above).
 
+## Step 4 status (2026-11-23 night; PR #2587)
+
+Done and measured in the simulator with the in-app driver (no unit tests: the iPad session is exempt):
+
+- **Idle first view:** a view added over a quiet or hidden first view got no first frame, and a touch before its first
+  layout crashed in hit-test. Fixed in `Adapter.swift`; `test/ios-selftest.sh` (STARLING_SELFTEST=multiview, 9 checks)
+  is the regression check, 9/9 idle and with a document open, heap growth ~0 MB over 20 add/remove cycles.
+- **Keyboard insets per view:** `fluikit_view_add/resize/remove` watch the keyboard frame (docked only) and send each
+  view its own overlap through the engine's `insetBottom` resize. A 520x1000 view reads 219 px with view 0 at 809 px.
+- **Caret geometry:** `TextInputChannel.windowTransform(of:)` adds the view's origin (hook `viewOrigin`); view 1's
+  editable origin is 492,302, view 0's 0,222.
+- **Toolbar and edit menu:** `connectNativeHooks(scene, viewId:)` in main.swift wires both windows; the edit menu is
+  offset by the view's origin; the bar is one for the screen and follows the window last touched (`OfficeScene.activate`).
+- **Lifecycle:** `OfficeScene.flushPendingSaves` (Writer/Slides AutoSave body, Sheets write-to-own-file) runs for every
+  window when the app goes to the background. Proven with OFFICE_AUTOSAVE_DELAY_MS=60000: file untouched after typing,
+  rewritten within a second of backgrounding. View 1's frames stop in the background and resume (sim; not shown on a device).
+- **Hardware keys, focus:** key events carry no view id and reach the one global `FocusManager`, so keys follow the
+  editor last tapped; with a plugin client attached they arrive through the text-input view, which is first responder.
+  NOT verified: a Magic Keyboard (the simulator needs the Mac's keyboard, which a test run may not drive), and the
+  case with no text client attached while the responder sits in view 0. Per-view focus scopes are still the plan's
+  fix for "typing in B blurs A's caret".
+
 ## Recommendation and order
 
 Option B, in the reviewed order. Multiple scenes stay OFF (`UIApplicationSupportsMultipleScenes` = NO)
