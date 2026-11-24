@@ -363,13 +363,19 @@ final class DeckController: ChangeNotifier {
         let slide = slides[index]
         guard slide.layout != layout else { return }
         _checkpoint()
+        _relay(slide, onto: layout.placeholders.map { _makeShape($0) })
+        slide.layout = layout
+        _changed()
+    }
+
+    /// Lay a slide's placeholders onto `fresh` (the new layout's empty ones).
+    private func _relay(_ slide: Slide, onto fresh: [SlideShape]) {
         let old = slide.shapes
         var oldTitle = old.first { $0.role == .title || $0.role == .ctrTitle }
         var oldBodies = old.filter { $0.role == .body || $0.role == .subTitle }
         var next: [SlideShape] = []
-        for spec in layout.placeholders {
-            let shape = _makeShape(spec)
-            let isTitle = spec.role == .title || spec.role == .ctrTitle
+        for shape in fresh {
+            let isTitle = shape.role == .title || shape.role == .ctrTitle
             let donor: SlideShape?
             if isTitle { donor = oldTitle; oldTitle = nil } else { donor = oldBodies.isEmpty ? nil : oldBodies.removeFirst() }
             if let donor, !donor.isEmptyText, let text = donor.text, let target = shape.text {
@@ -386,10 +392,37 @@ final class DeckController: ChangeNotifier {
         next.append(contentsOf: old.filter { $0.role == nil })
         for shape in old where !next.contains(where: { $0 === shape }) { _unwatch(shape) }
         slide.shapes = next
-        slide.layout = layout
         for shape in next { _watch(shape) }
         selection = []
+    }
+
+    /// The layouts the file itself carries (empty for a deck of ours).
+    var fileLayouts: [FileLayout] { package?.fileLayouts() ?? [] }
+
+    /// Put a slide on one of the file's own layouts (`FileLayout.part`), or,
+    /// with the slide's own layout part, put the layout's frames back (Reset).
+    /// Rule: placeholders take the layout's position, size and look; the text,
+    /// its runs and lists, and every non-placeholder shape stay; a placeholder
+    /// the layout has and the slide lacks comes back empty. One undo step.
+    @discardableResult
+    func applyFileLayout(_ part: String, to index: Int) -> Bool {
+        guard slides.indices.contains(index), let package,
+              let preview = PptxReader.layoutPreview(package, layout: part) else { return false }
+        _checkpoint()
+        let slide = slides[index]
+        let fresh: [SlideShape] = preview.shapes.filter { if case .placeholder = $0.kind { return true } else { return false } }.map { st in
+            var st = st
+            st.id = _id()
+            st.sourceXML = nil; st.readShape = nil; st.sourcePart = nil; st.fileId = nil
+            return _make(st)
+        }
+        _relay(slide, onto: fresh)
+        slide.layoutPart = part
+        slide.layout = preview.layout
+        slide.decorations = preview.decorations.map { _make($0) }
+        slide.inheritedBackground = preview.inheritedBackground
         _changed()
+        return true
     }
 
     // MARK: Selection

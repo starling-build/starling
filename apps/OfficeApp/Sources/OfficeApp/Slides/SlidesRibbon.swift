@@ -40,6 +40,28 @@ extension Ribbon {
         }
     }
 
+    /// What the Layout button offers: the deck's own layouts when it came from
+    /// a file that carries some, else our seven.
+    private func _slideLayoutItems(_ deck: DeckController, _ fluent: FluentThemeData) -> [MenuFlyoutItemBase] {
+        let own = deck.fileLayouts
+        guard !own.isEmpty else {
+            return _layoutItems(fluent, current: deck.currentSlide.layout) { kind in deck.applyLayout(kind, to: deck.current) }
+        }
+        let currentPart = deck.currentSlide.layoutPart
+        var items: [MenuFlyoutItemBase] = own.map { layout in
+            MenuFlyoutItem(text: Padding(key: ValueKey("slides.layout.\(layout.index)"), padding: EdgeInsets(left: 0, top: 0, right: 0, bottom: 0), child: Text(layout.name)),
+                           leading: Icon(currentPart == layout.part ? FluentSystemIcons.check : FluentSystemIcons.onePage,
+                                         size: Chrome.iconSize, color: fluent.resources.textFillColorPrimary),
+                           onPressed: { deck.applyFileLayout(layout.part, to: deck.current) })
+        }
+        // Reset: the slide's placeholders go back to the layout's own place and look; the text stays.
+        items.append(MenuFlyoutItem(text: Padding(key: ValueKey("slides.reset"), padding: EdgeInsets(left: 0, top: 0, right: 0, bottom: 0), child: Text("Reset slide to its layout")),
+                                    leading: Icon(FluentSystemIcons.undo, size: Chrome.iconSize,
+                                                  color: fluent.resources.textFillColorPrimary),
+                                    onPressed: currentPart == nil ? nil : { deck.applyFileLayout(currentPart!, to: deck.current) }))
+        return items
+    }
+
     private func _slidesGroup(_ deck: DeckController, _ fluent: FluentThemeData) -> Widget {
         Chrome.group("Slides", fluent, [
             Chrome.big(FluentSystemIcons.add, "New Slide", fluent) { deck.addSlide() },
@@ -48,9 +70,7 @@ extension Ribbon {
             Chrome.gap(2),
             Chrome.rows([
                 Chrome.menuButton(FluentSystemIcons.grid, "Layout", "Slide layout", fluent,
-                                  items: _layoutItems(fluent, current: deck.currentSlide.layout) { kind in
-                                      deck.applyLayout(kind, to: deck.current)
-                                  }),
+                                  items: _slideLayoutItems(deck, fluent)),
                 Chrome.small(FluentSystemIcons.copy, "Duplicate", fluent) { deck.duplicateSlide(deck.current) },
                 Chrome.small(FluentSystemIcons.delete, "Delete", fluent, enabled: deck.slides.count > 1) {
                     deck.deleteSlide(deck.current)
