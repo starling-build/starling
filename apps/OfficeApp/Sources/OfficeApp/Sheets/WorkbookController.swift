@@ -571,14 +571,23 @@ final class WorkbookController: ChangeNotifier {
     /// stays put, as Excel guesses it. One undo step.
     func sortSelection(ascending: Bool) {
         if refuses("sort") { return }
+        guard let g = sortRegion() else { return }
+        let key = min(max(active.col, g.range.left), g.range.right)
+        let top = g.hasHeader ? g.range.top + 1 : g.range.top
+        guard g.range.bottom > top else { return }
+        let before = sortRows(CellRange(top: top, left: g.range.left, bottom: g.range.bottom, right: g.range.right), key: key, ascending: ascending)
+        if !before.isEmpty { _record(sheet: activeSheet, before: before) }
+    }
+
+    /// The cells a sort would cover (the selection, or the data around the active cell, cut to
+    /// what is used) and whether its first row looks like labels over data, as Excel guesses.
+    func sortRegion() -> (range: CellRange, hasHeader: Bool)? {
         var r = selection.isSingle ? currentRegion(active) : selection
         let used = sheet.usedExtent
         r = CellRange(top: r.top, left: r.left, bottom: min(r.bottom, used.row), right: min(r.right, used.col))
-        guard r.rows > 1 else { return }
-        let key = min(max(active.col, r.left), r.right)
-        // A header, as Excel guesses one: the first row is all text and
-        // differs from what is under it — numbers below in some column, or
-        // the first row bold over a plain second one.
+        guard r.rows > 1 else { return nil }
+        // A header: the first row is all text and differs from what is under it — numbers below
+        // in some column, or the first row bold over a plain second one.
         let firstIsText = (r.left ... r.right).allSatisfy { col in
             let v = sheet.value(CellAddress(row: r.top, col: col)); return v.isText || v.isEmpty
         }
@@ -590,10 +599,7 @@ final class WorkbookController: ChangeNotifier {
                 && book.style(sheet.cells[CellAddress(row: r.top, col: col)]?.style ?? 0).bold
                 && !book.style(sheet.cells[CellAddress(row: r.top + 1, col: col)]?.style ?? 0).bold
         }
-        let top = firstIsText && (belowHasNumbers || boldOverPlain) ? r.top + 1 : r.top
-        guard r.bottom > top else { return }
-        let before = sortRows(CellRange(top: top, left: r.left, bottom: r.bottom, right: r.right), key: key, ascending: ascending)
-        if !before.isEmpty { _record(sheet: activeSheet, before: before) }
+        return (r, firstIsText && (belowHasNumbers || boldOverPlain))
     }
 
     /// Reorder the rows of `r` by column `key`, blanks last either way,
@@ -601,13 +607,21 @@ final class WorkbookController: ChangeNotifier {
     /// an undo step (empty when the order did not change).
     @discardableResult
     func sortRows(_ r: CellRange, key: Int, ascending: Bool) -> [CellAddress: Cell?] {
+        sortRows(r, keys: [SortKey(col: key, ascending: ascending)])
+    }
+
+    /// The same by several columns: the first decides, the next break its ties.
+    @discardableResult
+    func sortRows(_ r: CellRange, keys: [SortKey]) -> [CellAddress: Cell?] {
         let rowsIdx = Array(r.top ... r.bottom)
         let sorted = rowsIdx.sorted { a, b in
-            let va = sheet.value(CellAddress(row: a, col: key)), vb = sheet.value(CellAddress(row: b, col: key))
-            if va.isEmpty != vb.isEmpty { return vb.isEmpty }
-            let c = CalcEngine.compare(va, vb)
-            if c == 0 { return a < b }   // stable
-            return ascending ? c < 0 : c > 0
+            for k in keys {
+                let va = sheet.value(CellAddress(row: a, col: k.col)), vb = sheet.value(CellAddress(row: b, col: k.col))
+                if va.isEmpty != vb.isEmpty { return vb.isEmpty }
+                let c = CalcEngine.compare(va, vb)
+                if c != 0 { return k.ascending ? c < 0 : c > 0 }
+            }
+            return a < b   // stable
         }
         guard sorted != rowsIdx else { return [:] }
         var before: [CellAddress: Cell?] = [:]
