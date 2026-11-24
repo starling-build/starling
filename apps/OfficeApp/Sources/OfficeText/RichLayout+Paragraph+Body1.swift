@@ -134,6 +134,7 @@ extension _ParaFrame {
         if let boxes = colWrapBoxes, besideIndent == 0, !boxes.isEmpty { besideIndent = 1; besideBand = (-1, -1) }
         else
         if besideIndent > 0, besideBand == nil { _besidePending.insert(i) }
+        else if besideIndent == 0, let tw = _tableWrapUse[i] { besideIndent = tw.indent; besideBand = (tw.top, tw.bottom); besideRight = true }
         else if besideIndent == 0, let own = _besideOwn(i, p, document) { besideIndent = own.indent; besideBand = own.band; besideRight = own.right; besideLeftRoom = own.leftRoom
             if colWrapBoxes == nil, besideLeftRoom == nil, !besideRight, let seq = _besideSeq[i] { colWrapBoxes = seq; besideIndent = 1; besideBand = (-1, -1); RuleTrace.hit("word-boxes-one-under-the-other-hold-lines-by-their-own-edge") } }
         else if besideIndent == 0, let own = _stripUse[i] { besideIndent = own.indent; besideBand = own.band; besideRight = own.right }

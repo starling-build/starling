@@ -285,7 +285,23 @@ extension RichLayout {
                 // (Planner's spec, labs A B F G: the bottom of the paragraph before the break paragraph, its space after in, less 24.27 pt, plus
                 // the offset (6.32 pt above that bottom for the 17.95 pt of the labs). Labs J, K, L (tblwrap): the break paragraph's space after,
                 // its size and the new section's top margin do not move it; H and I: it follows tblpY one to one.)
-                pgs.y = pgs.y - _px(24.27) + _px(down)
+                let wk = pgs.i - 2
+                var wrapDy = 0.0
+                if _tableWrapUse[wk] != nil, let h0 = _tableWrapH0[wk] { wrapDy = _heights[wk] - h0 } else { _tableWrapH0[wk] = _heights[wk] }
+                let bulletTop = pgs.y - _heights[wk]
+                pgs.y = pgs.y - wrapDy - _px(24.27) + _px(down)
+                // (Set once from the unwrapped paragraph: the table's left edge less its distance is the limit the lines level with it end at.)
+                var wrapTableHeight = c.ownRowHeight
+                do { var bottom = c.rowTop + c.ownRowHeight, m = pgs.i
+                     while m < _cells.count, let d = _cells[m], d.table == c.table { bottom = max(bottom, d.rowTop + d.ownRowHeight); m += 1 }
+                     wrapTableHeight = bottom - c.rowTop }
+                let room = _px(_setup(ofParagraph: wk).marginLeft) + _flowWidth(wk) - (_px(_setup(ofParagraph: pgs.i).marginLeft) + _tableLeftRoom(c.table, document))
+                if pgs.y > bulletTop, room > 0, _tableLeft(c.table, document) > _flowWidth(pgs.i) / 2 {
+                    // (The first layout's last line carries the paragraph's space after: a table whose top is inside it crosses that line, as
+                    // Word's print of sect5 B, T 1.4pt under the line's glyph band, breaks the line before "de año." all the same.)
+                    let first = (_tableWrapH0[wk] ?? _heights[wk]) - _px(document.paragraphs[wk].style.spaceAfter)
+                    _tableWrapWant[wk] = (room, min(pgs.y - bulletTop, first - 0.5), pgs.y - bulletTop + wrapTableHeight)
+                } else { _tableWrapWant[wk] = nil }
             } else {
                 pgs.y += _px(down)
             }
