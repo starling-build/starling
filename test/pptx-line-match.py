@@ -51,6 +51,9 @@ def main():
     key = sys.argv[2] if len(sys.argv) > 2 else None
     count = int(sys.argv[3]) if len(sys.argv) > 3 else 12
     names = [f for f in sorted(os.listdir(os.path.join(work, "pdf"))) if f.endswith(".pdf") and (not key or key in f)]
+    if os.environ.get("PPT_SKIP"):   # stems whose rows the gate takes from the base cache (byte-identical PDF)
+        skip = set(open(os.environ["PPT_SKIP"]).read().split())
+        names = [f for f in names if f[:-4] not in skip]
     jobs = 1 if key else int(os.environ.get("PPT_MATCH_JOBS") or 1)
     if jobs > 1 and len(names) > 1:
         import multiprocessing
