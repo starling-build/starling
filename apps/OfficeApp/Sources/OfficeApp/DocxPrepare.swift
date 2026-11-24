@@ -243,10 +243,10 @@ extension DocxFormat {
             let frames = paragraphs.map { $0.first("w:pPr")?.first("w:framePr") }
             guard let frame = frames[0], frames.allSatisfy({ $0 != nil }),
                   Set(frames.map { PptxXML.serialize($0!) }).count == 1,
-                  frame["w:vAnchor"] == nil || frame["w:vAnchor"] == "text",
-                  frame["w:hAnchor"] == nil || frame["w:hAnchor"] == "text",
+                  [nil, "text", "page", "margin"].contains(frame["w:vAnchor"]),
+                  [nil, "text", "page", "margin"].contains(frame["w:hAnchor"]),
                   frame["w:wrap"] == nil || frame["w:wrap"] == "auto" || frame["w:wrap"] == "around",
-                  frame["w:x"] == nil, frame["w:xAlign"] == nil, frame["w:yAlign"] == nil, frame["w:w"] == nil, frame["w:h"] == nil,
+                  frame["w:x"] == nil, frame["w:xAlign"] == nil || frame["w:xAlign"] == "center", frame["w:yAlign"] == nil, frame["w:w"] == nil, frame["w:h"] == nil,
                   frame["w:dropCap"] == nil, let y = Int(frame["w:y"] ?? ""), y > 0 else { continue }
             let signature = PptxXML.serialize(frame)
             for p in paragraphs { p.first("w:pPr")?.children.removeAll { $0.name == "w:framePr" } }
@@ -254,7 +254,8 @@ extension DocxFormat {
                let f = body.children[i + 1].first("w:pPr")?.first("w:framePr"), PptxXML.serialize(f) == signature {
                 body.children[i + 1].first("w:pPr")?.children.removeAll { $0.name == "w:framePr" }
             }
-            let pos = XNode(name: "w:tblpPr", attrs: ["w:vertAnchor": "text", "w:horzAnchor": "text", "w:tblpY": String(y)])
+            let pos = XNode(name: "w:tblpPr", attrs: ["w:vertAnchor": frame["w:vAnchor"] ?? "text", "w:horzAnchor": frame["w:hAnchor"] ?? "text", "w:tblpY": String(y)])
+            if let xa = frame["w:xAlign"] { pos.attrs["w:tblpXSpec"] = xa }
             pr.children.insert(pos, at: 0)
         }
     }
