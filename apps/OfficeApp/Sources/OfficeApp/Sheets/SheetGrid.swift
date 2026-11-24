@@ -3117,7 +3117,8 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 // pixels scaled by the book's default font made 13.37).
                 let pitch0 = (st.fontName == nil && st.fontSize == nil && st.bold == book.defaultFontBold ? m.defaultRow
                     : SheetPrintMetrics.of(family: book.fontName(st), size: book.fontSize(st), bold: st.bold).defaultRow) * scale
-                let pitch = ["돋움", "굴림", "dotum", "gulim"].contains(book.fontName(st).trimmingWhitespace().lowercased()) ? book.fontSize(st) * scale + 1.2 * scale : pitch0
+                let dotum = ["돋움", "굴림", "dotum", "gulim"].contains(book.fontName(st).trimmingWhitespace().lowercased())
+                let pitch = dotum ? book.fontSize(st) * scale + 1.2 * scale : pitch0
                 let one = texts.painter("X", style).height, n = Double(lines.count - 1)
                 let y0: Double
                 switch st.vAlign {
@@ -3139,8 +3140,8 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                     case .center: x = left + (width - lead - lp.width) / 2 + lead + centre
                     default: x = left + margin + inset + lead
                     }
-                    // (Every line stands on the baseline its first would: the line's own face, a CJK fallback's deeper ascent, does not move it.)
-                    let drop = xBase - lp.computeDistanceToActualBaseline(.alphabetic).rounded()
+                    // (A Dotum/Gulim cell's lines all stand on the baseline its first would, whatever fallback face draws one; the other CJK faces' wrapped lines, zh-1de4da4caa's, stand where their own painter puts them.)
+                    let drop = dotum ? xBase - lp.computeDistanceToActualBaseline(.alphabetic).rounded() : 0
                     lp.paint(canvas, Offset(x, y0 + drop + Double(i) * pitch))
                     _drawRules(lp, style, at: Offset(x, y0 + Double(i) * pitch), canvas)
                 }
