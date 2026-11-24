@@ -1335,18 +1335,21 @@ extension DocxFormat {
             let borderSz = Int(((style.borderWidth ?? 0.5) * 8).rounded())
             let borderVal = _esc(style.borderStyle ?? "single")
             let e = style.edges ?? BorderEdges()
-            if !style.bordersFromCells { xml += "<w:tblBorders>" }
-            for (side, own) in [("top", e.top), ("left", e.left), ("bottom", e.bottom), ("right", e.right), ("insideH", e.insideH), ("insideV", e.insideV)] where !style.bordersFromCells {
+            let borderless = style.bordersFromCells || (doc.tableStyleIds[id] != nil && style.inheritedBordersKey == style.bordersKey)
+            if !borderless { xml += "<w:tblBorders>" }
+            for (side, own) in [("top", e.top), ("left", e.left), ("bottom", e.bottom), ("right", e.right), ("insideH", e.insideH), ("insideV", e.insideV)] where !borderless {
                 let val = style.edgeStyles[side].map { _esc($0) } ?? borderVal
                 let sz = style.edgeWidths[side].map { Int(($0 * 8).rounded()) } ?? borderSz
                 xml += (own ?? style.borders) ? "<w:\(side) w:val=\"\(val)\" w:sz=\"\(sz)\" w:space=\"0\" w:color=\"\(borderColor)\"/>"
                                               : "<w:\(side) w:val=\"none\" w:sz=\"0\" w:space=\"0\" w:color=\"auto\"/>"
             }
-            if !style.bordersFromCells { xml += "</w:tblBorders>" }
+            if !borderless { xml += "</w:tblBorders>" }
             if style.fixedLayout { xml += "<w:tblLayout w:type=\"fixed\"/>" }
             let margins: [(String, Double?)] = [("top", style.cellMarginTop), ("left", style.cellMarginLeft),
                                                 ("bottom", style.cellMarginBottom), ("right", style.cellMarginRight)]
-            if let kept = style.keptCellMarginsXML, style.keptCellMarginsUnder == margins.map(\.1) {
+            if doc.tableStyleIds[id] != nil, style.inheritedMarginsKey == style.marginsKey {
+                // (the style's own margins stand)
+            } else if let kept = style.keptCellMarginsXML, style.keptCellMarginsUnder == margins.map(\.1) {
                 xml += kept
             } else if margins.contains(where: { $0.1 != nil }) {
                 xml += "<w:tblCellMar>"

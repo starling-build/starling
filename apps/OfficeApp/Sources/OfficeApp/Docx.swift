@@ -2214,6 +2214,10 @@ enum DocxFormat {
                         if (style.cellSpacing ?? 0) > 0 || (shares.values.reduce(0, +) > 100.5) { style.noWrapColumns = noWrap }
                     }
                 }
+                if tableStyleIds[id] != nil {
+                    if node.first("w:tblPr")?.first("w:tblBorders") == nil { style.inheritedBordersKey = style.bordersKey }
+                    if node.first("w:tblPr")?.first("w:tblCellMar") == nil { style.inheritedMarginsKey = style.marginsKey }
+                }
                 if style != TableStyle() { tableStyles[id] = style }
                 // vMerge: "restart" opens a span in a column; a bare vMerge
                 // continues it, and that cell's (empty) content is dropped.

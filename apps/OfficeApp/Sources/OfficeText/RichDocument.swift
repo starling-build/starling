@@ -1534,6 +1534,14 @@ public struct TableStyle: Hashable, Codable, Sendable {
     public var notSetOut = false
     public var keptCellMarginsXML: String? = nil
     public var keptCellMarginsUnder: [Double?] = []
+    /// A table that names a style and states no borders (or cell margins) of
+    /// its own inherits them from the style: the editor's summary of those is
+    /// kept here as a key, and a save writes no direct override while the
+    /// summary still matches the key (an edit to the borders changes it).
+    public var inheritedBordersKey: String? = nil
+    public var inheritedMarginsKey: String? = nil
+    public var bordersKey: String { "\(borders)|\(String(describing: edges))|\(borderColor.map { String($0.value) } ?? "")|\(borderWidth ?? -1)|\(borderStyle ?? "")|\(edgeStyles)|\(edgeWidths)|\(bordersFromCells)" }
+    public var marginsKey: String { "\(cellMarginTop ?? -1)|\(cellMarginLeft ?? -1)|\(cellMarginBottom ?? -1)|\(cellMarginRight ?? -1)" }
     /// Per-side exceptions to `borders` (a form table ruled outside but
     /// not between its cells); nil sides follow `borders`.
     public var edges: BorderEdges? = nil

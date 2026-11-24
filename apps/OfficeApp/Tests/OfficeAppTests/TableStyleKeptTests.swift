@@ -52,6 +52,9 @@ final class TableStyleKeptTests: XCTestCase {
         XCTAssertTrue(out.containsSubstring("<w:tblStyle w:val=\"MyGrid\"/>"), "the table still names its style")
         XCTAssertTrue(out.containsSubstring("w:val=\"0420\"") && out.containsSubstring("w:noVBand=\"1\""), "and its look flags, not the fixed default")
         XCTAssertEqual(out.components(separatedBy: "<w:tblStyle ").count - 1, 1, "the plain table names none")
+        // The styled table states no borders or margins of its own (the style carries them); the plain one keeps its own.
+        XCTAssertEqual(out.components(separatedBy: "<w:tblBorders>").count - 1, 1, "only the plain table has direct borders")
+        XCTAssertEqual(out.components(separatedBy: "<w:tblCellMar>").count - 1, 1, "and direct cell margins")
         let style = part(saved, "word/styles.xml")
         XCTAssertTrue(style.containsSubstring("w:styleId=\"MyGrid\"") && style.containsSubstring("w:type=\"firstRow\"") && style.containsSubstring("DDDDDD"),
                       "the style's definition, conditional part included, is written back")
