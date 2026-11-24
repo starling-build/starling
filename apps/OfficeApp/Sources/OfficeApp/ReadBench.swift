@@ -97,7 +97,7 @@ enum ReadBench {
             while !done && Date() < deadline { RunLoop.main.run(mode: .default, before: Date().addingTimeInterval(0.002)) }
             t4 = now()
             what = "\(deck.slides.count) slides, \(deck.slides.reduce(0) { $0 + $1.shapes.count }) shapes"
-        case "xlsx", "csv", "tsv":
+        case "xls", "xlsx", "csv", "tsv":
             let book = try Workbook.open(data, name: name)
             t2 = now()
             let c = WorkbookController()

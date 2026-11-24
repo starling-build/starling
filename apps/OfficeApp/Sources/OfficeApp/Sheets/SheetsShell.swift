@@ -236,6 +236,7 @@ final class SheetsShellState: State<StatefulWidget> {
 
     private func _changed() {
         guard mounted else { return }
+        if let n = wb.chartNotice { wb.chartNotice = nil; _flash(n) }
         session.dirty = wb.edits != 0
         _scheduleAutosave()
         _syncBars()
@@ -703,7 +704,7 @@ final class SheetsShellState: State<StatefulWidget> {
         var menu: [(String, () -> Void)] = [
             ("Rename Sheet", { [weak self] in self?._startRename(i) }),
             ("Insert Sheet", { [weak self] in self?.wb.addSheet() }),
-            ("Delete Sheet", { [weak self] in self?.wb.deleteSheet(i) }),
+            ("Delete Sheet", { [weak self] in self?.wb.requestDeleteSheet(i) }),
             ("Hide Sheet", { [weak self] in self?.wb.hideSheet(i) }),
         ]
         // Hidden sheets can be shown again; very hidden ones only by code, as in Excel.
@@ -817,7 +818,11 @@ final class SheetsShellState: State<StatefulWidget> {
                                  onNext: { [weak self] back in self?._findNext(backwards: back) },
                                  onReplace: { [weak self] in self?._replaceOne() },
                                  onReplaceAll: { [weak self] in self?._replaceAll() },
-                                 onClose: { [weak self] in self?._closeFind() })] : []) + [
+                                 onClose: { [weak self] in self?._closeFind() })] : [])
+        + (wb.pendingSheetDelete.map { i in [ConfirmBar(
+            message: "Delete “\(wb.book.sheets.indices.contains(i) ? wb.book.sheets[i].name : "")”? Its cells and objects go with it (Undo brings it back).",
+            action: "Delete sheet", onConfirm: { [weak self] in self?.wb.confirmSheetDelete() },
+            onCancel: { [weak self] in self?.wb.cancelSheetDelete() })] } ?? []) + [
             _formulaBar(fluent),
             Expanded(child: SheetGrid(
                 key: _gridKey, controller: wb, zoom: _zoom,
