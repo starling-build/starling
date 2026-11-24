@@ -2236,6 +2236,68 @@ public final class RichDocumentController: ChangeNotifier {
         return data
     }
 
+    /// Word's Paste Options (W-ED-1).
+    public enum PasteMode: Equatable, Sendable {
+        /// What the clipboard holds, formatting and all (the plain Paste).
+        case keepSource
+        /// The destination's fonts, sizes, colours and paragraph look; the
+        /// source keeps its bold, italic, underline, strike-through,
+        /// super/subscript and links.
+        case mergeFormatting
+        /// The clipboard's text alone, in the style at the caret.
+        case textOnly
+        /// The clipboard's picture alone.
+        case picture
+    }
+
+    /// Whether `data` can be pasted in `mode` (the Paste Options entries
+    /// that cannot are greyed).
+    public func canPaste(_ data: ClipboardData, mode: PasteMode) -> Bool {
+        switch mode {
+        case .keepSource, .mergeFormatting: return data.text?.isEmpty == false || data.png != nil || copiedFragment != nil
+        case .textOnly: return data.text?.isEmpty == false
+        case .picture: return data.png.flatMap { ImageAttachment.pngPixelSize($0) } != nil
+        }
+    }
+
+    /// Paste in one undoable step by Paste Options choice.
+    public func paste(data: ClipboardData, mode: PasteMode) {
+        switch mode {
+        case .keepSource:
+            paste(data: data)
+        case .textOnly:
+            guard let text = data.text, !text.isEmpty else { return }
+            edit {
+                if hasSelection { _deleteSelectionOps() }
+                insertText(text.replacingAll("\r\n", with: "\n"))
+            }
+        case .picture:
+            guard let png = data.png, let px = ImageAttachment.pngPixelSize(png) else { return }
+            _ = px
+            paste(data: ClipboardData(text: nil, png: png))
+        case .mergeFormatting:
+            var fragment: [RichParagraph]?
+            if let text = data.text, let own = copiedFragment, own.map(\.text).joined(separator: "\n") == text {
+                fragment = own
+            } else if let codec = clipboardCodec, let decoded = codec.decode(data), !decoded.isEmpty {
+                fragment = decoded
+            }
+            guard var fragment else { paste(data: data); return }
+            let dest = document.paragraphs.indices.contains(caret.paragraph) ? document.paragraphs[caret.paragraph].style : RichParagraphStyle()
+            for i in fragment.indices where fragment[i].image == nil {
+                fragment[i].style = dest
+                fragment[i].runs = fragment[i].runs.map { run in
+                    var kept = CharStyle.plain
+                    kept.bold = run.style.bold; kept.italic = run.style.italic
+                    kept.underline = run.style.underline; kept.strikethrough = run.style.strikethrough
+                    kept.script = run.style.script; kept.link = run.style.link
+                    return Run(length: run.length, style: kept)
+                }
+            }
+            insertFragment(fragment, smart: true)
+        }
+    }
+
     /// Paste clipboard data: our own last copy as the fragment, else the
     /// richest flavour the codec reads, else a picture, else the text.
     public func paste(data: ClipboardData) {

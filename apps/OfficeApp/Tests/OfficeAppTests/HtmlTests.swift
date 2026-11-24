@@ -90,6 +90,39 @@ final class HtmlTests: XCTestCase {
         XCTAssertTrue(c.document.paragraphs[0].runs(in: 7 ..< 11)[0].style.bold)
     }
 
+    func testPasteOptionsModes() throws {
+        let codec = OfficeClipboardCodec()
+        var src = RichDocument(plainText: "Copied bold")
+        src.paragraphs[0].applyStyle(7 ..< 11) { $0.bold = true; $0.color = Color(0xFF00AA00) }
+        let data = codec.encode(src.paragraphs, styles: OfficeStyles.sheet, text: "Copied bold")
+        let clip = ClipboardData(text: "Copied bold", rtf: data.rtf, html: data.html)
+        func fresh() -> RichDocumentController {
+            let c = RichDocumentController(plainText: "")
+            c.clipboardCodec = codec
+            return c
+        }
+        // Keep source: bold and colour arrive.
+        let a = fresh(); a.paste(data: clip, mode: .keepSource)
+        XCTAssertEqual(a.document.paragraphs[0].text, "Copied bold")
+        XCTAssertEqual(a.document.paragraphs[0].runs(in: 7 ..< 11)[0].style.color, Color(0xFF00AA00))
+        // Keep text only: no bold, no colour.
+        let b = fresh(); b.paste(data: clip, mode: .textOnly)
+        XCTAssertEqual(b.document.paragraphs[0].text, "Copied bold")
+        XCTAssertFalse(b.document.paragraphs[0].runs(in: 7 ..< 11)[0].style.bold)
+        // Merge formatting: bold stays, the foreign colour goes.
+        let m = fresh(); m.paste(data: clip, mode: .mergeFormatting)
+        XCTAssertEqual(m.document.paragraphs[0].text, "Copied bold")
+        let ms = m.document.paragraphs[0].runs(in: 7 ..< 11)[0].style
+        XCTAssertTrue(ms.bold)
+        XCTAssertNotEqual(ms.color, Color(0xFF00AA00))
+        // One undo step restores the empty document.
+        m.undo()
+        XCTAssertEqual(m.document.paragraphs.map(\.text), [""])
+        // Picture needs a PNG; text alone cannot be pasted that way.
+        XCTAssertFalse(fresh().canPaste(clip, mode: .picture))
+        XCTAssertTrue(fresh().canPaste(clip, mode: .textOnly))
+    }
+
     func testHtmlColspan() throws {
         let ps = try XCTUnwrap(HtmlFormat.parse("<table><tr><td colspan=\"2\">wide</td><td>c</td></tr><tr><td>1</td><td>2</td><td>3</td></tr></table>"))
         XCTAssertEqual(ps[0].cell?.span, 2)

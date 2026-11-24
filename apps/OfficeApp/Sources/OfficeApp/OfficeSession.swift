@@ -290,6 +290,8 @@ final class OfficeSession {
     var onModifyStyle: ((String) -> Void)?
     /// Paste from the system clipboard; true = plain text only.
     var onPaste: ((Bool) -> Void)?
+    /// Paste Options (W-ED-1): paste the clipboard in the chosen way.
+    var onPasteMode: ((RichDocumentController.PasteMode) -> Void)?
     var onStatus: ((String) -> Void)?   // transient status-bar message
 
     func summarize() -> ToolbarSummary {
