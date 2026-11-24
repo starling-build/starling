@@ -125,24 +125,26 @@ final class OfficeScene {
         #if !os(WASI)
         guard let show = editMenuRequested else { return }
         guard let r = rect else { editMenuDismissed?(); return }
+        // The items live in UIKit's menu objects, which can outlast the window: they hold the controller weakly, or a
+        // closed window's whole document stays in memory.
         var items: [EditMenuItem] = []
         if c.hasSelection {
             if !c.readOnly {
-                items.append(.init(title: "Cut", symbol: "scissors") { if let d = c.cutSelectionData() { Clipboard.setData(d) } })
+                items.append(.init(title: "Cut", symbol: "scissors") { [weak c] in if let d = c?.cutSelectionData() { Clipboard.setData(d) } })
             }
-            items.append(.init(title: "Copy", symbol: "doc.on.doc") { if let d = c.copySelectionData() { Clipboard.setData(d) } })
+            items.append(.init(title: "Copy", symbol: "doc.on.doc") { [weak c] in if let d = c?.copySelectionData() { Clipboard.setData(d) } })
         } else if !c.readOnly {
-            items.append(.init(title: "Select", symbol: "character.cursor.ibeam") { c.selectWord(at: c.caret) })
+            items.append(.init(title: "Select", symbol: "character.cursor.ibeam") { [weak c] in if let c { c.selectWord(at: c.caret) } })
         }
         if !c.readOnly {
-            items.append(.init(title: "Paste", symbol: "doc.on.clipboard") {
+            items.append(.init(title: "Paste", symbol: "doc.on.clipboard") { [weak c] in
                 Clipboard.getData(Clipboard.kAll) { data in
                     guard let data, !data.isEmpty else { return }
-                    DispatchQueue.main.async { c.paste(data: data) }
+                    DispatchQueue.main.async { c?.paste(data: data) }
                 }
             })
         }
-        items.append(.init(title: "Select All", symbol: "selection.pin.in.out") { c.selectAll() })
+        items.append(.init(title: "Select All", symbol: "selection.pin.in.out") { [weak c] in c?.selectAll() })
         show(r.left, r.top, r.width, r.height, items, c.hasSelection ? c.selectedText : nil)
         #endif
     }

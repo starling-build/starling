@@ -39,6 +39,9 @@ static FlUIKitOpenURLCallback g_open_url = NULL;
 static void* g_open_url_user = NULL;
 static FlUIKitSceneCallback g_scene_connected = NULL;
 static FlUIKitSceneCallback g_scene_disconnected = NULL;
+static FlUIKitRestoreSaveCallback g_restore_save = NULL;
+static FlUIKitRestoreCallback g_restore = NULL;
+static void* g_restore_user = NULL;
 static void* g_scene_user = NULL;
 
 // Hosts the FlutterViewController as a child, pinned to the safe-area layout
@@ -599,6 +602,24 @@ void fluikit_view_remove(int64_t view_id, FlUIKitViewDone done, void* user) {
     NSString* url = activity.userInfo[@"url"];
     if ([url isKindOfClass:NSString.class] && g_open_url != NULL) g_open_url(g_open_url_user, self.viewId, url.UTF8String);
   }
+  // A window the system brings back from the last run (not one made for a document): what it showed.
+  if (g_restore != NULL && connectionOptions.userActivities.count == 0 && connectionOptions.URLContexts.count == 0) {
+    NSString* token = session.stateRestorationActivity.userInfo[@"restore"];
+    if ([token isKindOfClass:NSString.class]) g_restore(g_restore_user, self.viewId, token.UTF8String);
+  }
+}
+
+// What this window shows, for the system to hand back on the next launch.
+- (NSUserActivity*)stateRestorationActivityForScene:(UIScene*)scene {
+  if (g_restore_save == NULL) return nil;
+  char* token = g_restore_save(g_restore_user, self.viewId);
+  if (token == NULL) return nil;
+  NSString* s = [NSString stringWithUTF8String:token];
+  free(token);
+  if (s == nil) return nil;
+  NSUserActivity* activity = [[NSUserActivity alloc] initWithActivityType:@"build.starling.window"];
+  activity.userInfo = @{@"restore": s};
+  return activity;
 }
 
 // The system dropped this window (the user closed it, or iOS reclaimed a background one). Its document is saved
@@ -671,6 +692,12 @@ void fluikit_host_window_size(double* out_width, double* out_height) {
   if (out_height != NULL) {
     *out_height = g_window_size.height;
   }
+}
+
+void fluikit_host_set_restoration_handlers(FlUIKitRestoreSaveCallback save, FlUIKitRestoreCallback restore, void* user) {
+  g_restore_save = save;
+  g_restore = restore;
+  g_restore_user = user;
 }
 
 void fluikit_host_set_scene_handlers(FlUIKitSceneCallback connected, FlUIKitSceneCallback disconnected, void* user) {

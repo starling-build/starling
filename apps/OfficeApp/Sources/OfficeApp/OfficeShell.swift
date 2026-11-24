@@ -195,9 +195,11 @@ final class OfficeShellState: State<StatefulWidget> {
             canUndo: c.canUndo, canRedo: c.canRedo,
             bold: style.bold, italic: style.italic, underline: style.underline,
             hasLists: true, list: list,
-            undo: { c.undo() }, redo: { c.redo() },
-            toggleBold: { c.toggleBold() }, toggleItalic: { c.toggleItalic() },
-            toggleUnderline: { c.toggleUnderline() }, toggleList: { c.toggleList($0) }), owner: self)
+            // (Weak: the buttons live in UIKit's menu objects, which can outlast the window; a strong controller kept a
+            // closed window's whole document in memory.)
+            undo: { [weak c] in c?.undo() }, redo: { [weak c] in c?.redo() },
+            toggleBold: { [weak c] in c?.toggleBold() }, toggleItalic: { [weak c] in c?.toggleItalic() },
+            toggleUnderline: { [weak c] in c?.toggleUnderline() }, toggleList: { [weak c] in c?.toggleList($0) }), owner: self)
     }
 
     override func dispose() {

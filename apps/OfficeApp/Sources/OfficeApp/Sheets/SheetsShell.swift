@@ -239,9 +239,10 @@ final class SheetsShellState: State<StatefulWidget> {
         officeScene.publishToolbar(.init(
             canUndo: wb.canUndo, canRedo: wb.canRedo,
             bold: st.bold, italic: st.italic, underline: st.underline,
-            undo: { wb.undo() }, redo: { wb.redo() },
-            toggleBold: { wb.toggleStyle(\.bold) }, toggleItalic: { wb.toggleStyle(\.italic) },
-            toggleUnderline: { wb.toggleStyle(\.underline) }), owner: self)
+            // (Weak: UIKit keeps the buttons past the window, and a strong workbook kept a closed window's data alive.)
+            undo: { [weak wb] in wb?.undo() }, redo: { [weak wb] in wb?.redo() },
+            toggleBold: { [weak wb] in wb?.toggleStyle(\.bold) }, toggleItalic: { [weak wb] in wb?.toggleStyle(\.italic) },
+            toggleUnderline: { [weak wb] in wb?.toggleStyle(\.underline) }), owner: self)
     }
 
     /// The name box shows the active cell (or the selection's size while

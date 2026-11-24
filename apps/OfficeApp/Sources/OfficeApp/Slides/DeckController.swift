@@ -168,6 +168,7 @@ struct DeckState: Equatable {
 /// session becomes one deck step, so ⌘Z after leaving a box takes its
 /// typing back as PowerPoint does.
 final class DeckController: ChangeNotifier {
+    private let _leakProbe = LeakProbe("DeckController")
     private(set) var slides: [Slide] = []
     private(set) var current = 0
     /// The slide in points: 16:9 Widescreen by default, PowerPoint's own

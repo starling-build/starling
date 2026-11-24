@@ -12,6 +12,7 @@ import OfficeText
 import Foundation
 
 final class WorkbookController: ChangeNotifier {
+    private let _leakProbe = LeakProbe("WorkbookController")
     private(set) var book: Workbook
     private(set) var engine: CalcEngine
     /// Bumped on every change; painters compare it to decide to repaint.

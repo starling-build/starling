@@ -215,8 +215,32 @@ cycles on a device, frames stopping when a scene is backgrounded on a device.
 - **Save As is per window.** `OfficeNativeShell.export` goes to `shells[viewId]` and presents over that window's own
   editor; `OFFICE_EXPORT_AFTER=<ms>:<viewId>` drives it. Seen in the simulator in Split View: the picker covers
   the window of view 1 only.
-- Not seen: Magic Keyboard, drag-out to a new window, state restoration across relaunch, the browser's "Open in
-  New Window" button tap (only the env path), claim across real scenes, frames stopping when backgrounded.
+- Not seen: Magic Keyboard, drag-out to a new window, the system popover tap itself, frames stopping when
+  backgrounded (all on the real-iPad list).
+
+## Step 5, round 3 (2026-11-24)
+
+- **"Open in New Window" and the claim, through the real action.** The browser's own action
+  (`OFFICE_BROWSER_ACTION_AFTER=<ms>:<viewId>:<path>`) opens a second scene; on an already-open file it focuses
+  the window that has it instead (`focusIfOpen` is asked first, else a blank duplicate window appeared).
+  `fluikit_scene_activate` passes a `requestingScene`: without it the simulator sent the whole app home when
+  a window was claimed.
+- **A closed window no longer keeps its document.** The toolbar buttons and the touch edit menu are closures
+  handed to UIKit, which keeps its menu objects past the window; they held the controller strongly, so every
+  closed Writer window kept its whole document. They hold it weakly now (Writer, Sheets; Slides' toolbar
+  already held `self` weakly, and its edit menu goes through the shared `showTouchMenu`). Found with the
+  backward scan in `OFFICE_HEAP_DUMP` (`heap-<n>.txt.retainers.txt`) and `LeakProbe`'s live counts. Eight or
+  sixteen open/close cycles: live RichDocumentController / DeckController / WorkbookController stay flat;
+  malloc still creeps ~0.5 MB per window (small 32-64 byte blocks, not a document; unnamed).
+- **State restoration.** The scene delegate returns an `NSUserActivity` (`build.starling.window`) from
+  `stateRestorationActivityForScene:` whose token comes from the app (`fluikit_host_set_restoration_handlers`);
+  the app's token is a base64 bookmark to the window's original document. On the next launch
+  `willConnectToSession` hands the token back for any window not made for a document, and the app opens it
+  through the same path as a file handed to a window. Seen in the simulator: two Writer windows (ex.docx, sa2.docx),
+  app sent to the background by launching Settings, `simctl terminate`, relaunch with no env hooks: both windows
+  came back in Split View with their documents. A file that is gone leaves the window blank. A window with no
+  document saves nothing. All in the bridge/app; with one window nothing changes (view 0 reopens its last
+  document, which is what restoration means).
 
 ## Recommendation and order
 
