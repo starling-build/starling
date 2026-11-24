@@ -425,13 +425,15 @@ enum DocProps {
     }
 
     /// The styles of the STSH as `w:style` elements, and the document's default font number.
-    static func styles(_ t: [UInt8], at fc: Int, count lcb: Int, fonts: [String]) -> (xml: String, font: Int) {
-        guard fc >= 0, fc + lcb <= t.count, lcb >= 4 else { return ("", 0) }
+    static func styles(_ t: [UInt8], at fc: Int, count lcb: Int, fonts: [String]) -> (xml: String, font: Int, fontFE: Int) {
+        guard fc >= 0, fc + lcb <= t.count, lcb >= 4 else { return ("", 0, 0) }
         let end = fc + lcb
         let cbStshi = OfficeArt.u16(t, fc)
         let h = fc + 2
         let cstd = OfficeArt.u16(t, h), cbBase = OfficeArt.u16(t, h + 2)
         let font = cbStshi >= 14 ? OfficeArt.u16(t, h + 12) : 0
+        // (The East Asian default is the next of the three standard fonts, ftcFE: the face a run that names none gives its Hangul, kana and ideographs.)
+        let fontFE = cbStshi >= 16 ? OfficeArt.u16(t, h + 14) : font
         var p = h + cbStshi
         var xml = ""
         for istd in 0 ..< cstd {
@@ -468,7 +470,7 @@ enum DocProps {
             if stk == 1, next != istd, next < cstd { xml += "<w:next w:val=\"S\(next)\"/>" }
             xml += pp + rp + "</w:style>"
         }
-        return (xml, font)
+        return (xml, font, fontFE)
     }
 
     /// The character positions and the n entries of a plex (n + 1 positions, then n entries of `size` bytes).

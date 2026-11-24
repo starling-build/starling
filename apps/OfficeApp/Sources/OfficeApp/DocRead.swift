@@ -500,7 +500,8 @@ enum DocRead {
         }
         _ = lastEnd
         let df = st.flatMap { $0.font < fonts.count && !fonts[$0.font].isEmpty ? fonts[$0.font] : nil } ?? "Times New Roman"
-        let dflt = "<w:rFonts w:ascii=\"\(df)\" w:hAnsi=\"\(df)\" w:eastAsia=\"\(df)\" w:cs=\"\(df)\"/>"
+        let dfe = st.flatMap { $0.fontFE < fonts.count && !fonts[$0.fontFE].isEmpty ? fonts[$0.fontFE] : nil } ?? df
+        let dflt = "<w:rFonts w:ascii=\"\(df)\" w:hAnsi=\"\(df)\" w:eastAsia=\"\(dfe)\" w:cs=\"\(df)\"/>"
         // Odd and even pages have their own headers when the document properties say so (the first flag of the DOP).
         let facing = fib.range(31).map { $0.fc < tbl.count && tbl[$0.fc] & 1 != 0 } ?? false
         var settings: [ZipEntry] = []
