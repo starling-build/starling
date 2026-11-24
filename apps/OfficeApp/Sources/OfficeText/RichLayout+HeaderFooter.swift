@@ -1120,6 +1120,7 @@ extension RichLayout {
     /// or the paragraph, or set left, centre or right in the column (or
     /// the page, where `frameMargins` says how far that reaches).
     func _floatRect(_ float: ImageFloat, _ image: ImageAttachment, _ g: ParagraphGeometry, _ i: Int) -> Rect {
+        if _verticalPagePicture(i, float, image) { return _verticalPagePictureRect(i, float, image) }
         // (A fit-to-text box that outgrew its stored width stands as wide as its text: zh-2e7ef069's
         // "- 11 -" in a 36pt box is set from the margin at 479 in Word's print, 42pt in.)
         let fitted = image.textBox.flatMap { _fitWidths["\(image.id)|\($0.hashValue)"] }
@@ -2884,6 +2885,7 @@ extension RichLayout {
                 _paintPageTile(p, canvas, document)
                 _paintPageBorders(p, canvas, document)
                 _paintHeaderFooter(p, canvas, document)
+                _paintVerticalPictures(p, canvas, document)
                 _paintFootnotes(p, canvas, document)
             }
             _paintEndnotes(canvas, document, pages: firstPage ... lastPage)
