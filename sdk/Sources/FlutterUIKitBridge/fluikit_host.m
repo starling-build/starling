@@ -337,6 +337,7 @@ static NSMutableDictionary<NSNumber*, FlUIKitExtraView*>* g_extra_views;
 static NSMutableDictionary<NSNumber*, CAMetalLayer*>* g_extra_layers;
 static NSMutableDictionary<NSNumber*, NSNumber*>* g_extra_insets;   // the keyboard's share of each view, points
 static id g_keyboard_observer;
+static void FlUIKitSetOrigin(int64_t view_id, CGPoint* p);
 
 // The docked keyboard covers the bottom of every extra view it overlaps: tell each view how much (its
 // viewInsets.bottom), as the view controller does for view 0. The frame is in screen coordinates.
@@ -398,6 +399,7 @@ void fluikit_view_add(int64_t view_id, double x, double y, double w, double h, F
     [window addSubview:host];
     g_extra_views[@(view_id)] = host;
     g_extra_layers[@(view_id)] = layer;
+    { CGPoint o = host.frame.origin; FlUIKitSetOrigin(view_id, &o); }
     [delegate.engine starlingAddViewWithId:view_id layer:layer size:CGSizeMake(w, h) pixelRatio:scale
                                       done:^(BOOL added) {
       if (!added) { [host removeFromSuperview]; [g_extra_views removeObjectForKey:@(view_id)]; [g_extra_layers removeObjectForKey:@(view_id)]; }
@@ -420,6 +422,24 @@ void fluikit_view_resize(int64_t view_id, double w, double h) {
   });
 }
 
+// Read from the engine's platform thread on every paint of an editable, so a lock-guarded copy, not a main-thread hop.
+static NSMutableDictionary<NSNumber*, NSValue*>* g_extra_origins;
+static void FlUIKitSetOrigin(int64_t view_id, CGPoint* p) {
+  @synchronized([NSObject class]) {
+    if (g_extra_origins == nil) g_extra_origins = [NSMutableDictionary new];
+    if (p) g_extra_origins[@(view_id)] = [NSValue valueWithCGPoint:*p]; else [g_extra_origins removeObjectForKey:@(view_id)];
+  }
+}
+
+bool fluikit_view_origin(int64_t view_id, double* x, double* y) {
+  @synchronized([NSObject class]) {
+    NSValue* v = g_extra_origins[@(view_id)];
+    if (v == nil) return false;
+    *x = v.CGPointValue.x; *y = v.CGPointValue.y;
+    return true;
+  }
+}
+
 void fluikit_view_remove(int64_t view_id, FlUIKitViewDone done, void* user) {
   dispatch_async(dispatch_get_main_queue(), ^{
     FlUIKitAppDelegate* delegate = (FlUIKitAppDelegate*)UIApplication.sharedApplication.delegate;
@@ -431,6 +451,7 @@ void fluikit_view_remove(int64_t view_id, FlUIKitViewDone done, void* user) {
     [g_extra_views removeObjectForKey:@(view_id)];
     [g_extra_layers removeObjectForKey:@(view_id)];
     [g_extra_insets removeObjectForKey:@(view_id)];
+    FlUIKitSetOrigin(view_id, NULL);
   });
 }
 

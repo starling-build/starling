@@ -82,6 +82,10 @@ public final class UIKitHost {
                 }
             }
             runApp(box.builder())
+            TextInputChannel.viewOrigin = { id in
+                var x = 0.0, y = 0.0
+                return fluikit_view_origin(Int64(id), &x, &y) ? (x, y) : nil
+            }
             UIKitScriptedInput.runIfRequested()
             UIKitSelfTest.runIfRequested()
         }, box)

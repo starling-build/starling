@@ -1259,9 +1259,8 @@ public final class RichEditableState: State<StatefulWidget> {
         // screen's bottom-left corner).
         if let input = _textInput, input.isAttached, let c = caretRect,
            let box = context?.findRenderObject() as? RenderBox {
-            let ancestor: RenderObject? = nil
             input.setCaretRect(Rect.fromLTWH(c.left + _originX, c.top + pad.top - _scrollY, c.width, c.height),
-                               editableSize: size, transform: box.getTransformTo(ancestor))
+                               editableSize: size, transform: TextInputChannel.windowTransform(of: box))
         }
 
         // A selected picture: its outline and eight handles.

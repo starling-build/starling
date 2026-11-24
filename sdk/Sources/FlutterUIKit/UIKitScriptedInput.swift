@@ -46,6 +46,10 @@ enum UIKitScriptedInput {
         switch cmd {
         case "log":
             fputs("[input] \(rest)\n", stderr)
+        case "caret":
+            if let o = TextInputChannel.lastEditableOrigin {
+                fputs("[input] editable origin sent to the plugin: \(o.x),\(o.y); client=\(TextInputChannel.activeClient)\n", stderr)
+            } else { fputs("[input] no editable transform sent yet\n", stderr) }
         case "insets" where !nums.isEmpty:
             // The bottom inset (physical pixels) and size the framework has for a view: what the keyboard covers.
             let v = Int(nums[0])

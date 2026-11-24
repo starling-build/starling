@@ -455,7 +455,7 @@ class _TextBoxState: State<StatefulWidget>, TextInputClient {
             x += painter.width
         }
         ime.setCaretRect(Rect.fromLTWH(x, padding.top, 1, box.size.height - padding.top - padding.bottom),
-                         editableSize: box.size, transform: box.getTransformTo(nil))
+                         editableSize: box.size, transform: TextInputChannel.windowTransform(of: box))
     }
 
     // MARK: - Caret Blink

@@ -60,6 +60,26 @@ public enum TextInputChannel {
     /// For test drivers that play the plugin (UIKitScriptedInput); nothing in the framework reads them.
     public nonisolated(unsafe) static var activeClient = -1
     public nonisolated(unsafe) static var lastEditingState: [String: Any]?
+    /// The translation of the last editable transform sent to the plugin (window coordinates).
+    public nonisolated(unsafe) static var lastEditableOrigin: (x: Double, y: Double)?
+
+    /// Where view `id` sits in the host's window, in points; nil when it is at the origin or unknown. Set by a
+    /// host that shows several views in one window (the iPad): the text-input plugin works in window
+    /// coordinates, and an editable's own transform stops at its view's root.
+    public nonisolated(unsafe) static var viewOrigin: ((Int) -> (x: Double, y: Double)?)?
+
+    /// `object`'s transform to the window, for the plugin: its transform to the root of its view, moved by that
+    /// view's place in the window. (View 0 fills the window, so for it this is the plain transform.)
+    public static func windowTransform(of object: RenderObject) -> Matrix4 {
+        var m = object.getTransformTo(nil as RenderObject?)
+        var top: RenderObject = object
+        while let up = top.parent { top = up }
+        if let root = top as? RenderView, let origin = viewOrigin?(Int(root.flutterView.viewId)) {
+            m.storage[12] += origin.x
+            m.storage[13] += origin.y
+        }
+        return m
+    }
 
     /// Take the channel's listener.
     public static func listen(owner: AnyObject, client: Int = -1, _ handler: @escaping (Data?) -> Void) {
@@ -100,6 +120,8 @@ public enum TextInputChannel {
         #if !os(WASI)
         var body: [String: Any] = ["method": method]
         if method == "TextInput.setEditingState", let state = args as? [String: Any] { lastEditingState = state }
+        if method == "TextInput.setEditableSizeAndTransform", let a = args as? [String: Any],
+           let t = a["transform"] as? [Double], t.count == 16 { lastEditableOrigin = (t[12], t[13]) }
         body["args"] = args ?? null
         guard let data = try? JSONSerialization.data(withJSONObject: body) else { return }
         log("send \(method) sender=\(PlatformDispatcher.instance.platformMessageSender != nil) \(String(data: data, encoding: .utf8)?.prefix(160) ?? "")")

@@ -3498,7 +3498,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         // Where the caret is, for the input method's candidate window.
         if let ime = _ime, ime.isAttached, let rb = _box ?? (context?.findRenderObject() as? RenderBox) {
             ime.setCaretRect(Rect.fromLTWH(box.left + pad + before, ty, 1.5, tp.height),
-                             editableSize: size, transform: rb.getTransformTo(nil as RenderObject?))
+                             editableSize: size, transform: TextInputChannel.windowTransform(of: rb))
         }
     }
 }

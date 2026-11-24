@@ -137,6 +137,8 @@ void fluikit_keyboard_attach(void* flutter_view);
 typedef void (*FlUIKitViewDone)(int64_t view_id, bool ok, void* user);
 void fluikit_view_add(int64_t view_id, double x, double y, double w, double h, FlUIKitViewDone done, void* user);
 void fluikit_view_resize(int64_t view_id, double w, double h);
+/// Where extra view `view_id` sits in the window, in points; false when there is no such view.
+bool fluikit_view_origin(int64_t view_id, double* x, double* y);
 void fluikit_view_remove(int64_t view_id, FlUIKitViewDone done, void* user);
 double fluikit_screen_scale(void);
 
