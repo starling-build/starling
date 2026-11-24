@@ -107,6 +107,10 @@ static void* g_open_url_user = NULL;
                    pixelRatio:(double)pixelRatio
                          done:(void (^)(BOOL added))done;
 - (void)starlingResizeViewWithId:(int64_t)viewId size:(CGSize)size pixelRatio:(double)pixelRatio;
+- (void)starlingResizeViewWithId:(int64_t)viewId
+                            size:(CGSize)size
+                      pixelRatio:(double)pixelRatio
+                     insetBottom:(double)insetBottom;
 - (void)starlingRemoveViewWithId:(int64_t)viewId done:(void (^)(BOOL removed))done;
 - (void)starlingDispatchTouches:(NSSet<UITouch*>*)touches inView:(UIView*)view viewId:(int64_t)viewId;
 @end
@@ -238,7 +242,13 @@ static void* g_open_url_user = NULL;
   // process's memory footprint every 10; without it, one view stays.
   int cycles = getenv("STARLING_SPIKE_CYCLES") ? atoi(getenv("STARLING_SPIKE_CYCLES")) : 0;
   dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-    if (cycles <= 0) { [self spikeOneViewIn:window id:1 cyclesLeft:0 total:0]; return; }
+    if (cycles <= 0) {
+      // The single view goes through the product's own entry point (keyboard insets and all).
+      BOOL sized = getenv("STARLING_SPIKE_VIEW_W") != NULL && getenv("STARLING_SPIKE_VIEW_H") != NULL;
+      double w = sized ? atoi(getenv("STARLING_SPIKE_VIEW_W")) : 340, h = sized ? atoi(getenv("STARLING_SPIKE_VIEW_H")) : 260;
+      fluikit_view_add(1, window.bounds.size.width - w - 20, 80, w, h, NULL, NULL);
+      return;
+    }
     fprintf(stderr, "[spike] footprint at start: %.1f MB, heap %.1f MB\n", [self spikeFootprintMB], [self spikeHeapMB]);
     [self spikeOneViewIn:window id:1 cyclesLeft:cycles total:cycles];
   });
@@ -318,6 +328,109 @@ static void* g_open_url_user = NULL;
     if (done % 10 == 0) fprintf(stderr, "[spike] %d cycles done, footprint %.1f MB, heap %.1f MB\n", done, [self spikeFootprintMB], [self spikeHeapMB]);
     if (left > 1) [self spikeOneViewIn:window id:viewId + 1 cyclesLeft:left - 1 total:total];
     else fprintf(stderr, "[spike] all %d cycles done, footprint %.1f MB, heap %.1f MB\n", total, [self spikeFootprintMB], [self spikeHeapMB]);
+  });
+}
+
+// MARK: - Extra views (C entry points)
+
+static NSMutableDictionary<NSNumber*, FlUIKitExtraView*>* g_extra_views;
+static NSMutableDictionary<NSNumber*, CAMetalLayer*>* g_extra_layers;
+static NSMutableDictionary<NSNumber*, NSNumber*>* g_extra_insets;   // the keyboard's share of each view, points
+static id g_keyboard_observer;
+
+// The docked keyboard covers the bottom of every extra view it overlaps: tell each view how much (its
+// viewInsets.bottom), as the view controller does for view 0. The frame is in screen coordinates.
+static void FlUIKitUpdateExtraInsets(CGRect keyboardFrame, BOOL docked) {
+  FlUIKitAppDelegate* delegate = (FlUIKitAppDelegate*)UIApplication.sharedApplication.delegate;
+  UIWindow* window = delegate.window;
+  if (window == nil) return;
+  CGRect inWindow = [window convertRect:keyboardFrame fromCoordinateSpace:window.screen.coordinateSpace];
+  CGFloat scale = UIScreen.mainScreen.scale;
+  for (NSNumber* key in g_extra_views.allKeys) {
+    FlUIKitExtraView* host = g_extra_views[key];
+    double inset = 0;
+    if (docked && !CGRectIsEmpty(keyboardFrame)) {
+      CGRect hit = CGRectIntersection(inWindow, host.frame);
+      if (!CGRectIsNull(hit)) inset = CGRectGetHeight(hit);
+    }
+    if (inset == g_extra_insets[key].doubleValue) continue;
+    g_extra_insets[key] = @(inset);
+    [delegate.engine starlingResizeViewWithId:key.longLongValue size:host.bounds.size pixelRatio:scale insetBottom:inset];
+  }
+}
+
+double fluikit_screen_scale(void) { return UIScreen.mainScreen.scale; }
+
+void fluikit_view_add(int64_t view_id, double x, double y, double w, double h, FlUIKitViewDone done, void* user) {
+  dispatch_async(dispatch_get_main_queue(), ^{
+    FlUIKitAppDelegate* delegate = (FlUIKitAppDelegate*)UIApplication.sharedApplication.delegate;
+    UIWindow* window = delegate.window;
+    if (window == nil || delegate.engine == nil) { if (done) done(view_id, false, user); return; }
+    if (g_extra_views == nil) {
+      g_extra_views = [NSMutableDictionary new];
+      g_extra_layers = [NSMutableDictionary new];
+      g_extra_insets = [NSMutableDictionary new];
+      void (^onKeyboard)(NSNotification*) = ^(NSNotification* n) {
+        CGRect end = [n.userInfo[UIKeyboardFrameEndUserInfoKey] CGRectValue];
+        BOOL hide = [n.name isEqualToString:UIKeyboardWillHideNotification];
+        UIScreen* screen = UIScreen.mainScreen;
+        // Docked: the keyboard's bottom edge is the screen's (a floating one has an inset of none).
+        BOOL docked = !hide && CGRectGetMaxY(end) >= CGRectGetHeight(screen.bounds) - 0.5;
+        FlUIKitUpdateExtraInsets(end, docked);
+      };
+      for (NSNotificationName name in @[UIKeyboardWillChangeFrameNotification, UIKeyboardWillHideNotification]) {
+        g_keyboard_observer = [NSNotificationCenter.defaultCenter addObserverForName:name object:nil queue:NSOperationQueue.mainQueue usingBlock:onKeyboard];
+      }
+    }
+    g_extra_insets[@(view_id)] = @0;
+    CGFloat scale = UIScreen.mainScreen.scale;
+    FlUIKitExtraView* host = [[FlUIKitExtraView alloc] initWithFrame:CGRectMake(x, y, w, h)];
+    host.engine = delegate.engine;
+    host.viewId = view_id;
+    CAMetalLayer* layer = [CAMetalLayer layer];
+    layer.device = MTLCreateSystemDefaultDevice();
+    layer.pixelFormat = MTLPixelFormatBGRA8Unorm;
+    layer.opaque = YES;
+    layer.contentsScale = scale;
+    layer.frame = host.bounds;
+    layer.drawableSize = CGSizeMake(w * scale, h * scale);
+    [host.layer addSublayer:layer];
+    [window addSubview:host];
+    g_extra_views[@(view_id)] = host;
+    g_extra_layers[@(view_id)] = layer;
+    [delegate.engine starlingAddViewWithId:view_id layer:layer size:CGSizeMake(w, h) pixelRatio:scale
+                                      done:^(BOOL added) {
+      if (!added) { [host removeFromSuperview]; [g_extra_views removeObjectForKey:@(view_id)]; [g_extra_layers removeObjectForKey:@(view_id)]; }
+      if (done) done(view_id, added, user);
+    }];
+  });
+}
+
+void fluikit_view_resize(int64_t view_id, double w, double h) {
+  dispatch_async(dispatch_get_main_queue(), ^{
+    FlUIKitAppDelegate* delegate = (FlUIKitAppDelegate*)UIApplication.sharedApplication.delegate;
+    FlUIKitExtraView* host = g_extra_views[@(view_id)];
+    CAMetalLayer* layer = g_extra_layers[@(view_id)];
+    if (host == nil || layer == nil) return;
+    CGFloat scale = UIScreen.mainScreen.scale;
+    host.frame = CGRectMake(host.frame.origin.x, host.frame.origin.y, w, h);
+    layer.frame = host.bounds;
+    layer.drawableSize = CGSizeMake(w * scale, h * scale);
+    [delegate.engine starlingResizeViewWithId:view_id size:CGSizeMake(w, h) pixelRatio:scale insetBottom:g_extra_insets[@(view_id)].doubleValue];
+  });
+}
+
+void fluikit_view_remove(int64_t view_id, FlUIKitViewDone done, void* user) {
+  dispatch_async(dispatch_get_main_queue(), ^{
+    FlUIKitAppDelegate* delegate = (FlUIKitAppDelegate*)UIApplication.sharedApplication.delegate;
+    FlUIKitExtraView* host = g_extra_views[@(view_id)];
+    [delegate.engine starlingRemoveViewWithId:view_id done:^(BOOL removed) {
+      if (done) done(view_id, removed, user);
+    }];
+    [host removeFromSuperview];
+    [g_extra_views removeObjectForKey:@(view_id)];
+    [g_extra_layers removeObjectForKey:@(view_id)];
+    [g_extra_insets removeObjectForKey:@(view_id)];
   });
 }
 

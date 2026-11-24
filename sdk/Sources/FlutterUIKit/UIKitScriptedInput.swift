@@ -46,6 +46,12 @@ enum UIKitScriptedInput {
         switch cmd {
         case "log":
             fputs("[input] \(rest)\n", stderr)
+        case "insets" where !nums.isEmpty:
+            // The bottom inset (physical pixels) and size the framework has for a view: what the keyboard covers.
+            let v = Int(nums[0])
+            if let fv = PlatformDispatcher.instance.view(id: v) {
+                fputs("[input] view \(v) viewInsets.bottom=\(fv.viewInsets.bottom) physicalSize=\(fv.physicalSize.width)x\(fv.physicalSize.height)\n", stderr)
+            } else { fputs("[input] view \(v) does not exist\n", stderr) }
         case "tap" where nums.count >= 3:
             let v = Int(nums[0])
             report("tap view \(v) at \(nums[1]),\(nums[2])")
@@ -101,6 +107,15 @@ enum UIKitScriptedInput {
             if let code { report("key view \(p[2]) \(p[3])"); key(code, nil) }
         default:
             fputs("[input] unknown command: \(line)\n", stderr)
+        }
+    }
+
+    /// A finger down and up at (x, y) in view `viewId`'s own coordinates (logical pixels).
+    static func tap(view viewId: Int, x: Double, y: Double) {
+        let id = pointerId()
+        post(viewId, [(.add, x, y, id), (.down, x, y, id)])
+        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(60)) {
+            post(viewId, [(.up, x, y, id), (.remove, x, y, id)])
         }
     }
 

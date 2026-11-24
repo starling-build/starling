@@ -130,6 +130,16 @@ typedef void (*FlUIKitKeyCallback)(void* user,
 // travelling up the responder chain into the engine.
 void fluikit_keyboard_attach(void* flutter_view);
 
+// Views beyond the first, each a UIView with a CAMetalLayer of its own at `x, y, w, h` (points, in the key
+// window), showing view `view_id` of the same engine (docs/plans/ipad-multi-window.md). `done` is called on
+// the platform thread with whether the engine took the add / remove. Resize moves the engine's size too.
+// Used by the host's self-test; the product's windows will come through scenes.
+typedef void (*FlUIKitViewDone)(int64_t view_id, bool ok, void* user);
+void fluikit_view_add(int64_t view_id, double x, double y, double w, double h, FlUIKitViewDone done, void* user);
+void fluikit_view_resize(int64_t view_id, double w, double h);
+void fluikit_view_remove(int64_t view_id, FlUIKitViewDone done, void* user);
+double fluikit_screen_scale(void);
+
 void fluikit_keyboard_set_callback(FlUIKitKeyCallback cb, void* user);
 
 // Raise and dismiss the on-screen keyboard. Showing it is what makes the
