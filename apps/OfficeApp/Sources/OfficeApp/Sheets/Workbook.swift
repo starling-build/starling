@@ -304,6 +304,8 @@ final class Worksheet {
     /// Cells holding a rich string, as its runs. Drawn so only while their
     /// text is still the cell's (an edit leaves them behind).
     var richText: [CellAddress: [RichRun]] = [:]
+    /// A rich string's own XML (its runs' properties, phonetic guides) with the plain text it held: written back as read while the cell's text is still that.
+    var richRaw: [CellAddress: (text: String, xml: String)] = [:]
     /// A formatted row's span as the file gave it (`spans`): the columns
     /// in it the file has no cell for. Excel makes them cells in the row's
     /// format, and a fill or border there prints (FormatConditionTests'
@@ -402,6 +404,7 @@ final class Worksheet {
         s.hasView = hasView
         s.scriptRows = scriptRows
         s.richText = richText
+        s.richRaw = richRaw
         s.rowSpanGaps = rowSpanGaps
         s.hiddenColRuns = hiddenColRuns
         s.tables = tables

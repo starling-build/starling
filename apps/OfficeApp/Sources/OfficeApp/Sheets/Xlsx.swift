@@ -68,6 +68,7 @@ enum Xlsx {
         var sst: [String] = []
         var sstScripts: Set<Int> = []
         var sstRuns: [Int: [RichRun]] = [:]
+        var sstRaw: [Int: String] = [:]
         if let s = xml("xl/sharedStrings.xml") {
             for si in s.kids("si") {
                 // (Rich text with a raised or lowered run: its row's fit is Excel's own.)
@@ -78,6 +79,8 @@ enum Xlsx {
                 if runs.count > 1, runs.contains(where: { $0.child("rPr") != nil }) {
                     sstRuns[sst.count] = runs.map { _richRun($0, theme: theme, themeFonts: themeFonts, themeless: themeless) }
                 }
+                // (A rich string is kept as the file wrote it, run properties, phonetic guides and all, for a save that leaves its cell's text alone.)
+                if !si.kids("r").isEmpty || si.child("rPh") != nil, let raw = _siXML(si) { sstRaw[sst.count] = raw }
                 sst.append(_text(si))
             }
         }
@@ -133,7 +136,7 @@ enum Xlsx {
             guard let name = s["name"], let rid, let path = wbRels[rid] else { continue }
             let ws = Worksheet(name: name)
             ws.origin = path
-            if let raw = _part(parts, path) { sheetRoots[path] = try _readSheet(raw, into: ws, sst: sst, sstScripts: sstScripts, sstRuns: sstRuns, book: book) }
+            if let raw = _part(parts, path) { sheetRoots[path] = try _readSheet(raw, into: ws, sst: sst, sstScripts: sstScripts, sstRuns: sstRuns, sstRaw: sstRaw, book: book) }
             if s["state"] == "hidden" || s["state"] == "veryHidden" { ws.hidden = true }
             if s["state"] == "veryHidden" { ws.veryHidden = true }
             book.sheets.append(ws)
@@ -247,7 +250,7 @@ enum Xlsx {
 
     /// Returns the part's root with `sheetData` left out (see `sheetRoots`).
     @discardableResult
-    private static func _readSheet(_ raw: Data, into ws: Worksheet, sst: [String], sstScripts: Set<Int> = [], sstRuns: [Int: [RichRun]] = [:],
+    private static func _readSheet(_ raw: Data, into ws: Worksheet, sst: [String], sstScripts: Set<Int> = [], sstRuns: [Int: [RichRun]] = [:], sstRaw: [Int: String] = [:],
                                    book: Workbook) throws -> XNode {
         let bytes = [UInt8](raw)
         // The elements we do not model, kept as their original text.
@@ -387,6 +390,7 @@ enum Xlsx {
                     value = Int(vText ?? "").flatMap { $0 < sst.count ? CellValue.text(sst[$0]) : nil } ?? .empty
                     if let i = Int(vText ?? ""), sstScripts.contains(i) { ws.scriptRows.insert(a.row) }
                     if let i = Int(vText ?? ""), let runs = sstRuns[i] { ws.richText[a] = runs }
+                    if let i = Int(vText ?? ""), let raw = sstRaw[i], i < sst.count { ws.richRaw[a] = (sst[i], raw) }
                 // (An inline string with nothing in it is still a string, the empty
                 // one: a cell with a value, which Excel prints the sheet as far as.)
                 case "inlineStr": value = .text(c.inlineNode.map { _text($0) } ?? "")
@@ -1295,7 +1299,7 @@ enum Xlsx {
             let cells = (byRow[r] ?? []).sorted { $0.0.col < $1.0.col }
             if cells.isEmpty { data += "/>"; continue }
             data += ">"
-            for (a, c) in cells { data += _cellXML(a, c, dynamicCm: dynamicCm, stringIndex: stringIndex) }
+            for (a, c) in cells { data += _cellXML(a, c, dynamicCm: dynamicCm, rich: ws.richRaw[a], stringIndex: stringIndex) }
             data += "</row>"
         }
         generated["sheetData"] = data + "</sheetData>"
@@ -1411,7 +1415,7 @@ enum Xlsx {
         return nil
     }
 
-    private static func _cellXML(_ a: CellAddress, _ c: Cell, dynamicCm: Int? = nil, stringIndex: (String) -> Int) -> String {
+    private static func _cellXML(_ a: CellAddress, _ c: Cell, dynamicCm: Int? = nil, rich: (text: String, xml: String)? = nil, stringIndex: (String) -> Int) -> String {
         var s = "<c r=\"\(a.a1)\"" + (c.style != 0 ? " s=\"\(c.style)\"" : "")
         var attrs = c.keptAttrs
         if let cm = dynamicCm, c.dynamic, c.formula != nil, c.spillRange != nil || c.arrayRef != nil { attrs["cm"] = "\(cm)" }
@@ -1446,6 +1450,8 @@ enum Xlsx {
             if c.input.hasPrefix("=") && c.input.count > 1 {
                 return s + " t=\"str\"><f>\(_esc(String(c.input.dropFirst())))</f><v>\(_esc(t))</v></c>"
             }
+            // (A rich string whose text the user has not touched goes back as it was read.)
+            if let rich, rich.text == t { return s + " t=\"s\"><v>\(stringIndex(_richMark + rich.xml))</v></c>" }
             return s + " t=\"s\"><v>\(stringIndex(t))</v></c>"
         case .bool(let b): return s + " t=\"b\"><v>\(b ? 1 : 0)</v></c>"
         case .error(let e): return s + " t=\"e\"><v>\(_esc(e.rawValue))</v></c>"
@@ -1464,9 +1470,28 @@ enum Xlsx {
         return "\(n)"
     }
 
+    /// Marks a shared-string entry that is a rich string's own XML, not plain text.
+    static let _richMark = "\u{1}rich\u{1}"
+
+    /// The inside of a shared string item as the file wrote it, or nil where it cannot be written back faithfully.
+    static func _siXML(_ si: XNode) -> String? {
+        func out(_ n: XNode) -> String? {
+            if n.name.contains(":") { return nil }
+            var a = n.attrs.keys.sorted().map { " \($0)=\"\(_esc(n.attrs[$0]!))\"" }.joined()
+            if n.name == "t", n.attrs["xml:space"] == nil, n.text.first == " " || n.text.last == " " || n.text.containsSubstring("\n") { a += " xml:space=\"preserve\"" }
+            var inner = ""
+            for c in n.children { guard let x = out(c) else { return nil }; inner += x }
+            return "<\(n.name)\(a)>" + inner + _esc(n.text) + "</\(n.name)>"
+        }
+        var all = ""
+        for c in si.children { guard let x = out(c) else { return nil }; all += x }
+        return all
+    }
+
     private static func _sstXML(_ sst: [String]) -> String {
         var s = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<sst xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" count=\"\(sst.count)\" uniqueCount=\"\(sst.count)\">"
         for t in sst {
+            if t.hasPrefix(_richMark) { s += "<si>\(t.dropFirst(_richMark.count))</si>"; continue }
             let space = t.first == " " || t.last == " " || t.containsSubstring("\n") ? " xml:space=\"preserve\"" : ""
             s += "<si><t\(space)>\(_esc(t))</t></si>"
         }
