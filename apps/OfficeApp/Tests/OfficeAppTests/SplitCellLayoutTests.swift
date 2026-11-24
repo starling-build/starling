@@ -62,4 +62,31 @@ final class SplitCellLayoutTests: XCTestCase {
             XCTAssertEqual(short.y, first.y, accuracy: 0.5, "\(alignment): the row keeps one line, despite spare room below it")
         }
     }
+
+    /// In a spaced table (compat 15) the text of an outset-bordered cell stands half the cell line further in than under a plain border
+    /// (dx2 8ba99a6d: outset 0.75 pt lines, text 0.39 pt further in in Word's print).
+    func testOutsetCellBordersMoveTheTextInByHalfTheLine() throws {
+        RichTextTheme.wordWindowsPages = true
+        defer { RichTextTheme.wordWindowsPages = false }
+        func textLeft(_ style: String) throws -> Double {
+            var p = RichParagraph(text: "Cell", style: RichParagraphStyle(spaceAfter: 0, lineSpacing: 1))
+            p.cell = CellRef(table: "T", row: 0, column: 0)
+            var document = RichDocument(paragraphs: [p])
+            document.compatibilityMode = 15
+            document.tableColumns["T"] = [200]
+            var table = TableStyle(borders: true)
+            table.cellSpacing = 2
+            table.borderWidth = 0.75
+            table.borderStyle = style
+            document.tableStyles["T"] = table
+            let theme = RichTextTheme(fontFamily: OfficeFonts.serif)
+            theme.wordRules = true
+            let layout = RichLayout(theme: theme, paragraphCount: 1)
+            layout.pageSetup = .letter
+            layout.width = PageSetup.letter.columnWidth * theme.pixelsPerPoint
+            layout.ensureLaidOut(document)
+            return layout.geometry(0).textLeft / theme.pixelsPerPoint
+        }
+        XCTAssertEqual(try textLeft("outset") - textLeft("single"), 0.375, accuracy: 0.01)
+    }
 }
