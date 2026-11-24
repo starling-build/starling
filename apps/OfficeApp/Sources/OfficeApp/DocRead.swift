@@ -158,6 +158,16 @@ enum DocRead {
         var picture: ((Int) -> String?)?         // the run of the inline picture whose data sits at an offset of the Data stream
     }
 
+    /// A footer story's last paragraph mark ends the story: it is not a line of its own, so Word draws no empty line below the text
+    /// (ja-c8f20adaa3: three footer lines pushed the body up and the last line onto a second page). A header keeps it (measured on the dev .doc),
+    /// and so does a story whose only content before it is a table, which must be followed by a paragraph.
+    static func withoutStoryEnd(_ xml: String, isFooter: Bool) -> String {
+        let bare = "<w:p></w:p>"
+        guard isFooter, xml.hasSuffix(bare), xml.count > bare.count else { return xml }
+        let rest = String(xml.dropLast(bare.count))
+        return rest.hasSuffix("</w:tbl>") ? xml : rest
+    }
+
     /// The paragraphs of a story as `w:p` elements: a paragraph mark (0D, or 07 for a cell or row end)
     /// ends one. A PAGE or NUMPAGES field stays a field; any other keeps its result and drops its instruction.
     static func paragraphs(_ t: [UInt16], chp: [DocPropRun] = [], pap: [DocPropRun] = [], fonts: [String] = [], ctx: StoryContext = StoryContext()) -> String {
@@ -339,7 +349,7 @@ enum DocRead {
                 let part = "\(tag)\(k)_\(j).xml"
                 let hd = headerDrawings(a, b)
                 var hc = StoryContext(); hc.shapes = hd.shapes; hc.picture = hd.picture
-                extra.append(e("word/" + part, head + "<w:\(tag == "header" ? "hdr" : "ftr") \(ns)>" + story(a, b, hc) + "</w:\(tag == "header" ? "hdr" : "ftr")>"))
+                extra.append(e("word/" + part, head + "<w:\(tag == "header" ? "hdr" : "ftr") \(ns)>" + withoutStoryEnd(story(a, b, hc), isFooter: tag == "footer") + "</w:\(tag == "header" ? "hdr" : "ftr")>"))
                 if !hd.rels.isEmpty { extra.append(e("word/_rels/" + part + ".rels", head + "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">" + hd.rels + "</Relationships>")) }
                 rels += "<Relationship Id=\"\(id)\" Type=\"\(relBase)\(tag)\" Target=\"\(part)\"/>"
                 types += "<Override PartName=\"/word/\(part)\" ContentType=\"\(ctBase)\(tag).xml\"/>"
