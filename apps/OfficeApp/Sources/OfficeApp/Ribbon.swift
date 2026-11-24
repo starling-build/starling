@@ -11,6 +11,7 @@ import Flutter
 import OfficeText
 import FlutterSwiftBridge
 import FluentSystemIcons
+import CupertinoIcons
 import Foundation
 
 enum RibbonTab: Int, CaseIterable {
@@ -633,10 +634,14 @@ final class Ribbon: StatelessWidget {
                     },
                 ]),
             ])
+            let turn = Chrome.group("Rotate", fluent, [
+                Chrome.small(CupertinoIcons.rotate_right, "Rotate Right", fluent) { _ = c.rotatePicture(at: i, inline: id, quarters: 1) },
+                Chrome.small(CupertinoIcons.rotate_left, "Rotate Left", fluent) { _ = c.rotatePicture(at: i, inline: id, quarters: -1) },
+            ])
             let remove = Chrome.group("Picture", fluent, [
                 Chrome.big(FluentSystemIcons.delete, "Delete", fluent) { c.deleteForward() },
             ])
-            return [size, remove]
+            return [size, turn, remove]
         }
         guard let i = s.imageIndex, let image = c.document.paragraphs[i].image else { return [] }
         let aspect = image.height / max(1, image.width)
@@ -671,10 +676,14 @@ final class Ribbon: StatelessWidget {
             Chrome.big(FluentSystemIcons.alignCenter, "Center", fluent) { c.setAlignment(.center) },
             Chrome.big(FluentSystemIcons.alignRight, "Right", fluent) { c.setAlignment(.right) },
         ])
+        let turn = Chrome.group("Rotate", fluent, [
+            Chrome.small(CupertinoIcons.rotate_right, "Rotate Right", fluent) { _ = c.rotatePicture(at: i, quarters: 1) },
+            Chrome.small(CupertinoIcons.rotate_left, "Rotate Left", fluent) { _ = c.rotatePicture(at: i, quarters: -1) },
+        ])
         let remove = Chrome.group("Picture", fluent, [
             Chrome.big(FluentSystemIcons.delete, "Delete", fluent) { c.deleteForward() },
         ])
-        return [size, arrange, remove]
+        return [size, arrange, turn, remove]
     }
 
     // MARK: Layout
