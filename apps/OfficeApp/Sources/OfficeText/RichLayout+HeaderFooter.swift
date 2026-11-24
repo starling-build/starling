@@ -2343,7 +2343,9 @@ extension RichLayout {
                 // lab footreach moved 511c21d4's box from -28pt to 0 and -40pt, and its page picture to -40pt, and Word's breaks did not move;
                 // any reach from 12 to 24pt gives Word's pages and the paragraph's line is 13.4pt.)
                 let reach = f.bandsPage ? _px(image.height) + _px(f.effectBottom) : footer.layout._heights[j]
-                guard -_px(f.y) < _px(image.height) + _px(f.effectBottom), reach > 0 else { continue }
+                // (Nor one set DOWN from it: pt-6c544802ed's footer holds a top-and-bottom picture 740pt below its paragraph, off the
+                // page, and Word's body keeps the bottom margin, 140pt more of page 1 than the picture's reach left.)
+                guard f.y <= 0 || !f.bandsPage, -_px(f.y) < _px(image.height) + _px(f.effectBottom), reach > 0 else { continue }
                 RuleTrace.hit("footer-picture-above-its-paragraph-ends-the-body")
                 end = max(end ?? 0, _px(setup.footerDistance) + footer.height - footer.layout._tops[j] + reach)
             }

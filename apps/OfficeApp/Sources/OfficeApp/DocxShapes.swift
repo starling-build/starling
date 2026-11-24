@@ -268,6 +268,12 @@ extension DocxFormat {
                 let breaks = sect.attrs.removeValue(forKey: "x-next-breaks").map { $0 == "1" }
                     ?? ((sect.first("w:type")?["w:val"] ?? "nextPage") != "continuous")
                 if breaks { sectionBreakAfter = true }
+                // (An empty paragraph that ends a section the next continues on the page has no space before in Word's print, its line stays:
+                // lab sec1 (24 pt before: the text under it starts 24.0 pt higher than under a plain empty paragraph; with a letter in it the
+                // space stays), pt-6c544802ed's 8.9 pt.)
+                func hasRunHere(_ n: XNode) -> Bool { n.children.contains { $0.name == "w:r" || hasRunHere($0) } }
+                if !breaks, RichTextTheme.wordWindowsPages, style.spaceBefore > 0,
+                   !p.children.contains(where: { $0.name != "w:pPr" && ($0.name == "w:r" || hasRunHere($0)) }) { style.spaceBefore = 0 }
                 sectionMarginsChange = sect.attrs.removeValue(forKey: "x-next-vmargins") == "1"
                 style.sectionBreaksPage = breaks
                 // The section's own page size, margins and columns, kept
@@ -330,9 +336,15 @@ extension DocxFormat {
                 // mark stated smaller than that is not the height. dx2 b02602d2's picture paragraph, mark sz 20 over BodyText 16 bold, is a 19.3 pt
                 // Tahoma Bold line in Word's print, not 12.1.)
                 let styleSize = p.first("w:pPr")?.first("w:pStyle")?["w:val"].flatMap { styleIds[$0] }.flatMap { sheet[$0]?.char.fontSize }
+                // (A run that STATES its size (the anchor's own run, sz 12 under BodyText 20) is that size whatever the mark says:
+                // pt-ebe6f5b3cc's 6 pt picture paragraph is 6.9 pt tall in Word's print, ours stood the 10 pt style line, 4.6 pt more.
+                // In a right-to-left paragraph the picture is a complex-script character: only szCs sizes it; dx2 b02602d2's bidi picture
+                // paragraphs state sz 20 and stay the 16 pt style line.)
+                let runIsBidi = p.first("w:pPr")?.first("w:bidi") != nil
+                let runStatesSize = p.all("w:r").first { $0.first("w:drawing") != nil }?.first("w:rPr")?.first(runIsBidi ? "w:szCs" : "w:sz") != nil
                 if let mark = markStyle, only.sourceXML?.containsSubstring("<wp:anchor") == true,
-                   !(para.runs[0].style.fontSize == nil && styleSize != nil && mark.fontSize != nil && styleSize! > mark.fontSize!) { para.runs[0].style = mark }
-                else if only.sourceXML?.containsSubstring("<wp:anchor") == true, para.runs[0].style.fontSize == nil, let z = styleSize { para.style.mark?.fontSize = z }
+                   !(para.runs[0].style.fontSize == nil && !runStatesSize && styleSize != nil && mark.fontSize != nil && styleSize! > mark.fontSize!) { para.runs[0].style = mark }
+                else if only.sourceXML?.containsSubstring("<wp:anchor") == true, para.runs[0].style.fontSize == nil, !runStatesSize, let z = styleSize { para.style.mark?.fontSize = z }
             } else {
                 // (An empty cell paragraph under a table style that sets the size is as tall as that
                 // size, not Normal's: lo-7c394e05's 8pt cells under a 12pt Normal.)
@@ -1790,6 +1802,9 @@ extension DocxFormat {
                     // no room there, where its 300 by 200 stand-in set
                     // the table 187pt low.)
                     guard !child.children.isEmpty else { break }
+                    // (A VML pict of shape types only is definitions, not a shape: pt-408a10293d's first paragraph holds two and nothing else;
+                    // read as a picture it stood a grey 300 by 200 box 187 pt tall on page 1, none in Word's print.)
+                    if child.name == "w:pict", child.children.allSatisfy({ $0.name == "v:shapetype" }) { break }
                     // (A VML polyline alone — LibreOffice's FDO76248, a
                     // vertical rule over a table, `points` and no size —
                     // is not a box: read as the 300 by 200 stand-in it

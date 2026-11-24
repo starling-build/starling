@@ -236,4 +236,118 @@ final class CorpusFixTests: XCTestCase {
         let image = try XCTUnwrap(doc.paragraphs.compactMap { $0.image ?? $0.inlineImages.values.first }.first)
         XCTAssertLessThan(image.height, 5)
     }
+
+    /// A paragraph of one anchored picture is as tall as its anchor run's font. A run that states `sz` is that size even when the paragraph
+    /// style is bigger (pt-ebe6f5b3cc); in a right-to-left paragraph the picture is a complex-script character, so only `szCs` sizes it and
+    /// the style's size stays (dx2 b02602d2).
+    private func anchoredPictureParagraph(bidi: Bool) throws -> RichParagraph {
+        let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")!
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(image: ImageAttachment(data: png, width: 10, height: 10))]), pageSetup: .a4))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let embed = try XCTUnwrap(xml.range(of: #"r:embed="[^"]+""#, options: .regularExpression))
+        let rid = String(xml[embed])
+        let body = try XCTUnwrap(xml.range(of: "<w:body>")), sect = try XCTUnwrap(xml.range(of: "<w:sectPr"))
+        let anchor = "<wp:anchor distT=\"0\" distB=\"0\" distL=\"0\" distR=\"0\" simplePos=\"0\" relativeHeight=\"1\" behindDoc=\"0\" locked=\"0\" layoutInCell=\"1\" allowOverlap=\"1\">"
+            + "<wp:simplePos x=\"0\" y=\"0\"/><wp:positionH relativeFrom=\"page\"><wp:posOffset>100000</wp:posOffset></wp:positionH>"
+            + "<wp:positionV relativeFrom=\"page\"><wp:posOffset>100000</wp:posOffset></wp:positionV><wp:extent cx=\"238125\" cy=\"171450\"/><wp:wrapNone/>"
+            + "<wp:docPr id=\"14\" name=\"p\"/><a:graphic xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\">"
+            + "<a:graphicData uri=\"http://schemas.openxmlformats.org/drawingml/2006/picture\"><pic:pic xmlns:pic=\"http://schemas.openxmlformats.org/drawingml/2006/picture\">"
+            + "<pic:blipFill><a:blip \(rid)/></pic:blipFill></pic:pic></a:graphicData></a:graphic></wp:anchor>"
+        xml.replaceSubrange(body.upperBound ..< sect.lowerBound, with:
+            "<w:p><w:pPr><w:pStyle w:val=\"Big\"/>\(bidi ? "<w:bidi/>" : "")<w:rPr><w:sz w:val=\"20\"/></w:rPr></w:pPr>"
+            + "<w:r><w:rPr><w:sz w:val=\"20\"/></w:rPr><w:drawing>\(anchor)</w:drawing></w:r></w:p>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let si = try XCTUnwrap(entries.firstIndex { $0.name == "word/styles.xml" })
+        var styles = String(decoding: entries[si].data, as: UTF8.self)
+        let end = try XCTUnwrap(styles.range(of: "</w:styles>"))
+        styles.replaceSubrange(end.lowerBound ..< end.lowerBound, with: "<w:style w:type=\"paragraph\" w:styleId=\"Big\"><w:name w:val=\"Big\"/><w:rPr><w:sz w:val=\"32\"/></w:rPr></w:style>")
+        entries[si] = ZipEntry(name: "word/styles.xml", data: Data(styles.utf8))
+        let doc = try DocxFormat.read(try Zip.write(entries)).document
+        return try XCTUnwrap(doc.paragraphs.first { $0.image != nil || !$0.inlineImages.isEmpty })
+    }
+
+    func testAnAnchorRunsOwnSizeIsThePictureLinesHeight() throws {
+        let p = try anchoredPictureParagraph(bidi: false)
+        XCTAssertEqual(p.runs[0].style.fontSize, 10)
+    }
+
+    func testARightToLeftPictureParagraphIgnoresTheRunsLatinSize() throws {
+        let p = try anchoredPictureParagraph(bidi: true)
+        XCTAssertEqual(p.runs[0].style.fontSize ?? p.style.mark?.fontSize, 16)
+    }
+
+    /// A `w:pict` that holds only VML shape types defines shapes and draws none: it is no picture and takes no room
+    /// (pt-408a10293d stood a grey 300 by 200 stand-in on page 1).
+    func testAPictOfShapeTypesAloneIsNoPicture() throws {
+        let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")!
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(image: ImageAttachment(data: png, width: 10, height: 10))]), pageSetup: .a4))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let body = try XCTUnwrap(xml.range(of: "<w:body>")), sect = try XCTUnwrap(xml.range(of: "<w:sectPr"))
+        xml.replaceSubrange(body.upperBound ..< sect.lowerBound, with:
+            "<w:p><w:r><w:pict><v:shapetype xmlns:v=\"urn:schemas-microsoft-com:vml\" id=\"_x0000_t75\" coordsize=\"21600,21600\" path=\"m@4@5l@4@11@9@11@9@5xe\"/></w:pict></w:r></w:p>"
+            + "<w:p><w:r><w:t>Text</w:t></w:r></w:p>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let doc = try DocxFormat.read(try Zip.write(entries)).document
+        XCTAssertTrue(doc.paragraphs.allSatisfy { $0.image == nil && $0.inlineImages.isEmpty })
+    }
+
+    /// An empty paragraph that ends a section the next continues keeps its line but loses its space before (lab sec1: 24 pt; pt-6c544802ed).
+    func testAnEmptySectionBreakParagraphLosesItsSpaceBefore() throws {
+        RichTextTheme.wordWindowsPages = true
+        defer { RichTextTheme.wordWindowsPages = false }
+        let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")!
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(image: ImageAttachment(data: png, width: 10, height: 10))]), pageSetup: .a4))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let body = try XCTUnwrap(xml.range(of: "<w:body>")), sect = try XCTUnwrap(xml.range(of: "<w:sectPr"))
+        let page = "<w:pgSz w:w=\"11906\" w:h=\"16838\"/>"
+        xml.replaceSubrange(body.upperBound ..< sect.lowerBound, with:
+            "<w:p><w:pPr><w:spacing w:before=\"480\"/><w:sectPr>\(page)</w:sectPr></w:pPr></w:p>"
+            + "<w:p><w:pPr><w:spacing w:before=\"480\"/></w:pPr></w:p>"
+            + "<w:p><w:r><w:t>Text</w:t></w:r></w:p>")
+        let last = try XCTUnwrap(xml.range(of: "<w:sectPr", options: .backwards))
+        let close = try XCTUnwrap(xml.range(of: ">", range: last.upperBound ..< xml.endIndex))
+        xml.insert(contentsOf: "<w:type w:val=\"continuous\"/>", at: close.upperBound)
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let doc = try DocxFormat.read(try Zip.write(entries)).document
+        XCTAssertEqual(doc.paragraphs[0].style.spaceBefore, 0)
+        XCTAssertEqual(doc.paragraphs[1].style.spaceBefore, 24)
+    }
+
+    /// A top-and-bottom shape in a footer set far DOWN from its paragraph (off the page) leaves the body its bottom margin; one set up from
+    /// the paragraph ends the body at its reach (pt-6c544802ed: page 1 lost 140 pt of body to a picture 740 pt below its paragraph).
+    func testAFooterShapeSetDownOffThePageLeavesTheBodyItsMargin() throws {
+        RichTextTheme.wordWindowsPages = true
+        defer { RichTextTheme.wordWindowsPages = false }
+        func bodyBottom(offsetEMU: Int) throws -> Double {
+            var doc = RichDocument(paragraphs: [RichParagraph(text: "a")])
+            doc.footer = "x"
+            var entries = try Zip.read(try DocxFormat.write(doc, pageSetup: .letter))
+            let fi = entries.firstIndex { $0.name == "word/footer1.xml" }!
+            var fxml = String(decoding: entries[fi].data, as: UTF8.self)
+            let inner = try XCTUnwrap(fxml.range(of: "<w:p>")).lowerBound ..< (try XCTUnwrap(fxml.range(of: "</w:p>"))).upperBound
+            let anchor = "<wp:anchor distT=\"0\" distB=\"0\" distL=\"0\" distR=\"0\" simplePos=\"0\" relativeHeight=\"1\" behindDoc=\"0\" locked=\"0\" layoutInCell=\"1\" allowOverlap=\"1\">"
+                + "<wp:simplePos x=\"0\" y=\"0\"/><wp:positionH relativeFrom=\"column\"><wp:posOffset>0</wp:posOffset></wp:positionH>"
+                + "<wp:positionV relativeFrom=\"paragraph\"><wp:posOffset>\(offsetEMU)</wp:posOffset></wp:positionV><wp:extent cx=\"1724025\" cy=\"1724025\"/>"
+                + "<wp:wrapTopAndBottom/><wp:docPr id=\"1\" name=\"s\"/><a:graphic xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\">"
+                + "<a:graphicData uri=\"http://schemas.microsoft.com/office/word/2010/wordprocessingShape\"><wps:wsp xmlns:wps=\"http://schemas.microsoft.com/office/word/2010/wordprocessingShape\">"
+                + "<wps:cNvSpPr/><wps:spPr><a:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"1724025\" cy=\"1724025\"/></a:xfrm><a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom></wps:spPr>"
+                + "<wps:bodyPr/></wps:wsp></a:graphicData></a:graphic></wp:anchor>"
+            fxml.replaceSubrange(inner, with: "<w:p><w:pPr><w:pStyle w:val=\"Footer\"/></w:pPr><w:r><w:drawing>\(anchor)</w:drawing></w:r></w:p>")
+            entries[fi] = ZipEntry(name: "word/footer1.xml", data: Data(fxml.utf8))
+            let back = try DocxFormat.read(try Zip.write(entries)).document
+            let theme = RichTextTheme(fontFamily: OfficeFonts.serif)
+            theme.wordRules = true
+            let layout = RichLayout(theme: theme, paragraphCount: back.paragraphs.count)
+            layout.pageSetup = .letter
+            layout.width = PageSetup.letter.columnWidth * theme.pixelsPerPoint
+            layout.ensureLaidOut(back)
+            return layout.bodyBandPoints(page: 0, back).bottom
+        }
+        let margin = PageSetup.letter.height - PageSetup.letter.marginBottom
+        XCTAssertEqual(try bodyBottom(offsetEMU: 9401175), margin, accuracy: 0.5, "set down off the page: the margin stands")
+        XCTAssertLessThan(try bodyBottom(offsetEMU: -1200000), margin - 20, "set up from its paragraph: the body ends at its reach")
+    }
 }
