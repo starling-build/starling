@@ -2609,6 +2609,20 @@ public struct RichDocument: Hashable, Codable, Sendable {
     public var keptTableStyles: [String: String] = [:]
     public var tableStyleIds: [String: String] = [:]
     public var tableLooks: [String: String] = [:]
+
+    /// True when the file's default header (or footer) holds more than the
+    /// plain line the strip edits: a picture, a table, a text box, a content
+    /// control or its own formatting. Saving the strip's text would replace
+    /// all of that, so the strip leaves such a part alone.
+    public func hasRichHeaderFooter(_ kind: KeptHeaderFooter.Kind) -> Bool {
+        guard let k = keptHeaderFooters.first(where: { $0.kind == kind && $0.type == "default" }),
+              let data = keptParts[k.part] else { return false }
+        let xml = String(decoding: data, as: UTF8.self)
+        for marker in ["<w:drawing", "<w:pict", "<w:tbl>", "<w:tbl ", "<w:object", "<w:sdt", "<w:txbxContent", "<w:rPr>", "<w:jc ", "<w:pStyle ", "<w:tabs>", "<w:ind "] {
+            if xml.containsSubstring(marker) { return true }
+        }
+        return false
+    }
     /// Those styles' ids by lower-cased name ("hyperlink", "footnote
     /// reference"): where the file has its own, the writer names that one
     /// instead of adding a second style of the same name.
