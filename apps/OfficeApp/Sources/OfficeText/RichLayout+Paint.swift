@@ -2116,9 +2116,20 @@ extension RichLayout {
     func _paintVerticalPictures(_ p: Int, _ canvas: any Canvas, _ document: RichDocument) {
         guard theme.wordRules, RichTextTheme.wordWindowsPages, _columns >= 1, p * _columns < _pages.count else { return }
         var seen = Set<String>()
+        var order: [Int] = []
         for c in 0 ..< _columns where p * _columns + c < _pages.count {
-            for piece in _pages[p * _columns + c] {
-                let i = piece.paragraph
+            for piece in _pages[p * _columns + c] where !order.contains(piece.paragraph) { order.append(piece.paragraph) }
+        }
+        // (A box seeded on this page stays on it even when its paragraph's lines all went to the next page: no gap beside the floats
+        // took a whole line, so the paragraph began later, and the box did not vanish with it.)
+        if let seeds = _verticalSeeds[p], !seeds.isEmpty {
+            for k in 0 ..< min(count, document.paragraphs.count) where !order.contains(k) {
+                let held = (k < _floatImages.count ? [_floatImages[k]].compactMap { $0 } : []) + (k < _inline.count ? _inline[k] : [])
+                if held.contains(where: { image in seeds.contains { $0.id == image.id } }) { order.append(k) }
+            }
+        }
+        do {
+            for i in order {
                 guard i >= 0, i < count, i < document.paragraphs.count else { continue }
                 var own: [ImageAttachment] = []
                 if i < _floatImages.count, let image = _floatImages[i] { own.append(image) }

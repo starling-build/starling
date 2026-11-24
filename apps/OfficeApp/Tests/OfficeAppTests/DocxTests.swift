@@ -777,7 +777,22 @@ final class DocxTests: XCTestCase {
     /// ja-b852b9029c: beside a picture a vertical line is set only where its WHOLE pitch fits (planner spec, amd-opus): a 16pt gap at
     /// the foot of a band, under the 18pt line pitch, stays empty (Word's page 1 left it), a gap past the pitch is used.
     func testVerticalGapUnderOneLinePitchBesideAPictureStaysEmpty() throws {
-        func pages(gap: Double) throws -> Int {
+        let narrow = try pictureBesideVerticalText(gap: 16).0.pageCount, wide = try pictureBesideVerticalText(gap: 40).0.pageCount
+        XCTAssertGreaterThan(narrow, wide, "16pt gap \(narrow) pages, 40pt gap \(wide)")
+    }
+
+    func testVerticalBoxStaysDrawnWhenNoGapBesideItTakesALine() throws {
+        // The gap under one pitch stays empty, so the text starts on the next page: the box is still drawn on the page it was seeded on.
+        let (l, doc) = try pictureBesideVerticalText(gap: 16)
+        RichTextTheme.wordWindowsPages = true
+        defer { RichTextTheme.wordWindowsPages = false }
+        let canvas = TurnedTextCanvas()
+        l.paint(canvas, visible: l.pageRect(0), document: doc, selection: nil, caret: nil)
+        XCTAssertGreaterThan(canvas.turns.count, 0, "the box vanished from page 1")
+    }
+
+    private func pictureBesideVerticalText(gap: Double) throws -> (RichLayout, RichDocument) {
+        do {
             let doc = RichDocument(paragraphs: [RichParagraph(text: String(repeating: "あいうえお", count: 400))])
             var entries = try Zip.read(try DocxFormat.write(doc, pageSetup: .a4))
             let di = try XCTUnwrap(entries.firstIndex { $0.name == "word/document.xml" })
@@ -790,9 +805,10 @@ final class DocxTests: XCTestCase {
                 + "<wp:simplePos x=\"0\" y=\"0\"/><wp:positionH relativeFrom=\"margin\"><wp:posOffset>0</wp:posOffset></wp:positionH>"
                 + "<wp:positionV relativeFrom=\"margin\"><wp:posOffset>0</wp:posOffset></wp:positionV><wp:extent cx=\"\(cx)\" cy=\"\(cy)\"/>"
                 + "<wp:wrapSquare wrapText=\"bothSides\"/><wp:docPr id=\"2\" name=\"p\"/><a:graphic xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\">"
-                + "<a:graphicData uri=\"http://schemas.openxmlformats.org/drawingml/2006/picture\"><pic:pic xmlns:pic=\"http://schemas.openxmlformats.org/drawingml/2006/picture\">"
-                + "<pic:nvPicPr><pic:cNvPr id=\"0\" name=\"p\"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed=\"rId9\"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>"
-                + "<pic:spPr><a:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"\(cx)\" cy=\"\(cy)\"/></a:xfrm><a:prstGeom prst=\"rect\"/></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:anchor></w:drawing>"
+                + "<a:graphicData uri=\"http://schemas.microsoft.com/office/word/2010/wordprocessingShape\"><wps:wsp xmlns:wps=\"http://schemas.microsoft.com/office/word/2010/wordprocessingShape\">"
+                + "<wps:cNvSpPr txBox=\"1\"/><wps:spPr><a:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"\(cx)\" cy=\"\(cy)\"/></a:xfrm><a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom></wps:spPr>"
+                + "<wps:txbx><w:txbxContent><w:p><w:r><w:t>box</w:t></w:r></w:p></w:txbxContent></wps:txbx>"
+                + "<wps:bodyPr wrap=\"square\"/></wps:wsp></a:graphicData></a:graphic></wp:anchor></w:drawing>"
             xml = xml.replacingAll("<w:r>", with: "<w:r>" + anchor + "</w:r><w:r>")
             let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")!
             entries.append(ZipEntry(name: "word/media/image9.png", data: png))
@@ -811,10 +827,8 @@ final class DocxTests: XCTestCase {
             l.pageSetup = ps
             l.width = ps.columnWidth * theme.pixelsPerPoint
             l.ensureLaidOut(opened.document)
-            return l.pageCount
+            return (l, opened.document)
         }
-        let narrow = try pages(gap: 16), wide = try pages(gap: 40)
-        XCTAssertGreaterThan(narrow, wide, "16pt gap \(narrow) pages, 40pt gap \(wide)")
     }
 
     func testRichAndFirstPageHeadersKeptVerbatim() throws {
