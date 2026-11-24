@@ -16,7 +16,7 @@ final class ListLevelTabLayoutTests: XCTestCase {
 
     /// Where the first line's text starts, in points from the paragraph's left edge, for a bullet whose level
     /// states `levelLeft`, in a paragraph that states its own left indent of 0 (and the level's hanging 18).
-    private func textStart(levelLeft: Double) throws -> Double {
+    private func textStart(levelLeft: Double, fromDoc: Bool = true) throws -> Double {
         var p = RichParagraph(text: "professor falar")
         p.style = RichParagraphStyle(spaceAfter: 0, lineSpacing: 1)
         p.style.list = .bullet; p.style.listId = "1"; p.style.listLevel = 0
@@ -25,6 +25,7 @@ final class ListLevelTabLayoutTests: XCTestCase {
         var level = ListLevelFormat(text: "\u{2022}", format: .bullet)
         level.indentLeft = levelLeft; level.hanging = 18
         doc.listFormats["1"] = [0: level]
+        doc.numberTabReachesLevelIndent = fromDoc
         let back = doc
         let theme = RichTextTheme(fontFamily: OfficeFonts.serif, fontSize: 12)
         theme.wordRules = true
@@ -42,4 +43,11 @@ final class ListLevelTabLayoutTests: XCTestCase {
         let start = try textStart(levelLeft: 51)
         XCTAssertEqual(start, 51, accuracy: 1.0)
     }
+
+    /// A .docx (zh-77079ee8) keeps the paragraph's own left: the level-indent tab is a .doc rule only.
+    func testADocxKeepsTheParagraphsOwnLeftUnderTheLevel() throws {
+        let start = try textStart(levelLeft: 51, fromDoc: false)
+        XCTAssertLessThan(start, 30)
+    }
+
 }
