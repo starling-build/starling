@@ -195,6 +195,8 @@ enum DocxFormat {
         // The default tab distance: 35.4pt in a third of the corpus (metric
         // Word's 1.25cm), and every typed "4.2.8.<tab>text" lands
         // elsewhere under our 36 — bug65649's first lines.
+        // (A settings part that holds nothing but the tab distance, as the .doc reader writes it, is read as no settings at all.)
+        let _settingsBare = part("word/settings.xml").flatMap(XNode.parse).map { $0.children.allSatisfy { $0.name == "w:defaultTabStop" } } ?? false
         let defaultTabStop = part("word/settings.xml").flatMap(XNode.parse)?.first("w:defaultTabStop")
             .flatMap { Double($0["w:val"] ?? "") }.flatMap { $0 >= 0 ? $0 / 20 : nil }
         if let sect = body.first("w:sectPr") {
@@ -3073,7 +3075,7 @@ enum DocxFormat {
         }
         // (A file with no settings at all, or no styles, is set by the
         // East Asian rules: Word reads it as one of its older documents.)
-        if part("word/settings.xml") == nil { document.usesEastAsianLayout = true }
+        if part("word/settings.xml") == nil || _settingsBare { document.usesEastAsianLayout = true }
         // (Kana in the body text, UTF-8 E3 81..83 xx: a Japanese document whatever its language tag says.)
         do {
             var kana = false
@@ -3206,7 +3208,7 @@ enum DocxFormat {
             if let divs = web.first("w:divs") { walk(divs) }
         }
         var legacyNoFE = false
-        if let settings = part("word/settings.xml").flatMap(XNode.parse) {
+        if !_settingsBare, let settings = part("word/settings.xml").flatMap(XNode.parse) {
             legacyNoFE = settings.first("w:compat")?.first("w:useFELayout") == nil
             document.themeFontLangXML = settings.first("w:themeFontLang").map { PptxXML.serialize($0) }
             document.characterSpacingControl = settings.first("w:characterSpacingControl")?["w:val"]
@@ -3246,7 +3248,7 @@ enum DocxFormat {
             for name in _keptSettingNames.flatMap({ $0 }) {
                 if let n = settings.first(name) { document.keptSettings[name] = PptxXML.serialize(n) }
             }
-        } else if part("word/settings.xml") == nil, part("word/styles.xml") != nil {
+        } else if part("word/settings.xml") == nil || _settingsBare, part("word/styles.xml") != nil {
             // (A file with no settings part names no compatibility mode either; a copy of
             // jpn-z23823926-b2a8e5 with an empty w:compat added went from 55.4 to 99.0.)
             document.hangsLatinStops = true
