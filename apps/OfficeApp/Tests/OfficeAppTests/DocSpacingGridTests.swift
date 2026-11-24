@@ -34,6 +34,13 @@ final class DocSpacingGridTests: XCTestCase {
         XCTAssertTrue(x.contains("w:charSpace=\"4096\""), x)
     }
 
+    func testNegativeCharSpaceIsSigned() {
+        // -50 as a 32-bit value: it shrinks the cell, it is not a 4-billion-twip pitch
+        let g = sprm(0x5032, [1, 0]) + sprm(0x9031, [0x68, 0x01]) + sprm(0x7030, [0xCE, 0xFF, 0xFF, 0xFF])
+        let x = DocProps.sectPr(g, refs: "")
+        XCTAssertTrue(x.contains("w:charSpace=\"-50\""), x)
+    }
+
     func testNoGridWithoutClm() {
         XCTAssertFalse(DocProps.sectPr([], refs: "").contains("docGrid"))
     }
