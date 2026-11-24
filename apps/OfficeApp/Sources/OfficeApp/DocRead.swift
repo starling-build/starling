@@ -79,8 +79,8 @@ enum DocRead {
 
     /// The settings part of a binary file: it lays out as Word's earlier modes do, so the mark of a paragraph that ends
     /// in a page break stands on the page the break opens (pt-2b169d7457's cover page).
-    static func settingsXML(facing: Bool, tabStop: Int? = nil) -> String {
-        "<w:settings xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\">" + (facing ? "<w:evenAndOddHeaders/>" : "") + (tabStop.map { "<w:defaultTabStop w:val=\"\($0)\"/>" } ?? "") + "<w:compat><w:splitPgBreakAndParaMark/></w:compat></w:settings>"
+    static func settingsXML(facing: Bool, tabStop: Int? = nil, balance: Bool = false) -> String {
+        "<w:settings xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\">" + (facing ? "<w:evenAndOddHeaders/>" : "") + (tabStop.map { "<w:defaultTabStop w:val=\"\($0)\"/>" } ?? "") + "<w:compat><w:splitPgBreakAndParaMark/>" + (balance ? "<w:balanceSingleByteDoubleByteWidth/>" : "") + "</w:compat></w:settings>"
     }
 
     static func pieces(clx: [UInt8]) -> [DocPiece] {
@@ -541,10 +541,14 @@ enum DocRead {
         let facing = fib.range(31).map { $0.fc < tbl.count && tbl[$0.fc] & 1 != 0 } ?? false
         // (The DOP's default tab stop, dxaTab at byte 10, in twips: Word's tabs run on it; es-7289450bf2's 708 puts four tabs 2.4 pt short of 720's.)
         let tabStop: Int? = fib.range(31).flatMap { $0.fc + 12 <= tbl.count && $0.lcb >= 12 ? Int(tbl[$0.fc + 10]) | Int(tbl[$0.fc + 11]) << 8 : nil }.flatMap { $0 > 0 && $0 != 720 ? $0 : nil }
+        // (A DOP flag bit, byte 28 bit 7, that is clear where Word balances single- and double-byte widths: a space between two double-byte letters is half an em.)
+        let balance = fib.range(31).map { $0.fc + 29 <= tbl.count && $0.lcb >= 29 && tbl[$0.fc + 28] & 0x80 == 0 } ?? false
+        // (Only a text with East Asian letters has double-byte spaces to balance; a Latin-script file prints the same either way, and the engine's rule reads digit and punctuation neighbours as non-Latin.)
+        let balanced = balance && all.contains { ($0 >= 0x1100 && $0 <= 0x11FF) || ($0 >= 0x3040 && $0 <= 0x30FF) || ($0 >= 0x3130 && $0 <= 0x318F) || ($0 >= 0x4E00 && $0 <= 0x9FFF) || ($0 >= 0xAC00 && $0 <= 0xD7AF) }
         // A binary file lays out as Word's earlier modes do: the mark of a paragraph that ends in a page break
         // stands on the page the break opens (the flag a 2013-era docx carries for the same behaviour).
         var settings: [ZipEntry] = []
-        settings = [e("word/settings.xml", head + settingsXML(facing: facing, tabStop: tabStop))]
+        settings = [e("word/settings.xml", head + settingsXML(facing: facing, tabStop: tabStop, balance: balanced))]
         rels += "<Relationship Id=\"rIdSet\" Type=\"\(relBase)settings\" Target=\"settings.xml\"/>"
         types += "<Override PartName=\"/word/settings.xml\" ContentType=\"\(ctBase)settings+xml\"/>"
         if let ls = fib.range(73), let nx = DocProps.numbering(tbl, lst: ls, lfo: fib.range(74), fonts: fonts) {
