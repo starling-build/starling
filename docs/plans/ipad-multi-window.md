@@ -255,6 +255,21 @@ box). A "Slides" button in the status bar (narrow windows only) brings the rail 
 rail beside the slide; the status bar drops the language label to make room). Not done: touch targets for resize
 handles on a tiny slide.
 
+## Step 5, round 5: keyboard insets and scale per view (2026-11-24)
+
+### Keyboard insets per view
+
+The keyboard is the system's: one frame for the screen, reported identically to every window. In Split View its
+rectangle (here a full-width 69 pt bar, docked) lies under the bottom of BOTH panes, so "intersects my view" was the
+wrong test for an extra view: with the text input in the LEFT window the right pane still got a 44 pt inset
+(measured with `STARLING_KEYBOARD_LOG=1`: view 0 136 px, view 1 88 px), while the engine already gave view 0 nothing
+when the input sat in the right window. An extra view now takes the inset only when it is in the window the text
+input is attached to (`fluikit_text_input_host`), and every extra view is recomputed when the keyboard changes window
+(the frame does not change then, so no notification would). Measured after: input in view 0 -> view 0 136 px,
+view 1 0; input moved to view 1 -> view 1 44 px (transiently, the simulator's bar hides itself), view 0 0.
+Not verified: a full-height soft keyboard (this simulator shows the minimized bar), a floating keyboard (docked=0:
+no inset, as before), a real iPad.
+
 ## Recommendation and order
 
 Option B, in the reviewed order. Multiple scenes stay OFF (`UIApplicationSupportsMultipleScenes` = NO)
