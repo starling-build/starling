@@ -875,7 +875,7 @@ extension RichLayout {
                             let h = rest.to - rest.from
                             // (A picture that fits the room at the left of a floating table stands beside it, level with it: sect5's chart, 203.6pt in the 215pt at its table's left.)
                             for band in bandsHere.sorted(by: { $0.pageY < $1.pageY }) where top + base + h > band.pageY + 0.01 && top + base < band.pageY + band.height - 0.01
-                                && !(_cells[band.paragraph].map { _pictureFitsLeftOf($0.table, piece.paragraph, document) } ?? false) {
+                                && !(piece.paragraph == band.paragraph + 1 && (_cells[band.paragraph].map { _floatedPictureFitsLeftOf($0.table, piece.paragraph, document) } ?? false)) {
                                 top = band.pageY + band.height - base
                             }
                         }
@@ -3623,8 +3623,18 @@ extension RichLayout {
     /// The width in points of the picture that is all a paragraph holds (one picture, or the inline ones side by side).
     @inline(never)
     func _pictureFitsLeftOf(_ table: String, _ i: Int, _ document: RichDocument) -> Bool {
-        guard theme.wordRules, RichTextTheme.wordWindowsPages, let width = _pictureOnlyWidth(i, document), width > 0 else { return false }
+        guard theme.wordRules, RichTextTheme.wordWindowsPages, let width = _pictureOnlyWidth(i, document), width > 0,
+              // (A table set against the right margin: its picture's room is the strip at its left. One set at a point across the page is a
+              // case Word's print has not shown for pictures: lo-88b299584c476bd2 keeps its picture under the table.)
+              let ts = document.tableStyles[table], ts.alignment == .right || (ts.keptPosition ?? "").containsSubstring("tblpXSpec=\"right\"") else { return false }
         return _px(width) <= _tableLeftRoom(table, document)
+    }
+
+    /// The same, for a table that floats over the text by a given drop and is not page-anchored (the sect5 case).
+    @inline(never)
+    func _floatedPictureFitsLeftOf(_ table: String, _ i: Int, _ document: RichDocument) -> Bool {
+        guard let ts = document.tableStyles[table], ts.floatsOverText, !ts.pageAnchored, let down = ts.floatOffsetY, down > 0 else { return false }
+        return _pictureFitsLeftOf(table, i, document)
     }
 
     @inline(never)
