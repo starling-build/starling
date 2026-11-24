@@ -141,6 +141,20 @@ extension _StyledFrame {
             let sp = RichLayout._multipleSplit(ascent: 0.905, descent: 1.149 - 0.905, multiple: multiple)
             s = s.copyWith(ascentOverride: size * sp.0, descentOverride: size * sp.1, height: 1.149 * multiple, leadingDistribution: .even)
         }
+        // (A right-to-left run in Traditional Arabic or Sakkal Majalla, which Word draws itself, carries that face's own ascent and descent
+        // (0.997/0.498 and 0.943/0.457 em), not the Noto stand-in's: Word's baselines in a mixed paragraph step previous line's deepest
+        // descent plus this line's highest ascent. dx2 ur 84f36322 page 2: steps 18.0 and 18.7 where ours were 21.3.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, kind >= 0, run.rightToLeft, s.ascentOverride == nil, p.style.lineHeightPoints == nil, pitch == nil,
+           let size = s.fontSize, size > 0.5, run.ruby == nil,
+           p.style.rightToLeft, !(run.bold || ((named?.char.bold ?? false) && !run.off.contains(.bold))),
+           let cs = (run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily)?.trimmingWhitespace().lowercased(),
+           let sp0 = ["traditional arabic": (0.997, 0.498), "sakkal majalla": (0.943, 0.457)][cs],
+           let face = theme.complexFace(cs, latin: run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily, letters: run.csLetters), !face.arialStandIn {
+            RuleTrace.hit("word-windows-arabic-run-keeps-its-own-ascent-and-descent")
+            let multiple = p.style.lineSpacing > 0.5 ? p.style.lineSpacing : 1
+            let sp = RichLayout._multipleSplit(ascent: sp0.0, descent: sp0.1, multiple: multiple)
+            s = s.copyWith(ascentOverride: size * sp.0, descentOverride: size * sp.1, height: (sp0.0 + sp0.1) * multiple, leadingDistribution: .even)
+        }
         if kind == -4, let cjk = RichLayout._cjkFaceFamily {
             RuleTrace.hit("word-east-asian-shape-is-the-cjk-faces-glyph")
             s = s.copyWith(fontFamily: cjk)
