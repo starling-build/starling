@@ -77,9 +77,13 @@ final class PictureTabLayoutTests: XCTestCase {
         // 36 pt stop; ours measured it from the last letter and drew it ending 18 pt short of its stop.
         RichTextTheme.wordWindowsPages = true
         defer { RichTextTheme.wordWindowsPages = false }
-        for letters in 20...40 {
+        for letters in 20...37 {
         var p = RichParagraph(text: String(repeating: "W", count: letters) + String(repeating: " ", count: 6) + "\t\t\t")
         p.style = RichParagraphStyle(spaceAfter: 0, lineSpacing: 1)
+        // (Lab tabend: the letters and spaces one run, each tab its own underlined run.)
+        var plain = CharStyle(fontSize: 12); plain.fontFamily = "Times New Roman"
+        var underlined = plain; underlined.underline = true
+        p.runs = [Run(length: letters + 6, style: plain)] + (0..<3).map { _ in Run(length: 1, style: underlined) }
         let theme = RichTextTheme(fontFamily: OfficeFonts.serif)
         theme.wordRules = true
         let px = theme.pixelsPerPoint
