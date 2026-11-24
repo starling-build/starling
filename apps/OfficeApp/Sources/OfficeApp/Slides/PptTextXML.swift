@@ -99,7 +99,11 @@ extension PptFile {
             out += "<a:p>" + (paraRun(at: ps).map { paragraphProps($0) } ?? "")
             var k = ps
             while k < pe {
-                if units[k] == 0x0B { out += "<a:br/>"; k += 1; continue }
+                if units[k] == 0x0B {
+                    let props = charRun(at: k).map { runProps($0.0) } ?? ""
+                    out += props.isEmpty ? "<a:br/>" : "<a:br>\(props)</a:br>"
+                    k += 1; continue
+                }
                 if let type = block.fields[k] {
                     let shown = type == "slidenum" ? "‹#›" : "1/1/2026"
                     out += "<a:fld id=\"{5C1F2A90-7B3D-4E60-9A41-0D8E6B2F7C13}\" type=\"\(type)\">\(charRun(at: k).map { runProps($0.0) }.flatMap { $0.isEmpty ? nil : $0 } ?? "<a:rPr lang=\"en-US\"/>")<a:t>\(shown)</a:t></a:fld>"

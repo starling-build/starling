@@ -416,6 +416,18 @@ final class PptContainerTests: XCTestCase {
         XCTAssertFalse(xml.contains("marL"), xml)
     }
 
+    func testALineBreakKeepsTheSizeOfTheRunItSitsIn() throws {
+        var block = PptTextBlock()
+        block.text = "a\u{0B}\u{0B}b"
+        var run = PptCharRun()
+        run.size = 18
+        run.count = 4
+        block.charRuns = [run]
+        let f = try PptFile(currentUser: deckWithThreeSlides().user, document: deckWithThreeSlides().doc)
+        let xml = f.paragraphsXML(block)
+        XCTAssertTrue(xml.contains("<a:br><a:rPr sz=\"1800\"/></a:br>"), xml)
+    }
+
     func testMasterTextStylesReachPlaceholdersWithoutTheirOwnRuns() throws {
         func persist(_ id: Int, _ slideId: Int) -> [UInt8] { rec(0x03F3, le32(id) + le32(0) + le32(1) + le32(slideId) + le32(0)) }
         var atom: [UInt8] = le32(5760) + le32(4320)
