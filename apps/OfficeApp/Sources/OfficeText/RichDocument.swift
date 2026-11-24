@@ -1525,6 +1525,8 @@ public struct TableStyle: Hashable, Codable, Sendable {
     /// back while those still stand.
     /// The table's own left cell margin (tblCellMar, else its style's, else 5.4), whatever its cells state.
     public var tableOwnMarginLeft: Double? = nil
+    /// A table Word stands on the page's margin, not set out by its cell margin or its cell spacing (lab tbauto).
+    public var notSetOut = false
     public var keptCellMarginsXML: String? = nil
     public var keptCellMarginsUnder: [Double?] = []
     /// Per-side exceptions to `borders` (a form table ruled outside but
