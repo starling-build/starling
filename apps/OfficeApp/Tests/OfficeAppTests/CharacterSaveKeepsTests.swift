@@ -57,4 +57,49 @@ final class CharacterSaveKeepsTests: XCTestCase {
         let (_, xml2) = try roundTrip(back)
         XCTAssertTrue(xml2.contains("w14:glow"))
     }
+
+    private func styledFixture(_ runs: String) throws -> Data {
+        var parts = try Zip.read(DocxFormat.write(RichDocument(paragraphs: [RichParagraph()]), pageSetup: .letter))
+        let d = try XCTUnwrap(parts.firstIndex { $0.name == "word/document.xml" })
+        parts[d] = ZipEntry(name: "word/document.xml", data: Data((
+            "<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" xmlns:w14=\"http://schemas.microsoft.com/office/word/2010/wordml\"><w:body><w:p>"
+            + runs + "</w:p></w:body></w:document>").utf8))
+        let st = try XCTUnwrap(parts.firstIndex { $0.name == "word/styles.xml" })
+        var xml = String(decoding: parts[st].data, as: UTF8.self)
+        xml = xml.replacingOccurrences(of: "</w:styles>", with: "<w:style w:type=\"character\" w:styleId=\"Loud\"><w:name w:val=\"Loud\"/><w:rPr><w:b/><w:color w:val=\"C00000\"/></w:rPr></w:style></w:styles>")
+        parts[st] = ZipEntry(name: "word/styles.xml", data: Data(xml.utf8))
+        return try Zip.write(parts)
+    }
+
+    func testCharacterStyleNameSurvivesSave() throws {
+        let doc = try DocxFormat.read(try styledFixture("<w:r><w:rPr><w:rStyle w:val=\"Loud\"/><w:i/></w:rPr><w:t>loud</w:t></w:r><w:r><w:t>plain</w:t></w:r>")).document
+        XCTAssertEqual(doc.paragraphs[0].runs[0].style.styleId, "Loud")
+        XCTAssertTrue(doc.paragraphs[0].runs[0].style.bold)
+        let bytes = try DocxFormat.write(doc, pageSetup: .letter)
+        let parts = try Zip.read(bytes)
+        let xml = String(decoding: try XCTUnwrap(parts.first { $0.name == "word/document.xml" }).data, as: UTF8.self)
+        let styles = String(decoding: try XCTUnwrap(parts.first { $0.name == "word/styles.xml" }).data, as: UTF8.self)
+        XCTAssertTrue(xml.contains("<w:rStyle w:val=\"Loud\"/>"), xml)
+        XCTAssertTrue(styles.contains("w:styleId=\"Loud\""))
+        let back = try DocxFormat.read(bytes).document
+        XCTAssertEqual(back.paragraphs[0].runs[0].style.styleId, "Loud")
+        XCTAssertTrue(back.paragraphs[0].runs[0].style.italic)
+        XCTAssertNil(back.paragraphs[0].runs[1].style.styleId)
+    }
+
+    /// Writes the file Word is asked to open (set CHECK_OUT to a folder); skipped otherwise.
+    func testWriteWordCheckFile() throws {
+        guard let out = ProcessInfo.processInfo.environment["CHECK_OUT"] else { throw XCTSkip("CHECK_OUT not set") }
+        let kinds = ["single", "double", "thick", "dotted", "dash", "dotDash", "wave", "words"]
+        var runs = kinds.map { "<w:r><w:rPr><w:u w:val=\"\($0)\" w:color=\"FF0000\"/></w:rPr><w:t>u-\($0) </w:t></w:r>" }.joined()
+        runs += "<w:r><w:rPr><w:dstrike/></w:rPr><w:t>double strike </w:t></w:r>"
+        runs += "<w:r><w:rPr><w:shadow/></w:rPr><w:t>shadow </w:t></w:r><w:r><w:rPr><w:outline/></w:rPr><w:t>outline </w:t></w:r>"
+        runs += "<w:r><w:rPr><w:emboss/></w:rPr><w:t>emboss </w:t></w:r>"
+        runs += "<w:r><w:rPr><w14:glow w14:rad=\"101600\"><w14:srgbClr w14:val=\"FF0000\"><w14:alpha w14:val=\"40000\"/></w14:srgbClr></w14:glow></w:rPr><w:t>glow </w:t></w:r>"
+        runs += "<w:r><w:rPr><w:rStyle w:val=\"Loud\"/><w:b/><w:i/><w:color w:val=\"0000FF\"/><w:sz w:val=\"36\"/><w:u w:val=\"wave\" w:color=\"00AA00\"/><w:dstrike/><w:shadow/><w:outline/><w14:glow w14:rad=\"63500\"><w14:srgbClr w14:val=\"FFC000\"/></w14:glow></w:rPr><w:t>everything at once</w:t></w:r>"
+        let doc = try DocxFormat.read(try styledFixture(runs)).document
+        let bytes = try DocxFormat.write(doc, pageSetup: .letter)
+        try FileManager.default.createDirectory(atPath: out, withIntermediateDirectories: true)
+        try bytes.write(to: URL(fileURLWithPath: out + "/char-effects-check.docx"))
+    }
 }

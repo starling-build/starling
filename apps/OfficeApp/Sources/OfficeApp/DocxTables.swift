@@ -103,7 +103,7 @@ extension DocxFormat {
     /// bold heading 3 came back bold; 52288's plain runs under a bold
     /// style must not come back un-bold).
     static func _rPrXML(_ s: CharStyle, fileFonts: Set<String> = [], changeId: Int? = nil) -> String {
-        var rPr = ""
+        var rPr = s.styleId.map { "<w:rStyle w:val=\"\(_esc($0))\"/>" } ?? ""
         func off(_ tag: String, _ sw: CharSwitches) -> String { s.off.contains(sw) ? "<w:\(tag) w:val=\"0\"/>" : "" }
     rPr += _rFontsXML(s, fileFonts: fileFonts)
     if s.bold { rPr += "<w:b/><w:bCs/>" } else { rPr += off("b", .bold) }
@@ -1268,12 +1268,12 @@ extension DocxFormat {
                     // (A mark the file set on the baseline keeps it, under
                     // the reference style's superscript.)
                     if s.script != .superscript { rPr += "<w:vertAlign w:val=\"baseline\"/>" }
-                    body += "<w:r><w:rPr><w:rStyle w:val=\"\(st)\"/>\(rPr)</w:rPr>"
+                    body += "<w:r><w:rPr>\(rPr.hasPrefix("<w:rStyle ") ? "" : "<w:rStyle w:val=\"\(st)\"/>")\(rPr)</w:rPr>"
                     body += custom.isEmpty ? "<\(tag) w:id=\"\(note.id)\"/>" : "<\(tag) w:customMarkFollows=\"1\" w:id=\"\(note.id)\"/>\(_text(custom))"
                     body += "</w:r>"
                     continue
                 }
-                if s.link != nil { rPr = "<w:rStyle w:val=\"\(_esc(doc.keptCharacterStyleIds["hyperlink"] ?? "Hyperlink"))\"/>" + rPr }
+                if s.link != nil, !rPr.hasPrefix("<w:rStyle ") { rPr = "<w:rStyle w:val=\"\(_esc(doc.keptCharacterStyleIds["hyperlink"] ?? "Hyperlink"))\"/>" + rPr }
                 let rPrXML = rPr.isEmpty ? "" : "<w:rPr>\(rPr)</w:rPr>"
                 var runXML = ""
                 let isBox: (Character) -> Bool = { $0 == "\u{2610}" || $0 == "\u{2612}" }

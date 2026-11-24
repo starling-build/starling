@@ -219,6 +219,8 @@ public struct CharStyle: Hashable, Codable, Sendable {
     public var plainSize: Bool = false
     /// The run carries `w:cs`: its text is drawn from the complex-script slot, szCs included, whatever the script.
     public var csFlagRun: Bool = false
+    /// The id of the character style the run names (`w:rStyle`), written back first in the run's properties.
+    public var styleId: String? = nil
     /// The run's text holds Arabic or Hebrew letters (set where the reader builds the run): Calibri, which has none, cannot be the face it is drawn in.
     public var csLetters: Bool = false
     public var complexFontFamily: String? = nil
