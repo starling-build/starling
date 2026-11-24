@@ -55,6 +55,8 @@ public indirect enum EditOp: Equatable, Sendable {
     case insertParagraphs(at: Int, [RichParagraph])
     case removeParagraphs(at: Int, [RichParagraph])
     case setHeaderFooter(header: String, footer: String, oldHeader: String, oldFooter: String)
+    /// A section's page (size, margins, columns): the paragraph that ends it, or -1 for the last section.
+    case setSectionPage(Int, old: PageSetup?, new: PageSetup?)
     /// A picture's shown size (its attachment replaced; the id survives).
     case setImage(Int, old: ImageAttachment, new: ImageAttachment)
     /// A table's column widths in points (nil: equal columns).
@@ -142,6 +144,10 @@ public indirect enum EditOp: Equatable, Sendable {
             doc.footer = footer
             changes.append(.all)
             return .setHeaderFooter(header: oldHeader, footer: oldFooter, oldHeader: header, oldFooter: footer)
+        case .setSectionPage(let index, let old, let new):
+            if index < 0 { doc.lastSectionPage = new } else { doc.paragraphs[index].style.sectionPage = new }
+            changes.append(.all)
+            return .setSectionPage(index, old: new, new: old)
         case .setImage(let index, let old, let new):
             doc.paragraphs[index].image = new
             changes.append(.changed(index))
@@ -1794,6 +1800,30 @@ public final class RichDocumentController: ChangeNotifier {
             caretAt = min(caretAt ?? 0, max(0, out.count - 1))
             paras = out
         })
+    }
+
+    // MARK: Page setup
+
+    /// The paragraph that ends the section holding `paragraph` (a section's
+    /// mark carries its page), or -1 for the last section.
+    public func sectionMark(containing paragraph: Int) -> Int {
+        var i = max(0, paragraph)
+        while i < document.paragraphs.count - 1 {
+            let p = document.paragraphs[i]
+            if p.cell == nil, p.style.sectionPage != nil { return i }
+            i += 1
+        }
+        return -1
+    }
+
+    /// Set the page of the section holding `paragraph` (default: the
+    /// caret's), as one undoable step. `lastSetup` is the last section's
+    /// current page (the session's) for when the section is the last.
+    public func setPageSetup(_ new: PageSetup, lastSetup: PageSetup, paragraph: Int? = nil) {
+        let mark = sectionMark(containing: paragraph ?? selection.focus.paragraph)
+        let old = mark < 0 ? (document.lastSectionPage ?? lastSetup) : document.paragraphs[mark].style.sectionPage
+        guard old != new else { return }
+        edit { perform(.setSectionPage(mark, old: old, new: new)) }
     }
 
     // MARK: Header and footer
