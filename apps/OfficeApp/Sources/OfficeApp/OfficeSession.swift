@@ -60,7 +60,7 @@ enum DocumentKind: Equatable {
     static func kind(forPath path: String) -> DocumentKind {
         switch path.pathExtension.lowercased() {
         case "pptx", "ppt", "pps", "pot": return .presentation
-        case "xlsx", "csv", "tsv": return .workbook
+        case "xls", "xlsx", "csv", "tsv": return .workbook
         default: return .document
         }
     }

@@ -45,6 +45,9 @@ struct SheetChart: Equatable {
     /// The chart part it was read from; nil for one made here, whose part
     /// is written from `chart` and `refs` on save.
     var path: String? = nil
+    /// Set when the file's own chart was turned between column and bar here:
+    /// the save patches that part's direction and keeps all its formatting.
+    var retype: ChartType? = nil
     /// Every `<c:f>` in that part (series, titles, labels…): as read → as
     /// it reads now, after rows, columns or sheets moved. A save rewrites
     /// the part's references through it and keeps everything else.
@@ -551,9 +554,12 @@ extension SheetDrawingsXML {
         var shapeId = 2
         for d in ws.drawings {
             shapeId += 1
-            if case .chart(let sc) = d.kind, let path = sc.path, sc.formulasChanged, let bytes = original[path] {
+            if case .chart(let sc) = d.kind, let path = sc.path, sc.formulasChanged || sc.retype != nil, let bytes = original[path] {
                 // The file's own chart, its references moved with the cells.
-                out.parts[path] = Data(_rewriteFormulas(String(decoding: bytes, as: UTF8.self), sc.formulas).utf8)
+                var xml = String(decoding: bytes, as: UTF8.self)
+                if sc.formulasChanged { xml = _rewriteFormulas(xml, sc.formulas) }
+                if let t = sc.retype { xml = _retypeBars(xml, t) }
+                out.parts[path] = Data(xml.utf8)
             }
             if let raw = d.raw {
                 if d.kind == .other || d.rawAnchor == d.anchor {
@@ -625,6 +631,20 @@ extension SheetDrawingsXML {
     }
 
     /// A chart part with each `<c:f>` mapped through `formulas`.
+    /// Column <-> bar in a chart part: the bars' direction and where each axis sits.
+    static func _retypeBars(_ xml: String, _ type: ChartType) -> String {
+        let col = type == .column
+        var x = xml.replacingOccurrences(of: "<c:barDir val=\"\(col ? "bar" : "col")\"/>", with: "<c:barDir val=\"\(col ? "col" : "bar")\"/>")
+        func swap(_ tag: String, _ from: String, _ to: String) {
+            guard let r = x.range(of: "<c:\(tag)>"), let e = x.range(of: "</c:\(tag)>", range: r.upperBound..<x.endIndex) else { return }
+            let body = x[r.upperBound..<e.lowerBound].replacingOccurrences(of: "<c:axPos val=\"\(from)\"/>", with: "<c:axPos val=\"\(to)\"/>")
+            x.replaceSubrange(r.upperBound..<e.lowerBound, with: body)
+        }
+        swap("catAx", col ? "l" : "b", col ? "b" : "l")
+        swap("valAx", col ? "b" : "l", col ? "l" : "b")
+        return x
+    }
+
     static func _rewriteFormulas(_ xml: String, _ formulas: [String: String]) -> String {
         var out = ""
         var at = xml.startIndex
@@ -852,6 +872,24 @@ extension WorkbookController {
     func setChartType(_ index: Int, _ type: ChartType) {
         let ws = sheet
         guard ws.drawings.indices.contains(index), case .chart(var sc) = ws.drawings[index].kind, sc.chart.type != type else { return }
+        if sc.path != nil {
+            // The file's own chart: only column <-> bar can be done without losing
+            // formatting the chart model does not hold; refuse the rest, saying so.
+            let barFamily: Set<ChartType> = [.column, .bar]
+            guard barFamily.contains(type), barFamily.contains(sc.chart.type) else {
+                chartNotice = "This chart came from the file; changing it to \(type.name) would drop its formatting."
+                _notify()
+                return
+            }
+            sc.chart = sc.chart.converted(to: type)
+            sc.retype = type
+            structural {
+                ws.drawings[index].kind = .chart(sc)
+                ws.drawingsEdited = true
+            }
+            selectedDrawing = index
+            return
+        }
         sc.chart = sc.chart.converted(to: type)
         if type == .pie { sc.chart.legend = true }
         sc.path = nil

@@ -150,7 +150,7 @@ extension Ribbon {
             Chrome.menuButton(FluentSystemIcons.delete, "Delete", "Delete cells", fluent, items: [
                 MenuFlyoutItem(text: Text("Delete Sheet Rows"), onPressed: { wb.deleteAtSelection(.rows) }),
                 MenuFlyoutItem(text: Text("Delete Sheet Columns"), onPressed: { wb.deleteAtSelection(.cols) }),
-                MenuFlyoutItem(text: Text("Delete Sheet"), onPressed: wb.book.sheets.count > 1 ? { wb.deleteSheet(wb.activeSheet) } : nil),
+                MenuFlyoutItem(text: Text("Delete Sheet"), onPressed: wb.book.sheets.count > 1 ? { wb.requestDeleteSheet(wb.activeSheet) } : nil),
             ]),
         ])])
         let editing = Chrome.group("Editing", fluent, [Chrome.rows([
