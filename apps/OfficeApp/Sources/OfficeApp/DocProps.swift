@@ -371,7 +371,7 @@ enum DocProps {
             if let u = union { let lo = ui(edges[k]), hi = ui(edges[k + span]); uspan = max(1, hi - lo); w = max(0, u[hi] - u[lo]) }
             var pr = "<w:tcPr><w:tcW w:w=\"\(w)\" w:type=\"dxa\"/>"
             if uspan > 1 { pr += "<w:gridSpan w:val=\"\(uspan)\"/>" }
-            if vm == 1 { pr += "<w:vMerge/>" } else if vm == 2 { pr += "<w:vMerge w:val=\"restart\"/>" }
+            if vm == 1 { pr += "<w:vMerge/>" } else if vm >= 2 { pr += "<w:vMerge w:val=\"restart\"/>" }
             if tc.count >= 20 {
                 let b = [("top", 4), ("left", 8), ("bottom", 12), ("right", 16)].map { brc($0.0, width: Int(tc[$0.1]), type: Int(tc[$0.1 + 1]), ico: Int(tc[$0.1 + 2]) & 31) }
                 let some = b.filter { !$0.contains("w:val=\"nil\"") }
