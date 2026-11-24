@@ -14,4 +14,14 @@ final class UIShellHarnessTests: XCTestCase {
         XCTAssertFalse(ui.texts().contains("Format Painter"))
         XCTAssertNotNil(ui.state(OfficeShellState.self))
     }
+
+    /// W-ED-1: the Paste button is on the Home ribbon and the shell has wired every way of pasting
+    /// (plain click, plain-text key, the four Paste Options) to the controller.
+    func testPasteAndPasteOptionsAreWiredToTheShell() throws {
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(1280, 800))
+        XCTAssertTrue(ui.has(text: "Paste"))
+        let state = try XCTUnwrap(ui.state(OfficeShellState.self))
+        XCTAssertNotNil(state.session.onPaste)
+        XCTAssertNotNil(state.session.onPasteMode)
+    }
 }
