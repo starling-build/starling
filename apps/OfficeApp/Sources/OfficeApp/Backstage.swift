@@ -163,6 +163,18 @@ final class Backstage: StatelessWidget {
             if let host = session.hostName, let back = session.onClose {
                 return _simple("Close", "Leave the document and go back to the \(host).", fluent, action: (session.hostReturnLabel ?? "Back to \(host)", back))
             }
+            // A host with its own document browser (the iPad's) shows it again, as Open does: closing is going
+            // back to the files, not starting a document nobody asked for. Unsaved edits get the prompt first.
+            if scene.openRequested != nil {
+                return _simple("Close", "Close the document and go back to your files.", fluent,
+                               action: ("Close document", { [session, scene, onClose] in
+                                   onClose()
+                                   session.replacing {
+                                       // A window without a browser (a test host's) answers false: a blank document, as before.
+                                       if scene.openRequested?() != true { session.onNew?() }
+                                   }
+                               }))
+            }
             return _simple("Close", "Close the document and start a blank one.", fluent, action: ("Close document", { [session] in session.replacing { session.onNew?() } }))
         }
     }
