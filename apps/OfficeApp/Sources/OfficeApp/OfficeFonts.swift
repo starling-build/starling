@@ -5418,6 +5418,18 @@ enum OfficeFonts {
             // (Roboto Slab ExtraBold, a cloud font Word downloads and we do not have: its own advances and line, 1.3189 ems by
             // its hhea (2146 + 555 of 2048), metrics only, drawn in the stand-in. Word's print of dx2 7d4b5fee5a50 breaks the
             // 11pt title "...za leto" / "2024" where the stand-in's narrower letters kept it on one line.)
+            // (Roboto, the cloud font Word downloads for documents made in Google Docs, which we do not have: its own advances and
+            // line, 1.1719 ems by its hhea (1900 + 500 of 2048), metrics only, drawn in the stand-in. Regular and Bold; its other
+            // weights are other families in Word's list and keep the stand-in.)
+            if family.trimmingWhitespace().lowercased() == "roboto" {
+                face.advances = robotoRegularAdvances
+                face.boldAdvances = robotoBoldAdvances
+                face.otherAdvances = robotoRegularOtherAdvances
+                face.boldOtherAdvances = robotoBoldOtherAdvances
+                face.naturalHeight = 1.1719
+                face.baseline = 0.9277
+                RuleTrace.hit("roboto-own-metrics")
+            }
             if family.trimmingWhitespace().lowercased() == "roboto slab extrabold" {
                 face.advances = robotoSlabExtraBoldAdvances
                 face.boldAdvances = robotoSlabExtraBoldAdvances
