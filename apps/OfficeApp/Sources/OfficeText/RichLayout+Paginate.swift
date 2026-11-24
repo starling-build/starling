@@ -1879,10 +1879,13 @@ extension RichLayout {
                     }
                     if !fixed.isEmpty {
                         var reach = Self._lineBottoms(geometry(pgs.i).painter).first.map { $0 + (geometry(pgs.i).textTop - geometry(pgs.i).top) } ?? 0
-                        if boxesOnly { reach = max(reach, _heights[pgs.i] - _spaceBefore[pgs.i]) }
+                        let footReach = boxesOnly ? max(reach, _heights[pgs.i] - _spaceBefore[pgs.i]) : reach
                         let kept = pgs.bands
                         let keptEm = em
                         if boxesOnly { em = max(em, _px(20)) }
+                        // (The line's reach is the strip it asks, not where an earlier pass left it: a repeated pass finds the line
+                        // already under the box and its bottom far down the page.)
+                        if boxesOnly { reach = min(reach, em) }
                         pgs.bands = []
                         var steps = 0
                         while let below = noRoom(at: pgs.y, height: reach, fixed), steps < 20, below > pgs.y + 0.01 {
@@ -1891,7 +1894,7 @@ extension RichLayout {
                         }
                         pgs.bands = kept
                         em = keptEm
-                        if boxesOnly, steps > 0, pgs.y + reach > pgs.contentH + 0.5, pgs.y > 0.01 {
+                        if boxesOnly, steps > 0, pgs.y + footReach > pgs.contentH + 0.5, pgs.y > 0.01 {
                             RuleTrace.hit("word-box-only-paragraph-under-its-boxes-past-the-foot-goes-to-the-next-page")
                             _pg_newPage(&pgs, document)
                             while _columns > 1, pgs.page % _columns != 0 { _pg_newPage(&pgs, document) }
