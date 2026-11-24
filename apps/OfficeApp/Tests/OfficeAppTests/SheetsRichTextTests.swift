@@ -56,4 +56,33 @@ final class SheetsRichTextTests: XCTestCase {
         XCTAssertEqual(back.sheets[0].cells[CellAddress("A1")!]?.value, .text("typed"))
         XCTAssertEqual(back.sheets[0].richText[CellAddress("C1")!]?.count, 2)
     }
+
+    /// Every phonetic run (the reading over Japanese text) and the phonetic settings
+    /// of a real Japanese workbook survive opening it, editing a far cell and saving.
+    func testJapanesePhoneticRunsSurviveAnEditElsewhere() throws {
+        let dir = "/data/corpus-cache/test/corpus/xlsx-cjk-r3/ja-xlsx-r3-dev/"
+        var checked = 0
+        for name in ["ja-00fe50819c.xlsx", "ja-03505c36b8.xlsx", "ja-04f8b3a829.xlsx"] {
+            guard let data = FileManager.default.contents(atPath: dir + name) else { continue }
+            func phonetics(_ d: Data) throws -> (runs: Set<String>, pr: Int) {
+                let x = try sst(d)
+                var runs = Set<String>()
+                for part in x.components(separatedBy: "<rPh").dropFirst() {
+                    let body = part.components(separatedBy: "</rPh>")[0]
+                    runs.insert(body.components(separatedBy: "<t").dropFirst().map { $0.components(separatedBy: ">").dropFirst().joined(separator: ">").components(separatedBy: "</t")[0] }.joined())
+                }
+                return (runs, x.components(separatedBy: "<phoneticPr").count - 1)
+            }
+            let before = try phonetics(data)
+            XCTAssertFalse(before.runs.isEmpty, name)
+            let c = WorkbookController()
+            c.load(try Xlsx.read(data))
+            c.setInput("edited", at: CellAddress("ZZ900")!)
+            let after = try phonetics(try Xlsx.write(c.book))
+            XCTAssertEqual(after.runs, before.runs, name)
+            XCTAssertGreaterThan(after.pr, 0, name)
+            checked += 1
+        }
+        if checked == 0 { throw XCTSkip("the ja workbook set is not in the cache") }
+    }
 }
