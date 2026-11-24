@@ -109,6 +109,10 @@ extension WorkbookController {
                 book.names[oldKey] = nil
                 book.nameSpellings[oldKey] = nil
                 _renameNameInFormulas(from: oldKey, to: name)
+                // The file's entry (comment, hidden…) moves with the name instead of being dropped.
+                for i in book.fileNames.indices where book.fileNames[i].localSheet == nil && book.fileNames[i].name.uppercased() == oldKey {
+                    book.fileNames[i].name = name
+                }
             }
             book.names[key] = text
             book.nameSpellings[key] = name

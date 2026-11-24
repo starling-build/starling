@@ -62,10 +62,21 @@ final class SheetsNamesTests: XCTestCase {
         XCTAssertEqual(c.deleteName("Tax"), .notFound)
     }
 
+    func testRenameKeepsTheNameAttributes() throws {
+        let c = controller()
+        XCTAssertNil(c.editName("Rates", to: "Prices", refersTo: "Data!$B$2:$B$4"))
+        let xml = try workbookXML(c)
+        XCTAssertTrue(xml.containsSubstring("<definedName name=\"Prices\" comment=\"kept\">Data!$B$2:$B$4</definedName>"), xml)
+        XCTAssertFalse(xml.containsSubstring("\"Rates\""), xml)
+    }
+
     func testRoundTripKeepsTheNamesAndTheirNeighbours() throws {
         let c = controller()
         XCTAssertNil(c.defineName("Tax", refersTo: "Data!$B$3"))
         XCTAssertNil(c.editName("Rates", to: "Rates", refersTo: "Data!$B$2:$B$4"))
+        XCTAssertNil(c.editName("Tax", to: "Levy", refersTo: "Data!$B$3"))
+        XCTAssertTrue(try workbookXML(c).containsSubstring("<definedName name=\"Levy\">"), "a rename keeps the entry")
+        XCTAssertNil(c.editName("Levy", to: "Tax", refersTo: "Data!$B$3"))
         let xml = try workbookXML(c)
         XCTAssertTrue(xml.containsSubstring("<definedName name=\"Tax\">Data!$B$3</definedName>"), xml)
         XCTAssertTrue(xml.containsSubstring("<definedName name=\"Rates\" comment=\"kept\">Data!$B$2:$B$4</definedName>"), xml)
