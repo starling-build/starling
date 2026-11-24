@@ -709,6 +709,50 @@ final class DocxTests: XCTestCase {
         XCTAssertLessThan(top, 30 + 0.4 + 50 + 10)
     }
 
+    /// A vertical section's picture set from the page's margins, with text going round it: the columns it lies over lose the room
+    /// (ja-b852b9029c: Word's page 1 holds three lines in four columns, ours set the whole document on it as if the picture were
+    /// not there), and the picture is drawn once on the page, over every column it covers.
+    func testVerticalSectionTextGoesRoundMarginPicture() throws {
+        func pages(picture: Bool) throws -> Int {
+            let doc = RichDocument(paragraphs: [RichParagraph(text: String(repeating: "あいうえお", count: 700))])
+            var entries = try Zip.read(try DocxFormat.write(doc, pageSetup: .a4))
+            let di = try XCTUnwrap(entries.firstIndex { $0.name == "word/document.xml" })
+            var xml = String(decoding: entries[di].data, as: UTF8.self)
+            xml = xml.replacingAll("</w:sectPr>", with: "<w:cols w:num=\"2\" w:space=\"360\"/><w:textDirection w:val=\"tbRl\"/></w:sectPr>")
+            if picture {
+                let anchor = "<w:drawing><wp:anchor distT=\"0\" distB=\"0\" distL=\"114300\" distR=\"114300\" simplePos=\"0\" relativeHeight=\"1\" behindDoc=\"0\" locked=\"0\" layoutInCell=\"1\" allowOverlap=\"1\">"
+                    + "<wp:simplePos x=\"0\" y=\"0\"/><wp:positionH relativeFrom=\"margin\"><wp:posOffset>0</wp:posOffset></wp:positionH>"
+                    + "<wp:positionV relativeFrom=\"margin\"><wp:posOffset>0</wp:posOffset></wp:positionV><wp:extent cx=\"7620000\" cy=\"9144000\"/>"
+                    + "<wp:wrapSquare wrapText=\"bothSides\"/><wp:docPr id=\"2\" name=\"p\"/><a:graphic xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\">"
+                    + "<a:graphicData uri=\"http://schemas.openxmlformats.org/drawingml/2006/picture\"><pic:pic xmlns:pic=\"http://schemas.openxmlformats.org/drawingml/2006/picture\">"
+                    + "<pic:nvPicPr><pic:cNvPr id=\"0\" name=\"p\"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed=\"rId9\"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>"
+                    + "<pic:spPr><a:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"7620000\" cy=\"9144000\"/></a:xfrm><a:prstGeom prst=\"rect\"/></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:anchor></w:drawing>"
+                xml = xml.replacingAll("<w:r>", with: "<w:r>" + anchor + "</w:r><w:r>")
+                let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")!
+                entries.append(ZipEntry(name: "word/media/image9.png", data: png))
+                let ri = try XCTUnwrap(entries.firstIndex { $0.name == "word/_rels/document.xml.rels" })
+                var rels = String(decoding: entries[ri].data, as: UTF8.self)
+                rels = rels.replacingAll("</Relationships>", with: "<Relationship Id=\"rId9\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/image\" Target=\"media/image9.png\"/></Relationships>")
+                entries[ri] = ZipEntry(name: "word/_rels/document.xml.rels", data: Data(rels.utf8))
+            }
+            entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+            RichTextTheme.wordWindowsPages = true
+            defer { RichTextTheme.wordWindowsPages = false }
+            let opened = try DocxFormat.read(try Zip.write(entries))
+            let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+            theme.wordRules = true
+            let l = RichLayout(theme: theme, paragraphCount: opened.document.paragraphs.count)
+            let setup = opened.pageSetup ?? .a4
+            l.pageSetup = setup
+            l.width = setup.columnWidth * theme.pixelsPerPoint
+            l.ensureLaidOut(opened.document)
+            return l.pageCount
+        }
+        let plain = try pages(picture: false)
+        let round = try pages(picture: true)
+        XCTAssertGreaterThan(round, plain, "plain \(plain) round \(round)")
+    }
+
     func testRichAndFirstPageHeadersKeptVerbatim() throws {
         // A default header holding a table (60329's banner) and a
         // first-page header: both parts come back as they were, the
@@ -1207,7 +1251,7 @@ final class DocxTests: XCTestCase {
         var xml = String(decoding: entries[di].data, as: UTF8.self)
         let body = try XCTUnwrap(xml.range(of: "<w:body>")), end = try XCTUnwrap(xml.range(of: "</w:body>"))
         xml.replaceSubrange(body.upperBound ..< end.lowerBound, with:
-            "<w:p><w:pPr><w:spacing w:before=\"0\" w:after=\"0\"/></w:pPr><w:r><w:drawing><wp:inline distT=\"0\" distB=\"0\" distL=\"0\" distR=\"0\"><wp:extent cx=\"3810000\" cy=\"2968625\"/>"
+            "<w:p><w:pPr><w:spacing w:before=\"0\" w:after=\"0\"/></w:pPr><w:r><w:drawing><wp:inline distT=\"0\" distB=\"0\" distL=\"0\" distR=\"0\"><wp:extent cx=\"7620000\" cy=\"2968625\"/>"
             + "<wp:effectExtent l=\"0\" t=\"4445\" r=\"0\" b=\"17780\"/><wp:docPr id=\"1\" name=\"s\"/>"
             + "<a:graphic xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\"><a:graphicData uri=\"http://schemas.microsoft.com/office/word/2010/wordprocessingShape\">"
             + "<wps:wsp xmlns:wps=\"http://schemas.microsoft.com/office/word/2010/wordprocessingShape\"><wps:spPr><a:prstGeom prst=\"ellipse\"/></wps:spPr><wps:bodyPr/></wps:wsp>"
