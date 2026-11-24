@@ -195,4 +195,30 @@ extension SheetsPrintTests {
             XCTAssertNotNil(GdiAdvances.advance(face, bold: false, em: 30, 0x20), face)
         }
     }
+
+    /// Excel's set rows of faces the print box lacks (planner spec, from two Excel labs): 돋움 11 prints 8 dots a
+    /// point (6 dots a screen pixel); 新細明體 12 prints at the table's 130/43 dots per 192-dpi pixel. A set height is held
+    /// in quarter screen pixels; a scaled print takes the 100 % dot count times the scale, rounded half up.
+    func testSetRowsOfMissingCjkFacesPrintOnTheirOwnGrid() {
+        let dotum = SheetPrintMetrics.of(family: "돋움", size: 11)
+        XCTAssertEqual(dotum.setRowScale, 0.96, accuracy: 1e-9)
+        let mm = SheetPrintMetrics.of(family: "新細明體", size: 12)
+        XCTAssertEqual(mm.setRowScale, (130.0 / 600) / (43.0 / 192), accuracy: 1e-9)
+        XCTAssertTrue(mm.setOwn)
+        let malgun = SheetPrintMetrics.of(family: "맑은 고딕", size: 11)
+        XCTAssertEqual(malgun.setRowScale, malgun.rowScale, accuracy: 1e-9)
+        XCTAssertFalse(malgun.setOwn)
+        func dots(_ pt: Double, _ pct: Double = 100, _ m: SheetPrintMetrics = mm) -> Int {
+            let h = SheetPrintMetrics.setRowOwn(pt, scale: m.setRowScale, printPct: pct)
+            return Int((h * pct / 100 * 600 / 72 + 1e-6).rounded(.down))
+        }
+        XCTAssertEqual(dots(50.1), 403)
+        XCTAssertEqual(dots(50.1, 58), 234)
+        XCTAssertEqual(dots(50.1, 50), 202)
+        XCTAssertEqual(dots(62.625), 505)
+        XCTAssertEqual(dots(62.25), 501)
+        XCTAssertEqual(dots(30.375, 58), 142)
+        XCTAssertEqual(dots(73.5, 100, dotum), 588)
+        XCTAssertEqual(dots(73.5, 58, dotum), 341)
+    }
 }
