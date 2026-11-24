@@ -422,6 +422,42 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(back.paragraphs[0].inlineImages.values.first?.width ?? 0, 120, accuracy: 0.01)
     }
 
+    /// W-OB-2: a picture set in a line of text is selected as its one character, resized as one undo step, and keeps its
+    /// alt text, effect extent and the words around it through a save.
+    func testInlinePictureInTextSelectsAndResizesAsOneUndoStep() throws {
+        let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")!
+        var p = RichParagraph(text: "before" + RichParagraph.inlineImageCharacter + "after")
+        let image = ImageAttachment(data: png, width: 120, height: 90)
+        p.inlineImages[image.id] = image
+        p.applyStyle(6 ..< 7) { $0.inlineImage = image.id }
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [p, RichParagraph(text: "plain")]), pageSetup: .letter))
+        let di = try XCTUnwrap(entries.firstIndex { $0.name == "word/document.xml" })
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        xml = xml.replacingAll("<wp:docPr", with: "<wp:effectExtent l=\"19050\" t=\"0\" r=\"8214\" b=\"0\"/><wp:docPr descr=\"A small box\"")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let c = RichDocumentController(document: try DocxFormat.read(try Zip.write(entries)).document)
+        XCTAssertNil(c.selectedInlineImage)
+        let offsets = c.inlineImageOffsets(in: 0)
+        XCTAssertEqual(offsets.map(\.offset), [6])
+        let id = try XCTUnwrap(offsets.first?.id)
+        c.selectInlineImage(in: 0, id: id)
+        XCTAssertEqual(c.selectedInlineImage?.id, id)
+        XCTAssertNil(c.selectedImageIndex)
+        c.setInlineImageSize(in: 0, id: id, width: 60, height: 45)
+        XCTAssertEqual(c.document.paragraphs[0].inlineImages[id]?.width, 60)
+        c.undo()
+        XCTAssertEqual(c.document.paragraphs[0].inlineImages[id]?.width, 120)
+        c.redo()
+        let back = try DocxFormat.read(try DocxFormat.write(c.document, pageSetup: .letter)).document
+        XCTAssertEqual(back.paragraphs[0].text, "before" + RichParagraph.inlineImageCharacter + "after")
+        let saved = try XCTUnwrap(back.paragraphs[0].inlineImages.values.first)
+        XCTAssertEqual(saved.width, 60, accuracy: 0.1)
+        XCTAssertEqual(saved.height, 45, accuracy: 0.1)
+        XCTAssertEqual(saved.effectLeft, 1.5, accuracy: 0.01)
+        XCTAssertTrue(saved.sourceXML?.containsSubstring("A small box") ?? false)
+        XCTAssertEqual(back.paragraphs[1].text, "plain")
+    }
+
     /// Tracked changes stay tracked: an insertion and a deletion read as
     /// marked runs and are written back as the changes they were, so Word
     /// shows the same markup for the copy.
