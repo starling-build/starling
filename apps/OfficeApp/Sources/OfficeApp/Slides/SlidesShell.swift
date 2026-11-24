@@ -1129,7 +1129,6 @@ final class SlidesShellState: State<StatefulWidget> {
         case "v" where !typing && !_shapeClipboard.isEmpty: deck.paste(_shapeClipboard)
         case "d" where shapes: deck.duplicateSelection()
         case "d" where !typing: deck.duplicateSlide(deck.current)
-        case "g" where shapes: _flash("Grouping comes with milestone S6")
         case "f": _openFind(replace: false)
         case "h": _openFind(replace: true)
         case "e": c.setAlignment(.center)
@@ -1563,8 +1562,6 @@ final class SlidesShellState: State<StatefulWidget> {
             Chrome.toggle(FluentSystemIcons.grid, "Slide Sorter", _sorter, fluent) { [weak self] in
                 self?.session.onSlidesView?(true)
             },
-            Chrome.gap(8),
-            Chrome.icon(FluentSystemIcons.pageFit, "Fit slide to window", fluent) {},
         ]
         return DecoratedBox(
             decoration: BoxDecoration(
