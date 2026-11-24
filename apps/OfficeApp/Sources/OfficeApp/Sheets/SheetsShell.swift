@@ -78,11 +78,17 @@ final class SheetsShellState: State<StatefulWidget> {
     override func initState() {
         super.initState()
         trackDocumentPath(session)
-        // Sheets has no AutoSave: a window's host closing it writes the workbook to its own file, if it has one.
+        // Sheets has no AutoSave: a window's host closing (or the app quitting) must not drop what is unsaved. On iPad
+        // the workbook is written to its own file; on the Mac, to a recovery copy beside it (as Writer does) that the
+        // next open offers, and the file itself is left as the user last saved it.
         officeScene.registerFlush(owner: self) { [weak self] in
             guard let self, self.session.dirty, let path = self.session.path,
                   ["xlsx", "csv", "tsv"].contains(path.pathExtension.lowercased()) else { return }
+            #if os(macOS)
+            self._writeRecovery(for: path)
+            #else
             self._saveTo(path)
+            #endif
         }
         OfficeFonts.register()
         _recent = OfficeRecent.load()
@@ -319,9 +325,45 @@ final class SheetsShellState: State<StatefulWidget> {
             _flash("Could not open \(path.lastPathComponent)")
             return
         }
+        #if os(macOS)
+        // A recovery copy newer than the file: the last session ended with unsaved edits. Load it, unsaved.
+        if let r = _recoveryIfNewer(than: path) {
+            if let copy = FileManager.default.contents(atPath: r), (try? Workbook.open(copy, name: path.lastPathComponent)) != nil {
+                _load(copy, from: path)
+                wb.markUnsaved()
+                _flash("Restored unsaved changes to \(path.lastPathComponent) — Save to keep them")
+                return
+            }
+            // A copy that does not read (a crash mid-write) never blocks the file.
+            try? FileManager.default.removeItem(atPath: r)
+        }
+        #endif
         _load(data, from: path)
         #endif
     }
+
+    #if os(macOS)
+    /// Where a workbook's recovery copy lives: beside it as `name.xlsx~` (Writer's `name.docx~`). Always xlsx bytes,
+    /// whatever the file's own format.
+    private func _recoveryPath(for path: String) -> String { path + "~" }
+
+    /// A recovery copy newer than the file itself.
+    private func _recoveryIfNewer(than path: String) -> String? {
+        let recovery = _recoveryPath(for: path)
+        let fm = FileManager.default
+        guard let r = try? fm.attributesOfItem(atPath: recovery)[.modificationDate] as? Date,
+              let f = try? fm.attributesOfItem(atPath: path)[.modificationDate] as? Date, r > f else { return nil }
+        return recovery
+    }
+
+    /// The unsaved workbook, beside its file; the file is not touched.
+    private func _writeRecovery(for path: String) {
+        _ = _grid?.commitEdit()
+        wb.stashViewState()
+        guard let data = try? Xlsx.write(wb.book) else { return }
+        try? data.write(to: URL(fileURLWithPath: _recoveryPath(for: path)), options: .atomic)
+    }
+    #endif
 
     /// A file as bytes, from the browser's picker: a .docx or .pptx goes to
     /// its own shell with the same bytes.
@@ -381,6 +423,11 @@ final class SheetsShellState: State<StatefulWidget> {
             #else
             try data.write(to: URL(fileURLWithPath: path), options: .atomic)
             officeScene.documentSaved?(path)
+            #endif
+            #if os(macOS)
+            // What was kept for a crash is stale now: under the new name and the old one.
+            try? FileManager.default.removeItem(atPath: _recoveryPath(for: path))
+            if let old = session.path, old != path { try? FileManager.default.removeItem(atPath: _recoveryPath(for: old)) }
             #endif
             session.path = path
             wb.markSaved()
