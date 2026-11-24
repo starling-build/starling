@@ -884,7 +884,7 @@ final class SiteShellState: State<StatefulWidget> {
     override func build(_ context: any BuildContext) -> Widget {
         let fluent = FluentTheme.of(context)
         var viewWidth = 1400.0
-        if let view = PlatformDispatcher.instance.implicitView {
+        if let view = View.maybeOf(context) ?? PlatformDispatcher.instance.implicitView {
             viewWidth = view.physicalSize.width / view.devicePixelRatio
             _compact = viewWidth < 900
         }

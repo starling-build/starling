@@ -13,12 +13,28 @@ import FlutterSwiftBridge
 ///
 /// **Dart Source:** `packages/flutter/lib/src/widgets/view.dart`
 public enum View {
+    /// The `FlutterView` that `context` renders into, or nil when `context` is not under a view's root.
+    ///
+    /// Each view's tree is rooted in its own `RenderObjectToWidgetAdapter`, which holds that view's `RenderView`, so
+    /// this walks up to it: with several windows each asks about its own view, never the first one's.
+    ///
+    /// **Dart Source:** `view.dart` (View.maybeOf)
+    public static func maybeOf(_ context: any BuildContext) -> FlutterView? {
+        var element = context as? Element
+        while let e = element {
+            if let adapter = e.widget as? RenderObjectToWidgetAdapter { return adapter.container.flutterView }
+            element = e._parent
+        }
+        return nil
+    }
+
     /// Returns the `FlutterView` that the given context is rendering into.
     ///
     /// **Dart Source:** `view.dart` (View.of)
     public static func of(_ context: any BuildContext) -> FlutterView {
-        // Stub: In full implementation, this walks the element tree to find
-        // the nearest View widget's FlutterView.
-        fatalError("View.of() requires full View widget migration")
+        guard let view = maybeOf(context) else {
+            fatalError("View.of() called with a context that is not under a view's root.")
+        }
+        return view
     }
 }
