@@ -704,6 +704,7 @@ enum DocxFormat {
                 let path = _resolvePath("word", rel.target)
                 if notes.kept[path] == nil, let data = part(path), let n = XNode.parse(data) { collect(n) }
             }
+            var exactNamed = Set<String>()
             for style in styles.all("w:style") where style["w:type"] == "paragraph" {
                 guard let id = style["w:styleId"] else { continue }
                 let rawName = style.first("w:name")?["w:val"] ?? id
@@ -711,8 +712,14 @@ enum DocxFormat {
                 let chain = resolve(id)
                 if let ours = _styleId(name) ?? _styleId(id.lowercased()) {
                     // Two of the file's styles can map to one of ours (Quote
-                    // and Intense Quote): the first defines the look, both use it.
-                    let first = !styleByDocx.values.contains(ours)
+                    // and Intense Quote): the first defines the look, both use it,
+                    // except that the one named as ours is takes it over from an
+                    // alias that came first (dx2 f701ba23: Intense Quote, before
+                    // 10 / after 14, listed ahead of Quote, gave every Quote
+                    // paragraph 14 pt after it where Word's print has none).
+                    let exactName = name == ours.lowercased()
+                    let first = !styleByDocx.values.contains(ours) || (exactName && !exactNamed.contains(ours))
+                    if exactName { exactNamed.insert(ours) }
                     styleByDocx[id] = ours
                     guard first, var entry = sheet[ours], ours != RichNamedStyle.normalId else { continue }
                     var cs = chain.char

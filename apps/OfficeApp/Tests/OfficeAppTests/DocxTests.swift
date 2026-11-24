@@ -6941,6 +6941,36 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(Array(out.suffix(8)), [UInt8](repeating: 0, count: 8), "only the first 32 bytes are keyed")
         XCTAssertNil(OfficeFonts.deobfuscate(Data(count: 40), key: "{not-a-guid}"))
     }
+
+    func testQuoteKeepsItsOwnSpacingWhenIntenseQuoteIsListedFirst() throws {
+        // dx2 f701ba23: Intense Quote (before 10 / after 14) comes ahead of
+        // Quote (a line height only) in styles.xml; both map to our one Quote, and the
+        // first one used to define the look, so every Quote paragraph got
+        // 14 pt after it that Word's print does not have.
+        var doc = RichDocument(paragraphs: [RichParagraph(text: "Plain"), RichParagraph(text: "Quoted")])
+        doc.paragraphs[1].style.spaceAfter = 0
+        var entries = try Zip.read(try DocxFormat.write(doc, pageSetup: .letter))
+        let si = try XCTUnwrap(entries.firstIndex { $0.name == "word/styles.xml" })
+        var styles = String(decoding: entries[si].data, as: UTF8.self)
+        func sty(_ id: String, _ name: String, _ sp: String) -> String {
+            "<w:style w:type=\"paragraph\" w:styleId=\"\(id)\"><w:name w:val=\"\(name)\"/><w:basedOn w:val=\"Normal\"/><w:pPr>\(sp)</w:pPr></w:style>"
+        }
+        styles = styles.replacingAll("</w:styles>", with:
+            sty("IntenseQuote", "Intense Quote", "<w:spacing w:before=\"200\" w:after=\"280\" w:line=\"240\" w:lineRule=\"auto\"/><w:ind w:left=\"936\" w:right=\"936\"/>")
+            + sty("Quote", "Quote", "<w:spacing w:line=\"240\" w:lineRule=\"auto\"/>") + "</w:styles>")
+        entries[si] = ZipEntry(name: "word/styles.xml", data: Data(styles.utf8))
+        let di = try XCTUnwrap(entries.firstIndex { $0.name == "word/document.xml" })
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        for (after, id) in [("160", "Quote"), ("0", "IntenseQuote")] {
+            xml = xml.replacingAll("<w:pPr><w:spacing w:after=\"\(after)\" w:line=\"259\" w:lineRule=\"auto\"/></w:pPr><w:r>", with: "<w:pPr><w:pStyle w:val=\"\(id)\"/></w:pPr><w:r>")
+        }
+        XCTAssertTrue(xml.contains("<w:pStyle w:val=\"Quote\"/>") && xml.contains("<w:pStyle w:val=\"IntenseQuote\"/>"), xml)
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let back = try DocxFormat.read(try Zip.write(entries)).document
+        let quote = try XCTUnwrap(back.styles["Quote"])
+        XCTAssertEqual(quote.paragraph.spaceAfter, 8, accuracy: 0.001, "Quote says no spacing of its own: not Intense Quote's 14 pt")
+        XCTAssertEqual(quote.paragraph.spaceBefore, 0, accuracy: 0.001, "not Intense Quote's 10 pt")
+    }
 }
 
 /// Records, for each quarter turn, the translate just before it (a
