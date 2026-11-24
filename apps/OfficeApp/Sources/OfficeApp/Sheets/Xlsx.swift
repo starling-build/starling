@@ -271,6 +271,10 @@ enum Xlsx {
             if let pane = view.child("pane"), pane["state"] == "frozen" || pane["state"] == "frozenSplit" {
                 ws.freezeCols = Int(Double(pane["xSplit"] ?? "0") ?? 0)
                 ws.freezeRows = Int(Double(pane["ySplit"] ?? "0") ?? 0)
+            } else if let pane = view.child("pane") {
+                // A split: the divider is a position, not a cell count, so it is kept as the file wrote it.
+                ws.splitPane = pane.attrs
+                ws.splitSelections = view.kids("selection").map(\.attrs)
             }
             if let sel = view.kids("selection").last, let a = sel["activeCell"].flatMap({ CellAddress($0) }) { ws.savedActive = a }
             if view["showGridLines"] == "0" { ws.showGridlines = false }
@@ -1219,6 +1223,13 @@ enum Xlsx {
             view += "<pane" + (ws.freezeCols > 0 ? " xSplit=\"\(ws.freezeCols)\"" : "") + (ws.freezeRows > 0 ? " ySplit=\"\(ws.freezeRows)\"" : "")
                 + " topLeftCell=\"\(tl)\" activePane=\"\(pane)\" state=\"frozen\"/>"
             view += "<selection pane=\"\(pane)\" activeCell=\"\(active.a1)\" sqref=\"\(active.a1)\"/>"
+        } else if let split = ws.splitPane {
+            view += "<pane" + split.sorted { $0.key < $1.key }.map { " \($0.key)=\"\(_esc($0.value))\"" }.joined() + "/>"
+            let activePane = split["activePane"] ?? "topLeft"
+            for var sel in ws.splitSelections {
+                if (sel["pane"] ?? "topLeft") == activePane { sel["activeCell"] = active.a1; sel["sqref"] = active.a1 }
+                view += "<selection" + sel.sorted { $0.key < $1.key }.map { " \($0.key)=\"\(_esc($0.value))\"" }.joined() + "/>"
+            }
         } else {
             view += "<selection activeCell=\"\(active.a1)\" sqref=\"\(active.a1)\"/>"
         }
@@ -1538,15 +1549,28 @@ enum Xlsx {
                 guard let src, b < src.xfs.count, b < book.styles.count else { return nil }
                 return (book.styles[b], src.xfs[b])
             }
+            // The font this one was derived from, child by child: what the change left alone (a theme colour and its
+            // tint, the family, charset and scheme, a double underline, a script) is written as the file had it.
+            var baseFont: [String: String] = [:]
+            if let base, let fid = Int(base.xf.attrs["fontId"] ?? "0"), fid < fonts.count {
+                for (name, text) in RawXML.split(Array(fonts[fid].utf8)).children { baseFont[name] = text }
+            }
+            let sameFace = base.map { $0.style.fontName == st.fontName } ?? false
             var font = "<font>"
             if st.bold { font += "<b/>" }
             if st.italic { font += "<i/>" }
             if st.strike { font += "<strike/>" }
-            if st.underline { font += "<u/>" }
+            if st.underline {
+                if let b = base, b.style.underline, b.style.accounting == st.accounting, let u = baseFont["u"] { font += u } else { font += "<u/>" }
+            }
+            if st.script != 0, let b = base, b.style.script == st.script, let v = baseFont["vertAlign"] { font += v }
             font += "<sz val=\"\(_num(book.fontSize(st)))\"/>"
-            font += st.color.map { "<color rgb=\"FF\(_hex($0))\"/>" } ?? "<color theme=\"1\"/>"
-            font += "<name val=\"\(_esc(book.fontName(st)))\"/><family val=\"2\"/>"
-            if st.fontName == nil && book.defaultFontName == nil { font += "<scheme val=\"minor\"/>" }
+            if let b = base, b.style.color == st.color, let c = baseFont["color"] { font += c }
+            else { font += st.color.map { "<color rgb=\"FF\(_hex($0))\"/>" } ?? "<color theme=\"1\"/>" }
+            font += "<name val=\"\(_esc(book.fontName(st)))\"/>"
+            font += sameFace ? (baseFont["family"] ?? "<family val=\"2\"/>") : "<family val=\"2\"/>"
+            if sameFace { font += (baseFont["charset"] ?? "") + (baseFont["scheme"] ?? "") }
+            else if st.fontName == nil && book.defaultFontName == nil { font += "<scheme val=\"minor\"/>" }
             font += "</font>"
             func same(_ a: CellStyle, _ b: CellStyle, _ keys: [PartialKeyPath<CellStyle>]) -> Bool {
                 keys.allSatisfy { k in String(describing: a[keyPath: k]) == String(describing: b[keyPath: k]) }
@@ -1558,8 +1582,18 @@ enum Xlsx {
             if let base, st.fill == base.style.fill, let f = Int(base.xf.attrs["fillId"] ?? "0") { fillId = f }
             else { fillId = st.fill.map { index(&fills, "<fill><patternFill patternType=\"solid\"><fgColor rgb=\"FF\(_hex($0))\"/><bgColor indexed=\"64\"/></patternFill></fill>") } ?? 0 }
             let b = st.borders
+            // A side the change left alone (same line, kind and colour) is written as the file had it: theme colour, tint.
+            var baseSides: [String: String] = [:]
+            if let base, let bid = Int(base.xf.attrs["borderId"] ?? "0"), bid < borders.count {
+                for (name, text) in RawXML.split(Array(borders[bid].utf8)).children { baseSides[name] = text }
+            }
             func side(_ name: String, _ on: Bool) -> String {
                 guard on else { return "<\(name)/>" }
+                if let base, let kept = baseSides[name] {
+                    let bb = base.style.borders
+                    let was: Bool = name == "left" ? bb.left : name == "right" ? bb.right : name == "top" ? bb.top : bb.bottom
+                    if was, bb.kinds[name] == b.kinds[name], bb.colors[name] == b.colors[name] { return kept }
+                }
                 let color = b.colors[name].map { "<color rgb=\"FF\(_hex($0))\"/>" } ?? "<color indexed=\"64\"/>"
                 return "<\(name) style=\"\(b.kinds[name] ?? "thin")\">\(color)</\(name)>"
             }
