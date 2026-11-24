@@ -114,11 +114,15 @@ extension RichLayout {
             for c in t.children ?? [] { gather(c) }
         }
         gather(span)
+        // (The end mark's face belongs to the LAST line alone, and the lines before it do not share its split: lab num2, PowerPoint's print
+        // sets every line of a paragraph at the East Asian face's own height, 83.5 and 112.3 pt, and only the last 0.076 em higher.)
+        var markPiece: Piece? = nil
         if let mark = p.style.endMarkFace, let last = perLine.lastIndex(where: { !$0.isEmpty }), let size = perLine[last].last?.size {
             let drawn = theme.fontFamilyResolver?(mark) ?? mark
-            perLine[last].append((mark.trimmingWhitespace().lowercased(), size, depthShare(mark, drawn: drawn, bold: false, italic: false) * single))
+            markPiece = (mark.trimmingWhitespace().lowercased(), size, depthShare(mark, drawn: drawn, bold: false, italic: false) * single)
         }
-        guard Set(perLine.flatMap { $0.map(\.name) }).count > 1 else { return nil }
+        let lastLine = perLine.lastIndex(where: { !$0.isEmpty })
+        guard Set(perLine.flatMap { $0.map(\.name) } + (markPiece.map { [$0.name] } ?? [])).count > 1 else { return nil }
         // Each line's (ascent, descent, height) in the style's units.
         // (PowerPoint's lines of one paragraph step by one pitch, so where every line is as tall as the others they share ONE split
         // of it: the tallest ascent and deepest depth of the whole paragraph. A split of its own per line made the step between two
@@ -129,10 +133,12 @@ extension RichLayout {
         let allD = perLine.flatMap { $0 }.map { $0.size * $0.depth }.max() ?? 0
         RichLayout._mixedLinesShare = nil
         if uniform, allA + allD > 0 { RichLayout._mixedLinesShare = (allD / (allA + allD), (perLine.flatMap { $0 }.map(\.size).max() ?? 0)) }
-        let splits: [(up: Double, down: Double, height: Double)?] = perLine.map { pieces in
-            guard !pieces.isEmpty else { return nil }
-            let a = uniform ? allA : (pieces.map { $0.size * (single - $0.depth) }.max() ?? 0)
-            let d = uniform ? allD : (pieces.map { $0.size * $0.depth }.max() ?? 0)
+        let splits: [(up: Double, down: Double, height: Double)?] = perLine.enumerated().map { (li, base) in
+            guard !base.isEmpty else { return nil }
+            let withMark = li == lastLine && markPiece != nil
+            let pieces = withMark ? base + [markPiece!] : base
+            let a = uniform && !withMark ? allA : (pieces.map { $0.size * (single - $0.depth) }.max() ?? 0)
+            let d = uniform && !withMark ? allD : (pieces.map { $0.size * $0.depth }.max() ?? 0)
             let h = single * factor * (pieces.map(\.size).max() ?? 0)
             guard a + d > 0 else { return nil }
             return (h * a / (a + d), h * d / (a + d), h)
