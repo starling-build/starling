@@ -1687,7 +1687,7 @@ enum DocxFormat {
                 // cells' widths, not the grid, and shrinks them to the room by their slack over the content minimum:
                 // dx2 cf39f18f, cells 1060/1944/6376 over a grid of 931/2471/5318, columns 49/101/287 pt in Word's print.)
                 if let cols = tableColumns[id], cols.count > 1,
-                   let cw = _statedCellColumns(node, count: cols.count),
+                   let cw = _statedCellColumns(node, count: cols.count, widest: true),
                    _cellsAgreeWithTableWidth(node, cells: cw.reduce(0, +)) {
                     if (cols.max() ?? 0) - (cols.min() ?? 0) <= 0.1 { tableColumns[id] = cw }
                     // (Left to the layout, which takes them when no cell's narrowest outgrows its stated width.)
