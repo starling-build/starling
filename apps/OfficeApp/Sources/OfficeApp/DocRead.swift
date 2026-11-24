@@ -316,7 +316,19 @@ enum DocRead {
               clxRange.fc >= 0, clxRange.fc + clxRange.lcb <= tbl.count else { return nil }
         let pcs = pieces(clx: Array(tbl[clxRange.fc ..< clxRange.fc + clxRange.lcb]))
         let chp = fib.range(DocFib.fcPlcfBteChpx).map { DocProps.runs(w: w, t: tbl, at: $0.fc, count: $0.lcb, pieces: pcs, paragraph: false) } ?? []
-        let pap = fib.range(DocFib.fcPlcfBtePapx).map { DocProps.runs(w: w, t: tbl, at: $0.fc, count: $0.lcb, pieces: pcs, paragraph: true) } ?? []
+        var pap = fib.range(DocFib.fcPlcfBtePapx).map { DocProps.runs(w: w, t: tbl, at: $0.fc, count: $0.lcb, pieces: pcs, paragraph: true) } ?? []
+        // A paragraph whose property list is too long for the file page keeps it in the Data stream (sprmPHugePapx:
+        // a 4-byte offset to a 2-byte length and the list). es-894ca14d34's table cell and row marks were bare without it.
+        if pap.contains(where: { $0.grpprl.count < 12 && DocProps.sprms($0.grpprl).contains { $0.op == 0x6646 } }), let data = cf.stream("Data") {
+            for i in pap.indices {
+                guard let h = DocProps.sprms(pap[i].grpprl).first(where: { $0.op == 0x6646 }) else { continue }
+                let off = OfficeArt.u32(h.operand, 0)
+                guard off >= 0, off + 2 <= data.count else { continue }
+                let n = Int(data[off]) | Int(data[off + 1]) << 8
+                guard off + 2 + n <= data.count else { continue }
+                pap[i].grpprl += Array(data[off + 2 ..< off + 2 + n])
+            }
+        }
         let fonts = fib.range(DocFib.fcSttbfFfn).map { DocProps.fonts(tbl, at: $0.fc, count: $0.lcb) } ?? []
         let st = fib.range(DocFib.fcStshf).map { DocProps.styles(tbl, at: $0.fc, count: $0.lcb, fonts: fonts) }
         let hddEnd = fib.ccpText + fib.ccpFtn + fib.ccpHdd
