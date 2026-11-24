@@ -873,6 +873,11 @@ let siteArg: String? = {
 // driven without a touch route.
 #if os(iOS)
 Clipboard.provider = IOSClipboardProvider()
+// iPadOS may end an app it has put in the background: every window writes what it has not saved yet first.
+_ = NotificationCenter.default.addObserver(forName: Notification.Name("UIApplicationDidEnterBackgroundNotification"), object: nil, queue: .main) { _ in
+    fputs("[office] background: saving every window's pending edits\n", stderr)
+    OfficeScene.flushAll()
+}
 #endif
 if initialPath == nil && siteArg == nil && wikiBase == nil {
     OfficeNativeShell.install()

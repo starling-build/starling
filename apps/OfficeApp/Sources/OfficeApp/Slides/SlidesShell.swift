@@ -122,6 +122,7 @@ final class SlidesShellState: State<StatefulWidget> {
         OfficeFonts.register()
         _recent = OfficeRecent.load()
         _wire()
+        officeScene.registerFlush(owner: self) { [weak self] in self?._autosaveNow() }
         deck.addListener({ [weak self] in self?._deckChanged() }, owner: self)
         _publishToolbar()
         _cache.onImageDecoded = { [weak self] in
@@ -156,6 +157,7 @@ final class SlidesShellState: State<StatefulWidget> {
 
     override func dispose() {
         officeScene.publishToolbar(nil, owner: self)
+        officeScene.unregisterFlush(owner: self)
         deck.removeListeners(owner: self)
         session.controller.removeListeners(owner: self)
         _deckFocus.dispose()
@@ -622,23 +624,32 @@ final class SlidesShellState: State<StatefulWidget> {
         _autosaveGeneration += 1
         let gen = _autosaveGeneration
         DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(2)) { [weak self] in
-            guard let self, self.mounted, self._autosaveGeneration == gen, self.session.dirty, self._show == nil else { return }
-            guard let data = try? Pptx.write(self.deck) else { return }
-            if self.session.autoSave, !self._recovered, let path = self.session.path,
-               path.pathExtension.lowercased() == "pptx" {
-                do {
-                    try data.write(to: URL(fileURLWithPath: path), options: .atomic)
-                    officeScene.documentSaved?(path)
-                    self._savedEdits = self.deck.edits
-                    try? FileManager.default.removeItem(atPath: self._recoveryPath(for: path))
-                    self.setState { self.session.dirty = false }
-                    return
-                } catch {
-                    self._flash("AutoSave could not write: \(error)")
-                }
-            }
-            try? data.write(to: URL(fileURLWithPath: self._recoveryPath(for: self.session.path)), options: .atomic)
+            guard let self, self.mounted, self._autosaveGeneration == gen else { return }
+            self._autosaveNow()
         }
+        #endif
+    }
+
+    /// The write itself (also what the window's host asks for before it closes the window,
+    /// OfficeScene.flushPendingSaves).
+    private func _autosaveNow() {
+        #if !os(WASI)
+        guard session.dirty, _show == nil else { return }
+        guard let data = try? Pptx.write(deck) else { return }
+        if session.autoSave, !_recovered, let path = session.path,
+           path.pathExtension.lowercased() == "pptx" {
+            do {
+                try data.write(to: URL(fileURLWithPath: path), options: .atomic)
+                officeScene.documentSaved?(path)
+                _savedEdits = deck.edits
+                try? FileManager.default.removeItem(atPath: _recoveryPath(for: path))
+                setState { session.dirty = false }
+                return
+            } catch {
+                _flash("AutoSave could not write: \(error)")
+            }
+        }
+        try? data.write(to: URL(fileURLWithPath: _recoveryPath(for: session.path)), options: .atomic)
         #endif
     }
 

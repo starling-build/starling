@@ -92,6 +92,7 @@ final class OfficeShellState: State<StatefulWidget> {
         OfficeFonts.register()
         _recent = _loadRecent()
         _wireSession()
+        officeScene.registerFlush(owner: self) { [weak self] in self?._autosaveNow() }
         controller.addListener({ [weak self] in self?._publishToolbar() }, owner: self)
         _publishToolbar()
         // `starling.debug('layout')` from the browser's console or a script:
@@ -198,6 +199,7 @@ final class OfficeShellState: State<StatefulWidget> {
 
     override func dispose() {
         officeScene.publishToolbar(nil, owner: self)
+        officeScene.unregisterFlush(owner: self)
         _search.dispose()
         _findQuery.dispose()
         _findReplacement.dispose()
@@ -440,26 +442,35 @@ final class OfficeShellState: State<StatefulWidget> {
         _autosaveGeneration += 1
         let gen = _autosaveGeneration
         DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(2)) { [weak self] in
-            guard let self, self._autosaveGeneration == gen, self.session.dirty else { return }
-            // AutoSave writes the file itself — never a recovered document,
-            // whose on-disk file the user has not yet chosen to replace.
-            if self.session.autoSave, !self._recovered, let path = self.session.path {
-                do {
-                    try OfficeFormats.write(self.controller.document, to: path, pageSetup: self.session.pageSetup)
-                    officeScene.documentSaved?(path)
-                    self._savedRevision = self.controller.revision
-                    try? FileManager.default.removeItem(atPath: self._recoveryPath(for: path))
-                    self.setState { self.session.dirty = false }
-                    return
-                } catch {
-                    self._flash("AutoSave could not write: \(error)")
-                    // Fall through: at least the recovery copy.
-                }
+            guard let self, self._autosaveGeneration == gen else { return }
+            self._autosaveNow()
+        }
+        #endif
+    }
+
+    /// The write itself: the file when AutoSave is on and the document has one, else the recovery copy.
+    /// Also what the window's host asks for before it closes the window (OfficeScene.flushPendingSaves).
+    private func _autosaveNow() {
+        #if !os(WASI)
+        guard session.dirty else { return }
+        // AutoSave writes the file itself — never a recovered document,
+        // whose on-disk file the user has not yet chosen to replace.
+        if session.autoSave, !_recovered, let path = session.path {
+            do {
+                try OfficeFormats.write(controller.document, to: path, pageSetup: session.pageSetup)
+                officeScene.documentSaved?(path)
+                _savedRevision = controller.revision
+                try? FileManager.default.removeItem(atPath: _recoveryPath(for: path))
+                setState { session.dirty = false }
+                return
+            } catch {
+                _flash("AutoSave could not write: \(error)")
+                // Fall through: at least the recovery copy.
             }
-            let recovery = self._recoveryPath(for: self.session.path)
-            if let data = try? DocxFormat.write(self.controller.document, pageSetup: self.session.pageSetup) {
-                try? data.write(to: URL(fileURLWithPath: recovery), options: .atomic)
-            }
+        }
+        let recovery = _recoveryPath(for: session.path)
+        if let data = try? DocxFormat.write(controller.document, pageSetup: session.pageSetup) {
+            try? data.write(to: URL(fileURLWithPath: recovery), options: .atomic)
         }
         #endif
     }

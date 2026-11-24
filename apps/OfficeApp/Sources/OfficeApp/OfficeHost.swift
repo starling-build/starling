@@ -20,6 +20,20 @@ final class OfficeScene {
     /// The first (and, until scenes are turned on, only) window.
     nonisolated(unsafe) static let main = OfficeScene()
 
+    /// Every window's scene that is alive (weakly held), for what concerns them all: the app going to the background.
+    nonisolated(unsafe) private static var live: [Weak] = []
+    private struct Weak { weak var scene: OfficeScene? }
+
+    init() {
+        Self.live.removeAll { $0.scene == nil }
+        Self.live.append(Weak(scene: self))
+    }
+
+    /// `flushPendingSaves` in every window.
+    static func flushAll() {
+        for w in live { w.scene?.flushPendingSaves() }
+    }
+
     /// The scene a tree belongs to: the nearest `OfficeSceneScope` above `context`, else `main`.
     /// Does not register a dependency (a scene never changes under a tree).
     static func of(_ context: (any BuildContext)?) -> OfficeScene {
@@ -119,6 +133,26 @@ final class OfficeScene {
         items.append(.init(title: "Select All", symbol: "selection.pin.in.out") { c.selectAll() })
         show(r.left, r.top, r.width, r.height, items, c.hasSelection ? c.selectedText : nil)
         #endif
+    }
+
+    private var flushers: [(owner: ObjectIdentifier, run: () -> Void)] = []
+
+    /// The editor `owner` can write its unsaved work when asked. Registered while mounted, withdrawn on dispose.
+    func registerFlush(owner: AnyObject, _ run: @escaping () -> Void) {
+        let id = ObjectIdentifier(owner)
+        flushers.removeAll { $0.owner == id }
+        flushers.append((id, run))
+    }
+
+    func unregisterFlush(owner: AnyObject) {
+        let id = ObjectIdentifier(owner)
+        flushers.removeAll { $0.owner == id }
+    }
+
+    /// Writes what this window's editors have not saved yet (what AutoSave would write in two seconds, now). A host
+    /// calls it before it removes the window's view, so closing a window never loses the last edits.
+    func flushPendingSaves() {
+        for f in flushers { f.run() }
     }
 
     private var toolbarOwner: ObjectIdentifier?

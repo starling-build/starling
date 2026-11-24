@@ -76,6 +76,12 @@ final class SheetsShellState: State<StatefulWidget> {
 
     override func initState() {
         super.initState()
+        // Sheets has no AutoSave: a window's host closing it writes the workbook to its own file, if it has one.
+        officeScene.registerFlush(owner: self) { [weak self] in
+            guard let self, self.session.dirty, let path = self.session.path,
+                  ["xlsx", "csv", "tsv"].contains(path.pathExtension.lowercased()) else { return }
+            self._saveTo(path)
+        }
         OfficeFonts.register()
         _recent = OfficeRecent.load()
         _wire()
@@ -129,6 +135,7 @@ final class SheetsShellState: State<StatefulWidget> {
 
     override func dispose() {
         officeScene.publishToolbar(nil, owner: self)
+        officeScene.unregisterFlush(owner: self)
         wb.removeListeners(owner: self)
         _formula.dispose()
         _nameBox.dispose()
