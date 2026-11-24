@@ -2675,7 +2675,25 @@ public struct RichDocument: Hashable, Codable, Sendable {
     /// The East Asian language the document's defaults state (for example
     /// "zh-TW"), read from the defaults' w:lang once per call site.
     public var eastAsiaLanguage: String? {
-        guard let xml = defaultLangXML, let r = xml.rangeOfSubstring("w:eastAsia=\"") else { return nil }
+        guard let xml = defaultLangXML else { return nil }
+        // Plain ASCII (no CR, where bytes and Characters part ways): the same reading on the bytes. Layout asks this for
+        // every span, and the Character scan was 15% of a Chinese document's time.
+        let bytes = Array(xml.utf8)
+        if !bytes.contains(where: { $0 >= 0x80 || $0 == 0x0D }) {
+            let key = Array("w:eastAsia=\"".utf8)
+            guard bytes.count >= key.count else { return nil }
+            var i = 0
+            while i <= bytes.count - key.count {
+                if bytes[i] == key[0] && Array(bytes[i ..< i + key.count]) == key {
+                    let from = i + key.count
+                    guard let q = bytes[from...].firstIndex(of: 0x22) else { return nil }
+                    return String(decoding: bytes[from ..< q], as: UTF8.self)
+                }
+                i += 1
+            }
+            return nil
+        }
+        guard let r = xml.rangeOfSubstring("w:eastAsia=\"") else { return nil }
         let rest = xml[r.upperBound...]
         guard let q = rest.firstIndex(of: "\"") else { return nil }
         return String(rest[rest.startIndex..<q])
