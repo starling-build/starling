@@ -280,4 +280,40 @@ final class CorpusFixTests: XCTestCase {
         XCTAssertEqual(try bodyBottom(offsetEMU: 9401175), margin, accuracy: 0.5, "set down off the page: the margin stands")
         XCTAssertLessThan(try bodyBottom(offsetEMU: -1200000), margin - 20, "set up from its paragraph: the body ends at its reach")
     }
+
+    /// A header's square-wrapped `spAutoFit` box as wide as the text holds the body under its TEXT's height, not the stale
+    /// extent in the file (pt 3e4a9b9379: 110.6 pt stated, one 10 pt line, the body 128 pt low).
+    func testAHeaderAutofitBoxHoldsTheBodyAtItsTextHeight() throws {
+        RichTextTheme.wordWindowsPages = true
+        defer { RichTextTheme.wordWindowsPages = false }
+        func bodyTop(autofit: Bool) throws -> Double {
+            var doc = RichDocument(paragraphs: [RichParagraph(text: "a")])
+            doc.header = "x"
+            var entries = try Zip.read(try DocxFormat.write(doc, pageSetup: .letter))
+            let hi = entries.firstIndex { $0.name == "word/header1.xml" }!
+            var hxml = String(decoding: entries[hi].data, as: UTF8.self)
+            let inner = try XCTUnwrap(hxml.range(of: "<w:p>")).lowerBound ..< (try XCTUnwrap(hxml.range(of: "</w:p>"))).upperBound
+            let anchor = "<wp:anchor distT=\"0\" distB=\"0\" distL=\"0\" distR=\"0\" simplePos=\"0\" relativeHeight=\"1\" behindDoc=\"0\" locked=\"0\" layoutInCell=\"1\" allowOverlap=\"1\">"
+                + "<wp:simplePos x=\"0\" y=\"0\"/><wp:positionH relativeFrom=\"column\"><wp:posOffset>0</wp:posOffset></wp:positionH>"
+                + "<wp:positionV relativeFrom=\"paragraph\"><wp:posOffset>381000</wp:posOffset></wp:positionV><wp:extent cx=\"6000000\" cy=\"1400000\"/>"
+                + "<wp:wrapSquare wrapText=\"bothSides\"/><wp:docPr id=\"1\" name=\"s\"/><a:graphic xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\">"
+                + "<a:graphicData uri=\"http://schemas.microsoft.com/office/word/2010/wordprocessingShape\"><wps:wsp xmlns:wps=\"http://schemas.microsoft.com/office/word/2010/wordprocessingShape\">"
+                + "<wps:cNvSpPr txBox=\"1\"/><wps:spPr><a:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"6000000\" cy=\"1400000\"/></a:xfrm><a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom></wps:spPr>"
+                + "<wps:txbx><w:txbxContent><w:p><w:r><w:t>box</w:t></w:r></w:p></w:txbxContent></wps:txbx>"
+                + "<wps:bodyPr wrap=\"square\" lIns=\"91440\" tIns=\"45720\" rIns=\"91440\" bIns=\"45720\">\(autofit ? "<a:spAutoFit/>" : "")</wps:bodyPr></wps:wsp></a:graphicData></a:graphic></wp:anchor>"
+            hxml.replaceSubrange(inner, with: "<w:p><w:pPr><w:pStyle w:val=\"Header\"/></w:pPr><w:r><w:drawing>\(anchor)</w:drawing></w:r></w:p>")
+            entries[hi] = ZipEntry(name: "word/header1.xml", data: Data(hxml.utf8))
+            let back = try DocxFormat.read(try Zip.write(entries)).document
+            let theme = RichTextTheme(fontFamily: OfficeFonts.serif)
+            theme.wordRules = true
+            let layout = RichLayout(theme: theme, paragraphCount: back.paragraphs.count)
+            layout.pageSetup = .letter
+            layout.width = PageSetup.letter.columnWidth * theme.pixelsPerPoint
+            layout.ensureLaidOut(back)
+            return layout.bodyBandPoints(page: 0, back).top
+        }
+        let fixed = try bodyTop(autofit: false), fitted = try bodyTop(autofit: true)
+        XCTAssertGreaterThan(fixed, PageSetup.letter.headerDistance + 30 + 100, "a fixed-height box: the body stands under its stated foot")
+        XCTAssertLessThan(fitted, fixed - 60, "an autofit box: under its one text line")
+    }
 }
