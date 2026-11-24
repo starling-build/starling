@@ -172,6 +172,7 @@ public nonisolated(unsafe) var liveSecondaryViewIds: [Int] = []
 /// Show `build()` in the view with id `id` once the engine has added it.
 public func runView(id: Int, _ build: @escaping () -> Widget) {
     viewContentBuilders[id] = build
+    FocusManager.instance.windowViewIds.insert(id)
 }
 
 /// Called once per non-implicit view, right after its FIRST scene is
@@ -440,6 +441,7 @@ func _setupWidgetBinding(_ app: Widget) {
             let removedIds = secondaryPipelines.keys.filter { pd.view(id: $0) == nil }
             for id in removedIds {
                 viewContentBuilders[id] = nil
+                FocusManager.instance.windowRemoved(id)
                 liveSecondaryViewIds.removeAll { $0 == id }
                 if let sp = secondaryPipelines.removeValue(forKey: id) {
                     _ = RenderObjectToWidgetAdapter(child: nil, container: sp.renderView)
@@ -491,7 +493,9 @@ func _setupWidgetBinding(_ app: Widget) {
                 rv.prepareInitialFrame()
                 let adapter = RenderObjectToWidgetAdapter(
                     child: content, container: rv)
+                FocusManager.instance.mountingViewId = id
                 let root = adapter.attachToRenderTree(buildOwner)
+                FocusManager.instance.mountingViewId = nil
                 secondaryPipelines[id] = SecondaryViewPipeline(
                     renderView: rv, pipelineOwner: po, rootElement: root)
                 liveSecondaryViewIds.append(id)
@@ -796,6 +800,10 @@ func _setupWidgetBinding(_ app: Widget) {
             // A view the engine has just added has a tree and no layout until its first frame; a touch that
             // lands in that gap (UIKit delivers to the UIView at once) must not hit-test a box without a size.
             if let child = eventView.child, !child.hasSize { continue }
+            // A touch in a window makes it the one the keys go to (its own focused node keeps its focus).
+            if event is PointerDownEvent { FocusManager.instance.viewTouched(event.viewId) }
+            FocusManager.instance.dispatchingViewId = event.viewId
+            defer { FocusManager.instance.dispatchingViewId = nil }
 
             var hitTestResult: HitTestResult? = nil
 

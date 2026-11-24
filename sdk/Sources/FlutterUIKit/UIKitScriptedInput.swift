@@ -125,7 +125,7 @@ enum UIKitScriptedInput {
 
     private static func report(_ what: String) {
         let node = FocusManager.instance.focusedNode
-        fputs("[input] \(what); focus=\(node?.debugLabel ?? (node == nil ? "none" : "unlabelled"))\n", stderr)
+        fputs("[input] \(what); focus=\(node?.debugLabel ?? (node == nil ? "none" : "unlabelled")) \(FocusManager.instance.debugSummary)\n", stderr)
     }
 
     private static func pointerId() -> Int64 { _nextPointer += 1; return _nextPointer }
