@@ -104,6 +104,15 @@ void fluikit_host_set_open_url_handler(FlUIKitOpenURLCallback handler, void* use
 typedef void (*FlUIKitSceneCallback)(void* user, int64_t view_id);
 void fluikit_host_set_scene_handlers(FlUIKitSceneCallback connected, FlUIKitSceneCallback disconnected, void* user);
 
+// State restoration. When the system saves a window's state (the app goes to the background) `save` is asked for a
+// token describing what that window shows (a malloc'd UTF-8 string the host frees, or NULL for nothing); when the
+// system brings the window back on the next launch, `restore` is handed the same token once the window's tree is up
+// (after the open-URL handler, and not at all if the window was made for a document). Main thread. Without handlers
+// windows come back as they were made, blank. Windows saved by an app with no handlers are unaffected.
+typedef char* (*FlUIKitRestoreSaveCallback)(void* user, int64_t view_id);
+typedef void (*FlUIKitRestoreCallback)(void* user, int64_t view_id, const char* token);
+void fluikit_host_set_restoration_handlers(FlUIKitRestoreSaveCallback save, FlUIKitRestoreCallback restore, void* user);
+
 // Told (on the main thread) after any extra view has been removed from the engine. The framework disposes a
 // removed view's pipeline inside a frame, and an idle app has no frame coming: this is the moment to ask for one.
 void fluikit_host_set_view_gone_handler(FlUIKitSceneCallback gone, void* user);

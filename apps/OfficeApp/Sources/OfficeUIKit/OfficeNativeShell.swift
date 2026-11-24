@@ -159,6 +159,19 @@ public enum OfficeNativeShell {
             OfficeNativeShell.open(parsed, viewId: Int(viewId))
             return true
         }, nil)
+        // A window comes back from the last run showing the document it showed: a bookmark to the original (it
+        // finds the file again wherever it went, and carries the access a file outside the app's sandbox needs).
+        fluikit_host_set_restoration_handlers({ _, viewId in
+            guard let original = OfficeNativeShell.shells[Int(viewId)]?.session?.original,
+                  let data = try? original.bookmarkData() else { return nil }
+            return strdup(data.base64EncodedString())
+        }, { _, viewId, token in
+            guard let token = token, let data = Data(base64Encoded: String(cString: token)) else { return }
+            var stale = false
+            guard let url = try? URL(resolvingBookmarkData: data, options: [], relativeTo: nil, bookmarkDataIsStale: &stale),
+                  FileManager.default.fileExists(atPath: url.path) else { return }   // a file that is gone: the window stays blank
+            OfficeNativeShell.open(url, viewId: Int(viewId))
+        }, nil)
         fluikit_host_set_scene_handlers({ _, viewId in
             OfficeNativeShell.sceneConnected?(Int(viewId))
         }, { _, viewId in
