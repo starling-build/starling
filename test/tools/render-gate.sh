@@ -9,7 +9,7 @@
 set -u
 SELF=$(readlink -f "$0")
 export RENDER_GATE=1   # a gate (and a prebuild) runs at normal priority; hand-run builds and A/B runs are niced (build-office-fast.sh, docx-pair.sh)
-S0=$(date +%s)   # gate start, to report the setup time before the build
+GS0=$(date +%s); S0=$(date +%s)   # gate start, to report the setup time before the build
 BASE_SHA=${1:?usage: render-gate.sh BASE_SHA}
 # merge-queue group run: the group's PR bodies (written by the workflow) stand in for PR_BODY, so ACCEPT lines in a PR body still waive (amd-8, 2026-11-23)
 if [ "${GITHUB_EVENT_NAME:-}" = merge_group ] && ls "$HOME/scratch/group"/*.body >/dev/null 2>&1; then export GATE_GROUP_DIR=$HOME/scratch/group; export PR_BODY=$(cat "$GATE_GROUP_DIR"/*.body); fi
@@ -265,6 +265,7 @@ if [ "$MODE" = full ] && [ "${GATE_SHEETS:-1}" = 1 ] && [ "${GATE_PREBUILD:-0}" 
   [ "$shrc" = 1 ] && { echo "render-gate: BLOCKED, Sheets books worse than the base (above)"; exit 1; }
 fi
 echo "render-gate: BASE-CACHE word=$([ -n "$BSD" ] && echo cache || echo own) slides=$(if grep -qs "base render from the cache" "$W/slides.out"; then echo cache; elif [ -s "$W/slides-base.out" ]; then echo own; else echo none; fi)"
+echo "render-gate: total $(( $(date +%s)-GS0 )) s before the blame step"
 echo "render-gate: $NCMP sets compared; clean ($(wc -l < "$W/down.txt") approved drops)"
 [ "$MODE" = full ] && [ "${GATE_BLAME:-1}" = 1 ] && { W=$W LQ=$LQ BC=$BC BASE_SHA=$BSHA EO=$EO JOBS=$JOBS timeout 1500 test/tools/render-gate-blame.sh 2>&1 | tail -5 | cut -c1-250 || true; }
 exit 0
