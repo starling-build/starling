@@ -104,6 +104,10 @@ void fluikit_host_set_open_url_handler(FlUIKitOpenURLCallback handler, void* use
 typedef void (*FlUIKitSceneCallback)(void* user, int64_t view_id);
 void fluikit_host_set_scene_handlers(FlUIKitSceneCallback connected, FlUIKitSceneCallback disconnected, void* user);
 
+// Told (on the main thread) after any extra view has been removed from the engine. The framework disposes a
+// removed view's pipeline inside a frame, and an idle app has no frame coming: this is the moment to ask for one.
+void fluikit_host_set_view_gone_handler(FlUIKitSceneCallback gone, void* user);
+
 // Asks the system for a new window. `file_url` (a file: URL string, or NULL) is handed to the new window through
 // the open-URL handler once it is up. Main thread or not.
 void fluikit_scene_request_new(const char* file_url);

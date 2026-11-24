@@ -531,12 +531,23 @@ void fluikit_view_raise(int64_t view_id) {
   });
 }
 
+static FlUIKitSceneCallback g_view_gone;
+static void* g_view_gone_user;
+
+void fluikit_host_set_view_gone_handler(FlUIKitSceneCallback gone, void* user) {
+  g_view_gone = gone;
+  g_view_gone_user = user;
+}
+
 void fluikit_view_remove(int64_t view_id, FlUIKitViewDone done, void* user) {
   dispatch_async(dispatch_get_main_queue(), ^{
     FlUIKitAppDelegate* delegate = (FlUIKitAppDelegate*)UIApplication.sharedApplication.delegate;
     FlUIKitExtraView* host = g_extra_views[@(view_id)];
     [delegate.engine starlingRemoveViewWithId:view_id done:^(BOOL removed) {
       if (done) done(view_id, removed, user);
+      dispatch_async(dispatch_get_main_queue(), ^{
+        if (g_view_gone != NULL) g_view_gone(g_view_gone_user, view_id);
+      });
     }];
     [host removeFromSuperview];
     [g_extra_views removeObjectForKey:@(view_id)];

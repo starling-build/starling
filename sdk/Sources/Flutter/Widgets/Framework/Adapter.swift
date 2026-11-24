@@ -175,6 +175,15 @@ public func runView(id: Int, _ build: @escaping () -> Widget) {
     FocusManager.instance.windowViewIds.insert(id)
 }
 
+/// The engine has removed view `id`: let go of what `runView` was given for it. A view that rendered has a
+/// pipeline too, which the next frame disposes (so one is asked for: an idle app has none coming); one that
+/// never rendered has only this builder, which holds whatever its tree captured.
+public func releaseView(id: Int) {
+    viewContentBuilders[id] = nil
+    FocusManager.instance.windowRemoved(id)
+    PlatformDispatcher.instance.scheduleFrame()
+}
+
 /// Called once per non-implicit view, right after its FIRST scene is
 /// composited — the moment a host that kept the view's window hidden can
 /// show it without exposing an unpainted surface (the Win32 popup surfaces

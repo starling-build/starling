@@ -84,6 +84,10 @@ public enum TextInputChannel {
         return m
     }
 
+    static func trace(_ s: String) {
+        if FocusManager.traceFocus { fputs("[focus] " + s + "\n", stderr) }
+    }
+
     /// Take the channel's listener.
     public static func listen(owner: AnyObject, client: Int = -1, _ handler: @escaping (Data?) -> Void) {
         _owner = ObjectIdentifier(owner)

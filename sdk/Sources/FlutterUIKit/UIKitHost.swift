@@ -63,6 +63,8 @@ public final class UIKitHost {
             // Before the tree is mounted: a widget's initState may already want
             // to know whether this host has a keyboard to offer.
             UIKitSoftKeyboard.install()
+            // A removed view's builder and pipeline are let go of (the pipeline in the next frame).
+            fluikit_host_set_view_gone_handler({ _, id in releaseView(id: Int(id)) }, nil)
             let box = Unmanaged<Box>.fromOpaque(userData).takeUnretainedValue()
             // The second-surface spike (docs/plans/ipad-multi-window.md, step 1): with
             // STARLING_SPIKE_SECOND_VIEW set, the host adds a second view in a corner of

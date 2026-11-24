@@ -138,6 +138,7 @@ public class FocusManager {
         let target = scope(ofView: viewId)
         guard target != keyScope else { return }
         let old = _focusedByScope[keyScope]
+        TextInputChannel.trace("view \(viewId) touched: keys go to scope \(target)")
         keyScope = target
         old?.onFocusChange?(false)
         SoftKeyboard.focusMoved()
@@ -227,9 +228,19 @@ extension State {
     /// whenever. Call from `initState` for each node the state owns (or is handed).
     public func bind(_ node: FocusNode) {
         node._viewProvider = { [weak self] in
-            guard var object = self?.context?.findRenderObject() else { return nil }
-            while let up = object.parent { object = up }
-            return (object as? RenderView).map { Int($0.flutterView.viewId) }
+            guard let context = self?.context else { return nil }
+            if var object = context.findRenderObject() {
+                while let up = object.parent { object = up }
+                return (object as? RenderView).map { Int($0.flutterView.viewId) }
+            }
+            // Not attached to the render tree yet (initState of a subtree a rebuild is mounting, as a document
+            // finishes loading): the element chain already leads up to the view's root, whose adapter holds it.
+            var element = context as? Element
+            while let e = element {
+                if let adapter = e.widget as? RenderObjectToWidgetAdapter { return Int(adapter.container.flutterView.viewId) }
+                element = e._parent
+            }
+            return nil
         }
     }
 }
