@@ -169,6 +169,8 @@ struct ReadShape: Equatable {
     var kind: ShapeKind
     var frame: Rect
     var rotation: Double
+    var flipH: Bool
+    var flipV: Bool
     var fill: Color?
     var fillScheme: String?
     var outline: Color?
@@ -180,7 +182,7 @@ struct ReadShape: Equatable {
     var field: SlideField?
 
     init(_ s: ShapeState) {
-        name = s.name; kind = s.kind; frame = s.frame; rotation = s.rotation
+        name = s.name; kind = s.kind; frame = s.frame; rotation = s.rotation; flipH = s.flipH; flipV = s.flipV
         fill = s.fill; fillScheme = s.fillScheme; outline = s.outline; outlineWidth = s.outlineWidth
         anchor = s.anchor; insets = s.insets; autofit = s.autofit; fontScale = s.fontScale; field = s.field
     }
@@ -199,7 +201,7 @@ struct ReadShape: Equatable {
     func unchangedExceptPlacementAndText(_ s: ShapeState) -> Bool {
         var a = self
         let b = ReadShape(s)
-        a.frame = b.frame; a.rotation = b.rotation
+        a.frame = b.frame; a.rotation = b.rotation; a.flipH = b.flipH; a.flipV = b.flipV
         return a == b
     }
 }

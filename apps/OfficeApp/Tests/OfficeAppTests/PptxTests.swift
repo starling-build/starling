@@ -250,6 +250,25 @@ final class TableTests: XCTestCase {
         XCTAssertEqual(again.slides[si].shapes.count, state.slides[si].shapes.count)
     }
 
+    /// Flipping a kept shape is saved, and nothing else about it changes.
+    func testFlippingAShapePatchesItsFlipAndKeepsWhatTheModelDoesNotHold() throws {
+        var (state, theme, pkg) = try deckWithAnnotatedShape()
+        let si = try XCTUnwrap(state.slides.firstIndex { $0.shapes.contains { $0.name == "Rounded" } })
+        let i = try XCTUnwrap(state.slides[si].shapes.firstIndex { $0.name == "Rounded" })
+        state.slides[si].shapes[i].flipH = true
+        state.slides[si].shapes[i].flipV = true
+        let written = try writtenAnnotatedShape(state, theme, pkg)
+        for kept in annotatedKept { XCTAssertTrue(written.contains(kept), "kept after a flip: \(kept)") }
+        let (again, _, _) = try Pptx.read(try PptxWriter.write(state, theme: theme, package: pkg))
+        var back = try XCTUnwrap(again.slides.flatMap { $0.shapes }.first { $0.name == "Rounded" })
+        XCTAssertTrue(back.flipH && back.flipV)
+        back.flipH = false
+        state.slides[si].shapes[i].flipH = false; state.slides[si].shapes[i].flipV = false
+        let (clear, _, _) = try Pptx.read(try PptxWriter.write(state, theme: theme, package: pkg))
+        let c = try XCTUnwrap(clear.slides.flatMap { $0.shapes }.first { $0.name == "Rounded" })
+        XCTAssertFalse(c.flipH || c.flipV, "an unflipped shape has no flip left")
+    }
+
     /// S-P0-1b: typing in the shape changes its text and nothing else.
     func testTypingInAShapeKeepsWhatTheModelDoesNotHold() throws {
         var (state, theme, pkg) = try deckWithAnnotatedShape()

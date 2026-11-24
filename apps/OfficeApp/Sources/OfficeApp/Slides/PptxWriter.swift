@@ -857,18 +857,22 @@ private struct SlideXML {
             // run effects, tab stops) comes back untouched.
             if let xml = s.sourceXML, let read = s.readShape, read.unchangedExceptPlacement(s),
                let p = source, let part = s.sourcePart {
-                let moved = read.frame != s.frame || read.rotation != s.rotation
+                let flipped = read.flipH != s.flipH || read.flipV != s.flipV
+                let moved = read.frame != s.frame || read.rotation != s.rotation || flipped
                 return kept(xml, sourcePart: part, package: p, builder: &builder, patch: s.frame, fileId: s.fileId,
-                            rotation: moved ? s.rotation : nil, placeIfMissing: moved)
+                            rotation: moved ? s.rotation : nil, placeIfMissing: moved,
+                            flips: flipped ? (s.flipH, s.flipV) : nil)
             }
             // Typed in since it was read, nothing else changed (bar its place): the shape as it was,
             // the typed text patched into its own runs (S-P0-1b).
             if let xml = s.sourceXML, let read = s.readShape, read.unchangedExceptPlacementAndText(s), s.field == nil,
                let old = s.sourceText, let new = s.text, let patched = PptxTextPatch.apply(xml, old: old, new: new),
                let p = source, let part = s.sourcePart {
-                let moved = read.frame != s.frame || read.rotation != s.rotation
+                let flipped = read.flipH != s.flipH || read.flipV != s.flipV
+                let moved = read.frame != s.frame || read.rotation != s.rotation || flipped
                 return kept(patched, sourcePart: part, package: p, builder: &builder, patch: s.frame, fileId: s.fileId,
-                            rotation: moved ? s.rotation : nil, placeIfMissing: moved)
+                            rotation: moved ? s.rotation : nil, placeIfMissing: moved,
+                            flips: flipped ? (s.flipH, s.flipV) : nil)
             }
             let id = _id(s.fileId)
             var nv = "<p:cNvPr id=\"\(id)\" name=\"\(name)\"/>"
@@ -1054,7 +1058,7 @@ private struct SlideXML {
     /// everything those parts reach.
     mutating func kept(_ xml: String, sourcePart: String, package p: PptxPackage,
                        builder b: inout PackageBuilder, patch frame: Rect?, fileId: Int? = nil,
-                       rotation: Double? = nil, placeIfMissing: Bool = false,
+                       rotation: Double? = nil, placeIfMissing: Bool = false, flips: (h: Bool, v: Bool)? = nil,
                        edit: ((XNode) -> Void)? = nil) -> String {
         guard let node = XNode.parse(Data(xml.utf8)) else { return "" }
         edit?(node)
@@ -1064,11 +1068,13 @@ private struct SlideXML {
                 if let off = x.first("a:off") { off.attrs["x"] = "\(Self._emu(frame.left))"; off.attrs["y"] = "\(Self._emu(frame.top))" }
                 if let ext = x.first("a:ext") { ext.attrs["cx"] = "\(Self._emu(frame.width))"; ext.attrs["cy"] = "\(Self._emu(frame.height))" }
                 if let rotation { if rotation == 0 { x.attrs["rot"] = nil } else { x.attrs["rot"] = "\(Int((rotation * 60000).rounded()))" } }
+                if let flips { x.attrs["flipH"] = flips.h ? "1" : nil; x.attrs["flipV"] = flips.v ? "1" : nil }
             } else if placeIfMissing, let spPr = node.first("p:spPr") {
                 // A placeholder that took its place from the layout, now
                 // moved: it gets a frame of its own.
                 let x = XNode(name: "a:xfrm", attrs: [:])
                 if let rotation, rotation != 0 { x.attrs["rot"] = "\(Int((rotation * 60000).rounded()))" }
+                if let flips { if flips.h { x.attrs["flipH"] = "1" }; if flips.v { x.attrs["flipV"] = "1" } }
                 x.children = [XNode(name: "a:off", attrs: ["x": "\(Self._emu(frame.left))", "y": "\(Self._emu(frame.top))"]),
                               XNode(name: "a:ext", attrs: ["cx": "\(Self._emu(max(0, frame.width)))", "cy": "\(Self._emu(max(0, frame.height)))"])]
                 spPr.children.insert(x, at: 0)
