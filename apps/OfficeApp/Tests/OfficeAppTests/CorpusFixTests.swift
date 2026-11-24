@@ -314,4 +314,39 @@ final class CorpusFixTests: XCTestCase {
         XCTAssertEqual(doc.paragraphs[0].style.spaceBefore, 0)
         XCTAssertEqual(doc.paragraphs[1].style.spaceBefore, 24)
     }
+
+    /// A top-and-bottom shape in a footer set far DOWN from its paragraph (off the page) leaves the body its bottom margin; one set up from
+    /// the paragraph ends the body at its reach (pt-6c544802ed: page 1 lost 140 pt of body to a picture 740 pt below its paragraph).
+    func testAFooterShapeSetDownOffThePageLeavesTheBodyItsMargin() throws {
+        RichTextTheme.wordWindowsPages = true
+        defer { RichTextTheme.wordWindowsPages = false }
+        func bodyBottom(offsetEMU: Int) throws -> Double {
+            var doc = RichDocument(paragraphs: [RichParagraph(text: "a")])
+            doc.footer = "x"
+            var entries = try Zip.read(try DocxFormat.write(doc, pageSetup: .letter))
+            let fi = entries.firstIndex { $0.name == "word/footer1.xml" }!
+            var fxml = String(decoding: entries[fi].data, as: UTF8.self)
+            let inner = try XCTUnwrap(fxml.range(of: "<w:p>")).lowerBound ..< (try XCTUnwrap(fxml.range(of: "</w:p>"))).upperBound
+            let anchor = "<wp:anchor distT=\"0\" distB=\"0\" distL=\"0\" distR=\"0\" simplePos=\"0\" relativeHeight=\"1\" behindDoc=\"0\" locked=\"0\" layoutInCell=\"1\" allowOverlap=\"1\">"
+                + "<wp:simplePos x=\"0\" y=\"0\"/><wp:positionH relativeFrom=\"column\"><wp:posOffset>0</wp:posOffset></wp:positionH>"
+                + "<wp:positionV relativeFrom=\"paragraph\"><wp:posOffset>\(offsetEMU)</wp:posOffset></wp:positionV><wp:extent cx=\"1724025\" cy=\"1724025\"/>"
+                + "<wp:wrapTopAndBottom/><wp:docPr id=\"1\" name=\"s\"/><a:graphic xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\">"
+                + "<a:graphicData uri=\"http://schemas.microsoft.com/office/word/2010/wordprocessingShape\"><wps:wsp xmlns:wps=\"http://schemas.microsoft.com/office/word/2010/wordprocessingShape\">"
+                + "<wps:cNvSpPr/><wps:spPr><a:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"1724025\" cy=\"1724025\"/></a:xfrm><a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom></wps:spPr>"
+                + "<wps:bodyPr/></wps:wsp></a:graphicData></a:graphic></wp:anchor>"
+            fxml.replaceSubrange(inner, with: "<w:p><w:pPr><w:pStyle w:val=\"Footer\"/></w:pPr><w:r><w:drawing>\(anchor)</w:drawing></w:r></w:p>")
+            entries[fi] = ZipEntry(name: "word/footer1.xml", data: Data(fxml.utf8))
+            let back = try DocxFormat.read(try Zip.write(entries)).document
+            let theme = RichTextTheme(fontFamily: OfficeFonts.serif)
+            theme.wordRules = true
+            let layout = RichLayout(theme: theme, paragraphCount: back.paragraphs.count)
+            layout.pageSetup = .letter
+            layout.width = PageSetup.letter.columnWidth * theme.pixelsPerPoint
+            layout.ensureLaidOut(back)
+            return layout.bodyBandPoints(page: 0, back).bottom
+        }
+        let margin = PageSetup.letter.height - PageSetup.letter.marginBottom
+        XCTAssertEqual(try bodyBottom(offsetEMU: 9401175), margin, accuracy: 0.5, "set down off the page: the margin stands")
+        XCTAssertLessThan(try bodyBottom(offsetEMU: -1200000), margin - 20, "set up from its paragraph: the body ends at its reach")
+    }
 }
