@@ -162,7 +162,7 @@ def extract(path, pages):
                     skipped += 1
                     continue
                 for s in l["spans"]:
-                    cs = [(c["c"], c["origin"][0], c["bbox"][2]) for c in s.get("chars", []) if c["c"].strip()]
+                    cs = [(c["c"], c["origin"][0], c["bbox"][2]) for c in s.get("chars", []) if c["c"].strip() and unicodedata.category(c["c"][0]) != "Cf"]
                     if cs:
                         spans.append((s["origin"][1], cs))
         spans.sort(key=lambda t: t[0])
