@@ -184,4 +184,18 @@ extension SheetsPrintTests {
         XCTAssertTrue(lines.contains("A2\tleft\tshort"), dump)
         XCTAssertFalse(dump.contains("w="))
     }
+
+    /// Excel's set rows in a scaled print: a 新細明體 12 or 돋움 11 book (faces the print box lacks) prints each
+    /// point of a set row as 8 printer dots (돋움 11: 0.96 of the nominal 8.33; 新細明體 12: 0.9655), at every
+    /// scale from 50 to 100 (lab rows, 50.1 pt = 403 dots at 100 %, 234 at 58 %; 73.5 pt = 588). Malgun Gothic 11, installed,
+    /// keeps its fitted row ratio.
+    func testSetRowsOfMissingCjkFacesPrintAtEightDotsAPoint() {
+        XCTAssertEqual(SheetPrintMetrics.of(family: "돋움", size: 11).setRowScale, 0.96, accuracy: 1e-9)
+        XCTAssertEqual(SheetPrintMetrics.of(family: "新細明體", size: 12).setRowScale, 0.9655, accuracy: 1e-9)
+        let malgun = SheetPrintMetrics.of(family: "맑은 고딕", size: 11)
+        XCTAssertEqual(malgun.setRowScale, malgun.rowScale, accuracy: 1e-9)
+        XCTAssertGreaterThan(malgun.setRowScale, 0.98)
+        // 73.5 pt prints 588 dots: 70.56 pt.
+        XCTAssertEqual(SheetPrintMetrics.setRow(73.5, scale: 0.96), 70.56, accuracy: 0.001)
+    }
 }
