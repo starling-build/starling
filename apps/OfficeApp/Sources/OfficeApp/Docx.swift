@@ -2024,6 +2024,16 @@ enum DocxFormat {
                     style.pageOffsetY = fy / 20
                     style.floatX = fx / 20
                     style.floatXAnchor = "page"
+                } else if case let frames = unwrapped(node, "w:tr").flatMap({ unwrapped($0, "w:tc") }).flatMap({ unwrapped($0, "w:p") })
+                            .map({ $0.first("w:pPr")?.first("w:framePr") }),
+                          !frames.isEmpty, let frame = frames[0], frame["w:vAnchor"] == "page", frame["w:hAnchor"] == "margin",
+                          frame["w:wrap"] == "around", frame["w:yAlign"] == nil, frame["w:xAlign"] == nil,
+                          let fx = Double(frame["w:x"] ?? ""), fx == 0, let fy = Double(frame["w:y"] ?? ""), fy > 0,
+                          Set(frames.map { $0.map { PptxXML.serialize($0) } ?? "" }).count == 1 {
+                    // (A table a binary file positions through the frame of every cell paragraph, on the margin and the
+                    // page: ko-2bf58b1e10's stands 90.05 pt (y 1801) from the page's top in Word's print, ours under its title at 85.2.)
+                    style.pageAnchored = true
+                    style.pageOffsetY = fy / 20
                 }
                 // A spacing of ZERO is still a statement: Word then rules each
                 // cell on its own rather than collapsing shared edges, and
