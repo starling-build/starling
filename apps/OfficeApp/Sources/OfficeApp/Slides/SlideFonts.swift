@@ -330,6 +330,19 @@ enum SlideFonts {
         case "traditional arabic", "sakkal majalla", "majalla ui", "simplified arabic", "arabic typesetting":
             if let face = OfficeFonts.slidesArabicFace(family) { return face }
             return RichResolvedFace(family: resolve(family))
+        case "th sarabunpsk":
+            // (TH SarabunPSK, a face PowerPoint's machine has and ours lacks: its Thai and Latin advances from the Word prints of the same face
+            // (OfficeFonts.thSarabunPSKThai), where the Noto Sans Thai stand-in is a third wider and wrapped every line early; th-cb034815ae.)
+            var face = RichResolvedFace(family: resolve(family))
+            var regular = OfficeFonts.cordiaNewAdvances, bold = OfficeFonts.cordiaNewBoldAdvances
+            for (cp, w) in OfficeFonts.thSarabunPSKLatin where cp >= 0x20 && cp < 0x100 && Int(cp) - 0x20 < regular.count { regular[Int(cp) - 0x20] = w }
+            for (cp, w) in OfficeFonts.thSarabunPSKBoldLatin where cp >= 0x20 && cp < 0x100 && Int(cp) - 0x20 < bold.count { bold[Int(cp) - 0x20] = w }
+            face.advances = regular
+            face.boldAdvances = bold
+            face.otherAdvances = OfficeFonts.thSarabunPSKThai
+            face.boldOtherAdvances = OfficeFonts.thSarabunPSKBoldThai
+            face.classScales = [1, 1, 1, 1, 0.82]
+            return face
         case "lucida sans unicode":
             var face = RichResolvedFace(family: resolve(family))
             face.advances = OfficeFonts.lucidaSansUnicodeAdvances
