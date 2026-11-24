@@ -1204,6 +1204,8 @@ extension DocxFormat {
                 att.data = data
                 att.name = target.lastPathComponent
                 att.crop = Self._pictureCrop(drawing)
+                att.altText = drawing.descendant("wp:docPr")?["descr"] ?? ""
+                att.sourceAltText = att.altText
                 if Metafile.isMetafile(data) { WriterMetafiles.register(data, for: att.id) }
                 // (Turned, a photo taken sideways: a quarter turn makes
                 // its box as tall as it was wide — zh-37b6536f.)
@@ -1230,6 +1232,8 @@ extension DocxFormat {
             var att = ImageAttachment(data: data, width: w, height: h, name: target.lastPathComponent)
             if inlineTurn != 0 { att.rotation = inlineTurn }
             att.crop = Self._pictureCrop(drawing)
+            att.altText = drawing.descendant("wp:docPr")?["descr"] ?? ""
+            att.sourceAltText = att.altText
             att.inset = Self._canvasInset(drawing)
             if let effect = drawing.descendant("wp:effectExtent") {
                 att.effectLeft = max(0, (Double(effect["l"] ?? "") ?? 0) / 12700)

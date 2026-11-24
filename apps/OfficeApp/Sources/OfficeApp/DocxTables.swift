@@ -363,6 +363,23 @@ extension DocxFormat {
         return (PptxXML.serialize(node), found)
     }
 
+    /// `xml` with the `descr` (alternative text) of its first `wp:docPr` set to `text`, the rest as it was.
+    static func _drawingWithAltText(_ xml: String, _ text: String) -> String {
+        guard let open = xml.rangeOfSubstring("<wp:docPr", in: xml.startIndex ..< xml.endIndex),
+              let close = xml.rangeOfSubstring(">", in: open.upperBound ..< xml.endIndex) else { return xml }
+        var tag = String(xml[open.lowerBound ..< close.lowerBound])
+        let selfClosing = tag.hasSuffix("/")
+        if selfClosing { tag.removeLast() }
+        // Drop an existing descr="…" attribute.
+        if let d = tag.rangeOfSubstring(" descr=\"", in: tag.startIndex ..< tag.endIndex),
+           let e = tag.rangeOfSubstring("\"", in: d.upperBound ..< tag.endIndex) {
+            tag.removeSubrange(d.lowerBound ..< e.upperBound)
+        }
+        if !text.isEmpty { tag += " descr=\"\(_esc(text))\"" }
+        if selfClosing { tag += "/" }
+        return String(xml[xml.startIndex ..< open.lowerBound]) + tag + String(xml[close.lowerBound...])
+    }
+
     /// A kept drawing's markup with its size changed in place: the first `wp:extent` and the first `a:ext`
     /// after it (the drawing's own frame, not a group child's) take the new size, so a resize keeps the
     /// float's position, wrap, crop, turn, alt text and effects. Returns nil where the markup names no
@@ -1203,6 +1220,11 @@ extension DocxFormat {
             }
             /// A picture or kept object as a run's content.
             func drawingXML(_ image: ImageAttachment) -> String {
+                var image = image
+                if image.altText != image.sourceAltText, let xml = image.sourceXML, image.name != "m:oMath", image.name != "m:oMathPara" {
+                    image.sourceXML = Self._drawingWithAltText(xml, image.altText)
+                    image.sourceAltText = image.altText
+                }
                 let unresized = image.sourceWidth == nil || (image.sourceWidth == image.width && image.sourceHeight == image.height)
                 // (An equation stands in the paragraph itself, not in a run.)
                 if let xml = image.sourceXML, image.name == "m:oMath" || image.name == "m:oMathPara" {
@@ -1234,7 +1256,7 @@ extension DocxFormat {
                 let rid = "rIdImage\(n)"
                 mediaRels.append((rid, "media/\(name)"))
                 let cx = Int(image.width * 12700), cy = Int(image.height * 12700)
-                return "<w:r><w:drawing><wp:inline distT=\"0\" distB=\"0\" distL=\"0\" distR=\"0\"><wp:extent cx=\"\(cx)\" cy=\"\(cy)\"/><wp:docPr id=\"\(n)\" name=\"Picture \(n)\"/><a:graphic xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\"><a:graphicData uri=\"http://schemas.openxmlformats.org/drawingml/2006/picture\"><pic:pic xmlns:pic=\"http://schemas.openxmlformats.org/drawingml/2006/picture\"><pic:nvPicPr><pic:cNvPr id=\"0\" name=\"\(name)\"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed=\"\(rid)\"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"\(cx)\" cy=\"\(cy)\"/></a:xfrm><a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>"
+                return "<w:r><w:drawing><wp:inline distT=\"0\" distB=\"0\" distL=\"0\" distR=\"0\"><wp:extent cx=\"\(cx)\" cy=\"\(cy)\"/><wp:docPr id=\"\(n)\" name=\"Picture \(n)\"\(image.altText.isEmpty ? "" : " descr=\"\(Self._esc(image.altText))\"")/><a:graphic xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\"><a:graphicData uri=\"http://schemas.openxmlformats.org/drawingml/2006/picture\"><pic:pic xmlns:pic=\"http://schemas.openxmlformats.org/drawingml/2006/picture\"><pic:nvPicPr><pic:cNvPr id=\"0\" name=\"\(name)\"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed=\"\(rid)\"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"\(cx)\" cy=\"\(cy)\"/></a:xfrm><a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>"
             }
             if let image = p.image {
                 body += drawingXML(image) + "</w:p>"
