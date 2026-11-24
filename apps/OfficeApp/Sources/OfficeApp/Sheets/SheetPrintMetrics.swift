@@ -39,6 +39,8 @@ struct SheetPrintMetrics {
     var setRowScale: Double
     /// The face's set rows stand on their own screen row (see `setRowScale`).
     var setOwn: Bool = false
+    /// ...and does so at 100 % too (the 8-dots-a-point grid faces: 돋움 11's 45 pt rows print 43.2 pt in ko-5907e2d9ba, a 100 % print).
+    var setOwnAt100: Bool = false
     /// The digit on that Excel's screen, in its pixels.
     var screenDigit: Double
     /// A row nobody sized, on that Excel's screen, in its pixels.
@@ -380,7 +382,7 @@ struct SheetPrintMetrics {
         let pad = 2 * (screenDigit / 4).rounded(.up) + 1
         let px = ((baseColWidth * screenDigit + pad) / 8).rounded(.up) * 8
         return SheetPrintMetrics(digit: digit * 72 / 600, defaultChars: px / screenDigit,
-                                 defaultRow: row * 72 / 600, rowScale: (row / 600) / (screenRow / 192), setRowScale: f.gridSet.contains(size) ? 8.0 * 72 / 600 : (row / 600) / ((f.setScreenRow[size] ?? screenRow) / 192), setOwn: f.gridSet.contains(size) || f.setScreenRow[size] != nil, screenDigit: screenDigit,
+                                 defaultRow: row * 72 / 600, rowScale: (row / 600) / (screenRow / 192), setRowScale: f.gridSet.contains(size) ? 8.0 * 72 / 600 : (row / 600) / ((f.setScreenRow[size] ?? screenRow) / 192), setOwn: f.gridSet.contains(size) || f.setScreenRow[size] != nil, setOwnAt100: f.gridSet.contains(size), screenDigit: screenDigit,
                                  screenRow: screenRow)
     }
 }

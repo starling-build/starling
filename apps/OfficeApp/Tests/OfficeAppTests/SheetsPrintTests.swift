@@ -221,4 +221,15 @@ extension SheetsPrintTests {
         XCTAssertEqual(dots(73.5, 100, dotum), 588)
         XCTAssertEqual(dots(73.5, 58, dotum), 341)
     }
+
+    /// ko-5907e2d9ba, a 100 % print of a 돋움 11 book: Excel prints its 45 pt set rows 43.2 pt (360 dots, 8 a point), not at the fitted row's .987.
+    func testDotum11SetRowsStandOnTheirOwnGridAt100() {
+        let dotum = SheetPrintMetrics.of(family: "돋움", size: 11)
+        XCTAssertTrue(dotum.setOwnAt100)
+        let h = SheetPrintMetrics.setRowOwn(45, scale: dotum.setRowScale, printPct: 100)
+        XCTAssertEqual(h, 43.2, accuracy: 0.001)
+        // 新細明體 12's set rows follow the fitted row at 100 % (its own grid only below)
+        XCTAssertFalse(SheetPrintMetrics.of(family: "新細明體", size: 12).setOwnAt100)
+        XCTAssertFalse(SheetPrintMetrics.of(family: "Calibri", size: 11).setOwnAt100)
+    }
 }
