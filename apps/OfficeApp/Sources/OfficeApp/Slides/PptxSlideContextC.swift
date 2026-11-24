@@ -959,14 +959,31 @@ extension SlideContext {
               let tree = notes.first("p:cSld")?.first("p:spTree") else { return RichDocument() }
         for sp in tree.all("p:sp") where _ph(sp)?["type"] == "body" {
             let paras: [RichParagraph] = (sp.first("p:txBody")?.all("a:p") ?? []).map { p in
-                let text = p.children.compactMap { c -> String? in
+                // Each run keeps the look it states itself (bold, italic, underline, strike, size, face, colour); the notes master supplies the rest.
+                var text = "", runs: [Run] = []
+                for c in p.children {
+                    var piece: String
                     switch c.name {
-                    case "a:r", "a:fld": return c.first("a:t")?.text
-                    case "a:br": return "\n"
-                    default: return nil
+                    case "a:r", "a:fld": piece = c.first("a:t")?.text ?? ""
+                    case "a:br": piece = "\n"
+                    default: continue
                     }
-                }.joined()
-                return RichParagraph(text: text, style: RichParagraphStyle(spaceAfter: 0, lineSpacing: 1.0))
+                    if piece.isEmpty { continue }
+                    var st = CharStyle.plain
+                    if let r = c.first("a:rPr") {
+                        st.bold = r["b"] == "1"
+                        st.italic = r["i"] == "1"
+                        st.underline = r["u"].map { $0 != "none" } ?? false
+                        st.strikethrough = r["strike"].map { $0 != "noStrike" } ?? false
+                        st.fontSize = r["sz"].flatMap(Double.init).map { $0 / 100 }
+                        if let f = r.first("a:latin")?["typeface"], !f.hasPrefix("+") { st.fontFamily = f }
+                        if let fill = r.first("a:solidFill") { st.color = colors.color(in: fill) }
+                    }
+                    text += piece
+                    if let last = runs.last, last.style == st { runs[runs.count - 1].length += piece.utf16.count }
+                    else { runs.append(Run(length: piece.utf16.count, style: st)) }
+                }
+                return RichParagraph(text: text, runs: runs.isEmpty ? [Run(length: 0)] : runs, style: RichParagraphStyle(spaceAfter: 0, lineSpacing: 1.0))
             }
             return RichDocument(paragraphs: paras.isEmpty ? [RichParagraph()] : paras)
         }

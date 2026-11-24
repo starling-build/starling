@@ -192,6 +192,24 @@ enum PptxWriter {
             Rel(id: $0.id, type: $0.type, target: $0.external ? $0.target : Pptx.relative($0.target, from: pres),
                 external: $0.external)
         } + extraPresRels
+        // A slide read from the file keeps its slide id (sections and custom shows name slides by id); new ones take ids above every old one.
+        var oldIdByPart: [String: Int] = [:]
+        var maxId = 255
+        for e in p.xml(pres)?.descendant("p:sldIdLst")?.all("p:sldId") ?? [] {
+            guard let id = Int(e["id"] ?? "") else { continue }
+            maxId = max(maxId, id)
+            if let rid = e["r:id"], let r = presRelsAll.first(where: { $0.id == rid && $0.kind == "slide" }) { oldIdByPart[r.target] = id }
+        }
+        var slideIds: [Int] = []
+        var usedIds = Set<Int>()
+        for slide in state.slides {
+            if let part = slide.sourcePart, let id = oldIdByPart[part], !usedIds.contains(id) {
+                slideIds.append(id); usedIds.insert(id)
+            } else {
+                maxId += 1
+                slideIds.append(maxId); usedIds.insert(maxId)
+            }
+        }
         var ids = ""
         var media = MediaParts()
         for (i, slide) in state.slides.enumerated() {
@@ -200,7 +218,7 @@ enum PptxWriter {
             _slide(slide, number: i + 1, part: part, layoutPart: layout, notesMaster: notesMaster,
                    source: p, media: &media, into: &b)
             presRels.append(Rel(id: "rIdS\(i + 1)", type: RT.slide, target: Pptx.relative(part, from: pres)))
-            ids += "<p:sldId id=\"\(256 + i)\" r:id=\"rIdS\(i + 1)\"/>"
+            ids += "<p:sldId id=\"\(slideIds[i])\" r:id=\"rIdS\(i + 1)\"/>"
         }
         b.rels(pres, presRels)
         presOut = _replaceElement("p:sldIdLst", in: presOut, with: "<p:sldIdLst>\(ids)</p:sldIdLst>",
@@ -208,6 +226,7 @@ enum PptxWriter {
         // Custom shows (`p:custShowLst`) list slides by the same relationship
         // ids this just renumbered: each `<p:sld r:id>` follows its slide,
         // or goes when the slide did; an emptied show goes with it.
+        presOut = _remapSections(presOut, kept: slideIds, oldIds: Set(oldIdByPart.values), oldOrder: p.xml(pres)?.descendant("p:sldIdLst")?.all("p:sldId").compactMap { Int($0["id"] ?? "") } ?? [])
         if presOut.containsSubstring("<p:custShowLst") {
             var newId: [String: String] = [:]
             for r in presRelsAll where r.kind == "slide" {
@@ -292,6 +311,14 @@ enum PptxWriter {
                 rels.append(Rel(id: d.id, type: d.type, target: Pptx.relative(d.target, from: part)))
             }
         }
+        // Comments (legacy or modern) hang off the slide by a relationship nothing in its XML names: carry each part, with its own rels, under the same id.
+        if let src = slide.sourcePart, let p = source {
+            for (n, c) in p.rels(src).filter({ $0.kind == "comments" && !$0.external && p.parts[$0.target] != nil }).enumerated() {
+                var done = Set<String>()
+                PptxWriterCopy.copy(c.target, from: p, into: &b, done: &done)
+                rels.append(Rel(id: "rIdCmt\(n + 1)", type: c.type, target: Pptx.relative(c.target, from: part)))
+            }
+        }
         let hidden = (slide.hidden ? " show=\"0\"" : "") + (slide.hideMasterShapes ? " showMasterSp=\"0\"" : "")
         // Kept XML may lean on prefixes the source slide declared at its
         // root (a14, p14, mc…): the same declarations go on ours.
@@ -348,7 +375,7 @@ enum PptxWriter {
         // Notes, when there are any and a notes master to hang them on.
         if let notesMaster, !slide.notes.paragraphs.allSatisfy({ $0.text.isEmpty }) {
             let notesPart = "ppt/notesSlides/notesSlide\(number).xml"
-            b.add(notesPart, PptxTemplates.notesSlide(PptxText.paragraphsPlain(slide.notes)), type: CT.notesSlide)
+            b.add(notesPart, PptxTemplates.notesSlide(PptxText.notesParagraphs(slide.notes)), type: CT.notesSlide)
             b.rels(notesPart, [
                 Rel(id: "rId1", type: RT.notesMaster, target: Pptx.relative(notesMaster, from: notesPart)),
                 Rel(id: "rId2", type: RT.slide, target: Pptx.relative(part, from: notesPart)),
@@ -430,6 +457,55 @@ enum PptxWriter {
         font("majorFont", theme.headingFont)
         font("minorFont", theme.bodyFont)
         return out
+    }
+
+    /// The deck's sections (`p14:sectionLst`) after slides were added, deleted or moved: each section starts at its first slide that is still there, and a new slide joins the section of the slide before it. A section whose slides all went stays, empty.
+    static func _remapSections(_ pres: String, kept newOrder: [Int], oldIds: Set<Int>, oldOrder: [Int]) -> String {
+        guard let open = pres.findRange(of: "<p14:sectionLst"),
+              let close = pres.findRange(of: "</p14:sectionLst>", in: open.upperBound ..< pres.endIndex) else { return pres }
+        let block = String(pres[open.lowerBound ..< close.upperBound])
+        // The sections as they were: (opening tag, ids).
+        var sections: [(tag: String, ids: [Int])] = []
+        var cursor = block.startIndex
+        while let s = block.findRange(of: "<p14:section ", in: cursor ..< block.endIndex),
+              let tagEnd = block.findRange(of: ">", in: s.upperBound ..< block.endIndex) {
+            let end = block.findRange(of: "</p14:section>", in: tagEnd.upperBound ..< block.endIndex)?.lowerBound ?? block.endIndex
+            let inner = String(block[tagEnd.upperBound ..< end])
+            var ids: [Int] = []
+            var c = inner.startIndex
+            while let d = inner.findRange(of: "<p14:sldId id=\"", in: c ..< inner.endIndex),
+                  let q = inner.findRange(of: "\"", in: d.upperBound ..< inner.endIndex) {
+                if let n = Int(String(inner[d.upperBound ..< q.lowerBound])) { ids.append(n) }
+                c = q.upperBound
+            }
+            sections.append((String(block[s.lowerBound ..< tagEnd.upperBound]), ids))
+            cursor = end
+        }
+        guard !sections.isEmpty else { return pres }
+        // Where each section starts in the new order: its first old slide still there.
+        var starts: [(section: Int, at: Int)] = []
+        for (si, sec) in sections.enumerated() {
+            if let id = sec.ids.first(where: { newOrder.contains($0) }), let at = newOrder.firstIndex(of: id) { starts.append((si, at)) }
+        }
+        starts.sort { $0.at < $1.at }
+        var members = Array(repeating: [Int](), count: sections.count)
+        if let first = starts.first {
+            var cur = first.section
+            var next = 0
+            for (i, id) in newOrder.enumerated() {
+                while next < starts.count, starts[next].at <= i { cur = starts[next].section; next += 1 }
+                members[cur].append(id)
+            }
+        }
+        var out = "<p14:sectionLst xmlns:p14=\"http://schemas.microsoft.com/office/powerpoint/2010/main\">"
+        // In the order they now start; a section left with no slide stays, last.
+        let order = starts.map(\.section) + sections.indices.filter { si in !starts.contains { $0.section == si } }
+        for si in order {
+            let sec = sections[si]
+            out += sec.tag + "<p14:sldIdLst>" + members[si].map { "<p14:sldId id=\"\($0)\"/>" }.joined() + "</p14:sldIdLst></p14:section>"
+        }
+        out += "</p14:sectionLst>"
+        return pres.replacingSubrange(open.lowerBound ..< close.upperBound, with: out)
     }
 
     private static func _insertAfter(_ marker: String, in s: String, _ insert: String) -> String {
@@ -721,6 +797,26 @@ private struct SlideXML {
                k.rotation == s.rotation, let p = source, let part = s.sourcePart {
                 return kept(xml, sourcePart: part, package: p, builder: &builder, patch: s.frame, fileId: s.fileId)
             }
+            // The same image, turned or cropped since it was read: the picture as it was with only the turn and the crop changed, so its
+            // recolouring, transparency, flip, shape and outline stay.
+            if let xml = s.sourceXML, let k = s.keptPicture, k.imageId == image.id, let p = source, let part = s.sourcePart {
+                let crop = s.crop, rotation = s.rotation, flipH = s.flipH, flipV = s.flipV
+                return kept(xml, sourcePart: part, package: p, builder: &builder, patch: s.frame, fileId: s.fileId, edit: { node in
+                    if let x = node.first("p:spPr")?.first("a:xfrm") {
+                        if rotation != 0 { x.attrs["rot"] = "\(Int((rotation * 60000).rounded()))" } else { x.attrs["rot"] = nil }
+                        x.attrs["flipH"] = flipH ? "1" : nil
+                        x.attrs["flipV"] = flipV ? "1" : nil
+                    }
+                    guard let fill = node.first("p:blipFill") else { return }
+                    fill.children.removeAll { $0.name == "a:srcRect" }
+                    if let crop, crop != .zero {
+                        func v(_ x: Double) -> String { "\(Int((x * 100000).rounded()))" }
+                        let r = XNode(name: "a:srcRect", attrs: ["l": v(crop.left), "t": v(crop.top), "r": v(crop.right), "b": v(crop.bottom)])
+                        let at = (fill.children.firstIndex { $0.name == "a:blip" } ?? -1) + 1
+                        fill.children.insert(r, at: at)
+                    }
+                })
+            }
             let id = _id(s.fileId)
             let rid = _media(image, media: &media, builder: &builder)
             return "<p:pic><p:nvPicPr><p:cNvPr id=\"\(id)\" name=\"\(name)\"/><p:cNvPicPr><a:picLocks noChangeAspect=\"1\"/></p:cNvPicPr><p:nvPr/></p:nvPicPr>"
@@ -949,8 +1045,10 @@ private struct SlideXML {
     /// everything those parts reach.
     mutating func kept(_ xml: String, sourcePart: String, package p: PptxPackage,
                        builder b: inout PackageBuilder, patch frame: Rect?, fileId: Int? = nil,
-                       rotation: Double? = nil, placeIfMissing: Bool = false) -> String {
+                       rotation: Double? = nil, placeIfMissing: Bool = false,
+                       edit: ((XNode) -> Void)? = nil) -> String {
         guard let node = XNode.parse(Data(xml.utf8)) else { return "" }
+        edit?(node)
         if let frame {
             let x = node.first("p:xfrm") ?? node.first("p:spPr")?.first("a:xfrm") ?? node.first("p:grpSpPr")?.first("a:xfrm")
             if let x {
@@ -1157,6 +1255,17 @@ enum PptxText {
         let suffix = t.hasPrefix("(") ? "ParenBoth" : t.hasSuffix(")") ? "ParenR" : t.hasSuffix(".") ? "Period" : "Plain"
         let start = doc.listRestarts[id]?[lvl].map { " startAt=\"\($0)\"" } ?? ""
         return "<a:buAutoNum type=\"\(scheme)\(suffix)\"\(start)/>"
+    }
+
+    /// Notes text: runs with a look of their own (bold, a colour, a size, a font...) are written with it; notes that are all plain text stay plain, so they take the notes master's look.
+    static func notesParagraphs(_ doc: RichDocument) -> String {
+        let styled = doc.paragraphs.contains { p in p.runs.contains { $0.style != .plain } || p.style.list != nil }
+        guard styled else { return paragraphsPlain(doc) }
+        let s = ShapeState(id: 3, name: "Notes", kind: .geometry(.rect), frame: Rect.fromLTWH(0, 0, 1, 1), rotation: 0,
+                           fill: nil, outline: nil, outlineWidth: 0, anchor: .top,
+                           insets: EdgeInsets(left: 0, top: 0, right: 0, bottom: 0), prompt: nil, text: nil,
+                           font: nil, size: 12, color: Color(0xFF000000), listIndent: 18)
+        return paragraphs(doc, defaults: s)
     }
 
     static func paragraphsPlain(_ doc: RichDocument) -> String {
