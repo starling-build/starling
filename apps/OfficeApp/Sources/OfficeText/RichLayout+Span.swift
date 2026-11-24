@@ -2374,12 +2374,12 @@ extension RichLayout {
         }
         func shrinkFor(_ a: Int, _ b: Int) -> Double {
             // (Word shrinks a text shadow's distance too, by the text size: lab shadow4, 3 pt out reads 0.89, 1.41 and 1.87 pt at 12, 24 and
-            // 36 pt (factors 0.297, 0.47, 0.62), 1.0 from 72 pt. MEASURED, approximate: (size/72)^(2/3) fits the four sizes; the clamp above 72,
-            // size against font metric and the 6-pt distance are open (planner shadow5 lab).)
+            // 36 pt (factors 0.297, 0.47, 0.62). Lab shadow5: no clamp above 72 pt (96 pt reads 1.22, 144 pt 1.58), and the same for Calibri and
+            // Times New Roman. MEASURED, approximate: (size/72)^(2/3) fits 36 pt and up, and reads 0.01-0.03 high below.)
             if theme.wordRules, RichTextTheme.wordWindowsPages {
                 var size = 0.0
                 for sp in spans where sp.a < b && sp.b > a { size = max(size, sp.size) }
-                return size > 0 ? min(1, pow(size / 72, 2.0 / 3)) : 1
+                return size > 0 ? pow(size / 72, 2.0 / 3) : 1
             }
             guard !lineEnds.isEmpty else { return 1 }
             var big = 0.0
