@@ -314,6 +314,8 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
     /// or a sheet fitted to its pages, whose scale is not known yet —
     /// leaves the rows as they are.
     var printRowScale = 0.0
+    /// A print at a set scale below 100 % (not fitted to pages): the rows a face sets on another screen row (`Face.setScreenRow`) take it.
+    var printSetScaled = false
     /// The widest a column prints, in points before the page's scale: the
     /// page's width between its margins. Excel's print cuts a wider column
     /// down to it, and wraps its text in what is left (a lab of columns of
@@ -362,7 +364,9 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             }
             // (A sheet the file gives no view prints its set heights halved:
             // `Worksheet.hasView`.)
-            let setScale = ws.hasView ? m.rowScale : m.rowScale / 2
+            // (A face whose set rows stand on another screen row (`Face.setScreenRow`) takes it only in a print at a set scale below 100 %: Excel's 50.1 pt rows print at 28.1 at 58 % in a 新細明體 12 book where the 100 % print's follow the fitted row.)
+            let setBase = printSetScaled ? m.setRowScale : m.rowScale
+            let setScale = ws.hasView ? setBase : setBase / 2
             var heights = Dictionary(uniqueKeysWithValues: ws.rowHeights.compactMap { (r, h) -> (Int, Double)? in
                 let fit = ws.fittedRows.contains(r)
                 if fit, h > 0 { return (r, ws.scriptRows.contains(r) ? h * fitted : m.defaultRow) }

@@ -35,6 +35,8 @@ struct SheetPrintMetrics {
     var defaultRow: Double
     /// What a set row height is multiplied by.
     var rowScale: Double
+    /// What a set row height is multiplied by where the face's set rows stand on another screen row than its fitted ones (`Face.setScreenRow`); `rowScale` otherwise.
+    var setRowScale: Double
     /// The digit on that Excel's screen, in its pixels.
     var screenDigit: Double
     /// A row nobody sized, on that Excel's screen, in its pixels.
@@ -104,7 +106,7 @@ struct SheetPrintMetrics {
     /// style-alternate-content's of Malgun Gothic 6, 23 px where in
     /// proportion to 8 they were 26 (Malgun's 8 and 9 are both 35: no line
     /// to extend).
-    private struct Face { var digit: [Double], row: [Double], screenRow: [Double], screenDigit: [Double], offTable: [Double: Double] = [:], hinted: [Double: Double] = [:], plainBook: [Double: Double] = [:] }
+    private struct Face { var digit: [Double], row: [Double], screenRow: [Double], screenDigit: [Double], setScreenRow: [Double: Double] = [:], offTable: [Double: Double] = [:], hinted: [Double: Double] = [:], plainBook: [Double: Double] = [:] }
     private static let sizes: [Double] = [8, 9, 10, 10.5, 11, 12, 14, 16, 18]
     private static let faces: [String: Face] = [
         "calibri": Face(digit: [34, 38, 42, 45, 47, 51, 59, 67, 76], row: [90, 99, 109, 116, 121, 130, 150, 171, 191], screenRow: [28, 31, 35, 37, 38, 42, 48, 56, 62],
@@ -145,7 +147,7 @@ struct SheetPrintMetrics {
         // with Malgun's rows (lab cjkrows3 read Gulim's own, 9.25 pt at 8, but the corpus prints do not use them: ko-3ca2381bbc's 9 pt rows are 11.8 pt in Excel's print, Malgun's, and 7 Korean books drop with the own rows) and a column's unit their own digit (font file advances of 597, 588, 610 and 597 per 1024 em) in whole dots of the
         // 600 dpi em (11 pt: 92 dots, Dotum's digit 54 where Malgun's is 51: 0453e2c911's two columns, 509.8 pt, 36.0 + 473.8).
         "dotum": Face(digit: [39, 44, 49, 51, 54, 58, 68, 78, 88], row: [102, 114, 124, 130, 139, 149, 172, 192, 219], screenRow: [35, 35, 42, 42, 45, 51, 55, 66, 72],
-            screenDigit: [12, 13, 15, 15, 16, 18, 20, 24, 26], offTable: [6: 23], hinted: [10: 41.75]),
+            screenDigit: [12, 13, 15, 15, 16, 18, 20, 24, 26], setScreenRow: [11: 46], offTable: [6: 23], hinted: [10: 41.75]),
         "gulim": Face(digit: [38, 43, 48, 50, 53, 57, 67, 76, 86], row: [102, 114, 124, 130, 139, 149, 172, 192, 219], screenRow: [35, 35, 42, 42, 45, 51, 55, 66, 72],
             screenDigit: [12, 13, 15, 15, 16, 18, 20, 24, 26], offTable: [6: 23], hinted: [10: 41.75]),
         "batang": Face(digit: [39, 45, 50, 52, 55, 60, 70, 79, 89], row: [102, 114, 124, 130, 139, 149, 172, 192, 219], screenRow: [35, 35, 42, 42, 45, 51, 55, 66, 72],
@@ -187,7 +189,7 @@ struct SheetPrintMetrics {
             screenDigit: [11, 12, 14, 14, 15, 16, 19, 22, 24]),
         // PMingLiU and MingLiU print a line of em + descent + external leading (= descent) + half the descent more, in 600-dpi dots, em = round(size x 600/72), descent = em - round(0.8008 em): GDI dump at 600 dpi, 6 sizes x 2 faces, 12/12 of Excel's pitches (the planner's spec, 2026-11-23).
         "pmingliu": Face(digit: [31, 35, 39, 41, 43, 47, 55, 62, 70], row: [87, 98, 109, 115, 119, 130, 152, 172, 195], screenRow: [26, 30, 33, 35, 36, 39, 45, 53, 59],
-            screenDigit: [10, 11, 13, 13, 14, 15, 17, 20, 23]),
+            screenDigit: [10, 11, 13, 13, 14, 15, 17, 20, 23], setScreenRow: [12: 43]),
         "lucida sans typewriter": Face(digit: [40, 45, 50, 53, 55, 60, 70, 80, 90], row: [87, 96, 105, 112, 116, 126, 146, 164, 184], screenRow: [26, 30, 34, 35, 36, 40, 46, 53, 59],
             screenDigit: [13, 14, 16, 17, 17, 19, 22, 26, 29]),
         "arial black": Face(digit: [45, 50, 55, 59, 61, 67, 78, 89, 100], row: [110, 122, 133, 141, 146, 159, 185, 208, 234], screenRow: [33, 36, 42, 44, 45, 49, 57, 65, 74],
@@ -364,7 +366,7 @@ struct SheetPrintMetrics {
         let pad = 2 * (screenDigit / 4).rounded(.up) + 1
         let px = ((baseColWidth * screenDigit + pad) / 8).rounded(.up) * 8
         return SheetPrintMetrics(digit: digit * 72 / 600, defaultChars: px / screenDigit,
-                                 defaultRow: row * 72 / 600, rowScale: (row / 600) / (screenRow / 192), screenDigit: screenDigit,
+                                 defaultRow: row * 72 / 600, rowScale: (row / 600) / (screenRow / 192), setRowScale: (row / 600) / ((f.setScreenRow[size] ?? screenRow) / 192), screenDigit: screenDigit,
                                  screenRow: screenRow)
     }
 }
