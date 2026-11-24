@@ -3601,7 +3601,8 @@ enum ChartPainter {
             // f15415f0's three pie legends in Word's print, "Não especificado" wrapped in a 99 pt box, keys all at one x.)
             let wordBoxPie = pie && box != nil && !c.onSlide && !c.onSheet && !c.chartex
             if let box, wordBoxPie {
-                let inset = 0.65 * size * k
+                // (The key and the room left of it take 1.29 of the text's size before the name: lab pieleg, "Excelente" wraps in a box 51.75 wide and fits in 53.04, "Muy bueno" wraps in 56.9 and fits in 59.5.)
+                let inset = max(0, 1.29 * size * k - lead)
                 entries = entries.map { e in
                     guard lead + inset + e.tp.width > box.width + 0.01 else { return e }
                     RuleTrace.hit("word-pie-box-legend-name-wraps-inside-the-box")
@@ -3773,6 +3774,19 @@ enum ChartPainter {
             // among them: zh-61aaad09's two entries, in a box 94% of the
             // chart's height, stand 57pt apart in Word's print, each in the
             // middle of its half.)
+            // (A Word pie's legend in a box of its own holds the entries whose heights, each with 4 pt, fit its height, and drops the
+            // last ones: lab pieleg, a 90.4 pt box of 10 pt names, "Malo" gone where "Excelente" and "Muy bueno" wrap, all five
+            // shown where none does.)
+            if wordBoxPie, boxColumn, lines.count > 1 {
+                var keep = lines.count
+                while keep > 1, zip(lines, lineHs).prefix(keep).reduce(0.0, { $0 + $1.1 + 4 * k }) > box!.height { keep -= 1 }
+                if keep < lines.count {
+                    RuleTrace.hit("word-pie-box-legend-drops-the-entries-its-height-cannot-hold")
+                    droppedLegend += lines[keep...].flatMap { $0 }
+                    lines = Array(lines[..<keep])
+                    lineHs = Array(lineHs[..<keep])
+                }
+            }
             if let box, lineHs.reduce(0, +) < box.height || boxHoldsRows, !lines.isEmpty {
                 lineHs = lines.map { _ in box.height / Double(lines.count) }
             }
@@ -3799,7 +3813,7 @@ enum ChartPainter {
                 // (A pie's entry that wraps takes one slot of the even share all the same, and the block stands
                 // half of its extra lines higher: c11d31f3's "Questões relacionadas à COVID-19" in two lines, keys 6.4 pt
                 // higher in Word's print than centred, the pitch the same.)
-                if pie, lines.count > 1, let one = entries.map({ $0.tp.height }).min() {
+                if pie, lines.count > 1, !(wordBoxPie && boxColumn), let one = entries.map({ $0.tp.height }).min() {
                     // (Only a name that really wraps adds a line: an entry with a blank name is shorter than the rest, not
                     // a wrapped one — dx2/sa1 f84c295b's six blank entries moved its legend block 25 pt up.)
                     let extra = entries.reduce(0.0) { acc, e in
@@ -4079,6 +4093,11 @@ enum ChartPainter {
                     if wordBoxPie, boxColumn, e.tp.height > 1.5 * textH {
                         RuleTrace.hit("word-pie-box-legend-wrapped-entry-hangs-from-its-slots-line")
                         textDrop = (lineH - textH) / 2
+                    }
+                    // (Every entry of a Word pie's box legend hangs from the top of the block the tallest one makes, the block centred in
+                    // its slot and 1.5 pt low: lab pieleg, "Bueno" of one line level with the two-line "Muy bueno" of its slot.)
+                    if wordBoxPie, boxColumn, lines.count > 1, let tall = lines.flatMap({ $0 }).map({ $0.tp.height }).max() {
+                        textDrop = (lineH - tall) / 2 + 1.5 * k
                     }
                     if slideSidePie, wrappedSide { textDrop = (lineH - slotH) / 2 }
                     e.tp.paint(canvas, Offset(x + lead, y + textDrop))
