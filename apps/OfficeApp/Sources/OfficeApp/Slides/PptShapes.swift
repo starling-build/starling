@@ -31,7 +31,9 @@ extension PptFile {
     }
 
     /// `p:sp` / `p:grpSp` elements for the shapes of a slide, in drawing order.
-    func shapeXML(of slide: Page) -> String {
+    /// `picture` turns a picture-store index into the relationship id a part holds it under (nil: the picture cannot be used).
+    /// `master`: a master's own drawing, where placeholders are left out.
+    func shapeXML(of slide: Page, master: Bool = false, picture: (Int) -> String? = { _ in nil }) -> String {
         guard let c = record(persistId: slide.persistId), c.isContainer else { return "" }
         var n = 1
         func s16(_ k: Int) -> Int { let v = OfficeArt.u16(data, k); return v >= 0x8000 ? v - 0x10000 : v }
@@ -87,6 +89,14 @@ extension PptFile {
         }
         func shape(_ sp: ArtRecord) -> String {
             let (art, anchor, placeholder, block) = read(sp)
+            if master && placeholder != nil { return "" }
+            if art.type == 75, art.pib > 0, let rid = picture(art.pib) {
+                n += 1
+                var x = "<p:pic><p:nvPicPr><p:cNvPr id=\"\(n)\" name=\"Picture \(n)\"/><p:cNvPicPr/><p:nvPr/></p:nvPicPr>"
+                x += "<p:blipFill><a:blip r:embed=\"\(rid)\"/>\(DocArt.crop(art))<a:stretch><a:fillRect/></a:stretch></p:blipFill><p:spPr>"
+                x += xfrm("xfrm", anchor, rot: rotation(art), flipH: art.flags & 0x40 != 0, flipV: art.flags & 0x80 != 0)
+                return x + "<a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom></p:spPr></p:pic>"
+            }
             var geom: String? = nil
             if let g = DocArt.geometry(art.type) { geom = "<a:prstGeom prst=\"\(g)\"><a:avLst/></a:prstGeom>" }
             else if art.type == 0, let f = DocArt.freeform(art) { geom = f }

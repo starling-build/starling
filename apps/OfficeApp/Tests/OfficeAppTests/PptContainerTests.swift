@@ -297,6 +297,57 @@ final class PptContainerTests: XCTestCase {
         XCTAssertEqual(state.slides[0].shapes[0].kind, .geometry(ShapePreset(rawValue: "ellipse")))
     }
 
+    func testPicturesComeFromThePicturesStreamThroughTheStore() throws {
+        func persist(_ id: Int, _ slideId: Int) -> [UInt8] {
+            var b: [UInt8] = le32(id)
+            b += le32(0) + le32(1) + le32(slideId) + le32(0)
+            return rec(0x03F3, b)
+        }
+        var atom: [UInt8] = le32(5760)
+        atom += le32(4320)
+        atom += [UInt8](repeating: 0, count: 22)
+        atom += le16(1)
+        atom += [UInt8](repeating: 0, count: 6)
+        // The Pictures stream: one PNG record at offset 0 (uid, tag, bytes).
+        let png: [UInt8] = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 1, 2, 3, 4]
+        let blip = rec(0xF01E, ver: 0, inst: 0x6E0, [UInt8](repeating: 7, count: 16) + [0xFF] + png)
+        // The store: one FBSE whose foDelay points at it; the entry holds no picture itself.
+        var fbse: [UInt8] = [6, 6] + [UInt8](repeating: 7, count: 16) + le16(0xFF) + le32(blip.count) + le32(1) + le32(0)
+        fbse += [0, 0, 0, 0]
+        let store = rec(0xF001, ver: 15, inst: 1, rec(0xF007, ver: 2, inst: 6, fbse))
+        let drawingGroup = rec(0x040B, ver: 15, rec(0xF000, ver: 15, store))
+        var kids = rec(0x03E9, atom) + drawingGroup
+        kids += rec(0x0FF0, ver: 15, inst: 1, persist(2, 0x8000_0000))
+        kids += rec(0x0FF0, ver: 15, inst: 0, persist(3, 256))
+        var d = rec(0x03E8, ver: 15, kids)
+        var opt: [UInt8] = le16(0x104) + le32(1)
+        opt = rec(0xF00B, ver: 3, inst: 1, opt)
+        var k = rec(0xF00A, ver: 2, inst: 75, le32(2) + le32(0x400)) + opt
+        k += rec(0xF010, le16(100) + le16(200) + le16(1100) + le16(1200))
+        let head = rec(0xF004, ver: 15, rec(0xF00A, ver: 2, inst: 0, le32(1) + le32(5)))
+        let top = rec(0xF003, ver: 15, head + rec(0xF004, ver: 15, k))
+        let pageKids = rec(0x03EF, [UInt8](repeating: 0, count: 12) + le32(0x8000_0000) + le32(0) + le16(7) + le16(0))
+            + rec(0x040C, ver: 15, rec(0xF002, ver: 15, top))
+        let master = rec(0x03F8, ver: 15, rec(0x03EF, [UInt8](repeating: 0, count: 24)))
+        var offs: [Int] = []
+        for p in [master, rec(0x03EE, ver: 15, pageKids)] { offs.append(d.count); d += p }
+        let dir = d.count
+        d += directory([(1, [0]), (2, [offs[0]]), (3, [offs[1]])])
+        let edit = d.count
+        d += userEdit(lastEdit: 0, directory: dir, document: 1)
+        var f = try PptFile(currentUser: currentUser(offset: edit), document: d)
+        f.pictures = blip
+        XCTAssertEqual(f.blip(1)?.ext, "png")
+        XCTAssertEqual(f.blip(1)?.data, png)
+        XCTAssertNil(f.blip(2))
+        let parts = PptBuild.parts(f)
+        XCTAssertTrue(parts.contains { $0.name == "ppt/media/image1.png" })
+        let rels = parts.first { $0.name == "ppt/slides/_rels/slide1.xml.rels" }.map { String(decoding: $0.data, as: UTF8.self) } ?? ""
+        XCTAssertTrue(rels.contains("../media/image1.png"))
+        let slide = parts.first { $0.name == "ppt/slides/slide1.xml" }.map { String(decoding: $0.data, as: UTF8.self) } ?? ""
+        XCTAssertTrue(slide.contains("<p:pic>"))
+    }
+
     func testStyleRunsKeepOnlyTheFieldsTheirMaskNames() throws {
         // "Big red": one paragraph (level 1, centred, nothing else), runs "Big " (bold red 24 pt) and "red" (no fields).
         var atom: [UInt8] = le32(8) + le16(1) + le32(0x800) + le16(1)

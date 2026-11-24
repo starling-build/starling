@@ -35,6 +35,8 @@ struct PptFile {
     }
 
     let data: [UInt8]
+    /// The `Pictures` stream: the picture records the store's entries point into.
+    var pictures: [UInt8] = []
     private(set) var slides: [Page] = []
     private(set) var masters: [Page] = []
     /// persist id -> offset of its record, the newest edit winning.
@@ -198,5 +200,27 @@ struct PptFile {
     func record(persistId id: Int) -> ArtRecord? {
         guard let at = persist[id], at >= 0, at + 8 <= data.count else { return nil }
         return OfficeArt.records(data, in: at ..< data.count).first
+    }
+
+    /// The picture a store entry (1-based, as a shape's picture property counts) holds: inside the entry, or at its
+    /// delay offset in the Pictures stream.
+    func blip(_ index: Int) -> ArtBlip? {
+        guard index >= 1, let doc = record(persistId: documentId), doc.isContainer else { return nil }
+        for dg in OfficeArt.records(data, in: doc.body) where dg.type == 0x040B {
+            for g in OfficeArt.records(data, in: dg.body) where g.type == 0xF000 {
+                for st in OfficeArt.records(data, in: g.body) where st.type == 0xF001 {
+                    let entries = OfficeArt.records(data, in: st.body)
+                    guard index <= entries.count else { return nil }
+                    let e = entries[index - 1]
+                    if e.type != 0xF007 { return OfficeArt.blipRecord(data, e) }
+                    if let own = OfficeArt.fbse(data, e) { return own }
+                    let delay = OfficeArt.u32(data, e.body.lowerBound + 28)
+                    guard delay >= 0, delay + 8 <= pictures.count,
+                          let r = OfficeArt.records(pictures, in: delay ..< pictures.count).first else { return nil }
+                    return OfficeArt.blipRecord(pictures, r)
+                }
+            }
+        }
+        return nil
     }
 }
