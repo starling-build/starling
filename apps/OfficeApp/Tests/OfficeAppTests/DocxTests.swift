@@ -7124,6 +7124,42 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(Array(out.suffix(8)), [UInt8](repeating: 0, count: 8), "only the first 32 bytes are keyed")
         XCTAssertNil(OfficeFonts.deobfuscate(Data(count: 40), key: "{not-a-guid}"))
     }
+
+    /// W-RV-3: a content control over runs (check box, drop-down list, text) survives open and save with its
+    /// properties whole, and the text around it is untouched; an edit that deletes across its end keeps the file valid.
+    func testContentControlsOverRunsSurviveASave() throws {
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .letter))
+        let di = try XCTUnwrap(entries.firstIndex { $0.name == "word/document.xml" })
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let body = try XCTUnwrap(xml.range(of: "<w:body>")).upperBound ..< (try XCTUnwrap(xml.range(of: "<w:sectPr"))).lowerBound
+        xml.replaceSubrange(body, with: "<w:p><w:r><w:t xml:space=\"preserve\">Agree </w:t></w:r>"
+            + "<w:sdt><w:sdtPr><w:id w:val=\"11\"/><w14:checkbox><w14:checked w14:val=\"0\"/><w14:checkedState w14:val=\"2612\" w14:font=\"MS Gothic\"/><w14:uncheckedState w14:val=\"2610\" w14:font=\"MS Gothic\"/></w14:checkbox></w:sdtPr><w:sdtContent><w:r><w:t>\u{2610}</w:t></w:r></w:sdtContent></w:sdt>"
+            + "<w:r><w:t xml:space=\"preserve\"> then </w:t></w:r>"
+            + "<w:sdt><w:sdtPr><w:alias w:val=\"Colour\"/><w:dropDownList><w:listItem w:displayText=\"Red\" w:value=\"r\"/><w:listItem w:displayText=\"Blue\" w:value=\"b\"/></w:dropDownList></w:sdtPr><w:sdtContent><w:r><w:t>Red</w:t></w:r></w:sdtContent></w:sdt>"
+            + "<w:r><w:t>.</w:t></w:r></w:p>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let back = try DocxFormat.read(try Zip.write(entries)).document
+        XCTAssertEqual(back.paragraphs.map(\.text), ["Agree \u{2610} then Red."])
+        XCTAssertEqual(back.paragraphs[0].controlMarkers.count, 4)
+        XCTAssertEqual(back.paragraphs[0].controlMarkers.map(\.offset), [6, 7, 13, 16])
+        func part(_ name: String, of doc: RichDocument) throws -> String {
+            String(decoding: try XCTUnwrap(try Zip.read(try DocxFormat.write(doc, pageSetup: .letter)).first { $0.name == name }).data, as: UTF8.self)
+        }
+        let again = try part("word/document.xml", of: back)
+        XCTAssertTrue(again.containsSubstring("<w14:checkedState w14:font=\"MS Gothic\" w14:val=\"2612\"/>"), again)
+        XCTAssertTrue(again.containsSubstring("<w:listItem w:displayText=\"Blue\" w:value=\"b\"/>"), again)
+        XCTAssertTrue(again.containsSubstring("<w:alias w:val=\"Colour\"/>"), again)
+        // Reopen the saved file: the same controls, the same text.
+        let saved = try Zip.read(try DocxFormat.write(back, pageSetup: .letter))
+        let reread = try DocxFormat.read(try Zip.write(saved)).document
+        XCTAssertEqual(reread.paragraphs.map(\.text), back.paragraphs.map(\.text))
+        XCTAssertEqual(reread.paragraphs[0].controlMarkers.map(\.offset), [6, 7, 13, 16])
+        // Deleting from inside the first control to inside the second leaves no half pair on the page.
+        var edited = back
+        edited.paragraphs[0].delete(6 ..< 14)
+        let after = try part("word/document.xml", of: edited)
+        XCTAssertEqual(after.components(separatedBy: "<w:sdt>").count, after.components(separatedBy: "</w:sdt>").count)
+    }
 }
 
 /// Records, for each quarter turn, the translate just before it (a
@@ -7251,41 +7287,5 @@ private final class TurnedTextCanvas: Canvas {
         }
         XCTAssertEqual(width(hint: "cs"), 4 * 0.278 * 16, accuracy: 0.3, "four brackets at the face's 0.278 em")
         XCTAssertGreaterThan(width(hint: nil), 4 * 0.35 * 16, "no hint: the Latin face's width")
-    }
-
-    /// W-RV-3: a content control over runs (check box, drop-down list, text) survives open and save with its
-    /// properties whole, and the text around it is untouched; an edit that deletes across its end keeps the file valid.
-    func testContentControlsOverRunsSurviveASave() throws {
-        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .letter))
-        let di = try XCTUnwrap(entries.firstIndex { $0.name == "word/document.xml" })
-        var xml = String(decoding: entries[di].data, as: UTF8.self)
-        let body = try XCTUnwrap(xml.range(of: "<w:body>")).upperBound ..< (try XCTUnwrap(xml.range(of: "<w:sectPr"))).lowerBound
-        xml.replaceSubrange(body, with: "<w:p><w:r><w:t xml:space=\"preserve\">Agree </w:t></w:r>"
-            + "<w:sdt><w:sdtPr><w:id w:val=\"11\"/><w14:checkbox><w14:checked w14:val=\"0\"/><w14:checkedState w14:val=\"2612\" w14:font=\"MS Gothic\"/><w14:uncheckedState w14:val=\"2610\" w14:font=\"MS Gothic\"/></w14:checkbox></w:sdtPr><w:sdtContent><w:r><w:t>\u{2610}</w:t></w:r></w:sdtContent></w:sdt>"
-            + "<w:r><w:t xml:space=\"preserve\"> then </w:t></w:r>"
-            + "<w:sdt><w:sdtPr><w:alias w:val=\"Colour\"/><w:dropDownList><w:listItem w:displayText=\"Red\" w:value=\"r\"/><w:listItem w:displayText=\"Blue\" w:value=\"b\"/></w:dropDownList></w:sdtPr><w:sdtContent><w:r><w:t>Red</w:t></w:r></w:sdtContent></w:sdt>"
-            + "<w:r><w:t>.</w:t></w:r></w:p>")
-        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
-        let back = try DocxFormat.read(try Zip.write(entries)).document
-        XCTAssertEqual(back.paragraphs.map(\.text), ["Agree \u{2610} then Red."])
-        XCTAssertEqual(back.paragraphs[0].controlMarkers.count, 4)
-        XCTAssertEqual(back.paragraphs[0].controlMarkers.map(\.offset), [6, 7, 13, 16])
-        func part(_ name: String, of doc: RichDocument) throws -> String {
-            String(decoding: try XCTUnwrap(try Zip.read(try DocxFormat.write(doc, pageSetup: .letter)).first { $0.name == name }).data, as: UTF8.self)
-        }
-        let again = try part("word/document.xml", of: back)
-        XCTAssertTrue(again.containsSubstring("<w14:checkedState w14:val=\"2612\" w14:font=\"MS Gothic\"/>"), again)
-        XCTAssertTrue(again.containsSubstring("<w:listItem w:displayText=\"Blue\" w:value=\"b\"/>"), again)
-        XCTAssertTrue(again.containsSubstring("<w:alias w:val=\"Colour\"/>"), again)
-        // Reopen the saved file: the same controls, the same text.
-        let saved = try Zip.read(try DocxFormat.write(back, pageSetup: .letter))
-        let reread = try DocxFormat.read(try Zip.write(saved)).document
-        XCTAssertEqual(reread.paragraphs.map(\.text), back.paragraphs.map(\.text))
-        XCTAssertEqual(reread.paragraphs[0].controlMarkers.map(\.offset), [6, 7, 13, 16])
-        // Deleting from inside the first control to inside the second leaves no half pair on the page.
-        var edited = back
-        edited.paragraphs[0].delete(6 ..< 14)
-        let after = try part("word/document.xml", of: edited)
-        XCTAssertEqual(after.components(separatedBy: "<w:sdt>").count, after.components(separatedBy: "</w:sdt>").count)
     }
 }
