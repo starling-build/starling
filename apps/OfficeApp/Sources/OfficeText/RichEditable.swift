@@ -488,7 +488,7 @@ public final class RichEditableState: State<StatefulWidget> {
                 case "a": c.selectAll()
                 case "c": _copy()
                 case "x": _cut()
-                case "v": if shift { _pastePlain() } else { _paste() }
+                case "v": if shift { return false } else { _paste() }   // (⇧⌘V is the Format Painter's paste, handled by the shell; plain paste is ⌥⌘V: W-P0-5)
                 case "z": if shift { c.redo() } else { c.undo() }
                 case "y": c.redo()
                 case "b": c.toggleBold()

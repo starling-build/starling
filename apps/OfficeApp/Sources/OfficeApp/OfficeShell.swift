@@ -996,6 +996,8 @@ final class OfficeShellState: State<StatefulWidget> {
             if key.logical == 0x5B { c.stepFontSize(-1, base: session.effectiveFontSize); return true }
             return false
         }
+        // ⌥⌘V (Ctrl+Alt+V in Word) is Paste Special; with no dialog yet it pastes the clipboard's text alone, since ⇧⌘V is the Format Painter's paste (W-P0-5).
+        if letter == "v", PasteChord.of(shift: mods.contains(.shift), alt: mods.contains(.alt)) == .pastePlainText { _paste(plain: true); return true }
         if mods.contains(.alt) { return false }
         switch letter {
         case "s":
