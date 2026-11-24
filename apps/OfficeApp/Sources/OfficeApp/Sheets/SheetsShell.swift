@@ -76,6 +76,7 @@ final class SheetsShellState: State<StatefulWidget> {
 
     override func initState() {
         super.initState()
+        trackDocumentPath(session)
         // Sheets has no AutoSave: a window's host closing it writes the workbook to its own file, if it has one.
         officeScene.registerFlush(owner: self) { [weak self] in
             guard let self, self.session.dirty, let path = self.session.path,
@@ -136,6 +137,7 @@ final class SheetsShellState: State<StatefulWidget> {
     override func dispose() {
         officeScene.publishToolbar(nil, owner: self)
         officeScene.unregisterFlush(owner: self)
+        officeScene.setDocumentPath(nil, owner: self)
         wb.removeListeners(owner: self)
         _formula.dispose()
         _nameBox.dispose()
@@ -288,6 +290,17 @@ final class SheetsShellState: State<StatefulWidget> {
         session.path = nil
         session.dirty = false
         setState { _backstage = nil }
+    }
+
+    /// Open from the in-app file panel: a file another window has open is shown by bringing that window forward
+    /// (one document, one window: two windows on one file would race on its AutoSave and recovery copy).
+    private func _openFromPanel(_ path: String) {
+        if let other = OfficeScene.holding(path, besides: officeScene) {
+            other.focusWindow()
+            _flash("\(path.lastPathComponent) is open in another window")
+            return
+        }
+        _open(path)
     }
 
     private func _open(_ path: String) {
@@ -739,7 +752,7 @@ final class SheetsShellState: State<StatefulWidget> {
                     self?.setState { self?._backstage = nil }
                     self?._grid?.focus.requestFocus()
                 },
-                onOpenPath: { [weak self] path in self?._open(path) },
+                onOpenPath: { [weak self] path in self?._openFromPanel(path) },
                 onSavePath: { [weak self] path in self?._saveTo(path) },
                 onPicturePath: { _ in }, scene: officeScene)),
         ])

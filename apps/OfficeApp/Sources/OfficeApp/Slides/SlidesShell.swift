@@ -121,6 +121,7 @@ final class SlidesShellState: State<StatefulWidget> {
         super.initState()
         OfficeFonts.register()
         bind(_deckFocus)
+        trackDocumentPath(session)
         bind(_notesFocus)
         _recent = OfficeRecent.load()
         _wire()
@@ -160,6 +161,7 @@ final class SlidesShellState: State<StatefulWidget> {
     override func dispose() {
         officeScene.publishToolbar(nil, owner: self)
         officeScene.unregisterFlush(owner: self)
+        officeScene.setDocumentPath(nil, owner: self)
         deck.removeListeners(owner: self)
         session.controller.removeListeners(owner: self)
         _deckFocus.dispose()
@@ -685,6 +687,17 @@ final class SlidesShellState: State<StatefulWidget> {
             session.dirty = false
             _backstage = nil
         }
+    }
+
+    /// Open from the in-app file panel: a file another window has open is shown by bringing that window forward
+    /// (one document, one window: two windows on one file would race on its AutoSave and recovery copy).
+    private func _openFromPanel(_ path: String) {
+        if let other = OfficeScene.holding(path, besides: officeScene) {
+            other.focusWindow()
+            _flash("\(path.lastPathComponent) is open in another window")
+            return
+        }
+        _open(path)
     }
 
     private func _open(_ path: String) {
@@ -1224,7 +1237,7 @@ final class SlidesShellState: State<StatefulWidget> {
                 session: session, page: page, recent: _recent, notice: _status,
                 onPage: { [weak self] p in self?.setState { self?._backstage = p } },
                 onClose: { [weak self] in self?.setState { self?._backstage = nil } },
-                onOpenPath: { [weak self] path in self?._open(path) },
+                onOpenPath: { [weak self] path in self?._openFromPanel(path) },
                 onSavePath: { [weak self] path in self?._saveTo(path) },
                 onPicturePath: { [weak self] path in self?._insertPicture(path) }, scene: officeScene)),
         ])

@@ -440,6 +440,13 @@ bool fluikit_view_origin(int64_t view_id, double* x, double* y) {
   }
 }
 
+void fluikit_view_raise(int64_t view_id) {
+  dispatch_async(dispatch_get_main_queue(), ^{
+    FlUIKitExtraView* host = g_extra_views[@(view_id)];
+    if (host != nil) [host.superview bringSubviewToFront:host];
+  });
+}
+
 void fluikit_view_remove(int64_t view_id, FlUIKitViewDone done, void* user) {
   dispatch_async(dispatch_get_main_queue(), ^{
     FlUIKitAppDelegate* delegate = (FlUIKitAppDelegate*)UIApplication.sharedApplication.delegate;

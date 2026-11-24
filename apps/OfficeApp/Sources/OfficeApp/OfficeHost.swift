@@ -135,6 +135,51 @@ final class OfficeScene {
         #endif
     }
 
+    /// The file this window shows (canonical), and the editor that reported it.
+    private(set) var documentPath: String?
+    private var documentOwner: ObjectIdentifier?
+
+    /// A path in the one spelling windows compare by (symlinks resolved, so /var and /private/var agree).
+    static func canonical(_ path: String) -> String {
+        URL(fileURLWithPath: path).resolvingSymlinksInPath().path
+    }
+
+    /// For a working copy the host made of a picked document, the document itself (nil for any other path). A document
+    /// is the same document however many working copies were made of it, so windows compare by this.
+    nonisolated(unsafe) static var originalOf: (String) -> String? = { _ in nil }
+
+    /// The file `path` stands for: its original if it is a working copy, else itself.
+    static func identity(_ path: String) -> String { canonical(originalOf(path) ?? path) }
+
+    /// `owner`'s document is now the file at `path` (nil: none). A new editor mounts before the one it replaces is
+    /// disposed, so a clear counts only from the editor that set the path last.
+    func setDocumentPath(_ path: String?, owner: AnyObject) {
+        if let path {
+            documentPath = Self.canonical(path)
+            documentOwner = ObjectIdentifier(owner)
+        } else if documentOwner == ObjectIdentifier(owner) {
+            documentPath = nil
+            documentOwner = nil
+        }
+    }
+
+    /// The window showing the file at `path`, other than `scene`.
+    static func holding(_ path: String, besides scene: OfficeScene? = nil) -> OfficeScene? {
+        let p = identity(path)
+        return live.lazy.compactMap { $0.scene }.first { s in
+            s !== scene && s.documentPath.map { identity($0) } == p
+        }
+    }
+
+    /// Set by a host that can bring this window to the front (the iPad: raises its view, or its scene).
+    var raise: (() -> Void)?
+
+    /// Brings this window forward and makes it the one the user is working in.
+    func focusWindow() {
+        raise?()
+        activate()
+    }
+
     private var flushers: [(owner: ObjectIdentifier, run: () -> Void)] = []
 
     /// The editor `owner` can write its unsaved work when asked. Registered while mounted, withdrawn on dispose.
@@ -205,6 +250,16 @@ final class OfficeSceneScope: InheritedWidget {
 extension State {
     /// The window this editor is in.
     var officeScene: OfficeScene { OfficeScene.of(context) }
+
+    /// Keeps the window's scene told which file `session` has open (see OfficeScene.setDocumentPath). Call from
+    /// `initState`; call `officeScene.setDocumentPath(nil, owner: self)` from `dispose`.
+    func trackDocumentPath(_ session: OfficeSession) {
+        session.onPathChanged = { [weak self] path in
+            guard let self else { return }
+            self.officeScene.setDocumentPath(path, owner: self)
+        }
+        if let path = session.path { officeScene.setDocumentPath(path, owner: self) }
+    }
 }
 
 /// The types the editors and a host share, and what is not per window.

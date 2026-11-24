@@ -41,6 +41,12 @@ public final class FocusNode {
     /// its own scope.
     var _viewProvider: (() -> Int?)?
 
+    /// The focus scope (window) this node belongs to: its owner's view if it is bound, else where it was first
+    /// requested; nil for a node never asked for focus and never bound.
+    public var currentScope: Int? {
+        _viewProvider?().map { FocusManager.instance.scope(ofView: $0) } ?? _scope
+    }
+
     /// Whether this node holds the focus of the window the keys go to.
     public var hasFocus: Bool {
         return FocusManager.instance.focusedNode === self

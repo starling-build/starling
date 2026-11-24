@@ -49,6 +49,8 @@ private final class _OfficeRootState: State<StatefulWidget> {
         // document at a time: the same switch the shells use between kinds.
         officeScene.openPath = { [weak self] path in
             guard let self, self.mounted else { return }
+            // One document, one window: a file another window has open is shown by bringing that window forward.
+            if let other = OfficeScene.holding(path, besides: self.officeScene) { other.focusWindow(); return }
             self.setState {
                 self._kind = DocumentKind.kind(forPath: path)
                 self._returnToHome = false
@@ -100,6 +102,7 @@ private final class _OfficeRootState: State<StatefulWidget> {
     override func build(_ context: any BuildContext) -> Widget {
         let onSwitch: (DocumentKind, String?) -> Void = { [weak self] kind, path in
             guard let self else { return }
+            if let path, let other = OfficeScene.holding(path, besides: self.officeScene) { other.focusWindow(); return }
             self.setState {
                 self._kind = kind
                 self._returnToHome = false

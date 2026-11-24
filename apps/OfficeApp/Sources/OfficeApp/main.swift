@@ -910,6 +910,14 @@ _ = NotificationCenter.default.addObserver(forName: Notification.Name("UIApplica
 if initialPath == nil && siteArg == nil && wikiBase == nil {
     OfficeNativeShell.install()
     OfficeNativeShell.onOpenDocument = { OfficeScene.main.openPath?($0) }
+    OfficeScene.originalOf = { OfficeNativeShell.originalPath(forWorking: $0) }
+    // One document, one window: a file another window than the main one has is shown by bringing that window forward.
+    OfficeNativeShell.focusIfOpen = { path in
+        guard let held = OfficeScene.holding(path, besides: OfficeScene.main) else { return false }
+        if ProcessInfo.processInfo.environment["OFFICE_HOST_LOG"] != nil { fputs("[office] open \((path as NSString).lastPathComponent): already open in another window, bringing it forward\n", stderr) }
+        held.focusWindow()
+        return true
+    }
     OfficeNativeShell.makeBlank = { OfficeHost.writeBlank(kind: $0, to: $1) }
     connectNativeHooks(OfficeScene.main, viewId: 0)
     OfficeScene.main.openRequested = { OfficeNativeShell.showBrowser(); return true }
@@ -927,9 +935,16 @@ if initialPath == nil && siteArg == nil && wikiBase == nil {
 if let second = ProcessInfo.processInfo.environment["OFFICE_SECOND_VIEW_DOC"], !second.isEmpty {
     let scene = OfficeScene()
     connectNativeHooks(scene, viewId: 1)
+    scene.raise = { UIKitHost.raiseExtraView(1) }
     runView(id: 1) {
         OfficeSceneScope(scene: scene, child: OfficeRoot(initialPath: second, kind: DocumentKind.kind(forPath: second)))
     }
+}
+// OFFICE_OPEN_AFTER=<ms>:<path> asks for that file through the browser's entry point after a delay (a test, no screen).
+if let spec = ProcessInfo.processInfo.environment["OFFICE_OPEN_AFTER"], let colon = spec.firstIndex(of: ":"),
+   let ms = Int(spec[..<colon]) {
+    let path = String(spec[spec.index(after: colon)...])
+    DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(ms)) { OfficeNativeShell.open(URL(fileURLWithPath: path)) }
 }
 #endif
 

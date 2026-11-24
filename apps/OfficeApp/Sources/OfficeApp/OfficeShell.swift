@@ -91,6 +91,7 @@ final class OfficeShellState: State<StatefulWidget> {
         super.initState()
         OfficeFonts.register()
         bind(_editorFocus)
+        trackDocumentPath(session)
         _recent = _loadRecent()
         _wireSession()
         officeScene.registerFlush(owner: self) { [weak self] in self?._autosaveNow() }
@@ -201,6 +202,7 @@ final class OfficeShellState: State<StatefulWidget> {
     override func dispose() {
         officeScene.publishToolbar(nil, owner: self)
         officeScene.unregisterFlush(owner: self)
+        officeScene.setDocumentPath(nil, owner: self)
         _search.dispose()
         _findQuery.dispose()
         _findReplacement.dispose()
@@ -501,6 +503,17 @@ final class OfficeShellState: State<StatefulWidget> {
             session.summary = session.summarize()
             _backstage = nil
         }
+    }
+
+    /// Open from the in-app file panel: a file another window has open is shown by bringing that window forward
+    /// (one document, one window: two windows on one file would race on its AutoSave and recovery copy).
+    private func _openFromPanel(_ path: String) {
+        if let other = OfficeScene.holding(path, besides: officeScene) {
+            other.focusWindow()
+            _flash("\(path.lastPathComponent) is open in another window")
+            return
+        }
+        _open(path)
     }
 
     private func _open(_ path: String) {
@@ -1112,7 +1125,7 @@ final class OfficeShellState: State<StatefulWidget> {
                 session: session, page: page, recent: _recent, notice: _status,
                 onPage: { [weak self] p in self?.setState { self?._backstage = p } },
                 onClose: { [weak self] in self?.setState { self?._backstage = nil } },
-                onOpenPath: { [weak self] path in self?._open(path) },
+                onOpenPath: { [weak self] path in self?._openFromPanel(path) },
                 onSavePath: { [weak self] path in self?._saveTo(path) },
                 onPicturePath: { [weak self] path in self?._insertPicture(path) },
                 onOpenSite: (widget as? OfficeShell)?.onOpenSite, scene: officeScene)),

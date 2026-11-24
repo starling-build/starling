@@ -40,6 +40,25 @@ public enum OfficeNativeShell {
     /// "workbook") to `path`; false if the app could not.
     public static var makeBlank: ((String, String) -> Bool)?
 
+    /// The original document a working copy at `path` was made from, if it is the one being edited. Safe from any
+    /// thread.
+    public static func originalPath(forWorking path: String) -> String? {
+        func look() -> String? {
+            guard let s = shared?.session, s.working.path == path else { return nil }
+            return s.original.path
+        }
+        return Thread.isMainThread ? look() : DispatchQueue.main.sync(execute: look)
+    }
+
+    /// Opens `url` as if the user had picked it in the browser (a file handed over by another app, a drop, a test).
+    public static func open(_ url: URL) {
+        DispatchQueue.main.async { shared?.open(url) }
+    }
+
+    /// Set by the app: the window already showing the document at `path`, if any, is brought forward and true is
+    /// returned. One document, one window.
+    public static var focusIfOpen: ((String) -> Bool)?
+
     /// The editor wants the browser back (Open, Close).
     public static func showBrowser() {
         DispatchQueue.main.async { shared?.dismissEditor() }
@@ -213,6 +232,7 @@ final class OfficeBrowserController: UIDocumentBrowserViewController, UIDocument
     /// Takes a document the user chose (or that another app handed over) into
     /// the editor.
     func open(_ url: URL) {
+        if OfficeNativeShell.focusIfOpen?(url.path) == true { return }
         endSession()
         let scoped = url.startAccessingSecurityScopedResource()
         let dir = FileManager.default.temporaryDirectory

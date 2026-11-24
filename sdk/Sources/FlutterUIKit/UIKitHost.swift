@@ -101,6 +101,9 @@ public final class UIKitHost {
     }
 
     /// Gives the Swift bridge's own ICU the data. Safe to call more than once.
+    /// Brings extra view `id` (see `runView`) in front of the others in the window.
+    public static func raiseExtraView(_ id: Int) { fluikit_view_raise(Int64(id)) }
+
     public static func initializeBridgeICU() {
         guard let path = icuDataPath else {
             FileHandle.standardError.write(

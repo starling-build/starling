@@ -139,6 +139,8 @@ void fluikit_view_add(int64_t view_id, double x, double y, double w, double h, F
 void fluikit_view_resize(int64_t view_id, double w, double h);
 /// Where extra view `view_id` sits in the window, in points; false when there is no such view.
 bool fluikit_view_origin(int64_t view_id, double* x, double* y);
+/// Brings extra view `view_id` in front of the others in the window.
+void fluikit_view_raise(int64_t view_id);
 void fluikit_view_remove(int64_t view_id, FlUIKitViewDone done, void* user);
 double fluikit_screen_scale(void);
 
