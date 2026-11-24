@@ -2063,6 +2063,22 @@ public struct RichBookmarkMarker: Hashable, Codable, Sendable {
     }
 }
 
+/// One end of a content control (`w:sdt`) that wraps runs inside one paragraph, in paragraph-local UTF-16 units.
+/// The start carries the control's properties as the file had them (`w:sdtPr` kept whole, namespaces declared),
+/// so a save writes back every setting, known to us or not. A control whose other end is gone (an edit joined or
+/// split it) is written as its plain content.
+public struct RichControlMarker: Hashable, Codable, Sendable {
+    public var id: Int
+    /// The start's `w:sdtPr` element as XML; nil for the matching end.
+    public var properties: String?
+    public var offset: Int
+    public var isStart: Bool { properties != nil }
+
+    public init(id: Int, properties: String? = nil, offset: Int) {
+        self.id = id; self.properties = properties; self.offset = offset
+    }
+}
+
 /// One paragraph: its text, the runs that cover it exactly, and its style.
 ///
 /// Invariant (`isValid`): the run lengths sum to `text.utf16.count`, no run
@@ -2095,6 +2111,10 @@ public struct RichParagraph: Hashable, Codable, Sendable {
     public var id: UInt32 = 0
     /// Ordered start/end markers at UTF-16 positions, including empty ranges.
     public var bookmarkMarkers: [RichBookmarkMarker] = []
+    /// Content controls over runs of this paragraph (see `RichControlMarker`).
+    public var controlMarkers: [RichControlMarker] = []
+    /// Whether an edit here moves markers (undo then restores the whole paragraph).
+    public var hasMarkers: Bool { !bookmarkMarkers.isEmpty || !controlMarkers.isEmpty }
     /// Set on a paragraph that is a copy of an endnote (-1: the separator above them), flowed after the body's last
     /// paragraph where the notes are too long to stand under it. Layout only: the file's endnotes part is kept as it
     /// was and a save leaves these out.
@@ -2228,6 +2248,9 @@ public struct RichParagraph: Hashable, Codable, Sendable {
         for i in bookmarkMarkers.indices where bookmarkMarkers[i].offset >= offset {
             bookmarkMarkers[i].offset += insertUnits
         }
+        for i in controlMarkers.indices where controlMarkers[i].offset > offset || controlMarkers[i].offset == offset && controlMarkers[i].isStart {
+            controlMarkers[i].offset += insertUnits
+        }
         let styled = newRuns ?? [Run(length: insertUnits, style: style(at: offset))]
         // Split the run at `offset` and splice the new runs between.
         var out: [Run] = []
@@ -2266,6 +2289,11 @@ public struct RichParagraph: Hashable, Codable, Sendable {
             bookmarkMarkers[i].offset = bookmarkMarkers[i].offset > hi
                 ? bookmarkMarkers[i].offset - (hi - lo)
                 : min(bookmarkMarkers[i].offset, lo)
+        }
+        for i in controlMarkers.indices {
+            controlMarkers[i].offset = controlMarkers[i].offset > hi
+                ? controlMarkers[i].offset - (hi - lo)
+                : min(controlMarkers[i].offset, lo)
         }
         let removedRuns = runs(in: lo ..< hi)
         var out: [Run] = []
@@ -2338,6 +2366,10 @@ public struct RichParagraph: Hashable, Codable, Sendable {
             RichBookmarkMarker(id: $0.id, name: $0.name, offset: $0.offset - offset)
         }
         bookmarkMarkers.removeAll { $0.offset >= offset }
+        tail.controlMarkers = controlMarkers.filter { $0.offset >= offset }.map {
+            RichControlMarker(id: $0.id, properties: $0.properties, offset: $0.offset - offset)
+        }
+        controlMarkers.removeAll { $0.offset >= offset }
         let movedNames = Set(tail.bookmarkMarkers.compactMap(\.name))
         tail.bookmarks = bookmarks.filter { movedNames.contains($0) }
         bookmarks.removeAll { movedNames.contains($0) }
@@ -2356,6 +2388,9 @@ public struct RichParagraph: Hashable, Codable, Sendable {
     public mutating func append(_ other: RichParagraph) {
         bookmarkMarkers += other.bookmarkMarkers.map {
             RichBookmarkMarker(id: $0.id, name: $0.name, offset: length + $0.offset)
+        }
+        controlMarkers += other.controlMarkers.map {
+            RichControlMarker(id: $0.id, properties: $0.properties, offset: length + $0.offset)
         }
         bookmarks += other.bookmarks.filter { !bookmarks.contains($0) }
         if other.text.isEmpty { return }

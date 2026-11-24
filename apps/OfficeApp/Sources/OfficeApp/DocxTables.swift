@@ -1067,7 +1067,12 @@ extension DocxFormat {
             var p = doc.paragraphs[index]
             // Boundaries can fall inside a normalized run. Split only the
             // serialization view, keeping the document's run invariants.
-            let cuts = Set(p.bookmarkMarkers.map { max(0, min($0.offset, p.length)) })
+            // (A content control is written only when both its ends are in this paragraph, start first.)
+            var controlStarts = Set<Int>()
+            var pairedControls = Set<Int>()
+            for m in p.controlMarkers { if m.isStart { controlStarts.insert(m.id) } else if controlStarts.contains(m.id) { pairedControls.insert(m.id) } }
+            let controlsHere = p.controlMarkers.filter { pairedControls.contains($0.id) }
+            let cuts = Set(p.bookmarkMarkers.map { max(0, min($0.offset, p.length)) } + controlsHere.map { max(0, min($0.offset, p.length)) })
             if !cuts.isEmpty {
                 var split: [Run] = [], offset = 0
                 for run in p.runs {
@@ -1087,6 +1092,11 @@ extension DocxFormat {
                         return "<w:bookmarkStart w:id=\"\(_esc(marker.id))\" w:name=\"\(_esc(name))\"/>"
                     }
                     return "<w:bookmarkEnd w:id=\"\(_esc(marker.id))\"/>"
+                }.joined()
+            }
+            func controlXML(at offset: Int) -> String {
+                controlsHere.filter { max(0, min($0.offset, p.length)) == offset }.map { marker in
+                    marker.properties.map { "<w:sdt>\($0)<w:sdtContent>" } ?? "</w:sdtContent></w:sdt>"
                 }.joined()
             }
             var body = ""
@@ -1243,7 +1253,7 @@ extension DocxFormat {
             var pos = 0
             let utf16 = p.text.utf16
             for (runIndex, run) in p.runs.enumerated() where run.length > 0 {
-                body += bookmarkXML(at: pos)
+                body += bookmarkXML(at: pos) + controlXML(at: pos)
                 let a = utf16.index(utf16.startIndex, offsetBy: pos)
                 let b = utf16.index(a, offsetBy: run.length)
                 let piece = String(utf16[a ..< b]) ?? ""
@@ -1374,7 +1384,7 @@ extension DocxFormat {
                 }
                 if commentsKept { body += closeComments(except: commentsAfter(index, runIndex, in: p)) }
             }
-            body += bookmarkXML(at: p.length)
+            body += bookmarkXML(at: p.length) + controlXML(at: p.length)
             if breakRidesOnPrevious(index + 1) {
                 let next = doc.paragraphs[index + 1].style
                 body += "<w:r>\(next.breakRunPropertiesXML ?? "")<w:br w:type=\"\(next.columnBreak ? "column" : "page")\"/></w:r>"

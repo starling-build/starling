@@ -318,6 +318,7 @@ extension DocxFormat {
         var text = ""
         var clearsFirstLine = false
         var bookmarkMarkers: [RichBookmarkMarker] = []
+        var controlMarkers: [RichControlMarker] = []
         var runs: [Run] = []
         var positionalTabs: [Int: TabStop.Alignment] = [:]
         var inlineImages: [String: ImageAttachment] = [:]
@@ -377,6 +378,8 @@ extension DocxFormat {
             // first piece of a w:p split at a page break carries it.
             if built.isEmpty, let hex = p["w14:paraId"], let id = UInt32(hex, radix: 16), id != 0 { para.id = id }
             para.bookmarkMarkers = notes.pendingBookmarkMarkers + bookmarkMarkers
+            para.controlMarkers = controlMarkers
+            controlMarkers = []
             notes.pendingBookmarkMarkers = []
             bookmarkMarkers = []
             built.append(_Built(paragraph: para, pageBreakAfter: pageBreakAfter))
@@ -1958,7 +1961,17 @@ extension DocxFormat {
                         RuleTrace.hit("empty-simple-field-leaves-a-default-face-strut")
                         addText("\u{2060}\u{2060}\u{2060}", cellChar)
                     }
-                    walkInline(child, link: link, revision: revision)
+                    // A content control over runs keeps its properties whole (W-RV-3), so a save writes it back.
+                    if child.name == "w:sdt", let pr = child.first("w:sdtPr"), child.first("w:sdtContent") != nil,
+                       let kept = Self._keptFragment(pr, notes) {
+                        notes.controlCount += 1
+                        let id = notes.controlCount
+                        controlMarkers.append(RichControlMarker(id: id, properties: kept.xml, offset: text.utf16.count))
+                        walkInline(child, link: link, revision: revision)
+                        controlMarkers.append(RichControlMarker(id: id, offset: text.utf16.count))
+                    } else {
+                        walkInline(child, link: link, revision: revision)
+                    }
                 case "m:oMathPara", "m:oMath":
                     // (A comment whose reference stands inside the equation, its
                     // range empty, anchors at the equation: tdf170236's
