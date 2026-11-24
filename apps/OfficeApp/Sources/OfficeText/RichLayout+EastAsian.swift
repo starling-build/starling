@@ -3587,7 +3587,7 @@ extension RichLayout {
 
     static func _hangulHeldPair(_ a: UInt32, _ b: UInt32) -> Bool {
         func hangul(_ v: UInt32) -> Bool { v >= 0xAC00 && v <= 0xD7A3 }
-        func mark(_ v: UInt32) -> Bool { (v > 0x20 && v < 0x3A) || (v >= 0x3A && v < 0x41) || v == 0x5B || v == 0x5D || v == 0x7B || v == 0x7D || (v >= 0x2018 && v <= 0x201D) || v == 0xB7 }
+        func mark(_ v: UInt32) -> Bool { (v > 0x20 && v < 0x3A) || (v >= 0x3A && v < 0x41) || (v >= 0x5B && v <= 0x60) || (v >= 0x7B && v <= 0x7E) || (v >= 0x2018 && v <= 0x201D) || v == 0xB7 }
         return (hangul(a) && (hangul(b) || mark(b))) || (mark(a) && hangul(b))
     }
 
