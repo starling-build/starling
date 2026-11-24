@@ -100,10 +100,15 @@ extension PptFile {
             var k = ps
             while k < pe {
                 if units[k] == 0x0B { out += "<a:br/>"; k += 1; continue }
+                if let type = block.fields[k] {
+                    let shown = type == "slidenum" ? "‹#›" : "1/1/2026"
+                    out += "<a:fld id=\"{5C1F2A90-7B3D-4E60-9A41-0D8E6B2F7C13}\" type=\"\(type)\">\(charRun(at: k).map { runProps($0.0) }.flatMap { $0.isEmpty ? nil : $0 } ?? "<a:rPr lang=\"en-US\"/>")<a:t>\(shown)</a:t></a:fld>"
+                    k += 1; continue
+                }
                 let run = charRun(at: k)
                 var e = k
                 let limit = min(pe, run?.1 ?? pe)
-                while e < limit, units[e] != 0x0B { e += 1 }
+                while e < limit, units[e] != 0x0B, block.fields[e] == nil || e == k { e += 1 }
                 if e == k { e = k + 1 }
                 let text = units[k ..< e].filter { $0 >= 0x20 || $0 == 0x09 }
                 if !text.isEmpty {

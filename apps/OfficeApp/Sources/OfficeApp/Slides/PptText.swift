@@ -13,6 +13,8 @@ struct PptTextBlock {
     /// StyleTextPropAtom's runs (empty when the block has none: the master style applies).
     var paraRuns: [PptParaRun] = []
     var charRuns: [PptCharRun] = []
+    /// Field marks: text position -> DrawingML field type (the text there is the field's placeholder character).
+    var fields: [Int: String] = [:]
 }
 
 enum PptText {
@@ -42,6 +44,11 @@ enum PptText {
             case charsType, bytesType:
                 out.append(PptTextBlock(type: pendingType ?? 4, text: decode(r, in: b)))
                 pendingType = nil
+            case 0x0FD8, 0x0FF7, 0x0FF8, 0x1015:
+                // Slide number and date marks: u32 position in the text of the placeholder character.
+                if !out.isEmpty, r.body.count >= 4 {
+                    out[out.count - 1].fields[OfficeArt.u32(b, r.body.lowerBound)] = r.type == 0x0FD8 ? "slidenum" : "datetime1"
+                }
             case styleType:
                 if !out.isEmpty {
                     let parsed = PptStyle.parse(b, in: r.body, length: out[out.count - 1].text.utf16.count)

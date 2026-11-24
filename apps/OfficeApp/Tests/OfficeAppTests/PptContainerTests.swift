@@ -361,6 +361,20 @@ final class PptContainerTests: XCTestCase {
         XCTAssertTrue(slide.contains("<p:pic>"))
     }
 
+    func testSlideNumberAndDateMarksBecomeFields() throws {
+        // text "Page *": a slide-number mark at position 5, then a date mark at position 6.
+        let text: [UInt8] = "Page **".utf16.flatMap { [UInt8($0 & 0xFF), UInt8($0 >> 8)] }
+        var recs = rec(0x0F9F, le32(4)) + rec(0x0FA0, text)
+        recs += rec(0x0FD8, le32(5)) + rec(0x0FF7, le32(6) + [0, 0, 0, 0])
+        let blocks = PptText.blocks(OfficeArt.records(recs, in: 0 ..< recs.count), in: recs)
+        XCTAssertEqual(blocks.first?.fields, [5: "slidenum", 6: "datetime1"])
+        let f = try PptFile(currentUser: deckWithThreeSlides().user, document: deckWithThreeSlides().doc)
+        let xml = f.paragraphsXML(blocks.first)
+        XCTAssertTrue(xml.contains("type=\"slidenum\""), xml)
+        XCTAssertTrue(xml.contains("type=\"datetime1\""), xml)
+        XCTAssertTrue(xml.contains("<a:t>Page </a:t>"), xml)
+    }
+
     func testStyleRunsKeepOnlyTheFieldsTheirMaskNames() throws {
         // "Big red": one paragraph (level 1, centred, nothing else), runs "Big " (bold red 24 pt) and "red" (no fields).
         var atom: [UInt8] = le32(8) + le16(1) + le32(0x800) + le16(1)
