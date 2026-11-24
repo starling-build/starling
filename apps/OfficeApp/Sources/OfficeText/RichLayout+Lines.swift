@@ -63,9 +63,11 @@ extension RichLayout {
         var tallShifted = 0.0, shadowReach = 0.0
         var verticalRuby = false, secondPass = false, figuresAside = false
         var figureLabels = Set<String>(), letterLabels = Set<String>()
+        var fieldStrut: TextStyle? = nil
         var kokilaOwn = false, latinOwn = false, latinStacked = false, bengaliSeen = false, nirmalaSeen = false
         func visit(_ s: InlineSpan) {
             guard uniform, let t = s as? TextSpan else { return }
+            if t.text == "\u{2060}", fieldStrut == nil, let st = t.style, let fs = st.fontSize, fs > 0.5 { fieldStrut = st }
             if let st = t.style, let tx = t.text, tx.unicodeScalars.contains(where: { $0.value >= 0x900 && $0.value < 0xD80 }), st.ascentOverride != nil, st.debugLabel?.lowercased().containsSubstring("nirmala ui") == true { nirmalaSeen = true }
             if let st = t.style, let tx = t.text {
                 if st.ascentOverride != nil, st.debugLabel?.lowercased().containsSubstring("kokila") == true { kokilaOwn = true }
@@ -198,7 +200,26 @@ extension RichLayout {
         // too, and comes out that much short — 15.15 for 15.6 in
         // Liberation Sans.)
         // (A shadow on a raised or lowered run grows the line by its reach above: see "shadow-line@" in `_spanStyle`.)
-        let grownH = !shiftedToo && shadowReach > 0 ? h + shadowReach / size : h
+        var grownH = !shiftedToo && shadowReach > 0 ? h + shadowReach / size : h
+        // (A field with no result leaves a strut in the paragraph's default Latin face, ZWNJ in Times New Roman or Arial, and Word's line is
+        // its tallest ascent, with a Latin face's line gap in it, over its deepest descent, times the multiple: a 10.5 pt Vazirmatn line at 1.18
+        // lines is 19.85 pt with a Times New Roman 12 strut, 19.35 without. Lab fas1, xb fas-z22832287: TOC lines 22.8 pt apart, not 22.35.)
+        if RichTextTheme.wordWindowsPages, let fs = fieldStrut, let fsz = fs.fontSize,
+           case let label = String((fs.debugLabel?.trimmingWhitespace().lowercased() ?? "").filter { $0 != "(" && $0 != ")" }).replacingAll(".copywith", with: ""),
+           let gap = ["times new roman": 0.891 + 0.042, "arial": 0.905 + 0.033][label],
+           base.fontFamily?.lowercased() != fs.fontFamily?.lowercased() {
+            let pr = TextPainter(text: TextSpan(text: "x", style: TextStyle(fontSize: size, fontWeight: base.fontWeight, fontFamily: base.fontFamily, fontFamilyFallback: base.fontFamilyFallback)), textDirection: .ltr)
+            pr.layout(minWidth: 0, maxWidth: 100_000)
+            if let m = pr.computeLineMetrics().first, m.height > 1 {
+                // (The extra is in single-spacing points, the face's own ascent against the strut's: it is not scaled by the multiple.)
+                let extra = max(0, gap * fsz - m.ascent)
+                if extra > 0.01 {
+                    RuleTrace.hit("word-empty-field-strut-raises-the-line-by-its-faces-ascent")
+                    grownH += extra / size
+                }
+            }
+            pr.dispose()
+        }
         if grownH != h { RuleTrace.hit("word-raised-run-shadow-reach-grows-the-line") }
         return StrutStyle(fontFamily: base.fontFamily, fontFamilyFallback: base.fontFamilyFallback,
                           fontSize: size, height: grownH, leadingDistribution: .even, fontWeight: base.fontWeight,
