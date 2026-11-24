@@ -859,7 +859,7 @@ public final class RichTextTheme {
         // lo tdf163575's Persian is 12pt in a style whose `w:sz` is 10.)
         // (Hebrew letters split out of a run with no w:rtl keep the sz: bae91d's title, sz 17 / szCs 26, prints at 17 and its Normal text at 10.5, not the default szCs 11.)
         if style.plainSize {}
-        else if wordRules, style.rightToLeft, !eastAsian, style.fontSize == nil, let z = style.complexFontSize ?? named?.char.complexFontSize ?? normal?.complexFontSize { size = z }
+        else if wordRules, style.rightToLeft || style.csMark, !eastAsian, style.fontSize == nil, let z = style.complexFontSize ?? named?.char.complexFontSize ?? normal?.complexFontSize { size = z }
         // (A run that gives `w:sz` and no `w:szCs` is set at the szCs its style or the defaults give: xd 72ea457a's Hebrew, sz 14 over Normal's szCs 12, prints at 12 in David.)
         else if wordRules, style.rightToLeft, !eastAsian, style.sizeFromStyleSzCs, style.complexFontSize == nil, let z = named?.char.complexFontSize ?? normal?.complexFontSize { size = z }
         else if wordRules, !style.rightToLeft, !eastAsian, style.sizeFromStyleSzCs, style.fontSize == nil, style.complexFontSize == nil, let z = named?.char.complexFontSize ?? normal?.complexFontSize { size = z }

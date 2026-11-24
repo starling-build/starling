@@ -212,6 +212,8 @@ public struct CharStyle: Hashable, Codable, Sendable {
     /// The run's text holds Arabic or Hebrew letters (set where the reader builds the run): Calibri, which has none, cannot be the face it is drawn in.
     public var csLetters: Bool = false
     public var complexFontFamily: String? = nil
+    /// A paragraph mark flagged `w:cs` that gives no `w:sz`: its line is set at the complex-script size.
+    public var csMark: Bool = false
     /// Set by the reader on runs after one that names Raavi as its Latin face: a Gurmukhi run with a Times New Roman complex face is then drawn in Raavi.
     public var gurmukhiRaavi: Bool = false
     public var eastAsiaFontFamily: String? = nil

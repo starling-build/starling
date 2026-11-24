@@ -181,6 +181,9 @@ extension DocxFormat {
                 // empty paragraph with sz 20 and w:rtl over BodyText's szCs 32 is a 19.3 pt Tahoma Bold line in Word; marks without w:rtl keep the sz.)
                 markStyle = _charStyle(rPr, base: mark, complexSize: _on(rPr.first("w:rtl")) && rPr.first("w:szCs") == nil && rPr.first("w:sz") != nil ? true : nil)
             }
+            // (A mark flagged w:cs, with no w:sz of its own, is a complex-script mark: its line is set at szCs, as Word's print of dx2 228c1f233c7a:
+            // an empty centred paragraph with only <w:cs/> under szCs 28 is a 14 pt line, not the 11 pt one.)
+            if DocxFormat.wordOnWindows, let r = pPr.first("w:rPr"), _on(r.first("w:cs")), r.first("w:sz") == nil, markStyle != nil { markStyle?.csMark = true }
             if markStyle?.hidden == true { style.markHidden = true }
             if style.markHidden, _on(pPr.first("w:rPr")?.first("w:specVanish")) { style.markSpecVanish = true }
             style.mark = markStyle
