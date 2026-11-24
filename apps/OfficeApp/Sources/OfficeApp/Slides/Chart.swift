@@ -4074,7 +4074,15 @@ enum ChartPainter {
                         let high = wideKeys ? 4.9 * k : key
                         // (A slide pie's wrapped column: the key and the name's first line at the top of the slot, as in PowerPoint's print.)
                         let keyMid = slideSidePie && wrappedSide ? y + (lineH - slotH) / 2 + textH / 2 : y + lineH / 2
-                        canvas.drawRect(Rect.fromLTWH(x, keyMid - high / 2 + keyDrop, key, high), p)
+                        // (A pattern-filled series' key is hatched as its columns are: dx2 99cfc5554d6e p3's "sphere" and "openDmnd" keys.)
+                        let keyRect = Rect.fromLTWH(x, keyMid - high / 2 + keyDrop, key, high)
+                        var hatchedKey = false
+                        if !pie, waterfall == nil, !byPoint, e.i < c.series.count, !c.onSlide, let ink = c.series[e.i].pattern,
+                           Self._hatch({ let q = Path(); q.addRect(keyRect); return q }(), ink, k: c.onSheet ? 1 : k, canvas) {
+                            RuleTrace.hit("word-legend-key-of-a-pattern-filled-series-is-hatched"); hatchedKey = true
+                        } else {
+                            canvas.drawRect(keyRect, p)
+                        }
                         if pieKeyLine > 0, let rim = c.pointRim {
                             let q = Paint()
                             q.style = .stroke
@@ -4084,13 +4092,13 @@ enum ChartPainter {
                             canvas.drawRect(Rect.fromLTWH(x, keyMid - high / 2 + keyDrop, key, high), q)
                         }
                         // (On a sheet the key wears the series' own outline, as the bars do: WithChartSheet's pivot chart.)
-                        if c.onSheet, !byPoint, e.i < c.series.count, let o = c.series[e.i].outline {
+                        if c.onSheet || hatchedKey, !byPoint, e.i < c.series.count, let o = c.series[e.i].outline {
                             let q = Paint()
                             q.style = .stroke
                             q.isAntiAlias = true
                             q.strokeWidth = min(c.series[e.i].outlineWidth, 0.75)
                             q.color = o
-                            canvas.drawRect(Rect.fromLTWH(x, y + (lineH - high) / 2 + keyDrop, key, high), q)
+                            canvas.drawRect(hatchedKey ? keyRect : Rect.fromLTWH(x, y + (lineH - high) / 2 + keyDrop, key, high), q)
                         }
                     }
                     // (A Word pie's legend in a box of its own: an entry that wraps stands its first line where a one-line entry's
