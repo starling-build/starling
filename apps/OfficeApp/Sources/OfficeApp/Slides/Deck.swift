@@ -193,11 +193,14 @@ struct ReadShape: Equatable {
     /// own XML with only its placement patched, so everything this app does
     /// not model (links, vertical text, wrap, tab stops, adjust values,
     /// alt text...) survives a drag. (S-P0-1)
-    func unchangedExceptPlacement(_ s: ShapeState) -> Bool {
+    func unchangedExceptPlacement(_ s: ShapeState) -> Bool { unchangedExceptPlacementAndText(s) && s.text == s.sourceText }
+
+    /// The same, whatever has been typed.
+    func unchangedExceptPlacementAndText(_ s: ShapeState) -> Bool {
         var a = self
         let b = ReadShape(s)
         a.frame = b.frame; a.rotation = b.rotation
-        return a == b && s.text == s.sourceText
+        return a == b
     }
 }
 
