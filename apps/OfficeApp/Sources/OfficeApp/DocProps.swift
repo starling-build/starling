@@ -407,8 +407,10 @@ enum DocProps {
 
     /// numbering.xml from the list tables (PlfLst: the list definitions; PlfLfo: the numbers paragraphs refer to).
     static func numbering(_ t: [UInt8], lst: (fc: Int, lcb: Int), lfo: (fc: Int, lcb: Int)?, fonts: [String]) -> String? {
-        let end = lst.fc + lst.lcb
-        guard lst.fc >= 0, end <= t.count, lst.lcb >= 2 else { return nil }
+        // The level records (LVL) of every list follow the list headers right after PlfLst, outside the
+        // length the file records for it, so they are read up to the end of the table stream.
+        guard lst.fc >= 0, lst.fc + lst.lcb <= t.count, lst.lcb >= 2 else { return nil }
+        let end = t.count
         let cLst = OfficeArt.u16(t, lst.fc)
         var p = lst.fc + 2
         var lsids: [Int] = [], simple: [Bool] = []

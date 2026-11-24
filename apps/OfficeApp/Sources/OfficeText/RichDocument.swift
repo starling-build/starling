@@ -2783,6 +2783,9 @@ public struct RichDocument: Hashable, Codable, Sendable {
     /// The settings' `w:doNotUseIndentAsNumberingTabStop`: a list
     /// label's tab goes to the next tab stop, not to the hanging indent.
     public var indentNotNumberingTabStop = false
+    /// Read from a binary .doc (its converted settings say so): a paragraph that states its own left
+    /// indent under a numbered level still tabs to the level's indent. Not a .docx rule.
+    public var numberTabReachesLevelIndent = false
     /// Widow control holds for no paragraph, whatever each says: Word for
     /// Mac lays out a body whose footer holds a framed paragraph raised
     /// over the footer's top (a page number in a `w:framePr` of negative

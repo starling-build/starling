@@ -80,7 +80,7 @@ enum DocRead {
     /// The settings part of a binary file: it lays out as Word's earlier modes do, so the mark of a paragraph that ends
     /// in a page break stands on the page the break opens (pt-2b169d7457's cover page).
     static func settingsXML(facing: Bool, tabStop: Int? = nil) -> String {
-        "<w:settings xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\">" + (facing ? "<w:evenAndOddHeaders/>" : "") + (tabStop.map { "<w:defaultTabStop w:val=\"\($0)\"/>" } ?? "") + "<w:compat><w:splitPgBreakAndParaMark/></w:compat></w:settings>"
+        "<w:settings xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\">" + (facing ? "<w:evenAndOddHeaders/>" : "") + (tabStop.map { "<w:defaultTabStop w:val=\"\($0)\"/>" } ?? "") + "<w:compat><w:splitPgBreakAndParaMark/><w:binaryDocListTabs/></w:compat></w:settings>"
     }
 
     static func pieces(clx: [UInt8]) -> [DocPiece] {
