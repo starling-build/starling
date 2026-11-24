@@ -316,4 +316,39 @@ final class CorpusFixTests: XCTestCase {
         XCTAssertGreaterThan(fixed, PageSetup.letter.headerDistance + 30 + 100, "a fixed-height box: the body stands under its stated foot")
         XCTAssertLessThan(fitted, fixed - 60, "an autofit box: under its one text line")
     }
+
+    /// A chart set by an offset from the column, over half the column wide, wrapped square with no room at either side: the
+    /// paragraphs after its anchor stand under it (pt 79c00839f5's pie chart; Word's page 2 heading stands 290 pt lower).
+    func testAWideChartWithNoRoomBesideItHoldsTheLinesUnderIt() throws {
+        RichTextTheme.wordWindowsPages = true
+        defer { RichTextTheme.wordWindowsPages = false }
+        func afterTop(width: Int) throws -> Double {
+            let doc = RichDocument(paragraphs: [RichParagraph(text: "          "), RichParagraph(text: ""), RichParagraph(text: ""), RichParagraph(text: " 5. Negativas de acesso e recursos")])
+            var entries = try Zip.read(try DocxFormat.write(doc, pageSetup: .letter))
+            func replace(_ name: String, _ f: (String) -> String) {
+                let i = entries.firstIndex { $0.name == name }!
+                entries[i] = ZipEntry(name: name, data: Data(f(String(decoding: entries[i].data, as: UTF8.self)).utf8))
+            }
+            let drawing = "<w:drawing><wp:anchor distT=\"0\" distB=\"0\" distL=\"114300\" distR=\"114300\" simplePos=\"0\" relativeHeight=\"1\" behindDoc=\"0\" locked=\"0\" layoutInCell=\"1\" allowOverlap=\"1\"><wp:simplePos x=\"0\" y=\"0\"/><wp:positionH relativeFrom=\"column\"><wp:posOffset>-540385</wp:posOffset></wp:positionH><wp:positionV relativeFrom=\"paragraph\"><wp:posOffset>186690</wp:posOffset></wp:positionV><wp:extent cx=\"\(width)\" cy=\"3000000\"/><wp:wrapSquare wrapText=\"bothSides\"/><wp:docPr id=\"7\" name=\"Chart 1\"/><a:graphic xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\"><a:graphicData uri=\"http://schemas.openxmlformats.org/drawingml/2006/chart\"><c:chart xmlns:c=\"http://schemas.openxmlformats.org/drawingml/2006/chart\" r:id=\"rId77\"/></a:graphicData></a:graphic></wp:anchor></w:drawing>"
+            replace("word/document.xml") { $0.replacingAll("<w:t xml:space=\"preserve\">          </w:t></w:r>", with: "<w:t xml:space=\"preserve\">          </w:t></w:r><w:r>\(drawing)</w:r>") }
+            replace("word/_rels/document.xml.rels") { $0.replacingAll("</Relationships>", with: "<Relationship Id=\"rId77\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart\" Target=\"charts/chart1.xml\"/></Relationships>") }
+            replace("[Content_Types].xml") { $0.replacingAll("</Types>", with: "<Override PartName=\"/word/charts/chart1.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.drawingml.chart+xml\"/></Types>") }
+            entries.append(ZipEntry(name: "word/charts/chart1.xml", data: Data("<c:chartSpace xmlns:c=\"http://schemas.openxmlformats.org/drawingml/2006/chart\"/>".utf8)))
+            let back = try DocxFormat.read(try Zip.write(entries)).document
+            let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+            theme.wordRules = true
+            let layout = RichLayout(theme: theme, paragraphCount: back.paragraphs.count)
+            layout.pageSetup = .letter
+            layout.width = PageSetup.letter.columnWidth * theme.pixelsPerPoint
+            layout.ensureLaidOut(back)
+            let last = back.paragraphs.count - 1
+            let piece = try XCTUnwrap(layout.pieces[0].first { $0.paragraph == last })
+            return (piece.pageY + layout.geometry(last).textTop - piece.flowTop) / theme.pixelsPerPoint
+        }
+        // Beside a narrow chart the last line sits near the top; under a column-wide one it stands below the two empty lines that
+        // also stand under the chart (pt-79c00839f5). Without the rule those empty lines stay beside it and the heading is 30 pt higher.
+        let narrow = try afterTop(width: 2000000), wide = try afterTop(width: 6200000)
+        XCTAssertLessThan(narrow, 100)
+        XCTAssertGreaterThan(wide, 280, "the last line stands under the chart, below its empty lines: \(wide)")
+    }
 }
