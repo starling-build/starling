@@ -192,6 +192,7 @@ enum DocProps {
         var ascii: Int?, fe: Int?, other: Int?
         var flags: [Int: Bool] = [:]
         var size: Int?, color: String?, hl = "", ul = "", va = "", rstyle = -1
+        var kern: Int?   // sprmCHpsKern: kern pairs from this size (half-points) up; 0 = off
         for s in sprms(g) where s.sgc == 2 {
             switch s.op {
             case 0x0835, 0x0836, 0x0837, 0x0838, 0x0839, 0x083A, 0x083B, 0x083C:
@@ -201,6 +202,7 @@ enum DocProps {
             case 0x2A42: if s.u8 > 0, s.u8 < ico.count { color = ico[s.u8] }
             case 0x6870: if s.operand.count >= 3 { color = hex(s.operand[0]) + hex(s.operand[1]) + hex(s.operand[2]) }
             case 0x4A43: size = s.u16
+            case 0x484B: kern = s.u16
             case 0x2A0C: if s.u8 > 0, s.u8 < highlight.count { hl = highlight[s.u8] }
             case 0x2A48: va = s.u8 == 1 ? "superscript" : s.u8 == 2 ? "subscript" : "baseline"
             case 0x4A30: rstyle = s.u16
@@ -229,6 +231,9 @@ enum DocProps {
         on(0x0836, "i"); if flags[0x0836] == true { x += "<w:iCs/>" }
         on(0x083B, "caps"); on(0x083A, "smallCaps"); on(0x0837, "strike"); on(0x0838, "outline"); on(0x0839, "shadow"); on(0x083C, "vanish")
         if let color { x += "<w:color w:val=\"\(color)\"/>" }
+        // Only where the run names a face whose own kern pairs we hold (Verdana): for Times New Roman, pt-60f18b461d's
+        // header line wraps in Word's print but fits kerned, so a bare "kern" sprm is not proof Word kerned the run.
+        if let kern, a?.lowercased() == "verdana" { x += "<w:kern w:val=\"\(kern)\"/>" }
         if let size, size > 0 { x += "<w:sz w:val=\"\(size)\"/><w:szCs w:val=\"\(size)\"/>" }
         if !hl.isEmpty { x += "<w:highlight w:val=\"\(hl)\"/>" }
         if !ul.isEmpty { x += "<w:u w:val=\"\(ul)\"/>" }
