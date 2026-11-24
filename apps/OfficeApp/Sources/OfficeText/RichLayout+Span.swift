@@ -2454,7 +2454,7 @@ extension RichLayout {
                 // bold 12 to 72 pt, blur 4 and 8, the pink fading out to a reach of 0.5 x the blur x (size/72)^(2/3) past the letters.
                 // A PDF drops a blur, so, as the glow above, it is drawn into a picture: the letters grown by half the reach, the edge
                 // blurred with sigma 0.3 of it, so the strength is 95% at the letters and 5% at the reach.)
-                let reach = 0.5 * sh.blur * shrink * k
+                let reach = Self._shadowHaloReach(blur: sh.blur, distanceFactor: shrink) * k
                 let grow = 0.5 * reach, sigma = 0.3 * reach
                 let ink = moved.getBounds().inflate(grow + 3 * sigma)
                 let px = 2.8 / k
@@ -3209,4 +3209,9 @@ extension RichLayout {
         }
         return (max(0, sh.blur - sh.dy) * frac, max(0, sh.blur + sh.dy) * frac)
     }
+}
+
+extension RichLayout {
+    /// How far past the letters Word's blurred text shadow fades out, in points: half the blur, by the distance factor of the text size.
+    static func _shadowHaloReach(blur: Double, distanceFactor: Double) -> Double { 0.5 * blur * distanceFactor }
 }
