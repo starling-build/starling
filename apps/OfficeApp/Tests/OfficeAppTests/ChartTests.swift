@@ -501,4 +501,26 @@ final class ChartTests: XCTestCase {
         XCTAssertNil(c.pieLabels?.texts[1])
     }
 
+
+    func testAWordPieKeepsItsInsideLabelsInsideItsSliceAsWordPrintsThem() {
+        // Lab pieexp: centred, half the radius out; inside the end, the radius less 1.2 pt and the label's half-extent along the slice's middle.
+        XCTAssertEqual(ChartPainter.wordPieInsideLabelDistance(own: "ctr", radius: 100, k: 1, mid: 0.3, width: 20, height: 12), 50, accuracy: 0.001)
+        XCTAssertEqual(ChartPainter.wordPieInsideLabelDistance(own: "inEnd", radius: 100, k: 1, mid: 0, width: 20, height: 12), 88.8, accuracy: 0.001)
+        XCTAssertEqual(ChartPainter.wordPieInsideLabelDistance(own: "inEnd", radius: 100, k: 1, mid: .pi / 2, width: 20, height: 12), 92.8, accuracy: 0.001)
+    }
+    func testAWordPieBoxLegendDropsTheLastEntriesItsHeightCannotHold() {
+        // Lab pieleg: five entries, each its height and 4 pt, in a 90.4 pt box: the fifth does not fit.
+        XCTAssertEqual(ChartPainter.wordPieLegendEntriesKept(heights: [12, 24, 24, 12, 12], k: 1, boxHeight: 90.4), 4)
+        XCTAssertEqual(ChartPainter.wordPieLegendEntriesKept(heights: [12, 12, 12, 12, 12], k: 1, boxHeight: 90.4), 5)
+        XCTAssertEqual(ChartPainter.wordPieLegendEntriesKept(heights: [200, 200], k: 1, boxHeight: 90.4), 1)
+    }
+    func testAWordColumnChartsTurnedNameStopsWordByWordWhereTheFrameIsFull() {
+        // Lab rotlbl2: frames 200, 260, 315 and 400 pt tall.
+        XCTAssertEqual(ChartPainter.wordTurnedNameCap(frameHeight: 200, k: 1), 96.4, accuracy: 0.01)
+        XCTAssertEqual(ChartPainter.wordTurnedNameCap(frameHeight: 400, k: 1), 237.8, accuracy: 0.01)
+        let widths = [20.0, 40, 60, 80, 100]
+        XCTAssertEqual(ChartPainter.wordTurnedNameWordsKept(prefixWidths: widths, cap: 65), 3)
+        XCTAssertEqual(ChartPainter.wordTurnedNameWordsKept(prefixWidths: widths, cap: 10), 1)
+        XCTAssertEqual(ChartPainter.wordTurnedNameWordsKept(prefixWidths: widths, cap: 500), 5)
+    }
 }

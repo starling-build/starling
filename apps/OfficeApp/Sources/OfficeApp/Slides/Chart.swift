@@ -3778,8 +3778,7 @@ enum ChartPainter {
             // last ones: lab pieleg, a 90.4 pt box of 10 pt names, "Malo" gone where "Excelente" and "Muy bueno" wrap, all five
             // shown where none does.)
             if wordBoxPie, boxColumn, lines.count > 1 {
-                var keep = lines.count
-                while keep > 1, zip(lines, lineHs).prefix(keep).reduce(0.0, { $0 + $1.1 + 4 * k }) > box!.height { keep -= 1 }
+                let keep = Self.wordPieLegendEntriesKept(heights: lineHs, k: k, boxHeight: box!.height)
                 if keep < lines.count {
                     RuleTrace.hit("word-pie-box-legend-drops-the-entries-its-height-cannot-hold")
                     droppedLegend += lines[keep...].flatMap { $0 }
@@ -4922,6 +4921,25 @@ enum ChartPainter {
         return ((av - pw) / 2 + 1.1, 2.1, pw - 3.5, ph - 3.5)
     }
 
+    /// A Word flat pie's inside label: its distance from its slice's apex along the slice's middle (lab pieexp).
+    static func wordPieInsideLabelDistance(own: String, radius r: Double, k: Double, mid m: Double, width: Double, height: Double) -> Double {
+        if own == "ctr" { return 0.5 * r }
+        return r - 1.2 * k - (abs(cos(m)) * width / 2 + abs(sin(m)) * height / 2)
+    }
+    /// How many of a Word pie box legend's entries (each its height and 4 pt) fit the box (lab pieleg).
+    static func wordPieLegendEntriesKept(heights: [Double], k: Double, boxHeight: Double) -> Int {
+        var keep = heights.count
+        while keep > 1, heights.prefix(keep).reduce(0.0, { $0 + $1 + 4 * k }) > boxHeight { keep -= 1 }
+        return keep
+    }
+    /// The length a Word column chart's turned name may have before it is cut word by word (lab rotlbl2).
+    static func wordTurnedNameCap(frameHeight: Double, k: Double) -> Double { 0.707 * frameHeight - 45 * k }
+    /// Words kept of a turned name: `prefixWidths[n-1]` is the width of its first n words and an ellipsis; at least one.
+    static func wordTurnedNameWordsKept(prefixWidths: [Double], cap: Double) -> Int {
+        var keep = prefixWidths.count
+        while keep > 1, prefixWidths[keep - 1] > cap { keep -= 1 }
+        return keep
+    }
     /// The box of a 3-D area chart at right angles in a room (see `_area3DRight`): its front's width and height and the depth's
     /// run across (dx) and up (dy), all in the room's units.
     static func area3DRightBox(roomW: Double, roomH: Double, series s: Int, categories n: Int, depth: Double, heightPercent: Double?,
@@ -5938,17 +5956,16 @@ enum ChartPainter {
             // length passes 0.707 of the chart's height less 45 pt: lab rotlbl2, one 26-word name in frames 200, 260, 315
             // and 400 pt tall kept 7, 11, 14 and 18 words, as the rule keeps them.)
             if word, !c.onSlide, !c.onSheet, !c.chartex, !horizontal, aslant, c.categoryLabelTurn == nil, abs(slant - .pi / 4) < 0.01 {
-                let cap = 0.707 * frame.height - 45 * k
+                let cap = Self.wordTurnedNameCap(frameHeight: frame.height, k: k)
                 for i in catLabels.indices where catLabels[i].width > cap {
                     let words = c.categories[i].split(separator: " ", omittingEmptySubsequences: true)
-                    var keep = words.count - 1
-                    while keep > 1 {
-                        let t = categoryText(words[0 ..< keep].joined(separator: " ") + "\u{2026}", catSize, .infinity)
-                        let fits = t.width <= cap
+                    var prefixes: [Double] = []
+                    for n in 1 ..< max(1, words.count) {
+                        let t = categoryText(words[0 ..< n].joined(separator: " ") + "\u{2026}", catSize, .infinity)
+                        prefixes.append(t.width)
                         t.dispose()
-                        if fits { break }
-                        keep -= 1
                     }
+                    let keep = Self.wordTurnedNameWordsKept(prefixWidths: prefixes, cap: cap)
                     if keep < 1 { continue }
                     catLabels[i].dispose()
                     catLabels[i] = categoryText(words[0 ..< keep].joined(separator: " ") + "\u{2026}", catSize, .infinity)
@@ -8138,10 +8155,9 @@ enum ChartPainter {
                 if !c.onSlide, !c.onSheet, !c.chartex, c.type == .pie, hole == 0, li < apexes.count, let own = c.series[0].labelPos,
                    own == "ctr" || own == "inEnd" {
                     let m = mids[li], r = radius * (c.pieSeriesPull > 0 ? 1 : 1)
-                    var d = own == "ctr" ? 0.5 * r : r - 1.2 * k
+                    let d = Self.wordPieInsideLabelDistance(own: own, radius: r, k: k, mid: m, width: tp.width, height: tp.height)
                     if own == "inEnd" {
                         RuleTrace.hit("word-flat-pie-inside-end-label-stands-its-box-half-extent-and-1.2pt-inside-the-rim")
-                        d -= abs(cos(m)) * tp.width / 2 + abs(sin(m)) * tp.height / 2
                     } else { RuleTrace.hit("word-flat-pie-centred-label-stands-half-the-radius-out") }
                     at = Offset(apexes[li].dx + cos(m) * d, apexes[li].dy + sin(m) * d)
                 }
