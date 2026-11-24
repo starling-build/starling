@@ -61,7 +61,8 @@ extension RichLayout {
         // grid, which asks its line for two pitches. A strut would hold the line at one: flt1-1-asis's
         // wrapped "かえてくれる" paragraph came out 18 pt short.)
         var tallShifted = 0.0, shadowReach = 0.0
-        var verticalRuby = false
+        var verticalRuby = false, secondPass = false, figuresAside = false
+        var figureLabels = Set<String>(), letterLabels = Set<String>()
         var kokilaOwn = false, latinOwn = false, latinStacked = false, bengaliSeen = false, nirmalaSeen = false
         func visit(_ s: InlineSpan) {
             guard uniform, let t = s as? TextSpan else { return }
@@ -83,6 +84,21 @@ extension RichLayout {
                 // (White space alone names no face here either: Arial spaces or a Calibri ". " beside B Zar's letters
                 // are not a second face, c2c3a2f3's lines 21.3 for Word's 18.5.)
                 if text.contains(where: { $0.isLetter || $0.isNumber }) { labelsSeen.insert(l) }
+            }
+            // (A figure run in Latin among the Arabic, "4%" in Book Antiqua with no right-to-left mark: it keeps the face's own line, taller than the
+            // Arabic run's Times New Roman, but sets only the lines it is on, as a minimum over the held strut. dx2 9f8856f2 page 5.)
+            // (A figure in a complex-script face named for Arabic, "Simplified Arabic", is part of the Arabic run and is not this case: dx2 da213509 page 11.)
+            if let text = t.text, marksToo, secondPass, !text.isEmpty, text.allSatisfy({ $0.isNumber || $0 == "%" || $0 == "." || $0 == "," }), text.contains(where: { $0.isNumber || $0 == "%" }),
+               !text.unicodeScalars.contains(where: { ($0.value >= 0x0590 && $0.value <= 0x08FF) || ($0.value >= 0xFB1D && $0.value <= 0xFEFF) || $0.value >= 0x2E80 }),
+               t.style?.ascentOverride == nil, t.style?.baselineShift == nil,
+               case let fl0 = String((t.style?.debugLabel?.trimmingWhitespace().lowercased() ?? "").filter { $0 != "(" && $0 != ")" }),
+               letterLabels == ["times new roman"], !letterLabels.contains(fl0.hasSuffix(".copywith") ? String(fl0.dropLast(9)) : fl0), !fl0.containsSubstring("arabic") {
+                var fl = String((t.style?.debugLabel?.trimmingWhitespace().lowercased() ?? "").filter { $0 != "(" && $0 != ")" })
+                while fl.hasSuffix(".copywith") { fl = String(fl.dropLast(9)) }
+                figureLabels.insert(fl)
+                RuleTrace.hit("word-latin-figure-run-among-arabic-sets-only-its-own-line")
+                for c in t.children ?? [] { visit(c) }
+                return
             }
             if let text = t.text, marksToo, !text.contains(where: { $0.isLetter || $0.isNumber || $0.isSymbol }) {
                 if let st = t.style, st.baselineShift == nil, st.debugLabel?.containsSubstring(" rtl-mark") != true, let sz = st.fontSize, let hh = st.height, sz > 0.5,
@@ -115,9 +131,21 @@ extension RichLayout {
         visit(span)
         if !uniform, bidi, theme.wordRules, RichTextTheme.wordWindowsPages {
             // Only a paragraph that has Arabic or Hebrew in it, and only where it had no strut.
-            marksToo = true; uniform = true; first = nil; count = 0; share = [:]; near = false
+            func scanLetters(_ x: InlineSpan) {
+                guard let t = x as? TextSpan else { return }
+                if let text = t.text, text.contains(where: { $0.isLetter }) {
+                    var l = String((t.style?.debugLabel?.trimmingWhitespace().lowercased() ?? "").filter { $0 != "(" && $0 != ")" })
+                    while l.hasSuffix(".copywith") { l = String(l.dropLast(9)) }
+                    letterLabels.insert(l)
+                }
+                for c in t.children ?? [] { scanLetters(c) }
+            }
+            scanLetters(span)
+            marksToo = true; secondPass = true; uniform = true; first = nil; count = 0; share = [:]; near = false
             labelsSeen = []; markLine = 0; marks = []
             visit(span)
+            // (Only where the figures are in a face the paragraph's letters do not use.)
+            figuresAside = !figureLabels.isEmpty
             // (A mark of another face that stands taller than the held line raises the lines it is on: Calibri 14 "." beside
             // B Zar in fas-z15800253 (Word 18.4 = Calibri 1.22 x 14 x 1.079, the stand-in alone 17.4) keeps the old way. Smaller
             // marks (c2c3a2f3's 11 pt "." and spaces) set no line.)
@@ -136,7 +164,7 @@ extension RichLayout {
             // Arial itself (xb ara-z15770216's bullets, Aptos beside them) keeps the old way: Word's lines there are 25.0, not 24.)
             var firstLabel = String((first?.debugLabel?.trimmingWhitespace().lowercased() ?? "").filter { $0 != "(" && $0 != ")" })
             while firstLabel.hasSuffix(".copywith") { firstLabel = String(firstLabel.dropLast(9)) }
-            if firstLabel != "arial",
+            if firstLabel != "arial", !(figuresAside && firstLabel == "times new roman"),
                !(first?.fontFamily?.lowercased() == "arial" && !labelsSeen.contains(where: { $0.containsSubstring("arial") })) { uniform = false }
         }
         if count == 0, uniform { blanksToo = true; visit(span) }
