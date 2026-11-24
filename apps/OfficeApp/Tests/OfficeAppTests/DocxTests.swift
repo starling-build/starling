@@ -773,6 +773,48 @@ final class DocxTests: XCTestCase {
         box.growsToFit = false
         box.textDirection = .horizontal
         XCTAssertFalse(RichLayout.turnedBoxCutsPastFarEdge(box))
+
+    /// ja-b852b9029c: beside a picture a vertical line is set only where its WHOLE pitch fits (planner spec, amd-opus): a 16pt gap at
+    /// the foot of a band, under the 18pt line pitch, stays empty (Word's page 1 left it), a gap past the pitch is used.
+    func testVerticalGapUnderOneLinePitchBesideAPictureStaysEmpty() throws {
+        func pages(gap: Double) throws -> Int {
+            let doc = RichDocument(paragraphs: [RichParagraph(text: String(repeating: "あいうえお", count: 400))])
+            var entries = try Zip.read(try DocxFormat.write(doc, pageSetup: .a4))
+            let di = try XCTUnwrap(entries.firstIndex { $0.name == "word/document.xml" })
+            var xml = String(decoding: entries[di].data, as: UTF8.self)
+            xml = xml.replacingAll("</w:sectPr>", with: "<w:textDirection w:val=\"tbRl\"/><w:docGrid w:type=\"lines\" w:linePitch=\"360\"/></w:sectPr>")
+            let setup = PageSetup.a4
+            let cx = Int((setup.width - setup.marginLeft - setup.marginRight) * 12700)
+            let cy = Int((setup.height - setup.marginTop - setup.marginBottom - gap) * 12700)
+            let anchor = "<w:drawing><wp:anchor distT=\"0\" distB=\"0\" distL=\"114300\" distR=\"114300\" simplePos=\"0\" relativeHeight=\"1\" behindDoc=\"0\" locked=\"0\" layoutInCell=\"1\" allowOverlap=\"1\">"
+                + "<wp:simplePos x=\"0\" y=\"0\"/><wp:positionH relativeFrom=\"margin\"><wp:posOffset>0</wp:posOffset></wp:positionH>"
+                + "<wp:positionV relativeFrom=\"margin\"><wp:posOffset>0</wp:posOffset></wp:positionV><wp:extent cx=\"\(cx)\" cy=\"\(cy)\"/>"
+                + "<wp:wrapSquare wrapText=\"bothSides\"/><wp:docPr id=\"2\" name=\"p\"/><a:graphic xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\">"
+                + "<a:graphicData uri=\"http://schemas.openxmlformats.org/drawingml/2006/picture\"><pic:pic xmlns:pic=\"http://schemas.openxmlformats.org/drawingml/2006/picture\">"
+                + "<pic:nvPicPr><pic:cNvPr id=\"0\" name=\"p\"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed=\"rId9\"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>"
+                + "<pic:spPr><a:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"\(cx)\" cy=\"\(cy)\"/></a:xfrm><a:prstGeom prst=\"rect\"/></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:anchor></w:drawing>"
+            xml = xml.replacingAll("<w:r>", with: "<w:r>" + anchor + "</w:r><w:r>")
+            let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")!
+            entries.append(ZipEntry(name: "word/media/image9.png", data: png))
+            let ri = try XCTUnwrap(entries.firstIndex { $0.name == "word/_rels/document.xml.rels" })
+            var rels = String(decoding: entries[ri].data, as: UTF8.self)
+            rels = rels.replacingAll("</Relationships>", with: "<Relationship Id=\"rId9\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/image\" Target=\"media/image9.png\"/></Relationships>")
+            entries[ri] = ZipEntry(name: "word/_rels/document.xml.rels", data: Data(rels.utf8))
+            entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+            RichTextTheme.wordWindowsPages = true
+            defer { RichTextTheme.wordWindowsPages = false }
+            let opened = try DocxFormat.read(try Zip.write(entries))
+            let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+            theme.wordRules = true
+            let l = RichLayout(theme: theme, paragraphCount: opened.document.paragraphs.count)
+            let ps = opened.pageSetup ?? .a4
+            l.pageSetup = ps
+            l.width = ps.columnWidth * theme.pixelsPerPoint
+            l.ensureLaidOut(opened.document)
+            return l.pageCount
+        }
+        let narrow = try pages(gap: 16), wide = try pages(gap: 40)
+        XCTAssertGreaterThan(narrow, wide, "16pt gap \(narrow) pages, 40pt gap \(wide)")
     }
 
     func testRichAndFirstPageHeadersKeptVerbatim() throws {
