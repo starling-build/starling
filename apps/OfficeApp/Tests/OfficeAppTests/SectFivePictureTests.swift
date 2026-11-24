@@ -52,6 +52,37 @@ final class SectFivePictureTests: XCTestCase {
         XCTAssertLessThan(narrow.picture, narrow.tableBottom - 10, "the picture stands level with the table")
         XCTAssertGreaterThanOrEqual(wide.picture, wide.tableBottom - 0.5, "one that does not fit goes under it")
     }
+    /// ja-caad796afb (Word's print): the line that carries only anchored shapes, after a centred floating table
+    /// raised above it, stands level with the table's top plus the raise, not under the table.
+    func testAnAnchorLineAfterACentredRaisedTableStandsBesideIt() throws {
+        RichTextTheme.wordWindowsPages = true
+        defer { RichTextTheme.wordWindowsPages = false }
+        var cell = RichParagraph(text: "cell")
+        cell.cell = CellRef(table: "t", row: 0, column: 0)
+        var cell2 = RichParagraph(text: "cell two")
+        cell2.cell = CellRef(table: "t", row: 1, column: 0)
+        var anchor = RichParagraph(text: "\u{FFFC}")
+        var shape = ImageAttachment(data: Data(), width: 50, height: 50)
+        shape.sourceXML = "<wp:anchor/>"
+        anchor.inlineImages = ["0": shape]
+        var doc = RichDocument(paragraphs: [cell, cell2, anchor, RichParagraph(text: "after")])
+        doc.tableColumns["t"] = [200]
+        var ts = TableStyle()
+        ts.floatsOverText = true
+        ts.floatRaiseY = 30
+        ts.keptPosition = "<w:tblpPr w:vertAnchor=\"text\" w:tblpXSpec=\"center\" w:tblpY=\"-600\"/>"
+        doc.tableStyles["t"] = ts
+        let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+        theme.wordRules = true
+        let layout = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+        layout.pageSetup = .letter
+        layout.width = PageSetup.letter.width * theme.pixelsPerPoint
+        layout.ensureLaidOut(doc)
+        let px = theme.pixelsPerPoint
+        let rowBottom = ((layout.pieces[0].filter { $0.paragraph == 1 }.map(\.pageY).max() ?? 0) + (layout.rowRect(1)?.height ?? 0)) / px
+        let anchorY = (layout.pieces[0].first { $0.paragraph == 2 }?.pageY ?? 9999) / px
+        XCTAssertLessThan(anchorY, rowBottom - 5, "the anchor line stands beside the table")
+    }
     /// Lab sect5 (Word's print): the empty paragraph that carries the break into a new continuous section is
     /// not the anchor of the floating table that opens it: the table's offset hangs from the top of the last
     /// line before that paragraph (17.95pt under it), not from under the paragraph before it.
