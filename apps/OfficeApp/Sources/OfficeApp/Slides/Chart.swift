@@ -4021,7 +4021,17 @@ enum ChartPainter {
             }
             for (n, line) in lines.enumerated() {
                 let lineH = lineHs[n]
-                let w = slideGridW.map { $0 * Double(lines.map(\.count).max() ?? 1) } ?? wordGridPitch.map { $0 * Double(lines.map(\.count).max() ?? 1) - spacing } ?? (line.reduce(0.0) { $0 + lead + $1.tp.width } + spacing * Double(max(0, line.count - 1)))
+                let maxPerRow: Double = Double(lines.map { $0.count }.max() ?? 1)
+                var w: Double
+                if let g = slideGridW {
+                    w = g * maxPerRow
+                } else if let pitch = wordGridPitch {
+                    w = pitch * maxPerRow - spacing
+                } else {
+                    var entriesW: Double = 0
+                    for e in line { entriesW += lead + e.tp.width }
+                    w = entriesW + spacing * Double(max(0, line.count - 1))
+                }
                 // (A row on a slide stands 0.19 of its size right of the
                 // frame's middle: chart-slide-bg's 12 pt legend 2.37 pt in
                 // PowerPoint's print, cooper's 10 pt ones 1.76 and 1.74 —
@@ -4050,7 +4060,8 @@ enum ChartPainter {
                         }
                         Self._mark(l, at: mid, k: k, colour: colour, canvas)
                         e.tp.paint(canvas, Offset(x + key + gap, y + (lineH - e.tp.height) / 2))
-                        x += wordGridPitch ?? (key + gap + e.tp.width + spacing)
+                        let lineAdvance: Double = key + gap + e.tp.width + spacing
+                        x += wordGridPitch ?? lineAdvance
                         continue
                     }
                     p.color = waterfall != nil ? c.color(series: e.i, accents: theme.accents)
@@ -4108,7 +4119,9 @@ enum ChartPainter {
                     }
                     if slideSidePie, wrappedSide { textDrop = (lineH - slotH) / 2 }
                     e.tp.paint(canvas, Offset(x + lead, y + textDrop))
-                    x += slideGridW ?? wordGridPitch ?? (lead + e.tp.width + spacing)
+                    let ownAdvance: Double = lead + e.tp.width + spacing
+                    let advance: Double = slideGridW ?? wordGridPitch ?? ownAdvance
+                    x += advance
                 }
                 y += lineH
             }
