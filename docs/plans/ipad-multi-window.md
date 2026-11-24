@@ -270,6 +270,17 @@ view 1 0; input moved to view 1 -> view 1 44 px (transiently, the simulator's ba
 Not verified: a full-height soft keyboard (this simulator shows the minimized bar), a floating keyboard (docked=0:
 no inset, as before), a real iPad.
 
+### Scale per view (round 5, 2026-11-24)
+
+Every extra view took its pixel ratio and layer `contentsScale` from `UIScreen.mainScreen`, right only while all windows
+share a screen. They now take the scale of the screen their window is on (`FlUIKitScaleOf`, at add, resize and inset
+updates). `STARLING_VIEW_LOG=1` prints it per added view. Measured: on the simulator's one screen both views log
+screen main, scale 2.0 (unchanged). NOT exercised: a window on an external display. Two things stand in the way and
+are a decision, not a fix: the Info.plist declares only `UIWindowSceneSessionRoleApplication`, so iOS never creates a
+scene for an external display (it mirrors), and a scene there would be the non-interactive role (no touch), so it
+could show a presentation (Slides) but not host an editor. A window that moves to another screen after it was added
+keeps the scale it was added with (no screen-change hook yet).
+
 ## Recommendation and order
 
 Option B, in the reviewed order. Multiple scenes stay OFF (`UIApplicationSupportsMultipleScenes` = NO)

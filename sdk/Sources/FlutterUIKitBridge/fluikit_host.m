@@ -413,14 +413,17 @@ static BOOL g_keyboard_docked;
 // The window whose text input owns the keyboard (nil: view 0's). The keyboard is the system's, one for the screen, and
 // the frame it reports is the same to every window; only the window it is attached to shrinks (as view 0's
 // FlutterViewController does for itself), not a neighbour in Split View that merely lies under its rectangle.
-static UIView* g_text_input_container;
+static __weak UIView* g_text_input_container;
+// Scale is per view: a window on an external display (or another screen) has its own, and a view's pixel ratio must
+// be its screen's, not the main screen's (every extra view used UIScreen.mainScreen, right only while all windows
+// share it). A view not yet in a window has no screen: the main one.
+static CGFloat FlUIKitScaleOf(UIView* v) { return v.window.screen != nil ? v.window.screen.scale : UIScreen.mainScreen.scale; }
 static void FlUIKitSetOrigin(int64_t view_id, CGPoint* p);
 
 // The docked keyboard covers the bottom of every extra view it overlaps: tell each view how much (its
 // viewInsets.bottom), as the view controller does for view 0. The frame is in screen coordinates.
 static void FlUIKitUpdateExtraInsets(CGRect keyboardFrame, BOOL docked) {
   FlUIKitAppDelegate* delegate = (FlUIKitAppDelegate*)UIApplication.sharedApplication.delegate;
-  CGFloat scale = UIScreen.mainScreen.scale;
   g_keyboard_frame = keyboardFrame;
   g_keyboard_docked = docked;
   UIWindow* keyboardWindow = g_text_input_container != nil ? g_text_input_container.window : delegate.window;
@@ -443,7 +446,7 @@ static void FlUIKitUpdateExtraInsets(CGRect keyboardFrame, BOOL docked) {
     }
     if (inset == g_extra_insets[key].doubleValue) continue;
     g_extra_insets[key] = @(inset);
-    [delegate.engine starlingResizeViewWithId:key.longLongValue size:host.bounds.size pixelRatio:scale insetBottom:inset];
+    [delegate.engine starlingResizeViewWithId:key.longLongValue size:host.bounds.size pixelRatio:FlUIKitScaleOf(host) insetBottom:inset];
   }
 }
 
@@ -471,7 +474,13 @@ static void FlUIKitAddViewIn(UIView* container, int64_t view_id, CGRect frame, F
     }
   }
   g_extra_insets[@(view_id)] = @0;
-  CGFloat scale = UIScreen.mainScreen.scale;
+  CGFloat scale = FlUIKitScaleOf(container);
+  if (getenv("STARLING_VIEW_LOG")) {
+    UIScreen* s = container.window.screen;
+    fprintf(stderr, "[view] add %lld: screen %s %.0fx%.0f pt scale %.1f (main %.1f), %zu screens\n", view_id,
+            s == UIScreen.mainScreen ? "main" : (s ? "EXTERNAL" : "none yet"), s.bounds.size.width, s.bounds.size.height,
+            scale, UIScreen.mainScreen.scale, (size_t)UIScreen.screens.count);
+  }
   double w = frame.size.width, h = frame.size.height;
   FlUIKitExtraView* host = [[FlUIKitExtraView alloc] initWithFrame:frame];
   host.engine = delegate.engine;
@@ -502,7 +511,7 @@ static void FlUIKitPlaceView(int64_t view_id, CGRect frame) {
   CAMetalLayer* layer = g_extra_layers[@(view_id)];
   if (host == nil || layer == nil) return;
   if (CGRectEqualToRect(host.frame, frame)) return;
-  CGFloat scale = UIScreen.mainScreen.scale;
+  CGFloat scale = FlUIKitScaleOf(host);
   host.frame = frame;
   layer.frame = host.bounds;
   layer.drawableSize = CGSizeMake(frame.size.width * scale, frame.size.height * scale);
