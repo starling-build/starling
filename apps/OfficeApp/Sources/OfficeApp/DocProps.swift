@@ -72,6 +72,59 @@ enum DocProps {
         return out
     }
 
+    /// The SttbfFfn as a font table part: each face's charset, family, PANOSE, signature and alternate name,
+    /// which the layout reads to choose a stand-in for a face Word lacks (한컴바탕, a charset 129 serif, prints in Batang).
+    static func fontTable(_ t: [UInt8], at fc: Int, count lcb: Int, ns: String) -> String? {
+        guard fc >= 0, fc + lcb <= t.count, lcb >= 2 else { return nil }
+        func hex(_ v: UInt32, _ width: Int) -> String {
+            var h = String(v, radix: 16, uppercase: true)
+            while h.count < width { h = "0" + h }
+            return h
+        }
+        func esc(_ s: String) -> String {
+            var o = ""
+            for c in s {
+                switch c {
+                case "&": o += "&amp;"
+                case "<": o += "&lt;"
+                case "\"": o += "&quot;"
+                default: o.append(c)
+                }
+            }
+            return o
+        }
+        var out = ""
+        var p = fc + 4
+        let end = fc + lcb
+        while p < end {
+            let cb = Int(t[p])
+            guard cb >= 40, p + 1 + cb <= end else { p += 1 + cb; continue }
+            var u: [UInt16] = [], alt: [UInt16] = []
+            var k = p + 40
+            var inAlt = false
+            while k + 2 <= p + 1 + cb {
+                let c = UInt16(t[k]) | UInt16(t[k + 1]) << 8
+                if c == 0 { if inAlt || t[p + 5] == 0 { break }; inAlt = true; k += 2; continue }
+                if inAlt { alt.append(c) } else { u.append(c) }
+                k += 2
+            }
+            let name = String(decoding: u, as: UTF16.self)
+            // (Not a Latin-named face with an empty PANOSE (a Hangul name such as PC명조 is kept: ko-c6f5f9ce99 needs it): Word's own TimesNewRoman, Arial,Bold names (zero PANOSE, charset 0) are no face it has, and the docx missing-face rules drew ko-c58c51bdcb's as Caladea where Word printed Times New Roman.)
+            let blankWestern = [0, 1].contains(Int(t[p + 4])) && u.allSatisfy { $0 < 0x80 } && (0 ..< 10).allSatisfy { t[p + 6 + $0] == 0 }
+            if !name.isEmpty, !blankWestern {
+                let families = ["auto", "roman", "swiss", "modern", "script", "decorative"]
+                let ff = Int(t[p + 1] >> 4) & 7
+                out += "<w:font w:name=\"\(esc(name))\">"
+                if !alt.isEmpty { out += "<w:altName w:val=\"\(esc(String(decoding: alt, as: UTF16.self)))\"/>" }
+                out += "<w:charset w:val=\"\(hex(UInt32(t[p + 4]), 2))\"/><w:family w:val=\"\(ff < families.count ? families[ff] : "auto")\"/>"
+                out += "<w:panose1 w:val=\"\((0 ..< 10).map { hex(UInt32(t[p + 6 + $0]), 2) }.joined())\"/>"
+                out += "<w:sig w:usb0=\"\(hex(UInt32(truncatingIfNeeded: OfficeArt.u32(t, p + 16)), 8))\" w:usb1=\"\(hex(UInt32(truncatingIfNeeded: OfficeArt.u32(t, p + 20)), 8))\" w:usb2=\"\(hex(UInt32(truncatingIfNeeded: OfficeArt.u32(t, p + 24)), 8))\" w:usb3=\"\(hex(UInt32(truncatingIfNeeded: OfficeArt.u32(t, p + 28)), 8))\" w:csb0=\"\(hex(UInt32(truncatingIfNeeded: OfficeArt.u32(t, p + 32)), 8))\" w:csb1=\"\(hex(UInt32(truncatingIfNeeded: OfficeArt.u32(t, p + 36)), 8))\"/></w:font>"
+            }
+            p += 1 + cb
+        }
+        return out.isEmpty ? nil : "<w:fonts \(ns)>" + out + "</w:fonts>"
+    }
+
     /// The property runs of a PlcfBte (CHPX when `paragraph` is false, PAPX when true), as character positions.
     static func runs(w: [UInt8], t: [UInt8], at fc: Int, count lcb: Int, pieces: [DocPiece], paragraph: Bool) -> [DocPropRun] {
         guard fc >= 0, fc + lcb <= t.count, lcb >= 12 else { return [] }
@@ -249,6 +302,7 @@ enum DocProps {
         var keepNext = false, keepLines = false, pageBreak = false, widow: Bool?
         var before: Int?, after: Int?, line: (Int, Int)?
         var beforeAuto: Bool?, afterAuto: Bool?
+        var fPc: Int?, fX: Int?, fY: Int?, fW: Int?, fH: Int?, fWrap: Int?
         var left: Int?, right: Int?, first: Int?, jc: String?
         var ilfo = 0, ilvl = 0
         var ppc: Int?, dxaAbs: Int?, dyaAbs: Int?, dxaW: Int?, dyaH: Int?, wrap: Int?
@@ -275,8 +329,28 @@ enum DocProps {
             case 0x840E, 0x845D: right = s.i16
             case 0x8411, 0x8460: first = s.i16
             case 0x2461, 0x2403: jc = ["left", "center", "right", "both", "distribute"][min(s.u8, 4)]
+            case 0x261B: fPc = s.u8
+            case 0x8418: fX = s.i16
+            case 0x8419: fY = s.i16
+            case 0x841A: fW = s.u16
+            case 0x442B: fH = s.u16
+            case 0x2423: fWrap = s.u8
             default: break
             }
+        }
+        if fPc != nil || fX != nil || fY != nil {
+            // sprmPPc/DxaAbs/DyaAbs/DxaWidth/WHeightAbs/Wr: a frame paragraph (absolutely positioned)
+            let pc = fPc ?? 0
+            let hA = ["text", "margin", "page", "page"][(pc >> 6) & 3], vA = ["margin", "page", "text", "text"][(pc >> 4) & 3]
+            x += "<w:framePr w:hAnchor=\"\(hA)\" w:vAnchor=\"\(vA)\""
+            if let fW, fW > 0 { x += " w:w=\"\(fW)\"" }
+            if let fH, fH & 0x7FFF > 0 { x += " w:h=\"\(fH & 0x7FFF)\" w:hRule=\"\(fH & 0x8000 != 0 ? "atLeast" : "exact")\"" }
+            // XAS/YAS: -4 left/top, -8 center, -12 right/bottom, -16 inside, -20 outside are alignment codes, not offsets
+            let xa = [-4: "left", -8: "center", -12: "right", -16: "inside", -20: "outside"], ya = [-4: "top", -8: "center", -12: "bottom", -16: "inside", -20: "outside"]
+            if let a = xa[fX ?? 0] { x += " w:xAlign=\"\(a)\"" } else { x += " w:x=\"\(fX ?? 0)\"" }
+            if let a = ya[fY ?? 0] { x += " w:yAlign=\"\(a)\"" } else { x += " w:y=\"\(fY ?? 0)\"" }
+            if let fWrap { x += " w:wrap=\"\(["auto", "notBeside", "around", "none", "tight", "through"][min(fWrap, 5)])\"" }
+            x += "/>"
         }
         if keepNext { x += "<w:keepNext/>" }
         if keepLines { x += "<w:keepLines/>" }
@@ -416,7 +490,7 @@ enum DocProps {
             if let u = union { let lo = ui(edges[k]), hi = ui(edges[k + span]); uspan = max(1, hi - lo); w = max(0, u[hi] - u[lo]) }
             var pr = "<w:tcPr><w:tcW w:w=\"\(w)\" w:type=\"dxa\"/>"
             if uspan > 1 { pr += "<w:gridSpan w:val=\"\(uspan)\"/>" }
-            if vm == 1 { pr += "<w:vMerge/>" } else if vm == 2 { pr += "<w:vMerge w:val=\"restart\"/>" }
+            if vm == 1 { pr += "<w:vMerge/>" } else if vm >= 2 { pr += "<w:vMerge w:val=\"restart\"/>" }
             if tc.count >= 20 {
                 let b = [("top", 4), ("left", 8), ("bottom", 12), ("right", 16)].map { brc($0.0, width: Int(tc[$0.1]), type: Int(tc[$0.1 + 1]), ico: Int(tc[$0.1 + 2]) & 31) }
                 let some = b.filter { !$0.contains("w:val=\"nil\"") }

@@ -42,7 +42,9 @@ enum OfficeFormats {
         if data.count > 8, data.starts(with: [0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1]) {
             // A binary Word document (Word 97-2003) is read as the .docx it translates to.
             if let converted = DocRead.docx(data), let d = try? DocxFormat.read(converted) {
-                return OpenedDocument(document: d.document, pageSetup: d.pageSetup)
+                var doc = d.document
+                doc.fromBinaryDoc = true
+                return OpenedDocument(document: doc, pageSetup: d.pageSetup)
             }
             if let cf = try? CompoundFile([UInt8](data)), cf.stream("WordDocument") == nil, cf.stream("FileHeader") != nil {
                 throw FormatError.unsupported("a Hancom HWP file, which is not a Word file")
