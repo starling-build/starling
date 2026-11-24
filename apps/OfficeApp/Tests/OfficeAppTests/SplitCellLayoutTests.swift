@@ -68,7 +68,7 @@ final class SplitCellLayoutTests: XCTestCase {
     func testOutsetCellBordersMoveTheTextInByHalfTheLine() throws {
         RichTextTheme.wordWindowsPages = true
         defer { RichTextTheme.wordWindowsPages = false }
-        func textLeft(_ style: String) throws -> Double {
+        func textBox(_ style: String) throws -> (left: Double, width: Double) {
             var p = RichParagraph(text: "Cell", style: RichParagraphStyle(spaceAfter: 0, lineSpacing: 1))
             p.cell = CellRef(table: "T", row: 0, column: 0)
             var document = RichDocument(paragraphs: [p])
@@ -85,9 +85,13 @@ final class SplitCellLayoutTests: XCTestCase {
             layout.pageSetup = .letter
             layout.width = PageSetup.letter.columnWidth * theme.pixelsPerPoint
             layout.ensureLaidOut(document)
-            return layout.geometry(0).textLeft / theme.pixelsPerPoint
+            let g = layout.geometry(0)
+            return (g.textLeft / theme.pixelsPerPoint, g.textWidth / theme.pixelsPerPoint)
         }
-        XCTAssertEqual(try textLeft("outset") - textLeft("single"), 0.375, accuracy: 0.01)
+        let (o, s) = (try textBox("outset"), try textBox("single"))
+        XCTAssertEqual(o.left - s.left, 0.375, accuracy: 0.01)
+        // The line moves the text; it does not narrow the room (dx2 8ba99a6d wrapped one line too many when it did).
+        XCTAssertEqual(o.width, s.width, accuracy: 0.01)
     }
 
     /// A table that states its cell spacing (even none) rules each cell on its own, so the table's top line framing the row that opens a
