@@ -5762,6 +5762,39 @@ final class DocxTests: XCTestCase {
         XCTAssertLessThan(firstLine("20") + 0.5, firstLine(nil), "the 10pt face's line, not a 12pt one")
     }
 
+    /// es-e3d5fed41c: a Symbol bullet whose paragraph has no mark rPr takes the
+    /// style's size (10 pt), not the text's 12 pt, so the line steps as the
+    /// bullet's line (Word 24.0, ours 25.03 before).
+    func testASymbolBulletWithNoMarkTakesTheStylesSizeNotTheTexts() throws {
+        let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+        theme.wordRules = true
+        theme.faceResolver = OfficeFonts.face
+        func firstLine(_ styleSize: Double) -> Double {
+            var p = RichParagraph(text: "A Nepalese name for Tilaka")
+            p.runs = [Run(length: p.text.utf16.count, style: CharStyle(fontFamily: "Times New Roman", fontSize: 12))]
+            p.style.spaceBefore = 0
+            p.style.spaceAfter = 0
+            p.style.lineSpacing = 1
+            p.style.list = .bullet
+            p.style.listId = "1"
+            p.style.listLevel = 0
+            var level = ListLevelFormat(text: "\u{F0B7}", format: .bullet)
+            level.indentLeft = 36
+            level.hanging = 18
+            level.numberRPrXML = "<w:rPr><w:rFonts w:ascii=\"Symbol\" w:hAnsi=\"Symbol\" w:hint=\"default\"/></w:rPr>"
+            var doc = RichDocument(paragraphs: [p])
+            var c = CharStyle(); c.fontSize = styleSize
+            doc.styles[RichNamedStyle.normalId] = RichNamedStyle(id: RichNamedStyle.normalId, name: "Normal", paragraph: RichParagraphStyle(), char: c)
+            doc.listFormats["1"] = [0: level]
+            doc.readFromFile = true
+            let l = RichLayout(theme: theme, paragraphCount: 1)
+            l.width = 600
+            l.ensureLaidOut(doc)
+            return l.geometry(0).height / theme.pixelsPerPoint
+        }
+        XCTAssertLessThan(firstLine(10) + 0.5, firstLine(12), "the 10pt style's bullet line, not a 12pt one")
+    }
+
     /// WordWithAttachments' header: "<tab>Страница 1" on a stop. The
     /// tab's widening went on the tab, which the engine sets half before
     /// it, and at a line's start the whole line moved on by half a tab.
