@@ -658,9 +658,9 @@ extension DocxFormat {
                 // the slide runs' glow is.)
                 if let c = child.children.first(where: { $0.name == "w14:srgbClr" || $0.name == "w14:schemeClr" }), let rgb = _w14Color(c) {
                     let alpha = c.first("w14:alpha").flatMap { Double($0["w14:val"] ?? "") }.map { $0 / 100000 } ?? 1
-                    // (Word draws none at all for a glow of alpha 100%: its lab print of wordglow.docx.)
+                    // (w14:alpha is TRANSPARENCY, unlike a:alpha: Word reports Glow.Transparency 0.4 for 40000, 2026-11-24. Word draws none at all for a glow of alpha 100%: its lab print of wordglow.docx.)
                     if alpha >= 1 { break }
-                    var glow = CharShadow(color: Color(argb: Int((alpha * 255).rounded()), rgb.0, rgb.1, rgb.2),
+                    var glow = CharShadow(color: Color(argb: Int(((1 - alpha) * 255).rounded()), rgb.0, rgb.1, rgb.2),
                                           dx: 0, dy: 0, blur: (Double(child["w14:rad"] ?? "") ?? 0) / 12700)
                     glow.glow = true
                     cs.shadow = glow
