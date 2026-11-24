@@ -245,7 +245,9 @@ extension _ParaFrame {
             let hi = column - right
             let em0 = _px(p.runs.first?.style.fontSize ?? theme.fontSize)
             var boxes: [(Double, Double, Double, Double)] = []
-            for image in p.inlineImages.inOrder {
+            // (A paragraph's one floating picture is its `image`, not in the line's table: dx2-set es-fc262b8ddc's header, a
+            // tight 27.5pt banner across the column in a paragraph of its own, steps its empty line to 63.65 and the body from 77.7 in Word's print.)
+            for image in Array(p.inlineImages.inOrder) + (p.image.map { [$0] } ?? []) {
                 guard let float = image.float, float.wraps, float.verticalAlign == nil, ["paragraph", "line", "page"].contains(float.verticalFrom) else { continue }
                 let w = min(_px(image.width), column)
                 let x: Double
