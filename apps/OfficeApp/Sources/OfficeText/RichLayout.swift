@@ -1681,6 +1681,8 @@ public final class RichLayout {
     nonisolated(unsafe) static var _mixing = false
     /// (depth share, size) of the last uniform multi-line split, for the baseline shift of its paragraph.
     nonisolated(unsafe) static var _mixedLinesShare: (depth: Double, size: Double)? = nil
+    /// True when the last `_mixedFaceLinesSpan` found its second face only in the end mark.
+    nonisolated(unsafe) static var _mixedByMarkOnly = false
     nonisolated(unsafe) static var _mixedOfPainter: [ObjectIdentifier: (depth: Double, size: Double)] = [:]
     var _inlineBoxes: [[Int]] = []
     /// An inline object's own height where its box is a page tall (`_span`), by id.
