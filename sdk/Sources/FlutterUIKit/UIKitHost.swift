@@ -82,6 +82,7 @@ public final class UIKitHost {
                 }
             }
             runApp(box.builder())
+            UIKitScriptedInput.runIfRequested()
         }, box)
         // UIApplicationMain only returns on a failure to launch at all, and the
         // glue has already said why on stderr.

@@ -105,6 +105,49 @@ A Stage Manager window can sit on an external display with another scale and ref
 (`addView` carries it); the single frame clock follows the display link of the key scene. Accessibility (one
 bridge per engine today) and iOS platform views are out of scope here.
 
+## Step 4 findings: what a second window's input reaches today (code read, 2026-11-23)
+
+Read from the code, then measured with the `STARLING_SPIKE_INPUT` driver (`UIKitScriptedInput.swift`: a script of tap/drag/type/key lines injected per view id from inside the app, no Mac mouse involved).
+
+- **Touches: fine.** Each touch becomes a pointer with `device = the UITouch's address`, so two windows touched at
+  once cannot collide, and the packet converter numbers them. The framework already hit-tests by view id
+  (`RenderingBinding.hitTestInView` -> `_viewIdToRenderView[viewId]`).
+- **Focus: ONE global node.** `FocusManager.instance.focusedNode` is a single `FocusNode?`; `_setFocus` tells the old
+  node it lost focus and the new one it gained it, whichever window each is in. So tapping a text box in window B
+  blurs the caret in window A (and `SoftKeyboard.focusMoved()` may dismiss the keyboard). The plan's "one focus
+  scope per view" is therefore not a refinement but the fix: `focusedNode` becomes per view id, plus a "key view"
+  (the one whose scene is active / last touched) that `dispatchKeyData` routes to.
+  `FocusNode.requestFocus()` takes no context, so a node needs its view: set it from the pointer event being
+  dispatched (`event.viewId`) or from the view whose tree is building (`autofocus` at mount); `FocusNode` is a
+  ~40-line stub (no scopes), so this is a small change.
+- **Soft-keyboard text: ONE responder, in view 0.** `fluikit_keyboard_attach` adds a single `FlUIKitKeyInputView`
+  to the first controller's view (`g_key_view`); `show` makes it first responder; every keystroke reaches
+  `UIKitSoftKeyboard._post` -> `PlatformDispatcher.onKeyData` -> `FocusManager.dispatchKeyData` -> whichever node is
+  focused. Works for a second window by accident while its node is the focused one. Needed: `show(viewId)` moves
+  the responder into that view's host `UIView` (it must stay inside the Flutter view so hardware keys still reach
+  the engine), and the key view follows.
+- **Hardware keys: view 0 only.** UIPresses go up the responder chain to the `FlutterViewController`; an extra
+  view's `UIView` has no controller, so with the responder inside it a Magic Keyboard types nothing. `FlUIKitExtraView`
+  needs `pressesBegan/Ended` forwarding to the engine's keyboard manager. `KeyData` carries no view id; routing by
+  "key view" (above) is the whole story.
+- **Keyboard insets: view 0 only.** `FlutterViewController` turns the keyboard frame into `viewInsets` for the
+  implicit view. An extra view needs the keyboard frame intersected with its own frame in window coordinates and
+  sent through `SetViewportMetrics(viewId, ...)`, else a lower window's caret hides behind the keyboard.
+- **Text: the plugin channel, one client at a time (revised after measuring).** An editor attached to the
+  text-input plugin takes its characters from `flutter/textinput`, not from key events (`RichEditable` declines
+  them), and that channel has one listener and one client id: `TextInputChannel.listen` replaces the owner. That
+  is Flutter's own model (one active client), and it turns out to serve two windows: the tap that focuses an
+  editor in window B attaches B's connection, B's `setClient` replaces A's, and typing goes to B.
+  **Measured** with the driver (`STARLING_SPIKE_INPUT`, 2026-11-23, simulator, ex.docx in view 0 and sa2.docx in
+  view 1): alternating tap+type view 1, view 0, view 1, view 0 put each text in the document that was tapped, four
+  of four. The one failure seen was a tap at 2 s after launch, before view 1 had laid out: its text went to view 0.
+  What stays view-0-only is the geometry the plugin is told (`setCaretRect`/editable transform are in view 0's
+  coordinates: wrong for the IME candidate window and the system's loupe in window B) and the native toolbar.
+- **The edit menu / toolbar:** per window already (`OfficeScene`, step 4a), but the host side
+  (`OfficeNativeShell`) still installs on `OfficeScene.main` only; a second window's scene needs its own native
+  toolbar hosted over its own view.
+- **Lifecycle:** untouched so far (see above).
+
 ## Recommendation and order
 
 Option B, in the reviewed order. Multiple scenes stay OFF (`UIApplicationSupportsMultipleScenes` = NO)

@@ -56,9 +56,15 @@ public enum TextInputChannel {
 
     private nonisolated(unsafe) static var _owner: ObjectIdentifier? = nil
 
+    /// The client id of whoever holds the channel now (-1: none), and the last editing state it sent the plugin.
+    /// For test drivers that play the plugin (UIKitScriptedInput); nothing in the framework reads them.
+    public nonisolated(unsafe) static var activeClient = -1
+    public nonisolated(unsafe) static var lastEditingState: [String: Any]?
+
     /// Take the channel's listener.
-    public static func listen(owner: AnyObject, _ handler: @escaping (Data?) -> Void) {
+    public static func listen(owner: AnyObject, client: Int = -1, _ handler: @escaping (Data?) -> Void) {
         _owner = ObjectIdentifier(owner)
+        activeClient = client
         MainActor.assumeIsolated {
             channelBuffers.setListener(name) { data, reply in
                 handler(data)
@@ -71,6 +77,7 @@ public enum TextInputChannel {
     public static func unlisten(owner: AnyObject) {
         guard _owner == ObjectIdentifier(owner) else { return }
         _owner = nil
+        activeClient = -1
         MainActor.assumeIsolated { channelBuffers.clearListener(name) }
     }
 
@@ -92,6 +99,7 @@ public enum TextInputChannel {
     public static func send(_ method: String, _ args: Any?) {
         #if !os(WASI)
         var body: [String: Any] = ["method": method]
+        if method == "TextInput.setEditingState", let state = args as? [String: Any] { lastEditingState = state }
         body["args"] = args ?? null
         guard let data = try? JSONSerialization.data(withJSONObject: body) else { return }
         log("send \(method) sender=\(PlatformDispatcher.instance.platformMessageSender != nil) \(String(data: data, encoding: .utf8)?.prefix(160) ?? "")")
@@ -187,7 +195,7 @@ public final class TextInputConnection {
     public func attach(multiline: Bool = false) {
         guard TextInputChannel.available, !_attached else { return }
         _attached = true
-        TextInputChannel.listen(owner: self) { [weak self] data in self?._handle(data) }
+        TextInputChannel.listen(owner: self, client: _clientId) { [weak self] data in self?._handle(data) }
         TextInputChannel.send("TextInput.setClient", [_clientId, TextInputChannel.config(multiline: multiline)])
         sync(force: true)
         TextInputChannel.send("TextInput.show", nil)

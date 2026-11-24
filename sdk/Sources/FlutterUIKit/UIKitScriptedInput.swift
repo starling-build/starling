@@ -1,0 +1,132 @@
+// Copyright the Starling authors
+// SPDX-License-Identifier: Apache-2.0
+
+// A test driver: STARLING_SPIKE_INPUT=<script file> injects pointer and key events into named views, from
+// inside the app, so a second window can be exercised with nothing moving the Mac's mouse
+// (docs/plans/ipad-multi-window.md, step 4). Events enter where the engine's own do - the framework's
+// PlatformDispatcher.onPointerDataPacket and onKeyData - so view routing, hit testing, gestures, focus and
+// key dispatch are all exercised; the engine's packet converter and the UIKit responders are not.
+//
+// One command a line; '#' starts a comment; coordinates are logical pixels in the named view:
+//   <ms> tap  <view> <x> <y>
+//   <ms> drag <view> <x0> <y0> <x1> <y1> [steps]
+//   <ms> type <view> <text...>        (text up to end of line; \n is Return)
+//   <ms> key  <view> <keysym>         (decimal or 0x..; 0xFF08 Backspace, 0xFF0D Enter)
+//   <ms> log  <message...>            (a marker in the output)
+// <ms> counts from when the script is loaded. Each command logs "[input] ..." with the focus it found.
+
+#if os(iOS)
+import Flutter
+import FlutterSwiftBridge
+import Foundation
+
+enum UIKitScriptedInput {
+    nonisolated(unsafe) private static var _nextPointer: Int64 = 1000
+
+    static func runIfRequested() {
+        guard let path = ProcessInfo.processInfo.environment["STARLING_SPIKE_INPUT"], !path.isEmpty else { return }
+        guard let text = try? String(contentsOfFile: path, encoding: .utf8) else {
+            fputs("[input] cannot read \(path)\n", stderr)
+            return
+        }
+        for raw in text.split(separator: "\n", omittingEmptySubsequences: true) {
+            let line = raw.trimmingCharacters(in: .whitespaces)
+            if line.isEmpty || line.hasPrefix("#") { continue }
+            let parts = line.split(separator: " ", maxSplits: 3, omittingEmptySubsequences: true).map(String.init)
+            guard parts.count >= 2, let ms = Int(parts[0]) else { fputs("[input] bad line: \(line)\n", stderr); continue }
+            DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(ms)) { run(parts, line) }
+        }
+        fputs("[input] script loaded: \(path)\n", stderr)
+    }
+
+    private static func run(_ p: [String], _ line: String) {
+        let cmd = p[1]
+        let rest = p.dropFirst(2).joined(separator: " ")
+        let nums = rest.split(separator: " ").compactMap { Double($0) }
+        switch cmd {
+        case "log":
+            fputs("[input] \(rest)\n", stderr)
+        case "tap" where nums.count >= 3:
+            let v = Int(nums[0])
+            report("tap view \(v) at \(nums[1]),\(nums[2])")
+            let id = pointerId()
+            post(v, [(.add, nums[1], nums[2], id), (.down, nums[1], nums[2], id)])
+            DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(60)) {
+                post(v, [(.up, nums[1], nums[2], id), (.remove, nums[1], nums[2], id)])
+                report("after tap")
+            }
+        case "drag" where nums.count >= 5:
+            let v = Int(nums[0]), steps = nums.count > 5 ? max(1, Int(nums[5])) : 12
+            report("drag view \(v) \(nums[1]),\(nums[2]) -> \(nums[3]),\(nums[4])")
+            let id = pointerId()
+            post(v, [(.add, nums[1], nums[2], id), (.down, nums[1], nums[2], id)])
+            for s in 1...steps {
+                let f = Double(s) / Double(steps)
+                let x = nums[1] + (nums[3] - nums[1]) * f, y = nums[2] + (nums[4] - nums[2]) * f
+                DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(16 * s)) {
+                    post(v, [(.move, x, y, id)])
+                }
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(16 * steps + 16)) {
+                post(v, [(.up, nums[3], nums[4], id), (.remove, nums[3], nums[4], id)])
+                report("after drag")
+            }
+        case "type" where p.count >= 4:
+            let v = p[2]
+            let s = p[3].replacingOccurrences(of: "\\n", with: "\n")
+            report("type view \(v) \"\(p[3])\" (text client \(TextInputChannel.activeClient))")
+            // An editor attached to the text-input plugin takes its text from the plugin, not from key events
+            // (RichEditable declines characters then), so play the plugin: the editing state with the text inserted.
+            if TextInputChannel.activeClient >= 0, var st = TextInputChannel.lastEditingState {
+                let text = (st["text"] as? String) ?? ""
+                let u16 = Array(text.utf16)
+                let a = min(u16.count, max(0, st["selectionBase"] as? Int ?? u16.count))
+                let b = min(u16.count, max(0, st["selectionExtent"] as? Int ?? u16.count))
+                let lo = min(a, b), hi = max(a, b)
+                let ins = Array(s.utf16)
+                let out = String(decoding: Array(u16[..<lo]) + ins + Array(u16[hi...]), as: UTF16.self)
+                st["text"] = out; st["selectionBase"] = lo + ins.count; st["selectionExtent"] = lo + ins.count
+                let body: [String: Any] = ["method": "TextInputClient.updateEditingState", "args": [TextInputChannel.activeClient, st]]
+                if let data = try? JSONSerialization.data(withJSONObject: body) {
+                    MainActor.assumeIsolated { channelBuffers.push(TextInputChannel.name, data) { _ in } }
+                }
+            } else {
+                for ch in s {
+                    if ch == "\n" { key(0xFF0D, nil) } else { key(Int64(ch.unicodeScalars.first!.value), String(ch)) }
+                }
+            }
+            report("after type")
+        case "key" where p.count >= 4:
+            let code = p[3].hasPrefix("0x") ? Int64(p[3].dropFirst(2), radix: 16) : Int64(p[3])
+            if let code { report("key view \(p[2]) \(p[3])"); key(code, nil) }
+        default:
+            fputs("[input] unknown command: \(line)\n", stderr)
+        }
+    }
+
+    private static func report(_ what: String) {
+        let node = FocusManager.instance.focusedNode
+        fputs("[input] \(what); focus=\(node?.debugLabel ?? (node == nil ? "none" : "unlabelled"))\n", stderr)
+    }
+
+    private static func pointerId() -> Int64 { _nextPointer += 1; return _nextPointer }
+
+    private static func post(_ viewId: Int, _ events: [(PointerChange, Double, Double, Int64)]) {
+        let dpr = PlatformDispatcher.instance.view(id: viewId)?.devicePixelRatio ?? 2.0
+        let data = events.map { e in
+            PointerData(viewId: Int64(viewId), timeStamp: .seconds(ProcessInfo.processInfo.systemUptime),
+                        change: e.0, kind: .touch, device: e.3, pointerIdentifier: e.3,
+                        physicalX: e.1 * dpr, physicalY: e.2 * dpr, buttons: e.0 == .down || e.0 == .move ? 1 : 0)
+        }
+        PlatformDispatcher.instance.onPointerDataPacket?(PointerDataPacket(data: data))
+    }
+
+    private static func key(_ logical: Int64, _ character: String?) {
+        guard let sink = PlatformDispatcher.instance.onKeyData else { return }
+        for type in [KeyEventType.down, .up] {
+            _ = sink(KeyData(timeStamp: Date().timeIntervalSince1970, type: type, physical: 0, logical: logical,
+                             character: type == .up ? nil : character, synthesized: false))
+        }
+    }
+}
+#endif
