@@ -2191,11 +2191,54 @@ final class DocxTests: XCTestCase {
         XCTAssertTrue(att.sourceXML?.contains("effectExtent") ?? false)
         let same = String(decoding: try Zip.read(try DocxFormat.write(back, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
         XCTAssertTrue(same.contains("<wp:effectExtent"), same)
-        // Resized in the editor: regenerated at the new size.
+        // Resized in the editor: the size is patched in the kept markup (W-P0-1), the effect extent stays.
         back.paragraphs[0].image!.width = 144; back.paragraphs[0].image!.height = 72
         let resized = String(decoding: try Zip.read(try DocxFormat.write(back, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
-        XCTAssertFalse(resized.contains("<wp:effectExtent"), resized)
+        XCTAssertTrue(resized.contains("<wp:effectExtent"), resized)
         XCTAssertTrue(resized.contains("cx=\"1828800\""), resized)
+    }
+
+    /// W-P0-1: resizing a floating picture keeps its position, wrap, crop, turn, alt text and anchor; only the size changes, in both
+    /// places the file states it. A second picture beside it is untouched. Undo restores the first size.
+    func testResizingAFloatingPictureKeepsEverythingButItsSize() throws {
+        let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")!
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(image: ImageAttachment(data: png, width: 72, height: 36))]), pageSetup: .letter))
+        let di = try XCTUnwrap(entries.firstIndex { $0.name == "word/document.xml" })
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let rid = try XCTUnwrap(xml.rangeOfSubstring("r:embed=\"")).upperBound
+        let rest = xml[rid...]
+        let relId = String(rest[rest.startIndex ..< rest.firstIndex(of: "\"")!])
+        let drawing = "<w:drawing><wp:anchor distT=\"0\" distB=\"0\" distL=\"114300\" distR=\"114300\" simplePos=\"0\" relativeHeight=\"7\" behindDoc=\"0\" locked=\"0\" layoutInCell=\"1\" allowOverlap=\"1\">"
+            + "<wp:simplePos x=\"0\" y=\"0\"/><wp:positionH relativeFrom=\"column\"><wp:posOffset>914400</wp:posOffset></wp:positionH>"
+            + "<wp:positionV relativeFrom=\"paragraph\"><wp:posOffset>228600</wp:posOffset></wp:positionV><wp:extent cx=\"914400\" cy=\"457200\"/>"
+            + "<wp:wrapSquare wrapText=\"bothSides\"/><wp:docPr id=\"2\" name=\"p\" descr=\"A grey box\"/>"
+            + "<a:graphic xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\"><a:graphicData uri=\"http://schemas.openxmlformats.org/drawingml/2006/picture\">"
+            + "<pic:pic xmlns:pic=\"http://schemas.openxmlformats.org/drawingml/2006/picture\"><pic:nvPicPr><pic:cNvPr id=\"0\" name=\"p\"/><pic:cNvPicPr/></pic:nvPicPr>"
+            + "<pic:blipFill><a:blip r:embed=\"\(relId)\"/><a:srcRect l=\"10000\" t=\"5000\"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>"
+            + "<pic:spPr><a:xfrm rot=\"1200000\"><a:off x=\"0\" y=\"0\"/><a:ext cx=\"914400\" cy=\"457200\"/></a:xfrm><a:prstGeom prst=\"rect\"/></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:anchor></w:drawing>"
+        let from = try XCTUnwrap(xml.rangeOfSubstring("<w:drawing>")), to = try XCTUnwrap(xml.rangeOfSubstring("</w:drawing>"))
+        xml.replaceSubrange(from.lowerBound ..< to.upperBound, with: drawing)
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let c = RichDocumentController(document: try DocxFormat.read(try Zip.write(entries)).document)
+        let index = try XCTUnwrap(c.document.paragraphs.firstIndex { $0.image != nil })
+        let before = try XCTUnwrap(c.document.paragraphs[index].image)
+        c.setImageSize(at: index, width: 144, height: 90)
+        let back = String(decoding: try Zip.read(try DocxFormat.write(c.document, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
+        XCTAssertTrue(back.contains("<wp:anchor"), back)
+        XCTAssertFalse(back.contains("<wp:inline"), back)
+        for kept in ["<wp:wrapSquare", "914400</wp:posOffset>", "228600</wp:posOffset>", "descr=\"A grey box\"", "<a:srcRect", "rot=\"1200000\"", "relativeHeight=\"7\""] {
+            XCTAssertTrue(back.contains(kept), "lost \(kept): \(back)")
+        }
+        XCTAssertTrue(back.contains("<wp:extent cx=\"1828800\" cy=\"1143000\"/>"), back)
+        XCTAssertTrue(back.contains("<a:ext cx=\"1828800\" cy=\"1143000\"/>"), back)
+        XCTAssertFalse(back.contains("cx=\"914400\""), back)
+        // Reopened: still floating at the new size.
+        let reopened = try XCTUnwrap(try DocxFormat.read(try DocxFormat.write(c.document, pageSetup: .letter)).document.paragraphs.compactMap(\.image).first)
+        XCTAssertEqual(reopened.width, 144, accuracy: 0.1)
+        XCTAssertEqual(reopened.height, 90, accuracy: 0.1)
+        XCTAssertTrue(reopened.sourceXML?.containsSubstring("<wp:anchor") ?? false)
+        c.undo()
+        XCTAssertEqual(c.document.paragraphs[index].image?.width, before.width)
     }
 
     /// A file with an endnotes part: each note read like the body for the
