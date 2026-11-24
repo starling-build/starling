@@ -107,6 +107,9 @@ struct ShapeState: Equatable {
     var uprightInsets = EdgeInsets.zero
     var noWrap = false
     var anchorCentred = false
+    var bodyVert: String? = nil
+    var bodyWrap: String? = nil
+    var fitRule: String? = nil
     var keepsFirstSpace = false
     var columns = 1
     var columnGap = 0.0
@@ -982,6 +985,61 @@ final class DeckController: ChangeNotifier {
     /// The alt text of the first selected picture, for the dialog to start from.
     var selectedAltText: String? { selection.first { $0.picture != nil }?.altText }
 
+    // MARK: Text box options (S-TX-2)
+
+    /// What a shape's text box says about its text: where the text sits, which way it runs, whether it wraps, how it fits, its margins, its columns.
+    struct TextOptions: Equatable {
+        enum Direction { case horizontal, rotate90, rotate270, stacked }
+        enum Fit { case none, shrink, resize }
+        var anchor: TextAnchor = .top
+        var direction = Direction.horizontal
+        var wrap = true
+        var fit = Fit.none
+        var insets = EdgeInsets(left: 7.2, top: 3.6, right: 7.2, bottom: 3.6)
+        var columns = 1
+        var columnGap = 0.0
+    }
+
+    private var _textShapes: [SlideShape] { selection.filter { $0.text != nil && $0.picture == nil } }
+
+    /// The options of the first selected shape that holds text.
+    var selectedTextOptions: TextOptions? {
+        guard let s = _textShapes.first else { return nil }
+        var o = TextOptions()
+        o.anchor = s.anchor
+        o.direction = s.textStacked != 0 ? .stacked : s.textTurn > 0 ? .rotate90 : s.textTurn < 0 ? .rotate270 : .horizontal
+        o.wrap = !s.noWrap
+        o.fit = s.autofit ? .shrink : (s.fitRule == "a:spAutoFit" || (s.fitRule == nil && s.kind == .textBox)) ? .resize : .none
+        o.insets = s.insets
+        o.columns = s.columns
+        o.columnGap = s.columnGap
+        return o
+    }
+
+    /// Sets the text options of every selected shape that holds text, as one undo step.
+    func setTextOptions(_ o: TextOptions) {
+        let shapes = _textShapes
+        guard !shapes.isEmpty else { return }
+        guard let was = selectedTextOptions, was != o || shapes.count > 1 else { return }
+        _checkpoint()
+        for s in shapes {
+            s.anchor = o.anchor
+            s.textTurn = o.direction == .rotate90 ? 1 : o.direction == .rotate270 ? -1 : 0
+            s.textStacked = o.direction == .stacked ? 1 : 0
+            s.uprightIdeographs = false
+            s.sidewaysDigits = false
+            s.bodyVert = o.direction == .rotate90 ? "vert" : o.direction == .rotate270 ? "vert270" : o.direction == .stacked ? "wordArtVert" : "horz"
+            s.noWrap = !o.wrap
+            s.bodyWrap = o.wrap ? "square" : "none"
+            s.autofit = o.fit == .shrink
+            s.fitRule = o.fit == .shrink ? "a:normAutofit" : o.fit == .resize ? "a:spAutoFit" : "a:noAutofit"
+            s.insets = o.insets
+            s.columns = max(1, o.columns)
+            s.columnGap = o.columnGap
+        }
+        _changed()
+    }
+
     /// Crop the selected pictures to a shape: width over height, centred.
     func cropPictures(aspect: Double) {
         let pics = selection.filter { $0.picture != nil }
@@ -1525,6 +1583,9 @@ final class DeckController: ChangeNotifier {
         st.shapeInsets = s.shapeInsets
         st.noWrap = s.noWrap
         st.anchorCentred = s.anchorCentred
+        st.bodyVert = s.bodyVert
+        st.bodyWrap = s.bodyWrap
+        st.fitRule = s.fitRule
         st.columns = s.columns
         st.columnGap = s.columnGap
         st.warp = s.warp
@@ -1654,6 +1715,9 @@ final class DeckController: ChangeNotifier {
         shape.shapeInsets = st.shapeInsets
         shape.noWrap = st.noWrap
         shape.anchorCentred = st.anchorCentred
+        shape.bodyVert = st.bodyVert
+        shape.bodyWrap = st.bodyWrap
+        shape.fitRule = st.fitRule
         shape.columns = st.columns
         shape.columnGap = st.columnGap
         shape.warp = st.warp
