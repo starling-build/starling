@@ -320,6 +320,7 @@ extension _ParaFrame {
     func _tallestTextLine(_ a0: Int, _ a1: RichDocument) -> Double? { rl._tallestTextLine(a0, a1) }
     func _tamilMarkedLinesExtra(_ a0: Int, _ a1: RichParagraph, _ a2: RichDocument, _ a3: TextPainter) -> Double { rl._tamilMarkedLinesExtra(a0, a1, a2, a3) }
     func _textBox(_ a0: ImageAttachment, _ a1: RichDocument) -> _HeaderFooter? { rl._textBox(a0, a1) }
+    var _tableWrapUse: [Int : (indent: Double, top: Double, bottom: Double)] { get { rl._tableWrapUse } set { rl._tableWrapUse = newValue } _modify { yield &rl._tableWrapUse } }
     var _textLeft: [Double] { get { rl._textLeft } set { rl._textLeft = newValue } _modify { yield &rl._textLeft } }
     var _textWidth: [Double] { get { rl._textWidth } set { rl._textWidth = newValue } _modify { yield &rl._textWidth } }
     var _topsValid: Bool { get { rl._topsValid } set { rl._topsValid = newValue } _modify { yield &rl._topsValid } }

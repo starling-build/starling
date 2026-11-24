@@ -89,4 +89,44 @@ final class SectFivePictureTests: XCTestCase {
         let broken = run(true)
         XCTAssertGreaterThan(run(false).table, broken.table + 10, "with no break the paragraph is its anchor, so the table sits lower")
     }
+
+    /// Lab sect5/tblwrap (Word's print): the paragraph just before that floating table is broken again where its last line
+    /// reaches the table's left edge, so it takes a line more than it does with no table; it is never shorter.
+    func testTheParagraphBeforeASectionOpeningFloatingTableWrapsRoundIt() throws {
+        RichTextTheme.wordWindowsPages = true
+        defer { RichTextTheme.wordWindowsPages = false }
+        func height(words: Int, table: Bool) -> Double {
+            var bullet = RichParagraph(text: String(repeating: "word ", count: words))
+            bullet.style.alignment = .justify
+            bullet.style.spaceAfter = 0
+            var brk = RichParagraph(text: "")
+            brk.style.sectionXML = "<w:sectPr><w:pgSz w:w=\"12240\" w:h=\"15840\"/></w:sectPr>"
+            brk.style.sectionBreaksPage = false
+            var cell = RichParagraph(text: "cell")
+            cell.cell = CellRef(table: "t", row: 0, column: 0)
+            var doc = RichDocument(paragraphs: table ? [bullet, brk, cell, RichParagraph(text: "after")] : [bullet, brk, RichParagraph(text: "after")])
+            doc.tableColumns["t"] = [200]
+            var ts = TableStyle()
+            ts.floatsOverText = true
+            ts.floatOffsetY = 17.95
+            ts.alignment = .right
+            ts.keptPosition = "<w:tblpPr w:leftFromText=\"141\" w:rightFromText=\"141\" w:horzAnchor=\"margin\" w:tblpXSpec=\"right\" w:tblpY=\"359\"/>"
+            doc.tableStyles["t"] = ts
+            let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+            theme.wordRules = true
+            let layout = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+            layout.pageSetup = .letter
+            layout.width = PageSetup.letter.width * theme.pixelsPerPoint
+            layout.ensureLaidOut(doc)
+            let p = layout.pieces[0].first { $0.paragraph == 0 }
+            return ((p?.flowBottom ?? 0) - (p?.flowTop ?? 0)) / theme.pixelsPerPoint
+        }
+        var longer = false
+        for words in 100 ... 140 {
+            let with = height(words: words, table: true), without = height(words: words, table: false)
+            XCTAssertGreaterThanOrEqual(with, without - 0.01)
+            if with > without + 5 { longer = true }
+        }
+        XCTAssertTrue(longer, "some last line reaches the table's edge and is broken before it")
+    }
 }

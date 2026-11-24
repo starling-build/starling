@@ -1948,6 +1948,14 @@ public final class RichLayout {
     /// from the paragraph's own top, as the page it fell on made it
     /// (`_besideBand` takes it over the whole float's).
     var _besideBandUse: [Int: (top: Double, bottom: Double)] = [:]
+    /// A paragraph just before a floating table that opens a continuous section, set round the table's left edge (Word, lab
+    /// sect5): the right indent its lines level with the table take, and the table's band from the paragraph's top. `Want` is
+    /// what the last pagination found, `Use` what the paragraph was laid out with, `H0` its height before it wrapped (the table
+    /// stands where the unwrapped paragraph put it, and does not move down with the extra line).
+    var _tableWrapUse: [Int: (indent: Double, top: Double, bottom: Double)] = [:]
+    var _tableWrapWant: [Int: (indent: Double, top: Double, bottom: Double)] = [:]
+    var _tableWrapH0: [Int: Double] = [:]
+    var _tableWrapPassing = false
     /// A paragraph's beside-float band ends where its first page's piece does: the lines
     /// that go on to the next page are set across it (`_capPassing`).
     var _bandCap: [Int: Double] = [:]

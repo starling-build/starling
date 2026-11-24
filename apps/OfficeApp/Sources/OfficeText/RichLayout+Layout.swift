@@ -92,6 +92,7 @@ extension RichLayout {
         _cells = Array(repeating: nil, count: n)
         _rowTops = Array(repeating: 0, count: n)
         _floatReach = Array(repeating: 0, count: n)
+        _tableWrapUse = [:]; _tableWrapWant = [:]; _tableWrapH0 = [:]
         _textLeft = Array(repeating: 0, count: n)
         _textWidth = Array(repeating: 0, count: n)
         _turnedFull = [:]
@@ -722,6 +723,24 @@ extension RichLayout {
                 }
                 if changes.isEmpty { break }
                 RuleTrace.hit("word-picture-far-above-does-not-narrow-a-paragraph-on-another-page")
+                apply(changes, paragraphCount: document.paragraphs.count)
+                ensureLaidOut(document)
+            }
+        }
+        // (The paragraph before a floating table that opens a continuous section: its lines level with the table end short of it,
+        // laid out again where the table stands. See `_tableWrapUse`.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, pageSetup != nil, !_tableWrapPassing, !_tableWrapWant.isEmpty {
+            _tableWrapPassing = true
+            defer { _tableWrapPassing = false }
+            for _ in 0 ..< 3 {
+                var changes: [RichChange] = []
+                for (k, w) in _tableWrapWant {
+                    if let u = _tableWrapUse[k], abs(u.indent - w.indent) < 0.5, abs(u.top - w.top) < 0.5, abs(u.bottom - w.bottom) < 0.5 { continue }
+                    _tableWrapUse[k] = w
+                    changes.append(.changed(k))
+                }
+                if changes.isEmpty { break }
+                RuleTrace.hit("word-paragraph-before-a-section-opening-floating-table-wraps-round-it")
                 apply(changes, paragraphCount: document.paragraphs.count)
                 ensureLaidOut(document)
             }
