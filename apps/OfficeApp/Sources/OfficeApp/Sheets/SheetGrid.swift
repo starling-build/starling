@@ -2568,7 +2568,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 if !covered.contains(a), let look = cf.look(a) { looks[a] = look }
             } }
         }
-        for (a, look) in looks {
+        for (a, look) in looks.sorted(by: { $0.key < $1.key }) {
             guard !mono, let f = look.dxf.fill ?? look.fill else { continue }
             p.color = Color(Int64(0xFF00_0000) | Int64(f))
             canvas.drawRect(merges.first { $0.topLeft == a }.map { rect($0) } ?? rect(a), p)
@@ -2614,7 +2614,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             let line = Paint()
             line.style = .stroke
             line.strokeWidth = printing ? 0.96 : 1
-            for (a, look) in tableLooks {
+            for (a, look) in tableLooks.sorted(by: { $0.key < $1.key }) {
                 let r = rect(a)
                 // (On paper where the cell's edge is, as cell borders are:
                 // a page has no pixels to round to.)
@@ -2627,7 +2627,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             }
         }
         // Data bars, under the values.
-        for (a, look) in looks {
+        for (a, look) in looks.sorted(by: { $0.key < $1.key }) {
             guard let bar = look.bar else { continue }
             let r = rect(a)
             let inset = 2 * zoom
@@ -2636,7 +2636,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                                           max(0, r.height - 2 * inset - 1)), p)
         }
         // Icon sets, at the cell's left edge.
-        for (a, look) in looks {
+        for (a, look) in looks.sorted(by: { $0.key < $1.key }) {
             guard let icon = look.icon else { continue }
             let r = rect(a)
             let side = min(r.height - 4 * zoom, 12 * zoom)

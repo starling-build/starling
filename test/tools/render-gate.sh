@@ -195,6 +195,12 @@ if [ "$MODE" = full ] && [ "${GATE_SLIDES:-1}" = 1 ] && [ "${GATE_PREBUILD:-0}" 
     SLIDES_ONLY=${GATE_RECHECK_DECKS:-} LQ=$LQ BASE_BIN=$BC/$BSHA/release/OfficeApp BASE_CACHE=$BC/$BSHA/slides test/tools/slides-gate.sh "$(ls "$W"/build/*/release/OfficeApp | head -1)" "${JOBS:-32}" > "$W/slides.out" 2>&1 & SLPID=$!
   fi
 fi
+# Sheets PDF determinism (2026-11-24, amd-8): three books printed three times each in fresh processes must give the same bytes (a paint loop over a
+# Dictionary reseeds per process and made the gate noisy). About 20 s; GATE_DETERMINISM=0 skips it.
+if [ "$MODE" = full ] && [ "${GATE_DETERMINISM:-1}" = 1 ] && [ "${GATE_PREBUILD:-0}" != 1 ]; then
+  OFFICE_APP=$(ls "$W"/build/*/release/OfficeApp | head -1) test/sheet-pdf-determinism.sh > "$W/determinism.out" 2>&1 || { echo "render-gate: Sheets PDF determinism FAILED (same book, different bytes run to run; sort what a paint loop walks):"; grep -E "DIFF|FAIL" "$W/determinism.out" | head -5; exit 1; }
+  echo "render-gate: Sheets PDF determinism ok"
+fi
 [ "${GATE_PREBUILD:-0}" = 1 ] && { echo "render-gate: PR build alone $(( $(date +%s)-TB )) s; changed since this scratch's last build: $( [ -n "$PREV" ] && git diff --name-only "$PREV" HEAD 2>/dev/null | wc -l || echo unknown) files (prev ${PREV:0:9})"; git rev-parse HEAD > "$W/build.rev"; [ "${GATE_WARM:-0}" = 1 ] && { echo "render-gate: scratch warm on $(git rev-parse --short HEAD)"; exit 0; }
 [ -z "${BPID:-}" ] || [ "${BRC:-0}" = 0 ] || { echo "render-gate: BASE BUILD FAILED"; exit 1; }
   BASEBIN=$BC/$BSHA/release/OfficeApp; fill_rows; chmod -R g+rwX,o+rX "$BC/$BSHA" 2>/dev/null; echo "render-gate: base $BSHA cached"
