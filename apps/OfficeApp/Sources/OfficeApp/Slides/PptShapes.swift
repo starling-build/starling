@@ -66,8 +66,8 @@ extension PptFile {
 
     /// `p:sp` / `p:grpSp` elements for the shapes of a slide, in drawing order.
     /// `picture` turns a picture-store index into the relationship id a part holds it under (nil: the picture cannot be used).
-    /// `master`: a master's own drawing, where placeholders are left out.
-    func shapeXML(of slide: Page, master: Bool = false, picture: (Int) -> String? = { _ in nil }) -> String {
+    /// `master`: a master's own drawing; with `placeholdersOnly` only its placeholders (what a layout repeats).
+    func shapeXML(of slide: Page, master: Bool = false, placeholdersOnly: Bool = false, picture: (Int) -> String? = { _ in nil }) -> String {
         guard let c = record(persistId: slide.persistId), c.isContainer else { return "" }
         var n = 1
         func s16(_ k: Int) -> Int { let v = OfficeArt.u16(data, k); return v >= 0x8000 ? v - 0x10000 : v }
@@ -123,7 +123,7 @@ extension PptFile {
         }
         func shape(_ sp: ArtRecord) -> String {
             let (art, anchor, placeholder, block) = read(sp)
-            if master && placeholder != nil { return "" }
+            if placeholdersOnly && placeholder == nil { return "" }
             if art.type == 75, art.pib > 0, let rid = picture(art.pib) {
                 n += 1
                 var x = "<p:pic><p:nvPicPr><p:cNvPr id=\"\(n)\" name=\"Picture \(n)\"/><p:cNvPicPr/><p:nvPr/></p:nvPicPr>"
@@ -160,7 +160,7 @@ extension PptFile {
                     guard let head = OfficeArt.records(data, in: rec.body).first(where: { $0.type == 0xF004 }) else { continue }
                     let (art, anchor, _, _) = read(head)
                     let inner = walk(rec.body, depth: depth + 1, skipFirst: true)
-                    guard !inner.isEmpty else { continue }
+                    guard !inner.isEmpty, !placeholdersOnly else { continue }
                     n += 1
                     out += "<p:grpSp><p:nvGrpSpPr><p:cNvPr id=\"\(n)\" name=\"Group \(n)\"/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr>"
                     out += xfrm("xfrm", anchor, rot: rotation(art), flipH: art.flags & 0x40 != 0, flipV: art.flags & 0x80 != 0, child: art.groupRect)
