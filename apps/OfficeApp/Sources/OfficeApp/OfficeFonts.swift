@@ -3037,6 +3037,9 @@ enum OfficeFonts {
     /// Faces Word sets Thai in, narrow ones all: see `cordiaNewAdvances`.
     static let thaiWordFaces: Set<String> = ["th sarabun new", "th sarabunpsk", "browallia new", "browalliaupc", "cordia new", "cordiaupc", "th sarabunit๙",
                                              "angsana new", "angsanaupc"]
+    /// A Lao face the print machine lacks: Word draws its Latin, digits and punctuation in Browallia New
+    /// (dx2 30f73046: a digit 0.36 em, a comma 0.178; Leelawadee UI's are 0.539 and 0.217) and sets the line by it.
+    static let laoMissingFaces: Set<String> = ["saysettha ot"]
     /// Cordia New's widths for U+0020 to U+007E, in ems, and its bold's
     /// (the face Word for Mac carries, DFonts cordia.ttc).
     static let cordiaNewAdvances: [Double] = [
@@ -5443,7 +5446,7 @@ enum OfficeFonts {
             // fonts' tables, which count Thonburi's marks, 0.549 and 541).
             // Ours set them unscaled: 693 lines on 29 pages. On Windows the
             // fallback is Leelawadee UI, 0.729 (Windows 01QbbApP).)
-            if Self.thaiWordFaces.contains(family.trimmingWhitespace().lowercased()) {
+            if Self.thaiWordFaces.contains(family.trimmingWhitespace().lowercased()) || Self.laoMissingFaces.contains(family.trimmingWhitespace().lowercased()) {
                 // (Its spaces Browallia's, which Word draws them in, not
                 // Cordia's: Word for Windows' print of zh-6a4fc013 sets 818
                 // regular ones at 0.222 em and 483 bold at 0.181, where
@@ -5451,7 +5454,7 @@ enum OfficeFonts {
                 // took 0.7pt a space too much and its line one fewer word.)
                 var regular = cordiaNewAdvances, bold = cordiaNewBoldAdvances
                 regular[0] = 0.222
-                if ["browallia new", "th sarabun new", "th sarabunpsk", "th sarabunit๙"].contains(family.trimmingWhitespace().lowercased()) {
+                if ["browallia new", "th sarabun new", "th sarabunpsk", "th sarabunit๙"].contains(family.trimmingWhitespace().lowercased()) || Self.laoMissingFaces.contains(family.trimmingWhitespace().lowercased()) {
                     for (j, w) in Self.browalliaLatinAdvances.enumerated() { regular[j + 1] = w }
                 }
                 bold[0] = 0.181
@@ -5488,7 +5491,7 @@ enum OfficeFonts {
                 face.boldOtherAdvances = (face.boldOtherAdvances ?? [:]).merging(browalliaBoldAdvances) { $1 }
                 #endif
             }
-            if wordOnWindows, ["browallia new", "th sarabun new", "th sarabunit๙"].contains(family.trimmingWhitespace().lowercased()) {
+            if wordOnWindows, ["browallia new", "th sarabun new", "th sarabunit๙"].contains(family.trimmingWhitespace().lowercased()) || (wordOnWindows && Self.laoMissingFaces.contains(family.trimmingWhitespace().lowercased())) {
             // Word for Windows prints these in Browallia New: hhea 1770/789 of 2048 (1.249 em).
             face.naturalHeight = 1.249
             face.baseline = 0.864
