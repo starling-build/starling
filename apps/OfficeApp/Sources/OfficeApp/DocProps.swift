@@ -506,7 +506,7 @@ enum DocProps {
             case 0x3009: bkc = s.u8
             case 0x5032: gridType = s.u16
             case 0x9031: gridPitch = s.u16
-            case 0x7030: gridChar = OfficeArt.u32(s.operand, 0)
+            case 0x7030: gridChar = Int(Int32(truncatingIfNeeded: OfficeArt.u32(s.operand, 0)))  // signed: a negative pitch is stored as 32-bit two's complement
             default: break
             }
         }
