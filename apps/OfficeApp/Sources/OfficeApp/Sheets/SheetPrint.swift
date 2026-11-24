@@ -534,6 +534,15 @@ extension SheetGridState {
             let st = book.style(style)
             if st.fill != nil || st.borders != CellStyle.Borders() { for c in colBands.indices { filled.insert([r, c]) } }
         }
+        // (A column formatted as a whole, fill or border, is on every row band of its page inside a print area:
+        // ja-32063d7d28's grey columns B to AC under a print area to row 60 are Excel's second page, rows past the data.)
+        if styledBlanks {
+            for (c, band) in colBand {
+                guard let style = ws.colStyle(c) else { continue }
+                let st = book.style(style)
+                if st.fill != nil || st.borders != CellStyle.Borders() { for r in rowBands.indices { filled.insert([r, band]) } }
+            }
+        }
         for m in ws.merges {
             if m.rows * m.cols <= 100_000 { fill(m); continue }
             // (A whole-column merge is on the pages of the rows in use, over its columns.)
