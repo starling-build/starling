@@ -4926,6 +4926,18 @@ enum OfficeFonts {
             RuleTrace.hit("missing-arabic-bit-face-with-no-alternate-latin-is-arial")
             return standInFace("Arial", eastAsian: false)
         }
+        // (The same for an Arabic-charset (B2) name with no alternate, or Arial as the alternate, that Windows lacks: dx2 fc332781's
+        // "B Nazanin" digits in an rtl run (" 1333 ", no hint) are ArialMT 14 in Word's print, where Carlito's line stood 4.7 pt
+        // taller a line on every line from there.)
+        if wordOnWindows, !eastAsian, !isEmbedded(family), installedFamilies[family.trimmingWhitespace().lowercased()] == nil,
+           !windowsComplexFaces.contains(family.trimmingWhitespace().lowercased()),
+           !WordWindowsFaces.names.contains(family.trimmingWhitespace().lowercased()),
+           let entry = fontEntry(family), entry.charset == "B2",
+           entry.alt?.trimmingWhitespace().isEmpty ?? true || entry.alt?.trimmingWhitespace().lowercased() == "arial",
+           family.trimmingWhitespace().lowercased() != "arial" {
+            RuleTrace.hit("missing-arabic-charset-face-with-no-alternate-latin-is-arial")
+            return standInFace("Arial", eastAsian: false)
+        }
         let own = isEastAsianFace(family)
         // (A face Windows lacks whose font table names Malgun Gothic as the alternate: Word draws its Latin letters, digits and
         // spaces in Malgun Gothic, a 0.35 em space where Liberation Sans' is 0.28. dx2 e86e26f7, Siyam Rupali: 71.7 to 78.3.)
