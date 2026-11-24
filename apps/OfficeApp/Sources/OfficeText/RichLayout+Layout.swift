@@ -1912,7 +1912,12 @@ extension RichLayout {
         RuleTrace.hit("spaced-table-boxes-share-the-room-less-the-gaps")
         let gap = 2 * _px(sp)
         let statedWidth = ts.widthPercent == nil && document.compatibilityMode != nil && (ts.width ?? 0) > 0
-        return max(0, room - gap * Double(base.count) - (statedWidth ? gap : 0))
+        // (At compat 15 the boxes are n+1 gaps and the room is the unspaced one less the cells' own side rule b: lab tbauto3/4,
+        // Word for Windows, 13 prints to 0.1pt; outset rules and a table frame change nothing.)
+        let at15 = !statedWidth && ts.widthPercent == nil && (document.compatibilityMode ?? 0) >= 15
+        var b = 0.0
+        if at15, ts.edges?.left ?? (ts.borders && !ts.bordersFromCells) { b = _px(ts.edgeWidths["left"] ?? ts.borderWidth ?? 0.5) }
+        return max(0, room - gap * Double(base.count) - (statedWidth || at15 ? gap : 0) - b)
     }
 
     @inline(never)
@@ -2397,6 +2402,10 @@ extension RichLayout {
                         (a >= 0x0E01 && a <= 0x0E7F) != (b >= 0x0E01 && b <= 0x0E7F), !(a == 0x2D || a == 0x2013 || a == 0x2014 || b == 0x2D || b == 0x2013 || b == 0x2014),
                         !Self._autofitDictionaryScript(a >= 0x0E01 && a <= 0x0E7F ? b : a) { parts = false }
                 else if breakBefore.contains(k) { parts = true }
+                // (A content-fitted spaced table's column parts after a hyphen between digits: lab tbauto3 h, Word for Windows, dx2 6d16b495's
+                // "201-15" in column 3: boxes 23.9 / 387.0 / 352.2 predicted, 23.9 / 386.95 / 352.1 printed.)
+                else if theme.wordRules, RichTextTheme.wordWindowsPages, a == 0x2D, b >= 0x30, b <= 0x39, k > 1, units[k - 2] >= 0x30, units[k - 2] <= 0x39,
+                        let c = p.cell, (document.tableStyles[c.table]?.cellSpacing ?? 0) > 0, (document.compatibilityMode ?? 0) >= 15 { parts = true }
                 // (After a hyphen before a digit in a time of day, where a
                 // word wider than its cell must part: zh-b3e887f7's schedule keeps its
                 // grid's 49.4pt time columns in Word's print, "9:00-" /
