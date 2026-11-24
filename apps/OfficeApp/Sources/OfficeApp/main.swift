@@ -436,6 +436,33 @@ if let i = CommandLine.arguments.firstIndex(of: "--xls-parts"), i + 2 < CommandL
     } catch { exit(1) }
 }
 
+// `--ppt-parts <file.ppt> <dir>`: the .pptx parts the reader builds from a legacy deck, written as files.
+if let i = CommandLine.arguments.firstIndex(of: "--ppt-parts"), i + 2 < CommandLine.arguments.count {
+    do {
+        let data = try Data(contentsOf: URL(fileURLWithPath: CommandLine.arguments[i + 1]))
+        let dir = CommandLine.arguments[i + 2]
+        try FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        let pkg = try PptBuild.package([UInt8](data))
+        for (name, d) in pkg.parts {
+            try d.write(to: URL(fileURLWithPath: dir + "/" + name.split(separator: "/").joined(separator: "_")))
+        }
+        exit(0)
+    } catch { print("ppt-parts: \(error)"); exit(1) }
+}
+
+// `--ppt-dump <file.ppt>`: one line of census facts: encrypted, slides, masters, record types by count.
+if let i = CommandLine.arguments.firstIndex(of: "--ppt-dump"), i + 1 < CommandLine.arguments.count {
+    do {
+        let data = try Data(contentsOf: URL(fileURLWithPath: CommandLine.arguments[i + 1]))
+        let cf = try CompoundFile([UInt8](data))
+        print("streams: \(cf.streamPaths.joined(separator: ","))")
+        guard let user = cf.stream("Current User"), let doc = cf.stream("PowerPoint Document") else { print("no-ppt97"); exit(0) }
+        let f = try PptFile(currentUser: user, document: doc)
+        print("slides: \(f.slideIds.count) masters: \(f.masterIds.count) size: \(f.slideWidth)x\(f.slideHeight) persist: \(f.persist.count)")
+        exit(0)
+    } catch { print("ppt-dump: \(error)"); exit(0) }
+}
+
 // `--doc-info <file.doc>`: story lengths and the non-empty FIB ranges.
 if let i = CommandLine.arguments.firstIndex(of: "--doc-info"), i + 1 < CommandLine.arguments.count {
     if let data = try? Data(contentsOf: URL(fileURLWithPath: CommandLine.arguments[i + 1])), let cf = try? CompoundFile([UInt8](data)),
