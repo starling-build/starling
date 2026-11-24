@@ -345,6 +345,7 @@ enum DocxFormat {
         var paragraphStyles: [String: XNode] = [:]
         var styleAliases: [String: String] = [:]
         var keptCharacterStyles: [String: String] = [:]
+        var keptTableStyles: [String: String] = [:]
         var keptCharacterStyleIds: [String: String] = [:]
         if let styles = styleTree() {
             _resolveThemeFonts(styles, theme)
@@ -420,7 +421,7 @@ enum DocxFormat {
             var tableNodes: [String: XNode] = [:]
             var allTableStyles: [String: XNode] = [:]
             for style in styles.all("w:style") where style["w:type"] == "table" {
-                if let id = style["w:styleId"] { allTableStyles[id] = style }
+                if let id = style["w:styleId"] { allTableStyles[id] = style; keptTableStyles[id] = PptxXML.serialize(_standaloneW(style)) }
             }
             for style in styles.all("w:style") where style["w:type"] == "table" {
                 guard let id = style["w:styleId"] else { continue }
@@ -959,6 +960,7 @@ enum DocxFormat {
         var tableColumns: [String: [Double]] = [:]
         var tableCellColumns: [String: [Double]] = [:]
         var tableStyles: [String: TableStyle] = [:]
+        var tableStyleIds: [String: String] = [:], tableLooks: [String: String] = [:]
         var tableCount = 0
         var currentCell: CellRef? = nil
         var rowExcepted = false   // the row of `currentCell` states its own cell margins (w:tblPrEx)
@@ -1750,6 +1752,10 @@ enum DocxFormat {
                     if ok, !widths.isEmpty { tableColumns[id] = widths }
                 }
                 var style = TableStyle()
+                if let pr = node.first("w:tblPr") {
+                    if let sid = pr.first("w:tblStyle")?["w:val"], keptTableStyles[sid] != nil { tableStyleIds[id] = sid }
+                    if tableStyleIds[id] != nil, let look = pr.first("w:tblLook") { tableLooks[id] = PptxXML.serialize(_standaloneW(look)) }
+                }
                 // The table's own borders, else its style's, else none —
                 // 64 of the corpus's 109 tables say nothing and have none.
                 // Tables converted from HTML say it per cell instead
@@ -3021,6 +3027,9 @@ enum DocxFormat {
         document.tableColumns = tableColumns
         document.tableCellColumns = tableCellColumns
         document.tableStyles = tableStyles
+        document.tableStyleIds = tableStyleIds
+        document.tableLooks = tableLooks
+        document.keptTableStyles = keptTableStyles
         document.styles = sheet
         document.styleAliases = styleAliases
         document.keptCharacterStyles = keptCharacterStyles

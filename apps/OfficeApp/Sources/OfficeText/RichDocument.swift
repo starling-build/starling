@@ -2586,6 +2586,11 @@ public struct RichDocument: Hashable, Codable, Sendable {
     /// carry their look themselves, but kept markup (a footnote's mark, a
     /// header's text box) names these and has nothing else to go by.
     public var keptCharacterStyles: [String: String] = [:]
+    /// The file's table styles (`w:style` of type table), as written, by id; and per table (by its id in `tableStyles`) the
+    /// style it names and its `w:tblLook`: a save puts them back, so the named style survives as a name.
+    public var keptTableStyles: [String: String] = [:]
+    public var tableStyleIds: [String: String] = [:]
+    public var tableLooks: [String: String] = [:]
     /// Those styles' ids by lower-cased name ("hyperlink", "footnote
     /// reference"): where the file has its own, the writer names that one
     /// instead of adding a second style of the same name.

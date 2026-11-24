@@ -1318,6 +1318,8 @@ extension DocxFormat {
             let twips = widths.map { Int(($0 * 20).rounded()) }
             let style = doc.tableStyles[id] ?? TableStyle()
             var xml = "<w:tbl><w:tblPr>"
+            let namedStyle = doc.tableStyleIds[id].flatMap { doc.keptTableStyles[$0] != nil ? $0 : nil }
+            if let namedStyle { xml += "<w:tblStyle w:val=\"\(_esc(namedStyle))\"/>" }
             if let pos = style.keptPosition { xml += pos }
             if let pct = style.widthPercent { xml += "<w:tblW w:w=\"\(Int((pct * 50).rounded()))\" w:type=\"pct\"/>" }
             else if let w = style.width { xml += "<w:tblW w:w=\"\(Int((w * 20).rounded()))\" w:type=\"dxa\"/>" }
@@ -1351,7 +1353,8 @@ extension DocxFormat {
                 for (side, v) in margins { if let v { xml += "<w:\(side) w:w=\"\(Int((v * 20).rounded()))\" w:type=\"dxa\"/>" } }
                 xml += "</w:tblCellMar>"
             }
-            xml += "<w:tblLook w:val=\"04A0\"/></w:tblPr><w:tblGrid>"
+            xml += (namedStyle != nil ? doc.tableLooks[id] : nil) ?? "<w:tblLook w:val=\"04A0\"/>"
+            xml += "</w:tblPr><w:tblGrid>"
             // A cell's preferred width: the grid's, or none at all when the
             // file's cells stated none and Word autofits them.
             // The file's own word for a cell, while the columns are the
@@ -1700,7 +1703,7 @@ extension DocxFormat {
             ZipEntry(name: "_rels/.rels", data: Data(_rootRels.utf8)),
             ZipEntry(name: "word/document.xml", data: Data(document.utf8)),
             ZipEntry(name: "word/styles.xml", data: Data(_stylesPart(doc.styles, notes: !doc.keptParts.isEmpty, aliases: doc.styleAliases, fileFonts: doc.fileFonts, fromFile: doc.readFromFile,
-                                                                         characterStyles: doc.keptCharacterStyles, characterStyleIds: doc.keptCharacterStyleIds)
+                                                                         characterStyles: doc.keptCharacterStyles, characterStyleIds: doc.keptCharacterStyleIds, tableStyles: doc.keptTableStyles)
                 .replacingAll("<w:lang w:val=\"en-US\"/>", with: doc.defaultLangXML ?? "<w:lang w:val=\"en-US\"/>").utf8)),
             ZipEntry(name: "word/numbering.xml", data: Data(_numberingPart(numKinds, numFormats, bulletId: bulletId, decimalId: decimalId,
                                                                                          counterOf: Dictionary(uniqueKeysWithValues: numIds.compactMap { k, v in doc.listCounterOf[k].map { (v, $0) } }),
@@ -1822,7 +1825,7 @@ extension DocxFormat {
     /// styles.xml from the document's sheet: Normal as the default, every
     /// other entry with its look, plus List Paragraph and Hyperlink.
     static func _stylesPart(_ sheet: RichStyleSheet, notes: Bool = false, aliases: [String: String] = [:], fileFonts: Set<String> = [], fromFile: Bool = false,
-                                    characterStyles: [String: String] = [:], characterStyleIds: [String: String] = [:]) -> String {
+                                    characterStyles: [String: String] = [:], characterStyleIds: [String: String] = [:], tableStyles: [String: String] = [:]) -> String {
         func exportName(_ family: String) -> String { fileFonts.contains(family) ? family : OfficeFonts.exportName(family) }
         var out = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n"
         // The document defaults are Normal's look (the file's, when it was
@@ -1915,6 +1918,7 @@ extension DocxFormat {
         // reference" (a training handbook's notes each broke a character
         // early), and ours of a name the file has is not added beside it.
         for id in characterStyles.keys.sorted() { out += characterStyles[id]! }
+        for id in tableStyles.keys.sorted() { out += tableStyles[id]! }
         if characterStyleIds["hyperlink"] == nil, characterStyles["Hyperlink"] == nil {
         out += "<w:style w:type=\"character\" w:styleId=\"Hyperlink\"><w:name w:val=\"Hyperlink\"/><w:rPr><w:color w:val=\"0563C1\"/><w:u w:val=\"single\"/></w:rPr></w:style>"
         }
