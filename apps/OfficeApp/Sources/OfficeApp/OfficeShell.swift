@@ -90,6 +90,7 @@ final class OfficeShellState: State<StatefulWidget> {
     override func initState() {
         super.initState()
         OfficeFonts.register()
+        bind(_editorFocus)
         _recent = _loadRecent()
         _wireSession()
         officeScene.registerFlush(owner: self) { [weak self] in self?._autosaveNow() }

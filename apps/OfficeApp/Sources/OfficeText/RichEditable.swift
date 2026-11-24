@@ -253,6 +253,7 @@ public final class RichEditableState: State<StatefulWidget> {
             _ownedFocus = FocusNode(debugLabel: "RichEditable")
             _focus = _ownedFocus
         }
+        bind(_focus)
         _focus.onKeyData = { [weak self] keyData in
             return self?._handleKey(keyData) ?? false
         }

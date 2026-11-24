@@ -36,6 +36,11 @@ public final class FocusNode {
     /// one widget tree). See `FocusManager.resolveScope`.
     var _scope: Int?
 
+    /// Where this node's owner is mounted: the view of its element, looked up at request time (see `State.bind`).
+    /// Wins over the first request's context, so a late request from a window that is not the key one still lands in
+    /// its own scope.
+    var _viewProvider: (() -> Int?)?
+
     /// Whether this node holds the focus of the window the keys go to.
     public var hasFocus: Bool {
         return FocusManager.instance.focusedNode === self
@@ -44,7 +49,7 @@ public final class FocusNode {
     /// Makes this node the focus owner of its window (and, if that window is the one the keys go to, of the keys).
     public func requestFocus() {
         let manager = FocusManager.instance
-        let scope = _scope ?? manager.resolveScope()
+        let scope = _viewProvider?().map { manager.scope(ofView: $0) } ?? _scope ?? manager.resolveScope()
         _scope = scope
         manager._setFocus(self, scope: scope)
     }
@@ -200,4 +205,16 @@ public class FocusManager {
 public class FocusScopeNode {
     /// Creates a focus scope node.
     public init() {}
+}
+
+extension State {
+    /// Ties `node` to the view this state is mounted in: its focus scope is that view's, whoever asks for focus and
+    /// whenever. Call from `initState` for each node the state owns (or is handed).
+    public func bind(_ node: FocusNode) {
+        node._viewProvider = { [weak self] in
+            guard var object = self?.context?.findRenderObject() else { return nil }
+            while let up = object.parent { object = up }
+            return (object as? RenderView).map { Int($0.flutterView.viewId) }
+        }
+    }
 }

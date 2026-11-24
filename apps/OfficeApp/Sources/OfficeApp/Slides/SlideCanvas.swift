@@ -83,6 +83,7 @@ final class SlideCanvasState: State<StatefulWidget> {
     func focusNode(for shape: SlideShape) -> FocusNode {
         if let n = _focus[shape.id] { return n }
         let n = FocusNode(debugLabel: "slide shape \(shape.id)")
+        bind(n)
         _focus[shape.id] = n
         return n
     }

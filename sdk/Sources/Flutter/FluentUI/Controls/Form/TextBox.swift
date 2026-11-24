@@ -223,6 +223,7 @@ class _TextBoxState: State<StatefulWidget>, TextInputClient {
 
     override func initState() {
         super.initState()
+        bind(_focusNode)
         if textBox.controller == nil {
             _controller = TextEditingController()
         }

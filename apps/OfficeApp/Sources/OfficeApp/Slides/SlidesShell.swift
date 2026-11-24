@@ -120,6 +120,8 @@ final class SlidesShellState: State<StatefulWidget> {
     override func initState() {
         super.initState()
         OfficeFonts.register()
+        bind(_deckFocus)
+        bind(_notesFocus)
         _recent = OfficeRecent.load()
         _wire()
         officeScene.registerFlush(owner: self) { [weak self] in self?._autosaveNow() }

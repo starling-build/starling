@@ -619,6 +619,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
 
     override func initState() {
         super.initState()
+        bind(focus)
         _painter = _GridPainter(state: self, repaint: _repaint)
         focus.onKeyData = { [weak self] k in self?._key(k) ?? false }
         focus.onFocusChange = { [weak self] focused in

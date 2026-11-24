@@ -19,6 +19,7 @@ import Foundation
 enum UIKitSelfTest {
     // What the probe trees report; the steps read it.
     nonisolated(unsafe) static var mounted: [Int: Int] = [:]
+    nonisolated(unsafe) static var nodes: [Int: FocusNode] = [:]
     nonisolated(unsafe) static var disposed: [Int: Int] = [:]
     nonisolated(unsafe) static var taps: [Int: Int] = [:]
     nonisolated(unsafe) static var sizes: [Int: Size] = [:]
@@ -129,6 +130,22 @@ enum UIKitSelfTest {
                 done((taps[1] ?? 0) == 1 ? nil : "a tap off the view's edge arrived: view 1 has \(taps[1] ?? 0)")
             }
         },
+        Step(name: "a focus request made later from a window that is not the key one stays in its own scope") { done in
+            FocusManager.instance.viewTouched(0)
+            guard let node = nodes[2] else { return done("no probe node in view 2") }
+            // Not a touch, not a mount: a plain callback, as a timer or a completion handler would be.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                node.requestFocus()
+                let m = FocusManager.instance
+                guard m.keyScope == 0, !node.hasFocus, m.debugSummary.contains("2: probe 2"), !m.debugSummary.contains("0: probe 2") else {
+                    return done("key scope \(m.keyScope), has focus \(node.hasFocus), \(m.debugSummary)")
+                }
+                m.viewTouched(2)
+                guard m.keyScope == 2, node.hasFocus else { return done("touching view 2 did not give it the keys: \(m.debugSummary)") }
+                m.viewTouched(0)
+                done(node.hasFocus ? "view 2's node kept the keys after view 0 was touched" : nil)
+            }
+        },
         Step(name: "a resize reaches the engine's metrics and the tree's layout, for that view only") { done in
             fluikit_view_resize(1, 320, 240)
             until({ near(sizes[1]?.width ?? 0, 320) && near(sizes[1]?.height ?? 0, 240) }) { ok in
@@ -192,12 +209,18 @@ private final class Probe: StatefulWidget {
 
 private final class ProbeState: State<StatefulWidget> {
     private var id: Int { (widget as! Probe).viewId }
+    private var node: FocusNode!
     override func initState() {
         super.initState()
         UIKitSelfTest.mounted[id, default: 0] += 1
+        node = FocusNode(debugLabel: "probe \(id)")
+        bind(node)
+        UIKitSelfTest.nodes[id] = node
     }
     override func dispose() {
         UIKitSelfTest.disposed[id, default: 0] += 1
+        UIKitSelfTest.nodes[id] = nil
+        node.dispose()
         super.dispose()
     }
     override func build(_ context: any BuildContext) -> Widget {
