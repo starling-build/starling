@@ -56,8 +56,11 @@ final class SheetsFormatCellsTests: XCTestCase {
 final class SheetsFormatCellsDialogTests: XCTestCase {
     private func dialog(_ applied: @escaping (CellFormatEdit) -> Void, _ closed: @escaping () -> Void) -> WidgetTester {
         let start = CellFormatEdit.Values(.plain)
-        return WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light),
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light),
             home: FormatCellsDialog(start: start, onApply: applied, onClose: closed), title: "Test"), size: Size(1280, 800))
+        // Dispose the dialog when the test ends, so its Enter/Esc interceptor does not outlive it.
+        addTeardownBlock { ui.replace(with: SizedBox(width: 1, height: 1)) }
+        return ui
     }
 
     func testEnterAppliesOnlyWhatWasTouched() {
@@ -104,6 +107,7 @@ final class SheetsFormatCellsShellTests: XCTestCase {
     func testTheShellOpensTheDialogAndEscapeClosesIt() {
         let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light),
             home: SheetsShell(initialPath: nil, onSwitch: { _, _ in }), title: "Test"), size: Size(1280, 800))
+        addTeardownBlock { ui.replace(with: SizedBox(width: 1, height: 1)) }
         guard let shell = ui.state(SheetsShellState.self) else { return XCTFail("no shell") }
         XCTAssertFalse(ui.has(id: "fc-wrap"))
         shell._openFormatCells()
