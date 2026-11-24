@@ -64,6 +64,7 @@ final class SheetsShellState: State<StatefulWidget> {
     private let _renameText = TextEditingController()
     private var _lastTabClick: (index: Int, at: Date)? = nil
     private var _findOpen = false
+    private var _pageSetupOpen = false
     private var _findReplace = false
     private var _findStatus = ""
     private let _findQuery = TextEditingController()
@@ -334,6 +335,8 @@ final class SheetsShellState: State<StatefulWidget> {
             _flash(m)
         case .editNote:
             _editNote(at: wb.active)
+        case .pageSetup:
+            setState { _pageSetupOpen = true }
         }
     }
 
@@ -837,9 +840,23 @@ final class SheetsShellState: State<StatefulWidget> {
         ]
         let window = ColoredBox(color: fluent.scaffoldBackgroundColor,
                                 child: Column(crossAxisAlignment: .stretch, children: column))
-        guard let page = _backstage else { return window }
-        return Stack(children: [
-            window,
+        var layers: [Widget] = [window]
+        if _pageSetupOpen {
+            layers.append(Positioned(left: 0, top: 0, right: 0, bottom: 0, child: ColoredBox(
+                color: Color(0x66000000), child: Center(child: SizedBox(width: 420, height: nil, child: DecoratedBox(
+                    decoration: BoxDecoration(color: fluent.resources.layerFillColorDefault,
+                                              border: Border.all(color: fluent.resources.dividerStrokeColorDefault, width: 1)),
+                    child: SingleChildScrollView(child: PageSetupPanel(
+                        form: PageSetupForm(SheetPrintSetup.read(wb.sheet), paper: wb.paperNumber),
+                        onApply: { [weak self] c in self?.wb.setPageSetup(c) },
+                        onClose: { [weak self] in
+                            self?.setState { self?._pageSetupOpen = false }
+                            self?._grid?.focus.requestFocus()
+                        }))))))))
+        }
+        guard let page = _backstage else { return layers.count == 1 ? window : Stack(children: layers) }
+        return Stack(children: layers + [
+
             Positioned(left: 0, top: 0, right: 0, bottom: 0, child: Backstage(
                 session: session, page: page, recent: _recent, notice: _status,
                 onPage: { [weak self] p in self?.setState { self?._backstage = p } },
@@ -869,6 +886,7 @@ final class SheetsShellState: State<StatefulWidget> {
         case "k" where chords.shift: wb.group(true); return true
         case "j" where chords.shift: wb.group(false); return true
         case "\u{1B}":
+            if _pageSetupOpen { setState { _pageSetupOpen = false }; return true }
             if _findOpen { _closeFind(); return true }
             return false
         default: return false

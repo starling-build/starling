@@ -137,3 +137,17 @@ extension WorkbookController {
         structural { ws.applyPageSetup(change) }
     }
 }
+
+extension String {
+    func trimmingSpaces() -> String { split(whereSeparator: { $0 == " " || $0 == "\n" || $0 == "\t" }).joined() }
+}
+
+extension WorkbookController {
+    /// The sheet's Windows paper number (Letter if the file names none).
+    var paperNumber: Int {
+        let el = sheet.keptElements.first { $0.name == "pageSetup" }
+        guard let t = el?.text, let r = t.rangeOfSubstring("paperSize=\"") else { return 1 }
+        let digits = t[r.upperBound...].prefix { $0.isNumber }
+        return Int(digits) ?? 1
+    }
+}
