@@ -471,6 +471,7 @@ extension Ribbon {
         return [
             Chrome.group("Adjust", fluent, [
                 Chrome.big(FluentSystemIcons.refresh, "Reset Picture", fluent) { deck.resetPictures() },
+                Chrome.big(FluentSystemIcons.info, "Alt Text", fluent) { [session] in session.onAltText?() },
             ]),
             Chrome.group("Size", fluent, [Chrome.rows([
                 Chrome.menuButton(FluentSystemIcons.pageFit, "Crop to Aspect", "Crop the picture to a shape", fluent,

@@ -566,4 +566,39 @@ final class DeepGroupTests: XCTestCase {
         XCTAssertFalse(try XCTUnwrap(f.otherAdvances).isEmpty)
         XCTAssertFalse(try XCTUnwrap(f.boldOtherAdvances).isEmpty)
     }
+
+    /// S-PI-1a: a picture's alt text is set in one undoable step, saved, and the picture's recolour (kept XML) and neighbours survive.
+    func testPictureAltTextRoundTripsAndKeepsTheKeptElement() throws {
+        let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==")!
+        let deck = SlidesSample.make()
+        let pic = deck.addPicture(ImageAttachment(data: png, width: 1, height: 1), naturalSize: Size(100, 100))
+        deck.selectShapes([pic])
+        deck.setAltText("A red square")
+        XCTAssertEqual(pic.altText, "A red square")
+        deck.undo()
+        XCTAssertNil(deck.slides[deck.current].shapes.first { $0.picture != nil }?.altText)
+        deck.selectShapes(deck.slides[deck.current].shapes.filter { $0.picture != nil })
+        deck.setAltText("A \"red\" <square>")
+        let (state, theme, package) = try Pptx.read(Pptx.write(deck))
+        let read = try XCTUnwrap(state.slides[deck.current].shapes.first { if case .picture = $0.kind { return true }; return false })
+        XCTAssertEqual(read.altText, "A \"red\" <square>")
+        // Reopen with a recolour in the picture's blip (kept XML), change the alt text, save: the recolour stays and the new text is in.
+        var pkg = package
+        let part = try XCTUnwrap(read.sourcePart)
+        var xml = String(data: try XCTUnwrap(pkg.parts[part]), encoding: .utf8)!
+        let blip = try XCTUnwrap(xml.range(of: "<a:blip [^>]*?/>", options: .regularExpression))
+        xml.replaceSubrange(blip, with: String(xml[blip].dropLast(2)) + "><a:lum bright=\"20000\"/></a:blip>")
+        pkg.parts[part] = Data(xml.utf8)
+        let (s2r, t2, p2) = try Pptx.read(try Zip.write(pkg.parts.map { ZipEntry(name: $0.key, data: $0.value) }))
+        var s2 = s2r
+        let ki = try XCTUnwrap(s2.slides[deck.current].shapes.firstIndex { if case .picture = $0.kind { return true }; return false })
+        s2.slides[deck.current].shapes[ki].altText = "New text"
+        let out = PptxPackage(try Zip.read(try PptxWriter.write(s2, theme: t2, package: p2)))
+        let written = String(data: try XCTUnwrap(out.parts[part]), encoding: .utf8)!
+        XCTAssertTrue(written.contains("<a:lum bright=\"20000\"/>"))
+        XCTAssertTrue(written.contains("descr=\"New text\""))
+        let again = try Pptx.read(PptxWriter.write(state, theme: theme, package: package))
+        XCTAssertEqual(again.0.slides[deck.current].shapes.first { if case .picture = $0.kind { return true }; return false }?.altText, "A \"red\" <square>")
+        XCTAssertEqual(again.0.slides[deck.current].shapes.count, state.slides[deck.current].shapes.count)
+    }
 }

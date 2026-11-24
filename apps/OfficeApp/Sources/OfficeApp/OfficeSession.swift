@@ -305,6 +305,8 @@ final class OfficeSession {
     var onFind: ((Bool) -> Void)?       // true = replace bar too
     var onInsertPicture: (() -> Void)?
     var onHeaderFooter: (() -> Void)?
+    /// Slides Picture Format > Alt Text: open the dialog for the selected picture.
+    var onAltText: (() -> Void)?
     var onLink: (() -> Void)?
     var onMoreColors: (() -> Void)?
     var onParagraphDialog: (() -> Void)?
