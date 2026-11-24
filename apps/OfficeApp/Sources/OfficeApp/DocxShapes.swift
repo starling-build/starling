@@ -1283,7 +1283,7 @@ extension DocxFormat {
                     guard !piece.isEmpty else { return }
                     var c = cs
                     if cs.rightToLeft { c.csLetters = true }
-                    if pieceArabic { c.rightToLeft = true; c.csLetters = true; if piece.unicodeScalars.contains(where: { (0x0590 ... 0x05FF).contains($0.value) }) { c.plainSize = true } }
+                    if pieceArabic { c.rightToLeft = true; c.csLetters = true; c.plainSize = true }
                     runs.append(Run(length: piece.utf16.count, style: c)); piece = ""
                 }
                 for u in s.unicodeScalars {
