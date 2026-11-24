@@ -397,9 +397,11 @@ extension _ParaFrame {
                 if let spacing = ts.cellSpacing, spacing > 0 {
                     let sp = _px(spacing)
                     let lastColumn = c.column + c.span >= widths.count
-                    pad = EdgeInsets(left: pad.left + sp + (c.column == 0 ? sp : 0),
+                    // (A bordered cell's text stands half the cell line further in, its right edge too, so the width is the same: 8ba99a6d's outset 0.75 pt lines, 0.39 pt in Word's print.)
+                    let lineHalf = theme.wordRules && RichTextTheme.wordWindowsPages && (document.compatibilityMode ?? 12) >= 15 && ts.borders && ts.borderStyle == "outset" ? _px((ts.borderWidth ?? 0.5) / 2) : 0
+                    pad = EdgeInsets(left: pad.left + sp + lineHalf + (c.column == 0 ? sp : 0),
                                      top: pad.top + sp + (c.row == 0 ? sp : 0),
-                                     right: pad.right + sp + (lastColumn ? sp : 0),
+                                     right: pad.right + sp - lineHalf + (lastColumn ? sp : 0),
                                      bottom: pad.bottom + sp + (c.row + c.rowSpan - 1 >= rows ? sp : 0))
                 }
             }
@@ -629,6 +631,13 @@ extension _ParaFrame {
                     RuleTrace.hit("word-number-ending-on-own-stop-takes-it")
                 } else if let stop = ownStop {
                     end = stop - ownLeft
+                } else if theme.wordRules, document.numberTabReachesLevelIndent, wl.first < 0, let lvlLeft = p.style.listId.flatMap({ document.listFormats[$0]?[min(max(0, p.style.listLevel), 8)]?.indentLeft }),
+                          _px(lvlLeft) > ownLeft + end + 0.01, abs(_px(lvlLeft) - ownLeft) > 0.01 {
+                    // (A paragraph that states its own left indent under a numbered level still has the
+                    // level's indent as a tab stop: pt-90497db98b's bullets, left 0 under a level at 1020
+                    // twips, start their text at 51pt in Word's print, not at the paragraph's 0.)
+                    end = _px(lvlLeft) - ownLeft
+                    RuleTrace.hit("word-number-tab-goes-to-the-levels-indent-under-a-paragraphs-own")
                 } else if wl.first < 0, end <= 0.01, theme.wordRules, document.indentNotNumberingTabStop,
                           case let tab = _px(document.defaultTabStop ?? 36), tab > 0.01 {
                     let from = ownLeft + end
@@ -858,6 +867,16 @@ extension _ParaFrame {
                     if let here, here.alignment == .decimal { continue }
                 }
                 let at = rtlAt ?? edge(t)
+                var spaceLead = 0.0
+                // (Spaces standing before the tab, the probe putting the tab's box where the last letter ends and the spaces
+                // behind it: the tab starts after the spaces, as Word's does. Lab tabend p2, W + 6 spaces + 3 tabs: the tabs came
+                // 18 pt early, the line's wrap decided on it; the spaces' width is counted now.)
+                if theme.wordRules, !style.rightToLeft, rtlAt == nil, t > 0, units[t - 1] == 0x20,
+                   let spaceEnd = probe.getBoxesForSelection(TextSelection(baseOffset: probeMap.painter(t - 1), extentOffset: probeMap.painter(t - 1) + 1)).last?.right,
+                   spaceEnd > at + 0.01 {
+                    spaceLead = spaceEnd - at
+                    RuleTrace.hit("word-tab-starts-after-the-spaces-before-it")
+                }
                 var after = edge(t + 1)
                 if style.rightToLeft {
                     // (The next character is Hebrew, which the left-to-right
@@ -881,7 +900,7 @@ extension _ParaFrame {
                 // marL 23.5pt, indent -22.5, a stop at 86.45: PowerPoint's print has "distintos" at 86.45 from the box,
                 // ours at 109, the text's 22.6pt start counted twice.)
                 let listText = !theme.wordRules && theme.markersAtHang && style.list != nil ? max(0, left - ownLeft) : 0
-                let x = (base.map { ownLeft + at - $0 + shift } ?? ownLeft + at - origin + shift) + window.left + listText
+                let x = (base.map { ownLeft + at - $0 + shift } ?? ownLeft + at - origin + shift) + window.left + listText + spaceLead
                 // (A tab whose next character's edge the probe cannot give — its box missing, the caret read as 0 — has the width
                 // of its own box: xd 6be5dbc9's "३.<tab>संस्थाको", the tab taken as 27 pt wide, already at its hanging stop, so it
                 // got no stretch and stood 3 pt wide in Word's 27.)
@@ -1216,7 +1235,7 @@ extension _ParaFrame {
                 }
                 tabs[t] = extra
                 if toIndent { leftTabs.insert(t) }
-                shift += extra
+                shift += extra + spaceLead
                 if let fill = stop.leader, fill != "none" {
                     let ch = ["dot": ".", "hyphen": "-", "underscore": "_", "middleDot": "\u{B7}", "heavy": "_"][fill] ?? "."
                     _leaders[i].append((t, ch))

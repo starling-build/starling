@@ -393,6 +393,7 @@ extension SheetGridState {
             printing = false
             _clearReachMemo()
             printRowScale = 0
+            printSetScaled = false; printNoFit = false
             printColumnMax = 0
             printMono = false
             if c.activeSheet != savedSheet { c.activeSheet = savedSheet }
@@ -446,6 +447,9 @@ extension SheetGridState {
             }
             await _preloadPictures(ws)
             printRowScale = setup.fitWidth == nil && setup.fitHeight == nil ? setup.scale / 100 : 0
+            printNoFit = setup.fitWidth == nil && setup.fitHeight == nil
+            printSetScaled = setup.fitWidth == nil && setup.fitHeight == nil && setup.scale < 100
+            printPct = Double(setup.scale)
             printMono = setup.blackAndWhite
             printColumnMax = setup.fitWidth == nil && setup.fitHeight == nil ? setup.printableWidth / (setup.scale / 100) : 0
             let ca = cols, ra = rows   // in points while printing
@@ -530,6 +534,15 @@ extension SheetGridState {
             let st = book.style(style)
             if st.fill != nil || st.borders != CellStyle.Borders() { for c in colBands.indices { filled.insert([r, c]) } }
         }
+        // (A column formatted as a whole, fill or border, is on every row band of its page inside a print area:
+        // ja-32063d7d28's grey columns B to AC under a print area to row 60 are Excel's second page, rows past the data.)
+        if styledBlanks {
+            for (c, band) in colBand {
+                guard let style = ws.colStyle(c) else { continue }
+                let st = book.style(style)
+                if st.fill != nil || st.borders != CellStyle.Borders() { for r in rowBands.indices { filled.insert([r, band]) } }
+            }
+        }
         for m in ws.merges {
             if m.rows * m.cols <= 100_000 { fill(m); continue }
             // (A whole-column merge is on the pages of the rows in use, over its columns.)
@@ -590,6 +603,9 @@ extension SheetGridState {
         // 15.12 at 51% in Excel's print, 126 dots, where ours, unrounded,
         // stepped 15.18 and stood 1.2 low by its page's foot.)
         printRowScale = setup.fitWidth == nil && setup.fitHeight == nil ? setup.scale / 100 : jobs.count == 1 ? jobs[0].scale : 0
+        printNoFit = setup.fitWidth == nil && setup.fitHeight == nil
+            printSetScaled = setup.fitWidth == nil && setup.fitHeight == nil && setup.scale < 100
+            printPct = Double(setup.scale)
         printMono = setup.blackAndWhite
         printColumnMax = setup.fitWidth == nil && setup.fitHeight == nil ? setup.printableWidth / (setup.scale / 100) : 0
         let ca = cols, ra = rows   // in points while printing

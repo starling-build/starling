@@ -134,14 +134,16 @@ enum DocProps {
     }
 
     /// `<w:rPr>` for a character property list ("" when it sets nothing).
-    static func rPr(_ g: [UInt8], fonts: [String]) -> String {
+    static func rPr(_ g: [UInt8], fonts: [String], toggles: Bool = false) -> String {
+        var toggled = Set<Int>()   // 0x81: the opposite of what the style gives (settled per paragraph, see `settleToggles`)
         var ascii: Int?, fe: Int?, other: Int?
         var flags: [Int: Bool] = [:]
         var size: Int?, color: String?, hl = "", ul = "", va = "", rstyle = -1
         for s in sprms(g) where s.sgc == 2 {
             switch s.op {
             case 0x0835, 0x0836, 0x0837, 0x0838, 0x0839, 0x083A, 0x083B, 0x083C:
-                if s.u8 == 0 { flags[s.op] = false } else if s.u8 == 1 || s.u8 == 0x81 { flags[s.op] = true }
+                if s.u8 == 0 { flags[s.op] = false } else if s.u8 == 1 { flags[s.op] = true }
+                else if s.u8 == 0x81 { if toggles { toggled.insert(s.op) } else { flags[s.op] = true } }
             case 0x2A3E: ul = underline[s.u8] ?? (s.u8 == 0 ? "none" : "single")
             case 0x2A42: if s.u8 > 0, s.u8 < ico.count { color = ico[s.u8] }
             case 0x6870: if s.operand.count >= 3 { color = hex(s.operand[0]) + hex(s.operand[1]) + hex(s.operand[2]) }
@@ -167,6 +169,7 @@ enum DocProps {
             x += "/>"
         }
         func on(_ op: Int, _ tag: String) {
+            if toggled.contains(op) { x += "<w:\(tag) w:val=\"toggle\"/>"; return }
             if let v = flags[op] { x += v ? "<w:\(tag)/>" : "<w:\(tag) w:val=\"0\"/>" }
         }
         on(0x0835, "b"); if let v = flags[0x0835] { x += v ? "<w:bCs/>" : "" }
@@ -180,9 +183,64 @@ enum DocProps {
         return x.isEmpty ? "" : "<w:rPr>" + x + "</w:rPr>"
     }
 
+    /// Settles the toggled flags (`w:val="toggle"`) of a paragraph against the paragraph style: a toggle
+    /// sprm (0x81) gives the opposite of what the style's chain gives, written out as an explicit on or off.
+    static func settleToggles(_ xml: String, styles: String, istd: Int) -> String {
+        guard xml.containsSubstring("w:val=\"toggle\"") else { return xml }
+        var out = xml
+        for tag in ["b", "i", "caps", "smallCaps", "strike", "outline", "shadow", "vanish"] {
+            let marker = "<w:\(tag) w:val=\"toggle\"/>"
+            guard out.containsSubstring(marker) else { continue }
+            out = out.replacingAll(marker, with: styleHas(styles, istd: istd, tag: tag) ? "<w:\(tag) w:val=\"0\"/>" : "<w:\(tag)/>")
+        }
+        return out
+    }
+
+    private static func styleHas(_ styles: String, istd: Int, tag: String) -> Bool {
+        var id = istd, hops = 0
+        while hops < 20 {
+            hops += 1
+            guard let a = styles.rangeOfSubstring("w:styleId=\"S\(id)\"") else { return false }
+            let rest = styles[a.upperBound...]
+            let rs = String(rest)
+            let body = rs.rangeOfSubstring("</w:style>").map { String(rs[..<$0.lowerBound]) } ?? rs
+            if let r = body.rangeOfSubstring("<w:\(tag)") {
+                let after = body[r.upperBound...]
+                if after.hasPrefix("/>") || after.hasPrefix(" />") { return true }
+                if after.hasPrefix(" w:val=\"0\"") { return false }
+                if after.hasPrefix(">") || after.hasPrefix(" ") { return true }
+            }
+            guard let b = body.rangeOfSubstring("<w:basedOn w:val=\"S") else { return false }
+            let digits = body[b.upperBound...].prefix(while: { $0 >= "0" && $0 <= "9" })
+            guard let n = Int(digits), n != id else { return false }
+            id = n
+        }
+        return false
+    }
+
     private static func hex(_ b: UInt8) -> String {
         let d = Array("0123456789ABCDEF")
         return String([d[Int(b >> 4)], d[Int(b & 15)]])
+    }
+
+    /// `<w:framePr>` from the frame sprms (PPc anchors, absolute position, width, height, wrap).
+    static func framePr(_ ppc: Int, _ dxa: Int?, _ dya: Int?, _ w: Int?, _ h: Int?, _ wrap: Int?) -> String {
+        var f = "<w:framePr"
+        if let w, w > 0 { f += " w:w=\"\(w)\"" }
+        if let h, h & 0x7FFF > 0 { f += " w:h=\"\(h & 0x7FFF)\" w:hRule=\"\(h & 0x8000 != 0 ? "atLeast" : "exact")\"" }
+        f += " w:hAnchor=\"\(["text", "margin", "page"][min((ppc >> 6) & 3, 2)])\""
+        f += " w:vAnchor=\"\(["margin", "page", "text"][min((ppc >> 4) & 3, 2)])\""
+        if let dxa {
+            let names = [-4: "center", -8: "right", -12: "inside", -16: "outside"]
+            if let n = names[dxa] { f += " w:xAlign=\"\(n)\"" } else if dxa != 0 { f += " w:x=\"\(dxa)\"" }
+        }
+        if let dya {
+            let names = [-4: "top", -8: "center", -12: "bottom", -16: "inside", -20: "outside"]
+            if let n = names[dya] { f += " w:yAlign=\"\(n)\"" } else if dya != 0 { f += " w:y=\"\(dya)\"" }
+        }
+        let wraps = [1: "notBeside", 2: "around", 3: "none", 4: "tight", 5: "through"]
+        if let wrap, let n = wraps[wrap] { f += " w:wrap=\"\(n)\"" }
+        return f + "/>"
     }
 
     /// `<w:pPr>` for a paragraph property list ("" when it sets nothing).
@@ -190,16 +248,26 @@ enum DocProps {
         var x = istd > 0 ? "<w:pStyle w:val=\"S\(istd)\"/>" : ""
         var keepNext = false, keepLines = false, pageBreak = false, widow: Bool?
         var before: Int?, after: Int?, line: (Int, Int)?
+        var beforeAuto: Bool?, afterAuto: Bool?
         var left: Int?, right: Int?, first: Int?, jc: String?
         var ilfo = 0, ilvl = 0
+        var ppc: Int?, dxaAbs: Int?, dyaAbs: Int?, dxaW: Int?, dyaH: Int?, wrap: Int?
         for s in sprms(g) where s.sgc == 1 {
             switch s.op {
+            case 0x261B: ppc = s.u8
+            case 0x8418: dxaAbs = s.i16
+            case 0x8419: dyaAbs = s.i16
+            case 0x841A: dxaW = s.u16
+            case 0x442B: dyaH = s.u16
+            case 0x2423: wrap = s.u8
             case 0x2406: keepNext = s.u8 == 1
             case 0x2405: keepLines = s.u8 == 1
             case 0x2407: pageBreak = s.u8 == 1
             case 0x2431: widow = s.u8 == 1
             case 0x460B: ilfo = s.i16
             case 0x260A: ilvl = s.u8
+            case 0x245B: beforeAuto = s.u8 == 1   // sprmPFDyaBeforeAuto: Word's 14 pt "auto" spacing
+            case 0x245C: afterAuto = s.u8 == 1
             case 0xA413: before = s.u16
             case 0xA414: after = s.u16
             case 0x6412: if s.operand.count >= 4 { line = (OfficeArt.u16(s.operand, 0), OfficeArt.u16(s.operand, 2)) }
@@ -215,10 +283,12 @@ enum DocProps {
         if pageBreak { x += "<w:pageBreakBefore/>" }
         if let widow { x += widow ? "<w:widowControl/>" : "<w:widowControl w:val=\"0\"/>" }
         if ilfo > 0 { x += "<w:numPr><w:ilvl w:val=\"\(min(ilvl, 8))\"/><w:numId w:val=\"\(ilfo)\"/></w:numPr>" }
-        if before != nil || after != nil || line != nil {
+        if before != nil || after != nil || line != nil || beforeAuto != nil || afterAuto != nil {
             x += "<w:spacing"
             if let before { x += " w:before=\"\(before)\"" }
             if let after { x += " w:after=\"\(after)\"" }
+            if let beforeAuto { x += " w:beforeAutospacing=\"\(beforeAuto ? 1 : 0)\"" }
+            if let afterAuto { x += " w:afterAutospacing=\"\(afterAuto ? 1 : 0)\"" }
             if let (l, m) = line {
                 let v = l >= 0x8000 ? l - 0x10000 : l
                 x += m == 1 ? " w:line=\"\(v)\" w:lineRule=\"auto\"" : v < 0 ? " w:line=\"\(-v)\" w:lineRule=\"exact\"" : " w:line=\"\(v)\" w:lineRule=\"atLeast\""
@@ -232,6 +302,7 @@ enum DocProps {
             if let first { x += first < 0 ? " w:hanging=\"\(-first)\"" : " w:firstLine=\"\(first)\"" }
             x += "/>"
         }
+        if let ppc, dxaAbs != nil || dyaAbs != nil || dxaW != nil { x += framePr(ppc, dxaAbs, dyaAbs, dxaW, dyaH, wrap) }
         if let jc { x += "<w:jc w:val=\"\(jc)\"/>" }
         return x.isEmpty ? "" : "<w:pPr>" + x + "</w:pPr>"
     }
@@ -278,7 +349,7 @@ enum DocProps {
     /// table spans columns instead of taking the first two.
     static func row(_ g: [UInt8], union: [Int]? = nil) -> (tblPr: String, grid: [Int], trPr: String, cells: [(span: Int, merged: Bool, pr: String)], edges: [Int])? {
         var edges: [Int] = [], tcs: [[UInt8]] = []
-        var jc = "", gap = 0, shd: [Int] = [], height = 0
+        var jc = "", gap = 108, shd: [Int] = [], height = 0
         var tb: [String] = [], header = false, cant = false
         let names = ["top", "left", "bottom", "right", "insideH", "insideV"]
         for s in sprms(g) where s.sgc == 5 {
@@ -364,8 +435,10 @@ enum DocProps {
 
     /// numbering.xml from the list tables (PlfLst: the list definitions; PlfLfo: the numbers paragraphs refer to).
     static func numbering(_ t: [UInt8], lst: (fc: Int, lcb: Int), lfo: (fc: Int, lcb: Int)?, fonts: [String]) -> String? {
-        let end = lst.fc + lst.lcb
-        guard lst.fc >= 0, end <= t.count, lst.lcb >= 2 else { return nil }
+        // The level records (LVL) of every list follow the list headers right after PlfLst, outside the
+        // length the file records for it, so they are read up to the end of the table stream.
+        guard lst.fc >= 0, lst.fc + lst.lcb <= t.count, lst.lcb >= 2 else { return nil }
+        let end = t.count
         let cLst = OfficeArt.u16(t, lst.fc)
         var p = lst.fc + 2
         var lsids: [Int] = [], simple: [Bool] = []
@@ -423,13 +496,15 @@ enum DocProps {
     }
 
     /// The styles of the STSH as `w:style` elements, and the document's default font number.
-    static func styles(_ t: [UInt8], at fc: Int, count lcb: Int, fonts: [String]) -> (xml: String, font: Int) {
-        guard fc >= 0, fc + lcb <= t.count, lcb >= 4 else { return ("", 0) }
+    static func styles(_ t: [UInt8], at fc: Int, count lcb: Int, fonts: [String]) -> (xml: String, font: Int, fontFE: Int) {
+        guard fc >= 0, fc + lcb <= t.count, lcb >= 4 else { return ("", 0, 0) }
         let end = fc + lcb
         let cbStshi = OfficeArt.u16(t, fc)
         let h = fc + 2
         let cstd = OfficeArt.u16(t, h), cbBase = OfficeArt.u16(t, h + 2)
         let font = cbStshi >= 14 ? OfficeArt.u16(t, h + 12) : 0
+        // (The East Asian default is the next of the three standard fonts, ftcFE: the face a run that names none gives its Hangul, kana and ideographs.)
+        let fontFE = cbStshi >= 16 ? OfficeArt.u16(t, h + 14) : font
         var p = h + cbStshi
         var xml = ""
         for istd in 0 ..< cstd {
@@ -466,7 +541,7 @@ enum DocProps {
             if stk == 1, next != istd, next < cstd { xml += "<w:next w:val=\"S\(next)\"/>" }
             xml += pp + rp + "</w:style>"
         }
-        return (xml, font)
+        return (xml, font, fontFE)
     }
 
     /// The character positions and the n entries of a plex (n + 1 positions, then n entries of `size` bytes).
@@ -480,6 +555,7 @@ enum DocProps {
     static func sectPr(_ g: [UInt8], refs: String) -> String {
         var w = 12240, h = 15840, l = 1800, r = 1800, tp = 1440, bt = 1440, hd = 720, ft = 720, gut = 0
         var landscape = false, title = false, cols = 1, space = 720, bkc = 2
+        var gridType = 0, gridPitch = 0, gridChar = 0
         for s in sprms(g) where s.sgc == 4 {
             switch s.op {
             case 0xB01F: w = s.u16
@@ -496,6 +572,9 @@ enum DocProps {
             case 0x500B: cols = s.u16 + 1
             case 0x900C: space = s.u16
             case 0x3009: bkc = s.u8
+            case 0x5032: gridType = s.u16
+            case 0x9031: gridPitch = s.u16
+            case 0x7030: gridChar = Int(Int32(truncatingIfNeeded: OfficeArt.u32(s.operand, 0)))  // signed: a negative pitch is stored as 32-bit two's complement
             default: break
             }
         }
@@ -505,6 +584,10 @@ enum DocProps {
         x += "<w:pgMar w:top=\"\(tp)\" w:right=\"\(r)\" w:bottom=\"\(bt)\" w:left=\"\(l)\" w:header=\"\(hd)\" w:footer=\"\(ft)\" w:gutter=\"\(gut)\"/>"
         if cols > 1 { x += "<w:cols w:num=\"\(cols)\" w:space=\"\(space)\"/>" }
         if title { x += "<w:titlePg/>" }
+        if gridType > 0, gridPitch > 0 {
+            let ty = gridType == 1 ? "linesAndChars" : gridType == 3 ? "snapToChars" : "lines"   // sprmSClm: 1 chars and lines, 2 lines, 3 snap to chars
+            x += "<w:docGrid w:type=\"\(ty)\" w:linePitch=\"\(gridPitch)\"" + (gridChar != 0 ? " w:charSpace=\"\(gridChar)\"" : "") + "/>"
+        }
         return "<w:sectPr>" + x + "</w:sectPr>"
     }
 }

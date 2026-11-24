@@ -35,6 +35,12 @@ struct SheetPrintMetrics {
     var defaultRow: Double
     /// What a set row height is multiplied by.
     var rowScale: Double
+    /// What a set row height is multiplied by where the face's set rows stand on another screen row than its fitted ones (`Face.setScreenRow`); `rowScale` otherwise.
+    var setRowScale: Double
+    /// The face's set rows stand on their own screen row (see `setRowScale`).
+    var setOwn: Bool = false
+    /// ...and does so at 100 % too (the 8-dots-a-point grid faces: 돋움 11's 45 pt rows print 43.2 pt in ko-5907e2d9ba, a 100 % print).
+    var setOwnAt100: Bool = false
     /// The digit on that Excel's screen, in its pixels.
     var screenDigit: Double
     /// A row nobody sized, on that Excel's screen, in its pixels.
@@ -62,6 +68,18 @@ struct SheetPrintMetrics {
     /// one over, at .83 not.
     static func setRow(_ h: Double, scale: Double) -> Double {
         (h * scale * 600 / 72 + 0.12).rounded(.down) * 72 / 600
+    }
+
+    /// A set row of a face whose set rows stand on their own screen row, in a print at `printPct` < 100:
+    /// the height is held in quarter screen pixels (50.1 pt -> 50.0625 -> 403 dots), cut to whole dots at 100 %,
+    /// and the dots of the scaled print are that count times the scale, rounded half up (30.375 pt at 58 %: 142).
+    /// The result is given back at 100 % (dots / scale) so the page scale that follows lands on whole dots.
+    static func setRowOwn(_ h: Double, scale: Double, printPct: Double) -> Double {
+        let q = (h / 0.1875).rounded() * 0.1875
+        let dots100 = (q * scale * 600 / 72 + 0.12).rounded(.down)
+        let s = printPct / 100
+        let dots = (dots100 * s + 0.5).rounded(.down)
+        return dots / s * 72 / 600
     }
 
     /// A row of a face the print box has but the tables lack: its stored height
@@ -104,7 +122,7 @@ struct SheetPrintMetrics {
     /// style-alternate-content's of Malgun Gothic 6, 23 px where in
     /// proportion to 8 they were 26 (Malgun's 8 and 9 are both 35: no line
     /// to extend).
-    private struct Face { var digit: [Double], row: [Double], screenRow: [Double], screenDigit: [Double], offTable: [Double: Double] = [:], hinted: [Double: Double] = [:], plainBook: [Double: Double] = [:] }
+    private struct Face { var digit: [Double], row: [Double], screenRow: [Double], screenDigit: [Double], gridSet: Set<Double> = [], setScreenRow: [Double: Double] = [:], offTable: [Double: Double] = [:], hinted: [Double: Double] = [:], plainBook: [Double: Double] = [:] }
     private static let sizes: [Double] = [8, 9, 10, 10.5, 11, 12, 14, 16, 18]
     private static let faces: [String: Face] = [
         "calibri": Face(digit: [34, 38, 42, 45, 47, 51, 59, 67, 76], row: [90, 99, 109, 116, 121, 130, 150, 171, 191], screenRow: [28, 31, 35, 37, 38, 42, 48, 56, 62],
@@ -145,7 +163,7 @@ struct SheetPrintMetrics {
         // with Malgun's rows (lab cjkrows3 read Gulim's own, 9.25 pt at 8, but the corpus prints do not use them: ko-3ca2381bbc's 9 pt rows are 11.8 pt in Excel's print, Malgun's, and 7 Korean books drop with the own rows) and a column's unit their own digit (font file advances of 597, 588, 610 and 597 per 1024 em) in whole dots of the
         // 600 dpi em (11 pt: 92 dots, Dotum's digit 54 where Malgun's is 51: 0453e2c911's two columns, 509.8 pt, 36.0 + 473.8).
         "dotum": Face(digit: [39, 44, 49, 51, 54, 58, 68, 78, 88], row: [102, 114, 124, 130, 139, 149, 172, 192, 219], screenRow: [35, 35, 42, 42, 45, 51, 55, 66, 72],
-            screenDigit: [12, 13, 15, 15, 16, 18, 20, 24, 26], offTable: [6: 23], hinted: [10: 41.75]),
+            screenDigit: [12, 13, 15, 15, 16, 18, 20, 24, 26], gridSet: [11], offTable: [6: 23], hinted: [10: 41.75]),
         "gulim": Face(digit: [38, 43, 48, 50, 53, 57, 67, 76, 86], row: [102, 114, 124, 130, 139, 149, 172, 192, 219], screenRow: [35, 35, 42, 42, 45, 51, 55, 66, 72],
             screenDigit: [12, 13, 15, 15, 16, 18, 20, 24, 26], offTable: [6: 23], hinted: [10: 41.75]),
         "batang": Face(digit: [39, 45, 50, 52, 55, 60, 70, 79, 89], row: [102, 114, 124, 130, 139, 149, 172, 192, 219], screenRow: [35, 35, 42, 42, 45, 51, 55, 66, 72],
@@ -187,12 +205,17 @@ struct SheetPrintMetrics {
             screenDigit: [11, 12, 14, 14, 15, 16, 19, 22, 24]),
         // PMingLiU and MingLiU print a line of em + descent + external leading (= descent) + half the descent more, in 600-dpi dots, em = round(size x 600/72), descent = em - round(0.8008 em): GDI dump at 600 dpi, 6 sizes x 2 faces, 12/12 of Excel's pitches (the planner's spec, 2026-11-23).
         "pmingliu": Face(digit: [31, 35, 39, 41, 43, 47, 55, 62, 70], row: [87, 98, 109, 115, 119, 130, 152, 172, 195], screenRow: [26, 30, 33, 35, 36, 39, 45, 53, 59],
-            screenDigit: [10, 11, 13, 13, 14, 15, 17, 20, 23]),
+            screenDigit: [10, 11, 13, 13, 14, 15, 17, 20, 23], setScreenRow: [12: 43]),
         "lucida sans typewriter": Face(digit: [40, 45, 50, 53, 55, 60, 70, 80, 90], row: [87, 96, 105, 112, 116, 126, 146, 164, 184], screenRow: [26, 30, 34, 35, 36, 40, 46, 53, 59],
             screenDigit: [13, 14, 16, 17, 17, 19, 22, 26, 29]),
         "arial black": Face(digit: [45, 50, 55, 59, 61, 67, 78, 89, 100], row: [110, 122, 133, 141, 146, 159, 185, 208, 234], screenRow: [33, 36, 42, 44, 45, 49, 57, 65, 74],
             screenDigit: [14, 16, 18, 19, 19, 21, 25, 29, 32]),
         "simhei": Face(digit: [34, 38, 42, 44, 46, 50, 59, 67, 75], row: [77, 85, 93, 98, 102, 110, 127, 143, 160], screenRow: [25, 28, 32, 33, 34, 38, 43, 50, 56],
+            screenDigit: [11, 12, 14, 14, 15, 16, 19, 22, 24]),
+        // Microsoft JhengHei: rows are the MS PGothic ones: the lab cjkrows3 rows (93, 103, ... dots) cost zh-7e194ea1d0 16.6 to 13.6 against the corpus print, which sets these rows at the PGothic pitch (as for Gulim). Lab values were (lab cjkrows3, jheng-8..18: 93, 103, 113, 119, 124, 133, 155, 175, 196 dots at 8 to 18 pt);
+        // digits from the GDI advances of "0" (gdi-advance-by-em-jhenghei: 12, 14, 16, 16, 17, 19, 21, 25, 28 px at the 192-dpi em,
+        // 0.58 em at 600 dpi). The fitted screen rows stand at 0.32 of the print rows (not measured).
+        "jhenghei-cjk": Face(digit: [34, 38, 42, 44, 46, 50, 59, 67, 75], row: [77, 85, 93, 98, 102, 110, 127, 143, 160], screenRow: [25, 28, 32, 33, 34, 38, 43, 50, 56],
             screenDigit: [11, 12, 14, 14, 15, 16, 19, 22, 24]),
         "mingliu": Face(digit: [34, 38, 42, 44, 46, 50, 59, 67, 75], row: [87, 98, 109, 115, 119, 130, 152, 172, 195], screenRow: [26, 30, 33, 35, 36, 39, 45, 53, 59],
             screenDigit: [11, 12, 14, 14, 15, 16, 19, 22, 24]),
@@ -224,7 +247,7 @@ struct SheetPrintMetrics {
         "courier": "courier new", "nirmala text": "nirmala ui", "caladea": "cambria", "宋体": "simsun", "nsimsun": "simsun",
         "ｍｓ ｐゴシック": "ms pgothic", "ｍｓ ゴシック": "ms gothic", "ms ui gothic": "ms pgothic",
         "ms mincho": "ms gothic", "ms pmincho": "ms pgothic", "ｍｓ 明朝": "ms gothic", "ｍｓ ｐ明朝": "ms pgothic",
-        "新細明體": "pmingliu", "맑은 고딕": "malgun gothic", "游ゴシック": "yu gothic",
+        "新細明體": "pmingliu", "微軟正黑體": "jhenghei-cjk", "맑은 고딕": "malgun gothic", "游ゴシック": "yu gothic",
         "微软雅黑": "microsoft yahei", "メイリオ": "meiryo", 
         "ms sans serif": "microsoft sans serif", "黑体": "simhei", "細明體": "mingliu",
         "lucida sans": "lucida sans unicode", "lucida grande": "lucida sans unicode",
@@ -359,7 +382,7 @@ struct SheetPrintMetrics {
         let pad = 2 * (screenDigit / 4).rounded(.up) + 1
         let px = ((baseColWidth * screenDigit + pad) / 8).rounded(.up) * 8
         return SheetPrintMetrics(digit: digit * 72 / 600, defaultChars: px / screenDigit,
-                                 defaultRow: row * 72 / 600, rowScale: (row / 600) / (screenRow / 192), screenDigit: screenDigit,
+                                 defaultRow: row * 72 / 600, rowScale: (row / 600) / (screenRow / 192), setRowScale: f.gridSet.contains(size) ? 8.0 * 72 / 600 : (row / 600) / ((f.setScreenRow[size] ?? screenRow) / 192), setOwn: f.gridSet.contains(size) || f.setScreenRow[size] != nil, setOwnAt100: f.gridSet.contains(size), screenDigit: screenDigit,
                                  screenRow: screenRow)
     }
 }

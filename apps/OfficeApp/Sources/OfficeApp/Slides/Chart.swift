@@ -472,6 +472,8 @@ struct Chart: Equatable {
     /// The file names Office 2007's style 18 (colourful, with the 3-D effects): a Word pie in it is
     /// drawn in deeper colours with a gradient down each slice.
     var style18 = false
+    /// Office 2007's grey style (`c:style` 1, 9, 17, ...): on a Word page every series is a grey.
+    var greyStyle = false
     /// The accent (1–6) a monochrome style shades every series from.
     var monochromeAccent: Int? {
         guard let s = style, (1 ... 48).contains(s) else { return nil }
@@ -927,12 +929,13 @@ struct Chart: Equatable {
             return accents[n - 1]
         }
         if let k = monochromeAccent { return Self.monochrome(i, of: series.count, accents[k - 1]) }
+        let accents = greyStyle && !onSlide && !onSheet ? Self.greyAccents : accents
         let base = Self.cycle(s?.autoIndex ?? i, accents)
         // (Office's colour rounds, whole-number division on the series count: accent (i mod 6 + 1) varied by
         // v = (i/6 + 1) / (N/6 + 2) x 1.4 - 0.7, negative a shade, positive a tint, in linear light. A chart of up to five
         // series is flat; from six on the first round is shaded, so 6 series print 76.67%: 3f8a480a p7 and p14, FFC000 to
         // E2AA00. Planner spec, opus-puzzles.log 2026-11-22T11:27Z.)
-        guard onSlide, officeStyled else { return base }
+        guard (onSlide || (greyStyle && !onSheet)), officeStyled else { return base }
         // (N is the chart's highest c:idx plus one, bars and lines together: lab c3d3 printed idx 1-5 shaded, idx 6-11 flat,
         // a combo of 3 and 3 shaded.)
         let n = (series.enumerated().map { $0.element.autoIndex ?? $0.offset }
@@ -991,6 +994,8 @@ struct Chart: Equatable {
     /// its place out from the middle (−1 to 1) — the cooper deck's four
     /// series are the accent shaded to 0.58 and 0.85 and tinted to 0.86
     /// and 0.575, to a level each.
+    static let greyAccents: [Color] = [97, 179, 129, 80, 149, 217].map { Color(0xFF00_0000 | Int64(($0 << 16) | ($0 << 8) | $0)) }
+
     static func monochrome(_ i: Int, of n: Int, _ accent: Color) -> Color {
         guard n > 1 else { return accent }
         let place = Double(2 * i + 1) / Double(n) - 1
@@ -2617,6 +2622,9 @@ enum ChartXML {
         // (Kept where it colours the chart its own way: a monochrome one.)
         c.style = styleNode?["val"].flatMap(Int.init)
         c.style18 = c.style == 18
+        // (Lab grey12, Word's print of a chart in style 1, 9: greys 97, 179, 129, 80, 149, then the first round shaded for six
+        // or more series, the next round tinted: 6 series 85/158/114/70/131/193, 7th 154, 8th 200. From sa1 67e190176d.)
+        c.greyStyle = c.style.map { ($0 - 1) % 8 == 0 } ?? false
         if c.monochromeAccent == nil { c.style = nil }
         if let m = plot.first("c:layout")?.first("c:manualLayout"),
            (m.first("c:xMode")?["val"] ?? "factor") == "edge", (m.first("c:yMode")?["val"] ?? "factor") == "edge",
@@ -3593,7 +3601,8 @@ enum ChartPainter {
             // f15415f0's three pie legends in Word's print, "Não especificado" wrapped in a 99 pt box, keys all at one x.)
             let wordBoxPie = pie && box != nil && !c.onSlide && !c.onSheet && !c.chartex
             if let box, wordBoxPie {
-                let inset = 0.65 * size * k
+                // (The key and the room left of it take 1.29 of the text's size before the name: lab pieleg, "Excelente" wraps in a box 51.75 wide and fits in 53.04, "Muy bueno" wraps in 56.9 and fits in 59.5.)
+                let inset = max(0, 1.29 * size * k - lead)
                 entries = entries.map { e in
                     guard lead + inset + e.tp.width > box.width + 0.01 else { return e }
                     RuleTrace.hit("word-pie-box-legend-name-wraps-inside-the-box")
@@ -3765,6 +3774,18 @@ enum ChartPainter {
             // among them: zh-61aaad09's two entries, in a box 94% of the
             // chart's height, stand 57pt apart in Word's print, each in the
             // middle of its half.)
+            // (A Word pie's legend in a box of its own holds the entries whose heights, each with 4 pt, fit its height, and drops the
+            // last ones: lab pieleg, a 90.4 pt box of 10 pt names, "Malo" gone where "Excelente" and "Muy bueno" wrap, all five
+            // shown where none does.)
+            if wordBoxPie, boxColumn, lines.count > 1 {
+                let keep = Self.wordPieLegendEntriesKept(heights: lineHs, k: k, boxHeight: box!.height)
+                if keep < lines.count {
+                    RuleTrace.hit("word-pie-box-legend-drops-the-entries-its-height-cannot-hold")
+                    droppedLegend += lines[keep...].flatMap { $0 }
+                    lines = Array(lines[..<keep])
+                    lineHs = Array(lineHs[..<keep])
+                }
+            }
             if let box, lineHs.reduce(0, +) < box.height || boxHoldsRows, !lines.isEmpty {
                 lineHs = lines.map { _ in box.height / Double(lines.count) }
             }
@@ -3791,7 +3812,7 @@ enum ChartPainter {
                 // (A pie's entry that wraps takes one slot of the even share all the same, and the block stands
                 // half of its extra lines higher: c11d31f3's "Questões relacionadas à COVID-19" in two lines, keys 6.4 pt
                 // higher in Word's print than centred, the pitch the same.)
-                if pie, lines.count > 1, let one = entries.map({ $0.tp.height }).min() {
+                if pie, lines.count > 1, !(wordBoxPie && boxColumn), let one = entries.map({ $0.tp.height }).min() {
                     // (Only a name that really wraps adds a line: an entry with a blank name is shorter than the rest, not
                     // a wrapped one — dx2/sa1 f84c295b's six blank entries moved its legend block 25 pt up.)
                     let extra = entries.reduce(0.0) { acc, e in
@@ -4071,6 +4092,11 @@ enum ChartPainter {
                     if wordBoxPie, boxColumn, e.tp.height > 1.5 * textH {
                         RuleTrace.hit("word-pie-box-legend-wrapped-entry-hangs-from-its-slots-line")
                         textDrop = (lineH - textH) / 2
+                    }
+                    // (Every entry of a Word pie's box legend hangs from the top of the block the tallest one makes, the block centred in
+                    // its slot and 1.5 pt low: lab pieleg, "Bueno" of one line level with the two-line "Muy bueno" of its slot.)
+                    if wordBoxPie, boxColumn, lines.count > 1, let tall = lines.flatMap({ $0 }).map({ $0.tp.height }).max() {
+                        textDrop = (lineH - tall) / 2 + 1.5 * k
                     }
                     if slideSidePie, wrappedSide { textDrop = (lineH - slotH) / 2 }
                     e.tp.paint(canvas, Offset(x + lead, y + textDrop))
@@ -4510,6 +4536,15 @@ enum ChartPainter {
     /// is automatic. The step for fixed bounds keeps to ten intervals at
     /// most, round numbers: aascu 5864's 0 to 1 goes by 0.1, as
     /// PowerPoint's, where eight made it 0.2.
+    /// A Word line chart's deleted value axis with a stated minimum above zero: the top is the data plus a twentieth of the run from
+    /// the minimum, rounded up to a step of about five to the run (dx2 9f8856f2: 40 and 54.1 give 55 by 5; 20 and 52.0 give 60 by 10).
+    static func wordLineMinimumScale(min m: Double, dataMax hi: Double) -> (lo: Double, hi: Double, step: Double) {
+        let top = hi + 0.05 * (hi - m), rough = (top - m) / 5
+        let mag = pow(10, floor(log10(rough))), norm = rough / mag
+        let step = (norm <= 1 + 1e-9 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10) * mag
+        return (m, m + ceil((top - m) / step - 1e-9) * step, step)
+    }
+
     static func fixedScale(auto: (lo: Double, hi: Double, step: Double), min lo0: Double?, max hi0: Double?,
                            step step0: Double?) -> (lo: Double, hi: Double, step: Double) {
         var lo = lo0 ?? auto.lo, hi = hi0 ?? auto.hi
@@ -4880,6 +4915,50 @@ enum ChartPainter {
         }
     }
 
+    /// Word's 3-D columns at right angles (one series, no walls drawn, the file placing the plot): the box is the front face plus a
+    /// depth of one bar-slot, sin(rotY) f / n of its width across and sin(rotX) f / n of it down (f the bar's depth over its slot).
+    /// The front takes the shape of the place (spanWidth x placeHeight pt); the printed picture carries 3.5 pt of blank edge (1.1 left,
+    /// 2.4 right, 2.1 top, 1.4 foot). Returns the drawn box (front plus depth) from the span's left and the place's top, in pt.
+    static func word3DColumnsBox(spanWidth av: Double, placeHeight hv: Double, categories n: Int, gap: Double, gapDepth: Double,
+                                 depth: Double, rotX: Double, rotY: Double) -> (left: Double, top: Double, width: Double, height: Double) {
+        let f = (1.0 / (1 + gap)) * (1 + gapDepth) * depth
+        let a = sin(abs(rotY) * .pi / 180) * f / Double(n)
+        let b = sin(abs(rotX) * .pi / 180) * f / Double(n)
+        let r = hv / av
+        let front = min((av - 3.5) / (1 + a), (hv - 3.5) / (r + b))
+        let pw = (1 + a) * front + 3.5, ph = (r + b) * front + 3.5
+        return ((av - pw) / 2 + 1.1, 2.1, pw - 3.5, ph - 3.5)
+    }
+
+    /// A Word flat pie's inside label: its distance from its slice's apex along the slice's middle (lab pieexp).
+    static func wordPieInsideLabelDistance(own: String, radius r: Double, k: Double, mid m: Double, width: Double, height: Double) -> Double {
+        if own == "ctr" { return 0.5 * r }
+        return r - 1.2 * k - (abs(cos(m)) * width / 2 + abs(sin(m)) * height / 2)
+    }
+    /// How many of a Word pie box legend's entries (each its height and 4 pt) fit the box (lab pieleg).
+    static func wordPieLegendEntriesKept(heights: [Double], k: Double, boxHeight: Double) -> Int {
+        var keep = heights.count
+        while keep > 1, heights.prefix(keep).reduce(0.0, { $0 + $1 + 4 * k }) > boxHeight { keep -= 1 }
+        return keep
+    }
+    /// The height a Word column chart's turned (45 degree) name may stand in before it is cut word by word: the box of the name,
+    /// (length + line height) x sin 45, must fit. Plot left to Word: half of what the frame leaves after 21.7 pt and the legend's and
+    /// title's bands (lab rotcap, rotlbl2, rotlbl3). Plot set by hand, inner: the legend is not taken off, and the box may run down to
+    /// 10.2 pt over the frame's foot from the plot's axis. Plot set by hand, outer: half its outer height.
+    static func wordTurnedNameBoxLimit(frameHeight h: Double, k: Double, legendBand: Double, titleBand: Double,
+                                       placedOuterHeight: Double?, placedAxisY: Double?) -> Double {
+        if let axisY = placedAxisY { return min((h - 21.7 * k) / 2, h - axisY - 10.2 * k) }
+        if let outer = placedOuterHeight { return outer / 2 }
+        return (h - 21.7 * k - legendBand - titleBand) / 2
+    }
+    /// The length a turned name may have inside that box height.
+    static func wordTurnedNameCap(boxLimit: Double, lineHeight: Double) -> Double { boxLimit / sin(Double.pi / 4) - lineHeight }
+    /// Words kept of a turned name: `prefixWidths[n-1]` is the width of its first n words and an ellipsis; at least one.
+    static func wordTurnedNameWordsKept(prefixWidths: [Double], cap: Double) -> Int {
+        var keep = prefixWidths.count
+        while keep > 1, prefixWidths[keep - 1] > cap { keep -= 1 }
+        return keep
+    }
     /// The box of a 3-D area chart at right angles in a room (see `_area3DRight`): its front's width and height and the depth's
     /// run across (dx) and up (dy), all in the room's units.
     static func area3DRightBox(roomW: Double, roomH: Double, series s: Int, categories n: Int, depth: Double, heightPercent: Double?,
@@ -5317,13 +5396,24 @@ enum ChartPainter {
         if c.valueMin != nil || c.valueMax != nil || c.valueStep != nil {
             valueScale = fixedScale(auto: valueScale, min: c.valueMin, max: c.valueMax, step: c.valueStep)
         }
+        // (A Word line chart whose value axis is deleted, a minimum above zero and the far end open: the top is the data and a
+        // twentieth of the run from the minimum past it, rounded up to a step of about five to the run, not ten. Word's print of
+        // dx2 9f8856f2 p2: 40 and data to 54.1 end at 55 (step 5, 15.0 units over 76.7 pt), 20 and data to 52.0 end at 60 (step 10);
+        // ours ended at 60 and 60 only by the generic ten-step rule, or at 56.8 by the twentieth of the run from zero.)
+        var minimumRoundedUp = false
+        if !c.onSlide, !c.onSheet, !c.chartex, c.type == .line, c.valueAxisDeleted, !c.valueGrid, !c.percent, c.valueMax == nil, c.valueStep == nil,
+           let m = c.valueMin, m > 0, m < hi {
+            minimumRoundedUp = true
+            RuleTrace.hit("word-line-chart-deleted-axis-with-a-minimum-ends-at-a-step-of-about-five-to-the-run")
+            valueScale = wordLineMinimumScale(min: m, dataMax: hi)
+        }
         // An axis the file deletes, with no gridlines to show its steps,
         // runs to the data and a twentieth past it, not rounded out to a
         // step: LIBRE_OFFICE-100610's 3-D bars reach 6 of 6.3 and 14 of
         // 14.7 in PowerPoint's print, where ours stopped at 6 of 7.
         // (But not a slide's 3-D bars: PowerPoint rounds those up to a step like a shown axis, 13 to 14, 26 to 30, 130 to 140:
         // lab bar3dbox, the longest bar of x2 values 17 pt shorter than the original's and x10 values identical to it.)
-        if c.valueAxisDeleted, !c.valueGrid, !c.percent, hiddenSlideSteps == nil, !(c.onSlide && c.barView != nil), !(c.onSlide == false && c.onSheet == false && !c.chartex && c.barView == nil && c.areaView == nil && !c.line3D && c.type == .column && !horizontal) {
+        if c.valueAxisDeleted, !c.valueGrid, !c.percent, hiddenSlideSteps == nil, !minimumRoundedUp, !(c.onSlide && c.barView != nil), !(c.onSlide == false && c.onSheet == false && !c.chartex && c.barView == nil && c.areaView == nil && !c.line3D && c.type == .column && !horizontal) {
             let lo0 = min(0, lo), hi0 = max(0, hi), span = hi0 - lo0
             if span > 0 {
                 if c.valueMax == nil { valueScale.hi = hi0 + (hi0 > 0 ? span * 0.05 : 0) }
@@ -5798,6 +5888,10 @@ enum ChartPainter {
         let wordLegendFoot = inWord && word && c.barView == nil && c.lineSeries.isEmpty && c.type == .column && !horizontal
             && c.legend && c.legendPosition == "b" && !(c.title ?? "").isEmpty && c.titleAt == nil && c.plotLayout == nil
         let legendFootRise = wordLegendFoot ? 1.5 * k : 0
+        // (An untitled 2013-style line chart in a Word document, its value axis deleted and its legend at the foot: the plot stands
+        // 2.9 pt lower than ours, its axis line 380.5 and 681.9 where ours stood 377.5 and 679.0 in Word's print of dx2 9f8856f2 p2.)
+        let lineLegendFootRise = !c.onSlide && !c.onSheet && !c.chartex && c.type == .line && c.styled2013 && c.valueAxisDeleted && c.barView == nil
+            && c.plotLayout == nil && c.legend && c.legendPosition == "b" && (c.title ?? "").isEmpty && c.titleAt == nil ? 2.9 * k : 0
         // (A title Word was told where to stand over a plot it lays out itself: the plot's foot 1.25 pt lower and its names
         // not, sa1 67e19017's Spanish column charts.)
         let placedOverAutoFoot = inWord && !c.styled2013 && c.titleAt != nil && c.plotLayout == nil && c.type == .column ? 1.25 * k : 0
@@ -5892,6 +5986,32 @@ enum ChartPainter {
             let slideBare = c.onSlide && !c.styled2013
             if slideBare, !c.valueTicksOut, !barePlainL { left += max(0, 0.91 * labelSize - 12.2) * k }
             let slideFoot = slideBare && !c.categoryTicksOut ? max(0, 0.64 * (catSize - 12.25)) * k : 0
+            // (A Word column chart's names turned 45 degrees stop, word by word and ending in an ellipsis, where their
+            // box (length + line height) x sin 45 passes the room the frame leaves (labs rotlbl2, rotlbl3, rotcap; sa1 c11d31f3's hand-set plot keeps its 157.9 pt name).)
+            if word, !c.onSlide, !c.onSheet, !c.chartex, !horizontal, aslant, c.categoryLabelTurn == nil, abs(slant - .pi / 4) < 0.01 {
+                let handSet = c.plotLayout
+                let limit = Self.wordTurnedNameBoxLimit(
+                    frameHeight: frame.height, k: k,
+                    legendBand: c.legend && (c.legendPosition == "b" || c.legendPosition == "t") && !c.legendOverlay && handSet == nil ? 22.9 * k : 0,
+                    titleBand: c.title != nil && !c.titleOverlay && handSet == nil ? 26.1 * k : 0,
+                    placedOuterHeight: handSet != nil && !c.plotLayoutInner ? handSet.map { $0.height * frame.height } : nil,
+                    placedAxisY: handSet != nil && c.plotLayoutInner ? handSet.map { ($0.top + $0.height) * frame.height } : nil)
+                let cap = Self.wordTurnedNameCap(boxLimit: limit, lineHeight: 1.2207 * catSize * k)
+                for i in catLabels.indices where catLabels[i].width > cap {
+                    let words = c.categories[i].split(separator: " ", omittingEmptySubsequences: true)
+                    var prefixes: [Double] = []
+                    for n in 1 ..< max(1, words.count) {
+                        let t = categoryText(words[0 ..< n].joined(separator: " ") + "\u{2026}", catSize, .infinity)
+                        prefixes.append(t.width)
+                        t.dispose()
+                    }
+                    let keep = Self.wordTurnedNameWordsKept(prefixWidths: prefixes, cap: cap)
+                    if keep < 1 { continue }
+                    catLabels[i].dispose()
+                    catLabels[i] = categoryText(words[0 ..< keep].joined(separator: " ") + "\u{2026}", catSize, .infinity)
+                    RuleTrace.hit("word-column-chart-turned-names-stop-word-by-word-where-the-frame-is-full")
+                }
+            }
             let tallest = aslant ? (catLabels.map(drop).max() ?? lineH) : (catLabels.map(\.height).max() ?? lineH)
             // (Malgun Gothic's category names on a slide: PowerPoint's print puts the first baseline 15.2 pt under the axis and the frame's
             // foot 10.4 under the last, 9 pt, 3 charts alike; the face's taller line needs a fixed 4.7 pt less (4.8 at 9 pt, 4.6 at 10 pt: ko-e114b968 p9) between the axis and the names than
@@ -5905,7 +6025,7 @@ enum ChartPainter {
             // (Each outer level of a multi-level axis takes a row of its own under the names.)
             // (On a sheet the rows stand 17.9 pt apart and the block takes 3.7 pt less than elsewhere: WithChartSheet's print, ours 17.2 and 3.0 low.)
             let levelRows = c.categoryLevels.isEmpty ? 0 : Double(c.categoryLevels.count) * ((catLabels.first?.height ?? 12 * k) + (c.onSheet ? 9.13 : 8.2) * k) + (c.onSheet ? -1.6 : 4.5) * k
-            let bottom = levelRows - legendFootRise + (atZero ? (slideBare ? 8.1 : 4) * k : tallest + 7.6 * k + belowOut + slideFoot - malgunCatLift) - (wordFoot ? 4.4 * k : 0) - (plainWordFoot ? 3.7 * k : 0) - placedOverAutoFoot + (libre ? 4.4 * k : 0) - (plainUntitledWord ? 6 * k : 0) + (deletedAxis2013 ? 1.7 * k : 0) + (c.onSheet && c.chartex && c.boxes == nil ? 2.53 * k / 0.75 : 0)
+            let bottom = levelRows - legendFootRise - lineLegendFootRise + (atZero ? (slideBare ? 8.1 : 4) * k : tallest + 7.6 * k + belowOut + slideFoot - malgunCatLift) - (wordFoot ? 4.4 * k : 0) - (plainWordFoot ? 3.7 * k : 0) - placedOverAutoFoot + (libre ? 4.4 * k : 0) - (plainUntitledWord ? 6 * k : 0) + (deletedAxis2013 ? 1.7 * k : 0) + (c.onSheet && c.chartex && c.boxes == nil ? 2.53 * k / 0.75 : 0)
             // Labels centred on the plot's edges (an area's first and last
             // categories, a scatter's end ticks) need half their width free.
             let edges = c.type == .scatter || c.type == .area
@@ -6002,7 +6122,7 @@ enum ChartPainter {
             let untitledWordRise = -4.0
             // (A 2013-style Word column chart with no title and its value axis deleted, no tick label to stand by: its plot starts
             // 11.2 pt under the frame's top, c11d31f3's chart 8 in Word's print, ours 5.6, 5.6 higher.)
-            let deleted2013Column = word && !c.onSlide && !c.onSheet && !c.chartex && c.styled2013 && c.valueAxisDeleted && c.plotLayout == nil && c.barView == nil && c.type == .column && c.lineSeries.isEmpty
+            let deleted2013Column = word && !c.onSlide && !c.onSheet && !c.chartex && c.styled2013 && c.valueAxisDeleted && c.plotLayout == nil && c.barView == nil && (c.type == .column && c.lineSeries.isEmpty || c.type == .line)
             // (A 2013-style Word column chart whose value axis is deleted: its plot starts 4.3 pt further left than the
             // label gap makes it, c11d31f3's chart 8: first column's name at 57.46 in Word's print, ours 61.55.)
             if word, !c.onSlide, !c.onSheet, !c.chartex, c.styled2013, c.valueAxisDeleted, c.plotLayout == nil, c.barView == nil, secondLabels.isEmpty, c.lineSeries.isEmpty {
@@ -6248,7 +6368,21 @@ enum ChartPainter {
                 RuleTrace.hit("word-3d-columns-without-walls-stand-inside-their-laid-plot")
                 // (Word's print: the tick labels all 3.1 pt lower than the box stood before, top and foot alike — zh-b8de3ae2 p15 —
                 // with the category names' Mincho line now taken, which moved them up 1.1.)
-                whole = Rect.fromLTRB(whole.left + 7.0 * k, whole.top + 3.1 * k, whole.right - 8.5 * k, whole.bottom - 2.0 * k)
+                // (One clustered series at right angles: Word makes the box one bar-slot deep, so the box is the front face plus a depth of
+                // sin(rotY) x f / n across and sin(rotX) x f / n down of its width (f the depth over the slot, 1 at gap and gapDepth 150%, depth
+                // 100%). The front takes the shape of the place the file leaves (Av by Hv, the span from 30.1 pt in from the frame's left),
+                // and the printed picture carries 3.5 pt of blank edge (1.1 left, 2.4 right, 2.1 top, 1.4 foot), stood at the top and centred
+                // across. Labs bar3dwide3 (12 charts, 0.5 pt worst) and bar3dauto4, amd-opus' fit. The fixed insets above stay for the rest.)
+                if v.rightAngles, c.series.count == 1, !c.stacked, !v.rows, n > 0, whole.width > 40 * k, whole.height > 40 * k {
+                    RuleTrace.hit("word-3d-columns-fit-their-laid-place-by-one-slot-of-depth")
+                    let spanLeft = max(whole.left, frame.left + 30.1 * k)
+                    let m = Self.word3DColumnsBox(spanWidth: (whole.right - spanLeft) / k, placeHeight: whole.height / k, categories: n,
+                                                  gap: c.gap, gapDepth: v.gapDepth, depth: v.depth, rotX: v.x, rotY: v.y)
+                    let left = spanLeft + m.left * k
+                    whole = Rect.fromLTRB(left, whole.top + m.top * k, left + m.width * k, whole.top + (m.top + m.height) * k)
+                } else {
+                    whole = Rect.fromLTRB(whole.left + 7.0 * k, whole.top + 3.1 * k, whole.right - 8.5 * k, whole.bottom - 2.0 * k)
+                }
                 plot = whole
             }
             // Left to Word's own layout, a 3-D column chart stands a little
@@ -7420,6 +7554,7 @@ enum ChartPainter {
                         default: break
                         }
                     }
+                    if c.type == .line, !c.onSlide, !c.onSheet, !c.chartex, (c.series[j].labelPointPos[i] ?? c.series[j].labelPos) == "ctr" { y = vpos(v) }
                     if c.type == .line, c.onSlide, !c.chartex, let n = c.series[j].labelNudges[i] { x += n.dx * frame.width; y += n.dy * frame.height }
                     if c.type == .line, c.onSlide, c.series[j].labelDeleted.contains(i) { continue }
                     if c.type == .line, !c.series[j].labelsShown, !c.series[j].labelPointsOn.contains(i) { continue }
@@ -7977,6 +8112,7 @@ enum ChartPainter {
             }
             return
         }
+        var apexes: [Offset] = [], mids: [Double] = []
         let angle0 = angle
         for (i, v) in values.enumerated() where v > 0 {
             let sweep = v / sum * 2 * .pi
@@ -8016,6 +8152,8 @@ enum ChartPainter {
             let at = hole > 0 ? (radius + hole) / 2 : radius * 0.7
             labels.append((dataLabel(c, c.series[0].values[i] ?? 0),
                            Offset(centre.dx + cos(mid) * at, centre.dy + sin(mid) * at), color))
+            apexes.append(Offset(centre.dx + cos(mid) * pull * radius, centre.dy + sin(mid) * pull * radius))
+            mids.append(mid)
             placed.append((i, mid, v, color))
             angle += sweep
         }
@@ -8039,18 +8177,31 @@ enum ChartPainter {
                            return Offset(cos(m) * pull * radius, sin(m) * pull * radius)
                        } : nil)
         } else if c.dataLabels {
-            for (s, at, wedge) in labels {
+            for (li, (s, at0, wedge)) in labels.enumerated() {
+                var at = at0
                 // Inside the wedge: white on a dark one, ink on a light one.
                 let v = wedge.value
                 let luma = 0.299 * Double((v >> 16) & 0xFF) + 0.587 * Double((v >> 8) & 0xFF) + 0.114 * Double(v & 0xFF)
                 // (A label whose text properties the file states, a size and no colour, is the chart's text colour, not
                 // the contrast pick: pt-6de30c85 p4's 22 pt bold doughnut figures are black on the blue and the red.)
-                let stated = c.onSlide ? c.series.first?.labelSize : nil
+                // (A Word pie's inside labels keep the file's text too, 12 pt bold black where it says so: lab pieexp.)
+                let stated = c.onSlide || (!c.onSheet && !c.chartex) ? c.series.first?.labelSize : nil
                 let tp = TextPainter(text: TextSpan(text: s, style: Flutter.TextStyle(
                     color: stated != nil ? (c.series[0].labelColor ?? ink ?? theme.text) : luma < 150 ? Color(0xFFFFFFFF) : Color(0xFF404040),
                     fontSize: max(3, (stated ?? c.baseTextSize) * k), fontWeight: stated != nil && c.series[0].labelBold ? .bold : .normal,
                     fontFamily: OfficeFonts.substitute(c.font ?? theme.bodyFont), fontFamilyFallback: Self.glyphFallback(c))), textDirection: .ltr)
                 tp.layout(minWidth: 0, maxWidth: .infinity)
+                // (A Word pie's inside labels stand from their own slice's apex, pulled out with it: centred, half the radius along the
+                // slice's middle; inside the end, the radius less the label box's half-extent along that line and 1.2 pt. Lab pieexp.)
+                if !c.onSlide, !c.onSheet, !c.chartex, c.type == .pie, hole == 0, li < apexes.count, let own = c.series[0].labelPos,
+                   own == "ctr" || own == "inEnd" {
+                    let m = mids[li], r = radius * (c.pieSeriesPull > 0 ? 1 : 1)
+                    let d = Self.wordPieInsideLabelDistance(own: own, radius: r, k: k, mid: m, width: tp.width, height: tp.height)
+                    if own == "inEnd" {
+                        RuleTrace.hit("word-flat-pie-inside-end-label-stands-its-box-half-extent-and-1.2pt-inside-the-rim")
+                    } else { RuleTrace.hit("word-flat-pie-centred-label-stands-half-the-radius-out") }
+                    at = Offset(apexes[li].dx + cos(m) * d, apexes[li].dy + sin(m) * d)
+                }
                 tp.paint(canvas, Offset(at.dx - tp.width / 2, at.dy - tp.height / 2))
                 tp.dispose()
             }

@@ -122,7 +122,9 @@ extension RichLayout {
         for p in hf.document.paragraphs {
             for (image, float) in Self._hfWrapBoxes(p) {
                 let xml = image.sourceXML ?? ""
-                let w = _px(image.width), h = _px(image.height)
+                // (A wrapping spAutoFit box holds the text at its text's height, not the stale one in the file: pt 3e4a9b9379's
+                // 595pt box stated 110.6pt tall holding one 10pt line, the body 128pt low.)
+                let w = _px(image.width), h = _fittedBoxHeight(image, hf.document)
                 // (Placed down from a header's paragraph, which stands at the header distance: zh 837ac08d's
                 // 96pt picture, header distance 0, holds the text under it; from the margin it would not reach.)
                 let origin = float.verticalFrom == "page" ? 0 : (float.verticalFrom == "paragraph" && float.verticalAlign == nil ? _px(setup.headerDistance) : marginTop)
@@ -1098,6 +1100,16 @@ extension RichLayout {
             }
             _fitWidths["\(image.id)|\(box.hashValue)"] = layout.width + _px(box.insetLeft + box.insetRight)
         }
+        if box.noWrap, theme.wordRules, RichTextTheme.wordWindowsPages, !box.fitsText {
+            var natural = 0.0
+            for k in 0 ..< sub.paragraphs.count {
+                let g = layout.geometry(k)
+                natural = max(natural, g.painter.maxIntrinsicWidth + g.textLeft)
+            }
+            // (A DrawingML box of wrap none keeps its size, and its lines do not wrap at its edge: ja-6ccbf5e032's
+            // 72pt boxes hold their whole sentence on one line in Word's print.)
+            if natural > layout.width + 0.5 { layout.width = natural.rounded(.up) + 1; layout.ensureLaidOut(sub) }
+        }
         var made = _HeaderFooter(layout: layout, document: sub)
         made.beside = beside
         if _textBoxCache.count > 256 { _textBoxCache.removeAll() }
@@ -1110,6 +1122,7 @@ extension RichLayout {
     /// or the paragraph, or set left, centre or right in the column (or
     /// the page, where `frameMargins` says how far that reaches).
     func _floatRect(_ float: ImageFloat, _ image: ImageAttachment, _ g: ParagraphGeometry, _ i: Int) -> Rect {
+        if _verticalPagePicture(i, float, image) { return _verticalPagePictureRect(i, float, image) }
         // (A fit-to-text box that outgrew its stored width stands as wide as its text: zh-2e7ef069's
         // "- 11 -" in a 36pt box is set from the margin at 479 in Word's print, 42pt in.)
         let fitted = image.textBox.flatMap { _fitWidths["\(image.id)|\($0.hashValue)"] }
@@ -2256,8 +2269,13 @@ extension RichLayout {
                 // (Not when that line holds an inline picture: sa1 90385e38's header line of spaces and a 48.5pt logo stays at the header's top
                 // over the banner in Word's print, and the body starts at the banner's foot, 108.1, not a line lower, 193.4.)
                 let lineHoldsPicture = theme.wordRules && RichTextTheme.wordWindowsPages && hp.inlineImages.inOrder.contains(where: { $0.float == nil })
-                let line = wrapped && !lineHoldsPicture && j < header.layout._heights.count ? header.layout._heights[j] : 0
-                var below = _px(wrapped ? f.y : lift) + _px(image.height * (wrapped && f.wrapsTight ? f.wrapBottomShare : 1)) + _px(f.distanceBottom)
+                // (A box that starts under the paragraph's own line leaves that line where it is: pt 3e4a9b9379's box 90pt down from a one-line paragraph.)
+                let boxBelowLine = theme.wordRules && RichTextTheme.wordWindowsPages && j < header.layout._heights.count && f.y >= 0 && _px(f.y) >= header.layout._heights[j]
+                let line = wrapped && !lineHoldsPicture && !boxBelowLine && j < header.layout._heights.count ? header.layout._heights[j] : 0
+                // (A wrapping spAutoFit box ends the header at its text's height, not the stale one in the file: pt 3e4a9b9379's 595pt box
+                // stated 110.6pt tall holding one 10pt line, Word's body from 158, ours 128pt low.)
+                let boxHeight = wrapped && !f.wrapsTight && image.textBox?.autoHeight == true ? _fittedBoxHeight(image, header.document) : _px(image.height * (wrapped && f.wrapsTight ? f.wrapBottomShare : 1))
+                var below = _px(wrapped ? f.y : lift) + boxHeight + _px(f.distanceBottom)
                 // (The empty line moves down whole lines until it clears the picture's wrap foot, so its top is a multiple of the line height:
                 // sa1 2303e6f9 lab hdrpoly, Word's body top steps by 13.42pt with the picture's height and its polygon's foot, never between.)
                 // (Only a tight wrap's: a square one's line lands at the picture's foot and its distance, not on a whole line below it: dx2 zh 837ac08d's 95.8pt square picture, the body at 150.62 in Word's print, a line lower, 162.9, with the rounding.)
@@ -2325,7 +2343,9 @@ extension RichLayout {
                 // lab footreach moved 511c21d4's box from -28pt to 0 and -40pt, and its page picture to -40pt, and Word's breaks did not move;
                 // any reach from 12 to 24pt gives Word's pages and the paragraph's line is 13.4pt.)
                 let reach = f.bandsPage ? _px(image.height) + _px(f.effectBottom) : footer.layout._heights[j]
-                guard -_px(f.y) < _px(image.height) + _px(f.effectBottom), reach > 0 else { continue }
+                // (Nor one set DOWN from it: pt-6c544802ed's footer holds a top-and-bottom picture 740pt below its paragraph, off the
+                // page, and Word's body keeps the bottom margin, 140pt more of page 1 than the picture's reach left.)
+                guard f.y <= 0 || !f.bandsPage, -_px(f.y) < _px(image.height) + _px(f.effectBottom), reach > 0 else { continue }
                 RuleTrace.hit("footer-picture-above-its-paragraph-ends-the-body")
                 end = max(end ?? 0, _px(setup.footerDistance) + footer.height - footer.layout._tops[j] + reach)
             }
@@ -2874,6 +2894,7 @@ extension RichLayout {
                 _paintPageTile(p, canvas, document)
                 _paintPageBorders(p, canvas, document)
                 _paintHeaderFooter(p, canvas, document)
+                _paintVerticalPictures(p, canvas, document)
                 _paintFootnotes(p, canvas, document)
             }
             _paintEndnotes(canvas, document, pages: firstPage ... lastPage)

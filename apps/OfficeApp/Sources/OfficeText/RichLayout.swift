@@ -862,6 +862,7 @@ public final class RichTextTheme {
         else if wordRules, style.rightToLeft, !eastAsian, style.fontSize == nil, let z = style.complexFontSize ?? named?.char.complexFontSize ?? normal?.complexFontSize { size = z }
         // (A run that gives `w:sz` and no `w:szCs` is set at the szCs its style or the defaults give: xd 72ea457a's Hebrew, sz 14 over Normal's szCs 12, prints at 12 in David.)
         else if wordRules, style.rightToLeft, !eastAsian, style.sizeFromStyleSzCs, style.complexFontSize == nil, let z = named?.char.complexFontSize ?? normal?.complexFontSize { size = z }
+        else if wordRules, !style.rightToLeft, !eastAsian, style.sizeFromStyleSzCs, style.fontSize == nil, style.complexFontSize == nil, let z = named?.char.complexFontSize ?? normal?.complexFontSize { size = z }
         // (A style that sets `w:sz` and no `w:szCs` anywhere in the chain leaves complex-script text at Word's 10 pt default, not at `w:sz`:
         // ara-z4399437's keyword lines step 11.5 in Word's print, not 10.4.)
         else if wordRules, style.rightToLeft, !eastAsian, style.fontSize == nil, named?.char.fontSize != nil, named?.char.complexFontSize == nil, normal?.complexFontSize == nil { size = 10 }
@@ -1353,6 +1354,8 @@ public struct RichResolvedFace: Sendable {
     /// A math face (Cambria Math): its characters past ASCII come from
     /// the platform's math face, set inside the run's line.
     public var setsMath = false
+    /// The face's spaces are drawn in Browallia New, whose descent (0.372 em) is deeper than Leelawadee UI's Lao line: a Lao line holding one takes it.
+    public var spacesInBrowallia = false
 
     public init(family: String, sizeScale: Double = 1, naturalHeight: Double? = nil, boldSpread: Double = 0,
                 classScales: [Double]? = nil, baseline: Double? = nil, isEastAsian: Bool = false) {
@@ -2143,6 +2146,10 @@ public final class RichLayout {
     /// Where each page's text starts below its top (pixels): the top
     /// margin, or under a taller header.
     var _pageInsetTop: [Double] = []
+    /// A vertical (tbRl) section's pictures and boxes that Word's text goes round, placed from the page or its margins and set on the paper
+    /// (x across, y down), turned into the layout's frame per physical page: x from the text's left edge, y from the text's top, the
+    /// distances in. See `_pg_verticalWindow`.
+    var _verticalSeeds: [Int: [(id: String, left: Double, right: Double, top: Double, bottom: Double)]] = [:]
 
     /// Paragraphs set on both sides of a box: per painter, how far each line
     /// is moved up (a right piece stands level with the left piece before

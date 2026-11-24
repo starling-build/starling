@@ -129,6 +129,13 @@ extension _ParaFrame {
                 guard let f = image.float, f.bandsPage, f.verticalFrom == "paragraph", f.verticalAlign == nil,
                       f.y > 0 || atTop || (RichTextTheme.wordWindowsPages && bareText && f.y < -0.3 && f.y > -2),
                       image.height + f.effectBottom > 0, before + max(painter.height, _markLineHeight(i, document)) >= _px(f.y) - 0.01 else { continue }
+                // (A header picture set from its paragraph or its line, down by less than that line, pushes no line: Word's header ends at the
+                // picture's foot or its lines' foot, whichever is lower. Lab hdrline, ko-2927800653's logo 0.4pt down, 32.6pt tall: one
+                // anchor line ends the header at 63.0, the foot, not a line lower, 80.2; each further empty paragraph adds one line.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, headerTopOnPage != nil, f.y > -2, f.y < _markLineHeight(i, document) - 0.01 {
+                    RuleTrace.hit("word-header-picture-from-its-own-line-does-not-push-the-header-lines")
+                    continue
+                }
                 // (… and one more line than the picture's height: Word's p12 has two lines under it before the next paragraph.)
                 if atTop {
                     RuleTrace.hit("word-top-and-bottom-picture-above-the-margin-stands-at-it-and-the-line-goes-under")
@@ -165,16 +172,22 @@ extension _ParaFrame {
         // its anchor, text and all: the first line goes under it, the picture where it was.
         // Lab `anc` (Word for Windows, one column and two): 40pt at (20, 0) in p3 puts p3 at
         // the picture's foot, 40pt down, and the rest after it; 100pt, 100 down.)
+        // (A box a little way down, 0.5pt thin at 8 to 21pt in lab carry3 (Word for Windows, Aptos 11, line 15.48): the
+        // first line goes under it while the line reaches past the box's top, offsets 8 to 15; at 16 and over it stays. Body only: xa gv-d1907c960c's
+        // header, a 0.3pt offset, keeps its text line beside the box in Word's print.)
         // (Offset exactly 0, the lab's one value, and a picture or drawing, not a text box: LibreOffice's
         // tdf137850's box at offset 0 stays at the margin in Word's print.)
         if theme.wordRules, RichTextTheme.wordWindowsPages, p.cell == nil, !p.text.isEmpty, !style.rightToLeft, !p.text.unicodeScalars.allSatisfy({ $0.value == 0xFFFC || $0 == " " }) {
             for image in p.inlineImages.inOrder {
                 guard let float = image.float, float.takesRoom || float.bandsPage, !float.wraps, float.verticalAlign == nil,
-                      float.verticalFrom == "paragraph", float.y.magnitude < 0.01 || (float.y < 0 && float.y + image.height + float.effectBottom > 0), float.horizontalFrom != "page",
+                      float.verticalFrom == "paragraph", float.y.magnitude < 0.01 || (float.y > 0 && headerTopOnPage == nil) || (float.y < 0 && float.y + image.height + float.effectBottom > 0), float.horizontalFrom != "page",
                       image.height > 0, float.wrapSide == nil, !image.data.isEmpty || RichLayout.drawsObject?(image) == true else { continue }
                 // (A hair of it above the paragraph, 24pt up in sa2 86737b97: Word does not lift it to the margin, it stands
                 // 24pt above the paragraph and the first line is set at its foot, 36.25pt down.)
-                if !lineEndsAbove(-_px(float.distanceTop)) {
+                // (A paragraph-relative offset counts from the first line's top, after the space before: sa1 c4f2b4bd's closing line, 6pt
+                // before and a 42pt line, stays above a box 42.65pt down.)
+                let lineOnly = float.y > 0 ? (firstLine().map { $0.top > 0 && $0.top + $0.line > _px(float.y - float.distanceTop) && $0.line <= _px(float.y - float.distanceTop) + 0.01 } ?? false) : false
+                if !lineOnly, !lineEndsAbove(_px(max(0, float.y) - float.distanceTop)) {
                     RuleTrace.hit("word-first-line-set-under-a-top-and-bottom-picture-at-the-paragraphs-top")
                     push = max(push, pushUnder(_px(float.y + image.height + float.effectBottom + float.distanceBottom)))
                 }

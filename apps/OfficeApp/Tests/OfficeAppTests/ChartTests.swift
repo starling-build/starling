@@ -39,6 +39,14 @@ final class ChartTests: XCTestCase {
     /// Excel's box of a 3-D area at right angles, from Windows lab view3d's prints (480 x 288 pt, its room 398.4 x 224.6 pt):
     /// the front 340.0 x 96.7 pt, its depth 57.2 across, for two series; 297.2 x 126.8 and 101.0 for four; hPercent 100 makes the
     /// front 170.5 high.
+    /// Word's print of dx2 9f8856f2: a deleted value axis with a minimum of 40 and data to 54.1 ends at 55 by 5; 20 and 52.0 end at 60 by 10.
+    func testAWordLineChartsDeletedAxisWithAMinimumEndsAtAStepOfAboutFiveToTheRun() {
+        let a = ChartPainter.wordLineMinimumScale(min: 40, dataMax: 54.1)
+        XCTAssertEqual(a.lo, 40); XCTAssertEqual(a.hi, 55); XCTAssertEqual(a.step, 5)
+        let b = ChartPainter.wordLineMinimumScale(min: 20, dataMax: 52.0)
+        XCTAssertEqual(b.hi, 60); XCTAssertEqual(b.step, 10)
+    }
+
     func testA3DAreaAtRightAnglesStandsInItsRoomAsExcelPrintsIt() {
         let two = ChartPainter.area3DRightBox(roomW: 398.4, roomH: 224.6, series: 2, categories: 4, depth: 1, heightPercent: nil, rotX: 15, rotY: 20)
         XCTAssertEqual(two.width, 340.0, accuracy: 1.5)
@@ -50,6 +58,24 @@ final class ChartTests: XCTestCase {
         XCTAssertEqual(four.dx, 101.0, accuracy: 1.5)
         let tall = ChartPainter.area3DRightBox(roomW: 398.4, roomH: 224.6, series: 2, categories: 4, depth: 1, heightPercent: 100, rotX: 15, rotY: 20)
         XCTAssertEqual(tall.height, 170.5, accuracy: 1.5)
+    }
+
+    /// Word's 3-D columns at right angles, two categories, in the place the file leaves (lab bar3dwide3, a 360 pt frame; the place 300 pt high here so the width binds): the back wall's top at 2.1 pt, the depth 54.0 pt across, the picture 367.2 pt wide in Word's print
+    /// (box 3.5 pt narrower than its picture's edge to edge: 1.1 + 2.4 of blank).
+    func testWord3DColumnsStandInTheirPlaceByOneSlotOfDepth() {
+        let m = ChartPainter.word3DColumnsBox(spanWidth: 360 - 30.1, placeHeight: 300, categories: 2, gap: 1.5, gapDepth: 1.5,
+                                              depth: 1, rotX: 15, rotY: 20)
+        // width binds: front + depth = Av - 3.5 exactly
+        XCTAssertEqual(m.width, 360 - 30.1 - 3.5, accuracy: 0.01)
+        XCTAssertEqual(m.top, 2.1, accuracy: 0.001)
+        // depth across = sin 20 / 2 (gap and gapDepth both 150%) of the front
+        let front = m.width / (1 + 0.5 * 0.342020)
+        XCTAssertEqual(m.width - front, 0.5 * 0.342020 * front, accuracy: 0.01)
+        // a short place: the height binds, the box is centred across the span
+        let low = ChartPainter.word3DColumnsBox(spanWidth: 169.9, placeHeight: 103.8, categories: 2, gap: 1.5, gapDepth: 1.5, depth: 1, rotX: 15, rotY: 20)
+        XCTAssertEqual(low.height, 103.8 - 3.5, accuracy: 0.01)
+        XCTAssertLessThan(low.width, 169.9 - 3.5)
+        XCTAssertEqual(low.left, (169.9 - low.width - 3.5) / 2 + 1.1, accuracy: 0.01)
     }
 
     func testStackingAndBlanks() throws {
@@ -483,4 +509,32 @@ final class ChartTests: XCTestCase {
         XCTAssertNil(c.pieLabels?.texts[1])
     }
 
+
+    func testAWordPieKeepsItsInsideLabelsInsideItsSliceAsWordPrintsThem() {
+        // Lab pieexp: centred, half the radius out; inside the end, the radius less 1.2 pt and the label's half-extent along the slice's middle.
+        XCTAssertEqual(ChartPainter.wordPieInsideLabelDistance(own: "ctr", radius: 100, k: 1, mid: 0.3, width: 20, height: 12), 50, accuracy: 0.001)
+        XCTAssertEqual(ChartPainter.wordPieInsideLabelDistance(own: "inEnd", radius: 100, k: 1, mid: 0, width: 20, height: 12), 88.8, accuracy: 0.001)
+        XCTAssertEqual(ChartPainter.wordPieInsideLabelDistance(own: "inEnd", radius: 100, k: 1, mid: .pi / 2, width: 20, height: 12), 92.8, accuracy: 0.001)
+    }
+    func testAWordPieBoxLegendDropsTheLastEntriesItsHeightCannotHold() {
+        // Lab pieleg: five entries, each its height and 4 pt, in a 90.4 pt box: the fifth does not fit.
+        XCTAssertEqual(ChartPainter.wordPieLegendEntriesKept(heights: [12, 24, 24, 12, 12], k: 1, boxHeight: 90.4), 4)
+        XCTAssertEqual(ChartPainter.wordPieLegendEntriesKept(heights: [12, 12, 12, 12, 12], k: 1, boxHeight: 90.4), 5)
+        XCTAssertEqual(ChartPainter.wordPieLegendEntriesKept(heights: [200, 200], k: 1, boxHeight: 90.4), 1)
+    }
+    func testAWordColumnChartsTurnedNameStopsWordByWordWhereTheFrameIsFull() {
+        // Labs rotlbl2/3: plot left to Word, a 22.9 pt legend, 11 pt names: frames 260 and 400 pt tall hold names up to the measured bounds.
+        let h11 = 1.2207 * 11
+        let l260 = ChartPainter.wordTurnedNameCap(boxLimit: ChartPainter.wordTurnedNameBoxLimit(frameHeight: 260, k: 1, legendBand: 22.9, titleBand: 0, placedOuterHeight: nil, placedAxisY: nil), lineHeight: h11)
+        XCTAssertTrue(l260 >= 138.29 && l260 < 145.75)
+        let l400 = ChartPainter.wordTurnedNameCap(boxLimit: ChartPainter.wordTurnedNameBoxLimit(frameHeight: 400, k: 1, legendBand: 22.9, titleBand: 0, placedOuterHeight: nil, placedAxisY: nil), lineHeight: h11)
+        XCTAssertTrue(l400 >= 234.0 && l400 < 245.3)
+        // sa1 c11d31f3 chart 4: a hand-set inner plot, frame 274.2 pt, axis 135.1 pt down, 10.5 pt names: the 157.9 pt name stays whole.
+        let hand = ChartPainter.wordTurnedNameCap(boxLimit: ChartPainter.wordTurnedNameBoxLimit(frameHeight: 274.2, k: 1, legendBand: 0, titleBand: 0, placedOuterHeight: nil, placedAxisY: 135.1), lineHeight: 1.2207 * 10.5)
+        XCTAssertGreaterThan(hand, 157.9)
+        let widths = [20.0, 40, 60, 80, 100]
+        XCTAssertEqual(ChartPainter.wordTurnedNameWordsKept(prefixWidths: widths, cap: 65), 3)
+        XCTAssertEqual(ChartPainter.wordTurnedNameWordsKept(prefixWidths: widths, cap: 10), 1)
+        XCTAssertEqual(ChartPainter.wordTurnedNameWordsKept(prefixWidths: widths, cap: 500), 5)
+    }
 }

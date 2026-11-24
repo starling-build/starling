@@ -1351,6 +1351,14 @@ enum OfficeFonts {
                    "stfangsong", "stzhongsong", "stxihei", "stxinwei"]
     /// Per-family memo of `windowsMissingFallback` (it depends only on the family and the font table, and was redone for every styled run).
     nonisolated(unsafe) private static var missingFallbackMemo: [String: String?] = [:]
+    /// A Latin-named face Word for Windows lacks whose font-table entry is Korean (charset 81 or 129) with no alternate name and no roman
+    /// panose: Word draws it in Malgun Gothic.
+    static func isMissingLatinNamedKoreanFace(_ family: String) -> Bool {
+        guard let e = fontEntry(family), e.charset == "81" || e.charset == "129",
+              (e.alt ?? "").trimmingWhitespace().isEmpty, family.unicodeScalars.allSatisfy({ $0.isASCII }),
+              !WordWindowsFaces.names.contains(family.trimmingWhitespace().lowercased()) else { return false }
+        return windowsMissingFallback(family) == "malgun"
+    }
     private static func windowsMissingFallback(_ family: String) -> String? {
         declaredLock.lock()
         if let hit = missingFallbackMemo[family] { declaredLock.unlock(); return hit }
@@ -3037,6 +3045,14 @@ enum OfficeFonts {
     /// Faces Word sets Thai in, narrow ones all: see `cordiaNewAdvances`.
     static let thaiWordFaces: Set<String> = ["th sarabun new", "th sarabunpsk", "browallia new", "browalliaupc", "cordia new", "cordiaupc", "th sarabunit๙",
                                              "angsana new", "angsanaupc"]
+    /// A Lao face the print machine lacks: Word draws its Latin, digits and punctuation in Browallia New
+    /// (dx2 30f73046: a digit 0.36 em, a comma 0.178; Leelawadee UI's are 0.539 and 0.217) and sets the line by it.
+    static let laoMissingFaces: Set<String> = ["saysettha ot"]
+    /// A missing Lao face the document's font table describes: Word draws its Latin, digits and spaces in Browallia New. With no entry (lab laoh, no
+    /// fontTable part) they are Cambria, the face of every undescribed name.
+    static func laoMissingDeclared(_ family: String) -> Bool {
+        laoMissingFaces.contains(family.trimmingWhitespace().lowercased()) && fontEntry(family) != nil
+    }
     /// Cordia New's widths for U+0020 to U+007E, in ems, and its bold's
     /// (the face Word for Mac carries, DFonts cordia.ttc).
     static let cordiaNewAdvances: [Double] = [
@@ -4164,12 +4180,15 @@ enum OfficeFonts {
                 case "corbel": face.advances = corbelAdvances; face.otherAdvances = corbelOtherAdvances; face.boldOtherAdvances = corbelBoldOtherAdvances; face.boldAdvances = corbelBoldAdvances; face.italicAdvances = corbelItalicAdvances; face.boldItalicAdvances = corbelBoldItalicAdvances; face.naturalHeight = 1.2207; face.baseline = 0.9521
                 case "consolas": face.advances = consolasAdvances; face.boldAdvances = consolasBoldAdvances; face.italicAdvances = consolasItalicAdvances; face.boldItalicAdvances = consolasBoldItalicAdvances; face.naturalHeight = 1.1709; face.baseline = 0.9199
                 case "century gothic": face.advances = centuryGothicAdvances; face.boldAdvances = centuryGothicBoldAdvances; face.italicAdvances = centuryGothicItalicAdvances; face.boldItalicAdvances = centuryGothicBoldItalicAdvances; face.naturalHeight = 1.2261; face.baseline = 1.0059
+                // (Dotum and Gulim Latin: Word's print advances, so Sheets sets digits 0.583/0.574 em, not the stand-in's 0.556.)
+                case "dotum", "돋움": face.advances = dotumAdvances; face.boldAdvances = dotumAdvances; face.italicAdvances = dotumAdvances; face.boldItalicAdvances = dotumAdvances
+                case "gulim", "굴림": face.advances = gulimAdvances; face.boldAdvances = gulimAdvances; face.italicAdvances = gulimAdvances; face.boldItalicAdvances = gulimAdvances
         default: break
         }
     }
 
     /// The faces whose Word tables Sheets reads (lower case).
-    static let tabledNames: Set<String> = ["georgia", "century gothic", "comic sans ms", "garamond", "corbel", "consolas", "tahoma"]
+    static let tabledNames: Set<String> = ["dotum", "gulim", "돋움", "굴림", "georgia", "century gothic", "comic sans ms", "garamond", "corbel", "consolas", "tahoma"]
     nonisolated(unsafe) private static var tabledCache: [String: RichResolvedFace?] = [:]
     private static let tabledLock = RegistryLock()
     static func tabledFaceCached(_ name: String) -> RichResolvedFace? {
@@ -4186,7 +4205,7 @@ enum OfficeFonts {
         return face
     }
 
-    private static let wordOnWindows = ProcessInfo.processInfo.environment["OFFICE_WORD_FONTS"] == "windows"
+    static var wordOnWindows = ProcessInfo.processInfo.environment["OFFICE_WORD_FONTS"] == "windows"
     /// The face Word for Windows sets a Latin name it has no face for,
     /// and whose font-table entry gives no alternate, by the entry's
     /// Unicode signature — not its PANOSE (windows' labs `lint` and
@@ -4606,6 +4625,8 @@ enum OfficeFonts {
             if viaRoman { face.baseline = 0.885; face.ownLineBaseline = true }
             // (Narkisim: hhea 1505 + 518 over 2048 (metrics/latin/Narkisim_Regular.tsv); Word's print of dx2 2292b814 steps 12pt lines at 1.5 by 17.8, the stand-in's 21.1.)
             if asked == "miriam" { face.baseline = 1546.0 / 2048; face.ownLineBaseline = true }
+            // (Simplified Arabic: hhea ascent 2416 of 2048, 1.18 em: Word's print of lab sp1 stands the first bold 14pt baseline 16.58pt under the margin, 1.184 em.)
+            if asked == "simplified arabic" { face.baseline = 2416.0 / 2048; face.ownLineBaseline = true }
             if asked == "narkisim" { face.baseline = 1505.0 / 2048; face.ownLineBaseline = true }
             if asked == "david" {
                 face.baseline = 1505.0 / 2048; face.ownLineBaseline = true
@@ -4935,6 +4956,13 @@ enum OfficeFonts {
             RuleTrace.hit("missing-hangul-face-no-entry-latin-is-yu-gothic")
             return standInFace("Yu Gothic", eastAsian: false)
         }
+        // (A Latin-named Korean face Word for Windows lacks, whose font-table entry is charset 81 with no alternate and no roman
+        // panose ("Noto Sans KR"): Word falls back to Malgun Gothic for it, its Latin letters and its line too, 1.73 em (ko-4e286d0d0c:
+        // rows step 28.08 pt at 12.5 pt where ours drew Carlito's 18.7).)
+        if wordOnWindows, !own, !eastAsian, !isEmbedded(family), isMissingLatinNamedKoreanFace(family) {
+            RuleTrace.hit("missing-latin-named-korean-face-is-malgun")
+            return standInFace("Malgun Gothic", eastAsian: false)
+        }
         // (A Latin-named face Word for Windows lacks, whose font-table entry has charset 80 (Shift-JIS) and no alternate name:
         // Word draws it in Yu Gothic Regular, line 1.67 em (lab fallback-ft 1, against charset 00 which gives Calibri). The
         // same fallback as the Hangul-named case above and amd-1's Arial Unicode MS (charset 80).)
@@ -5236,7 +5264,10 @@ enum OfficeFonts {
                     tabledName = alt
                 }
                 let lineBefore = face.naturalHeight
-                Self.applyTabled(tabledName, to: &face); Self.applyTabledMore(tabledName, to: &face)
+                // (Dotum and Gulim tables are Excel's: Word already sets Korean text at the right widths, and a Word A/B lost dx2 0b3859a7 100 to 50.)
+                if !["dotum", "gulim", "돋움", "굴림"].contains(tabledName.trimmingWhitespace().lowercased()) {
+                    Self.applyTabled(tabledName, to: &face); Self.applyTabledMore(tabledName, to: &face)
+                }
                 tableSetLine = face.naturalHeight != lineBefore
             }
             // (Arial Narrow, drawn as the sans clone, at its own widths and line.)
@@ -5443,7 +5474,7 @@ enum OfficeFonts {
             // fonts' tables, which count Thonburi's marks, 0.549 and 541).
             // Ours set them unscaled: 693 lines on 29 pages. On Windows the
             // fallback is Leelawadee UI, 0.729 (Windows 01QbbApP).)
-            if Self.thaiWordFaces.contains(family.trimmingWhitespace().lowercased()) {
+            if Self.thaiWordFaces.contains(family.trimmingWhitespace().lowercased()) || laoMissingDeclared(family) {
                 // (Its spaces Browallia's, which Word draws them in, not
                 // Cordia's: Word for Windows' print of zh-6a4fc013 sets 818
                 // regular ones at 0.222 em and 483 bold at 0.181, where
@@ -5451,10 +5482,11 @@ enum OfficeFonts {
                 // took 0.7pt a space too much and its line one fewer word.)
                 var regular = cordiaNewAdvances, bold = cordiaNewBoldAdvances
                 regular[0] = 0.222
-                if ["browallia new", "th sarabun new", "th sarabunpsk", "th sarabunit๙"].contains(family.trimmingWhitespace().lowercased()) {
+                if ["browallia new", "th sarabun new", "th sarabunpsk", "th sarabunit๙"].contains(family.trimmingWhitespace().lowercased()) || laoMissingDeclared(family) {
                     for (j, w) in Self.browalliaLatinAdvances.enumerated() { regular[j + 1] = w }
                 }
                 bold[0] = 0.181
+                if laoMissingDeclared(family) { face.spacesInBrowallia = true }
                 face.advances = regular
                 face.boldAdvances = bold
                 #if os(macOS)
@@ -5488,7 +5520,7 @@ enum OfficeFonts {
                 face.boldOtherAdvances = (face.boldOtherAdvances ?? [:]).merging(browalliaBoldAdvances) { $1 }
                 #endif
             }
-            if wordOnWindows, ["browallia new", "th sarabun new", "th sarabunit๙"].contains(family.trimmingWhitespace().lowercased()) {
+            if wordOnWindows, ["browallia new", "th sarabun new", "th sarabunit๙"].contains(family.trimmingWhitespace().lowercased()) || (wordOnWindows && laoMissingDeclared(family)) {
             // Word for Windows prints these in Browallia New: hhea 1770/789 of 2048 (1.249 em).
             face.naturalHeight = 1.249
             face.baseline = 0.864

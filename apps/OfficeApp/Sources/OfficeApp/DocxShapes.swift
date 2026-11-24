@@ -268,6 +268,12 @@ extension DocxFormat {
                 let breaks = sect.attrs.removeValue(forKey: "x-next-breaks").map { $0 == "1" }
                     ?? ((sect.first("w:type")?["w:val"] ?? "nextPage") != "continuous")
                 if breaks { sectionBreakAfter = true }
+                // (An empty paragraph that ends a section the next continues on the page has no space before in Word's print, its line stays:
+                // lab sec1 (24 pt before: the text under it starts 24.0 pt higher than under a plain empty paragraph; with a letter in it the
+                // space stays), pt-6c544802ed's 8.9 pt.)
+                func hasRunHere(_ n: XNode) -> Bool { n.children.contains { $0.name == "w:r" || hasRunHere($0) } }
+                if !breaks, RichTextTheme.wordWindowsPages, style.spaceBefore > 0,
+                   !p.children.contains(where: { $0.name != "w:pPr" && ($0.name == "w:r" || hasRunHere($0)) }) { style.spaceBefore = 0 }
                 sectionMarginsChange = sect.attrs.removeValue(forKey: "x-next-vmargins") == "1"
                 style.sectionBreaksPage = breaks
                 // The section's own page size, margins and columns, kept
@@ -330,9 +336,15 @@ extension DocxFormat {
                 // mark stated smaller than that is not the height. dx2 b02602d2's picture paragraph, mark sz 20 over BodyText 16 bold, is a 19.3 pt
                 // Tahoma Bold line in Word's print, not 12.1.)
                 let styleSize = p.first("w:pPr")?.first("w:pStyle")?["w:val"].flatMap { styleIds[$0] }.flatMap { sheet[$0]?.char.fontSize }
+                // (A run that STATES its size (the anchor's own run, sz 12 under BodyText 20) is that size whatever the mark says:
+                // pt-ebe6f5b3cc's 6 pt picture paragraph is 6.9 pt tall in Word's print, ours stood the 10 pt style line, 4.6 pt more.
+                // In a right-to-left paragraph the picture is a complex-script character: only szCs sizes it; dx2 b02602d2's bidi picture
+                // paragraphs state sz 20 and stay the 16 pt style line.)
+                let runIsBidi = p.first("w:pPr")?.first("w:bidi") != nil
+                let runStatesSize = p.all("w:r").first { $0.first("w:drawing") != nil }?.first("w:rPr")?.first(runIsBidi ? "w:szCs" : "w:sz") != nil
                 if let mark = markStyle, only.sourceXML?.containsSubstring("<wp:anchor") == true,
-                   !(para.runs[0].style.fontSize == nil && styleSize != nil && mark.fontSize != nil && styleSize! > mark.fontSize!) { para.runs[0].style = mark }
-                else if only.sourceXML?.containsSubstring("<wp:anchor") == true, para.runs[0].style.fontSize == nil, let z = styleSize { para.style.mark?.fontSize = z }
+                   !(para.runs[0].style.fontSize == nil && !runStatesSize && styleSize != nil && mark.fontSize != nil && styleSize! > mark.fontSize!) { para.runs[0].style = mark }
+                else if only.sourceXML?.containsSubstring("<wp:anchor") == true, para.runs[0].style.fontSize == nil, !runStatesSize, let z = styleSize { para.style.mark?.fontSize = z }
             } else {
                 // (An empty cell paragraph under a table style that sets the size is as tall as that
                 // size, not Normal's: lo-7c394e05's 8pt cells under a 12pt Normal.)
@@ -462,8 +474,11 @@ extension DocxFormat {
             } else if let shape = _vmlTop(node), shape.name != "v:line", let st = shape["style"] {
                 for pair in st.split(separator: ";") {
                     let kv = pair.split(separator: ":", maxSplits: 1)
-                    guard kv.count == 2, let v = _length(String(kv[1])), v > 0 else { continue }
-                    if kv[0].trimmingWhitespace() == "width" { w = v } else if kv[0].trimmingWhitespace() == "height" { h = v }
+                    guard kv.count == 2, let v = _length(String(kv[1])), v >= 0 else { continue }
+                    // (A height of 0 is a straight line's — a connector `v:shape` of
+                    // 500pt by 0pt — not an absent one: read as absent it stood the
+                    // 300 by 200 stand-in, a row 188pt too tall in es-e3d5fed41c.)
+                    if kv[0].trimmingWhitespace() == "width", v > 0 { w = v } else if kv[0].trimmingWhitespace() == "height" { h = max(v, 0.01) }
                 }
                 // (A horizontal rule — an HTML page's <hr>, `o:hr` — is a
                 // line of its height across the column, its width 0 in the
@@ -881,6 +896,7 @@ extension DocxFormat {
                         if body["upright"] != "1", let rot = node.descendant("wps:spPr")?.first("a:xfrm")?["rot"].flatMap({ Double($0) }) { box.shapeRotation = rot / 60000 }
                         box.fitsText = body["wrap"] == "none" && body.first("a:spAutoFit") != nil
                         box.fitsOnce = box.fitsText
+                        box.noWrap = body["wrap"] == "none" && body.first("a:spAutoFit") == nil && body.first("a:noAutofit") != nil
                         // (Not a group: its anchor is the whole group, text box and chart together, not the box alone: lo-40949e852ad9c2fe.)
                         box.autoHeight = body.first("a:spAutoFit") != nil && node.descendant("wpg:wgp") == nil
                         box.fitsAsDrawing = box.fitsText
@@ -1422,12 +1438,14 @@ extension DocxFormat {
                         || (csFlag && (0x0900...0x0B7F).contains($0.value))
                         // (Lao with the w:cs flag: dx2 30f73046's title, sz 24 / szCs 32, is a 16 pt Leelawadee UI line in Word's print.)
                         || (csFlag && (0x0E80...0x0EFF).contains($0.value))
-                        // (Thai with the w:cs flag: xs e17f28a6's heading, sz 16 / szCs 20, is a 20 pt TH SarabunPSK line in Word's print. Only when the run gives both sizes: xd 0815aa59's runs with one or none keep the style's sz.)
-                        || (csFlag && rPr.first("w:szCs") != nil && rPr.first("w:sz") != nil && (0x0E00...0x0E7F).contains($0.value))
+                        // (Thai with the w:cs flag: xs e17f28a6's heading, sz 16 / szCs 20, is a 20 pt TH SarabunPSK line in Word's print. A run with both sizes or neither (the style or defaults then supply szCs, dx2 27dc0c47) takes the complex size; a run with exactly one keeps the style sz.)
+                        || (csFlag && (rPr.first("w:szCs") != nil) == (rPr.first("w:sz") != nil) && (0x0E00...0x0E7F).contains($0.value))
                 } || rtlRun
                 // (Tamil takes bCs/iCs but not szCs: da732dfb's sz 14 / szCs 20 subtitle prints at 14 in Word. Only a run with no Latin letters.)
                 let tamilOnly = !runText.unicodeScalars.contains { ($0.value | 0x20) >= 0x61 && ($0.value | 0x20) <= 0x7A } && runText.unicodeScalars.contains { (0x0B80...0x0BFF).contains($0.value) }
                 let complex = complexSize || tamilOnly
+                // (Only a Thai run: the Arabic-script docs xb fas-z22867828 and ara-z23060052 lose lines when their flagged runs take the style's szCs.)
+                let thaiStyleSize = csFlag && rPr.first("w:sz") == nil && rPr.first("w:szCs") == nil && runText.unicodeScalars.contains { (0x0E00...0x0E7F).contains($0.value) }
                 let indicOnly = !runText.isEmpty && !runText.unicodeScalars.contains { ($0.value | 0x20) >= 0x61 && ($0.value | 0x20) <= 0x7A }
                     && runText.unicodeScalars.contains { (0x0900...0x0B7F).contains($0.value) }
                 let rtlLettersOnly = !runText.isEmpty && !runText.unicodeScalars.contains { ($0.value | 0x20) >= 0x61 && ($0.value | 0x20) <= 0x7A } && runText.unicodeScalars.contains { (0x0590...0x05FF).contains($0.value) }
@@ -1436,9 +1454,9 @@ extension DocxFormat {
                 // and plain, whatever the runs name.)
                 let inContents = notes.fields.contains { $0.instr.uppercased().trimmingWhitespace(newlines: true).hasPrefix("TOC") }
                 if let id = rPr.first("w:rStyle")?["w:val"], let chain = notes.charStyleChains[id], !(inContents && id.lowercased() == "hyperlink") {
-                    for styled in chain { cs = _charStyle(styled, base: cs, complexText: complex, complexSize: complexSize, indicOnly: indicOnly, rtlLettersOnly: rtlLettersOnly) }
+                    for styled in chain { cs = _charStyle(styled, base: cs, complexText: complex, complexSize: complexSize, thaiStyleSize: thaiStyleSize, indicOnly: indicOnly, rtlLettersOnly: rtlLettersOnly) }
                 }
-                cs = _charStyle(rPr, base: cs, complexText: complex, complexSize: complexSize, indicOnly: indicOnly, rtlLettersOnly: rtlLettersOnly)
+                cs = _charStyle(rPr, base: cs, complexText: complex, complexSize: complexSize, thaiStyleSize: thaiStyleSize, indicOnly: indicOnly, rtlLettersOnly: rtlLettersOnly)
                 // (Only a webHidden run in a header or footer, or any body run, as in a contents list: the PAGE results of the footers of 7d58f74e, b9164bf3 and fcd0d58c, with just rtl, stay complex and print in Arial.)
                 // (A run of ASCII digits flagged w:rtl with no szCs or cs font of its own is a plain Latin run to Word: 47480880's PAGEREF results.)
                 // (Arabic: the same for a PAGE result in a footer, whose face is the style's ascii one at the szCs: xb ara-z5177238's "2" under cs Simplified Arabic, an installed face, is Times New Roman 14.04 in two Word prints, sz 12 / szCs 14.)
@@ -1784,12 +1802,19 @@ extension DocxFormat {
                     // no room there, where its 300 by 200 stand-in set
                     // the table 187pt low.)
                     guard !child.children.isEmpty else { break }
+                    // (A VML pict of shape types only is definitions, not a shape: pt-408a10293d's first paragraph holds two and nothing else;
+                    // read as a picture it stood a grey 300 by 200 box 187 pt tall on page 1, none in Word's print.)
+                    if child.name == "w:pict", child.children.allSatisfy({ $0.name == "v:shapetype" }) { break }
                     // (A VML polyline alone — LibreOffice's FDO76248, a
                     // vertical rule over a table, `points` and no size —
                     // is not a box: read as the 300 by 200 stand-in it
                     // wrapped the text beside it in a grey square and sent
                     // 10 lines of page 3 to the right. It takes no room and
                     // wraps nothing in Word's print.)
+                    // (A pict holding only a shape TYPE — a `v:shapetype` and no shape
+                    // of it — draws nothing and takes no room: es-28716e1db6's header
+                    // carried one and stood 164.7 pt tall on every page.)
+                    if child.name == "w:pict", child.children.allSatisfy({ $0.name == "v:shapetype" }) { break }
                     if child.name == "w:pict", child.descendant("v:polyline") != nil,
                        child.descendant("v:textbox") == nil, child.descendant("v:imagedata") == nil { break }
                     // (A horizontal rule is a block: after text in the same paragraph Word sets it on a line of its own,

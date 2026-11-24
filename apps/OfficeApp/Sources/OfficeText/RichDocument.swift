@@ -452,6 +452,8 @@ public struct RichTextBox: Hashable, Codable, Sendable {
     /// or VML's `mso-wrap-style:none` with `mso-fit-shape-to-text`):
     /// Word shrinks it to the text before it places it.
     public var fitsText = false
+    /// DrawingML `wrap="none"` without `spAutoFit`: the box keeps its size and its text stays on its lines, past the box's edge.
+    public var noWrap = false
     /// The box takes its text's height (VML's `mso-fit-shape-to-text`
     /// without `mso-wrap-style:none`): in the line, it is as tall as its
     /// text and insets, whatever its own height says.
@@ -2675,7 +2677,25 @@ public struct RichDocument: Hashable, Codable, Sendable {
     /// The East Asian language the document's defaults state (for example
     /// "zh-TW"), read from the defaults' w:lang once per call site.
     public var eastAsiaLanguage: String? {
-        guard let xml = defaultLangXML, let r = xml.rangeOfSubstring("w:eastAsia=\"") else { return nil }
+        guard let xml = defaultLangXML else { return nil }
+        // Plain ASCII (no CR, where bytes and Characters part ways): the same reading on the bytes. Layout asks this for
+        // every span, and the Character scan was 15% of a Chinese document's time.
+        let bytes = Array(xml.utf8)
+        if !bytes.contains(where: { $0 >= 0x80 || $0 == 0x0D }) {
+            let key = Array("w:eastAsia=\"".utf8)
+            guard bytes.count >= key.count else { return nil }
+            var i = 0
+            while i <= bytes.count - key.count {
+                if bytes[i] == key[0] && Array(bytes[i ..< i + key.count]) == key {
+                    let from = i + key.count
+                    guard let q = bytes[from...].firstIndex(of: 0x22) else { return nil }
+                    return String(decoding: bytes[from ..< q], as: UTF8.self)
+                }
+                i += 1
+            }
+            return nil
+        }
+        guard let r = xml.rangeOfSubstring("w:eastAsia=\"") else { return nil }
         let rest = xml[r.upperBound...]
         guard let q = rest.firstIndex(of: "\"") else { return nil }
         return String(rest[rest.startIndex..<q])
@@ -2763,6 +2783,9 @@ public struct RichDocument: Hashable, Codable, Sendable {
     /// The settings' `w:doNotUseIndentAsNumberingTabStop`: a list
     /// label's tab goes to the next tab stop, not to the hanging indent.
     public var indentNotNumberingTabStop = false
+    /// Read from a binary .doc (its converted settings say so): a paragraph that states its own left
+    /// indent under a numbered level still tabs to the level's indent. Not a .docx rule.
+    public var numberTabReachesLevelIndent = false
     /// Widow control holds for no paragraph, whatever each says: Word for
     /// Mac lays out a body whose footer holds a framed paragraph raised
     /// over the footer's top (a page number in a `w:framePr` of negative
@@ -2785,6 +2808,8 @@ public struct RichDocument: Hashable, Codable, Sendable {
     /// Word for Windows then compresses no punctuation, whatever the
     /// languages and `w:characterSpacingControl` say.
     public var eastAsianDefaultFaceIsLatin = false
+    /// The defaults' run properties name no East Asian face (no `w:eastAsia`, no `w:eastAsiaTheme`): Word for Windows compresses no pause mark.
+    public var eastAsianDefaultFaceUnnamed = false
     /// A run of the body states a language (w:lang).
     public var bodyStatesLang = false
     /// The embedded faces Word for Windows compresses no punctuation in:

@@ -184,4 +184,52 @@ extension SheetsPrintTests {
         XCTAssertTrue(lines.contains("A2\tleft\tshort"), dump)
         XCTAssertFalse(dump.contains("w="))
     }
+
+    /// The GDI advance table must load: its first lookup builds a dictionary literal, which traps on a repeated
+    /// face key (Arial Narrow was listed twice, 12 zh books crashed under --sheet-pdf). Every face has the same columns.
+    func testGdiAdvanceTableLoadsAndCoversEveryFaceAtOneWidth() {
+        XCTAssertNotNil(GdiAdvances.advance("arial narrow", bold: false, em: 30, 0x41))
+        XCTAssertNotNil(GdiAdvances.advance("arial narrow", bold: true, em: 30, 0x41))
+        _ = GdiAdvances.advance("arial", bold: false, em: 30, 0x4E2D)
+        for face in GdiAdvances.faces {
+            XCTAssertNotNil(GdiAdvances.advance(face, bold: false, em: 30, 0x20), face)
+        }
+    }
+
+    /// Excel's set rows of faces the print box lacks (planner spec, from two Excel labs): 돋움 11 prints 8 dots a
+    /// point (6 dots a screen pixel); 新細明體 12 prints at the table's 130/43 dots per 192-dpi pixel. A set height is held
+    /// in quarter screen pixels; a scaled print takes the 100 % dot count times the scale, rounded half up.
+    func testSetRowsOfMissingCjkFacesPrintOnTheirOwnGrid() {
+        let dotum = SheetPrintMetrics.of(family: "돋움", size: 11)
+        XCTAssertEqual(dotum.setRowScale, 0.96, accuracy: 1e-9)
+        let mm = SheetPrintMetrics.of(family: "新細明體", size: 12)
+        XCTAssertEqual(mm.setRowScale, (130.0 / 600) / (43.0 / 192), accuracy: 1e-9)
+        XCTAssertTrue(mm.setOwn)
+        let malgun = SheetPrintMetrics.of(family: "맑은 고딕", size: 11)
+        XCTAssertEqual(malgun.setRowScale, malgun.rowScale, accuracy: 1e-9)
+        XCTAssertFalse(malgun.setOwn)
+        func dots(_ pt: Double, _ pct: Double = 100, _ m: SheetPrintMetrics = mm) -> Int {
+            let h = SheetPrintMetrics.setRowOwn(pt, scale: m.setRowScale, printPct: pct)
+            return Int((h * pct / 100 * 600 / 72 + 1e-6).rounded(.down))
+        }
+        XCTAssertEqual(dots(50.1), 403)
+        XCTAssertEqual(dots(50.1, 58), 234)
+        XCTAssertEqual(dots(50.1, 50), 202)
+        XCTAssertEqual(dots(62.625), 505)
+        XCTAssertEqual(dots(62.25), 501)
+        XCTAssertEqual(dots(30.375, 58), 142)
+        XCTAssertEqual(dots(73.5, 100, dotum), 588)
+        XCTAssertEqual(dots(73.5, 58, dotum), 341)
+    }
+
+    /// ko-5907e2d9ba, a 100 % print of a 돋움 11 book: Excel prints its 45 pt set rows 43.2 pt (360 dots, 8 a point), not at the fitted row's .987.
+    func testDotum11SetRowsStandOnTheirOwnGridAt100() {
+        let dotum = SheetPrintMetrics.of(family: "돋움", size: 11)
+        XCTAssertTrue(dotum.setOwnAt100)
+        let h = SheetPrintMetrics.setRowOwn(45, scale: dotum.setRowScale, printPct: 100)
+        XCTAssertEqual(h, 43.2, accuracy: 0.001)
+        // 新細明體 12's set rows follow the fitted row at 100 % (its own grid only below)
+        XCTAssertFalse(SheetPrintMetrics.of(family: "新細明體", size: 12).setOwnAt100)
+        XCTAssertFalse(SheetPrintMetrics.of(family: "Calibri", size: 11).setOwnAt100)
+    }
 }

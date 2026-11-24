@@ -80,6 +80,7 @@ struct _PState {
     // (Tops of the bands of page-anchored tables with a strip free to their right: empty paragraphs stand beside them.)
     var stripBandTops: Set<Double> = Set<Double>()
     var narrowBands: [(top: Double, bottom: Double, owner: Int, left: Double, right: Double)] = []
+    var offCentreBands: Set<Int> = [], spacedBandOwners: Set<Int> = []
     // A page whose columns were balanced at a continuous section break:
     // its physical page and where the next section's columns start.
     var columnFloor: (physical: Int, y: Double)? = nil

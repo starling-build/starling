@@ -141,6 +141,20 @@ extension _StyledFrame {
             let sp = RichLayout._multipleSplit(ascent: 0.905, descent: 1.149 - 0.905, multiple: multiple)
             s = s.copyWith(ascentOverride: size * sp.0, descentOverride: size * sp.1, height: 1.149 * multiple, leadingDistribution: .even)
         }
+        // (A right-to-left run in Traditional Arabic or Sakkal Majalla, which Word draws itself, carries that face's own ascent and descent
+        // (0.997/0.498 and 0.943/0.457 em), not the Noto stand-in's: Word's baselines in a mixed paragraph step previous line's deepest
+        // descent plus this line's highest ascent. dx2 ur 84f36322 page 2: steps 18.0 and 18.7 where ours were 21.3.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, kind >= 0, run.rightToLeft, s.ascentOverride == nil, p.style.lineHeightPoints == nil, pitch == nil,
+           let size = s.fontSize, size > 0.5, run.ruby == nil,
+           p.style.rightToLeft, !(run.bold || ((named?.char.bold ?? false) && !run.off.contains(.bold))),
+           let cs = (run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily)?.trimmingWhitespace().lowercased(),
+           let sp0 = ["traditional arabic": (0.997, 0.498), "sakkal majalla": (0.943, 0.457)][cs],
+           let face = theme.complexFace(cs, latin: run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily, letters: run.csLetters), !face.arialStandIn {
+            RuleTrace.hit("word-windows-arabic-run-keeps-its-own-ascent-and-descent")
+            let multiple = p.style.lineSpacing > 0.5 ? p.style.lineSpacing : 1
+            let sp = RichLayout._multipleSplit(ascent: sp0.0, descent: sp0.1, multiple: multiple)
+            s = s.copyWith(ascentOverride: size * sp.0, descentOverride: size * sp.1, height: (sp0.0 + sp0.1) * multiple, leadingDistribution: .even)
+        }
         if kind == -4, let cjk = RichLayout._cjkFaceFamily {
             RuleTrace.hit("word-east-asian-shape-is-the-cjk-faces-glyph")
             s = s.copyWith(fontFamily: cjk)
@@ -182,12 +196,25 @@ extension _StyledFrame {
                (run.complexFontFamily ?? named?.char.complexFontFamily ?? "").trimmingWhitespace().lowercased() == "calibri" {
                 below = max(below, 550.0 / 2048 * multiple)
             }
-            // (Lao in Leelawadee UI beside spaces: Word draws the spaces in Browallia New, whose deeper descent sets the line, 1.08 + 0.372 em
-            // = 1.452 (pitch 18.75 pt at 12 pt on 259; dx2 30f73046 page 2), where Leelawadee's own line is 1.36.)
-            if indic.face == "leelawadee ui", theme.wordRules, RichTextTheme.wordWindowsPages,
-               p.text.unicodeScalars.contains(where: { $0.value >= 0x0E81 && $0.value <= 0x0EDF }), p.text.unicodeScalars.contains(where: { $0.value == 0x20 }) {
-                RuleTrace.hit("word-lao-line-with-spaces-takes-browallia-descent")
-                below = max(below, 0.372 * multiple)
+            // (Lao in Leelawadee UI beside characters Word draws in Browallia New, the Latin letters, digits, spaces and marks of a face the
+            // print machine lacks: the deepest descent of the faces really drawn sets the line, Browallia New's 0.372 em, its Bold's 0.417 (885/789
+            // of it). Word's lab laoh2: bold Latin bullet lines 16.97 pt at 10.5 pt, numbered 12 pt lines 18.8, all six pairs to 0.1 pt; dx2
+            // 30f73046 page 2. Leelawadee's own Lao line is 1.33 em.)
+            if indic.face == "leelawadee ui", theme.wordRules, RichTextTheme.wordWindowsPages, latinFace?.spacesInBrowallia == true,
+               p.text.unicodeScalars.contains(where: { $0.value >= 0x0E81 && $0.value <= 0x0EDF }) {
+                let units = Array(p.text.utf16)
+                var at = 0, regular = false, bold = false
+                for r in p.runs {
+                    let end = min(units.count, at + r.length)
+                    if at < end, units[at ..< end].contains(where: { $0 < 0x250 }) {
+                        if r.style.bold { bold = true } else { regular = true }
+                    }
+                    at = end
+                }
+                if bold || regular {
+                    RuleTrace.hit(bold ? "word-lao-line-with-bold-latin-takes-browallia-bold-descent" : "word-lao-line-with-latin-takes-browallia-descent")
+                    below = max(below, (bold ? 0.417 : 0.372) * multiple)
+                }
             }
             s = s.copyWith(ascentOverride: split.0 * lineSize, descentOverride: below * lineSize, height: (m.0 * multiple + (below == split.1 ? m.1 * multiple : below)) * lineSize / size, leadingDistribution: .even)
         }

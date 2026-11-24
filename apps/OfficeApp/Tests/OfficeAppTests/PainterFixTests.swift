@@ -100,6 +100,52 @@ final class PainterFixTests: XCTestCase {
         XCTAssertEqual(OfficeFonts.substitute("Source Code Pro"), OfficeFonts.mono)
     }
 
+    func testMissingLaoFaceSetsItsLatinInBrowalliaNewOnlyWithAFontTableEntry() throws {
+        // dx2 30f73046: Saysettha OT is not on the print machine and its font table describes it; Word draws its digits and commas in
+        // Browallia New (0.36 em, 0.178). Lab laoh (no font table at all) draws them in Cambria instead.
+        defer { OfficeFonts.noteFontEntries([:]) }
+        OfficeFonts.noteFontEntries([:])
+        let bare = try XCTUnwrap(OfficeFonts.face("Saysettha OT", eastAsian: false))
+        XCTAssertNotEqual(bare.advances?[Int(UInt8(ascii: "3")) - 0x20] ?? 0, 0.36, accuracy: 0.005)
+        OfficeFonts.noteFontEntries(["saysettha ot": OfficeFonts.FontEntry(alt: nil, family: "swiss", panoseZero: false)])
+        let face = try XCTUnwrap(OfficeFonts.face("Saysettha OT", eastAsian: false))
+        let advances = try XCTUnwrap(face.advances)
+        XCTAssertEqual(advances[Int(UInt8(ascii: "3")) - 0x20], 0.36, accuracy: 0.005)
+        XCTAssertEqual(advances[Int(UInt8(ascii: ",")) - 0x20], 0.178, accuracy: 0.005)
+    }
+
+    func testALaoLineWithBoldLatinTakesBrowalliaBoldsDeeperDescent() throws {
+        // Lab laoh2 (Word, 10.5 pt Lao in a missing Saysettha OT): a line with regular Latin is 0.372 em deep below the baseline, with
+        // bold Latin 0.417 em (Browallia New Bold), and a line of Lao alone has neither.
+        let was = OfficeFonts.wordOnWindows
+        OfficeFonts.wordOnWindows = true
+        defer { OfficeFonts.wordOnWindows = was; OfficeFonts.noteFontEntries([:]) }
+        OfficeFonts.noteFontEntries(["saysettha ot": OfficeFonts.FontEntry(alt: nil, family: "swiss", panoseZero: false)])
+        func lineHeight(_ tail: String, bold: Bool) -> Double {
+            var p = RichParagraph(text: "\u{0E81}\u{0E82}\u{0E84}" + tail)
+            p.style = RichParagraphStyle(spaceAfter: 0, lineSpacing: 1)
+            var lao = CharStyle(fontSize: 10.5); lao.fontFamily = "Saysettha OT"
+            var latin = lao; latin.bold = bold
+            p.runs = [Run(length: 3, style: lao)]
+            if !tail.isEmpty { p.runs.append(Run(length: tail.utf16.count, style: latin)) }
+            let theme = RichTextTheme(fontFamily: "Saysettha OT")
+            theme.wordRules = true
+            theme.faceResolver = OfficeFonts.face
+            RichTextTheme.wordWindowsPages = true
+            defer { RichTextTheme.wordWindowsPages = false }
+            var document = RichDocument(paragraphs: [p])
+            document.compatibilityMode = 15
+            document.readFromFile = true
+            let layout = RichLayout(theme: theme, paragraphCount: 1)
+            layout.width = 400 * theme.pixelsPerPoint
+            layout.ensureLaidOut(document)
+            return (layout.geometry(0).painter.computeLineMetrics().first?.height ?? 0) / theme.pixelsPerPoint
+        }
+        let none = lineHeight("", bold: false), regular = lineHeight("AB 3", bold: false), bold = lineHeight("AB 3", bold: true)
+        XCTAssertGreaterThan(regular, none + 0.2)
+        XCTAssertEqual(bold - regular, (0.417 - 0.372) * 10.5, accuracy: 0.1)
+    }
+
     func testLucidaSansUnicodeIsSetAtItsOwnWidths() throws {
         // bug59058: its "SEER 9 Incidence…" note is two lines in Word's
         // print, one at Arial's widths. The widths are the /Widths of the

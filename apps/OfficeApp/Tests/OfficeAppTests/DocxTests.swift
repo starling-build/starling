@@ -670,6 +670,89 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(try DocxFormat.read(try DocxFormat.write(back, pageSetup: .letter)).document.paragraphs[0].text, "\u{2612} no diploma")
     }
 
+    /// A header's top-and-bottom picture set 0.4pt down from its own line pushes none of the header's lines (lab hdrline, Word for
+    /// Windows; ko-2927800653): one anchor line ends the header at the picture's foot, 63.0 on a 30pt header distance, not a line lower.
+    func testHeaderPictureSetFromItsOwnLinePushesNoLine() throws {
+        var doc = RichDocument(paragraphs: [RichParagraph(text: "body")])
+        doc.header = "x"
+        var entries = try Zip.read(try DocxFormat.write(doc, pageSetup: .a4))
+        let hi = try XCTUnwrap(entries.firstIndex { $0.name == "word/header1.xml" })
+        let anchor = "<w:p><w:r><w:drawing><wp:anchor distT=\"0\" distB=\"0\" distL=\"114300\" distR=\"114300\" simplePos=\"0\" relativeHeight=\"1\" behindDoc=\"0\" locked=\"0\" layoutInCell=\"1\" allowOverlap=\"1\">"
+            + "<wp:simplePos x=\"0\" y=\"0\"/><wp:positionH relativeFrom=\"column\"><wp:posOffset>4952365</wp:posOffset></wp:positionH>"
+            + "<wp:positionV relativeFrom=\"line\"><wp:posOffset>5080</wp:posOffset></wp:positionV><wp:extent cx=\"1451610\" cy=\"635000\"/>"
+            + "<wp:wrapTopAndBottom/><wp:docPr id=\"2\" name=\"p\"/><a:graphic xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\">"
+            + "<a:graphicData uri=\"http://schemas.openxmlformats.org/drawingml/2006/picture\"><pic:pic xmlns:pic=\"http://schemas.openxmlformats.org/drawingml/2006/picture\">"
+            + "<pic:nvPicPr><pic:cNvPr id=\"0\" name=\"p\"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed=\"rId1\"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>"
+            + "<pic:spPr><a:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"1451610\" cy=\"635000\"/></a:xfrm><a:prstGeom prst=\"rect\"/></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:anchor></w:drawing></w:r></w:p>"
+        let header = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<w:hdr xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\" xmlns:wp=\"http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing\">\(anchor)</w:hdr>"
+        entries[hi] = ZipEntry(name: "word/header1.xml", data: Data(header.utf8))
+        let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")!
+        entries.append(ZipEntry(name: "word/media/image1.png", data: png))
+        entries.append(ZipEntry(name: "word/_rels/header1.xml.rels", data: Data("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"><Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/image\" Target=\"media/image1.png\"/></Relationships>".utf8)))
+        let di = try XCTUnwrap(entries.firstIndex { $0.name == "word/document.xml" })
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        xml = xml.replacingAll("<w:pgMar ", with: "<w:pgMar w:header=\"600\" ")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        RichTextTheme.wordWindowsPages = true
+        defer { RichTextTheme.wordWindowsPages = false }
+        let opened = try DocxFormat.read(try Zip.write(entries))
+        let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+        theme.wordRules = true
+        let l = RichLayout(theme: theme, paragraphCount: opened.document.paragraphs.count)
+        let setup = opened.pageSetup ?? .a4
+        l.pageSetup = setup
+        l.width = setup.columnWidth * theme.pixelsPerPoint
+        l.ensureLaidOut(opened.document)
+        // The body starts a few points under the picture's foot (30 + 0.4 + 50); a pushed line would add 14 or more.
+        let top = l.bodyBandPoints(page: 0, opened.document).top
+        XCTAssertGreaterThanOrEqual(top, 30 + 0.4 + 50)
+        XCTAssertLessThan(top, 30 + 0.4 + 50 + 10)
+    }
+
+    /// A vertical section's picture set from the page's margins, with text going round it: the columns it lies over lose the room
+    /// (ja-b852b9029c: Word's page 1 holds three lines in four columns, ours set the whole document on it as if the picture were
+    /// not there), and the picture is drawn once on the page, over every column it covers.
+    func testVerticalSectionTextGoesRoundMarginPicture() throws {
+        func pages(picture: Bool) throws -> Int {
+            let doc = RichDocument(paragraphs: [RichParagraph(text: String(repeating: "あいうえお", count: 700))])
+            var entries = try Zip.read(try DocxFormat.write(doc, pageSetup: .a4))
+            let di = try XCTUnwrap(entries.firstIndex { $0.name == "word/document.xml" })
+            var xml = String(decoding: entries[di].data, as: UTF8.self)
+            xml = xml.replacingAll("</w:sectPr>", with: "<w:cols w:num=\"2\" w:space=\"360\"/><w:textDirection w:val=\"tbRl\"/></w:sectPr>")
+            if picture {
+                let anchor = "<w:drawing><wp:anchor distT=\"0\" distB=\"0\" distL=\"114300\" distR=\"114300\" simplePos=\"0\" relativeHeight=\"1\" behindDoc=\"0\" locked=\"0\" layoutInCell=\"1\" allowOverlap=\"1\">"
+                    + "<wp:simplePos x=\"0\" y=\"0\"/><wp:positionH relativeFrom=\"margin\"><wp:posOffset>0</wp:posOffset></wp:positionH>"
+                    + "<wp:positionV relativeFrom=\"margin\"><wp:posOffset>0</wp:posOffset></wp:positionV><wp:extent cx=\"7620000\" cy=\"9144000\"/>"
+                    + "<wp:wrapSquare wrapText=\"bothSides\"/><wp:docPr id=\"2\" name=\"p\"/><a:graphic xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\">"
+                    + "<a:graphicData uri=\"http://schemas.openxmlformats.org/drawingml/2006/picture\"><pic:pic xmlns:pic=\"http://schemas.openxmlformats.org/drawingml/2006/picture\">"
+                    + "<pic:nvPicPr><pic:cNvPr id=\"0\" name=\"p\"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed=\"rId9\"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>"
+                    + "<pic:spPr><a:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"7620000\" cy=\"9144000\"/></a:xfrm><a:prstGeom prst=\"rect\"/></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:anchor></w:drawing>"
+                xml = xml.replacingAll("<w:r>", with: "<w:r>" + anchor + "</w:r><w:r>")
+                let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")!
+                entries.append(ZipEntry(name: "word/media/image9.png", data: png))
+                let ri = try XCTUnwrap(entries.firstIndex { $0.name == "word/_rels/document.xml.rels" })
+                var rels = String(decoding: entries[ri].data, as: UTF8.self)
+                rels = rels.replacingAll("</Relationships>", with: "<Relationship Id=\"rId9\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/image\" Target=\"media/image9.png\"/></Relationships>")
+                entries[ri] = ZipEntry(name: "word/_rels/document.xml.rels", data: Data(rels.utf8))
+            }
+            entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+            RichTextTheme.wordWindowsPages = true
+            defer { RichTextTheme.wordWindowsPages = false }
+            let opened = try DocxFormat.read(try Zip.write(entries))
+            let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+            theme.wordRules = true
+            let l = RichLayout(theme: theme, paragraphCount: opened.document.paragraphs.count)
+            let setup = opened.pageSetup ?? .a4
+            l.pageSetup = setup
+            l.width = setup.columnWidth * theme.pixelsPerPoint
+            l.ensureLaidOut(opened.document)
+            return l.pageCount
+        }
+        let plain = try pages(picture: false)
+        let round = try pages(picture: true)
+        XCTAssertGreaterThan(round, plain, "plain \(plain) round \(round)")
+    }
+
     func testRichAndFirstPageHeadersKeptVerbatim() throws {
         // A default header holding a table (60329's banner) and a
         // first-page header: both parts come back as they were, the
@@ -764,6 +847,38 @@ final class DocxTests: XCTestCase {
         layout.ensureLaidOut(back)
         XCTAssertEqual(layout.geometry(0).painter.textDirection, .rtl)
         XCTAssertEqual(layout.geometry(1).painter.textDirection, .ltr)
+    }
+
+    func testAFirstLineGoesUnderATopAndBottomPictureItsLineReachesPast() throws {
+        // Lab carry3 (Word for Windows): a top-and-bottom box a little way down its paragraph
+        // (paragraph-relative, in the body) puts the first line under it while the line reaches past
+        // the box's top, and leaves it above when the box starts at or below the line's foot.
+        RichTextTheme.wordWindowsPages = true
+        defer { RichTextTheme.wordWindowsPages = false }
+        let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")!
+        func foot(offsetTwips: Int) throws -> Double {
+            let doc = RichDocument(paragraphs: [RichParagraph(image: ImageAttachment(data: png, width: 72, height: 36)), RichParagraph(text: "after")])
+            var entries = try Zip.read(try DocxFormat.write(doc, pageSetup: .letter))
+            let di = entries.firstIndex { $0.name == "word/document.xml" }!
+            var xml = String(decoding: entries[di].data, as: UTF8.self)
+            xml = xml.replacingAll("<wp:inline distT=\"0\" distB=\"0\" distL=\"0\" distR=\"0\">", with: "<wp:anchor distT=\"0\" distB=\"0\" distL=\"0\" distR=\"0\" simplePos=\"0\" relativeHeight=\"1\" behindDoc=\"0\" locked=\"0\" layoutInCell=\"1\" allowOverlap=\"1\"><wp:simplePos x=\"0\" y=\"0\"/><wp:positionH relativeFrom=\"column\"><wp:posOffset>0</wp:posOffset></wp:positionH><wp:positionV relativeFrom=\"paragraph\"><wp:posOffset>\(offsetTwips * 635)</wp:posOffset></wp:positionV>")
+            xml = xml.replacingAll("<wp:docPr", with: "<wp:wrapTopAndBottom/><wp:docPr").replacingAll("</wp:inline>", with: "</wp:anchor>")
+            xml = xml.replacingAll("<w:r><w:drawing>", with: "<w:r><w:t>text</w:t></w:r><w:r><w:drawing>")
+            XCTAssertTrue(xml.contains("<w:t>text</w:t></w:r><w:r><w:drawing>"), xml)
+            entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+            let back = try DocxFormat.read(try Zip.write(entries)).document
+            let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+            theme.wordRules = true
+            let layout = RichLayout(theme: theme, paragraphCount: 2)
+            layout.pageSetup = .letter
+            layout.width = 612 * 96.0 / 72.0
+            layout.ensureLaidOut(back)
+            return layout.geometry(1).top / theme.pixelsPerPoint
+        }
+        let nearTop = try foot(offsetTwips: 200)     // 10 pt: the 11 pt line reaches past it
+        let belowLine = try foot(offsetTwips: 1200)  // 60 pt: the line ends well above it
+        XCTAssertGreaterThan(nearTop, 36 + 10, "the line stands under the box (offset 10 + height 36)")
+        XCTAssertLessThan(belowLine, 36 + 60, "the box is below the line: the line stays above it")
     }
 
     func testAnchoredPictureKeepsItsAnchor() throws {
@@ -977,6 +1092,33 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(boxes.map(\.fitsOnce), [true, true])
     }
 
+    /// A DrawingML box of wrap none and no autofit keeps its size and its
+    /// text does not wrap at its edge (ja-6ccbf5e032's 72pt boxes hold a
+    /// whole sentence on one line in Word's print); an autofit box is
+    /// fitsText instead.
+    func testWrapNoneWithNoAutofitIsANoWrapBox() throws {
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .a4))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let body = try XCTUnwrap(xml.range(of: "<w:body>")), sect = try XCTUnwrap(xml.range(of: "<w:sectPr"))
+        let text = "<w:txbxContent><w:p><w:r><w:t>1</w:t></w:r></w:p></w:txbxContent>"
+        func box(_ fit: String, _ id: Int) -> String {
+            "<w:p><w:r><w:drawing><wp:anchor distT=\"0\" distB=\"0\" distL=\"0\" distR=\"0\" simplePos=\"0\" relativeHeight=\"1\" behindDoc=\"0\" locked=\"0\" layoutInCell=\"1\" allowOverlap=\"1\">"
+            + "<wp:simplePos x=\"0\" y=\"0\"/><wp:positionH relativeFrom=\"margin\"><wp:align>outside</wp:align></wp:positionH>"
+            + "<wp:positionV relativeFrom=\"paragraph\"><wp:posOffset>0</wp:posOffset></wp:positionV><wp:extent cx=\"914400\" cy=\"914400\"/>"
+            + "<wp:wrapNone/><wp:docPr id=\"\(id)\" name=\"b\"/><a:graphic xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\">"
+            + "<a:graphicData uri=\"http://schemas.microsoft.com/office/word/2010/wordprocessingShape\"><wps:wsp xmlns:wps=\"http://schemas.microsoft.com/office/word/2010/wordprocessingShape\">"
+            + "<wps:cNvSpPr txBox=\"1\"/><wps:spPr><a:prstGeom prst=\"rect\"/></wps:spPr><wps:txbx>\(text)</wps:txbx>"
+            + "<wps:bodyPr wrap=\"none\" lIns=\"0\" tIns=\"0\" rIns=\"0\" bIns=\"0\">\(fit)</wps:bodyPr></wps:wsp></a:graphicData></a:graphic></wp:anchor></w:drawing></w:r></w:p>"
+        }
+        xml.replaceSubrange(body.upperBound ..< sect.lowerBound, with: box("<a:noAutofit/>", 2) + box("<a:spAutoFit/>", 3))
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let doc = try DocxFormat.read(try Zip.write(entries)).document
+        let boxes = doc.paragraphs.compactMap { p in (p.image ?? p.inlineImages.values.first)?.textBox }
+        XCTAssertEqual(boxes.map(\.noWrap), [true, false])
+        XCTAssertEqual(boxes.map(\.fitsText), [false, true])
+    }
+
     /// A lone VML shape sets its text in its type's text rectangle:
     /// zh-60c80728 p35's "alternate process" boxes (o:spt 176, inset 0,
     /// no shapetype in the file) set "由港区专" a line in 54.25pt at
@@ -1141,7 +1283,7 @@ final class DocxTests: XCTestCase {
         var xml = String(decoding: entries[di].data, as: UTF8.self)
         let body = try XCTUnwrap(xml.range(of: "<w:body>")), end = try XCTUnwrap(xml.range(of: "</w:body>"))
         xml.replaceSubrange(body.upperBound ..< end.lowerBound, with:
-            "<w:p><w:pPr><w:spacing w:before=\"0\" w:after=\"0\"/></w:pPr><w:r><w:drawing><wp:inline distT=\"0\" distB=\"0\" distL=\"0\" distR=\"0\"><wp:extent cx=\"3810000\" cy=\"2968625\"/>"
+            "<w:p><w:pPr><w:spacing w:before=\"0\" w:after=\"0\"/></w:pPr><w:r><w:drawing><wp:inline distT=\"0\" distB=\"0\" distL=\"0\" distR=\"0\"><wp:extent cx=\"7620000\" cy=\"2968625\"/>"
             + "<wp:effectExtent l=\"0\" t=\"4445\" r=\"0\" b=\"17780\"/><wp:docPr id=\"1\" name=\"s\"/>"
             + "<a:graphic xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\"><a:graphicData uri=\"http://schemas.microsoft.com/office/word/2010/wordprocessingShape\">"
             + "<wps:wsp xmlns:wps=\"http://schemas.microsoft.com/office/word/2010/wordprocessingShape\"><wps:spPr><a:prstGeom prst=\"ellipse\"/></wps:spPr><wps:bodyPr/></wps:wsp>"
@@ -1648,7 +1790,7 @@ final class DocxTests: XCTestCase {
         let fi = entries.firstIndex { $0.name == "word/footer1.xml" }!
         var fxml = String(decoding: entries[fi].data, as: UTF8.self)
         let inner = fxml[fxml.range(of: "<w:p>")!.lowerBound ..< fxml.range(of: "</w:p>")!.upperBound]
-        let run = "<w:rPr><w:rFonts w:hint=\"default\" w:ascii=\"Times New Roman\" w:hAnsi=\"Times New Roman\" w:cs=\"Times New Roman\"/><w:sz w:val=\"28\"/></w:rPr>"
+        let run = "<w:rPr><w:rFonts w:hint=\"default\" w:ascii=\"Times New Roman\" w:hAnsi=\"Times New Roman\" w:cs=\"Times New Roman\" w:eastAsia=\"Times New Roman\"/><w:sz w:val=\"28\"/></w:rPr>"
         let text = "<w:txbxContent><w:p><w:pPr><w:ind w:left=\"210\" w:leftChars=\"100\" w:right=\"210\" w:rightChars=\"100\"/></w:pPr>"
             + "<w:r>\(run)<w:t xml:space=\"preserve\">— </w:t></w:r><w:r>\(run)<w:fldChar w:fldCharType=\"begin\"/></w:r><w:r>\(run)<w:instrText xml:space=\"preserve\"> PAGE </w:instrText></w:r>"
             + "<w:r>\(run)<w:fldChar w:fldCharType=\"separate\"/></w:r><w:r>\(run)<w:t>1</w:t></w:r><w:r>\(run)<w:fldChar w:fldCharType=\"end\"/></w:r><w:r>\(run)<w:t xml:space=\"preserve\"> —</w:t></w:r></w:p></w:txbxContent>"
@@ -2904,7 +3046,7 @@ final class DocxTests: XCTestCase {
                            hanging: Double = 0, justified: Bool = false,
                            documentLanguage: String? = nil, characterGrid: Double? = nil,
                            runXML: String = "", kerns: Bool = false,
-                           linePitch: Double? = nil) throws -> (width: Double, length: Int) {
+                           linePitch: Double? = nil, unnamedEastAsianDefault: Bool = false) throws -> (width: Double, length: Int) {
         // (The fitter measures each character as the engine shapes it,
         // which wants ICU's data in the bridge: without it every one is
         // zero wide and nothing is ever over.)
@@ -2935,6 +3077,7 @@ final class DocxTests: XCTestCase {
         doc.compatibilityMode = mode
         doc.characterSpacingControl = compresses ? "compressPunctuation" : "doNotCompress"
         doc.usesEastAsianLayout = true
+        doc.eastAsianDefaultFaceUnnamed = unnamedEastAsianDefault
         if let characterGrid { doc.characterGridSpace = characterGrid }
         doc.lineGridPitch = linePitch
         if let documentLanguage { doc.defaultLangXML = "<w:lang w:eastAsia=\"\(documentLanguage)\"/>" }
@@ -2949,6 +3092,116 @@ final class DocxTests: XCTestCase {
         let painter = l.geometry(0).painter
         return ((painter.computeLineMetrics().first?.width ?? 0) / theme.pixelsPerPoint,
                 painter.getLineBoundary(TextPosition(offset: 0)).end)
+    }
+
+    func testALatinNamedKoreanFaceWithNoAlternateIsMalgunInWord() {
+        // Word for Windows (ko-4e286d0d0c): "Noto Sans KR" (font table charset 81, no alternate name, no roman panose) is missing
+        // there and drawn in Malgun Gothic; the same entry with an alternate name, or a Latin charset, is not this rule.
+        defer { OfficeFonts.noteFontEntries([:]) }
+        OfficeFonts.noteFontEntries(["Noto Sans KR": OfficeFonts.FontEntry(alt: nil, family: "modern", panoseZero: false, panose: "020B0200000000000000", charset: "81")])
+        XCTAssertTrue(OfficeFonts.isMissingLatinNamedKoreanFace("Noto Sans KR"))
+        OfficeFonts.noteFontEntries(["Noto Sans KR": OfficeFonts.FontEntry(alt: "Noto Sans CJK KR", family: "modern", panoseZero: false, panose: "020B0200000000000000", charset: "81")])
+        XCTAssertFalse(OfficeFonts.isMissingLatinNamedKoreanFace("Noto Sans KR"), "an alternate name is its own rule")
+        OfficeFonts.noteFontEntries(["Noto Sans KR": OfficeFonts.FontEntry(alt: nil, family: "modern", panoseZero: false, panose: "020B0200000000000000", charset: "00")])
+        XCTAssertFalse(OfficeFonts.isMissingLatinNamedKoreanFace("Noto Sans KR"), "a Latin charset")
+    }
+
+    func testNoPauseMarkSqueezesWhenTheDefaultsNameNoEastAsianFace() throws {
+        // Word for Windows (lab pm4, zh-TW, compat 14, compressPunctuation): with an
+        // rPrDefault rFonts naming an East Asian face the comma gives a quarter em and
+        // the line takes one more character; with none (g1 against e) it stays a whole em.
+        RichTextTheme.wordWindowsPages = true
+        defer { RichTextTheme.wordWindowsPages = false }
+        let text = String(repeating: "一", count: 19) + "，" + String(repeating: "二", count: 10)
+        let named = try firstLine(text, width: 20 * 12 - 2, hangs: false, mode: 15, justified: true, documentLanguage: "zh-TW")
+        XCTAssertGreaterThanOrEqual(named.length, 20, "the comma gives 2 pt of its quarter em")
+        let unnamed = try firstLine(text, width: 20 * 12 - 2, hangs: false, mode: 15, justified: true, documentLanguage: "zh-TW", unnamedEastAsianDefault: true)
+        XCTAssertLessThan(unnamed.length, 20, "no East Asian face in the defaults: no squeeze")
+    }
+
+    func testALatinFigureAmongTimesArabicKeepsEveryLineAtTimesOwnStep() throws {
+        // Word for Windows (dx2 9f8856f2 page 5, micro-doc lab d2): an Arabic paragraph at 14 pt, 1.5 lines, on Times New Roman, with a
+        // Book Antiqua "4%" in it. Every line steps 24.1 pt (1.149 x 14 x 1.5), as it does without the figure; the stand-in's own box
+        // (Noto Naskh, 1.70 em) made them 29.1 to 29.7.
+        RichTextTheme.wordWindowsPages = true
+        defer { RichTextTheme.wordWindowsPages = false }
+        OfficeFonts.noteAltNames([:]); OfficeFonts.noteFontEntries([:]); OfficeFonts.noteEmbedded([]); OfficeFonts.noteEmbeddedFaces([:])
+        func steps(figure: String) throws -> [Double] {
+            func run(_ text: String, _ face: String, rtl: Bool) -> String {
+                "<w:r><w:rPr><w:rFonts w:ascii=\"\(face)\" w:hAnsi=\"\(face)\" w:cs=\"Times New Roman\" w:eastAsia=\"Times New Roman\"/><w:sz w:val=\"28\"/><w:szCs w:val=\"28\"/>"
+                    + (rtl ? "<w:rtl/>" : "") + "</w:rPr><w:t xml:space=\"preserve\">\(text)</w:t></w:r>"
+            }
+            let word = "انخفض عدد العاطلين عن العمل "
+            let body = "<w:p><w:pPr><w:bidi/><w:spacing w:line=\"360\" w:lineRule=\"auto\"/></w:pPr>"
+                + run(String(repeating: word, count: 6), "Times New Roman", rtl: true) + run("66", "Times New Roman", rtl: false) + run("4", figure, rtl: false) + run("%", figure, rtl: false)
+                + run(String(repeating: word, count: 6), "Times New Roman", rtl: true) + "</w:p>"
+            var parts = try Zip.read(DocxFormat.write(RichDocument(paragraphs: [RichParagraph()]), pageSetup: .letter))
+            let i = try XCTUnwrap(parts.firstIndex { $0.name == "word/document.xml" })
+            parts[i] = ZipEntry(name: "word/document.xml", data: Data((
+                "<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:body>" + body + "</w:body></w:document>").utf8))
+            var doc = try DocxFormat.read(Zip.write(parts)).document
+            doc.compatibilityMode = 15
+            let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
+            theme.fontFamilyResolver = OfficeFonts.substitute
+            theme.faceResolver = OfficeFonts.face
+            theme.averageCharWidth = OfficeFonts.averageCharWidth
+            theme.wordRules = true
+            let l = RichLayout(theme: theme, paragraphCount: 1)
+            l.width = 200 * theme.pixelsPerPoint
+            l.ensureLaidOut(doc)
+            let m = l.geometry(0).painter.computeLineMetrics()
+            return zip(m, m.dropFirst()).map { ($1.baseline - $0.baseline) / theme.pixelsPerPoint }
+        }
+        let without = try steps(figure: "Times New Roman")
+        let with = try steps(figure: "Book Antiqua")
+        XCTAssertGreaterThan(with.count, 2)
+        // (In the unit run there are no Windows faces, so the stand-in's tall box does not show; the figure must not change any step. The
+        // 29.6 pt steps are held by the micro-doc print compare in the board entry.)
+        XCTAssertEqual(with.count, without.count)
+        for (a, b) in zip(with, without) { XCTAssertEqual(a, b, accuracy: 0.05, "a Book Antiqua figure leaves the Times Arabic line steps alone") }
+    }
+
+    func testATraditionalArabicRunInARightToLeftParagraphStepsAtItsOwnLine() throws {
+        // Word for Windows (dx2 ur 84f36322 page 2): Traditional Arabic lines in a bidi paragraph step 1.495 em (0.997 above the baseline,
+        // 0.498 below), not the Naskh stand-in's 1.70. The rule is measured on the page; here it must at least not make a step taller.
+        RichTextTheme.wordWindowsPages = true
+        defer { RichTextTheme.wordWindowsPages = false }
+        OfficeFonts.noteAltNames([:]); OfficeFonts.noteFontEntries([:]); OfficeFonts.noteEmbedded([]); OfficeFonts.noteEmbeddedFaces([:])
+        let word = "انخفض عدد العاطلين عن العمل "
+        let body = "<w:p><w:pPr><w:bidi/></w:pPr><w:r><w:rPr><w:rFonts w:ascii=\"Traditional Arabic\" w:hAnsi=\"Traditional Arabic\" w:cs=\"Traditional Arabic\"/><w:sz w:val=\"28\"/><w:szCs w:val=\"28\"/><w:rtl/></w:rPr><w:t xml:space=\"preserve\">"
+            + String(repeating: word, count: 12) + "</w:t></w:r></w:p>"
+        var parts = try Zip.read(DocxFormat.write(RichDocument(paragraphs: [RichParagraph()]), pageSetup: .letter))
+        let i = try XCTUnwrap(parts.firstIndex { $0.name == "word/document.xml" })
+        parts[i] = ZipEntry(name: "word/document.xml", data: Data((
+            "<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:body>" + body + "</w:body></w:document>").utf8))
+        var doc = try DocxFormat.read(Zip.write(parts)).document
+        doc.compatibilityMode = 15
+        let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
+        theme.fontFamilyResolver = OfficeFonts.substitute
+        theme.faceResolver = OfficeFonts.face
+        theme.averageCharWidth = OfficeFonts.averageCharWidth
+        theme.wordRules = true
+        let l = RichLayout(theme: theme, paragraphCount: 1)
+        l.width = 200 * theme.pixelsPerPoint
+        l.ensureLaidOut(doc)
+        let m = l.geometry(0).painter.computeLineMetrics()
+        XCTAssertGreaterThan(m.count, 2)
+        for (a, b) in zip(m, m.dropFirst()) {
+            let step = (b.baseline - a.baseline) / theme.pixelsPerPoint
+            XCTAssertLessThanOrEqual(step, 1.70 * 14 + 0.1)
+        }
+    }
+
+    func testASimplifiedArabicLineStandsItsHheaAscentUnderTheTop() throws {
+        // Word for Windows, lab sp1 (xb ara-z3803947): a bold 14pt Simplified Arabic line stands its first baseline 16.58 pt under the top
+        // (hhea ascent 2416/2048 = 1.18 em) in a 1.658 em line, where the Naskh stand-in stood it 13.5.
+        let was = OfficeFonts.wordOnWindows
+        OfficeFonts.wordOnWindows = true
+        defer { OfficeFonts.wordOnWindows = was; OfficeFonts.noteFontEntries([:]) }
+        OfficeFonts.noteAltNames([:]); OfficeFonts.noteFontEntries([:]); OfficeFonts.noteEmbedded([]); OfficeFonts.noteEmbeddedFaces([:])
+        let face = try XCTUnwrap(OfficeFonts.complexFace("Simplified Arabic"))
+        XCTAssertEqual(try XCTUnwrap(face.baseline), 2416.0 / 2048, accuracy: 0.001)
+        XCTAssertEqual(try XCTUnwrap(face.naturalHeight), 3395.0 / 2048, accuracy: 0.001)
     }
 
     func testAnOpeningMarkMayEndALineSqueezedUnderCompressPunctuation() throws {
@@ -4555,6 +4808,20 @@ final class DocxTests: XCTestCase {
         let latin = try XCTUnwrap(back.paragraphs[2].runs.first?.style)
         XCTAssertTrue(latin.italic)
         XCTAssertFalse(latin.bold)
+    }
+
+    func testThaiRunWithComplexFlagAndNoSizeTakesTheStyleSzCs() throws {
+        // dx2 27dc0c47: docDefaults sz 22 / szCs 28, a Thai run with only w:cs prints at 14 in Word. An Arabic-script run of the
+        // same shape (xb fas-z22867828) must not take it.
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "\u{0E2A}\u{0E27}"), RichParagraph(text: "\u{0625}\u{0633}")]), pageSetup: .letter))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        xml = xml.replacingAll("<w:r><w:t xml:space=\"preserve\">\u{0E2A}\u{0E27}</w:t>", with: "<w:r><w:rPr><w:cs/></w:rPr><w:t xml:space=\"preserve\">\u{0E2A}\u{0E27}</w:t>")
+        xml = xml.replacingAll("<w:r><w:t xml:space=\"preserve\">\u{0625}\u{0633}</w:t>", with: "<w:r><w:rPr><w:cs/></w:rPr><w:t xml:space=\"preserve\">\u{0625}\u{0633}</w:t>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let back = try DocxFormat.read(try Zip.write(entries)).document
+        XCTAssertTrue(try XCTUnwrap(back.paragraphs[0].runs.first?.style).sizeFromStyleSzCs)
+        XCTAssertFalse(try XCTUnwrap(back.paragraphs[1].runs.first?.style).sizeFromStyleSzCs)
     }
 
     func testDevanagariRunWeightFollowsBCsNotB() throws {

@@ -89,10 +89,25 @@ DECKS=$W/in; PPT=$W/ppt
 # SLIDES_ONLY=FILE (amd-8, 2026-11-22): the exact-base RE-CHECK after a block against a cached ancestor judges only the decks that were blocked
 # (stems, one per line), not all ~670: only those are drawn (PR side and base side) and compared; nothing partial is written to the base cache.
 if [ -n "${SLIDES_ONLY:-}" ]; then for f in "$W/in"/*.pptx; do s=$(basename "$f" .pptx); grep -qxF "$s" "$SLIDES_ONLY" || rm -f "$f"; done; echo "slides-gate: re-check of $(ls "$W/in" | wc -l) deck(s) only"; fi
-[ -n "${BASE_ONLY:-}" ] || PDFDIFF_NO_PAIRS=1 OFFICE_APP=$BIN "$ROOT/test/pptx-app-render.sh" -j "$JOBS" "$DECKS" "$PPT" "$W" $(ls -SL "$DECKS" | grep '\.pptx$') > "$W/run.log" 2>&1
+# SCORE REUSE (amd-8, 2026-11-24): a deck whose PDF is byte-identical to the base's PDF (same reference print, same scorers) gets the base's
+# pixel row and line rows instead of being scored again: the Slides step took 536 s, 330 s of it line scoring, and a batch changes few decks.
+# The base cache holds pdfsha.tsv (stem, sha1 of the PDF, size of the reference print), lines.txt and scorers.sha (sha1 of the four scorer
+# files); a PR that edits a scorer, or an older cache without these files, scores everything as before. SLIDES_REUSE=0 turns it off.
+SCH=$(cat "$ROOT/test/pdf-diff.py" "$ROOT/test/pptx-line-match.py" "$ROOT/test/docx-line-match.py" "$ROOT/test/tools/pptx-combine.py" "$ROOT/test/pptx-app-render.sh" | sha1sum | cut -c1-40)
+REUSE=""
+if [ "${SLIDES_REUSE:-1}" = 1 ] && [ -n "${BASE_BIN:-}" ] && [ -z "${BASE_ONLY:-}" ] && [ -s "${BASE_CACHE:-/x}/pdfsha.tsv" ] && [ -s "$BASE_CACHE/lines.txt" ] && [ -s "$BASE_CACHE/render.tsv" ] && [ "$(cat "$BASE_CACHE/scorers.sha" 2>/dev/null)" = "$SCH" ]; then REUSE=1; echo "slides-gate: score reuse on (base cache $BASE_CACHE)"; fi
+rm -f "$W/reused.txt"
+[ -n "${BASE_ONLY:-}" ] || REUSE_SHAS=${REUSE:+$BASE_CACHE/pdfsha.tsv} REUSE_RENDER=${REUSE:+$BASE_CACHE/render.tsv} PDFDIFF_NO_PAIRS=1 OFFICE_APP=$BIN "$ROOT/test/pptx-app-render.sh" -j "$JOBS" "$DECKS" "$PPT" "$W" $(ls -SL "$DECKS" | grep '\.pptx$') > "$W/run.log" 2>&1
 PY=${PYTHON:-$( [ -x "$HOME/venv-word/bin/python" ] && echo "$HOME/venv-word/bin/python" || echo python3)}
 SCORE_LINES() {   # SCORE_LINES DIR: lines.txt + combined.tsv in DIR (renders already there)
-  PPT_REFS=$PPT PPT_MATCH_JOBS=$JOBS "$PY" "$ROOT/test/pptx-line-match.py" "$1" > "$1/lines.txt" 2> "$1/lines.err"
+  local skip=""
+  if [ -n "$REUSE" ] && [ "$1" = "$W" ] && [ -s "$1/reused.txt" ]; then skip=$1/reused.txt; fi
+  PPT_SKIP=$skip PPT_REFS=$PPT PPT_MATCH_JOBS=$JOBS "$PY" "$ROOT/test/pptx-line-match.py" "$1" > "$1/lines.txt" 2> "$1/lines.err"
+  if [ -n "$skip" ]; then "$PY" -c 'import sys,re
+keep=set(open(sys.argv[1]).read().split())
+for l in sys.stdin:
+    m=re.match(r"\s*[\d.]+%\s+lines \d+/\d+\s+pages \d+/\d+\s+(\S+)",l)
+    if m and m.group(1) in keep: sys.stdout.write(l)' "$skip" < "$BASE_CACHE/lines.txt" >> "$1/lines.txt"; fi
   "$PY" -I "$ROOT/test/tools/pptx-combine.py" "$1/lines.txt" "$1/render.tsv" "$1/combined.tsv" "$DECKS" "$PPT" | head -1
 }
 BASEMODE=""
@@ -112,7 +127,11 @@ if [ -n "${BASE_BIN:-}" ]; then
     if [ -n "$BC" ] && [ -z "${SLIDES_ONLY:-}" ]; then
       PPT_MATCH_JOBS=$JOBS "$PY" "$ROOT/test/tools/slides-per-page.py" "$W/base" "$PPT" "$W/base/per-page.tsv" "$(basename "$(dirname "$BC")")" 2>>"$W/base/lines.err" || rm -f "$W/base/per-page.tsv"
     fi
-    if [ -n "$BC" ] && [ -z "${SLIDES_ONLY:-}" ] && [ -s "$W/base/combined.tsv" ]; then mkdir -p "$BC.tmp$$" 2>/dev/null && cp "$W/base/render.tsv" "$W/base/combined.tsv" "$BC.tmp$$/" && { [ ! -s "$W/base/per-page.tsv" ] || cp "$W/base/per-page.tsv" "$BC.tmp$$/"; } && { rm -rf "$BC"; mv "$BC.tmp$$" "$BC"; chmod -R g+rwX,o+rX "$BC" 2>/dev/null; }; fi
+    if [ -n "$BC" ] && [ -z "${SLIDES_ONLY:-}" ] && [ -s "$W/base/combined.tsv" ]; then
+      for f in "$W/base/pdf"/*.pdf; do b=$(basename "$f" .pdf); printf '%s\t%s\t%s\n' "$b" "$(sha1sum < "$f" | cut -c1-40)" "$(stat -L -c%s "$PPT/$b-orig.pdf" 2>/dev/null)"; done > "$W/base/pdfsha.tsv"
+      echo "$SCH" > "$W/base/scorers.sha"
+    fi
+    if [ -n "$BC" ] && [ -z "${SLIDES_ONLY:-}" ] && [ -s "$W/base/combined.tsv" ]; then mkdir -p "$BC.tmp$$" 2>/dev/null && cp "$W/base/render.tsv" "$W/base/combined.tsv" "$W/base/pdfsha.tsv" "$W/base/lines.txt" "$W/base/scorers.sha" "$BC.tmp$$/" && { [ ! -s "$W/base/per-page.tsv" ] || cp "$W/base/per-page.tsv" "$BC.tmp$$/"; } && { rm -rf "$BC"; mv "$BC.tmp$$" "$BC"; chmod -R g+rwX,o+rX "$BC" 2>/dev/null; }; fi
     BASEMODE=1
   fi
   BASEALL=$W/base/render.tsv; BASELBL=$W/base/combined.tsv

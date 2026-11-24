@@ -147,6 +147,7 @@ extension RichLayout {
         // part — see where a row's notes are placed.)
         // (The note this page parts, set at its foot to `keep`.)
         // (Where a column ends at the line marking the note it parts.)
+        _pg_verticalWindow(&pgs, document)
         _pg_loadPins(&pgs, document)
         _blankPages = _blankPages.filter { $0 < pgs.page / _columns }
         _numberedBlankPages = _numberedBlankPages.filter { $0 < pgs.page / _columns }
@@ -316,6 +317,22 @@ extension RichLayout {
                // else the table pushes it under the table: Word prints, lab764.)
                _heights[pgs.i] - (pgs.i < _spaceBefore.count ? _spaceBefore[pgs.i] : 0) <= _px(down) + 0.01 {
                 RuleTrace.hit("word-anchor-paragraph-of-a-full-width-floating-table-keeps-its-place-above-it")
+                pgs.besideTable = (pgs.y, pgs.page)
+                pgs.anchorAboveBottom = pgs.y
+                pgs.y = fb.y - (pgs.i < _spaceBefore.count ? _spaceBefore[pgs.i] : 0)
+            }
+            // (A picture alone in the paragraph after a floating table, narrower than the room at the table's left,
+            // stands there, level with the table's top, not under its rows. Word's print of sa1 sect5's two-column
+            // section: the 203.6pt chart after a right-aligned 285pt table stands in the 215pt at its left, 9pt under
+            // the table's top; ours set it under the rows, 72pt low, and the page ran over.)
+            if theme.wordRules, RichTextTheme.wordWindowsPages, pgs.besideTable == nil, pgs.resumeCursor == nil, pgs.i > 0, pgs.i < _heights.count,
+               _cells[pgs.i] == nil, !_pageBreak[pgs.i],
+               document.paragraphs[pgs.i].image != nil || _inlinePictureOnly(pgs.i, document),
+               let prev = _cells[pgs.i - 1]?.table, !_floatLeavesNoStrip(prev, pgs.i, document),
+               let ts = document.tableStyles[prev], ts.floatsOverText, !ts.pageAnchored, let down = ts.floatOffsetY, down > 0,
+               let fb = pgs.floatRunBase, fb.table == prev, fb.page == pgs.page, fb.y < pgs.y - 0.01,
+               _pictureFitsLeftOf(prev, pgs.i, document) {
+                RuleTrace.hit("word-picture-after-a-floating-table-stands-in-the-room-at-its-left")
                 pgs.besideTable = (pgs.y, pgs.page)
                 pgs.anchorAboveBottom = pgs.y
                 pgs.y = fb.y - (pgs.i < _spaceBefore.count ? _spaceBefore[pgs.i] : 0)
@@ -857,7 +874,9 @@ extension RichLayout {
                         var rest = (from: piece.flowTop, to: piece.flowBottom)
                         if !bandsHere.isEmpty, theme.wordRules {
                             let h = rest.to - rest.from
-                            for band in bandsHere.sorted(by: { $0.pageY < $1.pageY }) where top + base + h > band.pageY + 0.01 && top + base < band.pageY + band.height - 0.01 {
+                            // (A picture that fits the room at the left of a floating table stands beside it, level with it: sect5's chart, 203.6pt in the 215pt at its table's left.)
+                            for band in bandsHere.sorted(by: { $0.pageY < $1.pageY }) where top + base + h > band.pageY + 0.01 && top + base < band.pageY + band.height - 0.01
+                                && !(_cells[band.paragraph].map { _floatedPictureFitsLeftOf($0.table, piece.paragraph, document) } ?? false) {
                                 top = band.pageY + band.height - base
                             }
                         }
@@ -1093,13 +1112,23 @@ extension RichLayout {
                     // at any gap, one opening with an ideograph sets one ideograph a row on each side only while it
                     // fits, and a line starts at the left piece: where its first unit does not fit there it goes under, as in 817e3a79's caption (room 32.2 each side, first line indented 32); the first line clear of the picture is the next row of the page's own pitch.)
                     if theme.wordRules, RichTextTheme.wordWindowsPages, let f = image.float, f.wraps, !f.takesRoom, f.wrapSide == nil,
-                       f.verticalFrom == "paragraph", f.verticalAlign == nil, f.horizontalAlign == "center", f.horizontalFrom == "column",
-                       _cells[pgs.i] == nil, image.width > 0, image.height > 0 {
-                        let inner = _flowWidth(pgs.i), w = _px(image.width), x = (inner - w) / 2
+                       f.verticalFrom == "paragraph", f.verticalAlign == nil, f.horizontalAlign == "center" || f.horizontalAlign == nil, f.horizontalFrom == "column",
+                       _cells[pgs.i] == nil, image.width > 0, image.height > 0, f.horizontalAlign == "center" || (image.data.isEmpty && image.textBox == nil && _px(image.width) > _flowWidth(pgs.i) / 2) {
+                        // (A chart set by an offset from the column, over half the column wide, is held the same way when it leaves no room at one side: pt 79c00839f5's pie chart.)
+                        let inner = _flowWidth(pgs.i), w = _px(image.width), x = f.horizontalAlign == nil ? _px(f.x) : (inner - w) / 2
                         let l = x - _px(f.distanceLeft ?? 9), r = inner - (x + w) - _px(f.distanceRight ?? 9)
                         let top = pgs.y + _px(f.y) - _px(f.distanceTop), bottom = pgs.y + _px(f.y) + _px(image.height + f.effectBottom + f.distanceBottom)
                         let cutAt = pgs.i; pgs.narrowBands.removeAll(where: { $0.owner >= cutAt })
-                        if bottom > top, bottom > 0.01 { pgs.narrowBands.append((top, bottom, pgs.i, l, r)) }
+                        // (Set off-centre, the room is the wider side's: the lines stand under it where neither side leaves a unit.)
+                        let room = f.horizontalAlign == nil ? max(l, r) : l
+                        if bottom > top, bottom > 0.01 { pgs.narrowBands.append((top, bottom, pgs.i, room, r)) }
+                        // (A band set by a picture placed from the column's edge, not centred, is Word-verified only for the lines of
+                        // later text paragraphs under a picture whose own paragraph opens with no space (lab chartroom2). A paragraph that
+                        // anchors a float of its own is not pushed (jpn-z17350624-9bde52's second chart, in an empty paragraph under
+                        // the first, stays), and where the anchor paragraph opens with space Word's print of lo-61f8f967ad8633e0 keeps
+                        // the next line where it stands, so the offset's start is not what we measure: both are left alone.)
+                        pgs.offCentreBands.remove(pgs.i); pgs.spacedBandOwners.remove(pgs.i)
+                        if f.horizontalAlign == nil { pgs.offCentreBands.insert(pgs.i); if _spacing(pgs.i, document).before > 0.01 || document.paragraphs[pgs.i].style.spaceBefore > 0.01 { pgs.spacedBandOwners.insert(pgs.i) } }
                     }
                     guard let f = image.float, f.bandsPage else { continue }
                     let physical = pgs.page / _columns
@@ -1656,7 +1685,8 @@ extension RichLayout {
                     var guardNarrow = 0
                     let noGrid = RichTextTheme.wordWindowsPages && _grid(pgs.i, document).pitch == nil
                     while step > 0.5, guardNarrow < 40,
-                          let band = pgs.narrowBands.first(where: { $0.owner < pgs.i && $0.top < pgs.y + step - 0.01 && $0.bottom > pgs.y + 0.01 && $0.left - _px(first) < unit }) {
+                          let band = pgs.narrowBands.first(where: { $0.owner < pgs.i && $0.top < pgs.y + step - 0.01 && $0.bottom > pgs.y + 0.01 && $0.left - _px(first) < unit
+                              && !(pgs.offCentreBands.contains($0.owner) && (document.paragraphs[pgs.i].image?.float != nil || pgs.spacedBandOwners.contains($0.owner))) }) {
                         RuleTrace.hit("word-line-with-no-room-beside-a-centred-picture-stands-under-it")
                         // (Without a line grid Word lands the pushed line exactly at the pictures' foot, not a step of its own height
                         // past it: dx2 es ebe45609's Símbolos line, 711.70 in Word's print; with a grid the steps stay, 817e3a79.)
@@ -2377,7 +2407,16 @@ extension RichLayout {
                 // holds though none is set yet: sa1 978697fd's page 4, a note's 37.8pt off the
                 // foot, ends its paragraph a line sooner in Word's print than the overhang let ours.)
                 let reservedNotes = _columns > 1 && (_columnNoteReserve[pgs.page] ?? 0) > 0
-                let overhang = placedFrame ? .infinity : theme.wordRules && pgs.i < _overhang.count && pgs.pageNotes.isEmpty && !reservedNotes ? _overhang[pgs.i] : 0
+                // (A multiple's extra under the text hangs over a page's notes too, on a Windows page of compat below 15 off the grid (compat 15 pages, wideab drops 58192c08 and others, keep the old reach): es-28716e1db6's page 3 keeps two 1.5-spaced lines, 0 to 12 pt after, over footnote 1 in Word's print, lab afn1; the last ends 3.1 pt into the separator's area.)
+                let multipleOverNotes: Bool = {
+                    guard theme.wordRules, RichTextTheme.wordWindowsPages, (document.compatibilityMode ?? 12) < 15, !pgs.pageNotes.isEmpty, !reservedNotes,
+                          pgs.i < document.paragraphs.count, document.paragraphs[pgs.i].cell == nil, document.paragraphs[pgs.i].image == nil,
+                          document.paragraphs[pgs.i].style.lineHeightPoints == nil, document.paragraphs[pgs.i].style.lineSpacing - theme.lineSpacingReduction > 1.001,
+                          _grid(pgs.i, document).pitch == nil else { return false }
+                    return true
+                }()
+                if multipleOverNotes { RuleTrace.hit("word-multiple-extra-hangs-over-notes") }
+                let overhang = placedFrame ? .infinity : theme.wordRules && pgs.i < _overhang.count && (pgs.pageNotes.isEmpty || multipleOverNotes) && !reservedNotes ? _overhang[pgs.i] : 0
                 let lineOverhangs = !placedFrame && theme.wordRules && pgs.pageNotes.isEmpty && !reservedNotes && pgs.i < _lineOverhang.count ? _lineOverhang[pgs.i] : []
                 // (The reach of line `k` past the foot: its own faces'.)
                 func reach(_ k: Int) -> Double { k >= 0 && k < lineOverhangs.count ? max(overhang, lineOverhangs[k]) : overhang }
@@ -3598,5 +3637,32 @@ extension RichLayout {
             dist = Double(kept[r.upperBound...].prefix { $0 == "-" || $0.isNumber }) ?? 0
         }
         return _tableLeft(table, document) - _px(dist / 20)
+    }
+}
+
+extension RichLayout {
+    /// The width in points of the picture that is all a paragraph holds (one picture, or the inline ones side by side).
+    @inline(never)
+    func _pictureFitsLeftOf(_ table: String, _ i: Int, _ document: RichDocument) -> Bool {
+        guard theme.wordRules, RichTextTheme.wordWindowsPages, let width = _pictureOnlyWidth(i, document), width > 0,
+              // (A table set against the right margin: its picture's room is the strip at its left. One set at a point across the page is a
+              // case Word's print has not shown for pictures: lo-88b299584c476bd2 keeps its picture under the table.)
+              let ts = document.tableStyles[table], ts.alignment == .right || (ts.keptPosition ?? "").containsSubstring("tblpXSpec=\"right\"") else { return false }
+        return _px(width) <= _tableLeftRoom(table, document)
+    }
+
+    /// The same, for a table that floats over the text by a given drop and is not page-anchored (the sect5 case).
+    @inline(never)
+    func _floatedPictureFitsLeftOf(_ table: String, _ i: Int, _ document: RichDocument) -> Bool {
+        guard let ts = document.tableStyles[table], ts.floatsOverText, !ts.pageAnchored, let down = ts.floatOffsetY, down > 0 else { return false }
+        return _pictureFitsLeftOf(table, i, document)
+    }
+
+    @inline(never)
+    func _pictureOnlyWidth(_ i: Int, _ document: RichDocument) -> Double? {
+        let p = document.paragraphs[i]
+        if let image = p.image, !p.text.contains(where: { $0 != " " && $0 != "\u{FFFC}" }) { return image.width }
+        guard _inlinePictureOnly(i, document) else { return nil }
+        return p.inlineImages.values.reduce(0) { $0 + $1.width }
     }
 }

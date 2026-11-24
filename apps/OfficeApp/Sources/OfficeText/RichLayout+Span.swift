@@ -177,6 +177,17 @@ extension RichLayout {
             let multiple = lineSpacing > 1 ? lineSpacing : 1
             return look.copyWith(ascentOverride: r.0 * multiple * px, descentOverride: r.1 * multiple * px, height: (r.0 + r.1) * multiple, leadingDistribution: .even)
         }
+        // (A complex-script mark (`w:cs`) whose complex face is Cordia New, as the theme's Thai face is, is a Cordia line at szCs: its own 1.388 em, the
+        // multiple on top. Word's print of dx2 228c1f233c7a, lab c228 v0 against v1: the empty centred paragraph, szCs 14, steps 22.28 pt (+10 after); ours 19.65.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile, let kept = mark.keptXML,
+           kept.containsSubstring("<w:cs/>") || kept.containsSubstring("<w:cs "),
+           (mark.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased() == "cordia new" {
+            RuleTrace.hit("word-empty-cs-mark-in-cordia-new-is-a-cordia-line")
+            let multiple = lineSpacing > 1 ? lineSpacing : 1
+            var size = px
+            if let f = mark.fontSize, f > 0.5, let z = mark.complexFontSize ?? named?.char.complexFontSize ?? _normalChar(document)?.complexFontSize, z > 0.5 { size = px * z / f }
+            return look.copyWith(ascentOverride: 0.892 * multiple * size, descentOverride: 0.496 * multiple * size, height: 1.388 * multiple * size / px, leadingDistribution: .even)
+        }
         guard let kept = mark.keptXML, kept.containsSubstring("<w:cs/>") || kept.containsSubstring("<w:cs "),
               let m = Self._indicLines["mangal"] else { return nil }
         let cs = (mark.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased()
@@ -1357,6 +1368,11 @@ extension RichLayout {
                    (0x2700 ... 0x27BF).contains(u) {
                     RuleTrace.hit("word-noto-symbols-dingbat-bullet-is-segoe-ui-symbol")
                     family = "Segoe UI Symbol"
+                } else if family.lowercased().hasPrefix("noto sans symbols") {
+                    // (Any other label in that absent face is drawn in the text's own: es-3b20b19c25's ● bullets over Times 12 at 1.15
+                    // stand 12.03 apart in Word's print, 21 in ours with the Noto face's ascent lifting every item.)
+                    RuleTrace.hit("word-noto-symbols-non-dingbat-label-does-not-lift")
+                    family = ""
                 }
                 // (Real East Asian letters only: Latin accents such as the á of "estándar" are not, and sa1 508b647e's Tahoma dash bullets over Spanish text were left unlifted by hinted: true.)
                 if !family.isEmpty, !p.text.unicodeScalars.contains(where: { Self.isEastAsian(Character($0), hinted: false) }) {
@@ -2374,12 +2390,12 @@ extension RichLayout {
         }
         func shrinkFor(_ a: Int, _ b: Int) -> Double {
             // (Word shrinks a text shadow's distance too, by the text size: lab shadow4, 3 pt out reads 0.89, 1.41 and 1.87 pt at 12, 24 and
-            // 36 pt (factors 0.297, 0.47, 0.62), 1.0 from 72 pt. MEASURED, approximate: (size/72)^(2/3) fits the four sizes; the clamp above 72,
-            // size against font metric and the 6-pt distance are open (planner shadow5 lab).)
+            // 36 pt (factors 0.297, 0.47, 0.62). Lab shadow5: no clamp above 72 pt (96 pt reads 1.22, 144 pt 1.58), and the same for Calibri and
+            // Times New Roman. MEASURED, approximate: (size/72)^(2/3) fits 36 pt and up, and reads 0.01-0.03 high below.)
             if theme.wordRules, RichTextTheme.wordWindowsPages {
                 var size = 0.0
                 for sp in spans where sp.a < b && sp.b > a { size = max(size, sp.size) }
-                return size > 0 ? min(1, pow(size / 72, 2.0 / 3)) : 1
+                return size > 0 ? pow(size / 72, 2.0 / 3) : 1
             }
             guard !lineEnds.isEmpty else { return 1 }
             var big = 0.0

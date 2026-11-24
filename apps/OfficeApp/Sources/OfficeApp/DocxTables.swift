@@ -590,7 +590,7 @@ extension DocxFormat {
         if took.contains("color"), named.color != nil || named.off.contains(.autoColor) { cell.color = nil }
     }
 
-    static func _charStyle(_ rPr: XNode, base: CharStyle, complexText: Bool? = nil, complexSize: Bool? = nil, indicOnly: Bool = false, rtlLettersOnly: Bool = false) -> CharStyle {
+    static func _charStyle(_ rPr: XNode, base: CharStyle, complexText: Bool? = nil, complexSize: Bool? = nil, thaiStyleSize: Bool = false, indicOnly: Bool = false, rtlLettersOnly: Bool = false) -> CharStyle {
         var cs = base
         // Complex-script bold, italic and size (w:bCs, w:iCs, w:szCs) are
         // what a right-to-left run is set in; rtl.docx's Arabic headings
@@ -756,6 +756,8 @@ extension DocxFormat {
             // (A complex run that gives both sizes is set at szCs: the Arabic of ara-z4399437's even-page header, sz 9 / szCs 11, prints at 11.)
             else if sawSz, let z = szCs { cs.fontSize = z }
             else if sawSz, complexSize == true, cs.rightToLeft { cs.sizeFromStyleSzCs = true }
+            // (A complex run with the w:cs flag and no size of its own is set at the szCs of its style or the defaults: dx2 27dc0c47's TH SarabunPSK title, docDefaults sz 22 / szCs 28, prints at 14.)
+            else if !sawSz, thaiStyleSize, !cs.rightToLeft, cs.fontSize == nil { cs.sizeFromStyleSzCs = true }
         }
         return cs
     }
