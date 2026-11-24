@@ -71,6 +71,39 @@ final class HeaderFooterTests: XCTestCase {
         XCTAssertNil(number.field)
         XCTAssertEqual(number.text?.document.plainText(), "Page one")
     }
+
+    func testAHeaderLineStepsUnderItsOneTightWrappedPicture() throws {
+        // dx2-set es-fc262b8ddc (Word for Windows): a header paragraph holding only one tight-wrapped
+        // picture, across the column, steps its empty line under the picture (the body from 77.7 pt).
+        // A square-wrapped one (dx2 837ac08d) and a behind-text one (sa1 2303e6f9) leave the line alone.
+        RichTextTheme.wordWindowsPages = true
+        defer { RichTextTheme.wordWindowsPages = false }
+        func lineTop(_ wrapXML: String) -> Double {
+            var image = ImageAttachment(data: Data([1]), width: 600, height: 30)
+            var float = ImageFloat()
+            float.verticalFrom = "paragraph"
+            float.horizontalFrom = "column"
+            float.horizontalAlign = "center"
+            float.wraps = true
+            float.wrapsTight = wrapXML.contains("wrapTight")
+            image.float = float
+            image.sourceXML = "<wp:anchor behindDoc=\"\(wrapXML.contains("behind") ? 1 : 0)\">\(wrapXML.replacingAll("behind", with: ""))</wp:anchor>"
+            var p = RichParagraph(text: "\u{FFFC}")
+            p.image = image
+            let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+            theme.wordRules = true
+            let layout = RichLayout(theme: theme, paragraphCount: 2)
+            layout.headerTopOnPage = 36
+            layout.width = 500
+            var doc = RichDocument(paragraphs: [p, RichParagraph(text: "body")])
+            doc.compatibilityMode = 15
+            layout.ensureLaidOut(doc)
+            return layout.geometry(1).top / theme.pixelsPerPoint
+        }
+        let tight = lineTop("<wp:wrapTight/>")
+        XCTAssertGreaterThan(tight, lineTop("<wp:wrapSquare/>") + 5, "tight: the line steps down; square: it stays")
+        XCTAssertEqual(lineTop("<wp:wrapTight/>behind"), lineTop("<wp:wrapSquare/>"), accuracy: 0.01, "behind the text: it stays")
+    }
 }
 
 private extension SlideShape {
