@@ -2379,7 +2379,7 @@ extension RichLayout {
             if theme.wordRules, RichTextTheme.wordWindowsPages {
                 var size = 0.0
                 for sp in spans where sp.a < b && sp.b > a { size = max(size, sp.size) }
-                return size > 0 ? pow(size / 72, 2.0 / 3) : 1
+                return RichLayout._wordShadowDistanceFactor(size: size)
             }
             guard !lineEnds.isEmpty else { return 1 }
             var big = 0.0
@@ -3165,5 +3165,12 @@ extension RichLayout {
             frac = fracs[i] + (fracs[i + 1] - fracs[i]) * (pt - sizes[i]) / (sizes[i + 1] - sizes[i])
         }
         return (max(0, sh.blur - sh.dy) * frac, max(0, sh.blur + sh.dy) * frac)
+    }
+}
+
+extension RichLayout {
+    /// How far of its set distance Word draws a text shadow, by the text size in points (lab shadow5; no clamp above 72 pt).
+    static func _wordShadowDistanceFactor(size: Double) -> Double {
+        size > 0 ? pow(size / 72, 2.0 / 3) : 1
     }
 }
