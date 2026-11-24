@@ -264,7 +264,7 @@ enum DocRead {
             case 0x0B: flush(); runs += "<w:r><w:br/></w:r>"
             case 0x0C:
                 flush()
-                if let sp = ctx.sectEnds[cp] { xml += "<w:p><w:pPr>" + sp + "</w:pPr>" + runs + "</w:p>"; runs = "" }
+                if let sp = ctx.sectEnds[cp] { endTable(); xml += "<w:p><w:pPr>" + sp + "</w:pPr>" + runs + "</w:p>"; runs = "" }
                 else { runs += "<w:r><w:br w:type=\"page\"/></w:r>" }
             case 0x09: flush(); runs += "<w:r><w:tab/></w:r>"
             case 0x1E: cur.append(0x2011)
