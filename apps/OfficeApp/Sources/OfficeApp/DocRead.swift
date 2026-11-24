@@ -253,7 +253,13 @@ enum DocRead {
                 // the paragraph mark's own character properties (they size an empty paragraph's line)
                 if !rpr.isEmpty { pp = pp.isEmpty ? "<w:pPr>" + rpr + "</w:pPr>" : String(pp.dropLast(8)) + rpr + "</w:pPr>" }
                 if let sp = ctx.sectEnds[cp] { pp = pp.isEmpty ? "<w:pPr>" + sp + "</w:pPr>" : String(pp.dropLast(8)) + sp + "</w:pPr>" }
-                let para = DocProps.settleToggles("<w:p>" + pp + back + runs + front + "</w:p>", styles: ctx.styles, istd: pr?.istd ?? 0); runs = ""; back = ""; front = ""
+                // (A page break ends its page: the paragraph mark after it is a line of its own on the next page,
+                // so es-3f357fc362's pages 2 to 5 stand 10.9pt, one line, lower in Word's print.)
+                var para = DocProps.settleToggles("<w:p>" + pp + back + runs + front + "</w:p>", styles: ctx.styles, istd: pr?.istd ?? 0)
+                if !tf.inTable, ctx.sectEnds[cp] == nil, runs.hasSuffix("<w:br w:type=\"page\"/></w:r>") {
+                    para += "<w:p>" + pp + "</w:p>"
+                }
+                runs = ""; back = ""; front = ""
                 if tf.inTable {
                     cellXml += para
                     if c == 0x07 { rowCells.append(cellXml); cellXml = "" }
