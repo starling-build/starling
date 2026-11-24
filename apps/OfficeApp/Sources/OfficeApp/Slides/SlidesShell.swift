@@ -623,7 +623,7 @@ final class SlidesShellState: State<StatefulWidget> {
         #if !os(WASI)
         _autosaveGeneration += 1
         let gen = _autosaveGeneration
-        DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(2)) { [weak self] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + OfficeHost.autosaveDelay) { [weak self] in
             guard let self, self.mounted, self._autosaveGeneration == gen else { return }
             self._autosaveNow()
         }

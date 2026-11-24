@@ -441,7 +441,7 @@ final class OfficeShellState: State<StatefulWidget> {
         guard (widget as! OfficeShell).hosted == nil else { return }
         _autosaveGeneration += 1
         let gen = _autosaveGeneration
-        DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(2)) { [weak self] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + OfficeHost.autosaveDelay) { [weak self] in
             guard let self, self._autosaveGeneration == gen else { return }
             self._autosaveNow()
         }

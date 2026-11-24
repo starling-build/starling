@@ -193,6 +193,15 @@ extension State {
 
 /// The types the editors and a host share, and what is not per window.
 enum OfficeHost {
+    /// How long after the last edit AutoSave writes (OFFICE_AUTOSAVE_DELAY_MS overrides the two seconds, so a
+    /// check can tell a flush from the timer).
+    static let autosaveDelay: DispatchTimeInterval = {
+        if let v = ProcessInfo.processInfo.environment["OFFICE_AUTOSAVE_DELAY_MS"], let ms = Int(v), ms >= 0 {
+            return .milliseconds(ms)
+        }
+        return .seconds(2)
+    }()
+
     /// One button of the native toolbar over the on-screen keyboard. `symbol`
     /// is an SF Symbol name; state is a snapshot, re-published when it changes.
     struct ToolbarButton {
