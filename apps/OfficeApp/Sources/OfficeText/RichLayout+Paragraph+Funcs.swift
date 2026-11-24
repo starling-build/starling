@@ -629,6 +629,13 @@ extension _ParaFrame {
                     RuleTrace.hit("word-number-ending-on-own-stop-takes-it")
                 } else if let stop = ownStop {
                     end = stop - ownLeft
+                } else if theme.wordRules, wl.first < 0, let lvlLeft = p.style.listId.flatMap({ document.listFormats[$0]?[min(max(0, p.style.listLevel), 8)]?.indentLeft }),
+                          _px(lvlLeft) > ownLeft + end + 0.01, abs(_px(lvlLeft) - ownLeft) > 0.01 {
+                    // (A paragraph that states its own left indent under a numbered level still has the
+                    // level's indent as a tab stop: pt-90497db98b's bullets, left 0 under a level at 1020
+                    // twips, start their text at 51pt in Word's print, not at the paragraph's 0.)
+                    end = _px(lvlLeft) - ownLeft
+                    RuleTrace.hit("word-number-tab-goes-to-the-levels-indent-under-a-paragraphs-own")
                 } else if wl.first < 0, end <= 0.01, theme.wordRules, document.indentNotNumberingTabStop,
                           case let tab = _px(document.defaultTabStop ?? 36), tab > 0.01 {
                     let from = ownLeft + end
