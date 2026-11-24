@@ -110,6 +110,7 @@ extension RichLayout {
         // ours hung the "，".)
         let hangs = fitted && (!inCell || turned) && !(_inTextBox && legacy && (theme.wordRules || !theme.officeLatinBreaks)) && p.style.eastAsian["w:overflowPunct"] != "0" && p.style.eastAsian["w:kinsoku"] != "0" && (theme.wordRules || !theme.officeLatinBreaks || _hangsLineEndMarks(p))
             && !(RichTextTheme.wordWindowsPages && document.eastAsianDefaultFaceIsLatin && !distributed)
+            && !(RichTextTheme.wordWindowsPages && theme.wordRules && document.eastAsianDefaultFaceUnnamed && !distributed)
             && !(RichTextTheme.wordWindowsPages && theme.wordRules && (document.compatibilityMode ?? 12) == 14 && document.markSqueezeEm == 0
                  && document.characterSpacingControl == "compressPunctuation")
         // (Nor at compat 14 under compressPunctuation without a Chinese or Japanese language: lab comma-hang7 v6/v8, a
@@ -118,6 +119,7 @@ extension RichLayout {
         // Word for Windows: `RichDocument.eastAsianDefaultFaceIsLatin`.)
         let squeezes = fitted && !turned && (document.characterSpacingControl?.hasPrefix("compressPunctuation") ?? false)
             && !(RichTextTheme.wordWindowsPages && document.eastAsianDefaultFaceIsLatin && !distributed)
+            && !(RichTextTheme.wordWindowsPages && theme.wordRules && document.eastAsianDefaultFaceUnnamed && !distributed)
             && !(RichTextTheme.wordWindowsPages && theme.wordRules && (document.compatibilityMode ?? 12) == 14 && document.markSqueezeEm == 0)
         // (Compat 14, compressPunctuation, but no Chinese or Japanese eastAsia language, or ko-KR: lab comma-hang7
         // v6/v8 measure every mark's advance at the full 12.0 of 12 pt and 16.0 of 16 pt, so Word squeezes none.)
@@ -2052,7 +2054,7 @@ extension RichLayout {
                             : min(1, max(0, need + 0.02 - markRoom) / max(0.001, room - markRoom))
                         // (Taken on the other marks' room, the kept last mark still gives its share of a line that holds a pause mark mid-text:
                         // zh-27a874b7 (zh-TW, mode 14) takes "作、" 15.07 over on two marks' 16, and Word's three marks give 4.95 to 5.04 each.)
-                        let tailJoins = centredEnd && !paragraphEnd && !alone && kept && markRoom > 0 && need * 2 > markRoom && [0xFF0C, 0x3001, 0x3002].contains(units[tail])
+                        let tailJoins = centredEnd && !paragraphEnd && !alone && kept && markRoom > 0 && [0xFF0C, 0x3001, 0x3002].contains(units[tail])
                         let tailHalf = tailJoins ? half(tail) : 0
                         let giveShare = tailJoins ? min(1, (need + 0.02) / (markRoom + tailHalf)) : markShare
                         if tailJoins { adjust[tail, default: 0] -= tailHalf * giveShare }
