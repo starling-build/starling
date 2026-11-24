@@ -194,5 +194,11 @@ final class MeiryoUiBigRowsTests: XCTestCase {
         XCTAssertEqual(d.fittedRow(big), 65 * 72 / 192 * d.rowScale, accuracy: 0.01)
         XCTAssertEqual(d.fittedRow(big), 25.55, accuracy: 0.05)
         XCTAssertEqual(d.fittedRow(SheetPrintMetrics.of(family: "Meiryo UI", size: 16)), 59 * 72 / 192 * d.rowScale, accuracy: 0.01)
+        // lab meiryoui-rows2: Excel's auto rows at 15/16/18/20/24 pt, regular and bold, print 53/59/65/71/86 px
+        for (size, px) in [(15.0, 53.0), (16, 59), (18, 65), (20, 71), (24, 86)] {
+            for bold in [false, true] {
+                XCTAssertEqual(d.fittedRow(SheetPrintMetrics.of(family: "Meiryo UI", size: size, bold: bold)), px * 72 / 192 * d.rowScale, accuracy: 0.01, "\(size) bold \(bold)")
+            }
+        }
     }
 }
