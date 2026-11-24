@@ -1028,10 +1028,18 @@ extension _ParaFrame {
                 // (A tab ending the paragraph, only tabs after it, whose default stop lies past the right margin goes to the next line
                 // although it starts inside the margin, and the stops start again there: lab tabend, Word for Windows, 28 to 40 W and
                 // one to three underlined tabs, stops every 36 pt. Word's last tab of "W..." with the next default stop past the margin
-                // stands at the line start; ours stopped it at the margin, or carried its overflow onto the next line.)
+                // stands at the line start; ours stopped it at the margin, or carried its overflow onto the next line. Only when no tab stands earlier on the line: xb bul-z14225469's contents line, dots + custom-stop tab + "69" + final tab, keeps its single line in Word.)
+                var tabEarlierOnLine = false
+                if defaultTabStop, t > 0 {
+                    let lineBeg = wraps.last(where: { $0 <= t }) ?? 0
+                    var runStart = t
+                    while runStart > lineBeg, units[runStart - 1] == 0x09 { runStart -= 1 }
+                    tabEarlierOnLine = runStart > lineBeg && units[lineBeg ..< runStart].contains(0x09)
+                }
                 if theme.wordRules, RichTextTheme.wordWindowsPages, !style.rightToLeft, defaultTabStop, stop.alignment == .left, t > 0,
                    stop.x > ownLeft + textWidth + 0.5, x <= ownLeft + textWidth + 0.5,
                    units[t...].allSatisfy({ $0 == 0x09 }), units[t - 1] != 0x0A, units[t - 1] != 0x2028,
+                   !tabEarlierOnLine,
                    !wraps.contains(t), !afterTabWraps.contains(t) {
                     afterTabWraps.insert(t)
                     RuleTrace.hit("word-default-tab-run-ending-the-paragraph-past-the-margin-opens-the-next-line")
