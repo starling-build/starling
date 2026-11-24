@@ -2461,7 +2461,38 @@ extension RichLayout {
                 }
                 continue
             }
-            let moved = path.shift(Offset(origin.dx + sh.dx * k * shrink, origin.dy + sh.dy * k * shrink))
+            // (A run whose line was grown by its shadow's reach is set down by it, `shadow-line` in `_spanStyle`: the engine's glyph
+            // outlines stand without that shift, so the shadow is set down by it too, else it sits above its letters.)
+            let lowered = Self._shadowLineShift(painter.text, at: pa)
+            let moved = path.shift(Offset(origin.dx + sh.dx * k * shrink, origin.dy + lowered + sh.dy * k * shrink))
+            if sh.blur > 0, theme.wordRules, RichTextTheme.wordWindowsPages, RichTextTheme.shadowBlurDeviceScale == nil {
+                // (Word's blurred text shadow is a soft halo round the letters, the same on all four sides: lab shadow5, dist 0, Calibri
+                // bold 12 to 72 pt, blur 4 and 8, the pink fading out to a reach of 0.5 x the blur x (size/72)^(2/3) past the letters.
+                // A PDF drops a blur, so, as the glow above, it is drawn into a picture: the letters grown by half the reach, the edge
+                // blurred with sigma 0.3 of it, so the strength is 95% at the letters and 5% at the reach.)
+                let reach = 0.5 * sh.blur * shrink * k
+                let grow = 0.5 * reach, sigma = 0.3 * reach
+                let ink = moved.getBounds().inflate(grow + 3 * sigma)
+                let px = 2.8 / k
+                let w = max(1, Int((ink.width * px).rounded(.up))), h = max(1, Int((ink.height * px).rounded(.up)))
+                if reach > 0.01, w * h < 4_000_000 {
+                    let recorder = NativePictureRecorder()
+                    let layer = NativeCanvas(recorder: recorder, cullRect: Rect.fromLTWH(0, 0, Double(w), Double(h)))
+                    layer.scale(px, px)
+                    layer.translate(-ink.left, -ink.top)
+                    let halo = Paint()
+                    halo.color = Color(rgbo: sh.color.red, sh.color.green, sh.color.blue, Double(sh.color.alpha) / 255)
+                    halo.maskFilter = MaskFilter(blur: .normal, sigma)
+                    halo.style = .stroke; halo.strokeWidth = 2 * grow; halo.strokeJoin = .round
+                    layer.drawPath(moved, halo)
+                    halo.style = .fill
+                    layer.drawPath(moved, halo)
+                    if let img = recorder.endRecording().toImageSync(width: w, height: h) {
+                        canvas.drawImageRect(img, Rect.fromLTWH(0, 0, Double(w), Double(h)), Rect.fromLTWH(ink.left, ink.top, Double(w) / px, Double(h) / px), Paint())
+                    }
+                    continue
+                }
+            }
             if sh.blur > 0, RichTextTheme.shadowBlurDeviceScale != nil {
                 if !theme.wordRules {
                     // (PowerPoint: alpha as given, Gaussian sigma = the shrunk radius / 3.)
@@ -3173,6 +3204,18 @@ extension RichLayout {
 }
 
 extension RichLayout {
+    /// How far the engine set the text at `offset` down for its shadow's reach (`shadow-line` in its style's label), in layout pixels.
+    static func _shadowLineShift(_ root: InlineSpan?, at offset: Int) -> Double {
+        var pos = 0, found = 0.0
+        _ = root?.visitChildren { span in
+            let n = (span as? TextSpan)?.text?.utf16.count ?? 0
+            if n > 0, offset >= pos, offset < pos + n, let st = span.style, st.debugLabel?.containsSubstring(" shadow-line") == true { found = st.baselineShift ?? 0 }
+            pos += n
+            return true
+        }
+        return found
+    }
+
     /// The reach of a text shadow above and below its run, in points (lab shadow2): the blur radius past the offset, a fraction of it by size.
     static func _shadowReach(_ sh: CharShadow, pt: Double) -> (above: Double, below: Double) {
         let sizes = [0.0, 12, 24, 36, 55, 72], fracs = [0.0, 0.285, 0.465, 0.615, 0.84, 1.0]
