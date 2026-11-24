@@ -5679,7 +5679,8 @@ enum ChartPainter {
                 // (Lab lg4 and lg5, Word's print: a value-axis title's box edge to the widest label is a constant 3.3 pt,
                 // for title and label sizes 8 to 18, ticks, axis line and bold alike. A CJK title (aeba94bd0446 p5, p7, 12 pt
                 // DFKai-SB) prints 4.7; the 1.4 pt extra is OPEN, one deck, the line box does not explain it.)
-                let inset = c.onSheet ? 5.8 * k : c.onSlide && c.type == .scatter ? 5.4 * k : c.onSlide && c.valueAxisTitleSize != nil ? 3.6 * k : 0
+                // A sheet chart's turned value-axis title stands 1.5 pt (of the sheet scale) further in than the 5.8 first used: Excel's prints of 8, 10, 12, 14 and 18 pt labels with a title all sit that much to the right of ours (labs axgap1, axgap2).
+                let inset = c.onSheet ? 7.3 * k : c.onSlide && c.type == .scatter ? 5.4 * k : c.onSlide && c.valueAxisTitleSize != nil ? 3.6 * k : 0
                 canvas.save()
                 canvas.translate(area.left + inset, area.center.dy - lift + tp.width / 2)
                 canvas.rotate(-.pi / 2)
