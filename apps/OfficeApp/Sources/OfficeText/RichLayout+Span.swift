@@ -1368,6 +1368,11 @@ extension RichLayout {
                    (0x2700 ... 0x27BF).contains(u) {
                     RuleTrace.hit("word-noto-symbols-dingbat-bullet-is-segoe-ui-symbol")
                     family = "Segoe UI Symbol"
+                } else if family.lowercased().hasPrefix("noto sans symbols") {
+                    // (Any other label in that absent face is drawn in the text's own: es-3b20b19c25's ● bullets over Times 12 at 1.15
+                    // stand 12.03 apart in Word's print, 21 in ours with the Noto face's ascent lifting every item.)
+                    RuleTrace.hit("word-noto-symbols-non-dingbat-label-does-not-lift")
+                    family = ""
                 }
                 // (Real East Asian letters only: Latin accents such as the á of "estándar" are not, and sa1 508b647e's Tahoma dash bullets over Spanish text were left unlifted by hinted: true.)
                 if !family.isEmpty, !p.text.unicodeScalars.contains(where: { Self.isEastAsian(Character($0), hinted: false) }) {
