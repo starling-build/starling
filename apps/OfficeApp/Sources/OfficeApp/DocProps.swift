@@ -304,7 +304,7 @@ enum DocProps {
     /// table spans columns instead of taking the first two.
     static func row(_ g: [UInt8], union: [Int]? = nil) -> (tblPr: String, grid: [Int], trPr: String, cells: [(span: Int, merged: Bool, pr: String)], edges: [Int])? {
         var edges: [Int] = [], tcs: [[UInt8]] = []
-        var jc = "", gap = 0, shd: [Int] = [], height = 0
+        var jc = "", gap = 108, shd: [Int] = [], height = 0
         var tb: [String] = [], header = false, cant = false
         let names = ["top", "left", "bottom", "right", "insideH", "insideV"]
         for s in sprms(g) where s.sgc == 5 {
