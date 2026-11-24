@@ -330,9 +330,15 @@ extension DocxFormat {
                 // mark stated smaller than that is not the height. dx2 b02602d2's picture paragraph, mark sz 20 over BodyText 16 bold, is a 19.3 pt
                 // Tahoma Bold line in Word's print, not 12.1.)
                 let styleSize = p.first("w:pPr")?.first("w:pStyle")?["w:val"].flatMap { styleIds[$0] }.flatMap { sheet[$0]?.char.fontSize }
+                // (A run that STATES its size (the anchor's own run, sz 12 under BodyText 20) is that size whatever the mark says:
+                // pt-ebe6f5b3cc's 6 pt picture paragraph is 6.9 pt tall in Word's print, ours stood the 10 pt style line, 4.6 pt more.
+                // In a right-to-left paragraph the picture is a complex-script character: only szCs sizes it; dx2 b02602d2's bidi picture
+                // paragraphs state sz 20 and stay the 16 pt style line.)
+                let runIsBidi = p.first("w:pPr")?.first("w:bidi") != nil
+                let runStatesSize = p.all("w:r").first { $0.first("w:drawing") != nil }?.first("w:rPr")?.first(runIsBidi ? "w:szCs" : "w:sz") != nil
                 if let mark = markStyle, only.sourceXML?.containsSubstring("<wp:anchor") == true,
-                   !(para.runs[0].style.fontSize == nil && styleSize != nil && mark.fontSize != nil && styleSize! > mark.fontSize!) { para.runs[0].style = mark }
-                else if only.sourceXML?.containsSubstring("<wp:anchor") == true, para.runs[0].style.fontSize == nil, let z = styleSize { para.style.mark?.fontSize = z }
+                   !(para.runs[0].style.fontSize == nil && !runStatesSize && styleSize != nil && mark.fontSize != nil && styleSize! > mark.fontSize!) { para.runs[0].style = mark }
+                else if only.sourceXML?.containsSubstring("<wp:anchor") == true, para.runs[0].style.fontSize == nil, !runStatesSize, let z = styleSize { para.style.mark?.fontSize = z }
             } else {
                 // (An empty cell paragraph under a table style that sets the size is as tall as that
                 // size, not Normal's: lo-7c394e05's 8pt cells under a 12pt Normal.)
