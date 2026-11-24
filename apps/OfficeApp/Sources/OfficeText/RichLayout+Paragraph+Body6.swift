@@ -129,6 +129,13 @@ extension _ParaFrame {
                 guard let f = image.float, f.bandsPage, f.verticalFrom == "paragraph", f.verticalAlign == nil,
                       f.y > 0 || atTop || (RichTextTheme.wordWindowsPages && bareText && f.y < -0.3 && f.y > -2),
                       image.height + f.effectBottom > 0, before + max(painter.height, _markLineHeight(i, document)) >= _px(f.y) - 0.01 else { continue }
+                // (A header picture set from its paragraph or its line, down by less than that line, pushes no line: Word's header ends at the
+                // picture's foot or its lines' foot, whichever is lower. Lab hdrline, ko-2927800653's logo 0.4pt down, 32.6pt tall: one
+                // anchor line ends the header at 63.0, the foot, not a line lower, 80.2; each further empty paragraph adds one line.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, headerTopOnPage != nil, f.y > -2, f.y < _markLineHeight(i, document) - 0.01 {
+                    RuleTrace.hit("word-header-picture-from-its-own-line-does-not-push-the-header-lines")
+                    continue
+                }
                 // (… and one more line than the picture's height: Word's p12 has two lines under it before the next paragraph.)
                 if atTop {
                     RuleTrace.hit("word-top-and-bottom-picture-above-the-margin-stands-at-it-and-the-line-goes-under")
