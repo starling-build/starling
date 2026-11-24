@@ -118,4 +118,67 @@ final class PptContainerTests: XCTestCase {
         XCTAssertEqual(state.slideSize.width, 720, accuracy: 0.01)
         XCTAssertEqual(state.slideSize.height, 540, accuracy: 0.01)
     }
+
+    // A page container: SlideAtom (master ref, flags), a colour scheme, and a drawing whose only shape is a solid background.
+    func page(type: Int, masterRef: Int, flags: Int, scheme: [Int], background: Int?) -> [UInt8] {
+        var atom: [UInt8] = [UInt8](repeating: 0, count: 12)
+        atom += le32(masterRef)
+        atom += le32(0)
+        atom += le16(flags)
+        atom += le16(0)
+        var kids = rec(0x03EF, atom)
+        var sch: [UInt8] = []
+        for c in scheme { sch += [UInt8(c >> 16 & 255), UInt8(c >> 8 & 255), UInt8(c & 255), 0] }
+        kids += rec(0x07F0, inst: 1, sch)
+        if let bg = background {
+            var opt: [UInt8] = le16(0x181) + le32((bg >> 16 & 0xFF) | (bg & 0xFF00) | ((bg & 0xFF) << 16))
+            opt += le16(0x1BF) + le32(0x110011)
+            let sp = rec(0xF00A, ver: 2, inst: 1, le32(1) + le32(0x400))
+            let shape = rec(0xF004, ver: 15, sp + rec(0xF00B, ver: 3, inst: 2, opt))
+            kids += rec(0x040C, ver: 15, rec(0xF002, ver: 15, shape))
+        }
+        return rec(type, ver: 15, kids)
+    }
+
+    func testMastersAndBackgrounds() throws {
+        func persist(_ id: Int, _ slideId: Int) -> [UInt8] {
+            var b: [UInt8] = le32(id)
+            b += le32(0) + le32(0) + le32(slideId) + le32(0)
+            return rec(0x03F3, b)
+        }
+        var atom: [UInt8] = le32(5760)
+        atom += le32(4320)
+        atom += [UInt8](repeating: 0, count: 22)
+        atom += le16(1)
+        atom += [UInt8](repeating: 0, count: 6)
+        var kids = rec(0x03E9, atom)
+        kids += rec(0x0FF0, ver: 15, inst: 1, persist(2, 0x8000_0000) + persist(3, 0x8000_0001) as [UInt8])
+        kids += rec(0x0FF0, ver: 15, inst: 0, persist(4, 256) + persist(5, 257) as [UInt8])
+        var d = rec(0x03E8, ver: 15, kids)
+        let white = 0xFFFFFF, black = 0, red = 0xFF0000
+        let scheme1 = [white, black, 0x808080, 0x000080, 0x333333, 0x444444, 0x0000FF, 0x800080]
+        let scheme2 = [0x112233, white, 0x808080, 0x000080, 0x333333, 0x444444, 0x0000FF, 0x800080]
+        var offs: [Int] = []
+        for p in [page(type: 0x03F8, masterRef: 0, flags: 7, scheme: scheme1, background: white),
+                  page(type: 0x03F8, masterRef: 0, flags: 7, scheme: scheme2, background: 0x112233),
+                  page(type: 0x03EE, masterRef: 0x8000_0000, flags: 7, scheme: scheme1, background: nil),
+                  page(type: 0x03EE, masterRef: 0x8000_0001, flags: 3, scheme: scheme2, background: red)] {
+            offs.append(d.count); d += p
+        }
+        let dir = d.count
+        d += directory([(1, [0]), (2, [offs[0]]), (3, [offs[1]]), (4, [offs[2]]), (5, [offs[3]])])
+        let edit = d.count
+        d += userEdit(lastEdit: 0, directory: dir, document: 1)
+        let f = try PptFile(currentUser: currentUser(offset: edit), document: d)
+        XCTAssertEqual(f.masters.count, 2)
+        XCTAssertEqual(f.masters[1].background, 0x112233)
+        XCTAssertEqual(f.slides[1].background, red)
+        XCTAssertNil(f.slides[0].background)
+        let (state, theme, _) = try PptxReader(PptxPackage(PptBuild.parts(f))).read()
+        XCTAssertEqual(state.slides.count, 2)
+        XCTAssertNotEqual(state.slides[0].layoutPart, state.slides[1].layoutPart)
+        XCTAssertNotNil(state.slides[1].background)
+        XCTAssertNil(state.slides[0].background)
+        _ = theme
+    }
 }
