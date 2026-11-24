@@ -75,7 +75,7 @@ final class SheetsConfirmUITests: XCTestCase {
     }
 }
 
-final class SheetsPartsKeptTests: XCTestCase {
+final class SheetsXP04PartsKeptTests: XCTestCase {
     func testSaveKeepsDocPropsAndCustomXml() throws {
         let url = URL(fileURLWithPath: "/data/corpus-cache/test/corpus/xlsx-cjk-r3/ko-xlsx-r3b-dev/ko-c5f2fb8384.xlsx")
         try XCTSkipUnless(FileManager.default.fileExists(atPath: url.path))
