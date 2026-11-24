@@ -386,4 +386,43 @@ final class CorpusFixTests: XCTestCase {
         XCTAssertLessThan(narrow, 100)
         XCTAssertGreaterThan(wide, 280, "the last line stands under the chart, below its empty lines: \(wide)")
     }
+
+
+    /// A header's tight-wrapped box holds the body's lines by its polygon's rows, not by the box (pt a998fc416a: a 126.75 pt picture
+    /// whose polygon spans 30 to 66 percent of its height, the box reaching into the body, a one-line title set whole in Word's print;
+    /// ours set it beside the box in two lines and took the page 15 pt low).
+    func testAHeaderTightWrapHoldsTheBodyAtThePolygonsRows() throws {
+        RichTextTheme.wordWindowsPages = true
+        defer { RichTextTheme.wordWindowsPages = false }
+        func titleLines(polygonBottom: Int) throws -> Double {
+            var doc = RichDocument(paragraphs: [RichParagraph(text: String(repeating: "Checklist para submissao ", count: 11))])
+            doc.header = "x"
+            var entries = try Zip.read(try DocxFormat.write(doc, pageSetup: .letter))
+            let hi = entries.firstIndex { $0.name == "word/header1.xml" }!
+            var hxml = String(decoding: entries[hi].data, as: UTF8.self)
+            let inner = try XCTUnwrap(hxml.range(of: "<w:p>")).lowerBound ..< (try XCTUnwrap(hxml.range(of: "</w:p>"))).upperBound
+            // a 120 pt box, 20 pt above the header's line (page y 16 to 136); its polygon covers the rows down to polygonBottom of 21600
+            let anchor = "<wp:anchor distT=\"0\" distB=\"0\" distL=\"114300\" distR=\"114300\" simplePos=\"0\" relativeHeight=\"1\" behindDoc=\"1\" locked=\"0\" layoutInCell=\"1\" allowOverlap=\"1\">"
+                + "<wp:simplePos x=\"0\" y=\"0\"/><wp:positionH relativeFrom=\"column\"><wp:posOffset>1270000</wp:posOffset></wp:positionH>"
+                + "<wp:positionV relativeFrom=\"paragraph\"><wp:posOffset>-254000</wp:posOffset></wp:positionV><wp:extent cx=\"1524000\" cy=\"1524000\"/>"
+                + "<wp:wrapTight wrapText=\"bothSides\"><wp:wrapPolygon edited=\"0\"><wp:start x=\"0\" y=\"0\"/><wp:lineTo x=\"0\" y=\"\(polygonBottom)\"/><wp:lineTo x=\"21600\" y=\"\(polygonBottom)\"/><wp:lineTo x=\"21600\" y=\"0\"/><wp:lineTo x=\"0\" y=\"0\"/></wp:wrapPolygon></wp:wrapTight>"
+                + "<wp:docPr id=\"1\" name=\"s\"/><a:graphic xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\">"
+                + "<a:graphicData uri=\"http://schemas.microsoft.com/office/word/2010/wordprocessingShape\"><wps:wsp xmlns:wps=\"http://schemas.microsoft.com/office/word/2010/wordprocessingShape\">"
+                + "<wps:cNvSpPr txBox=\"1\"/><wps:spPr><a:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"1524000\" cy=\"1524000\"/></a:xfrm><a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom></wps:spPr>"
+                + "<wps:txbx><w:txbxContent><w:p><w:r><w:t>box</w:t></w:r></w:p></w:txbxContent></wps:txbx>"
+                + "<wps:bodyPr wrap=\"square\" lIns=\"91440\" tIns=\"45720\" rIns=\"91440\" bIns=\"45720\"/></wps:wsp></a:graphicData></a:graphic></wp:anchor>"
+            hxml.replaceSubrange(inner, with: "<w:p><w:pPr><w:pStyle w:val=\"Header\"/></w:pPr><w:r><w:drawing>\(anchor)</w:drawing></w:r></w:p>")
+            entries[hi] = ZipEntry(name: "word/header1.xml", data: Data(hxml.utf8))
+            let back = try DocxFormat.read(try Zip.write(entries)).document
+            let theme = RichTextTheme(fontFamily: OfficeFonts.serif)
+            theme.wordRules = true
+            let layout = RichLayout(theme: theme, paragraphCount: back.paragraphs.count)
+            layout.pageSetup = .letter
+            layout.width = PageSetup.letter.columnWidth * theme.pixelsPerPoint
+            layout.ensureLaidOut(back)
+            return Double(layout.lineDump(back).split(separator: "\n").count)
+        }
+        let reaching = try titleLines(polygonBottom: 21600), clear = try titleLines(polygonBottom: 4000)
+        XCTAssertGreaterThan(reaching, clear, "a polygon that reaches the body's line holds it beside the box (two lines)")
+    }
 }
