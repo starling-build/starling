@@ -5,3 +5,4 @@
 - Excluded after wide A/B: bold (xb ara-z8215570: bold TA steps 1.54 em, unmeasured) and LTR paragraphs (a TA run among Perpetua text kept the stand-in step).
 - wide-ab.sh (gate numbers): drops xb urd-z17694236-c03d57 15.0 -> 14.7 (one line), dx2 21b6269d 23.8 -> 19.0 (mean |dy| improves 16.4 -> 14.5 pt; 1 of 25 lines matched both sides; the doc has another larger error, ours steps ~22 pt where Word 18.75).
 - PR 2620 had a missing brace in DocxTests (rebase slip); fixed in the commit under this branch's base.
+- OPEN: dx2 21b6269d2f35fe2e29ce459637c6c959e741ccb64539fb5496008d61739ec9c4: ours steps about 22 pt where Word steps 18.75 (page 1, Sakkal Majalla/B Nazanin bidi lines); mean line offset 14.5 pt, 1 of 25 lines matched. Separate cause, not yet found.
