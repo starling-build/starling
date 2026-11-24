@@ -936,6 +936,11 @@ func connectNativeHooks(_ scene: OfficeScene, viewId: Int) {
         OfficeNativeShell.showBrowser(viewId: viewId)
         return true
     }
+    scene.pictureRequested = { done in
+        // OFFICE_PICK_PICTURE=path: a script's stand-in for the system pickers, which no in-app driver can tap.
+        if let stub = ProcessInfo.processInfo.environment["OFFICE_PICK_PICTURE"], !stub.isEmpty { done(stub); return }
+        OfficeNativeShell.pickPicture(viewId: viewId, done: done)
+    }
     scene.exportRequested = { name, prepare, thenOpen, done in
         OfficeNativeShell.export(name: name, prepare: prepare, thenOpen: thenOpen, viewId: viewId, done: done)
     }
