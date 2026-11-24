@@ -756,6 +756,8 @@ extension DocxFormat {
             // (A complex run that gives both sizes is set at szCs: the Arabic of ara-z4399437's even-page header, sz 9 / szCs 11, prints at 11.)
             else if sawSz, let z = szCs { cs.fontSize = z }
             else if sawSz, complexSize == true, cs.rightToLeft { cs.sizeFromStyleSzCs = true }
+            // (A complex run with the w:cs flag and no size of its own is set at the szCs of its style or the defaults: dx2 27dc0c47's TH SarabunPSK title, docDefaults sz 22 / szCs 28, prints at 14.)
+            else if !sawSz, complexSize == true, !cs.rightToLeft, cs.fontSize == nil { cs.sizeFromStyleSzCs = true }
         }
         return cs
     }
