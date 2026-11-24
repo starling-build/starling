@@ -46,10 +46,10 @@ final class DocFontTableTests: XCTestCase {
     func testLatinNamedFaceWithShiftJisCharsetIsLeftOut() throws {
         let t = table([
             ffn("Arial Unicode MS", charset: 0x80, family: 2, panose: [2, 11, 6, 4, 2, 2, 2, 2, 2, 4]),
-            ffn("Arial", charset: 0, family: 2, panose: [2, 11, 6, 4, 2, 2, 2, 2, 2, 4]),
+            ffn("MS-Mincho", charset: 0x80, family: 1, panose: [2, 2, 6, 9, 4, 2, 5, 8, 3, 4]),
         ])
         let xml = try XCTUnwrap(DocProps.fontTable(t, at: 0, count: t.count, ns: "xmlns:w=\"w\""))
         XCTAssertFalse(xml.contains("Arial Unicode"), xml)
-        XCTAssertTrue(xml.contains("w:name=\"Arial\""), xml)
+        XCTAssertTrue(xml.contains("MS-Mincho"), xml)
     }
 }

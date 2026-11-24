@@ -111,9 +111,9 @@ enum DocProps {
             let name = String(decoding: u, as: UTF16.self)
             // (Not a Latin-named face with an empty PANOSE (a Hangul name such as PC명조 is kept: ko-c6f5f9ce99 needs it): Word's own TimesNewRoman, Arial,Bold names (zero PANOSE, charset 0) are no face it has, and the docx missing-face rules drew ko-c58c51bdcb's as Caladea where Word printed Times New Roman.)
             let blankWestern = [0, 1].contains(Int(t[p + 4])) && u.allSatisfy { $0 < 0x80 } && (0 ..< 10).allSatisfy { t[p + 6 + $0] == 0 }
-            // (A Latin-named face with the Shift-JIS charset, Arial Unicode MS as Word 97 saved it for any language: Word prints a Portuguese
+            // (Arial Unicode MS with the Shift-JIS charset, as Word 97 saved it for any language (MS-Mincho and CIDFont+ names keep theirs, ja-bb7026e60f): Word prints a Portuguese
             // form's text in plain Arial, as with no table at all (pt-7a5f6e03fe 4 to 15 of 29 lines), not in the Yu Gothic of a docx's entry.)
-            let latinShiftJis = t[p + 4] == 0x80 && u.allSatisfy { $0 < 0x80 }
+            let latinShiftJis = t[p + 4] == 0x80 && name.lowercased() == "arial unicode ms"
             if !name.isEmpty, !blankWestern, !latinShiftJis {
                 let families = ["auto", "roman", "swiss", "modern", "script", "decorative"]
                 let ff = Int(t[p + 1] >> 4) & 7
