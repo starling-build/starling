@@ -146,6 +146,18 @@ T0=$(date +%s); echo "render-gate: setup before the build $(( T0-S0 )) s (lock w
 build_base() {   # builds BSHA into the shared cache once: the sha lock makes a second runner wait for the first instead of building it again
   flock 8
   if [ -x "$BC/$BSHA/release/OfficeApp" ]; then flock -u 8; return 0; fi
+  # SEED (amd-8, 2026-11-24, starling-bd): a gate that PASSED kept its PR-side products under $BC/tree-<git tree of its HEAD>; main's new tip has that same
+  # tree when amd-10 pushes the gated batch, so its base (binary + Slides results) is taken from there instead of being built and drawn again.
+  # A pushed tree that differs from the gated one finds nothing and is built as before. Hard links: cache entries are never edited in place.
+  local BT; BT=$(git rev-parse "$BSHA^{tree}" 2>/dev/null)
+  if [ "${GATE_SEED:-1}" != 0 ] && [ -n "$BT" ] && [ -x "$BC/tree-$BT/release/OfficeApp" ]; then
+    rm -rf "$BC/$BSHA.tmp"; mkdir -p "$BC/$BSHA.tmp" && cp -al "$BC/tree-$BT/release" "$BC/$BSHA.tmp/release" || return 1
+    [ -s "$BC/tree-$BT/slides/combined.tsv" ] && [ ! -s "$BC/$BSHA/slides/combined.tsv" ] && cp -al "$BC/tree-$BT/slides" "$BC/$BSHA.tmp/slides"
+    mkdir -p "$BC/$BSHA"; rm -rf "$BC/$BSHA/release"; mv "$BC/$BSHA.tmp/release" "$BC/$BSHA/release"
+    [ -d "$BC/$BSHA.tmp/slides" ] && { rm -rf "$BC/$BSHA/slides"; mv "$BC/$BSHA.tmp/slides" "$BC/$BSHA/slides"; }
+    rm -rf "$BC/$BSHA.tmp"; chmod -R g+rwX,o+rX "$BC/$BSHA" 2>/dev/null; flock -u 8
+    echo "render-gate: base ${BSHA:0:9} SEEDED from the passing gate of the same tree ${BT:0:9} (no base build, Slides base $([ -s "$BC/$BSHA/slides/combined.tsv" ] && echo cached || echo not seeded))"; return 0
+  fi
   git cat-file -e "$BSHA^{tree}" 2>/dev/null || { echo "render-gate: base tree ${BSHA:0:9} missing in the clone"; return 2; }
   # a stale or broken persistent worktree is dropped and made again (first prebuild: "unable to read tree")
   if { [ -d "$W/basetree/.git" ] || [ -f "$W/basetree/.git" ]; } && git -C "$W/basetree" checkout -q --detach "$BSHA" 2>/dev/null; then :
@@ -265,6 +277,16 @@ if [ "$MODE" = full ] && [ "${GATE_SHEETS:-1}" = 1 ] && [ "${GATE_PREBUILD:-0}" 
   [ "$shrc" = 1 ] && { echo "render-gate: BLOCKED, Sheets books worse than the base (above)"; exit 1; }
 fi
 echo "render-gate: BASE-CACHE word=$([ -n "$BSD" ] && echo cache || echo own) slides=$(if grep -qs "base render from the cache" "$W/slides.out"; then echo cache; elif [ -s "$W/slides-base.out" ]; then echo own; else echo none; fi)"
+# SEED the next base (see build_base): only a whole PASSED full gate, never a prebuild, a light/warm run or a recheck of some decks.
+if [ "$MODE" = full ] && [ "${GATE_SEED:-1}" != 0 ] && [ "${GATE_PREBUILD:-0}" != 1 ] && [ "${GATE_LIGHT:-0}" != 1 ] && [ "${GATE_WARM:-0}" != 1 ] && [ -z "${GATE_RECHECK_DECKS:-}" ] && [ -z "${EXACTB:-}" ]; then
+  ST=$(git rev-parse "HEAD^{tree}" 2>/dev/null); SBIN=$(ls "$W"/build/*/release/OfficeApp 2>/dev/null | head -1); SD=$BC/tree-$ST
+  if [ -n "$ST" ] && [ -x "$SBIN" ] && [ ! -x "$SD/release/OfficeApp" ]; then
+    rm -rf "$SD.tmp$$"; mkdir -p "$SD.tmp$$" && cp -a "$(dirname "$SBIN")" "$SD.tmp$$/release" \
+      && { [ -s "$W/slides/seed/combined.tsv" ] && cp -a "$W/slides/seed" "$SD.tmp$$/slides"; :; } \
+      && { chmod -R g+rwX,o+rX "$SD.tmp$$" 2>/dev/null; mv "$SD.tmp$$" "$SD" 2>/dev/null || rm -rf "$SD.tmp$$"; } \
+      && echo "render-gate: seeded tree-${ST:0:9} for the next base ($([ -s "$SD/slides/combined.tsv" ] && echo "binary + Slides" || echo "binary only"))"
+  fi
+fi
 echo "render-gate: $NCMP sets compared; clean ($(wc -l < "$W/down.txt") approved drops)"
 [ "$MODE" = full ] && [ "${GATE_BLAME:-1}" = 1 ] && { W=$W LQ=$LQ BC=$BC BASE_SHA=$BSHA EO=$EO JOBS=$JOBS timeout 1500 test/tools/render-gate-blame.sh 2>&1 | tail -5 | cut -c1-250 || true; }
 exit 0

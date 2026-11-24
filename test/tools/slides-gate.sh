@@ -212,4 +212,13 @@ for d,k,x,y in bad: print("slides-gate: BLOCKED-DECK",k)
 sys.exit(1 if bad else 0)
 Q
 fi
+# SEED (amd-8, 2026-11-24): a passing PR-side run is what the next gate's BASE would be if this tree lands, so keep its results in the same
+# form as a base cache (render-gate.sh copies them to $BC/tree-<tree> only when the WHOLE gate passes, and a later gate whose base has the same
+# git tree reads them instead of drawing the base again). Never for partial runs (SLIDES_ONLY) or a base-only run.
+if [ "$rc" = 0 ] && [ -z "${SLIDES_ONLY:-}" ] && [ -z "${BASE_ONLY:-}" ] && [ -s "$W/render.tsv" ] && [ -s "$W/combined.tsv" ] && [ -s "$W/lines.txt" ]; then
+  rm -rf "$W/seed"; mkdir -p "$W/seed"
+  cp "$W/render.tsv" "$W/combined.tsv" "$W/lines.txt" "$W/seed/"
+  for f in "$W/pdf"/*.pdf; do b=$(basename "$f" .pdf); printf '%s\t%s\t%s\n' "$b" "$(sha1sum < "$f" | cut -c1-40)" "$(stat -L -c%s "$PPT/$b-orig.pdf" 2>/dev/null)"; done > "$W/seed/pdfsha.tsv"
+  echo "$SCH" > "$W/seed/scorers.sha"
+fi
 echo "slides-gate: $(( $(date +%s)-T )) s"; exit $rc
