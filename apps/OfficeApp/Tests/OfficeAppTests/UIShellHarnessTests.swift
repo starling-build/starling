@@ -14,4 +14,17 @@ final class UIShellHarnessTests: XCTestCase {
         XCTAssertFalse(ui.texts().contains("Format Painter"))
         XCTAssertNotNil(ui.state(OfficeShellState.self))
     }
+
+    /// W-TB-2: the Table Layout tab's Borders and Shading menus reach the controller.
+    func testTableLayoutBordersAndShadingReachTheController() {
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(1280, 800))
+        let c = ui.state(OfficeShellState.self)!.session.controller
+        c.insertTable(rows: 2, columns: 2)
+        ui.pump()
+        XCTAssertTrue(ui.tap(text: "Table Layout"))
+        XCTAssertTrue(ui.has(text: "Borders & Shading"))
+        XCTAssertTrue(ui.tap(text: "Borders"))
+        XCTAssertTrue(ui.tap(text: "Bottom Border"))
+        XCTAssertTrue(c.document.paragraphs.compactMap { $0.cell }.contains { ($0.bordersXML ?? "").contains("w:bottom") })
+    }
 }

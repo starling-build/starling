@@ -485,6 +485,48 @@ final class Ribbon: StatelessWidget {
             Chrome.big(FluentSystemIcons.columns, "Distribute Columns", fluent) { c.distributeColumns() },
         ])
         let style = c.currentTableStyle ?? TableStyle()
+        // The pen is read when a menu item is chosen, not when the ribbon builds.
+        func apply(_ sides: [CellSide], _ line: CellBorderLine? = nil) -> () -> Void {
+            { [session] in
+                let l = line ?? session.cellPen
+                c.setCellBorders(Dictionary(uniqueKeysWithValues: sides.map { ($0, l) }))
+            }
+        }
+        let borderItems: [MenuFlyoutItemBase] = [
+            MenuFlyoutItem(text: Text("Bottom Border"), onPressed: apply([.bottom])),
+            MenuFlyoutItem(text: Text("Top Border"), onPressed: apply([.top])),
+            MenuFlyoutItem(text: Text("Left Border"), onPressed: apply([.left])),
+            MenuFlyoutItem(text: Text("Right Border"), onPressed: apply([.right])),
+            MenuFlyoutSeparator(),
+            MenuFlyoutItem(text: Text("All Borders"), onPressed: apply(CellSide.allCases)),
+            MenuFlyoutItem(text: Text("Outside Borders"), onPressed: apply([.top, .bottom, .left, .right])),
+            MenuFlyoutItem(text: Text("Inside Borders"), onPressed: apply([.insideH, .insideV])),
+            MenuFlyoutSeparator(),
+            MenuFlyoutItem(text: Text("No Border"), onPressed: apply(CellSide.allCases, .none)),
+        ]
+        let styleItems: [MenuFlyoutItemBase] = ["single", "double", "dashed", "dotted", "thick"].map { st in
+            MenuFlyoutItem(text: Text(st.prefix(1).uppercased() + st.dropFirst() + " Line"), onPressed: { [session] in
+                session.cellPen.style = st })
+        }
+        let widthItems: [MenuFlyoutItemBase] = [0.25, 0.5, 1, 1.5, 2.25, 3, 4.5, 6].map { w in
+            MenuFlyoutItem(text: Text("\(w) pt"), onPressed: { [session] in
+                session.cellPen.width = w })
+        }
+        let penColors = Chrome.colorMenu(FluentSystemIcons.textColor, "Pen Color", fluent,
+                                         colors: OfficeColors.text, none: "Automatic") { [session] col in
+            session.cellPen.color = col }
+        let shading = Chrome.colorMenu(FluentSystemIcons.highlight, "Shading", fluent,
+                                       colors: OfficeColors.highlight, none: "No Shading") { col in
+            c.setCellShading(col) }
+        let borders = Chrome.group("Borders & Shading", fluent, [
+            Chrome.rows([
+                Chrome.menuButton(FluentSystemIcons.table, "Borders", "Borders", fluent, items: borderItems),
+                Chrome.menuButton(nil, "Line Style", "Border line style", fluent, items: styleItems),
+                Chrome.menuButton(nil, "Line Width", "Border line width", fluent, items: widthItems),
+            ]),
+            Chrome.gap(8),
+            Chrome.rows([shading, penColors]),
+        ])
         let look = Chrome.group("Table Style", fluent, [
             Chrome.bigToggle(FluentSystemIcons.table, "Borders", style.borders, fluent) { c.setTableStyle { $0.borders.toggle() } },
             Chrome.bigToggle(FluentSystemIcons.header, "Header Row", style.headerRow, fluent) { c.setTableStyle { $0.headerRow.toggle() } },
@@ -492,7 +534,7 @@ final class Ribbon: StatelessWidget {
         let table = Chrome.group("Table", fluent, [
             Chrome.big(FluentSystemIcons.delete, "Delete Table", fluent) { c.deleteTable() },
         ])
-        return [rows, merge, size, look, table]
+        return [rows, merge, size, borders, look, table]
     }
 
     // MARK: Picture Format
