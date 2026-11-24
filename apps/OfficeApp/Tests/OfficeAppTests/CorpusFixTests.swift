@@ -202,4 +202,44 @@ final class CorpusFixTests: XCTestCase {
         XCTAssertGreaterThan(fixed, PageSetup.letter.headerDistance + 30 + 100, "a fixed-height box: the body stands under its stated foot")
         XCTAssertLessThan(fitted, fixed - 60, "an autofit box: under its one text line")
     }
+
+    /// A paragraph of one anchored picture is as tall as its anchor run's font. A run that states `sz` is that size even when the paragraph
+    /// style is bigger (pt-ebe6f5b3cc); in a right-to-left paragraph the picture is a complex-script character, so only `szCs` sizes it and
+    /// the style's size stays (dx2 b02602d2).
+    private func anchoredPictureParagraph(bidi: Bool) throws -> RichParagraph {
+        let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")!
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(image: ImageAttachment(data: png, width: 10, height: 10))]), pageSetup: .a4))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let embed = try XCTUnwrap(xml.range(of: #"r:embed="[^"]+""#, options: .regularExpression))
+        let rid = String(xml[embed])
+        let body = try XCTUnwrap(xml.range(of: "<w:body>")), sect = try XCTUnwrap(xml.range(of: "<w:sectPr"))
+        let anchor = "<wp:anchor distT=\"0\" distB=\"0\" distL=\"0\" distR=\"0\" simplePos=\"0\" relativeHeight=\"1\" behindDoc=\"0\" locked=\"0\" layoutInCell=\"1\" allowOverlap=\"1\">"
+            + "<wp:simplePos x=\"0\" y=\"0\"/><wp:positionH relativeFrom=\"page\"><wp:posOffset>100000</wp:posOffset></wp:positionH>"
+            + "<wp:positionV relativeFrom=\"page\"><wp:posOffset>100000</wp:posOffset></wp:positionV><wp:extent cx=\"238125\" cy=\"171450\"/><wp:wrapNone/>"
+            + "<wp:docPr id=\"14\" name=\"p\"/><a:graphic xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\">"
+            + "<a:graphicData uri=\"http://schemas.openxmlformats.org/drawingml/2006/picture\"><pic:pic xmlns:pic=\"http://schemas.openxmlformats.org/drawingml/2006/picture\">"
+            + "<pic:blipFill><a:blip \(rid)/></pic:blipFill></pic:pic></a:graphicData></a:graphic></wp:anchor>"
+        xml.replaceSubrange(body.upperBound ..< sect.lowerBound, with:
+            "<w:p><w:pPr><w:pStyle w:val=\"Big\"/>\(bidi ? "<w:bidi/>" : "")<w:rPr><w:sz w:val=\"20\"/></w:rPr></w:pPr>"
+            + "<w:r><w:rPr><w:sz w:val=\"20\"/></w:rPr><w:drawing>\(anchor)</w:drawing></w:r></w:p>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let si = try XCTUnwrap(entries.firstIndex { $0.name == "word/styles.xml" })
+        var styles = String(decoding: entries[si].data, as: UTF8.self)
+        let end = try XCTUnwrap(styles.range(of: "</w:styles>"))
+        styles.replaceSubrange(end.lowerBound ..< end.lowerBound, with: "<w:style w:type=\"paragraph\" w:styleId=\"Big\"><w:name w:val=\"Big\"/><w:rPr><w:sz w:val=\"32\"/></w:rPr></w:style>")
+        entries[si] = ZipEntry(name: "word/styles.xml", data: Data(styles.utf8))
+        let doc = try DocxFormat.read(try Zip.write(entries)).document
+        return try XCTUnwrap(doc.paragraphs.first { $0.image != nil || !$0.inlineImages.isEmpty })
+    }
+
+    func testAnAnchorRunsOwnSizeIsThePictureLinesHeight() throws {
+        let p = try anchoredPictureParagraph(bidi: false)
+        XCTAssertEqual(p.runs[0].style.fontSize, 10)
+    }
+
+    func testARightToLeftPictureParagraphIgnoresTheRunsLatinSize() throws {
+        let p = try anchoredPictureParagraph(bidi: true)
+        XCTAssertEqual(p.runs[0].style.fontSize ?? p.style.mark?.fontSize, 16)
+    }
 }
