@@ -399,4 +399,11 @@ final class DeepGroupTests: XCTestCase {
         XCTAssertEqual(root.children[1].first("a:r")?.first("a:t")?.text, "two")
         XCTAssertNotNil(root.children[1].first("a:pPr"))
     }
+
+    /// HGS明朝E is installed on the print machine (lab num2 prints HGSMinchoE), so it is not mapped to Yu Gothic and its
+    /// line stands at the 288/2048 descent share of the HG Mincho cut.
+    func testHgsMinchoEIsAPrintMachineFaceNotYuGothic() {
+        XCTAssertFalse(SlideFonts.isMissingJapaneseName("hgs明朝e"))
+        XCTAssertEqual(SlideFonts.ownDescentShare("HGS明朝E"), 288.0 / 2048)
+    }
 }
