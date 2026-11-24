@@ -304,7 +304,7 @@ final class XNode {
 /// The column widths (pt) every row of a table states in twips, when each row is whole
 /// single-span dxa cells of one width list; nil otherwise.
 @inline(never)
-func _statedCellColumns(_ node: XNode, count: Int) -> [Double]? {
+func _statedCellColumns(_ node: XNode, count: Int, widest: Bool = false) -> [Double]? {
     var widths: [Double]? = nil
     for tr in node.all("w:tr") {
         var row: [Double] = []
@@ -315,7 +315,7 @@ func _statedCellColumns(_ node: XNode, count: Int) -> [Double]? {
             row.append(v / 20)
         }
         if row.count != count { return nil }
-        if let f = widths { if f != row { return nil } } else { widths = row }
+        if let f = widths { if f != row { if widest { widths = zip(f, row).map { max($0, $1) } } else { return nil } } } else { widths = row }
     }
     return widths
 }

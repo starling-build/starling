@@ -3061,9 +3061,14 @@ extension _ParaFrame {
                 // lines: the title 1.1pt under it in Word's print, the 11pt Calibri line's 1.06, where the mark's added 4.3.)
                 var extra = single
                 if RichTextTheme.wordWindowsPages, p.style.mark != nil, let image = p.image, let rpr = image.sourceRunPropertiesXML,
-                   !rpr.containsSubstring("w:sz ") && !rpr.containsSubstring("w:rFonts") && !rpr.containsSubstring("w:rStyle") {
+                   !rpr.containsSubstring("w:sz ") && !rpr.containsSubstring("w:rStyle") {
                     RuleTrace.hit("picture-alone-multiple-extra-of-the-styles-line")
-                    extra = _markLineHeight(i, document, single: true, using: CharStyle())
+                    var base = CharStyle()
+                    if rpr.containsSubstring("w:rFonts"), let m = p.style.mark {
+                        // (The run names its face but no size: Arial 11 under an Arial 12 bold mark, es-3b20b19c25 p5, lab picln: the extra is the 11pt line, not the mark's.)
+                        base.fontFamily = m.fontFamily
+                    }
+                    extra = _markLineHeight(i, document, single: true, using: base)
                 } else if RichTextTheme.wordWindowsPages, (document.compatibilityMode ?? 0) >= 15, p.cell == nil, let image = p.image, image.name != "w:object",
                           let rpr = image.sourceRunPropertiesXML, let r = rpr.rangeOfSubstring("w:sz w:val=\""),
                           let half = Double(rpr[r.upperBound...].prefix(while: { $0 != "\"" })) {
