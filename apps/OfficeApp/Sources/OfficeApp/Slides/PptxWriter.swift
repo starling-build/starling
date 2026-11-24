@@ -28,10 +28,10 @@ import Foundation
 
 enum PptxWriter {
     static func write(_ state: DeckState, theme: DeckTheme, package: PptxPackage?,
-                      ownTemplates: Bool = false) throws -> Data {
+                      ownTemplates: Bool = false, recolourTheme: Bool = false) throws -> Data {
         var b = PackageBuilder()
         if let package, !ownTemplates, _usable(package) {
-            try _writeThrough(package, state: state, theme: theme, into: &b)
+            try _writeThrough(package, state: state, theme: theme, recolour: recolourTheme, into: &b)
         } else {
             _writeNew(state, theme: theme, source: package, into: &b)
         }
@@ -118,7 +118,7 @@ enum PptxWriter {
 
     // MARK: Through a package
 
-    private static func _writeThrough(_ p: PptxPackage, state: DeckState, theme: DeckTheme,
+    private static func _writeThrough(_ p: PptxPackage, state: DeckState, theme: DeckTheme, recolour: Bool,
                                       into b: inout PackageBuilder) throws {
         guard let pres = _presentationPart(p), let presXML = p.parts[pres].flatMap({ String(data: $0, encoding: .utf8) })
         else { throw Pptx.ReadError.noPresentation }
@@ -136,6 +136,15 @@ enum PptxWriter {
         for r in presRelsAll where !r.external && r.kind != "slide" { keep.append(r.target) }
         var copied = Set<String>()
         for part in keep { _copy(part, from: p, into: &b, done: &copied) }
+        if recolour {
+            for r in presRelsAll where r.kind == "slideMaster" {
+                for tr in p.rels(r.target) where tr.kind == "theme" {
+                    if let d = b.parts[tr.target], let x = String(data: d, encoding: .utf8) {
+                        b.parts[tr.target] = Data(_recoloured(x, theme).utf8)
+                    }
+                }
+            }
+        }
         let rootRels = p.rels("").filter { $0.external || p.parts[$0.target] != nil }
         b.rels("", rootRels.map { Rel(id: $0.id, type: $0.type, target: $0.target, external: $0.external) })
 
@@ -401,6 +410,28 @@ enum PptxWriter {
         return s.replacingSubrange(start.lowerBound ..< end.upperBound, with: pruned)
     }
 
+    /// The file's own theme part with `theme`'s colours (dark and light 1, the six accents) and Latin fonts; everything else in it is left alone.
+    static func _recoloured(_ xml: String, _ theme: DeckTheme) -> String {
+        var out = xml
+        let accents = theme.accents + Array(repeating: Color(0xFF808080), count: max(0, 6 - theme.accents.count))
+        func swap(_ name: String, _ c: Color) {
+            guard let open = out.findRange(of: "<a:\(name)>"), let close = out.findRange(of: "</a:\(name)>", in: open.upperBound ..< out.endIndex) else { return }
+            out = out.replacingSubrange(open.lowerBound ..< close.upperBound,
+                                        with: "<a:\(name)><a:srgbClr val=\"\(PptxText.hex(c))\"/></a:\(name)>")
+        }
+        swap("dk1", theme.text)
+        swap("lt1", theme.background)
+        for i in 0 ..< 6 { swap("accent\(i + 1)", accents[i]) }
+        func font(_ group: String, _ face: String) {
+            guard let g = out.findRange(of: "<a:\(group)>"), let l = out.findRange(of: "<a:latin ", in: g.upperBound ..< out.endIndex),
+                  let e = out.findRange(of: "/>", in: l.upperBound ..< out.endIndex) else { return }
+            out = out.replacingSubrange(l.lowerBound ..< e.upperBound, with: "<a:latin typeface=\"\(PptxXML.escape(face, attribute: true))\"/>")
+        }
+        font("majorFont", theme.headingFont)
+        font("minorFont", theme.bodyFont)
+        return out
+    }
+
     private static func _insertAfter(_ marker: String, in s: String, _ insert: String) -> String {
         guard let r = s.findRange(of: marker) else { return s }
         return s.replacingSubrange(r, with: marker + insert)
@@ -438,7 +469,7 @@ extension Pptx {
 
     /// The deck as a .pptx file.
     static func write(_ deck: DeckController) throws -> Data {
-        try PptxWriter.write(deck.snapshot(), theme: deck.theme, package: deck.package, ownTemplates: deck.ownTemplates)
+        try PptxWriter.write(deck.snapshot(), theme: deck.theme, package: deck.package, ownTemplates: deck.ownTemplates, recolourTheme: deck.recolourTheme)
     }
 }
 
