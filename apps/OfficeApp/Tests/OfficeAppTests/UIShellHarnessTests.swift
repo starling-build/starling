@@ -68,6 +68,27 @@ final class UIShellHarnessTests: XCTestCase {
         XCTAssertEqual(controller.text, "a")
         ui.press(.enter)
         XCTAssertEqual(enters, 1)
+
+    /// W-OB-2: selecting a picture that sits in a line of text opens the Picture Format tab, and its Half Size button reaches the model.
+    func testSelectingAnInlinePictureOpensPictureFormatAndHalfSizeResizesIt() throws {
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(1280, 800))
+        let state = try XCTUnwrap(ui.state(OfficeShellState.self))
+        let c = state.session.controller
+        let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")!
+        var p = RichParagraph(text: "a" + RichParagraph.inlineImageCharacter + "b")
+        let image = ImageAttachment(data: png, width: 120, height: 90)
+        p.inlineImages[image.id] = image
+        p.applyStyle(1 ..< 2) { $0.inlineImage = image.id }
+        c.load(RichDocument(paragraphs: [p]))
+        XCTAssertFalse(ui.has(text: "Picture Format"))
+        c.selectInlineImage(in: 0, id: image.id)
+        ui.pump()
+        XCTAssertTrue(ui.has(text: "Picture Format"))
+        XCTAssertTrue(ui.tap(text: "Half Size"))
+        XCTAssertEqual(c.document.paragraphs[0].inlineImages[image.id]?.width, 60)
+        XCTAssertEqual(c.document.paragraphs[0].inlineImages[image.id]?.height, 45)
+        c.undo()
+        XCTAssertEqual(c.document.paragraphs[0].inlineImages[image.id]?.width, 120)
     }
 
     /// W-ED-1: the Paste button is on the Home ribbon and the shell has wired every way of pasting
