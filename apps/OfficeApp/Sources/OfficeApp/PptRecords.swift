@@ -25,6 +25,8 @@ struct PptFile {
         var scheme: [Int]? = nil
         /// The background shape's solid fill as 0xRRGGBB (a scheme index already resolved), when it has one.
         var background: Int? = nil
+        /// The text of a slide's placeholders, in SlideListWithText order (what OutlineTextRefAtom indexes).
+        var texts: [PptTextBlock] = []
         var followsMasterObjects: Bool { flags & 1 != 0 }
         var followsMasterScheme: Bool { flags & 2 != 0 }
         var followsMasterBackground: Bool { flags & 4 != 0 }
@@ -77,7 +79,16 @@ struct PptFile {
             let atoms = OfficeArt.records(document, in: list.body)
                 .filter { $0.type == Self.slidePersistType && $0.body.count >= 16 }
             let ids = atoms.map { OfficeArt.u32(document, $0.body.lowerBound) }
-            let pages = atoms.map { page(persistId: OfficeArt.u32(document, $0.body.lowerBound), slideId: OfficeArt.u32(document, $0.body.lowerBound + 12)) }
+            var pages = atoms.map { page(persistId: OfficeArt.u32(document, $0.body.lowerBound), slideId: OfficeArt.u32(document, $0.body.lowerBound + 12)) }
+            if list.inst == 0 {
+                // The text records after each SlidePersistAtom belong to that slide.
+                var k = -1
+                var group: [[ArtRecord]] = Array(repeating: [], count: pages.count)
+                for r in OfficeArt.records(document, in: list.body) {
+                    if r.type == Self.slidePersistType { if r.body.count >= 16 { k += 1 } } else if k >= 0, k < group.count { group[k].append(r) }
+                }
+                for j in pages.indices { pages[j].texts = PptText.blocks(group[j], in: document) }
+            }
             if list.inst == 0 { slideIds += ids; slides += pages } else if list.inst == 1 { masterIds += ids; masters += pages }
         }
         for k in slides.indices {

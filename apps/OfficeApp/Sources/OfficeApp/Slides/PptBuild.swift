@@ -89,8 +89,10 @@ enum PptBuild {
             + "<p:notesSz cx=\"6858000\" cy=\"9144000\"/></p:presentation>")
         add("ppt/_rels/presentation.xml.rels", rels(presRels))
 
-        let tree = "<p:spTree><p:nvGrpSpPr><p:cNvPr id=\"1\" name=\"\"/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>"
-            + "<p:grpSpPr><a:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"0\" cy=\"0\"/><a:chOff x=\"0\" y=\"0\"/><a:chExt cx=\"0\" cy=\"0\"/></a:xfrm></p:grpSpPr></p:spTree>"
+        let treeHead = "<p:spTree><p:nvGrpSpPr><p:cNvPr id=\"1\" name=\"\"/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>"
+            + "<p:grpSpPr><a:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"0\" cy=\"0\"/><a:chOff x=\"0\" y=\"0\"/><a:chExt cx=\"0\" cy=\"0\"/></a:xfrm></p:grpSpPr>"
+        let tree = treeHead + "</p:spTree>"
+        func slideTree(_ shapes: String) -> String { treeHead + shapes + "</p:spTree>" }
         func background(_ rgb: Int?) -> String {
             guard let rgb else { return "" }
             return "<p:bg><p:bgPr><a:solidFill><a:srgbClr val=\"\(hex(rgb))\"/></a:solidFill><a:effectLst/></p:bgPr></p:bg>"
@@ -110,7 +112,7 @@ enum PptBuild {
             let k = i + 1
             let attrs = s.followsMasterObjects ? "" : " showMasterSp=\"0\""
             let own = s.followsMasterBackground ? nil : s.background
-            add("ppt/slides/slide\(k).xml", "<p:sld \(ns)\(attrs)><p:cSld>\(background(own))\(tree)</p:cSld></p:sld>")
+            add("ppt/slides/slide\(k).xml", "<p:sld \(ns)\(attrs)><p:cSld>\(background(own))\(slideTree(f.shapeXML(of: s)))</p:cSld></p:sld>")
             add("ppt/slides/_rels/slide\(k).xml.rels", rels([("rId1", "slideLayout", "../slideLayouts/slideLayout\(slideVariant[i] + 1).xml")]))
         }
         return out

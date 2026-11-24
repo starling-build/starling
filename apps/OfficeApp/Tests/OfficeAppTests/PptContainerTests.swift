@@ -181,4 +181,62 @@ final class PptContainerTests: XCTestCase {
         XCTAssertNil(state.slides[0].background)
         _ = theme
     }
+
+    func testPlaceholderTextFromTheListAndTextInAShape() throws {
+        func persist(_ id: Int, _ slideId: Int) -> [UInt8] {
+            var b: [UInt8] = le32(id)
+            b += le32(0) + le32(1) + le32(slideId) + le32(0)
+            return rec(0x03F3, b)
+        }
+        var atom: [UInt8] = le32(5760)
+        atom += le32(4320)
+        atom += [UInt8](repeating: 0, count: 22)
+        atom += le16(1)
+        atom += [UInt8](repeating: 0, count: 6)
+        var kids = rec(0x03E9, atom)
+        kids += rec(0x0FF0, ver: 15, inst: 1, persist(2, 0x8000_0000))
+        // The title text lives in the list, after the slide's persist atom (UTF-16).
+        var title: [UInt8] = []
+        for u in "Hello title".utf16 { title += le16(Int(u)) }
+        var list: [UInt8] = persist(3, 256)
+        list += rec(0x0F9F, le32(0))
+        list += rec(0x0FA0, title)
+        kids += rec(0x0FF0, ver: 15, inst: 0, list)
+        var d = rec(0x03E8, ver: 15, kids)
+
+        func shape(placeholder: Int?, textbox: [UInt8], anchor: [Int]) -> [UInt8] {
+            var k = rec(0xF00A, ver: 2, inst: 1, le32(2) + le32(0x400))
+            var a: [UInt8] = []
+            for v in anchor { a += le16(v) }
+            k += rec(0xF010, a)
+            if let p = placeholder { k += rec(0xF011, ver: 15, rec(0x0BC3, le32(0) + [UInt8(p), 0, 0, 0])) }
+            k += rec(0xF00D, ver: 15, textbox)
+            return rec(0xF004, ver: 15, k)
+        }
+        let group = rec(0xF004, ver: 15, rec(0xF00A, ver: 2, inst: 0, le32(1) + le32(5)))
+        let titleShape = shape(placeholder: 13, textbox: rec(0x0F9E, le32(0)), anchor: [100, 200, 5000, 700])
+        // "one", "two", "three" as Latin-1 bytes, with a line break inside the second.
+        let body = shape(placeholder: nil, textbox: rec(0x0F9F, le32(4)) + rec(0x0FA8, Array("one\rtw\u{0B}o\rthree".utf8)), anchor: [800, 200, 5000, 3000])
+        let top = rec(0xF003, ver: 15, group + titleShape + body)
+        let pageKids = rec(0x03EF, [UInt8](repeating: 0, count: 12) + le32(0x8000_0000) + le32(0) + le16(7) + le16(0))
+            + rec(0x040C, ver: 15, rec(0xF002, ver: 15, top))
+        let master = rec(0x03F8, ver: 15, rec(0x03EF, [UInt8](repeating: 0, count: 24)))
+        var offs: [Int] = []
+        for p in [master, rec(0x03EE, ver: 15, pageKids)] { offs.append(d.count); d += p }
+        let dir = d.count
+        d += directory([(1, [0]), (2, [offs[0]]), (3, [offs[1]])])
+        let edit = d.count
+        d += userEdit(lastEdit: 0, directory: dir, document: 1)
+        let f = try PptFile(currentUser: currentUser(offset: edit), document: d)
+        XCTAssertEqual(f.slides[0].texts.map(\.text), ["Hello title"])
+        let (state, _, _) = try PptxReader(PptxPackage(PptBuild.parts(f))).read()
+        let shapes = state.slides[0].shapes
+        XCTAssertEqual(shapes.count, 2)
+        XCTAssertEqual(shapes[0].kind, .placeholder(.title))
+        XCTAssertEqual(shapes[0].text?.paragraphs.map(\.text), ["Hello title"])
+        XCTAssertEqual(shapes[1].text?.paragraphs.count, 3)
+        XCTAssertEqual(shapes[1].text?.paragraphs.first?.text, "one")
+        XCTAssertEqual(shapes[1].frame.width, 600, accuracy: 0.5)
+        XCTAssertEqual(shapes[1].frame.top, 100, accuracy: 0.5)
+    }
 }
