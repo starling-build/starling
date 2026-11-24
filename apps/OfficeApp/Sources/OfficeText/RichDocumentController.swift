@@ -1620,6 +1620,79 @@ public final class RichDocumentController: ChangeNotifier {
         _formatCells { c, _ in c.fill = color }
     }
 
+    // MARK: Table properties (W-TB-3). Each is one undo step.
+
+    /// Where the target cells' text stands between the cell's top and bottom: "top", "center" or "bottom".
+    public func setCellVerticalAlignment(_ align: String) {
+        guard ["top", "center", "bottom"].contains(align) else { return }
+        _formatCells { c, _ in c.verticalAlign = align == "top" ? nil : align }
+    }
+
+    /// The direction the target cells' text runs: across, or turned down or up.
+    public func setCellTextDirection(_ direction: CellRef.CellTextDirection) {
+        _formatCells { c, _ in
+            guard c.textDirection != direction else { return }
+            c.textDirection = direction
+            c.textDirectionValue = nil
+        }
+    }
+
+    /// The rows the selection touches (the caret's row when nothing is selected as a block).
+    public var targetRows: ClosedRange<Int>? {
+        if let b = targetCellBlock { return b.rows }
+        return currentCell.map { $0.row...($0.row + $0.rowSpan - 1) }
+    }
+
+    /// The table's width: points, a percent of the text width, or nil for automatic.
+    public func setTableWidth(points: Double? = nil, percent: Double? = nil) {
+        setTableStyle { $0.width = points.map { max(1, $0) }; $0.widthPercent = percent.map { min(600, max(1, $0)) } }
+    }
+
+    /// Automatic column widths (the grid fits its text) or fixed ones.
+    public func setTableAutofit(_ autofit: Bool) { setTableStyle { $0.fixedLayout = !autofit } }
+
+    public func setTableAlignment(_ alignment: ParagraphAlignment) { setTableStyle { $0.alignment = alignment } }
+
+    /// How far the table's left edge stands in from the margin, in points (negative stands out).
+    public func setTableIndent(_ points: Double) { setTableStyle { $0.indent = points } }
+
+    /// The default margins inside every cell of the table, in points; nil leaves a side as it was.
+    public func setTableCellMargins(top: Double? = nil, left: Double? = nil, bottom: Double? = nil, right: Double? = nil) {
+        setTableStyle {
+            if let v = top { $0.cellMarginTop = max(0, v) }
+            if let v = left { $0.cellMarginLeft = max(0, v) }
+            if let v = bottom { $0.cellMarginBottom = max(0, v) }
+            if let v = right { $0.cellMarginRight = max(0, v) }
+        }
+    }
+
+    /// A least (or, `exact`, a fixed) height for the target rows, in points; nil clears it.
+    public func setRowHeight(_ points: Double?, exact: Bool = false) {
+        guard let rows = targetRows else { return }
+        setTableStyle { t in
+            for r in rows {
+                if let h = points {
+                    t.rowHeights[r] = max(1, h)
+                    if exact { t.rowsExactHeight.insert(r) } else { t.rowsExactHeight.remove(r) }
+                } else {
+                    t.rowHeights[r] = nil
+                    t.rowsExactHeight.remove(r)
+                }
+            }
+        }
+    }
+
+    /// Whether the target rows may split across a page.
+    public func setRowsMayBreak(_ mayBreak: Bool) {
+        guard let rows = targetRows else { return }
+        setTableStyle { t in for r in rows { if mayBreak { t.rowsCantSplit.remove(r) } else { t.rowsCantSplit.insert(r) } } }
+    }
+
+    /// The first `count` rows repeat at the head of each page the table runs onto; 0 turns it off.
+    public func setRepeatedHeaderRows(_ count: Int) {
+        setTableStyle { $0.headerRow = count > 0; if count > 0 { $0.headerRowCount = count } }
+    }
+
     /// Draw or clear lines on sides of the target cells, one undo step.
     /// `top`, `bottom`, `left`, `right` are the block's outer sides;
     /// `insideH` and `insideV` the lines between its cells. A line with
