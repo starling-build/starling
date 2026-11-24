@@ -18,20 +18,80 @@ extension PptFile {
     }
 
     /// Fill and outline of a shape from its properties; a placeholder or a shape that sets nothing inherits.
-    static func fillLineXML(_ s: ArtShape, placeholder: Bool) -> String {
-        var x = ""
+    static func fillLineXML(_ s: ArtShape, placeholder: Bool, picture: (Int) -> String? = { _ in nil }) -> String {
+        var x = fillXML(s, placeholder: placeholder, picture: picture)
         let boxy = !placeholder && s.type != 202
-        if DocArt.flag(s, 0x1BF, bit: 4, default: boxy && s.type != 20 && s.type != 32) {
-            x += "<a:solidFill>\(artColor(s.props[0x181] ?? 0xFFFFFF))</a:solidFill>"
-        } else if !placeholder || s.props[0x1BF] != nil { x += "<a:noFill/>" }
         if DocArt.flag(s, 0x1FF, bit: 3, default: boxy) {
             x += "<a:ln w=\"\(s.props[0x1CB] ?? 9525)\"><a:solidFill>\(artColor(s.props[0x1C0] ?? 0))</a:solidFill></a:ln>"
         } else if !placeholder || s.props[0x1FF] != nil { x += "<a:ln><a:noFill/></a:ln>" }
         return x
     }
 
+    /// The fill of a shape's properties (solid, shaded or picture); empty when a placeholder sets nothing.
+    static func fillXML(_ s: ArtShape, placeholder: Bool, picture: (Int) -> String? = { _ in nil }) -> String {
+        var x = ""
+        let boxy = !placeholder && s.type != 202
+        if DocArt.flag(s, 0x1BF, bit: 4, default: boxy && s.type != 20 && s.type != 32) {
+            let fore = artColor(s.props[0x181] ?? 0xFFFFFF)
+            switch s.props[0x180] ?? 0 {
+            case 4...7:
+                // A shaded fill: fore colour to back colour along the fill angle (16.16 degrees).
+                let angle = (((s.props[0x18B] ?? 0) >> 16) % 360 + 360) % 360 * 60000
+                x += "<a:gradFill rotWithShape=\"1\"><a:gsLst><a:gs pos=\"0\">\(fore)</a:gs><a:gs pos=\"100000\">\(artColor(s.props[0x183] ?? 0xFFFFFF))</a:gs></a:gsLst><a:lin ang=\"\(angle)\" scaled=\"0\"/></a:gradFill>"
+            case 2, 3:
+                if let pib = s.props[0x186], let rid = picture(pib) {
+                    let tile = s.props[0x180] == 2 ? "<a:tile/>" : "<a:stretch><a:fillRect/></a:stretch>"
+                    x += "<a:blipFill><a:blip r:embed=\"\(rid)\"/>\(tile)</a:blipFill>"
+                } else { x += "<a:solidFill>\(fore)</a:solidFill>" }
+            default:
+                x += "<a:solidFill>\(fore)</a:solidFill>"
+            }
+        } else if !placeholder || s.props[0x1BF] != nil { x += "<a:noFill/>" }
+        return x
+    }
+
+    /// `p:bg` from the drawing's background shape (a fill the colour scheme alone cannot say: picture, shaded); nil when it has none.
+    func backgroundXML(of page: Page, picture: (Int) -> String?) -> String? {
+        guard let c = record(persistId: page.persistId), c.isContainer else { return nil }
+        for drawing in OfficeArt.records(data, in: c.body) where drawing.type == 0x040C {
+            for dg in OfficeArt.records(data, in: drawing.body) where dg.type == 0xF002 {
+                for sp in OfficeArt.records(data, in: dg.body) where sp.type == 0xF004 && sp.isContainer {
+                    guard let art = OfficeArt.shapes(drawing: data, in: (sp.body.lowerBound - 8) ..< sp.body.upperBound).first,
+                          art.props[0x180] != nil else { continue }
+                    let fill = Self.fillXML(art, placeholder: false, picture: picture)
+                    guard fill.contains("<a:gradFill") || fill.contains("<a:blipFill") else { return nil }
+                    return "<p:bg><p:bgPr>\(fill)<a:effectLst/></p:bgPr></p:bg>"
+                }
+            }
+        }
+        return nil
+    }
+
+    /// `a:bodyPr` from the text properties of a shape: insets (0x81-0x84, EMU), wrap (0x85), anchor (0x87),
+    /// text flow (0x88) and fit-shape-to-text (0xBF). A property the shape does not set is left to inherit.
+    static func bodyPrXML(_ s: ArtShape) -> String {
+        var a = ""
+        for (id, name) in [(0x81, "lIns"), (0x82, "tIns"), (0x83, "rIns"), (0x84, "bIns")] {
+            if let v = s.props[id] { a += " \(name)=\"\(v)\"" }
+        }
+        if let w = s.props[0x85] { a += w == 2 ? " wrap=\"none\"" : " wrap=\"square\"" }
+        switch s.props[0x88] ?? 0 {
+        case 1, 3: a += " vert=\"vert\""
+        case 2: a += " vert=\"vert270\""
+        default: break
+        }
+        if let v = s.props[0x87] {
+            a += " anchor=\"\(["t", "ctr", "b"][v % 3])\""
+            if v >= 3, v <= 5 { a += " anchorCtr=\"1\"" }
+        }
+        let fit = DocArt.flag(s, 0xBF, bit: 1, default: false) ? "<a:spAutoFit/>" : ""
+        return fit.isEmpty ? "<a:bodyPr\(a)/>" : "<a:bodyPr\(a)>\(fit)</a:bodyPr>"
+    }
+
     /// `p:sp` / `p:grpSp` elements for the shapes of a slide, in drawing order.
-    func shapeXML(of slide: Page) -> String {
+    /// `picture` turns a picture-store index into the relationship id a part holds it under (nil: the picture cannot be used).
+    /// `master`: a master's own drawing; with `placeholdersOnly` only its placeholders (what a layout repeats).
+    func shapeXML(of slide: Page, master: Bool = false, placeholdersOnly: Bool = false, picture: (Int) -> String? = { _ in nil }) -> String {
         guard let c = record(persistId: slide.persistId), c.isContainer else { return "" }
         var n = 1
         func s16(_ k: Int) -> Int { let v = OfficeArt.u16(data, k); return v >= 0x8000 ? v - 0x10000 : v }
@@ -49,6 +109,9 @@ extension PptFile {
                     // top, left, right, bottom
                     if ch.body.count >= 16 { anchor = [s32(b), s32(b + 4), s32(b + 8), s32(b + 12)] }
                     else if ch.body.count >= 8 { anchor = [s16(b), s16(b + 2), s16(b + 4), s16(b + 6)] }
+                case 0xF00F:
+                    // a shape inside a group: left, top, right, bottom in the group's own coordinates
+                    if ch.body.count >= 16 { anchor = [s32(b + 4), s32(b), s32(b + 8), s32(b + 12)] }
                 case 0xF011:
                     for d in OfficeArt.records(data, in: ch.body) where d.type == 0x0BC3 && d.body.count >= 5 {
                         placeholder = Int(data[d.body.lowerBound + 4])
@@ -87,6 +150,14 @@ extension PptFile {
         }
         func shape(_ sp: ArtRecord) -> String {
             let (art, anchor, placeholder, block) = read(sp)
+            if placeholdersOnly && placeholder == nil { return "" }
+            if art.type == 75, art.pib > 0, let rid = picture(art.pib) {
+                n += 1
+                var x = "<p:pic><p:nvPicPr><p:cNvPr id=\"\(n)\" name=\"Picture \(n)\"/><p:cNvPicPr/><p:nvPr/></p:nvPicPr>"
+                x += "<p:blipFill><a:blip r:embed=\"\(rid)\"/>\(DocArt.crop(art))<a:stretch><a:fillRect/></a:stretch></p:blipFill><p:spPr>"
+                x += xfrm("xfrm", anchor, rot: rotation(art), flipH: art.flags & 0x40 != 0, flipV: art.flags & 0x80 != 0)
+                return x + "<a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom></p:spPr></p:pic>"
+            }
             var geom: String? = nil
             if let g = DocArt.geometry(art.type) { geom = "<a:prstGeom prst=\"\(g)\"><a:avLst/></a:prstGeom>" }
             else if art.type == 0, let f = DocArt.freeform(art) { geom = f }
@@ -98,9 +169,9 @@ extension PptFile {
             if let p = placeholder { xml += phType.map { "<p:ph type=\"\($0)\"/>" } ?? (p == 0 ? "" : "<p:ph/>") }
             xml += "</p:nvPr></p:nvSpPr><p:spPr>"
             xml += xfrm("xfrm", anchor, rot: rotation(art), flipH: art.flags & 0x40 != 0, flipV: art.flags & 0x80 != 0)
-            xml += geometry + Self.fillLineXML(art, placeholder: placeholder != nil) + "</p:spPr>"
+            xml += geometry + Self.fillLineXML(art, placeholder: placeholder != nil, picture: picture) + "</p:spPr>"
             if block != nil || placeholder != nil {
-                xml += "<p:txBody><a:bodyPr/><a:lstStyle/>" + paragraphsXML(block) + "</p:txBody>"
+                xml += "<p:txBody>" + Self.bodyPrXML(art) + "<a:lstStyle/>" + paragraphsXML(block) + "</p:txBody>"
             }
             return xml + "</p:sp>"
         }
@@ -116,7 +187,7 @@ extension PptFile {
                     guard let head = OfficeArt.records(data, in: rec.body).first(where: { $0.type == 0xF004 }) else { continue }
                     let (art, anchor, _, _) = read(head)
                     let inner = walk(rec.body, depth: depth + 1, skipFirst: true)
-                    guard !inner.isEmpty else { continue }
+                    guard !inner.isEmpty, !placeholdersOnly else { continue }
                     n += 1
                     out += "<p:grpSp><p:nvGrpSpPr><p:cNvPr id=\"\(n)\" name=\"Group \(n)\"/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr>"
                     out += xfrm("xfrm", anchor, rot: rotation(art), flipH: art.flags & 0x40 != 0, flipV: art.flags & 0x80 != 0, child: art.groupRect)

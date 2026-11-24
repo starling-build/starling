@@ -120,13 +120,14 @@ final class PptContainerTests: XCTestCase {
     }
 
     // A page container: SlideAtom (master ref, flags), a colour scheme, and a drawing whose only shape is a solid background.
-    func page(type: Int, masterRef: Int, flags: Int, scheme: [Int], background: Int?) -> [UInt8] {
+    func page(type: Int, masterRef: Int, flags: Int, scheme: [Int], background: Int?, hidden: Bool = false) -> [UInt8] {
         var atom: [UInt8] = [UInt8](repeating: 0, count: 12)
         atom += le32(masterRef)
         atom += le32(0)
         atom += le16(flags)
         atom += le16(0)
         var kids = rec(0x03EF, atom)
+        if hidden { kids += rec(0x03F9, [UInt8](repeating: 0, count: 10) + le16(4) + [UInt8](repeating: 0, count: 4)) }
         var sch: [UInt8] = []
         for c in scheme { sch += [UInt8(c >> 16 & 255), UInt8(c >> 8 & 255), UInt8(c & 255), 0] }
         kids += rec(0x07F0, inst: 1, sch)
@@ -274,7 +275,11 @@ final class PptContainerTests: XCTestCase {
         var space: [UInt8] = []
         for v in [0, 0, 1000, 1000] { space += le32(v) }
         let gHead = rec(0xF004, ver: 15, rec(0xF009, ver: 1, space) + rec(0xF00A, ver: 2, inst: 0, le32(9) + le32(0x201)) + rec(0xF010, le16(1000) + le16(1000) + le16(3000) + le16(3000)))
-        let inner = shape(type: 1, props: [(0x181, 0x00FF00), (0x1BF, 0x10_0010), (0x1FF, 0x8_0000)], anchor: [0, 0, 500, 500])
+        // A shape inside a group carries a child anchor (left, top, right, bottom), not a client anchor.
+        var innerKids = rec(0xF00A, ver: 2, inst: 1, le32(3) + le32(0x400))
+        innerKids += opt([(0x181, 0x00FF00), (0x1BF, 0x10_0010), (0x1FF, 0x8_0000)])
+        innerKids += rec(0xF00F, le32(100) + le32(200) + le32(500) + le32(600))
+        let inner = rec(0xF004, ver: 15, innerKids)
         let group = rec(0xF003, ver: 15, gHead + inner)
         let top = rec(0xF003, ver: 15, head + ellipse + group)
         let pageKids = rec(0x03EF, [UInt8](repeating: 0, count: 12) + le32(0x8000_0000) + le32(0) + le16(7) + le16(0))
@@ -291,10 +296,98 @@ final class PptContainerTests: XCTestCase {
         XCTAssertTrue(xml.contains("prst=\"ellipse\""))
         XCTAssertTrue(xml.contains("<a:srgbClr val=\"FF0000\"/>"))
         XCTAssertTrue(xml.contains("<p:grpSp>"))
+        XCTAssertTrue(xml.contains("<a:off x=\"\(PptBuild.emu(100))\" y=\"\(PptBuild.emu(200))\"/><a:ext cx=\"\(PptBuild.emu(400))\" cy=\"\(PptBuild.emu(400))\"/>"))
         XCTAssertTrue(xml.contains("<a:chExt cx=\"\(PptBuild.emu(1000))\" cy=\"\(PptBuild.emu(1000))\"/>"))
         let (state, _, _) = try PptxReader(PptxPackage(PptBuild.parts(f))).read()
         XCTAssertEqual(state.slides[0].shapes.count, 2)
         XCTAssertEqual(state.slides[0].shapes[0].kind, .geometry(ShapePreset(rawValue: "ellipse")))
+    }
+
+    func testShadedAndPictureFillsBecomeGradientAndBlipFills() {
+        var s = ArtShape()
+        s.type = 1
+        s.props = [0x1BF: 0x10001, 0x180: 7, 0x181: 0xFF0000, 0x183: 0x0000FF, 0x18B: 90 << 16]
+        let g = PptFile.fillLineXML(s, placeholder: false)
+        XCTAssertTrue(g.contains("<a:gradFill"))
+        XCTAssertTrue(g.contains("<a:lin ang=\"5400000\""))
+        s.props = [0x1BF: 0x10001, 0x180: 3, 0x181: 0xFF0000, 0x186: 4]
+        let b = PptFile.fillLineXML(s, placeholder: false) { $0 == 4 ? "rId9" : nil }
+        XCTAssertTrue(b.contains("<a:blip r:embed=\"rId9\"/>"))
+        XCTAssertTrue(PptFile.fillLineXML(s, placeholder: false).contains("<a:solidFill>"))
+    }
+
+    func testPicturesComeFromThePicturesStreamThroughTheStore() throws {
+        func persist(_ id: Int, _ slideId: Int) -> [UInt8] {
+            var b: [UInt8] = le32(id)
+            b += le32(0) + le32(1) + le32(slideId) + le32(0)
+            return rec(0x03F3, b)
+        }
+        var atom: [UInt8] = le32(5760)
+        atom += le32(4320)
+        atom += [UInt8](repeating: 0, count: 22)
+        atom += le16(1)
+        atom += [UInt8](repeating: 0, count: 6)
+        // The Pictures stream: one PNG record at offset 0 (uid, tag, bytes).
+        let png: [UInt8] = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 1, 2, 3, 4]
+        let blip = rec(0xF01E, ver: 0, inst: 0x6E0, [UInt8](repeating: 7, count: 16) + [0xFF] + png)
+        // The store: one FBSE whose foDelay points at it; the entry holds no picture itself.
+        var fbse: [UInt8] = [6, 6] + [UInt8](repeating: 7, count: 16) + le16(0xFF) + le32(blip.count) + le32(1) + le32(0)
+        fbse += [0, 0, 0, 0]
+        let store = rec(0xF001, ver: 15, inst: 1, rec(0xF007, ver: 2, inst: 6, fbse))
+        let drawingGroup = rec(0x040B, ver: 15, rec(0xF000, ver: 15, store))
+        var kids = rec(0x03E9, atom) + drawingGroup
+        kids += rec(0x0FF0, ver: 15, inst: 1, persist(2, 0x8000_0000))
+        kids += rec(0x0FF0, ver: 15, inst: 0, persist(3, 256))
+        var d = rec(0x03E8, ver: 15, kids)
+        var opt: [UInt8] = le16(0x104) + le32(1)
+        opt = rec(0xF00B, ver: 3, inst: 1, opt)
+        var k = rec(0xF00A, ver: 2, inst: 75, le32(2) + le32(0x400)) + opt
+        k += rec(0xF010, le16(100) + le16(200) + le16(1100) + le16(1200))
+        let head = rec(0xF004, ver: 15, rec(0xF00A, ver: 2, inst: 0, le32(1) + le32(5)))
+        let top = rec(0xF003, ver: 15, head + rec(0xF004, ver: 15, k))
+        let pageKids = rec(0x03EF, [UInt8](repeating: 0, count: 12) + le32(0x8000_0000) + le32(0) + le16(7) + le16(0))
+            + rec(0x040C, ver: 15, rec(0xF002, ver: 15, top))
+        let master = rec(0x03F8, ver: 15, rec(0x03EF, [UInt8](repeating: 0, count: 24)))
+        var offs: [Int] = []
+        for p in [master, rec(0x03EE, ver: 15, pageKids)] { offs.append(d.count); d += p }
+        let dir = d.count
+        d += directory([(1, [0]), (2, [offs[0]]), (3, [offs[1]])])
+        let edit = d.count
+        d += userEdit(lastEdit: 0, directory: dir, document: 1)
+        var f = try PptFile(currentUser: currentUser(offset: edit), document: d)
+        f.pictures = blip
+        XCTAssertEqual(f.blip(1)?.ext, "png")
+        XCTAssertEqual(f.blip(1)?.data, png)
+        XCTAssertNil(f.blip(2))
+        let parts = PptBuild.parts(f)
+        XCTAssertTrue(parts.contains { $0.name == "ppt/media/image1.png" })
+        let rels = parts.first { $0.name == "ppt/slides/_rels/slide1.xml.rels" }.map { String(decoding: $0.data, as: UTF8.self) } ?? ""
+        XCTAssertTrue(rels.contains("../media/image1.png"))
+        let slide = parts.first { $0.name == "ppt/slides/slide1.xml" }.map { String(decoding: $0.data, as: UTF8.self) } ?? ""
+        XCTAssertTrue(slide.contains("<p:pic>"))
+    }
+
+    func testSlideNumberAndDateMarksBecomeFields() throws {
+        // text "Page *": a slide-number mark at position 5, then a date mark at position 6.
+        let text: [UInt8] = "Page **".utf16.flatMap { [UInt8($0 & 0xFF), UInt8($0 >> 8)] }
+        var recs = rec(0x0F9F, le32(4)) + rec(0x0FA0, text)
+        recs += rec(0x0FD8, le32(5)) + rec(0x0FF7, le32(6) + [0, 0, 0, 0])
+        let blocks = PptText.blocks(OfficeArt.records(recs, in: 0 ..< recs.count), in: recs)
+        XCTAssertEqual(blocks.first?.fields, [5: "slidenum", 6: "datetime1"])
+        let f = try PptFile(currentUser: deckWithThreeSlides().user, document: deckWithThreeSlides().doc)
+        let xml = f.paragraphsXML(blocks.first)
+        XCTAssertTrue(xml.contains("type=\"slidenum\""), xml)
+        XCTAssertTrue(xml.contains("type=\"datetime1\""), xml)
+        XCTAssertTrue(xml.contains("<a:t>Page </a:t>"), xml)
+    }
+
+    func testTextBoxSettingsBecomeBodyProperties() {
+        var s = ArtShape()
+        XCTAssertEqual(PptFile.bodyPrXML(s), "<a:bodyPr/>")
+        s.props = [0x81: 0, 0x87: 1, 0x85: 2]
+        let x = PptFile.bodyPrXML(s)
+        XCTAssertTrue(x.contains("lIns=\"0\"") && x.contains("anchor=\"ctr\"") && x.contains("wrap=\"none\""), x)
+        XCTAssertFalse(x.contains("tIns"), x)
     }
 
     func testStyleRunsKeepOnlyTheFieldsTheirMaskNames() throws {
@@ -327,6 +420,18 @@ final class PptContainerTests: XCTestCase {
         XCTAssertTrue(xml.contains("<a:r><a:t>red</a:t></a:r>"), xml)
         XCTAssertFalse(xml.contains("i=\""), xml)
         XCTAssertFalse(xml.contains("marL"), xml)
+    }
+
+    func testALineBreakKeepsTheSizeOfTheRunItSitsIn() throws {
+        var block = PptTextBlock()
+        block.text = "a\u{0B}\u{0B}b"
+        var run = PptCharRun()
+        run.size = 18
+        run.count = 4
+        block.charRuns = [run]
+        let f = try PptFile(currentUser: deckWithThreeSlides().user, document: deckWithThreeSlides().doc)
+        let xml = f.paragraphsXML(block)
+        XCTAssertTrue(xml.contains("<a:br><a:rPr sz=\"1800\"/></a:br>"), xml)
     }
 
     func testMasterTextStylesReachPlaceholdersWithoutTheirOwnRuns() throws {
@@ -366,5 +471,42 @@ final class PptContainerTests: XCTestCase {
         XCTAssertTrue(xml.contains("<a:lvl2pPr><a:defRPr sz=\"2400\"/></a:lvl2pPr>"), xml)
         let (state, _, _) = try PptxReader(PptxPackage(PptBuild.parts(f))).read()
         XCTAssertEqual(state.slides[0].shapes.first?.text?.paragraphs.first?.runs.first?.style.fontSize, 28)
+    }
+}
+
+extension PptContainerTests {
+    func testAHiddenSlideIsMarkedHidden() throws {
+        func persist(_ id: Int, _ slideId: Int) -> [UInt8] { rec(0x03F3, le32(id) + le32(0) + le32(1) + le32(slideId) + le32(0)) }
+        var atom: [UInt8] = le32(5760) + le32(4320)
+        atom += [UInt8](repeating: 0, count: 22) + le16(1) + [UInt8](repeating: 0, count: 6)
+        var kids = rec(0x03E9, atom)
+        kids += rec(0x0FF0, ver: 15, inst: 1, persist(2, 0x8000_0000))
+        kids += rec(0x0FF0, ver: 15, inst: 0, persist(3, 256))
+        var d = rec(0x03E8, ver: 15, kids)
+        var offs: [Int] = []
+        for p in [page(type: 0x03F8, masterRef: 0, flags: 7, scheme: [0, 0, 0, 0, 0, 0, 0, 0], background: nil),
+                  page(type: 0x03EE, masterRef: 0x8000_0000, flags: 7, scheme: [0, 0, 0, 0, 0, 0, 0, 0], background: nil, hidden: true)] {
+            offs.append(d.count); d += p
+        }
+        let dir = d.count
+        d += directory([(1, [0]), (2, [offs[0]]), (3, [offs[1]])])
+        let edit = d.count
+        d += userEdit(lastEdit: 0, directory: dir, document: 1)
+        let f = try PptFile(currentUser: currentUser(offset: edit), document: d)
+        XCTAssertTrue(f.slides[0].hidden)
+        let (state, _, _) = try PptxReader(PptxPackage(PptBuild.parts(f))).read()
+        XCTAssertTrue(state.slides[0].hidden)
+    }
+}
+
+extension PptContainerTests {
+    func testARulerGivesTheLeftMarginOfItsLevels() {
+        // mask: left margin 1 (bit 3) and indent 1 (bit 8)
+        let body = le32(0x108) + le16(569) + le16(216)
+        let r = rec(0x0FA6, body)
+        let recs = OfficeArt.records(r, in: 0 ..< r.count)
+        let ruler = PptText.ruler(recs[0], in: r)
+        XCTAssertEqual(ruler[0]?.left, 569)
+        XCTAssertEqual(ruler[0]?.indent, 216)
     }
 }

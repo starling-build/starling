@@ -84,8 +84,15 @@ extension PptFile {
         }
         let pStart = starts(block.paraRuns) { $0.count }, cStart = starts(block.charRuns) { $0.count }
         func paraRun(at k: Int) -> PptParaRun? {
-            guard let i = pStart.lastIndex(where: { $0 <= k }), k < pStart[i] + block.paraRuns[i].count else { return nil }
-            return block.paraRuns[i]
+            var run: PptParaRun? = nil
+            if let i = pStart.lastIndex(where: { $0 <= k }), k < pStart[i] + block.paraRuns[i].count { run = block.paraRuns[i] }
+            // The shape's ruler sets the margin and indent of a level its own runs leave open.
+            if let r = block.ruler[run?.level ?? 0], r.left != nil || r.indent != nil {
+                var p = run ?? PptParaRun()
+                if p.leftMargin == nil { p.leftMargin = r.left }
+                return p
+            }
+            return run
         }
         func charRun(at k: Int) -> (PptCharRun, Int)? {
             guard let i = cStart.lastIndex(where: { $0 <= k }), k < cStart[i] + block.charRuns[i].count else { return nil }
@@ -99,11 +106,20 @@ extension PptFile {
             out += "<a:p>" + (paraRun(at: ps).map { paragraphProps($0) } ?? "")
             var k = ps
             while k < pe {
-                if units[k] == 0x0B { out += "<a:br/>"; k += 1; continue }
+                if units[k] == 0x0B {
+                    let props = charRun(at: k).map { runProps($0.0) } ?? ""
+                    out += props.isEmpty ? "<a:br/>" : "<a:br>\(props)</a:br>"
+                    k += 1; continue
+                }
+                if let type = block.fields[k] {
+                    let shown = type == "slidenum" ? "‹#›" : "1/1/2026"
+                    out += "<a:fld id=\"{5C1F2A90-7B3D-4E60-9A41-0D8E6B2F7C13}\" type=\"\(type)\">\(charRun(at: k).map { runProps($0.0) }.flatMap { $0.isEmpty ? nil : $0 } ?? "<a:rPr lang=\"en-US\"/>")<a:t>\(shown)</a:t></a:fld>"
+                    k += 1; continue
+                }
                 let run = charRun(at: k)
                 var e = k
                 let limit = min(pe, run?.1 ?? pe)
-                while e < limit, units[e] != 0x0B { e += 1 }
+                while e < limit, units[e] != 0x0B, block.fields[e] == nil || e == k { e += 1 }
                 if e == k { e = k + 1 }
                 let text = units[k ..< e].filter { $0 >= 0x20 || $0 == 0x09 }
                 if !text.isEmpty {

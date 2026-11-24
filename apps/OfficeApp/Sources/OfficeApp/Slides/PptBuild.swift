@@ -24,7 +24,9 @@ enum PptBuild {
               let doc = cf.stream("PowerPoint Document") else {
             throw OfficeFormats.FormatError.unsupported("a PowerPoint file older than PowerPoint 97, or not a PowerPoint file")
         }
-        return PptxPackage(parts(try PptFile(currentUser: user, document: doc)))
+        var f = try PptFile(currentUser: user, document: doc)
+        f.pictures = cf.stream("Pictures") ?? []
+        return PptxPackage(parts(f))
     }
 
     /// One master (with its theme and one layout) per master of the file and colour scheme in use: a slide
@@ -69,7 +71,6 @@ enum PptBuild {
         for k in 1 ... max(n, 1) where k <= n {
             types += "<Override PartName=\"/ppt/slides/slide\(k).xml\" ContentType=\"\(pml)slide+xml\"/>"
         }
-        add("[Content_Types].xml", types + "</Types>")
         add("_rels/.rels", rels([("rId1", "officeDocument", "ppt/presentation.xml")]))
 
         var presRels: [(String, String, String)] = []
@@ -92,6 +93,26 @@ enum PptBuild {
         let treeHead = "<p:spTree><p:nvGrpSpPr><p:cNvPr id=\"1\" name=\"\"/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>"
             + "<p:grpSpPr><a:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"0\" cy=\"0\"/><a:chOff x=\"0\" y=\"0\"/><a:chExt cx=\"0\" cy=\"0\"/></a:xfrm></p:grpSpPr>"
         let tree = treeHead + "</p:spTree>"
+        // Pictures: one media part per store entry used, one relationship per part that shows it.
+        var mediaName: [Int: String] = [:]
+        var mediaExts = Set<String>()
+        func partPictures(_ firstRid: Int) -> (rid: (Int) -> String?, rels: () -> [(String, String, String)]) {
+            var mine: [(Int, String)] = []
+            func rid(_ index: Int) -> String? {
+                if let k = mine.firstIndex(where: { $0.0 == index }) { return "rId\(firstRid + k)" }
+                if mediaName[index] == nil {
+                    guard let b = f.blip(index), !b.data.isEmpty else { return nil }
+                    let name = "image\(mediaName.count + 1).\(b.ext)"
+                    mediaName[index] = name
+                    mediaExts.insert(b.ext)
+                    out.append(ZipEntry(name: "ppt/media/" + name, data: Data(b.data)))
+                }
+                guard let name = mediaName[index] else { return nil }
+                mine.append((index, name))
+                return "rId\(firstRid + mine.count - 1)"
+            }
+            return (rid, { mine.enumerated().map { ("rId\(firstRid + $0.offset)", "image", "../media/" + $0.element.1) } })
+        }
         func slideTree(_ shapes: String) -> String { treeHead + shapes + "</p:spTree>" }
         func background(_ rgb: Int?) -> String {
             guard let rgb else { return "" }
@@ -100,21 +121,29 @@ enum PptBuild {
         for (i, v) in variants.enumerated() {
             let k = i + 1
             let m = v.master < f.masters.count ? f.masters[v.master] : nil
-            add("ppt/slideMasters/slideMaster\(k).xml", "<p:sldMaster \(ns)><p:cSld>\(background(m?.background))\(tree)</p:cSld>"
+            let mp = partPictures(3)
+            let masterShapes = m.map { f.shapeXML(of: $0, master: true, picture: mp.rid) } ?? ""
+            add("ppt/slideMasters/slideMaster\(k).xml", "<p:sldMaster \(ns)><p:cSld>\(m.flatMap { f.backgroundXML(of: $0, picture: mp.rid) } ?? background(m?.background))\(slideTree(masterShapes))</p:cSld>"
                 + "<p:clrMap bg1=\"lt1\" tx1=\"dk1\" bg2=\"lt2\" tx2=\"dk2\" accent1=\"accent1\" accent2=\"accent2\" accent3=\"accent3\" accent4=\"accent4\" accent5=\"accent5\" accent6=\"accent6\" hlink=\"hlink\" folHlink=\"folHlink\"/>"
                 + "<p:sldLayoutIdLst><p:sldLayoutId id=\"\(2147483649 + 2 * i)\" r:id=\"rId1\"/></p:sldLayoutIdLst>\(m.map { f.textStylesXML(of: $0) } ?? "")</p:sldMaster>")
-            add("ppt/slideMasters/_rels/slideMaster\(k).xml.rels", rels([("rId1", "slideLayout", "../slideLayouts/slideLayout\(k).xml"), ("rId2", "theme", "../theme/theme\(k).xml")]))
-            add("ppt/slideLayouts/slideLayout\(k).xml", "<p:sldLayout \(ns) type=\"blank\"><p:cSld>\(tree)</p:cSld></p:sldLayout>")
+            add("ppt/slideMasters/_rels/slideMaster\(k).xml.rels", rels([("rId1", "slideLayout", "../slideLayouts/slideLayout\(k).xml"), ("rId2", "theme", "../theme/theme\(k).xml")] + mp.rels()))
+            let layoutShapes = m.map { f.shapeXML(of: $0, master: true, placeholdersOnly: true) } ?? ""
+            add("ppt/slideLayouts/slideLayout\(k).xml", "<p:sldLayout \(ns) type=\"blank\"><p:cSld>\(slideTree(layoutShapes))</p:cSld></p:sldLayout>")
             add("ppt/slideLayouts/_rels/slideLayout\(k).xml.rels", rels([("rId1", "slideMaster", "../slideMasters/slideMaster\(k).xml")]))
             add("ppt/theme/theme\(k).xml", theme(v.scheme))
         }
         for (i, s) in f.slides.enumerated() {
             let k = i + 1
-            let attrs = s.followsMasterObjects ? "" : " showMasterSp=\"0\""
+            let attrs = (s.followsMasterObjects ? "" : " showMasterSp=\"0\"") + (s.hidden ? " show=\"0\"" : "")
             let own = s.followsMasterBackground ? nil : s.background
-            add("ppt/slides/slide\(k).xml", "<p:sld \(ns)\(attrs)><p:cSld>\(background(own))\(slideTree(f.shapeXML(of: s)))</p:cSld></p:sld>")
-            add("ppt/slides/_rels/slide\(k).xml.rels", rels([("rId1", "slideLayout", "../slideLayouts/slideLayout\(slideVariant[i] + 1).xml")]))
+            let sp = partPictures(2)
+            let bg = s.followsMasterBackground ? "" : (f.backgroundXML(of: s, picture: sp.rid) ?? background(own))
+            add("ppt/slides/slide\(k).xml", "<p:sld \(ns)\(attrs)><p:cSld>\(bg)\(slideTree(f.shapeXML(of: s, picture: sp.rid)))</p:cSld></p:sld>")
+            add("ppt/slides/_rels/slide\(k).xml.rels", rels([("rId1", "slideLayout", "../slideLayouts/slideLayout\(slideVariant[i] + 1).xml")] + sp.rels()))
         }
+        let mimes = ["png": "image/png", "jpeg": "image/jpeg", "bmp": "image/bmp", "tiff": "image/tiff", "emf": "image/x-emf", "wmf": "image/x-wmf", "pict": "image/x-pict"]
+        for e in mediaExts.sorted() { types += "<Default Extension=\"\(e)\" ContentType=\"\(mimes[e] ?? "application/octet-stream")\"/>" }
+        add("[Content_Types].xml", types + "</Types>")
         return out
     }
 
