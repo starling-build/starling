@@ -537,4 +537,12 @@ final class ChartTests: XCTestCase {
         XCTAssertEqual(ChartPainter.wordTurnedNameWordsKept(prefixWidths: widths, cap: 10), 1)
         XCTAssertEqual(ChartPainter.wordTurnedNameWordsKept(prefixWidths: widths, cap: 500), 5)
     }
+    func testAWordBoxLegendSpreadsItsEntriesAcrossTheBox() {
+        // Lab legend1: entries of 85.7 and 47.8 pt stand 21.7 pt apart in a 197 pt box and 32.5 in a 229.6 pt one;
+        // three (85.7, 47.8, 54.5) stand 2.2 pt apart in the 197 pt box; 133.5 pt of entries do not fit a 129 pt box.
+        XCTAssertEqual(ChartPainter.wordLegendSpread(entryWidths: [85.7, 47.8], boxWidth: 197)!, 21.17, accuracy: 0.05)
+        XCTAssertEqual(ChartPainter.wordLegendSpread(entryWidths: [85.7, 47.8], boxWidth: 229.6)!, 32.03, accuracy: 0.05)
+        XCTAssertEqual(ChartPainter.wordLegendSpread(entryWidths: [85.7, 47.8, 54.5], boxWidth: 197)!, 2.25, accuracy: 0.05)
+        XCTAssertNil(ChartPainter.wordLegendSpread(entryWidths: [85.7, 47.8], boxWidth: 129))
+    }
 }

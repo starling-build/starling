@@ -3670,8 +3670,8 @@ enum ChartPainter {
             // 21.7 pt apart in a 197 pt box and 32.5 pt in a 230 pt one, three entries 2.2 pt
             // apart in the 197 pt box where ours wrapped them.)
             if wordSpread, lines.count == 1, let only = lines.first, !only.isEmpty, let bw = box?.width {
-                let sum = only.reduce(0.0) { $0 + lead + $1.tp.width }
-                if bw > sum { spacing = (bw - sum) / Double(only.count + 1); RuleTrace.hit("word-legend-entries-spread-across-its-box") }
+                let widths: [Double] = only.map { lead + $0.tp.width }
+                if let spread = Self.wordLegendSpread(entryWidths: widths, boxWidth: bw) { spacing = spread; RuleTrace.hit("word-legend-entries-spread-across-its-box") }
             }
             // (A row wrapped is balanced: Word sets a legend of eight entries, too long for
             // a row, as four and four — lo tdf137116's pie, "datalabel1…4" over "5…8" —
@@ -4954,6 +4954,13 @@ enum ChartPainter {
         return r - 1.2 * k - (abs(cos(m)) * width / 2 + abs(sin(m)) * height / 2)
     }
     /// How many of a Word pie box legend's entries (each its height and 4 pt) fit the box (lab pieleg).
+    /// The gap Word leaves before, between and after the entries of a one-row legend in a box of its own: the
+    /// free width in equal parts. Nil when the entries alone do not fill less than the box (they wrap instead).
+    static func wordLegendSpread(entryWidths: [Double], boxWidth: Double) -> Double? {
+        let sum = entryWidths.reduce(0.0, +)
+        guard !entryWidths.isEmpty, boxWidth > sum else { return nil }
+        return (boxWidth - sum) / Double(entryWidths.count + 1)
+    }
     static func wordPieLegendEntriesKept(heights: [Double], k: Double, boxHeight: Double) -> Int {
         var keep = heights.count
         while keep > 1, heights.prefix(keep).reduce(0.0, { $0 + $1 + 4 * k }) > boxHeight { keep -= 1 }
