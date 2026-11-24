@@ -53,6 +53,54 @@ final class SheetsFormatCellsTests: XCTestCase {
     }
 }
 
+/// X-FM-3: border line style and colour.
+final class SheetsFormatCellsBorderTests: XCTestCase {
+    func testPenAppliesToDrawnSidesAndSurvivesASave() throws {
+        let c = WorkbookController()
+        let a = CellAddress("A1")!, b = CellAddress("B1")!
+        c.setInput("1", at: a); c.setInput("2", at: b)
+        c.select(a)
+        c.formatCells(CellFormatEdit(borderTop: .set(true), borderBottom: .set(true), borderKind: .set("double"), borderColor: .set(0xC00000)))
+        XCTAssertEqual(c.style(at: a).borders.kinds["top"], "double")
+        XCTAssertEqual(c.style(at: a).borders.colors["bottom"], 0xC00000)
+        XCTAssertNil(c.style(at: a).borders.kinds["left"])
+        XCTAssertFalse(c.style(at: a).borders.left)
+        let c2 = WorkbookController(); c2.load(try Xlsx.read(try Xlsx.write(c.book)))
+        XCTAssertEqual(c2.style(at: a).borders.kinds["top"], "double")
+        XCTAssertEqual(c2.style(at: a).borders.colors["bottom"], 0xC00000)
+        XCTAssertEqual(c2.style(at: b).borders, CellStyle.Borders())
+    }
+
+    func testTogglingASideLeavesAMixedPenAlone() {
+        var st = CellStyle()
+        st.borders.top = true; st.borders.bottom = true
+        st.borders.kinds["top"] = "thick"; st.borders.kinds["bottom"] = "dashed"
+        let v = CellFormatEdit.Values(st)
+        var n = v; n.left = true
+        let e = CellFormatEdit.between(v, n)
+        XCTAssertEqual(e.borderKind, .keep)
+        e.apply(to: &st)
+        XCTAssertEqual(st.borders.kinds["top"], "thick")
+        XCTAssertEqual(st.borders.kinds["bottom"], "dashed")
+        XCTAssertTrue(st.borders.left)
+    }
+
+    func testDialogPicksLineStyleAndColour() {
+        var got: CellFormatEdit?
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light),
+            home: FormatCellsDialog(start: CellFormatEdit.Values(.plain), onApply: { got = $0 }, onClose: {}), title: "Test"), size: Size(1280, 800))
+        addTeardownBlock { ui.replace(with: SizedBox(width: 1, height: 1)) }
+        XCTAssertTrue(ui.tap(text: "Border"))
+        XCTAssertTrue(ui.tap(id: "fc-border-bottom"))
+        XCTAssertTrue(ui.tap(id: "fc-line-Dashed"))
+        XCTAssertTrue(ui.tap(id: "fc-line-color-Red"))
+        ui.press(.enter)
+        XCTAssertEqual(got?.borderKind, .set("dashed"))
+        XCTAssertEqual(got?.borderBottom, .set(true))
+        XCTAssertNotNil(got?.borderColor)
+    }
+}
+
 final class SheetsFormatCellsDialogTests: XCTestCase {
     private func dialog(_ applied: @escaping (CellFormatEdit) -> Void, _ closed: @escaping () -> Void) -> WidgetTester {
         let start = CellFormatEdit.Values(.plain)

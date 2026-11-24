@@ -25,6 +25,12 @@ final class FormatCellsDialog: StatefulWidget {
         ("General", "General"), ("Number", "0.00"), ("Currency", "$#,##0.00"),
         ("Percentage", "0.00%"), ("Scientific", "0.00E+00"), ("Text", "@"),
     ]
+    /// The line styles a side can take (the names the file format uses).
+    static let lineKinds: [(String, String)] = [
+        ("Thin", "thin"), ("Medium", "medium"), ("Thick", "thick"), ("Double", "double"),
+        ("Dashed", "dashed"), ("Dotted", "dotted"), ("Hair", "hair"),
+    ]
+
     static let swatches: [(String, UInt32)] = [
         ("Black", 0x000000), ("White", 0xFFFFFF), ("Dark Gray", 0x595959), ("Light Gray", 0xD9D9D9),
         ("Dark Red", 0xC00000), ("Red", 0xFF0000), ("Orange", 0xFFC000), ("Yellow", 0xFFFF00),
@@ -153,6 +159,14 @@ final class FormatCellsDialogState: State<StatefulWidget> {
                 _choice("fc-border-all", "All sides", selected: false) { [weak self] in self?._set { $0.top = true; $0.left = true; $0.bottom = true; $0.right = true } },
                 _choice("fc-border-none", "None", selected: false) { [weak self] in self?._set { $0.top = false; $0.left = false; $0.bottom = false; $0.right = false } },
             ]),
+            Text("Line style", style: fluent.typography.bodyStrong),
+            Wrap(spacing: 4, runSpacing: 4, children: FormatCellsDialog.lineKinds.map { name, kind in
+                SizedBox(width: 90, height: 28, child: _choice("fc-line-\(name)", name, selected: values.lineKind == kind) { [weak self] in
+                    self?._set { $0.lineKind = kind }
+                })
+            }),
+            Text("Line colour", style: fluent.typography.bodyStrong),
+            _swatches("fc-line-color", values.lineColor, noneLabel: "Automatic") { [weak self] c in self?._set { $0.lineColor = c } },
         ])
     }
 
