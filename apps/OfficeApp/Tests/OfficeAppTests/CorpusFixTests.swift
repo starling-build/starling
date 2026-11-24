@@ -167,6 +167,22 @@ final class CorpusFixTests: XCTestCase {
         XCTAssertTrue(box.paragraphs.contains { $0.text.contains("Title") })
     }
 
+    /// A `w:pict` holding only a `v:shapetype` (no shape of it) draws
+    /// nothing: es-28716e1db6's header carried one and it stood a 164.7 pt
+    /// line on every page. It must make no picture or object.
+    func testAPictHoldingOnlyAShapeTypeTakesNoRoom() throws {
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "x")]), pageSetup: .a4))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let body = try XCTUnwrap(xml.range(of: "<w:body>")), sect = try XCTUnwrap(xml.range(of: "<w:sectPr"))
+        xml.replaceSubrange(body.upperBound ..< sect.lowerBound, with:
+            "<w:p><w:r><w:pict><v:shapetype xmlns:v=\"urn:schemas-microsoft-com:vml\" id=\"_x0000_m2050\" coordsize=\"21600,21600\" o:spt=\"136\" "
+            + "xmlns:o=\"urn:schemas-microsoft-com:office:office\" path=\"m@7,l@8,m@5,21600l@6,21600e\"><v:path/></v:shapetype></w:pict></w:r><w:r><w:t>y</w:t></w:r></w:p>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let doc = try DocxFormat.read(try Zip.write(entries)).document
+        XCTAssertTrue(doc.paragraphs.allSatisfy { $0.image == nil && $0.inlineImages.isEmpty })
+    }
+
     /// A connector `v:shape` of 500pt by 0pt is a straight line: its height
     /// is 0, not absent. Read as absent it stood the 300 by 200 stand-in
     /// (es-e3d5fed41c's rule row was 188 pt too tall).
