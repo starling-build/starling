@@ -1064,7 +1064,8 @@ public final class RichTextTheme {
                 return [Offset(r, 0), Offset(d, d), Offset(0, r), Offset(-d, d), Offset(-r, 0), Offset(-d, -d), Offset(0, -r), Offset(d, -d)]
                     .map { Shadow(color: line.color, offset: $0, blurRadius: 0) }
             }().map { ring in (style.shadow.map { sh in
-                if sh.ground != nil || (Self.shadowsAsPaths && (!sh.glow || Self.shadowBlurDeviceScale != nil)) { return [] }
+                // (Word's own PDF print draws no glow at all: dx2 228c1f233c7a, a 4.5 pt and a 26 pt glow, none on the page.)
+                if sh.ground != nil || Self.shadowsAsPaths { return [] }
                 let k = pixelsPerPoint * scale
                 let device = sh.blur > 0 ? Self.shadowBlurDeviceScale : nil
                 if sh.glow {
@@ -1090,7 +1091,8 @@ public final class RichTextTheme {
                 return [Shadow(color: Color(rgbo: sh.color.red, sh.color.green, sh.color.blue, a),
                                offset: Offset(sh.dx * k, sh.dy * k), blurRadius: radius)]
             } ?? []) + ring } ?? style.shadow.map { sh in
-                if sh.ground != nil || (Self.shadowsAsPaths && (!sh.glow || Self.shadowBlurDeviceScale != nil)) { return [] }
+                // (Word's own PDF print draws no glow at all: dx2 228c1f233c7a, a 4.5 pt and a 26 pt glow, none on the page.)
+                if sh.ground != nil || Self.shadowsAsPaths { return [] }
                 let k = pixelsPerPoint * scale
                 let device = sh.blur > 0 ? Self.shadowBlurDeviceScale : nil
                 if sh.glow {
