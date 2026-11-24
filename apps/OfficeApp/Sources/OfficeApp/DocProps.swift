@@ -480,6 +480,7 @@ enum DocProps {
     static func sectPr(_ g: [UInt8], refs: String) -> String {
         var w = 12240, h = 15840, l = 1800, r = 1800, tp = 1440, bt = 1440, hd = 720, ft = 720, gut = 0
         var landscape = false, title = false, cols = 1, space = 720, bkc = 2
+        var clm = 0, linePitch = 360, charSpace = 0
         for s in sprms(g) where s.sgc == 4 {
             switch s.op {
             case 0xB01F: w = s.u16
@@ -496,6 +497,9 @@ enum DocProps {
             case 0x500B: cols = s.u16 + 1
             case 0x900C: space = s.u16
             case 0x3009: bkc = s.u8
+            case 0x5032: clm = s.u16
+            case 0x9031: linePitch = s.u16
+            case 0x7030: charSpace = Int(Int32(truncatingIfNeeded: OfficeArt.u32(s.operand, 0)))
             default: break
             }
         }
@@ -505,6 +509,10 @@ enum DocProps {
         x += "<w:pgMar w:top=\"\(tp)\" w:right=\"\(r)\" w:bottom=\"\(bt)\" w:left=\"\(l)\" w:header=\"\(hd)\" w:footer=\"\(ft)\" w:gutter=\"\(gut)\"/>"
         if cols > 1 { x += "<w:cols w:num=\"\(cols)\" w:space=\"\(space)\"/>" }
         if title { x += "<w:titlePg/>" }
+        // The section's text grid (sprmSClm: 1 linesAndChars, 2 lines, 3 snapToChars).
+        if let type = [1: "linesAndChars", 2: "lines", 3: "snapToChars"][clm] {
+            x += "<w:docGrid w:type=\"\(type)\" w:linePitch=\"\(linePitch)\"" + (charSpace != 0 ? " w:charSpace=\"\(charSpace)\"" : "") + "/>"
+        }
         return "<w:sectPr>" + x + "</w:sectPr>"
     }
 }
