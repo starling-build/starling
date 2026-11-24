@@ -320,7 +320,7 @@ enum DocRead {
         let relBase = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/"
         let ctBase = "application/vnd.openxmlformats-officedocument.wordprocessingml."
         // The shapes and pictures of a header or footer story [a, b): set once the drawings are read (below).
-        var headerDrawings: (Int, Int) -> (shapes: [Int: (xml: String, behind: Bool)], rels: String, picture: (Int) -> String?) = { _, _ in ([:], "", { _ in nil }) }
+        var headerDrawings: (Int, Int) -> (shapes: [Int: (xml: String, behind: Bool)], rels: () -> String, picture: (Int) -> String?) = { _, _ in ([:], { "" }, { _ in nil }) }
         // Headers and footers: six stories per section after the six note separators.
         let hdd = fib.range(DocFib.fcPlcfHdd).flatMap { DocProps.plex(tbl, at: $0.fc, count: $0.lcb, size: 0) }
         func refs(section k: Int) -> String {
@@ -338,7 +338,8 @@ enum DocRead {
                 let hd = headerDrawings(a, b)
                 var hc = StoryContext(); hc.shapes = hd.shapes; hc.picture = hd.picture
                 extra.append(e("word/" + part, head + "<w:\(tag == "header" ? "hdr" : "ftr") \(ns)>" + story(a, b, hc) + "</w:\(tag == "header" ? "hdr" : "ftr")>"))
-                if !hd.rels.isEmpty { extra.append(e("word/_rels/" + part + ".rels", head + "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">" + hd.rels + "</Relationships>")) }
+                let partRels = hd.rels()   // after the story: its inline pictures add theirs while it is read
+                if !partRels.isEmpty { extra.append(e("word/_rels/" + part + ".rels", head + "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">" + partRels + "</Relationships>")) }
                 rels += "<Relationship Id=\"\(id)\" Type=\"\(relBase)\(tag)\" Target=\"\(part)\"/>"
                 types += "<Override PartName=\"/word/\(part)\" ContentType=\"\(ctBase)\(tag).xml\"/>"
                 x += "<w:\(tag)Reference w:type=\"\(type)\" r:id=\"\(id)\"/>"
@@ -455,6 +456,14 @@ enum DocRead {
             }
             return out
         }
+        // A header or footer with no drawn shapes can still hold inline pictures (a letterhead logo): they
+        // read from the Data stream and get the part's own relationships.
+        headerDrawings = { _, _ in
+            var hrels = ""
+            func add(_ bl: ArtBlip) -> String { let n = addMedia(bl); hrels += imageRel(n, bl.ext); return "rIdImg\(n)" }
+            let pic: (Int) -> String? = { off in DocArt.inline(data: dataStream, at: off, rid: { bl in add(bl) }) }
+            return ([:], { hrels }, pic)
+        }
         var mainShapes: [Int: (xml: String, behind: Bool)] = [:]
         if let dg = fib.range(50) {
             let art = DocArt.art(t: tbl, w: w, at: dg.fc, count: dg.lcb)
@@ -474,7 +483,7 @@ enum DocRead {
                     let mine = hspas.filter { hStart + $0.cp >= a && hStart + $0.cp < b }
                     let pic: (Int) -> String? = { off in DocArt.inline(data: dataStream, at: off, rid: { bl in add(bl) }) }
                     let runs = shapeRuns(mine, shift: hStart, art: art, boxes: hboxes, boxStart: boxStart + fib.ccpTxbx, add: add, pic: pic)
-                    return (runs, hrels, pic)
+                    return (runs, { hrels }, pic)
                 }
             }
         }
