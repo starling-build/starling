@@ -495,10 +495,63 @@ final class Ribbon: StatelessWidget {
             Chrome.small(FluentSystemIcons.columns, "Split Cell", fluent,
                          enabled: (c.currentCell?.span ?? 1) > 1 || (c.currentCell?.rowSpan ?? 1) > 1) { c.splitCell() },
         ])])
+        let style = c.currentTableStyle ?? TableStyle()
+        let row = c.currentCell?.row ?? 0
         let size = Chrome.group("Cell Size", fluent, [
+            Chrome.rows([
+                Chrome.spinner("Row Height", style.rowHeights[row] ?? 0, fluent, step: 2, shown: style.rowHeights[row].map { "\(Int($0.rounded())) pt" } ?? "Auto") { v in
+                    c.setRowHeight(v < 1 ? nil : v, exact: style.rowsExactHeight.contains(row))
+                },
+                Chrome.vgap(2),
+                Chrome.spinner("Indent", style.indent, fluent, step: 6, minimum: -72) { v in c.setTableIndent(v) },
+            ]),
+            Chrome.gap(8),
             Chrome.big(FluentSystemIcons.columns, "Distribute Columns", fluent) { c.distributeColumns() },
         ])
-        let style = c.currentTableStyle ?? TableStyle()
+        let alignItems: [MenuFlyoutItemBase] = [
+            MenuFlyoutItem(text: Text("Align Top"), onPressed: { c.setCellVerticalAlignment("top") }),
+            MenuFlyoutItem(text: Text("Align Middle"), onPressed: { c.setCellVerticalAlignment("center") }),
+            MenuFlyoutItem(text: Text("Align Bottom"), onPressed: { c.setCellVerticalAlignment("bottom") }),
+        ]
+        let directionItems: [MenuFlyoutItemBase] = [
+            MenuFlyoutItem(text: Text("Horizontal Text"), onPressed: { c.setCellTextDirection(.horizontal) }),
+            MenuFlyoutItem(text: Text("Rotate Text Down"), onPressed: { c.setCellTextDirection(.down) }),
+            MenuFlyoutItem(text: Text("Rotate Text Up"), onPressed: { c.setCellTextDirection(.up) }),
+        ]
+        let tableAlignItems: [MenuFlyoutItemBase] = [
+            MenuFlyoutItem(text: Text("Table Left"), onPressed: { c.setTableAlignment(.left) }),
+            MenuFlyoutItem(text: Text("Table Center"), onPressed: { c.setTableAlignment(.center) }),
+            MenuFlyoutItem(text: Text("Table Right"), onPressed: { c.setTableAlignment(.right) }),
+        ]
+        func marginItems(_ label: String, _ v: Double) -> MenuFlyoutItem {
+            MenuFlyoutItem(text: Text(label), onPressed: { c.setTableCellMargins(top: v == 0 ? 0 : v / 2.7, left: v, bottom: v == 0 ? 0 : v / 2.7, right: v) })
+        }
+        let marginsItems: [MenuFlyoutItemBase] = [marginItems("Cell Margins: None", 0), marginItems("Cell Margins: Narrow (2.7 pt)", 2.7),
+                                                  marginItems("Cell Margins: Normal (5.4 pt)", 5.4), marginItems("Cell Margins: Wide (10.8 pt)", 10.8)]
+        let tableWidthItems: [MenuFlyoutItemBase] = [
+            MenuFlyoutItem(text: Text("Table Width: Auto"), onPressed: { c.setTableWidth() }),
+            MenuFlyoutItem(text: Text("Table Width: 100%"), onPressed: { c.setTableWidth(percent: 100) }),
+            MenuFlyoutItem(text: Text("Table Width: 75%"), onPressed: { c.setTableWidth(percent: 75) }),
+            MenuFlyoutItem(text: Text("Table Width: 50%"), onPressed: { c.setTableWidth(percent: 50) }),
+        ]
+        let alignment = Chrome.group("Alignment", fluent, [
+            Chrome.rows([
+                Chrome.menuButton(FluentSystemIcons.table, "Cell Alignment", "Vertical alignment of the cell's text", fluent, items: alignItems),
+                Chrome.menuButton(nil, "Text Direction", "Direction of the cell's text", fluent, items: directionItems),
+                Chrome.menuButton(nil, "Table Alignment", "Where the table stands between the margins", fluent, items: tableAlignItems),
+            ]),
+            Chrome.gap(8),
+            Chrome.rows([
+                Chrome.menuButton(nil, "Cell Margins", "Margins inside the table's cells", fluent, items: marginsItems),
+                Chrome.menuButton(nil, "Table Width", "The table's width", fluent, items: tableWidthItems),
+                Chrome.small(FluentSystemIcons.columns, style.fixedLayout ? "Fixed Widths" : "AutoFit", fluent) { c.setTableAutofit(style.fixedLayout) },
+            ]),
+            Chrome.gap(8),
+            Chrome.rows([
+                Chrome.small(FluentSystemIcons.table, style.rowsCantSplit.contains(row) ? "Row Cannot Break" : "Row May Break", fluent) { c.setRowsMayBreak(style.rowsCantSplit.contains(row)) },
+                Chrome.small(FluentSystemIcons.header, style.headerRow ? "Repeat Header: On" : "Repeat Header: Off", fluent) { c.setRepeatedHeaderRows(style.headerRow ? 0 : max(1, row + 1)) },
+            ]),
+        ])
         // The pen is read when a menu item is chosen, not when the ribbon builds.
         func apply(_ sides: [CellSide], _ line: CellBorderLine? = nil) -> () -> Void {
             { [session] in
@@ -548,7 +601,7 @@ final class Ribbon: StatelessWidget {
         let table = Chrome.group("Table", fluent, [
             Chrome.big(FluentSystemIcons.delete, "Delete Table", fluent) { c.deleteTable() },
         ])
-        return [rows, merge, size, borders, look, table]
+        return [rows, merge, size, alignment, borders, look, table]
     }
 
     // MARK: Picture Format

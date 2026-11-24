@@ -114,4 +114,23 @@ final class UIShellHarnessTests: XCTestCase {
         XCTAssertTrue(ui.tap(text: "Bottom Border"))
         XCTAssertTrue(c.document.paragraphs.compactMap { $0.cell }.contains { ($0.bordersXML ?? "").contains("w:bottom") })
     }
+
+    /// W-TB-3: the Table Layout tab's property controls reach the controller.
+    func testTableLayoutPropertyControlsReachTheController() {
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(1280, 800))
+        let c = ui.state(OfficeShellState.self)!.session.controller
+        c.insertTable(rows: 2, columns: 2)
+        ui.pump()
+        XCTAssertTrue(ui.tap(text: "Table Layout"))
+        XCTAssertTrue(ui.tap(text: "Cell Alignment"))
+        XCTAssertTrue(ui.tap(text: "Align Middle"))
+        XCTAssertEqual(c.currentCell?.verticalAlign, "center")
+        XCTAssertTrue(ui.tap(text: "Table Alignment"))
+        XCTAssertTrue(ui.tap(text: "Table Center"))
+        XCTAssertEqual(c.currentTableStyle?.alignment, .center)
+        XCTAssertTrue(ui.tap(text: "Row May Break"))
+        XCTAssertEqual(c.currentTableStyle?.rowsCantSplit, [0])
+        XCTAssertTrue(ui.tap(text: "AutoFit"))
+        XCTAssertEqual(c.currentTableStyle?.fixedLayout, true)
+    }
 }
