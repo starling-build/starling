@@ -58,4 +58,19 @@ final class UIShellHarnessTests: XCTestCase {
         ui.press(.enter)
         XCTAssertEqual(enters, 1)
     }
+
+    /// W-ED-1: the Paste button is on the Home ribbon, its arrow opens the four Paste Options, and the shell has
+    /// wired plain click, plain-text key and each option to the controller.
+    func testPasteOptionsArrowOpensTheFourChoices() throws {
+        let ui = app(OfficeShell(initialPath: nil, startBlank: true))
+        XCTAssertTrue(ui.has(text: "Paste"))
+        let state = try XCTUnwrap(ui.state(OfficeShellState.self))
+        XCTAssertNotNil(state.session.onPaste)
+        XCTAssertNotNil(state.session.onPasteMode)
+        XCTAssertFalse(ui.has(text: "Merge Formatting"))
+        XCTAssertTrue(ui.tap(tip: "Paste Options"))
+        for item in ["Keep Source Formatting", "Merge Formatting", "Picture", "Keep Text Only"] {
+            XCTAssertTrue(ui.has(text: item), item)
+        }
+    }
 }
