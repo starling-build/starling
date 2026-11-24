@@ -246,6 +246,12 @@ final class Ribbon: StatelessWidget {
         let s = session.summary
         return Chrome.group("Clipboard", fluent, [
             Chrome.big(FluentSystemIcons.paste, "Paste", fluent) { [session] in session.onPaste?(false) },
+            Chrome.splitChevron("Paste Options", fluent, items: [
+                MenuFlyoutItem(text: Text("Keep Source Formatting"), onPressed: { [session] in session.onPasteMode?(.keepSource) }),
+                MenuFlyoutItem(text: Text("Merge Formatting"), onPressed: { [session] in session.onPasteMode?(.mergeFormatting) }),
+                MenuFlyoutItem(text: Text("Picture"), onPressed: { [session] in session.onPasteMode?(.picture) }),
+                MenuFlyoutItem(text: Text("Keep Text Only"), onPressed: { [session] in session.onPasteMode?(.textOnly) }),
+            ]),
             Chrome.gap(2),
             Chrome.rows([
                 Chrome.small(FluentSystemIcons.cut, "Cut", fluent, enabled: s.hasSelection) { [session] in
