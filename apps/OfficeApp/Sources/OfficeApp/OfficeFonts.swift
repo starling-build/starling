@@ -5415,6 +5415,33 @@ enum OfficeFonts {
             // narrower than — its letters 15% wider than Liberation Sans
             // Bold's on average: its own widths and line, 1.41 ems by
             // its hhea, the ascent 1.1006. SampleDoc's 16pt heading.)
+            // (Roboto Slab ExtraBold, a cloud font Word downloads and we do not have: its own advances and line, 1.3189 ems by
+            // its hhea (2146 + 555 of 2048), metrics only, drawn in the stand-in. Word's print of dx2 7d4b5fee5a50 breaks the
+            // 11pt title "...za leto" / "2024" where the stand-in's narrower letters kept it on one line.)
+            // (Roboto, the cloud font Word downloads for documents made in Google Docs, which we do not have: its own advances and
+            // line, 1.1719 ems by its hhea (1900 + 500 of 2048), metrics only, drawn in the stand-in. Regular and Bold; its other
+            // weights are other families in Word's list and keep the stand-in.)
+            if family.trimmingWhitespace().lowercased() == "roboto" {
+                face.advances = robotoRegularAdvances
+                face.boldAdvances = robotoBoldAdvances
+                face.otherAdvances = robotoRegularOtherAdvances
+                face.boldOtherAdvances = robotoBoldOtherAdvances
+                face.naturalHeight = 1.1719
+                face.baseline = 0.9277
+                RuleTrace.hit("roboto-own-metrics")
+            }
+            if family.trimmingWhitespace().lowercased() == "roboto slab extrabold" {
+                face.advances = robotoSlabExtraBoldAdvances
+                face.boldAdvances = robotoSlabExtraBoldAdvances
+                face.otherAdvances = robotoSlabExtraBoldOtherAdvances
+                face.boldOtherAdvances = robotoSlabExtraBoldOtherAdvances
+                face.naturalHeight = 1.3189
+                face.baseline = 1.0479
+                // (Drawn in the face itself, bundled: the ExtraBold (800) instance of Roboto Slab's variable font, OFL.)
+                face.family = "Roboto Slab ExtraBold"
+                face.sizeScale = 1
+                RuleTrace.hit("roboto-slab-extrabold-own-metrics")
+            }
             if family.trimmingWhitespace().lowercased() == "arial black" {
                 face.advances = arialBlackAdvances
                 face.boldAdvances = arialBlackAdvances
@@ -6317,6 +6344,7 @@ enum OfficeFonts {
         faces += ["Regular", "Bold", "Italic", "BoldItalic"].map { ("NotoSans-\($0).ttf", "Noto Sans") }
         faces += ["Regular", "Bold", "Italic", "BoldItalic"].map { ("Lato-\($0).ttf", "Lato") }
         faces += ["Regular", "Bold", "Italic", "BoldItalic"].map { ("OpenSans-\($0).ttf", "Open Sans") }
+        faces += [("RobotoSlab-ExtraBold.ttf", "Roboto Slab ExtraBold")]
         faces += [("Lato-Black.ttf", "Lato Black"), ("Lato-Light.ttf", "Lato Light")]
         // (Lucida Sans Unicode's stand-in, Liberation Sans's regular and
         // bold with no italic: the face has none, and PowerPoint's print

@@ -1,0 +1,3 @@
+Roboto Slab, Copyright 2011 The Roboto Slab Project Authors (https://github.com/googlefonts/robotoslab).
+Licensed under the SIL Open Font License, Version 1.1 (full text: Noto-OFL-LICENSE.txt in this folder, or https://openfontlicense.org).
+RobotoSlab-ExtraBold.ttf is the wght=800 instance of RobotoSlab-VariableFont_wght.ttf (static instance cut with fontTools; names changed to "Roboto Slab ExtraBold").

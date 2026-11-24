@@ -859,7 +859,7 @@ public final class RichTextTheme {
         // lo tdf163575's Persian is 12pt in a style whose `w:sz` is 10.)
         // (Hebrew letters split out of a run with no w:rtl keep the sz: bae91d's title, sz 17 / szCs 26, prints at 17 and its Normal text at 10.5, not the default szCs 11.)
         if style.plainSize {}
-        else if wordRules, style.rightToLeft, !eastAsian, style.fontSize == nil, let z = style.complexFontSize ?? named?.char.complexFontSize ?? normal?.complexFontSize { size = z }
+        else if wordRules, style.rightToLeft || style.csMark, !eastAsian, style.fontSize == nil, let z = style.complexFontSize ?? named?.char.complexFontSize ?? normal?.complexFontSize { size = z }
         // (A run that gives `w:sz` and no `w:szCs` is set at the szCs its style or the defaults give: xd 72ea457a's Hebrew, sz 14 over Normal's szCs 12, prints at 12 in David.)
         else if wordRules, style.rightToLeft, !eastAsian, style.sizeFromStyleSzCs, style.complexFontSize == nil, let z = named?.char.complexFontSize ?? normal?.complexFontSize { size = z }
         else if wordRules, !style.rightToLeft, !eastAsian, style.sizeFromStyleSzCs, style.fontSize == nil, style.complexFontSize == nil, let z = named?.char.complexFontSize ?? normal?.complexFontSize { size = z }
@@ -1064,7 +1064,8 @@ public final class RichTextTheme {
                 return [Offset(r, 0), Offset(d, d), Offset(0, r), Offset(-d, d), Offset(-r, 0), Offset(-d, -d), Offset(0, -r), Offset(d, -d)]
                     .map { Shadow(color: line.color, offset: $0, blurRadius: 0) }
             }().map { ring in (style.shadow.map { sh in
-                if sh.ground != nil || (Self.shadowsAsPaths && (!sh.glow || Self.shadowBlurDeviceScale != nil)) { return [] }
+                // (Word's own PDF print draws no glow at all: dx2 228c1f233c7a, a 4.5 pt and a 26 pt glow, none on the page.)
+                if sh.ground != nil || Self.shadowsAsPaths { return [] }
                 let k = pixelsPerPoint * scale
                 let device = sh.blur > 0 ? Self.shadowBlurDeviceScale : nil
                 if sh.glow {
@@ -1090,7 +1091,8 @@ public final class RichTextTheme {
                 return [Shadow(color: Color(rgbo: sh.color.red, sh.color.green, sh.color.blue, a),
                                offset: Offset(sh.dx * k, sh.dy * k), blurRadius: radius)]
             } ?? []) + ring } ?? style.shadow.map { sh in
-                if sh.ground != nil || (Self.shadowsAsPaths && (!sh.glow || Self.shadowBlurDeviceScale != nil)) { return [] }
+                // (Word's own PDF print draws no glow at all: dx2 228c1f233c7a, a 4.5 pt and a 26 pt glow, none on the page.)
+                if sh.ground != nil || Self.shadowsAsPaths { return [] }
                 let k = pixelsPerPoint * scale
                 let device = sh.blur > 0 ? Self.shadowBlurDeviceScale : nil
                 if sh.glow {
