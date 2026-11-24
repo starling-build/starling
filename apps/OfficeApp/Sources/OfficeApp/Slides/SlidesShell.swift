@@ -1215,6 +1215,7 @@ final class SlidesShellState: State<StatefulWidget> {
             deck: deck, cache: _cache, active: _active,
             onEdit: { [weak self] shape in self?._activate(shape) },
             onShortcut: { [weak self] key, mods in self?._shortcut(key, mods) ?? false },
+            modifiers: { [weak self] in self?._deckChords.modifiers ?? [] },
             spellChecker: session.checkSpelling ? _spelling : nil,
             animationBadges: _tab == .animations || _animationPane))]
         if _showNotes { work.append(_notesPane(fluent)) }

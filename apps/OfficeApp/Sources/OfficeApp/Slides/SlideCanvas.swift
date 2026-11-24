@@ -24,6 +24,8 @@ final class SlideCanvas: StatefulWidget {
     /// Start (or with nil, stop) editing a shape's text.
     let onEdit: (SlideShape?) -> Void
     let onShortcut: (KeyData, KeyModifiers) -> Bool
+    /// The modifier keys held now (Shift or Ctrl/Cmd + click adds to the selection).
+    let modifiers: () -> KeyModifiers
     let spellChecker: RichSpellChecker?
     /// Number each animated shape by the click that brings it in, as
     /// PowerPoint does while its Animations tab is open.
@@ -32,7 +34,9 @@ final class SlideCanvas: StatefulWidget {
     init(key: (any Key)? = nil, deck: DeckController, cache: SlideTextCache, active: SlideShape?,
          onEdit: @escaping (SlideShape?) -> Void,
          onShortcut: @escaping (KeyData, KeyModifiers) -> Bool,
+         modifiers: @escaping () -> KeyModifiers = { [] },
          spellChecker: RichSpellChecker?, animationBadges: Bool = false) {
+        self.modifiers = modifiers
         self.animationBadges = animationBadges
         self.deck = deck
         self.cache = cache
@@ -104,6 +108,12 @@ final class SlideCanvasState: State<StatefulWidget> {
     }
 
     /// A window position as a point on the slide.
+    /// Where a slide point is on screen (the harness taps shapes by it).
+    func screenPoint(_ p: Offset) -> Offset {
+        let local = Offset(p.dx * _px + _ox, p.dy * _px + _oy)
+        return _box?.localToGlobal(local) ?? local
+    }
+
     private func _slidePoint(_ global: Offset) -> Offset {
         let local = _box?.globalToLocal(global) ?? global
         return Offset((local.dx - _ox) / max(_px, 0.001), (local.dy - _oy) / max(_px, 0.001))
@@ -283,6 +293,8 @@ final class SlideCanvasState: State<StatefulWidget> {
         stack.append(Positioned(left: 0, top: 0, right: 0, bottom: 0, child: Listener(
             onPointerDown: { [weak self] _ in
                 guard let self, self._w.active !== shape else { return }
+                // Shift/Ctrl+click adds or removes the shape and does not start typing.
+                if self._additive { self.deck.toggleSelected(shape); return }
                 self.deck.selectShapes([shape])
                 self._w.onEdit(shape)
             },
@@ -388,10 +400,15 @@ final class SlideCanvasState: State<StatefulWidget> {
 
     // MARK: Pointer
 
+    private var _marqueeBase: [SlideShape] = []
+    private var _additive: Bool { let m = _w.modifiers(); return m.contains(.shift) || m.contains(.control) || m.contains(.meta) }
+
     private func _backdropDown(_ e: PointerDownEvent) {
         FocusManager.instance.focusedNode?.unfocus()
         _w.onEdit(nil)
-        deck.selectShapes([])
+        // With Shift or Ctrl held the marquee adds to what is selected.
+        _marqueeBase = _additive ? deck.selection : []
+        deck.selectShapes(_marqueeBase)
         let p = _slidePoint(e.position)
         _drag = .marquee(start: p, now: p)
     }
@@ -405,7 +422,11 @@ final class SlideCanvasState: State<StatefulWidget> {
             FocusManager.instance.focusedNode?.unfocus()
             _w.onEdit(nil)
         }
-        if !wasSelected { deck.selectShapes([shape]) }
+        if _additive {
+            // Shift/Ctrl+click adds or removes; a shape just removed is not dragged.
+            deck.toggleSelected(shape)
+            if !deck.isSelected(shape) { _drag = nil; return }
+        } else if !wasSelected { deck.selectShapes([shape]) }
         let frames = deck.selection.map { ($0, $0.frame) }
         _drag = .move(start: _slidePoint(e.position), frames: frames, shape: shape,
                       wasSelected: wasSelected, moved: false)
@@ -490,8 +511,9 @@ final class SlideCanvasState: State<StatefulWidget> {
             let box = Rect.fromLTRB(min(a.dx, b.dx), min(a.dy, b.dy), max(a.dx, b.dx), max(a.dy, b.dy))
             if box.width > 2 || box.height > 2 {
                 // PowerPoint selects what the marquee wholly contains.
-                deck.selectShapes(deck.currentSlide.shapes.filter {
-                    box.contains($0.frame.topLeft) && box.contains($0.frame.bottomRight)
+                deck.selectShapes(_marqueeBase + deck.currentSlide.shapes.filter { s in
+                    box.contains(s.frame.topLeft) && box.contains(s.frame.bottomRight)
+                        && !_marqueeBase.contains { $0 === s }
                 })
             }
         }

@@ -499,6 +499,18 @@ final class DeckController: ChangeNotifier {
         _notify()
     }
 
+    /// Shift/Ctrl+click: `shape` joins the selection, or leaves it when it is
+    /// already in. Selection only (not an edit, so not an undo step).
+    func toggleSelected(_ shape: SlideShape) {
+        if isSelected(shape) { selectShapes(selection.filter { $0 !== shape }) }
+        else { selectShapes(selection + [shape]) }
+    }
+
+    /// `shapes` added to the selection (those already in it stay where they are).
+    func addToSelection(_ shapes: [SlideShape]) {
+        selectShapes(selection + shapes.filter { s in !isSelected(s) })
+    }
+
     func isSelected(_ shape: SlideShape) -> Bool { selection.contains { $0 === shape } }
 
     // MARK: Shapes
