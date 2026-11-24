@@ -4880,6 +4880,21 @@ enum ChartPainter {
         }
     }
 
+    /// Word's 3-D columns at right angles (one series, no walls drawn, the file placing the plot): the box is the front face plus a
+    /// depth of one bar-slot, sin(rotY) f / n of its width across and sin(rotX) f / n of it down (f the bar's depth over its slot).
+    /// The front takes the shape of the place (spanWidth x placeHeight pt); the printed picture carries 3.5 pt of blank edge (1.1 left,
+    /// 2.4 right, 2.1 top, 1.4 foot). Returns the drawn box (front plus depth) from the span's left and the place's top, in pt.
+    static func word3DColumnsBox(spanWidth av: Double, placeHeight hv: Double, categories n: Int, gap: Double, gapDepth: Double,
+                                 depth: Double, rotX: Double, rotY: Double) -> (left: Double, top: Double, width: Double, height: Double) {
+        let f = (1.0 / (1 + gap)) * (1 + gapDepth) * depth
+        let a = sin(abs(rotY) * .pi / 180) * f / Double(n)
+        let b = sin(abs(rotX) * .pi / 180) * f / Double(n)
+        let r = hv / av
+        let front = min((av - 3.5) / (1 + a), (hv - 3.5) / (r + b))
+        let pw = (1 + a) * front + 3.5, ph = (r + b) * front + 3.5
+        return ((av - pw) / 2 + 1.1, 2.1, pw - 3.5, ph - 3.5)
+    }
+
     /// The box of a 3-D area chart at right angles in a room (see `_area3DRight`): its front's width and height and the depth's
     /// run across (dx) and up (dy), all in the room's units.
     static func area3DRightBox(roomW: Double, roomH: Double, series s: Int, categories n: Int, depth: Double, heightPercent: Double?,
@@ -6248,7 +6263,21 @@ enum ChartPainter {
                 RuleTrace.hit("word-3d-columns-without-walls-stand-inside-their-laid-plot")
                 // (Word's print: the tick labels all 3.1 pt lower than the box stood before, top and foot alike — zh-b8de3ae2 p15 —
                 // with the category names' Mincho line now taken, which moved them up 1.1.)
-                whole = Rect.fromLTRB(whole.left + 7.0 * k, whole.top + 3.1 * k, whole.right - 8.5 * k, whole.bottom - 2.0 * k)
+                // (One clustered series at right angles: Word makes the box one bar-slot deep, so the box is the front face plus a depth of
+                // sin(rotY) x f / n across and sin(rotX) x f / n down of its width (f the depth over the slot, 1 at gap and gapDepth 150%, depth
+                // 100%). The front takes the shape of the place the file leaves (Av by Hv, the span from 30.1 pt in from the frame's left),
+                // and the printed picture carries 3.5 pt of blank edge (1.1 left, 2.4 right, 2.1 top, 1.4 foot), stood at the top and centred
+                // across. Labs bar3dwide3 (12 charts, 0.5 pt worst) and bar3dauto4, amd-opus' fit. The fixed insets above stay for the rest.)
+                if v.rightAngles, c.series.count == 1, !c.stacked, !v.rows, n > 0, whole.width > 40 * k, whole.height > 40 * k {
+                    RuleTrace.hit("word-3d-columns-fit-their-laid-place-by-one-slot-of-depth")
+                    let spanLeft = max(whole.left, frame.left + 30.1 * k)
+                    let m = Self.word3DColumnsBox(spanWidth: (whole.right - spanLeft) / k, placeHeight: whole.height / k, categories: n,
+                                                  gap: c.gap, gapDepth: v.gapDepth, depth: v.depth, rotX: v.x, rotY: v.y)
+                    let left = spanLeft + m.left * k
+                    whole = Rect.fromLTRB(left, whole.top + m.top * k, left + m.width * k, whole.top + (m.top + m.height) * k)
+                } else {
+                    whole = Rect.fromLTRB(whole.left + 7.0 * k, whole.top + 3.1 * k, whole.right - 8.5 * k, whole.bottom - 2.0 * k)
+                }
                 plot = whole
             }
             // Left to Word's own layout, a 3-D column chart stands a little
