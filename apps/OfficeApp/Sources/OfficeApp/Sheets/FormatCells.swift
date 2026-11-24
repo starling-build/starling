@@ -34,6 +34,9 @@ struct CellFormatEdit: Equatable {
     var borderLeft: CellFieldEdit<Bool> = .keep
     var borderBottom: CellFieldEdit<Bool> = .keep
     var borderRight: CellFieldEdit<Bool> = .keep
+    /// The line style (thin, medium, thick, double, dashed, dotted, hair…) and colour of every side that is drawn once this edit is applied.
+    var borderKind: CellFieldEdit<String> = .keep
+    var borderColor: CellFieldEdit<UInt32?> = .keep
 
     var isEmpty: Bool { self == CellFormatEdit() }
 
@@ -50,11 +53,19 @@ struct CellFormatEdit: Equatable {
         var hAlign: CellStyle.HAlign, vAlign: CellStyle.VAlign
         var wrap: Bool
         var top: Bool, left: Bool, bottom: Bool, right: Bool
+        /// The pen: the style and colour of the first drawn side ("thin", automatic when none is drawn).
+        var lineKind: String, lineColor: UInt32?
         init(_ s: CellStyle) {
             numberFormat = s.numberFormat; fontName = s.fontName; fontSize = s.fontSize
             bold = s.bold; italic = s.italic; underline = s.underline; strike = s.strike
             color = s.color; fill = s.fill; hAlign = s.hAlign; vAlign = s.vAlign; wrap = s.wrap
             top = s.borders.top; left = s.borders.left; bottom = s.borders.bottom; right = s.borders.right
+            let b = s.borders
+            let first = ["top", "left", "bottom", "right"].first { (name: String) -> Bool in
+                switch name { case "top": return b.top; case "left": return b.left; case "bottom": return b.bottom; default: return b.right }
+            }
+            lineKind = first.flatMap { b.kinds[$0] } ?? "thin"
+            lineColor = first.flatMap { b.colors[$0] }
         }
     }
 
@@ -71,6 +82,8 @@ struct CellFormatEdit: Equatable {
         e.wrap = .diff(new.wrap, from: old.wrap)
         e.borderTop = .diff(new.top, from: old.top); e.borderLeft = .diff(new.left, from: old.left)
         e.borderBottom = .diff(new.bottom, from: old.bottom); e.borderRight = .diff(new.right, from: old.right)
+        e.borderKind = .diff(new.lineKind, from: old.lineKind)
+        e.borderColor = .diff(new.lineColor, from: old.lineColor)
         return e
     }
 
@@ -84,6 +97,11 @@ struct CellFormatEdit: Equatable {
         Self._side(borderLeft, "left", &s.borders, \.left)
         Self._side(borderBottom, "bottom", &s.borders, \.bottom)
         Self._side(borderRight, "right", &s.borders, \.right)
+        let drawn: [(String, Bool)] = [("top", s.borders.top), ("left", s.borders.left), ("bottom", s.borders.bottom), ("right", s.borders.right)]
+        for (name, on) in drawn where on {
+            if case .set(let k) = borderKind { s.borders.kinds[name] = k == "thin" ? nil : k }
+            if case .set(let c) = borderColor { s.borders.colors[name] = c }
+        }
     }
 
     /// A side turned off also forgets its line kind and colour (a later "on" is a plain thin line); turned on keeps whatever the file drew.
