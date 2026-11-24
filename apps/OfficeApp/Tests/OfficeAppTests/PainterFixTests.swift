@@ -117,8 +117,9 @@ final class PainterFixTests: XCTestCase {
     func testALaoLineWithBoldLatinTakesBrowalliaBoldsDeeperDescent() throws {
         // Lab laoh2 (Word, 10.5 pt Lao in a missing Saysettha OT): a line with regular Latin is 0.372 em deep below the baseline, with
         // bold Latin 0.417 em (Browallia New Bold), and a line of Lao alone has neither.
-        try XCTSkipUnless(DocxFormat.wordOnWindows, "needs OFFICE_WORD_FONTS=windows")
-        defer { OfficeFonts.noteFontEntries([:]) }
+        let was = OfficeFonts.wordOnWindows
+        OfficeFonts.wordOnWindows = true
+        defer { OfficeFonts.wordOnWindows = was; OfficeFonts.noteFontEntries([:]) }
         OfficeFonts.noteFontEntries(["saysettha ot": OfficeFonts.FontEntry(alt: nil, family: "swiss", panoseZero: false)])
         func lineHeight(_ tail: String, bold: Bool) -> Double {
             var p = RichParagraph(text: "\u{0E81}\u{0E82}\u{0E84}" + tail)
