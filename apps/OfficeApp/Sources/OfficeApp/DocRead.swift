@@ -79,8 +79,13 @@ enum DocRead {
 
     /// The settings part of a binary file: it lays out as Word's earlier modes do, so the mark of a paragraph that ends
     /// in a page break stands on the page the break opens (pt-2b169d7457's cover page).
-    static func settingsXML(facing: Bool, tabStop: Int? = nil) -> String {
-        "<w:settings xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\">" + (facing ? "<w:evenAndOddHeaders/>" : "") + (tabStop.map { "<w:defaultTabStop w:val=\"\($0)\"/>" } ?? "") + "<w:compat><w:splitPgBreakAndParaMark/><w:binaryDocListTabs/></w:compat></w:settings>"
+    /// Whether the document properties ask for East Asian punctuation to be compressed: the first bit of the typography
+    /// block that opens at byte 90 of the DOP (ja-d68afa9ee6: set, Word closes up 、 before kana; without the setting a
+    /// justified Yu Mincho line wrapped its last 「い。」).
+    static func compressesPunctuation(dop: [UInt8]) -> Bool { dop.count >= 92 && dop[90] & 1 != 0 }
+
+    static func settingsXML(facing: Bool, tabStop: Int? = nil, compressPunct: Bool = false) -> String {
+        "<w:settings xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\">" + (facing ? "<w:evenAndOddHeaders/>" : "") + (tabStop.map { "<w:defaultTabStop w:val=\"\($0)\"/>" } ?? "") + (compressPunct ? "<w:characterSpacingControl w:val=\"compressPunctuation\"/>" : "") + "<w:compat><w:splitPgBreakAndParaMark/><w:binaryDocListTabs/></w:compat></w:settings>"
     }
 
     static func pieces(clx: [UInt8]) -> [DocPiece] {
@@ -576,10 +581,12 @@ enum DocRead {
         let facing = fib.range(31).map { $0.fc < tbl.count && tbl[$0.fc] & 1 != 0 } ?? false
         // (The DOP's default tab stop, dxaTab at byte 10, in twips: Word's tabs run on it; es-7289450bf2's 708 puts four tabs 2.4 pt short of 720's.)
         let tabStop: Int? = fib.range(31).flatMap { $0.fc + 12 <= tbl.count && $0.lcb >= 12 ? Int(tbl[$0.fc + 10]) | Int(tbl[$0.fc + 11]) << 8 : nil }.flatMap { $0 > 0 && $0 != 720 ? $0 : nil }
+        // (The DOP's typography block: its first bit is "kerning of punctuation", Word's compress-punctuation setting.)
+        let compressPunct = fib.range(31).map { $0.fc < tbl.count && compressesPunctuation(dop: Array(tbl[$0.fc..<min(tbl.count, $0.fc + $0.lcb)])) } ?? false
         // A binary file lays out as Word's earlier modes do: the mark of a paragraph that ends in a page break
         // stands on the page the break opens (the flag a 2013-era docx carries for the same behaviour).
         var settings: [ZipEntry] = []
-        settings = [e("word/settings.xml", head + settingsXML(facing: facing, tabStop: tabStop))]
+        settings = [e("word/settings.xml", head + settingsXML(facing: facing, tabStop: tabStop, compressPunct: compressPunct))]
         rels += "<Relationship Id=\"rIdSet\" Type=\"\(relBase)settings\" Target=\"settings.xml\"/>"
         types += "<Override PartName=\"/word/settings.xml\" ContentType=\"\(ctBase)settings+xml\"/>"
         if let ls = fib.range(73), let nx = DocProps.numbering(tbl, lst: ls, lfo: fib.range(74), fonts: fonts) {
