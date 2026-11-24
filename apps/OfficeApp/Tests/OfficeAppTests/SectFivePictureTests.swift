@@ -1,0 +1,55 @@
+// Copyright the Starling authors
+// SPDX-License-Identifier: Apache-2.0
+
+import XCTest
+import Flutter
+import OfficeText
+import FlutterSwiftBridge
+@testable import OfficeApp
+
+final class SectFivePictureTests: XCTestCase {
+    override class func setUp() {
+        super.setUp()
+        _ = TestText.icuLoaded
+        _ = OfficeFonts.register()
+    }
+
+    /// Lab sect5 (Word's print): a picture alone in the paragraph after a
+    /// right-aligned floating table, narrower than the room at the table's
+    /// left, stands there level with the table's top, not under its rows.
+    func testAPictureAfterAFloatingTableStandsBesideItInTheRoomAtItsLeft() throws {
+        RichTextTheme.wordWindowsPages = true
+        defer { RichTextTheme.wordWindowsPages = false }
+        let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")!
+        func top(pictureWidth: Double) -> (picture: Double, tableBottom: Double) {
+            var cell = RichParagraph(text: "cell")
+            cell.cell = CellRef(table: "t", row: 0, column: 0)
+            var cell2 = RichParagraph(text: "cell two")
+            cell2.cell = CellRef(table: "t", row: 1, column: 0)
+            var pic = RichParagraph(text: "")
+            pic.image = ImageAttachment(data: png, width: pictureWidth, height: 60)
+            var doc = RichDocument(paragraphs: [RichParagraph(text: "before"), cell, cell2, pic, RichParagraph(text: "after")])
+            doc.tableColumns["t"] = [300]
+            var ts = TableStyle()
+            ts.floatsOverText = true
+            ts.floatOffsetY = 18
+            ts.alignment = .right
+            ts.keptPosition = "<w:tblpPr w:horzAnchor=\"margin\" w:tblpXSpec=\"right\" w:tblpY=\"360\"/>"
+            doc.tableStyles["t"] = ts
+            let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+            theme.wordRules = true
+            let layout = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+            layout.pageSetup = .letter
+            layout.width = PageSetup.letter.width * theme.pixelsPerPoint
+            layout.ensureLaidOut(doc)
+            let px = theme.pixelsPerPoint
+            let pictureY = layout.pieces[0].first { $0.paragraph == 3 }?.pageY ?? -1
+            let rowY = layout.pieces[0].filter { $0.paragraph == 2 }.map(\.pageY).max() ?? 0
+            return (pictureY / px, (rowY + (layout.rowRect(2)?.height ?? 0)) / px)
+        }
+        let narrow = top(pictureWidth: 100)
+        let wide = top(pictureWidth: 400); _ = 0
+        XCTAssertLessThan(narrow.picture, narrow.tableBottom - 10, "the picture stands level with the table")
+        XCTAssertGreaterThanOrEqual(wide.picture, wide.tableBottom - 0.5, "one that does not fit goes under it")
+    }
+}
