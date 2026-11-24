@@ -539,6 +539,11 @@ enum DocRead {
             rels += "<Relationship Id=\"rIdNum\" Type=\"\(relBase)numbering\" Target=\"numbering.xml\"/>"
             types += "<Override PartName=\"/word/numbering.xml\" ContentType=\"\(ctBase)numbering+xml\"/>"
         }
+        if let ft = fib.range(DocFib.fcSttbfFfn).flatMap({ DocProps.fontTable(tbl, at: $0.fc, count: $0.lcb, ns: ns) }) {
+            extra.append(e("word/fontTable.xml", head + ft))
+            rels += "<Relationship Id=\"rIdFonts\" Type=\"\(relBase)fontTable\" Target=\"fontTable.xml\"/>"
+            types += "<Override PartName=\"/word/fontTable.xml\" ContentType=\"\(ctBase)fontTable+xml\"/>"
+        }
         let styleXml = (st?.xml.isEmpty ?? true) ? "<w:style w:type=\"paragraph\" w:default=\"1\" w:styleId=\"S0\"><w:name w:val=\"Normal\"/></w:style>" : st!.xml
         return [
             e("[Content_Types].xml", head + "<Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\"><Default Extension=\"rels\" ContentType=\"application/vnd.openxmlformats-package.relationships+xml\"/><Default Extension=\"xml\" ContentType=\"application/xml\"/><Override PartName=\"/word/document.xml\" ContentType=\"\(ctBase)document.main+xml\"/><Override PartName=\"/word/styles.xml\" ContentType=\"\(ctBase)styles+xml\"/>" + types + "</Types>"),

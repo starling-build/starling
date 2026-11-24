@@ -72,6 +72,58 @@ enum DocProps {
         return out
     }
 
+    /// The SttbfFfn as a font table part: each face's charset, family, PANOSE, signature and alternate name,
+    /// which the layout reads to choose a stand-in for a face Word lacks (한컴바탕, a charset 129 serif, prints in Batang).
+    static func fontTable(_ t: [UInt8], at fc: Int, count lcb: Int, ns: String) -> String? {
+        guard fc >= 0, fc + lcb <= t.count, lcb >= 2 else { return nil }
+        func hex(_ v: UInt32, _ width: Int) -> String {
+            var h = String(v, radix: 16, uppercase: true)
+            while h.count < width { h = "0" + h }
+            return h
+        }
+        func esc(_ s: String) -> String {
+            var o = ""
+            for c in s {
+                switch c {
+                case "&": o += "&amp;"
+                case "<": o += "&lt;"
+                case "\"": o += "&quot;"
+                default: o.append(c)
+                }
+            }
+            return o
+        }
+        var out = ""
+        var p = fc + 4
+        let end = fc + lcb
+        while p < end {
+            let cb = Int(t[p])
+            guard cb >= 40, p + 1 + cb <= end else { p += 1 + cb; continue }
+            var u: [UInt16] = [], alt: [UInt16] = []
+            var k = p + 40
+            var inAlt = false
+            while k + 2 <= p + 1 + cb {
+                let c = UInt16(t[k]) | UInt16(t[k + 1]) << 8
+                if c == 0 { if inAlt || t[p + 5] == 0 { break }; inAlt = true; k += 2; continue }
+                if inAlt { alt.append(c) } else { u.append(c) }
+                k += 2
+            }
+            let name = String(decoding: u, as: UTF16.self)
+            // (Only faces of another script: a Western face Word lacks is drawn in Times New Roman or Arial by its family, which the missing-face rules for docx fonts tables do not model, and ko-c58c51bdcb's TimesNewRoman fell to Caladea.)
+            if !name.isEmpty, ![0, 1, 2].contains(Int(t[p + 4])) {
+                let families = ["auto", "roman", "swiss", "modern", "script", "decorative"]
+                let ff = Int(t[p + 1] >> 4) & 7
+                out += "<w:font w:name=\"\(esc(name))\">"
+                if !alt.isEmpty { out += "<w:altName w:val=\"\(esc(String(decoding: alt, as: UTF16.self)))\"/>" }
+                out += "<w:charset w:val=\"\(hex(UInt32(t[p + 4]), 2))\"/><w:family w:val=\"\(ff < families.count ? families[ff] : "auto")\"/>"
+                out += "<w:panose1 w:val=\"\((0 ..< 10).map { hex(UInt32(t[p + 6 + $0]), 2) }.joined())\"/>"
+                out += "<w:sig w:usb0=\"\(hex(UInt32(truncatingIfNeeded: OfficeArt.u32(t, p + 16)), 8))\" w:usb1=\"\(hex(UInt32(truncatingIfNeeded: OfficeArt.u32(t, p + 20)), 8))\" w:usb2=\"\(hex(UInt32(truncatingIfNeeded: OfficeArt.u32(t, p + 24)), 8))\" w:usb3=\"\(hex(UInt32(truncatingIfNeeded: OfficeArt.u32(t, p + 28)), 8))\" w:csb0=\"\(hex(UInt32(truncatingIfNeeded: OfficeArt.u32(t, p + 32)), 8))\" w:csb1=\"\(hex(UInt32(truncatingIfNeeded: OfficeArt.u32(t, p + 36)), 8))\"/></w:font>"
+            }
+            p += 1 + cb
+        }
+        return out.isEmpty ? nil : "<w:fonts \(ns)>" + out + "</w:fonts>"
+    }
+
     /// The property runs of a PlcfBte (CHPX when `paragraph` is false, PAPX when true), as character positions.
     static func runs(w: [UInt8], t: [UInt8], at fc: Int, count lcb: Int, pieces: [DocPiece], paragraph: Bool) -> [DocPropRun] {
         guard fc >= 0, fc + lcb <= t.count, lcb >= 12 else { return [] }
