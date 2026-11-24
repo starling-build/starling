@@ -641,8 +641,14 @@ final class SheetsShellState: State<StatefulWidget> {
             wb.activeSheet = si
             wb.select(range: r, active: r.topLeft)
             _grid?.reveal(r.topLeft)
+        } else if let target = wb.nameTarget(t) {
+            wb.activeSheet = target.sheet
+            wb.select(range: target.range, active: target.range.topLeft)
+            _grid?.reveal(target.range.topLeft)
+        } else if let problem = wb.defineNameForSelection(t) {
+            _flash(problem.message)
         } else {
-            _flash("“\(t)” isn't a cell or a range")
+            _flash("Named the selection “\(t)”")
         }
         _grid?.focus.requestFocus()
         _syncBars()
