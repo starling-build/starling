@@ -760,6 +760,32 @@ public final class RichDocumentController: ChangeNotifier {
         }
     }
 
+    /// Swap the pixels of the picture at `index` (or its inline picture `id`) for `data`, one undo step. The picture keeps its
+    /// width and its alternative text; its height follows the new picture's shape so nothing is stretched. The old
+    /// picture's own markup (crop, effects) is dropped, as a replacement starts afresh. A floating picture is not replaced
+    /// here (its anchor would be lost): returns false.
+    @discardableResult
+    public func replacePicture(at index: Int, inline id: String? = nil, with data: Data, name: String,
+                               naturalWidth: Double, naturalHeight: Double) -> Bool {
+        guard index < document.paragraphs.count, naturalWidth > 0, naturalHeight > 0 else { return false }
+        guard let old = id.map({ document.paragraphs[index].inlineImages[$0] }) ?? document.paragraphs[index].image,
+              old.float == nil, !old.data.isEmpty else { return false }
+        var new = old
+        new.data = data
+        new.name = name
+        new.naturalWidth = naturalWidth
+        new.naturalHeight = naturalHeight
+        new.height = max(4, old.width * naturalHeight / naturalWidth)
+        new.crop = nil
+        new.sourceXML = nil
+        new.sourceRels = []
+        new.sourceWidth = nil
+        new.sourceHeight = nil
+        new.sourceRunPropertiesXML = nil
+        edit { perform(id.map { .setInlineImage(index, id: $0, old: old, new: new) } ?? .setImage(index, old: old, new: new)) }
+        return true
+    }
+
     /// Show the picture at `index` at `width` × `height` points, one undo step.
     public func setImageSize(at index: Int, width: Double, height: Double) {
         guard index < document.paragraphs.count, let old = document.paragraphs[index].image else { return }
