@@ -363,7 +363,7 @@ extension CharShadow {
 
 extension RichDocument {
     enum CodingKeys: String, CodingKey {
-        case paragraphs, header, footer, tableColumns, tableStyles, styles, listFormats, listCounterOf, listRestarts, keptParts, keptCharacterStyles, keptCharacterStyleIds, keptHeaderFooters, keptTables, keptCompat, defaultTabStop, pageBordersXML, docGridXML, lineGridPitch, characterGridSpace, sectionLeadXML, sectionTypeXML, columnsXML, columnsKeptUnder, gutterTwips, marginSettingsXML, keptSettings, sectionTailXML, defaultLangXML, themeFontLangXML, characterSpacingControl, usesEastAsianLayout, indentNotNumberingTabStop, kernsPunctuation, balancesSpaceWidth, adjustsLineHeightInTable, compatibilityMode, hangsHalf, flipsMirrorIndents, htmlAutoSpacing, divMargins, backgroundXML, backgroundRels, styleAliases, fileFonts, readFromFile, addsParagraphSpacing, titlePage, headerFooters, footnotes, footnoteSeparator, endnotes, endnoteSeparator, pageNumberStart, pageNumberFormat, evenAndOddHeaders, keptPartTypes
+        case paragraphs, header, footer, tableColumns, tableStyles, styles, listFormats, listCounterOf, listRestarts, keptParts, keptCharacterStyles, keptCharacterStyleIds, keptHeaderFooters, keptTables, keptCompat, defaultTabStop, pageBordersXML, docGridXML, lineGridPitch, characterGridSpace, sectionLeadXML, sectionTypeXML, columnsXML, columnsKeptUnder, gutterTwips, marginSettingsXML, keptSettings, sectionTailXML, defaultLangXML, themeFontLangXML, characterSpacingControl, usesEastAsianLayout, indentNotNumberingTabStop, kernsPunctuation, balancesSpaceWidth, adjustsLineHeightInTable, compatibilityMode, hangsHalf, flipsMirrorIndents, htmlAutoSpacing, divMargins, backgroundXML, backgroundRels, styleAliases, fileFonts, readFromFile, fromBinaryDoc, addsParagraphSpacing, titlePage, headerFooters, footnotes, footnoteSeparator, endnotes, endnoteSeparator, pageNumberStart, pageNumberFormat, evenAndOddHeaders, keptPartTypes
     }
 
     public init(from decoder: Decoder) throws {
@@ -414,6 +414,7 @@ extension RichDocument {
         styleAliases = try c.decodeIfPresent([String: String].self, forKey: .styleAliases) ?? [:]
         fileFonts = try c.decodeIfPresent(Set<String>.self, forKey: .fileFonts) ?? []
         readFromFile = try c.decodeIfPresent(Bool.self, forKey: .readFromFile) ?? false
+        fromBinaryDoc = try c.decodeIfPresent(Bool.self, forKey: .fromBinaryDoc) ?? false
         addsParagraphSpacing = try c.decodeIfPresent(Bool.self, forKey: .addsParagraphSpacing) ?? false
         titlePage = try c.decodeIfPresent(Bool.self, forKey: .titlePage) ?? false
         headerFooters = try c.decodeIfPresent([RichHeaderFooter].self, forKey: .headerFooters) ?? []
@@ -475,6 +476,7 @@ extension RichDocument {
         try c.encode(styleAliases, forKey: .styleAliases)
         try c.encode(fileFonts, forKey: .fileFonts)
         try c.encode(readFromFile, forKey: .readFromFile)
+        try c.encode(fromBinaryDoc, forKey: .fromBinaryDoc)
         try c.encode(addsParagraphSpacing, forKey: .addsParagraphSpacing)
         try c.encode(titlePage, forKey: .titlePage)
         try c.encode(headerFooters, forKey: .headerFooters)
