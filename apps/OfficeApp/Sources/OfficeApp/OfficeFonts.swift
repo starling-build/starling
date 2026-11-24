@@ -5235,6 +5235,7 @@ enum OfficeFonts {
                 face.boldAdvances = verdanaBoldAdvances
                 face.italicAdvances = verdanaItalicAdvances
                 face.boldItalicAdvances = verdanaBoldItalicAdvances
+                face.kerns = VerdanaKerns.regular
                 face.otherAdvances?.merge(verdanaOtherAdvances) { $1 }
                 face.boldOtherAdvances?.merge(verdanaBoldOtherAdvances) { $1 }
                 face.naturalHeight = 1.2153
