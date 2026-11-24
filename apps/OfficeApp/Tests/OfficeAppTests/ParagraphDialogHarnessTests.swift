@@ -10,7 +10,7 @@ import OfficeText
 /// W-PA-1: the Paragraph dialog is reachable, its controls reach the model, Enter applies, Esc does not.
 final class ParagraphDialogHarnessTests: XCTestCase {
     private func shell() -> (WidgetTester, OfficeSession) {
-        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(1280, 900))
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(1280, 800))
         let session = ui.state(OfficeShellState.self)!.session
         return (ui, session)
     }
