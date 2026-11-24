@@ -194,32 +194,32 @@ extension _ParaFrame {
     typealias _PairedLines = RichLayout._PairedLines
     func _asciiRunInMissingBengaliFace(_ a0: CharStyle, _ a1: RichNamedStyle?, _ a2: RichDocument, _ a3: Substring, _ a4: String) -> Bool { rl._asciiRunInMissingBengaliFace(a0, a1, a2, a3, a4) }
     func _atPageTopNegativeOffset(_ a0: Int, _ a1: ImageAttachment) -> Bool { rl._atPageTopNegativeOffset(a0, a1) }
-    var _bandCap: [Int : Double] { get { rl._bandCap } set { rl._bandCap = newValue } }
+    var _bandCap: [Int : Double] { get { rl._bandCap } set { rl._bandCap = newValue } _modify { yield &rl._bandCap } }
     func _besideBand(_ a0: Int, _ a1: RichDocument) -> (top: Double, bottom: Double)? { rl._besideBand(a0, a1) }
-    var _besideBoxes: [Int : [(top: Double, bottom: Double, left: Double, right: Double)]] { get { rl._besideBoxes } set { rl._besideBoxes = newValue } }
+    var _besideBoxes: [Int : [(top: Double, bottom: Double, left: Double, right: Double)]] { get { rl._besideBoxes } set { rl._besideBoxes = newValue } _modify { yield &rl._besideBoxes } }
     func _besideIndent(_ a0: Int, _ a1: RichParagraph, _ a2: RichDocument, table a3: String? = nil) -> (indent: Double, right: Bool)? { rl._besideIndent(a0, a1, a2, table: a3) }
-    var _besideIndentOnTop: Set<Int> { get { rl._besideIndentOnTop } set { rl._besideIndentOnTop = newValue } }
-    var _besideLabelShift: [Int : Double] { get { rl._besideLabelShift } set { rl._besideLabelShift = newValue } }
-    var _besideLead: [Double] { get { rl._besideLead } set { rl._besideLead = newValue } }
-    var _besideLeftAt: [Int : (Double, Double) -> Double] { get { rl._besideLeftAt } set { rl._besideLeftAt = newValue } }
-    var _besideListEarlier: Set<Int> { get { rl._besideListEarlier } set { rl._besideListEarlier = newValue } }
-    var _besideMoreBands: [Int : [(top: Double, bottom: Double)]] { get { rl._besideMoreBands } set { rl._besideMoreBands = newValue } }
+    var _besideIndentOnTop: Set<Int> { get { rl._besideIndentOnTop } set { rl._besideIndentOnTop = newValue } _modify { yield &rl._besideIndentOnTop } }
+    var _besideLabelShift: [Int : Double] { get { rl._besideLabelShift } set { rl._besideLabelShift = newValue } _modify { yield &rl._besideLabelShift } }
+    var _besideLead: [Double] { get { rl._besideLead } set { rl._besideLead = newValue } _modify { yield &rl._besideLead } }
+    var _besideLeftAt: [Int : (Double, Double) -> Double] { get { rl._besideLeftAt } set { rl._besideLeftAt = newValue } _modify { yield &rl._besideLeftAt } }
+    var _besideListEarlier: Set<Int> { get { rl._besideListEarlier } set { rl._besideListEarlier = newValue } _modify { yield &rl._besideListEarlier } }
+    var _besideMoreBands: [Int : [(top: Double, bottom: Double)]] { get { rl._besideMoreBands } set { rl._besideMoreBands = newValue } _modify { yield &rl._besideMoreBands } }
     func _besideOwn(_ a0: Int, _ a1: RichParagraph, _ a2: RichDocument) -> (indent: Double, band: (top: Double, bottom: Double), right: Bool, leftRoom: Double?)? { rl._besideOwn(a0, a1, a2) }
-    var _besidePending: Set<Int> { get { rl._besidePending } set { rl._besidePending = newValue } }
-    var _besideRightAt: [Int : (Double, Double) -> Double] { get { rl._besideRightAt } set { rl._besideRightAt = newValue } }
-    var _besideRightSide: [Bool] { get { rl._besideRightSide } set { rl._besideRightSide = newValue } }
-    var _besideSeq: [Int : [RichLayout.ColWrapBox]] { get { rl._besideSeq } set { rl._besideSeq = newValue } }
-    var _besideStartAt: [Int : (Double, Double) -> Double] { get { rl._besideStartAt } set { rl._besideStartAt = newValue } }
-    var _besideStartLeft: [Int : (indent: Double, band: (top: Double, bottom: Double))] { get { rl._besideStartLeft } set { rl._besideStartLeft = newValue } }
-    var _besideTightTop: [Int : Double] { get { rl._besideTightTop } set { rl._besideTightTop = newValue } }
+    var _besidePending: Set<Int> { get { rl._besidePending } set { rl._besidePending = newValue } _modify { yield &rl._besidePending } }
+    var _besideRightAt: [Int : (Double, Double) -> Double] { get { rl._besideRightAt } set { rl._besideRightAt = newValue } _modify { yield &rl._besideRightAt } }
+    var _besideRightSide: [Bool] { get { rl._besideRightSide } set { rl._besideRightSide = newValue } _modify { yield &rl._besideRightSide } }
+    var _besideSeq: [Int : [RichLayout.ColWrapBox]] { get { rl._besideSeq } set { rl._besideSeq = newValue } _modify { yield &rl._besideSeq } }
+    var _besideStartAt: [Int : (Double, Double) -> Double] { get { rl._besideStartAt } set { rl._besideStartAt = newValue } _modify { yield &rl._besideStartAt } }
+    var _besideStartLeft: [Int : (indent: Double, band: (top: Double, bottom: Double))] { get { rl._besideStartLeft } set { rl._besideStartLeft = newValue } _modify { yield &rl._besideStartLeft } }
+    var _besideTightTop: [Int : Double] { get { rl._besideTightTop } set { rl._besideTightTop = newValue } _modify { yield &rl._besideTightTop } }
     func _bodyBoxHeight(_ a0: ImageAttachment, _ a1: RichDocument) -> Double { rl._bodyBoxHeight(a0, a1) }
     func _bordersJoin(_ a0: Int, _ a1: Int, _ a2: RichDocument) -> Bool { rl._bordersJoin(a0, a1, a2) }
-    var _boxFirstLineShift: [Double] { get { rl._boxFirstLineShift } set { rl._boxFirstLineShift = newValue } }
+    var _boxFirstLineShift: [Double] { get { rl._boxFirstLineShift } set { rl._boxFirstLineShift = newValue } _modify { yield &rl._boxFirstLineShift } }
     func _cellInsets(_ a0: String, _ a1: RichDocument) -> (top: Double, left: Double, bottom: Double, right: Double) { rl._cellInsets(a0, a1) }
-    var _cells: [RichLayout._CellGeo?] { get { rl._cells } set { rl._cells = newValue } }
-    var _clearBand: [Int : (top: Double, bottom: Double)] { get { rl._clearBand } set { rl._clearBand = newValue } }
-    var _colWrap: [Int : [RichLayout.ColWrapBox]] { get { rl._colWrap } set { rl._colWrap = newValue } }
-    var _columnWidths: [String : [Double]] { get { rl._columnWidths } set { rl._columnWidths = newValue } }
+    var _cells: [RichLayout._CellGeo?] { get { rl._cells } set { rl._cells = newValue } _modify { yield &rl._cells } }
+    var _clearBand: [Int : (top: Double, bottom: Double)] { get { rl._clearBand } set { rl._clearBand = newValue } _modify { yield &rl._clearBand } }
+    var _colWrap: [Int : [RichLayout.ColWrapBox]] { get { rl._colWrap } set { rl._colWrap = newValue } _modify { yield &rl._colWrap } }
+    var _columnWidths: [String : [Double]] { get { rl._columnWidths } set { rl._columnWidths = newValue } _modify { yield &rl._columnWidths } }
     var _columns: Int { get { rl._columns } }
     func _eastDashLeadStyle(_ a0: CharStyle, named a1: RichNamedStyle?) -> CharStyle? { rl._eastDashLeadStyle(a0, named: a1) }
     func _edgeShift(_ a0: String, _ a1: RichDocument) -> Double { rl._edgeShift(a0, a1) }
@@ -229,46 +229,46 @@ extension _ParaFrame {
     func _equationsWithinStrut(_ a0: TextSpan, _ a1: [PlaceholderDimensions], whole a2: [Double], near a3: Bool, wide a4: Bool, multiple a5: Double) -> Bool { rl._equationsWithinStrut(a0, a1, whole: a2, near: a3, wide: a4, multiple: a5) }
     func _firstLineGridHalf(_ a0: Int, _ a1: RichDocument) -> Double { rl._firstLineGridHalf(a0, a1) }
     func _firstLineHoldsMangalMark(_ a0: RichParagraph, painter a1: TextPainter, lead a2: Int, named a3: RichNamedStyle?, document a4: RichDocument) -> Bool { rl._firstLineHoldsMangalMark(a0, painter: a1, lead: a2, named: a3, document: a4) }
-    var _firstLineLift: [Double] { get { rl._firstLineLift } set { rl._firstLineLift = newValue } }
+    var _firstLineLift: [Double] { get { rl._firstLineLift } set { rl._firstLineLift = newValue } _modify { yield &rl._firstLineLift } }
     func _firstTextRun(_ a0: RichParagraph) -> Run? { rl._firstTextRun(a0) }
     func _fitEastAsianLines(_ a0: RichParagraph, at a1: Int, _ a2: RichDocument, textWidth a3: Double, first a4: TextPainter, leadWidth a5: Double, tabs a6: [Int: Double] = [:], leftTabs a7: Set<Int> = [], runsPast a8: Set<Int> = [], beyond a9: [Int: Double] = [:], tieShort a10: (first: Bool, rest: Bool) = (false, false), lineIndents a11: [LineIndent] = []) -> [Int: Double] { rl._fitEastAsianLines(a0, at: a1, a2, textWidth: a3, first: a4, leadWidth: a5, tabs: a6, leftTabs: a7, runsPast: a8, beyond: a9, tieShort: a10, lineIndents: a11) }
-    var _fixedTextFrame: (left: Double, right: Double)? { get { rl._fixedTextFrame } set { rl._fixedTextFrame = newValue } }
-    var _floatImages: [ImageAttachment?] { get { rl._floatImages } set { rl._floatImages = newValue } }
-    var _floatPush: [Double] { get { rl._floatPush } set { rl._floatPush = newValue } }
-    var _floatTight: [Bool] { get { rl._floatTight } set { rl._floatTight = newValue } }
-    var _floats: [ImageFloat?] { get { rl._floats } set { rl._floats = newValue } }
+    var _fixedTextFrame: (left: Double, right: Double)? { get { rl._fixedTextFrame } set { rl._fixedTextFrame = newValue } _modify { yield &rl._fixedTextFrame } }
+    var _floatImages: [ImageAttachment?] { get { rl._floatImages } set { rl._floatImages = newValue } _modify { yield &rl._floatImages } }
+    var _floatPush: [Double] { get { rl._floatPush } set { rl._floatPush = newValue } _modify { yield &rl._floatPush } }
+    var _floatTight: [Bool] { get { rl._floatTight } set { rl._floatTight = newValue } _modify { yield &rl._floatTight } }
+    var _floats: [ImageFloat?] { get { rl._floats } set { rl._floats = newValue } _modify { yield &rl._floats } }
     func _flowWidth(_ a0: Int) -> Double { rl._flowWidth(a0) }
     func _grid(_ a0: Int?, _ a1: RichDocument) -> (pitch: Double?, chars: Double?) { rl._grid(a0, a1) }
     func _gridCellBase(_ a0: Int?, _ a1: RichDocument) -> Double? { rl._gridCellBase(a0, a1) }
     func _hangMarker(_ a0: Int, _ a1: RichParagraph, _ a2: RichDocument, label a3: String) -> TextPainter { rl._hangMarker(a0, a1, a2, label: a3) }
     func _hasVisibleText(_ a0: RichParagraph) -> Bool { rl._hasVisibleText(a0) }
-    var _headPushUse: [Int : Double] { get { rl._headPushUse } set { rl._headPushUse = newValue } }
-    var _heights: [Double] { get { rl._heights } set { rl._heights = newValue } }
-    var _heldTallerLatin: Set<Int> { get { rl._heldTallerLatin } set { rl._heldTallerLatin = newValue } }
+    var _headPushUse: [Int : Double] { get { rl._headPushUse } set { rl._headPushUse = newValue } _modify { yield &rl._headPushUse } }
+    var _heights: [Double] { get { rl._heights } set { rl._heights = newValue } _modify { yield &rl._heights } }
+    var _heldTallerLatin: Set<Int> { get { rl._heldTallerLatin } set { rl._heldTallerLatin = newValue } _modify { yield &rl._heldTallerLatin } }
     func _holdsEastAsianAndLatinRuns(_ a0: RichParagraph, document a1: RichDocument) -> Bool { rl._holdsEastAsianAndLatinRuns(a0, document: a1) }
-    var _imageDrop: [Double] { get { rl._imageDrop } set { rl._imageDrop = newValue } }
-    var _imageShift: [Double] { get { rl._imageShift } set { rl._imageShift = newValue } }
-    var _imageSize: [Size?] { get { rl._imageSize } set { rl._imageSize = newValue } }
+    var _imageDrop: [Double] { get { rl._imageDrop } set { rl._imageDrop = newValue } _modify { yield &rl._imageDrop } }
+    var _imageShift: [Double] { get { rl._imageShift } set { rl._imageShift = newValue } _modify { yield &rl._imageShift } }
+    var _imageSize: [Size?] { get { rl._imageSize } set { rl._imageSize = newValue } _modify { yield &rl._imageSize } }
     func _indicFirstLineAscent(_ a0: RichParagraph, painter a1: TextPainter, lead a2: Int, named a3: RichNamedStyle?, document a4: RichDocument, target a5: Double, style a6: RichParagraphStyle, pitch a7: Double?, lift a8: inout Double) -> Double? { rl._indicFirstLineAscent(a0, painter: a1, lead: a2, named: a3, document: a4, target: a5, style: a6, pitch: a7, lift: &a8) }
-    var _inkShift: [Double] { get { rl._inkShift } set { rl._inkShift = newValue } }
-    var _inline: [[ImageAttachment]] { get { rl._inline } set { rl._inline = newValue } }
-    var _inlineBoxes: [[Int]] { get { rl._inlineBoxes } set { rl._inlineBoxes = newValue } }
+    var _inkShift: [Double] { get { rl._inkShift } set { rl._inkShift = newValue } _modify { yield &rl._inkShift } }
+    var _inline: [[ImageAttachment]] { get { rl._inline } set { rl._inline = newValue } _modify { yield &rl._inline } }
+    var _inlineBoxes: [[Int]] { get { rl._inlineBoxes } set { rl._inlineBoxes = newValue } _modify { yield &rl._inlineBoxes } }
     func _inlinePictureOnly(_ a0: Int, _ a1: RichDocument) -> Bool { rl._inlinePictureOnly(a0, a1) }
-    var _inserts: [[Int]] { get { rl._inserts } set { rl._inserts = newValue } }
+    var _inserts: [[Int]] { get { rl._inserts } set { rl._inserts = newValue } _modify { yield &rl._inserts } }
     func _koreanSymbolFirstLineRaise(_ a0: RichParagraph, painter a1: TextPainter, lead a2: Int, named a3: RichNamedStyle?, document a4: RichDocument) -> Double? { rl._koreanSymbolFirstLineRaise(a0, painter: a1, lead: a2, named: a3, document: a4) }
     func _koreanSymbolLineFlags(_ a0: RichParagraph, painter a1: TextPainter, lead a2: Int, named a3: RichNamedStyle?, document a4: RichDocument) -> [Bool] { rl._koreanSymbolLineFlags(a0, painter: a1, lead: a2, named: a3, document: a4) }
     func _labelFaceGrowth(_ a0: RichParagraph, named a1: RichNamedStyle?, document a2: RichDocument, style a3: RichParagraphStyle) -> (target: Double, growth: Double)? { rl._labelFaceGrowth(a0, named: a1, document: a2, style: a3) }
     func _layoutParagraphOnce(_ a0: Int, _ a1: RichParagraph, _ a2: RichDocument)  { rl._layoutParagraphOnce(a0, a1, a2) }
     func _lead(_ a0: Int) -> Int { rl._lead(a0) }
-    var _leadWidth: [Double] { get { rl._leadWidth } set { rl._leadWidth = newValue } }
-    var _leaders: [[(offset: Int, fill: String)]] { get { rl._leaders } set { rl._leaders = newValue } }
+    var _leadWidth: [Double] { get { rl._leadWidth } set { rl._leadWidth = newValue } _modify { yield &rl._leadWidth } }
+    var _leaders: [[(offset: Int, fill: String)]] { get { rl._leaders } set { rl._leaders = newValue } _modify { yield &rl._leaders } }
     func _leadingBreakCut(_ a0: Int, _ a1: RichParagraph, _ a2: TextPainter, _ a3: RichDocument, bodyHeight a4: inout Double)  { rl._leadingBreakCut(a0, a1, a2, a3, bodyHeight: &a4) }
     func _levelNumberFonts(_ a0: RichParagraph, _ a1: RichDocument) -> (latin: String?, eastAsian: String?) { rl._levelNumberFonts(a0, a1) }
     func _levelNumberSize(_ a0: RichParagraph, _ a1: RichDocument) -> Double? { rl._levelNumberSize(a0, a1) }
-    var _lineCentre: [String : Double] { get { rl._lineCentre } set { rl._lineCentre = newValue } }
-    var _lineDrop: [Int : (from: Int, dy: Double)] { get { rl._lineDrop } set { rl._lineDrop = newValue } }
-    var _lineLift: [[Double]] { get { rl._lineLift } set { rl._lineLift = newValue } }
-    var _lineOverhang: [[Double]] { get { rl._lineOverhang } set { rl._lineOverhang = newValue } }
+    var _lineCentre: [String : Double] { get { rl._lineCentre } set { rl._lineCentre = newValue } _modify { yield &rl._lineCentre } }
+    var _lineDrop: [Int : (from: Int, dy: Double)] { get { rl._lineDrop } set { rl._lineDrop = newValue } _modify { yield &rl._lineDrop } }
+    var _lineLift: [[Double]] { get { rl._lineLift } set { rl._lineLift = newValue } _modify { yield &rl._lineLift } }
+    var _lineOverhang: [[Double]] { get { rl._lineOverhang } set { rl._lineOverhang = newValue } _modify { yield &rl._lineOverhang } }
     func _hangsLineEndMarks(_ a0: RichParagraph) -> Bool { rl._hangsLineEndMarks(a0) }
     func _markHangs(_ a0: RichParagraph, _ a1: Int) -> Bool { rl._markHangs(a0, a1) }
     func _lastLineHangsMark(_ a0: RichParagraph, _ a1: [Int: Double]) -> Bool { rl._lastLineHangsMark(a0, a1) }
@@ -281,62 +281,62 @@ extension _ParaFrame {
     func _marker(_ a0: Int, _ a1: RichParagraph, _ a2: RichDocument, label a3: String, strut a4: StrutStyle?) -> TextPainter { rl._marker(a0, a1, a2, label: a3, strut: a4) }
     func _markerChar(_ a0: RichParagraph, _ a1: RichDocument) -> CharStyle { rl._markerChar(a0, a1) }
     func _maxContent(_ a0: Int, _ a1: RichParagraph, _ a2: RichDocument) -> Double { rl._maxContent(a0, a1, a2) }
-    var _mirrored: Set<Int> { get { rl._mirrored } set { rl._mirrored = newValue } }
-    var _mixedFace: [Int : (depth: Double, size: Double)] { get { rl._mixedFace } set { rl._mixedFace = newValue } }
+    var _mirrored: Set<Int> { get { rl._mirrored } set { rl._mirrored = newValue } _modify { yield &rl._mirrored } }
+    var _mixedFace: [Int : (depth: Double, size: Double)] { get { rl._mixedFace } set { rl._mixedFace = newValue } _modify { yield &rl._mixedFace } }
     func _mixedFaceLinesSpan(_ a0: TextSpan, _ a1: RichParagraph, _ a2: TextPainter) -> TextSpan? { rl._mixedFaceLinesSpan(a0, a1, a2) }
     func _mixedFaceSpan(_ a0: TextSpan, _ a1: RichParagraph) -> (span: TextSpan, depth: Double, size: Double)? { rl._mixedFaceSpan(a0, a1) }
     func _named(_ a0: RichParagraph, _ a1: RichDocument) -> RichNamedStyle? { rl._named(a0, a1) }
     func _normalChar(_ a0: RichDocument) -> CharStyle? { rl._normalChar(a0) }
-    var _numberLiftShift: [Double] { get { rl._numberLiftShift } set { rl._numberLiftShift = newValue } }
+    var _numberLiftShift: [Double] { get { rl._numberLiftShift } set { rl._numberLiftShift = newValue } _modify { yield &rl._numberLiftShift } }
     func _offGrid(_ a0: Int, _ a1: RichDocument) -> Bool { rl._offGrid(a0, a1) }
-    var _overhang: [Double] { get { rl._overhang } set { rl._overhang = newValue } }
-    var _pageBreak: [Bool] { get { rl._pageBreak } set { rl._pageBreak = newValue } }
-    var _pageFill: [String : Double] { get { rl._pageFill } set { rl._pageFill = newValue } }
-    var _painters: [TextPainter?] { get { rl._painters } set { rl._painters = newValue } }
-    var _pastLeft: [Int : Double] { get { rl._pastLeft } set { rl._pastLeft = newValue } }
-    var _pastNeed: [Int : Double] { get { rl._pastNeed } set { rl._pastNeed = newValue } }
-    var _pastWiden: Double? { get { rl._pastWiden } set { rl._pastWiden = newValue } }
+    var _overhang: [Double] { get { rl._overhang } set { rl._overhang = newValue } _modify { yield &rl._overhang } }
+    var _pageBreak: [Bool] { get { rl._pageBreak } set { rl._pageBreak = newValue } _modify { yield &rl._pageBreak } }
+    var _pageFill: [String : Double] { get { rl._pageFill } set { rl._pageFill = newValue } _modify { yield &rl._pageFill } }
+    var _painters: [TextPainter?] { get { rl._painters } set { rl._painters = newValue } _modify { yield &rl._painters } }
+    var _pastLeft: [Int : Double] { get { rl._pastLeft } set { rl._pastLeft = newValue } _modify { yield &rl._pastLeft } }
+    var _pastNeed: [Int : Double] { get { rl._pastNeed } set { rl._pastNeed = newValue } _modify { yield &rl._pastNeed } }
+    var _pastWiden: Double? { get { rl._pastWiden } set { rl._pastWiden = newValue } _modify { yield &rl._pastWiden } }
     func _pictureRoom(_ a0: ImageAttachment) -> (top: Double, bottom: Double, left: Double, right: Double) { rl._pictureRoom(a0) }
     func _pictureTextLineAdjust(_ a0: Int, _ a1: RichParagraph, multiple a2: Double, single a3: Double, bodyHeight a4: inout Double)  { rl._pictureTextLineAdjust(a0, a1, multiple: a2, single: a3, bodyHeight: &a4) }
     func _picturesTakeLines(_ a0: RichParagraph, textWidth a1: Double) -> Bool { rl._picturesTakeLines(a0, textWidth: a1) }
     func _px(_ a0: Double) -> Double { rl._px(a0) }
-    var _rubyApply: Set<Int> { get { rl._rubyApply } set { rl._rubyApply = newValue } }
-    var _rubyWiden: [Int : [Int : Double]] { get { rl._rubyWiden } set { rl._rubyWiden = newValue } }
+    var _rubyApply: Set<Int> { get { rl._rubyApply } set { rl._rubyApply = newValue } _modify { yield &rl._rubyApply } }
+    var _rubyWiden: [Int : [Int : Double]] { get { rl._rubyWiden } set { rl._rubyWiden = newValue } _modify { yield &rl._rubyWiden } }
     func _sectionEndnotesHeight(before a0: Int, _ a1: RichDocument) -> Double { rl._sectionEndnotesHeight(before: a0, a1) }
     func _setup(ofParagraph a0: Int) -> PageSetup { rl._setup(ofParagraph: a0) }
     func _sideIndents(_ a0: RichParagraph, at a1: Int? = nil, _ a2: RichDocument) -> (left: Double, right: Double) { rl._sideIndents(a0, at: a1, a2) }
-    var _spaceBefore: [Double] { get { rl._spaceBefore } set { rl._spaceBefore = newValue } }
+    var _spaceBefore: [Double] { get { rl._spaceBefore } set { rl._spaceBefore = newValue } _modify { yield &rl._spaceBefore } }
     func _spacesToHold(_ a0: RichParagraph, lineStarts a1: Set<Int>) -> Set<Int> { rl._spacesToHold(a0, lineStarts: a1) }
     func _spacing(_ a0: Int, _ a1: RichDocument) -> (before: Double, after: Double) { rl._spacing(a0, a1) }
     func _span(for a0: RichParagraph, at a1: Int?, _ a2: RichDocument, textWidth a3: Double, lead a4: Double = 0, adjust a5: [Int: Double] = [:], held a6: Set<Int> = [], spread a7: [Int: Double] = [:], fitProbe a8: Bool = false, autoSpaces a9: ((Int, Double) -> Void)? = nil) -> (TextSpan, [(image: ImageAttachment?, dimensions: PlaceholderDimensions)], [Int]) { rl._span(for: a0, at: a1, a2, textWidth: a3, lead: a4, adjust: a5, held: a6, spread: a7, fitProbe: a8, autoSpaces: a9) }
     func _stripBesideLeftTable(_ a0: String, _ a1: Int, _ a2: RichDocument) -> Bool { rl._stripBesideLeftTable(a0, a1, a2) }
-    var _stripUse: [Int : (indent: Double, band: (top: Double, bottom: Double), right: Bool)] { get { rl._stripUse } set { rl._stripUse = newValue } }
+    var _stripUse: [Int : (indent: Double, band: (top: Double, bottom: Double), right: Bool)] { get { rl._stripUse } set { rl._stripUse = newValue } _modify { yield &rl._stripUse } }
     func _strut(_ a0: TextSpan, tallest a1: Bool = false, near a2: Bool = false, wide a3: Bool = false, joiners a4: Bool = true) -> StrutStyle? { rl._strut(a0, tallest: a1, near: a2, wide: a3, joiners: a4) }
     func _firstLeafStyle(_ a0: InlineSpan) -> TextStyle? { rl._firstLeafStyle(a0) }
     func _tableLeft(_ a0: String, _ a1: RichDocument) -> Double { rl._tableLeft(a0, a1) }
-    var _tableMerged: [String : [Int]] { get { rl._tableMerged } set { rl._tableMerged = newValue } }
-    var _tableOwnLeft: [String : (style: String, width: Double)] { get { rl._tableOwnLeft } set { rl._tableOwnLeft = newValue } }
-    var _tableRows: [String : Int] { get { rl._tableRows } set { rl._tableRows = newValue } }
+    var _tableMerged: [String : [Int]] { get { rl._tableMerged } set { rl._tableMerged = newValue } _modify { yield &rl._tableMerged } }
+    var _tableOwnLeft: [String : (style: String, width: Double)] { get { rl._tableOwnLeft } set { rl._tableOwnLeft = newValue } _modify { yield &rl._tableOwnLeft } }
+    var _tableRows: [String : Int] { get { rl._tableRows } set { rl._tableRows = newValue } _modify { yield &rl._tableRows } }
     func _tallestTextLine(_ a0: Int, _ a1: RichDocument) -> Double? { rl._tallestTextLine(a0, a1) }
     func _tamilMarkedLinesExtra(_ a0: Int, _ a1: RichParagraph, _ a2: RichDocument, _ a3: TextPainter) -> Double { rl._tamilMarkedLinesExtra(a0, a1, a2, a3) }
     func _textBox(_ a0: ImageAttachment, _ a1: RichDocument) -> _HeaderFooter? { rl._textBox(a0, a1) }
-    var _textLeft: [Double] { get { rl._textLeft } set { rl._textLeft = newValue } }
-    var _textWidth: [Double] { get { rl._textWidth } set { rl._textWidth = newValue } }
-    var _topsValid: Bool { get { rl._topsValid } set { rl._topsValid = newValue } }
-    var _unseenShift: [Int : Double] { get { rl._unseenShift } set { rl._unseenShift = newValue } }
+    var _textLeft: [Double] { get { rl._textLeft } set { rl._textLeft = newValue } _modify { yield &rl._textLeft } }
+    var _textWidth: [Double] { get { rl._textWidth } set { rl._textWidth = newValue } _modify { yield &rl._textWidth } }
+    var _topsValid: Bool { get { rl._topsValid } set { rl._topsValid = newValue } _modify { yield &rl._topsValid } }
+    var _unseenShift: [Int : Double] { get { rl._unseenShift } set { rl._unseenShift = newValue } _modify { yield &rl._unseenShift } }
     func _vanishes(_ a0: RichParagraph, _ a1: RichDocument) -> Bool { rl._vanishes(a0, a1) }
     func _verticalBody(_ a0: Int) -> Bool { rl._verticalBody(a0) }
     func _wordList(_ a0: RichParagraph, _ a1: RichDocument) -> (left: Double, first: Double, format: ListLevelFormat?)? { rl._wordList(a0, a1) }
-    var _wwSpaceStarts: [Int : Set<Int>] { get { rl._wwSpaceStarts } set { rl._wwSpaceStarts = newValue } }
+    var _wwSpaceStarts: [Int : Set<Int>] { get { rl._wwSpaceStarts } set { rl._wwSpaceStarts = newValue } _modify { yield &rl._wwSpaceStarts } }
     var count: Int { get { rl.count } }
     func firstLineIndent(_ a0: RichParagraph, at a1: Int? = nil, _ a2: RichDocument) -> Double { rl.firstLineIndent(a0, at: a1, a2) }
-    var floatsFrames: Bool { get { rl.floatsFrames } set { rl.floatsFrames = newValue } }
-    var fontScale: Double { get { rl.fontScale } set { rl.fontScale = newValue } }
-    var frameMargins: (left: Double, right: Double) { get { rl.frameMargins } set { rl.frameMargins = newValue } }
-    var headerTopOnPage: Double? { get { rl.headerTopOnPage } set { rl.headerTopOnPage = newValue } }
-    var leftHandPage: Bool { get { rl.leftHandPage } set { rl.leftHandPage = newValue } }
+    var floatsFrames: Bool { get { rl.floatsFrames } set { rl.floatsFrames = newValue } _modify { yield &rl.floatsFrames } }
+    var fontScale: Double { get { rl.fontScale } set { rl.fontScale = newValue } _modify { yield &rl.fontScale } }
+    var frameMargins: (left: Double, right: Double) { get { rl.frameMargins } set { rl.frameMargins = newValue } _modify { yield &rl.frameMargins } }
+    var headerTopOnPage: Double? { get { rl.headerTopOnPage } set { rl.headerTopOnPage = newValue } _modify { yield &rl.headerTopOnPage } }
+    var leftHandPage: Bool { get { rl.leftHandPage } set { rl.leftHandPage = newValue } _modify { yield &rl.leftHandPage } }
     func listLabel(_ a0: Int, _ a1: RichDocument) -> String? { rl.listLabel(a0, a1) }
-    var scale: Double { get { rl.scale } set { rl.scale = newValue } }
+    var scale: Double { get { rl.scale } set { rl.scale = newValue } _modify { yield &rl.scale } }
     var theme: RichTextTheme { get { rl.theme } }
 // FWD-END
 }
