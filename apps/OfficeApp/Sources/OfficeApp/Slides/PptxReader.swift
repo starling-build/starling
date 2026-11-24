@@ -102,6 +102,12 @@ enum Pptx {
     enum ReadError: Error { case noPresentation, notAPresentation }
 
     static func read(_ data: Data) throws -> (DeckState, DeckTheme, PptxPackage) {
+        // A legacy .ppt (PowerPoint 97-2003, a compound file holding a "PowerPoint Document" stream) is
+        // read as the package it translates to; an encrypted .pptx is a compound file too and stays on its path.
+        if data.count > 8, data.starts(with: [0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1]),
+           let cf = try? CompoundFile([UInt8](data)), cf.stream("PowerPoint Document") != nil {
+            return try PptxReader(try PptBuild.package([UInt8](data))).read()
+        }
         let package = PptxPackage(try Zip.read(data))
         // The reader recurses through nested groups: keep ShapeState small (Boxed), or a deep deck overflows the
         // stack (ja-85c85cb794, 8 levels at 375 KB each).
