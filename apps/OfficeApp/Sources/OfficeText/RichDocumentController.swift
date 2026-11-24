@@ -57,6 +57,8 @@ public indirect enum EditOp: Equatable, Sendable {
     case setHeaderFooter(header: String, footer: String, oldHeader: String, oldFooter: String)
     /// A picture's shown size (its attachment replaced; the id survives).
     case setImage(Int, old: ImageAttachment, new: ImageAttachment)
+    /// An inline picture in a paragraph's text, replaced (its id survives).
+    case setInlineImage(Int, id: String, old: ImageAttachment, new: ImageAttachment)
     /// A table's column widths in points (nil: equal columns).
     case setTableColumns(String, old: [Double]?, new: [Double]?)
     /// One entry of the style sheet, replaced (every paragraph re-lays out).
@@ -146,6 +148,10 @@ public indirect enum EditOp: Equatable, Sendable {
             doc.paragraphs[index].image = new
             changes.append(.changed(index))
             return .setImage(index, old: new, new: old)
+        case .setInlineImage(let index, let id, let old, let new):
+            doc.paragraphs[index].inlineImages[id] = new
+            changes.append(.changed(index))
+            return .setInlineImage(index, id: id, old: new, new: old)
         case .setTableColumns(let table, let old, let new):
             doc.tableColumns[table] = new
             for i in doc.paragraphs.indices where doc.paragraphs[i].cell?.table == table { changes.append(.changed(i)) }
@@ -687,6 +693,48 @@ public final class RichDocumentController: ChangeNotifier {
     public func selectImage(at index: Int) {
         guard index < document.paragraphs.count, document.paragraphs[index].isImage else { return }
         moveTo(RichPosition(paragraph: index, offset: 0), extend: false)
+    }
+
+    /// The picture set in a line of text that the selection is exactly on (one U+FFFC character), with the character's
+    /// offset in its paragraph.
+    public var selectedInlineImage: (paragraph: Int, offset: Int, id: String)? {
+        let a = selection.anchor, f = selection.focus
+        guard a.paragraph == f.paragraph, abs(a.offset - f.offset) == 1, a.paragraph < document.paragraphs.count else { return nil }
+        let p = document.paragraphs[a.paragraph]
+        let at = min(a.offset, f.offset)
+        guard let id = p.style(at: at + 1).inlineImage, p.inlineImages[id] != nil else { return nil }
+        return (a.paragraph, at, id)
+    }
+
+    /// The pictures set in paragraph `index`'s text, in text order, each with its character's offset.
+    public func inlineImageOffsets(in index: Int) -> [(offset: Int, id: String)] {
+        guard index < document.paragraphs.count else { return [] }
+        let p = document.paragraphs[index]
+        var out: [(Int, String)] = []
+        var pos = 0
+        for run in p.runs {
+            if let id = run.style.inlineImage, p.inlineImages[id] != nil { out.append((pos, id)) }
+            pos += run.length
+        }
+        return out
+    }
+
+    /// Select the picture `id` set in paragraph `index`'s text (its one character).
+    public func selectInlineImage(in index: Int, id: String) {
+        guard let hit = inlineImageOffsets(in: index).first(where: { $0.id == id }) else { return }
+        selection = RichSelection(anchor: RichPosition(paragraph: index, offset: hit.offset),
+                                  focus: RichPosition(paragraph: index, offset: hit.offset + 1))
+    }
+
+    /// Show the inline picture `id` of paragraph `index` at `width` × `height` points, one undo step.
+    public func setInlineImageSize(in index: Int, id: String, width: Double, height: Double) {
+        guard index < document.paragraphs.count, let old = document.paragraphs[index].inlineImages[id] else { return }
+        let w = max(4, width), h = max(4, height)
+        guard abs(w - old.width) > 0.01 || abs(h - old.height) > 0.01 else { return }
+        var new = old
+        new.width = w
+        new.height = h
+        edit { perform(.setInlineImage(index, id: id, old: old, new: new)) }
     }
 
     /// Show the picture at `index` at `width` × `height` points, one undo step.

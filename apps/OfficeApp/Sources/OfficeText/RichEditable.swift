@@ -135,7 +135,7 @@ public final class RichEditableState: State<StatefulWidget> {
     private var _kbSelecting = false
     /// A picture-handle drag: which handle (0–7, clockwise from top-left),
     /// where it started, the picture's size then, and the live size.
-    private var _handleDrag: (index: Int, handle: Int, start: Offset, size: Size)? = nil
+    private var _handleDrag: (index: Int, handle: Int, start: Offset, size: Size, inline: String?)? = nil
     private var _dragSize: Size? = nil
     // Touch selection: a long press selects the word under the finger, a double
     // tap does too, and a selection shows a handle at each end to drag.
@@ -705,14 +705,37 @@ public final class RichEditableState: State<StatefulWidget> {
 
     /// The selected picture's box in the editable's own coordinates, with
     /// the live drag size when one is under way.
-    private func _selectedImageBox() -> (index: Int, rect: Rect)? {
+    private func _selectedImageBox() -> (index: Int, rect: Rect, inline: String?)? {
         if _layout.width > 0 { _syncLayoutIfNeeded() }
-        guard let i = _controller.selectedImageIndex, _layout.width > 0,
-              let flow = _layout.imageRect(i), let canvas = _layout.canvasRects(flow).first else { return nil }
+        guard _layout.width > 0 else { return nil }
+        var canvas: Rect
+        var index: Int
+        var inline: String? = nil
+        if let i = _controller.selectedImageIndex, let flow = _layout.imageRect(i), let c = _layout.canvasRects(flow).first {
+            canvas = c; index = i
+        } else if let hit = _controller.selectedInlineImage,
+                  let c = _layout.canvasSelectionRects(_controller.selection, _controller.document).first {
+            // (A picture set in a line of text: the box its character takes.)
+            canvas = c; index = hit.paragraph; inline = hit.id
+        } else { return nil }
         var rect = Rect.fromLTWH(canvas.left + _originX, canvas.top + _w.padding.top - _scrollY,
                                  canvas.width, canvas.height)
         if let d = _dragSize { rect = Rect.fromLTWH(rect.left, rect.top, d.width, d.height) }
-        return (i, rect)
+        return (index, rect, inline)
+    }
+
+    /// The picture set in a line of text under the point (editable coordinates), if any.
+    private func _inlineImage(at local: Offset) -> (paragraph: Int, id: String)? {
+        guard _layout.width > 0 else { return nil }
+        let doc = _controller.document
+        let pos = _layout.canvasPosition(at: _canvasPoint(local), doc)
+        let canvasPoint = _canvasPoint(local)
+        for (offset, id) in _controller.inlineImageOffsets(in: pos.paragraph) where abs(offset - pos.offset) <= 1 {
+            let sel = RichSelection(anchor: RichPosition(paragraph: pos.paragraph, offset: offset),
+                                    focus: RichPosition(paragraph: pos.paragraph, offset: offset + 1))
+            if _layout.canvasSelectionRects(sel, doc).contains(where: { $0.contains(canvasPoint) }) { return (pos.paragraph, id) }
+        }
+        return nil
     }
 
     /// Handle centres, clockwise from the top-left corner: 0 TL, 1 T, 2 TR,
@@ -864,7 +887,7 @@ public final class RichEditableState: State<StatefulWidget> {
             return
         }
         if let box = _selectedImageBox(), let k = _handleHit(event.localPosition, box.rect) {
-            _handleDrag = (box.index, k, event.localPosition, box.rect.size)
+            _handleDrag = (box.index, k, event.localPosition, box.rect.size, box.inline)
             _dragSize = box.rect.size
             _dragging = false
             return
@@ -893,7 +916,7 @@ public final class RichEditableState: State<StatefulWidget> {
         case 1:
             let sel = _controller.selection
             if !_chords.shift, _controller.hasSelection, sel.block == nil,
-               pos > sel.start, pos < sel.end, _controller.selectedImageIndex == nil {
+               pos > sel.start, pos < sel.end, _controller.selectedImageIndex == nil, _controller.selectedInlineImage == nil {
                 // Pressing on selected text starts a drag of it, not a new
                 // selection; the caret moves only if the press stays put.
                 _textDrag = (event.localPosition, false)
@@ -902,6 +925,11 @@ public final class RichEditableState: State<StatefulWidget> {
             }
             _dragging = true
             _controller.moveTo(pos, extend: _chords.shift)
+            // A click on a picture set in a line of text selects it (with its handles), as on a picture of its own.
+            if !_chords.shift, let hit = _inlineImage(at: event.localPosition) {
+                _controller.selectInlineImage(in: hit.paragraph, id: hit.id)
+                _dragging = false
+            }
         case 2:
             _controller.selectWord(at: pos)
             _dragging = true
@@ -1112,7 +1140,11 @@ public final class RichEditableState: State<StatefulWidget> {
             _handleDrag = nil
             _dragSize = nil
             let pt = _layout.theme.pixelsPerPoint * _layout.scale
-            _controller.setImageSize(at: drag.index, width: size.width / pt, height: size.height / pt)
+            if let id = drag.inline {
+                _controller.setInlineImageSize(in: drag.index, id: id, width: size.width / pt, height: size.height / pt)
+            } else {
+                _controller.setImageSize(at: drag.index, width: size.width / pt, height: size.height / pt)
+            }
             _repaint.notifyListeners()
         }
     }
