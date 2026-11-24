@@ -629,7 +629,7 @@ extension _ParaFrame {
                     RuleTrace.hit("word-number-ending-on-own-stop-takes-it")
                 } else if let stop = ownStop {
                     end = stop - ownLeft
-                } else if theme.wordRules, wl.first < 0, let lvlLeft = p.style.listId.flatMap({ document.listFormats[$0]?[min(max(0, p.style.listLevel), 8)]?.indentLeft }),
+                } else if theme.wordRules, document.numberTabReachesLevelIndent, wl.first < 0, let lvlLeft = p.style.listId.flatMap({ document.listFormats[$0]?[min(max(0, p.style.listLevel), 8)]?.indentLeft }),
                           _px(lvlLeft) > ownLeft + end + 0.01, abs(_px(lvlLeft) - ownLeft) > 0.01 {
                     // (A paragraph that states its own left indent under a numbered level still has the
                     // level's indent as a tab stop: pt-90497db98b's bullets, left 0 under a level at 1020

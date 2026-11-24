@@ -507,11 +507,11 @@ enum DocRead {
         // Odd and even pages have their own headers when the document properties say so (the first flag of the DOP).
         let facing = fib.range(31).map { $0.fc < tbl.count && tbl[$0.fc] & 1 != 0 } ?? false
         var settings: [ZipEntry] = []
-        if facing {
-            settings = [e("word/settings.xml", head + "<w:settings \(ns)><w:evenAndOddHeaders/></w:settings>")]
-            rels += "<Relationship Id=\"rIdSet\" Type=\"\(relBase)settings\" Target=\"settings.xml\"/>"
-            types += "<Override PartName=\"/word/settings.xml\" ContentType=\"\(ctBase)settings+xml\"/>"
-        }
+        // (Always written: its compat block carries the marker that this came from a .doc, so rules
+        // that hold for the binary format's lists alone do not reach a .docx.)
+        settings = [e("word/settings.xml", head + "<w:settings \(ns)>" + (facing ? "<w:evenAndOddHeaders/>" : "") + "<w:compat><w:binaryDocListTabs/></w:compat></w:settings>")]
+        rels += "<Relationship Id=\"rIdSet\" Type=\"\(relBase)settings\" Target=\"settings.xml\"/>"
+        types += "<Override PartName=\"/word/settings.xml\" ContentType=\"\(ctBase)settings+xml\"/>"
         if let ls = fib.range(73), let nx = DocProps.numbering(tbl, lst: ls, lfo: fib.range(74), fonts: fonts) {
             extra.append(e("word/numbering.xml", head + "<w:numbering \(ns)>" + nx + "</w:numbering>"))
             rels += "<Relationship Id=\"rIdNum\" Type=\"\(relBase)numbering\" Target=\"numbering.xml\"/>"
