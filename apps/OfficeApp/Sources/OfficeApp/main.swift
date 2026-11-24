@@ -971,16 +971,77 @@ if let spec = ProcessInfo.processInfo.environment["OFFICE_OPEN_AFTER"], let colo
     let path = String(spec[spec.index(after: colon)...])
     DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(ms)) { OfficeNativeShell.open(URL(fileURLWithPath: path)) }
 }
+// A heap histogram for the leak hunt (OFFICE_HEAP_DUMP=<dir>): every live malloc block, grouped by the symbol its
+// first word points at (a Swift or ObjC object's class) or else by size; written as "count bytes key" lines.
+// The blocks are collected into a preallocated buffer first (allocating inside the enumerator would change the
+// heap being walked), and read with vm_read_overwrite so a block freed meanwhile cannot crash the walk.
+private nonisolated(unsafe) var heapRanges: UnsafeMutablePointer<(UInt, UInt)>? = nil
+private nonisolated(unsafe) var heapRangeCount = 0
+private let heapRangeCapacity = 6_000_000
+
+func dumpHeapHistogram(to path: String) {
+    heapRanges = UnsafeMutablePointer<(UInt, UInt)>.allocate(capacity: heapRangeCapacity)
+    heapRangeCount = 0
+    var zones: UnsafeMutablePointer<vm_address_t>?
+    var zoneCount: UInt32 = 0
+    _ = malloc_get_all_zones(mach_task_self_, { _, addr, _, out in out?.pointee = UnsafeMutableRawPointer(bitPattern: addr); return KERN_SUCCESS }, &zones, &zoneCount)
+    guard let zones else { return }
+    for i in 0..<Int(zoneCount) {
+        guard let zone = UnsafeMutablePointer<malloc_zone_t>(bitPattern: zones[i]), let intro = zone.pointee.introspect,
+              let enumerate = intro.pointee.enumerator else { continue }
+        _ = enumerate(mach_task_self_, nil, UInt32(MALLOC_PTR_IN_USE_RANGE_TYPE), vm_address_t(bitPattern: zone),
+                      { _, addr, size, out in out?.pointee = UnsafeMutableRawPointer(bitPattern: addr); return KERN_SUCCESS },
+                      { _, _, _, ranges, count in
+                          guard let ranges, let buffer = heapRanges else { return }
+                          for j in 0..<Int(count) where heapRangeCount < heapRangeCapacity {
+                              buffer[heapRangeCount] = (UInt(ranges[j].address), UInt(ranges[j].size)); heapRangeCount += 1
+                          }
+                      })
+    }
+    var groups: [String: (Int, Int)] = [:]
+    for j in 0..<heapRangeCount {
+        let (addr, size) = heapRanges![j]
+        var key = "size:\(size)"
+        if size >= 16, size <= 65536 {
+            var word: UInt = 0
+            var got: vm_size_t = 0
+            let kr = withUnsafeMutablePointer(to: &word) { vm_read_overwrite(mach_task_self_, vm_address_t(addr), 8, vm_address_t(UInt(bitPattern: $0)), &got) }
+            if kr == KERN_SUCCESS, word > 0x10000 {
+                var info = Dl_info()
+                if dladdr(UnsafeRawPointer(bitPattern: word), &info) != 0, let name = info.dli_sname,
+                   let base = info.dli_saddr, UInt(bitPattern: base) == word { key = "obj:" + String(cString: name) }
+            }
+        }
+        let old = groups[key] ?? (0, 0)
+        groups[key] = (old.0 + 1, old.1 + Int(size))
+    }
+    heapRanges!.deallocate(); heapRanges = nil
+    var text = ""
+    for (key, value) in groups.sorted(by: { $0.value.1 > $1.value.1 }) { text += "\(value.0) \(value.1) \(key)\n" }
+    try? text.write(toFile: path, atomically: true, encoding: .utf8)
+}
+
+private final class WeakBox { weak var value: OfficeScene?; init(_ v: OfficeScene) { value = v } }
 // OFFICE_WINDOW_CYCLES=<n>:<path> opens a window on that file and closes it again, n times, 3 s apart (a test of
 // the scene lifecycle: flush, unmount, the claim on the file; the heap is logged after each close).
 if let spec = ProcessInfo.processInfo.environment["OFFICE_WINDOW_CYCLES"] {
     let parts = spec.split(separator: ":", maxSplits: 1).map(String.init)
-    if parts.count == 2, let count = Int(parts[0]) {
-        let url = URL(fileURLWithPath: parts[1])
+    if let count = Int(parts[0]) {
+        // "<n>:" with no path cycles windows that show only the browser (no document): tells a window leak from a document leak.
+        let url: URL? = parts.count == 2 && !parts[1].isEmpty ? URL(fileURLWithPath: parts[1]) : nil
+        nonisolated(unsafe) var watched: [(Int, WeakBox)] = []
         func heapMB() -> Double {
             var info = mach_task_basic_info(); var size = mach_msg_type_number_t(MemoryLayout<mach_task_basic_info>.size / MemoryLayout<natural_t>.size)
             let kr = withUnsafeMutablePointer(to: &info) { $0.withMemoryRebound(to: integer_t.self, capacity: Int(size)) { task_info(mach_task_self_, task_flavor_t(MACH_TASK_BASIC_INFO), $0, &size) } }
             return kr == KERN_SUCCESS ? Double(info.resident_size) / 1_048_576 : -1
+        }
+        func mallocMB() -> Double {
+            var s = malloc_statistics_t(); malloc_zone_statistics(nil, &s); return Double(s.size_in_use) / 1_048_576
+        }
+        func footprintMB() -> Double {
+            var info = task_vm_info_data_t(); var size = mach_msg_type_number_t(MemoryLayout<task_vm_info_data_t>.size / MemoryLayout<natural_t>.size)
+            let kr = withUnsafeMutablePointer(to: &info) { $0.withMemoryRebound(to: integer_t.self, capacity: Int(size)) { task_info(mach_task_self_, task_flavor_t(TASK_VM_INFO), $0, &size) } }
+            return kr == KERN_SUCCESS ? Double(info.phys_footprint) / 1_048_576 : -1
         }
         func cycle(_ n: Int) {
             guard n <= count else { return }
@@ -989,10 +1050,12 @@ if let spec = ProcessInfo.processInfo.environment["OFFICE_WINDOW_CYCLES"] {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) {
                 if let id = Set(OfficeScene.byView.keys).subtracting(before).max() {
                     fputs("[cycle] \(n): window \(id) open, document \(OfficeScene.byView[id]?.documentPath ?? "none"), rss \(heapMB()) MB\n", stderr)
+                    if let s = OfficeScene.byView[id] { watched.append((id, WeakBox(s))) }
                     UIKitHost.closeScene(id)
                 } else { fputs("[cycle] \(n): no window appeared\n", stderr) }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
-                    fputs("[cycle] \(n): closed, windows \(OfficeScene.byView.keys.sorted()), rss \(heapMB()) MB\n", stderr)
+                    if let dir = ProcessInfo.processInfo.environment["OFFICE_HEAP_DUMP"], n == 2 || n == count { dumpHeapHistogram(to: "\(dir)/heap-\(n).txt") }
+                    fputs("[cycle] \(n): closed, windows \(OfficeScene.byView.keys.sorted()), rss \(heapMB()) MB, footprint \(footprintMB()) MB, malloc in use \(mallocMB()) MB, live \(LeakProbe.live.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value)" }.joined(separator: " ")), browsers \(OfficeNativeShell.liveBrowsers), closed scenes still alive: \(watched.filter { $0.1.value != nil }.map { $0.0 })\n", stderr)
                     cycle(n + 1)
                 }
             }

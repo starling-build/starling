@@ -25,6 +25,7 @@ final class OfficeRoot: StatefulWidget {
 }
 
 private final class _OfficeRootState: State<StatefulWidget> {
+    private let _leakProbe = LeakProbe("OfficeRootState")
     private var _dark = false
     /// Writer or Slides, and the file to start on. Switching kind builds a
     /// fresh shell (the generation keys it), so nothing of one kind's state

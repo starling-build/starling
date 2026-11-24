@@ -104,6 +104,7 @@ public final class RichEditable: StatefulWidget {
 }
 
 public final class RichEditableState: State<StatefulWidget> {
+    private let _leakProbe = LeakProbe("RichEditableState")
     private var _ownedFocus: FocusNode?
     private var _focus: FocusNode!
     private let _chords = KeyChordTracker()

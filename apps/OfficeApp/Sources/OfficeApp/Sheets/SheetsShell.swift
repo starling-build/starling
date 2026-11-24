@@ -29,6 +29,7 @@ final class SheetsShell: StatefulWidget {
 }
 
 final class SheetsShellState: State<StatefulWidget> {
+    private let _leakProbe = LeakProbe("SheetsShellState")
     let session = OfficeSession(kind: .workbook)
     var wb: WorkbookController { session.workbook! }
     private let _gridKey = GlobalKey<State<StatefulWidget>>()

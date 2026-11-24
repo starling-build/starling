@@ -76,6 +76,7 @@ enum ViewMode: Equatable {
 /// One object shared by the shell and every ribbon/backstage widget; the
 /// shell sets the `on*` callbacks and rebuilds when `summary` changes.
 final class OfficeSession {
+    private let _leakProbe = LeakProbe("OfficeSession")
     let kind: DocumentKind
     /// The text the chrome acts on. Writer's document; in Slides, the text
     /// body being edited (the shell points this at it), so the Font and

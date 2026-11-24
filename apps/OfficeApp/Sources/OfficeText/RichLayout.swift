@@ -1592,6 +1592,7 @@ public struct ParagraphGeometry {
 }
 
 public final class RichLayout {
+    private let _leakProbe = LeakProbe("RichLayout")
     public let theme: RichTextTheme
 
     /// Zoom. Invalidates every painter.

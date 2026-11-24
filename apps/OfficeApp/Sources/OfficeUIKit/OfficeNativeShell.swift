@@ -102,6 +102,9 @@ public enum OfficeNativeShell {
         shell.presentExport(name: name, prepare: prepare, thenOpen: thenOpen, done: done)
     }
 
+    /// How many window controllers are alive (a leak hunt).
+    public static var liveBrowsers: Int { OfficeBrowserController.live }
+
     /// The buttons of the bar over the keyboard (nil: none). Safe to call on
     /// the main thread only.
     public static func setToolbar(_ buttons: [OfficeToolbarButton]?, viewId: Int = 0) {
@@ -216,7 +219,12 @@ final class OfficeBrowserController: UIDocumentBrowserViewController, UIDocument
     /// The last buttons published, kept for an editor that mounted before the browser had the bar in its view.
     fileprivate var latestToolbar: [OfficeToolbarButton]?
 
+    /// Live browser controllers (a leak hunt: OFFICE_WINDOW_CYCLES prints it).
+    nonisolated(unsafe) static var live = 0
+    deinit { Self.live -= 1 }
+
     init(editor: UIViewController, viewId: Int) {
+        Self.live += 1
         self.viewId = viewId
         self.editor = editor
         self.toolbar = EditorToolbar(host: editor)

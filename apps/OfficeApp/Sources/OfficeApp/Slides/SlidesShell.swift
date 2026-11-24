@@ -31,6 +31,7 @@ final class SlidesShell: StatefulWidget {
 }
 
 final class SlidesShellState: State<StatefulWidget> {
+    private let _leakProbe = LeakProbe("SlidesShellState")
     let session = OfficeSession(kind: .presentation)
     private var deck: DeckController { session.deck! }
     private let _cache = SlideTextCache()

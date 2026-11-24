@@ -46,6 +46,7 @@ final class OfficeShell: StatefulWidget {
 }
 
 final class OfficeShellState: State<StatefulWidget> {
+    private let _leakProbe = LeakProbe("OfficeShellState")
     let session = OfficeSession()
     private var _tab = RibbonTab.home
     private var _ribbonCollapsed = false
