@@ -1910,9 +1910,15 @@ extension DocxFormat {
         // by w:divId (drawing.docx's last banner sits 4.5pt lower for one).
         // Kept only for a document that names one: the part says nothing
         // else a page shows.
-        if let web = part("word/webSettings.xml"), _wellFormed(web),
-           part("word/document.xml").map({ String(decoding: $0, as: UTF8.self).containsSubstring("<w:divId") }) == true {
+        if let web = part("word/webSettings.xml"), _wellFormed(web) {
             kept["word/webSettings.xml"] = web
+        }
+        // The package's own properties and the custom XML items (data bound
+        // to content controls, bibliography sources), with their rels and
+        // item properties: nothing here is shown, and a save must not drop it.
+        for e in entries where (e.name.hasPrefix("docProps/") || e.name.hasPrefix("customXml/")) && !e.name.hasSuffix("/") {
+            let text = e.name.hasSuffix(".xml") || e.name.hasSuffix(".rels")
+            if !text || _wellFormed(e.data) { kept[e.name] = e.data }
         }
         // (And the font table: what Word substitutes for a face the machine
         // lacks is chosen by the family, pitch and alternate name stated
