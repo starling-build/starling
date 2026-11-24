@@ -545,4 +545,22 @@ final class ChartTests: XCTestCase {
         XCTAssertEqual(ChartPainter.wordLegendSpread(entryWidths: [85.7, 47.8, 54.5], boxWidth: 197)!, 2.25, accuracy: 0.05)
         XCTAssertNil(ChartPainter.wordLegendSpread(entryWidths: [85.7, 47.8], boxWidth: 129))
     }
+
+    /// An axis whose labels say 12 pt outright is a size of its own on a sheet (Excel's default there is 9), so scaling
+    /// the stated sizes for a sheet keeps it at 12 x the scale, where an unstated size stays the default.
+    func testAnAxisStating12PtIsASizeOfItsOwnOnASheet() throws {
+        let ns = "xmlns:c=\"http://schemas.openxmlformats.org/drawingml/2006/chart\" xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\""
+        func read(_ axisSize: String) throws -> Chart {
+            let xml = """
+            <c:chartSpace \(ns)><c:chart><c:plotArea><c:barChart><c:barDir val="col"/>
+            <c:ser><c:idx val="0"/><c:order val="0"/><c:tx><c:v>S</c:v></c:tx><c:val><c:numRef><c:numCache><c:ptCount val="1"/><c:pt idx="0"><c:v>8</c:v></c:pt></c:numCache></c:numRef></c:val></c:ser>
+            <c:axId val="1"/><c:axId val="2"/></c:barChart><c:catAx><c:axId val="1"/><c:axPos val="b"/></c:catAx>
+            <c:valAx><c:axId val="2"/><c:axPos val="l"/>\(axisSize)</c:valAx></c:plotArea></c:chart><c:txPr><a:bodyPr/><a:lstStyle/><a:p><a:pPr><a:defRPr><a:solidFill><a:schemeClr val="tx1"><a:lumMod val="65000"/><a:lumOff val="35000"/></a:schemeClr></a:solidFill></a:defRPr></a:pPr></a:p></c:txPr></c:chartSpace>
+            """
+            return try XCTUnwrap(ChartXML.read(XCTUnwrap(XNode.parse(Data(xml.utf8))), color: { _ in nil }))
+        }
+        let stated = try read("<c:txPr><a:bodyPr/><a:lstStyle/><a:p><a:pPr><a:defRPr sz=\"1200\"/></a:pPr></a:p></c:txPr>")
+        XCTAssertEqual(stated.statedTextScaled(by: 0.75).valueLabelSize ?? 0, 9, accuracy: 0.001)
+        XCTAssertNil(try read("").statedTextScaled(by: 0.75).valueLabelSize)
+    }
 }
