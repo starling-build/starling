@@ -1887,7 +1887,7 @@ extension RichLayout {
         // its cell margins and both rules more. dx2 8ba99a6d, 0.75pt rules and spacing: a column of one fixed width is 71.0pt in
         // Word's print, 1.5pt over its text and margins.)
         if theme.wordRules, RichTextTheme.wordWindowsPages, let ts = document.tableStyles[table], (ts.cellSpacing ?? 0) > 0, ts.contentFit == true,
-           ts.edges?.left ?? (ts.borders && !ts.bordersFromCells) {
+           ts.edges?.left ?? ts.borders {
             RuleTrace.hit("spaced-table-column-least-holds-both-whole-rules")
             return _px(ts.edgeWidths["left"] ?? ts.borderWidth ?? 0.5) + _px(ts.edgeWidths["right"] ?? ts.borderWidth ?? 0.5)
         }
@@ -1916,7 +1916,7 @@ extension RichLayout {
         // Word for Windows, 13 prints to 0.1pt; outset rules and a table frame change nothing.)
         let at15 = !statedWidth && ts.widthPercent == nil && (document.compatibilityMode ?? 0) >= 15
         var b = 0.0
-        if at15, ts.edges?.left ?? (ts.borders && !ts.bordersFromCells) { b = _px(ts.edgeWidths["left"] ?? ts.borderWidth ?? 0.5) }
+        if at15, ts.edges?.left ?? ts.borders { b = _px(ts.edgeWidths["left"] ?? ts.borderWidth ?? 0.5) }
         return max(0, room - gap * Double(base.count) - (statedWidth || at15 ? gap : 0) - b)
     }
 
