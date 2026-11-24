@@ -117,6 +117,20 @@ final class OfficeSession {
     var summary = ToolbarSummary()
     var zoom = 1.0
     var pageSetup = PageSetup.letter
+    /// The page of the section the caret is in (the last section's is `pageSetup`).
+    func sectionSetup() -> PageSetup {
+        let mark = controller.sectionMark(containing: controller.selection.focus.paragraph)
+        return mark < 0 ? pageSetup : (controller.document.paragraphs[mark].style.sectionPage ?? pageSetup)
+    }
+    /// Page Setup from the ribbon: one undoable step on the caret's section.
+    func applyPageSetup(_ p: PageSetup) {
+        controller.setPageSetup(p, lastSetup: pageSetup)
+        syncPageSetup()
+    }
+    /// The last section's page follows the document (undo and redo change it).
+    func syncPageSetup() {
+        if let last = controller.document.lastSectionPage, last != pageSetup { pageSetup = last }
+    }
     var viewMode = ViewMode.printLayout
     var showRuler = true
     var showNavigation = false

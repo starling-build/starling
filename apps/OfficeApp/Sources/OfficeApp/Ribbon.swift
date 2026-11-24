@@ -543,10 +543,10 @@ final class Ribbon: StatelessWidget {
 
     private func _layout(_ fluent: FluentThemeData) -> [Widget] {
         let c = session.controller
-        let setup = session.pageSetup
+        let setup = session.sectionSetup()
         func margins(_ name: String, _ v: Double, _ h: Double) -> (String, () -> Void) {
             (name, { [session] in
-                var p = session.pageSetup
+                var p = session.sectionSetup()
                 p.marginTop = v; p.marginBottom = v; p.marginLeft = h; p.marginRight = h
                 session.onPageSetup?(p)
             })
@@ -554,15 +554,15 @@ final class Ribbon: StatelessWidget {
         let marginChoices = [margins("Normal (1\")", 72, 72), margins("Narrow (0.5\")", 36, 36),
                              margins("Moderate (1\" × 0.75\")", 72, 54), margins("Wide (1\" × 2\")", 72, 144)]
         let orientation: [(String, () -> Void)] = [
-            ("Portrait", { [session] in if session.pageSetup.isLandscape { session.onPageSetup?(session.pageSetup.rotated()) } }),
-            ("Landscape", { [session] in if !session.pageSetup.isLandscape { session.onPageSetup?(session.pageSetup.rotated()) } }),
+            ("Portrait", { [session] in if session.sectionSetup().isLandscape { session.onPageSetup?(session.sectionSetup().rotated()) } }),
+            ("Landscape", { [session] in if !session.sectionSetup().isLandscape { session.onPageSetup?(session.sectionSetup().rotated()) } }),
         ]
         func paper(_ name: String, _ base: PageSetup) -> (String, () -> Void) {
             (name, { [session] in
                 var p = base
-                p.marginTop = session.pageSetup.marginTop; p.marginBottom = session.pageSetup.marginBottom
-                p.marginLeft = session.pageSetup.marginLeft; p.marginRight = session.pageSetup.marginRight
-                session.onPageSetup?(session.pageSetup.isLandscape ? p.rotated() : p)
+                p.marginTop = session.sectionSetup().marginTop; p.marginBottom = session.sectionSetup().marginBottom
+                p.marginLeft = session.sectionSetup().marginLeft; p.marginRight = session.sectionSetup().marginRight
+                session.onPageSetup?(session.sectionSetup().isLandscape ? p.rotated() : p)
             })
         }
         let sizes = [paper("Letter (8.5 × 11 in)", .letter), paper("A4 (210 × 297 mm)", .a4),
@@ -585,9 +585,9 @@ final class Ribbon: StatelessWidget {
                 Chrome.menu(Text(setup.columns > 1 ? "\(setup.columns) Columns" : "Columns"),
                             Icon(FluentSystemIcons.columns, size: Chrome.iconSize,
                                  color: fluent.resources.textFillColorPrimary), fluent,
-                            [("One", { [session] in var p = session.pageSetup; p.columns = 1; session.onPageSetup?(p) }),
-                             ("Two", { [session] in var p = session.pageSetup; p.columns = 2; session.onPageSetup?(p) }),
-                             ("Three", { [session] in var p = session.pageSetup; p.columns = 3; session.onPageSetup?(p) })]),
+                            [("One", { [session] in var p = session.sectionSetup(); p.columns = 1; session.onPageSetup?(p) }),
+                             ("Two", { [session] in var p = session.sectionSetup(); p.columns = 2; session.onPageSetup?(p) }),
+                             ("Three", { [session] in var p = session.sectionSetup(); p.columns = 3; session.onPageSetup?(p) })]),
             ]),
         ])
         let paragraph = Chrome.group("Paragraph", fluent, [

@@ -2633,6 +2633,8 @@ public struct RichDocument: Hashable, Codable, Sendable {
     /// after them (`w:vAlign`, `w:textDirection`, `w:bidi`,
     /// `w:rtlGutter` — the grid comes last, above).
     public var sectionLeadXML: String? = nil
+    /// The last section's page after the user changed it (Page Setup); nil until then, when the layout's own setup is the file's.
+    public var lastSectionPage: PageSetup? = nil
     /// The last section's `w:type` (how it starts: "continuous" after
     /// the section before it, or on a new page).
     public var sectionTypeXML: String? = nil

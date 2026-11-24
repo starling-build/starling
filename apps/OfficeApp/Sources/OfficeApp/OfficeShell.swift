@@ -167,6 +167,9 @@ final class OfficeShellState: State<StatefulWidget> {
         session.summary = session.summarize()
         controller.addListener { [weak self] in
             guard let self else { return }
+            if let last = self.controller.document.lastSectionPage, last != self.session.pageSetup {
+                self.setState { self.session.pageSetup = last }
+            }
             let s = self.session.summarize()
             let dirty = self.controller.revision != self._savedRevision
             if dirty { self._scheduleAutosave() }
@@ -277,7 +280,7 @@ final class OfficeShellState: State<StatefulWidget> {
         }
         session.onPageSetup = { [weak self] p in
             guard let self else { return }
-            self.setState { self.session.pageSetup = p }
+            self.setState { self.session.applyPageSetup(p) }
         }
         session.onBackstage = { [weak self] open in
             guard let self else { return }

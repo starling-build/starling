@@ -141,6 +141,37 @@ extension DocxFormat {
     /// width and the gap after it in points — the file's own where its
     /// columns are unequal, else equal shares of the text width. Nil for
     /// one column.
+    /// A kept section mark with the page the user set: only the size,
+    /// margins and column count that differ from the XML are rewritten, so a
+    /// section nobody touched is written back byte for byte.
+    static func _sectionXML(_ xml: String, patchedTo page: PageSetup?) -> String {
+        guard let page, !page.vertical, let sect = XNode.parse(Data(xml.utf8)) else { return xml }
+        var changed = false
+        func twips(_ v: Double) -> String { String(Int((v * 20).rounded())) }
+        func put(_ node: XNode, _ key: String, _ v: Double) {
+            if let have = Double(node.attrs[key] ?? ""), abs(have - (v * 20).rounded()) < 1 { return }
+            node.attrs[key] = twips(v); changed = true
+        }
+        let size = sect.first("w:pgSz") ?? { let n = XNode(name: "w:pgSz", attrs: [:]); sect.children.insert(n, at: 0); return n }()
+        put(size, "w:w", page.width); put(size, "w:h", page.height)
+        if page.isLandscape != (size.attrs["w:orient"] == "landscape"), page.orientStated || size.attrs["w:orient"] != nil {
+            size.attrs["w:orient"] = page.isLandscape ? "landscape" : "portrait"; changed = true
+        }
+        if let mar = sect.first("w:pgMar") {
+            put(mar, "w:top", page.marginTop); put(mar, "w:bottom", page.marginBottom)
+            put(mar, "w:left", page.marginLeft); put(mar, "w:right", page.marginRight)
+        }
+        let cols = sect.first("w:cols")
+        let have = Int(cols?.attrs["w:num"] ?? "") ?? 1
+        if have != max(1, page.columns) {
+            let n = cols ?? { let n = XNode(name: "w:cols", attrs: [:]); sect.children.append(n); return n }()
+            n.children = []
+            n.attrs = ["w:num": String(max(1, page.columns)), "w:space": twips(page.columnGap)]
+            changed = true
+        }
+        return changed ? PptxXML.serialize(sect) : xml
+    }
+
     static func _sectionColumns(_ sectionXML: String, _ page: PageSetup?) -> [(width: Double, space: Double)]? {
         guard let sect = XNode.parse(Data(sectionXML.utf8)), let cols = sect.name == "w:cols" ? sect : sect.descendant("w:cols") else { return nil }
         let num = Int(cols["w:num"] ?? "1") ?? 1
@@ -1138,7 +1169,7 @@ extension DocxFormat {
                 markRPr += "<w:vanish/>"
             }
             if !markRPr.isEmpty { pPr += "<w:rPr>\(markRPr)</w:rPr>" }
-            if let sect = p.style.sectionXML, p.cell == nil, index < doc.paragraphs.count - 1 { pPr += keptFragmentXML(sect, p.style.sectionRels) }
+            if let sect = p.style.sectionXML, p.cell == nil, index < doc.paragraphs.count - 1 { pPr += keptFragmentXML(Self._sectionXML(sect, patchedTo: p.style.sectionPage), p.style.sectionRels) }
             body += "<w:p\(p.id != 0 ? " w14:paraId=\"\(_paraIdHex(p.id))\"" : "")><w:pPr>\(pPr)</w:pPr>"
             for name in p.bookmarks where !rangedBookmarkNames.contains(name) && writtenBookmarks.insert(name).inserted {
                 // (Numbered clear of any a kept table's own XML carries.)
