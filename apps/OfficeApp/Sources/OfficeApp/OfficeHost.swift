@@ -29,6 +29,18 @@ final class OfficeScene {
         Self.live.append(Weak(scene: self))
     }
 
+    /// The windows by the engine view each shows (0 is `main`). Set by the host as windows connect.
+    nonisolated(unsafe) static var byView: [Int: OfficeScene] = [:]
+
+    /// A file asked for before this window's tree has mounted (a new window made to show a document): taken as soon as
+    /// it has.
+    var pendingOpen: String?
+
+    /// Show the document at `path` in this window, now or when the window's tree is up.
+    func requestOpen(_ path: String) {
+        if let open = openPath { open(path) } else { pendingOpen = path }
+    }
+
     /// `flushPendingSaves` in every window.
     static func flushAll() {
         for w in live { w.scene?.flushPendingSaves() }
@@ -153,6 +165,13 @@ final class OfficeScene {
 
     /// `owner`'s document is now the file at `path` (nil: none). A new editor mounts before the one it replaces is
     /// disposed, so a clear counts only from the editor that set the path last.
+    /// The window is gone (the system dropped the scene) but its Flutter tree lingers, as view 0's must:
+    /// the file it held is free to be opened elsewhere.
+    func releaseDocument() {
+        documentPath = nil
+        documentOwner = nil
+    }
+
     func setDocumentPath(_ path: String?, owner: AnyObject) {
         if let path {
             documentPath = Self.canonical(path)

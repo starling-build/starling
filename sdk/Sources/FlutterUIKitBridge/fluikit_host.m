@@ -37,6 +37,9 @@ static FlUIKitRootFactory g_root_factory = NULL;
 static void* g_root_factory_user = NULL;
 static FlUIKitOpenURLCallback g_open_url = NULL;
 static void* g_open_url_user = NULL;
+static FlUIKitSceneCallback g_scene_connected = NULL;
+static FlUIKitSceneCallback g_scene_disconnected = NULL;
+static void* g_scene_user = NULL;
 
 // Hosts the FlutterViewController as a child, pinned to the safe-area layout
 // guide rather than to the window's edges.
@@ -112,6 +115,7 @@ static void* g_open_url_user = NULL;
                       pixelRatio:(double)pixelRatio
                      insetBottom:(double)insetBottom;
 - (void)starlingRemoveViewWithId:(int64_t)viewId done:(void (^)(BOOL removed))done;
+- (void)starlingSetTextInputHostView:(UIView*)view;
 - (void)starlingDispatchTouches:(NSSet<UITouch*>*)touches inView:(UIView*)view viewId:(int64_t)viewId;
 @end
 
@@ -143,6 +147,8 @@ static void* g_open_url_user = NULL;
 // Builds the window's view controllers over the one engine and shows the window. `scene` is nil in a
 // bundle without a scene manifest (the window then belongs to the application alone, as before).
 - (UIWindow*)installWindowInScene:(UIWindowScene*)scene;
+// The window of a scene beyond the first, showing engine view `view_id`.
+- (UIWindow*)installExtraWindowInScene:(UIWindowScene*)scene viewId:(int64_t)viewId;
 @end
 
 // The scene host (docs/plans/ipad-multi-window.md, step 2). Info.plist names this class for the
@@ -152,6 +158,50 @@ static void* g_open_url_user = NULL;
 // application:openURL: (UIKit stops calling that one once a bundle has a scene manifest).
 @interface FlUIKitSceneDelegate : UIResponder <UIWindowSceneDelegate>
 @property(nonatomic, strong) UIWindow* window;
+@property(nonatomic, assign) int64_t viewId;
+@end
+
+@interface FlUIKitSceneEditorViewController : UIViewController
+@property(nonatomic, assign) int64_t viewId;
+@end
+
+// The windows the system has made, by the engine view each shows. The first takes view 0; the others a fresh id.
+static NSMutableDictionary<NSNumber*, UIWindowScene*>* g_scenes;
+static BOOL g_primary_taken = NO;
+static int64_t g_next_scene_view = 1;
+
+static void FlUIKitAddViewIn(UIView* container, int64_t view_id, CGRect frame, FlUIKitViewDone done, void* user);
+static void FlUIKitPlaceView(int64_t view_id, CGRect frame);
+
+// The editor of a window beyond the first: a plain view controller whose view holds an extra view of the engine (the
+// first window's holds the FlutterViewController's, which can only be one per engine). Same contract as
+// FlUIKitRootViewController: the app's root presents it when it likes, and its view is not loaded before that.
+@implementation FlUIKitSceneEditorViewController {
+  BOOL _added;
+}
+
+- (void)viewDidLoad {
+  [super viewDidLoad];
+  self.view.backgroundColor = UIColor.blackColor;
+}
+
+// The engine's view fills the safe area, as the first window's does.
+- (void)viewDidLayoutSubviews {
+  [super viewDidLayoutSubviews];
+  CGRect frame = self.view.safeAreaLayoutGuide.layoutFrame;
+  if (CGRectIsEmpty(frame) || self.view.window == nil) return;
+  if (!_added) {
+    _added = YES;
+    FlUIKitAddViewIn(self.view, self.viewId, frame, NULL, NULL);
+  } else {
+    FlUIKitPlaceView(self.viewId, frame);
+  }
+}
+
+- (UIStatusBarStyle)preferredStatusBarStyle {
+  return UIStatusBarStyleLightContent;
+}
+
 @end
 
 @implementation FlUIKitAppDelegate
@@ -220,7 +270,7 @@ static void* g_open_url_user = NULL;
     // The app's own screen takes the editor and decides when it is shown. The
     // factory returns a +1 reference, so the transfer hands ARC that one.
     UIViewController* custom =
-        (__bridge_transfer UIViewController*)g_root_factory((__bridge void*)editor,
+        (__bridge_transfer UIViewController*)g_root_factory((__bridge void*)editor, 0,
                                                            g_root_factory_user);
     if (custom != nil) root = custom;
   }
@@ -230,6 +280,24 @@ static void* g_open_url_user = NULL;
   self.window = window;
   [window makeKeyAndVisible];
   [self spikeSecondViewIfAsked:window];
+  return window;
+}
+
+- (UIWindow*)installExtraWindowInScene:(UIWindowScene*)scene viewId:(int64_t)viewId {
+  FlUIKitSceneEditorViewController* editor = [FlUIKitSceneEditorViewController new];
+  editor.viewId = viewId;
+  // The app registers what this view shows before the view exists (the engine asks for its first frame as soon
+  // as the view reports a size, and a frame with no tree behind it is never retried).
+  if (g_scene_connected != NULL) g_scene_connected(g_scene_user, viewId);
+  UIViewController* root = editor;
+  if (g_root_factory != NULL) {
+    UIViewController* custom =
+        (__bridge_transfer UIViewController*)g_root_factory((__bridge void*)editor, viewId, g_root_factory_user);
+    if (custom != nil) root = custom;
+  }
+  UIWindow* window = [[UIWindow alloc] initWithWindowScene:scene];
+  window.rootViewController = root;
+  [window makeKeyAndVisible];
   return window;
 }
 
@@ -343,15 +411,15 @@ static void FlUIKitSetOrigin(int64_t view_id, CGPoint* p);
 // viewInsets.bottom), as the view controller does for view 0. The frame is in screen coordinates.
 static void FlUIKitUpdateExtraInsets(CGRect keyboardFrame, BOOL docked) {
   FlUIKitAppDelegate* delegate = (FlUIKitAppDelegate*)UIApplication.sharedApplication.delegate;
-  UIWindow* window = delegate.window;
-  if (window == nil) return;
-  CGRect inWindow = [window convertRect:keyboardFrame fromCoordinateSpace:window.screen.coordinateSpace];
   CGFloat scale = UIScreen.mainScreen.scale;
   for (NSNumber* key in g_extra_views.allKeys) {
     FlUIKitExtraView* host = g_extra_views[key];
+    UIWindow* window = host.window;   // each window (scene) has its own, and the keyboard is over one of them
+    if (window == nil) continue;
+    CGRect inWindow = [window convertRect:keyboardFrame fromCoordinateSpace:window.screen.coordinateSpace];
     double inset = 0;
     if (docked && !CGRectIsEmpty(keyboardFrame)) {
-      CGRect hit = CGRectIntersection(inWindow, host.frame);
+      CGRect hit = CGRectIntersection(inWindow, [host convertRect:host.bounds toView:window]);
       if (!CGRectIsNull(hit)) inset = CGRectGetHeight(hit);
     }
     if (inset == g_extra_insets[key].doubleValue) continue;
@@ -362,63 +430,79 @@ static void FlUIKitUpdateExtraInsets(CGRect keyboardFrame, BOOL docked) {
 
 double fluikit_screen_scale(void) { return UIScreen.mainScreen.scale; }
 
+// Adds extra view `view_id` inside `container` at `frame` (the container's coordinates). Main thread.
+static void FlUIKitAddViewIn(UIView* container, int64_t view_id, CGRect frame, FlUIKitViewDone done, void* user) {
+  FlUIKitAppDelegate* delegate = (FlUIKitAppDelegate*)UIApplication.sharedApplication.delegate;
+  if (container == nil || delegate.engine == nil) { if (done) done(view_id, false, user); return; }
+  if (g_extra_views == nil) {
+    g_extra_views = [NSMutableDictionary new];
+    g_extra_layers = [NSMutableDictionary new];
+    g_extra_insets = [NSMutableDictionary new];
+    void (^onKeyboard)(NSNotification*) = ^(NSNotification* n) {
+      CGRect end = [n.userInfo[UIKeyboardFrameEndUserInfoKey] CGRectValue];
+      BOOL hide = [n.name isEqualToString:UIKeyboardWillHideNotification];
+      UIScreen* screen = UIScreen.mainScreen;
+      // Docked: the keyboard's bottom edge is the screen's (a floating one has an inset of none).
+      BOOL docked = !hide && CGRectGetMaxY(end) >= CGRectGetHeight(screen.bounds) - 0.5;
+      FlUIKitUpdateExtraInsets(end, docked);
+    };
+    for (NSNotificationName name in @[UIKeyboardWillChangeFrameNotification, UIKeyboardWillHideNotification]) {
+      g_keyboard_observer = [NSNotificationCenter.defaultCenter addObserverForName:name object:nil queue:NSOperationQueue.mainQueue usingBlock:onKeyboard];
+    }
+  }
+  g_extra_insets[@(view_id)] = @0;
+  CGFloat scale = UIScreen.mainScreen.scale;
+  double w = frame.size.width, h = frame.size.height;
+  FlUIKitExtraView* host = [[FlUIKitExtraView alloc] initWithFrame:frame];
+  host.engine = delegate.engine;
+  host.viewId = view_id;
+  CAMetalLayer* layer = [CAMetalLayer layer];
+  layer.device = MTLCreateSystemDefaultDevice();
+  layer.pixelFormat = MTLPixelFormatBGRA8Unorm;
+  layer.opaque = YES;
+  layer.contentsScale = scale;
+  layer.frame = host.bounds;
+  layer.drawableSize = CGSizeMake(w * scale, h * scale);
+  [host.layer addSublayer:layer];
+  [container addSubview:host];
+  g_extra_views[@(view_id)] = host;
+  g_extra_layers[@(view_id)] = layer;
+  { CGPoint o = host.frame.origin; FlUIKitSetOrigin(view_id, &o); }
+  [delegate.engine starlingAddViewWithId:view_id layer:layer size:CGSizeMake(w, h) pixelRatio:scale
+                                    done:^(BOOL added) {
+    if (!added) { [host removeFromSuperview]; [g_extra_views removeObjectForKey:@(view_id)]; [g_extra_layers removeObjectForKey:@(view_id)]; }
+    if (done) done(view_id, added, user);
+  }];
+}
+
+// Moves and resizes extra view `view_id` within its container, and tells the engine the new size. Main thread.
+static void FlUIKitPlaceView(int64_t view_id, CGRect frame) {
+  FlUIKitAppDelegate* delegate = (FlUIKitAppDelegate*)UIApplication.sharedApplication.delegate;
+  FlUIKitExtraView* host = g_extra_views[@(view_id)];
+  CAMetalLayer* layer = g_extra_layers[@(view_id)];
+  if (host == nil || layer == nil) return;
+  if (CGRectEqualToRect(host.frame, frame)) return;
+  CGFloat scale = UIScreen.mainScreen.scale;
+  host.frame = frame;
+  layer.frame = host.bounds;
+  layer.drawableSize = CGSizeMake(frame.size.width * scale, frame.size.height * scale);
+  { CGPoint o = frame.origin; FlUIKitSetOrigin(view_id, &o); }
+  [delegate.engine starlingResizeViewWithId:view_id size:frame.size pixelRatio:scale insetBottom:g_extra_insets[@(view_id)].doubleValue];
+}
+
 void fluikit_view_add(int64_t view_id, double x, double y, double w, double h, FlUIKitViewDone done, void* user) {
   dispatch_async(dispatch_get_main_queue(), ^{
     FlUIKitAppDelegate* delegate = (FlUIKitAppDelegate*)UIApplication.sharedApplication.delegate;
-    UIWindow* window = delegate.window;
-    if (window == nil || delegate.engine == nil) { if (done) done(view_id, false, user); return; }
-    if (g_extra_views == nil) {
-      g_extra_views = [NSMutableDictionary new];
-      g_extra_layers = [NSMutableDictionary new];
-      g_extra_insets = [NSMutableDictionary new];
-      void (^onKeyboard)(NSNotification*) = ^(NSNotification* n) {
-        CGRect end = [n.userInfo[UIKeyboardFrameEndUserInfoKey] CGRectValue];
-        BOOL hide = [n.name isEqualToString:UIKeyboardWillHideNotification];
-        UIScreen* screen = UIScreen.mainScreen;
-        // Docked: the keyboard's bottom edge is the screen's (a floating one has an inset of none).
-        BOOL docked = !hide && CGRectGetMaxY(end) >= CGRectGetHeight(screen.bounds) - 0.5;
-        FlUIKitUpdateExtraInsets(end, docked);
-      };
-      for (NSNotificationName name in @[UIKeyboardWillChangeFrameNotification, UIKeyboardWillHideNotification]) {
-        g_keyboard_observer = [NSNotificationCenter.defaultCenter addObserverForName:name object:nil queue:NSOperationQueue.mainQueue usingBlock:onKeyboard];
-      }
-    }
-    g_extra_insets[@(view_id)] = @0;
-    CGFloat scale = UIScreen.mainScreen.scale;
-    FlUIKitExtraView* host = [[FlUIKitExtraView alloc] initWithFrame:CGRectMake(x, y, w, h)];
-    host.engine = delegate.engine;
-    host.viewId = view_id;
-    CAMetalLayer* layer = [CAMetalLayer layer];
-    layer.device = MTLCreateSystemDefaultDevice();
-    layer.pixelFormat = MTLPixelFormatBGRA8Unorm;
-    layer.opaque = YES;
-    layer.contentsScale = scale;
-    layer.frame = host.bounds;
-    layer.drawableSize = CGSizeMake(w * scale, h * scale);
-    [host.layer addSublayer:layer];
-    [window addSubview:host];
-    g_extra_views[@(view_id)] = host;
-    g_extra_layers[@(view_id)] = layer;
-    { CGPoint o = host.frame.origin; FlUIKitSetOrigin(view_id, &o); }
-    [delegate.engine starlingAddViewWithId:view_id layer:layer size:CGSizeMake(w, h) pixelRatio:scale
-                                      done:^(BOOL added) {
-      if (!added) { [host removeFromSuperview]; [g_extra_views removeObjectForKey:@(view_id)]; [g_extra_layers removeObjectForKey:@(view_id)]; }
-      if (done) done(view_id, added, user);
-    }];
+    FlUIKitAddViewIn(delegate.window, view_id, CGRectMake(x, y, w, h), done, user);
   });
 }
 
+
 void fluikit_view_resize(int64_t view_id, double w, double h) {
   dispatch_async(dispatch_get_main_queue(), ^{
-    FlUIKitAppDelegate* delegate = (FlUIKitAppDelegate*)UIApplication.sharedApplication.delegate;
     FlUIKitExtraView* host = g_extra_views[@(view_id)];
-    CAMetalLayer* layer = g_extra_layers[@(view_id)];
-    if (host == nil || layer == nil) return;
-    CGFloat scale = UIScreen.mainScreen.scale;
-    host.frame = CGRectMake(host.frame.origin.x, host.frame.origin.y, w, h);
-    layer.frame = host.bounds;
-    layer.drawableSize = CGSizeMake(w * scale, h * scale);
-    [delegate.engine starlingResizeViewWithId:view_id size:CGSizeMake(w, h) pixelRatio:scale insetBottom:g_extra_insets[@(view_id)].doubleValue];
+    if (host == nil) return;
+    FlUIKitPlaceView(view_id, CGRectMake(host.frame.origin.x, host.frame.origin.y, w, h));
   });
 }
 
@@ -468,7 +552,7 @@ void fluikit_view_remove(int64_t view_id, FlUIKitViewDone done, void* user) {
             openURL:(NSURL*)url
             options:(NSDictionary<UIApplicationOpenURLOptionsKey, id>*)options {
   if (g_open_url == NULL) return NO;
-  return g_open_url(g_open_url_user, url.absoluteString.UTF8String) ? YES : NO;
+  return g_open_url(g_open_url_user, 0, url.absoluteString.UTF8String) ? YES : NO;
 }
 
 @end
@@ -480,9 +564,44 @@ void fluikit_view_remove(int64_t view_id, FlUIKitViewDone done, void* user) {
                  options:(UISceneConnectionOptions*)connectionOptions {
   if (![scene isKindOfClass:UIWindowScene.class]) return;
   FlUIKitAppDelegate* app = (FlUIKitAppDelegate*)UIApplication.sharedApplication.delegate;
-  self.window = [app installWindowInScene:(UIWindowScene*)scene];
-  // A document the app was launched with (Open In, a tap in Files): the tree is up now.
+  if (g_scenes == nil) g_scenes = [NSMutableDictionary new];
+  if (!g_primary_taken) {
+    g_primary_taken = YES;
+    self.viewId = 0;
+    self.window = [app installWindowInScene:(UIWindowScene*)scene];
+  } else {
+    // STARLING_CLOSE_RESTORED_WINDOWS=1 (a test): iPadOS brings back the windows of the last run, blank. A window
+    // made for something (a file, a new-window request) has an activity; a restored one has none.
+    if (getenv("STARLING_CLOSE_RESTORED_WINDOWS") != NULL && connectionOptions.userActivities.count == 0 &&
+        connectionOptions.URLContexts.count == 0) {
+      [UIApplication.sharedApplication requestSceneSessionDestruction:session options:nil errorHandler:nil];
+      return;
+    }
+    self.viewId = g_next_scene_view++;
+    self.window = [app installExtraWindowInScene:(UIWindowScene*)scene viewId:self.viewId];
+  }
+  g_scenes[@(self.viewId)] = (UIWindowScene*)scene;
+  // A document the app was launched with (Open In, a tap in Files) or that "Open in New Window" put in this
+  // window's activity: the tree is up now.
   [self openURLContexts:connectionOptions.URLContexts];
+  for (NSUserActivity* activity in connectionOptions.userActivities) {
+    NSString* url = activity.userInfo[@"url"];
+    if ([url isKindOfClass:NSString.class] && g_open_url != NULL) g_open_url(g_open_url_user, self.viewId, url.UTF8String);
+  }
+}
+
+// The system dropped this window (the user closed it, or iOS reclaimed a background one). Its document is saved
+// first, then its view goes; the engine and the other windows carry on.
+- (void)sceneDidDisconnect:(UIScene*)scene {
+  if (self.window == nil) return;   // a window refused at connect (a restored one a test closed)
+  if (g_scene_disconnected != NULL) g_scene_disconnected(g_scene_user, self.viewId);
+  if (self.viewId != 0) fluikit_view_remove(self.viewId, NULL, NULL);
+  [g_scenes removeObjectForKey:@(self.viewId)];
+}
+
+// The window that was touched or brought forward has the keyboard.
+- (void)sceneDidBecomeActive:(UIScene*)scene {
+  fluikit_text_input_host(self.viewId);
 }
 
 - (void)scene:(UIScene*)scene openURLContexts:(NSSet<UIOpenURLContext*>*)URLContexts {
@@ -492,7 +611,7 @@ void fluikit_view_remove(int64_t view_id, FlUIKitViewDone done, void* user) {
 - (void)openURLContexts:(NSSet<UIOpenURLContext*>*)contexts {
   if (g_open_url == NULL) return;
   for (UIOpenURLContext* context in contexts) {
-    g_open_url(g_open_url_user, context.URL.absoluteString.UTF8String);
+    g_open_url(g_open_url_user, self.viewId, context.URL.absoluteString.UTF8String);
   }
 }
 
@@ -541,4 +660,58 @@ void fluikit_host_window_size(double* out_width, double* out_height) {
   if (out_height != NULL) {
     *out_height = g_window_size.height;
   }
+}
+
+void fluikit_host_set_scene_handlers(FlUIKitSceneCallback connected, FlUIKitSceneCallback disconnected, void* user) {
+  g_scene_connected = connected;
+  g_scene_disconnected = disconnected;
+  g_scene_user = user;
+}
+
+void fluikit_scene_request_new(const char* file_url) {
+  NSString* url = file_url != NULL ? [NSString stringWithUTF8String:file_url] : nil;
+  dispatch_async(dispatch_get_main_queue(), ^{
+    NSUserActivity* activity = [[NSUserActivity alloc] initWithActivityType:@"build.starling.new-window"];
+    if (url != nil) activity.userInfo = @{@"url": url};
+    [UIApplication.sharedApplication requestSceneSessionActivation:nil
+                                                      userActivity:activity
+                                                           options:nil
+                                                      errorHandler:^(NSError* error) {
+      fprintf(stderr, "[FlUIKitHost] a new window was refused: %s\n", error.localizedDescription.UTF8String);
+    }];
+  });
+}
+
+void fluikit_scene_activate(int64_t view_id) {
+  dispatch_async(dispatch_get_main_queue(), ^{
+    UIWindowScene* scene = g_scenes[@(view_id)];
+    if (scene == nil) return;
+    [UIApplication.sharedApplication requestSceneSessionActivation:scene.session
+                                                      userActivity:nil
+                                                           options:nil
+                                                      errorHandler:^(NSError* error) {
+      fprintf(stderr, "[FlUIKitHost] could not bring window %lld forward: %s\n", view_id, error.localizedDescription.UTF8String);
+    }];
+  });
+}
+
+void fluikit_scene_close(int64_t view_id) {
+  dispatch_async(dispatch_get_main_queue(), ^{
+    UIWindowScene* scene = g_scenes[@(view_id)];
+    if (scene == nil || view_id == 0) return;
+    [UIApplication.sharedApplication requestSceneSessionDestruction:scene.session options:nil errorHandler:^(NSError* error) {
+      fprintf(stderr, "[FlUIKitHost] could not close window %lld: %s\n", view_id, error.localizedDescription.UTF8String);
+    }];
+  });
+}
+
+void fluikit_text_input_host(int64_t view_id) {
+  void (^switchHost)(void) = ^{
+    FlUIKitAppDelegate* delegate = (FlUIKitAppDelegate*)UIApplication.sharedApplication.delegate;
+    FlUIKitExtraView* host = view_id == 0 ? nil : g_extra_views[@(view_id)];
+    [delegate.engine starlingSetTextInputHostView:host.superview];
+  };
+  // On the main thread at once: a focus request that follows this call in the same turn must find its
+  // window's hider already parented there, not the previous window's.
+  if ([NSThread isMainThread]) switchHost(); else dispatch_async(dispatch_get_main_queue(), switchHost);
 }

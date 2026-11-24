@@ -170,6 +170,32 @@ Done and measured in the simulator with the in-app driver (no unit tests: the iP
   case with no text client attached while the responder sits in view 0. Per-view focus scopes are still the plan's
   fix for "typing in B blurs A's caret".
 
+## Step 5 status (2026-11-24; PR #2587)
+
+Scenes are ON for Office (`MULTI_SCENES` in `build/ios-app.sh`; `UIApplicationSupportsMultipleScenes` plus
+`NSUserActivityTypes`). Other iOS apps stay single-scene.
+
+- **Scene = engine view.** The first scene is view 0 (the engine's implicit view); each later scene gets the next
+  id (`g_next_scene_view`), a `FlUIKitSceneEditorViewController` that places the view at the safe-area frame, and
+  its own `OfficeScene` + `OfficeNativeShell` (browser, editor, toolbar, edit menu, write-back, endSession).
+  `sceneConnected(viewId)` runs before the root factory; `sceneDisconnected(viewId)` flushes pending saves, then
+  the view is removed. View 0's tree cannot be removed (implicit view): its document claim is released instead.
+- **Focus scopes.** `FocusManager` has one scope per window (`runView`); a node takes its scope from the view its
+  owner is MOUNTED in (`State.bind`, walking to the `RenderView`), not from whoever first asks for focus, so a late
+  async request lands in its own window. `keys=` in the driver report is the key scope; touching a window makes it
+  the key scope and moves the text-input hider there (`fluikit_text_input_host`, engine patch
+  `starlingHostView`). `STARLING_FOCUS_LOG=1` traces each request: bound view, scope, windows, key scope.
+  Measured: two windows, taps and typing alternating (AA/BB/CC/DD), each document got only its own text.
+- **One document, one window.** A document's identity is its original URL; a second open of a file already in a
+  window raises that window (`focusIfOpen` -> `fluikit_scene_activate`) instead of opening it again.
+- **Entry points.** "Open in New Window" is a `UIDocumentBrowserAction`; `scene:openURLContexts:` and
+  `connectionOptions.userActivities` hand a URL to the scene's shell. Test hooks: `OFFICE_NEW_WINDOW_AFTER=<ms>[:<path>]`,
+  `OFFICE_OPEN_AFTER`, `STARLING_CLOSE_RESTORED_WINDOWS=1` (the simulator restores the last run's windows blank).
+- **Toolbar.** One format bar per window; each shows only while its window is the key window.
+
+NOT verified: Magic Keyboard (real iPad list), drag-out, state restoration, Save As per scene, 50 open/close
+cycles on a device, frames stopping when a scene is backgrounded on a device.
+
 ## Recommendation and order
 
 Option B, in the reviewed order. Multiple scenes stay OFF (`UIApplicationSupportsMultipleScenes` = NO)

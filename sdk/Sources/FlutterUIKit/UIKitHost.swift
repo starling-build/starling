@@ -82,6 +82,7 @@ public final class UIKitHost {
                 }
             }
             runApp(box.builder())
+            TextInputChannel.keyViewChanged = { fluikit_text_input_host(Int64($0)) }
             TextInputChannel.viewOrigin = { id in
                 var x = 0.0, y = 0.0
                 return fluikit_view_origin(Int64(id), &x, &y) ? (x, y) : nil
@@ -103,6 +104,12 @@ public final class UIKitHost {
     /// Gives the Swift bridge's own ICU the data. Safe to call more than once.
     /// Brings extra view `id` (see `runView`) in front of the others in the window.
     public static func raiseExtraView(_ id: Int) { fluikit_view_raise(Int64(id)) }
+
+    /// Brings the window (scene) that shows view `id` to the front; nothing if no window shows it.
+    public static func activateScene(_ id: Int) { fluikit_scene_activate(Int64(id)) }
+
+    /// Asks the system to close the window that shows view `id` (never the first window).
+    public static func closeScene(_ id: Int) { fluikit_scene_close(Int64(id)) }
 
     public static func initializeBridgeICU() {
         guard let path = icuDataPath else {

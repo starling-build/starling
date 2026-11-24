@@ -55,7 +55,11 @@ public final class FocusNode {
     /// Makes this node the focus owner of its window (and, if that window is the one the keys go to, of the keys).
     public func requestFocus() {
         let manager = FocusManager.instance
-        let scope = _viewProvider?().map { manager.scope(ofView: $0) } ?? _scope ?? manager.resolveScope()
+        let bound = _viewProvider?()
+        let scope = bound.map { manager.scope(ofView: $0) } ?? _scope ?? manager.resolveScope()
+        if FocusManager.traceFocus {
+            fputs("[focus] request \(debugLabel ?? "?"): bound view \(bound.map(String.init) ?? "nil"), scope \(scope), windows \(manager.windowViewIds.sorted()), key scope \(manager.keyScope)\n", stderr)
+        }
         _scope = scope
         manager._setFocus(self, scope: scope)
     }
@@ -92,6 +96,9 @@ public class FocusManager {
 
     /// The views that are windows of their own (`runView`); every other view is in scope 0.
     public var windowViewIds: Set<Int> = []
+
+    /// STARLING_FOCUS_LOG=1: every focus request, and which scope it went to, on stderr.
+    static let traceFocus = getenv("STARLING_FOCUS_LOG") != nil
 
     /// The scope the keys go to.
     public private(set) var keyScope = 0
@@ -134,6 +141,7 @@ public class FocusManager {
         keyScope = target
         old?.onFocusChange?(false)
         SoftKeyboard.focusMoved()
+        TextInputChannel.keyViewChanged?(target)
         _focusedByScope[target]?.onFocusChange?(true)
     }
 
@@ -157,6 +165,7 @@ public class FocusManager {
         if hadKeys {
             keyScope = 0
             SoftKeyboard.focusMoved()
+            TextInputChannel.keyViewChanged?(0)
             _focusedByScope[0]?.onFocusChange?(true)
         }
     }
@@ -164,7 +173,7 @@ public class FocusManager {
     /// For test drivers: each scope's focused node and which scope has the keys.
     public var debugSummary: String {
         let parts = _focusedByScope.keys.sorted().map { "\($0): \(_focusedByScope[$0]?.debugLabel ?? "?")" }
-        return "scopes=[\(parts.joined(separator: ", "))] keys=\(keyScope)"
+        return "scopes=[\(parts.joined(separator: ", "))] keys=\(keyScope) windows=\(windowViewIds.sorted())"
     }
 
     /// `node` gives up focus in `scope`, if it holds it.

@@ -81,15 +81,42 @@ void fluikit_host_window_size(double* out_width, double* out_height);
 //
 // All pointers are UIViewController*, passed as void* because UIKit stays
 // behind this header.
-typedef void* (*FlUIKitRootFactory)(void* editor_view_controller, void* user);
+//
+// With several scenes (windows) the factory runs once per scene. `view_id` is the engine view that scene's editor
+// shows: 0 for the first window, a fresh id for each later one (docs/plans/ipad-multi-window.md).
+typedef void* (*FlUIKitRootFactory)(void* editor_view_controller, int64_t view_id, void* user);
 void fluikit_host_set_root_factory(FlUIKitRootFactory factory, void* user);
 
 // A file or URL handed to the app from outside — "Open in…", a Files tap, the
 // share sheet, `xcrun simctl openurl`. `url` is the absolute URL string as
-// UTF-8 (a file: URL for documents). Return true if handled. Called on the main
-// thread. Without a handler the host ignores it.
-typedef bool (*FlUIKitOpenURLCallback)(void* user, const char* url);
+// UTF-8 (a file: URL for documents). `view_id` is the view of the window it was handed to (a document opened
+// into a new window arrives there). Return true if handled. Called on the main thread. Without a handler the host
+// ignores it.
+typedef bool (*FlUIKitOpenURLCallback)(void* user, int64_t view_id, const char* url);
 void fluikit_host_set_open_url_handler(FlUIKitOpenURLCallback handler, void* user);
+
+// MARK: - Windows (scenes)
+//
+// The first window shows view 0. Every later window the system makes (Stage Manager, App Expose, "Open in New
+// Window") gets a view id of its own: `connected` is called on the main thread BEFORE that window's view is added
+// to the engine, which is the moment to register what the view shows (runView); `disconnected` when the system
+// drops the window (any window, view 0 included), before its view is removed, which is the moment to save.
+typedef void (*FlUIKitSceneCallback)(void* user, int64_t view_id);
+void fluikit_host_set_scene_handlers(FlUIKitSceneCallback connected, FlUIKitSceneCallback disconnected, void* user);
+
+// Asks the system for a new window. `file_url` (a file: URL string, or NULL) is handed to the new window through
+// the open-URL handler once it is up. Main thread or not.
+void fluikit_scene_request_new(const char* file_url);
+
+// Brings the window that shows `view_id` to the front.
+void fluikit_scene_activate(int64_t view_id);
+/// Asks the system to close the window that shows view `view_id` (not the first one). A test hook and the
+/// "Close" of an in-app control; the user's own swipe/close reaches the same scene delegate.
+void fluikit_scene_close(int64_t view_id);
+
+// Where the on-screen keyboard's input view lives: in the window of `view_id`'s scene (so that window, not the
+// first one, brings up the keyboard). View 0 puts it back where it started.
+void fluikit_text_input_host(int64_t view_id);
 
 // MARK: - Software keyboard
 //

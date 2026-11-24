@@ -878,7 +878,8 @@ let siteArg: String? = {
 /// screen: the editor that published last (the one the user is working in) owns it.
 func connectNativeHooks(_ scene: OfficeScene, viewId: Int) {
     let log = ProcessInfo.processInfo.environment["OFFICE_HOST_LOG"] != nil
-    scene.documentSaved = { OfficeNativeShell.documentSaved($0) }
+    OfficeScene.byView[viewId] = scene
+    scene.documentSaved = { OfficeNativeShell.documentSaved($0, viewId: viewId) }
     scene.editMenuRequested = { x, y, w, h, items, text in
         let o = viewId == 0 ? nil : TextInputChannel.viewOrigin?(viewId)
         let rect = CGRect(x: x + (o?.x ?? 0), y: y + (o?.y ?? 0), width: w, height: h)
@@ -886,15 +887,29 @@ func connectNativeHooks(_ scene: OfficeScene, viewId: Int) {
         OfficeNativeShell.showEditMenu(rect,
                                        items: items.map { OfficeEditMenuItem(title: $0.title, symbol: $0.symbol,
                                                                               isEnabled: $0.isEnabled, action: $0.action) },
-                                       text: text)
+                                       text: text, viewId: viewId)
     }
-    scene.editMenuDismissed = { OfficeNativeShell.showEditMenu(nil, items: [], text: nil) }
+    scene.editMenuDismissed = { OfficeNativeShell.showEditMenu(nil, items: [], text: nil, viewId: viewId) }
     scene.toolbarChanged = { buttons in
         if log { fputs("[office] view \(viewId) toolbar: \(buttons.map { "\($0.count) buttons" } ?? "withdrawn")\n", stderr) }
         OfficeNativeShell.setToolbar(buttons?.map {
             OfficeToolbarButton(id: $0.id, title: $0.title, symbol: $0.symbol,
                                 isOn: $0.isOn, isEnabled: $0.isEnabled, action: $0.action)
-        })
+        }, viewId: viewId)
+    }
+    // Bringing this window forward: the system's scene if it is one, else (a test host) its view in the window.
+    scene.raise = {
+        UIKitHost.activateScene(viewId)
+        UIKitHost.raiseExtraView(viewId)
+    }
+    // A window with a native browser takes Open and Export over; one without (a test host's) keeps the editor's own.
+    scene.openRequested = {
+        guard OfficeNativeShell.hasShell(viewId) else { return false }
+        OfficeNativeShell.showBrowser(viewId: viewId)
+        return true
+    }
+    scene.exportRequested = { name, prepare, thenOpen, done in
+        OfficeNativeShell.export(name: name, prepare: prepare, thenOpen: thenOpen, viewId: viewId, done: done)
     }
 }
 #endif
@@ -909,21 +924,31 @@ _ = NotificationCenter.default.addObserver(forName: Notification.Name("UIApplica
 #endif
 if initialPath == nil && siteArg == nil && wikiBase == nil {
     OfficeNativeShell.install()
-    OfficeNativeShell.onOpenDocument = { OfficeScene.main.openPath?($0) }
+    OfficeNativeShell.onOpenDocument = { path, viewId in OfficeScene.byView[viewId]?.requestOpen(path) }
     OfficeScene.originalOf = { OfficeNativeShell.originalPath(forWorking: $0) }
     // One document, one window: a file another window than the main one has is shown by bringing that window forward.
-    OfficeNativeShell.focusIfOpen = { path in
-        guard let held = OfficeScene.holding(path, besides: OfficeScene.main) else { return false }
+    OfficeNativeShell.focusIfOpen = { path, viewId in
+        guard let held = OfficeScene.holding(path, besides: OfficeScene.byView[viewId]) else { return false }
         if ProcessInfo.processInfo.environment["OFFICE_HOST_LOG"] != nil { fputs("[office] open \((path as NSString).lastPathComponent): already open in another window, bringing it forward\n", stderr) }
         held.focusWindow()
         return true
     }
     OfficeNativeShell.makeBlank = { OfficeHost.writeBlank(kind: $0, to: $1) }
     connectNativeHooks(OfficeScene.main, viewId: 0)
-    OfficeScene.main.openRequested = { OfficeNativeShell.showBrowser(); return true }
     hostPrintPDF = { path in DispatchQueue.main.async { OfficeNativeShell.printPDF(path) } }
-    OfficeScene.main.exportRequested = { name, prepare, thenOpen, done in
-        OfficeNativeShell.export(name: name, prepare: prepare, thenOpen: thenOpen, done: done)
+    // A window the system makes beyond the first (Stage Manager, Open in New Window): a scene of its own with its
+    // own tree, shown in the engine view the host has given it.
+    OfficeNativeShell.sceneConnected = { viewId in
+        let scene = OfficeScene()
+        connectNativeHooks(scene, viewId: viewId)
+        runView(id: viewId) { OfficeSceneScope(scene: scene, child: OfficeRoot(initialPath: nil, kind: .document)) }
+    }
+    // The system dropped a window: what it had not saved is written first, and its claim on its file is released.
+    OfficeNativeShell.sceneDisconnected = { viewId in
+        guard let scene = OfficeScene.byView[viewId] else { return }
+        scene.flushPendingSaves()
+        if viewId != 0 { OfficeScene.byView[viewId] = nil } else { scene.releaseDocument() }
+        fputs("[office] window \(viewId) closed\n", stderr)
     }
 }
 #endif
@@ -945,6 +970,44 @@ if let spec = ProcessInfo.processInfo.environment["OFFICE_OPEN_AFTER"], let colo
    let ms = Int(spec[..<colon]) {
     let path = String(spec[spec.index(after: colon)...])
     DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(ms)) { OfficeNativeShell.open(URL(fileURLWithPath: path)) }
+}
+// OFFICE_WINDOW_CYCLES=<n>:<path> opens a window on that file and closes it again, n times, 3 s apart (a test of
+// the scene lifecycle: flush, unmount, the claim on the file; the heap is logged after each close).
+if let spec = ProcessInfo.processInfo.environment["OFFICE_WINDOW_CYCLES"] {
+    let parts = spec.split(separator: ":", maxSplits: 1).map(String.init)
+    if parts.count == 2, let count = Int(parts[0]) {
+        let url = URL(fileURLWithPath: parts[1])
+        func heapMB() -> Double {
+            var info = mach_task_basic_info(); var size = mach_msg_type_number_t(MemoryLayout<mach_task_basic_info>.size / MemoryLayout<natural_t>.size)
+            let kr = withUnsafeMutablePointer(to: &info) { $0.withMemoryRebound(to: integer_t.self, capacity: Int(size)) { task_info(mach_task_self_, task_flavor_t(MACH_TASK_BASIC_INFO), $0, &size) } }
+            return kr == KERN_SUCCESS ? Double(info.resident_size) / 1_048_576 : -1
+        }
+        func cycle(_ n: Int) {
+            guard n <= count else { return }
+            let before = Set(OfficeScene.byView.keys)
+            OfficeNativeShell.openInNewWindow(url)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) {
+                if let id = Set(OfficeScene.byView.keys).subtracting(before).max() {
+                    fputs("[cycle] \(n): window \(id) open, document \(OfficeScene.byView[id]?.documentPath ?? "none"), rss \(heapMB()) MB\n", stderr)
+                    UIKitHost.closeScene(id)
+                } else { fputs("[cycle] \(n): no window appeared\n", stderr) }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+                    fputs("[cycle] \(n): closed, windows \(OfficeScene.byView.keys.sorted()), rss \(heapMB()) MB\n", stderr)
+                    cycle(n + 1)
+                }
+            }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 8) { cycle(1) }
+    }
+}
+// OFFICE_NEW_WINDOW_AFTER=<ms>[:<path>] asks for a new window (showing that file) through the same call as the
+// browser's "Open in New Window", after a delay (a test: no screen to drive).
+if let spec = ProcessInfo.processInfo.environment["OFFICE_NEW_WINDOW_AFTER"] {
+    let parts = spec.split(separator: ":", maxSplits: 1).map(String.init)
+    if let ms = Int(parts[0]) {
+        let url = parts.count > 1 ? URL(fileURLWithPath: parts[1]) : nil
+        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(ms)) { OfficeNativeShell.openInNewWindow(url) }
+    }
 }
 #endif
 

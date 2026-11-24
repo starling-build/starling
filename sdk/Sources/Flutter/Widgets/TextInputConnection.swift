@@ -66,6 +66,9 @@ public enum TextInputChannel {
     /// Where view `id` sits in the host's window, in points; nil when it is at the origin or unknown. Set by a
     /// host that shows several views in one window (the iPad): the text-input plugin works in window
     /// coordinates, and an editable's own transform stops at its view's root.
+    /// Told when the view that has the keys changes (the window last touched), so the host can move the keyboard's
+    /// input view into that window.
+    public nonisolated(unsafe) static var keyViewChanged: ((Int) -> Void)?
     public nonisolated(unsafe) static var viewOrigin: ((Int) -> (x: Double, y: Double)?)?
 
     /// `object`'s transform to the window, for the plugin: its transform to the root of its view, moved by that

@@ -58,6 +58,11 @@ private final class _OfficeRootState: State<StatefulWidget> {
                 self._generation += 1
             }
         }
+        // A document asked for before this window was up (a new window made for one).
+        if let pending = officeScene.pendingOpen {
+            officeScene.pendingOpen = nil
+            DispatchQueue.main.async { [weak self] in self?.officeScene.openPath?(pending) }
+        }
         UpdateCheck.start { [weak self] release in
             guard let self, self.mounted else { return }
             self.setState { self._update = release }
