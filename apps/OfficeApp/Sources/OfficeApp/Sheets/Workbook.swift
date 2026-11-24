@@ -455,6 +455,16 @@ final class Workbook {
             "meiryo ui": 0.56,
         ]
         if let a = advances[n] { return max(1, (px * a).rounded()) }
+        // Excel's own widest digit for the Korean bitmap-strike faces at 9 to
+        // 12 pt, read from its column widths (lab/dotumcols print, 2026-11-24):
+        // not whole pixels, and not half the cell.
+        let koDigits: [String: [Double]] = [   // 9, 10, 11, 12 pt
+            "dotum": [6.5, 8, 8.5, 9.5], "돋움": [6.5, 8, 8.5, 9.5],
+            "gulim": [6.5, 8, 8.5, 9], "굴림": [6.5, 8, 8.5, 9],
+            "batang": [6, 8, 8.5, 9.5], "바탕": [6, 8, 8.5, 9.5],
+            "dotumche": [6, 7, 7.5, 8], "돋움체": [6, 7, 7.5, 8],
+        ]
+        if let t = koDigits[n], size == size.rounded(), size >= 9, size <= 12 { return t[Int(size) - 9] }
         let eastAsian = ["gothic", "mincho", "simsun", "simhei", "mingliu", "gulim", "dotum", "batang", "fangsong", "kaiti"]
         if n.unicodeScalars.contains(where: { $0.value > 0x2E7F }) || eastAsian.contains(where: { n.containsSubstring($0) }) {
             return max(1, (px.rounded() / 2).rounded(.up))
