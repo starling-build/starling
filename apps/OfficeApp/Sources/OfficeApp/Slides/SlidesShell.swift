@@ -100,6 +100,10 @@ final class SlidesShellState: State<StatefulWidget> {
     private var _status: String? = nil
     private var _statusGeneration = 0
     private var _showNotes = true
+    /// The window is narrower than a rail and a slide fit side by side (a Split View pane on an iPad, 375 pt): the
+    /// thumbnail rail is hidden so the slide gets the width (the sorter still shows every slide).
+    private var _narrow = false
+    private static let narrowBelow = 600.0
     private var _recent: [String] = []
     private let _search = TextEditingController()
     /// Find and Replace across the deck.
@@ -1190,10 +1194,8 @@ final class SlidesShellState: State<StatefulWidget> {
         if _sorter {
             column.append(Expanded(child: _sorterView(fluent)))
         } else {
-            var row: [Widget] = [
-                _thumbnailPane(fluent),
-                Expanded(child: Column(crossAxisAlignment: .stretch, children: work)),
-            ]
+            var row: [Widget] = _narrow ? [] : [_thumbnailPane(fluent)]
+            row.append(Expanded(child: Column(crossAxisAlignment: .stretch, children: work)))
             if _animationPane {
                 row.append(AnimationPane(deck: deck, onClose: { [weak self] in self?.setState { self?._animationPane = false } }))
             }
@@ -1205,8 +1207,11 @@ final class SlidesShellState: State<StatefulWidget> {
         }
         column.append(_statusBar(fluent))
 
-        let window = ColoredBox(color: fluent.scaffoldBackgroundColor,
-                                child: Column(crossAxisAlignment: .stretch, children: column))
+        let window = SizeReporter(onSize: { [weak self] size in
+            guard let self, self.mounted, (size.width < Self.narrowBelow) != self._narrow else { return }
+            self.setState { self._narrow = size.width < Self.narrowBelow }
+        }, child: ColoredBox(color: fluent.scaffoldBackgroundColor,
+                             child: Column(crossAxisAlignment: .stretch, children: column)))
         if let start = _show {
             return Stack(children: [
                 window,
