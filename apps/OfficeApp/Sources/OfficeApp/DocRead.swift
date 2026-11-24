@@ -155,6 +155,7 @@ enum DocRead {
         var endnotes: [Int: Int] = [:]
         var noteKind = ""            // "footnote" or "endnote" inside a note's own text
         var shapes: [Int: (xml: String, behind: Bool)] = [:]   // character position of a shape anchor -> its drawing run
+        var styles = ""             // the style sheet's XML, to settle toggled character flags against
         var picture: ((Int) -> String?)?         // the run of the inline picture whose data sits at an offset of the Data stream
     }
 
@@ -220,7 +221,7 @@ enum DocRead {
             if !chp.isEmpty {
                 let g = cover(chp, &ci, cp)?.grpprl ?? []
                 curG = g
-                if !cacheValid || g != cache { flush(); cache = g; cacheValid = true; rpr = DocProps.rPr(g, fonts: fonts); sym = DocProps.symbol(g, fonts: fonts) }
+                if !cacheValid || g != cache { flush(); cache = g; cacheValid = true; rpr = DocProps.rPr(g, fonts: fonts, toggles: true); sym = DocProps.symbol(g, fonts: fonts) }
             }
             if let f = fields.last, f.inInstr, c != 0x14, c != 0x15, c != 0x13 {
                 if c >= 0x20 { fields[fields.count - 1].instr.append(c) }
@@ -242,7 +243,7 @@ enum DocRead {
                 // the paragraph mark's own character properties (they size an empty paragraph's line)
                 if !rpr.isEmpty { pp = pp.isEmpty ? "<w:pPr>" + rpr + "</w:pPr>" : String(pp.dropLast(8)) + rpr + "</w:pPr>" }
                 if let sp = ctx.sectEnds[cp] { pp = pp.isEmpty ? "<w:pPr>" + sp + "</w:pPr>" : String(pp.dropLast(8)) + sp + "</w:pPr>" }
-                let para = "<w:p>" + pp + back + runs + front + "</w:p>"; runs = ""; back = ""; front = ""
+                let para = DocProps.settleToggles("<w:p>" + pp + back + runs + front + "</w:p>", styles: ctx.styles, istd: pr?.istd ?? 0); runs = ""; back = ""; front = ""
                 if tf.inTable {
                     cellXml += para
                     if c == 0x07 { rowCells.append(cellXml); cellXml = "" }
@@ -312,7 +313,7 @@ enum DocRead {
         let all = text(w, pieces: pcs, count: hddEnd + fib.ccpAtn + fib.ccpEdn + fib.ccpTxbx + fib.ccpHdrTxbx)
         func slice(_ a: Int, _ b: Int) -> [UInt16] { (a >= 0 && b <= all.count && a < b) ? Array(all[a ..< b]) : [] }
         func story(_ a: Int, _ b: Int, _ ctx: StoryContext = StoryContext()) -> String {
-            var c = ctx; c.base = a
+            var c = ctx; c.base = a; c.styles = st?.xml ?? ""
             return paragraphs(slice(a, b), chp: chp, pap: pap, fonts: fonts, ctx: c)
         }
         var extra: [ZipEntry] = [], rels = "", types = ""
