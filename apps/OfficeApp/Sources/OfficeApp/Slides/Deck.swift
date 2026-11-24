@@ -187,6 +187,18 @@ struct ReadShape: Equatable {
 
     /// Still the shape that was read, text included.
     func unchanged(_ s: ShapeState) -> Bool { self == ReadShape(s) && s.text == s.sourceText }
+
+    /// Still the shape that was read, text included, except that it may
+    /// have been moved, resized or turned: such a shape is written as its
+    /// own XML with only its placement patched, so everything this app does
+    /// not model (links, vertical text, wrap, tab stops, adjust values,
+    /// alt text...) survives a drag. (S-P0-1)
+    func unchangedExceptPlacement(_ s: ShapeState) -> Bool {
+        var a = self
+        let b = ReadShape(s)
+        a.frame = b.frame; a.rotation = b.rotation
+        return a == b && s.text == s.sourceText
+    }
 }
 
 /// An element carried through a round trip verbatim.

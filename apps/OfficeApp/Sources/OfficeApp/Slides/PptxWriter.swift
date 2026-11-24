@@ -728,9 +728,11 @@ private struct SlideXML {
             // Unchanged since it was read, text and all: the shape as it
             // was, so what this app models loosely (the master's bullets,
             // run effects, tab stops) comes back untouched.
-            if let xml = s.sourceXML, let read = s.readShape, read.unchanged(s),
+            if let xml = s.sourceXML, let read = s.readShape, read.unchangedExceptPlacement(s),
                let p = source, let part = s.sourcePart {
-                return kept(xml, sourcePart: part, package: p, builder: &builder, patch: s.frame, fileId: s.fileId)
+                let moved = read.frame != s.frame || read.rotation != s.rotation
+                return kept(xml, sourcePart: part, package: p, builder: &builder, patch: s.frame, fileId: s.fileId,
+                            rotation: moved ? s.rotation : nil, placeIfMissing: moved)
             }
             let id = _id(s.fileId)
             var nv = "<p:cNvPr id=\"\(id)\" name=\"\(name)\"/>"
@@ -915,13 +917,23 @@ private struct SlideXML {
     /// relationships re-pointed — the parts they name copied over with
     /// everything those parts reach.
     mutating func kept(_ xml: String, sourcePart: String, package p: PptxPackage,
-                       builder b: inout PackageBuilder, patch frame: Rect?, fileId: Int? = nil) -> String {
+                       builder b: inout PackageBuilder, patch frame: Rect?, fileId: Int? = nil,
+                       rotation: Double? = nil, placeIfMissing: Bool = false) -> String {
         guard let node = XNode.parse(Data(xml.utf8)) else { return "" }
         if let frame {
             let x = node.first("p:xfrm") ?? node.first("p:spPr")?.first("a:xfrm") ?? node.first("p:grpSpPr")?.first("a:xfrm")
             if let x {
                 if let off = x.first("a:off") { off.attrs["x"] = "\(Self._emu(frame.left))"; off.attrs["y"] = "\(Self._emu(frame.top))" }
                 if let ext = x.first("a:ext") { ext.attrs["cx"] = "\(Self._emu(frame.width))"; ext.attrs["cy"] = "\(Self._emu(frame.height))" }
+                if let rotation { if rotation == 0 { x.attrs["rot"] = nil } else { x.attrs["rot"] = "\(Int((rotation * 60000).rounded()))" } }
+            } else if placeIfMissing, let spPr = node.first("p:spPr") {
+                // A placeholder that took its place from the layout, now
+                // moved: it gets a frame of its own.
+                let x = XNode(name: "a:xfrm", attrs: [:])
+                if let rotation, rotation != 0 { x.attrs["rot"] = "\(Int((rotation * 60000).rounded()))" }
+                x.children = [XNode(name: "a:off", attrs: ["x": "\(Self._emu(frame.left))", "y": "\(Self._emu(frame.top))"]),
+                              XNode(name: "a:ext", attrs: ["cx": "\(Self._emu(max(0, frame.width)))", "cy": "\(Self._emu(max(0, frame.height)))"])]
+                spPr.children.insert(x, at: 0)
             }
             if let c = node.descendant("p:cNvPr") { c.attrs["id"] = "\(_id(fileId ?? c["id"].flatMap(Int.init)))" }
         }
