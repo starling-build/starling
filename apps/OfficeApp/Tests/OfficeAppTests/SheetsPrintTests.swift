@@ -233,3 +233,20 @@ extension SheetsPrintTests {
         XCTAssertFalse(SheetPrintMetrics.of(family: "Calibri", size: 11).setOwnAt100)
     }
 }
+
+final class MeiryoUiBigRowsTests: XCTestCase {
+    /// Excel's print of ja-d9ac78f0cb: rows fitted to 18 pt Meiryo UI cells in an 11 pt book are 25.6 pt (65 screen px), not 27.1.
+    func testMeiryoUiLargeSizesFollowThePointStep() {
+        let d = SheetPrintMetrics.of(family: "Meiryo UI", size: 11)
+        let big = SheetPrintMetrics.of(family: "Meiryo UI", size: 18)
+        XCTAssertEqual(d.fittedRow(big), 65 * 72 / 192 * d.rowScale, accuracy: 0.01)
+        XCTAssertEqual(d.fittedRow(big), 25.55, accuracy: 0.05)
+        XCTAssertEqual(d.fittedRow(SheetPrintMetrics.of(family: "Meiryo UI", size: 16)), 59 * 72 / 192 * d.rowScale, accuracy: 0.01)
+        // lab meiryoui-rows2: Excel's auto rows at 15/16/18/20/24 pt, regular and bold, print 53/59/65/71/86 px
+        for (size, px) in [(15.0, 53.0), (16, 59), (18, 65), (20, 71), (24, 86)] {
+            for bold in [false, true] {
+                XCTAssertEqual(d.fittedRow(SheetPrintMetrics.of(family: "Meiryo UI", size: size, bold: bold)), px * 72 / 192 * d.rowScale, accuracy: 0.01, "\(size) bold \(bold)")
+            }
+        }
+    }
+}
