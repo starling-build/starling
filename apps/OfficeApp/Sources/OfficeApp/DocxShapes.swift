@@ -462,8 +462,11 @@ extension DocxFormat {
             } else if let shape = _vmlTop(node), shape.name != "v:line", let st = shape["style"] {
                 for pair in st.split(separator: ";") {
                     let kv = pair.split(separator: ":", maxSplits: 1)
-                    guard kv.count == 2, let v = _length(String(kv[1])), v > 0 else { continue }
-                    if kv[0].trimmingWhitespace() == "width" { w = v } else if kv[0].trimmingWhitespace() == "height" { h = v }
+                    guard kv.count == 2, let v = _length(String(kv[1])), v >= 0 else { continue }
+                    // (A height of 0 is a straight line's — a connector `v:shape` of
+                    // 500pt by 0pt — not an absent one: read as absent it stood the
+                    // 300 by 200 stand-in, a row 188pt too tall in es-e3d5fed41c.)
+                    if kv[0].trimmingWhitespace() == "width", v > 0 { w = v } else if kv[0].trimmingWhitespace() == "height" { h = max(v, 0.01) }
                 }
                 // (A horizontal rule — an HTML page's <hr>, `o:hr` — is a
                 // line of its height across the column, its width 0 in the
