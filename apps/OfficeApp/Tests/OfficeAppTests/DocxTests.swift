@@ -2211,7 +2211,7 @@ final class DocxTests: XCTestCase {
         let drawing = "<w:drawing><wp:anchor distT=\"0\" distB=\"0\" distL=\"114300\" distR=\"114300\" simplePos=\"0\" relativeHeight=\"7\" behindDoc=\"0\" locked=\"0\" layoutInCell=\"1\" allowOverlap=\"1\">"
             + "<wp:simplePos x=\"0\" y=\"0\"/><wp:positionH relativeFrom=\"column\"><wp:posOffset>914400</wp:posOffset></wp:positionH>"
             + "<wp:positionV relativeFrom=\"paragraph\"><wp:posOffset>228600</wp:posOffset></wp:positionV><wp:extent cx=\"914400\" cy=\"457200\"/>"
-            + "<wp:wrapSquare wrapText=\"bothSides\"/><wp:docPr id=\"2\" name=\"p\" descr=\"A grey box\"/>"
+            + "<wp:wrapSquare wrapText=\"bothSides\"/><wp:docPr id=\"2\" name=\"p\" descr=\"A grey box\"><a:extLst xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\"><a:ext uri=\"{X}\"><a:foo/></a:ext></a:extLst></wp:docPr>"
             + "<a:graphic xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\"><a:graphicData uri=\"http://schemas.openxmlformats.org/drawingml/2006/picture\">"
             + "<pic:pic xmlns:pic=\"http://schemas.openxmlformats.org/drawingml/2006/picture\"><pic:nvPicPr><pic:cNvPr id=\"0\" name=\"p\"/><pic:cNvPicPr/></pic:nvPicPr>"
             + "<pic:blipFill><a:blip r:embed=\"\(relId)\"/><a:srcRect l=\"10000\" t=\"5000\"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>"

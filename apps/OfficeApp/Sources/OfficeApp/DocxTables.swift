@@ -335,7 +335,7 @@ extension DocxFormat {
         func pair(_ tag: String, from start: String.Index) -> (range: Range<String.Index>, cx: Double, cy: Double)? {
             guard let open = xml.rangeOfSubstring(tag, in: start ..< xml.endIndex),
                   let close = xml.rangeOfSubstring("/>", in: open.upperBound ..< xml.endIndex) else { return nil }
-            let attrs = " " + String(xml[open.upperBound ..< close.lowerBound])
+            let attrs = " " + String(String(xml[open.lowerBound ..< close.lowerBound]).drop(while: { $0 != " " }))
             func value(_ name: String) -> Double? {
                 guard let a = attrs.rangeOfSubstring(" \(name)=\"") else { return nil }
                 let rest = attrs[a.upperBound...]
@@ -353,7 +353,7 @@ extension DocxFormat {
         if abs(newW - oldW) < 0.1, abs(newH - oldH) < 0.1 { return (xml, true) }
         let cx = Int((newW * 12700).rounded()), cy = Int((newH * 12700).rounded())
         var out = xml
-        let inner = pair("<a:ext ", from: ext.range.upperBound)
+        let inner = pair("<a:ext cx", from: ext.range.upperBound)
         // Later range first, so the earlier one's index stays valid.
         if let inner, let tail = out.rangeOfSubstring(String(xml[inner.range])) {
             out.replaceSubrange(tail, with: "<a:ext cx=\"\(cx)\" cy=\"\(cy)\"/>")
