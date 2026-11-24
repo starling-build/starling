@@ -242,10 +242,13 @@ public final class RichDocumentController: ChangeNotifier {
     /// the last save to know whether the document is dirty.
     public private(set) var revision = 0
 
+    deinit { LeakProbe.unregister(controller: self) }
+
     public init(document: RichDocument = RichDocument()) {
         self.document = document
         self.selection = RichSelection(caret: .start)
         super.init()
+        LeakProbe.register(controller: self)
     }
 
     public convenience init(plainText: String) {

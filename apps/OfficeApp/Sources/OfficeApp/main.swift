@@ -1015,6 +1015,60 @@ func dumpHeapHistogram(to path: String) {
         let old = groups[key] ?? (0, 0)
         groups[key] = (old.0 + 1, old.1 + Int(size))
     }
+    // Who holds the controllers that outlived their windows? A backward scan: every block that has a word equal to a
+    // target's address, then who holds those, four levels up. (The oldest controller is the open window's own.)
+    var chains = ""
+    let leaked = LeakProbe.controllers.sorted { $0.seq < $1.seq }.dropFirst().map(\.address)
+    if !leaked.isEmpty {
+        var buffer = [UInt](repeating: 0, count: 65536 / 8)
+        func describe(_ addr: UInt, _ size: UInt) -> String {
+            var word: UInt = 0; var got: vm_size_t = 0
+            let kr = withUnsafeMutablePointer(to: &word) { vm_read_overwrite(mach_task_self_, vm_address_t(addr), 8, vm_address_t(UInt(bitPattern: $0)), &got) }
+            if kr == KERN_SUCCESS, word > 0x10000 {
+                var info = Dl_info()
+                if dladdr(UnsafeRawPointer(bitPattern: word), &info) != 0, let name = info.dli_sname { return "\(String(cString: name)) (\(size) bytes)" }
+            }
+            return "unnamed block (\(size) bytes, first word \(String(word, radix: 16)))"
+        }
+        var wanted = Set(leaked)
+        var names: [UInt: String] = [:]
+        for a in leaked { names[a] = "controller" }
+        var parents: [UInt: [(UInt, UInt)]] = [:]   // target -> (holder block, offset)
+        for _ in 0..<4 {
+            var found: [UInt: [(UInt, UInt)]] = [:]
+            for j in 0..<heapRangeCount {
+                let (addr, size) = heapRanges![j]
+                guard size >= 16, size <= 65536 else { continue }
+                var got: vm_size_t = 0
+                let kr = buffer.withUnsafeMutableBytes { vm_read_overwrite(mach_task_self_, vm_address_t(addr), vm_size_t(size), vm_address_t(UInt(bitPattern: $0.baseAddress!)), &got) }
+                guard kr == KERN_SUCCESS else { continue }
+                for k in 0..<Int(size / 8) where wanted.contains(buffer[k]) && buffer[k] != addr {
+                    found[buffer[k], default: []].append((addr, UInt(k * 8)))
+                }
+            }
+            var next = Set<UInt>()
+            for (target, holders) in found {
+                parents[target, default: []] += holders
+                for (h, _) in holders where names[h] == nil {
+                    let size = (0..<heapRangeCount).lazy.map { heapRanges![$0] }.first { $0.0 == h }?.1 ?? 0
+                    names[h] = describe(h, size); next.insert(h)
+                }
+            }
+            if next.isEmpty { break }
+            wanted = next
+        }
+        func chain(_ a: UInt, _ depth: Int) -> [String] {
+            guard depth < 5, let hs = parents[a] else { return [] }
+            var out: [String] = []
+            for (h, off) in hs.prefix(3) {
+                let line = String(repeating: "  ", count: depth) + "<- \(names[h] ?? "?") at +\(off)"
+                out.append(line); out += chain(h, depth + 1)
+            }
+            return out
+        }
+        for a in leaked.prefix(2) { chains += "controller \(String(a, radix: 16)):\n" + chain(a, 1).joined(separator: "\n") + "\n" }
+    }
+    try? chains.write(toFile: path + ".retainers.txt", atomically: true, encoding: .utf8)
     heapRanges!.deallocate(); heapRanges = nil
     var text = ""
     for (key, value) in groups.sorted(by: { $0.value.1 > $1.value.1 }) { text += "\(value.0) \(value.1) \(key)\n" }
