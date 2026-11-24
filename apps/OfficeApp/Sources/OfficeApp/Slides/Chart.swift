@@ -296,6 +296,9 @@ struct Chart: Equatable {
     /// The category axis's labels' size and weight where the file gives
     /// them (`c:catAx/c:txPr`); nil is the default, 12.
     var categoryLabelSize: Double? = nil
+    /// The axes say 12 pt outright, which on a slide is the default and left unset; a sheet prints Excel's default at 9, so there it is a size of its own.
+    var valueLabelStated12 = false
+    var categoryLabelStated12 = false
     var categoryLabelBold = false
     /// The category axis is a date axis (`c:dateAx`): Word prints its aslant labels as outlines.
     var dateAxis = false
@@ -821,6 +824,8 @@ struct Chart: Equatable {
         c.legendSize = legendSize.map { $0 * f }
         c.valueLabelSize = valueLabelSize.map { $0 * f }
         c.categoryLabelSize = categoryLabelSize.map { $0 * f }
+        if valueLabelStated12, c.valueLabelSize == nil { c.valueLabelSize = 12 * f }
+        if categoryLabelStated12, c.categoryLabelSize == nil { c.categoryLabelSize = 12 * f }
         c.textSize = textSize.map { $0 * f }
         c.axisTitleSize = axisTitleSize.map { $0 * f }
         c.valueAxisTitleSize = valueAxisTitleSize.map { $0 * f }
@@ -2569,7 +2574,7 @@ enum ChartXML {
         if let sz = valueAxis?.first("c:txPr")?.descendant("a:defRPr")?["sz"].flatMap(Double.init), sz > 0, (sz != 1200 && sz != 1197) || c.baseTextSize != 12 {
             // (A plain 2007 chart's text is 10 pt, so a stated 12 pt is a size of its own: 99f6ddd1 p23's value axis, sz 1200, is 12 pt in PowerPoint's print, 10 here.)
             c.valueLabelSize = sz / 100
-        }
+        } else if let sz = valueAxis?.first("c:txPr")?.descendant("a:defRPr")?["sz"].flatMap(Double.init), sz > 0 { c.valueLabelStated12 = true }
         // (Columns on the value axis at the right, their own category axis deleted and the lines' shown: the names are the lines'
         // axis': chart-testCombinedChartAxis.)
         let categoryAxis = type == .scatter ? axes.first { ["b", "t"].contains($0.first("c:axPos")?["val"] ?? "") }
@@ -2585,7 +2590,7 @@ enum ChartXML {
         if type != .scatter, let categoryAxis { c.categoryGrid = categoryAxis.first("c:majorGridlines") != nil }
         if let run = categoryAxis?.first("c:txPr")?.descendant("a:defRPr") {
             // (A file that says 12 pt outright keeps it where the chart's plain default is 10: espt-174ab0c2's category names.)
-            if let sz = run["sz"].flatMap(Double.init), sz > 0, (sz != 1200 && sz != 1197) || c.baseTextSize != 12 { c.categoryLabelSize = sz / 100 }
+            if let sz = run["sz"].flatMap(Double.init), sz > 0, (sz != 1200 && sz != 1197) || c.baseTextSize != 12 { c.categoryLabelSize = sz / 100 } else if let sz = run["sz"].flatMap(Double.init), sz > 0 { c.categoryLabelStated12 = true }
             c.categoryLabelBold = ["1", "true"].contains(run["b"] ?? "")
             if let f = run.first("a:solidFill") { c.categoryLabelColor = color(f) }
         }
@@ -5674,7 +5679,8 @@ enum ChartPainter {
                 // (Lab lg4 and lg5, Word's print: a value-axis title's box edge to the widest label is a constant 3.3 pt,
                 // for title and label sizes 8 to 18, ticks, axis line and bold alike. A CJK title (aeba94bd0446 p5, p7, 12 pt
                 // DFKai-SB) prints 4.7; the 1.4 pt extra is OPEN, one deck, the line box does not explain it.)
-                let inset = c.onSheet ? 5.8 * k : c.onSlide && c.type == .scatter ? 5.4 * k : c.onSlide && c.valueAxisTitleSize != nil ? 3.6 * k : 0
+                // A sheet chart's turned value-axis title stands 1.5 pt (of the sheet scale) further in than the 5.8 first used: Excel's prints of 8, 10, 12, 14 and 18 pt labels with a title all sit that much to the right of ours (labs axgap1, axgap2).
+                let inset = c.onSheet ? 7.3 * k : c.onSlide && c.type == .scatter ? 5.4 * k : c.onSlide && c.valueAxisTitleSize != nil ? 3.6 * k : 0
                 canvas.save()
                 canvas.translate(area.left + inset, area.center.dy - lift + tp.width / 2)
                 canvas.rotate(-.pi / 2)
@@ -6013,7 +6019,8 @@ enum ChartPainter {
             let wordPlainCol = !libre && !c.styled2013 && !c.chartex && c.type == .column && c.barView == nil && c.plotLayout == nil && !horizontal && !c.onSheet && !c.onSlide
             let sheetTickLength = 6.0   // the outward tick mark, which stands inside that gap
             let valGap: Double = (c.onSlide && c.styled2013 && !c.chartex && !c.valueTicksOut && !word && !libre && (valueLabels.first?.height ?? 0) > 0)
-                ? max(8.5, 0.773 * (valueLabels.first?.height ?? 0) / k - 2.9) : (c.onSheet && !c.styled2013 && c.valueTicksOut && (valueLabels.first?.height ?? 0) > 0 ? 0.773 * (valueLabels.first?.height ?? 0) / k - sheetTickLength : (c.styled2013 ? 8.5 : wordPlainCol ? 0.927 * labelSize : 11.1))
+                ? max(8.5, 0.773 * (valueLabels.first?.height ?? 0) / k - 2.9) : (c.onSheet && !c.styled2013 && c.valueTicksOut && (valueLabels.first?.height ?? 0) > 0 ? 0.773 * (valueLabels.first?.height ?? 0) / k - sheetTickLength : (c.styled2013 ? (c.onSheet && !c.chartex && !libre && !word ? 8.5 + 0.927 * (labelSize - 12) : 8.5) : wordPlainCol ? 0.927 * labelSize : 11.1))
+            // (A 2013-style chart on a sheet: the value labels stand off the axis by 0.927 of their size's change from the default 9 pt, 7.4, 9.2 and 11.1 pt at 8, 10 and 12 pt in Excel's prints, lab axgap1; ours stood 8.2 at all three.)
             if wordPlainCol { valueLabelsBack = (11.1 - valGap) * k }
             if c.onSheet && !c.styled2013 && c.valueTicksOut { valueLabelsBack = 3.9; RuleTrace.hit("sheet-value-labels-stand-off-by-their-line-height") }
             if c.styled2013, valGap > 8.5 { valueLabelsBack = -(valGap - 8.5) * k; RuleTrace.hit("slide-value-labels-stand-off-by-their-line-height") }
