@@ -187,7 +187,10 @@ extension _ParaFrame {
                 // (A paragraph-relative offset counts from the first line's top, after the space before: sa1 c4f2b4bd's closing line, 6pt
                 // before and a 42pt line, stays above a box 42.65pt down.)
                 let lineOnly = float.y > 0 ? (firstLine().map { $0.top > 0 && $0.top + $0.line > _px(float.y - float.distanceTop) && $0.line <= _px(float.y - float.distanceTop) + 0.01 } ?? false) : false
-                if !lineOnly, !lineEndsAbove(_px(max(0, float.y) - float.distanceTop)) {
+                // (The line's own height counts, not the extra a line multiple adds: pt-9fe16a1c71's 1.5-spaced line under a box 15.2pt down stays above it
+                // in Word's print, as the single line of 12.5 does.)
+                let naturalEnds = float.y > 0 && style.lineHeightPoints == nil && style.lineSpacing > 1.001 ? (firstLine().map { $0.top + $0.line / style.lineSpacing <= _px(float.y - float.distanceTop) + 0.01 } ?? false) : false
+                if !lineOnly, !naturalEnds, !lineEndsAbove(_px(max(0, float.y) - float.distanceTop)) {
                     RuleTrace.hit("word-first-line-set-under-a-top-and-bottom-picture-at-the-paragraphs-top")
                     push = max(push, pushUnder(_px(float.y + image.height + float.effectBottom + float.distanceBottom)))
                 }
