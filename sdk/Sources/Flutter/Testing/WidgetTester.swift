@@ -15,6 +15,7 @@ public final class WidgetTester {
     public let size: Size
     private var root: RenderObjectToWidgetElement?
     private var nextPointer = 1
+    nonisolated(unsafe) private static var gestures: GestureBinding?
 
     public init(_ widget: Widget, size: Size = Size(1280, 800)) {
         self.size = size
@@ -25,7 +26,7 @@ public final class WidgetTester {
                 viewConstraints: ViewConstraints(minWidth: 0, maxWidth: size.width, minHeight: 0, maxHeight: size.height)))
         }
         let view = pd.implicitView!
-        _ = GestureBinding.instance
+        if WidgetTester.gestures == nil { WidgetTester.gestures = GestureBinding() }
         WidgetsBinding.instance.buildOwner = buildOwner
         renderView = RenderView(view: view)
         renderView.configuration = RenderViewConfiguration.fromView(view)
@@ -66,13 +67,22 @@ public final class WidgetTester {
         return nil
     }
 
+    /// Every non-empty text on screen, in tree order.
+    public func texts() -> [String] { elements().compactMap { ($0.widget as? Text)?.data }.filter { !$0.isEmpty } }
+
+    /// The state object of the first stateful widget of type `W`: how a test reads the model.
+    public func state<S: AnyObject>(_ type: S.Type) -> S? {
+        for e in elements() { if let st = (e as? StatefulElement)?.state as? S { return st } }
+        return nil
+    }
+
     /// Whether any Text shows `label`.
     public func has(text label: String) -> Bool { centre(ofText: label) != nil }
 
     /// Presses and lifts a pointer at `position`, as the app's pointer handler does.
     public func tap(at position: Offset) {
         let pointer = nextPointer; nextPointer += 1
-        let gb = GestureBinding.instance
+        let gb = WidgetTester.gestures!
         var hit: HitTestResult?
         for event in [PointerDownEvent(pointer: pointer, position: position) as PointerEvent,
                       PointerUpEvent(pointer: pointer, position: position)] {
