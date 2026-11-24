@@ -162,6 +162,11 @@ Framework (`sdk/`):
   remounts the whole sliver down the working path. (Files' view modes.)
 - Element **remount is the dominant update path** (no `updateRenderObject`); if
   fresh content never composites, suspect paint marking.
+- **Never draw by walking a Dictionary or Set.** Swift reseeds hashing per
+  process, so same-colour fills (and anything else order-sensitive) come out in
+  a different order every run and the PDF differs byte for byte; sort first
+  (`CellAddress` is `Comparable`). `SWIFT_DETERMINISTIC_HASHING=1` is only a
+  way to diagnose it. `test/sheet-pdf-determinism.sh` catches it (gate step).
 - `print()` is block-buffered through pipes — debug with raw `write(2, …)`.
 - Widgets have **two spellings**: the ported `children:`/`child:` initializers
   (canonical, 1:1 with Dart) and the trailing-closure overloads in
