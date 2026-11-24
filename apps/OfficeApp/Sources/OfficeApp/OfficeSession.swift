@@ -292,6 +292,7 @@ final class OfficeSession {
     var onChartData: ((Bool) -> Void)?
     /// Normal view (false) or Slide Sorter (true).
     var onSlidesView: ((Bool) -> Void)?
+    var onSlidesNotesPage: (() -> Void)?
     var slidesSorter = false
     /// Undo and redo when the kind has more history than the text (a deck).
     var onUndo: (() -> Void)?

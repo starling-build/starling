@@ -197,6 +197,15 @@ final class DeckController: ChangeNotifier {
     }
     var viewIsFit: Bool { viewScale == nil }
 
+    /// Notes Page view: each slide shown as a printed notes page (the slide
+    /// above, its notes below). A way of looking, like zoom: no undo, not saved.
+    private(set) var notesPageView = false
+    func setNotesPageView(_ on: Bool) {
+        guard on != notesPageView else { return }
+        notesPageView = on
+        notifyListeners()
+    }
+
     func notifyViewChanged() { notifyListeners() }
 
     func fitView() {
