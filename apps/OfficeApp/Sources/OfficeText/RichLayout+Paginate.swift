@@ -147,6 +147,7 @@ extension RichLayout {
         // part — see where a row's notes are placed.)
         // (The note this page parts, set at its foot to `keep`.)
         // (Where a column ends at the line marking the note it parts.)
+        _pg_verticalWindow(&pgs, document)
         _pg_loadPins(&pgs, document)
         _blankPages = _blankPages.filter { $0 < pgs.page / _columns }
         _numberedBlankPages = _numberedBlankPages.filter { $0 < pgs.page / _columns }

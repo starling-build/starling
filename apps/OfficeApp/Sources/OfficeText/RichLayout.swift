@@ -2145,6 +2145,10 @@ public final class RichLayout {
     /// Where each page's text starts below its top (pixels): the top
     /// margin, or under a taller header.
     var _pageInsetTop: [Double] = []
+    /// A vertical (tbRl) section's pictures and boxes that Word's text goes round, placed from the page or its margins and set on the paper
+    /// (x across, y down), turned into the layout's frame per physical page: x from the text's left edge, y from the text's top, the
+    /// distances in. See `_pg_verticalWindow`.
+    var _verticalSeeds: [Int: [(id: String, left: Double, right: Double, top: Double, bottom: Double)]] = [:]
 
     /// Paragraphs set on both sides of a box: per painter, how far each line
     /// is moved up (a right piece stands level with the left piece before
