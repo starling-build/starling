@@ -367,7 +367,9 @@ extension RichLayout {
                     // (A face Word has not got that we draw in Arial (B Zar, B Nazanin) holds its line like Arial's: c2c3a2f3's 14 pt B Zar
                     // lines are 18.5 apart in Word with a 14 pt Calibri "." only on the lines it stands on, not 21.3 on all.)
                     leaves.append(_TallerLeaf(style: st, arial: l == "arial" || (!l.isEmpty && !l.containsSubstring("arial") && st.fontFamily?.lowercased() == "arial"),
-                                       blank: !text.unicodeScalars.contains { !$0.properties.isWhitespace },
+                                       // (Bidi controls and zero-width marks around a tab run (LRE, ZWSP, PDF) are no mark of a Latin face: 968500c3's lines stand 24.5 apart as Word's, not 25.4.)
+                                       // (Only the engine's own wrappers, on the default Calibri label, are blank; a mark standing in a run's own face (Times New Roman, Yaqout) still lifts the line as Word's: fas-z8123021-fd38aa line 26 is 15.96 apart in Word.)
+                                       blank: !text.unicodeScalars.contains { !$0.properties.isWhitespace && (l != "calibri" || $0.properties.generalCategory != .format) && (l != "calibri" || $0.properties.generalCategory != .control) },
                                        arabic: text.unicodeScalars.contains { ($0.value >= 0x0590 && $0.value <= 0x08FF) || ($0.value >= 0xFB1D && $0.value <= 0xFEFF) },
                                        face: l))
                 } else if !text.isEmpty { ok = false }
