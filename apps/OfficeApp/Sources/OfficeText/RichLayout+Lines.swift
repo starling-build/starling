@@ -56,7 +56,7 @@ extension RichLayout {
         var bidi = false
         var labelsSeen = Set<String>()
         var markLine = 0.0
-        var marks: [(String, Double)] = []
+        var marks: [(String, Double, Double)] = []
         // (A run moved off the baseline whose line is taller than the held one: a ruby's base on a line
         // grid, which asks its line for two pitches. A strut would hold the line at one: flt1-1-asis's
         // wrapped "かえてくれる" paragraph came out 18 pt short.)
@@ -86,10 +86,10 @@ extension RichLayout {
             }
             if let text = t.text, marksToo, !text.contains(where: { $0.isLetter || $0.isNumber || $0.isSymbol }) {
                 if let st = t.style, st.baselineShift == nil, st.debugLabel?.containsSubstring(" rtl-mark") != true, let sz = st.fontSize, let hh = st.height, sz > 0.5,
-                   text.unicodeScalars.contains(where: { !$0.properties.isWhitespace && $0.properties.generalCategory != .format && $0.properties.generalCategory != .control && $0.value != 0x2022 }) {
+                   text.unicodeScalars.contains(where: { ($0.value == 0x200C && hh > 0.05) || (!$0.properties.isWhitespace && $0.properties.generalCategory != .format && $0.properties.generalCategory != .control && $0.value != 0x2022) }) {
                     var l = String((st.debugLabel?.trimmingWhitespace().lowercased() ?? "").filter { $0 != "(" && $0 != ")" })
                     while l.hasSuffix(".copywith") { l = String(l.dropLast(9)) }
-                    marks.append((l, sz * hh))
+                    marks.append((l, sz * hh, sz))
                 }
                 for c in t.children ?? [] { visit(c) }
                 return
@@ -123,6 +123,9 @@ extension RichLayout {
             // marks (c2c3a2f3's 11 pt "." and spaces) set no line.)
             // (Only a face the paragraph's letters do not use: B Zar bold's own mark beside B Zar's letters is the same face.)
             for m in marks where !labelsSeen.contains(m.0) { markLine = max(markLine, m.1) }
+            // (A mark of the paragraph's own face set larger than its letters raises the line it stands on all the same: dx2 84f36322's
+            // 16 pt footnote asterisks after 14 pt Jameel Noori Nastaleeq, a line 17.2 high in Word's print for our 12.7.)
+            if RichTextTheme.wordWindowsPages, let fs = first?.fontSize { for m in marks where labelsSeen.contains(m.0) && m.2 > fs + 0.5 { markLine = max(markLine, m.1) } }
             if let f = first, let fs = f.fontSize, let fh = f.height, markLine > fs * fh + 0.01 { uniform = false }
             // (Held to a face named Arial only: fas-z15800253's B Zar, a face Word has not got, is 1.22 em
             // in its print — the Latin theme face's — and Arial's 1.15 made it 17.4 for 18.4. The name is the
