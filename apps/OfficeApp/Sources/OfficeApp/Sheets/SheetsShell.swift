@@ -67,6 +67,7 @@ final class SheetsShellState: State<StatefulWidget> {
     private var _namesOpen = false
     /// The Format Cells dialog is open (X-FM-1).
     private var _formatOpen = false
+    private var _pageSetupOpen = false
     private var _findReplace = false
     private var _findStatus = ""
     private let _findQuery = TextEditingController()
@@ -341,6 +342,8 @@ final class SheetsShellState: State<StatefulWidget> {
             _editNote(at: wb.active)
         case .nameManager:
             setState { _namesOpen = true }
+        case .pageSetup:
+            setState { _pageSetupOpen = true }
         }
     }
 
@@ -854,25 +857,35 @@ final class SheetsShellState: State<StatefulWidget> {
         ]
         let window = ColoredBox(color: fluent.scaffoldBackgroundColor,
                                 child: Column(crossAxisAlignment: .stretch, children: column))
+        var layers: [Widget] = [window]
+        let _names = SheetPrintLayout.printNames(wb.book, sheet: wb.activeSheet)
+        if _pageSetupOpen {
+            layers.append(Positioned(left: 0, top: 0, right: 0, bottom: 0, child: PageSetupPanel(
+                        form: PageSetupForm(SheetPrintSetup.read(wb.sheet), paper: wb.paperNumber,
+                                            area: _names.areas.first, titleRows: _names.titleRows, titleCols: _names.titleCols),
+                        onApply: { [weak self] c, n in self?.wb.setPageSetup(c, printNames: n) },
+                        onClose: { [weak self] in
+                            self?.setState { self?._pageSetupOpen = false }
+                            self?._grid?.focus.requestFocus()
+                        })))
+        }
         if _namesOpen {
-            return Stack(children: [window, Positioned(left: 0, top: 0, right: 0, bottom: 0, child: NameManagerDialog(
+            layers.append(Positioned(left: 0, top: 0, right: 0, bottom: 0, child: NameManagerDialog(
                 controller: wb, onClose: { [weak self] in
                     self?.setState { self?._namesOpen = false }
                     self?._grid?.focus.requestFocus()
-                }))])
+                })))
         }
         if _formatOpen, _backstage == nil {
-            return Stack(children: [
-                window,
+            return Stack(children: layers + [
                 FormatCellsDialog(
                     start: CellFormatEdit.Values(wb.style(at: wb.selection.topLeft)),
                     onApply: { [weak self] edit in self?.wb.formatCells(edit) },
                     onClose: { [weak self] in self?._closeFormatCells() }),
             ])
         }
-        guard let page = _backstage else { return window }
-        return Stack(children: [
-            window,
+        guard let page = _backstage else { return layers.count == 1 ? window : Stack(children: layers) }
+        return Stack(children: layers + [
             Positioned(left: 0, top: 0, right: 0, bottom: 0, child: Backstage(
                 session: session, page: page, recent: _recent, notice: _status,
                 onPage: { [weak self] p in self?.setState { self?._backstage = p } },
@@ -903,6 +916,7 @@ final class SheetsShellState: State<StatefulWidget> {
         case "k" where chords.shift: wb.group(true); return true
         case "j" where chords.shift: wb.group(false); return true
         case "\u{1B}":
+            if _pageSetupOpen { setState { _pageSetupOpen = false }; return true }
             if _findOpen { _closeFind(); return true }
             return false
         default: return false

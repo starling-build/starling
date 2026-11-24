@@ -30,7 +30,7 @@ enum RibbonTab: Int, CaseIterable {
         switch kind {
         case .document: return [.home, .insert, .layout, .review, .view]
         case .presentation: return [.home, .insert, .design, .transitions, .animations, .slideShow, .review, .view]
-        case .workbook: return [.home, .insert, .formulas, .data, .review, .view]
+        case .workbook: return [.home, .insert, .layout, .formulas, .data, .review, .view]
         }
     }
 
