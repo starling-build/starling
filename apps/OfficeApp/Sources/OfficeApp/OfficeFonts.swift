@@ -1351,6 +1351,14 @@ enum OfficeFonts {
                    "stfangsong", "stzhongsong", "stxihei", "stxinwei"]
     /// Per-family memo of `windowsMissingFallback` (it depends only on the family and the font table, and was redone for every styled run).
     nonisolated(unsafe) private static var missingFallbackMemo: [String: String?] = [:]
+    /// A Latin-named face Word for Windows lacks whose font-table entry is Korean (charset 81 or 129) with no alternate name and no roman
+    /// panose: Word draws it in Malgun Gothic.
+    static func isMissingLatinNamedKoreanFace(_ family: String) -> Bool {
+        guard let e = fontEntry(family), e.charset == "81" || e.charset == "129",
+              (e.alt ?? "").trimmingWhitespace().isEmpty, family.unicodeScalars.allSatisfy({ $0.isASCII }),
+              !WordWindowsFaces.names.contains(family.trimmingWhitespace().lowercased()) else { return false }
+        return windowsMissingFallback(family) == "malgun"
+    }
     private static func windowsMissingFallback(_ family: String) -> String? {
         declaredLock.lock()
         if let hit = missingFallbackMemo[family] { declaredLock.unlock(); return hit }
@@ -4946,10 +4954,7 @@ enum OfficeFonts {
         // (A Latin-named Korean face Word for Windows lacks, whose font-table entry is charset 81 with no alternate and no roman
         // panose ("Noto Sans KR"): Word falls back to Malgun Gothic for it, its Latin letters and its line too, 1.73 em (ko-4e286d0d0c:
         // rows step 28.08 pt at 12.5 pt where ours drew Carlito's 18.7).)
-        if wordOnWindows, !own, !eastAsian, !isEmbedded(family), let e = fontEntry(family), e.charset == "81" || e.charset == "129",
-           (e.alt ?? "").trimmingWhitespace().isEmpty, family.unicodeScalars.allSatisfy({ $0.isASCII }),
-           !WordWindowsFaces.names.contains(family.trimmingWhitespace().lowercased()),
-           windowsMissingFallback(family) == "malgun" {
+        if wordOnWindows, !own, !eastAsian, !isEmbedded(family), isMissingLatinNamedKoreanFace(family) {
             RuleTrace.hit("missing-latin-named-korean-face-is-malgun")
             return standInFace("Malgun Gothic", eastAsian: false)
         }
