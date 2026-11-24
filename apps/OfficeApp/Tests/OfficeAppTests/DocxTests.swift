@@ -2904,7 +2904,7 @@ final class DocxTests: XCTestCase {
                            hanging: Double = 0, justified: Bool = false,
                            documentLanguage: String? = nil, characterGrid: Double? = nil,
                            runXML: String = "", kerns: Bool = false,
-                           linePitch: Double? = nil) throws -> (width: Double, length: Int) {
+                           linePitch: Double? = nil, unnamedEastAsianDefault: Bool = false) throws -> (width: Double, length: Int) {
         // (The fitter measures each character as the engine shapes it,
         // which wants ICU's data in the bridge: without it every one is
         // zero wide and nothing is ever over.)
@@ -2935,6 +2935,7 @@ final class DocxTests: XCTestCase {
         doc.compatibilityMode = mode
         doc.characterSpacingControl = compresses ? "compressPunctuation" : "doNotCompress"
         doc.usesEastAsianLayout = true
+        doc.eastAsianDefaultFaceUnnamed = unnamedEastAsianDefault
         if let characterGrid { doc.characterGridSpace = characterGrid }
         doc.lineGridPitch = linePitch
         if let documentLanguage { doc.defaultLangXML = "<w:lang w:eastAsia=\"\(documentLanguage)\"/>" }
@@ -2949,6 +2950,31 @@ final class DocxTests: XCTestCase {
         let painter = l.geometry(0).painter
         return ((painter.computeLineMetrics().first?.width ?? 0) / theme.pixelsPerPoint,
                 painter.getLineBoundary(TextPosition(offset: 0)).end)
+    }
+
+    func testALatinNamedKoreanFaceWithNoAlternateIsMalgunInWord() {
+        // Word for Windows (ko-4e286d0d0c): "Noto Sans KR" (font table charset 81, no alternate name, no roman panose) is missing
+        // there and drawn in Malgun Gothic; the same entry with an alternate name, or a Latin charset, is not this rule.
+        defer { OfficeFonts.noteFontEntries([:]) }
+        OfficeFonts.noteFontEntries(["Noto Sans KR": OfficeFonts.FontEntry(alt: nil, family: "modern", panoseZero: false, panose: "020B0200000000000000", charset: "81")])
+        XCTAssertTrue(OfficeFonts.isMissingLatinNamedKoreanFace("Noto Sans KR"))
+        OfficeFonts.noteFontEntries(["Noto Sans KR": OfficeFonts.FontEntry(alt: "Noto Sans CJK KR", family: "modern", panoseZero: false, panose: "020B0200000000000000", charset: "81")])
+        XCTAssertFalse(OfficeFonts.isMissingLatinNamedKoreanFace("Noto Sans KR"), "an alternate name is its own rule")
+        OfficeFonts.noteFontEntries(["Noto Sans KR": OfficeFonts.FontEntry(alt: nil, family: "modern", panoseZero: false, panose: "020B0200000000000000", charset: "00")])
+        XCTAssertFalse(OfficeFonts.isMissingLatinNamedKoreanFace("Noto Sans KR"), "a Latin charset")
+    }
+
+    func testNoPauseMarkSqueezesWhenTheDefaultsNameNoEastAsianFace() throws {
+        // Word for Windows (lab pm4, zh-TW, compat 14, compressPunctuation): with an
+        // rPrDefault rFonts naming an East Asian face the comma gives a quarter em and
+        // the line takes one more character; with none (g1 against e) it stays a whole em.
+        RichTextTheme.wordWindowsPages = true
+        defer { RichTextTheme.wordWindowsPages = false }
+        let text = String(repeating: "一", count: 19) + "，" + String(repeating: "二", count: 10)
+        let named = try firstLine(text, width: 20 * 12 - 2, hangs: false, mode: 15, justified: true, documentLanguage: "zh-TW")
+        XCTAssertGreaterThanOrEqual(named.length, 20, "the comma gives 2 pt of its quarter em")
+        let unnamed = try firstLine(text, width: 20 * 12 - 2, hangs: false, mode: 15, justified: true, documentLanguage: "zh-TW", unnamedEastAsianDefault: true)
+        XCTAssertLessThan(unnamed.length, 20, "no East Asian face in the defaults: no squeeze")
     }
 
     func testAnOpeningMarkMayEndALineSqueezedUnderCompressPunctuation() throws {
