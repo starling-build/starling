@@ -505,10 +505,11 @@ final class OfficeBrowserController: UIDocumentBrowserViewController, UIDocument
     /// a write is running, one more runs after it with whatever is on disk by
     /// then.
     func writeBack(_ path: String) {
+        // The session is taken NOW, by the caller: a window that is closing saves and ends its session in the same
+        // turn, and a queued write that looked the session up afterwards found none and dropped the save.
+        let current: EditingSession? = Thread.isMainThread ? session : DispatchQueue.main.sync { session }
         queue.async { [weak self] in
             guard let self else { return }
-            var current: EditingSession?
-            DispatchQueue.main.sync { current = self.session }
             guard let s = current, s.working.path == path else {
                 fputs("[office] write-back skipped: \(path) is not the open document\n", stderr)
                 return
