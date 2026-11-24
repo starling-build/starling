@@ -1470,6 +1470,18 @@ extension RichLayout {
         "\u{FE10}": 0.52, "\u{FE11}": 0.56, "\u{FE35}": -0.19, "\u{FE36}": 0.19,
     ]
 
+    /// The style an upright ideograph's own one-glyph painter takes from its run: its shading is left to the line (Word shades the
+    /// glyph's cell, the advance by the line's width; the glyph's own painter shades a box as tall as its line along the flow, which
+    /// lay over the glyph before it: ja-b852b9029c's white-shaded 20pt heading, every glyph but the last cut in half).
+    /// Whether an upright glyph's painter keeps the run's shading on its own box (it does not under Word's rules).
+    public static func uprightGlyphKeepsShading(wordRules: Bool) -> Bool { !wordRules }
+
+    static func uprightGlyphStyle(_ style: TextStyle?, wordRules: Bool, vertMark: Bool = false) -> TextStyle? {
+        let shaded = wordRules && (style?.backgroundColor != nil || style?.background != nil)
+        return style?.copyWith(backgroundColor: shaded ? Color(0x00000000) : nil, letterSpacing: 0, baselineShift: 0,
+                               fontFeatures: vertMark ? (style?.fontFeatures ?? []) + [FontFeature("vert")] : nil)
+    }
+
     /// (`mixed`: what is not an ideograph is drawn too, turned with the
     /// line as Word's `eaVert` sets Latin text — zh-6d402586's "(" and its
     /// spaces lie on their sides between upright ideographs in Word's
@@ -1639,7 +1651,7 @@ extension RichLayout {
             // follows it — below.)
             // (A baseline shift moves the line's box across the column, which `across` has; the glyph stood
             // upright takes none of it along the column, so its own is dropped: dx2 ee0b468e's ruby paragraph.)
-            let glyph = TextPainter(text: TextSpan(text: String(Character(form)), style: styles[k]?.copyWith(letterSpacing: 0, baselineShift: 0, fontFeatures: vertMark ? (styles[k]?.fontFeatures ?? []) + [FontFeature("vert")] : nil)), textDirection: .ltr)
+            let glyph = TextPainter(text: TextSpan(text: String(Character(form)), style: Self.uprightGlyphStyle(styles[k], wordRules: theme.wordRules, vertMark: vertMark)), textDirection: .ltr)
             glyph.layout()
             // (Its em square centred in its box — the square stands 0.88
             // em over the baseline and 0.12 under it — not its line, which
