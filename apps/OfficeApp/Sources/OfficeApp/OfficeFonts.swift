@@ -4573,6 +4573,8 @@ enum OfficeFonts {
                     var digits = face.otherAdvances ?? [:]
                     var boldDigits = face.boldOtherAdvances ?? [:]
                     for d in 0x30...0x39 { digits[UInt32(d)] = 0.5; boldDigits[UInt32(d)] = 0.5 }
+                    // (Its ASCII brackets are 0.278 em in Word's prints, regular and bold, 16 pt to 9 pt: 4.4 pt in ara-z11030406 p3's first line, where the Latin stand-in's 0.41 em carried the line one word short.)
+                    for c in [0x28, 0x29] { digits[UInt32(c)] = 0.278; boldDigits[UInt32(c)] = 0.278 }
                     face.otherAdvances = digits; face.boldOtherAdvances = boldDigits
                 case "dubai":
                     // (Dubai's own Arabic: advances, init/medi/fina forms and ligatures from the face's hmtx and GSUB; no kerning.)
