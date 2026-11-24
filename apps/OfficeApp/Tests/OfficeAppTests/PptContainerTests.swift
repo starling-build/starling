@@ -239,4 +239,36 @@ final class PptContainerTests: XCTestCase {
         XCTAssertEqual(shapes[1].frame.width, 600, accuracy: 0.5)
         XCTAssertEqual(shapes[1].frame.top, 100, accuracy: 0.5)
     }
+
+    func testStyleRunsKeepOnlyTheFieldsTheirMaskNames() throws {
+        // "Big red": one paragraph (level 1, centred, nothing else), runs "Big " (bold red 24 pt) and "red" (no fields).
+        var atom: [UInt8] = le32(8) + le16(1) + le32(0x800) + le16(1)
+        atom += le32(4) + le32(0x1 | 0x2_0000 | 0x4_0000) + le16(1) + le16(24) + [255, 0, 0, 0xFE]
+        atom += le32(4) + le32(0)
+        let parsed = PptStyle.parse(atom, in: 0 ..< atom.count, length: 7)
+        XCTAssertEqual(parsed.paras.count, 1)
+        XCTAssertEqual(parsed.paras[0].level, 1)
+        XCTAssertEqual(parsed.paras[0].align, 1)
+        XCTAssertNil(parsed.paras[0].leftMargin)
+        XCTAssertNil(parsed.paras[0].spaceBefore)
+        XCTAssertEqual(parsed.chars.count, 2)
+        XCTAssertEqual(parsed.chars[0].bold, true)
+        XCTAssertNil(parsed.chars[0].italic)
+        XCTAssertEqual(parsed.chars[0].size, 24)
+        XCTAssertEqual(parsed.chars[0].color, PptColorRef(rgb: 0xFF0000, scheme: nil))
+        XCTAssertNil(parsed.chars[1].size)
+        // A truncated atom never reads past its end.
+        XCTAssertNoThrow(PptStyle.parse(Array(atom.prefix(11)), in: 0 ..< 11, length: 7))
+
+        var block = PptTextBlock()
+        block.text = "Big red"
+        block.paraRuns = parsed.paras
+        block.charRuns = parsed.chars
+        let xml = try PptFile(currentUser: deckWithThreeSlides().user, document: deckWithThreeSlides().doc).paragraphsXML(block)
+        XCTAssertTrue(xml.contains("<a:pPr lvl=\"1\" algn=\"ctr\"/>"), xml)
+        XCTAssertTrue(xml.contains("<a:rPr sz=\"2400\" b=\"1\"><a:solidFill><a:srgbClr val=\"FF0000\"/></a:solidFill></a:rPr><a:t>Big </a:t>"), xml)
+        XCTAssertTrue(xml.contains("<a:r><a:t>red</a:t></a:r>"), xml)
+        XCTAssertFalse(xml.contains("i=\""), xml)
+        XCTAssertFalse(xml.contains("marL"), xml)
+    }
 }

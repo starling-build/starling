@@ -45,6 +45,8 @@ struct PptFile {
     /// The slide size in master units (576 to the inch) and the number the first slide shows.
     private(set) var slideWidth = 5760, slideHeight = 4320
     private(set) var firstSlideNumber = 1
+    /// The deck's font names, by the index a text run's font reference holds (FontCollection).
+    private(set) var fonts: [String] = []
 
     init(currentUser: [UInt8], document: [UInt8]) throws {
         guard let user = PptCurrentUser(currentUser) else {
@@ -74,6 +76,20 @@ struct PptFile {
             let w = OfficeArt.u32(document, b), h = OfficeArt.u32(document, b + 4)
             if w > 0, h > 0, w < 0x10000, h < 0x10000 { slideWidth = w; slideHeight = h }
             firstSlideNumber = OfficeArt.u16(document, b + 32)
+        }
+        for env in OfficeArt.records(document, in: doc.body) where env.type == 0x03FF {
+            for coll in OfficeArt.records(document, in: env.body) where coll.type == 0x07D5 {
+                for e in OfficeArt.records(document, in: coll.body) where e.type == 0x0FB7 {
+                    var units: [UInt16] = []
+                    var k = e.body.lowerBound
+                    while k + 1 < min(e.body.lowerBound + 64, e.body.upperBound) {
+                        let u = UInt16(document[k]) | UInt16(document[k + 1]) << 8
+                        if u == 0 { break }
+                        units.append(u); k += 2
+                    }
+                    fonts.append(String(decoding: units, as: UTF16.self))
+                }
+            }
         }
         for list in OfficeArt.records(document, in: doc.body) where list.type == Self.slideListType {
             let atoms = OfficeArt.records(document, in: list.body)

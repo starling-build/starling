@@ -10,10 +10,13 @@ struct PptTextBlock {
     var type = 4
     /// The text, paragraphs separated by "\r", line breaks as "\u{0B}".
     var text = ""
+    /// StyleTextPropAtom's runs (empty when the block has none: the master style applies).
+    var paraRuns: [PptParaRun] = []
+    var charRuns: [PptCharRun] = []
 }
 
 enum PptText {
-    static let headerType = 0x0F9F, charsType = 0x0FA0, bytesType = 0x0FA8, outlineRefType = 0x0F9E
+    static let headerType = 0x0F9F, charsType = 0x0FA0, bytesType = 0x0FA8, outlineRefType = 0x0F9E, styleType = 0x0FA1
 
     /// UTF-16LE (TextCharsAtom) or one byte per UTF-16 unit (TextBytesAtom: Latin-1, not a code page).
     static func decode(_ r: ArtRecord, in b: [UInt8]) -> String {
@@ -39,19 +42,15 @@ enum PptText {
             case charsType, bytesType:
                 out.append(PptTextBlock(type: pendingType ?? 4, text: decode(r, in: b)))
                 pendingType = nil
+            case styleType:
+                if !out.isEmpty {
+                    let parsed = PptStyle.parse(b, in: r.body, length: out[out.count - 1].text.utf16.count)
+                    out[out.count - 1].paraRuns = parsed.paras
+                    out[out.count - 1].charRuns = parsed.chars
+                }
             default: break
             }
         }
         return out
-    }
-
-    /// The paragraphs of a block's text: split at "\r", with line breaks ("\u{0B}") kept inside a paragraph.
-    static func paragraphs(_ text: String) -> [[String]] {
-        var paras = text.split(separator: "\r", omittingEmptySubsequences: false).map { p in
-            p.split(separator: "\u{0B}", omittingEmptySubsequences: false).map(String.init)
-        }
-        // A text that ends in a paragraph mark does not hold a final empty paragraph.
-        if paras.count > 1, paras.last == [""] { paras.removeLast() }
-        return paras
     }
 }

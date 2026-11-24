@@ -13,11 +13,6 @@ extension PptFile {
         guard let c = record(persistId: slide.persistId), c.isContainer else { return "" }
         var out = ""
         var n = 1
-        func escape(_ t: String) -> String {
-            var o = ""
-            for ch in t { switch ch { case "&": o += "&amp;"; case "<": o += "&lt;"; case ">": o += "&gt;"; case "\"": o += "&quot;"; default: o.append(ch) } }
-            return o
-        }
         func shape(_ sp: ArtRecord) {
             var anchor: [Int]? = nil
             var placeholder: Int? = nil
@@ -57,15 +52,7 @@ extension PptFile {
             }
             xml += "<a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom></p:spPr>"
             xml += "<p:txBody><a:bodyPr/><a:lstStyle/>"
-            let paras = block.map { PptText.paragraphs($0.text) } ?? [[""]]
-            for lines in paras {
-                xml += "<a:p>"
-                for (i, line) in lines.enumerated() {
-                    if i > 0 { xml += "<a:br/>" }
-                    if !line.isEmpty { xml += "<a:r><a:t>\(escape(line))</a:t></a:r>" }
-                }
-                xml += "</a:p>"
-            }
+            xml += paragraphsXML(block)
             out += xml + "</p:txBody></p:sp>"
         }
         func walk(_ r: Range<Int>, depth: Int, skipFirst: Bool) {
