@@ -223,8 +223,11 @@ enum DocProps {
             let hA = ["text", "margin", "page", "page"][(pc >> 6) & 3], vA = ["margin", "page", "text", "text"][(pc >> 4) & 3]
             x += "<w:framePr w:hAnchor=\"\(hA)\" w:vAnchor=\"\(vA)\""
             if let fW, fW > 0 { x += " w:w=\"\(fW)\"" }
-            if let fH, fH > 0 { x += " w:h=\"\(fH & 0x7FFF)\"" }
-            x += " w:x=\"\(fX ?? 0)\" w:y=\"\(fY ?? 0)\""
+            if let fH, fH & 0x7FFF > 0 { x += " w:h=\"\(fH & 0x7FFF)\" w:hRule=\"\(fH & 0x8000 != 0 ? "atLeast" : "exact")\"" }
+            // XAS/YAS: -4 left/top, -8 center, -12 right/bottom, -16 inside, -20 outside are alignment codes, not offsets
+            let xa = [-4: "left", -8: "center", -12: "right", -16: "inside", -20: "outside"], ya = [-4: "top", -8: "center", -12: "bottom", -16: "inside", -20: "outside"]
+            if let a = xa[fX ?? 0] { x += " w:xAlign=\"\(a)\"" } else { x += " w:x=\"\(fX ?? 0)\"" }
+            if let a = ya[fY ?? 0] { x += " w:yAlign=\"\(a)\"" } else { x += " w:y=\"\(fY ?? 0)\"" }
             if let fWrap { x += " w:wrap=\"\(["auto", "notBeside", "around", "none", "tight", "through"][min(fWrap, 5)])\"" }
             x += "/>"
         }
