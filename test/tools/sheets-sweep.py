@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 # Copyright the Starling authors
 # SPDX-License-Identifier: Apache-2.0
-"""sheets-sweep.py BIN OUT [-j N] [names...] — the Sheets measurement (amd-8, 2026-11-22), the counterpart of the Slides sweep.
+"""sheets-sweep.py BIN OUT [-j N] [names...] — (names: books from any set, xlsx, xlsx2 or r3, with or without extension; no names = every set)
+ the Sheets measurement (amd-8, 2026-11-22), the counterpart of the Slides sweep.
 Draws every workbook of the corpus (books/*.xlsx, cache copy) with `BIN --sheet-pdf`, and scores each page against Excel's print
 (excel/NAME-orig.pdf) two ways: pixels (test/pdf-diff.py, % of pixels differing) and text lines (the Word v2 line rule, as for Slides).
 OUT/per-page.tsv: book, page, pixel_pct, matched, xl_lines, ours_lines, line_pct   (page = Excel's page number; a page only one side has
@@ -89,13 +90,28 @@ def job(item):
         rows.append((pg, px.get(pg, 100.0), t - miss, t, len(bp.get(pg, []))))
     return name, rows, "ok", sha, time.time() - t0
 
+def locate(name):
+    """(name, books folder, Excel prints folder) of a named book, searched in xlsx, xlsx2, then each r3 folder; None if no set holds it.
+    A name may carry its extension or not (an .xlsx book is also found by its bare stem)."""
+    cands = [name] if name.endswith((".xlsx", ".xls")) else [name + ".xlsx", name + ".xls", name]
+    where = [(BOOKS, XL), (BOOKS2, XL2)]
+    if os.path.isdir(CC3): where += [(f"{CC3}/{d}", f"{CC3}/{d}/excel-win") for d in sorted(os.listdir(CC3)) if os.path.isdir(f"{CC3}/{d}")]
+    for c in cands:
+        for bk, xl in where:
+            if os.path.isfile(f"{bk}/{c}"): return (c, bk, xl)
+    return None
+
 def main():
     global BIN, OUT
     args = sys.argv[1:]; jobs = 32
     if "-j" in args: i = args.index("-j"); jobs = int(args[i + 1]); del args[i:i + 2]
     BIN, OUT = os.path.realpath(args[0]), args[1]; names = args[2:]
     os.makedirs(OUT + "/pdf", exist_ok=True); os.makedirs(OUT + "/pairs", exist_ok=True)
-    items = [(n, BOOKS2, XL2) if os.path.exists(f"{BOOKS2}/{n}") else (n, BOOKS, XL) for n in names]
+    items = []
+    for n in names:
+        it = locate(n)
+        if not it: sys.exit(f"sheets-sweep: no book named {n} in any set")
+        items.append(it)
     if not names:
         sets = os.environ.get("SHEETS_SETS", "xlsx,xlsx2,r3").split(",")
         if "xlsx" in sets:
