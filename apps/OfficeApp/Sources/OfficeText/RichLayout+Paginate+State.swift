@@ -129,6 +129,8 @@ struct _PState {
     // A paragraph of no height that ends a section stands on its page:
     // the page is not empty (see the section rule in the loop).
     var markOnPage: Bool = false
+    /// The anchors-only paragraph the page-fixed-box rule sent to this page, or -1.
+    var boxesPushedPara: Int = -1
     // A line on this page hangs past its foot (by its grid's overhang).
     var overfull: Bool = false
     // Where the flow stands past the foot by an off-grid multiple's
