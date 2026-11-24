@@ -67,6 +67,7 @@ final class OfficeShellState: State<StatefulWidget> {
     private var _headerFooterOpen = false
     private var _linkOpen = false
     private var _colorOpen = false
+    private var _paragraphOpen = false
     private let _colorText = TextEditingController()
     private var _styleOpen: String? = nil
     private let _linkText = TextEditingController()
@@ -358,6 +359,11 @@ final class OfficeShellState: State<StatefulWidget> {
             self.setState { self._headerFooterOpen = true }
         }
         session.onLink = { [weak self] in self?._openLink() }
+        session.onParagraphDialog = { [weak self] in
+            guard let self else { return }
+            self.controller.breakUndoCoalescing()
+            self.setState { self._paragraphOpen = true }
+        }
         session.onMoreColors = { [weak self] in
             guard let self else { return }
             self._colorText.text = self.controller.currentCharStyle.color.map(ColorBar.hex) ?? ""
@@ -973,6 +979,7 @@ final class OfficeShellState: State<StatefulWidget> {
             if session.paintedStyle != nil { _cancelPainter(); return true }
             if _styleOpen != nil { setState { _styleOpen = nil }; return true }
             if _linkOpen { setState { _linkOpen = false }; return true }
+            if _paragraphOpen { return false }   // the dialog's own Esc closes it
             if _colorOpen { setState { _colorOpen = false }; return true }
             if _headerFooterOpen { setState { _headerFooterOpen = false }; return true }
             if _findOpen { setState { _findOpen = false }; _editorFocus.requestFocus(); return true }
@@ -1126,6 +1133,23 @@ final class OfficeShellState: State<StatefulWidget> {
 
         let window = ColoredBox(color: fluent.scaffoldBackgroundColor,
                                 child: Column(crossAxisAlignment: .stretch, children: column))
+        if _paragraphOpen {
+            return Stack(children: [
+                window,
+                Positioned(left: 0, top: 0, right: 0, bottom: 0, child: ParagraphDialog(
+                    initial: controller.currentParagraphStyle,
+                    onOK: { [weak self] f in
+                        guard let self else { return }
+                        self.controller.setParagraphFormat(f)
+                        self.setState { self._paragraphOpen = false }
+                        self._editorFocus.requestFocus()
+                    },
+                    onCancel: { [weak self] in
+                        self?.setState { self?._paragraphOpen = false }
+                        self?._editorFocus.requestFocus()
+                    })),
+            ])
+        }
         guard let page = _backstage else { return window }
         return Stack(children: [
             window,

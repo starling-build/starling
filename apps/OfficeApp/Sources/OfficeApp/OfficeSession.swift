@@ -305,6 +305,7 @@ final class OfficeSession {
     var onHeaderFooter: (() -> Void)?
     var onLink: (() -> Void)?
     var onMoreColors: (() -> Void)?
+    var onParagraphDialog: (() -> Void)?
     var onModifyStyle: ((String) -> Void)?
     /// Slides: Cut / Copy / Paste of the selected shapes. Each returns true
     /// when it handled the command, false to fall through to the text path.

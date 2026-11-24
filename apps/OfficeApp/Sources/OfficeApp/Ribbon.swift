@@ -327,7 +327,8 @@ final class Ribbon: StatelessWidget {
 
         let spacingChoices: [(String, () -> Void)] = [1.0, 1.15, 1.5, 2.0, 2.5, 3.0].map { m in
             (String(printf: "%.2f", m), { c.setLineSpacing(m) })
-        }
+        } + [("Paragraph Options…", { [session] in session.onParagraphDialog?() })]
+
         let paraRow1 = Chrome.row([
             Chrome.toggle(FluentSystemIcons.bulletList, "Bullets", s.list == .bullet, fluent) { c.toggleList(.bullet) },
             _listLibrary("Bullet Library", ListLevelFormat.bulletLibrary, c, fluent),
