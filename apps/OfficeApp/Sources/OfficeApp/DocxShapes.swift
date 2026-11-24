@@ -1283,7 +1283,7 @@ extension DocxFormat {
                     guard !piece.isEmpty else { return }
                     var c = cs
                     if cs.rightToLeft { c.csLetters = true }
-                    if pieceArabic { c.rightToLeft = true; c.csLetters = true; c.plainSize = true }
+                    if pieceArabic { c.rightToLeft = true; c.csLetters = true; if !cs.csFlagRun { c.plainSize = true } }
                     runs.append(Run(length: piece.utf16.count, style: c)); piece = ""
                 }
                 for u in s.unicodeScalars {
@@ -1471,6 +1471,7 @@ extension DocxFormat {
                     for styled in chain { cs = _charStyle(styled, base: cs, complexText: complex, complexSize: complexSize, thaiStyleSize: thaiStyleSize, indicOnly: indicOnly, rtlLettersOnly: rtlLettersOnly) }
                 }
                 cs = _charStyle(rPr, base: cs, complexText: complex, complexSize: complexSize, thaiStyleSize: thaiStyleSize, indicOnly: indicOnly, rtlLettersOnly: rtlLettersOnly)
+                cs.csFlagRun = csFlag
                 // (Only a webHidden run in a header or footer, or any body run, as in a contents list: the PAGE results of the footers of 7d58f74e, b9164bf3 and fcd0d58c, with just rtl, stay complex and print in Arial.)
                 // (A run of ASCII digits flagged w:rtl with no szCs or cs font of its own is a plain Latin run to Word: 47480880's PAGEREF results.)
                 // (Arabic: the same for a PAGE result in a footer, whose face is the style's ascii one at the szCs: xb ara-z5177238's "2" under cs Simplified Arabic, an installed face, is Times New Roman 14.04 in two Word prints, sz 12 / szCs 14.)
