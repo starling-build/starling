@@ -56,7 +56,7 @@ final class DialogShellTests: XCTestCase {
     func testADroppedTestersDialogNoLongerTakesEnter() {
         var log: [String] = []
         do { _ = dialog { log.append($0) } }
-        let other = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: Text("plain"), title: "T"), size: Size(400, 300))
+        let other = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: Text("plain"), title: "T"), size: Size(1280, 800))
         other.press(.enter)
         XCTAssertEqual(log, [])
     }
