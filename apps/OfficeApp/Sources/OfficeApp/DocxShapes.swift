@@ -881,6 +881,7 @@ extension DocxFormat {
                         if body["upright"] != "1", let rot = node.descendant("wps:spPr")?.first("a:xfrm")?["rot"].flatMap({ Double($0) }) { box.shapeRotation = rot / 60000 }
                         box.fitsText = body["wrap"] == "none" && body.first("a:spAutoFit") != nil
                         box.fitsOnce = box.fitsText
+                        box.noWrap = body["wrap"] == "none" && body.first("a:spAutoFit") == nil && body.first("a:noAutofit") != nil
                         // (Not a group: its anchor is the whole group, text box and chart together, not the box alone: lo-40949e852ad9c2fe.)
                         box.autoHeight = body.first("a:spAutoFit") != nil && node.descendant("wpg:wgp") == nil
                         box.fitsAsDrawing = box.fitsText

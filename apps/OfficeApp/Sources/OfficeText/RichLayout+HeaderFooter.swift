@@ -1098,6 +1098,16 @@ extension RichLayout {
             }
             _fitWidths["\(image.id)|\(box.hashValue)"] = layout.width + _px(box.insetLeft + box.insetRight)
         }
+        if box.noWrap, theme.wordRules, RichTextTheme.wordWindowsPages, !box.fitsText {
+            var natural = 0.0
+            for k in 0 ..< sub.paragraphs.count {
+                let g = layout.geometry(k)
+                natural = max(natural, g.painter.maxIntrinsicWidth + g.textLeft)
+            }
+            // (A DrawingML box of wrap none keeps its size, and its lines do not wrap at its edge: ja-6ccbf5e032's
+            // 72pt boxes hold their whole sentence on one line in Word's print.)
+            if natural > layout.width + 0.5 { layout.width = natural.rounded(.up) + 1; layout.ensureLaidOut(sub) }
+        }
         var made = _HeaderFooter(layout: layout, document: sub)
         made.beside = beside
         if _textBoxCache.count > 256 { _textBoxCache.removeAll() }
