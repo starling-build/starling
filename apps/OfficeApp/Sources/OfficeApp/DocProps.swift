@@ -191,6 +191,7 @@ enum DocProps {
         var keepNext = false, keepLines = false, pageBreak = false, widow: Bool?
         var before: Int?, after: Int?, line: (Int, Int)?
         var beforeAuto: Bool?, afterAuto: Bool?
+        var fPc: Int?, fX: Int?, fY: Int?, fW: Int?, fH: Int?, fWrap: Int?
         var left: Int?, right: Int?, first: Int?, jc: String?
         var ilfo = 0, ilvl = 0
         for s in sprms(g) where s.sgc == 1 {
@@ -210,8 +211,25 @@ enum DocProps {
             case 0x840E, 0x845D: right = s.i16
             case 0x8411, 0x8460: first = s.i16
             case 0x2461, 0x2403: jc = ["left", "center", "right", "both", "distribute"][min(s.u8, 4)]
+            case 0x261B: fPc = s.u8
+            case 0x8418: fX = s.i16
+            case 0x8419: fY = s.i16
+            case 0x841A: fW = s.u16
+            case 0x442B: fH = s.u16
+            case 0x2423: fWrap = s.u8
             default: break
             }
+        }
+        if fPc != nil || fX != nil || fY != nil {
+            // sprmPPc/DxaAbs/DyaAbs/DxaWidth/WHeightAbs/Wr: a frame paragraph (absolutely positioned)
+            let pc = fPc ?? 0
+            let hA = ["text", "margin", "page", "page"][(pc >> 6) & 3], vA = ["margin", "page", "text", "text"][(pc >> 4) & 3]
+            x += "<w:framePr w:hAnchor=\"\(hA)\" w:vAnchor=\"\(vA)\""
+            if let fW, fW > 0 { x += " w:w=\"\(fW)\"" }
+            if let fH, fH > 0 { x += " w:h=\"\(fH & 0x7FFF)\"" }
+            x += " w:x=\"\(fX ?? 0)\" w:y=\"\(fY ?? 0)\""
+            if let fWrap { x += " w:wrap=\"\(["auto", "notBeside", "around", "none", "tight", "through"][min(fWrap, 5)])\"" }
+            x += "/>"
         }
         if keepNext { x += "<w:keepNext/>" }
         if keepLines { x += "<w:keepLines/>" }
