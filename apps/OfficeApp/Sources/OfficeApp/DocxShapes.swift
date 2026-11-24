@@ -893,7 +893,13 @@ extension DocxFormat {
                         if let anchor = body["anchor"], anchor == "ctr" || anchor == "b" { box.anchor = anchor }
                         // (Not where the body says `upright`: its text stays level in the turned shape, as
                         // zh-b24b396a's "（文件正面）" does in Word's print.)
-                        if body["upright"] != "1", let rot = node.descendant("wps:spPr")?.first("a:xfrm")?["rot"].flatMap({ Double($0) }) { box.shapeRotation = rot / 60000 }
+                        if body["upright"] != "1", let xfrm = node.descendant("wps:spPr")?.first("a:xfrm") {
+                            // (A shape flipped top to bottom turns its text over: a 180-degree shape with both flips, ja-b852b9029c's
+                            // vertical boxes, reads upright in Word's print.)
+                            let rot = (xfrm["rot"].flatMap { Double($0) } ?? 0) / 60000 + (xfrm["flipV"] == "1" ? 180 : 0)
+                            let turn = rot.truncatingRemainder(dividingBy: 360)
+                            if turn != 0 { box.shapeRotation = turn }
+                        }
                         box.fitsText = body["wrap"] == "none" && body.first("a:spAutoFit") != nil
                         box.fitsOnce = box.fitsText
                         box.noWrap = body["wrap"] == "none" && body.first("a:spAutoFit") == nil && body.first("a:noAutofit") != nil
