@@ -134,14 +134,16 @@ enum DocProps {
     }
 
     /// `<w:rPr>` for a character property list ("" when it sets nothing).
-    static func rPr(_ g: [UInt8], fonts: [String]) -> String {
+    static func rPr(_ g: [UInt8], fonts: [String], toggles: Bool = false) -> String {
+        var toggled = Set<Int>()   // 0x81: the opposite of what the style gives (settled per paragraph, see `settleToggles`)
         var ascii: Int?, fe: Int?, other: Int?
         var flags: [Int: Bool] = [:]
         var size: Int?, color: String?, hl = "", ul = "", va = "", rstyle = -1
         for s in sprms(g) where s.sgc == 2 {
             switch s.op {
             case 0x0835, 0x0836, 0x0837, 0x0838, 0x0839, 0x083A, 0x083B, 0x083C:
-                if s.u8 == 0 { flags[s.op] = false } else if s.u8 == 1 || s.u8 == 0x81 { flags[s.op] = true }
+                if s.u8 == 0 { flags[s.op] = false } else if s.u8 == 1 { flags[s.op] = true }
+                else if s.u8 == 0x81 { if toggles { toggled.insert(s.op) } else { flags[s.op] = true } }
             case 0x2A3E: ul = underline[s.u8] ?? (s.u8 == 0 ? "none" : "single")
             case 0x2A42: if s.u8 > 0, s.u8 < ico.count { color = ico[s.u8] }
             case 0x6870: if s.operand.count >= 3 { color = hex(s.operand[0]) + hex(s.operand[1]) + hex(s.operand[2]) }
@@ -167,6 +169,7 @@ enum DocProps {
             x += "/>"
         }
         func on(_ op: Int, _ tag: String) {
+            if toggled.contains(op) { x += "<w:\(tag) w:val=\"toggle\"/>"; return }
             if let v = flags[op] { x += v ? "<w:\(tag)/>" : "<w:\(tag) w:val=\"0\"/>" }
         }
         on(0x0835, "b"); if let v = flags[0x0835] { x += v ? "<w:bCs/>" : "" }
@@ -178,6 +181,41 @@ enum DocProps {
         if !ul.isEmpty { x += "<w:u w:val=\"\(ul)\"/>" }
         if !va.isEmpty { x += "<w:vertAlign w:val=\"\(va)\"/>" }
         return x.isEmpty ? "" : "<w:rPr>" + x + "</w:rPr>"
+    }
+
+    /// Settles the toggled flags (`w:val="toggle"`) of a paragraph against the paragraph style: a toggle
+    /// sprm (0x81) gives the opposite of what the style's chain gives, written out as an explicit on or off.
+    static func settleToggles(_ xml: String, styles: String, istd: Int) -> String {
+        guard xml.containsSubstring("w:val=\"toggle\"") else { return xml }
+        var out = xml
+        for tag in ["b", "i", "caps", "smallCaps", "strike", "outline", "shadow", "vanish"] {
+            let marker = "<w:\(tag) w:val=\"toggle\"/>"
+            guard out.containsSubstring(marker) else { continue }
+            out = out.replacingAll(marker, with: styleHas(styles, istd: istd, tag: tag) ? "<w:\(tag) w:val=\"0\"/>" : "<w:\(tag)/>")
+        }
+        return out
+    }
+
+    private static func styleHas(_ styles: String, istd: Int, tag: String) -> Bool {
+        var id = istd, hops = 0
+        while hops < 20 {
+            hops += 1
+            guard let a = styles.rangeOfSubstring("w:styleId=\"S\(id)\"") else { return false }
+            let rest = styles[a.upperBound...]
+            let rs = String(rest)
+            let body = rs.rangeOfSubstring("</w:style>").map { String(rs[..<$0.lowerBound]) } ?? rs
+            if let r = body.rangeOfSubstring("<w:\(tag)") {
+                let after = body[r.upperBound...]
+                if after.hasPrefix("/>") || after.hasPrefix(" />") { return true }
+                if after.hasPrefix(" w:val=\"0\"") { return false }
+                if after.hasPrefix(">") || after.hasPrefix(" ") { return true }
+            }
+            guard let b = body.rangeOfSubstring("<w:basedOn w:val=\"S") else { return false }
+            let digits = body[b.upperBound...].prefix(while: { $0 >= "0" && $0 <= "9" })
+            guard let n = Int(digits), n != id else { return false }
+            id = n
+        }
+        return false
     }
 
     private static func hex(_ b: UInt8) -> String {
