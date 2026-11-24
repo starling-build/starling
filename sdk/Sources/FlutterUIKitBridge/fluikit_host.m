@@ -136,6 +136,18 @@ static void* g_open_url_user = NULL;
 @property(nonatomic, strong) UIWindow* window;
 @property(nonatomic, strong) FlutterEngine* engine;
 @property(nonatomic, strong) FlutterViewController* viewController;
+// Builds the window's view controllers over the one engine and shows the window. `scene` is nil in a
+// bundle without a scene manifest (the window then belongs to the application alone, as before).
+- (UIWindow*)installWindowInScene:(UIWindowScene*)scene;
+@end
+
+// The scene host (docs/plans/ipad-multi-window.md, step 2). Info.plist names this class for the
+// application's scenes. UIApplicationSupportsMultipleScenes stays NO, so iOS still makes exactly one
+// scene and nothing changes for the user; the window just comes from a scene now, which is the shape a
+// second window needs. Documents handed to the app arrive here as scene:openURLContexts:, not as
+// application:openURL: (UIKit stops calling that one once a bundle has a scene manifest).
+@interface FlUIKitSceneDelegate : UIResponder <UIWindowSceneDelegate>
+@property(nonatomic, strong) UIWindow* window;
 @end
 
 @implementation FlUIKitAppDelegate
@@ -173,8 +185,9 @@ static void* g_open_url_user = NULL;
   }
   self.engine = engine;
 
-  UIWindow* window = [[UIWindow alloc] initWithFrame:UIScreen.mainScreen.bounds];
-  g_window_size = window.bounds.size;
+  // The window's size, as the tree is mounted: the screen's, which is what the window was made with
+  // before scenes (a window in Split View is resized by its scene right after).
+  g_window_size = UIScreen.mainScreen.bounds.size;
 
   // Mount the tree now: after the engine is up (the Swift runtime callbacks
   // are live, so runApp can schedule a frame) and before the view controller
@@ -183,7 +196,16 @@ static void* g_open_url_user = NULL;
     g_on_started(g_user_data);
   }
 
-  FlutterViewController* controller = [[FlutterViewController alloc] initWithEngine:engine
+  // With a scene manifest the window is made when UIKit connects the scene (FlUIKitSceneDelegate),
+  // after this returns; without one, now, as before scenes.
+  if ([NSBundle.mainBundle objectForInfoDictionaryKey:@"UIApplicationSceneManifest"] == nil) {
+    [self installWindowInScene:nil];
+  }
+  return YES;
+}
+
+- (UIWindow*)installWindowInScene:(UIWindowScene*)scene {
+  FlutterViewController* controller = [[FlutterViewController alloc] initWithEngine:self.engine
                                                                             nibName:nil
                                                                              bundle:nil];
   self.viewController = controller;
@@ -198,11 +220,13 @@ static void* g_open_url_user = NULL;
                                                            g_root_factory_user);
     if (custom != nil) root = custom;
   }
+  UIWindow* window = scene != nil ? [[UIWindow alloc] initWithWindowScene:scene]
+                                  : [[UIWindow alloc] initWithFrame:UIScreen.mainScreen.bounds];
   window.rootViewController = root;
   self.window = window;
   [window makeKeyAndVisible];
   [self spikeSecondViewIfAsked:window];
-  return YES;
+  return window;
 }
 
 // The second-surface spike (docs/plans/ipad-multi-window.md, step 1): with
@@ -301,6 +325,31 @@ static void* g_open_url_user = NULL;
             options:(NSDictionary<UIApplicationOpenURLOptionsKey, id>*)options {
   if (g_open_url == NULL) return NO;
   return g_open_url(g_open_url_user, url.absoluteString.UTF8String) ? YES : NO;
+}
+
+@end
+
+@implementation FlUIKitSceneDelegate
+
+- (void)scene:(UIScene*)scene
+    willConnectToSession:(UISceneSession*)session
+                 options:(UISceneConnectionOptions*)connectionOptions {
+  if (![scene isKindOfClass:UIWindowScene.class]) return;
+  FlUIKitAppDelegate* app = (FlUIKitAppDelegate*)UIApplication.sharedApplication.delegate;
+  self.window = [app installWindowInScene:(UIWindowScene*)scene];
+  // A document the app was launched with (Open In, a tap in Files): the tree is up now.
+  [self openURLContexts:connectionOptions.URLContexts];
+}
+
+- (void)scene:(UIScene*)scene openURLContexts:(NSSet<UIOpenURLContext*>*)URLContexts {
+  [self openURLContexts:URLContexts];
+}
+
+- (void)openURLContexts:(NSSet<UIOpenURLContext*>*)contexts {
+  if (g_open_url == NULL) return;
+  for (UIOpenURLContext* context in contexts) {
+    g_open_url(g_open_url_user, context.URL.absoluteString.UTF8String);
+  }
 }
 
 @end
