@@ -322,6 +322,7 @@ enum DocRead {
         let relBase = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/"
         let ctBase = "application/vnd.openxmlformats-officedocument.wordprocessingml."
         // The shapes and pictures of a header or footer story [a, b): set once the drawings are read (below).
+        var headerPicRels = ""
         var headerDrawings: (Int, Int) -> (shapes: [Int: (xml: String, behind: Bool)], rels: String, picture: (Int) -> String?) = { _, _ in ([:], "", { _ in nil }) }
         // Headers and footers: six stories per section after the six note separators.
         let hdd = fib.range(DocFib.fcPlcfHdd).flatMap { DocProps.plex(tbl, at: $0.fc, count: $0.lcb, size: 0) }
@@ -339,8 +340,11 @@ enum DocRead {
                 let part = "\(tag)\(k)_\(j).xml"
                 let hd = headerDrawings(a, b)
                 var hc = StoryContext(); hc.shapes = hd.shapes; hc.picture = hd.picture
-                extra.append(e("word/" + part, head + "<w:\(tag == "header" ? "hdr" : "ftr") \(ns)>" + story(a, b - a > 1 ? b - 1 : b, hc) + "</w:\(tag == "header" ? "hdr" : "ftr")>"))
-                if !hd.rels.isEmpty { extra.append(e("word/_rels/" + part + ".rels", head + "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">" + hd.rels + "</Relationships>")) }
+                headerPicRels = ""
+                let storyXml = story(a, b - a > 1 ? b - 1 : b, hc)
+                let allRels = hd.rels + headerPicRels
+                extra.append(e("word/" + part, head + "<w:\(tag == "header" ? "hdr" : "ftr") \(ns)>" + storyXml + "</w:\(tag == "header" ? "hdr" : "ftr")>"))
+                if !allRels.isEmpty { extra.append(e("word/_rels/" + part + ".rels", head + "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">" + allRels + "</Relationships>")) }
                 rels += "<Relationship Id=\"\(id)\" Type=\"\(relBase)\(tag)\" Target=\"\(part)\"/>"
                 types += "<Override PartName=\"/word/\(part)\" ContentType=\"\(ctBase)\(tag).xml\"/>"
                 x += "<w:\(tag)Reference w:type=\"\(type)\" r:id=\"\(id)\"/>"
@@ -458,6 +462,10 @@ enum DocRead {
             return out
         }
         var mainShapes: [Int: (xml: String, behind: Bool)] = [:]
+        // Pictures in the line need no drawing group: they go to the header part being written (headerPicRels).
+        headerDrawings = { _, _ in
+            ([:], "", { off in DocArt.inline(data: dataStream, at: off, rid: { bl in let n = addMedia(bl); headerPicRels += imageRel(n, bl.ext); return "rIdImg\(n)" }) })
+        }
         if let dg = fib.range(50) {
             let art = DocArt.art(t: tbl, w: w, at: dg.fc, count: dg.lcb)
             let boxStart = hddEnd + fib.ccpAtn + fib.ccpEdn
@@ -474,7 +482,7 @@ enum DocRead {
                     var hrels = ""
                     func add(_ bl: ArtBlip) -> String { let n = addMedia(bl); hrels += imageRel(n, bl.ext); return "rIdImg\(n)" }
                     let mine = hspas.filter { hStart + $0.cp >= a && hStart + $0.cp < b }
-                    let pic: (Int) -> String? = { off in DocArt.inline(data: dataStream, at: off, rid: { bl in add(bl) }) }
+                    let pic: (Int) -> String? = { off in DocArt.inline(data: dataStream, at: off, rid: { bl in let n = addMedia(bl); headerPicRels += imageRel(n, bl.ext); return "rIdImg\(n)" }) }
                     let runs = shapeRuns(mine, shift: hStart, art: art, boxes: hboxes, boxStart: boxStart + fib.ccpTxbx, add: add, pic: pic)
                     return (runs, hrels, pic)
                 }
