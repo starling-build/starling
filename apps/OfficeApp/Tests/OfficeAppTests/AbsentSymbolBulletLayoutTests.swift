@@ -64,7 +64,8 @@ final class AbsentSymbolBulletLayoutTests: XCTestCase {
             xml.replaceSubrange(body.upperBound ..< sect.lowerBound,
                 with: "<w:p><w:r><w:t>note</w:t></w:r><w:r><w:footnoteReference w:id=\"1\"/></w:r></w:p>" + rows)
             entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
-            let doc = try DocxFormat.read(try Zip.write(entries)).document
+            var doc = try DocxFormat.read(try Zip.write(entries)).document
+            doc.compatibilityMode = 12
             let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
             theme.wordRules = true
             let layout = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
@@ -82,5 +83,32 @@ final class AbsentSymbolBulletLayoutTests: XCTestCase {
             while try pages(size: size, count: n) < 2 { n += 1 }
             XCTAssertEqual(n, opens, "size \(size)")
         }
+    }
+
+    /// es-e3d5fed41c p2: a centred table wider than the text stands at the left margin in Word's print (first column at 72).
+    func testACentredTableWiderThanTheTextStandsAtTheLeftMargin() throws {
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .letter))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let body = try XCTUnwrap(xml.range(of: "<w:body>")), sect = try XCTUnwrap(xml.range(of: "<w:sectPr"))
+        let cell = { (w: Int) in "<w:tc><w:tcPr><w:tcW w:w=\"\(w)\" w:type=\"dxa\"/></w:tcPr><w:p><w:r><w:t>cell</w:t></w:r></w:p></w:tc>" }
+        xml.replaceSubrange(body.upperBound ..< sect.lowerBound, with:
+            "<w:tbl><w:tblPr><w:jc w:val=\"center\"/><w:tblW w:w=\"14000\" w:type=\"dxa\"/></w:tblPr><w:tblGrid><w:gridCol w:w=\"7000\"/><w:gridCol w:w=\"7000\"/></w:tblGrid><w:tr>\(cell(7000))\(cell(7000))</w:tr></w:tbl><w:p/>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        var doc = try DocxFormat.read(try Zip.write(entries)).document
+        doc.compatibilityMode = 12
+        let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+        theme.wordRules = true
+        let layout = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+        layout.pageSetup = .letter
+        layout.width = 468 * 96.0 / 72.0
+        let was = RichTextTheme.wordWindowsPages
+        RichTextTheme.wordWindowsPages = true
+        defer { RichTextTheme.wordWindowsPages = was }
+        layout.ensureLaidOut(doc)
+        let first = try XCTUnwrap(doc.paragraphs.firstIndex { $0.cell != nil })
+        let x = layout.geometry(first).textLeft
+        XCTAssertGreaterThan(x, -1, "the first column starts at the margin, not left of it (x \(x))")
+        XCTAssertLessThan(x, 12 * 96.0 / 72.0)
     }
 }
