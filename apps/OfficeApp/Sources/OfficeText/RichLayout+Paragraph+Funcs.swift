@@ -919,7 +919,8 @@ extension _ParaFrame {
                 var toIndent = false
                 if lead < 0, ownLeft > x + 0.5, stop.map({ ownLeft < $0.x }) ?? true { stop = (ownLeft, .left, nil); toIndent = true }
                 if !toIndent, RichLayout._honoursStopsPastMargin(document), let s = stop, s.alignment == .left, s.x > ownLeft + textWidth + 0.5, stops.contains(where: { abs(_px($0.position) - s.x) < 0.01 }) { _pastLeft[i] = max(_pastLeft[i] ?? 0, s.x - (ownLeft + textWidth)) }
-                if stop == nil, step > 0 { stop = (((x + 0.5) / step).rounded(.down) * step + step, .left, nil) }
+                var defaultTabStop = false
+                if stop == nil, step > 0 { stop = (((x + 0.5) / step).rounded(.down) * step + step, .left, nil); defaultTabStop = true }
                 // (A positional tab goes to its place on the margins, past
                 // the stops between: bug57031's footer has "Page 2 of 14"
                 // after a right ptab that is its first tab, and Word ends it
@@ -1028,6 +1029,19 @@ extension _ParaFrame {
                    units[t...].allSatisfy({ $0 == 0x09 }), !wraps.contains(t), !afterTabWraps.contains(t) {
                     afterTabWraps.insert(t)
                     RuleTrace.hit("word-tab-run-ending-the-paragraph-restarts-its-stops-past-the-margin")
+                    measure(wraps)
+                    return
+                }
+                // (A tab ending the paragraph, only tabs after it, whose default stop lies past the right margin goes to the next line
+                // although it starts inside the margin, and the stops start again there: lab tabend, Word for Windows, 28 to 40 W and
+                // one to three underlined tabs, stops every 36 pt. Word's last tab of "W..." with the next default stop past the margin
+                // stands at the line start; ours stopped it at the margin, or carried its overflow onto the next line.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, !style.rightToLeft, defaultTabStop, stop.alignment == .left, t > 0,
+                   stop.x > ownLeft + textWidth + 0.5, x <= ownLeft + textWidth + 0.5,
+                   units[t...].allSatisfy({ $0 == 0x09 }), units[t - 1] != 0x0A, units[t - 1] != 0x2028,
+                   !wraps.contains(t), !afterTabWraps.contains(t) {
+                    afterTabWraps.insert(t)
+                    RuleTrace.hit("word-default-tab-run-ending-the-paragraph-past-the-margin-opens-the-next-line")
                     measure(wraps)
                     return
                 }
