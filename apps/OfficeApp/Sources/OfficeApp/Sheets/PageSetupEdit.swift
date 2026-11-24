@@ -188,3 +188,57 @@ extension WorkbookController {
         }
     }
 }
+
+/// Manual page breaks: `<brk id="N"/>` breaks above 0-based row N (left of column N).
+enum PageBreakEdit {
+    static func ids(_ xml: String?) -> [Int] {
+        guard let x = xml else { return [] }
+        var out: [Int] = []
+        var rest = x
+        while let r = rest.rangeOfSubstring("<brk ") {
+            rest = String(rest[r.upperBound...])
+            if let a = rest.rangeOfSubstring("id=\"") {
+                let tail = String(rest[a.upperBound...])
+                if let n = Int(tail.prefix { $0.isNumber }) { out.append(n) }
+            }
+        }
+        return out
+    }
+    static func xml(_ name: String, _ ids: [Int], max: Int) -> String? {
+        let s = Set(ids).sorted()
+        if s.isEmpty { return nil }
+        let items = s.map { "<brk id=\"\($0)\" max=\"\(max)\" man=\"1\"/>" }.joined()
+        return "<\(name) count=\"\(s.count)\" manualBreakCount=\"\(s.count)\">\(items)</\(name)>"
+    }
+}
+
+extension Worksheet {
+    func setBreaks(_ name: String, _ ids: [Int], max: Int) {
+        keptElements.removeAll { $0.name == name }
+        if let x = PageBreakEdit.xml(name, ids, max: max) { keptElements.append((name, x)) }
+    }
+    func breakIds(_ name: String) -> [Int] { PageBreakEdit.ids(keptElements.first { $0.name == name }?.text) }
+}
+
+extension WorkbookController {
+    /// Break the page above `row` and left of `col` (0-based). Row/col 0 add nothing on that axis.
+    func insertPageBreak(row: Int, col: Int) {
+        let ws = sheet
+        structural {
+            if row > 0 { ws.setBreaks("rowBreaks", ws.breakIds("rowBreaks") + [row], max: 16383) }
+            if col > 0 { ws.setBreaks("colBreaks", ws.breakIds("colBreaks") + [col], max: 1048575) }
+        }
+    }
+    /// Take away the breaks at `row` and `col`.
+    func removePageBreak(row: Int, col: Int) {
+        let ws = sheet
+        structural {
+            ws.setBreaks("rowBreaks", ws.breakIds("rowBreaks").filter { $0 != row }, max: 16383)
+            ws.setBreaks("colBreaks", ws.breakIds("colBreaks").filter { $0 != col }, max: 1048575)
+        }
+    }
+    func resetPageBreaks() {
+        let ws = sheet
+        structural { ws.setBreaks("rowBreaks", [], max: 0); ws.setBreaks("colBreaks", [], max: 0) }
+    }
+}

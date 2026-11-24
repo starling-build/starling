@@ -316,6 +316,11 @@ extension Ribbon {
                 MenuFlyoutItem(text: Text("Portrait"), onPressed: { wb.setPageSetup(PageSetupChange(landscape: false)) }),
                 MenuFlyoutItem(text: Text("Landscape"), onPressed: { wb.setPageSetup(PageSetupChange(landscape: true)) }),
             ]),
+            Chrome.menuButton(FluentSystemIcons.grid, "Breaks", "Page breaks", fluent, items: [
+                MenuFlyoutItem(text: Text("Insert Page Break"), onPressed: { wb.insertPageBreak(row: wb.active.row, col: wb.active.col) }),
+                MenuFlyoutItem(text: Text("Remove Page Break"), onPressed: { wb.removePageBreak(row: wb.active.row, col: wb.active.col) }),
+                MenuFlyoutItem(text: Text("Reset All Page Breaks"), onPressed: { wb.resetPageBreaks() }),
+            ]),
         ])
     }
 

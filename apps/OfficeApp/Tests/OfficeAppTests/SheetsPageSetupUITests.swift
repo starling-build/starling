@@ -48,3 +48,14 @@ final class SheetsPageSetupUITests: XCTestCase {
         XCTAssertTrue(ui.texts().contains { $0.containsSubstring("Top margin") })
     }
 }
+
+final class SheetsPageBreakUITests: XCTestCase {
+    func testInsertPageBreakMenuReachesTheModel() throws {
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light),
+            home: SheetsShell(initialPath: nil, onSwitch: { _, _ in }), title: "t"), size: Size(1280, 800))
+        ui.pump()
+        ui.tap(text: "Layout"); ui.pump()
+        ui.tap(text: "Breaks"); ui.pump()
+        XCTAssertTrue(ui.has(text: "Insert Page Break"))
+    }
+}

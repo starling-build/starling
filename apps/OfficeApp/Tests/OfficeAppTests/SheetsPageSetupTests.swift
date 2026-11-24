@@ -76,3 +76,22 @@ final class SheetsPrintNamesTests: XCTestCase {
         XCTAssertNotNil(f.names().1)
     }
 }
+
+final class SheetsPageBreakTests: XCTestCase {
+    func testBreaksSurviveSaveAndPrintLayoutSeesThem() throws {
+        let c = WorkbookController()
+        c.setInput("a", at: CellAddress(row: 0, col: 0))
+        c.insertPageBreak(row: 5, col: 2)
+        c.insertPageBreak(row: 5, col: 0)   // no duplicate
+        let back = try Xlsx.read(try Xlsx.write(c.book))
+        XCTAssertEqual(back.sheets[0].breakIds("rowBreaks"), [5])
+        XCTAssertEqual(back.sheets[0].breakIds("colBreaks"), [2])
+        XCTAssertEqual(SheetPrintSetup.read(back.sheets[0]).rowBreaks, [5])
+        c.removePageBreak(row: 5, col: 2)
+        XCTAssertTrue(c.sheet.breakIds("rowBreaks").isEmpty)
+        c.undo()
+        XCTAssertEqual(c.sheet.breakIds("rowBreaks"), [5])
+        c.resetPageBreaks()
+        XCTAssertTrue(c.sheet.breakIds("colBreaks").isEmpty)
+    }
+}
