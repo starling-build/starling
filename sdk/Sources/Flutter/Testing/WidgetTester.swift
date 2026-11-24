@@ -47,6 +47,12 @@ public final class WidgetTester {
         }
     }
 
+    /// Swaps the whole tree for `widget` (what a dialog closing looks like from above).
+    public func replace(with widget: Widget) {
+        root = RenderObjectToWidgetAdapter(child: widget, container: renderView).attachToRenderTree(buildOwner, root)
+        pump()
+    }
+
     /// Every element of the tree, parents first.
     public func elements() -> [Element] {
         var all: [Element] = []
