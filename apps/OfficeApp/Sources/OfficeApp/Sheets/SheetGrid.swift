@@ -508,8 +508,16 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                         // FIT, not a derived rule: room = column less max(11, 7.5 + 1.45% of the column) px, fitted to the wrap-room lab (5 widths, 105-600 px) and 3 books; see screenFitPad.
                         style.screen = 72 / 192 * scale
                         style.screenEm = (book.fontSize(st) * 192 / 72).rounded()
+                        // (Excel's screen sets each character a whole pixel of the face's GDI advance at the screen em: es-944be98d95's
+                        // "PLAN AUTOMOTOR ECUATORIANO S.A. PLANAUTOMOTOR" is 770 px of Arial 10, in a room of 769.)
+                        var gdiName = book.fontName(st).trimmingWhitespace().lowercased()
+                        if GdiAdvances.notInstalled.contains(gdiName) { gdiName = "arial" }
+                        // (Only where the dump covers every character of the cell: a string part GDI and part scaled outline sets rows by neither.)
+                        let covered = text.unicodeScalars.allSatisfy { $0.value == 10 || $0.value == 13 || GdiAdvances.advance(gdiName, bold: st.bold, em: 27, $0.value) != nil }
+                        if !st.italic, covered, GdiAdvances.faces.contains(gdiName) { style.gdi = gdiName }
                         let column = (chars * m.screenDigit).rounded(.down)
-                        width = (column - max(Self.screenFitFloor, Self.screenFitPad + Self.screenFitShare * column)).rounded(.down) * style.screen
+                        let dp = Self.screenFitPad, dfl = Self.screenFitFloor, dsh = Self.screenFitShare
+                        width = (column - max(dfl, dp + dsh * column)).rounded(.down) * style.screen
                     }
                     // (Line breaks at the end draw nothing but are lines to the
                     // fit: LIBRE_OFFICE-116306-0's rows keep theirs.)
@@ -2809,10 +2817,11 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
     /// (lab col-wrap, Excel prints at 100/90/83/66/50/40%, Calibri 11 and Arial 10: the margin that breaks 7 and 8 digits per
     /// column is 26.5-27+, 22.5-25.5, 22.5-23.4, 17.5-18.4, 14.5-15, 12.5-13.4 dots; 354 columns, 27 mismatches with 26 x scale, 6 with this); the row's
     /// HEIGHT stays the screen-grid fit.
-    func wrapRoom(_ width: Double, _ less: Double) -> Double {
-        guard printing, printTextScale > 0, printRowScale > 0 else { return max(1, width - less) }
+    /// An indent takes its width off the room (Excel's 4-step indent in Times 12 wraps 43 pt in: en-6fc78951d5).
+    func wrapRoom(_ width: Double, _ less: Double, indent: Double = 0) -> Double {
+        guard printing, printTextScale > 0, printRowScale > 0 else { return max(1, width - less - indent) }
         let dpu = printTextScale / scale * 600 / 72
-        return max(1, ((width * dpu + 1e-6 - (3 + 23.5 * printRowScale)).rounded(.down)) / dpu)
+        return max(1, (((width - indent) * dpu + 1e-6 - (3 + 23.5 * printRowScale)).rounded(.down)) / dpu)
     }
     func _textStyle(_ st: CellStyle, color: UInt32?, ink: Color) -> GridTextStyle {
         let c = printing && printMono ? Int64(0xFF00_0000) : (color ?? st.color).map { Int64(0xFF00_0000) | Int64($0) } ?? Int64(ink.value)
@@ -2944,7 +2953,15 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         let wraps = st.wrap && cell.value.isText
         let lineAlign: TextAlign = align == .center ? .center : align == .right ? .right : st.justify && wraps ? .justify : .left
         style.rtl = cell.value.isText && _cellIsRTL(st, text)
-        var tp = texts.painter(text, style, maxWidth: wraps ? wrapRoom(width, pad * 2 + wrapLess) : .infinity, align: wraps ? lineAlign : .left)
+        // An indent: so many three-space steps of the workbook's default
+        // font, in from the side the text is aligned to (a lab of indents 1-4
+        // in Calibri 11, Arial 10 and Times 9: 7.56, 8.28 and 6.84 pt a step). A wrapped line has that much less room.
+        var inset = 0.0
+        if st.indent > 0, st.hAlign == .left || st.hAlign == .right {
+            let base = _textStyle(book.style(0), color: nil, ink: ink)
+            inset = Double(st.indent) * max(0, texts.painter("X   X", base).width - texts.painter("XX", base).width)
+        }
+        var tp = texts.painter(text, style, maxWidth: wraps ? wrapRoom(width, pad * 2 + wrapLess, indent: inset) : .infinity, align: wraps ? lineAlign : .left)
         // A wrapped rich string: its runs' own fonts on the lines the paragraph's wrap gives.
         var richParts: [(text: String, style: GridTextStyle)] = [], richLns: [[(String, GridTextStyle)]] = []
         if wraps, !style.rtl, let rr = ws.richText[a], case .text(let raw) = cell.value, raw == text, rr.map(\.text).joined() == text,
@@ -2963,7 +2980,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 return (run.text, gs)
             }
             richParts = parts
-            let room = wrapRoom(width, pad * 2 + wrapLess)
+            let room = wrapRoom(width, pad * 2 + wrapLess, indent: inset)
             let ls = texts.richLines(text, runs: parts, maxWidth: room)
             richLns = ls
             tp = texts.richLine(ls.enumerated().flatMap { i, l in (i > 0 ? [("\n", parts[0].style)] : []) + l }, align: lineAlign, maxWidth: room)
@@ -2979,11 +2996,6 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         // An indent: so many three-space steps of the workbook's default
         // font, in from the side the text is aligned to (a lab of indents 1-4
         // in Calibri 11, Arial 10 and Times 9: 7.56, 8.28 and 6.84 pt a step).
-        var inset = 0.0
-        if st.indent > 0, st.hAlign == .left || st.hAlign == .right {
-            let base = _textStyle(book.style(0), color: nil, ink: ink)
-            inset = Double(st.indent) * max(0, texts.painter("X   X", base).width - texts.painter("XX", base).width)
-        }
         // Text spills over empty neighbours, as far as it reaches from its
         // indent (chart-tdf140489's "Deferred Tax", in two steps from A1's
         // edge, was cut at the last column its width alone needed).
@@ -3088,7 +3100,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         // the first at the head, the middle in the centre — stands where
         // one line would (52716's last lines with their rows' numbers).
         if printing && wraps {
-            let lines = richLns.isEmpty ? texts._breakLines(NumberFormat.unpad(text), style, wrapRoom(width, pad * 2 + wrapLess))
+            let lines = richLns.isEmpty ? texts._breakLines(NumberFormat.unpad(text), style, wrapRoom(width, pad * 2 + wrapLess, indent: inset))
                 .split(separator: "\n", omittingEmptySubsequences: false) : richLns.map { Substring($0.map(\.0).joined()) }
             if lines.count > 1 {
                 let m = SheetPrintMetrics.of(family: book.defaultFontName ?? OfficeFonts.defaultFamily, size: book.defaultFontSize ?? 11, bold: book.defaultFontBold)
@@ -3838,9 +3850,10 @@ final class _TextCache {
     func richLines(_ text: String, runs: [(text: String, style: GridTextStyle)], maxWidth: Double) -> [[(String, GridTextStyle)]] {
         var main = 0
         for (i, r) in runs.enumerated() where r.text.count > runs[main].text.count { main = i }
-        let lines = _breakLines(NumberFormat.unpad(text), runs[main].style, maxWidth)
         var which: [Int] = []
         for (i, r) in runs.enumerated() { which += Array(repeating: i, count: r.text.count) }
+        let plain = NumberFormat.unpad(text)
+        let lines = _breakLines(plain, runs[main].style, maxWidth, runs: plain.count == which.count ? which.map { ($0, runs[$0].style) } : nil)
         let orig = Array(text)
         var p = 0, cur = 0
         var out: [[(String, Int)]] = [[]]
@@ -3997,7 +4010,24 @@ final class _TextCache {
     /// the paragraph, a long word was cut wherever the line it met
     /// stopped — "are upd" / "ating" — and CVLKRA's narrow Remarks
     /// column wrapped to other lines and other heights than Excel's.
-    func _breakLines(_ text: String, _ style: GridTextStyle, _ maxWidth: Double) -> String {
+    func _breakLines(_ text: String, _ style: GridTextStyle, _ maxWidth: Double, runs: [(Int, GridTextStyle)]? = nil) -> String {
+        // (A rich string's pieces are measured each in its own run's font: `runs` holds, per character of `text`, its run's style.)
+        func W(_ s: Substring) -> Double {
+            guard let runs, runs.count == text.count, !s.isEmpty else { return _width(String(s), style) }
+            var at = text.distance(from: text.startIndex, to: s.startIndex)
+            var total = 0.0, cur = ""
+            var st = runs[at]
+            for c in s {
+                if runs[at].0 != st.0 { total += _width(cur, st.1); cur = ""; st = runs[at] }
+                cur.append(c); at += 1
+            }
+            return total + _width(cur, st.1)
+        }
+        func sepW(_ piece: Substring) -> Double {
+            guard let runs, runs.count == text.count else { return _width(" ", style) }
+            let at = text.distance(from: text.startIndex, to: piece.startIndex)
+            return _width(" ", runs[max(0, at - 1)].1)
+        }
         var out: [String] = []
         // (On the grid of whole dots or pixels the widths are whole counts times the unit: compare the counts, so a line exactly
         // the room is not lost to a float tie. CVLKRA-KYC's "same as" is 198 dots in a room of 198, as Excel sets it on one line.)
@@ -4029,7 +4059,7 @@ final class _TextCache {
                 if broken && line.isEmpty {
                     if piece.text.isEmpty { continue }
                 } else if k > 0 {
-                    let w = _width(piece.sep + piece.text, style)
+                    let w = (piece.sep.isEmpty ? 0 : sepW(piece.text)) + W(piece.text)
                     if le(lineWidth + w, maxWidth) || hangFits(piece.sep + piece.text, lineWidth) { line += piece.sep + piece.text; lineWidth += w; continue }
                     if !line.isEmpty { out.append(line) }
                     line = ""; lineWidth = 0; broken = true
@@ -4037,7 +4067,7 @@ final class _TextCache {
                 }
                 var rest = piece.text
                 while !rest.isEmpty {
-                    let w = _width(String(rest), style)
+                    let w = W(rest)
                     if le(lineWidth + w, maxWidth) || hangFits(String(rest), lineWidth) { line += rest; lineWidth += w; break }
                     if !line.isEmpty { out.append(line); line = ""; lineWidth = 0; continue }
                     // Longer than a line: as many characters as fit, one at least.
@@ -4048,7 +4078,7 @@ final class _TextCache {
                         // trailing space does: 52716's "ders@rz.uni-" is 153.7
                         // of the screen's 151 px and stands on one line in
                         // Excel's print, where "christian.and" at 154.5 does not.)
-                        if !le(_width(String(rest[..<next]), style), maxWidth),
+                        if !le(W(rest[..<next]), maxWidth),
                            !(rest[cut] == "-" && le(_width(String(rest[..<cut]), style), maxWidth)) { break }
                         cut = next
                     }
@@ -4079,7 +4109,11 @@ final class _TextCache {
             let space = s.containsSubstring(" ") ? _measure("a a", plain) - _measure("aa", plain) : 0
             // (Arial Narrow has no clone: its own advances, as the page sets it, not the stand-in's wider ones.)
             let narrow = style.own == "arial narrow"
-            return s.reduce(0) { $0 + (($1 == " " ? space : (narrow ? _own($1, plain).map { $0 * style.size } : nil) ?? _measure(String($1), plain)) / style.size * style.screenEm).rounded() * style.screen }
+            return s.reduce(0) { sum, ch in
+                if !style.gdi.isEmpty, ch.unicodeScalars.count == 1, let v = ch.unicodeScalars.first?.value,
+                   let g = GdiAdvances.advance(style.gdi, bold: style.bold, em: Int(style.screenEm), v) { return sum + Double(g) * style.screen }
+                return sum + ((ch == " " ? space : (narrow ? _own(ch, plain).map { $0 * style.size } : nil) ?? _measure(String(ch), plain)) / style.size * style.screenEm).rounded() * style.screen
+            }
         }
         if let parts = _arabicParts(s, style) {
             var plain = style; plain.arabicArial = false; plain.myanmar = false; plain.kannada = false

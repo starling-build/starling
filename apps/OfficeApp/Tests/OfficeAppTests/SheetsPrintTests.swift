@@ -184,4 +184,15 @@ extension SheetsPrintTests {
         XCTAssertTrue(lines.contains("A2\tleft\tshort"), dump)
         XCTAssertFalse(dump.contains("w="))
     }
+
+    /// The GDI advance table must load: its first lookup builds a dictionary literal, which traps on a repeated
+    /// face key (Arial Narrow was listed twice, 12 zh books crashed under --sheet-pdf). Every face has the same columns.
+    func testGdiAdvanceTableLoadsAndCoversEveryFaceAtOneWidth() {
+        XCTAssertNotNil(GdiAdvances.advance("arial narrow", bold: false, em: 30, 0x41))
+        XCTAssertNotNil(GdiAdvances.advance("arial narrow", bold: true, em: 30, 0x41))
+        _ = GdiAdvances.advance("arial", bold: false, em: 30, 0x4E2D)
+        for face in GdiAdvances.faces {
+            XCTAssertNotNil(GdiAdvances.advance(face, bold: false, em: 30, 0x20), face)
+        }
+    }
 }
