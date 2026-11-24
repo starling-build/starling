@@ -517,6 +517,42 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(saved.width, 200, accuracy: 0.1)
     }
 
+    /// W-OB-1: cropping a picture cuts shares off its sides, keeps its scale (the frame follows the visible part), undoes in one
+    /// step, is written as `a:srcRect` into the file's own markup (a picture read back from a file too) and clears again.
+    func testCroppingAPictureKeepsItsScaleAndSavesTheCrop() throws {
+        let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")!
+        var img = ImageAttachment(data: png, width: 200, height: 100)
+        img.altText = "Chart"
+        let c = RichDocumentController(document: RichDocument(paragraphs: [RichParagraph(text: "above"), RichParagraph(image: img), RichParagraph(text: "below")]))
+        XCTAssertFalse(c.setImageCrop(at: 1, PictureCrop(left: 0.5, top: 0, right: 0.5, bottom: 0)), "nothing would be left")
+        XCTAssertTrue(c.setImageCrop(at: 1, PictureCrop(left: 0.25, top: 0.1, right: 0, bottom: 0)))
+        XCTAssertEqual(c.document.paragraphs[1].image?.width ?? 0, 150, accuracy: 0.01)
+        XCTAssertEqual(c.document.paragraphs[1].image?.height ?? 0, 90, accuracy: 0.01)
+        c.undo()
+        XCTAssertNil(c.document.paragraphs[1].image?.crop)
+        XCTAssertEqual(c.document.paragraphs[1].image?.width, 200)
+        c.redo()
+        // First save: the generated picture carries the crop. Second: the kept markup is patched.
+        let once = try DocxFormat.read(try DocxFormat.write(c.document, pageSetup: .letter)).document
+        let first = try XCTUnwrap(once.paragraphs.compactMap(\.image).first)
+        XCTAssertEqual(first.crop?.left ?? 0, 0.25, accuracy: 0.001)
+        XCTAssertEqual(first.crop?.top ?? 0, 0.1, accuracy: 0.001)
+        XCTAssertEqual(first.altText, "Chart")
+        let d = RichDocumentController(document: once)
+        let at = try XCTUnwrap(once.paragraphs.firstIndex { $0.image != nil })
+        XCTAssertTrue(d.setImageCrop(at: at, PictureCrop(left: 0, top: 0, right: 0.2, bottom: 0)))
+        let twice = try DocxFormat.read(try DocxFormat.write(d.document, pageSetup: .letter)).document
+        let second = try XCTUnwrap(twice.paragraphs.compactMap(\.image).first)
+        XCTAssertEqual(second.crop?.right ?? 0, 0.2, accuracy: 0.001)
+        XCTAssertEqual(second.crop?.left ?? 0, 0, accuracy: 0.001)
+        XCTAssertEqual(second.width, 200 * 0.8, accuracy: 0.2)
+        XCTAssertEqual(twice.paragraphs.map(\.text).filter { !$0.isEmpty }, ["above", "below"])
+        XCTAssertTrue(d.setImageCrop(at: at, nil))
+        let cleared = try DocxFormat.read(try DocxFormat.write(d.document, pageSetup: .letter)).document
+        XCTAssertNil(cleared.paragraphs.compactMap(\.image).first?.crop)
+        XCTAssertEqual(cleared.paragraphs.compactMap(\.image).first?.width ?? 0, 200, accuracy: 0.2)
+    }
+
     /// Tracked changes stay tracked: an insertion and a deletion read as
     /// marked runs and are written back as the changes they were, so Word
     /// shows the same markup for the copy.

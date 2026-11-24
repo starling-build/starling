@@ -1204,6 +1204,7 @@ extension DocxFormat {
                 att.data = data
                 att.name = target.lastPathComponent
                 att.crop = Self._pictureCrop(drawing)
+                att.sourceCrop = att.crop
                 att.altText = drawing.descendant("wp:docPr")?["descr"] ?? ""
                 att.sourceAltText = att.altText
                 if Metafile.isMetafile(data) { WriterMetafiles.register(data, for: att.id) }
@@ -1232,6 +1233,7 @@ extension DocxFormat {
             var att = ImageAttachment(data: data, width: w, height: h, name: target.lastPathComponent)
             if inlineTurn != 0 { att.rotation = inlineTurn }
             att.crop = Self._pictureCrop(drawing)
+            att.sourceCrop = att.crop
             att.altText = drawing.descendant("wp:docPr")?["descr"] ?? ""
             att.sourceAltText = att.altText
             att.inset = Self._canvasInset(drawing)
