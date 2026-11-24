@@ -2551,7 +2551,7 @@ extension RichLayout {
             hf.layout.regionTopOnPage = top - rect.top
             // (A header taller than its margin pushes the body down, and a picture placed from the top margin
             // follows the body: es-3f357fc362's logo stands at the header's bottom in Word's print.)
-            hf.layout.regionMarginTop = kind == .header && theme.wordRules && !setup.vertical ? max(_px(setup.marginTop), top - rect.top + hf.height) : _px(setup.marginTop)
+            hf.layout.regionMarginTop = kind == .header && theme.wordRules && document.fromBinaryDoc && !setup.vertical ? max(_px(setup.marginTop), top - rect.top + hf.height) : _px(setup.marginTop)
             hf.layout.regionMarginBottom = _px(setup.marginBottom)
             hf.layout.regionPageHeight = _px(setup.height)
             canvas.save()

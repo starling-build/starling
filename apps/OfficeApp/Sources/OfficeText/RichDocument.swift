@@ -2902,6 +2902,8 @@ public struct RichDocument: Hashable, Codable, Sendable {
     /// headings are plain paragraphs with contextual spacing, and giving
     /// them a style the next paragraph lacked put 10pt back between them.
     public var readFromFile = false
+    /// Read from a binary Word 97-2003 file (translated to .docx by the reader): rules fitted to .doc prints only apply to these.
+    public var fromBinaryDoc = false
     /// The paragraph the file's document defaults alone describe (what an empty hidden end mark is sized by).
     public var docDefaultParagraph: RichParagraphStyle? = nil
     /// A text box's sub-document of a document read from a file: `readFromFile` itself is not copied there (it would switch on every Word rule in boxes);
