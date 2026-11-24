@@ -1675,6 +1675,9 @@ extension DocxFormat {
             relsXML += "<Relationship Id=\"\(r.id)\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/image\" Target=\"\(r.target)\"/>"
         }
         relsXML += keptRels
+        for (i, r) in doc.keptCustomXmlRels.enumerated() {
+            relsXML += "<Relationship Id=\"rIdCustomXml\(i + 1)\" Type=\"\(_esc(r.type))\" Target=\"\(_esc(r.target))\"/>"
+        }
         var extraParts: [ZipEntry] = []
         var extraOverrides = ""
         if writeHeader {
@@ -1793,9 +1796,11 @@ extension DocxFormat {
 
         let entries: [ZipEntry] = [
             ZipEntry(name: "[Content_Types].xml", data: Data(contentTypes.utf8)),
-            ZipEntry(name: "_rels/.rels", data: Data(_rootRels.utf8)),
+            ZipEntry(name: "_rels/.rels", data: Data(_rootRels.replacingAll("</Relationships>", with: doc.keptRootRels.enumerated().map { i, r in
+                "<Relationship Id=\"rIdPkg\(i + 1)\" Type=\"\(_esc(r.type))\" Target=\"\(_esc(r.target))\"\(r.external ? " TargetMode=\"External\"" : "")/>"
+            }.joined() + "</Relationships>").utf8)),
             ZipEntry(name: "word/document.xml", data: Data(document.utf8)),
-            ZipEntry(name: "word/styles.xml", data: Data(_stylesPart(doc.styles, notes: !doc.keptParts.isEmpty, aliases: doc.styleAliases, fileFonts: doc.fileFonts, fromFile: doc.readFromFile,
+            ZipEntry(name: "word/styles.xml", data: Data(_stylesPart(doc.styles, notes: doc.keptParts.keys.contains { !$0.hasPrefix("docProps/") && !$0.hasPrefix("customXml/") && $0 != "word/webSettings.xml" }, aliases: doc.styleAliases, fileFonts: doc.fileFonts, fromFile: doc.readFromFile,
                                                                          characterStyles: doc.keptCharacterStyles, characterStyleIds: doc.keptCharacterStyleIds, tableStyles: doc.keptTableStyles)
                 .replacingAll("<w:lang w:val=\"en-US\"/>", with: doc.defaultLangXML ?? "<w:lang w:val=\"en-US\"/>").utf8)),
             ZipEntry(name: "word/numbering.xml", data: Data(_numberingPart(numKinds, numFormats, bulletId: bulletId, decimalId: decimalId,
