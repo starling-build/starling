@@ -570,7 +570,12 @@ extension SheetDrawingsXML {
             var content: String
             switch d.kind {
             case .other, .shape: continue      // kept by their raw text above
-            case .picture(let path, _):
+            case .picture(let path, let data):
+                // A picture inserted here: its media part is new, and its type needs naming.
+                if original[path] == nil {
+                    out.parts[path] = data
+                    if let mime = SheetPictures.mime(ofPath: path) { out.overrides.append(("/" + path, mime)) }
+                }
                 let id = d.relId.flatMap { id in rels.contains { $0.id == id } ? id : nil } ?? relTo("image", path)
                 content = "<xdr:pic><xdr:nvPicPr><xdr:cNvPr id=\"\(shapeId)\" name=\"\(name)\"/><xdr:cNvPicPr><a:picLocks noChangeAspect=\"1\"/></xdr:cNvPicPr></xdr:nvPicPr>"
                     + "<xdr:blipFill><a:blip r:embed=\"\(id)\"/><a:stretch><a:fillRect/></a:stretch></xdr:blipFill>"
@@ -764,7 +769,61 @@ extension Worksheet {
     }
 }
 
+/// What a picture inserted into a sheet needs to be a package part.
+enum SheetPictures {
+    /// The file extension of an image's bytes, from its signature; nil if it is not one the sheet can hold.
+    static func ext(of d: Data) -> String? {
+        let b = [UInt8](d.prefix(12))
+        if b.starts(with: [0x89, 0x50, 0x4E, 0x47]) { return "png" }
+        if b.starts(with: [0xFF, 0xD8]) { return "jpeg" }
+        if b.starts(with: [0x47, 0x49, 0x46, 0x38]) { return "gif" }
+        if b.starts(with: [0x42, 0x4D]) { return "bmp" }
+        if b.count >= 12, b[0 ..< 4] == [0x52, 0x49, 0x46, 0x46], b[8 ..< 12] == [0x57, 0x45, 0x42, 0x50] { return "webp" }
+        return nil
+    }
+
+    static func mime(ofPath path: String) -> String? {
+        switch path.pathExtension.lowercased() {
+        case "png": return "image/png"
+        case "jpeg", "jpg": return "image/jpeg"
+        case "gif": return "image/gif"
+        case "bmp": return "image/bmp"
+        case "webp": return "image/webp"
+        default: return nil
+        }
+    }
+
+    /// A part name for these bytes: the same picture inserted twice is one part.
+    static func partName(for d: Data, ext: String) -> String {
+        var h: UInt64 = 0xcbf29ce484222325
+        for byte in d { h = (h ^ UInt64(byte)) &* 0x100000001b3 }
+        return "xl/media/inserted\(String(h, radix: 16)).\(ext)"
+    }
+}
+
 extension WorkbookController {
+    /// Insert → Picture: `data` (a PNG, JPEG, GIF, BMP or WebP) of `width` × `height` points at the active cell,
+    /// selected, one undo step. False (and a status line) if the bytes are not a picture the sheet can hold.
+    @discardableResult
+    func insertPicture(_ data: Data, name: String, width: Double, height: Double) -> Bool {
+        guard let ext = SheetPictures.ext(of: data) else {
+            onCommand?(.status("Not a picture Office can insert: \(name)"))
+            return false
+        }
+        let ws = sheet
+        let corner = ws.point(SheetMarker(col: active.col, colOff: 0, row: active.row, rowOff: 0))
+        let anchor = ws.anchor(x: corner.x, y: corner.y, width: width, height: height)
+        let n = ws.drawings.filter { if case .picture = $0.kind { return true } else { return false } }.count + 1
+        structural {
+            ws.drawings.append(SheetDrawing(name: "Picture \(n)", anchor: anchor,
+                                            kind: .picture(path: SheetPictures.partName(for: data, ext: ext), data: data)))
+            ws.drawingsEdited = true
+        }
+        selectedDrawing = ws.drawings.count - 1
+        _notify(selectionOnly: true)
+        return true
+    }
+
     /// Insert → Chart: the selection (or the table around the active cell)
     /// as a chart of `type`, Excel's way — a text top row names the series,
     /// a text first column gives the categories, series run down the

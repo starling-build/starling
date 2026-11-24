@@ -271,12 +271,59 @@ final class SheetsShellState: State<StatefulWidget> {
         }
     }
 
+    /// Where a picture comes from: the host's own picker (the iPad's Photo Library / Files sheet), else Backstage's
+    /// file list, or in a tab the browser's picker.
+    private func _pickPicture() {
+        #if os(WASI)
+        WebFiles.open(extensions: ["png", "jpg", "jpeg", "gif", "bmp", "webp"]) { [weak self] picked in
+            guard let self, let picked else { return }
+            self._insertPicture(picked.name, data: picked.data)
+        }
+        #else
+        if let ask = officeScene.pictureRequested {
+            ask { [weak self] path in if let path { self?._insertPicture(path) } }
+            return
+        }
+        setState { _backstage = .insertPicture }
+        #endif
+    }
+
+    private func _insertPicture(_ path: String) {
+        setState { _backstage = nil }
+        guard let data = FileManager.default.contents(atPath: path) else {
+            _flash("Could not read \(path.lastPathComponent)")
+            return
+        }
+        _insertPicture(path.lastPathComponent, data: data)
+    }
+
+    /// Decode for the size (pixels read as 96/in, no more than 4 in on a side), then insert at the active cell.
+    private func _insertPicture(_ name: String, data: Data) {
+        _ = _grid?.commitEdit()
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            do {
+                let codec = try await instantiateImageCodec([UInt8](data))
+                let frame = try await codec.getNextFrame()
+                codec.dispose()
+                var w = Double(frame.image.width) * 0.75, h = Double(frame.image.height) * 0.75
+                frame.image.dispose()
+                let limit = 288.0
+                if max(w, h) > limit { let k = limit / max(w, h); w *= k; h *= k }
+                if self.wb.insertPicture(data, name: name, width: max(w, 8), height: max(h, 8)) { self._flash("Inserted \(name)") }
+            } catch {
+                self._flash("Not an image Office can decode: \(name)")
+            }
+        }
+    }
+
     private func _command(_ cmd: SheetCommand) {
         guard let grid = _grid else { return }
         switch cmd {
         case .copy: grid.copySelection()
         case .cut: grid.copySelection(cut: true)
         case .paste: grid.paste()
+        case .insertPicture: _pickPicture()
         case .startFormula(let text):
             grid.focus.requestFocus()
             grid.beginEdit(replace: text)
@@ -803,7 +850,7 @@ final class SheetsShellState: State<StatefulWidget> {
                 },
                 onOpenPath: { [weak self] path in self?._openFromPanel(path) },
                 onSavePath: { [weak self] path in self?._saveTo(path) },
-                onPicturePath: { _ in }, scene: officeScene)),
+                onPicturePath: { [weak self] path in self?._insertPicture(path) }, scene: officeScene)),
         ])
     }
 

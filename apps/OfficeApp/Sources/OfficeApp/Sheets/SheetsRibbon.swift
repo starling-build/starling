@@ -20,6 +20,7 @@ enum SheetCommand {
     case zoom(Double)
     case toggleGridlines
     case status(String)
+    case insertPicture             // Insert → Pictures: the shell asks the host for one
     case editNote                  // Review → New/Edit Note: the editor beside the active cell
 }
 
@@ -28,7 +29,7 @@ extension Ribbon {
         guard let wb = session.workbook else { return nil }
         switch tab {
         case .home: return _sheetsHome(wb, fluent)
-        case .insert: return [_chartsGroup(wb, fluent), _functionsGroup(wb, fluent)]
+        case .insert: return [_picturesGroup(wb, fluent), _chartsGroup(wb, fluent), _functionsGroup(wb, fluent)]
         case .formulas: return [_autoSumGroup(wb, fluent), _functionsGroup(wb, fluent)]
         case .data: return [_sortGroup(wb, fluent), _outlineGroup(wb, fluent)]
         case .view: return [_sheetsZoomGroup(wb, fluent)]
@@ -256,6 +257,12 @@ extension Ribbon {
                             fns.map { f in (f, { wb.onCommand?(.startFormula("=" + f + "(")) }) })
             }),
         ])])
+    }
+
+    private func _picturesGroup(_ wb: WorkbookController, _ fluent: FluentThemeData) -> Widget {
+        Chrome.group("Illustrations", fluent, [
+            Chrome.big(FluentSystemIcons.image, "Pictures", fluent) { wb.onCommand?(.insertPicture) },
+        ])
     }
 
     /// Insert → Charts: a chart of the selection; with a chart selected,
