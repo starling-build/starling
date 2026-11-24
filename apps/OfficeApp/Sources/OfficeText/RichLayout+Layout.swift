@@ -349,6 +349,10 @@ extension RichLayout {
     static let _perf = ProcessInfo.processInfo.environment["STARLING_RICHTEXT_PERF"] != nil
 
     public func ensureLaidOut(_ document: RichDocument) {
+        BigStack.run { self._ensureLaidOut(document) }
+    }
+
+    private func _ensureLaidOut(_ document: RichDocument) {
         _shapesLeaveCell = Set(document.tableStyles.filter { $0.value.shapesLeaveCell }.map { $0.key })
         let t0 = Self._perf ? DispatchTime.now().uptimeNanoseconds : 0
         var marks: [(String, UInt64)] = []
