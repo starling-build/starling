@@ -472,6 +472,8 @@ struct Chart: Equatable {
     /// The file names Office 2007's style 18 (colourful, with the 3-D effects): a Word pie in it is
     /// drawn in deeper colours with a gradient down each slice.
     var style18 = false
+    /// Office 2007's grey style (`c:style` 1, 9, 17, ...): on a Word page every series is a grey.
+    var greyStyle = false
     /// The accent (1–6) a monochrome style shades every series from.
     var monochromeAccent: Int? {
         guard let s = style, (1 ... 48).contains(s) else { return nil }
@@ -927,12 +929,13 @@ struct Chart: Equatable {
             return accents[n - 1]
         }
         if let k = monochromeAccent { return Self.monochrome(i, of: series.count, accents[k - 1]) }
+        let accents = greyStyle && !onSlide && !onSheet ? Self.greyAccents : accents
         let base = Self.cycle(s?.autoIndex ?? i, accents)
         // (Office's colour rounds, whole-number division on the series count: accent (i mod 6 + 1) varied by
         // v = (i/6 + 1) / (N/6 + 2) x 1.4 - 0.7, negative a shade, positive a tint, in linear light. A chart of up to five
         // series is flat; from six on the first round is shaded, so 6 series print 76.67%: 3f8a480a p7 and p14, FFC000 to
         // E2AA00. Planner spec, opus-puzzles.log 2026-11-22T11:27Z.)
-        guard onSlide, officeStyled else { return base }
+        guard (onSlide || (greyStyle && !onSheet)), officeStyled else { return base }
         // (N is the chart's highest c:idx plus one, bars and lines together: lab c3d3 printed idx 1-5 shaded, idx 6-11 flat,
         // a combo of 3 and 3 shaded.)
         let n = (series.enumerated().map { $0.element.autoIndex ?? $0.offset }
@@ -991,6 +994,8 @@ struct Chart: Equatable {
     /// its place out from the middle (−1 to 1) — the cooper deck's four
     /// series are the accent shaded to 0.58 and 0.85 and tinted to 0.86
     /// and 0.575, to a level each.
+    static let greyAccents: [Color] = [97, 179, 129, 80, 149, 217].map { Color(0xFF00_0000 | Int64(($0 << 16) | ($0 << 8) | $0)) }
+
     static func monochrome(_ i: Int, of n: Int, _ accent: Color) -> Color {
         guard n > 1 else { return accent }
         let place = Double(2 * i + 1) / Double(n) - 1
@@ -2617,6 +2622,9 @@ enum ChartXML {
         // (Kept where it colours the chart its own way: a monochrome one.)
         c.style = styleNode?["val"].flatMap(Int.init)
         c.style18 = c.style == 18
+        // (Lab grey12, Word's print of a chart in style 1, 9: greys 97, 179, 129, 80, 149, then the first round shaded for six
+        // or more series, the next round tinted: 6 series 85/158/114/70/131/193, 7th 154, 8th 200. From sa1 67e190176d.)
+        c.greyStyle = c.style.map { ($0 - 1) % 8 == 0 } ?? false
         if c.monochromeAccent == nil { c.style = nil }
         if let m = plot.first("c:layout")?.first("c:manualLayout"),
            (m.first("c:xMode")?["val"] ?? "factor") == "edge", (m.first("c:yMode")?["val"] ?? "factor") == "edge",
