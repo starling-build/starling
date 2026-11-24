@@ -841,14 +841,16 @@ final class SheetsShellState: State<StatefulWidget> {
         let window = ColoredBox(color: fluent.scaffoldBackgroundColor,
                                 child: Column(crossAxisAlignment: .stretch, children: column))
         var layers: [Widget] = [window]
+        let _names = SheetPrintLayout.printNames(wb.book, sheet: wb.activeSheet)
         if _pageSetupOpen {
             layers.append(Positioned(left: 0, top: 0, right: 0, bottom: 0, child: ColoredBox(
                 color: Color(0x66000000), child: Center(child: SizedBox(width: 420, height: nil, child: DecoratedBox(
                     decoration: BoxDecoration(color: fluent.resources.layerFillColorDefault,
                                               border: Border.all(color: fluent.resources.dividerStrokeColorDefault, width: 1)),
                     child: SingleChildScrollView(child: PageSetupPanel(
-                        form: PageSetupForm(SheetPrintSetup.read(wb.sheet), paper: wb.paperNumber),
-                        onApply: { [weak self] c in self?.wb.setPageSetup(c) },
+                        form: PageSetupForm(SheetPrintSetup.read(wb.sheet), paper: wb.paperNumber,
+                                            area: _names.areas.first, titleRows: _names.titleRows, titleCols: _names.titleCols),
+                        onApply: { [weak self] c, n in self?.wb.setPageSetup(c, printNames: n) },
                         onClose: { [weak self] in
                             self?.setState { self?._pageSetupOpen = false }
                             self?._grid?.focus.requestFocus()

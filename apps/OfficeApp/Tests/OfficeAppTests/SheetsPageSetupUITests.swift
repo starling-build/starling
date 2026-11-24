@@ -23,12 +23,16 @@ final class SheetsPageSetupUITests: XCTestCase {
         let panel = try XCTUnwrap(ui.state(PageSetupPanelState.self), "the dialog did not open")
         panel.form.landscape = true
         panel.boxes["left"]?.text = "1"
+        panel.boxes["area"]?.text = "A1:C5"
+        panel.boxes["titleRows"]?.text = "1:1"
         XCTAssertTrue(ui.tap(text: "OK"))
         XCTAssertNil(ui.state(PageSetupPanelState.self), "OK closes the dialog")
         let wb = try XCTUnwrap(ui.state(SheetsShellState.self)).wb
         let s = SheetPrintSetup.read(wb.sheet)
         XCTAssertTrue(s.landscape)
         XCTAssertEqual(s.left, 72, accuracy: 0.01)
+        XCTAssertEqual(SheetPrintLayout.printNames(wb.book, sheet: 0).areas.count, 1)
+        XCTAssertEqual(SheetPrintLayout.printNames(wb.book, sheet: 0).titleRows, 0...0)
         wb.undo()
         XCTAssertFalse(SheetPrintSetup.read(wb.sheet).landscape)
     }

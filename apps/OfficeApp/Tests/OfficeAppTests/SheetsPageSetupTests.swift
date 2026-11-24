@@ -46,3 +46,33 @@ final class SheetsPageSetupTests: XCTestCase {
         XCTAssertEqual(c.sheet.keptElements.map(\.name), before)
     }
 }
+
+final class SheetsPrintNamesTests: XCTestCase {
+    func testPrintAreaAndTitlesSurviveSaveAndUndo() throws {
+        let c = WorkbookController()
+        c.setInput("a", at: CellAddress(row: 0, col: 0))
+        c.setPrintArea(CellRange(top: 0, left: 0, bottom: 19, right: 3))
+        c.setPrintTitles(rows: 0...1, cols: 0...0)
+        let back = try Xlsx.read(try Xlsx.write(c.book))
+        let n = SheetPrintLayout.printNames(back, sheet: 0)
+        XCTAssertEqual(n.areas, [CellRange(top: 0, left: 0, bottom: 19, right: 3)])
+        XCTAssertEqual(n.titleRows, 0...1)
+        XCTAssertEqual(n.titleCols, 0...0)
+        c.setPrintArea(nil)
+        XCTAssertTrue(SheetPrintLayout.printNames(c.book, sheet: 0).areas.isEmpty)
+        c.undo()
+        XCTAssertEqual(SheetPrintLayout.printNames(c.book, sheet: 0).areas.count, 1)
+    }
+
+    func testTheFormReadsAndRefusesRanges() {
+        var f = PageSetupForm(SheetPrintSetup(), paper: 9)
+        f.area = "A1:D20"; f.titleRows = "1:2"; f.titleCols = "A:B"
+        let (n, e) = f.names()
+        XCTAssertNil(e)
+        XCTAssertEqual(n?.area, CellRange(top: 0, left: 0, bottom: 19, right: 3))
+        XCTAssertEqual(n?.rows, 0...1)
+        XCTAssertEqual(n?.cols, 0...1)
+        f.titleRows = "A:B"
+        XCTAssertNotNil(f.names().1)
+    }
+}

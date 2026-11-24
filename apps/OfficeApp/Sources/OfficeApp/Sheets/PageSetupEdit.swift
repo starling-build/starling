@@ -132,9 +132,12 @@ extension Worksheet {
 
 extension WorkbookController {
     /// One undoable change to the active sheet's page setup.
-    func setPageSetup(_ change: PageSetupChange) {
+    func setPageSetup(_ change: PageSetupChange, printNames: PageSetupForm.PrintNames? = nil) {
         let ws = sheet
-        structural { ws.applyPageSetup(change) }
+        structural {
+            ws.applyPageSetup(change)
+            if let n = printNames { _printNames(area: n.area, rows: n.rows, cols: n.cols) }
+        }
     }
 }
 
@@ -149,5 +152,39 @@ extension WorkbookController {
         guard let t = el?.text, let r = t.rangeOfSubstring("paperSize=\"") else { return 1 }
         let digits = t[r.upperBound...].prefix { $0.isNumber }
         return Int(digits) ?? 1
+    }
+}
+
+// MARK: Print area and titles (the sheet's built-in defined names)
+
+extension WorkbookController {
+    private func _builtIn(_ name: String, _ text: String?) {
+        let i = activeSheet
+        book.fileNames.removeAll { $0.name == name && $0.localSheet == i }
+        if let text { book.fileNames.append(DefinedName(name: name, localSheet: i, attrs: [:], text: text)) }
+    }
+    private var _quotedSheet: String { "'" + sheet.name.replacingAll("'", with: "''") + "'" }
+
+    /// The print area: one range, or nil to print the whole sheet again.
+    func setPrintArea(_ r: CellRange?) { structural { _printNames(area: r, rows: nil, cols: nil, titles: false) } }
+
+    fileprivate func _printNames(area r: CellRange?, rows: ClosedRange<Int>?, cols: ClosedRange<Int>?, titles: Bool = true) {
+        if let r {
+            let a = CellAddress.columnName(r.left), b = CellAddress.columnName(r.right)
+            _builtIn("_xlnm.Print_Area", "\(_quotedSheet)!$\(a)$\(r.top + 1):$\(b)$\(r.bottom + 1)")
+        } else { _builtIn("_xlnm.Print_Area", nil) }
+        if titles { _titles(rows: rows, cols: cols) }
+    }
+
+    /// Rows and columns that repeat on every page (zero-based, inclusive); nil for none.
+    func setPrintTitles(rows: ClosedRange<Int>?, cols: ClosedRange<Int>?) { structural { _titles(rows: rows, cols: cols) } }
+
+    fileprivate func _titles(rows: ClosedRange<Int>?, cols: ClosedRange<Int>?) {
+        do {
+            var parts: [String] = []
+            if let c = cols { parts.append("\(_quotedSheet)!$\(CellAddress.columnName(c.lowerBound)):$\(CellAddress.columnName(c.upperBound))") }
+            if let r = rows { parts.append("\(_quotedSheet)!$\(r.lowerBound + 1):$\(r.upperBound + 1)") }
+            _builtIn("_xlnm.Print_Titles", parts.isEmpty ? nil : parts.joined(separator: ","))
+        }
     }
 }

@@ -21,10 +21,14 @@ struct PageSetupForm {
     var fit: Bool
     var scale: String, wide: String, tall: String
     var left: String, right: String, top: String, bottom: String, header: String, footer: String
+    var area: String, titleRows: String, titleCols: String
     var centerH: Bool, centerV: Bool, gridlines: Bool, headings: Bool, overThenDown: Bool
 
     /// The boxes as the sheet has them now.
-    init(_ s: SheetPrintSetup, paper number: Int) {
+    init(_ s: SheetPrintSetup, paper number: Int, area: CellRange? = nil, titleRows: ClosedRange<Int>? = nil, titleCols: ClosedRange<Int>? = nil) {
+        self.area = area.map { "\(CellAddress(row: $0.top, col: $0.left).a1):\(CellAddress(row: $0.bottom, col: $0.right).a1)" } ?? ""
+        self.titleRows = titleRows.map { "\($0.lowerBound + 1):\($0.upperBound + 1)" } ?? ""
+        self.titleCols = titleCols.map { "\(CellAddress.columnName($0.lowerBound)):\(CellAddress.columnName($0.upperBound))" } ?? ""
         func inch(_ pt: Double) -> String { Self.text((pt / 72 * 100).rounded() / 100) }
         landscape = s.landscape; paper = number
         fit = s.fitWidth != nil || s.fitHeight != nil
@@ -37,6 +41,36 @@ struct PageSetupForm {
     }
 
     static func text(_ d: Double) -> String { d == d.rounded() ? String(Int(d)) : String(d) }
+
+    /// What the Sheet group's three boxes name; blank means none.
+    struct PrintNames: Equatable {
+        var area: CellRange? = nil
+        var rows: ClosedRange<Int>? = nil, cols: ClosedRange<Int>? = nil
+    }
+
+    /// The print area and repeated titles as typed ("A1:D20", "1:2", "A:B"), or the message to show.
+    func names() -> (PrintNames?, String?) {
+        func parse(_ text: String, _ what: String) -> (FormulaRef?, String?) {
+            let t = text.trimmingSpaces()
+            if t.isEmpty { return (nil, nil) }
+            guard let e = try? Formula.parse("=" + t), case .ref(let r) = e else { return (nil, "\(what) is not a range such as \(what == "Print area" ? "A1:D20" : what == "Rows to repeat" ? "1:2" : "A:B")") }
+            return (r, nil)
+        }
+        var n = PrintNames()
+        let (a, ea) = parse(area, "Print area"); if let ea { return (nil, ea) }
+        if let a { n.area = a.range }
+        let (r, er) = parse(titleRows, "Rows to repeat"); if let er { return (nil, er) }
+        if let r {
+            guard r.start.col == nil, let x = r.start.row, let y = (r.end ?? r.start).row else { return (nil, "Rows to repeat is not a range such as 1:2") }
+            n.rows = min(x, y) ... max(x, y)
+        }
+        let (c, ec) = parse(titleCols, "Columns to repeat"); if let ec { return (nil, ec) }
+        if let c {
+            guard c.start.row == nil, let x = c.start.col, let y = (c.end ?? c.start).col else { return (nil, "Columns to repeat is not a range such as A:B") }
+            n.cols = min(x, y) ... max(x, y)
+        }
+        return (n, nil)
+    }
 
     /// The change to apply, or the message to show.
     func change() -> (PageSetupChange?, String?) {
@@ -70,9 +104,9 @@ struct PageSetupForm {
 /// The dialog's content: three groups of boxes (Page, Margins, Sheet) and OK/Cancel.
 final class PageSetupPanel: StatefulWidget {
     let form: PageSetupForm
-    let onApply: (PageSetupChange) -> Void
+    let onApply: (PageSetupChange, PageSetupForm.PrintNames) -> Void
     let onClose: () -> Void
-    init(form: PageSetupForm, onApply: @escaping (PageSetupChange) -> Void, onClose: @escaping () -> Void) {
+    init(form: PageSetupForm, onApply: @escaping (PageSetupChange, PageSetupForm.PrintNames) -> Void, onClose: @escaping () -> Void) {
         self.form = form; self.onApply = onApply; self.onClose = onClose
         super.init()
     }
@@ -89,7 +123,8 @@ final class PageSetupPanelState: State<StatefulWidget> {
         super.initState()
         form = _w.form
         for (k, v) in [("scale", form.scale), ("wide", form.wide), ("tall", form.tall), ("left", form.left), ("right", form.right),
-                       ("top", form.top), ("bottom", form.bottom), ("header", form.header), ("footer", form.footer)] {
+                       ("top", form.top), ("bottom", form.bottom), ("header", form.header), ("footer", form.footer),
+                       ("area", form.area), ("titleRows", form.titleRows), ("titleCols", form.titleCols)] {
             boxes[k] = TextEditingController(text: v)
         }
     }
@@ -99,8 +134,10 @@ final class PageSetupPanelState: State<StatefulWidget> {
         form.scale = t("scale"); form.wide = t("wide"); form.tall = t("tall")
         form.left = t("left"); form.right = t("right"); form.top = t("top"); form.bottom = t("bottom")
         form.header = t("header"); form.footer = t("footer")
+        form.area = t("area"); form.titleRows = t("titleRows"); form.titleCols = t("titleCols")
         let (c, err) = form.change()
-        if let c { _w.onApply(c); _w.onClose() } else { setState { message = err ?? "" } }
+        let (n, nerr) = form.names()
+        if let c, let n { _w.onApply(c, n); _w.onClose() } else { setState { message = err ?? nerr ?? "" } }
     }
 
     override func build(_ context: any BuildContext) -> Widget {
@@ -109,6 +146,13 @@ final class PageSetupPanelState: State<StatefulWidget> {
             Padding(padding: EdgeInsets(left: 0, top: 3, right: 12, bottom: 3), child: Row(children: [
                 SizedBox(width: 70, height: nil, child: Text(label, style: fluent.typography.body)),
                 SizedBox(width: 70, height: 30, child: FluentTextBox(key: ValueKey("pagesetup-\(k)"), controller: boxes[k]!,
+                                                                    onSubmitted: { [weak self] _ in self?.apply() })),
+            ]))
+        }
+        func wideBox(_ k: String, _ label: String) -> Widget {
+            Padding(padding: EdgeInsets(left: 0, top: 3, right: 0, bottom: 3), child: Row(children: [
+                SizedBox(width: 90, height: nil, child: Text(label, style: fluent.typography.body)),
+                SizedBox(width: 150, height: 30, child: FluentTextBox(key: ValueKey("pagesetup-\(k)"), controller: boxes[k]!,
                                                                     onSubmitted: { [weak self] _ in self?.apply() })),
             ]))
         }
@@ -148,6 +192,7 @@ final class PageSetupPanelState: State<StatefulWidget> {
             check("centerH", "Center horizontally on the page", form.centerH) { self.form.centerH = $0 },
             check("centerV", "Center vertically on the page", form.centerV) { self.form.centerV = $0 },
             heading("Sheet"),
+            wideBox("area", "Print area"), wideBox("titleRows", "Repeat rows"), wideBox("titleCols", "Repeat cols"),
             check("gridlines", "Print gridlines", form.gridlines) { self.form.gridlines = $0 },
             check("headings", "Print row and column headings", form.headings) { self.form.headings = $0 },
             check("overThenDown", "Pages run across, then down", form.overThenDown) { self.form.overThenDown = $0 },
