@@ -183,7 +183,7 @@ extension DocxFormat {
             }
             // (A mark flagged w:cs, with no w:sz of its own, is a complex-script mark: its line is set at szCs, as Word's print of dx2 228c1f233c7a:
             // an empty centred paragraph with only <w:cs/> under szCs 28 is a 14 pt line, not the 11 pt one.)
-            if DocxFormat.wordOnWindows, let r = pPr.first("w:rPr"), _on(r.first("w:cs")), r.first("w:sz") == nil, markStyle != nil { markStyle?.csMark = true }
+            if DocxFormat.wordOnWindows, let r = pPr.first("w:rPr"), _on(r.first("w:cs")), r.first("w:sz") == nil, r.first("w:szCs") == nil, markStyle != nil { markStyle?.csMark = true }
             if markStyle?.hidden == true { style.markHidden = true }
             if style.markHidden, _on(pPr.first("w:rPr")?.first("w:specVanish")) { style.markSpecVanish = true }
             style.mark = markStyle
