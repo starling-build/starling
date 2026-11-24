@@ -682,8 +682,9 @@ final class RunCapsAndBulletTests: XCTestCase {
         edited.paragraphs[i].runs[edited.paragraphs[i].runs.count - 1].length += 1
         state.slides[1].shapes[s].text = edited
         let out = try XCTUnwrap(String(data: try XCTUnwrap(PptxPackage(try Zip.read(try PptxWriter.write(state, theme: theme, package: pkg))).parts[part]), encoding: .utf8))
-        XCTAssertTrue(out.contains("<a:buChar char=\"▪\"/>"))
-        XCTAssertTrue(out.contains("<a:buClr><a:srgbClr val=\"FF8800\"/></a:buClr><a:buSzPct val=\"70000\"/>"))
+        // Typed in a kept shape: the file's own bullet (Wingdings §, colour, size) stays as it was.
+        XCTAssertTrue(out.contains("char=\"§\"") && out.contains("typeface=\"Wingdings\""))
+        XCTAssertTrue(out.contains("FF8800") && out.contains("val=\"70000\""))
         XCTAssertTrue(out.contains("cap=\"all\""))
     }
 
