@@ -2396,7 +2396,16 @@ extension RichLayout {
                 // holds though none is set yet: sa1 978697fd's page 4, a note's 37.8pt off the
                 // foot, ends its paragraph a line sooner in Word's print than the overhang let ours.)
                 let reservedNotes = _columns > 1 && (_columnNoteReserve[pgs.page] ?? 0) > 0
-                let overhang = placedFrame ? .infinity : theme.wordRules && pgs.i < _overhang.count && pgs.pageNotes.isEmpty && !reservedNotes ? _overhang[pgs.i] : 0
+                // (A multiple's extra under the text hangs over a page's notes too, on a Windows page off the grid (compat 12 there): es-28716e1db6's page 3 keeps two 1.5-spaced lines, 0 to 12 pt after, over footnote 1 in Word's print, lab afn1; the last ends 3.1 pt into the separator's area.)
+                let multipleOverNotes: Bool = {
+                    guard theme.wordRules, RichTextTheme.wordWindowsPages, !pgs.pageNotes.isEmpty, !reservedNotes,
+                          pgs.i < document.paragraphs.count, document.paragraphs[pgs.i].cell == nil, document.paragraphs[pgs.i].image == nil,
+                          document.paragraphs[pgs.i].style.lineHeightPoints == nil, document.paragraphs[pgs.i].style.lineSpacing - theme.lineSpacingReduction > 1.001,
+                          _grid(pgs.i, document).pitch == nil else { return false }
+                    return true
+                }()
+                if multipleOverNotes { RuleTrace.hit("word-multiple-extra-hangs-over-notes") }
+                let overhang = placedFrame ? .infinity : theme.wordRules && pgs.i < _overhang.count && (pgs.pageNotes.isEmpty || multipleOverNotes) && !reservedNotes ? _overhang[pgs.i] : 0
                 let lineOverhangs = !placedFrame && theme.wordRules && pgs.pageNotes.isEmpty && !reservedNotes && pgs.i < _lineOverhang.count ? _lineOverhang[pgs.i] : []
                 // (The reach of line `k` past the foot: its own faces'.)
                 func reach(_ k: Int) -> Double { k >= 0 && k < lineOverhangs.count ? max(overhang, lineOverhangs[k]) : overhang }

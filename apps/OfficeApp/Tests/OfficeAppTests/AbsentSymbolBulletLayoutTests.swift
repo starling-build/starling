@@ -44,4 +44,43 @@ final class AbsentSymbolBulletLayoutTests: XCTestCase {
         let noto = try firstBaseline(face: "Noto Sans Symbols")
         XCTAssertEqual(noto, plain, accuracy: 0.3, "noto \(noto) plain \(plain)")
     }
+
+    /// A multiple's extra under the text hangs over a page's footnotes: with
+    /// 1.5 lines Word's print keeps a last line whose text ends above the
+    /// separator though its extra reaches into it (es-28716e1db6 page 3, lab
+    /// afn1: both lines stay with 0 to 12 pt after).
+    func testAMultipleSpacedLastLineHangsItsExtraOverFootnotes() throws {
+        func pages(size: Int, count: Int) throws -> Int {
+            var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .letter))
+            let notes = """
+            <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+            <w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:footnote w:type="separator" w:id="-1"><w:p><w:r><w:separator/></w:r></w:p></w:footnote><w:footnote w:id="1"><w:p><w:r><w:t>Note</w:t></w:r></w:p></w:footnote></w:footnotes>
+            """
+            entries.append(ZipEntry(name: "word/footnotes.xml", data: Data(notes.utf8)))
+            let di = entries.firstIndex { $0.name == "word/document.xml" }!
+            var xml = String(decoding: entries[di].data, as: UTF8.self)
+            let body = try XCTUnwrap(xml.range(of: "<w:body>")), sect = try XCTUnwrap(xml.range(of: "<w:sectPr"))
+            let rows = (0 ..< count).map { "<w:p><w:pPr><w:spacing w:after=\"0\" w:line=\"360\" w:lineRule=\"auto\"/></w:pPr><w:r><w:rPr><w:sz w:val=\"\(size)\"/></w:rPr><w:t>line \($0)</w:t></w:r></w:p>" }.joined()
+            xml.replaceSubrange(body.upperBound ..< sect.lowerBound,
+                with: "<w:p><w:r><w:t>note</w:t></w:r><w:r><w:footnoteReference w:id=\"1\"/></w:r></w:p>" + rows)
+            entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+            let doc = try DocxFormat.read(try Zip.write(entries)).document
+            let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+            theme.wordRules = true
+            let layout = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+            layout.pageSetup = .letter
+            layout.width = 612 * 96.0 / 72.0
+            layout.ensureLaidOut(doc)
+            return layout.pageCount
+        }
+        let was = RichTextTheme.wordWindowsPages
+        RichTextTheme.wordWindowsPages = true
+        defer { RichTextTheme.wordWindowsPages = was }
+        // (The number of 1.5-spaced one-line paragraphs after which a second page opens; the extra of the page's last line hangs over the note.)
+        for (size, opens) in [(20, 36), (24, 30)] {
+            var n = 1
+            while try pages(size: size, count: n) < 2 { n += 1 }
+            XCTAssertEqual(n, opens, "size \(size)")
+        }
+    }
 }
