@@ -21,6 +21,9 @@ struct PptFile {
     /// Slide persist ids in show order, and the master persist ids.
     private(set) var slideIds: [Int] = []
     private(set) var masterIds: [Int] = []
+    /// The slide size in master units (576 to the inch) and the number the first slide shows.
+    private(set) var slideWidth = 5760, slideHeight = 4320
+    private(set) var firstSlideNumber = 1
 
     init(currentUser: [UInt8], document: [UInt8]) throws {
         guard let user = PptCurrentUser(currentUser) else {
@@ -44,6 +47,12 @@ struct PptFile {
         if first { throw OfficeFormats.FormatError.unsupported("PowerPoint file with no edit record") }
         guard let doc = record(persistId: documentId), doc.type == Self.documentType else {
             throw OfficeFormats.FormatError.unsupported("PowerPoint file without a document container")
+        }
+        for atom in OfficeArt.records(document, in: doc.body) where atom.type == 0x03E9 && atom.body.count >= 34 {
+            let b = atom.body.lowerBound
+            let w = OfficeArt.u32(document, b), h = OfficeArt.u32(document, b + 4)
+            if w > 0, h > 0, w < 0x10000, h < 0x10000 { slideWidth = w; slideHeight = h }
+            firstSlideNumber = OfficeArt.u16(document, b + 32)
         }
         for list in OfficeArt.records(document, in: doc.body) where list.type == Self.slideListType {
             let ids = OfficeArt.records(document, in: list.body)
