@@ -36,6 +36,16 @@ public final class WidgetTester {
         pump()
     }
 
+    /// A tester that goes out of scope unmounts its tree, so the key hooks and
+    /// timers of what it showed do not outlive the test and eat a later test's keys.
+    deinit { dispose() }
+
+    /// Unmounts the whole tree (runs every `dispose`).
+    public func dispose() {
+        guard root != nil else { return }
+        replace(with: SizedBox(width: 0, height: 0, child: nil))
+    }
+
     /// Rebuilds what is dirty, then lays out and paints, until nothing is left dirty.
     public func pump() {
         for _ in 0..<8 {
@@ -45,6 +55,12 @@ public final class WidgetTester {
             pipelineOwner.flushPaint()
             buildOwner.finalizeTree()
         }
+    }
+
+    /// Swaps the whole tree for `widget` (what a dialog closing looks like from above).
+    public func replace(with widget: Widget) {
+        root = RenderObjectToWidgetAdapter(child: widget, container: renderView).attachToRenderTree(buildOwner, root)
+        pump()
     }
 
     /// Every element of the tree, parents first.

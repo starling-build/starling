@@ -256,8 +256,9 @@ final class Ribbon: StatelessWidget {
                     if let d = c.copySelectionData() { Clipboard.setData(d) }
                     session.onStatus?("Copied")
                 },
+            ] + (session.deck != nil ? [] : [   // a deck has no painter yet
                 Chrome.small(FluentSystemIcons.paintBrush, s.painting ? "Painting…" : "Format Painter", fluent) { [session] in session.onFormatPainter?() },
-            ]),
+            ])),
         ])
     }
 
@@ -324,9 +325,10 @@ final class Ribbon: StatelessWidget {
             Chrome.gap(2),
             Chrome.icon(FluentSystemIcons.indentDecrease, "Decrease Indent", fluent) { c.indent(-1) },
             Chrome.icon(FluentSystemIcons.indentIncrease, "Increase Indent", fluent) { c.indent(1) },
+        ] + (session.deck != nil ? [] : [   // a deck draws no paragraph marks
             Chrome.gap(2),
             Chrome.toggle(FluentSystemIcons.paragraphMarks, "Show/Hide ¶ (⌘⇧8)".keys, session.showMarks, fluent) { [session] in session.onToggleMarks?() },
-        ])
+        ]))
         let paraRow2 = Chrome.row([
             Chrome.toggle(FluentSystemIcons.alignLeft, "Align Left", s.alignment == .left, fluent) { c.setAlignment(.left) },
             Chrome.toggle(FluentSystemIcons.alignCenter, "Center", s.alignment == .center, fluent) { c.setAlignment(.center) },
