@@ -4943,6 +4943,16 @@ enum OfficeFonts {
             RuleTrace.hit("missing-hangul-face-no-entry-latin-is-yu-gothic")
             return standInFace("Yu Gothic", eastAsian: false)
         }
+        // (A Latin-named Korean face Word for Windows lacks, whose font-table entry is charset 81 with no alternate and no roman
+        // panose ("Noto Sans KR"): Word falls back to Malgun Gothic for it, its Latin letters and its line too, 1.73 em (ko-4e286d0d0c:
+        // rows step 28.08 pt at 12.5 pt where ours drew Carlito's 18.7).)
+        if wordOnWindows, !own, !eastAsian, !isEmbedded(family), let e = fontEntry(family), e.charset == "81" || e.charset == "129",
+           (e.alt ?? "").trimmingWhitespace().isEmpty, family.unicodeScalars.allSatisfy({ $0.isASCII }),
+           !WordWindowsFaces.names.contains(family.trimmingWhitespace().lowercased()),
+           windowsMissingFallback(family) == "malgun" {
+            RuleTrace.hit("missing-latin-named-korean-face-is-malgun")
+            return standInFace("Malgun Gothic", eastAsian: false)
+        }
         // (A Latin-named face Word for Windows lacks, whose font-table entry has charset 80 (Shift-JIS) and no alternate name:
         // Word draws it in Yu Gothic Regular, line 1.67 em (lab fallback-ft 1, against charset 00 which gives Calibri). The
         // same fallback as the Hangul-named case above and amd-1's Arial Unicode MS (charset 80).)
