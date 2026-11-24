@@ -5437,6 +5437,9 @@ enum OfficeFonts {
                 face.boldOtherAdvances = robotoSlabExtraBoldOtherAdvances
                 face.naturalHeight = 1.3189
                 face.baseline = 1.0479
+                // (Drawn in the face itself, bundled: the ExtraBold (800) instance of Roboto Slab's variable font, OFL.)
+                face.family = "Roboto Slab ExtraBold"
+                face.sizeScale = 1
                 RuleTrace.hit("roboto-slab-extrabold-own-metrics")
             }
             if family.trimmingWhitespace().lowercased() == "arial black" {
@@ -6341,6 +6344,7 @@ enum OfficeFonts {
         faces += ["Regular", "Bold", "Italic", "BoldItalic"].map { ("NotoSans-\($0).ttf", "Noto Sans") }
         faces += ["Regular", "Bold", "Italic", "BoldItalic"].map { ("Lato-\($0).ttf", "Lato") }
         faces += ["Regular", "Bold", "Italic", "BoldItalic"].map { ("OpenSans-\($0).ttf", "Open Sans") }
+        faces += [("RobotoSlab-ExtraBold.ttf", "Roboto Slab ExtraBold")]
         faces += [("Lato-Black.ttf", "Lato Black"), ("Lato-Light.ttf", "Lato Light")]
         // (Lucida Sans Unicode's stand-in, Liberation Sans's regular and
         // bold with no italic: the face has none, and PowerPoint's print

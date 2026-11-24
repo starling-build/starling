@@ -16,3 +16,12 @@ final class RobotoMetricsTests: XCTestCase {
         XCTAssertFalse(OfficeFonts.robotoRegularOtherAdvances.isEmpty)
     }
 }
+
+/// "Roboto Slab ExtraBold" is drawn in the bundled face (the 800 instance of the OFL variable font), not a stand-in.
+final class RobotoSlabBundledTests: XCTestCase {
+    func testTheExtraBoldInstanceIsBundled() throws {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let url = root.appendingPathComponent("Sources/OfficeApp/Resources/fonts/RobotoSlab-ExtraBold.ttf")
+        XCTAssertGreaterThan(try Data(contentsOf: url).count, 50_000)
+    }
+}
