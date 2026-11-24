@@ -991,6 +991,14 @@ final class RichDocumentControllerTests: XCTestCase {
     }
 }
 
+final class PasteChordTests: XCTestCase {
+    func testPlainPasteHasAKeyAndTheFormatPainterKeepsItsOwn() {
+        XCTAssertEqual(PasteChord.of(shift: false, alt: false), .paste)
+        XCTAssertEqual(PasteChord.of(shift: true, alt: false), .pasteFormat)   // Ctrl+Shift+V paints
+        XCTAssertEqual(PasteChord.of(shift: false, alt: true), .pastePlainText) // Ctrl+Alt+V
+    }
+}
+
 final class KeyChordTests: XCTestCase {
     private func key(_ logical: Int64, _ type: KeyEventType = .down, character: String? = nil) -> KeyData {
         KeyData(timeStamp: 0, type: type, physical: 0, logical: logical,
