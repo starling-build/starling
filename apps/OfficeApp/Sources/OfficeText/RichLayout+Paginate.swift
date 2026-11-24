@@ -147,7 +147,6 @@ extension RichLayout {
         // part — see where a row's notes are placed.)
         // (The note this page parts, set at its foot to `keep`.)
         // (Where a column ends at the line marking the note it parts.)
-        _pg_verticalWindow(&pgs, document)
         _pg_loadPins(&pgs, document)
         _blankPages = _blankPages.filter { $0 < pgs.page / _columns }
         _numberedBlankPages = _numberedBlankPages.filter { $0 < pgs.page / _columns }
@@ -160,6 +159,7 @@ extension RichLayout {
             _pageHeaderSection = [:]
             _pg_openPage(&pgs, document)
             _pg_addHeaderBand(&pgs, document)
+            _pg_verticalWindow(&pgs, document)
         }
         // A table row too tall for what is left of the page parts over
         // the page's foot, as Word parts it (prints of 2026-10-13): where

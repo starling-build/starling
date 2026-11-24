@@ -1077,6 +1077,7 @@ extension RichLayout {
             if let float = image.float, !float.takesRoom { rect = _floatRect(float, image, g, i) }
             else if image.float == nil { continue }
             if _decoded[image.id] != nil { continue }
+            if let float = image.float, _verticalPagePicture(i, float, image) { continue }
             _paintOutline(image, rect, canvas)
             if let inside = _textBox(image, document), let text = image.textBox {
                 _paintTurnedTextBox(inside, text, image, rect, canvas)
@@ -2007,6 +2008,7 @@ extension RichLayout {
                     // it as one run at the end: lo-e6dce9d6's "- – — ".)
                     if _dropCapPass == 1, image.isDropCap { continue }
                     if _decoded[image.id] == nil {
+                        if _verticalPagePicture(i, float, image) { continue }
                         _paintOutline(image, rect, canvas)
                         if let inside = _textBox(image, document), let text = image.textBox {
                             self._paintTurnedTextBox(inside, text, image, rect, canvas, clips: true)
@@ -2081,8 +2083,9 @@ extension RichLayout {
     /// print; ours stood turned and in from the wrong edge).
     @inline(never)
     func _verticalPagePicture(_ i: Int, _ float: ImageFloat, _ image: ImageAttachment) -> Bool {
-        guard theme.wordRules, RichTextTheme.wordWindowsPages, !floatsFrames, image.textBox == nil, _verticalBody(i),
-              float.horizontalAlign == nil, float.verticalAlign == nil, abs(image.rotation) < 0.01,
+        guard theme.wordRules, RichTextTheme.wordWindowsPages, !floatsFrames, _verticalBody(i),
+              float.wraps, !float.takesRoom, !float.bandsPage, float.wrapSide == nil, image.width > 0, image.height > 0,
+              image.textBox != nil || !image.data.isEmpty || image.outline != nil, abs(image.rotation) < 0.01,
               float.horizontalFrom == "margin" || float.horizontalFrom == "page",
               float.verticalFrom == "margin" || float.verticalFrom == "page",
               i >= _cells.count || _cells[i] == nil,
@@ -2100,8 +2103,7 @@ extension RichLayout {
         let paperW = setup.height
         let paperLeft = setup.marginBottom, paperTop = setup.marginLeft
         let pw = image.width, ph = image.height
-        let x0 = (float.horizontalFrom == "page" ? 0 : paperLeft) + float.x
-        let y0 = (float.verticalFrom == "page" ? 0 : paperTop) + float.y
+        let (x0, y0) = _verticalFloatPaperOrigin(float, image, setup)
         let pc = _allPieces[_pieceStart[i]]
         let layoutTop = paperW - (x0 + pw) - setup.marginTop
         return Rect.fromLTWH(_px(y0 - paperTop), pc.flowTop - pc.pageY + _px(layoutTop), _px(ph), _px(pw))
@@ -2122,12 +2124,15 @@ extension RichLayout {
                 if i < _floatImages.count, let image = _floatImages[i] { own.append(image) }
                 if i < _inline.count { own += _inline[i] }
                 for image in own where !seen.contains(image.id) {
-                    guard let float = image.float, _verticalPagePicture(i, float, image), let decoded = _decoded[image.id] else { continue }
+                    guard let float = image.float, _verticalPagePicture(i, float, image) else { continue }
+                    let decoded = _decoded[image.id]
+                    if decoded == nil, image.textBox == nil, image.outline == nil { continue }
+                    // (Only on the page the layout seeded it on: the page its anchor falls on.)
+                    if let seeds = _verticalSeeds[p], !seeds.contains(where: { $0.id == image.id }) { continue }
                     seen.insert(image.id)
                     let setup = pageSetup(forPage: p)
                     let paperW = setup.height
-                    let x0 = (float.horizontalFrom == "page" ? 0 : setup.marginBottom) + float.x
-                    let y0 = (float.verticalFrom == "page" ? 0 : setup.marginLeft) + float.y
+                    let (x0, y0) = _verticalFloatPaperOrigin(float, image, setup)
                     let page = pageRect(p)
                     let top = page.top + (p < _pageInsetTop.count ? _pageInsetTop[p] : _px(setup.marginTop)) + _px(paperW - (x0 + image.width) - setup.marginTop)
                     let left = _px(y0)
@@ -2135,7 +2140,13 @@ extension RichLayout {
                     canvas.save()
                     canvas.translate(box.left, box.bottom)
                     canvas.rotate(-Double.pi / 2)
-                    _drawPicture(decoded, image, Rect.fromLTWH(0, 0, box.height, box.width), canvas)
+                    let local = Rect.fromLTWH(0, 0, box.height, box.width)
+                    if let decoded {
+                        _drawPicture(decoded, image, local, canvas)
+                    } else {
+                        _paintOutline(image, local, canvas)
+                        if let inside = _textBox(image, document), let text = image.textBox { _paintTurnedTextBox(inside, text, image, local, canvas, clips: true) }
+                    }
                     canvas.restore()
                 }
             }
