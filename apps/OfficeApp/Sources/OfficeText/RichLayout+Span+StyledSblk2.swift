@@ -78,7 +78,7 @@ extension _StyledFrame {
         if let grid, grid != 0 { extra -= 1.5 * _px(grid) }
     // (A space in a right-to-left run whose complex-script face differs from its Latin one is the complex face's: b514c2's Arial 3.34 pt in Word's print, ours the Latin default's 2.4. Same family in both keeps the Latin table: dx2 Tahoma fa/ur docs.)
     } else if !ea, theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile, run.rightToLeft, ch == "(" || ch == ")",
-              (run.fontHint ?? named?.char.fontHint ?? _normalChar(document)?.fontHint) == "cs", let face = joinedFace,
+              (run.fontHint ?? named?.char.fontHint ?? _normalChar(document)?.fontHint) == "cs", let face = joinedFace, face.joinedAdvances != nil,
               let em = (style(kind).fontWeight == .bold ? face.boldOtherAdvances : face.otherAdvances)?[ch.unicodeScalars.first!.value],
               let px = style(kind).fontSize, px > 0.5 {
         // (An ASCII bracket in a right-to-left run marked w:hint="cs" is the complex-script face's own, not the Latin face's: Traditional
