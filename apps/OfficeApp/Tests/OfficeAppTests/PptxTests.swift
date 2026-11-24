@@ -9,6 +9,29 @@ final class PptxTests: XCTestCase {
         try Pptx.read(Pptx.write(deck))
     }
 
+    /// S-P0-2: a theme applied to a deck read from a file recolours the file's theme part and keeps its masters and layouts.
+    func testApplyingAThemeToAnOpenedDeckKeepsItsMastersAndLayouts() throws {
+        _ = OfficeFonts.register()
+        let (state, theme, package) = try roundTrip(SlidesSample.make())
+        let opened = DeckController()
+        opened.load(state, theme: theme, package: package)
+        let ocean = DeckTheme.presets.first { $0.name == "Ocean" }!
+        opened.applyTheme(ocean)
+        XCTAssertFalse(opened.ownTemplates)
+        let saved = PptxPackage(try Zip.read(try Pptx.write(opened)))
+        func names(_ p: PptxPackage) -> [String] { p.parts.keys.filter { $0.hasPrefix("ppt/slideMasters/") || $0.hasPrefix("ppt/slideLayouts/") }.sorted() }
+        XCTAssertEqual(names(saved), names(package), "the file's masters and layouts are all still there")
+        XCTAssertEqual(saved.parts["ppt/slideLayouts/slideLayout1.xml"], package.parts["ppt/slideLayouts/slideLayout1.xml"], "a layout is written as it was")
+        let themeXML = String(data: saved.parts["ppt/theme/theme1.xml"]!, encoding: .utf8)!
+        XCTAssertTrue(themeXML.containsSubstring("<a:accent1><a:srgbClr val=\"\(PptxText.hex(ocean.accents[0]))\"/></a:accent1>"))
+        XCTAssertTrue(themeXML.containsSubstring("<a:latin typeface=\"\(ocean.headingFont)\"/>"))
+        // Undo goes back to the file's own colours.
+        opened.undo()
+        XCTAssertFalse(opened.recolourTheme)
+        let (_, reopened, _) = try Pptx.read(Pptx.write(opened))
+        XCTAssertEqual(reopened.accents[0], theme.accents[0])
+    }
+
     func testANewDeckSurvivesItsOwnWriter() throws {
         _ = OfficeFonts.register()
         let deck = SlidesSample.make()

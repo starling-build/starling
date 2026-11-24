@@ -154,6 +154,7 @@ struct DeckState: Equatable {
     /// Undo restores the look too: applying a theme is one step.
     var theme: DeckTheme? = nil
     var ownTemplates: Bool? = nil
+    var recolourTheme: Bool? = nil
     /// `p:presentation firstSlideNum`: the number the first slide shows in a slide-number field (PowerPoint prints 0 when a deck says 0).
     var firstSlideNum = 1
 }
@@ -187,6 +188,10 @@ final class DeckController: ChangeNotifier {
     /// came from a file — set once a theme of ours is applied. The package
     /// still supplies kept objects' parts.
     private(set) var ownTemplates = false
+    /// A theme of ours was applied to a deck read from a file: the file's masters
+    /// and layouts stay, and its theme part is recoloured with this theme's
+    /// colours and fonts on save.
+    private(set) var recolourTheme = false
     /// Shapes selected on the current slide, in selection order.
     private(set) var selection: [SlideShape] = []
     private var _nextId = 1
@@ -216,6 +221,7 @@ final class DeckController: ChangeNotifier {
         theme = DeckTheme()
         package = nil
         ownTemplates = false
+        recolourTheme = false
         current = 0
         selection = []
         _undo = []
@@ -232,6 +238,7 @@ final class DeckController: ChangeNotifier {
         self.theme = theme
         self.package = package
         ownTemplates = package == nil
+        recolourTheme = false
         _undo = []
         _redo = []
         _session = nil
@@ -905,18 +912,21 @@ final class DeckController: ChangeNotifier {
     /// Restyle the deck with one of our themes. Placeholders take its fonts
     /// and text colour, shapes coloured from the old theme take the new
     /// one's, and text that simply followed the old theme follows this one.
-    /// A deck read from a file is written with our master and layouts from
-    /// here on (its kept objects still travel with it).
+    /// A deck read from a file keeps its own masters and layouts; its theme part is recoloured.
     func applyTheme(_ new: DeckTheme) {
         _checkpoint()
         let old = theme
         theme = new
-        ownTemplates = true
+        // A deck from a file keeps its masters and layouts; only its theme part is recoloured.
+        let fromFile = package != nil
+        if fromFile { recolourTheme = true } else { ownTemplates = true }
         for slide in slides {
-            slide.layoutPart = nil
-            slide.backgroundXML = nil
+            if !fromFile {
+                slide.layoutPart = nil
+                slide.backgroundXML = nil
+                if let bg = slide.background, bg.image == nil { slide.background = nil }
+            }
             slide.inheritedBackground = nil
-            if let bg = slide.background, bg.image == nil { slide.background = nil }
             for shape in slide.shapes {
                 if shape.kind == .table, shape.fillScheme != nil, let id = shape.tableId, let text = shape.text {
                     var doc = text.document
@@ -1096,7 +1106,7 @@ final class DeckController: ChangeNotifier {
                        transition: slide.transition, timingXML: slide.timingXML,
                        footerFrames: slide.footerFrames, animations: slide.animations,
                        sourceAnimations: slide.sourceAnimations)
-        }, current: current, slideSize: slideSize, theme: theme, ownTemplates: ownTemplates, firstSlideNum: firstSlideNum)
+        }, current: current, slideSize: slideSize, theme: theme, ownTemplates: ownTemplates, recolourTheme: recolourTheme, firstSlideNum: firstSlideNum)
     }
 
     /// Put the deck back as `state` was. Objects that still exist are kept
@@ -1159,6 +1169,7 @@ final class DeckController: ChangeNotifier {
         firstSlideNum = state.firstSlideNum
         if let t = state.theme { theme = t }
         if let o = state.ownTemplates { ownTemplates = o }
+        if let r = state.recolourTheme { recolourTheme = r }
         current = max(0, min(state.current, slides.count - 1))
         selection = []
         _nextId = max(_nextId, (state.slides.flatMap { [$0.id] + $0.shapes.map(\.id) }.max() ?? 0) + 1)
