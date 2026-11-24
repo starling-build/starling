@@ -109,6 +109,7 @@ REUSE=""
 if [ "${SLIDES_REUSE:-1}" = 1 ] && [ -n "${BASE_BIN:-}" ] && [ -z "${BASE_ONLY:-}" ] && [ -s "${BASE_CACHE:-/x}/pdfsha.tsv" ] && [ -s "$BASE_CACHE/lines.txt" ] && [ -s "$BASE_CACHE/render.tsv" ] && [ "$(cat "$BASE_CACHE/scorers.sha" 2>/dev/null)" = "$SCH" ]; then REUSE=1; echo "slides-gate: score reuse on (base cache $BASE_CACHE)"; fi
 rm -f "$W/reused.txt"
 [ -n "${BASE_ONLY:-}" ] || REUSE_SHAS=${REUSE:+$BASE_CACHE/pdfsha.tsv} REUSE_RENDER=${REUSE:+$BASE_CACHE/render.tsv} PDFDIFF_NO_PAIRS=1 OFFICE_APP=$BIN "$ROOT/test/pptx-app-render.sh" -j "$JOBS" "$DECKS" "$PPT" "$W" $(ls -SL "$DECKS" | grep '\.pptx$') > "$W/run.log" 2>&1
+TR=$(date +%s); echo "slides-gate: PR render+pixel step $(( TR-T )) s"
 PY=${PYTHON:-$( [ -x "$HOME/venv-word/bin/python" ] && echo "$HOME/venv-word/bin/python" || echo python3)}
 SCORE_LINES() {   # SCORE_LINES DIR: lines.txt + combined.tsv in DIR (renders already there)
   local skip=""
@@ -194,7 +195,7 @@ if [ -n "$FX" ] && [ -s "$LB" ]; then { cat "$LB"; grep -F -f <(sed 's/\.pptx$//
 if [ -n "$ZX" ] && [ -s "$LB" ]; then { cat "$LB"; cat "$ZH/baseline-lines-zh-win.tsv"; } > "$W/lines-base3.tsv"; LB=$W/lines-base3.tsv; fi
 [ -n "$BASEMODE" ] && LB=$BASELBL
 if [ -s "$LB" ]; then
-  SCORE_LINES "$W"
+  TL=$(date +%s); SCORE_LINES "$W"; echo "slides-gate: line scoring $(( $(date +%s)-TL )) s ($(wc -l < "$W/reused.txt" 2>/dev/null || echo 0) decks reused from the base)"
   "$PY" - "$LB" "$W/combined.tsv" "${LTOL:-1}" "$ACC" <<'Q' || rc=1
 import sys
 def rd(f): return {l.split('\t')[0]:(float(l.split('\t')[1]),l.split('\t')[2].strip()) for l in open(f) if l.strip()}
