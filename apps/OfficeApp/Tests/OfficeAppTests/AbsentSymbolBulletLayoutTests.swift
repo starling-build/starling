@@ -64,7 +64,8 @@ final class AbsentSymbolBulletLayoutTests: XCTestCase {
             xml.replaceSubrange(body.upperBound ..< sect.lowerBound,
                 with: "<w:p><w:r><w:t>note</w:t></w:r><w:r><w:footnoteReference w:id=\"1\"/></w:r></w:p>" + rows)
             entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
-            let doc = try DocxFormat.read(try Zip.write(entries)).document
+            var doc = try DocxFormat.read(try Zip.write(entries)).document
+            doc.compatibilityMode = 12
             let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
             theme.wordRules = true
             let layout = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
