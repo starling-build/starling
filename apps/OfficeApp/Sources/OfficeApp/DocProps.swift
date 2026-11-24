@@ -109,8 +109,9 @@ enum DocProps {
                 k += 2
             }
             let name = String(decoding: u, as: UTF16.self)
-            // (Only faces of another script: a Western face Word lacks is drawn in Times New Roman or Arial by its family, which the missing-face rules for docx fonts tables do not model, and ko-c58c51bdcb's TimesNewRoman fell to Caladea.)
-            if !name.isEmpty, ![0, 1, 2].contains(Int(t[p + 4])) {
+            // (Not a Latin-named face with an empty PANOSE (a Hangul name such as PC명조 is kept: ko-c6f5f9ce99 needs it): Word's own TimesNewRoman, Arial,Bold names (zero PANOSE, charset 0) are no face it has, and the docx missing-face rules drew ko-c58c51bdcb's as Caladea where Word printed Times New Roman.)
+            let blankWestern = [0, 1].contains(Int(t[p + 4])) && u.allSatisfy { $0 < 0x80 } && (0 ..< 10).allSatisfy { t[p + 6 + $0] == 0 }
+            if !name.isEmpty, !blankWestern {
                 let families = ["auto", "roman", "swiss", "modern", "script", "decorative"]
                 let ff = Int(t[p + 1] >> 4) & 7
                 out += "<w:font w:name=\"\(esc(name))\">"
