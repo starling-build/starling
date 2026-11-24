@@ -348,6 +348,14 @@ final class GroupAndConnectorTests: XCTestCase {
         XCTAssertEqual(try XCTUnwrap(runs[1].style.alignTop), 0.803, accuracy: 0.001)
         XCTAssertNotEqual(runs[0].style.alignNatural, runs[1].style.alignNatural)
     }
+    /// TH SarabunPSK is not installed here: Slides gives it its own Thai advance table and draws Thai at 0.82 size (th-cb034815ae),
+    /// instead of the much wider stand-in face's own widths.
+    func testThSarabunPskUsesItsOwnThaiAdvances() throws {
+        let f = try XCTUnwrap(SlideFonts.face("TH SarabunPSK", false))
+        XCTAssertEqual(f.classScales, [1, 1, 1, 1, 0.82])
+        XCTAssertFalse(try XCTUnwrap(f.otherAdvances).isEmpty)
+        XCTAssertFalse(try XCTUnwrap(f.boldOtherAdvances).isEmpty)
+    }
 }
 
 final class DeepGroupTests: XCTestCase {
