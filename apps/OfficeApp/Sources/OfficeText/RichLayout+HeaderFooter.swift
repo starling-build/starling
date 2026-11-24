@@ -299,6 +299,12 @@ extension RichLayout {
         canvas.restore()
     }
 
+    /// A box turned a quarter that keeps its size: the lines stacked past its far edge are not shown.
+    public static func turnedBoxCutsPastFarEdge(_ text: RichTextBox) -> Bool {
+        (text.textDirection == .down || text.textDirection == .up) && text.hasFixedFrame && !text.fitsText && !text.fitsHeight
+            && !text.growsToFit && text.parts.isEmpty
+    }
+
     /// A text box's text in its box `rect`: from its insets, or turned a
     /// quarter about the corner it reads from (`RichTextBox.textDirection`)
     /// — reading up from the bottom-left inset corner, its lines stacking
@@ -317,6 +323,17 @@ extension RichLayout {
             cutsAtFoot = true
             canvas.clipRect(Rect.fromLTRB(rect.left - 1_000_000, rect.top - 1_000_000, rect.right + 1_000_000, rect.bottom - _px(text.insetBottom)),
                             clipOp: .intersect, doAntiAlias: false)
+        }
+        // (A turned box that keeps its size cuts the lines stacked past its far edge, as a level one cuts at its foot: ja-b852b9029c's
+        // 133pt wide box, set `eaVert` in a vertical section, holds two lines of its three paragraphs in Word's print; ours stacked the
+        // third paragraph's lines leftwards across the picture beside it.)
+        if clips, theme.wordRules, RichTextTheme.wordWindowsPages, Self.turnedBoxCutsPastFarEdge(text) {
+            RuleTrace.hit("turnedTextBoxCutsPastFarEdge")
+            if text.textDirection == .down {
+                canvas.clipRect(Rect.fromLTRB(rect.left + _px(text.insetLeft), rect.top - 1_000_000, rect.right + 1_000_000, rect.bottom + 1_000_000), clipOp: .intersect, doAntiAlias: false)
+            } else {
+                canvas.clipRect(Rect.fromLTRB(rect.left - 1_000_000, rect.top - 1_000_000, rect.right - _px(text.insetRight), rect.bottom + 1_000_000), clipOp: .intersect, doAntiAlias: false)
+            }
         }
         // (A turned box that keeps its size, its first line indented past the line's length, cuts its text at its
         // edge: zh-b24b396a's "30" dimension labels, vert270 boxes 11.9pt wide and 7.8 long under a 15pt first-line

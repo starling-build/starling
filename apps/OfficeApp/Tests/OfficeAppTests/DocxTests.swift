@@ -753,6 +753,28 @@ final class DocxTests: XCTestCase {
         XCTAssertGreaterThan(round, plain, "plain \(plain) round \(round)")
     }
 
+    /// ja-b852b9029c: an upright ideograph is painted by a one-glyph painter, whose own shading box is as tall as its line along the
+    /// flow and lay over the glyph before it (a white-shaded 20pt heading had every glyph cut in half). It takes the run's style
+    /// without the shading; an unshaded run's style is unchanged, and so is a horizontal (non-Word) one.
+    func testUprightGlyphPainterDoesNotShadeItsOwnBox() {
+        XCTAssertFalse(RichLayout.uprightGlyphKeepsShading(wordRules: true))
+        XCTAssertTrue(RichLayout.uprightGlyphKeepsShading(wordRules: false))
+    }
+
+    /// ja-b852b9029c: a turned box that keeps its size shows only the lines that fit across it (Word printed two of the three
+    /// paragraphs of a 133pt box; ours stacked the third across the picture beside it). A box that grows, or reads level, is not cut here.
+    func testTurnedFixedBoxCutsLinesPastItsFarEdge() {
+        var box = RichTextBox(paragraphs: [])
+        box.textDirection = .down
+        box.hasFixedFrame = true
+        XCTAssertTrue(RichLayout.turnedBoxCutsPastFarEdge(box))
+        box.growsToFit = true
+        XCTAssertFalse(RichLayout.turnedBoxCutsPastFarEdge(box))
+        box.growsToFit = false
+        box.textDirection = .horizontal
+        XCTAssertFalse(RichLayout.turnedBoxCutsPastFarEdge(box))
+    }
+
     func testRichAndFirstPageHeadersKeptVerbatim() throws {
         // A default header holding a table (60329's banner) and a
         // first-page header: both parts come back as they were, the
