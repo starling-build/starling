@@ -88,9 +88,13 @@ public enum TextInputChannel {
     public static func listen(owner: AnyObject, client: Int = -1, _ handler: @escaping (Data?) -> Void) {
         _owner = ObjectIdentifier(owner)
         activeClient = client
+        // The client belongs to the window that had the keys when it attached. Touch another window and the
+        // keys are that window's at once, while its own client attaches a moment later (its tap is still being
+        // recognised): what the platform sends in between is for the new window, not for this client.
+        let attachedScope = FocusManager.instance.keyScope
         MainActor.assumeIsolated {
             channelBuffers.setListener(name) { data, reply in
-                handler(data)
+                if FocusManager.instance.keyScope == attachedScope { handler(data) }
                 reply(nil)
             }
         }
