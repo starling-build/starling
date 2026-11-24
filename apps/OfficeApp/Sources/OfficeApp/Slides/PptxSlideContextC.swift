@@ -691,6 +691,17 @@ extension SlideContext {
                 // with a Latin run after the Arabic, not at the complex-script face's own height. rtl/6f97f2ee p3's bare Arabic names in
                 // Tahoma 22 pt, 50% before, stand 39.6 pt apart in PowerPoint's print, ours 25.5.)
                 if p.first("a:endParaRPr") == nil, !inDiagram, let face = arabicTailFace, face != runs.last?.style.fontFamily { style.endMarkFace = face }
+                // (A paragraph with no end mark of its own that ends in East Asian letters: the mark takes the last run's Latin face, and
+                // PowerPoint's last line is set by it beside the East Asian face; lab num2, ja 18 and 24 pt in MS Gothic and HGS Mincho
+                // under Palatino, Century Gothic and the theme face: the last line of each paragraph 0.076 em higher, the lines before it as
+                // the East Asian face alone.)
+                else if p.first("a:endParaRPr") == nil, !inDiagram, style.endMarkFace == nil,
+                        let lastRun = p.all("a:r").last, let rp = lastRun.first("a:rPr"),
+                        let last = text.unicodeScalars.last(where: { $0.value != 0x0A && $0.value != 0x0B }), Self.isEastAsian(last.value), last.value != 0x3000 {
+                    let ls = LevelStyle.run(rp, colors).filled(from: level)
+                    let latin = _font(ls.font)
+                    if latin != runs.last?.style.fontFamily { style.endMarkFace = latin }
+                }
                 // (A diagram paragraph with no end mark of its own, ending in East Asian letters, ends in the East Asian face as well:
                 // PowerPoint's print of lab sa5c sets its last line as the lines that have an end mark.)
                 else if inDiagram, let last = text.unicodeScalars.last(where: { $0.value != 0x0A && $0.value != 0x0B }), Self.isEastAsian(last.value), last.value != 0x3000,

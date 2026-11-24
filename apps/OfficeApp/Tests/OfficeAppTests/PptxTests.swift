@@ -348,6 +348,23 @@ final class GroupAndConnectorTests: XCTestCase {
         XCTAssertEqual(try XCTUnwrap(runs[1].style.alignTop), 0.803, accuracy: 0.001)
         XCTAssertNotEqual(runs[0].style.alignNatural, runs[1].style.alignNatural)
     }
+    /// A paragraph that ends in East Asian text and has no endParaRPr: PowerPoint's end mark takes the run's own Latin face (lab num2),
+    /// so that face (Palatino here) is read as the paragraph's end-mark face when it differs from the face of the last run's text.
+    func testEastAsianTailWithoutEndParaRPrKeepsTheLatinFaceAsEndMark() throws {
+        var package = PptxPackage(try Zip.read(try Pptx.write(SlidesSample.make())))
+        var slide = String(data: package.parts["ppt/slides/slide2.xml"]!, encoding: .utf8)!
+        let run = "<a:r><a:rPr lang=\"ja-JP\" sz=\"2000\"><a:latin typeface=\"Palatino Linotype\"/><a:ea typeface=\"MS PGothic\"/></a:rPr><a:t>\u{65E5}\u{672C}\u{8A9E}</a:t></a:r>"
+        let bodies = slide.components(separatedBy: "<p:txBody>")
+        let body = bodies[2]
+        let lst = try XCTUnwrap(body.range(of: "</a:lstStyle>") ?? body.range(of: "<a:lstStyle/>"))
+        let end = try XCTUnwrap(body.range(of: "</p:txBody>"))
+        let rebuilt = String(body[..<lst.upperBound]) + "<a:p>" + run + "</a:p>" + String(body[end.lowerBound...])
+        slide = bodies[0] + "<p:txBody>" + bodies[1] + "<p:txBody>" + rebuilt + bodies.dropFirst(3).map { "<p:txBody>" + $0 }.joined()
+        package.parts["ppt/slides/slide2.xml"] = Data(slide.utf8)
+        let (state, _, _) = try Pptx.read(try Zip.write(package.parts.map { ZipEntry(name: $0.key, data: $0.value) }))
+        let doc = try XCTUnwrap(state.slides[1].shapes.first { $0.phIdx == "1" }?.text)
+        XCTAssertNotNil(doc.paragraphs[0].style.endMarkFace)
+    }
 }
 
 final class DeepGroupTests: XCTestCase {
