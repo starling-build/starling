@@ -3085,47 +3085,6 @@ final class DocxTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(named.length, 20, "the comma gives 2 pt of its quarter em")
         let unnamed = try firstLine(text, width: 20 * 12 - 2, hangs: false, mode: 15, justified: true, documentLanguage: "zh-TW", unnamedEastAsianDefault: true)
         XCTAssertLessThan(unnamed.length, 20, "no East Asian face in the defaults: no squeeze")
-
-    func testALatinFigureAmongTimesArabicKeepsEveryLineAtTimesOwnStep() throws {
-        // Word for Windows (dx2 9f8856f2 page 5, micro-doc lab d2): an Arabic paragraph at 14 pt, 1.5 lines, on Times New Roman, with a
-        // Book Antiqua "4%" in it. Every line steps 24.1 pt (1.149 x 14 x 1.5), as it does without the figure; the stand-in's own box
-        // (Noto Naskh, 1.70 em) made them 29.1 to 29.7.
-        RichTextTheme.wordWindowsPages = true
-        defer { RichTextTheme.wordWindowsPages = false }
-        OfficeFonts.noteAltNames([:]); OfficeFonts.noteFontEntries([:]); OfficeFonts.noteEmbedded([]); OfficeFonts.noteEmbeddedFaces([:])
-        func steps(figure: String) throws -> [Double] {
-            func run(_ text: String, _ face: String, rtl: Bool) -> String {
-                "<w:r><w:rPr><w:rFonts w:ascii=\"\(face)\" w:hAnsi=\"\(face)\" w:cs=\"Times New Roman\" w:eastAsia=\"Times New Roman\"/><w:sz w:val=\"28\"/><w:szCs w:val=\"28\"/>"
-                    + (rtl ? "<w:rtl/>" : "") + "</w:rPr><w:t xml:space=\"preserve\">\(text)</w:t></w:r>"
-            }
-            let word = "انخفض عدد العاطلين عن العمل "
-            let body = "<w:p><w:pPr><w:bidi/><w:spacing w:line=\"360\" w:lineRule=\"auto\"/></w:pPr>"
-                + run(String(repeating: word, count: 6), "Times New Roman", rtl: true) + run("66", "Times New Roman", rtl: false) + run("4", figure, rtl: false) + run("%", figure, rtl: false)
-                + run(String(repeating: word, count: 6), "Times New Roman", rtl: true) + "</w:p>"
-            var parts = try Zip.read(DocxFormat.write(RichDocument(paragraphs: [RichParagraph()]), pageSetup: .letter))
-            let i = try XCTUnwrap(parts.firstIndex { $0.name == "word/document.xml" })
-            parts[i] = ZipEntry(name: "word/document.xml", data: Data((
-                "<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:body>" + body + "</w:body></w:document>").utf8))
-            var doc = try DocxFormat.read(Zip.write(parts)).document
-            doc.compatibilityMode = 15
-            let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
-            theme.fontFamilyResolver = OfficeFonts.substitute
-            theme.faceResolver = OfficeFonts.face
-            theme.averageCharWidth = OfficeFonts.averageCharWidth
-            theme.wordRules = true
-            let l = RichLayout(theme: theme, paragraphCount: 1)
-            l.width = 200 * theme.pixelsPerPoint
-            l.ensureLaidOut(doc)
-            let m = l.geometry(0).painter.computeLineMetrics()
-            return zip(m, m.dropFirst()).map { ($1.baseline - $0.baseline) / theme.pixelsPerPoint }
-        }
-        let without = try steps(figure: "Times New Roman")
-        let with = try steps(figure: "Book Antiqua")
-        XCTAssertGreaterThan(with.count, 2)
-        // (In the unit run there are no Windows faces, so the stand-in's tall box does not show; the figure must not change any step. The
-        // 29.6 pt steps are held by the micro-doc print compare in the board entry.)
-        XCTAssertEqual(with.count, without.count)
-        for (a, b) in zip(with, without) { XCTAssertEqual(a, b, accuracy: 0.05, "a Book Antiqua figure leaves the Times Arabic line steps alone") }
     }
 
     func testALatinFigureAmongTimesArabicKeepsEveryLineAtTimesOwnStep() throws {
