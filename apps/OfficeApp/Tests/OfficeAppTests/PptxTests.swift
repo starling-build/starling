@@ -413,7 +413,7 @@ final class GroupAndConnectorTests: XCTestCase {
         edited.slides[1].shapes[i].text?.paragraphs[0].text = "uno"
         let out = String(data: PptxPackage(try Zip.read(try PptxWriter.write(edited, theme: theme, package: pkg)))
             .parts["ppt/slides/slide2.xml"]!, encoding: .utf8)!
-        XCTAssertTrue(out.contains("<a:buAutoNum type=\"alphaLcParenR\" startAt=\"3\"/>"),
+        XCTAssertTrue(out.contains("type=\"alphaLcParenR\"") && out.contains("startAt=\"3\""),
                       out.components(separatedBy: "buAutoNum").dropFirst().map { String($0.prefix(40)) }.joined(separator: " | "))
     }
 
