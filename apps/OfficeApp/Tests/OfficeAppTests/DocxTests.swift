@@ -6879,4 +6879,42 @@ private final class TurnedTextCanvas: Canvas {
     func drawRawAtlas(_ atlas: Image, _ rstTransforms: [Float], _ rects: [Float], _ colors: [Int32]?, _ blendMode: BlendMode?, _ cullRect: Rect?, _ paint: Paint) {}
     func drawShadow(_ path: Path, _ color: Color, _ elevation: Double, _ transparentOccluder: Bool) {}
 
+
+    func testAnAsciiBracketInAHintCsRunTakesTheComplexFacesWidth() throws {
+        // Word for Windows, Traditional Arabic (a face Windows lacks): the
+        // brackets of a right-to-left run marked w:hint="cs" are 0.278 em in
+        // Word's prints (xb ara-z11030406), not the Latin stand-in's 0.41.
+        guard TestText.icuLoaded else { throw XCTSkip("no icudtl.dat (STARLING_ICU)") }
+        try XCTSkipUnless(DocxFormat.wordOnWindows, "needs OFFICE_WORD_FONTS=windows")
+        _ = OfficeFonts.register()
+        RichTextTheme.wordWindowsPages = true
+        defer { RichTextTheme.wordWindowsPages = false }
+        func width(hint: String?) -> Double {
+            var style = CharStyle()
+            style.fontFamily = "Cambria"
+            style.complexFontFamily = "Traditional Arabic"
+            style.fontSize = 16
+            style.bold = true
+            style.rightToLeft = true
+            style.fontHint = hint
+            let text = "(((("
+            var p = RichParagraph(text: text, runs: [Run(length: text.utf16.count, style: style)])
+            p.style.rightToLeft = true
+            var doc = RichDocument(paragraphs: [p])
+            doc.readFromFile = true
+            let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
+            theme.fontFamilyResolver = OfficeFonts.substitute
+            theme.faceResolver = OfficeFonts.face
+            theme.complexFaceResolver = OfficeFonts.complexFace
+            theme.averageCharWidth = OfficeFonts.averageCharWidth
+            theme.wordRules = true
+            let l = RichLayout(theme: theme, paragraphCount: 1)
+            l.width = 400 * theme.pixelsPerPoint
+            l.ensureLaidOut(doc)
+            return (l.geometry(0).painter.computeLineMetrics().first?.width ?? 0) / theme.pixelsPerPoint
+        }
+        XCTAssertEqual(width(hint: "cs"), 4 * 0.278 * 16, accuracy: 0.3, "four brackets at the face's 0.278 em")
+        XCTAssertGreaterThan(width(hint: nil), 4 * 0.35 * 16, "no hint: the Latin face's width")
+    }
+
 }

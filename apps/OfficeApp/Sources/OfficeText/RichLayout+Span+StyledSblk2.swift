@@ -77,6 +77,14 @@ extension _StyledFrame {
         // character Word wraps.)
         if let grid, grid != 0 { extra -= 1.5 * _px(grid) }
     // (A space in a right-to-left run whose complex-script face differs from its Latin one is the complex face's: b514c2's Arial 3.34 pt in Word's print, ours the Latin default's 2.4. Same family in both keeps the Latin table: dx2 Tahoma fa/ur docs.)
+    } else if !ea, theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile, run.rightToLeft, ch == "(" || ch == ")",
+              (run.fontHint ?? named?.char.fontHint ?? _normalChar(document)?.fontHint) == "cs", let face = joinedFace, face.joinedAdvances != nil, style(kind).fontWeight == .bold,
+              let em = face.joinedBracketEm,
+              let px = style(kind).fontSize, px > 0.5 {
+        // (An ASCII bracket in a right-to-left run marked w:hint="cs" is the complex-script face's own, not the Latin face's: Traditional
+        // Arabic's are 0.278 em in Word's prints, where the Latin stand-in's 0.41 carried ara-z11030406 p3's first line one word short. Bold only: 628 bold brackets measured at it; the regular ones in xb ara-z4399437 stand as they were.)
+        RuleTrace.hit("word-hint-cs-ascii-bracket-takes-the-complex-face-width")
+        extra += em * px - _glyphWidth(style(kind), ch)
     } else if ch == " ", let em = joinedFace?.joinedSpaceEm, !theme.wordRules, let px = style(kind).fontSize, px > 0.5 {
         // (A space of a right-to-left run set in a face with its own space, Simplified Arabic 0.3174 em, Sakkal Majalla 0.1514: the face's
         // width, where the stand-in's Latin space is 0.22 em.)
