@@ -402,7 +402,12 @@ final class OfficeBrowserController: UIDocumentBrowserViewController, UIDocument
                     done(picked?.lastPathComponent)
                 }
                 self.exportPicker = picker
-                (self.editor.presentedViewController ?? self.editor).present(picker.controller, animated: true)
+                let presenter = self.editor.presentedViewController ?? self.editor
+                presenter.present(picker.controller, animated: true)
+                if ProcessInfo.processInfo.environment["OFFICE_HOST_LOG"] != nil {
+                    let w = self.editor.view.window
+                    fputs("[export] view \(self.viewId) presents the picker over its own window: scene \(w?.windowScene?.session.persistentIdentifier ?? "none"), key \(w?.isKeyWindow == true)\n", stderr)
+                }
             }
         }
     }

@@ -196,6 +196,28 @@ Scenes are ON for Office (`MULTI_SCENES` in `build/ios-app.sh`; `UIApplicationSu
 NOT verified: Magic Keyboard (real iPad list), drag-out, state restoration, Save As per scene, 50 open/close
 cycles on a device, frames stopping when a scene is backgrounded on a device.
 
+## Step 5 follow-up (2026-11-24; PR #2587)
+
+- **Focus scope comes from the element chain.** A `FocusNode` took its window from the render tree's root view; a
+  focus request made in `initState` (before the element is attached) had no render object, so the node stayed in
+  scope 0 and typing went to window 0. `State.bind` now falls back to walking the element chain to the
+  `RenderObjectToWidgetAdapter`. Single-view: the walk returns view 0, as before. `STARLING_FOCUS_LOG=1` traces
+  which scope a touch moves the keys to. The hold/replay of early keys was tried and removed: clients attach at
+  touch-down, so nothing arrives in between. The driver's lost keystrokes at 0.1 s are the capacity-1 textinput
+  channel buffer being evicted by `onConnectionClosed`, not routing.
+- **A closed window is released.** `releaseView(id:)` drops the builder and the focus scope and schedules a frame;
+  the iOS host calls it after the engine has removed the view (`fluikit_host_set_view_gone_handler`).
+- **Leak.** Laid-out paragraph frames were kept alive by closures they stored on themselves (fixed in
+  `RichLayout+Paragraph.swift`): +5.5 MB per window open/close cycle became +0.8 MB. Still open: one
+  `RichDocumentController` per closed document window is retained by something outside the session, shell, editor
+  and layout (all freed). `OFFICE_WINDOW_CYCLES=<n>[:<path>]` and `OFFICE_HEAP_DUMP=<dir>` find it (live counts in
+  the `[cycle]` line, class histogram diff).
+- **Save As is per window.** `OfficeNativeShell.export` goes to `shells[viewId]` and presents over that window's own
+  editor; `OFFICE_EXPORT_AFTER=<ms>:<viewId>` drives it. Seen in the simulator in Split View: the picker covers
+  the window of view 1 only.
+- Not seen: Magic Keyboard, drag-out to a new window, state restoration across relaunch, the browser's "Open in
+  New Window" button tap (only the env path), claim across real scenes, frames stopping when backgrounded.
+
 ## Recommendation and order
 
 Option B, in the reviewed order. Multiple scenes stay OFF (`UIApplicationSupportsMultipleScenes` = NO)

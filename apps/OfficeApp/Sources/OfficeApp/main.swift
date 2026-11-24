@@ -1065,6 +1065,18 @@ if let spec = ProcessInfo.processInfo.environment["OFFICE_WINDOW_CYCLES"] {
 }
 // OFFICE_NEW_WINDOW_AFTER=<ms>[:<path>] asks for a new window (showing that file) through the same call as the
 // browser's "Open in New Window", after a delay (a test: no screen to drive).
+// OFFICE_EXPORT_AFTER=<ms>:<viewId> asks that window to Save As (a small text file) the way its Export does, so a
+// test can see the picker come up over that window and no other.
+if let spec = ProcessInfo.processInfo.environment["OFFICE_EXPORT_AFTER"] {
+    let parts = spec.split(separator: ":").map(String.init)
+    if parts.count == 2, let ms = Int(parts[0]), let view = Int(parts[1]) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(ms)) {
+            OfficeNativeShell.export(name: "export-test.txt", prepare: { path, ok in
+                ok((try? "export from view \(view)".write(toFile: path, atomically: true, encoding: .utf8)) != nil)
+            }, thenOpen: false, viewId: view) { name in fputs("[export] view \(view) done: \(name ?? "cancelled")\n", stderr) }
+        }
+    }
+}
 if let spec = ProcessInfo.processInfo.environment["OFFICE_NEW_WINDOW_AFTER"] {
     let parts = spec.split(separator: ":", maxSplits: 1).map(String.init)
     if let ms = Int(parts[0]) {
