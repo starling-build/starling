@@ -1189,6 +1189,8 @@ public struct ImageAttachment: Hashable, Codable, Sendable {
     public var sourceHeight: Double? = nil
     /// The picture's alternative text (`wp:docPr descr`): what a screen reader says for it. `sourceAltText` is what
     /// the file held, so a save patches the kept markup only when the text was changed.
+    /// What `crop` was when the file was read, so a save rewrites the kept markup's `a:srcRect` only after a crop.
+    public var sourceCrop: PictureCrop? = nil
     public var altText: String = ""
     public var sourceAltText: String = ""
     /// The properties of the run the picture sat in (`w:rPr`), as the

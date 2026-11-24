@@ -760,6 +760,28 @@ public final class RichDocumentController: ChangeNotifier {
         }
     }
 
+    /// Cut `crop` (shares of the picture's pixels, each side) off the picture at `index` or its inline picture `id`, one undo
+    /// step. The picture keeps its scale: its frame shrinks or grows by the visible share, so nothing is stretched. nil
+    /// shows the whole picture again. A crop that would leave under 5% in either direction is refused (returns false).
+    @discardableResult
+    public func setImageCrop(at index: Int, inline id: String? = nil, _ crop: PictureCrop?) -> Bool {
+        guard index < document.paragraphs.count else { return false }
+        guard let old = id.map({ document.paragraphs[index].inlineImages[$0] }) ?? document.paragraphs[index].image else { return false }
+        let c = crop.flatMap { $0.left > 0 || $0.top > 0 || $0.right > 0 || $0.bottom > 0 ? $0 : nil }
+        if let c {
+            guard c.left >= 0, c.top >= 0, c.right >= 0, c.bottom >= 0, 1 - c.left - c.right >= 0.05, 1 - c.top - c.bottom >= 0.05 else { return false }
+        }
+        guard c != old.crop else { return true }
+        let was = old.crop ?? PictureCrop(left: 0, top: 0, right: 0, bottom: 0)
+        let now = c ?? PictureCrop(left: 0, top: 0, right: 0, bottom: 0)
+        var new = old
+        new.crop = c
+        new.width = max(4, old.width * (1 - now.left - now.right) / max(0.01, 1 - was.left - was.right))
+        new.height = max(4, old.height * (1 - now.top - now.bottom) / max(0.01, 1 - was.top - was.bottom))
+        edit { perform(id.map { .setInlineImage(index, id: $0, old: old, new: new) } ?? .setImage(index, old: old, new: new)) }
+        return true
+    }
+
     /// Swap the pixels of the picture at `index` (or its inline picture `id`) for `data`, one undo step. The picture keeps its
     /// width and its alternative text; its height follows the new picture's shape so nothing is stretched. The old
     /// picture's own markup (crop, effects) is dropped, as a replacement starts afresh. A floating picture is not replaced
