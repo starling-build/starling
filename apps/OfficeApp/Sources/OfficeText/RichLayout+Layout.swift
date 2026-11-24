@@ -607,7 +607,17 @@ extension RichLayout {
                                     RuleTrace.hit("word-footer-box-under-the-text-foot-does-not-wrap-the-body")
                                     continue
                                 }
-                                blocks.append((page, nil, onPage - insetTop, whole, x0, w, _px(float.distanceLeft ?? 9), _px(float.distanceRight ?? 9), float.wrapSide))
+                                // (A tight wrap's outline, not its box, holds the body's lines: pt a998fc416a's 126.75pt header picture whose polygon
+                                // spans 30 to 66 percent of its height, the box's foot at 104.3, a title line at 97.7 stays whole in Word's print;
+                                // ours set it beside the box in two lines and took the page 15pt low.)
+                                var bandTop = onPage - insetTop, bandHeight = whole
+                                if theme.wordRules, RichTextTheme.wordWindowsPages, float.wrapsTight, float.wrapPolygon.count >= 3, kind == .header,
+                                   let lo = float.wrapPolygon.map({ $0.y }).min(), let hi = float.wrapPolygon.map({ $0.y }).max(), hi > lo {
+                                    RuleTrace.hit("word-header-tight-wrap-holds-the-body-at-the-outline's-rows")
+                                    let h = hf.layout._fittedBoxHeight(image, hf.document)
+                                    bandTop += h * lo; bandHeight = h * (hi - lo)
+                                }
+                                blocks.append((page, nil, bandTop, bandHeight, x0, w, _px(float.distanceLeft ?? 9), _px(float.distanceRight ?? 9), float.wrapSide))
                             }
                         }
                     }
