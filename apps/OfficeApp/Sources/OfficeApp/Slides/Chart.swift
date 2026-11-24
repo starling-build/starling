@@ -4510,6 +4510,15 @@ enum ChartPainter {
     /// is automatic. The step for fixed bounds keeps to ten intervals at
     /// most, round numbers: aascu 5864's 0 to 1 goes by 0.1, as
     /// PowerPoint's, where eight made it 0.2.
+    /// A Word line chart's deleted value axis with a stated minimum above zero: the top is the data plus a twentieth of the run from
+    /// the minimum, rounded up to a step of about five to the run (dx2 9f8856f2: 40 and 54.1 give 55 by 5; 20 and 52.0 give 60 by 10).
+    static func wordLineMinimumScale(min m: Double, dataMax hi: Double) -> (lo: Double, hi: Double, step: Double) {
+        let top = hi + 0.05 * (hi - m), rough = (top - m) / 5
+        let mag = pow(10, floor(log10(rough))), norm = rough / mag
+        let step = (norm <= 1 + 1e-9 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10) * mag
+        return (m, m + ceil((top - m) / step - 1e-9) * step, step)
+    }
+
     static func fixedScale(auto: (lo: Double, hi: Double, step: Double), min lo0: Double?, max hi0: Double?,
                            step step0: Double?) -> (lo: Double, hi: Double, step: Double) {
         var lo = lo0 ?? auto.lo, hi = hi0 ?? auto.hi
@@ -5332,13 +5341,24 @@ enum ChartPainter {
         if c.valueMin != nil || c.valueMax != nil || c.valueStep != nil {
             valueScale = fixedScale(auto: valueScale, min: c.valueMin, max: c.valueMax, step: c.valueStep)
         }
+        // (A Word line chart whose value axis is deleted, a minimum above zero and the far end open: the top is the data and a
+        // twentieth of the run from the minimum past it, rounded up to a step of about five to the run, not ten. Word's print of
+        // dx2 9f8856f2 p2: 40 and data to 54.1 end at 55 (step 5, 15.0 units over 76.7 pt), 20 and data to 52.0 end at 60 (step 10);
+        // ours ended at 60 and 60 only by the generic ten-step rule, or at 56.8 by the twentieth of the run from zero.)
+        var minimumRoundedUp = false
+        if !c.onSlide, !c.onSheet, !c.chartex, c.type == .line, c.valueAxisDeleted, !c.valueGrid, !c.percent, c.valueMax == nil, c.valueStep == nil,
+           let m = c.valueMin, m > 0, m < hi {
+            minimumRoundedUp = true
+            RuleTrace.hit("word-line-chart-deleted-axis-with-a-minimum-ends-at-a-step-of-about-five-to-the-run")
+            valueScale = wordLineMinimumScale(min: m, dataMax: hi)
+        }
         // An axis the file deletes, with no gridlines to show its steps,
         // runs to the data and a twentieth past it, not rounded out to a
         // step: LIBRE_OFFICE-100610's 3-D bars reach 6 of 6.3 and 14 of
         // 14.7 in PowerPoint's print, where ours stopped at 6 of 7.
         // (But not a slide's 3-D bars: PowerPoint rounds those up to a step like a shown axis, 13 to 14, 26 to 30, 130 to 140:
         // lab bar3dbox, the longest bar of x2 values 17 pt shorter than the original's and x10 values identical to it.)
-        if c.valueAxisDeleted, !c.valueGrid, !c.percent, hiddenSlideSteps == nil, !(c.onSlide && c.barView != nil), !(c.onSlide == false && c.onSheet == false && !c.chartex && c.barView == nil && c.areaView == nil && !c.line3D && c.type == .column && !horizontal) {
+        if c.valueAxisDeleted, !c.valueGrid, !c.percent, hiddenSlideSteps == nil, !minimumRoundedUp, !(c.onSlide && c.barView != nil), !(c.onSlide == false && c.onSheet == false && !c.chartex && c.barView == nil && c.areaView == nil && !c.line3D && c.type == .column && !horizontal) {
             let lo0 = min(0, lo), hi0 = max(0, hi), span = hi0 - lo0
             if span > 0 {
                 if c.valueMax == nil { valueScale.hi = hi0 + (hi0 > 0 ? span * 0.05 : 0) }
@@ -5813,6 +5833,10 @@ enum ChartPainter {
         let wordLegendFoot = inWord && word && c.barView == nil && c.lineSeries.isEmpty && c.type == .column && !horizontal
             && c.legend && c.legendPosition == "b" && !(c.title ?? "").isEmpty && c.titleAt == nil && c.plotLayout == nil
         let legendFootRise = wordLegendFoot ? 1.5 * k : 0
+        // (An untitled 2013-style line chart in a Word document, its value axis deleted and its legend at the foot: the plot stands
+        // 2.9 pt lower than ours, its axis line 380.5 and 681.9 where ours stood 377.5 and 679.0 in Word's print of dx2 9f8856f2 p2.)
+        let lineLegendFootRise = !c.onSlide && !c.onSheet && !c.chartex && c.type == .line && c.styled2013 && c.valueAxisDeleted && c.barView == nil
+            && c.plotLayout == nil && c.legend && c.legendPosition == "b" && (c.title ?? "").isEmpty && c.titleAt == nil ? 2.9 * k : 0
         // (A title Word was told where to stand over a plot it lays out itself: the plot's foot 1.25 pt lower and its names
         // not, sa1 67e19017's Spanish column charts.)
         let placedOverAutoFoot = inWord && !c.styled2013 && c.titleAt != nil && c.plotLayout == nil && c.type == .column ? 1.25 * k : 0
@@ -5920,7 +5944,7 @@ enum ChartPainter {
             // (Each outer level of a multi-level axis takes a row of its own under the names.)
             // (On a sheet the rows stand 17.9 pt apart and the block takes 3.7 pt less than elsewhere: WithChartSheet's print, ours 17.2 and 3.0 low.)
             let levelRows = c.categoryLevels.isEmpty ? 0 : Double(c.categoryLevels.count) * ((catLabels.first?.height ?? 12 * k) + (c.onSheet ? 9.13 : 8.2) * k) + (c.onSheet ? -1.6 : 4.5) * k
-            let bottom = levelRows - legendFootRise + (atZero ? (slideBare ? 8.1 : 4) * k : tallest + 7.6 * k + belowOut + slideFoot - malgunCatLift) - (wordFoot ? 4.4 * k : 0) - (plainWordFoot ? 3.7 * k : 0) - placedOverAutoFoot + (libre ? 4.4 * k : 0) - (plainUntitledWord ? 6 * k : 0) + (deletedAxis2013 ? 1.7 * k : 0) + (c.onSheet && c.chartex && c.boxes == nil ? 2.53 * k / 0.75 : 0)
+            let bottom = levelRows - legendFootRise - lineLegendFootRise + (atZero ? (slideBare ? 8.1 : 4) * k : tallest + 7.6 * k + belowOut + slideFoot - malgunCatLift) - (wordFoot ? 4.4 * k : 0) - (plainWordFoot ? 3.7 * k : 0) - placedOverAutoFoot + (libre ? 4.4 * k : 0) - (plainUntitledWord ? 6 * k : 0) + (deletedAxis2013 ? 1.7 * k : 0) + (c.onSheet && c.chartex && c.boxes == nil ? 2.53 * k / 0.75 : 0)
             // Labels centred on the plot's edges (an area's first and last
             // categories, a scatter's end ticks) need half their width free.
             let edges = c.type == .scatter || c.type == .area
@@ -6017,7 +6041,7 @@ enum ChartPainter {
             let untitledWordRise = -4.0
             // (A 2013-style Word column chart with no title and its value axis deleted, no tick label to stand by: its plot starts
             // 11.2 pt under the frame's top, c11d31f3's chart 8 in Word's print, ours 5.6, 5.6 higher.)
-            let deleted2013Column = word && !c.onSlide && !c.onSheet && !c.chartex && c.styled2013 && c.valueAxisDeleted && c.plotLayout == nil && c.barView == nil && c.type == .column && c.lineSeries.isEmpty
+            let deleted2013Column = word && !c.onSlide && !c.onSheet && !c.chartex && c.styled2013 && c.valueAxisDeleted && c.plotLayout == nil && c.barView == nil && (c.type == .column && c.lineSeries.isEmpty || c.type == .line)
             // (A 2013-style Word column chart whose value axis is deleted: its plot starts 4.3 pt further left than the
             // label gap makes it, c11d31f3's chart 8: first column's name at 57.46 in Word's print, ours 61.55.)
             if word, !c.onSlide, !c.onSheet, !c.chartex, c.styled2013, c.valueAxisDeleted, c.plotLayout == nil, c.barView == nil, secondLabels.isEmpty, c.lineSeries.isEmpty {
@@ -7449,6 +7473,7 @@ enum ChartPainter {
                         default: break
                         }
                     }
+                    if c.type == .line, !c.onSlide, !c.onSheet, !c.chartex, (c.series[j].labelPointPos[i] ?? c.series[j].labelPos) == "ctr" { y = vpos(v) }
                     if c.type == .line, c.onSlide, !c.chartex, let n = c.series[j].labelNudges[i] { x += n.dx * frame.width; y += n.dy * frame.height }
                     if c.type == .line, c.onSlide, c.series[j].labelDeleted.contains(i) { continue }
                     if c.type == .line, !c.series[j].labelsShown, !c.series[j].labelPointsOn.contains(i) { continue }
