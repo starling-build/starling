@@ -1474,6 +1474,113 @@ public final class RichDocumentController: ChangeNotifier {
         return out
     }
 
+    // MARK: Cell borders and shading
+
+    /// The cells a table command works on: the selected block, else the
+    /// bounding block of the cells the selection touches.
+    public var targetCellBlock: CellBlock? {
+        if let b = selection.block { return b }
+        guard let here = currentCell else { return nil }
+        var rows = here.row ... here.row + here.rowSpan - 1
+        var cols = here.column ... here.column + here.span - 1
+        for i in selection.start.paragraph ... selection.end.paragraph {
+            guard let c = document.paragraphs[i].cell, c.table == here.table else { continue }
+            rows = min(rows.lowerBound, c.row) ... max(rows.upperBound, c.row + c.rowSpan - 1)
+            cols = min(cols.lowerBound, c.column) ... max(cols.upperBound, c.column + c.span - 1)
+        }
+        return CellBlock(table: here.table, rows: rows, columns: cols)
+    }
+
+    /// Apply `change` to every cell of the target block, one undo step,
+    /// keeping the selection. Nothing is recorded when no cell changed.
+    private func _formatCells(_ change: (inout CellRef, CellBlock) -> Void) {
+        guard let block = targetCellBlock, let range = currentTableRange else { return }
+        let old = Array(document.paragraphs[range])
+        var paras = old
+        for i in paras.indices {
+            guard var c = paras[i].cell, block.contains(c) else { continue }
+            change(&c, block)
+            paras[i].cell = c
+        }
+        guard paras != old else { return }
+        let sel = selection
+        edit {
+            perform(.removeParagraphs(at: range.lowerBound, old))
+            perform(.insertParagraphs(at: range.lowerBound, paras))
+            selection = sel
+        }
+    }
+
+    /// Shade the target cells (nil clears the shading), one undo step.
+    public func setCellShading(_ color: Color?) {
+        _formatCells { c, _ in c.fill = color }
+    }
+
+    /// Draw or clear lines on sides of the target cells, one undo step.
+    /// `top`, `bottom`, `left`, `right` are the block's outer sides;
+    /// `insideH` and `insideV` the lines between its cells. A line with
+    /// style "none" removes the line; a side not named is left alone.
+    public func setCellBorders(_ lines: [CellSide: CellBorderLine]) {
+        guard !lines.isEmpty else { return }
+        let borders = currentCell.flatMap { document.tableStyles[$0.table]?.borders } ?? true
+        _formatCells { c, block in
+            let lastRow = c.row + c.rowSpan - 1, lastCol = c.column + c.span - 1
+            var apply: [String: CellBorderLine] = [:]
+            for (side, line) in lines {
+                switch side {
+                case .top: if c.row == block.rows.lowerBound { apply["top"] = line }
+                case .bottom: if lastRow == block.rows.upperBound { apply["bottom"] = line }
+                case .left: if c.column == block.columns.lowerBound { apply["left"] = line }
+                case .right: if lastCol == block.columns.upperBound { apply["right"] = line }
+                case .insideH:
+                    if lastRow < block.rows.upperBound { apply["bottom"] = line }
+                    if c.row > block.rows.lowerBound { apply["top"] = line }
+                case .insideV:
+                    if lastCol < block.columns.upperBound { apply["right"] = line }
+                    if c.column > block.columns.lowerBound { apply["left"] = line }
+                }
+            }
+            guard !apply.isEmpty else { return }
+            c.bordersXML = Self._mergeCellSides(c.bordersXML ?? c.rowBordersXML, apply)
+            c.bordersKeptUnder = borders
+            var e = c.edges ?? BorderEdges()
+            for (name, line) in apply {
+                let on: Bool? = line.style == "none" ? false : true
+                switch name {
+                case "top": e.top = on
+                case "left": e.left = on
+                case "bottom": e.bottom = on
+                default: e.right = on
+                }
+            }
+            c.edges = e
+            // A cell merged downward draws its bottom from its last row's cell.
+            if c.rowSpan > 1, let b = apply["bottom"] {
+                var cont = c.continuationBordersXML
+                while cont.count < c.rowSpan - 1 { cont.append(nil) }
+                cont[c.rowSpan - 2] = Self._mergeCellSides(cont[c.rowSpan - 2], ["bottom": b])
+                c.continuationBordersXML = cont
+            }
+        }
+    }
+
+    /// `xml` (a `w:tcBorders`, or nil) with the named sides replaced, the
+    /// sides it had and are not named kept, in the schema's order.
+    static func _mergeCellSides(_ xml: String?, _ apply: [String: CellBorderLine]) -> String {
+        let order = ["top", "left", "start", "bottom", "right", "end", "insideH", "insideV", "tl2br", "tr2bl"]
+        var out = "<w:tcBorders>"
+        for name in order {
+            if let line = apply[name] { out += line.xml(name); continue }
+            guard let xml, let a = xml.firstRange(of: "<w:\(name) ") else { continue }
+            let rest = xml[a.lowerBound...]
+            guard let gt = rest.firstRange(of: ">") else { continue }
+            let selfClosed = rest[..<gt.lowerBound].hasSuffix("/")
+            if selfClosed { out += rest[..<gt.upperBound] }
+            else if let end = rest.firstRange(of: "</w:\(name)>") { out += rest[..<end.upperBound] }
+        }
+        return out + "</w:tcBorders>"
+    }
+
     /// Merge the selected cells: a block into its top-left cell, else
     /// across one row into the leftmost, or down one column into the
     /// topmost, keeping every paragraph in order.
@@ -2278,4 +2385,34 @@ public protocol RichClipboardCodec {
     func encode(_ fragment: [RichParagraph], styles: RichStyleSheet, text: String) -> ClipboardData
     /// Paragraphs from the richest flavour present, or nil for none.
     func decode(_ data: ClipboardData) -> [RichParagraph]?
+}
+
+/// A side of a cell block that a border command names.
+public enum CellSide: String, CaseIterable, Hashable, Sendable {
+    case top, bottom, left, right, insideH, insideV
+}
+
+/// One border line: Word's line style ("single", "double", "dashed",
+/// "dotted", "thick", or "none" for no line), width in points (0.25 to
+/// 12) and colour (nil is automatic).
+public struct CellBorderLine: Hashable, Sendable {
+    public static let styles = ["single", "double", "dashed", "dotted", "thick", "none"]
+    public var style: String
+    public var width: Double
+    public var color: Color?
+    public init(style: String = "single", width: Double = 0.5, color: Color? = nil) {
+        self.style = Self.styles.contains(style) ? style : "single"
+        self.width = min(12, max(0.25, width))
+        self.color = color
+    }
+    public static let none = CellBorderLine(style: "none")
+
+    func xml(_ side: String) -> String {
+        if style == "none" { return "<w:\(side) w:val=\"nil\"/>" }
+        let hex = color.map { v -> String in
+            let h = String(v.value & 0xFFFFFF, radix: 16, uppercase: true)
+            return String(repeating: "0", count: 6 - h.count) + h
+        } ?? "auto"
+        return "<w:\(side) w:val=\"\(style)\" w:sz=\"\(Int((width * 8).rounded()))\" w:space=\"0\" w:color=\"\(hex)\"/>"
+    }
 }
