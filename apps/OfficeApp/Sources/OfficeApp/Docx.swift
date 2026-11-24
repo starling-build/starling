@@ -3277,6 +3277,14 @@ enum DocxFormat {
                     document.bodyStatesLang = true
                 }
             }
+            // (Defaults that name no East Asian face at all, no eastAsia and no eastAsiaTheme in rPrDefault's rFonts (or no rFonts): Word for
+            // Windows squeezes no pause mark either, whatever Normal and the runs name. Lab pm4: the same 56 paragraphs squeeze with the real
+            // zh-66451627 styles (docDefaults rFonts asciiTheme/eastAsiaTheme minorEastAsia) and stay a whole em each with that one element
+            // removed (g1) or with no docDefaults (g5, a, b, c, d, f).)
+            do {
+                let rf = styles.first("w:docDefaults")?.first("w:rPrDefault")?.first("w:rPr")?.first("w:rFonts")
+                if rf?["w:eastAsia"] == nil && rf?["w:eastAsiaTheme"] == nil { document.eastAsianDefaultFaceUnnamed = true }
+            }
             let normal = styles.all("w:style").first { $0["w:type"] == "paragraph" && ($0["w:default"] == "1" || $0["w:styleId"] == "Normal") }
             let own = normal?.first("w:rPr")?.first("w:lang")
             let defaults = styles.first("w:docDefaults")?.first("w:rPrDefault")?.first("w:rPr")?.first("w:lang")
