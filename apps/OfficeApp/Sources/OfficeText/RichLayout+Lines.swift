@@ -1894,6 +1894,13 @@ extension RichLayout {
             RuleTrace.hit("level-hansi-only-ascii-label")
             return (nil, attr("w:eastAsia"))
         }
+        // (A geometric shape in the absent Noto Sans Symbols is drawn in the text's face: `_marker`.)
+        if theme.wordRules, let l = level, l.format == .bullet, !l.text.isEmpty,
+           l.text.unicodeScalars.allSatisfy({ (0x25A0 ... 0x25FF).contains($0.value) }),
+           (attr("w:ascii") ?? attr("w:hAnsi") ?? "").lowercased().hasPrefix("noto sans symbols") {
+            RuleTrace.hit("word-noto-symbols-geometric-label-in-the-text-face")
+            return (nil, attr("w:eastAsia"))
+        }
         return (attr("w:ascii") ?? attr("w:hAnsi"), attr("w:eastAsia"))
     }
 
@@ -2001,7 +2008,13 @@ extension RichLayout {
         var named = _named(p, document)
         if theme.wordRules, p.text.isEmpty, markerChar.off.contains(.hidden) { named?.char.hidden = false }
         // East Asian numbers in the run's East Asian face, as the text.
-        let ea = theme.wordRules && label.contains(where: { Self.isEastAsian($0, hinted: true) })
+        // (A geometric shape whose level names Noto Sans Symbols for East Asian text is no East Asian label: that face is no CJK face, and Word, which lacks it, draws the shape in the Latin face, es-3b20b19c25's "●" 0.604 em in Times New Roman, 7.25pt in a 9pt hang; taken as East Asian it stood an em wide and the text went on to the next default stop.)
+        var ea = theme.wordRules && label.contains(where: { Self.isEastAsian($0, hinted: true) })
+        if ea, label.unicodeScalars.allSatisfy({ (0x25A0 ... 0x25FF).contains($0.value) }),
+           (_levelNumberFonts(p, document).eastAsian?.lowercased() ?? "").hasPrefix("noto sans symbols") {
+            RuleTrace.hit("word-noto-symbols-geometric-label-is-latin")
+            ea = false
+        }
         var markerStyle = theme.textStyle(for: markerChar, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale, eastAsian: ea, gridPitch: pitch)
         // (A square or circle label in an East Asian face is that face's glyph, an em
         // wide: zh-bdae17c0's "□" in 標楷體 is DFKai-SB's, 14pt in Word's print, where
