@@ -903,6 +903,40 @@ final class DocxTests: XCTestCase {
         XCTAssertLessThan(belowLine, 36 + 60, "the box is below the line: the line stays above it")
     }
 
+    func testAMultipleSpacedFirstLineStaysAboveABoxItsSingleLineEndsAbove() throws {
+        // Lab carry3 (Word for Windows): a top-and-bottom box a little way down its paragraph
+        // (paragraph-relative, in the body) puts the first line under it while the line reaches past
+        // the box's top, and leaves it above when the box starts at or below the line's foot.
+        RichTextTheme.wordWindowsPages = true
+        defer { RichTextTheme.wordWindowsPages = false }
+        let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")!
+        func foot(offsetTwips: Int, spacing: Double) throws -> Double {
+            let doc = RichDocument(paragraphs: [RichParagraph(image: ImageAttachment(data: png, width: 72, height: 36)), RichParagraph(text: "after")])
+            var entries = try Zip.read(try DocxFormat.write(doc, pageSetup: .letter))
+            let di = entries.firstIndex { $0.name == "word/document.xml" }!
+            var xml = String(decoding: entries[di].data, as: UTF8.self)
+            xml = xml.replacingAll("<wp:inline distT=\"0\" distB=\"0\" distL=\"0\" distR=\"0\">", with: "<wp:anchor distT=\"0\" distB=\"0\" distL=\"0\" distR=\"0\" simplePos=\"0\" relativeHeight=\"1\" behindDoc=\"0\" locked=\"0\" layoutInCell=\"1\" allowOverlap=\"1\"><wp:simplePos x=\"0\" y=\"0\"/><wp:positionH relativeFrom=\"column\"><wp:posOffset>0</wp:posOffset></wp:positionH><wp:positionV relativeFrom=\"paragraph\"><wp:posOffset>\(offsetTwips * 635)</wp:posOffset></wp:positionV>")
+            xml = xml.replacingAll("<wp:docPr", with: "<wp:wrapTopAndBottom/><wp:docPr").replacingAll("</wp:inline>", with: "</wp:anchor>")
+            xml = xml.replacingAll("<w:r><w:drawing>", with: "<w:r><w:t>text</w:t></w:r><w:r><w:drawing>")
+            XCTAssertTrue(xml.contains("<w:t>text</w:t></w:r><w:r><w:drawing>"), xml)
+            entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+            var back = try DocxFormat.read(try Zip.write(entries)).document
+            back.paragraphs[0].style.lineSpacing = spacing
+            let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+            theme.wordRules = true
+            let layout = RichLayout(theme: theme, paragraphCount: 2)
+            layout.pageSetup = .letter
+            layout.width = 612 * 96.0 / 72.0
+            layout.ensureLaidOut(back)
+            return layout.geometry(1).top / theme.pixelsPerPoint
+        }
+        // pt-9fe16a1c71: a 1.5-spaced 11pt line over a box 14pt down stays above it in Word's print, as the single line (12.6) does.
+        let single = try foot(offsetTwips: 280, spacing: 1)
+        let multiple = try foot(offsetTwips: 280, spacing: 1.5)
+        XCTAssertLessThan(single, 36 + 14, "the single line ends above the box")
+        XCTAssertLessThan(multiple, 36 + 14, "the multiple's extra does not reach the box")
+    }
+
     func testAnchoredPictureKeepsItsAnchor() throws {
         let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")!
         var doc = RichDocument(paragraphs: [RichParagraph(image: ImageAttachment(data: png, width: 72, height: 36)), RichParagraph(text: "text")])
