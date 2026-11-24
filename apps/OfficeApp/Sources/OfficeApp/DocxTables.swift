@@ -327,6 +327,43 @@ extension DocxFormat {
         return (PptxXML.serialize(node), found)
     }
 
+    /// A kept drawing's markup with its size changed in place: the first `wp:extent` and the first `a:ext`
+    /// after it (the drawing's own frame, not a group child's) take the new size, so a resize keeps the
+    /// float's position, wrap, crop, turn, alt text and effects. Returns nil where the markup names no
+    /// size to patch; `unchanged` is true when the markup already has this size (then it is written as read).
+    static func _resizedDrawingXML(_ xml: String, width: Double, height: Double, sourceWidth: Double?, sourceHeight: Double?) -> (xml: String, unchanged: Bool)? {
+        func pair(_ tag: String, from start: String.Index) -> (range: Range<String.Index>, cx: Double, cy: Double)? {
+            guard let open = xml.rangeOfSubstring(tag, in: start ..< xml.endIndex),
+                  let close = xml.rangeOfSubstring("/>", in: open.upperBound ..< xml.endIndex) else { return nil }
+            let attrs = " " + String(String(xml[open.lowerBound ..< close.lowerBound]).drop(while: { $0 != " " }))
+            func value(_ name: String) -> Double? {
+                guard let a = attrs.rangeOfSubstring(" \(name)=\"") else { return nil }
+                let rest = attrs[a.upperBound...]
+                guard let q = rest.firstIndex(of: "\"") else { return nil }
+                return Double(String(rest[rest.startIndex ..< q]))
+            }
+            guard let cx = value("cx"), let cy = value("cy") else { return nil }
+            return (open.lowerBound ..< close.upperBound, cx, cy)
+        }
+        guard let ext = pair("<wp:extent", from: xml.startIndex) else { return nil }
+        let oldW = ext.cx / 12700, oldH = ext.cy / 12700
+        // (A picture turned a quarter was read with its width and height swapped.)
+        let swapped = sourceWidth.map { abs($0 - oldH) < 0.1 && abs($0 - oldW) >= 0.1 } ?? false
+        let newW = swapped ? height : width, newH = swapped ? width : height
+        if abs(newW - oldW) < 0.1, abs(newH - oldH) < 0.1 { return (xml, true) }
+        let cx = Int((newW * 12700).rounded()), cy = Int((newH * 12700).rounded())
+        var out = xml
+        let inner = pair("<a:ext cx", from: ext.range.upperBound)
+        // Later range first, so the earlier one's index stays valid.
+        if let inner, let tail = out.rangeOfSubstring(String(xml[inner.range])) {
+            out.replaceSubrange(tail, with: "<a:ext cx=\"\(cx)\" cy=\"\(cy)\"/>")
+        }
+        if let head = out.rangeOfSubstring(String(xml[ext.range])) {
+            out.replaceSubrange(head, with: "<wp:extent cx=\"\(cx)\" cy=\"\(cy)\"/>")
+        }
+        return (out, false)
+    }
+
     /// `fragment` with each `wp:docPr id="…"` given the next id from
     /// `next` (a kept nested table holds several drawings; one id for all
     /// of them was "unreadable content" to Word).
@@ -1122,6 +1159,11 @@ extension DocxFormat {
                 // (An equation stands in the paragraph itself, not in a run.)
                 if let xml = image.sourceXML, image.name == "m:oMath" || image.name == "m:oMathPara" {
                     return keptFragmentXML(xml, image.sourceRels)
+                }
+                if let xml = image.sourceXML, !unresized || image.sourceWidth == nil,
+                   let patched = Self._resizedDrawingXML(xml, width: image.width, height: image.height, sourceWidth: image.sourceWidth, sourceHeight: image.sourceHeight) {
+                    // (Resized: the size is patched in the kept markup, which keeps everything else the file said.)
+                    return "<w:r>\(image.sourceRunPropertiesXML ?? "")\(keptFragmentXML(patched.xml, image.sourceRels))</w:r>"
                 }
                 if let xml = image.sourceXML, unresized {
                     // With the run's own properties: bug59058's thumbnails
