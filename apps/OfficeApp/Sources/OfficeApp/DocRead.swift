@@ -73,6 +73,16 @@ enum DocRead {
     ]
 
     /// The piece table out of the CLX (a run of grpprl "Prc"s, then the "Pcdt" holding the PlcPcd).
+    /// The end of a header or footer story's text: its last paragraph mark closes the story and takes no line of its own
+    /// (pt-2b169d7457: three marks after the last text line are two paragraphs in Word, not three).
+    static func storyEnd(_ a: Int, _ b: Int) -> Int { b - a > 1 ? b - 1 : b }
+
+    /// The settings part of a binary file: it lays out as Word's earlier modes do, so the mark of a paragraph that ends
+    /// in a page break stands on the page the break opens (pt-2b169d7457's cover page).
+    static func settingsXML(facing: Bool) -> String {
+        "<w:settings xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\">" + (facing ? "<w:evenAndOddHeaders/>" : "") + "<w:compat><w:splitPgBreakAndParaMark/></w:compat></w:settings>"
+    }
+
     static func pieces(clx: [UInt8]) -> [DocPiece] {
         var p = 0
         var prcs: [[UInt8]] = []
@@ -316,6 +326,7 @@ enum DocRead {
             var c = ctx; c.base = a; c.styles = st?.xml ?? ""
             return paragraphs(slice(a, b), chp: chp, pap: pap, fonts: fonts, ctx: c)
         }
+        // A header or footer story's last paragraph mark closes the story: it takes no line of its own.
         var extra: [ZipEntry] = [], rels = "", types = ""
         func e(_ name: String, _ s: String) -> ZipEntry { ZipEntry(name: name, data: Data(s.utf8)) }
         let ns = "xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\" xmlns:wp=\"http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing\" xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\" xmlns:pic=\"http://schemas.openxmlformats.org/drawingml/2006/picture\" xmlns:wpg=\"http://schemas.microsoft.com/office/word/2010/wordprocessingGroup\" xmlns:wps=\"http://schemas.microsoft.com/office/word/2010/wordprocessingShape\""
@@ -340,7 +351,7 @@ enum DocRead {
                 let part = "\(tag)\(k)_\(j).xml"
                 let hd = headerDrawings(a, b)
                 var hc = StoryContext(); hc.shapes = hd.shapes; hc.picture = hd.picture
-                extra.append(e("word/" + part, head + "<w:\(tag == "header" ? "hdr" : "ftr") \(ns)>" + story(a, b, hc) + "</w:\(tag == "header" ? "hdr" : "ftr")>"))
+                extra.append(e("word/" + part, head + "<w:\(tag == "header" ? "hdr" : "ftr") \(ns)>" + story(a, storyEnd(a, b), hc) + "</w:\(tag == "header" ? "hdr" : "ftr")>"))
                 let partRels = hd.rels()   // after the story: its inline pictures add theirs while it is read
                 if !partRels.isEmpty { extra.append(e("word/_rels/" + part + ".rels", head + "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">" + partRels + "</Relationships>")) }
                 rels += "<Relationship Id=\"\(id)\" Type=\"\(relBase)\(tag)\" Target=\"\(part)\"/>"
@@ -516,12 +527,12 @@ enum DocRead {
         let dflt = "<w:rFonts w:ascii=\"\(df)\" w:hAnsi=\"\(df)\" w:eastAsia=\"\(dfe)\" w:cs=\"\(df)\"/>"
         // Odd and even pages have their own headers when the document properties say so (the first flag of the DOP).
         let facing = fib.range(31).map { $0.fc < tbl.count && tbl[$0.fc] & 1 != 0 } ?? false
+        // A binary file lays out as Word's earlier modes do: the mark of a paragraph that ends in a page break
+        // stands on the page the break opens (the flag a 2013-era docx carries for the same behaviour).
         var settings: [ZipEntry] = []
-        if facing {
-            settings = [e("word/settings.xml", head + "<w:settings \(ns)><w:evenAndOddHeaders/></w:settings>")]
-            rels += "<Relationship Id=\"rIdSet\" Type=\"\(relBase)settings\" Target=\"settings.xml\"/>"
-            types += "<Override PartName=\"/word/settings.xml\" ContentType=\"\(ctBase)settings+xml\"/>"
-        }
+        settings = [e("word/settings.xml", head + settingsXML(facing: facing))]
+        rels += "<Relationship Id=\"rIdSet\" Type=\"\(relBase)settings\" Target=\"settings.xml\"/>"
+        types += "<Override PartName=\"/word/settings.xml\" ContentType=\"\(ctBase)settings+xml\"/>"
         if let ls = fib.range(73), let nx = DocProps.numbering(tbl, lst: ls, lfo: fib.range(74), fonts: fonts) {
             extra.append(e("word/numbering.xml", head + "<w:numbering \(ns)>" + nx + "</w:numbering>"))
             rels += "<Relationship Id=\"rIdNum\" Type=\"\(relBase)numbering\" Target=\"numbering.xml\"/>"
