@@ -304,6 +304,15 @@ final class XNode {
 /// The column widths (pt) every row of a table states in twips, when each row is whole
 /// single-span dxa cells of one width list; nil otherwise.
 @inline(never)
+/// A copy of a `w:` element with only its own-namespace attributes and children (no theme attributes, links or rsids), fit to write
+/// into another part standing alone.
+func _standaloneW(_ node: XNode) -> XNode {
+    let copy = XNode(name: node.name, attrs: node.attrs.filter { $0.key.hasPrefix("w:") && !$0.key.lowercased().containsSubstring("theme") })
+    copy.text = node.text
+    copy.children = node.children.filter { $0.name.hasPrefix("w:") && $0.name != "w:link" && $0.name != "w:rsid" }.map(_standaloneW)
+    return copy
+}
+
 func _statedCellColumns(_ node: XNode, count: Int, widest: Bool = false) -> [Double]? {
     var widths: [Double]? = nil
     for tr in node.all("w:tr") {
