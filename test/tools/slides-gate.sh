@@ -82,6 +82,17 @@ if [ "${CJK_R3_SET:-1}" != 0 ] && [ -n "${BASE_BIN:-}" ] && [ -d "$C3" ]; then
     ln -sf "$f" "$W/in/$n"; ln -sf "$d/powerpoint-win/$s-orig.pdf" "$W/ppt/"
   done
 fi
+# The multi set m1 (amd-8, 2026-11-24): staging/pptx-new (cache) has <lang>-<pptx|ppt>-m{1,2,3}-dev folders with the decks and ppt-win/<stem>-orig.pdf;
+# a deck with no print is left out. Base mode only, like r1. The legacy .ppt decks are listed too, under a .pptx name: the app cannot open them yet (the same error
+# on both sides, so no verdict), and they score as soon as a .ppt reader lands. MULTI_M1_SET=0 turns it off.
+M1=${MULTI_M1_DIR:-${CORPUS_CACHE:-/data/corpus-cache}/staging/pptx-new}
+if [ "${MULTI_M1_SET:-1}" != 0 ] && [ -n "${BASE_BIN:-}" ] && [ -d "$M1" ]; then
+  for f in "$M1"/*-m[123]-dev/*.pptx "$M1"/*-m[123]-dev/*.ppt; do
+    [ -f "$f" ] || continue
+    d=${f%/*}; n=${f##*/}; s=${n%.*}; [ -f "$d/ppt-win/$s-orig.pdf" ] || continue
+    ln -sf "$f" "$W/in/$s.pptx"; ln -sf "$d/ppt-win/$s-orig.pdf" "$W/ppt/"
+  done
+fi
 [ -s "$CC/baseline-lines-win.tsv" ] || MISS="$MISS $CC/baseline-lines-win.tsv"
 if [ -s "$PB" ] && ! ls "$PILOT"/baseline-*lines*.tsv >/dev/null 2>&1; then MISS="$MISS $PILOT/baseline-lines-pilot-win.tsv"; fi
 [ -z "$MISS" ] || { [ -n "${BASE_BIN:-}" ] && echo "slides-gate: note, fixed-baseline inputs missing (base mode, not needed):$MISS" || { echo "slides-gate: FAILED, missing:$MISS"; exit 1; }; }
