@@ -5934,6 +5934,27 @@ enum ChartPainter {
             let slideBare = c.onSlide && !c.styled2013
             if slideBare, !c.valueTicksOut, !barePlainL { left += max(0, 0.91 * labelSize - 12.2) * k }
             let slideFoot = slideBare && !c.categoryTicksOut ? max(0, 0.64 * (catSize - 12.25)) * k : 0
+            // (A Word column chart's names turned 45 degrees stop, word by word and ending in an ellipsis, where their
+            // length passes 0.707 of the chart's height less 45 pt: lab rotlbl2, one 26-word name in frames 200, 260, 315
+            // and 400 pt tall kept 7, 11, 14 and 18 words, as the rule keeps them.)
+            if word, !c.onSlide, !c.onSheet, !c.chartex, !horizontal, aslant, c.categoryLabelTurn == nil, abs(slant - .pi / 4) < 0.01 {
+                let cap = 0.707 * frame.height - 45 * k
+                for i in catLabels.indices where catLabels[i].width > cap {
+                    let words = c.categories[i].split(separator: " ", omittingEmptySubsequences: true)
+                    var keep = words.count - 1
+                    while keep > 1 {
+                        let t = categoryText(words[0 ..< keep].joined(separator: " ") + "\u{2026}", catSize, .infinity)
+                        let fits = t.width <= cap
+                        t.dispose()
+                        if fits { break }
+                        keep -= 1
+                    }
+                    if keep < 1 { continue }
+                    catLabels[i].dispose()
+                    catLabels[i] = categoryText(words[0 ..< keep].joined(separator: " ") + "\u{2026}", catSize, .infinity)
+                    RuleTrace.hit("word-column-chart-turned-names-stop-word-by-word-where-the-frame-is-full")
+                }
+            }
             let tallest = aslant ? (catLabels.map(drop).max() ?? lineH) : (catLabels.map(\.height).max() ?? lineH)
             // (Malgun Gothic's category names on a slide: PowerPoint's print puts the first baseline 15.2 pt under the axis and the frame's
             // foot 10.4 under the last, 9 pt, 3 charts alike; the face's taller line needs a fixed 4.7 pt less (4.8 at 9 pt, 4.6 at 10 pt: ko-e114b968 p9) between the axis and the names than
