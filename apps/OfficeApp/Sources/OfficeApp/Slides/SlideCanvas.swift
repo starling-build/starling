@@ -94,7 +94,13 @@ final class SlideCanvasState: State<StatefulWidget> {
     private func _pxPerPt(_ slide: Size) -> Double {
         let margin = 32.0
         guard _area.width > margin * 2, _area.height > margin * 2 else { return 0 }
-        return min((_area.width - margin * 2) / slide.width, (_area.height - margin * 2) / slide.height)
+        let fit = min((_area.width - margin * 2) / slide.width, (_area.height - margin * 2) / slide.height)
+        if abs(deck.viewFitScale - fit) > 0.0005 {
+            deck.viewFitScale = fit
+            // The status bar shows the percent; tell it once this frame is done.
+            FrameCallbackScheduler.shared.addPostFrameCallback { [weak self] _ in self?.deck.notifyViewChanged() }
+        }
+        return deck.viewScale ?? fit
     }
 
     /// A window position as a point on the slide.
@@ -136,14 +142,21 @@ final class SlideCanvasState: State<StatefulWidget> {
                 onPointerDown: { [weak self] e in self?._backdropDown(e) },
                 onPointerMove: { [weak self] e in self?._pointerMove(e) },
                 onPointerUp: { [weak self] e in self?._pointerUp(e) },
+                onPointerSignal: { [weak self] e in
+                    // The wheel pans a slide that is zoomed past the window.
+                    if let s = e as? PointerScrollEvent { self?.deck.panView(dx: -s.scrollDelta.dx, dy: -s.scrollDelta.dy) }
+                },
                 behavior: .opaque,
                 child: ColoredBox(color: backdrop, child: SizedBox(expand: ())))),
         ]
         if px > 0 {
             let w = (deck.slideSize.width * px).rounded()
             let h = (deck.slideSize.height * px).rounded()
-            let ox = ((_area.width - w) / 2).rounded()
-            let oy = ((_area.height - h) / 2).rounded()
+            // A slide bigger than the window is panned, never past its own edge.
+            let panX = max(0, (w - _area.width) / 2 + 32), panY = max(0, (h - _area.height) / 2 + 32)
+            let pan = deck.viewPan
+            let ox = ((_area.width - w) / 2 + max(-panX, min(panX, pan.dx))).rounded()
+            let oy = ((_area.height - h) / 2 + max(-panY, min(panY, pan.dy))).rounded()
             _ox = ox; _oy = oy; _px = px
             layers.append(Positioned(key: ValueKey("shadow"), left: ox - 1, top: oy + 1, width: w + 2, height: h + 2,
                                      child: IgnorePointer(child: ColoredBox(color: Color(0x33000000), child: SizedBox(expand: ())))))
