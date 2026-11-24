@@ -1341,7 +1341,7 @@ public final class RichDocumentController: ChangeNotifier {
     // MARK: Paragraph formatting
 
     public func setLineSpacing(_ multiple: Double) {
-        applyParagraphStyle { $0.lineSpacing = multiple }
+        setParagraphFormat(ParagraphFormat(lineRule: .multiple(multiple)))
     }
 
     public func setParagraphSpacing(before: Double? = nil, after: Double? = nil) {
@@ -1356,6 +1356,56 @@ public final class RichDocumentController: ChangeNotifier {
             if let left { style.indentLeft = max(0, left) }
             if let right { style.indentRight = max(0, right) }
             if let firstLine { style.firstLineIndent = firstLine }
+        }
+    }
+
+    /// How a paragraph's line height is set: a multiple of the font's natural
+    /// height, or a fixed number of points (at least / exactly).
+    public enum LineRule: Equatable {
+        case multiple(Double)
+        case atLeast(Double)
+        case exactly(Double)
+    }
+
+    /// Every setting of a Paragraph dialog. A nil field is left as it is.
+    /// One call is one undo step.
+    public struct ParagraphFormat: Equatable {
+        public var alignment: ParagraphAlignment?
+        public var indentLeft: Double?
+        public var indentRight: Double?
+        /// Positive = first line indented, negative = hanging, 0 = none.
+        public var firstLineIndent: Double?
+        public var spaceBefore: Double?
+        public var spaceAfter: Double?
+        public var lineRule: LineRule?
+        public init(alignment: ParagraphAlignment? = nil, indentLeft: Double? = nil,
+                    indentRight: Double? = nil, firstLineIndent: Double? = nil,
+                    spaceBefore: Double? = nil, spaceAfter: Double? = nil,
+                    lineRule: LineRule? = nil) {
+            self.alignment = alignment; self.indentLeft = indentLeft
+            self.indentRight = indentRight; self.firstLineIndent = firstLineIndent
+            self.spaceBefore = spaceBefore; self.spaceAfter = spaceAfter
+            self.lineRule = lineRule
+        }
+    }
+
+    public func setParagraphFormat(_ f: ParagraphFormat) {
+        applyParagraphStyle { s in
+            if let a = f.alignment { s.alignment = a }
+            if let v = f.indentLeft { s.indentLeft = max(0, v) }
+            if let v = f.indentRight { s.indentRight = max(0, v) }
+            if let v = f.firstLineIndent { s.firstLineIndent = v }
+            if let v = f.spaceBefore { s.spaceBefore = max(0, v); s.spaceBeforeAuto = false }
+            if let v = f.spaceAfter { s.spaceAfter = max(0, v); s.spaceAfterAuto = false }
+            switch f.lineRule {
+            case .multiple(let m)?:
+                s.lineSpacing = max(0.1, m); s.lineHeightPoints = nil; s.lineHeightIsMinimum = false
+            case .atLeast(let p)?:
+                s.lineHeightPoints = max(1, p); s.lineHeightIsMinimum = true
+            case .exactly(let p)?:
+                s.lineHeightPoints = max(1, p); s.lineHeightIsMinimum = false
+            case nil: break
+            }
         }
     }
 
