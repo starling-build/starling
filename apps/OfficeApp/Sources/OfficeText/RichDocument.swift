@@ -2803,6 +2803,8 @@ public struct RichDocument: Hashable, Codable, Sendable {
     /// Word for Windows then compresses no punctuation, whatever the
     /// languages and `w:characterSpacingControl` say.
     public var eastAsianDefaultFaceIsLatin = false
+    /// The defaults' run properties name no East Asian face (no `w:eastAsia`, no `w:eastAsiaTheme`): Word for Windows compresses no pause mark.
+    public var eastAsianDefaultFaceUnnamed = false
     /// A run of the body states a language (w:lang).
     public var bodyStatesLang = false
     /// The embedded faces Word for Windows compresses no punctuation in:
