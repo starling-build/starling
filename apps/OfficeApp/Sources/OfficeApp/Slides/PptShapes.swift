@@ -43,6 +43,27 @@ extension PptFile {
         return x
     }
 
+    /// `a:bodyPr` from the text properties of a shape: insets (0x81-0x84, EMU), wrap (0x85), anchor (0x87),
+    /// text flow (0x88) and fit-shape-to-text (0xBF). A property the shape does not set is left to inherit.
+    static func bodyPrXML(_ s: ArtShape) -> String {
+        var a = ""
+        for (id, name) in [(0x81, "lIns"), (0x82, "tIns"), (0x83, "rIns"), (0x84, "bIns")] {
+            if let v = s.props[id] { a += " \(name)=\"\(v)\"" }
+        }
+        if let w = s.props[0x85] { a += w == 2 ? " wrap=\"none\"" : " wrap=\"square\"" }
+        switch s.props[0x88] ?? 0 {
+        case 1, 3: a += " vert=\"vert\""
+        case 2: a += " vert=\"vert270\""
+        default: break
+        }
+        if let v = s.props[0x87] {
+            a += " anchor=\"\(["t", "ctr", "b"][v % 3])\""
+            if v >= 3, v <= 5 { a += " anchorCtr=\"1\"" }
+        }
+        let fit = DocArt.flag(s, 0xBF, bit: 1, default: false) ? "<a:spAutoFit/>" : ""
+        return fit.isEmpty ? "<a:bodyPr\(a)/>" : "<a:bodyPr\(a)>\(fit)</a:bodyPr>"
+    }
+
     /// `p:sp` / `p:grpSp` elements for the shapes of a slide, in drawing order.
     /// `picture` turns a picture-store index into the relationship id a part holds it under (nil: the picture cannot be used).
     /// `master`: a master's own drawing, where placeholders are left out.
@@ -123,7 +144,7 @@ extension PptFile {
             xml += xfrm("xfrm", anchor, rot: rotation(art), flipH: art.flags & 0x40 != 0, flipV: art.flags & 0x80 != 0)
             xml += geometry + Self.fillLineXML(art, placeholder: placeholder != nil, picture: picture) + "</p:spPr>"
             if block != nil || placeholder != nil {
-                xml += "<p:txBody><a:bodyPr/><a:lstStyle/>" + paragraphsXML(block) + "</p:txBody>"
+                xml += "<p:txBody>" + Self.bodyPrXML(art) + "<a:lstStyle/>" + paragraphsXML(block) + "</p:txBody>"
             }
             return xml + "</p:sp>"
         }

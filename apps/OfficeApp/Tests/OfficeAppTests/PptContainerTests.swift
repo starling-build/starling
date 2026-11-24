@@ -375,6 +375,15 @@ final class PptContainerTests: XCTestCase {
         XCTAssertTrue(xml.contains("<a:t>Page </a:t>"), xml)
     }
 
+    func testTextBoxSettingsBecomeBodyProperties() {
+        var s = ArtShape()
+        XCTAssertEqual(PptFile.bodyPrXML(s), "<a:bodyPr/>")
+        s.props = [0x81: 0, 0x87: 1, 0x85: 2]
+        let x = PptFile.bodyPrXML(s)
+        XCTAssertTrue(x.contains("lIns=\"0\"") && x.contains("anchor=\"ctr\"") && x.contains("wrap=\"none\""), x)
+        XCTAssertFalse(x.contains("tIns"), x)
+    }
+
     func testStyleRunsKeepOnlyTheFieldsTheirMaskNames() throws {
         // "Big red": one paragraph (level 1, centred, nothing else), runs "Big " (bold red 24 pt) and "red" (no fields).
         var atom: [UInt8] = le32(8) + le16(1) + le32(0x800) + le16(1)
