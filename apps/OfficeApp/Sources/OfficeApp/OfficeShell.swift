@@ -1119,7 +1119,8 @@ final class OfficeShellState: State<StatefulWidget> {
         if session.showRuler && session.viewMode == .printLayout {
             pages.append(Ruler(setup: session.pageSetup, zoom: session.zoom,
                                pixelsPerPoint: session.theme.pixelsPerPoint, sidePadding: 24,
-                               indentLeft: controller.currentParagraphStyle.indentLeft))
+                               style: controller.currentParagraphStyle,
+                               onFormat: { [weak self] f in self?.controller.setParagraphFormat(f) }))
         }
         pages.append(Expanded(child: _pageArea(fluent)))
         var area: [Widget] = []
