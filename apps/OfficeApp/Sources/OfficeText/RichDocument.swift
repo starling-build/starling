@@ -452,6 +452,8 @@ public struct RichTextBox: Hashable, Codable, Sendable {
     /// or VML's `mso-wrap-style:none` with `mso-fit-shape-to-text`):
     /// Word shrinks it to the text before it places it.
     public var fitsText = false
+    /// DrawingML `wrap="none"` without `spAutoFit`: the box keeps its size and its text stays on its lines, past the box's edge.
+    public var noWrap = false
     /// The box takes its text's height (VML's `mso-fit-shape-to-text`
     /// without `mso-wrap-style:none`): in the line, it is as tall as its
     /// text and insets, whatever its own height says.

@@ -602,7 +602,7 @@ extension ImageFloat {
 
 extension RichTextBox {
     enum CodingKeys: String, CodingKey {
-        case paragraphs, insetLeft, insetTop, insetRight, insetBottom, fitsText, fitsHeight, fitsOnce, tableStyles, tableColumns, growsToFit, parts, textDirection
+        case paragraphs, insetLeft, insetTop, insetRight, insetBottom, fitsText, fitsHeight, fitsOnce, noWrap, tableStyles, tableColumns, growsToFit, parts, textDirection
     }
 
     public init(from decoder: Decoder) throws {
@@ -615,6 +615,7 @@ extension RichTextBox {
         fitsText = try c.decodeIfPresent(Bool.self, forKey: .fitsText) ?? false
         fitsHeight = try c.decodeIfPresent(Bool.self, forKey: .fitsHeight) ?? false
         fitsOnce = try c.decodeIfPresent(Bool.self, forKey: .fitsOnce) ?? false
+        noWrap = try c.decodeIfPresent(Bool.self, forKey: .noWrap) ?? false
         tableStyles = try c.decodeIfPresent([String: TableStyle].self, forKey: .tableStyles) ?? [:]
         tableColumns = try c.decodeIfPresent([String: [Double]].self, forKey: .tableColumns) ?? [:]
         growsToFit = try c.decodeIfPresent(Bool.self, forKey: .growsToFit) ?? false
@@ -632,6 +633,7 @@ extension RichTextBox {
         try c.encode(fitsText, forKey: .fitsText)
         try c.encode(fitsHeight, forKey: .fitsHeight)
         try c.encode(fitsOnce, forKey: .fitsOnce)
+        try c.encode(noWrap, forKey: .noWrap)
         try c.encode(tableStyles, forKey: .tableStyles)
         try c.encode(tableColumns, forKey: .tableColumns)
         try c.encode(growsToFit, forKey: .growsToFit)
