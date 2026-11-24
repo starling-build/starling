@@ -180,7 +180,7 @@ if [ "$MODE" = full ] && [ "${GATE_SLIDES:-1}" = 1 ] && [ "${GATE_PREBUILD:-0}" 
   if [ -n "${CH:-}" ] && ! echo "$CH" | grep -vE '^(docs/|test/(tools|corpus)/|apps/[A-Za-z]+/Tests/|apps/OfficeApp/Sources/OfficeApp/Docx\.swift$|apps/OfficeApp/Sources/(OfficeApp|OfficeText)/WordWindowsFaces\.swift$)' | grep -vxF "$SHO" | grep -q .; then
     echo "render-gate: Slides step skipped (change touches only Word-reader, Sheets-only, docs or test-tool files)"
   else
-    SLIDES_ONLY=${GATE_RECHECK_DECKS:-} LQ=$LQ BASE_BIN=$BC/$BSHA/release/OfficeApp BASE_CACHE=$BC/$BSHA/slides test/tools/slides-gate.sh "$(ls "$W"/build/*/release/OfficeApp | head -1)" 32 > "$W/slides.out" 2>&1 & SLPID=$!
+    SLIDES_ONLY=${GATE_RECHECK_DECKS:-} LQ=$LQ BASE_BIN=$BC/$BSHA/release/OfficeApp BASE_CACHE=$BC/$BSHA/slides test/tools/slides-gate.sh "$(ls "$W"/build/*/release/OfficeApp | head -1)" "${JOBS:-32}" > "$W/slides.out" 2>&1 & SLPID=$!
   fi
 fi
 [ "${GATE_PREBUILD:-0}" = 1 ] && { echo "render-gate: PR build alone $(( $(date +%s)-TB )) s; changed since this scratch's last build: $( [ -n "$PREV" ] && git diff --name-only "$PREV" HEAD 2>/dev/null | wc -l || echo unknown) files (prev ${PREV:0:9})"; git rev-parse HEAD > "$W/build.rev"; [ "${GATE_WARM:-0}" = 1 ] && { echo "render-gate: scratch warm on $(git rev-parse --short HEAD)"; exit 0; }
