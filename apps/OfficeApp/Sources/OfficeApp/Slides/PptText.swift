@@ -15,6 +15,8 @@ struct PptTextBlock {
     var charRuns: [PptCharRun] = []
     /// Field marks: text position -> DrawingML field type (the text there is the field's placeholder character).
     var fields: [Int: String] = [:]
+    /// TextRulerAtom: per indent level, the left margin and indent this shape sets (master units).
+    var ruler: [Int: (left: Int?, indent: Int?)] = [:]
 }
 
 enum PptText {
@@ -34,6 +36,29 @@ enum PptText {
     }
 
     /// The text blocks among `records` (one per TextHeaderAtom; a text atom with no header is a block of type "other").
+    /// TextRuler: a u32 mask (bit 0 level count, 1 default tab, 2 tab stops, 3-7 left margin 1-5, 8-12 indent 1-5),
+    /// then the fields it names in that order, each an s16 (tab stops: a count and 4 bytes each).
+    static func ruler(_ r: ArtRecord, in b: [UInt8]) -> [Int: (left: Int?, indent: Int?)] {
+        let mask = OfficeArt.u32(b, r.body.lowerBound)
+        var k = r.body.lowerBound + 4
+        func s16() -> Int? {
+            guard k + 2 <= r.body.upperBound else { return nil }
+            let v = OfficeArt.u16(b, k); k += 2
+            return v >= 0x8000 ? v - 0x10000 : v
+        }
+        if mask & 1 != 0 { _ = s16() }
+        if mask & 2 != 0 { _ = s16() }
+        if mask & 4 != 0 { k += 2 + 4 * max(s16() ?? 0, 0) }
+        var left: [Int: Int] = [:], indent: [Int: Int] = [:]
+        for n in 0 ..< 5 {
+            if mask & (8 << n) != 0, let v = s16() { left[n] = v }
+            if mask & (0x100 << n) != 0, let v = s16() { indent[n] = v }
+        }
+        var out: [Int: (left: Int?, indent: Int?)] = [:]
+        for n in Set(left.keys).union(indent.keys) { out[n] = (left[n], indent[n]) }
+        return out
+    }
+
     static func blocks(_ records: [ArtRecord], in b: [UInt8]) -> [PptTextBlock] {
         var out: [PptTextBlock] = []
         var pendingType: Int? = nil
@@ -49,6 +74,8 @@ enum PptText {
                 if !out.isEmpty, r.body.count >= 4 {
                     out[out.count - 1].fields[OfficeArt.u32(b, r.body.lowerBound)] = r.type == 0x0FD8 ? "slidenum" : "datetime1"
                 }
+            case 0x0FA6 where r.body.count >= 4:
+                if !out.isEmpty { out[out.count - 1].ruler = ruler(r, in: b) }
             case styleType:
                 if !out.isEmpty {
                     let parsed = PptStyle.parse(b, in: r.body, length: out[out.count - 1].text.utf16.count)

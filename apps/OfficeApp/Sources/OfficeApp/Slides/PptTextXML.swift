@@ -84,8 +84,15 @@ extension PptFile {
         }
         let pStart = starts(block.paraRuns) { $0.count }, cStart = starts(block.charRuns) { $0.count }
         func paraRun(at k: Int) -> PptParaRun? {
-            guard let i = pStart.lastIndex(where: { $0 <= k }), k < pStart[i] + block.paraRuns[i].count else { return nil }
-            return block.paraRuns[i]
+            var run: PptParaRun? = nil
+            if let i = pStart.lastIndex(where: { $0 <= k }), k < pStart[i] + block.paraRuns[i].count { run = block.paraRuns[i] }
+            // The shape's ruler sets the margin and indent of a level its own runs leave open.
+            if let r = block.ruler[run?.level ?? 0], r.left != nil || r.indent != nil {
+                var p = run ?? PptParaRun()
+                if p.leftMargin == nil { p.leftMargin = r.left }
+                return p
+            }
+            return run
         }
         func charRun(at k: Int) -> (PptCharRun, Int)? {
             guard let i = cStart.lastIndex(where: { $0 <= k }), k < cStart[i] + block.charRuns[i].count else { return nil }

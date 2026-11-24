@@ -498,3 +498,15 @@ extension PptContainerTests {
         XCTAssertTrue(state.slides[0].hidden)
     }
 }
+
+extension PptContainerTests {
+    func testARulerGivesTheLeftMarginOfItsLevels() {
+        // mask: left margin 1 (bit 3) and indent 1 (bit 8)
+        let body = le32(0x108) + le16(569) + le16(216)
+        let r = rec(0x0FA6, body)
+        let recs = OfficeArt.records(r, in: 0 ..< r.count)
+        let ruler = PptText.ruler(recs[0], in: r)
+        XCTAssertEqual(ruler[0]?.left, 569)
+        XCTAssertEqual(ruler[0]?.indent, 216)
+    }
+}
