@@ -2985,6 +2985,12 @@ public struct RichDocument: Hashable, Codable, Sendable {
     /// Content types of `keptParts`, by package path, as the file declared
     /// them (a kept part the editor knows nothing about still needs one).
     public var keptPartTypes: [String: String] = [:]
+    /// The package's own relationships the editor does not write (core,
+    /// extended and custom properties, thumbnail), and the document's to
+    /// `customXml` items: kept so a save carries the file's properties and
+    /// bound data. Their parts are in `keptParts`.
+    public var keptRootRels: [KeptRel] = []
+    public var keptCustomXmlRels: [KeptRel] = []
 
     public static let pageField = "{PAGE}"
     public static let pageCountField = "{NUMPAGES}"

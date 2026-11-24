@@ -3061,6 +3061,16 @@ enum DocxFormat {
         }
         document.keptParts = notes.kept
         document.keptPartTypes = notes.keptTypes
+        if let data = part("_rels/.rels"), let rr = XNode.parse(data) {
+            document.keptRootRels = rr.relationships().compactMap { r in
+                guard let id = r["Id"], let type = r["Type"], let target = r["Target"],
+                      !type.hasSuffix("/officeDocument"), r["TargetMode"] == "External" || notes.kept[target.hasPrefix("/") ? String(target.dropFirst()) : target] != nil
+                else { return nil }
+                return KeptRel(id: id, type: type, target: target, external: r["TargetMode"] == "External")
+            }
+        }
+        document.keptCustomXmlRels = relInfo.values.filter { $0.type.hasSuffix("/customXml") && notes.kept["customXml/" + ($0.target.split(separator: "/").last.map(String.init) ?? "")] != nil }
+            .sorted { $0.id < $1.id }
         document.keptTables = keptTables
         document.keptHeaderFooters = keptHeaderFooters
         document.titlePage = titlePage
