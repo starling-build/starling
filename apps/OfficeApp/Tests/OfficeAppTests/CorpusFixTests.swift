@@ -201,6 +201,7 @@ final class CorpusFixTests: XCTestCase {
         let fixed = try bodyTop(autofit: false), fitted = try bodyTop(autofit: true)
         XCTAssertGreaterThan(fixed, PageSetup.letter.headerDistance + 30 + 100, "a fixed-height box: the body stands under its stated foot")
         XCTAssertLessThan(fitted, fixed - 60, "an autofit box: under its one text line")
+    }
 
     /// A paragraph of one anchored picture is as tall as its anchor run's font. A run that states `sz` is that size even when the paragraph
     /// style is bigger (pt-ebe6f5b3cc); in a right-to-left paragraph the picture is a complex-script character, so only `szCs` sizes it and
