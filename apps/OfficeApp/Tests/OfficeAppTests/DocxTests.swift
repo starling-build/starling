@@ -3129,6 +3129,37 @@ final class DocxTests: XCTestCase {
         for (a, b) in zip(with, without) { XCTAssertEqual(a, b, accuracy: 0.05, "a Book Antiqua figure leaves the Times Arabic line steps alone") }
     }
 
+    func testATraditionalArabicRunInARightToLeftParagraphStepsAtItsOwnLine() throws {
+        // Word for Windows (dx2 ur 84f36322 page 2): Traditional Arabic lines in a bidi paragraph step 1.495 em (0.997 above the baseline,
+        // 0.498 below), not the Naskh stand-in's 1.70. The rule is measured on the page; here it must at least not make a step taller.
+        RichTextTheme.wordWindowsPages = true
+        defer { RichTextTheme.wordWindowsPages = false }
+        OfficeFonts.noteAltNames([:]); OfficeFonts.noteFontEntries([:]); OfficeFonts.noteEmbedded([]); OfficeFonts.noteEmbeddedFaces([:])
+        let word = "انخفض عدد العاطلين عن العمل "
+        let body = "<w:p><w:pPr><w:bidi/></w:pPr><w:r><w:rPr><w:rFonts w:ascii=\"Traditional Arabic\" w:hAnsi=\"Traditional Arabic\" w:cs=\"Traditional Arabic\"/><w:sz w:val=\"28\"/><w:szCs w:val=\"28\"/><w:rtl/></w:rPr><w:t xml:space=\"preserve\">"
+            + String(repeating: word, count: 12) + "</w:t></w:r></w:p>"
+        var parts = try Zip.read(DocxFormat.write(RichDocument(paragraphs: [RichParagraph()]), pageSetup: .letter))
+        let i = try XCTUnwrap(parts.firstIndex { $0.name == "word/document.xml" })
+        parts[i] = ZipEntry(name: "word/document.xml", data: Data((
+            "<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:body>" + body + "</w:body></w:document>").utf8))
+        var doc = try DocxFormat.read(Zip.write(parts)).document
+        doc.compatibilityMode = 15
+        let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
+        theme.fontFamilyResolver = OfficeFonts.substitute
+        theme.faceResolver = OfficeFonts.face
+        theme.averageCharWidth = OfficeFonts.averageCharWidth
+        theme.wordRules = true
+        let l = RichLayout(theme: theme, paragraphCount: 1)
+        l.width = 200 * theme.pixelsPerPoint
+        l.ensureLaidOut(doc)
+        let m = l.geometry(0).painter.computeLineMetrics()
+        XCTAssertGreaterThan(m.count, 2)
+        for (a, b) in zip(m, m.dropFirst()) {
+            let step = (b.baseline - a.baseline) / theme.pixelsPerPoint
+            XCTAssertLessThanOrEqual(step, 1.70 * 14 + 0.1)
+        }
+    }
+
     func testAnOpeningMarkMayEndALineSqueezedUnderCompressPunctuation() throws {
         // Word for Windows, compat 15, compressPunctuation, kinsoku on (labs
         // opn1/opn11, zh 8787f4): with room for half an em or more the opener
