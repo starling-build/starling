@@ -190,6 +190,7 @@ enum DocProps {
         var x = istd > 0 ? "<w:pStyle w:val=\"S\(istd)\"/>" : ""
         var keepNext = false, keepLines = false, pageBreak = false, widow: Bool?
         var before: Int?, after: Int?, line: (Int, Int)?
+        var beforeAuto: Bool?, afterAuto: Bool?
         var left: Int?, right: Int?, first: Int?, jc: String?
         var ilfo = 0, ilvl = 0
         for s in sprms(g) where s.sgc == 1 {
@@ -200,6 +201,8 @@ enum DocProps {
             case 0x2431: widow = s.u8 == 1
             case 0x460B: ilfo = s.i16
             case 0x260A: ilvl = s.u8
+            case 0x245B: beforeAuto = s.u8 == 1   // sprmPFDyaBeforeAuto: Word's 14 pt "auto" spacing
+            case 0x245C: afterAuto = s.u8 == 1
             case 0xA413: before = s.u16
             case 0xA414: after = s.u16
             case 0x6412: if s.operand.count >= 4 { line = (OfficeArt.u16(s.operand, 0), OfficeArt.u16(s.operand, 2)) }
@@ -215,10 +218,12 @@ enum DocProps {
         if pageBreak { x += "<w:pageBreakBefore/>" }
         if let widow { x += widow ? "<w:widowControl/>" : "<w:widowControl w:val=\"0\"/>" }
         if ilfo > 0 { x += "<w:numPr><w:ilvl w:val=\"\(min(ilvl, 8))\"/><w:numId w:val=\"\(ilfo)\"/></w:numPr>" }
-        if before != nil || after != nil || line != nil {
+        if before != nil || after != nil || line != nil || beforeAuto != nil || afterAuto != nil {
             x += "<w:spacing"
             if let before { x += " w:before=\"\(before)\"" }
             if let after { x += " w:after=\"\(after)\"" }
+            if let beforeAuto { x += " w:beforeAutospacing=\"\(beforeAuto ? 1 : 0)\"" }
+            if let afterAuto { x += " w:afterAutospacing=\"\(afterAuto ? 1 : 0)\"" }
             if let (l, m) = line {
                 let v = l >= 0x8000 ? l - 0x10000 : l
                 x += m == 1 ? " w:line=\"\(v)\" w:lineRule=\"auto\"" : v < 0 ? " w:line=\"\(-v)\" w:lineRule=\"exact\"" : " w:line=\"\(v)\" w:lineRule=\"atLeast\""
