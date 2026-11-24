@@ -4625,6 +4625,8 @@ enum OfficeFonts {
             if viaRoman { face.baseline = 0.885; face.ownLineBaseline = true }
             // (Narkisim: hhea 1505 + 518 over 2048 (metrics/latin/Narkisim_Regular.tsv); Word's print of dx2 2292b814 steps 12pt lines at 1.5 by 17.8, the stand-in's 21.1.)
             if asked == "miriam" { face.baseline = 1546.0 / 2048; face.ownLineBaseline = true }
+            // (Simplified Arabic: hhea ascent 2416 of 2048, 1.18 em: Word's print of lab sp1 stands the first bold 14pt baseline 16.58pt under the margin, 1.184 em.)
+            if asked == "simplified arabic" { face.baseline = 2416.0 / 2048; face.ownLineBaseline = true }
             if asked == "narkisim" { face.baseline = 1505.0 / 2048; face.ownLineBaseline = true }
             if asked == "david" {
                 face.baseline = 1505.0 / 2048; face.ownLineBaseline = true
