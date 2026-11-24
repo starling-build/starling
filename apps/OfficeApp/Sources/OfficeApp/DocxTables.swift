@@ -111,8 +111,13 @@ extension DocxFormat {
     if s.caps { rPr += "<w:caps/>" } else { rPr += off("caps", .caps) }
     if s.hidden { rPr += "<w:vanish/>" } else { rPr += off("vanish", .hidden) }
     if s.smallCaps { rPr += "<w:smallCaps/>" } else { rPr += off("smallCaps", .smallCaps) }
-    if s.underline { rPr += "<w:u w:val=\"single\"/>" } else if s.off.contains(.underline) { rPr += "<w:u w:val=\"none\"/>" }
-    if s.strikethrough { rPr += "<w:strike/>" } else { rPr += off("strike", .strikethrough) }
+    if s.underline {
+        rPr += "<w:u w:val=\"\(_esc(s.underlineKind ?? "single"))\""
+        if let c = s.underlineColor { rPr += " w:color=\"\(_esc(c))\"" }
+        if let t = s.underlineThemeAttrs { rPr += t }
+        rPr += "/>"
+    } else if s.off.contains(.underline) { rPr += "<w:u w:val=\"none\"/>" }
+    if s.strikethrough { rPr += s.doubleStrike ? "<w:dstrike/>" : "<w:strike/>" } else { rPr += off("strike", .strikethrough) }
     if let em = s.emphasis { rPr += "<w:em w:val=\"\(em)\"/>" }
     if let color = s.color { rPr += "<w:color w:val=\"\(_hex(color))\"/>" }
     if let ls = s.letterSpacing, ls != 0 { rPr += "<w:spacing w:val=\"\(Int((ls * 20).rounded()))\"/>" }
@@ -668,6 +673,8 @@ extension DocxFormat {
         var keptRun: [String: String] = [:]
         var bCs: Bool? = nil, iCs: Bool? = nil, szCs: Double? = nil
         for child in rPr.children {
+            // (Effects the layout draws or ignores are kept as the file wrote them too, so a save does not drop them.)
+            if Self._keptEffectNames.contains(child.name) { keptRun[child.name] = PptxXML.serialize(child) }
             switch child.name {
             case "w:bCs": bCs = !_isOff(child)
             case "w:iCs": iCs = !_isOff(child)
@@ -677,9 +684,17 @@ extension DocxFormat {
                                                oldRPrXML: child.first("w:rPr").map { PptxXML.serialize($0) } ?? "<w:rPr/>")
             case "w:b": sawB = true; cs.bold = !_isOff(child); if cs.bold { cs.off.remove(.bold) } else { cs.off.insert(.bold) }
             case "w:i": sawI = true; cs.italic = !_isOff(child); if cs.italic { cs.off.remove(.italic) } else { cs.off.insert(.italic) }
-            case "w:u": cs.underline = child["w:val"] != "none"; if cs.underline { cs.off.remove(.underline) } else { cs.off.insert(.underline) }
+            case "w:u":
+                cs.underlineKind = nil; cs.underlineColor = nil; cs.underlineThemeAttrs = nil
+                if let v = child["w:val"], v != "single", v != "none" { cs.underlineKind = v }
+                if child["w:val"] != "none" {
+                    cs.underlineColor = child["w:color"]
+                    let theme = ["w:themeColor", "w:themeTint", "w:themeShade"].compactMap { k in child[k].map { " \(k)=\"\(_esc($0))\"" } }.joined()
+                    cs.underlineThemeAttrs = theme.isEmpty ? nil : theme
+                }
+                cs.underline = child["w:val"] != "none"; if cs.underline { cs.off.remove(.underline) } else { cs.off.insert(.underline) }
             case "w:em": cs.emphasis = ["dot", "comma", "circle", "underDot"].contains(child["w:val"] ?? "") ? child["w:val"] : nil
-            case "w:strike", "w:dstrike": cs.strikethrough = !_isOff(child); if cs.strikethrough { cs.off.remove(.strikethrough) } else { cs.off.insert(.strikethrough) }
+            case "w:strike", "w:dstrike": cs.doubleStrike = child.name == "w:dstrike" && !_isOff(child); cs.strikethrough = !_isOff(child); if cs.strikethrough { cs.off.remove(.strikethrough) } else { cs.off.insert(.strikethrough) }
             case "w:caps": cs.caps = !_isOff(child); if cs.caps { cs.off.remove(.caps) } else { cs.off.insert(.caps) }
             case "w:vanish": cs.hidden = !_isOff(child); if cs.hidden { cs.off.remove(.hidden) } else { cs.off.insert(.hidden) }
             case "w:spacing": if let v = Double(child["w:val"] ?? "") { cs.letterSpacing = v / 20 }
@@ -804,7 +819,7 @@ extension DocxFormat {
         if !keptRun.isEmpty {
             var all = _keptRunProperties(base.keptXML)
             for (k, v) in keptRun { all[k] = v }
-            cs.keptXML = ["w:bdr", "w:w", "w:position", "w:fitText", "w:cs", "w:em", "w:lang", "w:eastAsianLayout", "w:snapToGrid"].compactMap { all[$0] }.joined()
+            cs.keptXML = (["w:shadow", "w:outline", "w:emboss", "w:imprint"] + ["w:bdr", "w:w", "w:position", "w:fitText", "w:cs", "w:em", "w:lang", "w:eastAsianLayout", "w:snapToGrid", "w:effect"] + Self._keptEffectList.filter { $0.hasPrefix("w14:") }).compactMap { all[$0] }.joined()
         }
         if let z = szCs { cs.complexFontSize = z }
         if bCs != nil { cs.boldWithoutBCs = false; cs.bCsFromStyle = bCs } else if sawB { cs.boldWithoutBCs = cs.bold }
@@ -830,9 +845,11 @@ extension DocxFormat {
         return cs
     }
 
+    static let _keptEffectList: [String] = ["w:shadow", "w:outline", "w:emboss", "w:imprint", "w:effect", "w14:glow", "w14:shadow", "w14:reflection", "w14:textOutline", "w14:textFill", "w14:scene3d", "w14:props3d", "w14:ligatures", "w14:numForm", "w14:numSpacing", "w14:stylisticSets", "w14:cntxtAlts"]
+    static let _keptEffectNames = Set(_keptEffectList)
     /// A `CharStyle.keptXML` taken apart again, by element name.
     static func _keptRunProperties(_ xml: String?) -> [String: String] {
-        guard let xml, let node = XNode.parse(Data(("<x xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\">" + xml + "</x>").utf8)) else { return [:] }
+        guard let xml, let node = XNode.parse(Data(("<x xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" xmlns:w14=\"http://schemas.microsoft.com/office/word/2010/wordml\">" + xml + "</x>").utf8)) else { return [:] }
         var out: [String: String] = [:]
         for c in node.children { out[c.name] = PptxXML.serialize(c) }
         return out
@@ -1969,8 +1986,12 @@ extension DocxFormat {
             // importer leaves: bug59058 printed "Top of Form" over a rule
             // above each of its tables).
             if entry.char.hidden { out += "<w:vanish/>" }
-            if entry.char.underline { out += "<w:u w:val=\"single\"/>" }
-            if entry.char.strikethrough { out += "<w:strike/>" }
+            if entry.char.underline {
+                out += "<w:u w:val=\"\(_esc(entry.char.underlineKind ?? "single"))\""
+                if let c = entry.char.underlineColor { out += " w:color=\"\(_esc(c))\"" }
+                out += (entry.char.underlineThemeAttrs ?? "") + "/>"
+            }
+            if entry.char.strikethrough { out += entry.char.doubleStrike ? "<w:dstrike/>" : "<w:strike/>" }
             if let em = entry.char.emphasis { out += "<w:em w:val=\"\(em)\"/>" }
             if let c = entry.char.color { out += "<w:color w:val=\"\(_hex(c))\"/>" }
             // The rest of a style's look that its runs lean on: a title

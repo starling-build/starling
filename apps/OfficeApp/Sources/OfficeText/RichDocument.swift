@@ -133,7 +133,15 @@ public struct CharStyle: Hashable, Codable, Sendable {
     public var bCsFromStyle: Bool? = nil
     public var italic = false
     public var underline = false
+    /// Word's underline kind (`w:u w:val`: double, thick, dotted, wave...) when it is not plain single; nil for single.
+    public var underlineKind: String? = nil
+    /// The underline's own colour (`w:u w:color`, hex or "auto"); nil for the text's colour.
+    public var underlineColor: String? = nil
+    /// The theme attributes of that colour (`w:themeColor`, `w:themeTint`, `w:themeShade`), as the file wrote them.
+    public var underlineThemeAttrs: String? = nil
     public var strikethrough = false
+    /// Word's double strikethrough (`w:dstrike`); `strikethrough` is on with it.
+    public var doubleStrike = false
     public var fontFamily: String? = nil
     /// In points, the unit documents are written in (11pt, not 14.67px).
     public var fontSize: Double? = nil
