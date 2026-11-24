@@ -1580,10 +1580,10 @@ enum DocxFormat {
                         let tblW = node.first("w:tblPr")?.first("w:tblW")
                         let fixedLayout = node.first("w:tblPr")?.first("w:tblLayout")?["w:type"] == "fixed"
                         let indentPt = (node.first("w:tblPr")?.first("w:tblInd").flatMap { (($0["w:type"] ?? "dxa") == "dxa") ? Double($0["w:w"] ?? "") : nil } ?? 0) / 20
-                        if Self.wordOnWindows, indentPt != 0 {
+                        if indentPt != 0 {
                             for k in first ..< paragraphs.count where paragraphs[k].cell == nil && paragraphs[k].image == nil { paragraphs[k].style.indentLeft += indentPt }
                         }
-                        if Self.wordOnWindows, fixedLayout, (tblW?["w:type"] ?? "") == "dxa", let dxa = Double(tblW?["w:w"] ?? "") {
+                        if fixedLayout, (tblW?["w:type"] ?? "") == "dxa", let dxa = Double(tblW?["w:w"] ?? "") {
                             for k in first ..< paragraphs.count where paragraphs[k].cell == nil && paragraphs[k].image == nil {
                                 paragraphs[k].style.wrapperRight = indentPt + dxa / 20 - (tableMargins.left ?? 5.4) - (tableMargins.right ?? 5.4)
                             }
