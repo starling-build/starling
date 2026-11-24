@@ -365,6 +365,7 @@ final class OfficeShellState: State<StatefulWidget> {
             self.setState { self._styleOpen = id }
         }
         session.onPaste = { [weak self] plain in self?._paste(plain: plain) }
+        session.onPasteMode = { [weak self] mode in self?._paste(mode: mode) }
         session.onInsertPicture = { [weak self] in
             guard let self else { return }
             self.setState { self._backstage = .insertPicture }
@@ -827,16 +828,12 @@ final class OfficeShellState: State<StatefulWidget> {
         officeScene.showTouchMenu(rect, controller: controller)
     }
 
-    private func _paste(plain: Bool) {
-        Clipboard.getData(plain ? Clipboard.kTextPlain : Clipboard.kAll) { [weak self] data in
+    private func _paste(plain: Bool) { _paste(mode: plain ? .textOnly : .keepSource) }
+
+    private func _paste(mode: RichDocumentController.PasteMode) {
+        Clipboard.getData(mode == .textOnly ? Clipboard.kTextPlain : Clipboard.kAll) { [weak self] data in
             guard let self, let data, !data.isEmpty else { return }
-            DispatchQueue.main.async {
-                if plain, let text = data.text {
-                    self.controller.insertText(text.replacingAll("\r\n", with: "\n"))
-                } else {
-                    self.controller.paste(data: data)
-                }
-            }
+            DispatchQueue.main.async { self.controller.paste(data: data, mode: mode) }
         }
     }
 
@@ -888,7 +885,9 @@ final class OfficeShellState: State<StatefulWidget> {
         item("Cut", enabled: has) { if let d = c.cutSelectionData() { Clipboard.setData(d) } }
         item("Copy", enabled: has) { if let d = c.copySelectionData() { Clipboard.setData(d) } }
         item("Paste") { [weak self] in self?._paste(plain: false) }
-        item("Paste as Plain Text") { [weak self] in self?._paste(plain: true) }
+        item("Paste: Merge Formatting") { [weak self] in self?._paste(mode: .mergeFormatting) }
+        item("Paste: Keep Text Only") { [weak self] in self?._paste(mode: .textOnly) }
+        item("Paste: Picture") { [weak self] in self?._paste(mode: .picture) }
         sep()
         item("Bold") { c.toggleBold() }
         item("Italic") { c.toggleItalic() }
