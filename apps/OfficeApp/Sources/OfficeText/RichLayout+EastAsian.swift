@@ -2054,7 +2054,7 @@ extension RichLayout {
                             : min(1, max(0, need + 0.02 - markRoom) / max(0.001, room - markRoom))
                         // (Taken on the other marks' room, the kept last mark still gives its share of a line that holds a pause mark mid-text:
                         // zh-27a874b7 (zh-TW, mode 14) takes "作、" 15.07 over on two marks' 16, and Word's three marks give 4.95 to 5.04 each.)
-                        let tailJoins = centredEnd && !paragraphEnd && !alone && kept && markRoom > 0 && [0xFF0C, 0x3001, 0x3002].contains(units[tail])
+                        let tailJoins = centredEnd && !paragraphEnd && !alone && kept && markRoom > 0 && need * 2 > markRoom && [0xFF0C, 0x3001, 0x3002].contains(units[tail])
                         let tailHalf = tailJoins ? half(tail) : 0
                         let giveShare = tailJoins ? min(1, (need + 0.02) / (markRoom + tailHalf)) : markShare
                         if tailJoins { adjust[tail, default: 0] -= tailHalf * giveShare }
