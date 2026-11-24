@@ -288,6 +288,8 @@ final class OfficeSession {
     var onPresenterView: (() -> Void)?
     /// Show or hide the Animation Pane (Slides).
     var onAnimationPane: (() -> Void)?
+    /// Show or hide the Selection Pane (Slides).
+    var onSelectionPane: (() -> Void)?
     /// Show (true) or hide the selected chart's data grid.
     var onChartData: ((Bool) -> Void)?
     /// Normal view (false) or Slide Sorter (true).

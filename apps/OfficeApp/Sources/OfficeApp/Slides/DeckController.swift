@@ -1151,6 +1151,29 @@ final class DeckController: ChangeNotifier {
         _changed()
     }
 
+    /// The Selection Pane's eye: shows or hides one shape (one undo step). A shape a hidden group hides
+    /// stays hidden until the group is shown.
+    func setHidden(_ shape: SlideShape, _ hidden: Bool) {
+        guard shape.invisible != hidden else { return }
+        _checkpoint()
+        shape.invisible = hidden
+        if hidden { selection.removeAll { $0 === shape } }
+        _changed()
+    }
+
+    /// The Selection Pane's reorder: one shape a step toward the front (`by` > 0) or the back, one undo step.
+    func moveInStack(_ shape: SlideShape, by delta: Int) {
+        var shapes = currentSlide.shapes
+        guard let i = shapes.firstIndex(where: { $0 === shape }) else { return }
+        let j = min(max(i + delta, 0), shapes.count - 1)
+        guard j != i else { return }
+        _checkpoint()
+        shapes.remove(at: i)
+        shapes.insert(shape, at: j)
+        currentSlide.shapes = shapes
+        _changed()
+    }
+
     enum Align { case left, center, right, top, middle, bottom }
 
     /// One shape aligns to the slide; several align to the box around them.

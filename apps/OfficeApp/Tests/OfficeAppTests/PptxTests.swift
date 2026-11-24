@@ -269,6 +269,21 @@ final class TableTests: XCTestCase {
         XCTAssertFalse(c.flipH || c.flipV, "an unflipped shape has no flip left")
     }
 
+    /// S-AR-1b: hiding a shape writes `hidden` into its own XML and keeps the rest; showing it again takes it out.
+    func testHidingAShapePatchesItsHiddenFlagAndKeepsWhatTheModelDoesNotHold() throws {
+        var (state, theme, pkg) = try deckWithAnnotatedShape()
+        let si = try XCTUnwrap(state.slides.firstIndex { $0.shapes.contains { $0.name == "Rounded" } })
+        let i = try XCTUnwrap(state.slides[si].shapes.firstIndex { $0.name == "Rounded" })
+        state.slides[si].shapes[i].invisible = true
+        let written = try writtenAnnotatedShape(state, theme, pkg)
+        for kept in annotatedKept { XCTAssertTrue(written.contains(kept), "kept after hiding: \(kept)") }
+        let (again, _, _) = try Pptx.read(try PptxWriter.write(state, theme: theme, package: pkg))
+        XCTAssertTrue(try XCTUnwrap(again.slides.flatMap { $0.shapes }.first { $0.name == "Rounded" }).invisible)
+        state.slides[si].shapes[i].invisible = false
+        let (clear, _, _) = try Pptx.read(try PptxWriter.write(state, theme: theme, package: pkg))
+        XCTAssertFalse(try XCTUnwrap(clear.slides.flatMap { $0.shapes }.first { $0.name == "Rounded" }).invisible)
+    }
+
     /// S-P0-1b: typing in the shape changes its text and nothing else.
     func testTypingInAShapeKeepsWhatTheModelDoesNotHold() throws {
         var (state, theme, pkg) = try deckWithAnnotatedShape()

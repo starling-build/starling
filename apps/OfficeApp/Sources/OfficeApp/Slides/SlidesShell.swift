@@ -76,6 +76,7 @@ final class SlidesShellState: State<StatefulWidget> {
     private var _colorOpen = false
     /// The Animation Pane is open beside the slide.
     private var _animationPane = false
+    private var _selectionPane = false
     /// A thumbnail being dragged to a new place: where it started, the
     /// pointer's start, and where it would land.
     private var _thumbDrag: (from: Int, startY: Double, startX: Double, to: Int, moved: Bool)? = nil
@@ -320,6 +321,9 @@ final class SlidesShellState: State<StatefulWidget> {
             guard let self else { return }
             self.setState { self.session.autoSave.toggle() }
             self._flash(self.session.autoSave ? "AutoSave on" : "AutoSave off — a recovery copy is still kept")
+        }
+        session.onSelectionPane = { [weak self] in
+            self?.setState { self?._selectionPane.toggle() }
         }
         session.onAnimationPane = { [weak self] in
             self?.setState { self?._animationPane.toggle() }
@@ -1116,6 +1120,11 @@ final class SlidesShellState: State<StatefulWidget> {
     private func _shortcut(_ key: KeyData, _ mods: KeyModifiers) -> Bool {
         let named = KeyChordTracker.named(key.logical)
         let typing = _active != nil || _notesActive
+        // Alt+F10 shows or hides the Selection Pane (PowerPoint).
+        if named == .function(10), mods.contains(.alt) {
+            setState { _selectionPane.toggle() }
+            return true
+        }
         // ⌘⇧↩ plays from the beginning, ⌘↩ from here (PowerPoint for Mac).
         if named == .enter, mods.contains(.primary) {
             _startShow(at: mods.contains(.shift) ? 0 : deck.current)
@@ -1229,6 +1238,10 @@ final class SlidesShellState: State<StatefulWidget> {
             row.append(Expanded(child: Column(crossAxisAlignment: .stretch, children: work)))
             if _animationPane {
                 row.append(AnimationPane(deck: deck, onClose: { [weak self] in self?.setState { self?._animationPane = false } }))
+            }
+            if _selectionPane {
+                row.append(SelectionPane(deck: deck, modifiers: { [weak self] in self?._deckChords.modifiers ?? [] },
+                                         onClose: { [weak self] in self?.setState { self?._selectionPane = false } }))
             }
             if _chartData, let chart = deck.selectedChart {
                 row.append(ChartDataPane(key: ValueKey("chart data \(chart.id)"), deck: deck, shape: chart,

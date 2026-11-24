@@ -48,3 +48,26 @@ final class SlideSelectionTests: XCTestCase {
         XCTAssertEqual(deck.selection.count, 2, "ctrl+click adds too")
     }
 }
+
+/// S-AR-1b: the Selection Pane lists the slide's shapes front first; its eye hides a shape and its arrows reorder.
+final class SelectionPaneTests: XCTestCase {
+    func testPaneHidesAndReordersAndUndoes() throws {
+        let deck = DeckController()
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light),
+                                        home: SelectionPane(deck: deck, onClose: {}), title: "Test"))
+        ui.pump()
+        let shapes = deck.currentSlide.shapes
+        XCTAssertGreaterThanOrEqual(shapes.count, 2)
+        let first = shapes[0]
+        XCTAssertTrue(ui.tap(id: "selpane.eye.0"))
+        XCTAssertTrue(first.invisible, "the eye hides the shape")
+        deck.undo()
+        XCTAssertFalse(first.invisible, "one undo step")
+        XCTAssertTrue(ui.tap(id: "selpane.front.0"))
+        XCTAssertTrue(deck.currentSlide.shapes[1] === first, "Bring forward moves it one step up the stack")
+        XCTAssertTrue(ui.tap(id: "selpane.back.1"))
+        XCTAssertTrue(deck.currentSlide.shapes[0] === first, "Send backward moves it back")
+        XCTAssertTrue(ui.tap(id: "selpane.row.0"))
+        XCTAssertTrue(deck.isSelected(first), "a row selects its shape")
+    }
+}

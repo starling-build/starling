@@ -180,11 +180,14 @@ struct ReadShape: Equatable {
     var autofit: Bool
     var fontScale: Double
     var field: SlideField?
+    /// `cNvPr hidden`: shown or hidden (the Selection Pane's eye). The file's own XML takes the change.
+    var invisible: Bool
 
     init(_ s: ShapeState) {
         name = s.name; kind = s.kind; frame = s.frame; rotation = s.rotation; flipH = s.flipH; flipV = s.flipV
         fill = s.fill; fillScheme = s.fillScheme; outline = s.outline; outlineWidth = s.outlineWidth
         anchor = s.anchor; insets = s.insets; autofit = s.autofit; fontScale = s.fontScale; field = s.field
+        invisible = s.invisible
     }
 
     /// Still the shape that was read, text included.
@@ -201,7 +204,7 @@ struct ReadShape: Equatable {
     func unchangedExceptPlacementAndText(_ s: ShapeState) -> Bool {
         var a = self
         let b = ReadShape(s)
-        a.frame = b.frame; a.rotation = b.rotation; a.flipH = b.flipH; a.flipV = b.flipV
+        a.frame = b.frame; a.rotation = b.rotation; a.flipH = b.flipH; a.flipV = b.flipV; a.invisible = b.invisible
         return a == b
     }
 }
