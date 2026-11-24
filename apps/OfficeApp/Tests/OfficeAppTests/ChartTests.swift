@@ -515,9 +515,15 @@ final class ChartTests: XCTestCase {
         XCTAssertEqual(ChartPainter.wordPieLegendEntriesKept(heights: [200, 200], k: 1, boxHeight: 90.4), 1)
     }
     func testAWordColumnChartsTurnedNameStopsWordByWordWhereTheFrameIsFull() {
-        // Lab rotlbl2: frames 200, 260, 315 and 400 pt tall.
-        XCTAssertEqual(ChartPainter.wordTurnedNameCap(frameHeight: 200, k: 1), 96.4, accuracy: 0.01)
-        XCTAssertEqual(ChartPainter.wordTurnedNameCap(frameHeight: 400, k: 1), 237.8, accuracy: 0.01)
+        // Labs rotlbl2/3: plot left to Word, a 22.9 pt legend, 11 pt names: frames 260 and 400 pt tall hold names up to the measured bounds.
+        let h11 = 1.2207 * 11
+        let l260 = ChartPainter.wordTurnedNameCap(boxLimit: ChartPainter.wordTurnedNameBoxLimit(frameHeight: 260, k: 1, legendBand: 22.9, titleBand: 0, placedOuterHeight: nil, placedAxisY: nil), lineHeight: h11)
+        XCTAssertTrue(l260 >= 138.29 && l260 < 145.75)
+        let l400 = ChartPainter.wordTurnedNameCap(boxLimit: ChartPainter.wordTurnedNameBoxLimit(frameHeight: 400, k: 1, legendBand: 22.9, titleBand: 0, placedOuterHeight: nil, placedAxisY: nil), lineHeight: h11)
+        XCTAssertTrue(l400 >= 234.0 && l400 < 245.3)
+        // sa1 c11d31f3 chart 4: a hand-set inner plot, frame 274.2 pt, axis 135.1 pt down, 10.5 pt names: the 157.9 pt name stays whole.
+        let hand = ChartPainter.wordTurnedNameCap(boxLimit: ChartPainter.wordTurnedNameBoxLimit(frameHeight: 274.2, k: 1, legendBand: 0, titleBand: 0, placedOuterHeight: nil, placedAxisY: 135.1), lineHeight: 1.2207 * 10.5)
+        XCTAssertGreaterThan(hand, 157.9)
         let widths = [20.0, 40, 60, 80, 100]
         XCTAssertEqual(ChartPainter.wordTurnedNameWordsKept(prefixWidths: widths, cap: 65), 3)
         XCTAssertEqual(ChartPainter.wordTurnedNameWordsKept(prefixWidths: widths, cap: 10), 1)

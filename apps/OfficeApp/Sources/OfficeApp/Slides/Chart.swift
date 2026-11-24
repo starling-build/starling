@@ -4932,8 +4932,18 @@ enum ChartPainter {
         while keep > 1, heights.prefix(keep).reduce(0.0, { $0 + $1 + 4 * k }) > boxHeight { keep -= 1 }
         return keep
     }
-    /// The length a Word column chart's turned name may have before it is cut word by word (lab rotlbl2).
-    static func wordTurnedNameCap(frameHeight: Double, k: Double) -> Double { 0.707 * frameHeight - 45 * k }
+    /// The height a Word column chart's turned (45 degree) name may stand in before it is cut word by word: the box of the name,
+    /// (length + line height) x sin 45, must fit. Plot left to Word: half of what the frame leaves after 21.7 pt and the legend's and
+    /// title's bands (lab rotcap, rotlbl2, rotlbl3). Plot set by hand, inner: the legend is not taken off, and the box may run down to
+    /// 10.2 pt over the frame's foot from the plot's axis. Plot set by hand, outer: half its outer height.
+    static func wordTurnedNameBoxLimit(frameHeight h: Double, k: Double, legendBand: Double, titleBand: Double,
+                                       placedOuterHeight: Double?, placedAxisY: Double?) -> Double {
+        if let axisY = placedAxisY { return min((h - 21.7 * k) / 2, h - axisY - 10.2 * k) }
+        if let outer = placedOuterHeight { return outer / 2 }
+        return (h - 21.7 * k - legendBand - titleBand) / 2
+    }
+    /// The length a turned name may have inside that box height.
+    static func wordTurnedNameCap(boxLimit: Double, lineHeight: Double) -> Double { boxLimit / sin(Double.pi / 4) - lineHeight }
     /// Words kept of a turned name: `prefixWidths[n-1]` is the width of its first n words and an ellipsis; at least one.
     static func wordTurnedNameWordsKept(prefixWidths: [Double], cap: Double) -> Int {
         var keep = prefixWidths.count
@@ -5953,10 +5963,16 @@ enum ChartPainter {
             if slideBare, !c.valueTicksOut, !barePlainL { left += max(0, 0.91 * labelSize - 12.2) * k }
             let slideFoot = slideBare && !c.categoryTicksOut ? max(0, 0.64 * (catSize - 12.25)) * k : 0
             // (A Word column chart's names turned 45 degrees stop, word by word and ending in an ellipsis, where their
-            // length passes 0.707 of the chart's height less 45 pt: lab rotlbl2, one 26-word name in frames 200, 260, 315
-            // and 400 pt tall kept 7, 11, 14 and 18 words, as the rule keeps them.)
+            // box (length + line height) x sin 45 passes the room the frame leaves (labs rotlbl2, rotlbl3, rotcap; sa1 c11d31f3's hand-set plot keeps its 157.9 pt name).)
             if word, !c.onSlide, !c.onSheet, !c.chartex, !horizontal, aslant, c.categoryLabelTurn == nil, abs(slant - .pi / 4) < 0.01 {
-                let cap = Self.wordTurnedNameCap(frameHeight: frame.height, k: k)
+                let handSet = c.plotLayout
+                let limit = Self.wordTurnedNameBoxLimit(
+                    frameHeight: frame.height, k: k,
+                    legendBand: c.legend && (c.legendPosition == "b" || c.legendPosition == "t") && !c.legendOverlay && handSet == nil ? 22.9 * k : 0,
+                    titleBand: c.title != nil && !c.titleOverlay && handSet == nil ? 26.1 * k : 0,
+                    placedOuterHeight: handSet != nil && !c.plotLayoutInner ? handSet.map { $0.height * frame.height } : nil,
+                    placedAxisY: handSet != nil && c.plotLayoutInner ? handSet.map { ($0.top + $0.height) * frame.height } : nil)
+                let cap = Self.wordTurnedNameCap(boxLimit: limit, lineHeight: 1.2207 * catSize * k)
                 for i in catLabels.indices where catLabels[i].width > cap {
                     let words = c.categories[i].split(separator: " ", omittingEmptySubsequences: true)
                     var prefixes: [Double] = []
