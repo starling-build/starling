@@ -250,6 +250,7 @@ final class SlidesShellState: State<StatefulWidget> {
             #endif
         }
         session.onExport = { [weak self] ext in self?._export(ext) }
+        session.onShare = { [weak self] ext in self?._export(ext, share: true) }
         session.onPrint = { [weak self] in self?._print() }
         #if os(iOS)
         // OFFICE_DRIVE_EXPORT=pdf (or print): File → Export → PDF (File → Print) a few seconds after the
@@ -841,12 +842,12 @@ final class SlidesShellState: State<StatefulWidget> {
     }
 
     /// PDF or a .pptx copy, beside the deck (or in Documents), named after it.
-    private func _export(_ ext: String) {
+    private func _export(_ ext: String, share: Bool = false) {
         let base = session.path.map { $0.deletingPathExtension } ?? homeDirectory() + "/Documents/" + session.title.deletingPathExtension
         let target = base + "." + ext
         _endEditing()
         #if !os(WASI)
-        if let ask = officeScene.exportRequested {
+        if let ask = share ? officeScene.shareRequested : officeScene.exportRequested {
             setState { _backstage = nil }
             ask(target.lastPathComponent, { [weak self] path, finished in
                 guard let self else { finished(false); return }
@@ -859,7 +860,7 @@ final class SlidesShellState: State<StatefulWidget> {
                     }
                 }
             }, false) { [weak self] picked in
-                if let picked { self?._flash("Exported \(picked)") }
+                if let picked { self?._flash("\(share ? "Shared" : "Exported") \(picked)") }
             }
             return
         }

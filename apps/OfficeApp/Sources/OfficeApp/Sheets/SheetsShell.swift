@@ -218,6 +218,7 @@ final class SheetsShellState: State<StatefulWidget> {
             #endif
         }
         session.onExport = { [weak self] ext in self?._export(ext) }
+        session.onShare = { [weak self] ext in self?._export(ext, share: true) }
         #if os(iOS)
         // OFFICE_DRIVE_EXPORT=pdf (or print): File → Export → PDF (File → Print) a few seconds after the
         // document opens, so a driven run can reach the export picker
@@ -493,7 +494,7 @@ final class SheetsShellState: State<StatefulWidget> {
 
     /// PDF or CSV of the active sheet (Excel's own default for both),
     /// beside the workbook or in Documents.
-    private func _export(_ ext: String) {
+    private func _export(_ ext: String, share: Bool = false) {
         _ = _grid?.commitEdit()
         #if os(WASI)
         // Both are downloads, like a save.
@@ -514,7 +515,7 @@ final class SheetsShellState: State<StatefulWidget> {
         #else
         let base = session.path.map { $0.deletingPathExtension } ?? homeDirectory() + "/Documents/" + session.title.deletingPathExtension
         let target = base + "." + ext
-        if let ask = officeScene.exportRequested {
+        if let ask = share ? officeScene.shareRequested : officeScene.exportRequested {
             setState { _backstage = nil }
             ask(target.lastPathComponent, { [weak self] path, finished in
                 guard let self else { finished(false); return }
@@ -528,7 +529,7 @@ final class SheetsShellState: State<StatefulWidget> {
                     }
                 }
             }, false) { [weak self] picked in
-                if let picked { self?._flash("Exported \(picked)") }
+                if let picked { self?._flash("\(share ? "Shared" : "Exported") \(picked)") }
             }
             return
         }

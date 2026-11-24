@@ -939,6 +939,9 @@ func connectNativeHooks(_ scene: OfficeScene, viewId: Int) {
     scene.exportRequested = { name, prepare, thenOpen, done in
         OfficeNativeShell.export(name: name, prepare: prepare, thenOpen: thenOpen, viewId: viewId, done: done)
     }
+    scene.shareRequested = { name, prepare, _, done in
+        OfficeNativeShell.share(name: name, prepare: prepare, viewId: viewId, done: done)
+    }
 }
 #endif
 

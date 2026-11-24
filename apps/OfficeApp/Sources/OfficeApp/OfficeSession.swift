@@ -296,6 +296,8 @@ final class OfficeSession {
     var onSave: (() -> Void)?
     var onSaveAs: (() -> Void)?
     var onExport: ((String) -> Void)?
+    /// Export a format and hand the copy to the host's share sheet instead of its file picker.
+    var onShare: ((String) -> Void)?
     var onFind: ((Bool) -> Void)?       // true = replace bar too
     var onInsertPicture: (() -> Void)?
     var onHeaderFooter: (() -> Void)?
