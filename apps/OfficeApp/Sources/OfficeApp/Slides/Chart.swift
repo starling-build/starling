@@ -3652,6 +3652,7 @@ enum ChartPainter {
                 guard let box, !c.onSlide, !c.onSheet, !c.chartex, ["r", "l"].contains(c.legendPosition) else { return false }
                 return entries.reduce(0.0) { $0 + $1.tp.height } <= box.height + 0.01
             }()
+            let wordSpread = box != nil && !c.onSlide && !c.onSheet && c.type != .pie && !beside && !boxColumn
             for e in entries {
                 let w = lead + e.tp.width
                 // (A pie's legend in a Word document sets an entry whose name is wider than 0.41 of the frame (names of 140 pt in a 360 frame stand two to a row, of 155 alone) on a row of its own: lab piesize3, two
@@ -3659,9 +3660,18 @@ enum ChartPainter {
                 // five 14-character ones and three 24-character ones (0.28) share rows.)
                 let ownRow = c.type == .pie && !c.onSlide && !c.onSheet && box == nil && (e.tp.width > 0.41 * area.width || wasWide)
                 wasWide = c.type == .pie && !c.onSlide && !c.onSheet && box == nil && e.tp.width > 0.41 * area.width
-                if lineW > 0, beside || boxColumn || ownRow || lineW + spacing + w > (box?.width ?? area.width) { lines.append([]); lineW = 0 }
-                lineW += (lineW > 0 ? spacing : 0) + w
+                if lineW > 0, beside || boxColumn || ownRow || lineW + (wordSpread ? 0 : spacing) + w > (box?.width ?? area.width) { lines.append([]); lineW = 0 }
+                lineW += (lineW > 0 && !wordSpread ? spacing : 0) + w
                 lines[lines.count - 1].append(e)
+            }
+            // (Word spreads the entries of a legend in a box of its own across the box, the
+            // free width in equal parts before, between and after them, and wraps a row only
+            // when the entries alone no longer fit: lab legend1, one bar and one line entry
+            // 21.7 pt apart in a 197 pt box and 32.5 pt in a 230 pt one, three entries 2.2 pt
+            // apart in the 197 pt box where ours wrapped them.)
+            if wordSpread, lines.count == 1, let only = lines.first, !only.isEmpty, let bw = box?.width {
+                let sum = only.reduce(0.0) { $0 + lead + $1.tp.width }
+                if bw > sum { spacing = (bw - sum) / Double(only.count + 1); RuleTrace.hit("word-legend-entries-spread-across-its-box") }
             }
             // (A row wrapped is balanced: Word sets a legend of eight entries, too long for
             // a row, as four and four — lo tdf137116's pie, "datalabel1…4" over "5…8" —
