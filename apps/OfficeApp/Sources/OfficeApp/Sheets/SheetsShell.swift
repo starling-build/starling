@@ -78,7 +78,7 @@ final class SheetsShellState: State<StatefulWidget> {
     override func initState() {
         super.initState()
         trackDocumentPath(session)
-        // Sheets has no AutoSave: a window's host closing (or the app quitting) must not drop what is unsaved. On iPad
+        // Whatever AutoSave has not yet written: a window's host closing (or the app quitting) must not drop what is unsaved. On iPad
         // the workbook is written to its own file; on the Mac, to a recovery copy beside it (as Writer does) that the
         // next open offers, and the file itself is left as the user last saved it.
         officeScene.registerFlush(owner: self) { [weak self] in
@@ -97,6 +97,12 @@ final class SheetsShellState: State<StatefulWidget> {
         _publishToolbar()
         wb.onCommand = { [weak self] cmd in self?._command(cmd) }
         session.onFind = { [weak self] replace in self?._openFind(replace: replace) }
+        session.onToggleAutoSave = { [weak self] in
+            guard let self else { return }
+            self.setState { self.session.autoSave.toggle() }
+            self._flash(self.session.autoSave ? "AutoSave on" : "AutoSave off")
+            self._scheduleAutosave()
+        }
         // `starling.debug('sheet')` from the browser's console or a script:
         // the active sheet as laid out, to diff against
         // `OfficeApp --sheet-layout` natively (test/sheets-layout.sh).
@@ -231,9 +237,49 @@ final class SheetsShellState: State<StatefulWidget> {
     private func _changed() {
         guard mounted else { return }
         session.dirty = wb.edits != 0
+        _scheduleAutosave()
         _syncBars()
         _publishToolbar()
         setState {}
+    }
+
+    /// AutoSave: with it on (the default on iPad, where nothing else saves a workbook) and a file behind the workbook,
+    /// the file is rewritten after every pause in editing, quietly: no "Saved" flash, no closing the backstage, and
+    /// never while a cell is mid-typing (the pause that follows commits it, and `_changed` runs again).
+    private var _autosaveGeneration = 0
+    private func _scheduleAutosave() {
+        #if os(WASI)
+        return
+        #else
+        guard session.autoSave, session.dirty else { return }
+        _autosaveGeneration += 1
+        let gen = _autosaveGeneration
+        DispatchQueue.main.asyncAfter(deadline: .now() + OfficeHost.autosaveDelay) { [weak self] in
+            guard let self, self.mounted, self._autosaveGeneration == gen else { return }
+            self._autosaveNow()
+        }
+        #endif
+    }
+
+    private func _autosaveNow() {
+        guard session.autoSave, session.dirty, let path = session.path,
+              ["xlsx", "csv", "tsv"].contains(path.pathExtension.lowercased()) else { return }
+        // A cell being typed in is not ours to commit: try again after the next pause.
+        if _grid?.edit != nil { _scheduleAutosave(); return }
+        wb.stashViewState()
+        do {
+            let data: Data
+            switch path.pathExtension.lowercased() {
+            case "xlsx": data = try Xlsx.write(wb.book)
+            case let f: data = Data(Csv.write(wb.sheet, book: wb.book, separator: f == "tsv" ? "\t" : ",").utf8)
+            }
+            try data.write(to: URL(fileURLWithPath: path), options: .atomic)
+            officeScene.documentSaved?(path)
+            wb.markSaved()
+            setState { session.dirty = false }
+        } catch {
+            _flash("AutoSave could not write \(path.lastPathComponent): \(plainFailure(error))")
+        }
     }
 
     /// The keyboard's toolbar while a cell is being typed in: undo and redo,
