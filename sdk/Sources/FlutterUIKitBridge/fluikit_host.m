@@ -262,6 +262,9 @@ static void* g_open_url_user = NULL;
 - (void)spikeOneViewIn:(UIWindow*)window id:(int64_t)viewId cyclesLeft:(int)left total:(int)total {
   CGFloat scale = UIScreen.mainScreen.scale;
   CGSize size = CGSizeMake(260, 180);
+  // STARLING_SPIKE_VIEW_W/H: a view big enough for an editor (and it is not grown afterwards).
+  BOOL sized = getenv("STARLING_SPIKE_VIEW_W") != NULL && getenv("STARLING_SPIKE_VIEW_H") != NULL;
+  if (sized) size = CGSizeMake(atoi(getenv("STARLING_SPIKE_VIEW_W")), atoi(getenv("STARLING_SPIKE_VIEW_H")));
   FlUIKitExtraView* host = [[FlUIKitExtraView alloc] initWithFrame:CGRectMake(window.bounds.size.width - size.width - 20, 80, size.width, size.height)];
   host.engine = self.engine;
   host.viewId = viewId;
@@ -287,7 +290,7 @@ static void* g_open_url_user = NULL;
   if (left == 0) {
     // The single-view run: it stays, grown to 340 x 260 after 2 s (it must draw whole at the new size).
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
-      CGSize bigger = CGSizeMake(340, 260);
+      CGSize bigger = sized ? size : CGSizeMake(340, 260);
       host.frame = CGRectMake(window.bounds.size.width - bigger.width - 20, 80, bigger.width, bigger.height);
       layer.frame = host.bounds;
       layer.drawableSize = CGSizeMake(bigger.width * scale, bigger.height * scale);

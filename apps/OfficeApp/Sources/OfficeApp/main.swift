@@ -900,6 +900,18 @@ if initialPath == nil && siteArg == nil && wikiBase == nil {
 }
 #endif
 
+#if os(iOS)
+// The second-window test host (docs/plans/ipad-multi-window.md, step 4): OFFICE_SECOND_VIEW_DOC=<path> shows
+// that document in view 1, in a scene of its own (STARLING_SPIKE_SECOND_VIEW=1 adds the view, STARLING_SPIKE_VIEW_W/H
+// size it). Off unless asked; the real entry points are step 5.
+if let second = ProcessInfo.processInfo.environment["OFFICE_SECOND_VIEW_DOC"], !second.isEmpty {
+    let scene = OfficeScene()
+    runView(id: 1) {
+        OfficeSceneScope(scene: scene, child: OfficeRoot(initialPath: second, kind: DocumentKind.kind(forPath: second)))
+    }
+}
+#endif
+
 runStarlingApp(title: siteArg != nil ? "Site" : wikiBase != nil ? "Wiki" : initialKind.appName,
                width: windowMetric("STARLING_WINDOW_W", 1440),
                height: windowMetric("STARLING_WINDOW_H", 900)) {
