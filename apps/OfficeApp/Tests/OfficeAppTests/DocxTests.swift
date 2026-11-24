@@ -4557,6 +4557,20 @@ final class DocxTests: XCTestCase {
         XCTAssertFalse(latin.bold)
     }
 
+    func testThaiRunWithComplexFlagAndNoSizeTakesTheStyleSzCs() throws {
+        // dx2 27dc0c47: docDefaults sz 22 / szCs 28, a Thai run with only w:cs prints at 14 in Word. An Arabic-script run of the
+        // same shape (xb fas-z22867828) must not take it.
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "\u{0E2A}\u{0E27}"), RichParagraph(text: "\u{0625}\u{0633}")]), pageSetup: .letter))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        xml = xml.replacingAll("<w:r><w:t xml:space=\"preserve\">\u{0E2A}\u{0E27}</w:t>", with: "<w:r><w:rPr><w:cs/></w:rPr><w:t xml:space=\"preserve\">\u{0E2A}\u{0E27}</w:t>")
+        xml = xml.replacingAll("<w:r><w:t xml:space=\"preserve\">\u{0625}\u{0633}</w:t>", with: "<w:r><w:rPr><w:cs/></w:rPr><w:t xml:space=\"preserve\">\u{0625}\u{0633}</w:t>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let back = try DocxFormat.read(try Zip.write(entries)).document
+        XCTAssertTrue(try XCTUnwrap(back.paragraphs[0].runs.first?.style).sizeFromStyleSzCs)
+        XCTAssertFalse(try XCTUnwrap(back.paragraphs[1].runs.first?.style).sizeFromStyleSzCs)
+    }
+
     func testDevanagariRunWeightFollowsBCsNotB() throws {
         // Word takes a Devanagari run's weight from w:bCs: b alone leaves it regular (dx2 745490897f9f's
         // Kokila words), and b 0 with bCs makes it bold (af19d946's Heading3 run).
