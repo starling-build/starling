@@ -20,47 +20,8 @@ extension RichLayout {
             var k = pgs.i
             let em = _px(12)
             let pitch = max(em, Self._lineBottoms(geometry(pgs.i).painter).first ?? em)
-            var filled = 0.0
-            while k < count, _cells[k] == nil, _verticalBody(k), k < pgs.i + 40 {
-                var own: [ImageAttachment] = []
-                if k < _floatImages.count, let image = _floatImages[k] { own.append(image) }
-                if k < _inline.count { own += _inline[k] }
-                for image in own where !taken.contains(image.id) {
-                    guard let f = image.float, f.wraps, !f.takesRoom, !f.bandsPage, f.wrapSide == nil,
-                          f.horizontalFrom == "margin" || f.horizontalFrom == "page", f.verticalFrom == "margin" || f.verticalFrom == "page",
-                          image.width > 0, image.height > 0, image.textBox != nil || !image.data.isEmpty || image.outline != nil,
-                          abs(image.rotation.truncatingRemainder(dividingBy: 180)) < 0.01 else { continue }
-                    // (The turned page: its height is the paper's width, its left margin the paper's top, its top margin the paper's
-                    // right, its bottom margin the paper's left.)
-                    let paperW = setup.height, paperH = setup.width
-                    let w = image.width, h = image.height
-                    let baseX = f.horizontalFrom == "page" ? 0 : setup.marginBottom
-                    let spanX = f.horizontalFrom == "page" ? paperW : paperW - setup.marginBottom - setup.marginTop
-                    let baseY = f.verticalFrom == "page" ? 0 : setup.marginLeft
-                    let spanY = f.verticalFrom == "page" ? paperH : paperH - setup.marginLeft - setup.marginRight
-                    var x0 = baseX + f.x, y0 = baseY + f.y
-                    switch f.horizontalAlign {
-                    case "left"?: x0 = baseX
-                    case "right"?: x0 = baseX + spanX - w
-                    case "center"?: x0 = baseX + (spanX - w) / 2
-                    default: break
-                    }
-                    switch f.verticalAlign {
-                    case "top"?: y0 = baseY
-                    case "bottom"?: y0 = baseY + spanY - h
-                    case "center"?: y0 = baseY + (spanY - h) / 2
-                    default: break
-                    }
-                    // (Paper x grows leftward in the flow: the paper's right side is its top. Its left and right distances run along the
-                    // flow, its top and bottom ones across it.)
-                    let flowTop = paperW - (x0 + w) - setup.marginTop - (f.distanceRight ?? 9)
-                    let flowBottom = paperW - x0 - setup.marginTop + (f.distanceLeft ?? 9)
-                    let across0 = y0 - setup.marginLeft - f.distanceTop
-                    let across1 = y0 + h - setup.marginLeft + f.distanceBottom
-                    seeds.append((image.id, _px(across0), _px(across1), _px(flowTop), _px(flowBottom)))
-                }
-                // (The next paragraph starts on this page only while the text so far leaves room in the columns the floats leave.)
-                filled += Double(document.paragraphs[k].text.count)
+            // (The room the columns leave beside the floats seeded so far, in characters.)
+            func roomLeft() -> Double {
                 let flow = _px(setup.height - setup.marginTop - setup.marginBottom)
                 var room = 0.0
                 for c in 0..<_columns {
@@ -74,7 +35,41 @@ extension RichLayout {
                     for h in hit where h.1 > upto { free -= h.1 - max(h.0, upto); upto = h.1 }
                     room += max(0, free) / pitch * _px(setup.columnWidth) / em
                 }
-                if filled >= room { break }
+                return room
+            }
+            var filled = 0.0
+            while k < count, _cells[k] == nil, _verticalBody(k), k < pgs.i + 40 {
+                var own: [ImageAttachment] = []
+                if k < _floatImages.count, let image = _floatImages[k] { own.append(image) }
+                if k < _inline.count { own += _inline[k] }
+                // (A float belongs to the page its anchor falls on: the anchor's offset in the paragraph, on top of the text before it,
+                // must fall within the room this page has.)
+                let scalars = Array(document.paragraphs[k].text.unicodeScalars)
+                let anchor = Double(scalars.firstIndex { $0.value == 0xFFFC } ?? 0)
+                for image in own where !taken.contains(image.id) {
+                    if filled + anchor >= roomLeft() { continue }
+                    guard let f = image.float, f.wraps, !f.takesRoom, !f.bandsPage, f.wrapSide == nil,
+                          f.horizontalFrom == "margin" || f.horizontalFrom == "page", f.verticalFrom == "margin" || f.verticalFrom == "page",
+                          image.width > 0, image.height > 0, image.textBox != nil || !image.data.isEmpty || image.outline != nil,
+                          abs(image.rotation.truncatingRemainder(dividingBy: 180)) < 0.01 else { continue }
+                    // (The turned page: its height is the paper's width, its left margin the paper's top, its top margin the paper's
+                    // right, its bottom margin the paper's left.)
+                    let paperW = setup.height
+                    let w = image.width, h = image.height
+                    let (x0, y0) = _verticalFloatPaperOrigin(f, image, setup)
+                    // (Paper x grows leftward in the flow: the paper's right side is its top. Its left and right distances run along the
+                    // flow, its top and bottom ones across it.)
+                    let flowTop = paperW - (x0 + w) - setup.marginTop - (f.distanceRight ?? 9)
+                    let flowBottom = paperW - x0 - setup.marginTop + (f.distanceLeft ?? 9)
+                    let across0 = y0 - setup.marginLeft - f.distanceTop
+                    let across1 = y0 + h - setup.marginLeft + f.distanceBottom
+                    seeds.append((image.id, _px(across0), _px(across1), _px(flowTop), _px(flowBottom)))
+                }
+                // (The next paragraph starts on this page only while the text so far leaves room in the columns the floats leave.)
+                // (A paragraph ends its last line: it costs whole lines of the full column's length.)
+                let lineChars = max(1, _px(setup.height - setup.marginTop - setup.marginBottom) / em)
+                filled += (Double(document.paragraphs[k].text.count) / lineChars).rounded(.up) * lineChars
+                if filled >= roomLeft() { break }
                 k += 1
             }
             _verticalSeeds[physical] = seeds
@@ -108,5 +103,33 @@ extension RichLayout {
         RuleTrace.hit("word-vertical-column-window-between-floats")
         pgs.y = at
         pgs.contentH = end
+    }
+}
+
+extension RichLayout {
+    /// Where a margin- or page-anchored float stands on the paper of a turned (tbRl) section: its left and top edges, in points
+    /// from the paper's left and top, the file's offsets or its alignment (left, right, center; top, bottom, center) taken against
+    /// the margins or the page. The setup is the turned page, so the paper's width is its height, and its left margin
+    /// `marginBottom`, its top margin `marginLeft`, its right margin `marginTop`.
+    func _verticalFloatPaperOrigin(_ f: ImageFloat, _ image: ImageAttachment, _ setup: PageSetup) -> (Double, Double) {
+        let paperW = setup.height, paperH = setup.width
+        let baseX = f.horizontalFrom == "page" ? 0 : setup.marginBottom
+        let spanX = f.horizontalFrom == "page" ? paperW : paperW - setup.marginBottom - setup.marginTop
+        let baseY = f.verticalFrom == "page" ? 0 : setup.marginLeft
+        let spanY = f.verticalFrom == "page" ? paperH : paperH - setup.marginLeft - setup.marginRight
+        var x0 = baseX + f.x, y0 = baseY + f.y
+        switch f.horizontalAlign {
+        case "left"?: x0 = baseX
+        case "right"?: x0 = baseX + spanX - image.width
+        case "center"?: x0 = baseX + (spanX - image.width) / 2
+        default: break
+        }
+        switch f.verticalAlign {
+        case "top"?: y0 = baseY
+        case "bottom"?: y0 = baseY + spanY - image.height
+        case "center"?: y0 = baseY + (spanY - image.height) / 2
+        default: break
+        }
+        return (x0, y0)
     }
 }
