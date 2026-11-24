@@ -1782,7 +1782,15 @@ extension RichLayout {
                 // frame y 693pt, text foot 720pt, stays on page 1 in Word's print; xd 8948a622.)
                 let inPlacedFrame = theme.wordRules && document.paragraphs[pgs.i].style.frameXML != nil && pgs.frameReturn?.page == pgs.page
                 if inPlacedFrame, pgs.y > pgs.contentH - 0.01 { RuleTrace.hit("word-frame-continuation-stays-on-its-page-past-the-foot") }
-                if pgs.y > pgs.contentH - 0.01, !ender, !inPlacedFrame { _pg_newPage(&pgs, document) }
+                if pgs.y > pgs.contentH - 0.01, !ender, !inPlacedFrame {
+                    _pg_newPage(&pgs, document)
+                    // (A page whose body area is gone (a header's page-high box takes it all) has none in its
+                    // second column either: what runs past its foot opens the next PAGE. Word's print of
+                    // es-1dce05b4b2 sets each box paragraph of its two-column section on a page of its own.)
+                    if theme.wordRules, RichTextTheme.wordWindowsPages, _columns > 1, pgs.contentH <= 1.01 {
+                        while pgs.page % _columns != 0 { _pg_newPage(&pgs, document) }
+                    }
+                }
                 // (An empty paragraph at a column's foot, the paragraph after it too long for what
                 // is left, and a table next whose cell holds a picture wrapped top and bottom: Word's
                 // print carries the empty paragraph to the top of the next column with them — lab

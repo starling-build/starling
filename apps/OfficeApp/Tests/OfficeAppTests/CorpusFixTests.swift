@@ -459,4 +459,46 @@ final class CorpusFixTests: XCTestCase {
         XCTAssertEqual(layout.pageNumber(ofParagraph: 1), 2, "the box paragraph goes under no box: to page 2 with its box")
         XCTAssertEqual(layout.pageNumber(ofParagraph: 2), 3, "the paragraph after its page break stands on a third page")
     }
+
+    /// A page whose body area a header's page-high box takes whole has none in its second column either: each paragraph of the
+    /// two-column section stands on a page of its own (Word's print of es-1dce05b4b2).
+    func testAPageWithNoBodyAreaOpensTheNextPageNotTheSecondColumn() throws {
+        RichTextTheme.wordWindowsPages = true
+        defer { RichTextTheme.wordWindowsPages = false }
+        var doc = RichDocument(paragraphs: [RichParagraph(text: "one"), RichParagraph(text: "two"), RichParagraph(text: "three")])
+        doc.header = "x"
+        var setup = PageSetup.letter
+        setup.columns = 2
+        var entries = try Zip.read(try DocxFormat.write(doc, pageSetup: setup))
+        let hi = entries.firstIndex { $0.name == "word/header1.xml" }!
+        var hxml = String(decoding: entries[hi].data, as: UTF8.self)
+        let inner = try XCTUnwrap(hxml.range(of: "<w:p>")).lowerBound ..< (try XCTUnwrap(hxml.range(of: "</w:p>"))).upperBound
+        let anchor = "<wp:anchor distT=\"0\" distB=\"0\" distL=\"0\" distR=\"0\" simplePos=\"0\" relativeHeight=\"1\" behindDoc=\"0\" locked=\"0\" layoutInCell=\"1\" allowOverlap=\"1\">"
+            + "<wp:simplePos x=\"0\" y=\"0\"/><wp:positionH relativeFrom=\"column\"><wp:posOffset>0</wp:posOffset></wp:positionH>"
+            + "<wp:positionV relativeFrom=\"paragraph\"><wp:posOffset>0</wp:posOffset></wp:positionV><wp:extent cx=\"6000000\" cy=\"10134600\"/>"
+            + "<wp:wrapSquare wrapText=\"bothSides\"/><wp:docPr id=\"1\" name=\"s\"/><a:graphic xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\">"
+            + "<a:graphicData uri=\"http://schemas.microsoft.com/office/word/2010/wordprocessingShape\"><wps:wsp xmlns:wps=\"http://schemas.microsoft.com/office/word/2010/wordprocessingShape\">"
+            + "<wps:cNvSpPr txBox=\"1\"/><wps:spPr><a:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"6000000\" cy=\"10134600\"/></a:xfrm><a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom></wps:spPr>"
+            + "<wps:txbx><w:txbxContent><w:p><w:r><w:t>box</w:t></w:r></w:p></w:txbxContent></wps:txbx>"
+            + "<wps:bodyPr wrap=\"square\"/></wps:wsp></a:graphicData></a:graphic></wp:anchor>"
+        hxml.replaceSubrange(inner, with: "<w:p><w:pPr><w:pStyle w:val=\"Header\"/></w:pPr><w:r><w:drawing>\(anchor)</w:drawing></w:r></w:p>")
+        entries[hi] = ZipEntry(name: "word/header1.xml", data: Data(hxml.utf8))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let body = try XCTUnwrap(xml.range(of: "<w:body>")), sect = try XCTUnwrap(xml.range(of: "<w:sectPr"))
+        let boxAnchor = anchor.replacingOccurrences(of: "relativeFrom=\"column\"", with: "relativeFrom=\"page\"").replacingOccurrences(of: "relativeFrom=\"paragraph\"", with: "relativeFrom=\"page\"")
+            .replacingOccurrences(of: "10134600", with: "3000000")
+        xml.replaceSubrange(body.upperBound ..< sect.lowerBound, with:
+            "<w:p><w:r><w:t>one</w:t></w:r></w:p><w:p><w:r><w:drawing>\(boxAnchor)</w:drawing></w:r></w:p><w:p><w:r><w:t>three</w:t></w:r></w:p>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let back = try DocxFormat.read(try Zip.write(entries)).document
+        let theme = RichTextTheme(fontFamily: OfficeFonts.serif)
+        theme.wordRules = true
+        let layout = RichLayout(theme: theme, paragraphCount: back.paragraphs.count)
+        layout.pageSetup = setup
+        layout.width = setup.columnWidth * theme.pixelsPerPoint
+        layout.ensureLaidOut(back)
+        let pages = (0 ..< 3).map { layout.pageNumber(ofParagraph: $0) ?? 0 }
+        XCTAssertTrue(pages[0] < pages[1] && pages[1] < pages[2], "each paragraph on a page of its own, not the second column of the page before: \(pages)")
+    }
 }
