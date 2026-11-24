@@ -1378,10 +1378,13 @@ public final class RichDocumentController: ChangeNotifier {
         public var spaceBefore: Double?
         public var spaceAfter: Double?
         public var lineRule: LineRule?
+        /// The paragraph's whole list of tab stops (nil leaves them as they are).
+        public var tabStops: [TabStop]?
         public init(alignment: ParagraphAlignment? = nil, indentLeft: Double? = nil,
                     indentRight: Double? = nil, firstLineIndent: Double? = nil,
                     spaceBefore: Double? = nil, spaceAfter: Double? = nil,
-                    lineRule: LineRule? = nil) {
+                    lineRule: LineRule? = nil, tabStops: [TabStop]? = nil) {
+            self.tabStops = tabStops
             self.alignment = alignment; self.indentLeft = indentLeft
             self.indentRight = indentRight; self.firstLineIndent = firstLineIndent
             self.spaceBefore = spaceBefore; self.spaceAfter = spaceAfter
@@ -1397,6 +1400,7 @@ public final class RichDocumentController: ChangeNotifier {
             if let v = f.firstLineIndent { s.firstLineIndent = v }
             if let v = f.spaceBefore { s.spaceBefore = max(0, v); s.spaceBeforeAuto = false }
             if let v = f.spaceAfter { s.spaceAfter = max(0, v); s.spaceAfterAuto = false }
+            if let t = f.tabStops { s.tabStops = t.filter { $0.position >= 0 }.sorted { $0.position < $1.position } }
             switch f.lineRule {
             case .multiple(let m)?:
                 s.lineSpacing = max(0.1, m); s.lineHeightPoints = nil; s.lineHeightIsMinimum = false

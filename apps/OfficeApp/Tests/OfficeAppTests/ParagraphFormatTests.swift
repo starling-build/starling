@@ -34,4 +34,28 @@ final class ParagraphFormatTests: XCTestCase {
         c.undo()
         XCTAssertEqual(c.document.paragraphs[0].style.indentLeft, 0)
     }
+
+    /// W-PA-3: tab stops (position, kind, leader) set through the controller undo in one step and survive a save.
+    func testTabStopsApplyUndoAndSurviveSave() throws {
+        let c = RichDocumentController(plainText: "a\tb")
+        var ed = TabStopEditor(stops: [])
+        ed.set(at: 144, kind: .right, leader: .dots)
+        ed.set(at: 72, kind: .decimal, leader: .none)
+        ed.set(at: 216, kind: .bar, leader: .none)
+        ed.set(at: 72.2, kind: .center, leader: .dashes)   // the same stop again: replaced, not added
+        XCTAssertEqual(ed.stops.map(\.position), [72.2, 144, 216])
+        c.setParagraphFormat(.init(tabStops: ed.stops))
+        let back = try DocxFormat.read(DocxFormat.write(c.document, pageSetup: .letter)).document.paragraphs[0].style.tabStops
+        XCTAssertEqual(back.map(\.position), [72.2, 144, 216])
+        XCTAssertEqual(back.map { TabKind($0) }, [.center, .right, .bar])
+        XCTAssertEqual(back.map { TabLeader($0) }, [.dashes, .dots, .none])
+        ed.clear(at: 144); XCTAssertEqual(ed.stops.count, 2)
+        ed.clearAll(); XCTAssertTrue(ed.stops.isEmpty)
+        c.setParagraphFormat(.init(tabStops: []))
+        XCTAssertTrue(c.document.paragraphs[0].style.tabStops.isEmpty)
+        c.undo()
+        XCTAssertEqual(c.document.paragraphs[0].style.tabStops.count, 3, "one undo restores the stops")
+        c.undo()
+        XCTAssertTrue(c.document.paragraphs[0].style.tabStops.isEmpty)
+    }
 }
