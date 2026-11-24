@@ -379,6 +379,10 @@ final class OfficeShellState: State<StatefulWidget> {
         session.onPasteMode = { [weak self] mode in self?._paste(mode: mode) }
         session.onInsertPicture = { [weak self] in
             guard let self else { return }
+            if let ask = self.officeScene.pictureRequested {
+                ask { [weak self] path in if let path { self?._insertPicture(path) } }
+                return
+            }
             self.setState { self._backstage = .insertPicture }
         }
         session.onStatus = { [weak self] msg in self?._flash(msg) }

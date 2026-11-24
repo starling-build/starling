@@ -936,6 +936,10 @@ final class SlidesShellState: State<StatefulWidget> {
             self._insertPicture(picked.name, data: picked.data)
         }
         #else
+        if let ask = officeScene.pictureRequested {
+            ask { [weak self] path in if let path { self?._insertPicture(path) } }
+            return
+        }
         setState { _backstage = .insertPicture }
         #endif
     }
