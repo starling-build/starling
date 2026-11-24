@@ -110,7 +110,7 @@ extension RichLayout {
         // ours hung the "，".)
         let hangs = fitted && (!inCell || turned) && !(_inTextBox && legacy && (theme.wordRules || !theme.officeLatinBreaks)) && p.style.eastAsian["w:overflowPunct"] != "0" && p.style.eastAsian["w:kinsoku"] != "0" && (theme.wordRules || !theme.officeLatinBreaks || _hangsLineEndMarks(p))
             && !(RichTextTheme.wordWindowsPages && document.eastAsianDefaultFaceIsLatin && !distributed)
-            && !(RichTextTheme.wordWindowsPages && theme.wordRules && document.eastAsianDefaultFaceUnnamed && !distributed)
+            && !(RichTextTheme.wordWindowsPages && theme.wordRules && document.eastAsianDefaultFaceUnnamed && !distributed && p.text.utf16.contains(where: { $0 >= 0x2E80 }))
             && !(RichTextTheme.wordWindowsPages && theme.wordRules && (document.compatibilityMode ?? 12) == 14 && document.markSqueezeEm == 0
                  && document.characterSpacingControl == "compressPunctuation")
         // (Nor at compat 14 under compressPunctuation without a Chinese or Japanese language: lab comma-hang7 v6/v8, a
@@ -119,7 +119,7 @@ extension RichLayout {
         // Word for Windows: `RichDocument.eastAsianDefaultFaceIsLatin`.)
         let squeezes = fitted && !turned && (document.characterSpacingControl?.hasPrefix("compressPunctuation") ?? false)
             && !(RichTextTheme.wordWindowsPages && document.eastAsianDefaultFaceIsLatin && !distributed)
-            && !(RichTextTheme.wordWindowsPages && theme.wordRules && document.eastAsianDefaultFaceUnnamed && !distributed)
+            && !(RichTextTheme.wordWindowsPages && theme.wordRules && document.eastAsianDefaultFaceUnnamed && !distributed && p.text.utf16.contains(where: { $0 >= 0x2E80 }))
             && !(RichTextTheme.wordWindowsPages && theme.wordRules && (document.compatibilityMode ?? 12) == 14 && document.markSqueezeEm == 0)
         // (Compat 14, compressPunctuation, but no Chinese or Japanese eastAsia language, or ko-KR: lab comma-hang7
         // v6/v8 measure every mark's advance at the full 12.0 of 12 pt and 16.0 of 16 pt, so Word squeezes none.)
