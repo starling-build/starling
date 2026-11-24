@@ -608,6 +608,9 @@ public struct RichParagraphStyle: Hashable, Codable, Sendable {
     /// Points. A paragraph read from an invisible wrapper table whose stated width passes the column: the room its text has
     /// (Word lays the wrapper at that width, past the margin: ebb4a037's 521pt table in a 451pt column).
     public var wrapperRoom: Double?
+    /// Points. A paragraph read from an invisible wrapper table of a fixed width: where its text ends, counted from the margin
+    /// (the table's indent, its width, less both cell margins: Word's labs nestwrap and nestwrap2, Latin and CJK alike).
+    public var wrapperRight: Double?
     /// Points. For a paragraph in a table nested in a table cell (flattened
     /// into the cell): the top margins and top lines of the nested cells it
     /// stands in, outer ones too, which began on an earlier paragraph. Where

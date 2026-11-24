@@ -1577,7 +1577,17 @@ enum DocxFormat {
                             paragraphs[lead].style.spaceBeforeAuto = false
                             paragraphs[lead].style.spaceBefore = 0
                         }
-                        if Self.wordOnWindows, let tw = node.first("w:tblPr")?.first("w:tblW"), (tw["w:type"] ?? "") == "dxa",
+                        let tblW = node.first("w:tblPr")?.first("w:tblW")
+                        let fixedLayout = node.first("w:tblPr")?.first("w:tblLayout")?["w:type"] == "fixed"
+                        let indentPt = (node.first("w:tblPr")?.first("w:tblInd").flatMap { (($0["w:type"] ?? "dxa") == "dxa") ? Double($0["w:w"] ?? "") : nil } ?? 0) / 20
+                        if Self.wordOnWindows, indentPt != 0 {
+                            for k in first ..< paragraphs.count where paragraphs[k].cell == nil && paragraphs[k].image == nil { paragraphs[k].style.indentLeft += indentPt }
+                        }
+                        if Self.wordOnWindows, fixedLayout, (tblW?["w:type"] ?? "") == "dxa", let dxa = Double(tblW?["w:w"] ?? "") {
+                            for k in first ..< paragraphs.count where paragraphs[k].cell == nil && paragraphs[k].image == nil {
+                                paragraphs[k].style.wrapperRight = indentPt + dxa / 20 - (tableMargins.left ?? 5.4) - (tableMargins.right ?? 5.4)
+                            }
+                        } else if Self.wordOnWindows, let tw = node.first("w:tblPr")?.first("w:tblW"), (tw["w:type"] ?? "") == "dxa",
                            let dxa = Double(tw["w:w"] ?? ""), tc.first("w:tcPr")?.first("w:tcW").map({ ($0["w:type"] ?? "auto") == "auto" }) ?? true {
                             let room = dxa / 20 - (tableMargins.left ?? 0) - (tableMargins.right ?? 0)
                             for k in first ..< paragraphs.count where paragraphs[k].cell == nil && paragraphs[k].image == nil { paragraphs[k].style.wrapperRoom = room }
