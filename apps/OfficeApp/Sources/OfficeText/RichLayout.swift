@@ -862,6 +862,7 @@ public final class RichTextTheme {
         else if wordRules, style.rightToLeft, !eastAsian, style.fontSize == nil, let z = style.complexFontSize ?? named?.char.complexFontSize ?? normal?.complexFontSize { size = z }
         // (A run that gives `w:sz` and no `w:szCs` is set at the szCs its style or the defaults give: xd 72ea457a's Hebrew, sz 14 over Normal's szCs 12, prints at 12 in David.)
         else if wordRules, style.rightToLeft, !eastAsian, style.sizeFromStyleSzCs, style.complexFontSize == nil, let z = named?.char.complexFontSize ?? normal?.complexFontSize { size = z }
+        else if wordRules, !style.rightToLeft, !eastAsian, style.sizeFromStyleSzCs, style.fontSize == nil, style.complexFontSize == nil, let z = named?.char.complexFontSize ?? normal?.complexFontSize { size = z }
         // (A style that sets `w:sz` and no `w:szCs` anywhere in the chain leaves complex-script text at Word's 10 pt default, not at `w:sz`:
         // ara-z4399437's keyword lines step 11.5 in Word's print, not 10.4.)
         else if wordRules, style.rightToLeft, !eastAsian, style.fontSize == nil, named?.char.fontSize != nil, named?.char.complexFontSize == nil, normal?.complexFontSize == nil { size = 10 }
