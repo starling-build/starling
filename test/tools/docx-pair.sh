@@ -52,16 +52,16 @@ esac
 
 # xb: the admitted batch-B documents that have a Windows print (interim set before the corpus swap; lives in the cache,
 # not in git: $STARLING_CORPUS/staging/xb/{docs,word-win}, stems listed in test/corpus/docx/xb/manifest.tsv)
-# dr-<lang>-<doc|docx> (full) and drs (sample): the docx-multi-r1 dev folders (es ja ko pt; legacy .doc and .docx), whose
+# dr-<lang>-<doc|docx> (full) and drm (sample): the docx-multi-r1 dev folders (es ja ko pt; legacy .doc and .docx), whose
 # documents sit in the folder itself and whose Word prints are in <folder>/word-win. Staged as docs/<stem>.docx symlinks
-# (the converter reads the content, not the extension; only the PDF title differs) + a word-win symlink. drs = every 20th
+# (the converter reads the content, not the extension; only the PDF title differs) + a word-win symlink. drm = every 12th (about 105 documents)
 # document of each of the 8 folders (the gate sample). Built on demand under the corpus staging dir.
 drstage() {
   local S=${STARLING_CORPUS:-/data/corpus-cache}/staging D=${STARLING_CORPUS:-/data/corpus-cache}/staging/docx-new f e k
   if [ ! -d "$S/$1/docs" ]; then
     mkdir -p "$S/$1.tmp$$/docs" || { echo "$S/$1"; return; }
-    if [ "$1" = drs ]; then
-      for k in es ja ko pt; do for e in doc docx; do ls "$D/$k-$e-r1-dev"/*."$e" | awk 'NR%20==1' | while IFS= read -r f; do
+    if [ "$1" = drm ]; then
+      for k in es ja ko pt; do for e in doc docx; do ls "$D/$k-$e-r1-dev"/*."$e" | awk 'NR%12==1' | while IFS= read -r f; do
         ln -sf "$f" "$S/$1.tmp$$/docs/$(basename "$f" ."$e").docx"; ln -sf "$D/$k-$e-r1-dev/word-win/$(basename "$f" ."$e")-orig.pdf" "$S/$1.tmp$$/docs/../w-$(basename "$f" ."$e")-orig.pdf"; done; done; done
       mkdir -p "$S/$1.tmp$$/word-win"; mv "$S/$1.tmp$$"/w-*-orig.pdf "$S/$1.tmp$$/word-win/" 2>/dev/null
       for f in "$S/$1.tmp$$"/word-win/w-*; do mv "$f" "$S/$1.tmp$$/word-win/${f##*/w-}"; done
@@ -74,7 +74,7 @@ drstage() {
   fi
   echo "$S/$1"
 }
-corpus() { case $1 in 756) echo "$ROOT/test/corpus/docx";; lo) echo "$ROOT/test/corpus/docx/lo";; xb|xa|xd|xs|dx2|sa1|sa2) echo "${STARLING_CORPUS:-/data/corpus-cache}/staging/$1";; dr-*|drs) drstage "$1";; esac; }
+corpus() { case $1 in 756) echo "$ROOT/test/corpus/docx";; lo) echo "$ROOT/test/corpus/docx/lo";; xb|xa|xd|xs|dx2|sa1|sa2) echo "${STARLING_CORPUS:-/data/corpus-cache}/staging/$1";; dr-*|drm) drstage "$1";; esac; }
 # refhash SET — one hash of the set's Word reference PDFs (names + contents): the code STAMP does not cover them, so
 # a print swap would leave stored scores that look valid. Stored beside the scores as REFS ("<set> <hash>" lines).
 refhash() { local C; C=$(corpus "$1"); python3 -I "$HERE/hashdir.py" "$C/word-win" .pdf; }
@@ -89,7 +89,7 @@ base_ok() { local want have; want=$(refhash "$1"); have=$(awk -v s="$1" '$1==s{p
   [ -n "$want" ] && [ "$want" = "$have" ] || return 1
   local dh; dh=$(awk -v s="$1" '$1==s{print $3}' "$3" 2>/dev/null); [ -z "$dh" ] || [ "$dh" = "$(dochash "$1")" ] || return 1
   [ "${BASE_PARTIAL:-0}" = 1 ] && return 0   # a per-document cache (render-gate): rows for the swept documents only
-  case "$1" in xb|xa|xd|xs|dx2|sa1|sa2|dr-*|drs) ;; *) return 0;; esac; local C n; C=$(corpus "$1"); n=$(ls "$C"/word-win/*-orig.pdf 2>/dev/null | wc -l)
+  case "$1" in xb|xa|xd|xs|dx2|sa1|sa2|dr-*|drm) ;; *) return 0;; esac; local C n; C=$(corpus "$1"); n=$(ls "$C"/word-win/*-orig.pdf 2>/dev/null | wc -l)
   [ "$(grep -c '%  lines ' "$2" 2>/dev/null)" = "$n" ]; }
 # sweep BIN WORK SET → WORK/match-v2.txt, match-v1.txt
 # A render that hit the 300 s alarm (exit 142) or exited non-zero is retried ONCE, then reported as TIMEOUT / RENDER-FAIL,
