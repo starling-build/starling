@@ -8033,6 +8033,7 @@ enum ChartPainter {
             }
             return
         }
+        var apexes: [Offset] = [], mids: [Double] = []
         let angle0 = angle
         for (i, v) in values.enumerated() where v > 0 {
             let sweep = v / sum * 2 * .pi
@@ -8072,6 +8073,8 @@ enum ChartPainter {
             let at = hole > 0 ? (radius + hole) / 2 : radius * 0.7
             labels.append((dataLabel(c, c.series[0].values[i] ?? 0),
                            Offset(centre.dx + cos(mid) * at, centre.dy + sin(mid) * at), color))
+            apexes.append(Offset(centre.dx + cos(mid) * pull * radius, centre.dy + sin(mid) * pull * radius))
+            mids.append(mid)
             placed.append((i, mid, v, color))
             angle += sweep
         }
@@ -8095,18 +8098,32 @@ enum ChartPainter {
                            return Offset(cos(m) * pull * radius, sin(m) * pull * radius)
                        } : nil)
         } else if c.dataLabels {
-            for (s, at, wedge) in labels {
+            for (li, (s, at0, wedge)) in labels.enumerated() {
+                var at = at0
                 // Inside the wedge: white on a dark one, ink on a light one.
                 let v = wedge.value
                 let luma = 0.299 * Double((v >> 16) & 0xFF) + 0.587 * Double((v >> 8) & 0xFF) + 0.114 * Double(v & 0xFF)
                 // (A label whose text properties the file states, a size and no colour, is the chart's text colour, not
                 // the contrast pick: pt-6de30c85 p4's 22 pt bold doughnut figures are black on the blue and the red.)
-                let stated = c.onSlide ? c.series.first?.labelSize : nil
+                // (A Word pie's inside labels keep the file's text too, 12 pt bold black where it says so: lab pieexp.)
+                let stated = c.onSlide || (!c.onSheet && !c.chartex) ? c.series.first?.labelSize : nil
                 let tp = TextPainter(text: TextSpan(text: s, style: Flutter.TextStyle(
                     color: stated != nil ? (c.series[0].labelColor ?? ink ?? theme.text) : luma < 150 ? Color(0xFFFFFFFF) : Color(0xFF404040),
                     fontSize: max(3, (stated ?? c.baseTextSize) * k), fontWeight: stated != nil && c.series[0].labelBold ? .bold : .normal,
                     fontFamily: OfficeFonts.substitute(c.font ?? theme.bodyFont), fontFamilyFallback: Self.glyphFallback(c))), textDirection: .ltr)
                 tp.layout(minWidth: 0, maxWidth: .infinity)
+                // (A Word pie's inside labels stand from their own slice's apex, pulled out with it: centred, half the radius along the
+                // slice's middle; inside the end, the radius less the label box's half-extent along that line and 1.2 pt. Lab pieexp.)
+                if !c.onSlide, !c.onSheet, !c.chartex, c.type == .pie, hole == 0, li < apexes.count, let own = c.series[0].labelPos,
+                   own == "ctr" || own == "inEnd" {
+                    let m = mids[li], r = radius * (c.pieSeriesPull > 0 ? 1 : 1)
+                    var d = own == "ctr" ? 0.5 * r : r - 1.2 * k
+                    if own == "inEnd" {
+                        RuleTrace.hit("word-flat-pie-inside-end-label-stands-its-box-half-extent-and-1.2pt-inside-the-rim")
+                        d -= abs(cos(m)) * tp.width / 2 + abs(sin(m)) * tp.height / 2
+                    } else { RuleTrace.hit("word-flat-pie-centred-label-stands-half-the-radius-out") }
+                    at = Offset(apexes[li].dx + cos(m) * d, apexes[li].dy + sin(m) * d)
+                }
                 tp.paint(canvas, Offset(at.dx - tp.width / 2, at.dy - tp.height / 2))
                 tp.dispose()
             }
