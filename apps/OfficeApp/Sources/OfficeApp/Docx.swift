@@ -2137,7 +2137,9 @@ enum DocxFormat {
                 // (… and one whose only stated widths are in its first row, every other cell auto: Word fits the
                 // columns to their content and sets the header's widths aside — dx2 zh-4cac8c37's shop table, a grid of
                 // 115/210/100/100pt, is 72/325/67/62pt in Word's print.)
-                if !cells.isEmpty, !style.contentFit, widthless * 2 > cells.count, style.width == nil, style.widthPercent == nil, !style.fixedLayout {
+                // (A spaced table's width does not stop it: lab tbauto t7, tblW 450pt over a first row of 150 / 300, is 84.2 / 350.7
+                // inside, as t2 without the width is 83.1.)
+                if !cells.isEmpty, !style.contentFit, widthless * 2 > cells.count, style.width == nil || (style.cellSpacing ?? 0) > 0, style.widthPercent == nil, !style.fixedLayout {
                     let rows = unwrapped(node, "w:tr")
                     func stated(_ tr: XNode) -> Bool { unwrapped(tr, "w:tc").contains { let w = $0.first("w:tcPr")?.first("w:tcW"); return !(w == nil || w?["w:type"] == "auto") } }
                     if rows.count > 2, stated(rows[0]), !rows.dropFirst().contains(where: stated) {

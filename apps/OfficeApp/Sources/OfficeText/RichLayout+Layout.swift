@@ -1286,7 +1286,7 @@ extension RichLayout {
                 // (A stated width the grid and the cells' widths outgrow does not hold the table to it: sa2 cb623f0a, tblW
                 // 390pt over five columns of 390pt each, is the room wide in Word's print, the columns equal.)
                 if theme.wordRules, RichTextTheme.wordWindowsPages, !_nestedInFixedTable, _columnPreview[c.table] == nil,
-                   let ts = document.tableStyles[c.table], !ts.fixedLayout, ts.widthPercent == nil, ts.width == nil ? scale < 1 : statedBelowGrid, (ts.cellSpacing ?? 0) == 0,
+                   let ts = document.tableStyles[c.table], !ts.fixedLayout, ts.widthPercent == nil, (ts.cellSpacing ?? 0) > 0 || (ts.width == nil ? scale < 1 : statedBelowGrid),
                    // (An outdent keeps the old way, untested.)
                    ts.indent > -0.5 {
                     let ins = _cellInsets(c.table, document)
@@ -1307,7 +1307,14 @@ extension RichLayout {
             // is that much narrower than its two margins: dx2 8afcc2c4's 100% tables, right edge 0.5pt, not 1pt, past the text width.)
             let unoutdented = ts.textOutdent == 0 ? (ts.cellMarginLeft ?? 0) : 0
             let reach = (document.compatibilityMode ?? 12) >= 15 ? 0 : _px(max(0, (ts.cellMarginLeft ?? 5.4) + (ts.cellMarginRight ?? 5.4) - unoutdented))
-                    let room = width + reach - _px(max(0, ts.indent))
+                    var room = width + reach - _px(max(0, ts.indent))
+                    // (A spaced table's boxes share what its gaps leave: a stated width is the outer one, 2s round each column (lab tbauto t7:
+                    // tblW 450pt, spacing 2.5, boxes 84.2 / 350.7 over a grid of 150 / 300); one of no width, the room less 2s a column.)
+                    if let sp = ts.cellSpacing, sp > 0 {
+                        let gap = 2 * _px(sp)
+                        if let w = ts.width, w > 0, document.compatibilityMode != nil { room = _px(w) - gap * Double(pts.count + 1) }
+                        else { room -= gap * Double(pts.count) }
+                    }
                     let over = grid.reduce(0, +) - room
                     let spare = zip(grid, need).map { max(0, $0 - $1) }
                     let spareSum = spare.reduce(0, +)
@@ -1317,7 +1324,7 @@ extension RichLayout {
                     }
                 }
                 if theme.wordRules, !_nestedInFixedTable, _columnPreview[c.table] == nil, let ts = document.tableStyles[c.table],
-                   !ts.fixedLayout, (ts.cellSpacing ?? 0) == 0, let base = widths[c.table] {
+                   !ts.fixedLayout, ts.columnPercents.isEmpty || (ts.cellSpacing ?? 0) == 0, let base = widths[c.table] {
                     widths[c.table] = _autofit(c.table, base, document)
                     // (A table of a stated share whose cells state a share of
                     // it in every column, and not the grid's: the columns are
@@ -1354,6 +1361,16 @@ extension RichLayout {
                 // (Its cells' shares speak for it all the same: sa2 be63fe36's form tables have no grid.)
                 if let ts = document.tableStyles[c.table], !ts.fixedLayout, (ts.cellSpacing ?? 0) == 0, _columnPreview[c.table] == nil, !_nestedInFixedTable,
                    let out = _pctOverHundred(c.table, count: cols, ts: ts, width: width, document: document) { widths[c.table] = out }
+            }
+        }
+        // (A spaced table's columns are its boxes' widths so far; each slot is its box and the gap round it: 2s, and s more at the
+        // table's first and last column, the padding of a cell taking the rest. Lab tbauto.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages {
+            for (table, w) in widths {
+                guard let ts = document.tableStyles[table], let sp = ts.cellSpacing, sp > 0, ts.columnPercents.isEmpty, _columnPreview[table] == nil, w.count > 0 else { continue }
+                RuleTrace.hit("spaced-table-slot-is-box-and-gap")
+                let gap = 2 * _px(sp)
+                widths[table] = w.enumerated().map { $0.element + gap + ($0.offset == 0 ? _px(sp) : 0) + ($0.offset == w.count - 1 ? _px(sp) : 0) }
             }
         }
         for (table, w) in widths where _columnWidths[table] != w {
@@ -1866,6 +1883,14 @@ extension RichLayout {
     /// column 0.5/1/2 pt; with 5.4 pt margins nothing is added).
     @inline(never)
     func _autofitRuleRoom(_ table: String, _ document: RichDocument, _ padL: Double, _ padR: Double) -> Double {
+        // (A spaced table's cells do not share their rules: each draws its own, whole, inside its box, so a column's least is
+        // its cell margins and both rules more. dx2 8ba99a6d, 0.75pt rules and spacing: a column of one fixed width is 71.0pt in
+        // Word's print, 1.5pt over its text and margins.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, let ts = document.tableStyles[table], (ts.cellSpacing ?? 0) > 0, ts.contentFit == true,
+           ts.edges?.left ?? ts.borders {
+            RuleTrace.hit("spaced-table-column-least-holds-both-whole-rules")
+            return _px(ts.edgeWidths["left"] ?? ts.borderWidth ?? 0.5) + _px(ts.edgeWidths["right"] ?? ts.borderWidth ?? 0.5)
+        }
         guard theme.wordRules, RichTextTheme.wordWindowsPages, (document.compatibilityMode ?? 0) >= 15,
               let ts = document.tableStyles[table], ts.cellSpacing == nil, ts.contentFit != true, ts.widthPercent == nil,
               ts.edges?.left ?? (ts.borders && !ts.bordersFromCells) else { return 0 }
@@ -1879,6 +1904,24 @@ extension RichLayout {
     /// 25%); a width in twips is that width; otherwise the column plus margins.
     @inline(never)
     func _contentFitRoom(_ table: String, _ base: [Double], _ document: RichDocument, _ margins: Double) -> Double {
+        let room = _contentFitRoomUnspaced(table, base, document, margins)
+        // (Cell spacing s is a gap of 2s round every cell's box, and a stated width is the box's: the room the boxes share is
+        // the unspaced one less 2s a column, or, for a width the table states, that width less 2s a column and one more. Lab
+        // tbauto t1..t8, Word for Windows, 0.12pt.)
+        guard theme.wordRules, RichTextTheme.wordWindowsPages, let ts = document.tableStyles[table], let sp = ts.cellSpacing, sp > 0 else { return room }
+        RuleTrace.hit("spaced-table-boxes-share-the-room-less-the-gaps")
+        let gap = 2 * _px(sp)
+        let statedWidth = ts.widthPercent == nil && document.compatibilityMode != nil && (ts.width ?? 0) > 0
+        // (At compat 15 the boxes are n+1 gaps and the room is the unspaced one less the cells' own side rule b: lab tbauto3/4,
+        // Word for Windows, 13 prints to 0.1pt; outset rules and a table frame change nothing.)
+        let at15 = !statedWidth && ts.widthPercent == nil && (document.compatibilityMode ?? 0) >= 15
+        var b = 0.0
+        if at15, ts.edges?.left ?? ts.borders { b = _px(ts.edgeWidths["left"] ?? ts.borderWidth ?? 0.5) }
+        return max(0, room - gap * Double(base.count) - (statedWidth || at15 ? gap : 0) - b)
+    }
+
+    @inline(never)
+    func _contentFitRoomUnspaced(_ table: String, _ base: [Double], _ document: RichDocument, _ margins: Double) -> Double {
         // (Compat 15 lines the cell TEXT up with the margin, so a share is of the column alone: atcol3c15 100% is 468.1, not 478.9.)
         let flow = (_tableFlowWidth[table] ?? width) + ((document.compatibilityMode ?? 0) >= 15 && RichTextTheme.wordWindowsPages ? 0 : margins)
         guard let ts = document.tableStyles[table] else { return flow }
@@ -2359,6 +2402,10 @@ extension RichLayout {
                         (a >= 0x0E01 && a <= 0x0E7F) != (b >= 0x0E01 && b <= 0x0E7F), !(a == 0x2D || a == 0x2013 || a == 0x2014 || b == 0x2D || b == 0x2013 || b == 0x2014),
                         !Self._autofitDictionaryScript(a >= 0x0E01 && a <= 0x0E7F ? b : a) { parts = false }
                 else if breakBefore.contains(k) { parts = true }
+                // (A content-fitted spaced table's column parts after a hyphen between digits: lab tbauto3 h, Word for Windows, dx2 6d16b495's
+                // "201-15" in column 3: boxes 23.9 / 387.0 / 352.2 predicted, 23.9 / 386.95 / 352.1 printed.)
+                else if theme.wordRules, RichTextTheme.wordWindowsPages, a == 0x2D, b >= 0x30, b <= 0x39, k > 1, units[k - 2] >= 0x30, units[k - 2] <= 0x39,
+                        let c = p.cell, (document.tableStyles[c.table]?.cellSpacing ?? 0) > 0, (document.compatibilityMode ?? 0) >= 15 { parts = true }
                 // (After a hyphen before a digit in a time of day, where a
                 // word wider than its cell must part: zh-b3e887f7's schedule keeps its
                 // grid's 49.4pt time columns in Word's print, "9:00-" /
