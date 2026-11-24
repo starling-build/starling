@@ -51,4 +51,13 @@ final class DialogShellTests: XCTestCase {
         ui.press(.enter)
         XCTAssertEqual(log, [])
     }
+
+    /// A tester that is let go takes its dialog's Enter hook with it.
+    func testADroppedTestersDialogNoLongerTakesEnter() {
+        var log: [String] = []
+        do { _ = dialog { log.append($0) } }
+        let other = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: Text("plain"), title: "T"), size: Size(400, 300))
+        other.press(.enter)
+        XCTAssertEqual(log, [])
+    }
 }
