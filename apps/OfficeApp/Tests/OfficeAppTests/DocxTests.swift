@@ -5626,6 +5626,23 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(tail.style.spaceAfter - plain.style.spaceAfter, 2.25, accuracy: 0.001)
     }
 
+    /// Word's labs nestwrap and nestwrap2: the text of an invisible wrapper table starts at the table's indent and
+    /// ends at the indent plus the table's fixed width less both cell margins.
+    func testAnInvisibleWrapperSetsItsTextBetweenItsIndentAndItsWidth() throws {
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "x")]), pageSetup: .letter))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let wrapper = "<w:tbl><w:tblPr><w:tblW w:w=\"9355\" w:type=\"dxa\"/><w:tblInd w:w=\"392\" w:type=\"dxa\"/><w:tblLayout w:type=\"fixed\"/><w:tblCellMar><w:left w:w=\"108\" w:type=\"dxa\"/><w:right w:w=\"108\" w:type=\"dxa\"/></w:tblCellMar></w:tblPr><w:tblGrid><w:gridCol w:w=\"9355\"/></w:tblGrid><w:tr><w:tc><w:tcPr><w:tcW w:w=\"9355\" w:type=\"dxa\"/></w:tcPr>"
+            + nestedTable("a", "b") + "<w:p><w:r><w:t>tail</w:t></w:r></w:p></w:tc></w:tr></w:tbl>"
+        xml.insert(contentsOf: wrapper, at: xml.range(of: "<w:p>")!.lowerBound)
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let back = try DocxFormat.read(try Zip.write(entries)).document
+        let tail = try XCTUnwrap(back.paragraphs.first { $0.text == "tail" })
+        let plain = try XCTUnwrap(back.paragraphs.first { $0.text == "x" })
+        XCTAssertEqual(tail.style.indentLeft - plain.style.indentLeft, 19.6, accuracy: 0.001)
+        XCTAssertEqual(try XCTUnwrap(tail.style.wrapperRight), 19.6 + 467.75 - 10.8, accuracy: 0.001)
+    }
+
     /// A nested table that still flattens: one row holding 50 paragraphs.
     private func flatNestedTable(_ first: String, _ second: String) -> String {
         let filler = String(repeating: "<w:p><w:r><w:t>f</w:t></w:r></w:p>", count: 48)

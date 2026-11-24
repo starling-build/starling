@@ -144,7 +144,8 @@ extension _ParaFrame {
         }
         if let w = _pastWiden { right -= w }
         textWidth = max(1, width - left - right + (frameLeft ?? 0))
-        if theme.wordRules, RichTextTheme.wordWindowsPages, p.cell == nil, let room = style.wrapperRoom, _px(room) > width { textWidth += _px(room) - width }
+        if theme.wordRules, RichTextTheme.wordWindowsPages, p.cell == nil, let end = style.wrapperRight { textWidth = max(1, _px(end) - left - right + (frameLeft ?? 0)) }
+        else if theme.wordRules, RichTextTheme.wordWindowsPages, p.cell == nil, let room = style.wrapperRoom, _px(room) > width { textWidth += _px(room) - width }
         // (Centred or set right, a numbered line is set across its
         // hanging indent too: zh-3c055c9b's caption "表1　古佳川不實核銷表
         // (…財物)", 表標題 centred on a 24pt hang, is one line in Word's
