@@ -272,6 +272,18 @@ extension RichLayout {
                 // from where the flow has got to. Lab anchor, Word for Windows.)
                 RuleTrace.hit("compat15-second-floating-table-hangs-from-the-empty-line-before-it")
                 pgs.y = last.y + _px(down)
+            } else if theme.wordRules, RichTextTheme.wordWindowsPages, pgs.i >= 2, _cells[pgs.i - 1] == nil, _cells[pgs.i - 2] == nil,
+                      document.paragraphs[pgs.i - 1].style.sectionXML != nil, document.paragraphs[pgs.i - 1].style.sectionBreaksPage == false,
+                      document.paragraphs[pgs.i - 1].text.isEmpty, document.paragraphs[pgs.i - 1].image == nil, _heights[pgs.i - 1] < 0.01,
+                      document.paragraphs[pgs.i - 2].image == nil, _heights[pgs.i - 2] > 0.01, pgs.y >= _heights[pgs.i - 2] - 0.01 {
+                // (The empty paragraph that carries the break into a new continuous section, with the floating table
+                // first in that section, is not the table's anchor: Word hangs the table's offset from the top of the
+                // LAST LINE of the paragraph before it. Lab sect5 (windows, 2026-11-24): a bullet of two lines and the
+                // 10pt after it, tblpY 359 twips: the table's top rule is 17.95pt under the bullet's second line, not
+                // under the bullet; with one more empty paragraph before the break, 17.95pt under that one's top.)
+                RuleTrace.hit("word-floating-table-opening-a-continuous-section-hangs-from-the-last-line-before-the-break")
+                let bt = Self._lineBottoms(geometry(pgs.i - 2).painter)
+                pgs.y = pgs.y - _heights[pgs.i - 2] + (bt.count > 1 ? bt[bt.count - 2] : 0) + _px(down)
             } else {
                 pgs.y += _px(down)
             }

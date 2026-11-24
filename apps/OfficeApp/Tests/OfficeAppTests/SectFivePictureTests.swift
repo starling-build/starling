@@ -52,4 +52,41 @@ final class SectFivePictureTests: XCTestCase {
         XCTAssertLessThan(narrow.picture, narrow.tableBottom - 10, "the picture stands level with the table")
         XCTAssertGreaterThanOrEqual(wide.picture, wide.tableBottom - 0.5, "one that does not fit goes under it")
     }
+    /// Lab sect5 (Word's print): the empty paragraph that carries the break into a new continuous section is
+    /// not the anchor of the floating table that opens it: the table's offset hangs from the top of the last
+    /// line before that paragraph (17.95pt under it), not from under the paragraph before it.
+    func testAFloatingTableOpeningAContinuousSectionHangsFromTheLastLineBeforeTheBreak() throws {
+        RichTextTheme.wordWindowsPages = true
+        defer { RichTextTheme.wordWindowsPages = false }
+        func run(_ withBreak: Bool) -> (table: Double, lastLineTop: Double) {
+            var bullet = RichParagraph(text: String(repeating: "word ", count: 120))
+            bullet.style.spaceAfter = 10
+            var brk = RichParagraph(text: "")
+            if withBreak {
+                brk.style.sectionXML = "<w:sectPr><w:pgSz w:w=\"12240\" w:h=\"15840\"/></w:sectPr>"
+                brk.style.sectionBreaksPage = false
+            }
+            var cell = RichParagraph(text: "cell")
+            cell.cell = CellRef(table: "t", row: 0, column: 0)
+            var doc = RichDocument(paragraphs: [bullet, brk, cell, RichParagraph(text: "after")])
+            doc.tableColumns["t"] = [200]
+            var ts = TableStyle()
+            ts.floatsOverText = true
+            ts.floatOffsetY = 17.95
+            ts.alignment = .right
+            ts.keptPosition = "<w:tblpPr w:horzAnchor=\"margin\" w:tblpXSpec=\"right\" w:tblpY=\"359\"/>"
+            doc.tableStyles["t"] = ts
+            let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+            theme.wordRules = true
+            let layout = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+            layout.pageSetup = .letter
+            layout.width = PageSetup.letter.width * theme.pixelsPerPoint
+            layout.ensureLaidOut(doc)
+            let px = theme.pixelsPerPoint
+            let rowY = layout.pieces[0].first { $0.paragraph == 2 }?.pageY ?? -1
+            return (rowY / px, 0)
+        }
+        let broken = run(true)
+        XCTAssertGreaterThan(run(false).table, broken.table + 10, "with no break the paragraph is its anchor, so the table sits lower")
+    }
 }
