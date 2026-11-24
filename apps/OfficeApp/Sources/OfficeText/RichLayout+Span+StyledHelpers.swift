@@ -160,7 +160,7 @@ extension _StyledFrame {
         // the stand-in's proportional one, 1.12 em above where Arial has 0.905, so five lines stood 19.1 apart for Word's 16.6. dx2
         // 99905488: Times New Roman lines print 16.5 in Word.)
         if theme.wordRules, RichTextTheme.wordWindowsPages, kind >= 0, s.ascentOverride == nil, p.style.lineHeightPoints == nil, pitch == nil,
-           p.style.lineSpacing > 1, run.ruby == nil, !run.rightToLeft || !run.csLetters, let size = s.fontSize, size > 0.5,
+           p.style.lineSpacing > 1, run.ruby == nil, !run.rightToLeft || !run.csLetters, !rawText.contains(where: { $0.isLetter }), let size = s.fontSize, size > 0.5,
            let latin = (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily)?.trimmingWhitespace().lowercased(),
            let faceLine = RichLayout._latinFaceLines[latin],
            p.runs.contains(where: { r in
