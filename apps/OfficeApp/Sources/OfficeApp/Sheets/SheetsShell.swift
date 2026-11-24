@@ -67,6 +67,7 @@ final class SheetsShellState: State<StatefulWidget> {
     private var _namesOpen = false
     /// The Format Cells dialog is open (X-FM-1).
     private var _formatOpen = false
+    private var _validationOpen = false
     private var _findReplace = false
     private var _findStatus = ""
     private let _findQuery = TextEditingController()
@@ -339,6 +340,8 @@ final class SheetsShellState: State<StatefulWidget> {
             _flash(m)
         case .editNote:
             _editNote(at: wb.active)
+        case .dataValidation:
+            setState { _validationOpen = true }
         case .nameManager:
             setState { _namesOpen = true }
         }
@@ -854,6 +857,13 @@ final class SheetsShellState: State<StatefulWidget> {
         ]
         let window = ColoredBox(color: fluent.scaffoldBackgroundColor,
                                 child: Column(crossAxisAlignment: .stretch, children: column))
+        if _validationOpen {
+            return Stack(children: [window, Positioned(left: 0, top: 0, right: 0, bottom: 0, child: ValidationDialog(
+                controller: wb, onClose: { [weak self] in
+                    self?.setState { self?._validationOpen = false }
+                    self?._grid?.focus.requestFocus()
+                }))])
+        }
         if _namesOpen {
             return Stack(children: [window, Positioned(left: 0, top: 0, right: 0, bottom: 0, child: NameManagerDialog(
                 controller: wb, onClose: { [weak self] in

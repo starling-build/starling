@@ -20,6 +20,7 @@ enum SheetCommand {
     case zoom(Double)
     case toggleGridlines
     case status(String)
+    case dataValidation            // Data → Data Validation
     case nameManager               // Formulas → Name Manager
     case editNote                  // Review → New/Edit Note: the editor beside the active cell
 }
@@ -31,7 +32,7 @@ extension Ribbon {
         case .home: return _sheetsHome(wb, fluent)
         case .insert: return [_chartsGroup(wb, fluent), _functionsGroup(wb, fluent)]
         case .formulas: return [_autoSumGroup(wb, fluent), _functionsGroup(wb, fluent), _namesGroup(wb, fluent)]
-        case .data: return [_sortGroup(wb, fluent), _outlineGroup(wb, fluent)]
+        case .data: return [_sortGroup(wb, fluent), _dataToolsGroup(wb, fluent), _outlineGroup(wb, fluent)]
         case .view: return [_sheetsZoomGroup(wb, fluent)]
         case .review: return [_notesGroup(wb, fluent)]
         default: return nil
@@ -304,6 +305,12 @@ extension Ribbon {
             Chrome.small(FluentSystemIcons.close, "Clear", fluent) { wb.clearFilters() },
             Chrome.small(FluentSystemIcons.refresh, "Reapply", fluent) { wb.structural { wb.reapplyFilter() } },
         ])])
+    }
+
+    private func _dataToolsGroup(_ wb: WorkbookController, _ fluent: FluentThemeData) -> Widget {
+        Chrome.group("Data Tools", fluent, [
+            Chrome.big(FluentSystemIcons.check, "Data Validation", fluent) { wb.onCommand?(.dataValidation) },
+        ])
     }
 
     private func _outlineGroup(_ wb: WorkbookController, _ fluent: FluentThemeData) -> Widget {
