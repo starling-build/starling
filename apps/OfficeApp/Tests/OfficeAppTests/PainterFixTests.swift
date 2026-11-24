@@ -100,9 +100,14 @@ final class PainterFixTests: XCTestCase {
         XCTAssertEqual(OfficeFonts.substitute("Source Code Pro"), OfficeFonts.mono)
     }
 
-    func testMissingLaoFaceSetsItsLatinInBrowalliaNew() throws {
-        // dx2 30f73046: Saysettha OT is not on the print machine; Word draws its digits, commas and Latin in Browallia New
-        // (digit 0.36 em, comma 0.178), not at Leelawadee UI's 0.539 and 0.217.
+    func testMissingLaoFaceSetsItsLatinInBrowalliaNewOnlyWithAFontTableEntry() throws {
+        // dx2 30f73046: Saysettha OT is not on the print machine and its font table describes it; Word draws its digits and commas in
+        // Browallia New (0.36 em, 0.178). Lab laoh (no font table at all) draws them in Cambria instead.
+        defer { OfficeFonts.noteFontEntries([:]) }
+        OfficeFonts.noteFontEntries([:])
+        let bare = try XCTUnwrap(OfficeFonts.face("Saysettha OT", eastAsian: false))
+        XCTAssertNotEqual(bare.advances?[Int(UInt8(ascii: "3")) - 0x20] ?? 0, 0.36, accuracy: 0.005)
+        OfficeFonts.noteFontEntries(["saysettha ot": OfficeFonts.FontEntry(alt: nil, family: "swiss", panoseZero: false)])
         let face = try XCTUnwrap(OfficeFonts.face("Saysettha OT", eastAsian: false))
         let advances = try XCTUnwrap(face.advances)
         XCTAssertEqual(advances[Int(UInt8(ascii: "3")) - 0x20], 0.36, accuracy: 0.005)
