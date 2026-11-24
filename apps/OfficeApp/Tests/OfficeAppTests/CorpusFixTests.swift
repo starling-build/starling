@@ -201,6 +201,7 @@ final class CorpusFixTests: XCTestCase {
         let fixed = try bodyTop(autofit: false), fitted = try bodyTop(autofit: true)
         XCTAssertGreaterThan(fixed, PageSetup.letter.headerDistance + 30 + 100, "a fixed-height box: the body stands under its stated foot")
         XCTAssertLessThan(fitted, fixed - 60, "an autofit box: under its one text line")
+    }
 
     /// A `w:pict` holding only a `v:shapetype` (no shape of it) draws
     /// nothing: es-28716e1db6's header carried one and it stood a 164.7 pt
