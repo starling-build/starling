@@ -67,6 +67,7 @@ final class SheetsShellState: State<StatefulWidget> {
     private var _namesOpen = false
     /// The Format Cells dialog is open (X-FM-1).
     private var _formatOpen = false
+    private var _sortOpen: (range: CellRange, hasHeader: Bool)?
     private var _validationOpen = false
     private var _findReplace = false
     private var _findStatus = ""
@@ -342,6 +343,9 @@ final class SheetsShellState: State<StatefulWidget> {
             _editNote(at: wb.active)
         case .dataValidation:
             setState { _validationOpen = true }
+        case .sortDialog:
+            if let region = wb.sortRegion() { setState { _sortOpen = region } }
+            else { _flash(SortProblem.nothingToSort.message) }
         case .nameManager:
             setState { _namesOpen = true }
         }
@@ -861,6 +865,13 @@ final class SheetsShellState: State<StatefulWidget> {
             return Stack(children: [window, Positioned(left: 0, top: 0, right: 0, bottom: 0, child: ValidationDialog(
                 controller: wb, onClose: { [weak self] in
                     self?.setState { self?._validationOpen = false }
+                    self?._grid?.focus.requestFocus()
+                }))])
+        }
+        if let open = _sortOpen {
+            return Stack(children: [window, Positioned(left: 0, top: 0, right: 0, bottom: 0, child: SortDialog(
+                controller: wb, range: open.range, hasHeader: open.hasHeader, onClose: { [weak self] in
+                    self?.setState { self?._sortOpen = nil }
                     self?._grid?.focus.requestFocus()
                 }))])
         }

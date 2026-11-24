@@ -21,6 +21,7 @@ enum SheetCommand {
     case toggleGridlines
     case status(String)
     case dataValidation            // Data → Data Validation
+    case sortDialog                // Data → Sort…
     case nameManager               // Formulas → Name Manager
     case editNote                  // Review → New/Edit Note: the editor beside the active cell
 }
@@ -300,6 +301,7 @@ extension Ribbon {
         Chrome.group("Sort & Filter", fluent, [Chrome.rows([
             Chrome.small(FluentSystemIcons.sort, "Sort A to Z", fluent) { wb.sortSelection(ascending: true) },
             Chrome.small(FluentSystemIcons.sort, "Sort Z to A", fluent) { wb.sortSelection(ascending: false) },
+            Chrome.small(FluentSystemIcons.sort, "Sort…", fluent) { wb.onCommand?(.sortDialog) },
         ]), Chrome.bigToggle(FluentSystemIcons.grid, "Filter", wb.sheet.autoFilter != nil, fluent) { wb.toggleAutoFilter() },
         Chrome.rows([
             Chrome.small(FluentSystemIcons.close, "Clear", fluent) { wb.clearFilters() },
