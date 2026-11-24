@@ -1025,7 +1025,7 @@ enum XlsBuild {
             default: break
             }
             if f.script == 1 { fx += "<vertAlign val=\"superscript\"/>" } else if f.script == 2 { fx += "<vertAlign val=\"subscript\"/>" }
-            fx += "<sz val=\"\(Double(f.height) / 20)\"/>"
+            fx += "<sz val=\"\(f.height >= 20 ? Double(f.height) / 20 : 10.0)\"/>"
             if let c = rgb(f.color, palette) { fx += "<color rgb=\"FF\(c)\"/>" }
             fx += "<name val=\"\(esc(f.name))\"/>"
             fx += "<family val=\"\(f.family)\"/>"

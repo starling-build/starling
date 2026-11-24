@@ -1026,9 +1026,17 @@ enum Xlsx {
         dropped.formUnion(originalParts.keys.filter { $0.hasSuffix("calcChain.xml") })
         dropped.formUnion(droppedDrawings)
         dropped.formUnion(droppedTables)
+        // A package built from an .xls has no content-type list of its own: type the
+        // chart and drawing parts it holds, and the picture extensions, or Excel refuses the file.
+        for name in Set(originalParts.keys).union(generated.keys) where !dropped.contains(name) {
+            if name.hasPrefix("xl/charts/chart"), name.hasSuffix(".xml") { extraTypes.append(("/" + name, SheetDrawingsXML.chartType)) }
+            else if name.hasPrefix("xl/drawings/drawing"), name.hasSuffix(".xml") { extraTypes.append(("/" + name, SheetDrawingsXML.drawingType)) }
+        }
         generated["[Content_Types].xml"] = Data(_contentTypes(originalParts["[Content_Types].xml"],
                                                               sheets: paths, styles: stylesPath, sst: sstPath, dropped: dropped,
-                                                              extra: extraTypes).utf8)
+                                                              extra: extraTypes,
+                                                              mediaExtensions: Set(Set(originalParts.keys).union(generated.keys).filter { $0.hasPrefix("xl/media/") }
+                                                                  .compactMap { $0.split(separator: ".").last.map { String($0).lowercased() } })).utf8)
         if originalParts["_rels/.rels"] == nil { generated["_rels/.rels"] = Data(_rootRels.utf8) }
 
         // Everything: the original parts in their order (replaced where
@@ -1091,7 +1099,7 @@ enum Xlsx {
     """
 
     private static func _contentTypes(_ original: Data?, sheets: [String], styles: String, sst: String, dropped: Set<String>,
-                                      extra: [(String, String)] = []) -> String {
+                                      extra: [(String, String)] = [], mediaExtensions: Set<String> = []) -> String {
         var defaults: [(String, String)] = [("rels", "application/vnd.openxmlformats-package.relationships+xml"), ("xml", "application/xml")]
         var overrides: [(String, String)] = []
         if let original, let root = XNode.parse(original) {
@@ -1099,6 +1107,11 @@ enum Xlsx {
             overrides = root.kids("Override").compactMap { o in o["PartName"].flatMap { p in o["ContentType"].map { (p, $0) } } }
         }
         overrides.removeAll { dropped.contains(String($0.0.dropFirst())) }
+        for (e, t) in [("png", "image/png"), ("jpeg", "image/jpeg"), ("jpg", "image/jpeg"), ("gif", "image/gif"), ("bmp", "image/bmp"),
+                       ("emf", "image/x-emf"), ("wmf", "image/x-wmf"), ("tiff", "image/tiff")]
+        where original == nil && !defaults.contains(where: { $0.0 == e }) && mediaExtensions.contains(e) {
+            defaults.append((e, t))
+        }
         func ensure(_ part: String, _ type: String) {
             if !overrides.contains(where: { $0.0 == "/" + part }) { overrides.append(("/" + part, type)) }
         }
@@ -1543,7 +1556,7 @@ enum Xlsx {
             if st.italic { font += "<i/>" }
             if st.strike { font += "<strike/>" }
             if st.underline { font += "<u/>" }
-            font += "<sz val=\"\(_num(book.fontSize(st)))\"/>"
+            font += "<sz val=\"\(_num(book.fontSize(st) >= 1 ? book.fontSize(st) : 11))\"/>"
             font += st.color.map { "<color rgb=\"FF\(_hex($0))\"/>" } ?? "<color theme=\"1\"/>"
             font += "<name val=\"\(_esc(book.fontName(st)))\"/><family val=\"2\"/>"
             if st.fontName == nil && book.defaultFontName == nil { font += "<scheme val=\"minor\"/>" }
