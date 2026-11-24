@@ -128,7 +128,7 @@ final class SheetsShellState: State<StatefulWidget> {
     }
 
     override func dispose() {
-        OfficeHost.publishToolbar(nil, owner: self)
+        officeScene.publishToolbar(nil, owner: self)
         wb.removeListeners(owner: self)
         _formula.dispose()
         _nameBox.dispose()
@@ -160,8 +160,8 @@ final class SheetsShellState: State<StatefulWidget> {
             #else
             // A host with its own document browser (the iPad's) takes Open;
             // unsaved edits still get Backstage's prompt first.
-            if OfficeHost.openRequested != nil {
-                self.session.replacing { _ = OfficeHost.openRequested?() }
+            if officeScene.openRequested != nil {
+                self.session.replacing { _ = self.officeScene.openRequested?() }
                 return
             }
             self.setState { self._backstage = .open }
@@ -174,7 +174,7 @@ final class SheetsShellState: State<StatefulWidget> {
             // The browser names and places a download; "save as" is save.
             self._save()
             #else
-            if let ask = OfficeHost.exportRequested {
+            if let ask = officeScene.exportRequested {
                 _ = self._grid?.commitEdit()
                 self.wb.stashViewState()
                 let name = self.session.path.map { $0.lastPathComponent }
@@ -223,10 +223,10 @@ final class SheetsShellState: State<StatefulWidget> {
     /// The keyboard's toolbar while a cell is being typed in: undo and redo,
     /// and the active cell's bold, italic and underline (a cell has no lists).
     private func _publishToolbar() {
-        guard OfficeHost.toolbarChanged != nil else { return }
+        guard officeScene.toolbarChanged != nil else { return }
         let wb = self.wb
         let st = wb.style(at: wb.active)
-        OfficeHost.publishToolbar(.init(
+        officeScene.publishToolbar(.init(
             canUndo: wb.canUndo, canRedo: wb.canRedo,
             bold: st.bold, italic: st.italic, underline: st.underline,
             undo: { wb.undo() }, redo: { wb.redo() },
@@ -358,7 +358,7 @@ final class SheetsShellState: State<StatefulWidget> {
             WebFiles.download(data, as: path.lastPathComponent)
             #else
             try data.write(to: URL(fileURLWithPath: path), options: .atomic)
-            OfficeHost.documentSaved?(path)
+            officeScene.documentSaved?(path)
             #endif
             session.path = path
             wb.markSaved()
@@ -398,7 +398,7 @@ final class SheetsShellState: State<StatefulWidget> {
         #else
         let base = session.path.map { $0.deletingPathExtension } ?? homeDirectory() + "/Documents/" + session.title.deletingPathExtension
         let target = base + "." + ext
-        if let ask = OfficeHost.exportRequested {
+        if let ask = officeScene.exportRequested {
             setState { _backstage = nil }
             ask(target.lastPathComponent, { [weak self] path, finished in
                 guard let self else { finished(false); return }
@@ -734,7 +734,7 @@ final class SheetsShellState: State<StatefulWidget> {
                 },
                 onOpenPath: { [weak self] path in self?._open(path) },
                 onSavePath: { [weak self] path in self?._saveTo(path) },
-                onPicturePath: { _ in })),
+                onPicturePath: { _ in }, scene: officeScene)),
         ])
     }
 

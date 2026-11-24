@@ -47,7 +47,7 @@ private final class _OfficeRootState: State<StatefulWidget> {
         _path = root.initialPath
         // A host that owns the file browser (the iPad's) hands the window a
         // document at a time: the same switch the shells use between kinds.
-        OfficeHost.openPath = { [weak self] path in
+        officeScene.openPath = { [weak self] path in
             guard let self, self.mounted else { return }
             self.setState {
                 self._kind = DocumentKind.kind(forPath: path)

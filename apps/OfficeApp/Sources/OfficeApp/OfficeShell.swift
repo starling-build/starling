@@ -183,11 +183,11 @@ final class OfficeShellState: State<StatefulWidget> {
     /// state: the same questions the ribbon asks. Nothing happens on a platform
     /// with no such toolbar.
     private func _publishToolbar() {
-        guard OfficeHost.toolbarChanged != nil else { return }
+        guard officeScene.toolbarChanged != nil else { return }
         let c = controller
         let style = c.currentCharStyle
         let list = c.document.paragraphs[min(c.selection.focus.paragraph, c.document.paragraphs.count - 1)].style.list
-        OfficeHost.publishToolbar(.init(
+        officeScene.publishToolbar(.init(
             canUndo: c.canUndo, canRedo: c.canRedo,
             bold: style.bold, italic: style.italic, underline: style.underline,
             hasLists: true, list: list,
@@ -197,7 +197,7 @@ final class OfficeShellState: State<StatefulWidget> {
     }
 
     override func dispose() {
-        OfficeHost.publishToolbar(nil, owner: self)
+        officeScene.publishToolbar(nil, owner: self)
         _search.dispose()
         _findQuery.dispose()
         _findReplacement.dispose()
@@ -298,8 +298,8 @@ final class OfficeShellState: State<StatefulWidget> {
             #else
             // A host with its own document browser (the iPad's) takes Open;
             // unsaved edits still get Backstage's prompt first.
-            if OfficeHost.openRequested != nil {
-                self.session.replacing { _ = OfficeHost.openRequested?() }
+            if officeScene.openRequested != nil {
+                self.session.replacing { _ = self.officeScene.openRequested?() }
                 return
             }
             self.setState { self._backstage = .open }
@@ -314,7 +314,7 @@ final class OfficeShellState: State<StatefulWidget> {
             #else
             // A host with its own picker (the iPad's) names and places the
             // copy, and the editor carries on in it.
-            if let ask = OfficeHost.exportRequested {
+            if let ask = officeScene.exportRequested {
                 let name = self.session.path.map { $0.lastPathComponent }
                     ?? self.session.title.deletingPathExtension + ".docx"
                 ask(name, { [weak self] path, finished in
@@ -446,7 +446,7 @@ final class OfficeShellState: State<StatefulWidget> {
             if self.session.autoSave, !self._recovered, let path = self.session.path {
                 do {
                     try OfficeFormats.write(self.controller.document, to: path, pageSetup: self.session.pageSetup)
-                    OfficeHost.documentSaved?(path)
+                    officeScene.documentSaved?(path)
                     self._savedRevision = self.controller.revision
                     try? FileManager.default.removeItem(atPath: self._recoveryPath(for: path))
                     self.setState { self.session.dirty = false }
@@ -623,7 +623,7 @@ final class OfficeShellState: State<StatefulWidget> {
     private func _saveTo(_ path: String) {
         do {
             try OfficeFormats.write(controller.document, to: path, pageSetup: session.pageSetup)
-            OfficeHost.documentSaved?(path)
+            officeScene.documentSaved?(path)
             // The recovery copies this document may have left: under its
             // new name, its old name, and the untitled slot if it had no name.
             let fm = FileManager.default
@@ -670,7 +670,7 @@ final class OfficeShellState: State<StatefulWidget> {
         }
         return
         #endif
-        if let ask = OfficeHost.exportRequested {
+        if let ask = officeScene.exportRequested {
             setState { _backstage = nil }
             ask(target.lastPathComponent, { [weak self] path, finished in
                 guard let self else { finished(false); return }
@@ -796,7 +796,7 @@ final class OfficeShellState: State<StatefulWidget> {
     /// The host's edit menu for a finger's selection or caret (iPad: the system
     /// menu). Nothing happens on a host that draws none.
     private func _showTouchMenu(_ rect: Rect?) {
-        OfficeHost.showTouchMenu(rect, controller: controller)
+        officeScene.showTouchMenu(rect, controller: controller)
     }
 
     private func _paste(plain: Bool) {
@@ -1103,7 +1103,7 @@ final class OfficeShellState: State<StatefulWidget> {
                 onOpenPath: { [weak self] path in self?._open(path) },
                 onSavePath: { [weak self] path in self?._saveTo(path) },
                 onPicturePath: { [weak self] path in self?._insertPicture(path) },
-                onOpenSite: (widget as? OfficeShell)?.onOpenSite)),
+                onOpenSite: (widget as? OfficeShell)?.onOpenSite, scene: officeScene)),
         ])
     }
 

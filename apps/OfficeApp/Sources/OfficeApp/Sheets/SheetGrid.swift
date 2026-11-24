@@ -3615,7 +3615,7 @@ extension SheetGridState {
     fileprivate func _dismissEditMenu() {
         guard _editMenuUp else { return }
         _editMenuUp = false
-        OfficeHost.editMenuDismissed?()
+        officeScene.editMenuDismissed?()
     }
 
     private func _editChanged() {
@@ -3627,7 +3627,7 @@ extension SheetGridState {
 
     /// The host's edit menu over the editor's selection or caret.
     fileprivate func _showEditMenu() {
-        guard let show = OfficeHost.editMenuRequested, let e = edit,
+        guard let show = officeScene.editMenuRequested, let e = edit,
               let rb = _box ?? (context?.findRenderObject() as? RenderBox) else { return }
         let m = _editorMetrics(e)
         let lo = e.selection?.lowerBound ?? e.caret, hi = e.selection?.upperBound ?? e.caret

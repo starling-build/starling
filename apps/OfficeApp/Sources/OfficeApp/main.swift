@@ -876,22 +876,22 @@ Clipboard.provider = IOSClipboardProvider()
 #endif
 if initialPath == nil && siteArg == nil && wikiBase == nil {
     OfficeNativeShell.install()
-    OfficeNativeShell.onOpenDocument = { OfficeHost.openPath?($0) }
+    OfficeNativeShell.onOpenDocument = { OfficeScene.main.openPath?($0) }
     OfficeNativeShell.makeBlank = { OfficeHost.writeBlank(kind: $0, to: $1) }
-    OfficeHost.documentSaved = { OfficeNativeShell.documentSaved($0) }
-    OfficeHost.openRequested = { OfficeNativeShell.showBrowser(); return true }
+    OfficeScene.main.documentSaved = { OfficeNativeShell.documentSaved($0) }
+    OfficeScene.main.openRequested = { OfficeNativeShell.showBrowser(); return true }
     hostPrintPDF = { path in DispatchQueue.main.async { OfficeNativeShell.printPDF(path) } }
-    OfficeHost.exportRequested = { name, prepare, thenOpen, done in
+    OfficeScene.main.exportRequested = { name, prepare, thenOpen, done in
         OfficeNativeShell.export(name: name, prepare: prepare, thenOpen: thenOpen, done: done)
     }
-    OfficeHost.editMenuRequested = { x, y, w, h, items, text in
+    OfficeScene.main.editMenuRequested = { x, y, w, h, items, text in
         OfficeNativeShell.showEditMenu(CGRect(x: x, y: y, width: w, height: h),
                                        items: items.map { OfficeEditMenuItem(title: $0.title, symbol: $0.symbol,
                                                                               isEnabled: $0.isEnabled, action: $0.action) },
                                        text: text)
     }
-    OfficeHost.editMenuDismissed = { OfficeNativeShell.showEditMenu(nil, items: [], text: nil) }
-    OfficeHost.toolbarChanged = { buttons in
+    OfficeScene.main.editMenuDismissed = { OfficeNativeShell.showEditMenu(nil, items: [], text: nil) }
+    OfficeScene.main.toolbarChanged = { buttons in
         OfficeNativeShell.setToolbar(buttons?.map {
             OfficeToolbarButton(id: $0.id, title: $0.title, symbol: $0.symbol,
                                 isOn: $0.isOn, isEnabled: $0.isEnabled, action: $0.action)
