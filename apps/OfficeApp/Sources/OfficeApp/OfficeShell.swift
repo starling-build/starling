@@ -88,6 +88,8 @@ final class OfficeShellState: State<StatefulWidget> {
     /// Set while the picker is open for Change Picture: the picture (paragraph, inline id) the chosen file replaces.
     private var _replaceTarget: (index: Int, inline: String?)?
     private var _numberingValueOpen = false
+    private var _listSymbolPick: ((String, String?) -> Void)? = nil   // the Symbol picker is open for the Define Bullet dialog
+    private var _listFormatOpen: Bool? = nil   // the dialog is open: true for a bullet
     private let _colorText = TextEditingController()
     private var _styleOpen: String? = nil
     private var _linkHover: String? = nil
@@ -439,6 +441,11 @@ final class OfficeShellState: State<StatefulWidget> {
             guard let self else { return }
             self.controller.breakUndoCoalescing()
             self.setState { self._pictureDialog = kind }
+        }
+        session.onListFormatDialog = { [weak self] bullet in
+            guard let self else { return }
+            self.controller.breakUndoCoalescing()
+            self.setState { self._listFormatOpen = bullet }
         }
         session.onNumberingValueDialog = { [weak self] in
             guard let self else { return }
@@ -1167,8 +1174,8 @@ final class OfficeShellState: State<StatefulWidget> {
             if _styleOpen != nil { setState { _styleOpen = nil }; return true }
             if _shortcutsOpen { return false }   // the dialog's own Esc closes it
             if LinkCard.link(caret: _cardLink, hover: _hoverCard, dismissed: _cardDismissed) != nil { setState { _cardDismissed = true }; return true }
-            if _paragraphOpen || _fontOpen || _insertTableOpen || _bordersOpen || _pictureDialog != nil || _linkDialogOpen || _numberingValueOpen { return false }   // the dialog's own Esc closes it
-            if _colorOpen { setState { _colorOpen = false }; return true }
+            if _listSymbolPick != nil { setState { _listSymbolPick = nil }; return true }
+            if _paragraphOpen || _fontOpen || _insertTableOpen || _bordersOpen || _pictureDialog != nil || _linkDialogOpen || _numberingValueOpen || _listFormatOpen != nil { return false }   // the dialog's own Esc closes it
             if _headerFooterOpen { setState { _headerFooterOpen = false }; return true }
             if _findOpen { setState { _findOpen = false }; _editorFocus.requestFocus(); return true }
             if _backstage != nil { setState { _backstage = nil }; return true }
@@ -1508,6 +1515,35 @@ final class OfficeShellState: State<StatefulWidget> {
                         self?._editorFocus.requestFocus()
                     })),
             ])
+        }
+        if let bullet = _listFormatOpen {
+            var layers: [Widget] = [window]
+            layers.append(
+                Positioned(left: 0, top: 0, right: 0, bottom: 0, child: ListFormatDialog(
+                    bullet: bullet,
+                    initial: controller.currentListFormat ?? (bullet ? ListLevelFormat.bulletLibrary[0] : ListLevelFormat.numberingLibrary[0]),
+                    pickSymbol: { [weak self] done in self?.setState { self?._listSymbolPick = done } },
+                    onOK: { [weak self] f in
+                        guard let self else { return }
+                        self.controller.setListFormat(f)
+                        self.setState { self._listFormatOpen = nil }
+                        self._editorFocus.requestFocus()
+                    },
+                    onCancel: { [weak self] in
+                        self?.setState { self?._listFormatOpen = nil }
+                        self?._editorFocus.requestFocus()
+                    })))
+            if let pick = _listSymbolPick {
+                layers.append(Positioned(left: 0, top: 0, right: 0, bottom: 0, child: SymbolPicker(
+                    hooks: SymbolHooks(
+                        fonts: ["(current font)"] + OfficeFonts.families(including: controller.currentCharStyle.fontFamily ?? OfficeFonts.defaultFamily),
+                        insert: { [weak self] text, font in
+                            pick(text, font)
+                            self?.setState { self?._listSymbolPick = nil }
+                        }),
+                    onClose: { [weak self] in self?.setState { self?._listSymbolPick = nil } })))
+            }
+            return Stack(children: layers)
         }
         guard let page = _backstage else { return window }
         return Stack(children: [

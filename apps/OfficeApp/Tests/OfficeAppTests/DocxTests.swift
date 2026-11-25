@@ -11,6 +11,38 @@ import FlutterSwiftBridge
 @testable import OfficeApp
 
 final class DocxTests: XCTestCase {
+    /// W-LI-1: custom formats from Define New Number Format / Bullet survive a save.
+    func testCustomListFormatsSurviveSave() throws {
+        var paras: [RichParagraph] = []
+        for (n, kind) in [(0, ListKind.bullet), (1, .numbered), (2, .numbered)] {
+            var head = RichParagraph(text: "custom \(n)"); head.style.list = nil; paras.append(head)
+            for k in 0 ..< 3 {
+                var p = RichParagraph(text: "item \(k)"); p.style.list = kind; p.style.listId = "d\(n)"; paras.append(p)
+            }
+        }
+        let c = RichDocumentController(document: RichDocument(paragraphs: paras))
+        var bullet = ListLevelFormat(text: "\u{2605}", format: .bullet)
+        bullet.numberRPrXML = "<w:rPr><w:rFonts w:ascii=\"Segoe UI Symbol\" w:hAnsi=\"Segoe UI Symbol\" w:hint=\"default\"/></w:rPr>"
+        let step = ListLevelFormat(text: "Step %1:", format: .upperRoman)
+        var zero = ListLevelFormat(text: "(%1)", format: .decimal); zero.rawFormat = "decimalZero"
+        for (n, f) in [bullet, step, zero].enumerated() {
+            c.moveTo(RichPosition(paragraph: n * 4 + 1, offset: 0), extend: false)
+            c.moveTo(RichPosition(paragraph: n * 4 + 3, offset: 0), extend: true)
+            c.setListFormat(f)
+        }
+        let labels = RichListNumbering.labels(c.document)
+        XCTAssertEqual(Array(labels[5 ... 7]), ["Step I:", "Step II:", "Step III:"])
+        XCTAssertEqual(Array(labels[9 ... 11]), ["(01)", "(02)", "(03)"])
+        let back = try DocxFormat.read(try DocxFormat.write(c.document, pageSetup: .letter)).document
+        XCTAssertEqual(RichListNumbering.labels(back), labels)
+        let id0 = try XCTUnwrap(back.paragraphs[1].style.listId)
+        XCTAssertEqual(back.listFormats[id0]?[0]?.numberRPrXML?.containsSubstring("Segoe UI Symbol"), true)
+        // DEFINE_OUT=<path>: leave the file for a Word open check.
+        if let out = ProcessInfo.processInfo.environment["DEFINE_OUT"] {
+            try DocxFormat.write(c.document, pageSetup: .letter).write(to: URL(fileURLWithPath: out))
+        }
+    }
+
     func testPageReferenceKeepsEveryFormattedResultRunWhenSaved() throws {
         let instruction = "PAGEREF _Target \\h"
         var p = RichParagraph(text: "See XLII now")

@@ -326,6 +326,8 @@ final class OfficeSession {
     var onPictureDialog: ((PictureDialogKind) -> Void)?
     /// Opens the Set Numbering Value prompt.
     var onNumberingValueDialog: (() -> Void)?
+    /// Opens Define New Number Format (false) or Define New Bullet (true).
+    var onListFormatDialog: ((Bool) -> Void)?
     var onModifyStyle: ((String) -> Void)?
     /// Slides: Cut / Copy / Paste of the selected shapes. Each returns true
     /// when it handled the command, false to fall through to the text path.

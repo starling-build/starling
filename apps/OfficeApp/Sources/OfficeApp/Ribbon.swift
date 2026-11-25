@@ -458,6 +458,10 @@ final class Ribbon: StatelessWidget {
             return MenuFlyoutItem(text: Text(preview), onPressed: { c.setListFormat(f) }, selected: f == current)
         }
         var all = items
+        all.append(MenuFlyoutSeparator())
+        let isBullet = library.allSatisfy { $0.format == .bullet }
+        all.append(MenuFlyoutItem(text: Text(isBullet ? "Define New Bullet…" : "Define New Number Format…"),
+                                  onPressed: { [session] in session.onListFormatDialog?(isBullet) }))
         if library.contains(where: { $0.format != .bullet }) {
             all.append(MenuFlyoutSeparator())
             all.append(MenuFlyoutItem(text: Text("Restart at 1"), onPressed: c.isNumberedItem ? { c.restartNumbering() } : nil))
