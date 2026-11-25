@@ -73,6 +73,19 @@ public final class AtspiAccessibility: @unchecked Sendable {
             if n.isTextField { st |= 1 << UInt64(ATSPI_BRIDGE_STATE_EDITABLE)
                                    | 1 << UInt64(ATSPI_BRIDGE_STATE_FOCUSABLE) }
             node.states = st
+            node.caret = -1
+            if n.isTextField {
+                node.text = UnsafePointer(strdup(n.value))
+                let units = Array(n.value.utf16)
+                func chars(_ u16: Int) -> Int32 {
+                    let cut = max(0, min(u16, units.count))
+                    return Int32(String(decoding: units[0..<cut], as: UTF16.self).unicodeScalars.count)
+                }
+                if let sel = n.selection {
+                    node.caret = chars(sel.extent)
+                    node.sel_start = chars(sel.base); node.sel_end = chars(sel.extent)
+                }
+            }
             if let f = n.frame {
                 node.x = Int32(f.x.rounded()); node.y = Int32(f.y.rounded())
                 node.w = Int32(f.width.rounded()); node.h = Int32(f.height.rounded())

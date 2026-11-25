@@ -116,6 +116,43 @@ final class AtspiBridgeTests: XCTestCase {
         t.replace(with: Directionality(textDirection: .ltr, child: Semantics(label: "Saved", button: true, onTap: {}, child: SizedBox(width: 20, height: 20, child: nil))))
         wait({ seen.contains("EVENT") }, 10)
         XCTAssertTrue(seen.contains("EVENT object:property-change:accessible-name Saved"), "client saw: \(seen)")
+
+        // And a text field is read as text: contents, caret and selection, counted in characters.
+        t.replace(with: Directionality(textDirection: .ltr, child: Semantics(
+            label: "Name", value: "h\u{e9}llo w\u{f6}rld \u{1F600}!", textField: true,
+            textSelection: TextSelection(baseOffset: 1, extentOffset: 4),
+            child: SizedBox(width: 20, height: 20, child: nil))))
+        let script3 = """
+        import gi
+        gi.require_version('Atspi','2.0')
+        from gi.repository import Atspi
+        Atspi.init()
+        d = Atspi.get_desktop(0)
+        for i in range(d.get_child_count()):
+            app = d.get_child_at_index(i)
+            if app.get_name() != 'bridge-test': continue
+            for j in range(app.get_child_count()):
+                c = app.get_child_at_index(j)
+                if c.get_name() == 'Name':
+                    print('COUNT', Atspi.Text.get_character_count(c))
+                    print('TEXT', Atspi.Text.get_text(c, 6, 12))
+                    print('CARET', Atspi.Text.get_caret_offset(c))
+                    s = Atspi.Text.get_selection(c, 0)
+                    print('SEL', s.start_offset, s.end_offset)
+        """
+        let client3 = Process()
+        client3.executableURL = URL(fileURLWithPath: python)
+        client3.arguments = ["-c", script3]
+        let cout3 = Pipe(); client3.standardOutput = cout3; client3.standardError = FileHandle.nullDevice
+        try client3.run()
+        let end3 = Date().addingTimeInterval(30)
+        while client3.isRunning && Date() < end3 { RunLoop.current.run(until: Date().addingTimeInterval(0.05)) }
+        if client3.isRunning { client3.terminate() }
+        let text3 = String(decoding: cout3.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+        XCTAssertTrue(text3.contains("COUNT 14"), "client saw: \(text3)")
+        XCTAssertTrue(text3.contains("TEXT w\u{f6}rld"), "client saw: \(text3)")
+        XCTAssertTrue(text3.contains("CARET 4"), "client saw: \(text3)")
+        XCTAssertTrue(text3.contains("SEL 1 4"), "client saw: \(text3)")
     }
 }
 #endif

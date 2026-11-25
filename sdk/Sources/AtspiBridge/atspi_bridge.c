@@ -60,7 +60,7 @@ static double age_ms(void) {
 }
 
 static void free_nodes(void) {
-    for (int i = 0; i < g_count; i++) { free((void *)g_nodes[i].name); free((void *)g_nodes[i].description); }
+    for (int i = 0; i < g_count; i++) { free((void *)g_nodes[i].name); free((void *)g_nodes[i].description); free((void *)g_nodes[i].text); }
     free(g_nodes); g_nodes = NULL; g_count = 0;
 }
 
@@ -234,6 +234,7 @@ static int m_interfaces(sd_bus_message *m, void *u, sd_bus_error *e) {
     if (n >= 0) {
         p_sd_bus_message_append(r, "s", "org.a11y.atspi.Component");
         if (g_nodes[n].can_press) p_sd_bus_message_append(r, "s", "org.a11y.atspi.Action");
+        if (g_nodes[n].text) p_sd_bus_message_append(r, "s", "org.a11y.atspi.Text");
     }
     p_sd_bus_message_close_container(r);
     pthread_mutex_unlock(&g_lock);
@@ -298,6 +299,89 @@ static int m_grab_focus(sd_bus_message *m, void *u, sd_bus_error *e) {
     return send_reply(r);
 }
 
+// ---- Text ----------------------------------------------------------------------------------------
+
+static int text_len(const char *s) {   // characters, not bytes
+    int n = 0; for (; *s; s++) if (((unsigned char)*s & 0xC0) != 0x80) n++;
+    return n;
+}
+static const char *text_at(const char *s, int chars) {   // byte position of the chars-th character
+    for (; *s && chars > 0; s++) if (((unsigned char)s[1] & 0xC0) != 0x80) chars--;
+    return s;
+}
+
+static int prop_charcount(sd_bus *b, const char *path, const char *i, const char *pr, sd_bus_message *r, void *u, sd_bus_error *e) {
+    pthread_mutex_lock(&g_lock); refresh(); int n = node_of(path);
+    int rc = p_sd_bus_message_append(r, "i", (int32_t)(n >= 0 && g_nodes[n].text ? text_len(g_nodes[n].text) : 0));
+    pthread_mutex_unlock(&g_lock); return rc;
+}
+static int prop_caret(sd_bus *b, const char *path, const char *i, const char *pr, sd_bus_message *r, void *u, sd_bus_error *e) {
+    pthread_mutex_lock(&g_lock); refresh(); int n = node_of(path);
+    int rc = p_sd_bus_message_append(r, "i", (int32_t)(n >= 0 ? g_nodes[n].caret : -1));
+    pthread_mutex_unlock(&g_lock); return rc;
+}
+
+static int m_get_text(sd_bus_message *m, void *u, sd_bus_error *e) {
+    int32_t a, b; if (p_sd_bus_message_read(m, "ii", &a, &b) < 0) return -1;
+    pthread_mutex_lock(&g_lock); refresh();
+    int n = node_of(p_sd_bus_message_get_path(m));
+    char *out = strdup("");
+    if (n >= 0 && g_nodes[n].text) {
+        int len = text_len(g_nodes[n].text);
+        if (b < 0 || b > len) b = len;
+        if (a < 0) a = 0;
+        if (a < b) {
+            const char *p = text_at(g_nodes[n].text, a), *q = text_at(g_nodes[n].text, b);
+            free(out); out = strndup(p, (size_t)(q - p));
+        }
+    }
+    pthread_mutex_unlock(&g_lock);
+    sd_bus_message *r = NULL; p_sd_bus_message_new_method_return(m, &r);
+    p_sd_bus_message_append(r, "s", out); free(out);
+    return send_reply(r);
+}
+
+static int m_char_at(sd_bus_message *m, void *u, sd_bus_error *e) {
+    int32_t off; if (p_sd_bus_message_read(m, "i", &off) < 0) return -1;
+    pthread_mutex_lock(&g_lock); refresh();
+    int n = node_of(p_sd_bus_message_get_path(m));
+    int32_t cp = 0;
+    if (n >= 0 && g_nodes[n].text && off >= 0 && off < text_len(g_nodes[n].text)) {
+        const unsigned char *p = (const unsigned char *)text_at(g_nodes[n].text, off);
+        if (p[0] < 0x80) cp = p[0];
+        else if (p[0] < 0xE0) cp = (p[0] & 0x1F) << 6 | (p[1] & 0x3F);
+        else if (p[0] < 0xF0) cp = (p[0] & 0x0F) << 12 | (p[1] & 0x3F) << 6 | (p[2] & 0x3F);
+        else cp = (p[0] & 0x07) << 18 | (p[1] & 0x3F) << 12 | (p[2] & 0x3F) << 6 | (p[3] & 0x3F);
+    }
+    pthread_mutex_unlock(&g_lock);
+    sd_bus_message *r = NULL; p_sd_bus_message_new_method_return(m, &r);
+    p_sd_bus_message_append(r, "i", cp);
+    return send_reply(r);
+}
+
+static int m_nselections(sd_bus_message *m, void *u, sd_bus_error *e) {
+    pthread_mutex_lock(&g_lock); refresh();
+    int n = node_of(p_sd_bus_message_get_path(m));
+    int c = n >= 0 && g_nodes[n].text && g_nodes[n].sel_start != g_nodes[n].sel_end;
+    pthread_mutex_unlock(&g_lock);
+    sd_bus_message *r = NULL; p_sd_bus_message_new_method_return(m, &r);
+    p_sd_bus_message_append(r, "i", (int32_t)c);
+    return send_reply(r);
+}
+
+static int m_get_selection(sd_bus_message *m, void *u, sd_bus_error *e) {
+    int32_t idx; if (p_sd_bus_message_read(m, "i", &idx) < 0) return -1;
+    pthread_mutex_lock(&g_lock); refresh();
+    int n = node_of(p_sd_bus_message_get_path(m));
+    int ok = idx == 0 && n >= 0 && g_nodes[n].text && g_nodes[n].sel_start != g_nodes[n].sel_end;
+    int a = ok ? g_nodes[n].sel_start : 0, b = ok ? g_nodes[n].sel_end : 0;
+    pthread_mutex_unlock(&g_lock);
+    if (!ok) return p_sd_bus_error_set_const(e, "org.freedesktop.DBus.Error.InvalidArgs", "no such selection");
+    sd_bus_message *r = NULL; p_sd_bus_message_new_method_return(m, &r);
+    p_sd_bus_message_append(r, "ii", a < b ? a : b, a < b ? b : a);
+    return send_reply(r);
+}
+
 // ---- Application ---------------------------------------------------------------------------------
 
 static int prop_toolkit(sd_bus *b, const char *path, const char *i, const char *pr, sd_bus_message *r, void *u, sd_bus_error *e) {
@@ -350,6 +434,16 @@ static const sd_bus_vtable component_vt[] = {
     SD_BUS_METHOD("GrabFocus", "", "b", m_grab_focus, 0),
     SD_BUS_VTABLE_END
 };
+static const sd_bus_vtable text_vt[] = {
+    SD_BUS_VTABLE_START(0),
+    SD_BUS_PROPERTY("CharacterCount", "i", prop_charcount, 0, 0),
+    SD_BUS_PROPERTY("CaretOffset", "i", prop_caret, 0, 0),
+    SD_BUS_METHOD("GetText", "ii", "s", m_get_text, 0),
+    SD_BUS_METHOD("GetCharacterAtOffset", "i", "i", m_char_at, 0),
+    SD_BUS_METHOD("GetNSelections", "", "i", m_nselections, 0),
+    SD_BUS_METHOD("GetSelection", "i", "ii", m_get_selection, 0),
+    SD_BUS_VTABLE_END
+};
 static const sd_bus_vtable application_vt[] = {
     SD_BUS_VTABLE_START(0),
     SD_BUS_PROPERTY("ToolkitName", "s", prop_toolkit, 0, SD_BUS_VTABLE_PROPERTY_CONST),
@@ -394,6 +488,7 @@ static const char *state_kind(int bit) {
     }
 }
 
+static int text_len(const char *s);
 static void poll_events(void) {
     atspi_bridge_node *fresh = NULL;
     int n = g_host.snapshot ? g_host.snapshot(g_host.ctx, &fresh) : 0;
@@ -404,6 +499,10 @@ static void poll_events(void) {
         char p[64]; path_of(i, p, sizeof p);
         const char *a = old[i].name ? old[i].name : "", *b = fresh[i].name ? fresh[i].name : "";
         if (strcmp(a, b)) emit_object_event("PropertyChange", p, "accessible-name", 0, 0, NULL, -1);
+        if (fresh[i].text && old[i].text && strcmp(fresh[i].text, old[i].text))
+            emit_object_event("TextChanged", p, "insert", 0, text_len(fresh[i].text), NULL, -1);
+        if (fresh[i].caret != old[i].caret && fresh[i].caret >= 0)
+            emit_object_event("TextCaretMoved", p, "", fresh[i].caret, 0, NULL, -1);
         uint64_t diff = old[i].states ^ fresh[i].states;
         for (int bit = 0; bit < 64; bit++) {
             if (!(diff >> bit & 1)) continue;
@@ -452,9 +551,9 @@ int atspi_bridge_start(const atspi_bridge_host *host, const char *app_name) {
     p_sd_bus_flush_close_unref(session);
 
     g_host = *host; g_app_name = strdup(app_name ? app_name : "app"); g_bus = bus;
-    const char *ifaces[] = {"org.a11y.atspi.Accessible", "org.a11y.atspi.Action", "org.a11y.atspi.Component"};
-    const sd_bus_vtable *vts[] = {accessible_vt, action_vt, component_vt};
-    for (int i = 0; i < 3; i++)
+    const char *ifaces[] = {"org.a11y.atspi.Accessible", "org.a11y.atspi.Action", "org.a11y.atspi.Component", "org.a11y.atspi.Text"};
+    const sd_bus_vtable *vts[] = {accessible_vt, action_vt, component_vt, text_vt};
+    for (int i = 0; i < 4; i++)
         if (p_sd_bus_add_fallback_vtable(bus, NULL, "/org/a11y/atspi/accessible", ifaces[i], vts[i], NULL, NULL) < 0) return -5;
     if (p_sd_bus_add_fallback_vtable(bus, NULL, ROOT_PATH, "org.a11y.atspi.Application", application_vt, NULL, NULL) < 0) return -5;
 

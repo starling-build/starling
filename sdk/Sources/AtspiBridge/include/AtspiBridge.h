@@ -50,12 +50,15 @@ typedef struct {
     uint64_t states;
     int can_press;           // has a "press" action
     int x, y, w, h;          // screen rectangle, 0 when unknown
+    const char *text;        // a text box's contents (UTF-8), NULL for nodes that are not text
+    int caret;               // caret and selection, in characters (not bytes); -1 when unknown
+    int sel_start, sel_end;  // equal when nothing is selected
 } atspi_bridge_node;
 
 typedef struct {
     void *ctx;
     // Fills *out with a malloc'd array and returns its length. The bridge frees the array with free()
-    // and each name/description with free() too (so the host strdup()s them).
+    // and each name/description/text with free() too (so the host strdup()s them).
     int (*snapshot)(void *ctx, atspi_bridge_node **out);
     // Press node `index` (0-based, as in the last snapshot). Returns 1 when something happened.
     int (*press)(void *ctx, int index);

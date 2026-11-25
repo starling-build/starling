@@ -15,6 +15,8 @@ public struct SemanticsSnapshotNode {
     public var isSelected: Bool?
     public var isEnabled: Bool?
     public var isFocused: Bool?
+    /// The selection in UTF-16 units of `value` (caret = extent), when the node is a text field that says.
+    public var selection: (base: Int, extent: Int)? = nil
     public var canTap: Bool
     public var tap: VoidCallback?
     /// Where the node is in view coordinates (nil when it has no box).
@@ -91,6 +93,7 @@ public enum SemanticsSnapshot {
         return SemanticsSnapshotNode(
             label: label, hint: c.hint, value: c.value, isButton: c.isButton, isTextField: c.isTextField,
             isHeader: c.isHeader, isChecked: c.isChecked, isToggled: c.isToggled, isSelected: c.isSelected,
-            isEnabled: c.isEnabled, isFocused: c.isFocused, canTap: t != nil, tap: t, frame: frame)
+            isEnabled: c.isEnabled, isFocused: c.isFocused, selection: c.textSelection.map { (Int($0.baseOffset), Int($0.extentOffset)) },
+            canTap: t != nil, tap: t, frame: frame)
     }
 }

@@ -535,6 +535,7 @@ class _TextBoxState: State<StatefulWidget>, TextInputClient {
         Semantics(
             label: textBox.placeholderText, value: textBox.obscureText ? nil : _effectiveController.text,
             textField: true, enabled: textBox.enabled, focused: _isFocused,
+            textSelection: textBox.obscureText ? nil : _effectiveController.selection,
             child: _buildBox(context))
     }
 
