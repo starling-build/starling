@@ -10,6 +10,17 @@
 import Foundation
 
 extension SheetFunctions {
+    /// The sheet and cell (or range) a reference argument names.
+    static func _pivotCell(_ e: FormulaExpr, _ c: EvalContext) -> (Int, CellRange)? {
+        if case .ref(let r) = e {
+            let si = r.sheet.flatMap { c.engine.book.sheet(named: $0) } ?? c.sheet
+            guard si >= 0 else { return nil }
+            return (si, r.range)
+        }
+        if case .range(let si, let rg) = c.engine.evaluate(e, c) { return (si, rg) }
+        return nil
+    }
+
     static func addMore(_ t: inout [String: Fn]) {
         _addStatistics(&t)
         _addMaths(&t)
@@ -499,6 +510,37 @@ extension SheetFunctions {
             guard a.count == 1, case .ref(let r) = a[0], let at = r.start.row.flatMap({ row in r.start.col.map { CellAddress(row: row, col: $0) } }) else { return .error(.value) }
             let si = r.sheet.flatMap { c.engine.book.sheet(named: $0) } ?? c.sheet
             return .scalar(.bool(c.engine.book.sheets[si].cells[at]?.formula != nil))
+        }
+        // GETPIVOTDATA(data_field, pivot_table, [field, item]...): read off the pivot's cells as laid out. The data
+        // field is a value column header; each item is a row label (first column) or a column header.
+        t["GETPIVOTDATA"] = { a, c in
+            guard a.count >= 2, a.count % 2 == 0, case .success(let dataName) = _t(a[0], c),
+                  let (si, at) = Self._pivotCell(a[1], c), si >= 0, si < c.engine.book.sheets.count,
+                  let pv = c.engine.book.sheets[si].pivots.first(where: { p in
+                      p.ref.top <= at.top && at.top <= p.ref.bottom && p.ref.left <= at.left && at.left <= p.ref.right })
+            else { return .error(.ref) }
+            let r = pv.ref
+            func text(_ row: Int, _ col: Int) -> String {
+                switch c.engine.cellValue(si, CellAddress(row: row, col: col)) {
+                case .text(let s): return s
+                case .number(let n): return n == n.rounded() ? String(Int(n)) : String(n)
+                default: return ""
+                }
+            }
+            var rowAt: Int? = nil, colAt: Int? = nil
+            var i = 2
+            while i < a.count {
+                guard case .success(let item) = _t(a[i + 1], c) else { return .error(.ref) }
+                if let rr = (r.top + 1...r.bottom).first(where: { text($0, r.left) == item }) { rowAt = rr }
+                else if let cc = (r.left + 1...r.right).first(where: { text(r.top, $0) == item }) { colAt = cc }
+                else { return .error(.ref) }
+                i += 2
+            }
+            let named = (r.left + 1...r.right).first { text(r.top, $0) == dataName }
+            let only = r.right == r.left + 1 ? r.right : nil
+            guard let col = colAt ?? named ?? only else { return .error(.ref) }
+            let row = rowAt ?? r.bottom
+            return .scalar(c.engine.cellValue(si, CellAddress(row: row, col: col)))
         }
         t["ISREF"] = { a, c in
             guard a.count == 1 else { return .error(.value) }

@@ -1296,7 +1296,9 @@ enum Xlsx {
             sheets += "<sheet name=\"\(_esc(ws.name))\" sheetId=\"\(sheetIds[i])\"" + (ws.veryHidden ? " state=\"veryHidden\"" : ws.hidden ? " state=\"hidden\"" : "") + " r:id=\"\(ids[i])\"/>"
         }
         sheets += "</sheets>"
-        let calc = "<calcPr calcId=\"191029\" fullCalcOnLoad=\"1\""
+        // (A book with pivot tables leaves out the full recalculation on load: Excel refreshes those on load, and
+        // none of Excel's own pivot files ask for both.)
+        let calc = "<calcPr calcId=\"191029\"" + (book.sheets.contains { !$0.pivots.isEmpty } ? "" : " fullCalcOnLoad=\"1\"")
             + (book.iterate ? " iterate=\"1\" iterateCount=\"\(book.iterateCount)\" iterateDelta=\"\(_num(book.iterateDelta))\"" : "") + "/>"
         let prot = book.workbookProtection.map { a in "<workbookProtection" + a.keys.sorted().map { " \($0)=\"\(_esc(a[$0] ?? ""))\"" }.joined() + "/>" } ?? ""
         // The original's other elements (workbookPr, bookViews, definedNames,

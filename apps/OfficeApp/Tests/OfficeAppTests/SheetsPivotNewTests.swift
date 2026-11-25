@@ -261,6 +261,23 @@ final class SheetsPivotNewTests: XCTestCase {
         XCTAssertTrue(p["xl/pivotCache/pivotCacheDefinition1.xml"]?.contains("refreshOnLoad=\"1\"") ?? false)
     }
 
+    /// GETPIVOTDATA reads the pivot's cells, so a refresh changes it (it used to keep its cached value).
+    func testGetPivotDataFollowsARefresh() throws {
+        let wc = book()
+        XCTAssertNil(wc.insertPivotTable(source: src, rows: [0], cols: [], data: [PivotDataField(field: 2, function: .sum)], filters: [],
+                                         origin: CellAddress("F1")!, newSheet: false))
+        wc.setInputs([(CellAddress("J1")!, "=GETPIVOTDATA(\"Sum of Sales\",F1,\"Region\",\"East\")"),
+                      (CellAddress("J2")!, "=GETPIVOTDATA(G1,F1)")])
+        let before = v(wc, "J1")
+        XCTAssertEqual(before, v(wc, "G2"))
+        XCTAssertEqual(v(wc, "J2"), v(wc, "G\(wc.sheet.pivots[0].ref.bottom + 1)"))
+        wc.setInputs([(CellAddress("C2")!, "1000")])
+        XCTAssertEqual(wc.refreshPivots(), 1)
+        XCTAssertEqual(v(wc, "J1"), v(wc, "G2"))
+        XCTAssertNotEqual(v(wc, "J1"), before)
+        XCTAssertEqual(v(wc, "J2"), v(wc, "G\(wc.sheet.pivots[0].ref.bottom + 1)"))
+    }
+
     /// Corpus book 54436 (a pivot Excel made): two source scores changed, refreshed here, saved for the Excel check.
     func testWriteRefreshedCorpusPivot() throws {
         guard let out = ProcessInfo.processInfo.environment["STARLING_PIVOT_REFRESHED"] else { throw XCTSkip("no STARLING_PIVOT_REFRESHED") }
