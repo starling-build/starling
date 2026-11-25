@@ -94,7 +94,13 @@ extension DocxFormat {
         if let hint = s.fontHint { attrs += " w:hint=\"\(_esc(hint))\"" }
         if let cs = s.complexFontFamily ?? latin { attrs += " w:cs=\"\(_esc(cs))\"" }
         if let ea = s.eastAsiaFontFamily ?? (eastAsiaDefault ? latin : nil) { attrs += " w:eastAsia=\"\(_esc(ea))\"" }
+        if let t = s.fontTheme, let hash = t.firstIndex(of: "#"), t[t.startIndex ..< hash] == Substring(_fontKey(s)) { attrs += t[t.index(after: hash)...] }
         return attrs.isEmpty ? "" : "<w:rFonts\(attrs)/>"
+    }
+
+    /// The four faces of a look, for telling whether its theme-font attributes still apply.
+    static func _fontKey(_ s: CharStyle) -> String {
+        [s.fontFamily, s.hAnsiFontFamily, s.complexFontFamily, s.eastAsiaFontFamily].map { $0 ?? "" }.joined(separator: "|")
     }
 
     /// A run's properties (CT_RPr children, in schema order). A switch
@@ -883,11 +889,15 @@ extension DocxFormat {
                 }
                 if let h = child["w:hint"] { cs.fontHint = h }
                 if let f = _family(child["w:eastAsia"] ?? "") { cs.eastAsiaFontFamily = f }
+                var themeAttrs = ""
+                for k in ["asciiTheme", "hAnsiTheme", "eastAsiaTheme", "cstheme"] { if let v = child["w:" + k] { themeAttrs += " w:\(k)=\"\(_esc(v))\"" } }
                 if _latinLangKorean, child["w:ascii"] != nil || child["w:hAnsi"] != nil || child["w:eastAsia"] != nil || child["w:eastAsiaTheme"] != nil {
                     let ea = cs.eastAsiaFontFamily
                     cs.fontFamily = ea.map { OfficeFonts.isEastAsianFace($0) ? $0 : "MS Mincho" } ?? "Malgun Gothic"
                     cs.hAnsiFontFamily = nil
                 }
+                if !themeAttrs.isEmpty { cs.fontTheme = _fontKey(cs) + "#" + themeAttrs }
+                else if ["w:ascii", "w:hAnsi", "w:cs", "w:eastAsia"].contains(where: { child[$0] != nil }) { cs.fontTheme = nil }
             case "w:vertAlign":
                 switch child["w:val"] {
                 case "superscript": cs.script = .superscript
