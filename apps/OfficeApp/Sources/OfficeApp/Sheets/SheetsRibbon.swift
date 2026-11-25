@@ -26,6 +26,7 @@ enum SheetCommand {
     case conditionalFormat         // Home → Conditional Formatting
     case dataValidation            // Data → Data Validation
     case consolidate               // Data → Consolidate
+    case fillSeries                // Home → Fill → Series
     case scenarioManager           // Data → What-If Analysis → Scenario Manager
     case chartTitles(Int)          // Chart Design → Edit Titles
     case dataTable                 // Data → What-If Analysis → Data Table
@@ -194,6 +195,7 @@ extension Ribbon {
                         color: fluent.resources.textFillColorPrimary), fluent, [
                 ("Down (⌘D)".keys, { wb.fillDown() }),
                 ("Right (⌘R)".keys, { wb.fillRight() }),
+                ("Series…", { wb.onCommand?(.fillSeries) }),
             ]),
             Chrome.menu(Text("Clear", style: fluent.typography.caption), Icon(FluentSystemIcons.textClearFormatting, size: Chrome.iconSize,
                         color: fluent.resources.textFillColorPrimary), fluent, [
