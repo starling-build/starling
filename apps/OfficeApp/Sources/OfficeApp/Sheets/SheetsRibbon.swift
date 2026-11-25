@@ -20,6 +20,7 @@ enum SheetCommand {
     case zoom(Double)
     case toggleGridlines
     case status(String)
+    case conditionalFormat         // Home → Conditional Formatting
     case dataValidation            // Data → Data Validation
     case sortDialog                // Data → Sort…
     case nameManager               // Formulas → Name Manager
@@ -156,6 +157,9 @@ extension Ribbon {
                 MenuFlyoutItem(text: Text("Delete Sheet"), onPressed: wb.book.sheets.count > 1 ? { wb.requestDeleteSheet(wb.activeSheet) } : nil),
             ]),
         ])])
+        let styles = Chrome.group("Styles", fluent, [
+            Chrome.big(FluentSystemIcons.paintBrush, "Conditional Formatting", fluent) { wb.onCommand?(.conditionalFormat) },
+        ])
         let editing = Chrome.group("Editing", fluent, [Chrome.rows([
             Chrome.small(FluentSystemIcons.mathFormula, "AutoSum", fluent) { Self._autoSum(wb) },
             Chrome.menu(Text("Fill", style: fluent.typography.caption), Icon(FluentSystemIcons.grid, size: Chrome.iconSize,
@@ -173,7 +177,7 @@ extension Ribbon {
             Chrome.small(FluentSystemIcons.search, "Find", fluent) { [session] in session.onFind?(false) },
             Chrome.small(FluentSystemIcons.textGrammarWand, "Replace", fluent) { [session] in session.onFind?(true) },
         ])])
-        return [clipboard, font, alignment, number, cells, editing]
+        return [clipboard, font, alignment, number, styles, cells, editing]
     }
 
     /// One more or one fewer decimal place in a format (General becomes

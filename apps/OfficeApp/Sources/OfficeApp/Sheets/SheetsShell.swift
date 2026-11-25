@@ -69,6 +69,7 @@ final class SheetsShellState: State<StatefulWidget> {
     private var _formatOpen = false
     private var _sortOpen: (range: CellRange, hasHeader: Bool)?
     private var _validationOpen = false
+    private var _cfOpen = false
     private var _findReplace = false
     private var _findStatus = ""
     private let _findQuery = TextEditingController()
@@ -341,6 +342,8 @@ final class SheetsShellState: State<StatefulWidget> {
             _flash(m)
         case .editNote:
             _editNote(at: wb.active)
+        case .conditionalFormat:
+            setState { _cfOpen = true }
         case .dataValidation:
             setState { _validationOpen = true }
         case .sortDialog:
@@ -861,6 +864,13 @@ final class SheetsShellState: State<StatefulWidget> {
         ]
         let window = ColoredBox(color: fluent.scaffoldBackgroundColor,
                                 child: Column(crossAxisAlignment: .stretch, children: column))
+        if _cfOpen {
+            return Stack(children: [window, Positioned(left: 0, top: 0, right: 0, bottom: 0, child: ConditionalFormatDialog(
+                controller: wb, onClose: { [weak self] in
+                    self?.setState { self?._cfOpen = false }
+                    self?._grid?.focus.requestFocus()
+                }))])
+        }
         if _validationOpen {
             return Stack(children: [window, Positioned(left: 0, top: 0, right: 0, bottom: 0, child: ValidationDialog(
                 controller: wb, onClose: { [weak self] in
