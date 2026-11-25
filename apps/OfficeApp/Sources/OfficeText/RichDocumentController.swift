@@ -79,14 +79,14 @@ public indirect enum EditOp: Equatable, Sendable {
             let before = doc.paragraphs[pos.paragraph]
             doc.paragraphs[pos.paragraph].insert(text, at: pos.offset, runs: runs)
             changes.append(.changed(pos.paragraph))
-            if !before.bookmarkMarkers.isEmpty { return .restoreParagraphs(pos.paragraph, count: 1, [before]) }
+            if before.hasMarkers { return .restoreParagraphs(pos.paragraph, count: 1, [before]) }
             return .deleteText(pos, text, runs)
         case .deleteText(let pos, let text, let runs):
             let before = doc.paragraphs[pos.paragraph]
             let units = text.utf16.count
             let removed = doc.paragraphs[pos.paragraph].delete(pos.offset ..< pos.offset + units)
             changes.append(.changed(pos.paragraph))
-            if !before.bookmarkMarkers.isEmpty { return .restoreParagraphs(pos.paragraph, count: 1, [before]) }
+            if before.hasMarkers { return .restoreParagraphs(pos.paragraph, count: 1, [before]) }
             // Prefer what was actually removed (defensive: identical unless a
             // caller composed ops by hand).
             return .insertText(pos, removed.text.isEmpty ? text : removed.text,
@@ -107,7 +107,7 @@ public indirect enum EditOp: Equatable, Sendable {
             changes.append(.changed(pos.paragraph))
             changes.append(.inserted(at: pos.paragraph + 1, count: 1))
             _ = removedStyle
-            if !before.bookmarkMarkers.isEmpty { return .restoreParagraphs(pos.paragraph, count: 2, [before]) }
+            if before.hasMarkers { return .restoreParagraphs(pos.paragraph, count: 2, [before]) }
             return .mergeParagraph(pos.paragraph, removedStyle: tailStyle)
         case .mergeParagraph(let index, let removedStyle):
             let head = doc.paragraphs[index]
@@ -117,7 +117,7 @@ public indirect enum EditOp: Equatable, Sendable {
             changes.append(.changed(index))
             changes.append(.removed(at: index + 1, count: 1))
             _ = removedStyle
-            if !head.bookmarkMarkers.isEmpty || !tail.bookmarkMarkers.isEmpty {
+            if head.hasMarkers || tail.hasMarkers {
                 return .restoreParagraphs(index, count: 1, [head, tail])
             }
             return .splitParagraph(RichPosition(paragraph: index, offset: headLength),

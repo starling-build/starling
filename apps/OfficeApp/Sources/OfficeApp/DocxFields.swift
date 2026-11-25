@@ -1620,6 +1620,7 @@ extension DocxFormat {
         /// to the next one.
         var pendingBookmarks: [String] = []
         var pendingBookmarkMarkers: [RichBookmarkMarker] = []
+        var controlCount = 0
         /// The names (lower-cased) of the bookmarks the body defines, and the
         /// page references already answered "Error! Bookmark not defined."
         /// (one answer per field, however many runs its old result was in).
