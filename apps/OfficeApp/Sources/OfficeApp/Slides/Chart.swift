@@ -3035,6 +3035,10 @@ enum ChartXML {
             return "<c:strRef><c:f>\(catRef)</c:f><c:strCache><c:ptCount val=\"\(n)\"/>\(pts)</c:strCache></c:strRef>"
         }()
         let seriesList = c.type.isPie ? Array(c.series.prefix(1)) : c.series
+        // A point of the first series in a colour of its own (a bar, a column, an area's).
+        func ownPoints(_ extra: String) -> String {
+            c.pointColors.sorted { $0.key < $1.key }.map { "<c:dPt><c:idx val=\"\($0.key)\"/>\(extra)<c:spPr><a:solidFill><a:srgbClr val=\"\(PptxText.hex($0.value))\"/></a:solidFill></c:spPr></c:dPt>" }.joined()
+        }
         for (i, s) in seriesList.enumerated() {
             let col = column(i + 1)
             let tx = "<c:tx><c:strRef><c:f>Sheet1!$\(col)$1</c:f><c:strCache><c:ptCount val=\"1\"/><c:pt idx=\"0\"><c:v>\(_esc(s.name))</c:v></c:pt></c:strCache></c:strRef></c:tx>"
@@ -3043,9 +3047,9 @@ enum ChartXML {
             let head = "<c:idx val=\"\(s.autoIndex ?? i)\"/><c:order val=\"\(i)\"/>\(tx)"
             switch c.type {
             case .column, .bar:
-                sers += "<c:ser>\(head)<c:spPr>\(_solid(c, i))<a:ln><a:noFill/></a:ln></c:spPr><c:invertIfNegative val=\"0\"/><c:cat>\(catCache)</c:cat><c:val>\(val)</c:val></c:ser>"
+                sers += "<c:ser>\(head)<c:spPr>\(_solid(c, i))<a:ln><a:noFill/></a:ln></c:spPr><c:invertIfNegative val=\"0\"/>\(i == 0 ? ownPoints("<c:invertIfNegative val=\"0\"/>") : "")<c:cat>\(catCache)</c:cat><c:val>\(val)</c:val></c:ser>"
             case .area:
-                sers += "<c:ser>\(head)<c:spPr>\(_solid(c, i))<a:ln><a:noFill/></a:ln></c:spPr><c:cat>\(catCache)</c:cat><c:val>\(val)</c:val></c:ser>"
+                sers += "<c:ser>\(head)<c:spPr>\(_solid(c, i))<a:ln><a:noFill/></a:ln></c:spPr>\(i == 0 ? ownPoints("") : "")<c:cat>\(catCache)</c:cat><c:val>\(val)</c:val></c:ser>"
             case .line:
                 sers += "<c:ser>\(head)<c:spPr><a:ln w=\"28575\" cap=\"rnd\">\(_solid(c, i))<a:round/></a:ln></c:spPr><c:marker><c:symbol val=\"none\"/></c:marker><c:cat>\(catCache)</c:cat><c:val>\(val)</c:val><c:smooth val=\"0\"/></c:ser>"
             case .scatter:
