@@ -534,7 +534,7 @@ class _TextBoxState: State<StatefulWidget>, TextInputClient {
     override func build(_ context: any BuildContext) -> Widget {
         Semantics(
             label: textBox.placeholderText, value: textBox.obscureText ? nil : _effectiveController.text,
-            textField: true, enabled: textBox.enabled,
+            textField: true, enabled: textBox.enabled, focused: _isFocused,
             child: _buildBox(context))
     }
 
