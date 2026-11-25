@@ -77,9 +77,9 @@ final class ListFormatDialogState: State<StatefulWidget> {
         }
         var rows: [Widget] = []
         if !_w.bullet {
-            rows.append(row("Number style", [Wrap(children: Self.styles.map { s in
+            rows.append(row("Number style", [Expanded(child: Wrap(children: Self.styles.map { s in
                 LKeyed("lf-style-\(s.id)", Chrome.textToggle(s.title, style == s.format && rawFormat == s.raw, fluent) { [weak self] in self?.setState { self?.style = s.format; self?.rawFormat = s.raw } })
-            })]))
+            }))]))
         }
         rows.append(row(_w.bullet ? "Bullet" : "Number format", [SizedBox(width: 160, height: 30, child: LKeyed("lf-text", FluentTextBox(
             controller: _text, onChanged: { [weak self] _ in self?.setState {} },

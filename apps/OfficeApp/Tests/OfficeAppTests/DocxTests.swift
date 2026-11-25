@@ -1864,7 +1864,7 @@ final class DocxTests: XCTestCase {
         let settings = String(decoding: entries[si].data, as: UTF8.self).replacingAll("<w:defaultTabStop w:val=\"720\"/>", with: "<w:defaultTabStop w:val=\"420\"/>")
         XCTAssertTrue(settings.contains("w:val=\"420\""))
         entries[si] = ZipEntry(name: "word/settings.xml", data: Data(settings.utf8))
-        let numbering = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><w:numbering xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:abstractNum w:abstractNumId=\"0\"><w:lvl w:ilvl=\"0\"><w:start w:val=\"1\"/><w:numFmt w:val=\"bullet\"/><w:lvlText w:val=\"\u{F0D8}\"/><w:lvlJc w:val=\"left\"/><w:pPr><w:ind w:left=\"1020\" w:hanging=\"420\"/></w:pPr><w:rPr><w:rFonts w:ascii=\"Segoe UI Symbol\" w:hAnsi=\"Segoe UI Symbol\"/></w:rPr></w:lvl></w:abstractNum><w:num w:numId=\"1\"><w:abstractNumId w:val=\"0\"/></w:num></w:numbering>"
+        let numbering = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><w:numbering xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:abstractNum w:abstractNumId=\"0\"><w:lvl w:ilvl=\"0\"><w:start w:val=\"1\"/><w:numFmt w:val=\"bullet\"/><w:lvlText w:val=\"\u{F0D8}\"/><w:lvlJc w:val=\"left\"/><w:pPr><w:ind w:left=\"1020\" w:hanging=\"420\"/></w:pPr><w:rPr><w:rFonts w:ascii=\"Wingdings\" w:hAnsi=\"Wingdings\"/></w:rPr></w:lvl></w:abstractNum><w:num w:numId=\"1\"><w:abstractNumId w:val=\"0\"/></w:num></w:numbering>"
         let ni = try XCTUnwrap(entries.firstIndex { $0.name == "word/numbering.xml" })
         entries[ni] = ZipEntry(name: "word/numbering.xml", data: Data(numbering.utf8))
         let doc = try DocxFormat.read(try Zip.write(entries)).document
