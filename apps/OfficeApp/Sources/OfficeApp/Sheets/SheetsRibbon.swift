@@ -90,13 +90,13 @@ extension Ribbon {
                     items: OfficeFonts.families(including: family).map { f in
                         ComboBoxItem<String>(value: f, child: Text(f, style: fluent.typography.body?.copyWith(color: nil)))
                     },
-                    onChanged: { f in if let f { wb.setStyle { $0.fontName = f } } })),
+                    onChanged: { f in if let f { wb.setStyle { $0.fontName = f } } }, semanticLabel: "Font")),
                 Chrome.gap(),
                 SizedBox(width: 64, height: nil, child: ComboBox<Double>(
                     value: sizes.contains(size) ? size : nil,
                     items: sizes.map { n in ComboBoxItem<Double>(value: n, child: Text(n == n.rounded() ? "\(Int(n))" : "\(n)")) },
                     onChanged: { n in if let n { wb.setStyle { $0.fontSize = n } } },
-                    placeholder: Text("\(Int(size))"))),
+                    placeholder: Text("\(Int(size))"), semanticLabel: "Font Size")),
             ]),
             Chrome.vgap(4),
             Chrome.row([
@@ -110,7 +110,7 @@ extension Ribbon {
                     ("Bottom Border", { wb.setStyle { $0.borders.bottom = true } }),
                     ("Top Border", { wb.setStyle { $0.borders.top = true } }),
                     ("No Border", { wb.setStyle { $0.borders = .init() } }),
-                ]),
+                ], tip: "Borders"),
                 Chrome.colorMenu(FluentSystemIcons.paintBrush, "Fill Color", fluent, colors: colors, none: "No Fill") { c in
                     wb.setStyle { $0.fill = rgb(c) }
                 },

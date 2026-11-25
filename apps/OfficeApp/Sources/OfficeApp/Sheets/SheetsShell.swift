@@ -911,7 +911,7 @@ final class SheetsShellState: State<StatefulWidget> {
         }
         tabs.append(Chrome.icon(FluentSystemIcons.add, "New sheet", fluent) { [weak self] in self?.wb.addSheet() })
         tabs.append(Chrome.menu(nil, Icon(FluentSystemIcons.moreHorizontal, size: Chrome.iconSize,
-                                          color: fluent.resources.textFillColorPrimary), fluent, _sheetMenu(wb.activeSheet)))
+                                          color: fluent.resources.textFillColorPrimary), fluent, _sheetMenu(wb.activeSheet), tip: "Sheet Menu"))
         return DecoratedBox(
             decoration: BoxDecoration(
                 color: fluent.resources.solidBackgroundFillColorBase,

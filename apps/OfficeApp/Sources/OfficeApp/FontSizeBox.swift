@@ -51,12 +51,12 @@ final class FontSizeBoxState: State<StatefulWidget> {
         let fluent = FluentTheme.of(context)
         return Row(crossAxisAlignment: .center, children: [
             SizedBox(width: 46, height: 30, child: FluentTextBox(
-                controller: _text,
+                controller: _text, placeholderText: "Font Size",
                 onSubmitted: { [weak self] _ in self?.commit() },
                 onFocusChanged: { [weak self] f in self?._focused = f; if !f { self?.commit() } })),
             Chrome.menu(nil, Icon(FluentSystemIcons.chevronDown, size: 12, color: fluent.resources.textFillColorPrimary), fluent,
                         _w.sizes.map { n in (FontSizeBox.format(n), { [weak self] in
-                            self?._text.text = FontSizeBox.format(n); self?._w.onSize(n) }) }),
+                            self?._text.text = FontSizeBox.format(n); self?._w.onSize(n) }) }, tip: "Font Size"),
         ])
     }
 }
