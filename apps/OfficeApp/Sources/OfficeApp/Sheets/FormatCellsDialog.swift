@@ -82,6 +82,7 @@ final class FormatCellsDialogState: State<StatefulWidget> {
                 DialogTab(title: "Font", page: _fontPage(fluent)),
                 DialogTab(title: "Border", page: _borderPage(fluent)),
                 DialogTab(title: "Fill", page: _fillPage(fluent)),
+                DialogTab(title: "Protection", page: _protectionPage(fluent)),
             ],
             width: 480, onOK: { [weak self] in self?._ok() }, onCancel: { [weak self] in self?._w.onClose() })
     }
@@ -217,6 +218,14 @@ final class FormatCellsDialogState: State<StatefulWidget> {
             }),
             Text("Line colour", style: fluent.typography.bodyStrong),
             _swatches("fc-line-color", values.lineColor, noneLabel: "Automatic") { [weak self] c in self?._set { $0.lineColor = c } },
+        ])
+    }
+
+    private func _protectionPage(_ fluent: FluentThemeData) -> Widget {
+        _column([
+            _check("fc-locked", "Locked", values.locked) { $0.locked = $1 },
+            _check("fc-hidden", "Hidden (hide the formula)", values.formulaHidden) { $0.formulaHidden = $1 },
+            Text("Locking has no effect until the sheet is protected (Review > Protect Sheet).", style: fluent.typography.caption),
         ])
     }
 

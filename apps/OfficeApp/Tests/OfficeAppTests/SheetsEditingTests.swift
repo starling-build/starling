@@ -343,7 +343,8 @@ extension SheetsEditingTests {
         // Format 1 unlocks its cells; the sheet is protected, but lets rows be inserted.
         c.book.styleSource = StyleSource(xfs: [StyleSource.Xf(attrs: [:], extra: ""),
                                                StyleSource.Xf(attrs: [:], protection: "<protection locked=\"0\"/>", extra: "")])
-        c.book.styles = [CellStyle(baseXf: 0), CellStyle(baseXf: 1)]
+        var unlocked = CellStyle(baseXf: 1); unlocked.locked = false
+        c.book.styles = [CellStyle(baseXf: 0), unlocked]
         c.sheet.cells[CellAddress("B2")!] = Cell(input: "", style: 1)
         c.sheet.keptElements = [("sheetProtection", "<sheetProtection password=\"CC3D\" sheet=\"1\" objects=\"1\" scenarios=\"1\" insertRows=\"0\"/>")]
         var said: [String] = []
