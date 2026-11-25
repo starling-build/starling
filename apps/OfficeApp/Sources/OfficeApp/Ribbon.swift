@@ -335,6 +335,9 @@ final class Ribbon: StatelessWidget {
             _listLibrary("Bullet Library", ListLevelFormat.bulletLibrary, c, fluent),
             Chrome.toggle(FluentSystemIcons.numberList, "Numbering", s.list == .numbered, fluent) { c.toggleList(.numbered) },
             _listLibrary("Numbering Library", ListLevelFormat.numberingLibrary, c, fluent),
+            Chrome.menuButton(FluentSystemIcons.numberList, "Multilevel List", nil, fluent, items: ListLevelFormat.multilevelLibrary.map { scheme in
+                MenuFlyoutItem(text: Text(scheme.name), onPressed: { c.setMultilevelFormat(scheme.levels) })
+            }),
             Chrome.gap(2),
             Chrome.icon(FluentSystemIcons.indentDecrease, "Decrease Indent", fluent) { c.indent(-1) },
             Chrome.icon(FluentSystemIcons.indentIncrease, "Increase Indent", fluent) { c.indent(1) },

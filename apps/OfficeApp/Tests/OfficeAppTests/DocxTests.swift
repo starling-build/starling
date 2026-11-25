@@ -6906,6 +6906,12 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(RichListNumbering.labels(c.document), ["1.", "2.", "7.", "8."])
         let back = try DocxFormat.read(try DocxFormat.write(c.document, pageSetup: .letter)).document
         XCTAssertEqual(RichListNumbering.labels(back), ["1.", "2.", "7.", "8."])
+        // The two halves stay one list definition: a later format change reaches both, in the file too.
+        c.setListFormat(ListLevelFormat(text: "%1)", format: .lowerLetter))
+        XCTAssertEqual(RichListNumbering.labels(c.document), ["a)", "b)", "g)", "h)"])
+        let again = try DocxFormat.read(try DocxFormat.write(c.document, pageSetup: .letter)).document
+        XCTAssertEqual(RichListNumbering.labels(again), ["a)", "b)", "g)", "h)"])
+        c.undo()
         // LISTS_OUT=<path>: leave the file for a Word open check (expect 1. 2. 7. 8.).
         if let out = ProcessInfo.processInfo.environment["LISTS_OUT"] {
             try DocxFormat.write(c.document, pageSetup: .letter).write(to: URL(fileURLWithPath: out))

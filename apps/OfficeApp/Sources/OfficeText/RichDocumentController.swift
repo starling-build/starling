@@ -73,6 +73,7 @@ public indirect enum EditOp: Equatable, Sendable {
     case setListFormat(String, level: Int, old: ListLevelFormat?, new: ListLevelFormat?)
     /// The number a list's level restarts at, the first time it is used (nil: none).
     case setListRestart(String, level: Int, old: Int?, new: Int?)
+    case setListCounter(String, old: String?, new: String?)
 
     /// Apply to `doc`, appending the invalidation to `changes`, and return
     /// the inverse.
@@ -195,6 +196,11 @@ public indirect enum EditOp: Equatable, Sendable {
             for i in doc.paragraphs.indices where doc.paragraphs[i].style.listId == id { changes.append(.changed(i)) }
             changes.append(.lists)
             return .setListRestart(id, level: level, old: new, new: old)
+        case .setListCounter(let id, let old, let new):
+            doc.listCounterOf[id] = new
+            for i in doc.paragraphs.indices where doc.paragraphs[i].style.listId == id { changes.append(.changed(i)) }
+            changes.append(.lists)
+            return .setListCounter(id, old: new, new: old)
         }
     }
 }
@@ -2602,10 +2608,26 @@ public final class RichDocumentController: ChangeNotifier {
                 let t = (st.listId!, st.listLevel)
                 if !targets.contains(where: { $0 == t }) { targets.append(t) }
             }
-            for (id, level) in targets {
+            for (id, level) in targets.flatMap({ t in _listIdsSharing(t.0).map { ($0, t.1) } }) {
                 let old = document.listFormats[id]?[level]
                 let new = format.forLevel(level)
                 if old != new { perform(.setListFormat(id, level: level, old: old, new: new)) }
+            }
+        }
+    }
+
+    /// Word's multilevel list gallery: the selected items become one list
+    /// whose every level (0 to 8) takes its format from `scheme`.
+    public func setMultilevelFormat(_ scheme: [ListLevelFormat]) {
+        guard let top = scheme.first else { return }
+        setListFormat(top)   // converts the kind, assigns the id, formats the levels in use
+        edit {
+            let ids = Set(document.paragraphIndices(in: selection).compactMap { document.paragraphs[$0].style.listId })
+            for id in ids.sorted() {
+                for (level, f) in scheme.prefix(9).enumerated() {
+                    let old = document.listFormats[id]?[level]
+                    if old != f { perform(.setListFormat(id, level: level, old: old, new: f)) }
+                }
             }
         }
     }
@@ -2631,7 +2653,19 @@ public final class RichDocumentController: ChangeNotifier {
                 perform(.setListFormat(fresh, level: lvl, old: nil, new: f))
             }
             perform(.setListRestart(fresh, level: level, old: nil, new: max(0, n)))
+            // Both halves stay one list definition: a later format change reaches both, and the
+            // file writes one abstract list with a start override on the second.
+            let key = document.listCounterOf[oldId] ?? oldId
+            if document.listCounterOf[oldId] == nil { perform(.setListCounter(oldId, old: nil, new: key)) }
+            perform(.setListCounter(fresh, old: nil, new: key))
         }
+    }
+
+    /// `id` and every other list id that shares its counter (a list split by Set Numbering Value).
+    private func _listIdsSharing(_ id: String) -> [String] {
+        guard let key = document.listCounterOf[id] else { return [id] }
+        let others = document.listCounterOf.filter { $0.value == key && $0.key != id }.keys.sorted()
+        return [id] + others
     }
 
     public func restartNumbering() { setNumberingValue(1) }
