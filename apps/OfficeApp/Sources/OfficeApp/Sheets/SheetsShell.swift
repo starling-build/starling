@@ -70,6 +70,7 @@ final class SheetsShellState: State<StatefulWidget> {
     private var _pageSetupOpen = false
     private var _printOpen = false
     private var _sortOpen: (range: CellRange, hasHeader: Bool)?
+    private var _subOpen: CellRange?
     private var _validationOpen = false
     private var _cfOpen = false
     private var _filterOpen: (col: Int, kind: String)?
@@ -358,6 +359,9 @@ final class SheetsShellState: State<StatefulWidget> {
             setState { _cfOpen = true }
         case .dataValidation:
             setState { _validationOpen = true }
+        case .subtotal:
+            if let region = wb.sortRegion() { setState { _subOpen = region.range } }
+            else { _flash(SubtotalProblem.nothingToTotal.message) }
         case .sortDialog:
             if let region = wb.sortRegion() { setState { _sortOpen = region } }
             else { _flash(SortProblem.nothingToSort.message) }
@@ -925,6 +929,13 @@ final class SheetsShellState: State<StatefulWidget> {
             return Stack(children: [window, Positioned(left: 0, top: 0, right: 0, bottom: 0, child: ValidationDialog(
                 controller: wb, onClose: { [weak self] in
                     self?.setState { self?._validationOpen = false }
+                    self?._grid?.focus.requestFocus()
+                }))])
+        }
+        if let open = _subOpen {
+            return Stack(children: [window, Positioned(left: 0, top: 0, right: 0, bottom: 0, child: SubtotalDialog(
+                controller: wb, range: open, onClose: { [weak self] in
+                    self?.setState { self?._subOpen = nil }
                     self?._grid?.focus.requestFocus()
                 }))])
         }

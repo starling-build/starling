@@ -22,6 +22,7 @@ enum SheetCommand {
     case status(String)
     case conditionalFormat         // Home → Conditional Formatting
     case dataValidation            // Data → Data Validation
+    case subtotal                  // Data → Subtotal
     case sortDialog                // Data → Sort…
     case columnFilter(col: Int, kind: String)   // a filter dropdown's Number/Text/Date/Colour Filters…
     case nameManager               // Formulas → Name Manager
@@ -319,6 +320,7 @@ extension Ribbon {
     private func _dataToolsGroup(_ wb: WorkbookController, _ fluent: FluentThemeData) -> Widget {
         Chrome.group("Data Tools", fluent, [
             Chrome.big(FluentSystemIcons.check, "Data Validation", fluent) { wb.onCommand?(.dataValidation) },
+            Chrome.big(FluentSystemIcons.numberList, "Subtotal", fluent) { wb.onCommand?(.subtotal) },
         ])
     }
 

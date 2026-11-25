@@ -146,7 +146,7 @@ extension WorkbookController {
         }
     }
 
-    private func _syncOutlineLevel(_ ws: Worksheet, _ axis: Axis) {
+    func _syncOutlineLevel(_ ws: Worksheet, _ axis: Axis) {
         let m = ws.maxOutlineLevel(axis)
         ws.formatPrAttrs[axis == .rows ? "outlineLevelRow" : "outlineLevelCol"] = m > 0 ? "\(m)" : nil
     }
