@@ -61,6 +61,8 @@ public final class RichEditable: StatefulWidget {
     /// False pins the text at the top and draws no scroll thumb: a slide's
     /// text box, whose text overflows its frame rather than scrolling.
     public let scrolls: Bool
+    /// A click (no drag) on a selected plain text box: its paragraph index, inline id and drawn rect in this widget's coordinates.
+    public let onTextBoxEnter: ((Int, String?, Rect) -> Void)?
 
     public init(key: (any Key)? = nil, controller: RichDocumentController,
                 theme: RichTextTheme = RichTextTheme(),
@@ -78,7 +80,9 @@ public final class RichEditable: StatefulWidget {
                 onContextMenu: ((Offset) -> Void)? = nil,
                 onTouchMenu: ((Rect?) -> Void)? = nil,
                 spellChecker: RichSpellChecker? = nil,
-                scrolls: Bool = true) {
+                scrolls: Bool = true,
+                onTextBoxEnter: ((Int, String?, Rect) -> Void)? = nil) {
+        self.onTextBoxEnter = onTextBoxEnter
         self.controller = controller
         self.theme = theme
         self.padding = padding
@@ -1260,7 +1264,12 @@ public final class RichEditableState: State<StatefulWidget> {
         if let drag = _moveDrag {
             let d = _moveDelta ?? Offset(0, 0)
             _moveDrag = nil
+            let box = _selectedImageBox()
             _moveDelta = nil
+            if d.dx == 0, d.dy == 0, let box, let enter = _w.onTextBoxEnter, _controller.textBoxText(at: drag.index, inline: drag.inline) != nil {
+                enter(drag.index, drag.inline, box.rect)
+                return
+            }
             let pt = _layout.theme.pixelsPerPoint * _layout.scale
             _controller.movePicture(at: drag.index, inline: drag.inline, dx: (d.dx / pt).rounded(), dy: (d.dy / pt).rounded())
             _repaint.notifyListeners()
