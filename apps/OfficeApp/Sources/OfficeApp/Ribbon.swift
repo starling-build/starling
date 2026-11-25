@@ -118,35 +118,46 @@ final class Ribbon: StatelessWidget {
     /// File is a quiet pill in the chrome's own fill, bold like a selected
     /// tab — deliberately not a saturated brand block.
     private func _fileTab(_ fluent: FluentThemeData) -> Widget {
-        GestureDetector(
-            onTap: { [session] in session.unsavedPrompt = nil; session.onBackstage?(true) },
-            child: Padding(padding: EdgeInsets(left: 0, top: 0, right: 6, bottom: 4), child: DecoratedBox(
-                decoration: BoxDecoration(color: fluent.accentColor.defaultBrushFor(fluent.brightness).withOpacity(0.08),
-                                          border: Border.all(color: OfficeAppearance.border(fluent), width: 1),
-                                          borderRadius: BorderRadius.all(Radius(circular: 4))),
-                child: Padding(padding: EdgeInsets(left: 14, top: 5, right: 14, bottom: 5),
-                               child: Text("File", style: fluent.typography.bodyStrong?.copyWith(
-                                   color: fluent.accentColor.defaultBrushFor(fluent.brightness)))))))
+        let accent = fluent.accentColor.defaultBrushFor(fluent.brightness)
+        return HoverButton(
+            builder: { _, states in
+                Padding(padding: EdgeInsets(left: 0, top: 0, right: 6, bottom: 4), child: DecoratedBox(
+                    decoration: BoxDecoration(color: accent.withOpacity(0.08),
+                                              border: Border.all(color: states.contains(.focused) ? accent : OfficeAppearance.border(fluent),
+                                                                 width: states.contains(.focused) ? 2 : 1),
+                                              borderRadius: BorderRadius.all(Radius(circular: 4))),
+                    child: Padding(padding: EdgeInsets(left: 14, top: 5, right: 14, bottom: 5),
+                                   child: Text("File", style: fluent.typography.bodyStrong?.copyWith(color: accent)))))
+            },
+            onPressed: { [session] in session.unsavedPrompt = nil; session.onBackstage?(true) },
+            semanticLabel: "File")
     }
 
     private func _tab(_ t: RibbonTab, _ fluent: FluentThemeData) -> Widget {
         let selected = t == tab && !collapsed
         let accent = fluent.accentColor.defaultBrushFor(fluent.brightness)
         let underline = selected ? accent : Color(0x00000000)
-        return GestureDetector(
-            onTap: { [onTab, onCollapse, collapsed] in
+        return HoverButton(
+            builder: { _, states in
+                let ring = states.contains(.focused)
+                return Padding(padding: EdgeInsets(left: 2, top: 0, right: 2, bottom: 0), child: Column(
+                    mainAxisAlignment: .end, crossAxisAlignment: .center, children: [
+                        DecoratedBox(
+                            decoration: BoxDecoration(border: Border.all(color: ring ? accent : Color(0x00000000), width: 2),
+                                                      borderRadius: BorderRadius.all(Radius(circular: 4))),
+                            child: Padding(padding: EdgeInsets(left: 10, top: 6, right: 10, bottom: 4),
+                                           child: Text(t.title, style: selected
+                                               ? fluent.typography.bodyStrong?.copyWith(color: accent)
+                                               : fluent.typography.body?.copyWith(color: OfficeAppearance.secondary(fluent))))),
+                        SizedBox(width: 36, height: 3, child: DecoratedBox(decoration: BoxDecoration(
+                            color: underline, borderRadius: BorderRadius.all(Radius(circular: 2))))),
+                    ]))
+            },
+            onPressed: { [onTab, onCollapse, collapsed] in
                 if collapsed { onCollapse() }
                 onTab(t)
             },
-            child: Padding(padding: EdgeInsets(left: 2, top: 0, right: 2, bottom: 0), child: Column(
-                mainAxisAlignment: .end, crossAxisAlignment: .center, children: [
-                    Padding(padding: EdgeInsets(left: 10, top: 6, right: 10, bottom: 4),
-                            child: Text(t.title, style: selected
-                                ? fluent.typography.bodyStrong?.copyWith(color: accent)
-                                : fluent.typography.body?.copyWith(color: OfficeAppearance.secondary(fluent)))),
-                    SizedBox(width: 36, height: 3, child: DecoratedBox(decoration: BoxDecoration(
-                        color: underline, borderRadius: BorderRadius.all(Radius(circular: 2))))),
-                ])))
+            semanticLabel: t.title)
     }
 
     private func _collapseButton(_ fluent: FluentThemeData) -> Widget {

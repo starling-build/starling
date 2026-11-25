@@ -84,6 +84,33 @@ final class KeyboardTraversalTests: XCTestCase {
         XCTAssertEqual(ui.state(DialogShellState.self)?.selectedTab, 1)
     }
 
+    /// The ribbon tab strip (and File) must be reachable without a mouse: Tab to a tab title, Enter opens its page.
+    func testRibbonTabsAndFileAreReachableByKeyboard() {
+        KeyboardTraversal.shared.reset()
+        let ui = app(OfficeShell(initialPath: nil, startBlank: true))
+        ui.pump()
+        let before = KeyboardTraversal.shared.reachable().count
+        var homeButtons = 0
+        for e in ui.elements() { if let h = e.widget as? HoverButton, h.semanticLabel == "File" || h.semanticLabel == "Insert" { homeButtons += 1 } }
+        XCTAssertEqual(homeButtons, 2, "File and Insert are real buttons")
+        var visitedInsert = false
+        ui.press(.f6)                                    // the ring goes to the first region
+        while KeyboardTraversal.shared.focused?.region != "ribbon", KeyboardTraversal.shared.regions().count > 1 {
+            ui.press(.f6)
+            if KeyboardTraversal.shared.focused?.region == "window" && KeyboardTraversal.shared.regions().first != "window" { break }
+        }
+        for _ in 0..<6 {
+            guard let f = KeyboardTraversal.shared.focused, let at = f.origin() else { break }
+            if at.dy < 60, at.dx > 100, ui.has(text: "Clipboard") {
+                ui.press(.enter)
+                if !ui.has(text: "Clipboard") { visitedInsert = true; break }
+            }
+            ui.press(.tab)
+        }
+        XCTAssertTrue(visitedInsert, "Tab and Enter on a tab title must leave the Home page")
+        ui.dispose()
+    }
+
     func testEveryRibbonButtonOfEveryTabIsReachable() {
         let tabs = ["Home", "Insert", "Design", "Layout", "Transitions", "Review", "View", "Data", "Formulas",
                     "Page Layout", "Draw", "References", "Animations", "Slide Show"]
