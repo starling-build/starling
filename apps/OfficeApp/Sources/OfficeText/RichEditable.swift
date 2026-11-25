@@ -345,6 +345,7 @@ public final class RichEditableState: State<StatefulWidget> {
             self._repaint.notifyListeners()
         }
         _layout = RichLayout(theme: _w.theme, paragraphCount: _controller.document.paragraphs.count)
+        _controller.rowHeightProbe = { [weak self] i in self?._layout?.rowRect(i)?.height }
         _layout.scale = _w.zoom
         _layout.pageSetup = _w.pageSetup
         _layout.onNeedsRepaint = { [weak self] in self?._repaint.notifyListeners() }

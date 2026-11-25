@@ -2117,6 +2117,35 @@ public final class RichDocumentController: ChangeNotifier {
         edit { perform(.setTableColumns(table, old: old, new: widths)) }
     }
 
+    /// Set by the editor: the laid-out height of the row a cell paragraph is in.
+    public var rowHeightProbe: ((Int) -> Double?)?
+
+    /// Equal heights: every target row (the whole table when one row is chosen) gets the tallest of them.
+    public func distributeRows() {
+        guard let here = currentCell else { return }
+        var rows = targetRows ?? (here.row ... here.row)
+        if rows.count < 2 { rows = 0 ... Int.max / 2 }
+        var heights: [Int: Double] = [:]
+        for (i, p) in document.paragraphs.enumerated() {
+            guard let c = p.cell, c.table == here.table, rows.contains(c.row), c.rowSpan == 1, heights[c.row] == nil,
+                  let h = rowHeightProbe?(i) else { continue }
+            heights[c.row] = h
+        }
+        guard let tallest = heights.values.max() else { return }
+        setTableStyle { t in
+            for r in heights.keys { t.rowHeights[r] = tallest; t.rowsExactHeight.remove(r) }
+        }
+    }
+
+    /// AutoFit: to contents (grid follows the text), to window (full text width), or fixed column widths.
+    public func autoFitTable(_ fit: TableFit) {
+        switch fit {
+        case .contents: setTableStyle { $0.fixedLayout = false; $0.width = nil; $0.widthPercent = nil }
+        case .window: setTableStyle { $0.fixedLayout = false; $0.width = nil; $0.widthPercent = 100 }
+        case .fixed: setTableStyle { $0.fixedLayout = true }
+        }
+    }
+
     /// Equal columns across the content width.
     public func distributeColumns() {
         guard let here = currentCell else { return }

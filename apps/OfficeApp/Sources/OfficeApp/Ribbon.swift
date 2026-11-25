@@ -637,7 +637,10 @@ final class Ribbon: StatelessWidget {
                 },
                 Chrome.vgap(2),
                 Chrome.spinner("Indent", style.indent, fluent, step: 6, minimum: -72) { v in c.setTableIndent(v) },
+            ]),
+            Chrome.rows([
                 Chrome.small(FluentSystemIcons.columns, "Distribute Columns", fluent) { c.distributeColumns() },
+                Chrome.small(FluentSystemIcons.table, "Distribute Rows", fluent) { c.distributeRows() },
             ]),
         ])
         // Word's nine Align buttons: top / center / bottom by left / center / right.
@@ -667,6 +670,11 @@ final class Ribbon: StatelessWidget {
             MenuFlyoutItem(text: Text("Table Width: 75%"), onPressed: { c.setTableWidth(percent: 75) }),
             MenuFlyoutItem(text: Text("Table Width: 50%"), onPressed: { c.setTableWidth(percent: 50) }),
         ]
+        let autoFitItems: [MenuFlyoutItemBase] = [
+            MenuFlyoutItem(text: Text("AutoFit to Contents"), onPressed: { c.autoFitTable(.contents) }),
+            MenuFlyoutItem(text: Text("AutoFit to Window"), onPressed: { c.autoFitTable(.window) }),
+            MenuFlyoutItem(text: Text("Fixed Column Width"), onPressed: { c.autoFitTable(.fixed) }),
+        ]
         let alignment = Chrome.group("Alignment", fluent, [
             Chrome.rows([
                 Chrome.menuButton(FluentSystemIcons.table, "Cell Alignment", "Vertical alignment of the cell's text", fluent, items: alignItems + directionItems),
@@ -676,7 +684,7 @@ final class Ribbon: StatelessWidget {
             Chrome.gap(8),
             Chrome.rows([
                 Chrome.menuButton(nil, "Cell Margins", "Margins inside the table's cells", fluent, items: marginsItems),
-                Chrome.small(FluentSystemIcons.columns, style.fixedLayout ? "Fixed Widths" : "AutoFit", fluent) { c.setTableAutofit(style.fixedLayout) },
+                Chrome.menuButton(nil, "AutoFit", "Fit the table to its contents, the window, or fixed widths", fluent, items: autoFitItems),
                 Chrome.small(FluentSystemIcons.table, style.rowsCantSplit.contains(row) ? "Row Cannot Break" : "Row May Break", fluent) { c.setRowsMayBreak(style.rowsCantSplit.contains(row)) },
             ]),
         ])
