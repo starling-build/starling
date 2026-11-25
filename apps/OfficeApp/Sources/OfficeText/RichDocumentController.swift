@@ -2084,6 +2084,111 @@ public final class RichDocumentController: ChangeNotifier {
         return true
     }
 
+    /// Table Layout > Sort: how a key's cells are compared.
+    public enum TableSortKind: Equatable, Sendable { case text, number, date }
+    public struct TableSortKey: Equatable, Sendable {
+        public var column: Int
+        public var kind: TableSortKind
+        public var ascending: Bool
+        public init(column: Int, kind: TableSortKind = .text, ascending: Bool = true) {
+            self.column = column; self.kind = kind; self.ascending = ascending
+        }
+    }
+
+    /// A table with no merged cells that the caret is in can be sorted.
+    public var canSortTable: Bool {
+        guard let r = currentTableRange else { return false }
+        return !document.paragraphs[r].contains { ($0.cell?.span ?? 1) > 1 || ($0.cell?.rowSpan ?? 1) > 1 }
+    }
+
+    /// The number a cell's text starts with (currency signs, spaces and thousands commas skipped), nil for none.
+    static func sortNumber(_ text: String) -> Double? {
+        var digits = ""
+        var seen = false
+        for ch in text {
+            if ch.isNumber || (ch == "." && !digits.contains(".")) || (ch == "-" && digits.isEmpty) { digits.append(ch); seen = seen || ch.isNumber }
+            else if ch == "," && seen { continue }
+            else if seen { break }
+            else if ch == " " || ch == "$" || ch == "€" || ch == "£" || ch == "¥" || ch == "(" { continue }
+            else { return nil }
+        }
+        return seen ? Double(digits) : nil
+    }
+
+    /// A date as a day count (year, month, day order), nil when the text is not one: 2024-03-05, 3/5/2024, Mar 5, 2024, 5 March 2024.
+    static func sortDate(_ text: String) -> Double? {
+        let months = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"]
+        var nums: [Int] = [], month: Int? = nil, word = "", num = ""
+        func flushWord() { if word.count >= 3, month == nil, let m = months.firstIndex(of: String(word.lowercased().prefix(3))) { month = m + 1 }; word = "" }
+        func flushNum() { if let n = Int(num) { nums.append(n) }; num = "" }
+        let isoFirst = text.prefix(5).allSatisfy { $0.isNumber || $0 == "-" } && text.dropFirst(4).first == "-"
+        for ch in text {
+            if ch.isNumber { flushWord(); num.append(ch) }
+            else if ch.isLetter { flushNum(); word.append(ch) }
+            else { flushWord(); flushNum() }
+        }
+        flushWord(); flushNum()
+        var y = 0, m = 0, d = 0
+        if let mo = month, nums.count == 2 {
+            m = mo
+            if nums[0] > 31 { y = nums[0]; d = nums[1] } else { d = nums[0]; y = nums[1] }
+        } else if month == nil, nums.count == 3 {
+            if isoFirst || nums[0] > 31 { (y, m, d) = (nums[0], nums[1], nums[2]) } else { (m, d, y) = (nums[0], nums[1], nums[2]) }
+        } else { return nil }
+        if y < 100 { y += y < 50 ? 2000 : 1900 }
+        guard (1 ... 12).contains(m), (1 ... 31).contains(d) else { return nil }
+        return Double(y * 372 + m * 31 + d)
+    }
+
+    /// Sort the rows of the caret's table by up to three keys, one undo step. With `headerRow` the first row stays put.
+    /// Rows with empty or unreadable cells come first when ascending. Stable: equal rows keep their order.
+    @discardableResult
+    public func sortTable(keys: [TableSortKey], headerRow: Bool) -> Bool {
+        guard canSortTable, !keys.isEmpty, let range = currentTableRange else { return false }
+        var rows: [[RichParagraph]] = []
+        var last = -1
+        for p in document.paragraphs[range] {
+            guard let c = p.cell else { continue }
+            if c.row != last { rows.append([]); last = c.row }
+            rows[rows.count - 1].append(p)
+        }
+        let start = headerRow ? 1 : 0
+        guard rows.count - start > 1 else { return false }
+        func text(_ row: [RichParagraph], _ col: Int) -> String {
+            row.filter { $0.cell?.column == col }.map(\.text).joined(separator: "\n")
+                .drop(while: { $0 == " " }).reversed().drop(while: { $0 == " " }).reversed().map(String.init).joined()
+        }
+        func key(_ row: [RichParagraph], _ k: TableSortKey) -> (Double?, String) {
+            let t = text(row, k.column)
+            switch k.kind {
+            case .text: return (nil, t.lowercased())
+            case .number: return (RichDocumentController.sortNumber(t), t.lowercased())
+            case .date: return (RichDocumentController.sortDate(t), t.lowercased())
+            }
+        }
+        let body = Array(rows[start...]).enumerated().sorted { a, b in
+            for k in keys.prefix(3) {
+                let x = key(a.element, k), y = key(b.element, k)
+                var order = 0
+                if k.kind == .text { order = x.1 < y.1 ? -1 : (x.1 > y.1 ? 1 : 0) }
+                else if x.0 == nil || y.0 == nil { order = (x.0 == nil && y.0 == nil) ? 0 : (x.0 == nil ? -1 : 1) }
+                else { order = x.0! < y.0! ? -1 : (x.0! > y.0! ? 1 : 0) }
+                if order != 0 { return k.ascending ? order < 0 : order > 0 }
+            }
+            return a.offset < b.offset
+        }.map(\.element)
+        let ordered = Array(rows[..<start]) + body
+        if ordered.enumerated().allSatisfy({ i, r in r.first?.cell?.row == rows[i].first?.cell?.row && r.first?.text == rows[i].first?.text && r.map(\.text) == rows[i].map(\.text) }) { return true }
+        _rewriteTable(caret: { _ in nil }, rewrite: { paras in
+            var out: [RichParagraph] = []
+            for (n, row) in ordered.enumerated() {
+                for var p in row { p.cell?.row = rows[n].first?.cell?.row ?? n; out.append(p) }
+            }
+            paras = out
+        })
+        return true
+    }
+
     /// The cell the caret is in, or nil.
     public var currentCell: CellRef? { document.paragraphs[selection.focus.paragraph].cell }
 

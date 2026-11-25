@@ -364,6 +364,7 @@ final class OfficeSession {
     /// Convert Text to Table (true) or Table to Text (false).
     var onConvertTextTableDialog: ((Bool) -> Void)?
     var onFormulaDialog: (() -> Void)?
+    var onSortTableDialog: (() -> Void)?
     var onTablePropertiesDialog: (() -> Void)?
     var onBordersShadingDialog: (() -> Void)?
     var onPictureDialog: ((PictureDialogKind) -> Void)?

@@ -623,6 +623,7 @@ final class Ribbon: StatelessWidget {
                 MenuFlyoutSeparator(),
                 MenuFlyoutItem(text: Text("Table Properties…"), onPressed: { [session] in session.onTablePropertiesDialog?() }),
                 MenuFlyoutItem(text: Text("Formula…"), onPressed: c.canInsertFormula ? { [session] in session.onFormulaDialog?() } : nil),
+                MenuFlyoutItem(text: Text("Sort…"), onPressed: c.canSortTable ? { [session] in session.onSortTableDialog?() } : nil),
                 MenuFlyoutItem(text: Text("Convert Table to Text…"), onPressed: { self.session.onConvertTextTableDialog?(false) }),
             ]),
             Chrome.small(FluentSystemIcons.delete, "Delete Table", fluent) { c.deleteTable() },
