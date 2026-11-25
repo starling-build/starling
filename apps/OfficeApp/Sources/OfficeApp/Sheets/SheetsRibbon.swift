@@ -16,6 +16,7 @@ import Foundation
 /// What the ribbon asks of the grid.
 enum SheetCommand {
     case cut, copy, paste
+    case symbol                    // Insert → Symbol: the shared picker
     case startFormula(String)      // "=SUM(" into the editor, the selection's range filled in
     case zoom(Double)
     case toggleGridlines
@@ -37,7 +38,7 @@ extension Ribbon {
         guard let wb = session.workbook else { return nil }
         switch tab {
         case .home: return _sheetsHome(wb, fluent)
-        case .insert: return [_tablesGroup(wb, fluent), _chartsGroup(wb, fluent), _functionsGroup(wb, fluent)]
+        case .insert: return [_tablesGroup(wb, fluent), _chartsGroup(wb, fluent), _functionsGroup(wb, fluent), _symbolsGroup(wb, fluent)]
         case .formulas: return [_autoSumGroup(wb, fluent), _functionsGroup(wb, fluent), _namesGroup(wb, fluent)]
         case .data: return [_sortGroup(wb, fluent), _dataToolsGroup(wb, fluent), _outlineGroup(wb, fluent)]
         case .layout: return [_pageSetupGroup(wb, fluent)]
@@ -275,6 +276,13 @@ extension Ribbon {
                             fns.map { f in (f, { wb.onCommand?(.startFormula("=" + f + "(")) }) })
             }),
         ])])
+    }
+
+    /// Insert → Symbols.
+    private func _symbolsGroup(_ wb: WorkbookController, _ fluent: FluentThemeData) -> Widget {
+        Chrome.group("Symbols", fluent, [
+            Chrome.big(FluentSystemIcons.add, "Symbol", fluent) { wb.onCommand?(.symbol) },
+        ])
     }
 
     /// Insert → Charts: a chart of the selection; with a chart selected,
