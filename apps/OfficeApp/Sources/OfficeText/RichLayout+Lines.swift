@@ -1070,7 +1070,7 @@ extension RichLayout {
             // the text of the paragraphs after it is held in beside it as one anchored in a run is. sa1 62904a12: Word wraps "Escreva três
             // frases ..." three paragraphs under the picture's own, ours set it across the picture. Not in a header: dx2 75f32c04's header logo, from the
             // column too, leaves the three lines beside it whole in Word's print.)
-            if k < i, p.cell == nil, q.cell == nil, theme.wordRules, RichTextTheme.wordWindowsPages, !document.isPageHeaderPart, let image = q.image, image.textBox == nil,
+            if k < i, p.cell == nil, q.cell == nil, theme.wordRules, RichTextTheme.wordWindowsPages, !document.isPageHeaderPart, let image = q.image,
                q.text.isEmpty, let f = image.float, f.wraps, !f.wrapsTight, !f.takesRoom, f.horizontalFrom == "column", f.horizontalAlign == nil,
                !candidates.contains(where: { $0.image.id == image.id }) {
                 candidates.append((image, k < _imageSize.count ? _imageSize[k] : nil))
