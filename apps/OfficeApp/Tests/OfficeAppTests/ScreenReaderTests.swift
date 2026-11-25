@@ -43,9 +43,39 @@ final class ScreenReaderTests: XCTestCase {
     func testMovingTheSelectionInSheetsSaysTheCell() {
         let c = WorkbookController()
         c.select(CellAddress(row: 2, col: 1))
-        XCTAssertEqual(ScreenReader.recorded?.last, "Selected B3")
+        XCTAssertEqual(ScreenReader.recorded?.last, "B3, blank")
         c.select(range: CellRange(CellAddress(row: 2, col: 1), CellAddress(row: 4, col: 2)))
         XCTAssertEqual(ScreenReader.recorded?.last, "Selected B3 to C5")
+    }
+
+    func testASheetsCellIsSpokenWithItsHeadersValueAndFormula() {
+        let c = WorkbookController()
+        c.setInputs([(CellAddress(row: 0, col: 0), "Item"), (CellAddress(row: 0, col: 1), "Price"),
+                     (CellAddress(row: 1, col: 0), "Tea"), (CellAddress(row: 1, col: 1), "4"),
+                     (CellAddress(row: 2, col: 0), "Cake"), (CellAddress(row: 2, col: 1), "=B2*2")])
+        c.select(CellAddress(row: 1, col: 1))
+        let plain = ScreenReader.recorded?.last ?? ""
+        XCTAssertTrue(plain.contains("B2") && plain.contains("Price") && plain.contains("4"), plain)
+        XCTAssertFalse(plain.contains("formula"), plain)
+        c.select(CellAddress(row: 2, col: 1))
+        let f = ScreenReader.recorded?.last ?? ""
+        XCTAssertTrue(f.contains("Price") && f.contains("8") && f.contains("formula =B2*2"), f)
+    }
+
+    func testMovingBetweenWriterTableCellsSaysRowColumnAndHeader() {
+        let c = RichDocumentController(plainText: "")
+        c.insertTable(rows: 2, columns: 2)
+        let cells = c.document.paragraphs.indices.filter { c.document.paragraphs[$0].cell != nil }
+        func caret(_ i: Int) { c.selection = RichSelection(anchor: RichPosition(paragraph: i, offset: 0), focus: RichPosition(paragraph: i, offset: 0)) }
+        caret(cells[1]); c.insertText("Price")
+        ScreenReader.recorded = []
+        caret(cells[3])
+        XCTAssertEqual(ScreenReader.recorded?.last, "Row 2, column 2, Price")
+        caret(cells[2])
+        XCTAssertEqual(ScreenReader.recorded?.last, "Row 2, column 1")
+        let n = ScreenReader.recorded?.count
+        caret(cells[2])
+        XCTAssertEqual(ScreenReader.recorded?.count, n)
     }
 
     func testChangingSlideSaysItsPlaceInTheDeck() {

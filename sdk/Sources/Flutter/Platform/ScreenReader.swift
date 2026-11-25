@@ -18,6 +18,9 @@ public enum ScreenReader {
     nonisolated(unsafe) private static var lastText = ""
     nonisolated(unsafe) private static var lastTime = Date.distantPast
 
+    /// True when something would hear an announcement (a bridge sink, or a test capturing): callers skip building text otherwise.
+    public static var isListening: Bool { sink != nil || recorded != nil }
+
     /// Says `text`. The same text twice within a quarter of a second is said once (a key held down).
     public static func announce(_ text: String, priority: Priority = .polite) {
         let t = text
