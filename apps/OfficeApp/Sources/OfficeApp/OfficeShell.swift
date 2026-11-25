@@ -66,7 +66,8 @@ final class OfficeShellState: State<StatefulWidget> {
     private let _editorFocus = FocusNode(debugLabel: "Writer document")
     private let _findReplacement = TextEditingController()
     private var _headerFooterOpen = false
-    private var _linkOpen = false
+    private var _cardLink: String? = nil      // the link under the caret, shown on the link card
+    private var _cardDismissed = false
     private var _linkDialogOpen = false
     private var _colorOpen = false
     private var _paragraphOpen = false
@@ -76,7 +77,6 @@ final class OfficeShellState: State<StatefulWidget> {
     private var _pageSetupOpen = false
     private let _colorText = TextEditingController()
     private var _styleOpen: String? = nil
-    private let _linkText = TextEditingController()
     private var _linkHover: String? = nil
     private var _autosaveGeneration = 0
     private let _contextMenu = FlyoutController()
@@ -179,6 +179,8 @@ final class OfficeShellState: State<StatefulWidget> {
             if let last = self.controller.document.lastSectionPage, last != self.session.pageSetup {
                 self.setState { self.session.pageSetup = last }
             }
+            let under = self.controller.currentLink
+            if under != self._cardLink { self.setState { self._cardLink = under; self._cardDismissed = false } }
             let s = self.session.summarize()
             let dirty = self.controller.revision != self._savedRevision
             if dirty { self._scheduleAutosave() }
@@ -223,7 +225,6 @@ final class OfficeShellState: State<StatefulWidget> {
         _findReplacement.dispose()
         _editorFocus.dispose()
         _headerText.dispose()
-        _linkText.dispose()
         _colorText.dispose()
         _footerText.dispose()
         super.dispose()
@@ -1052,18 +1053,6 @@ final class OfficeShellState: State<StatefulWidget> {
         return h
     }
 
-    private func _applyLink() {
-        var url = _linkText.text.trimmingWhitespace()
-        guard !url.isEmpty else { setState { _linkOpen = false }; return }
-        // A bare host becomes https, a bare address mailto.
-        if !url.containsSubstring("://") && !url.hasPrefix("mailto:") && !url.hasPrefix("#") {
-            url = url.containsSubstring("@") && !url.containsSubstring("/") ? "mailto:" + url : "https://" + url
-        }
-        controller.setLink(url)
-        setState { _linkOpen = false }
-        _flash("Linked to \(url)")
-    }
-
     // MARK: Shortcuts
 
     func _cancelPainter() {
@@ -1090,7 +1079,7 @@ final class OfficeShellState: State<StatefulWidget> {
         if named == .escape {
             if session.paintedStyle != nil { _cancelPainter(); return true }
             if _styleOpen != nil { setState { _styleOpen = nil }; return true }
-            if _linkOpen { setState { _linkOpen = false }; return true }
+            if _cardLink != nil && !_cardDismissed { setState { _cardDismissed = true }; return true }
             if _paragraphOpen || _fontOpen || _linkDialogOpen { return false }   // the dialog's own Esc closes it
             if _colorOpen { setState { _colorOpen = false }; return true }
             if _headerFooterOpen { setState { _headerFooterOpen = false }; return true }
@@ -1208,15 +1197,16 @@ final class OfficeShellState: State<StatefulWidget> {
                                    },
                                    onClose: { [weak self] in self?.setState { self?._colorOpen = false } }))
         }
-        if _linkOpen {
-            column.append(LinkBar(session: session, address: _linkText, hasLink: controller.currentLink != nil,
-                                  onApply: { [weak self] in self?._applyLink() },
-                                  onRemove: { [weak self] in
-                                      guard let self else { return }
-                                      self.controller.setLink(nil)
-                                      self.setState { self._linkOpen = false }
-                                  },
-                                  onClose: { [weak self] in self?.setState { self?._linkOpen = false } }))
+        if let link = _cardLink, !_cardDismissed {
+            column.append(LinkCard(
+                address: link, tip: controller.currentLinkTip ?? "",
+                onOpen: { [weak self] in self?._followLink(link) },
+                onEdit: { [weak self] in self?._openLink() },
+                onRemove: { [weak self] in
+                    self?.controller.setLink(nil)
+                    self?._editorFocus.requestFocus()
+                },
+                onClose: { [weak self] in self?.setState { self?._cardDismissed = true } }))
         }
         if _headerFooterOpen {
             column.append(HeaderFooterBar(session: session, header: _headerText, footer: _footerText,
