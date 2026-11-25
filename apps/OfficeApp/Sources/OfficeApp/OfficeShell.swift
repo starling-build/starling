@@ -88,8 +88,8 @@ final class OfficeShellState: State<StatefulWidget> {
     private var _pictureDialog: PictureDialogKind?
     /// A text box being typed into in place: the box, where it is drawn (in the page area), and the document's own controller
     /// while `session.controller` is the box's.
-    private var _boxEdit: (index: Int, inline: String?, rect: Rect, main: RichDocumentController, autoFit: Bool)?
-    private var _boxContentHeight: Double?
+    var _boxEdit: (index: Int, inline: String?, rect: Rect, main: RichDocumentController, autoFit: Bool)?
+    var _boxContentHeight: Double?
     private let _boxFocus = FocusNode(debugLabel: "Text box")
     /// Set while the picker is open for Change Picture: the picture (paragraph, inline id) the chosen file replaces.
     private var _replaceTarget: (index: Int, inline: String?)?
@@ -1893,6 +1893,7 @@ final class OfficeShellState: State<StatefulWidget> {
                 self.setState { self._boxContentHeight = h }
             })
         // A box that fits its text grows as the words do.
+        let lw = frame.map { max(1, $0.width * z) } ?? 0
         var boxHeight = b.rect.height
         if let h = _boxContentHeight, b.autoFit { boxHeight = h + 7.2 * z }
         return Stack(children: [
@@ -1900,7 +1901,7 @@ final class OfficeShellState: State<StatefulWidget> {
             // A press anywhere outside the box ends the edit (and still reaches the page under it).
             Positioned(left: 0, top: 0, right: 0, bottom: 0, child: Listener(
                 onPointerDown: { [weak self] _ in self?._leaveBox() }, behavior: .translucent, child: SizedBox(expand: ()))),
-            Positioned(left: b.rect.left, top: b.rect.top, width: b.rect.width, height: boxHeight, child: framed(boxEditor, frame, z)),
+            Positioned(left: b.rect.left - lw, top: b.rect.top - lw, width: b.rect.width + 2 * lw, height: boxHeight + 2 * lw, child: framed(boxEditor, frame, z)),
         ])
     }
 
@@ -1915,7 +1916,7 @@ final class OfficeShellState: State<StatefulWidget> {
 
     /// Start typing in the text box at `index`: the ribbon and the keys act on a controller over the box's own paragraphs
     /// until `_leaveBox` puts them back, as one undo step.
-    private func _enterBox(_ index: Int, _ inline: String?, _ rect: Rect) {
+    func _enterBox(_ index: Int, _ inline: String?, _ rect: Rect) {
         guard _boxEdit == nil, var inside = controller.textBoxDocument(at: index, inline: inline) else { return }
         let main = controller
         if inside.paragraphs.isEmpty { inside.paragraphs = [RichParagraph(text: "")] }

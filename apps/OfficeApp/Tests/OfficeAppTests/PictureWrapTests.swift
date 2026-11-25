@@ -565,7 +565,7 @@ final class ShapeSelectTests: XCTestCase {
 
     func testTurnedShapesGroupByTheBoxTheirTurnSweeps() throws {
         let c = RichDocumentController(document: RichDocument(paragraphs: [RichParagraph(text: "x", style: .init())]))
-        for (n, preset) in ["rect", "triangle"].enumerated() {
+        for (n, preset) in ["rect", "ellipse"].enumerated() {
             c.pendingShape = { x, y, w, h in TextBoxInsert.makeShape(preset: preset, width: w, height: h, number: TextBoxInsert.nextShapeNumber(in: c.document), page: (x, y)) }
             XCTAssertTrue(c.placePendingShape(x: 50 + Double(n) * 200, y: 200, width: 80, height: 60, at: RichPosition(paragraph: 0, offset: 0)))
         }
@@ -580,6 +580,11 @@ final class ShapeSelectTests: XCTestCase {
         XCTAssertTrue(xml.containsSubstring("<wp:posOffset>\(60 * 12700)</wp:posOffset></wp:positionH>"))
         XCTAssertTrue(xml.containsSubstring("<wp:posOffset>\(190 * 12700)</wp:posOffset></wp:positionV>"))
         XCTAssertTrue(xml.containsSubstring("<wp:extent cx=\"\(270 * 12700)\" cy=\"\(80 * 12700)\"/>"))
+        if let path = ProcessInfo.processInfo.environment["SHAPE_LAB5"] {
+            let idx = c.document.paragraphs.indices.filter { c.document.paragraphs[$0].image?.float != nil }
+            XCTAssertTrue(c.replaceImageParagraphs(idx, with: [g]))
+            try DocxFormat.write(c.document, pageSetup: .letter).write(to: URL(fileURLWithPath: path))
+        }
         let parts = try XCTUnwrap(ShapeGroups.ungroup(g, number: 9))
         XCTAssertTrue(parts.contains { $0.sourceXML!.containsSubstring("rot=\"5400000\"") })
     }
