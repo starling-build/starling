@@ -91,6 +91,7 @@ final class OfficeShellState: State<StatefulWidget> {
     private var _replaceTarget: (index: Int, inline: String?)?
     private var _numberingValueOpen = false
     private var _dateTimeOpen = false
+    private var _propertiesOpen = false
     private var _listSymbolPick: ((String, String?) -> Void)? = nil   // the Symbol picker is open for the Define Bullet dialog
     private var _listFormatOpen: Bool? = nil   // the dialog is open: true for a bullet
     var _noteOpen: NoteReference? = nil
@@ -433,6 +434,11 @@ final class OfficeShellState: State<StatefulWidget> {
             guard let self else { return }
             self.controller.breakUndoCoalescing()
             self.setState { self._dateTimeOpen = true }
+        }
+        session.onPropertiesDialog = { [weak self] in
+            guard let self else { return }
+            self.controller.breakUndoCoalescing()
+            self.setState { self._propertiesOpen = true }
         }
         session.onUpdateFields = { [weak self] in self?._updateFields() }
         session.onSymbolDialog = { [weak self] in
@@ -1275,7 +1281,7 @@ final class OfficeShellState: State<StatefulWidget> {
             if _shortcutsOpen { return false }   // the dialog's own Esc closes it
             if LinkCard.link(caret: _cardLink, hover: _hoverCard, dismissed: _cardDismissed) != nil { setState { _cardDismissed = true }; return true }
             if _listSymbolPick != nil { setState { _listSymbolPick = nil }; return true }
-            if _paragraphOpen || _fontOpen || _insertTableOpen || _splitCellOpen || _bordersOpen || _pictureDialog != nil || _linkDialogOpen || _numberingValueOpen || _dateTimeOpen || _listFormatOpen != nil || _newStyleOpen { return false }   // the dialog's own Esc closes it
+            if _paragraphOpen || _fontOpen || _insertTableOpen || _splitCellOpen || _bordersOpen || _pictureDialog != nil || _linkDialogOpen || _numberingValueOpen || _dateTimeOpen || _propertiesOpen || _listFormatOpen != nil || _newStyleOpen { return false }   // the dialog's own Esc closes it
             if _headerFooterOpen { setState { _headerFooterOpen = false }; return true }
             if _findOpen { setState { _findOpen = false }; _editorFocus.requestFocus(); return true }
             if _backstage != nil { setState { _backstage = nil }; return true }
@@ -1670,6 +1676,25 @@ final class OfficeShellState: State<StatefulWidget> {
                     },
                     onCancel: { [weak self] in
                         self?.setState { self?._newStyleOpen = false }
+                        self?._editorFocus.requestFocus()
+                    })),
+            ])
+        }
+        if _propertiesOpen {
+            var values: [String: String] = [:]
+            for f in PropertiesDialog.fields { values[f.key] = controller.document.property(f.key) }
+            return Stack(children: [
+                window,
+                Positioned(left: 0, top: 0, right: 0, bottom: 0, child: PropertiesDialog(
+                    values: values,
+                    onOK: { [weak self] new in
+                        guard let self else { return }
+                        self.controller.setProperties(new)
+                        self.setState { self._propertiesOpen = false }
+                        self._editorFocus.requestFocus()
+                    },
+                    onCancel: { [weak self] in
+                        self?.setState { self?._propertiesOpen = false }
                         self?._editorFocus.requestFocus()
                     })),
             ])

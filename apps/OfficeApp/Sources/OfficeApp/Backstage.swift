@@ -389,6 +389,7 @@ final class Backstage: StatelessWidget {
                 Text(v, style: fluent.typography.body),
             ]))
         } + [
+            Button(onPressed: { [onClose, session] in onClose(); session.onPropertiesDialog?() }, child: Text("Properties…", style: fluent.typography.body)),
             Chrome.vgap(24),
             _heading("About \(session.kind.appName)", fluent),
             Text("Built with Fluent UI System Icons and the fluent_ui controls (MIT), the Selawik, Liberation, Carlito, Poppins, Work Sans and Libre Franklin fonts (SIL OFL), the Caladea font (Apache 2.0), the TeX Gyre fonts (GUST Font License), zlib, and the Flutter engine (BSD).",

@@ -58,7 +58,28 @@ public struct NotesState: Equatable, Sendable {
     }
 }
 
+/// The document-property parts (docProps/*) with their content types and package links: what File > Info edits.
+public struct PropertyParts: Equatable, Sendable {
+    public var parts: [String: Data]
+    public var types: [String: String]
+    public var rels: [KeptRel]
+    public init(_ doc: RichDocument) {
+        parts = doc.keptParts.filter { $0.key.hasPrefix("docProps/") }
+        types = doc.keptPartTypes.filter { $0.key.hasPrefix("docProps/") }
+        rels = doc.keptRootRels.filter { $0.target.hasPrefix("docProps/") }
+    }
+    func put(into doc: inout RichDocument) {
+        for k in doc.keptParts.keys where k.hasPrefix("docProps/") { doc.keptParts[k] = nil }
+        for k in doc.keptPartTypes.keys where k.hasPrefix("docProps/") { doc.keptPartTypes[k] = nil }
+        doc.keptRootRels.removeAll { $0.target.hasPrefix("docProps/") }
+        for (k, v) in parts { doc.keptParts[k] = v }
+        for (k, v) in types { doc.keptPartTypes[k] = v }
+        doc.keptRootRels += rels
+    }
+}
+
 public indirect enum EditOp: Equatable, Sendable {
+    case setProperties(new: PropertyParts, old: PropertyParts)
     case insertText(RichPosition, String, [Run])
     case deleteText(RichPosition, String, [Run])
     /// Restore exact bookmark boundaries as well as text when undoing an edit.
@@ -179,6 +200,9 @@ public indirect enum EditOp: Equatable, Sendable {
             doc.footer = footer
             changes.append(.all)
             return .setRichHeaderFooter(new: old, old: new, header: oldHeader, footer: oldFooter, oldHeader: header, oldFooter: footer)
+        case .setProperties(let new, let old):
+            new.put(into: &doc)
+            return .setProperties(new: old, old: new)
         case .setNotes(let new, let old):
             new.put(into: &doc)
             changes.append(.all)
