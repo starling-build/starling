@@ -304,6 +304,15 @@ public final class RichDocumentController: ChangeNotifier {
     /// The ids of the floating shapes picked in addition to the selected one (Shift-click), to be grouped with it.
     public internal(set) var shapePicks: [String] = []
 
+    /// A finger has no Shift: while this is on, a tap on a floating shape adds it to the picked ones (or takes it out), as a
+    /// Shift-click does. Dragging on an unselected shape still scrolls on touch.
+    public private(set) var selectMultiple = false
+    public func setSelectMultiple(_ on: Bool) {
+        guard on != selectMultiple else { return }
+        selectMultiple = on
+        notifyListeners()
+    }
+
     public var pendingShape: ((_ x: Double, _ y: Double, _ width: Double, _ height: Double) -> ImageAttachment?)? = nil
 
     /// Put the pending shape (if any) at that corner and size on the page, select it, and stop waiting.

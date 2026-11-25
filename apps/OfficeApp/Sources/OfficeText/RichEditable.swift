@@ -1090,7 +1090,7 @@ public final class RichEditableState: State<StatefulWidget> {
             return
         }
 
-        if _chords.shift, !_controller.readOnly, event.buttons & 1 != 0, _controller.selectedImageIndex != nil, let hit = _floatingImage(at: event.localPosition),
+        if _chords.shift || _controller.selectMultiple, !_controller.readOnly, event.buttons & 1 != 0, _controller.selectedImageIndex != nil, let hit = _floatingImage(at: event.localPosition),
            hit != _controller.selectedImageIndex {
             // Shift-click on another floating shape: picks it along with the selected one, to group them.
             _focus.requestFocus()
@@ -1372,6 +1372,13 @@ public final class RichEditableState: State<StatefulWidget> {
                 _syncLayoutIfNeeded()
                 if !_controller.readOnly, let (n, box) = _noteBox(at: event.localPosition) {
                     _w.onNoteActivate?(n, box.shift(Offset(event.position.dx - event.localPosition.dx, event.position.dy - event.localPosition.dy)))
+                    return
+                }
+                if _controller.selectMultiple, !_controller.readOnly, _controller.selectedImageIndex != nil,
+                   let hit = _floatingImage(at: event.localPosition), hit != _controller.selectedImageIndex {
+                    // Select Multiple: a tap on another floating shape picks it along with the selected one (or drops it again).
+                    _focus.requestFocus()
+                    _controller.toggleShapePick(at: hit)
                     return
                 }
                 _focus.requestFocus()
