@@ -129,6 +129,10 @@ struct KeptLine: Equatable {
     var box: Rect
     var outline: Color?
     var width: Double
+    /// The dash and arrowheads as read: a connector whose own differ is written afresh.
+    var dash: String? = nil
+    var head: LineEnd? = nil
+    var tail: LineEnd? = nil
 }
 
 /// A picture as read (with `sourceXML`): written back verbatim while its
@@ -161,11 +165,13 @@ struct KeptLook: Equatable {
     var lineReplaced = false
     /// Set when the user chose a dash style: the file's own dash is swapped, the rest of its line kept.
     var dashEdited = false
+    /// Set when the user chose arrowheads: the file's own are swapped, the rest of its line kept.
+    var endsEdited = false
     /// Set when the user changed the shape's shadow: the file's own outer shadow is swapped, its other effects kept.
     var shadowEdited = false
 
     func fillKept(_ s: ShapeState) -> Bool { !fillReplaced && s.fill == readFill && s.fillScheme == readFillScheme }
-    func lineKept(_ s: ShapeState) -> Bool { !lineReplaced && !dashEdited && s.outline == readOutline && s.outlineWidth == readWidth }
+    func lineKept(_ s: ShapeState) -> Bool { !lineReplaced && !dashEdited && !endsEdited && s.outline == readOutline && s.outlineWidth == readWidth }
 }
 
 /// A text shape as it was read, besides its text: while all of this and

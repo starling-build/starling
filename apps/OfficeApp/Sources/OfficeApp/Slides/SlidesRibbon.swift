@@ -156,12 +156,34 @@ extension Ribbon {
     /// Shape Fill / Shape Outline: the shared colour picker in a drop-down.
     private func _shapeColorMenu(_ icon: IconData, _ tip: String, _ deck: DeckController, _ fluent: FluentThemeData,
                                  outline: Bool) -> Widget {
-        Chrome.menuButton(icon, nil, tip, fluent, items: [
+        var items: [MenuFlyoutItemBase] = [
             ColorGridMenuItem(theme: deck.theme.slots, recent: deck.recentShapeColors.list,
                               noneLabel: outline ? "No Outline" : "No Fill",
                               onChoose: { deck.applyShapeColor($0, outline: outline) },
                               onMore: { [session] in session.onMoreShapeColor?(outline) }),
-        ])
+        ]
+
+        if outline {
+            func entry(_ id: String, _ label: String, _ run: @escaping () -> Void) -> MenuFlyoutItem {
+                MenuFlyoutItem(text: Padding(key: ValueKey(id), padding: EdgeInsets(left: 0, top: 0, right: 0, bottom: 0), child: Text(label)),
+                               onPressed: deck.selection.isEmpty ? nil : run)
+            }
+            let weights: [Double] = [0.25, 0.5, 0.75, 1, 1.5, 2.25, 3, 4.5, 6]
+            items.append(MenuFlyoutSubItem(text: Text("Weight"), items: weights.map { w in
+                entry("shape-weight-\(w)", "\(w) pt") { deck.setOutlineWidth(w) }
+            }))
+            items.append(MenuFlyoutSubItem(text: Text("Dashes"), items: FormatShapePaneState.dashStyles.map { dash, name in
+                entry("shape-dash-\(dash ?? "solid")", name) { deck.setOutlineDash(dash) }
+            }))
+            let heads: [(String?, String)] = [(nil, "None"), ("triangle", "Arrow"), ("arrow", "Open arrow"), ("stealth", "Stealth arrow"),
+                                              ("diamond", "Diamond"), ("oval", "Oval")]
+            for (start, label) in [(true, "Arrow start"), (false, "Arrow end")] {
+                items.append(MenuFlyoutSubItem(text: Text(label), items: heads.map { kind, name in
+                    entry("shape-\(start ? "head" : "tail")-\(kind ?? "none")", name) { deck.setLineEnd(start: start, kind: kind) }
+                }))
+            }
+        }
+        return Chrome.menuButton(icon, nil, tip, fluent, items: items)
     }
 
     private func _slidesInsert(_ deck: DeckController, _ fluent: FluentThemeData) -> [Widget] {

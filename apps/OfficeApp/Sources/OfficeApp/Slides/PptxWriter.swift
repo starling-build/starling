@@ -832,12 +832,21 @@ private struct SlideXML {
         return "<a:effectLst\(attrs)>\(body)</a:effectLst>"
     }
 
+    /// An arrowhead as `a:headEnd` / `a:tailEnd`; sizes are the multiples of the line width the reader gives (2, 3, 5).
+    static func _endXML(_ tag: String, _ e: LineEnd?) -> String {
+        guard let e else { return "" }
+        func size(_ v: Double) -> String { v <= 2 ? "sm" : v >= 5 ? "lg" : "med" }
+        return "<a:\(tag) type=\"\(PptxXML.escape(e.kind, attribute: true))\" w=\"\(size(e.width))\" len=\"\(size(e.length))\"/>"
+    }
+
+    static func _endsXML(_ s: ShapeState) -> String { _endXML("headEnd", s.headEnd) + _endXML("tailEnd", s.tailEnd) }
+
     static func _dashXML(_ dash: String?) -> String {
         guard let dash, !dash.isEmpty, dash != "solid" else { return "" }
         return "<a:prstDash val=\"\(PptxXML.escape(dash, attribute: true))\"/>"
     }
 
-    static func _patchedLine(_ ln: String, widthEMU: Int?, fill: String?, dash: String?? = nil) -> String {
+    static func _patchedLine(_ ln: String, widthEMU: Int?, fill: String?, dash: String?? = nil, ends: String? = nil) -> String {
         guard let open = ln.firstIndex(of: ">") else { return ln }
         var head = String(ln[...open])
         var rest = String(ln[ln.index(after: open)...])
@@ -864,6 +873,15 @@ private struct SlideXML {
             if tail.hasPrefix("<a:prstDash"), let e = tail.range(of: "/>") { tail = String(tail[e.upperBound...]) }
             else if tail.hasPrefix("<a:custDash>"), let e = tail.range(of: "</a:custDash>") { tail = String(tail[e.upperBound...]) }
             tail = _dashXML(dash) + tail
+        }
+        if let ends {
+            // The file's own arrowheads give way to the chosen ones; they sit last, before any extension list.
+            for tag in ["<a:headEnd", "<a:tailEnd"] {
+                if let r = tail.range(of: tag), let e = tail[r.lowerBound...].range(of: "/>") { tail.removeSubrange(r.lowerBound ..< e.upperBound) }
+            }
+            if let x = tail.range(of: "<a:extLst") { tail.insert(contentsOf: ends, at: x.lowerBound) }
+            else if let c = tail.range(of: "</a:ln>") { tail.insert(contentsOf: ends, at: c.lowerBound) }
+            else { tail += ends }
         }
         rest = fillPart + tail
         return head + rest
@@ -996,13 +1014,14 @@ private struct SlideXML {
             // A connector as read, while its line and outline are: the
             // original, at its frame on the slide.
             if let xml = s.sourceXML, let k = s.keptLine, k.line == s.frame, k.outline == s.outline,
-               k.width == s.outlineWidth, let p = source, let part = s.sourcePart {
+               k.width == s.outlineWidth, k.dash == s.outlineDash, k.head == s.headEnd, k.tail == s.tailEnd,
+               let p = source, let part = s.sourcePart {
                 return kept(xml, sourcePart: part, package: p, builder: &builder, patch: k.box, fileId: s.fileId)
             }
             let id = _id(s.fileId)
             let f = s.frame
             let box = Rect.fromLTRB(min(f.left, f.right), min(f.top, f.bottom), max(f.left, f.right), max(f.top, f.bottom))
-            let line = s.outline.map { "<a:ln w=\"\(Self._emu(s.outlineWidth))\">\(Self._fill($0, scheme: s.outlineScheme))\(Self._dashXML(s.outlineDash))</a:ln>" } ?? "<a:ln><a:noFill/></a:ln>"
+            let line = s.outline.map { "<a:ln w=\"\(Self._emu(s.outlineWidth))\">\(Self._fill($0, scheme: s.outlineScheme))\(Self._dashXML(s.outlineDash))\(Self._endsXML(s))</a:ln>" } ?? "<a:ln><a:noFill/></a:ln>"
             return "<p:cxnSp><p:nvCxnSpPr><p:cNvPr id=\"\(id)\" name=\"\(name)\"\(hid)/><p:cNvCxnSpPr/><p:nvPr/></p:nvCxnSpPr>"
                 + "<p:spPr>\(Self._xfrm(box, rotation: s.rotation, flipH: s.flipH != (f.right < f.left), flipV: s.flipV != (f.bottom < f.top)))"
                 + "<a:prstGeom prst=\"\(preset.rawValue)\"><a:avLst/></a:prstGeom>\(line)</p:spPr></p:cxnSp>"
@@ -1071,10 +1090,10 @@ private struct SlideXML {
             switch s.kind {
             case .placeholder:
                 fillXML = s.fill.map { Self._fill($0) } ?? ""
-                lineXML = s.outline.map { "<a:ln w=\"\(Self._emu(s.outlineWidth))\">\(Self._fill($0, scheme: s.outlineScheme))\(Self._dashXML(s.outlineDash))</a:ln>" } ?? ""
+                lineXML = s.outline.map { "<a:ln w=\"\(Self._emu(s.outlineWidth))\">\(Self._fill($0, scheme: s.outlineScheme))\(Self._dashXML(s.outlineDash))\(Self._endsXML(s))</a:ln>" } ?? ""
             default:
                 fillXML = Self._fill(s.fill, scheme: s.fillScheme)
-                lineXML = s.outline.map { "<a:ln w=\"\(Self._emu(s.outlineWidth))\">\(Self._fill($0, scheme: s.outlineScheme))\(Self._dashXML(s.outlineDash))</a:ln>" } ?? "<a:ln><a:noFill/></a:ln>"
+                lineXML = s.outline.map { "<a:ln w=\"\(Self._emu(s.outlineWidth))\">\(Self._fill($0, scheme: s.outlineScheme))\(Self._dashXML(s.outlineDash))\(Self._endsXML(s))</a:ln>" } ?? "<a:ln><a:noFill/></a:ln>"
             }
             // The file's own fill and line while the shape's are unchanged
             // (gradients, patterns, a style's fill stay as they were); its
@@ -1094,7 +1113,8 @@ private struct SlideXML {
                     let replaceFill = k.lineReplaced || s.outline != k.readOutline
                     lineXML = Self._patchedLine(ln, widthEMU: s.outlineWidth == k.readWidth ? nil : Self._emu(s.outlineWidth),
                                                 fill: replaceFill ? (s.outline.map { Self._fill($0, scheme: s.outlineScheme) } ?? "<a:noFill/>") : nil,
-                                                dash: k.dashEdited ? .some(s.outlineDash) : nil)
+                                                dash: k.dashEdited ? .some(s.outlineDash) : nil,
+                                                ends: k.endsEdited ? Self._endsXML(s) : nil)
                 }
             }
             let effectsXML: String
@@ -1190,7 +1210,7 @@ private struct SlideXML {
             return (s.fill.map { Self._fill($0) } ?? "", s.outline.map { "<a:ln w=\"\(Self._emu(s.outlineWidth))\">\(Self._fill($0, scheme: s.outlineScheme))</a:ln>" } ?? "")
         }
         let fill = Self._fill(s.fill, scheme: s.fillScheme)
-        return (fill, s.outline.map { "<a:ln w=\"\(Self._emu(s.outlineWidth))\">\(Self._fill($0, scheme: s.outlineScheme))</a:ln>" } ?? "<a:ln><a:noFill/></a:ln>")
+        return (fill, s.outline.map { "<a:ln w=\"\(Self._emu(s.outlineWidth))\">\(Self._fill($0, scheme: s.outlineScheme))\(Self._dashXML(s.outlineDash))\(Self._endsXML(s))</a:ln>" } ?? "<a:ln><a:noFill/></a:ln>")
     }
 
     private static func _fragment(_ xml: String) -> [XNode] {
