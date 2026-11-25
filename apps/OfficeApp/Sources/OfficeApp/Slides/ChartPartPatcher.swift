@@ -56,75 +56,13 @@ enum ChartPartPatcher {
         if dataChanged {
             guard rewriteData(plot, new, covered: old.series.count, writes: &writes) else { return nil }
         }
-        if old.title != new.title { setTitle(chart, new.title, base: space.first("c:txPr")?.descendant("a:defRPr")) }
-        if old.legend != new.legend || old.legendPosition != new.legendPosition { setLegend(chart, plot, new) }
-        return Result(xml: PptxXML.serialize(space), writes: writes)
-    }
-
-    // MARK: Title and legend
-
-    static func setTitle(_ chart: XNode, _ title: String?, base: XNode? = nil) {
-        let existing = chart.first("c:title")
-        func flag(_ deleted: Bool) {
-            if let f = chart.first("c:autoTitleDeleted") { f.attrs["val"] = deleted ? "1" : "0" }
-            else {
-                let i = chart.children.firstIndex { $0.name == "c:plotArea" } ?? chart.children.count
-                chart.children.insert(XNode(name: "c:autoTitleDeleted", attrs: ["val": deleted ? "1" : "0"]), at: i)
-            }
+        // Title and legend: the shared patches (Charts/ChartPartPatch) on the part's text.
+        var out = PptxXML.serialize(space)
+        if old.title != new.title { out = ChartPartPatch.title(out, new.title.map { .set($0) } ?? .remove) }
+        if old.legend != new.legend || old.legendPosition != new.legendPosition {
+            out = ChartPartPatch.legend(out, new.legend ? .set(new.legendPosition) : .remove)
         }
-        guard let title else {
-            chart.children.removeAll { $0.name == "c:title" }
-            flag(true)
-            return
-        }
-        if let existing, let p = existing.descendant("a:p"), let run = p.first("a:r"), let t = run.first("a:t") {
-            // The first run keeps its look; the words are the new ones, later runs go.
-            t.text = title
-            p.children.removeAll { $0.name == "a:r" && $0 !== run }
-            for extra in existing.descendants("a:p").dropFirst() { extra.children.removeAll { $0.name == "a:r" } }
-        } else {
-            // No words yet: PowerPoint's own default look, in the chart's font; the title's other parts stay.
-            let node = existing ?? XNode(name: "c:title", attrs: [:])
-            let tx = XNode(name: "c:tx", attrs: [:]), rich = XNode(name: "c:rich", attrs: [:])
-            let p = XNode(name: "a:p", attrs: [:]), r = XNode(name: "a:r", attrs: [:]), t = XNode(name: "a:t", attrs: [:])
-            t.text = title
-            let def = XNode(name: "a:defRPr", attrs: [:])
-            if let own = node.first("c:txPr")?.descendant("a:defRPr") { def.attrs = own.attrs; def.children = own.children.map(copy) }
-            else {
-                def.attrs = ["sz": "1862", "b": "0", "i": "0", "u": "none", "strike": "noStrike", "kern": "1200", "baseline": "0"]
-                let fill = XNode(name: "a:solidFill", attrs: [:]), clr = XNode(name: "a:schemeClr", attrs: ["val": "tx1"])
-                clr.children = [XNode(name: "a:lumMod", attrs: ["val": "65000"]), XNode(name: "a:lumOff", attrs: ["val": "35000"])]
-                fill.children = [clr]
-                def.children = [fill]
-                for face in ["a:latin", "a:ea", "a:cs"] { if let f = base?.first(face) { def.children.append(copy(f)) } }
-            }
-            let ppr = XNode(name: "a:pPr", attrs: [:]); ppr.children = [def]
-            let rpr = XNode(name: "a:rPr", attrs: def.attrs); rpr.children = def.children.map(copy)
-            r.children = [rpr, t]; p.children = [ppr, r]
-            rich.children = [XNode(name: "a:bodyPr", attrs: [:]), XNode(name: "a:lstStyle", attrs: [:]), p]
-            tx.children = [rich]
-            node.children.removeAll { $0.name == "c:tx" }
-            node.children.insert(tx, at: 0)
-            if node.first("c:overlay") == nil {
-                let at = node.children.firstIndex { ["c:spPr", "c:txPr", "c:extLst"].contains($0.name) } ?? node.children.count
-                node.children.insert(XNode(name: "c:overlay", attrs: ["val": "0"]), at: at)
-            }
-            if existing == nil { chart.children.insert(node, at: 0) }
-        }
-        flag(false)
-    }
-
-    static func setLegend(_ chart: XNode, _ plot: XNode, _ new: Chart) {
-        guard new.legend else { chart.children.removeAll { $0.name == "c:legend" }; return }
-        if let legend = chart.first("c:legend") {
-            if let pos = legend.first("c:legendPos") { pos.attrs["val"] = new.legendPosition }
-            else { legend.children.insert(XNode(name: "c:legendPos", attrs: ["val": new.legendPosition]), at: 0) }
-            return
-        }
-        let legend = XNode(name: "c:legend", attrs: [:])
-        legend.children = [XNode(name: "c:legendPos", attrs: ["val": new.legendPosition]), XNode(name: "c:overlay", attrs: ["val": "0"])]
-        let i = (chart.children.firstIndex { $0 === plot } ?? chart.children.count - 1) + 1
-        chart.children.insert(legend, at: i)
+        return Result(xml: out, writes: writes)
     }
 
     // MARK: Data
