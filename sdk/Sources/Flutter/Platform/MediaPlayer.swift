@@ -44,6 +44,8 @@ public protocol MediaPlayer: AnyObject {
 public func makeMediaPlayer() -> MediaPlayer? {
     #if os(Linux)
     return GStreamerPlayer()
+    #elseif canImport(AVFoundation) && canImport(CoreVideo)
+    return AVFoundationPlayer()
     #else
     return nil
     #endif
