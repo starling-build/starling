@@ -312,6 +312,9 @@ extension _ParaFrame {
     func _span(for a0: RichParagraph, at a1: Int?, _ a2: RichDocument, textWidth a3: Double, lead a4: Double = 0, adjust a5: [Int: Double] = [:], held a6: Set<Int> = [], spread a7: [Int: Double] = [:], fitProbe a8: Bool = false, autoSpaces a9: ((Int, Double) -> Void)? = nil) -> (TextSpan, [(image: ImageAttachment?, dimensions: PlaceholderDimensions)], [Int]) { rl._span(for: a0, at: a1, a2, textWidth: a3, lead: a4, adjust: a5, held: a6, spread: a7, fitProbe: a8, autoSpaces: a9) }
     func _stripBesideLeftTable(_ a0: String, _ a1: Int, _ a2: RichDocument) -> Bool { rl._stripBesideLeftTable(a0, a1, a2) }
     var _stripUse: [Int : (indent: Double, band: (top: Double, bottom: Double), right: Bool)] { get { rl._stripUse } set { rl._stripUse = newValue } _modify { yield &rl._stripUse } }
+    var _stripClear: [Int : (top: Double, bottom: Double)] { get { rl._stripClear } set { rl._stripClear = newValue } _modify { yield &rl._stripClear } }
+    var _besideNoLeft: [Int : Double] { get { rl._besideNoLeft } set { rl._besideNoLeft = newValue } _modify { yield &rl._besideNoLeft } }
+    var _stripPage: [Int : [(String, Double, Double)]] { get { rl._stripPage } set { rl._stripPage = newValue } _modify { yield &rl._stripPage } }
     func _strut(_ a0: TextSpan, tallest a1: Bool = false, near a2: Bool = false, wide a3: Bool = false, joiners a4: Bool = true) -> StrutStyle? { rl._strut(a0, tallest: a1, near: a2, wide: a3, joiners: a4) }
     func _firstLeafStyle(_ a0: InlineSpan) -> TextStyle? { rl._firstLeafStyle(a0) }
     func _tableLeft(_ a0: String, _ a1: RichDocument) -> Double { rl._tableLeft(a0, a1) }

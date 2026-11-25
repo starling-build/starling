@@ -22,10 +22,12 @@ public enum PictureWrap: String, CaseIterable, Sendable {
         }
     }
 
-    /// The `wp:wrap…` element Word writes for this choice.
-    var element: String {
-        let polygon = "<wp:wrapPolygon edited=\"0\"><wp:start x=\"0\" y=\"0\"/><wp:lineTo x=\"0\" y=\"21600\"/>"
-            + "<wp:lineTo x=\"21600\" y=\"21600\"/><wp:lineTo x=\"21600\" y=\"0\"/><wp:lineTo x=\"0\" y=\"0\"/></wp:wrapPolygon>"
+    /// The `wp:wrap…` element Word writes for this choice, with a tight or through polygon that follows `points` (a closed
+    /// outline in Word's 21600 space; the full rectangle by default).
+    func element(points: [(Int, Int)] = PictureWrap.rectangle) -> String {
+        var polygon = "<wp:wrapPolygon edited=\"0\"><wp:start x=\"\(points[0].0)\" y=\"\(points[0].1)\"/>"
+        for p in points.dropFirst() { polygon += "<wp:lineTo x=\"\(p.0)\" y=\"\(p.1)\"/>" }
+        polygon += "</wp:wrapPolygon>"
         switch self {
         case .square: return "<wp:wrapSquare wrapText=\"bothSides\"/>"
         case .tight: return "<wp:wrapTight wrapText=\"bothSides\">" + polygon + "</wp:wrapTight>"
@@ -35,13 +37,51 @@ public enum PictureWrap: String, CaseIterable, Sendable {
         }
     }
 
+    static let rectangle: [(Int, Int)] = [(0, 0), (0, 21600), (21600, 21600), (21600, 0), (0, 0)]
+
+    /// The outline of a preset shape of `width` x `height` (any unit) in Word's 21600 space, closed, for a tight wrap:
+    /// an ellipse as 36 points, a diamond and a triangle by their corners, a rounded rectangle with its quarter arcs.
+    /// Anything else is its box.
+    static func outline(preset: String?, width: Double, height: Double) -> [(Int, Int)] {
+        func pt(_ x: Double, _ y: Double) -> (Int, Int) { (Int((x * 21600).rounded()), Int((y * 21600).rounded())) }
+        switch preset {
+        case "ellipse":
+            let n = 36
+            var out = (0 ..< n).map { k -> (Int, Int) in
+                let a = Double.pi * 2 * Double(k) / Double(n)
+                return pt(0.5 + 0.5 * cos(a), 0.5 + 0.5 * sin(a))
+            }
+            out.append(out[0])
+            return out
+        case "diamond":
+            return [pt(0.5, 0), pt(0, 0.5), pt(0.5, 1), pt(1, 0.5), pt(0.5, 0)]
+        case "triangle":
+            return [pt(0.5, 0), pt(0, 1), pt(1, 1), pt(0.5, 0)]
+        case "roundRect" where width > 0 && height > 0:
+            let r = 0.16667 * min(width, height), rx = r / width, ry = r / height
+            var out: [(Int, Int)] = []
+            // Corners clockwise from the top-left, each as a quarter arc in 6 steps.
+            let corners: [(Double, Double, Double)] = [(rx, ry, 180), (1 - rx, ry, 270), (1 - rx, 1 - ry, 0), (rx, 1 - ry, 90)]
+            for (cx, cy, from) in corners {
+                for k in 0 ... 6 {
+                    let a = (from + 90 * Double(k) / 6) * Double.pi / 180
+                    out.append(pt(cx + rx * cos(a), cy + ry * sin(a)))
+                }
+            }
+            out.append(out[0])
+            return out
+        default:
+            return rectangle
+        }
+    }
+
     var behind: Bool { self == .behindText }
 }
 
 extension String {
     /// This `wp:anchor` markup with its wrapping element replaced by `wrap`'s and `behindDoc` set to match; nil when it holds no
     /// anchor or no wrapping element.
-    static func _anchorWrapped(_ xml: String, _ wrap: PictureWrap) -> String? {
+    static func _anchorWrapped(_ xml: String, _ wrap: PictureWrap, points: [(Int, Int)] = PictureWrap.rectangle) -> String? {
         guard let anchor = xml.rangeOfSubstring("<wp:anchor"),
               let tagEnd = xml.rangeOfSubstring(">", in: anchor.upperBound ..< xml.endIndex),
               let open = xml.rangeOfSubstring("<wp:wrap", in: tagEnd.upperBound ..< xml.endIndex),
@@ -57,7 +97,7 @@ extension String {
             guard let c = xml.rangeOfSubstring(close + ">", in: gt.upperBound ..< xml.endIndex) else { return nil }
             end = c.upperBound
         }
-        var out = String(xml[xml.startIndex ..< open.lowerBound]) + wrap.element + String(xml[end...])
+        var out = String(xml[xml.startIndex ..< open.lowerBound]) + wrap.element(points: points) + String(xml[end...])
         // behindDoc on the anchor's own tag.
         guard let a = out.rangeOfSubstring("<wp:anchor"), let e = out.rangeOfSubstring(">", in: a.upperBound ..< out.endIndex) else { return nil }
         var tag = String(out[a.lowerBound ..< e.lowerBound])
@@ -146,7 +186,13 @@ extension RichDocumentController {
     @discardableResult
     public func setPictureWrap(at index: Int, inline id: String? = nil, _ wrap: PictureWrap) -> Bool {
         guard let old = _floating(index, id), let xml = old.sourceXML, pictureWrap(at: index, inline: id) != wrap,
-              let patched = String._anchorWrapped(xml, wrap), var f = old.float else { return false }
+              var f = old.float else { return false }
+        // A shape wraps round its own outline, not its box.
+        var preset: String?
+        if xml.containsSubstring("<wps:wsp"), let g = xml.rangeOfSubstring("prstGeom prst=\""),
+           let q = xml.rangeOfSubstring("\"", in: g.upperBound ..< xml.endIndex) { preset = String(xml[g.upperBound ..< q.lowerBound]) }
+        let points = PictureWrap.outline(preset: preset, width: old.width, height: old.height)
+        guard let patched = String._anchorWrapped(xml, wrap, points: points) else { return false }
         var new = old
         new.sourceXML = patched
         f.wraps = wrap == .square || wrap == .tight || wrap == .through
@@ -155,7 +201,7 @@ extension RichDocumentController {
         f.wrapReach = 1
         f.wrapBottomShare = 1
         f.wrapTopSkip = 0
-        f.wrapPolygon = []
+        f.wrapPolygon = f.wrapsTight && points.count > 5 ? points.map { WrapPoint(x: Double($0.0) / 21600, y: Double($0.1) / 21600) } : []
         // (As the reader does: a top-and-bottom picture placed against the page or its paragraph bands its page.)
         f.takesRoom = wrap == .topAndBottom
         f.bandsPage = false
