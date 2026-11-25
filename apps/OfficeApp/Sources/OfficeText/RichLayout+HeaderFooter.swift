@@ -2669,11 +2669,11 @@ extension RichLayout {
         let width = _px(setup.contentWidth)
         // (Each from `from` to `to` of its height: a note parted over the
         // page before or the next — `_noteCarryIn`, `_noteCutOut`.)
-        let notes: [(note: _HeaderFooter, from: Double, to: Double)] = ids.compactMap { id in
+        let notes: [(id: Int, note: _HeaderFooter, from: Double, to: Double)] = ids.compactMap { id in
             guard let note = _note(id, width: width, document) else { return nil }
             let from = _noteCarryIn[p]?.id == id ? _noteCarryIn[p]!.from : 0
             let to = _noteCutOut[p]?.id == id ? _noteCutOut[p]!.keep : note.height
-            return (note, from, max(from, to))
+            return (id, note, from, max(from, to))
         }
         guard !notes.isEmpty else { return }
         let rect = pageRect(p)
@@ -2703,13 +2703,14 @@ extension RichLayout {
             }
             top += separator.height
         }
-        for (note, from, to) in notes {
+        for (id, note, from, to) in notes {
             canvas.save()
             if from > 0 || to < note.height { canvas.clipRect(Rect.fromLTRB(rect.left, top, rect.right, top + to - from)) }
             canvas.translate(left, top - from)
             note.layout.paint(canvas, visible: Rect.fromLTWH(-100_000, -100_000, 200_000, 200_000), document: note.document,
                               selection: nil, caret: nil)
             canvas.restore()
+            noteRects[id] = Rect.fromLTWH(left, top, width, to - from)
             top += to - from
         }
     }

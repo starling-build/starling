@@ -50,6 +50,8 @@ public final class RichEditable: StatefulWidget {
     public let onLinkHover: ((String?) -> Void)?
     /// ⌘-click on a link. Nil opens it through the host.
     public let onLinkActivate: ((String) -> Void)?
+    /// A click in a note on the page, or a double-click on a note's mark: the note and its box in window coordinates.
+    public let onNoteActivate: ((NoteReference, Rect) -> Void)?
     /// A pointer selection gesture ended (click, drag, double or triple click)
     /// — when Word's Format Painter applies (a bare click may leave no selection).
     public let onSelectionGestureEnd: (() -> Void)?
@@ -88,6 +90,7 @@ public final class RichEditable: StatefulWidget {
                 onCellEdgeStroke: ((Bool) -> Void)? = nil,
                 onLinkHover: ((String?) -> Void)? = nil,
                 onLinkActivate: ((String) -> Void)? = nil,
+                onNoteActivate: ((NoteReference, Rect) -> Void)? = nil,
                 onSelectionGestureEnd: (() -> Void)? = nil,
                 onHeaderFooterEdit: ((KeptHeaderFooter.Kind) -> Void)? = nil,
                 onContextMenu: ((Offset) -> Void)? = nil,
@@ -116,6 +119,7 @@ public final class RichEditable: StatefulWidget {
         self.onCellEdgeStroke = onCellEdgeStroke
         self.onLinkHover = onLinkHover
         self.onLinkActivate = onLinkActivate
+        self.onNoteActivate = onNoteActivate
         self.onSelectionGestureEnd = onSelectionGestureEnd
         self.onHeaderFooterEdit = onHeaderFooterEdit
         self.onContextMenu = onContextMenu
@@ -882,6 +886,27 @@ public final class RichEditableState: State<StatefulWidget> {
         return nil
     }
 
+    /// The note on the page under a point (its box in the editable's coordinates), if the page has painted one there.
+    private func _noteBox(at local: Offset) -> (NoteReference, Rect)? {
+        guard _w.onNoteActivate != nil, _layout.width > 0 else { return nil }
+        let p = _canvasPoint(local)
+        for (id, r) in _layout.noteRects where r.contains(p) {
+            return (NoteReference(kind: .footnote, id: id), Rect.fromLTWH(r.left + _originX, r.top + _w.padding.top - _scrollY, r.width, r.height))
+        }
+        return nil
+    }
+
+    /// The note whose mark is at a body position, with the mark's box.
+    private func _noteMark(at pos: RichPosition) -> NoteReference? {
+        let doc = _controller.document
+        guard pos.paragraph < doc.paragraphs.count, !doc.paragraphs[pos.paragraph].isImage else { return nil }
+        let para = doc.paragraphs[pos.paragraph]
+        for o in [pos.offset, pos.offset - 1] where o >= 0 && o < para.length {
+            if let n = para.style(at: o + 1).note { return n }
+        }
+        return nil
+    }
+
     /// The link at a point in the editable, if the text there carries one.
     private func _link(at local: Offset) -> String? {
         guard _layout.width > 0, _layout.count > 0 else { return nil }
@@ -1091,6 +1116,10 @@ public final class RichEditableState: State<StatefulWidget> {
         guard event.buttons & 1 != 0 else { return }
         _syncLayoutIfNeeded()
         guard _layout.width > 0 else { return }
+        if !_controller.readOnly, !_chords.shift, let (n, box) = _noteBox(at: event.localPosition) {
+            _w.onNoteActivate?(n, box.shift( Offset(event.position.dx - event.localPosition.dx, event.position.dy - event.localPosition.dy)))
+            return
+        }
         let now = Date().timeIntervalSince1970
         let near = abs(event.localPosition.dx - _lastClickPos.dx) < 6
             && abs(event.localPosition.dy - _lastClickPos.dy) < 6
@@ -1118,6 +1147,13 @@ public final class RichEditableState: State<StatefulWidget> {
                 _dragging = false
             }
         case 2:
+            if !_controller.readOnly, let activate = _w.onNoteActivate, let n = _noteMark(at: pos) {
+                _dragging = false
+                let r = _layout.noteRects[n.id] ?? _layout.caretRect(pos, _controller.document)
+                activate(n, Rect.fromLTWH(r.left + _originX + event.position.dx - event.localPosition.dx, r.top + _w.padding.top - _scrollY + event.position.dy - event.localPosition.dy,
+                                          max(r.width, 200), max(r.height, 20)))
+                return
+            }
             if let edit = _w.onHeaderFooterEdit,
                let kind = _layout.headerFooterZone(atCanvas: _canvasPoint(event.localPosition), _controller.document) {
                 _dragging = false
@@ -1313,9 +1349,13 @@ public final class RichEditableState: State<StatefulWidget> {
                     _controller.toggleCheckBox(in: box.paragraph, control: box.id)
                     return
                 }
+                _syncLayoutIfNeeded()
+                if !_controller.readOnly, let (n, box) = _noteBox(at: event.localPosition) {
+                    _w.onNoteActivate?(n, box.shift(Offset(event.position.dx - event.localPosition.dx, event.position.dy - event.localPosition.dy)))
+                    return
+                }
                 _focus.requestFocus()
                 _textInput?.show()
-                _syncLayoutIfNeeded()
                 let pos = _layout.canvasPosition(at: _canvasPoint(event.localPosition), _controller.document)
                 let now = Date().timeIntervalSince1970
                 let again = now - _lastTap.at < 0.4

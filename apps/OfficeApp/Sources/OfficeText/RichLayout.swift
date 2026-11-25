@@ -2309,6 +2309,8 @@ public final class RichLayout {
     /// at the foot of each page, by physical page.
     var _noteCache: [String: _HeaderFooter] = [:]
     var _pageNotes: [Int: [Int]] = [:]
+    /// Where each footnote was last painted on the pages (canvas coordinates), for a click in a note.
+    public internal(set) var noteRects: [Int: Rect] = [:]
     /// A page of columns (all its sections the same number of them) sets
     /// its footnotes under the columns, in each one's own width: the room
     /// they take off the foot of every column of the page, per page. Found
