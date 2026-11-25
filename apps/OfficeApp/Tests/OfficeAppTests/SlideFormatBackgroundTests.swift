@@ -64,4 +64,28 @@ final class SlideFormatBackgroundTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(f.stops.count, 2)
         XCTAssertEqual(f.angle, 90, accuracy: 0.5)
     }
+
+    private static let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")!
+
+    /// A deck for PowerPoint to open (STARLING_BACKGROUNDS_OUT): every kind of background, one per slide, after one Apply to All.
+    func testSaveEveryKindOfBackground() throws {
+        let deck = DeckController()
+        for _ in 0 ..< 3 { _ = deck.addSlide() }
+        deck.select(0)
+        deck.setBackground(SlideFill(color: Color(0xFFF2E6D0)), all: true)
+        deck.select(0); deck.setBackground(SlideFill(color: Color(0xFF336699)))
+        deck.select(1); deck.setBackground(FormatBackgroundPaneState.gradient(from: Color(0xFFCC3333)))
+        deck.select(2)
+        var pic = SlideFill(image: ImageAttachment(data: Self.png, width: 8, height: 8))
+        pic.imageAlpha = 0.6
+        deck.setBackground(pic)
+        deck.select(3); deck.setBackground(nil)
+        let data = try Pptx.write(deck)
+        if let out = ProcessInfo.processInfo.environment["STARLING_BACKGROUNDS_OUT"] { try data.write(to: URL(fileURLWithPath: out)) }
+        let (state, _, _) = try Pptx.read(data)
+        XCTAssertEqual((state.slides[0].background?.color?.value ?? 0) & 0xFFFFFF, 0x336699)
+        XCTAssertGreaterThanOrEqual(state.slides[1].background?.stops.count ?? 0, 2)
+        XCTAssertNotNil(state.slides[2].background?.image)
+        XCTAssertNil(state.slides[3].background)
+    }
 }
