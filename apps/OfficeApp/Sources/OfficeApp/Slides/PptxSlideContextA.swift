@@ -844,6 +844,7 @@ extension SlideContext {
         st.sourceXML = PptxXML.serialize(el)
         st.sourceText = doc
         st.sourcePart = part
+        st.readShape = ReadShape(st)
         return st
     }
 

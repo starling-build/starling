@@ -343,7 +343,7 @@ final class TableTests: XCTestCase {
         doc.paragraphs[4].insert(" (both)", at: 4)
         state.slides[s].shapes[i].text = doc
         let edited = try written(state)
-        XCTAssertTrue(edited.contains(ours) && !edited.contains(theirs), "edited: our table")
+        XCTAssertTrue(edited.contains(theirs) && !edited.contains(ours), "edited: typing in a cell keeps the file's own table element")
         XCTAssertTrue(edited.contains("docx (both)"))
     }
 

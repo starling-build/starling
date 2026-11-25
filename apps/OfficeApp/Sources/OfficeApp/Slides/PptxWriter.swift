@@ -267,23 +267,24 @@ enum PptxWriter {
         defer { PptxText.links = nil }
         // Shape ids: a shape read from a file keeps its own (the slide's
         // animations name shapes by id); new ones start above them all.
-        w.nextId = 2 + (slide.shapes.compactMap(\.fileId).max() ?? 0)
+        let shapes = SlideXML._mergeUprightSplits(slide.shapes)
+        w.nextId = 2 + (shapes.compactMap(\.fileId).max() ?? 0)
         var body = ""
         // Members of a group read from the file, still side by side, are
         // grouped again under the group's own id.
         var i = 0
         var written = Set<Int>()
-        while i < slide.shapes.count {
-            guard var g = slide.shapes[i].group else {
-                body += w.shape(slide.shapes[i], media: &media, builder: &b)
+        while i < shapes.count {
+            guard var g = shapes[i].group else {
+                body += w.shape(shapes[i], media: &media, builder: &b)
                 i += 1
                 continue
             }
             var j = i
-            while j < slide.shapes.count, slide.shapes[j].group?.key == g.key { j += 1 }
+            while j < shapes.count, shapes[j].group?.key == g.key { j += 1 }
             // A group split by reordering is written as two groups: the second must not repeat the id.
             if !written.insert(g.key).inserted { g.fileId = nil }
-            body += w.group(g, members: Array(slide.shapes[i ..< j]), media: &media, builder: &b)
+            body += w.group(g, members: Array(shapes[i ..< j]), media: &media, builder: &b)
             i = j
         }
         var bg = ""
@@ -867,6 +868,15 @@ private struct SlideXML {
             if let xml = s.sourceXML, let doc = s.text, doc == s.sourceText, let p = source, let part = s.sourcePart {
                 return kept(xml, sourcePart: part, package: p, builder: &builder, patch: s.frame, fileId: s.fileId)
             }
+            // Only text typed or restyled inside cells: the table as it was, those cells' own runs patched.
+            if let xml = s.sourceXML, let read = s.readShape, read.patchable(s), let old = s.sourceText, let new = s.text,
+               let p = source, let part = s.sourcePart, let patched = Self._tableCellsPatched(xml, old: old, new: new) {
+                let flipped = read.flipH != s.flipH || read.flipV != s.flipV
+                let moved = read.frame != s.frame || read.rotation != s.rotation || flipped
+                let edit = Self._shapeEdit(s, read)
+                return kept(patched, sourcePart: part, package: p, builder: &builder, patch: s.frame, fileId: s.fileId,
+                            rotation: nil, placeIfMissing: moved, flips: nil, hidden: nil, edit: edit)
+            }
             return _table(s, name: name)
         case .chart(let chart):
             // Unchanged since it was read: through its own part, which keeps
@@ -1008,6 +1018,61 @@ private struct SlideXML {
     }
 
     /// The fill and line a shape of ours writes, as XML (the same the regenerated shape gets).
+    /// A shape whose text is held level while it turns is read as two shapes (the shape, and its text as a box of its own),
+    /// both from the one element. Written back from the model they both rebuild; put together again they are the element as it
+    /// was, with the text box's edits patched in.
+    static func _mergeUprightSplits(_ shapes: [ShapeState]) -> [ShapeState] {
+        var out: [ShapeState] = []
+        var i = 0
+        while i < shapes.count {
+            let a = shapes[i]
+            if i + 1 < shapes.count, a.text == nil, let xml = a.sourceXML, a.sourceText != nil {
+                let b = shapes[i + 1]
+                if b.sourceXML == xml, b.sourcePart == a.sourcePart, b.kind == .textBox, b.group?.key == a.group?.key, b.text != nil {
+                    var m = a
+                    m.text = b.text
+                    out.append(m)
+                    i += 2
+                    continue
+                }
+            }
+            out.append(a)
+            i += 1
+        }
+        return out
+    }
+
+    /// A table read from a file with only the text of some cells changed (same grid, same cell settings, same table style):
+    /// the table's own XML with those cells' paragraphs patched. Nil when the edit is more than that.
+    static func _tableCellsPatched(_ xml: String, old: RichDocument, new: RichDocument) -> String? {
+        guard old.tableStyles == new.tableStyles, old.tableColumns == new.tableColumns,
+              old.paragraphs.count > 0, new.paragraphs.count > 0,
+              let root = XNode.parse(Data(xml.utf8)), let tbl = root.descendant("a:tbl") else { return nil }
+        func groups(_ d: RichDocument) -> [[Int]: [RichParagraph]]? {
+            var g: [[Int]: [RichParagraph]] = [:]
+            for p in d.paragraphs {
+                guard let c = p.cell else { return nil }
+                var q = p; q.cell = nil
+                g[[c.row, c.column], default: []].append(q)
+            }
+            return g
+        }
+        func cellRefs(_ d: RichDocument) -> [[Int]: CellRef] {
+            var g: [[Int]: CellRef] = [:]
+            for p in d.paragraphs { if let c = p.cell, g[[c.row, c.column]] == nil { g[[c.row, c.column]] = c } }
+            return g
+        }
+        guard let og = groups(old), let ng = groups(new), Set(og.keys) == Set(ng.keys), cellRefs(old) == cellRefs(new) else { return nil }
+        let rows = tbl.all("a:tr")
+        for (key, oldParas) in og where ng[key]! != oldParas {
+            guard key[0] < rows.count else { return nil }
+            let tcs = rows[key[0]].all("a:tc")
+            guard key[1] < tcs.count, let body = tcs[key[1]].first("a:txBody") else { return nil }
+            guard PptxTextPatch.patchBody(body, old: RichDocument(paragraphs: oldParas), new: RichDocument(paragraphs: ng[key]!)) else { return nil }
+        }
+        return PptxXML.serialize(root)
+    }
+
     private static func _shapeFillLine(_ s: ShapeState) -> (fill: String, line: String) {
         if case .placeholder = s.kind {
             return (s.fill.map { Self._fill($0) } ?? "", s.outline.map { "<a:ln w=\"\(Self._emu(s.outlineWidth))\">\(Self._fill($0))</a:ln>" } ?? "")
