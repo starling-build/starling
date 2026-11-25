@@ -69,6 +69,7 @@ final class SheetsShellState: State<StatefulWidget> {
     private var _formatOpen = false
     private var _pageSetupOpen = false
     private var _printOpen = false
+    private var _shortcutsOpen = false
     private var _sortOpen: (range: CellRange, hasHeader: Bool)?
     private var _validationOpen = false
     private var _cfOpen = false
@@ -111,6 +112,7 @@ final class SheetsShellState: State<StatefulWidget> {
         wb.addListener({ [weak self] in self?._changed() }, owner: self)
         _publishToolbar()
         wb.onCommand = { [weak self] cmd in self?._command(cmd) }
+        session.onShortcuts = { [weak self] in self?.setState { self?._backstage = nil; self?._shortcutsOpen = true } }
         session.onFind = { [weak self] replace in self?._openFind(replace: replace) }
         session.onToggleAutoSave = { [weak self] in
             guard let self else { return }
@@ -591,6 +593,17 @@ final class SheetsShellState: State<StatefulWidget> {
     /// File → Print: the PDF of the active sheet, handed to the host's print dialog.
     private func _print() { setState { _backstage = nil; _printOpen = true } }
 
+    /// The shared Print dialog's view of this workbook: output 0 the active sheet, 1 the whole workbook, 2 the selection.
+    /// A sheet's page count is only known once it is drawn, so the page range is not offered.
+    var _printHooks: PrintHooks {
+        PrintHooks(unit: "Sheets", total: 1, current: 1,
+                   outputs: ["Active sheet", "Entire workbook", "Selection (\(wb.selection.a1))"],
+                   hostCanPrint: hostPrintPDF != nil, print: { [weak self] _, output in
+                       self?._print(output == 1 ? .entireWorkbook : output == 2 ? .selection : .activeSheet)
+                       return ""
+                   })
+    }
+
     private func _print(_ what: PrintWhat) {
         #if os(WASI)
         _flash("Printing is not available in the browser yet")
@@ -960,11 +973,17 @@ final class SheetsShellState: State<StatefulWidget> {
                 })))
         }
         if _printOpen {
-            layers.append(Positioned(left: 0, top: 0, right: 0, bottom: 0, child: PrintChoicePanel(
-                sheetName: wb.sheet.name, selectionText: wb.selection.a1,
-                onPrint: { [weak self] w in self?._print(w) },
+            layers.append(Positioned(left: 0, top: 0, right: 0, bottom: 0, child: PrintDialog(
+                hooks: _printHooks,
                 onClose: { [weak self] in
                     self?.setState { self?._printOpen = false }
+                    self?._grid?.focus.requestFocus()
+                })))
+        }
+        if _shortcutsOpen {
+            layers.append(Positioned(left: 0, top: 0, right: 0, bottom: 0, child: ShortcutListDialog(
+                table: ShortcutTable.sheets, onClose: { [weak self] in
+                    self?.setState { self?._shortcutsOpen = false }
                     self?._grid?.focus.requestFocus()
                 })))
         }
@@ -1018,6 +1037,7 @@ final class SheetsShellState: State<StatefulWidget> {
         case "o": session.onOpen?(); return true   // the picker in a tab, Backstage natively
         case "n": session.replacing { [weak self] in self?._newWorkbook() }; return true
         case "p": _print(); return true
+        case "/": session.onShortcuts?(); return true
         case "f": _openFind(replace: false); return true
         case "1" where _grid?.edit == nil: _openFormatCells(); return true
         case "h": _openFind(replace: true); return true

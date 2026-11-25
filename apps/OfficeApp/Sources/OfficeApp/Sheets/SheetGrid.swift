@@ -1269,6 +1269,8 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         return handled
     }
 
+    private func onShortcutKey(_ c: Character) -> Bool { _w.onShortcut(c, _chords) }
+
     private func _keyUnchorded(_ k: KeyData) -> Bool {
         // A double click is two clicks with nothing between them.
         _lastClick = nil
@@ -1296,6 +1298,9 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                      active: c.active)
             return true
         }
+
+        // ⌃/ the shortcut list and ⌃1 Format Cells: not letters, so the switch below never sees them.
+        if _chords.primary, k.logical == 0x2F || k.logical == 0x31, onShortcutKey(k.logical == 0x2F ? "/" : "1") { return true }
 
         // Chords first.
         if _chords.primary, let letter = KeyChordTracker.letter(k.logical) {
