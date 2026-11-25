@@ -46,7 +46,49 @@ final class WorkbookController: ChangeNotifier {
     /// Where a shift-extension started.
     private(set) var anchor = CellAddress(row: 0, col: 0)
 
-    var sheet: Worksheet { book.sheets[activeSheet] }
+    var sheet: Worksheet { book.sheets[_sheetOverride ?? activeSheet] }
+
+    /// Sheets selected together (Select All Sheets, Ctrl/Shift-click on a
+    /// tab), as Excel's group mode: what is typed or formatted on the
+    /// active one goes to each of them at the same cells. Empty when only
+    /// the active sheet is selected.
+    private(set) var groupedSheets: Set<Int> = []
+    private var _sheetOverride: Int?
+    var isGrouped: Bool { groupedSheets.count > 1 && groupedSheets.contains(activeSheet) }
+
+    func selectAllSheets() {
+        groupedSheets = Set(book.sheets.indices.filter { !book.sheets[$0].hidden })
+        _notify(selectionOnly: true)
+    }
+    func groupSheet(_ i: Int, add: Bool) {
+        if add { groupedSheets.insert(activeSheet); groupedSheets.insert(i) } else { groupedSheets = [] }
+        _notify(selectionOnly: true)
+    }
+    func ungroupSheets() {
+        guard !groupedSheets.isEmpty else { return }
+        groupedSheets = []
+        _notify(selectionOnly: true)
+    }
+
+    /// Run `edit` on the active sheet and on every grouped one, as ONE undo step.
+    private func _groupEdit(_ edit: () -> Void) -> Bool {
+        guard isGrouped, _sheetOverride == nil else { return false }
+        let before = _bookState()
+        let sel = selection, act = active
+        let mark = _undo.count
+        let edits0 = edits
+        for si in groupedSheets.sorted() where si < book.sheets.count {
+            _sheetOverride = si
+            edit()
+        }
+        _sheetOverride = nil
+        if _undo.count > mark { _undo.removeSubrange(mark...) }
+        edits = edits0
+        _push(.structure(before: before, after: _bookState(), selection: sel, active: act))
+        engine.recalculate()
+        _notify()
+        return true
+    }
 
     override init() {
         book = Workbook()
@@ -360,7 +402,8 @@ final class WorkbookController: ChangeNotifier {
 
     /// Several cells in one step (paste, fill, Ctrl+Enter).
     func setInputs(_ items: [(CellAddress, String)], sheet si: Int? = nil) {
-        let si = si ?? activeSheet
+        if si == nil, _groupEdit({ setInputs(items) }) { return }
+        let si = si ?? _sheetOverride ?? activeSheet
         if refusesEdit(items.map(\.0), sheet: si) { return }
         let ws = book.sheets[si]
         let headers = ws.tables.isEmpty ? [:] : _tableHeaderNames(items.map(\.0), sheet: si)
@@ -438,6 +481,7 @@ final class WorkbookController: ChangeNotifier {
     /// Apply a change to the style of every cell in the selection.
     func setStyle(_ change: (inout CellStyle) -> Void, range: CellRange? = nil) {
         if refuses("formatCells") { return }
+        if _groupEdit({ setStyle(change, range: range) }) { return }
         let r = range ?? selection
         let ws = sheet
         // Whole rows or columns: the format goes on the row or column, as
@@ -510,7 +554,7 @@ final class WorkbookController: ChangeNotifier {
             cell.style = book.styleIndex(st)
             ws.cells[a] = cell
         }
-        _record(sheet: activeSheet, before: before, recalc: false)
+        _record(sheet: _sheetOverride ?? activeSheet, before: before, recalc: false)
     }
 
     /// Bold, italic, wrap… on a selection: every cell gets the opposite of
