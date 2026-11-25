@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import Flutter
+import FlutterSwiftBridge
 
 /// Layout Options for a floating picture: how the text wraps round it, and where it stands. Both patch the picture's
 /// kept `wp:anchor` markup (the one source the layout and the writer read) and the matching `ImageFloat` flags, as one undo step.
@@ -175,6 +176,57 @@ extension RichDocumentController {
         var para = RichParagraph(text: "")
         para.style.alignment = .center
         new.textBox = RichTextBox(paragraphs: [para])
+        _store(index, id, old: old, new: new)
+        return true
+    }
+
+    /// The fill of the shape at `index` (nil: none), one undo step. False when it is not a shape drawn by a `wps:wsp`
+    /// whose fill is a plain colour or none (a gradient or picture fill is left as it is).
+    @discardableResult
+    public func setShapeFill(at index: Int, inline id: String? = nil, _ color: Color?) -> Bool {
+        _setShapePaint(index, id, line: false, color)
+    }
+
+    /// The outline colour of the shape at `index` (nil: no line), one undo step; false as `setShapeFill`.
+    @discardableResult
+    public func setShapeOutline(at index: Int, inline id: String? = nil, _ color: Color?) -> Bool {
+        _setShapePaint(index, id, line: true, color)
+    }
+
+    private func _setShapePaint(_ index: Int, _ id: String?, line: Bool, _ color: Color?) -> Bool {
+        guard let old = _floating(index, id), let xml = old.sourceXML, xml.containsSubstring("<wps:wsp"),
+              let open = xml.rangeOfSubstring("<wps:spPr>"), let close = xml.rangeOfSubstring("</wps:spPr>", in: open.upperBound ..< xml.endIndex) else { return false }
+        var hex = ""
+        if let color { let v = String(color.value & 0xFFFFFF, radix: 16, uppercase: true); hex = String(repeating: "0", count: 6 - v.count) + v }
+        let paint = color == nil ? "<a:noFill/>" : "<a:solidFill><a:srgbClr val=\"\(hex)\"/></a:solidFill>"
+        var body = String(xml[open.upperBound ..< close.lowerBound])
+        // Where the paint stands: after the geometry for the fill, inside the line's element for the outline.
+        var at: String.Index
+        if line {
+            guard let l = body.rangeOfSubstring("<a:ln"), let gt = body.rangeOfSubstring(">", in: l.upperBound ..< body.endIndex),
+                  !body[l.upperBound ..< gt.lowerBound].hasSuffix("/") else { return false }
+            at = gt.upperBound
+        } else {
+            guard let g = body.rangeOfSubstring("</a:prstGeom>") ?? body.rangeOfSubstring("</a:custGeom>") else { return false }
+            at = g.upperBound
+        }
+        let rest = body[at...]
+        if rest.hasPrefix("<a:solidFill>"), let e = body.rangeOfSubstring("</a:solidFill>", in: at ..< body.endIndex) {
+            body.replaceSubrange(at ..< e.upperBound, with: paint)
+        } else if rest.hasPrefix("<a:noFill/>") {
+            body.replaceSubrange(at ..< body.index(at, offsetBy: "<a:noFill/>".count), with: paint)
+        } else if rest.hasPrefix("<a:gradFill") || rest.hasPrefix("<a:blipFill") || rest.hasPrefix("<a:pattFill") {
+            return false
+        } else {
+            body.insert(contentsOf: paint, at: at)
+        }
+        var new = old
+        new.sourceXML = String(xml[xml.startIndex ..< open.upperBound]) + body + String(xml[close.lowerBound...])
+        if var outline = old.outline {
+            if line { outline.color = color.map { Color(0xFF00_0000 | Int64($0.value & 0xFFFFFF)) } } else { outline.fill = color.map { Color(0xFF00_0000 | Int64($0.value & 0xFFFFFF)) } }
+            new.outline = outline
+        }
+        guard new.sourceXML != xml else { return false }
         _store(index, id, old: old, new: new)
         return true
     }
