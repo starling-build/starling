@@ -11,8 +11,34 @@ import Foundation
 enum ChartPartPatcher {
     struct Result {
         var xml: String
-        /// The data changed: the embedded workbook must be rebuilt to match the chart's new formulas.
-        var workbook: Bool
+        /// The cells of the embedded workbook the data edit changed; the rest of the workbook is the user's.
+        var writes: [CellWrite]
+    }
+
+    struct CellWrite {
+        enum Value { case text(String), number(Double), empty }
+        var sheet: String
+        var row: Int
+        var col: Int
+        var value: Value
+    }
+
+    /// `data` (the chart's embedded workbook as the file wrote it) with `writes` made in it and nothing else
+    /// touched: other sheets, formulas, formats and names go through the Sheets reader and writer. nil leaves
+    /// the workbook as it was.
+    static func apply(_ writes: [CellWrite], to data: Data) -> Data? {
+        guard !writes.isEmpty, let book = try? Xlsx.read(data) else { return nil }
+        for w in writes {
+            guard let ws = book.sheets.first(where: { $0.name.lowercased() == w.sheet.lowercased() }) else { continue }
+            let a = CellAddress(row: w.row, col: w.col)
+            let style = ws.cells[a]?.style ?? 0
+            switch w.value {
+            case .text(let t): ws.cells[a] = Cell(input: t, value: .text(t), style: style)
+            case .number(let n): ws.cells[a] = Cell(input: ChartXML.number(n), value: .number(n), style: style)
+            case .empty: if style == 0 { ws.cells[a] = nil } else { ws.cells[a] = Cell(input: "", value: .empty, style: style) }
+            }
+        }
+        return try? Xlsx.write(book)
     }
 
     /// The part `xml` with the differences between `old` (as read) and `new` applied; nil when nothing differs
@@ -21,24 +47,23 @@ enum ChartPartPatcher {
         guard let parsed = XNode.parse(Data(xml.utf8)) else { return nil }
         let space = ChartXML.canonical(parsed)
         guard space.name == "c:chartSpace", let chart = space.first("c:chart"), let plot = chart.first("c:plotArea") else { return nil }
-        var workbook = false
+        var writes: [CellWrite] = []
         let dataChanged = old.categories != new.categories || old.series.map(\.name) != new.series.map(\.name)
             || old.series.map(\.values) != new.series.map(\.values)
         if old.type != new.type {
             guard convert(plot, to: new) else { return nil }
-            workbook = true
-        } else if dataChanged {
-            guard rewriteData(plot, new, covered: old.series.count) else { return nil }
-            workbook = true
         }
-        if old.title != new.title { setTitle(chart, new.title) }
+        if dataChanged {
+            guard rewriteData(plot, new, covered: old.series.count, writes: &writes) else { return nil }
+        }
+        if old.title != new.title { setTitle(chart, new.title, base: space.first("c:txPr")?.descendant("a:defRPr")) }
         if old.legend != new.legend || old.legendPosition != new.legendPosition { setLegend(chart, plot, new) }
-        return Result(xml: PptxXML.serialize(space), workbook: workbook)
+        return Result(xml: PptxXML.serialize(space), writes: writes)
     }
 
     // MARK: Title and legend
 
-    static func setTitle(_ chart: XNode, _ title: String?) {
+    static func setTitle(_ chart: XNode, _ title: String?, base: XNode? = nil) {
         let existing = chart.first("c:title")
         func flag(_ deleted: Bool) {
             if let f = chart.first("c:autoTitleDeleted") { f.attrs["val"] = deleted ? "1" : "0" }
@@ -58,16 +83,33 @@ enum ChartPartPatcher {
             p.children.removeAll { $0.name == "a:r" && $0 !== run }
             for extra in existing.descendants("a:p").dropFirst() { extra.children.removeAll { $0.name == "a:r" } }
         } else {
-            let node = XNode(name: "c:title", attrs: [:])
+            // No words yet: PowerPoint's own default look, in the chart's font; the title's other parts stay.
+            let node = existing ?? XNode(name: "c:title", attrs: [:])
             let tx = XNode(name: "c:tx", attrs: [:]), rich = XNode(name: "c:rich", attrs: [:])
             let p = XNode(name: "a:p", attrs: [:]), r = XNode(name: "a:r", attrs: [:]), t = XNode(name: "a:t", attrs: [:])
             t.text = title
-            r.children = [t]; p.children = [r]
+            let def = XNode(name: "a:defRPr", attrs: [:])
+            if let own = node.first("c:txPr")?.descendant("a:defRPr") { def.attrs = own.attrs; def.children = own.children.map(copy) }
+            else {
+                def.attrs = ["sz": "1862", "b": "0", "i": "0", "u": "none", "strike": "noStrike", "kern": "1200", "baseline": "0"]
+                let fill = XNode(name: "a:solidFill", attrs: [:]), clr = XNode(name: "a:schemeClr", attrs: ["val": "tx1"])
+                clr.children = [XNode(name: "a:lumMod", attrs: ["val": "65000"]), XNode(name: "a:lumOff", attrs: ["val": "35000"])]
+                fill.children = [clr]
+                def.children = [fill]
+                for face in ["a:latin", "a:ea", "a:cs"] { if let f = base?.first(face) { def.children.append(copy(f)) } }
+            }
+            let ppr = XNode(name: "a:pPr", attrs: [:]); ppr.children = [def]
+            let rpr = XNode(name: "a:rPr", attrs: def.attrs); rpr.children = def.children.map(copy)
+            r.children = [rpr, t]; p.children = [ppr, r]
             rich.children = [XNode(name: "a:bodyPr", attrs: [:]), XNode(name: "a:lstStyle", attrs: [:]), p]
             tx.children = [rich]
-            node.children = [tx, XNode(name: "c:overlay", attrs: ["val": "0"])]
-            chart.children.removeAll { $0.name == "c:title" }
-            chart.children.insert(node, at: 0)
+            node.children.removeAll { $0.name == "c:tx" }
+            node.children.insert(tx, at: 0)
+            if node.first("c:overlay") == nil {
+                let at = node.children.firstIndex { ["c:spPr", "c:txPr", "c:extLst"].contains($0.name) } ?? node.children.count
+                node.children.insert(XNode(name: "c:overlay", attrs: ["val": "0"]), at: at)
+            }
+            if existing == nil { chart.children.insert(node, at: 0) }
         }
         flag(false)
     }
@@ -123,31 +165,148 @@ enum ChartPartPatcher {
         ser.children.insert(node, at: at)
     }
 
-    /// One series' name, categories and values rewritten to the layout of the workbook `ChartXML.workbook` writes.
-    private static func fill(_ ser: XNode, index i: Int, _ c: Chart, scatter: Bool) {
-        let last = c.categories.count + 1
+    /// A reference "Sheet!$C$2:$C$5" read from a formula.
+    struct Span {
+        var sheetText: String
+        var sheet: String
+        var c0: Int, r0: Int, c1: Int, r1: Int
+        init?(_ f: String) {
+            guard let bang = f.lastIndex(of: "!") else { return nil }
+            sheetText = String(f[..<bang])
+            var name = sheetText
+            if name.hasPrefix("'"), name.hasSuffix("'"), name.count >= 2 {
+                name = String(name.dropFirst().dropLast()).replacingOccurrences(of: "''", with: "'")
+            }
+            sheet = name
+            let cells = f[f.index(after: bang)...].split(separator: ":", omittingEmptySubsequences: false).map(String.init)
+            guard cells.count <= 2, let a = CellAddress(cells[0]), let z = cells.count == 2 ? CellAddress(cells[1]) : a else { return nil }
+            c0 = a.col; r0 = a.row; c1 = z.col; r1 = z.row
+        }
+        init(sheetText: String, sheet: String, c0: Int, r0: Int, c1: Int, r1: Int) {
+            self.sheetText = sheetText; self.sheet = sheet; self.c0 = c0; self.r0 = r0; self.c1 = c1; self.r1 = r1
+        }
+        var text: String {
+            let first = "$\(ChartXML.column(c0))$\(r0 + 1)"
+            return sheetText + "!" + (c0 == c1 && r0 == r1 ? first : first + ":$\(ChartXML.column(c1))$\(r1 + 1)")
+        }
+        var isRow: Bool { r0 == r1 && c1 > c0 }
+        /// The same start with `n` cells, along its own direction (down for a single cell).
+        func resized(_ n: Int) -> Span {
+            var s = self
+            if isRow { s.c1 = c0 + max(n, 1) - 1 } else { s.r1 = r0 + max(n, 1) - 1; s.c1 = c0 }
+            return s
+        }
+        func cell(_ i: Int) -> (row: Int, col: Int) { isRow ? (r0, c0 + i) : (r0 + i, c0) }
+        var count: Int { isRow ? c1 - c0 + 1 : r1 - r0 + 1 }
+    }
+
+    private static func span(_ ser: XNode, _ name: String) -> Span? {
+        guard let f = ser.first(name)?.descendant("c:f")?.text else { return nil }
+        return Span(f)
+    }
+
+    /// Where new series go: the columns after the chart's own, on the sheet its values live on.
+    private struct Alloc {
+        var sheetText: String
+        var sheet: String
+        var nextCol: Int
+        var row0: Int
+        var cat: Span?
+    }
+
+    /// Writes `values` into `sp` (a span resized to them), clearing the old span's cells past the new end.
+    private static func write(_ values: [CellWrite.Value], old: Span?, into sp: Span, _ out: inout [CellWrite]) {
+        for (i, v) in values.enumerated() {
+            let c = sp.cell(i)
+            out.append(CellWrite(sheet: sp.sheet, row: c.row, col: c.col, value: v))
+        }
+        if let old, old.sheet == sp.sheet, old.count > values.count {
+            for i in values.count ..< old.count {
+                let c = old.cell(i)
+                out.append(CellWrite(sheet: old.sheet, row: c.row, col: c.col, value: .empty))
+            }
+        }
+    }
+
+    private static func literal(_ name: String, _ strings: [String], text: Bool) -> XNode {
+        let node = XNode(name: name, attrs: [:])
+        if !text {
+            let fc = XNode(name: "c:formatCode", attrs: [:]); fc.text = "General"
+            node.children.append(fc)
+        }
+        node.children.append(XNode(name: "c:ptCount", attrs: ["val": "\(strings.count)"]))
+        for (i, s) in strings.enumerated() where !(s.isEmpty && !text) {
+            let pt = XNode(name: "c:pt", attrs: ["idx": "\(i)"]), v = XNode(name: "c:v", attrs: [:])
+            v.text = s
+            pt.children = [v]
+            node.children.append(pt)
+        }
+        return node
+    }
+
+    /// One series' name, categories and values rewritten in place: its own cells (resized to the new length) where
+    /// it has them, new columns (`alloc`) where it has none; the cell changes go to `writes`.
+    private static func fill(_ ser: XNode, index i: Int, _ c: Chart, scatter: Bool, alloc: inout Alloc, writes: inout [CellWrite]) {
+        let n = c.categories.count
         let s = c.series[i]
-        ser.first("c:idx")?.attrs["val"] = "\(i)"
-        ser.first("c:order")?.attrs["val"] = "\(i)"
+        let vName = scatter ? "c:yVal" : "c:val", cName = scatter ? "c:xVal" : "c:cat"
+        let oldVal = span(ser, vName), oldCat = span(ser, cName), oldTx = span(ser, "c:tx")
+        let fmt = ser.first(vName)?.descendant("c:formatCode")?.text
+        // Values.
+        var valSpan = oldVal?.resized(n)
+        if valSpan == nil, oldVal == nil, ser.first(vName) == nil || ser.first(vName)?.descendant("c:f") == nil, alloc.cat != nil {
+            let col = alloc.nextCol; alloc.nextCol += 1
+            valSpan = Span(sheetText: alloc.sheetText, sheet: alloc.sheet, c0: col, r0: alloc.row0, c1: col, r1: alloc.row0).resized(n)
+        }
+        let values = (0 ..< n).map { r in r < s.values.count ? s.values[r] : nil }
+        let valStrings = values.map { $0.map { ChartXML.number($0) } ?? "" }
+        let vNode = XNode(name: vName, attrs: [:])
+        if let vs = valSpan {
+            vNode.children = [ref("c:numRef", vs.text, strings: valStrings, text: false)]
+            if let fmt { vNode.first("c:numRef")?.first("c:numCache")?.first("c:formatCode")?.text = fmt }
+            write(values.map { $0.map { .number($0) } ?? .empty }, old: oldVal, into: vs, &writes)
+        } else {
+            vNode.children = [literal("c:numLit", valStrings, text: false)]
+        }
+        // Name: its own cell, else the one above the values, else literal text.
         let tx = XNode(name: "c:tx", attrs: [:])
-        tx.children = [ref("c:strRef", "Sheet1!$\(col(i + 1))$1", strings: [s.name], text: true)]
+        var nameSpan = oldTx
+        if nameSpan == nil, let vs = valSpan, oldVal == nil || oldTx != nil {
+            if vs.isRow { if vs.c0 > 0 { nameSpan = Span(sheetText: vs.sheetText, sheet: vs.sheet, c0: vs.c0 - 1, r0: vs.r0, c1: vs.c0 - 1, r1: vs.r0) } }
+            else if vs.r0 > 0 { nameSpan = Span(sheetText: vs.sheetText, sheet: vs.sheet, c0: vs.c0, r0: vs.r0 - 1, c1: vs.c0, r1: vs.r0 - 1) }
+        }
+        if let ns = nameSpan {
+            tx.children = [ref("c:strRef", ns.text, strings: [s.name], text: true)]
+            writes.append(CellWrite(sheet: ns.sheet, row: ns.r0, col: ns.c0, value: .text(s.name)))
+        } else {
+            let v = XNode(name: "c:v", attrs: [:]); v.text = s.name
+            tx.children = [v]
+        }
         put(ser, "c:tx", tx, before: ["c:spPr", "c:invertIfNegative", "c:marker", "c:dPt", "c:dLbls", "c:trendline", "c:errBars",
                                       "c:cat", "c:val", "c:xVal", "c:yVal", "c:smooth"])
-        let values = (0 ..< c.categories.count).map { r in r < s.values.count ? s.values[r].map { ChartXML.number($0) } ?? "" : "" }
-        let vals = ref("c:numRef", "Sheet1!$\(col(i + 1))$2:$\(col(i + 1))$\(last)", strings: values, text: false)
-        if scatter {
-            let x = ref("c:numRef", "Sheet1!$A$2:$A$\(last)", strings: c.categories.indices.map { ChartXML.number(c.x($0)) }, text: false)
-            let xv = XNode(name: "c:xVal", attrs: [:]); xv.children = [x]
-            let yv = XNode(name: "c:yVal", attrs: [:]); yv.children = [vals]
-            put(ser, "c:xVal", xv, before: ["c:yVal", "c:smooth"])
-            put(ser, "c:yVal", yv, before: ["c:smooth"])
+        // Categories (or x values): shared by the series, so a new series reuses the first one's cells.
+        let catSpan = (oldCat ?? alloc.cat)?.resized(n)
+        let cNode = XNode(name: cName, attrs: [:])
+        let catStrings = scatter ? c.categories.indices.map { ChartXML.number(c.x($0)) } : c.categories
+        if let cs = catSpan {
+            cNode.children = [ref(scatter ? "c:numRef" : "c:strRef", cs.text, strings: catStrings, text: !scatter)]
+            if oldCat != nil || i == 0 {
+                write(scatter ? c.categories.indices.map { .number(c.x($0)) } : c.categories.map { .text($0) }, old: oldCat, into: cs, &writes)
+            }
         } else {
-            let cat = XNode(name: "c:cat", attrs: [:])
-            cat.children = [ref("c:strRef", "Sheet1!$A$2:$A$\(last)", strings: c.categories, text: true)]
-            let val = XNode(name: "c:val", attrs: [:]); val.children = [vals]
-            put(ser, "c:cat", cat, before: ["c:val", "c:smooth"])
-            put(ser, "c:val", val, before: ["c:smooth", "c:shape"])
+            cNode.children = [literal(scatter ? "c:numLit" : "c:strLit", catStrings, text: !scatter)]
         }
+        put(ser, cName, cNode, before: scatter ? ["c:yVal", "c:smooth"] : ["c:val", "c:smooth"])
+        put(ser, vName, vNode, before: ["c:smooth", "c:shape"])
+        if alloc.cat == nil { alloc.cat = catSpan }
+    }
+
+    /// The series' name, categories and values as the file wrote them (a type change keeps the data and its cells).
+    private static func carry(_ ser: XNode, from old: XNode, scatter: Bool) {
+        if let tx = old.first("c:tx") { ser.children.append(copy(tx)) }
+        let x = old.first("c:cat") ?? old.first("c:xVal"), y = old.first("c:val") ?? old.first("c:yVal")
+        if let x { let n = copy(x); n.name = scatter ? "c:xVal" : "c:cat"; ser.children.append(n) }
+        if let y { let n = copy(y); n.name = scatter ? "c:yVal" : "c:val"; ser.children.append(n) }
     }
 
     private static func copy(_ n: XNode) -> XNode {
@@ -159,7 +318,7 @@ enum ChartPartPatcher {
 
     /// The same type, new data: each series keeps its own look; extra series are cloned from the last (without its
     /// colour, so the style's next one shows), fewer drop the last ones.
-    private static func rewriteData(_ plot: XNode, _ c: Chart, covered: Int) -> Bool {
+    private static func rewriteData(_ plot: XNode, _ c: Chart, covered: Int, writes: inout [CellWrite]) -> Bool {
         let gs = groups(plot)
         guard !gs.isEmpty, !gs.contains(where: { ["c:stockChart", "c:bubbleChart"].contains($0.name) }) else { return false }
         let wanted = c.type.isPie ? Array(c.series.prefix(1)) : c.series
@@ -170,6 +329,14 @@ enum ChartPartPatcher {
         let rest = covered > 0 && covered < all.count ? Array(all[covered...]) : []
         if !rest.isEmpty { all = Array(all[..<covered]) }
         guard let template = all.last else { return false }
+        let vName = scatter ? "c:yVal" : "c:val"
+        var alloc = Alloc(sheetText: "Sheet1", sheet: "Sheet1", nextCol: 1, row0: 1, cat: nil)
+        if let tv = span(template.ser, vName) {
+            alloc.sheetText = tv.sheetText; alloc.sheet = tv.sheet; alloc.row0 = tv.r0
+            let spans = (all + rest).compactMap { span($0.ser, vName) }.filter { $0.sheet == tv.sheet }
+            alloc.nextCol = (spans.map { max($0.c1, $0.c0) }.max() ?? tv.c1) + 1
+            alloc.cat = span(template.ser, scatter ? "c:xVal" : "c:cat")
+        }
         // Drop the extra ones.
         if all.count > wanted.count {
             for (g, s) in all[wanted.count...] { g.children.removeAll { $0 === s } }
@@ -177,14 +344,21 @@ enum ChartPartPatcher {
         }
         while all.count < wanted.count {
             let clone = copy(template.ser)
-            clone.children.removeAll { ["c:spPr", "c:dPt", "c:dLbls", "c:trendline", "c:errBars", "c:marker", "c:extLst"].contains($0.name) }
+            clone.children.removeAll { ["c:spPr", "c:dPt", "c:dLbls", "c:trendline", "c:errBars", "c:marker", "c:extLst",
+                                        "c:tx", "c:cat", "c:val", "c:xVal", "c:yVal"].contains($0.name) }
+            var top = -1
+            for g in groups(plot) { for e in g.all("c:ser") {
+                top = max(top, Int(e.first("c:idx")?["val"] ?? "") ?? -1, Int(e.first("c:order")?["val"] ?? "") ?? -1)
+            } }
+            clone.first("c:idx")?.attrs["val"] = "\(top + 1)"
+            clone.first("c:order")?.attrs["val"] = "\(top + 1)"
             let at = (template.group.children.lastIndex { $0.name == "c:ser" } ?? template.group.children.count - 1) + 1
             template.group.children.insert(clone, at: at)
             all.append((template.group, clone))
         }
         var shown = c
         shown.series = wanted
-        for (i, e) in all.enumerated() { fill(e.ser, index: i, shown, scatter: scatter) }
+        for (i, e) in all.enumerated() { fill(e.ser, index: i, shown, scatter: scatter, alloc: &alloc, writes: &writes) }
         return true
     }
 
@@ -214,10 +388,13 @@ enum ChartPartPatcher {
         let wanted = c.type.isPie ? Array(c.series.prefix(1)) : c.series
         var shown = c; shown.series = wanted
         let keepsLook = !(c.type.isPie || group.name == "c:pieChart" || group.name == "c:doughnutChart" || c.type == .scatter || group.name == "c:scatterChart")
+        // A pie shows one series, so the others have no cells of their own to carry over.
+        guard oldSers.count >= wanted.count else { return false }
         var sers: [XNode] = []
         for i in wanted.indices {
             let ser = node("c:ser")
-            ser.children = [node("c:idx", ["val": "\(i)"]), node("c:order", ["val": "\(i)"])]
+            ser.children = [node("c:idx", ["val": oldSers[i].first("c:idx")?["val"] ?? "\(i)"]),
+                            node("c:order", ["val": oldSers[i].first("c:order")?["val"] ?? "\(i)"])]
             if keepsLook, i < oldSers.count, let sp = oldSers[i].first("c:spPr") {
                 let spc = copy(sp)
                 // A line type draws with the series' line, an area or bar with its fill.
@@ -227,7 +404,7 @@ enum ChartPartPatcher {
                 }
                 ser.children.append(spc)
             }
-            fill(ser, index: i, shown, scatter: c.type == .scatter)
+            carry(ser, from: oldSers[i], scatter: c.type == .scatter)
             if c.type == .line || c.type == .scatter { ser.children.append(node("c:smooth", ["val": "0"])) }
             sers.append(ser)
         }
@@ -271,7 +448,8 @@ enum ChartPartPatcher {
         }
         // A bar chart's category axis stands at the left, its value axis at the bottom (and the other way for a column).
         if c.type == .bar || c.type == .column {
-            for ax in plot.children where ax.name == "c:catAx" || ax.name == "c:valAx" {
+            let own = Set(g.all("c:axId").compactMap { $0["val"] })
+            for ax in plot.children where (ax.name == "c:catAx" || ax.name == "c:valAx") && own.contains(ax.first("c:axId")?["val"] ?? "") {
                 if let pos = ax.first("c:axPos") {
                     let vertical = (ax.name == "c:catAx") == (c.type == .bar)
                     pos.attrs["val"] = vertical ? "l" : "b"

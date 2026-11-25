@@ -962,7 +962,7 @@ private struct SlideXML {
                ChartPartPatcher.patch(text, old: old, new: chart) != nil {
                 return kept(xml, sourcePart: part, package: p, builder: &builder, patch: s.frame, fileId: s.fileId,
                             chartEdit: { ChartPartPatcher.patch($0, old: old, new: chart) },
-                            chartBook: { (try? ChartXML.workbook(chart)) ?? Data() })
+                            chartBook: { ChartPartPatcher.apply($0, to: $1) })
             }
             return _chart(chart, s, name: name, media: &media, builder: &builder)
         case .geometry(let preset) where (preset.isLine || preset.rawValue.hasPrefix("bentConnector")
@@ -1344,7 +1344,7 @@ private struct SlideXML {
                        builder b: inout PackageBuilder, patch frame: Rect?, fileId: Int? = nil,
                        rotation: Double? = nil, placeIfMissing: Bool = false, flips: (h: Bool, v: Bool)? = nil,
                        hidden: Bool? = nil, edit: ((XNode) -> Void)? = nil, descr: String?? = nil,
-                       chartEdit: ((String) -> ChartPartPatcher.Result?)? = nil, chartBook: (() -> Data)? = nil) -> String {
+                       chartEdit: ((String) -> ChartPartPatcher.Result?)? = nil, chartBook: (([ChartPartPatcher.CellWrite], Data) -> Data?)? = nil) -> String {
         guard let node = XNode.parse(Data(xml.utf8)) else { return "" }
         edit?(node)
         // A changed alt text: set (or remove) `descr` on the element's own `cNvPr`.
@@ -1400,9 +1400,10 @@ private struct SlideXML {
                     if r.type.hasSuffix("/chart"), let chartEdit, let data = p.parts[r.target], let xml = String(data: data, encoding: .utf8),
                        let result = chartEdit(xml) {
                         b.parts[child] = Data(result.xml.utf8)
-                        if result.workbook, let chartBook,
-                           let book = p.rels(r.target).first(where: { $0.type.hasSuffix("/package") && !$0.external }), let name = done[book.target] {
-                            b.parts[name] = chartBook()
+                        if !result.writes.isEmpty, let chartBook,
+                           let book = p.rels(r.target).first(where: { $0.type.hasSuffix("/package") && !$0.external }), let name = done[book.target],
+                           let old = b.parts[name], let patched = chartBook(result.writes, old) {
+                            b.parts[name] = patched
                         }
                     }
                     n.attrs[k] = _rel(r.type, Pptx.relative(child, from: part), preferred: v)

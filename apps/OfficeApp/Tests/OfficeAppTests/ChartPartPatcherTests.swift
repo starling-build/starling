@@ -23,7 +23,7 @@ final class ChartPartPatcherTests: XCTestCase {
         new.series = [ChartSeries(name: "One", values: [1, 2, 3, 4, 5]), ChartSeries(name: "Two", values: [5, 4, nil, 2, 1]),
                       ChartSeries(name: "Three", values: [2, 2, 2, 2, 2])]
         let r = try XCTUnwrap(ChartPartPatcher.patch(xml, old: old, new: new))
-        XCTAssertTrue(r.workbook)
+        XCTAssertFalse(r.writes.isEmpty)
         XCTAssertTrue(r.xml.contains("<c:style val=\"42\"/>"), "what the user did not touch stays")
         let back = try XCTUnwrap(readBack(r.xml))
         XCTAssertEqual(back.title, "Revenue")
@@ -54,7 +54,8 @@ final class ChartPartPatcherTests: XCTestCase {
             let back = try XCTUnwrap(readBack(r.xml), "\(type) reads")
             XCTAssertEqual(back.type, type)
             XCTAssertEqual(back.series[0].values, old.series[0].values, "\(type)")
-            // And back again.
+            // And back again (a pie kept one series, so the others' cells are gone: that one is written fresh).
+            if type.isPie { continue }
             let again = try XCTUnwrap(ChartPartPatcher.patch(r.xml, old: new, new: old))
             XCTAssertEqual(readBack(again.xml)?.type, .column)
         }
@@ -88,5 +89,65 @@ final class ChartPartPatcherTests: XCTestCase {
         XCTAssertEqual(out.parts.keys.filter { $0.hasPrefix("ppt/embeddings/") }.count, 1)
         let text = String(data: out.parts[parts[0]] ?? Data(), encoding: .utf8) ?? ""
         XCTAssertTrue(text.contains("<c:style val=\"42\"/>"), "the file's own styling is kept")
+    }
+
+    private func ser(_ idx: Int, _ col: String, _ name: String, _ vals: [Int]) -> String {
+        let pts = vals.enumerated().map { "<c:pt idx=\"\($0.offset)\"><c:v>\($0.element)</c:v></c:pt>" }.joined()
+        return "<c:ser><c:idx val=\"\(idx)\"/><c:order val=\"\(idx)\"/><c:tx><c:strRef><c:f>'資料'!$\(col)$1</c:f><c:strCache><c:ptCount val=\"1\"/><c:pt idx=\"0\"><c:v>\(name)</c:v></c:pt></c:strCache></c:strRef></c:tx><c:spPr><a:ln w=\"9525\"/></c:spPr><c:cat><c:strRef><c:f>'資料'!$A$2:$A$3</c:f><c:strCache><c:ptCount val=\"2\"/><c:pt idx=\"0\"><c:v>a</c:v></c:pt><c:pt idx=\"1\"><c:v>b</c:v></c:pt></c:strCache></c:strRef></c:cat><c:val><c:numRef><c:f>'資料'!$\(col)$2:$\(col)$3</c:f><c:numCache><c:formatCode>General</c:formatCode><c:ptCount val=\"2\"/>\(pts)</c:numCache></c:numRef></c:val></c:ser>"
+    }
+
+    /// A chart as PowerPoint writes it: two chart groups, a worksheet with its own name, a legend and a title.
+    private var twoGroupPart: String {
+        "<?xml version=\"1.0\"?><c:chartSpace xmlns:c=\"http://schemas.openxmlformats.org/drawingml/2006/chart\" xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\"><c:chart><c:title><c:tx><c:rich><a:bodyPr/><a:p><a:r><a:rPr lang=\"en-US\" sz=\"2000\"/><a:t>T</a:t></a:r></a:p></c:rich></c:tx><c:overlay val=\"0\"/></c:title><c:autoTitleDeleted val=\"0\"/><c:plotArea><c:lineChart><c:grouping val=\"standard\"/>"
+            + ser(0, "B", "S0", [1, 2]) + "<c:axId val=\"1\"/><c:axId val=\"2\"/></c:lineChart><c:lineChart><c:grouping val=\"standard\"/>"
+            + ser(1, "C", "S1", [3, 4]) + "<c:axId val=\"3\"/><c:axId val=\"4\"/></c:lineChart><c:catAx><c:axId val=\"1\"/><c:axPos val=\"b\"/><c:crossAx val=\"2\"/></c:catAx><c:valAx><c:axId val=\"2\"/><c:axPos val=\"l\"/><c:crossAx val=\"1\"/></c:valAx><c:valAx><c:axId val=\"4\"/><c:axPos val=\"r\"/><c:crossAx val=\"3\"/></c:valAx><c:catAx><c:axId val=\"3\"/><c:delete val=\"1\"/><c:axPos val=\"b\"/><c:crossAx val=\"4\"/></c:catAx></c:plotArea><c:legend><c:legendPos val=\"b\"/></c:legend></c:chart></c:chartSpace>"
+    }
+
+    func testDataEditKeepsIdsSheetNameAndTheOtherSeries() throws {
+        let xml = twoGroupPart
+        let old = try XCTUnwrap(readBack(xml))
+        var new = old
+        new.categories = old.categories + ["c"]
+        new.series = old.series.map { var x = $0; x.values.append(9); return x }
+        let r = try XCTUnwrap(ChartPartPatcher.patch(xml, old: old, new: new))
+        XCTAssertTrue(r.xml.contains("'資料'!$B$2:$B$4"), "the file's own sheet and cells")
+        XCTAssertFalse(r.xml.contains("Sheet1"))
+        XCTAssertEqual(r.xml.components(separatedBy: "<c:idx val=\"0\"/>").count, 2)
+        XCTAssertEqual(r.xml.components(separatedBy: "<c:idx val=\"1\"/>").count, 2)
+        XCTAssertTrue(r.xml.contains("<c:legend>") && r.xml.contains("sz=\"2000\""), "legend and title stay")
+        XCTAssertTrue(r.writes.allSatisfy { $0.sheet == "資料" })
+    }
+
+    func testTypeChangeKeepsIdsCellsAndTheSecondAxis() throws {
+        var xml = twoGroupPart
+        xml = xml.replacingOccurrences(of: "<c:lineChart>", with: "<c:barChart><c:barDir val=\"col\"/>", options: [], range: xml.range(of: "<c:lineChart>"))
+        xml = xml.replacingOccurrences(of: "</c:lineChart>", with: "</c:barChart>", options: [], range: xml.range(of: "</c:lineChart>"))
+        var old = try XCTUnwrap(readBack(xml))
+        old.type = .column
+        var new = old; new.type = .line
+        let r = try XCTUnwrap(ChartPartPatcher.patch(xml, old: old, new: new))
+        XCTAssertTrue(r.writes.isEmpty, "a type change leaves the workbook alone")
+        XCTAssertTrue(r.xml.contains("'資料'!$B$2:$B$3"))
+        XCTAssertTrue(r.xml.contains("<c:legend>"))
+        XCTAssertEqual(r.xml.components(separatedBy: "<c:idx val=\"1\"/>").count, 2)
+        XCTAssertTrue(r.xml.contains("<c:axId val=\"4\"/><c:axPos val=\"r\"/>") || r.xml.contains("<c:axPos val=\"r\"/>"), "the second value axis stays at the right")
+    }
+
+    func testWorkbookEditKeepsASecondSheetAndAFormula() throws {
+        let book = Workbook(sheets: [Worksheet(name: "資料"), Worksheet(name: "Notes")])
+        book.sheets[0].cells[CellAddress(row: 0, col: 1)] = Cell(input: "S0", value: .text("S0"))
+        book.sheets[0].cells[CellAddress(row: 1, col: 1)] = Cell(input: "1", value: .number(1))
+        book.sheets[1].cells[CellAddress(row: 0, col: 0)] = Cell(input: "7", value: .number(7))
+        book.sheets[1].cells[CellAddress(row: 1, col: 0)] = Cell(input: "=A1*2")
+        let data = try Xlsx.write(book)
+        let writes = [ChartPartPatcher.CellWrite(sheet: "資料", row: 1, col: 1, value: .number(5)),
+                      ChartPartPatcher.CellWrite(sheet: "資料", row: 2, col: 1, value: .number(6))]
+        let out = try XCTUnwrap(ChartPartPatcher.apply(writes, to: data))
+        let back = try Xlsx.read(out)
+        XCTAssertEqual(back.sheets.map(\.name), ["資料", "Notes"])
+        XCTAssertEqual(back.sheets[0].cells[CellAddress(row: 1, col: 1)]?.value, .number(5))
+        XCTAssertEqual(back.sheets[0].cells[CellAddress(row: 2, col: 1)]?.value, .number(6))
+        XCTAssertEqual(back.sheets[1].cells[CellAddress(row: 1, col: 0)]?.input, "=A1*2", "the formula is still a formula")
+        XCTAssertEqual(back.sheets[1].cells[CellAddress(row: 0, col: 0)]?.value, .number(7))
     }
 }
