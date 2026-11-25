@@ -88,6 +88,8 @@ final class OfficeShellState: State<StatefulWidget> {
     private var _recovered = false
     private let _headerText = TextEditingController()
     private let _footerText = TextEditingController()
+    private var _headerLook = RichDocumentController.HeaderFooterLook()
+    private var _footerLook = RichDocumentController.HeaderFooterLook()
 
     private var controller: RichDocumentController { session.controller }
 
@@ -360,6 +362,8 @@ final class OfficeShellState: State<StatefulWidget> {
             guard let self else { return }
             self._headerText.text = self.controller.document.header
             self._footerText.text = self.controller.document.footer
+            self._headerLook = self.controller.headerFooterLook(.header)
+            self._footerLook = self.controller.headerFooterLook(.footer)
             self.setState { self._headerFooterOpen = true }
         }
         session.onLink = { [weak self] in self?._openLink() }
@@ -1190,10 +1194,17 @@ final class OfficeShellState: State<StatefulWidget> {
             column.append(HeaderFooterBar(session: session, header: _headerText, footer: _footerText,
                                           headerLocked: controller.document.hasRichHeaderFooter(.header),
                                           footerLocked: controller.document.hasRichHeaderFooter(.footer),
+                                          headerLook: _headerLook, footerLook: _footerLook,
+                                          onLook: { [weak self] isHeader, look in
+                                              self?.setState { if isHeader { self?._headerLook = look } else { self?._footerLook = look } }
+                                          },
                                           onApply: { [weak self] in
                                               guard let self else { return }
-                                              self.controller.setHeaderFooter(header: self._headerText.text,
-                                                                              footer: self._footerText.text)
+                                              self.controller.applyHeaderFooterStrip(
+                                                  header: self._headerText.text, footer: self._footerText.text,
+                                                  headerLook: self._headerLook, footerLook: self._footerLook,
+                                                  headerLocked: self.controller.document.hasRichHeaderFooter(.header),
+                                                  footerLocked: self.controller.document.hasRichHeaderFooter(.footer))
                                               self.setState { self._headerFooterOpen = false }
                                           },
                                           onClose: { [weak self] in self?.setState { self?._headerFooterOpen = false } }))
