@@ -87,6 +87,26 @@ final class SheetsPivotGroupTests: XCTestCase {
         XCTAssertTrue(cache.contains("<s v=\"10-19\"/>"))
     }
 
+    func testGroupsAreReadBackFromAFile() throws {
+        let wc = book(dates: false)
+        XCTAssertNil(wc.setPivotGroup(sheet: wc.sheet, pivot: 0, field: 0, group: .numbers(start: 0, end: 80, by: 10)))
+        let data = try Xlsx.write(wc.book)
+        let back = WorkbookController()
+        back.load(try Xlsx.read(data))
+        XCTAssertEqual(back.sheet.pivots.first?.fileSpec?.groups, [0: .numbers(start: 0, end: 80, by: 10)])
+        // refreshed here, it lays out grouped
+        XCTAssertEqual(back.refreshPivots(), 1)
+        XCTAssertTrue(column(back).contains("10-19"))
+        // a kind it cannot lay out the same is left to Excel
+        let wd = book(dates: true)
+        XCTAssertNil(wd.setPivotGroup(sheet: wd.sheet, pivot: 0, field: 0, group: .dates(.months)))
+        let files = try Zip.read(try Xlsx.write(wd.book))
+        let back2 = WorkbookController()
+        back2.load(try Xlsx.read(try Xlsx.write(wd.book)))
+        XCTAssertEqual(back2.sheet.pivots.first?.fileSpec?.groups, [0: .dates(.months)])
+        XCTAssertFalse(files.isEmpty)
+    }
+
     func testDialogOffersRangeForNumbersAndGroupsOnOK() {
         let wc = book(dates: false)
         wc.select(CellAddress("D2")!)
