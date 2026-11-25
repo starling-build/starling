@@ -507,7 +507,7 @@ extension DocxFormat {
             let color = l.color.map { _hex($0) } ?? "auto"
             return "<w:\(name) w:val=\"\(_esc(l.style ?? "single"))\" w:sz=\"\(Int((l.width * 8).rounded()))\" w:space=\"\(Int(l.space.rounded()))\" w:color=\"\(color)\"/>"
         }
-        return "<w:pBdr>" + edge("top", b.top) + edge("left", b.left) + edge("bottom", b.bottom) + edge("right", b.right) + "</w:pBdr>"
+        return "<w:pBdr>" + edge("top", b.top) + edge("left", b.left) + edge("bottom", b.bottom) + edge("right", b.right) + edge("between", b.between) + "</w:pBdr>"
     }
 
     /// `<w:spacing>` with the style's before, after and line, all of them

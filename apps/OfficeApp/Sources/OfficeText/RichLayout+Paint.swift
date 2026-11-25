@@ -1622,7 +1622,9 @@ extension RichLayout {
                     canvas.drawLine(Offset(x0, y), Offset(x1, y), p)
                 }
             }
-            if let l = b.top, l.style != "none", !(theme.wordRules && _bordersJoin(i - 1, i, document)) {
+            // (Joined to the paragraph above: the box's Inside line stands where a top line would.)
+            let joinedAbove = theme.wordRules && _bordersJoin(i - 1, i, document)
+            if let l = joinedAbove ? b.between : b.top, l.style != "none" {
                 if Self._ruleLines(l.style, l.width).count > 1 {
                     compound(l, from: g.textTop - _px(l.space), outward: -1)
                 } else {
@@ -1643,7 +1645,7 @@ extension RichLayout {
             if let box {
                 // (One box: no top line or room under a joined edge, the sides on to the next
                 // paragraph's text where it follows on the page.)
-                if _bordersJoin(i - 1, i, document) { y0 = g.textTop }
+                if _bordersJoin(i - 1, i, document) { y0 = b.between.map { g.textTop - _px(2 * $0.space + Self._ruleRoom($0.style, $0.width)) } ?? g.textTop }
                 if _bordersJoin(i, i + 1, document) { y1 = box.bottom }
                 y0 -= _droppedBefore(i, document)
             }

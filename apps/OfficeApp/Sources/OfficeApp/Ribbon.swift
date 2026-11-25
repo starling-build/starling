@@ -389,7 +389,8 @@ final class Ribbon: StatelessWidget {
             MenuFlyoutSeparator(),
             MenuFlyoutItem(text: Text("All Borders"), onPressed: paraBorder([.top, .bottom, .left, .right])),
             MenuFlyoutItem(text: Text("Outside Borders"), onPressed: paraBorder([.top, .bottom, .left, .right])),
-            MenuFlyoutItem(text: Text("No Border"), onPressed: paraBorder([.top, .bottom, .left, .right], remove: true)),
+            MenuFlyoutItem(text: Text("Inside Border"), onPressed: paraBorder([.insideH])),
+            MenuFlyoutItem(text: Text("No Border"), onPressed: paraBorder([.top, .bottom, .left, .right, .insideH], remove: true)),
             MenuFlyoutSeparator(),
             MenuFlyoutItem(text: Text("Borders and Shading…"), onPressed: { [session] in session.onBordersShadingDialog?() }),
         ]
