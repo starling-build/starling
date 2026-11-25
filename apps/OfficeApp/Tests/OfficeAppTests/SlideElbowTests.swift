@@ -194,4 +194,25 @@ final class SlideElbowTests: XCTestCase {
         deck.selectShapes([deck.currentSlide.shapes[3]]); deck.nudgeSelection(dx: 20, dy: 10)
         try Pptx.write(deck).write(to: URL(fileURLWithPath: dir + "/elbows.pptx"))
     }
+
+    func testMiddleRunHandleSitsOnTheRunAndDragsIt() {
+        let deck = DeckController()
+        let l = elbow(deck)
+        let r = ElbowRoute.make(from: Offset(100, 100), to: Offset(300, 200), leaving: (1, 0), arriving: (1, 0), curved: false)
+        l.apply(r)
+        let hs = l.elbowAdjustHandles
+        XCTAssertEqual(hs.count, 1)
+        near(hs[0].at, Offset(200, 150), "the middle of the vertical run")
+        deck.beginFrameEdit()
+        deck.setElbowRunLive(l, "adj1", alongWidth: true, to: Offset(150, 170))
+        XCTAssertEqual(l.adjusts["adj1"] ?? 0, 25000, accuracy: 1)
+        near(l.elbowAdjustHandles[0].at, Offset(150, 150))
+        deck.endFrameEdit()
+        // Turned and mirrored: the same drag still lands on the run.
+        let m = elbow(deck)
+        m.apply(ElbowRoute.make(from: Offset(300, 400), to: Offset(100, 300), leaving: (-1, 0), arriving: (-1, 0), curved: false))
+        near(m.elbowAdjustHandles[0].at, Offset(200, 350))
+        deck.setElbowRunLive(m, "adj1", alongWidth: true, to: Offset(250, 330))
+        near(m.elbowAdjustHandles[0].at, Offset(250, 350))
+    }
 }

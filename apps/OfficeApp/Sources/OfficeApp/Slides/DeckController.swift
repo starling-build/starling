@@ -1881,6 +1881,12 @@ final class DeckController: ChangeNotifier {
     /// The drag is over: typing after it is a step of its own.
     func endFrameEdit() { _changed() }
 
+    /// A drag of the yellow handle on an elbow's middle run (the drag has its own history entry, from `beginFrameEdit`).
+    func setElbowRunLive(_ shape: SlideShape, _ key: String, alongWidth: Bool, to p: Offset) {
+        shape.setElbowAdjust(key, alongWidth: alongWidth, to: p)
+        _changed(keepSession: true)
+    }
+
     func setRotationLive(_ shape: SlideShape, _ degrees: Double) {
         var d = degrees.truncatingRemainder(dividingBy: 360)
         if d < 0 { d += 360 }
