@@ -171,6 +171,10 @@ public struct CharStyle: Hashable, Codable, Sendable {
     public var link: String? = nil
     /// The hyperlink's screen tip (Word's w:tooltip); only meaningful with a link.
     public var linkTip: String? = nil
+    /// The HYPERLINK field instruction (as written) this run's text is the result of, and which field it is: the link is
+    /// kept as the field on save, and is not drawn blue or underlined unless the run's own look says so.
+    public var linkField: String? = nil
+    public var linkFieldID = 0
     public var script: ScriptPosition = .normal
     /// Slides fontAlgn t, ctr or b on a line that mixes faces or sizes: where this run's baseline stands below the line's top, and where the engine's own line puts it, in ems of the run's size (nil: the paragraph is moved as a whole).
     public var alignTop: Double? = nil

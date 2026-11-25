@@ -1445,6 +1445,12 @@ extension DocxFormat {
                     cs.field = instr; notes.fieldShown = true
                 }
             }
+            // A HYPERLINK field's result is the link's text, whatever fields sit inside it (and across paragraphs).
+            if cs.link == nil, let h = notes.fields.last(where: { $0.result && Self._isHyperlinkField($0.instr) }),
+               let t = Self._hyperlinkFieldTarget(h.instr) {
+                cs.link = t.target; cs.linkTip = t.tip
+                cs.linkField = h.instr.trimmingWhitespace(newlines: true); cs.linkFieldID = h.id
+            }
             // (Its style reference would name an id the save may rename.)
             runPropertiesXML = r.first("w:rPr").flatMap { $0.first("w:rStyle") == nil && !$0.children.isEmpty ? PptxXML.serialize($0) : nil }
             runFrame = r.first("w:rPr")?.first("w:bdr").flatMap(_borderLine).flatMap { $0.width > 0 ? $0 : nil }
