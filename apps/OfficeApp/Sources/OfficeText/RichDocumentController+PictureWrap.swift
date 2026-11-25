@@ -225,8 +225,7 @@ extension RichDocumentController {
     }
 
     private func _setShapePaint(_ index: Int, _ id: String?, line: Bool, _ color: Color?, _ theme: (slot: Int, lumMod: Int, lumOff: Int)? = nil) -> Bool {
-        guard let old = _floating(index, id), let xml = old.sourceXML, xml.containsSubstring("<wps:wsp"),
-              let open = xml.rangeOfSubstring("<wps:spPr>"), let close = xml.rangeOfSubstring("</wps:spPr>", in: open.upperBound ..< xml.endIndex) else { return false }
+        guard let old = _floating(index, id), let xml = old.sourceXML, xml.containsSubstring("<wps:wsp") else { return false }
         var hex = ""
         if let color { let v = String(color.value & 0xFFFFFF, radix: 16, uppercase: true); hex = String(repeating: "0", count: 6 - v.count) + v }
         // A theme pick stays linked to its slot (`a:schemeClr` with lumMod / lumOff), so a theme change recolours it.
@@ -238,30 +237,44 @@ extension RichDocumentController {
             if t.lumOff > 0 { mods += "<a:lumOff val=\"\(t.lumOff * 1000)\"/>" }
             paint = "<a:solidFill><a:schemeClr val=\"\(names[t.slot])\"" + (mods.isEmpty ? "/>" : ">\(mods)</a:schemeClr>") + "</a:solidFill>"
         }
-        var body = String(xml[open.upperBound ..< close.lowerBound])
-        // Where the paint stands: after the geometry for the fill, inside the line's element for the outline.
-        var at: String.Index
-        if line {
-            guard let l = body.rangeOfSubstring("<a:ln"), let gt = body.rangeOfSubstring(">", in: l.upperBound ..< body.endIndex),
-                  !body[l.upperBound ..< gt.lowerBound].hasSuffix("/") else { return false }
-            at = gt.upperBound
-        } else {
-            guard let g = body.rangeOfSubstring("</a:prstGeom>") ?? body.rangeOfSubstring("</a:custGeom>") else { return false }
-            at = g.upperBound
+        // The shape's `wps:spPr` blocks (a group has one per child): the picked child's, else every one (a plain shape has one).
+        var spans: [Range<String.Index>] = []
+        var from = xml.startIndex
+        while let open = xml.rangeOfSubstring("<wps:spPr>", in: from ..< xml.endIndex),
+              let close = xml.rangeOfSubstring("</wps:spPr>", in: open.upperBound ..< xml.endIndex) {
+            spans.append(open.upperBound ..< close.lowerBound)
+            from = close.upperBound
         }
-        let rest = body[at...]
-        if rest.hasPrefix("<a:solidFill>"), let e = body.rangeOfSubstring("</a:solidFill>", in: at ..< body.endIndex) {
-            body.replaceSubrange(at ..< e.upperBound, with: paint)
-        } else if rest.hasPrefix("<a:noFill/>") {
-            body.replaceSubrange(at ..< body.index(at, offsetBy: "<a:noFill/>".count), with: paint)
-        } else if rest.hasPrefix("<a:gradFill") || rest.hasPrefix("<a:blipFill") || rest.hasPrefix("<a:pattFill") {
-            return false
-        } else {
-            body.insert(contentsOf: paint, at: at)
+        if let child = groupChild, xml.containsSubstring("<wpg:wgp"), selectedImageIndex == index { spans = spans.indices.contains(child) ? [spans[child]] : [] }
+        guard !spans.isEmpty else { return false }
+        var out = xml
+        for span in spans.reversed() {
+            var body = String(out[span])
+            // Where the paint stands: after the geometry for the fill, inside the line's element for the outline.
+            var at: String.Index
+            if line {
+                guard let l = body.rangeOfSubstring("<a:ln"), let gt = body.rangeOfSubstring(">", in: l.upperBound ..< body.endIndex),
+                      !body[l.upperBound ..< gt.lowerBound].hasSuffix("/") else { continue }
+                at = gt.upperBound
+            } else {
+                guard let g = body.rangeOfSubstring("</a:prstGeom>") ?? body.rangeOfSubstring("</a:custGeom>") else { continue }
+                at = g.upperBound
+            }
+            let rest = body[at...]
+            if rest.hasPrefix("<a:solidFill>"), let e = body.rangeOfSubstring("</a:solidFill>", in: at ..< body.endIndex) {
+                body.replaceSubrange(at ..< e.upperBound, with: paint)
+            } else if rest.hasPrefix("<a:noFill/>") {
+                body.replaceSubrange(at ..< body.index(at, offsetBy: "<a:noFill/>".count), with: paint)
+            } else if rest.hasPrefix("<a:gradFill") || rest.hasPrefix("<a:blipFill") || rest.hasPrefix("<a:pattFill") {
+                continue
+            } else {
+                body.insert(contentsOf: paint, at: at)
+            }
+            out.replaceSubrange(span, with: body)
         }
         var new = old
-        new.sourceXML = String(xml[xml.startIndex ..< open.upperBound]) + body + String(xml[close.lowerBound...])
-        if var outline = old.outline {
+        new.sourceXML = out
+        if var outline = old.outline, !xml.containsSubstring("<wpg:wgp") {
             if line { outline.color = color.map { Color(0xFF00_0000 | Int64($0.value & 0xFFFFFF)) } } else { outline.fill = color.map { Color(0xFF00_0000 | Int64($0.value & 0xFFFFFF)) } }
             new.outline = outline
         }
@@ -436,5 +449,46 @@ extension RichDocumentController {
             out.replaceSubrange(range, with: String(n + offset))
         }
         return out
+    }
+}
+
+extension RichDocumentController {
+    /// The boxes of a group's children, in points from the group's top left, in drawing order; nil when the picture is not a group.
+    public func groupChildBoxes(at index: Int) -> [Rect]? {
+        guard index < document.paragraphs.count, let xml = document.paragraphs[index].image?.sourceXML, xml.containsSubstring("<wpg:wgp"),
+              let grp = xml.rangeOfSubstring("<wpg:grpSpPr>"), let grpEnd = xml.rangeOfSubstring("</wpg:grpSpPr>", in: grp.upperBound ..< xml.endIndex) else { return nil }
+        func ints(_ s: String, _ tag: String, _ a: String, _ b: String) -> (Int, Int)? {
+            guard let t = s.rangeOfSubstring("<\(tag) "), let e = s.rangeOfSubstring(">", in: t.upperBound ..< s.endIndex) else { return nil }
+            let attrs = String(s[t.upperBound ..< e.lowerBound])
+            func v(_ n: String) -> Int? {
+                guard let r = attrs.rangeOfSubstring(n + "=\""), let q = attrs.rangeOfSubstring("\"", in: r.upperBound ..< attrs.endIndex) else { return nil }
+                return Int(attrs[r.upperBound ..< q.lowerBound])
+            }
+            guard let x = v(a), let y = v(b) else { return nil }
+            return (x, y)
+        }
+        let head = String(xml[grp.upperBound ..< grpEnd.lowerBound])
+        guard let off = ints(head, "a:chOff", "x", "y") else { return nil }
+        var boxes: [Rect] = []
+        var from = grpEnd.upperBound
+        while let open = xml.rangeOfSubstring("<wps:wsp>", in: from ..< xml.endIndex) ?? xml.rangeOfSubstring("<wps:wsp ", in: from ..< xml.endIndex),
+              let close = xml.rangeOfSubstring("</wps:wsp>", in: open.upperBound ..< xml.endIndex) {
+            let w = String(xml[open.upperBound ..< close.lowerBound])
+            if let o = ints(w, "a:off", "x", "y"), let e = ints(w, "a:ext", "cx", "cy") {
+                boxes.append(Rect.fromLTWH(Double(o.0 - off.0) / 12700, Double(o.1 - off.1) / 12700, Double(e.0) / 12700, Double(e.1) / 12700))
+            }
+            from = close.upperBound
+        }
+        return boxes.isEmpty ? nil : boxes
+    }
+
+    /// A click at `point` (points from the selected group's top left): picks the topmost child there; false when none is hit.
+    @discardableResult
+    public func pickGroupChild(at index: Int, point: Offset) -> Bool {
+        guard selectedImageIndex == index, let boxes = groupChildBoxes(at: index),
+              let hit = boxes.lastIndex(where: { $0.contains(point) }) else { return false }
+        groupChild = hit
+        notifyListeners()
+        return true
     }
 }

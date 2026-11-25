@@ -1471,6 +1471,13 @@ public final class RichEditableState: State<StatefulWidget> {
             _moveDrag = nil
             let box = _selectedImageBox()
             _moveDelta = nil
+            if d.dx == 0, d.dy == 0, let box, drag.inline == nil, _controller.groupChildBoxes(at: drag.index) != nil {
+                // A click on the selected group goes into it: the child under the point is picked.
+                let pt = _layout.theme.pixelsPerPoint * _layout.scale
+                _controller.pickGroupChild(at: drag.index, point: Offset((drag.start.dx - box.rect.left) / pt, (drag.start.dy - box.rect.top) / pt))
+                _repaint.notifyListeners()
+                return
+            }
             if d.dx == 0, d.dy == 0, box != nil, _w.onTextBoxEnter != nil, _controller.textBoxDocument(at: drag.index, inline: drag.inline) == nil {
                 _controller.giveShapeText(at: drag.index, inline: drag.inline)   // a plain shape takes text when entered
             }
@@ -1688,6 +1695,17 @@ public final class RichEditableState: State<StatefulWidget> {
                 canvas.drawRect(h, fill)
                 canvas.drawRect(h, line)
             }
+        }
+
+        // The child picked inside a selected group: its own outline.
+        if focused, let box = _selectedImageBox(), let k = _controller.groupChild, let boxes = _controller.groupChildBoxes(at: box.index), boxes.indices.contains(k) {
+            let pt = _layout.theme.pixelsPerPoint * _layout.scale
+            let c = boxes[k]
+            let line = Paint()
+            line.style = .stroke
+            line.strokeWidth = 1.5
+            line.color = _layout.theme.selectionColor.withOpacity(1)
+            canvas.drawRect(Rect.fromLTWH(box.rect.left + c.left * pt, box.rect.top + c.top * pt, c.width * pt, c.height * pt), line)
         }
 
         // Shapes picked along with it (Shift-click): their outlines.

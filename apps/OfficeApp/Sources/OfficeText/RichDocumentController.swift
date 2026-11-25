@@ -277,6 +277,7 @@ public final class RichDocumentController: ChangeNotifier {
             if selection != oldValue {
                 // Shapes picked along with the selected one (Shift-click) last only while a picture stays selected.
                 if !shapePicks.isEmpty, selectedImageIndex == nil { shapePicks = [] }
+                if groupChild != nil { groupChild = nil }
                 // A caret move breaks the typing run and drops the pending
                 // style: Word does exactly this.
                 if !_inEdit {
@@ -303,6 +304,8 @@ public final class RichDocumentController: ChangeNotifier {
     /// (points from the page's top left) and the size, it makes the picture to put there.
     /// The ids of the floating shapes picked in addition to the selected one (Shift-click), to be grouped with it.
     public internal(set) var shapePicks: [String] = []
+    /// The child picked inside the selected group (click on the selected group, then on the child): its place among the group's shapes.
+    public internal(set) var groupChild: Int?
 
     /// A finger has no Shift: while this is on, a tap on a floating shape adds it to the picked ones (or takes it out), as a
     /// Shift-click does. Dragging on an unselected shape still scrolls on touch.
