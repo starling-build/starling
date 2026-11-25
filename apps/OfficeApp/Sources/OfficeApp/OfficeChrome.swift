@@ -86,6 +86,19 @@ private final class _FlatButtonState: State<StatefulWidget> {
             if let items = w.menu { self._flyout.showFlyout(builder: { _ in MenuFlyout(items: items) }, placement: .bottom) }
             else { w.action?() }
         }
+        stop.label = { [weak self] in
+            guard let self, self.mounted else { return nil }
+            if let t = (self.widget as? FlatButton)?.tip, !t.isEmpty { return t }
+            // else the first words it shows (a big button's caption)
+            var found: String?
+            func walk(_ e: Element) {
+                if found != nil { return }
+                if let t = e.widget as? Text, let d = t.data, !d.isEmpty { found = d; return }
+                e.visitChildElements(walk)
+            }
+            if let e = self.context as? Element { walk(e) }
+            return found
+        }
         stop.onFocus = { [weak self] (on: Bool) in
             guard let self, self.mounted else { return }
             self.setState { self._ring = on }

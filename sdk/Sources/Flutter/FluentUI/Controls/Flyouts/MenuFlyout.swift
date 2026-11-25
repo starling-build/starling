@@ -272,7 +272,8 @@ class _MenuFlyoutState: State<StatefulWidget> {
             constraints: menuFlyout.constraints
         )
 
-        return content
+        // An open menu is a modal keyboard region: Tab and the arrows walk its items, Esc closes it.
+        return KeyboardRegion(name: "menu", modal: true, child: content)
     }
 }
 
