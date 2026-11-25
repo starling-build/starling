@@ -77,6 +77,10 @@ final class Ribbon: StatelessWidget {
     }
 
     override func build(_ context: any BuildContext) -> Widget {
+        KeyboardRegion(name: "ribbon", child: _body(context))
+    }
+
+    private func _body(_ context: any BuildContext) -> Widget {
         let fluent = FluentTheme.of(context)
         var children: [Widget] = [_strip(fluent)]
         if !collapsed {

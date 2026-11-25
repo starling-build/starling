@@ -138,6 +138,10 @@ final class StatusBar: StatelessWidget {
     }
 
     override func build(_ context: any BuildContext) -> Widget {
+        KeyboardRegion(name: "status", child: _body(context))
+    }
+
+    private func _body(_ context: any BuildContext) -> Widget {
         let fluent = FluentTheme.of(context)
         let s = session.summary
         let caption = fluent.typography.caption?.copyWith(color: OfficeAppearance.ink(fluent))

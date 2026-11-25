@@ -203,20 +203,24 @@ public final class WidgetTester {
     // MARK: Keys
 
     public enum Key {
-        case enter, escape, tab, backspace
+        case enter, escape, tab, backspace, f6, space
         var logical: Int64 {
             switch self {
             case .enter: return 0x1_0000_000D
             case .escape: return 0x1_0000_001B
             case .tab: return 0x1_0000_0009
             case .backspace: return 0x1_0000_0008
+            case .f6: return 0xFFBD
+            case .space: return 0x1_0000_0020
             }
         }
     }
 
     /// Presses and lifts `key` through the focus manager, as the shell's key handler does. True when a handler used it.
-    @discardableResult public func press(_ key: Key) -> Bool {
+    @discardableResult public func press(_ key: Key, shift: Bool = false) -> Bool {
         var used = false
+        if shift { _ = FocusManager.instance.dispatchKeyData(KeyData(timeStamp: 0, type: .down, physical: 0, logical: 0xFFE1, character: nil, synthesized: false)) }
+        defer { if shift { _ = FocusManager.instance.dispatchKeyData(KeyData(timeStamp: 0, type: .up, physical: 0, logical: 0xFFE1, character: nil, synthesized: false)) } }
         for type in [KeyEventType.down, .up] {
             let data = KeyData(timeStamp: 0, type: type, physical: 0, logical: key.logical, character: nil, synthesized: false)
             if FocusManager.instance.dispatchKeyData(data) { used = true }

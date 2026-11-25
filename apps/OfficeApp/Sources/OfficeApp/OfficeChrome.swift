@@ -72,7 +72,38 @@ final class FlatButton: StatefulWidget {
 
 private final class _FlatButtonState: State<StatefulWidget> {
     private var _hover = false
+    private var _ring = false
+    private var _stop: KeyStop?
     private let _flyout = FlyoutController()
+
+    override func initState() {
+        super.initState()
+        let r = KeyboardTraversal.regionName(context!)
+        let stop = KeyStop(region: r.name, modal: r.modal)
+        stop.isEnabled = { [weak self] in (self?.widget as? FlatButton)?.enabled ?? false }
+        stop.activate = { [weak self] in
+            guard let self, let w = self.widget as? FlatButton else { return }
+            if let items = w.menu { self._flyout.showFlyout(builder: { _ in MenuFlyout(items: items) }, placement: .bottom) }
+            else { w.action?() }
+        }
+        stop.onFocus = { [weak self] (on: Bool) in
+            guard let self, self.mounted else { return }
+            self.setState { self._ring = on }
+        }
+        stop.origin = { [weak self] in
+            guard let self, self.mounted, let box = self.context?.findRenderObject() as? RenderBox,
+                  box.attached, box.hasSize else { return nil }
+            return box.localToGlobal(Offset(0, 0))
+        }
+        _stop = stop
+        KeyboardTraversal.shared.register(stop)
+    }
+
+    override func dispose() {
+        if let s = _stop { KeyboardTraversal.shared.unregister(s) }
+        _stop = nil
+        super.dispose()
+    }
 
     override func build(_ context: any BuildContext) -> Widget {
         let w = widget as! FlatButton
@@ -84,6 +115,7 @@ private final class _FlatButtonState: State<StatefulWidget> {
             let tint = w.onAccent ? OfficeAppearance.white : accent
             if w.checked { fill = tint.withOpacity(_hover ? 0.24 : 0.13); stroke = tint.withOpacity(0.35) }
             else if _hover { fill = tint.withOpacity(w.onAccent ? 0.18 : 0.08) }
+            if _ring { stroke = fluent.brightness == .dark ? OfficeAppearance.white : Color(0xFF000000) }
         }
         let inner: Widget = w.alignLeft
             ? Padding(padding: EdgeInsets(left: 6, top: 0, right: 8, bottom: 0), child: Align(alignment: Alignment.centerLeft, child: w.child))
