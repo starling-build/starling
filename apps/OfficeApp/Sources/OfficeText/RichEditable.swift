@@ -48,7 +48,7 @@ public final class RichEditable: StatefulWidget {
     public let onCellEdgeStroke: ((Bool) -> Void)?
     /// Writer's Draw Table: when set, a drag calls it with the cell it began in (nil outside a table) and the drag's
     /// size in flow pixels, instead of selecting.
-    public let onDrawTable: (((table: String, row: Int, column: Int)?, Double, Double) -> Void)?
+    public let onDrawTable: ((DrawCell?, Double, Double) -> Void)?
     /// The link under the pointer, or nil as it leaves one — for a status bar.
     public let onLinkHover: ((String?) -> Void)?
     /// ⌘-click on a link. Nil opens it through the host.
@@ -91,7 +91,7 @@ public final class RichEditable: StatefulWidget {
                 onShortcut: ((KeyData, KeyModifiers) -> Bool)? = nil,
                 onCellEdge: ((String, Int, Int, CellSide) -> Void)? = nil,
                 onCellEdgeStroke: ((Bool) -> Void)? = nil,
-                onDrawTable: (((table: String, row: Int, column: Int)?, Double, Double) -> Void)? = nil,
+                onDrawTable: ((DrawCell?, Double, Double) -> Void)? = nil,
                 onLinkHover: ((String?) -> Void)? = nil,
                 onLinkActivate: ((String) -> Void)? = nil,
                 onNoteActivate: ((NoteReference, Rect) -> Void)? = nil,
@@ -221,7 +221,7 @@ public final class RichEditableState: State<StatefulWidget> {
     private var _textDrag: (start: Offset, active: Bool)? = nil
     private var _edgeStroke: String? = nil
     private var _edgeDragging = false
-    private var _drawFrom: (local: Offset, cell: (table: String, row: Int, column: Int)?)? = nil
+    private var _drawFrom: (local: Offset, cell: DrawCell?)? = nil
     private var _edgeLast: Offset? = nil
     /// The pen along a move: sampled every few pixels so a fast drag cannot step over an edge.
     private func _edgeToolAlong(_ to: Offset) {

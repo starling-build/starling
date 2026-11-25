@@ -102,14 +102,23 @@ final class SplitTableTests: XCTestCase {
         XCTAssertEqual(c.document.paragraphs.first { $0.cell?.row == 0 && $0.cell?.column == 0 }?.cell?.span, 1)
     }
 
-    func testDrawTableSplitsACellAlongTheStroke() {
+    func testDrawTableSplitsACellAtTheStroke() {
         let c = table(rows: 1, columns: 1)
         let t = c.document.paragraphs.first { $0.cell != nil }!.cell!.table
-        XCTAssertFalse(c.drawTable(in: (t, 0, 0), dx: 2, dy: 3))
-        XCTAssertTrue(c.drawTable(in: (t, 0, 0), dx: 80, dy: 4))
+        XCTAssertFalse(c.drawTable(in: DrawCell(table: t, row: 0, column: 0), dx: 2, dy: 3))
+        // A stroke a quarter of the way down a 40 pt cell: rows of 10 and 30.
+        XCTAssertTrue(c.drawTable(in: DrawCell(table: t, row: 0, column: 0, fy: 0.25, heightPoints: 40), dx: 80, dy: 4))
         XCTAssertEqual(Set(c.document.paragraphs.compactMap { $0.cell?.row }).count, 2)
-        XCTAssertTrue(c.drawTable(in: (t, 0, 0), dx: 3, dy: 60))
-        XCTAssertEqual(Set(c.document.paragraphs.filter { $0.cell?.row == 0 }.compactMap { $0.cell?.column }).count, 2)
+        let h = c.document.tableStyles[t]!.rowHeights
+        XCTAssertEqual(h[0]!, 10, accuracy: 0.01)
+        XCTAssertEqual(h[1]!, 30, accuracy: 0.01)
+        // A vertical stroke 25% across the first row: the left column is a third of the right.
+        c.moveTo(RichPosition(paragraph: c.document.paragraphs.firstIndex { $0.cell?.row == 0 }!, offset: 0), extend: false)
+        XCTAssertTrue(c.drawTable(in: DrawCell(table: t, row: 0, column: 0, fx: 0.25), dx: 3, dy: 60))
+        let w = c.document.tableColumns[t]!
+        XCTAssertEqual(w[0] / (w[0] + w[1]), 0.25, accuracy: 0.01)
+        c.undo()
+        XCTAssertEqual(c.document.tableColumns[t]?.count ?? 1, 1)
     }
 }
 
@@ -152,6 +161,31 @@ final class TextDirectionLabWriter: XCTestCase {
             if k == 0 { c.setRowHeight(110) }
             c.setCellTextDirection(dirs[k % 3])
             if k >= 3 { c.setCellAlignment(vertical: "bottom", horizontal: .right) }
+        }
+        try DocxFormat.write(c.document, pageSetup: .letter).write(to: URL(fileURLWithPath: out))
+    }
+}
+
+/// Lab for the column pitch of turned cells (several sizes and faces); TEXTPITCH_LAB_OUT names the file.
+final class TextPitchLabWriter: XCTestCase {
+    func testWriteLab() throws {
+        guard let out = ProcessInfo.processInfo.environment["TEXTPITCH_LAB_OUT"] else { throw XCTSkip("no TEXTPITCH_LAB_OUT") }
+        let c = RichDocumentController(plainText: "")
+        c.insertTable(rows: 2, columns: 6)
+        let idx = c.document.paragraphs.indices.filter { c.document.paragraphs[$0].cell != nil }
+        let faces = ["Calibri", "Calibri", "Calibri", "Calibri", "Arial", "Times New Roman"]
+        let sizes: [Double] = [8, 11, 14, 20, 11, 11]
+        for (k, i) in idx.enumerated() {
+            let col = k % 6
+            c.moveTo(RichPosition(paragraph: i, offset: 0), extend: false)
+            c.insertText("Aaaa Bbbb Cccc Dddd")
+            c.moveTo(RichPosition(paragraph: i, offset: 0), extend: false)
+            c.moveTo(RichPosition(paragraph: i, offset: 19), extend: true)
+            c.setFontFamily(faces[col]); c.setFontSize(sizes[col])
+            c.moveTo(RichPosition(paragraph: i, offset: 0), extend: false)
+            if k == 0 { c.setRowHeight(60) }
+            if k == 6 { c.setRowHeight(120) }
+            c.setCellTextDirection(k < 6 ? .down : .up)
         }
         try DocxFormat.write(c.document, pageSetup: .letter).write(to: URL(fileURLWithPath: out))
     }
