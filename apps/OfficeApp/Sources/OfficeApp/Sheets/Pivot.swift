@@ -103,6 +103,8 @@ struct PivotSource {
 /// A pivot table worked out: its cells, and the structure its XML needs.
 struct PivotLayout {
     var cells: [CellAddress: CellValue] = [:]
+    /// Cells Excel draws as field buttons (it styles them `pivotButton`).
+    var buttons: Set<CellAddress> = []
     /// The table (without its page filters), and everything including them.
     var location = CellRange(top: 0, left: 0, bottom: 0, right: 0)
     var whole = CellRange(top: 0, left: 0, bottom: 0, right: 0)
@@ -254,8 +256,10 @@ enum PivotCalc {
         // Page filters above the table: the field and the item (or "(All)").
         for (k, f) in spec.filters.enumerated() {
             out.cells[CellAddress(row: spec.origin.row + k, col: left)] = .text(src.headers[f.field])
+            out.buttons.insert(CellAddress(row: spec.origin.row + k, col: left))
             out.cells[CellAddress(row: spec.origin.row + k, col: left + 1)] = .text(f.item ?? "(All)")
         }
+        for (r, row) in grid.enumerated() { for (c, v) in row.enumerated() where v == .text("Row Labels") || v == .text("Column Labels") { out.buttons.insert(CellAddress(row: top + r, col: left + c)) } }
         out.location = CellRange(top: top, left: left, bottom: top + grid.count - 1, right: left + width - 1)
         out.whole = CellRange(top: spec.origin.row, left: left, bottom: out.location.bottom, right: max(out.location.right, spec.filters.isEmpty ? 0 : left + 1))
         return out
@@ -441,6 +445,7 @@ extension WorkbookController {
             c.formula = nil; c.arrayRef = nil; c.rawFormula = nil
             c.input = NumberFormat.display(v, "General", width: 255).text
             c.value = v; c.cached = v
+            if lay.buttons.contains(a) { var st = book.style(c.style ?? ws.defaultStyle(at: a)); st.pivotButton = true; c.style = book.styleIndex(st) }
             ws.cells[a] = c
         }
     }
