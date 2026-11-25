@@ -286,6 +286,7 @@ final class UIShellHarnessTests: XCTestCase {
         XCTAssertTrue(ui.tap(text: "Row May Break"))
         XCTAssertEqual(c.currentTableStyle?.rowsCantSplit, [0])
         XCTAssertTrue(ui.tap(text: "AutoFit"))
+        XCTAssertTrue(ui.tap(text: "Fixed Column Width"))
         XCTAssertEqual(c.currentTableStyle?.fixedLayout, true)
     }
 
