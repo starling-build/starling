@@ -74,6 +74,8 @@ final class SlideCanvasState: State<StatefulWidget> {
         case resize(shape: SlideShape, handle: Int, start: Offset, frame: Rect)
         case rotate(shape: SlideShape, startAngle: Double, startRotation: Double)
         case marquee(start: Offset, now: Offset)
+        /// A shape chosen from the gallery, being drawn by dragging out its box.
+        case draw(preset: ShapePreset, start: Offset, now: Offset)
     }
     private var _drag: Drag? = nil
     /// A finger has touched the canvas: the handles get a fingertip's reach (they are drawn the same).
@@ -433,7 +435,9 @@ final class SlideCanvasState: State<StatefulWidget> {
     }
 
     private var _marqueeRect: Rect? {
-        guard case .marquee(let a, let b)? = _drag else { return nil }
+        let ends: (Offset, Offset)
+        if case .marquee(let a, let b)? = _drag { ends = (a, b) } else if case .draw(_, let a, let b)? = _drag { ends = (a, b) } else { return nil }
+        let (a, b) = ends
         return Rect.fromLTRB(min(a.dx, b.dx), min(a.dy, b.dy), max(a.dx, b.dx), max(a.dy, b.dy))
     }
 
@@ -478,9 +482,20 @@ final class SlideCanvasState: State<StatefulWidget> {
         return true
     }
 
+    /// A shape chosen from the gallery waits for the drag (or click) that places it.
+    private func _beginDraw(_ e: PointerDownEvent) -> Bool {
+        guard let preset = deck.pendingInsert, e.buttons & kSecondaryMouseButton == 0 else { return false }
+        FocusManager.instance.focusedNode?.unfocus()
+        _w.onEdit(nil)
+        let p = _slidePoint(e.position)
+        _drag = .draw(preset: preset, start: p, now: p)
+        return true
+    }
+
     private func _backdropDown(_ e: PointerDownEvent) {
         if _eyedrop(e) { return }
         if e.kind == .touch { _touchSeen = true }
+        if _beginDraw(e) { return }
         if e.buttons & kSecondaryMouseButton != 0, let menu = _w.onContextMenu {
             FocusManager.instance.focusedNode?.unfocus()
             _w.onEdit(nil)
@@ -501,6 +516,7 @@ final class SlideCanvasState: State<StatefulWidget> {
     private func _shapeDown(_ shape: SlideShape, _ e: PointerDownEvent) {
         if _eyedrop(e) { return }
         if e.kind == .touch { _touchSeen = true }
+        if _beginDraw(e) { return }
         Self._log("down on shape \(shape.id) at \(e.position)")
         if e.buttons & kSecondaryMouseButton != 0, let menu = _w.onContextMenu {
             if _w.active !== shape {
@@ -606,6 +622,9 @@ final class SlideCanvasState: State<StatefulWidget> {
         case .marquee(let start, _):
             _drag = .marquee(start: start, now: p)
             setState {}
+        case .draw(let preset, let start, _):
+            _drag = .draw(preset: preset, start: start, now: p)
+            setState {}
         }
     }
 
@@ -641,6 +660,10 @@ final class SlideCanvasState: State<StatefulWidget> {
             }
         case .resize, .rotate:
             deck.endFrameEdit()
+        case .draw(let preset, let a, let b):
+            let m = _w.modifiers()
+            deck.placeInsert(preset, from: a, to: b, keepProportions: m.contains(.shift))
+            setState {}
         case .marquee(let a, let b):
             let box = Rect.fromLTRB(min(a.dx, b.dx), min(a.dy, b.dy), max(a.dx, b.dx), max(a.dy, b.dy))
             if box.width > 2 || box.height > 2 {

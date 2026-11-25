@@ -319,7 +319,8 @@ struct ShapePreset: RawRepresentable, Hashable {
         case "line": return "Line"
         case "star5": return "Star"
         case "wedgeRectCallout": return "Callout"
-        default: return rawValue
+        case "straightConnector1": return "Line Arrow"
+        default: return ShapeGallery.title(rawValue)
         }
     }
 
