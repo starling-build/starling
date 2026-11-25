@@ -204,7 +204,13 @@ struct DeckState: Equatable {
 final class DeckController: ChangeNotifier {
     private let _leakProbe = LeakProbe("DeckController")
     private(set) var slides: [Slide] = []
-    private(set) var current = 0
+    private(set) var current = 0 {
+        didSet {
+            if current != oldValue, slides.indices.contains(current) {
+                ScreenReader.announce("Slide \(current + 1) of \(slides.count)")
+            }
+        }
+    }
     /// The slide in points: 16:9 Widescreen by default, PowerPoint's own
     /// default since 2013 (13.333 x 7.5 in).
     private(set) var slideSize = Size(960, 540)

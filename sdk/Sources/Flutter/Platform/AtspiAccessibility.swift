@@ -49,7 +49,10 @@ public final class AtspiAccessibility: @unchecked Sendable {
             return 1
         }
         let rc = atspi_bridge_start(&host, appName)
-        if rc == 0 { started = true }
+        if rc == 0 {
+            started = true
+            ScreenReader.sink = { text, priority in _ = atspi_bridge_announce(text, priority == .assertive ? 1 : 0) }
+        }
         return rc
     }
 

@@ -1077,7 +1077,12 @@ final class WorkbookController: ChangeNotifier {
 
     /// View > Page Break Preview: show where the pages are cut (view state, not saved, not undoable).
     var breakPreview = false
+    private var _announcedSelection = ""
     func _notify(selectionOnly: Bool = false) {
+        // Tell a screen reader where the selection went ("Selected B3", "Selected B3 to C5").
+        let spoken = selection.rows * selection.cols > 1
+            ? "Selected \(selection.topLeft.a1) to \(selection.bottomRight.a1)" : "Selected \(active.a1)"
+        if spoken != _announcedSelection { _announcedSelection = spoken; ScreenReader.announce(spoken) }
         revision += 1
         if !selectionOnly { dataRevision += 1 }
         notifyListeners()

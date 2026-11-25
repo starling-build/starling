@@ -78,6 +78,10 @@ int atspi_bridge_start(const atspi_bridge_host *host, const char *app_name);
 // look at the whole app a few times a second.
 void atspi_bridge_set_events(int on);
 
+// Asks the screen reader to say `text` (AT-SPI Announcement event). assertive 1 interrupts, 0 waits its turn.
+// 0 when queued, -1 when the bridge is not running.
+int atspi_bridge_announce(const char *text, int assertive);
+
 // The bus connection's unique name once started (for tests), or NULL.
 const char *atspi_bridge_bus_name(void);
 
