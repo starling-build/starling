@@ -1468,6 +1468,16 @@ final class DeckController: ChangeNotifier {
         _changed()
     }
 
+    /// Fill transparency in percent (0 solid, 100 clear) on the selected shapes that have a fill.
+    func setFillTransparency(_ percent: Double) {
+        let a = Int(((100 - min(100, max(0, percent))) / 100 * 255).rounded())
+        let targets = selection.filter { $0.preset?.isLine != true && $0.fill != nil }
+        guard !targets.isEmpty else { return }
+        _checkpoint()
+        for s in targets { s.fill = Color((a << 24) | (s.fill!.value & 0xFFFFFF)) }
+        _changed()
+    }
+
     // MARK: Design
 
     /// Restyle the deck with one of our themes. Placeholders take its fonts
