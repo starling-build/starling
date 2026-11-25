@@ -958,28 +958,6 @@ private struct SlideXML {
             + "<a:srgbClr val=\"\(hex)\">\(alpha)</a:srgbClr></a:outerShdw>"
     }
 
-    /// The file's `a:effectLst` with its outer shadow swapped for `shadow` (none: removed). The list is kept even when
-    /// empty, so a theme shadow named by the shape's style stays off.
-    static func _effectsWithShadow(_ effects: String, _ shadow: CharShadow?) -> String {
-        var body = ""
-        var attrs = ""
-        if let open = effects.range(of: "<a:effectLst"), let gt = effects[open.upperBound...].firstIndex(of: ">") {
-            attrs = String(effects[open.upperBound..<gt])
-            if attrs.hasSuffix("/") { attrs.removeLast() } else if let close = effects.range(of: "</a:effectLst>") { body = String(effects[effects.index(after: gt)..<close.lowerBound]) }
-        }
-        if let a = body.range(of: "<a:outerShdw") {
-            if let e = body.range(of: "</a:outerShdw>", range: a.lowerBound..<body.endIndex) { body.removeSubrange(a.lowerBound..<e.upperBound) }
-            else if let e = body[a.lowerBound...].range(of: "/>") { body.removeSubrange(a.lowerBound..<e.upperBound) }
-        }
-        if let sh = shadow {
-            let new = _outerShadowXML(sh)
-            // Schema order: ... glow, innerShdw, outerShdw, prstShdw, reflection, softEdge.
-            let after = ["<a:prstShdw", "<a:reflection", "<a:softEdge"].compactMap { body.range(of: $0)?.lowerBound }.min()
-            if let at = after { body.insert(contentsOf: new, at: at) } else { body += new }
-        }
-        return "<a:effectLst\(attrs)>\(body)</a:effectLst>"
-    }
-
     /// An arrowhead as `a:headEnd` / `a:tailEnd`; sizes are the multiples of the line width the reader gives (2, 3, 5).
     static func _endXML(_ tag: String, _ e: LineEnd?) -> String {
         guard let e else { return "" }
@@ -1278,8 +1256,14 @@ private struct SlideXML {
                 }
             }
             let effectsXML: String
-            if let k = look { effectsXML = k.shadowEdited ? Self._effectsWithShadow(k.effects, s.shadow) : k.effects }
-            else { effectsXML = s.shadow.map { "<a:effectLst>\(Self._outerShadowXML($0))</a:effectLst>" } ?? "" }
+            if let k = look, !k.effectsEdited, !k.bevelEdited { effectsXML = k.effects }
+            else {
+                effectsXML = Self._effectsEdited(look?.effects ?? "", shadow: s.shadow,
+                                                 glow: s.glowRadius.flatMap { r in r > 0 ? (r, s.glowColor ?? Color(0x66000000)) : nil },
+                                                 reflection: s.reflection, softEdge: s.softEdge, bevel: s.bevel,
+                                                 lists: look?.effectsEdited ?? true, bevelEdit: look?.bevelEdited ?? true,
+                                                 emptyList: look?.effectsEdited == true)
+            }
             spPr += fillXML + lineXML + effectsXML
             var xml = "<p:sp><p:nvSpPr>\(nv)<p:nvPr>\(ph)</p:nvPr></p:nvSpPr><p:spPr>\(spPr)</p:spPr>\(look?.style ?? "")"
             if let doc = s.text {
@@ -1859,5 +1843,125 @@ enum PptxText {
             }
             return "<a:p>" + parts.joined(separator: "<a:br><a:rPr lang=\"en-US\"/></a:br>") + "</a:p>"
         }.joined()
+    }
+}
+
+// S-SH-5: a shape's effects as the file holds them.
+extension SlideXML {
+    /// The end of the element that starts at `start` (an opening `<tag`), self-closing or not.
+    private static func _elementEnd(_ s: String, _ start: String.Index, _ tag: String) -> String.Index? {
+        guard let gt = s[start...].firstIndex(of: ">") else { return nil }
+        if s[s.index(before: gt)] == "/" { return s.index(after: gt) }
+        guard let close = s.range(of: "</\(tag)>", range: gt..<s.endIndex) else { return nil }
+        return close.upperBound
+    }
+
+    /// The first element `<tag ...>` in `s` (not a longer name sharing the prefix).
+    private static func _element(_ s: String, _ tag: String) -> Range<String.Index>? {
+        var from = s.startIndex
+        while let r = s.range(of: "<\(tag)", range: from..<s.endIndex) {
+            let after = r.upperBound
+            if after < s.endIndex, " />".contains(s[after]), let end = _elementEnd(s, r.lowerBound, tag) {
+                return r.lowerBound..<end
+            }
+            from = r.upperBound
+        }
+        return nil
+    }
+
+    /// The top-level children of an element body, in order.
+    private static func _children(_ body: String) -> [(tag: String, xml: String)] {
+        var out: [(String, String)] = []
+        var i = body.startIndex
+        while let lt = body[i...].firstIndex(of: "<") {
+            var j = body.index(after: lt)
+            while j < body.endIndex, !" />".contains(body[j]) { j = body.index(after: j) }
+            let tag = String(body[body.index(after: lt)..<j])
+            guard let end = _elementEnd(body, lt, tag) else { break }
+            out.append((tag, String(body[lt..<end]))); i = end
+        }
+        return out
+    }
+
+    private static func _hex(_ c: Color) -> String {
+        let rgb = String(c.value & 0xFFFFFF, radix: 16, uppercase: true)
+        return String(repeating: "0", count: max(0, 6 - rgb.count)) + rgb
+    }
+
+    private static func _glowXML(_ r: Double, _ c: Color) -> String {
+        let alpha = c.alpha < 255 ? "<a:alpha val=\"\(Int((Double(c.alpha) / 255 * 100000).rounded()))\"/>" : ""
+        return "<a:glow rad=\"\(Int((r * Pptx.emu).rounded()))\"><a:srgbClr val=\"\(_hex(c))\">\(alpha)</a:srgbClr></a:glow>"
+    }
+
+    private static func _reflectionXML(_ r: Reflection) -> String {
+        func pct(_ v: Double) -> Int { Int((v * 100000).rounded()) }
+        return "<a:reflection blurRad=\"\(Int((r.blur * Pptx.emu).rounded()))\" stA=\"\(pct(r.startAlpha))\" "
+            + "endA=\"\(pct(r.endAlpha))\" endPos=\"\(pct(r.endPos))\" dist=\"\(Int((r.dist * Pptx.emu).rounded()))\" "
+            + "dir=\"5400000\" sy=\"\(pct(r.scaleY))\" algn=\"bl\" rotWithShape=\"0\"/>"
+    }
+
+    private static func _bevelXML(_ b: ShapeBevel) -> String {
+        "<a:bevelT w=\"\(Int((b.width * Pptx.emu).rounded()))\" h=\"\(Int((b.height * Pptx.emu).rounded()))\" prst=\"\(b.preset)\"/>"
+    }
+
+    /// A shape's effects as the file holds them: `effects` is what the file had (its `a:effectLst`, `a:effectDag`,
+    /// `a:scene3d` and `a:sp3d`, in that order; empty for a new shape). With `lists`, the shadow, glow, reflection
+    /// and soft edge are rebuilt from the model and the list's other effects kept; with `bevel`, the `a:bevelT` is
+    /// swapped and the rest of the 3-D settings kept.
+    static func _effectsEdited(_ effects: String, shadow: CharShadow?, glow: (Double, Color)?, reflection: Reflection?,
+                               softEdge: Double?, bevel: ShapeBevel?, lists: Bool, bevelEdit: Bool, emptyList: Bool = false) -> String {
+        var list = _element(effects, "a:effectLst").map { String(effects[$0]) }
+        let dag = _element(effects, "a:effectDag").map { String(effects[$0]) } ?? ""
+        var scene = _element(effects, "a:scene3d").map { String(effects[$0]) } ?? ""
+        var sp3d = _element(effects, "a:sp3d").map { String(effects[$0]) } ?? ""
+        if lists {
+            var attrs = ""
+            var kids: [(Int, String)] = []
+            if let l = list, let gt = l.firstIndex(of: ">") {
+                attrs = String(l[l.index(l.startIndex, offsetBy: "<a:effectLst".count)..<gt])
+                if attrs.hasSuffix("/") { attrs.removeLast() }
+                if !l[..<gt].hasSuffix("/") {
+                    let body = String(l[l.index(after: gt)..<(l.range(of: "</a:effectLst>")?.lowerBound ?? l.endIndex)])
+                    let rank = ["a:blur": 0, "a:fillOverlay": 1, "a:glow": 2, "a:innerShdw": 3, "a:outerShdw": 4,
+                                "a:prstShdw": 5, "a:reflection": 6, "a:softEdge": 7]
+                    for c in _children(body) {
+                        if ["a:glow", "a:outerShdw", "a:softEdge"].contains(c.tag) { continue }
+                        if c.tag == "a:reflection" { continue }
+                        kids.append((rank[c.tag] ?? 8, c.xml))
+                    }
+                }
+            }
+            if let g = glow { kids.append((2, _glowXML(g.0, g.1))) }
+            if let s = shadow { kids.append((4, _outerShadowXML(s))) }
+            if let r = reflection, !r.onText { kids.append((6, _reflectionXML(r))) }
+            if let e = softEdge, e > 0 { kids.append((7, "<a:softEdge rad=\"\(Int((e * Pptx.emu).rounded()))\"/>")) }
+            // (A reflection of the text lives on its runs: the file's list keeps none of its own.)
+            if list != nil || !kids.isEmpty || emptyList {
+                let sorted = kids.enumerated().sorted { ($0.element.0, $0.offset) < ($1.element.0, $1.offset) }
+                list = "<a:effectLst\(attrs)>" + sorted.map { $0.element.1 }.joined() + "</a:effectLst>"
+            } else { list = nil }
+        }
+        if bevelEdit {
+            var attrs = "", rest = ""
+            if let gt = sp3d.firstIndex(of: ">"), !sp3d.isEmpty {
+                attrs = String(sp3d[sp3d.index(sp3d.startIndex, offsetBy: "<a:sp3d".count)..<gt])
+                if attrs.hasSuffix("/") { attrs.removeLast() }
+                if !sp3d[..<gt].hasSuffix("/") {
+                    let body = String(sp3d[sp3d.index(after: gt)..<(sp3d.range(of: "</a:sp3d>")?.lowerBound ?? sp3d.endIndex)])
+                    rest = _children(body).filter { $0.tag != "a:bevelT" }.map(\.xml).joined()
+                }
+            }
+            if let b = bevel {
+                if let m = attrs.range(of: " prstMaterial=\"[^\"]*\"", options: .regularExpression) { attrs.removeSubrange(m) }
+                if b.material != "warmMatte" { attrs += " prstMaterial=\"\(b.material)\"" }
+                sp3d = "<a:sp3d\(attrs)>\(_bevelXML(b))\(rest)</a:sp3d>"
+                if scene.isEmpty {
+                    scene = "<a:scene3d><a:camera prst=\"orthographicFront\"/><a:lightRig rig=\"\(b.rig)\" dir=\"t\"/></a:scene3d>"
+                }
+            } else {
+                sp3d = (attrs.isEmpty && rest.isEmpty) ? "" : "<a:sp3d\(attrs)>\(rest)</a:sp3d>"
+            }
+        }
+        return (list ?? "") + dag + scene + sp3d
     }
 }
