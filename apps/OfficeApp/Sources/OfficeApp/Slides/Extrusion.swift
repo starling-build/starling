@@ -56,6 +56,20 @@ enum Extrusion {
         "perspectiveRight": (0, 340, 0),
     ]
 
+    /// Where the camera puts the shape's own x and y unit steps on its front face (columns of a 2x2 map: x -> (a, b),
+    /// y -> (c, d)); nil when square-on. Text lies on the face and is drawn through it.
+    static func frontMap(_ scene: Scene3D) -> (a: Double, b: Double, c: Double, d: Double)? {
+        if scene.lat == 0, scene.lon == 0, scene.rev == 0 { return nil }
+        let lat = -scene.lat * .pi / 180, lon = -scene.lon * .pi / 180, rev = -scene.rev * .pi / 180
+        func turn(_ x: Double, _ y: Double) -> (Double, Double) {
+            let qx = x * cos(lon), qz = -x * sin(lon)
+            let qy = y * cos(lat) - qz * sin(lat)
+            return (qx * cos(rev) - qy * sin(rev), qx * sin(rev) + qy * cos(rev))
+        }
+        let u = turn(1, 0), v = turn(0, 1)
+        return (u.0, u.1, v.0, v.1)
+    }
+
     /// The slide of an oblique camera per unit of depth: the back of the
     /// solid shows on the side the camera is named for.
     private static func oblique(_ name: String) -> Offset? {
