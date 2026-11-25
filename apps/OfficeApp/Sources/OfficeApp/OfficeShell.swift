@@ -99,11 +99,7 @@ final class OfficeShellState: State<StatefulWidget> {
     private var _linkHover: String? = nil
     private var _autosaveGeneration = 0
     private let _contextMenu = FlyoutController()
-    #if canImport(AppKit)
-    private let _spelling: RichSpellChecker? = CocoaSpellChecker()
-    #else
-    private let _spelling: RichSpellChecker? = nil
-    #endif
+    private let _spelling: RichSpellChecker? = makeSpellChecker()
     /// Set when the open document came from a recovery copy: AutoSave then
     /// refreshes only the copy until the user saves for real.
     private var _recovered = false
