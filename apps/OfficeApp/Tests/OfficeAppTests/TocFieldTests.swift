@@ -30,4 +30,12 @@ final class TocFieldTests: XCTestCase {
         let begin = try XCTUnwrap(o.range(of: "TOC \\o")), firstLink = try XCTUnwrap(o.range(of: "<w:hyperlink"))
         XCTAssertLessThan(begin.lowerBound, firstLink.lowerBound)
     }
+
+    /// Hook for the Word check: TOC_CHECK_IN=<docx> TOC_CHECK_OUT=<path> writes a corpus file through a plain open-and-save.
+    func testWriteWordCheckFile() throws {
+        let env = ProcessInfo.processInfo.environment
+        guard let inp = env["TOC_CHECK_IN"], let out = env["TOC_CHECK_OUT"] else { throw XCTSkip("no TOC_CHECK_IN") }
+        let loaded = try DocxFormat.read(Data(contentsOf: URL(fileURLWithPath: inp)))
+        try DocxFormat.write(loaded.document, pageSetup: loaded.pageSetup ?? .letter).write(to: URL(fileURLWithPath: out))
+    }
 }
