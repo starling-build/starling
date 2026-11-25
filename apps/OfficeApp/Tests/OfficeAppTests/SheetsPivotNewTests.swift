@@ -224,4 +224,22 @@ final class SheetsPivotNewTests: XCTestCase {
                                          filters: [], origin: CellAddress("F24")!, newSheet: false))
         try Xlsx.write(wc.book).write(to: URL(fileURLWithPath: out))
     }
+
+    func testWriteColumnFieldCheckBook() throws {
+        guard let out = ProcessInfo.processInfo.environment["STARLING_PIVOT_COLS"] else { throw XCTSkip("no STARLING_PIVOT_COLS") }
+        let wc = WorkbookController()
+        let rows: [[String]] = [["Region", "Product", "Year", "Sales", "Units"], ["East", "Pen", "2020", "10", "1"], ["East", "Pen", "2021", "20", "2"],
+                                ["East", "Ink", "2020", "5", "3"], ["West", "Pen", "2020", "7", "4"], ["West", "Ink", "2021", "9", "5"], ["West", "Pen", "2021", "11", "6"]]
+        var inputs: [(CellAddress, String)] = []
+        for (r, row) in rows.enumerated() { for (c, x) in row.enumerated() { inputs.append((CellAddress(row: r, col: c), x)) } }
+        wc.setInputs(inputs)
+        let s = "Sheet1!A1:E7"
+        XCTAssertNil(wc.insertPivotTable(source: s, rows: [0], cols: [2], data: [PivotDataField(field: 3, function: .sum), PivotDataField(field: 4, function: .sum)],
+                                         filters: [], origin: CellAddress("H1")!, newSheet: false))
+        XCTAssertNil(wc.insertPivotTable(source: s, rows: [0], cols: [1, 2], data: [PivotDataField(field: 3, function: .sum)],
+                                         filters: [], origin: CellAddress("H14")!, newSheet: false))
+        XCTAssertNil(wc.insertPivotTable(source: s, rows: [0], cols: [1, 2], data: [PivotDataField(field: 3, function: .sum), PivotDataField(field: 4, function: .count)],
+                                         filters: [], origin: CellAddress("H26")!, newSheet: false))
+        try Xlsx.write(wc.book).write(to: URL(fileURLWithPath: out))
+    }
 }
