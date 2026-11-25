@@ -95,6 +95,7 @@ final class AtspiBridgeTests: XCTestCase {
             print('EVENT', e.type, e.source.get_name()); sys.stdout.flush()
         l = Atspi.EventListener.new(on)
         l.register('object:property-change:accessible-name')
+        l.register('object:state-changed:focused')
         print('READY'); sys.stdout.flush()
         GLib.timeout_add_seconds(15, lambda: sys.exit(0))
         Atspi.event_main()
@@ -116,6 +117,11 @@ final class AtspiBridgeTests: XCTestCase {
         t.replace(with: Directionality(textDirection: .ltr, child: Semantics(label: "Saved", button: true, onTap: {}, child: SizedBox(width: 20, height: 20, child: nil))))
         wait({ seen.contains("EVENT") }, 10)
         XCTAssertTrue(seen.contains("EVENT object:property-change:accessible-name Saved"), "client saw: \(seen)")
+
+        // Moving focus is announced too: the control that gets it is named in the event.
+        t.replace(with: Directionality(textDirection: .ltr, child: Semantics(label: "Saved", button: true, focused: true, onTap: {}, child: SizedBox(width: 20, height: 20, child: nil))))
+        wait({ seen.contains("EVENT object:state-changed:focused Saved") }, 10)
+        XCTAssertTrue(seen.contains("EVENT object:state-changed:focused Saved"), "client saw: \(seen)")
 
         // And a text field is read as text: contents, caret and selection, counted in characters.
         t.replace(with: Directionality(textDirection: .ltr, child: Semantics(
