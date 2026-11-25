@@ -1769,6 +1769,58 @@ final class DeckController: ChangeNotifier {
         setFillStyle(PatternFill.fill(preset: preset, foreground: foreground, background: background))
     }
 
+    /// The straight-line gradient the Format Shape pane shows: the first selected shape's, or nil when it has none
+    /// (a radial or path gradient is left to the file).
+    var selectionGradient: SlideFill? {
+        guard let f = selection.first(where: { $0.preset?.isLine != true })?.fillStyle,
+              f.image == nil, f.stops.count >= 2, f.path == nil else { return nil }
+        return f
+    }
+
+    /// Changes the gradient of every selected shape, giving one that has none a two-stop gradient from its colour.
+    /// One undo step. A shape with a radial or path gradient, which this editor cannot show, is left alone.
+    func editGradient(_ edit: (inout SlideFill) -> Void) {
+        let targets = selection.filter { $0.preset?.isLine != true && $0.fillStyle?.path == nil }
+        guard !targets.isEmpty else { return }
+        _checkpoint()
+        for s in targets {
+            var g: SlideFill
+            if let f = s.fillStyle, f.image == nil, f.stops.count >= 2 { g = f }
+            else {
+                let base = s.fill ?? theme.accents[0]
+                g = SlideFill(color: base, stops: [.init(position: 0, color: base), .init(position: 1, color: Self.darker(base))], angle: 90)
+            }
+            edit(&g)
+            g.stops.sort { $0.position < $1.position }
+            g.color = g.stops.first?.color
+            s.fillStyle = g
+            s.fill = g.color
+            s.fillScheme = nil
+            s.keptLook?.fillReplaced = true
+        }
+        _changed()
+    }
+
+    /// A stop in the middle of the widest gap, in the colour the gradient has there.
+    func addGradientStop() {
+        editGradient { g in
+            var best = (0.0, 0.0)
+            for (a, b) in zip(g.stops, g.stops.dropFirst()) where b.position - a.position > best.1 - best.0 { best = (a.position, b.position) }
+            let at = (best.0 + best.1) / 2
+            g.stops.append(.init(position: at, color: SlideFill.colorAt(g.stops, at)))
+        }
+    }
+
+    /// Takes stop `index` out; a gradient keeps at least two.
+    func removeGradientStop(at index: Int) {
+        guard let g = selectionGradient, g.stops.count > 2, g.stops.indices.contains(index) else { return }
+        editGradient { $0.stops.remove(at: index) }
+    }
+
+    func reverseGradient() {
+        editGradient { g in g.stops = g.stops.reversed().map { .init(position: 1 - $0.position, color: $0.color) } }
+    }
+
     func setFill(_ color: Color?, scheme: String? = nil) {
         guard !selection.isEmpty else { return }
         _checkpoint()
@@ -1787,7 +1839,16 @@ final class DeckController: ChangeNotifier {
         let targets = selection.filter { $0.preset?.isLine != true && $0.fill != nil }
         guard !targets.isEmpty else { return }
         _checkpoint()
-        for s in targets { s.fill = Color((a << 24) | (s.fill!.value & 0xFFFFFF)); s.fillStyle = nil; s.keptLook?.fillReplaced = true }
+        for s in targets {
+            s.fill = Color((a << 24) | (s.fill!.value & 0xFFFFFF))
+            if var g = s.fillStyle, g.image == nil, g.stops.count >= 2, g.path == nil {
+                // A gradient keeps its colours; the transparency goes on each stop.
+                for i in g.stops.indices { g.stops[i].color = Color((a << 24) | (g.stops[i].color.value & 0xFFFFFF)) }
+                g.color = g.stops.first?.color
+                s.fillStyle = g
+            } else { s.fillStyle = nil }
+            s.keptLook?.fillReplaced = true
+        }
         _changed()
     }
 
