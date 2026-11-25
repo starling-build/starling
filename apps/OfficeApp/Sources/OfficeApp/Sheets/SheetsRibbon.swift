@@ -32,6 +32,7 @@ enum SheetCommand {
     case dataTable                 // Data → What-If Analysis → Data Table
     case chartSeries(Int)          // Chart Design → Select Data
     case chartColors(Int)          // Chart Design → Format Data Series
+    case chartLabels(Int)          // Chart Design → Add Chart Element → Data Labels
     case goalSeek                  // Data → What-If Analysis → Goal Seek
     case removeDuplicates          // Data → Remove Duplicates
     case textToColumns             // Data → Text to Columns
@@ -339,6 +340,7 @@ extension Ribbon {
                 },
                 Chrome.textToggle("Select Data", false, fluent, style: fluent.typography.caption) { wb.onCommand?(.chartSeries(i)) },
                 Chrome.textToggle("Series Colours", false, fluent, style: fluent.typography.caption) { wb.onCommand?(.chartColors(i)) },
+                Chrome.textToggle("Data Labels", c.dataLabels || c.pieLabels != nil, fluent, style: fluent.typography.caption) { wb.onCommand?(.chartLabels(i)) },
                 Chrome.textToggle("Edit Titles", false, fluent, style: fluent.typography.caption) { wb.onCommand?(.chartTitles(i)) },
                 Chrome.textToggle("Axis Titles", c.categoryAxisTitle != nil || c.valueAxisTitle != nil, fluent, style: fluent.typography.caption) {
                     let on = c.categoryAxisTitle != nil || c.valueAxisTitle != nil

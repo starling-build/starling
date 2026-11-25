@@ -122,6 +122,22 @@ final class SheetsChartDesignTests: XCTestCase {
         f3.setChartColor(fj, series: ts.series[1].series, point: nil, color: nil)
         f3.setChartColor(fj, series: ts.points[1].series, point: 1, color: purple)
         try Xlsx.write(f3.book).write(to: URL(fileURLWithPath: dir + "/chartcolor-file.xlsx"))
+        // Data labels: value + category, outside end, on a chart made here and on the same one from a file; then off on a second file copy.
+        let (g1, gi) = chartBook()
+        var ge = try XCTUnwrap(g1.chartLabelOptions(gi)).edit
+        ge.show = true; ge.category = true; ge.position = "outEnd"
+        g1.setChartLabels(gi, ge)
+        try Xlsx.write(g1.book).write(to: URL(fileURLWithPath: dir + "/chartlabels-new.xlsx"))
+        let (g2, _) = chartBook()
+        let g3 = WorkbookController(); g3.load(try Xlsx.read(try Xlsx.write(g2.book)))
+        let gj = g3.sheet.drawings.firstIndex(where: { $0.isChart })!
+        g3.setChartLabels(gj, ge)
+        try Xlsx.write(g3.book).write(to: URL(fileURLWithPath: dir + "/chartlabels-file.xlsx"))
+        let g4 = WorkbookController(); g4.load(try Xlsx.read(try Xlsx.write(g3.book)))
+        var off = try XCTUnwrap(g4.chartLabelOptions(gj)).edit
+        off.show = false
+        g4.setChartLabels(gj, off)
+        try Xlsx.write(g4.book).write(to: URL(fileURLWithPath: dir + "/chartlabels-off.xlsx"))
         _ = fi
         // A corpus chart with a secondary-axis group: the first group's first series goes, one is added; the other group stays.
         let two = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
@@ -416,6 +432,50 @@ final class SheetsChartDesignTests: XCTestCase {
         let entries = try Zip.read(try Xlsx.write(c.book))
         let e = try XCTUnwrap(entries.first { $0.name.hasPrefix("xl/charts/chart") && $0.name.hasSuffix(".xml") })
         return String(decoding: e.data, as: UTF8.self)
+    }
+
+    func testDataLabelsPatchOnColumnLineAndPie() throws {
+        let bar = "<c:chartSpace><c:chart><c:plotArea><c:layout/><c:barChart><c:barDir val=\"col\"/><c:grouping val=\"clustered\"/><c:ser><c:idx val=\"0\"/><c:order val=\"0\"/><c:spPr/><c:invertIfNegative val=\"0\"/><c:cat><c:strRef><c:f>S!$A$2:$A$3</c:f></c:strRef></c:cat><c:val><c:numRef><c:f>S!$B$2:$B$3</c:f></c:numRef></c:val></c:ser><c:ser><c:idx val=\"1\"/><c:order val=\"1\"/><c:dLbls><c:numFmt formatCode=\"0.0\" sourceLinked=\"0\"/><c:showLegendKey val=\"0\"/><c:showVal val=\"1\"/><c:showCatName val=\"0\"/><c:showSerName val=\"0\"/><c:showPercent val=\"0\"/><c:showBubbleSize val=\"0\"/></c:dLbls><c:cat/><c:val/></c:ser><c:axId val=\"1\"/></c:barChart></c:plotArea></c:chart></c:chartSpace>"
+        var e = ChartLabelEdit(); e.show = true; e.value = true; e.category = true; e.position = "outEnd"
+        let on = ChartPartPatch.labels(bar, e)
+        XCTAssertEqual(on.components(separatedBy: "<c:showCatName val=\"1\"/>").count - 1, 2)
+        XCTAssertEqual(on.components(separatedBy: "<c:dLblPos val=\"outEnd\"/>").count - 1, 2)
+        // Schema order: the labels sit before the categories; the second series keeps its number format, before the position.
+        XCTAssertTrue(on.containsSubstring("<c:invertIfNegative val=\"0\"/><c:dLbls><c:dLblPos"))
+        XCTAssertTrue(on.containsSubstring("<c:numFmt formatCode=\"0.0\" sourceLinked=\"0\"/><c:dLblPos"))
+        // A position the type does not take is dropped (stacked bars take no outEnd; a line takes t, not outEnd).
+        let stacked = bar.replacingAll("clustered", with: "stacked")
+        XCTAssertFalse(ChartPartPatch.labels(stacked, e).containsSubstring("outEnd"))
+        let off = ChartPartPatch.labels(on, ChartLabelEdit())
+        XCTAssertEqual(off.components(separatedBy: "<c:dLbls><c:delete val=\"1\"/></c:dLbls>").count - 1, 2)
+        XCTAssertFalse(off.containsSubstring("showVal"))
+        let again = ChartPartPatch.labels(off, e)
+        XCTAssertFalse(again.containsSubstring("<c:delete"))
+        XCTAssertEqual(again.components(separatedBy: "<c:dLbls>").count - 1, 2)
+    }
+
+    func testDataLabelsOnAChartMadeHere() throws {
+        let (c, i) = chartBook()
+        var o = try XCTUnwrap(c.chartLabelOptions(i))
+        XCTAssertFalse(o.edit.show)
+        XCTAssertTrue(o.canCategory)
+        o.edit.show = true; o.edit.category = true; o.edit.position = "inEnd"
+        XCTAssertTrue(c.setChartLabels(i, o.edit))
+        let xml = try chartXML(c)
+        XCTAssertTrue(xml.containsSubstring("<c:dLblPos val=\"inEnd\"/>"))
+        XCTAssertTrue(xml.containsSubstring("<c:showCatName val=\"1\"/>"))
+        let back = WorkbookController(); back.load(try Xlsx.read(try Xlsx.write(c.book)))
+        let j = back.sheet.drawings.firstIndex(where: { $0.isChart })!
+        var e = try XCTUnwrap(back.chartLabelOptions(j)).edit
+        XCTAssertTrue(e.show); XCTAssertTrue(e.category)
+        e.category = false; e.position = "outEnd"
+        XCTAssertTrue(back.setChartLabels(j, e))
+        let x2 = try chartXML(back)
+        XCTAssertTrue(x2.containsSubstring("<c:dLblPos val=\"outEnd\"/>"))
+        XCTAssertFalse(x2.containsSubstring("<c:showCatName val=\"1\"/>"))
+        e.show = false
+        XCTAssertTrue(back.setChartLabels(j, e))
+        XCTAssertTrue(try chartXML(back).containsSubstring("<c:delete val=\"1\"/>"))
     }
 
     func testCorpusSeriesEdits() throws {

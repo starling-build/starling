@@ -264,6 +264,10 @@ struct Chart: Equatable {
     /// The legend's text names a size of its own (even the default 12), where LibreOffice's export names none.
     var legendSized = false
     var dataLabels = false
+    /// What Data Labels set here says (value, category, series, percent, position), written as the labels' own `c:dLbls`; nil writes the plain value labels.
+    var labelEdit: ChartLabelEdit? = nil
+    /// What a chart from a file says in its plain labels (category / series name), for the Data Labels dialog.
+    var fileLabelCategory = false, fileLabelSeries = false
     /// Where a column or bar chart's labels stand (`c:dLblPos` of its first series' labels, else the chart's).
     var barLabelPos: String? = nil
     /// `c:grouping`: clustered/standard, stacked or percentStacked.
@@ -2294,6 +2298,9 @@ enum ChartXML {
         if c.series.contains(where: { !$0.labelPointsOn.isEmpty }) { c.dataLabels = true }
         else if !c.dataLabels || c.series.allSatisfy({ !$0.labelsShown }) { for i in c.series.indices { c.series[i].labelsShown = true } }
         if type == .column || type == .bar { c.barLabelPos = (el.first("c:ser")?.first("c:dLbls")?.first("c:dLblPos") ?? el.first("c:dLbls")?.first("c:dLblPos"))?["val"] }
+        if type == .column || type == .bar, let d = el.first("c:ser")?.first("c:dLbls") ?? el.first("c:dLbls") {
+            c.fileLabelCategory = d.first("c:showCatName")?["val"] == "1"; c.fileLabelSeries = d.first("c:showSerName")?["val"] == "1"
+        }
         if type == .doughnut, let hole = el.first("c:holeSize")?["val"].flatMap(Int.init) { c.holeSize = hole }
         if type == .pie || type == .doughnut, let ser = el.first("c:ser"), let d = ser.first("c:dLbls") ?? el.first("c:dLbls") {
             func on(_ n: XNode?, _ name: String) -> Bool { ["1", "true"].contains(n?.first(name)?["val"] ?? "") }
@@ -3074,9 +3081,13 @@ enum ChartXML {
         }
         // (A pie's says where its labels stand, as it was read: inside,
         // as this app draws plain ones, or round it.)
-        let labels = !c.dataLabels ? "" : c.type.isPie
+        let labels = !c.dataLabels ? "" : c.labelEdit.map { e in
+            func f(_ v: Bool) -> String { v ? "1" : "0" }
+            let pos = e.position.map { "<c:dLblPos val=\"\($0)\"/>" } ?? ""
+            return "<c:dLbls>\(pos)<c:showLegendKey val=\"0\"/><c:showVal val=\"\(f(e.value))\"/><c:showCatName val=\"\(f(e.category))\"/><c:showSerName val=\"\(f(e.series))\"/><c:showPercent val=\"\(f(e.percent))\"/><c:showBubbleSize val=\"0\"/></c:dLbls>"
+        } ?? (c.type.isPie
             ? _labels.replacingAll("<c:showLegendKey", with: "<c:dLblPos val=\"\(c.pieLabelsAround ? "bestFit" : "ctr")\"/><c:showLegendKey")
-            : _labels
+            : _labels)
         let grouping = c.percent ? "percentStacked" : c.stacked ? "stacked" : (c.type == .column || c.type == .bar ? "clustered" : "standard")
         let ax = "<c:axId val=\"500000001\"/><c:axId val=\"500000002\"/>"
         var plot: String

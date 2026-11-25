@@ -14,6 +14,23 @@ enum ChartPartEdit: Equatable {
 
 /// One series of a chart as Select Data edits it: where it came from in the part (`source`, its position among the part's series; nil for a new one) and the cells it reads.
 /// A colour set in Format Data Series on a file's chart: a series of the part (its place in the first chart group), or one point of it; nil is automatic.
+/// Data Labels: what a chart's labels show and where they stand (the first chart group's series).
+struct ChartLabelEdit: Equatable {
+    var show = false
+    var value = true, category = false, series = false, percent = false
+    /// `c:dLblPos` ("ctr", "inEnd", "inBase", "outEnd", "t", "b", "l", "r", "bestFit"); nil leaves the type's own.
+    var position: String? = nil
+    /// The `c:dLblPos` values a chart group allows (nil: the group takes none, and Excel refuses a file that gives one).
+    static func positions(group tag: String, stacked: Bool) -> [String] {
+        switch tag {
+        case "barChart": return stacked ? ["ctr", "inEnd", "inBase"] : ["ctr", "inEnd", "inBase", "outEnd"]
+        case "lineChart", "scatterChart", "radarChart": return tag == "radarChart" ? [] : ["ctr", "l", "r", "t", "b"]
+        case "pieChart": return ["bestFit", "ctr", "inEnd", "outEnd"]
+        default: return []
+        }
+    }
+}
+
 struct ChartColorEdit: Equatable {
     var series: Int; var point: Int?; var hex: String?
     /// A theme slot ("accent2") with its lumMod / lumOff in percent, written as a scheme colour so a new theme recolours it; wins over `hex`.
@@ -480,5 +497,66 @@ enum ChartPartPatch {
             x.replaceSubrange(r, with: s)
         }
         return x
+    }
+    /// The part's labels as `edit` says, on every series of the first chart group: a series' own `c:dLbls` gets the shows and the
+    /// position (its number format, text and per-point labels stay), or `c:delete` when the labels are off.
+    static func labels(_ xml: String, _ edit: ChartLabelEdit) -> String {
+        guard let g = _firstGroup(xml) else { return xml }
+        let stacked = xml.containsSubstring("<c:grouping val=\"stacked\"/>") || xml.containsSubstring("<c:grouping val=\"percentStacked\"/>")
+        let allowed = ChartLabelEdit.positions(group: g.tag, stacked: stacked)
+        let pos = edit.position.flatMap { allowed.contains($0) ? $0 : nil }
+        func flag(_ v: Bool) -> String { v ? "1" : "0" }
+        let shows = (pos.map { "<c:dLblPos val=\"\($0)\"/>" } ?? "") + "<c:showLegendKey val=\"0\"/><c:showVal val=\"\(flag(edit.value))\"/><c:showCatName val=\"\(flag(edit.category))\"/><c:showSerName val=\"\(flag(edit.series))\"/><c:showPercent val=\"\(flag(edit.percent))\"/><c:showBubbleSize val=\"0\"/>"
+        var x = xml
+        for r in g.sers.reversed() {
+            var s = String(x[r])
+            if let a = s.findRange(of: "<c:dLbls>", in: s.startIndex ..< s.endIndex), let b = s.findRange(of: "</c:dLbls>", in: a.upperBound ..< s.endIndex) {
+                if !edit.show { s.replaceSubrange(a.lowerBound ..< b.upperBound, with: "<c:dLbls><c:delete val=\"1\"/></c:dLbls>"); x.replaceSubrange(r, with: s); continue }
+                let whole = String(s[a.upperBound ..< b.lowerBound])
+                // The per-point labels (`c:dLbl`) keep their own shows; only what follows them is the series'.
+                let cut = whole.findRange(of: "</c:dLbl>", in: whole.startIndex ..< whole.endIndex).map { _ -> String.Index in
+                    var last = whole.startIndex
+                    var from = whole.startIndex
+                    while let q = whole.findRange(of: "</c:dLbl>", in: from ..< whole.endIndex) { last = q.upperBound; from = q.upperBound }
+                    return last
+                } ?? whole.startIndex
+                let keep = String(whole[whole.startIndex ..< cut])
+                var inner = String(whole[cut...])
+                for t in ["delete", "dLblPos", "showLegendKey", "showVal", "showCatName", "showSerName", "showPercent", "showBubbleSize"] {
+                    while let q = inner.findRange(of: "<c:\(t) val=\"", in: inner.startIndex ..< inner.endIndex),
+                          let e = inner.findRange(of: "/>", in: q.upperBound ..< inner.endIndex) { inner.replaceSubrange(q.lowerBound ..< e.upperBound, with: "") }
+                }
+                var at = inner.endIndex
+                for t in ["<c:separator", "<c:showLeaderLines", "<c:leaderLines", "<c:extLst"] {
+                    if let q = inner.findRange(of: t, in: inner.startIndex ..< inner.endIndex), q.lowerBound < at { at = q.lowerBound }
+                }
+                inner.insert(contentsOf: shows, at: at)
+                s.replaceSubrange(a.upperBound ..< b.lowerBound, with: keep + inner)
+            } else if !edit.show {
+                if xml.containsSubstring("<c:dLbls>") { s = _insertLabels(s, "<c:dLbls><c:delete val=\"1\"/></c:dLbls>") }
+            } else if edit.show {
+                s = _insertLabels(s, "<c:dLbls>\(shows)</c:dLbls>")
+            }
+            x.replaceSubrange(r, with: s)
+        }
+        // A group-level `c:dLbls` (a chart made here writes one) would still say the old thing for series that have none of their own: every series has its own now.
+        if let end = x.findRange(of: "</c:\(g.tag)>", in: x.startIndex ..< x.endIndex) {
+            var last: Range<String.Index>? = nil, from = x.startIndex
+            while let q = x.findRange(of: "</c:ser>", in: from ..< end.lowerBound) { last = q; from = q.upperBound }
+            if let l = last, x[l.upperBound...].hasPrefix("<c:dLbls>"),
+               let b = x.findRange(of: "</c:dLbls>", in: l.upperBound ..< end.lowerBound) { x.removeSubrange(l.upperBound ..< b.upperBound) }
+        }
+        return x
+    }
+
+    /// `labels` placed in a series before the first thing the schema puts after them.
+    private static func _insertLabels(_ ser: String, _ labels: String) -> String {
+        var s = ser
+        var at = s.endIndex
+        for t in ["<c:trendline>", "<c:errBars>", "<c:cat>", "<c:val>", "<c:xVal>", "<c:yVal>", "<c:smooth", "<c:shape", "<c:bubbleSize>", "<c:extLst>"] {
+            if let q = s.findRange(of: t, in: s.startIndex ..< s.endIndex), q.lowerBound < at { at = q.lowerBound }
+        }
+        s.insert(contentsOf: labels, at: at)
+        return s
     }
 }
