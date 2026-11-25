@@ -23,6 +23,7 @@ struct PageSetupChange: Equatable {
     var gridlines: Bool? = nil, headings: Bool? = nil
     var centerHorizontally: Bool? = nil, centerVertically: Bool? = nil
     var overThenDown: Bool? = nil
+    var headerFooter: HeaderFooter? = nil
 }
 
 enum PageSetupEdit {
@@ -64,6 +65,10 @@ private extension Substring {
 
 extension Worksheet {
     func applyPageSetup(_ c: PageSetupChange) {
+        if let hf = c.headerFooter {
+            keptElements.removeAll { $0.name == "headerFooter" }
+            if let x = hf.xml() { keptElements.append(("headerFooter", x)) }
+        }
         func edit(_ name: String, _ attrs: [(String, String?)]) {
             guard !attrs.isEmpty else { return }
             if let i = keptElements.firstIndex(where: { $0.name == name }) {
