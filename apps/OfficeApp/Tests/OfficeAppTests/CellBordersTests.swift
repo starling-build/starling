@@ -128,4 +128,39 @@ final class CellBordersTests: XCTestCase {
         let back = try DocxFormat.read(xml).document
         XCTAssertEqual(Set(back.paragraphs.compactMap(\.cell).map(\.table)).count, 3, "Word would merge them into one")
     }
+
+    func testThemeColoursOfBordersAndShadingSurviveASave() throws {
+        XCTAssertEqual(WordTheme.attrs(slot: 4, lumMod: 100, lumOff: 0, fill: true), " w:themeFill=\"accent1\"")
+        XCTAssertEqual(WordTheme.attrs(slot: 5, lumMod: 60, lumOff: 40, fill: true), " w:themeFill=\"accent2\" w:themeFillTint=\"99\"")
+        XCTAssertEqual(WordTheme.attrs(slot: 5, lumMod: 75, lumOff: 0, fill: false), " w:themeColor=\"accent2\" w:themeShade=\"BF\"")
+        XCTAssertEqual(WordTheme.attrs(slot: 4, lumMod: 20, lumOff: 80, fill: false), " w:themeColor=\"accent1\" w:themeTint=\"33\"")
+        let c = grid()
+        selectAll(c)
+        c.setCellBorders([.bottom: CellBorderLine(style: "single", width: 1, color: Color(0xFFC55A11),
+                                                 themeAttrs: WordTheme.attrs(slot: 5, lumMod: 75, lumOff: 0, fill: false))])
+        c.setCellShading(Color(0xFFB4C7E7), themeAttrs: WordTheme.attrs(slot: 4, lumMod: 40, lumOff: 60, fill: true))
+        let saved = try DocxFormat.write(c.document, pageSetup: .letter)
+        let back = try DocxFormat.read(saved).document
+        let cells = back.paragraphs.compactMap(\.cell)
+        XCTAssertTrue(cells.allSatisfy { $0.fill == Color(0xFFB4C7E7) && $0.fillThemeAttrs == " w:themeFill=\"accent1\" w:themeFillTint=\"66\"" })
+        XCTAssertTrue(cells.filter { $0.row == 1 }.allSatisfy { $0.bordersXML?.containsSubstring("w:themeColor=\"accent2\"") == true && $0.bordersXML?.containsSubstring("w:themeShade=\"BF\"") == true })
+        // The file has no theme of its own: the app writes the palette it drew with, so Word shows the same colours.
+        let zip = try Zip.read(saved)
+        let themeData = try XCTUnwrap(zip.first { $0.name == "word/theme/theme1.xml" }?.data, "a theme-linked colour needs a theme part")
+        XCTAssertTrue(String(decoding: themeData, as: UTF8.self).containsSubstring("<a:accent1><a:srgbClr val=\"4472C4\"/>"))
+        XCTAssertTrue(String(decoding: try XCTUnwrap(zip.first { $0.name == "[Content_Types].xml" }?.data), as: UTF8.self).containsSubstring("/word/theme/theme1.xml"))
+        XCTAssertTrue(String(decoding: try XCTUnwrap(zip.first { $0.name == "word/_rels/document.xml.rels" }?.data), as: UTF8.self).containsSubstring("relationships/theme"))
+        XCTAssertEqual(DocxFormat._themeColors["accent1"].map { [$0.0, $0.1, $0.2] }, [0x44, 0x72, 0xC4], "and reads back")
+        // Saving again keeps both.
+        let again = try DocxFormat.read(try DocxFormat.write(back, pageSetup: .letter)).document.paragraphs.compactMap(\.cell)
+        XCTAssertTrue(again.allSatisfy { $0.fillThemeAttrs?.containsSubstring("accent1") == true })
+        // A plain colour afterwards drops the theme link; one undo restores it.
+        let d = RichDocumentController(plainText: "")
+        d.load(back)
+        selectAll(d)
+        d.setCellShading(Color(0xFFFF0000))
+        XCTAssertTrue(d.document.paragraphs.compactMap(\.cell).allSatisfy { $0.fillThemeAttrs == nil })
+        d.undo()
+        XCTAssertTrue(d.document.paragraphs.compactMap(\.cell).allSatisfy { $0.fillThemeAttrs != nil })
+    }
 }
