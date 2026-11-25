@@ -610,6 +610,8 @@ final class Ribbon: StatelessWidget {
                          enabled: c.selection.block != nil || c.selectedCellsInRow.count > 1 || c.selectedCellsInColumn.count > 1) { c.mergeCells() },
             Chrome.small(FluentSystemIcons.columns, "Split Cell", fluent,
                          enabled: c.currentCell != nil) { self.session.onSplitCellDialog?() },
+            Chrome.small(FluentSystemIcons.table, "Split Table", fluent,
+                         enabled: c.canSplitTable) { c.splitTable() },
         ])])
         let style = c.currentTableStyle ?? TableStyle()
         let row = c.currentCell?.row ?? 0
@@ -624,11 +626,12 @@ final class Ribbon: StatelessWidget {
             Chrome.gap(8),
             Chrome.big(FluentSystemIcons.columns, "Distribute Columns", fluent) { c.distributeColumns() },
         ])
-        let alignItems: [MenuFlyoutItemBase] = [
-            MenuFlyoutItem(text: Text("Align Top"), onPressed: { c.setCellVerticalAlignment("top") }),
-            MenuFlyoutItem(text: Text("Align Middle"), onPressed: { c.setCellVerticalAlignment("center") }),
-            MenuFlyoutItem(text: Text("Align Bottom"), onPressed: { c.setCellVerticalAlignment("bottom") }),
-        ]
+        // Word's nine Align buttons: top / center / bottom by left / center / right.
+        let alignItems: [MenuFlyoutItemBase] = [("top", "Top"), ("center", "Center"), ("bottom", "Bottom")].flatMap { v in
+            [(ParagraphAlignment.left, "Left"), (.center, "Center"), (.right, "Right")].map { h -> MenuFlyoutItemBase in
+                MenuFlyoutItem(text: Text("Align \(v.1) \(h.1)"), onPressed: { c.setCellAlignment(vertical: v.0, horizontal: h.0) })
+            }
+        }
         let directionItems: [MenuFlyoutItemBase] = [
             MenuFlyoutItem(text: Text("Horizontal Text"), onPressed: { c.setCellTextDirection(.horizontal) }),
             MenuFlyoutItem(text: Text("Rotate Text Down"), onPressed: { c.setCellTextDirection(.down) }),
