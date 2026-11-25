@@ -69,7 +69,7 @@ extension WorkbookController {
                 guard let text = book.names[n.name.uppercased()] else { continue }
                 out.append(NameEntry(name: n.name, refersTo: text, scopeSheet: nil, editable: !hidden))
             } else {
-                out.append(NameEntry(name: n.name, refersTo: n.text, scopeSheet: n.localSheet, editable: false))
+                out.append(NameEntry(name: n.name, refersTo: n.text, scopeSheet: n.localSheet, editable: !hidden))
             }
         }
         // Names made here and not yet in the file's list.
@@ -97,9 +97,9 @@ extension WorkbookController {
     /// Change a name's spelling and/or what it refers to. Formulas that use the old name are rewritten to the
     /// new spelling, as Excel does. One undo step.
     @discardableResult
-    func editName(_ old: String, to name: String, refersTo: String) -> NameProblem? {
+    func editName(_ old: String, to name: String, refersTo: String, scope: Int? = nil) -> NameProblem? {
         let oldKey = old.uppercased(), key = name.uppercased()
-        if book.fileNames.contains(where: { $0.name.uppercased() == oldKey && $0.localSheet != nil }) { return .scopedNotEditable }
+        if let scope { return _editLocalName(oldKey, to: name, refersTo: refersTo, scope: scope) }
         guard book.names[oldKey] != nil else { return .notFound }
         if let p = Self.checkName(name) { return p }
         if key != oldKey, book.names[key] != nil { return .exists }
@@ -120,11 +120,39 @@ extension WorkbookController {
         return nil
     }
 
+    /// A name local to one sheet: change its spelling and/or what it refers to. Formulas on that sheet are rewritten.
+    private func _editLocalName(_ oldKey: String, to name: String, refersTo: String, scope: Int) -> NameProblem? {
+        let key = name.uppercased()
+        guard let i = book.fileNames.firstIndex(where: { $0.localSheet == scope && $0.name.uppercased() == oldKey }) else { return .notFound }
+        if let p = Self.checkName(name) { return p }
+        if key != oldKey, book.fileNames.contains(where: { $0.localSheet == scope && $0.name.uppercased() == key }) { return .exists }
+        guard let text = Self.normalisedReference(refersTo) else { return .badFormula }
+        structural {
+            if key != oldKey, scope < book.sheets.count {
+                for (a, c) in book.sheets[scope].cells {
+                    guard let expr = c.formula else { continue }
+                    let g = Self._mapNames(expr) { $0.uppercased() == oldKey ? name : $0 }
+                    if g != expr {
+                        book.sheets[scope].cells[a]?.formula = g
+                        book.sheets[scope].cells[a]?.input = Formula.text(g)
+                    }
+                }
+            }
+            book.fileNames[i].name = name
+            book.fileNames[i].text = text
+        }
+        return nil
+    }
+
     /// Delete a workbook-wide name. Formulas that use it keep the text and show #NAME?, as in Excel. One undo step.
     @discardableResult
-    func deleteName(_ name: String) -> NameProblem? {
+    func deleteName(_ name: String, scope: Int? = nil) -> NameProblem? {
         let key = name.uppercased()
-        if book.fileNames.contains(where: { $0.name.uppercased() == key && $0.localSheet != nil }) { return .scopedNotEditable }
+        if let scope {
+            guard book.fileNames.contains(where: { $0.localSheet == scope && $0.name.uppercased() == key }) else { return .notFound }
+            structural { book.fileNames.removeAll { $0.localSheet == scope && $0.name.uppercased() == key } }
+            return nil
+        }
         guard book.names[key] != nil else { return .notFound }
         structural {
             book.names[key] = nil
