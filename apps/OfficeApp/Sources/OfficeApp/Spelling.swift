@@ -6,6 +6,31 @@
 import Flutter
 import OfficeText
 import Foundation
+#if canImport(OfficeUIKit)
+import OfficeUIKit
+
+/// The iPad's checker (UITextChecker, in OfficeUIKit) behind the SDK's RichSpellChecker.
+final class UIKitSpellChecker: RichSpellChecker {
+    private let _checker = OfficeTextChecker()
+    var version: Int { _checker.version }
+    func misspelledRanges(in text: String) -> [Range<Int>] { _checker.misspelledRanges(in: text) }
+    func suggestions(for word: String) -> [String] { _checker.suggestions(for: word) }
+    func ignore(_ word: String) { _checker.ignore(word) }
+    func learn(_ word: String) { _checker.learn(word) }
+}
+#endif
+
+/// The platform's spelling checker; nil where there is none.
+func makeSpellChecker() -> RichSpellChecker? {
+    #if canImport(AppKit)
+    return CocoaSpellChecker()
+    #elseif canImport(OfficeUIKit)
+    return UIKitSpellChecker()
+    #else
+    return nil
+    #endif
+}
+
 #if canImport(AppKit)
 import AppKit
 

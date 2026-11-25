@@ -100,11 +100,7 @@ final class OfficeShellState: State<StatefulWidget> {
     private var _linkHover: String? = nil
     private var _autosaveGeneration = 0
     private let _contextMenu = FlyoutController()
-    #if canImport(AppKit)
-    private let _spelling: RichSpellChecker? = CocoaSpellChecker()
-    #else
-    private let _spelling: RichSpellChecker? = nil
-    #endif
+    private let _spelling: RichSpellChecker? = makeSpellChecker()
     /// Set when the open document came from a recovery copy: AutoSave then
     /// refreshes only the copy until the user saves for real.
     private var _recovered = false
@@ -1047,10 +1043,37 @@ final class OfficeShellState: State<StatefulWidget> {
 
     // MARK: Clipboard and the context menu
 
+    /// The misspelled word the caret is in or the selection is (all of it, or part), if spelling is checked and it is one.
+    private func _misspelledWord() -> (paragraph: Int, range: Range<Int>, word: String)? {
+        let c = controller
+        let sel = c.selection
+        guard let checker = _spelling, session.checkSpelling, !c.readOnly, sel.anchor.paragraph == sel.focus.paragraph,
+              sel.focus.paragraph < c.document.paragraphs.count else { return nil }
+        let text = c.document.paragraphs[sel.focus.paragraph].text
+        let lo = min(sel.anchor.offset, sel.focus.offset), hi = max(sel.anchor.offset, sel.focus.offset)
+        guard let r = checker.misspelledRanges(in: text).first(where: { $0.lowerBound <= lo && hi <= $0.upperBound }) else { return nil }
+        return (sel.focus.paragraph, r, _utf16Slice(text, r))
+    }
+
     /// The host's edit menu for a finger's selection or caret (iPad: the system
     /// menu). Nothing happens on a host that draws none.
     private func _showTouchMenu(_ rect: Rect?) {
-        officeScene.showTouchMenu(rect, controller: controller)
+        // A misspelled word under the caret or selected: its first three corrections lead the menu, as the system's do.
+        var leading: [OfficeHost.EditMenuItem] = []
+        let c = controller
+        if rect != nil, let checker = _spelling, let bad = _misspelledWord() {
+            let paragraph = bad.paragraph, r = bad.range, word = bad.word
+            for g in checker.suggestions(for: word).prefix(3) {
+                leading.append(.init(title: g, symbol: "textformat.abc") { [weak c] in
+                    // The menu takes no focus, so the document may have changed under it: replace only the word still there.
+                    guard let c, paragraph < c.document.paragraphs.count else { return }
+                    let now = c.document.paragraphs[paragraph].text
+                    guard r.upperBound <= now.utf16.count, _utf16Slice(now, r) == word else { return }
+                    c.replaceText(in: paragraph, r, with: g)
+                })
+            }
+        }
+        officeScene.showTouchMenu(rect, controller: controller, leading: leading)
     }
 
     private func _paste(plain: Bool) { _paste(mode: plain ? .textOnly : .keepSource) }
@@ -1070,11 +1093,10 @@ final class OfficeShellState: State<StatefulWidget> {
         func item(_ text: String, enabled: Bool = true, _ action: @escaping () -> Void) { menu.item(text, enabled: enabled, action) }
         func sep() { menu.separator() }
         // A misspelled word under the click: its corrections first, as Word.
-        if let checker = _spelling, session.checkSpelling, !c.hasSelection {
-            let pos = c.selection.focus
-            let text = c.document.paragraphs[pos.paragraph].text
-            if let r = checker.misspelledRanges(in: text).first(where: { $0.lowerBound <= pos.offset && pos.offset <= $0.upperBound }) {
-                let word = _utf16Slice(text, r)
+        if let checker = _spelling, let bad = _misspelledWord() {
+            let pos = (paragraph: bad.paragraph, offset: bad.range.lowerBound)
+            do {
+                let r = bad.range, word = bad.word
                 let guesses = checker.suggestions(for: word).prefix(5)
                 if guesses.isEmpty {
                     item("(No Spelling Suggestions)", enabled: false) {}
