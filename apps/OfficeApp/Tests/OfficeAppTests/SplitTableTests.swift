@@ -217,6 +217,35 @@ final class TextPitch2LabWriter: XCTestCase {
     }
 }
 
+/// Lab textpitch4: how a turned cell's line pitch follows non-single line spacing. Six faces by six rows:
+/// rows 1-3 at 11 pt and rows 4-6 at 13 pt, spacing 1.5 / 2.0 / exactly 20 pt, "Aaaa Bbbb Cccc" turned down in 40 pt exact rows.
+final class TextPitch4LabWriter: XCTestCase {
+    func testWriteLab() throws {
+        guard let out = ProcessInfo.processInfo.environment["TEXTPITCH4_LAB_OUT"] else { throw XCTSkip("no TEXTPITCH4_LAB_OUT") }
+        let c = RichDocumentController(plainText: "")
+        c.insertTable(rows: 6, columns: 6)
+        let idx = c.document.paragraphs.indices.filter { c.document.paragraphs[$0].cell != nil }
+        let faces = ["Calibri", "Cambria", "Consolas", "Verdana", "Tahoma", "Courier New"]
+        for (k, i) in idx.enumerated() {
+            let col = k % 6, row = k / 6
+            c.moveTo(RichPosition(paragraph: i, offset: 0), extend: false)
+            c.insertText("Aaaa Bbbb Cccc")
+            c.moveTo(RichPosition(paragraph: i, offset: 0), extend: false)
+            c.moveTo(RichPosition(paragraph: i, offset: 14), extend: true)
+            c.setFontFamily(faces[col]); c.setFontSize(row < 3 ? 11 : 13)
+            c.moveTo(RichPosition(paragraph: i, offset: 0), extend: false)
+            switch row % 3 {
+            case 0: c.setLineSpacing(1.5)
+            case 1: c.setLineSpacing(2)
+            default: c.setParagraphFormat(RichDocumentController.ParagraphFormat(lineRule: .exactly(20)))
+            }
+            if col == 0 { c.setRowHeight(40, exact: true) }
+            c.setCellTextDirection(.down)
+        }
+        try DocxFormat.write(c.document, pageSetup: .letter).write(to: URL(fileURLWithPath: out))
+    }
+}
+
 /// A turned cell's lines of Latin text step by 1.026 of the face's single line
 /// (Word for Windows, lab textpitch3), the same for Rotate Down and Up.
 final class TurnedCellPitchTests: XCTestCase {
