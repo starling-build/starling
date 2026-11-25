@@ -154,6 +154,33 @@ final class TextBoxInsertTests: XCTestCase {
         XCTAssertEqual(c.textBoxText(at: i), "one")
     }
 
+    /// W-TB-6: a table made inside a text box stays a table when the box is left, saved and read again, and a box that
+    /// already holds one can be edited in place.
+    func testATableInsideATextBoxIsKeptWhenTheBoxIsLeftAndSaved() throws {
+        let c = RichDocumentController(document: RichDocument(paragraphs: [RichParagraph(text: "body")]))
+        c.insertImage(try XCTUnwrap(TextBoxInsert.make(text: "one")))
+        let i = try XCTUnwrap(c.document.paragraphs.firstIndex { $0.image?.textBox != nil })
+        let box = RichDocumentController(document: try XCTUnwrap(c.textBoxDocument(at: i)))
+        box.insertTable(rows: 2, columns: 2)
+        let first = try XCTUnwrap(box.document.paragraphs.firstIndex { $0.cell != nil })
+        box.moveTo(RichPosition(paragraph: first, offset: 0), extend: false)
+        box.insertText("cell")
+        let xml = try XCTUnwrap(TextBoxInsert.contentXML(box.document))
+        XCTAssertTrue(xml.containsSubstring("<w:tbl>"))
+        XCTAssertTrue(c.setTextBoxContent(at: i, document: box.document, contentXML: xml))
+        let inBox = try XCTUnwrap(c.document.paragraphs[i].image?.textBox)
+        XCTAssertEqual(inBox.paragraphs.compactMap(\.cell).count, 4)
+        // A box that holds a table is editable in place, and saves.
+        let again = try XCTUnwrap(c.textBoxDocument(at: i))
+        XCTAssertEqual(again.paragraphs.compactMap(\.cell).count, 4)
+        let back = try DocxFormat.read(try DocxFormat.write(c.document, pageSetup: .letter)).document
+        let kept = try XCTUnwrap(back.paragraphs.compactMap { $0.image }.first { $0.textBox != nil }?.textBox)
+        XCTAssertEqual(kept.paragraphs.compactMap(\.cell).count, 4)
+        XCTAssertTrue(kept.paragraphs.contains { $0.text == "cell" && $0.cell != nil })
+        c.undo()
+        XCTAssertEqual(c.document.paragraphs[i].image?.textBox?.paragraphs.compactMap(\.cell).count, 0)
+    }
+
     func testTypingInTheBoxIsOneUndoStepWithFormattingAndSaves() throws {
         let c = RichDocumentController(document: RichDocument(paragraphs: [RichParagraph(text: "body")]))
         c.insertImage(try XCTUnwrap(TextBoxInsert.make(text: "one")))

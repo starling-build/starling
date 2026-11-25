@@ -54,7 +54,14 @@ enum TextBoxInsert {
 
     /// The `w:txbxContent` body for `paragraphs`: what the document writer makes of them, lifted out of a throwaway file.
     static func contentXML(_ paragraphs: [RichParagraph]) -> String? {
-        guard let data = try? DocxFormat.write(RichDocument(paragraphs: paragraphs.isEmpty ? [RichParagraph(text: "")] : paragraphs), pageSetup: .letter),
+        contentXML(RichDocument(paragraphs: paragraphs))
+    }
+
+    /// The same for a small document: its tables are written with their looks and grids.
+    static func contentXML(_ document: RichDocument) -> String? {
+        var document = document
+        if document.paragraphs.isEmpty { document.paragraphs = [RichParagraph(text: "")] }
+        guard let data = try? DocxFormat.write(document, pageSetup: .letter),
               let entries = try? Zip.read(data), let e = entries.first(where: { $0.name == "word/document.xml" }) else { return nil }
         let xml = String(decoding: e.data, as: UTF8.self)
         guard let body = xml.rangeOfSubstring("<w:body>"),
