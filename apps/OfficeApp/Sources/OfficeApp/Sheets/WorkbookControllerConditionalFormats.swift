@@ -110,9 +110,8 @@ extension WorkbookController {
         case .iconSet(let name):
             highlight = false
             let n = Int(name.prefix(1)) ?? 3
-            let step = 100 / n
             var cfvo = "<cfvo type=\"percent\" val=\"0\"/>"
-            for i in 1 ..< n { cfvo += "<cfvo type=\"percent\" val=\"\(step * i)\"/>" }
+            for i in 1 ..< n { cfvo += "<cfvo type=\"percent\" val=\"\((100 * i + n / 2) / n)\"/>" }   // Excel's own 33/67, 25/50/75
             body = "type=\"iconSet\"|<iconSet iconSet=\"\(Xlsx._esc(name))\">" + cfvo + "</iconSet>"
         }
         var dxfAttr = ""
