@@ -83,6 +83,7 @@ final class SlidesShellState: State<StatefulWidget> {
     private var _animationPane = false
     private var _selectionPane = false
     private var _formatShape = false
+    private var _formatBackground = false
     /// A thumbnail being dragged to a new place: where it started, the
     /// pointer's start, and where it would land.
     private var _thumbDrag: (from: Int, startY: Double, startX: Double, to: Int, moved: Bool)? = nil
@@ -339,6 +340,9 @@ final class SlidesShellState: State<StatefulWidget> {
             guard let self else { return }
             self.setState { self.session.autoSave.toggle() }
             self._flash(self.session.autoSave ? "AutoSave on" : "AutoSave off — a recovery copy is still kept")
+        }
+        session.onFormatBackground = { [weak self] in
+            self?.setState { self?._formatBackground.toggle() }
         }
         session.onFormatShape = { [weak self] in
             self?.setState { self?._formatShape.toggle() }
@@ -1349,6 +1353,10 @@ final class SlidesShellState: State<StatefulWidget> {
             if _selectionPane {
                 panes.append(SelectionPane(deck: deck, modifiers: { [weak self] in self?._deckChords.modifiers ?? [] },
                                            onClose: { [weak self] in self?.setState { self?._selectionPane = false } }))
+            }
+            if _formatBackground {
+                row.append(FormatBackgroundPane(deck: deck, onPicture: { [weak self] in self?.session.onBackgroundPicture?() },
+                                                onClose: { [weak self] in self?.setState { self?._formatBackground = false } }))
             }
             if _formatShape {
                 panes.append(FormatShapePane(deck: deck, onClose: { [weak self] in self?.setState { self?._formatShape = false } }))

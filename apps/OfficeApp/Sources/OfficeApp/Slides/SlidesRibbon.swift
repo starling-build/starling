@@ -233,6 +233,8 @@ extension Ribbon {
         let wide = abs(deck.slideSize.width / deck.slideSize.height - 16.0 / 9.0) < 0.01
         let palette = Self.shapeColors(deck.theme)
         var background: [MenuFlyoutItemBase] = [
+            MenuFlyoutItem(text: Text("Format Background…"), onPressed: { [session] in session.onFormatBackground?() }),
+            MenuFlyoutSeparator(),
             MenuFlyoutItem(text: Text("Theme Background"), onPressed: { deck.setBackground(nil) }),
             MenuFlyoutSeparator(),
         ]
