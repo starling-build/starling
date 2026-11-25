@@ -881,6 +881,9 @@ public struct RichParagraphStyle: Hashable, Codable, Sendable {
     public var pBdrElement = false
     /// A fill behind the whole paragraph (Word's paragraph shading).
     public var fill: Color? = nil
+    /// The rest of that shading as the file wrote it (pattern, pattern colour, theme link), after the fill's hex and a `#`:
+    /// `FFFFFF# w:val="pct10" w:color="auto"`. Written back only while the fill is still that colour.
+    public var fillAttrs: String? = nil
     /// Word's frame (w:framePr: a paragraph positioned on the page), kept
     /// as written for the save; the layout flows it like any other.
     public var frameXML: String? = nil

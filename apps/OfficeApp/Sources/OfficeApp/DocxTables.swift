@@ -1272,7 +1272,7 @@ extension DocxFormat {
             if let b = p.style.borders { pPr += _bordersXML(b) }
             else if ownStyle?.borders != nil { pPr += "<w:pBdr><w:top w:val=\"nil\"/><w:left w:val=\"nil\"/><w:bottom w:val=\"nil\"/><w:right w:val=\"nil\"/></w:pBdr>" }
             if p.style.fill == nil, ownStyle?.fill != nil { pPr += "<w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"auto\"/>" }
-            if let fill = p.style.fill { pPr += "<w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"\(_hex(fill))\"/>" }
+            if let fill = p.style.fill { pPr += _paraShdXML(fill, p.style.fillAttrs) }
             if p.style.rightToLeft { pPr += "<w:bidi/>" }
             else if p.style.named.flatMap({ doc.styles[$0] })?.paragraph.rightToLeft ?? false { pPr += "<w:bidi w:val=\"0\"/>" }
             pPr += _tabsXML(p.style.tabStops, under: ownStyle?.tabStops ?? [])
@@ -2172,6 +2172,13 @@ extension DocxFormat {
         return out
     }
 
+    /// A paragraph's shading: as the file wrote it (pattern, theme link) while the fill is still that colour.
+    static func _paraShdXML(_ fill: Color, _ attrs: String?) -> String {
+        if let t = attrs, let h = t.firstIndex(of: "#"), t[t.startIndex ..< h].lowercased() == _hex(fill).lowercased() {
+            return "<w:shd\(t[t.index(after: h)...]) w:fill=\"\(_hex(fill))\"/>"
+        }
+        return "<w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"\(_hex(fill))\"/>"
+    }
     static func _hex(_ c: Color) -> String {
         String(printf: "%06X", c.value & 0xFFFFFF)
     }
@@ -2264,7 +2271,7 @@ extension DocxFormat {
             // A style's own rule (the line under a "header" style: the
             // kept header part's paragraphs draw it by their style).
             if let b = entry.paragraph.borders { out += _bordersXML(b) }
-            if let fill = entry.paragraph.fill { out += "<w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"\(_hex(fill))\"/>" }
+            if let fill = entry.paragraph.fill { out += _paraShdXML(fill, entry.paragraph.fillAttrs) }
             if entry.paragraph.rightToLeft { out += "<w:bidi/>" }
             // The style's tab stops: a header style's centre and right
             // tabs place what the kept header part lays out with them
