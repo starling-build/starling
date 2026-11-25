@@ -70,7 +70,7 @@ final class HeaderFooterBar: StatelessWidget {
             // (The field takes the keyboard as the bar opens, as Find's
             // does: Insert → Header and a typed line used to go into the
             // document's text — seen on screen 2026-10-13.)
-            SizedBox(width: 230, height: 30, child: FluentTextBox(
+            SizedBox(width: 230 * SystemDisplay.current.chromeTextScale, height: OfficeAppearance.rowHeight(30), child: FluentTextBox(
                 controller: header, placeholderText: headerLocked ? "Has pictures or formatting: kept as is" : "Header text",  onSubmitted: { [onApply] _ in onApply() }, enabled: !headerLocked, autofocus: true,
                 tabGroup: "header-footer", tabOrder: 0)),
             Chrome.gap(4)] + lookButtons(true, headerLook, locked: headerLocked) + [
@@ -81,7 +81,7 @@ final class HeaderFooterBar: StatelessWidget {
         ]
         let footerRow: [Widget] = [
             SizedBox(width: 60, height: nil, child: Text("Footer", style: fluent.typography.body)),
-            SizedBox(width: 230, height: 30, child: FluentTextBox(
+            SizedBox(width: 230 * SystemDisplay.current.chromeTextScale, height: OfficeAppearance.rowHeight(30), child: FluentTextBox(
                 controller: footer, placeholderText: footerLocked ? "Has pictures or formatting: kept as is" : "Footer text",  onSubmitted: { [onApply] _ in onApply() }, enabled: !footerLocked,
                 tabGroup: "header-footer", tabOrder: 1)),
             Chrome.gap(4)] + lookButtons(false, footerLook, locked: footerLocked) + [

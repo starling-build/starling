@@ -42,6 +42,9 @@ enum OfficeAppearance {
         return theme.brightness == .dark ? Color(0xFFB0BED6) : Color(0xFF596981)
     }
 
+    /// A fixed chrome row's height at the system text size: the row grows with the text instead of clipping it.
+    static func rowHeight(_ h: Double, display: DisplaySettings = SystemDisplay.current) -> Double { h * display.chromeTextScale }
+
     /// `display` is the system's text size, contrast and bold settings (see SystemDisplay); the chrome's text
     /// follows them, up to what its fixed rows can hold.
     static func theme(_ brightness: Brightness, display: DisplaySettings = SystemDisplay.current) -> FluentThemeData {
