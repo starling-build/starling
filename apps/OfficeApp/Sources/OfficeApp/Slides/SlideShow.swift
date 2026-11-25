@@ -44,7 +44,7 @@ final class SlideShowView: StatefulWidget {
 final class SlideShowState: State<StatefulWidget>, TickerProvider {
     private var _order: [Int] = []
     /// Position in `_order`; `_order.count` is the end screen.
-    private var _at = 0
+    private(set) var _at = 0
     private var _from: Int? = nil
     private var _controller: AnimationController!
     private var _blank: Color? = nil
@@ -203,6 +203,65 @@ final class SlideShowState: State<StatefulWidget>, TickerProvider {
             return
         }
         _go(to: _at - 1, animate: false, back: true)
+    }
+
+    // MARK: Links
+
+    /// The link under a click: the shape's own, else the one on the text run there.
+    private func _link(at p: Offset, size: Size) -> String? {
+        guard _at < _order.count else { return nil }
+        let deck = _w.deck, slide = deck.slides[_order[_at]]
+        let k = min(size.width / deck.slideSize.width, size.height / deck.slideSize.height)
+        let w = (deck.slideSize.width * k).rounded(), h = (deck.slideSize.height * k).rounded()
+        let left = ((size.width - w) / 2).rounded(), top = ((size.height - h) / 2).rounded()
+        let pt = Offset((p.dx - left) / k, (p.dy - top) / k)
+        guard pt.dx >= 0, pt.dy >= 0, pt.dx <= deck.slideSize.width, pt.dy <= deck.slideSize.height else { return nil }
+        for shape in slide.shapes.reversed() where !shape.invisible {
+            var q = pt
+            if shape.rotation != 0 {
+                let c = shape.frame.center, a = -shape.rotation * .pi / 180
+                let dx = pt.dx - c.dx, dy = pt.dy - c.dy
+                q = Offset(c.dx + dx * cos(a) - dy * sin(a), c.dy + dx * sin(a) + dy * cos(a))
+            }
+            guard shape.frame.contains(q) else { continue }
+            if let l = shape.link, !l.isEmpty { return l }
+            guard let text = shape.text, let layout = _cache.layout(shape, pxPerPt: 1) else { continue }
+            let lp = Offset(q.dx - shape.frame.left - shape.drawInsets.left, q.dy - shape.frame.top - _cache.textTop(shape, pxPerPt: 1))
+            let pos = layout.position(at: lp, text.document)
+            let para = text.document.paragraphs[pos.paragraph]
+            guard !para.text.isEmpty else { continue }
+            let l = para.style(at: min(pos.offset, para.text.count - 1)).link
+            if let l, !l.isEmpty { return l }
+        }
+        return nil
+    }
+
+    /// Follows a link; false when it is not one the show acts on (the click then advances).
+    private func _follow(_ link: String) -> Bool {
+        let deck = _w.deck
+        func show(_ slideIndex: Int) {
+            if !_order.contains(slideIndex) { _order.insert(slideIndex, at: min(_at + 1, _order.count)); _go(to: _at + 1, animate: false); return }
+            _go(to: _order.firstIndex(of: slideIndex)!, animate: false)
+        }
+        if link.hasPrefix("slide:") {
+            let key = String(link.dropFirst(6))
+            guard let i = deck.slides.firstIndex(where: { ($0.sourcePart ?? "new:\($0.id)") == key }) else { return false }
+            show(i); return true
+        }
+        if link.hasPrefix("action:") {
+            let a = link.dropFirst(7)
+            if a.hasSuffix("jump=nextslide") { _go(to: _at + 1, animate: true) }
+            else if a.hasSuffix("jump=previousslide") { _go(to: _at - 1, animate: false, back: true) }
+            else if a.hasSuffix("jump=firstslide") { _go(to: 0, animate: false) }
+            else if a.hasSuffix("jump=lastslide") { _go(to: max(0, _order.count - 1), animate: false) }
+            else if a.hasSuffix("jump=endshow") { _w.onEnd() }
+            else { return false }
+            return true
+        }
+        let lower = link.lowercased()
+        guard lower.hasPrefix("https://") || lower.hasPrefix("http://") || lower.hasPrefix("mailto:") else { return false }
+        hostOpenURL?(link)
+        return true
     }
 
     // MARK: Input
@@ -368,6 +427,8 @@ final class SlideShowState: State<StatefulWidget>, TickerProvider {
             onPointerDown: { [weak self] e in
                 guard let self else { return }
                 self._focus.requestFocus()
+                if e.buttons & kSecondaryMouseButton == 0, let box = context.findRenderObject() as? RenderBox,
+                   let l = self._link(at: box.globalToLocal(e.position), size: box.size), self._follow(l) { return }
                 if self._w.landing { self._pointerStart = e.position }
                 else if e.buttons & kSecondaryMouseButton != 0 { self._previous() } else { self._next() }
             },

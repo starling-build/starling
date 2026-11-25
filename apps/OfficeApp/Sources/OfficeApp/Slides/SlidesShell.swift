@@ -76,6 +76,8 @@ final class SlidesShellState: State<StatefulWidget> {
     /// Font Color > More Colors is open.
     private var _colorOpen = false
     private var _altText = false
+    /// The Insert Hyperlink dialog is up (text being edited, or the selected shapes).
+    private var _linkOpen = false
     private var _textOptions = false
     /// The Animation Pane is open beside the slide.
     private var _animationPane = false
@@ -322,6 +324,7 @@ final class SlidesShellState: State<StatefulWidget> {
             self._endEditing()
             self.setState { self._headerFooter = true }
         }
+        session.onLink = { [weak self] in self?._openLink() }
         session.onAltText = { [weak self] in
             guard let self, self.deck.selectedAltText != nil || self.deck.selection.contains(where: { $0.picture != nil }) else { return }
             self._endEditing()
@@ -1198,6 +1201,7 @@ final class SlidesShellState: State<StatefulWidget> {
             // up — seen on screen 2026-10-13.)
             if _headerFooter { setState { _headerFooter = false }; return true }
             if _altText { setState { _altText = false }; return true }
+            if _linkOpen { setState { _linkOpen = false }; return true }
             if _textOptions { setState { _textOptions = false }; return true }
             if _backstage != nil { setState { _backstage = nil }; return true }
             if typing {
@@ -1238,6 +1242,7 @@ final class SlidesShellState: State<StatefulWidget> {
             if let why = deck.groupRefusal { _flash(why) } else { deck.groupSelection() }
         case "d" where shapes: deck.duplicateSelection()
         case "d" where !typing: deck.duplicateSlide(deck.current)
+        case "k" where !mods.contains(.shift): _openLink()
         case "f": _openFind(replace: false)
         case "h": _openFind(replace: true)
         case "e": c.setAlignment(.center)
@@ -1247,6 +1252,45 @@ final class SlidesShellState: State<StatefulWidget> {
         default: return false
         }
         return true
+    }
+
+    // MARK: Links
+
+    /// Insert Hyperlink (Ctrl+K, Insert > Link): on the selected text while one is edited, else on the selected shapes.
+    private func _openLink() {
+        let typing = _active != nil || _notesActive
+        guard typing || !deck.selection.isEmpty else { _flash("Select text or a shape to link"); return }
+        setState { _linkOpen = true }
+    }
+
+    private var _linkHooks: HyperlinkHooks {
+        let typing = _active != nil || _notesActive
+        let c = session.controller
+        let targets = deck.slideLinkTargets()
+        let now = typing ? (c.currentLink, c.currentLinkTip) : deck.selectedShapeLink
+        let isJump = now.0?.hasPrefix("slide:") == true || now.0?.hasPrefix("action:") == true
+        var h = HyperlinkHooks(apply: { [weak self] addr, place, text, tip in
+            guard let self else { return "" }
+            let link = place.map { "slide:" + $0 } ?? addr
+            if link.isEmpty { return "Type an address or pick a slide" }
+            if typing {
+                guard self.session.controller.applyHyperlink(address: link, text: text, tip: tip) else { return "Nothing to link" }
+            } else if !self.deck.setShapeLink(link, tip: tip) { return "Select text or a shape" }
+            self._flash("Linked")
+            return ""
+        })
+        h.placesLabel = "Place in this document"
+        h.places = targets.map { HyperlinkPlace(id: $0.key, title: $0.title, kind: "Slide") }
+        h.hasDisplayText = typing
+        h.address = isJump ? "" : (now.0 ?? "")
+        h.displayText = typing ? c.selectedText : ""
+        h.tip = now.1 ?? ""
+        h.canRemove = now.0 != nil
+        h.remove = { [weak self] in
+            guard let self else { return }
+            if typing { self.session.controller.setLink(nil) } else { self.deck.setShapeLink(nil, tip: nil) }
+        }
+        return h
     }
 
     // MARK: Build
@@ -1372,6 +1416,14 @@ final class SlidesShellState: State<StatefulWidget> {
                         self?.setState { self?._textOptions = false }
                     },
                     onCancel: { [weak self] in self?.setState { self?._textOptions = false } })),
+            ])
+        }
+        if _linkOpen {
+            return Stack(children: [
+                IgnorePointer(ignoring: true, child: window),
+                Positioned(left: 0, top: 0, right: 0, bottom: 0, child: HyperlinkDialog(
+                    hooks: _linkHooks,
+                    onClose: { [weak self] in self?.setState { self?._linkOpen = false } })),
             ])
         }
         if _altText {
