@@ -803,6 +803,17 @@ final class DeckController: ChangeNotifier {
         return shape
     }
 
+    /// A clip's real first frame takes the place of its generic poster (one undo step is not spent on it).
+    func replacePoster(_ shape: SlideShape, png: Data, width: Int, height: Int, frame: Rect) {
+        guard case .picture(let old) = shape.kind else { return }
+        var image = old
+        image.data = png; image.width = Double(width); image.height = Double(height)
+        image.naturalWidth = Double(width); image.naturalHeight = Double(height)
+        shape.kind = .picture(image)
+        shape.frame = frame
+        _changed()
+    }
+
     // MARK: Animations
 
     /// The current slide's animations can be edited here (not kept as the

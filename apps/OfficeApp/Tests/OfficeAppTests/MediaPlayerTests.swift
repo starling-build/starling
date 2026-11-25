@@ -1,6 +1,7 @@
 #if os(Linux)
 import XCTest
 import Flutter
+@testable import OfficeApp
 
 final class MediaPlayerTests: XCTestCase {
     func testPlaysAudioFileToTheEnd() throws {
@@ -43,6 +44,17 @@ final class MediaPlayerTests: XCTestCase {
         XCTAssertGreaterThan(Int(f.pixels[i]), 200)
         XCTAssertLessThan(Int(f.pixels[i + 1]), 60)
         XCTAssertLessThan(Int(f.pixels[i + 2]), 60)
+    }
+
+    /// The poster of a movie is its own first frame, as a PNG that decodes to the same pixels.
+    func testPosterIsTheClipsFirstFrame() throws {
+        let url = try XCTUnwrap(Bundle.module.url(forResource: "red", withExtension: "webm", subdirectory: "Fixtures"))
+        let clip = MediaClip(data: try Data(contentsOf: url), name: "red.webm", isVideo: true)
+        guard let f = MediaPoster.firstFrame(of: clip) else { throw XCTSkip("no GStreamer or VP8 decoder") }
+        XCTAssertEqual(f.width, 64)
+        XCTAssertEqual(f.height, 48)
+        XCTAssertTrue(Png.isPng([UInt8](f.png)))
+        XCTAssertNotNil(Png.repaired([UInt8](f.png)))
     }
 }
 #endif
