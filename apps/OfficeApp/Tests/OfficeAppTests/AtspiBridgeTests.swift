@@ -62,6 +62,8 @@ final class AtspiBridgeTests: XCTestCase {
                 c = app.get_child_at_index(j)
                 if c.get_name() == 'Save document':
                     print('FOUND', c.get_role_name())
+                    e = Atspi.Component.get_extents(c, Atspi.CoordType.WINDOW)
+                    print('SIZE', e.width, e.height)
                     print('PRESSED', Atspi.Action.do_action(c, 0))
         """
         let client = Process()
@@ -75,6 +77,7 @@ final class AtspiBridgeTests: XCTestCase {
         if client.isRunning { client.terminate() }
         let text = String(decoding: cout.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
         XCTAssertTrue(text.contains("FOUND button"), "client saw: \(text)")
+        XCTAssertTrue(text.contains("SIZE 20 20"), "client saw: \(text)")
         XCTAssertTrue(text.contains("PRESSED True"), "client saw: \(text)")
         XCTAssertEqual(pressed, 1)
     }
