@@ -200,6 +200,14 @@ final class UIShellHarnessTests: XCTestCase {
         XCTAssertEqual(deck.selectedTableOptions?.bandedRows, false)
         XCTAssertTrue(ui.tap(text: "Header Row"))
         XCTAssertEqual(deck.selectedTableOptions?.headerRow, true)
+        // Shading menu: "No Shading" clears every cell's own colour.
+        deck.setTableShading(Color(0xFFFFFF00))
+        func fills() -> Set<Color?> { Set(t.text!.document.paragraphs.compactMap { $0.cell }.map { $0.fill }) }
+        XCTAssertEqual(fills(), [Color(0xFFFFFF00)])
+        XCTAssertTrue(ui.tap(text: "Shading"))
+        ui.pump()
+        XCTAssertTrue(ui.tap(text: "No Shading"))
+        XCTAssertEqual(fills(), [nil])
     }
 }
 

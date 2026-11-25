@@ -661,6 +661,27 @@ final class DeepGroupTests: XCTestCase {
                        box.text?.document.paragraphs.count)
     }
 
+    /// S-TB-1b: shading some cells of a table undoes and survives a save, other cells keep the style's.
+    func testTableCellShadingRoundTripAndUndo() throws {
+        let deck = DeckController()
+        deck.slides[0].shapes.removeAll()
+        let t = deck.addTable(rows: 3, columns: 2)
+        deck.selectShapes([t])
+        let yellow = Color(0xFFFFFF00)
+        deck.setTableShading(yellow, block: CellBlock(table: t.tableId!, rows: 1...1, columns: 0...1))
+        func fill(_ r: Int, _ c: Int) -> Color? { t.text!.document.paragraphs.first { $0.cell?.row == r && $0.cell?.column == c }?.cell?.fill }
+        XCTAssertEqual(fill(1, 0), yellow)
+        XCTAssertNil(fill(0, 0))
+        XCTAssertNil(fill(2, 1))
+        let (state, _, _) = try Pptx.read(Pptx.write(deck))
+        let again = DeckController(); again.restore(state)
+        let t2 = again.slides[0].shapes.first { $0.kind == .table }!
+        let f2 = t2.text!.document.paragraphs.compactMap { $0.cell }.filter { $0.fill == yellow }
+        XCTAssertEqual(Set(f2.map { $0.row }), [1])
+        deck.undo()
+        XCTAssertNil(fill(1, 0))
+    }
+
     /// S-TB-1a: a table's header row and banded rows switch off and on, undo, and survive a save.
     func testTableOptionsRoundTripAndUndo() throws {
         let deck = DeckController()

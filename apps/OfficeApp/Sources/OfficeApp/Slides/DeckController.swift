@@ -1017,6 +1017,25 @@ final class DeckController: ChangeNotifier {
         return TableOptions(headerRow: st.headerRow, bandedRows: st.bandFill != nil && st.bandFill != st.bandAltFill)
     }
 
+    /// Shade cells of the selected table (nil clears the shading back to the
+    /// style's): one undo step. `block` names the cells; nil means every cell.
+    func setTableShading(_ color: Color?, block: CellBlock? = nil) {
+        guard let s = selection.first, s.kind == .table, let id = s.tableId, let text = s.text else { return }
+        var doc = text.document
+        var changed = false
+        for i in doc.paragraphs.indices {
+            guard var c = doc.paragraphs[i].cell, c.table == id, block.map({ $0.contains(c) }) ?? true,
+                  c.fill != color else { continue }
+            c.fill = color
+            doc.paragraphs[i].cell = c
+            changed = true
+        }
+        guard changed else { return }
+        _checkpoint()
+        text.load(doc)
+        _changed()
+    }
+
     /// Set the selected table's header row and banded rows: one undo step.
     /// Turning one back on restores the theme-accent look.
     func setTableOptions(_ o: TableOptions) {
