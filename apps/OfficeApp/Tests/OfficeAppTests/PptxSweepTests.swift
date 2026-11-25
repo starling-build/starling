@@ -95,4 +95,19 @@ final class PptxSweepTests: XCTestCase {
         XCTAssertTrue(xml.contains("AA0000") && xml.contains("00AA00") && xml.contains("anchor=\"b\""), "the edit itself is written")
         XCTAssertFalse(xml.contains("336699"), "the old fill is replaced")
     }
+
+    /// A link to a bookmark in the same file (`#_ftn1`) keeps its target when the shape is edited.
+    func testBookmarkLinksKeepTheirTarget() throws {
+        let path = "/data/corpus-cache/test/corpus/pptx/decks/with_japanese.pptx"
+        guard let data = FileManager.default.contents(atPath: path) else { throw XCTSkip("corpus deck not restored") }
+        var (state, theme, pkg) = try Pptx.read(data)
+        for si in state.slides.indices { for hi in state.slides[si].shapes.indices where state.slides[si].shapes[hi].sourceXML != nil {
+            state.slides[si].shapes[hi].fill = Color(0xFFAA0000)
+        } }
+        let after = PptxPackage(try Zip.read(try PptxWriter.write(state, theme: theme, package: pkg)))
+        let slide = String(data: after.parts["ppt/slides/slide1.xml"]!, encoding: .utf8)!
+        XCTAssertFalse(slide.contains("<a:hlinkClick/>"), "a link lost its target")
+        let rels = String(data: after.parts["ppt/slides/_rels/slide1.xml.rels"]!, encoding: .utf8)!
+        XCTAssertTrue(rels.contains("#_ftn1") && rels.contains("#_ftnref1"), rels)
+    }
 }
