@@ -3095,6 +3095,9 @@ enum DocxFormat {
         document.listFormats = listFormats
         document.listCounterOf = listCounterOf
         document.listRestarts = listRestarts
+        document.keptNumberingXML = part("word/numbering.xml").flatMap { String(data: $0, encoding: .utf8) }
+        document.listFormatsSnapshot = listFormats
+        document.listRestartsSnapshot = listRestarts
         if let bg = root.first("w:background"), let frag = _keptFragment(bg, notes) {
             document.backgroundXML = frag.xml
             document.backgroundRels = frag.rels

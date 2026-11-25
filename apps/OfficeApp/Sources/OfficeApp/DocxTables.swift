@@ -2071,6 +2071,10 @@ extension DocxFormat {
                                                                          characterStyles: doc.keptCharacterStyles, characterStyleIds: doc.keptCharacterStyleIds, tableStyles: doc.keptTableStyles)
                 .replacingAll("<w:lang w:val=\"en-US\"/>", with: doc.defaultLangXML ?? "<w:lang w:val=\"en-US\"/>")
         let stylesXML = doc.readFromFile ? (doc.keptStylesXML.flatMap { _patchedStyles(original: $0, generated: generatedStyles, doc: doc, usedIn: document + extraParts.filter { $0.name.hasSuffix(".xml") && !$0.name.containsSubstring("styles") }.map { String(decoding: $0.data, as: UTF8.self) }.joined()) } ?? generatedStyles) : generatedStyles
+        let generatedNumbering = _numberingPart(numKinds, numFormats, bulletId: bulletId, decimalId: decimalId,
+                                                counterOf: Dictionary(uniqueKeysWithValues: numIds.compactMap { k, v in doc.listCounterOf[k].map { (v, $0) } }),
+                                                restarts: Dictionary(uniqueKeysWithValues: numIds.compactMap { k, v in doc.listRestarts[k].map { (v, $0) } }))
+        let numberingXML = doc.readFromFile ? (doc.keptNumberingXML.flatMap { _patchedNumbering(original: $0, generated: generatedNumbering, doc: doc, usedIds: Set(numIdOf)) } ?? generatedNumbering) : generatedNumbering
         let entries: [ZipEntry] = [
             ZipEntry(name: "[Content_Types].xml", data: Data(contentTypes.utf8)),
             ZipEntry(name: "_rels/.rels", data: Data(_rootRels.replacingAll("</Relationships>", with: rootRelsExtra.enumerated().map { i, r in
@@ -2078,9 +2082,7 @@ extension DocxFormat {
             }.joined() + "</Relationships>").utf8)),
             ZipEntry(name: "word/document.xml", data: Data(document.utf8)),
             ZipEntry(name: "word/styles.xml", data: Data(stylesXML.utf8)),
-            ZipEntry(name: "word/numbering.xml", data: Data(_numberingPart(numKinds, numFormats, bulletId: bulletId, decimalId: decimalId,
-                                                                                         counterOf: Dictionary(uniqueKeysWithValues: numIds.compactMap { k, v in doc.listCounterOf[k].map { (v, $0) } }),
-                                                                                         restarts: Dictionary(uniqueKeysWithValues: numIds.compactMap { k, v in doc.listRestarts[k].map { (v, $0) } })).utf8)),
+            ZipEntry(name: "word/numbering.xml", data: Data(numberingXML.utf8)),
             ZipEntry(name: "word/_rels/document.xml.rels", data: Data(relsXML.utf8)),
         ] + media + extraParts
         return try Zip.write(entries)

@@ -381,7 +381,7 @@ extension CharShadow {
 
 extension RichDocument {
     enum CodingKeys: String, CodingKey {
-        case keptStylesXML, styleFileIds, styleSource, styleSnapshot, paragraphs, header, footer, tableColumns, tableStyles, styles, listFormats, listCounterOf, listRestarts, keptParts, keptCharacterStyles, keptCharacterStyleIds, keptTableStyles, tableStyleIds, tableLooks, tableCondFills, keptHeaderFooters, keptTables, keptCompat, defaultTabStop, pageBordersXML, docGridXML, lineGridPitch, characterGridSpace, sectionLeadXML, sectionTypeXML, columnsXML, columnsKeptUnder, gutterTwips, marginSettingsXML, keptSettings, sectionTailXML, defaultLangXML, themeFontLangXML, characterSpacingControl, usesEastAsianLayout, indentNotNumberingTabStop, kernsPunctuation, balancesSpaceWidth, adjustsLineHeightInTable, compatibilityMode, hangsHalf, flipsMirrorIndents, htmlAutoSpacing, divMargins, backgroundXML, backgroundRels, styleAliases, fileFonts, readFromFile, fromBinaryDoc, addsParagraphSpacing, titlePage, headerFooters, footnotes, footnoteSeparator, endnotes, endnoteSeparator, pageNumberStart, pageNumberFormat, evenAndOddHeaders, keptPartTypes
+        case keptNumberingXML, listFormatsSnapshot, listRestartsSnapshot, keptStylesXML, styleFileIds, styleSource, styleSnapshot, paragraphs, header, footer, tableColumns, tableStyles, styles, listFormats, listCounterOf, listRestarts, keptParts, keptCharacterStyles, keptCharacterStyleIds, keptTableStyles, tableStyleIds, tableLooks, tableCondFills, keptHeaderFooters, keptTables, keptCompat, defaultTabStop, pageBordersXML, docGridXML, lineGridPitch, characterGridSpace, sectionLeadXML, sectionTypeXML, columnsXML, columnsKeptUnder, gutterTwips, marginSettingsXML, keptSettings, sectionTailXML, defaultLangXML, themeFontLangXML, characterSpacingControl, usesEastAsianLayout, indentNotNumberingTabStop, kernsPunctuation, balancesSpaceWidth, adjustsLineHeightInTable, compatibilityMode, hangsHalf, flipsMirrorIndents, htmlAutoSpacing, divMargins, backgroundXML, backgroundRels, styleAliases, fileFonts, readFromFile, fromBinaryDoc, addsParagraphSpacing, titlePage, headerFooters, footnotes, footnoteSeparator, endnotes, endnoteSeparator, pageNumberStart, pageNumberFormat, evenAndOddHeaders, keptPartTypes
     }
 
     public init(from decoder: Decoder) throws {
@@ -395,6 +395,9 @@ extension RichDocument {
         listFormats = try c.decodeIfPresent([String: [Int: ListLevelFormat]].self, forKey: .listFormats) ?? [:]
         listCounterOf = try c.decodeIfPresent([String: String].self, forKey: .listCounterOf) ?? [:]
         listRestarts = try c.decodeIfPresent([String: [Int: Int]].self, forKey: .listRestarts) ?? [:]
+        keptNumberingXML = try c.decodeIfPresent(String.self, forKey: .keptNumberingXML)
+        listFormatsSnapshot = try c.decodeIfPresent([String: [Int: ListLevelFormat]].self, forKey: .listFormatsSnapshot) ?? [:]
+        listRestartsSnapshot = try c.decodeIfPresent([String: [Int: Int]].self, forKey: .listRestartsSnapshot) ?? [:]
         keptParts = try c.decodeIfPresent([String: Data].self, forKey: .keptParts) ?? [:]
         keptCharacterStyles = try c.decodeIfPresent([String: String].self, forKey: .keptCharacterStyles) ?? [:]
         keptTableStyles = try c.decodeIfPresent([String: String].self, forKey: .keptTableStyles) ?? [:]
@@ -465,6 +468,11 @@ extension RichDocument {
         try c.encode(listFormats, forKey: .listFormats)
         try c.encode(listCounterOf, forKey: .listCounterOf)
         try c.encode(listRestarts, forKey: .listRestarts)
+        try c.encodeIfPresent(keptNumberingXML, forKey: .keptNumberingXML)
+        if keptNumberingXML != nil {
+            try c.encode(listFormatsSnapshot, forKey: .listFormatsSnapshot)
+            try c.encode(listRestartsSnapshot, forKey: .listRestartsSnapshot)
+        }
         try c.encode(keptParts, forKey: .keptParts)
         try c.encode(keptCharacterStyles, forKey: .keptCharacterStyles)
         if !keptTableStyles.isEmpty { try c.encode(keptTableStyles, forKey: .keptTableStyles) }

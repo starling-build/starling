@@ -2911,6 +2911,12 @@ public struct RichDocument: Hashable, Codable, Sendable {
     /// Per list id, the levels it restarts the first time it is used, at
     /// these numbers (Word's w:lvlOverride/w:startOverride).
     public var listRestarts: [String: [Int: Int]] = [:]
+    /// The file's own numbering.xml text, kept so a save patches it (nsid, tmpl,
+    /// tentative, tplc and tab survive) instead of rebuilding it; with the lists
+    /// as read, to tell which the user changed.
+    public var keptNumberingXML: String? = nil
+    public var listFormatsSnapshot: [String: [Int: ListLevelFormat]] = [:]
+    public var listRestartsSnapshot: [String: [Int: Int]] = [:]
     /// Parts of the file the editor does not model but a save must keep —
     /// Word's footnotes and endnotes, with their rels and what those
     /// reach — by package path. The body refers into them (`NoteReference`);
