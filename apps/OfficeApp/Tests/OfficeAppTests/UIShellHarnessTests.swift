@@ -201,38 +201,7 @@ final class UIShellHarnessTests: XCTestCase {
         XCTAssertTrue(ui.tap(text: "Header Row"))
         XCTAssertEqual(deck.selectedTableOptions?.headerRow, true)
     }
-}
 
-/// X-P0-3: the Sheets title bar's Undo and Redo follow the workbook, and Find names the workbook.
-final class SheetsTitleBarUndoHarnessTests: XCTestCase {
-    func testTitleBarUndoRedoFollowTheWorkbook() throws {
-        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: SheetsShell(initialPath: nil, onSwitch: { _, _ in }), title: "Test"), size: Size(1280, 800))
-        let shell = try XCTUnwrap(ui.state(SheetsShellState.self))
-        XCTAssertFalse(shell.session.summary.canUndo)
-        shell.wb.setInput("5", at: CellAddress("A1")!)
-        XCTAssertTrue(shell.session.summary.canUndo)
-        XCTAssertFalse(shell.session.summary.canRedo)
-        shell.session.onUndo?()
-        XCTAssertFalse(shell.session.summary.canUndo)
-        XCTAssertTrue(shell.session.summary.canRedo)
-    }
-
-    /// W-OB-1: Rotate Right and Rotate Left on the Picture Format tab turn a picture in its own paragraph, one undo step each.
-    func testRotateButtonsTurnAPictureInItsOwnParagraph() throws {
-        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(1280, 800))
-        let c = try XCTUnwrap(ui.state(OfficeShellState.self)).session.controller
-        let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")!
-        c.load(RichDocument(paragraphs: [RichParagraph(image: ImageAttachment(data: png, width: 200, height: 100))]))
-        c.selectImage(at: 0)
-        ui.pump()
-        XCTAssertTrue(ui.tap(text: "Rotate Right"))
-        XCTAssertEqual(c.document.paragraphs[0].image?.rotation, 90)
-        XCTAssertEqual(c.document.paragraphs[0].image?.width, 100)
-        ui.pump()
-        XCTAssertTrue(ui.tap(text: "Rotate Left"))
-        XCTAssertEqual(c.document.paragraphs[0].image?.rotation, 0)
-        c.undo()
-        XCTAssertEqual(c.document.paragraphs[0].image?.rotation, 90)
     /// W-TB-1: the Select menu and the Insert Table dialog reach the controller.
     func testTableSelectAndInsertTableDialogReachTheController() {
         let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(1280, 800))
@@ -280,5 +249,53 @@ final class SheetsTitleBarUndoHarnessTests: XCTestCase {
         XCTAssertTrue(xml.contains("w:sz=\"24\""))
         c.undo()
         XCTAssertNil(c.currentCell?.bordersXML)
+    }
+
+    func testSplitCellDialogReachesTheController() {
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(1280, 800))
+        let c = ui.state(OfficeShellState.self)!.session.controller
+        c.insertTable(rows: 2, columns: 2)
+        ui.pump()
+        XCTAssertTrue(ui.tap(text: "Table Layout"))
+        XCTAssertTrue(ui.tap(text: "Split Cell"))
+        XCTAssertTrue(ui.has(text: "Number of columns"))
+        XCTAssertTrue(ui.tap(text: "OK"))                  // defaults: 2 columns, 1 row
+        XCTAssertEqual(c.document.columnCount(of: c.currentCell!.table), 3)
+        XCTAssertEqual(c.document.paragraphs.compactMap(\.cell).count, 5)
+        c.undo()
+        XCTAssertEqual(c.document.paragraphs.compactMap(\.cell).count, 4)
+    }
+}
+
+/// X-P0-3: the Sheets title bar's Undo and Redo follow the workbook, and Find names the workbook.
+final class SheetsTitleBarUndoHarnessTests: XCTestCase {
+    func testTitleBarUndoRedoFollowTheWorkbook() throws {
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: SheetsShell(initialPath: nil, onSwitch: { _, _ in }), title: "Test"), size: Size(1280, 800))
+        let shell = try XCTUnwrap(ui.state(SheetsShellState.self))
+        XCTAssertFalse(shell.session.summary.canUndo)
+        shell.wb.setInput("5", at: CellAddress("A1")!)
+        XCTAssertTrue(shell.session.summary.canUndo)
+        XCTAssertFalse(shell.session.summary.canRedo)
+        shell.session.onUndo?()
+        XCTAssertFalse(shell.session.summary.canUndo)
+        XCTAssertTrue(shell.session.summary.canRedo)
+    }
+
+    /// W-OB-1: Rotate Right and Rotate Left on the Picture Format tab turn a picture in its own paragraph, one undo step each.
+    func testRotateButtonsTurnAPictureInItsOwnParagraph() throws {
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(1280, 800))
+        let c = try XCTUnwrap(ui.state(OfficeShellState.self)).session.controller
+        let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")!
+        c.load(RichDocument(paragraphs: [RichParagraph(image: ImageAttachment(data: png, width: 200, height: 100))]))
+        c.selectImage(at: 0)
+        ui.pump()
+        XCTAssertTrue(ui.tap(text: "Rotate Right"))
+        XCTAssertEqual(c.document.paragraphs[0].image?.rotation, 90)
+        XCTAssertEqual(c.document.paragraphs[0].image?.width, 100)
+        ui.pump()
+        XCTAssertTrue(ui.tap(text: "Rotate Left"))
+        XCTAssertEqual(c.document.paragraphs[0].image?.rotation, 0)
+        c.undo()
+        XCTAssertEqual(c.document.paragraphs[0].image?.rotation, 90)
     }
 }

@@ -74,6 +74,7 @@ final class OfficeShellState: State<StatefulWidget> {
     private var _fontOpen = false
     private var _pageSetupOpen = false
     private var _insertTableOpen = false
+    private var _splitCellOpen = false
     private var _bordersOpen = false
     private let _colorText = TextEditingController()
     private var _styleOpen: String? = nil
@@ -394,6 +395,11 @@ final class OfficeShellState: State<StatefulWidget> {
             guard let self else { return }
             self.controller.breakUndoCoalescing()
             self.setState { self._insertTableOpen = true }
+        }
+        session.onSplitCellDialog = { [weak self] in
+            guard let self else { return }
+            self.controller.breakUndoCoalescing()
+            self.setState { self._splitCellOpen = true }
         }
         session.onBordersShadingDialog = { [weak self] in
             guard let self else { return }
@@ -1081,7 +1087,7 @@ final class OfficeShellState: State<StatefulWidget> {
             if session.paintedStyle != nil { _cancelPainter(); return true }
             if _styleOpen != nil { setState { _styleOpen = nil }; return true }
             if _linkOpen { setState { _linkOpen = false }; return true }
-            if _paragraphOpen || _fontOpen || _insertTableOpen || _bordersOpen { return false }   // the dialog's own Esc closes it
+            if _paragraphOpen || _fontOpen || _insertTableOpen || _splitCellOpen || _bordersOpen { return false }   // the dialog's own Esc closes it
             if _colorOpen { setState { _colorOpen = false }; return true }
             if _headerFooterOpen { setState { _headerFooterOpen = false }; return true }
             if _findOpen { setState { _findOpen = false }; _editorFocus.requestFocus(); return true }
@@ -1317,6 +1323,24 @@ final class OfficeShellState: State<StatefulWidget> {
                     },
                     onCancel: { [weak self] in
                         self?.setState { self?._bordersOpen = false }
+                        self?._editorFocus.requestFocus()
+                    })),
+            ])
+        }
+        if _splitCellOpen {
+            let cell = controller.currentCell
+            return Stack(children: [
+                window,
+                Positioned(left: 0, top: 0, right: 0, bottom: 0, child: SplitCellDialog(
+                    columns: max(2, cell?.span ?? 2), rows: cell?.rowSpan ?? 1,
+                    onOK: { [weak self] n, m in
+                        guard let self else { return }
+                        self.controller.splitCell(columns: n, rows: m)
+                        self.setState { self._splitCellOpen = false }
+                        self._editorFocus.requestFocus()
+                    },
+                    onCancel: { [weak self] in
+                        self?.setState { self?._splitCellOpen = false }
                         self?._editorFocus.requestFocus()
                     })),
             ])
