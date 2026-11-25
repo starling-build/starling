@@ -121,3 +121,49 @@ final class PictureWrapTests: XCTestCase {
         XCTAssertEqual(try XCTUnwrap(c.document.paragraphs[k].inlineImages[id]?.float).x, 20, accuracy: 0.01)
     }
 }
+
+/// W-OB-4: a text box made by Insert → Text Box.
+final class TextBoxInsertTests: XCTestCase {
+    func testNewTextBoxFloatsHoldsItsTextAndSurvivesASave() throws {
+        let box = try XCTUnwrap(TextBoxInsert.make(text: "Hello & <you>"))
+        XCTAssertNotNil(box.float)
+        XCTAssertEqual(box.width, 144, accuracy: 0.1)
+        XCTAssertEqual(box.textBox?.paragraphs.first?.text, "Hello & <you>")
+        let c = RichDocumentController(document: RichDocument(paragraphs: [RichParagraph(text: "body")]))
+        c.insertImage(box)
+        let back = try DocxFormat.read(try DocxFormat.write(c.document, pageSetup: .letter)).document
+        let kept = back.paragraphs.compactMap { $0.image ?? $0.inlineImages.values.first }.first { $0.textBox != nil }
+        XCTAssertEqual(kept?.textBox?.paragraphs.first?.text, "Hello & <you>")
+        XCTAssertEqual(kept?.width ?? 0, 144, accuracy: 0.1)
+        c.undo()
+        XCTAssertFalse(c.document.paragraphs.contains { $0.image?.textBox != nil })
+    }
+
+    func testEditTextChangesTheWordsUndoesAndSaves() throws {
+        let c = RichDocumentController(document: RichDocument(paragraphs: [RichParagraph(text: "body")]))
+        c.insertImage(try XCTUnwrap(TextBoxInsert.make(text: "one")))
+        let i = try XCTUnwrap(c.document.paragraphs.firstIndex { $0.image?.textBox != nil })
+        XCTAssertEqual(c.textBoxText(at: i), "one")
+        XCTAssertTrue(c.setTextBoxText(at: i, "two & <three>\nfour"))
+        XCTAssertEqual(c.textBoxText(at: i), "two & <three>\nfour")
+        XCTAssertFalse(c.setTextBoxText(at: i, "two & <three>\nfour"), "same words")
+        let back = try DocxFormat.read(try DocxFormat.write(c.document, pageSetup: .letter)).document
+        let kept = try XCTUnwrap(back.paragraphs.compactMap { $0.image }.first { $0.textBox != nil })
+        XCTAssertEqual(kept.textBox?.paragraphs.map(\.text), ["two & <three>", "four"])
+        c.undo()
+        XCTAssertEqual(c.textBoxText(at: i), "one")
+    }
+
+    func testEditTextOnThePictureFormatTab() throws {
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(1280, 800))
+        let c = try XCTUnwrap(ui.state(OfficeShellState.self)).session.controller
+        c.insertImage(try XCTUnwrap(TextBoxInsert.make(text: "one")))
+        let i = try XCTUnwrap(c.document.paragraphs.firstIndex { $0.image?.textBox != nil })
+        c.selectImage(at: i)
+        ui.pump()
+        XCTAssertTrue(ui.tap(text: "Edit Text"))
+        ui.pump()
+        XCTAssertNotNil(ui.state(OfficeShellState.self))
+        XCTAssertTrue(ui.tap(id: "box-text"))
+    }
+}

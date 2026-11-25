@@ -153,4 +153,39 @@ extension RichDocumentController {
         _store(index, id, old: old, new: new)
         return true
     }
+
+    /// The words in the text box at `index` (its paragraphs, one per line) when they are plain enough to edit as words
+    /// (no character or paragraph formatting, no table); nil for anything else.
+    public func textBoxText(at index: Int, inline id: String? = nil) -> String? {
+        guard let image = _floating(index, id), let box = image.textBox, let xml = image.sourceXML,
+              let open = xml.rangeOfSubstring("<w:txbxContent>"),
+              let close = xml.rangeOfSubstring("</w:txbxContent>", in: open.upperBound ..< xml.endIndex) else { return nil }
+        let inner = xml[open.upperBound ..< close.lowerBound]
+        for marker in ["<w:rPr", "<w:pPr", "<w:tbl", "<w:br", "<w:tab", "<w:fld", "<w:hyperlink", "<w:drawing", "<mc:"]
+        where String(inner).containsSubstring(marker) { return nil }
+        return box.paragraphs.map(\.text).joined(separator: "\n")
+    }
+
+    /// Replace the words in the text box at `index` (one paragraph per line), one undo step. False when the box is not a
+    /// plain one (`textBoxText` is nil) or the words are the same.
+    @discardableResult
+    public func setTextBoxText(at index: Int, inline id: String? = nil, _ text: String) -> Bool {
+        guard let current = textBoxText(at: index, inline: id), current != text,
+              let old = _floating(index, id), var box = old.textBox, let xml = old.sourceXML,
+              let open = xml.rangeOfSubstring("<w:txbxContent>"),
+              let close = xml.rangeOfSubstring("</w:txbxContent>", in: open.upperBound ..< xml.endIndex) else { return false }
+        func esc(_ line: Substring) -> String {
+            var out = ""
+            for ch in line { out += ch == "&" ? "&amp;" : ch == "<" ? "&lt;" : ch == ">" ? "&gt;" : String(ch) }
+            return out
+        }
+        let lines = text.split(separator: "\n", omittingEmptySubsequences: false)
+        let body = lines.map { "<w:p><w:r><w:t xml:space=\"preserve\">\(esc($0))</w:t></w:r></w:p>" }.joined()
+        var new = old
+        new.sourceXML = String(xml[xml.startIndex ..< open.upperBound]) + body + String(xml[close.lowerBound...])
+        box.paragraphs = lines.map { RichParagraph(text: String($0)) }
+        new.textBox = box
+        _store(index, id, old: old, new: new)
+        return true
+    }
 }

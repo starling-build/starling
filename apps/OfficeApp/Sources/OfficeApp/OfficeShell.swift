@@ -1452,7 +1452,12 @@ final class OfficeShellState: State<StatefulWidget> {
                 self?.setState { self?._pictureDialog = nil }
                 self?._editorFocus.requestFocus()
             }
-            let dialog: Widget = kind == .altText
+            let dialog: Widget = kind == .boxText
+                ? PictureAltTextDialog(initial: controller.textBoxText(at: i, inline: inline) ?? "", title: "Edit Text",
+                                       prompt: "The words in the text box. A new line starts a new paragraph.",
+                                       onOK: { [weak self] t in self?.controller.setTextBoxText(at: i, inline: inline, t); close() },
+                                       onCancel: close)
+                : kind == .altText
                 ? PictureAltTextDialog(initial: image?.altText ?? "",
                                 onOK: { [weak self] t in self?.controller.setImageAltText(at: i, inline: inline, t); close() },
                                 onCancel: close)
