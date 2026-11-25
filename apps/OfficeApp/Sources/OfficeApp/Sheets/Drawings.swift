@@ -48,6 +48,8 @@ struct SheetChart: Equatable {
     /// Set when the file's own chart was turned between column and bar here:
     /// the save patches that part's direction and keeps all its formatting.
     var retype: ChartType? = nil
+    /// The chart's 3D, stock or bubble form, set here (see ChartVariant); the save applies it after `retype`.
+    var variant: ChartVariant? = nil
     /// A title or legend changed here on the file's own chart: the save patches those two elements of its part.
     var titleEdit: ChartPartEdit? = nil
     var legendEdit: ChartPartEdit? = nil
@@ -572,7 +574,7 @@ extension SheetDrawingsXML {
         var shapeId = 2
         for d in ws.drawings {
             shapeId += 1
-            if case .chart(let sc) = d.kind, let path = sc.path, sc.formulasChanged || sc.retype != nil || sc.titleEdit != nil || sc.legendEdit != nil || sc.catTitleEdit != nil || sc.valTitleEdit != nil || sc.seriesEdit != nil || !sc.colorEdit.isEmpty || sc.labelEdit != nil || sc.axisEdit != nil, let bytes = original[path] {
+            if case .chart(let sc) = d.kind, let path = sc.path, sc.formulasChanged || sc.retype != nil || sc.variant != nil || sc.titleEdit != nil || sc.legendEdit != nil || sc.catTitleEdit != nil || sc.valTitleEdit != nil || sc.seriesEdit != nil || !sc.colorEdit.isEmpty || sc.labelEdit != nil || sc.axisEdit != nil, let bytes = original[path] {
                 // The file's own chart, its references moved with the cells.
                 var xml = String(decoding: bytes, as: UTF8.self)
                 if sc.formulasChanged { xml = _rewriteFormulas(xml, sc.formulas) }
@@ -581,6 +583,7 @@ extension SheetDrawingsXML {
                 if let e = sc.labelEdit { xml = ChartPartPatch.labels(xml, e) }
                 if let e = sc.axisEdit { xml = ChartPartPatch.valueAxis(xml, e) }
                 if sc.retype != nil { xml = ChartPartType.retype(xml, to: sc.chart) ?? xml }
+                if let v = sc.variant { xml = ChartPartType.apply(xml, v, type: sc.chart.type) ?? xml }
                 if let e = sc.titleEdit { xml = ChartPartPatch.title(xml, e) }
                 if let e = sc.legendEdit { xml = ChartPartPatch.legend(xml, e) }
                 if let e = sc.catTitleEdit { xml = ChartPartPatch.axisTitle(xml, .category, e) }
@@ -617,7 +620,9 @@ extension SheetDrawingsXML {
                     id = rid
                 } else {
                     let chartPath = fresh("xl/charts/", "chart")
-                    out.parts[chartPath] = Data(chartSpace(sc, live: live(sc)).utf8)
+                    var space = chartSpace(sc, live: live(sc))
+                    if let v = sc.variant { space = ChartPartType.apply(space, v, type: sc.chart.type) ?? space }
+                    out.parts[chartPath] = Data(space.utf8)
                     out.overrides.append(("/" + chartPath, chartType))
                     id = relTo("chart", chartPath)
                 }
@@ -1260,7 +1265,11 @@ extension WorkbookController {
     /// Change a chart's kind; its part is then written afresh.
     func setChartType(_ index: Int, _ type: ChartType) {
         let ws = sheet
-        guard ws.drawings.indices.contains(index), case .chart(var sc) = ws.drawings[index].kind, sc.chart.type != type else { return }
+        guard ws.drawings.indices.contains(index), case .chart(var sc) = ws.drawings[index].kind else { return }
+        let part0 = sc.path.flatMap { p in book.package?.first(where: { $0.name == p }) }
+        let fromVariant = sc.variant != nil || part0.map { ChartPartType.hasVariant(String(decoding: $0.data, as: UTF8.self)) } == true
+        guard sc.chart.type != type || fromVariant else { return }
+        sc.variant = nil
         if sc.path != nil {
             // The file's own chart: its part is converted in place (ChartPartType), so what the model does not hold
             // stays. A part that cannot be (3D, stock, bubble) is refused, saying so.
@@ -1272,6 +1281,7 @@ extension WorkbookController {
                 return
             }
             sc.chart = sc.chart.converted(to: type)
+            sc.chart.setForm(nil)
             sc.retype = type
             structural {
                 ws.drawings[index].kind = .chart(sc)
@@ -1281,6 +1291,7 @@ extension WorkbookController {
             return
         }
         sc.chart = sc.chart.converted(to: type)
+            sc.chart.setForm(nil)
         if type == .pie { sc.chart.legend = true }
         sc.path = nil
         structural {
@@ -1289,6 +1300,104 @@ extension WorkbookController {
             ws.drawingsEdited = true
         }
         selectedDrawing = index
+    }
+
+    /// The roles a stock chart still lacks of series (open, high, low, close in that order) on chart `index`.
+    func stockRolesMissing(_ index: Int, ohlc: Bool) -> [String] {
+        guard sheet.drawings.indices.contains(index), case .chart(let sc) = sheet.drawings[index].kind else { return [] }
+        let roles = ohlc ? ["Open", "High", "Low", "Close"] : ["High", "Low", "Close"]
+        return Array(roles.dropFirst(sc.chart.series.count))
+    }
+
+    /// A range as the user typed it, qualified with the current sheet where it names none; nil where it is no range.
+    func chartRange(_ text: String) -> (formula: String, values: [Double?])? {
+        var t = text.trimmingWhitespace()
+        if t.hasPrefix("=") { t.removeFirst() }
+        if !t.containsSubstring("!") { t = "'" + sheet.name.replacingAll("'", with: "''") + "'!" + t }
+        guard let expr = try? Formula.parse("=" + t), case .ref(let r) = expr, let name = r.sheet, let si = book.sheet(named: name),
+              r.range.rows * r.range.cols <= 10_000 else { return nil }
+        return (t, engine.values(si, r.range, includeEmpty: true).map { $0.number })
+    }
+
+    /// A numeric range of the right length to offer as a series' bubble sizes: that series' own values.
+    func suggestedBubbleSizes(_ index: Int, series: Int = 0) -> String {
+        guard sheet.drawings.indices.contains(index), case .chart(let sc) = sheet.drawings[index].kind,
+              sc.refs.indices.contains(series) else { return "" }
+        return sc.refs[series].val ?? ""
+    }
+
+    /// The labels of the size boxes: one per series.
+    func bubbleSizeRoles(_ index: Int) -> [String] {
+        guard sheet.drawings.indices.contains(index), case .chart(let sc) = sheet.drawings[index].kind else { return [] }
+        return sc.chart.series.enumerated().map { "Sizes for " + ($0.element.name.isEmpty ? "series \($0.offset + 1)" : $0.element.name) }
+    }
+
+    /// Chart `index` as its 3D, stock or bubble form. Stock takes the chart's series in order (`extra` are the ranges of
+    /// roles it lacks); bubble takes the ranges of the sizes. Returns false, with `chartNotice` saying why, where it cannot.
+    @discardableResult
+    func setChartVariant(_ index: Int, _ v: ChartVariant) -> Bool {
+        let ws = sheet
+        guard ws.drawings.indices.contains(index), case .chart(let first) = ws.drawings[index].kind else { return false }
+        var target = first.chart.type
+        var series: [ChartSeries] = [], refs: [(name: String?, cat: String?, val: String?)] = []
+        switch v {
+        case .threeD:
+            guard [.column, .bar, .line, .area, .pie].contains(target) else {
+                chartNotice = "A \(target.name) chart has no 3-D form."; _notify(); return false
+            }
+        case .stock(let ohlc, let extra):
+            target = .line
+            let need = (ohlc ? 4 : 3) - first.chart.series.count
+            guard need <= extra.count, first.chart.series.count + extra.count >= (ohlc ? 4 : 3) else {
+                chartNotice = "A stock chart needs \(ohlc ? "open, high, low and close" : "high, low and close") series."; _notify(); return false
+            }
+            let roles = ohlc ? ["Open", "High", "Low", "Close"] : ["High", "Low", "Close"]
+            for (k, r) in extra.enumerated() {
+                guard let range = chartRange(r) else { chartNotice = "\(r) is not a range of cells."; _notify(); return false }
+                series.append(ChartSeries(name: roles[min(roles.count - 1, first.chart.series.count + k)], values: range.values))
+                refs.append((name: nil, cat: first.refs.first?.cat, val: range.formula))
+            }
+        case .bubble(let sizes):
+            target = .scatter
+            guard !sizes.isEmpty, !sizes.contains(where: { chartRange($0) == nil }) else {
+                chartNotice = "The bubble sizes need a range of cells."; _notify(); return false
+            }
+            // Excel draws nothing when a size is missing or the sizes are fewer than the values.
+            let want = first.chart.series.map { $0.values.count }.max() ?? 0
+            for r in sizes {
+                guard let range = chartRange(r) else { continue }
+                if range.values.contains(where: { $0 == nil }) {
+                    chartNotice = "\(r) has cells that are empty or not numbers; every bubble needs a numeric size."; _notify(); return false
+                }
+                if range.values.count != want {
+                    chartNotice = "\(r) has \(range.values.count) cells but the chart has \(want) values; the sizes need the same count."; _notify(); return false
+                }
+            }
+        }
+        if first.chart.type != target || first.variant != nil || first.path != nil { setChartType(index, target) }
+        guard case .chart(var sc) = ws.drawings[index].kind else { return false }
+        var variant = v
+        if case .stock(let o, let extra) = v { variant = .stock(ohlc: o, extra: extra.compactMap { chartRange($0)?.formula }) }
+        if case .bubble(let sizes) = v {
+            variant = .bubble(sizes: sizes.compactMap { chartRange($0)?.formula })
+        }
+        sc.variant = variant
+        sc.chart.setForm(variant)      // (it clears the sizes: they are set after)
+        if case .bubble(let sizes) = v {
+            for i in sc.chart.series.indices {
+                let r = sizes[min(i, sizes.count - 1)]
+                sc.chart.series[i].bubbleSizes = chartRange(r)?.values
+            }
+        }
+        sc.chart.series += series
+        sc.refs += refs
+        if sc.path != nil, sc.retype == nil { sc.retype = target }
+        structural {
+            ws.drawings[index].kind = .chart(sc)
+            ws.drawingsEdited = true
+        }
+        selectedDrawing = index
+        return true
     }
 }
 

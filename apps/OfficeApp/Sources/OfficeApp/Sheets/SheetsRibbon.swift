@@ -34,6 +34,7 @@ enum SheetCommand {
     case chartColors(Int)          // Chart Design → Format Data Series
     case chartAxis(Int)            // Chart Design → Axis Options
     case chartLabels(Int)          // Chart Design → Add Chart Element → Data Labels
+    case chartForm(ChartFormKind)  // Insert → Charts: Stock or Bubble, asking for the data the chart lacks
     case sparklineDialog(SparklineGroup.Kind?)   // Insert → Sparklines: make them, or (nil) change the ones under the active cell
     case goalSeek                  // Data → What-If Analysis → Goal Seek
     case removeDuplicates          // Data → Remove Duplicates
@@ -334,9 +335,21 @@ extension Ribbon {
                 }
             }
         }
+        func form(_ icon: IconData, _ name: String, _ kind: ChartFormKind?) -> Widget {
+            Chrome.small(icon, name, fluent) {
+                if wb.selectedDrawing == nil || !(wb.selectedDrawing.map { wb.sheet.drawings.indices.contains($0) && wb.sheet.drawings[$0].isChart } ?? false) {
+                    wb.insertChart(kind == nil ? .column : .line)
+                }
+                guard let i = wb.selectedDrawing else { return }
+                if let kind { wb.onCommand?(.chartForm(kind)) } else { wb.setChartVariant(i, .threeD) }
+            }
+        }
         var parts: [Widget] = [
             Chrome.rows([button(.column), button(.bar), button(.line)]),
             Chrome.rows([button(.pie), button(.area), button(.scatter)]),
+            Chrome.rows([form(ChartType.column.icon, "3-D", nil), form(ChartType.line.icon, "Stock", .stock(ohlc: false)),
+                         form(ChartType.scatter.icon, "Bubble", .bubble)]),
+            Chrome.rows([form(ChartType.line.icon, "Open-High-Low-Close", .stock(ohlc: true))]),
         ]
         // Chart Design, with a chart selected: its title and legend.
         if let i = wb.selectedDrawing, wb.sheet.drawings.indices.contains(i), case .chart(let sc) = wb.sheet.drawings[i].kind {

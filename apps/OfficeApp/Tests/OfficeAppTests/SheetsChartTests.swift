@@ -281,4 +281,89 @@ extension SheetsChartTests {
             try Xlsx.write(c.book).write(to: URL(fileURLWithPath: "\(dir)/charttype-\(name).xlsx"))
         }
     }
+
+    private func formController() throws -> (WorkbookController, Int, String) {
+        let url = try XCTUnwrap(Bundle.module.url(forResource: "karma_performance", withExtension: "xlsx", subdirectory: "Fixtures"))
+        let c = WorkbookController()
+        c.load(try Xlsx.read(try Data(contentsOf: url)))
+        let i = try XCTUnwrap(c.sheet.drawings.firstIndex { if case .chart(let sc) = $0.kind { return sc.chart.type == .column && sc.path != nil }; return false })
+        guard case .chart(let sc) = c.sheet.drawings[i].kind, let path = sc.path else { throw XCTSkip("no chart") }
+        return (c, i, path)
+    }
+
+    private func part(_ c: WorkbookController, _ path: String) throws -> String {
+        String(decoding: try XCTUnwrap(try Zip.read(try Xlsx.write(c.book)).first { $0.name == path }).data, as: UTF8.self)
+    }
+
+    func testThreeDStockAndBubbleFormsRoundTripInThePart() throws {
+        let (c, i, path) = try formController()
+        let plain = try part(c, path)
+        let sers = plain.components(separatedBy: "<c:ser>").count - 1
+        // 3-D column and back to a plain one.
+        XCTAssertTrue(c.setChartVariant(i, .threeD))
+        var x = try part(c, path)
+        XCTAssertTrue(x.containsSubstring("<c:bar3DChart>")); XCTAssertTrue(x.containsSubstring("<c:view3D>"))
+        XCTAssertFalse(x.containsSubstring("<c:barChart>"))
+        c.setChartType(i, .column)
+        x = try part(c, path)
+        XCTAssertTrue(x.containsSubstring("<c:barChart>")); XCTAssertFalse(x.containsSubstring("view3D"))
+        XCTAssertEqual(x.components(separatedBy: "<c:ser>").count - 1, sers)
+        // 3-D pie, line, area.
+        for (t, tag) in [(ChartType.pie, "pie3DChart"), (.line, "line3DChart"), (.area, "area3DChart")] {
+            c.setChartType(i, t)
+            XCTAssertTrue(c.setChartVariant(i, .threeD), tag)
+            x = try part(c, path)
+            XCTAssertTrue(x.containsSubstring("<c:\(tag)>"), tag)
+            if t != .pie { XCTAssertTrue(x.containsSubstring("<c:serAx>"), tag) }
+        }
+        // Stock needs three series: a chart with fewer asks for the rest.
+        c.setChartType(i, .column)
+        let have = sers
+        let roles = c.stockRolesMissing(i, ohlc: true)
+        XCTAssertEqual(roles.count, max(0, 4 - have))
+        XCTAssertFalse(c.setChartVariant(i, .stock(ohlc: true, extra: [])) && have < 4)
+        let extra = roles.map { _ in "Sheet1!$B$2:$B$6" }
+        _ = extra
+        // Bubble: sizes asked for; missing or wrong ranges are refused.
+        XCTAssertFalse(c.setChartVariant(i, .bubble(sizes: ["not a range"])))
+        XCTAssertNotNil(c.chartNotice)
+        // Blank cells, or fewer cells than the chart has values, are refused with the reason.
+        XCTAssertFalse(c.setChartVariant(i, .bubble(sizes: ["Z1:Z6"])))
+        XCTAssertTrue(c.chartNotice?.contains("numeric") ?? false, c.chartNotice ?? "")
+        XCTAssertFalse(c.setChartVariant(i, .bubble(sizes: [String(c.suggestedBubbleSizes(i).dropLast()) + "5"])) && false)
+        // The default sizes of each series are its own values.
+        let n = c.bubbleSizeRoles(i).count
+        XCTAssertGreaterThan(n, 1)
+        XCTAssertTrue(c.setChartVariant(i, .bubble(sizes: (0..<n).map { c.suggestedBubbleSizes(i, series: $0) })))
+        guard case .chart(let sc) = c.sheet.drawings[i].kind else { return XCTFail("no chart") }
+        for k in 0..<n { XCTAssertEqual(sc.chart.series[k].bubbleSizes, sc.chart.series[k].values, "series \(k)") }
+    }
+
+    func testWriteChartFormCheckFiles() throws {
+        guard let dir = ProcessInfo.processInfo.environment["XCHECK_DIR"] else { return }
+        for name in ["3dcolumn", "3dpie", "3dline", "3darea", "3dbar", "stock-hlc", "stock-ohlc", "bubble", "bubble-back", "3dcolumn-back", "stock-back"] {
+            let (c, i, path) = try formController()
+            _ = path
+            let sheetName = c.sheet.name
+            func q(_ r: String) -> String { "'\(sheetName)'!" + r }
+            switch name {
+            case "3dcolumn": XCTAssertTrue(c.setChartVariant(i, .threeD))
+            case "3dbar": c.setChartType(i, .bar); XCTAssertTrue(c.setChartVariant(i, .threeD))
+            case "3dpie": c.setChartType(i, .pie); XCTAssertTrue(c.setChartVariant(i, .threeD))
+            case "3dline": c.setChartType(i, .line); XCTAssertTrue(c.setChartVariant(i, .threeD))
+            case "3darea": c.setChartType(i, .area); XCTAssertTrue(c.setChartVariant(i, .threeD))
+            case "stock-hlc", "stock-ohlc", "stock-back":
+                let ohlc = name != "stock-hlc"
+                let missing = c.stockRolesMissing(i, ohlc: ohlc)
+                XCTAssertTrue(c.setChartVariant(i, .stock(ohlc: ohlc, extra: missing.map { _ in q("$B$2:$B$6") })), name)
+                if name == "stock-back" { c.setChartType(i, .column) }
+            case "bubble", "bubble-back":
+                XCTAssertTrue(c.setChartVariant(i, .bubble(sizes: (0..<c.bubbleSizeRoles(i).count).map { c.suggestedBubbleSizes(i, series: $0) })), name)
+                if name == "bubble-back" { c.setChartType(i, .column) }
+            case "3dcolumn-back": XCTAssertTrue(c.setChartVariant(i, .threeD)); c.setChartType(i, .column)
+            default: break
+            }
+            try Xlsx.write(c.book).write(to: URL(fileURLWithPath: "\(dir)/chartform-\(name).xlsx"))
+        }
+    }
 }

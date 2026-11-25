@@ -95,6 +95,7 @@ final class SheetsShellState: State<StatefulWidget> {
     private var _chartLabelsOpen: Int? = nil
     private var _chartAxisOpen: Int? = nil
     private var _sparklineOpen = false
+    private var _chartForm: ChartFormKind? = nil
     private var _sparklineKind: SparklineGroup.Kind? = nil
     private var _dupOpen: (range: CellRange, hasHeader: Bool)?
     private var _ttcOpen: CellRange?
@@ -480,6 +481,8 @@ final class SheetsShellState: State<StatefulWidget> {
             setState { _chartAxisOpen = i }
         case .chartLabels(let i):
             setState { _chartLabelsOpen = i }
+        case .chartForm(let kind):
+            setState { _chartForm = kind }
         case .sparklineDialog(let kind):
             setState { _sparklineOpen = true; _sparklineKind = kind }
         case .goalSeek:
@@ -1174,6 +1177,13 @@ final class SheetsShellState: State<StatefulWidget> {
                     self?._grid?.focus.requestFocus()
                 }))])
         }
+        if let kind = _chartForm {
+            return Stack(children: [window, Positioned(left: 0, top: 0, right: 0, bottom: 0, child: ChartFormDialog(
+                controller: wb, kind: kind, onClose: { [weak self] in
+                    self?.setState { self?._chartForm = nil }
+                    self?._grid?.focus.requestFocus()
+                }))])
+        }
         if _sparklineOpen {
             return Stack(children: [window, Positioned(left: 0, top: 0, right: 0, bottom: 0, child: SparklineDialog(
                 controller: wb, create: _sparklineKind, onClose: { [weak self] in
@@ -1560,6 +1570,7 @@ final class SheetsShellState: State<StatefulWidget> {
             item("Delete") { c.deleteDrawing(i) }
             if c.sheet.drawings.indices.contains(i), case .chart(let sc) = c.sheet.drawings[i].kind {
                 sep()
+                item("Change to 3-D Chart") { c.setChartVariant(i, .threeD) }
                 for t in ChartType.allCases where t != sc.chart.type {
                     item("Change to \(t.name) Chart") { c.setChartType(i, t) }
                 }
