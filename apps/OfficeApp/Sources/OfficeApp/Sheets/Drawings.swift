@@ -562,8 +562,8 @@ extension SheetDrawingsXML {
                 var xml = String(decoding: bytes, as: UTF8.self)
                 if sc.formulasChanged { xml = _rewriteFormulas(xml, sc.formulas) }
                 if let t = sc.retype { xml = _retypeBars(xml, t) }
-                if let e = sc.titleEdit { xml = _patchChartTitle(xml, e) }
-                if let e = sc.legendEdit { xml = _patchChartLegend(xml, e) }
+                if let e = sc.titleEdit { xml = ChartPartPatch.title(xml, e) }
+                if let e = sc.legendEdit { xml = ChartPartPatch.legend(xml, e) }
                 out.parts[path] = Data(xml.utf8)
             }
             if let raw = d.raw {

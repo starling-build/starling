@@ -70,13 +70,13 @@ final class SheetsChartDesignTests: XCTestCase {
 
     func testPatchChangesNothingButTheTitleAndLegend() {
         let xml = "<c:chartSpace><c:chart><c:title><c:tx><c:rich><a:p><a:r><a:rPr b=\"1\"/><a:t>Old</a:t></a:r><a:r><a:t>x</a:t></a:r></a:p></c:rich></c:tx></c:title><c:autoTitleDeleted val=\"0\"/><c:plotArea><c:title>AXIS</c:title></c:plotArea><c:legend><c:legendPos val=\"r\"/></c:legend></c:chart></c:chartSpace>"
-        let t = SheetDrawingsXML._patchChartTitle(xml, .set("New"))
+        let t = ChartPartPatch.title(xml, .set("New"))
         XCTAssertTrue(t.contains("<a:rPr b=\"1\"/><a:t>New</a:t></a:r><"))
         XCTAssertFalse(t.contains("Old")); XCTAssertTrue(t.contains("AXIS"))
-        let l = SheetDrawingsXML._patchChartLegend(xml, .set("b"))
+        let l = ChartPartPatch.legend(xml, .set("b"))
         XCTAssertTrue(l.contains("<c:legendPos val=\"b\"/>"))
-        XCTAssertEqual(SheetDrawingsXML._patchChartLegend(xml, .remove).contains("legend"), false)
-        XCTAssertTrue(SheetDrawingsXML._patchChartTitle(xml, .remove).contains("autoTitleDeleted val=\"1\""))
+        XCTAssertEqual(ChartPartPatch.legend(xml, .remove).contains("legend"), false)
+        XCTAssertTrue(ChartPartPatch.title(xml, .remove).contains("autoTitleDeleted val=\"1\""))
     }
 
     /// Writes the file for the Excel check (only when XCHECK_DIR is set): a chart titled "Results", legend on the right.
