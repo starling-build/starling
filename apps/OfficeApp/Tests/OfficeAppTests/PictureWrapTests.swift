@@ -108,4 +108,16 @@ final class PictureWrapTests: XCTestCase {
         XCTAssertEqual(box.width / px, 100, accuracy: 0.5)
         XCTAssertEqual(box.height / px, 50, accuracy: 0.5)
     }
+
+    /// A float anchored in text moves, undoes and saves like one in its own paragraph.
+    func testFloatAnchoredInTextMoves() throws {
+        let c = RichDocumentController(document: try DocxFormat.read(try floatingDocument(inText: true)).document)
+        let k = try XCTUnwrap(c.document.paragraphs.firstIndex { $0.inlineImages.values.contains { $0.float != nil } })
+        let id = try XCTUnwrap(c.document.paragraphs[k].inlineImages.first { $0.value.float != nil }?.key)
+        XCTAssertTrue(c.movePicture(at: k, inline: id, dx: 10, dy: -5))
+        XCTAssertEqual(try XCTUnwrap(c.document.paragraphs[k].inlineImages[id]?.float).x, 30, accuracy: 0.01)
+        XCTAssertEqual(try XCTUnwrap(try reopened(c).document.paragraphs[k].inlineImages.values.first { $0.float != nil }?.float).y, 25, accuracy: 0.01)
+        c.undo()
+        XCTAssertEqual(try XCTUnwrap(c.document.paragraphs[k].inlineImages[id]?.float).x, 20, accuracy: 0.01)
+    }
 }
