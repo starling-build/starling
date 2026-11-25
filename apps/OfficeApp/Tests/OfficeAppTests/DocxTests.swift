@@ -5425,7 +5425,7 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(b.formatChange?.oldRPrXML, "<w:rPr><w:b/></w:rPr>")
         let again = String(decoding: try Zip.read(try DocxFormat.write(back, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
         XCTAssertTrue(again.contains("<w:i/><w:iCs/><w:rPrChange w:id=\"1\" w:author=\"Ann\" w:date=\"2009-03-01T10:00:00Z\"><w:rPr><w:b/></w:rPr></w:rPrChange></w:rPr>"), again)
-        XCTAssertTrue(again.contains("<w:b/><w:bCs/>") && again.contains("<w:rtl/>"), again)
+        XCTAssertTrue(again.contains("<w:bCs/><w:szCs w:val=\"28\"/><w:rtl w:val=\"true\"/>"), again)
         let latin = try XCTUnwrap(back.paragraphs[2].runs.first?.style)
         XCTAssertTrue(latin.italic)
         XCTAssertFalse(latin.bold)
@@ -6566,7 +6566,7 @@ final class DocxTests: XCTestCase {
         XCTAssertTrue(p.runs[2].style.bold)
         let saved = String(decoding: try Zip.read(try DocxFormat.write(back, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
         XCTAssertTrue(saved.contains("<w:ins w:id=\"1\" w:author=\"Ann\" w:date=\"2020-01-02T03:04:05Z\"><w:r><w:t xml:space=\"preserve\"> new</w:t></w:r></w:ins>"), saved)
-        XCTAssertTrue(saved.contains("<w:del w:id=\"2\" w:author=\"Bob\" w:date=\"2020-01-02T03:04:06Z\"><w:r><w:rPr><w:b/><w:bCs/></w:rPr><w:delText xml:space=\"preserve\"> old</w:delText></w:r></w:del>"), saved)
+        XCTAssertTrue(saved.contains("<w:del w:id=\"2\" w:author=\"Bob\" w:date=\"2020-01-02T03:04:06Z\"><w:r><w:rPr><w:b/></w:rPr><w:delText xml:space=\"preserve\"> old</w:delText></w:r></w:del>"), saved)
         let again = try DocxFormat.read(try DocxFormat.write(back, pageSetup: .letter)).document
         XCTAssertEqual(again.paragraphs[0].runs.map { $0.style.revision }, marks)
         // A deleted paragraph mark (delins.docx: whole bullets struck out)
