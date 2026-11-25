@@ -805,6 +805,15 @@ final class Ribbon: StatelessWidget {
                 Chrome.big(FluentSystemIcons.textT, "Edit Text", fluent) { [session] in session.onPictureDialog?(.boxText) },
             ]))
         }
+        var styleGroup: [Widget] = []
+        if c.document.paragraphs[i].image?.outline != nil, c.document.paragraphs[i].image?.sourceXML?.containsSubstring("<wps:wsp") == true {
+            styleGroup.append(Chrome.group("Shape Styles", fluent, [
+                Chrome.colorMenu(FluentSystemIcons.highlight, "Shape Fill", fluent, colors: OfficeColors.text, none: "No Fill",
+                                 more: { [session] in session.onMoreColors?() }) { color in _ = c.setShapeFill(at: i, color) },
+                Chrome.colorMenu(FluentSystemIcons.textColor, "Shape Outline", fluent, colors: OfficeColors.text, none: "No Outline",
+                                 more: { [session] in session.onMoreColors?() }) { color in _ = c.setShapeOutline(at: i, color) },
+            ]))
+        }
         var floating: [Widget] = []
         if let wrap = c.pictureWrap(at: i) {
             func pick(_ w: PictureWrap) -> Widget {
@@ -827,7 +836,7 @@ final class Ribbon: StatelessWidget {
                 ]),
             ]))
         }
-        return [size, arrange] + floating + boxGroup + [turn, tools, remove]
+        return [size, arrange] + floating + boxGroup + styleGroup + [turn, tools, remove]
     }
 
     // MARK: Layout

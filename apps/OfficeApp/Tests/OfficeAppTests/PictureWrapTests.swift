@@ -406,6 +406,31 @@ final class ShapeInsertTests: XCTestCase {
         XCTAssertTrue(xml.containsSubstring("relativeFrom=\"page\""))
     }
 
+    /// Set SHAPE_LAB2 to a file path to get shapes with typed text, other fills and outlines, for a Word check.
+    func testWriteShapeStyleLab() throws {
+        guard let path = ProcessInfo.processInfo.environment["SHAPE_LAB2"] else { return }
+        let c = RichDocumentController(document: RichDocument(paragraphs: [RichParagraph(text: "Shapes with text and styles follow."), RichParagraph(text: "Second paragraph.")]))
+        var n = 0
+        for (preset, text, fill, line) in [("rect", "Hello", Color?.some(Color(0xFFFF0000)), Color?.some(Color(0xFF00AA00))),
+                                           ("ellipse", "Oval text", Color?.none, Color?.some(Color(0xFF0000FF))),
+                                           ("roundRect", "Rounded", Color?.some(Color(0xFFFFC000)), Color?.none),
+                                           ("triangle", "", Color?.some(Color(0xFF7030A0)), Color?.some(Color(0xFF000000)))] {
+            n += 1
+            c.pendingShape = { x, y, w, h in TextBoxInsert.makeShape(preset: preset, width: 120, height: 90, number: n, page: (x, y)) }
+            XCTAssertTrue(c.placePendingShape(x: 60 + Double(n - 1) * 130, y: 200, width: 120, height: 90, at: RichPosition(paragraph: 0, offset: 0)))
+            let i = try XCTUnwrap(c.selectedImageIndex)
+            _ = c.setShapeFill(at: i, fill); _ = c.setShapeOutline(at: i, line)
+            if !text.isEmpty {
+                XCTAssertTrue(c.giveShapeText(at: i))
+                var doc = try XCTUnwrap(c.textBoxDocument(at: i))
+                doc.paragraphs[0] = RichParagraph(text: text, style: doc.paragraphs[0].style)
+                let (xml, rels) = try XCTUnwrap(TextBoxInsert.content(doc))
+                XCTAssertTrue(c.setTextBoxContent(at: i, document: doc, contentXML: xml, rels: rels))
+            }
+        }
+        try DocxFormat.write(c.document, pageSetup: .letter).write(to: URL(fileURLWithPath: path))
+    }
+
     /// Set SHAPE_LAB to a file path to get a document with every menu shape, for a Word check.
     func testWriteShapeLab() throws {
         guard let path = ProcessInfo.processInfo.environment["SHAPE_LAB"] else { return }
@@ -452,5 +477,22 @@ final class ShapeSelectTests: XCTestCase {
         XCTAssertTrue(out.containsSubstring("Hello"))
         XCTAssertTrue(out.containsSubstring("prst=\"ellipse\""))
         XCTAssertTrue(out.containsSubstring("w:jc w:val=\"center\""))
+    }
+
+    func testShapeFillAndOutlineChangeTheMarkupAndTheDrawnShape() throws {
+        let c = RichDocumentController(document: RichDocument(paragraphs: [RichParagraph(text: "body")]))
+        c.pendingShape = { x, y, w, h in TextBoxInsert.makeShape(preset: "rect", width: w, height: h, number: 1, page: (x, y)) }
+        XCTAssertTrue(c.placePendingShape(x: 5, y: 5, width: 96, height: 72, at: RichPosition(paragraph: 0, offset: 0)))
+        let i = try XCTUnwrap(c.selectedImageIndex)
+        XCTAssertTrue(c.setShapeFill(at: i, Color(0xFFFF0000)))
+        XCTAssertTrue(c.setShapeOutline(at: i, Color(0xFF00FF00)))
+        XCTAssertEqual(c.document.paragraphs[i].image?.outline?.fill?.value, 0xFFFF0000)
+        XCTAssertTrue(c.setShapeFill(at: i, nil))
+        XCTAssertNil(c.document.paragraphs[i].image?.outline?.fill)
+        let out = String(decoding: try XCTUnwrap(try Zip.read(try DocxFormat.write(c.document, pageSetup: .letter)).first { $0.name == "word/document.xml" }).data, as: UTF8.self)
+        XCTAssertTrue(out.containsSubstring("</a:prstGeom><a:noFill/><a:ln w=\"9525\"><a:solidFill><a:srgbClr val=\"00FF00\"/>"))
+        XCTAssertFalse(out.containsSubstring("4472C4"))
+        c.undo()
+        XCTAssertNotNil(c.document.paragraphs[i].image?.outline?.fill)
     }
 }
