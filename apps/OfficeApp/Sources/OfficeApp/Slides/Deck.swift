@@ -701,6 +701,8 @@ final class SlideShape {
     var flipV = false
     /// Lock aspect ratio (`noChangeAspect`); nil = not set, so a picture is locked and other shapes are free.
     var aspectLock: Bool? = nil
+    /// The size that 100% means in the Format Shape pane's Scale rows: the size the shape had when first scaled (not saved).
+    var scaleBase: Size? = nil
     /// What the Format Shape pane and the canvas honour.
     var aspectLocked: Bool { aspectLock ?? (picture != nil) }
     var pictureGeometry: ShapePreset? = nil

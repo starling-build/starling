@@ -163,6 +163,8 @@ final class FormatShapePaneState: State<StatefulWidget> {
             Text("Size", style: caption), gap(4),
             row("fmt.height", "Height", _common { $0.frame.height }, min: 1) { deck.setSize(height: $0) }, gap(6),
             row("fmt.width", "Width", _common { $0.frame.width }, min: 1) { deck.setSize(width: $0) }, gap(6),
+            row("fmt.scale.height", "Scale height", _common { s in s.scaleBase.map { s.frame.height / $0.height * 100 } ?? 100 }, min: 1, unit: "%") { deck.setScale(height: $0) }, gap(6),
+            row("fmt.scale.width", "Scale width", _common { s in s.scaleBase.map { s.frame.width / $0.width * 100 } ?? 100 }, min: 1, unit: "%") { deck.setScale(width: $0) }, gap(6),
             row("fmt.rotation", "Rotation", _common { $0.rotation }, min: -360) { deck.setRotation($0) }, gap(6),
             Checkbox(key: ValueKey("fmt.lock"), checked: locked, onChanged: { v in
                 if some { deck.setAspectLock(v ?? false) }

@@ -1375,6 +1375,21 @@ final class DeckController: ChangeNotifier {
         _changed()
     }
 
+    /// Scales the selected shapes to `width` and/or `height` percent of their scale base (the size they had when first
+    /// scaled), keeping each top left corner. With the aspect lock on, the other side takes the same percentage.
+    func setScale(width: Double? = nil, height: Double? = nil) {
+        guard !selection.isEmpty, width != nil || height != nil else { return }
+        _checkpoint()
+        for s in selection {
+            let base = s.scaleBase ?? Size(s.frame.width, s.frame.height)
+            s.scaleBase = base
+            var wp = width ?? s.frame.width / base.width * 100, hp = height ?? s.frame.height / base.height * 100
+            if s.aspectLocked { if let width, height == nil { hp = width } else if let height, width == nil { wp = height } }
+            s.frame = Rect.fromLTWH(s.frame.left, s.frame.top, max(1, base.width * wp / 100), max(1, base.height * hp / 100))
+        }
+        _changed()
+    }
+
     /// Moves the selection so the top left of its box sits at `left`, `top` (either may be left out).
     func setPosition(left: Double? = nil, top: Double? = nil) {
         guard let box = _selectionBounds, left != nil || top != nil else { return }

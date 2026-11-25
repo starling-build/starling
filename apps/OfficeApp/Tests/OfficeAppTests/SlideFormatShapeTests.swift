@@ -96,6 +96,34 @@ final class SlideFormatShapeTests: XCTestCase {
         XCTAssertNotNil(a.fill, "unticking No fill gives a solid fill again")
     }
 
+    func testScalePercentFromThePane() throws {
+        let deck = DeckController()
+        let a = deck.addShape(.rect)
+        a.frame = Rect.fromLTWH(50, 50, 200, 100)
+        deck.selectShapes([a])
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light),
+                                        home: FormatShapePane(deck: deck, onClose: {}), title: "Test"),
+                              size: Size(1280, 800))
+        settle(ui)
+        func enter(_ id: String, _ text: String) {
+            ui.tap(id: id)
+            for _ in 0 ..< 10 { ui.press(.backspace) }
+            ui.type(text); ui.press(.enter); settle(ui)
+        }
+        enter("fmt.scale.width", "50")
+        XCTAssertEqual(a.frame.width, 100, accuracy: 0.01); XCTAssertEqual(a.frame.height, 100, accuracy: 0.01, "unlocked: height alone stays")
+        enter("fmt.scale.height", "200")
+        XCTAssertEqual(a.frame.height, 200, accuracy: 0.01)
+        enter("fmt.scale.width", "100")
+        XCTAssertEqual(a.frame.width, 200, accuracy: 0.01, "100% is the size it had when first scaled")
+        deck.setAspectLock(true)
+        enter("fmt.scale.width", "50")
+        XCTAssertEqual(a.frame.width, 100, accuracy: 0.01); XCTAssertEqual(a.frame.height, 50, accuracy: 0.01, "locked: both sides scale together")
+        XCTAssertEqual(a.frame.left, 50); XCTAssertEqual(a.frame.top, 50)
+        deck.undo()
+        XCTAssertEqual(a.frame.width, 200, accuracy: 0.01)
+    }
+
     func testDashTypeFromThePaneSurvivesSaving() throws {
         let deck = DeckController()
         let a = deck.addShape(.rect)
