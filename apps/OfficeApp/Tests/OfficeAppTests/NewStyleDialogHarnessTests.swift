@@ -58,4 +58,27 @@ final class NewStyleDialogHarnessTests: XCTestCase {
         XCTAssertFalse(ui.has(id: "ns-name"))
         XCTAssertEqual(session.controller.document.styles.styles.count, count)
     }
+
+    func testNewStyleSurvivesSave() throws {
+        let c = RichDocumentController(document: RichDocument(paragraphs: []))
+        c.insertText("hello"); c.insertParagraphBreak(); c.insertText("world")
+        c.moveTo(RichPosition(paragraph: 0, offset: 0), extend: false)
+        c.moveTo(RichPosition(paragraph: 0, offset: 5), extend: true)
+        c.toggleBold(); c.setFontSize(14); c.setTextColor(Color(0xFFC00000))
+        c.setParagraphSpacing(after: 12); c.setIndents(left: 36)
+        XCTAssertEqual(c.createStyleFromSelection(name: "My Style"), "MyStyle")
+        c.moveTo(RichPosition(paragraph: 1, offset: 0), extend: false)
+        c.setNamedStyle("MyStyle")
+        let back = try DocxFormat.read(DocxFormat.write(c.document, pageSetup: .letter)).document
+        XCTAssertEqual(back.styles["MyStyle"]?.name, "My Style")
+        XCTAssertEqual(back.styles["MyStyle"]?.char.bold, true)
+        XCTAssertEqual(back.styles["MyStyle"]?.paragraph.spaceAfter, 12)
+        XCTAssertEqual(back.styles["MyStyle"]?.paragraph.indentLeft, 36)
+        XCTAssertEqual(back.styles["MyStyle"]?.char.fontSize, 14)
+        XCTAssertEqual(back.styles.id(of: back.paragraphs[1].style), "MyStyle")
+        XCTAssertEqual(back.styles.id(of: back.paragraphs[0].style), "MyStyle")
+        if let out = ProcessInfo.processInfo.environment["NEWSTYLE_OUT"] {   // for a Word open check
+            try DocxFormat.write(c.document, pageSetup: .letter).write(to: URL(fileURLWithPath: out))
+        }
+    }
 }
