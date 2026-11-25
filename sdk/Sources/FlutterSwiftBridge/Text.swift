@@ -2912,9 +2912,13 @@ public struct StrutStyle: Hashable, CustomStringConvertible {
 public struct LineIndent: Hashable {
   public var left: Double
   public var right: Double
-  public init(left: Double = 0, right: Double = 0) {
+  /// The second line of a pair standing level with the first, where the first is the RIGHT piece (a right-to-left paragraph
+  /// fills the room at the right of a box before the room at its left).
+  public var levelWithPrevious: Bool
+  public init(left: Double = 0, right: Double = 0, levelWithPrevious: Bool = false) {
     self.left = left
     self.right = right
+    self.levelWithPrevious = levelWithPrevious
   }
 }
 
