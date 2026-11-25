@@ -140,9 +140,50 @@ extension Ribbon {
             ]),
             Chrome.vgap(4),
             Chrome.row([
+                Chrome.menuButton(FluentSystemIcons.textEffects, "Shape Effects", "Shadow, glow, reflection, soft edges, bevel",
+                                  fluent, items: _effectItems(deck, fluent)),
+            ]),
+            Chrome.vgap(4),
+            Chrome.row([
                 Chrome.small(FluentSystemIcons.textT, "Text Options", fluent) { [session] in session.onTextOptions?() },
             ]),
         ])])
+    }
+
+    /// Shape Effects: PowerPoint's presets for shadow, glow, reflection, soft edges and bevel.
+    private func _effectItems(_ deck: DeckController, _ fluent: FluentThemeData) -> [MenuFlyoutItemBase] {
+        let some = !deck.selection.isEmpty
+        func item(_ id: String, _ text: String, _ act: @escaping () -> Void) -> MenuFlyoutItem {
+            MenuFlyoutItem(key: ValueKey(id), text: Text(text), onPressed: some ? act : nil)
+        }
+        let shadows: [MenuFlyoutItemBase] = [item("fx.shadow.none", "No Shadow") { deck.setShadow(nil) }]
+            + ShapeEffectPresets.shadows.enumerated().map { i, sh in
+                item("fx.shadow.\(i)", sh.name) { deck.setShadow(ShapeEffectPresets.shadow(angle: sh.angle)) } }
+        let glows: [MenuFlyoutItemBase] = [item("fx.glow.none", "No Glow") { deck.setGlow(radius: nil, color: nil) }]
+            + ShapeEffectPresets.glowSizes.map { size in
+                MenuFlyoutSubItem(text: Text("Glow: \(Int(size)) point"), items: deck.theme.accents.prefix(6).enumerated().map { i, c in
+                    item("fx.glow.\(Int(size)).\(i)", "Accent \(i + 1)") {
+                        deck.setGlow(radius: size, color: ShapeEffectPresets.glowColor(c)) } })
+            }
+        let reflections: [MenuFlyoutItemBase] = [item("fx.reflection.none", "No Reflection") { deck.setReflection(nil) }]
+            + ShapeEffectPresets.reflections.enumerated().map { i, r in
+                item("fx.reflection.\(i)", r.name) {
+                    deck.setReflection(ShapeEffectPresets.reflection(dist: r.dist, endPos: r.endPos, startAlpha: r.startAlpha)) } }
+        let soft: [MenuFlyoutItemBase] = [item("fx.soft.none", "No Soft Edges") { deck.setSoftEdge(nil) }]
+            + ShapeEffectPresets.softEdgeSizes.map { r in
+                item("fx.soft.\(r)", "\(r == r.rounded() ? String(Int(r)) : String(r)) Point") { deck.setSoftEdge(r) } }
+        let bevels: [MenuFlyoutItemBase] = [item("fx.bevel.none", "No Bevel") { deck.setBevel(nil) }]
+            + ShapeEffectPresets.bevels.map { b in
+                item("fx.bevel.\(b.preset)", b.name) { deck.setBevel(ShapeBevel(width: 6, height: 6, preset: b.preset)) } }
+        return [
+            item("fx.clear", "No Effects") { deck.clearEffects() },
+            MenuFlyoutSeparator(),
+            MenuFlyoutSubItem(text: Text("Shadow"), items: shadows),
+            MenuFlyoutSubItem(text: Text("Reflection"), items: reflections),
+            MenuFlyoutSubItem(text: Text("Glow"), items: glows),
+            MenuFlyoutSubItem(text: Text("Soft Edges"), items: soft),
+            MenuFlyoutSubItem(text: Text("Bevel"), items: bevels),
+        ]
     }
 
     /// The theme's accents first, then the neutrals and standard colours.

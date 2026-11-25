@@ -167,8 +167,11 @@ struct KeptLook: Equatable {
     var dashEdited = false
     /// Set when the user chose arrowheads: the file's own are swapped, the rest of its line kept.
     var endsEdited = false
-    /// Set when the user changed the shape's shadow: the file's own outer shadow is swapped, its other effects kept.
-    var shadowEdited = false
+    /// Set when the user changed the shape's shadow, glow, reflection or soft edges: those four are written from the
+    /// model and the file's other effects kept.
+    var effectsEdited = false
+    /// Set when the user chose a bevel: the file's own `a:bevelT` is swapped, its other 3-D settings kept.
+    var bevelEdited = false
 
     func fillKept(_ s: ShapeState) -> Bool { !fillReplaced && s.fill == readFill && s.fillScheme == readFillScheme }
     func lineKept(_ s: ShapeState) -> Bool { !lineReplaced && !dashEdited && !endsEdited && s.outline == readOutline && s.outlineWidth == readWidth }

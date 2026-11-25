@@ -1816,7 +1816,7 @@ final class DeckController: ChangeNotifier {
     func setShadow(_ shadow: CharShadow?) {
         guard !selection.isEmpty else { return }
         _checkpoint()
-        for s in selection { s.shadow = shadow; s.keptLook?.shadowEdited = true }
+        for s in selection { s.shadow = shadow; s.keptLook?.effectsEdited = true }
         _changed()
     }
 
