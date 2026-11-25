@@ -25,6 +25,7 @@ extension Ribbon {
         case .view: return _slidesView(fluent)
         case .pictureFormat: return _slidePictureFormat(deck, fluent)
         case .chartDesign: return _chartDesign(deck, fluent)
+        case .slideMaster: return _slideMasterTab(deck, fluent)
         case .tableDesign: return _slideTableDesign(deck, fluent)
         case .animations: return _animationsTab(deck, fluent)
         default: return nil
@@ -98,6 +99,33 @@ extension Ribbon {
             item("Expand All", enabled: !deck.sections.isEmpty) { deck.setAllSectionsCollapsed(false) },
         ]
         return Chrome.menuButton(FluentSystemIcons.bulletList, nil, "Sections", fluent, items: items)
+    }
+
+    /// Slide Master: the layouts and placeholders of the open master, and the way out.
+    private func _slideMasterTab(_ deck: DeckController, _ fluent: FluentThemeData) -> [Widget] {
+        let role = deck.masterPage
+        func ph(_ text: String, _ type: String) -> MenuFlyoutItemBase {
+            MenuFlyoutItem(text: Text(text), onPressed: { deck.insertMasterPlaceholder(type) })
+        }
+        return [
+            Chrome.group("Edit Master", fluent, [
+                Chrome.big(FluentSystemIcons.onePage, "Insert Layout", fluent) { deck.insertLayout() },
+                Chrome.rows([
+                    Chrome.small(FluentSystemIcons.textT, "Rename", fluent) { [session] in session.onLayoutName?() },
+                    Chrome.small(FluentSystemIcons.copy, "Duplicate", fluent) { deck.duplicateLayout() },
+                    Chrome.small(FluentSystemIcons.delete, "Delete", fluent) { deck.deleteLayout() },
+                ]),
+            ]),
+            Chrome.group("Master Layout", fluent, [
+                Chrome.menuButton(FluentSystemIcons.document, "Insert Placeholder", "Insert Placeholder", fluent, items: [
+                    ph("Title", "title"), ph("Text", "body"), ph("Content", "obj"), ph("Picture", "pic"),
+                    ph("Date", "dt"), ph("Footer", "ftr"), ph("Slide Number", "sldNum"),
+                ]),
+            ]),
+            Chrome.group("Close", fluent, [
+                Chrome.big(FluentSystemIcons.delete, "Close Master View", fluent) { [session] in session.onMasterView?(false) },
+            ]),
+        ]
     }
 
     private func _slidesHome(_ deck: DeckController, _ fluent: FluentThemeData) -> [Widget] {
@@ -679,6 +707,10 @@ extension Ribbon {
                 Chrome.bigToggle(FluentSystemIcons.grid, "Slide Sorter", session.slidesSorter, fluent) { [session] in
                     session.onSlidesView?(true)
                 },
+                Padding(key: ValueKey("view.slideMaster"), padding: EdgeInsets(left: 0, top: 0, right: 0, bottom: 0),
+                        child: Chrome.bigToggle(FluentSystemIcons.document, "Slide Master", session.deck?.inMasterView ?? false, fluent) { [session] in
+                    session.onMasterView?(true)
+                }),
             ]),
             Chrome.group("Zoom", fluent, [
                 Padding(key: ValueKey("view.zoomIn"), padding: EdgeInsets(left: 0, top: 0, right: 0, bottom: 0), child: Chrome.big(FluentSystemIcons.zoomIn, "Zoom In", fluent) { [session] in session.deck?.stepViewZoom(1) }),

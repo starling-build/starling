@@ -21,6 +21,8 @@ enum RibbonTab: Int, CaseIterable {
     case pictureFormat, shapeFormat, tableLayout, tableDesign
     /// Slides only; contextual while a chart is selected.
     case chartDesign
+    /// Slides only; shown while Slide Master view is open.
+    case slideMaster
     /// Slides only.
     case design, transitions, slideShow, animations
     /// Sheets only.
@@ -48,6 +50,7 @@ enum RibbonTab: Int, CaseIterable {
         case .tableLayout: return "Table Layout"
         case .tableDesign: return "Table Design"
         case .chartDesign: return "Chart Design"
+        case .slideMaster: return "Slide Master"
         case .design: return "Design"
         case .transitions: return "Transitions"
         case .slideShow: return "Slide Show"
@@ -57,7 +60,7 @@ enum RibbonTab: Int, CaseIterable {
         }
     }
 
-    var isContextual: Bool { self == .pictureFormat || self == .shapeFormat || self == .tableLayout || self == .tableDesign || self == .chartDesign }
+    var isContextual: Bool { self == .pictureFormat || self == .shapeFormat || self == .tableLayout || self == .tableDesign || self == .chartDesign || self == .slideMaster }
 }
 
 final class Ribbon: StatelessWidget {
@@ -110,6 +113,7 @@ final class Ribbon: StatelessWidget {
         if session.deck?.selectedTableOptions != nil { items.append(_tab(.tableDesign, fluent)) }
         if session.summary.inCell { items.append(_tab(.tableDesign, fluent)); items.append(_tab(.tableLayout, fluent)) }
         if session.deck?.selectedChart != nil { items.append(_tab(.chartDesign, fluent)) }
+        if session.deck?.inMasterView ?? false { items.insert(_tab(.slideMaster, fluent), at: 1) }
         return ColoredBox(color: OfficeAppearance.surface(fluent),
             child: SizedBox(width: nil, height: 44, child: SingleChildScrollView(scrollDirection: .horizontal,
                 child: Padding(padding: EdgeInsets(left: 12, top: 5, right: 12, bottom: 0),
@@ -184,7 +188,7 @@ final class Ribbon: StatelessWidget {
         case .references: return _references(fluent)
         case .review: return _review(fluent)
         case .tableDesign: return session.summary.inCell ? _tableDesign(fluent) : []
-        case .design, .transitions, .slideShow, .chartDesign, .animations, .formulas, .data: return []
+        case .design, .transitions, .slideShow, .chartDesign, .slideMaster, .animations, .formulas, .data: return []
         }
     }
 

@@ -310,6 +310,9 @@ final class OfficeSession {
     var onCustomShows: (() -> Void)?
     /// Add Section (false) or Rename Section (true): the Slides shell opens its name box.
     var onSectionName: ((Bool) -> Void)?
+    /// Open (true) or close (false) Slide Master view.
+    var onMasterView: ((Bool) -> Void)?
+    var onLayoutName: (() -> Void)?
     var onRehearse: (() -> Void)?
     /// Show or hide the Animation Pane (Slides).
     var onAnimationPane: (() -> Void)?
