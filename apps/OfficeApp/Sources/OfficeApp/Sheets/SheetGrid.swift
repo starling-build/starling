@@ -162,6 +162,8 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
     static let screenFitShare = 0.0145
     let focus = FocusNode(debugLabel: "sheet grid")
     private let _chords = KeyChordTracker()
+    /// Control (or Command) is down now: Ctrl+drag on a sheet tab copies.
+    var controlHeld: Bool { _chords.control || _chords.primary }
     /// The platform's text-input plugin, for composed input (Chinese…),
     /// dead keys and press-and-hold accents: attached while the grid has
     /// focus. Its edits open the cell as typing does; with it attached the
