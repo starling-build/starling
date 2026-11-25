@@ -211,7 +211,7 @@ struct ReadShape: Equatable {
     func patchable(_ s: ShapeState) -> Bool {
         var a = self
         let b = ReadShape(s)
-        a.frame = b.frame; a.rotation = b.rotation; a.flipH = b.flipH; a.flipV = b.flipV; a.invisible = b.invisible
+        a.frame = b.frame; a.rotation = b.rotation; a.flipH = b.flipH; a.flipV = b.flipV; a.invisible = b.invisible; a.aspectLock = b.aspectLock
         a.fill = b.fill; a.fillScheme = b.fillScheme; a.outline = b.outline; a.outlineWidth = b.outlineWidth
         a.anchor = b.anchor; a.insets = b.insets; a.autofit = b.autofit; a.fontScale = b.fontScale
         a.name = b.name; a.link = b.link; a.linkTip = b.linkTip
