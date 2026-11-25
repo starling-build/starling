@@ -132,7 +132,7 @@ private final class _SitePublishReviewState: State<StatefulWidget> {
             let website = (try? SiteHosting.Settings(title: review.title, repository: "", url: review.website ?? ""))?.url
             rows += [Chrome.vgap(8), Text("Website: " + (website ?? "Set up in Publishing settings"), style: WikiAppearance.text(14))]
             if let target = review.reviewedPublication.context.target {
-                rows += [Chrome.vgap(4), Text("Publishing branch: " + target.replacingOccurrences(of: "HEAD:refs/heads/", with: ""), style: WikiAppearance.text(14))]
+                rows += [Chrome.vgap(4), Text("Publishing branch: " + target.replacingAll("HEAD:refs/heads/", with: ""), style: WikiAppearance.text(14))]
             }
             if review.compared {
                 rows += [Chrome.vgap(6), Text("Compared with the last upload recorded on this device. This does not confirm what is live on the website.", style: WikiAppearance.text(14, color: WikiAppearance.muted))]
@@ -201,7 +201,7 @@ private final class _SitePublishReviewState: State<StatefulWidget> {
                     if expanded {
                         detail += [Chrome.vgap(8), Text("These references stay as text in text view. Review them in the document; you can still publish.", style: WikiAppearance.text(14, color: WikiAppearance.muted))]
                         for issue in page.references {
-                            let target = String(issue.target.replacingOccurrences(of: "\n", with: " ").prefix(200))
+                            let target = String(issue.target.replacingAll("\n", with: " ").prefix(200))
                             detail += [Chrome.vgap(12), Text(issue.excerpt.isEmpty ? "Reference in an empty paragraph" : issue.excerpt, style: WikiAppearance.text(15, bold: true)),
                                        Chrome.vgap(4), Text(target, style: WikiAppearance.text(14, color: WikiAppearance.muted)),
                                        Chrome.vgap(4), Text(issue.kind.guidance, style: WikiAppearance.text(14))]

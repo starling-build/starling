@@ -560,7 +560,7 @@ enum DocRead {
             for k in 0 ..< sed.cps.count - 1 {
                 let fc = OfficeArt.u32(tbl, sed.at + 12 * k + 2)
                 var g: [UInt8] = []
-                if fc != 0xFFFF_FFFF, fc + 2 <= w.count { let n = OfficeArt.u16(w, fc); if fc + 2 + n <= w.count { g = Array(w[fc + 2 ..< fc + 2 + n]) } }
+                if UInt32(truncatingIfNeeded: fc) != UInt32.max, fc >= 0, fc + 2 <= w.count { let n = OfficeArt.u16(w, fc); if fc + 2 + n <= w.count { g = Array(w[fc + 2 ..< fc + 2 + n]) } }
                 let sp = DocProps.sectPr(g, refs: refs(section: k))
                 let end = min(sed.cps[k + 1], fib.ccpText)
                 if k == sed.cps.count - 2 { last = sp; lastEnd = end } else if end > 0 { ends[end - 1] = sp }

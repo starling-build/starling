@@ -2305,7 +2305,7 @@ extension RichLayout {
                 // as a wrapped one does if the line holds spaces (an empty one is not pushed: sa2 3c4382f0's logo 4pt up from an empty line, the body at its foot), (its height holds the space after): dx2 ka 746c2e0c's 68.4pt logo set 36pt above a header
                 // paragraph of spaces (after 8pt), Word's body at 99.2 = picture foot 77.45 + the 13.4pt line + 8pt; ours stood 21.5pt up.)
                 if theme.wordRules, RichTextTheme.wordWindowsPages, !wrapped, !f.wraps, f.y < 0, f.y + image.height > 0, !f.wrapsTight,
-                   hp.text.contains(" "), hp.text.allSatisfy({ $0 == " " || $0 == "\u{FFFC}" || $0 == "\n" }), j < header.layout._heights.count,
+                   hp.text.contains(" " as Character), hp.text.allSatisfy({ $0 == " " || $0 == "\u{FFFC}" || $0 == "\n" }), j < header.layout._heights.count,
                    !hp.inlineImages.inOrder.contains(where: { $0.float == nil }) {
                     RuleTrace.hit("word-header-line-is-pushed-under-a-top-and-bottom-picture-from-above")
                     pushedLine = header.layout._heights[j]

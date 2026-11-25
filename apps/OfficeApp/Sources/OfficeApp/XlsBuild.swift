@@ -560,7 +560,7 @@ enum XlsBuild {
                     }
                     if opt & 0x80 == 0, style & 0x80 != 0 { font += "<strike/>" }
                     if opt & 0x10 == 0, ul != 0, ul != 0xFF { font += ul == 2 ? "<u val=\"double\"/>" : "<u/>" }
-                    if color != 0xFFFF_FFFF, color != 0x7FFF, let hex = rgb(color, palette) { font += "<color rgb=\"FF\(hex)\"/>" }
+                    if UInt32(truncatingIfNeeded: color) != UInt32.max, color != 0x7FFF, let hex = rgb(color, palette) { font += "<color rgb=\"FF\(hex)\"/>" }
                 }
                 if fl & 0x1000_0000 != 0, c.pos + 8 <= rec.body.count {
                     let ls = c.u16(), cl = Int(c.u32()); c.skip(2)

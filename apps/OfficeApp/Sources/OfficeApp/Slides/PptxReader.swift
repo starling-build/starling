@@ -987,7 +987,7 @@ struct PptxReader {
                     // the slide it is drawn on: PowerPoint prints ko-2fd3de28's layout text box as 136, not the field's stored ‹#›.)
                     // (The same where the field is one run among others, "- page ‹#› -": the stored ‹#› becomes the number, in the run that holds it:
                     // ko-c03ed80e's layout footer, printed "- page 4 -" by PowerPoint.)
-                    for k in found.indices where found[k].field == nil && (found[k].sourceXML?.contains("type=\"slidenum\"") ?? false) {
+                    for k in found.indices where found[k].field == nil && (found[k].sourceXML?.containsSubstring("type=\"slidenum\"") ?? false) {
                         guard var doc = found[k].text else { continue }
                         let want = SlideField(type: "slidenum", id: "").value(slide: n + (presentation["firstSlideNum"].flatMap(Int.init) ?? 1))
                         var changed = false
