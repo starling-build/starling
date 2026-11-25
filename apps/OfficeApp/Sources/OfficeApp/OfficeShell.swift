@@ -90,6 +90,8 @@ final class OfficeShellState: State<StatefulWidget> {
     private var _numberingValueOpen = false
     private var _listSymbolPick: ((String, String?) -> Void)? = nil   // the Symbol picker is open for the Define Bullet dialog
     private var _listFormatOpen: Bool? = nil   // the dialog is open: true for a bullet
+    private var _noteOpen: NoteReference? = nil
+    private let _noteText = TextEditingController()
     private let _colorText = TextEditingController()
     private var _styleOpen: String? = nil
     private var _linkHover: String? = nil
@@ -261,6 +263,7 @@ final class OfficeShellState: State<StatefulWidget> {
         _findReplacement.dispose()
         _editorFocus.dispose()
         _headerText.dispose()
+        _noteText.dispose()
         _colorText.dispose()
         _footerText.dispose()
         super.dispose()
@@ -407,6 +410,15 @@ final class OfficeShellState: State<StatefulWidget> {
             self.setState { self._headerFooterOpen = true }
         }
         session.onLink = { [weak self] in self?._openLink() }
+        session.onInsertNote = { [weak self] kind in
+            guard let self else { return }
+            self.controller.insertNote(kind)
+            if let n = self.controller.noteAtCaret() { self._openNote(n) }
+        }
+        session.onEditNote = { [weak self] in
+            guard let self else { return }
+            if let n = self.controller.noteAtCaret() { self._openNote(n) } else { self._flash("Put the caret next to a footnote or endnote mark") }
+        }
         session.onSymbolDialog = { [weak self] in
             guard let self else { return }
             self.controller.breakUndoCoalescing()
@@ -1145,6 +1157,16 @@ final class OfficeShellState: State<StatefulWidget> {
         return h
     }
 
+    private func _openNote(_ n: NoteReference) {
+        _noteText.text = controller.editableNoteText(n) ?? ""
+        setState { _noteOpen = n }
+    }
+
+    private func _closeNote() {
+        setState { _noteOpen = nil }
+        _editorFocus.requestFocus()
+    }
+
     // MARK: Shortcuts
 
     func _cancelPainter() {
@@ -1204,6 +1226,11 @@ final class OfficeShellState: State<StatefulWidget> {
         }
         // ⌥⌘V (Ctrl+Alt+V in Word) is Paste Special; with no dialog yet it pastes the clipboard's text alone, since ⇧⌘V is the Format Painter's paste (W-P0-5).
         if letter == "v", PasteChord.of(shift: mods.contains(.shift), alt: mods.contains(.alt)) == .pastePlainText { _paste(plain: true); return true }
+        // Alt+Ctrl+F inserts a footnote and Alt+Ctrl+D an endnote, as in Word.
+        if mods.contains(.alt), !mods.contains(.shift), letter == "f" || letter == "d" {
+            session.onInsertNote?(letter == "f" ? .footnote : .endnote)
+            return true
+        }
         if mods.contains(.alt) { return false }
         switch letter {
         case "s":
@@ -1388,6 +1415,21 @@ final class OfficeShellState: State<StatefulWidget> {
                         self?.setState { self?._printOpen = false }
                         self?._editorFocus.requestFocus()
                     })),
+            ])
+        }
+        if let note = _noteOpen {
+            let refusal = controller.editableNoteText(note) == nil
+                ? "This note holds formatting, a link or a picture that this box would lose; edit it in Word." : nil
+            return Stack(children: [
+                window,
+                Positioned(left: 0, top: 0, right: 0, bottom: 0, child: NoteDialog(
+                    title: note.kind == .footnote ? "Footnote" : "Endnote", text: _noteText, refusal: refusal,
+                    onOK: { [weak self] in
+                        guard let self else { return }
+                        self.controller.setNoteText(note, self._noteText.text)
+                        self._closeNote()
+                    },
+                    onCancel: { [weak self] in self?._closeNote() })),
             ])
         }
         if _pageSetupOpen {
