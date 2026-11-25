@@ -9,6 +9,7 @@
 # is judged; main's drift no longer blocks later PRs. The fixed baseline files are then only the drift report (hourly round).
 BIN=$(readlink -f "${1:?usage: slides-gate.sh BIN [JOBS]}"); JOBS=${2:-32}; TOL=${TOL:-0.05}
 ROOT=$(cd "$(dirname "$0")/../.." && pwd); CC=${CORPUS_CACHE:-/data/corpus-cache}/test/corpus/pptx
+export OFFICE_NOW=${OFFICE_NOW:-2026-10-30T12:00:00}   # one fixed clock for base and PR draws (also in the base STAMP)
 DECKS=$ROOT/test/corpus/pptx/decks; [ -n "$(ls "$DECKS" 2>/dev/null | head -1)" ] || DECKS=$CC/decks
 PPT=$CC/powerpoint-win; BASE=$ROOT/test/corpus/pptx/baseline-win.tsv
 [ -d "$DECKS" ] && [ -d "$PPT" ] && { [ -s "$BASE" ] || [ -n "${BASE_BIN:-}" ]; } || { echo "slides-gate: no deck corpus or baseline here; skipped"; exit 2; }
