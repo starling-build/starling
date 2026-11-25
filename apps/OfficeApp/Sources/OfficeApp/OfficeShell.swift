@@ -78,6 +78,7 @@ final class OfficeShellState: State<StatefulWidget> {
     private var _fontOpen = false
     private var _pageSetupOpen = false
     private var _insertTableOpen = false
+    private var _splitCellOpen = false
     private var _bordersOpen = false
     private var _printOpen = false
     private var _pictureDialog: PictureDialogKind?
@@ -443,6 +444,11 @@ final class OfficeShellState: State<StatefulWidget> {
             guard let self else { return }
             self.controller.breakUndoCoalescing()
             self.setState { self._insertTableOpen = true }
+        }
+        session.onSplitCellDialog = { [weak self] in
+            guard let self else { return }
+            self.controller.breakUndoCoalescing()
+            self.setState { self._splitCellOpen = true }
         }
         session.onBordersShadingDialog = { [weak self] in
             guard let self else { return }
@@ -1197,7 +1203,7 @@ final class OfficeShellState: State<StatefulWidget> {
             if _shortcutsOpen { return false }   // the dialog's own Esc closes it
             if LinkCard.link(caret: _cardLink, hover: _hoverCard, dismissed: _cardDismissed) != nil { setState { _cardDismissed = true }; return true }
             if _listSymbolPick != nil { setState { _listSymbolPick = nil }; return true }
-            if _paragraphOpen || _fontOpen || _insertTableOpen || _bordersOpen || _pictureDialog != nil || _linkDialogOpen || _numberingValueOpen || _listFormatOpen != nil { return false }   // the dialog's own Esc closes it
+            if _paragraphOpen || _fontOpen || _insertTableOpen || _splitCellOpen || _bordersOpen || _pictureDialog != nil || _linkDialogOpen || _numberingValueOpen || _listFormatOpen != nil { return false }   // the dialog's own Esc closes it
             if _headerFooterOpen { setState { _headerFooterOpen = false }; return true }
             if _findOpen { setState { _findOpen = false }; _editorFocus.requestFocus(); return true }
             if _backstage != nil { setState { _backstage = nil }; return true }
@@ -1476,6 +1482,24 @@ final class OfficeShellState: State<StatefulWidget> {
                     hooks: _linkHooks,
                     onClose: { [weak self] in
                         self?.setState { self?._linkDialogOpen = false }
+                        self?._editorFocus.requestFocus()
+                    })),
+            ])
+        }
+        if _splitCellOpen {
+            let cell = controller.currentCell
+            return Stack(children: [
+                window,
+                Positioned(left: 0, top: 0, right: 0, bottom: 0, child: SplitCellDialog(
+                    columns: max(2, cell?.span ?? 2), rows: cell?.rowSpan ?? 1,
+                    onOK: { [weak self] n, m in
+                        guard let self else { return }
+                        self.controller.splitCell(columns: n, rows: m)
+                        self.setState { self._splitCellOpen = false }
+                        self._editorFocus.requestFocus()
+                    },
+                    onCancel: { [weak self] in
+                        self?.setState { self?._splitCellOpen = false }
                         self?._editorFocus.requestFocus()
                     })),
             ])

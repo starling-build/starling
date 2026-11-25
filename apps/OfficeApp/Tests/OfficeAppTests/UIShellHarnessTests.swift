@@ -273,6 +273,21 @@ final class SheetsTitleBarUndoHarnessTests: XCTestCase {
         XCTAssertEqual(c.document.paragraphs[0].image?.rotation, 90)
     }
 
+    func testSplitCellDialogReachesTheController() {
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(1280, 800))
+        let c = ui.state(OfficeShellState.self)!.session.controller
+        c.insertTable(rows: 2, columns: 2)
+        ui.pump()
+        XCTAssertTrue(ui.tap(text: "Table Layout"))
+        XCTAssertTrue(ui.tap(text: "Split Cell"))
+        XCTAssertTrue(ui.has(text: "Number of columns"))
+        XCTAssertTrue(ui.tap(text: "OK"))                  // defaults: 2 columns, 1 row
+        XCTAssertEqual(c.document.columnCount(of: c.currentCell!.table), 3)
+        XCTAssertEqual(c.document.paragraphs.compactMap(\.cell).count, 5)
+        c.undo()
+        XCTAssertEqual(c.document.paragraphs.compactMap(\.cell).count, 4)
+    }
+
     /// W-TB-1: the Select menu and the Insert Table dialog reach the controller.
     func testTableSelectAndInsertTableDialogReachTheController() {
         let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(1280, 800))

@@ -325,6 +325,7 @@ final class OfficeSession {
     var onFontDialog: (() -> Void)?
     var onPageSetupDialog: (() -> Void)?
     var onInsertTableDialog: (() -> Void)?
+    var onSplitCellDialog: (() -> Void)?
     var onBordersShadingDialog: (() -> Void)?
     var onPictureDialog: ((PictureDialogKind) -> Void)?
     /// Opens the Set Numbering Value prompt.

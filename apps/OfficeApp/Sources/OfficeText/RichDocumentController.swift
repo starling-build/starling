@@ -2142,6 +2142,111 @@ public final class RichDocumentController: ChangeNotifier {
         })
     }
 
+    /// Word's Split Cells: the caret's cell becomes `columns` x `rows` cells,
+    /// one undo step. A cell with fewer grid columns (or rows) than asked
+    /// makes the grid wider (taller): the cells across the new columns widen
+    /// (or grow taller) to keep their place, and the column widths of the
+    /// split cell are shared evenly. The text stays in the first piece.
+    /// Returns false when nothing was split.
+    @discardableResult
+    public func splitCell(columns n: Int, rows m: Int) -> Bool {
+        guard let here = currentCell, n >= 1, m >= 1, n * m > 1, n <= 63, m <= 200 else { return false }
+        let s = here.span, q = here.rowSpan
+        let rowExtra = max(0, m - q)
+        let e = here.column + s, r1 = here.row + q - 1
+        let cols = document.columnCount(of: here.table)
+        var widths = document.tableColumns[here.table]
+        if widths?.count != cols { widths = nil }
+        // The split cell's width is cut into n EQUAL pieces. Every old gridline stays; a new
+        // gridline is added wherever a cut falls between two of them, and every cell is
+        // renumbered through the new grid.
+        let w0 = widths ?? Array(repeating: 468.0 / Double(cols), count: cols)
+        var x: [Double] = [0]
+        for v in w0 { x.append(x.last! + v) }
+        let x0 = x[here.column], x1 = x[e]
+        var newX = x
+        for j in 1 ..< n {
+            let t = x0 + (x1 - x0) * Double(j) / Double(n)
+            if !newX.contains(where: { abs($0 - t) < 0.5 }) { newX.append(t) }
+        }
+        newX.sort()
+        func gridIndex(_ pos: Double) -> Int {
+            newX.indices.min { abs(newX[$0] - pos) < abs(newX[$1] - pos) }!
+        }
+        let newCols = newX.count - 1
+        let colExtra = newCols - cols
+        guard newCols <= 63 else { return false }
+        let oldIndex = x.map { gridIndex($0) }
+        let cuts = (0 ... n).map { gridIndex(x0 + (x1 - x0) * Double($0) / Double(n)) }
+        guard (0 ..< n).allSatisfy({ cuts[$0 + 1] > cuts[$0] }) else { return false }
+        if colExtra > 0 { widths = (0 ..< newCols).map { newX[$0 + 1] - newX[$0] } }
+        let newWidths = widths
+        let style = document.tableStyles[here.table]
+        func pieces(_ total: Int, _ k: Int) -> [Int] {
+            (0 ..< k).map { total / k + ($0 < total % k ? 1 : 0) }
+        }
+        let rowSizes = pieces(max(q, m), m)
+        var caretAt: Int? = nil
+        edit {
+            _rewriteTable(caret: { _ in caretAt }, rewrite: { paras in
+                var out: [RichParagraph] = []
+                var extra: [CellRef] = []
+                for var p in paras {
+                    guard var c = p.cell else { out.append(p); continue }
+                    if c.sameCell(as: here) {
+                        if caretAt == nil {
+                            caretAt = out.count
+                            // The empty pieces, once, at the first paragraph.
+                            for i in 0 ..< m {
+                                for j in 0 ..< n where i + j > 0 {
+                                    var d = here
+                                    d.row = here.row + rowSizes[..<i].reduce(0, +)
+                                    d.column = cuts[j]
+                                    d.span = cuts[j + 1] - cuts[j]; d.rowSpan = rowSizes[i]
+                                    extra.append(d)
+                                }
+                            }
+                        }
+                        c.column = cuts[0]; c.span = cuts[1] - cuts[0]; c.rowSpan = rowSizes[0]
+                        p.cell = c
+                        out.append(p)
+                        continue
+                    }
+                    if colExtra != 0 {
+                        let from = oldIndex[c.column], to = oldIndex[c.column + c.span]
+                        c.column = from; c.span = to - from
+                    }
+                    if rowExtra > 0 {
+                        if c.row > r1 { c.row += rowExtra }
+                        else if c.row + c.rowSpan - 1 >= r1 { c.rowSpan += rowExtra }
+                    }
+                    p.cell = c
+                    out.append(p)
+                }
+                // Each empty piece goes in reading order among the cells.
+                for d in extra {
+                    var e = RichParagraph(style: .cell)
+                    e.cell = d
+                    let at = out.firstIndex { q in
+                        guard let c = q.cell, c.table == d.table else { return false }
+                        return c.row > d.row || (c.row == d.row && c.column > d.column)
+                    } ?? out.count
+                    out.insert(e, at: at)
+                }
+                paras = out
+            })
+            if let w = newWidths, w != document.tableColumns[here.table] {
+                perform(.setTableColumns(here.table, old: document.tableColumns[here.table], new: w))
+            }
+            if rowExtra > 0, var st = style, !(st.rowHeights.isEmpty && st.rowsCantSplit.isEmpty) {
+                st.rowHeights = Dictionary(uniqueKeysWithValues: st.rowHeights.map { ($0.key > r1 ? $0.key + rowExtra : $0.key, $0.value) })
+                st.rowsCantSplit = Set(st.rowsCantSplit.map { $0 > r1 ? $0 + rowExtra : $0 })
+                perform(.setTableStyle(here.table, old: style, new: st))
+            }
+        }
+        return true
+    }
+
     /// Insert an empty column left or right of the caret's column. The new
     /// column takes half of the current one's width so the table keeps
     /// its width, as Word's "Insert Left/Right" does inside a fixed table.
