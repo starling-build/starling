@@ -119,6 +119,8 @@ struct SheetDrawing: Equatable {
     var rawDescr: String? = nil
     /// A shape made here as a text box (`cNvSpPr@txBox`).
     var textBox = false
+    /// A file's shape's words as read: the text is patched into its XML only if they changed.
+    var rawText: String? = nil
 
     var isChart: Bool { if case .chart = kind { return true } else { return false } }
 }
@@ -199,7 +201,9 @@ enum SheetDrawingsXML {
                 d.kind = .shape(shape)
             } else if let sp = el.child("sp") ?? el.child("cxnSp") {
                 d.name = (sp.child("nvSpPr") ?? sp.child("nvCxnSpPr"))?.child("cNvPr")?["name"] ?? "Shape"
-                d.kind = .shape(SheetShape.read(sp, colors: colors))
+                let shape = SheetShape.read(sp, colors: colors)
+                d.kind = .shape(shape)
+                d.rawText = shape.plainText
             } else if let grp = el.child("grpSp") {
                 d.name = grp.child("nvGrpSpPr")?.child("cNvPr")?["name"] ?? "Group"
                 d.kind = .shape(SheetShape.readGroup(grp, colors: colors))
@@ -584,7 +588,8 @@ extension SheetDrawingsXML {
                 out.parts[path] = Data(xml.utf8)
             }
             if let raw = d.raw {
-                let raw = d.descr == d.rawDescr ? raw : _patchDescr(raw, d.descr)
+                var raw = d.descr == d.rawDescr ? raw : _patchDescr(raw, d.descr)
+                if case .shape(let sh) = d.kind, let was = d.rawText, was != sh.plainText { raw = _patchShapeText(raw, sh.plainText) }
                 if d.kind == .other || d.rawAnchor == d.anchor {
                     body += raw
                     continue
@@ -643,6 +648,33 @@ extension SheetDrawingsXML {
     }
 
     /// `raw` with the alt text of its first `cNvPr` set (or taken off when nil or empty).
+    /// A file shape's text body with `text` as its words: its body properties and the first run's look are kept.
+    static func _patchShapeText(_ raw: String, _ text: String) -> String {
+        guard let open = raw.rangeOfSubstring("txBody>"), let close = raw.rangeOfSubstring("txBody>", in: open.upperBound..<raw.endIndex),
+              let firstP = raw.rangeOfSubstring("<a:p>", in: open.upperBound..<close.lowerBound) ?? raw.rangeOfSubstring("<a:p ", in: open.upperBound..<close.lowerBound),
+              let lastP = raw.rangeOfSubstring("</a:p>", in: firstP.upperBound..<close.lowerBound) else { return raw }
+        // The look of the first paragraph: its pPr and its first run's rPr.
+        var lastEnd = lastP.upperBound
+        while let more = raw.rangeOfSubstring("</a:p>", in: lastEnd..<close.lowerBound) { lastEnd = more.upperBound }
+        let first = String(raw[firstP.lowerBound..<lastP.upperBound])
+        func element(_ tag: String) -> String {
+            guard let a = first.rangeOfSubstring("<a:\(tag)") else { return "" }
+            let after = first[a.upperBound...]
+            guard let gt = after.firstIndex(of: ">") else { return "" }
+            if after[after.index(before: gt)] == "/" { return String(first[a.lowerBound...gt]) }
+            guard let e = first.rangeOfSubstring("</a:\(tag)>", in: gt..<first.endIndex) else { return "" }
+            return String(first[a.lowerBound..<e.upperBound])
+        }
+        let pPr = element("pPr"), rPr = element("rPr"), end = element("endParaRPr")
+        var paras = ""
+        for line in text.split(separator: "\n", omittingEmptySubsequences: false) {
+            paras += "<a:p>" + pPr
+            if !line.isEmpty { paras += "<a:r>" + (rPr.isEmpty ? "<a:rPr lang=\"en-US\"/>" : rPr) + "<a:t>" + Xlsx._esc(String(line)) + "</a:t></a:r>" }
+            paras += end + "</a:p>"
+        }
+        return String(raw[raw.startIndex..<firstP.lowerBound]) + paras + String(raw[lastEnd...])
+    }
+
     static func _patchDescr(_ raw: String, _ descr: String?) -> String {
         guard let s = raw.rangeOfSubstring("<xdr:cNvPr") ?? raw.rangeOfSubstring("<cNvPr"),
               let e = raw.rangeOfSubstring(">", in: s.upperBound..<raw.endIndex) else { return raw }

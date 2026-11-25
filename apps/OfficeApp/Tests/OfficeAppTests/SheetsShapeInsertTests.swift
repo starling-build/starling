@@ -36,4 +36,22 @@ final class SheetsShapeInsertTests: XCTestCase {
             try data.write(to: URL(fileURLWithPath: "\(dir)/shapes-insert.xlsx"))
         }
     }
+
+    func testTextOfAShapeReadFromAFileCanBeEdited() throws {
+        let url = try XCTUnwrap(Bundle.module.url(forResource: "karma_performance", withExtension: "xlsx", subdirectory: "Fixtures"))
+        let c = WorkbookController()
+        c.load(try Xlsx.read(try Data(contentsOf: url)))
+        XCTAssertTrue(c.insertShape(ShapePreset(rawValue: "roundRect")))
+        c.setShapeText(c.sheet.drawings.count - 1, "One")
+        let first = WorkbookController()
+        first.load(try Xlsx.read(try Xlsx.write(c.book)))
+        let i = try XCTUnwrap(first.sheet.drawings.lastIndex { if case .shape = $0.kind { return true }; return false })
+        XCTAssertNotNil(first.sheet.drawings[i].raw)
+        first.setShapeText(i, "Two & more\nthree")
+        let second = WorkbookController()
+        second.load(try Xlsx.read(try Xlsx.write(first.book)))
+        guard case .shape(let s) = second.sheet.drawings[i].kind else { return XCTFail("not a shape") }
+        XCTAssertEqual(s.plainText, "Two & more\nthree")
+        XCTAssertEqual(s.geometry, "roundRect")
+    }
 }

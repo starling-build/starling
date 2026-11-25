@@ -106,10 +106,10 @@ extension WorkbookController {
         return true
     }
 
-    /// The words of a shape made here (one undo step); a file's shape keeps its own text.
+    /// The words of a shape (one undo step). A file's shape keeps its body properties and the first run's look.
     func setShapeText(_ index: Int, _ text: String) {
         let ws = sheet
-        guard ws.drawings.indices.contains(index), ws.drawings[index].raw == nil,
+        guard ws.drawings.indices.contains(index), ws.drawings[index].raw == nil || ws.drawings[index].rawText != nil,
               case .shape(var s) = ws.drawings[index].kind, !s.isGroup, s.plainText != text else { return }
         if s.paragraphs.isEmpty { s.paragraphs = [ShapeParagraph(align: s.anchor == "ctr" ? "ctr" : "l", runs: [ShapeRun(text: "", size: 11)])] }
         s.setPlainText(text)

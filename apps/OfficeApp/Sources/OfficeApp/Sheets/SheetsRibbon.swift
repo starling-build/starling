@@ -379,7 +379,7 @@ extension Ribbon {
                 })
             }))
         items.append(Chrome.big(FluentSystemIcons.image, "Text Box", fluent) { wb.onCommand?(.insertShape(.rect, textBox: true)) })
-        if let i = wb.selectedDrawing, wb.sheet.drawings.indices.contains(i), wb.sheet.drawings[i].raw == nil, case .shape(let s) = wb.sheet.drawings[i].kind, !ShapePreset(rawValue: s.geometry).isLine {
+        if let i = wb.selectedDrawing, wb.sheet.drawings.indices.contains(i), (wb.sheet.drawings[i].raw == nil || wb.sheet.drawings[i].rawText != nil), case .shape(let s) = wb.sheet.drawings[i].kind, !ShapePreset(rawValue: s.geometry).isLine {
             items.append(Chrome.big(FluentSystemIcons.image, "Edit Text", fluent) { wb.onCommand?(.editShapeText) })
         }
         return Chrome.group("Illustrations", fluent, items)

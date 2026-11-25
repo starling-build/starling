@@ -492,7 +492,7 @@ final class SheetsShellState: State<StatefulWidget> {
         case .insertShape(let p, let textBox):
             if wb.insertShape(p, textBox: textBox), textBox { setState { _shapeTextOpen = true } }
         case .editShapeText:
-            if let i = wb.selectedDrawing, wb.sheet.drawings.indices.contains(i), wb.sheet.drawings[i].raw == nil { setState { _shapeTextOpen = true } }
+            if let i = wb.selectedDrawing, wb.sheet.drawings.indices.contains(i), wb.sheet.drawings[i].raw == nil || wb.sheet.drawings[i].rawText != nil { setState { _shapeTextOpen = true } }
         case .altText:
             if let i = wb.selectedDrawing, wb.sheet.drawings.indices.contains(i), case .picture = wb.sheet.drawings[i].kind {
                 setState { _altOpen = true }
