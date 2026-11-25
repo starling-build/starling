@@ -190,6 +190,13 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
     private var _drag: _Drag? = nil
     /// A finger has touched the grid: the fill handle is drawn as a knob a finger can take.
     private var _touchSeen = false
+    /// A finger went down on a drawing that was not selected: the drawing a tap on release would select (a drag
+    /// scrolls instead).
+    private var _pendingDrawingTap: Int?
+
+    /// Whether a press on a chart or picture starts moving it (or its handle's resize): a mouse always does; a finger
+    /// only on one that is already selected, since a finger on any other drawing is trying to scroll the sheet.
+    static func drawingPressDrags(touch: Bool, wasSelected: Bool) -> Bool { !touch || wasSelected }
     /// Fingers down, by pointer id, for a pinch; and the last distance between two.
     private var _fingers: [Int: Offset] = [:]
     private var _pinchLast: Double? = nil
@@ -1713,6 +1720,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
 
     private func _down(_ e: PointerEvent) {
         focus.requestFocus()
+        _pendingDrawingTap = nil
         if e.kind == .touch { _touchSeen = true }
         let p = _local(e)
         let c = controller
@@ -1811,6 +1819,14 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         // Pictures and charts sit over the cells: they take the press first.
         if let hit = _drawingHit(p) {
             commitEdit()
+            let wasSelected = c.selectedDrawing == hit.index
+            if !Self.drawingPressDrags(touch: e.kind == .touch, wasSelected: wasSelected) {
+                // A finger on a chart or picture that is not selected scrolls the sheet, as it does anywhere else; a tap
+                // (a finger that never moved) selects the drawing instead, on release.
+                _pendingDrawingTap = hit.index
+                _drag = .touchScroll(start: p, last: p, moved: false, cell: cell(atLocal: p))
+                return
+            }
             c.selectedDrawing = hit.index
             c._notify(selectionOnly: true)
             let ws = c.sheet
@@ -2166,7 +2182,15 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             }
         }
         _move(e)
-        if case .touchScroll(_, _, let moved, let cell)? = _drag, !moved { _cellPress(cell) }
+        if case .touchScroll(_, _, let moved, let cell)? = _drag, !moved {
+            if let i = _pendingDrawingTap, controller.sheet.drawings.indices.contains(i) {
+                controller.selectedDrawing = i
+                controller._notify(selectionOnly: true)
+            } else {
+                _cellPress(cell)
+            }
+        }
+        _pendingDrawingTap = nil
         if case .editTouch(_, let moved, let before)? = _drag, let ed = edit {
             // A tap on the caret where it already was brings the menu; one that
             // moved it, or a drag that selected, shows it over the selection.
