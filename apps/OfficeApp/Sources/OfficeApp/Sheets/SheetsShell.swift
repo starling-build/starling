@@ -82,6 +82,7 @@ final class SheetsShellState: State<StatefulWidget> {
     /// Sheet whose Tab Color or Move or Copy dialog is open.
     private var _tabColorFor: Int? = nil
     private var _moveCopyFor: Int? = nil
+    private var _pasteOpen = false
     private var _findReplace = false
     private var _findStatus = ""
     private let _findQuery = TextEditingController()
@@ -347,6 +348,7 @@ final class SheetsShellState: State<StatefulWidget> {
         case .copy: grid.copySelection()
         case .cut: grid.copySelection(cut: true)
         case .paste: grid.paste()
+        case .pasteSpecial: _openPasteSpecial()
         case .startFormula(let text):
             grid.focus.requestFocus()
             grid.beginEdit(replace: text)
@@ -1021,6 +1023,11 @@ final class SheetsShellState: State<StatefulWidget> {
                 },
                 onClose: { [weak self] in self?.setState { self?._moveCopyFor = nil }; self?._grid?.focus.requestFocus() })))
         }
+        if _pasteOpen, _backstage == nil {
+            layers.append(Positioned(left: 0, top: 0, right: 0, bottom: 0, child: PasteSpecialDialog(
+                onApply: { [weak self] how in self?._grid?.paste(how) },
+                onClose: { [weak self] in self?._closePasteSpecial() })))
+        }
         if layers.count > 1, _backstage == nil { return Stack(children: layers) }
         if _formatOpen, _backstage == nil {
             return Stack(children: layers + [
@@ -1055,6 +1062,7 @@ final class SheetsShellState: State<StatefulWidget> {
         case "n": session.replacing { [weak self] in self?._newWorkbook() }; return true
         case "p": _print(); return true
         case "f": _openFind(replace: false); return true
+        case "v" where chords.alt && _grid?.edit == nil: _openPasteSpecial(); return true
         case "1" where _grid?.edit == nil: _openFormatCells(); return true
         case "h": _openFind(replace: true); return true
         case "l" where chords.shift: wb.toggleAutoFilter(); return true
@@ -1067,6 +1075,17 @@ final class SheetsShellState: State<StatefulWidget> {
             return false
         default: return false
         }
+    }
+
+    // MARK: Paste Special
+    func _openPasteSpecial() {
+        setState { _pasteOpen = true }
+    }
+
+    private func _closePasteSpecial() {
+        guard _pasteOpen else { return }
+        setState { _pasteOpen = false }
+        _grid?.focus.requestFocus()
     }
 
     // MARK: Format Cells
@@ -1206,6 +1225,7 @@ final class SheetsShellState: State<StatefulWidget> {
         item("Cut") { grid.copySelection(cut: true) }
         item("Copy") { grid.copySelection() }
         item("Paste") { grid.paste() }
+        item("Paste Special…") { [weak self] in self?._openPasteSpecial() }
         sep()
         let sel = c.selection
         switch area {
