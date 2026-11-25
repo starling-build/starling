@@ -324,6 +324,7 @@ final class DeckController: ChangeNotifier {
 
     func select(_ index: Int) {
         let i = max(0, min(slides.count - 1, index))
+        slideSelectionIds = []
         guard i != current else { return }
         current = i
         selection = []
@@ -345,14 +346,14 @@ final class DeckController: ChangeNotifier {
         slides.insert(slide, at: at)
         current = at
         selection = []
+        slideSelectionIds = []
         _changed()
         return slide
     }
 
-    func duplicateSlide(_ index: Int) {
-        guard slides.indices.contains(index) else { return }
-        _checkpoint()
-        let source = slides[index]
+    /// A copy of a slide with new ids, its animations aimed at the copies of
+    /// its shapes. Not yet in the deck.
+    private func _cloneSlide(_ source: Slide) -> Slide {
         let shapes = source.shapes.map { _copy($0) }
         let copy = Slide(id: _id(), layout: source.layout, shapes: shapes,
                          notes: _textController(source.notes.document))
@@ -361,7 +362,6 @@ final class DeckController: ChangeNotifier {
         copy.clrMapOvrXML = source.clrMapOvrXML
         copy.controlsXML = source.controlsXML
         copy.decorations = source.decorations.map { _make(_state($0)) }
-        // The copy's animations, aimed at the copies of their shapes.
         var map: [Int: Int] = [:]
         for (a, b) in zip(source.shapes, shapes) { map[a.id] = b.id }
         copy.animations = source.animations.compactMap { a in
@@ -370,9 +370,141 @@ final class DeckController: ChangeNotifier {
         copy.transition = source.transition
         copy.footerFrames = source.footerFrames
         copy.layoutPart = source.layoutPart
+        return copy
+    }
+
+    func duplicateSlide(_ index: Int) {
+        guard slides.indices.contains(index) else { return }
+        _checkpoint()
+        let copy = _cloneSlide(slides[index])
         _watch(copy)
         slides.insert(copy, at: index + 1)
         current = index + 1
+        selection = []
+        slideSelectionIds = []
+        _changed()
+    }
+
+    // MARK: Several slides at once
+
+    /// The slides picked in the thumbnail pane or the sorter, by id (empty
+    /// means just the current one). Ids, so a move or an undo cannot leave it
+    /// pointing at the wrong slide.
+    private(set) var slideSelectionIds: Set<Int> = []
+    private var _slideAnchor = 0
+
+    /// The picked slides' positions, in order; the current slide is always one.
+    var selectedSlides: [Int] {
+        var r = slides.indices.filter { slideSelectionIds.contains(slides[$0].id) }
+        if !r.contains(current) && slides.indices.contains(current) { r.append(current); r.sort() }
+        return r
+    }
+
+    /// Click (one slide), shift-click (a range from the last plain click) or
+    /// ctrl-click (add or drop one). A view setting, like the zoom: no undo.
+    func selectSlide(_ index: Int, extend: Bool = false, toggle: Bool = false) {
+        guard slides.indices.contains(index) else { return }
+        if extend {
+            let lo = min(_slideAnchor, index), hi = max(_slideAnchor, index)
+            slideSelectionIds = Set(slides[lo...hi].map(\.id))
+            current = index
+            selection = []
+            _changed()
+        } else if toggle {
+            var picked = Set(selectedSlides.map { slides[$0].id })
+            let id = slides[index].id
+            if picked.contains(id) {
+                guard picked.count > 1 else { return }
+                picked.remove(id)
+                slideSelectionIds = picked
+                if index == current, let other = selectedSlides.last { current = other }
+            } else {
+                picked.insert(id)
+                slideSelectionIds = picked
+                current = index
+            }
+            _slideAnchor = index
+            selection = []
+            _changed()
+        } else {
+            let was = !slideSelectionIds.isEmpty
+            slideSelectionIds = []
+            _slideAnchor = index
+            if index == current { if was { notifyListeners() } } else { select(index) }
+        }
+    }
+
+    func selectAllSlides() {
+        slideSelectionIds = Set(slides.map(\.id))
+        notifyListeners()
+    }
+
+    /// Delete the picked slides (the deck keeps at least one). One undo step.
+    func deleteSelectedSlides() {
+        var picked = selectedSlides
+        guard !picked.isEmpty, slides.count > 1 else { return }
+        if picked.count == slides.count { picked.removeFirst() }
+        _checkpoint()
+        let keepId = slides[current].id
+        for i in picked.reversed() { _unwatch(slides[i]); slides.remove(at: i) }
+        current = slides.firstIndex { $0.id == keepId } ?? max(0, min(picked[0], slides.count - 1))
+        slideSelectionIds = []
+        selection = []
+        _changed()
+    }
+
+    /// Hide the picked slides, or show them when all are hidden already.
+    func toggleHiddenSelected() {
+        let picked = selectedSlides
+        guard !picked.isEmpty else { return }
+        let hide = !picked.allSatisfy { slides[$0].hidden }
+        _checkpoint()
+        for i in picked { slides[i].hidden = hide }
+        _changed()
+    }
+
+    /// Move the picked slides as a block so the first of them lands at `to`
+    /// (a position in the deck as it will be). One undo step.
+    func moveSelectedSlides(to: Int) {
+        let picked = selectedSlides
+        guard !picked.isEmpty else { return }
+        let moving = picked.map { slides[$0] }
+        var rest = slides
+        for i in picked.reversed() { rest.remove(at: i) }
+        let at = max(0, min(rest.count, to))
+        var result = rest
+        result.insert(contentsOf: moving, at: at)
+        guard result.map(\.id) != slides.map(\.id) else { return }
+        _checkpoint()
+        let keepId = slides[current].id
+        slides = result
+        current = slides.firstIndex { $0.id == keepId } ?? 0
+        slideSelectionIds = moving.count > 1 ? Set(moving.map(\.id)) : []
+        _changed()
+    }
+
+    /// Copies of the picked slides, ready to paste (this deck's own images).
+    private(set) var slideClipboard: [Slide] = []
+    var canPasteSlides: Bool { !slideClipboard.isEmpty }
+
+    func copySlides() { slideClipboard = selectedSlides.map { _cloneSlide(slides[$0]) } }
+
+    func cutSlides() {
+        copySlides()
+        if slides.count > selectedSlides.count { deleteSelectedSlides() }
+    }
+
+    /// The clipboard's slides after the last picked one, which become the pick.
+    func pasteSlides() {
+        guard !slideClipboard.isEmpty else { return }
+        _checkpoint()
+        var at = (selectedSlides.last ?? current) + 1
+        let first = at
+        let copies = slideClipboard.map { _cloneSlide($0) }
+        for copy in copies { _watch(copy); slides.insert(copy, at: at); at += 1 }
+        current = at - 1
+        slideSelectionIds = copies.count > 1 ? Set(copies.map(\.id)) : []
+        _slideAnchor = first
         selection = []
         _changed()
     }
@@ -384,6 +516,7 @@ final class DeckController: ChangeNotifier {
         slides.remove(at: index)
         if index < current || current >= slides.count { current = max(0, current - 1) }
         selection = []
+        slideSelectionIds = []
         _changed()
     }
 
