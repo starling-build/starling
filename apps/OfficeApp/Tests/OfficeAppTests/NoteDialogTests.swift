@@ -45,13 +45,16 @@ final class NoteDialogTests: XCTestCase {
     /// A click on a note where the page prints it opens the note's text there; Escape keeps what was typed.
     func testClickingANoteOnThePageEditsItInPlace() throws {
         let (ui, s) = shell("Alpha beta")
+        // A short page, so the note's place is inside the viewport whatever size the shell gives the editor.
+        var short = PageSetup.letter; short.height = 420
+        s.applyPageSetup(short); ui.pump()
         s.onInsertNote?(.footnote); ui.pump()
         let state = try XCTUnwrap(ui.state(OfficeShellState.self))
         ui.press(.escape); ui.pump()   // (inserting opens the new note's text; leave it)
         XCTAssertNil(state._noteOpen)
         var opened = false
-        search: for x in stride(from: 300.0, to: 1500.0, by: 100.0) {
-            for y in stride(from: 300.0, to: 1990.0, by: 12.0) {
+        search: for x in stride(from: 200.0, to: 1000.0, by: 50.0) {
+            for y in stride(from: 80.0, to: 1100.0, by: 6.0) {
                 ui.tap(at: Offset(x, y)); ui.pump()
                 if state._noteOpen != nil { opened = true; break search }
             }
