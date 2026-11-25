@@ -169,6 +169,10 @@ enum Xlsx {
         }
         if book.sheets.isEmpty { book.sheets = [Worksheet(name: "Sheet1")] }
         book.activeTab = min(max(0, activeTab), book.sheets.count - 1)
+        // One selected tab is just the open sheet; several are a group, as Excel opens it.
+        if book.sheets.filter(\.tabSelected).count < 2 || !book.sheets[book.activeTab].tabSelected {
+            for ws in book.sheets { ws.tabSelected = false }
+        }
 
         // The values saved from linked workbooks, in the order [1], [2]... name them.
         for ref in wbNode.child("externalReferences")?.kids("externalReference") ?? [] {
@@ -302,6 +306,7 @@ enum Xlsx {
             }
             if let sel = view.kids("selection").last, let a = sel["activeCell"].flatMap({ CellAddress($0) }) { ws.savedActive = a }
             if view["showGridLines"] == "0" { ws.showGridlines = false }
+            ws.tabSelected = view["tabSelected"] == "1"
             ws.viewAttrs = view.attrs.filter { !["tabSelected", "showGridLines", "workbookViewId"].contains($0.key) }
         }
         // Column widths are in characters of the default font's widest
@@ -1016,7 +1021,7 @@ enum Xlsx {
             if let e = drawingParts[i].element { extra["drawing"] = e }
             if let e = tablePartsOverride[i] { extra["tableParts"] = e }
             if let e = noteParts[i].element { extra["legacyDrawing"] = e }
-            sheetXML.append(_sheetXML(ws, book: book, selected: i == book.activeTab, extra: extra, dynamicCm: dynamicCm,
+            sheetXML.append(_sheetXML(ws, book: book, selected: i == book.activeTab || ws.tabSelected, extra: extra, dynamicCm: dynamicCm,
                                       stringIndex: stringIndex))
         }
 
