@@ -139,6 +139,33 @@ final class KeyboardTraversalTests: XCTestCase {
     }
 
     /// Every Sheets dialog: Tab reaches each control and Esc closes it.
+    /// On an empty sheet the four data dialogs must say why they do not open, never do nothing; with data they open.
+    func testDataDialogsExplainThemselvesOnAnEmptySheetAndOpenWithData() {
+        let cmds: [(String, SheetCommand, String)] = [
+            ("Remove Duplicates", .removeDuplicates, DuplicatesProblem.nothingToCheck.message),
+            ("Subtotal", .subtotal, SubtotalProblem.nothingToTotal.message),
+            ("Sort", .sortDialog, SortProblem.nothingToSort.message),
+            ("Text to Columns", .textToColumns, TextToColumnsProblem.oneColumn.message),
+        ]
+        for (name, cmd, message) in cmds {
+            KeyboardTraversal.shared.reset()
+            var ui = app(SheetsShell(initialPath: nil, onSwitch: { _, _ in }))
+            var wb = ui.state(SheetsShellState.self)!.wb
+            wb.onCommand?(cmd); ui.pump()
+            XCTAssertTrue(ui.texts().contains(message), "\(name) on an empty sheet must say why: \(message)")
+            XCTAssertTrue(KeyboardTraversal.shared.reachable().filter { $0.modal }.isEmpty, "\(name): no dialog on an empty sheet")
+            KeyboardTraversal.shared.reset()
+            ui = app(SheetsShell(initialPath: nil, onSwitch: { _, _ in }))
+            wb = ui.state(SheetsShellState.self)!.wb
+            wb.setInputs([(CellAddress(row: 0, col: 0), "Name"), (CellAddress(row: 0, col: 1), "Qty"),
+                          (CellAddress(row: 1, col: 0), "a"), (CellAddress(row: 1, col: 1), "3"),
+                          (CellAddress(row: 2, col: 0), "b"), (CellAddress(row: 2, col: 1), "5")])
+            wb.onCommand?(cmd); ui.pump()
+            if name == "Text to Columns" { continue }   // needs a one-column selection; covered by its own tests
+            XCTAssertFalse(KeyboardTraversal.shared.reachable().filter { $0.modal }.isEmpty, "\(name) must open with data")
+        }
+    }
+
     func testEverySheetsDialogIsWalkableByTab() {
         let opens: [(String, SheetCommand)] = [
             ("Insert Cells", .cellsDialog(insert: true)), ("Delete Cells", .cellsDialog(insert: false)),
