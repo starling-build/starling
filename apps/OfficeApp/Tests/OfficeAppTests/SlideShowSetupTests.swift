@@ -57,7 +57,11 @@ final class SlideShowSetupTests: XCTestCase {
         let ids = deck.slides.map(\.id)
         deck.setCustomShows([CustomShow(id: 1, name: "A", slides: [ids[2], ids[1]])])
         deck.setShow(ShowSettings(range: .custom(1)))
+        XCTAssertEqual(deck.showOrder(), [2])  // PowerPoint skips a hidden slide inside a custom show too
+        deck.toggleHidden(1)
         XCTAssertEqual(deck.showOrder(), [2, 1])
+        deck.toggleHidden(1)
+        deck.setCustomShows([CustomShow(id: 1, name: "A", slides: [ids[2], ids[1]])])
         deck.setCustomShows([])
         XCTAssertEqual(deck.show.range, .all)
     }

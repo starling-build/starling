@@ -787,7 +787,7 @@ final class DeckController: ChangeNotifier {
             return (lo - 1 ..< hi).filter { !slides[$0].hidden }
         case .custom(let id):
             guard let cs = customShows.first(where: { $0.id == id }) else { return slides.indices.filter { !slides[$0].hidden } }
-            return cs.slides.compactMap { sid in slides.firstIndex { $0.id == sid } }
+            return cs.slides.compactMap { sid in slides.firstIndex { $0.id == sid && !$0.hidden } }
         }
     }
 
