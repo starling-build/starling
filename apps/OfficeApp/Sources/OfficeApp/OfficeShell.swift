@@ -1673,8 +1673,10 @@ final class OfficeShellState: State<StatefulWidget> {
                 window,
                 Positioned(left: 0, top: 0, right: 0, bottom: 0, child: SplitCellDialog(
                     columns: max(2, cell?.span ?? 2), rows: cell?.rowSpan ?? 1,
-                    onOK: { [weak self] n, m in
+                    merge: controller.selection.block != nil,
+                    onOK: { [weak self] n, m, merge in
                         guard let self else { return }
+                        if merge { self.controller.mergeCells() }
                         self.controller.splitCell(columns: n, rows: m)
                         self.setState { self._splitCellOpen = false }
                         self._editorFocus.requestFocus()

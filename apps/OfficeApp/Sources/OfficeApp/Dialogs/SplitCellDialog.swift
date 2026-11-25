@@ -9,10 +9,11 @@ import OfficeText
 
 final class SplitCellDialog: StatefulWidget {
     let columns: Int, rows: Int
-    let onOK: (Int, Int) -> Void
+    let merge: Bool
+    let onOK: (Int, Int, Bool) -> Void
     let onCancel: () -> Void
-    init(columns: Int = 2, rows: Int = 1, onOK: @escaping (Int, Int) -> Void, onCancel: @escaping () -> Void) {
-        self.columns = columns; self.rows = rows; self.onOK = onOK; self.onCancel = onCancel
+    init(columns: Int = 2, rows: Int = 1, merge: Bool = false, onOK: @escaping (Int, Int, Bool) -> Void, onCancel: @escaping () -> Void) {
+        self.columns = columns; self.rows = rows; self.merge = merge; self.onOK = onOK; self.onCancel = onCancel
         super.init()
     }
     override func createState() -> State<StatefulWidget> { SplitCellDialogState() }
@@ -21,6 +22,8 @@ final class SplitCellDialog: StatefulWidget {
 final class SplitCellDialogState: State<StatefulWidget> {
     private var _w: SplitCellDialog { widget as! SplitCellDialog }
     private(set) var columns = 2, rows = 1
+    /// "Merge cells before split": offered when several cells are selected, on as in Word.
+    var merge = true
     private let _columns = TextEditingController()
     private let _rows = TextEditingController()
 
@@ -45,12 +48,16 @@ final class SplitCellDialogState: State<StatefulWidget> {
                     onFocusChanged: { [weak self] f in if !f { self?.commit() } })),
             ]))
         }
-        let page = Column(crossAxisAlignment: .start, children: [
-            box("Number of columns", _columns),
-            box("Number of rows", _rows),
-        ])
+        let fluent = FluentTheme.of(context)
+        var rowsOfPage: [Widget] = [box("Number of columns", _columns), box("Number of rows", _rows)]
+        if _w.merge {
+            rowsOfPage.append(PKeyed("merge", Chrome.textToggle("Merge cells before split", merge, fluent) { [weak self] in
+                self?.setState { if let s = self { s.merge.toggle() } }
+            }))
+        }
+        let page = Column(crossAxisAlignment: .start, children: rowsOfPage)
         return DialogShell(title: "Split Cells", page: page, width: 400,
-                           onOK: { [weak self] in guard let self else { return }; self.commit(); self._w.onOK(self.columns, self.rows) },
+                           onOK: { [weak self] in guard let self else { return }; self.commit(); self._w.onOK(self.columns, self.rows, self._w.merge && self.merge) },
                            onCancel: { [weak self] in self?._w.onCancel() })
     }
 }

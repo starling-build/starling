@@ -2199,6 +2199,27 @@ public final class RichDocumentController: ChangeNotifier {
         _formatCells { c, _ in c.verticalAlign = align == "top" ? nil : align }
     }
 
+    /// Word's nine Align buttons: where the target cells' text stands, across (the paragraphs' alignment) and
+    /// down (the cell's), in one undo step.
+    public func setCellAlignment(vertical: String, horizontal: ParagraphAlignment) {
+        guard ["top", "center", "bottom"].contains(vertical), let block = targetCellBlock, let range = currentTableRange else { return }
+        let old = Array(document.paragraphs[range])
+        var paras = old
+        for i in paras.indices {
+            guard var c = paras[i].cell, block.contains(c) else { continue }
+            c.verticalAlign = vertical == "top" ? nil : vertical
+            paras[i].cell = c
+            paras[i].style.alignment = horizontal
+        }
+        guard paras != old else { return }
+        let sel = selection
+        edit {
+            perform(.removeParagraphs(at: range.lowerBound, old))
+            perform(.insertParagraphs(at: range.lowerBound, paras))
+            selection = sel
+        }
+    }
+
     /// The target cells' own margins in points (Word's `w:tcMar`), over the table's.
     public func setCellMargins(top: Double, left: Double, bottom: Double, right: Double) {
         let t = max(0, top), l = max(0, left), b = max(0, bottom), r = max(0, right)
