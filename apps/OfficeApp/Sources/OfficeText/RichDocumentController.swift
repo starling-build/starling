@@ -2205,6 +2205,85 @@ public final class RichDocumentController: ChangeNotifier {
         return count
     }
 
+    // MARK: Find with a pattern (U-FR-1: match case, whole word, wildcards, regex)
+
+    /// The next match of `pattern` after the caret (before it when `backwards`), wrapping; nil when none.
+    public func find(_ pattern: TextPattern, backwards: Bool = false) -> RichSelection? {
+        let start = document.clamped(backwards ? selection.start : selection.end)
+        let n = document.paragraphs.count
+        func hit(_ i: Int, from: Int?, back: Bool) -> RichSelection? {
+            let text = document.paragraphs[i].text
+            let at = from.map { String.Index(utf16Offset: min(max($0, 0), text.utf16.count), in: text) }
+                ?? (back ? text.endIndex : text.startIndex)
+            guard let m = pattern.firstMatch(in: text, from: at, backwards: back) else { return nil }
+            return RichSelection(
+                anchor: RichPosition(paragraph: i, offset: m.range.lowerBound.utf16Offset(in: text)),
+                focus: RichPosition(paragraph: i, offset: m.range.upperBound.utf16Offset(in: text)))
+        }
+        if let s = hit(start.paragraph, from: start.offset, back: backwards) { return s }
+        for k in 1 ..< max(n, 1) {
+            let i = backwards ? (start.paragraph - k + n * 2) % n : (start.paragraph + k) % n
+            if let s = hit(i, from: nil, back: backwards) { return s }
+        }
+        return hit(start.paragraph, from: nil, back: backwards)
+    }
+
+    /// Replace the selection when it is exactly one match of `pattern`; one undo step. False when it is not.
+    @discardableResult
+    public func replaceSelection(_ pattern: TextPattern, with template: String) -> Bool {
+        let sel = selection
+        guard sel.anchor.paragraph == sel.focus.paragraph, sel.anchor != sel.focus else { return false }
+        let i = sel.start.paragraph
+        let text = document.paragraphs[i].text
+        let lo = sel.start.offset, hi = sel.end.offset
+        guard let m = pattern.matches(in: text).first(where: {
+            $0.range.lowerBound.utf16Offset(in: text) == lo && $0.range.upperBound.utf16Offset(in: text) == hi
+        }) else { return false }
+        let replacement = pattern.replacement(template, for: m, in: text)
+        edit {
+            let style = document.paragraphs[i].style(at: lo + 1)
+            _deleteRange(in: i, lo ..< hi)
+            if !replacement.isEmpty {
+                perform(.insertText(RichPosition(paragraph: i, offset: lo), replacement,
+                                    [Run(length: replacement.utf16.count, style: style)]))
+            }
+            _setCaret(RichPosition(paragraph: i, offset: lo + replacement.utf16.count))
+        }
+        return true
+    }
+
+    /// Replace every match of `pattern` in the document; one undo step. Returns the count.
+    @discardableResult
+    public func replaceAll(_ pattern: TextPattern, with template: String) -> Int {
+        var count = 0
+        edit {
+            for i in document.paragraphs.indices {
+                let text = document.paragraphs[i].text
+                let found = pattern.matches(in: text)
+                // Backwards so earlier offsets stay valid.
+                for m in found.reversed() {
+                    let lo = m.range.lowerBound.utf16Offset(in: text)
+                    let hi = m.range.upperBound.utf16Offset(in: text)
+                    let replacement = pattern.replacement(template, for: m, in: text)
+                    let style = document.paragraphs[i].style(at: lo + 1)
+                    _deleteRange(in: i, lo ..< hi)
+                    if !replacement.isEmpty {
+                        perform(.insertText(RichPosition(paragraph: i, offset: lo), replacement,
+                                            [Run(length: replacement.utf16.count, style: style)]))
+                    }
+                    count += 1
+                }
+            }
+            _setCaret(document.clamped(selection.focus))
+        }
+        return count
+    }
+
+    /// How many matches `pattern` has in the document.
+    public func countMatches(_ pattern: TextPattern) -> Int {
+        document.paragraphs.reduce(0) { $0 + pattern.matches(in: $1.text).count }
+    }
+
     /// Apply `transform` to every paragraph the selection touches.
     public func applyParagraphStyle(_ transform: (inout RichParagraphStyle) -> Void) {
         edit {

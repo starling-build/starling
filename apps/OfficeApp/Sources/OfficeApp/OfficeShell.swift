@@ -69,6 +69,7 @@ final class OfficeShellState: State<StatefulWidget> {
     private var _linkOpen = false
     private var _colorOpen = false
     private var _paragraphOpen = false
+    private var _findDialogOpen = false
     private let _colorText = TextEditingController()
     private var _styleOpen: String? = nil
     private let _linkText = TextEditingController()
@@ -828,6 +829,51 @@ final class OfficeShellState: State<StatefulWidget> {
         _findQuery.value = TextEditingValue(text: seed, selection: TextSelection(baseOffset: 0, extentOffset: seed.utf16.count))
     }
 
+    private func _openFindDialog() {
+        if controller.hasSelection, !controller.selectedText.contains(Character("\n")) {
+            _findQuery.text = controller.selectedText
+        }
+        setState { _findDialogOpen = true }
+    }
+
+    private func _closeFindDialog() {
+        setState { _findDialogOpen = false }
+        _editorFocus.requestFocus()
+    }
+
+    /// What the shared Find and Replace dialog does in Writer (U-FR-1).
+    private var _findHooks: FindHooks {
+        func select(_ s: RichSelection?) -> String {
+            guard let s else { return "No matches" }
+            controller.selection = s
+            return ""
+        }
+        var hooks = FindHooks(
+            findNext: { [unowned self] p, _, back in select(controller.find(p, backwards: back)) },
+            replace: { [unowned self] p, template, _ in
+                // Replace the match the caret is on, then move to the next one.
+                let replaced = controller.replaceSelection(p, with: template)
+                let next = select(controller.find(p))
+                return replaced ? (next.isEmpty ? "Replaced" : "Replaced. No more matches") : next
+            },
+            replaceAll: { [unowned self] p, template, _ in
+                let n = controller.replaceAll(p, with: template)
+                return n == 0 ? "No matches" : "Replaced \(n)"
+            })
+        hooks.goToLabel = "Go to paragraph"
+        hooks.goToHint = "A paragraph number, from 1"
+        hooks.goTo = { [unowned self] text in
+            guard let n = Int(text.trimmingWhitespace()), n >= 1 else { return "Type a paragraph number" }
+            guard n <= controller.document.paragraphs.count else {
+                return "The document has \(controller.document.paragraphs.count) paragraphs"
+            }
+            controller.selection = RichSelection(anchor: RichPosition(paragraph: n - 1, offset: 0),
+                                                 focus: RichPosition(paragraph: n - 1, offset: 0))
+            return nil
+        }
+        return hooks
+    }
+
     private func _findNext(backwards: Bool) {
         let q = _findQuery.text
         guard !q.isEmpty else { return }
@@ -1037,7 +1083,7 @@ final class OfficeShellState: State<StatefulWidget> {
         case "o": session.onOpen?()
         case "n": session.replacing { [weak self] in self?._new() }
         case "f": _openFind(replace: false)
-        case "h": _openFind(replace: true)
+        case "h": if mods.contains(.shift) { _openFindDialog() } else { _openFind(replace: true) }
         case "g": _findNext(backwards: mods.contains(.shift))
         case "p": setState { _backstage = .print }
         case "k": _openLink()
@@ -1084,6 +1130,7 @@ final class OfficeShellState: State<StatefulWidget> {
                                   onNext: { [weak self] back in self?._findNext(backwards: back) },
                                   onReplace: { [weak self] in self?._replaceOne() },
                                   onReplaceAll: { [weak self] in self?._replaceAll() },
+                                  onAdvanced: { [weak self] in self?._openFindDialog() },
                                   onClose: { [weak self] in
                                       // (A field being torn down blurs too: once is enough.)
                                       guard let self, self._findOpen else { return }
@@ -1158,6 +1205,13 @@ final class OfficeShellState: State<StatefulWidget> {
 
         let window = ColoredBox(color: fluent.scaffoldBackgroundColor,
                                 child: Column(crossAxisAlignment: .stretch, children: column))
+        if _findDialogOpen {
+            return Stack(children: [
+                window,
+                Positioned(left: 0, top: 0, right: 0, bottom: 0, child: FindReplaceDialog(
+                    initialQuery: _findQuery.text, hooks: _findHooks, onClose: { [weak self] in self?._closeFindDialog() })),
+            ])
+        }
         if _paragraphOpen {
             return Stack(children: [
                 window,

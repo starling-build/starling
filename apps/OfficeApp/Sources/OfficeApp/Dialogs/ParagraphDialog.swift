@@ -11,7 +11,7 @@ import FlutterSwiftBridge
 import OfficeText
 
 /// Gives a control a stable id so a test (and a driver) can reach it.
-private final class PKeyed: StatelessWidget {
+final class PKeyed: StatelessWidget {
     let child: Widget
     init(_ id: String, _ child: Widget) { self.child = child; super.init(key: ValueKey(id)) }
     override func build(_ context: any BuildContext) -> Widget { child }
