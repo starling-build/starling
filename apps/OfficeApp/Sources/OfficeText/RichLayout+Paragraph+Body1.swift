@@ -138,6 +138,9 @@ extension _ParaFrame {
         else if besideIndent == 0, let own = _besideOwn(i, p, document) { besideIndent = own.indent; besideBand = own.band; besideRight = own.right; besideLeftRoom = own.leftRoom
             if colWrapBoxes == nil, besideLeftRoom == nil, !besideRight, let seq = _besideSeq[i] { colWrapBoxes = seq; besideIndent = 1; besideBand = (-1, -1); RuleTrace.hit("word-boxes-one-under-the-other-hold-lines-by-their-own-edge") } }
         else if besideIndent == 0, let own = _stripUse[i] { besideIndent = own.indent; besideBand = own.band; besideRight = own.right }
+        if besideIndent > 0, besideLeftRoom == nil, colWrapBoxes == nil, let room = _tableBothLeft[i], theme.wordRules, RichTextTheme.wordWindowsPages, p.cell == nil {
+            besideLeftRoom = room; besideRight = false
+        }
         if let cap = _bandCap[i], besideIndent > 0, besideLeftRoom == nil, let b = besideBand, b.bottom > cap { besideBand = (b.top, cap) }
         _blk4()
         if theme.wordRules, RichTextTheme.wordWindowsPages, !tabs.isEmpty, tabWindows.isEmpty, besideRight, besideLeftRoom == nil,

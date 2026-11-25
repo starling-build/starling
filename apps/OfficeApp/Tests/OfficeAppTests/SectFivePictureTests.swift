@@ -83,6 +83,35 @@ final class SectFivePictureTests: XCTestCase {
         let anchorY = (layout.pieces[0].first { $0.paragraph == 2 }?.pageY ?? 9999) / px
         XCTAssertLessThan(anchorY, rowBottom - 5, "the anchor line stands beside the table")
     }
+    /// Lab table-props (Word's print): text after a centred floating table with room on both sides runs round it on
+    /// both, a left piece and a right piece on each line level with the table, then across the page below it.
+    func testTextRunsOnBothSidesOfACentredFloatingTable() throws {
+        RichTextTheme.wordWindowsPages = true
+        defer { RichTextTheme.wordWindowsPages = false }
+        var cell = RichParagraph(text: "cell")
+        cell.cell = CellRef(table: "t", row: 0, column: 0)
+        let body = RichParagraph(text: String(repeating: "word ", count: 150))
+        var doc = RichDocument(paragraphs: [cell, body])
+        doc.tableColumns["t"] = [200]
+        var ts = TableStyle()
+        ts.floatsOverText = true
+        ts.alignment = .center
+        ts.keptPosition = "<w:tblpPr w:leftFromText=\"180\" w:rightFromText=\"180\" w:vertAnchor=\"text\" w:tblpY=\"1\"/>"
+        doc.tableStyles["t"] = ts
+        let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+        theme.wordRules = true
+        let layout = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+        layout.pageSetup = .letter
+        layout.width = PageSetup.letter.width * theme.pixelsPerPoint
+        layout.ensureLaidOut(doc)
+        let px = theme.pixelsPerPoint
+        let rects = stride(from: 0, to: 750, by: 5).map { layout.caretRect(RichPosition(paragraph: 1, offset: $0), doc) }
+        let tableLeft = (PageSetup.letter.width - 200) / 2
+        let first = rects.first!
+        XCTAssertLessThan(first.left / px, tableLeft, "the first line starts left of the table")
+        XCTAssertTrue(rects.contains { $0.left / px > tableLeft + 200 }, "a right piece stands at its right")
+        XCTAssertTrue(rects.allSatisfy { $0.left / px < PageSetup.letter.width }, "no line runs past the margin")
+    }
     /// Lab sect5 (Word's print): the empty paragraph that carries the break into a new continuous section is
     /// not the anchor of the floating table that opens it: the table's offset hangs from the top of the last
     /// line before that paragraph (17.95pt under it), not from under the paragraph before it.

@@ -200,6 +200,7 @@ extension _ParaFrame {
     func _besideIndent(_ a0: Int, _ a1: RichParagraph, _ a2: RichDocument, table a3: String? = nil) -> (indent: Double, right: Bool)? { rl._besideIndent(a0, a1, a2, table: a3) }
     var _besideIndentOnTop: Set<Int> { get { rl._besideIndentOnTop } set { rl._besideIndentOnTop = newValue } _modify { yield &rl._besideIndentOnTop } }
     var _besideLabelShift: [Int : Double] { get { rl._besideLabelShift } set { rl._besideLabelShift = newValue } _modify { yield &rl._besideLabelShift } }
+    var _tableBothLeft: [Int: Double] { get { rl._tableBothLeft } set { rl._tableBothLeft = newValue } }
     var _besideLead: [Double] { get { rl._besideLead } set { rl._besideLead = newValue } _modify { yield &rl._besideLead } }
     var _besideLeftAt: [Int : (Double, Double) -> Double] { get { rl._besideLeftAt } set { rl._besideLeftAt = newValue } _modify { yield &rl._besideLeftAt } }
     var _besideListEarlier: Set<Int> { get { rl._besideListEarlier } set { rl._besideListEarlier = newValue } _modify { yield &rl._besideListEarlier } }

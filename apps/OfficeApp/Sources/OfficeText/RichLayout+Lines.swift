@@ -986,6 +986,14 @@ extension RichLayout {
         let gap = left - _px(twips("w:leftFromText") / 20)
         let leftRoom = gap - own
         let rightRoom = column - edge - _px(p.style.indentRight)
+        _tableBothLeft[i] = nil
+        // (A table in the middle of the column with room for three ems on both sides: the text runs round it on both, a left piece and a
+        // right piece on each line level with it. Word's print of lab table-props, a centred table with 9pt distances.)
+        if theme.wordRules, !rightAligned, leftRoom >= size * 3, rightRoom >= size * 3, edge > own {
+            RuleTrace.hit("word-text-wraps-both-sides-of-a-floating-table")
+            _tableBothLeft[i] = leftRoom
+            return (edge - own, false)
+        }
         if leftRoom >= size * 3, leftRoom > rightRoom, left >= column / 2 || leftRoom > rightRoom + size * 3 {
             let narrow = column - gap - _px(p.style.indentRight)
             return narrow > 0 ? (narrow, true) : nil
