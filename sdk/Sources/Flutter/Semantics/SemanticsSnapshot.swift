@@ -64,6 +64,10 @@ public enum SemanticsSnapshot {
                 if tap == nil { tap = cfg.onTap }
                 if cfg.isButton { merged.isButton = true }
                 if cfg.isTextField { merged.isTextField = true }
+                if merged.isEnabled == nil { merged.isEnabled = cfg.isEnabled }
+                if merged.isSelected == nil { merged.isSelected = cfg.isSelected }
+                if merged.isChecked == nil { merged.isChecked = cfg.isChecked }
+                if merged.isToggled == nil { merged.isToggled = cfg.isToggled }
                 if merged.value.isEmpty, !cfg.value.isEmpty { merged.value = cfg.value }
             } else if !cfg.label.isEmpty { parts.append(cfg.label) }
             if let a = ro as? RenderSemanticsAnnotations, a.excludeSemantics { return }
