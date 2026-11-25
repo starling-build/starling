@@ -591,6 +591,14 @@ targets += [
         ],
         swiftSettings: cxxInteropSettings + [.swiftLanguageMode(.v5)]
     ),
+    // Headless VoiceOver-bridge test; run on the iOS simulator.
+    .testTarget(
+        name: "FlutterUIKitTests",
+        dependencies: ["FlutterUIKit", "Flutter"],
+        path: "Tests/FlutterUIKitTests",
+        swiftSettings: cxxInteropSettings + [.swiftLanguageMode(.v5)],
+        linkerSettings: engineLinkSettings
+    ),
 ]
 } else {
 targets += [
