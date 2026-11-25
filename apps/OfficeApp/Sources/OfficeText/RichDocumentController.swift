@@ -1379,7 +1379,21 @@ public final class RichDocumentController: ChangeNotifier {
     /// `breakUndoCoalescing` is called, so one dialog is one step as in Word.
     public func setStyleEntry(_ entry: RichNamedStyle, coalescing: Bool = false) {
         guard let old = document.styles[entry.id], old != entry else { return }
-        edit(kind: coalescing ? .styleEdit : .other) { perform(.setStyleEntry(old: old, new: entry)) }
+        edit(kind: coalescing ? .styleEdit : .other) {
+            perform(.setStyleEntry(old: old, new: entry))
+            // Paragraph props are stored on each paragraph: those that still
+            // hold the old entry's value follow the new one, as in Word.
+            for i in document.paragraphs.indices where document.styles.id(of: document.paragraphs[i].style) == entry.id {
+                let before = document.paragraphs[i].style
+                var after = before
+                func follow<T: Equatable>(_ k: WritableKeyPath<RichParagraphStyle, T>) {
+                    if before[keyPath: k] == old.paragraph[keyPath: k] { after[keyPath: k] = entry.paragraph[keyPath: k] }
+                }
+                follow(\.alignment); follow(\.indentLeft); follow(\.indentRight); follow(\.firstLineIndent)
+                follow(\.spaceBefore); follow(\.spaceAfter); follow(\.lineSpacing)
+                if after != before { perform(.setParagraphStyle(i, old: before, new: after)) }
+            }
+        }
     }
 
     /// Word's "Update <style> to Match Selection": the caret's character
@@ -1428,8 +1442,28 @@ public final class RichDocumentController: ChangeNotifier {
             perform(.addStyle(entry))
             let sheet = document.styles
             applyParagraphStyle { sheet.apply(unique, to: &$0) }
+            // The style now holds them: no direct copy stays on the source.
+            for i in document.paragraphIndices(in: selection) {
+                var para = document.paragraphs[i]
+                let old = para.runs
+                para.applyStyle(0 ..< para.length) { Self._clearHeld(by: char, &$0) }
+                if para.runs != old { perform(.setRuns(i, old: old, new: para.runs)) }
+            }
         }
         return unique
+    }
+
+    /// Reset the character properties `style` equals the style's to
+    /// their defaults, so the style, not a direct copy, supplies them.
+    static func _clearHeld(by held: CharStyle, _ style: inout CharStyle) {
+        let none = CharStyle()
+        if style.bold == held.bold { style.bold = none.bold }
+        if style.italic == held.italic { style.italic = none.italic }
+        if style.underline == held.underline { style.underline = none.underline; style.underlineKind = none.underlineKind }
+        if style.strikethrough == held.strikethrough { style.strikethrough = none.strikethrough }
+        if style.fontFamily == held.fontFamily { style.fontFamily = none.fontFamily }
+        if style.fontSize == held.fontSize { style.fontSize = none.fontSize }
+        if style.color == held.color { style.color = none.color }
     }
 
     /// Link the selection to `url`; with nothing selected, insert the URL

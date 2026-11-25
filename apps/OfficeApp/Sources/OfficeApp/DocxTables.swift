@@ -1235,7 +1235,17 @@ extension DocxFormat {
             // Spacing spelled out on every paragraph, so that Word and we
             // lay the file out alike whatever its defaults say.
             pPr += _eastAsianSwitchesXML(p.style)
-            pPr += _withEastAsian(_spacingXML(p.style, under: (p.style.heading.flatMap { doc.styles["Heading\(min($0, 6))"] } ?? p.style.named.flatMap { doc.styles[$0] })?.paragraph), "w:spacing", _eastAsianSpacing, p.style)
+            // A paragraph of a style made in the app that still holds the style's
+            // own spacing, indents and alignment says none of it: the style
+            // does, so a later Modify Style in Word reaches it.
+            let ownSheet = !doc.readFromFile && p.style.heading == nil && p.style.list == nil
+                ? p.style.named.flatMap { doc.styles[$0] }?.paragraph : nil
+            func holds(_ k: KeyPath<RichParagraphStyle, Double>) -> Bool { ownSheet.map { $0[keyPath: k] == p.style[keyPath: k] } ?? false }
+            let inheritsSpacing = ownSheet != nil && holds(\.spaceBefore) && holds(\.spaceAfter) && holds(\.lineSpacing)
+                && ownSheet!.lineHeightPoints == p.style.lineHeightPoints && !p.style.spaceBeforeAuto && !p.style.spaceAfterAuto
+                && !ownSheet!.spaceBeforeAuto && !ownSheet!.spaceAfterAuto
+            let inheritsInd = ownSheet != nil && holds(\.indentLeft) && holds(\.indentRight) && holds(\.firstLineIndent)
+            if !inheritsSpacing { pPr += _withEastAsian(_spacingXML(p.style, under: (p.style.heading.flatMap { doc.styles["Heading\(min($0, 6))"] } ?? p.style.named.flatMap { doc.styles[$0] })?.paragraph), "w:spacing", _eastAsianSpacing, p.style) }
             // Indents the style sets and the paragraph unsets are written
             // as zero: IllustrativeCases' Body Text Indent hangs 0.75in
             // into the margin and every paragraph of it says left 0.
@@ -1256,14 +1266,14 @@ extension DocxFormat {
             } else if p.style.firstLineIndent > 0 { ind += " w:firstLine=\"\(Int(p.style.firstLineIndent * 20))\"" }
             else if p.style.firstLineIndent < 0 { ind += " w:hanging=\"\(Int(-p.style.firstLineIndent * 20))\"" }
             else if (sp?.firstLineIndent ?? 0) != 0 { ind += " w:firstLine=\"0\" w:hanging=\"0\"" }
-            pPr += _withEastAsian(ind.isEmpty ? "" : "<w:ind\(ind)/>", "w:ind", _eastAsianIndents, p.style)
+            if !inheritsInd { pPr += _withEastAsian(ind.isEmpty ? "" : "<w:ind\(ind)/>", "w:ind", _eastAsianIndents, p.style) }
             if p.style.contextualSpacing { pPr += "<w:contextualSpacing/>" }
             switch p.style.alignment {
             case .left:
                 // Left under a style that centres has to say so.
                 if let a = sheetEntry?.paragraph.alignment, a != .left { pPr += "<w:jc w:val=\"left\"/>" }
-            case .center: pPr += "<w:jc w:val=\"center\"/>"
-            case .right: pPr += "<w:jc w:val=\"right\"/>"
+            case .center: if ownSheet?.alignment != .center { pPr += "<w:jc w:val=\"center\"/>" }
+            case .right: if ownSheet?.alignment != .right { pPr += "<w:jc w:val=\"right\"/>" }
             case .justify: pPr += "<w:jc w:val=\"\(_esc(p.style.eastAsian["w:jc"] ?? "both"))\"/>"
             }
             if let v = p.style.eastAsian["w:textAlignment"] { pPr += "<w:textAlignment w:val=\"\(_esc(v))\"/>" }

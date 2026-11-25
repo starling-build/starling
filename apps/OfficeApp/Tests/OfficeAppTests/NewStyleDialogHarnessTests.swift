@@ -81,4 +81,39 @@ final class NewStyleDialogHarnessTests: XCTestCase {
             try DocxFormat.write(c.document, pageSetup: .letter).write(to: URL(fileURLWithPath: out))
         }
     }
+
+    /// Word keeps nothing direct that the style now holds: a later Modify
+    /// Style reaches both the source paragraph and the one it was applied to.
+    func testCreatedStyleLeavesNothingDirectAndModifyReachesBoth() {
+        let c = RichDocumentController(document: RichDocument(paragraphs: []))
+        c.insertText("hello"); c.insertParagraphBreak(); c.insertText("world")
+        c.moveTo(RichPosition(paragraph: 0, offset: 0), extend: false)
+        c.moveTo(RichPosition(paragraph: 0, offset: 5), extend: true)
+        c.toggleBold(); c.setFontSize(14); c.setTextColor(Color(0xFFC00000))
+        c.setParagraphSpacing(after: 12); c.setIndents(left: 36)
+        XCTAssertEqual(c.createStyleFromSelection(name: "My Style"), "MyStyle")
+        c.moveTo(RichPosition(paragraph: 1, offset: 0), extend: false)
+        c.setNamedStyle("MyStyle")
+        for i in 0..<2 {
+            let r = c.document.paragraphs[i].runs[0].style
+            XCTAssertFalse(r.bold, "paragraph \(i) keeps direct bold")
+            XCTAssertNil(r.fontSize, "paragraph \(i) keeps direct size")
+            XCTAssertNil(r.color, "paragraph \(i) keeps direct colour")
+            XCTAssertEqual(c.document.paragraphs[i].style.named, "MyStyle")
+        }
+        var e = c.document.styles["MyStyle"]!
+        e.paragraph.spaceAfter = 20; e.paragraph.indentLeft = 72; e.char.fontSize = 30
+        c.setStyleEntry(e)
+        for i in 0..<2 {
+            XCTAssertEqual(c.document.paragraphs[i].style.spaceAfter, 20, "paragraph \(i)")
+            XCTAssertEqual(c.document.paragraphs[i].style.indentLeft, 72, "paragraph \(i)")
+        }
+        // The saved file says it too: no direct spacing, indent, bold, size or colour.
+        let saved = try! DocxFormat.write(c.document, pageSetup: .letter)
+        let xml = String(decoding: (try! Zip.read(saved)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
+        for tag in ["<w:spacing", "<w:ind", "<w:b/>", "<w:sz ", "<w:color"] {
+            XCTAssertFalse(xml.containsSubstring(tag), "direct \(tag) left in the paragraphs")
+        }
+        XCTAssertEqual(xml.components(separatedBy: "<w:pStyle w:val=\"MyStyle\"/>").count - 1, 2)
+    }
 }
