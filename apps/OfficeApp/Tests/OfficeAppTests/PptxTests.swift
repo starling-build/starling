@@ -147,7 +147,7 @@ final class TransitionTests: XCTestCase {
         deck.select(2)
         deck.setTransition(.pull, direction: .right)
         deck.select(3)
-        deck.setTransition(advanceAfter: .some(2))   // no effect, advance only
+        deck.setTransition(advanceOnClick: false, advanceAfter: .some(2))   // no effect, advance only, not on a click
         let bytes = try Pptx.write(deck)
         let (state, _, package) = try Pptx.read(bytes)
         let t = state.slides.map(\.transition)
@@ -158,6 +158,8 @@ final class TransitionTests: XCTestCase {
         XCTAssertEqual(t[2].kind, .pull); XCTAssertEqual(t[2].direction, .right)
         XCTAssertTrue(t[2].advanceOnClick); XCTAssertNil(t[2].advanceAfter)
         XCTAssertEqual(t[3].kind, .none); XCTAssertEqual(t[3].advanceAfter, 2)
+        XCTAssertFalse(t[3].advanceOnClick)
+        XCTAssertTrue(String(decoding: package.parts["ppt/slides/slide4.xml"]!, as: UTF8.self).contains("advClick=\"0\" advTm=\"2000\""))
         let xml = String(decoding: package.parts["ppt/slides/slide2.xml"]!, as: UTF8.self)
         XCTAssertTrue(xml.contains("p14:dur=\"700\""))
         XCTAssertTrue(xml.contains("advClick=\"0\" advTm=\"3500\""))
@@ -205,7 +207,8 @@ final class TransitionTests: XCTestCase {
         set(4, "Uncover to the left") { deck.setTransition(.pull, direction: .left) }
         set(5, "Split vertical in, 2 s") { deck.setTransition(.split, duration: 2, vertical: true, inward: true) }
         set(6, "Zoom out") { deck.setTransition(.zoom, zoomIn: false) }
-        set(7, "No effect, advance after 1 s only") { deck.setTransition(.none); deck.setTransition(advanceAfter: .some(1)) }
+        set(7, "No effect, advance after 1 s only (click does not advance)") {
+            deck.setTransition(.none); deck.setTransition(advanceOnClick: false, advanceAfter: .some(1)) }
         try Pptx.write(deck).write(to: URL(fileURLWithPath: out))
         try notes.joined(separator: "\n").write(toFile: out + ".txt", atomically: true, encoding: .utf8)
     }
