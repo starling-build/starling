@@ -10,6 +10,12 @@
 // A dialog is `DialogShell(title:, tabs:, onOK:, onCancel:)`; with one tab
 // there is no strip. The caller keeps the dialog's values and builds the
 // pages from them; the shell only owns which tab is showing.
+//
+// On an iPad the soft keyboard must not cover OK: the card sits above the
+// keyboard (the view's bottom inset), its page scrolls when the card is taller
+// than what is left, and the title and the buttons stay put. Buttons are 44 pt
+// tall on a touch device (Apple's minimum target), and the card is never wider
+// than the view.
 
 import Flutter
 import FlutterSwiftBridge
@@ -55,6 +61,16 @@ final class DialogShell: StatefulWidget {
     override func createState() -> State<StatefulWidget> { DialogShellState() }
 }
 
+/// The view this context is drawn in: its render tree's root, else the only view there is.
+private func _hostView(_ context: any BuildContext) -> FlutterView? {
+    var node: RenderObject? = context.findRenderObject()
+    while let n = node {
+        if let root = n as? RenderView { return root.flutterView }
+        node = n.parent
+    }
+    return PlatformDispatcher.instance.views.first
+}
+
 final class DialogShellState: State<StatefulWidget> {
     private var _w: DialogShell { widget as! DialogShell }
     /// The tab showing.
@@ -92,6 +108,18 @@ final class DialogShellState: State<StatefulWidget> {
         let fluent = FluentTheme.of(context)
         let tabs = _w.tabs
         let index = min(selectedTab, max(0, tabs.count - 1))
+        // The room there is: the view less the soft keyboard (nothing is known before the first frame).
+        var keyboard = 0.0, viewWidth = Double.infinity
+        if let view = _hostView(context), view.devicePixelRatio > 0 {
+            keyboard = view.viewInsets.bottom / view.devicePixelRatio
+            viewWidth = view.physicalSize.width / view.devicePixelRatio
+        }
+        #if os(iOS)
+        let touch = true
+        #else
+        let touch = false
+        #endif
+        func button(_ b: Widget) -> Widget { touch ? SizedBox(width: nil, height: 44, child: b) : b }
         var children: [Widget] = [Text(_w.title, style: fluent.typography.subtitle), SizedBox(width: nil, height: 12, child: nil)]
         if tabs.count > 1 {
             children.append(Row(children: tabs.enumerated().map { i, tab in
@@ -101,12 +129,13 @@ final class DialogShellState: State<StatefulWidget> {
             }))
             children.append(SizedBox(width: nil, height: 12, child: nil))
         }
-        if !tabs.isEmpty { children.append(tabs[index].page) }
+        // The page scrolls inside what is left, so the buttons below it are never pushed off by the keyboard.
+        if !tabs.isEmpty { children.append(Flexible(fit: .loose, child: SingleChildScrollView(child: tabs[index].page))) }
         children.append(SizedBox(width: nil, height: 20, child: nil))
         children.append(Row(mainAxisAlignment: .end, children: [
-            FilledButton(onPressed: _w.okEnabled ? { [weak self] in self?._w.onOK() } : nil, child: Text(_w.okLabel)),
+            button(FilledButton(onPressed: _w.okEnabled ? { [weak self] in self?._w.onOK() } : nil, child: Text(_w.okLabel))),
             SizedBox(width: 8, height: nil, child: nil),
-            Button(onPressed: { [weak self] in self?._w.onCancel() }, child: Text(_w.cancelLabel)),
+            button(Button(onPressed: { [weak self] in self?._w.onCancel() }, child: Text(_w.cancelLabel))),
         ]))
         let card = Column(mainAxisSize: .min, crossAxisAlignment: .start, children: children)
         // A modal sheet: the dimmed window behind it takes no clicks.
@@ -114,12 +143,14 @@ final class DialogShellState: State<StatefulWidget> {
             Positioned(left: 0, top: 0, right: 0, bottom: 0, child: Listener(
                 behavior: .opaque,
                 child: ColoredBox(color: Color(0x33000000), child: SizedBox(expand: ())))),
-            Positioned(left: 0, top: 0, right: 0, bottom: 0, child: Center(child: SizedBox(width: _w.width, height: nil, child: DecoratedBox(
+            Positioned(left: 0, top: 0, right: 0, bottom: 0, child: Padding(
+                padding: EdgeInsets(left: 16, top: 24, right: 16, bottom: 24 + keyboard),
+                child: Center(child: SizedBox(width: min(_w.width, viewWidth - 32), height: nil, child: DecoratedBox(
                 decoration: BoxDecoration(color: OfficeAppearance.surface(fluent),
                                           border: Border.all(color: fluent.resources.controlStrokeColorDefault, width: 1),
                                           borderRadius: BorderRadius.circular(8),
                                           boxShadow: [BoxShadow(color: Color(0x40000000), offset: Offset(0, 8), blurRadius: 24)]),
-                child: Padding(padding: EdgeInsets(all: 24), child: card))))),
+                child: Padding(padding: EdgeInsets(all: 24), child: card)))))),
         ])
     }
 }
