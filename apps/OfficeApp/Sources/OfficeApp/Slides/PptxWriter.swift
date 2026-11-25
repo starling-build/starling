@@ -732,6 +732,12 @@ private struct SlideXML {
     private(set) var written: [Int: Int] = [:]
     private var _current: Int? = nil
 
+    /// The alt text to set on a kept element's `cNvPr`: nil while it is as it was read.
+    private func _altChange(_ s: ShapeState) -> (descr: String?, title: String?)? {
+        guard let r = s.readShape, r.altText != s.altText || r.altTitle != s.altTitle else { return nil }
+        return (s.altText, s.altTitle)
+    }
+
     private mutating func _id(_ preferred: Int? = nil) -> Int {
         let id: Int
         if let p = preferred, p > 1, !_used.contains(p) {
@@ -931,22 +937,21 @@ private struct SlideXML {
         switch s.kind {
         case .opaque(let o):
             guard let p = source else { return "" }
-            return kept(o.xml, sourcePart: o.sourcePart, package: p, builder: &builder, patch: s.frame, fileId: s.fileId)
+            return kept(o.xml, sourcePart: o.sourcePart, package: p, builder: &builder, patch: s.frame, fileId: s.fileId, alt: _altChange(s))
         case .picture(let image):
             // Unchanged since it was read (same image, crop and turn): the
             // picture as it was, at its frame — its recolouring, transparency,
             // shape crop, flip, fill and outline are not modelled here.
             if let xml = s.sourceXML, let k = s.keptPicture, k.imageId == image.id, k.crop == s.crop,
                k.rotation == s.rotation, let p = source, let part = s.sourcePart {
-                return kept(xml, sourcePart: part, package: p, builder: &builder, patch: s.frame, fileId: s.fileId,
-                            descr: k.alt == s.altText ? nil : .some(s.altText))
+                return kept(xml, sourcePart: part, package: p, builder: &builder, patch: s.frame, fileId: s.fileId, alt: _altChange(s))
             }
             // The same image, turned or cropped since it was read: the picture as it was with only the turn and the crop changed, so its
             // recolouring, transparency, flip, shape and outline stay.
             if let xml = s.sourceXML, let k = s.keptPicture, k.imageId == image.id, let p = source, let part = s.sourcePart {
                 let crop = s.crop, rotation = s.rotation, flipH = s.flipH, flipV = s.flipV
                 let lock = s.aspectLock
-                return kept(xml, sourcePart: part, package: p, builder: &builder, patch: s.frame, fileId: s.fileId, edit: { node in
+                return kept(xml, sourcePart: part, package: p, builder: &builder, patch: s.frame, fileId: s.fileId, alt: _altChange(s), edit: { node in
                     if let lock { Self._lockEdit(lock)(node) }
                     if let x = node.first("p:spPr")?.first("a:xfrm") {
                         if rotation != 0 { x.attrs["rot"] = "\(Int((rotation * 60000).rounded()))" } else { x.attrs["rot"] = nil }
@@ -965,14 +970,14 @@ private struct SlideXML {
             }
             let id = _id(s.fileId)
             let rid = _media(image, media: &media, builder: &builder)
-            return "<p:pic><p:nvPicPr><p:cNvPr id=\"\(id)\" name=\"\(name)\"\(s.altText.map { " descr=\"\(PptxXML.escape($0, attribute: true))\"" } ?? "")\(hid)\(PptxText.cNvPrEnd(s))<p:cNvPicPr>\(s.aspectLocked ? "<a:picLocks noChangeAspect=\"1\"/>" : "<a:picLocks/>")</p:cNvPicPr><p:nvPr/></p:nvPicPr>"
+            return "<p:pic><p:nvPicPr><p:cNvPr id=\"\(id)\" name=\"\(name)\"\(PptxText.altAttrs(s))\(hid)\(PptxText.cNvPrEnd(s))<p:cNvPicPr>\(s.aspectLocked ? "<a:picLocks noChangeAspect=\"1\"/>" : "<a:picLocks/>")</p:cNvPicPr><p:nvPr/></p:nvPicPr>"
                 + "<p:blipFill><a:blip r:embed=\"\(rid)\"/>\(Self._crop(s.crop))<a:stretch><a:fillRect/></a:stretch></p:blipFill>"
                 + "<p:spPr>\(Self._xfrm(s.frame, rotation: s.rotation, flipH: s.flipH, flipV: s.flipV))"
                 + "<a:prstGeom prst=\"\(s.pictureGeometry?.rawValue ?? "rect")\"><a:avLst/></a:prstGeom></p:spPr></p:pic>"
         case .table:
             // Unedited since it was read: the table as it was, in place.
             if let xml = s.sourceXML, let doc = s.text, doc == s.sourceText, let p = source, let part = s.sourcePart {
-                return kept(xml, sourcePart: part, package: p, builder: &builder, patch: s.frame, fileId: s.fileId)
+                return kept(xml, sourcePart: part, package: p, builder: &builder, patch: s.frame, fileId: s.fileId, alt: _altChange(s))
             }
             // Only text typed or restyled inside cells: the table as it was, those cells' own runs patched.
             if let xml = s.sourceXML, let read = s.readShape, read.patchable(s), let old = s.sourceText, let new = s.text,
@@ -980,7 +985,7 @@ private struct SlideXML {
                 let flipped = read.flipH != s.flipH || read.flipV != s.flipV
                 let moved = read.frame != s.frame || read.rotation != s.rotation || flipped
                 let edit = Self._shapeEdit(s, read)
-                return kept(patched, sourcePart: part, package: p, builder: &builder, patch: s.frame, fileId: s.fileId,
+                return kept(patched, sourcePart: part, package: p, builder: &builder, patch: s.frame, fileId: s.fileId, alt: _altChange(s),
                             rotation: nil, placeIfMissing: moved, flips: nil, hidden: nil, edit: edit)
             }
             return _table(s, name: name)
@@ -988,7 +993,7 @@ private struct SlideXML {
             // Unchanged since it was read: through its own part, which keeps
             // whatever of the file's styling this app does not model.
             if let xml = s.sourceXML, chart == s.sourceChart, let p = source, let part = s.sourcePart {
-                return kept(xml, sourcePart: part, package: p, builder: &builder, patch: s.frame, fileId: s.fileId)
+                return kept(xml, sourcePart: part, package: p, builder: &builder, patch: s.frame, fileId: s.fileId, alt: _altChange(s))
             }
             return _chart(chart, s, name: name, media: &media, builder: &builder)
         case .geometry(let preset) where (preset.isLine || preset.rawValue.hasPrefix("bentConnector")
@@ -997,13 +1002,13 @@ private struct SlideXML {
             // original, at its frame on the slide.
             if let xml = s.sourceXML, let k = s.keptLine, k.line == s.frame, k.outline == s.outline,
                k.width == s.outlineWidth, let p = source, let part = s.sourcePart {
-                return kept(xml, sourcePart: part, package: p, builder: &builder, patch: k.box, fileId: s.fileId)
+                return kept(xml, sourcePart: part, package: p, builder: &builder, patch: k.box, fileId: s.fileId, alt: _altChange(s))
             }
             let id = _id(s.fileId)
             let f = s.frame
             let box = Rect.fromLTRB(min(f.left, f.right), min(f.top, f.bottom), max(f.left, f.right), max(f.top, f.bottom))
             let line = s.outline.map { "<a:ln w=\"\(Self._emu(s.outlineWidth))\">\(Self._fill($0, scheme: s.outlineScheme))\(Self._dashXML(s.outlineDash))</a:ln>" } ?? "<a:ln><a:noFill/></a:ln>"
-            return "<p:cxnSp><p:nvCxnSpPr><p:cNvPr id=\"\(id)\" name=\"\(name)\"\(hid)/><p:cNvCxnSpPr/><p:nvPr/></p:nvCxnSpPr>"
+            return "<p:cxnSp><p:nvCxnSpPr><p:cNvPr id=\"\(id)\" name=\"\(name)\"\(PptxText.altAttrs(s))\(hid)/><p:cNvCxnSpPr/><p:nvPr/></p:nvCxnSpPr>"
                 + "<p:spPr>\(Self._xfrm(box, rotation: s.rotation, flipH: s.flipH != (f.right < f.left), flipV: s.flipV != (f.bottom < f.top)))"
                 + "<a:prstGeom prst=\"\(preset.rawValue)\"><a:avLst/></a:prstGeom>\(line)</p:spPr></p:cxnSp>"
         default:
@@ -1014,7 +1019,7 @@ private struct SlideXML {
                let p = source, let part = s.sourcePart {
                 let flipped = read.flipH != s.flipH || read.flipV != s.flipV
                 let moved = read.frame != s.frame || read.rotation != s.rotation || flipped
-                return kept(xml, sourcePart: part, package: p, builder: &builder, patch: s.frame, fileId: s.fileId,
+                return kept(xml, sourcePart: part, package: p, builder: &builder, patch: s.frame, fileId: s.fileId, alt: _altChange(s),
                             rotation: moved ? s.rotation : nil, placeIfMissing: moved,
                             flips: flipped ? (s.flipH, s.flipV) : nil,
                             hidden: read.invisible != s.invisible ? s.invisible : nil,
@@ -1037,14 +1042,14 @@ private struct SlideXML {
                     let shapeEdit = Self._shapeEdit(s, read)
                     let lockEdit = read.aspectLock != s.aspectLock ? Self._lockEdit(s.aspectLocked) : nil
                     let edit: (XNode) -> Void = { n in shapeEdit(n); lockEdit?(n) }
-                    return kept(base, sourcePart: part, package: p, builder: &builder, patch: s.frame, fileId: s.fileId,
+                    return kept(base, sourcePart: part, package: p, builder: &builder, patch: s.frame, fileId: s.fileId, alt: _altChange(s),
                                 rotation: moved ? s.rotation : nil, placeIfMissing: moved,
                                 flips: flipped ? (s.flipH, s.flipV) : nil,
                                 hidden: read.invisible != s.invisible ? s.invisible : nil, edit: edit)
                 }
             }
             let id = _id(s.fileId)
-            var nv = "<p:cNvPr id=\"\(id)\" name=\"\(name)\"\(hid)\(PptxText.cNvPrEnd(s))"
+            var nv = "<p:cNvPr id=\"\(id)\" name=\"\(name)\"\(PptxText.altAttrs(s))\(hid)\(PptxText.cNvPrEnd(s))"
             var ph = ""
             switch s.kind {
             case .placeholder(let role):
@@ -1265,7 +1270,7 @@ private struct SlideXML {
         builder.rels(chartPart, [Rel(id: "rId1", type: ChartXML.packageRelType, target: Pptx.relative(book, from: chartPart))])
         let rid = _rel(ChartXML.relType, Pptx.relative(chartPart, from: part), preferred: "rIdChart\(n)")
         let id = _id(s.fileId)
-        return "<p:graphicFrame><p:nvGraphicFramePr><p:cNvPr id=\"\(id)\" name=\"\(name)\"\(hid)/><p:cNvGraphicFramePr><a:graphicFrameLocks noGrp=\"1\"/></p:cNvGraphicFramePr><p:nvPr/></p:nvGraphicFramePr>"
+        return "<p:graphicFrame><p:nvGraphicFramePr><p:cNvPr id=\"\(id)\" name=\"\(name)\"\(PptxText.altAttrs(s))\(hid)/><p:cNvGraphicFramePr><a:graphicFrameLocks noGrp=\"1\"/></p:cNvGraphicFramePr><p:nvPr/></p:nvGraphicFramePr>"
             + Self._xfrm(s.frame, rotation: 0, tag: "p:xfrm")
             + "<a:graphic><a:graphicData uri=\"http://schemas.openxmlformats.org/drawingml/2006/chart\">"
             + "<c:chart xmlns:c=\"http://schemas.openxmlformats.org/drawingml/2006/chart\" r:id=\"\(rid)\"/></a:graphicData></a:graphic></p:graphicFrame>"
@@ -1313,7 +1318,7 @@ private struct SlideXML {
             return "<\(tag) w=\"12700\"><a:solidFill><a:srgbClr val=\"\(PptxText.hex(c))\"/></a:solidFill></\(tag)>"
         }
         let borders = style.styleId != nil ? "" : border("a:lnL") + border("a:lnR") + border("a:lnT") + border("a:lnB")
-        var xml = "<p:graphicFrame><p:nvGraphicFramePr><p:cNvPr id=\"\(_id(s.fileId))\" name=\"\(name)\"" + PptxText.cNvPrEnd(s)
+        var xml = "<p:graphicFrame><p:nvGraphicFramePr><p:cNvPr id=\"\(_id(s.fileId))\" name=\"\(name)\"" + PptxText.altAttrs(s) + PptxText.cNvPrEnd(s)
             + "<p:cNvGraphicFramePr><a:graphicFrameLocks noGrp=\"1\"/></p:cNvGraphicFramePr><p:nvPr/></p:nvGraphicFramePr>"
             + Self._xfrm(s.frame, rotation: 0, tag: "p:xfrm")
             + "<a:graphic><a:graphicData uri=\"http://schemas.openxmlformats.org/drawingml/2006/table\"><a:tbl>"
@@ -1364,13 +1369,14 @@ private struct SlideXML {
     /// relationships re-pointed — the parts they name copied over with
     /// everything those parts reach.
     mutating func kept(_ xml: String, sourcePart: String, package p: PptxPackage,
-                       builder b: inout PackageBuilder, patch frame: Rect?, fileId: Int? = nil,
+                       builder b: inout PackageBuilder, patch frame: Rect?, fileId: Int? = nil, alt: (descr: String?, title: String?)? = nil,
                        rotation: Double? = nil, placeIfMissing: Bool = false, flips: (h: Bool, v: Bool)? = nil,
                        hidden: Bool? = nil, edit: ((XNode) -> Void)? = nil, descr: String?? = nil) -> String {
         guard let node = XNode.parse(Data(xml.utf8)) else { return "" }
         edit?(node)
         // A changed alt text: set (or remove) `descr` on the element's own `cNvPr`.
         if let descr, let c = node.descendant("p:cNvPr") { c.attrs["descr"] = descr }
+        if let alt, let c = node.descendant("p:cNvPr") { c.attrs["descr"] = alt.descr; c.attrs["title"] = alt.title }
         if let hidden, let c = node.descendant("p:cNvPr") { c.attrs["hidden"] = hidden ? "1" : nil }
         if let frame {
             let x = node.first("p:xfrm") ?? node.first("p:spPr")?.first("a:xfrm") ?? node.first("p:grpSpPr")?.first("a:xfrm")
@@ -1515,7 +1521,14 @@ enum PptxText {
     static func setSlideParts(_ slides: [SlideState]) {
         slideParts = [:]
         for (i, s) in slides.enumerated() { slideParts[s.sourcePart ?? "new:\(s.id)"] = "ppt/slides/slide\(i + 1).xml" }
-    }    /// The end of a `p:cNvPr`: a click action on the shape is its child.
+    }    /// ` descr="..." title="..."` for a shape's alt text (nothing when it has none).
+    static func altAttrs(_ s: ShapeState) -> String {
+        var r = ""
+        if let d = s.altText, !d.isEmpty { r += " descr=\"\(PptxXML.escape(d, attribute: true))\"" }
+        if let t = s.altTitle, !t.isEmpty { r += " title=\"\(PptxXML.escape(t, attribute: true))\"" }
+        return r
+    }
+    /// The end of a `p:cNvPr`: a click action on the shape is its child.
     static func cNvPrEnd(_ s: ShapeState) -> String {
         let l = links?.xml(s.link, s.linkTip) ?? ""
         return l.isEmpty ? "/>" : ">" + l + "</p:cNvPr>"
