@@ -20,7 +20,7 @@ extension WorkbookController {
     /// The fields of the pivot made here under the active cell, as the pane shows them; nil when the active cell is in none.
     func pivotPaneState() -> (index: Int, fields: [String], numeric: [Bool], spec: PivotSpec)? {
         let ws = sheet
-        guard let k = madePivotIndex(on: ws, at: active), let spec = ws.pivots[k].made, let s = ws.pivots[k].source,
+        guard let k = madePivotIndex(on: ws, at: active), let spec = editableSpec(ws, k), let s = ws.pivots[k].source,
               let src = PivotSource.read(s, book: book) else { return nil }
         let numeric = src.headers.indices.map { c -> Bool in
             let col = src.rows.map { $0[c] }.filter { $0 != .empty }
@@ -86,7 +86,12 @@ final class PivotFieldsPane: StatelessWidget {
 
     override func build(_ context: any BuildContext) -> Widget {
         let fluent = FluentTheme.of(context)
-        guard let st = controller.pivotPaneState() else { return SizedBox(width: 0, height: 0, child: nil) }
+        guard let st = controller.pivotPaneState() else {
+            if let why = controller.pivotEditBlocker(on: controller.sheet, at: controller.active) {
+                return Padding(padding: EdgeInsets(all: 12), child: Text(why, style: FluentTheme.of(context).typography.caption))
+            }
+            return SizedBox(width: 0, height: 0, child: nil)
+        }
         let gap: (Double) -> Widget = { SizedBox(width: nil, height: $0, child: nil) }
         func name(_ i: Int) -> String { st.fields[i].isEmpty ? "Column \(i + 1)" : st.fields[i] }
         func area(_ f: Int) -> PivotArea? {
