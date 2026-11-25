@@ -3206,13 +3206,17 @@ extension RichLayout {
 extension RichLayout {
     /// How far the engine set the text at `offset` down for its shadow's reach (`shadow-line` in its style's label), in layout pixels.
     static func _shadowLineShift(_ root: InlineSpan?, at offset: Int) -> Double {
+        // (Walked by hand over TextSpans only: InlineSpan.visitChildren traps on a span that does not override it, and a Slides
+        // run is such a span: the first gate of the shadow halo died on 49 decks with "Subclasses must override visitChildren".)
         var pos = 0, found = 0.0
-        _ = root?.visitChildren { span in
-            let n = (span as? TextSpan)?.text?.utf16.count ?? 0
-            if n > 0, offset >= pos, offset < pos + n, let st = span.style, st.debugLabel?.containsSubstring(" shadow-line") == true { found = st.baselineShift ?? 0 }
+        func walk(_ span: InlineSpan?) {
+            guard let t = span as? TextSpan else { return }
+            let n = t.text?.utf16.count ?? 0
+            if n > 0, offset >= pos, offset < pos + n, let st = t.style, st.debugLabel?.containsSubstring(" shadow-line") == true { found = st.baselineShift ?? 0 }
             pos += n
-            return true
+            for c in t.children ?? [] { walk(c) }
         }
+        walk(root)
         return found
     }
 
