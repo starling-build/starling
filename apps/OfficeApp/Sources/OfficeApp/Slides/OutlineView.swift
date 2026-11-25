@@ -71,12 +71,44 @@ enum Outline {
         }
         var steps: [Step] = []
         var gapOld: [Int] = [], gapNew: [Int] = []
+        // Inside a stretch of changes, a slide is still the same slide when its title or its (non-empty) body is unchanged;
+        // the rest pair one to one when they are alone between two such slides, else they are inserted and deleted.
+        func same(_ o: OutlineEntry, _ n: OutlineEntry) -> Bool {
+            o.title == n.title || (!o.body.isEmpty && o.body == n.body)
+        }
         func flush() {
-            let pairs = min(gapOld.count, gapNew.count)
-            for k in 0 ..< pairs { steps.append(.edit(old: gapOld[k], new: gapNew[k])) }
-            for k in pairs ..< gapNew.count { steps.append(.insert(new: gapNew[k])) }
-            for k in pairs ..< gapOld.count { steps.append(.delete(old: gapOld[k])) }
+            let go = gapOld, gn = gapNew
             gapOld = []; gapNew = []
+            let a = go.count, b = gn.count
+            var t = [[Int]](repeating: [Int](repeating: 0, count: b + 1), count: a + 1)
+            if a > 0, b > 0 {
+                for x in stride(from: a - 1, through: 0, by: -1) {
+                    for y in stride(from: b - 1, through: 0, by: -1) {
+                        t[x][y] = same(old[go[x]], new[gn[y]]) ? t[x + 1][y + 1] + 1 : max(t[x + 1][y], t[x][y + 1])
+                    }
+                }
+            }
+            var subOld: [Int] = [], subNew: [Int] = []
+            func rest() {
+                if subOld.count == subNew.count {
+                    for k in 0 ..< subOld.count { steps.append(.edit(old: subOld[k], new: subNew[k])) }
+                } else {
+                    for k in subNew { steps.append(.insert(new: k)) }
+                    for k in subOld { steps.append(.delete(old: k)) }
+                }
+                subOld = []; subNew = []
+            }
+            var x = 0, y = 0
+            while x < a || y < b {
+                if x < a, y < b, same(old[go[x]], new[gn[y]]), t[x][y] == t[x + 1][y + 1] + 1 {
+                    rest(); steps.append(.edit(old: go[x], new: gn[y])); x += 1; y += 1
+                } else if y >= b || (x < a && t[x + 1][y] >= t[x][y + 1]) {
+                    subOld.append(go[x]); x += 1
+                } else {
+                    subNew.append(gn[y]); y += 1
+                }
+            }
+            rest()
         }
         var i = 0, j = 0
         while i < n || j < m {

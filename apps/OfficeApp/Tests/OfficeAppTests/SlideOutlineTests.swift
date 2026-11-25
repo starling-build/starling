@@ -136,4 +136,30 @@ final class SlideOutlineTests: XCTestCase {
         try log.write(toFile: out + ".txt", atomically: true, encoding: .utf8)
         XCTAssertEqual(deck.outlineEntries, e)
     }
+
+    /// Demote one line of a slide with nine levels, save, reopen: every level is where it was, the layout is unchanged,
+    /// and a slide inserted in front does not take over the neighbour's place.
+    func testDemoteOneLineKeepsLevelsAndLayoutThroughASave() throws {
+        let path = "/data/corpus-cache/test/corpus/pptx/decks/layouts.pptx"
+        guard FileManager.default.fileExists(atPath: path) else { throw XCTSkip("deck not in the corpus cache") }
+        let (state, theme, pkg) = try Pptx.read(try Data(contentsOf: URL(fileURLWithPath: path)))
+        let deck = DeckController()
+        deck.load(state, theme: theme, package: pkg)
+        var e = deck.outlineEntries
+        let at = try XCTUnwrap(e.firstIndex { $0.body.count == 9 })
+        let layoutBefore = deck.slides[at].layout
+        let levelsBefore = e[at].body.map(\.level)
+        e.insert(OutlineEntry(title: "Added", body: [OutlineLine(level: 1, text: "x")]), at: 1)
+        e[at + 1].body[0].level += 1
+        deck.applyOutline(e)
+        let (back, _, _) = try Pptx.read(try Pptx.write(deck))
+        let again = DeckController()
+        again.load(back, theme: theme, package: nil)
+        let got = again.outlineEntries
+        XCTAssertEqual(got.count, e.count)
+        XCTAssertEqual(got[at + 1].body.map(\.level), [levelsBefore[0] + 1] + levelsBefore.dropFirst())
+        XCTAssertEqual(got[at + 1].title, e[at + 1].title)
+        XCTAssertEqual(deck.slides[at + 1].layout, layoutBefore)
+        XCTAssertEqual(got[1].title, "Added")
+    }
 }
