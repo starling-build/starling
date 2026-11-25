@@ -2354,6 +2354,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         freeze.color = dark ? Color(0xFF8A8A8A) : Color(0xFF9E9E9E)
         if fc > 0 { canvas.drawLine(Offset((hw + fw).rounded() - 0.5, hh), Offset((hw + fw).rounded() - 0.5, size.height), freeze) }
         if fr > 0 { canvas.drawLine(Offset(hw, (hh + fh).rounded() - 0.5), Offset(size.width, (hh + fh).rounded() - 0.5), freeze) }
+        if c.breakPreview { paintPageBreaks(canvas, size) }
         // The editor.
         if let e = edit {
             _paintEditor(canvas, e, ink: ink, paper: paper, accent: accent, size: size)

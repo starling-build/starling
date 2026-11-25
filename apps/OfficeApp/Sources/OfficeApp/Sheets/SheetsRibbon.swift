@@ -358,6 +358,9 @@ extension Ribbon {
             Chrome.textToggle("Gridlines", wb.sheet.showGridlines, fluent, style: fluent.typography.caption) {
                 wb.structural { wb.sheet.showGridlines.toggle() }
             },
+            Chrome.textToggle("Page Break Preview", wb.breakPreview, fluent, style: fluent.typography.caption) {
+                wb.breakPreview.toggle(); wb._notify()
+            },
             Chrome.big(FluentSystemIcons.zoomIn, "Zoom In", fluent) { wb.onCommand?(.zoom(1.1)) },
             Chrome.big(FluentSystemIcons.zoomOut, "Zoom Out", fluent) { wb.onCommand?(.zoom(1 / 1.1)) },
             Chrome.big(FluentSystemIcons.grid, "100%", fluent) { wb.onCommand?(.zoom(0)) },
