@@ -68,6 +68,7 @@ final class SheetsShellState: State<StatefulWidget> {
     /// The Format Cells dialog is open (X-FM-1).
     private var _formatOpen = false
     private var _pageSetupOpen = false
+    private var _printOpen = false
     private var _findReplace = false
     private var _findStatus = ""
     private let _findQuery = TextEditingController()
@@ -567,7 +568,9 @@ final class SheetsShellState: State<StatefulWidget> {
     }
 
     /// File → Print: the PDF of the active sheet, handed to the host's print dialog.
-    private func _print() {
+    private func _print() { setState { _backstage = nil; _printOpen = true } }
+
+    private func _print(_ what: PrintWhat) {
         #if os(WASI)
         _flash("Printing is not available in the browser yet")
         #else
@@ -576,7 +579,8 @@ final class SheetsShellState: State<StatefulWidget> {
         setState { _backstage = nil }
         Task { @MainActor [weak self] in
             guard let self, let grid = self._grid else { return }
-            guard await grid.writePdf(to: path, title: self.session.title, filePath: self.session.path) else {
+            guard await grid.writePdf(to: path, title: self.session.title, filePath: self.session.path,
+                                      wholeBook: what == .entireWorkbook, selection: what == .selection ? self.wb.selection : nil) else {
                 self._flash("Nothing to print on this sheet")
                 return
             }
@@ -877,6 +881,15 @@ final class SheetsShellState: State<StatefulWidget> {
             layers.append(Positioned(left: 0, top: 0, right: 0, bottom: 0, child: NameManagerDialog(
                 controller: wb, onClose: { [weak self] in
                     self?.setState { self?._namesOpen = false }
+                    self?._grid?.focus.requestFocus()
+                })))
+        }
+        if _printOpen {
+            layers.append(Positioned(left: 0, top: 0, right: 0, bottom: 0, child: PrintChoicePanel(
+                sheetName: wb.sheet.name, selectionText: wb.selection.a1,
+                onPrint: { [weak self] w in self?._print(w) },
+                onClose: { [weak self] in
+                    self?.setState { self?._printOpen = false }
                     self?._grid?.focus.requestFocus()
                 })))
         }
