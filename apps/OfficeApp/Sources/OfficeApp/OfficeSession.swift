@@ -307,6 +307,7 @@ final class OfficeSession {
     var onInsertPicture: (() -> Void)?
     var onHeaderFooter: (() -> Void)?
     var onLink: (() -> Void)?
+    var onSymbolDialog: (() -> Void)?
     var onMoreColors: (() -> Void)?
     var onParagraphDialog: (() -> Void)?
     var onModifyStyle: ((String) -> Void)?

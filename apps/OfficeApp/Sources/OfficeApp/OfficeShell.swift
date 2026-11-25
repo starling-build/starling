@@ -70,6 +70,7 @@ final class OfficeShellState: State<StatefulWidget> {
     private var _colorOpen = false
     private var _paragraphOpen = false
     private var _findDialogOpen = false
+    private var _symbolOpen = false
     private let _colorText = TextEditingController()
     private var _styleOpen: String? = nil
     private let _linkText = TextEditingController()
@@ -361,6 +362,11 @@ final class OfficeShellState: State<StatefulWidget> {
             self.setState { self._headerFooterOpen = true }
         }
         session.onLink = { [weak self] in self?._openLink() }
+        session.onSymbolDialog = { [weak self] in
+            guard let self else { return }
+            self.controller.breakUndoCoalescing()
+            self.setState { self._symbolOpen = true }
+        }
         session.onParagraphDialog = { [weak self] in
             guard let self else { return }
             self.controller.breakUndoCoalescing()
@@ -1210,6 +1216,19 @@ final class OfficeShellState: State<StatefulWidget> {
                 window,
                 Positioned(left: 0, top: 0, right: 0, bottom: 0, child: FindReplaceDialog(
                     initialQuery: _findQuery.text, hooks: _findHooks, onClose: { [weak self] in self?._closeFindDialog() })),
+            ])
+        }
+        if _symbolOpen {
+            return Stack(children: [
+                window,
+                Positioned(left: 0, top: 0, right: 0, bottom: 0, child: SymbolPicker(
+                    hooks: SymbolHooks(
+                        fonts: ["(current font)"] + OfficeFonts.families(including: controller.currentCharStyle.fontFamily ?? OfficeFonts.defaultFamily),
+                        insert: { [weak self] text, font in self?.controller.insertSymbol(text, font: font) }),
+                    onClose: { [weak self] in
+                        self?.setState { self?._symbolOpen = false }
+                        self?._editorFocus.requestFocus()
+                    })),
             ])
         }
         if _paragraphOpen {

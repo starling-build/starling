@@ -442,6 +442,18 @@ public final class RichDocumentController: ChangeNotifier {
 
     /// Type `string` at the caret, replacing any selection. Newlines split
     /// paragraphs.
+    /// Insert a symbol, in `font` when given (one undo step); the typing style is left as it was.
+    public func insertSymbol(_ string: String, font: String?) {
+        let saved = typingStyle
+        if let font {
+            var st = currentCharStyle
+            st.fontFamily = font
+            typingStyle = st
+        }
+        insertText(string)
+        typingStyle = font == nil ? saved : nil
+    }
+
     public func insertText(_ string: String) {
         guard !string.isEmpty else { return }
         let hint: UndoKindHint = string.contains(Character("\n")) ? .other : .typing
