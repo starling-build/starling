@@ -7590,6 +7590,49 @@ final class DocxTests: XCTestCase {
         XCTAssertTrue(edited.containsSubstring("<w:b/>"), edited)
     }
 
+    /// Save-loss: a run that switches bold off inside a bold paragraph style stays not-bold through read, edit and save, whether its
+    /// own properties are kept (untouched) or regenerated (edited), and neighbouring runs that merge do not pick the bold back up.
+    func testBoldOffInsideABoldStyleStaysOffAfterASave() throws {
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .letter))
+        let si = try XCTUnwrap(entries.firstIndex { $0.name == "word/styles.xml" })
+        var styles = String(decoding: entries[si].data, as: UTF8.self)
+        styles = styles.replacingAll("</w:styles>", with: "<w:style w:type=\"paragraph\" w:styleId=\"Strong1\"><w:name w:val=\"Strong1\"/><w:basedOn w:val=\"Normal\"/><w:rPr><w:b/><w:bCs/></w:rPr></w:style></w:styles>")
+        entries[si] = ZipEntry(name: "word/styles.xml", data: Data(styles.utf8))
+        let di = try XCTUnwrap(entries.firstIndex { $0.name == "word/document.xml" })
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let body = try XCTUnwrap(xml.range(of: "<w:body>")).upperBound ..< (try XCTUnwrap(xml.range(of: "<w:sectPr"))).lowerBound
+        xml.replaceSubrange(body, with: "<w:p><w:pPr><w:pStyle w:val=\"Strong1\"/></w:pPr><w:r><w:t>Bold </w:t></w:r><w:r><w:rPr><w:b w:val=\"0\"/><w:bCs w:val=\"0\"/></w:rPr><w:t>plain </w:t></w:r><w:r><w:rPr><w:b w:val=\"0\"/><w:bCs w:val=\"0\"/></w:rPr><w:t>twice</w:t></w:r></w:p>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        func boldAt(_ doc: RichDocument) -> [Bool] {
+            // One flag per character, sampled at the first letter of each word.
+            var flags: [Bool] = []
+            for r in doc.paragraphs[0].runs { flags += Array(repeating: r.style.bold, count: r.length) }
+            return [flags[0], flags[5], flags[10]]
+        }
+        func saved(_ doc: RichDocument) throws -> RichDocument {
+            try DocxFormat.read(try DocxFormat.write(doc, pageSetup: .letter)).document
+        }
+        let doc = try DocxFormat.read(try Zip.write(entries)).document
+        func xmlOf(_ d: RichDocument) throws -> String {
+            String(decoding: try XCTUnwrap(try Zip.read(try DocxFormat.write(d, pageSetup: .letter)).first { $0.name == "word/document.xml" }).data, as: UTF8.self)
+        }
+        func offRuns(_ x: String) -> Int { x.components(separatedBy: "<w:b w:val=\"0\"/>").count - 1 }
+        XCTAssertEqual(boldAt(doc), [false, false, false], "the style's bold is not in the run")
+        let first = try xmlOf(doc)
+        XCTAssertGreaterThanOrEqual(offRuns(first), 1, first)
+        // Edited: italic on the second word, then typing at the end.
+        let c = RichDocumentController(document: doc)
+        c.moveTo(RichPosition(paragraph: 0, offset: 5), extend: false)
+        c.moveTo(RichPosition(paragraph: 0, offset: 10), extend: true)
+        c.toggleItalic()
+        c.moveTo(RichPosition(paragraph: 0, offset: 15), extend: false)
+        c.insertText("!")
+        let after = try xmlOf(c.document)
+        XCTAssertTrue(after.containsSubstring("<w:pStyle w:val=\"Strong1\"/>"), after)
+        XCTAssertGreaterThanOrEqual(offRuns(after), 2, "every run that turned bold off still says so: \(after)")
+        XCTAssertEqual(boldAt(try saved(c.document)), [false, false, false])
+    }
+
     func testBlockLevelContentControlsSurviveASave() throws {
         var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .letter))
         let di = try XCTUnwrap(entries.firstIndex { $0.name == "word/document.xml" })
