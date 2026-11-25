@@ -1464,6 +1464,8 @@ final class DeckController: ChangeNotifier {
         for s in selection where s.preset?.isLine != true {
             s.fill = color
             s.fillScheme = scheme
+            s.fillStyle = nil              // a gradient or picture gives way to the chosen fill
+            s.keptLook?.fillReplaced = true
         }
         _changed()
     }
@@ -1474,7 +1476,7 @@ final class DeckController: ChangeNotifier {
         let targets = selection.filter { $0.preset?.isLine != true && $0.fill != nil }
         guard !targets.isEmpty else { return }
         _checkpoint()
-        for s in targets { s.fill = Color((a << 24) | (s.fill!.value & 0xFFFFFF)) }
+        for s in targets { s.fill = Color((a << 24) | (s.fill!.value & 0xFFFFFF)); s.fillStyle = nil; s.keptLook?.fillReplaced = true }
         _changed()
     }
 
@@ -1549,7 +1551,11 @@ final class DeckController: ChangeNotifier {
     func setOutline(_ color: Color?) {
         guard !selection.isEmpty else { return }
         _checkpoint()
-        for s in selection { s.outline = color }
+        for s in selection {
+            s.outline = color
+            s.outlineFill = nil
+            s.keptLook?.lineReplaced = true
+        }
         _changed()
     }
 
