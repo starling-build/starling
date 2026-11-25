@@ -893,9 +893,10 @@ private struct SlideXML {
         return "<a:srcRect l=\"\(v(c.left))\" t=\"\(v(c.top))\" r=\"\(v(c.right))\" b=\"\(v(c.bottom))\"/>"
     }
 
-    private static func _fill(_ c: Color?) -> String {
+    private static func _fill(_ c: Color?, scheme: String? = nil) -> String {
         guard let c else { return "<a:noFill/>" }
         let alpha = (c.value >> 24) & 0xFF
+        if let scheme, let x = SchemeColor.xml(scheme, alpha: Int(alpha)) { return x }
         let a = alpha < 255 ? "<a:alpha val=\"\(alpha * 100000 / 255)\"/>" : ""
         return "<a:solidFill><a:srgbClr val=\"\(PptxText.hex(c))\">\(a)</a:srgbClr></a:solidFill>"
     }
@@ -1001,7 +1002,7 @@ private struct SlideXML {
             let id = _id(s.fileId)
             let f = s.frame
             let box = Rect.fromLTRB(min(f.left, f.right), min(f.top, f.bottom), max(f.left, f.right), max(f.top, f.bottom))
-            let line = s.outline.map { "<a:ln w=\"\(Self._emu(s.outlineWidth))\">\(Self._fill($0))\(Self._dashXML(s.outlineDash))</a:ln>" } ?? "<a:ln><a:noFill/></a:ln>"
+            let line = s.outline.map { "<a:ln w=\"\(Self._emu(s.outlineWidth))\">\(Self._fill($0, scheme: s.outlineScheme))\(Self._dashXML(s.outlineDash))</a:ln>" } ?? "<a:ln><a:noFill/></a:ln>"
             return "<p:cxnSp><p:nvCxnSpPr><p:cNvPr id=\"\(id)\" name=\"\(name)\"\(hid)/><p:cNvCxnSpPr/><p:nvPr/></p:nvCxnSpPr>"
                 + "<p:spPr>\(Self._xfrm(box, rotation: s.rotation, flipH: s.flipH != (f.right < f.left), flipV: s.flipV != (f.bottom < f.top)))"
                 + "<a:prstGeom prst=\"\(preset.rawValue)\"><a:avLst/></a:prstGeom>\(line)</p:spPr></p:cxnSp>"
@@ -1070,14 +1071,10 @@ private struct SlideXML {
             switch s.kind {
             case .placeholder:
                 fillXML = s.fill.map { Self._fill($0) } ?? ""
-                lineXML = s.outline.map { "<a:ln w=\"\(Self._emu(s.outlineWidth))\">\(Self._fill($0))\(Self._dashXML(s.outlineDash))</a:ln>" } ?? ""
+                lineXML = s.outline.map { "<a:ln w=\"\(Self._emu(s.outlineWidth))\">\(Self._fill($0, scheme: s.outlineScheme))\(Self._dashXML(s.outlineDash))</a:ln>" } ?? ""
             default:
-                if let scheme = s.fillScheme, s.fill != nil {
-                    fillXML = "<a:solidFill><a:schemeClr val=\"\(scheme)\"/></a:solidFill>"
-                } else {
-                    fillXML = Self._fill(s.fill)
-                }
-                lineXML = s.outline.map { "<a:ln w=\"\(Self._emu(s.outlineWidth))\">\(Self._fill($0))\(Self._dashXML(s.outlineDash))</a:ln>" } ?? "<a:ln><a:noFill/></a:ln>"
+                fillXML = Self._fill(s.fill, scheme: s.fillScheme)
+                lineXML = s.outline.map { "<a:ln w=\"\(Self._emu(s.outlineWidth))\">\(Self._fill($0, scheme: s.outlineScheme))\(Self._dashXML(s.outlineDash))</a:ln>" } ?? "<a:ln><a:noFill/></a:ln>"
             }
             // The file's own fill and line while the shape's are unchanged
             // (gradients, patterns, a style's fill stay as they were); its
@@ -1096,7 +1093,7 @@ private struct SlideXML {
                     // A changed colour or width: only the line's fill (and width) change; its dash, caps, joins and arrowheads stay.
                     let replaceFill = k.lineReplaced || s.outline != k.readOutline
                     lineXML = Self._patchedLine(ln, widthEMU: s.outlineWidth == k.readWidth ? nil : Self._emu(s.outlineWidth),
-                                                fill: replaceFill ? (s.outline.map { Self._fill($0) } ?? "<a:noFill/>") : nil,
+                                                fill: replaceFill ? (s.outline.map { Self._fill($0, scheme: s.outlineScheme) } ?? "<a:noFill/>") : nil,
                                                 dash: k.dashEdited ? .some(s.outlineDash) : nil)
                 }
             }
@@ -1190,12 +1187,10 @@ private struct SlideXML {
 
     private static func _shapeFillLine(_ s: ShapeState) -> (fill: String, line: String) {
         if case .placeholder = s.kind {
-            return (s.fill.map { Self._fill($0) } ?? "", s.outline.map { "<a:ln w=\"\(Self._emu(s.outlineWidth))\">\(Self._fill($0))</a:ln>" } ?? "")
+            return (s.fill.map { Self._fill($0) } ?? "", s.outline.map { "<a:ln w=\"\(Self._emu(s.outlineWidth))\">\(Self._fill($0, scheme: s.outlineScheme))</a:ln>" } ?? "")
         }
-        let fill: String
-        if let scheme = s.fillScheme, s.fill != nil { fill = "<a:solidFill><a:schemeClr val=\"\(scheme)\"/></a:solidFill>" }
-        else { fill = Self._fill(s.fill) }
-        return (fill, s.outline.map { "<a:ln w=\"\(Self._emu(s.outlineWidth))\">\(Self._fill($0))</a:ln>" } ?? "<a:ln><a:noFill/></a:ln>")
+        let fill = Self._fill(s.fill, scheme: s.fillScheme)
+        return (fill, s.outline.map { "<a:ln w=\"\(Self._emu(s.outlineWidth))\">\(Self._fill($0, scheme: s.outlineScheme))</a:ln>" } ?? "<a:ln><a:noFill/></a:ln>")
     }
 
     private static func _fragment(_ xml: String) -> [XNode] {
@@ -1207,7 +1202,7 @@ private struct SlideXML {
     private static func _shapeEdit(_ s: ShapeState, _ read: ReadShape) -> (XNode) -> Void {
         let (fillXML, lineXML) = _shapeFillLine(s)
         let fillChanged = read.fill != s.fill || read.fillScheme != s.fillScheme
-        let lineChanged = read.outline != s.outline || read.outlineWidth != s.outlineWidth
+        let lineChanged = read.outline != s.outline || read.outlineScheme != s.outlineScheme || read.outlineWidth != s.outlineWidth
         let clickChanged = read.link != s.link || read.linkTip != s.linkTip
         let click = clickChanged ? (PptxText.links?.xml(s.link, s.linkTip) ?? "") : ""
         let fit: String? = {

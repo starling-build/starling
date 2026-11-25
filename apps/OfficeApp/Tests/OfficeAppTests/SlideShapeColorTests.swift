@@ -13,21 +13,39 @@ final class SlideShapeColorTests: XCTestCase {
         return (deck, s)
     }
 
-    func testAnAccentKeepsItsThemeLinkAndATintIsWrittenAsItsColour() throws {
+    func testAnAccentAndATintKeepTheirThemeLink() throws {
         let (deck, s) = deckWithShape()
         deck.applyShapeColor(.theme(slot: 5, lumMod: 100, lumOff: 0), outline: false)
         XCTAssertEqual(s.fillScheme, "accent2")
         XCTAssertEqual(UInt32(truncatingIfNeeded: s.fill!.value) & 0xFFFFFF, deck.theme.slots[5])
         deck.applyShapeColor(.theme(slot: 5, lumMod: 60, lumOff: 40), outline: false)
-        XCTAssertNil(s.fillScheme, "a tint is its own colour")
+        XCTAssertEqual(s.fillScheme, "accent2|60000|40000", "a tint keeps its theme link")
         XCTAssertEqual(UInt32(truncatingIfNeeded: s.fill!.value) & 0xFFFFFF, ColorMath.adjusted(deck.theme.slots[5], lumMod: 60, lumOff: 40))
+        deck.applyShapeColor(.theme(slot: 4, lumMod: 40, lumOff: 60), outline: true)
+        XCTAssertEqual(s.outlineScheme, "accent1|40000|60000")
         deck.applyShapeColor(.rgb(0x00B050), outline: true)
+        XCTAssertNil(s.outlineScheme, "a plain colour has no link")
         XCTAssertEqual(UInt32(truncatingIfNeeded: s.outline!.value) & 0xFFFFFF, 0x00B050)
         deck.applyShapeColor(.none, outline: false); deck.applyShapeColor(.none, outline: true)
         XCTAssertNil(s.fill); XCTAssertNil(s.outline)
         deck.undo()
         XCTAssertNotNil(s.outline, "undo brings the outline back")
         XCTAssertEqual(deck.recentShapeColors.list.first, 0x00B050)
+    }
+
+    func testATintFollowsTheThemeAndSurvivesSaving() throws {
+        let (deck, s) = deckWithShape()
+        deck.applyShapeColor(.theme(slot: 5, lumMod: 60, lumOff: 40), outline: false)
+        deck.applyShapeColor(.theme(slot: 6, lumMod: 75, lumOff: 0), outline: true)
+        let (state, _, _) = try Pptx.read(Pptx.write(deck))
+        let r = try XCTUnwrap(state.slides[0].shapes.first { $0.fillScheme == "accent2|60000|40000" })
+        XCTAssertEqual(r.outlineScheme, "accent3|75000|0")
+        let xml = String(decoding: try Pptx.write(deck), as: UTF8.self)
+        _ = xml
+        var other = deck.theme
+        other.accents[1] = Color(0xFF00AA00)
+        deck.applyTheme(other)
+        XCTAssertEqual(UInt32(truncatingIfNeeded: s.fill!.value) & 0xFFFFFF, ColorMath.adjusted(0x00AA00, lumMod: 60, lumOff: 40))
     }
 
     func testThePickerGridAppliesAFillAndAnOutline() throws {
@@ -62,7 +80,8 @@ final class SlideShapeColorTests: XCTestCase {
         guard FileManager.default.fileExists(atPath: dir) else { return }
         try Pptx.write(deck).write(to: URL(fileURLWithPath: dir + "/shapecolor.pptx"))
         let (state, _, _) = try Pptx.read(Pptx.write(deck))
-        let shapes = state.slides[0].shapes.filter { $0.fillScheme == "accent3" }
-        XCTAssertEqual(shapes.count, 1)
+        XCTAssertEqual(state.slides[0].shapes.filter { $0.fillScheme == "accent3" }.count, 1)
+        XCTAssertEqual(state.slides[0].shapes.filter { $0.fillScheme == "accent4|75000|0" }.count, 1)
+        XCTAssertEqual(state.slides[0].shapes.filter { $0.outlineScheme == "accent1|40000|60000" }.count, 1)
     }
 }
