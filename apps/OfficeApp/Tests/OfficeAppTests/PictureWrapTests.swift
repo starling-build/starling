@@ -734,13 +734,10 @@ final class ShapeSelectTests: XCTestCase {
                 if from.h == "leftMargin" || from.h == "insideMargin" { float.horizontalFrom = from.h }
                 else if from.h == "rightMargin" || from.h == "outsideMargin" { float.x -= setup.width - setup.marginRight; float.horizontalFrom = from.h }
                 else if from.h != "page" { float.x -= setup.marginLeft; float.horizontalFrom = from.h }
-                if from.v == "paragraph", float.wrapsTight || float.takesRoom || float.bandsPage { float.y -= setup.marginTop + probe._tops[n] / flat.pixelsPerPoint; float.verticalFrom = "paragraph" }
+                if from.v == "paragraph", float.wraps || float.takesRoom || float.bandsPage { float.y -= setup.marginTop + probe._tops[n] / flat.pixelsPerPoint; float.verticalFrom = "paragraph" }
                 else if from.v != "page" { float.y -= setup.marginTop; float.verticalFrom = from.v == "paragraph" ? "margin" : from.v }
                 image.float = float
                 doc.paragraphs[n].image = image
-            }
-            if from == ("column", "paragraph"), let path = ProcessInfo.processInfo.environment["SHAPE_LAB_PARA"] {
-                try DocxFormat.write(doc, pageSetup: setup).write(to: URL(fileURLWithPath: path))
             }
             let theme = RichTextTheme(fontFamily: OfficeFonts.serif)
             theme.wordRules = true

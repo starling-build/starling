@@ -1037,7 +1037,7 @@ extension RichLayout {
         var startLeft: (indent: Double, band: (top: Double, bottom: Double))?
         defer { if best?.right == true, best?.leftRoom == nil, let sl = startLeft, theme.wordRules, RichTextTheme.wordWindowsPages { _besideStartLeft[i] = sl } }
         _besideIndentOnTop.remove(i)
-        _besideListEarlier.remove(i); _besideTightTop[i] = nil; _besideLeftAt[i] = nil; _besideRightAt[i] = nil; _besideStartAt[i] = nil; _besideNoLeft[i] = nil
+        _besideListEarlier.remove(i); _besideTightTop[i] = nil; _besideLeftAt[i] = nil; _besideRightAt[i] = nil; _besideStartAt[i] = nil; _besideOutlineBox[i] = nil; _besideNoLeft[i] = nil
         defer { if boxes.count >= 2, best?.leftRoom != nil { _besideBoxes[i] = boxes } }
         let hang = max(0, -_px(firstLineIndent(p, at: i, document)))
         var offset = 0.0
@@ -1182,6 +1182,7 @@ extension RichLayout {
                                     guard let m = Self._outlineMaxX(poly, ya, yb) else { return rightEdge - own }
                                     return max(x + w * m + gr - own, 0)
                                 }
+                                _besideOutlineBox[i] = (leftEdge - own, rightEdge - own)
                                 RuleTrace.hit("word-tight-wrap-line-meets-the-outline-over-its-own-rows")
                             }
                         }

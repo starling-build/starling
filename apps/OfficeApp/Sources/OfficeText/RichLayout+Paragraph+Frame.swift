@@ -211,6 +211,7 @@ extension _ParaFrame {
     var _besideRightSide: [Bool] { get { rl._besideRightSide } set { rl._besideRightSide = newValue } _modify { yield &rl._besideRightSide } }
     var _besideSeq: [Int : [RichLayout.ColWrapBox]] { get { rl._besideSeq } set { rl._besideSeq = newValue } _modify { yield &rl._besideSeq } }
     var _besideStartAt: [Int : (Double, Double) -> Double] { get { rl._besideStartAt } set { rl._besideStartAt = newValue } _modify { yield &rl._besideStartAt } }
+    var _besideOutlineBox: [Int : (left: Double, right: Double)] { get { rl._besideOutlineBox } set { rl._besideOutlineBox = newValue } _modify { yield &rl._besideOutlineBox } }
     var _besideStartLeft: [Int : (indent: Double, band: (top: Double, bottom: Double))] { get { rl._besideStartLeft } set { rl._besideStartLeft = newValue } _modify { yield &rl._besideStartLeft } }
     var _besideTightTop: [Int : Double] { get { rl._besideTightTop } set { rl._besideTightTop = newValue } _modify { yield &rl._besideTightTop } }
     func _bodyBoxHeight(_ a0: ImageAttachment, _ a1: RichDocument) -> Double { rl._bodyBoxHeight(a0, a1) }

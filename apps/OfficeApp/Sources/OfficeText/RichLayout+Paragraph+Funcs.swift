@@ -1423,8 +1423,13 @@ extension _ParaFrame {
                         let hang = k == 0 ? max(0, -original) : 0
                         var x0 = -hang
                         for b in active {
-                            if b.left - x0 >= minRoom { segments.append((x0, b.left)) }
-                            x0 = max(x0, b.right)
+                            // (A tight shape's outline, not its box, sets the room beside it, row by row: Word's print of lab para-anchored-fixed,
+                            // an oval's right pieces starting 279.0 / 274.4 / 257.0 as it narrows, beside a square.)
+                            let outlined = _besideOutlineBox[i].map { abs($0.left - b.left) < 0.01 && abs($0.right - b.right) < 0.01 } ?? false
+                            let bLeft = outlined ? (_besideLeftAt[i]?(top, bottom) ?? b.left) : b.left
+                            let bRight = outlined ? (_besideStartAt[i]?(top, bottom) ?? b.right) : b.right
+                            if bLeft - x0 >= minRoom { segments.append((x0, bLeft)) }
+                            x0 = max(x0, bRight)
                         }
                         if !active.isEmpty, textWidth - x0 >= minRoom { segments.append((x0, textWidth)) }
                         if active.isEmpty || segments.isEmpty { next.append(LineIndent()); k += 1; continue }
@@ -1435,7 +1440,11 @@ extension _ParaFrame {
                                 firstLead = 0
                                 next.append(LineIndent(left: seg.from, right: max(textWidth - seg.to, 0)))
                             } else {
-                                next.append(LineIndent(left: max(seg.from, 0), right: max(textWidth - seg.to, 0)))
+                                // (A row's only piece, standing from a box's edge to the margin, is a line of its own: the 0.001 right inset keeps
+                                // `_registerPairs` from taking it for the right piece of a pair and lifting it level with the line before. Word's
+                                // print of lab para-anchored-fixed: three rows beside a square, then rows beside an oval.)
+                                let right = max(textWidth - seg.to, 0)
+                                next.append(LineIndent(left: max(seg.from, 0), right: j == 0 && segments.count == 1 && seg.from > 0.5 && right == 0 ? 0.001 : right))
                             }
                             if j > 0 { saved += min(bottoms[k + j] - bottoms[k + j - 1], bottoms[k] - before) }
                         }

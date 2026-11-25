@@ -73,7 +73,7 @@ extension RichLayout {
         for image in p.inlineImages.inOrder + (p.image.map { [$0] } ?? []) {
             guard let float = image.float, float.wraps, !float.takesRoom, !float.bandsPage,
                   (float.verticalAlign == nil && (!float.wrapsTight || (outlines && float.wrapPolygon.count > 5))) || float.verticalAlign == "top" || float.verticalAlign == "center" || float.verticalAlign == "bottom",
-                  float.verticalFrom == "page" || float.verticalFrom == "margin" || (column && float.verticalFrom == "paragraph" && float.wrapsTight && float.verticalAlign == nil),
+                  float.verticalFrom == "page" || float.verticalFrom == "margin" || (column && float.verticalFrom == "paragraph" && float.verticalAlign == nil),
                   float.horizontalFrom == "page" || float.horizontalFrom == "margin" || (column && ["column", "leftMargin", "rightMargin", "insideMargin", "outsideMargin"].contains(float.horizontalFrom)),
                   float.horizontalAlign != "inside", float.horizontalAlign != "outside",
                   float.heightShare == nil, image.textBox?.fitsText != true, image.width > 0, image.height > 0 else { continue }
