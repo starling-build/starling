@@ -36,6 +36,10 @@ enum OfficeFormats {
     /// and only when the bytes do not say what they are. This is what the
     /// web opens with, from a file the browser's picker handed over.
     static func read(_ data: Data, named path: String) throws -> OpenedDocument {
+        try BigStack.run { try _read(data, named: path) }
+    }
+
+    private static func _read(_ data: Data, named path: String) throws -> OpenedDocument {
         // An OLE container (D0 CF 11 E0): a password-protected .docx, whose
         // package sits encrypted inside one, or a binary .doc. Neither is
         // text, and reading it as text wrote a copy Word could not open.

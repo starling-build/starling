@@ -25,6 +25,10 @@ enum DocxFormat {
 
 
     static func read(_ archive: Data) throws -> DocxDocument {
+        try BigStack.run { try _read(archive) }
+    }
+
+    private static func _read(_ archive: Data) throws -> DocxDocument {
         let entries = _withStandardMainPart(try Zip.read(archive))
         func part(_ name: String) -> Data? { entries.first { $0.name == name }?.data }
         /// The styles part as Word reads it: a document with `w:linkStyles` ("automatically
