@@ -760,7 +760,7 @@ final class SheetsShellState: State<StatefulWidget> {
                             color: ws.tabColor.flatMap { UInt32($0.suffix(6), radix: 16) }.map { Color(Int64(0xFF000000 | $0)) }
                                 ?? (on ? accent : Color(0x00000000)), child: SizedBox(expand: ()))),
                     ])),
-                tip: on ? "Double-click to rename" : nil, checked: on, width: nil, height: 28,
+                tip: on ? "Double-click to rename" : nil, checked: on || (wb.isGrouped && wb.groupedSheets.contains(i)), width: nil, height: 28,
                 action: { [weak self] in self?._tabClicked(i) }))))
         }
         tabs.append(Chrome.icon(FluentSystemIcons.add, "New sheet", fluent) { [weak self] in self?.wb.addSheet() })
@@ -786,7 +786,9 @@ final class SheetsShellState: State<StatefulWidget> {
             ("Move or Copy…", { [weak self] in self?.setState { self?._moveCopyFor = i } }),
             ("Tab Color…", { [weak self] in self?.setState { self?._tabColorFor = i } }),
             ("Hide Sheet", { [weak self] in self?.wb.hideSheet(i) }),
+            ("Select All Sheets", { [weak self] in self?.wb.selectAllSheets() }),
         ]
+        if wb.isGrouped { menu.append(("Ungroup Sheets", { [weak self] in self?.wb.ungroupSheets() })) }
         // Hidden sheets can be shown again; very hidden ones only by code, as in Excel.
         for (j, ws) in wb.book.sheets.enumerated() where ws.hidden && !ws.veryHidden {
             menu.append(("Unhide “\(ws.name)”", { [weak self] in self?.wb.unhideSheet(j) }))
@@ -803,6 +805,10 @@ final class SheetsShellState: State<StatefulWidget> {
             return
         }
         _lastTabClick = (i, Date())
+        // Ctrl/⌘-click adds the sheet to the group; a plain click on a sheet
+        // outside it ends the group, on one inside it keeps it, as Excel.
+        if _grid?.controlHeld == true { wb.groupSheet(i, add: true) }
+        else if !wb.groupedSheets.contains(i) { wb.ungroupSheets() }
         wb.activeSheet = i
         _grid?.focus.requestFocus()
         _syncBars()
