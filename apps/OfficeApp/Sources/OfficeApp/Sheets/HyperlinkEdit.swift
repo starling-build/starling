@@ -40,7 +40,7 @@ extension WorkbookController {
                 if (ws.cells[a]?.value.isEmpty ?? true) && ws.cells[a]?.formula == nil { setInput(shown, at: a) }
             }
         }
-        _storeLinks(ws, entries)
+        _storeLinks(ws, entries, restyle: (range, { st in st.linkStyle = true; st.underline = true; st.color = 0x0563C1 }))
     }
 
     /// Take the link off every cell of `range` (the text stays).
@@ -50,11 +50,24 @@ extension WorkbookController {
         let all = Self._linkEntries(kept)
         let left = all.filter { !$0.ref.intersects(range) }
         guard left.count != all.count else { return }
-        _storeLinks(ws, left)
+        // A cell still wearing the Hyperlink style gives it up; one the user restyled keeps its look.
+        _storeLinks(ws, left, restyle: (range, { st in if st.linkStyle { st.linkStyle = false; st.underline = false; st.color = nil } }))
     }
 
-    private func _storeLinks(_ ws: Worksheet, _ entries: [(ref: CellRange, xml: String)]) {
+    private func _storeLinks(_ ws: Worksheet, _ entries: [(ref: CellRange, xml: String)],
+                             restyle: (range: CellRange, change: (inout CellStyle) -> Void)) {
         structural {
+            for row in restyle.range.top...restyle.range.bottom {
+                for col in restyle.range.left...restyle.range.right {
+                    let a = CellAddress(row: row, col: col)
+                    var cell = ws.cells[a] ?? Cell(input: "")
+                    if ws.cells[a] == nil { cell.style = ws.defaultStyle(at: a) }
+                    var st = book.style(cell.style)
+                    restyle.change(&st)
+                    cell.style = book.styleIndex(st)
+                    ws.cells[a] = cell
+                }
+            }
             ws.keptElements.removeAll { $0.name == "hyperlinks" }
             if !entries.isEmpty {
                 ws.keptElements.append(("hyperlinks", "<hyperlinks>" + entries.map(\.xml).joined() + "</hyperlinks>"))

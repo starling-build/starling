@@ -31,6 +31,31 @@ final class SheetsHyperlinkEditTests: XCTestCase {
         XCTAssertEqual(c.sheet.cells[a(1, 1)]?.value.isEmpty, false)
     }
 
+    func testLinkWearsTheHyperlinkCellStyleAndRemoveGivesItUp() throws {
+        let c = WorkbookController()
+        let r = CellRange(a(0, 0), a(0, 0))
+        c.setInput("site", at: a(0, 0))
+        c.setLink(r, .url("https://example.com"))
+        XCTAssertTrue(c.style(at: a(0, 0)).linkStyle)
+        XCTAssertTrue(c.style(at: a(0, 0)).underline)
+        XCTAssertEqual(c.style(at: a(0, 0)).color, 0x0563C1)
+        let bytes = try Xlsx.write(c.book)
+        let styles = String(decoding: try XCTUnwrap(Zip.read(bytes).first { $0.name == "xl/styles.xml" }).data, as: UTF8.self)
+        XCTAssertTrue(styles.containsSubstring("name=\"Hyperlink\" xfId=\"1\" builtinId=\"8\""), styles)
+        XCTAssertTrue(styles.containsSubstring("<cellStyleXfs count=\"2\">"), styles)
+        let c2 = WorkbookController(); c2.load(try Xlsx.read(bytes))
+        XCTAssertTrue(c2.style(at: a(0, 0)).linkStyle, "the look survives a save and open")
+        c2.removeLink(r)
+        XCTAssertFalse(c2.style(at: a(0, 0)).linkStyle)
+        XCTAssertFalse(c2.style(at: a(0, 0)).underline)
+        XCTAssertNil(c2.style(at: a(0, 0)).color)
+        // A cell the user restyled keeps its own look when the link goes.
+        c2.setLink(r, .url("https://example.com"))
+        c2.setStyle({ $0.linkStyle = false; $0.color = 0xFF0000 }, range: r)
+        c2.removeLink(r)
+        XCTAssertEqual(c2.style(at: a(0, 0)).color, 0xFF0000)
+    }
+
     func testRelationshipIsMarkedExternal() throws {
         let c = WorkbookController()
         c.setLink(CellRange(a(0, 0), a(0, 0)), .url("https://example.com"))

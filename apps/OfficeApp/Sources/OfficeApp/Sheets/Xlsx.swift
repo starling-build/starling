@@ -736,8 +736,10 @@ enum Xlsx {
             borders.append(bd)
         }
         var out: [CellStyle] = []
+        let linkXf = st.child("cellStyles")?.kids("cellStyle").first { $0["builtinId"] == "8" }?["xfId"]
         for xf in st.child("cellXfs")?.kids("xf") ?? [] {
             var s = CellStyle()
+            if let linkXf, xf["xfId"] == linkXf { s.linkStyle = true }
             if let id = Int(xf["numFmtId"] ?? "0") { s.numberFormat = formats[id] ?? "General" }
             if let fi = Int(xf["fontId"] ?? "0"), fi < fonts.count {
                 let f = fonts[fi]
@@ -1662,6 +1664,8 @@ enum Xlsx {
         let fileCustom = Set(custom.values)
         var nextFmt = max(163, custom.values.max() ?? 163) + 1
         var xfs: [String] = []
+        var styleXfs = src?.cellStyleXfs, styleNames = src?.cellStyles
+        var linkXfId: String? = nil, newLinkXf: String? = nil
         for (i, st) in book.styles.enumerated() {
             // A format the file had, unchanged: exactly as it was.
             if let src, i < src.xfs.count, st.baseXf == i {
@@ -1729,7 +1733,19 @@ enum Xlsx {
             if fmtId < 0 {
                 if let c = custom[st.numberFormat] { fmtId = c } else { fmtId = nextFmt; nextFmt += 1; custom[st.numberFormat] = fmtId }
             }
-            let xfId = base?.xf.attrs["xfId"] ?? "0"
+            var xfId = base?.xf.attrs["xfId"] ?? "0"
+            if st.linkStyle {
+                if linkXfId == nil {
+                    // The file's own Hyperlink cell style (builtinId 8), or one added after the others.
+                    if let id = styleNames.flatMap({ XNode.parse(Data($0.utf8)) })?.kids("cellStyle").first(where: { $0["builtinId"] == "8" })?["xfId"] { linkXfId = id }
+                    else {
+                        let count = styleXfs.flatMap { XNode.parse(Data($0.utf8)) }.map { $0.kids("xf").count } ?? 1
+                        linkXfId = "\(count)"
+                        newLinkXf = "<xf numFmtId=\"0\" fontId=\"\(fontId)\" fillId=\"0\" borderId=\"0\" applyNumberFormat=\"0\" applyFill=\"0\" applyBorder=\"0\" applyAlignment=\"0\" applyProtection=\"0\"/>"
+                    }
+                }
+                xfId = linkXfId ?? "0"
+            }
             var xf = "<xf numFmtId=\"\(fmtId)\" fontId=\"\(fontId)\" fillId=\"\(fillId)\" borderId=\"\(borderId)\" xfId=\"\(xfId)\""
             if fmtId != 0 { xf += " applyNumberFormat=\"1\"" }
             if fontId != 0 { xf += " applyFont=\"1\"" }
@@ -1780,9 +1796,22 @@ enum Xlsx {
         s += open("fonts", fonts.count) + fonts.joined() + "</fonts>"
         s += open("fills", fills.count) + fills.joined() + "</fills>"
         s += open("borders", borders.count) + borders.joined() + "</borders>"
-        s += src?.cellStyleXfs ?? "<cellStyleXfs count=\"1\"><xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"0\"/></cellStyleXfs>"
+        func bumped(_ text: String, adding item: String, before close: String) -> String {
+            var t = text
+            if let r = t.findRange(of: " count=\""), let q = t.findRange(of: "\"", in: r.upperBound ..< t.endIndex), let n = Int(t[r.upperBound ..< q.lowerBound]) {
+                t.replaceSubrange(r.upperBound ..< q.lowerBound, with: "\(n + 1)")
+            }
+            if let c = t.findRange(of: close) { t.insert(contentsOf: item, at: c.lowerBound) }
+            return t
+        }
+        if let x = newLinkXf {
+            styleXfs = bumped(styleXfs ?? "<cellStyleXfs count=\"1\"><xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"0\"/></cellStyleXfs>", adding: x, before: "</cellStyleXfs>")
+            styleNames = bumped(styleNames ?? "<cellStyles count=\"1\"><cellStyle name=\"Normal\" xfId=\"0\" builtinId=\"0\"/></cellStyles>",
+                                adding: "<cellStyle name=\"Hyperlink\" xfId=\"\(linkXfId ?? "1")\" builtinId=\"8\"/>", before: "</cellStyles>")
+        }
+        s += styleXfs ?? "<cellStyleXfs count=\"1\"><xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"0\"/></cellStyleXfs>"
         s += open("cellXfs", xfs.count) + xfs.joined() + "</cellXfs>"
-        s += src?.cellStyles ?? "<cellStyles count=\"1\"><cellStyle name=\"Normal\" xfId=\"0\" builtinId=\"0\"/></cellStyles>"
+        s += styleNames ?? "<cellStyles count=\"1\"><cellStyle name=\"Normal\" xfId=\"0\" builtinId=\"0\"/></cellStyles>"
         // The file's own differential formats, table styles, palette and
         // extensions, in schema order (conditional formats point at dxfs by index).
         s += book.keptStyleParts["dxfs"] ?? "<dxfs count=\"0\"/>"
