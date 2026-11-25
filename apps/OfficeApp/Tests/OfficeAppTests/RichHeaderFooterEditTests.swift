@@ -34,4 +34,16 @@ final class RichHeaderFooterEditTests: XCTestCase {
         XCTAssertTrue(c.document.headerFooters.isEmpty)
         XCTAssertEqual(c.document.header, "")
     }
+
+    /// Set HEADER_EDITED_OUT to a path to save the document for a check in Word.
+    func testWriteForWordCheck() throws {
+        guard let out = ProcessInfo.processInfo.environment["HEADER_EDITED_OUT"] else { return }
+        let c = RichDocumentController(document: RichDocument(paragraphs: [RichParagraph(text: "Body text of the page.")]))
+        c.setRichHeaderFooter(.header, paragraphs: formatted())
+        var page = CharStyle(); page.field = "PAGE"; page.italic = true
+        var f = RichParagraph(text: "Page 3", runs: [Run(length: 5, style: { var s = CharStyle(); s.italic = true; return s }()), Run(length: 1, style: page)])
+        f.style.alignment = .right
+        c.setRichHeaderFooter(.footer, paragraphs: [f])
+        try DocxFormat.write(c.document, pageSetup: .letter).write(to: URL(fileURLWithPath: out))
+    }
 }
