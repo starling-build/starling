@@ -670,12 +670,21 @@ final class DeepGroupTests: XCTestCase {
         XCTAssertEqual(deck.selectedTableOptions, DeckController.TableOptions(headerRow: true, bandedRows: true))
         deck.setTableOptions(DeckController.TableOptions(headerRow: false, bandedRows: false))
         XCTAssertEqual(deck.selectedTableOptions, DeckController.TableOptions(headerRow: false, bandedRows: false))
+        // The first row's text look follows the header: plain with it off, white bold with it on.
+        func firstRunStyle() -> CharStyle? { t.text?.document.paragraphs.first?.runs.first?.style }
+        XCTAssertEqual(firstRunStyle()?.bold, false)
+        XCTAssertNil(firstRunStyle()?.color)
+        deck.setTableOptions(DeckController.TableOptions(headerRow: true, bandedRows: false))
+        XCTAssertEqual(firstRunStyle()?.bold, true)
+        XCTAssertEqual(firstRunStyle()?.color, Color(0xFFFFFFFF))
+        deck.setTableOptions(DeckController.TableOptions(headerRow: false, bandedRows: false))
         let (state, _, _) = try Pptx.read(Pptx.write(deck))
         let again = DeckController(); again.restore(state)
         again.selectShapes(again.slides[0].shapes.filter { $0.kind == .table })
         XCTAssertEqual(again.selectedTableOptions, DeckController.TableOptions(headerRow: false, bandedRows: false))
-        deck.undo()
+        deck.undo(); deck.undo(); deck.undo()
         deck.selectShapes(deck.slides[0].shapes.filter { $0.kind == .table })
         XCTAssertEqual(deck.selectedTableOptions, DeckController.TableOptions(headerRow: true, bandedRows: true))
+        XCTAssertEqual(firstRunStyle()?.color, Color(0xFFFFFFFF))
     }
 }

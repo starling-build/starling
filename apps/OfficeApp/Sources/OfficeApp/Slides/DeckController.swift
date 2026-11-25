@@ -1030,6 +1030,24 @@ final class DeckController: ChangeNotifier {
         st.headerFill = o.headerRow ? (st.headerFill ?? look.headerFill) : nil
         st.bandFill = o.bandedRows ? (st.bandFill ?? look.bandFill) : nil
         st.bandAltFill = o.bandedRows ? (st.bandAltFill ?? look.bandAltFill) : nil
+        // The first row's text look follows the header: white and bold on the
+        // header fill, plain when there is none.
+        if o.headerRow != selectedTableOptions?.headerRow {
+            let white = Color(0xFFFFFFFF)
+            for i in doc.paragraphs.indices where doc.paragraphs[i].cell?.table == id && doc.paragraphs[i].cell?.row == 0 {
+                var runs = doc.paragraphs[i].runs ?? [Run(length: doc.paragraphs[i].text.count)]
+                for j in runs.indices {
+                    if o.headerRow {
+                        runs[j].style.bold = true
+                        runs[j].style.color = white
+                    } else {
+                        runs[j].style.bold = false
+                        if runs[j].style.color == white { runs[j].style.color = nil }
+                    }
+                }
+                doc.paragraphs[i].runs = runs
+            }
+        }
         doc.tableStyles[id] = st
         text.load(doc)
         _changed()
