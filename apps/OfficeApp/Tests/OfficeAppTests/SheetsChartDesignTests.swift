@@ -91,6 +91,11 @@ final class SheetsChartDesignTests: XCTestCase {
         let j = back.sheet.drawings.firstIndex(where: { $0.isChart })!
         back.setChartTitle(j, "From file"); back.setChartLegend(j, position: "t")
         try Xlsx.write(back.book).write(to: URL(fileURLWithPath: dir + "/chartfile.xlsx"))
+        // And with axis titles: "Month" under the categories, "Total sales" up the value axis.
+        back.setChartAxisTitles(j, category: "Month", value: "Total sales")
+        try Xlsx.write(back.book).write(to: URL(fileURLWithPath: dir + "/chartaxis.xlsx"))
+        c.setChartAxisTitles(i, category: "Month", value: "Total sales")
+        try Xlsx.write(c.book).write(to: URL(fileURLWithPath: dir + "/chartaxis-new.xlsx"))
     }
 
     /// Element and attribute names (with counts) in a chart part.
@@ -115,6 +120,28 @@ final class SheetsChartDesignTests: XCTestCase {
         return out
     }
 
+    func testAxisTitlesOnAFileChartAndOnePatchedByHand() throws {
+        let (c, _) = chartBook()
+        let back = WorkbookController(); back.load(try Xlsx.read(try Xlsx.write(c.book)))
+        let j = back.sheet.drawings.firstIndex(where: { $0.isChart })!
+        back.setChartAxisTitles(j, category: "Month", value: "Total & more")
+        if let o = ProcessInfo.processInfo.environment["XDUMP"] { try Xlsx.write(back.book).write(to: URL(fileURLWithPath: o)) }
+        XCTAssertNil(back.chartNotice)
+        let again = try Xlsx.read(try Xlsx.write(back.book))
+        guard let d = again.sheets[0].drawings.first(where: { $0.isChart }), case .chart(let sc) = d.kind else { return XCTFail("no chart") }
+        XCTAssertEqual(sc.chart.categoryAxisTitle, "Month")
+        XCTAssertEqual(sc.chart.valueAxisTitle, "Total & more")
+        back.setChartAxisTitles(j, category: nil, value: nil)
+        let off = try Xlsx.read(try Xlsx.write(back.book))
+        guard let d2 = off.sheets[0].drawings.first(where: { $0.isChart }), case .chart(let s2) = d2.kind else { return XCTFail("no chart") }
+        XCTAssertNil(s2.chart.categoryAxisTitle); XCTAssertNil(s2.chart.valueAxisTitle)
+        let xml = "<c:plotArea><c:catAx><c:axId val=\"1\"/><c:axPos val=\"b\"/><c:numFmt/><c:crossAx val=\"2\"/></c:catAx><c:valAx><c:axId val=\"2\"/><c:axPos val=\"l\"/><c:majorGridlines><c:spPr/></c:majorGridlines><c:title><c:tx><c:rich><a:p><a:r><a:t>Old</a:t></a:r></a:p></c:rich></c:tx></c:title><c:numFmt/></c:valAx></c:plotArea>"
+        let t = ChartPartPatch.axisTitle(ChartPartPatch.axisTitle(xml, .category, .set("X")), .value, .set("Y"))
+        XCTAssertTrue(t.contains("<c:axPos val=\"b\"/><c:title><c:tx><c:rich><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>X</a:t></a:r></a:p></c:rich></c:tx><c:overlay val=\"0\"/></c:title><c:numFmt/>"))
+        XCTAssertTrue(t.contains("<a:t>Y</a:t>")); XCTAssertFalse(t.contains("Old"))
+        XCTAssertFalse(ChartPartPatch.axisTitle(xml, .value, .remove).contains("<c:title>"))
+    }
+
     /// A chart part without its own title, its legend and autoTitleDeleted (what an edit may change), as one string.
     private func strip(_ xml: String) -> String {
         var x = xml
@@ -124,6 +151,17 @@ final class SheetsChartDesignTests: XCTestCase {
         }
         cut("<c:title>", "</c:title>", before: "<c:plotArea>")
         cut("<c:legend>", "</c:legend>")
+        for tag in ["catAx", "dateAx", "valAx"] {
+            var from = x.startIndex
+            while let o = x.findRange(of: "<c:\(tag)>", in: from ..< x.endIndex), let c = x.findRange(of: "</c:\(tag)>", in: o.upperBound ..< x.endIndex) {
+                var ax = String(x[o.lowerBound ..< c.upperBound])
+                if let t0 = ax.findRange(of: "<c:title>", in: ax.startIndex ..< ax.endIndex), let t1 = ax.findRange(of: "</c:title>", in: t0.upperBound ..< ax.endIndex) {
+                    ax.removeSubrange(t0.lowerBound ..< t1.upperBound)
+                    x.replaceSubrange(o.lowerBound ..< c.upperBound, with: ax)
+                }
+                from = x.findRange(of: "</c:\(tag)>", in: o.lowerBound ..< x.endIndex)!.upperBound
+            }
+        }
         if let o = x.findRange(of: "<c:autoTitleDeleted ", in: x.startIndex ..< x.endIndex), let c = x.findRange(of: "/>", in: o.upperBound ..< x.endIndex) { x.removeSubrange(o.lowerBound ..< c.upperBound) }
         return x
     }
@@ -145,7 +183,7 @@ final class SheetsChartDesignTests: XCTestCase {
             var any = false
             for si in 0 ..< c.book.sheets.count {
                 c.activeSheet = si
-                for (j, d) in c.sheet.drawings.enumerated() { if d.isChart { charts += 1; any = true; c.setChartTitle(j, "Round trip"); c.setChartLegend(j, position: "t") } }
+                for (j, d) in c.sheet.drawings.enumerated() { if d.isChart { charts += 1; any = true; c.setChartTitle(j, "Round trip"); c.setChartLegend(j, position: "t"); c.setChartAxisTitles(j, category: "Cat & <x>", value: "Val") } }
             }
             guard any, let out = try? Xlsx.write(c.book), let outEntries = try? Zip.read(out) else { continue }
             let was = Dictionary(entries.map { ($0.name, $0.data) }, uniquingKeysWith: { a, _ in a })

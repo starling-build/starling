@@ -51,6 +51,8 @@ struct SheetChart: Equatable {
     /// A title or legend changed here on the file's own chart: the save patches those two elements of its part.
     var titleEdit: ChartPartEdit? = nil
     var legendEdit: ChartPartEdit? = nil
+    var catTitleEdit: ChartPartEdit? = nil
+    var valTitleEdit: ChartPartEdit? = nil
     /// Every `<c:f>` in that part (series, titles, labels…): as read → as
     /// it reads now, after rows, columns or sheets moved. A save rewrites
     /// the part's references through it and keeps everything else.
@@ -72,7 +74,7 @@ struct SheetChart: Equatable {
     var pivotSeries: [String] = []
 
     static func == (a: SheetChart, b: SheetChart) -> Bool {
-        a.chart == b.chart && a.path == b.path && a.titleEdit == b.titleEdit && a.legendEdit == b.legendEdit && a.formulas == b.formulas && a.refs.count == b.refs.count
+        a.chart == b.chart && a.path == b.path && a.titleEdit == b.titleEdit && a.legendEdit == b.legendEdit && a.catTitleEdit == b.catTitleEdit && a.valTitleEdit == b.valTitleEdit && a.formulas == b.formulas && a.refs.count == b.refs.count
             && zip(a.refs, b.refs).allSatisfy { $0.name == $1.name && $0.cat == $1.cat && $0.val == $1.val }
     }
 }
@@ -562,13 +564,15 @@ extension SheetDrawingsXML {
         var shapeId = 2
         for d in ws.drawings {
             shapeId += 1
-            if case .chart(let sc) = d.kind, let path = sc.path, sc.formulasChanged || sc.retype != nil || sc.titleEdit != nil || sc.legendEdit != nil, let bytes = original[path] {
+            if case .chart(let sc) = d.kind, let path = sc.path, sc.formulasChanged || sc.retype != nil || sc.titleEdit != nil || sc.legendEdit != nil || sc.catTitleEdit != nil || sc.valTitleEdit != nil, let bytes = original[path] {
                 // The file's own chart, its references moved with the cells.
                 var xml = String(decoding: bytes, as: UTF8.self)
                 if sc.formulasChanged { xml = _rewriteFormulas(xml, sc.formulas) }
                 if let t = sc.retype { xml = _retypeBars(xml, t) }
                 if let e = sc.titleEdit { xml = ChartPartPatch.title(xml, e) }
                 if let e = sc.legendEdit { xml = ChartPartPatch.legend(xml, e) }
+                if let e = sc.catTitleEdit { xml = ChartPartPatch.axisTitle(xml, .category, e) }
+                if let e = sc.valTitleEdit { xml = ChartPartPatch.axisTitle(xml, .value, e) }
                 out.parts[path] = Data(xml.utf8)
             }
             if let raw = d.raw {
@@ -972,6 +976,8 @@ extension WorkbookController {
             if chart.title != sc.chart.title || chart.autoTitle != sc.chart.autoTitle {
                 sc.titleEdit = chart.title.map { .set($0) } ?? .remove
             }
+            if chart.categoryAxisTitle != sc.chart.categoryAxisTitle { sc.catTitleEdit = chart.categoryAxisTitle.map { .set($0) } ?? .remove }
+            if chart.valueAxisTitle != sc.chart.valueAxisTitle { sc.valTitleEdit = chart.valueAxisTitle.map { .set($0) } ?? .remove }
             if chart.legend != sc.chart.legend || chart.legendPosition != sc.chart.legendPosition {
                 sc.legendEdit = chart.legend ? .set(chart.legendPosition) : .remove
             }
@@ -992,6 +998,10 @@ extension WorkbookController {
     }
 
     /// Chart Design → Add Chart Element → Legend: its side ("b", "t", "r", "l"), or nil for none.
+    /// Both axis titles at once (nil takes one off); nothing on a chart without axes.
+    func setChartAxisTitles(_ index: Int, category: String?, value: String?) {
+        editChart(index) { guard $0.type.hasAxes else { return }; $0.categoryAxisTitle = category; $0.valueAxisTitle = value }
+    }
     func setChartLegend(_ index: Int, position: String?) {
         editChart(index) {
             $0.legend = position != nil
