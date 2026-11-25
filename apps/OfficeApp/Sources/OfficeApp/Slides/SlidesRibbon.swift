@@ -25,6 +25,7 @@ extension Ribbon {
         case .view: return _slidesView(fluent)
         case .pictureFormat: return _slidePictureFormat(deck, fluent)
         case .chartDesign: return _chartDesign(deck, fluent)
+        case .tableDesign: return _slideTableDesign(deck, fluent)
         case .animations: return _animationsTab(deck, fluent)
         default: return nil
         }
@@ -107,6 +108,9 @@ extension Ribbon {
             MenuFlyoutItem(text: Text("Bring Forward"), onPressed: some ? { deck.arrange(.forward) } : nil),
             MenuFlyoutItem(text: Text("Send Backward"), onPressed: some ? { deck.arrange(.backward) } : nil),
             MenuFlyoutSeparator(),
+            MenuFlyoutItem(text: Text("Group"), onPressed: deck.canGroup ? { deck.groupSelection() } : nil),
+            MenuFlyoutItem(text: Text("Ungroup"), onPressed: deck.canUngroup ? { deck.ungroupSelection() } : nil),
+            MenuFlyoutSeparator(),
             MenuFlyoutItem(text: Text("Align Left"), onPressed: some ? { deck.align(.left) } : nil),
             MenuFlyoutItem(text: Text("Align Center"), onPressed: some ? { deck.align(.center) } : nil),
             MenuFlyoutItem(text: Text("Align Right"), onPressed: some ? { deck.align(.right) } : nil),
@@ -126,6 +130,10 @@ extension Ribbon {
                                  none: "No Fill") { color in deck.setFill(color) },
                 Chrome.colorMenu(FluentSystemIcons.edit, "Shape Outline", fluent, colors: palette,
                                  none: "No Outline") { color in deck.setOutline(color) },
+            ]),
+            Chrome.vgap(4),
+            Chrome.row([
+                Chrome.small(FluentSystemIcons.textT, "Text Options", fluent) { [session] in session.onTextOptions?() },
             ]),
         ])])
     }
@@ -507,5 +515,22 @@ extension Ribbon {
                 Padding(key: ValueKey("view.fit"), padding: EdgeInsets(left: 0, top: 0, right: 0, bottom: 0), child: Chrome.big(FluentSystemIcons.pageFit, "Fit to Window", fluent) { [session] in session.deck?.fitView() }),
             ]),
         ]
+    }
+}
+
+extension Ribbon {
+    /// Table Design: the table's header row and banded rows, each one undo step.
+    func _slideTableDesign(_ deck: DeckController, _ fluent: FluentThemeData) -> [Widget] {
+        let o = deck.selectedTableOptions ?? DeckController.TableOptions()
+        return [Chrome.group("Table Style Options", fluent, [
+            Chrome.rows([
+                Chrome.textToggle("Header Row", o.headerRow, fluent) {
+                    var n = o; n.headerRow.toggle(); deck.setTableOptions(n)
+                },
+                Chrome.textToggle("Banded Rows", o.bandedRows, fluent) {
+                    var n = o; n.bandedRows.toggle(); deck.setTableOptions(n)
+                },
+            ]),
+        ])]
     }
 }

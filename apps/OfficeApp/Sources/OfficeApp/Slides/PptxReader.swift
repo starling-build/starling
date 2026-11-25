@@ -2041,6 +2041,9 @@ struct SlideContext {
         st.generatedHang = text.generatedHang
         st.noWrap = text.noWrap || frameless
         st.anchorCentred = text.anchorCentred
+        st.bodyVert = text.bodyVert
+        st.bodyWrap = text.bodyWrap
+        st.fitRule = text.fitRule
         st.keepsFirstSpace = text.keepsFirstSpace
         st.textTurn = text.textTurn
         st.textStacked = text.textStacked

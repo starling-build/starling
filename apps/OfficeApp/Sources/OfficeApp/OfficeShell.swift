@@ -72,6 +72,7 @@ final class OfficeShellState: State<StatefulWidget> {
     private var _findDialogOpen = false
     private var _symbolOpen = false
     private var _fontOpen = false
+    private var _pageSetupOpen = false
     private let _colorText = TextEditingController()
     private var _styleOpen: String? = nil
     private let _linkText = TextEditingController()
@@ -88,6 +89,8 @@ final class OfficeShellState: State<StatefulWidget> {
     private var _recovered = false
     private let _headerText = TextEditingController()
     private let _footerText = TextEditingController()
+    private var _headerLook = RichDocumentController.HeaderFooterLook()
+    private var _footerLook = RichDocumentController.HeaderFooterLook()
 
     private var controller: RichDocumentController { session.controller }
 
@@ -360,6 +363,8 @@ final class OfficeShellState: State<StatefulWidget> {
             guard let self else { return }
             self._headerText.text = self.controller.document.header
             self._footerText.text = self.controller.document.footer
+            self._headerLook = self.controller.headerFooterLook(.header)
+            self._footerLook = self.controller.headerFooterLook(.footer)
             self.setState { self._headerFooterOpen = true }
         }
         session.onLink = { [weak self] in self?._openLink() }
@@ -377,6 +382,11 @@ final class OfficeShellState: State<StatefulWidget> {
             guard let self else { return }
             self.controller.breakUndoCoalescing()
             self.setState { self._fontOpen = true }
+        }
+        session.onPageSetupDialog = { [weak self] in
+            guard let self else { return }
+            self.controller.breakUndoCoalescing()
+            self.setState { self._pageSetupOpen = true }
         }
         session.onMoreColors = { [weak self] in
             guard let self else { return }
@@ -1190,10 +1200,17 @@ final class OfficeShellState: State<StatefulWidget> {
             column.append(HeaderFooterBar(session: session, header: _headerText, footer: _footerText,
                                           headerLocked: controller.document.hasRichHeaderFooter(.header),
                                           footerLocked: controller.document.hasRichHeaderFooter(.footer),
+                                          headerLook: _headerLook, footerLook: _footerLook,
+                                          onLook: { [weak self] isHeader, look in
+                                              self?.setState { if isHeader { self?._headerLook = look } else { self?._footerLook = look } }
+                                          },
                                           onApply: { [weak self] in
                                               guard let self else { return }
-                                              self.controller.setHeaderFooter(header: self._headerText.text,
-                                                                              footer: self._footerText.text)
+                                              self.controller.applyHeaderFooterStrip(
+                                                  header: self._headerText.text, footer: self._footerText.text,
+                                                  headerLook: self._headerLook, footerLook: self._footerLook,
+                                                  headerLocked: self.controller.document.hasRichHeaderFooter(.header),
+                                                  footerLocked: self.controller.document.hasRichHeaderFooter(.footer))
                                               self.setState { self._headerFooterOpen = false }
                                           },
                                           onClose: { [weak self] in self?.setState { self?._headerFooterOpen = false } }))
@@ -1251,6 +1268,27 @@ final class OfficeShellState: State<StatefulWidget> {
                     },
                     onCancel: { [weak self] in
                         self?.setState { self?._fontOpen = false }
+                        self?._editorFocus.requestFocus()
+                    })),
+            ])
+        }
+        if _pageSetupOpen {
+            let sections = controller.document.paragraphs.filter { $0.cell == nil && $0.style.sectionPage != nil }.count + 1
+            return Stack(children: [
+                window,
+                Positioned(left: 0, top: 0, right: 0, bottom: 0, child: PageSetupDialog(
+                    initial: session.sectionSetup(), sectionCount: sections,
+                    onOK: { [weak self] v in
+                        guard let self else { return }
+                        self.setState {
+                            self.controller.changePageSetup(allSections: v.allSections, lastSetup: self.session.pageSetup) { v.apply(to: &$0) }
+                            self.session.syncPageSetup()
+                            self._pageSetupOpen = false
+                        }
+                        self._editorFocus.requestFocus()
+                    },
+                    onCancel: { [weak self] in
+                        self?.setState { self?._pageSetupOpen = false }
                         self?._editorFocus.requestFocus()
                     })),
             ])

@@ -158,6 +158,49 @@ final class UIShellHarnessTests: XCTestCase {
         XCTAssertTrue(ui.tap(text: "OK"))
         XCTAssertEqual(pic.altText, "A red square")
     }
+
+    func testTextOptionsButtonOpensTheDialogAndAppliesOrCancels() throws {
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: SlidesShell(initialPath: nil, startBlank: true, onSwitch: { _, _ in }), title: "Test"), size: Size(1280, 800))
+        let shell = try XCTUnwrap(ui.state(SlidesShellState.self))
+        let deck = try XCTUnwrap(shell.session.deck)
+        let box = deck.addTextBox(at: Rect.fromLTWH(100, 100, 300, 120))
+        deck.selectShapes([box])
+        ui.pump()
+        let before = try XCTUnwrap(deck.selectedTextOptions)
+        XCTAssertTrue(ui.tap(text: "Text Options"))
+        XCTAssertTrue(ui.has(text: "Vertical position"))
+        XCTAssertTrue(ui.tap(id: "text-anchor-middle"))
+        XCTAssertTrue(ui.press(.escape))
+        XCTAssertEqual(deck.selectedTextOptions, before)
+        XCTAssertTrue(ui.tap(text: "Text Options"))
+        XCTAssertTrue(ui.tap(id: "text-anchor-middle"))
+        XCTAssertTrue(ui.tap(id: "text-dir-rotate270"))
+        XCTAssertTrue(ui.tap(id: "text-fit-shrink"))
+        XCTAssertTrue(ui.tap(id: "text-wrap"))
+        XCTAssertTrue(ui.tap(text: "OK"))
+        let o = try XCTUnwrap(deck.selectedTextOptions)
+        XCTAssertEqual(o.anchor, .middle)
+        XCTAssertEqual(o.direction, .rotate270)
+        XCTAssertEqual(o.fit, .shrink)
+        XCTAssertEqual(o.wrap, !before.wrap)
+    }
+
+    /// S-TB-1a: selecting a table opens Table Design; its two switches reach the deck.
+    func testSelectedTableOpensTableDesignAndTheSwitchesApply() throws {
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: SlidesShell(initialPath: nil, startBlank: true, onSwitch: { _, _ in }), title: "Test"), size: Size(1280, 800))
+        let shell = try XCTUnwrap(ui.state(SlidesShellState.self))
+        let deck = try XCTUnwrap(shell.session.deck)
+        let t = deck.addTable(rows: 2, columns: 2)
+        deck.selectShapes([t])
+        ui.pump()
+        XCTAssertTrue(ui.has(text: "Table Design"))
+        XCTAssertTrue(ui.tap(text: "Header Row"))
+        XCTAssertEqual(deck.selectedTableOptions?.headerRow, false)
+        XCTAssertTrue(ui.tap(text: "Banded Rows"))
+        XCTAssertEqual(deck.selectedTableOptions?.bandedRows, false)
+        XCTAssertTrue(ui.tap(text: "Header Row"))
+        XCTAssertEqual(deck.selectedTableOptions?.headerRow, true)
+    }
 }
 
 /// X-P0-3: the Sheets title bar's Undo and Redo follow the workbook, and Find names the workbook.

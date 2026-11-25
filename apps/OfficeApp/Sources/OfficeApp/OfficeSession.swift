@@ -310,11 +310,13 @@ final class OfficeSession {
     var onHeaderFooter: (() -> Void)?
     /// Slides Picture Format > Alt Text: open the dialog for the selected picture.
     var onAltText: (() -> Void)?
+    var onTextOptions: (() -> Void)?
     var onLink: (() -> Void)?
     var onSymbolDialog: (() -> Void)?
     var onMoreColors: (() -> Void)?
     var onParagraphDialog: (() -> Void)?
     var onFontDialog: (() -> Void)?
+    var onPageSetupDialog: (() -> Void)?
     var onModifyStyle: ((String) -> Void)?
     /// Slides: Cut / Copy / Paste of the selected shapes. Each returns true
     /// when it handled the command, false to fall through to the text path.

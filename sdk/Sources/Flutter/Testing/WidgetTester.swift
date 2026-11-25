@@ -96,11 +96,11 @@ public final class WidgetTester {
     public func has(text label: String) -> Bool { centre(ofText: label) != nil }
 
     /// Presses and lifts a pointer at `position`, as the app's pointer handler does.
-    public func tap(at position: Offset) {
+    public func tap(at position: Offset, buttons: Int = kPrimaryButton) {
         let pointer = nextPointer; nextPointer += 1
         let gb = WidgetTester.gestures!
         var hit: HitTestResult?
-        for event in [PointerDownEvent(pointer: pointer, position: position) as PointerEvent,
+        for event in [PointerDownEvent(pointer: pointer, position: position, buttons: buttons) as PointerEvent,
                       PointerUpEvent(pointer: pointer, position: position)] {
             if event is PointerDownEvent {
                 hit = HitTestResult()

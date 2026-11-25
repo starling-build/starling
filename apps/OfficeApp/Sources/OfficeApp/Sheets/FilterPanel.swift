@@ -81,7 +81,7 @@ final class FilterPanelState: State<StatefulWidget> {
         let fluent = FluentTheme.of(context)
         let c = _w.controller
         let col = _w.col
-        let filtered = c.sheet.autoFilter?.columns[col] != nil
+        let filtered = c.sheet.autoFilter?.columns[col] != nil || c.sheet.autoFilter?.rules[col] != nil
         let header = CellAddress.columnName(col)
         let title = c.filterText(CellAddress(row: c.sheet.autoFilter?.range.top ?? 0, col: col))
         let name = title.isEmpty ? "Column \(header)" : "“\(title)”"
@@ -119,6 +119,10 @@ final class FilterPanelState: State<StatefulWidget> {
                 action(FluentSystemIcons.close, "Clear Filter From \(name)", enabled: filtered) {
                     c.setFilter(col: col, allowed: nil)
                 },
+                action(FluentSystemIcons.grid, "Number Filters…") { c.onCommand?(.columnFilter(col: col, kind: "Number")) },
+                action(FluentSystemIcons.grid, "Text Filters…") { c.onCommand?(.columnFilter(col: col, kind: "Text")) },
+                action(FluentSystemIcons.grid, "Date Filters…") { c.onCommand?(.columnFilter(col: col, kind: "Date")) },
+                action(FluentSystemIcons.paintBrush, "Filter by Colour…") { c.onCommand?(.columnFilter(col: col, kind: "Colour")) },
                 Chrome.gap(6),
                 SizedBox(width: nil, height: 30, child: FluentTextBox(
                     controller: _search, placeholderText: "Search",

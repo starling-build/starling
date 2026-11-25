@@ -99,6 +99,9 @@ extension WorkbookController {
                     var cols: [Int: Set<String>] = [:]
                     for (c, v) in af.columns { if let j = moved(c) { cols[j] = v } }
                     af.columns = cols
+                    var rules: [Int: FilterRule] = [:]
+                    for (c, v) in af.rules { if let j = moved(c) { rules[j] = v } }
+                    af.rules = rules
                 }
                 af.raw = nil
                 ws.autoFilter = af

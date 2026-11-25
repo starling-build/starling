@@ -107,6 +107,9 @@ struct ShapeState: Equatable {
     var uprightInsets = EdgeInsets.zero
     var noWrap = false
     var anchorCentred = false
+    var bodyVert: String? = nil
+    var bodyWrap: String? = nil
+    var fitRule: String? = nil
     var keepsFirstSpace = false
     var columns = 1
     var columnGap = 0.0
@@ -982,6 +985,112 @@ final class DeckController: ChangeNotifier {
     /// The alt text of the first selected picture, for the dialog to start from.
     var selectedAltText: String? { selection.first { $0.picture != nil }?.altText }
 
+    // MARK: Text box options (S-TX-2)
+
+    /// What a shape's text box says about its text: where the text sits, which way it runs, whether it wraps, how it fits, its margins, its columns.
+    struct TextOptions: Equatable {
+        enum Direction { case horizontal, rotate90, rotate270, stacked }
+        enum Fit { case none, shrink, resize }
+        var anchor: TextAnchor = .top
+        var direction = Direction.horizontal
+        var wrap = true
+        var fit = Fit.none
+        var insets = EdgeInsets(left: 7.2, top: 3.6, right: 7.2, bottom: 3.6)
+        var columns = 1
+        var columnGap = 0.0
+    }
+
+    private var _textShapes: [SlideShape] { selection.filter { $0.text != nil && $0.picture == nil } }
+
+    /// A table's look switches: the header row's fill and the banded rows.
+    struct TableOptions: Equatable {
+        var headerRow = true
+        var bandedRows = true
+    }
+
+    /// The look switches of the selected table, nil when none is selected.
+    var selectedTableOptions: TableOptions? {
+        guard let s = selection.first, s.kind == .table, let id = s.tableId, let doc = s.text?.document else { return nil }
+        let st = doc.tableStyles[id] ?? TableStyle()
+        // Banding is on when the two band colours differ: a file with banding off
+        // reads back with both set to the table's own background.
+        return TableOptions(headerRow: st.headerRow, bandedRows: st.bandFill != nil && st.bandFill != st.bandAltFill)
+    }
+
+    /// Set the selected table's header row and banded rows: one undo step.
+    /// Turning one back on restores the theme-accent look.
+    func setTableOptions(_ o: TableOptions) {
+        guard let s = selection.first, s.kind == .table, let id = s.tableId, let text = s.text,
+              o != selectedTableOptions else { return }
+        _checkpoint()
+        var doc = text.document
+        var st = doc.tableStyles[id] ?? TableStyle()
+        let look = tableStyle(accent: theme.accents[0])
+        st.headerRow = o.headerRow
+        st.headerFill = o.headerRow ? (st.headerFill ?? look.headerFill) : nil
+        st.bandFill = o.bandedRows ? (st.bandFill ?? look.bandFill) : nil
+        st.bandAltFill = o.bandedRows ? (st.bandAltFill ?? look.bandAltFill) : nil
+        // The first row's text look follows the header: white and bold on the
+        // header fill, plain when there is none.
+        if o.headerRow != selectedTableOptions?.headerRow {
+            let white = Color(0xFFFFFFFF)
+            for i in doc.paragraphs.indices where doc.paragraphs[i].cell?.table == id && doc.paragraphs[i].cell?.row == 0 {
+                var runs = doc.paragraphs[i].runs ?? [Run(length: doc.paragraphs[i].text.count)]
+                for j in runs.indices {
+                    if o.headerRow {
+                        runs[j].style.bold = true
+                        runs[j].style.color = white
+                    } else {
+                        runs[j].style.bold = false
+                        if runs[j].style.color == white { runs[j].style.color = nil }
+                    }
+                }
+                doc.paragraphs[i].runs = runs
+            }
+        }
+        doc.tableStyles[id] = st
+        text.load(doc)
+        _changed()
+    }
+
+    /// The options of the first selected shape that holds text.
+    var selectedTextOptions: TextOptions? {
+        guard let s = _textShapes.first else { return nil }
+        var o = TextOptions()
+        o.anchor = s.anchor
+        o.direction = s.textStacked != 0 ? .stacked : s.textTurn > 0 ? .rotate90 : s.textTurn < 0 ? .rotate270 : .horizontal
+        o.wrap = !s.noWrap
+        o.fit = s.autofit ? .shrink : (s.fitRule == "a:spAutoFit" || (s.fitRule == nil && s.kind == .textBox)) ? .resize : .none
+        o.insets = s.insets
+        o.columns = s.columns
+        o.columnGap = s.columnGap
+        return o
+    }
+
+    /// Sets the text options of every selected shape that holds text, as one undo step.
+    func setTextOptions(_ o: TextOptions) {
+        let shapes = _textShapes
+        guard !shapes.isEmpty else { return }
+        guard let was = selectedTextOptions, was != o || shapes.count > 1 else { return }
+        _checkpoint()
+        for s in shapes {
+            s.anchor = o.anchor
+            s.textTurn = o.direction == .rotate90 ? 1 : o.direction == .rotate270 ? -1 : 0
+            s.textStacked = o.direction == .stacked ? 1 : 0
+            s.uprightIdeographs = false
+            s.sidewaysDigits = false
+            s.bodyVert = o.direction == .rotate90 ? "vert" : o.direction == .rotate270 ? "vert270" : o.direction == .stacked ? "wordArtVert" : "horz"
+            s.noWrap = !o.wrap
+            s.bodyWrap = o.wrap ? "square" : "none"
+            s.autofit = o.fit == .shrink
+            s.fitRule = o.fit == .shrink ? "a:normAutofit" : o.fit == .resize ? "a:spAutoFit" : "a:noAutofit"
+            s.insets = o.insets
+            s.columns = max(1, o.columns)
+            s.columnGap = o.columnGap
+        }
+        _changed()
+    }
+
     /// Crop the selected pictures to a shape: width over height, centred.
     func cropPictures(aspect: Double) {
         let pics = selection.filter { $0.picture != nil }
@@ -1093,7 +1202,8 @@ final class DeckController: ChangeNotifier {
     func duplicateSelection(offset: Double = 18) {
         guard !selection.isEmpty else { return }
         _checkpoint()
-        let copies = selection.map { _copy($0, offset: offset) }
+        let copies = selection.map { _copy($0, offset: offset, keepGroup: true) }
+        _regroupCopies(copies)
         currentSlide.shapes.append(contentsOf: copies)
         for c in copies { _watch(c) }
         selection = copies
@@ -1145,6 +1255,7 @@ final class DeckController: ChangeNotifier {
             pasted.append(shape)
             _watch(shape)
         }
+        _regroupCopies(pasted)
         currentSlide.shapes.append(contentsOf: pasted)
         selection = pasted
         _changed()
@@ -1320,6 +1431,77 @@ final class DeckController: ChangeNotifier {
         shapes.insert(shape, at: j)
         currentSlide.shapes = shapes
         _changed()
+    }
+
+    // MARK: Groups
+
+    /// Every shape of the slide that shares `shape`'s group, in stacking order; the shape alone when it has none.
+    func groupMembers(of shape: SlideShape) -> [SlideShape] {
+        guard let key = shape.group?.key else { return [shape] }
+        return currentSlide.shapes.filter { $0.group?.key == key }
+    }
+
+    /// The selection widened to whole groups: a group is moved, copied and ordered as one.
+    func selectWholeGroup(of shape: SlideShape) { selectShapes(groupMembers(of: shape)) }
+
+    /// Two or more shapes selected: they can be grouped.
+    var canGroup: Bool { selection.count >= 2 && Set(selection.map { $0.group?.key ?? -$0.id }).count >= 2 }
+    /// Something selected belongs to a group.
+    var canUngroup: Bool { selection.contains { $0.group != nil } }
+
+    /// Group the selected shapes: they become adjacent at the top-most one's place in the stack and share one
+    /// group, which the file writes as a `p:grpSp`. A group already among them is taken in whole, and its members
+    /// join the new one (a group inside a group is one group: the deck keeps one level).
+    func groupSelection() {
+        guard canGroup else { return }
+        _checkpoint()
+        let old = Set(selection.compactMap { $0.group?.key })
+        let all = currentSlide.shapes
+        let picked = all.filter { s in selection.contains { $0 === s } || (s.group.map { old.contains($0.key) } ?? false) }
+        let top = all.lastIndex { s in picked.contains { $0 === s } } ?? all.count - 1
+        let before = all[...top].filter { s in !picked.contains { $0 === s } }.count
+        var rest = all.filter { s in !picked.contains { $0 === s } }
+        let key = (all.compactMap { $0.group?.key }.max() ?? 0) + 1
+        let carried = picked.compactMap(\.group).first { $0.fillXML != nil }
+        var number = 1
+        let names = Set(all.compactMap { $0.group?.name })
+        while names.contains("Group \(number)") { number += 1 }
+        var g = ShapeGroup(fileId: nil, name: "Group \(number)", key: key)
+        g.fillXML = carried?.fillXML
+        g.fillColor = carried?.fillColor
+        for s in picked { s.group = g }
+        rest.insert(contentsOf: picked, at: before)
+        currentSlide.shapes = rest
+        selection = picked
+        _changed()
+    }
+
+    /// Ungroup: every group touched by the selection dissolves, its members stay selected.
+    func ungroupSelection() {
+        guard canUngroup else { return }
+        _checkpoint()
+        let keys = Set(selection.compactMap { $0.group?.key })
+        let members = currentSlide.shapes.filter { s in s.group.map { keys.contains($0.key) } ?? false }
+        for s in members { s.group = nil }
+        selection = members
+        _changed()
+    }
+
+    /// Copies that keep their grouping get groups of their own, not the original's.
+    private func _regroupCopies(_ copies: [SlideShape]) {
+        var fresh: [Int: ShapeGroup] = [:]
+        // One member copied alone is no group.
+        var count: [Int: Int] = [:]
+        for c in copies { if let k = c.group?.key { count[k, default: 0] += 1 } }
+        for c in copies where c.group.map({ count[$0.key] == 1 }) ?? false { c.group = nil }
+        var next = (currentSlide.shapes.compactMap { $0.group?.key }.max() ?? 0) + 1
+        for c in copies {
+            guard var g = c.group else { continue }
+            if let known = fresh[g.key] { c.group = known; continue }
+            g.key = next; g.fileId = nil; next += 1
+            fresh[c.group!.key] = g
+            c.group = g
+        }
     }
 
     enum Align { case left, center, right, top, middle, bottom }
@@ -1525,6 +1707,9 @@ final class DeckController: ChangeNotifier {
         st.shapeInsets = s.shapeInsets
         st.noWrap = s.noWrap
         st.anchorCentred = s.anchorCentred
+        st.bodyVert = s.bodyVert
+        st.bodyWrap = s.bodyWrap
+        st.fitRule = s.fitRule
         st.columns = s.columns
         st.columnGap = s.columnGap
         st.warp = s.warp
@@ -1654,6 +1839,9 @@ final class DeckController: ChangeNotifier {
         shape.shapeInsets = st.shapeInsets
         shape.noWrap = st.noWrap
         shape.anchorCentred = st.anchorCentred
+        shape.bodyVert = st.bodyVert
+        shape.bodyWrap = st.bodyWrap
+        shape.fitRule = st.fitRule
         shape.columns = st.columns
         shape.columnGap = st.columnGap
         shape.warp = st.warp
@@ -1729,12 +1917,12 @@ final class DeckController: ChangeNotifier {
         notifyListeners()
     }
 
-    private func _copy(_ shape: SlideShape, offset: Double = 0) -> SlideShape {
+    private func _copy(_ shape: SlideShape, offset: Double = 0, keepGroup: Bool = false) -> SlideShape {
         var st = _state(shape)
         st.id = _id()
         st.fileId = nil
         st.sourceXML = nil
-        st.group = nil
+        if !keepGroup { st.group = nil }
         st.keptLine = nil
         st.keptPicture = nil
         st.frame = st.frame.shift(Offset(offset, offset))

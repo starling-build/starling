@@ -629,4 +629,62 @@ final class DeepGroupTests: XCTestCase {
         XCTAssertEqual(again.0.slides[deck.current].shapes.first { if case .picture = $0.kind { return true }; return false }?.altText, "A \"red\" <square>")
         XCTAssertEqual(again.0.slides[deck.current].shapes.count, state.slides[deck.current].shapes.count)
     }
+
+    /// S-TX-2: a text box's anchor, direction, wrap, fit, margins and columns are set in one undo step and survive a save and reopen
+    /// (vert and wrap were dropped on every rewrite).
+    func testTextOptionsRoundTripAndUndo() throws {
+        let deck = SlidesSample.make()
+        let box = deck.slides[deck.current].shapes.first { $0.text != nil && $0.picture == nil }!
+        let other = deck.slides[deck.current].shapes.filter { $0 !== box }.count
+        deck.selectShapes([box])
+        var o = try XCTUnwrap(deck.selectedTextOptions)
+        let before = o
+        o.anchor = .bottom
+        o.direction = .rotate270
+        o.wrap = false
+        o.fit = .resize
+        o.insets = EdgeInsets(left: 10, top: 2, right: 11, bottom: 3)
+        o.columns = 2
+        o.columnGap = 12
+        deck.setTextOptions(o)
+        XCTAssertEqual(deck.selectedTextOptions, o)
+        deck.undo()
+        deck.selectShapes(deck.slides[deck.current].shapes.filter { $0.id == box.id })
+        XCTAssertEqual(deck.selectedTextOptions, before)
+        deck.setTextOptions(o)
+        let (state, _, _) = try Pptx.read(Pptx.write(deck))
+        let again = DeckController(); again.restore(state)
+        again.selectShapes(again.slides[again.current].shapes.filter { $0.id == box.id })
+        XCTAssertEqual(again.selectedTextOptions, o)
+        XCTAssertEqual(again.slides[again.current].shapes.count, other + 1)
+        XCTAssertEqual(again.slides[again.current].shapes.first { $0.id == box.id }?.text?.document.paragraphs.count,
+                       box.text?.document.paragraphs.count)
+    }
+
+    /// S-TB-1a: a table's header row and banded rows switch off and on, undo, and survive a save.
+    func testTableOptionsRoundTripAndUndo() throws {
+        let deck = DeckController()
+        deck.slides[0].shapes.removeAll()
+        let t = deck.addTable(rows: 3, columns: 2)
+        deck.selectShapes([t])
+        XCTAssertEqual(deck.selectedTableOptions, DeckController.TableOptions(headerRow: true, bandedRows: true))
+        deck.setTableOptions(DeckController.TableOptions(headerRow: false, bandedRows: false))
+        XCTAssertEqual(deck.selectedTableOptions, DeckController.TableOptions(headerRow: false, bandedRows: false))
+        // The first row's text look follows the header: plain with it off, white bold with it on.
+        func firstRunStyle() -> CharStyle? { t.text?.document.paragraphs.first?.runs.first?.style }
+        XCTAssertEqual(firstRunStyle()?.bold, false)
+        XCTAssertNil(firstRunStyle()?.color)
+        deck.setTableOptions(DeckController.TableOptions(headerRow: true, bandedRows: false))
+        XCTAssertEqual(firstRunStyle()?.bold, true)
+        XCTAssertEqual(firstRunStyle()?.color, Color(0xFFFFFFFF))
+        deck.setTableOptions(DeckController.TableOptions(headerRow: false, bandedRows: false))
+        let (state, _, _) = try Pptx.read(Pptx.write(deck))
+        let again = DeckController(); again.restore(state)
+        again.selectShapes(again.slides[0].shapes.filter { $0.kind == .table })
+        XCTAssertEqual(again.selectedTableOptions, DeckController.TableOptions(headerRow: false, bandedRows: false))
+        deck.undo(); deck.undo(); deck.undo()
+        deck.selectShapes(deck.slides[0].shapes.filter { $0.kind == .table })
+        XCTAssertEqual(deck.selectedTableOptions, DeckController.TableOptions(headerRow: true, bandedRows: true))
+        XCTAssertEqual(firstRunStyle()?.color, Color(0xFFFFFFFF))
+    }
 }

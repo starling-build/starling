@@ -195,7 +195,7 @@ extension WorkbookController {
     }
 
     /// Append a look to the file's dxfs and return its index. Never removed, so undo and redo stay valid.
-    private func _appendDxf(_ d: DxfStyle) -> Int {
+    func _appendDxf(_ d: DxfStyle) -> Int {
         var x = "<dxf>"
         if d.bold != nil || d.italic != nil || d.underline != nil || d.strike != nil || d.color != nil {
             x += "<font>"

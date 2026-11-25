@@ -24,6 +24,7 @@ enum SheetCommand {
     case dataValidation            // Data → Data Validation
     case sortDialog                // Data → Sort…
     case tableDialog               // Insert → Table: create one, or the options of the table at the cell
+    case columnFilter(col: Int, kind: String)   // a filter dropdown's Number/Text/Date/Colour Filters…
     case nameManager               // Formulas → Name Manager
     case pageSetup                 // Layout → Page Setup: the dialog
     case editNote                  // Review → New/Edit Note: the editor beside the active cell

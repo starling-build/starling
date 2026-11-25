@@ -18,7 +18,7 @@ enum RibbonTab: Int, CaseIterable {
     case home, insert, layout, review, view
     /// Contextual: shown while a picture is selected or the caret is in a
     /// table, as Word does.
-    case pictureFormat, tableLayout
+    case pictureFormat, tableLayout, tableDesign
     /// Slides only; contextual while a chart is selected.
     case chartDesign
     /// Slides only.
@@ -44,6 +44,7 @@ enum RibbonTab: Int, CaseIterable {
         case .view: return "View"
         case .pictureFormat: return "Picture Format"
         case .tableLayout: return "Table Layout"
+        case .tableDesign: return "Table Design"
         case .chartDesign: return "Chart Design"
         case .design: return "Design"
         case .transitions: return "Transitions"
@@ -54,7 +55,7 @@ enum RibbonTab: Int, CaseIterable {
         }
     }
 
-    var isContextual: Bool { self == .pictureFormat || self == .tableLayout || self == .chartDesign }
+    var isContextual: Bool { self == .pictureFormat || self == .tableLayout || self == .tableDesign || self == .chartDesign }
 }
 
 final class Ribbon: StatelessWidget {
@@ -100,6 +101,7 @@ final class Ribbon: StatelessWidget {
         for t in RibbonTab.strip(for: session.kind) { items.append(_tab(t, fluent)) }
         let slidePicture = session.deck?.selection.contains { $0.picture != nil } ?? false
         if session.summary.imageIndex != nil || slidePicture { items.append(_tab(.pictureFormat, fluent)) }
+        if session.deck?.selectedTableOptions != nil { items.append(_tab(.tableDesign, fluent)) }
         if session.summary.inCell { items.append(_tab(.tableLayout, fluent)) }
         if session.deck?.selectedChart != nil { items.append(_tab(.chartDesign, fluent)) }
         return ColoredBox(color: OfficeAppearance.surface(fluent),
@@ -162,7 +164,7 @@ final class Ribbon: StatelessWidget {
         case .pictureFormat: return _pictureFormat(fluent)
         case .tableLayout: return _tableLayout(fluent)
         case .review: return _review(fluent)
-        case .design, .transitions, .slideShow, .chartDesign, .animations, .formulas, .data: return []
+        case .design, .transitions, .slideShow, .chartDesign, .tableDesign, .animations, .formulas, .data: return []
         }
     }
 
@@ -291,11 +293,7 @@ final class Ribbon: StatelessWidget {
                 },
                 onChanged: { f in c.setFontFamily(f) })),
             Chrome.gap(),
-            SizedBox(width: 72, height: nil, child: ComboBox<Double>(
-                value: sizes.contains(currentSize) ? currentSize : nil,
-                items: sizes.map { n in ComboBoxItem<Double>(value: n, child: Text(Self._fmt(n))) },
-                onChanged: { n in if let n { c.setFontSize(n) } },
-                placeholder: Text(Self._fmt(currentSize)))),
+            FontSizeBox(size: currentSize, sizes: sizes, onSize: { n in c.setFontSize(n) }),
             Chrome.gap(6),
             FlatButton(child: Chrome.sizeArrowIcon(up: true, fluent), tip: "Grow Font (⌘])".keys) { [session] in c.stepFontSize(1, base: session.effectiveFontSize) },
             FlatButton(child: Chrome.sizeArrowIcon(up: false, fluent), tip: "Shrink Font (⌘[)".keys) { [session] in c.stepFontSize(-1, base: session.effectiveFontSize) },
@@ -701,8 +699,9 @@ final class Ribbon: StatelessWidget {
                 session.onPageSetup?(p)
             })
         }
+        let customMargins: (String, () -> Void) = ("Custom Margins…", { [session] in session.onPageSetupDialog?() })
         let marginChoices = [margins("Normal (1\")", 72, 72), margins("Narrow (0.5\")", 36, 36),
-                             margins("Moderate (1\" × 0.75\")", 72, 54), margins("Wide (1\" × 2\")", 72, 144)]
+                             margins("Moderate (1\" × 0.75\")", 72, 54), margins("Wide (1\" × 2\")", 72, 144), customMargins]
         let orientation: [(String, () -> Void)] = [
             ("Portrait", { [session] in if session.sectionSetup().isLandscape { session.onPageSetup?(session.sectionSetup().rotated()) } }),
             ("Landscape", { [session] in if !session.sectionSetup().isLandscape { session.onPageSetup?(session.sectionSetup().rotated()) } }),
@@ -715,8 +714,9 @@ final class Ribbon: StatelessWidget {
                 session.onPageSetup?(session.sectionSetup().isLandscape ? p.rotated() : p)
             })
         }
-        let sizes = [paper("Letter (8.5 × 11 in)", .letter), paper("A4 (210 × 297 mm)", .a4),
-                     paper("Legal (8.5 × 14 in)", PageSetup(width: 612, height: 1008))]
+        let sizes: [(String, () -> Void)] = [paper("Letter (8.5 × 11 in)", .letter), paper("A4 (210 × 297 mm)", .a4),
+                     paper("Legal (8.5 × 14 in)", PageSetup(width: 612, height: 1008)),
+                     ("More Paper Sizes…", { [session] in session.onPageSetupDialog?() })]
         let ps = c.currentParagraphStyle
         let pageSetup = Chrome.group("Page Setup", fluent, [
             Chrome.rows([

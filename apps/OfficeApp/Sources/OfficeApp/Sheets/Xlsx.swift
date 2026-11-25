@@ -230,16 +230,37 @@ enum Xlsx {
     /// Value lists are modelled; any other kind of column filter (custom,
     /// top 10, dynamic, colour, date groups) or a sort state keeps the
     /// whole element as written, until the filter is changed here.
-    private static func _readAutoFilter(_ node: XNode, range: CellRange, raw: String?) -> AutoFilter {
+    private static func _readAutoFilter(_ node: XNode, range: CellRange, raw: String?, book: Workbook) -> AutoFilter {
         var af = AutoFilter(range: range)
         var modelled = node.kids("sortState").isEmpty
         for fc in node.kids("filterColumn") {
-            guard let id = Int(fc["colId"] ?? "") else { modelled = false; continue }
-            guard let filters = fc.child("filters"), fc.kids("filters").count == 1,
-                  filters.kids("dateGroupItem").isEmpty else { modelled = false; continue }
-            var allowed = Set(filters.kids("filter").compactMap { $0["val"] })
-            if filters["blank"] == "1" { allowed.insert("") }
-            af.columns[range.left + id] = allowed
+            guard let id = Int(fc["colId"] ?? ""), fc.children.count == 1, let body = fc.children.first else { modelled = false; continue }
+            let col = range.left + id
+            switch body.name {
+            case "filters":
+                guard fc.kids("filters").count == 1, body.kids("dateGroupItem").isEmpty else { modelled = false; continue }
+                var allowed = Set(body.kids("filter").compactMap { $0["val"] })
+                if body["blank"] == "1" { allowed.insert("") }
+                af.columns[col] = allowed
+            case "customFilters":
+                let cs = body.kids("customFilter").map { FilterCondition(op: $0["operator"] ?? "equal", value: $0["val"] ?? "") }
+                guard (1 ... 2).contains(cs.count) else { modelled = false; continue }
+                af.rules[col] = .compare(cs[0], and: body["and"] == "1", cs.count > 1 ? cs[1] : nil)
+            case "top10":
+                guard let n = Int(body["val"] ?? ""), n >= 1 else { modelled = false; continue }
+                af.rules[col] = .top(top: body["top"] != "0", percent: body["percent"] == "1", count: n)
+            case "dynamicFilter":
+                let t = body["type"] ?? ""
+                if t == "aboveAverage" || t == "belowAverage" { af.rules[col] = .average(above: t == "aboveAverage") }
+                else if FilterRule.periods.contains(t) { af.rules[col] = .period(t) }
+                else { modelled = false }
+            case "colorFilter":
+                let fill = body["cellColor"] != "0"
+                guard let i = Int(body["dxfId"] ?? ""), i >= 0, i < book.dxfs.count,
+                      let rgb = fill ? book.dxfs[i].fill : book.dxfs[i].color else { modelled = false; continue }
+                af.rules[col] = .color(fill: fill, rgb & 0xFFFFFF)
+            default: modelled = false
+            }
         }
         if !modelled { af.raw = raw }
         return af
@@ -264,7 +285,7 @@ enum Xlsx {
         guard let part = XNode.parse(raw, listUnder: "sheetData", of: "row") else { throw ReadError.badPart(ws.origin ?? ws.name) }
         let root = part.root
         if let node = root.child("autoFilter"), let ref = node["ref"], let range = CellRange(ref) {
-            ws.autoFilter = _readAutoFilter(node, range: range, raw: split.children.first { $0.name == "autoFilter" }?.text)
+            ws.autoFilter = _readAutoFilter(node, range: range, raw: split.children.first { $0.name == "autoFilter" }?.text, book: book)
         }
 
         if let pr = root.child("sheetPr"), let tab = pr.child("tabColor")?["rgb"] { ws.tabColor = tab }
@@ -1353,7 +1374,16 @@ enum Xlsx {
         if !ws.merges.isEmpty {
             generated["mergeCells"] = "<mergeCells count=\"\(ws.merges.count)\">" + ws.merges.map { "<mergeCell ref=\"\($0.a1)\"/>" }.joined() + "</mergeCells>"
         }
-        if let af = ws.autoFilter { generated["autoFilter"] = af.raw ?? _autoFilterXML(af) }
+        if let af = ws.autoFilter {
+            var cutoffs: [Int: Double] = [:]
+            for (col, rule) in af.rules {
+                guard case .top(let top, let percent, let n) = rule, af.range.rows > 1 else { continue }
+                let nums = (af.range.top + 1 ... af.range.bottom).compactMap { ws.value(CellAddress(row: $0, col: col)).number }
+                    .sorted(by: top ? { $0 > $1 } : { $0 < $1 })
+                if !nums.isEmpty { cutoffs[col] = nums[min(percent ? max(1, nums.count * n / 100) : n, nums.count) - 1] }
+            }
+            generated["autoFilter"] = af.raw ?? _autoFilterXML(af, book: book, cutoffs: cutoffs)
+        }
         var kept: [String: [String]] = [:]
         for (name, text) in ws.keptElements { kept[name, default: []].append(text) }
         if let tab = ws.tabColor, kept["sheetPr"] == nil { generated["sheetPr"] = "<sheetPr><tabColor rgb=\"\(_esc(tab))\"/></sheetPr>" }
@@ -1369,13 +1399,32 @@ enum Xlsx {
         return "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n" + root + body + "</\(rootName)>"
     }
 
-    private static func _autoFilterXML(_ af: AutoFilter) -> String {
-        guard !af.columns.isEmpty else { return "<autoFilter ref=\"\(af.range.a1)\"/>" }
+    private static func _autoFilterXML(_ af: AutoFilter, book: Workbook, cutoffs: [Int: Double] = [:]) -> String {
+        guard af.isActive else { return "<autoFilter ref=\"\(af.range.a1)\"/>" }
         var s = "<autoFilter ref=\"\(af.range.a1)\">"
-        for (col, allowed) in af.columns.sorted(by: { $0.key < $1.key }) {
-            s += "<filterColumn colId=\"\(col - af.range.left)\"><filters" + (allowed.contains("") ? " blank=\"1\"" : "")
-            let vals = allowed.filter { !$0.isEmpty }.sorted()
-            s += vals.isEmpty ? "/>" : ">" + vals.map { "<filter val=\"\(_esc($0))\"/>" }.joined() + "</filters>"
+        for col in Set(af.columns.keys).union(af.rules.keys).sorted() {
+            s += "<filterColumn colId=\"\(col - af.range.left)\">"
+            if let allowed = af.columns[col] {
+                s += "<filters" + (allowed.contains("") ? " blank=\"1\"" : "")
+                let vals = allowed.filter { !$0.isEmpty }.sorted()
+                s += vals.isEmpty ? "/>" : ">" + vals.map { "<filter val=\"\(_esc($0))\"/>" }.joined() + "</filters>"
+            } else if let rule = af.rules[col] {
+                func cond(_ c: FilterCondition) -> String {
+                    "<customFilter" + (c.op == "equal" ? "" : " operator=\"\(c.op)\"") + " val=\"\(_esc(c.value))\"/>"
+                }
+                switch rule {
+                case .compare(let a, let isAnd, let b):
+                    s += "<customFilters" + (b != nil && isAnd ? " and=\"1\"" : "") + ">" + cond(a) + (b.map(cond) ?? "") + "</customFilters>"
+                case .top(let top, let percent, let n):
+                    s += "<top10" + (top ? "" : " top=\"0\"") + (percent ? " percent=\"1\"" : "") + " val=\"\(n)\""
+                        + (cutoffs[col].map { " filterVal=\"\(_num($0))\"" } ?? "") + "/>"
+                case .average(let above): s += "<dynamicFilter type=\"\(above ? "aboveAverage" : "belowAverage")\"/>"
+                case .period(let p): s += "<dynamicFilter type=\"\(p)\"/>"
+                case .color(let fill, let rgb):
+                    let i = book.dxfs.firstIndex { (fill ? $0.fill : $0.color).map { $0 & 0xFFFFFF } == rgb & 0xFFFFFF } ?? 0
+                    s += "<colorFilter dxfId=\"\(i)\"" + (fill ? "" : " cellColor=\"0\"") + "/>"
+                }
+            }
             s += "</filterColumn>"
         }
         return s + "</autoFilter>"
