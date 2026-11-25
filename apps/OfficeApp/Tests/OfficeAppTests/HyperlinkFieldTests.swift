@@ -110,3 +110,11 @@ extension HyperlinkFieldTests {
         XCTAssertEqual(xml.components(separatedBy: "<w:hyperlink ").count - 1, 1)
     }
 }
+
+extension HyperlinkFieldTests {
+    /// A table of contents draws its entries in the paragraph's own look, but the save keeps the style name the runs had.
+    func testContentsEntryKeepsItsHyperlinkStyleName() throws {
+        let (_, xml) = try roundTrip("<w:p>\(fc("begin"))\(it("TOC \\o \"1-3\" \\h"))\(fc("separate"))<w:hyperlink w:anchor=\"bm\"><w:r><w:rPr><w:rStyle w:val=\"Hyperlink\"/></w:rPr><w:t>entry</w:t></w:r></w:hyperlink></w:p><w:p>\(fc("end"))</w:p>")
+        XCTAssertTrue(xml.contains("<w:rStyle w:val=\"Hyperlink\"/></w:rPr><w:t xml:space=\"preserve\">entry"))
+    }
+}

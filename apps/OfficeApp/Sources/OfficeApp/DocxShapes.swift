@@ -1500,6 +1500,9 @@ extension DocxFormat {
                 if let id = rPr.first("w:rStyle")?["w:val"], let chain = notes.charStyleChains[id], !(inContents && id.lowercased() == "hyperlink") {
                     for styled in chain { cs = _charStyle(styled, base: cs, complexText: complex, complexSize: complexSize, thaiStyleSize: thaiStyleSize, indicOnly: indicOnly, rtlLettersOnly: rtlLettersOnly) }
                     styleId = id
+                } else if inContents, let id = rPr.first("w:rStyle")?["w:val"], notes.charStyleChains[id] != nil {
+                    // (The entry is drawn in the paragraph's own look, but the file's style name stays for the save.)
+                    styleId = id
                 }
                 cs = _charStyle(rPr, base: cs, complexText: complex, complexSize: complexSize, thaiStyleSize: thaiStyleSize, indicOnly: indicOnly, rtlLettersOnly: rtlLettersOnly)
                 cs.styleId = styleId
