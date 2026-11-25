@@ -1390,7 +1390,7 @@ extension DocxFormat {
             if let f = notes.fields.last, f.result {
                 cs.fieldResult = f.id
                 let instr = f.instr.trimmingWhitespace(newlines: true)
-                if Self._preservesField(instr) {
+                if Self._preservesField(instr), !(notes.inHeaderFooter && DocxFormat._isPageField(instr)) {
                     cs.preservedField = instr
                     cs.preservedFieldProperties = f.properties
                 }

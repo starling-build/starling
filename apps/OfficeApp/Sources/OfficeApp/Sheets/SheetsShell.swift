@@ -65,6 +65,8 @@ final class SheetsShellState: State<StatefulWidget> {
     private var _lastTabClick: (index: Int, at: Date)? = nil
     private var _findOpen = false
     private var _namesOpen = false
+    /// The Format Cells dialog is open (X-FM-1).
+    private var _formatOpen = false
     private var _findReplace = false
     private var _findStatus = ""
     private let _findQuery = TextEditingController()
@@ -859,6 +861,15 @@ final class SheetsShellState: State<StatefulWidget> {
                     self?._grid?.focus.requestFocus()
                 }))])
         }
+        if _formatOpen, _backstage == nil {
+            return Stack(children: [
+                window,
+                FormatCellsDialog(
+                    start: CellFormatEdit.Values(wb.style(at: wb.selection.topLeft)),
+                    onApply: { [weak self] edit in self?.wb.formatCells(edit) },
+                    onClose: { [weak self] in self?._closeFormatCells() }),
+            ])
+        }
         guard let page = _backstage else { return window }
         return Stack(children: [
             window,
@@ -885,6 +896,7 @@ final class SheetsShellState: State<StatefulWidget> {
         case "n": session.replacing { [weak self] in self?._newWorkbook() }; return true
         case "p": _print(); return true
         case "f": _openFind(replace: false); return true
+        case "1" where _grid?.edit == nil: _openFormatCells(); return true
         case "h": _openFind(replace: true); return true
         case "l" where chords.shift: wb.toggleAutoFilter(); return true
         // Excel for Mac's Group and Ungroup.
@@ -895,6 +907,18 @@ final class SheetsShellState: State<StatefulWidget> {
             return false
         default: return false
         }
+    }
+
+    // MARK: Format Cells
+    func _openFormatCells() {
+        if wb.refuses("formatCells") { return }
+        setState { _formatOpen = true }
+    }
+
+    private func _closeFormatCells() {
+        guard _formatOpen else { return }
+        setState { _formatOpen = false }
+        _grid?.focus.requestFocus()
     }
 
     // MARK: Find
@@ -997,11 +1021,15 @@ final class SheetsShellState: State<StatefulWidget> {
     private func _showContextMenu(at point: Offset, _ area: GridMenuArea) {
         guard let grid = _grid else { return }
         let c = wb
-        var items: [MenuFlyoutItemBase] = []
-        func item(_ text: String, enabled: Bool = true, _ action: @escaping () -> Void) {
-            items.append(MenuFlyoutItem(text: Text(text), onPressed: enabled ? action : nil))
+        let menu = ContextMenuBuilder()
+        func item(_ text: String, enabled: Bool = true, _ action: @escaping () -> Void) { menu.item(text, enabled: enabled, action) }
+        func sep() { menu.separator() }
+        if case .cells = area {
+            let st = c.style(at: c.active)
+            menu.miniButton(FluentSystemIcons.textBold, "Bold", on: st.bold) { c.toggleStyle(\.bold) }
+            menu.miniButton(FluentSystemIcons.textItalic, "Italic", on: st.italic) { c.toggleStyle(\.italic) }
+            menu.miniButton(FluentSystemIcons.textUnderline, "Underline", on: st.underline) { c.toggleStyle(\.underline) }
         }
-        func sep() { if !(items.last is MenuFlyoutSeparator), !items.isEmpty { items.append(MenuFlyoutSeparator()) } }
         // A picture or chart: delete it, or change what kind of chart it is.
         if case .drawing(let i) = area {
             item("Delete") { c.deleteDrawing(i) }
@@ -1012,7 +1040,7 @@ final class SheetsShellState: State<StatefulWidget> {
                 }
             }
             guard let context else { return }
-            _contextMenu.showFlyout(in: context, at: point) { _ in MenuFlyout(items: items) }
+            menu.show(_contextMenu, in: context, at: point)
             return
         }
         item("Cut") { grid.copySelection(cut: true) }
@@ -1038,6 +1066,7 @@ final class SheetsShellState: State<StatefulWidget> {
         }
         item("Clear Contents") { c.clearContents() }
         item("Clear Formats") { c.setStyle { $0 = .plain } }
+        item("Format Cells…") { [weak self] in self?._openFormatCells() }
         if case .cells = area {
             sep()
             let has = c.note(at: c.active) != nil
@@ -1063,6 +1092,6 @@ final class SheetsShellState: State<StatefulWidget> {
         case .drawing: break
         }
         guard let context else { return }
-        _contextMenu.showFlyout(in: context, at: point) { _ in MenuFlyout(items: items) }
+        menu.show(_contextMenu, in: context, at: point)
     }
 }

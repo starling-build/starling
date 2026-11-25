@@ -46,4 +46,31 @@ final class ParagraphDialogHarnessTests: XCTestCase {
         XCTAssertFalse(ui.has(id: "pa-align-right"))
         XCTAssertEqual(session.controller.currentParagraphStyle.alignment, .left)
     }
+
+    /// W-PA-3: the Tabs page sets stops, Cancel on it discards them, OK on the paragraph dialog applies them in one undo step.
+    func testTabsPageSetsClearsAndApplies() {
+        let (ui, session) = shell()
+        session.onParagraphDialog?(); ui.pump()
+        XCTAssertTrue(ui.tap(id: "pa-tabs"))
+        XCTAssertTrue(ui.has(id: "tb-set"))
+        XCTAssertTrue(ui.tap(id: "tb-kind-right")); XCTAssertTrue(ui.tap(id: "tb-leader-dots"))
+        XCTAssertTrue(ui.tap(id: "tb-set"))
+        XCTAssertTrue(ui.has(id: "tb-row-0"))
+        XCTAssertTrue(ui.tap(id: "tb-clear-all"))
+        XCTAssertFalse(ui.has(id: "tb-row-0"))
+        XCTAssertTrue(ui.tap(id: "tb-set"))
+        ui.press(.escape); ui.pump()                       // Cancel: back to the paragraph page, stops dropped
+        XCTAssertTrue(ui.has(id: "pa-align-left"))
+        XCTAssertTrue(ui.tap(id: "pa-tabs"))
+        XCTAssertFalse(ui.has(id: "tb-row-0"), "Cancel threw away the stop")
+        XCTAssertTrue(ui.tap(id: "tb-kind-center")); XCTAssertTrue(ui.tap(id: "tb-set"))
+        ui.press(.enter); ui.pump()                        // OK on the Tabs page: back to the paragraph page
+        XCTAssertTrue(ui.has(id: "pa-align-left"))
+        XCTAssertTrue(session.controller.currentParagraphStyle.tabStops.isEmpty, "nothing applies before OK")
+        ui.press(.enter); ui.pump()
+        let stops = session.controller.currentParagraphStyle.tabStops
+        XCTAssertEqual(stops.count, 1); XCTAssertEqual(stops[0].alignment, .center)
+        session.controller.undo()
+        XCTAssertTrue(session.controller.currentParagraphStyle.tabStops.isEmpty)
+    }
 }

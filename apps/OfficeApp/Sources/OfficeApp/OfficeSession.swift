@@ -84,6 +84,8 @@ final class OfficeSession {
     /// body being edited (the shell points this at it), so the Font and
     /// Paragraph groups, undo and the clipboard work unchanged.
     var controller = RichDocumentController()
+    /// The line the Borders menu applies to a cell's sides (table layout tab).
+    var cellPen = CellBorderLine()
     /// The deck, in Slides.
     let deck: DeckController?
     /// The workbook, in Sheets.
@@ -290,6 +292,7 @@ final class OfficeSession {
     var onChartData: ((Bool) -> Void)?
     /// Normal view (false) or Slide Sorter (true).
     var onSlidesView: ((Bool) -> Void)?
+    var onSlidesNotesPage: (() -> Void)?
     var slidesSorter = false
     /// Undo and redo when the kind has more history than the text (a deck).
     var onUndo: (() -> Void)?

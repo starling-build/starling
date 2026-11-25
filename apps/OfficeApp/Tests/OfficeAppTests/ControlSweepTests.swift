@@ -65,7 +65,7 @@ final class ControlSweepTests: XCTestCase {
             let s = ui.state(SlidesShellState.self)!
             // Zoomed in, so "Fit slide to window" has something to change.
             s.session.deck!.setViewZoom(percent: 150)
-            return (ui, { "\(s.session.deck!.revision) \(s.session.slidesSorter) \(s.session.deck!.viewPercent) \(s.session.deck!.notesPageView)" })
+            return (ui, { "\(s.session.deck!.revision) \(s.session.slidesSorter) \(s.session.deck!.viewPercent)" })
         })
         let x = names(sweep("Sheets") {
             let ui = self.app(SheetsShell(initialPath: nil, onSwitch: { _, _ in }))

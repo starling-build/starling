@@ -20,6 +20,49 @@ private final class PKeyed: StatelessWidget {
 enum ParagraphSpecial { case none, firstLine, hanging }
 enum ParagraphLineKind { case single, oneHalf, double, multiple, atLeast, exactly }
 
+/// The kinds of tab the Tabs page offers. A bar is Word's own kind: it draws a rule, no text stops at it.
+enum TabKind: CaseIterable {
+    case left, center, right, decimal, bar
+    var title: String { ["Left", "Center", "Right", "Decimal", "Bar"][TabKind.allCases.firstIndex(of: self)!] }
+    var id: String { ["left", "center", "right", "decimal", "bar"][TabKind.allCases.firstIndex(of: self)!] }
+    init(_ t: TabStop) {
+        if t.rawKind == "bar" { self = .bar; return }
+        switch t.alignment { case .left: self = .left; case .center: self = .center
+        case .right: self = .right; case .decimal: self = .decimal }
+    }
+}
+
+/// The fill drawn before a tab.
+enum TabLeader: CaseIterable {
+    case none, dots, dashes, line
+    var title: String { ["None", "Dots", "Dashes", "Line"][TabLeader.allCases.firstIndex(of: self)!] }
+    var id: String { ["none", "dots", "dashes", "line"][TabLeader.allCases.firstIndex(of: self)!] }
+    var word: String? { [nil, "dot", "hyphen", "underscore"][TabLeader.allCases.firstIndex(of: self)!] }
+    init(_ t: TabStop) {
+        switch t.leader { case "dot"?: self = .dots; case "hyphen"?: self = .dashes
+        case "underscore"?, "heavy"?: self = .line; default: self = .none }
+    }
+}
+
+/// The tab stops under edit: Set puts a stop at a position (replacing the one there), Clear takes it away.
+struct TabStopEditor: Equatable {
+    var stops: [TabStop]
+    static let same = 0.5   // points: two positions this close are one stop
+
+    func index(at pos: Double) -> Int? { stops.firstIndex { abs($0.position - pos) < Self.same } }
+
+    mutating func set(at pos: Double, kind: TabKind, leader: TabLeader) {
+        guard pos >= 0 else { return }
+        var t = TabStop(position: pos, alignment: kind == .bar ? .left : TabStop.Alignment(rawValue: TabKind.allCases.firstIndex(of: kind)!)!)
+        t.rawKind = kind == .bar ? "bar" : nil
+        t.leader = leader.word
+        if let i = index(at: pos) { stops[i] = t } else { stops.append(t) }
+        stops.sort { $0.position < $1.position }
+    }
+    mutating func clear(at pos: Double) { if let i = index(at: pos) { stops.remove(at: i) } }
+    mutating func clearAll() { stops = [] }
+}
+
 /// The dialog's values, kept apart from the widgets so they can be made from a style and turned back into one.
 struct ParagraphDialogValues: Equatable {
     var alignment: ParagraphAlignment
@@ -30,6 +73,7 @@ struct ParagraphDialogValues: Equatable {
     var line: ParagraphLineKind
     var multiple: Double
     var points: Double
+    var tabs: TabStopEditor
 
     init(_ s: RichParagraphStyle) {
         alignment = s.alignment; left = s.indentLeft; right = s.indentRight
@@ -37,6 +81,7 @@ struct ParagraphDialogValues: Equatable {
         by = abs(s.firstLineIndent)
         before = s.spaceBefore; after = s.spaceAfter
         multiple = s.lineSpacing; points = 12
+        tabs = TabStopEditor(stops: s.tabStops)
         if let p = s.lineHeightPoints {
             line = s.lineHeightIsMinimum ? .atLeast : .exactly; points = p
         } else if abs(s.lineSpacing - 1) < 0.005 { line = .single }
@@ -57,7 +102,7 @@ struct ParagraphDialogValues: Equatable {
         }
         let first = special == .none ? 0 : special == .hanging ? -by : by
         return .init(alignment: alignment, indentLeft: left, indentRight: right, firstLineIndent: first,
-                     spaceBefore: before, spaceAfter: after, lineRule: rule)
+                     spaceBefore: before, spaceAfter: after, lineRule: rule, tabStops: tabs.stops)
     }
 }
 
@@ -78,6 +123,10 @@ final class ParagraphDialogState: State<StatefulWidget> {
     private var _w: ParagraphDialog { widget as! ParagraphDialog }
     private(set) var v = ParagraphDialogValues(RichParagraphStyle())
     private let _multiple = TextEditingController()
+    /// The Tabs page is showing instead of the paragraph page; its edits belong to `v` and apply with OK here.
+    private(set) var showTabs = false
+    private var _tabsBefore: TabStopEditor?
+    private var _tabPos = 36.0, _tabKind = TabKind.left, _tabLeader = TabLeader.none
 
     override func initState() {
         super.initState()
@@ -95,8 +144,48 @@ final class ParagraphDialogState: State<StatefulWidget> {
         else { _multiple.text = Self.number(v.multiple) }
     }
 
+    private func tabsPage(_ fluent: FluentThemeData) -> Widget {
+        func choice(_ id: String, _ label: String, _ on: Bool, _ action: @escaping () -> Void) -> Widget {
+            PKeyed(id, Chrome.textToggle(label, on, fluent, action: action))
+        }
+        func row(_ label: String, _ items: [Widget]) -> Widget {
+            Padding(padding: EdgeInsets(left: 0, top: 0, right: 0, bottom: 8), child: Row(crossAxisAlignment: .center, children:
+                [SizedBox(width: 90, height: nil, child: Text(label))] + items))
+        }
+        let unit = _w.unit
+        var list: [Widget] = v.tabs.stops.isEmpty ? [Text("No tab stops set")] : []
+        for (i, t) in v.tabs.stops.enumerated() {
+            let kind = TabKind(t), lead = TabLeader(t)
+            let label = "\(unit.format(points: t.position, lineHeight: 12))  \(kind.title)" + (lead == .none ? "" : "  \(lead.title)")
+            list.append(choice("tb-row-\(i)", label, v.tabs.index(at: _tabPos) == i) { [weak self] in
+                self?.setState { self?._tabPos = t.position; self?._tabKind = kind; self?._tabLeader = lead } })
+        }
+        return Column(crossAxisAlignment: .start, children: [
+            Padding(padding: EdgeInsets(left: 0, top: 0, right: 0, bottom: 8), child: Column(crossAxisAlignment: .start, children: [Text("Tab stops")] + list)),
+            row("Position", [PKeyed("tb-pos", UnitSpinner(points: _tabPos, unit: unit, min: 0, max: 1584, width: 90) { [weak self] n in
+                self?.setState { self?._tabPos = n } })]),
+            row("Alignment", TabKind.allCases.map { k in choice("tb-kind-\(k.id)", k.title, _tabKind == k) { [weak self] in self?.setState { self?._tabKind = k } } }),
+            row("Leader", TabLeader.allCases.map { l in choice("tb-leader-\(l.id)", l.title, _tabLeader == l) { [weak self] in self?.setState { self?._tabLeader = l } } }),
+            row("", [
+                choice("tb-set", "Set", false) { [weak self] in
+                    guard let self else { return }
+                    self.setState { self.v.tabs.set(at: self._tabPos, kind: self._tabKind, leader: self._tabLeader) } },
+                choice("tb-clear", "Clear", false) { [weak self] in
+                    guard let self else { return }
+                    self.setState { self.v.tabs.clear(at: self._tabPos) } },
+                choice("tb-clear-all", "Clear All", false) { [weak self] in self?.setState { self?.v.tabs.clearAll() } },
+            ]),
+        ])
+    }
+
     override func build(_ context: any BuildContext) -> Widget {
         let fluent = FluentTheme.of(context)
+        if showTabs {
+            return DialogShell(title: "Tabs", page: tabsPage(fluent), width: 480,
+                               onOK: { [weak self] in self?.setState { self?.showTabs = false } },
+                               onCancel: { [weak self] in
+                                   self?.setState { if let b = self?._tabsBefore { self?.v.tabs = b }; self?.showTabs = false } })
+        }
         let unit = _w.unit
         func choice(_ id: String, _ label: String, _ on: Bool, _ action: @escaping () -> Void) -> Widget {
             PKeyed(id, Chrome.textToggle(label, on, fluent, action: action))
@@ -150,7 +239,16 @@ final class ParagraphDialogState: State<StatefulWidget> {
                 spin("pa-before", "Space before", v.before) { [weak self] n in self?.v.before = n },
                 spin("pa-after", "Space after", v.after) { [weak self] n in self?.v.after = n },
             ]),
-        ] + lineRows)
+        ] + lineRows + [
+            row("", [PKeyed("pa-tabs", Chrome.textToggle("Tabs…", false, fluent) { [weak self] in
+                guard let self else { return }
+                self.setState {
+                    self._tabsBefore = self.v.tabs; self.showTabs = true
+                    let first = self.v.tabs.stops.first
+                    self._tabPos = first?.position ?? 36
+                    self._tabKind = first.map(TabKind.init) ?? .left; self._tabLeader = first.map(TabLeader.init) ?? .none
+                } })]),
+        ])
         return DialogShell(title: "Paragraph", page: page, width: 480,
                            onOK: { [weak self] in guard let self else { return }; self._w.onOK(self.v.format) },
                            onCancel: { [weak self] in self?._w.onCancel() })

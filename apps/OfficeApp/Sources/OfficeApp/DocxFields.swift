@@ -324,8 +324,19 @@ extension DocxFormat {
     /// does not update them or confuse them with page-number fields.
     static func _preservesField(_ instr: String) -> Bool {
         let word = instr.split(whereSeparator: { $0.isWhitespace }).first?.uppercased() ?? ""
-        return ["AUTHOR", "DATE", "DOCPROPERTY"].contains(word)
+        return Self._keptFieldWords.contains(word)
     }
+
+    /// Fields whose result is one inline run of text, shown as the file cached it
+    /// and written back as the field so Word can bring it up to date. (TOC, which
+    /// spans paragraphs, the page-number fields of headers and footers, IF, EQ,
+    /// HYPERLINK and the form fields have their own paths.)
+    static let _keptFieldWords: Set<String> = [
+        "AUTHOR", "DATE", "DOCPROPERTY", "REF", "SEQ", "MERGEFIELD", "STYLEREF", "TITLE", "SUBJECT", "KEYWORDS", "COMMENTS",
+        "FILENAME", "FILESIZE", "NUMWORDS", "NUMCHARS", "NUMPAGES", "PAGE", "SECTION", "SECTIONPAGES", "CREATEDATE", "SAVEDATE",
+        "PRINTDATE", "TIME", "EDITTIME", "REVNUM", "LASTSAVEDBY", "USERNAME", "USERINITIALS", "USERADDRESS", "TEMPLATE",
+        "DOCVARIABLE", "INFO", "QUOTE", "AUTONUM", "AUTONUMLGL", "AUTONUMOUT", "LISTNUM", "NOTEREF", "CITATION",
+    ]
 
     static func _fieldText(_ root: XNode) -> String {
         var out: [String] = []

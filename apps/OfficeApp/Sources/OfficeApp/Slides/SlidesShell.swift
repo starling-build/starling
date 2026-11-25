@@ -347,7 +347,14 @@ final class SlidesShellState: State<StatefulWidget> {
         session.onSlidesView = { [weak self] sorter in
             guard let self else { return }
             self._endEditing()
+            self.deck.setNotesPageView(false)
             self.setState { self._sorter = sorter }
+        }
+        session.onSlidesNotesPage = { [weak self] in
+            guard let self else { return }
+            self._endEditing()
+            self.setState { self._sorter = false }
+            self.deck.setNotesPageView(true)
         }
         session.onUndo = { [weak self] in self?._undo() }
         session.onRedo = { [weak self] in self?._redo() }
@@ -1211,6 +1218,9 @@ final class SlidesShellState: State<StatefulWidget> {
             spellChecker: session.checkSpelling ? _spelling : nil,
             animationBadges: _tab == .animations || _animationPane))]
         if _showNotes { work.append(_notesPane(fluent)) }
+        if deck.notesPageView && !_sorter {
+            work = [Expanded(child: _notesPageView(fluent))]
+        }
         if _sorter {
             column.append(Expanded(child: _sorterView(fluent)))
         } else {
@@ -1531,6 +1541,44 @@ final class SlidesShellState: State<StatefulWidget> {
 
     // MARK: Notes
 
+    /// The Notes Page view: a portrait page (7.5 x 10 in, as the file's
+    /// notesSz), the slide's picture in the upper part, the notes editable below.
+    private func _notesPageView(_ fluent: FluentThemeData) -> Widget {
+        let slide = deck.currentSlide
+        let dark = fluent.brightness == .dark
+        _notesTheme.textColor = Color(0xFF1B1B1B)
+        _notesTheme.caretColor = _notesTheme.textColor
+        let pageW = 480.0, pageH = 640.0
+        let picW = 384.0
+        let picH = (picW * deck.slideSize.height / deck.slideSize.width).rounded()
+        let picLeft = (pageW - picW) / 2, picTop = 48.0
+        let bodyTop = picTop + picH + 36
+        let page = SizedBox(width: pageW, height: pageH, child: DecoratedBox(
+            decoration: BoxDecoration(color: Color(0xFFFFFFFF),
+                                      border: Border.all(color: fluent.resources.controlStrokeColorDefault, width: 1)),
+            child: Stack(children: [
+                Positioned(left: picLeft, top: picTop, width: picW, height: picH, child: DecoratedBox(
+                    decoration: BoxDecoration(border: Border.all(color: Color(0xFF808080), width: 1)),
+                    child: ClipRect(child: CustomPaint(
+                        painter: SlidePainter(slide: slide, theme: deck.theme, slideSize: deck.slideSize,
+                                              revision: deck.revision, cache: _cache),
+                        child: SizedBox(expand: ()))))),
+                Positioned(left: picLeft, top: bodyTop, right: picLeft, bottom: 48, child: Listener(
+                    onPointerDown: { [weak self] _ in self?._editNotes(focus: false) },
+                    behavior: .translucent,
+                    child: RichEditable(
+                        key: ValueKey("page \(slide.id)"),
+                        controller: slide.notes, theme: _notesTheme,
+                        padding: EdgeInsets(left: 0, top: 0, right: 0, bottom: 0),
+                        focusNode: _notesFocus, autofocus: false, backgroundColor: nil,
+                        onShortcut: { [weak self] key, mods in self?._shortcut(key, mods) ?? false },
+                        spellChecker: session.checkSpelling ? _spelling : nil))),
+            ])))
+        return ColoredBox(color: dark ? Color(0xFF202020) : Color(0xFFE6E6E6), child: SingleChildScrollView(
+            child: Padding(padding: EdgeInsets(left: 0, top: 20, right: 0, bottom: 20), child: Row(
+                mainAxisAlignment: .center, children: [page]))))
+    }
+
     private func _notesPane(_ fluent: FluentThemeData) -> Widget {
         let slide = deck.currentSlide
         let dark = fluent.brightness == .dark
@@ -1588,9 +1636,13 @@ final class SlidesShellState: State<StatefulWidget> {
                 self?.setState { self?._showNotes.toggle() }
             },
             Chrome.gap(8),
-            Chrome.toggle(FluentSystemIcons.onePage, "Normal", !_sorter, fluent) { [weak self] in
+            Chrome.toggle(FluentSystemIcons.onePage, "Normal", !_sorter && !deck.notesPageView, fluent) { [weak self] in
                 self?.session.onSlidesView?(false)
             },
+            Padding(key: ValueKey("view.notesPage.status"), padding: EdgeInsets(left: 0, top: 0, right: 0, bottom: 0),
+                    child: Chrome.toggle(FluentSystemIcons.document, "Notes Page", deck.notesPageView && !_sorter, fluent) { [weak self] in
+                self?.session.onSlidesNotesPage?()
+            }),
             Chrome.toggle(FluentSystemIcons.grid, "Slide Sorter", _sorter, fluent) { [weak self] in
                 self?.session.onSlidesView?(true)
             },
