@@ -563,6 +563,9 @@ public struct RichHeaderFooter: Hashable, Codable, Sendable {
     public var type: String
     public var paragraphs: [RichParagraph]
     public var section: Int?
+    /// Set when the editor wrote these paragraphs (W-HF-1): the save writes a part from them
+    /// rather than keeping the file's own.
+    public var edited: Bool? = nil
     public init(kind: KeptHeaderFooter.Kind, type: String, paragraphs: [RichParagraph], section: Int? = nil) {
         self.kind = kind; self.type = type; self.paragraphs = paragraphs; self.section = section
     }

@@ -1624,8 +1624,11 @@ extension DocxFormat {
         // Kept header/footer parts: the default ones only while their text
         // is what the editor still shows; the generated ones take a name
         // no kept part uses.
+        func editedHF(_ kind: KeptHeaderFooter.Kind) -> RichHeaderFooter? {
+            doc.headerFooters.first { $0.kind == kind && $0.type == "default" && $0.section == nil && $0.edited == true }
+        }
         let keptHF = doc.keptHeaderFooters.enumerated().filter { doc.keptParts[$0.element.part] != nil }.filter { (_, k) in
-            k.type != "default" || (k.kind == .header ? doc.header : doc.footer) == k.text
+            k.type != "default" || (editedHF(k.kind) == nil && (k.kind == .header ? doc.header : doc.footer) == k.text)
         }
         let keptDefaultHeader = keptHF.contains { $0.element.kind == .header && $0.element.type == "default" }
         let keptDefaultFooter = keptHF.contains { $0.element.kind == .footer && $0.element.type == "default" }
@@ -1679,12 +1682,12 @@ extension DocxFormat {
         var extraOverrides = ""
         if writeHeader {
             relsXML += "<Relationship Id=\"rIdHeader\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/header\" Target=\"\(headerName)\"/>"
-            extraParts.append(ZipEntry(name: "word/\(headerName)", data: Data(_headerFooterPart("w:hdr", doc.header, center: false, width: pageSetup.contentWidth).utf8)))
+            extraParts.append(ZipEntry(name: "word/\(headerName)", data: Data((editedHF(.header).map { _richHeaderFooterPart("w:hdr", $0.paragraphs, width: pageSetup.contentWidth) } ?? _headerFooterPart("w:hdr", doc.header, center: false, width: pageSetup.contentWidth)).utf8)))
             extraOverrides += "<Override PartName=\"/word/\(headerName)\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml\"/>"
         }
         if writeFooter {
             relsXML += "<Relationship Id=\"rIdFooter\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer\" Target=\"\(footerName)\"/>"
-            extraParts.append(ZipEntry(name: "word/\(footerName)", data: Data(_headerFooterPart("w:ftr", doc.footer, center: true, width: pageSetup.contentWidth).utf8)))
+            extraParts.append(ZipEntry(name: "word/\(footerName)", data: Data((editedHF(.footer).map { _richHeaderFooterPart("w:ftr", $0.paragraphs, width: pageSetup.contentWidth) } ?? _headerFooterPart("w:ftr", doc.footer, center: true, width: pageSetup.contentWidth)).utf8)))
             extraOverrides += "<Override PartName=\"/word/\(footerName)\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml\"/>"
         }
         for (i, k) in keptHF {
@@ -1820,6 +1823,43 @@ extension DocxFormat {
     }
 
     /// A header or footer part: one paragraph, fields as fldSimple.
+    /// A header or footer part written from the editor's formatted paragraphs (W-HF-1): direct formatting only,
+    /// tabs as the Header/Footer centre and right stops, page fields as simple fields.
+    static func _richHeaderFooterPart(_ tag: String, _ paragraphs: [RichParagraph], width: Double) -> String {
+        var body = ""
+        for p in paragraphs {
+            var pPr = ""
+            if p.text.contains("\t" as Character) {
+                pPr += "<w:tabs><w:tab w:val=\"center\" w:pos=\"\(Int((width * 10).rounded()))\"/><w:tab w:val=\"right\" w:pos=\"\(Int((width * 20).rounded()))\"/></w:tabs>"
+            }
+            switch p.style.alignment {
+            case .center: pPr += "<w:jc w:val=\"center\"/>"
+            case .right: pPr += "<w:jc w:val=\"right\"/>"
+            case .justify: pPr += "<w:jc w:val=\"both\"/>"
+            default: break
+            }
+            var runs = ""
+            var offset = 0
+            let units = Array(p.text.utf16)
+            for r in p.runs where r.length > 0 {
+                let piece = String(decoding: units[offset..<min(offset + r.length, units.count)], as: UTF16.self)
+                offset += r.length
+                let rPr = _rPrXML(r.style)
+                let props = rPr.isEmpty ? "" : "<w:rPr>\(rPr)</w:rPr>"
+                var inner = ""
+                var literal = ""
+                func flush() { if !literal.isEmpty { inner += "<w:r>\(props)\(_text(literal))</w:r>"; literal = "" } }
+                for ch in piece {
+                    if ch == "\t" { flush(); inner += "<w:r>\(props)<w:tab/></w:r>" } else { literal.append(ch) }
+                }
+                flush()
+                if let f = r.style.field { runs += "<w:fldSimple w:instr=\" \(_esc(f)) \">\(inner)</w:fldSimple>" } else { runs += inner }
+            }
+            body += "<w:p>\(pPr.isEmpty ? "" : "<w:pPr>\(pPr)</w:pPr>")\(runs)</w:p>"
+        }
+        return "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<\(tag) xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\">\(body)</\(tag)>"
+    }
+
     static func _headerFooterPart(_ tag: String, _ template: String, center: Bool, width: Double) -> String {
         var runs = ""
         var literal = ""
