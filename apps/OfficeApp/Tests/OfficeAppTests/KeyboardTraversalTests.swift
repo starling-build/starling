@@ -138,6 +138,36 @@ final class KeyboardTraversalTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(opened, 5, "the sweep must really open dialogs")
     }
 
+    /// Every Sheets dialog: Tab reaches each control and Esc closes it.
+    func testEverySheetsDialogIsWalkableByTab() {
+        let opens: [(String, SheetCommand)] = [
+            ("Insert Cells", .cellsDialog(insert: true)), ("Delete Cells", .cellsDialog(insert: false)),
+            ("Paste Special", .pasteSpecial), ("Conditional Format", .conditionalFormat),
+            ("Data Validation", .dataValidation), ("Consolidate", .consolidate),
+            ("Remove Duplicates", .removeDuplicates), ("Text to Columns", .textToColumns),
+            ("Subtotal", .subtotal), ("Sort", .sortDialog), ("Table", .tableDialog),
+            ("Name Manager", .nameManager), ("Protect Sheet", .protectSheetDialog),
+            ("Protect Workbook", .protectWorkbookDialog), ("Page Setup", .pageSetup),
+        ]
+        var opened = 0
+        for (name, cmd) in opens {
+            KeyboardTraversal.shared.reset()
+            let ui = app(SheetsShell(initialPath: nil, onSwitch: { _, _ in }))
+            let wb = ui.state(SheetsShellState.self)!.wb
+            let behind = buttonsOnScreen(ui)
+            wb.onCommand?(cmd); ui.pump()
+            let reach = KeyboardTraversal.shared.reachable()
+            guard !reach.isEmpty, reach.allSatisfy({ $0.modal }) else { print("KEYSWEEP not modal/none: \(name) stops=\(reach.count)"); continue }
+            opened += 1
+            let onScreen = buttonsOnScreen(ui) - behind
+            print("KEYSWEEP \(name): stops=\(reach.count) controls=\(onScreen)")
+            XCTAssertEqual(reach.count, onScreen, "\(name): every control on screen has a keyboard stop")
+            XCTAssertEqual(tabAround(ui), reach.count, "\(name): Tab must visit all \(reach.count) controls once")
+            XCTAssertTrue(ui.press(.escape), name)
+        }
+        XCTAssertGreaterThanOrEqual(opened, 8, "the sweep must really open dialogs")
+    }
+
     // MARK: Tab keeps its own meaning inside the editing surfaces
 
     func testTabInWriterTextInsertsATabAndDoesNotWalkTheRibbon() {
@@ -176,21 +206,19 @@ final class KeyboardTraversalTests: XCTestCase {
         XCTAssertEqual(rows(), 3)
     }
 
-    func testTabWhileTypingInASlideShapeDoesNotWalkOrCycle() {
+    func testTabWhileTypingInASlideShapeIndentsAndDoesNotWalkOrCycle() {
         let ui = app(SlidesShell(initialPath: nil, startBlank: true, onSwitch: { _, _ in }))
         let deck = ui.state(SlidesShellState.self)!.session.deck!
         let shape = deck.currentSlide.shapes.first { $0.text != nil }!
-        shape.text!.insertText("a")
-        deck.selectShapes([shape]); ui.pump(); ui.pump(); ui.pump()
-        let st = ui.state(SlideCanvasState.self)!
-        // (The shape's own editor does not mount in this harness, so only the part this change could break is
-        // checked: with typing focus in the shape, Tab starts no walk and does not cycle the selection.
-        // Where Tab goes inside the editor is RichEditable's own path, covered by the Writer tests above.)
-        ui.press(.enter); ui.pump()                              // Enter edits the selected shape
-        st.focusNode(for: shape).requestFocus(); ui.pump()       // the post-frame step Enter schedules
+        deck.selectShapes([shape]); ui.pump()
+        ui.press(.enter); ui.pump()                              // Enter edits the selected shape's text
+        ui.type("x")
+        XCTAssertEqual(shape.text!.document.paragraphs[0].text, "x", "the shape's editor must have the keyboard")
         ui.press(.tab)
         XCTAssertNil(KeyboardTraversal.shared.focused)
         XCTAssertTrue(deck.selection.first === shape, "Tab typed into the shape must not cycle the selection")
+        let p = shape.text!.document.paragraphs[0]
+        XCTAssertTrue(p.text.contains("\t") || p.style.listLevel > 0, "Tab indents or inserts a tab in the shape's text")
     }
 
     func testTabInSheetsMovesToTheNextCell() {
