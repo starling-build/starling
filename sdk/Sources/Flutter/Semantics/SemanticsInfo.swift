@@ -17,15 +17,19 @@ public struct SemanticsInfo {
     public var isFocused: Bool?
     public var textSelection: TextSelection?
     public var onTap: VoidCallback?
+    public var onSetSelection: SetSelectionHandler?
+    public var onReplaceRange: ((Int, Int, String) -> Void)?
 
     public init(label: String? = nil, hint: String? = nil, value: String? = nil,
                 isButton: Bool = false, isTextField: Bool = false, isHeader: Bool = false,
                 isLink: Bool = false, isChecked: Bool? = nil, isToggled: Bool? = nil,
-                isSelected: Bool? = nil, isEnabled: Bool? = nil, isFocused: Bool? = nil, textSelection: TextSelection? = nil, onTap: VoidCallback? = nil) {
+                isSelected: Bool? = nil, isEnabled: Bool? = nil, isFocused: Bool? = nil, textSelection: TextSelection? = nil, onTap: VoidCallback? = nil,
+                onSetSelection: SetSelectionHandler? = nil, onReplaceRange: ((Int, Int, String) -> Void)? = nil) {
         self.label = label; self.hint = hint; self.value = value
         self.isButton = isButton; self.isTextField = isTextField; self.isHeader = isHeader
         self.isLink = isLink; self.isChecked = isChecked; self.isToggled = isToggled
         self.isSelected = isSelected; self.isEnabled = isEnabled; self.isFocused = isFocused; self.textSelection = textSelection; self.onTap = onTap
+        self.onSetSelection = onSetSelection; self.onReplaceRange = onReplaceRange
     }
 
     func apply(to config: SemanticsConfiguration) {
@@ -43,5 +47,7 @@ public struct SemanticsInfo {
         if let isFocused { config.isFocused = isFocused }
         if let textSelection { config.textSelection = textSelection }
         if let onTap { config.onTap = onTap }
+        if let onSetSelection { config.onSetSelection = onSetSelection }
+        if let onReplaceRange { config.onReplaceRange = onReplaceRange }
     }
 }

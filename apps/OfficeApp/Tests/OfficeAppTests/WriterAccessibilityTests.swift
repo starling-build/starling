@@ -27,3 +27,22 @@ final class WriterAccessibilityTableTests: XCTestCase {
         XCTAssertEqual(WriterAccessibility.reading(of: c).text, "Intro\nA\tB\nC\tD")
     }
 }
+
+final class WriterAccessibilityEditTests: XCTestCase {
+    func testTypingDeletingAndMovingTheCaretEachMakeOneUndoStep() {
+        let c = RichDocumentController(document: RichDocument(paragraphs: [
+            RichParagraph(text: "Hello"), RichParagraph(text: "world")]))
+        WriterAccessibility.select(TextSelection(baseOffset: 5, extentOffset: 5), in: c)
+        WriterAccessibility.replace(5, 5, ", dear", in: c)
+        XCTAssertEqual(WriterAccessibility.reading(of: c).text, "Hello, dear\nworld")
+        WriterAccessibility.replace(0, 7, "", in: c)          // "Hello, " goes
+        XCTAssertEqual(WriterAccessibility.reading(of: c).text, "dear\nworld")
+        WriterAccessibility.select(TextSelection(baseOffset: 5, extentOffset: 7), in: c)
+        XCTAssertEqual(c.selection.anchor, RichPosition(paragraph: 1, offset: 0))
+        XCTAssertEqual(c.selection.focus, RichPosition(paragraph: 1, offset: 2))
+        c.undo()
+        XCTAssertEqual(WriterAccessibility.reading(of: c).text, "Hello, dear\nworld")
+        c.undo()
+        XCTAssertEqual(WriterAccessibility.reading(of: c).text, "Hello\nworld")
+    }
+}

@@ -40,12 +40,48 @@ enum WriterAccessibility {
         return (text, TextSelection(baseOffset: flat(s.anchor), extentOffset: flat(s.focus)))
     }
 
-    /// `page` wrapped so its text and caret are announced; rebuilt whenever the document or caret changes.
+    /// The document position a flat offset of `reading(of:)`'s body text stands for.
+    static func position(atFlat flat: Int, in controller: RichDocumentController) -> RichPosition? {
+        let paragraphs = controller.document.paragraphs
+        var at = 0
+        for (i, p) in paragraphs.enumerated() {
+            let n = p.text.utf16.count
+            if flat <= at + n { return RichPosition(paragraph: i, offset: max(0, flat - at)) }
+            at += n + 1
+        }
+        return nil   // past the body (in the text boxes' lines)
+    }
+
+    /// A screen reader typing: replace the flat range `start..<end` with `text`, as one undo step per call.
+    static func replace(_ start: Int, _ end: Int, _ text: String, in controller: RichDocumentController) {
+        guard let a = position(atFlat: start, in: controller), let b = position(atFlat: end, in: controller) else { return }
+        controller.selection = RichSelection(anchor: a, focus: b)
+        if text.isEmpty {
+            if a != b { controller.deleteBackward() }
+            return
+        }
+        for (i, line) in text.split(separator: "\n", omittingEmptySubsequences: false).enumerated() {
+            if i > 0 { controller.insertParagraphBreak() }
+            controller.insertText(String(line))
+        }
+    }
+
+    /// A screen reader moving the caret or selecting.
+    static func select(_ sel: TextSelection, in controller: RichDocumentController) {
+        guard let a = position(atFlat: Int(sel.baseOffset), in: controller),
+              let b = position(atFlat: Int(sel.extentOffset), in: controller) else { return }
+        controller.selection = RichSelection(anchor: a, focus: b)
+    }
+
+    /// `page` wrapped so its text and caret are announced and a screen reader can type into it; rebuilt
+    /// whenever the document or caret changes.
     static func wrap(_ page: Widget, controller: RichDocumentController, focused: Bool) -> Widget {
         AnimatedBuilder(animation: controller, builder: { _, child in
             let r = reading(of: controller)
             return Semantics(label: "Document", value: r.text, textField: true, focused: focused,
-                             textSelection: r.selection, child: child)
+                             textSelection: r.selection,
+                             onSetSelection: { select($0, in: controller) },
+                             onReplaceRange: { replace($0, $1, $2, in: controller) }, child: child)
         }, child: page)
     }
 }

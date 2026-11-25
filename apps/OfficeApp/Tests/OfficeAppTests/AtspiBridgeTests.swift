@@ -159,6 +159,55 @@ final class AtspiBridgeTests: XCTestCase {
         XCTAssertTrue(text3.contains("TEXT w\u{f6}rld"), "client saw: \(text3)")
         XCTAssertTrue(text3.contains("CARET 4"), "client saw: \(text3)")
         XCTAssertTrue(text3.contains("SEL 1 4"), "client saw: \(text3)")
+
+        // A screen reader types, deletes and moves the caret; the field's own handlers see it (offsets in characters).
+        var edits: [String] = []
+        var caret: (Int, Int)? = nil
+        AtspiAccessibility.windowOrigin = { (100, 50) }
+        defer { AtspiAccessibility.windowOrigin = nil }
+        t.replace(with: Directionality(textDirection: .ltr, child: Semantics(
+            label: "Edit me", value: "\u{1F600}ab", textField: true,
+            textSelection: TextSelection(baseOffset: 0, extentOffset: 0),
+            onSetSelection: { caret = (Int($0.baseOffset), Int($0.extentOffset)) },
+            onReplaceRange: { edits.append("\($0)-\($1)=\($2)") },
+            child: SizedBox(width: 20, height: 10, child: nil))))
+        let script4 = """
+        import gi
+        gi.require_version('Atspi','2.0')
+        from gi.repository import Atspi
+        Atspi.init()
+        d = Atspi.get_desktop(0)
+        for i in range(d.get_child_count()):
+            app = d.get_child_at_index(i)
+            if app.get_name() != 'bridge-test': continue
+            for j in range(app.get_child_count()):
+                c = app.get_child_at_index(j)
+                if c.get_name() == 'Edit me':
+                    e = Atspi.Component.get_extents(c, Atspi.CoordType.SCREEN)
+                    print('SCREEN', e.x, e.y)
+                    w = Atspi.Component.get_extents(c, Atspi.CoordType.WINDOW)
+                    print('WINDOW', w.x, w.y)
+                    print('INSERT', Atspi.EditableText.insert_text(c, 1, 'Z', 1))
+                    print('DELETE', Atspi.EditableText.delete_text(c, 2, 3))
+                    print('CARET', Atspi.Text.set_caret_offset(c, 2))
+                    print('SELECT', Atspi.Text.set_selection(c, 0, 1, 3))
+        """
+        let client4 = Process()
+        client4.executableURL = URL(fileURLWithPath: python)
+        client4.arguments = ["-c", script4]
+        let cout4 = Pipe(); client4.standardOutput = cout4; client4.standardError = FileHandle.nullDevice
+        try client4.run()
+        let end4 = Date().addingTimeInterval(30)
+        while client4.isRunning && Date() < end4 { RunLoop.current.run(until: Date().addingTimeInterval(0.05)) }
+        if client4.isRunning { client4.terminate() }
+        let text4 = String(decoding: cout4.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+        XCTAssertTrue(text4.contains("SCREEN 100 50"), "client saw: \(text4)")
+        XCTAssertTrue(text4.contains("WINDOW 0 0"), "client saw: \(text4)")
+        // The emoji is one character but two UTF-16 units: character 1 is unit 2, character 2..3 is units 3..4.
+        XCTAssertEqual(edits, ["2-2=Z", "3-4="])
+        XCTAssertTrue(text4.contains("INSERT True") && text4.contains("DELETE True"), "client saw: \(text4)")
+        XCTAssertTrue(text4.contains("SELECT True"), "client saw: \(text4)")
+        XCTAssertEqual(caret?.0, 2); XCTAssertEqual(caret?.1, 4)   // the last select: characters 1..3 = units 2..4
     }
 }
 #endif

@@ -21,6 +21,9 @@ public struct SemanticsSnapshotNode {
     public var tap: VoidCallback?
     /// Where the node is in view coordinates (nil when it has no box).
     public var frame: (x: Double, y: Double, width: Double, height: Double)? = nil
+    /// Assistive technology moving the caret (UTF-16 units of `value`), and replacing a UTF-16 range of it.
+    public var setSelection: SetSelectionHandler? = nil
+    public var replaceRange: ((Int, Int, String) -> Void)? = nil
 }
 
 public enum SemanticsSnapshot {
@@ -94,6 +97,7 @@ public enum SemanticsSnapshot {
             label: label, hint: c.hint, value: c.value, isButton: c.isButton, isTextField: c.isTextField,
             isHeader: c.isHeader, isChecked: c.isChecked, isToggled: c.isToggled, isSelected: c.isSelected,
             isEnabled: c.isEnabled, isFocused: c.isFocused, selection: c.textSelection.map { (Int($0.baseOffset), Int($0.extentOffset)) },
-            canTap: t != nil, tap: t, frame: frame)
+            canTap: t != nil, tap: t, frame: frame,
+            setSelection: c.onSetSelection, replaceRange: c.onReplaceRange)
     }
 }
