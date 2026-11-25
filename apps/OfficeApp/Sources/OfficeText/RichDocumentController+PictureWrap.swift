@@ -491,4 +491,26 @@ extension RichDocumentController {
         notifyListeners()
         return true
     }
+
+    /// What the app does to one child of a group (EMU, page coordinates).
+    /// Set by the app, which knows the markup: (group, child, change) gives the changed group, or nil.
+    public nonisolated(unsafe) static var groupChildEditor: ((ImageAttachment, Int, GroupChildChange) -> ImageAttachment?)? = nil
+
+    /// One undo step: the picked child of the selected group moves, resizes (points) or goes. The pick stays after a move or
+    /// a resize.
+    @discardableResult
+    public func editGroupChild(_ change: GroupChildChange) -> Bool {
+        guard let index = selectedImageIndex, let child = groupChild, index < document.paragraphs.count,
+              let image = document.paragraphs[index].image, let edit = Self.groupChildEditor,
+              let changed = edit(image, child, change) else { return false }
+        let next = changed
+        guard replaceImageParagraphs([index], with: [next]) else { return false }
+        if case .delete = change {} else { groupChild = child; notifyListeners() }
+        return true
+    }
+}
+
+/// A change to one child of a group, in EMU.
+public enum GroupChildChange {
+    case move(dx: Int, dy: Int), resize(cx: Int, cy: Int), delete
 }

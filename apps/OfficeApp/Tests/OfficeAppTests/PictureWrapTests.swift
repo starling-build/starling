@@ -553,6 +553,31 @@ final class ShapeSelectTests: XCTestCase {
         let spPr = painted.components(separatedBy: "<wps:spPr>")
         XCTAssertFalse(spPr[1].components(separatedBy: "</wps:spPr>")[0].contains("FF0000"), "the first child keeps its fill")
         XCTAssertTrue(spPr[2].components(separatedBy: "</wps:spPr>")[0].contains("FF0000"))
+        // The picked child moves (one undo step); the group keeps both children and the pick.
+        RichDocumentController.groupChildEditor = { ShapeGroups.editChild($0, child: $1, $2) }
+        XCTAssertTrue(c.editGroupChild(.move(dx: 12700 * 10, dy: 12700 * 5)))
+        XCTAssertEqual(c.groupChild, 1)
+        var moved = try XCTUnwrap(c.groupChildBoxes(at: gi))
+        XCTAssertEqual(moved[0].width, boxes[0].width, accuracy: 0.5, "the other child stays")
+        // (Boxes run from the group's own corner, which follows the children: the other one now sits 10 left and 5 up from it.)
+        XCTAssertEqual(boxes[0].left - moved[0].left, 10, accuracy: 0.5)
+        XCTAssertEqual(boxes[0].top - moved[0].top, 5, accuracy: 0.5)
+        c.undo()
+        XCTAssertEqual(try XCTUnwrap(c.groupChildBoxes(at: c.selectedImageIndex ?? gi))[1], boxes[1], "one undo puts it back")
+        c.selectImage(at: c.selectedImageIndex ?? gi)
+        XCTAssertTrue(c.pickGroupChild(at: c.selectedImageIndex ?? gi, point: Offset(40, 30)))
+        XCTAssertTrue(c.editGroupChild(.resize(cx: 12700 * 40, cy: 12700 * 30)))
+        moved = try XCTUnwrap(c.groupChildBoxes(at: c.selectedImageIndex ?? gi))
+        XCTAssertEqual(moved[1].width, 40, accuracy: 0.5)
+        XCTAssertEqual(moved[1].height, 30, accuracy: 0.5)
+        if let path = ProcessInfo.processInfo.environment["SHAPE_LAB5"] {   // a group whose child was moved up-left and resized
+            try DocxFormat.write(c.document, pageSetup: .letter).write(to: URL(fileURLWithPath: path))
+        }
+        XCTAssertTrue(c.editGroupChild(.delete))
+        XCTAssertEqual(try XCTUnwrap(c.groupChildBoxes(at: c.selectedImageIndex ?? gi)).count, 1, "the child is gone, the other stays")
+        c.undo()   // the delete
+        c.undo()   // the resize
+        XCTAssertEqual(try XCTUnwrap(c.groupChildBoxes(at: c.selectedImageIndex ?? gi)), boxes, "each edit was one undo step")
         // Ungroup gives the two shapes back, by name and size.
         let g = try XCTUnwrap(c.document.paragraphs[c.selectedImageIndex!].image)
         let parts = try XCTUnwrap(ShapeGroups.ungroup(g, number: 20))

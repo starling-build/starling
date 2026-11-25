@@ -535,6 +535,8 @@ public final class RichEditableState: State<StatefulWidget> {
         case .pageDown:
             keepStickyX = true
             _movePage(down: true, extend: shift)
+        case .backspace where c.groupChild != nil && c.editGroupChild(.delete): break   // a picked child of a group goes
+        case .delete where c.groupChild != nil && c.editGroupChild(.delete): break
         case .backspace:
             if _chords.word { c.deleteWordBackward() }
             else if _chords.primary && KeyModifiers.primary == .meta { _deleteToLineStart() }
@@ -812,7 +814,7 @@ public final class RichEditableState: State<StatefulWidget> {
         var rect = Rect.fromLTWH(canvas.left + _originX, canvas.top + _w.padding.top - _scrollY,
                                  canvas.width, canvas.height)
         if let d = _dragSize { rect = Rect.fromLTWH(rect.left, rect.top, d.width, d.height) }
-        if let d = _moveDelta { rect = rect.shift(d) }
+        if let d = _moveDelta, _controller.groupChild == nil { rect = rect.shift(d) }
         return (index, rect, inline)
     }
 
@@ -1479,6 +1481,12 @@ public final class RichEditableState: State<StatefulWidget> {
                 return
             }
             let pt = _layout.theme.pixelsPerPoint * _layout.scale
+            if drag.inline == nil, _controller.groupChild != nil {
+                // A child of the group is picked: it moves, the group's other children stay.
+                if d.dx != 0 || d.dy != 0 { _controller.editGroupChild(.move(dx: Int((d.dx / pt * 12700).rounded()), dy: Int((d.dy / pt * 12700).rounded()))) }
+                _repaint.notifyListeners()
+                return
+            }
             _controller.movePicture(at: drag.index, inline: drag.inline, dx: (d.dx / pt).rounded(), dy: (d.dy / pt).rounded())
             _repaint.notifyListeners()
             return
@@ -1691,7 +1699,8 @@ public final class RichEditableState: State<StatefulWidget> {
             line.style = .stroke
             line.strokeWidth = 1.5
             line.color = _layout.theme.selectionColor.withOpacity(1)
-            canvas.drawRect(Rect.fromLTWH(box.rect.left + c.left * pt, box.rect.top + c.top * pt, c.width * pt, c.height * pt), line)
+            let m = _moveDelta ?? Offset(0, 0)
+            canvas.drawRect(Rect.fromLTWH(box.rect.left + c.left * pt + m.dx, box.rect.top + c.top * pt + m.dy, c.width * pt, c.height * pt), line)
         }
 
         // Shapes picked along with it (Shift-click): their outlines.
