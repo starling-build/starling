@@ -2178,6 +2178,15 @@ extension DocxFormat {
         // early), and ours of a name the file has is not added beside it.
         for id in characterStyles.keys.sorted() { out += characterStyles[id]! }
         for id in tableStyles.keys.sorted() { out += tableStyles[id]! }
+        // Word's own note styles, for the notes Starling writes (10 pt single-spaced text, raised reference marks).
+        for (kind, name) in [("Footnote", "footnote"), ("Endnote", "endnote")] where notes {
+            if !sheet.styles.contains(where: { $0.name.lowercased() == "\(name) text" }) {
+                out += "<w:style w:type=\"paragraph\" w:styleId=\"\(kind)Text\"><w:name w:val=\"\(name) text\"/><w:basedOn w:val=\"Normal\"/><w:pPr><w:spacing w:after=\"0\" w:line=\"240\" w:lineRule=\"auto\"/></w:pPr><w:rPr><w:sz w:val=\"20\"/><w:szCs w:val=\"20\"/></w:rPr></w:style>"
+            }
+            if characterStyleIds["\(name) reference"] == nil, characterStyles["\(kind)Reference"] == nil {
+                out += "<w:style w:type=\"character\" w:styleId=\"\(kind)Reference\"><w:name w:val=\"\(name) reference\"/><w:rPr><w:vertAlign w:val=\"superscript\"/></w:rPr></w:style>"
+            }
+        }
         if characterStyleIds["hyperlink"] == nil, characterStyles["Hyperlink"] == nil {
         out += "<w:style w:type=\"character\" w:styleId=\"Hyperlink\"><w:name w:val=\"Hyperlink\"/><w:rPr><w:color w:val=\"0563C1\"/><w:u w:val=\"single\"/></w:rPr></w:style>"
         }

@@ -37,7 +37,7 @@ extension RichDocumentController {
     }
 
     /// The notes part with a new, empty note added (the part made, with its separator notes, where the file had none).
-    private static func _addElement(to part: Data?, kind: NoteReference.Kind, id: Int) -> Data {
+    private static func _addElement(to part: Data?, kind: NoteReference.Kind, id: Int, textStyle: String, markStyle: String) -> Data {
         let tag = kind == .footnote ? "footnote" : "endnote"
         var xml: String
         if let part { xml = String(decoding: part, as: UTF8.self) } else {
@@ -47,9 +47,9 @@ extension RichDocumentController {
             xml = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<w:\(tag)s xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\">"
                 + sep("separator", -1, "separator") + sep("continuationSeparator", 0, "continuationSeparator") + "</w:\(tag)s>"
         }
-        let element = "<w:\(tag) w:id=\"\(id)\"><w:p><w:pPr><w:spacing w:after=\"0\" w:line=\"240\" w:lineRule=\"auto\"/></w:pPr>"
-            + "<w:r><w:rPr><w:sz w:val=\"20\"/><w:vertAlign w:val=\"superscript\"/></w:rPr><w:\(tag)Ref/></w:r>"
-            + "<w:r><w:rPr><w:sz w:val=\"20\"/></w:rPr><w:t xml:space=\"preserve\"> </w:t></w:r></w:p></w:\(tag)>"
+        let element = "<w:\(tag) w:id=\"\(id)\"><w:p><w:pPr><w:pStyle w:val=\"\(textStyle)\"/></w:pPr>"
+            + "<w:r><w:rPr><w:rStyle w:val=\"\(markStyle)\"/></w:rPr><w:\(tag)Ref/></w:r>"
+            + "<w:r><w:t xml:space=\"preserve\"> </w:t></w:r></w:p></w:\(tag)>"
         let closing = "</w:\(tag)s>"
         while let last = xml.last, last == "\n" || last == " " || last == "\r" { xml.removeLast() }
         if xml.hasSuffix(closing) { xml.removeLast(closing.count) }
@@ -101,12 +101,14 @@ extension RichDocumentController {
             }
             return out
         }
+        func textId(_ name: String, _ fallback: String) -> String { document.styles.styles.first { $0.name.lowercased() == name }?.id ?? fallback }
+        func markId(_ name: String, _ fallback: String) -> String { document.keptCharacterStyleIds[name] ?? fallback }
         if kind == .footnote {
             state.footnotes = relabeled(state.footnotes); state.footnotes[id] = [body]
-            state.footnotePart = Self._addElement(to: state.footnotePart, kind: .footnote, id: id)
+            state.footnotePart = Self._addElement(to: state.footnotePart, kind: .footnote, id: id, textStyle: textId("footnote text", "FootnoteText"), markStyle: markId("footnote reference", "FootnoteReference"))
         } else {
             state.endnotes = relabeled(state.endnotes); state.endnotes[id] = [body]
-            state.endnotePart = Self._addElement(to: state.endnotePart, kind: .endnote, id: id)
+            state.endnotePart = Self._addElement(to: state.endnotePart, kind: .endnote, id: id, textStyle: textId("endnote text", "EndnoteText"), markStyle: markId("endnote reference", "EndnoteReference"))
         }
         let old = NotesState(document)
         edit {
@@ -231,7 +233,7 @@ extension RichDocumentController {
         }
         let lines = text.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
         func run(_ t: String) -> String {
-            "<w:r><w:rPr><w:sz w:val=\"20\"/></w:rPr><w:t xml:space=\"preserve\">\(Self._escaped(t))</w:t></w:r></w:p>"
+            "<w:r><w:t xml:space=\"preserve\">\(Self._escaped(t))</w:t></w:r></w:p>"
         }
         var xml = head + run(" " + lines[0])
         for l in lines.dropFirst() { xml += "<w:p>" + pPr + run(l) }

@@ -93,4 +93,39 @@ final class NoteInsertTests: XCTestCase {
         XCTAssertNil(c.editableNoteText(NoteReference(kind: .footnote, id: 1)))
         XCTAssertFalse(c.setNoteText(NoteReference(kind: .footnote, id: 1), "y"))
     }
+
+    /// A note is styled the Word way: Footnote Text / Footnote Reference (and the endnote pair), defined in styles.xml,
+    /// with no direct size or superscript on the note's runs.
+    func testNotesUseWordStyles() throws {
+        let c = controller(["Alpha beta gamma"])
+        c.moveTo(RichPosition(paragraph: 0, offset: 5), extend: false)
+        c.insertNote(.footnote)
+        let n = try XCTUnwrap(c.noteAtCaret())
+        XCTAssertTrue(c.setNoteText(n, "First\nSecond"))
+        c.moveTo(RichPosition(paragraph: 0, offset: 11), extend: false)
+        c.insertNote(.endnote)
+        let path = NSTemporaryDirectory() + "notestyles-\(getpid()).docx"
+        try DocxFormat.write(c.document, pageSetup: .letter).write(to: URL(fileURLWithPath: path))
+        defer { try? FileManager.default.removeItem(atPath: path) }
+        func part(_ name: String) throws -> String {
+            let p = Process(); p.executableURL = URL(fileURLWithPath: "/usr/bin/unzip"); p.arguments = ["-p", path, name]
+            let pipe = Pipe(); p.standardOutput = pipe; try p.run()
+            let d = pipe.fileHandleForReading.readDataToEndOfFile(); p.waitUntilExit()
+            return String(decoding: d, as: UTF8.self)
+        }
+        for (file, kind) in [("word/footnotes.xml", "Footnote"), ("word/endnotes.xml", "Endnote")] {
+            let xml = try part(file)
+            XCTAssertTrue(xml.contains("<w:pStyle w:val=\"\(kind)Text\"/>"), file)
+            XCTAssertTrue(xml.contains("<w:rStyle w:val=\"\(kind)Reference\"/>"), file)
+            XCTAssertFalse(xml.contains("w:vertAlign"), file)
+            XCTAssertFalse(xml.contains("<w:sz "), file)
+        }
+        let styles = try part("word/styles.xml")
+        for id in ["FootnoteText", "EndnoteText", "FootnoteReference", "EndnoteReference"] {
+            XCTAssertTrue(styles.contains("w:styleId=\"\(id)\""), id)
+        }
+        if let out = ProcessInfo.processInfo.environment["NOTE_CHECK_OUT3"] {
+            try DocxFormat.write(c.document, pageSetup: .letter).write(to: URL(fileURLWithPath: out))
+        }
+    }
 }
