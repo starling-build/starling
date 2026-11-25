@@ -268,7 +268,16 @@ extension RichDocumentController {
               let old = _floating(index, id), var box = old.textBox, let xml = old.sourceXML,
               let open = xml.rangeOfSubstring("<w:txbxContent>"),
               let close = xml.rangeOfSubstring("</w:txbxContent>", in: open.upperBound ..< xml.endIndex) else { return false }
-        let patched = String(xml[xml.startIndex ..< open.upperBound]) + contentXML + String(xml[close.lowerBound...])
+        // Revision and bookmark ids are one space for the whole file. The writer numbers a box's from 1 like the body's, so move
+        // them above every id the other boxes already hold (the body's revisions are renumbered from 1 on save).
+        var highest = 99_999
+        for (i, p) in document.paragraphs.enumerated() {
+            for other in [p.image].compactMap({ $0 }) + Array(p.inlineImages.values) {
+                if i == index, other.id == old.id { continue }
+                if let x = other.sourceXML { highest = max(highest, Self._highestRevisionId(in: x)) }
+            }
+        }
+        let patched = String(xml[xml.startIndex ..< open.upperBound]) + Self._shiftRevisionIds(contentXML, by: highest) + String(xml[close.lowerBound...])
         var new = old
         // (A box that resizes to fit its text keeps the height its text now needs, as Word's does.)
         if let height, box.autoHeight, abs(height - old.height) > 0.5 { new.height = height }
@@ -278,5 +287,35 @@ extension RichDocumentController {
         new.textBox = box
         _store(index, id, old: old, new: new)
         return true
+    }
+
+    private static let _idTags = ["<w:ins ", "<w:del ", "<w:bookmarkStart ", "<w:bookmarkEnd ", "<w:rPrChange ", "<w:pPrChange ", "<w:moveFrom ", "<w:moveTo "]
+
+    /// Visit each revision or bookmark `w:id="N"` of `xml`: (range of the digits, value).
+    private static func _revisionIds(in xml: String) -> [(Range<String.Index>, Int)] {
+        var out: [(Range<String.Index>, Int)] = []
+        for tag in _idTags {
+            var from = xml.startIndex
+            while let t = xml.rangeOfSubstring(tag, in: from ..< xml.endIndex) {
+                from = t.upperBound
+                guard let end = xml.rangeOfSubstring(">", in: from ..< xml.endIndex),
+                      let a = xml.rangeOfSubstring("w:id=\"", in: from ..< end.lowerBound),
+                      let q = xml.rangeOfSubstring("\"", in: a.upperBound ..< end.lowerBound),
+                      let n = Int(xml[a.upperBound ..< q.lowerBound]) else { continue }
+                out.append((a.upperBound ..< q.lowerBound, n))
+            }
+        }
+        return out
+    }
+
+    public static func _highestRevisionId(in xml: String) -> Int { _revisionIds(in: xml).map(\.1).max() ?? 0 }
+
+    /// `xml` with every revision and bookmark id raised by `offset` (start and end of a bookmark move together).
+    static func _shiftRevisionIds(_ xml: String, by offset: Int) -> String {
+        var out = xml
+        for (range, n) in _revisionIds(in: xml).sorted(by: { $0.0.lowerBound > $1.0.lowerBound }) {
+            out.replaceSubrange(range, with: String(n + offset))
+        }
+        return out
     }
 }

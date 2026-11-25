@@ -229,6 +229,21 @@ final class TextBoxInsertTests: XCTestCase {
         XCTAssertTrue(c.document.paragraphs[i].image?.sourceXML?.containsSubstring("PAGE") == true)
     }
 
+    func testRevisionIdsOfTwoEditedBoxesNeverRepeat() throws {
+        let c = RichDocumentController(document: RichDocument(paragraphs: [RichParagraph(text: "body")]))
+        var ins = RichParagraph(text: "added")
+        ins.runs = [Run(length: 5, style: { var s = CharStyle.plain; s.revision = RevisionMark(kind: .inserted, author: "A", date: ""); return s }())]
+        let xml = try XCTUnwrap(TextBoxInsert.contentXML([ins]))
+        var ids: [Int] = []
+        for n in 0..<2 {
+            c.insertImage(try XCTUnwrap(TextBoxInsert.make(text: "box \(n)")))
+            let i = try XCTUnwrap(c.document.paragraphs.lastIndex { $0.image?.textBox != nil })
+            XCTAssertTrue(c.setTextBoxContent(at: i, paragraphs: [ins], contentXML: xml))
+            ids.append(RichDocumentController._highestRevisionId(in: try XCTUnwrap(c.document.paragraphs[i].image?.sourceXML)))
+        }
+        XCTAssertEqual(Set(ids).count, 2, "each box's revisions get their own ids")
+    }
+
     func testNewTextBoxFitsItsTextAndGrowsWithTyping() throws {
         let c = RichDocumentController(document: RichDocument(paragraphs: [RichParagraph(text: "body")]))
         c.insertImage(try XCTUnwrap(TextBoxInsert.make(text: "one")))
