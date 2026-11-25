@@ -244,6 +244,10 @@ final class SheetsShellState: State<StatefulWidget> {
         if let n = wb.chartNotice { wb.chartNotice = nil; _flash(n) }
         session.dirty = wb.edits != 0
         _scheduleAutosave()
+        // The title bar's Undo and Redo read the session's summary, which
+        // only the Writer fills in; without this they stayed greyed out.
+        session.summary.canUndo = wb.canUndo
+        session.summary.canRedo = wb.canRedo
         _syncBars()
         _publishToolbar()
         setState {}

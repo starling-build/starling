@@ -134,3 +134,18 @@ final class UIShellHarnessTests: XCTestCase {
         XCTAssertEqual(c.currentTableStyle?.fixedLayout, true)
     }
 }
+
+/// X-P0-3: the Sheets title bar's Undo and Redo follow the workbook, and Find names the workbook.
+final class SheetsTitleBarUndoHarnessTests: XCTestCase {
+    func testTitleBarUndoRedoFollowTheWorkbook() throws {
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: SheetsShell(initialPath: nil, onSwitch: { _, _ in }), title: "Test"), size: Size(1280, 800))
+        let shell = try XCTUnwrap(ui.state(SheetsShellState.self))
+        XCTAssertFalse(shell.session.summary.canUndo)
+        shell.wb.setInput("5", at: CellAddress("A1")!)
+        XCTAssertTrue(shell.session.summary.canUndo)
+        XCTAssertFalse(shell.session.summary.canRedo)
+        shell.session.onUndo?()
+        XCTAssertFalse(shell.session.summary.canUndo)
+        XCTAssertTrue(shell.session.summary.canRedo)
+    }
+}
