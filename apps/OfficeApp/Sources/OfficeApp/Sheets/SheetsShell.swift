@@ -92,6 +92,8 @@ final class SheetsShellState: State<StatefulWidget> {
     private var _moveCopyFor: Int? = nil
     private var _pasteOpen = false
     private var _symbolOpen = false
+    /// The Insert Hyperlink dialog is open (X-LK-1).
+    private var _linkOpen = false
     private let _findQuery = TextEditingController()
     private let _contextMenu = FlyoutController()
     private let _filterMenu = FlyoutController()
@@ -1150,6 +1152,11 @@ final class SheetsShellState: State<StatefulWidget> {
                     self?._grid?.focus.requestFocus()
                 })))
         }
+        if _linkOpen {
+            layers.append(Positioned(left: 0, top: 0, right: 0, bottom: 0, child: HyperlinkDialog(
+                hooks: wb.hyperlinkHooks(flash: { [weak self] in self?._flash($0) }),
+                onClose: { [weak self] in self?.setState { self?._linkOpen = false }; self?._grid?.focus.requestFocus() })))
+        }
         if layers.count > 1, _backstage == nil { return Stack(children: layers) }
         if _formatOpen, _backstage == nil {
             return Stack(children: layers + [
@@ -1192,6 +1199,7 @@ final class SheetsShellState: State<StatefulWidget> {
         case "h": _openFind(replace: true); return true
         case "l" where chords.shift: wb.toggleAutoFilter(); return true
         // Excel for Mac's Group and Ungroup.
+        case "k" where !chords.shift && _grid?.edit == nil: setState { _linkOpen = true }; return true
         case "k" where chords.shift: wb.group(true); return true
         case "j" where chords.shift: wb.group(false); return true
         case "\u{1B}":
@@ -1384,6 +1392,10 @@ final class SheetsShellState: State<StatefulWidget> {
             let has = c.note(at: c.active) != nil
             item(has ? "Edit Note" : "New Note") { [weak self] in self?._editNote(at: c.active) }
             if has { item("Delete Note") { c.deleteNote(at: c.active) } }
+            sep()
+            let linked = c.link(at: c.active) != nil
+            item(linked ? "Edit Hyperlink…" : "Hyperlink…") { [weak self] in self?.setState { self?._linkOpen = true } }
+            if linked { item("Remove Hyperlink") { c.removeLink(c.selection) } }
         }
         sep()
         switch area {
