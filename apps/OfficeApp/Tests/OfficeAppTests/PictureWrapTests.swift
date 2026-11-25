@@ -249,6 +249,28 @@ final class TextBoxInsertTests: XCTestCase {
         XCTAssertGreaterThan(ids.min() ?? 0, bodyIds, "box ids sit above the body's")
     }
 
+    func testAnnotationIdsNeverRepeatAcrossBodyHeaderAndBox() throws {
+        var bodyP = RichParagraph(text: "kept gone")
+        bodyP.runs = [Run(length: 5, style: .plain), Run(length: 4, style: { var s = CharStyle.plain; s.revision = RevisionMark(kind: .deleted, author: "A", date: ""); return s }())]
+        var d = RichDocument(paragraphs: [bodyP])
+        d.header = "Head"
+        var entries = try Zip.read(try DocxFormat.write(d, pageSetup: .letter))
+        let hi = try XCTUnwrap(entries.firstIndex { $0.name.hasPrefix("word/header") && $0.name.hasSuffix(".xml") })
+        var h = String(decoding: entries[hi].data, as: UTF8.self)
+        let close = try XCTUnwrap(h.rangeOfSubstring("</w:p>"))
+        h.replaceSubrange(close.lowerBound ..< close.lowerBound, with: "<w:ins w:id=\"1\" w:author=\"B\"><w:r><w:t>hi</w:t></w:r></w:ins>")
+        entries[hi] = ZipEntry(name: entries[hi].name, data: Data(h.utf8))
+        let c = RichDocumentController(document: try DocxFormat.read(try Zip.write(entries)).document)
+        c.insertImage(try XCTUnwrap(TextBoxInsert.make(text: "box")))
+        let out = try Zip.read(try DocxFormat.write(c.document, pageSetup: .letter))
+        var seen: [Int] = []
+        for e in out where e.name.hasPrefix("word/") && e.name.hasSuffix(".xml") && (e.name == "word/document.xml" || e.name.hasPrefix("word/header")) {
+            seen += RichDocumentController._annotationIds(in: String(decoding: e.data, as: UTF8.self))
+        }
+        XCTAssertTrue(seen.count >= 2, "header and body both carry a revision")
+        XCTAssertEqual(Set(seen).count, seen.count, "no id names two annotations: \(seen)")
+    }
+
     func testBoxWithAnExternalLinkIsEditedInPlaceAndKeepsItsLink() throws {
         let c = RichDocumentController(document: RichDocument(paragraphs: [RichParagraph(text: "body")]))
         c.insertImage(try XCTUnwrap(TextBoxInsert.make(text: "one")))
