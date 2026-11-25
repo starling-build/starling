@@ -86,7 +86,10 @@ final class EditorToolbar: UIView {
         for (i, b) in buttons.enumerated() {
             // A gap before the formatting group, the lists, and the buttons for what the selection is in.
             if i == 2 || i == 5 || (b.id.hasPrefix("ctx-") && !(i > 0 && buttons[i - 1].id.hasPrefix("ctx-"))) { items.append(UIBarButtonItem(systemItem: .fixedSpace)); items[items.count - 1].width = 12 }
-            let item = UIBarButtonItem(image: UIImage(systemName: b.symbol), primaryAction: UIAction(title: b.title) { _ in b.action() })
+            // No symbol: the button is its title, a key that types that text.
+            let item = b.symbol.isEmpty
+                ? UIBarButtonItem(title: b.title, primaryAction: UIAction(title: b.title) { _ in b.action() })
+                : UIBarButtonItem(image: UIImage(systemName: b.symbol), primaryAction: UIAction(title: b.title) { _ in b.action() })
             item.isEnabled = b.isEnabled
             item.isSelected = b.isOn
             item.accessibilityLabel = b.title

@@ -39,6 +39,8 @@ final class SheetsShellState: State<StatefulWidget> {
     private let _search = TextEditingController()
     /// The formula bar is being typed in (its text is the user's, not the cell's).
     private var _formulaEditing = false
+    /// A cell is being typed in (its text is the grid's, not the formula bar's).
+    private var _cellEditing = false
     /// The shell is writing the formula bar's text itself. This port's
     /// FluentTextBox reports a programmatic change through onChanged too
     /// (Flutter's does not), and without this the mirror of the cell
@@ -323,13 +325,26 @@ final class SheetsShellState: State<StatefulWidget> {
             undo: { [weak wb] in wb?.undo() }, redo: { [weak wb] in wb?.redo() },
             toggleBold: { [weak wb] in wb?.toggleStyle(\.bold) }, toggleItalic: { [weak wb] in wb?.toggleStyle(\.italic) },
             toggleUnderline: { [weak wb] in wb?.toggleStyle(\.underline) },
-            // What typing numbers into cells reaches for: a total, a number format, and a clean cell.
-            context: [
+            // While a cell is typed in, the keys a formula needs and a soft keyboard hides on another page; otherwise what
+            // typing numbers into cells reaches for: a total, a number format, and a clean cell.
+            context: _cellEditing ? Self._formulaKeys { [weak self] in self?._grid } : [
                 .init(id: "ctx-cell-sum", title: "AutoSum", symbol: "sum") { [weak wb] in if let wb { Ribbon._autoSum(wb) } },
                 .init(id: "ctx-cell-currency", title: "Currency", symbol: "dollarsign") { [weak wb] in wb?.setStyle { $0.numberFormat = "$#,##0.00" } },
                 .init(id: "ctx-cell-percent", title: "Percent Style", symbol: "percent") { [weak wb] in wb?.setStyle { $0.numberFormat = "0%" } },
                 .init(id: "ctx-cell-clear", title: "Clear Contents", symbol: "eraser") { [weak wb] in wb?.clearContents() },
             ]), owner: self)
+    }
+
+    /// The formula keys: each types its text at the caret, F4 cycles the reference at the caret absolute and relative.
+    private static func _formulaKeys(_ grid: @escaping () -> SheetGridState?) -> [OfficeScene.ToolbarButton] {
+        func key(_ shown: String, _ typed: String, _ name: String) -> OfficeScene.ToolbarButton {
+            .init(id: "ctx-key-\(name)", title: shown, symbol: "") { grid()?.typeText(typed) }
+        }
+        return [
+            key("=", "=", "equals"), key("+", "+", "plus"), key("−", "-", "minus"), key("*", "*", "times"), key("/", "/", "divide"),
+            key("(", "(", "open"), key(")", ")", "close"), key(":", ":", "colon"), key(",", ",", "comma"), key("$", "$", "dollar"),
+            .init(id: "ctx-key-f4", title: "F4", symbol: "") { grid()?.cycleAbsoluteReference() },
+        ]
     }
 
     /// The name box shows the active cell (or the selection's size while
@@ -922,6 +937,11 @@ final class SheetsShellState: State<StatefulWidget> {
             Expanded(child: SheetGrid(
                 key: _gridKey, controller: wb, zoom: _zoom,
                 onEditText: { [weak self] text in
+                    // The bar over the keyboard is a formula's keys while a cell is typed in, and number commands otherwise.
+                    if let self, self._cellEditing != (text != nil) {
+                        self._cellEditing = text != nil
+                        self._publishToolbar()
+                    }
                     guard let self, !self._formulaEditing else { return }
                     self._setFormulaText(text ?? self.wb.input(self.wb.active))
                     self.setState {}
