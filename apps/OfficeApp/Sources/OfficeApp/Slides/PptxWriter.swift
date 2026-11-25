@@ -770,7 +770,12 @@ private struct SlideXML {
     }
 
     /// An `a:ln` with its width and/or its fill element swapped, everything else kept.
-    static func _patchedLine(_ ln: String, widthEMU: Int?, fill: String?) -> String {
+    static func _dashXML(_ dash: String?) -> String {
+        guard let dash, !dash.isEmpty, dash != "solid" else { return "" }
+        return "<a:prstDash val=\"\(PptxXML.escape(dash, attribute: true))\"/>"
+    }
+
+    static func _patchedLine(_ ln: String, widthEMU: Int?, fill: String?, dash: String?? = nil) -> String {
         guard let open = ln.firstIndex(of: ">") else { return ln }
         var head = String(ln[...open])
         var rest = String(ln[ln.index(after: open)...])
@@ -783,16 +788,22 @@ private struct SlideXML {
                 head = String(head.dropLast()) + " w=\"\(w)\">"
             }
         }
-        if let fill {
-            var start = rest.startIndex
-            for tag in ["<a:noFill/>", "<a:solidFill>", "<a:gradFill", "<a:pattFill"] where rest.hasPrefix(tag) {
-                if tag == "<a:noFill/>" { start = rest.index(rest.startIndex, offsetBy: tag.count); break }
-                let close = tag == "<a:solidFill>" ? "</a:solidFill>" : (tag == "<a:gradFill" ? "</a:gradFill>" : "</a:pattFill>")
-                if let r = rest.range(of: close) { start = r.upperBound }
-                break
-            }
-            rest = fill + String(rest[start...])
+        var start = rest.startIndex
+        for tag in ["<a:noFill/>", "<a:solidFill>", "<a:gradFill", "<a:pattFill"] where rest.hasPrefix(tag) {
+            if tag == "<a:noFill/>" { start = rest.index(rest.startIndex, offsetBy: tag.count); break }
+            let close = tag == "<a:solidFill>" ? "</a:solidFill>" : (tag == "<a:gradFill" ? "</a:gradFill>" : "</a:pattFill>")
+            if let r = rest.range(of: close) { start = r.upperBound }
+            break
         }
+        var tail = String(rest[start...])
+        var fillPart = String(rest[..<start])
+        if let fill { fillPart = fill }
+        if let dash {
+            if tail.hasPrefix("<a:prstDash"), let e = tail.range(of: "/>") { tail = String(tail[e.upperBound...]) }
+            else if tail.hasPrefix("<a:custDash>"), let e = tail.range(of: "</a:custDash>") { tail = String(tail[e.upperBound...]) }
+            tail = _dashXML(dash) + tail
+        }
+        rest = fillPart + tail
         return head + rest
     }
 
@@ -923,7 +934,7 @@ private struct SlideXML {
             let id = _id(s.fileId)
             let f = s.frame
             let box = Rect.fromLTRB(min(f.left, f.right), min(f.top, f.bottom), max(f.left, f.right), max(f.top, f.bottom))
-            let line = s.outline.map { "<a:ln w=\"\(Self._emu(s.outlineWidth))\">\(Self._fill($0))</a:ln>" } ?? "<a:ln><a:noFill/></a:ln>"
+            let line = s.outline.map { "<a:ln w=\"\(Self._emu(s.outlineWidth))\">\(Self._fill($0))\(Self._dashXML(s.outlineDash))</a:ln>" } ?? "<a:ln><a:noFill/></a:ln>"
             return "<p:cxnSp><p:nvCxnSpPr><p:cNvPr id=\"\(id)\" name=\"\(name)\"\(hid)/><p:cNvCxnSpPr/><p:nvPr/></p:nvCxnSpPr>"
                 + "<p:spPr>\(Self._xfrm(box, rotation: s.rotation, flipH: s.flipH != (f.right < f.left), flipV: s.flipV != (f.bottom < f.top)))"
                 + "<a:prstGeom prst=\"\(preset.rawValue)\"><a:avLst/></a:prstGeom>\(line)</p:spPr></p:cxnSp>"
@@ -992,14 +1003,14 @@ private struct SlideXML {
             switch s.kind {
             case .placeholder:
                 fillXML = s.fill.map { Self._fill($0) } ?? ""
-                lineXML = s.outline.map { "<a:ln w=\"\(Self._emu(s.outlineWidth))\">\(Self._fill($0))</a:ln>" } ?? ""
+                lineXML = s.outline.map { "<a:ln w=\"\(Self._emu(s.outlineWidth))\">\(Self._fill($0))\(Self._dashXML(s.outlineDash))</a:ln>" } ?? ""
             default:
                 if let scheme = s.fillScheme, s.fill != nil {
                     fillXML = "<a:solidFill><a:schemeClr val=\"\(scheme)\"/></a:solidFill>"
                 } else {
                     fillXML = Self._fill(s.fill)
                 }
-                lineXML = s.outline.map { "<a:ln w=\"\(Self._emu(s.outlineWidth))\">\(Self._fill($0))</a:ln>" } ?? "<a:ln><a:noFill/></a:ln>"
+                lineXML = s.outline.map { "<a:ln w=\"\(Self._emu(s.outlineWidth))\">\(Self._fill($0))\(Self._dashXML(s.outlineDash))</a:ln>" } ?? "<a:ln><a:noFill/></a:ln>"
             }
             // The file's own fill and line while the shape's are unchanged
             // (gradients, patterns, a style's fill stay as they were); its
@@ -1018,7 +1029,8 @@ private struct SlideXML {
                     // A changed colour or width: only the line's fill (and width) change; its dash, caps, joins and arrowheads stay.
                     let replaceFill = k.lineReplaced || s.outline != k.readOutline
                     lineXML = Self._patchedLine(ln, widthEMU: s.outlineWidth == k.readWidth ? nil : Self._emu(s.outlineWidth),
-                                                fill: replaceFill ? (s.outline.map { Self._fill($0) } ?? "<a:noFill/>") : nil)
+                                                fill: replaceFill ? (s.outline.map { Self._fill($0) } ?? "<a:noFill/>") : nil,
+                                                dash: k.dashEdited ? .some(s.outlineDash) : nil)
                 }
             }
             spPr += fillXML + lineXML + (look?.effects ?? "")

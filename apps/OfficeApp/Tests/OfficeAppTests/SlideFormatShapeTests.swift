@@ -96,6 +96,68 @@ final class SlideFormatShapeTests: XCTestCase {
         XCTAssertNotNil(a.fill, "unticking No fill gives a solid fill again")
     }
 
+    func testScalePercentFromThePane() throws {
+        let deck = DeckController()
+        let a = deck.addShape(.rect)
+        a.frame = Rect.fromLTWH(50, 50, 200, 100)
+        deck.selectShapes([a])
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light),
+                                        home: FormatShapePane(deck: deck, onClose: {}), title: "Test"),
+                              size: Size(1280, 800))
+        settle(ui)
+        func enter(_ id: String, _ text: String) {
+            ui.tap(id: id)
+            for _ in 0 ..< 10 { ui.press(.backspace) }
+            ui.type(text); ui.press(.enter); settle(ui)
+        }
+        enter("fmt.scale.width", "50")
+        XCTAssertEqual(a.frame.width, 100, accuracy: 0.01); XCTAssertEqual(a.frame.height, 100, accuracy: 0.01, "unlocked: height alone stays")
+        enter("fmt.scale.height", "200")
+        XCTAssertEqual(a.frame.height, 200, accuracy: 0.01)
+        enter("fmt.scale.width", "100")
+        XCTAssertEqual(a.frame.width, 200, accuracy: 0.01, "100% is the size it had when first scaled")
+        deck.setAspectLock(true)
+        enter("fmt.scale.width", "50")
+        XCTAssertEqual(a.frame.width, 100, accuracy: 0.01); XCTAssertEqual(a.frame.height, 50, accuracy: 0.01, "locked: both sides scale together")
+        XCTAssertEqual(a.frame.left, 50); XCTAssertEqual(a.frame.top, 50)
+        deck.undo()
+        XCTAssertEqual(a.frame.width, 200, accuracy: 0.01)
+    }
+
+    func testDashTypeFromThePaneSurvivesSaving() throws {
+        let deck = DeckController()
+        let a = deck.addShape(.rect)
+        deck.selectShapes([a])
+        deck.setOutline(Color(0xFF123456))
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light),
+                                        home: FormatShapePane(deck: deck, onClose: {}), title: "Test"),
+                              size: Size(1280, 800))
+        settle(ui)
+        XCTAssertTrue(ui.has(text: "Solid"))
+        ui.tap(id: "fmt.line.dash"); settle(ui)
+        XCTAssertEqual(a.outlineDash, "sysDot")
+        ui.tap(id: "fmt.line.dash"); ui.tap(id: "fmt.line.dash"); settle(ui)
+        XCTAssertEqual(a.outlineDash, "dash")
+        XCTAssertTrue(ui.has(text: "Dash"))
+        let (state, _, _) = try Pptx.read(Pptx.write(deck))
+        XCTAssertEqual(try XCTUnwrap(state.slides[0].shapes.first { $0.name == a.name }).outlineDash, "dash")
+        deck.undo()
+        XCTAssertEqual(a.outlineDash, "sysDash")
+    }
+
+    func testDashOnAFileLineReplacesOnlyTheDash() throws {
+        let deck = try deckWithGradientShape()
+        let g = try XCTUnwrap(deck.currentSlide.shapes.first { $0.name == "Grad" })
+        deck.selectShapes([g])
+        deck.setOutlineDash("sysDot")
+        let x = shapeXML(try slideXML(deck), "Grad")
+        XCTAssertTrue(x.contains("prstDash val=\"sysDot\"") && !x.contains("val=\"dash\""))
+        XCTAssertTrue(x.contains("00AA00") && x.contains("<a:round/>") && x.contains("tailEnd"), "colour, join, arrowhead kept")
+        XCTAssertTrue(x.contains("<a:gradFill"), "the shape's fill is not touched")
+        deck.setOutlineDash(nil)
+        XCTAssertFalse(shapeXML(try slideXML(deck), "Grad").contains("prstDash"), "solid again")
+    }
+
     func testFillAndLineSurviveSaving() throws {
         let deck = DeckController()
         let a = deck.addShape(.rect)
@@ -175,6 +237,27 @@ final class SlideFormatShapeTests: XCTestCase {
         x = shapeXML(try slideXML(deck), "Grad")
         XCTAssertTrue(x.contains("prstDash"), "no line keeps the rest too")
         XCTAssertFalse(x.contains("123456"))
+    }
+
+    /// Writes the dash check file: one line shape per dash style, plus a file line whose dash was swapped.
+    func testWritesTheDashCheckFile() throws {
+        let dir = "/data/s/amd-6/ui-check"
+        guard FileManager.default.fileExists(atPath: dir) else { return }
+        let deck = try deckWithGradientShape()
+        var y = 30.0
+        for (dash, _) in FormatShapePaneState.dashStyles {
+            let s = deck.addShape(.rect); s.frame = Rect.fromLTWH(40, y, 300, 24); y += 40
+            deck.selectShapes([s]); deck.setFill(nil); deck.setOutline(Color(0xFF1F4E79)); deck.setOutlineWidth(3); deck.setOutlineDash(dash)
+        }
+        let g = try XCTUnwrap(deck.currentSlide.shapes.first { $0.name == "Grad" })
+        g.frame = Rect.fromLTWH(400, 200, 160, 90)
+        deck.selectShapes([g]); deck.setOutlineDash("sysDot")
+        // A shape scaled to 150% by 50%, and a locked shape resized in proportion (200x100 to 300x150).
+        let sc = deck.addShape(.rect); sc.frame = Rect.fromLTWH(400, 40, 100, 100)
+        deck.selectShapes([sc]); deck.setScale(width: 150, height: 50)
+        let lk = deck.addShape(.ellipse); lk.frame = Rect.fromLTWH(400, 320, 200, 100); lk.aspectLock = true
+        lk.frame = SlideCanvasState.resizedFrame(lk.frame, rotation: 0, handle: 4, delta: Offset(100, 5), keepAspect: true)
+        try Pptx.write(deck).write(to: URL(fileURLWithPath: dir + "/dash.pptx"))
     }
 
     /// Writes the fuller check file: no fill, no line, a gradient shape made solid, and a clear shape over another.

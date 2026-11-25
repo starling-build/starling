@@ -159,9 +159,11 @@ struct KeptLook: Equatable {
     /// Set when the user chose a fill or line colour: the file's own gradient, picture or dash is then replaced, even by the same colour.
     var fillReplaced = false
     var lineReplaced = false
+    /// Set when the user chose a dash style: the file's own dash is swapped, the rest of its line kept.
+    var dashEdited = false
 
     func fillKept(_ s: ShapeState) -> Bool { !fillReplaced && s.fill == readFill && s.fillScheme == readFillScheme }
-    func lineKept(_ s: ShapeState) -> Bool { !lineReplaced && s.outline == readOutline && s.outlineWidth == readWidth }
+    func lineKept(_ s: ShapeState) -> Bool { !lineReplaced && !dashEdited && s.outline == readOutline && s.outlineWidth == readWidth }
 }
 
 /// A text shape as it was read, besides its text: while all of this and
@@ -699,6 +701,8 @@ final class SlideShape {
     var flipV = false
     /// Lock aspect ratio (`noChangeAspect`); nil = not set, so a picture is locked and other shapes are free.
     var aspectLock: Bool? = nil
+    /// The size that 100% means in the Format Shape pane's Scale rows: the size the shape had when first scaled (not saved).
+    var scaleBase: Size? = nil
     /// What the Format Shape pane and the canvas honour.
     var aspectLocked: Bool { aspectLock ?? (picture != nil) }
     var pictureGeometry: ShapePreset? = nil
