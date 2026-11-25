@@ -83,6 +83,7 @@ final class OfficeShellState: State<StatefulWidget> {
     private var _formulaOpen = false
     private var _contentsOpen = false
     private var _tableTool: String? = nil
+    private var _sortTable: SortTableValues? = nil   // the open Sort dialog
     private var _convertTextTable: Bool? = nil   // the open Convert dialog: true to a table, false to text
     private var _bordersOpen = false
     private var _printOpen = false
@@ -475,6 +476,13 @@ final class OfficeShellState: State<StatefulWidget> {
             guard let self else { return }
             self.controller.breakUndoCoalescing()
             self.setState { self._formulaOpen = true }
+        }
+        session.onSortTableDialog = { [weak self] in
+            guard let self, self.controller.canSortTable else { return }
+            var v = SortTableValues()
+            v.columnCount = max(1, self.controller.currentTableRange.flatMap { r in self.controller.document.paragraphs[r.lowerBound].cell.map { self.controller.document.columnCount(of: $0.table) } } ?? 1)
+            v.keys[0].column = min(v.columnCount, (self.controller.currentCell?.column ?? 0) + 1)
+            self.setState { self._sortTable = v }
         }
         session.onConvertTextTableDialog = { [weak self] toTable in
             guard let self else { return }
@@ -1326,7 +1334,7 @@ final class OfficeShellState: State<StatefulWidget> {
             if _shortcutsOpen { return false }   // the dialog's own Esc closes it
             if LinkCard.link(caret: _cardLink, hover: _hoverCard, dismissed: _cardDismissed) != nil { setState { _cardDismissed = true }; return true }
             if _listSymbolPick != nil { setState { _listSymbolPick = nil }; return true }
-            if _paragraphOpen || _tablePropsOpen || _fontOpen || _insertTableOpen || _splitCellOpen || _contentsOpen || _convertTextTable != nil || _formulaOpen || _bordersOpen || _pictureDialog != nil || _linkDialogOpen || _numberingValueOpen || _dateTimeOpen || _propertiesOpen || _listFormatOpen != nil || _newStyleOpen { return false }   // the dialog's own Esc closes it
+            if _paragraphOpen || _tablePropsOpen || _fontOpen || _insertTableOpen || _splitCellOpen || _contentsOpen || _convertTextTable != nil || _formulaOpen || _sortTable != nil || _bordersOpen || _pictureDialog != nil || _linkDialogOpen || _numberingValueOpen || _dateTimeOpen || _propertiesOpen || _listFormatOpen != nil || _newStyleOpen { return false }   // the dialog's own Esc closes it
             if _headerFooterOpen { setState { _headerFooterOpen = false }; return true }
             if _findOpen { setState { _findOpen = false }; _editorFocus.requestFocus(); return true }
             if _backstage != nil { setState { _backstage = nil }; return true }
@@ -1659,6 +1667,23 @@ final class OfficeShellState: State<StatefulWidget> {
                     },
                     onCancel: { [weak self] in
                         self?.setState { self?._formulaOpen = false }
+                        self?._editorFocus.requestFocus()
+                    })),
+            ])
+        }
+        if let initial = _sortTable {
+            return Stack(children: [
+                window,
+                Positioned(left: 0, top: 0, right: 0, bottom: 0, child: SortTableDialog(
+                    initial: initial,
+                    onOK: { [weak self] v in
+                        guard let self else { return }
+                        self.controller.sortTable(keys: v.used, headerRow: v.headerRow)
+                        self.setState { self._sortTable = nil }
+                        self._editorFocus.requestFocus()
+                    },
+                    onCancel: { [weak self] in
+                        self?.setState { self?._sortTable = nil }
                         self?._editorFocus.requestFocus()
                     })),
             ])
