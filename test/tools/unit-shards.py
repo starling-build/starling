@@ -19,10 +19,26 @@ if tf:
     for l in open(tf):
         p = l.split()
         if len(p) == 3: times[p[2]] = float(p[0])
-work = sorted((c for c in classes if c != SETUP), key=lambda c: -times.get(c, 1.0))
+# A class slower than SPLIT seconds is split into its single tests (DocxTests, SheetsScanTests ...: they set the floor of the whole run), using
+# per-test times (same lookup as the class times: SCRATCH/testtimes.tsv, else test/tools/unit-testtimes.tsv); a test with no time counts 0.5 s.
+SPLIT = float(os.environ.get("UNIT_SPLIT_SECONDS", "15"))
+ttf = next((f for f in (os.path.join(scratch, "testtimes.tsv"), os.path.join(root, "test/tools/unit-testtimes.tsv")) if os.path.exists(f)), None)
+ttimes = {}
+if ttf:
+    for l in open(ttf):
+        p = l.split()
+        if len(p) == 2: ttimes[p[1]] = float(p[0])
+items = []   # (seconds, spec after "OfficeAppTests.")
+for c in classes:
+    if c == SETUP: continue
+    if times.get(c, 1.0) > SPLIT:
+        items += [(ttimes.get(t, 0.5), c + "/" + t.split(".")[1]) for t in tests if t.startswith(c + ".")]
+    else:
+        items.append((times.get(c, 1.0), c))
+items.sort(key=lambda x: -x[0])
 shards = [[0.0, []] for _ in range(n)]
-for c in work:
-    s = min(shards, key=lambda x: x[0]); s[0] += times.get(c, 1.0); s[1].append(c)
+for w, spec in items:
+    s = min(shards, key=lambda x: x[0]); s[0] += w; s[1].append(spec)
 shards = [s for s in shards if s[1]]
 log = os.environ.get("UNIT_LOG_DIR") or os.path.join(scratch, "shard-logs"); os.makedirs(log, exist_ok=True)
 t0 = time.time(); procs = []
@@ -30,13 +46,14 @@ for i, (w, cs) in enumerate(shards):
     spec = ",".join("OfficeAppTests." + c for c in [SETUP] + cs)
     procs.append((i, subprocess.Popen([binp, spec], cwd=cwd, stdout=open(f"{log}/out{i}", "w"), stderr=subprocess.STDOUT)))
 rcs = [(i, p.wait()) for i, p in procs]
-seen = {}; per = {}
+seen = {}; per = {}; tt = {}
 for i, _ in procs:
     txt = open(f"{log}/out{i}", errors="replace").read()
-    for m in re.finditer(r"^Test Case '(\w+\.\w+)' (passed|failed|skipped)", txt, re.M):
+    for m in re.finditer(r"^Test Case '(\w+\.\w+)' (passed|failed|skipped)(?: \(([\d.]+) seconds\))?", txt, re.M):
         seen[m.group(1)] = seen.get(m.group(1), 0) + 1
+        if m.group(3): tt[m.group(1)] = float(m.group(3))
     for m in re.finditer(r"^Test Suite '(\w+Tests)' (?:passed|failed) at.*\n\s*Executed (\d+) tests?, with .* in ([\d.]+) \(", txt, re.M):
-        per[m.group(1)] = (float(m.group(3)), int(m.group(2)))
+        d0, k0 = per.get(m.group(1), (0.0, 0)); per[m.group(1)] = (d0 + float(m.group(3)), k0 + int(m.group(2)))
 bad = []
 for t in tests:
     want = len(shards) if t.startswith(SETUP + ".") else 1
@@ -53,6 +70,9 @@ if per and not bad:
     with open(out + ".tmp", "w") as f:
         for c, (d, k) in sorted(per.items(), key=lambda x: -x[1][0]): f.write(f"{d}\t{k}\t{c}\n")
     os.replace(out + ".tmp", out)
+    with open(os.path.join(scratch, "testtimes.tsv.tmp"), "w") as f:
+        for t, d in sorted(tt.items(), key=lambda x: -x[1]): f.write(f"{d}\t{t}\n")
+    os.replace(os.path.join(scratch, "testtimes.tsv.tmp"), os.path.join(scratch, "testtimes.tsv"))
 nfail = sum(len(re.findall(r"^Test Case '\w+\.\w+' failed", open(f"{log}/out{i}", errors="replace").read(), re.M)) for i, _ in procs)
 print(f"Executed {len(tests)} tests, with {nfail} failures (0 unexpected) in {time.time() - t0:.1f} seconds")   # same shape as XCTest's total line
 ok = not bad and all(rc == 0 for _, rc in rcs)
