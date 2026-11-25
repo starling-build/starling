@@ -371,12 +371,12 @@ final class SlideCanvasState: State<StatefulWidget> {
             // A finger's reach, where the shape leaves room: neighbouring handles are half the shape's short side
             // apart, so a hit area never grows past half of that and never over a neighbour's.
             let reach = _touchSeen ? max(s, min(Self.touchReach, min(shape.frame.width, shape.frame.height) * px / 2)) : s
-            let isLine = shape.preset?.isLine == true
+            let isLine = shape.preset?.isLine == true || shape.isElbow
             let units: [(Int, (Double, Double))] = isLine
                 ? [(0, (0, 0)), (4, (1, 1))]
                 : Array(Self.handleUnits.enumerated()).map { ($0.offset, $0.element) }
             for (i, u) in units {
-                let p = Self._framePoint(shape, u.0, u.1)
+                let p = shape.isElbow ? (i == 0 ? shape.lineStart : shape.lineEndPoint) : Self._framePoint(shape, u.0, u.1)
                 children.append(Positioned(left: ox + p.dx * px - reach / 2, top: oy + p.dy * px - reach / 2, width: reach, height: reach,
                                            child: _handle(accent: accent, shown: s, cursor: Self._cursor(i, shape.rotation)) { [weak self] e in
                                                guard let self else { return }
@@ -601,7 +601,10 @@ final class SlideCanvasState: State<StatefulWidget> {
             deck.setFramesLive(frames.map { ($0.0, $0.1.shift(Offset(dx, dy))) })
         case .resize(let shape, let handle, let start, let frame):
             let r = _resized(shape, frame, handle: handle, delta: Offset(p.dx - start.dx, p.dy - start.dy))
-            if shape.preset?.isLine == true {
+            if shape.isElbow {
+                let m = _w.modifiers()
+                deck.dragElbowEnd(shape, handle: handle, to: p, snap: !m.contains(.shift) && !m.contains(.alt))
+            } else if shape.preset?.isLine == true {
                 let m = _w.modifiers()
                 deck.dragLineEnd(shape, handle: handle, frame: r, snap: !m.contains(.shift) && !m.contains(.alt))
             } else {

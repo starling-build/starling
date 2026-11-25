@@ -16,7 +16,7 @@ enum ShapeGallery {
     }
 
     static let groups: [Group] = [
-        g("Lines", "line straightConnector1"),
+        g("Lines", "line straightConnector1 bentConnector3 curvedConnector3"),
         g("Rectangles", "rect roundRect snip1Rect snip2SameRect snip2DiagRect snipRoundRect round1Rect round2SameRect round2DiagRect"),
         g("Basic Shapes", "ellipse triangle rtTriangle parallelogram trapezoid diamond pentagon hexagon heptagon octagon decagon dodecagon "
             + "pie chord teardrop frame halfFrame corner diagStripe plus plaque can cube bevel donut noSmoking blockArc foldedCorner "

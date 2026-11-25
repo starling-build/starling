@@ -66,6 +66,8 @@ struct ShapeState: Equatable {
     var fillsWithBackground = false
     var inheritedPreset: ShapePreset? = nil
     var customPath: FreeformGeometry? = nil
+    var adjusts: [String: Double] = [:]
+    var connAnchor: [Int: Rect] = [:]
     @Boxed var fillStyle: SlideFill? = nil
     var invisible = false
     var fileId: Int? = nil
@@ -354,9 +356,20 @@ final class DeckController: ChangeNotifier {
         _undo = []
         _redo = []
         _session = nil
+        _loading = true
         restore(state)
+        _loading = false
+        // A glued connector drawn by the file stays as stored until a shape it is glued to moves or Reroute runs.
+        for slide in slides {
+            for s in slide.shapes where s.keptLine != nil && (s.connStart != nil || s.connEnd != nil) {
+                for c in [s.connStart, s.connEnd] {
+                    if let c, let t = slide.shapes.first(where: { $0.id == c.shape }) { s.connAnchor[c.shape] = t.frame }
+                }
+            }
+        }
         current = 0
     }
+    var _loading = false
 
     /// How the slides' shapes follow a new slide size (PowerPoint's Maximize and Ensure Fit): both keep each shape's
     /// proportions and put its centre at the same place on the new slide, and scale the text (sizes, line spacing,
@@ -1071,6 +1084,11 @@ final class DeckController: ChangeNotifier {
         pendingInsert = nil
         var b = b
         let dragged = abs(b.dx - a.dx) >= 4 || abs(b.dy - a.dy) >= 4
+        if preset.isElbow {
+            if !dragged { b = Offset(a.dx + 96, a.dy + 48) }
+            else if keepProportions { b = Offset(b.dx, a.dy + (b.dy < a.dy ? -1 : 1) * abs(b.dx - a.dx)) }
+            return addShape(preset, frame: nil, ends: (a, b))
+        }
         if !dragged { b = Offset(a.dx + (preset.isLine ? 72 : 72), a.dy + (preset.isLine ? 0 : 72)) }
         else if keepProportions {
             if preset.isLine {
@@ -1088,7 +1106,7 @@ final class DeckController: ChangeNotifier {
     }
 
     @discardableResult
-    func addShape(_ preset: ShapePreset, frame given: Rect? = nil) -> SlideShape {
+    func addShape(_ preset: ShapePreset, frame given: Rect? = nil, ends: (Offset, Offset)? = nil) -> SlideShape {
         _checkpoint()
         pendingInsert = nil
         let w = preset.isLine ? 192.0 : 144.0
@@ -1099,14 +1117,19 @@ final class DeckController: ChangeNotifier {
         let style = RichParagraphStyle(alignment: .center, spaceAfter: 0, lineSpacing: 1.0)
         let open = preset.isOpenPath
         let shape = SlideShape(id: _id(), name: "\(preset.name) \(_nextId)", kind: .geometry(preset), frame: frame,
-                               text: preset.isLine ? nil
+                               text: preset.isLine || preset.isElbow ? nil
                                    : _textController(RichDocument(paragraphs: [RichParagraph(text: "", style: style)])),
-                               textTheme: preset.isLine ? nil : theme, anchor: .middle)
+                               textTheme: preset.isLine || preset.isElbow ? nil : theme, anchor: .middle)
         shape.fill = open ? nil : accent
         shape.outline = open ? accent : Self.darker(accent)
         shape.fillScheme = "accent1"
         shape.outlineWidth = open ? 1.5 : 1
         if preset.rawValue == "straightConnector1" { shape.tailEnd = LineEnd(kind: "triangle", width: 3, length: 3) }
+        if preset.isElbow {
+            let c = Offset(slideSize.width / 2, slideSize.height / 2)
+            let e = ends ?? (Offset(c.dx - 72, c.dy - 36), Offset(c.dx + 72, c.dy + 36))
+            shape.apply(ElbowRoute.make(from: e.0, to: e.1, leaving: nil, arriving: nil, curved: preset.rawValue.hasPrefix("curved")))
+        }
         currentSlide.shapes.append(shape)
         _watch(shape)
         selection = [shape]
@@ -2582,6 +2605,8 @@ final class DeckController: ChangeNotifier {
         st.outlineScheme = s.outlineScheme
         st.headEnd = s.headEnd
         st.connStart = s.connStart
+        st.adjusts = s.adjusts
+        st.connAnchor = s.connAnchor
         st.connEnd = s.connEnd
         st.outlineCompound = s.outlineCompound
         st.tailEnd = s.tailEnd
@@ -2721,6 +2746,8 @@ final class DeckController: ChangeNotifier {
         shape.outlineFill = st.outlineFill
         shape.headEnd = st.headEnd
         shape.connStart = st.connStart
+        shape.adjusts = st.adjusts
+        shape.connAnchor = st.connAnchor
         shape.connEnd = st.connEnd
         shape.outlineCompound = st.outlineCompound
         shape.tailEnd = st.tailEnd

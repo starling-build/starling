@@ -141,6 +141,11 @@ struct KeptLine: Equatable {
     var tail: LineEnd? = nil
     var connStart: ShapeConn? = nil
     var connEnd: ShapeConn? = nil
+    /// An elbow's turn, mirroring and adjust values as read: a connector whose own differ is written afresh.
+    var rotation = 0.0
+    var flipH = false
+    var flipV = false
+    var adjusts: [String: Double] = [:]
 }
 
 /// A picture as read (with `sourceXML`): written back verbatim while its
@@ -336,6 +341,8 @@ struct ShapePreset: RawRepresentable, Hashable {
         case "triangle": return "Triangle"
         case "rightArrow": return "Right Arrow"
         case "line": return "Line"
+        case "bentConnector3": return "Elbow Connector"
+        case "curvedConnector3": return "Curved Connector"
         case "star5": return "Star"
         case "wedgeRectCallout": return "Callout"
         case "straightConnector1": return "Line Arrow"
@@ -344,6 +351,10 @@ struct ShapePreset: RawRepresentable, Hashable {
     }
 
     var isLine: Bool { rawValue == "line" || rawValue.hasPrefix("straightConnector") }
+
+    /// An elbow (`bentConnector2`-`5`) or a curve (`curvedConnector2`-`5`): a connector that turns corners, drawn from its
+    /// preset's own path at its adjust values.
+    var isElbow: Bool { rawValue.hasPrefix("bentConnector") || rawValue.hasPrefix("curvedConnector") }
 
     /// Open paths — braces, brackets, arcs, bent and curved connectors:
     /// stroked, never filled, whatever their style says.
@@ -793,6 +804,10 @@ final class SlideShape {
     /// preset, or a custom path evaluated for this shape's size.
     var inheritedPreset: ShapePreset? = nil
     var customPath: FreeformGeometry? = nil
+    /// An elbow or curved connector's adjust values (`adj1`...), in hundred-thousandths of its box, over the preset's own.
+    /// Where each shape this connector is glued to stood when the file was read: while none has moved, the file's own route stands.
+    var connAnchor: [Int: Rect] = [:]
+    var adjusts: [String: Double] = [:]
     /// A gradient or picture fill as read: drawn within the outline where
     /// `fill` (a flat colour) would be. Written back through the kept look.
     var fillStyle: SlideFill? = nil

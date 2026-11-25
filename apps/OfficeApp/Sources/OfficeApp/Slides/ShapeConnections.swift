@@ -36,15 +36,129 @@ extension SlideShape {
         return Offset(c.dx + x * cos(a) - y * sin(a), c.dy + x * sin(a) + y * cos(a))
     }
 
-    /// A straight line that may be glued: not mirrored, so its start is its frame's top left and its end the bottom right.
-    var isGluableLine: Bool { preset?.isLine == true && !flipH && !flipV && rotation == 0 }
+    /// A line that may be glued: a straight one, not mirrored or turned (its start is its frame's top left and its end the
+    /// bottom right), or an elbow or curve, which may be either way up (its ends are found through its mirroring and turn).
+    var isGluableLine: Bool { isElbow || (preset?.isLine == true && !flipH && !flipV && rotation == 0) }
 
-    var lineStart: Offset { Offset(frame.left, frame.top) }
-    var lineEndPoint: Offset { Offset(frame.right, frame.bottom) }
+    var isElbow: Bool { preset?.isElbow == true }
+
+    /// An elbow's start (`start`) or end on the slide: the corner of its box that its path starts and ends at, mirrored and
+    /// turned about the box's centre.
+    func elbowPoint(start: Bool) -> Offset {
+        var x = start ? -frame.width / 2 : frame.width / 2
+        var y = start ? -frame.height / 2 : frame.height / 2
+        if flipH { x = -x }
+        if flipV { y = -y }
+        let a = rotation * .pi / 180
+        let c = frame.center
+        return Offset(c.dx + x * cos(a) - y * sin(a), c.dy + x * sin(a) + y * cos(a))
+    }
+
+    var lineStart: Offset { isElbow ? elbowPoint(start: true) : Offset(frame.left, frame.top) }
+    var lineEndPoint: Offset { isElbow ? elbowPoint(start: false) : Offset(frame.right, frame.bottom) }
 
     func moveLineEnd(start: Bool, to p: Offset) {
+        if isElbow {
+            let r = ElbowRoute.make(from: start ? p : lineStart, to: start ? lineEndPoint : p, leaving: nil, arriving: nil,
+                                    curved: preset?.rawValue.hasPrefix("curved") == true)
+            apply(r)
+            return
+        }
         frame = start ? Rect.fromLTRB(p.dx, p.dy, frame.right, frame.bottom)
                       : Rect.fromLTRB(frame.left, frame.top, p.dx, p.dy)
+    }
+
+    /// Takes a route: the elbow variant, its box, turn, mirroring and adjust values, and the path drawn from them.
+    func apply(_ r: ElbowRoute) {
+        var adj = r.adjusts
+        // The same variant bent the same way keeps the adjust values it has (a moved shape does not undo a hand-set elbow).
+        if r.preset == preset?.rawValue, !adjusts.isEmpty {
+            func side(_ v: Double) -> Int { v < 0 ? -1 : (v > 100000 ? 1 : 0) }
+            for (k, v) in adjusts where adj[k] != nil && side(v) == side(adj[k]!) { adj[k] = v }
+        }
+        kind = .geometry(ShapePreset(rawValue: r.preset))
+        frame = r.frame
+        rotation = r.rotation
+        flipH = false
+        flipV = r.flipV
+        adjusts = adj
+        customPath = PresetGeometry.geometry(r.preset, width: r.frame.width * Pptx.emu, height: r.frame.height * Pptx.emu,
+                                             adjustments: adj)
+    }
+
+    /// Which way site `i` faces, on the slide, as a unit step along an axis: up, left, down or right.
+    func connectionSiteDirection(_ i: Int) -> (Double, Double)? {
+        guard let p = connectionSite(i) else { return nil }
+        let c = frame.center
+        var dx = p.dx - c.dx, dy = p.dy - c.dy
+        if connectionSiteCount == 4 {
+            // The sides' middles: the offset is already along an axis (turned by the shape's rotation, which may be slanted).
+            dx = abs(dx) < 1e-9 ? 0 : dx; dy = abs(dy) < 1e-9 ? 0 : dy
+        }
+        // A slanted site facing: take the nearer axis.
+        return abs(dx) >= abs(dy) - 1e-9 ? (dx >= 0 ? 1 : -1, 0) : (0, dy >= 0 ? 1 : -1)
+    }
+}
+
+/// The elbow or curved connector PowerPoint would draw between two points: `bentConnector2`-`5` (or `curvedConnector2`-`5`)
+/// in a box between the points, turned by a multiple of 90 degrees and mirrored so that its path leaves the start in the
+/// wanted direction and arrives at the end travelling the wanted way, with adjust values for the middle run.
+struct ElbowRoute {
+    var preset: String
+    var frame: Rect
+    var rotation: Double
+    var flipV: Bool
+    var adjusts: [String: Double]
+
+    /// How far a path stands off a shape when it has to go round it.
+    static let stub = 18.0
+
+    /// `leaving`: the way the path heads off the start (an axis step); `arriving`: the way it travels into the end. Nil for
+    /// a free end: the path then bends the simplest way, S-shaped when the end is ahead.
+    static func make(from s: Offset, to e: Offset, leaving: (Double, Double)?, arriving: (Double, Double)?, curved: Bool) -> ElbowRoute {
+        let d = Offset(e.dx - s.dx, e.dy - s.dy)
+        func dot(_ a: (Double, Double), _ b: Offset) -> Double { a.0 * b.dx + a.1 * b.dy }
+        var a = leaving ?? (0, 0), b = arriving ?? (0, 0)
+        if leaving == nil && arriving == nil {
+            a = abs(d.dx) >= abs(d.dy) ? (d.dx >= 0 ? 1 : -1, 0) : (0, d.dy >= 0 ? 1 : -1)
+            b = a
+        } else if leaving == nil {
+            a = b
+        } else if arriving == nil {
+            b = a
+            // A free end behind the start turns the corner rather than doubling back.
+            if dot(a, d) < 0 { b = abs(a.0) == 1 ? (0, d.dy >= 0 ? 1 : -1) : (d.dx >= 0 ? 1 : -1, 0) }
+        }
+        let ex = dot(a, d) >= 0 ? a : (-a.0, -a.1)
+        let sigma = a.0 * ex.0 + a.1 * ex.1
+        let p = (-ex.1, ex.0)
+        let perpendicular = abs(a.0 * b.0 + a.1 * b.1) < 0.5
+        let ey: (Double, Double)
+        if perpendicular { ey = dot(b, d) >= 0 ? b : (-b.0, -b.1) } else { ey = dot(p, d) >= 0 ? p : (-p.0, -p.1) }
+        let flipV = ey.0 * p.0 + ey.1 * p.1 < 0
+        let rotation: Double = ex.0 > 0.5 ? 0 : (ex.1 > 0.5 ? 90 : (ex.0 < -0.5 ? 180 : 270))
+        let w = max(dot(ex, d), 1), h = max(dot(ey, d), 1)
+        let stubW = stub / w * 100000, stubH = stub / h * 100000
+        var name = "Connector3"
+        var adj: [String: Double] = [:]
+        if perpendicular {
+            let rho = b.0 * ey.0 + b.1 * ey.1
+            if sigma > 0 && rho > 0 { name = "Connector2" }
+            else {
+                name = "Connector4"
+                adj["adj1"] = sigma > 0 ? 50000 : -stubW
+                adj["adj2"] = rho > 0 ? 50000 : 100000 + stubH
+            }
+        } else {
+            let tau = b.0 * ex.0 + b.1 * ex.1
+            if sigma > 0 { if tau < 0 { adj["adj1"] = 100000 + stubW } }
+            else if tau > 0 { adj["adj1"] = -stubW }
+            else { name = "Connector5"; adj = ["adj1": -stubW, "adj2": 50000, "adj3": 100000 + stubW] }
+            if name == "Connector3", adj["adj1"] == nil { adj["adj1"] = 50000 }
+        }
+        let c = Offset((s.dx + e.dx) / 2, (s.dy + e.dy) / 2)
+        return ElbowRoute(preset: (curved ? "curved" : "bent") + name,
+                          frame: Rect.fromLTWH(c.dx - w / 2, c.dy - h / 2, w, h), rotation: rotation, flipV: flipV, adjusts: adj)
     }
 }
 
@@ -92,7 +206,7 @@ extension DeckController {
     /// Lines about to be moved with `moved` come unglued from any shape that is not moving with them.
     func detachLines(moving moved: [SlideShape]) {
         let ids = Set(moved.map(\.id))
-        for s in moved where s.preset?.isLine == true {
+        for s in moved where s.preset?.isLine == true || s.isElbow {
             if let c = s.connStart, !ids.contains(c.shape) { s.connStart = nil }
             if let c = s.connEnd, !ids.contains(c.shape) { s.connEnd = nil }
         }
@@ -145,16 +259,45 @@ extension DeckController {
         _changed()
     }
 
-    /// After any change: each glued end sits on its site again, and an end whose shape has gone comes unglued.
+    /// A drag of an elbow's end (handle 0 the start, 1 the end) to `p`: the end glues to a site within reach when `snap` is
+    /// on, or hangs free at `p`; the path is routed again. No history entry: the drag has its own.
+    func dragElbowEnd(_ line: SlideShape, handle: Int, to p: Offset, snap: Bool) {
+        guard line.isElbow else { return }
+        let start = handle == 0
+        var conn: ShapeConn? = nil
+        var q = p
+        if snap, let hit = nearestSite(to: p, excluding: line) {
+            q = hit.point
+            conn = ShapeConn(shape: hit.shape.id, site: hit.site)
+        }
+        if start { line.connStart = conn } else { line.connEnd = conn }
+        line.moveLineEnd(start: start, to: q)
+        _changed(keepSession: true)
+    }
+
+    /// After any change: each glued end sits on its site again, and an end whose shape has gone comes unglued. An elbow or
+    /// curve is routed again between its ends, leaving and entering the shapes at the sides its sites face.
     func followConnections() {
+        if _loading { return }
         for slide in slides {
             for s in slide.shapes where s.connStart != nil || s.connEnd != nil {
+                if !s.connAnchor.isEmpty {
+                    if s.connAnchor.allSatisfy({ id, f in slide.shapes.first(where: { $0.id == id })?.frame == f }) { continue }
+                    s.connAnchor = [:]
+                }
+                var ends: [Bool: (Offset, (Double, Double))] = [:]
                 for start in [true, false] {
                     guard let c = start ? s.connStart : s.connEnd else { continue }
                     if let t = slide.shapes.first(where: { $0.id == c.shape }), s.isGluableLine, let q = t.connectionSite(c.site) {
-                        s.moveLineEnd(start: start, to: q)
+                        if s.isElbow, let d = t.connectionSiteDirection(c.site) {
+                            ends[start] = (q, start ? d : (-d.0, -d.1))
+                        } else { s.moveLineEnd(start: start, to: q) }
                     } else if start { s.connStart = nil } else { s.connEnd = nil }
                 }
+                guard s.isElbow, !ends.isEmpty else { continue }
+                let from = ends[true]?.0 ?? s.lineStart, to = ends[false]?.0 ?? s.lineEndPoint
+                s.apply(ElbowRoute.make(from: from, to: to, leaving: ends[true]?.1, arriving: ends[false]?.1,
+                                        curved: s.preset?.rawValue.hasPrefix("curved") == true))
             }
         }
     }

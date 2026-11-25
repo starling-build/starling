@@ -981,6 +981,12 @@ private struct SlideXML {
         }
     }
 
+    /// An elbow's adjust values: `adj1`... in order, as `a:gd` guides.
+    private static func _avLst(_ adjusts: [String: Double]) -> String {
+        guard !adjusts.isEmpty else { return "<a:avLst/>" }
+        return "<a:avLst>" + adjusts.keys.sorted().map { "<a:gd name=\"\($0)\" fmla=\"val \(Int((adjusts[$0] ?? 0).rounded()))\"/>" }.joined() + "</a:avLst>"
+    }
+
     private static func _xfrm(_ f: Rect, rotation: Double, tag: String = "a:xfrm", flipH: Bool = false, flipV: Bool = false) -> String {
         var attrs = ""
         if rotation != 0 { attrs += " rot=\"\(Int((rotation * 60000).rounded()))\"" }
@@ -1228,6 +1234,7 @@ private struct SlideXML {
             // original, at its frame on the slide.
             if let xml = s.sourceXML, let k = s.keptLine, k.line == s.frame, k.outline == s.outline,
                k.width == s.outlineWidth, k.dash == s.outlineDash, k.head == s.headEnd, k.tail == s.tailEnd, k.connStart == s.connStart, k.connEnd == s.connEnd,
+               !preset.isElbow || (k.rotation == s.rotation && k.flipH == s.flipH && k.flipV == s.flipV && k.adjusts == s.adjusts),
                let p = source, let part = s.sourcePart {
                 return kept(xml, sourcePart: part, package: p, builder: &builder, patch: k.box, fileId: s.fileId)
             }
@@ -1237,7 +1244,7 @@ private struct SlideXML {
             let line = s.outline.map { "<a:ln w=\"\(Self._emu(s.outlineWidth))\">\(Self._fill($0, scheme: s.outlineScheme))\(Self._dashXML(s.outlineDash))\(Self._endsXML(s))</a:ln>" } ?? "<a:ln><a:noFill/></a:ln>"
             return "<p:cxnSp><p:nvCxnSpPr><p:cNvPr id=\"\(id)\" name=\"\(name)\"\(hid)/><p:cNvCxnSpPr>\(Self._connXML(s))</p:cNvCxnSpPr><p:nvPr/></p:nvCxnSpPr>"
                 + "<p:spPr>\(Self._xfrm(box, rotation: s.rotation, flipH: s.flipH != (f.right < f.left), flipV: s.flipV != (f.bottom < f.top)))"
-                + "<a:prstGeom prst=\"\(preset.rawValue)\"><a:avLst/></a:prstGeom>\(line)</p:spPr></p:cxnSp>"
+                + "<a:prstGeom prst=\"\(preset.rawValue)\">\(Self._avLst(s.adjusts))</a:prstGeom>\(line)</p:spPr></p:cxnSp>"
         default:
             // Unchanged since it was read, text and all: the shape as it
             // was, so what this app models loosely (the master's bullets,
