@@ -109,7 +109,10 @@ private final class _FlatButtonState: State<StatefulWidget> {
                 child: box))
         if items != nil { box = FlyoutTarget(controller: _flyout, child: box) }
         if let tip = w.tip { box = Tooltip(message: tip, child: box) }
-        return box
+        // Told to assistive technology: the tip is the name of an icon-only button; a text button reads its own text.
+        let say = Semantics(label: w.tip, button: true, toggled: w.checked ? true : nil, enabled: w.enabled,
+                            onTap: w.enabled ? w.action : nil, excludeSemantics: w.tip != nil, child: box)
+        return w.tip == nil ? MergeSemantics(child: say) : say
     }
 }
 

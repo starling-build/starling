@@ -1,0 +1,43 @@
+import FlutterSwiftBridge
+// What a `Semantics` widget says about its subtree: the plain-value subset of
+// SemanticsProperties the first slice needs (label, hint, value, role flags, tap).
+
+public struct SemanticsInfo {
+    public var label: String?
+    public var hint: String?
+    public var value: String?
+    public var isButton: Bool
+    public var isTextField: Bool
+    public var isHeader: Bool
+    public var isLink: Bool
+    public var isChecked: Bool?
+    public var isToggled: Bool?
+    public var isSelected: Bool?
+    public var isEnabled: Bool?
+    public var onTap: VoidCallback?
+
+    public init(label: String? = nil, hint: String? = nil, value: String? = nil,
+                isButton: Bool = false, isTextField: Bool = false, isHeader: Bool = false,
+                isLink: Bool = false, isChecked: Bool? = nil, isToggled: Bool? = nil,
+                isSelected: Bool? = nil, isEnabled: Bool? = nil, onTap: VoidCallback? = nil) {
+        self.label = label; self.hint = hint; self.value = value
+        self.isButton = isButton; self.isTextField = isTextField; self.isHeader = isHeader
+        self.isLink = isLink; self.isChecked = isChecked; self.isToggled = isToggled
+        self.isSelected = isSelected; self.isEnabled = isEnabled; self.onTap = onTap
+    }
+
+    func apply(to config: SemanticsConfiguration) {
+        if let label { config.label = label }
+        if let hint { config.hint = hint }
+        if let value { config.value = value }
+        if isButton { config.isButton = true }
+        if isTextField { config.isTextField = true }
+        if isHeader { config.isHeader = true }
+        if isLink { config.isLink = true }
+        if let isChecked { config.isChecked = isChecked }
+        if let isToggled { config.isToggled = isToggled }
+        if let isSelected { config.isSelected = isSelected }
+        if let isEnabled { config.isEnabled = isEnabled }
+        if let onTap { config.onTap = onTap }
+    }
+}

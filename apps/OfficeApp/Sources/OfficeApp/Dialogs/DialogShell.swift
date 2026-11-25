@@ -120,7 +120,7 @@ final class DialogShellState: State<StatefulWidget> {
         let touch = false
         #endif
         func button(_ b: Widget) -> Widget { touch ? SizedBox(width: nil, height: 44, child: b) : b }
-        var children: [Widget] = [Text(_w.title, style: fluent.typography.subtitle), SizedBox(width: nil, height: 12, child: nil)]
+        var children: [Widget] = [Semantics(label: _w.title, header: true, container: true, excludeSemantics: true, child: Text(_w.title, style: fluent.typography.subtitle)), SizedBox(width: nil, height: 12, child: nil)]
         if tabs.count > 1 {
             children.append(Row(children: tabs.enumerated().map { i, tab in
                 GestureDetector(onTap: { [weak self] in self?.select(i) }, behavior: .opaque, child: Padding(

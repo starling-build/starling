@@ -532,6 +532,13 @@ class _TextBoxState: State<StatefulWidget>, TextInputClient {
     }
 
     override func build(_ context: any BuildContext) -> Widget {
+        Semantics(
+            label: textBox.placeholderText, value: textBox.obscureText ? nil : _effectiveController.text,
+            textField: true, enabled: textBox.enabled,
+            child: _buildBox(context))
+    }
+
+    private func _buildBox(_ context: any BuildContext) -> Widget {
         let theme = FluentTheme.of(context)
         let isEnabled = textBox.enabled
         let isFocused = _isFocused

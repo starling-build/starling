@@ -5744,8 +5744,10 @@ open class RenderSemanticsAnnotations: RenderProxyBox {
         container: Bool = false,
         explicitChildNodes: Bool = false,
         excludeSemantics: Bool = false,
-        blockUserActions: Bool = false
+        blockUserActions: Bool = false,
+        info: SemanticsInfo = SemanticsInfo()
     ) {
+        self.info = info
         self._container = container
         self._explicitChildNodes = explicitChildNodes
         self._excludeSemantics = excludeSemantics
@@ -5754,6 +5756,11 @@ open class RenderSemanticsAnnotations: RenderProxyBox {
     }
 
     // MARK: - Properties
+
+    /// What this node says (label, hint, value, role, tap).
+    public var info: SemanticsInfo {
+        didSet { markNeedsSemanticsUpdate() }
+    }
 
     /// Whether this render object introduces a new semantic boundary.
     ///
@@ -5811,10 +5818,12 @@ open class RenderSemanticsAnnotations: RenderProxyBox {
         // TODO: Full implementation with semantics owner
     }
 
-    /// TODO: Override `describeSemanticsConfiguration` when
-    /// `SemanticsConfiguration` integration on RenderObject base is available.
-    /// The full implementation reads `SemanticsProperties` and configures
-    /// container, explicitChildNodes, excludeSemantics, blockUserActions, etc.
+    open override func describeSemanticsConfiguration(_ config: SemanticsConfiguration) {
+        info.apply(to: config)
+        if container { config.isSemanticBoundary = true }
+        if explicitChildNodes { config.explicitChildNodes = true }
+        if blockUserActions { config.isBlockingUserActions = true }
+    }
 }
 
 // MARK: - RenderBlockSemantics

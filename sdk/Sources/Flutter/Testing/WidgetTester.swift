@@ -173,6 +173,12 @@ public final class WidgetTester {
         return nil
     }
 
+    /// What assistive technology would be told: one node per annotated widget, Merge and Exclude applied.
+    public func semantics() -> [SemanticsSnapshotNode] {
+        guard let root = elements().first else { return [] }
+        return SemanticsSnapshot.build(from: root)
+    }
+
     /// Every tooltip message on screen, in tree order: the names of icon-only buttons.
     public func tips() -> [String] { elements().compactMap { ($0.widget as? Tooltip)?.message } }
 

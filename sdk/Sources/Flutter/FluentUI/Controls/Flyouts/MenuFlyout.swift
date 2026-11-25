@@ -97,6 +97,12 @@ public class MenuFlyoutItem: MenuFlyoutItemBase {
     }
 
     public override func buildItem(_ context: any BuildContext) -> Widget {
+        MergeSemantics(child: Semantics(button: true, selected: selected ? true : nil,
+                                        enabled: onPressed != nil, onTap: onPressed,
+                                        child: _buildTile(context)))
+    }
+
+    private func _buildTile(_ context: any BuildContext) -> Widget {
         let resolvedLeading: Widget? = leading ?? (_useIconPlaceholder ? SizedBox(width: 16, height: 16) : nil)
 
         let resolvedTrailing: Widget = trailing ?? SizedBox(width: 0, height: 0)
