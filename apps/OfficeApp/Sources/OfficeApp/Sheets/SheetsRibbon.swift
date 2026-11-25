@@ -190,10 +190,12 @@ extension Ribbon {
             ]),
             Chrome.menu(Text("Clear", style: fluent.typography.caption), Icon(FluentSystemIcons.textClearFormatting, size: Chrome.iconSize,
                         color: fluent.resources.textFillColorPrimary), fluent, [
-                ("Clear All", { wb.clearContents(); wb.setStyle { $0 = .plain } }),
+                ("Clear All", { wb.clearAll() }),
                 ("Clear Formats", { wb.setStyle { $0 = .plain } }),
                 ("Clear Contents", { wb.clearContents() }),
-            ]),
+                ("Clear Comments", { wb.clearComments() }),
+                ("Clear Hyperlinks", { wb.removeLink(wb.selection) }),
+            ], keyPrefix: "sheets.clear"),
         ]), Chrome.rows([
             Chrome.small(FluentSystemIcons.search, "Find", fluent) { [session] in session.onFind?(false) },
             Chrome.small(FluentSystemIcons.textGrammarWand, "Replace", fluent) { [session] in session.onFind?(true) },

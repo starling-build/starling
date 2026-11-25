@@ -43,6 +43,26 @@ extension WorkbookController {
         _storeLinks(ws, entries, restyle: (range, { st in st.linkStyle = true; st.underline = true; st.color = 0x0563C1 }))
     }
 
+    /// Clear All: contents, formats, comments and links of `r`, in one undo step.
+    func clearAll(_ r: CellRange? = nil) {
+        let r = r ?? selection, ws = sheet
+        let kept = ws.keptElements.first { $0.name == "hyperlinks" }?.text ?? ""
+        let entries = Self._linkEntries(kept)
+        let hasLinks = entries.contains { $0.ref.intersects(r) }
+        let hasNotes = ws.notes.contains { $0.at.map { r.contains($0) } ?? false }
+        let keys = ws.cells.keys.filter { r.contains($0) }
+        guard hasLinks || hasNotes || !keys.isEmpty else { return }
+        structural {
+            for k in keys { ws.cells[k] = nil }
+            Self._dropNotes(ws, in: r)
+            if hasLinks {
+                ws.keptElements.removeAll { $0.name == "hyperlinks" }
+                let left = entries.filter { !$0.ref.intersects(r) }
+                if !left.isEmpty { ws.keptElements.append(("hyperlinks", "<hyperlinks>" + left.map(\.xml).joined() + "</hyperlinks>")) }
+            }
+        }
+    }
+
     /// Take the link off every cell of `range` (the text stays).
     func removeLink(_ range: CellRange) {
         let ws = sheet
