@@ -1738,9 +1738,10 @@ final class OfficeShellState: State<StatefulWidget> {
     /// Start typing in the text box at `index`: the ribbon and the keys act on a controller over the box's own paragraphs
     /// until `_leaveBox` puts them back, as one undo step.
     private func _enterBox(_ index: Int, _ inline: String?, _ rect: Rect) {
-        guard _boxEdit == nil, let paragraphs = controller.textBoxParagraphs(at: index, inline: inline) else { return }
+        guard _boxEdit == nil, var inside = controller.textBoxDocument(at: index, inline: inline) else { return }
         let main = controller
-        let box = RichDocumentController(document: RichDocument(paragraphs: paragraphs.isEmpty ? [RichParagraph(text: "")] : paragraphs))
+        if inside.paragraphs.isEmpty { inside.paragraphs = [RichParagraph(text: "")] }
+        let box = RichDocumentController(document: inside)
         box.clipboardCodec = OfficeClipboardCodec()
         box.addListener { [weak self] in
             guard let self, self._boxEdit != nil else { return }
@@ -1764,9 +1765,9 @@ final class OfficeShellState: State<StatefulWidget> {
             _boxEdit = nil
             session.controller = b.main
         }
-        if let xml = TextBoxInsert.contentXML(box.document.paragraphs) {
+        if let xml = TextBoxInsert.contentXML(box.document) {
             let fitted = b.autoFit ? _boxContentHeight.map { ($0 + 7.2 * session.zoom) / session.zoom } : nil
-            b.main.setTextBoxContent(at: b.index, inline: b.inline, paragraphs: box.document.paragraphs, contentXML: xml, height: fitted)
+            b.main.setTextBoxContent(at: b.index, inline: b.inline, document: box.document, contentXML: xml, height: fitted)
         }
         setState { session.summary = session.summarize() }
         _editorFocus.requestFocus()
