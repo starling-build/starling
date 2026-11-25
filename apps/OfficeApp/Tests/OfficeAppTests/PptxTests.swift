@@ -660,4 +660,22 @@ final class DeepGroupTests: XCTestCase {
         XCTAssertEqual(again.slides[again.current].shapes.first { $0.id == box.id }?.text?.document.paragraphs.count,
                        box.text?.document.paragraphs.count)
     }
+
+    /// S-TB-1a: a table's header row and banded rows switch off and on, undo, and survive a save.
+    func testTableOptionsRoundTripAndUndo() throws {
+        let deck = DeckController()
+        deck.slides[0].shapes.removeAll()
+        let t = deck.addTable(rows: 3, columns: 2)
+        deck.selectShapes([t])
+        XCTAssertEqual(deck.selectedTableOptions, DeckController.TableOptions(headerRow: true, bandedRows: true))
+        deck.setTableOptions(DeckController.TableOptions(headerRow: false, bandedRows: false))
+        XCTAssertEqual(deck.selectedTableOptions, DeckController.TableOptions(headerRow: false, bandedRows: false))
+        let (state, _, _) = try Pptx.read(Pptx.write(deck))
+        let again = DeckController(); again.restore(state)
+        again.selectShapes(again.slides[0].shapes.filter { $0.kind == .table })
+        XCTAssertEqual(again.selectedTableOptions, DeckController.TableOptions(headerRow: false, bandedRows: false))
+        deck.undo()
+        deck.selectShapes(deck.slides[0].shapes.filter { $0.kind == .table })
+        XCTAssertEqual(deck.selectedTableOptions, DeckController.TableOptions(headerRow: true, bandedRows: true))
+    }
 }

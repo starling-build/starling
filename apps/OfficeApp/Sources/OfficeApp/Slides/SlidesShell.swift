@@ -67,6 +67,7 @@ final class SlidesShellState: State<StatefulWidget> {
     /// Where the next picture from the picture panel goes.
     private var _pictureForBackground = false
     private var _hadPicture = false
+    private var _hadTable = false
     private var _hadChart: SlideShape? = nil
     /// The chart data grid is open (for whichever chart is selected).
     private var _chartData = false
@@ -622,6 +623,11 @@ final class SlidesShellState: State<StatefulWidget> {
         if picture && !_hadPicture { _tab = .pictureFormat }
         if !picture && _tab == .pictureFormat { _tab = .home }
         _hadPicture = picture
+        // A selected table opens Table Design the same way.
+        let table = deck.selectedTableOptions != nil
+        if table && !_hadTable { _tab = .tableDesign }
+        if !table && _tab == .tableDesign { _tab = .home }
+        _hadTable = table
         // Likewise a chart and Chart Design; its data grid closes with it.
         let chart = deck.selectedChart
         if let chart, chart !== _hadChart { _tab = .chartDesign }

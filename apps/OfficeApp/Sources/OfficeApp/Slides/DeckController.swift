@@ -1002,6 +1002,39 @@ final class DeckController: ChangeNotifier {
 
     private var _textShapes: [SlideShape] { selection.filter { $0.text != nil && $0.picture == nil } }
 
+    /// A table's look switches: the header row's fill and the banded rows.
+    struct TableOptions: Equatable {
+        var headerRow = true
+        var bandedRows = true
+    }
+
+    /// The look switches of the selected table, nil when none is selected.
+    var selectedTableOptions: TableOptions? {
+        guard let s = selection.first, s.kind == .table, let id = s.tableId, let doc = s.text?.document else { return nil }
+        let st = doc.tableStyles[id] ?? TableStyle()
+        // Banding is on when the two band colours differ: a file with banding off
+        // reads back with both set to the table's own background.
+        return TableOptions(headerRow: st.headerRow, bandedRows: st.bandFill != nil && st.bandFill != st.bandAltFill)
+    }
+
+    /// Set the selected table's header row and banded rows: one undo step.
+    /// Turning one back on restores the theme-accent look.
+    func setTableOptions(_ o: TableOptions) {
+        guard let s = selection.first, s.kind == .table, let id = s.tableId, let text = s.text,
+              o != selectedTableOptions else { return }
+        _checkpoint()
+        var doc = text.document
+        var st = doc.tableStyles[id] ?? TableStyle()
+        let look = tableStyle(accent: theme.accents[0])
+        st.headerRow = o.headerRow
+        st.headerFill = o.headerRow ? (st.headerFill ?? look.headerFill) : nil
+        st.bandFill = o.bandedRows ? (st.bandFill ?? look.bandFill) : nil
+        st.bandAltFill = o.bandedRows ? (st.bandAltFill ?? look.bandAltFill) : nil
+        doc.tableStyles[id] = st
+        text.load(doc)
+        _changed()
+    }
+
     /// The options of the first selected shape that holds text.
     var selectedTextOptions: TextOptions? {
         guard let s = _textShapes.first else { return nil }
