@@ -1024,6 +1024,26 @@ private struct SlideXML {
             + "<a:srgbClr val=\"\(hex)\">\(alpha)</a:srgbClr></a:outerShdw>"
     }
 
+    /// The shape's effects with the camera of its `a:scene3d` set to `name` (the light rig and `a:sp3d` stay). With
+    /// no scene, one is added unless the camera is square on.
+    static func _effectsWithCamera(_ effects: String, _ name: String) -> String {
+        let camera = "<a:camera prst=\"\(PptxXML.escape(name, attribute: true))\"/>"
+        if let a = effects.range(of: "<a:scene3d"), let e = effects.range(of: "</a:scene3d>", range: a.lowerBound..<effects.endIndex),
+           let c0 = effects.range(of: "<a:camera", range: a.lowerBound..<e.lowerBound) {
+            var out = effects
+            let c1: Range<String.Index>
+            if let end = out.range(of: "</a:camera>", range: c0.lowerBound..<e.lowerBound) { c1 = c0.lowerBound..<end.upperBound }
+            else if let end = out.range(of: "/>", range: c0.lowerBound..<e.lowerBound) { c1 = c0.lowerBound..<end.upperBound }
+            else { return effects }
+            out.replaceSubrange(c1, with: camera)
+            return out
+        }
+        if name == "orthographicFront" { return effects }
+        let scene = "<a:scene3d>\(camera)<a:lightRig rig=\"threePt\" dir=\"t\"/></a:scene3d>"
+        if let sp = effects.range(of: "<a:sp3d") { var out = effects; out.insert(contentsOf: scene, at: sp.lowerBound); return out }
+        return effects + scene
+    }
+
     /// An arrowhead as `a:headEnd` / `a:tailEnd`; sizes are the multiples of the line width the reader gives (2, 3, 5).
     static func _endXML(_ tag: String, _ e: LineEnd?) -> String {
         guard let e else { return "" }
@@ -1342,7 +1362,7 @@ private struct SlideXML {
                                                 ends: k.endsEdited ? Self._endsXML(s) : nil)
                 }
             }
-            let effectsXML: String
+            var effectsXML: String
             if let k = look, !k.effectsEdited, !k.bevelEdited { effectsXML = k.effects }
             else {
                 effectsXML = Self._effectsEdited(look?.effects ?? "", shadow: s.shadow,
@@ -1351,6 +1371,7 @@ private struct SlideXML {
                                                  lists: look?.effectsEdited ?? true, bevelEdit: look?.bevelEdited ?? true,
                                                  emptyList: look?.effectsEdited == true)
             }
+            if let cam = s.camera { effectsXML = Self._effectsWithCamera(effectsXML, cam) }
             spPr += fillXML + lineXML + effectsXML
             var xml = "<p:sp><p:nvSpPr>\(nv)<p:nvPr>\(ph)</p:nvPr></p:nvSpPr><p:spPr>\(spPr)</p:spPr>\(look?.style ?? "")"
             if let doc = s.text {

@@ -286,6 +286,41 @@ enum Extrusion {
         return at(bin(azimuth))
     }
 
+    /// The 3-D Rotation gallery, as (camera preset, label): the ones the drawing knows.
+    static let rotationPresets: [(String, String)] = [
+        ("orthographicFront", "No rotation"),
+        ("isometricLeftDown", "Isometric left down"), ("isometricRightUp", "Isometric right up"),
+        ("isometricTopUp", "Isometric top up"), ("isometricTopDown", "Isometric top down"),
+        ("isometricOffAxis1Left", "Off axis 1 left"), ("isometricOffAxis1Right", "Off axis 1 right"),
+        ("isometricOffAxis1Top", "Off axis 1 top"), ("isometricOffAxis2Left", "Off axis 2 left"),
+        ("isometricOffAxis2Right", "Off axis 2 right"), ("isometricOffAxis2Top", "Off axis 2 top"),
+        ("obliqueTopLeft", "Oblique top left"), ("obliqueTop", "Oblique top"), ("obliqueTopRight", "Oblique top right"),
+        ("obliqueLeft", "Oblique left"), ("obliqueRight", "Oblique right"),
+        ("obliqueBottomLeft", "Oblique bottom left"), ("obliqueBottom", "Oblique bottom"),
+        ("obliqueBottomRight", "Oblique bottom right"),
+        ("perspectiveLeft", "Perspective left"), ("perspectiveRight", "Perspective right"),
+        ("perspectiveAbove", "Perspective above"), ("perspectiveBelow", "Perspective below"),
+        ("perspectiveRelaxed", "Perspective relaxed"), ("perspectiveRelaxedModerately", "Perspective relaxed moderately"),
+        ("perspectiveContrastingLeftFacing", "Perspective contrasting left"),
+        ("perspectiveContrastingRightFacing", "Perspective contrasting right"),
+        ("perspectiveHeroicExtremeLeftFacing", "Perspective heroic extreme left"),
+        ("perspectiveHeroicExtremeRightFacing", "Perspective heroic extreme right"),
+    ]
+
+    /// `old` looked at through the camera `name`: its depth, bevel and lights kept, the turn replaced.
+    /// Nil when the result is square on and has nothing to draw.
+    static func scene(camera name: String, from old: Scene3D?) -> Scene3D? {
+        var s = old ?? Scene3D(depth: 0)
+        s.lat = 0; s.lon = 0; s.rev = 0
+        s.perspective = name.hasPrefix("legacyPerspective")
+        s.cameraName = name
+        s.oblique = s.depth > 0 ? oblique(name) : nil
+        if let c = cameras[name] { (s.lat, s.lon, s.rev) = c }
+        s.legacy = name.hasPrefix("legacy")
+        if s.oblique == nil, s.lat == 0, s.lon == 0, s.rev == 0 { return nil }
+        return s
+    }
+
     static func read(_ spPr: XNode?, colors: ColorContext, text: Bool = false) -> Scene3D? {
         let sp3d = spPr?.first("a:sp3d")
         var s = Scene3D(depth: max(0, sp3d?["extrusionH"].flatMap(Double.init) ?? 0) / Pptx.emu)

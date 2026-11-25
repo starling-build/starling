@@ -745,6 +745,8 @@ final class SlideShape {
     var runLooks: [[RunLook]] = []
     /// The shape as a solid seen from an angle (`Extrusion.paint`).
     var scene3d: Scene3D? = nil
+    /// The 3-D Rotation preset the user chose (`a:camera prst`); nil while the shape's own is untouched.
+    var camera: String? = nil
     /// `normAutofit lnSpcReduction`: the share PowerPoint took off the
     /// line spacing to fit (0.2 = lines at 80%); the theme carries it.
     var lineReduction = 0.0
