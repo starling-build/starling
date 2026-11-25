@@ -92,11 +92,13 @@ extension Ribbon {
     }
 
     private func _shapeItems(_ fluent: FluentThemeData) -> [MenuFlyoutItemBase] {
-        ShapePreset.allCases.map { preset in
-            MenuFlyoutItem(text: Text(preset.name),
-                           leading: Icon(FluentSystemIcons.shapes, size: Chrome.iconSize,
-                                         color: fluent.resources.textFillColorPrimary),
-                           onPressed: { [session] in session.onInsertShape?(preset) })
+        ShapeGallery.groups.map { group in
+            MenuFlyoutSubItem(text: Text(group.name), items: group.presets.map { preset in
+                MenuFlyoutItem(text: Text(preset.name),
+                               leading: Icon(FluentSystemIcons.shapes, size: Chrome.iconSize,
+                                             color: fluent.resources.textFillColorPrimary),
+                               onPressed: { [session] in session.onInsertShape?(preset) })
+            })
         }
     }
 
