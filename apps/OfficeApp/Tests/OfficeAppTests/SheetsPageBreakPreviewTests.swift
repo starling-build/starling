@@ -55,3 +55,16 @@ final class SheetsPageBreakPreviewTests: XCTestCase {
         XCTAssertEqual(l.rows.first?.at, 30)
     }
 }
+
+final class SheetsPageBreakDragTests: XCTestCase {
+    func testGrabTakesALineWithinFourPixels() {
+        let edge: (Int) -> Double = { Double($0) * 20 }
+        XCTAssertEqual(PageBreakLines.grab([10, 20], at: 203, edge: edge), 10)
+        XCTAssertNil(PageBreakLines.grab([10, 20], at: 210, edge: edge))
+    }
+    func testDraggedLineSnapsToTheNearerEdge() {
+        let start: (Int) -> Double = { Double($0) * 20 }
+        XCTAssertEqual(PageBreakLines.nearestEdge(index: 7, pos: 145, start: start, size: { _ in 20 }), 7)
+        XCTAssertEqual(PageBreakLines.nearestEdge(index: 7, pos: 155, start: start, size: { _ in 20 }), 8)
+    }
+}
