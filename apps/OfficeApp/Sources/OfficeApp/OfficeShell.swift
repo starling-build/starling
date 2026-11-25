@@ -1841,10 +1841,13 @@ final class OfficeShellState: State<StatefulWidget> {
             return WriterAccessibility.wrap(editable, controller: controller, focused: _editorFocus.hasFocus)
         }
         let z = session.zoom
+        // The shape's own frame (its line and fill) is drawn round the editor, so the frame grows with the words
+        // instead of staying the size the page was laid out at.
+        let frame = (b.index < b.main.document.paragraphs.count ? b.main.document.paragraphs[b.index].image?.outline : nil).flatMap { $0.kind == .box ? $0 : nil }
         let boxEditor = RichEditable(
             controller: controller, theme: theme,
             padding: EdgeInsets(left: 7.2 * z, top: 3.6 * z, right: 7.2 * z, bottom: 3.6 * z),
-            focusNode: _boxFocus, backgroundColor: Color(0xFFFFFFFF), zoom: z,
+            focusNode: _boxFocus, backgroundColor: frame?.fill ?? Color(0xFFFFFFFF), zoom: z,
             onShortcut: { [weak self] key, mods in self?._shortcut(key, mods) ?? false },
             scrolls: false,
             onContentHeight: { [weak self] h in
@@ -1859,7 +1862,16 @@ final class OfficeShellState: State<StatefulWidget> {
             // A press anywhere outside the box ends the edit (and still reaches the page under it).
             Positioned(left: 0, top: 0, right: 0, bottom: 0, child: Listener(
                 onPointerDown: { [weak self] _ in self?._leaveBox() }, behavior: .translucent, child: SizedBox(expand: ()))),
-            Positioned(left: b.rect.left, top: b.rect.top, width: b.rect.width, height: boxHeight, child: boxEditor),
+            Positioned(left: b.rect.left, top: b.rect.top, width: b.rect.width, height: boxHeight, child: framed(boxEditor, frame, z)),
+        ])
+    }
+
+    private func framed(_ editor: Widget, _ frame: ShapeOutline?, _ zoom: Double) -> Widget {
+        guard let f = frame, let line = f.color, f.width > 0 else { return editor }
+        return Stack(children: [
+            Positioned(left: 0, top: 0, right: 0, bottom: 0, child: editor),
+            Positioned(left: 0, top: 0, right: 0, bottom: 0, child: IgnorePointer(child: DecoratedBox(
+                decoration: BoxDecoration(border: Border.all(color: line, width: max(1, f.width * zoom)))))),
         ])
     }
 
