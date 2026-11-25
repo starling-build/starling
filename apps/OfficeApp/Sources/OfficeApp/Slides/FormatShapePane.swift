@@ -42,7 +42,22 @@ final class FormatShapePaneState: State<StatefulWidget> {
         var t = ""
         for ch in text where ch != " " && ch != "°" { t.append(ch) }
         if t.hasSuffix("pt") { t.removeLast(2) }
+        if t.hasSuffix("%") { t.removeLast() }
         return t
+    }
+
+    /// Six upper-case hex digits of a colour, without its transparency.
+    static func hex(_ c: Color) -> String {
+        let h = String(c.value & 0xFFFFFF, radix: 16, uppercase: true)
+        return String(repeating: "0", count: 6 - h.count) + h
+    }
+
+    /// The colour bits in "#RRGGBB" or "RRGGBB"; nil when it is not six hex digits.
+    static func parseHex(_ text: String) -> Int? {
+        var t = ""
+        for ch in text where ch != " " && ch != "#" { t.append(ch) }
+        guard t.count == 6, let v = Int(t, radix: 16) else { return nil }
+        return v
     }
 
     /// The controller for `id`, its text brought up to `value` when that has changed since it was last set.
@@ -74,7 +89,7 @@ final class FormatShapePaneState: State<StatefulWidget> {
         }
         func gap(_ h: Double) -> Widget { SizedBox(width: nil, height: h, child: nil) }
         /// A numeric row: applies on Enter, and puts the shown value back when the text is not a number.
-        func row(_ id: String, _ label: String, _ shown: String, min lo: Double, _ apply: @escaping (Double) -> Void) -> Widget {
+        func row(_ id: String, _ label: String, _ shown: String, min lo: Double, unit: String? = nil, _ apply: @escaping (Double) -> Void) -> Widget {
             let c = _field(id, shown)
             return Row(children: [
                 SizedBox(width: 110, height: nil, child: Text(label, style: caption)),
@@ -85,9 +100,28 @@ final class FormatShapePaneState: State<StatefulWidget> {
                         if let v = Double(t), v >= lo, v < 100000 { apply(v) }
                         else { c.text = shown; self?._shown[id] = shown }
                     }, enabled: some)),
-                SizedBox(width: 6, height: nil, child: Text(id.hasSuffix("rotation") ? "°" : "pt", style: caption)),
+                SizedBox(width: 6, height: nil, child: Text(unit ?? (id.hasSuffix("rotation") ? "°" : "pt"), style: caption)),
             ])
         }
+        /// A colour row: six hex digits, applied on Enter, the shape's own transparency kept.
+        func hexRow(_ id: String, _ label: String, _ colour: Color?, enabled: Bool, _ apply: @escaping (Color) -> Void) -> Widget {
+            let shown = colour.map { Self.hex($0) } ?? ""
+            let c = _field(id, shown)
+            return Row(children: [
+                SizedBox(width: 110, height: nil, child: Text(label, style: caption)),
+                SizedBox(key: ValueKey(id), width: 90, height: 30, child: FluentTextBox(
+                    controller: c,
+                    onSubmitted: { [weak self] text in
+                        if let v = Self.parseHex(text) { apply(Color((colour.map { $0.value & 0xFF000000 } ?? 0xFF000000) | v)) }
+                        else { c.text = shown; self?._shown[id] = shown }
+                    }, enabled: enabled)),
+            ])
+        }
+        let drawn = deck.selection.filter { $0.preset?.isLine != true }
+        let fillOn = drawn.contains { $0.fill != nil }
+        let lineOn = deck.selection.contains { $0.outline != nil }
+        let first = deck.selection.first
+        let transparency = first?.fill.map { Self.text(100 - Double($0.value >> 24) / 255 * 100) } ?? ""
         let alt = _field("fmt.alt", deck.selectedAltText ?? "")
         let hasPicture = deck.selection.contains { $0.picture != nil }
         let locked = some && deck.selection.allSatisfy { $0.aspectLocked }
@@ -98,6 +132,21 @@ final class FormatShapePaneState: State<StatefulWidget> {
                                       onPressed: _w.onClose)),
         ])
         let body = Column(crossAxisAlignment: .start, children: [
+            Text("Fill & Line", style: fluent.typography.bodyStrong), gap(10),
+            Text("Fill", style: caption), gap(4),
+            Checkbox(key: ValueKey("fmt.fill.none"), checked: some && !fillOn, onChanged: { v in
+                guard !drawn.isEmpty else { return }
+                if v ?? false { deck.setFill(nil) } else { deck.setFill(deck.theme.accents[0], scheme: "accent1") }
+            }, content: Text("No fill")), gap(6),
+            hexRow("fmt.fill.color", "Colour (hex)", drawn.first?.fill, enabled: fillOn) { deck.setFill($0) }, gap(6),
+            row("fmt.fill.transparency", "Transparency", transparency, min: 0, unit: "%") { deck.setFillTransparency($0) }, gap(14),
+            Text("Line", style: caption), gap(4),
+            Checkbox(key: ValueKey("fmt.line.none"), checked: some && !lineOn, onChanged: { v in
+                guard some else { return }
+                if v ?? false { deck.setOutline(nil) } else { deck.setOutline(first?.fill.map { Color(0xFF000000 | ($0.value & 0xFFFFFF)) } ?? deck.theme.accents[0]) }
+            }, content: Text("No line")), gap(6),
+            hexRow("fmt.line.color", "Colour (hex)", first?.outline, enabled: lineOn) { deck.setOutline($0) }, gap(6),
+            row("fmt.line.width", "Width", _common { $0.outlineWidth }, min: 0) { deck.setOutlineWidth($0) }, gap(14),
             Text("Size & Properties", style: fluent.typography.bodyStrong), gap(10),
             Text("Size", style: caption), gap(4),
             row("fmt.height", "Height", _common { $0.frame.height }, min: 1) { deck.setSize(height: $0) }, gap(6),
