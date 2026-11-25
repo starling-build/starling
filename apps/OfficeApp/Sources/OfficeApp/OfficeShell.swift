@@ -1354,7 +1354,9 @@ final class OfficeShellState: State<StatefulWidget> {
             }),
         ]
         if session.viewMode != .readMode || !_ribbonCollapsed {
-            column.append(Ribbon(session: session, tab: _tab, collapsed: _ribbonCollapsed,
+            // A picture/shape tab with no image selected (typing into a box swaps the controller) shows Home, not an empty body.
+            let shownTab: RibbonTab = (_tab == .pictureFormat || _tab == .shapeFormat) && session.summary.imageIndex == nil && session.deck == nil ? .home : _tab
+            column.append(Ribbon(session: session, tab: shownTab, collapsed: _ribbonCollapsed,
                                  onTab: { [weak self] t in self?.setState { self?._tab = t } },
                                  onCollapse: { [weak self] in self?.setState { self?._ribbonCollapsed.toggle() } }))
         }
