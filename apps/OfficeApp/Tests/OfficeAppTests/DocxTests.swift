@@ -3721,6 +3721,42 @@ final class DocxTests: XCTestCase {
         }
         let h = try nazaninBodyHeights(para(" w:hint=\"eastAsia\"") + para(""))
         XCTAssertEqual(h[0], h[1], accuracy: 0.05)
+    /// lab shadow5: Word's blurred text shadow (dist 0) is a soft halo, a picture, whose reach past the letters is
+    /// 0.5 x blur x (size/72)^(2/3) (the planner's size rule): at 72 pt twice the 36 pt text's halo reaches 2^(2/3) = 1.587 times as far.
+    func testABlurredTextShadowIsAHaloWhoseReachScalesWithTheTextSize() throws {
+        guard TestText.icuLoaded else { throw XCTSkip("no icudtl.dat (STARLING_ICU)") }
+        _ = OfficeFonts.register()
+        RichTextTheme.wordWindowsPages = true
+        RichTextTheme.shadowsAsPaths = true
+        defer { RichTextTheme.wordWindowsPages = false; RichTextTheme.shadowsAsPaths = false }
+        func height(_ size: Double, blur: Double) -> (halos: Int, margin: Double) {
+            var style = CharStyle()
+            style.fontFamily = "Calibri"; style.fontSize = size; style.bold = true
+            style.shadow = CharShadow(color: Color(0xFFFF66AA), dx: 0, dy: 0, blur: blur)
+            var para = RichParagraph(text: "HHH", runs: [Run(length: 3, style: style)])
+            para.style.lineSpacing = 1
+            var doc = RichDocument(paragraphs: [para])
+            doc.readFromFile = true
+            let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
+            theme.fontFamilyResolver = OfficeFonts.drawn
+            theme.faceResolver = OfficeFonts.face
+            theme.wordRules = true
+            let l = RichLayout(theme: theme, paragraphCount: 1)
+            l.width = 600 * theme.pixelsPerPoint
+            l.ensureLaidOut(doc)
+            let canvas = ShadowHaloCanvas()
+            l.paint(canvas, visible: Rect.fromLTWH(0, 0, 600 * theme.pixelsPerPoint, 600 * theme.pixelsPerPoint), document: doc, selection: nil, caret: nil)
+            let ink = canvas.halos.first
+            // the halo's picture is the letters grown by 1.4 x the reach each side: its height minus the letters' is 2.8 x the reach.
+            return (canvas.halos.count, ink.map { $0.height / theme.pixelsPerPoint } ?? 0)
+        }
+        XCTAssertGreaterThan(height(36, blur: 8).halos, 0, "a blurred shadow is drawn as a halo picture, not a sharp copy")
+        // The picture is the letters grown by 1.4 x the reach each side, so blur 4 to 8 adds 2.8 x 2 x the size factor.
+        func growth(_ size: Double) -> Double { height(size, blur: 8).margin - height(size, blur: 4).margin }
+        XCTAssertEqual(growth(72) / growth(36), pow(2.0, 2.0 / 3), accuracy: 0.05)
+        XCTAssertEqual(growth(72), 2.8 * 2, accuracy: 0.6)  // reach = 0.5 x 4 x 1 at 72 pt
+    }
+
     }
 
     func testAnOpeningMarkMayEndALineSqueezedUnderCompressPunctuation() throws {
@@ -7512,6 +7548,49 @@ final class DocxTests: XCTestCase {
 /// Records, for each quarter turn, the translate just before it (a
 /// turned cell's corner, in the flow's terms).
 /// Records the height of each paragraph drawn.
+private final class ShadowHaloCanvas: Canvas {
+    var halos: [Rect] = []
+    func save() {}
+    func saveLayer(_ bounds: Rect?, _ paint: Paint) {}
+    func restore() {}
+    func restoreToCount(_ count: Int) {}
+    func getSaveCount() -> Int { 1 }
+    func translate(_ dx: Double, _ dy: Double) {}
+    func scale(_ sx: Double, _ sy: Double?) {}
+    func rotate(_ radians: Double) {}
+    func skew(_ sx: Double, _ sy: Double) {}
+    func transform(_ matrix4: [Double]) {}
+    func getTransform() -> [Double] { [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1] }
+    func clipRect(_ rect: Rect, clipOp: ClipOp, doAntiAlias: Bool) {}
+    func clipRRect(_ rrect: RRect, doAntiAlias: Bool) {}
+    func clipRSuperellipse(_ rsuperellipse: RSuperellipse, doAntiAlias: Bool) {}
+    func clipPath(_ path: Path, doAntiAlias: Bool) {}
+    func getLocalClipBounds() -> Rect { Rect.fromLTWH(-1e6, -1e6, 2e6, 2e6) }
+    func getDestinationClipBounds() -> Rect { Rect.fromLTWH(-1e6, -1e6, 2e6, 2e6) }
+    func drawColor(_ color: Color, _ blendMode: BlendMode) {}
+    func drawLine(_ p1: Offset, _ p2: Offset, _ paint: Paint) {}
+    func drawPaint(_ paint: Paint) {}
+    func drawRect(_ rect: Rect, _ paint: Paint) {}
+    func drawRRect(_ rrect: RRect, _ paint: Paint) {}
+    func drawDRRect(_ outer: RRect, _ inner: RRect, _ paint: Paint) {}
+    func drawRSuperellipse(_ rsuperellipse: RSuperellipse, _ paint: Paint) {}
+    func drawOval(_ rect: Rect, _ paint: Paint) {}
+    func drawCircle(_ c: Offset, _ radius: Double, _ paint: Paint) {}
+    func drawArc(_ rect: Rect, _ startAngle: Double, _ sweepAngle: Double, _ useCenter: Bool, _ paint: Paint) {}
+    func drawPath(_ path: Path, _ paint: Paint) {}
+    func drawImage(_ image: Image, _ offset: Offset, _ paint: Paint) {}
+    func drawImageRect(_ image: Image, _ src: Rect, _ dst: Rect, _ paint: Paint) { halos.append(dst) }
+    func drawImageNine(_ image: Image, _ center: Rect, _ dst: Rect, _ paint: Paint) {}
+    func drawPicture(_ picture: any FlutterSwiftBridge.Picture) {}
+    func drawParagraph(_ paragraph: any Paragraph, _ offset: Offset) {}
+    func drawPoints(_ pointMode: PointMode, _ points: [Offset], _ paint: Paint) {}
+    func drawRawPoints(_ pointMode: PointMode, _ points: [Float], _ paint: Paint) {}
+    func drawVertices(_ vertices: Vertices, _ blendMode: BlendMode, _ paint: Paint) {}
+    func drawAtlas(_ atlas: Image, _ transforms: [RSTransform], _ rects: [Rect], _ colors: [Color]?, _ blendMode: BlendMode?, _ cullRect: Rect?, _ paint: Paint) {}
+    func drawRawAtlas(_ atlas: Image, _ rstTransforms: [Float], _ rects: [Float], _ colors: [Int32]?, _ blendMode: BlendMode?, _ cullRect: Rect?, _ paint: Paint) {}
+    func drawShadow(_ path: Path, _ color: Color, _ elevation: Double, _ transparentOccluder: Bool) {}
+}
+
 private final class ParagraphHeightCanvas: Canvas {
     var heights: [Double] = []
     func save() {}
