@@ -231,14 +231,14 @@ final class SlideFormatShapeTests: XCTestCase {
     }
 
     /// A deck read from a file, with a gradient shape (and a green dashed line) added to its first slide.
-    private func deckWithGradientShape(effects: String = "") throws -> DeckController {
+    private func deckWithGradientShape(effects: String = "", style: String = "") throws -> DeckController {
         let (_, _, _) = try Pptx.read(Pptx.write(SlidesSample.make()))
         var package = PptxPackage(try Zip.read(try Pptx.write(SlidesSample.make())))
         let sp = "<p:sp><p:nvSpPr><p:cNvPr id=\"91\" name=\"Grad\"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>"
             + "<p:spPr><a:xfrm><a:off x=\"1270000\" y=\"3810000\"/><a:ext cx=\"2540000\" cy=\"1270000\"/></a:xfrm>"
             + "<a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom>"
             + "<a:gradFill><a:gsLst><a:gs pos=\"0\"><a:srgbClr val=\"FF0000\"/></a:gs><a:gs pos=\"100000\"><a:srgbClr val=\"0000FF\"/></a:gs></a:gsLst><a:lin ang=\"0\"/></a:gradFill>"
-            + "<a:ln w=\"25400\"><a:solidFill><a:srgbClr val=\"00AA00\"/></a:solidFill><a:prstDash val=\"dash\"/><a:round/><a:tailEnd type=\"triangle\"/></a:ln>" + effects + "</p:spPr></p:sp>"
+            + "<a:ln w=\"25400\"><a:solidFill><a:srgbClr val=\"00AA00\"/></a:solidFill><a:prstDash val=\"dash\"/><a:round/><a:tailEnd type=\"triangle\"/></a:ln>" + effects + "</p:spPr>" + style + "</p:sp>"
         var slide = String(data: package.parts["ppt/slides/slide1.xml"]!, encoding: .utf8)!
         slide = slide.replacingOccurrences(of: "</p:spTree>", with: sp + "</p:spTree>")
         package.parts["ppt/slides/slide1.xml"] = Data(slide.utf8)
@@ -259,6 +259,30 @@ final class SlideFormatShapeTests: XCTestCase {
         guard let r = xml.range(of: "name=\"\(name)\"") else { return "" }
         let rest = String(xml[r.upperBound...])
         return String(rest[..<(rest.range(of: "</p:sp>")?.lowerBound ?? rest.endIndex)])
+    }
+
+    func testEditingAShadowKeepsItsTransparencyAndRemovingAThemeShadowKeepsTheStyle() throws {
+        // (1) A file shadow with 40% opacity keeps its alpha when only the blur changes.
+        let fx = "<a:effectLst><a:outerShdw blurRad=\"50800\" dist=\"38100\" dir=\"2700000\"><a:srgbClr val=\"112233\"><a:alpha val=\"40000\"/></a:srgbClr></a:outerShdw></a:effectLst>"
+        let deck = try deckWithGradientShape(effects: fx)
+        let g = try XCTUnwrap(deck.currentSlide.shapes.first { $0.name == "Grad" })
+        deck.selectShapes([g])
+        var sh = try XCTUnwrap(g.shadow); sh.blur = 9
+        deck.setShadow(sh)
+        let xml = shapeXML(try slideXML(deck), "Grad")
+        XCTAssertTrue(xml.contains("<a:alpha val=\"40000\"/>"), xml)
+        XCTAssertTrue(xml.contains("112233"))
+        XCTAssertTrue(xml.contains("blurRad=\"114300\""))
+        // (2) A shape whose shadow comes from the theme (style effectRef): removing it writes an empty list, the style stays.
+        let style = "<p:style><a:lnRef idx=\"1\"><a:schemeClr val=\"accent1\"/></a:lnRef><a:fillRef idx=\"1\"><a:schemeClr val=\"accent1\"/></a:fillRef><a:effectRef idx=\"2\"><a:schemeClr val=\"accent1\"/></a:effectRef><a:fontRef idx=\"minor\"><a:schemeClr val=\"lt1\"/></a:fontRef></p:style>"
+        let d2 = try deckWithGradientShape(style: style)
+        let g2 = try XCTUnwrap(d2.currentSlide.shapes.first { $0.name == "Grad" })
+        d2.selectShapes([g2])
+        d2.setShadow(FormatShapePaneState.defaultShadow); d2.setShadow(nil)
+        let x2 = shapeXML(try slideXML(d2), "Grad")
+        XCTAssertTrue(x2.contains("<a:effectLst></a:effectLst>") || x2.contains("<a:effectLst/>"), x2)
+        XCTAssertTrue(x2.contains("<a:effectRef idx=\"2\">"), "the style stays")
+        XCTAssertFalse(x2.contains("outerShdw"))
     }
 
     func testChoosingASolidFillReplacesAGradientEvenOfTheSameColour() throws {
