@@ -88,15 +88,36 @@ extension RichDocumentController {
         return true
     }
 
-    /// Word's Draw Table, in a cell: a stroke across the cell splits it in two along the stroke (a mostly horizontal
-    /// stroke makes two rows, a mostly vertical one two columns). Outside a table the stroke makes a one-cell table.
+    /// Word's Draw Table, in a cell: a stroke across the cell splits it in two AT the stroke (a mostly horizontal stroke
+    /// makes two rows, a mostly vertical one two columns). Outside a table the stroke makes a one-cell table.
     @discardableResult
-    public func drawTable(in cell: (table: String, row: Int, column: Int)?, dx: Double, dy: Double) -> Bool {
+    public func drawTable(in cell: DrawCell?, dx: Double, dy: Double) -> Bool {
         guard abs(dx) > 6 || abs(dy) > 6 else { return false }
         guard let cell else { insertTable(rows: 1, columns: 1); return true }
         guard let i = document.paragraphs.firstIndex(where: { $0.cell?.table == cell.table && $0.cell?.row == cell.row && $0.cell?.column == cell.column })
         else { return false }
         _setCaret(RichPosition(paragraph: i, offset: 0))
-        return abs(dx) >= abs(dy) ? splitCell(columns: 1, rows: 2) : splitCell(columns: 2, rows: 1)
+        if abs(dx) < abs(dy) {
+            return splitCell(columns: 2, rows: 1, columnFraction: min(0.9, max(0.1, cell.fx)))
+        }
+        var done = false
+        edit {
+            done = splitCell(columns: 1, rows: 2)
+            guard done else { return }
+            let f = min(0.9, max(0.1, cell.fy)), h = max(2, cell.heightPoints)
+            setTableStyle(of: cell.table) { $0.rowHeights[cell.row] = h * f; $0.rowHeights[cell.row + 1] = h * (1 - f) }
+        }
+        return done
+    }
+}
+
+/// The cell a Draw Table stroke began in, and where in it (0...1 across and down) the stroke started.
+public struct DrawCell: Sendable {
+    public var table: String, row: Int, column: Int
+    public var fx: Double, fy: Double
+    /// The cell's height in points.
+    public var heightPoints: Double
+    public init(table: String, row: Int, column: Int, fx: Double = 0.5, fy: Double = 0.5, heightPoints: Double = 20) {
+        self.table = table; self.row = row; self.column = column; self.fx = fx; self.fy = fy; self.heightPoints = heightPoints
     }
 }

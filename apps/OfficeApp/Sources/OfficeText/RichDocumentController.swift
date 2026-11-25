@@ -2516,7 +2516,7 @@ public final class RichDocumentController: ChangeNotifier {
     /// split cell are shared evenly. The text stays in the first piece.
     /// Returns false when nothing was split.
     @discardableResult
-    public func splitCell(columns n: Int, rows m: Int) -> Bool {
+    public func splitCell(columns n: Int, rows m: Int, columnFraction: Double? = nil) -> Bool {
         guard let here = currentCell, n >= 1, m >= 1, n * m > 1, n <= 63, m <= 200 else { return false }
         let s = here.span, q = here.rowSpan
         let rowExtra = max(0, m - q)
@@ -2533,7 +2533,7 @@ public final class RichDocumentController: ChangeNotifier {
         let x0 = x[here.column], x1 = x[e]
         var newX = x
         for j in 1 ..< n {
-            let t = x0 + (x1 - x0) * Double(j) / Double(n)
+            let t = x0 + (x1 - x0) * (n == 2 ? (columnFraction ?? 0.5) : Double(j) / Double(n))
             if !newX.contains(where: { abs($0 - t) < 0.5 }) { newX.append(t) }
         }
         newX.sort()
@@ -2544,7 +2544,7 @@ public final class RichDocumentController: ChangeNotifier {
         let colExtra = newCols - cols
         guard newCols <= 63 else { return false }
         let oldIndex = x.map { gridIndex($0) }
-        let cuts = (0 ... n).map { gridIndex(x0 + (x1 - x0) * Double($0) / Double(n)) }
+        let cuts = (0 ... n).map { gridIndex(n == 2 && $0 == 1 ? x0 + (x1 - x0) * (columnFraction ?? 0.5) : x0 + (x1 - x0) * Double($0) / Double(n)) }
         guard (0 ..< n).allSatisfy({ cuts[$0 + 1] > cuts[$0] }) else { return false }
         if colExtra > 0 { widths = (0 ..< newCols).map { newX[$0 + 1] - newX[$0] } }
         let newWidths = widths

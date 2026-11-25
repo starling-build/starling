@@ -613,16 +613,14 @@ final class Ribbon: StatelessWidget {
                 MenuFlyoutItem(text: Text("Select Column"), onPressed: { c.selectColumn() }),
                 MenuFlyoutItem(text: Text("Select Table"), onPressed: { c.selectTable() }),
                 MenuFlyoutSeparator(),
+                MenuFlyoutItem(text: Text(session.tableTool == "draw" ? "Draw Table ✓" : "Draw Table"), onPressed: { [session] in session.onTableTool?("draw") }),
+                MenuFlyoutItem(text: Text(session.tableTool == "erase" ? "Eraser ✓" : "Eraser"), onPressed: { [session] in session.onTableTool?("erase") }),
+                MenuFlyoutSeparator(),
                 MenuFlyoutItem(text: Text("Table Properties…"), onPressed: { [session] in session.onTablePropertiesDialog?() }),
                 MenuFlyoutItem(text: Text("Formula…"), onPressed: c.canInsertFormula ? { [session] in session.onFormulaDialog?() } : nil),
                 MenuFlyoutItem(text: Text("Convert Table to Text…"), onPressed: { self.session.onConvertTextTableDialog?(false) }),
             ]),
         ])
-        let draw = Chrome.group("Draw", fluent, [Chrome.rows([
-            Chrome.small(FluentSystemIcons.table, session.tableTool == "draw" ? "Draw Table ✓" : "Draw Table", fluent) { [session] in session.onTableTool?("draw") },
-            Chrome.small(FluentSystemIcons.table, session.tableTool == "erase" ? "Eraser ✓" : "Eraser", fluent,
-                         enabled: c.currentCell != nil || session.tableTool == "erase") { [session] in session.onTableTool?("erase") },
-        ])])
         let merge = Chrome.group("Merge", fluent, [Chrome.rows([
             Chrome.small(FluentSystemIcons.table, "Merge Cells", fluent,
                          enabled: c.selection.block != nil || c.selectedCellsInRow.count > 1 || c.selectedCellsInColumn.count > 1) { c.mergeCells() },
@@ -740,7 +738,7 @@ final class Ribbon: StatelessWidget {
         let table = Chrome.group("Table", fluent, [
             Chrome.big(FluentSystemIcons.delete, "Delete Table", fluent) { c.deleteTable() },
         ])
-        return [select, draw, rows, merge, size, alignment, borders, look, table]
+        return [select, rows, merge, size, alignment, borders, look, table]
     }
 
     // MARK: Picture Format
