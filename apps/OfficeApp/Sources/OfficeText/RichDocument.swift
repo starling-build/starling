@@ -2424,7 +2424,11 @@ public struct RichParagraph: Hashable, Codable, Sendable {
                 controlMarkers[i].offset += insertUnits
             }
         }
-        let styled = newRuns ?? [Run(length: insertUnits, style: style(at: offset))]
+        // (Typed text takes the style before the caret, but not a tracked deletion: it is new text, not struck out. Word's print of a
+        // box typed at the end of a deleted run read "deleted EDITED" inside the deletion.)
+        var typed = style(at: offset)
+        if typed.revision?.kind == .deleted { typed.revision = nil }
+        let styled = newRuns ?? [Run(length: insertUnits, style: typed)]
         // Split the run at `offset` and splice the new runs between.
         var out: [Run] = []
         var pos = 0

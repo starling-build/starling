@@ -560,8 +560,9 @@ public final class RichDocumentController: ChangeNotifier {
                 if !text.isEmpty {
                     let pos = selection.focus
                     let runs = style.map { [Run(length: text.utf16.count, style: $0)] }
-                    perform(.insertText(pos, text, runs ?? [Run(length: text.utf16.count,
-                                                                  style: document.paragraphs[pos.paragraph].style(at: pos.offset))]))
+                    var inherited = document.paragraphs[pos.paragraph].style(at: pos.offset)
+                    if inherited.revision?.kind == .deleted { inherited.revision = nil }  // typed text is new, not struck out
+                    perform(.insertText(pos, text, runs ?? [Run(length: text.utf16.count, style: inherited)]))
                     _setCaret(RichPosition(paragraph: pos.paragraph, offset: pos.offset + text.utf16.count))
                 }
             }
