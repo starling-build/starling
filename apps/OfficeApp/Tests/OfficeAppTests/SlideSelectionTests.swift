@@ -134,8 +134,10 @@ final class SlideArrangeTests: XCTestCase {
         let (state, _, _) = try Pptx.read(data)
         let r = try XCTUnwrap(state.slides[0].shapes.first { abs($0.frame.center.dx - a.frame.center.dx) < 0.5 && $0.flipH })
         XCTAssertEqual(r.rotation, a.rotation, accuracy: 0.01)
-        try FileManager.default.createDirectory(atPath: "/data/s/amd-6/ui-check", withIntermediateDirectories: true)
-        try data.write(to: URL(fileURLWithPath: "/data/s/amd-6/ui-check/flip-rotate.pptx"))
+        // (A copy for a person to open, where the AMD box keeps them; the other tests write theirs the same way, only if the
+        // folder is there: a Mac has no /data, and creating it failed the test on "volume is read only".)
+        let dir = "/data/s/amd-6/ui-check"
+        if FileManager.default.fileExists(atPath: dir) { try data.write(to: URL(fileURLWithPath: dir + "/flip-rotate.pptx")) }
     }
 
     /// Drags on the canvas with modifier keys held: Shift keeps one axis, Ctrl drags a copy.
