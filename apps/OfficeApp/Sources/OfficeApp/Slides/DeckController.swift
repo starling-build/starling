@@ -1579,6 +1579,9 @@ final class DeckController: ChangeNotifier {
         _changed()
     }
 
+    /// Colours picked lately in Shape Fill and Outline (not part of the document, not undone).
+    var recentShapeColors = RecentColors()
+
     func setFill(_ color: Color?, scheme: String? = nil) {
         guard !selection.isEmpty else { return }
         _checkpoint()

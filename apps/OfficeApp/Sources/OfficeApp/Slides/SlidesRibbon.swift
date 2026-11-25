@@ -133,10 +133,8 @@ extension Ribbon {
             ]),
             Chrome.vgap(4),
             Chrome.row([
-                Chrome.colorMenu(FluentSystemIcons.paintBrush, "Shape Fill", fluent, colors: palette,
-                                 none: "No Fill") { color in deck.setFill(color) },
-                Chrome.colorMenu(FluentSystemIcons.edit, "Shape Outline", fluent, colors: palette,
-                                 none: "No Outline") { color in deck.setOutline(color) },
+                _shapeColorMenu(FluentSystemIcons.paintBrush, "Shape Fill", deck, fluent, outline: false),
+                _shapeColorMenu(FluentSystemIcons.edit, "Shape Outline", deck, fluent, outline: true),
             ]),
             Chrome.vgap(4),
             Chrome.row([
@@ -153,6 +151,17 @@ extension Ribbon {
             ("Black", Color(0xFF000000)), ("Red", Color(0xFFC00000)), ("Orange", Color(0xFFFFC000)),
             ("Green", Color(0xFF00B050)), ("Blue", Color(0xFF0070C0)), ("Purple", Color(0xFF7030A0)),
         ]
+    }
+
+    /// Shape Fill / Shape Outline: the shared colour picker in a drop-down.
+    private func _shapeColorMenu(_ icon: IconData, _ tip: String, _ deck: DeckController, _ fluent: FluentThemeData,
+                                 outline: Bool) -> Widget {
+        Chrome.menuButton(icon, nil, tip, fluent, items: [
+            ColorGridMenuItem(theme: deck.theme.slots, recent: deck.recentShapeColors.list,
+                              noneLabel: outline ? "No Outline" : "No Fill",
+                              onChoose: { deck.applyShapeColor($0, outline: outline) },
+                              onMore: { [session] in session.onMoreShapeColor?(outline) }),
+        ])
     }
 
     private func _slidesInsert(_ deck: DeckController, _ fluent: FluentThemeData) -> [Widget] {
