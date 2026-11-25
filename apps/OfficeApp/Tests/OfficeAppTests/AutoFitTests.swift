@@ -26,6 +26,22 @@ final class AutoFitTests: XCTestCase {
         XCTAssertNil(c.currentTableStyle!.width)
     }
 
+    func testAutoFitToContentsWritesAutoCellWidthsAndWindowKeepsThem() throws {
+        func cellWidths(_ c: RichDocumentController) throws -> String {
+            let data = try DocxFormat.write(c.document, pageSetup: .letter)
+            let doc = try XCTUnwrap(try Zip.read(data).first { $0.name == "word/document.xml" })
+            return String(decoding: doc.data, as: UTF8.self)
+        }
+        let c = table()
+        c.autoFitTable(.contents)
+        var xml = try cellWidths(c)
+        XCTAssertTrue(xml.contains("<w:tcW w:w=\"0\" w:type=\"auto\"/>"))
+        XCTAssertFalse(xml.contains("w:type=\"dxa\"/></w:tcPr>"))
+        c.autoFitTable(.window)
+        xml = try cellWidths(c)
+        XCTAssertFalse(xml.contains("<w:tcW w:w=\"0\" w:type=\"auto\"/>"))
+    }
+
     func testDistributeRowsGivesEveryRowTheTallest() {
         let c = table()
         let cells = c.document.paragraphs.indices.filter { c.document.paragraphs[$0].cell != nil }

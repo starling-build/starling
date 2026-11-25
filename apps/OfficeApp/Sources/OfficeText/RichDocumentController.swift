@@ -2131,9 +2131,9 @@ public final class RichDocumentController: ChangeNotifier {
     /// AutoFit: to contents (grid follows the text), to window (full text width), or fixed column widths.
     public func autoFitTable(_ fit: TableFit) {
         switch fit {
-        case .contents: setTableStyle { $0.fixedLayout = false; $0.width = nil; $0.widthPercent = nil }
-        case .window: setTableStyle { $0.fixedLayout = false; $0.width = nil; $0.widthPercent = 100 }
-        case .fixed: setTableStyle { $0.fixedLayout = true }
+        case .contents: setTableStyle { $0.fixedLayout = false; $0.width = nil; $0.widthPercent = nil; $0.autoCellWidths = true }
+        case .window: setTableStyle { $0.fixedLayout = false; $0.width = nil; $0.widthPercent = 100; $0.autoCellWidths = false }
+        case .fixed: setTableStyle { $0.fixedLayout = true; $0.autoCellWidths = false }
         }
     }
 
