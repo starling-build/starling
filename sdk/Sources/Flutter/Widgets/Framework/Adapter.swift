@@ -434,6 +434,8 @@ func _setupWidgetBinding(_ app: Widget) {
             let adapter = RenderObjectToWidgetAdapter(child: app, container: renderView!)
             rootElement = adapter.attachToRenderTree(buildOwner)
 
+            // Platform accessibility bridges (AT-SPI, NSAccessibility) read the live tree through this.
+            SemanticsRoot.provider = { rootElement }
             #if os(Linux)
             // Murmuration P3: the agent semantics endpoint walks the element
             // tree on demand ($STARLING_AGENT_ENDPOINT, set by the shell's
