@@ -80,6 +80,7 @@ let appTarget: Target = {
                 .product(name: "FlutterSwiftBridge", package: "FlutterSwift"),
                 .product(name: "SwiftRuntime", package: "FlutterSwift"),
                 .product(name: "FluentSystemIcons", package: "FlutterSwift"),
+                .product(name: "CupertinoIcons", package: "FlutterSwift"),
                 "OfficeText",
                 "CZlib",
                 .product(name: "FlutterUIKit", package: "FlutterSwift"),
