@@ -1403,7 +1403,12 @@ final class DeckController: ChangeNotifier {
             let m = f.center
             let n = horizontal ? Offset(2 * c.dx - m.dx, m.dy) : Offset(m.dx, 2 * c.dy - m.dy)
             s.frame = Rect.fromLTWH(n.dx - f.width / 2, n.dy - f.height / 2, f.width, f.height)
-            if horizontal { s.flipH.toggle() } else { s.flipV.toggle() }
+            if horizontal { s.flipH.toggle() } else { s.flipV.toggle(); s.textSpin = (s.textSpin + 180).truncatingRemainder(dividingBy: 360) }
+            // The geometry's text rectangle mirrors with the shape; the text itself does not.
+            if s.shapeInsets != .zero {
+                s.insets = s.insets.mirroringShare(s.shapeInsets, horizontal: horizontal, vertical: !horizontal)
+                s.shapeInsets = s.shapeInsets.mirroringShare(s.shapeInsets, horizontal: horizontal, vertical: !horizontal)
+            }
             var d = (-s.rotation).truncatingRemainder(dividingBy: 360)
             if d < 0 { d += 360 }
             s.rotation = d
