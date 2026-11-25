@@ -39,3 +39,38 @@ final class AutoFitTests: XCTestCase {
         _ = cells
     }
 }
+
+/// Writes the Word lab for AutoFit / Distribute Rows when AUTOFIT_LAB_OUT names a file (skipped otherwise).
+final class AutoFitLabWriter: XCTestCase {
+    func testWriteLab() throws {
+        guard let out = ProcessInfo.processInfo.environment["AUTOFIT_LAB_OUT"] else { throw XCTSkip("no AUTOFIT_LAB_OUT") }
+        let c = RichDocumentController(plainText: "")
+        func addTable(_ title: String, _ fit: RichDocumentController.TableFit?, distribute: Bool = false) {
+            c.moveTo(RichPosition(paragraph: c.document.paragraphs.count - 1, offset: 0), extend: false)
+            c.insertText(title)
+            c.insertParagraphBreak()
+            c.insertTable(rows: 3, columns: 3)
+            let idx = Array(c.document.paragraphs.indices.filter { c.document.paragraphs[$0].cell != nil }.suffix(9))
+            let texts = ["a", "A longer cell of text", "mid", "b", "c", "d d d d d d d d d d", "e", "f", "g"]
+            for (k, i) in idx.enumerated() {
+                c.moveTo(RichPosition(paragraph: i, offset: 0), extend: false)
+                c.insertText(texts[k])
+            }
+            c.moveTo(RichPosition(paragraph: idx.first!, offset: 0), extend: false)
+            if let fit { c.autoFitTable(fit) }
+            if distribute {
+                c.setRowHeight(20); c.moveTo(RichPosition(paragraph: idx[3], offset: 0), extend: false); c.setRowHeight(40)
+                c.moveTo(RichPosition(paragraph: idx[6], offset: 0), extend: false); c.setRowHeight(30)
+                c.rowHeightProbe = { i in c.document.paragraphs[i].cell.map { [20.0, 40.0, 30.0][$0.row] } }
+                c.moveTo(RichPosition(paragraph: idx[0], offset: 0), extend: false)
+                c.distributeRows()
+            }
+            c.moveTo(RichPosition(paragraph: c.document.paragraphs.count - 1, offset: 0), extend: false)
+        }
+        addTable("AutoFit to contents", .contents)
+        addTable("AutoFit to window", .window)
+        addTable("Fixed column width", .fixed)
+        addTable("Distribute rows", nil, distribute: true)
+        try DocxFormat.write(c.document, pageSetup: .letter).write(to: URL(fileURLWithPath: out))
+    }
+}
