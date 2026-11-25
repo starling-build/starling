@@ -65,3 +65,9 @@ ui/openoffice/apps/
 !/test/corpus/docx/pdf-text/*
 # stored scores live OUTSIDE git (user rule): /data/landq/base/<host>, see SCORES_BASE in test/tools/docx-pair.sh
 /test/corpus/docx/scores/linux/
+
+# Worker scratch (amd-8, 2026-11-25): every build/scratch dir the test and gate scripts make, and run logs.
+.build-*/
+/unit-tests.log
+/.build-slot*/
+/lab/

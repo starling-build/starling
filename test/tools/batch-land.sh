@@ -108,6 +108,8 @@ newbatch() { # args: PR numbers in order
     for n in $list; do grep -hE '^ACCEPT:' <<<"$(pf $n .body)"; done | sort -u; echo
     for n in $list; do echo "## #$n $(pf $n .title)"; pf $n .body | grep -v 'Generated with \[Claude Code\]'; echo; done; } > $S/body.txt
   if [ "$DRY" = 1 ]; then log "DRY: would push $BR with$list"; rm -f $S/members/$c.new; return 0; fi
+  # size gate (amd-8, 2026-11-25): a batch carrying any file over 10 MB (a build dir, a log, a corpus file) is refused before the push
+  if ! sz=$(cd "$CLONE" && "$CLONE/test/tools/size-check.sh" origin/main tmp-batch 2>&1); then log "batch REFUSED by the size check: $(echo "$sz" | head -3 | tr '\n' ' ')"; rm -f $S/members/$c.new; return 1; fi
   G push -q -f origin tmp-batch:refs/heads/$BR || { log "push of $BR failed"; rm -f $S/members/$c.new; return 1; }
   url=$(gh pr create -R $R --base main --head $BR --title "Batch $c: $(for n in $list; do printf '#%s ' $n; done)" --body-file $S/body.txt) || { log "batch PR create failed"; rm -f $S/members/$c.new; return 1; }
   echo $c > $S/counter; mv $S/members/$c.new $S/members/$c.txt
