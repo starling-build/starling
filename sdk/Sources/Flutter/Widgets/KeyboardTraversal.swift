@@ -54,6 +54,9 @@ public final class KeyboardTraversal {
     private var _token: Int?
     private var _shift = false
     private var _currentRegion: String?
+    private var _pointer: PointerRouteEntry?
+    /// Where typing was when the ring took over, so Esc can give it back.
+    private weak var _saved: FocusNode?
 
     /// The control that has the keyboard focus ring, if any.
     public private(set) var focused: KeyStop?
@@ -69,6 +72,10 @@ public final class KeyboardTraversal {
         _stops.append(stop)
         if _token == nil {
             _token = FocusManager.instance.addKeyInterceptor { [unowned self] key in self.handle(key) }
+            // A click puts the keyboard back where the pointer went: the editor keeps its own Tab.
+            _pointer = GestureBinding.instance.pointerRouter.addGlobalRoute { [unowned self] event in
+                if event is PointerDownEvent, self.focused != nil { self._focus(nil) }
+            }
         }
     }
 
@@ -102,6 +109,7 @@ public final class KeyboardTraversal {
 
     private func _focus(_ stop: KeyStop?) {
         if focused === stop { return }
+        if focused == nil, stop != nil { _saved = FocusManager.instance.focusedNode }
         focused?.onFocus(false)
         focused = stop
         if let stop { _currentRegion = stop.region }
@@ -131,6 +139,7 @@ public final class KeyboardTraversal {
     /// Takes the ring away (the keyboard is back with the editor).
     public func leave() {
         _focus(nil)
+        _saved?.requestFocus()
         onLeave?()
     }
 
@@ -171,5 +180,6 @@ public final class KeyboardTraversal {
         _shift = false
         _stops.removeAll()
         if let t = _token { FocusManager.instance.removeKeyInterceptor(t); _token = nil }
+        if let e = _pointer { GestureBinding.instance.pointerRouter.removeGlobalRoute(e); _pointer = nil }
     }
 }
