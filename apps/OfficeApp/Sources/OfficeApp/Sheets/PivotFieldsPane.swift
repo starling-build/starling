@@ -32,6 +32,14 @@ extension WorkbookController {
     /// Move field `f` to `area` (nil: out of the table), at `position` there (nil: the end). A field is in one area, except that a
     /// number may also stay in Values while it sits in another. Returns the problem when the table cannot be laid out so.
     @discardableResult
+    /// Value Field Settings: replace the settings of the pivot's `k`th value field.
+    func setPivotValueField(_ k: Int, _ d: PivotDataField) -> PivotProblem? {
+        guard let st = pivotPaneState(), st.spec.data.indices.contains(k) else { return .noSource }
+        var data = st.spec.data
+        data[k] = d
+        return setPivotFields(sheet: sheet, pivot: st.index, rows: st.spec.rows, cols: st.spec.cols, data: data, filters: st.spec.filters)
+    }
+
     func movePivotField(_ f: Int, to area: PivotArea?, at position: Int? = nil) -> PivotProblem? {
         guard let st = pivotPaneState() else { return .noSource }
         var rows = st.spec.rows, cols = st.spec.cols, filters = st.spec.filters, data = st.spec.data
@@ -68,7 +76,11 @@ extension WorkbookController {
 final class PivotFieldsPane: StatelessWidget {
     let controller: WorkbookController
     let onChange: () -> Void
-    init(controller: WorkbookController, onChange: @escaping () -> Void) { self.controller = controller; self.onChange = onChange }
+    /// Opens Value Field Settings for the value field at this position.
+    let onValueSettings: ((Int) -> Void)?
+    init(controller: WorkbookController, onChange: @escaping () -> Void, onValueSettings: ((Int) -> Void)? = nil) {
+        self.controller = controller; self.onChange = onChange; self.onValueSettings = onValueSettings
+    }
 
     override func build(_ context: any BuildContext) -> Widget {
         let fluent = FluentTheme.of(context)
@@ -98,9 +110,14 @@ final class PivotFieldsPane: StatelessWidget {
                 var next = PivotArea(rawValue: (a.rawValue + 1) % 4)!
                 if next == .filters && !PivotSpec.offersFilters { next = .columns }
                 var label = name(f)
-                if a == .values, let d = st.spec.data.first(where: { $0.field == f }) { label = d.function.caption + label }
+                if a == .values, let d = st.spec.data.first(where: { $0.field == f }) { label = d.name ?? d.function.caption + label }
+                var buttons: [Widget] = []
+                if a == .values, let open = onValueSettings {
+                    buttons.append(Button(key: ValueKey("pvf-settings-\(f)"), onPressed: { open(at) }, child: Text("⚙")))
+                }
                 let chip = Row(children: [
                     Expanded(child: Text(label, style: fluent.typography.body)),
+                ] + buttons + [
                     Button(key: ValueKey("pvf-up-\(a.rawValue)-\(f)"), onPressed: { [weak self] in self?.controller.shiftPivotField(f, in: a, by: -1); self?.onChange() }, child: Text("↑")),
                     Button(key: ValueKey("pvf-down-\(a.rawValue)-\(f)"), onPressed: { [weak self] in self?.controller.shiftPivotField(f, in: a, by: 1); self?.onChange() }, child: Text("↓")),
                     Button(key: ValueKey("pvf-move-\(a.rawValue)-\(f)"), onPressed: { [weak self] in self?.controller.movePivotField(f, to: next); self?.onChange() }, child: Text("→ " + next.title)),

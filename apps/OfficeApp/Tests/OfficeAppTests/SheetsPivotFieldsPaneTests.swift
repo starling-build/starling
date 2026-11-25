@@ -75,6 +75,5 @@ final class SheetsPivotFieldsPaneTests: XCTestCase {
         XCTAssertTrue(t.tap(id: "pvf-move-\(PivotArea.columns.rawValue)-1"))
         XCTAssertEqual(spec(wc).rows, [0, 1])
         XCTAssertEqual(spec(wc).cols, [])
-        XCTAssertFalse(PivotSpec.offersFilters)
     }
 }

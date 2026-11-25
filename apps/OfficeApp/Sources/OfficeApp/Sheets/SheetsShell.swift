@@ -92,6 +92,7 @@ final class SheetsShellState: State<StatefulWidget> {
     private var _dupOpen: (range: CellRange, hasHeader: Bool)?
     private var _ttcOpen: CellRange?
     private var _subOpen: CellRange?
+    private var _pvValueOpen: Int?
     private var _validationOpen = false
     private var _cfOpen = false
     private var _tableOpen = false
@@ -1072,7 +1073,8 @@ final class SheetsShellState: State<StatefulWidget> {
                 onFilterMenu: { [weak self] point, col in self?._showFilterMenu(at: point, col: col) },
                 onListMenu: { [weak self] point, cell, choices in self?._showListMenu(at: point, cell: cell, choices) },
                 onZoom: { [weak self] f in self?.setState { self?._zoom = max(0.25, min(4, (self?._zoom ?? 1) * f)) } })),
-                PivotFieldsPane(controller: wb, onChange: { [weak self] in self?.setState {} }),
+                PivotFieldsPane(controller: wb, onChange: { [weak self] in self?.setState {} },
+                                onValueSettings: { [weak self] k in self?.setState { self?._pvValueOpen = k } }),
             ])),
             _sheetTabs(fluent),
             _statusBar(fluent),
@@ -1166,6 +1168,13 @@ final class SheetsShellState: State<StatefulWidget> {
             return Stack(children: [window, Positioned(left: 0, top: 0, right: 0, bottom: 0, child: TextToColumnsDialog(
                 controller: wb, range: open, onClose: { [weak self] in
                     self?.setState { self?._ttcOpen = nil }
+                    self?._grid?.focus.requestFocus()
+                }))])
+        }
+        if let open = _pvValueOpen {
+            return Stack(children: [window, Positioned(left: 0, top: 0, right: 0, bottom: 0, child: PivotValueFieldDialog(
+                controller: wb, index: open, onClose: { [weak self] in
+                    self?.setState { self?._pvValueOpen = nil }
                     self?._grid?.focus.requestFocus()
                 }))])
         }

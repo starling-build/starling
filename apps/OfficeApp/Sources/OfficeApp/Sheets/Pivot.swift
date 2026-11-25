@@ -8,13 +8,37 @@
 import Foundation
 
 enum PivotFunction: String, Sendable, CaseIterable {
-    case sum, count, average
-    var caption: String { self == .sum ? "Sum of " : self == .count ? "Count of " : "Average of " }
+    case sum, count, average, min, max
+    var caption: String {
+        switch self { case .sum: return "Sum of "; case .count: return "Count of "; case .average: return "Average of "; case .min: return "Min of "; case .max: return "Max of " }
+    }
+    /// The name Value Field Settings lists.
+    var title: String {
+        switch self { case .sum: return "Sum"; case .count: return "Count"; case .average: return "Average"; case .min: return "Min"; case .max: return "Max" }
+    }
+}
+
+/// Show Values As: the figure itself, or its share of the grand total, of its row's total or of its column's total.
+enum PivotShowAs: String, Sendable, CaseIterable {
+    case normal, percentOfTotal, percentOfRow, percentOfCol
+    var title: String {
+        switch self {
+        case .normal: return "No Calculation"; case .percentOfTotal: return "% of Grand Total"
+        case .percentOfRow: return "% of Row Total"; case .percentOfCol: return "% of Column Total"
+        }
+    }
 }
 
 struct PivotDataField: Equatable, Sendable {
     var field: Int
     var function: PivotFunction
+    /// The heading Value Field Settings gave it (nil: "Sum of Sales" and so on).
+    var name: String? = nil
+    /// A number format code for its cells (nil: General, or the percentage format Show Values As implies).
+    var numberFormat: String? = nil
+    var showAs: PivotShowAs = .normal
+    /// The format its cells wear: the one chosen, else 0.00% for a share, else none.
+    var cellFormat: String? { numberFormat ?? (showAs == .normal ? nil : "0.00%") }
 }
 
 /// A page filter: the field, and the one item the table is cut to (nil: all).
@@ -104,6 +128,8 @@ struct PivotSource {
 /// A pivot table worked out: its cells, and the structure its XML needs.
 struct PivotLayout {
     var cells: [CellAddress: CellValue] = [:]
+    /// The number format of data cells that have their own (a field's format, or a percentage).
+    var formats: [CellAddress: String] = [:]
     /// Cells Excel draws as field buttons (it styles them `pivotButton`).
     var buttons: Set<CellAddress> = []
     /// The table (without its page filters), and everything including them.
@@ -152,13 +178,15 @@ enum PivotCalc {
         case .average:
             let n = recs.compactMap { $0[d.field].number }
             return n.isEmpty ? .empty : .number(n.reduce(0, +) / Double(n.count))
+        case .min: return recs.compactMap { $0[d.field].number }.min().map { .number($0) } ?? .empty
+        case .max: return recs.compactMap { $0[d.field].number }.max().map { .number($0) } ?? .empty
         }
     }
 
     static func layout(_ spec: PivotSpec, _ src: PivotSource) -> PivotLayout {
         var out = PivotLayout()
         out.items = items(spec, src)
-        out.dataNames = spec.data.map { $0.function.caption + src.headers[$0.field] }
+        out.dataNames = spec.data.map { $0.name ?? $0.function.caption + src.headers[$0.field] }
         var recs = src.rows
         for f in spec.filters { if let i = f.item { recs = recs.filter { PivotItem($0[f.field]).shown == i } } }
 
@@ -247,6 +275,36 @@ enum PivotCalc {
             grid.append(line("Grand Total", recs))
         }
         out.firstDataCol = 1
+        // Show Values As: replace each data cell by its share of the grand total, its row's total or its column's total.
+        if spec.data.contains(where: { $0.showAs != .normal }), grid.count > out.firstDataRow {
+            let v = spec.data.count, last = grid.count - 1
+            let g0 = spec.cols.isEmpty ? nil : 1 + out.colNodes.count * v
+            let old = grid
+            for r in out.firstDataRow ... last {
+                for c in 1 ..< old[r].count {
+                    let k = spec.cols.isEmpty ? c - 1 : (c - 1) % v
+                    guard k < v, let x = old[r][c].number else { continue }
+                    let rowTotal = g0.flatMap { old[r][$0 + k].number }
+                    let colTotal = old[last][c].number
+                    let grand = old[last][g0 ?? 1 + k].number
+                    let den: Double?
+                    switch spec.data[k].showAs {
+                    case .normal: continue
+                    case .percentOfTotal: den = grand
+                    case .percentOfRow: den = g0 == nil ? x : rowTotal
+                    case .percentOfCol: den = colTotal
+                    }
+                    if let den, den != 0 { grid[r][c] = .number(x / den) } else { grid[r][c] = .empty }
+                }
+            }
+        }
+        // Per-field number formats.
+        for r in out.firstDataRow ..< grid.count {
+            for c in 1 ..< grid[r].count {
+                let v = spec.data.count, k = spec.cols.isEmpty ? c - 1 : (c - 1) % v
+                if k < v, let f = spec.data[k].cellFormat { out.formats[CellAddress(row: top + r, col: left + c)] = f }
+            }
+        }
         let width = grid.map(\.count).max() ?? 1
         for (r, row) in grid.enumerated() {
             for c in 0 ..< width {
@@ -387,7 +445,9 @@ enum PivotWriter {
         }
         s += "<dataFields count=\"\(spec.data.count)\">"
         for (k, d) in spec.data.enumerated() {
-            s += "<dataField name=\"\(esc(lay.dataNames[k]))\" fld=\"\(d.field)\"" + (d.function == .sum ? "" : " subtotal=\"\(d.function.rawValue)\"") + " baseField=\"0\" baseItem=\"0\"/>"
+            s += "<dataField name=\"\(esc(lay.dataNames[k]))\" fld=\"\(d.field)\"" + (d.function == .sum ? "" : " subtotal=\"\(d.function.rawValue)\"")
+                + (d.showAs == .normal ? "" : " showDataAs=\"\(d.showAs.rawValue)\"")
+                + (d.cellFormat.flatMap { f in Xlsx.builtinFormats.first { $0.value == f }?.key }.map { " numFmtId=\"\($0)\"" } ?? "") + " baseField=\"0\" baseItem=\"0\"/>"
         }
         s += "</dataFields>"
         s += "<pivotTableStyleInfo name=\"\(esc(style))\" showRowHeaders=\"1\" showColHeaders=\"1\" showRowStripes=\"0\" showColStripes=\"0\" showLastColumn=\"1\"/>"
@@ -446,6 +506,7 @@ extension WorkbookController {
             c.formula = nil; c.arrayRef = nil; c.rawFormula = nil
             c.input = NumberFormat.display(v, "General", width: 255).text
             c.value = v; c.cached = v
+            if let f = lay.formats[a] { var st = book.style(c.style ?? ws.defaultStyle(at: a)); st.numberFormat = f; c.style = book.styleIndex(st) }
             if lay.buttons.contains(a) { var st = book.style(c.style ?? ws.defaultStyle(at: a)); st.pivotButton = true; c.style = book.styleIndex(st) }
             ws.cells[a] = c
         }
