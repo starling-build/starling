@@ -14,12 +14,13 @@ W=${SHEETS_SCRATCH:-${GATE_SCRATCH:-$HOME/scratch/gate}/sheets}; rm -rf "$W"; mk
 export OFFICE_FONT_SOURCE=bundled PDFDIFF_NO_PAIRS=1
 REUSE=
 SWEEP() { SHEETS_REUSE=$REUSE "$PY" "$ROOT/test/tools/sheets-sweep.py" "$1" "$2" -j "$JOBS" > "$2.log" 2>&1; [ -s "$2/per-book.tsv" ]; }
-if [ -n "$BC" ] && [ -s "$BC/per-book.tsv" ]; then echo "sheets-gate: base render from the cache ($BC)"; cp "$BC/per-book.tsv" "$W/base.tsv"; REUSE=$BC
+STAMP=$("$ROOT/test/tools/gate-stamp.sh" sheets "$BASEBIN" 2>/dev/null)   # binary + scorer sha the base is drawn with
+if [ -n "$BC" ] && [ -s "$BC/per-book.tsv" ] && [ -n "$STAMP" ] && [ "$(cat "$BC/STAMP" 2>/dev/null)" = "$STAMP" ]; then echo "sheets-gate: base render from the cache ($BC)"; cp "$BC/per-book.tsv" "$W/base.tsv"; REUSE=$BC
 else
   [ -x "$BASEBIN" ] || { echo "sheets-gate: no base binary; not runnable"; exit 2; }
   SWEEP "$BASEBIN" "$W/b" || { echo "sheets-gate: base render produced nothing"; tail -3 "$W/b.log" | cut -c1-200; exit 2; }
   cp "$W/b/per-book.tsv" "$W/base.tsv"; REUSE=$W/b
-  if [ -n "$BC" ]; then mkdir -p "$BC.tmp$$" 2>/dev/null && cp "$W/b/per-book.tsv" "$W/b/per-page.tsv" "$W/b/score-cache.tsv" "$BC.tmp$$/" && { rm -rf "$BC"; mv "$BC.tmp$$" "$BC"; } 2>/dev/null; fi
+  if [ -n "$BC" ]; then mkdir -p "$BC.tmp$$" 2>/dev/null && cp "$W/b/per-book.tsv" "$W/b/per-page.tsv" "$W/b/score-cache.tsv" "$BC.tmp$$/" && echo "$STAMP" > "$BC.tmp$$/STAMP" && { rm -rf "$BC"; mv "$BC.tmp$$" "$BC"; } 2>/dev/null; fi
 fi
 [ -n "${BASE_ONLY:-}" ] && { echo "sheets-gate: base cached ($BC) in $(( $(date +%s)-T )) s"; exit 0; }
 SWEEP "$BIN" "$W/p" || { echo "sheets-gate: no scores produced"; tail -3 "$W/p.log" | cut -c1-200; exit 1; }
