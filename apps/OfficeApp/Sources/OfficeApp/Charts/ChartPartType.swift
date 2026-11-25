@@ -65,10 +65,9 @@ enum ChartPartType {
         case .radar: name = "c:radarChart"
         }
         let oldSers = group.all("c:ser")
-        let wanted = c.type.isPie ? Array(c.series.prefix(1)) : c.series
-        var shown = c; shown.series = wanted
+        // A pie keeps every series in the part (Excel draws the first and keeps the rest, so a switch back loses nothing).
+        let wanted = c.type.isPie ? Array(0..<oldSers.count) : Array(0..<c.series.count)
         let keepsLook = !(c.type.isPie || group.name == "c:pieChart" || group.name == "c:doughnutChart" || c.type == .scatter || group.name == "c:scatterChart")
-        // A pie shows one series, so the others have no cells of their own to carry over.
         guard oldSers.count >= wanted.count else { return false }
         var sers: [XNode] = []
         for i in wanted.indices {
@@ -126,6 +125,7 @@ enum ChartPartType {
             let i = (plot.children.lastIndex { groupNames.contains($0.name) } ?? 0) + 1
             plot.children.insert(contentsOf: [cat, val], at: i)
         }
+        retagScatterAxes(plot, group: g, scatter: c.type == .scatter)
         // A bar chart's category axis stands at the left, its value axis at the bottom (and the other way for a column).
         if c.type == .bar || c.type == .column {
             let own = Set(g.all("c:axId").compactMap { $0["val"] })
@@ -137,6 +137,30 @@ enum ChartPartType {
             }
         }
         return true
+    }
+
+    /// A scatter's two axes are both value axes (x at the bottom); every other type's first is a category axis.
+    static func retagScatterAxes(_ plot: XNode, group g: XNode, scatter: Bool) {
+        let ids = g.all("c:axId").compactMap { $0["val"] }
+        guard let xid = ids.first else { return }
+        let catOnly: Set<String> = ["c:auto", "c:lblAlgn", "c:lblOffset", "c:noMultiLvlLbl"]
+        for ax in plot.children where ids.contains(ax.first("c:axId")?["val"] ?? "") {
+            if scatter, ax.name == "c:catAx" || ax.name == "c:dateAx" {
+                ax.name = "c:valAx"
+                ax.children.removeAll { catOnly.contains($0.name) || $0.name == "c:baseTimeUnit" || $0.name == "c:majorTimeUnit" }
+                if ax.first("c:crossBetween") == nil {
+                    let at = (ax.children.lastIndex { ["c:crossAx", "c:crosses", "c:crossesAt"].contains($0.name) } ?? ax.children.count - 1) + 1
+                    ax.children.insert(node("c:crossBetween", ["val": "midCat"]), at: at)
+                }
+                if ax.first("c:axId")?["val"] == xid { ax.first("c:axPos")?.attrs["val"] = "b" }
+            } else if !scatter, ax.name == "c:valAx", ax.first("c:axId")?["val"] == xid {
+                ax.name = "c:catAx"
+                ax.children.removeAll { $0.name == "c:crossBetween" || $0.name == "c:majorUnit" || $0.name == "c:minorUnit" }
+                let at = (ax.children.lastIndex { ["c:crossAx", "c:crosses", "c:crossesAt"].contains($0.name) } ?? ax.children.count - 1) + 1
+                ax.children.insert(contentsOf: [node("c:auto", ["val": "1"]), node("c:lblAlgn", ["val": "ctr"]),
+                                                node("c:lblOffset", ["val": "100"]), node("c:noMultiLvlLbl", ["val": "0"])], at: at)
+            }
+        }
     }
 
     /// Column <-> bar in a chart part: the bars' direction and where each axis sits.

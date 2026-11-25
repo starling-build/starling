@@ -241,6 +241,34 @@ extension SheetsChartTests {
         XCTAssertFalse(asPie.containsSubstring("<c:catAx>"))
     }
 
+    func testPieKeepsEverySeriesAndScatterGetsTwoValueAxes() throws {
+        let url = try XCTUnwrap(Bundle.module.url(forResource: "karma_performance", withExtension: "xlsx", subdirectory: "Fixtures"))
+        let c = WorkbookController()
+        c.load(try Xlsx.read(try Data(contentsOf: url)))
+        let i = try XCTUnwrap(c.sheet.drawings.firstIndex { if case .chart(let sc) = $0.kind { return sc.chart.type == .column && sc.path != nil }; return false })
+        guard case .chart(let before) = c.sheet.drawings[i].kind, let path = before.path else { return XCTFail() }
+        func part() throws -> String { String(decoding: try XCTUnwrap(try Zip.read(try Xlsx.write(c.book)).first { $0.name == path }).data, as: UTF8.self) }
+        func count(_ s: String, _ t: String) -> Int { s.components(separatedBy: t).count - 1 }
+        let sers = count(try part(), "<c:ser>")
+        XCTAssertGreaterThan(sers, 1)
+        c.setChartType(i, .pie)
+        XCTAssertEqual(count(try part(), "<c:ser>"), sers, "a pie keeps every series")
+        c.setChartType(i, .column)
+        let back = try part()
+        XCTAssertEqual(count(back, "<c:ser>"), sers)
+        XCTAssertTrue(back.containsSubstring("<c:barChart>"))
+        c.setChartType(i, .scatter)
+        let sc = try part()
+        XCTAssertFalse(sc.containsSubstring("<c:catAx>"))
+        XCTAssertEqual(count(sc, "<c:valAx>"), 2)
+        XCTAssertTrue(sc.containsSubstring("<c:xVal>"))
+        XCTAssertTrue(sc.containsSubstring("<c:crossBetween"))
+        c.setChartType(i, .line)
+        let ln = try part()
+        XCTAssertEqual(count(ln, "<c:catAx>"), 1)
+        XCTAssertEqual(count(ln, "<c:valAx>"), 1)
+    }
+
     func testWriteChartTypeCheckFiles() throws {
         guard let dir = ProcessInfo.processInfo.environment["XCHECK_DIR"] else { return }
         let url = try XCTUnwrap(Bundle.module.url(forResource: "karma_performance", withExtension: "xlsx", subdirectory: "Fixtures"))
