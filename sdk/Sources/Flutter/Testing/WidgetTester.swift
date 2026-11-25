@@ -20,10 +20,14 @@ public final class WidgetTester {
     public init(_ widget: Widget, size: Size = Size(1280, 800)) {
         self.size = size
         let pd = PlatformDispatcher.instance
+        let configuration = ViewConfiguration(
+            devicePixelRatio: 1.0, size: size,
+            viewConstraints: ViewConstraints(minWidth: 0, maxWidth: size.width, minHeight: 0, maxHeight: size.height))
         if pd.implicitView == nil {
-            pd._addView(0, ViewConfiguration(
-                devicePixelRatio: 1.0, size: size,
-                viewConstraints: ViewConstraints(minWidth: 0, maxWidth: size.width, minHeight: 0, maxHeight: size.height)))
+            pd._addView(0, configuration)
+        } else if pd.implicitView!.physicalSize != size {
+            // The view outlives a tester: a later tester that asks for another size gets it, not the first one's.
+            pd._updateWindowMetrics(0, configuration)
         }
         let view = pd.implicitView!
         if WidgetTester.gestures == nil { WidgetTester.gestures = GestureBinding() }
