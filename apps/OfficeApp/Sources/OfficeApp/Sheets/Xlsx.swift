@@ -979,6 +979,11 @@ enum Xlsx {
                 }
                 tablePartsOverride[i] = text
             }
+            // Links made here: their addresses join the sheet's relationships.
+            for (id, url) in ws.linkTargets.sorted(by: { $0.key < $1.key }) where !rels.contains(where: { $0.id == id }) {
+                rels.append((id, "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink", url))
+                changed = true
+            }
             if changed { sheetRelParts[_relsPath(paths[i])] = Data(_relsXML(rels).utf8) }
         }
         // Excel 365 marks a dynamic-array formula with cell metadata (cm=…)
@@ -1145,7 +1150,11 @@ enum Xlsx {
 
     static func _relsXML(_ rels: [(id: String, type: String, target: String)]) -> String {
         var s = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">"
-        for r in rels { s += "<Relationship Id=\"\(_esc(r.id))\" Type=\"\(_esc(r.type))\" Target=\"\(_esc(r.target))\"/>" }
+        for r in rels {
+            // A hyperlink target is an address, not a part: Excel needs it marked External.
+            let mode = r.type.hasSuffix("/hyperlink") ? " TargetMode=\"External\"" : ""
+            s += "<Relationship Id=\"\(_esc(r.id))\" Type=\"\(_esc(r.type))\" Target=\"\(_esc(r.target))\"\(mode)/>"
+        }
         return s + "</Relationships>"
     }
 
