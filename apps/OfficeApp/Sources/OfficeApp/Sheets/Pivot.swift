@@ -59,10 +59,69 @@ struct PivotSpec: Equatable, Sendable {
     var filters: [PivotFilter]
     /// Where the whole thing starts (its first page filter, or the table).
     var origin: CellAddress
+    /// Fields grouped into number ranges or date parts (Excel keeps this with the cache, so every pivot on one source has the same).
+    var groups: [Int: PivotGroup] = [:]
+}
+
+enum PivotDateUnit: String, Sendable, CaseIterable {
+    case years, quarters, months
+    var title: String { switch self { case .years: return "Years"; case .quarters: return "Quarters"; case .months: return "Months" } }
+}
+
+/// A field grouped by number ranges (`start` up to `end`, `by` wide) or by a part of a date.
+enum PivotGroup: Equatable, Sendable {
+    case numbers(start: Double, end: Double, by: Double)
+    case dates(PivotDateUnit)
+
+    /// The items of a grouped field, in order, empty ones included: "<first", the groups, ">last". Item `i` is group `i`.
+    func items(_ values: [CellValue]) -> [PivotItem] {
+        let nums = values.compactMap(\.number)
+        func mk(_ labels: [String]) -> [PivotItem] { labels.enumerated().map { PivotItem(index: $0, label: $1) } }
+        switch self {
+        case .numbers(let start, let end, let by):
+            guard by > 0, end >= start else { return [] }
+            var labels = ["<" + PivotCalc.numText(start)]
+            var lo = start
+            while lo <= end {
+                let whole = lo == lo.rounded() && by == by.rounded()
+                labels.append(PivotCalc.numText(lo) + "-" + PivotCalc.numText(whole ? lo + by - 1 : lo + by))
+                lo += by
+            }
+            labels.append(">" + PivotCalc.numText(end))
+            return mk(labels)
+        case .dates(let unit):
+            guard let lo = nums.min(), let hi = nums.max() else { return [] }
+            let (y0, _, _) = ExcelDate.ymd(lo), (y1, _, _) = ExcelDate.ymd(hi)
+            let first = "<" + PivotCalc.dateText(lo), last = ">" + PivotCalc.dateText(hi)
+            switch unit {
+            case .years: return mk([first] + (y0 ... y1).map { String($0) } + [last])
+            case .quarters: return mk([first, "Qtr1", "Qtr2", "Qtr3", "Qtr4", last])
+            case .months: return mk([first] + ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] + [last])
+            }
+        }
+    }
+
+    /// The index of the group a value falls in (see `items`), or nil when it is not a number.
+    func index(of v: CellValue, minYear: Int) -> Int? {
+        guard let x = v.number else { return nil }
+        switch self {
+        case .numbers(let start, let end, let by):
+            if x < start { return 0 }
+            if x > end { return Int(((end - start) / by).rounded(.down)) + 2 }
+            return 1 + Int(((x - start) / by).rounded(.down))
+        case .dates(let unit):
+            let (y, m, _) = ExcelDate.ymd(x)
+            switch unit {
+            case .years: return 1 + y - minYear
+            case .quarters: return 1 + (m - 1) / 3
+            case .months: return m
+            }
+        }
+    }
 }
 
 enum PivotProblem: Equatable, Sendable {
-    case noSource, sourceNeedsHeaders, needsRowField, needsValues, fieldUsedTwice, destinationInsideSource, noSuchFilterItem, structureLocked
+    case noSource, sourceNeedsHeaders, needsRowField, needsValues, fieldUsedTwice, destinationInsideSource, noSuchFilterItem, structureLocked, cannotGroup
 
     var message: String {
         switch self {
@@ -73,6 +132,7 @@ enum PivotProblem: Equatable, Sendable {
         case .fieldUsedTwice: return "A field can be in Rows, Columns or Filters, not in two of them."
         case .destinationInsideSource: return "The pivot table cannot be placed over its own source."
         case .noSuchFilterItem: return "A filter's item is not among that field's values."
+        case .cannotGroup: return "That field cannot be grouped like that: it needs numbers or dates, and a start, an end and a step that fit."
         case .structureLocked: return "The workbook's structure is protected: a new sheet cannot be added."
         }
     }
@@ -95,6 +155,8 @@ struct PivotItem: Hashable, Comparable, Sendable {
         case .error(let e): kind = .text; text = e.rawValue.lowercased(); shown = e.rawValue
         }
     }
+    /// A group of a grouped field: `index` puts it in order, `label` is what the table shows.
+    init(index: Int, label: String) { kind = .number; number = Double(index); shown = label }
     static func == (a: PivotItem, b: PivotItem) -> Bool { a.kind == b.kind && a.number == b.number && a.text == b.text }
     func hash(into h: inout Hasher) { h.combine(kind); h.combine(number); h.combine(text) }
     static func < (a: PivotItem, b: PivotItem) -> Bool {
@@ -147,6 +209,22 @@ struct PivotLayout {
 }
 
 enum PivotCalc {
+    static func numText(_ n: Double) -> String { NumberFormat.display(.number(n), "General", width: 255).text }
+    static func dateText(_ serial: Double) -> String { let (y, m, d) = ExcelDate.ymd(serial); return "\(m)/\(d)/\(y)" }
+
+    /// The item a source value goes to in field `f`: its group when the field is grouped.
+    static func key(_ v: CellValue, _ f: Int, _ spec: PivotSpec, _ src: PivotSource) -> PivotItem {
+        guard let g = spec.groups[f] else { return PivotItem(v) }
+        let items = groupItems(spec, src, f) ?? []
+        let minYear = src.rows.compactMap { $0[f].number }.min().map { ExcelDate.ymd($0).0 } ?? 0
+        if let i = g.index(of: v, minYear: minYear), items.indices.contains(i) { return items[i] }
+        return PivotItem(v)
+    }
+
+    static func groupItems(_ spec: PivotSpec, _ src: PivotSource, _ f: Int) -> [PivotItem]? {
+        spec.groups[f]?.items(src.rows.map { $0[f] })
+    }
+
     static func problem(_ spec: PivotSpec, _ src: PivotSource) -> PivotProblem? {
         if src.headers.isEmpty || src.rows.isEmpty { return .sourceNeedsHeaders }
         if spec.rows.isEmpty { return .needsRowField }
@@ -155,7 +233,7 @@ enum PivotCalc {
         if Set(axes).count != axes.count { return .fieldUsedTwice }
         if (axes + spec.data.map(\.field)).contains(where: { $0 < 0 || $0 >= src.headers.count }) { return .noSource }
         for f in spec.filters {
-            if let i = f.item, !src.rows.contains(where: { PivotItem($0[f.field]).shown == i }) { return .noSuchFilterItem }
+            if let i = f.item, !src.rows.contains(where: { key($0[f.field], f.field, spec, src).shown == i }) { return .noSuchFilterItem }
         }
         return nil
     }
@@ -164,6 +242,7 @@ enum PivotCalc {
     static func items(_ spec: PivotSpec, _ src: PivotSource) -> [Int: [PivotItem]] {
         var out: [Int: [PivotItem]] = [:]
         for f in spec.rows + spec.cols + spec.filters.map(\.field) {
+            if let g = groupItems(spec, src, f) { out[f] = g; continue }
             out[f] = Array(Set(src.rows.map { PivotItem($0[f]) })).sorted()
         }
         return out
@@ -188,7 +267,7 @@ enum PivotCalc {
         out.items = items(spec, src)
         out.dataNames = spec.data.map { $0.name ?? $0.function.caption + src.headers[$0.field] }
         var recs = src.rows
-        for f in spec.filters { if let i = f.item { recs = recs.filter { PivotItem($0[f.field]).shown == i } } }
+        for f in spec.filters { if let i = f.item { recs = recs.filter { key($0[f.field], f.field, spec, src).shown == i } } }
 
         // Rows, in the order the table shows them.
         struct Line { var depth: Int; var item: Int; var label: String; var recs: [[CellValue]] }
@@ -197,7 +276,7 @@ enum PivotCalc {
             let f = spec.rows[depth]
             let its = out.items[f] ?? []
             var groups: [PivotItem: [[CellValue]]] = [:]
-            for r in rs { groups[PivotItem(r[f]), default: []].append(r) }
+            for r in rs { groups[key(r[f], f, spec, src), default: []].append(r) }
             for (k, it) in its.enumerated() {
                 guard let g = groups[it] else { continue }
                 lines.append(Line(depth: depth, item: k, label: it.shown, recs: g))
@@ -227,7 +306,7 @@ enum PivotCalc {
             func walkCols(_ rs: [[CellValue]], _ depth: Int, _ path: [Int]) {
                 let f = spec.cols[depth]
                 var groups: [PivotItem: [[CellValue]]] = [:]
-                for r in rs { groups[PivotItem(r[f]), default: []].append(r) }
+                for r in rs { groups[key(r[f], f, spec, src), default: []].append(r) }
                 for (k, it) in (out.items[f] ?? []).enumerated() {
                     guard let g = groups[it] else { continue }
                     if depth + 1 < n {
@@ -267,7 +346,7 @@ enum PivotCalc {
             grid += head
             func line(_ label: String, _ rs: [[CellValue]]) -> [CellValue] {
                 var row: [CellValue] = [.text(label)]
-                for nd in nodes { for k in 0 ..< v { row.append(aggregate(rs.filter { r in nd.path.indices.allSatisfy { PivotItem(r[spec.cols[$0]]) == out.items[spec.cols[$0]]![nd.path[$0]] } }, spec.data[k])) } }
+                for nd in nodes { for k in 0 ..< v { row.append(aggregate(rs.filter { r in nd.path.indices.allSatisfy { key(r[spec.cols[$0]], spec.cols[$0], spec, src) == out.items[spec.cols[$0]]![nd.path[$0]] } }, spec.data[k])) } }
                 for k in 0 ..< v { row.append(aggregate(rs, spec.data[k])) }
                 return row
             }
@@ -333,8 +412,15 @@ enum PivotWriter {
     private static let main = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
     private static let rel = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
 
-    private static func itemXML(_ it: PivotItem) -> String {
+    private static func isoDate(_ serial: Double) -> String {
+        let (y, m, d) = ExcelDate.ymd(serial)
+        func two(_ n: Int) -> String { n < 10 ? "0\(n)" : "\(n)" }
+        return "\(y)-\(two(m))-\(two(d))T00:00:00"
+    }
+
+    private static func itemXML(_ it: PivotItem, date: Bool = false) -> String {
         switch it.kind {
+        case .number where date: return "<d v=\"\(isoDate(it.number))\"/>"
         case .number: return "<n v=\"\(num(it.number))\"/>"
         case .text: return "<s v=\"\(esc(it.shown))\"/>"
         case .blank: return "<m/>"
@@ -364,9 +450,25 @@ enum PivotWriter {
             } else if hasBlank {
                 a = hasText ? " containsBlank=\"1\"" : " containsString=\"0\" containsBlank=\"1\""
             }
-            s += "<cacheField name=\"\(esc(h))\" numFmtId=\"0\">"
-            if let its = items[f] { s += "<sharedItems\(a) count=\"\(its.count)\">" + its.map(itemXML).joined() + "</sharedItems>" }
+            var group: PivotGroup?
+            if items[f] != nil { group = spec.groups[f] }
+            var isDate = false
+            if case .dates = group, let lo = nums.min(), let hi = nums.max() {
+                isDate = true
+                a = " containsSemiMixedTypes=\"0\" containsNonDate=\"0\" containsDate=\"1\" containsString=\"0\" minDate=\"\(isoDate(lo))\" maxDate=\"\(isoDate(hi))\""
+            }
+            s += "<cacheField name=\"\(esc(h))\" numFmtId=\"\(isDate ? 14 : 0)\">"
+            if let its = items[f] { s += "<sharedItems\(a) count=\"\(its.count)\">" + its.map { itemXML($0, date: isDate) }.joined() + "</sharedItems>" }
             else { s += "<sharedItems\(a)/>" }
+            if let group, let lo = nums.min(), let hi = nums.max() {
+                var range = ""
+                switch group {
+                case .numbers(let start, let end, let by): range = "startNum=\"\(num(start))\" endNum=\"\(num(end))\" groupInterval=\"\(num(by))\""
+                case .dates(let unit): range = "groupBy=\"\(unit.rawValue)\" startDate=\"\(isoDate(lo))\" endDate=\"\(isoDate(hi))\""
+                }
+                let gi = group.items(col)
+                s += "<fieldGroup base=\"\(f)\"><rangePr \(range)/><groupItems count=\"\(gi.count)\">" + gi.map { "<s v=\"\(esc($0.shown))\"/>" }.joined() + "</groupItems></fieldGroup>"
+            }
             s += "</cacheField>"
         }
         // (Excel's own extension block: the 2009 cache marker.)
@@ -485,6 +587,9 @@ extension WorkbookController {
                 return .destinationInsideSource
             }
         }
+        // (Excel groups in the cache, so a new pivot over a source already grouped has the same groups.)
+        for ws in book.sheets { for p in ws.pivots where p.source == canon { if let g = p.made?.groups, !g.isEmpty { spec.groups = g } } }
+        if let p = PivotCalc.problem(spec, src) { return p }
         spec.name = "PivotTable\(1 + book.sheets.reduce(0) { $0 + $1.pivots.count })"
         let lay = PivotCalc.layout(spec, src)
         structural {
@@ -550,6 +655,26 @@ extension WorkbookController {
         return nil
     }
 
+    /// Group field `f` of pivot `k` (or ungroup it with nil). Every pivot made here over the same source gets the same grouping, as
+    /// Excel keeps groups in the cache the pivots share. One undoable step.
+    @discardableResult
+    func setPivotGroup(sheet ws: Worksheet, pivot k: Int, field f: Int, group: PivotGroup?) -> PivotProblem? {
+        guard ws.pivots.indices.contains(k), ws.pivots[k].made != nil, let s = ws.pivots[k].source, let src = PivotSource.read(s, book: book), f >= 0, f < src.headers.count else { return .noSource }
+        var plans: [(Worksheet, Int, PivotSpec)] = []
+        for w in book.sheets {
+            for j in w.pivots.indices where w.pivots[j].source == s {
+                guard var spec = w.pivots[j].made else { continue }
+                spec.groups[f] = group
+                if let group, group.items(src.rows.map { $0[f] }).isEmpty { return .cannotGroup }
+                for i in spec.filters.indices where spec.filters[i].field == f { spec.filters[i].item = nil }
+                if let p = PivotCalc.problem(spec, src) { return p }
+                plans.append((w, j, spec))
+            }
+        }
+        structural { for (w, j, spec) in plans { _relayPivot(w, j, spec, src) } }
+        return nil
+    }
+
     /// Refresh the pivot tables made here from their sources as they are now; returns how many were refreshed.
     /// (A pivot table from a file is laid out again too when it is a kind made here; its parts stay as the file had them, and its cache is
     /// set to refresh when Excel opens the file. Any other kind is left for Excel.)
@@ -597,7 +722,7 @@ struct MadePivotParts {
         }
         var out: [(String, String)] = []
         if ownsCache {
-            var all = spec; all.rows = cacheFields.sorted(); all.cols = []; all.filters = []
+            var all = spec; all.rows = cacheFields.sorted(); all.cols = []; all.filters = []; all.groups = [:]
             let shared = PivotCalc.items(all, src)
             out += [
                 (cache, PivotWriter.cacheDefinition(spec, src, items: shared, relId: "rId1")),
