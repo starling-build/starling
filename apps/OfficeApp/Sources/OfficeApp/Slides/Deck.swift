@@ -197,6 +197,8 @@ struct KeptLook: Equatable {
 /// from the presentation — survives a round trip untouched.
 struct ReadShape: Equatable {
     var name: String
+    var altText: String?
+    var altTitle: String?
     var kind: ShapeKind
     var frame: Rect
     var rotation: Double
@@ -220,6 +222,7 @@ struct ReadShape: Equatable {
 
     init(_ s: ShapeState) {
         link = s.link; linkTip = s.linkTip
+        altText = s.altText; altTitle = s.altTitle
         name = s.name; kind = s.kind; frame = s.frame; rotation = s.rotation; flipH = s.flipH; flipV = s.flipV; aspectLock = s.aspectLock
         fill = s.fill; fillScheme = s.fillScheme; outlineScheme = s.outlineScheme; outline = s.outline; outlineWidth = s.outlineWidth
         anchor = s.anchor; insets = s.insets; autofit = s.autofit; fontScale = s.fontScale; field = s.field
@@ -244,7 +247,7 @@ struct ReadShape: Equatable {
         a.frame = b.frame; a.rotation = b.rotation; a.flipH = b.flipH; a.flipV = b.flipV; a.invisible = b.invisible; a.aspectLock = b.aspectLock
         a.fill = b.fill; a.fillScheme = b.fillScheme; a.outlineScheme = b.outlineScheme; a.outline = b.outline; a.outlineWidth = b.outlineWidth
         a.anchor = b.anchor; a.insets = b.insets; a.autofit = b.autofit; a.fontScale = b.fontScale
-        a.name = b.name; a.link = b.link; a.linkTip = b.linkTip
+        a.name = b.name; a.link = b.link; a.linkTip = b.linkTip; a.altText = b.altText; a.altTitle = b.altTitle
         return a == b
     }
 
@@ -253,6 +256,7 @@ struct ReadShape: Equatable {
         var a = self
         let b = ReadShape(s)
         a.frame = b.frame; a.rotation = b.rotation; a.flipH = b.flipH; a.flipV = b.flipV; a.invisible = b.invisible; a.aspectLock = b.aspectLock
+        a.altText = b.altText; a.altTitle = b.altTitle
         return a == b
     }
 }
@@ -831,6 +835,7 @@ final class SlideShape {
     /// A picture as read (with `sourceXML`).
     /// Alt text (`descr` on the shape's `cNvPr`): what a screen reader says for a picture.
     var altText: String? = nil
+    var altTitle: String? = nil
     /// The click action on the whole shape (a:hlinkClick on its cNvPr): a URL, "slide:<part>" or "action:<ppaction>".
     var link: String? = nil
     var linkTip: String? = nil

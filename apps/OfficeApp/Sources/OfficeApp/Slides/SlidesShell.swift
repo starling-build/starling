@@ -373,7 +373,7 @@ final class SlidesShellState: State<StatefulWidget> {
         }
         session.onLink = { [weak self] in self?._openLink() }
         session.onAltText = { [weak self] in
-            guard let self, self.deck.selectedAltText != nil || self.deck.selection.contains(where: { $0.picture != nil }) else { return }
+            guard let self, !self.deck.selection.isEmpty else { return }
             self._endEditing()
             self.setState { self._altText = true }
         }
@@ -1583,9 +1583,9 @@ final class SlidesShellState: State<StatefulWidget> {
             return Stack(children: [
                 IgnorePointer(ignoring: true, child: window),
                 Positioned(left: 0, top: 0, right: 0, bottom: 0, child: AltTextDialog(
-                    initial: deck.selectedAltText ?? "",
-                    onApply: { [weak self] text in
-                        self?.deck.setAltText(text)
+                    initial: deck.selectedAltText ?? "", title: deck.selectedAltTitle ?? "",
+                    onApply: { [weak self] text, title in
+                        self?.deck.setAltText(text, title: title)
                         self?.setState { self?._altText = false }
                     },
                     onCancel: { [weak self] in self?.setState { self?._altText = false } })),

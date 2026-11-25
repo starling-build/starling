@@ -1394,7 +1394,7 @@ final class SheetsShellState: State<StatefulWidget> {
         if _altOpen, let i = wb.selectedDrawing, wb.sheet.drawings.indices.contains(i) {
             layers.append(Positioned(left: 0, top: 0, right: 0, bottom: 0, child: AltTextDialog(
                 initial: wb.sheet.drawings[i].descr ?? "",
-                onApply: { [weak self] text in
+                onApply: { [weak self] text, _ in
                     self?.wb.setDrawingAlt(i, text)
                     self?.setState { self?._altOpen = false }
                     self?._grid?.focus.requestFocus()
