@@ -168,6 +168,42 @@ final class KeyboardTraversalTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(opened, 8, "the sweep must really open dialogs")
     }
 
+    /// Every Slides dialog: Tab reaches each control and Esc closes it.
+    func testEverySlidesDialogIsWalkableByTab() {
+        let opens: [(String, (OfficeSession) -> Void)] = [
+            ("Find", { $0.onFind?(false) }), ("Replace", { $0.onFind?(true) }),
+            ("Symbol", { $0.onSymbolDialog?() }), ("More Colors", { $0.onMoreColors?() }),
+            ("Header and Footer", { $0.onHeaderFooter?() }), ("Alt Text", { $0.onAltText?() }),
+            ("Text Options", { $0.onTextOptions?() }), ("Print", { $0.onPrint?() }),
+            ("Shortcuts", { $0.onShortcuts?() }),
+        ]
+        var opened = 0
+        for (name, open) in opens {
+            KeyboardTraversal.shared.reset()
+            let ui = app(SlidesShell(initialPath: nil, startBlank: true, onSwitch: { _, _ in }))
+            let state = ui.state(SlidesShellState.self)!
+            let deck = state.session.deck!
+            deck.selectShapes([deck.currentSlide.shapes.first { $0.text != nil }!]); ui.pump()
+            if name == "Alt Text" {
+                let pic = deck.addPicture(ImageAttachment(data: Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")!, width: 20, height: 20), naturalSize: Size(20, 20))
+                deck.selectShapes([pic]); ui.pump()
+            }
+            if name == "Symbol" { ui.press(.enter); ui.pump() }     // typing in the shape, as the Symbol command needs
+            let behind = buttonsOnScreen(ui)
+            open(state.session); ui.pump()
+            let reach = KeyboardTraversal.shared.reachable()
+            XCTAssertFalse(reach.isEmpty, "\(name): the dialog must open")
+            guard !reach.isEmpty else { continue }
+            XCTAssertTrue(reach.allSatisfy { $0.modal }, "\(name): its controls must be one modal keyboard region")
+            opened += 1
+            let onScreen = buttonsOnScreen(ui) - behind
+            XCTAssertEqual(reach.count, onScreen, "\(name): every control on screen has a keyboard stop")
+            XCTAssertEqual(tabAround(ui), reach.count, "\(name): Tab must visit all \(reach.count) controls once")
+            XCTAssertTrue(ui.press(.escape), name)
+        }
+        XCTAssertGreaterThanOrEqual(opened, 9, "the sweep must really open dialogs")
+    }
+
     // MARK: Tab keeps its own meaning inside the editing surfaces
 
     func testTabInWriterTextInsertsATabAndDoesNotWalkTheRibbon() {
