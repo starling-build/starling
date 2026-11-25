@@ -139,7 +139,16 @@ final class SlideOutlineTests: XCTestCase {
         guard !picked.isEmpty else { throw XCTSkip("no suitable deck") }
         var e = Outline.entries(from: Outline.document(deck.outlineEntries))
         func show(_ e: [OutlineEntry]) -> String {
-            e.enumerated().map { i, x in "\(i + 1). \(x.title)\n" + x.body.map { "     " + String(repeating: "  ", count: $0.level - 1) + "- " + $0.text + "\n" }.joined() }.joined()
+            // (one step at a time: the whole chain in one expression is too much for the type checker on macOS)
+            var out = ""
+            for (i, x) in e.enumerated() {
+                out += "\(i + 1). \(x.title)\n"
+                for line in x.body {
+                    let indent = String(repeating: "  ", count: line.level - 1)
+                    out += "     " + indent + "- " + line.text + "\n"
+                }
+            }
+            return out
         }
         var log = "DECK \(picked)\n\nBEFORE\n" + show(e)
         precondition(e.count >= 4)
