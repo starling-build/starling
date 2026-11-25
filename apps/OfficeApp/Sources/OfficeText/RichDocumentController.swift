@@ -2185,6 +2185,18 @@ public final class RichDocumentController: ChangeNotifier {
         _formatCells { c, _ in c.verticalAlign = align == "top" ? nil : align }
     }
 
+    /// The target cells' own margins in points (Word's `w:tcMar`), over the table's.
+    public func setCellMargins(top: Double, left: Double, bottom: Double, right: Double) {
+        let t = max(0, top), l = max(0, left), b = max(0, bottom), r = max(0, right)
+        func tw(_ v: Double) -> Int { Int((v * 20).rounded()) }
+        let xml = "<w:tcMar><w:top w:w=\"\(tw(t))\" w:type=\"dxa\"/><w:left w:w=\"\(tw(l))\" w:type=\"dxa\"/>"
+            + "<w:bottom w:w=\"\(tw(b))\" w:type=\"dxa\"/><w:right w:w=\"\(tw(r))\" w:type=\"dxa\"/></w:tcMar>"
+        _formatCells { c, _ in
+            c.padding = EdgeInsets(left: l, top: t, right: r, bottom: b)
+            c.marginsXML = xml
+        }
+    }
+
     /// The direction the target cells' text runs: across, or turned down or up.
     public func setCellTextDirection(_ direction: CellRef.CellTextDirection) {
         _formatCells { c, _ in

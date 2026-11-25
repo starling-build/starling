@@ -337,6 +337,7 @@ final class OfficeSession {
     var onSplitCellDialog: (() -> Void)?
     /// Convert Text to Table (true) or Table to Text (false).
     var onConvertTextTableDialog: ((Bool) -> Void)?
+    var onTablePropertiesDialog: (() -> Void)?
     var onBordersShadingDialog: (() -> Void)?
     var onPictureDialog: ((PictureDialogKind) -> Void)?
     /// Opens the Set Numbering Value prompt.

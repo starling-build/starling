@@ -601,6 +601,7 @@ final class Ribbon: StatelessWidget {
                 MenuFlyoutItem(text: Text("Select Column"), onPressed: { c.selectColumn() }),
                 MenuFlyoutItem(text: Text("Select Table"), onPressed: { c.selectTable() }),
                 MenuFlyoutSeparator(),
+                MenuFlyoutItem(text: Text("Table Properties…"), onPressed: { [session] in session.onTablePropertiesDialog?() }),
                 MenuFlyoutItem(text: Text("Convert Table to Text…"), onPressed: { self.session.onConvertTextTableDialog?(false) }),
             ]),
         ])
