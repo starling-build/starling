@@ -34,13 +34,15 @@ final class LibreOfficeNestedTableTests: XCTestCase {
 
     /// One column in a normal table, floating in name only: parts between its rows.
     func testSplitFloatTableInNormalTableTakesTwoPages() throws {
-        XCTAssertEqual(try pages("lo-1e0077c34b69d826"), 2)
+        let count = try pages("lo-1e0077c34b69d826")
+        XCTAssertEqual(count, 2)
     }
 
     /// A title and a two-column nested table of 28 rows in one row taller than a
     /// page, whose first paragraph keeps with the next: it parts, not runs off.
     func testSplitFloatTableInFloatTableTakesTwoPages() throws {
-        XCTAssertEqual(try pages("lo-148591d55e08ca3c"), 2)
+        let count = try pages("lo-148591d55e08ca3c")
+        XCTAssertEqual(count, 2)
     }
 
     /// A table nested in a cell and floating, which the cell grows to hold: LibreOffice's
@@ -151,6 +153,7 @@ final class LibreOfficeNestedTableTests: XCTestCase {
     /// A 56-row list of short rows in a cell is a table of its own and parts between its rows:
     /// LibreOffice's tdf170630 takes two pages in Word's print, one flattened.
     func testLongListOfShortRowsInACellTakesTwoPages() throws {
-        XCTAssertEqual(try pages("lo-e30957810e467cc8"), 2)
+        let count = try pages("lo-e30957810e467cc8")
+        XCTAssertEqual(count, 2)
     }
 }

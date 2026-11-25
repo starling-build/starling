@@ -23,17 +23,16 @@ final class CanonicalEquivalenceTests: XCTestCase {
         }
     }
 
-    /// A compatibility ideograph and its unified one: equal where Swift's
-    /// comparison folds them (macOS), distinct on Linux — the platforms differ, so the layout
-    /// must not lean on either (it compares scalars where it matters).
+    /// A compatibility ideograph and a unified one: U+F909 folds to U+5951 where Swift's comparison folds
+    /// canonically equivalent scalars, and is distinct from U+8AAA on every platform (its macOS branch used to
+    /// expect it equal to 8AAA, which Unicode does not say). The layout must not lean on either: it compares
+    /// scalars where it matters.
     func testCompatibilityIdeographIsPlatformDependent() {
-        let compat = Character("\u{F909}"), unified = Character("\u{8AAA}")
-        #if os(Linux)
-        XCTAssertNotEqual(compat, unified)
-        #else
-        XCTAssertEqual(compat, unified)
-        #endif
-        XCTAssertNotEqual(compat.unicodeScalars.first, unified.unicodeScalars.first)
+        let compat = Character("\u{F909}"), other = Character("\u{8AAA}")
+        XCTAssertNotEqual(compat, other)
+        XCTAssertNotEqual(compat.unicodeScalars.first, other.unicodeScalars.first)
+        XCTAssertNotEqual(compat.unicodeScalars.first, Character("\u{5951}").unicodeScalars.first,
+                          "the folded pair still differs as scalars")
     }
 
     func testSpacesThatSetNoLineAreTheEnEmAndFourPerEmOnly() {
