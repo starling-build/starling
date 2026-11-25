@@ -51,4 +51,24 @@ final class MediaInsertTests: XCTestCase {
             XCTAssertNotNil(Png.repaired(png), "chunks and zlib stream are whole")
         }
     }
+
+    func testClipsPlayOnClickThroughPowerPointsMediaTiming() throws {
+        let deck = deckWithClip("a.mp4", bytes: [1, 2, 3])
+        var clip = MediaClip(data: Data([4, 5]), name: "b.wav", isVideo: false)
+        clip.isVideo = false
+        let (poster, size) = MediaPoster.attachment(video: false, name: "poster.png")
+        deck.addMedia(clip, poster: poster, size: size)
+        let package = PptxPackage(try Zip.read(try Pptx.write(deck)))
+        let slide = try XCTUnwrap(String(data: package.parts["ppt/slides/slide1.xml"] ?? Data(), encoding: .utf8))
+        XCTAssertEqual(slide.components(separatedBy: "cmd=\"playFrom(0.0)\"").count - 1, 2)
+        XCTAssertTrue(slide.contains("<p:video><p:cMediaNode") && slide.contains("<p:audio><p:cMediaNode"))
+        // Each clip is named by the id its picture was written under.
+        let ids = slide.components(separatedBy: "<p:cNvPr id=\"").dropFirst().compactMap { Int($0.prefix { $0.isNumber }) }
+        for spid in slide.components(separatedBy: "spid=\"").dropFirst().compactMap({ Int($0.prefix { $0.isNumber }) }) {
+            XCTAssertTrue(ids.contains(spid))
+        }
+        // Timing node ids are unique.
+        let tn = slide.components(separatedBy: "<p:cTn id=\"").dropFirst().compactMap { Int($0.prefix { $0.isNumber }) }
+        XCTAssertEqual(Set(tn).count, tn.count)
+    }
 }
