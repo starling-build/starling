@@ -170,6 +170,8 @@ final class TextBoxInsertTests: XCTestCase {
         XCTAssertTrue(c.setTextBoxContent(at: i, document: box.document, contentXML: xml))
         let inBox = try XCTUnwrap(c.document.paragraphs[i].image?.textBox)
         XCTAssertEqual(inBox.paragraphs.compactMap(\.cell).count, 4)
+        XCTAssertEqual(inBox.paragraphs.first?.cell != nil, true, "no empty paragraph before the table")
+        XCTAssertEqual(inBox.paragraphs.last?.text, "one")
         // A box that holds a table is editable in place, and saves.
         let again = try XCTUnwrap(c.textBoxDocument(at: i))
         XCTAssertEqual(again.paragraphs.compactMap(\.cell).count, 4)

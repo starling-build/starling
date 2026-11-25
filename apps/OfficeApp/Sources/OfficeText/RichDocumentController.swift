@@ -1662,7 +1662,8 @@ public final class RichDocumentController: ChangeNotifier {
                 }
             }
             var at = pos.paragraph + 1
-            if para.text.isEmpty && !para.isImage && para.cell == nil {
+            // (At the start of a paragraph with text the table goes before it: no empty paragraph is left behind, as in Word.)
+            if (para.text.isEmpty || pos.offset == 0) && !para.isImage && para.cell == nil {
                 at = pos.paragraph
                 // Word reads two tables with nothing between them as one: keep a paragraph.
                 if at > 0, document.paragraphs[at - 1].cell != nil {
