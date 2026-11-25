@@ -7377,6 +7377,37 @@ final class DocxTests: XCTestCase {
         XCTAssertNil(OfficeFonts.deobfuscate(Data(count: 40), key: "{not-a-guid}"))
     }
 
+    /// W-RV-3: clicking a check box control flips it: the glyph, the saved state and one undo step.
+    func testCheckBoxControlTogglesAndUndoes() throws {
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .letter))
+        let di = try XCTUnwrap(entries.firstIndex { $0.name == "word/document.xml" })
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let body = try XCTUnwrap(xml.range(of: "<w:body>")).upperBound ..< (try XCTUnwrap(xml.range(of: "<w:sectPr"))).lowerBound
+        xml.replaceSubrange(body, with: "<w:p><w:r><w:t xml:space=\"preserve\">Agree </w:t></w:r>"
+            + "<w:sdt><w:sdtPr><w:id w:val=\"11\"/><w14:checkbox><w14:checked w14:val=\"0\"/><w14:checkedState w14:val=\"2612\" w14:font=\"MS Gothic\"/><w14:uncheckedState w14:val=\"2610\" w14:font=\"MS Gothic\"/></w14:checkbox></w:sdtPr>"
+            + "<w:sdtContent><w:r><w:t>\u{2610}</w:t></w:r></w:sdtContent></w:sdt><w:r><w:t xml:space=\"preserve\"> yes</w:t></w:r></w:p>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let doc = try DocxFormat.read(try Zip.write(entries)).document
+        let c = RichDocumentController(document: doc)
+        let box = try XCTUnwrap(c.document.paragraphs[0].checkBoxes.first)
+        XCTAssertFalse(box.checked)
+        XCTAssertTrue(c.toggleCheckBox(in: 0, control: box.id))
+        XCTAssertEqual(c.document.paragraphs[0].text, "Agree \u{2612} yes")
+        XCTAssertEqual(c.document.paragraphs[0].checkBoxes.first?.checked, true)
+        XCTAssertEqual(c.document.paragraphs[0].checkBoxes.first?.range, 6 ..< 7)
+        let saved = String(decoding: try XCTUnwrap(try Zip.read(try DocxFormat.write(c.document, pageSetup: .letter)).first { $0.name == "word/document.xml" }).data, as: UTF8.self)
+        XCTAssertTrue(saved.containsSubstring("<w14:checked w14:val=\"1\"/>"), saved)
+        XCTAssertTrue(saved.containsSubstring("\u{2612}"), saved)
+        let reread = try DocxFormat.read(try DocxFormat.write(c.document, pageSetup: .letter)).document
+        XCTAssertEqual(reread.paragraphs[0].checkBoxes.first?.checked, true)
+        c.undo()
+        XCTAssertEqual(c.document.paragraphs[0].text, "Agree \u{2610} yes")
+        XCTAssertEqual(c.document.paragraphs[0].checkBoxes.first?.checked, false)
+        XCTAssertTrue(c.toggleCheckBox(in: 0, control: box.id))
+        XCTAssertTrue(c.toggleCheckBox(in: 0, control: box.id))
+        XCTAssertEqual(c.document.paragraphs[0].text, "Agree \u{2610} yes")
+    }
+
     /// W-RV-3: a content control over runs (check box, drop-down list, text) survives open and save with its
     /// properties whole, and the text around it is untouched; an edit that deletes across its end keeps the file valid.
     func testContentControlsOverRunsSurviveASave() throws {

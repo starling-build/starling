@@ -1205,6 +1205,16 @@ public final class RichDocumentController: ChangeNotifier {
         }
     }
 
+    /// Flip content-control check box `id` of paragraph `index` (one undo step). Returns whether it changed.
+    @discardableResult
+    public func toggleCheckBox(in index: Int, control id: Int) -> Bool {
+        guard index >= 0, index < document.paragraphs.count,
+              let box = document.paragraphs[index].checkBoxes.first(where: { $0.id == id }),
+              let after = document.paragraphs[index].settingCheckBox(id, to: !box.checked) else { return false }
+        edit { perform(.restoreParagraphs(index, count: 1, [after])) }
+        return true
+    }
+
     public enum CaseChange { case sentence, lower, upper, capitalizeWords, toggle }
 
     /// Word's Change Case over the selection, or the word at the caret.

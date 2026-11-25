@@ -1346,6 +1346,7 @@ extension DocxFormat {
             }
             var pos = 0
             let utf16 = p.text.utf16
+            let boxRanges = p.checkBoxes.map(\.range)   // a content-control check box shows its glyph as text, not as a legacy form field
             for (runIndex, run) in p.runs.enumerated() where run.length > 0 {
                 body += bookmarkXML(at: pos) + controlXML(at: pos)
                 let a = utf16.index(utf16.startIndex, offsetBy: pos)
@@ -1381,7 +1382,8 @@ extension DocxFormat {
                 let rPrXML = rPr.isEmpty ? "" : "<w:rPr>\(rPr)</w:rPr>"
                 var runXML = ""
                 let isBox: (Character) -> Bool = { $0 == "\u{2610}" || $0 == "\u{2612}" }
-                if s.revision?.kind != .deleted, piece.contains(where: isBox) {
+                if s.revision?.kind != .deleted, piece.contains(where: isBox),
+                   !boxRanges.contains(where: { $0.lowerBound <= pos - run.length && pos - run.length < $0.upperBound }) {
                     // A checkbox glyph goes back as the form field it came
                     // from (form_footnotes' 29): the glyph's fallback font
                     // made every line it sat on taller than Word's.
