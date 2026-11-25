@@ -79,6 +79,7 @@ final class OfficeShellState: State<StatefulWidget> {
     private var _pageSetupOpen = false
     private var _insertTableOpen = false
     private var _splitCellOpen = false
+    private var _convertTextTable: Bool? = nil   // the open Convert dialog: true to a table, false to text
     private var _bordersOpen = false
     private var _printOpen = false
     private var _pictureDialog: PictureDialogKind?
@@ -452,6 +453,11 @@ final class OfficeShellState: State<StatefulWidget> {
             guard let self else { return }
             self.controller.breakUndoCoalescing()
             self.setState { self._insertTableOpen = true }
+        }
+        session.onConvertTextTableDialog = { [weak self] toTable in
+            guard let self else { return }
+            self.controller.breakUndoCoalescing()
+            self.setState { self._convertTextTable = toTable }
         }
         session.onSplitCellDialog = { [weak self] in
             guard let self else { return }
@@ -1257,7 +1263,7 @@ final class OfficeShellState: State<StatefulWidget> {
             if _shortcutsOpen { return false }   // the dialog's own Esc closes it
             if LinkCard.link(caret: _cardLink, hover: _hoverCard, dismissed: _cardDismissed) != nil { setState { _cardDismissed = true }; return true }
             if _listSymbolPick != nil { setState { _listSymbolPick = nil }; return true }
-            if _paragraphOpen || _fontOpen || _insertTableOpen || _splitCellOpen || _bordersOpen || _pictureDialog != nil || _linkDialogOpen || _numberingValueOpen || _listFormatOpen != nil || _newStyleOpen { return false }   // the dialog's own Esc closes it
+            if _paragraphOpen || _fontOpen || _insertTableOpen || _splitCellOpen || _convertTextTable != nil || _bordersOpen || _pictureDialog != nil || _linkDialogOpen || _numberingValueOpen || _listFormatOpen != nil || _newStyleOpen { return false }   // the dialog's own Esc closes it
             if _headerFooterOpen { setState { _headerFooterOpen = false }; return true }
             if _findOpen { setState { _findOpen = false }; _editorFocus.requestFocus(); return true }
             if _backstage != nil { setState { _backstage = nil }; return true }
@@ -1554,6 +1560,24 @@ final class OfficeShellState: State<StatefulWidget> {
                     hooks: _linkHooks,
                     onClose: { [weak self] in
                         self?.setState { self?._linkDialogOpen = false }
+                        self?._editorFocus.requestFocus()
+                    })),
+            ])
+        }
+        if let toTable = _convertTextTable {
+            return Stack(children: [
+                window,
+                Positioned(left: 0, top: 0, right: 0, bottom: 0, child: ConvertTextTableDialog(
+                    toTable: toTable,
+                    onOK: { [weak self] v in
+                        guard let self else { return }
+                        if toTable { self.controller.convertTextToTable(separator: v.separator, columns: v.columns) }
+                        else { self.controller.convertTableToText(separator: v.separator) }
+                        self.setState { self._convertTextTable = nil }
+                        self._editorFocus.requestFocus()
+                    },
+                    onCancel: { [weak self] in
+                        self?.setState { self?._convertTextTable = nil }
                         self?._editorFocus.requestFocus()
                     })),
             ])

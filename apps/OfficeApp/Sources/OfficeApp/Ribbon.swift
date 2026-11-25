@@ -547,6 +547,7 @@ final class Ribbon: StatelessWidget {
         }
         items.append(MenuFlyoutSeparator())
         items.append(MenuFlyoutItem(text: Text("Insert Table…"), onPressed: { [session] in session.onInsertTableDialog?() }))
+        items.append(MenuFlyoutItem(text: Text("Convert Text to Table…"), onPressed: c.canConvertTextToTable ? { [session] in session.onConvertTextTableDialog?(true) } : nil))
         items.append(MenuFlyoutSeparator())
         items.append(MenuFlyoutItem(text: Text("Insert Row Above"), onPressed: inCell ? { c.insertRow(below: false) } : nil))
         items.append(MenuFlyoutItem(text: Text("Insert Row Below"), onPressed: inCell ? { c.insertRow(below: true) } : nil))
@@ -599,6 +600,8 @@ final class Ribbon: StatelessWidget {
                 MenuFlyoutItem(text: Text("Select Row"), onPressed: { c.selectRow() }),
                 MenuFlyoutItem(text: Text("Select Column"), onPressed: { c.selectColumn() }),
                 MenuFlyoutItem(text: Text("Select Table"), onPressed: { c.selectTable() }),
+                MenuFlyoutSeparator(),
+                MenuFlyoutItem(text: Text("Convert Table to Text…"), onPressed: { self.session.onConvertTextTableDialog?(false) }),
             ]),
         ])
         let merge = Chrome.group("Merge", fluent, [Chrome.rows([
