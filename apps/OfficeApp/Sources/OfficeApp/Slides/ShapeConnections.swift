@@ -290,6 +290,9 @@ extension DeckController {
                     } else if start { s.connStart = nil } else { s.connEnd = nil }
                 }
                 guard s.isElbow, !ends.isEmpty else { continue }
+                // Ends already on their sites (a deck just opened): keep the route the file draws.
+                if s.keptLine != nil, ends[true].map({ hypot($0.0.dx - s.lineStart.dx, $0.0.dy - s.lineStart.dy) < 1 }) ?? true,
+                   ends[false].map({ hypot($0.0.dx - s.lineEndPoint.dx, $0.0.dy - s.lineEndPoint.dy) < 1 }) ?? true { continue }
                 let from = ends[true]?.0 ?? s.lineStart, to = ends[false]?.0 ?? s.lineEndPoint
                 s.apply(ElbowRoute.make(from: from, to: to, leaving: ends[true]?.1, arriving: ends[false]?.1,
                                         curved: s.preset?.rawValue.hasPrefix("curved") == true))
