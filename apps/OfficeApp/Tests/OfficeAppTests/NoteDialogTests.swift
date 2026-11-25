@@ -7,7 +7,7 @@ import FlutterSwiftBridge
 /// W-FN-1 PR 2: References > Insert Footnote opens the note's text; OK saves it as one undo step.
 final class NoteDialogTests: XCTestCase {
     private func shell(_ text: String) -> (WidgetTester, OfficeSession) {
-        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(1600, 1300))
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(1600, 2000))
         let s = ui.state(OfficeShellState.self)!.session
         s.controller.load(RichDocument(paragraphs: [RichParagraph(text: text)]))
         s.controller.moveTo(RichPosition(paragraph: 0, offset: 5), extend: false)
@@ -51,7 +51,7 @@ final class NoteDialogTests: XCTestCase {
         XCTAssertNil(state._noteOpen)
         var opened = false
         search: for x in stride(from: 300.0, to: 1500.0, by: 100.0) {
-            for y in stride(from: 300.0, to: 1290.0, by: 10.0) {
+            for y in stride(from: 300.0, to: 1990.0, by: 12.0) {
                 ui.tap(at: Offset(x, y)); ui.pump()
                 if state._noteOpen != nil { opened = true; break search }
             }
