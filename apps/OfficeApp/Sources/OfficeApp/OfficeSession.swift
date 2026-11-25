@@ -310,6 +310,7 @@ final class OfficeSession {
     var onHeaderFooter: (() -> Void)?
     /// Slides Picture Format > Alt Text: open the dialog for the selected picture.
     var onAltText: (() -> Void)?
+    var onTextOptions: (() -> Void)?
     var onLink: (() -> Void)?
     var onSymbolDialog: (() -> Void)?
     var onMoreColors: (() -> Void)?

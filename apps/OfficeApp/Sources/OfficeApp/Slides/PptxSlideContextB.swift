@@ -562,6 +562,10 @@ extension SlideContext {
         var noWrap = false
         /// `bodyPr anchorCtr="1"`.
         var anchorCentred = false
+        /// The file's own `bodyPr vert` and `wrap` and its autofit element (`a:normAutofit`, `a:spAutoFit`, `a:noAutofit`), so a save states them again.
+        var bodyVert: String? = nil
+        var bodyWrap: String? = nil
+        var fitRule: String? = nil
         /// `bodyPr spcFirstLastPara="1"`: the first paragraph keeps its space before.
         var keepsFirstSpace = false
         /// `bodyPr vert`: 1 a quarter clockwise, -1 anticlockwise.

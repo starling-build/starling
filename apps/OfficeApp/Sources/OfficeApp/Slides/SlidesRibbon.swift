@@ -127,6 +127,10 @@ extension Ribbon {
                 Chrome.colorMenu(FluentSystemIcons.edit, "Shape Outline", fluent, colors: palette,
                                  none: "No Outline") { color in deck.setOutline(color) },
             ]),
+            Chrome.vgap(4),
+            Chrome.row([
+                Chrome.small(FluentSystemIcons.textT, "Text Options", fluent) { [session] in session.onTextOptions?() },
+            ]),
         ])])
     }
 

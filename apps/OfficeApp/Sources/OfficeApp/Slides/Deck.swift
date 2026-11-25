@@ -627,6 +627,10 @@ final class SlideShape {
     /// line, centred across the box, its lines aligned within the block
     /// (vertical text: centred down it — eaVertAnchor's lower row).
     var anchorCentred = false
+    /// The body's `vert`, `wrap` and autofit element as the file (or the Text Options dialog) states them; nil = not stated.
+    var bodyVert: String? = nil
+    var bodyWrap: String? = nil
+    var fitRule: String? = nil
     /// `bodyPr numCol`: the text runs down this many columns of the box,
     /// filling each to the box's height before the next, `columnGap`
     /// points (`spcCol`) apart. (Drawn so; the editor edits one column.)

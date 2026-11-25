@@ -943,13 +943,15 @@ private struct SlideXML {
                     var attrs = scale < 100000 ? " fontScale=\"\(scale)\"" : ""
                     if reduction > 0 { attrs += " lnSpcReduction=\"\(reduction)\"" }
                     fit = "<a:normAutofit\(attrs)/>"
-                } else if s.kind == .textBox {
+                } else if s.fitRule == "a:spAutoFit" || (s.fitRule == nil && s.kind == .textBox) {
                     fit = "<a:spAutoFit/>"
                 } else {
                     fit = "<a:noAutofit/>"
                 }
+                let vert = s.bodyVert.map { " vert=\"\(PptxXML.escape($0, attribute: true))\"" } ?? ""
+                let wrap = s.noWrap && s.bodyWrap == "none" ? "none" : "square"
                 let cols = s.columns > 1 ? " numCol=\"\(s.columns)\" spcCol=\"\(Self._emu(s.columnGap))\"" : ""
-                xml += "<p:txBody><a:bodyPr wrap=\"square\"\(cols) lIns=\"\(Self._emu(ins.left))\" tIns=\"\(Self._emu(ins.top))\" "
+                xml += "<p:txBody><a:bodyPr\(vert) wrap=\"\(wrap)\"\(cols) lIns=\"\(Self._emu(ins.left))\" tIns=\"\(Self._emu(ins.top))\" "
                     + "rIns=\"\(Self._emu(ins.right))\" bIns=\"\(Self._emu(ins.bottom))\" anchor=\"\(anchor)\"\(s.anchorCentred ? " anchorCtr=\"1\"" : "") rtlCol=\"0\">\(s.warp?.xml ?? "")\(fit)</a:bodyPr>"
                     + "<a:lstStyle/>" + PptxText.paragraphs(doc, defaults: s, field: s.field) + "</p:txBody>"
             }

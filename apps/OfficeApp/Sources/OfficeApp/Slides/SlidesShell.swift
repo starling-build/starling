@@ -75,6 +75,7 @@ final class SlidesShellState: State<StatefulWidget> {
     /// Font Color > More Colors is open.
     private var _colorOpen = false
     private var _altText = false
+    private var _textOptions = false
     /// The Animation Pane is open beside the slide.
     private var _animationPane = false
     private var _selectionPane = false
@@ -322,6 +323,11 @@ final class SlidesShellState: State<StatefulWidget> {
             guard let self, self.deck.selectedAltText != nil || self.deck.selection.contains(where: { $0.picture != nil }) else { return }
             self._endEditing()
             self.setState { self._altText = true }
+        }
+        session.onTextOptions = { [weak self] in
+            guard let self, self.deck.selectedTextOptions != nil else { return }
+            self._endEditing()
+            self.setState { self._textOptions = true }
         }
         session.onToggleAutoSave = { [weak self] in
             guard let self else { return }
@@ -1145,6 +1151,7 @@ final class SlidesShellState: State<StatefulWidget> {
             // up — seen on screen 2026-10-13.)
             if _headerFooter { setState { _headerFooter = false }; return true }
             if _altText { setState { _altText = false }; return true }
+            if _textOptions { setState { _textOptions = false }; return true }
             if _backstage != nil { setState { _backstage = nil }; return true }
             if typing {
                 // Esc leaves the text with its shape still selected.
@@ -1278,6 +1285,19 @@ final class SlidesShellState: State<StatefulWidget> {
                 Positioned(left: 0, top: 0, right: 0, bottom: 0, child: SlideShowView(
                     deck: deck, images: _cache, start: start, presenter: _presenter,
                     onEnd: { [weak self] in self?._endShow() })),
+            ])
+        }
+        if _textOptions, deck.selectedTextOptions == nil { _textOptions = false }
+        if _textOptions, let opts = deck.selectedTextOptions {
+            return Stack(children: [
+                IgnorePointer(ignoring: true, child: window),
+                Positioned(left: 0, top: 0, right: 0, bottom: 0, child: TextOptionsDialog(
+                    initial: opts,
+                    onApply: { [weak self] o in
+                        self?.deck.setTextOptions(o)
+                        self?.setState { self?._textOptions = false }
+                    },
+                    onCancel: { [weak self] in self?.setState { self?._textOptions = false } })),
             ])
         }
         if _altText {

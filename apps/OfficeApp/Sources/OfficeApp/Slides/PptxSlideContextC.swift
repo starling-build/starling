@@ -841,6 +841,9 @@ extension SlideContext {
         body0.wordLines = body?.first("a:bodyPr")?["compatLnSpc"] == "0"
         body0.generatedHang = body?.first("a:bodyPr")?["starling:generatedHang"] == "1"
         body0.anchorCentred = ["1", "true"].contains(attr("anchorCtr") ?? "")
+        body0.bodyVert = attr("vert")
+        body0.bodyWrap = attr("wrap")
+        body0.fitRule = fitRule
         body0.keepsFirstSpace = ["1", "true"].contains(attr("spcFirstLastPara") ?? "")
         switch attr("vert") {
         case "vert", "mongolianVert": body0.textTurn = 1
