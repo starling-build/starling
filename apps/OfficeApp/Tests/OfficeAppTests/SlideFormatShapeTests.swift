@@ -122,7 +122,7 @@ final class SlideFormatShapeTests: XCTestCase {
             + "<p:spPr><a:xfrm><a:off x=\"1270000\" y=\"3810000\"/><a:ext cx=\"2540000\" cy=\"1270000\"/></a:xfrm>"
             + "<a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom>"
             + "<a:gradFill><a:gsLst><a:gs pos=\"0\"><a:srgbClr val=\"FF0000\"/></a:gs><a:gs pos=\"100000\"><a:srgbClr val=\"0000FF\"/></a:gs></a:gsLst><a:lin ang=\"0\"/></a:gradFill>"
-            + "<a:ln w=\"25400\"><a:solidFill><a:srgbClr val=\"00AA00\"/></a:solidFill><a:prstDash val=\"dash\"/></a:ln></p:spPr></p:sp>"
+            + "<a:ln w=\"25400\"><a:solidFill><a:srgbClr val=\"00AA00\"/></a:solidFill><a:prstDash val=\"dash\"/><a:round/><a:tailEnd type=\"triangle\"/></a:ln></p:spPr></p:sp>"
         var slide = String(data: package.parts["ppt/slides/slide1.xml"]!, encoding: .utf8)!
         slide = slide.replacingOccurrences(of: "</p:spTree>", with: sp + "</p:spTree>")
         package.parts["ppt/slides/slide1.xml"] = Data(slide.utf8)
@@ -157,6 +157,24 @@ final class SlideFormatShapeTests: XCTestCase {
         XCTAssertNil(g.fillStyle)
         deck.undo(); deck.undo()
         XCTAssertTrue(shapeXML(try slideXML(deck), "Grad").contains("<a:gradFill"), "undo brings the gradient back")
+    }
+
+    func testAColourChangeKeepsTheDashJoinAndArrowhead() throws {
+        let deck = try deckWithGradientShape()
+        let g = try XCTUnwrap(deck.currentSlide.shapes.first { $0.name == "Grad" })
+        deck.selectShapes([g])
+        deck.setOutline(Color(0xFF123456))
+        var x = shapeXML(try slideXML(deck), "Grad")
+        XCTAssertTrue(x.contains("prstDash val=\"dash\""), "still dashed")
+        XCTAssertTrue(x.contains("<a:round/>") && x.contains("tailEnd"), "join and arrowhead kept")
+        XCTAssertTrue(x.contains("123456") && !x.contains("00AA00"), "new colour only")
+        deck.setOutlineWidth(4)
+        x = shapeXML(try slideXML(deck), "Grad")
+        XCTAssertTrue(x.contains("w=\"50800\"") && x.contains("prstDash"), "width changes, dash stays")
+        deck.setOutline(nil)
+        x = shapeXML(try slideXML(deck), "Grad")
+        XCTAssertTrue(x.contains("prstDash"), "no line keeps the rest too")
+        XCTAssertFalse(x.contains("123456"))
     }
 
     /// Writes the fuller check file: no fill, no line, a gradient shape made solid, and a clear shape over another.
