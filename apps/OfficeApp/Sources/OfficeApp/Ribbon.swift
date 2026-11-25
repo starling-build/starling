@@ -92,8 +92,7 @@ final class Ribbon: StatelessWidget {
                         color: OfficeAppearance.surface(fluent),
                         border: Border(bottom: BorderSide(color: OfficeAppearance.border(fluent), width: 1))),
                     child: Row(crossAxisAlignment: .stretch, children: [
-                        Expanded(child: SingleChildScrollView(scrollDirection: .horizontal,
-                            child: Row(crossAxisAlignment: .stretch, children: _groups(fluent)))),
+                        Expanded(child: RibbonFit(key: ValueKey("\(session.kind)/\(tab)"), groups: _groups(fluent))),
                         _collapseButton(fluent),
                     ]))))
         }

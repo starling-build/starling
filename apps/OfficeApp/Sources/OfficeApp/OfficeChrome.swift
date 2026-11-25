@@ -171,20 +171,7 @@ enum Chrome {
 
     /// A ribbon group: its commands over a caption, with a divider after.
     static func group(_ label: String, _ fluent: FluentThemeData, _ content: [Widget]) -> Widget {
-        let body = Column(
-            mainAxisAlignment: .spaceBetween,
-            crossAxisAlignment: .center,
-            children: [
-                Row(crossAxisAlignment: .start, children: content),
-                Text(label, style: fluent.typography.caption?.copyWith(
-                    color: OfficeAppearance.secondary(fluent))),
-            ]
-        )
-        return Row(crossAxisAlignment: .stretch, children: [
-            Padding(padding: EdgeInsets(left: 10, top: 6, right: 10, bottom: 5), child: body),
-            Padding(padding: EdgeInsets(left: 0, top: 10, right: 0, bottom: 10),
-                    child: Divider(direction: .vertical)),
-        ])
+        RibbonGroup(label: label, fluent: fluent, content: content)
     }
 
     /// A column of small rows inside a group; the rows stretch to the
@@ -252,35 +239,44 @@ enum Chrome {
     static func big(_ icon: IconData, _ label: String, _ fluent: FluentThemeData,
                     enabled: Bool = true, action: @escaping () -> Void) -> Widget {
         let color = enabled ? fluent.resources.textFillColorPrimary : fluent.resources.textFillColorDisabled
-        return FlatButton(child: Padding(padding: EdgeInsets(left: 6, top: 2, right: 6, bottom: 2),
-            child: Column(mainAxisAlignment: .center, crossAxisAlignment: .center, children: [
-                Icon(icon, size: bigIconSize, color: color),
-                vgap(4),
-                Text(label, style: fluent.typography.caption?.copyWith(color: color)),
-            ])), tip: nil, enabled: enabled, width: nil, height: rowHeight * 2 + 6, action: action)
+        return RibbonDensityButton(
+            full: FlatButton(child: Padding(padding: EdgeInsets(left: 6, top: 2, right: 6, bottom: 2),
+                child: Column(mainAxisAlignment: .center, crossAxisAlignment: .center, children: [
+                    Icon(icon, size: bigIconSize, color: color),
+                    vgap(4),
+                    Text(label, style: fluent.typography.caption?.copyWith(color: color)),
+                ])), tip: nil, enabled: enabled, width: nil, height: rowHeight * 2 + 6, action: action),
+            iconsOnly: FlatButton(child: Icon(icon, size: bigIconSize, color: color),
+                tip: label, enabled: enabled, width: 36, height: rowHeight * 2 + 6, action: action))
     }
 
     /// Big toggle: the big button's shape, tinted while on (Spelling).
     static func bigToggle(_ icon: IconData, _ label: String, _ on: Bool, _ fluent: FluentThemeData,
                           action: @escaping () -> Void) -> Widget {
         let color = fluent.resources.textFillColorPrimary
-        return FlatButton(child: Padding(padding: EdgeInsets(left: 6, top: 2, right: 6, bottom: 2),
-            child: Column(mainAxisAlignment: .center, crossAxisAlignment: .center, children: [
-                Icon(icon, size: bigIconSize, color: color),
-                vgap(4),
-                Text(label, style: fluent.typography.caption?.copyWith(color: color)),
-            ])), checked: on, width: nil, height: rowHeight * 2 + 6, action: action)
+        return RibbonDensityButton(
+            full: FlatButton(child: Padding(padding: EdgeInsets(left: 6, top: 2, right: 6, bottom: 2),
+                child: Column(mainAxisAlignment: .center, crossAxisAlignment: .center, children: [
+                    Icon(icon, size: bigIconSize, color: color),
+                    vgap(4),
+                    Text(label, style: fluent.typography.caption?.copyWith(color: color)),
+                ])), checked: on, width: nil, height: rowHeight * 2 + 6, action: action),
+            iconsOnly: FlatButton(child: Icon(icon, size: bigIconSize, color: color),
+                tip: label, checked: on, width: 36, height: rowHeight * 2 + 6, action: action))
     }
 
     /// Small button: icon beside label, stacked three to a column.
     static func small(_ icon: IconData, _ label: String, _ fluent: FluentThemeData,
                       enabled: Bool = true, checked: Bool = false, action: @escaping () -> Void) -> Widget {
         let color = enabled ? fluent.resources.textFillColorPrimary : fluent.resources.textFillColorDisabled
-        return FlatButton(child: Row(mainAxisSize: .min, crossAxisAlignment: .center, children: [
-            Icon(icon, size: iconSize, color: color),
-            gap(6),
-            Text(label, style: fluent.typography.caption?.copyWith(color: color)),
-        ]), checked: checked, enabled: enabled, width: nil, height: 21, alignLeft: true, action: action)
+        return RibbonDensityButton(
+            full: FlatButton(child: Row(mainAxisSize: .min, crossAxisAlignment: .center, children: [
+                Icon(icon, size: iconSize, color: color),
+                gap(6),
+                Text(label, style: fluent.typography.caption?.copyWith(color: color)),
+            ]), checked: checked, enabled: enabled, width: nil, height: 21, alignLeft: true, action: action),
+            iconsOnly: FlatButton(child: Icon(icon, size: iconSize, color: color),
+                tip: label, checked: checked, enabled: enabled, width: 24, height: 21, action: action))
     }
 
     /// A menu button: optional icon, optional title, a chevron; the menu
@@ -295,9 +291,15 @@ enum Chrome {
         }
         parts.append(gap(4))
         parts.append(chevron(fluent))
-        return FlatButton(child: Padding(padding: EdgeInsets(left: 6, top: 0, right: 5, bottom: 0),
-                                         child: Row(mainAxisSize: .min, crossAxisAlignment: .center, children: parts)),
-                          tip: tip, width: nil, menu: items)
+        let full = FlatButton(child: Padding(padding: EdgeInsets(left: 6, top: 0, right: 5, bottom: 0),
+                                             child: Row(mainAxisSize: .min, crossAxisAlignment: .center, children: parts)),
+                              tip: tip, width: nil, menu: items)
+        // A titled button with an icon can give up its title (and keep the title as its name).
+        guard let icon, let title else { return full }
+        let compact = FlatButton(child: Padding(padding: EdgeInsets(left: 6, top: 0, right: 5, bottom: 0), child: Row(mainAxisSize: .min, crossAxisAlignment: .center, children: [
+                                     Icon(icon, size: iconSize, color: fluent.resources.textFillColorPrimary), gap(4), chevron(fluent)])),
+                                 tip: tip ?? title, width: nil, menu: items)
+        return RibbonDensityButton(full: full, iconsOnly: compact)
     }
 
     /// The narrow half of a split button: a chevron that opens `items`,
