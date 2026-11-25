@@ -1982,7 +1982,9 @@ public struct ListLevelFormat: Hashable, Codable, Sendable {
     /// its counter is that level's ("%3." at level 2). The reverse gives
     /// the entry a stored format matches, for the library's check mark.
     public func forLevel(_ level: Int) -> ListLevelFormat {
-        ListLevelFormat(text: text.replacingAll("%1", with: "%\(level + 1)"), format: format)
+        var f = self
+        f.text = text.replacingAll("%1", with: "%\(level + 1)")
+        return f
     }
 
     public func asLibraryEntry(atLevel level: Int) -> ListLevelFormat {

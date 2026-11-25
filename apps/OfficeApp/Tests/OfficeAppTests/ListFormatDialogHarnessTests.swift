@@ -25,7 +25,7 @@ final class ListFormatDialogHarnessTests: XCTestCase {
         let before = RichListNumbering.labels(session.controller.document)
         session.onListFormatDialog?(false); ui.pump()
         XCTAssertTrue(ui.has(id: "lf-text"))
-        XCTAssertTrue(ui.tap(id: "lf-style-upper-roman"))
+        XCTAssertTrue(ui.tap(id: "lf-style-upper-roman")); ui.pump()
         XCTAssertTrue(ui.tap(id: "lf-text"))
         for _ in 0..<5 { ui.press(.backspace) }
         ui.type("(%1)"); ui.pump()
