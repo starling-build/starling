@@ -1554,6 +1554,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         case .backspace: beginEdit(replace: ""); return true
         case .escape:
             // Escape lets go of the copied cells first, as Excel's does.
+            if c.painterSource != nil { c.cancelFormatPainter(); return true }
             if marquee != nil { marquee = nil; _repaint.notifyListeners(); return true }
             return _w.onShortcut("\u{1B}", _chords)  // the shell closes its find bar
         default:
@@ -2172,6 +2173,10 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 let f = ws.frame(ws.drawings[index].anchor)
                 controller.setDrawingFrame(index, x: f.x, y: f.y, width: f.width, height: f.height, from: old)
             }
+        }
+        switch _drag {
+        case .cells?, .columns?, .rows?: if controller.painterSource != nil { controller.applyFormatPainter() }
+        default: break
         }
         if case .fill(let target)? = _drag {
             fillTarget = nil

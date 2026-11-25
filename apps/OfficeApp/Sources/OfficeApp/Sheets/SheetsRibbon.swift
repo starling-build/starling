@@ -15,7 +15,7 @@ import Foundation
 
 /// What the ribbon asks of the grid.
 enum SheetCommand {
-    case cut, copy, paste, pasteSpecial
+    case cut, copy, paste, pasteSpecial, formatPainter
     case symbol                    // Insert → Symbol: the shared picker
     case startFormula(String)      // "=SUM(" into the editor, the selection's range filled in
     case zoom(Double)
@@ -67,6 +67,7 @@ extension Ribbon {
                 Chrome.small(FluentSystemIcons.cut, "Cut", fluent) { wb.onCommand?(.cut) },
                 Chrome.small(FluentSystemIcons.copy, "Copy", fluent) { wb.onCommand?(.copy) },
                 Chrome.small(FluentSystemIcons.paste, "Paste Special", fluent) { wb.onCommand?(.pasteSpecial) },
+                Chrome.small(FluentSystemIcons.paste, wb.painterSource == nil ? "Format Painter" : "Painter: pick cells", fluent) { wb.onCommand?(.formatPainter) },
             ]),
         ])
         let colors: [(String, Color)] = [
