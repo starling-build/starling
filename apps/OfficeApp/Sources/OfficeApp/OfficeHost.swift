@@ -137,13 +137,15 @@ final class OfficeScene {
     /// coordinates; nil withdraws it. Every editor of rich text - Writer's page,
     /// a slide's text box or its notes - asks here, so the menu is one thing.
     /// Nothing happens on a host that draws none.
-    func showTouchMenu(_ rect: Rect?, controller c: RichDocumentController) {
+    /// `leading` are the entries the editor itself offers for what is under the finger (a misspelling's corrections);
+    /// they come first.
+    func showTouchMenu(_ rect: Rect?, controller c: RichDocumentController, leading: [EditMenuItem] = []) {
         #if !os(WASI)
         guard let show = editMenuRequested else { return }
         guard let r = rect else { editMenuDismissed?(); return }
         // The items live in UIKit's menu objects, which can outlast the window: they hold the controller weakly, or a
         // closed window's whole document stays in memory.
-        var items: [EditMenuItem] = []
+        var items: [EditMenuItem] = leading
         if c.hasSelection {
             if !c.readOnly {
                 items.append(.init(title: "Cut", symbol: "scissors") { [weak c] in if let d = c?.cutSelectionData() { Clipboard.setData(d) } })
