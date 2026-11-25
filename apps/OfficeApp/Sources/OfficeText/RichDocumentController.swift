@@ -2120,6 +2120,27 @@ public final class RichDocumentController: ChangeNotifier {
         edit { perform(.setSectionPage(mark, old: old, new: new)) }
     }
 
+    /// W-PG-1: change the page of the caret's section, or of every section, by editing a copy of each one's own
+    /// setup (so a section keeps its columns, title page and the rest). One undo step.
+    public func changePageSetup(allSections: Bool, lastSetup: PageSetup, _ change: (inout PageSetup) -> Void) {
+        var marks: [Int] = []
+        if allSections {
+            for i in 0..<document.paragraphs.count where document.paragraphs[i].cell == nil && document.paragraphs[i].style.sectionPage != nil { marks.append(i) }
+            marks.append(-1)
+        } else {
+            marks = [sectionMark(containing: selection.focus.paragraph)]
+        }
+        var steps: [(Int, PageSetup, PageSetup)] = []
+        for mark in marks {
+            let old = mark < 0 ? (document.lastSectionPage ?? lastSetup) : document.paragraphs[mark].style.sectionPage!
+            var new = old
+            change(&new)
+            if new != old { steps.append((mark, old, new)) }
+        }
+        guard !steps.isEmpty else { return }
+        edit { for (mark, old, new) in steps { perform(.setSectionPage(mark, old: old, new: new)) } }
+    }
+
     // MARK: Header and footer
 
     /// Sets the header and footer text. A side whose file part holds more than

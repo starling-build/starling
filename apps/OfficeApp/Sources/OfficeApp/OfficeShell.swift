@@ -71,6 +71,7 @@ final class OfficeShellState: State<StatefulWidget> {
     private var _paragraphOpen = false
     private var _findDialogOpen = false
     private var _symbolOpen = false
+    private var _pageSetupOpen = false
     private let _colorText = TextEditingController()
     private var _styleOpen: String? = nil
     private let _linkText = TextEditingController()
@@ -371,6 +372,11 @@ final class OfficeShellState: State<StatefulWidget> {
             guard let self else { return }
             self.controller.breakUndoCoalescing()
             self.setState { self._paragraphOpen = true }
+        }
+        session.onPageSetupDialog = { [weak self] in
+            guard let self else { return }
+            self.controller.breakUndoCoalescing()
+            self.setState { self._pageSetupOpen = true }
         }
         session.onMoreColors = { [weak self] in
             guard let self else { return }
@@ -1227,6 +1233,27 @@ final class OfficeShellState: State<StatefulWidget> {
                         insert: { [weak self] text, font in self?.controller.insertSymbol(text, font: font) }),
                     onClose: { [weak self] in
                         self?.setState { self?._symbolOpen = false }
+                        self?._editorFocus.requestFocus()
+                    })),
+            ])
+        }
+        if _pageSetupOpen {
+            let sections = controller.document.paragraphs.filter { $0.cell == nil && $0.style.sectionPage != nil }.count + 1
+            return Stack(children: [
+                window,
+                Positioned(left: 0, top: 0, right: 0, bottom: 0, child: PageSetupDialog(
+                    initial: session.sectionSetup(), sectionCount: sections,
+                    onOK: { [weak self] v in
+                        guard let self else { return }
+                        self.setState {
+                            self.controller.changePageSetup(allSections: v.allSections, lastSetup: self.session.pageSetup) { v.apply(to: &$0) }
+                            self.session.syncPageSetup()
+                            self._pageSetupOpen = false
+                        }
+                        self._editorFocus.requestFocus()
+                    },
+                    onCancel: { [weak self] in
+                        self?.setState { self?._pageSetupOpen = false }
                         self?._editorFocus.requestFocus()
                     })),
             ])
