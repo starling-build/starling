@@ -81,6 +81,7 @@ final class OfficeShellState: State<StatefulWidget> {
     private var _insertTableOpen = false
     private var _splitCellOpen = false
     private var _formulaOpen = false
+    private var _contentsOpen = false
     private var _convertTextTable: Bool? = nil   // the open Convert dialog: true to a table, false to text
     private var _bordersOpen = false
     private var _printOpen = false
@@ -465,6 +466,19 @@ final class OfficeShellState: State<StatefulWidget> {
             guard let self else { return }
             self.controller.breakUndoCoalescing()
             self.setState { self._convertTextTable = toTable }
+        }
+        session.onInsertContents = { [weak self] options in self?._insertContents(options) }
+        session.onContentsDialog = { [weak self] in
+            guard let self else { return }
+            self.controller.breakUndoCoalescing()
+            self.setState { self._contentsOpen = true }
+        }
+        session.onUpdateContents = { [weak self] pagesOnly in
+            guard let self else { return }
+            let labels = PdfExport.pageLabels(self.controller.document, pageSetup: self.session.pageSetup, theme: self.session.theme)
+            if !self.controller.updateTableOfContents(pagesOnly: pagesOnly, width: self.session.pageSetup.columnWidth, pageOf: labels, layout: { PdfExport.pageLabels($0, pageSetup: self.session.pageSetup, theme: self.session.theme) }) {
+                self._flash("There is no table of contents in this document")
+            }
         }
         session.onSplitCellDialog = { [weak self] in
             guard let self else { return }
@@ -924,6 +938,14 @@ final class OfficeShellState: State<StatefulWidget> {
         }
     }
 
+    /// W-FD-2: a table of contents of the headings, with the page numbers the document lays out to.
+    private func _insertContents(_ options: ContentsOptions) {
+        let labels = PdfExport.pageLabels(controller.document, pageSetup: session.pageSetup, theme: session.theme)
+        if !controller.insertTableOfContents(options, width: session.pageSetup.columnWidth, pageOf: labels, layout: { PdfExport.pageLabels($0, pageSetup: self.session.pageSetup, theme: self.session.theme) }) {
+            _flash("There are no headings to list: give a paragraph a Heading style first")
+        }
+    }
+
     private func _flash(_ message: String) {
         _statusGeneration += 1
         let gen = _statusGeneration
@@ -1275,7 +1297,7 @@ final class OfficeShellState: State<StatefulWidget> {
             if _shortcutsOpen { return false }   // the dialog's own Esc closes it
             if LinkCard.link(caret: _cardLink, hover: _hoverCard, dismissed: _cardDismissed) != nil { setState { _cardDismissed = true }; return true }
             if _listSymbolPick != nil { setState { _listSymbolPick = nil }; return true }
-            if _paragraphOpen || _tablePropsOpen || _fontOpen || _insertTableOpen || _splitCellOpen || _convertTextTable != nil || _formulaOpen || _bordersOpen || _pictureDialog != nil || _linkDialogOpen || _numberingValueOpen || _listFormatOpen != nil || _newStyleOpen { return false }   // the dialog's own Esc closes it
+            if _paragraphOpen || _tablePropsOpen || _fontOpen || _insertTableOpen || _splitCellOpen || _contentsOpen || _convertTextTable != nil || _formulaOpen || _bordersOpen || _pictureDialog != nil || _linkDialogOpen || _numberingValueOpen || _listFormatOpen != nil || _newStyleOpen { return false }   // the dialog's own Esc closes it
             if _headerFooterOpen { setState { _headerFooterOpen = false }; return true }
             if _findOpen { setState { _findOpen = false }; _editorFocus.requestFocus(); return true }
             if _backstage != nil { setState { _backstage = nil }; return true }
@@ -1625,6 +1647,22 @@ final class OfficeShellState: State<StatefulWidget> {
                     },
                     onCancel: { [weak self] in
                         self?.setState { self?._tablePropsOpen = false }
+                        self?._editorFocus.requestFocus()
+                    })),
+            ])
+        }
+        if _contentsOpen {
+            return Stack(children: [
+                window,
+                Positioned(left: 0, top: 0, right: 0, bottom: 0, child: ContentsDialog(
+                    onOK: { [weak self] options in
+                        guard let self else { return }
+                        self.setState { self._contentsOpen = false }
+                        self._insertContents(options)
+                        self._editorFocus.requestFocus()
+                    },
+                    onCancel: { [weak self] in
+                        self?.setState { self?._contentsOpen = false }
                         self?._editorFocus.requestFocus()
                     })),
             ])
