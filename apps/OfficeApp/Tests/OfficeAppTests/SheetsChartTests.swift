@@ -33,9 +33,10 @@ final class SheetsChartTests: XCTestCase {
         XCTAssertEqual(live.series.map(\.name), ["Sales", "Costs"])
         XCTAssertEqual(live.series[0].values, [10, 20, 15])
         XCTAssertEqual(sc.chart.title, "Chart Title")
-        // Beside the data: two columns right of C, level with row 1, 5 × 3 in.
+        // Beside the data would end past the printed page at Excel's column widths: under it, from its left edge, 5 × 3 in.
         let f = c.sheet.frame(c.sheet.drawings[0].anchor)
-        XCTAssertEqual(f.x, 4 * Worksheet.defaultColWidth, accuracy: 0.01)
+        XCTAssertEqual(f.x, 0, accuracy: 0.01)
+        XCTAssertGreaterThan(f.y, 4 * 15)
         XCTAssertEqual(f.width, 360, accuracy: 0.01)
         XCTAssertEqual(f.height, 216, accuracy: 0.01)
         // A cell click deselects; undo takes the chart away.
