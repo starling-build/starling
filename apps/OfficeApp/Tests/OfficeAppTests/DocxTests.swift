@@ -308,7 +308,7 @@ final class DocxTests: XCTestCase {
 
         let back = try DocxFormat.read(planted).document
         XCTAssertEqual(back.paragraphs[0].text, "Body with a note1 here.")
-        XCTAssertEqual(back.keptParts.keys.sorted(), ["word/footnotes.xml", "word/settings.xml"])
+        XCTAssertEqual(back.keptParts.keys.sorted(), ["docProps/app.xml", "docProps/core.xml", "word/footnotes.xml", "word/settings.xml"])
         let mark = back.paragraphs[0].runs.first { $0.style.note != nil }
         XCTAssertEqual(mark?.style.note, NoteReference(kind: .footnote, id: 1))
         XCTAssertEqual(mark?.style.script, .superscript)
@@ -367,7 +367,7 @@ final class DocxTests: XCTestCase {
         // Cell margins: the table style said nothing, so Word's own.
         XCTAssertEqual(style?.cellMarginTop, 0)
         XCTAssertEqual(style?.cellMarginLeft, 5.4)
-        XCTAssertEqual(back.keptParts.keys.sorted(), ["word/settings.xml", "word/theme/theme1.xml"])
+        XCTAssertEqual(back.keptParts.keys.sorted(), ["docProps/app.xml", "docProps/core.xml", "word/settings.xml", "word/theme/theme1.xml"])
         let saved = try Zip.read(try DocxFormat.write(back, pageSetup: .letter))
         func text(_ name: String) -> String { String(decoding: saved.first { $0.name == name }?.data ?? Data(), as: UTF8.self) }
         XCTAssertEqual(text("word/theme/theme1.xml"), theme)
@@ -410,7 +410,7 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(object?.height ?? 0, 100, accuracy: 0.01)
         XCTAssertEqual(object?.sourceRels.map(\.target), ["charts/chart1.xml"])
         XCTAssertTrue(object?.sourceXML?.contains("<c:chart") == true, object?.sourceXML ?? "nil")
-        XCTAssertEqual(back.keptParts.keys.sorted(), ["word/charts/_rels/chart1.xml.rels", "word/charts/chart1.xml", "word/embeddings/book1.xlsx", "word/settings.xml"])
+        XCTAssertEqual(back.keptParts.keys.sorted(), ["docProps/app.xml", "docProps/core.xml", "word/charts/_rels/chart1.xml.rels", "word/charts/chart1.xml", "word/embeddings/book1.xlsx", "word/settings.xml"])
         XCTAssertEqual(back.keptPartTypes["word/charts/chart1.xml"], "application/vnd.openxmlformats-officedocument.drawingml.chart+xml")
         XCTAssertEqual(back.keptPartTypes["word/embeddings/book1.xlsx"], "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
