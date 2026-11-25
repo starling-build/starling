@@ -87,6 +87,8 @@ public indirect enum EditOp: Equatable, Sendable {
     case setTableColumns(String, old: [Double]?, new: [Double]?)
     /// One entry of the style sheet, replaced (every paragraph re-lays out).
     case setStyleEntry(old: RichNamedStyle, new: RichNamedStyle)
+    case addStyle(RichNamedStyle)
+    case removeStyle(RichNamedStyle)
     /// A table's look (nil: the default).
     case setTableStyle(String, old: TableStyle?, new: TableStyle?)
     /// One level's format of one list (nil: the level's default).
@@ -201,6 +203,14 @@ public indirect enum EditOp: Equatable, Sendable {
             doc.styles[new.id] = new
             changes.append(.all)
             return .setStyleEntry(old: new, new: old)
+        case .addStyle(let e):
+            doc.styles[e.id] = e
+            changes.append(.all)
+            return .removeStyle(e)
+        case .removeStyle(let e):
+            doc.styles[e.id] = nil
+            changes.append(.all)
+            return .addStyle(e)
         case .setTableStyle(let table, let old, let new):
             doc.tableStyles[table] = new
             for i in doc.paragraphs.indices where doc.paragraphs[i].cell?.table == table { changes.append(.changed(i)) }
@@ -1392,6 +1402,34 @@ public final class RichDocumentController: ChangeNotifier {
         entry.paragraph = ps
         guard entry != old else { return }
         edit { perform(.setStyleEntry(old: old, new: entry)) }
+    }
+
+    /// Create a style named `name` from the caret's formatting and apply it
+    /// to the selected paragraphs. Returns the new id, or nil for an empty
+    /// or already-used name.
+    @discardableResult
+    public func createStyleFromSelection(name: String) -> String? {
+        var name = name
+        while name.first == " " { name.removeFirst() }
+        while name.last == " " { name.removeLast() }
+        guard !name.isEmpty,
+              !document.styles.styles.contains(where: { $0.name.lowercased() == name.lowercased() }) else { return nil }
+        var id = String(name.filter { $0.isLetter || $0.isNumber })
+        if id.isEmpty { id = "Style" }
+        var unique = id, n = 2
+        while document.styles[unique] != nil { unique = "\(id)\(n)"; n += 1 }
+        var char = currentCharStyle
+        char.link = nil; char.linkTip = nil; char.highlight = nil
+        var ps = currentParagraphStyle
+        ps.list = nil; ps.listLevel = 0; ps.listId = nil; ps.pageBreakBefore = false
+        ps.named = unique; ps.heading = nil
+        let entry = RichNamedStyle(id: unique, name: name, paragraph: ps, char: char, next: unique)
+        edit {
+            perform(.addStyle(entry))
+            let sheet = document.styles
+            applyParagraphStyle { sheet.apply(unique, to: &$0) }
+        }
+        return unique
     }
 
     /// Link the selection to `url`; with nothing selected, insert the URL
