@@ -103,6 +103,8 @@ enum PptxWriter {
         ]
         var ids = ""
         var media = MediaParts()
+        PptxText.setSlideParts(state.slides)
+        defer { PptxText.slideParts = [:] }
         for (i, slide) in state.slides.enumerated() {
             let part = "ppt/slides/slide\(i + 1).xml"
             let layout = slide.layoutPart.flatMap { lp in layoutParts.values.contains(lp) ? lp : nil }
@@ -212,6 +214,8 @@ enum PptxWriter {
         }
         var ids = ""
         var media = MediaParts()
+        PptxText.setSlideParts(state.slides)
+        defer { PptxText.slideParts = [:] }
         for (i, slide) in state.slides.enumerated() {
             let part = "ppt/slides/slide\(i + 1).xml"
             let layout = slide.layoutPart.flatMap { p.parts[$0] != nil ? $0 : nil } ?? layoutFor(slide.layout)
@@ -257,6 +261,10 @@ enum PptxWriter {
             rels.append(Rel(id: "rIdLayout", type: RT.layout, target: Pptx.relative(layoutPart, from: part)))
         }
         var w = SlideXML(part: part, source: source)
+        let links = PptxLinks()
+        links.part = part; links.slideParts = PptxText.slideParts
+        PptxText.links = links
+        defer { PptxText.links = nil }
         // Shape ids: a shape read from a file keeps its own (the slide's
         // animations name shapes by id); new ones start above them all.
         w.nextId = 2 + (slide.shapes.compactMap(\.fileId).max() ?? 0)
@@ -367,6 +375,7 @@ enum PptxWriter {
             }
         }
         rels += w.rels
+        rels += links.rels
         // The colour map as read when the slide was; a slide of ours maps
         // through the master.
         let clrMapOvr = slide.clrMapOvrXML.map { $0.containsSubstring("overrideClrMapping") ? $0 : "" }
@@ -591,6 +600,7 @@ enum RT {
     static let notesMaster = base + "notesMaster"
     static let theme = base + "theme"
     static let image = base + "image"
+    static let hyperlink = base + "hyperlink"
     static let presProps = base + "presProps"
     static let viewProps = base + "viewProps"
     static let tableStyles = base + "tableStyles"
@@ -848,7 +858,7 @@ private struct SlideXML {
             }
             let id = _id(s.fileId)
             let rid = _media(image, media: &media, builder: &builder)
-            return "<p:pic><p:nvPicPr><p:cNvPr id=\"\(id)\" name=\"\(name)\"\(s.altText.map { " descr=\"\(PptxXML.escape($0, attribute: true))\"" } ?? "")\(hid)/><p:cNvPicPr>\(s.aspectLocked ? "<a:picLocks noChangeAspect=\"1\"/>" : "<a:picLocks/>")</p:cNvPicPr><p:nvPr/></p:nvPicPr>"
+            return "<p:pic><p:nvPicPr><p:cNvPr id=\"\(id)\" name=\"\(name)\"\(s.altText.map { " descr=\"\(PptxXML.escape($0, attribute: true))\"" } ?? "")\(hid)\(PptxText.cNvPrEnd(s))<p:cNvPicPr>\(s.aspectLocked ? "<a:picLocks noChangeAspect=\"1\"/>" : "<a:picLocks/>")</p:cNvPicPr><p:nvPr/></p:nvPicPr>"
                 + "<p:blipFill><a:blip r:embed=\"\(rid)\"/>\(Self._crop(s.crop))<a:stretch><a:fillRect/></a:stretch></p:blipFill>"
                 + "<p:spPr>\(Self._xfrm(s.frame, rotation: s.rotation, flipH: s.flipH, flipV: s.flipV))"
                 + "<a:prstGeom prst=\"\(s.pictureGeometry?.rawValue ?? "rect")\"><a:avLst/></a:prstGeom></p:spPr></p:pic>"
@@ -908,7 +918,7 @@ private struct SlideXML {
                             edit: read.aspectLock != s.aspectLock ? Self._lockEdit(s.aspectLocked) : nil)
             }
             let id = _id(s.fileId)
-            var nv = "<p:cNvPr id=\"\(id)\" name=\"\(name)\"\(hid)/>"
+            var nv = "<p:cNvPr id=\"\(id)\" name=\"\(name)\"\(hid)\(PptxText.cNvPrEnd(s))"
             var ph = ""
             switch s.kind {
             case .placeholder(let role):
@@ -1048,7 +1058,7 @@ private struct SlideXML {
             return "<\(tag) w=\"12700\"><a:solidFill><a:srgbClr val=\"\(PptxText.hex(c))\"/></a:solidFill></\(tag)>"
         }
         let borders = border("a:lnL") + border("a:lnR") + border("a:lnT") + border("a:lnB")
-        var xml = "<p:graphicFrame><p:nvGraphicFramePr><p:cNvPr id=\"\(_id(s.fileId))\" name=\"\(name)\"/>"
+        var xml = "<p:graphicFrame><p:nvGraphicFramePr><p:cNvPr id=\"\(_id(s.fileId))\" name=\"\(name)\"" + PptxText.cNvPrEnd(s)
             + "<p:cNvGraphicFramePr><a:graphicFrameLocks noGrp=\"1\"/></p:cNvGraphicFramePr><p:nvPr/></p:nvGraphicFramePr>"
             + Self._xfrm(s.frame, rotation: 0, tag: "p:xfrm")
             + "<a:graphic><a:graphicData uri=\"http://schemas.openxmlformats.org/drawingml/2006/table\"><a:tbl>"
@@ -1210,7 +1220,48 @@ enum PptxWriterCopy {
 
 // MARK: - Text
 
+/// The hyperlinks one slide writes: each distinct target becomes a relationship of the slide.
+final class PptxLinks {
+    var rels: [Rel] = []
+    var part = ""
+    /// Source slide part → the part it is written as, for jumps to a slide.
+    var slideParts: [String: String] = [:]
+    private var ids: [String: String] = [:]
+
+    func xml(_ link: String?, _ tip: String?) -> String {
+        guard let link, !link.isEmpty else { return "" }
+        let tipAttr = tip.map { " tooltip=\"\(PptxXML.escape($0, attribute: true))\"" } ?? ""
+        if link.hasPrefix("action:") {
+            return "<a:hlinkClick r:id=\"\" action=\"\(PptxXML.escape(String(link.dropFirst(7)), attribute: true))\"\(tipAttr)/>"
+        }
+        var type = RT.hyperlink, target = link, external = true, action = ""
+        if link.hasPrefix("slide:") {
+            guard let new = slideParts[String(link.dropFirst(6))] else { return "" }
+            type = RT.slide; target = Pptx.relative(new, from: part); external = false
+            action = " action=\"ppaction://hlinksldjump\""
+        }
+        let key = type + "|" + target
+        let id: String
+        if let known = ids[key] { id = known } else {
+            id = "rIdL\(rels.count + 1)"
+            rels.append(Rel(id: id, type: type, target: target, external: external))
+            ids[key] = id
+        }
+        return "<a:hlinkClick r:id=\"\(id)\"\(action)\(tipAttr)/>"
+    }
+}
+
 enum PptxText {
+    nonisolated(unsafe) static var links: PptxLinks? = nil
+    nonisolated(unsafe) static var slideParts: [String: String] = [:]
+    static func setSlideParts(_ slides: [SlideState]) {
+        slideParts = [:]
+        for (i, s) in slides.enumerated() { if let p = s.sourcePart { slideParts[p] = "ppt/slides/slide\(i + 1).xml" } }
+    }    /// The end of a `p:cNvPr`: a click action on the shape is its child.
+    static func cNvPrEnd(_ s: ShapeState) -> String {
+        let l = links?.xml(s.link, s.linkTip) ?? ""
+        return l.isEmpty ? "/>" : ">" + l + "</p:cNvPr>"
+    }
     static func hex(_ c: Color) -> String { String(printf: "%06X", UInt32(truncatingIfNeeded: c.value & 0xFFFFFF)) }
 
     static func imageExtension(_ image: ImageAttachment) -> String {
@@ -1316,8 +1367,9 @@ enum PptxText {
                 + "<a:srgbClr val=\"\(hex(sh.color))\">\(alpha)</a:srgbClr></a:outerShdw></a:effectLst>"
         }
         let highlight = c.highlight.map { "<a:highlight><a:srgbClr val=\"\(hex($0))\"/></a:highlight>" } ?? ""
+        let click = tag == "a:endParaRPr" ? "" : (links?.xml(c.link, c.linkTip) ?? "")
         return "<\(tag)\(a)><a:solidFill><a:srgbClr val=\"\(hex(color))\"/></a:solidFill>\(shadow)\(highlight)"
-            + "<a:latin typeface=\"\(font)\"/><a:cs typeface=\"\(font)\"/></\(tag)>"
+            + "<a:latin typeface=\"\(font)\"/><a:cs typeface=\"\(font)\"/>\(click)</\(tag)>"
     }
 
     /// Notes: plain paragraphs, no looks.

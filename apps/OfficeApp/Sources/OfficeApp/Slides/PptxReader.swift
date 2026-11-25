@@ -758,6 +758,23 @@ struct LevelStyle {
 
 // MARK: - Reader
 
+extension PptxPackage {
+    /// A click action (`a:hlinkClick`) as the model keeps it: the URL (web,
+    /// mailto), "slide:<part>" for a jump to a slide, "action:<ppaction>" for
+    /// one with no target (next slide, end show…). The tip is its tooltip.
+    func clickAction(_ n: XNode?, part: String) -> (link: String?, tip: String?) {
+        guard let n else { return (nil, nil) }
+        let tip = (n["tooltip"]).flatMap { $0.isEmpty ? nil : $0 }
+        if let rid = n["r:id"], !rid.isEmpty, let rel = rels(part).first(where: { $0.id == rid }) {
+            if rel.external { return (rel.target, tip) }
+            if rel.kind == "slide" { return ("slide:" + rel.target, tip) }
+            return (nil, nil)
+        }
+        if let a = n["action"], !a.isEmpty { return ("action:" + a, tip) }
+        return (nil, nil)
+    }
+}
+
 struct PptxReader {
     let package: PptxPackage
     let images = PptxImages()
@@ -1556,6 +1573,9 @@ struct SlideContext {
             guard var s else { return }
             s.fileId = el.descendant("p:cNvPr")?["id"].flatMap(Int.init)
             s.group = group
+            let click = package.clickAction(el.descendant("p:cNvPr")?.first("a:hlinkClick"), part: part)
+            s.link = click.link; s.linkTip = click.tip
+            if click.link != nil, s.readShape != nil { s.readShape = ReadShape(s) }
             // Hidden (`cNvPr hidden="1"`), itself or by its group: in the
             // file, and not drawn — lo-hidden_group_shape's red square.
             if group?.hidden == true || el.descendant("p:cNvPr")?["hidden"] == "1" { s.invisible = true }

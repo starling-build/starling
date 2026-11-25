@@ -75,6 +75,8 @@ struct ShapeState: Equatable {
     var group: ShapeGroup? = nil
     var keptLine: KeptLine? = nil
     var altText: String? = nil
+    var link: String? = nil
+    var linkTip: String? = nil
     var keptPicture: KeptPicture? = nil
     var autofit = false
     var fontScale = 1.0
@@ -1854,7 +1856,7 @@ final class DeckController: ChangeNotifier {
                    customPath: s.customPath, fillStyle: s.fillStyle, invisible: s.invisible, fileId: s.fileId,
                    sourceXML: s.sourceXML, sourceText: s.sourceText, sourcePart: s.sourcePart,
                    sourceChart: s.sourceChart, field: s.field, group: s.group, keptLine: s.keptLine,
-                   altText: s.altText, keptPicture: s.keptPicture, autofit: s.autofit, fontScale: s.fontScale,
+                   altText: s.altText, link: s.link, linkTip: s.linkTip, keptPicture: s.keptPicture, autofit: s.autofit, fontScale: s.fontScale,
                    insetsFollowFont: s.insetsFollowFont, keptLook: s.keptLook)
         st.lineReduction = s.lineReduction
         st.pictureLevels = s.pictureLevels
@@ -1988,6 +1990,8 @@ final class DeckController: ChangeNotifier {
         shape.keptLine = st.keptLine
         shape.keptPicture = st.keptPicture
         shape.altText = st.altText
+        shape.link = st.link
+        shape.linkTip = st.linkTip
         shape.autofit = st.autofit
         shape.fontScale = st.fontScale
         shape.insetsFollowFont = st.insetsFollowFont
