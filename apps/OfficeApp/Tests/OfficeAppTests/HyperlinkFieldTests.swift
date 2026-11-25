@@ -63,3 +63,20 @@ final class HyperlinkFieldTests: XCTestCase {
         XCTAssertNil(r.style.color)
     }
 }
+
+extension HyperlinkFieldTests {
+    /// HL_CHECK_IN=<docx> HL_CHECK_OUT=<docx>: read a file and save it again, for a check in Word.
+    func testSaveForWordCheck() throws {
+        let env = ProcessInfo.processInfo.environment
+        guard let i = env["HL_CHECK_IN"], let o = env["HL_CHECK_OUT"] else { return }
+        let read = try DocxFormat.read(try Data(contentsOf: URL(fileURLWithPath: i)))
+        try DocxFormat.write(read.document, pageSetup: read.pageSetup ?? .letter).write(to: URL(fileURLWithPath: o))
+    }
+}
+
+extension HyperlinkFieldTests {
+    func testFieldResultKeepsItsOwnLookWithoutAHyperlinkStyle() throws {
+        let (_, xml) = try roundTrip("<w:p>\(fc("begin"))\(it("HYPERLINK \"http://x.y\""))\(fc("separate"))\(tx("plain"))\(fc("end"))</w:p>")
+        XCTAssertFalse(xml.contains("w:val=\"Hyperlink\""))
+    }
+}
