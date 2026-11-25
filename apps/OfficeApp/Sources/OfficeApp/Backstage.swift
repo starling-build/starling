@@ -429,6 +429,10 @@ final class Backstage: StatelessWidget {
                          ? "OFFICE_FONT_SOURCE is set for this session, and decides over this setting."
                          : "Applies to documents opened from now on.", style: secondary))
         #endif
+        rows.append(Chrome.vgap(16))
+        rows.append(Text("Keyboard", style: fluent.typography.subtitle))
+        rows.append(Chrome.vgap(8))
+        rows.append(Button(onPressed: { [session] in session.onShortcuts?() }, child: Text("Keyboard shortcuts…", style: fluent.typography.body)))
         return Column(crossAxisAlignment: .start, children: rows)
     }
 
