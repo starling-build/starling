@@ -92,4 +92,77 @@ final class SheetsChartDesignTests: XCTestCase {
         back.setChartTitle(j, "From file"); back.setChartLegend(j, position: "t")
         try Xlsx.write(back.book).write(to: URL(fileURLWithPath: dir + "/chartfile.xlsx"))
     }
+
+    /// Element and attribute names (with counts) in a chart part.
+    private func census(_ xml: String) -> [String: Int] {
+        var out: [String: Int] = [:]
+        var tag = ""; var inTag = false; var q: Character? = nil
+        func flush() {
+            guard tag.first != "/", tag.first != "?", tag.first != "!" else { tag = ""; return }
+            let parts = tag.split(whereSeparator: { $0 == " " || $0 == "\n" || $0 == "\t" || $0 == "\r" })
+            guard let name = parts.first else { tag = ""; return }
+            out["<" + String(name).replacingAll("/", with: ""), default: 0] += 1
+            for a in parts.dropFirst() { if let eq = a.firstIndex(of: "=") { out["@" + name + " " + a[a.startIndex ..< eq], default: 0] += 1 } }
+            tag = ""
+        }
+        for ch in xml {
+            if inTag {
+                if let qq = q { if ch == qq { q = nil }; tag.append(ch); continue }
+                if ch == "\"" || ch == "'" { q = ch; tag.append(ch); continue }
+                if ch == ">" { inTag = false; flush() } else { tag.append(ch) }
+            } else if ch == "<" { inTag = true; tag = "" }
+        }
+        return out
+    }
+
+    /// A chart part without its own title, its legend and autoTitleDeleted (what an edit may change), as one string.
+    private func strip(_ xml: String) -> String {
+        var x = xml
+        func cut(_ open: String, _ close: String, before: String? = nil) {
+            let limit = before.flatMap { x.findRange(of: $0, in: x.startIndex ..< x.endIndex)?.lowerBound } ?? x.endIndex
+            if let o = x.findRange(of: open, in: x.startIndex ..< limit), let c = x.findRange(of: close, in: o.upperBound ..< x.endIndex) { x.removeSubrange(o.lowerBound ..< c.upperBound) }
+        }
+        cut("<c:title>", "</c:title>", before: "<c:plotArea>")
+        cut("<c:legend>", "</c:legend>")
+        if let o = x.findRange(of: "<c:autoTitleDeleted ", in: x.startIndex ..< x.endIndex), let c = x.findRange(of: "/>", in: o.upperBound ..< x.endIndex) { x.removeSubrange(o.lowerBound ..< c.upperBound) }
+        return x
+    }
+
+    /// Corpus round trip (CHART_CORPUS=<dir>): a title set and the legend moved on every chart; every chart part must differ
+    /// from its original only in c:title, c:legend, c:legendPos, c:autoTitleDeleted (and what those hold).
+    func testCorpusRoundTrip() throws {
+        guard let dir = ProcessInfo.processInfo.environment["CHART_CORPUS"] else { return }
+        var books = 0, charts = 0, unread = 0, bad = 0, parts = 0
+        var changed: [String: Int] = [:]
+        let fm = FileManager.default
+        let names = (fm.enumerator(atPath: dir)?.allObjects as? [String] ?? []).filter { $0.hasSuffix(".xlsx") }.sorted()
+        for n in names {
+            guard let data = fm.contents(atPath: dir + "/" + n), let entries = try? Zip.read(data),
+                  entries.contains(where: { $0.name.hasPrefix("xl/charts/chart") && $0.name.hasSuffix(".xml") }) else { continue }
+            guard let book = try? Xlsx.read(data) else { unread += 1; continue }
+            books += 1
+            let c = WorkbookController(); c.load(book)
+            var any = false
+            for si in 0 ..< c.book.sheets.count {
+                c.activeSheet = si
+                for (j, d) in c.sheet.drawings.enumerated() { if d.isChart { charts += 1; any = true; c.setChartTitle(j, "Round trip"); c.setChartLegend(j, position: "t") } }
+            }
+            guard any, let out = try? Xlsx.write(c.book), let outEntries = try? Zip.read(out) else { continue }
+            let was = Dictionary(entries.map { ($0.name, $0.data) }, uniquingKeysWith: { a, _ in a })
+            for e in outEntries where e.name.hasPrefix("xl/charts/chart") && e.name.hasSuffix(".xml") {
+                guard let old = was[e.name] else { continue }
+                let oa = strip(String(decoding: old, as: UTF8.self)), ob = strip(String(decoding: e.data, as: UTF8.self))
+                parts += 1
+                if oa != ob {
+                    bad += 1
+                    let a = census(oa), b = census(ob)
+                    for k in Set(a.keys).union(b.keys) where a[k, default: 0] != b[k, default: 0] { changed[k, default: 0] += 1 }
+                    print("CHARTDIFF \(n) \(e.name) bytes \(oa.utf8.count)->\(ob.utf8.count)")
+                }
+            }
+        }
+        print("CHARTCORPUS books=\(books) unread=\(unread) charts=\(charts) parts=\(parts) partsDifferingOutsideTitleLegend=\(bad)")
+        for (k, v) in changed.sorted(by: { $0.key < $1.key }) { print("CHARTCHANGED \(k) in \(v) parts") }
+        XCTAssertEqual(bad, 0)
+    }
 }
