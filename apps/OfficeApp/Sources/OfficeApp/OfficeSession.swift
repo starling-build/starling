@@ -298,6 +298,10 @@ final class OfficeSession {
     var onInsertTable: ((Int, Int) -> Void)?
     /// Slide Show → Presenter View, from the current slide.
     var onPresenterView: (() -> Void)?
+    /// Slide Show → Set Up Slide Show, Custom Shows and Rehearse Timings.
+    var onSetUpShow: (() -> Void)?
+    var onCustomShows: (() -> Void)?
+    var onRehearse: (() -> Void)?
     /// Show or hide the Animation Pane (Slides).
     var onAnimationPane: (() -> Void)?
     /// Show or hide the Selection Pane (Slides).

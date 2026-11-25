@@ -186,6 +186,8 @@ struct DeckState: Equatable {
     var masterBackground: SlideFill? = nil
     /// How the last Slide Size change scaled the content; the writer scales the file's own master and layouts the same way.
     var slideScaling: DeckController.SlideScaling? = nil
+    var show = ShowSettings()
+    var customShows: [CustomShow] = []
 }
 
 /// Every change to a deck goes through here. Listeners hear about slide
@@ -205,6 +207,9 @@ final class DeckController: ChangeNotifier {
     /// default since 2013 (13.333 x 7.5 in).
     private(set) var slideSize = Size(960, 540)
     private(set) var firstSlideNum = 1
+    /// Set Up Slide Show, and the custom shows; both saved with the deck.
+    private(set) var show = ShowSettings()
+    private(set) var customShows: [CustomShow] = []
     /// Apply to All: the master's background, which every slide without its own shows and every new slide inherits.
     private(set) var masterBackground: SlideFill? = nil
     private(set) var slideScaling: SlideScaling? = nil
@@ -736,6 +741,55 @@ final class DeckController: ChangeNotifier {
             slide.transition = t
         }
         _changed()
+    }
+
+    /// A custom show played from the Custom Shows dialog, for this one run: the file's range is not touched.
+    private(set) var playingCustom: Int? = nil
+    func playCustomShow(_ id: Int?) { playingCustom = id }
+
+    /// Rehearse Timings kept: each rehearsed slide advances after the seconds it was on screen
+    /// (by deck index), and the show goes by timings. One undo step.
+    func applyRehearsal(_ times: [Int: Double]) {
+        guard !times.isEmpty else { return }
+        _checkpoint()
+        for (i, t) in times where slides.indices.contains(i) {
+            slides[i].transition.advanceAfter = max(0.1, (t * 10).rounded() / 10)
+        }
+        show.useTimings = true
+        _changed()
+    }
+
+    func setShow(_ settings: ShowSettings) {
+        guard settings != show else { return }
+        _checkpoint()
+        show = settings
+        _changed()
+    }
+
+    /// Replace the custom shows (Custom Shows dialog: new, edit, copy, delete).
+    /// A show the range pointed at, now gone, sends the range back to all slides.
+    func setCustomShows(_ shows: [CustomShow]) {
+        guard shows != customShows else { return }
+        _checkpoint()
+        customShows = shows
+        if case .custom(let id) = show.range, !shows.contains(where: { $0.id == id }) { show.range = .all }
+        _changed()
+    }
+
+    /// The slide indices the show plays, in order: the range (all, from-to,
+    /// or a custom show's own order) with hidden slides left out. A custom
+    /// show plays a hidden slide it lists, as PowerPoint does.
+    func showOrder() -> [Int] {
+        switch playingCustom.map({ ShowSettings.Range.custom($0) }) ?? show.range {
+        case .all: return slides.indices.filter { !slides[$0].hidden }
+        case .slides(let from, let to):
+            let lo = max(1, min(from, to)), hi = min(slides.count, max(from, to))
+            guard lo <= hi else { return [] }
+            return (lo - 1 ..< hi).filter { !slides[$0].hidden }
+        case .custom(let id):
+            guard let cs = customShows.first(where: { $0.id == id }) else { return slides.indices.filter { !slides[$0].hidden } }
+            return cs.slides.compactMap { sid in slides.firstIndex { $0.id == sid && !$0.hidden } }
+        }
     }
 
     func toggleHidden(_ index: Int) {
@@ -2284,7 +2338,7 @@ final class DeckController: ChangeNotifier {
                        transition: slide.transition, timingXML: slide.timingXML,
                        footerFrames: slide.footerFrames, animations: slide.animations,
                        sourceAnimations: slide.sourceAnimations, commentsFrom: slide.commentsFrom ?? slide.sourcePart)
-        }, current: current, slideSize: slideSize, theme: theme, ownTemplates: ownTemplates, recolourTheme: recolourTheme, firstSlideNum: firstSlideNum, masterBackground: masterBackground, slideScaling: slideScaling)
+        }, current: current, slideSize: slideSize, theme: theme, ownTemplates: ownTemplates, recolourTheme: recolourTheme, firstSlideNum: firstSlideNum, masterBackground: masterBackground, slideScaling: slideScaling, show: show, customShows: customShows)
     }
 
     /// Put the deck back as `state` was. Objects that still exist are kept
@@ -2348,6 +2402,8 @@ final class DeckController: ChangeNotifier {
         firstSlideNum = state.firstSlideNum
         masterBackground = state.masterBackground
         slideScaling = state.slideScaling
+        show = state.show
+        customShows = state.customShows
         if let t = state.theme { theme = t }
         if let o = state.ownTemplates { ownTemplates = o }
         if let r = state.recolourTheme { recolourTheme = r }

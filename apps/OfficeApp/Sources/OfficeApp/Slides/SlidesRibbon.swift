@@ -21,7 +21,7 @@ extension Ribbon {
         case .insert: return _slidesInsert(deck, fluent)
         case .design: return _design(deck, fluent)
         case .transitions: return _transitions(deck, fluent)
-        case .slideShow: return _slideShowTab(fluent)
+        case .slideShow: return _slideShowTab(deck, fluent)
         case .view: return _slidesView(fluent)
         case .pictureFormat: return _slidePictureFormat(deck, fluent)
         case .chartDesign: return _chartDesign(deck, fluent)
@@ -437,12 +437,19 @@ extension Ribbon {
         ]
     }
 
-    private func _slideShowTab(_ fluent: FluentThemeData) -> [Widget] {
+    private func _slideShowTab(_ deck: DeckController, _ fluent: FluentThemeData) -> [Widget] {
         [
             Chrome.group("Start Slide Show", fluent, [
                 Chrome.big(FluentSystemIcons.desktop, "From Beginning", fluent) { [session] in session.onSlideShow?(false) },
                 Chrome.big(FluentSystemIcons.window, "From Current Slide", fluent) { [session] in session.onSlideShow?(true) },
                 Chrome.big(FluentSystemIcons.laptop, "Presenter View", fluent) { [session] in session.onPresenterView?() },
+                Chrome.big(FluentSystemIcons.bulletList, "Custom Slide Show", fluent) { [session] in session.onCustomShows?() },
+            ]),
+            Chrome.group("Set Up", fluent, [
+                Chrome.big(FluentSystemIcons.settings, "Set Up Slide Show", fluent) { [session] in session.onSetUpShow?() },
+                Chrome.big(deck.currentSlide.hidden ? FluentSystemIcons.check : FluentSystemIcons.pinOff,
+                           "Hide Slide", fluent) { [deck] in deck.toggleHidden(deck.current) },
+                Chrome.big(FluentSystemIcons.clock, "Rehearse Timings", fluent) { [session] in session.onRehearse?() },
             ]),
         ]
     }

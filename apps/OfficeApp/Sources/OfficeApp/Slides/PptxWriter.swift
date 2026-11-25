@@ -120,7 +120,8 @@ enum PptxWriter {
             ids += "<p:sldId id=\"\(256 + i)\" r:id=\"rIdS\(i + 1)\"/>"
         }
         b.rels("ppt/presentation.xml", presRels)
-        b.add("ppt/presentation.xml", t.presentation(slideIds: ids), type: CT.presentation)
+        b.add("ppt/presentation.xml", _setCustomShows(t.presentation(slideIds: ids), state), type: CT.presentation)
+        b.add("ppt/presProps.xml", _applyShowPr(PptxTemplates.presProps, state.show), type: CT.presProps)
     }
 
     // MARK: Through a package
@@ -144,6 +145,10 @@ enum PptxWriter {
         var copied = [String: String]()
         for part in keep { _copy(part, from: p, into: &b, done: &copied) }
         if let m = state.masterBackground { _setMasterBackground(m, in: &b) }
+        if let pp = presRelsAll.first(where: { $0.kind == "presProps" })?.target,
+           let d = b.parts[pp], let x = String(data: d, encoding: .utf8) {
+            b.parts[pp] = Data(_applyShowPr(x, state.show).utf8)
+        }
         if let scaling = state.slideScaling, let old = _slideSize(presXML), old != state.slideSize {
             _scaleMasters(from: old, to: state.slideSize, scaling, in: &b)
         }
@@ -237,16 +242,9 @@ enum PptxWriter {
         presOut = _replaceElement("p:sldIdLst", in: presOut, with: "<p:sldIdLst>\(ids)</p:sldIdLst>",
                                   after: "</p:notesMasterIdLst>", orAfter: "</p:sldMasterIdLst>")
         // Custom shows (`p:custShowLst`) list slides by the same relationship
-        // ids this just renumbered: each `<p:sld r:id>` follows its slide,
-        // or goes when the slide did; an emptied show goes with it.
+        // ids this just numbered, written from the deck's own list.
         presOut = _remapSections(presOut, kept: slideIds, oldIds: Set(oldIdByPart.values), oldOrder: p.xml(pres)?.descendant("p:sldIdLst")?.all("p:sldId").compactMap { Int($0["id"] ?? "") } ?? [])
-        if presOut.containsSubstring("<p:custShowLst") {
-            var newId: [String: String] = [:]
-            for r in presRelsAll where r.kind == "slide" {
-                if let i = state.slides.firstIndex(where: { $0.sourcePart == r.target }) { newId[r.id] = "rIdS\(i + 1)" }
-            }
-            presOut = _remapCustomShows(presOut, newId)
-        }
+        presOut = _setCustomShows(presOut, state)
         let cx = Int((state.slideSize.width * Pptx.emu).rounded()), cy = Int((state.slideSize.height * Pptx.emu).rounded())
         presOut = _replaceElement("p:sldSz", in: presOut, with: "<p:sldSz cx=\"\(cx)\" cy=\"\(cy)\"/>",
                                   after: "</p:sldIdLst>", orAfter: nil)
@@ -486,33 +484,71 @@ enum PptxWriter {
         return "<mc:AlternateContent><mc:Choice Requires=\"p14\"><p:transition spd=\"\(spd)\"\(advance) p14:dur=\"\(ms)\">\(effect)</p:transition></mc:Choice><mc:Fallback>\(plain)</mc:Fallback></mc:AlternateContent>"
     }
 
-    /// `p:custShowLst` with every `<p:sld r:id="…"/>` renamed through
-    /// `newId`, listed slides without a new id dropped, shows left with no
-    /// slides dropped, and the list itself dropped once it is empty.
-    static func _remapCustomShows(_ s: String, _ newId: [String: String]) -> String {
-        guard let start = s.findRange(of: "<p:custShowLst"),
-              let end = s.findRange(of: "</p:custShowLst>", in: start.upperBound ..< s.endIndex) else { return s }
-        let list = String(s[start.lowerBound ..< end.upperBound])
-        /// Every `<open …>…<close>` span of `list`, rewritten by `f` (nil drops it).
-        func rewrite(_ list: String, open: String, close: String, _ f: (String) -> String?) -> String {
-            var out = "", cursor = list.startIndex
-            while let r = list.findRange(of: open, in: cursor ..< list.endIndex) {
-                out += list[cursor ..< r.lowerBound]
-                guard let c = list.findRange(of: close, in: r.upperBound ..< list.endIndex) else { cursor = r.lowerBound; break }
-                if let kept = f(String(list[r.lowerBound ..< c.upperBound])) { out += kept }
-                cursor = c.upperBound
+    /// `p:custShowLst` written from the deck's custom shows (slides by their
+    /// `rIdS<n>` ids), replacing the file's own; none left, none written.
+    static func _setCustomShows(_ pres: String, _ state: DeckState) -> String {
+        var out = pres
+        if let r = _elementRange("p:custShowLst", in: out) { out = out.replacingSubrange(r, with: "") }
+        var shows = ""
+        for cs in state.customShows {
+            let slides = cs.slides.compactMap { sid in state.slides.firstIndex { $0.id == sid } }
+            guard !slides.isEmpty else { continue }
+            shows += "<p:custShow name=\"\(PptxXML.escape(cs.name, attribute: true))\" id=\"\(cs.id)\"><p:sldLst>"
+                + slides.map { "<p:sld r:id=\"rIdS\($0 + 1)\"/>" }.joined() + "</p:sldLst></p:custShow>"
+        }
+        guard !shows.isEmpty else { return out }
+        let list = "<p:custShowLst>" + shows + "</p:custShowLst>"
+        for marker in ["<p:photoAlbum", "<p:custDataLst", "<p:kinsoku", "<p:defaultTextStyle", "<p:modifyVerifier", "<p:extLst", "</p:presentation>"] {
+            if let r = out.findRange(of: marker) { return out.replacingSubrange(r.lowerBound ..< r.lowerBound, with: list) }
+        }
+        return out
+    }
+
+    /// The span of `<name …>…</name>` or `<name …/>` in `s`.
+    static func _elementRange(_ name: String, in s: String) -> Range<String.Index>? {
+        guard let start = s.findRange(of: "<\(name)"),
+              let close = s.findRange(of: ">", in: start.upperBound ..< s.endIndex) else { return nil }
+        if s[s.index(before: close.lowerBound)] == "/" { return start.lowerBound ..< close.upperBound }
+        guard let end = s.findRange(of: "</\(name)>", in: close.upperBound ..< s.endIndex) else { return nil }
+        return start.lowerBound ..< end.upperBound
+    }
+
+    /// `p:showPr` in a `presProps` part, from the deck's show settings. A file
+    /// without one, and a deck with the defaults, is left as it was; the
+    /// pen colour and extensions the file had are kept.
+    static func _applyShowPr(_ xml: String, _ show: ShowSettings) -> String {
+        var out = xml, kept = ""
+        let had = _elementRange("p:showPr", in: out)
+        if let had {
+            let old = String(out[had])
+            for name in ["p:penClr", "p:extLst"] {
+                if let r = _elementRange(name, in: old) { kept += old[r] }
             }
-            return out + list[cursor...]
+            out = out.replacingSubrange(had, with: "")
+        } else if show == ShowSettings() { return xml }
+        var attrs = ""
+        if show.loop || show.kind == .kiosk { attrs += " loop=\"1\"" }
+        if !show.narration { attrs += " showNarration=\"0\"" }
+        if !show.useTimings { attrs += " useTimings=\"0\"" }
+        let type = show.kind == .window ? "<p:browse/>" : show.kind == .kiosk ? "<p:kiosk/>" : "<p:present/>"
+        let range: String
+        switch show.range {
+        case .all: range = "<p:sldAll/>"
+        case .slides(let a, let b): range = "<p:sldRg st=\"\(min(a, b))\" end=\"\(max(a, b))\"/>"
+        case .custom(let id): range = "<p:custShow id=\"\(id)\"/>"
         }
-        var pruned = rewrite(list, open: "<p:sld ", close: "/>") { tag in
-            guard let q = tag.findRange(of: "r:id=\""),
-                  let qe = tag.findRange(of: "\"", in: q.upperBound ..< tag.endIndex),
-                  let new = newId[String(tag[q.upperBound ..< qe.lowerBound])] else { return nil }
-            return "<p:sld r:id=\"\(new)\"/>"
+        let el = "<p:showPr\(attrs)>" + type + range + kept + "</p:showPr>"
+        if let r = _elementRange("p:presentationPr", in: out) {
+            let whole = String(out[r])
+            if whole.hasSuffix("/>") {
+                let open = String(whole.dropLast(2))
+                return out.replacingSubrange(r, with: open + ">" + el + "</p:presentationPr>")
+            }
+            for marker in ["<p:clrMru", "<p:extLst", "</p:presentationPr>"] {
+                if let m = out.findRange(of: marker) { return out.replacingSubrange(m.lowerBound ..< m.lowerBound, with: el) }
+            }
         }
-        pruned = rewrite(pruned, open: "<p:custShow ", close: "</p:custShow>") { $0.containsSubstring("<p:sld ") ? $0 : nil }
-        if !pruned.containsSubstring("<p:custShow ") { pruned = "" }
-        return s.replacingSubrange(start.lowerBound ..< end.upperBound, with: pruned)
+        return out
     }
 
     /// Apply to All: the masters' background becomes `fill`, and no layout keeps one of its own over it.

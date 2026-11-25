@@ -85,6 +85,9 @@ final class SlidesShellState: State<StatefulWidget> {
     private var _chartData = false
     /// The Header & Footer dialog is up.
     private var _headerFooter = false
+    private var _setUpShow = false
+    private var _rehearsing = false
+    private var _customShowsOpen = false
     private var _slideSize = false
     private var _slideSizeInitial = Size(960, 540)
     /// Font Color > More Colors is open.
@@ -447,6 +450,20 @@ final class SlidesShellState: State<StatefulWidget> {
         session.onSlideShow = { [weak self] fromCurrent in
             guard let self else { return }
             self._startShow(at: fromCurrent ? self.deck.current : 0)
+        }
+        session.onRehearse = { [weak self] in
+            guard let self else { return }
+            self._startShow(at: self.deck.showOrder().first ?? 0, rehearse: true)
+        }
+        session.onSetUpShow = { [weak self] in
+            guard let self else { return }
+            self._endEditing()
+            self.setState { self._setUpShow = true }
+        }
+        session.onCustomShows = { [weak self] in
+            guard let self else { return }
+            self._endEditing()
+            self.setState { self._customShowsOpen = true }
         }
         session.onPresenterView = { [weak self] in
             guard let self else { return }
@@ -907,16 +924,18 @@ final class SlidesShellState: State<StatefulWidget> {
 
     // MARK: Slide show
 
-    private func _startShow(at index: Int, presenter: Bool = false) {
+    private func _startShow(at index: Int, presenter: Bool = false, rehearse: Bool = false) {
         _endEditing()
-        hostSetFullscreen?(true)
+        hostSetFullscreen?(deck.show.kind != .window)
         setState {
             _show = index
             _presenter = presenter
+            _rehearsing = rehearse
         }
     }
 
     private func _endShow() {
+        deck.playCustomShow(nil)
         hostSetFullscreen?(false)
         setState { _show = nil }
         _deckFocus.requestFocus()
@@ -1531,7 +1550,7 @@ final class SlidesShellState: State<StatefulWidget> {
             return Stack(children: [
                 window,
                 Positioned(left: 0, top: 0, right: 0, bottom: 0, child: SlideShowView(
-                    deck: deck, images: _cache, start: start, presenter: _presenter,
+                    deck: deck, images: _cache, start: start, presenter: _presenter, rehearse: _rehearsing,
                     onEnd: { [weak self] in self?._endShow() })),
             ])
         }
@@ -1578,6 +1597,36 @@ final class SlidesShellState: State<StatefulWidget> {
                         self?.setState { self?._slideSize = false }
                     },
                     onCancel: { [weak self] in self?.setState { self?._slideSize = false } })),
+            ])
+        }
+        if _setUpShow {
+            return Stack(children: [
+                IgnorePointer(ignoring: true, child: window),
+                Positioned(left: 0, top: 0, right: 0, bottom: 0, child: SetUpShowDialog(
+                    initial: deck.show, slideCount: deck.slides.count, shows: deck.customShows,
+                    onOK: { [weak self] s in
+                        self?.deck.setShow(s)
+                        self?.setState { self?._setUpShow = false }
+                    },
+                    onCancel: { [weak self] in self?.setState { self?._setUpShow = false } })),
+            ])
+        }
+        if _customShowsOpen {
+            return Stack(children: [
+                IgnorePointer(ignoring: true, child: window),
+                Positioned(left: 0, top: 0, right: 0, bottom: 0, child: CustomShowsDialog(
+                    shows: deck.customShows, slides: deck.slides.map { (id: $0.id, title: $0.titleText) },
+                    onClose: { [weak self] shows in
+                        self?.deck.setCustomShows(shows)
+                        self?.setState { self?._customShowsOpen = false }
+                    },
+                    onPlay: { [weak self] shows, id in
+                        guard let self else { return }
+                        self.deck.setCustomShows(shows)
+                        self.deck.playCustomShow(id)
+                        self.setState { self._customShowsOpen = false }
+                        self._startShow(at: self.deck.showOrder().first ?? 0)
+                    })),
             ])
         }
         if _headerFooter {

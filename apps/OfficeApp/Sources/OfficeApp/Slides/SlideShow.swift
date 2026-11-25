@@ -21,17 +21,20 @@ final class SlideShowView: StatefulWidget {
     let start: Int
     /// Presenter view: the slide beside the next one, the notes, a timer.
     let presenter: Bool
+    /// Rehearse Timings: the show times each slide and offers to keep the times.
+    let rehearse: Bool
     let onEnd: () -> Void
     let landing: Bool
     let onSlideChanged: ((Int) -> Void)?
 
-    init(deck: DeckController, images: SlideTextCache, start: Int, presenter: Bool = false,
+    init(deck: DeckController, images: SlideTextCache, start: Int, presenter: Bool = false, rehearse: Bool = false,
          onEnd: @escaping () -> Void, key: (any Key)? = nil, landing: Bool = false,
          onSlideChanged: ((Int) -> Void)? = nil) {
         self.deck = deck
         self.images = images
         self.start = start
         self.presenter = presenter
+        self.rehearse = rehearse
         self.onEnd = onEnd
         self.landing = landing
         self.onSlideChanged = onSlideChanged
@@ -74,6 +77,11 @@ final class SlideShowState: State<StatefulWidget>, TickerProvider {
     private var _timerBanked = 0.0
     private var _timerSince: Date? = Date()
     private var _clockGeneration = 0
+    /// Rehearse Timings: seconds spent on each slide (by deck index), the running slide's clock, and the keep-the-times question.
+    private(set) var _rehearsed: [Int: Double] = [:]
+    private var _slideBanked = 0.0
+    private var _slideSince: Date? = Date()
+    private(set) var _asking = false
 
     private var _w: SlideShowView { widget as! SlideShowView }
 
@@ -83,7 +91,7 @@ final class SlideShowState: State<StatefulWidget>, TickerProvider {
         super.initState()
         bind(_focus)
         let deck = _w.deck
-        _order = deck.slides.indices.filter { !deck.slides[$0].hidden }
+        _order = _w.landing ? deck.slides.indices.filter { !deck.slides[$0].hidden } : deck.showOrder()
         if _order.isEmpty { _order = Array(deck.slides.indices) }
         // Starting on a hidden slide shows it anyway, as PowerPoint does.
         if let i = _order.firstIndex(of: _w.start) { _at = i } else {
@@ -118,7 +126,8 @@ final class SlideShowState: State<StatefulWidget>, TickerProvider {
         _enterSlide(forward: true)
         _focus.onKeyData = { [weak self] key in self?._key(key) ?? false }
         _focus.requestFocus()
-        if _w.presenter { _tickClock() } else { _hideCursorSoon() }
+        if _w.presenter || _w.rehearse { _tickClock() }
+        if !_w.presenter { _hideCursorSoon() }
     }
 
     override func dispose() {
@@ -152,7 +161,7 @@ final class SlideShowState: State<StatefulWidget>, TickerProvider {
     /// once its animations have finished.
     private func _scheduleAutoAdvance() {
         _advanceGeneration += 1
-        guard _at < _order.count, !_w.landing,
+        guard _at < _order.count, !_w.landing, !_w.rehearse, _w.deck.show.useTimings || _w.deck.show.kind == .kiosk,
               let after = _w.deck.slides[_order[_at]].transition.advanceAfter else { return }
         let gen = _advanceGeneration
         func fire(_ wait: Double) {
@@ -178,8 +187,13 @@ final class SlideShowState: State<StatefulWidget>, TickerProvider {
     /// `back`: stepping back a slide, which arrives with its animations
     /// all played; any other move starts the slide from the beginning.
     private func _go(to target: Int, animate: Bool, back: Bool = false) {
-        let t = _w.landing ? max(0, min(_order.count - 1, target)) : max(0, min(_order.count, target))
+        // Loop continuously until Esc: past the last slide is the first again (kiosk always loops).
+        let loops = !_w.landing && !_w.rehearse && (_w.deck.show.loop || _w.deck.show.kind == .kiosk) && !_order.isEmpty
+        let t = _w.landing ? max(0, min(_order.count - 1, target))
+            : (loops && target >= _order.count) ? 0 : max(0, min(_order.count, target))
         guard t != _at else { return }
+        _bankSlideTime()
+        if _w.rehearse, t >= _order.count { _asking = true }
         _blank = nil
         let transition = t < _order.count ? _w.deck.slides[_order[t]].transition : SlideTransition()
         if animate, transition.kind != .none, _at < _order.count {
@@ -199,8 +213,11 @@ final class SlideShowState: State<StatefulWidget>, TickerProvider {
     }
 
     /// `click`: a mouse click, which a slide set not to advance on a click ignores (keys still move on).
+    func _pressNext(click: Bool = false) { setState {}; _next(click: click) }
+
     private func _next(click: Bool = false) {
-        if _at >= _order.count { _w.onEnd(); return }
+        if _at >= _order.count { _w.rehearse ? _finishRehearsal() : _w.onEnd(); return }
+        if click, _w.deck.show.kind == .kiosk { return }
         if click, !_w.deck.slides[_order[_at]].transition.advanceOnClick { return }
         // A transition still running finishes at once on the next press;
         // so does a group of animations.
@@ -308,7 +325,8 @@ final class SlideShowState: State<StatefulWidget>, TickerProvider {
             return true
         }
         switch named {
-        case .escape: _w.onEnd()
+        case .escape: _w.rehearse ? _finishRehearsal() : _w.onEnd()
+        case _ where !_w.landing && _w.deck.show.kind == .kiosk: break   // a kiosk answers to Esc alone
         case .enter:
             if let n = Int(_digits), n >= 1 {
                 _digits = ""
@@ -337,6 +355,82 @@ final class SlideShowState: State<StatefulWidget>, TickerProvider {
             guard let self, self.mounted, self._cursorGeneration == gen else { return }
             hostSetMouseCursor?("none")
         }
+    }
+
+    // MARK: Rehearse Timings
+
+    private var _slideElapsed: Double { _slideBanked + (_slideSince.map { Date().timeIntervalSince($0) } ?? 0) }
+    private var _rehearsedTotal: Double {
+        let leaving = _at < _order.count ? _order[_at] : -1
+        return _rehearsed.filter { $0.key != leaving }.values.reduce(0, +) + (leaving >= 0 ? _slideElapsed : 0)
+    }
+
+    /// The slide being left keeps the time it was on screen; the next one starts at zero.
+    private func _bankSlideTime() {
+        guard _w.rehearse else { return }
+        if _at < _order.count { _rehearsed[_order[_at]] = _slideElapsed }
+        _slideBanked = 0
+        _slideSince = Date()
+    }
+
+    private func _finishRehearsal() {
+        guard !_asking else { return }
+        _bankSlideTime()
+        setState { _asking = true }
+    }
+
+    func keepRehearsedTimes(_ keep: Bool) {
+        if keep { _w.deck.applyRehearsal(_rehearsed) }
+        _w.onEnd()
+    }
+
+    private func _rehearseBar(_ context: any BuildContext) -> Widget {
+        let fluent = FluentTheme.of(context)
+        func clock(_ t: Double) -> String {
+            let n = Int(t)
+            return n >= 3600 ? "\(n / 3600):\(n % 3600 / 60 < 10 ? "0" : "")\(n % 3600 / 60):\(n % 60 < 10 ? "0" : "")\(n % 60)"
+                : "\(n / 60):\(n % 60 < 10 ? "0" : "")\(n % 60)"
+        }
+        func gap() -> Widget { SizedBox(width: 8, height: nil, child: nil) }
+        if _asking {
+            return Center(child: DecoratedBox(
+                decoration: BoxDecoration(color: OfficeAppearance.surface(fluent),
+                                          border: Border.all(color: fluent.resources.controlStrokeColorDefault, width: 1),
+                                          borderRadius: BorderRadius.circular(8)),
+                child: Padding(padding: EdgeInsets(all: 24), child: Column(mainAxisSize: .min, crossAxisAlignment: .start, children: [
+                    Text("The slide show lasted \(clock(_rehearsed.values.reduce(0, +))).", style: fluent.typography.bodyStrong),
+                    SizedBox(width: nil, height: 6, child: nil),
+                    Text("Do you want to keep the new slide timings?"),
+                    SizedBox(width: nil, height: 16, child: nil),
+                    Row(mainAxisSize: .min, children: [
+                        FilledButton(onPressed: { [weak self] in self?.keepRehearsedTimes(true) }, child: Text("Yes")),
+                        gap(),
+                        Button(onPressed: { [weak self] in self?.keepRehearsedTimes(false) }, child: Text("No")),
+                    ]),
+                ]))))
+        }
+        let paused = _slideSince == nil
+        return Positioned(left: 12, top: 12, right: nil, bottom: nil, child: DecoratedBox(
+            decoration: BoxDecoration(color: OfficeAppearance.surface(fluent),
+                                      border: Border.all(color: fluent.resources.controlStrokeColorDefault, width: 1),
+                                      borderRadius: BorderRadius.circular(6)),
+            child: Padding(padding: EdgeInsets(left: 10, top: 6, right: 10, bottom: 6), child: Row(mainAxisSize: .min, children: [
+                Button(onPressed: { [weak self] in self?._next() }, child: Text("Next")),
+                gap(),
+                Button(onPressed: { [weak self] in
+                    guard let self else { return }
+                    self.setState {
+                        if let since = self._slideSince { self._slideBanked += Date().timeIntervalSince(since); self._slideSince = nil }
+                        else { self._slideSince = Date() }
+                    }
+                }, child: Text(paused ? "Resume" : "Pause")),
+                gap(),
+                Text(clock(_slideElapsed)),
+                gap(),
+                Button(onPressed: { [weak self] in self?.setState { self?._slideBanked = 0; self?._slideSince = Date() } }, child: Text("Repeat")),
+                gap(),
+                Text("Total \(clock(_rehearsedTotal))"),
+            ]))))
     }
 
     // MARK: Presenter view
@@ -503,7 +597,9 @@ final class SlideShowState: State<StatefulWidget>, TickerProvider {
                                       revision: deck.revision &+ Int(progress * 1000) &+ (_blank == nil ? 0 : 7) &+ _at * 10007
                                           &+ _played * 131 &+ Int((elapsed ?? -1) * 1000) * 7919),
                 child: SizedBox(expand: ())))
-        return _w.presenter ? _presenterView(context, show: show) : show
+        let body: Widget = _w.presenter ? _presenterView(context, show: show) : show
+        guard _w.rehearse else { return body }
+        return Stack(children: [body, _rehearseBar(context)])
     }
 }
 
