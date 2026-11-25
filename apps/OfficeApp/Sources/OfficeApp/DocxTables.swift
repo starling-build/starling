@@ -1567,8 +1567,10 @@ extension DocxFormat {
                     if !same(after) { body += "<w:r><w:fldChar w:fldCharType=\"end\"/></w:r>" }
                 } else if let link = s.link {
                     let tip = s.linkTip.map { " w:tooltip=\"\(_esc($0))\"" } ?? ""
-                    let open = link.hasPrefix("#") ? "<w:hyperlink w:anchor=\"\(_esc(String(link.dropFirst())))\"\(tip) w:history=\"1\">"
-                        : "<w:hyperlink r:id=\"\(relId(for: link))\"\(tip) w:history=\"1\">"
+                    // (A link the file wrote keeps what it had; one made in the app gets Word's w:history.)
+                    let history = !s.linkKeepsLook || s.linkHistory ? " w:history=\"1\"" : ""
+                    let open = link.hasPrefix("#") ? "<w:hyperlink w:anchor=\"\(_esc(String(link.dropFirst())))\"\(tip)\(history)>"
+                        : "<w:hyperlink r:id=\"\(relId(for: link))\"\(tip)\(history)>"
                     if open == linkOpen, body.utf8.count == linkClosedAt {
                         body.removeLast("</w:hyperlink>".count)
                         body += runXML + "</w:hyperlink>"

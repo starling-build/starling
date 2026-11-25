@@ -118,3 +118,20 @@ extension HyperlinkFieldTests {
         XCTAssertTrue(xml.contains("<w:rStyle w:val=\"Hyperlink\"/></w:rPr><w:t xml:space=\"preserve\">entry"))
     }
 }
+
+extension HyperlinkFieldTests {
+    func testSaveKeepsWhatTheFileWroteAboutHistory() throws {
+        let (_, without) = try roundTrip("<w:p><w:hyperlink w:anchor=\"bm\"><w:r><w:t>a</w:t></w:r></w:hyperlink></w:p>")
+        XCTAssertFalse(without.contains("w:history"))
+        let (_, with) = try roundTrip("<w:p><w:hyperlink w:anchor=\"bm\" w:history=\"1\"><w:r><w:t>a</w:t></w:r></w:hyperlink></w:p>")
+        XCTAssertTrue(with.contains("<w:hyperlink w:anchor=\"bm\" w:history=\"1\">"))
+    }
+
+    func testALinkMadeInTheAppIsWrittenWithHistory() throws {
+        var s = CharStyle.plain; s.link = "#bm"
+        let p = RichParagraph(text: "go", runs: [Run(length: 2, style: s)])
+        let data = try DocxFormat.write(RichDocument(paragraphs: [p]), pageSetup: .letter)
+        let xml = String(decoding: try Zip.read(data).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
+        XCTAssertTrue(xml.contains("w:history=\"1\""))
+    }
+}

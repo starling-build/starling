@@ -1352,6 +1352,7 @@ extension DocxFormat {
             }
             runs.append(Run(length: s.utf16.count, style: stamped(cs)))
         }
+        var hyperlinkHistory = false       // the enclosing w:hyperlink's w:history
         var hyperlinkTip: String? = nil    // the enclosing w:hyperlink's w:tooltip
         var pendingCheckbox: Bool? = nil   // a FORMCHECKBOX field's state, from its begin
         var pendingDropdown: String? = nil // a FORMDROPDOWN field's chosen entry, from its begin
@@ -1396,6 +1397,7 @@ extension DocxFormat {
             var cs = cellChar
             cs.link = link
             cs.linkKeepsLook = link != nil
+            cs.linkHistory = link != nil && hyperlinkHistory
             cs.linkTip = link == nil ? nil : hyperlinkTip
             cs.revision = revision
             cs.comments = notes.openComments
@@ -1938,8 +1940,8 @@ extension DocxFormat {
             }
         }
         func walkInline(_ node: XNode, link: String?, revision: RevisionMark? = nil) {
-            let outerTip = hyperlinkTip
-            defer { hyperlinkTip = outerTip }
+            let outerTip = hyperlinkTip, outerHistory = hyperlinkHistory
+            defer { hyperlinkTip = outerTip; hyperlinkHistory = outerHistory }
             for child in node.children {
                 switch child.name {
                 case "w:r": walkRun(child, link: link, revision: revision)
@@ -1957,6 +1959,7 @@ extension DocxFormat {
                     let target = external.map { $0 + (child["w:anchor"].map { "#\($0)" } ?? "") }
                         ?? child["w:anchor"].map { "#\($0)" }
                     hyperlinkTip = child["w:tooltip"]
+                    hyperlinkHistory = ["1", "true", "on"].contains(child["w:history"] ?? "")
                     walkInline(child, link: target, revision: revision)
                 case "w:ins", "w:del":
                     // Tracked changes stay tracked: the text with its mark,
