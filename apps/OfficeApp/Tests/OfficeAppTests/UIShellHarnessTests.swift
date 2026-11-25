@@ -208,9 +208,11 @@ final class UIShellHarnessTests: XCTestCase {
         c.insertTable(rows: 2, columns: 2)
         ui.pump()
         XCTAssertTrue(ui.tap(text: "Table Layout"))
-        for label in ["Select", "Merge Cells", "Split Table", "Cell Alignment"] {
+        for label in ["Select", "Merge", "Cell Alignment", "Table Alignment", "Table Width", "Cell Margins", "AutoFit", "Row May Break",
+                      "Repeat Header: Off", "Delete Table", "Row Height", "Indent", "Distribute Columns", "Borders", "Line Style", "Line Width",
+                      "Header Row", "Insert Above", "Delete Column"] {
             guard let at = ui.centre(ofText: label) else { XCTFail("\(label) missing"); continue }
-            XCTAssertTrue(at.dx > 0 && at.dx < 1250, "\(label) at x=\(at.dx) is off the tab")
+            XCTAssertTrue(at.dx > 0 && at.dx < 1270, "\(label) at x=\(at.dx) is off the tab")
         }
         XCTAssertTrue(ui.tap(text: "Select"))
         XCTAssertTrue(ui.tap(text: "Eraser"))
@@ -373,7 +375,8 @@ final class SheetsTitleBarUndoHarnessTests: XCTestCase {
         c.insertTable(rows: 2, columns: 2)
         ui.pump()
         XCTAssertTrue(ui.tap(text: "Table Layout"))
-        XCTAssertTrue(ui.tap(text: "Split Cell"))
+        XCTAssertTrue(ui.tap(text: "Merge"))
+        XCTAssertTrue(ui.tap(text: "Split Cell…"))
         XCTAssertTrue(ui.has(text: "Number of columns"))
         XCTAssertTrue(ui.tap(text: "OK"))                  // defaults: 2 columns, 1 row
         XCTAssertEqual(c.document.columnCount(of: c.currentCell!.table), 3)

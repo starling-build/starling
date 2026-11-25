@@ -595,7 +595,7 @@ final class Ribbon: StatelessWidget {
                 Chrome.small(FluentSystemIcons.delete, "Delete Column", fluent) { c.deleteColumn() },
             ]),
         ])
-        let select = Chrome.group("Select", fluent, [
+        let select = Chrome.group("Select", fluent, [Chrome.rows([
             Chrome.menuButton(FluentSystemIcons.table, "Select", "Select cells", fluent, items: [
                 MenuFlyoutItem(text: Text("Select Row"), onPressed: { c.selectRow() }),
                 MenuFlyoutItem(text: Text("Select Column"), onPressed: { c.selectColumn() }),
@@ -607,14 +607,13 @@ final class Ribbon: StatelessWidget {
                 MenuFlyoutItem(text: Text("Table Properties…"), onPressed: { [session] in session.onTablePropertiesDialog?() }),
                 MenuFlyoutItem(text: Text("Convert Table to Text…"), onPressed: { self.session.onConvertTextTableDialog?(false) }),
             ]),
-        ])
-        let merge = Chrome.group("Merge", fluent, [Chrome.rows([
-            Chrome.small(FluentSystemIcons.table, "Merge Cells", fluent,
-                         enabled: c.selection.block != nil || c.selectedCellsInRow.count > 1 || c.selectedCellsInColumn.count > 1) { c.mergeCells() },
-            Chrome.small(FluentSystemIcons.columns, "Split Cell", fluent,
-                         enabled: c.currentCell != nil) { self.session.onSplitCellDialog?() },
-            Chrome.small(FluentSystemIcons.table, "Split Table", fluent,
-                         enabled: c.canSplitTable) { c.splitTable() },
+            Chrome.small(FluentSystemIcons.delete, "Delete Table", fluent) { c.deleteTable() },
+            Chrome.menuButton(FluentSystemIcons.table, "Merge", "Merge cells, split cells, split the table", fluent, items: [
+                MenuFlyoutItem(text: Text("Merge Cells"), onPressed: {
+                    if c.selection.block != nil || c.selectedCellsInRow.count > 1 || c.selectedCellsInColumn.count > 1 { c.mergeCells() } }),
+                MenuFlyoutItem(text: Text("Split Cell…"), onPressed: { if c.currentCell != nil { self.session.onSplitCellDialog?() } }),
+                MenuFlyoutItem(text: Text("Split Table"), onPressed: { if c.canSplitTable { c.splitTable() } }),
+            ]),
         ])])
         let style = c.currentTableStyle ?? TableStyle()
         let row = c.currentCell?.row ?? 0
@@ -625,9 +624,8 @@ final class Ribbon: StatelessWidget {
                 },
                 Chrome.vgap(2),
                 Chrome.spinner("Indent", style.indent, fluent, step: 6, minimum: -72) { v in c.setTableIndent(v) },
+                Chrome.small(FluentSystemIcons.columns, "Distribute Columns", fluent) { c.distributeColumns() },
             ]),
-            Chrome.gap(8),
-            Chrome.big(FluentSystemIcons.columns, "Distribute Columns", fluent) { c.distributeColumns() },
         ])
         // Word's nine Align buttons: top / center / bottom by left / center / right.
         let alignItems: [MenuFlyoutItemBase] = [("top", "Top"), ("center", "Center"), ("bottom", "Bottom")].flatMap { v in
@@ -635,7 +633,7 @@ final class Ribbon: StatelessWidget {
                 MenuFlyoutItem(text: Text("Align \(v.1) \(h.1)"), onPressed: { c.setCellAlignment(vertical: v.0, horizontal: h.0) })
             }
         }
-        let directionItems: [MenuFlyoutItemBase] = [
+        let directionItems: [MenuFlyoutItemBase] = [MenuFlyoutSeparator(),
             MenuFlyoutItem(text: Text("Horizontal Text"), onPressed: { c.setCellTextDirection(.horizontal) }),
             MenuFlyoutItem(text: Text("Rotate Text Down"), onPressed: { c.setCellTextDirection(.down) }),
             MenuFlyoutItem(text: Text("Rotate Text Up"), onPressed: { c.setCellTextDirection(.up) }),
@@ -658,20 +656,15 @@ final class Ribbon: StatelessWidget {
         ]
         let alignment = Chrome.group("Alignment", fluent, [
             Chrome.rows([
-                Chrome.menuButton(FluentSystemIcons.table, "Cell Alignment", "Vertical alignment of the cell's text", fluent, items: alignItems),
-                Chrome.menuButton(nil, "Text Direction", "Direction of the cell's text", fluent, items: directionItems),
+                Chrome.menuButton(FluentSystemIcons.table, "Cell Alignment", "Vertical alignment of the cell's text", fluent, items: alignItems + directionItems),
                 Chrome.menuButton(nil, "Table Alignment", "Where the table stands between the margins", fluent, items: tableAlignItems),
+                Chrome.menuButton(nil, "Table Width", "The table's width", fluent, items: tableWidthItems),
             ]),
             Chrome.gap(8),
             Chrome.rows([
                 Chrome.menuButton(nil, "Cell Margins", "Margins inside the table's cells", fluent, items: marginsItems),
-                Chrome.menuButton(nil, "Table Width", "The table's width", fluent, items: tableWidthItems),
                 Chrome.small(FluentSystemIcons.columns, style.fixedLayout ? "Fixed Widths" : "AutoFit", fluent) { c.setTableAutofit(style.fixedLayout) },
-            ]),
-            Chrome.gap(8),
-            Chrome.rows([
                 Chrome.small(FluentSystemIcons.table, style.rowsCantSplit.contains(row) ? "Row Cannot Break" : "Row May Break", fluent) { c.setRowsMayBreak(style.rowsCantSplit.contains(row)) },
-                Chrome.small(FluentSystemIcons.header, style.headerRow ? "Repeat Header: On" : "Repeat Header: Off", fluent) { c.setRepeatedHeaderRows(style.headerRow ? 0 : max(1, row + 1)) },
             ]),
         ])
         // The pen is read when a menu item is chosen, not when the ribbon builds.
@@ -718,14 +711,12 @@ final class Ribbon: StatelessWidget {
             Chrome.gap(8),
             Chrome.rows([shading, penColors]),
         ])
-        let look = Chrome.group("Table Style", fluent, [
-            Chrome.bigToggle(FluentSystemIcons.table, "Borders", style.borders, fluent) { c.setTableStyle { $0.borders.toggle() } },
-            Chrome.bigToggle(FluentSystemIcons.header, "Header Row", style.headerRow, fluent) { c.setTableStyle { $0.headerRow.toggle() } },
-        ])
-        let table = Chrome.group("Table", fluent, [
-            Chrome.big(FluentSystemIcons.delete, "Delete Table", fluent) { c.deleteTable() },
-        ])
-        return [select, rows, merge, size, alignment, borders, look, table]
+        let look = Chrome.group("Table Style", fluent, [Chrome.rows([
+            Chrome.textToggle("Table Borders", style.borders, fluent) { c.setTableStyle { $0.borders.toggle() } },
+            Chrome.textToggle("Header Row", style.headerRow, fluent) { c.setTableStyle { $0.headerRow.toggle() } },
+            Chrome.small(FluentSystemIcons.header, style.headerRow ? "Repeat Header: On" : "Repeat Header: Off", fluent) { c.setRepeatedHeaderRows(style.headerRow ? 0 : max(1, row + 1)) },
+        ])])
+        return [select, rows, size, alignment, borders, look]
     }
 
     // MARK: Picture Format

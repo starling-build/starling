@@ -254,4 +254,11 @@ final class TurnedCellPitchTests: XCTestCase {
         XCTAssertEqual(down / plain, 1.026, accuracy: 0.01)
         XCTAssertGreaterThan(down, plain)
     }
+
+    /// Word's print of a 78 pt cell of Calibri 20 turned down has three lines of "Aaaa Bbbb Cccc Dddd": the fourth falls
+    /// past the cell and is not drawn (lab textpitch).
+    func testALineBeyondTheTurnedCellIsNotDrawn() {
+        XCTAssertEqual(RichLayout.turnedLinesKept(baselines: [24.8, 49.8, 74.8, 99.8], room: 78), 3)
+        XCTAssertEqual(RichLayout.turnedLinesKept(baselines: [24.8, 49.8], room: 78), 2)
+    }
 }
