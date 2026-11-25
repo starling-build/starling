@@ -38,7 +38,7 @@ final class DocxKeptFieldsTests: XCTestCase {
     }
 
     func testTextAroundAFieldStaysOutsideIt() throws {
-        let (_, xml) = try roundTrip("<w:p><w:r><w:t xml:space=\"preserve\">Figure </w:t></w:r>\(cf("SEQ Figure", "4"))<w:r><w:t xml:space=\"preserve\">: caption</w:t></w:r></w:p>")
+        let (_, xml) = try roundTrip("<w:p><w:r><w:t xml:space=\"preserve\">Figure </w:t></w:r>\(cf("SEQ Figure", "4"))<w:r><w:t>: caption</w:t></w:r></w:p>")
         let begin = try XCTUnwrap(xml.range(of: "fldCharType=\"begin\""))
         let end = try XCTUnwrap(xml.range(of: "fldCharType=\"end\""))
         XCTAssertTrue(xml[..<begin.lowerBound].contains("Figure "))
