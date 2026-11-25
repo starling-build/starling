@@ -357,6 +357,9 @@ final class OfficeSession {
     var onPictureDialog: ((PictureDialogKind) -> Void)?
     /// Opens the Set Numbering Value prompt.
     var onNumberingValueDialog: (() -> Void)?
+    var onDateTimeDialog: (() -> Void)?
+    var onPropertiesDialog: (() -> Void)?
+    var onUpdateFields: (() -> Void)?
     /// Opens Define New Number Format (false) or Define New Bullet (true).
     var onListFormatDialog: ((Bool) -> Void)?
     var onNewStyleDialog: (() -> Void)?

@@ -1934,6 +1934,26 @@ extension DocxFormat {
            doc.paragraphs.contains(where: { $0.cell?.fillThemeAttrs != nil || $0.cell?.bordersXML?.containsSubstring("w:themeColor=") == true }) {
             keptAll["word/theme/theme1.xml"] = Data(_defaultThemePart().utf8)
         }
+        // A document made here has no properties part: write the core and extended properties Word expects, so the
+        // author, title and subject fields have somewhere to read from and the file says when it was saved.
+        var rootRelsExtra = doc.keptRootRels
+        if !keptAll.keys.contains(where: { $0.hasPrefix("docProps/") }), !doc.keptRootRels.contains(where: { $0.type.hasSuffix("core-properties") || $0.type.hasSuffix("extended-properties") }) {
+            let c = FieldClock.current()
+            func two(_ n: Int) -> String { n < 10 ? "0\(n)" : String(n) }
+            let stamp = c.map { "\($0.year)-\(two($0.month))-\(two($0.day))T\(two($0.hour)):\(two($0.minute)):\(two($0.second))Z" } ?? "2000-01-01T00:00:00Z"
+            keptAll["docProps/core.xml"] = Data(("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<cp:coreProperties xmlns:cp=\"http://schemas.openxmlformats.org/package/2006/metadata/core-properties\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:dcterms=\"http://purl.org/dc/terms/\" xmlns:dcmitype=\"http://purl.org/dc/dcmitype/\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"><dc:creator></dc:creator><cp:lastModifiedBy></cp:lastModifiedBy>"
+                + "<dcterms:created xsi:type=\"dcterms:W3CDTF\">\(stamp)</dcterms:created><dcterms:modified xsi:type=\"dcterms:W3CDTF\">\(stamp)</dcterms:modified></cp:coreProperties>").utf8)
+            keptAll["docProps/app.xml"] = Data("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<Properties xmlns=\"http://schemas.openxmlformats.org/officeDocument/2006/extended-properties\"><Application>Starling Office</Application></Properties>".utf8)
+            extraOverrides += "<Override PartName=\"/docProps/core.xml\" ContentType=\"application/vnd.openxmlformats-package.core-properties+xml\"/><Override PartName=\"/docProps/app.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.extended-properties+xml\"/>"
+            rootRelsExtra.append(KeptRel(id: "", type: "http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties", target: "docProps/core.xml", external: false))
+            rootRelsExtra.append(KeptRel(id: "", type: "http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties", target: "docProps/app.xml", external: false))
+        }
+        // A file with core properties but no extended ones (a Properties edit made them first) gets app.xml too.
+        if keptAll["docProps/app.xml"] == nil, !rootRelsExtra.contains(where: { $0.type.hasSuffix("extended-properties") }) {
+            keptAll["docProps/app.xml"] = Data("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<Properties xmlns=\"http://schemas.openxmlformats.org/officeDocument/2006/extended-properties\"><Application>Starling Office</Application></Properties>".utf8)
+            extraOverrides += "<Override PartName=\"/docProps/app.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.extended-properties+xml\"/>"
+            rootRelsExtra.append(KeptRel(id: "", type: "http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties", target: "docProps/app.xml", external: false))
+        }
         for (name, data) in keptAll.sorted(by: { $0.key < $1.key }) where !written.contains(name) && !orphanMedia(name) && name != "word/settings.xml" {
             extraParts.append(ZipEntry(name: name, data: data))
             switch name {
@@ -2044,7 +2064,7 @@ extension DocxFormat {
         let stylesXML = doc.readFromFile ? (doc.keptStylesXML.flatMap { _patchedStyles(original: $0, generated: generatedStyles, doc: doc, usedIn: document + extraParts.filter { $0.name.hasSuffix(".xml") && !$0.name.containsSubstring("styles") }.map { String(decoding: $0.data, as: UTF8.self) }.joined()) } ?? generatedStyles) : generatedStyles
         let entries: [ZipEntry] = [
             ZipEntry(name: "[Content_Types].xml", data: Data(contentTypes.utf8)),
-            ZipEntry(name: "_rels/.rels", data: Data(_rootRels.replacingAll("</Relationships>", with: doc.keptRootRels.enumerated().map { i, r in
+            ZipEntry(name: "_rels/.rels", data: Data(_rootRels.replacingAll("</Relationships>", with: rootRelsExtra.enumerated().map { i, r in
                 "<Relationship Id=\"rIdPkg\(i + 1)\" Type=\"\(_esc(r.type))\" Target=\"\(_esc(r.target))\"\(r.external ? " TargetMode=\"External\"" : "")/>"
             }.joined() + "</Relationships>").utf8)),
             ZipEntry(name: "word/document.xml", data: Data(document.utf8)),

@@ -58,7 +58,28 @@ public struct NotesState: Equatable, Sendable {
     }
 }
 
+/// The document-property parts (docProps/*) with their content types and package links: what File > Info edits.
+public struct PropertyParts: Equatable, Sendable {
+    public var parts: [String: Data]
+    public var types: [String: String]
+    public var rels: [KeptRel]
+    public init(_ doc: RichDocument) {
+        parts = doc.keptParts.filter { $0.key.hasPrefix("docProps/") }
+        types = doc.keptPartTypes.filter { $0.key.hasPrefix("docProps/") }
+        rels = doc.keptRootRels.filter { $0.target.hasPrefix("docProps/") }
+    }
+    func put(into doc: inout RichDocument) {
+        for k in doc.keptParts.keys where k.hasPrefix("docProps/") { doc.keptParts[k] = nil }
+        for k in doc.keptPartTypes.keys where k.hasPrefix("docProps/") { doc.keptPartTypes[k] = nil }
+        doc.keptRootRels.removeAll { $0.target.hasPrefix("docProps/") }
+        for (k, v) in parts { doc.keptParts[k] = v }
+        for (k, v) in types { doc.keptPartTypes[k] = v }
+        doc.keptRootRels += rels
+    }
+}
+
 public indirect enum EditOp: Equatable, Sendable {
+    case setProperties(new: PropertyParts, old: PropertyParts)
     case insertText(RichPosition, String, [Run])
     case deleteText(RichPosition, String, [Run])
     /// Restore exact bookmark boundaries as well as text when undoing an edit.
@@ -179,6 +200,9 @@ public indirect enum EditOp: Equatable, Sendable {
             doc.footer = footer
             changes.append(.all)
             return .setRichHeaderFooter(new: old, old: new, header: oldHeader, footer: oldFooter, oldHeader: header, oldFooter: footer)
+        case .setProperties(let new, let old):
+            new.put(into: &doc)
+            return .setProperties(new: old, old: new)
         case .setNotes(let new, let old):
             new.put(into: &doc)
             changes.append(.all)
@@ -594,8 +618,8 @@ public final class RichDocumentController: ChangeNotifier {
                 let text = String(piece)
                 if !text.isEmpty {
                     let pos = selection.focus
-                    let runs = style.map { [Run(length: text.utf16.count, style: $0)] }
-                    var inherited = document.paragraphs[pos.paragraph].style(at: pos.offset)
+                    let runs = style.map { [Run(length: text.utf16.count, style: _leavingField($0, at: pos))] }
+                    var inherited = _leavingField(document.paragraphs[pos.paragraph].style(at: pos.offset), at: pos)
                     if inherited.revision?.kind == .deleted { inherited.revision = nil }  // typed text is new, not struck out
                     perform(.insertText(pos, text, runs ?? [Run(length: text.utf16.count, style: inherited)]))
                     _setCaret(RichPosition(paragraph: pos.paragraph, offset: pos.offset + text.utf16.count))
@@ -603,6 +627,19 @@ public final class RichDocumentController: ChangeNotifier {
             }
             typingStyle = style  // a typed run keeps the pending style alive
         }
+    }
+
+    /// Text typed at the end of a field's result (or after it) is not part of the field: the field marks are dropped
+    /// from the style it would inherit. Inside the result, typing stays in it.
+    func _leavingField(_ style: CharStyle, at pos: RichPosition) -> CharStyle {
+        guard style.fieldResult != 0 || style.preservedField != nil else { return style }
+        let p = document.paragraphs[pos.paragraph]
+        if pos.offset < p.text.utf16.count, p.style(at: pos.offset + 1).fieldResult == style.fieldResult { return style }
+        var out = style
+        out.preservedField = nil
+        out.fieldResult = 0
+        out.preservedFieldProperties = [:]
+        return out
     }
 
     /// Enter: split the paragraph at the caret. A heading's continuation is
@@ -1116,7 +1153,7 @@ public final class RichDocumentController: ChangeNotifier {
     }
 
     /// Remove the selection's contents; caret lands at its start.
-    private func _deleteSelectionOps() {
+    func _deleteSelectionOps() {
         if let block = selection.block {
             // Whole cells: their contents go, the cells stay. Extra
             // paragraphs of a cell are removed, the first emptied.
