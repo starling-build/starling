@@ -145,6 +145,34 @@ enum ShapeGroups {
 
     /// One change to a child of a group (EMU).
 
+    /// `wsp` with its text body set to `body` (a `w:txbxContent` inside; a plain shape gets a text part, centred as Word's).
+    private static func withText(_ wsp: String, _ body: String) -> String? {
+        var x = wsp
+        if let o = x.rangeOfSubstring("<w:txbxContent>"), let c = x.rangeOfSubstring("</w:txbxContent>", in: o.upperBound ..< x.endIndex) {
+            x.replaceSubrange(o.upperBound ..< c.lowerBound, with: body); return x
+        }
+        guard !x.containsSubstring("<wps:txbx"), !x.containsSubstring("<mc:"), let end = x.rangeOfSubstring("</wps:spPr>") else { return nil }
+        x.insert(contentsOf: "<wps:txbx><w:txbxContent>\(body)</w:txbxContent></wps:txbx>", at: end.upperBound)
+        if let b = x.rangeOfSubstring("<wps:bodyPr "), let close = x.rangeOfSubstring(">", in: b.upperBound ..< x.endIndex),
+           let a = x.rangeOfSubstring("anchor=\"t\"", in: b.upperBound ..< close.lowerBound) { x.replaceSubrange(a, with: "anchor=\"ctr\"") }
+        return x
+    }
+
+    /// Child `k` as a text box of its own (a shape without text gets an empty one), for the editor to read its words from.
+    static func textProxy(_ image: ImageAttachment, child k: Int) -> ImageAttachment? {
+        guard let pieces = children(image), pieces.indices.contains(k), let wsp = pieces[k].wsp.containsSubstring("<w:txbxContent>") ? pieces[k].wsp : withText(pieces[k].wsp, "<w:p><w:pPr><w:jc w:val=\"center\"/></w:pPr></w:p>"),
+              let placedWsp = placed(wsp, x: 0, y: 0, cx: pieces[k].cx, cy: pieces[k].cy) else { return nil }
+        let drawing = anchor(x: pieces[k].x, y: pieces[k].y, cx: pieces[k].cx, cy: pieces[k].cy, name: pieces[k].name ?? "Shape", uri: wpsNS,
+                             graphic: placedWsp.hasPrefix("<wps:wsp xmlns:wps") ? placedWsp : placedWsp.replacingFirst("<wps:wsp", "<wps:wsp xmlns:wps=\"\(wpsNS)\""))
+        guard var shape = TextBoxInsert.read(drawing, { _ in true }) else { return nil }
+        if shape.textBox == nil {
+            var para = RichParagraph(text: "")
+            para.style.alignment = .center
+            shape.textBox = RichTextBox(paragraphs: [para])
+        }
+        return shape
+    }
+
     /// The group with child `k` changed: the child is moved, resized or taken out, and the group's box (its own transform, its
     /// extent and its place on the page) is made to hold the children as they stand. Everything else of the drawing (wrap,
     /// name, the children's own markup and names) is kept. Nil when the group is not one `ungroup` could take apart, `k` is
@@ -155,6 +183,7 @@ enum ShapeGroups {
         case .move(let dx, let dy): pieces[k].x += dx; pieces[k].y += dy
         case .resize(let cx, let cy): guard cx > 0, cy > 0 else { return nil }; pieces[k].cx = cx; pieces[k].cy = cy
         case .delete: pieces.remove(at: k)
+        case .text(let body): guard let w = withText(pieces[k].wsp, body) else { return nil }; pieces[k].wsp = w
         }
         guard !pieces.isEmpty else { return nil }
         let seen = pieces.map(visibleBox)

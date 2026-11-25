@@ -123,4 +123,36 @@ final class TypingFrameTests: XCTestCase {
         XCTAssertTrue(ui.has(text: "Shape Format"))
         XCTAssertFalse(ui.has(text: "Picture Format"))
     }
+
+    /// Typing into one child of a group: the group stays whole in the document, the words land in that child, and the whole
+    /// session is one undo step.
+    func testTypingIntoAChildOfAGroupKeepsTheGroup() throws {
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(900, 600))
+        let shell = try XCTUnwrap(ui.state(OfficeShellState.self))
+        let c = shell.session.controller
+        for (n, preset) in ["rect", "ellipse"].enumerated() {
+            c.pendingShape = { x, y, w, h in TextBoxInsert.makeShape(preset: preset, width: w, height: h, number: TextBoxInsert.nextShapeNumber(in: c.document), page: (x, y)) }
+            XCTAssertTrue(c.placePendingShape(x: 80 + Double(n) * 120, y: 200, width: 100, height: 60, at: RichPosition(paragraph: 0, offset: 0)))
+        }
+        let shapes = c.document.paragraphs.indices.filter { c.document.paragraphs[$0].image != nil }
+        c.selectImage(at: shapes[0])
+        c.toggleShapePick(at: shapes[1])
+        let group = try XCTUnwrap(ShapeGroups.group(c.pickedShapeIndexes.compactMap { c.document.paragraphs[$0].image }, number: 5))
+        XCTAssertTrue(c.replaceImageParagraphs(c.pickedShapeIndexes, with: [group]))
+        let gi = try XCTUnwrap(c.selectedImageIndex)
+        XCTAssertTrue(c.pickGroupChild(at: gi, point: Offset(10, 10)))
+        for _ in 0 ..< 3 { ui.pump(); RunLoop.main.run(until: Date().addingTimeInterval(0.05)) }
+        shell._enterBox(gi, nil, Rect.fromLTWH(100, 200, 100, 60))
+        let editor = shell.session.controller
+        XCTAssertFalse(editor === c, "typing goes into the child's own controller")
+        editor.insertText("hello child")
+        shell._leaveBox()
+        XCTAssertTrue(shell.session.controller === c)
+        let image = try XCTUnwrap(c.document.paragraphs[gi].image)
+        XCTAssertTrue(ShapeGroups.isGroup(image), "the group is still one group")
+        XCTAssertEqual(c.document.paragraphs.filter { $0.image != nil }.count, 1)
+        XCTAssertTrue(image.sourceXML!.containsSubstring("hello child"))
+        c.undo()
+        XCTAssertFalse(try XCTUnwrap(c.document.paragraphs[gi].image).sourceXML!.containsSubstring("hello child"), "one undo takes the whole edit out")
+    }
 }

@@ -1479,6 +1479,11 @@ public final class RichEditableState: State<StatefulWidget> {
             let box = _selectedImageBox(group: true)
             _moveDelta = nil
             let childRect = _controller.groupChild != nil ? _selectedImageBox()?.rect : nil
+            if d.dx == 0, d.dy == 0, drag.inline == nil, let cr = childRect, cr.contains(drag.start), let enter = _w.onTextBoxEnter,
+               _controller.groupChildTextDocument() != nil {
+                enter(drag.index, nil, cr)   // a second click on the picked child types into it
+                return
+            }
             if d.dx == 0, d.dy == 0, let box, drag.inline == nil, _controller.groupChildBoxes(at: drag.index) != nil {
                 // A click on the selected group goes into it: the child under the point is picked.
                 let pt = _layout.theme.pixelsPerPoint * _layout.scale

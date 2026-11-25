@@ -342,13 +342,19 @@ extension RichDocumentController {
     /// box's table looks and grids. nil when the box holds what the editor would lose (the same list as
     /// `textBoxParagraphs`) or a table inside a table's cell.
     public func textBoxDocument(at index: Int, inline id: String? = nil) -> RichDocument? {
-        guard let image = _floating(index, id), let box = image.textBox, let xml = image.sourceXML,
+        guard let image = _floating(index, id) else { return nil }
+        return Self._textBoxDocument(of: image)
+    }
+
+    /// `textBoxDocument` for an attachment in hand (a floating text box or a group child lifted out as one).
+    static func _textBoxDocument(of image: ImageAttachment) -> RichDocument? {
+        guard let box = image.textBox, let xml = image.sourceXML,
               let open = xml.rangeOfSubstring("<w:txbxContent>"),
               let close = xml.rangeOfSubstring("</w:txbxContent>", in: open.upperBound ..< xml.endIndex) else { return nil }
         let inner = String(xml[open.upperBound ..< close.lowerBound])
         for marker in ["<mc:", "<w:sdt", "<w:object", "<w:pict"]
         where inner.containsSubstring(marker) { return nil }
-        guard Self._picturesAreKept(inner, box.paragraphs) else { return nil }
+        guard _picturesAreKept(inner, box.paragraphs) else { return nil }
         // A table inside a cell is not rewritten.
         var from = inner.startIndex
         while let o = inner.rangeOfSubstring("<w:tc>", in: from ..< inner.endIndex) ?? inner.rangeOfSubstring("<w:tc ", in: from ..< inner.endIndex) {
@@ -496,14 +502,32 @@ extension RichDocumentController {
     /// Set by the app, which knows the markup: (group, child, change) gives the changed group, or nil.
     public nonisolated(unsafe) static var groupChildEditor: ((ImageAttachment, Int, GroupChildChange) -> ImageAttachment?)? = nil
 
+    /// The picked child lifted out of its group as a text box of its own (a plain shape gets an empty text), or nil.
+    public nonisolated(unsafe) static var groupChildProxy: ((ImageAttachment, Int) -> ImageAttachment?)? = nil
+
+    /// The words of the picked child of the selected group, to edit (`nil` when it cannot be edited in place).
+    public func groupChildTextDocument() -> RichDocument? {
+        guard let index = selectedImageIndex, let child = groupChild, index < document.paragraphs.count,
+              let image = document.paragraphs[index].image, let proxy = Self.groupChildProxy?(image, child) else { return nil }
+        return Self._textBoxDocument(of: proxy)
+    }
+
+    /// The edited words go back into the picked child of the selected group (one undo step); the group stays whole.
+    @discardableResult
+    public func setGroupChildText(document: RichDocument, contentXML: String, rels: [KeptRel] = []) -> Bool {
+        guard groupChildTextDocument().map({ $0.paragraphs.count != document.paragraphs.count || $0 != document }) ?? true else { return false }
+        return editGroupChild(.text(contentXML), rels: rels)
+    }
+
     /// One undo step: the picked child of the selected group moves, resizes (points) or goes. The pick stays after a move or
     /// a resize.
     @discardableResult
-    public func editGroupChild(_ change: GroupChildChange) -> Bool {
+    public func editGroupChild(_ change: GroupChildChange, rels: [KeptRel] = []) -> Bool {
         guard let index = selectedImageIndex, let child = groupChild, index < document.paragraphs.count,
               let image = document.paragraphs[index].image, let edit = Self.groupChildEditor,
               let changed = edit(image, child, change) else { return false }
-        let next = changed
+        var next = changed
+        if !rels.isEmpty { next.sourceRels = image.sourceRels.filter { !$0.id.hasPrefix("rIdLink") && !$0.id.hasPrefix("rIdBoxKept") } + rels }
         guard replaceImageParagraphs([index], with: [next]) else { return false }
         if case .delete = change {} else { groupChild = child; notifyListeners() }
         return true
@@ -513,4 +537,6 @@ extension RichDocumentController {
 /// A change to one child of a group, in EMU.
 public enum GroupChildChange {
     case move(dx: Int, dy: Int), resize(cx: Int, cy: Int), delete
+    /// The child's text becomes this `w:txbxContent` body.
+    case text(String)
 }
