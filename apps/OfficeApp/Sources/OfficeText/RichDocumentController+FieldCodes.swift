@@ -180,8 +180,20 @@ extension RichDocumentController {
         case "NUMPAGES": return String(pageCount)
         case "REF":
             // The bookmark's text, where its start and end lie in one paragraph (a paragraph-number switch is not worked out).
-            guard words.count > 1, !words.contains(where: { ["\\n", "\\r", "\\w", "\\p", "\\f"].contains($0) }) else { return nil }
+            guard words.count > 1, !words.contains("\\p"), !words.contains("\\f") else { return nil }
+            let number = words.contains("\\n") || words.contains("\\r") || words.contains("\\w")
             let name = words[1].filter { $0 != "\"" }.lowercased()
+            if number {
+                // The paragraph number of the bookmark's paragraph, without its trailing period. \w (full context) is
+                // answered only where the label already carries every level (a top level or "1.2."); the others are left.
+                guard let at = document.paragraphs.firstIndex(where: { $0.bookmarks.contains { $0.lowercased() == name } }),
+                      let label = RichListNumbering.labels(document)[at] else { return nil }
+                let p = document.paragraphs[at]
+                if words.contains("\\w"), p.style.listLevel > 0, label.filter({ $0 == "." }).count < 1 { return nil }
+                var out = label
+                while out.hasSuffix(".") { out.removeLast() }
+                return out
+            }
             for q in document.paragraphs {
                 guard let start = q.bookmarkMarkers.first(where: { $0.name?.lowercased() == name }),
                       let end = q.bookmarkMarkers.first(where: { $0.name == nil && $0.id == start.id }), end.offset >= start.offset else { continue }

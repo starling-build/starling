@@ -76,4 +76,18 @@ final class FieldCodesTests: XCTestCase {
         XCTAssertEqual(c.updateFields(pageOf: { (_: Int) -> String? in nil }, pageCount: 1), 1)
         XCTAssertEqual(c.document.paragraphs[0].text, "see new text")
     }
+
+    func testF9RefNumberGivesTheParagraphNumber() {
+        var f = CharStyle.plain; f.field = "REF target \\n"
+        let q = RichParagraph(text: "see x", runs: [Run(length: 4, style: .plain), Run(length: 1, style: f)])
+        var a = RichParagraph(text: "one", runs: [Run(length: 3, style: .plain)])
+        a.style.list = .numbered; a.style.listId = "1"
+        var t = RichParagraph(text: "two", runs: [Run(length: 3, style: .plain)])
+        t.style.list = .numbered; t.style.listId = "1"
+        t.bookmarks = ["target"]
+        let c = RichDocumentController(document: RichDocument(paragraphs: [q, a, t]))
+        c.selectAll()
+        XCTAssertEqual(c.updateFields(pageOf: { (_: Int) -> String? in nil }, pageCount: 1), 1)
+        XCTAssertEqual(c.document.paragraphs[0].text, "see 2")
+    }
 }
