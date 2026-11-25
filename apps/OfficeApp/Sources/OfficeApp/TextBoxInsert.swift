@@ -23,7 +23,7 @@ enum TextBoxInsert {
             + "<wps:spPr><a:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"\(cx)\" cy=\"\(cy)\"/></a:xfrm><a:prstGeom prst=\"\(preset)\"><a:avLst/></a:prstGeom>"
             + "<a:solidFill><a:srgbClr val=\"\(fill)\"/></a:solidFill><a:ln w=\"9525\"><a:solidFill><a:srgbClr val=\"000000\"/></a:solidFill></a:ln></wps:spPr>"
             + (text == nil ? "" : "<wps:txbx><w:txbxContent><w:p><w:r><w:t xml:space=\"preserve\">\(esc)</w:t></w:r></w:p></w:txbxContent></wps:txbx>")
-            + "<wps:bodyPr rot=\"0\" vert=\"horz\" wrap=\"square\" lIns=\"91440\" tIns=\"45720\" rIns=\"91440\" bIns=\"45720\" anchor=\"t\" anchorCtr=\"0\">" + (text != nil ? "<a:spAutoFit/>" : "<a:noAutofit/>") + "</wps:bodyPr>"
+            + "<wps:bodyPr rot=\"0\" vert=\"horz\" wrap=\"square\" lIns=\"91440\" tIns=\"45720\" rIns=\"91440\" bIns=\"45720\" anchor=\"\(text == nil ? "ctr" : "t")\" anchorCtr=\"0\">" + (text != nil ? "<a:spAutoFit/>" : "<a:noAutofit/>") + "</wps:bodyPr>"
             + "</wps:wsp></a:graphicData></a:graphic></wp:anchor></w:drawing>"
     }
 
@@ -63,7 +63,7 @@ enum TextBoxInsert {
         return highest + 1
     }
 
-    /// A new filled shape (`rect`, `roundRect`, `ellipse`, `triangle`, `rightArrow`…), without text. `page` puts its corner that
+    /// A new filled shape (`rect`, `roundRect`, `ellipse`, `triangle`, `rightArrow`…), without text (typing in it adds the text part, see `giveShapeText`). `page` puts its corner that
     /// many points from the page's top left corner (where the user clicked); `number` is the one in its name.
     static func makeShape(preset: String, width: Double = 96, height: Double = 72, number: Int? = nil, page: (x: Double, y: Double)? = nil) -> ImageAttachment? {
         read(drawingXML(text: nil, width: width, height: height, preset: preset, fill: "4472C4", name: shapeLabel(preset), number: number, page: page)) { _ in true }

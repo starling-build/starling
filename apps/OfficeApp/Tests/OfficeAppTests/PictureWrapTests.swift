@@ -383,7 +383,7 @@ final class ShapeInsertTests: XCTestCase {
             c.insertImage(shape)
             let xml = String(decoding: try XCTUnwrap(try Zip.read(try DocxFormat.write(c.document, pageSetup: .letter)).first { $0.name == "word/document.xml" }).data, as: UTF8.self)
             XCTAssertTrue(xml.containsSubstring("prst=\"\(preset)\""), preset)
-            XCTAssertFalse(xml.containsSubstring("txBox"))
+            XCTAssertFalse(xml.containsSubstring("txBox"))   // (a shape, not a text box)
         }
     }
 
@@ -432,5 +432,25 @@ final class ShapeSelectTests: XCTestCase {
         XCTAssertFalse(c.document.paragraphs.contains { $0.image != nil })
         c.undo()
         XCTAssertTrue(c.document.paragraphs.contains { $0.image != nil })
+    }
+
+    func testTypingIntoAShapeKeepsItsGeometryAndCentresTheText() throws {
+        let c = RichDocumentController(document: RichDocument(paragraphs: [RichParagraph(text: "body")]))
+        c.pendingShape = { x, y, w, h in TextBoxInsert.makeShape(preset: "ellipse", width: w, height: h, number: 1, page: (x, y)) }
+        XCTAssertTrue(c.placePendingShape(x: 50, y: 60, width: 96, height: 72, at: RichPosition(paragraph: 0, offset: 0)))
+        let i = try XCTUnwrap(c.selectedImageIndex)
+        XCTAssertNil(c.textBoxDocument(at: i))
+        XCTAssertTrue(c.giveShapeText(at: i))
+        XCTAssertFalse(c.giveShapeText(at: i))
+        let inside = try XCTUnwrap(c.textBoxDocument(at: i))
+        XCTAssertEqual(inside.paragraphs.count, 1)
+        var typed = inside
+        typed.paragraphs[0] = RichParagraph(text: "Hello", style: typed.paragraphs[0].style)
+        let (xml, rels) = try XCTUnwrap(TextBoxInsert.content(typed))
+        XCTAssertTrue(c.setTextBoxContent(at: i, document: typed, contentXML: xml, rels: rels))
+        let out = String(decoding: try XCTUnwrap(try Zip.read(try DocxFormat.write(c.document, pageSetup: .letter)).first { $0.name == "word/document.xml" }).data, as: UTF8.self)
+        XCTAssertTrue(out.containsSubstring("Hello"))
+        XCTAssertTrue(out.containsSubstring("prst=\"ellipse\""))
+        XCTAssertTrue(out.containsSubstring("w:jc w:val=\"center\""))
     }
 }

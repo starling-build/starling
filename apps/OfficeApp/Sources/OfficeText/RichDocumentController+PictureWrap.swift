@@ -154,6 +154,31 @@ extension RichDocumentController {
         return true
     }
 
+    /// Make the shape at `index` (a `wps:wsp` with no text part, as a new shape is) ready to type in: add an empty centred
+    /// paragraph as its text part, one undo step, so it enters in place like a text box. False for anything that is not such a
+    /// shape, or already has text.
+    @discardableResult
+    public func giveShapeText(at index: Int, inline id: String? = nil) -> Bool {
+        guard let old = _floating(index, id), old.textBox == nil, let xml = old.sourceXML,
+              xml.containsSubstring("<wps:wsp"), !xml.containsSubstring("<wps:txbx"), !xml.containsSubstring("<mc:"),
+              let end = xml.rangeOfSubstring("</wps:spPr>") else { return false }
+        let part = "<wps:txbx><w:txbxContent><w:p><w:pPr><w:jc w:val=\"center\"/></w:pPr></w:p></w:txbxContent></wps:txbx>"
+        var patched = xml
+        patched.insert(contentsOf: part, at: end.upperBound)
+        // (Word centres a shape's text in it.)
+        if let body = patched.rangeOfSubstring("<wps:bodyPr "), let close = patched.rangeOfSubstring(">", in: body.upperBound ..< patched.endIndex),
+           let a = patched.rangeOfSubstring("anchor=\"t\"", in: body.upperBound ..< close.lowerBound) {
+            patched.replaceSubrange(a, with: "anchor=\"ctr\"")
+        }
+        var new = old
+        new.sourceXML = patched
+        var para = RichParagraph(text: "")
+        para.style.alignment = .center
+        new.textBox = RichTextBox(paragraphs: [para])
+        _store(index, id, old: old, new: new)
+        return true
+    }
+
     /// The words in the text box at `index` (its paragraphs, one per line) when they are plain enough to edit as words
     /// (no character or paragraph formatting, no table); nil for anything else.
     public func textBoxText(at index: Int, inline id: String? = nil) -> String? {
