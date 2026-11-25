@@ -143,6 +143,40 @@ enum ShapeGroups {
         return out.isEmpty ? nil : out
     }
 
+    /// One change to a child of a group (EMU).
+
+    /// The group with child `k` changed: the child is moved, resized or taken out, and the group's box (its own transform, its
+    /// extent and its place on the page) is made to hold the children as they stand. Everything else of the drawing (wrap,
+    /// name, the children's own markup and names) is kept. Nil when the group is not one `ungroup` could take apart, `k` is
+    /// not a child, or the change would empty the group.
+    static func editChild(_ image: ImageAttachment, child k: Int, _ change: GroupChildChange) -> ImageAttachment? {
+        guard var pieces = children(image), pieces.indices.contains(k), var xml = image.sourceXML else { return nil }
+        switch change {
+        case .move(let dx, let dy): pieces[k].x += dx; pieces[k].y += dy
+        case .resize(let cx, let cy): guard cx > 0, cy > 0 else { return nil }; pieces[k].cx = cx; pieces[k].cy = cy
+        case .delete: pieces.remove(at: k)
+        }
+        guard !pieces.isEmpty else { return nil }
+        let seen = pieces.map(visibleBox)
+        let left = seen.map(\.x).min()!, top = seen.map(\.y).min()!
+        let cx = seen.map { $0.x + $0.cx }.max()! - left, cy = seen.map { $0.y + $0.cy }.max()! - top
+        var kids = ""
+        for p in pieces { guard let c = placed(p.wsp, x: p.x, y: p.y, cx: p.cx, cy: p.cy) else { return nil }; kids += c }
+        guard let g0 = xml.rangeOfSubstring("<wpg:grpSpPr>"), let g1 = xml.rangeOfSubstring("</wpg:grpSpPr>", in: g0.upperBound ..< xml.endIndex),
+              let end = xml.rangeOfSubstring("</wpg:wgp>", in: g1.upperBound ..< xml.endIndex) else { return nil }
+        xml.replaceSubrange(g1.upperBound ..< end.lowerBound, with: kids)
+        xml.replaceSubrange(g0.upperBound ..< g1.lowerBound, with: "<a:xfrm><a:off x=\"\(left)\" y=\"\(top)\"/><a:ext cx=\"\(cx)\" cy=\"\(cy)\"/><a:chOff x=\"\(left)\" y=\"\(top)\"/><a:chExt cx=\"\(cx)\" cy=\"\(cy)\"/></a:xfrm>")
+        func setOffset(_ element: String, _ v: Int) -> Bool {
+            guard let o = xml.rangeOfSubstring("<wp:\(element) "), let a = xml.rangeOfSubstring("<wp:posOffset>", in: o.upperBound ..< xml.endIndex),
+                  let b = xml.rangeOfSubstring("</wp:posOffset>", in: a.upperBound ..< xml.endIndex) else { return false }
+            xml.replaceSubrange(a.upperBound ..< b.lowerBound, with: String(v)); return true
+        }
+        guard setOffset("positionH", left), setOffset("positionV", top),
+              let e0 = xml.rangeOfSubstring("<wp:extent "), let e1 = xml.rangeOfSubstring("/>", in: e0.upperBound ..< xml.endIndex) else { return nil }
+        xml.replaceSubrange(e0.lowerBound ..< e1.upperBound, with: "<wp:extent cx=\"\(cx)\" cy=\"\(cy)\"/>")
+        return TextBoxInsert.read(xml) { $0.sourceXML?.containsSubstring("<wpg:wgp") == true }
+    }
+
     /// The shapes a group is made of, each standing where it stood in the group, named from `number` on; nil when the group
     /// is more than shapes.
     static func ungroup(_ image: ImageAttachment, number: Int) -> [ImageAttachment]? {
