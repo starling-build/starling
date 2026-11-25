@@ -134,14 +134,40 @@ final class FormatCellsDialogState: State<StatefulWidget> {
         ])
     }
 
+    /// Indent steps: more or fewer; text that is not yet aligned to a side moves to the left, as Excel does.
+    private func _indent(_ by: Int) {
+        _set {
+            $0.indent = max(0, min(15, $0.indent + by))
+            if $0.indent > 0, $0.hAlign == .general || $0.hAlign == .center { $0.hAlign = .left }
+        }
+    }
+
     private func _alignmentPage(_ fluent: FluentThemeData) -> Widget {
         let h: [(String, CellStyle.HAlign)] = [("General", .general), ("Left", .left), ("Center", .center), ("Right", .right)]
         let v: [(String, CellStyle.VAlign)] = [("Top", .top), ("Middle", .center), ("Bottom", .bottom)]
+        // Rotation: the quarter turns the sheet draws; any other angle in the file is kept until one of these is picked.
+        let r: [(String, Int)] = [("Horizontal", 0), ("Up", 90), ("Down", 180)]
+        let turned = r.contains { $0.1 == values.rotation }
+        let degrees = values.rotation > 90 ? values.rotation - 90 : values.rotation
+        let note = (values.rotation == 255 ? "Stacked text" : "Text turned \(degrees) degrees") + " in the file; kept unless you pick one above."
         return _column([
             Text("Horizontal", style: fluent.typography.bodyStrong),
-            Row(children: h.map { n, a in _choice("fc-h-\(n)", n, selected: values.hAlign == a) { [weak self] in self?._set { $0.hAlign = a } } }),
+            Row(children: h.map { n, a in
+                _choice("fc-h-\(n)", n, selected: values.hAlign == a && !values.justify) { [weak self] in self?._set { $0.hAlign = a; $0.justify = false } }
+            } + [
+                _choice("fc-h-Justify", "Justify", selected: values.justify) { [weak self] in self?._set { $0.hAlign = .left; $0.justify = true; $0.wrap = true } },
+            ]),
+            Row(children: [
+                SizedBox(width: 60, child: Text("Indent")),
+                SizedBox(key: ValueKey("fc-indent-less"), width: nil, height: 28, child: FlatButton(child: Text("−"), checked: false, width: 32, height: 28, action: { [weak self] in self?._indent(-1) })),
+                SizedBox(width: 40, child: Center(child: Text("\(values.indent)"))),
+                SizedBox(key: ValueKey("fc-indent-more"), width: nil, height: 28, child: FlatButton(child: Text("+"), checked: false, width: 32, height: 28, action: { [weak self] in self?._indent(1) })),
+            ]),
             Text("Vertical", style: fluent.typography.bodyStrong),
             Row(children: v.map { n, a in _choice("fc-v-\(n)", n, selected: values.vAlign == a) { [weak self] in self?._set { $0.vAlign = a } } }),
+            Text("Text direction", style: fluent.typography.bodyStrong),
+            Row(children: r.map { n, d in _choice("fc-rot-\(n)", n, selected: values.rotation == d) { [weak self] in self?._set { $0.rotation = d } } }),
+            turned ? SizedBox(width: 1, height: 1) : Text(note, style: fluent.typography.caption),
             _check("fc-wrap", "Wrap text", values.wrap) { $0.wrap = $1 },
         ])
     }
