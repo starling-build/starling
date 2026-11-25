@@ -96,6 +96,34 @@ final class SlideFormatShapeTests: XCTestCase {
         XCTAssertNotNil(a.fill, "unticking No fill gives a solid fill again")
     }
 
+    func testGlowAndSoftEdgeAreWrittenReplacedAndUndone() throws {
+        let deck = DeckController()
+        let a = deck.addShape(.rect); deck.selectShapes([a])
+        deck.setShadow(FormatShapePaneState.defaultShadow)
+        deck.setGlow(radius: 8, color: Color(0x66FFC000))
+        deck.setSoftEdge(5)
+        var xml = try slideXML(deck)
+        XCTAssertTrue(xml.contains("<a:glow rad=\"101600\"><a:srgbClr val=\"FFC000\"><a:alpha val=\"40000\"/></a:srgbClr></a:glow>"))
+        XCTAssertTrue(xml.contains("<a:softEdge rad=\"63500\"/>"))
+        // Schema order: glow, then the shadow, soft edge last.
+        let g = xml.range(of: "<a:glow")!.lowerBound, o = xml.range(of: "<a:outerShdw")!.lowerBound, e = xml.range(of: "<a:softEdge")!.lowerBound
+        XCTAssertTrue(g < o && o < e)
+        // Read back from the file, change the glow: still one glow, shadow kept.
+        let (back, th, pk) = try Pptx.read(Pptx.write(deck))
+        let d2 = DeckController(); d2.load(back, theme: th, package: pk)
+        let b = d2.slides[0].shapes.first { $0.name == a.name }!
+        XCTAssertEqual(b.glowRadius, 8); XCTAssertEqual(b.softEdge, 5)
+        d2.selectShapes([b]); d2.setGlow(radius: 12)
+        xml = try slideXML(d2)
+        XCTAssertEqual(xml.components(separatedBy: "<a:glow").count, 2)
+        XCTAssertTrue(xml.contains("rad=\"152400\"") && xml.contains("<a:outerShdw"))
+        d2.setGlow(radius: nil); d2.setSoftEdge(nil)
+        xml = try slideXML(d2)
+        XCTAssertFalse(xml.contains("<a:glow")); XCTAssertFalse(xml.contains("<a:softEdge")); XCTAssertTrue(xml.contains("<a:outerShdw"))
+        d2.undo()
+        XCTAssertEqual(d2.slides[0].shapes.first { $0.name == a.name }?.softEdge, 5)
+    }
+
     func testRotationPresetIsWrittenReplacedAndUndone() throws {
         let deck = DeckController()
         let a = deck.addShape(.rect); deck.selectShapes([a])

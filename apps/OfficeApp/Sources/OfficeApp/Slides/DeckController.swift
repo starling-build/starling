@@ -1982,6 +1982,26 @@ final class DeckController: ChangeNotifier {
         _changed()
     }
 
+    /// The glow of the selection: `radius` points out in `color`; nil radius for none.
+    func setGlow(radius: Double?, color: Color? = nil) {
+        guard !selection.isEmpty else { return }
+        _checkpoint()
+        for s in selection {
+            s.glowRadius = radius
+            if radius != nil { s.glowColor = color ?? s.glowColor ?? Color(0x80FFC000) }
+            s.keptLook?.glowSoftEdited = true
+        }
+        _changed()
+    }
+
+    /// The soft edge of the selection: the shape fades out over `radius` points; nil for none.
+    func setSoftEdge(_ radius: Double?) {
+        guard !selection.isEmpty else { return }
+        _checkpoint()
+        for s in selection { s.softEdge = radius; s.keptLook?.glowSoftEdited = true }
+        _changed()
+    }
+
     /// The 3-D Rotation preset of the selection (`a:camera prst`; "orthographicFront" turns it off). A shape's depth,
     /// bevel and lights stay; only the camera changes.
     func setCamera(_ name: String) {

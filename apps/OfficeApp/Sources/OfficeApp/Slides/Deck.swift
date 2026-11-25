@@ -182,6 +182,8 @@ struct KeptLook: Equatable {
     var endsEdited = false
     /// Set when the user changed the shape's shadow: the file's own outer shadow is swapped, its other effects kept.
     var shadowEdited = false
+    /// Set when the user changed the shape's glow or soft edge: the file's own are swapped, its other effects kept.
+    var glowSoftEdited = false
 
     func fillKept(_ s: ShapeState) -> Bool { !fillReplaced && s.fill == readFill && s.fillScheme == readFillScheme }
     func lineKept(_ s: ShapeState) -> Bool { !lineReplaced && !dashEdited && !endsEdited && s.outline == readOutline && s.outlineWidth == readWidth }

@@ -964,6 +964,33 @@ private struct SlideXML {
             + "<a:srgbClr val=\"\(hex)\">\(alpha)</a:srgbClr></a:outerShdw>"
     }
 
+    /// The file's `a:effectLst` with its glow and soft edge swapped for the given ones (nil: removed). Schema order:
+    /// ... glow, innerShdw, outerShdw, prstShdw, reflection, softEdge.
+    static func _effectsWithGlowSoft(_ effects: String, glow: (Double, Color)?, soft: Double?) -> String {
+        var body = ""
+        var attrs = ""
+        if let open = effects.range(of: "<a:effectLst"), let gt = effects[open.upperBound...].firstIndex(of: ">") {
+            attrs = String(effects[open.upperBound..<gt])
+            if attrs.hasSuffix("/") { attrs.removeLast() } else if let close = effects.range(of: "</a:effectLst>") { body = String(effects[effects.index(after: gt)..<close.lowerBound]) }
+        }
+        for (open, close) in [("<a:glow", "</a:glow>"), ("<a:softEdge", "</a:softEdge>")] {
+            guard let a = body.range(of: open) else { continue }
+            if let e = body.range(of: close, range: a.lowerBound..<body.endIndex), body[a.lowerBound..<e.upperBound].filter({ $0 == "<" }).count > 2 || !body[a.lowerBound...].prefix(while: { $0 != ">" }).hasSuffix("/") {
+                body.removeSubrange(a.lowerBound..<e.upperBound)
+            } else if let e = body[a.lowerBound...].range(of: "/>") { body.removeSubrange(a.lowerBound..<e.upperBound) }
+        }
+        if let (rad, color) = glow {
+            let alpha = color.alpha < 255 ? "<a:alpha val=\"\(Int((Double(color.alpha) / 255 * 100000).rounded()))\"/>" : ""
+            let rgb = String(color.value & 0xFFFFFF, radix: 16, uppercase: true)
+            let hex = String(repeating: "0", count: max(0, 6 - rgb.count)) + rgb
+            let new = "<a:glow rad=\"\(Int((rad * Pptx.emu).rounded()))\"><a:srgbClr val=\"\(hex)\">\(alpha)</a:srgbClr></a:glow>"
+            let before = ["<a:innerShdw", "<a:outerShdw", "<a:prstShdw", "<a:reflection", "<a:softEdge"].compactMap { body.range(of: $0)?.lowerBound }.min()
+            if let at = before { body.insert(contentsOf: new, at: at) } else { body += new }
+        }
+        if let rad = soft { body += "<a:softEdge rad=\"\(Int((rad * Pptx.emu).rounded()))\"/>" }
+        return "<a:effectLst\(attrs)>\(body)</a:effectLst>"
+    }
+
     /// The shape's effects with the camera of its `a:scene3d` set to `name` (the light rig and `a:sp3d` stay). With
     /// no scene, one is added unless the camera is square on.
     static func _effectsWithCamera(_ effects: String, _ name: String) -> String {
@@ -1307,6 +1334,9 @@ private struct SlideXML {
             var effectsXML: String
             if let k = look { effectsXML = k.shadowEdited ? Self._effectsWithShadow(k.effects, s.shadow) : k.effects }
             else { effectsXML = s.shadow.map { "<a:effectLst>\(Self._outerShadowXML($0))</a:effectLst>" } ?? "" }
+            if look?.glowSoftEdited == true || (look == nil && (s.glowRadius != nil || s.softEdge != nil)) {
+                effectsXML = Self._effectsWithGlowSoft(effectsXML, glow: s.glowRadius.map { ($0, s.glowColor ?? Color(0x80FFC000)) }, soft: s.softEdge)
+            }
             if let cam = s.camera { effectsXML = Self._effectsWithCamera(effectsXML, cam) }
             spPr += fillXML + lineXML + effectsXML
             var xml = "<p:sp><p:nvSpPr>\(nv)<p:nvPr>\(ph)</p:nvPr></p:nvSpPr><p:spPr>\(spPr)</p:spPr>\(look?.style ?? "")"

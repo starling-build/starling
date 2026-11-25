@@ -178,6 +178,22 @@ final class FormatShapePaneState: State<StatefulWidget> {
             editShadow { (sh: inout CharShadow) in let d = hypot(sh.dx, sh.dy); let a = v * Double.pi / 180; sh.dx = cos(a) * d; sh.dy = sin(a) * d }
         })
         fx.append(gap(14))
+        let glowOn = some && first?.glowRadius != nil
+        fx.append(Text("Glow", style: caption)); fx.append(gap(4))
+        fx.append(Checkbox(key: ValueKey("fmt.glow.on"), checked: glowOn, onChanged: { (v: Bool?) in
+            guard some else { return }
+            deck.setGlow(radius: (v ?? false) ? 10 : nil, color: Color(0x66FFC000))
+        }, content: Text("Glow")))
+        fx.append(gap(6))
+        fx.append(row("fmt.glow.size", "Size", first?.glowRadius.map { Self.text($0) } ?? "", min: 0) { (v: Double) in
+            deck.setGlow(radius: v)
+        })
+        fx.append(gap(14))
+        fx.append(Text("Soft edges", style: caption)); fx.append(gap(4))
+        fx.append(row("fmt.softedge.size", "Size", first?.softEdge.map { Self.text($0) } ?? "", min: 0) { (v: Double) in
+            deck.setSoftEdge(v > 0 ? v : nil)
+        })
+        fx.append(gap(14))
         fx.append(Text("3-D rotation", style: caption)); fx.append(gap(4))
         let camera = first.map { $0.camera ?? ($0.scene3d?.cameraName.isEmpty == false ? $0.scene3d!.cameraName : "orthographicFront") } ?? "orthographicFront"
         fx.append(Row(children: [
