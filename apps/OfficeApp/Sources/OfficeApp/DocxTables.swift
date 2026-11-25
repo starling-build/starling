@@ -1111,6 +1111,10 @@ extension DocxFormat {
         func keptFragmentXML(_ xml: String, _ rels: [KeptRel]) -> String {
             var frag = _renumberDocPr(xml, next: &keptDocPrCount)
             for rel in rels {
+                // A relationship the fragment never names (its old id appears nowhere in the markup, in any
+                // attribute) is a leftover of an edit: not written. One the file gave and the markup names
+                // by any attribute stays, even where we do not read that attribute.
+                if !xml.containsSubstring("\"\(rel.id)\"") { continue }
                 keptRelCount += 1
                 let nid = "rIdKept\(keptRelCount)"
                 for attr in _relationshipAttributes {

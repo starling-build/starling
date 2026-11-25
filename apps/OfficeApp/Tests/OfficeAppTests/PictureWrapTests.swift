@@ -271,6 +271,21 @@ final class TextBoxInsertTests: XCTestCase {
         XCTAssertEqual(Set(seen).count, seen.count, "no id names two annotations: \(seen)")
     }
 
+    func testLeftoverRelationshipIsDroppedButOneTheMarkupNamesStays() throws {
+        let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")!
+        var img = ImageAttachment(data: png, width: 40, height: 40)
+        img.sourceXML = "<w:drawing><wp:inline><wp:extent cx=\"508000\" cy=\"508000\"/><a:blip r:embed=\"rId7\"/><x:thing o:relid=\"rId8\"/></wp:inline></w:drawing>"
+        let img2rel = KeptRel(id: "rId7", type: "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image", target: "media/a.png", external: false)
+        let named = KeptRel(id: "rId8", type: "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image", target: "media/b.png", external: false)
+        let stale = KeptRel(id: "rId9", type: "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image", target: "media/c.png", external: false)
+        img.sourceRels = [img2rel, named, stale]
+        let out = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(image: img)]), pageSetup: .letter))
+        let rels = String(decoding: try XCTUnwrap(out.first { $0.name == "word/_rels/document.xml.rels" }).data, as: UTF8.self)
+        XCTAssertTrue(rels.containsSubstring("media/a.png"))
+        XCTAssertTrue(rels.containsSubstring("media/b.png"), "named by an attribute we do not read: kept")
+        XCTAssertFalse(rels.containsSubstring("media/c.png"), "named nowhere: dropped")
+    }
+
     func testBoxWithAnExternalLinkIsEditedInPlaceAndKeepsItsLink() throws {
         let c = RichDocumentController(document: RichDocument(paragraphs: [RichParagraph(text: "body")]))
         c.insertImage(try XCTUnwrap(TextBoxInsert.make(text: "one")))
