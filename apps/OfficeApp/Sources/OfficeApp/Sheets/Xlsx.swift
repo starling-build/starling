@@ -1079,6 +1079,11 @@ enum Xlsx {
         if !rels.contains(where: { $0.type.hasSuffix("/sharedStrings") }) {
             rels.append((_freshId(rels), "http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings", "sharedStrings.xml"))
         }
+        // A new workbook (nothing opened from a file) carries the standard Office theme, as Excel's own do. An
+        // opened file keeps the theme it came with, or none: giving a theme-less one a theme would change its fonts.
+        if original.isEmpty && !rels.contains(where: { $0.type.hasSuffix("/theme") }) {
+            rels.append((_freshId(rels), "http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme", "theme/theme1.xml"))
+        }
         let stylesPath = rels.first { $0.type.hasSuffix("/styles") }.map { _resolve($0.target, base: "xl/") } ?? "xl/styles.xml"
         let sstPath = rels.first { $0.type.hasSuffix("/sharedStrings") }.map { _resolve($0.target, base: "xl/") } ?? "xl/sharedStrings.xml"
 
@@ -1109,6 +1114,10 @@ enum Xlsx {
             }
         }
         var extraTypes: [(String, String)] = newTableTypes
+        if original.isEmpty {
+            generated["xl/theme/theme1.xml"] = Data(DocxFormat._defaultThemePart().utf8)
+            extraTypes.append(("/xl/theme/theme1.xml", "application/vnd.openxmlformats-officedocument.theme+xml"))
+        }
         var droppedDrawings = Set<String>()
         for d in drawingParts {
             generated.merge(d.parts) { $1 }
