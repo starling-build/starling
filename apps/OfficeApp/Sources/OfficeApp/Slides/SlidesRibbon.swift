@@ -355,8 +355,8 @@ extension Ribbon {
                        option("Horizontal In", !t.vertical && t.inward) { deck.setTransition(vertical: false, inward: true) },
                        option("Horizontal Out", !t.vertical && !t.inward) { deck.setTransition(vertical: false, inward: false) }]
         case .zoom:
-            options = [option("Box In", t.zoomIn) { deck.setTransition(zoomIn: true) },
-                       option("Box Out", !t.zoomIn) { deck.setTransition(zoomIn: false) }]
+            options = [option("In", t.zoomIn) { deck.setTransition(zoomIn: true) },
+                       option("Out", !t.zoomIn) { deck.setTransition(zoomIn: false) }]
         case .none, .fade:
             options = [MenuFlyoutItem(text: Text("No options"), onPressed: nil)]
         }
