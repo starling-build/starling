@@ -42,7 +42,7 @@ extension WorkbookController {
 
     /// Move everything at or past `index` by `delta` (negative deletes the
     /// `-delta` rows/columns starting at `index`).
-    private func _shift(_ axis: Axis, at index: Int, by delta: Int) {
+    func _shift(_ axis: Axis, at index: Int, by delta: Int) {
         let si = activeSheet
         let ws = sheet
         let deleteEnd = delta < 0 ? index - delta : index    // exclusive

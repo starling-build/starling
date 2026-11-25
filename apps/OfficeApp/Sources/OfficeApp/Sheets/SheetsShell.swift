@@ -72,6 +72,7 @@ final class SheetsShellState: State<StatefulWidget> {
     private var _sortOpen: (range: CellRange, hasHeader: Bool)?
     private var _validationOpen = false
     private var _cfOpen = false
+    private var _tableOpen = false
     private var _filterOpen: (col: Int, kind: String)?
     private let _tabProbes = SheetTabProbes()
     private var _tabDrag: (from: Int, x: Double, moved: Bool)? = nil
@@ -361,6 +362,8 @@ final class SheetsShellState: State<StatefulWidget> {
         case .sortDialog:
             if let region = wb.sortRegion() { setState { _sortOpen = region } }
             else { _flash(SortProblem.nothingToSort.message) }
+        case .tableDialog:
+            setState { _tableOpen = true }
         case .columnFilter(let col, let kind):
             setState { _filterOpen = (col, kind) }
         case .nameManager:
@@ -934,6 +937,13 @@ final class SheetsShellState: State<StatefulWidget> {
                     self?.setState { self?._sortOpen = nil }
                     self?._grid?.focus.requestFocus()
                 }))])
+        }
+        if _tableOpen {
+            layers.append(Positioned(left: 0, top: 0, right: 0, bottom: 0, child: TableDialog(
+                controller: wb, onClose: { [weak self] in
+                    self?.setState { self?._tableOpen = false }
+                    self?._grid?.focus.requestFocus()
+                })))
         }
         if let open = _filterOpen {
             return Stack(children: [window, Positioned(left: 0, top: 0, right: 0, bottom: 0, child: FilterDialog(
