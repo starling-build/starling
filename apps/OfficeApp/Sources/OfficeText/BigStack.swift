@@ -21,7 +21,7 @@ import Glibc
 public enum BigStack {
     static let size = 64 << 20
     /// Test hook: this many of the next thread creations are treated as refused.
-    nonisolated(unsafe) static var simulatedRefusals = 0
+    nonisolated(unsafe) public static var simulatedRefusals = 0
     private static let refusalLock = NSLock()
 
     private final class Box<T>: @unchecked Sendable {
