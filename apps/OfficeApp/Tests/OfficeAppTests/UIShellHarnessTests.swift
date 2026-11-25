@@ -292,7 +292,7 @@ final class UIShellHarnessTests: XCTestCase {
 
     /// W-TB-3: the Table Layout tab's property controls reach the controller.
     func testTableLayoutPropertyControlsReachTheController() {
-        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(1280, 800))
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(2000, 800))
         let c = ui.state(OfficeShellState.self)!.session.controller
         c.insertTable(rows: 2, columns: 2)
         ui.pump()
@@ -335,7 +335,7 @@ final class UIShellHarnessTests: XCTestCase {
     }
 
     func testTextOptionsButtonOpensTheDialogAndAppliesOrCancels() throws {
-        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: SlidesShell(initialPath: nil, startBlank: true, onSwitch: { _, _ in }), title: "Test"), size: Size(1280, 800))
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: SlidesShell(initialPath: nil, startBlank: true, onSwitch: { _, _ in }), title: "Test"), size: Size(2000, 800))
         let shell = try XCTUnwrap(ui.state(SlidesShellState.self))
         let deck = try XCTUnwrap(shell.session.deck)
         let box = deck.addTextBox(at: Rect.fromLTWH(100, 100, 300, 120))

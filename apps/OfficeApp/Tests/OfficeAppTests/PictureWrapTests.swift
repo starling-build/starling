@@ -373,8 +373,9 @@ final class TextBoxInsertTests: XCTestCase {
         XCTAssertEqual(c.document.paragraphs[i].image?.textBox?.paragraphs.map(\.text), ["one"])
     }
 
+    // (2000 wide: at 1280 the Picture Format tab gives way, and the Text Box group is icons by then, without the caption this taps.)
     func testEditTextOnThePictureFormatTab() throws {
-        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(1280, 800))
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(2000, 800))
         let c = try XCTUnwrap(ui.state(OfficeShellState.self)).session.controller
         c.insertImage(try XCTUnwrap(TextBoxInsert.make(text: "one")))
         let i = try XCTUnwrap(c.document.paragraphs.firstIndex { $0.image?.textBox != nil })
