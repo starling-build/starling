@@ -1549,6 +1549,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             c.select(CellAddress(row: c.active.row + d, col: c.active.col), extend: _chords.shift)
             scrollY = max(0, scrollY + Double(d) * rows.def)
             reveal(c.active); return true
+        case .function(3) where _chords.control || _chords.primary: c.onCommand?(.nameManager); return true
         case .function(2): beginEdit(); return true
         case .delete: marquee = nil; c.clearContents(); return true
         case .backspace: beginEdit(replace: ""); return true

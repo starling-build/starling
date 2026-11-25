@@ -35,6 +35,7 @@ enum SheetCommand {
     case tableDialog               // Insert → Table: create one, or the options of the table at the cell
     case columnFilter(col: Int, kind: String)   // a filter dropdown's Number/Text/Date/Colour Filters…
     case nameManager               // Formulas → Name Manager
+    case createNames               // Formulas → Create from Selection
     case protectSheetDialog        // Review → Protect Sheet / Unprotect Sheet
     case protectWorkbookDialog     // Review → Protect Workbook / Unprotect Workbook
     case pageSetup                 // Layout → Page Setup: the dialog
@@ -265,6 +266,7 @@ extension Ribbon {
     private func _namesGroup(_ wb: WorkbookController, _ fluent: FluentThemeData) -> Widget {
         Chrome.group("Defined Names", fluent, [
             Chrome.big(FluentSystemIcons.rename, "Name Manager", fluent) { wb.onCommand?(.nameManager) },
+            Chrome.big(FluentSystemIcons.rename, "Create from Selection", fluent) { wb.onCommand?(.createNames) },
         ])
     }
 
