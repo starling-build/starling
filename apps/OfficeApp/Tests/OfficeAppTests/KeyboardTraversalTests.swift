@@ -1,6 +1,7 @@
 import XCTest
 import Flutter
 import FlutterSwiftBridge
+import OfficeText
 @testable import OfficeApp
 
 /// U-KEY-1: everything can be reached and used without a mouse: Tab and Shift+Tab, F6 between regions, Enter or Space to
@@ -147,6 +148,49 @@ final class KeyboardTraversalTests: XCTestCase {
         ui.press(.tab); ui.type("b")
         XCTAssertNil(KeyboardTraversal.shared.focused)
         XCTAssertEqual(session.controller.document.paragraphs[0].text, "a\tb")
+    }
+
+    func testTabAtTheStartOfAWriterListItemIndentsIt() {
+        let ui = app(OfficeShell(initialPath: nil, startBlank: true))
+        let c = ui.state(OfficeShellState.self)!.session.controller
+        ui.tap(at: Offset(640, 400))
+        c.toggleList(.bullet)
+        XCTAssertEqual(c.currentParagraphStyle.listLevel, 0)
+        ui.press(.tab)
+        XCTAssertNil(KeyboardTraversal.shared.focused)
+        XCTAssertEqual(c.currentParagraphStyle.listLevel, 1)
+        XCTAssertFalse(c.document.paragraphs[0].text.contains("\t"))
+    }
+
+    func testTabInTheLastWriterTableCellAddsARow() {
+        let ui = app(OfficeShell(initialPath: nil, startBlank: true))
+        let c = ui.state(OfficeShellState.self)!.session.controller
+        ui.tap(at: Offset(640, 400))
+        c.insertTable(rows: 2, columns: 2)
+        func rows() -> Int { (c.document.paragraphs.compactMap { $0.cell?.row }.max() ?? -1) + 1 }
+        XCTAssertEqual(rows(), 2)
+        ui.press(.tab); ui.press(.tab); ui.press(.tab)      // cell 2, 3, 4
+        XCTAssertEqual(rows(), 2)
+        ui.press(.tab)                                      // past the last cell
+        XCTAssertNil(KeyboardTraversal.shared.focused)
+        XCTAssertEqual(rows(), 3)
+    }
+
+    func testTabWhileTypingInASlideShapeDoesNotWalkOrCycle() {
+        let ui = app(SlidesShell(initialPath: nil, startBlank: true, onSwitch: { _, _ in }))
+        let deck = ui.state(SlidesShellState.self)!.session.deck!
+        let shape = deck.currentSlide.shapes.first { $0.text != nil }!
+        shape.text!.insertText("a")
+        deck.selectShapes([shape]); ui.pump(); ui.pump(); ui.pump()
+        let st = ui.state(SlideCanvasState.self)!
+        // (The shape's own editor does not mount in this harness, so only the part this change could break is
+        // checked: with typing focus in the shape, Tab starts no walk and does not cycle the selection.
+        // Where Tab goes inside the editor is RichEditable's own path, covered by the Writer tests above.)
+        ui.press(.enter); ui.pump()                              // Enter edits the selected shape
+        st.focusNode(for: shape).requestFocus(); ui.pump()       // the post-frame step Enter schedules
+        ui.press(.tab)
+        XCTAssertNil(KeyboardTraversal.shared.focused)
+        XCTAssertTrue(deck.selection.first === shape, "Tab typed into the shape must not cycle the selection")
     }
 
     func testTabInSheetsMovesToTheNextCell() {
