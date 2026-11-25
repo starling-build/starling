@@ -114,6 +114,71 @@ final class SlideFormatShapeTests: XCTestCase {
         XCTAssertNil(try XCTUnwrap(s2.slides[0].shapes.first { $0.name == a.name }).fill)
     }
 
+    /// A deck read from a file, with a gradient shape (and a green dashed line) added to its first slide.
+    private func deckWithGradientShape() throws -> DeckController {
+        let (_, _, _) = try Pptx.read(Pptx.write(SlidesSample.make()))
+        var package = PptxPackage(try Zip.read(try Pptx.write(SlidesSample.make())))
+        let sp = "<p:sp><p:nvSpPr><p:cNvPr id=\"91\" name=\"Grad\"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>"
+            + "<p:spPr><a:xfrm><a:off x=\"1270000\" y=\"3810000\"/><a:ext cx=\"2540000\" cy=\"1270000\"/></a:xfrm>"
+            + "<a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom>"
+            + "<a:gradFill><a:gsLst><a:gs pos=\"0\"><a:srgbClr val=\"FF0000\"/></a:gs><a:gs pos=\"100000\"><a:srgbClr val=\"0000FF\"/></a:gs></a:gsLst><a:lin ang=\"0\"/></a:gradFill>"
+            + "<a:ln w=\"25400\"><a:solidFill><a:srgbClr val=\"00AA00\"/></a:solidFill><a:prstDash val=\"dash\"/></a:ln></p:spPr></p:sp>"
+        var slide = String(data: package.parts["ppt/slides/slide1.xml"]!, encoding: .utf8)!
+        slide = slide.replacingOccurrences(of: "</p:spTree>", with: sp + "</p:spTree>")
+        package.parts["ppt/slides/slide1.xml"] = Data(slide.utf8)
+        var entries: [ZipEntry] = []
+        for (k, v) in package.parts { entries.append(ZipEntry(name: k, data: v)) }
+        let (state, theme, pkg) = try Pptx.read(try Zip.write(entries))
+        let deck = DeckController()
+        deck.load(state, theme: theme, package: pkg)
+        return deck
+    }
+
+    private func slideXML(_ deck: DeckController) throws -> String {
+        let out = PptxPackage(try Zip.read(try Pptx.write(deck)))
+        return String(data: out.parts["ppt/slides/slide1.xml"]!, encoding: .utf8)!
+    }
+
+    private func shapeXML(_ xml: String, _ name: String) -> String {
+        guard let r = xml.range(of: "name=\"\(name)\"") else { return "" }
+        let rest = String(xml[r.upperBound...])
+        return String(rest[..<(rest.range(of: "</p:sp>")?.lowerBound ?? rest.endIndex)])
+    }
+
+    func testChoosingASolidFillReplacesAGradientEvenOfTheSameColour() throws {
+        let deck = try deckWithGradientShape()
+        let g = try XCTUnwrap(deck.currentSlide.shapes.first { $0.name == "Grad" })
+        XCTAssertTrue(shapeXML(try slideXML(deck), "Grad").contains("<a:gradFill"), "untouched, the gradient is kept")
+        deck.selectShapes([g])
+        deck.setFill(g.fill ?? Color(0xFFFF0000)); deck.setOutline(Color(0xFF00AA00))
+        let x = shapeXML(try slideXML(deck), "Grad")
+        XCTAssertFalse(x.contains("<a:gradFill"), "a gradient and a solid fill must not share one spPr")
+        XCTAssertTrue(x.contains("<a:solidFill"))
+        XCTAssertNil(g.fillStyle)
+        deck.undo(); deck.undo()
+        XCTAssertTrue(shapeXML(try slideXML(deck), "Grad").contains("<a:gradFill"), "undo brings the gradient back")
+    }
+
+    /// Writes the fuller check file: no fill, no line, a gradient shape made solid, and a clear shape over another.
+    func testWritesTheFillAndLineCheckFile() throws {
+        let dir = "/data/s/amd-6/ui-check"
+        guard FileManager.default.fileExists(atPath: dir) else { return }
+        let deck = try deckWithGradientShape()
+        func place(_ s: SlideShape, _ x: Double, _ y: Double) { s.frame = Rect.fromLTWH(x, y, 160, 90) }
+        let noFill = deck.addShape(.rect); place(noFill, 40, 40)
+        deck.selectShapes([noFill]); deck.setFill(nil); deck.setOutline(Color(0xFF000000)); deck.setOutlineWidth(2)
+        let noLine = deck.addShape(.rect); place(noLine, 240, 40)
+        deck.selectShapes([noLine]); deck.setFill(Color(0xFF4472C4)); deck.setOutline(nil)
+        let under = deck.addShape(.rect); place(under, 440, 40)
+        deck.selectShapes([under]); deck.setFill(Color(0xFFC00000)); deck.setOutline(nil)
+        let over = deck.addShape(.rect); place(over, 480, 70)
+        deck.selectShapes([over]); deck.setFill(Color(0xFF0070C0)); deck.setFillTransparency(50); deck.setOutline(nil)
+        let g = try XCTUnwrap(deck.currentSlide.shapes.first { $0.name == "Grad" })
+        g.frame = Rect.fromLTWH(40, 200, 160, 90)
+        deck.selectShapes([g]); deck.setFill(Color(0xFF70AD47)); deck.setOutline(Color(0xFF7030A0))
+        try Pptx.write(deck).write(to: URL(fileURLWithPath: dir + "/fill-line2.pptx"))
+    }
+
     /// Writes the file for the PowerPoint check: a right triangle and an arrow with text, each flipped
     /// across, flipped down, turned 90 and turned 45, so PowerPoint shows whether the facing matches.
     func testWritesTheFlipFacingCheckFile() throws {
