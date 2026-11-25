@@ -60,6 +60,15 @@ enum SheetsAccessibility {
                      selected: c.selection.contains(a))
     }
 
+    /// What is said when the selection lands on one cell: its address with the headers that name it, its value,
+    /// and whether it holds a formula: "B3, Price, 4.50, formula =A1*2"; an empty cell is "B3, blank".
+    static func spoken(_ a: CellAddress, in c: WorkbookController) -> String {
+        let e = entry(a, in: c, headerRow: headerRow(c), headerCol: headerCol(c))
+        var parts = [e.label, e.value.isEmpty ? "blank" : e.value]
+        if !e.formula.isEmpty { parts.append("formula " + e.formula) }
+        return parts.joined(separator: ", ")
+    }
+
     /// The cells to publish, in reading order: filled cells in view, and the ones within reach of the active cell
     /// (nearest first when there are too many), the active cell always; a merge once, at its top-left.
     static func entries(_ c: WorkbookController, visible: (CellAddress) -> Bool) -> [Entry] {
