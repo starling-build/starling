@@ -758,7 +758,8 @@ extension Pptx {
 
     /// The deck as a .pptx file.
     static func write(_ deck: DeckController) throws -> Data {
-        try PptxWriter.write(deck.snapshot(), theme: deck.theme, package: deck.package, ownTemplates: deck.ownTemplates, recolourTheme: deck.recolourTheme)
+        if deck.inMasterView { return try deck.masterViewBytes() }
+        return try PptxWriter.write(deck.snapshot(), theme: deck.theme, package: deck.package, ownTemplates: deck.ownTemplates, recolourTheme: deck.recolourTheme)
     }
 }
 
@@ -2011,5 +2012,42 @@ extension SlideXML {
             }
         }
         return (list ?? "") + dag + scene + sp3d
+    }
+}
+
+// MARK: - Slide Master view: one page written for a layout or master part
+
+extension PptxWriter {
+    /// A master or layout page written through the slide writer: its `p:cSld`, the relationships that
+    /// markup names, and the parts those reach (pictures, charts), by absolute part name.
+    struct MasterPage {
+        var cSld: String
+        var namespaces: [String: String]
+        var rels: [Rel]
+        var files: [String: Data]
+    }
+
+    static func masterPage(_ slide: SlideState, name: String, source: PptxPackage) -> MasterPage? {
+        var b = PackageBuilder()
+        var media = MediaParts()
+        let part = "ppt/slides/slide1.xml"
+        _slide(slide, number: 1, part: part, layoutPart: nil, notesMaster: nil, source: source, media: &media, into: &b)
+        guard let root = b.parts[part].flatMap(XNode.parse), let c = root.first("p:cSld") else { return nil }
+        c.attrs["name"] = name
+        var ns: [String: String] = [:]
+        for (k, v) in root.attrs where k.hasPrefix("xmlns:") { ns[k] = v }
+        var rels: [Rel] = []
+        var files: [String: Data] = [:]
+        for r in b.parts[Pptx.relsPath(part)].flatMap(XNode.parse)?.all("Relationship") ?? [] {
+            guard let id = r["Id"], let type = r["Type"], let target = r["Target"] else { continue }
+            let external = r["TargetMode"] == "External"
+            if external { rels.append(Rel(id: id, type: type, target: target, external: true)); continue }
+            let abs = Pptx.resolve(target, from: part)
+            if type.hasSuffix("/slideLayout") || type.hasSuffix("/notesSlide") { continue }
+            rels.append(Rel(id: id, type: type, target: abs))
+            if let d = b.parts[abs] { files[abs] = d }
+            if let d = b.parts[Pptx.relsPath(abs)] { files[Pptx.relsPath(abs)] = d }
+        }
+        return MasterPage(cSld: PptxXML.serialize(c), namespaces: ns, rels: rels, files: files)
     }
 }

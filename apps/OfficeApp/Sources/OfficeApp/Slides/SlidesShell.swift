@@ -456,6 +456,21 @@ final class SlidesShellState: State<StatefulWidget> {
             self.setState { self._setUpShow = true }
         }
         session.onSectionName = { [weak self] rename in self?._nameSection(rename: rename) }
+        session.onMasterView = { [weak self] open in
+            guard let self else { return }
+            self._endEditing()
+            if open {
+                guard (try? self.deck.enterMasterView()) != nil else { return }
+                self.setState { self._tab = .slideMaster; self._sorter = false }
+            } else {
+                _ = try? self.deck.closeMasterView()
+                self.setState { self._tab = .home }
+            }
+        }
+        session.onLayoutName = { [weak self] in
+            guard let self, let role = self.deck.masterPage else { return }
+            self.setState { self._sectionDialog = (role.kind == .master ? "Rename Master" : "Rename Layout", role.name, { [weak self] n in self?.deck.renameMasterPage(n) }) }
+        }
         session.onCustomShows = { [weak self] in
             guard let self else { return }
             self._endEditing()
