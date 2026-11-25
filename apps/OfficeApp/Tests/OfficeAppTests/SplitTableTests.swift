@@ -246,6 +246,49 @@ final class TextPitch4LabWriter: XCTestCase {
     }
 }
 
+/// Lab textpitch5: how a turned cell's lines of NON-Latin text step and where they stop. Rows 1-3: six CJK faces
+/// (MS Mincho, Yu Gothic, Meiryo, SimSun, Microsoft YaHei, Malgun Gothic) at 9, 12 and 16 pt; row 4: Mongolian Baiti and
+/// Nirmala UI at 9, 12 and 16 pt. Single spacing, Rotate Down, 70 pt exact rows, 78 pt cells, 14 or more characters so
+/// that the lines run past the cell.
+final class TextPitch5LabWriter: XCTestCase {
+    func testWriteLab() throws {
+        guard let out = ProcessInfo.processInfo.environment["TEXTPITCH5_LAB_OUT"] else { throw XCTSkip("no TEXTPITCH5_LAB_OUT") }
+        let c = RichDocumentController(plainText: "")
+        c.insertTable(rows: 4, columns: 6)
+        let idx = c.document.paragraphs.indices.filter { c.document.paragraphs[$0].cell != nil }
+        let faces = ["MS Mincho", "Yu Gothic", "Meiryo", "SimSun", "Microsoft YaHei", "Malgun Gothic"]
+        let texts = ["日本語の文章を縦に並べて行の間隔を測ります", "日本語の文章を縦に並べて行の間隔を測ります", "日本語の文章を縦に並べて行の間隔を測ります",
+                     "中文文本竖排以测量行距和截断位置", "中文文本竖排以测量行距和截断位置", "한국어 문장을 세로로 배열하여 줄 간격을 측정합니다"]
+        let mongolian = "ᠮᠣᠩᠭᠣᠯ ᠪᠢᠴᠢᠭ ᠦᠰᠦᠭ ᠲᠡᠺᠰᠲ ᠮᠣᠩᠭᠣᠯ ᠪᠢᠴᠢᠭ ᠦᠰᠦᠭ"
+        let hindi = "हिंदी पाठ को घुमाकर पंक्ति अंतर मापना है"
+        let sizes: [Double] = [9, 12, 16]
+        var facesByParagraph: [Int: String] = [:]
+        for (k, i) in idx.enumerated() {
+            let col = k % 6, row = k / 6
+            let (face, text): (String, String) = row < 3 ? (faces[col], texts[col]) : (col < 3 ? "Mongolian Baiti" : "Nirmala UI", col < 3 ? mongolian : hindi)
+            let size = sizes[row < 3 ? row : col % 3]
+            c.moveTo(RichPosition(paragraph: i, offset: 0), extend: false)
+            c.insertText(text)
+            c.moveTo(RichPosition(paragraph: i, offset: 0), extend: false)
+            c.moveTo(RichPosition(paragraph: i, offset: text.utf16.count), extend: true)
+            c.setFontFamily(face); c.setFontSize(size)
+            c.moveTo(RichPosition(paragraph: i, offset: 0), extend: false)
+            if col == 0 { c.setRowHeight(70, exact: true) }
+            c.setCellTextDirection(.down)
+            facesByParagraph[i] = face
+        }
+        // East Asian and complex-script text takes its own face slot: name the face there too.
+        var doc = c.document
+        for (i, face) in facesByParagraph {
+            for r in doc.paragraphs[i].runs.indices {
+                doc.paragraphs[i].runs[r].style.eastAsiaFontFamily = face
+                doc.paragraphs[i].runs[r].style.complexFontFamily = face
+            }
+        }
+        try DocxFormat.write(doc, pageSetup: .letter).write(to: URL(fileURLWithPath: out))
+    }
+}
+
 /// A turned cell's lines of Latin text step by 1.026 of the face's single line
 /// (Word for Windows, lab textpitch3), the same for Rotate Down and Up.
 final class TurnedCellPitchTests: XCTestCase {
