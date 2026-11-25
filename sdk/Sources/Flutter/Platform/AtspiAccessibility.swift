@@ -17,6 +17,15 @@ public final class AtspiAccessibility: @unchecked Sendable {
     /// The last snapshot's nodes, so a press by index runs the handler it described. Main thread only.
     private nonisolated(unsafe) static var last: [SemanticsSnapshotNode] = []
 
+    /// The shell writes each window's position to `$XDG_RUNTIME_DIR/starling-window-origin/<pid>` ("x y").
+    static func originFromShell() -> (x: Int, y: Int)? {
+        guard let dir = ProcessInfo.processInfo.environment["XDG_RUNTIME_DIR"],
+              let text = try? String(contentsOfFile: dir + "/starling-window-origin/\(getpid())", encoding: .utf8)
+        else { return nil }
+        let parts = text.split(whereSeparator: { $0 == " " || $0 == "\n" }).compactMap { Int($0) }
+        return parts.count == 2 ? (parts[0], parts[1]) : nil
+    }
+
     public static func startIfConfigured() {
         guard ProcessInfo.processInfo.environment["STARLING_ATSPI"] == "1" else { return }
         _ = start(appName: "starling")
@@ -35,7 +44,7 @@ public final class AtspiAccessibility: @unchecked Sendable {
             AtspiAccessibility.editForBridge(Int(index), op, a, b, s.map { String(cString: $0) })
         }
         host.origin = { _, x, y in
-            guard let o = AtspiAccessibility.windowOrigin?() else { return 0 }
+            guard let o = AtspiAccessibility.windowOrigin?() ?? AtspiAccessibility.originFromShell() else { return 0 }
             x?.pointee = Int32(o.x); y?.pointee = Int32(o.y)
             return 1
         }

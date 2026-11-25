@@ -1,0 +1,4 @@
+office-env: using checkout /data/s/amd-perf/ui (engine /data/gate/starling-engine/engine/src/out/host_release)
+Executed 3 tests, with 0 failures (0 unexpected) in 0.095 (0.095) seconds
+office-unit-tests: XCTest executed 3 tests (need at least 1), swift test exit 0
+unit-tests: exit 0, log /data/s/amd-perf/ui/unit-tests.log

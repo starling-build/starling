@@ -32,7 +32,7 @@ final class CocoaAccessibilityTests: XCTestCase {
         XCTAssertEqual(kids.count, 2)
         XCTAssertEqual(kids.map { $0.accessibilityLabel() }, ["Save", "Cancel"])
         XCTAssertEqual(kids.map { $0.accessibilityRole() }, [.button, .button])
-        XCTAssertTrue(kids[0].accessibilityParent() === view)
+        XCTAssertTrue((kids[0].accessibilityParent() as AnyObject?) === view)
         // Each element sits inside the window on screen, the first above the second.
         let f0 = kids[0].accessibilityFrame(), f1 = kids[1].accessibilityFrame()
         XCTAssertEqual(f0.size.width, 80); XCTAssertEqual(f0.size.height, 20)

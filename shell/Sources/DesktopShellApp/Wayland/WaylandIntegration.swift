@@ -1217,8 +1217,19 @@ class WaylandIntegration {
         let p = (Int32(x), Int32(y))
         if let c = surfacePositionCache[sid], c.0 == p.0, c.1 == p.1 { return }
         surfacePositionCache[sid] = p
+        publishOrigin(surfaceId: sid, x: Int(p.0), y: Int(p.1))
         enqueueCommand(.toplevelPosition(surfaceId: sid, x: p.0, y: p.1))
         enqueueCommand(.flushClients)
+    }
+
+    /// Tells the client's screen-reader bridge where its window is: a one-line file
+    /// `$XDG_RUNTIME_DIR/starling-window-origin/<pid>` ("x y"), which the client reads
+    /// (AtspiAccessibility.windowOrigin). A Wayland client cannot know its own position.
+    private func publishOrigin(surfaceId: UInt32, x: Int, y: Int) {
+        guard let pid = surfacePids[surfaceId], let dir = ProcessInfo.processInfo.environment["XDG_RUNTIME_DIR"] else { return }
+        let folder = dir + "/starling-window-origin"
+        try? FileManager.default.createDirectory(atPath: folder, withIntermediateDirectories: true)
+        try? "\(x) \(y)\n".write(toFile: folder + "/\(pid)", atomically: true, encoding: .utf8)
     }
 
     func reportToplevelPositionFailed(windowId: String) {
