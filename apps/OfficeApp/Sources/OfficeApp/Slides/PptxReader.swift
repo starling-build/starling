@@ -823,6 +823,36 @@ struct PptxReader {
         if changed { node.children = out }
     }
 
+    /// Set Up Slide Show (`ppt/presProps.xml` `p:showPr`) and the custom shows (`p:custShowLst`).
+    static func _showSettings(_ presentation: XNode, rels: [PptxRel], slides: [SlideState], package: PptxPackage)
+        -> (ShowSettings, [CustomShow]) {
+        var shows: [CustomShow] = []
+        for cs in presentation.first("p:custShowLst")?.all("p:custShow") ?? [] {
+            var ids: [Int] = []
+            for sld in cs.first("p:sldLst")?.all("p:sld") ?? [] {
+                guard let rid = sld["r:id"], let part = rels.first(where: { $0.id == rid })?.target,
+                      let slide = slides.first(where: { $0.sourcePart == part }) else { continue }
+                ids.append(slide.id)
+            }
+            shows.append(CustomShow(id: cs["id"].flatMap(Int.init) ?? shows.count, name: cs["name"] ?? "Custom Show", slides: ids))
+        }
+        var show = ShowSettings()
+        if let rel = rels.first(where: { $0.kind == "presProps" }), let pr = package.xml(rel.target)?.first("p:showPr") {
+            if pr.first("p:browse") != nil { show.kind = .window }
+            if pr.first("p:kiosk") != nil { show.kind = .kiosk }
+            show.loop = pr["loop"] == "1" || pr["loop"] == "true"
+            show.useTimings = !(pr["useTimings"] == "0" || pr["useTimings"] == "false")
+            show.narration = !(pr["showNarration"] == "0" || pr["showNarration"] == "false")
+            if let rg = pr.first("p:sldRg"), let a = rg["st"].flatMap(Int.init), let b = rg["end"].flatMap(Int.init) {
+                show.range = .slides(from: a, to: b)
+            } else if let cs = pr.first("p:custShow"), let id = cs["id"].flatMap(Int.init), shows.contains(where: { $0.id == id }) {
+                show.range = .custom(id)
+            }
+            if pr["loop"] == nil, pr.first("p:kiosk") != nil { show.loop = true }
+        }
+        return (show, shows)
+    }
+
     func read() throws -> (DeckState, DeckTheme, PptxPackage) {
         guard let root = package.xml("_rels/.rels"),
               let presPart = root.all("Relationship").first(where: { ($0["Type"] ?? "").hasSuffix("/officeDocument") })?["Target"]
@@ -1127,7 +1157,9 @@ struct PptxReader {
             slides.append(SlideState(id: id(), layout: .blank, hidden: false,
                                      notes: RichDocument(), shapes: []))
         }
-        return (DeckState(slides: slides, current: 0, slideSize: size, firstSlideNum: presentation["firstSlideNum"].flatMap(Int.init) ?? 1), deckTheme, package)
+        var state = DeckState(slides: slides, current: 0, slideSize: size, firstSlideNum: presentation["firstSlideNum"].flatMap(Int.init) ?? 1)
+        (state.show, state.customShows) = Self._showSettings(presentation, rels: rels, slides: slides, package: package)
+        return (state, deckTheme, package)
     }
 
     /// A `p:bg`: its own properties, or a reference into the theme's
