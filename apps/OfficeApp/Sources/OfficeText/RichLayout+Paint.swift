@@ -1590,6 +1590,18 @@ extension RichLayout {
                 _paintVerticalCellFloats(i, g, canvas)
                 return
             }
+            // (A line whose baseline falls past the cell's far edge is not drawn: Word's print of a 78pt cell of Calibri 20
+            // turned down has three lines, baselines 24.8, 49.8 and 74.8 from the near edge, and not the fourth at 99.8; the
+            // padding does not count. Lab textpitch. A line is kept whole or not drawn, never cut through.)
+            if theme.wordRules, RichTextTheme.wordWindowsPages, c.rowSpan == 1 {
+                let lines = g.painter.computeLineMetrics()
+                let kept = RichLayout.turnedLinesKept(baselines: lines.map { origin.dy + $0.baseline }, room: c.colWidth)
+                if kept < lines.count, kept > 0 {
+                    let last = lines[kept - 1]
+                    RuleTrace.hit("turned-line-past-the-cell-is-not-drawn")
+                    canvas.clipRect(Rect.fromLTRB(-1e5, -1e5, 1e5, origin.dy + last.baseline + last.descent + 0.5))
+                }
+            }
             if _paintMode != 2 { g.painter.paint(canvas, origin) }
             canvas.restore()
             _paintVerticalCellPictures(i, g, canvas, c, origin, document)
@@ -2251,5 +2263,13 @@ extension RichLayout {
         if f.hasPrefix("hg") { return true }
         if f.hasPrefix("ms ") { return ["mincho", "gothic", "明朝", "ゴシック", "ui"].contains { f.containsSubstring($0) } }
         return ["meiryo", "メイリオ", "yu mincho", "yu gothic", "游"].contains { f.containsSubstring($0) }
+    }
+}
+
+extension RichLayout {
+    /// How many of a turned cell's lines are drawn: a line whose baseline falls past the cell's far edge is not (Word's
+    /// print of Calibri 20 in a 78 pt cell: baselines 24.8, 49.8, 74.8 stay, 99.8 goes; lab textpitch).
+    static func turnedLinesKept(baselines: [Double], room: Double) -> Int {
+        baselines.prefix { $0 <= room + 0.01 }.count
     }
 }
