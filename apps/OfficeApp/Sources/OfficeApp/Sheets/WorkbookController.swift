@@ -957,6 +957,7 @@ final class WorkbookController: ChangeNotifier {
         case cells(sheet: Int, before: [CellAddress: Cell?], after: [CellAddress: Cell?],
                    selection: CellRange, active: CellAddress)
         case structure(before: _BookState, after: _BookState, selection: CellRange, active: CellAddress)
+        var isStructure: Bool { if case .structure = self { return true } else { return false } }
     }
 
     struct _BookState {
@@ -1027,7 +1028,8 @@ final class WorkbookController: ChangeNotifier {
     }
 
     func undo() {
-        guard let s = _undo.popLast() else { return }
+        guard let s = _undo.popLast() else { ScreenReader.announce("Nothing to undo"); return }
+        ScreenReader.announce(s.isStructure ? "Undo row or column change" : "Undo cell edit")
         switch s {
         case .cells(let si, let before, _, let sel, let act):
             _apply(si, before)
@@ -1046,7 +1048,8 @@ final class WorkbookController: ChangeNotifier {
     }
 
     func redo() {
-        guard let s = _redo.popLast() else { return }
+        guard let s = _redo.popLast() else { ScreenReader.announce("Nothing to redo"); return }
+        ScreenReader.announce(s.isStructure ? "Redo row or column change" : "Redo cell edit")
         switch s {
         case .cells(let si, _, let after, _, _):
             _apply(si, after)
@@ -1082,7 +1085,12 @@ final class WorkbookController: ChangeNotifier {
 
     /// View > Page Break Preview: show where the pages are cut (view state, not saved, not undoable).
     var breakPreview = false
+    private var _announcedSelection = ""
     func _notify(selectionOnly: Bool = false) {
+        // Tell a screen reader where the selection went ("Selected B3", "Selected B3 to C5").
+        let spoken = selection.rows * selection.cols > 1
+            ? "Selected \(selection.topLeft.a1) to \(selection.bottomRight.a1)" : "Selected \(active.a1)"
+        if spoken != _announcedSelection { _announcedSelection = spoken; ScreenReader.announce(spoken) }
         revision += 1
         if !selectionOnly { dataRevision += 1 }
         notifyListeners()

@@ -1512,7 +1512,11 @@ final class SheetsShellState: State<StatefulWidget> {
             return found ? "" : "No matches"
         }
         var hooks = FindHooks(
-            findNext: { [unowned self] p, scope, back in status(wb.findNext(p, scope: scope, backwards: back)) },
+            findNext: { [unowned self] p, scope, back in
+                let found = status(wb.findNext(p, scope: scope, backwards: back))
+                guard found.isEmpty, let at = wb.findPosition(p, scope: scope) else { return found }
+                return "\(at.index) of \(at.total)"
+            },
             replace: { [unowned self] p, template, scope in status(wb.replaceCurrent(p, with: template, scope: scope)) },
             replaceAll: { [unowned self] p, template, scope in
                 let n = wb.replaceAll(p, with: template, scope: scope)

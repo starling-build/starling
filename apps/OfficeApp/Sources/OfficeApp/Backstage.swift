@@ -118,13 +118,13 @@ final class Backstage: StatelessWidget {
         for p in BackstagePage.allCases where p != .insertPicture && p != .openSite && p != .createSite
             && (p != .share || scene.shareRequested != nil) {
             let selected = p == page
-            items.append(GestureDetector(onTap: { [self] in self._go(p) }, child: DecoratedBox(
+            items.append(KeyboardRow(label: p.title, activate: { [self] in self._go(p) }, child: GestureDetector(onTap: { [self] in self._go(p) }, child: DecoratedBox(
                 decoration: BoxDecoration(color: selected ? Color(0x33FFFFFF) : Color(0x00000000)),
                 child: Padding(padding: EdgeInsets(left: 20, top: 9, right: 20, bottom: 9), child: Row(children: [
                     Icon(p.icon, size: 16, color: ink),
                     Chrome.gap(12),
                     Text(p.title, style: fluent.typography.body?.copyWith(color: ink)),
-                ])))))
+                ]))))))
             if p == .home || p == .info || p == .print { items.append(Chrome.vgap(10)) }
         }
         return SizedBox(width: 200, height: nil, child: ColoredBox(
@@ -284,7 +284,7 @@ final class Backstage: StatelessWidget {
 
     private func _template(_ name: String, _ icon: IconData, _ fluent: FluentThemeData,
                            action: @escaping () -> Void) -> Widget {
-        GestureDetector(onTap: action, child: SizedBox(width: 150, height: 190, child: DecoratedBox(
+        KeyboardRow(label: name, activate: action, child: GestureDetector(onTap: action, child: SizedBox(width: 150, height: 190, child: DecoratedBox(
             decoration: BoxDecoration(
                 color: fluent.resources.cardBackgroundFillColorDefault,
                 border: Border.all(color: fluent.resources.cardStrokeColorDefault, width: 1),
@@ -293,7 +293,7 @@ final class Backstage: StatelessWidget {
                 Icon(icon, size: 48, color: fluent.accentColor.defaultBrushFor(fluent.brightness)),
                 Chrome.vgap(16),
                 Text(name, style: fluent.typography.body),
-            ]))))
+            ])))))
     }
 
     /// Where a rail item or tile goes. In a tab the Open and Save pages

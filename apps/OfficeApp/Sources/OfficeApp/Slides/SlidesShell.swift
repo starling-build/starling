@@ -1732,7 +1732,7 @@ final class SlidesShellState: State<StatefulWidget> {
             let dropAbove = dropHere && (_thumbDrag!.to < _thumbDrag!.from)
             let line = SizedBox(width: thumbW, height: 3, child: ColoredBox(
                 color: dropHere ? accent : Color(0x00000000), child: SizedBox(expand: ())))
-            items.append(Listener(
+            items.append(KeyboardRow(label: "Slide \(i + 1)", activate: { [weak self] in self?.deck.selectSlide(i); self?._deckFocus.requestFocus() }, child: Listener(
                 key: ValueKey("slide.thumb.\(i)"),
                 onPointerDown: { [weak self] e in
                     guard let self, let context = self.context else { return }
@@ -1754,7 +1754,7 @@ final class SlidesShellState: State<StatefulWidget> {
                             frame,
                             !dropAbove ? line : SizedBox(width: thumbW, height: 3, child: nil),
                         ]),
-                    ]))))
+                    ])))))
         }
         if deck.sections.isEmpty {
             for (i, slide) in deck.slides.enumerated() { makeItem(i, slide) }
@@ -1773,7 +1773,7 @@ final class SlidesShellState: State<StatefulWidget> {
                 border: Border(right: BorderSide(color: fluent.resources.dividerStrokeColorDefault, width: 1))),
             child: SingleChildScrollView(controller: _thumbScroll, child: Padding(
                 padding: EdgeInsets(left: 0, top: 6, right: 0, bottom: 12),
-                child: Column(crossAxisAlignment: .start, children: items))))))
+                child: KeyboardRegion(name: "thumbnails", child: Column(crossAxisAlignment: .start, children: items)))))))
     }
 
     /// The header row of a section in the thumbnail rail and the Slide Sorter: a fold arrow, the name and the slide count. Right-click for the section's commands.

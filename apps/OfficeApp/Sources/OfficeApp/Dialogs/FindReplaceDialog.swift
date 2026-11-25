@@ -82,18 +82,21 @@ final class FindReplaceDialogState: State<StatefulWidget> {
         guard let p = pattern() else { return }
         let s = _w.hooks.findNext(p, scope, backwards)
         setState { status = s }
+        ScreenReader.announce(s)
     }
 
     func replaceOne() {
         guard let p = pattern() else { return }
         let s = _w.hooks.replace(p, _replacement.text, scope)
         setState { status = s }
+        ScreenReader.announce(s)
     }
 
     func replaceEvery() {
         guard let p = pattern() else { return }
         let s = _w.hooks.replaceAll(p, _replacement.text, scope)
         setState { status = s }
+        ScreenReader.announce(s)
     }
 
     func goTo() {

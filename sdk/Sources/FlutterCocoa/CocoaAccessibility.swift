@@ -28,6 +28,12 @@ public enum CocoaAccessibility {
     /// Starts watching: while VoiceOver is on, the content view's accessibility children follow the app.
     public static func start() {
         guard timer == nil else { return }
+        ScreenReader.sink = { text, priority in
+            guard NSWorkspace.shared.isVoiceOverEnabled else { return }
+            let level: NSAccessibilityPriorityLevel = priority == .assertive ? .high : .medium
+            NSAccessibility.post(element: NSApp as Any, notification: .announcementRequested,
+                                 userInfo: [.announcement: text, .priority: level.rawValue])
+        }
         let t = Timer(timeInterval: 0.4, repeats: true) { _ in refresh() }
         RunLoop.main.add(t, forMode: .common)
         timer = t

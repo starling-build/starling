@@ -29,6 +29,10 @@ public enum UIKitAccessibility {
     /// Starts watching: while VoiceOver is on, the root view's accessibility elements follow the app.
     public static func start() {
         guard timer == nil else { return }
+        ScreenReader.sink = { text, _ in
+            guard UIAccessibility.isVoiceOverRunning else { return }
+            UIAccessibility.post(notification: .announcement, argument: text)
+        }
         let t = Timer(timeInterval: 0.4, repeats: true) { _ in refresh() }
         RunLoop.main.add(t, forMode: .common)
         timer = t

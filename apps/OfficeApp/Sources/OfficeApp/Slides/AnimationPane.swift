@@ -42,7 +42,7 @@ final class AnimationPane: StatelessWidget {
             let marker: Widget = a.start == .afterPrevious
                 ? Icon(FluentSystemIcons.clock, size: 12, color: fluent.resources.textFillColorSecondary)
                 : SizedBox(width: 12, height: 12, child: nil)
-            rows.append(Listener(
+            rows.append(KeyboardRow(label: "\(a.effect.name) \(label)", activate: { [deck] in if let shape { deck.selectShapes([shape]) } }, child: Listener(
                 onPointerDown: { [deck] _ in if let shape { deck.selectShapes([shape]) } },
                 behavior: .opaque,
                 child: ColoredBox(
@@ -53,7 +53,7 @@ final class AnimationPane: StatelessWidget {
                         SizedBox(width: 6, height: nil, child: nil),
                         SizedBox(width: 70, height: nil, child: Text(a.effect.name, style: fluent.typography.caption?.copyWith(color: accent))),
                         Expanded(child: Text(label, style: fluent.typography.caption, overflow: .ellipsis, maxLines: 1)),
-                    ])))))
+                    ]))))))
         }
         if rows.isEmpty {
             rows.append(Padding(padding: EdgeInsets(left: 8, top: 8, right: 8, bottom: 8), child: Text(

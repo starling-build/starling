@@ -279,6 +279,8 @@ private struct UndoEntry {
     var kind: UndoKind
     /// Where the next coalescable keystroke must land to join this entry.
     var continuation: RichPosition?
+    /// What the step was, in a word, for "Undo Typing".
+    var label = ""
 }
 
 // MARK: - Controller
@@ -479,9 +481,16 @@ public final class RichDocumentController: ChangeNotifier {
                 return true
             }()
             if !coalesce {
+                let label: String
+                switch undoKind {
+                case .typing: label = "Typing"
+                case .deleting: label = "Deleting"
+                case .styleEdit: label = "Formatting"
+                case .other: label = "Edit"
+                }
                 _undo.append(UndoEntry(inverses: [], selectionBefore: selection,
                                        selectionAfter: selection, kind: undoKind,
-                                       continuation: nil))
+                                       continuation: nil, label: label))
                 if _undo.count > maxUndoDepth { _undo.removeFirst(_undo.count - maxUndoDepth) }
             }
         }
@@ -550,8 +559,13 @@ public final class RichDocumentController: ChangeNotifier {
 
     // MARK: Undo / redo
 
+    /// Told what undo and redo did ("Undo Typing", "Nothing to redo"); the app hands it to a screen reader.
+    public var onHistory: ((String) -> Void)?
+
     public func undo() {
-        guard !readOnly, let entry = _undo.popLast() else { return }
+        guard !readOnly else { return }
+        guard let entry = _undo.popLast() else { onHistory?("Nothing to undo"); return }
+        onHistory?("Undo \(entry.label)")
         var redoInverses: [EditOp] = []
         for op in entry.inverses.reversed() {
             redoInverses.append(op.apply(to: &document, changes: &_pendingChanges))
@@ -559,7 +573,7 @@ public final class RichDocumentController: ChangeNotifier {
         _redo.append(UndoEntry(inverses: redoInverses.reversed(),
                                selectionBefore: entry.selectionBefore,
                                selectionAfter: entry.selectionAfter,
-                               kind: .other, continuation: nil))
+                               kind: .other, continuation: nil, label: entry.label))
         typingStyle = nil
         revision += 1
         _inEdit = true
@@ -569,7 +583,9 @@ public final class RichDocumentController: ChangeNotifier {
     }
 
     public func redo() {
-        guard !readOnly, let entry = _redo.popLast() else { return }
+        guard !readOnly else { return }
+        guard let entry = _redo.popLast() else { onHistory?("Nothing to redo"); return }
+        onHistory?("Redo \(entry.label)")
         // entry.inverses undo the undo, i.e. they re-apply the original edit.
         var undoInverses: [EditOp] = []
         for op in entry.inverses {
@@ -578,7 +594,7 @@ public final class RichDocumentController: ChangeNotifier {
         _undo.append(UndoEntry(inverses: undoInverses,
                                selectionBefore: entry.selectionBefore,
                                selectionAfter: entry.selectionAfter,
-                               kind: .other, continuation: nil))
+                               kind: .other, continuation: nil, label: entry.label))
         typingStyle = nil
         revision += 1
         _inEdit = true
@@ -3257,6 +3273,21 @@ public final class RichDocumentController: ChangeNotifier {
             if let s = hit(i, from: nil, back: backwards) { return s }
         }
         return hit(start.paragraph, from: nil, back: backwards)
+    }
+
+    /// Which match the selection is, and how many there are ("3 of 12"); nil when the selection is not a match.
+    public func matchPosition(_ pattern: TextPattern) -> (index: Int, total: Int)? {
+        var total = 0, index: Int?
+        let sel = selection
+        for (i, p) in document.paragraphs.enumerated() {
+            let text = p.text
+            for m in pattern.matches(in: text) {
+                total += 1
+                if index == nil, i == sel.start.paragraph, sel.start.paragraph == sel.end.paragraph,
+                   m.range.lowerBound.utf16Offset(in: text) == sel.start.offset { index = total }
+            }
+        }
+        return index.map { ($0, total) }
     }
 
     /// Replace the selection when it is exactly one match of `pattern`; one undo step. False when it is not.
