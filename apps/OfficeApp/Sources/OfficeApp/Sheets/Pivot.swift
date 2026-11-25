@@ -441,14 +441,15 @@ extension WorkbookController {
     }
 
     /// Refresh the pivot tables made here from their sources as they are now; returns how many were refreshed.
-    /// (A pivot table that came with a file is kept as the file had it, and Excel refreshes it.)
+    /// (A pivot table from a file is laid out again too when it is a kind made here; its parts stay as the file had them, and its cache is
+    /// set to refresh when Excel opens the file. Any other kind is left for Excel.)
     @discardableResult
     func refreshPivots() -> Int {
         var n = 0
         structural {
             for ws in book.sheets {
                 for k in ws.pivots.indices {
-                    guard let made = ws.pivots[k].made, let s = ws.pivots[k].source, let src = PivotSource.read(s, book: book),
+                    guard let made = ws.pivots[k].made ?? ws.pivots[k].fileSpec, let s = ws.pivots[k].source, let src = PivotSource.read(s, book: book),
                           PivotCalc.problem(made, src) == nil else { continue }
                     // Where it stands now (rows may have been inserted above it since it was made).
                     var spec = made
@@ -457,7 +458,7 @@ extension WorkbookController {
                     spec.origin = CellAddress(row: old.top - pageRows, col: old.left)
                     if pageRows > 0 { old = CellRange(top: spec.origin.row, left: old.left, bottom: old.bottom, right: max(old.right, old.left + 1)) }
                     let lay = PivotCalc.layout(spec, src)
-                    ws.pivots[k].made = spec
+                    if ws.pivots[k].made != nil { ws.pivots[k].made = spec } else { ws.pivots[k].refreshedHere = true }
                     _writePivot(lay, on: ws, replacing: old)
                     ws.pivots[k].ref = lay.location
                     n += 1

@@ -242,4 +242,22 @@ final class SheetsPivotNewTests: XCTestCase {
                                          filters: [], origin: CellAddress("H26")!, newSheet: false))
         try Xlsx.write(wc.book).write(to: URL(fileURLWithPath: out))
     }
+
+    /// A pivot that came from a file is laid out again from the source, its parts stay the file's, and its cache is set to refresh.
+    func testRefreshAPivotFromAFile() throws {
+        let first = book()
+        XCTAssertNil(first.insertPivotTable(source: src, rows: [0], cols: [], data: [PivotDataField(field: 2, function: .sum)], filters: [],
+                                            origin: CellAddress("F1")!, newSheet: false))
+        let wc = WorkbookController()
+        wc.load(try Xlsx.read(try Xlsx.write(first.book)))
+        XCTAssertNil(wc.sheet.pivots[0].made)
+        XCTAssertNotNil(wc.sheet.pivots[0].fileSpec)
+        wc.setInputs([(CellAddress("C2")!, "100"), (CellAddress("C3")!, "50")])
+        XCTAssertEqual(wc.refreshPivots(), 1)
+        XCTAssertEqual(v(wc, "F2"), .text("East")); XCTAssertEqual(v(wc, "G2"), .number(135))
+        XCTAssertEqual(v(wc, "G4"), .number(58))
+        let p = try parts(wc)
+        XCTAssertEqual(p.keys.filter { $0.hasPrefix("xl/pivotTables/pivotTable") && $0.hasSuffix(".xml") }.count, 1)
+        XCTAssertTrue(p["xl/pivotCache/pivotCacheDefinition1.xml"]?.contains("refreshOnLoad=\"1\"") ?? false)
+    }
 }

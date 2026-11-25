@@ -409,7 +409,7 @@ extension Ribbon {
             Chrome.big(FluentSystemIcons.numberList, "Scenario Manager", fluent) { wb.onCommand?(.scenarioManager) },
             Chrome.big(FluentSystemIcons.grid, "Refresh PivotTables", fluent) {
                 let n = wb.refreshPivots()
-                wb.onCommand?(.status(n == 0 ? "No PivotTables made here to refresh (Excel refreshes the others)" : "\(n) PivotTable\(n == 1 ? "" : "s") refreshed"))
+                wb.onCommand?(.status(n == 0 ? "No PivotTables here Excel did not make in a way this app can refresh (Excel refreshes the others)" : "\(n) PivotTable\(n == 1 ? "" : "s") refreshed"))
             },
             Chrome.rows([
                 Chrome.small(FluentSystemIcons.check, "Circle Invalid Data", fluent) {
