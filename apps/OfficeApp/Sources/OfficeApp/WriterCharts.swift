@@ -250,6 +250,12 @@ enum WriterCharts {
         if RichLayout.objectFitter == nil {
             RichLayout.objectFitter = { attachment, width in WriterMath.fit(attachment, width: width) }
         }
+        if RichDocumentController.groupChildProxy == nil {
+            RichDocumentController.groupChildProxy = { image, child in ShapeGroups.textProxy(image, child: child) }
+        }
+        if RichDocumentController.groupChildEditor == nil {
+            RichDocumentController.groupChildEditor = { image, child, change in ShapeGroups.editChild(image, child: child, change) }
+        }
     }
 }
 

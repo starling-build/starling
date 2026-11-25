@@ -51,10 +51,10 @@ final class SlideIdentityTests: XCTestCase {
         let ids = slideIds(pres)
         XCTAssertEqual(ids, [402, 377, 366, 403, 404, 309])
         let s = sections(pres)
-        // 402 (from "section-demo") now leads the deck, so that section leads; "Default Section" starts at its first slide still there.
-        XCTAssertEqual(s.map(\.name), ["section-demo", "Default Section"])
-        XCTAssertEqual(s[0].ids, [402])
-        XCTAssertEqual(s[1].ids, [377, 366, 403, 404, 309])
+        // A slide dragged to the top joins the first section, as in PowerPoint; the sections keep their order.
+        XCTAssertEqual(s.map(\.name), ["Default Section", "section-demo"])
+        XCTAssertEqual(s[0].ids, [402, 377, 366])
+        XCTAssertEqual(s[1].ids, [403, 404, 309])
         XCTAssertEqual(Set(s.flatMap(\.ids)), Set(ids))
     }
 

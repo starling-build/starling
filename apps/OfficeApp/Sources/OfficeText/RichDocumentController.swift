@@ -58,7 +58,28 @@ public struct NotesState: Equatable, Sendable {
     }
 }
 
+/// The document-property parts (docProps/*) with their content types and package links: what File > Info edits.
+public struct PropertyParts: Equatable, Sendable {
+    public var parts: [String: Data]
+    public var types: [String: String]
+    public var rels: [KeptRel]
+    public init(_ doc: RichDocument) {
+        parts = doc.keptParts.filter { $0.key.hasPrefix("docProps/") }
+        types = doc.keptPartTypes.filter { $0.key.hasPrefix("docProps/") }
+        rels = doc.keptRootRels.filter { $0.target.hasPrefix("docProps/") }
+    }
+    func put(into doc: inout RichDocument) {
+        for k in doc.keptParts.keys where k.hasPrefix("docProps/") { doc.keptParts[k] = nil }
+        for k in doc.keptPartTypes.keys where k.hasPrefix("docProps/") { doc.keptPartTypes[k] = nil }
+        doc.keptRootRels.removeAll { $0.target.hasPrefix("docProps/") }
+        for (k, v) in parts { doc.keptParts[k] = v }
+        for (k, v) in types { doc.keptPartTypes[k] = v }
+        doc.keptRootRels += rels
+    }
+}
+
 public indirect enum EditOp: Equatable, Sendable {
+    case setProperties(new: PropertyParts, old: PropertyParts)
     case insertText(RichPosition, String, [Run])
     case deleteText(RichPosition, String, [Run])
     /// Restore exact bookmark boundaries as well as text when undoing an edit.
@@ -179,6 +200,9 @@ public indirect enum EditOp: Equatable, Sendable {
             doc.footer = footer
             changes.append(.all)
             return .setRichHeaderFooter(new: old, old: new, header: oldHeader, footer: oldFooter, oldHeader: header, oldFooter: footer)
+        case .setProperties(let new, let old):
+            new.put(into: &doc)
+            return .setProperties(new: old, old: new)
         case .setNotes(let new, let old):
             new.put(into: &doc)
             changes.append(.all)
@@ -275,6 +299,9 @@ public final class RichDocumentController: ChangeNotifier {
             }
             selection = RichSelection(anchor: a, focus: f, block: block)
             if selection != oldValue {
+                // Shapes picked along with the selected one (Shift-click) last only while a picture stays selected.
+                if !shapePicks.isEmpty, selectedImageIndex == nil { shapePicks = [] }
+                if groupChild != nil { groupChild = nil }
                 // A caret move breaks the typing run and drops the pending
                 // style: Word does exactly this.
                 if !_inEdit {
@@ -297,6 +324,39 @@ public final class RichDocumentController: ChangeNotifier {
     /// Editing is refused when set (a viewer, a locked document).
     public var readOnly = false
 
+    /// A shape picked from Insert > Shapes that waits for the user to click or drag on the page: given the corner
+    /// (points from the page's top left) and the size, it makes the picture to put there.
+    /// The ids of the floating shapes picked in addition to the selected one (Shift-click), to be grouped with it.
+    public internal(set) var shapePicks: [String] = []
+    /// The child picked inside the selected group (click on the selected group, then on the child): its place among the group's shapes.
+    public internal(set) var groupChild: Int?
+
+    /// A finger has no Shift: while this is on, a tap on a floating shape adds it to the picked ones (or takes it out), as a
+    /// Shift-click does. Dragging on an unselected shape still scrolls on touch.
+    public private(set) var selectMultiple = false
+    public func setSelectMultiple(_ on: Bool) {
+        guard on != selectMultiple else { return }
+        selectMultiple = on
+        notifyListeners()
+    }
+
+    public var pendingShape: ((_ x: Double, _ y: Double, _ width: Double, _ height: Double) -> ImageAttachment?)? = nil
+
+    /// Put the pending shape (if any) at that corner and size on the page, select it, and stop waiting.
+    @discardableResult
+    public func placePendingShape(x: Double, y: Double, width: Double, height: Double, at position: RichPosition) -> Bool {
+        guard let make = pendingShape else { return false }
+        pendingShape = nil
+        guard let shape = make(x, y, width, height) else { return false }
+        _setCaret(position)
+        insertImage(shape)
+        if let i = document.paragraphs.firstIndex(where: { $0.image?.id == shape.id }) { selectImage(at: i) }
+        return true
+    }
+
+    /// The results of the fields whose code is shown (see `toggleFieldCodes`), by field-code id.
+    var _codeStash: [Int: [(text: String, style: CharStyle)]] = [:]
+    var _codeNext = 1
     private var _undo: [UndoEntry] = []
     private var _redo: [UndoEntry] = []
     private var _pendingChanges: [RichChange] = []
@@ -426,9 +486,11 @@ public final class RichDocumentController: ChangeNotifier {
             }
         }
         let boundBefore: [Int: String] = outer ? [:] : _customBoundTexts()
+        let noteMarks = outer ? nil : _noteMarkIds()
         body()
         if !outer {
             _syncCustomBound(before: boundBefore)
+            _dropOrphanNotes(before: noteMarks)
             _inEdit = false
             _undo[_undo.count - 1].selectionAfter = selection
             _undo[_undo.count - 1].continuation = undoKind == .other ? nil : selection.focus
@@ -559,8 +621,8 @@ public final class RichDocumentController: ChangeNotifier {
                 let text = String(piece)
                 if !text.isEmpty {
                     let pos = selection.focus
-                    let runs = style.map { [Run(length: text.utf16.count, style: $0)] }
-                    var inherited = document.paragraphs[pos.paragraph].style(at: pos.offset)
+                    let runs = style.map { [Run(length: text.utf16.count, style: _leavingField($0, at: pos))] }
+                    var inherited = _leavingField(document.paragraphs[pos.paragraph].style(at: pos.offset), at: pos)
                     if inherited.revision?.kind == .deleted { inherited.revision = nil }  // typed text is new, not struck out
                     perform(.insertText(pos, text, runs ?? [Run(length: text.utf16.count, style: inherited)]))
                     _setCaret(RichPosition(paragraph: pos.paragraph, offset: pos.offset + text.utf16.count))
@@ -568,6 +630,19 @@ public final class RichDocumentController: ChangeNotifier {
             }
             typingStyle = style  // a typed run keeps the pending style alive
         }
+    }
+
+    /// Text typed at the end of a field's result (or after it) is not part of the field: the field marks are dropped
+    /// from the style it would inherit. Inside the result, typing stays in it.
+    func _leavingField(_ style: CharStyle, at pos: RichPosition) -> CharStyle {
+        guard style.fieldResult != 0 || style.preservedField != nil else { return style }
+        let p = document.paragraphs[pos.paragraph]
+        if pos.offset < p.text.utf16.count, p.style(at: pos.offset + 1).fieldResult == style.fieldResult { return style }
+        var out = style
+        out.preservedField = nil
+        out.fieldResult = 0
+        out.preservedFieldProperties = [:]
+        return out
     }
 
     /// Enter: split the paragraph at the caret. A heading's continuation is
@@ -1081,7 +1156,7 @@ public final class RichDocumentController: ChangeNotifier {
     }
 
     /// Remove the selection's contents; caret lands at its start.
-    private func _deleteSelectionOps() {
+    func _deleteSelectionOps() {
         if let block = selection.block {
             // Whole cells: their contents go, the cells stay. Extra
             // paragraphs of a cell are removed, the first emptied.
@@ -1148,7 +1223,7 @@ public final class RichDocumentController: ChangeNotifier {
         _setCaret(a)
     }
 
-    private func _setCaret(_ p: RichPosition) {
+    func _setCaret(_ p: RichPosition) {
         selection = RichSelection(caret: p)
     }
 
@@ -1879,6 +1954,136 @@ public final class RichDocumentController: ChangeNotifier {
         }
     }
 
+    /// Convert Text to Table / Table to Text: what separates the pieces.
+    public enum TextTableSeparator: Equatable, Sendable {
+        case paragraph, tab, comma, other(Character)
+        var character: Character? {
+            switch self {
+            case .paragraph: return nil
+            case .tab: return "\t"
+            case .comma: return ","
+            case .other(let c): return c
+            }
+        }
+    }
+
+    /// Whether the selection holds plain paragraphs a table can be made of.
+    public var canConvertTextToTable: Bool {
+        let lo = min(selection.anchor.paragraph, selection.focus.paragraph)
+        let hi = max(selection.anchor.paragraph, selection.focus.paragraph)
+        return (lo ... hi).contains { document.paragraphs[$0].cell == nil } && hasSelection
+    }
+
+    /// Make the selected paragraphs a table, one undo step. With a character separator each paragraph is a row and the
+    /// character cuts it into cells; with `.paragraph` each paragraph is a cell, filled `columns` to a row.
+    @discardableResult
+    public func convertTextToTable(separator: TextTableSeparator, columns: Int = 1) -> Bool {
+        guard hasSelection else { return false }
+        let lo = min(selection.anchor.paragraph, selection.focus.paragraph)
+        var hi = max(selection.anchor.paragraph, selection.focus.paragraph)
+        let sel = selection
+        // A selection ending at the very start of a paragraph leaves that paragraph out.
+        let endP = sel.anchor.paragraph > sel.focus.paragraph || (sel.anchor.paragraph == sel.focus.paragraph && sel.anchor.offset > sel.focus.offset) ? sel.anchor : sel.focus
+        if hi > lo, endP.offset == 0 { hi -= 1 }
+        let source = Array(document.paragraphs[lo ... hi])
+        guard !source.contains(where: { $0.cell != nil }) else { return false }
+        var rowsOfCells: [[RichParagraph]] = []
+        if let ch = separator.character {
+            for var para in source {
+                var cells: [RichParagraph] = []
+                while let r = para.text.firstIndex(of: ch) {
+                    let at = para.text.utf16.distance(from: para.text.startIndex, to: r)
+                    var tail = para.split(at: at)
+                    _ = tail.delete(0 ..< ch.utf16.count)
+                    cells.append(para)
+                    para = tail
+                }
+                cells.append(para)
+                rowsOfCells.append(cells)
+            }
+        } else {
+            let n = max(1, columns)
+            var i = 0
+            while i < source.count {
+                rowsOfCells.append(Array(source[i ..< min(source.count, i + n)]))
+                i += n
+            }
+        }
+        let width = max(1, rowsOfCells.map(\.count).max() ?? 1)
+        let id = UUID().uuidString
+        var out: [RichParagraph] = []
+        for (r, row) in rowsOfCells.enumerated() {
+            for c in 0 ..< width {
+                var p = c < row.count ? row[c] : RichParagraph()
+                p.style = .cell
+                p.cell = CellRef(table: id, row: r, column: c)
+                out.append(p)
+            }
+        }
+        edit {
+            // (The table goes in before the source goes out, so the document is never left empty mid-edit.)
+            var at = lo
+            if at > 0, document.paragraphs[at - 1].cell != nil {
+                perform(.insertParagraphs(at: at, [RichParagraph()]))
+                at += 1
+            }
+            perform(.insertParagraphs(at: at, out))
+            let sourceAt = at + out.count
+            perform(.removeParagraphs(at: sourceAt, source))
+            if sourceAt >= document.paragraphs.count || document.paragraphs[sourceAt].cell != nil {
+                perform(.insertParagraphs(at: sourceAt, [RichParagraph()]))
+            }
+            _setCaret(RichPosition(paragraph: at, offset: 0))
+        }
+        return true
+    }
+
+    /// Turn the caret's table into text, one undo step. A character separator joins a row's cells into one paragraph;
+    /// `.paragraph` makes every cell a paragraph of its own.
+    @discardableResult
+    public func convertTableToText(separator: TextTableSeparator) -> Bool {
+        guard let range = currentTableRange, let id = document.paragraphs[range.lowerBound].cell?.table else { return false }
+        let old = Array(document.paragraphs[range])
+        var out: [RichParagraph] = []
+        for (i, var p) in old.enumerated() {
+            guard let cell = p.cell else { continue }
+            let next = i + 1 < old.count ? old[i + 1].cell : nil
+            // The last paragraph of a cell that has a neighbour in its row takes the separator after it.
+            let endsCell = next == nil || next!.row != cell.row || next!.column != cell.column
+            let rowContinues = next != nil && next!.row == cell.row
+            p.cell = nil
+            if p.style == .cell { p.style = .body }
+            if let ch = separator.character, endsCell, rowContinues {
+                p.append(RichParagraph(text: String(ch), charStyle: p.style(at: max(0, p.length - 1))))
+                out.append(p)
+            } else if separator.character != nil, endsCell == false {
+                out.append(p)
+            } else {
+                out.append(p)
+            }
+        }
+        // With a character separator the pieces of one row must share a paragraph.
+        if separator.character != nil {
+            var merged: [RichParagraph] = []
+            var joinNext = false
+            for (i, p) in out.enumerated() {
+                let src = old[i].cell!
+                let nextSame = i + 1 < old.count && old[i + 1].cell!.row == src.row
+                let endsCell = i + 1 >= old.count || old[i + 1].cell!.column != src.column || old[i + 1].cell!.row != src.row
+                if joinNext, !merged.isEmpty { merged[merged.count - 1].append(p) } else { merged.append(p) }
+                joinNext = nextSame && endsCell
+            }
+            out = merged
+        }
+        edit {
+            perform(.insertParagraphs(at: range.lowerBound, out))
+            perform(.removeParagraphs(at: range.lowerBound + out.count, old))
+            if document.tableStyles[id] != nil { perform(.setTableStyle(id, old: document.tableStyles[id], new: nil)) }
+            _setCaret(RichPosition(paragraph: range.lowerBound, offset: 0))
+        }
+        return true
+    }
+
     /// The cell the caret is in, or nil.
     public var currentCell: CellRef? { document.paragraphs[selection.focus.paragraph].cell }
 
@@ -1953,6 +2158,35 @@ public final class RichDocumentController: ChangeNotifier {
         let old = document.tableColumns[table]
         guard old != widths else { return }
         edit { perform(.setTableColumns(table, old: old, new: widths)) }
+    }
+
+    /// Set by the editor: the laid-out height of the row a cell paragraph is in.
+    public var rowHeightProbe: ((Int) -> Double?)?
+
+    /// Equal heights: every target row (the whole table when one row is chosen) gets the tallest of them.
+    public func distributeRows() {
+        guard let here = currentCell else { return }
+        var rows = targetRows ?? (here.row ... here.row)
+        if rows.count < 2 { rows = 0 ... Int.max / 2 }
+        var heights: [Int: Double] = [:]
+        for (i, p) in document.paragraphs.enumerated() {
+            guard let c = p.cell, c.table == here.table, rows.contains(c.row), c.rowSpan == 1, heights[c.row] == nil,
+                  let h = rowHeightProbe?(i) else { continue }
+            heights[c.row] = h
+        }
+        guard let tallest = heights.values.max() else { return }
+        setTableStyle { t in
+            for r in heights.keys { t.rowHeights[r] = tallest; t.rowsExactHeight.remove(r) }
+        }
+    }
+
+    /// AutoFit: to contents (grid follows the text), to window (full text width), or fixed column widths.
+    public func autoFitTable(_ fit: TableFit) {
+        switch fit {
+        case .contents: setTableStyle { $0.fixedLayout = false; $0.width = nil; $0.widthPercent = nil }
+        case .window: setTableStyle { $0.fixedLayout = false; $0.width = nil; $0.widthPercent = 100 }
+        case .fixed: setTableStyle { $0.fixedLayout = true }
+        }
     }
 
     /// Equal columns across the content width.
@@ -2035,6 +2269,39 @@ public final class RichDocumentController: ChangeNotifier {
     public func setCellVerticalAlignment(_ align: String) {
         guard ["top", "center", "bottom"].contains(align) else { return }
         _formatCells { c, _ in c.verticalAlign = align == "top" ? nil : align }
+    }
+
+    /// Word's nine Align buttons: where the target cells' text stands, across (the paragraphs' alignment) and
+    /// down (the cell's), in one undo step.
+    public func setCellAlignment(vertical: String, horizontal: ParagraphAlignment) {
+        guard ["top", "center", "bottom"].contains(vertical), let block = targetCellBlock, let range = currentTableRange else { return }
+        let old = Array(document.paragraphs[range])
+        var paras = old
+        for i in paras.indices {
+            guard var c = paras[i].cell, block.contains(c) else { continue }
+            c.verticalAlign = vertical == "top" ? nil : vertical
+            paras[i].cell = c
+            paras[i].style.alignment = horizontal
+        }
+        guard paras != old else { return }
+        let sel = selection
+        edit {
+            perform(.removeParagraphs(at: range.lowerBound, old))
+            perform(.insertParagraphs(at: range.lowerBound, paras))
+            selection = sel
+        }
+    }
+
+    /// The target cells' own margins in points (Word's `w:tcMar`), over the table's.
+    public func setCellMargins(top: Double, left: Double, bottom: Double, right: Double) {
+        let t = max(0, top), l = max(0, left), b = max(0, bottom), r = max(0, right)
+        func tw(_ v: Double) -> Int { Int((v * 20).rounded()) }
+        let xml = "<w:tcMar><w:top w:w=\"\(tw(t))\" w:type=\"dxa\"/><w:left w:w=\"\(tw(l))\" w:type=\"dxa\"/>"
+            + "<w:bottom w:w=\"\(tw(b))\" w:type=\"dxa\"/><w:right w:w=\"\(tw(r))\" w:type=\"dxa\"/></w:tcMar>"
+        _formatCells { c, _ in
+            c.padding = EdgeInsets(left: l, top: t, right: r, bottom: b)
+            c.marginsXML = xml
+        }
     }
 
     /// The direction the target cells' text runs: across, or turned down or up.
@@ -2321,7 +2588,7 @@ public final class RichDocumentController: ChangeNotifier {
     /// split cell are shared evenly. The text stays in the first piece.
     /// Returns false when nothing was split.
     @discardableResult
-    public func splitCell(columns n: Int, rows m: Int) -> Bool {
+    public func splitCell(columns n: Int, rows m: Int, columnFraction: Double? = nil) -> Bool {
         guard let here = currentCell, n >= 1, m >= 1, n * m > 1, n <= 63, m <= 200 else { return false }
         let s = here.span, q = here.rowSpan
         let rowExtra = max(0, m - q)
@@ -2338,7 +2605,7 @@ public final class RichDocumentController: ChangeNotifier {
         let x0 = x[here.column], x1 = x[e]
         var newX = x
         for j in 1 ..< n {
-            let t = x0 + (x1 - x0) * Double(j) / Double(n)
+            let t = x0 + (x1 - x0) * (n == 2 ? (columnFraction ?? 0.5) : Double(j) / Double(n))
             if !newX.contains(where: { abs($0 - t) < 0.5 }) { newX.append(t) }
         }
         newX.sort()
@@ -2349,7 +2616,7 @@ public final class RichDocumentController: ChangeNotifier {
         let colExtra = newCols - cols
         guard newCols <= 63 else { return false }
         let oldIndex = x.map { gridIndex($0) }
-        let cuts = (0 ... n).map { gridIndex(x0 + (x1 - x0) * Double($0) / Double(n)) }
+        let cuts = (0 ... n).map { gridIndex(n == 2 && $0 == 1 ? x0 + (x1 - x0) * (columnFraction ?? 0.5) : x0 + (x1 - x0) * Double($0) / Double(n)) }
         guard (0 ..< n).allSatisfy({ cuts[$0 + 1] > cuts[$0] }) else { return false }
         if colExtra > 0 { widths = (0 ..< newCols).map { newX[$0 + 1] - newX[$0] } }
         let newWidths = widths
@@ -2953,6 +3220,32 @@ public final class RichDocumentController: ChangeNotifier {
                 if new != old { perform(.setParagraphStyle(i, old: old, new: new)) }
             }
         }
+    }
+
+    /// Paragraph borders (W-PA-4): give each of `sides` (top, bottom, left, right, and insideH for the line between joined paragraphs; insideV is for cells and is ignored)
+    /// the line, or take the line off when it is nil or "none". One undo step for every paragraph the selection touches.
+    public func setParagraphBorders(_ sides: Set<CellSide>, _ line: CellBorderLine?) {
+        let edge: BorderLine? = {
+            guard let line, line.style != "none" else { return nil }
+            var b = BorderLine(width: line.width, color: line.color, space: 1)
+            if line.style != "single" { b.style = line.style }
+            return b
+        }()
+        applyParagraphStyle { st in
+            var b = st.borders ?? ParagraphBorders()
+            if sides.contains(.top) { b.top = edge }
+            if sides.contains(.bottom) { b.bottom = edge }
+            if sides.contains(.left) { b.left = edge }
+            if sides.contains(.right) { b.right = edge }
+            if sides.contains(.insideH) { b.between = edge }
+            st.borders = b.isEmpty ? nil : b
+            if b.isEmpty { st.pBdrElement = false }
+        }
+    }
+
+    /// Paragraph shading (W-PA-4): nil takes it off.
+    public func setParagraphShading(_ color: Color?) {
+        applyParagraphStyle { $0.fill = color }
     }
 
     public func setAlignment(_ alignment: ParagraphAlignment) {

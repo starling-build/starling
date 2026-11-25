@@ -29,7 +29,15 @@ final class ConditionalFormatDialogState: State<StatefulWidget> {
     private var _w: ConditionalFormatDialog { widget as! ConditionalFormatDialog }
 
     static let kinds = ["Cell value", "Text", "Top / bottom", "Above / below average", "Duplicate values",
-                        "Blanks", "Formula", "Color scale", "Data bar"]
+                        "Blanks", "Formula", "Color scale", "Data bar", "Icon set"]
+    static let iconSets: [(label: String, name: String)] = [
+        ("3 arrows", "3Arrows"), ("3 grey arrows", "3ArrowsGray"), ("3 flags", "3Flags"),
+        ("3 traffic lights", "3TrafficLights1"), ("3 traffic lights (rimmed)", "3TrafficLights2"),
+        ("3 signs", "3Signs"), ("3 symbols (circled)", "3Symbols"), ("3 symbols", "3Symbols2"),
+        ("4 arrows", "4Arrows"), ("4 grey arrows", "4ArrowsGray"), ("4 red to black", "4RedToBlack"), ("4 ratings", "4Rating"),
+        ("4 traffic lights", "4TrafficLights"), ("5 arrows", "5Arrows"), ("5 grey arrows", "5ArrowsGray"),
+        ("5 ratings", "5Rating"), ("5 quarters", "5Quarters"),
+        ("3 stars", "3Stars"), ("3 triangles", "3Triangles"), ("5 boxes", "5Boxes")]
     static let opChoices = ValidationDialogState.opChoices
     static let textChoices: [(label: String, op: String)] = [
         ("contains", "containsText"), ("does not contain", "notContainsText"),
@@ -66,10 +74,11 @@ final class ConditionalFormatDialogState: State<StatefulWidget> {
         case "Above / below average": return [("Above average", "above"), ("Below average", "below")]
         case "Duplicate values": return [("Duplicate", "duplicate"), ("Unique", "unique")]
         case "Blanks": return [("Blank cells", "blank"), ("Cells with a value", "filled")]
+        case "Icon set": return Self.iconSets.map { ($0.label, $0.name) }
         default: return []
         }
     }
-    var highlights: Bool { kind != "Color scale" && kind != "Data bar" }
+    var highlights: Bool { kind != "Color scale" && kind != "Data bar" && kind != "Icon set" }
 
     func setKind(_ k: String) {
         kind = k
@@ -102,6 +111,7 @@ final class ConditionalFormatDialogState: State<StatefulWidget> {
         case "Blanks": k = .blanks(variant == "blank")
         case "Formula": k = .expression(_v1.text)
         case "Color scale": k = .colorScale([0xFFF8696B, 0xFFFFEB84, 0xFF63BE7B])
+        case "Icon set": k = .iconSet(variant)
         default: k = .dataBar(0xFF638EC6)
         }
         var spec = CFSpec(kind: k)

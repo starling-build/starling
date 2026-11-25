@@ -1423,8 +1423,13 @@ extension _ParaFrame {
                         let hang = k == 0 ? max(0, -original) : 0
                         var x0 = -hang
                         for b in active {
-                            if b.left - x0 >= minRoom { segments.append((x0, b.left)) }
-                            x0 = max(x0, b.right)
+                            // (A tight shape's outline, not its box, sets the room beside it, row by row: Word's print of lab para-anchored-fixed,
+                            // an oval's right pieces starting 279.0 / 274.4 / 257.0 as it narrows, beside a square.)
+                            let outlined = _besideOutlineBox[i].map { abs($0.left - b.left) < 0.01 && abs($0.right - b.right) < 0.01 } ?? false
+                            let bLeft = outlined ? (_besideLeftAt[i]?(top, bottom) ?? b.left) : b.left
+                            let bRight = outlined ? (_besideStartAt[i]?(top, bottom) ?? b.right) : b.right
+                            if bLeft - x0 >= minRoom { segments.append((x0, bLeft)) }
+                            x0 = max(x0, bRight)
                         }
                         if !active.isEmpty, textWidth - x0 >= minRoom { segments.append((x0, textWidth)) }
                         if active.isEmpty || segments.isEmpty { next.append(LineIndent()); k += 1; continue }
@@ -1435,7 +1440,11 @@ extension _ParaFrame {
                                 firstLead = 0
                                 next.append(LineIndent(left: seg.from, right: max(textWidth - seg.to, 0)))
                             } else {
-                                next.append(LineIndent(left: max(seg.from, 0), right: max(textWidth - seg.to, 0)))
+                                // (A row's only piece, standing from a box's edge to the margin, is a line of its own: the 0.001 right inset keeps
+                                // `_registerPairs` from taking it for the right piece of a pair and lifting it level with the line before. Word's
+                                // print of lab para-anchored-fixed: three rows beside a square, then rows beside an oval.)
+                                let right = max(textWidth - seg.to, 0)
+                                next.append(LineIndent(left: max(seg.from, 0), right: j == 0 && segments.count == 1 && seg.from > 0.5 && right == 0 ? 0.001 : right))
                             }
                             if j > 0 { saved += min(bottoms[k + j] - bottoms[k + j - 1], bottoms[k] - before) }
                         }
@@ -1450,11 +1459,13 @@ extension _ParaFrame {
                     var saved = 0.0, k = 0
                     while k < bottoms.count {
                         let before = k == 0 ? 0 : bottoms[k - 1]
-                        if bottoms[k] - saved > band.top + 0.01, before - saved < band.bottom - 0.01, k < leftFits.count, !leftFits[k] {
+                        // (A row that meets a top-and-bottom box set from the page goes under it, whole: Word tests it there, not beside the shape.)
+                        let underBox = _stripClear[i].map { bottoms[k] - saved > $0.top + 0.01 } ?? false
+                        if !underBox, bottoms[k] - saved > band.top + 0.01, before - saved < band.bottom - 0.01, (k < leftFits.count && !leftFits[k]) || before - saved < (_besideNoLeft[i] ?? -1) {
                             // (No word fits the strip: the row is the right piece alone. Its 0.001 right inset keeps `_registerPairs`
                             // from taking it for the right piece of a pair.)
-                            next.append(LineIndent(left: besideIndent, right: 0.001)); k += 1
-                        } else if bottoms[k] - saved > band.top + 0.01, before - saved < band.bottom - 0.01 {
+                            next.append(LineIndent(left: _besideStartAt[i]?(before - saved, bottoms[k] - saved) ?? besideIndent, right: 0.001)); k += 1
+                        } else if !underBox, bottoms[k] - saved > band.top + 0.01, before - saved < band.bottom - 0.01 {
                             let leftPiece = LineIndent(left: 0, right: max(textWidth - (_besideLeftAt[i]?(before - saved, bottoms[k] - saved) ?? leftRoom), 0))
                             let rightPiece = LineIndent(left: _besideStartAt[i]?(before - saved, bottoms[k] - saved) ?? besideIndent, right: 0)
                             if p.style.rightToLeft, theme.wordRules, RichTextTheme.wordWindowsPages {

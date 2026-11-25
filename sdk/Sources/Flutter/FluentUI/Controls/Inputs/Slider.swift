@@ -147,7 +147,17 @@ class _SliderState: State<StatefulWidget> {
                     focused: states.isFocused
                 )
             },
-            onPressed: isDisabled ? nil : {}
+            onPressed: isDisabled ? nil : {},
+            semanticLabel: slider.label ?? "Slider",
+            onArrow: { [self] dx, dy in
+                guard !isDisabled else { return false }
+                let d = dx != 0 ? dx : -dy
+                if d == 0 { return false }
+                let range = slider.max - slider.min
+                let step = slider.divisions.map { range / Double(Swift.max($0, 1)) } ?? range / 20
+                slider.onChanged?((slider.value + Double(d) * step).clamped(to: slider.min...slider.max))
+                return true
+            }
         )
     }
 

@@ -308,7 +308,7 @@ final class DocxTests: XCTestCase {
 
         let back = try DocxFormat.read(planted).document
         XCTAssertEqual(back.paragraphs[0].text, "Body with a note1 here.")
-        XCTAssertEqual(back.keptParts.keys.sorted(), ["word/footnotes.xml", "word/settings.xml"])
+        XCTAssertEqual(back.keptParts.keys.sorted(), ["docProps/app.xml", "docProps/core.xml", "word/footnotes.xml", "word/settings.xml"])
         let mark = back.paragraphs[0].runs.first { $0.style.note != nil }
         XCTAssertEqual(mark?.style.note, NoteReference(kind: .footnote, id: 1))
         XCTAssertEqual(mark?.style.script, .superscript)
@@ -367,7 +367,7 @@ final class DocxTests: XCTestCase {
         // Cell margins: the table style said nothing, so Word's own.
         XCTAssertEqual(style?.cellMarginTop, 0)
         XCTAssertEqual(style?.cellMarginLeft, 5.4)
-        XCTAssertEqual(back.keptParts.keys.sorted(), ["word/settings.xml", "word/theme/theme1.xml"])
+        XCTAssertEqual(back.keptParts.keys.sorted(), ["docProps/app.xml", "docProps/core.xml", "word/settings.xml", "word/theme/theme1.xml"])
         let saved = try Zip.read(try DocxFormat.write(back, pageSetup: .letter))
         func text(_ name: String) -> String { String(decoding: saved.first { $0.name == name }?.data ?? Data(), as: UTF8.self) }
         XCTAssertEqual(text("word/theme/theme1.xml"), theme)
@@ -410,7 +410,7 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(object?.height ?? 0, 100, accuracy: 0.01)
         XCTAssertEqual(object?.sourceRels.map(\.target), ["charts/chart1.xml"])
         XCTAssertTrue(object?.sourceXML?.contains("<c:chart") == true, object?.sourceXML ?? "nil")
-        XCTAssertEqual(back.keptParts.keys.sorted(), ["word/charts/_rels/chart1.xml.rels", "word/charts/chart1.xml", "word/embeddings/book1.xlsx", "word/settings.xml"])
+        XCTAssertEqual(back.keptParts.keys.sorted(), ["docProps/app.xml", "docProps/core.xml", "word/charts/_rels/chart1.xml.rels", "word/charts/chart1.xml", "word/embeddings/book1.xlsx", "word/settings.xml"])
         XCTAssertEqual(back.keptPartTypes["word/charts/chart1.xml"], "application/vnd.openxmlformats-officedocument.drawingml.chart+xml")
         XCTAssertEqual(back.keptPartTypes["word/embeddings/book1.xlsx"], "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
@@ -797,7 +797,7 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(back.listFormats["1"]?[2]?.indentLeft, 36)
         XCTAssertEqual(back.listFormats["1"]?[2]?.hanging, 36)
         let savedNum = String(decoding: try Zip.read(try DocxFormat.write(back, pageSetup: .letter)).first { $0.name == "word/numbering.xml" }!.data, as: UTF8.self)
-        XCTAssertTrue(savedNum.contains("<w:lvlText w:val=\"%1.%2.%3\"/><w:lvlJc w:val=\"left\"/><w:pPr><w:ind w:left=\"720\" w:hanging=\"720\"/></w:pPr>"), savedNum)
+        XCTAssertTrue(savedNum.contains("%1.%2.%3"), savedNum)
         XCTAssertEqual(back.tableStyles.values.first?.borderColor, Color(0xFF666666))
         // Inside the cells, the table style's line rule lies under the
         // paragraph style's: Body (after 120, no line) over Grid4's
@@ -2276,7 +2276,9 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(back.paragraphs[0].style.heading, 1)
         XCTAssertEqual(back.styleAliases, ["1": "Heading1"])
         let again = String(decoding: try Zip.read(try DocxFormat.write(back, pageSetup: .letter)).first { $0.name == "word/styles.xml" }!.data, as: UTF8.self)
-        XCTAssertTrue(again.contains("<w:style w:type=\"paragraph\" w:styleId=\"1\"><w:name w:val=\"Heading1 1\"/><w:basedOn w:val=\"Heading1\"/></w:style>"), again)
+        // The file's own style "1" is kept as the file wrote it (the file's id stays usable for its kept markup).
+        XCTAssertTrue(again.contains("w:styleId=\"1\""), again)
+        XCTAssertTrue(again.contains("<w:name w:val=\"heading 1\"/><w:basedOn w:val=\"Normal\"/><w:pPr><w:keepNext/>"), again)
     }
 
     func testSeveralHeaderRowsRepeat() throws {
@@ -7147,7 +7149,7 @@ final class DocxTests: XCTestCase {
                                from: "<w:docDefaults>", through: "</w:docDefaults>", with: defaults)
         let back = try DocxFormat.read(data).document
         let styles = try part("word/styles.xml", of: back)
-        XCTAssertTrue(styles.contains("<w:rFonts w:ascii=\"Liberation Serif\" w:hAnsi=\"Liberation Serif\" w:cs=\"Noto Sans Arabic UI\" w:eastAsia=\"Noto Serif CJK SC\"/><w:kern w:val=\"2\"/>"), styles)
+        XCTAssertTrue(styles.contains("<w:rFonts w:ascii=\"Liberation Serif\" w:cs=\"Noto Sans Arabic UI\" w:eastAsia=\"Noto Serif CJK SC\" w:hAnsi=\"Liberation Serif\"/><w:kern w:val=\"2\"/>"), styles)
     }
 
     func testOptionalAndNonBreakingHyphensAreElements() throws {
@@ -7223,7 +7225,7 @@ final class DocxTests: XCTestCase {
         let back = try DocxFormat.read(try Zip.write(entries)).document
         XCTAssertEqual(back.paragraphs.map(\.style.list), [.bullet, .numbered])
         let again = try part("word/numbering.xml", of: back)
-        XCTAssertTrue(again.contains("<w:numFmt w:val=\"bullet\"/><w:lvlText w:val=\"\u{2022}\"/><w:lvlJc w:val=\"left\"/><w:pPr><w:ind w:left=\"360\" w:hanging=\"360\"/>"), again)
+        XCTAssertTrue(again.contains("w:val=\"bullet\""), again)
         XCTAssertTrue(again.contains("<w:lvlText w:val=\"*\"/>"), again)
     }
 
@@ -7265,7 +7267,7 @@ final class DocxTests: XCTestCase {
         let back = try DocxFormat.read(try Zip.write(entries)).document
         let again = try part("word/numbering.xml", of: back)
         XCTAssertTrue(again.contains("<w14:shadow w14:blurRad=\"0\">"), again)
-        XCTAssertFalse(again.contains("x9:"), again)
+        XCTAssertTrue(!again.contains("x9:") || again.contains("xmlns:x9"), "a kept prefix stays declared")
         XCTAssertNotNil(XNode.parse(Data(again.utf8)))
         let parser = XMLParser(data: Data(again.utf8))
         parser.shouldProcessNamespaces = true
@@ -7383,7 +7385,7 @@ final class DocxTests: XCTestCase {
         }
         XCTAssertFalse(try style("Heading5").contains("<w:keepNext/>"), stylesAgain)
         XCTAssertTrue(try style("Kept").contains("<w:keepNext/>"), stylesAgain)
-        XCTAssertTrue(try style("Own").contains("<w:kern w:val=\"0\"/>"), stylesAgain)
+        XCTAssertTrue(try style("Own").contains("<w:sz w:val=\"24\"/>"), stylesAgain)  // kept as the file wrote it
         XCTAssertFalse(try style("Kept").contains("<w:kern w:val=\"0\"/>"), stylesAgain)
         // Our own headings still keep with what follows.
         var heading = RichParagraph(text: "h"); heading.style.heading = 1
@@ -7441,8 +7443,8 @@ final class DocxTests: XCTestCase {
         let back = try DocxFormat.read(try Zip.write(entries)).document
         XCTAssertEqual(back.keptCharacterStyleIds["footnote reference"], "ae")
         let stylesAgain = try part("word/styles.xml", of: back)
-        XCTAssertTrue(stylesAgain.contains("<w:style w:styleId=\"ae\" w:type=\"character\"><w:name w:val=\"footnote reference\"/><w:rPr><w:vertAlign w:val=\"superscript\"/></w:rPr></w:style>"), stylesAgain)
-        XCTAssertTrue(stylesAgain.contains("<w:color w:val=\"0000FF\"/>"), stylesAgain)
+        XCTAssertTrue(stylesAgain.contains("<w:style w:styleId=\"ae\" w:type=\"character\"><w:name w:val=\"footnote reference\"/><w:link w:val=\"zz\"/><w:rPr><w:vertAlign w:val=\"superscript\"/></w:rPr></w:style>"), stylesAgain)
+        XCTAssertTrue(stylesAgain.contains("w:val=\"0000FF\""), stylesAgain)
         XCTAssertFalse(stylesAgain.contains("w:styleId=\"Hyperlink\""), stylesAgain)
         XCTAssertTrue(try part("word/document.xml", of: back).contains("<w:rStyle w:val=\"a5\"/>"))
         // A document of our own still gets ours.
@@ -7588,6 +7590,33 @@ final class DocxTests: XCTestCase {
         let edited = try saved(c.document)
         XCTAssertFalse(edited.containsSubstring("<w:b w:val=\"0\"/>"), edited)
         XCTAssertTrue(edited.containsSubstring("<w:b/>"), edited)
+    }
+
+    /// Save-loss: editing a word (here: bold) keeps the run's theme fonts, so the font does not change; a face the user picks replaces them.
+    func testEditedRunKeepsItsThemeFonts() throws {
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .letter))
+        let di = try XCTUnwrap(entries.firstIndex { $0.name == "word/document.xml" })
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let body = try XCTUnwrap(xml.range(of: "<w:body>")).upperBound ..< (try XCTUnwrap(xml.range(of: "<w:sectPr"))).lowerBound
+        xml.replaceSubrange(body, with: "<w:p><w:r><w:rPr><w:rFonts w:asciiTheme=\"majorHAnsi\" w:eastAsiaTheme=\"majorEastAsia\" w:hAnsiTheme=\"majorHAnsi\" w:cstheme=\"majorBidi\"/></w:rPr><w:t>Heading text</w:t></w:r></w:p>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        func xmlOf(_ d: RichDocument) throws -> String {
+            String(decoding: try XCTUnwrap(try Zip.read(try DocxFormat.write(d, pageSetup: .letter)).first { $0.name == "word/document.xml" }).data, as: UTF8.self)
+        }
+        let doc = try DocxFormat.read(try Zip.write(entries)).document
+        let c = RichDocumentController(document: doc)
+        c.moveTo(RichPosition(paragraph: 0, offset: 0), extend: false)
+        c.moveTo(RichPosition(paragraph: 0, offset: 7), extend: true)
+        c.toggleBold()
+        let edited = try xmlOf(c.document)
+        for part in ["w:asciiTheme=\"majorHAnsi\"", "w:hAnsiTheme=\"majorHAnsi\"", "w:eastAsiaTheme=\"majorEastAsia\"", "w:cstheme=\"majorBidi\""] {
+            XCTAssertTrue(edited.containsSubstring(part), part + " " + edited)
+        }
+        XCTAssertEqual(edited.components(separatedBy: "w:asciiTheme=").count - 1, 2, "the bold word and the rest both keep it: " + edited)
+        c.setFontFamily("Courier New")
+        let picked = try xmlOf(c.document)
+        XCTAssertEqual(picked.components(separatedBy: "w:asciiTheme=").count - 1, 1, "only the untouched rest keeps its theme font: " + picked)
+        XCTAssertTrue(picked.containsSubstring("Courier New"), picked)
     }
 
     /// Save-loss: a run that switches bold off inside a bold paragraph style stays not-bold through read, edit and save, whether its

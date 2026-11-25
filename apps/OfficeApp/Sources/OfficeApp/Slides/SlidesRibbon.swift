@@ -21,7 +21,7 @@ extension Ribbon {
         case .insert: return _slidesInsert(deck, fluent)
         case .design: return _design(deck, fluent)
         case .transitions: return _transitions(deck, fluent)
-        case .slideShow: return _slideShowTab(fluent)
+        case .slideShow: return _slideShowTab(deck, fluent)
         case .view: return _slidesView(fluent)
         case .pictureFormat: return _slidePictureFormat(deck, fluent)
         case .chartDesign: return _chartDesign(deck, fluent)
@@ -70,8 +70,11 @@ extension Ribbon {
                        menu: _layoutItems(fluent, current: nil) { kind in deck.addSlide(kind) }),
             Chrome.gap(2),
             Chrome.rows([
-                Chrome.menuButton(FluentSystemIcons.grid, "Layout", "Slide layout", fluent,
-                                  items: _slideLayoutItems(deck, fluent)),
+                Chrome.row([
+                    Chrome.menuButton(FluentSystemIcons.grid, "Layout", "Slide layout", fluent,
+                                      items: _slideLayoutItems(deck, fluent)),
+                    _sectionMenu(deck, fluent),
+                ]),
                 Chrome.small(FluentSystemIcons.copy, "Duplicate", fluent) { deck.duplicateSlide(deck.current) },
                 Chrome.small(FluentSystemIcons.delete, "Delete", fluent, enabled: deck.slides.count > 1) {
                     deck.deleteSlide(deck.current)
@@ -80,21 +83,42 @@ extension Ribbon {
         ])
     }
 
+    private func _sectionMenu(_ deck: DeckController, _ fluent: FluentThemeData) -> Widget {
+        let si = deck.sectionIndex(ofSlide: deck.current)
+        func item(_ text: String, enabled: Bool = true, _ act: @escaping () -> Void) -> MenuFlyoutItemBase {
+            MenuFlyoutItem(text: Text(text), onPressed: enabled ? act : nil)
+        }
+        let items: [MenuFlyoutItemBase] = [
+            item("Add Section") { [session] in session.onSectionName?(false) },
+            item("Rename Section", enabled: si != nil) { [session] in session.onSectionName?(true) },
+            item("Remove Section", enabled: si != nil) { if let si { deck.removeSection(si) } },
+            item("Remove Section & Slides", enabled: si != nil && deck.sections.count > 1) { if let si { deck.removeSectionAndSlides(si) } },
+            item("Remove All Sections", enabled: !deck.sections.isEmpty) { deck.removeAllSections() },
+            item("Collapse All", enabled: !deck.sections.isEmpty) { deck.setAllSectionsCollapsed(true) },
+            item("Expand All", enabled: !deck.sections.isEmpty) { deck.setAllSectionsCollapsed(false) },
+        ]
+        return Chrome.menuButton(FluentSystemIcons.bulletList, nil, "Sections", fluent, items: items)
+    }
+
     private func _slidesHome(_ deck: DeckController, _ fluent: FluentThemeData) -> [Widget] {
         let fp = fontAndParagraphGroups(fluent)
         let editing = Chrome.group("Editing", fluent, [Chrome.rows([
             Chrome.small(FluentSystemIcons.textT, "Select All", fluent) { [session] in session.controller.selectAll() },
             Chrome.small(FluentSystemIcons.numberList, "Selection Pane", fluent) { [session] in session.onSelectionPane?() },
+            // A finger has no Shift: while this is on, a tap adds a shape to the selection or takes it out.
+            Chrome.small(FluentSystemIcons.check, "Select Multiple", fluent, checked: deck.selectMultiple) { deck.setSelectMultiple(!deck.selectMultiple) },
         ])])
         return [clipboardGroup(fluent), _slidesGroup(deck, fluent), fp[0], fp[1], _drawingGroup(deck, fluent), editing]
     }
 
     private func _shapeItems(_ fluent: FluentThemeData) -> [MenuFlyoutItemBase] {
-        ShapePreset.allCases.map { preset in
-            MenuFlyoutItem(text: Text(preset.name),
-                           leading: Icon(FluentSystemIcons.shapes, size: Chrome.iconSize,
-                                         color: fluent.resources.textFillColorPrimary),
-                           onPressed: { [session] in session.onInsertShape?(preset) })
+        ShapeGallery.groups.map { group in
+            MenuFlyoutSubItem(text: Text(group.name), items: group.presets.map { preset in
+                MenuFlyoutItem(text: Text(preset.name),
+                               leading: Icon(FluentSystemIcons.shapes, size: Chrome.iconSize,
+                                             color: fluent.resources.textFillColorPrimary),
+                               onPressed: { [session] in session.onInsertShape?(preset) })
+            })
         }
     }
 
@@ -123,6 +147,9 @@ extension Ribbon {
             MenuFlyoutItem(text: Text("Align Middle"), onPressed: some ? { deck.align(.middle) } : nil),
             MenuFlyoutItem(text: Text("Align Bottom"), onPressed: some ? { deck.align(.bottom) } : nil),
             MenuFlyoutSeparator(),
+            MenuFlyoutItem(key: ValueKey("arrange.reroute"), text: Text("Reroute Connectors"),
+                           onPressed: deck.reroutableLines.isEmpty ? nil : { deck.rerouteConnectors() }),
+            MenuFlyoutSeparator(),
             MenuFlyoutItem(text: Text("Format Shape…"), onPressed: some ? { [session] in session.onFormatShape?() } : nil),
         ]
         let palette = Self.shapeColors(deck.theme)
@@ -138,9 +165,47 @@ extension Ribbon {
             ]),
             Chrome.vgap(4),
             Chrome.row([
+                Chrome.menuButton(FluentSystemIcons.textEffects, "Shape Effects", "Shadow, glow, reflection, soft edges, bevel",
+                                  fluent, items: _effectItems(deck, fluent)),
                 Chrome.small(FluentSystemIcons.textT, "Text Options", fluent) { [session] in session.onTextOptions?() },
             ]),
         ])])
+    }
+
+    /// Shape Effects: PowerPoint's presets for shadow, glow, reflection, soft edges and bevel.
+    private func _effectItems(_ deck: DeckController, _ fluent: FluentThemeData) -> [MenuFlyoutItemBase] {
+        let some = !deck.selection.isEmpty
+        func item(_ id: String, _ text: String, _ act: @escaping () -> Void) -> MenuFlyoutItem {
+            MenuFlyoutItem(key: ValueKey(id), text: Text(text), onPressed: some ? act : nil)
+        }
+        let shadows: [MenuFlyoutItemBase] = [item("fx.shadow.none", "No Shadow") { deck.setShadow(nil) }]
+            + ShapeEffectPresets.shadows.enumerated().map { i, sh in
+                item("fx.shadow.\(i)", sh.name) { deck.setShadow(ShapeEffectPresets.shadow(angle: sh.angle)) } }
+        let glows: [MenuFlyoutItemBase] = [item("fx.glow.none", "No Glow") { deck.setGlow(radius: nil, color: nil) }]
+            + ShapeEffectPresets.glowSizes.map { size in
+                MenuFlyoutSubItem(text: Text("Glow: \(Int(size)) point"), items: deck.theme.accents.prefix(6).enumerated().map { i, c in
+                    item("fx.glow.\(Int(size)).\(i)", "Accent \(i + 1)") {
+                        deck.setGlow(radius: size, color: ShapeEffectPresets.glowColor(c)) } })
+            }
+        let reflections: [MenuFlyoutItemBase] = [item("fx.reflection.none", "No Reflection") { deck.setReflection(nil) }]
+            + ShapeEffectPresets.reflections.enumerated().map { i, r in
+                item("fx.reflection.\(i)", r.name) {
+                    deck.setReflection(ShapeEffectPresets.reflection(r)) } }
+        let soft: [MenuFlyoutItemBase] = [item("fx.soft.none", "No Soft Edges") { deck.setSoftEdge(nil) }]
+            + ShapeEffectPresets.softEdgeSizes.map { r in
+                item("fx.soft.\(r)", "\(r == r.rounded() ? String(Int(r)) : String(r)) Point") { deck.setSoftEdge(r) } }
+        let bevels: [MenuFlyoutItemBase] = [item("fx.bevel.none", "No Bevel") { deck.setBevel(nil) }]
+            + ShapeEffectPresets.bevels.map { b in
+                item("fx.bevel.\(b.preset)", b.name) { deck.setBevel(ShapeBevel(width: 6, height: 6, preset: b.preset)) } }
+        return [
+            item("fx.clear", "No Effects") { deck.clearEffects() },
+            MenuFlyoutSeparator(),
+            MenuFlyoutSubItem(text: Text("Shadow"), items: shadows),
+            MenuFlyoutSubItem(text: Text("Reflection"), items: reflections),
+            MenuFlyoutSubItem(text: Text("Glow"), items: glows),
+            MenuFlyoutSubItem(text: Text("Soft Edges"), items: soft),
+            MenuFlyoutSubItem(text: Text("Bevel"), items: bevels),
+        ]
     }
 
     /// The theme's accents first, then the neutrals and standard colours.
@@ -156,12 +221,45 @@ extension Ribbon {
     /// Shape Fill / Shape Outline: the shared colour picker in a drop-down.
     private func _shapeColorMenu(_ icon: IconData, _ tip: String, _ deck: DeckController, _ fluent: FluentThemeData,
                                  outline: Bool) -> Widget {
-        Chrome.menuButton(icon, nil, tip, fluent, items: [
+        var items: [MenuFlyoutItemBase] = [
             ColorGridMenuItem(theme: deck.theme.slots, recent: deck.recentShapeColors.list,
                               noneLabel: outline ? "No Outline" : "No Fill",
                               onChoose: { deck.applyShapeColor($0, outline: outline) },
-                              onMore: { [session] in session.onMoreShapeColor?(outline) }),
-        ])
+                              onMore: { [session] in session.onMoreShapeColor?(outline) },
+                              onEyedropper: { deck.eyedropperFor = outline }),
+        ]
+            func entry(_ id: String, _ label: String, _ run: @escaping () -> Void) -> MenuFlyoutItem {
+                MenuFlyoutItem(text: Padding(key: ValueKey(id), padding: EdgeInsets(left: 0, top: 0, right: 0, bottom: 0), child: Text(label)),
+                               onPressed: deck.selection.isEmpty ? nil : run)
+            }
+        if !outline {
+            let ink = Color(Int64(deck.theme.slots[1]) | 0xFF00_0000)
+            let patterns: [(String, String)] = [("Light upward diagonal", "ltUpDiag"), ("Wide upward diagonal", "wdUpDiag"),
+                ("Horizontal lines", "ltHorz"), ("Vertical lines", "ltVert"), ("Grid", "smGrid"), ("Dotted grid", "dotGrid"),
+                ("Checker board", "smCheck"), ("5 percent", "pct5"), ("25 percent", "pct25"), ("50 percent", "pct50")]
+            items.append(entry("shape-fill-picture", "Picture…") { [session] in session.onShapeFillPicture?(false) })
+            items.append(entry("shape-fill-texture", "Texture…") { [session] in session.onShapeFillPicture?(true) })
+            items.append(MenuFlyoutSubItem(text: Text("Pattern"), items: patterns.map { name, preset in
+                entry("shape-fill-pattern-\(preset)", name) { deck.setPatternFill(preset, foreground: ink, background: Color(0xFFFFFFFF)) }
+            }))
+        }
+        if outline {
+            let weights: [Double] = [0.25, 0.5, 0.75, 1, 1.5, 2.25, 3, 4.5, 6]
+            items.append(MenuFlyoutSubItem(text: Text("Weight"), items: weights.map { w in
+                entry("shape-weight-\(w)", "\(w) pt") { deck.setOutlineWidth(w) }
+            }))
+            items.append(MenuFlyoutSubItem(text: Text("Dashes"), items: FormatShapePaneState.dashStyles.map { dash, name in
+                entry("shape-dash-\(dash ?? "solid")", name) { deck.setOutlineDash(dash) }
+            }))
+            let heads: [(String?, String)] = [(nil, "None"), ("triangle", "Arrow"), ("arrow", "Open arrow"), ("stealth", "Stealth arrow"),
+                                              ("diamond", "Diamond"), ("oval", "Oval")]
+            for (start, label) in [(true, "Arrow start"), (false, "Arrow end")] {
+                items.append(MenuFlyoutSubItem(text: Text(label), items: heads.map { kind, name in
+                    entry("shape-\(start ? "head" : "tail")-\(kind ?? "none")", name) { deck.setLineEnd(start: start, kind: kind) }
+                }))
+            }
+        }
+        return Chrome.menuButton(icon, nil, tip, fluent, items: items)
     }
 
     private func _slidesInsert(_ deck: DeckController, _ fluent: FluentThemeData) -> [Widget] {
@@ -190,6 +288,10 @@ extension Ribbon {
             ]),
             Chrome.group("Images", fluent, [
                 Chrome.big(FluentSystemIcons.image, "Pictures", fluent) { [session] in session.onInsertPicture?() },
+            ]),
+            Chrome.group("Media", fluent, [
+                Chrome.big(FluentSystemIcons.image, "Video", fluent) { [session] in session.onInsertMedia?(true) },
+                Chrome.big(FluentSystemIcons.image, "Audio", fluent) { [session] in session.onInsertMedia?(false) },
             ]),
             Chrome.group("Charts", fluent, [
                 FlatButton(child: Padding(padding: EdgeInsets(left: 6, top: 2, right: 6, bottom: 2),
@@ -280,11 +382,12 @@ extension Ribbon {
                     MenuFlyoutItem(text: Text("Standard (4:3)"),
                                    leading: Icon(wide ? FluentSystemIcons.onePage : FluentSystemIcons.check,
                                                  size: Chrome.iconSize, color: fluent.resources.textFillColorPrimary),
-                                   onPressed: { deck.setSlideSize(Size(720, 540)) }),
+                                   onPressed: { [session] in session.onSlideSize?(Size(720, 540)) }),
                     MenuFlyoutItem(text: Text("Widescreen (16:9)"),
                                    leading: Icon(wide ? FluentSystemIcons.check : FluentSystemIcons.onePage,
                                                  size: Chrome.iconSize, color: fluent.resources.textFillColorPrimary),
-                                   onPressed: { deck.setSlideSize(Size(960, 540)) }),
+                                   onPressed: { [session] in session.onSlideSize?(Size(960, 540)) }),
+                    MenuFlyoutItem(text: Text("Custom Slide Size…"), onPressed: { [session] in session.onSlideSize?(nil) }),
                 ]),
             ]),
         ]
@@ -294,27 +397,41 @@ extension Ribbon {
         let t = deck.currentSlide.transition
         let icons: [SlideTransition.Kind: IconData] = [.none: FluentSystemIcons.close, .fade: FluentSystemIcons.brightness,
                                                        .push: FluentSystemIcons.forward, .wipe: FluentSystemIcons.textClearFormatting,
-                                                       .cover: FluentSystemIcons.onePage]
+                                                       .cover: FluentSystemIcons.onePage, .pull: FluentSystemIcons.onePage,
+                                                       .split: FluentSystemIcons.window, .zoom: FluentSystemIcons.desktop]
         let kinds: [Widget] = SlideTransition.Kind.allCases.map { kind in
             Chrome.bigToggle(icons[kind] ?? FluentSystemIcons.onePage, SlideTransition(kind: kind).name,
                              t.kind == kind && t.raw == nil, fluent) { deck.setTransition(kind) }
         }
-        let directed = t.kind == .push || t.kind == .wipe || t.kind == .cover
+        func option(_ name: String, _ on: Bool, _ act: @escaping () -> Void) -> MenuFlyoutItem {
+            MenuFlyoutItem(text: Text(name),
+                           leading: Icon(on ? FluentSystemIcons.check : FluentSystemIcons.forward, size: Chrome.iconSize,
+                                         color: fluent.resources.textFillColorPrimary),
+                           onPressed: act)
+        }
         let directions: [(String, SlideTransition.Direction)] = [
             ("From Right", .left), ("From Left", .right), ("From Bottom", .up), ("From Top", .down),
         ]
+        var options: [MenuFlyoutItemBase] = []
+        switch t.kind {
+        case .push, .wipe, .cover, .pull:
+            options = directions.map { name, dir in option(name, t.direction == dir) { deck.setTransition(direction: dir) } }
+        case .split:
+            options = [option("Vertical In", t.vertical && t.inward) { deck.setTransition(vertical: true, inward: true) },
+                       option("Vertical Out", t.vertical && !t.inward) { deck.setTransition(vertical: true, inward: false) },
+                       option("Horizontal In", !t.vertical && t.inward) { deck.setTransition(vertical: false, inward: true) },
+                       option("Horizontal Out", !t.vertical && !t.inward) { deck.setTransition(vertical: false, inward: false) }]
+        case .zoom:
+            options = [option("In", t.zoomIn) { deck.setTransition(zoomIn: true) },
+                       option("Out", !t.zoomIn) { deck.setTransition(zoomIn: false) }]
+        case .none, .fade:
+            options = [MenuFlyoutItem(text: Text("No options"), onPressed: nil)]
+        }
+        let after = t.advanceAfter
         return [
             Chrome.group("Transition to This Slide", fluent, kinds + [
                 Chrome.gap(4),
-                Chrome.rows([
-                    Chrome.menuButton(FluentSystemIcons.settings, "Effect Options", "Direction", fluent,
-                                      items: directions.map { name, dir in
-                                          MenuFlyoutItem(text: Text(name),
-                                                         leading: Icon(t.direction == dir && directed ? FluentSystemIcons.check : FluentSystemIcons.forward,
-                                                                       size: Chrome.iconSize, color: fluent.resources.textFillColorPrimary),
-                                                         onPressed: directed ? { deck.setTransition(direction: dir) } : nil)
-                                      }),
-                ]),
+                Chrome.rows([Chrome.menuButton(FluentSystemIcons.settings, "Effect Options", "Effect Options", fluent, items: options)]),
             ]),
             Chrome.group("Timing", fluent, [Chrome.rows([
                 // Stepped in hundredths of a second, shown in seconds like the
@@ -325,15 +442,34 @@ extension Ribbon {
                 },
                 Chrome.small(FluentSystemIcons.copy, "Apply To All", fluent) { deck.setTransition(all: true) },
             ])]),
+            Chrome.group("Advance Slide", fluent, [Chrome.rows([
+                Chrome.small(t.advanceOnClick ? FluentSystemIcons.check : FluentSystemIcons.close, "On Mouse Click", fluent) {
+                    deck.setTransition(advanceOnClick: !t.advanceOnClick)
+                },
+                Chrome.small(after != nil ? FluentSystemIcons.check : FluentSystemIcons.close, "After", fluent) {
+                    deck.setTransition(advanceAfter: .some(after == nil ? 5 : nil))
+                },
+                Chrome.spinner("Seconds", after ?? 0, fluent, step: 1, unit: "s", minimum: 0,
+                               shown: after == nil ? "Off" : ChartPainter.label(after!, percent: false) + " s") { v in
+                    deck.setTransition(advanceAfter: .some(v))
+                },
+            ])]),
         ]
     }
 
-    private func _slideShowTab(_ fluent: FluentThemeData) -> [Widget] {
+    private func _slideShowTab(_ deck: DeckController, _ fluent: FluentThemeData) -> [Widget] {
         [
             Chrome.group("Start Slide Show", fluent, [
                 Chrome.big(FluentSystemIcons.desktop, "From Beginning", fluent) { [session] in session.onSlideShow?(false) },
                 Chrome.big(FluentSystemIcons.window, "From Current Slide", fluent) { [session] in session.onSlideShow?(true) },
                 Chrome.big(FluentSystemIcons.laptop, "Presenter View", fluent) { [session] in session.onPresenterView?() },
+                Chrome.big(FluentSystemIcons.bulletList, "Custom Slide Show", fluent) { [session] in session.onCustomShows?() },
+            ]),
+            Chrome.group("Set Up", fluent, [
+                Chrome.big(FluentSystemIcons.settings, "Set Up Slide Show", fluent) { [session] in session.onSetUpShow?() },
+                Chrome.big(deck.currentSlide.hidden ? FluentSystemIcons.check : FluentSystemIcons.pinOff,
+                           "Hide Slide", fluent) { [deck] in deck.toggleHidden(deck.current) },
+                Chrome.big(FluentSystemIcons.clock, "Rehearse Timings", fluent) { [session] in session.onRehearse?() },
             ]),
         ]
     }
@@ -522,9 +658,13 @@ extension Ribbon {
     private func _slidesView(_ fluent: FluentThemeData) -> [Widget] {
         [
             Chrome.group("Presentation Views", fluent, [
-                Chrome.bigToggle(FluentSystemIcons.onePage, "Normal", !session.slidesSorter && !(session.deck?.notesPageView ?? false), fluent) { [session] in
+                Chrome.bigToggle(FluentSystemIcons.onePage, "Normal", !session.slidesSorter && !session.slidesOutline && !(session.deck?.notesPageView ?? false), fluent) { [session] in
                     session.onSlidesView?(false)
                 },
+                Padding(key: ValueKey("view.outline"), padding: EdgeInsets(left: 0, top: 0, right: 0, bottom: 0),
+                        child: Chrome.bigToggle(FluentSystemIcons.document, "Outline View", session.slidesOutline && !session.slidesSorter, fluent) { [session] in
+                    session.onSlidesOutline?()
+                }),
                 Padding(key: ValueKey("view.notesPage"), padding: EdgeInsets(left: 0, top: 0, right: 0, bottom: 0),
                         child: Chrome.bigToggle(FluentSystemIcons.document, "Notes Page", (session.deck?.notesPageView ?? false) && !session.slidesSorter, fluent) { [session] in
                     session.onSlidesNotesPage?()

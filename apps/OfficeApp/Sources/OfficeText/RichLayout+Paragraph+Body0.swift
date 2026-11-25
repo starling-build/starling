@@ -177,6 +177,8 @@ extension _ParaFrame {
                 // (A table at the right: the lines end short of it, the first line starts where it would.)
                 _besideLead[i] = beside.indent
                 _besideRightSide[i] = true
+            } else if _tableBothLeft[i] != nil {
+                _besideLead[i] = beside.indent
             } else if beside.indent > lead {
                 lead = beside.indent
                 _besideLead[i] = beside.indent

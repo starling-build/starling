@@ -269,13 +269,13 @@ enum Chrome {
 
     /// Small button: icon beside label, stacked three to a column.
     static func small(_ icon: IconData, _ label: String, _ fluent: FluentThemeData,
-                      enabled: Bool = true, action: @escaping () -> Void) -> Widget {
+                      enabled: Bool = true, checked: Bool = false, action: @escaping () -> Void) -> Widget {
         let color = enabled ? fluent.resources.textFillColorPrimary : fluent.resources.textFillColorDisabled
         return FlatButton(child: Row(mainAxisSize: .min, crossAxisAlignment: .center, children: [
             Icon(icon, size: iconSize, color: color),
             gap(6),
             Text(label, style: fluent.typography.caption?.copyWith(color: color)),
-        ]), enabled: enabled, width: nil, height: 21, alignLeft: true, action: action)
+        ]), checked: checked, enabled: enabled, width: nil, height: 21, alignLeft: true, action: action)
     }
 
     /// A menu button: optional icon, optional title, a chevron; the menu
@@ -347,7 +347,7 @@ enum Chrome {
 
     /// A drop-down of plain choices.
     static func menu(_ title: Widget?, _ leading: Widget?, _ fluent: FluentThemeData,
-                     _ choices: [(String, () -> Void)], keyPrefix: String? = nil) -> Widget {
+                     _ choices: [(String, () -> Void)], keyPrefix: String? = nil, tip: String? = nil) -> Widget {
         let items = choices.map { name, action in
             MenuFlyoutItem(text: keyPrefix.map { Padding(key: ValueKey("\($0).\(name)"), padding: EdgeInsets(left: 0, top: 0, right: 0, bottom: 0), child: Text(name)) as Widget } ?? Text(name),
                            onPressed: action) as MenuFlyoutItemBase }
@@ -358,7 +358,7 @@ enum Chrome {
         parts.append(chevron(fluent))
         return FlatButton(child: Padding(padding: EdgeInsets(left: 6, top: 0, right: 5, bottom: 0),
                                          child: Row(mainAxisSize: .min, crossAxisAlignment: .center, children: parts)),
-                          width: nil, menu: items)
+                          tip: tip, width: nil, menu: items)
     }
 }
 

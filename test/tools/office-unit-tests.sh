@@ -17,6 +17,12 @@ printf '#ifndef _GLIBCXX_MATH_H\n#define _GLIBCXX_MATH_H 1\n#endif\n#include "/u
 export CPLUS_INCLUDE_PATH=$shim${CPLUS_INCLUDE_PATH:+:$CPLUS_INCLUDE_PATH}
 swift build --build-tests --package-path "$root/apps/OfficeApp" --scratch-path "$scratch"
 log=$(mktemp)
+# UNIT_SHARDS=N (opt-in, full runs only; amd-8, 2026-11-25): run the built test binary as N parallel shards, classes split by their last
+# measured time (about 3 min instead of about 18 at N=8). Guards: every test of --list-tests must run exactly once (the ICU setup test once per
+# shard), else the run fails; a class missing from the times file still gets a shard; the times file is refreshed after each full run.
+if [ -n "${UNIT_SHARDS:-}" ] && [ "$UNIT_SHARDS" -gt 1 ] 2>/dev/null && [ $# -eq 0 ]; then
+  exec python3 "$root/test/tools/unit-shards.py" "$root" "$scratch" "$UNIT_SHARDS"
+fi
 # Debug-build layout frames are huge: the main thread's default 8 MB stack overflows (DocxTests crash, 12 tests ran). Raise it.
 ulimit -s 262144 2>/dev/null || ulimit -s unlimited 2>/dev/null || true
 set +e

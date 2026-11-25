@@ -94,7 +94,13 @@ extension DocxFormat {
         if let hint = s.fontHint { attrs += " w:hint=\"\(_esc(hint))\"" }
         if let cs = s.complexFontFamily ?? latin { attrs += " w:cs=\"\(_esc(cs))\"" }
         if let ea = s.eastAsiaFontFamily ?? (eastAsiaDefault ? latin : nil) { attrs += " w:eastAsia=\"\(_esc(ea))\"" }
+        if let t = s.fontTheme, let hash = t.firstIndex(of: "#"), t[t.startIndex ..< hash] == Substring(_fontKey(s)) { attrs += t[t.index(after: hash)...] }
         return attrs.isEmpty ? "" : "<w:rFonts\(attrs)/>"
+    }
+
+    /// The four faces of a look, for telling whether its theme-font attributes still apply.
+    static func _fontKey(_ s: CharStyle) -> String {
+        [s.fontFamily, s.hAnsiFontFamily, s.complexFontFamily, s.eastAsiaFontFamily].map { $0 ?? "" }.joined(separator: "|")
     }
 
     /// A run's properties (CT_RPr children, in schema order). A switch
@@ -131,7 +137,9 @@ extension DocxFormat {
     if let r = s.raised, r != 0 { rPr += "<w:position w:val=\"\(Int((r * 2).rounded()))\"/>" }
     if let size = s.fontSize { rPr += "<w:sz w:val=\"\(Int(size * 2))\"/><w:szCs w:val=\"\(Int(size * 2))\"/>" }
     if let hl = s.highlight {
-        if let name = highlightNames.first(where: { $0.1 == hl })?.0 {
+        if let t = s.shdSource, let h = t.firstIndex(of: "#"), t[t.startIndex ..< h].lowercased() == _hex(hl).lowercased() {
+            rPr += "<w:shd\(t[t.index(after: h)...]) w:fill=\"\(_hex(hl))\"/>"
+        } else if let name = highlightNames.first(where: { $0.1 == hl })?.0 {
             rPr += "<w:highlight w:val=\"\(name)\"/>"
         } else {
             rPr += "<w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"\(_hex(hl))\"/>"
@@ -507,7 +515,7 @@ extension DocxFormat {
             let color = l.color.map { _hex($0) } ?? "auto"
             return "<w:\(name) w:val=\"\(_esc(l.style ?? "single"))\" w:sz=\"\(Int((l.width * 8).rounded()))\" w:space=\"\(Int(l.space.rounded()))\" w:color=\"\(color)\"/>"
         }
-        return "<w:pBdr>" + edge("top", b.top) + edge("left", b.left) + edge("bottom", b.bottom) + edge("right", b.right) + "</w:pBdr>"
+        return "<w:pBdr>" + edge("top", b.top) + edge("left", b.left) + edge("bottom", b.bottom) + edge("right", b.right) + edge("between", b.between) + "</w:pBdr>"
     }
 
     /// `<w:spacing>` with the style's before, after and line, all of them
@@ -863,9 +871,12 @@ extension DocxFormat {
                 if cs.color != nil { cs.off.remove(.autoColor) }
             case "w:highlight":
                 cs.highlight = _highlight(child["w:val"] ?? "none")
+                cs.shdSource = nil
             case "w:shd":
                 if let hex = child["w:fill"], hex.lowercased() != "auto", let v = Int(hex, radix: 16), cs.highlight == nil {
                     cs.highlight = Color(argb: 0xFF, (v >> 16) & 0xFF, (v >> 8) & 0xFF, v & 0xFF)
+                    cs.shdSource = hex.uppercased() + "#" + ["w:val", "w:color", "w:themeFill", "w:themeFillTint", "w:themeFillShade", "w:themeColor", "w:themeTint", "w:themeShade"]
+                        .compactMap { k in child[k].map { " \(k)=\"\(_esc($0))\"" } }.joined()
                 }
             case "w:rFonts":
                 // A slot the element leaves out is inherited, not cleared
@@ -883,11 +894,15 @@ extension DocxFormat {
                 }
                 if let h = child["w:hint"] { cs.fontHint = h }
                 if let f = _family(child["w:eastAsia"] ?? "") { cs.eastAsiaFontFamily = f }
+                var themeAttrs = ""
+                for k in ["asciiTheme", "hAnsiTheme", "eastAsiaTheme", "cstheme"] { if let v = child["w:" + k] { themeAttrs += " w:\(k)=\"\(_esc(v))\"" } }
                 if _latinLangKorean, child["w:ascii"] != nil || child["w:hAnsi"] != nil || child["w:eastAsia"] != nil || child["w:eastAsiaTheme"] != nil {
                     let ea = cs.eastAsiaFontFamily
                     cs.fontFamily = ea.map { OfficeFonts.isEastAsianFace($0) ? $0 : "MS Mincho" } ?? "Malgun Gothic"
                     cs.hAnsiFontFamily = nil
                 }
+                if !themeAttrs.isEmpty { cs.fontTheme = _fontKey(cs) + "#" + themeAttrs }
+                else if ["w:ascii", "w:hAnsi", "w:cs", "w:eastAsia"].contains(where: { child[$0] != nil }) { cs.fontTheme = nil }
             case "w:vertAlign":
                 switch child["w:val"] {
                 case "superscript": cs.script = .superscript
@@ -1261,8 +1276,9 @@ extension DocxFormat {
             let ownStyle = (p.style.heading.flatMap { doc.styles["Heading\(min($0, 6))"] } ?? p.style.named.flatMap { doc.styles[$0] })?.paragraph
             if let b = p.style.borders { pPr += _bordersXML(b) }
             else if ownStyle?.borders != nil { pPr += "<w:pBdr><w:top w:val=\"nil\"/><w:left w:val=\"nil\"/><w:bottom w:val=\"nil\"/><w:right w:val=\"nil\"/></w:pBdr>" }
-            if p.style.fill == nil, ownStyle?.fill != nil { pPr += "<w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"auto\"/>" }
-            if let fill = p.style.fill { pPr += "<w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"\(_hex(fill))\"/>" }
+            if p.style.fill == nil, let t = p.style.fillAttrs, t.hasPrefix("auto#") { pPr += "<w:shd\(t.dropFirst(5)) w:fill=\"auto\"/>" }
+            else if p.style.fill == nil, ownStyle?.fill != nil { pPr += "<w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"auto\"/>" }
+            if let fill = p.style.fill { pPr += _paraShdXML(fill, p.style.fillAttrs) }
             if p.style.rightToLeft { pPr += "<w:bidi/>" }
             else if p.style.named.flatMap({ doc.styles[$0] })?.paragraph.rightToLeft ?? false { pPr += "<w:bidi w:val=\"0\"/>" }
             pPr += _tabsXML(p.style.tabStops, under: ownStyle?.tabStops ?? [])
@@ -1336,6 +1352,10 @@ extension DocxFormat {
             if !markRPr.isEmpty { pPr += "<w:rPr>\(markRPr)</w:rPr>" }
             if let sect = p.style.sectionXML, p.cell == nil, index < doc.paragraphs.count - 1 { pPr += keptFragmentXML(Self._sectionXML(sect, patchedTo: p.style.sectionPage), p.style.sectionRels) }
             body += "<w:p\(p.id != 0 ? " w14:paraId=\"\(_paraIdHex(p.id))\"" : "")><w:pPr>\(pPr)</w:pPr>"
+            // W-FD-2: the table of contents field opens in this paragraph; its entries are the paragraphs that follow.
+            if let toc = p.style.contentsStart {
+                body += "<w:r><w:fldChar w:fldCharType=\"begin\"/></w:r><w:r><w:instrText xml:space=\"preserve\"> \(_esc(toc)) </w:instrText></w:r><w:r><w:fldChar w:fldCharType=\"separate\"/></w:r>"
+            }
             for name in p.bookmarks where !rangedBookmarkNames.contains(name) && writtenBookmarks.insert(name).inserted {
                 // (Numbered clear of any a kept table's own XML carries.)
                 repeat { nextPointBookmarkID += 1 } while rangedBookmarkIDs.contains(String(nextPointBookmarkID)) || takenAnnotationIDs.contains(nextPointBookmarkID)
@@ -1412,6 +1432,8 @@ extension DocxFormat {
             var pos = 0
             let utf16 = p.text.utf16
             let boxRanges = p.checkBoxes.map(\.range)   // a content-control check box shows its glyph as text, not as a legacy form field
+            // (Runs of the same target that follow each other share one w:hyperlink, as Word writes an entry.)
+            var linkOpen = "", linkClosedAt = -1
             for (runIndex, run) in p.runs.enumerated() where run.length > 0 {
                 body += bookmarkXML(at: pos) + controlXML(at: pos)
                 let a = utf16.index(utf16.startIndex, offsetBy: pos)
@@ -1439,12 +1461,13 @@ extension DocxFormat {
                     // (A mark the file set on the baseline keeps it, under
                     // the reference style's superscript.)
                     if s.script != .superscript { rPr += "<w:vertAlign w:val=\"baseline\"/>" }
+                    else { rPr = rPr.replacingAll("<w:vertAlign w:val=\"superscript\"/>", with: "") }   // (the reference style raises it)
                     body += "<w:r><w:rPr>\(rPr.hasPrefix("<w:rStyle ") ? "" : "<w:rStyle w:val=\"\(st)\"/>")\(rPr)</w:rPr>"
                     body += custom.isEmpty ? "<\(tag) w:id=\"\(note.id)\"/>" : "<\(tag) w:customMarkFollows=\"1\" w:id=\"\(note.id)\"/>\(_text(custom))"
                     body += "</w:r>"
                     continue
                 }
-                if s.link != nil, !rPr.hasPrefix("<w:rStyle ") { rPr = "<w:rStyle w:val=\"\(_esc(doc.keptCharacterStyleIds["hyperlink"] ?? "Hyperlink"))\"/>" + rPr }
+                if s.link != nil, s.linkField == nil, !s.linkKeepsLook, !rPr.hasPrefix("<w:rStyle ") { rPr = "<w:rStyle w:val=\"\(_esc(doc.keptCharacterStyleIds["hyperlink"] ?? "Hyperlink"))\"/>" + rPr }
                 let rPrXML = rPr.isEmpty ? "" : "<w:rPr>\(rPr)</w:rPr>"
                 var runXML = ""
                 let isBox: (Character) -> Bool = { $0 == "\u{2610}" || $0 == "\u{2612}" }
@@ -1535,13 +1558,32 @@ extension DocxFormat {
                         openComments.append(id)
                     }
                 }
-                if let link = s.link {
-                    let tip = s.linkTip.map { " w:tooltip=\"\(_esc($0))\"" } ?? ""
-                    if link.hasPrefix("#") {
-                        body += "<w:hyperlink w:anchor=\"\(_esc(String(link.dropFirst())))\"\(tip)>\(runXML)</w:hyperlink>"
-                    } else {
-                        body += "<w:hyperlink r:id=\"\(relId(for: link))\"\(tip)>\(runXML)</w:hyperlink>"
+                if let lf = s.linkField, s.link != nil {
+                    // A HYPERLINK field kept as written: it opens before its first run and ends after its last, which may
+                    // sit in another paragraph.
+                    func same(_ o: Run?) -> Bool { o.map { $0.style.linkField == lf && $0.style.linkFieldID == s.linkFieldID } ?? false }
+                    let before = p.runs.prefix(runIndex).last { $0.length > 0 }
+                        ?? (index > 0 ? doc.paragraphs[index - 1].runs.last { $0.length > 0 } : nil)
+                    let after = p.runs.dropFirst(runIndex + 1).first { $0.length > 0 }
+                        ?? (index + 1 < doc.paragraphs.count ? doc.paragraphs[index + 1].runs.first { $0.length > 0 } : nil)
+                    if !same(before) {
+                        body += "<w:r><w:fldChar w:fldCharType=\"begin\"/></w:r><w:r><w:instrText xml:space=\"preserve\"> \(_esc(lf)) </w:instrText></w:r><w:r><w:fldChar w:fldCharType=\"separate\"/></w:r>"
                     }
+                    body += runXML
+                    if !same(after) { body += "<w:r><w:fldChar w:fldCharType=\"end\"/></w:r>" }
+                } else if let link = s.link {
+                    let tip = s.linkTip.map { " w:tooltip=\"\(_esc($0))\"" } ?? ""
+                    // (A link the file wrote keeps what it had; one made in the app gets Word's w:history.)
+                    let history = !s.linkKeepsLook || s.linkHistory ? " w:history=\"1\"" : ""
+                    let open = link.hasPrefix("#") ? "<w:hyperlink w:anchor=\"\(_esc(String(link.dropFirst())))\"\(tip)\(history)>"
+                        : "<w:hyperlink r:id=\"\(relId(for: link))\"\(tip)\(history)>"
+                    if open == linkOpen, body.utf8.count == linkClosedAt {
+                        body.removeLast("</w:hyperlink>".count)
+                        body += runXML + "</w:hyperlink>"
+                    } else {
+                        body += open + runXML + "</w:hyperlink>"
+                    }
+                    linkOpen = open; linkClosedAt = body.utf8.count
                 } else {
                     body += runXML
                 }
@@ -1553,6 +1595,7 @@ extension DocxFormat {
                 body += "<w:r>\(next.breakRunPropertiesXML ?? "")<w:br w:type=\"\(next.columnBreak ? "column" : "page")\"/></w:r>"
             }
             if commentsKept, index == doc.paragraphs.count - 1 { body += closeComments(except: []) }
+            if p.style.contentsEnd { body += "<w:r><w:fldChar w:fldCharType=\"end\"/></w:r>" }
             body += "</w:p>"
             return body
         }
@@ -1694,7 +1737,8 @@ extension DocxFormat {
                     if span > 1 { xml += "<w:gridSpan w:val=\"\(span)\"/>" }
                     if (ref?.rowSpan ?? 1) > 1 { xml += "<w:vMerge w:val=\"restart\"/>" }
                     xml += cellBordersXML(ref?.edges, width: ref?.borderWidth, kept: ref?.bordersXML ?? (ref?.rowBordersXML != nil ? "" : nil), under: ref?.bordersKeptUnder)   // schema order: borders, then shading
-                    if let fill = ref?.fill, !(ref?.styleFilled == true && doc.tableStyleIds[ref?.table ?? ""] != nil) { xml += "<w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"\(_hex(fill))\"\(ref?.fillThemeAttrs ?? "")/>" }
+                    if ref?.fill == nil, ref?.fillAuto == true { xml += "<w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"auto\"/>" }
+                    else if let fill = ref?.fill, !(ref?.styleFilled == true && doc.tableStyleIds[ref?.table ?? ""] != nil) { xml += "<w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"\(_hex(fill))\"\(ref?.fillThemeAttrs ?? "")/>" }
                     if let mar = ref?.marginsXML { xml += mar }
                     // Schema order: the text direction before the alignment.
                     // (As the file wrote it while it still reads that way.)
@@ -1899,6 +1943,26 @@ extension DocxFormat {
            doc.paragraphs.contains(where: { $0.cell?.fillThemeAttrs != nil || $0.cell?.bordersXML?.containsSubstring("w:themeColor=") == true }) {
             keptAll["word/theme/theme1.xml"] = Data(_defaultThemePart().utf8)
         }
+        // A document made here has no properties part: write the core and extended properties Word expects, so the
+        // author, title and subject fields have somewhere to read from and the file says when it was saved.
+        var rootRelsExtra = doc.keptRootRels
+        if !keptAll.keys.contains(where: { $0.hasPrefix("docProps/") }), !doc.keptRootRels.contains(where: { $0.type.hasSuffix("core-properties") || $0.type.hasSuffix("extended-properties") }) {
+            let c = FieldClock.current()
+            func two(_ n: Int) -> String { n < 10 ? "0\(n)" : String(n) }
+            let stamp = c.map { "\($0.year)-\(two($0.month))-\(two($0.day))T\(two($0.hour)):\(two($0.minute)):\(two($0.second))Z" } ?? "2000-01-01T00:00:00Z"
+            keptAll["docProps/core.xml"] = Data(("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<cp:coreProperties xmlns:cp=\"http://schemas.openxmlformats.org/package/2006/metadata/core-properties\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:dcterms=\"http://purl.org/dc/terms/\" xmlns:dcmitype=\"http://purl.org/dc/dcmitype/\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"><dc:creator></dc:creator><cp:lastModifiedBy></cp:lastModifiedBy>"
+                + "<dcterms:created xsi:type=\"dcterms:W3CDTF\">\(stamp)</dcterms:created><dcterms:modified xsi:type=\"dcterms:W3CDTF\">\(stamp)</dcterms:modified></cp:coreProperties>").utf8)
+            keptAll["docProps/app.xml"] = Data("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<Properties xmlns=\"http://schemas.openxmlformats.org/officeDocument/2006/extended-properties\"><Application>Starling Office</Application></Properties>".utf8)
+            extraOverrides += "<Override PartName=\"/docProps/core.xml\" ContentType=\"application/vnd.openxmlformats-package.core-properties+xml\"/><Override PartName=\"/docProps/app.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.extended-properties+xml\"/>"
+            rootRelsExtra.append(KeptRel(id: "", type: "http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties", target: "docProps/core.xml", external: false))
+            rootRelsExtra.append(KeptRel(id: "", type: "http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties", target: "docProps/app.xml", external: false))
+        }
+        // A file with core properties but no extended ones (a Properties edit made them first) gets app.xml too.
+        if keptAll["docProps/app.xml"] == nil, !rootRelsExtra.contains(where: { $0.type.hasSuffix("extended-properties") }) {
+            keptAll["docProps/app.xml"] = Data("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<Properties xmlns=\"http://schemas.openxmlformats.org/officeDocument/2006/extended-properties\"><Application>Starling Office</Application></Properties>".utf8)
+            extraOverrides += "<Override PartName=\"/docProps/app.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.extended-properties+xml\"/>"
+            rootRelsExtra.append(KeptRel(id: "", type: "http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties", target: "docProps/app.xml", external: false))
+        }
         for (name, data) in keptAll.sorted(by: { $0.key < $1.key }) where !written.contains(name) && !orphanMedia(name) && name != "word/settings.xml" {
             extraParts.append(ZipEntry(name: name, data: data))
             switch name {
@@ -1923,6 +1987,12 @@ extension DocxFormat {
             case "word/fontTable.xml":
                 relsXML += "<Relationship Id=\"rIdFontTable\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/fontTable\" Target=\"fontTable.xml\"/>"
                 extraOverrides += "<Override PartName=\"/word/fontTable.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.fontTable+xml\"/>"
+            case "word/stylesWithEffects.xml":
+                relsXML += "<Relationship Id=\"rIdStylesFx\" Type=\"http://schemas.microsoft.com/office/2007/relationships/stylesWithEffects\" Target=\"stylesWithEffects.xml\"/>"
+                extraOverrides += "<Override PartName=\"/word/stylesWithEffects.xml\" ContentType=\"\(_esc(doc.keptPartTypes[name] ?? "application/vnd.ms-word.stylesWithEffects+xml"))\"/>"
+            case "word/glossary/document.xml":
+                relsXML += "<Relationship Id=\"rIdGlossary\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/glossaryDocument\" Target=\"glossary/document.xml\"/>"
+                extraOverrides += "<Override PartName=\"/word/glossary/document.xml\" ContentType=\"\(_esc(doc.keptPartTypes[name] ?? "application/vnd.openxmlformats-officedocument.wordprocessingml.document.glossary+xml"))\"/>"
             case "word/webSettings.xml":
                 relsXML += "<Relationship Id=\"rIdWebSettings\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/webSettings\" Target=\"webSettings.xml\"/>"
                 extraOverrides += "<Override PartName=\"/word/webSettings.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.webSettings+xml\"/>"
@@ -1997,18 +2067,22 @@ extension DocxFormat {
                                                              with: "<Default Extension=\"\(ext)\" ContentType=\"\(mime)\"/><Override PartName=\"/word/document.xml\"")
         }
 
+        let generatedStyles = _stylesPart(doc.styles, notes: doc.keptParts.keys.contains { !$0.hasPrefix("docProps/") && !$0.hasPrefix("customXml/") && $0 != "word/webSettings.xml" }, aliases: doc.styleAliases, fileFonts: doc.fileFonts, fromFile: doc.readFromFile,
+                                                                         characterStyles: doc.keptCharacterStyles, characterStyleIds: doc.keptCharacterStyleIds, tableStyles: doc.keptTableStyles)
+                .replacingAll("<w:lang w:val=\"en-US\"/>", with: doc.defaultLangXML ?? "<w:lang w:val=\"en-US\"/>")
+        let stylesXML = doc.readFromFile ? (doc.keptStylesXML.flatMap { _patchedStyles(original: $0, generated: generatedStyles, doc: doc, usedIn: document + extraParts.filter { $0.name.hasSuffix(".xml") && !$0.name.containsSubstring("styles") }.map { String(decoding: $0.data, as: UTF8.self) }.joined()) } ?? generatedStyles) : generatedStyles
+        let generatedNumbering = _numberingPart(numKinds, numFormats, bulletId: bulletId, decimalId: decimalId,
+                                                counterOf: Dictionary(uniqueKeysWithValues: numIds.compactMap { k, v in doc.listCounterOf[k].map { (v, $0) } }),
+                                                restarts: Dictionary(uniqueKeysWithValues: numIds.compactMap { k, v in doc.listRestarts[k].map { (v, $0) } }))
+        let numberingXML = doc.readFromFile ? (doc.keptNumberingXML.flatMap { _patchedNumbering(original: $0, generated: generatedNumbering, doc: doc, usedIds: Set(numIdOf)) } ?? generatedNumbering) : generatedNumbering
         let entries: [ZipEntry] = [
             ZipEntry(name: "[Content_Types].xml", data: Data(contentTypes.utf8)),
-            ZipEntry(name: "_rels/.rels", data: Data(_rootRels.replacingAll("</Relationships>", with: doc.keptRootRels.enumerated().map { i, r in
+            ZipEntry(name: "_rels/.rels", data: Data(_rootRels.replacingAll("</Relationships>", with: rootRelsExtra.enumerated().map { i, r in
                 "<Relationship Id=\"rIdPkg\(i + 1)\" Type=\"\(_esc(r.type))\" Target=\"\(_esc(r.target))\"\(r.external ? " TargetMode=\"External\"" : "")/>"
             }.joined() + "</Relationships>").utf8)),
             ZipEntry(name: "word/document.xml", data: Data(document.utf8)),
-            ZipEntry(name: "word/styles.xml", data: Data(_stylesPart(doc.styles, notes: doc.keptParts.keys.contains { !$0.hasPrefix("docProps/") && !$0.hasPrefix("customXml/") && $0 != "word/webSettings.xml" }, aliases: doc.styleAliases, fileFonts: doc.fileFonts, fromFile: doc.readFromFile,
-                                                                         characterStyles: doc.keptCharacterStyles, characterStyleIds: doc.keptCharacterStyleIds, tableStyles: doc.keptTableStyles)
-                .replacingAll("<w:lang w:val=\"en-US\"/>", with: doc.defaultLangXML ?? "<w:lang w:val=\"en-US\"/>").utf8)),
-            ZipEntry(name: "word/numbering.xml", data: Data(_numberingPart(numKinds, numFormats, bulletId: bulletId, decimalId: decimalId,
-                                                                                         counterOf: Dictionary(uniqueKeysWithValues: numIds.compactMap { k, v in doc.listCounterOf[k].map { (v, $0) } }),
-                                                                                         restarts: Dictionary(uniqueKeysWithValues: numIds.compactMap { k, v in doc.listRestarts[k].map { (v, $0) } })).utf8)),
+            ZipEntry(name: "word/styles.xml", data: Data(stylesXML.utf8)),
+            ZipEntry(name: "word/numbering.xml", data: Data(numberingXML.utf8)),
             ZipEntry(name: "word/_rels/document.xml.rels", data: Data(relsXML.utf8)),
         ] + media + extraParts
         return try Zip.write(entries)
@@ -2161,6 +2235,13 @@ extension DocxFormat {
         return out
     }
 
+    /// A paragraph's shading: as the file wrote it (pattern, theme link) while the fill is still that colour.
+    static func _paraShdXML(_ fill: Color, _ attrs: String?) -> String {
+        if let t = attrs, let h = t.firstIndex(of: "#"), t[t.startIndex ..< h].lowercased() == _hex(fill).lowercased() {
+            return "<w:shd\(t[t.index(after: h)...]) w:fill=\"\(_hex(fill))\"/>"
+        }
+        return "<w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"\(_hex(fill))\"/>"
+    }
     static func _hex(_ c: Color) -> String {
         String(printf: "%06X", c.value & 0xFFFFFF)
     }
@@ -2253,7 +2334,8 @@ extension DocxFormat {
             // A style's own rule (the line under a "header" style: the
             // kept header part's paragraphs draw it by their style).
             if let b = entry.paragraph.borders { out += _bordersXML(b) }
-            if let fill = entry.paragraph.fill { out += "<w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"\(_hex(fill))\"/>" }
+            if entry.paragraph.fill == nil, let t = entry.paragraph.fillAttrs, t.hasPrefix("auto#") { out += "<w:shd\(t.dropFirst(5)) w:fill=\"auto\"/>" }
+            if let fill = entry.paragraph.fill { out += _paraShdXML(fill, entry.paragraph.fillAttrs) }
             if entry.paragraph.rightToLeft { out += "<w:bidi/>" }
             // The style's tab stops: a header style's centre and right
             // tabs place what the kept header part lays out with them

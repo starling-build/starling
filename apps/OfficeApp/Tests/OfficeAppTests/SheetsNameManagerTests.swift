@@ -30,6 +30,17 @@ final class SheetsNameManagerTests: XCTestCase {
         XCTAssertEqual(ui.state(NameManagerDialogState.self)?.picked, "Rates")
     }
 
+    func testArrowKeysWalkTheNameRowsAndEnterPicks() {
+        let ui = dialog(controller()) { _ in }
+        var n = 0
+        while KeyboardTraversal.shared.focused?.label() != "Local", n < 8 { ui.press(.tab); n += 1 }
+        XCTAssertEqual(KeyboardTraversal.shared.focused?.label(), "Local")
+        ui.press(.up)
+        XCTAssertEqual(KeyboardTraversal.shared.focused?.label(), "Rates")
+        ui.press(.enter)
+        XCTAssertEqual(ui.state(NameManagerDialogState.self)?.picked, "Rates")
+    }
+
     func testDeleteRemovesThePickedNameAsOneUndoStep() {
         let c = controller()
         let ui = dialog(c) { _ in }
@@ -40,14 +51,15 @@ final class SheetsNameManagerTests: XCTestCase {
         XCTAssertEqual(c.book.names["RATES"], "Data!$B$2:$B$9")
     }
 
-    func testASheetLocalNameCannotBeChangedOrDeleted() {
+    func testASheetLocalNameIsEditedAndDeletedThroughTheDialog() {
         let c = controller()
-        var log: [String] = []
-        let ui = dialog(c) { log.append($0) }
-        ui.tap(text: "Local"); ui.tap(text: "Delete"); ui.press(.enter)
+        let ui = dialog(c) { _ in }
+        ui.tap(text: "Local")
+        XCTAssertEqual(ui.state(NameManagerDialogState.self)?.pickedScope, 1)
+        ui.tap(text: "Delete")
+        XCTAssertFalse(c.book.fileNames.contains { $0.name == "Local" })
+        c.undo()
         XCTAssertTrue(c.book.fileNames.contains { $0.name == "Local" })
-        XCTAssertEqual(log, [], "OK is greyed out for a read-only name")
-        XCTAssertTrue(ui.texts().contains { $0.containsSubstring("belongs to one sheet") })
     }
 
     func testOKAppliesAndClosesAndAnEmptyNewNameStaysOpen() {

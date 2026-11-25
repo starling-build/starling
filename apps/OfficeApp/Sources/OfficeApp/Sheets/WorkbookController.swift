@@ -239,7 +239,43 @@ final class WorkbookController: ChangeNotifier {
     private var _tabStart: Int? = nil
     /// The picture or chart selected (an index into the sheet's drawings),
     /// instead of cells. Any cell selection clears it.
-    var selectedDrawing: Int? = nil
+    var selectedDrawing: Int? = nil {
+        didSet {
+            // The others picked along with it last only while one stays selected (and never include the selected one).
+            if selectedDrawing == nil { alsoSelectedDrawings = [] } else if let s = selectedDrawing { alsoSelectedDrawings.remove(s) }
+        }
+    }
+    /// The charts and pictures picked in addition to the selected one (Shift-click, or a tap with Select Multiple on).
+    private(set) var alsoSelectedDrawings: Set<Int> = []
+    /// A finger has no Shift: while this is on, a tap on a chart or picture adds it to the selection or takes it out.
+    var selectMultiple = false
+    /// Every selected chart and picture, in sheet order.
+    var selectedDrawingIndexes: [Int] { (selectedDrawing.map { [$0] } ?? []) + alsoSelectedDrawings.sorted() }
+
+    /// Select one chart or picture. One already among the selected keeps the group (a press on it is about to move them all)
+    /// unless `keepingGroup` is off, as a plain tap on one of several selects just that one.
+    func selectDrawing(_ index: Int, keepingGroup: Bool = false) {
+        if keepingGroup, selectedDrawingIndexes.contains(index) { return }
+        alsoSelectedDrawings = []
+        selectedDrawing = index
+    }
+
+    /// A tap or Shift-click on a drawing while picking several: selects it if nothing is selected; otherwise adds it to the
+    /// selection, or takes it out (when the selected one is taken out, another picked one becomes the selected one).
+    func toggleDrawingPick(_ index: Int) {
+        guard sheet.drawings.indices.contains(index), sheet.drawings[index].kind != .other else { return }
+        guard let main = selectedDrawing else { selectedDrawing = index; _notify(selectionOnly: true); return }
+        if index == main {
+            guard let next = alsoSelectedDrawings.min() else { return }
+            alsoSelectedDrawings.remove(next)
+            selectedDrawing = next
+        } else if alsoSelectedDrawings.contains(index) {
+            alsoSelectedDrawings.remove(index)
+        } else {
+            alsoSelectedDrawings.insert(index)
+        }
+        _notify(selectionOnly: true)
+    }
     /// Format Painter, armed: the cells whose formats the next selection takes.
     var painterSource: (sheet: Int, range: CellRange)? = nil
     private var _cf: (sheet: ObjectIdentifier, revision: Int, evaluator: CFEvaluator)? = nil
@@ -903,6 +939,7 @@ final class WorkbookController: ChangeNotifier {
                 let before = sc
                 sc.refs = sc.refs.map { (name: $0.name.map(map), cat: $0.cat.map(map), val: $0.val.map(map)) }
                 for (k, v) in sc.formulas { sc.formulas[k] = map(v) }
+                sc.seriesEdit = sc.seriesEdit.map { $0.map { ChartSeriesRef(source: $0.source, name: $0.name.map(map), cat: $0.cat.map(map), val: $0.val.map(map)) } }
                 if sc != before {
                     ws.drawings[i].kind = .chart(sc)
                     ws.drawingsEdited = true

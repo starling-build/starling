@@ -80,6 +80,7 @@ final class SheetsConditionalFormatDialogTests: XCTestCase {
         let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light),
                                         home: SheetsShell(initialPath: nil, onSwitch: { _, _ in }), title: "T"), size: Size(1280, 800))
         XCTAssertTrue(ui.tap(text: "Conditional Formatting"))
+        XCTAssertTrue(ui.tap(text: "New Rule…"))
         XCTAssertTrue(ui.has(text: "Format cells based on"))
         ui.press(.escape)
         XCTAssertFalse(ui.has(text: "Format cells based on"))

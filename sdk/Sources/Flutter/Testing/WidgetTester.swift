@@ -20,10 +20,14 @@ public final class WidgetTester {
     public init(_ widget: Widget, size: Size = Size(1280, 800)) {
         self.size = size
         let pd = PlatformDispatcher.instance
+        let configuration = ViewConfiguration(
+            devicePixelRatio: 1.0, size: size,
+            viewConstraints: ViewConstraints(minWidth: 0, maxWidth: size.width, minHeight: 0, maxHeight: size.height))
         if pd.implicitView == nil {
-            pd._addView(0, ViewConfiguration(
-                devicePixelRatio: 1.0, size: size,
-                viewConstraints: ViewConstraints(minWidth: 0, maxWidth: size.width, minHeight: 0, maxHeight: size.height)))
+            pd._addView(0, configuration)
+        } else if pd.implicitView!.physicalSize != size {
+            // The view outlives a tester: a later tester that asks for another size gets it, not the first one's.
+            pd._updateWindowMetrics(0, configuration)
         }
         let view = pd.implicitView!
         if WidgetTester.gestures == nil { WidgetTester.gestures = GestureBinding() }
@@ -119,8 +123,9 @@ public final class WidgetTester {
     /// Presses at `from`, moves to `to` in `steps` equal moves, and lifts there. The events go through
     /// hit testing, the gesture arena and the pointer router, as the shell's real pointer events do.
     /// `modifiers` are held (as key events through the focus manager) from before the press until after the lift.
+    /// `whileHeld` runs between the press and the first move: a test lets time pass there (a long press).
     public func drag(from: Offset, to: Offset, steps: Int = 8, buttons: Int = kPrimaryButton,
-                     modifiers: KeyModifiers = [], kind: PointerDeviceKind = .touch) {
+                     modifiers: KeyModifiers = [], kind: PointerDeviceKind = .touch, whileHeld: (() -> Void)? = nil) {
         let held = WidgetTester.modifierKeys.filter { modifiers.contains($0.0) }
         for (_, logical) in held { _modifier(logical, down: true) }
         let pointer = nextPointer; nextPointer += 1
@@ -138,6 +143,7 @@ public final class WidgetTester {
             else if event is PointerUpEvent { gb.gestureArena.sweep(pointer) }
         }
         send(PointerDownEvent(pointer: pointer, kind: kind, position: from, buttons: buttons))
+        whileHeld?()
         var last = from
         if steps > 0 {
             for i in 1...steps {
@@ -203,7 +209,7 @@ public final class WidgetTester {
         return true
     }
 
-    /// The centre of the widget keyed `ValueKey(id)`, or nil.
+    /// Where the widget keyed `ValueKey(id)` sits (its centre), or nil.
     public func centre(id: String) -> Offset? { centre(where: { ($0.key as? ValueKey<String>)?.value == id }) }
 
     public func has(id: String) -> Bool { centre(where: { ($0.key as? ValueKey<String>)?.value == id }) != nil }
@@ -211,7 +217,7 @@ public final class WidgetTester {
     // MARK: Keys
 
     public enum Key {
-        case enter, escape, tab, backspace, f6, space, alt
+        case enter, escape, tab, backspace, f6, space, alt, left, right, up, down
         var logical: Int64 {
             switch self {
             case .enter: return 0x1_0000_000D
@@ -221,6 +227,10 @@ public final class WidgetTester {
             case .f6: return 0xFFBD
             case .space: return 0x1_0000_0020
             case .alt: return 0xFFE9
+            case .left: return 0xFF51
+            case .up: return 0xFF52
+            case .right: return 0xFF53
+            case .down: return 0xFF54
             }
         }
     }

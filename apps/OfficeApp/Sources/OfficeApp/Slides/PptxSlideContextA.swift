@@ -7,6 +7,18 @@ import FlutterSwiftBridge
 import Foundation
 
 extension SlideContext {
+
+    /// A connector's glued ends (`a:stCxn`, `a:endCxn`), by the file's shape ids; PptxReader turns them into deck ids.
+    static func readConns(_ el: XNode, into st: inout ShapeState) {
+        let c = el.first("p:nvCxnSpPr")?.first("p:cNvCxnSpPr")
+        func conn(_ n: XNode?) -> ShapeConn? {
+            guard let n, let id = n["id"].flatMap(Int.init), let idx = n["idx"].flatMap(Int.init) else { return nil }
+            return ShapeConn(shape: id, site: idx)
+        }
+        st.pendingConnStart = conn(c?.first("a:stCxn"))
+        st.pendingConnEnd = conn(c?.first("a:endCxn"))
+    }
+
     func _connector(_ el: XNode, _ transform: ((Rect) -> Rect)?, id: () -> Int) -> ShapeState? {
         guard let x = el.first("p:spPr")?.first("a:xfrm"), var box = _xfrmRect(x) else { return nil }
         if let t = transform { box = t(box) }
@@ -38,7 +50,9 @@ extension SlideContext {
             st.outlineCap = ln?["cap"]
             st.headEnd = PptxReader.lineEnd(ln?.first("a:headEnd"))
             st.tailEnd = PptxReader.lineEnd(ln?.first("a:tailEnd"))
+            st.keptLine?.dash = st.outlineDash; st.keptLine?.head = st.headEnd; st.keptLine?.tail = st.tailEnd
             st.shadow = _shapeShadow(el.first("p:spPr"), el.first("p:style"))
+            Self.readConns(el, into: &st)
             return st
         }
         // Flips turn the box's diagonal into the line's direction, and the
@@ -79,6 +93,8 @@ extension SlideContext {
         st.outlineCap = el.first("p:spPr")?.first("a:ln")?["cap"]
         st.headEnd = PptxReader.lineEnd(ln?.first("a:headEnd"))
         st.tailEnd = PptxReader.lineEnd(ln?.first("a:tailEnd"))
+        st.keptLine?.dash = st.outlineDash; st.keptLine?.head = st.headEnd; st.keptLine?.tail = st.tailEnd
+        Self.readConns(el, into: &st)
         return st
     }
 

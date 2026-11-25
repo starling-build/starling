@@ -25,6 +25,8 @@ public final class RichEditable: StatefulWidget {
     public let focusNode: FocusNode?
     public let autofocus: Bool
     public let backgroundColor: Color?
+    /// The shape being typed into: its own frame is drawn by the editor over it, so the page leaves its frame out.
+    public let hiddenFrameID: String?
     /// Zoom, 1.0 = 100%.
     public let zoom: Double
     /// Paginate onto paper of this size; nil is a continuous column.
@@ -46,10 +48,15 @@ public final class RichEditable: StatefulWidget {
     public let onCellEdge: ((String, Int, Int, CellSide) -> Void)?
     /// True when a pen stroke starts, false when it ends (so the host can make the whole stroke one undo step).
     public let onCellEdgeStroke: ((Bool) -> Void)?
+    /// Writer's Draw Table: when set, a drag calls it with the cell it began in (nil outside a table) and the drag's
+    /// size in flow pixels, instead of selecting.
+    public let onDrawTable: ((DrawCell?, Double, Double) -> Void)?
     /// The link under the pointer, or nil as it leaves one — for a status bar.
     public let onLinkHover: ((String?) -> Void)?
     /// ⌘-click on a link. Nil opens it through the host.
     public let onLinkActivate: ((String) -> Void)?
+    /// A click in a note on the page, or a double-click on a note's mark: the note and its box in window coordinates.
+    public let onNoteActivate: ((NoteReference, Rect) -> Void)?
     /// A pointer selection gesture ended (click, drag, double or triple click)
     /// — when Word's Format Painter applies (a bare click may leave no selection).
     public let onSelectionGestureEnd: (() -> Void)?
@@ -79,15 +86,17 @@ public final class RichEditable: StatefulWidget {
                 theme: RichTextTheme = RichTextTheme(),
                 padding: EdgeInsets = EdgeInsets(left: 24, top: 24, right: 24, bottom: 24),
                 focusNode: FocusNode? = nil, autofocus: Bool = true,
-                backgroundColor: Color? = nil, zoom: Double = 1.0,
+                backgroundColor: Color? = nil, hiddenFrameID: String? = nil, zoom: Double = 1.0,
                 pageSetup: PageSetup? = nil, pageColor: Color = Color(0xFFFFFFFF),
                 onCaretRect: ((Rect?) -> Void)? = nil,
                 onPageInfo: ((Int, Int) -> Void)? = nil,
                 onShortcut: ((KeyData, KeyModifiers) -> Bool)? = nil,
                 onCellEdge: ((String, Int, Int, CellSide) -> Void)? = nil,
                 onCellEdgeStroke: ((Bool) -> Void)? = nil,
+                onDrawTable: ((DrawCell?, Double, Double) -> Void)? = nil,
                 onLinkHover: ((String?) -> Void)? = nil,
                 onLinkActivate: ((String) -> Void)? = nil,
+                onNoteActivate: ((NoteReference, Rect) -> Void)? = nil,
                 onSelectionGestureEnd: (() -> Void)? = nil,
                 onHeaderFooterEdit: ((KeptHeaderFooter.Kind) -> Void)? = nil,
                 onContextMenu: ((Offset) -> Void)? = nil,
@@ -106,6 +115,7 @@ public final class RichEditable: StatefulWidget {
         self.focusNode = focusNode
         self.autofocus = autofocus
         self.backgroundColor = backgroundColor
+        self.hiddenFrameID = hiddenFrameID
         self.zoom = zoom
         self.pageSetup = pageSetup
         self.pageColor = pageColor
@@ -114,8 +124,10 @@ public final class RichEditable: StatefulWidget {
         self.onShortcut = onShortcut
         self.onCellEdge = onCellEdge
         self.onCellEdgeStroke = onCellEdgeStroke
+        self.onDrawTable = onDrawTable
         self.onLinkHover = onLinkHover
         self.onLinkActivate = onLinkActivate
+        self.onNoteActivate = onNoteActivate
         self.onSelectionGestureEnd = onSelectionGestureEnd
         self.onHeaderFooterEdit = onHeaderFooterEdit
         self.onContextMenu = onContextMenu
@@ -169,6 +181,8 @@ public final class RichEditableState: State<StatefulWidget> {
     private var _lastContentHeight = -1.0
     private var _moveDrag: (index: Int, inline: String?, start: Offset)? = nil
     private var _moveDelta: Offset? = nil
+    /// A shape waiting from Insert > Shapes, pressed on the page: where the press was and where the mouse is now.
+    private var _shapeDraw: (start: Offset, now: Offset)? = nil
     // Touch selection: a long press selects the word under the finger, a double
     // tap does too, and a selection shows a handle at each end to drag.
     private var _touchMode = false
@@ -210,6 +224,7 @@ public final class RichEditableState: State<StatefulWidget> {
     private var _textDrag: (start: Offset, active: Bool)? = nil
     private var _edgeStroke: String? = nil
     private var _edgeDragging = false
+    private var _drawFrom: (local: Offset, cell: DrawCell?)? = nil
     private var _edgeLast: Offset? = nil
     /// The pen along a move: sampled every few pixels so a fast drag cannot step over an edge.
     private func _edgeToolAlong(_ to: Offset) {
@@ -333,6 +348,7 @@ public final class RichEditableState: State<StatefulWidget> {
             self._repaint.notifyListeners()
         }
         _layout = RichLayout(theme: _w.theme, paragraphCount: _controller.document.paragraphs.count)
+        _controller.rowHeightProbe = { [weak self] i in self?._layout?.rowRect(i)?.height }
         _layout.scale = _w.zoom
         _layout.pageSetup = _w.pageSetup
         _layout.onNeedsRepaint = { [weak self] in self?._repaint.notifyListeners() }
@@ -526,6 +542,8 @@ public final class RichEditableState: State<StatefulWidget> {
         case .pageDown:
             keepStickyX = true
             _movePage(down: true, extend: shift)
+        case .backspace where c.groupChild != nil && c.editGroupChild(.delete): break   // a picked child of a group goes
+        case .delete where c.groupChild != nil && c.editGroupChild(.delete): break
         case .backspace:
             if _chords.word { c.deleteWordBackward() }
             else if _chords.primary && KeyModifiers.primary == .meta { _deleteToLineStart() }
@@ -786,7 +804,7 @@ public final class RichEditableState: State<StatefulWidget> {
 
     /// The selected picture's box in the editable's own coordinates, with
     /// the live drag size when one is under way.
-    private func _selectedImageBox() -> (index: Int, rect: Rect, inline: String?)? {
+    private func _selectedImageBox(group: Bool = false) -> (index: Int, rect: Rect, inline: String?)? {
         if _layout.width > 0 { _syncLayoutIfNeeded() }
         guard _layout.width > 0 else { return nil }
         var canvas: Rect
@@ -802,8 +820,13 @@ public final class RichEditableState: State<StatefulWidget> {
         } else { return nil }
         var rect = Rect.fromLTWH(canvas.left + _originX, canvas.top + _w.padding.top - _scrollY,
                                  canvas.width, canvas.height)
-        if let d = _dragSize { rect = Rect.fromLTWH(rect.left, rect.top, d.width, d.height) }
-        if let d = _moveDelta { rect = rect.shift(d) }
+        if !group, inline == nil, let k = _controller.groupChild, let boxes = _controller.groupChildBoxes(at: index), boxes.indices.contains(k) {
+            // A picked child of a group: its own box (handles, drag and size follow it, not the group).
+            let pt = _layout.theme.pixelsPerPoint * _layout.scale, c = boxes[k]
+            rect = Rect.fromLTWH(rect.left + c.left * pt, rect.top + c.top * pt, c.width * pt, c.height * pt)
+        }
+        if let d = _dragSize, !(group && _controller.groupChild != nil) { rect = Rect.fromLTWH(rect.left, rect.top, d.width, d.height) }
+        if let d = _moveDelta, !(group && _controller.groupChild != nil) { rect = rect.shift(d) }
         return (index, rect, inline)
     }
 
@@ -878,6 +901,27 @@ public final class RichEditableState: State<StatefulWidget> {
             let l = _layout.caretRect(RichPosition(paragraph: pos.paragraph, offset: box.range.lowerBound), doc)
             let r = _layout.caretRect(RichPosition(paragraph: pos.paragraph, offset: box.range.upperBound), doc)
             if flow.dx >= l.left - 1, flow.dx <= r.left + 1, flow.dy >= l.top, flow.dy <= l.top + l.height { return (pos.paragraph, box.id) }
+        }
+        return nil
+    }
+
+    /// The note on the page under a point (its box in the editable's coordinates), if the page has painted one there.
+    private func _noteBox(at local: Offset) -> (NoteReference, Rect)? {
+        guard _w.onNoteActivate != nil, _layout.width > 0 else { return nil }
+        let p = _canvasPoint(local)
+        for (id, r) in _layout.noteRects where r.contains(p) {
+            return (NoteReference(kind: .footnote, id: id), Rect.fromLTWH(r.left + _originX, r.top + _w.padding.top - _scrollY, r.width, r.height))
+        }
+        return nil
+    }
+
+    /// The note whose mark is at a body position, with the mark's box.
+    private func _noteMark(at pos: RichPosition) -> NoteReference? {
+        let doc = _controller.document
+        guard pos.paragraph < doc.paragraphs.count, !doc.paragraphs[pos.paragraph].isImage else { return nil }
+        let para = doc.paragraphs[pos.paragraph]
+        for o in [pos.offset, pos.offset - 1] where o >= 0 && o < para.length {
+            if let n = para.style(at: o + 1).note { return n }
         }
         return nil
     }
@@ -958,6 +1002,11 @@ public final class RichEditableState: State<StatefulWidget> {
         _textDrag = nil
         _dropPosition = nil
         _touchMode = event.kind == .touch
+        if _w.onDrawTable != nil, event.kind == .touch || event.buttons & 1 != 0 {
+            _syncLayoutIfNeeded()
+            _drawFrom = (event.localPosition, _layout.cellContaining(_layout.flowPoint(_canvasPoint(event.localPosition))))
+            return
+        }
         // The border pen or eraser: a press draws, whatever the pointer (a finger included).
         if _w.onCellEdge != nil, event.kind == .touch || event.buttons & 1 != 0 {
             _edgeStroke = nil
@@ -1011,7 +1060,7 @@ public final class RichEditableState: State<StatefulWidget> {
                 _dragging = false
                 return
             }
-            if let box = _selectedImageBox(), box.rect.contains(event.localPosition),
+            if let box = _selectedImageBox(group: true), box.rect.contains(event.localPosition),
                _controller.pictureWrap(at: box.index, inline: box.inline) != nil {
                 // The body of a selected floating picture: the finger moves it, as a mouse does (a tap that does not travel
                 // is still a tap: a text box opens for editing).
@@ -1036,6 +1085,12 @@ public final class RichEditableState: State<StatefulWidget> {
             _openContextMenu(local: event.localPosition, global: event.position)
             return
         }
+        if _controller.pendingShape != nil, !_controller.readOnly, event.buttons & 1 != 0, _layout.width > 0 {
+            _focus.requestFocus()
+            _shapeDraw = (event.localPosition, event.localPosition)
+            _dragging = false
+            return
+        }
         // ⌘-click follows a link while editing, as Word does; reading, a
         // plain click does, as a page does.
         if _chords.primary || _controller.readOnly, let link = _link(at: event.localPosition) {
@@ -1057,7 +1112,15 @@ public final class RichEditableState: State<StatefulWidget> {
             return
         }
 
-        if let box = _selectedImageBox(), _handleHit(event.localPosition, box.rect) == nil, box.rect.contains(event.localPosition),
+        if _chords.shift || _controller.selectMultiple, !_controller.readOnly, event.buttons & 1 != 0, _controller.selectedImageIndex != nil, let hit = _floatingImage(at: event.localPosition),
+           hit != _controller.selectedImageIndex {
+            // Shift-click on another floating shape: picks it along with the selected one, to group them.
+            _focus.requestFocus()
+            _controller.toggleShapePick(at: hit)
+            return
+        }
+
+        if let box = _selectedImageBox(group: true), _handleHit(event.localPosition, _selectedImageBox()?.rect ?? box.rect) == nil, box.rect.contains(event.localPosition),
            _controller.pictureWrap(at: box.index, inline: box.inline) != nil {
             // The body of a selected floating picture: pressed and dragged, it moves.
             _moveDrag = (box.index, box.inline, event.localPosition)
@@ -1091,6 +1154,10 @@ public final class RichEditableState: State<StatefulWidget> {
         guard event.buttons & 1 != 0 else { return }
         _syncLayoutIfNeeded()
         guard _layout.width > 0 else { return }
+        if !_controller.readOnly, !_chords.shift, let (n, box) = _noteBox(at: event.localPosition) {
+            _w.onNoteActivate?(n, box.shift( Offset(event.position.dx - event.localPosition.dx, event.position.dy - event.localPosition.dy)))
+            return
+        }
         let now = Date().timeIntervalSince1970
         let near = abs(event.localPosition.dx - _lastClickPos.dx) < 6
             && abs(event.localPosition.dy - _lastClickPos.dy) < 6
@@ -1118,6 +1185,13 @@ public final class RichEditableState: State<StatefulWidget> {
                 _dragging = false
             }
         case 2:
+            if !_controller.readOnly, let activate = _w.onNoteActivate, let n = _noteMark(at: pos) {
+                _dragging = false
+                let r = _layout.noteRects[n.id] ?? _layout.caretRect(pos, _controller.document)
+                activate(n, Rect.fromLTWH(r.left + _originX + event.position.dx - event.localPosition.dx, r.top + _w.padding.top - _scrollY + event.position.dy - event.localPosition.dy,
+                                          max(r.width, 200), max(r.height, 20)))
+                return
+            }
             if let edit = _w.onHeaderFooterEdit,
                let kind = _layout.headerFooterZone(atCanvas: _canvasPoint(event.localPosition), _controller.document) {
                 _dragging = false
@@ -1135,6 +1209,7 @@ public final class RichEditableState: State<StatefulWidget> {
     }
 
     private func _pointerMove(_ event: PointerEvent) {
+        if _drawFrom != nil { return }
         if _edgeDragging, _w.onCellEdge != nil { _edgeToolAlong(event.localPosition); return }
         if event.kind == .touch, _twoFingerActive {
             // Two fingers are down: a tap only while neither travels.
@@ -1220,6 +1295,10 @@ public final class RichEditableState: State<StatefulWidget> {
             _repaint.notifyListeners()
             return
         }
+        if _shapeDraw != nil {
+            _shapeDraw?.now = event.localPosition
+            return
+        }
         if let drag = _moveDrag {
             _moveDelta = Offset(event.localPosition.dx - drag.start.dx, event.localPosition.dy - drag.start.dy)
             _repaint.notifyListeners()
@@ -1268,6 +1347,11 @@ public final class RichEditableState: State<StatefulWidget> {
     }
 
     private func _pointerUp(_ event: PointerEvent) {
+        if let d = _drawFrom {
+            _drawFrom = nil
+            _w.onDrawTable?(d.cell, event.localPosition.dx - d.local.dx, event.localPosition.dy - d.local.dy)
+            return
+        }
         if _edgeDragging { _edgeDragging = false; _edgeStroke = nil; _edgeLast = nil; _w.onCellEdgeStroke?(false); return }
         if event.kind == .touch {
             _fingers[event.pointer] = nil
@@ -1313,9 +1397,20 @@ public final class RichEditableState: State<StatefulWidget> {
                     _controller.toggleCheckBox(in: box.paragraph, control: box.id)
                     return
                 }
+                _syncLayoutIfNeeded()
+                if !_controller.readOnly, let (n, box) = _noteBox(at: event.localPosition) {
+                    _w.onNoteActivate?(n, box.shift(Offset(event.position.dx - event.localPosition.dx, event.position.dy - event.localPosition.dy)))
+                    return
+                }
+                if _controller.selectMultiple, !_controller.readOnly, _controller.selectedImageIndex != nil,
+                   let hit = _floatingImage(at: event.localPosition), hit != _controller.selectedImageIndex {
+                    // Select Multiple: a tap on another floating shape picks it along with the selected one (or drops it again).
+                    _focus.requestFocus()
+                    _controller.toggleShapePick(at: hit)
+                    return
+                }
                 _focus.requestFocus()
                 _textInput?.show()
-                _syncLayoutIfNeeded()
                 let pos = _layout.canvasPosition(at: _canvasPoint(event.localPosition), _controller.document)
                 let now = Date().timeIntervalSince1970
                 let again = now - _lastTap.at < 0.4
@@ -1381,16 +1476,53 @@ public final class RichEditableState: State<StatefulWidget> {
             return
         }
 
+        if let draw = _shapeDraw {
+            _shapeDraw = nil
+            _syncLayoutIfNeeded()
+            let a = _canvasPoint(draw.start), b = _canvasPoint(draw.now)
+            let page = _layout.page(atCanvasY: a.dy), origin = _layout.pageRect(page)
+            let pt = _layout.theme.pixelsPerPoint * _layout.scale
+            // A bare click makes the usual size with its top left corner at the click; a drag makes the box it covers.
+            let dragged = abs(b.dx - a.dx) >= 4 * pt && abs(b.dy - a.dy) >= 4 * pt
+            let w = dragged ? abs(b.dx - a.dx) / pt : 96, h = dragged ? abs(b.dy - a.dy) / pt : 72
+            let x = (min(a.dx, b.dx) - origin.left) / pt, y = (min(a.dy, b.dy) - origin.top) / pt
+            _controller.placePendingShape(x: max(0, x.rounded()), y: max(0, y.rounded()), width: w.rounded(), height: h.rounded(),
+                                          at: _layout.canvasPosition(at: a, _controller.document))
+            _repaint.notifyListeners()
+            return
+        }
         if let drag = _moveDrag {
             let d = _moveDelta ?? Offset(0, 0)
             _moveDrag = nil
-            let box = _selectedImageBox()
+            let box = _selectedImageBox(group: true)
             _moveDelta = nil
-            if d.dx == 0, d.dy == 0, let box, let enter = _w.onTextBoxEnter, _controller.textBoxText(at: drag.index, inline: drag.inline) != nil {
+            let childRect = _controller.groupChild != nil ? _selectedImageBox()?.rect : nil
+            if d.dx == 0, d.dy == 0, drag.inline == nil, let cr = childRect, cr.contains(drag.start), let enter = _w.onTextBoxEnter,
+               _controller.groupChildTextDocument() != nil {
+                enter(drag.index, nil, cr)   // a second click on the picked child types into it
+                return
+            }
+            if d.dx == 0, d.dy == 0, let box, drag.inline == nil, _controller.groupChildBoxes(at: drag.index) != nil {
+                // A click on the selected group goes into it: the child under the point is picked.
+                let pt = _layout.theme.pixelsPerPoint * _layout.scale
+                _controller.pickGroupChild(at: drag.index, point: Offset((drag.start.dx - box.rect.left) / pt, (drag.start.dy - box.rect.top) / pt))
+                _repaint.notifyListeners()
+                return
+            }
+            if d.dx == 0, d.dy == 0, box != nil, _w.onTextBoxEnter != nil, _controller.textBoxDocument(at: drag.index, inline: drag.inline) == nil {
+                _controller.giveShapeText(at: drag.index, inline: drag.inline)   // a plain shape takes text when entered
+            }
+            if d.dx == 0, d.dy == 0, let box, let enter = _w.onTextBoxEnter, _controller.textBoxDocument(at: drag.index, inline: drag.inline) != nil {
                 enter(drag.index, drag.inline, box.rect)
                 return
             }
             let pt = _layout.theme.pixelsPerPoint * _layout.scale
+            if drag.inline == nil, _controller.groupChild != nil, childRect?.contains(drag.start) == true {
+                // A child of the group is picked: it moves, the group's other children stay.
+                if d.dx != 0 || d.dy != 0 { _controller.editGroupChild(.move(dx: Int((d.dx / pt * 12700).rounded()), dy: Int((d.dy / pt * 12700).rounded()))) }
+                _repaint.notifyListeners()
+                return
+            }
             _controller.movePicture(at: drag.index, inline: drag.inline, dx: (d.dx / pt).rounded(), dy: (d.dy / pt).rounded())
             _repaint.notifyListeners()
             return
@@ -1407,7 +1539,9 @@ public final class RichEditableState: State<StatefulWidget> {
             _handleDrag = nil
             _dragSize = nil
             let pt = _layout.theme.pixelsPerPoint * _layout.scale
-            if let id = drag.inline {
+            if drag.inline == nil, _controller.groupChild != nil {
+                _controller.editGroupChild(.resize(cx: Int((size.width / pt * 12700).rounded()), cy: Int((size.height / pt * 12700).rounded())))
+            } else if let id = drag.inline {
                 _controller.setInlineImageSize(in: drag.index, id: id, width: size.width / pt, height: size.height / pt)
             } else {
                 _controller.setImageSize(at: drag.index, width: size.width / pt, height: size.height / pt)
@@ -1490,6 +1624,7 @@ public final class RichEditableState: State<StatefulWidget> {
         if _layout.width != contentWidth {
             _layout.width = contentWidth
         }
+        _layout.hiddenFrameID = _w.hiddenFrameID
         _syncLayout()
         _clampScroll()
         let canvasW = _layout.canvasSize.width
@@ -1522,6 +1657,13 @@ public final class RichEditableState: State<StatefulWidget> {
                       selection: _controller.selection,
                       caret: (focused && _caretVisible && _controller.selection.isCollapsed) ? caretRect : nil,
                       pageBackground: pageBackground)
+        // A caret inside a field shades the field gray, as Word does.
+        if focused, let field = _controller.fieldRangeAtCaret() {
+            let shade = Paint()
+            shade.style = .fill
+            shade.color = Color(0x30808080)
+            for r in _layout.canvasSelectionRects(field, _controller.document) { canvas.drawRect(r, shade) }
+        }
         // Paragraphs shown for the first time get checked after an idle,
         // not in the paint: NSSpellChecker takes milliseconds on a bad one.
         if !_layout.pendingSpellChecks.isEmpty, !_spellScheduled {
@@ -1591,6 +1733,31 @@ public final class RichEditableState: State<StatefulWidget> {
                 let h = Rect.fromLTWH(c.dx - half, c.dy - half, Self.handleSize, Self.handleSize)
                 canvas.drawRect(h, fill)
                 canvas.drawRect(h, line)
+            }
+        }
+
+        // The child picked inside a selected group: its own outline.
+        if focused, let box = _selectedImageBox(group: true), let k = _controller.groupChild, let boxes = _controller.groupChildBoxes(at: box.index), boxes.indices.contains(k) {
+            let pt = _layout.theme.pixelsPerPoint * _layout.scale
+            let c = boxes[k]
+            let line = Paint()
+            line.style = .stroke
+            line.strokeWidth = 1.5
+            line.color = _layout.theme.selectionColor.withOpacity(1)
+            let m = _moveDelta ?? Offset(0, 0)
+            canvas.drawRect(Rect.fromLTWH(box.rect.left + c.left * pt + m.dx, box.rect.top + c.top * pt + m.dy, c.width * pt, c.height * pt), line)
+        }
+
+        // Shapes picked along with it (Shift-click): their outlines.
+        if focused, !_controller.shapePicks.isEmpty {
+            let line = Paint()
+            line.style = .stroke
+            line.strokeWidth = 1
+            line.color = _layout.theme.selectionColor.withOpacity(1)
+            for i in _controller.pickedShapeIndexes where i != _controller.selectedImageIndex {
+                guard let flow = _layout.imageRect(i), let c = _layout.canvasRects(flow).first else { continue }
+                let r = Rect.fromLTWH(c.left + _originX, c.top + _w.padding.top - _scrollY, c.width, c.height)
+                canvas.drawRect(Rect.fromLTRB(r.left.rounded() + 0.5, r.top.rounded() + 0.5, r.right.rounded() - 0.5, r.bottom.rounded() - 0.5), line)
             }
         }
 

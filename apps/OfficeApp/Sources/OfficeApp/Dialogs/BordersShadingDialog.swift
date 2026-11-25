@@ -43,6 +43,13 @@ struct BordersShadingValues: Equatable {
     }
     /// One undoable change per OK: borders first, then shading.
     func apply(to c: RichDocumentController) {
+        if !c.isInCell {
+            c.edit {
+                if !sides.isEmpty { c.setParagraphBorders(sides, line) }
+                if let s = shading { c.setParagraphShading(s) }
+            }
+            return
+        }
         c.edit {
             if !sides.isEmpty { c.setCellBorders(Dictionary(uniqueKeysWithValues: sides.map { ($0, line) })) }
             if let s = shading { c.setCellShading(s, themeAttrs: shadingThemeAttrs) }

@@ -18,7 +18,7 @@ enum RibbonTab: Int, CaseIterable {
     case home, insert, layout, references, review, view
     /// Contextual: shown while a picture is selected or the caret is in a
     /// table, as Word does.
-    case pictureFormat, tableLayout, tableDesign
+    case pictureFormat, shapeFormat, tableLayout, tableDesign
     /// Slides only; contextual while a chart is selected.
     case chartDesign
     /// Slides only.
@@ -44,6 +44,7 @@ enum RibbonTab: Int, CaseIterable {
         case .review: return "Review"
         case .view: return "View"
         case .pictureFormat: return "Picture Format"
+        case .shapeFormat: return "Shape Format"
         case .tableLayout: return "Table Layout"
         case .tableDesign: return "Table Design"
         case .chartDesign: return "Chart Design"
@@ -56,7 +57,7 @@ enum RibbonTab: Int, CaseIterable {
         }
     }
 
-    var isContextual: Bool { self == .pictureFormat || self == .tableLayout || self == .tableDesign || self == .chartDesign }
+    var isContextual: Bool { self == .pictureFormat || self == .shapeFormat || self == .tableLayout || self == .tableDesign || self == .chartDesign }
 }
 
 final class Ribbon: StatelessWidget {
@@ -105,7 +106,7 @@ final class Ribbon: StatelessWidget {
         var items: [Widget] = [_fileTab(fluent)]
         for t in RibbonTab.strip(for: session.kind) { items.append(_tab(t, fluent)) }
         let slidePicture = session.deck?.selection.contains { $0.picture != nil } ?? false
-        if session.summary.imageIndex != nil || slidePicture { items.append(_tab(.pictureFormat, fluent)) }
+        if session.summary.imageIndex != nil || slidePicture { items.append(_tab(session.imageTab, fluent)) }
         if session.deck?.selectedTableOptions != nil { items.append(_tab(.tableDesign, fluent)) }
         if session.summary.inCell { items.append(_tab(.tableDesign, fluent)); items.append(_tab(.tableLayout, fluent)) }
         if session.deck?.selectedChart != nil { items.append(_tab(.chartDesign, fluent)) }
@@ -177,7 +178,8 @@ final class Ribbon: StatelessWidget {
         case .insert: return _insert(fluent)
         case .layout: return _layout(fluent)
         case .view: return _view(fluent)
-        case .pictureFormat: return _pictureFormat(fluent)
+        case .pictureFormat: return _pictureFormat(fluent, shape: session.imageTab == .shapeFormat)
+        case .shapeFormat: return _pictureFormat(fluent, shape: true)
         case .tableLayout: return _tableLayout(fluent)
         case .references: return _references(fluent)
         case .review: return _review(fluent)
@@ -190,7 +192,19 @@ final class Ribbon: StatelessWidget {
 
     /// W-FN-1: footnotes and endnotes. (The other References groups arrive with their own rows.)
     func _references(_ fluent: FluentThemeData) -> [Widget] {
-        [Chrome.group("Footnotes", fluent, [
+        let automatic1 = ContentsOptions(), automatic2 = ContentsOptions()
+        return [Chrome.group("Table of Contents", fluent, [
+            Chrome.menuButton(FluentSystemIcons.textT, "Table of Contents", nil, fluent, items: [
+                MenuFlyoutItem(text: Text("Automatic Table (dot leader)"), onPressed: { [session] in session.onInsertContents?(automatic1) }),
+                MenuFlyoutItem(text: Text("Automatic Table (no leader)"), onPressed: { [session] in
+                    var o = automatic2; o.tabLeader = nil; session.onInsertContents?(o) }),
+                MenuFlyoutItem(text: Text("Custom Table of Contents…"), onPressed: { [session] in session.onContentsDialog?() }),
+            ]),
+            Chrome.menuButton(FluentSystemIcons.textT, "Update Table", nil, fluent, items: [
+                MenuFlyoutItem(text: Text("Update page numbers only"), onPressed: { [session] in session.onUpdateContents?(true) }),
+                MenuFlyoutItem(text: Text("Update entire table"), onPressed: { [session] in session.onUpdateContents?(false) }),
+            ]),
+        ]), Chrome.group("Footnotes", fluent, [
             Chrome.big(FluentSystemIcons.textT, "Insert Footnote", fluent) { [session] in session.onInsertNote?(.footnote) },
             Chrome.big(FluentSystemIcons.textT, "Insert Endnote", fluent) { [session] in session.onInsertNote?(.endnote) },
             Chrome.big(FluentSystemIcons.textT, "Edit Note", fluent) { [session] in session.onEditNote?() },
@@ -323,7 +337,7 @@ final class Ribbon: StatelessWidget {
                 items: OfficeFonts.families(including: session.effectiveFontFamily).map { f in
                     ComboBoxItem<String>(value: f, child: Text(f, style: fluent.typography.body?.copyWith(color: nil)))
                 },
-                onChanged: { f in c.setFontFamily(f) })),
+                onChanged: { f in c.setFontFamily(f) }, semanticLabel: "Font")),
             Chrome.gap(),
             FontSizeBox(size: currentSize, sizes: sizes, onSize: { n in c.setFontSize(n) }),
             Chrome.gap(6),
@@ -337,7 +351,7 @@ final class Ribbon: StatelessWidget {
                 ("UPPERCASE", { c.changeCase(.upper) }),
                 ("Capitalize Each Word", { c.changeCase(.capitalizeWords) }),
                 ("tOGGLE cASE", { c.changeCase(.toggle) }),
-            ]),
+            ], tip: "Change Case"),
             Chrome.icon(FluentSystemIcons.textClearFormatting, "Clear All Formatting", fluent) { c.clearFormatting() },
         ] + (session.onFontDialog == nil ? [] : [   // Writer only: Slides has no Font dialog yet
             Chrome.icon(FluentSystemIcons.textFont, "Font… (⌘D)", fluent) { [session] in session.onFontDialog?() },
@@ -377,6 +391,23 @@ final class Ribbon: StatelessWidget {
             Chrome.gap(2),
             Chrome.toggle(FluentSystemIcons.paragraphMarks, "Show/Hide ¶ (⌘⇧8)".keys, session.showMarks, fluent) { [session] in session.onToggleMarks?() },
         ]))
+        // W-PA-4: paragraph borders (one thin line in automatic colour; the dialog picks style, width and colour) and shading.
+        func paraBorder(_ sides: Set<CellSide>, remove: Bool = false) -> () -> Void {
+            { c.setParagraphBorders(sides, remove ? nil : CellBorderLine()) }
+        }
+        let paraBorderItems: [MenuFlyoutItemBase] = [
+            MenuFlyoutItem(text: Text("Bottom Border"), onPressed: paraBorder([.bottom])),
+            MenuFlyoutItem(text: Text("Top Border"), onPressed: paraBorder([.top])),
+            MenuFlyoutItem(text: Text("Left Border"), onPressed: paraBorder([.left])),
+            MenuFlyoutItem(text: Text("Right Border"), onPressed: paraBorder([.right])),
+            MenuFlyoutSeparator(),
+            MenuFlyoutItem(text: Text("All Borders"), onPressed: paraBorder([.top, .bottom, .left, .right])),
+            MenuFlyoutItem(text: Text("Outside Borders"), onPressed: paraBorder([.top, .bottom, .left, .right])),
+            MenuFlyoutItem(text: Text("Inside Border"), onPressed: paraBorder([.insideH])),
+            MenuFlyoutItem(text: Text("No Border"), onPressed: paraBorder([.top, .bottom, .left, .right, .insideH], remove: true)),
+            MenuFlyoutSeparator(),
+            MenuFlyoutItem(text: Text("Borders and Shading…"), onPressed: { [session] in session.onBordersShadingDialog?() }),
+        ]
         let paraRow2 = Chrome.row([
             Chrome.toggle(FluentSystemIcons.alignLeft, "Align Left", s.alignment == .left, fluent) { c.setAlignment(.left) },
             Chrome.toggle(FluentSystemIcons.alignCenter, "Center", s.alignment == .center, fluent) { c.setAlignment(.center) },
@@ -384,7 +415,10 @@ final class Ribbon: StatelessWidget {
             Chrome.toggle(FluentSystemIcons.alignJustify, "Justify", s.alignment == .justify, fluent) { c.setAlignment(.justify) },
             Chrome.gap(2),
             Chrome.menu(nil, Icon(FluentSystemIcons.lineSpacing, size: Chrome.iconSize,
-                                  color: fluent.resources.textFillColorPrimary), fluent, spacingChoices),
+                                  color: fluent.resources.textFillColorPrimary), fluent, spacingChoices, tip: "Line Spacing"),
+            Chrome.colorMenu(FluentSystemIcons.highlight, "Shading", fluent,
+                             colors: OfficeColors.highlight, none: "No Shading") { col in c.setParagraphShading(col) },
+            Chrome.menuButton(FluentSystemIcons.table, "Borders", "Borders", fluent, items: paraBorderItems),
         ])
         let paragraph = Chrome.group("Paragraph", fluent, [Chrome.rows([paraRow1, Chrome.vgap(4), paraRow2])])
         return [font, paragraph]
@@ -445,6 +479,15 @@ final class Ribbon: StatelessWidget {
                                                 ("€ Euro", "€"), ("£ Pound", "£"), ("¥ Yen", "¥")]
             .map { name, ch in (name, { c.insertText(ch) }) }
             + [("More Symbols…", { [session] in session.onSymbolDialog?() })]
+        let shapeChoices: [(String, () -> Void)] = [("Rectangle", "rect"), ("Rounded Rectangle", "roundRect"), ("Oval", "ellipse"),
+                                                    ("Triangle", "triangle"), ("Right Arrow", "rightArrow")]
+            .map { name, preset in (name, { [session] in
+                // The shape waits for a click or drag on the page, and is made where the user puts it.
+                c.pendingShape = { x, y, w, h in
+                    TextBoxInsert.makeShape(preset: preset, width: w, height: h, number: TextBoxInsert.nextShapeNumber(in: c.document), page: (x, y))
+                }
+                session.onStatus?("Click on the page, or drag, to draw the \(name.lowercased())")
+            }) }
         return [
             Chrome.group("Pages", fluent, [
                 Chrome.big(FluentSystemIcons.pageBreak, "Page Break", fluent) { c.insertPageBreak() },
@@ -455,6 +498,8 @@ final class Ribbon: StatelessWidget {
                 Chrome.big(FluentSystemIcons.textT, "Text Box", fluent) { [session] in
                     if let box = TextBoxInsert.make() { c.insertImage(box) } else { session.onStatus?("Could not insert a text box") }
                 },
+                Chrome.menu(Text("Shapes"), Icon(FluentSystemIcons.shapes, size: Chrome.iconSize,
+                                                 color: fluent.resources.textFillColorPrimary), fluent, shapeChoices),
             ]),
             Chrome.group("Links", fluent, [
                 Chrome.big(FluentSystemIcons.link, "Link", fluent) { [session] in session.onLink?() },
@@ -465,10 +510,13 @@ final class Ribbon: StatelessWidget {
                 Chrome.small(FluentSystemIcons.pageNumber, "Page Number", fluent) { [session] in if !c.togglePageNumbers() { session.onHeaderFooter?() } },
             ])]),
             Chrome.group("Text", fluent, [Chrome.rows([
-                Chrome.small(FluentSystemIcons.document, "Date & Time", fluent) { [session] in
-                    c.insertText(Backstage.todayLongDate())
-                    session.onStatus?("Inserted today's date")
-                },
+                Chrome.small(FluentSystemIcons.document, "Date & Time", fluent) { [session] in session.onDateTimeDialog?() },
+                Chrome.menu(Text("Field"), Icon(FluentSystemIcons.document, size: Chrome.iconSize,
+                                                color: fluent.resources.textFillColorPrimary), fluent,
+                            [("Author", { c.insertField(" AUTHOR ", result: "") }), ("Title", { c.insertField(" TITLE ", result: "") }),
+                             ("Subject", { c.insertField(" SUBJECT ", result: "") }), ("Date", { c.insertField(" DATE \\@ \"M/d/yyyy\" ", result: "") }),
+                             ("Time", { c.insertField(" TIME \\@ \"h:mm AM/PM\" ", result: "") }),
+                             ("Update Fields (F9)", { [session] in session.onUpdateFields?() })]),
             ])]),
             Chrome.group("Symbols", fluent, [
                 Chrome.menu(Text("Symbol"), Icon(FluentSystemIcons.symbols, size: Chrome.iconSize,
@@ -516,6 +564,7 @@ final class Ribbon: StatelessWidget {
         }
         items.append(MenuFlyoutSeparator())
         items.append(MenuFlyoutItem(text: Text("Insert Table…"), onPressed: { [session] in session.onInsertTableDialog?() }))
+        items.append(MenuFlyoutItem(text: Text("Convert Text to Table…"), onPressed: c.canConvertTextToTable ? { [session] in session.onConvertTextTableDialog?(true) } : nil))
         items.append(MenuFlyoutSeparator())
         items.append(MenuFlyoutItem(text: Text("Insert Row Above"), onPressed: inCell ? { c.insertRow(below: false) } : nil))
         items.append(MenuFlyoutItem(text: Text("Insert Row Below"), onPressed: inCell ? { c.insertRow(below: true) } : nil))
@@ -563,18 +612,26 @@ final class Ribbon: StatelessWidget {
                 Chrome.small(FluentSystemIcons.delete, "Delete Column", fluent) { c.deleteColumn() },
             ]),
         ])
-        let select = Chrome.group("Select", fluent, [
+        let select = Chrome.group("Select", fluent, [Chrome.rows([
             Chrome.menuButton(FluentSystemIcons.table, "Select", "Select cells", fluent, items: [
                 MenuFlyoutItem(text: Text("Select Row"), onPressed: { c.selectRow() }),
                 MenuFlyoutItem(text: Text("Select Column"), onPressed: { c.selectColumn() }),
                 MenuFlyoutItem(text: Text("Select Table"), onPressed: { c.selectTable() }),
+                MenuFlyoutSeparator(),
+                MenuFlyoutItem(text: Text(session.tableTool == "draw" ? "Draw Table ✓" : "Draw Table"), onPressed: { [session] in session.onTableTool?("draw") }),
+                MenuFlyoutItem(text: Text(session.tableTool == "erase" ? "Eraser ✓" : "Eraser"), onPressed: { [session] in session.onTableTool?("erase") }),
+                MenuFlyoutSeparator(),
+                MenuFlyoutItem(text: Text("Table Properties…"), onPressed: { [session] in session.onTablePropertiesDialog?() }),
+                MenuFlyoutItem(text: Text("Formula…"), onPressed: c.canInsertFormula ? { [session] in session.onFormulaDialog?() } : nil),
+                MenuFlyoutItem(text: Text("Convert Table to Text…"), onPressed: { self.session.onConvertTextTableDialog?(false) }),
             ]),
-        ])
-        let merge = Chrome.group("Merge", fluent, [Chrome.rows([
-            Chrome.small(FluentSystemIcons.table, "Merge Cells", fluent,
-                         enabled: c.selection.block != nil || c.selectedCellsInRow.count > 1 || c.selectedCellsInColumn.count > 1) { c.mergeCells() },
-            Chrome.small(FluentSystemIcons.columns, "Split Cell", fluent,
-                         enabled: c.currentCell != nil) { self.session.onSplitCellDialog?() },
+            Chrome.small(FluentSystemIcons.delete, "Delete Table", fluent) { c.deleteTable() },
+            Chrome.menuButton(FluentSystemIcons.table, "Merge", "Merge cells, split cells, split the table", fluent, items: [
+                MenuFlyoutItem(text: Text("Merge Cells"), onPressed: {
+                    if c.selection.block != nil || c.selectedCellsInRow.count > 1 || c.selectedCellsInColumn.count > 1 { c.mergeCells() } }),
+                MenuFlyoutItem(text: Text("Split Cell…"), onPressed: { if c.currentCell != nil { self.session.onSplitCellDialog?() } }),
+                MenuFlyoutItem(text: Text("Split Table"), onPressed: { if c.canSplitTable { c.splitTable() } }),
+            ]),
         ])])
         let style = c.currentTableStyle ?? TableStyle()
         let row = c.currentCell?.row ?? 0
@@ -586,15 +643,18 @@ final class Ribbon: StatelessWidget {
                 Chrome.vgap(2),
                 Chrome.spinner("Indent", style.indent, fluent, step: 6, minimum: -72) { v in c.setTableIndent(v) },
             ]),
-            Chrome.gap(8),
-            Chrome.big(FluentSystemIcons.columns, "Distribute Columns", fluent) { c.distributeColumns() },
+            Chrome.rows([
+                Chrome.small(FluentSystemIcons.columns, "Distribute Columns", fluent) { c.distributeColumns() },
+                Chrome.small(FluentSystemIcons.table, "Distribute Rows", fluent) { c.distributeRows() },
+            ]),
         ])
-        let alignItems: [MenuFlyoutItemBase] = [
-            MenuFlyoutItem(text: Text("Align Top"), onPressed: { c.setCellVerticalAlignment("top") }),
-            MenuFlyoutItem(text: Text("Align Middle"), onPressed: { c.setCellVerticalAlignment("center") }),
-            MenuFlyoutItem(text: Text("Align Bottom"), onPressed: { c.setCellVerticalAlignment("bottom") }),
-        ]
-        let directionItems: [MenuFlyoutItemBase] = [
+        // Word's nine Align buttons: top / center / bottom by left / center / right.
+        let alignItems: [MenuFlyoutItemBase] = [("top", "Top"), ("center", "Center"), ("bottom", "Bottom")].flatMap { v in
+            [(ParagraphAlignment.left, "Left"), (.center, "Center"), (.right, "Right")].map { h -> MenuFlyoutItemBase in
+                MenuFlyoutItem(text: Text("Align \(v.1) \(h.1)"), onPressed: { c.setCellAlignment(vertical: v.0, horizontal: h.0) })
+            }
+        }
+        let directionItems: [MenuFlyoutItemBase] = [MenuFlyoutSeparator(),
             MenuFlyoutItem(text: Text("Horizontal Text"), onPressed: { c.setCellTextDirection(.horizontal) }),
             MenuFlyoutItem(text: Text("Rotate Text Down"), onPressed: { c.setCellTextDirection(.down) }),
             MenuFlyoutItem(text: Text("Rotate Text Up"), onPressed: { c.setCellTextDirection(.up) }),
@@ -615,22 +675,22 @@ final class Ribbon: StatelessWidget {
             MenuFlyoutItem(text: Text("Table Width: 75%"), onPressed: { c.setTableWidth(percent: 75) }),
             MenuFlyoutItem(text: Text("Table Width: 50%"), onPressed: { c.setTableWidth(percent: 50) }),
         ]
+        let autoFitItems: [MenuFlyoutItemBase] = [
+            MenuFlyoutItem(text: Text("AutoFit to Contents"), onPressed: { c.autoFitTable(.contents) }),
+            MenuFlyoutItem(text: Text("AutoFit to Window"), onPressed: { c.autoFitTable(.window) }),
+            MenuFlyoutItem(text: Text("Fixed Column Width"), onPressed: { c.autoFitTable(.fixed) }),
+        ]
         let alignment = Chrome.group("Alignment", fluent, [
             Chrome.rows([
-                Chrome.menuButton(FluentSystemIcons.table, "Cell Alignment", "Vertical alignment of the cell's text", fluent, items: alignItems),
-                Chrome.menuButton(nil, "Text Direction", "Direction of the cell's text", fluent, items: directionItems),
+                Chrome.menuButton(FluentSystemIcons.table, "Cell Alignment", "Vertical alignment of the cell's text", fluent, items: alignItems + directionItems),
                 Chrome.menuButton(nil, "Table Alignment", "Where the table stands between the margins", fluent, items: tableAlignItems),
+                Chrome.menuButton(nil, "Table Width", "The table's width", fluent, items: tableWidthItems),
             ]),
             Chrome.gap(8),
             Chrome.rows([
                 Chrome.menuButton(nil, "Cell Margins", "Margins inside the table's cells", fluent, items: marginsItems),
-                Chrome.menuButton(nil, "Table Width", "The table's width", fluent, items: tableWidthItems),
-                Chrome.small(FluentSystemIcons.columns, style.fixedLayout ? "Fixed Widths" : "AutoFit", fluent) { c.setTableAutofit(style.fixedLayout) },
-            ]),
-            Chrome.gap(8),
-            Chrome.rows([
+                Chrome.menuButton(nil, "AutoFit", "Fit the table to its contents, the window, or fixed widths", fluent, items: autoFitItems),
                 Chrome.small(FluentSystemIcons.table, style.rowsCantSplit.contains(row) ? "Row Cannot Break" : "Row May Break", fluent) { c.setRowsMayBreak(style.rowsCantSplit.contains(row)) },
-                Chrome.small(FluentSystemIcons.header, style.headerRow ? "Repeat Header: On" : "Repeat Header: Off", fluent) { c.setRepeatedHeaderRows(style.headerRow ? 0 : max(1, row + 1)) },
             ]),
         ])
         // The pen is read when a menu item is chosen, not when the ribbon builds.
@@ -677,19 +737,17 @@ final class Ribbon: StatelessWidget {
             Chrome.gap(8),
             Chrome.rows([shading, penColors]),
         ])
-        let look = Chrome.group("Table Style", fluent, [
-            Chrome.bigToggle(FluentSystemIcons.table, "Borders", style.borders, fluent) { c.setTableStyle { $0.borders.toggle() } },
-            Chrome.bigToggle(FluentSystemIcons.header, "Header Row", style.headerRow, fluent) { c.setTableStyle { $0.headerRow.toggle() } },
-        ])
-        let table = Chrome.group("Table", fluent, [
-            Chrome.big(FluentSystemIcons.delete, "Delete Table", fluent) { c.deleteTable() },
-        ])
-        return [select, rows, merge, size, alignment, borders, look, table]
+        let look = Chrome.group("Table Style", fluent, [Chrome.rows([
+            Chrome.textToggle("Table Borders", style.borders, fluent) { c.setTableStyle { $0.borders.toggle() } },
+            Chrome.textToggle("Header Row", style.headerRow, fluent) { c.setTableStyle { $0.headerRow.toggle() } },
+            Chrome.small(FluentSystemIcons.header, style.headerRow ? "Repeat Header: On" : "Repeat Header: Off", fluent) { c.setRepeatedHeaderRows(style.headerRow ? 0 : max(1, row + 1)) },
+        ])])
+        return [select, rows, size, alignment, borders, look]
     }
 
     // MARK: Picture Format
 
-    private func _pictureFormat(_ fluent: FluentThemeData) -> [Widget] {
+    private func _pictureFormat(_ fluent: FluentThemeData, shape: Bool = false) -> [Widget] {
         let c = session.controller
         let s = session.summary
         if let i = s.imageIndex, let id = s.inlineImageID, let image = c.document.paragraphs[i].inlineImages[id] {
@@ -722,12 +780,12 @@ final class Ribbon: StatelessWidget {
             ])
             let tools = Chrome.group("Adjust", fluent, [
                 Chrome.rows([
-                    Chrome.small(FluentSystemIcons.image, "Alt Text", fluent) { [session] in session.onPictureDialog?(.altText) },
+                    Chrome.small(CupertinoIcons.chat_bubble_text, "Alt Text", fluent) { [session] in session.onPictureDialog?(.altText) },
                     Chrome.small(FluentSystemIcons.pageFit, "Crop", fluent) { [session] in session.onPictureDialog?(.crop) },
                 ]),
                 Chrome.gap(8),
                 Chrome.rows([
-                    Chrome.small(FluentSystemIcons.image, "Change Picture", fluent) { [session] in session.onChangePicture?() },
+                    Chrome.small(CupertinoIcons.photo_on_rectangle, "Change Picture", fluent) { [session] in session.onChangePicture?() },
                     Chrome.small(FluentSystemIcons.zoomOut, "Reset Picture", fluent) { c.resetPicture(at: i, inline: id) },
                 ]),
             ])
@@ -773,14 +831,16 @@ final class Ribbon: StatelessWidget {
             Chrome.small(CupertinoIcons.rotate_right, "Rotate Right", fluent) { _ = c.rotatePicture(at: i, quarters: 1) },
             Chrome.small(CupertinoIcons.rotate_left, "Rotate Left", fluent) { _ = c.rotatePicture(at: i, quarters: -1) },
         ])
-        let tools = Chrome.group("Adjust", fluent, [
+        let tools = shape ? Chrome.group("Adjust", fluent, [
+            Chrome.small(CupertinoIcons.chat_bubble_text, "Alt Text", fluent) { [session] in session.onPictureDialog?(.altText) },
+        ]) : Chrome.group("Adjust", fluent, [
             Chrome.rows([
-                Chrome.small(FluentSystemIcons.image, "Alt Text", fluent) { [session] in session.onPictureDialog?(.altText) },
+                Chrome.small(CupertinoIcons.chat_bubble_text, "Alt Text", fluent) { [session] in session.onPictureDialog?(.altText) },
                 Chrome.small(FluentSystemIcons.pageFit, "Crop", fluent) { [session] in session.onPictureDialog?(.crop) },
             ]),
             Chrome.gap(8),
             Chrome.rows([
-                Chrome.small(FluentSystemIcons.image, "Change Picture", fluent) { [session] in session.onChangePicture?() },
+                Chrome.small(CupertinoIcons.photo_on_rectangle, "Change Picture", fluent) { [session] in session.onChangePicture?() },
                 Chrome.small(FluentSystemIcons.zoomOut, "Reset Picture", fluent) { c.resetPicture(at: i) },
             ]),
         ])
@@ -794,10 +854,56 @@ final class Ribbon: StatelessWidget {
                 Chrome.big(FluentSystemIcons.textT, "Edit Text", fluent) { [session] in session.onPictureDialog?(.boxText) },
             ]))
         }
+        var styleGroup: [Widget] = []
+        if c.document.paragraphs[i].image?.outline != nil, c.document.paragraphs[i].image?.sourceXML?.containsSubstring("<wps:wsp") == true {
+            styleGroup.append(Chrome.group("Shape Styles", fluent, [
+                _shapeColorMenu(FluentSystemIcons.highlight, "Shape Fill", c, i, fluent, outline: false),
+                _shapeColorMenu(FluentSystemIcons.textColor, "Shape Outline", c, i, fluent, outline: true),
+            ]))
+        }
+        var groupWidgets: [Widget] = []
+        let picked = c.pickedShapeIndexes
+        let pickedImages = picked.compactMap { c.document.paragraphs[$0].image }
+        if picked.count >= 2, pickedImages.allSatisfy(ShapeGroups.isGroupable) {
+            groupWidgets.append(Chrome.group("Group", fluent, [
+                Chrome.big(FluentSystemIcons.shapes, "Group", fluent) { [session] in
+                    if let g = ShapeGroups.group(pickedImages, number: TextBoxInsert.nextShapeNumber(in: c.document)), c.replaceImageParagraphs(picked, with: [g]) {
+                        session.onStatus?("Grouped \(picked.count) shapes")
+                    }
+                },
+            ]))
+        } else if let image = c.document.paragraphs[i].image, ShapeGroups.isGroup(image) {
+            groupWidgets.append(Chrome.group("Group", fluent, [
+                Chrome.big(FluentSystemIcons.shapes, "Ungroup", fluent) { [session] in
+                    if let parts = ShapeGroups.ungroup(image, number: TextBoxInsert.nextShapeNumber(in: c.document)), c.replaceImageParagraphs([i], with: parts) {
+                        session.onStatus?("Ungrouped into \(parts.count) shapes")
+                    }
+                },
+            ]))
+        } else if picked.count < 2, let image = c.document.paragraphs[i].image, ShapeGroups.isGroupable(image) {
+            groupWidgets.append(Chrome.group("Group", fluent, [
+                Chrome.big(FluentSystemIcons.shapes, "Group", fluent, enabled: false) {},
+            ]))
+        }
+        if c.pictureWrap(at: i) != nil {
+            // A finger has no Shift: while this is on, a tap on another floating shape picks it to group with this one.
+            groupWidgets.append(Chrome.group("Select", fluent, [
+                Chrome.small(FluentSystemIcons.check, "Select Multiple", fluent, checked: c.selectMultiple) { c.setSelectMultiple(!c.selectMultiple) },
+            ]))
+        }
         var floating: [Widget] = []
         if let wrap = c.pictureWrap(at: i) {
             func pick(_ w: PictureWrap) -> Widget {
-                Chrome.small(FluentSystemIcons.image, w.title, fluent, enabled: w != wrap) { _ = c.setPictureWrap(at: i, w) }
+                let glyph: IconData
+                switch w {
+                case .square: glyph = CupertinoIcons.rectangle_split_3x1
+                case .tight: glyph = CupertinoIcons.square_grid_2x2
+                case .through: glyph = CupertinoIcons.layers
+                case .topAndBottom: glyph = CupertinoIcons.arrow_up_down
+                case .behindText: glyph = CupertinoIcons.square_stack
+                default: glyph = CupertinoIcons.rectangle_on_rectangle
+                }
+                return Chrome.small(glyph, w.title, fluent, enabled: w != wrap) { _ = c.setPictureWrap(at: i, w) }
             }
             floating.append(Chrome.group("Wrap Text", fluent, [
                 Chrome.rows([pick(.square), pick(.tight), pick(.through)]),
@@ -816,7 +922,23 @@ final class Ribbon: StatelessWidget {
                 ]),
             ]))
         }
-        return [size, arrange] + floating + boxGroup + [turn, tools, remove]
+        if shape { return styleGroup + boxGroup + groupWidgets + floating + [size, turn, tools, remove] }
+        return [size, arrange] + floating + groupWidgets + boxGroup + styleGroup + [turn, tools, remove]
+    }
+
+    /// Shape Fill / Shape Outline: the shared colour picker; a theme pick is written as a theme colour.
+    private func _shapeColorMenu(_ icon: IconData, _ tip: String, _ c: RichDocumentController, _ i: Int,
+                                 _ fluent: FluentThemeData, outline: Bool) -> Widget {
+        Chrome.menuButton(icon, nil, tip, fluent, items: [
+            ColorGridMenuItem(theme: ColorMath.officeTheme, recent: [], noneLabel: outline ? "No Outline" : "No Fill",
+                              onChoose: { choice in
+                guard let rgb = choice.resolved(theme: ColorMath.officeTheme) else { _ = outline ? c.setShapeOutline(at: i, nil) : c.setShapeFill(at: i, nil); return }
+                let color = Color(0xFF00_0000 | Int64(rgb))
+                var theme: (slot: Int, lumMod: Int, lumOff: Int)?
+                if case .theme(let slot, let mod, let off) = choice { theme = (slot, mod, off) }
+                _ = outline ? c.setShapeOutline(at: i, color, theme: theme) : c.setShapeFill(at: i, color, theme: theme)
+            }, onMore: { [session] in session.onMoreColors?() }),
+        ])
     }
 
     // MARK: Layout

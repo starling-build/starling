@@ -120,6 +120,7 @@ final class NoteInsertTests: XCTestCase {
             XCTAssertFalse(xml.contains("w:vertAlign"), file)
             XCTAssertFalse(xml.contains("<w:sz "), file)
         }
+        XCTAssertFalse(try part("word/document.xml").contains("w:vertAlign"), "the body marks take their raise from the style")
         let styles = try part("word/styles.xml")
         for id in ["FootnoteText", "EndnoteText", "FootnoteReference", "EndnoteReference"] {
             XCTAssertTrue(styles.contains("w:styleId=\"\(id)\""), id)
@@ -127,5 +128,27 @@ final class NoteInsertTests: XCTestCase {
         if let out = ProcessInfo.processInfo.environment["NOTE_CHECK_OUT3"] {
             try DocxFormat.write(c.document, pageSetup: .letter).write(to: URL(fileURLWithPath: out))
         }
+    }
+
+    func testDeletingAMarkDropsItsNoteAndRenumbersInOneStep() throws {
+        let c = controller(["Alpha beta gamma delta"])
+        for off in [11, 5, 17] { c.moveTo(RichPosition(paragraph: 0, offset: off), extend: false); c.insertNote(.footnote) }
+        // Marks in body order: id 2 after "Alpha", id 3 after "Alpha beta" ... find the middle one.
+        let ids = c.document.paragraphs[0].runs.compactMap { $0.style.note?.id }
+        XCTAssertEqual(ids.count, 3)
+        let middle = ids[1]
+        var offset = 0, at = 0
+        for r in c.document.paragraphs[0].runs { if r.style.note?.id == middle { at = offset }; offset += r.length }
+        let before = c.document.paragraphs[0].text
+        c.moveTo(RichPosition(paragraph: 0, offset: at), extend: false); c.moveTo(RichPosition(paragraph: 0, offset: at + 1), extend: true)
+        c.deleteBackward()
+        XCTAssertNil(c.document.footnotes[middle])
+        XCTAssertEqual(c.document.footnotes.count, 2)
+        XCTAssertEqual(c.document.footnotes.values.compactMap { $0.first?.text.first }.sorted(), ["1", "2"])
+        let back = try DocxFormat.read(try DocxFormat.write(c.document, pageSetup: .letter)).document
+        XCTAssertEqual(back.footnotes.count, 2)
+        c.undo()
+        XCTAssertEqual(c.document.footnotes.count, 3)
+        XCTAssertEqual(c.document.paragraphs[0].text, before)
     }
 }

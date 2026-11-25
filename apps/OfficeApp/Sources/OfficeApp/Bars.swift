@@ -166,7 +166,7 @@ final class StatusBar: StatelessWidget {
             SizedBox(width: 140, height: nil, child: Slider(
                 value: session.zoom * 100,
                 onChanged: { [session] v in session.onZoom?((v / 100 * 10).rounded() / 10) },
-                min: 50, max: 300)),
+                min: 50, max: 300, label: "Zoom")),
             Chrome.icon(FluentSystemIcons.zoomIn, "Zoom In", fluent) { [session] in session.onZoom?(session.zoom + 0.1) },
             SizedBox(width: 44, height: nil, child: Text("\(Int((session.zoom * 100).rounded()))%", style: caption)),
         ]

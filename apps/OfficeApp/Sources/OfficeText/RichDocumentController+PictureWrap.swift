@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import Flutter
+import FlutterSwiftBridge
 
 /// Layout Options for a floating picture: how the text wraps round it, and where it stands. Both patch the picture's
 /// kept `wp:anchor` markup (the one source the layout and the writer read) and the matching `ImageFloat` flags, as one undo step.
@@ -21,10 +22,12 @@ public enum PictureWrap: String, CaseIterable, Sendable {
         }
     }
 
-    /// The `wp:wrap…` element Word writes for this choice.
-    var element: String {
-        let polygon = "<wp:wrapPolygon edited=\"0\"><wp:start x=\"0\" y=\"0\"/><wp:lineTo x=\"0\" y=\"21600\"/>"
-            + "<wp:lineTo x=\"21600\" y=\"21600\"/><wp:lineTo x=\"21600\" y=\"0\"/><wp:lineTo x=\"0\" y=\"0\"/></wp:wrapPolygon>"
+    /// The `wp:wrap…` element Word writes for this choice, with a tight or through polygon that follows `points` (a closed
+    /// outline in Word's 21600 space; the full rectangle by default).
+    func element(points: [(Int, Int)] = PictureWrap.rectangle) -> String {
+        var polygon = "<wp:wrapPolygon edited=\"0\"><wp:start x=\"\(points[0].0)\" y=\"\(points[0].1)\"/>"
+        for p in points.dropFirst() { polygon += "<wp:lineTo x=\"\(p.0)\" y=\"\(p.1)\"/>" }
+        polygon += "</wp:wrapPolygon>"
         switch self {
         case .square: return "<wp:wrapSquare wrapText=\"bothSides\"/>"
         case .tight: return "<wp:wrapTight wrapText=\"bothSides\">" + polygon + "</wp:wrapTight>"
@@ -34,13 +37,51 @@ public enum PictureWrap: String, CaseIterable, Sendable {
         }
     }
 
+    static let rectangle: [(Int, Int)] = [(0, 0), (0, 21600), (21600, 21600), (21600, 0), (0, 0)]
+
+    /// The outline of a preset shape of `width` x `height` (any unit) in Word's 21600 space, closed, for a tight wrap:
+    /// an ellipse as 36 points, a diamond and a triangle by their corners, a rounded rectangle with its quarter arcs.
+    /// Anything else is its box.
+    static func outline(preset: String?, width: Double, height: Double) -> [(Int, Int)] {
+        func pt(_ x: Double, _ y: Double) -> (Int, Int) { (Int((x * 21600).rounded()), Int((y * 21600).rounded())) }
+        switch preset {
+        case "ellipse":
+            let n = 36
+            var out = (0 ..< n).map { k -> (Int, Int) in
+                let a = Double.pi * 2 * Double(k) / Double(n)
+                return pt(0.5 + 0.5 * cos(a), 0.5 + 0.5 * sin(a))
+            }
+            out.append(out[0])
+            return out
+        case "diamond":
+            return [pt(0.5, 0), pt(0, 0.5), pt(0.5, 1), pt(1, 0.5), pt(0.5, 0)]
+        case "triangle":
+            return [pt(0.5, 0), pt(0, 1), pt(1, 1), pt(0.5, 0)]
+        case "roundRect" where width > 0 && height > 0:
+            let r = 0.16667 * min(width, height), rx = r / width, ry = r / height
+            var out: [(Int, Int)] = []
+            // Corners clockwise from the top-left, each as a quarter arc in 6 steps.
+            let corners: [(Double, Double, Double)] = [(rx, ry, 180), (1 - rx, ry, 270), (1 - rx, 1 - ry, 0), (rx, 1 - ry, 90)]
+            for (cx, cy, from) in corners {
+                for k in 0 ... 6 {
+                    let a = (from + 90 * Double(k) / 6) * Double.pi / 180
+                    out.append(pt(cx + rx * cos(a), cy + ry * sin(a)))
+                }
+            }
+            out.append(out[0])
+            return out
+        default:
+            return rectangle
+        }
+    }
+
     var behind: Bool { self == .behindText }
 }
 
 extension String {
     /// This `wp:anchor` markup with its wrapping element replaced by `wrap`'s and `behindDoc` set to match; nil when it holds no
     /// anchor or no wrapping element.
-    static func _anchorWrapped(_ xml: String, _ wrap: PictureWrap) -> String? {
+    static func _anchorWrapped(_ xml: String, _ wrap: PictureWrap, points: [(Int, Int)] = PictureWrap.rectangle) -> String? {
         guard let anchor = xml.rangeOfSubstring("<wp:anchor"),
               let tagEnd = xml.rangeOfSubstring(">", in: anchor.upperBound ..< xml.endIndex),
               let open = xml.rangeOfSubstring("<wp:wrap", in: tagEnd.upperBound ..< xml.endIndex),
@@ -56,7 +97,7 @@ extension String {
             guard let c = xml.rangeOfSubstring(close + ">", in: gt.upperBound ..< xml.endIndex) else { return nil }
             end = c.upperBound
         }
-        var out = String(xml[xml.startIndex ..< open.lowerBound]) + wrap.element + String(xml[end...])
+        var out = String(xml[xml.startIndex ..< open.lowerBound]) + wrap.element(points: points) + String(xml[end...])
         // behindDoc on the anchor's own tag.
         guard let a = out.rangeOfSubstring("<wp:anchor"), let e = out.rangeOfSubstring(">", in: a.upperBound ..< out.endIndex) else { return nil }
         var tag = String(out[a.lowerBound ..< e.lowerBound])
@@ -85,6 +126,37 @@ extension String {
 }
 
 extension RichDocumentController {
+    /// The picture paragraphs picked for grouping: the selected one and every Shift-clicked one, in document order.
+    public var pickedShapeIndexes: [Int] {
+        guard let main = selectedImageIndex else { return [] }
+        let picked = document.paragraphs.indices.filter { i in
+            i == main || document.paragraphs[i].image.map { image in shapePicks.contains(image.id) } == true
+        }
+        return picked
+    }
+
+    /// Shift-click on the floating shape at paragraph `index`: picks it along with the selected one, or drops it again.
+    public func toggleShapePick(at index: Int) {
+        guard let main = selectedImageIndex, index != main, let image = _floating(index, nil) else { return }
+        if let at = shapePicks.firstIndex(of: image.id) { shapePicks.remove(at: at) } else { shapePicks.append(image.id) }
+        notifyListeners()
+    }
+
+    /// One undo step: the picture paragraphs `indices` give way to paragraphs holding `images` (at the first one's place), and
+    /// the first of them is selected.
+    @discardableResult
+    public func replaceImageParagraphs(_ indices: [Int], with images: [ImageAttachment]) -> Bool {
+        let sorted = Set(indices).sorted()
+        guard let first = sorted.first, !images.isEmpty, sorted.allSatisfy({ $0 < document.paragraphs.count && document.paragraphs[$0].isImage }) else { return false }
+        edit {
+            for i in sorted.reversed() { perform(.removeParagraphs(at: i, [document.paragraphs[i]])) }
+            perform(.insertParagraphs(at: first, images.map { RichParagraph(image: $0) }))
+            shapePicks = []
+        }
+        selectImage(at: first)
+        return true
+    }
+
     /// The floating picture at paragraph `index` (its own, or inline picture `id`) with its kept anchor markup, or nil.
     private func _floating(_ index: Int, _ id: String?) -> ImageAttachment? {
         guard index < document.paragraphs.count else { return nil }
@@ -114,7 +186,13 @@ extension RichDocumentController {
     @discardableResult
     public func setPictureWrap(at index: Int, inline id: String? = nil, _ wrap: PictureWrap) -> Bool {
         guard let old = _floating(index, id), let xml = old.sourceXML, pictureWrap(at: index, inline: id) != wrap,
-              let patched = String._anchorWrapped(xml, wrap), var f = old.float else { return false }
+              var f = old.float else { return false }
+        // A shape wraps round its own outline, not its box.
+        var preset: String?
+        if xml.containsSubstring("<wps:wsp"), let g = xml.rangeOfSubstring("prstGeom prst=\""),
+           let q = xml.rangeOfSubstring("\"", in: g.upperBound ..< xml.endIndex) { preset = String(xml[g.upperBound ..< q.lowerBound]) }
+        let points = PictureWrap.outline(preset: preset, width: old.width, height: old.height)
+        guard let patched = String._anchorWrapped(xml, wrap, points: points) else { return false }
         var new = old
         new.sourceXML = patched
         f.wraps = wrap == .square || wrap == .tight || wrap == .through
@@ -123,7 +201,7 @@ extension RichDocumentController {
         f.wrapReach = 1
         f.wrapBottomShare = 1
         f.wrapTopSkip = 0
-        f.wrapPolygon = []
+        f.wrapPolygon = f.wrapsTight && points.count > 5 ? points.map { WrapPoint(x: Double($0.0) / 21600, y: Double($0.1) / 21600) } : []
         // (As the reader does: a top-and-bottom picture placed against the page or its paragraph bands its page.)
         f.takesRoom = wrap == .topAndBottom
         f.bandsPage = false
@@ -150,6 +228,103 @@ extension RichDocumentController {
         f.x = x
         f.y = y
         new.float = f
+        _store(index, id, old: old, new: new)
+        return true
+    }
+
+    /// Make the shape at `index` (a `wps:wsp` with no text part, as a new shape is) ready to type in: add an empty centred
+    /// paragraph as its text part, one undo step, so it enters in place like a text box. False for anything that is not such a
+    /// shape, or already has text.
+    @discardableResult
+    public func giveShapeText(at index: Int, inline id: String? = nil) -> Bool {
+        guard let old = _floating(index, id), old.textBox == nil, let xml = old.sourceXML,
+              xml.containsSubstring("<wps:wsp"), !xml.containsSubstring("<wps:txbx"), !xml.containsSubstring("<mc:"),
+              let end = xml.rangeOfSubstring("</wps:spPr>") else { return false }
+        let part = "<wps:txbx><w:txbxContent><w:p><w:pPr><w:jc w:val=\"center\"/></w:pPr></w:p></w:txbxContent></wps:txbx>"
+        var patched = xml
+        patched.insert(contentsOf: part, at: end.upperBound)
+        // (Word centres a shape's text in it.)
+        if let body = patched.rangeOfSubstring("<wps:bodyPr "), let close = patched.rangeOfSubstring(">", in: body.upperBound ..< patched.endIndex),
+           let a = patched.rangeOfSubstring("anchor=\"t\"", in: body.upperBound ..< close.lowerBound) {
+            patched.replaceSubrange(a, with: "anchor=\"ctr\"")
+        }
+        var new = old
+        new.sourceXML = patched
+        var para = RichParagraph(text: "")
+        para.style.alignment = .center
+        new.textBox = RichTextBox(paragraphs: [para])
+        _store(index, id, old: old, new: new)
+        return true
+    }
+
+    /// The fill of the shape at `index` (nil: none), one undo step. False when it is not a shape drawn by a `wps:wsp`
+    /// whose fill is a plain colour or none (a gradient or picture fill is left as it is).
+    @discardableResult
+    public func setShapeFill(at index: Int, inline id: String? = nil, _ color: Color?, theme: (slot: Int, lumMod: Int, lumOff: Int)? = nil) -> Bool {
+        _setShapePaint(index, id, line: false, color, theme)
+    }
+
+    /// The outline colour of the shape at `index` (nil: no line), one undo step; false as `setShapeFill`.
+    @discardableResult
+    public func setShapeOutline(at index: Int, inline id: String? = nil, _ color: Color?, theme: (slot: Int, lumMod: Int, lumOff: Int)? = nil) -> Bool {
+        _setShapePaint(index, id, line: true, color, theme)
+    }
+
+    private func _setShapePaint(_ index: Int, _ id: String?, line: Bool, _ color: Color?, _ theme: (slot: Int, lumMod: Int, lumOff: Int)? = nil) -> Bool {
+        guard let old = _floating(index, id), let xml = old.sourceXML, xml.containsSubstring("<wps:wsp") else { return false }
+        var hex = ""
+        if let color { let v = String(color.value & 0xFFFFFF, radix: 16, uppercase: true); hex = String(repeating: "0", count: 6 - v.count) + v }
+        // A theme pick stays linked to its slot (`a:schemeClr` with lumMod / lumOff), so a theme change recolours it.
+        let names = ["bg1", "tx1", "bg2", "tx2", "accent1", "accent2", "accent3", "accent4", "accent5", "accent6"]
+        var paint = color == nil ? "<a:noFill/>" : "<a:solidFill><a:srgbClr val=\"\(hex)\"/></a:solidFill>"
+        if color != nil, let t = theme, t.slot >= 0, t.slot < names.count {
+            var mods = ""
+            if t.lumMod < 100 { mods += "<a:lumMod val=\"\(t.lumMod * 1000)\"/>" }
+            if t.lumOff > 0 { mods += "<a:lumOff val=\"\(t.lumOff * 1000)\"/>" }
+            paint = "<a:solidFill><a:schemeClr val=\"\(names[t.slot])\"" + (mods.isEmpty ? "/>" : ">\(mods)</a:schemeClr>") + "</a:solidFill>"
+        }
+        // The shape's `wps:spPr` blocks (a group has one per child): the picked child's, else every one (a plain shape has one).
+        var spans: [Range<String.Index>] = []
+        var from = xml.startIndex
+        while let open = xml.rangeOfSubstring("<wps:spPr>", in: from ..< xml.endIndex),
+              let close = xml.rangeOfSubstring("</wps:spPr>", in: open.upperBound ..< xml.endIndex) {
+            spans.append(open.upperBound ..< close.lowerBound)
+            from = close.upperBound
+        }
+        if let child = groupChild, xml.containsSubstring("<wpg:wgp"), selectedImageIndex == index { spans = spans.indices.contains(child) ? [spans[child]] : [] }
+        guard !spans.isEmpty else { return false }
+        var out = xml
+        for span in spans.reversed() {
+            var body = String(out[span])
+            // Where the paint stands: after the geometry for the fill, inside the line's element for the outline.
+            var at: String.Index
+            if line {
+                guard let l = body.rangeOfSubstring("<a:ln"), let gt = body.rangeOfSubstring(">", in: l.upperBound ..< body.endIndex),
+                      !body[l.upperBound ..< gt.lowerBound].hasSuffix("/") else { continue }
+                at = gt.upperBound
+            } else {
+                guard let g = body.rangeOfSubstring("</a:prstGeom>") ?? body.rangeOfSubstring("</a:custGeom>") else { continue }
+                at = g.upperBound
+            }
+            let rest = body[at...]
+            if rest.hasPrefix("<a:solidFill>"), let e = body.rangeOfSubstring("</a:solidFill>", in: at ..< body.endIndex) {
+                body.replaceSubrange(at ..< e.upperBound, with: paint)
+            } else if rest.hasPrefix("<a:noFill/>") {
+                body.replaceSubrange(at ..< body.index(at, offsetBy: "<a:noFill/>".count), with: paint)
+            } else if rest.hasPrefix("<a:gradFill") || rest.hasPrefix("<a:blipFill") || rest.hasPrefix("<a:pattFill") {
+                continue
+            } else {
+                body.insert(contentsOf: paint, at: at)
+            }
+            out.replaceSubrange(span, with: body)
+        }
+        var new = old
+        new.sourceXML = out
+        if var outline = old.outline, !xml.containsSubstring("<wpg:wgp") {
+            if line { outline.color = color.map { Color(0xFF00_0000 | Int64($0.value & 0xFFFFFF)) } } else { outline.fill = color.map { Color(0xFF00_0000 | Int64($0.value & 0xFFFFFF)) } }
+            new.outline = outline
+        }
+        guard new.sourceXML != xml else { return false }
         _store(index, id, old: old, new: new)
         return true
     }
@@ -213,13 +388,19 @@ extension RichDocumentController {
     /// box's table looks and grids. nil when the box holds what the editor would lose (the same list as
     /// `textBoxParagraphs`) or a table inside a table's cell.
     public func textBoxDocument(at index: Int, inline id: String? = nil) -> RichDocument? {
-        guard let image = _floating(index, id), let box = image.textBox, let xml = image.sourceXML,
+        guard let image = _floating(index, id) else { return nil }
+        return Self._textBoxDocument(of: image)
+    }
+
+    /// `textBoxDocument` for an attachment in hand (a floating text box or a group child lifted out as one).
+    static func _textBoxDocument(of image: ImageAttachment) -> RichDocument? {
+        guard let box = image.textBox, let xml = image.sourceXML,
               let open = xml.rangeOfSubstring("<w:txbxContent>"),
               let close = xml.rangeOfSubstring("</w:txbxContent>", in: open.upperBound ..< xml.endIndex) else { return nil }
         let inner = String(xml[open.upperBound ..< close.lowerBound])
         for marker in ["<mc:", "<w:sdt", "<w:object", "<w:pict"]
         where inner.containsSubstring(marker) { return nil }
-        guard Self._picturesAreKept(inner, box.paragraphs) else { return nil }
+        guard _picturesAreKept(inner, box.paragraphs) else { return nil }
         // A table inside a cell is not rewritten.
         var from = inner.startIndex
         while let o = inner.rangeOfSubstring("<w:tc>", in: from ..< inner.endIndex) ?? inner.rangeOfSubstring("<w:tc ", in: from ..< inner.endIndex) {
@@ -321,4 +502,87 @@ extension RichDocumentController {
         }
         return out
     }
+}
+
+extension RichDocumentController {
+    /// The boxes of a group's children, in points from the group's top left, in drawing order; nil when the picture is not a group.
+    public func groupChildBoxes(at index: Int) -> [Rect]? {
+        guard index < document.paragraphs.count, let xml = document.paragraphs[index].image?.sourceXML, xml.containsSubstring("<wpg:wgp"),
+              let grp = xml.rangeOfSubstring("<wpg:grpSpPr>"), let grpEnd = xml.rangeOfSubstring("</wpg:grpSpPr>", in: grp.upperBound ..< xml.endIndex) else { return nil }
+        func ints(_ s: String, _ tag: String, _ a: String, _ b: String) -> (Int, Int)? {
+            guard let t = s.rangeOfSubstring("<\(tag) "), let e = s.rangeOfSubstring(">", in: t.upperBound ..< s.endIndex) else { return nil }
+            let attrs = String(s[t.upperBound ..< e.lowerBound])
+            func v(_ n: String) -> Int? {
+                guard let r = attrs.rangeOfSubstring(n + "=\""), let q = attrs.rangeOfSubstring("\"", in: r.upperBound ..< attrs.endIndex) else { return nil }
+                return Int(attrs[r.upperBound ..< q.lowerBound])
+            }
+            guard let x = v(a), let y = v(b) else { return nil }
+            return (x, y)
+        }
+        let head = String(xml[grp.upperBound ..< grpEnd.lowerBound])
+        guard let off = ints(head, "a:chOff", "x", "y") else { return nil }
+        var boxes: [Rect] = []
+        var from = grpEnd.upperBound
+        while let open = xml.rangeOfSubstring("<wps:wsp>", in: from ..< xml.endIndex) ?? xml.rangeOfSubstring("<wps:wsp ", in: from ..< xml.endIndex),
+              let close = xml.rangeOfSubstring("</wps:wsp>", in: open.upperBound ..< xml.endIndex) {
+            let w = String(xml[open.upperBound ..< close.lowerBound])
+            if let o = ints(w, "a:off", "x", "y"), let e = ints(w, "a:ext", "cx", "cy") {
+                boxes.append(Rect.fromLTWH(Double(o.0 - off.0) / 12700, Double(o.1 - off.1) / 12700, Double(e.0) / 12700, Double(e.1) / 12700))
+            }
+            from = close.upperBound
+        }
+        return boxes.isEmpty ? nil : boxes
+    }
+
+    /// A click at `point` (points from the selected group's top left): picks the topmost child there; false when none is hit.
+    @discardableResult
+    public func pickGroupChild(at index: Int, point: Offset) -> Bool {
+        guard selectedImageIndex == index, let boxes = groupChildBoxes(at: index),
+              let hit = boxes.lastIndex(where: { $0.contains(point) }) else { return false }
+        groupChild = hit
+        notifyListeners()
+        return true
+    }
+
+    /// What the app does to one child of a group (EMU, page coordinates).
+    /// Set by the app, which knows the markup: (group, child, change) gives the changed group, or nil.
+    public nonisolated(unsafe) static var groupChildEditor: ((ImageAttachment, Int, GroupChildChange) -> ImageAttachment?)? = nil
+
+    /// The picked child lifted out of its group as a text box of its own (a plain shape gets an empty text), or nil.
+    public nonisolated(unsafe) static var groupChildProxy: ((ImageAttachment, Int) -> ImageAttachment?)? = nil
+
+    /// The words of the picked child of the selected group, to edit (`nil` when it cannot be edited in place).
+    public func groupChildTextDocument() -> RichDocument? {
+        guard let index = selectedImageIndex, let child = groupChild, index < document.paragraphs.count,
+              let image = document.paragraphs[index].image, let proxy = Self.groupChildProxy?(image, child) else { return nil }
+        return Self._textBoxDocument(of: proxy)
+    }
+
+    /// The edited words go back into the picked child of the selected group (one undo step); the group stays whole.
+    @discardableResult
+    public func setGroupChildText(document: RichDocument, contentXML: String, rels: [KeptRel] = []) -> Bool {
+        guard groupChildTextDocument().map({ $0.paragraphs.count != document.paragraphs.count || $0 != document }) ?? true else { return false }
+        return editGroupChild(.text(contentXML), rels: rels)
+    }
+
+    /// One undo step: the picked child of the selected group moves, resizes (points) or goes. The pick stays after a move or
+    /// a resize.
+    @discardableResult
+    public func editGroupChild(_ change: GroupChildChange, rels: [KeptRel] = []) -> Bool {
+        guard let index = selectedImageIndex, let child = groupChild, index < document.paragraphs.count,
+              let image = document.paragraphs[index].image, let edit = Self.groupChildEditor,
+              let changed = edit(image, child, change) else { return false }
+        var next = changed
+        if !rels.isEmpty { next.sourceRels = image.sourceRels.filter { !$0.id.hasPrefix("rIdLink") && !$0.id.hasPrefix("rIdBoxKept") } + rels }
+        guard replaceImageParagraphs([index], with: [next]) else { return false }
+        if case .delete = change {} else { groupChild = child; notifyListeners() }
+        return true
+    }
+}
+
+/// A change to one child of a group, in EMU.
+public enum GroupChildChange {
+    case move(dx: Int, dy: Int), resize(cx: Int, cy: Int), delete
+    /// The child's text becomes this `w:txbxContent` body.
+    case text(String)
 }

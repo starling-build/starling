@@ -19,7 +19,7 @@ final class KeyboardTraversalTests: XCTestCase {
         var n = 0
         for e in ui.elements() {
             if let b = e.widget as? FlatButton, b.enabled { n += 1 }
-            else if let h = e.widget as? HoverButton, h.onPressed != nil || h.forceEnabled { n += 1 }
+            else if let h = e.widget as? HoverButton, h.keyStop, h.onPressed != nil || h.forceEnabled { n += 1 }
             else if e.widget is FluentTextBox { n += 1 }
         }
         return n
@@ -136,6 +136,88 @@ final class KeyboardTraversalTests: XCTestCase {
         ui.dispose()
     }
 
+    /// Every ribbon control must have a name (tooltip or caption) so it gets an Alt key tip.
+    func testArrowKeysMoveASliderTheRingIsOn() {
+        var value = 100.0
+        let ui = app(SizedBox(width: 200, height: 40, child: Slider(value: 100, onChanged: { value = $0 }, min: 50, max: 300, label: "Zoom")))
+        ui.press(.f6)
+        XCTAssertEqual(KeyboardTraversal.shared.focused?.label(), "Zoom")
+        ui.press(.right)
+        XCTAssertEqual(value, 112.5, accuracy: 0.01)
+        ui.press(.left); ui.press(.left)
+        XCTAssertEqual(value, 87.5, accuracy: 0.01)
+    }
+
+    func testF6ReachesTheDocumentPageAndTheEditorKeepsTheKeys() {
+        let makers: [(String, () -> WidgetTester)] = [
+            ("Writer", { self.app(OfficeShell(initialPath: nil, startBlank: true)) }),
+            ("Slides", { self.app(SlidesShell(initialPath: nil, startBlank: true, onSwitch: { _, _ in })) }),
+            ("Sheets", { self.app(SheetsShell(initialPath: nil, onSwitch: { _, _ in })) }),
+        ]
+        for (name, make) in makers {
+            let ui = make()
+            XCTAssertTrue(KeyboardTraversal.shared.regions().contains("page"), "\(name): the page is a region")
+            for _ in 0..<5 where KeyboardTraversal.shared.focused != nil || FocusManager.instance.focusedNode == nil { ui.press(.f6) }
+            ui.press(.f6); ui.press(.f6)   // round the regions back to the page at most once more
+            var onPage = false
+            for _ in 0..<5 { ui.press(.f6); if KeyboardTraversal.shared.focused == nil { onPage = true; break } }
+            XCTAssertTrue(onPage, "\(name): F6 reaches the page and the ring steps aside")
+            XCTAssertNotNil(FocusManager.instance.focusedNode, "\(name): the editor holds the keys")
+        }
+    }
+
+    func testContextualAndEveryOtherRibbonTabHasNamedControls() {
+        for tab in RibbonTab.allCases {
+            let session = OfficeSession()
+            let ui = app(SizedBox(width: 1400, height: 200, child: Ribbon(session: session, tab: tab, collapsed: false,
+                                                                         onTab: { _ in }, onCollapse: {})))
+            let all = KeyboardTraversal.shared.reachable().filter { $0.region == "ribbon" }
+            let top = all.map { ($0.origin()!.dy / 10).rounded() }.min() ?? 0
+            let bad = all.filter { ($0.origin()!.dy / 10).rounded() != top && $0.label() == nil }
+            XCTAssertTrue(bad.isEmpty, "\(tab.title): \(bad.count) controls without a name")
+            XCTAssertGreaterThan(all.count, 3, "\(tab.title): has controls")
+            _ = ui
+        }
+    }
+
+    func testSlideSorterTilesAreKeyboardStops() {
+        let ui = app(SlidesShell(initialPath: nil, startBlank: true, onSwitch: { _, _ in }))
+        ui.tap(text: "View"); ui.tap(text: "Slide Sorter")
+        let tiles = KeyboardTraversal.shared.reachable().filter { ($0.label() ?? "").hasPrefix("Slide ") && $0.label() != "Slide Sorter" }
+        XCTAssertFalse(tiles.isEmpty, "each sorter tile has a stop")
+    }
+
+    func testEveryRibbonControlHasAName() {
+        var nameless: [String] = []
+        var pages = 0
+        func rowOf(_ s: KeyStop) -> Double { (s.origin()!.dy / 10).rounded() }
+        func sweep(_ name: String, _ ui: WidgetTester) {
+            // Every tab on the strip, whatever it is called: walk the strip's own stops.
+            func strip() -> [KeyStop] {
+                let all = KeyboardTraversal.shared.reachable().filter { $0.region == "ribbon" }
+                let top = all.map { rowOf($0) }.min() ?? 0
+                return all.filter { rowOf($0) == top }
+            }
+            for i in 0..<strip().count {
+                let tabs = strip()
+                guard i < tabs.count else { break }
+                let title = tabs[i].label() ?? "tab \(i)"
+                tabs[i].activate(); ui.pump()
+                pages += 1
+                let all = KeyboardTraversal.shared.reachable().filter { $0.region == "ribbon" }
+                let top = all.map { rowOf($0) }.min() ?? 0
+                for s in all where rowOf(s) != top && s.label() == nil {
+                    nameless.append("\(name)/\(title) at \(Int(s.origin()!.dx)),\(Int(s.origin()!.dy))")
+                }
+            }
+        }
+        sweep("Writer", app(OfficeShell(initialPath: nil, startBlank: true)))
+        sweep("Slides", app(SlidesShell(initialPath: nil, startBlank: true, onSwitch: { _, _ in })))
+        sweep("Sheets", app(SheetsShell(initialPath: nil, onSwitch: { _, _ in })))
+        XCTAssertGreaterThan(pages, 20)
+        XCTAssertEqual(nameless.count, 0, "nameless: \(nameless.prefix(60))")
+    }
+
     func testEveryRibbonButtonOfEveryTabIsReachable() {
         let tabs = ["Home", "Insert", "Design", "Layout", "Transitions", "Review", "View", "Data", "Formulas",
                     "Page Layout", "Draw", "References", "Animations", "Slide Show"]
@@ -144,7 +226,7 @@ final class KeyboardTraversalTests: XCTestCase {
             for tab in tabs where ui.has(text: tab) {
                 ui.tap(text: tab)
                 let want = buttonsOnScreen(ui)
-                let got = KeyboardTraversal.shared.reachable().count
+                let got = KeyboardTraversal.shared.reachable().filter { $0.region != "page" && $0.region != "thumbnails" }.count
                 inspected += want
                 XCTAssertEqual(got, want, "\(name)/\(tab): \(want) buttons on screen, \(got) reachable by keyboard")
             }

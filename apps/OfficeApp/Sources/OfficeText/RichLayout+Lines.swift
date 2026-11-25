@@ -941,7 +941,7 @@ extension RichLayout {
               !p.style.clearsFloat,
               let source = table ?? _besideSource(i, document)?.cell.table,
               let ts = document.tableStyles[source], ts.floatsOverText, !ts.pageAnchored,
-              let kept = ts.keptPosition, kept.containsSubstring("w:vertAnchor=\"text\""),
+              let kept = ts.keptPosition, (kept.containsSubstring("w:vertAnchor=\"text\"") || kept.containsSubstring("w:vertAnchor=\"margin\"")),
               let widths = _columnWidths[source] else { return nil }
         // (A table set at the right margin, `w:tblpXSpec="right"`, takes the text at its left
         // as one placed across does; and a list's items stand there too: lo-717ff943's
@@ -986,6 +986,14 @@ extension RichLayout {
         let gap = left - _px(twips("w:leftFromText") / 20)
         let leftRoom = gap - own
         let rightRoom = column - edge - _px(p.style.indentRight)
+        _tableBothLeft[i] = nil
+        // (A table in the middle of the column with room for three ems on both sides: the text runs round it on both, a left piece and a
+        // right piece on each line level with it. Word's print of lab table-props, a centred table with 9pt distances.)
+        if theme.wordRules, !rightAligned, leftRoom >= size * 3, rightRoom >= size * 3, edge > own {
+            RuleTrace.hit("word-text-wraps-both-sides-of-a-floating-table")
+            _tableBothLeft[i] = leftRoom
+            return (edge - own, false)
+        }
         if leftRoom >= size * 3, leftRoom > rightRoom, left >= column / 2 || leftRoom > rightRoom + size * 3 {
             let narrow = column - gap - _px(p.style.indentRight)
             return narrow > 0 ? (narrow, true) : nil
@@ -1029,7 +1037,7 @@ extension RichLayout {
         var startLeft: (indent: Double, band: (top: Double, bottom: Double))?
         defer { if best?.right == true, best?.leftRoom == nil, let sl = startLeft, theme.wordRules, RichTextTheme.wordWindowsPages { _besideStartLeft[i] = sl } }
         _besideIndentOnTop.remove(i)
-        _besideListEarlier.remove(i); _besideTightTop[i] = nil; _besideLeftAt[i] = nil; _besideRightAt[i] = nil; _besideStartAt[i] = nil
+        _besideListEarlier.remove(i); _besideTightTop[i] = nil; _besideLeftAt[i] = nil; _besideRightAt[i] = nil; _besideStartAt[i] = nil; _besideOutlineBox[i] = nil; _besideNoLeft[i] = nil
         defer { if boxes.count >= 2, best?.leftRoom != nil { _besideBoxes[i] = boxes } }
         let hang = max(0, -_px(firstLineIndent(p, at: i, document)))
         var offset = 0.0
@@ -1084,6 +1092,23 @@ extension RichLayout {
                !candidates.contains(where: { $0.image.id == image.id }) {
                 candidates.append((image, k < _imageSize.count ? _imageSize[k] : nil))
                 RuleTrace.hit("word-text-beside-tight-picture-of-an-earlier-cell-paragraph")
+            }
+            if let over = _stripPage[i], p.cell == nil {
+                if let image = q.image, over.contains(where: { $0.0 == "\(image.id)" }), !candidates.contains(where: { $0.image.id == image.id }) {
+                    candidates.append((image, k < _imageSize.count ? _imageSize[k] : nil))
+                }
+                for (n, c) in candidates.enumerated() {
+                    guard let hit = over.first(where: { $0.0 == "\(c.image.id)" }) else { continue }
+                    var moved = c.image
+                    // (A box set from a side margin: the same place counted from the page's left edge.)
+                    if let h = moved.float?.horizontalFrom, ["leftMargin", "rightMargin", "insideMargin", "outsideMargin"].contains(h) {
+                        let setup = _setup(ofParagraph: i)
+                        moved.float?.horizontalFrom = "page"
+                        if h == "rightMargin" || h == "outsideMargin" { moved.float?.x += setup.width - setup.marginRight }
+                    }
+                    moved.float?.verticalFrom = "paragraph"; moved.float?.verticalAlign = nil; moved.float?.y = hit.1 + offset / _px(1); if hit.2 > 0 { _besideNoLeft[i] = max(_besideNoLeft[i] ?? 0, hit.2) }
+                    candidates[n] = (moved, c.size)
+                }
             }
             for (image, laid) in candidates {
                     // (A header's square picture placed from the margin does not narrow the lines of the header paragraphs beside it, its own or the next: Word's
@@ -1157,6 +1182,7 @@ extension RichLayout {
                                     guard let m = Self._outlineMaxX(poly, ya, yb) else { return rightEdge - own }
                                     return max(x + w * m + gr - own, 0)
                                 }
+                                _besideOutlineBox[i] = (leftEdge - own, rightEdge - own)
                                 RuleTrace.hit("word-tight-wrap-line-meets-the-outline-over-its-own-rows")
                             }
                         }
@@ -2477,5 +2503,19 @@ extension RichLayout {
             }
         }
         return best
+    }
+}
+
+extension RichLayout {
+    /// The table cell whose box holds a flow point, nil outside every table, with where in it the point is. Draw Table uses it.
+    public func cellContaining(_ flow: Offset) -> DrawCell? {
+        for i in 0 ..< min(count, _cells.count) {
+            guard let d = _cells[i], d.colWidth > 0, d.rowHeight > 0 else { continue }
+            if flow.dx >= d.colLeft, flow.dx <= d.colLeft + d.colWidth, flow.dy >= d.rowTop, flow.dy <= d.rowTop + d.rowHeight {
+                return DrawCell(table: d.table, row: d.row, column: d.column, fx: (flow.dx - d.colLeft) / d.colWidth,
+                                fy: (flow.dy - d.rowTop) / d.rowHeight, heightPoints: d.rowHeight / max(0.001, _px(1)))
+            }
+        }
+        return nil
     }
 }

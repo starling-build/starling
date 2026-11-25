@@ -24,12 +24,19 @@ enum SheetCommand {
     case cellsDialog(insert: Bool)   // Insert / Delete Cells…
     case sizeDialog(SizeKind)        // Row Height…, Column Width…, Default Width…
     case conditionalFormat         // Home → Conditional Formatting
+    case conditionalRules          // Home → Conditional Formatting → Manage Rules
     case dataValidation            // Data → Data Validation
     case consolidate               // Data → Consolidate
     case fillSeries                // Home → Fill → Series
     case scenarioManager           // Data → What-If Analysis → Scenario Manager
     case chartTitles(Int)          // Chart Design → Edit Titles
     case dataTable                 // Data → What-If Analysis → Data Table
+    case chartSeries(Int)          // Chart Design → Select Data
+    case chartColors(Int)          // Chart Design → Format Data Series
+    case chartAxis(Int)            // Chart Design → Axis Options
+    case chartLabels(Int)          // Chart Design → Add Chart Element → Data Labels
+    case chartForm(ChartFormKind)  // Insert → Charts: Stock or Bubble, asking for the data the chart lacks
+    case sparklineDialog(SparklineGroup.Kind?)   // Insert → Sparklines: make them, or (nil) change the ones under the active cell
     case goalSeek                  // Data → What-If Analysis → Goal Seek
     case removeDuplicates          // Data → Remove Duplicates
     case textToColumns             // Data → Text to Columns
@@ -39,6 +46,8 @@ enum SheetCommand {
     case tableDialog               // Insert → Table: create one, or the options of the table at the cell
     case columnFilter(col: Int, kind: String)   // a filter dropdown's Number/Text/Date/Colour Filters…
     case nameManager               // Formulas → Name Manager
+    case createNames               // Formulas → Create from Selection
+    case useName(String)           // Formulas → Use in Formula: the name into the formula being typed
     case protectSheetDialog        // Review → Protect Sheet / Unprotect Sheet
     case protectWorkbookDialog     // Review → Protect Workbook / Unprotect Workbook
     case pageSetup                 // Layout → Page Setup: the dialog
@@ -52,7 +61,7 @@ extension Ribbon {
         guard let wb = session.workbook else { return nil }
         switch tab {
         case .home: return _sheetsHome(wb, fluent)
-        case .insert: return [_tablesGroup(wb, fluent), _illustrationsGroup(wb, fluent), _chartsGroup(wb, fluent), _functionsGroup(wb, fluent), _symbolsGroup(wb, fluent)]
+        case .insert: return [_tablesGroup(wb, fluent), _illustrationsGroup(wb, fluent), _chartsGroup(wb, fluent), _sparklinesGroup(wb, fluent), _functionsGroup(wb, fluent), _symbolsGroup(wb, fluent)]
         case .formulas: return [_autoSumGroup(wb, fluent), _functionsGroup(wb, fluent), _namesGroup(wb, fluent)]
         case .data: return [_sortGroup(wb, fluent), _dataToolsGroup(wb, fluent), _outlineGroup(wb, fluent)]
         case .layout: return [_pageSetupGroup(wb, fluent)]
@@ -91,13 +100,13 @@ extension Ribbon {
                     items: OfficeFonts.families(including: family).map { f in
                         ComboBoxItem<String>(value: f, child: Text(f, style: fluent.typography.body?.copyWith(color: nil)))
                     },
-                    onChanged: { f in if let f { wb.setStyle { $0.fontName = f } } })),
+                    onChanged: { f in if let f { wb.setStyle { $0.fontName = f } } }, semanticLabel: "Font")),
                 Chrome.gap(),
                 SizedBox(width: 64, height: nil, child: ComboBox<Double>(
                     value: sizes.contains(size) ? size : nil,
                     items: sizes.map { n in ComboBoxItem<Double>(value: n, child: Text(n == n.rounded() ? "\(Int(n))" : "\(n)")) },
                     onChanged: { n in if let n { wb.setStyle { $0.fontSize = n } } },
-                    placeholder: Text("\(Int(size))"))),
+                    placeholder: Text("\(Int(size))"), semanticLabel: "Font Size")),
             ]),
             Chrome.vgap(4),
             Chrome.row([
@@ -111,7 +120,7 @@ extension Ribbon {
                     ("Bottom Border", { wb.setStyle { $0.borders.bottom = true } }),
                     ("Top Border", { wb.setStyle { $0.borders.top = true } }),
                     ("No Border", { wb.setStyle { $0.borders = .init() } }),
-                ]),
+                ], tip: "Borders"),
                 Chrome.colorMenu(FluentSystemIcons.paintBrush, "Fill Color", fluent, colors: colors, none: "No Fill") { c in
                     wb.setStyle { $0.fill = rgb(c) }
                 },
@@ -188,7 +197,10 @@ extension Ribbon {
             ]),
         ])])
         let styles = Chrome.group("Styles", fluent, [
-            Chrome.big(FluentSystemIcons.paintBrush, "Conditional Formatting", fluent) { wb.onCommand?(.conditionalFormat) },
+            Chrome.menuButton(FluentSystemIcons.paintBrush, "Conditional Formatting", "Conditional formatting", fluent, items: [
+                MenuFlyoutItem(text: Text("New Rule…"), onPressed: { wb.onCommand?(.conditionalFormat) }),
+                MenuFlyoutItem(text: Text("Manage Rules…"), onPressed: { wb.onCommand?(.conditionalRules) }),
+            ]),
         ])
         let editing = Chrome.group("Editing", fluent, [Chrome.rows([
             Chrome.small(FluentSystemIcons.mathFormula, "AutoSum", fluent) { Self._autoSum(wb) },
@@ -273,6 +285,11 @@ extension Ribbon {
     private func _namesGroup(_ wb: WorkbookController, _ fluent: FluentThemeData) -> Widget {
         Chrome.group("Defined Names", fluent, [
             Chrome.big(FluentSystemIcons.rename, "Name Manager", fluent) { wb.onCommand?(.nameManager) },
+            Chrome.big(FluentSystemIcons.rename, "Create from Selection", fluent) { wb.onCommand?(.createNames) },
+            Chrome.menu(Text("Use in Formula", style: fluent.typography.caption), nil, fluent,
+                        wb.definedNameEntries().filter { $0.scopeSheet == nil || $0.scopeSheet == wb.activeSheet }
+                            .map { e in (e.name, { wb.onCommand?(.useName(e.name)) }) }
+                        + [("Name Manager…", { wb.onCommand?(.nameManager) })]),
         ])
     }
 
@@ -323,9 +340,21 @@ extension Ribbon {
                 }
             }
         }
+        func form(_ icon: IconData, _ name: String, _ kind: ChartFormKind?) -> Widget {
+            Chrome.small(icon, name, fluent) {
+                if wb.selectedDrawing == nil || !(wb.selectedDrawing.map { wb.sheet.drawings.indices.contains($0) && wb.sheet.drawings[$0].isChart } ?? false) {
+                    wb.insertChart(kind == nil ? .column : .line)
+                }
+                guard let i = wb.selectedDrawing else { return }
+                if let kind { wb.onCommand?(.chartForm(kind)) } else { wb.setChartVariant(i, .threeD) }
+            }
+        }
         var parts: [Widget] = [
             Chrome.rows([button(.column), button(.bar), button(.line)]),
             Chrome.rows([button(.pie), button(.area), button(.scatter)]),
+            Chrome.rows([form(ChartType.column.icon, "3-D", nil), form(ChartType.line.icon, "Stock", .stock(ohlc: false)),
+                         form(ChartType.scatter.icon, "Bubble", .bubble)]),
+            Chrome.rows([form(ChartType.line.icon, "Open-High-Low-Close", .stock(ohlc: true))]),
         ]
         // Chart Design, with a chart selected: its title and legend.
         if let i = wb.selectedDrawing, wb.sheet.drawings.indices.contains(i), case .chart(let sc) = wb.sheet.drawings[i].kind {
@@ -334,6 +363,10 @@ extension Ribbon {
                 Chrome.textToggle("Chart Title", c.title != nil, fluent, style: fluent.typography.caption) {
                     wb.setChartTitle(i, c.title == nil ? "Chart Title" : nil)
                 },
+                Chrome.textToggle("Select Data", false, fluent, style: fluent.typography.caption) { wb.onCommand?(.chartSeries(i)) },
+                Chrome.textToggle("Series Colours", false, fluent, style: fluent.typography.caption) { wb.onCommand?(.chartColors(i)) },
+                Chrome.textToggle("Axis Options", c.valueMin != nil || c.valueMax != nil || c.valueStep != nil || c.valueFormat != nil, fluent, style: fluent.typography.caption) { wb.onCommand?(.chartAxis(i)) },
+                Chrome.textToggle("Data Labels", c.dataLabels || c.pieLabels != nil, fluent, style: fluent.typography.caption) { wb.onCommand?(.chartLabels(i)) },
                 Chrome.textToggle("Edit Titles", false, fluent, style: fluent.typography.caption) { wb.onCommand?(.chartTitles(i)) },
                 Chrome.textToggle("Axis Titles", c.categoryAxisTitle != nil || c.valueAxisTitle != nil, fluent, style: fluent.typography.caption) {
                     let on = c.categoryAxisTitle != nil || c.valueAxisTitle != nil
@@ -358,7 +391,24 @@ extension Ribbon {
         if let i = wb.selectedDrawing, wb.sheet.drawings.indices.contains(i), case .picture = wb.sheet.drawings[i].kind {
             items.append(Chrome.big(FluentSystemIcons.image, "Alt Text", fluent) { wb.onCommand?(.altText) })
         }
+        if wb.selectedDrawing != nil {
+            // A finger has no Shift: while this is on, a tap on another chart or picture picks it along with this one.
+            items.append(Chrome.small(FluentSystemIcons.check, "Select Multiple", fluent, checked: wb.selectMultiple) {
+                wb.selectMultiple.toggle()
+                wb._notify(selectionOnly: true)
+            })
+        }
         return Chrome.group("Illustrations", fluent, items)
+    }
+
+    private func _sparklinesGroup(_ wb: WorkbookController, _ fluent: FluentThemeData) -> Widget {
+        var items: [Widget] = [
+            Chrome.big(ChartType.line.icon, "Line", fluent) { wb.onCommand?(.sparklineDialog(.line)) },
+            Chrome.big(ChartType.column.icon, "Column", fluent) { wb.onCommand?(.sparklineDialog(.column)) },
+            Chrome.big(ChartType.bar.icon, "Win/Loss", fluent) { wb.onCommand?(.sparklineDialog(.winLoss)) },
+        ]
+        if wb.sparklineAt(wb.active) != nil { items.append(Chrome.big(ChartType.line.icon, "Edit Sparklines", fluent) { wb.onCommand?(.sparklineDialog(nil)) }) }
+        return Chrome.group("Sparklines", fluent, items)
     }
 
     private func _tablesGroup(_ wb: WorkbookController, _ fluent: FluentThemeData) -> Widget {

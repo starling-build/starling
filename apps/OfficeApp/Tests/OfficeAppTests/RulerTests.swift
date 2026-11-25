@@ -45,6 +45,71 @@ final class RulerTests: XCTestCase {
         XCTAssertEqual(n?.map(\.position), [99, 144, 216]); XCTAssertEqual(n?.first?.alignment, .center)
     }
 
+    // MARK: Touch
+
+    func testAFingerTakesTheNearestMarkerWithin44Points() {
+        var s = RichParagraphStyle()
+        s.indentLeft = 36; s.firstLineIndent = -18
+        s.tabStops = [TabStop(position: 144, alignment: .right)]
+        let upper = RulerGeometry.top + 3, lower = RulerGeometry.top + RulerGeometry.band - 3
+        // 20 px off the first-line marker (18 pt), upper half: a finger gets it, a mouse does not.
+        XCTAssertEqual(g.target(at: Offset(g.x(18) + 20, upper), style: s, touch: true), .firstLine)
+        XCTAssertNotEqual(g.target(at: Offset(g.x(18) + 20, upper), style: s), .firstLine)
+        // The lower half is the indents.
+        XCTAssertEqual(g.target(at: Offset(g.x(36) + 18, lower), style: s, touch: true), .leftIndent)
+        XCTAssertEqual(g.target(at: Offset(g.x(g.setup.contentWidth) - 15, lower), style: s, touch: true), .rightIndent)
+        // A tab stop 18 px away from either half; beyond 22 px it is a new stop.
+        XCTAssertEqual(g.target(at: Offset(g.x(144) - 18, upper), style: s, touch: true), .tab(0))
+        XCTAssertEqual(g.target(at: Offset(g.x(144) + 30, lower), style: s, touch: true), .newTab)
+        // A finger above or below the painted rows (the touch ruler is taller than they are) still counts; a mouse does not.
+        XCTAssertEqual(g.target(at: Offset(g.x(18), RulerGeometry.top - 9), style: s, touch: true), .firstLine)
+        XCTAssertNil(g.target(at: Offset(g.x(18), RulerGeometry.top - 9), style: s))
+        XCTAssertEqual(g.target(at: Offset(g.x(36), RulerGeometry.top + RulerGeometry.band + 10), style: s, touch: true), .leftIndent)
+        XCTAssertNil(g.target(at: Offset(g.x(36), RulerGeometry.top + RulerGeometry.band + 15), style: s, touch: true), "off the ruler")
+        // Between an indent and a tab, the nearer wins.
+        s.tabStops = [TabStop(position: 50, alignment: .left)]
+        XCTAssertEqual(g.target(at: Offset(g.x(48), lower), style: s, touch: true), .tab(0))
+        XCTAssertEqual(g.target(at: Offset(g.x(40), lower), style: s, touch: true), .leftIndent)
+    }
+
+    func testTheReadoutSaysWhatTheDropWouldSet() {
+        var s = RichParagraphStyle()
+        s.indentLeft = 36
+        s.tabStops = [TabStop(position: 144, alignment: .left)]
+        let mid = g.mid
+        XCTAssertEqual(g.readout(.firstLine, to: Offset(g.x(54), 6), style: s), "First line 0.75 in")
+        XCTAssertEqual(g.readout(.leftIndent, to: Offset(g.x(72), 30), style: s), "Left 1 in")
+        XCTAssertEqual(g.readout(.rightIndent, to: Offset(g.x(g.setup.contentWidth - 18), 30), style: s), "Right 0.25 in")
+        XCTAssertEqual(g.readout(.tab(0), to: Offset(g.x(180), mid), style: s), "Tab 2.5 in")
+        XCTAssertEqual(g.readout(.tab(0), to: Offset(g.x(144), 80), style: s), "Remove tab", "dragged off the ruler")
+        XCTAssertEqual(g.readout(.newTab, to: Offset(g.x(100), mid), style: s), "Tab 1.38 in")
+        XCTAssertNil(g.readout(.kindBox, to: Offset(10, mid), style: s))
+    }
+
+    func testAFingerDragsAMarkerItDidNotQuiteHit() throws {
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(1280, 800))
+        let session = ui.state(OfficeShellState.self)!.session
+        session.showRuler = true
+        session.controller.setParagraphFormat(.init(indentLeft: 36))
+        ui.pump()
+        XCTAssertEqual(session.controller.currentParagraphStyle.indentLeft, 36)
+        let state = try XCTUnwrap(ui.state(RulerState.self))
+        let box = try XCTUnwrap(state.context?.findRenderObject() as? RenderBox)
+        XCTAssertEqual(box.size.height, Ruler.height)
+        let lift = ((box.size.height - 22) / 2).rounded()
+        let g = RulerGeometry(setup: session.pageSetup, px: session.theme.pixelsPerPoint * session.zoom, pad: 24, width: box.size.width)
+        let y = lift + RulerGeometry.top + RulerGeometry.band - 3
+        // A finger 16 px right of the left-indent marker takes it, and drags it by the offset it took it at (no jump).
+        let start = box.localToGlobal(Offset(g.x(36) + 16, y))
+        ui.drag(from: start, to: Offset(start.dx + 36 * g.px, start.dy), kind: .touch)
+        XCTAssertEqual(session.controller.currentParagraphStyle.indentLeft, 72, accuracy: 4.6, "36 pt, moved 36 pt (snapped to the grid)")
+        // A mouse 16 px off the marker is not on it: it adds a tab stop.
+        session.controller.setParagraphFormat(.init(indentLeft: 36))
+        ui.pump()
+        ui.drag(from: start, to: Offset(start.dx + 36, start.dy), kind: .mouse)
+        XCTAssertEqual(session.controller.currentParagraphStyle.tabStops.count, 1)
+    }
+
     func testClickingTheRulerAddsAStopOneUndo() {
         let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(1280, 800))
         let session = ui.state(OfficeShellState.self)!.session

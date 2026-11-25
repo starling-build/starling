@@ -98,7 +98,7 @@ SR=$(date +%s); test/tools/corpus-cache.sh restore 2>&1 | tail -3 | cut -c1-200 
 # build HEAD here and BASE_SHA in a worktree; the base binary is cached by sha in the runner's own scratch
 . "$TH/bin/office-env.sh" || { echo "render-gate: office-env.sh failed"; exit 2; }
 export PATH=$TH/.local/share/swiftly/toolchains/6.2.4/usr/bin:$PATH
-export OFFICE_WORD_FONTS=windows OFFICE_FONT_SOURCE=bundled
+export OFFICE_WORD_FONTS=windows OFFICE_FONT_SOURCE=bundled OFFICE_NOW=${OFFICE_NOW:-2026-10-30T12:00:00}   # one fixed clock for base and PR draws
 EO=$(readlink -f engine)/src/out/host_release
 # the base cache (binary + base scores per sha) is SHARED by every runner on the machine when /data/gate/cache exists (mode 2775, group gatecache, setgid: NOT world-writable or sticky, which makes the kernel refuse another user's lock files (fs.protected_regular)); else per runner
 umask 002

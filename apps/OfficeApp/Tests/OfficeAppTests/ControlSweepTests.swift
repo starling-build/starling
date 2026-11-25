@@ -8,7 +8,9 @@ import FlutterSwiftBridge
 /// what is on screen. Such a button is dead: wire it or hide it.
 final class ControlSweepTests: XCTestCase {
     private func app(_ home: Widget) -> WidgetTester {
-        WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: home, title: "Test"), size: Size(1280, 800))
+        // 1500 wide: the Writer Home ribbon is 1377 pt on macOS (the UI font there is wider than on Linux), over the 1240 the
+        // ribbon's viewport has at 1280, so its last control ("All styles") sat outside the viewport and a tap on it hit the page.
+        WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: home, title: "Test"), size: Size(1500, 800))
     }
 
     private static let tabs = ["Home", "Insert", "Design", "Layout", "Transitions", "Review", "View", "Data", "Formulas", "Page Layout", "Draw", "References", "Animations", "Slide Show", "Mailings"]
@@ -34,18 +36,19 @@ final class ControlSweepTests: XCTestCase {
 
     /// Controls that rightly do nothing on a fresh shell: they act on an edit history, an open edit, a
     /// selection or a state they are already in. Anything else dead is a bug.
-    private static let idle: Set<String> = [
-        "Redo (Ctrl+Shift+Z)", "Undo (Ctrl+Z)", "Less", "Cancel", "Enter", "Double-click to rename",
+    /// (Written the Mac way, run through `.keys`: a tip spells its chord for the platform, "⌘Z" here and "Ctrl+Z" on Linux.)
+    private static let idle: Set<String> = Set([
+        "Redo (⇧⌘Z)", "Undo (⌘Z)", "Less", "Cancel", "Enter", "Double-click to rename",
         "Direction and sequence", "Normal", "Print Layout",
         // Already the paragraph's state in the fixture (left, no indent, no formatting): idempotent.
         "Align Left", "Decrease Indent", "Clear All Formatting",
-    ]
+    ].map(\.keys))
     /// Slides has no selection fixture here yet, so its formatting controls cannot be told from dead ones.
-    private static let slidesFormatting: Set<String> = [
-        "Align Left", "Align Right", "Center", "Justify", "Bold (Ctrl+B)", "Italic (Ctrl+I)", "Underline (Ctrl+U)",
+    private static let slidesFormatting: Set<String> = Set([
+        "Align Left", "Align Right", "Center", "Justify", "Bold (⌘B)", "Italic (⌘I)", "Underline (⌘U)",
         "Strikethrough", "Subscript", "Superscript", "Bullets", "Numbering", "Increase Indent", "Decrease Indent",
         "Clear All Formatting",
-    ]
+    ].map(\.keys))
 
     private func names(_ l: [String]) -> Set<String> { Set(l.map { String($0.split(separator: "/", maxSplits: 2)[2]) }) }
 

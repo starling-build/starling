@@ -5,6 +5,14 @@ import XCTest
 @testable import OfficeApp
 
 final class SheetsPrintTests: XCTestCase {
+    /// ICU's data and the bundled faces, before any text is laid out: a run filtered to this class (as the whole suite's first
+    /// class does for the rest) has no earlier test to load them, and a wrapped cell then measures one line.
+    override class func setUp() {
+        super.setUp()
+        _ = TestText.icuLoaded
+        _ = OfficeFonts.register()
+    }
+
     func testPagesGoDownThenOver() {
         // 12 columns of 64pt (768pt) and 60 rows of 15pt (900pt) on Letter
         // with Normal margins: 511.2pt by 684pt a page.

@@ -229,6 +229,7 @@ class _TextBoxState: State<StatefulWidget>, TextInputClient {
         let r = KeyboardTraversal.regionName(context!)
         let stop = KeyStop(region: r.name, modal: r.modal)
         stop.activate = {}
+        stop.label = { [weak self] in self?.textBox.placeholderText }
         stop.onFocus = { [weak self] (on: Bool) in if on { self?._focusNode.requestFocus() } }
         stop.isCurrent = { [weak self] in self?._focusNode.hasFocus ?? false }
         stop.origin = { [weak self] in
@@ -793,7 +794,8 @@ class _TextBoxState: State<StatefulWidget>, TextInputClient {
                     _ime?.show()
                 }
                 : nil,
-            forceEnabled: isEnabled
+            forceEnabled: isEnabled,
+            keyStop: false
         )
     }
 }

@@ -34,6 +34,14 @@ struct FieldClock: Equatable {
         return FieldClock(year: nums[0], month: nums[1], day: nums[2], hour: nums[3], minute: nums[4], second: nums[5])
     }
 
+    /// The pinned clock only: OFFICE_NOW when a test script sets it, else nil (Sheets NOW()/TODAY() read the real clock then).
+    static func pinned() -> FieldClock? {
+        #if canImport(Glibc) || canImport(Darwin)
+        if let p = getenv("OFFICE_NOW") { let s = String(cString: p); if !s.isEmpty { return parse(s) } }
+        #endif
+        return nil
+    }
+
     /// OFFICE_NOW if set, else the machine's local time; nil where there is no clock to read (the web build).
     static func current() -> FieldClock? {
         #if canImport(Glibc) || canImport(Darwin)
@@ -51,6 +59,17 @@ struct FieldClock: Equatable {
         #endif
     }
 
+    static let monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September",
+                             "October", "November", "December"]
+    static let dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+
+    /// 0 for Sunday (the civil calendar's day of the week, from the date alone).
+    var weekday: Int {
+        let t = [0, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4]
+        let y = month < 3 ? year - 1 : year
+        return (y + y / 4 - y / 100 + y / 400 + t[max(1, min(12, month)) - 1] + day) % 7
+    }
+
     private func pad(_ n: Int, _ w: Int) -> String {
         var s = String(n)
         while s.count < w { s = "0" + s }
@@ -58,8 +77,9 @@ struct FieldClock: Equatable {
     }
 
     /// A Word date-time picture: yyyy yy MM M dd d HH H hh h mm m ss s AM/PM am/pm, 'quoted text', anything else
-    /// literal (年月日 included). nil for names (MMM, ddd) we cannot spell.
-    func format(picture: String) -> String? {
+    /// literal (年月日 included). nil for names (MMM, ddd) we cannot spell, unless `english` is set (the app's own
+    /// Date & Time, whose formats are English).
+    func format(picture: String, english: Bool = false) -> String? {
         let c = Array(picture)
         var out = ""
         var i = 0
@@ -72,8 +92,20 @@ struct FieldClock: Equatable {
             let n = j - i
             switch ch {
             case "y": out += n >= 3 ? pad(year, 4) : pad(year % 100, 2); i = j
-            case "M": if n >= 3 { return nil }; out += pad(month, n); i = j
-            case "d": if n >= 3 { return nil }; out += pad(day, n); i = j
+            case "M":
+                if n >= 3 {
+                    guard english else { return nil }
+                    let name = FieldClock.monthNames[max(1, min(12, month)) - 1]
+                    out += n == 3 ? String(name.prefix(3)) : name
+                } else { out += pad(month, n) }
+                i = j
+            case "d":
+                if n >= 3 {
+                    guard english else { return nil }
+                    let name = FieldClock.dayNames[weekday]
+                    out += n == 3 ? String(name.prefix(3)) : name
+                } else { out += pad(day, n) }
+                i = j
             case "H": out += pad(hour, n >= 2 ? 2 : 1); i = j
             case "h": out += pad(h12, n >= 2 ? 2 : 1); i = j
             case "m": out += pad(minute, n >= 2 ? 2 : 1); i = j
@@ -131,7 +163,7 @@ struct FieldClock: Equatable {
     }
 
     /// The text of a DATE or TIME field whose instruction is `instr` and whose cached result is `cached`.
-    func text(instr: String, cached: String) -> String? {
+    func text(instr: String, cached: String, english: Bool = false) -> String? {
         let words = instr.split(whereSeparator: { $0 == " " || $0 == "\t" || $0 == "\n" })
         guard let first = words.first else { return nil }
         let kind = first.uppercased()
@@ -146,7 +178,7 @@ struct FieldClock: Equatable {
                 picture = String(rest.prefix { $0 != " " && $0 != "\\" })
             }
         }
-        guard let p = picture ?? FieldClock.shape(of: cached, time: kind == "TIME"), let body = format(picture: p) else { return nil }
+        guard let p = picture ?? FieldClock.shape(of: cached, time: kind == "TIME"), let body = format(picture: p, english: english) else { return nil }
         let trailing = cached.reversed().prefix { $0 == " " || $0 == "\u{A0}" }
         return body + String(trailing.reversed())
     }

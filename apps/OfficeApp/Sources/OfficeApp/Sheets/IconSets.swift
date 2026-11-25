@@ -87,6 +87,48 @@ enum IconSets {
                 p.color = b < i ? Color(0xFF3B6FB6) : Color(0xFFD0D7E2)
                 canvas.drawRect(Rect.fromLTWH(r.left + Double(b) * r.width / Double(bars), r.bottom - h, w, h), p)
             }
+        case "3Triangles":
+            // Down (red), flat (yellow), up (green) triangles.
+            p.color = [red, yellow, green][i]
+            let t = Path()
+            if i == 1 { t.moveTo(cx - s, cy); t.lineTo(cx, cy - s * 0.45); t.lineTo(cx + s, cy); t.lineTo(cx, cy + s * 0.45) }   // flat diamond
+            else if i == 2 { t.moveTo(cx - s, cy + s * 0.8); t.lineTo(cx + s, cy + s * 0.8); t.lineTo(cx, cy - s * 0.8) }
+            else { t.moveTo(cx - s, cy - s * 0.8); t.lineTo(cx + s, cy - s * 0.8); t.lineTo(cx, cy + s * 0.8) }
+            t.close()
+            canvas.drawPath(t, p)
+        case "3Stars":
+            // Empty, half-filled and full stars.
+            let star = Path()
+            for k in 0 ..< 10 {
+                let rad = k % 2 == 0 ? s : s * 0.45, a = -Double.pi / 2 + Double.pi * Double(k) / 5
+                let x = cx + rad * cos(a), y = cy + rad * sin(a)
+                if k == 0 { star.moveTo(x, y) } else { star.lineTo(x, y) }
+            }
+            star.close()
+            let outline = Paint()
+            outline.style = .stroke
+            outline.strokeWidth = max(1, s * 0.12)
+            outline.color = Color(0xFFB8860B)
+            p.color = Color(0xFFF2B623)
+            if i == 2 { canvas.drawPath(star, p) }
+            else if i == 1 {
+                canvas.save()
+                canvas.clipRect(Rect.fromLTWH(cx - s, cy - s, s, s * 2))
+                canvas.drawPath(star, p)
+                canvas.restore()
+            }
+            canvas.drawPath(star, outline)
+        case "5Boxes":
+            // A box of four quarters, filled one more per step.
+            let q = s * 0.9
+            let outline = Paint()
+            outline.style = .stroke
+            outline.strokeWidth = max(1, s * 0.12)
+            outline.color = Color(0xFF3B6FB6)
+            p.color = Color(0xFF3B6FB6)
+            let cells = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]
+            for k in 0 ..< i { canvas.drawRect(Rect.fromLTWH(cx - q + cells[k].0 * q, cy - q + cells[k].1 * q, q, q), p) }
+            canvas.drawRect(Rect.fromLTWH(cx - q, cy - q, q * 2, q * 2), outline)
         case "5Quarters":
             let ring = Paint()
             ring.style = .stroke

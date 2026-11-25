@@ -849,6 +849,12 @@ public final class RichTextTheme {
     /// `characterClass` picks one of the face's `classScales`.
     /// `characterGrid` is what the document's grid adds to each
     /// character's width, in points.
+    /// Word draws automatic text colour white over a fill whose luminance is below this (of 255), black otherwise.
+    public static let autoTextWhiteBelow = 59.0
+    public static func autoTextIsWhite(on fill: Color) -> Bool {
+        0.299 * Double(fill.red) + 0.587 * Double(fill.green) + 0.114 * Double(fill.blue) < autoTextWhiteBelow
+    }
+
     public func textStyle(for style: CharStyle, in paragraph: RichParagraphStyle, backdrop: Color? = nil,
                           named: RichNamedStyle? = nil, normal: CharStyle? = nil,
                           scale: Double, fontScale: Double = 1,
@@ -874,11 +880,12 @@ public final class RichTextTheme {
         var color = style.color ?? (wordRules && style.off.contains(.autoColor) ? textColor : named?.char.color ?? normal?.color ?? textColor)
         // Word prints automatic text colour white over a black shaded paragraph
         // (ell-z20423699-8d41bb's title bar, fill 000000: ours drew it dark grey).
-        // (Table-look lab word-uicheck44: white on 000000, 1F3864 and C00000, black on 7030A0: luminance 0, 54, 57 against 80;
+        // (Word print of autocolor.docx, 40 shaded cells: automatic text is white below luminance 59 (0.299R+0.587G+0.114B of 255), else black;
+        // the darkest black is 7300E6 at 60.6, the lightest white C00000 at 57.4;
         // a table cell's fill counts as the paragraph's.)
         if wordRules, style.color == nil, let fill = paragraph.fill ?? backdrop, fill.alpha == 255,
            style.off.contains(.autoColor) || (named?.char.color == nil && normal?.color == nil),
-           0.299 * Double(fill.red) + 0.587 * Double(fill.green) + 0.114 * Double(fill.blue) < 0.3 * 255 {
+           Self.autoTextIsWhite(on: fill) {
             color = Color(0xFFFFFFFF)
         }
         let latinName = style.fontFamily ?? named?.char.fontFamily ?? normal?.fontFamily ?? fontFamily
@@ -906,9 +913,9 @@ public final class RichTextTheme {
             if h <= 3 { bold = true }
             if style.color == nil, let hc = headingColor { color = hc }
         }
-        if style.link != nil && style.color == nil { color = linkColor }
+        if style.link != nil && style.linkField == nil && style.color == nil { color = linkColor }
         var decorations: [TextDecoration] = []
-        if style.underline || ((style.link != nil || (named?.char.underline ?? false)) && !style.off.contains(.underline)) { decorations.append(.underline) }
+        if style.underline || (((style.link != nil && style.linkField == nil) || (named?.char.underline ?? false)) && !style.off.contains(.underline)) { decorations.append(.underline) }
         if style.strikethrough || ((named?.char.strikethrough ?? false) && !style.off.contains(.strikethrough)) { decorations.append(.lineThrough) }
         if let revision = style.revision {
             // Tracked changes as Word marks them: insertions underlined,
@@ -1621,6 +1628,8 @@ final class DecodeMailbox: @unchecked Sendable {
 public final class RichLayout {
     private let _leakProbe = LeakProbe("RichLayout")
     public let theme: RichTextTheme
+    /// An image whose frame the page does not draw (the editor over it draws its own).
+    public var hiddenFrameID: String?
 
     /// Zoom. Invalidates every painter.
     /// The fonts' own scale, over `scale`: PowerPoint's shrink-to-fit
@@ -1925,6 +1934,12 @@ public final class RichLayout {
     /// The strips beside a frame the page fixes (`_stripFrame`): for each paragraph a line of
     /// it stands level with, the room it is held in and the band, from the paragraph's top.
     var _stripUse: [Int: (indent: Double, band: (top: Double, bottom: Double), right: Bool)] = [:]
+    /// Page-placed boxes with room on both sides that wrap as pieces: paragraph -> (image id, the box's top from the paragraph's top, pt).
+    var _stripPage: [Int: [(String, Double, Double)]] = [:]
+    /// Per paragraph: the rows above this height (from its top) take no left piece: another page box fills the strip at the left.
+    var _besideNoLeft: [Int: Double] = [:]
+    /// Per paragraph: rows (from its top) a page-anchored top-and-bottom box keeps clear in the middle of its text.
+    var _stripClear: [Int: (top: Double, bottom: Double)] = [:]
     /// A paragraph parted around a picture goes on from line `from` `dy` lower (the hold's jump), so its lines from there are
     /// tested against a second picture's band by where they stand then. `_lineDropWant` is what the last pagination found,
     /// `_lineDrop` what the paragraph was laid out with.
@@ -2015,6 +2030,8 @@ public final class RichLayout {
     var _besideLeftAt: [Int: (Double, Double) -> Double] = [:]
     /// The right piece of a line beside a tight picture starts at the outline's rightmost edge over the line's rows (indent from the column's edge).
     var _besideStartAt: [Int: (Double, Double) -> Double] = [:]
+    /// The box (its left and right edges, counted from the paragraph's indent) whose outline `_besideLeftAt` / `_besideStartAt` follow.
+    var _besideOutlineBox: [Int: (left: Double, right: Double)] = [:]
     var _besideBoxes: [Int: [(top: Double, bottom: Double, left: Double, right: Double)]] = [:]
     /// A box standing at the line start of a paragraph whose other box is at its right: how far its lines start in, and its band.
     var _besideStartLeft: [Int: (indent: Double, band: (top: Double, bottom: Double))] = [:]
@@ -2031,6 +2048,7 @@ public final class RichLayout {
     /// How far a paragraph's first line is held in beside a floating table
     /// it follows (`_besideIndent`), in layout pixels; 0 for none.
     var _besideLead: [Double] = []
+    var _tableBothLeft: [Int: Double] = [:]
     /// Whether that hold is on the paragraph's RIGHT: the table stands at the right, and the lines end short of it.
     var _besideRightSide: [Bool] = []
     /// Paragraphs laid out before the rows of the table they sit beside were
@@ -2309,6 +2327,8 @@ public final class RichLayout {
     /// at the foot of each page, by physical page.
     var _noteCache: [String: _HeaderFooter] = [:]
     var _pageNotes: [Int: [Int]] = [:]
+    /// Where each footnote was last painted on the pages (canvas coordinates), for a click in a note.
+    public internal(set) var noteRects: [Int: Rect] = [:]
     /// A page of columns (all its sections the same number of them) sets
     /// its footnotes under the columns, in each one's own width: the room
     /// they take off the foot of every column of the page, per page. Found

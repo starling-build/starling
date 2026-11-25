@@ -40,6 +40,16 @@ final class SlidesShellState: State<StatefulWidget> {
     private let _scratch = RichDocumentController()
     private var _active: SlideShape? = nil
     private var _notesActive = false
+    // Outline view: the left rail becomes one editable list of titles and bodies.
+    private var _outline = false
+    private let _outlineCtl = RichDocumentController()
+    private let _outlineFocus = FocusNode(debugLabel: "slide outline")
+    private var _outlineSyncing = false
+    private let _outlineTheme: RichTextTheme = {
+        let t = RichTextTheme(fontFamily: "Calibri", fontSize: 13, headingColor: nil)
+        t.fontFamilyResolver = OfficeFonts.drawn
+        return t
+    }()
     private var _focusShape: SlideShape? = nil
     private let _deckFocus = FocusNode(debugLabel: "slides deck")
     private let _deckChords = KeyChordTracker()
@@ -66,6 +76,8 @@ final class SlidesShellState: State<StatefulWidget> {
     private var _presenter = false
     /// Where the next picture from the picture panel goes.
     private var _pictureForBackground = false
+    /// Set while the picker is open for a shape's picture (false) or texture (true) fill.
+    private var _pictureForShapeFill: Bool? = nil
     private var _hadPicture = false
     private var _hadTable = false
     private var _hadChart: SlideShape? = nil
@@ -73,6 +85,13 @@ final class SlidesShellState: State<StatefulWidget> {
     private var _chartData = false
     /// The Header & Footer dialog is up.
     private var _headerFooter = false
+    private var _setUpShow = false
+    private var _rehearsing = false
+    private var _customShowsOpen = false
+    /// Add or Rename Section: the dialog's title, the name it starts with and what OK does with it.
+    private var _sectionDialog: (title: String, initial: String, apply: (String) -> Void)? = nil
+    private var _slideSize = false
+    private var _slideSizeInitial = Size(960, 540)
     /// Font Color > More Colors is open.
     private var _colorOpen = false
     /// More Colors… from Shape Fill (false) or Shape Outline (true), while its dialog is up.
@@ -88,6 +107,10 @@ final class SlidesShellState: State<StatefulWidget> {
     private var _formatBackground = false
     /// A thumbnail being dragged to a new place: where it started, the
     /// pointer's start, and where it would land.
+    /// A slide dragged in the sorter: where it started, which slot it is over, and whether it has moved.
+    private var _sorterDrag: (from: Int, startX: Double, startY: Double, to: Int, moved: Bool)? = nil
+    /// How many tiles a sorter row holds (read back from the laid-out grid).
+    private var _sorterPerRow = 1
     private var _thumbDrag: (from: Int, startY: Double, startX: Double, to: Int, moved: Bool)? = nil
     private let _thumbMenu = FlyoutController()
     /// The thumbnail pane's scroll, and the slide it was last brought to:
@@ -137,6 +160,8 @@ final class SlidesShellState: State<StatefulWidget> {
         bind(_deckFocus)
         trackDocumentPath(session)
         bind(_notesFocus)
+        bind(_outlineFocus)
+        _outlineCtl.addListener({ [weak self] in self?._outlineEdited() }, owner: self)
         _recent = OfficeRecent.load()
         _wire()
         officeScene.registerFlush(owner: self) { [weak self] in self?._autosaveNow() }
@@ -180,6 +205,7 @@ final class SlidesShellState: State<StatefulWidget> {
         session.controller.removeListeners(owner: self)
         _deckFocus.dispose()
         _notesFocus.dispose()
+        _outlineFocus.dispose()
         _search.dispose()
         _thumbScroll.dispose()
         _sorterScroll.dispose()
@@ -316,7 +342,15 @@ final class SlidesShellState: State<StatefulWidget> {
         session.onInsertPicture = { [weak self] in
             guard let self else { return }
             self._pictureForBackground = false
+            self._pictureForShapeFill = nil
+            self.session.pickingMedia = false
             self._pickPicture()
+        }
+        session.onInsertMedia = { [weak self] video in
+            guard let self else { return }
+            self._pictureForBackground = false
+            self.session.pickingMedia = true
+            self._pickMedia(video: video)
         }
         session.onMoreShapeColor = { [weak self] outline in
             guard let self else { return }
@@ -330,6 +364,11 @@ final class SlidesShellState: State<StatefulWidget> {
             guard let self else { return }
             self._endEditing()
             self.setState { self._headerFooter = true }
+        }
+        session.onSlideSize = { [weak self] size in
+            guard let self else { return }
+            self._endEditing()
+            self.setState { self._slideSizeInitial = size ?? self.deck.slideSize; self._slideSize = true }
         }
         session.onLink = { [weak self] in self?._openLink() }
         session.onAltText = { [weak self] in
@@ -368,6 +407,12 @@ final class SlidesShellState: State<StatefulWidget> {
             let table = self.deck.addTable(rows: rows, columns: columns)
             self._editAtStart(table)
         }
+        session.onShapeFillPicture = { [weak self] tiled in
+            guard let self else { return }
+            self._pictureForBackground = false
+            self._pictureForShapeFill = tiled
+            self._pickPicture()
+        }
         session.onBackgroundPicture = { [weak self] in
             guard let self else { return }
             self._pictureForBackground = true
@@ -376,14 +421,25 @@ final class SlidesShellState: State<StatefulWidget> {
         session.onInsertShape = { [weak self] preset in
             guard let self else { return }
             self._endEditing()
-            self.deck.addShape(preset)
+            self.deck.beginInsert(preset)
             self._deckFocus.requestFocus()
         }
         session.onSlidesView = { [weak self] sorter in
             guard let self else { return }
             self._endEditing()
             self.deck.setNotesPageView(false)
-            self.setState { self._sorter = sorter }
+            if self._outline { self.deck.endOutlineEdit() }
+            self.session.slidesOutline = false
+            self.setState { self._sorter = sorter; self._outline = false }
+        }
+        session.onSlidesOutline = { [weak self] in
+            guard let self else { return }
+            self._endEditing()
+            self.deck.setNotesPageView(false)
+            let on = !self._outline
+            if on { self._loadOutline() } else { self.deck.endOutlineEdit() }
+            self.session.slidesOutline = on
+            self.setState { self._outline = on; self._sorter = false }
         }
         session.onSlidesNotesPage = { [weak self] in
             guard let self else { return }
@@ -396,6 +452,21 @@ final class SlidesShellState: State<StatefulWidget> {
         session.onSlideShow = { [weak self] fromCurrent in
             guard let self else { return }
             self._startShow(at: fromCurrent ? self.deck.current : 0)
+        }
+        session.onRehearse = { [weak self] in
+            guard let self else { return }
+            self._startShow(at: self.deck.showOrder().first ?? 0, rehearse: true)
+        }
+        session.onSetUpShow = { [weak self] in
+            guard let self else { return }
+            self._endEditing()
+            self.setState { self._setUpShow = true }
+        }
+        session.onSectionName = { [weak self] rename in self?._nameSection(rename: rename) }
+        session.onCustomShows = { [weak self] in
+            guard let self else { return }
+            self._endEditing()
+            self.setState { self._customShowsOpen = true }
         }
         session.onPresenterView = { [weak self] in
             guard let self else { return }
@@ -647,6 +718,7 @@ final class SlidesShellState: State<StatefulWidget> {
     }
 
     private func _deckChanged() {
+        if _outline && !_outlineSyncing && !_outlineFocus.hasFocus { _loadOutline() }
         _fitTables()
         _autofit()
         // A selected picture opens its tab; leaving it returns Home.
@@ -855,16 +927,18 @@ final class SlidesShellState: State<StatefulWidget> {
 
     // MARK: Slide show
 
-    private func _startShow(at index: Int, presenter: Bool = false) {
+    private func _startShow(at index: Int, presenter: Bool = false, rehearse: Bool = false) {
         _endEditing()
-        hostSetFullscreen?(true)
+        hostSetFullscreen?(deck.show.kind != .window)
         setState {
             _show = index
             _presenter = presenter
+            _rehearsing = rehearse
         }
     }
 
     private func _endShow() {
+        deck.playCustomShow(nil)
         hostSetFullscreen?(false)
         setState { _show = nil }
         _deckFocus.requestFocus()
@@ -1017,7 +1091,53 @@ final class SlidesShellState: State<StatefulWidget> {
         #endif
     }
 
+    /// Insert → Audio / Video: the file as a clip on the slide, drawn as its
+    /// poster frame (the frame itself comes with playback).
+    private func _pickMedia(video: Bool) {
+        let done: (String, Data) -> Void = { [weak self] name, data in self?._insertMedia(name, data: data) }
+        #if os(WASI)
+        WebFiles.open(extensions: Array(MediaClip.videoExtensions.union(MediaClip.audioExtensions)).sorted()) { picked in
+            if let picked { done(picked.name, picked.data) }
+        }
+        #else
+        if let ask = officeScene.pictureRequested {
+            ask { path in
+                if let path, let data = FileManager.default.contents(atPath: path) { done(path.lastPathComponent, data) }
+            }
+            return
+        }
+        setState { _backstage = .insertPicture }
+        #endif
+    }
+
+    private func _insertMedia(_ name: String, data: Data) {
+        session.pickingMedia = false
+        setState { _backstage = nil }
+        var clip = MediaClip(data: data, name: name, isVideo: false)
+        let ext = clip.fileExtension
+        guard MediaClip.videoExtensions.contains(ext) || MediaClip.audioExtensions.contains(ext) else {
+            _flash("Not a sound or movie Slides can place: \(name)")
+            return
+        }
+        clip.isVideo = MediaClip.isVideo(extension: ext)
+        let (poster, size) = MediaPoster.attachment(video: clip.isVideo, name: "poster.png")
+        _endEditing()
+        deck.addMedia(clip, poster: poster, size: size)
+        _deckFocus.requestFocus()
+        _flash("Inserted \(name)")
+    }
+
     private func _insertPicture(_ path: String) {
+        if session.pickingMedia {
+            guard let data = FileManager.default.contents(atPath: path) else {
+                session.pickingMedia = false
+                setState { _backstage = nil }
+                _flash("Could not read \(path.lastPathComponent)")
+                return
+            }
+            _insertMedia(path.lastPathComponent, data: data)
+            return
+        }
         guard let data = FileManager.default.contents(atPath: path) else {
             setState { _backstage = nil }
             _flash("Could not read \(path.lastPathComponent)")
@@ -1029,6 +1149,8 @@ final class SlidesShellState: State<StatefulWidget> {
     private func _insertPicture(_ path: String, data: Data) {
         setState { _backstage = nil }
         let forBackground = _pictureForBackground
+        let forShapeFill = _pictureForShapeFill
+        _pictureForShapeFill = nil
         Task { @MainActor [weak self] in
             guard let self else { return }
             do {
@@ -1043,6 +1165,8 @@ final class SlidesShellState: State<StatefulWidget> {
                 self._endEditing()
                 if forBackground {
                     self.deck.setBackground(SlideFill(image: image))
+                } else if let tiled = forShapeFill {
+                    self.deck.setPictureFill(image, tiled: tiled)
                 } else {
                     self.deck.addPicture(image, naturalSize: Size(w, h))
                 }
@@ -1210,6 +1334,7 @@ final class SlidesShellState: State<StatefulWidget> {
             // (Esc is Cancel in the Header and Footer dialog: it stayed
             // up — seen on screen 2026-10-13.)
             if _headerFooter { setState { _headerFooter = false }; return true }
+            if _slideSize { setState { _slideSize = false }; return true }
             if _altText { setState { _altText = false }; return true }
             if _linkOpen { setState { _linkOpen = false }; return true }
             if _textOptions { setState { _textOptions = false }; return true }
@@ -1334,7 +1459,7 @@ final class SlidesShellState: State<StatefulWidget> {
                    onTab: { [weak self] t in self?.setState { self?._tab = t } },
                    onCollapse: { [weak self] in self?.setState { self?._ribbonCollapsed.toggle() } }),
         ]
-        var work: [Widget] = [Expanded(child: SlideCanvas(
+        var work: [Widget] = [Expanded(child: KeyboardPage(focus: { [weak self] in self?._deckFocus.requestFocus() }, child: SlideCanvas(
             key: _canvasKey,
             deck: deck, cache: _cache, active: _active,
             onEdit: { [weak self] shape in self?._activate(shape) },
@@ -1342,7 +1467,7 @@ final class SlidesShellState: State<StatefulWidget> {
             modifiers: { [weak self] in self?._deckChords.modifiers ?? [] },
             spellChecker: session.checkSpelling ? _spelling : nil,
             animationBadges: _tab == .animations || _animationPane,
-            onContextMenu: { [weak self] at, shape in self?._showSlideMenu(at: at, on: shape) }))]
+            onContextMenu: { [weak self] at, shape in self?._showSlideMenu(at: at, on: shape) })))]
         if _showNotes { work.append(_notesPane(fluent)) }
         if deck.notesPageView && !_sorter {
             work = [Expanded(child: _notesPageView(fluent))]
@@ -1350,7 +1475,7 @@ final class SlidesShellState: State<StatefulWidget> {
         if _sorter {
             column.append(Expanded(child: _sorterView(fluent)))
         } else {
-            var row: [Widget] = _narrow && !_narrowRail ? [] : [_thumbnailPane(fluent)]
+            var row: [Widget] = _narrow && !_narrowRail ? [] : [_outline ? _outlinePane(fluent) : _thumbnailPane(fluent)]
             row.append(Expanded(child: Column(crossAxisAlignment: .stretch, children: work)))
             var panes: [Widget] = []
             if _animationPane {
@@ -1428,7 +1553,7 @@ final class SlidesShellState: State<StatefulWidget> {
             return Stack(children: [
                 window,
                 Positioned(left: 0, top: 0, right: 0, bottom: 0, child: SlideShowView(
-                    deck: deck, images: _cache, start: start, presenter: _presenter,
+                    deck: deck, images: _cache, start: start, presenter: _presenter, rehearse: _rehearsing,
                     onEnd: { [weak self] in self?._endShow() })),
             ])
         }
@@ -1463,6 +1588,57 @@ final class SlidesShellState: State<StatefulWidget> {
                         self?.setState { self?._altText = false }
                     },
                     onCancel: { [weak self] in self?.setState { self?._altText = false } })),
+            ])
+        }
+        if _slideSize {
+            return Stack(children: [
+                IgnorePointer(ignoring: true, child: window),
+                Positioned(left: 0, top: 0, right: 0, bottom: 0, child: SlideSizeDialog(
+                    size: _slideSizeInitial,
+                    onApply: { [weak self] size, scaling in
+                        self?.deck.setSlideSize(size, scaling: scaling)
+                        self?.setState { self?._slideSize = false }
+                    },
+                    onCancel: { [weak self] in self?.setState { self?._slideSize = false } })),
+            ])
+        }
+        if _setUpShow {
+            return Stack(children: [
+                IgnorePointer(ignoring: true, child: window),
+                Positioned(left: 0, top: 0, right: 0, bottom: 0, child: SetUpShowDialog(
+                    initial: deck.show, slideCount: deck.slides.count, shows: deck.customShows,
+                    onOK: { [weak self] s in
+                        self?.deck.setShow(s)
+                        self?.setState { self?._setUpShow = false }
+                    },
+                    onCancel: { [weak self] in self?.setState { self?._setUpShow = false } })),
+            ])
+        }
+        if let d = _sectionDialog {
+            return Stack(children: [
+                IgnorePointer(ignoring: true, child: window),
+                Positioned(left: 0, top: 0, right: 0, bottom: 0, child: SectionNameDialog(
+                    title: d.title, initial: d.initial,
+                    onOK: { [weak self] n in d.apply(n); self?.setState { self?._sectionDialog = nil } },
+                    onCancel: { [weak self] in self?.setState { self?._sectionDialog = nil } })),
+            ])
+        }
+        if _customShowsOpen {
+            return Stack(children: [
+                IgnorePointer(ignoring: true, child: window),
+                Positioned(left: 0, top: 0, right: 0, bottom: 0, child: CustomShowsDialog(
+                    shows: deck.customShows, slides: deck.slides.map { (id: $0.id, title: $0.titleText) },
+                    onClose: { [weak self] shows in
+                        self?.deck.setCustomShows(shows)
+                        self?.setState { self?._customShowsOpen = false }
+                    },
+                    onPlay: { [weak self] shows, id in
+                        guard let self else { return }
+                        self.deck.setCustomShows(shows)
+                        self.deck.playCustomShow(id)
+                        self.setState { self._customShowsOpen = false }
+                        self._startShow(at: self.deck.showOrder().first ?? 0)
+                    })),
             ])
         }
         if _headerFooter {
@@ -1533,7 +1709,7 @@ final class SlidesShellState: State<StatefulWidget> {
         _revealThumbnail(itemHeight: thumbH + 17)
         var items: [Widget] = []
         let picked = Set(deck.selectedSlides)
-        for (i, slide) in deck.slides.enumerated() {
+        func makeItem(_ i: Int, _ slide: Slide) {
             let current = picked.contains(i)
             let number = Text("\(i + 1)", style: fluent.typography.caption?.copyWith(
                 color: slide.hidden ? fluent.resources.textFillColorDisabled : fluent.resources.textFillColorPrimary))
@@ -1580,13 +1756,72 @@ final class SlidesShellState: State<StatefulWidget> {
                         ]),
                     ]))))
         }
-        return SizedBox(width: thumbW + 46, height: nil, child: DecoratedBox(
+        if deck.sections.isEmpty {
+            for (i, slide) in deck.slides.enumerated() { makeItem(i, slide) }
+        } else {
+            for (si, sec) in deck.sections.enumerated() {
+                let members = deck.slides(inSection: si)
+                items.append(_sectionHeader(fluent, si, count: members.count, width: thumbW + 16))
+                if !sec.collapsed { for i in members { makeItem(i, deck.slides[i]) } }
+            }
+        }
+        return KeyboardPage(name: "Slide thumbnails", region: "thumbnails", focus: { [weak self] in
+            self?._deckFocus.requestFocus(); self?.setState { self?._paneFocused = true }
+        }, child: SizedBox(width: thumbW + 46, height: nil, child: DecoratedBox(
             decoration: BoxDecoration(
                 color: fluent.resources.solidBackgroundFillColorBase,
                 border: Border(right: BorderSide(color: fluent.resources.dividerStrokeColorDefault, width: 1))),
             child: SingleChildScrollView(controller: _thumbScroll, child: Padding(
                 padding: EdgeInsets(left: 0, top: 6, right: 0, bottom: 12),
-                child: Column(crossAxisAlignment: .start, children: items)))))
+                child: Column(crossAxisAlignment: .start, children: items))))))
+    }
+
+    /// The header row of a section in the thumbnail rail and the Slide Sorter: a fold arrow, the name and the slide count. Right-click for the section's commands.
+    private func _sectionHeader(_ fluent: FluentThemeData, _ si: Int, count: Int, width: Double) -> Widget {
+        let sec = deck.sections[si]
+        return Listener(
+            key: ValueKey("section.header.\(si)"),
+            onPointerDown: { [weak self] e in
+                guard let self, let context = self.context else { return }
+                if e.buttons == 2 { self._showSectionMenu(si, at: e.position, context: context) }
+            },
+            behavior: .opaque,
+            child: Padding(padding: EdgeInsets(left: 6, top: 4, right: 6, bottom: 2), child: SizedBox(width: width, height: 26, child: Row(
+                crossAxisAlignment: .center, children: [
+                    FlatButton(child: Icon(sec.collapsed ? FluentSystemIcons.chevronRight : FluentSystemIcons.chevronDown, size: 12,
+                                           color: fluent.resources.textFillColorPrimary),
+                               tip: sec.collapsed ? "Expand section" : "Collapse section", width: 22, height: 22) { [weak self] in
+                        self?.deck.setSectionCollapsed(si, !sec.collapsed)
+                    },
+                    Expanded(child: Text("\(sec.name) (\(count))", style: fluent.typography.bodyStrong, overflow: .ellipsis, maxLines: 1)),
+                ]))))
+    }
+
+    private func _showSectionMenu(_ si: Int, at point: Offset, context: any BuildContext) {
+        let m = ContextMenuBuilder()
+        m.item("Rename Section") { [weak self] in self?._nameSection(rename: true, section: si) }
+        m.item("Remove Section") { [weak self] in self?.deck.removeSection(si) }
+        m.item("Remove Section & Slides", enabled: deck.slides(inSection: si).count < deck.slides.count) { [weak self] in self?.deck.removeSectionAndSlides(si) }
+        m.item("Remove All Sections") { [weak self] in self?.deck.removeAllSections() }
+        m.separator()
+        m.item("Move Section Up", enabled: si > 0) { [weak self] in self?.deck.moveSection(si, by: -1) }
+        m.item("Move Section Down", enabled: si < deck.sections.count - 1) { [weak self] in self?.deck.moveSection(si, by: 1) }
+        m.separator()
+        m.item("Collapse All") { [weak self] in self?.deck.setAllSectionsCollapsed(true) }
+        m.item("Expand All") { [weak self] in self?.deck.setAllSectionsCollapsed(false) }
+        m.show(_thumbMenu, in: context, at: point)
+    }
+
+    /// Open the name box for Add Section (at the current slide) or Rename Section.
+    private func _nameSection(rename: Bool, section: Int? = nil) {
+        let si = section ?? deck.sectionIndex(ofSlide: deck.current)
+        if rename {
+            guard let si, deck.sections.indices.contains(si) else { return }
+            setState { self._sectionDialog = ("Rename Section", self.deck.sections[si].name, { [weak self] n in self?.deck.renameSection(si, to: n) }) }
+        } else {
+            let at = deck.current
+            setState { self._sectionDialog = ("Add Section", "Untitled Section", { [weak self] n in self?.deck.addSection(at: at, name: n.isEmpty ? "Untitled Section" : n) }) }
+        }
     }
 
     /// A hidden slide's thumbnail, faded: the slide as it is with a wash of
@@ -1618,7 +1853,7 @@ final class SlidesShellState: State<StatefulWidget> {
             // identity counts as well as the slide's index.
             let mounted = ObjectIdentifier(pos)
             guard current != self._thumbShown || mounted != self._thumbPosition else { return }
-            let top = 6 + Double(current) * itemHeight
+            let top = 6 + self._railOffset(of: current, itemHeight: itemHeight)
             let bottom = top + itemHeight
             var target = pos.pixels
             if top < target { target = top - 6 }
@@ -1626,7 +1861,7 @@ final class SlidesShellState: State<StatefulWidget> {
             // Should a pane just mounted not have its extent yet, scrolling
             // would clamp to the top and count as done: look again next
             // frame rather than settle for that.
-            let content = 18 + Double(self.deck.slides.count) * itemHeight
+            let content = 18 + self._railOffset(of: self.deck.slides.count, itemHeight: itemHeight)
             if pos.maxScrollExtent <= 0, content > pos.viewportDimension, self._thumbRetries < 5 {
                 self._thumbRetries += 1
                 self.setState {}
@@ -1638,6 +1873,41 @@ final class SlidesShellState: State<StatefulWidget> {
             target = min(max(0, target), pos.maxScrollExtent)
             if abs(target - pos.pixels) > 0.5 { self._thumbScroll.jumpTo(target) }
         }
+    }
+
+    private func _sorterDown(_ index: Int, _ e: PointerDownEvent, context: any BuildContext) {
+        if e.buttons & kSecondaryMouseButton != 0 {
+            if !deck.selectedSlides.contains(index) { _select(index) }
+            _paneFocused = true
+            _showThumbMenu(at: e.position, context: context)
+            return
+        }
+        // Dragging an unpicked tile picks it first; a picked group drags together.
+        if !deck.selectedSlides.contains(index), !_deckChords.shift, !_deckChords.primary { deck.selectSlide(index) }
+        _sorterDrag = (index, e.position.dx, e.position.dy, index, false)
+    }
+
+    private func _sorterMove(_ position: Offset, tile: (w: Double, h: Double)) {
+        guard var drag = _sorterDrag else { return }
+        let dx = position.dx - drag.startX, dy = position.dy - drag.startY
+        if !drag.moved && abs(dx) < 6 && abs(dy) < 6 { return }
+        drag.moved = true
+        let steps = Int((dx / tile.w).rounded()) + _sorterPerRow * Int((dy / tile.h).rounded())
+        let to = max(0, min(deck.slides.count - 1, drag.from + steps))
+        let changed = to != drag.to || !(_sorterDrag?.moved ?? false)
+        drag.to = to
+        _sorterDrag = drag
+        if changed { setState {} }
+    }
+
+    private func _sorterUp() {
+        guard let drag = _sorterDrag else { return }
+        _sorterDrag = nil
+        if drag.moved, drag.to != drag.from {
+            let picked = deck.selectedSlides
+            if picked.count > 1 { deck.moveSelectedSlides(to: picked[0] + (drag.to - drag.from)) }
+            else { deck.moveSlide(drag.from, to: drag.to) }
+        } else { setState {} }
     }
 
     private func _thumbDown(_ index: Int, _ e: PointerDownEvent, context: any BuildContext) {
@@ -1659,12 +1929,34 @@ final class SlidesShellState: State<StatefulWidget> {
         _thumbDrag = (index, e.position.dy, e.position.dx, index, false)
     }
 
+    /// How far down the rail slide `index` starts: the rows above it, section headers (32 each) included and the slides of a collapsed section left out. `index` = the slide count gives the whole length.
+    private func _railOffset(of index: Int, itemHeight: Double) -> Double {
+        guard !deck.sections.isEmpty else { return Double(index) * itemHeight }
+        var y = 0.0
+        for (si, sec) in deck.sections.enumerated() {
+            y += 32
+            for i in deck.slides(inSection: si) {
+                if i == index { return y }
+                if !sec.collapsed { y += itemHeight }
+            }
+        }
+        return y
+    }
+
+    /// `steps` slides down (or up) from `from` among the slides the rail shows.
+    private func _railStep(from: Int, steps: Int) -> Int {
+        guard !deck.sections.isEmpty else { return max(0, min(deck.slides.count - 1, from + steps)) }
+        let shown = deck.slides.indices.filter { i in deck.sectionIndex(ofSlide: i).map { !deck.sections[$0].collapsed } ?? true }
+        guard let at = shown.firstIndex(of: from) else { return from }
+        return shown[max(0, min(shown.count - 1, at + steps))]
+    }
+
     private func _thumbMove(_ position: Offset, itemHeight: Double) {
         guard var drag = _thumbDrag else { return }
         let dy = position.dy - drag.startY
         if !drag.moved && abs(dy) < 6 { return }
         drag.moved = true
-        drag.to = max(0, min(deck.slides.count - 1, drag.from + Int((dy / itemHeight).rounded())))
+        drag.to = _railStep(from: drag.from, steps: Int((dy / itemHeight).rounded()))
         if drag.to != _thumbDrag?.to || !(_thumbDrag?.moved ?? false) {
             _thumbDrag = drag
             setState {}
@@ -1699,6 +1991,8 @@ final class SlidesShellState: State<StatefulWidget> {
         m.item("Delete Slide", enabled: deck.slides.count > 1) { [weak self] in self?.deck.deleteSelectedSlides() }
         m.separator()
         m.item(hidden ? "Show Slide" : "Hide Slide") { [weak self] in self?.deck.toggleHiddenSelected() }
+        m.separator()
+        m.item("Add Section") { [weak self] in self?._nameSection(rename: false) }
         m.separator()
         for kind in SlideLayoutKind.allCases {
             m.item("Layout: \(kind.name)", enabled: kind != deck.currentSlide.layout) { [weak self] in
@@ -1788,9 +2082,25 @@ final class SlidesShellState: State<StatefulWidget> {
         let h = (w * deck.slideSize.height / deck.slideSize.width).rounded()
         var tiles: [Widget] = []
         let picked = Set(deck.selectedSlides)
-        for (i, slide) in deck.slides.enumerated() {
+        func makeTile(_ i: Int, _ slide: Slide) {
             let current = picked.contains(i)
-            tiles.append(GestureDetector(
+            let dropHere = _sorterDrag.map { $0.moved && $0.to == i && $0.to != $0.from } ?? false
+            let dropBefore = dropHere && _sorterDrag!.to < _sorterDrag!.from
+            let bar = Positioned(left: dropBefore ? 3 : nil, top: 12, right: dropBefore ? nil : 3, width: 5, height: h + 8,
+                                 child: ColoredBox(color: dropHere ? accent : Color(0x00000000), child: SizedBox(expand: ())))
+            tiles.append(Listener(
+              key: ValueKey("slide.sorter.\(i)"),
+              onPointerDown: { [weak self] e in
+                  guard let self, let context = self.context else { return }
+                  self._sorterDown(i, e, context: context)
+              },
+              onPointerMove: { [weak self] e in self?._sorterMove(e.position, tile: (w + 32, h + 52)) },
+              onPointerUp: { [weak self] e in
+                  self?._sorterMove(e.position, tile: (w + 32, h + 52))
+                  self?._sorterUp()
+              },
+              behavior: .translucent,
+            child: KeyboardRow(label: "Slide \(i + 1)", activate: { [weak self] in self?.deck.selectSlide(i); self?._deckFocus.requestFocus() }, child: GestureDetector(
                 key: ValueKey("slide.tile.\(i)"),
                 onTap: { [weak self] in
                     guard let self else { return }
@@ -1808,7 +2118,7 @@ final class SlidesShellState: State<StatefulWidget> {
                     self._deckFocus.requestFocus()
                     self._paneFocused = true
                 },
-                child: Padding(padding: EdgeInsets(all: 12), child: Column(crossAxisAlignment: .start, children: [
+                child: Stack(children: [Padding(padding: EdgeInsets(all: 12), child: Column(crossAxisAlignment: .start, children: [
                     DecoratedBox(
                         decoration: BoxDecoration(border: Border.all(
                             color: current ? accent : fluent.resources.controlStrokeColorDefault,
@@ -1821,7 +2131,17 @@ final class SlidesShellState: State<StatefulWidget> {
                                 child: SizedBox(expand: ()))))))),
                     Chrome.vgap(4),
                     Text("\(i + 1)\(slide.hidden ? "  (hidden)" : "")", style: fluent.typography.caption),
-                ]))))
+                ])), bar])))))
+        }
+        if deck.sections.isEmpty {
+            for (i, slide) in deck.slides.enumerated() { makeTile(i, slide) }
+        } else {
+            for (si, sec) in deck.sections.enumerated() {
+                let members = deck.slides(inSection: si)
+                // A header takes a whole row of the grid.
+                tiles.append(_sectionHeader(fluent, si, count: members.count, width: 1200))
+                if !sec.collapsed { for i in members { makeTile(i, deck.slides[i]) } }
+            }
         }
         let dark = fluent.brightness == .dark
         // A tile: the thumbnail, its frame (8), the number under it (4 and
@@ -1842,6 +2162,8 @@ final class SlidesShellState: State<StatefulWidget> {
             guard let self, self._sorterScroll.hasClients else { return }
             let pos = self._sorterScroll.position
             let mounted = ObjectIdentifier(pos)
+            let allRows = max(1, Int(((pos.maxScrollExtent + pos.viewportDimension - 32) / rowHeight).rounded()))
+            self._sorterPerRow = max(1, Int((Double(self.deck.slides.count) / Double(allRows)).rounded(.up)))
             guard current != self._sorterShown || mounted != self._sorterPosition else { return }
             self._sorterShown = current
             self._sorterPosition = mounted
@@ -1896,6 +2218,64 @@ final class SlidesShellState: State<StatefulWidget> {
         return ColoredBox(color: dark ? Color(0xFF202020) : Color(0xFFE6E6E6), child: SingleChildScrollView(
             child: Padding(padding: EdgeInsets(left: 0, top: 20, right: 0, bottom: 20), child: Row(
                 mainAxisAlignment: .center, children: [page]))))
+    }
+
+    private func _loadOutline() {
+        let entries = deck.outlineEntries
+        if Outline.entries(from: _outlineCtl.document) == entries { return }
+        _outlineSyncing = true
+        _outlineCtl.load(Outline.document(entries))
+        _outlineSyncing = false
+    }
+
+    /// The list was typed in: the deck follows, and the slide under the caret shows.
+    private func _outlineEdited() {
+        guard _outline, !_outlineSyncing else { return }
+        _outlineSyncing = true
+        deck.applyOutline(Outline.entries(from: _outlineCtl.document))
+        // New rows (and rows whose tag Enter copied) learn their slide's id, so the next edit finds the right slide.
+        if Outline.entries(from: _outlineCtl.document).map(\.slideId) != deck.outlineEntries.map(\.slideId) {
+            let sel = _outlineCtl.selection
+            _outlineCtl.load(Outline.document(deck.outlineEntries))
+            _outlineCtl.selection = sel
+        }
+        let doc = _outlineCtl.document
+        let caret = _outlineCtl.selection.caret.paragraph
+        var slide = -1
+        for (i, p) in doc.paragraphs.enumerated() where i <= caret {
+            if p.style.listLevel <= 0 || slide < 0 { slide += 1 }
+        }
+        if slide >= 0 { deck.selectSlide(min(slide, deck.slides.count - 1)) }
+        _outlineSyncing = false
+    }
+
+    /// Tab demotes the line one level, Shift+Tab promotes it; a title is level 0.
+    private func _outlineShortcut(_ key: KeyData, _ mods: KeyModifiers) -> Bool {
+        guard KeyChordTracker.named(key.logical) == .tab else { return false }
+        let back = mods.contains(.shift)
+        _outlineCtl.applyParagraphStyle { st in
+            st.listLevel = max(0, min(5, st.listLevel + (back ? -1 : 1)))
+            st.indentLeft = Double(st.listLevel) * Outline.indentPerLevel
+        }
+        return true
+    }
+
+    private func _outlinePane(_ fluent: FluentThemeData) -> Widget {
+        let dark = fluent.brightness == .dark
+        _outlineTheme.textColor = dark ? Color(0xFFF0F0F0) : Color(0xFF1B1B1B)
+        _outlineTheme.caretColor = _outlineTheme.textColor
+        return SizedBox(key: ValueKey("outline.pane"), width: 320, height: nil, child: DecoratedBox(
+            decoration: BoxDecoration(
+                color: fluent.resources.solidBackgroundFillColorBase,
+                border: Border(right: BorderSide(color: fluent.resources.dividerStrokeColorDefault, width: 1))),
+            child: RichEditable(
+                key: ValueKey("outline.editor"),
+                controller: _outlineCtl, theme: _outlineTheme,
+                padding: EdgeInsets(left: 12, top: 10, right: 12, bottom: 10),
+                focusNode: _outlineFocus, autofocus: false, backgroundColor: nil,
+                onShortcut: { [weak self] key, mods in self?._outlineShortcut(key, mods) ?? false },
+                onTouchMenu: { [scene = self.officeScene, c = _outlineCtl] rect in scene.showTouchMenu(rect, controller: c) },
+                spellChecker: nil)))
     }
 
     private func _notesPane(_ fluent: FluentThemeData) -> Widget {

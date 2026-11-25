@@ -312,7 +312,7 @@ final class ChartTests: XCTestCase {
         state.slides[s].shapes[i].kind = .chart(edited)
         let fresh = try charts(state)
         XCTAssertEqual(fresh.count, 1)
-        XCTAssertFalse(fresh.values.first!.contains("<c:style val=\"42\"/>"), "edited: our own part")
+        XCTAssertTrue(fresh.values.first!.contains("<c:style val=\"42\"/>"), "edited: the file's part, patched")
         XCTAssertTrue(fresh.values.first!.contains("<c:v>9</c:v>"))
     }
 

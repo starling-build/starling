@@ -119,6 +119,12 @@ final class OfficeSession {
     }
 
     var summary = ToolbarSummary()
+    /// Which contextual tab the selected image gets: a drawn shape or text box has Shape Format, a picture Picture Format.
+    func imageTab(at index: Int?) -> RibbonTab {
+        guard let i = index, i < controller.document.paragraphs.count, let image = controller.document.paragraphs[i].image else { return .pictureFormat }
+        return image.outline != nil || image.textBox != nil ? .shapeFormat : .pictureFormat
+    }
+    var imageTab: RibbonTab { imageTab(at: summary.imageIndex) }
     var zoom = 1.0
     var pageSetup = PageSetup.letter
     /// The page of the section the caret is in (the last section's is `pageSetup`).
@@ -287,9 +293,17 @@ final class OfficeSession {
     var onInsertTextBox: (() -> Void)?
     var onInsertShape: ((ShapePreset) -> Void)?
     var onBackgroundPicture: (() -> Void)?
+    /// Slides: Shape Fill > Picture (false) or Texture (true) wants a picture file.
+    var onShapeFillPicture: ((Bool) -> Void)?
     var onInsertTable: ((Int, Int) -> Void)?
     /// Slide Show → Presenter View, from the current slide.
     var onPresenterView: (() -> Void)?
+    /// Slide Show → Set Up Slide Show, Custom Shows and Rehearse Timings.
+    var onSetUpShow: (() -> Void)?
+    var onCustomShows: (() -> Void)?
+    /// Add Section (false) or Rename Section (true): the Slides shell opens its name box.
+    var onSectionName: ((Bool) -> Void)?
+    var onRehearse: (() -> Void)?
     /// Show or hide the Animation Pane (Slides).
     var onAnimationPane: (() -> Void)?
     /// Show or hide the Selection Pane (Slides).
@@ -301,6 +315,9 @@ final class OfficeSession {
     /// Normal view (false) or Slide Sorter (true).
     var onSlidesView: ((Bool) -> Void)?
     var onSlidesNotesPage: (() -> Void)?
+    /// Outline view: the slides' titles and body text as one editable list.
+    var onSlidesOutline: (() -> Void)?
+    var slidesOutline = false
     var slidesSorter = false
     /// Undo and redo when the kind has more history than the text (a deck).
     var onUndo: (() -> Void)?
@@ -313,14 +330,24 @@ final class OfficeSession {
     var onShare: ((String) -> Void)?
     var onFind: ((Bool) -> Void)?       // true = replace bar too
     var onInsertPicture: (() -> Void)?
+    /// Insert → Audio / Video: the same file list, showing sound and movie files.
+    var onInsertMedia: ((_ video: Bool) -> Void)?
+    var pickingMedia = false
     var onChangePicture: (() -> Void)?
     var onHeaderFooter: (() -> Void)?
+    /// Opens the Slide Size dialog, with this size typed in (nil: the deck's own).
+    var onSlideSize: ((Size?) -> Void)?
     /// Slides Picture Format > Alt Text: open the dialog for the selected picture.
     var onAltText: (() -> Void)?
     var onTextOptions: (() -> Void)?
     var onLink: (() -> Void)?
     /// W-FN-1: insert a footnote or endnote at the caret and open its text; edit the note the caret is next to.
     var onInsertNote: ((NoteReference.Kind) -> Void)?
+    /// W-FD-2: a table of contents made with these options, the Custom Table of Contents dialog, and brought up to date
+    /// (page numbers only, or the whole table).
+    var onInsertContents: ((ContentsOptions) -> Void)?
+    var onContentsDialog: (() -> Void)?
+    var onUpdateContents: ((Bool) -> Void)?
     var onEditNote: (() -> Void)?
     var onSymbolDialog: (() -> Void)?
     var onMoreColors: (() -> Void)?
@@ -331,10 +358,20 @@ final class OfficeSession {
     var onPageSetupDialog: (() -> Void)?
     var onInsertTableDialog: (() -> Void)?
     var onSplitCellDialog: (() -> Void)?
+    /// Writer's Draw Table / Eraser: the active table tool ("draw", "erase" or nil) and the ribbon's way to switch it.
+    var tableTool: String?
+    var onTableTool: ((String?) -> Void)?
+    /// Convert Text to Table (true) or Table to Text (false).
+    var onConvertTextTableDialog: ((Bool) -> Void)?
+    var onFormulaDialog: (() -> Void)?
+    var onTablePropertiesDialog: (() -> Void)?
     var onBordersShadingDialog: (() -> Void)?
     var onPictureDialog: ((PictureDialogKind) -> Void)?
     /// Opens the Set Numbering Value prompt.
     var onNumberingValueDialog: (() -> Void)?
+    var onDateTimeDialog: (() -> Void)?
+    var onPropertiesDialog: (() -> Void)?
+    var onUpdateFields: (() -> Void)?
     /// Opens Define New Number Format (false) or Define New Bullet (true).
     var onListFormatDialog: ((Bool) -> Void)?
     var onNewStyleDialog: (() -> Void)?
