@@ -121,7 +121,9 @@ extension DocxFormat {
     if let em = s.emphasis { rPr += "<w:em w:val=\"\(em)\"/>" }
     if let color = s.color { rPr += "<w:color w:val=\"\(_hex(color))\"/>" }
     if let ls = s.letterSpacing, ls != 0 { rPr += "<w:spacing w:val=\"\(Int((ls * 20).rounded()))\"/>" }
+    if let w = s.horizontalScale, w != 1 { rPr += "<w:w w:val=\"\(Int((w * 100).rounded()))\"/>" }
     if let k = s.kerningFrom { rPr += "<w:kern w:val=\"\(Int((k * 2).rounded()))\"/>" }
+    if let r = s.raised, r != 0 { rPr += "<w:position w:val=\"\(Int((r * 2).rounded()))\"/>" }
     if let size = s.fontSize { rPr += "<w:sz w:val=\"\(Int(size * 2))\"/><w:szCs w:val=\"\(Int(size * 2))\"/>" }
     if let hl = s.highlight {
         if let name = highlightNames.first(where: { $0.1 == hl })?.0 {
@@ -136,7 +138,15 @@ extension DocxFormat {
         rPr += "<w:rPrChange w:id=\"\(id)\" w:author=\"\(_esc(fc.author.isEmpty ? "Author" : fc.author))\"\(fc.date.isEmpty ? "" : " w:date=\"\(_esc(fc.date))\"")>\(fc.oldRPrXML)</w:rPrChange>"
     }
     if s.rightToLeft { rPr += "<w:rtl/>" }
-    if let kept = s.keptXML { rPr += kept }
+    if var kept = s.keptXML {
+        // The scale and raise are fields now (the Font dialog sets them), so the
+        // copy kept from the file must not say them a second time or out of date.
+        if kept.containsSubstring("<w:w ") || kept.containsSubstring("<w:position ") {
+            let parts = _keptRunProperties(kept).filter { $0.key != "w:w" && $0.key != "w:position" }
+            kept = parts.keys.sorted().map { parts[$0]! }.joined()
+        }
+        rPr += kept
+    }
         return rPr
     }
 

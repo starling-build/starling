@@ -59,3 +59,31 @@ final class ParagraphFormatTests: XCTestCase {
         XCTAssertTrue(c.document.paragraphs[0].style.tabStops.isEmpty)
     }
 }
+
+/// W-CH-2: one call sets a selection's whole character format, undoes in one step, and survives a save.
+final class CharFormatTests: XCTestCase {
+    func testFontDialogFormatAppliesUndoesAndSurvivesSave() throws {
+        let c = RichDocumentController(plainText: "hello world")
+        c.selectAll()
+        var f = RichDocumentController.CharFormat(c.currentCharStyle)
+        f.family = "Georgia"; f.size = 15; f.bold = true; f.doubleStrike = true
+        f.smallCaps = true; f.spacing = 2; f.scale = 1.5; f.raised = 3; f.kerningFrom = 12
+        c.setCharFormat(f)
+        let r = c.document.paragraphs[0].runs[0].style
+        XCTAssertEqual(r.fontFamily, "Georgia"); XCTAssertEqual(r.fontSize, 15)
+        XCTAssertTrue(r.bold); XCTAssertTrue(r.doubleStrike); XCTAssertTrue(r.smallCaps)
+        XCTAssertEqual(r.letterSpacing, 2); XCTAssertEqual(r.horizontalScale, 1.5)
+        XCTAssertEqual(r.raised, 3); XCTAssertEqual(r.kerningFrom, 12)
+        let back = try DocxFormat.read(DocxFormat.write(c.document, pageSetup: .letter)).document
+        let b = back.paragraphs[0].runs[0].style
+        XCTAssertEqual(b.fontFamily, "Georgia"); XCTAssertEqual(b.fontSize, 15)
+        XCTAssertTrue(b.doubleStrike); XCTAssertTrue(b.smallCaps)
+        XCTAssertEqual(b.letterSpacing, 2); XCTAssertEqual(b.horizontalScale, 1.5); XCTAssertEqual(b.raised, 3)
+        if let out = ProcessInfo.processInfo.environment["FONT_DIALOG_OUT"] {   // for a Word open check
+            try DocxFormat.write(c.document, pageSetup: .letter).write(to: URL(fileURLWithPath: out))
+        }
+        c.undo()
+        XCTAssertNil(c.document.paragraphs[0].runs[0].style.fontFamily)
+        XCTAssertFalse(c.document.paragraphs[0].runs[0].style.bold)
+    }
+}

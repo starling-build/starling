@@ -308,6 +308,7 @@ final class Ribbon: StatelessWidget {
                 ("tOGGLE cASE", { c.changeCase(.toggle) }),
             ]),
             Chrome.icon(FluentSystemIcons.textClearFormatting, "Clear All Formatting", fluent) { c.clearFormatting() },
+            Chrome.icon(FluentSystemIcons.textFont, "Font… (⌘D)", fluent) { [session] in session.onFontDialog?() },
         ])
         let fontRow2 = Chrome.row([
             Chrome.toggle(FluentSystemIcons.textBold, "Bold (⌘B)".keys, s.bold, fluent) { c.toggleBold() },
