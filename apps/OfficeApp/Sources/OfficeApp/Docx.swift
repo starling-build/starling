@@ -2009,6 +2009,7 @@ enum DocxFormat {
                     if Self.wordOnWindows, pos["w:vertAnchor"] == "margin", pos["w:tblpYSpec"] == nil, let v = Double(pos["w:tblpY"] ?? ""), v > 0 {
                         style.marginOffsetY = v / 20
                     }
+                    if Self.wordOnWindows, pos["w:vertAnchor"] == "margin", pos["w:tblpYSpec"] == nil, style.marginOffsetY != nil { style.floatOffsetY = style.marginOffsetY }
                     // (`w:tblpYSpec="top"` with no anchor stated stands at the margin's top, over the empty
                     // paragraph before it: LibreOffice's lo-0dd5bc0a, a cover-page SDT; Word's print has it 26pt
                     // higher than ours, which set it under that paragraph.)
@@ -2018,7 +2019,7 @@ enum DocxFormat {
                     }
                     // (A table placed "inside" the text's line takes no room in it either: LibreOffice's
                     // tdf-less lo-4c84a541 has "After table1" level with it in Word's print.)
-                    if vertText, pos["w:tblpYSpec"] == nil || pos["w:tblpYSpec"] == "inside" { style.floatsOverText = true }
+                    if vertText || (Self.wordOnWindows && pos["w:vertAnchor"] == "margin" && style.marginOffsetY != nil), pos["w:tblpYSpec"] == nil || pos["w:tblpYSpec"] == "inside" { style.floatsOverText = true }
                     if pos["w:vertAnchor"] == "text", pos["w:tblpYSpec"] == "top" { style.floatsTopByText = true }
                     // (A drawing the table holds that is not laid out in its cell.)
                     if node.descendants("wp:anchor").contains(where: { $0["layoutInCell"] == "0" }) { style.shapesLeaveCell = true }

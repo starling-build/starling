@@ -941,7 +941,7 @@ extension RichLayout {
               !p.style.clearsFloat,
               let source = table ?? _besideSource(i, document)?.cell.table,
               let ts = document.tableStyles[source], ts.floatsOverText, !ts.pageAnchored,
-              let kept = ts.keptPosition, kept.containsSubstring("w:vertAnchor=\"text\""),
+              let kept = ts.keptPosition, (kept.containsSubstring("w:vertAnchor=\"text\"") || kept.containsSubstring("w:vertAnchor=\"margin\"")),
               let widths = _columnWidths[source] else { return nil }
         // (A table set at the right margin, `w:tblpXSpec="right"`, takes the text at its left
         // as one placed across does; and a list's items stand there too: lo-717ff943's

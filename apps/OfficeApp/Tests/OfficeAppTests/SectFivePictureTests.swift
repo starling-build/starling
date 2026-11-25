@@ -112,6 +112,34 @@ final class SectFivePictureTests: XCTestCase {
         XCTAssertTrue(rects.contains { $0.left / px > tableLeft + 200 }, "a right piece stands at its right")
         XCTAssertTrue(rects.allSatisfy { $0.left / px < PageSetup.letter.width }, "no line runs past the margin")
     }
+    /// Lab float-offset e (Word's print): a table anchored to the margin, tblpY 1, first in the body, takes the text
+    /// beside it as one anchored to the text does: the first line stands level with the table's top.
+    func testATableAnchoredToTheMarginAtTheTopTakesTheTextBesideIt() throws {
+        let onWin = DocxFormat.wordOnWindows, was = RichTextTheme.wordWindowsPages
+        DocxFormat.wordOnWindows = true; RichTextTheme.wordWindowsPages = true
+        defer { DocxFormat.wordOnWindows = onWin; RichTextTheme.wordWindowsPages = was }
+        func lineTop(_ anchor: String) throws -> Double {
+            var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "x")]), pageSetup: .letter))
+            let di = entries.firstIndex { $0.name == "word/document.xml" }!
+            var xml = String(decoding: entries[di].data, as: UTF8.self)
+            let a = xml.range(of: "<w:body>")!, b = xml.range(of: "</w:body>")!
+            let body = "<w:tbl><w:tblPr><w:tblpPr w:leftFromText=\"180\" w:rightFromText=\"180\" w:vertAnchor=\"\(anchor)\" w:tblpY=\"1\"/><w:tblW w:w=\"0\" w:type=\"auto\"/><w:jc w:val=\"center\"/></w:tblPr><w:tblGrid><w:gridCol w:w=\"1800\"/><w:gridCol w:w=\"4680\"/></w:tblGrid>" + String(repeating: "<w:tr><w:tc><w:tcPr><w:tcW w:w=\"1800\" w:type=\"dxa\"/></w:tcPr><w:p><w:pPr><w:spacing w:after=\"0\" w:line=\"240\" w:lineRule=\"auto\"/></w:pPr></w:p></w:tc><w:tc><w:tcPr><w:tcW w:w=\"4680\" w:type=\"dxa\"/></w:tcPr><w:p><w:pPr><w:spacing w:after=\"0\" w:line=\"240\" w:lineRule=\"auto\"/></w:pPr></w:p></w:tc></w:tr>", count: 3) + "</w:tbl><w:p><w:r><w:t>\(String(repeating: "word ", count: 150))</w:t></w:r></w:p>"
+            xml.replaceSubrange(a.upperBound ..< b.lowerBound, with: body)
+            entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+            let doc = try DocxFormat.read(try Zip.write(entries)).document
+            let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+            theme.wordRules = true
+            let layout = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+            layout.pageSetup = .letter
+            layout.width = PageSetup.letter.width * theme.pixelsPerPoint
+            layout.ensureLaidOut(doc)
+            let at = doc.paragraphs.firstIndex { $0.cell == nil && !$0.text.isEmpty }!
+            return layout.caretRect(RichPosition(paragraph: at, offset: 0), doc).top / theme.pixelsPerPoint
+        }
+        let text = try lineTop("text"), margin = try lineTop("margin")
+        XCTAssertEqual(margin, text, accuracy: 0.5)
+        XCTAssertLessThan(margin, 100)
+    }
     /// Lab sect5 (Word's print): the empty paragraph that carries the break into a new continuous section is
     /// not the anchor of the floating table that opens it: the table's offset hangs from the top of the last
     /// line before that paragraph (17.95pt under it), not from under the paragraph before it.
