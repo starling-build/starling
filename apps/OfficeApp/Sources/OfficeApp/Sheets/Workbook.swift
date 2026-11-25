@@ -250,6 +250,8 @@ final class Worksheet {
     /// Hidden so that only code can show it again (state="veryHidden").
     var veryHidden = false
     var showGridlines = true
+    /// Part of a selected group of sheets (tabSelected on several sheetViews).
+    var tabSelected = false
     /// The active cell as saved, restored on open and written on save.
     var savedActive: CellAddress? = nil
     /// The sheet's default sizes, in points.

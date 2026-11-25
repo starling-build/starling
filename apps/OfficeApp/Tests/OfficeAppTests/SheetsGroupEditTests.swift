@@ -52,3 +52,34 @@ final class SheetsGroupEditTests: XCTestCase {
         XCTAssertEqual(c.book.sheets[2].cells[a1]?.input, "y")
     }
 }
+
+final class SheetsGroupSaveTests: XCTestCase {
+    private func grouped() -> WorkbookController {
+        let c = WorkbookController()
+        c.setInput("one", at: CellAddress(row: 0, col: 0))
+        c.addSheet(); c.addSheet()
+        c.activeSheet = 0
+        c.groupSheet(1, add: true)
+        return c
+    }
+
+    func testGroupSurvivesSaveAndOpen() throws {
+        let c = grouped()
+        let data = try Xlsx.write(c.book)
+        let back = try Xlsx.read(data)
+        XCTAssertEqual(back.sheets.map(\.tabSelected), [true, true, false])
+    }
+
+    func testOneSelectedTabIsNoGroup() throws {
+        let c = WorkbookController()
+        c.addSheet()
+        let back = try Xlsx.read(try Xlsx.write(c.book))
+        XCTAssertEqual(back.sheets.filter(\.tabSelected).count, 0)
+    }
+
+    /// Writes the file for the Excel check (only when XCHECK_DIR is set).
+    func testWriteExcelCheckFile() throws {
+        guard let dir = ProcessInfo.processInfo.environment["XCHECK_DIR"] else { return }
+        try Xlsx.write(grouped().book).write(to: URL(fileURLWithPath: dir + "/grouped.xlsx"))
+    }
+}
