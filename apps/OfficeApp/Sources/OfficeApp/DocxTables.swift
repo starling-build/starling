@@ -1559,10 +1559,10 @@ extension DocxFormat {
                     let after = p.runs.dropFirst(runIndex + 1).first { $0.length > 0 }
                         ?? (index + 1 < doc.paragraphs.count ? doc.paragraphs[index + 1].runs.first { $0.length > 0 } : nil)
                     if !same(before) {
-                        body += "<w:r>\(rPrXML)<w:fldChar w:fldCharType=\"begin\"/></w:r><w:r>\(rPrXML)<w:instrText xml:space=\"preserve\"> \(_esc(lf)) </w:instrText></w:r><w:r>\(rPrXML)<w:fldChar w:fldCharType=\"separate\"/></w:r>"
+                        body += "<w:r><w:fldChar w:fldCharType=\"begin\"/></w:r><w:r><w:instrText xml:space=\"preserve\"> \(_esc(lf)) </w:instrText></w:r><w:r><w:fldChar w:fldCharType=\"separate\"/></w:r>"
                     }
                     body += runXML
-                    if !same(after) { body += "<w:r>\(rPrXML)<w:fldChar w:fldCharType=\"end\"/></w:r>" }
+                    if !same(after) { body += "<w:r><w:fldChar w:fldCharType=\"end\"/></w:r>" }
                 } else if let link = s.link {
                     let tip = s.linkTip.map { " w:tooltip=\"\(_esc($0))\"" } ?? ""
                     if link.hasPrefix("#") {
