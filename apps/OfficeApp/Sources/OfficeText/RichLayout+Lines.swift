@@ -1037,7 +1037,7 @@ extension RichLayout {
         var startLeft: (indent: Double, band: (top: Double, bottom: Double))?
         defer { if best?.right == true, best?.leftRoom == nil, let sl = startLeft, theme.wordRules, RichTextTheme.wordWindowsPages { _besideStartLeft[i] = sl } }
         _besideIndentOnTop.remove(i)
-        _besideListEarlier.remove(i); _besideTightTop[i] = nil; _besideLeftAt[i] = nil; _besideRightAt[i] = nil; _besideStartAt[i] = nil
+        _besideListEarlier.remove(i); _besideTightTop[i] = nil; _besideLeftAt[i] = nil; _besideRightAt[i] = nil; _besideStartAt[i] = nil; _besideNoLeft[i] = nil
         defer { if boxes.count >= 2, best?.leftRoom != nil { _besideBoxes[i] = boxes } }
         let hang = max(0, -_px(firstLineIndent(p, at: i, document)))
         var offset = 0.0
@@ -1092,6 +1092,17 @@ extension RichLayout {
                !candidates.contains(where: { $0.image.id == image.id }) {
                 candidates.append((image, k < _imageSize.count ? _imageSize[k] : nil))
                 RuleTrace.hit("word-text-beside-tight-picture-of-an-earlier-cell-paragraph")
+            }
+            if let over = _stripPage[i], p.cell == nil {
+                if let image = q.image, over.contains(where: { $0.0 == "\(image.id)" }), !candidates.contains(where: { $0.image.id == image.id }) {
+                    candidates.append((image, k < _imageSize.count ? _imageSize[k] : nil))
+                }
+                for (n, c) in candidates.enumerated() {
+                    guard let hit = over.first(where: { $0.0 == "\(c.image.id)" }) else { continue }
+                    var moved = c.image
+                    moved.float?.verticalFrom = "paragraph"; moved.float?.verticalAlign = nil; moved.float?.y = hit.1 + offset / _px(1); if hit.2 > 0 { _besideNoLeft[i] = max(_besideNoLeft[i] ?? 0, hit.2) }
+                    candidates[n] = (moved, c.size)
+                }
             }
             for (image, laid) in candidates {
                     // (A header's square picture placed from the margin does not narrow the lines of the header paragraphs beside it, its own or the next: Word's

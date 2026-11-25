@@ -1450,11 +1450,13 @@ extension _ParaFrame {
                     var saved = 0.0, k = 0
                     while k < bottoms.count {
                         let before = k == 0 ? 0 : bottoms[k - 1]
-                        if bottoms[k] - saved > band.top + 0.01, before - saved < band.bottom - 0.01, k < leftFits.count, !leftFits[k] {
+                        // (A row that meets a top-and-bottom box set from the page goes under it, whole: Word tests it there, not beside the shape.)
+                        let underBox = _stripClear[i].map { bottoms[k] - saved > $0.top + 0.01 } ?? false
+                        if !underBox, bottoms[k] - saved > band.top + 0.01, before - saved < band.bottom - 0.01, (k < leftFits.count && !leftFits[k]) || before - saved < (_besideNoLeft[i] ?? -1) {
                             // (No word fits the strip: the row is the right piece alone. Its 0.001 right inset keeps `_registerPairs`
                             // from taking it for the right piece of a pair.)
-                            next.append(LineIndent(left: besideIndent, right: 0.001)); k += 1
-                        } else if bottoms[k] - saved > band.top + 0.01, before - saved < band.bottom - 0.01 {
+                            next.append(LineIndent(left: _besideStartAt[i]?(before - saved, bottoms[k] - saved) ?? besideIndent, right: 0.001)); k += 1
+                        } else if !underBox, bottoms[k] - saved > band.top + 0.01, before - saved < band.bottom - 0.01 {
                             let leftPiece = LineIndent(left: 0, right: max(textWidth - (_besideLeftAt[i]?(before - saved, bottoms[k] - saved) ?? leftRoom), 0))
                             let rightPiece = LineIndent(left: _besideStartAt[i]?(before - saved, bottoms[k] - saved) ?? besideIndent, right: 0)
                             if p.style.rightToLeft, theme.wordRules, RichTextTheme.wordWindowsPages {

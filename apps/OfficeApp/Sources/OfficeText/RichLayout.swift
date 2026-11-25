@@ -1628,6 +1628,8 @@ final class DecodeMailbox: @unchecked Sendable {
 public final class RichLayout {
     private let _leakProbe = LeakProbe("RichLayout")
     public let theme: RichTextTheme
+    /// An image whose frame the page does not draw (the editor over it draws its own).
+    public var hiddenFrameID: String?
 
     /// Zoom. Invalidates every painter.
     /// The fonts' own scale, over `scale`: PowerPoint's shrink-to-fit
@@ -1932,6 +1934,12 @@ public final class RichLayout {
     /// The strips beside a frame the page fixes (`_stripFrame`): for each paragraph a line of
     /// it stands level with, the room it is held in and the band, from the paragraph's top.
     var _stripUse: [Int: (indent: Double, band: (top: Double, bottom: Double), right: Bool)] = [:]
+    /// Page-placed boxes with room on both sides that wrap as pieces: paragraph -> (image id, the box's top from the paragraph's top, pt).
+    var _stripPage: [Int: [(String, Double, Double)]] = [:]
+    /// Per paragraph: the rows above this height (from its top) take no left piece: another page box fills the strip at the left.
+    var _besideNoLeft: [Int: Double] = [:]
+    /// Per paragraph: rows (from its top) a page-anchored top-and-bottom box keeps clear in the middle of its text.
+    var _stripClear: [Int: (top: Double, bottom: Double)] = [:]
     /// A paragraph parted around a picture goes on from line `from` `dy` lower (the hold's jump), so its lines from there are
     /// tested against a second picture's band by where they stand then. `_lineDropWant` is what the last pagination found,
     /// `_lineDrop` what the paragraph was laid out with.

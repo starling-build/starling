@@ -25,6 +25,8 @@ public final class RichEditable: StatefulWidget {
     public let focusNode: FocusNode?
     public let autofocus: Bool
     public let backgroundColor: Color?
+    /// The shape being typed into: its own frame is drawn by the editor over it, so the page leaves its frame out.
+    public let hiddenFrameID: String?
     /// Zoom, 1.0 = 100%.
     public let zoom: Double
     /// Paginate onto paper of this size; nil is a continuous column.
@@ -81,7 +83,7 @@ public final class RichEditable: StatefulWidget {
                 theme: RichTextTheme = RichTextTheme(),
                 padding: EdgeInsets = EdgeInsets(left: 24, top: 24, right: 24, bottom: 24),
                 focusNode: FocusNode? = nil, autofocus: Bool = true,
-                backgroundColor: Color? = nil, zoom: Double = 1.0,
+                backgroundColor: Color? = nil, hiddenFrameID: String? = nil, zoom: Double = 1.0,
                 pageSetup: PageSetup? = nil, pageColor: Color = Color(0xFFFFFFFF),
                 onCaretRect: ((Rect?) -> Void)? = nil,
                 onPageInfo: ((Int, Int) -> Void)? = nil,
@@ -109,6 +111,7 @@ public final class RichEditable: StatefulWidget {
         self.focusNode = focusNode
         self.autofocus = autofocus
         self.backgroundColor = backgroundColor
+        self.hiddenFrameID = hiddenFrameID
         self.zoom = zoom
         self.pageSetup = pageSetup
         self.pageColor = pageColor
@@ -532,6 +535,8 @@ public final class RichEditableState: State<StatefulWidget> {
         case .pageDown:
             keepStickyX = true
             _movePage(down: true, extend: shift)
+        case .backspace where c.groupChild != nil && c.editGroupChild(.delete): break   // a picked child of a group goes
+        case .delete where c.groupChild != nil && c.editGroupChild(.delete): break
         case .backspace:
             if _chords.word { c.deleteWordBackward() }
             else if _chords.primary && KeyModifiers.primary == .meta { _deleteToLineStart() }
@@ -792,7 +797,7 @@ public final class RichEditableState: State<StatefulWidget> {
 
     /// The selected picture's box in the editable's own coordinates, with
     /// the live drag size when one is under way.
-    private func _selectedImageBox() -> (index: Int, rect: Rect, inline: String?)? {
+    private func _selectedImageBox(group: Bool = false) -> (index: Int, rect: Rect, inline: String?)? {
         if _layout.width > 0 { _syncLayoutIfNeeded() }
         guard _layout.width > 0 else { return nil }
         var canvas: Rect
@@ -808,8 +813,13 @@ public final class RichEditableState: State<StatefulWidget> {
         } else { return nil }
         var rect = Rect.fromLTWH(canvas.left + _originX, canvas.top + _w.padding.top - _scrollY,
                                  canvas.width, canvas.height)
-        if let d = _dragSize { rect = Rect.fromLTWH(rect.left, rect.top, d.width, d.height) }
-        if let d = _moveDelta { rect = rect.shift(d) }
+        if !group, inline == nil, let k = _controller.groupChild, let boxes = _controller.groupChildBoxes(at: index), boxes.indices.contains(k) {
+            // A picked child of a group: its own box (handles, drag and size follow it, not the group).
+            let pt = _layout.theme.pixelsPerPoint * _layout.scale, c = boxes[k]
+            rect = Rect.fromLTWH(rect.left + c.left * pt, rect.top + c.top * pt, c.width * pt, c.height * pt)
+        }
+        if let d = _dragSize, !(group && _controller.groupChild != nil) { rect = Rect.fromLTWH(rect.left, rect.top, d.width, d.height) }
+        if let d = _moveDelta, !(group && _controller.groupChild != nil) { rect = rect.shift(d) }
         return (index, rect, inline)
     }
 
@@ -1038,7 +1048,7 @@ public final class RichEditableState: State<StatefulWidget> {
                 _dragging = false
                 return
             }
-            if let box = _selectedImageBox(), box.rect.contains(event.localPosition),
+            if let box = _selectedImageBox(group: true), box.rect.contains(event.localPosition),
                _controller.pictureWrap(at: box.index, inline: box.inline) != nil {
                 // The body of a selected floating picture: the finger moves it, as a mouse does (a tap that does not travel
                 // is still a tap: a text box opens for editing).
@@ -1098,7 +1108,7 @@ public final class RichEditableState: State<StatefulWidget> {
             return
         }
 
-        if let box = _selectedImageBox(), _handleHit(event.localPosition, box.rect) == nil, box.rect.contains(event.localPosition),
+        if let box = _selectedImageBox(group: true), _handleHit(event.localPosition, _selectedImageBox()?.rect ?? box.rect) == nil, box.rect.contains(event.localPosition),
            _controller.pictureWrap(at: box.index, inline: box.inline) != nil {
             // The body of a selected floating picture: pressed and dragged, it moves.
             _moveDrag = (box.index, box.inline, event.localPosition)
@@ -1466,8 +1476,21 @@ public final class RichEditableState: State<StatefulWidget> {
         if let drag = _moveDrag {
             let d = _moveDelta ?? Offset(0, 0)
             _moveDrag = nil
-            let box = _selectedImageBox()
+            let box = _selectedImageBox(group: true)
             _moveDelta = nil
+            let childRect = _controller.groupChild != nil ? _selectedImageBox()?.rect : nil
+            if d.dx == 0, d.dy == 0, drag.inline == nil, let cr = childRect, cr.contains(drag.start), let enter = _w.onTextBoxEnter,
+               _controller.groupChildTextDocument() != nil {
+                enter(drag.index, nil, cr)   // a second click on the picked child types into it
+                return
+            }
+            if d.dx == 0, d.dy == 0, let box, drag.inline == nil, _controller.groupChildBoxes(at: drag.index) != nil {
+                // A click on the selected group goes into it: the child under the point is picked.
+                let pt = _layout.theme.pixelsPerPoint * _layout.scale
+                _controller.pickGroupChild(at: drag.index, point: Offset((drag.start.dx - box.rect.left) / pt, (drag.start.dy - box.rect.top) / pt))
+                _repaint.notifyListeners()
+                return
+            }
             if d.dx == 0, d.dy == 0, box != nil, _w.onTextBoxEnter != nil, _controller.textBoxDocument(at: drag.index, inline: drag.inline) == nil {
                 _controller.giveShapeText(at: drag.index, inline: drag.inline)   // a plain shape takes text when entered
             }
@@ -1476,6 +1499,12 @@ public final class RichEditableState: State<StatefulWidget> {
                 return
             }
             let pt = _layout.theme.pixelsPerPoint * _layout.scale
+            if drag.inline == nil, _controller.groupChild != nil, childRect?.contains(drag.start) == true {
+                // A child of the group is picked: it moves, the group's other children stay.
+                if d.dx != 0 || d.dy != 0 { _controller.editGroupChild(.move(dx: Int((d.dx / pt * 12700).rounded()), dy: Int((d.dy / pt * 12700).rounded()))) }
+                _repaint.notifyListeners()
+                return
+            }
             _controller.movePicture(at: drag.index, inline: drag.inline, dx: (d.dx / pt).rounded(), dy: (d.dy / pt).rounded())
             _repaint.notifyListeners()
             return
@@ -1492,7 +1521,9 @@ public final class RichEditableState: State<StatefulWidget> {
             _handleDrag = nil
             _dragSize = nil
             let pt = _layout.theme.pixelsPerPoint * _layout.scale
-            if let id = drag.inline {
+            if drag.inline == nil, _controller.groupChild != nil {
+                _controller.editGroupChild(.resize(cx: Int((size.width / pt * 12700).rounded()), cy: Int((size.height / pt * 12700).rounded())))
+            } else if let id = drag.inline {
                 _controller.setInlineImageSize(in: drag.index, id: id, width: size.width / pt, height: size.height / pt)
             } else {
                 _controller.setImageSize(at: drag.index, width: size.width / pt, height: size.height / pt)
@@ -1575,6 +1606,7 @@ public final class RichEditableState: State<StatefulWidget> {
         if _layout.width != contentWidth {
             _layout.width = contentWidth
         }
+        _layout.hiddenFrameID = _w.hiddenFrameID
         _syncLayout()
         _clampScroll()
         let canvasW = _layout.canvasSize.width
@@ -1684,6 +1716,18 @@ public final class RichEditableState: State<StatefulWidget> {
                 canvas.drawRect(h, fill)
                 canvas.drawRect(h, line)
             }
+        }
+
+        // The child picked inside a selected group: its own outline.
+        if focused, let box = _selectedImageBox(group: true), let k = _controller.groupChild, let boxes = _controller.groupChildBoxes(at: box.index), boxes.indices.contains(k) {
+            let pt = _layout.theme.pixelsPerPoint * _layout.scale
+            let c = boxes[k]
+            let line = Paint()
+            line.style = .stroke
+            line.strokeWidth = 1.5
+            line.color = _layout.theme.selectionColor.withOpacity(1)
+            let m = _moveDelta ?? Offset(0, 0)
+            canvas.drawRect(Rect.fromLTWH(box.rect.left + c.left * pt + m.dx, box.rect.top + c.top * pt + m.dy, c.width * pt, c.height * pt), line)
         }
 
         // Shapes picked along with it (Shift-click): their outlines.
