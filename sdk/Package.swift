@@ -627,6 +627,13 @@ targets += [
         ],
         swiftSettings: cxxInteropSettings + [.swiftLanguageMode(.v5)]
     ),
+    .testTarget(
+        name: "FlutterCocoaTests",
+        dependencies: ["FlutterCocoa", "Flutter"],
+        path: "Tests/FlutterCocoaTests",
+        swiftSettings: cxxInteropSettings + [.swiftLanguageMode(.v5)],
+        linkerSettings: engineLinkSettings
+    ),
     // Shared plumbing for the ported example apps: the engine-data bootstrap,
     // the run sequence, and the Material-look chrome. Same target as on Linux
     // and Windows, hosted on FlutterCocoa.
