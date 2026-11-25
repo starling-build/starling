@@ -82,6 +82,7 @@ final class OfficeShellState: State<StatefulWidget> {
     private var _splitCellOpen = false
     private var _formulaOpen = false
     private var _contentsOpen = false
+    private var _tableTool: String? = nil
     private var _convertTextTable: Bool? = nil   // the open Convert dialog: true to a table, false to text
     private var _bordersOpen = false
     private var _printOpen = false
@@ -484,6 +485,10 @@ final class OfficeShellState: State<StatefulWidget> {
             guard let self else { return }
             self.controller.breakUndoCoalescing()
             self.setState { self._splitCellOpen = true }
+        }
+        session.onTableTool = { [weak self] tool in
+            guard let self else { return }
+            self.setState { self._tableTool = self._tableTool == tool ? nil : tool; self.session.tableTool = self._tableTool }
         }
         session.onTablePropertiesDialog = { [weak self] in
             guard let self else { return }
@@ -1856,6 +1861,9 @@ final class OfficeShellState: State<StatefulWidget> {
                 self.setState { self.session.pageInfo = (p, n) }
             },
             onShortcut: { [weak self] key, mods in self?._shortcut(key, mods) ?? false },
+            onCellEdge: _tableTool == "erase" ? { [weak self] t, r, c, side in self?.controller.eraseCellEdge(table: t, row: r, column: c, side: side) } : nil,
+            onCellEdgeStroke: _tableTool == "erase" ? { [weak self] begin in if begin { self?.controller.breakUndoCoalescing() } } : nil,
+            onDrawTable: _tableTool == "draw" ? { [weak self] cell, dx, dy in self?.controller.drawTable(in: cell, dx: dx, dy: dy) } : nil,
             onLinkHover: { [weak self] link in
                 guard let self, self._linkHover != link else { return }
                 self.setState {

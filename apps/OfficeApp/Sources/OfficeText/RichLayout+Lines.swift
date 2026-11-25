@@ -2487,3 +2487,16 @@ extension RichLayout {
         return best
     }
 }
+
+extension RichLayout {
+    /// The table cell whose box holds a flow point, nil outside every table. Draw Table uses it.
+    public func cellContaining(_ flow: Offset) -> (table: String, row: Int, column: Int)? {
+        for i in 0 ..< min(count, _cells.count) {
+            guard let d = _cells[i], d.colWidth > 0, d.rowHeight > 0 else { continue }
+            if flow.dx >= d.colLeft, flow.dx <= d.colLeft + d.colWidth, flow.dy >= d.rowTop, flow.dy <= d.rowTop + d.rowHeight {
+                return (d.table, d.row, d.column)
+            }
+        }
+        return nil
+    }
+}
