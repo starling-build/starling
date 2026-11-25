@@ -500,6 +500,18 @@ final class DeckController: ChangeNotifier {
         _notify()
     }
 
+    /// Shift/Ctrl+click: `shape` joins the selection, or leaves it when it is
+    /// already in. Selection only (not an edit, so not an undo step).
+    func toggleSelected(_ shape: SlideShape) {
+        if isSelected(shape) { selectShapes(selection.filter { $0 !== shape }) }
+        else { selectShapes(selection + [shape]) }
+    }
+
+    /// `shapes` added to the selection (those already in it stay where they are).
+    func addToSelection(_ shapes: [SlideShape]) {
+        selectShapes(selection + shapes.filter { s in !isSelected(s) })
+    }
+
     func isSelected(_ shape: SlideShape) -> Bool { selection.contains { $0 === shape } }
 
     // MARK: Shapes
@@ -1150,6 +1162,29 @@ final class DeckController: ChangeNotifier {
                 shapes.swapAt(i, i - 1)
             }
         }
+        currentSlide.shapes = shapes
+        _changed()
+    }
+
+    /// The Selection Pane's eye: shows or hides one shape (one undo step). A shape a hidden group hides
+    /// stays hidden until the group is shown.
+    func setHidden(_ shape: SlideShape, _ hidden: Bool) {
+        guard shape.invisible != hidden else { return }
+        _checkpoint()
+        shape.invisible = hidden
+        if hidden { selection.removeAll { $0 === shape } }
+        _changed()
+    }
+
+    /// The Selection Pane's reorder: one shape a step toward the front (`by` > 0) or the back, one undo step.
+    func moveInStack(_ shape: SlideShape, by delta: Int) {
+        var shapes = currentSlide.shapes
+        guard let i = shapes.firstIndex(where: { $0 === shape }) else { return }
+        let j = min(max(i + delta, 0), shapes.count - 1)
+        guard j != i else { return }
+        _checkpoint()
+        shapes.remove(at: i)
+        shapes.insert(shape, at: j)
         currentSlide.shapes = shapes
         _changed()
     }
