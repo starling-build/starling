@@ -1003,7 +1003,7 @@ extension RichLayout {
             let from = pos, to = min(units.count, pos + run.length)
             pos += run.length
             guard run.style.script != .normal, to > from else { continue }
-            let style = theme.textStyle(for: run.style, in: p.style, named: named, normal: document.styles[RichNamedStyle.normalId]?.char, scale: scale, fontScale: fontScale)
+            let style = theme.textStyle(for: run.style, in: p.style, backdrop: p.cell?.fill, named: named, normal: document.styles[RichNamedStyle.normalId]?.char, scale: scale, fontScale: fontScale)
             // The size it was shrunk from (the style's is 65% of it).
             var plain = run.style
             plain.script = .normal
@@ -1041,7 +1041,7 @@ extension RichLayout {
                     // (Its shadow with it: the one held in the line casts none.)
                     var shown = run.style
                     shown.script = .normal
-                    let shadows = theme.textStyle(for: shown, in: p.style, named: named,
+                    let shadows = theme.textStyle(for: shown, in: p.style, backdrop: p.cell?.fill, named: named,
                                                   normal: document.styles[RichNamedStyle.normalId]?.char,
                                                   scale: scale, fontScale: fontScale).shadows
                     let plain = TextStyle(color: style.color, fontSize: style.fontSize, fontWeight: style.fontWeight,
@@ -1895,7 +1895,7 @@ extension RichLayout {
                 var at = 0
                 var run = p.runs[0].style
                 for r in p.runs { if leader.offset < at + r.length { run = r.style; break }; at += r.length }
-                let style = theme.textStyle(for: run, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale,
+                let style = theme.textStyle(for: run, in: p.style, backdrop: p.cell?.fill, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale,
                                             gridPitch: _offGrid(i, document) ? nil : _grid(i, document).pitch)
                 let one = TextPainter(text: TextSpan(text: leader.fill, style: style), textDirection: .ltr)
                 one.layout(minWidth: 0, maxWidth: 10_000)

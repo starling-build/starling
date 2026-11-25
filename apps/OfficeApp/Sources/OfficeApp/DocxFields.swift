@@ -1769,15 +1769,18 @@ extension DocxFormat {
 
     /// A table style's conditional formatting, the parts the editor shows.
     struct _Cond {
-        var headerFill: Color? = nil
         /// The style's own cell vertical alignment (`w:tcPr/w:vAlign`, centre or bottom).
         var cellVAlign: String? = nil
         /// The firstRow part's own cell vertical alignment (acd729's pandoc "Table").
         var headerVAlign: String? = nil
         var headerChar: CharStyle? = nil
         var firstColChar: CharStyle? = nil
-        var band1: Color? = nil
-        var band2: Color? = nil
+        /// Every conditional part's fill, by `w:tblStylePr` type (first one in the style chain wins).
+        var fills: [String: Color] = [:]
+        var rowBandSize: Int? = nil
+        var colBandSize: Int? = nil
+        var lastRowChar: CharStyle? = nil
+        var lastColChar: CharStyle? = nil
         /// The header row's cell borders (`firstRow`'s `w:tcBorders`).
         var headerBorders: XNode? = nil
         /// Whether the style's first row repeats on every page
@@ -1988,7 +1991,9 @@ extension DocxFormat {
         // (And the font table: what Word substitutes for a face the machine
         // lacks is chosen by the family, pitch and alternate name stated
         // there, and a Chinese document names faces few machines have.)
-        for name in ["footnotes", "endnotes", "fontTable"] {
+        // (And the settings: the zoom, the colour map, the revision ids, the math and shape defaults, the notes' settings;
+        // a save changes only what the app itself sets in it.)
+        for name in ["footnotes", "endnotes", "fontTable", "settings"] {
             guard let data = part("word/\(name).xml"), _wellFormed(data) else { continue }
             kept["word/\(name).xml"] = data
             guard let rels = part("word/_rels/\(name).xml.rels") else { continue }

@@ -103,6 +103,7 @@ extension DocxFormat {
     /// bold heading 3 came back bold; 52288's plain runs under a bold
     /// style must not come back un-bold).
     static func _rPrXML(_ s: CharStyle, fileFonts: Set<String> = [], changeId: Int? = nil) -> String {
+        if changeId == nil, let original = s.originalRPr { return original }
         var rPr = s.styleId.map { "<w:rStyle w:val=\"\(_esc($0))\"/>" } ?? ""
         func off(_ tag: String, _ sw: CharSwitches) -> String { s.off.contains(sw) ? "<w:\(tag) w:val=\"0\"/>" : "" }
     rPr += _rFontsXML(s, fileFonts: fileFonts)
@@ -119,7 +120,11 @@ extension DocxFormat {
     } else if s.off.contains(.underline) { rPr += "<w:u w:val=\"none\"/>" }
     if s.strikethrough { rPr += s.doubleStrike ? "<w:dstrike/>" : "<w:strike/>" } else { rPr += off("strike", .strikethrough) }
     if let em = s.emphasis { rPr += "<w:em w:val=\"\(em)\"/>" }
-    if let color = s.color { rPr += "<w:color w:val=\"\(_hex(color))\"/>" }
+    if let color = s.color {
+        let hex = _hex(color)
+        let theme = s.colorTheme.flatMap { $0.hasPrefix(hex) ? String($0.dropFirst(hex.count)) : nil } ?? ""
+        rPr += "<w:color w:val=\"\(hex)\"\(theme)/>"
+    }
     if let ls = s.letterSpacing, ls != 0 { rPr += "<w:spacing w:val=\"\(Int((ls * 20).rounded()))\"/>" }
     if let w = s.horizontalScale, w != 1 { rPr += "<w:w w:val=\"\(Int((w * 100).rounded()))\"/>" }
     if let k = s.kerningFrom { rPr += "<w:kern w:val=\"\(Int((k * 2).rounded()))\"/>" }
@@ -844,8 +849,11 @@ extension DocxFormat {
             case "w:smallCaps": cs.smallCaps = !_isOff(child); if cs.smallCaps { cs.off.remove(.smallCaps) } else { cs.off.insert(.smallCaps) }
             case "w:sz": sawSz = true; if let v = Double(child["w:val"] ?? "") { cs.fontSize = v / 2 }
             case "w:color":
+                cs.colorTheme = nil
                 if let hex = child["w:val"], hex.lowercased() != "auto", let v = Int(hex, radix: 16) {
                     cs.color = Color(argb: 0xFF, (v >> 16) & 0xFF, (v >> 8) & 0xFF, v & 0xFF)
+                    let theme = ["w:themeColor", "w:themeTint", "w:themeShade"].compactMap { k in child[k].map { " \(k)=\"\(_esc($0))\"" } }.joined()
+                    if !theme.isEmpty { cs.colorTheme = _hex(cs.color!) + theme }
                 } else if child["w:val"]?.lowercased() == "auto" {
                     // "auto" is the text colour: a style based on a blue
                     // heading that says auto is black (65099's Edf Titre 3).
@@ -1034,6 +1042,23 @@ extension DocxFormat {
             return (np.runs.first(where: { $0.length > 0 }) ?? np.runs.first)?.style.comments ?? []
         }
         var revisionCount = 0
+        // Ids the file already uses and we keep as they are (kept header, footer and note parts, boxes and
+        // pictures written from their own XML, bookmark markers): new revision and point-bookmark ids skip them,
+        // so one id never names two annotations anywhere in the package.
+        var takenAnnotationIDs = Set<Int>()
+        for (name, data) in doc.keptParts where name.hasPrefix("word/") && name.hasSuffix(".xml") && name != "word/document.xml" && name != "word/comments.xml" {
+            takenAnnotationIDs.formUnion(RichDocumentController._annotationIds(in: String(decoding: data, as: UTF8.self)))
+        }
+        for p in doc.paragraphs {
+            for img in [p.image].compactMap({ $0 }) + Array(p.inlineImages.values) {
+                if let x = img.sourceXML { takenAnnotationIDs.formUnion(RichDocumentController._annotationIds(in: x)) }
+            }
+            for m in p.bookmarkMarkers { if let n = Int(m.id) { takenAnnotationIDs.insert(n) } }
+        }
+        func nextRevisionID() -> Int {
+            repeat { revisionCount += 1 } while takenAnnotationIDs.contains(revisionCount)
+            return revisionCount
+        }
         var usedExtensions: Set<String> = []
         func relId(for link: String) -> String {
             if let r = rels.first(where: { $0.target == link }) { return r.id }
@@ -1094,6 +1119,14 @@ extension DocxFormat {
         func keptFragmentXML(_ xml: String, _ rels: [KeptRel]) -> String {
             var frag = _renumberDocPr(xml, next: &keptDocPrCount)
             for rel in rels {
+                // A relationship the fragment never names (its old id appears nowhere in the markup, in any
+                // attribute) is a leftover of an edit: not written. One the file gave and the markup names
+                // by any attribute stays, even where we do not read that attribute.
+                // Only kinds this writer re-creates (picture, link, embedded object, chart, diagram) are ever dropped:
+                // other kinds are found by type or from other parts (template, glossary, settings...) and stay.
+                let kind = String(rel.type.split(separator: "/").last ?? "")
+                let droppable = ["image", "hyperlink", "oleObject", "chart", "diagramData", "diagramLayout", "diagramQuickStyle", "diagramColors", "diagramDrawing"].contains(kind)
+                if droppable, !xml.containsSubstring("\"\(rel.id)\"") { continue }
                 keptRelCount += 1
                 let nid = "rIdKept\(keptRelCount)"
                 for attr in _relationshipAttributes {
@@ -1285,18 +1318,18 @@ extension DocxFormat {
             // every spelling, probed 2026-10-09; bib-chernigovka's cover).
             var markRPr = ""
             if let rev = p.style.markRevision {
-                revisionCount += 1
+                _ = nextRevisionID()
                 let tag = rev.kind == .inserted ? "w:ins" : "w:del"
                 markRPr += "<\(tag) w:id=\"\(revisionCount)\" w:author=\"\(_esc(rev.author.isEmpty ? "Author" : rev.author))\"\(rev.date.isEmpty ? "" : " w:date=\"\(_esc(rev.date))\"")/>"
             }
             let anchorOnly = p.image?.sourceXML?.containsSubstring("<wp:anchor") ?? false
             if p.text.isEmpty, p.image == nil || anchorOnly, let first = p.runs.first {
-                markRPr += _rPrXML(first.style, fileFonts: doc.fileFonts)
+                markRPr += _rPrXML({ var m = first.style; m.origRPr = nil; return m }(), fileFonts: doc.fileFonts)
             } else if let mark = p.style.mark {
                 // The mark's own look on a paragraph with text: a list
                 // number is formatted with it, and a hidden mark over
                 // hidden text makes Word show no line and no border.
-                markRPr += _rPrXML(mark, fileFonts: doc.fileFonts)
+                markRPr += _rPrXML({ var m = mark; m.origRPr = nil; return m }(), fileFonts: doc.fileFonts)
             } else if p.style.markHidden {
                 markRPr += "<w:vanish/>"
             }
@@ -1305,7 +1338,7 @@ extension DocxFormat {
             body += "<w:p\(p.id != 0 ? " w14:paraId=\"\(_paraIdHex(p.id))\"" : "")><w:pPr>\(pPr)</w:pPr>"
             for name in p.bookmarks where !rangedBookmarkNames.contains(name) && writtenBookmarks.insert(name).inserted {
                 // (Numbered clear of any a kept table's own XML carries.)
-                repeat { nextPointBookmarkID += 1 } while rangedBookmarkIDs.contains(String(nextPointBookmarkID))
+                repeat { nextPointBookmarkID += 1 } while rangedBookmarkIDs.contains(String(nextPointBookmarkID)) || takenAnnotationIDs.contains(nextPointBookmarkID)
                 let id = nextPointBookmarkID
                 body += "<w:bookmarkStart w:id=\"\(id)\" w:name=\"\(_esc(name))\"/><w:bookmarkEnd w:id=\"\(id)\"/>"
             }
@@ -1391,7 +1424,7 @@ extension DocxFormat {
                     continue
                 }
                 var changeId: Int? = nil
-                if s.formatChange != nil { revisionCount += 1; changeId = revisionCount }
+                if s.formatChange != nil { changeId = nextRevisionID() }
                 var rPr = _rPrXML(s, fileFonts: doc.fileFonts, changeId: changeId)
                 if let note = s.note, doc.keptParts[note.kind == .footnote ? "word/footnotes.xml" : "word/endnotes.xml"] != nil {
                     // The mark's number is Word's to show; the run carries
@@ -1488,7 +1521,7 @@ extension DocxFormat {
                     }
                 }
                 if let rev = s.revision {
-                    revisionCount += 1
+                    _ = nextRevisionID()
                     let tag = rev.kind == .inserted ? "w:ins" : "w:del"
                     runXML = "<\(tag) w:id=\"\(revisionCount)\" w:author=\"\(_esc(rev.author.isEmpty ? "Author" : rev.author))\"\(rev.date.isEmpty ? "" : " w:date=\"\(_esc(rev.date))\"")>\(runXML)</\(tag)>"
                 }
@@ -1586,7 +1619,12 @@ extension DocxFormat {
                 for (side, v) in margins { if let v { xml += "<w:\(side) w:w=\"\(Int((v * 20).rounded()))\" w:type=\"dxa\"/>" } }
                 xml += "</w:tblCellMar>"
             }
-            xml += (namedStyle != nil ? doc.tableLooks[id] : nil) ?? "<w:tblLook w:val=\"04A0\"/>"
+            if let look = style.look {
+                func bit(_ b: Int) -> String { look & b != 0 ? "1" : "0" }
+                xml += "<w:tblLook w:val=\"" + TableLook.hex(look) + "\" w:firstRow=\"\(bit(0x20))\" w:lastRow=\"\(bit(0x40))\" w:firstColumn=\"\(bit(0x80))\" w:lastColumn=\"\(bit(0x100))\" w:noHBand=\"\(bit(0x200))\" w:noVBand=\"\(bit(0x400))\"/>"
+            } else {
+                xml += (namedStyle != nil ? doc.tableLooks[id] : nil) ?? "<w:tblLook w:val=\"04A0\"/>"
+            }
             xml += "</w:tblPr><w:tblGrid>"
             // A cell's preferred width: the grid's, or none at all when the
             // file's cells stated none and Word autofits them.
@@ -1656,7 +1694,7 @@ extension DocxFormat {
                     if span > 1 { xml += "<w:gridSpan w:val=\"\(span)\"/>" }
                     if (ref?.rowSpan ?? 1) > 1 { xml += "<w:vMerge w:val=\"restart\"/>" }
                     xml += cellBordersXML(ref?.edges, width: ref?.borderWidth, kept: ref?.bordersXML ?? (ref?.rowBordersXML != nil ? "" : nil), under: ref?.bordersKeptUnder)   // schema order: borders, then shading
-                    if let fill = ref?.fill { xml += "<w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"\(_hex(fill))\"\(ref?.fillThemeAttrs ?? "")/>" }
+                    if let fill = ref?.fill, !(ref?.styleFilled == true && doc.tableStyleIds[ref?.table ?? ""] != nil) { xml += "<w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"\(_hex(fill))\"\(ref?.fillThemeAttrs ?? "")/>" }
                     if let mar = ref?.marginsXML { xml += mar }
                     // Schema order: the text direction before the alignment.
                     // (As the file wrote it while it still reads that way.)
@@ -1861,7 +1899,7 @@ extension DocxFormat {
            doc.paragraphs.contains(where: { $0.cell?.fillThemeAttrs != nil || $0.cell?.bordersXML?.containsSubstring("w:themeColor=") == true }) {
             keptAll["word/theme/theme1.xml"] = Data(_defaultThemePart().utf8)
         }
-        for (name, data) in keptAll.sorted(by: { $0.key < $1.key }) where !written.contains(name) && !orphanMedia(name) {
+        for (name, data) in keptAll.sorted(by: { $0.key < $1.key }) where !written.contains(name) && !orphanMedia(name) && name != "word/settings.xml" {
             extraParts.append(ZipEntry(name: name, data: data))
             switch name {
             case "word/footnotes.xml":
@@ -1950,6 +1988,10 @@ extension DocxFormat {
             // 2010 files (a third of the corpus) break lines and space
             // tables by their mode's rules, and a copy that said 15 did not.
             settings.replaceSubrange(start.lowerBound ..< end.upperBound, with: compat)
+        }
+        if let original = doc.keptParts["word/settings.xml"] {
+            settings = Self._patchedSettings(String(decoding: original, as: UTF8.self), even: doc.evenAndOddHeaders, evenReferenced: evenReferenced,
+                                             tab: doc.defaultTabStop, spacing: doc.characterSpacingControl)
         }
         extraParts.append(ZipEntry(name: "word/settings.xml", data: Data(settings.utf8)))
         extraOverrides += "<Override PartName=\"/word/settings.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml\"/>"
@@ -2131,6 +2173,42 @@ extension DocxFormat {
         String(printf: "%06X", c.value & 0xFFFFFF)
     }
 
+    /// The file's own settings with only what the app sets changed: the even/odd headers switch, the default tab stop and the
+    /// character spacing control. Everything else (zoom, colour map, revision ids, math and shape defaults, note settings...)
+    /// stays as the file had it.
+    static func _patchedSettings(_ original: String, even: Bool, evenReferenced: Bool, tab: Double?, spacing: String?) -> String {
+        var xml = original
+        /// The range of the first `<w:name .../>` (or `<w:name ...>...</w:name>`) element.
+        func element(_ name: String) -> Range<String.Index>? {
+            guard let start = xml.rangeOfSubstring("<w:\(name)") else { return nil }
+            let after = xml[start.upperBound...]
+            guard let c = after.first, c == " " || c == "/" || c == ">" else { return nil }
+            guard let close = after.firstIndex(of: ">") else { return nil }
+            if xml[xml.index(before: close)] == "/" { return start.lowerBound ..< xml.index(after: close) }
+            if let end = xml.rangeOfSubstring("</w:\(name)>") { return start.lowerBound ..< end.upperBound }
+            return nil
+        }
+        func setValue(_ name: String, _ value: String) {
+            guard let r = element(name) else { return }
+            var tag = String(xml[r])
+            guard let at = tag.rangeOfSubstring("w:val=\""), let end = tag[at.upperBound...].firstIndex(of: "\"") else { return }
+            if tag[at.upperBound ..< end] == value { return }
+            tag.replaceSubrange(at.upperBound ..< end, with: value)
+            xml.replaceSubrange(r, with: tag)
+        }
+        if let r = element("evenAndOddHeaders") {
+            let off = ["0", "false", "off"].contains { String(xml[r]).containsSubstring("w:val=\"\($0)\"") }
+            if !even { xml.removeSubrange(r) }
+            else if off { xml.replaceSubrange(r, with: "<w:evenAndOddHeaders/>") }
+        } else if even, evenReferenced {
+            let marker = ["<w:defaultTabStop", "<w:characterSpacingControl", "<w:compat", "</w:settings>"].first { xml.containsSubstring($0) }
+            if let marker, let at = xml.rangeOfSubstring(marker) { xml.insert(contentsOf: "<w:evenAndOddHeaders/>", at: at.lowerBound) }
+        }
+        if let tab { setValue("defaultTabStop", String(Int((tab * 20).rounded()))) }
+        if let spacing { setValue("characterSpacingControl", _esc(spacing)) }
+        return xml
+    }
+
     static let _settingsPart = """
     <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
     <w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:defaultTabStop w:val="720"/><w:characterSpacingControl w:val="doNotCompress"/><w:compat><w:compatSetting w:name="compatibilityMode" w:uri="http://schemas.microsoft.com/office/word" w:val="15"/></w:compat></w:settings>
@@ -2262,7 +2340,10 @@ extension DocxFormat {
         // Word's default table style, as Word writes it. Without it Word
         // (in its legacy layout mode) set form_footnotes' tables 5pt to
         // the right of the original's: 12.3% -> 9.9% with it.
+        // (A file that already had one keeps its own: two styles with one id is a file Word may refuse.)
+        if !tableStyles.values.contains(where: { $0.containsSubstring("w:styleId=\"TableNormal\"") }) {
         out += "<w:style w:type=\"table\" w:default=\"1\" w:styleId=\"TableNormal\"><w:name w:val=\"Normal Table\"/><w:uiPriority w:val=\"99\"/><w:semiHidden/><w:unhideWhenUsed/><w:tblPr><w:tblInd w:w=\"0\" w:type=\"dxa\"/><w:tblCellMar><w:top w:w=\"0\" w:type=\"dxa\"/><w:left w:w=\"108\" w:type=\"dxa\"/><w:bottom w:w=\"0\" w:type=\"dxa\"/><w:right w:w=\"108\" w:type=\"dxa\"/></w:tblCellMar></w:tblPr></w:style>"
+        }
         // The file's ids for our styles, for kept markup that names them.
         for (fileId, ours) in aliases.sorted(by: { $0.key < $1.key }) where sheet[ours] != nil || ours == RichNamedStyle.normalId {
             out += "<w:style w:type=\"paragraph\" w:styleId=\"\(_esc(fileId))\"><w:name w:val=\"\(_esc(ours)) \(_esc(fileId))\"/><w:basedOn w:val=\"\(_esc(ours))\"/></w:style>"

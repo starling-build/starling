@@ -72,6 +72,14 @@ final class FormatShapePaneState: State<StatefulWidget> {
     }
 
     /// The common value of `get` over the selection, or "" when the shapes differ.
+    /// PowerPoint's default outer shadow: black at 60% transparency, 4 pt blur, 3 pt out at 45 degrees.
+    static let defaultShadow = CharShadow(color: Color(0x66000000), dx: 3 * 0.7071, dy: 3 * 0.7071, blur: 4)
+    static func angle(_ s: CharShadow) -> Double {
+        var d = atan2(s.dy, s.dx) * 180 / .pi
+        if d < 0 { d += 360 }
+        return d
+    }
+
     private func _common(_ get: (SlideShape) -> Double) -> String {
         let deck = _w.deck
         guard let first = deck.selection.first.map(get) else { return "" }
@@ -126,6 +134,13 @@ final class FormatShapePaneState: State<StatefulWidget> {
         let lineOn = deck.selection.contains { $0.outline != nil }
         let first = deck.selection.first
         let transparency = first?.fill.map { Self.text(100 - Double($0.value >> 24) / 255 * 100) } ?? ""
+        let shadow = first?.shadow
+        let shadowOn = some && shadow != nil
+        func shadowShown(_ f: (CharShadow) -> String) -> String { shadow.map(f) ?? "" }
+        func editShadow(_ f: (inout CharShadow) -> Void) {
+            guard var sh = deck.selection.first?.shadow else { return }
+            f(&sh); deck.setShadow(sh)
+        }
         let alt = _field("fmt.alt", deck.selectedAltText ?? "")
         let hasPicture = deck.selection.contains { $0.picture != nil }
         let locked = some && deck.selection.allSatisfy { $0.aspectLocked }
@@ -135,6 +150,33 @@ final class FormatShapePaneState: State<StatefulWidget> {
                     child: IconButton(icon: Icon(FluentSystemIcons.close, size: 14, color: fluent.resources.textFillColorPrimary),
                                       onPressed: _w.onClose)),
         ])
+        var fx: [Widget] = []
+        fx.append(Text("Effects", style: fluent.typography.bodyStrong)); fx.append(gap(10))
+        fx.append(Text("Shadow", style: caption)); fx.append(gap(4))
+        fx.append(Checkbox(key: ValueKey("fmt.shadow.on"), checked: shadowOn, onChanged: { (v: Bool?) in
+            guard some else { return }
+            deck.setShadow((v ?? false) ? Self.defaultShadow : nil)
+        }, content: Text("Outer shadow")))
+        fx.append(gap(6))
+        let shadowAlpha: String = shadowShown { (sh: CharShadow) -> String in Self.text(100 - Double(sh.color.value >> 24) / 255 * 100) }
+        fx.append(row("fmt.shadow.transparency", "Transparency", shadowAlpha, min: 0, unit: "%") { (v: Double) in
+            let alpha = Int((max(0, min(100, 100 - v)) / 100 * 255).rounded())
+            editShadow { (sh: inout CharShadow) in sh.color = Color((alpha << 24) | (sh.color.value & 0xFFFFFF)) }
+        })
+        fx.append(gap(6))
+        fx.append(row("fmt.shadow.blur", "Blur", shadowShown { (sh: CharShadow) -> String in Self.text(sh.blur) }, min: 0) { (v: Double) in
+            editShadow { (sh: inout CharShadow) in sh.blur = v }
+        })
+        fx.append(gap(6))
+        fx.append(row("fmt.shadow.distance", "Distance", shadowShown { (sh: CharShadow) -> String in Self.text(hypot(sh.dx, sh.dy)) }, min: 0) { (v: Double) in
+            editShadow { (sh: inout CharShadow) in let a = atan2(sh.dy, sh.dx); sh.dx = cos(a) * v; sh.dy = sin(a) * v }
+        })
+        fx.append(gap(6))
+        fx.append(row("fmt.shadow.angle", "Angle", shadowShown { (sh: CharShadow) -> String in Self.text(Self.angle(sh)) }, min: 0) { (v: Double) in
+            editShadow { (sh: inout CharShadow) in let d = hypot(sh.dx, sh.dy); let a = v * Double.pi / 180; sh.dx = cos(a) * d; sh.dy = sin(a) * d }
+        })
+        fx.append(gap(14))
+        let effects = Column(crossAxisAlignment: .start, children: fx)
         let body = Column(crossAxisAlignment: .start, children: [
             Text("Fill & Line", style: fluent.typography.bodyStrong), gap(10),
             Text("Fill", style: caption), gap(4),
@@ -175,7 +217,8 @@ final class FormatShapePaneState: State<StatefulWidget> {
             Text("Alt text", style: caption), gap(4),
             SizedBox(key: ValueKey("fmt.alt"), width: 240, height: 30, child: FluentTextBox(
                 controller: alt, placeholderText: hasPicture ? "Describe the picture" : "Pictures only",
-                onSubmitted: { text in deck.setAltText(text) }, enabled: hasPicture)),
+                onSubmitted: { text in deck.setAltText(text) }, enabled: hasPicture)), gap(14),
+            effects,
         ])
         return SizedBox(width: 300, height: nil, child: DecoratedBox(
             decoration: BoxDecoration(color: OfficeAppearance.surface(fluent),

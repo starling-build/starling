@@ -136,6 +136,7 @@ enum Xlsx {
             guard let name = s["name"], let rid, let path = wbRels[rid] else { continue }
             let ws = Worksheet(name: name)
             ws.origin = path
+            ws.sheetId = Int(s["sheetId"] ?? "")
             if let raw = _part(parts, path) { sheetRoots[path] = try _readSheet(raw, into: ws, sst: sst, sstScripts: sstScripts, sstRuns: sstRuns, sstRaw: sstRaw, book: book) }
             if s["state"] == "hidden" || s["state"] == "veryHidden" { ws.hidden = true }
             if s["state"] == "veryHidden" { ws.veryHidden = true }
@@ -302,10 +303,12 @@ enum Xlsx {
             } else if let pane = view.child("pane") {
                 // A split: the divider is a position, not a cell count, so it is kept as the file wrote it.
                 ws.splitPane = pane.attrs
-                ws.splitSelections = view.kids("selection").map(\.attrs)
             }
+            // Every selection as the file wrote it (a pane each, activeCellId, ranges), for the save to hand back.
+            ws.splitSelections = view.kids("selection").map(\.attrs)
+            ws.selectionFreeze = ws.freezeRows > 0 || ws.freezeCols > 0 ? (ws.freezeRows > 0 ? 1 : 0) + (ws.freezeCols > 0 ? 2 : 0) : 0
             if let sel = view.kids("selection").last, let a = sel["activeCell"].flatMap({ CellAddress($0) }) { ws.savedActive = a }
-            if view["showGridLines"] == "0" { ws.showGridlines = false }
+            if view["showGridLines"] == "0" || view["showGridLines"] == "false" { ws.showGridlines = false }
             ws.tabSelected = view["tabSelected"] == "1"
             ws.viewAttrs = view.attrs.filter { !["tabSelected", "showGridLines", "workbookViewId"].contains($0.key) }
         }
@@ -339,6 +342,7 @@ enum Xlsx {
                 for c in lo ... hi where c >= 1 && c <= CellAddress.maxCols { ws.hiddenCols.insert(c - 1) }
             } else if hidden, lo >= 1, lo <= hi {
                 ws.hiddenColRuns.append((lo - 1) ... (min(hi, CellAddress.maxCols) - 1))
+                if let w = Double(col["width"] ?? ""), w > 0 { ws.hiddenRunChars[lo - 1] = w }
             }
             guard let w = Double(col["width"] ?? "") else { continue }
             let pt = w == 0 ? 0 : _charsToPoints(w, digit: digit)
@@ -369,9 +373,11 @@ enum Xlsx {
         }
         cells.reserveCapacity(cellTags)
         var rowsSeen: Set<Int> = []
+        var spanText: [Int: String] = [:]
         func rowSetup(_ row: XNode) {
             rowIndex = Int(row["r"] ?? "").map { $0 - 1 } ?? rowIndex
-            let rowExtra = row.attrs.filter { !["r", "ht", "customHeight", "hidden", "spans"].contains($0.key) }
+            var rowExtra = row.attrs.filter { !["r", "ht", "customHeight", "hidden", "spans"].contains($0.key) }
+            if let sp = row["spans"] { spanText[rowIndex] = sp }
             if !rowExtra.isEmpty { ws.rowAttrs[rowIndex] = rowExtra }
             if ["1", "true"].contains(row["customFormat"] ?? ""), let span = row["spans"],
                let end = span.split(separator: ":").last.flatMap({ Int($0) }), end > 0, end <= 1024 {
@@ -417,16 +423,21 @@ enum Xlsx {
                 var value: CellValue = .empty
                 switch t {
                 case "s":
-                    value = Int(vText ?? "").flatMap { $0 < sst.count ? CellValue.text(sst[$0]) : nil } ?? .empty
-                    if let i = Int(vText ?? ""), sstScripts.contains(i) { ws.scriptRows.insert(a.row) }
-                    if let i = Int(vText ?? ""), let runs = sstRuns[i] { ws.richText[a] = runs }
-                    if let i = Int(vText ?? ""), let raw = sstRaw[i], i < sst.count { ws.richRaw[a] = (sst[i], raw) }
+                    // (A stored index may carry blanks: bug69769's "2 ".)
+                    let sstIndex = Int((vText ?? "").trimmingSpaces())
+                    value = sstIndex.flatMap { $0 >= 0 && $0 < sst.count ? CellValue.text(sst[$0]) : nil } ?? .empty
+                    if let i = sstIndex, sstScripts.contains(i) { ws.scriptRows.insert(a.row) }
+                    if let i = sstIndex, let runs = sstRuns[i] { ws.richText[a] = runs }
+                    if let i = sstIndex, let raw = sstRaw[i], i < sst.count { ws.richRaw[a] = (sst[i], raw) }
                 // (An inline string with nothing in it is still a string, the empty
                 // one: a cell with a value, which Excel prints the sheet as far as.)
                 case "inlineStr": value = .text(c.inlineNode.map { _text($0) } ?? "")
                 case "str": value = .text(vText ?? "")
-                case "b": value = .bool(vText == "1")
+                case "b": value = .bool(vText == "1" || vText == "true")
                 case "e": value = .error(ExcelError(rawValue: vText ?? "") ?? .value)
+                // (An ISO 8601 date, "1990-01-01" or with a time: the strict format's
+                // date cell. It becomes the date's serial number.)
+                case "d": value = vText.flatMap { Xlsx._isoDateSerial($0) }.map { .number($0) } ?? .empty
                 // (Excel reads a number stored with blanks around it: lo-tdf124525's
                 // "    0.0402000000" cells print as 0.0402, not as nothing.)
                 default: value = vText.flatMap { Double($0.drop(while: { $0 == " " || $0 == "\n" || $0 == "\t" })) }.map { .number($0) } ?? .empty
@@ -483,6 +494,9 @@ enum Xlsx {
                     }
                 } else {
                     cell.value = value
+                    // A text constant that starts with "=" stays text (lo-tdf162093's "=myData[#Headers]"):
+                    // typed, it would be "'=abc", and that is its input here.
+                    if case .text(let t) = value, t.hasPrefix("="), t.count > 1 { cell.input = "'" + t }
                 }
                 if cell.value.isEmpty && cell.formula == nil && cell.style == 0 && cell.input.isEmpty { return }
                 cells[a] = cell
@@ -507,6 +521,11 @@ enum Xlsx {
                 rowIndex += 1
             }
         }
+        // A row left with no cell keeps the span the file gave it (nothing to compute one from); the rest are computed on save.
+        if !spanText.isEmpty {
+            let withCells = Set(cells.keys.map(\.row))
+            for (r, sp) in spanText where !withCells.contains(r) { ws.rowAttrs[r, default: [:]]["spans"] = sp }
+        }
         // A sheet whose rows are hidden by default (zeroHeight): only the rows
         // the file lists show. pt-734a1b506b's Índice lists rows 1-35 and
         // 48-53, and Excel prints 621 pt of it, not the 800 of all 53.
@@ -520,6 +539,7 @@ enum Xlsx {
                 for col in r.left ... r.right {
                     let a = CellAddress(row: row, col: col)
                     guard a != anchor, let c = cells[a], c.formula == nil, c.rawFormula == nil else { continue }
+                    if !c.value.isEmpty { ws.fileSpill[a] = c.value }
                     if c.style == 0 { cells[a] = nil } else { cells[a]?.value = .empty; cells[a]?.input = "" }
                 }
             }
@@ -1063,6 +1083,7 @@ enum Xlsx {
         let sstPath = rels.first { $0.type.hasSuffix("/sharedStrings") }.map { _resolve($0.target, base: "xl/") } ?? "xl/sharedStrings.xml"
 
         var generated: [String: Data] = [:]
+        for (k, v) in PivotsXML.patched(sheets: book.sheets, parts: originalParts) { generated[k] = v }
         generated["xl/workbook.xml"] = Data(_workbookXML(book, ids: sheetIds, original: originalParts["xl/workbook.xml"]).utf8)
         generated["xl/_rels/workbook.xml.rels"] = Data(_relsXML(rels).utf8)
         for (i, p) in paths.enumerated() { generated[p] = Data(sheetXML[i].utf8) }
@@ -1195,7 +1216,7 @@ enum Xlsx {
         overrides.removeAll { dropped.contains(String($0.0.dropFirst())) }
         for (e, t) in [("png", "image/png"), ("jpeg", "image/jpeg"), ("jpg", "image/jpeg"), ("gif", "image/gif"), ("bmp", "image/bmp"),
                        ("emf", "image/x-emf"), ("wmf", "image/x-wmf"), ("tiff", "image/tiff")]
-        where original == nil && !defaults.contains(where: { $0.0 == e }) && mediaExtensions.contains(e) {
+        where !defaults.contains(where: { $0.0.lowercased() == e }) && mediaExtensions.contains(e) {
             defaults.append((e, t))
         }
         func ensure(_ part: String, _ type: String) {
@@ -1214,8 +1235,16 @@ enum Xlsx {
 
     private static func _workbookXML(_ book: Workbook, ids: [String], original: Data?) -> String {
         var sheets = "<sheets>"
+        // Each sheet keeps the id it was read with (pivot caches and external references can name it); a new
+        // sheet, or a clashing one, gets the next id nobody uses.
+        var taken = Set<Int>(), sheetIds: [Int] = []
+        for ws in book.sheets {
+            if let id = ws.sheetId, id > 0, !taken.contains(id) { taken.insert(id); sheetIds.append(id) } else { sheetIds.append(0) }
+        }
+        var nextId = (taken.max() ?? 0) + 1
+        for i in sheetIds.indices where sheetIds[i] == 0 { sheetIds[i] = nextId; nextId += 1 }
         for (i, ws) in book.sheets.enumerated() {
-            sheets += "<sheet name=\"\(_esc(ws.name))\" sheetId=\"\(i + 1)\"" + (ws.veryHidden ? " state=\"veryHidden\"" : ws.hidden ? " state=\"hidden\"" : "") + " r:id=\"\(ids[i])\"/>"
+            sheets += "<sheet name=\"\(_esc(ws.name))\" sheetId=\"\(sheetIds[i])\"" + (ws.veryHidden ? " state=\"veryHidden\"" : ws.hidden ? " state=\"hidden\"" : "") + " r:id=\"\(ids[i])\"/>"
         }
         sheets += "</sheets>"
         let calc = "<calcPr calcId=\"191029\" fullCalcOnLoad=\"1\""
@@ -1319,7 +1348,9 @@ enum Xlsx {
             let pane = ws.freezeRows > 0 && ws.freezeCols > 0 ? "bottomRight" : (ws.freezeRows > 0 ? "bottomLeft" : "topRight")
             view += "<pane" + (ws.freezeCols > 0 ? " xSplit=\"\(ws.freezeCols)\"" : "") + (ws.freezeRows > 0 ? " ySplit=\"\(ws.freezeRows)\"" : "")
                 + " topLeftCell=\"\(tl)\" activePane=\"\(pane)\" state=\"frozen\"/>"
-            view += "<selection pane=\"\(pane)\" activeCell=\"\(active.a1)\" sqref=\"\(active.a1)\"/>"
+            let sig = (ws.freezeRows > 0 ? 1 : 0) + (ws.freezeCols > 0 ? 2 : 0)
+            if sig == ws.selectionFreeze, let kept = _selectionsXML(ws.splitSelections, activePane: pane, active: active) { view += kept }
+            else { view += "<selection pane=\"\(pane)\" activeCell=\"\(active.a1)\" sqref=\"\(active.a1)\"/>" }
         } else if let split = ws.splitPane {
             view += "<pane" + split.sorted { $0.key < $1.key }.map { " \($0.key)=\"\(_esc($0.value))\"" }.joined() + "/>"
             let activePane = split["activePane"] ?? "topLeft"
@@ -1327,6 +1358,8 @@ enum Xlsx {
                 if (sel["pane"] ?? "topLeft") == activePane { sel["activeCell"] = active.a1; sel["sqref"] = active.a1 }
                 view += "<selection" + sel.sorted { $0.key < $1.key }.map { " \($0.key)=\"\(_esc($0.value))\"" }.joined() + "/>"
             }
+        } else if ws.selectionFreeze == 0, let kept = _selectionsXML(ws.splitSelections, activePane: "topLeft", active: active) {
+            view += kept
         } else {
             view += "<selection activeCell=\"\(active.a1)\" sqref=\"\(active.a1)\"/>"
         }
@@ -1344,10 +1377,11 @@ enum Xlsx {
             .map { " \($0.key)=\"\(_esc($0.value))\"" }.joined() + " defaultRowHeight=\"\(_num(ws.defaultRowHeightPt))\"/>"
         // Columns: segments where the width and the file's other attributes
         // (style, outline level…) are all the same.
-        if !ws.colAttrRuns.isEmpty || !ws.hiddenCols.isEmpty {
+        if !ws.colAttrRuns.isEmpty || !ws.hiddenCols.isEmpty || !ws.hiddenColRuns.isEmpty {
             var points = Set<Int>()
             for r in ws.colAttrRuns { points.insert(r.lo); points.insert(r.hi + 1) }
             for k in ws.hiddenCols { points.insert(k); points.insert(k + 1) }
+            for r in ws.hiddenColRuns { points.insert(r.lowerBound); points.insert(r.upperBound + 1) }
             for k in ws.colWidths.keys { points.insert(k); points.insert(k + 1) }
             let sorted = points.sorted()
             var cols = "<cols>"
@@ -1358,11 +1392,12 @@ enum Xlsx {
                 var attrs: [String: String] = [:]
                 for r in ws.colAttrRuns where r.lo <= start && start <= r.hi { attrs.merge(r.attrs) { $1 } }
                 var key = ""
-                let hidden = ws.hiddenCols.contains(start)
+                let hidden = ws.hiddenCols.contains(start) || ws.hiddenColRuns.contains { $0.contains(start) }
                 if let w = ws.colWidths[start] {
                     key += " width=\"\(_num(_widthChars(ws, start, w)))\"" + (w == 0 || hidden ? " hidden=\"1\"" : "") + " customWidth=\"1\""
                 } else if !attrs.isEmpty || hidden {
-                    let d = ws.defaultColWidthChars.flatMap { _charsToPoints($0, digit: ws.digitWidth) == ws.defaultColWidthPt ? $0 : nil }
+                    let own = ws.hiddenColRuns.first { $0.contains(start) }.flatMap { ws.hiddenRunChars[$0.lowerBound] }
+                    let d = own ?? ws.defaultColWidthChars.flatMap { _charsToPoints($0, digit: ws.digitWidth) == ws.defaultColWidthPt ? $0 : nil }
                         ?? _pointsToChars(ws.defaultColWidthPt, digit: ws.digitWidth)
                     key += " width=\"\(_num(d))\"" + (hidden ? " hidden=\"1\"" : "")
                 }
@@ -1401,14 +1436,32 @@ enum Xlsx {
                 byRow[a.row, default: []].append((a, c))
             }
         }
+        // The file's own values for an array formula's other cells, where ours left one blank.
+        if !ws.fileSpill.isEmpty {
+            let arrays = ws.cells.values.compactMap { $0.arrayRef.flatMap { CellRange($0) } }
+            for (a, v) in ws.fileSpill where ws.spilled[a] == nil && ws.cells[a]?.value.isEmpty ?? true && ws.cells[a]?.formula == nil
+                && arrays.contains(where: { $0.contains(a) }) {
+                if let i = byRow[a.row]?.firstIndex(where: { $0.0 == a }) {
+                    byRow[a.row]![i].1.value = v
+                } else {
+                    var c = Cell(input: ""); c.value = v
+                    byRow[a.row, default: []].append((a, c))
+                }
+            }
+        }
         let rows = Set(byRow.keys).union(ws.rowHeights.keys).union(ws.filteredRows).union(ws.hiddenRows).union(ws.rowAttrs.keys).sorted()
         var data = "<sheetData>"
         for r in rows {
             data += "<row r=\"\(r + 1)\""
-            if let h = ws.rowHeights[r] { data += h == 0 ? " hidden=\"1\"" : " ht=\"\(_num(h))\" customHeight=\"1\"" }
+            if let h = ws.rowHeights[r] { data += h == 0 ? " hidden=\"1\"" : " ht=\"\(_num(h))\"" + (ws.fittedRows.contains(r) ? "" : " customHeight=\"1\"") }
             if (ws.filteredRows.contains(r) || ws.hiddenRows.contains(r)) && ws.rowHeights[r] != 0 { data += " hidden=\"1\"" }
-            for (k, v) in (ws.rowAttrs[r] ?? [:]).sorted(by: { $0.key < $1.key }) { data += " \(k)=\"\(_esc(v))\"" }
             let cells = (byRow[r] ?? []).sorted { $0.0.col < $1.0.col }
+            let ownSpan = !cells.isEmpty || ws.rowSpanGaps[r] != nil
+            for (k, v) in (ws.rowAttrs[r] ?? [:]).sorted(by: { $0.key < $1.key }) where !(k == "spans" && ownSpan) { data += " \(k)=\"\(_esc(v))\"" }
+            // `spans` is Excel's hint of the columns a row touches; the bare formatted cells a customFormat row
+            // spans (rowSpanGaps) count too, since printing reads them.
+            let spanCols = cells.map(\.0.col) + (ws.rowSpanGaps[r] ?? [])
+            if let lo = spanCols.min(), let hi = spanCols.max() { data += " spans=\"\(lo + 1):\(hi + 1)\"" }
             if cells.isEmpty { data += "/>"; continue }
             data += ">"
             for (a, c) in cells { data += _cellXML(a, c, dynamicCm: dynamicCm, rich: ws.richRaw[a], stringIndex: stringIndex) }
@@ -1855,6 +1908,22 @@ enum Xlsx {
         return out
     }
 
+    /// "yyyy-mm-dd" or "yyyy-mm-ddThh:mm[:ss]" as a date serial; nil when it is neither.
+    static func _isoDateSerial(_ text: String) -> Double? {
+        let t = text.trimmingSpaces()
+        let parts = t.split(separator: "T", omittingEmptySubsequences: false).map(String.init)
+        let d = parts[0].split(separator: "-", omittingEmptySubsequences: false).map { Int($0) }
+        guard parts.count <= 2, d.count == 3, let y = d[0], let m = d[1], let day = d[2],
+              m >= 1, m <= 12, day >= 1, day <= 31 else { return nil }
+        var serial = ExcelDate.serial(y, m, day)
+        if parts.count == 2 {
+            let hms = parts[1].prefix(while: { $0 != "Z" && $0 != "+" }).split(separator: ":").map { Double($0) }
+            guard hms.count >= 2, let h = hms[0], let mi = hms[1] else { return nil }
+            serial += (h * 3600 + mi * 60 + (hms.count > 2 ? (hms[2] ?? 0) : 0)) / 86400
+        }
+        return serial
+    }
+
     static func _esc(_ s: String) -> String {
         var out = ""
         out.reserveCapacity(s.count)
@@ -1960,4 +2029,21 @@ extension XNode {
     func kids(_ local: String) -> [XNode] {
         children.filter { $0.name == local || $0.name.hasSuffix(":" + local) }
     }
+}
+
+/// The selections a file carried (one per pane, activeCellId, ranges), handed back on save. The one in `activePane` follows the
+/// active cell if that moved; nil when none belongs to that pane (the caller writes a fresh one).
+func _selectionsXML(_ sels: [[String: String]], activePane: String, active: CellAddress) -> String? {
+    // (A lone selection that names no pane is the file's whole view, whatever pane the frozen split makes active.)
+    let lone = sels.count == 1 && sels[0]["pane"] == nil
+    guard lone || sels.contains(where: { ($0["pane"] ?? "topLeft") == activePane }) else { return nil }
+    var out = ""
+    let last = lone ? 0 : sels.lastIndex { ($0["pane"] ?? "topLeft") == activePane }
+    for (i, var sel) in sels.enumerated() {
+        if i == last, (sel["activeCell"] ?? "A1") != active.a1 {
+            sel["activeCell"] = active.a1; sel["sqref"] = active.a1; sel["activeCellId"] = nil
+        }
+        out += "<selection" + sel.sorted { $0.key < $1.key }.map { " \($0.key)=\"\(Xlsx._esc($0.value))\"" }.joined() + "/>"
+    }
+    return out
 }

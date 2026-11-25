@@ -489,6 +489,69 @@ extension WorkbookController {
         select(range: dst, active: origin)
     }
 
+    // MARK: Format Painter
+
+    /// Largest source the painter takes (a whole column or row would tile a million cells).
+    static let painterLimit = 100_000
+
+    /// Pick up the selection's formats: the next selection made takes them (one use).
+    func armFormatPainter() {
+        let r = selection
+        guard r.rows * r.cols <= Self.painterLimit else {
+            onCommand?(.status("Select fewer cells to copy their format"))
+            return
+        }
+        painterSource = (activeSheet, r)
+        _notify(selectionOnly: true)
+    }
+
+    func cancelFormatPainter() {
+        guard painterSource != nil else { return }
+        painterSource = nil
+        _notify(selectionOnly: true)
+    }
+
+    /// Put the armed formats on the selection and put the painter down.
+    func applyFormatPainter() {
+        guard let src = painterSource else { return }
+        painterSource = nil
+        paintFormats(from: src.range, sheet: src.sheet, to: selection)
+    }
+
+    /// Give `target` the formats (number format, font, fill, borders, alignment) of `src` on sheet `si`,
+    /// leaving values and formulas alone. One cell selected takes the whole source's size; a larger
+    /// selection repeats the source's pattern, as Excel does. One undo step.
+    func paintFormats(from src: CellRange, sheet si: Int, to target: CellRange) {
+        guard book.sheets.indices.contains(si) else { return }
+        if refuses("formatCells") { return }
+        let from = book.sheets[si], ws = sheet
+        let single = target.rows == 1 && target.cols == 1
+        let dst = single
+            ? CellRange(top: target.top, left: target.left,
+                        bottom: min(CellAddress.maxRows - 1, target.top + src.rows - 1),
+                        right: min(CellAddress.maxCols - 1, target.left + src.cols - 1))
+            : target
+        guard dst.rows * dst.cols <= Self.painterLimit * 4 else { return }
+        if refusesEdit(dst.cells) { return }
+        structural {
+            for row in dst.top ... dst.bottom {
+                for col in dst.left ... dst.right {
+                    let sa = CellAddress(row: src.top + (row - dst.top) % src.rows, col: src.left + (col - dst.left) % src.cols)
+                    let a = CellAddress(row: row, col: col)
+                    let style = from.cells[sa]?.style ?? from.defaultStyle(at: sa)
+                    if ws.cells[a] != nil {
+                        ws.cells[a]!.style = style
+                    } else if style != ws.defaultStyle(at: a) {
+                        var c = Cell(input: "")
+                        c.style = style
+                        ws.cells[a] = c
+                    }
+                }
+            }
+        }
+        select(range: dst, active: dst.topLeft)
+    }
+
     private func _move(_ clip: Clip, to origin: CellAddress) {
         guard clip.sheet < book.sheets.count else { return }
         let src = book.sheets[clip.sheet]

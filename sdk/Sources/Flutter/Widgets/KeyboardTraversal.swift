@@ -40,6 +40,8 @@ public final class KeyStop {
     public var isCurrent: () -> Bool = { false }
     /// Its top-left corner on screen, nil when it is not drawn.
     public var origin: () -> Offset? = { nil }
+    /// What it is called (a key tip is taken from its letters); nil when it has no name.
+    public var label: () -> String? = { nil }
 
     public init(region: String, modal: Bool) {
         self.region = region
@@ -58,6 +60,74 @@ public final class KeyboardTraversal {
     /// Where typing was when the ring took over, so Esc can give it back.
     private weak var _saved: FocusNode?
 
+    // Alt key tips: tap Alt, a letter over each tab title; press one and its page's commands get letters.
+    /// True while the key tips are showing.
+    public private(set) var tipsOn = false
+    private var _tipStage = 0
+    private var _tipTyped = ""
+    private var _altClean = false
+    private var _tipListeners: [Int: () -> Void] = [:]
+    private var _nextListener = 0
+
+    public func addTipsListener(_ f: @escaping () -> Void) -> Int {
+        _nextListener += 1; _tipListeners[_nextListener] = f; return _nextListener
+    }
+    public func removeTipsListener(_ id: Int) { _tipListeners[id] = nil }
+    private func _tipsChanged() { for f in _tipListeners.values { f() } }
+
+    /// The key tip of every control the tips can reach now: the tab strip first, then (after a tab
+    /// letter) the commands of the open page. Letters come from each control's own name.
+    public func tipCodes() -> [(stop: KeyStop, code: String)] {
+        guard tipsOn else { return [] }
+        let live = reachable().filter { !$0.modal && $0.region == "ribbon" }
+        guard let top = live.map({ ($0.origin()!.dy / 10).rounded() }).min() else { return [] }
+        let strip = live.filter { ($0.origin()!.dy / 10).rounded() == top }
+        let pool = (_tipStage == 0 ? strip : live.filter { s in !strip.contains { $0 === s } }).filter { $0.label() != nil }
+        var used = Set<String>()
+        var out: [(KeyStop, String)] = []
+        let single = pool.count <= 26
+        for s in pool {
+            let letters = (s.label() ?? "").uppercased().filter { $0.isLetter && $0.isASCII }.map { String($0) }
+            var code: String?
+            if single {
+                code = letters.first { !used.contains($0) }
+                    ?? "ABCDEFGHIJKLMNOPQRSTUVWXYZ".map { String($0) }.first { !used.contains($0) }
+            } else {
+                let a = letters.first ?? "X"
+                let seconds = Array(letters.dropFirst()) + "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789".map { String($0) }
+                code = seconds.map { a + $0 }.first { !used.contains($0) }
+            }
+            guard let c = code else { continue }
+            used.insert(c); out.append((s, c))
+        }
+        return out
+    }
+
+    public func endTips() {
+        guard tipsOn else { return }
+        tipsOn = false; _tipStage = 0; _tipTyped = ""
+        _tipsChanged()
+    }
+
+    private func _handleTipKey(_ key: KeyData) -> Bool {
+        let l = key.logical
+        if l == 0xFF1B || l == 0x1_0000_001B { endTips(); return true }
+        guard let ch = key.character?.uppercased(), ch.count == 1, ch.first!.isASCII, ch.first!.isLetter || ch.first!.isNumber else {
+            endTips(); return false
+        }
+        _tipTyped += ch
+        let codes = tipCodes()
+        if let hit = codes.first(where: { $0.code == _tipTyped }) {
+            _tipTyped = ""
+            let wasTabs = _tipStage == 0
+            hit.stop.activate()
+            if wasTabs { _tipStage = 1; _tipsChanged() } else { endTips() }
+        } else if !codes.contains(where: { $0.code.hasPrefix(_tipTyped) }) {
+            endTips()
+        } else { _tipsChanged() }
+        return true
+    }
+
     /// The control that has the keyboard focus ring, if any.
     public private(set) var focused: KeyStop?
     /// Called when Esc leaves the ring, so the owner can put focus back in the editor.
@@ -74,7 +144,7 @@ public final class KeyboardTraversal {
             _token = FocusManager.instance.addKeyInterceptor { [unowned self] key in self.handle(key) }
             // A click puts the keyboard back where the pointer went: the editor keeps its own Tab.
             _pointer = GestureBinding.instance.pointerRouter.addGlobalRoute { [unowned self] event in
-                if event is PointerDownEvent, self.focused != nil { self._focus(nil) }
+                if event is PointerDownEvent { self.endTips(); if self.focused != nil { self._focus(nil) } }
             }
         }
     }
@@ -147,6 +217,16 @@ public final class KeyboardTraversal {
     /// a dialog's own key handler before its Enter and Esc).
     public func handle(_ key: KeyData) -> Bool {
         let l = key.logical
+        if l == 0xFFE9 || l == 0xFFEA || l == 0x2_0000_0104 || l == 0x2_0000_0105 {     // Alt
+            if key.type == .down { _altClean = true }
+            else if key.type == .up, _altClean {
+                _altClean = false
+                if tipsOn { endTips() } else if !_modalOpen { tipsOn = true; _tipStage = 0; _tipTyped = ""; _focus(nil); _tipsChanged() }
+            }
+            return false
+        }
+        if l != 0xFFE1, l != 0xFFE2, l != 0x2_0000_0102, l != 0x2_0000_0103 { _altClean = false }
+        if tipsOn, key.type == .down || key.type == .repeat { return _handleTipKey(key) }
         if l == 0xFFE1 || l == 0xFFE2 || l == 0x2_0000_0102 || l == 0x2_0000_0103 {
             _shift = key.type != .up
             return false
@@ -176,6 +256,7 @@ public final class KeyboardTraversal {
     /// Test hook: forget everything.
     public func reset() {
         focused = nil
+        tipsOn = false; _tipStage = 0; _tipTyped = ""; _altClean = false
         _currentRegion = nil
         _shift = false
         _stops.removeAll()

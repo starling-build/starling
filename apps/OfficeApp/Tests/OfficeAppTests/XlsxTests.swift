@@ -426,4 +426,71 @@ extension XlsxTests {
         XCTAssertTrue(out.containsSubstring("<top style=\"thin\"><color theme=\"5\" tint=\"-0.25\"/></top>"), out)
         XCTAssertFalse(out.containsSubstring("<color rgb=\"FF"), "no theme colour turned into a fixed one")
     }
+
+    /// A boolean written "true" (xsd:boolean) and a shared-string index with a blank after it
+    /// (bug69769's "2 ") read as the value, not as nothing / FALSE.
+    func testLooseBooleanAndPaddedStringIndex() throws {
+        let c = WorkbookController()
+        c.load(Workbook(sheets: [Worksheet(name: "S")]))
+        c.setInputs([(a("A1"), "hello"), (a("B1"), "TRUE")])
+        var entries = try Zip.read(try Xlsx.write(c.book))
+        let i = try XCTUnwrap(entries.firstIndex { $0.name == "xl/worksheets/sheet1.xml" })
+        var x = String(decoding: entries[i].data, as: UTF8.self)
+        let zero = try XCTUnwrap(x.findRange(of: "<v>0</v>"))
+        x.replaceSubrange(zero, with: "<v>0 </v>")
+        let one = try XCTUnwrap(x.findRange(of: "<v>1</v>"))
+        x.replaceSubrange(one, with: "<v>true</v>")
+        entries[i] = ZipEntry(name: entries[i].name, data: Data(x.utf8))
+        let book = try Xlsx.read(try Zip.write(entries))
+        XCTAssertEqual(book.sheets[0].value(a("A1")), .text("hello"))
+        XCTAssertEqual(book.sheets[0].value(a("B1")), .bool(true))
+    }
+
+    /// Patches the first sheet's `<sheetData>` of a written one-sheet book and reads it back.
+    private func readPatchedSheet(_ c: WorkbookController, _ data: String) throws -> (Workbook, String) {
+        var entries = try Zip.read(try Xlsx.write(c.book))
+        let i = try XCTUnwrap(entries.firstIndex { $0.name == "xl/worksheets/sheet1.xml" })
+        var x = String(decoding: entries[i].data, as: UTF8.self)
+        let a = try XCTUnwrap(x.findRange(of: "<sheetData"))
+        let b = try XCTUnwrap(x.findRange(of: "</sheetData>"))
+        x.replaceSubrange(a.lowerBound ..< b.upperBound, with: data)
+        entries[i] = ZipEntry(name: entries[i].name, data: Data(x.utf8))
+        let book = try Xlsx.read(try Zip.write(entries))
+        let c2 = WorkbookController(); c2.load(book)
+        let out = try Zip.read(try Xlsx.write(c2.book)).first { $0.name == "xl/worksheets/sheet1.xml" }
+        return (c2.book, String(decoding: try XCTUnwrap(out).data, as: UTF8.self))
+    }
+
+    /// A shared string that begins with "=" is text: read as text, saved as a string, never as a formula.
+    func testTextStartingWithEqualsStaysText() throws {
+        let c = WorkbookController()
+        c.load(Workbook(sheets: [Worksheet(name: "S")]))
+        c.setInputs([(a("A1"), "'=abc")])
+        let (book, out) = try readPatchedSheet(c, "<sheetData><row r=\"1\"><c r=\"A1\" t=\"inlineStr\"><is><t>=myData[#Headers]</t></is></c></row></sheetData>")
+        XCTAssertEqual(book.sheets[0].value(a("A1")), .text("=myData[#Headers]"))
+        XCTAssertFalse(out.containsSubstring("<f>"), out)
+        XCTAssertTrue(out.containsSubstring("t=\"s\""), out)
+    }
+
+    /// A strict-format date cell (t="d") reads as the date's serial number.
+    func testIsoDateCellReadsAsSerial() throws {
+        let c = WorkbookController()
+        c.load(Workbook(sheets: [Worksheet(name: "S")]))
+        c.setInputs([(a("A1"), "x")])
+        let (book, _) = try readPatchedSheet(c, "<sheetData><row r=\"1\"><c r=\"A1\" t=\"d\"><v>1990-01-01</v></c><c r=\"B1\" t=\"d\"><v>1990-01-01T12:00:00</v></c><c r=\"C1\" t=\"d\"><v>junk</v></c></row></sheetData>")
+        XCTAssertEqual(book.sheets[0].value(a("A1")), .number(32874))
+        XCTAssertEqual(book.sheets[0].value(a("B1")), .number(32874.5))
+        XCTAssertEqual(book.sheets[0].value(a("C1")), .empty)
+    }
+
+    /// An array formula's other cells keep the file's values when our result leaves them blank.
+    func testArraySpillCellsKeepTheFilesValues() throws {
+        let c = WorkbookController()
+        c.load(Workbook(sheets: [Worksheet(name: "S")]))
+        c.setInputs([(a("A1"), "one")])
+        let (_, out) = try readPatchedSheet(c, "<sheetData><row r=\"1\"><c r=\"A1\" t=\"inlineStr\"><is><t>one</t></is></c><c r=\"B1\" t=\"str\"><f t=\"array\" ref=\"B1:B2\">A1</f><v>one</v></c></row><row r=\"2\"><c r=\"B2\" t=\"str\"><v>kept</v></c></row></sheetData>")
+        XCTAssertTrue(out.containsSubstring("<c r=\"B2\""), out)
+        let (book2, _) = try readPatchedSheet(c, "<sheetData><row r=\"1\"><c r=\"B1\" t=\"str\"><f t=\"array\" ref=\"B1:B2\">A1</f><v>one</v></c></row><row r=\"2\"><c r=\"B2\" t=\"str\"><v>kept</v></c></row></sheetData>")
+        XCTAssertEqual(book2.sheets[0].fileSpill[a("B2")], .text("kept"))
+    }
 }

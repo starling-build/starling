@@ -1455,9 +1455,22 @@ extension _ParaFrame {
                             // from taking it for the right piece of a pair.)
                             next.append(LineIndent(left: besideIndent, right: 0.001)); k += 1
                         } else if bottoms[k] - saved > band.top + 0.01, before - saved < band.bottom - 0.01 {
-                            next.append(LineIndent(left: 0, right: max(textWidth - (_besideLeftAt[i]?(before - saved, bottoms[k] - saved) ?? leftRoom), 0)))
+                            let leftPiece = LineIndent(left: 0, right: max(textWidth - (_besideLeftAt[i]?(before - saved, bottoms[k] - saved) ?? leftRoom), 0))
+                            let rightPiece = LineIndent(left: _besideStartAt[i]?(before - saved, bottoms[k] - saved) ?? besideIndent, right: 0)
+                            if p.style.rightToLeft, theme.wordRules, RichTextTheme.wordWindowsPages {
+                                // (A right-to-left paragraph fills the room at the box's right first: dx2 c2c3a2f3.)
+                                RuleTrace.hit("word-rtl-text-fills-the-right-of-a-box-first")
+                                next.append(rightPiece)
+                                if k + 1 >= bottoms.count { k += 1; continue }
+                                var second = leftPiece; second.levelWithPrevious = true
+                                next.append(second)
+                                saved += min(bottoms[k + 1] - bottoms[k], bottoms[k] - before)
+                                k += 2
+                                continue
+                            }
+                            next.append(leftPiece)
                             if k + 1 < bottoms.count {
-                                next.append(LineIndent(left: _besideStartAt[i]?(before - saved, bottoms[k] - saved) ?? besideIndent, right: 0))
+                                next.append(rightPiece)
                                 saved += min(bottoms[k + 1] - bottoms[k], bottoms[k] - before)
                             }
                             k += 2

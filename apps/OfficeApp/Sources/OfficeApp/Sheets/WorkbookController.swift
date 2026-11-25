@@ -240,6 +240,8 @@ final class WorkbookController: ChangeNotifier {
     /// The picture or chart selected (an index into the sheet's drawings),
     /// instead of cells. Any cell selection clears it.
     var selectedDrawing: Int? = nil
+    /// Format Painter, armed: the cells whose formats the next selection takes.
+    var painterSource: (sheet: Int, range: CellRange)? = nil
     private var _cf: (sheet: ObjectIdentifier, revision: Int, evaluator: CFEvaluator)? = nil
     private var _dv: (sheet: ObjectIdentifier, revision: Int, rules: [ValidationRule])? = nil
 
@@ -604,7 +606,7 @@ final class WorkbookController: ChangeNotifier {
 
     func setRowHeight(_ row: Int, _ h: Double, from: Double? = nil) {
         if let from { sheet.rowHeights[row] = from }
-        structural { sheet.rowHeights[row] = max(0, h) }
+        structural { sheet.rowHeights[row] = max(0, h); sheet.fittedRows.remove(row) }
     }
 
     // MARK: Sorting
@@ -866,6 +868,22 @@ final class WorkbookController: ChangeNotifier {
             for k in ws.keptElements.indices where ws.keptElements[k].name == "extLst" {
                 let text = KeptRefs.shiftExtFormulas(ws.keptElements[k].text) { f($0, si) }
                 if text != ws.keptElements[k].text { ws.keptElements[k].text = text }
+            }
+        }
+        // Pivot tables: where each sits, and the cells its cache was built from.
+        for ws in book.sheets {
+            for i in ws.pivots.indices {
+                if let src = ws.pivots[i].source, let e = try? Formula.parse("=" + src) {
+                    let g = Formula.mapRefs(e) { f($0, -1) }
+                    if g != e { ws.pivots[i].source = Formula.print(g) }
+                }
+            }
+        }
+        for (si, ws) in book.sheets.enumerated() {
+            for i in ws.pivots.indices {
+                guard let e = try? Formula.parse("=" + ws.pivots[i].ref.a1) else { continue }
+                let g = Formula.mapRefs(e) { f($0, si) }
+                if g != e, let r = CellRange(Formula.print(g).replacingAll("$", with: "")) { ws.pivots[i].ref = r }
             }
         }
         // Charts read cells by sheet-qualified references too.

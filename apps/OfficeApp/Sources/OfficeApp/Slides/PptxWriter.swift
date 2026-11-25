@@ -66,7 +66,8 @@ enum PptxWriter {
     private static func _writeNew(_ state: DeckState, theme: DeckTheme, source: PptxPackage?,
                                   into b: inout PackageBuilder) {
         if let source { b.defaults.merge(source.defaults) { mine, _ in mine } }
-        let t = PptxTemplates(theme: theme, slideSize: state.slideSize)
+        var t = PptxTemplates(theme: theme, slideSize: state.slideSize)
+        t.masterBackground = state.masterBackground
         b.add("ppt/theme/theme1.xml", t.themeXML(), type: CT.theme)
         b.add("ppt/theme/theme2.xml", t.themeXML(), type: CT.theme)
         b.add("ppt/slideMasters/slideMaster1.xml", t.master(), type: CT.master)
@@ -138,6 +139,7 @@ enum PptxWriter {
         for r in presRelsAll where !r.external && r.kind != "slide" { keep.append(r.target) }
         var copied = [String: String]()
         for part in keep { _copy(part, from: p, into: &b, done: &copied) }
+        if let m = state.masterBackground { _setMasterBackground(m, in: &b) }
         if recolour {
             for r in presRelsAll where r.kind == "slideMaster" {
                 for tr in p.rels(r.target) where tr.kind == "theme" {
@@ -461,6 +463,32 @@ enum PptxWriter {
         return s.replacingSubrange(start.lowerBound ..< end.upperBound, with: pruned)
     }
 
+    /// Apply to All: the masters' background becomes `fill`, and no layout keeps one of its own over it.
+    private static func _setMasterBackground(_ fill: SlideFill, in b: inout PackageBuilder) {
+        let bg = PptxTemplates.backgroundXML(fill)
+        func edit(_ part: String, _ f: (String) -> String) {
+            if let d = b.parts[part], let x = String(data: d, encoding: .utf8) { b.parts[part] = Data(f(x).utf8) }
+        }
+        func dropBackground(_ x: String) -> String {
+            guard let c = x.findRange(of: "<p:cSld"), let open = x.findRange(of: "<p:bg>", in: c.upperBound ..< x.endIndex),
+                  let close = x.findRange(of: "</p:bg>", in: open.upperBound ..< x.endIndex) else { return x }
+            // Only a background that opens the shape tree's parent: the first child of cSld.
+            guard let gt = x.findRange(of: ">", in: c.upperBound ..< x.endIndex), x[gt.upperBound ..< open.lowerBound].allSatisfy({ $0 == " " || $0 == "\n" }) else { return x }
+            return x.replacingSubrange(open.lowerBound ..< close.upperBound, with: "")
+        }
+        for part in Array(b.parts.keys) {
+            if part.hasPrefix("ppt/slideMasters/slideMaster"), part.hasSuffix(".xml") {
+                edit(part) { x in
+                    let y = dropBackground(x)
+                    guard let c = y.findRange(of: "<p:cSld"), let gt = y.findRange(of: ">", in: c.upperBound ..< y.endIndex) else { return y }
+                    return y.replacingSubrange(gt.upperBound ..< gt.upperBound, with: bg)
+                }
+            } else if part.hasPrefix("ppt/slideLayouts/slideLayout"), part.hasSuffix(".xml") {
+                edit(part, dropBackground)
+            }
+        }
+    }
+
     /// The file's own theme part with `theme`'s colours (dark and light 1, the six accents) and Latin fonts; everything else in it is left alone.
     static func _recoloured(_ xml: String, _ theme: DeckTheme) -> String {
         var out = xml
@@ -770,6 +798,40 @@ private struct SlideXML {
     }
 
     /// An `a:ln` with its width and/or its fill element swapped, everything else kept.
+    /// `a:outerShdw` for a shape shadow (offset as dx, dy in points).
+    static func _outerShadowXML(_ sh: CharShadow) -> String {
+        let dist = Int((hypot(sh.dx, sh.dy) * Pptx.emu).rounded())
+        var deg = atan2(sh.dy, sh.dx) * 180 / .pi
+        if deg < 0 { deg += 360 }
+        let alpha = sh.color.alpha < 255 ? "<a:alpha val=\"\(Int((Double(sh.color.alpha) / 255 * 100000).rounded()))\"/>" : ""
+        let rgb = String(sh.color.value & 0xFFFFFF, radix: 16, uppercase: true)
+        let hex = String(repeating: "0", count: max(0, 6 - rgb.count)) + rgb
+        return "<a:outerShdw blurRad=\"\(Int((sh.blur * Pptx.emu).rounded()))\" dist=\"\(dist)\" dir=\"\(Int((deg * 60000).rounded()))\" algn=\"ctr\" rotWithShape=\"0\">"
+            + "<a:srgbClr val=\"\(hex)\">\(alpha)</a:srgbClr></a:outerShdw>"
+    }
+
+    /// The file's `a:effectLst` with its outer shadow swapped for `shadow` (none: removed). The list is kept even when
+    /// empty, so a theme shadow named by the shape's style stays off.
+    static func _effectsWithShadow(_ effects: String, _ shadow: CharShadow?) -> String {
+        var body = ""
+        var attrs = ""
+        if let open = effects.range(of: "<a:effectLst"), let gt = effects[open.upperBound...].firstIndex(of: ">") {
+            attrs = String(effects[open.upperBound..<gt])
+            if attrs.hasSuffix("/") { attrs.removeLast() } else if let close = effects.range(of: "</a:effectLst>") { body = String(effects[effects.index(after: gt)..<close.lowerBound]) }
+        }
+        if let a = body.range(of: "<a:outerShdw") {
+            if let e = body.range(of: "</a:outerShdw>", range: a.lowerBound..<body.endIndex) { body.removeSubrange(a.lowerBound..<e.upperBound) }
+            else if let e = body[a.lowerBound...].range(of: "/>") { body.removeSubrange(a.lowerBound..<e.upperBound) }
+        }
+        if let sh = shadow {
+            let new = _outerShadowXML(sh)
+            // Schema order: ... glow, innerShdw, outerShdw, prstShdw, reflection, softEdge.
+            let after = ["<a:prstShdw", "<a:reflection", "<a:softEdge"].compactMap { body.range(of: $0)?.lowerBound }.min()
+            if let at = after { body.insert(contentsOf: new, at: at) } else { body += new }
+        }
+        return "<a:effectLst\(attrs)>\(body)</a:effectLst>"
+    }
+
     static func _dashXML(_ dash: String?) -> String {
         guard let dash, !dash.isEmpty, dash != "solid" else { return "" }
         return "<a:prstDash val=\"\(PptxXML.escape(dash, attribute: true))\"/>"
@@ -811,7 +873,12 @@ private struct SlideXML {
     mutating func fill(_ f: SlideFill, media: inout MediaParts, builder: inout PackageBuilder) -> String {
         if let image = f.image {
             let rid = _media(image, media: &media, builder: &builder)
-            return "<a:blipFill dpi=\"0\" rotWithShape=\"1\"><a:blip r:embed=\"\(rid)\"/><a:srcRect/><a:stretch><a:fillRect/></a:stretch></a:blipFill>"
+            let alpha = f.imageAlpha < 1 ? "<a:alphaModFix amt=\"\(Int((f.imageAlpha * 100000).rounded()))\"/>" : ""
+            let blip = alpha.isEmpty ? "<a:blip r:embed=\"\(rid)\"/>" : "<a:blip r:embed=\"\(rid)\">\(alpha)</a:blip>"
+            let mode = f.tiled
+                ? "<a:tile tx=\"0\" ty=\"0\" sx=\"\(Int((f.tileScale * 100000).rounded()))\" sy=\"\(Int((f.tileScaleY * 100000).rounded()))\" flip=\"none\" algn=\"tl\"/>"
+                : "<a:stretch><a:fillRect/></a:stretch>"
+            return "<a:blipFill dpi=\"0\" rotWithShape=\"1\">\(blip)<a:srcRect/>\(mode)</a:blipFill>"
         }
         if f.stops.count >= 2 {
             let stops = f.stops.map { "<a:gs pos=\"\(Int(($0.position * 100000).rounded()))\"><a:srgbClr val=\"\(PptxText.hex($0.color))\"/></a:gs>" }.joined()
@@ -826,9 +893,10 @@ private struct SlideXML {
         return "<a:srcRect l=\"\(v(c.left))\" t=\"\(v(c.top))\" r=\"\(v(c.right))\" b=\"\(v(c.bottom))\"/>"
     }
 
-    private static func _fill(_ c: Color?) -> String {
+    private static func _fill(_ c: Color?, scheme: String? = nil) -> String {
         guard let c else { return "<a:noFill/>" }
         let alpha = (c.value >> 24) & 0xFF
+        if let scheme, let x = SchemeColor.xml(scheme, alpha: Int(alpha)) { return x }
         let a = alpha < 255 ? "<a:alpha val=\"\(alpha * 100000 / 255)\"/>" : ""
         return "<a:solidFill><a:srgbClr val=\"\(PptxText.hex(c))\">\(a)</a:srgbClr></a:solidFill>"
     }
@@ -934,7 +1002,7 @@ private struct SlideXML {
             let id = _id(s.fileId)
             let f = s.frame
             let box = Rect.fromLTRB(min(f.left, f.right), min(f.top, f.bottom), max(f.left, f.right), max(f.top, f.bottom))
-            let line = s.outline.map { "<a:ln w=\"\(Self._emu(s.outlineWidth))\">\(Self._fill($0))\(Self._dashXML(s.outlineDash))</a:ln>" } ?? "<a:ln><a:noFill/></a:ln>"
+            let line = s.outline.map { "<a:ln w=\"\(Self._emu(s.outlineWidth))\">\(Self._fill($0, scheme: s.outlineScheme))\(Self._dashXML(s.outlineDash))</a:ln>" } ?? "<a:ln><a:noFill/></a:ln>"
             return "<p:cxnSp><p:nvCxnSpPr><p:cNvPr id=\"\(id)\" name=\"\(name)\"\(hid)/><p:cNvCxnSpPr/><p:nvPr/></p:nvCxnSpPr>"
                 + "<p:spPr>\(Self._xfrm(box, rotation: s.rotation, flipH: s.flipH != (f.right < f.left), flipV: s.flipV != (f.bottom < f.top)))"
                 + "<a:prstGeom prst=\"\(preset.rawValue)\"><a:avLst/></a:prstGeom>\(line)</p:spPr></p:cxnSp>"
@@ -1003,14 +1071,10 @@ private struct SlideXML {
             switch s.kind {
             case .placeholder:
                 fillXML = s.fill.map { Self._fill($0) } ?? ""
-                lineXML = s.outline.map { "<a:ln w=\"\(Self._emu(s.outlineWidth))\">\(Self._fill($0))\(Self._dashXML(s.outlineDash))</a:ln>" } ?? ""
+                lineXML = s.outline.map { "<a:ln w=\"\(Self._emu(s.outlineWidth))\">\(Self._fill($0, scheme: s.outlineScheme))\(Self._dashXML(s.outlineDash))</a:ln>" } ?? ""
             default:
-                if let scheme = s.fillScheme, s.fill != nil {
-                    fillXML = "<a:solidFill><a:schemeClr val=\"\(scheme)\"/></a:solidFill>"
-                } else {
-                    fillXML = Self._fill(s.fill)
-                }
-                lineXML = s.outline.map { "<a:ln w=\"\(Self._emu(s.outlineWidth))\">\(Self._fill($0))\(Self._dashXML(s.outlineDash))</a:ln>" } ?? "<a:ln><a:noFill/></a:ln>"
+                fillXML = Self._fill(s.fill, scheme: s.fillScheme)
+                lineXML = s.outline.map { "<a:ln w=\"\(Self._emu(s.outlineWidth))\">\(Self._fill($0, scheme: s.outlineScheme))\(Self._dashXML(s.outlineDash))</a:ln>" } ?? "<a:ln><a:noFill/></a:ln>"
             }
             // The file's own fill and line while the shape's are unchanged
             // (gradients, patterns, a style's fill stay as they were); its
@@ -1029,11 +1093,14 @@ private struct SlideXML {
                     // A changed colour or width: only the line's fill (and width) change; its dash, caps, joins and arrowheads stay.
                     let replaceFill = k.lineReplaced || s.outline != k.readOutline
                     lineXML = Self._patchedLine(ln, widthEMU: s.outlineWidth == k.readWidth ? nil : Self._emu(s.outlineWidth),
-                                                fill: replaceFill ? (s.outline.map { Self._fill($0) } ?? "<a:noFill/>") : nil,
+                                                fill: replaceFill ? (s.outline.map { Self._fill($0, scheme: s.outlineScheme) } ?? "<a:noFill/>") : nil,
                                                 dash: k.dashEdited ? .some(s.outlineDash) : nil)
                 }
             }
-            spPr += fillXML + lineXML + (look?.effects ?? "")
+            let effectsXML: String
+            if let k = look { effectsXML = k.shadowEdited ? Self._effectsWithShadow(k.effects, s.shadow) : k.effects }
+            else { effectsXML = s.shadow.map { "<a:effectLst>\(Self._outerShadowXML($0))</a:effectLst>" } ?? "" }
+            spPr += fillXML + lineXML + effectsXML
             var xml = "<p:sp><p:nvSpPr>\(nv)<p:nvPr>\(ph)</p:nvPr></p:nvSpPr><p:spPr>\(spPr)</p:spPr>\(look?.style ?? "")"
             if let doc = s.text {
                 let anchor = s.anchor.rawValue
@@ -1120,12 +1187,10 @@ private struct SlideXML {
 
     private static func _shapeFillLine(_ s: ShapeState) -> (fill: String, line: String) {
         if case .placeholder = s.kind {
-            return (s.fill.map { Self._fill($0) } ?? "", s.outline.map { "<a:ln w=\"\(Self._emu(s.outlineWidth))\">\(Self._fill($0))</a:ln>" } ?? "")
+            return (s.fill.map { Self._fill($0) } ?? "", s.outline.map { "<a:ln w=\"\(Self._emu(s.outlineWidth))\">\(Self._fill($0, scheme: s.outlineScheme))</a:ln>" } ?? "")
         }
-        let fill: String
-        if let scheme = s.fillScheme, s.fill != nil { fill = "<a:solidFill><a:schemeClr val=\"\(scheme)\"/></a:solidFill>" }
-        else { fill = Self._fill(s.fill) }
-        return (fill, s.outline.map { "<a:ln w=\"\(Self._emu(s.outlineWidth))\">\(Self._fill($0))</a:ln>" } ?? "<a:ln><a:noFill/></a:ln>")
+        let fill = Self._fill(s.fill, scheme: s.fillScheme)
+        return (fill, s.outline.map { "<a:ln w=\"\(Self._emu(s.outlineWidth))\">\(Self._fill($0, scheme: s.outlineScheme))</a:ln>" } ?? "<a:ln><a:noFill/></a:ln>")
     }
 
     private static func _fragment(_ xml: String) -> [XNode] {
@@ -1137,7 +1202,7 @@ private struct SlideXML {
     private static func _shapeEdit(_ s: ShapeState, _ read: ReadShape) -> (XNode) -> Void {
         let (fillXML, lineXML) = _shapeFillLine(s)
         let fillChanged = read.fill != s.fill || read.fillScheme != s.fillScheme
-        let lineChanged = read.outline != s.outline || read.outlineWidth != s.outlineWidth
+        let lineChanged = read.outline != s.outline || read.outlineScheme != s.outlineScheme || read.outlineWidth != s.outlineWidth
         let clickChanged = read.link != s.link || read.linkTip != s.linkTip
         let click = clickChanged ? (PptxText.links?.xml(s.link, s.linkTip) ?? "") : ""
         let fit: String? = {

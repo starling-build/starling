@@ -4,6 +4,8 @@
 // X-VW-1: View options per sheet: zoom, headings, show formulas, right-to-left. Saved and read back.
 
 import XCTest
+import Flutter
+import FlutterSwiftBridge
 @testable import OfficeApp
 
 final class SheetsViewOptionsTests: XCTestCase {
@@ -37,6 +39,56 @@ final class SheetsViewOptionsTests: XCTestCase {
         XCTAssertFalse(c.sheet.showGridlines)
     }
 
+    func testShowFormulasDoublesTheColumnsOnScreen() {
+        let c = WorkbookController()
+        let g = SheetGridState(headless: c)
+        let w = g.cols.size(0)
+        c.toggleShowFormulas()
+        XCTAssertEqual(g.cols.size(0), w * 2, accuracy: 0.01)
+        XCTAssertEqual(g.cols.size(5), w * 2, accuracy: 0.01)
+        c.toggleShowFormulas()
+        XCTAssertEqual(g.cols.size(0), w, accuracy: 0.01)
+    }
+
+    func testRightToLeftSheetMirrorsTheScreenButNotThePrint() {
+        let c = WorkbookController()
+        let g = SheetGridState(headless: c)
+        XCTAssertFalse(g.rtl)
+        XCTAssertEqual(g._screen(Offset(10, 5)).dx, 10)
+        c.toggleRightToLeft()
+        XCTAssertTrue(g.rtl)
+        XCTAssertEqual(g._screen(Offset(10, 5)).dx, -10)   // (the window is 0 wide here: x becomes width - x)
+        XCTAssertEqual(g._screen(Offset(10, 5)).dy, 5)
+        g.printing = true
+        XCTAssertFalse(g.rtl)   // paper has its own mirroring
+        g.printing = false
+        c.toggleRightToLeft()
+        XCTAssertFalse(g.rtl)
+    }
+
+    func testMirroredPrintKeepsAPictureAtItsColumnsAndGeneralTextByDirection() {
+        let c = WorkbookController()
+        let g = SheetGridState(headless: c)
+        g.printing = true
+        let total = g.cols.start(6)
+        g.printMirror = (0, total, 0)
+        let a = SheetAnchor.twoCell(from: SheetMarker(col: 4, colOff: 0, row: 1, rowOff: 0),
+                                    to: SheetMarker(col: 5, colOff: 32, row: 5, rowOff: 0))
+        let r = g.drawingRect(a)
+        XCTAssertGreaterThan(r.width, 0)   // (it collapsed to nothing: the far corner stood left of the near one)
+        // It starts at column E's right edge and runs left, into column F's side.
+        XCTAssertEqual(r.right, g.colX(4) + g.cols.size(4), accuracy: 0.01)
+        XCTAssertLessThan(r.left, g.colX(4))
+        // A one-cell picture runs left from the same point.
+        let one = g.drawingRect(.oneCell(from: SheetMarker(col: 2, colOff: 0, row: 1, rowOff: 0), width: 100, height: 50))
+        XCTAssertEqual(one.right, g.colX(2) + g.cols.size(2), accuracy: 0.01)
+        XCTAssertEqual(one.width, 100 * g.scale, accuracy: 0.01)
+        // General text goes where its own direction starts; Latin left, Hebrew right.
+        let st = CellStyle()
+        XCTAssertFalse(_cellIsRTL(st, "Left text"))
+        XCTAssertTrue(_cellIsRTL(st, "\u{05E9}\u{05DC}\u{05D5}\u{05DD}"))
+    }
+
     func testViewOptionsSaveAndReadBack() throws {
         let c = WorkbookController()
         c.setZoom(percent: 130)
@@ -62,5 +114,28 @@ final class SheetsViewOptionsTests: XCTestCase {
         c.setZoom(percent: 130)
         c.toggleHeadings(); c.toggleShowFormulas(); c.toggleRightToLeft()
         try Xlsx.write(c.book).write(to: URL(fileURLWithPath: dir + "/viewoptions.xlsx"))
+    }
+
+    /// Writes the right-to-left file for the Excel check (only when XCHECK_DIR is set): left, right, centre and general text, a number, a picture, a merged cell.
+    func testWriteRightToLeftCheckFile() throws {
+        guard let dir = ProcessInfo.processInfo.environment["XCHECK_DIR"] else { return }
+        let c = WorkbookController()
+        c.setInputs([(CellAddress(row: 0, col: 0), "Left"), (CellAddress(row: 1, col: 0), "Right"), (CellAddress(row: 2, col: 0), "Centre"),
+                     (CellAddress(row: 3, col: 0), "General"), (CellAddress(row: 4, col: 0), "12345"), (CellAddress(row: 5, col: 0), "Merged across"),
+                     (CellAddress(row: 0, col: 3), "D1"), (CellAddress(row: 0, col: 1), "B1")])
+        for (row, a) in [(0, CellStyle.HAlign.left), (1, .right), (2, .center)] {
+            c.select(CellAddress(row: row, col: 0))
+            c.toggleAlign(a)
+        }
+        c.select(range: CellRange(top: 5, left: 0, bottom: 5, right: 2))
+        c.toggleMerge()
+        c.select(CellAddress(row: 0, col: 0))
+        let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/q842iQAAAABJRU5ErkJggg==")!
+        let ws = c.sheet
+        let corner = ws.point(SheetMarker(col: 4, colOff: 0, row: 1, rowOff: 0))
+        ws.drawings.append(SheetDrawing(name: "Picture 1", anchor: ws.anchor(x: corner.x, y: corner.y, width: 80, height: 60), kind: .picture(path: "xl/media/image1.png", data: png)))
+        ws.drawingsEdited = true
+        c.toggleRightToLeft()
+        try Xlsx.write(c.book).write(to: URL(fileURLWithPath: dir + "/rtl.xlsx"))
     }
 }

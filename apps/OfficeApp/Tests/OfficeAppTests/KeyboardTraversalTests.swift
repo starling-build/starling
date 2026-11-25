@@ -1,6 +1,7 @@
 import XCTest
 import Flutter
 import FlutterSwiftBridge
+import OfficeText
 @testable import OfficeApp
 
 /// U-KEY-1: everything can be reached and used without a mouse: Tab and Shift+Tab, F6 between regions, Enter or Space to
@@ -83,6 +84,58 @@ final class KeyboardTraversalTests: XCTestCase {
         XCTAssertEqual(ui.state(DialogShellState.self)?.selectedTab, 1)
     }
 
+    /// The ribbon tab strip (and File) must be reachable without a mouse: Tab to a tab title, Enter opens its page.
+    func testRibbonTabsAndFileAreReachableByKeyboard() {
+        KeyboardTraversal.shared.reset()
+        let ui = app(OfficeShell(initialPath: nil, startBlank: true))
+        ui.pump()
+        let before = KeyboardTraversal.shared.reachable().count
+        var homeButtons = 0
+        for e in ui.elements() { if let h = e.widget as? HoverButton, h.semanticLabel == "File" || h.semanticLabel == "Insert" { homeButtons += 1 } }
+        XCTAssertEqual(homeButtons, 2, "File and Insert are real buttons")
+        var visitedInsert = false
+        ui.press(.f6)                                    // the ring goes to the first region
+        while KeyboardTraversal.shared.focused?.region != "ribbon", KeyboardTraversal.shared.regions().count > 1 {
+            ui.press(.f6)
+            if KeyboardTraversal.shared.focused?.region == "window" && KeyboardTraversal.shared.regions().first != "window" { break }
+        }
+        for _ in 0..<6 {
+            guard let f = KeyboardTraversal.shared.focused, let at = f.origin() else { break }
+            if at.dy < 60, at.dx > 100, ui.has(text: "Clipboard") {
+                ui.press(.enter)
+                if !ui.has(text: "Clipboard") { visitedInsert = true; break }
+            }
+            ui.press(.tab)
+        }
+        XCTAssertTrue(visitedInsert, "Tab and Enter on a tab title must leave the Home page")
+        ui.dispose()
+    }
+
+    /// Alt shows a letter over each tab; pressing a tab's letter opens that page and gives its commands letters.
+    func testAltKeyTipsOpenATabThenACommand() {
+        KeyboardTraversal.shared.reset()
+        let ui = app(OfficeShell(initialPath: nil, startBlank: true))
+        ui.pump()
+        XCTAssertFalse(KeyboardTraversal.shared.tipsOn)
+        ui.press(.alt)
+        XCTAssertTrue(KeyboardTraversal.shared.tipsOn, "tapping Alt turns the key tips on")
+        let tabs = KeyboardTraversal.shared.tipCodes()
+        XCTAssertGreaterThanOrEqual(tabs.count, 5, "every tab title has a tip")
+        XCTAssertEqual(Set(tabs.map { $0.code }).count, tabs.count, "tips are unique")
+        guard let insert = tabs.first(where: { $0.stop.label() == "Insert" }) else { return XCTFail("no tip for Insert") }
+        XCTAssertTrue(ui.has(text: "Clipboard"))
+        ui.type(insert.code)
+        ui.pump()
+        XCTAssertTrue(KeyboardTraversal.shared.tipsOn, "after a tab letter the commands get tips")
+        XCTAssertFalse(ui.has(text: "Clipboard"), "the Insert page is open")
+        let commands = KeyboardTraversal.shared.tipCodes()
+        XCTAssertGreaterThanOrEqual(commands.count, 3)
+        XCTAssertEqual(Set(commands.map { $0.code }).count, commands.count, "command tips are unique")
+        ui.press(.escape)
+        XCTAssertFalse(KeyboardTraversal.shared.tipsOn, "Esc turns the tips off")
+        ui.dispose()
+    }
+
     func testEveryRibbonButtonOfEveryTabIsReachable() {
         let tabs = ["Home", "Insert", "Design", "Layout", "Transitions", "Review", "View", "Data", "Formulas",
                     "Page Layout", "Draw", "References", "Animations", "Slide Show"]
@@ -137,6 +190,120 @@ final class KeyboardTraversalTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(opened, 5, "the sweep must really open dialogs")
     }
 
+    /// Every Sheets dialog: Tab reaches each control and Esc closes it.
+    /// On an empty sheet the four data dialogs must say why they do not open, never do nothing; with data they open.
+    /// An open drop-down menu is one modal keyboard region: Tab walks every item and activating one runs it.
+    func testMenuItemsAreReachableByTabAndActivate() {
+        KeyboardTraversal.shared.reset()
+        var ran: [String] = []
+        let menu = MenuFlyout(items: [
+            MenuFlyoutItem(text: Text("One"), onPressed: { ran.append("One") }),
+            MenuFlyoutItem(text: Text("Two"), onPressed: { ran.append("Two") }),
+            MenuFlyoutItem(text: Text("Three"), onPressed: { ran.append("Three") }),
+        ])
+        let ui = app(Center(child: menu))
+        ui.pump()
+        let reach = KeyboardTraversal.shared.reachable()
+        XCTAssertEqual(reach.count, 3, "each menu item has a keyboard stop")
+        XCTAssertTrue(reach.allSatisfy { $0.modal })
+        XCTAssertEqual(tabAround(ui), 3)
+        KeyboardTraversal.shared.move(reverse: false)
+        ui.press(.enter)
+        XCTAssertEqual(ran.count, 1, "Enter runs the focused item")
+        ui.dispose()
+    }
+
+    func testDataDialogsExplainThemselvesOnAnEmptySheetAndOpenWithData() {
+        let cmds: [(String, SheetCommand, String)] = [
+            ("Remove Duplicates", .removeDuplicates, DuplicatesProblem.nothingToCheck.message),
+            ("Subtotal", .subtotal, SubtotalProblem.nothingToTotal.message),
+            ("Sort", .sortDialog, SortProblem.nothingToSort.message),
+            ("Text to Columns", .textToColumns, TextToColumnsProblem.oneColumn.message),
+        ]
+        for (name, cmd, message) in cmds {
+            KeyboardTraversal.shared.reset()
+            var ui = app(SheetsShell(initialPath: nil, onSwitch: { _, _ in }))
+            var wb = ui.state(SheetsShellState.self)!.wb
+            wb.onCommand?(cmd); ui.pump()
+            XCTAssertTrue(ui.texts().contains(message), "\(name) on an empty sheet must say why: \(message)")
+            XCTAssertTrue(KeyboardTraversal.shared.reachable().filter { $0.modal }.isEmpty, "\(name): no dialog on an empty sheet")
+            KeyboardTraversal.shared.reset()
+            ui = app(SheetsShell(initialPath: nil, onSwitch: { _, _ in }))
+            wb = ui.state(SheetsShellState.self)!.wb
+            wb.setInputs([(CellAddress(row: 0, col: 0), "Name"), (CellAddress(row: 0, col: 1), "Qty"),
+                          (CellAddress(row: 1, col: 0), "a"), (CellAddress(row: 1, col: 1), "3"),
+                          (CellAddress(row: 2, col: 0), "b"), (CellAddress(row: 2, col: 1), "5")])
+            wb.onCommand?(cmd); ui.pump()
+            if name == "Text to Columns" { continue }   // needs a one-column selection; covered by its own tests
+            XCTAssertFalse(KeyboardTraversal.shared.reachable().filter { $0.modal }.isEmpty, "\(name) must open with data")
+        }
+    }
+
+    func testEverySheetsDialogIsWalkableByTab() {
+        let opens: [(String, SheetCommand)] = [
+            ("Insert Cells", .cellsDialog(insert: true)), ("Delete Cells", .cellsDialog(insert: false)),
+            ("Paste Special", .pasteSpecial), ("Conditional Format", .conditionalFormat),
+            ("Data Validation", .dataValidation), ("Consolidate", .consolidate),
+            ("Remove Duplicates", .removeDuplicates), ("Text to Columns", .textToColumns),
+            ("Subtotal", .subtotal), ("Sort", .sortDialog), ("Table", .tableDialog),
+            ("Name Manager", .nameManager), ("Protect Sheet", .protectSheetDialog),
+            ("Protect Workbook", .protectWorkbookDialog), ("Page Setup", .pageSetup),
+        ]
+        var opened = 0
+        for (name, cmd) in opens {
+            KeyboardTraversal.shared.reset()
+            let ui = app(SheetsShell(initialPath: nil, onSwitch: { _, _ in }))
+            let wb = ui.state(SheetsShellState.self)!.wb
+            let behind = buttonsOnScreen(ui)
+            wb.onCommand?(cmd); ui.pump()
+            let reach = KeyboardTraversal.shared.reachable()
+            guard !reach.isEmpty, reach.allSatisfy({ $0.modal }) else { print("KEYSWEEP not modal/none: \(name) stops=\(reach.count)"); continue }
+            opened += 1
+            let onScreen = buttonsOnScreen(ui) - behind
+            print("KEYSWEEP \(name): stops=\(reach.count) controls=\(onScreen)")
+            XCTAssertEqual(reach.count, onScreen, "\(name): every control on screen has a keyboard stop")
+            XCTAssertEqual(tabAround(ui), reach.count, "\(name): Tab must visit all \(reach.count) controls once")
+            XCTAssertTrue(ui.press(.escape), name)
+        }
+        XCTAssertGreaterThanOrEqual(opened, 8, "the sweep must really open dialogs")
+    }
+
+    /// Every Slides dialog: Tab reaches each control and Esc closes it.
+    func testEverySlidesDialogIsWalkableByTab() {
+        let opens: [(String, (OfficeSession) -> Void)] = [
+            ("Find", { $0.onFind?(false) }), ("Replace", { $0.onFind?(true) }),
+            ("Symbol", { $0.onSymbolDialog?() }), ("More Colors", { $0.onMoreColors?() }),
+            ("Header and Footer", { $0.onHeaderFooter?() }), ("Alt Text", { $0.onAltText?() }),
+            ("Text Options", { $0.onTextOptions?() }), ("Print", { $0.onPrint?() }),
+            ("Shortcuts", { $0.onShortcuts?() }),
+        ]
+        var opened = 0
+        for (name, open) in opens {
+            KeyboardTraversal.shared.reset()
+            let ui = app(SlidesShell(initialPath: nil, startBlank: true, onSwitch: { _, _ in }))
+            let state = ui.state(SlidesShellState.self)!
+            let deck = state.session.deck!
+            deck.selectShapes([deck.currentSlide.shapes.first { $0.text != nil }!]); ui.pump()
+            if name == "Alt Text" {
+                let pic = deck.addPicture(ImageAttachment(data: Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")!, width: 20, height: 20), naturalSize: Size(20, 20))
+                deck.selectShapes([pic]); ui.pump()
+            }
+            if name == "Symbol" { ui.press(.enter); ui.pump() }     // typing in the shape, as the Symbol command needs
+            let behind = buttonsOnScreen(ui)
+            open(state.session); ui.pump()
+            let reach = KeyboardTraversal.shared.reachable()
+            XCTAssertFalse(reach.isEmpty, "\(name): the dialog must open")
+            guard !reach.isEmpty else { continue }
+            XCTAssertTrue(reach.allSatisfy { $0.modal }, "\(name): its controls must be one modal keyboard region")
+            opened += 1
+            let onScreen = buttonsOnScreen(ui) - behind
+            XCTAssertEqual(reach.count, onScreen, "\(name): every control on screen has a keyboard stop")
+            XCTAssertEqual(tabAround(ui), reach.count, "\(name): Tab must visit all \(reach.count) controls once")
+            XCTAssertTrue(ui.press(.escape), name)
+        }
+        XCTAssertGreaterThanOrEqual(opened, 9, "the sweep must really open dialogs")
+    }
+
     // MARK: Tab keeps its own meaning inside the editing surfaces
 
     func testTabInWriterTextInsertsATabAndDoesNotWalkTheRibbon() {
@@ -147,6 +314,47 @@ final class KeyboardTraversalTests: XCTestCase {
         ui.press(.tab); ui.type("b")
         XCTAssertNil(KeyboardTraversal.shared.focused)
         XCTAssertEqual(session.controller.document.paragraphs[0].text, "a\tb")
+    }
+
+    func testTabAtTheStartOfAWriterListItemIndentsIt() {
+        let ui = app(OfficeShell(initialPath: nil, startBlank: true))
+        let c = ui.state(OfficeShellState.self)!.session.controller
+        ui.tap(at: Offset(640, 400))
+        c.toggleList(.bullet)
+        XCTAssertEqual(c.currentParagraphStyle.listLevel, 0)
+        ui.press(.tab)
+        XCTAssertNil(KeyboardTraversal.shared.focused)
+        XCTAssertEqual(c.currentParagraphStyle.listLevel, 1)
+        XCTAssertFalse(c.document.paragraphs[0].text.contains("\t"))
+    }
+
+    func testTabInTheLastWriterTableCellAddsARow() {
+        let ui = app(OfficeShell(initialPath: nil, startBlank: true))
+        let c = ui.state(OfficeShellState.self)!.session.controller
+        ui.tap(at: Offset(640, 400))
+        c.insertTable(rows: 2, columns: 2)
+        func rows() -> Int { (c.document.paragraphs.compactMap { $0.cell?.row }.max() ?? -1) + 1 }
+        XCTAssertEqual(rows(), 2)
+        ui.press(.tab); ui.press(.tab); ui.press(.tab)      // cell 2, 3, 4
+        XCTAssertEqual(rows(), 2)
+        ui.press(.tab)                                      // past the last cell
+        XCTAssertNil(KeyboardTraversal.shared.focused)
+        XCTAssertEqual(rows(), 3)
+    }
+
+    func testTabWhileTypingInASlideShapeIndentsAndDoesNotWalkOrCycle() {
+        let ui = app(SlidesShell(initialPath: nil, startBlank: true, onSwitch: { _, _ in }))
+        let deck = ui.state(SlidesShellState.self)!.session.deck!
+        let shape = deck.currentSlide.shapes.first { $0.text != nil }!
+        deck.selectShapes([shape]); ui.pump()
+        ui.press(.enter); ui.pump()                              // Enter edits the selected shape's text
+        ui.type("x")
+        XCTAssertEqual(shape.text!.document.paragraphs[0].text, "x", "the shape's editor must have the keyboard")
+        ui.press(.tab)
+        XCTAssertNil(KeyboardTraversal.shared.focused)
+        XCTAssertTrue(deck.selection.first === shape, "Tab typed into the shape must not cycle the selection")
+        let p = shape.text!.document.paragraphs[0]
+        XCTAssertTrue(p.text.contains("\t") || p.style.listLevel > 0, "Tab indents or inserts a tab in the shape's text")
     }
 
     func testTabInSheetsMovesToTheNextCell() {

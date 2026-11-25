@@ -205,6 +205,140 @@ final class TextBoxInsertTests: XCTestCase {
         XCTAssertEqual(c.document.paragraphs[i].image?.textBox?.paragraphs.map(\.text), ["one"])
     }
 
+    func testBoxWithAFieldAndATrackedInsertionIsEditedInPlace() throws {
+        let c = RichDocumentController(document: RichDocument(paragraphs: [RichParagraph(text: "body")]))
+        c.insertImage(try XCTUnwrap(TextBoxInsert.make(text: "one")))
+        let i = try XCTUnwrap(c.document.paragraphs.firstIndex { $0.image?.textBox != nil })
+        // A box whose words hold a page field and a tracked insertion, as a file would carry them.
+        var field = RichParagraph(text: "Page 7")
+        field.runs = [Run(length: 5, style: .plain), Run(length: 1, style: { var s = CharStyle.plain; s.field = "PAGE"; s.fieldResult = 7; return s }())]
+        var ins = RichParagraph(text: "added")
+        ins.runs = [Run(length: 5, style: { var s = CharStyle.plain; s.revision = RevisionMark(kind: .inserted, author: "A", date: ""); return s }())]
+        let paragraphs = [field, ins]
+        let xml = try XCTUnwrap(TextBoxInsert.contentXML(paragraphs))
+        XCTAssertTrue(xml.containsSubstring("PAGE"))
+        XCTAssertTrue(xml.containsSubstring("<w:ins "))
+        XCTAssertTrue(c.setTextBoxContent(at: i, paragraphs: paragraphs, contentXML: xml))
+        XCTAssertNotNil(c.textBoxParagraphs(at: i), "a field and a tracked change are no bar to editing in place")
+        let box = RichDocumentController(document: RichDocument(paragraphs: try XCTUnwrap(c.textBoxParagraphs(at: i))))
+        box.selectAll()
+        box.insertText("x")
+        let again = try XCTUnwrap(TextBoxInsert.contentXML(box.document.paragraphs))
+        XCTAssertTrue(c.setTextBoxContent(at: i, paragraphs: box.document.paragraphs, contentXML: again))
+        c.undo()
+        XCTAssertTrue(c.document.paragraphs[i].image?.sourceXML?.containsSubstring("PAGE") == true)
+    }
+
+    func testRevisionIdsOfTwoEditedBoxesNeverRepeat() throws {
+        var ins = RichParagraph(text: "added")
+        ins.runs = [Run(length: 5, style: { var s = CharStyle.plain; s.revision = RevisionMark(kind: .inserted, author: "A", date: ""); return s }())]
+        let xml = try XCTUnwrap(TextBoxInsert.contentXML([ins]))
+        // A body with its own tracked changes and a bookmark whose id came from the file.
+        var bodyP = RichParagraph(text: "kept gone")
+        bodyP.runs = [Run(length: 5, style: .plain), Run(length: 4, style: { var s = CharStyle.plain; s.revision = RevisionMark(kind: .deleted, author: "A", date: ""); return s }())]
+        let c = RichDocumentController(document: RichDocument(paragraphs: [bodyP]))
+        var ids: [Int] = []
+        for n in 0..<2 {
+            c.insertImage(try XCTUnwrap(TextBoxInsert.make(text: "box \(n)")))
+            let i = try XCTUnwrap(c.document.paragraphs.lastIndex { $0.image?.textBox != nil })
+            XCTAssertTrue(c.setTextBoxContent(at: i, paragraphs: [ins], contentXML: xml))
+            ids.append(RichDocumentController._highestRevisionId(in: try XCTUnwrap(c.document.paragraphs[i].image?.sourceXML)))
+        }
+        XCTAssertEqual(Set(ids).count, 2, "each box's revisions get their own ids")
+        let bodyIds = RichDocumentController._highestRevisionId(in: String(decoding: try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [bodyP]), pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self))
+        XCTAssertGreaterThan(ids.min() ?? 0, bodyIds, "box ids sit above the body's")
+    }
+
+    func testAnnotationIdsNeverRepeatAcrossBodyHeaderAndBox() throws {
+        var bodyP = RichParagraph(text: "kept gone")
+        bodyP.runs = [Run(length: 5, style: .plain), Run(length: 4, style: { var s = CharStyle.plain; s.revision = RevisionMark(kind: .deleted, author: "A", date: ""); return s }())]
+        var d = RichDocument(paragraphs: [bodyP])
+        d.header = "Head"
+        var entries = try Zip.read(try DocxFormat.write(d, pageSetup: .letter))
+        let hi = try XCTUnwrap(entries.firstIndex { $0.name.hasPrefix("word/header") && $0.name.hasSuffix(".xml") })
+        var h = String(decoding: entries[hi].data, as: UTF8.self)
+        let close = try XCTUnwrap(h.rangeOfSubstring("</w:p>"))
+        h.replaceSubrange(close.lowerBound ..< close.lowerBound, with: "<w:ins w:id=\"1\" w:author=\"B\"><w:r><w:t>hi</w:t></w:r></w:ins>")
+        entries[hi] = ZipEntry(name: entries[hi].name, data: Data(h.utf8))
+        let c = RichDocumentController(document: try DocxFormat.read(try Zip.write(entries)).document)
+        c.insertImage(try XCTUnwrap(TextBoxInsert.make(text: "box")))
+        let out = try Zip.read(try DocxFormat.write(c.document, pageSetup: .letter))
+        var seen: [Int] = []
+        for e in out where e.name.hasPrefix("word/") && e.name.hasSuffix(".xml") && (e.name == "word/document.xml" || e.name.hasPrefix("word/header")) {
+            seen += RichDocumentController._annotationIds(in: String(decoding: e.data, as: UTF8.self))
+        }
+        XCTAssertTrue(seen.count >= 2, "header and body both carry a revision")
+        XCTAssertEqual(Set(seen).count, seen.count, "no id names two annotations: \(seen)")
+    }
+
+    func testLeftoverRelationshipIsDroppedButOneTheMarkupNamesStays() throws {
+        let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")!
+        var img = ImageAttachment(data: png, width: 40, height: 40)
+        img.sourceXML = "<w:drawing><wp:inline><wp:extent cx=\"508000\" cy=\"508000\"/><a:blip r:embed=\"rId7\"/><x:thing o:relid=\"rId8\"/></wp:inline></w:drawing>"
+        let img2rel = KeptRel(id: "rId7", type: "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image", target: "media/a.png", external: false)
+        let named = KeptRel(id: "rId8", type: "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image", target: "media/b.png", external: false)
+        let stale = KeptRel(id: "rId9", type: "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image", target: "media/c.png", external: false)
+        let tpl = KeptRel(id: "rId10", type: "http://schemas.openxmlformats.org/officeDocument/2006/relationships/attachedTemplate", target: "file:///C:/t.dotm", external: true)
+        let glossary = KeptRel(id: "rId11", type: "http://schemas.openxmlformats.org/officeDocument/2006/relationships/glossaryDocument", target: "glossary/document.xml", external: false)
+        img.sourceRels = [img2rel, named, stale, tpl, glossary]
+        let out = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(image: img)]), pageSetup: .letter))
+        let rels = String(decoding: try XCTUnwrap(out.first { $0.name == "word/_rels/document.xml.rels" }).data, as: UTF8.self)
+        XCTAssertTrue(rels.containsSubstring("media/a.png"))
+        XCTAssertTrue(rels.containsSubstring("media/b.png"), "named by an attribute we do not read: kept")
+        XCTAssertFalse(rels.containsSubstring("media/c.png"), "named nowhere: dropped")
+        XCTAssertTrue(rels.containsSubstring("t.dotm"), "a template rel is never dropped")
+        XCTAssertTrue(rels.containsSubstring("glossary/document.xml"), "a glossary rel is never dropped")
+    }
+
+    func testBoxWithAnExternalLinkIsEditedInPlaceAndKeepsItsLink() throws {
+        let c = RichDocumentController(document: RichDocument(paragraphs: [RichParagraph(text: "body")]))
+        c.insertImage(try XCTUnwrap(TextBoxInsert.make(text: "one")))
+        let i = try XCTUnwrap(c.document.paragraphs.firstIndex { $0.image?.textBox != nil })
+        var p = RichParagraph(text: "see site")
+        p.runs = [Run(length: 4, style: .plain), Run(length: 4, style: { var s = CharStyle.plain; s.link = "https://example.com/a?b=1&c=2"; return s }())]
+        let (xml, rels) = try XCTUnwrap(TextBoxInsert.content([p]))
+        XCTAssertEqual(rels.map(\.target), ["https://example.com/a?b=1&c=2"])
+        XCTAssertTrue(c.setTextBoxContent(at: i, paragraphs: [p], contentXML: xml, rels: rels))
+        XCTAssertNotNil(c.textBoxParagraphs(at: i), "an external link is no bar to editing in place")
+        let back = try DocxFormat.read(try DocxFormat.write(c.document, pageSetup: .letter)).document
+        let box = try XCTUnwrap(back.paragraphs.first { $0.image?.textBox != nil }?.image?.textBox)
+        XCTAssertEqual(box.paragraphs.first?.runs.last?.style.link, "https://example.com/a?b=1&c=2")
+    }
+
+    func testBoxHoldingAPictureIsEditedInPlaceAndKeepsThePicture() throws {
+        let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")!
+        let box0 = try XCTUnwrap(TextBoxInsert.make(text: "one"))
+        let base = try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(image: box0), RichParagraph(image: ImageAttachment(data: png, width: 40, height: 40))]), pageSetup: .letter)
+        var entries = try Zip.read(base)
+        let di = try XCTUnwrap(entries.firstIndex { $0.name == "word/document.xml" })
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        var ds: Range<String.Index>?, de: Range<String.Index>?
+        var from = xml.startIndex
+        while let r = xml.rangeOfSubstring("<w:drawing>", in: from ..< xml.endIndex) { ds = r; from = r.upperBound }
+        de = xml.rangeOfSubstring("</w:drawing>", in: (ds?.upperBound ?? xml.startIndex) ..< xml.endIndex)
+        let (ds0, de0) = (try XCTUnwrap(ds), try XCTUnwrap(de))
+        let pic = String(xml[ds0.lowerBound ..< de0.upperBound])
+        xml.replaceSubrange(ds0.lowerBound ..< de0.upperBound, with: "")
+        let open = try XCTUnwrap(xml.rangeOfSubstring("<w:txbxContent>")), close = try XCTUnwrap(xml.rangeOfSubstring("</w:txbxContent>"))
+        xml.replaceSubrange(open.upperBound ..< close.lowerBound, with: "<w:p><w:r>" + pic + "</w:r><w:r><w:t>caption</w:t></w:r></w:p>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let c = RichDocumentController(document: try DocxFormat.read(try Zip.write(entries)).document)
+        let i = try XCTUnwrap(c.document.paragraphs.firstIndex { $0.image?.textBox != nil })
+        var inside = try XCTUnwrap(c.textBoxDocument(at: i), "a picture the file carried is no bar to editing in place")
+        XCTAssertEqual(inside.paragraphs.flatMap { [$0.image].compactMap { $0 } + Array($0.inlineImages.values) }.count, 1)
+        inside.paragraphs[0].insert("X", at: inside.paragraphs[0].length)
+        let (out, rels) = try XCTUnwrap(TextBoxInsert.content(inside))
+        XCTAssertTrue(rels.contains { $0.target.hasPrefix("media/") }, "the picture's file is named")
+        XCTAssertTrue(c.setTextBoxContent(at: i, document: inside, contentXML: out, rels: rels))
+        let saved = try DocxFormat.write(c.document, pageSetup: .letter)
+        let back = try DocxFormat.read(saved).document
+        let boxBack = try XCTUnwrap(back.paragraphs.first { $0.image?.textBox != nil }?.image?.textBox)
+        let images = boxBack.paragraphs.flatMap { [$0.image].compactMap { $0 } + Array($0.inlineImages.values) }
+        XCTAssertEqual(images.count, 1)
+        XCTAssertEqual(images.first?.data, png, "the picture still has its file")
+        XCTAssertTrue(boxBack.paragraphs.map(\.text).joined().contains("captionX"))
+    }
+
     func testNewTextBoxFitsItsTextAndGrowsWithTyping() throws {
         let c = RichDocumentController(document: RichDocument(paragraphs: [RichParagraph(text: "body")]))
         c.insertImage(try XCTUnwrap(TextBoxInsert.make(text: "one")))

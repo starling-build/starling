@@ -146,6 +146,25 @@ public struct CharStyle: Hashable, Codable, Sendable {
     /// In points, the unit documents are written in (11pt, not 14.67px).
     public var fontSize: Double? = nil
     public var color: Color? = nil
+    /// The colour's theme attributes as the file wrote them: its six-digit hex, then ` w:themeColor=".."` (and tint/shade). Written back only while `color` still has that hex, so a colour the user changed loses them.
+    public var colorTheme: String? = nil
+    /// The run properties (`w:rPr` children) exactly as the file wrote them, and a check of every other field of this look at that moment.
+    /// A save writes them back while the look still matches, so a run the user did not touch keeps all its properties (theme fonts, effects,
+    /// complex-script twins); any edit to the look makes the check fail and the properties are written from the fields as before.
+    public var origRPr: String? = nil
+    public var origCheck: Int = 0
+    public mutating func stampOriginal(_ xml: String) {
+        origRPr = nil; origCheck = 0
+        let h = hashValue
+        origRPr = xml; origCheck = h
+    }
+    /// The file's own run properties, when the look has not changed since the file was read.
+    public var originalRPr: String? {
+        guard let o = origRPr else { return nil }
+        var c = self
+        c.origRPr = nil; c.origCheck = 0
+        return c.hashValue == origCheck ? o : nil
+    }
     public var highlight: Color? = nil
     public var link: String? = nil
     /// The hyperlink's screen tip (Word's w:tooltip); only meaningful with a link.
@@ -1507,6 +1526,55 @@ public struct BorderEdges: Hashable, Codable, Sendable {
     public var isEmpty: Bool { top == nil && left == nil && bottom == nil && right == nil && insideH == nil && insideV == nil }
 }
 
+/// The bits of a Word table's `w:tblLook`, the Table Style Options.
+public struct TableCondFills: Hashable, Codable, Sendable {
+    /// The fill of each conditional part of the style (Word's `w:tblStylePr` types: "firstRow", "lastRow",
+    /// "firstCol", "lastCol", "band1Horz", "band2Horz", "band1Vert", "band2Vert", "nwCell", "neCell", "swCell", "seCell").
+    public var byType: [String: Color]
+    /// How many rows or columns make one band (`w:tblStyleRowBandSize` / `w:tblStyleColBandSize` in the style's `w:tblPr`).
+    /// Word draws no band at all when the style does not say: 0 here.
+    public var rowBandSize = 0, colBandSize = 0
+    public init(byType: [String: Color], rowBandSize: Int = 0, colBandSize: Int = 0) {
+        self.byType = byType; self.rowBandSize = rowBandSize; self.colBandSize = colBandSize
+    }
+
+    /// The colour the style gives the cell at `row`, `column` under the look switches (`TableLook` bits). Word applies the
+    /// parts in order, each over the last: row bands, column bands (Word prints the column band where both meet), first and last column, first and last row, the corners.
+    public func fill(look: Int, row r: Int, column c: Int, lastRow: Bool, lastColumn: Bool) -> Color? {
+        let firstRowOn = look & TableLook.firstRow != 0, lastRowOn = look & TableLook.lastRow != 0
+        let firstColOn = look & TableLook.firstColumn != 0, lastColOn = look & TableLook.lastColumn != 0
+        let isFirstRow = firstRowOn && r == 0, isLastRow = lastRowOn && lastRow
+        let isFirstCol = firstColOn && c == 0, isLastCol = lastColOn && lastColumn
+        var f: Color? = nil
+        func over(_ key: String) { if let v = byType[key] { f = v } }
+        if look & TableLook.noRowBands == 0, rowBandSize > 0, !isFirstRow, !isLastRow {
+            over((r - (firstRowOn ? 1 : 0)) / rowBandSize % 2 == 0 ? "band1Horz" : "band2Horz")
+        }
+        if look & TableLook.noColumnBands == 0, colBandSize > 0, !isFirstCol, !isLastCol {
+            over((c - (firstColOn ? 1 : 0)) / colBandSize % 2 == 0 ? "band1Vert" : "band2Vert")
+        }
+        if isFirstCol { over("firstCol") }
+        if isLastCol { over("lastCol") }
+        if isFirstRow { over("firstRow") }
+        if isLastRow { over("lastRow") }
+        if isFirstRow && isFirstCol { over("nwCell") }
+        if isFirstRow && isLastCol { over("neCell") }
+        if isLastRow && isFirstCol { over("swCell") }
+        if isLastRow && isLastCol { over("seCell") }
+        return f
+    }
+}
+
+public enum TableLook {
+    public static let firstRow = 0x20, lastRow = 0x40, firstColumn = 0x80, lastColumn = 0x100
+    /// Set when the style's row bands are OFF (Word writes the switches as "no band").
+    public static let noRowBands = 0x200, noColumnBands = 0x400
+    public static func hex(_ v: Int) -> String {
+        let h = String(v, radix: 16, uppercase: true)
+        return String(repeating: "0", count: max(0, 4 - h.count)) + h
+    }
+}
+
 public struct TableStyle: Hashable, Codable, Sendable {
     public var borders = true
     /// A section's text columns set as a one-row table (the docx reader's
@@ -1576,6 +1644,10 @@ public struct TableStyle: Hashable, Codable, Sendable {
     /// not between its cells); nil sides follow `borders`.
     public var edges: BorderEdges? = nil
     public var headerRow = false
+    /// Word's `w:tblLook` switches the user set (Table Style Options), as the bits of its `w:val`
+    /// (0x20 first row, 0x40 last row, 0x80 first column, 0x100 last column, 0x200 no row bands, 0x400 no column bands).
+    /// Nil: the file's own look stands.
+    public var look: Int? = nil
     /// Slides' other table style switches (`a:tblPr` lastRow, firstCol, lastCol, bandCol): kept so a save writes them back.
     public var totalRow = false
     public var firstColumn = false
@@ -2825,6 +2897,9 @@ public struct RichDocument: Hashable, Codable, Sendable {
     public var keptTableStyles: [String: String] = [:]
     public var tableStyleIds: [String: String] = [:]
     public var tableLooks: [String: String] = [:]
+    /// The fills a table's named style gives its header row and its two row bands, by table id, so that
+    /// Table Style Options can redraw them when a switch flips.
+    public var tableCondFills: [String: TableCondFills] = [:]
 
     /// True when the file's default header (or footer) holds more than the
     /// plain line the strip edits: a picture, a table, a text box, a content

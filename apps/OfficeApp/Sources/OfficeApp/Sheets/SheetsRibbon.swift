@@ -15,7 +15,7 @@ import Foundation
 
 /// What the ribbon asks of the grid.
 enum SheetCommand {
-    case cut, copy, paste, pasteSpecial
+    case cut, copy, paste, pasteSpecial, formatPainter
     case symbol                    // Insert → Symbol: the shared picker
     case startFormula(String)      // "=SUM(" into the editor, the selection's range filled in
     case zoom(Double)
@@ -26,7 +26,10 @@ enum SheetCommand {
     case conditionalFormat         // Home → Conditional Formatting
     case dataValidation            // Data → Data Validation
     case consolidate               // Data → Consolidate
+    case fillSeries                // Home → Fill → Series
     case scenarioManager           // Data → What-If Analysis → Scenario Manager
+    case chartTitles(Int)          // Chart Design → Edit Titles
+    case dataTable                 // Data → What-If Analysis → Data Table
     case goalSeek                  // Data → What-If Analysis → Goal Seek
     case removeDuplicates          // Data → Remove Duplicates
     case textToColumns             // Data → Text to Columns
@@ -38,6 +41,8 @@ enum SheetCommand {
     case protectSheetDialog        // Review → Protect Sheet / Unprotect Sheet
     case protectWorkbookDialog     // Review → Protect Workbook / Unprotect Workbook
     case pageSetup                 // Layout → Page Setup: the dialog
+    case insertPicture             // Insert → Pictures: choose an image file and place it
+    case altText                   // Insert → Alt Text: the selected picture's description
     case editNote                  // Review → New/Edit Note: the editor beside the active cell
 }
 
@@ -46,7 +51,7 @@ extension Ribbon {
         guard let wb = session.workbook else { return nil }
         switch tab {
         case .home: return _sheetsHome(wb, fluent)
-        case .insert: return [_tablesGroup(wb, fluent), _chartsGroup(wb, fluent), _functionsGroup(wb, fluent), _symbolsGroup(wb, fluent)]
+        case .insert: return [_tablesGroup(wb, fluent), _illustrationsGroup(wb, fluent), _chartsGroup(wb, fluent), _functionsGroup(wb, fluent), _symbolsGroup(wb, fluent)]
         case .formulas: return [_autoSumGroup(wb, fluent), _functionsGroup(wb, fluent), _namesGroup(wb, fluent)]
         case .data: return [_sortGroup(wb, fluent), _dataToolsGroup(wb, fluent), _outlineGroup(wb, fluent)]
         case .layout: return [_pageSetupGroup(wb, fluent)]
@@ -67,6 +72,7 @@ extension Ribbon {
                 Chrome.small(FluentSystemIcons.cut, "Cut", fluent) { wb.onCommand?(.cut) },
                 Chrome.small(FluentSystemIcons.copy, "Copy", fluent) { wb.onCommand?(.copy) },
                 Chrome.small(FluentSystemIcons.paste, "Paste Special", fluent) { wb.onCommand?(.pasteSpecial) },
+                Chrome.small(FluentSystemIcons.paste, wb.painterSource == nil ? "Format Painter" : "Painter: pick cells", fluent) { wb.onCommand?(.formatPainter) },
             ]),
         ])
         let colors: [(String, Color)] = [
@@ -189,6 +195,7 @@ extension Ribbon {
                         color: fluent.resources.textFillColorPrimary), fluent, [
                 ("Down (⌘D)".keys, { wb.fillDown() }),
                 ("Right (⌘R)".keys, { wb.fillRight() }),
+                ("Series…", { wb.onCommand?(.fillSeries) }),
             ]),
             Chrome.menu(Text("Clear", style: fluent.typography.caption), Icon(FluentSystemIcons.textClearFormatting, size: Chrome.iconSize,
                         color: fluent.resources.textFillColorPrimary), fluent, [
@@ -315,10 +322,42 @@ extension Ribbon {
                 }
             }
         }
-        return Chrome.group("Charts", fluent, [
+        var parts: [Widget] = [
             Chrome.rows([button(.column), button(.bar), button(.line)]),
             Chrome.rows([button(.pie), button(.area), button(.scatter)]),
-        ])
+        ]
+        // Chart Design, with a chart selected: its title and legend.
+        if let i = wb.selectedDrawing, wb.sheet.drawings.indices.contains(i), case .chart(let sc) = wb.sheet.drawings[i].kind {
+            let c = sc.chart
+            parts.append(Chrome.rows([
+                Chrome.textToggle("Chart Title", c.title != nil, fluent, style: fluent.typography.caption) {
+                    wb.setChartTitle(i, c.title == nil ? "Chart Title" : nil)
+                },
+                Chrome.textToggle("Edit Titles", false, fluent, style: fluent.typography.caption) { wb.onCommand?(.chartTitles(i)) },
+                Chrome.textToggle("Axis Titles", c.categoryAxisTitle != nil || c.valueAxisTitle != nil, fluent, style: fluent.typography.caption) {
+                    let on = c.categoryAxisTitle != nil || c.valueAxisTitle != nil
+                    wb.setChartAxisTitles(i, category: on ? nil : "Axis Title", value: on ? nil : "Axis Title")
+                },
+                Chrome.textToggle("Legend", c.legend, fluent, style: fluent.typography.caption) {
+                    wb.setChartLegend(i, position: c.legend ? nil : (c.legendPosition.isEmpty ? "b" : c.legendPosition))
+                },
+            ]))
+            parts.append(Chrome.rows(["b": "Legend Bottom", "r": "Legend Right", "t": "Legend Top"].sorted { $0.value < $1.value }.map { side in
+                Chrome.textToggle(side.value, c.legend && c.legendPosition == side.key, fluent, style: fluent.typography.caption) {
+                    wb.setChartLegend(i, position: side.key)
+                }
+            }))
+        }
+        return Chrome.group("Charts", fluent, parts)
+    }
+
+    /// Insert → Pictures; Alt Text once a picture is selected.
+    private func _illustrationsGroup(_ wb: WorkbookController, _ fluent: FluentThemeData) -> Widget {
+        var items: [Widget] = [Chrome.big(FluentSystemIcons.image, "Pictures", fluent) { wb.onCommand?(.insertPicture) }]
+        if let i = wb.selectedDrawing, wb.sheet.drawings.indices.contains(i), case .picture = wb.sheet.drawings[i].kind {
+            items.append(Chrome.big(FluentSystemIcons.image, "Alt Text", fluent) { wb.onCommand?(.altText) })
+        }
+        return Chrome.group("Illustrations", fluent, items)
     }
 
     private func _tablesGroup(_ wb: WorkbookController, _ fluent: FluentThemeData) -> Widget {
@@ -374,6 +413,7 @@ extension Ribbon {
                 Chrome.small(FluentSystemIcons.close, "Clear Validation Circles", fluent) { wb.clearValidationCircles() },
             ]),
             Chrome.big(FluentSystemIcons.check, "Goal Seek", fluent) { wb.onCommand?(.goalSeek) },
+            Chrome.big(FluentSystemIcons.table, "Data Table", fluent) { wb.onCommand?(.dataTable) },
         ])
     }
 
@@ -415,6 +455,7 @@ extension Ribbon {
             },
             Chrome.textToggle("Headings", wb.sheet.showHeadings, fluent, style: fluent.typography.caption) { wb.toggleHeadings() },
             Chrome.textToggle("Show Formulas", wb.sheet.showFormulas, fluent, style: fluent.typography.caption) { wb.toggleShowFormulas() },
+            Chrome.textToggle("Sheet Right-to-Left", wb.sheet.rightToLeft, fluent, style: fluent.typography.caption) { wb.toggleRightToLeft() },
             Chrome.textToggle("Page Break Preview", wb.breakPreview, fluent, style: fluent.typography.caption) {
                 wb.breakPreview.toggle(); wb._notify()
             },

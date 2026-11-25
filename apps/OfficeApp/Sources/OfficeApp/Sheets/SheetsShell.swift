@@ -84,8 +84,11 @@ final class SheetsShellState: State<StatefulWidget> {
     private var _alertOpen: (alert: ValidationAlert, answer: (ValidationChoice) -> Void)?
     private var _sortOpen: (range: CellRange, hasHeader: Bool)?
     private var _consOpen = false
+    private var _seriesOpen = false
     private var _scnOpen = false
     private var _goalOpen = false
+    private var _chartTitlesOpen: Int? = nil
+    private var _dtOpen = false
     private var _dupOpen: (range: CellRange, hasHeader: Bool)?
     private var _ttcOpen: CellRange?
     private var _subOpen: CellRange?
@@ -102,6 +105,7 @@ final class SheetsShellState: State<StatefulWidget> {
     private var _symbolOpen = false
     /// The Insert Hyperlink dialog is open (X-LK-1).
     private var _linkOpen = false
+    private var _altOpen = false
     private let _findQuery = TextEditingController()
     private let _contextMenu = FlyoutController()
     private let _filterMenu = FlyoutController()
@@ -371,6 +375,48 @@ final class SheetsShellState: State<StatefulWidget> {
         if !_formulaEditing && _grid?.edit == nil { _setFormulaText(wb.input(wb.active)) }
     }
 
+    private func _pickPicture() {
+        #if os(WASI)
+        WebFiles.open(extensions: ["png", "jpg", "jpeg", "gif", "bmp"]) { [weak self] picked in
+            guard let self, let picked else { return }
+            self._placePicture(picked.name, data: picked.data)
+        }
+        #else
+        if let ask = officeScene.pictureRequested {
+            ask { [weak self] path in if let path { self?._insertPicture(path) } }
+            return
+        }
+        setState { _backstage = .insertPicture }
+        #endif
+    }
+
+    private func _insertPicture(_ path: String) {
+        setState { _backstage = nil }
+        guard let data = FileManager.default.contents(atPath: path) else {
+            _flash("Could not read \(path.lastPathComponent)")
+            return
+        }
+        _placePicture(path.lastPathComponent, data: data)
+    }
+
+    private func _placePicture(_ name: String, data: Data) {
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            do {
+                let codec = try await instantiateImageCodec([UInt8](data))
+                let frame = try await codec.getNextFrame()
+                codec.dispose()
+                // Pixels read as 96 per inch, so 0.75 point each.
+                let w = Double(frame.image.width) * 0.75, h = Double(frame.image.height) * 0.75
+                frame.image.dispose()
+                self.wb.insertPicture(name: name, data: data, width: w, height: h)
+                self._grid?.focus.requestFocus()
+            } catch {
+                self._flash("Could not open \(name) as a picture")
+            }
+        }
+    }
+
     private func _flash(_ message: String) {
         _statusGeneration += 1
         let gen = _statusGeneration
@@ -390,6 +436,8 @@ final class SheetsShellState: State<StatefulWidget> {
         case .cut: grid.copySelection(cut: true)
         case .paste: grid.paste()
         case .pasteSpecial: _openPasteSpecial()
+        case .formatPainter:
+            if wb.painterSource == nil { wb.armFormatPainter() } else { wb.cancelFormatPainter() }
         case .symbol: setState { _symbolOpen = true }
         case .startFormula(let text):
             grid.focus.requestFocus()
@@ -408,8 +456,15 @@ final class SheetsShellState: State<StatefulWidget> {
             setState { _validationOpen = true }
         case .consolidate:
             setState { _consOpen = true }
+        case .fillSeries:
+            setState { _seriesOpen = true }
         case .scenarioManager:
             setState { _scnOpen = true }
+        case .chartTitles(let i):
+            setState { _chartTitlesOpen = i }
+        case .dataTable:
+            if wb.selection.bottom > wb.selection.top, wb.selection.right > wb.selection.left { setState { _dtOpen = true } }
+            else { _flash(DataTableProblem.selectionTooSmall.message) }
         case .goalSeek:
             setState { _goalOpen = true }
         case .removeDuplicates:
@@ -425,6 +480,11 @@ final class SheetsShellState: State<StatefulWidget> {
         case .sortDialog:
             if let region = wb.sortRegion() { setState { _sortOpen = region } }
             else { _flash(SortProblem.nothingToSort.message) }
+        case .insertPicture: _pickPicture()
+        case .altText:
+            if let i = wb.selectedDrawing, wb.sheet.drawings.indices.contains(i), case .picture = wb.sheet.drawings[i].kind {
+                setState { _altOpen = true }
+            }
         case .tableDialog:
             setState { _tableOpen = true }
         case .columnFilter(let col, let kind):
@@ -1039,6 +1099,13 @@ final class SheetsShellState: State<StatefulWidget> {
                     self?._grid?.focus.requestFocus()
                 }))])
         }
+        if _seriesOpen {
+            return Stack(children: [window, Positioned(left: 0, top: 0, right: 0, bottom: 0, child: SeriesDialog(
+                controller: wb, onClose: { [weak self] in
+                    self?.setState { self?._seriesOpen = false }
+                    self?._grid?.focus.requestFocus()
+                }))])
+        }
         if _consOpen {
             return Stack(children: [window, Positioned(left: 0, top: 0, right: 0, bottom: 0, child: ConsolidateDialog(
                 controller: wb, onClose: { [weak self] in
@@ -1058,6 +1125,20 @@ final class SheetsShellState: State<StatefulWidget> {
             return Stack(children: [window, Positioned(left: 0, top: 0, right: 0, bottom: 0, child: ScenarioDialog(
                 controller: wb, onClose: { [weak self] in
                     self?.setState { self?._scnOpen = false }
+                    self?._grid?.focus.requestFocus()
+                }))])
+        }
+        if let i = _chartTitlesOpen {
+            return Stack(children: [window, Positioned(left: 0, top: 0, right: 0, bottom: 0, child: ChartTitlesDialog(
+                controller: wb, index: i, onClose: { [weak self] in
+                    self?.setState { self?._chartTitlesOpen = nil }
+                    self?._grid?.focus.requestFocus()
+                }))])
+        }
+        if _dtOpen {
+            return Stack(children: [window, Positioned(left: 0, top: 0, right: 0, bottom: 0, child: DataTableDialog(
+                controller: wb, onClose: { [weak self] in
+                    self?.setState { self?._dtOpen = false }
                     self?._grid?.focus.requestFocus()
                 }))])
         }
@@ -1198,6 +1279,16 @@ final class SheetsShellState: State<StatefulWidget> {
                     self?._grid?.focus.requestFocus()
                 })))
         }
+        if _altOpen, let i = wb.selectedDrawing, wb.sheet.drawings.indices.contains(i) {
+            layers.append(Positioned(left: 0, top: 0, right: 0, bottom: 0, child: AltTextDialog(
+                initial: wb.sheet.drawings[i].descr ?? "",
+                onApply: { [weak self] text in
+                    self?.wb.setDrawingAlt(i, text)
+                    self?.setState { self?._altOpen = false }
+                    self?._grid?.focus.requestFocus()
+                },
+                onCancel: { [weak self] in self?.setState { self?._altOpen = false }; self?._grid?.focus.requestFocus() })))
+        }
         if _linkOpen {
             layers.append(Positioned(left: 0, top: 0, right: 0, bottom: 0, child: HyperlinkDialog(
                 hooks: wb.hyperlinkHooks(flash: { [weak self] in self?._flash($0) }),
@@ -1223,7 +1314,7 @@ final class SheetsShellState: State<StatefulWidget> {
                 },
                 onOpenPath: { [weak self] path in self?._openFromPanel(path) },
                 onSavePath: { [weak self] path in self?._saveTo(path) },
-                onPicturePath: { _ in }, scene: officeScene)),
+                onPicturePath: { [weak self] path in self?._insertPicture(path) }, scene: officeScene)),
         ])
     }
 

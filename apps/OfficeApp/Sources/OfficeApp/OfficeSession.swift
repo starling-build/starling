@@ -295,6 +295,7 @@ final class OfficeSession {
     /// Show or hide the Selection Pane (Slides).
     var onSelectionPane: (() -> Void)?
     var onFormatShape: (() -> Void)?
+    var onFormatBackground: (() -> Void)?
     /// Show (true) or hide the selected chart's data grid.
     var onChartData: ((Bool) -> Void)?
     /// Normal view (false) or Slide Sorter (true).
@@ -323,6 +324,8 @@ final class OfficeSession {
     var onEditNote: (() -> Void)?
     var onSymbolDialog: (() -> Void)?
     var onMoreColors: (() -> Void)?
+    /// Slides: More Colors… of Shape Fill (false) or Shape Outline (true).
+    var onMoreShapeColor: ((Bool) -> Void)?
     var onParagraphDialog: (() -> Void)?
     var onFontDialog: (() -> Void)?
     var onPageSetupDialog: (() -> Void)?

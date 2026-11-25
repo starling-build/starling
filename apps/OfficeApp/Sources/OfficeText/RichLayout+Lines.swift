@@ -1071,7 +1071,7 @@ extension RichLayout {
             // frases ..." three paragraphs under the picture's own, ours set it across the picture. Not in a header: dx2 75f32c04's header logo, from the
             // column too, leaves the three lines beside it whole in Word's print. A right-to-left paragraph fills the gap at the right of the
             // box first, which the engine's pieces (left one first) do not: dx2 c2c3a2f3's Word line at x 781 came out at x 183.)
-            if k < i, !p.style.rightToLeft, p.cell == nil, q.cell == nil, theme.wordRules, RichTextTheme.wordWindowsPages, !document.isPageHeaderPart, let image = q.image,
+            if k < i, p.cell == nil, q.cell == nil, theme.wordRules, RichTextTheme.wordWindowsPages, !document.isPageHeaderPart, let image = q.image,
                q.text.isEmpty, let f = image.float, f.wraps, !f.wrapsTight, !f.takesRoom, f.horizontalFrom == "column", f.horizontalAlign == nil,
                !candidates.contains(where: { $0.image.id == image.id }) {
                 candidates.append((image, k < _imageSize.count ? _imageSize[k] : nil))

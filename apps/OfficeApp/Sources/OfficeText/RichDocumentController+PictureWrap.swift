@@ -201,7 +201,9 @@ extension RichDocumentController {
               let open = xml.rangeOfSubstring("<w:txbxContent>"),
               let close = xml.rangeOfSubstring("</w:txbxContent>", in: open.upperBound ..< xml.endIndex) else { return nil }
         let inner = String(xml[open.upperBound ..< close.lowerBound])
-        for marker in ["<w:tbl", "<w:fld", "<w:hyperlink", "<w:drawing", "<mc:", "<w:sdt", "<w:ins", "<w:del", "<w:bookmark"]
+        // (Fields, tracked changes and bookmarks are written back by the document writer as they were read. A link to a
+        // page outside the file needs a relationship in the file's own list, which the box's text cannot make: not editable yet.)
+        for marker in ["<w:tbl", "<w:drawing", "<mc:", "<w:sdt", "<w:object", "<w:pict"]
         where inner.containsSubstring(marker) { return nil }
         guard box.paragraphs.allSatisfy({ $0.image == nil && $0.inlineImages.isEmpty && $0.keptTable == nil }) else { return nil }
         return box.paragraphs
@@ -215,8 +217,9 @@ extension RichDocumentController {
               let open = xml.rangeOfSubstring("<w:txbxContent>"),
               let close = xml.rangeOfSubstring("</w:txbxContent>", in: open.upperBound ..< xml.endIndex) else { return nil }
         let inner = String(xml[open.upperBound ..< close.lowerBound])
-        for marker in ["<w:fld", "<w:hyperlink", "<w:drawing", "<mc:", "<w:sdt", "<w:ins ", "<w:ins>", "<w:del ", "<w:del>", "<w:bookmark"]
+        for marker in ["<mc:", "<w:sdt", "<w:object", "<w:pict"]
         where inner.containsSubstring(marker) { return nil }
+        guard Self._picturesAreKept(inner, box.paragraphs) else { return nil }
         // A table inside a cell is not rewritten.
         var from = inner.startIndex
         while let o = inner.rangeOfSubstring("<w:tc>", in: from ..< inner.endIndex) ?? inner.rangeOfSubstring("<w:tc ", in: from ..< inner.endIndex) {
@@ -224,7 +227,7 @@ extension RichDocumentController {
             if String(inner[o.upperBound ..< c.lowerBound]).containsSubstring("<w:tbl") { return nil }
             from = c.upperBound
         }
-        guard box.paragraphs.allSatisfy({ $0.image == nil && $0.inlineImages.isEmpty && $0.keptTable == nil }) else { return nil }
+        guard box.paragraphs.allSatisfy({ $0.keptTable == nil }) else { return nil }
         // Every table the text holds must be one the box knows the look of.
         let ids = Set(box.paragraphs.compactMap { $0.cell?.table })
         if inner.containsSubstring("<w:tbl"), ids.isEmpty { return nil }
@@ -237,18 +240,32 @@ extension RichDocumentController {
     /// Put an edited box back (`textBoxDocument`'s counterpart): its paragraphs and table looks and grids, written as
     /// `contentXML`, one undo step. False when the box is not editable in place or nothing changed.
     @discardableResult
-    public func setTextBoxContent(at index: Int, inline id: String? = nil, document: RichDocument, contentXML: String, height: Double? = nil) -> Bool {
+    public func setTextBoxContent(at index: Int, inline id: String? = nil, document: RichDocument, contentXML: String, rels: [KeptRel] = [], height: Double? = nil) -> Bool {
         guard textBoxDocument(at: index, inline: id) != nil,
               let old = _floating(index, id), var box = old.textBox, let xml = old.sourceXML,
               let open = xml.rangeOfSubstring("<w:txbxContent>"),
               let close = xml.rangeOfSubstring("</w:txbxContent>", in: open.upperBound ..< xml.endIndex) else { return false }
-        let patched = String(xml[xml.startIndex ..< open.upperBound]) + contentXML + String(xml[close.lowerBound...])
+        // Revision and bookmark ids are one space for the whole file. The writer numbers a box's from 1 like the body's, so move
+        // them above every id the other boxes already hold (the body's revisions are renumbered from 1 on save).
+        var highest = 99_999
+        for (i, p) in self.document.paragraphs.enumerated() {
+            // (The body: the ids its bookmarks keep from the file, and as many revision ids as it has revision runs.)
+            highest = max(highest, p.bookmarkMarkers.compactMap { Int($0.id) }.max() ?? 0)
+            highest = max(highest, p.runs.filter { $0.style.revision != nil }.count + p.bookmarks.count)
+            for other in [p.image].compactMap({ $0 }) + Array(p.inlineImages.values) {
+                if i == index, other.id == old.id { continue }
+                if let x = other.sourceXML { highest = max(highest, Self._highestRevisionId(in: x)) }
+            }
+        }
+        let patched = String(xml[xml.startIndex ..< open.upperBound]) + Self._shiftRevisionIds(contentXML, by: highest) + String(xml[close.lowerBound...])
         let ids = Set(document.paragraphs.compactMap { $0.cell?.table })
         var new = old
         // (A box that resizes to fit its text keeps the height its text now needs, as Word's does.)
         if let height, box.autoHeight, abs(height - old.height) > 0.5 { new.height = height }
         guard patched != xml || new.height != old.height else { return false }
         new.sourceXML = patched
+        // (The links the new words name replace the ones the writer made last time; the file's own relationships stay.)
+        new.sourceRels = old.sourceRels.filter { !$0.id.hasPrefix("rIdLink") && !$0.id.hasPrefix("rIdBoxKept") } + rels
         box.paragraphs = document.paragraphs
         box.tableStyles = document.tableStyles.filter { ids.contains($0.key) }
         box.tableColumns = document.tableColumns.filter { ids.contains($0.key) }
@@ -257,23 +274,51 @@ extension RichDocumentController {
         return true
     }
 
-    /// Replace the content of the text box at `index` with `paragraphs`, written as `contentXML` (the `w:txbxContent` body),
-    /// one undo step. False when the box is not editable in place or nothing changed.
+    /// The same for a box of plain paragraphs (no table looks).
     @discardableResult
-    public func setTextBoxContent(at index: Int, inline id: String? = nil, paragraphs: [RichParagraph], contentXML: String, height: Double? = nil) -> Bool {
-        guard textBoxParagraphs(at: index, inline: id) != nil,
-              let old = _floating(index, id), var box = old.textBox, let xml = old.sourceXML,
-              let open = xml.rangeOfSubstring("<w:txbxContent>"),
-              let close = xml.rangeOfSubstring("</w:txbxContent>", in: open.upperBound ..< xml.endIndex) else { return false }
-        let patched = String(xml[xml.startIndex ..< open.upperBound]) + contentXML + String(xml[close.lowerBound...])
-        var new = old
-        // (A box that resizes to fit its text keeps the height its text now needs, as Word's does.)
-        if let height, box.autoHeight, abs(height - old.height) > 0.5 { new.height = height }
-        guard patched != xml || new.height != old.height else { return false }
-        new.sourceXML = patched
-        box.paragraphs = paragraphs
-        new.textBox = box
-        _store(index, id, old: old, new: new)
-        return true
+    public func setTextBoxContent(at index: Int, inline id: String? = nil, paragraphs: [RichParagraph], contentXML: String, rels: [KeptRel] = [], height: Double? = nil) -> Bool {
+        setTextBoxContent(at: index, inline: id, document: RichDocument(paragraphs: paragraphs), contentXML: contentXML, rels: rels, height: height)
+    }
+
+    /// Pictures inside a box are edited in place only when each one is a plain inline picture the file carried (its own XML and
+    /// relationships ride with it), and the text holds no drawing the reader did not turn into one.
+    static func _picturesAreKept(_ inner: String, _ paragraphs: [RichParagraph]) -> Bool {
+        var drawings = 0, from = inner.startIndex
+        while let r = inner.rangeOfSubstring("<w:drawing", in: from ..< inner.endIndex) { drawings += 1; from = r.upperBound }
+        var images: [ImageAttachment] = []
+        for p in paragraphs { images += [p.image].compactMap { $0 } + Array(p.inlineImages.values) }
+        return images.count == drawings && images.allSatisfy { $0.sourceXML != nil && $0.float == nil && $0.textBox == nil }
+    }
+
+    private static let _idTags = ["<w:ins ", "<w:del ", "<w:bookmarkStart ", "<w:bookmarkEnd ", "<w:rPrChange ", "<w:pPrChange ", "<w:moveFrom ", "<w:moveTo "]
+
+    /// Visit each revision or bookmark `w:id="N"` of `xml`: (range of the digits, value).
+    private static func _revisionIds(in xml: String) -> [(Range<String.Index>, Int)] {
+        var out: [(Range<String.Index>, Int)] = []
+        for tag in _idTags {
+            var from = xml.startIndex
+            while let t = xml.rangeOfSubstring(tag, in: from ..< xml.endIndex) {
+                from = t.upperBound
+                guard let end = xml.rangeOfSubstring(">", in: from ..< xml.endIndex),
+                      let a = xml.rangeOfSubstring("w:id=\"", in: from ..< end.lowerBound),
+                      let q = xml.rangeOfSubstring("\"", in: a.upperBound ..< end.lowerBound),
+                      let n = Int(xml[a.upperBound ..< q.lowerBound]) else { continue }
+                out.append((a.upperBound ..< q.lowerBound, n))
+            }
+        }
+        return out
+    }
+
+    public static func _annotationIds(in xml: String) -> [Int] { _revisionIds(in: xml).map(\.1) }
+
+    public static func _highestRevisionId(in xml: String) -> Int { _revisionIds(in: xml).map(\.1).max() ?? 0 }
+
+    /// `xml` with every revision and bookmark id raised by `offset` (start and end of a bookmark move together).
+    static func _shiftRevisionIds(_ xml: String, by offset: Int) -> String {
+        var out = xml
+        for (range, n) in _revisionIds(in: xml).sorted(by: { $0.0.lowerBound > $1.0.lowerBound }) {
+            out.replaceSubrange(range, with: String(n + offset))
+        }
+        return out
     }
 }

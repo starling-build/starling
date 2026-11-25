@@ -251,6 +251,8 @@ final class Worksheet {
     var hidden = false
     /// Hidden so that only code can show it again (state="veryHidden").
     var veryHidden = false
+    /// The sheetId the file gave it, kept on save (nil for a sheet made here).
+    var sheetId: Int? = nil
     var showGridlines = true
     /// Part of a selected group of sheets (tabSelected on several sheetViews).
     var tabSelected = false
@@ -326,6 +328,8 @@ final class Worksheet {
     /// A split (not frozen) pane as the file had it: `pane`'s attributes and each `selection`'s, written back while the sheet has no frozen pane.
     var splitPane: [String: String]? = nil
     var splitSelections: [[String: String]] = []
+    /// 0, or which freeze (1 rows, 2 columns, 3 both) the file's `splitSelections` were written under.
+    var selectionFreeze = 0
     /// Whether the file gave the sheet a view (`sheetView`) at all. Excel
     /// prints a sheet without one with its set row heights halved — labs
     /// of 20 pt rows, Excel 16, 2026-10-15: 9.72 pt on paper, 19.32 with an
@@ -367,6 +371,9 @@ final class Worksheet {
     /// Values dynamic arrays spilled into otherwise empty cells: shown and
     /// read like the cells' own, written to the file beside their formula.
     var spilled: [CellAddress: CellValue] = [:]
+    /// What the file held in the cells of an array formula's range other than its first (Excel's last result): written back where
+    /// our own result leaves a cell blank, so a viewer that does not recalculate still shows the file's values.
+    var fileSpill: [CellAddress: CellValue] = [:]
     /// Excel tables on the sheet (their parts are kept; see Tables.swift).
     var tables: [SheetTable] = []
     /// Pivot tables on the sheet, for their styles (the parts are kept).
@@ -391,6 +398,8 @@ final class Worksheet {
     /// Hidden runs too long to list column by column (FillWithoutColor's
     /// G to the sheet's end).
     var hiddenColRuns: [ClosedRange<Int>] = []
+    /// A hidden run's own width in characters, by the run's first column, so showing it again changes no layout.
+    var hiddenRunChars: [Int: Double] = [:]
 
     /// Hidden for any reason: filtered, hidden, or height 0.
     func isRowHidden(_ r: Int) -> Bool { filteredRows.contains(r) || hiddenRows.contains(r) || rowHeights[r] == 0 }
@@ -415,6 +424,7 @@ final class Worksheet {
         s.tabColor = tabColor
         s.hidden = hidden
         s.veryHidden = veryHidden
+        s.sheetId = sheetId
         s.showGridlines = showGridlines
         s.savedActive = savedActive
         s.defaultColWidthPt = defaultColWidthPt
@@ -426,6 +436,7 @@ final class Worksheet {
         s.drawingRoot = drawingRoot
         s.drawingsEdited = drawingsEdited
         s.spilled = spilled
+        s.fileSpill = fileSpill
         s.colAttrRuns = colAttrRuns
         s.colWidthChars = colWidthChars
         s.widenedCols = widenedCols
@@ -438,12 +449,14 @@ final class Worksheet {
         s.viewAttrs = viewAttrs
         s.splitPane = splitPane
         s.splitSelections = splitSelections
+        s.selectionFreeze = selectionFreeze
         s.hasView = hasView
         s.scriptRows = scriptRows
         s.richText = richText
         s.richRaw = richRaw
         s.rowSpanGaps = rowSpanGaps
         s.hiddenColRuns = hiddenColRuns
+        s.hiddenRunChars = hiddenRunChars
         s.tables = tables
         s.pivots = pivots
         s.removedTables = removedTables

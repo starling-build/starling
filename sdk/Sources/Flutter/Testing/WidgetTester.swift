@@ -54,6 +54,9 @@ public final class WidgetTester {
             pipelineOwner.flushCompositingBits()
             pipelineOwner.flushPaint()
             buildOwner.finalizeTree()
+            // As a real frame ends: post-frame callbacks run (a widget that learns its size after layout, such as the
+            // slide canvas, only mounts its shapes once one has run).
+            for callback in FrameCallbackScheduler.shared.takePostFrameCallbacks() { callback(.zero) }
         }
     }
 
@@ -205,7 +208,7 @@ public final class WidgetTester {
     // MARK: Keys
 
     public enum Key {
-        case enter, escape, tab, backspace, f6, space
+        case enter, escape, tab, backspace, f6, space, alt
         var logical: Int64 {
             switch self {
             case .enter: return 0x1_0000_000D
@@ -214,6 +217,7 @@ public final class WidgetTester {
             case .backspace: return 0x1_0000_0008
             case .f6: return 0xFFBD
             case .space: return 0x1_0000_0020
+            case .alt: return 0xFFE9
             }
         }
     }
