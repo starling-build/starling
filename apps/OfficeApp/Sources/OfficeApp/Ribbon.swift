@@ -18,7 +18,7 @@ enum RibbonTab: Int, CaseIterable {
     case home, insert, layout, references, review, view
     /// Contextual: shown while a picture is selected or the caret is in a
     /// table, as Word does.
-    case pictureFormat, tableLayout, tableDesign
+    case pictureFormat, shapeFormat, tableLayout, tableDesign
     /// Slides only; contextual while a chart is selected.
     case chartDesign
     /// Slides only.
@@ -44,6 +44,7 @@ enum RibbonTab: Int, CaseIterable {
         case .review: return "Review"
         case .view: return "View"
         case .pictureFormat: return "Picture Format"
+        case .shapeFormat: return "Shape Format"
         case .tableLayout: return "Table Layout"
         case .tableDesign: return "Table Design"
         case .chartDesign: return "Chart Design"
@@ -56,7 +57,7 @@ enum RibbonTab: Int, CaseIterable {
         }
     }
 
-    var isContextual: Bool { self == .pictureFormat || self == .tableLayout || self == .tableDesign || self == .chartDesign }
+    var isContextual: Bool { self == .pictureFormat || self == .shapeFormat || self == .tableLayout || self == .tableDesign || self == .chartDesign }
 }
 
 final class Ribbon: StatelessWidget {
@@ -105,7 +106,7 @@ final class Ribbon: StatelessWidget {
         var items: [Widget] = [_fileTab(fluent)]
         for t in RibbonTab.strip(for: session.kind) { items.append(_tab(t, fluent)) }
         let slidePicture = session.deck?.selection.contains { $0.picture != nil } ?? false
-        if session.summary.imageIndex != nil || slidePicture { items.append(_tab(.pictureFormat, fluent)) }
+        if session.summary.imageIndex != nil || slidePicture { items.append(_tab(session.selectedImageTab, fluent)) }
         if session.deck?.selectedTableOptions != nil { items.append(_tab(.tableDesign, fluent)) }
         if session.summary.inCell { items.append(_tab(.tableDesign, fluent)); items.append(_tab(.tableLayout, fluent)) }
         if session.deck?.selectedChart != nil { items.append(_tab(.chartDesign, fluent)) }
@@ -177,7 +178,8 @@ final class Ribbon: StatelessWidget {
         case .insert: return _insert(fluent)
         case .layout: return _layout(fluent)
         case .view: return _view(fluent)
-        case .pictureFormat: return _pictureFormat(fluent)
+        case .pictureFormat: return _pictureFormat(fluent, shape: session.selectedImageTab == .shapeFormat)
+        case .shapeFormat: return _pictureFormat(fluent, shape: true)
         case .tableLayout: return _tableLayout(fluent)
         case .references: return _references(fluent)
         case .review: return _review(fluent)
@@ -724,7 +726,7 @@ final class Ribbon: StatelessWidget {
 
     // MARK: Picture Format
 
-    private func _pictureFormat(_ fluent: FluentThemeData) -> [Widget] {
+    private func _pictureFormat(_ fluent: FluentThemeData, shape: Bool = false) -> [Widget] {
         let c = session.controller
         let s = session.summary
         if let i = s.imageIndex, let id = s.inlineImageID, let image = c.document.paragraphs[i].inlineImages[id] {
@@ -757,12 +759,12 @@ final class Ribbon: StatelessWidget {
             ])
             let tools = Chrome.group("Adjust", fluent, [
                 Chrome.rows([
-                    Chrome.small(FluentSystemIcons.image, "Alt Text", fluent) { [session] in session.onPictureDialog?(.altText) },
+                    Chrome.small(CupertinoIcons.chat_bubble_text, "Alt Text", fluent) { [session] in session.onPictureDialog?(.altText) },
                     Chrome.small(FluentSystemIcons.pageFit, "Crop", fluent) { [session] in session.onPictureDialog?(.crop) },
                 ]),
                 Chrome.gap(8),
                 Chrome.rows([
-                    Chrome.small(FluentSystemIcons.image, "Change Picture", fluent) { [session] in session.onChangePicture?() },
+                    Chrome.small(CupertinoIcons.photo_on_rectangle, "Change Picture", fluent) { [session] in session.onChangePicture?() },
                     Chrome.small(FluentSystemIcons.zoomOut, "Reset Picture", fluent) { c.resetPicture(at: i, inline: id) },
                 ]),
             ])
@@ -808,14 +810,16 @@ final class Ribbon: StatelessWidget {
             Chrome.small(CupertinoIcons.rotate_right, "Rotate Right", fluent) { _ = c.rotatePicture(at: i, quarters: 1) },
             Chrome.small(CupertinoIcons.rotate_left, "Rotate Left", fluent) { _ = c.rotatePicture(at: i, quarters: -1) },
         ])
-        let tools = Chrome.group("Adjust", fluent, [
+        let tools = shape ? Chrome.group("Adjust", fluent, [
+            Chrome.small(CupertinoIcons.chat_bubble_text, "Alt Text", fluent) { [session] in session.onPictureDialog?(.altText) },
+        ]) : Chrome.group("Adjust", fluent, [
             Chrome.rows([
-                Chrome.small(FluentSystemIcons.image, "Alt Text", fluent) { [session] in session.onPictureDialog?(.altText) },
+                Chrome.small(CupertinoIcons.chat_bubble_text, "Alt Text", fluent) { [session] in session.onPictureDialog?(.altText) },
                 Chrome.small(FluentSystemIcons.pageFit, "Crop", fluent) { [session] in session.onPictureDialog?(.crop) },
             ]),
             Chrome.gap(8),
             Chrome.rows([
-                Chrome.small(FluentSystemIcons.image, "Change Picture", fluent) { [session] in session.onChangePicture?() },
+                Chrome.small(CupertinoIcons.photo_on_rectangle, "Change Picture", fluent) { [session] in session.onChangePicture?() },
                 Chrome.small(FluentSystemIcons.zoomOut, "Reset Picture", fluent) { c.resetPicture(at: i) },
             ]),
         ])
@@ -863,7 +867,16 @@ final class Ribbon: StatelessWidget {
         var floating: [Widget] = []
         if let wrap = c.pictureWrap(at: i) {
             func pick(_ w: PictureWrap) -> Widget {
-                Chrome.small(FluentSystemIcons.image, w.title, fluent, enabled: w != wrap) { _ = c.setPictureWrap(at: i, w) }
+                let glyph: IconData
+                switch w {
+                case .square: glyph = CupertinoIcons.rectangle_split_3x1
+                case .tight: glyph = CupertinoIcons.square_grid_2x2
+                case .through: glyph = CupertinoIcons.layers
+                case .topAndBottom: glyph = CupertinoIcons.arrow_up_down
+                case .behindText: glyph = CupertinoIcons.square_stack
+                default: glyph = CupertinoIcons.rectangle_on_rectangle
+                }
+                return Chrome.small(glyph, w.title, fluent, enabled: w != wrap) { _ = c.setPictureWrap(at: i, w) }
             }
             floating.append(Chrome.group("Wrap Text", fluent, [
                 Chrome.rows([pick(.square), pick(.tight), pick(.through)]),
@@ -882,6 +895,7 @@ final class Ribbon: StatelessWidget {
                 ]),
             ]))
         }
+        if shape { return styleGroup + boxGroup + groupWidgets + floating + [size, turn, tools, remove] }
         return [size, arrange] + floating + groupWidgets + boxGroup + styleGroup + [turn, tools, remove]
     }
 

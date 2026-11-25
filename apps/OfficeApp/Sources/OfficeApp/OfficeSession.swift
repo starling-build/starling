@@ -119,6 +119,12 @@ final class OfficeSession {
     }
 
     var summary = ToolbarSummary()
+    /// Which contextual tab the selected image gets: a drawn shape or text box has Shape Format, a picture Picture Format.
+    func imageTab(at index: Int?) -> RibbonTab {
+        guard let i = index, i < controller.document.paragraphs.count, let image = controller.document.paragraphs[i].image else { return .pictureFormat }
+        return image.outline != nil || image.textBox != nil ? .shapeFormat : .pictureFormat
+    }
+    var selectedImageTab: RibbonTab { imageTab(at: summary.imageIndex) }
     var zoom = 1.0
     var pageSetup = PageSetup.letter
     /// The page of the section the caret is in (the last section's is `pageSetup`).
