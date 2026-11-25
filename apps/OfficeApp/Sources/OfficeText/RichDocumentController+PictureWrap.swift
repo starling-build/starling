@@ -217,8 +217,9 @@ extension RichDocumentController {
               let open = xml.rangeOfSubstring("<w:txbxContent>"),
               let close = xml.rangeOfSubstring("</w:txbxContent>", in: open.upperBound ..< xml.endIndex) else { return nil }
         let inner = String(xml[open.upperBound ..< close.lowerBound])
-        for marker in ["<w:drawing", "<mc:", "<w:sdt", "<w:object", "<w:pict"]
+        for marker in ["<mc:", "<w:sdt", "<w:object", "<w:pict"]
         where inner.containsSubstring(marker) { return nil }
+        guard Self._picturesAreKept(inner, box.paragraphs) else { return nil }
         // A table inside a cell is not rewritten.
         var from = inner.startIndex
         while let o = inner.rangeOfSubstring("<w:tc>", in: from ..< inner.endIndex) ?? inner.rangeOfSubstring("<w:tc ", in: from ..< inner.endIndex) {
@@ -226,7 +227,7 @@ extension RichDocumentController {
             if String(inner[o.upperBound ..< c.lowerBound]).containsSubstring("<w:tbl") { return nil }
             from = c.upperBound
         }
-        guard box.paragraphs.allSatisfy({ $0.image == nil && $0.inlineImages.isEmpty && $0.keptTable == nil }) else { return nil }
+        guard box.paragraphs.allSatisfy({ $0.keptTable == nil }) else { return nil }
         // Every table the text holds must be one the box knows the look of.
         let ids = Set(box.paragraphs.compactMap { $0.cell?.table })
         if inner.containsSubstring("<w:tbl"), ids.isEmpty { return nil }
@@ -264,7 +265,7 @@ extension RichDocumentController {
         guard patched != xml || new.height != old.height else { return false }
         new.sourceXML = patched
         // (The links the new words name replace the ones the writer made last time; the file's own relationships stay.)
-        new.sourceRels = old.sourceRels.filter { !$0.id.hasPrefix("rIdLink") } + rels
+        new.sourceRels = old.sourceRels.filter { !$0.id.hasPrefix("rIdLink") && !$0.id.hasPrefix("rIdBoxKept") } + rels
         box.paragraphs = document.paragraphs
         box.tableStyles = document.tableStyles.filter { ids.contains($0.key) }
         box.tableColumns = document.tableColumns.filter { ids.contains($0.key) }
@@ -277,6 +278,16 @@ extension RichDocumentController {
     @discardableResult
     public func setTextBoxContent(at index: Int, inline id: String? = nil, paragraphs: [RichParagraph], contentXML: String, rels: [KeptRel] = [], height: Double? = nil) -> Bool {
         setTextBoxContent(at: index, inline: id, document: RichDocument(paragraphs: paragraphs), contentXML: contentXML, rels: rels, height: height)
+    }
+
+    /// Pictures inside a box are edited in place only when each one is a plain inline picture the file carried (its own XML and
+    /// relationships ride with it), and the text holds no drawing the reader did not turn into one.
+    static func _picturesAreKept(_ inner: String, _ paragraphs: [RichParagraph]) -> Bool {
+        var drawings = 0, from = inner.startIndex
+        while let r = inner.rangeOfSubstring("<w:drawing", in: from ..< inner.endIndex) { drawings += 1; from = r.upperBound }
+        var images: [ImageAttachment] = []
+        for p in paragraphs { images += [p.image].compactMap { $0 } + Array(p.inlineImages.values) }
+        return images.count == drawings && images.allSatisfy { $0.sourceXML != nil && $0.float == nil && $0.textBox == nil }
     }
 
     private static let _idTags = ["<w:ins ", "<w:del ", "<w:bookmarkStart ", "<w:bookmarkEnd ", "<w:rPrChange ", "<w:pPrChange ", "<w:moveFrom ", "<w:moveTo "]
