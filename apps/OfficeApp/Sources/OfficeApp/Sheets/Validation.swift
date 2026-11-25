@@ -104,8 +104,8 @@ extension WorkbookController {
     }
 
     /// Why `value` may not go into `a`; nil when it may.
-    func validationRefusal(_ value: CellValue, at a: CellAddress) -> String? {
-        guard let rule = validation(at: a), rule.refuses else { return nil }
+    func validationRefusal(_ value: CellValue, at a: CellAddress, ignoringAlertSetting: Bool = false) -> String? {
+        guard let rule = validation(at: a), rule.refuses || ignoringAlertSetting else { return nil }
         let message = rule.error ?? "This value doesn't match the data validation restrictions defined for this cell."
         if value.isEmpty { return rule.allowBlank || rule.type == "custom" ? nil : message }
         let ctx = EvalContext(engine: engine, sheet: activeSheet, cell: a)

@@ -77,6 +77,7 @@ final class SheetsShellState: State<StatefulWidget> {
     private var _shortcutsOpen = false
     var _printKinds: [PrintWhat] = []
     var _printCounts: [Int] = []
+    private var _alertOpen: (alert: ValidationAlert, answer: (ValidationChoice) -> Void)?
     private var _sortOpen: (range: CellRange, hasHeader: Bool)?
     private var _dupOpen: (range: CellRange, hasHeader: Bool)?
     private var _ttcOpen: CellRange?
@@ -123,6 +124,9 @@ final class SheetsShellState: State<StatefulWidget> {
         wb.addListener({ [weak self] in self?._changed() }, owner: self)
         _publishToolbar()
         wb.onCommand = { [weak self] cmd in self?._command(cmd) }
+        wb.onValidationAlert = { [weak self] alert, answer in
+            self?.setState { self?._alertOpen = (alert, answer) }
+        }
         session.onFind = { [weak self] replace in self?._openFind(replace: replace) }
         session.onToggleAutoSave = { [weak self] in
             guard let self else { return }
@@ -1019,6 +1023,14 @@ final class SheetsShellState: State<StatefulWidget> {
             return Stack(children: [window, Positioned(left: 0, top: 0, right: 0, bottom: 0, child: ValidationDialog(
                 controller: wb, onClose: { [weak self] in
                     self?.setState { self?._validationOpen = false }
+                    self?._grid?.focus.requestFocus()
+                }))])
+        }
+        if let open = _alertOpen {
+            return Stack(children: [window, Positioned(left: 0, top: 0, right: 0, bottom: 0, child: ValidationAlertDialog(
+                alert: open.alert, onChoice: { [weak self] choice in
+                    self?.setState { self?._alertOpen = nil }
+                    open.answer(choice)
                     self?._grid?.focus.requestFocus()
                 }))])
         }

@@ -1094,12 +1094,30 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             let open = text.filter { $0 == "(" }.count - text.filter { $0 == ")" }.count
             if open > 0 { text += String(repeating: ")", count: open) }
         }
-        // Data validation: an entry its rule refuses is not made (Excel's
-        // Stop alert, answered Cancel); a Warning or Information alert lets
-        // it in and says so; formulas are not checked.
+        // Data validation: an entry its rule objects to raises the rule's alert: Stop (Retry / Cancel)
+        // refuses it, Warning (Yes / No / Cancel) and Information (OK / Cancel) let it in when
+        // accepted; formulas are not checked. Without a dialog host the style alone decides.
         var verdict: String? = nil
         if text != controller.input(e.cell), !text.hasPrefix("=") {
             let value = text.isEmpty ? CellValue.empty : (InputParser.parse(text)?.value ?? .text(text))
+            if let ask = controller.onValidationAlert, let alert = controller.validationAlert(value, at: e.cell) {
+                let finish: () -> Void = { [weak self] in self?._finishCommit(e, text) }
+                ask(alert) { [weak self] choice in
+                    guard let self else { return }
+                    switch choice {
+                    case .accept: finish()
+                    case .retry:
+                        self.edit = e
+                        self._w.onEditText(String(e.text))
+                        self._repaint.notifyListeners()
+                        self._ime?.sync()
+                    case .cancel:
+                        self._w.onEditText(nil)
+                        self._repaint.notifyListeners()
+                    }
+                }
+                return true
+            }
             if let v = controller.validationVerdict(value, at: e.cell) {
                 if v.refused {
                     _w.onStatus(v.message)
@@ -1110,6 +1128,12 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 verdict = v.message
             }
         }
+        _finishCommit(e, text, verdict: verdict)
+        return true
+    }
+
+    /// The part of committing an edit that follows validation: put the text in, widen, report.
+    private func _finishCommit(_ e: CellEdit, _ text: String, verdict: String? = nil) {
         if text != controller.input(e.cell) {
             controller.setInput(text, at: e.cell)
             _widenForNumber(e.cell)
@@ -1121,7 +1145,6 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         }
         _w.onEditText(nil)
         _repaint.notifyListeners()
-        return true
     }
 
     /// A date or formatted number typed into a column still at its default
@@ -2168,6 +2191,21 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         tp.paint(canvas, Offset(box.left + pad, y))
     }
 
+    /// Circle Invalid Data: a red ellipse round every cell that breaks its rule.
+    private func _paintCircles(_ canvas: any Canvas) {
+        let c = controller
+        guard c.circlesOn, !printing else { return }
+        let p = Paint()
+        p.style = .stroke
+        p.strokeWidth = 2
+        p.color = Color(0xFFD13438)
+        for a in c.invalidCells() {
+            let r = rect(a)
+            guard r.bottom > headerHeight, r.right > headerWidth, r.width > 0 else { continue }
+            canvas.drawOval(r.inflate(2 * zoom), p)
+        }
+    }
+
     /// The active cell's validation input message: a pale yellow box
     /// under it, title in bold, as Excel shows it until the selection moves.
     private func _paintPrompt(_ canvas: any Canvas) {
@@ -2405,6 +2443,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         }
         _paintNote(canvas, ink: ink)
         _paintPrompt(canvas)
+        _paintCircles(canvas)
         // The freeze lines.
         let freeze = Paint()
         freeze.style = .stroke
