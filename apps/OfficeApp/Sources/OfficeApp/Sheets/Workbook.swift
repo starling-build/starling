@@ -39,6 +39,8 @@ struct CellStyle: Hashable, Sendable {
     var bold = false
     var italic = false
     var underline = false
+    /// The cell wears the built-in Hyperlink cell style (`cellStyle` builtinId 8).
+    var linkStyle = false
     /// The underline is an accounting one: 1 single, 2 double (they sit at
     /// the cell's foot, and make its row taller).
     var accounting = 0
@@ -250,6 +252,8 @@ final class Worksheet {
     /// Hidden so that only code can show it again (state="veryHidden").
     var veryHidden = false
     var showGridlines = true
+    /// Part of a selected group of sheets (tabSelected on several sheetViews).
+    var tabSelected = false
     /// The active cell as saved, restored on open and written on save.
     var savedActive: CellAddress? = nil
     /// The sheet's default sizes, in points.

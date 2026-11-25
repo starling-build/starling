@@ -116,6 +116,9 @@ struct SheetPrintSetup: Equatable {
 }
 
 /// One printed page: the columns and rows it shows.
+/// A number handed back from an async job.
+final class SheetJobBox<T> { var value: T; init(_ v: T) { value = v } }
+
 struct SheetPage: Equatable {
     var cols: [Int]
     var rows: [Int]
@@ -383,7 +386,8 @@ extension SheetGridState {
     /// stops a runaway sheet (the rendering gate's cap).
     @MainActor
     func writePdf(to path: String, title: String, filePath: String? = nil,
-                  wholeBook: Bool = false, selection: CellRange? = nil, maxPages: Int? = nil) async -> Bool {
+                  wholeBook: Bool = false, selection: CellRange? = nil, maxPages: Int? = nil,
+                  pages only: [Int]? = nil, countOnly: SheetJobBox<Int>? = nil) async -> Bool {
         let c = controller
         let book = c.book
         let savedSheet = c.activeSheet
@@ -484,6 +488,7 @@ extension SheetGridState {
         }
         let pageCount = parts.reduce(0) { $0 + $1.jobs.reduce(0) { $0 + $1.pages.count } }
         guard pageCount > 0 else { return false }
+        if let countOnly { countOnly.value = pageCount; return true }
         var out: [PdfDocument.Page] = []
         for part in parts {
             if let maxPages, out.count >= maxPages { break }
@@ -491,6 +496,8 @@ extension SheetGridState {
             _paintPart(sheet: part.sheet, setup: part.setup, names: part.names, jobs: part.jobs, pageCount: pageCount,
                        title: title, filePath: filePath, maxPages: maxPages, into: &out)
         }
+        // Chosen pages (1-based, in the order asked, a page twice when copies are wanted).
+        if let only { out = only.compactMap { out.indices.contains($0 - 1) ? out[$0 - 1] : nil } }
         return PdfDocument.write(to: path, pages: out, title: title, author: PdfExport.authorName())
     }
 

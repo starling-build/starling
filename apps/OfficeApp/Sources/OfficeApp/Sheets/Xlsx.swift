@@ -169,6 +169,10 @@ enum Xlsx {
         }
         if book.sheets.isEmpty { book.sheets = [Worksheet(name: "Sheet1")] }
         book.activeTab = min(max(0, activeTab), book.sheets.count - 1)
+        // One selected tab is just the open sheet; several are a group, as Excel opens it.
+        if book.sheets.filter(\.tabSelected).count < 2 || !book.sheets[book.activeTab].tabSelected {
+            for ws in book.sheets { ws.tabSelected = false }
+        }
 
         // The values saved from linked workbooks, in the order [1], [2]... name them.
         for ref in wbNode.child("externalReferences")?.kids("externalReference") ?? [] {
@@ -302,6 +306,7 @@ enum Xlsx {
             }
             if let sel = view.kids("selection").last, let a = sel["activeCell"].flatMap({ CellAddress($0) }) { ws.savedActive = a }
             if view["showGridLines"] == "0" { ws.showGridlines = false }
+            ws.tabSelected = view["tabSelected"] == "1"
             ws.viewAttrs = view.attrs.filter { !["tabSelected", "showGridLines", "workbookViewId"].contains($0.key) }
         }
         // Column widths are in characters of the default font's widest
@@ -749,8 +754,10 @@ enum Xlsx {
             borders.append(bd)
         }
         var out: [CellStyle] = []
+        let linkXf = st.child("cellStyles")?.kids("cellStyle").first { $0["builtinId"] == "8" }?["xfId"]
         for xf in st.child("cellXfs")?.kids("xf") ?? [] {
             var s = CellStyle()
+            if let linkXf, xf["xfId"] == linkXf { s.linkStyle = true }
             if let id = Int(xf["numFmtId"] ?? "0") { s.numberFormat = formats[id] ?? "General" }
             if let fi = Int(xf["fontId"] ?? "0"), fi < fonts.count {
                 let f = fonts[fi]
@@ -992,6 +999,11 @@ enum Xlsx {
                 }
                 tablePartsOverride[i] = text
             }
+            // Links made here: their addresses join the sheet's relationships.
+            for (id, url) in ws.linkTargets.sorted(by: { $0.key < $1.key }) where !rels.contains(where: { $0.id == id }) {
+                rels.append((id, "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink", url))
+                changed = true
+            }
             if changed { sheetRelParts[_relsPath(paths[i])] = Data(_relsXML(rels).utf8) }
         }
         // Excel 365 marks a dynamic-array formula with cell metadata (cm=…)
@@ -1016,7 +1028,7 @@ enum Xlsx {
             if let e = drawingParts[i].element { extra["drawing"] = e }
             if let e = tablePartsOverride[i] { extra["tableParts"] = e }
             if let e = noteParts[i].element { extra["legacyDrawing"] = e }
-            sheetXML.append(_sheetXML(ws, book: book, selected: i == book.activeTab, extra: extra, dynamicCm: dynamicCm,
+            sheetXML.append(_sheetXML(ws, book: book, selected: i == book.activeTab || ws.tabSelected, extra: extra, dynamicCm: dynamicCm,
                                       stringIndex: stringIndex))
         }
 
@@ -1158,7 +1170,11 @@ enum Xlsx {
 
     static func _relsXML(_ rels: [(id: String, type: String, target: String)]) -> String {
         var s = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">"
-        for r in rels { s += "<Relationship Id=\"\(_esc(r.id))\" Type=\"\(_esc(r.type))\" Target=\"\(_esc(r.target))\"/>" }
+        for r in rels {
+            // A hyperlink target is an address, not a part: Excel needs it marked External.
+            let mode = r.type.hasSuffix("/hyperlink") ? " TargetMode=\"External\"" : ""
+            s += "<Relationship Id=\"\(_esc(r.id))\" Type=\"\(_esc(r.type))\" Target=\"\(_esc(r.target))\"\(mode)/>"
+        }
         return s + "</Relationships>"
     }
 
@@ -1674,6 +1690,8 @@ enum Xlsx {
         let fileCustom = Set(custom.values)
         var nextFmt = max(163, custom.values.max() ?? 163) + 1
         var xfs: [String] = []
+        var styleXfs = src?.cellStyleXfs, styleNames = src?.cellStyles
+        var linkXfId: String? = nil, newLinkXf: String? = nil
         for (i, st) in book.styles.enumerated() {
             // A format the file had, unchanged: exactly as it was.
             if let src, i < src.xfs.count, st.baseXf == i {
@@ -1741,7 +1759,19 @@ enum Xlsx {
             if fmtId < 0 {
                 if let c = custom[st.numberFormat] { fmtId = c } else { fmtId = nextFmt; nextFmt += 1; custom[st.numberFormat] = fmtId }
             }
-            let xfId = base?.xf.attrs["xfId"] ?? "0"
+            var xfId = base?.xf.attrs["xfId"] ?? "0"
+            if st.linkStyle {
+                if linkXfId == nil {
+                    // The file's own Hyperlink cell style (builtinId 8), or one added after the others.
+                    if let id = styleNames.flatMap({ XNode.parse(Data($0.utf8)) })?.kids("cellStyle").first(where: { $0["builtinId"] == "8" })?["xfId"] { linkXfId = id }
+                    else {
+                        let count = styleXfs.flatMap { XNode.parse(Data($0.utf8)) }.map { $0.kids("xf").count } ?? 1
+                        linkXfId = "\(count)"
+                        newLinkXf = "<xf numFmtId=\"0\" fontId=\"\(fontId)\" fillId=\"0\" borderId=\"0\" applyNumberFormat=\"0\" applyFill=\"0\" applyBorder=\"0\" applyAlignment=\"0\" applyProtection=\"0\"/>"
+                    }
+                }
+                xfId = linkXfId ?? "0"
+            }
             var xf = "<xf numFmtId=\"\(fmtId)\" fontId=\"\(fontId)\" fillId=\"\(fillId)\" borderId=\"\(borderId)\" xfId=\"\(xfId)\""
             if fmtId != 0 { xf += " applyNumberFormat=\"1\"" }
             if fontId != 0 { xf += " applyFont=\"1\"" }
@@ -1792,9 +1822,22 @@ enum Xlsx {
         s += open("fonts", fonts.count) + fonts.joined() + "</fonts>"
         s += open("fills", fills.count) + fills.joined() + "</fills>"
         s += open("borders", borders.count) + borders.joined() + "</borders>"
-        s += src?.cellStyleXfs ?? "<cellStyleXfs count=\"1\"><xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"0\"/></cellStyleXfs>"
+        func bumped(_ text: String, adding item: String, before close: String) -> String {
+            var t = text
+            if let r = t.findRange(of: " count=\""), let q = t.findRange(of: "\"", in: r.upperBound ..< t.endIndex), let n = Int(t[r.upperBound ..< q.lowerBound]) {
+                t.replaceSubrange(r.upperBound ..< q.lowerBound, with: "\(n + 1)")
+            }
+            if let c = t.findRange(of: close) { t.insert(contentsOf: item, at: c.lowerBound) }
+            return t
+        }
+        if let x = newLinkXf {
+            styleXfs = bumped(styleXfs ?? "<cellStyleXfs count=\"1\"><xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"0\"/></cellStyleXfs>", adding: x, before: "</cellStyleXfs>")
+            styleNames = bumped(styleNames ?? "<cellStyles count=\"1\"><cellStyle name=\"Normal\" xfId=\"0\" builtinId=\"0\"/></cellStyles>",
+                                adding: "<cellStyle name=\"Hyperlink\" xfId=\"\(linkXfId ?? "1")\" builtinId=\"8\"/>", before: "</cellStyles>")
+        }
+        s += styleXfs ?? "<cellStyleXfs count=\"1\"><xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"0\"/></cellStyleXfs>"
         s += open("cellXfs", xfs.count) + xfs.joined() + "</cellXfs>"
-        s += src?.cellStyles ?? "<cellStyles count=\"1\"><cellStyle name=\"Normal\" xfId=\"0\" builtinId=\"0\"/></cellStyles>"
+        s += styleNames ?? "<cellStyles count=\"1\"><cellStyle name=\"Normal\" xfId=\"0\" builtinId=\"0\"/></cellStyles>"
         // The file's own differential formats, table styles, palette and
         // extensions, in schema order (conditional formats point at dxfs by index).
         s += book.keptStyleParts["dxfs"] ?? "<dxfs count=\"0\"/>"

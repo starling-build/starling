@@ -206,6 +206,18 @@ struct ReadShape: Equatable {
     /// alt text...) survives a drag. (S-P0-1)
     func unchangedExceptPlacement(_ s: ShapeState) -> Bool { unchangedExceptPlacementAndText(s) && s.text == s.sourceText }
 
+    /// Still the same kind of shape, whatever else was edited among what a save can patch into the shape's own XML
+    /// (fill, line, anchor, insets, autofit, name, click action, place); text is the caller's to check.
+    func patchable(_ s: ShapeState) -> Bool {
+        var a = self
+        let b = ReadShape(s)
+        a.frame = b.frame; a.rotation = b.rotation; a.flipH = b.flipH; a.flipV = b.flipV; a.invisible = b.invisible; a.aspectLock = b.aspectLock
+        a.fill = b.fill; a.fillScheme = b.fillScheme; a.outline = b.outline; a.outlineWidth = b.outlineWidth
+        a.anchor = b.anchor; a.insets = b.insets; a.autofit = b.autofit; a.fontScale = b.fontScale
+        a.name = b.name; a.link = b.link; a.linkTip = b.linkTip
+        return a == b
+    }
+
     /// The same, whatever has been typed.
     func unchangedExceptPlacementAndText(_ s: ShapeState) -> Bool {
         var a = self
@@ -248,6 +260,16 @@ struct LineEnd: Equatable {
 /// name any of PowerPoint's ~180 presets, and a shape keeps its name through
 /// a save whether or not this app draws it exactly (unknown ones draw as
 /// their bounding rectangle, PowerPoint redraws them properly).
+extension EdgeInsets {
+    /// These insets with the geometry's share `g` (the preset's text rectangle) mirrored: a shape flipped
+    /// across draws its text in the mirrored rectangle (PowerPoint: a flipped right arrow's text sits in
+    /// the body, not at the left edge), though the text itself is not mirrored.
+    func mirroringShare(_ g: EdgeInsets, horizontal: Bool, vertical: Bool) -> EdgeInsets {
+        EdgeInsets(left: left + (horizontal ? g.right - g.left : 0), top: top + (vertical ? g.bottom - g.top : 0),
+                   right: right + (horizontal ? g.left - g.right : 0), bottom: bottom + (vertical ? g.top - g.bottom : 0))
+    }
+}
+
 struct ShapePreset: RawRepresentable, Hashable {
     let rawValue: String
     init(rawValue: String) { self.rawValue = rawValue }

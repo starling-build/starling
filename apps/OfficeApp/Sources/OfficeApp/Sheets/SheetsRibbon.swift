@@ -361,6 +361,13 @@ extension Ribbon {
             Chrome.big(FluentSystemIcons.columns, "Text to Columns", fluent) { wb.onCommand?(.textToColumns) },
             Chrome.big(FluentSystemIcons.numberList, "Subtotal", fluent) { wb.onCommand?(.subtotal) },
             Chrome.big(FluentSystemIcons.numberList, "Consolidate", fluent) { wb.onCommand?(.consolidate) },
+            Chrome.rows([
+                Chrome.small(FluentSystemIcons.check, "Circle Invalid Data", fluent) {
+                    let n = wb.circleInvalidData()
+                    wb.onCommand?(.status(n == 0 ? "No invalid data found" : "\(n) invalid cell\(n == 1 ? "" : "s") circled"))
+                },
+                Chrome.small(FluentSystemIcons.close, "Clear Validation Circles", fluent) { wb.clearValidationCircles() },
+            ]),
         ])
     }
 

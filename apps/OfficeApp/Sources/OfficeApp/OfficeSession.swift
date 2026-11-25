@@ -316,6 +316,9 @@ final class OfficeSession {
     var onAltText: (() -> Void)?
     var onTextOptions: (() -> Void)?
     var onLink: (() -> Void)?
+    /// W-FN-1: insert a footnote or endnote at the caret and open its text; edit the note the caret is next to.
+    var onInsertNote: ((NoteReference.Kind) -> Void)?
+    var onEditNote: (() -> Void)?
     var onSymbolDialog: (() -> Void)?
     var onMoreColors: (() -> Void)?
     var onParagraphDialog: (() -> Void)?

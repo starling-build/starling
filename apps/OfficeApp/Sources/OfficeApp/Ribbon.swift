@@ -15,7 +15,7 @@ import CupertinoIcons
 import Foundation
 
 enum RibbonTab: Int, CaseIterable {
-    case home, insert, layout, review, view
+    case home, insert, layout, references, review, view
     /// Contextual: shown while a picture is selected or the caret is in a
     /// table, as Word does.
     case pictureFormat, tableLayout, tableDesign
@@ -29,7 +29,7 @@ enum RibbonTab: Int, CaseIterable {
     /// The tabs a kind shows, in strip order (contextual ones aside).
     static func strip(for kind: DocumentKind) -> [RibbonTab] {
         switch kind {
-        case .document: return [.home, .insert, .layout, .review, .view]
+        case .document: return [.home, .insert, .layout, .references, .review, .view]
         case .presentation: return [.home, .insert, .design, .transitions, .animations, .slideShow, .review, .view]
         case .workbook: return [.home, .insert, .layout, .formulas, .data, .review, .view]
         }
@@ -40,6 +40,7 @@ enum RibbonTab: Int, CaseIterable {
         case .home: return "Home"
         case .insert: return "Insert"
         case .layout: return "Layout"
+        case .references: return "References"
         case .review: return "Review"
         case .view: return "View"
         case .pictureFormat: return "Picture Format"
@@ -163,9 +164,21 @@ final class Ribbon: StatelessWidget {
         case .view: return _view(fluent)
         case .pictureFormat: return _pictureFormat(fluent)
         case .tableLayout: return _tableLayout(fluent)
+        case .references: return _references(fluent)
         case .review: return _review(fluent)
         case .design, .transitions, .slideShow, .chartDesign, .tableDesign, .animations, .formulas, .data: return []
         }
+    }
+
+    // MARK: References
+
+    /// W-FN-1: footnotes and endnotes. (The other References groups arrive with their own rows.)
+    func _references(_ fluent: FluentThemeData) -> [Widget] {
+        [Chrome.group("Footnotes", fluent, [
+            Chrome.big(FluentSystemIcons.textT, "Insert Footnote", fluent) { [session] in session.onInsertNote?(.footnote) },
+            Chrome.big(FluentSystemIcons.textT, "Insert Endnote", fluent) { [session] in session.onInsertNote?(.endnote) },
+            Chrome.big(FluentSystemIcons.textT, "Edit Note", fluent) { [session] in session.onEditNote?() },
+        ])]
     }
 
     // MARK: Review

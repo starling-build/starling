@@ -68,4 +68,64 @@ final class NoteInsertTests: XCTestCase {
         c.insertNote(.endnote)           // i
         try DocxFormat.write(c.document, pageSetup: .letter).write(to: URL(fileURLWithPath: out))
     }
+
+    func testNoteTextEditsSavesReopensAndUndoes() throws {
+        let c = controller(["Alpha beta gamma"])
+        c.moveTo(RichPosition(paragraph: 0, offset: 5), extend: false)
+        c.insertNote(.footnote)
+        let n = try XCTUnwrap(c.noteAtCaret())
+        XCTAssertEqual(n.id, 1)
+        XCTAssertEqual(c.editableNoteText(n), "")
+        XCTAssertTrue(c.setNoteText(n, "See <Smith> & Jones.\nSecond line"))
+        XCTAssertEqual(c.editableNoteText(n), "See <Smith> & Jones.\nSecond line")
+        XCTAssertEqual(c.document.footnotes[1]?.map(\.text), ["1 See <Smith> & Jones.", "Second line"])
+        let back = try DocxFormat.read(try DocxFormat.write(c.document, pageSetup: .letter)).document
+        XCTAssertEqual(back.footnotes[1]?.map(\.text), ["1 See <Smith> & Jones.", "Second line"])
+        c.undo()
+        XCTAssertEqual(c.editableNoteText(n), "")
+        c.undo()
+        XCTAssertNil(c.document.footnotes[1])
+        // A note with formatting the plain editor would lose is refused.
+        var d = c.document
+        d.keptParts["word/footnotes.xml"] = Data("<w:footnotes xmlns:w=\"x\"><w:footnote w:id=\"1\"><w:p><w:r><w:footnoteRef/></w:r><w:r><w:rPr><w:b/></w:rPr><w:t>x</w:t></w:r></w:p></w:footnote></w:footnotes>".utf8)
+        d.footnotes[1] = [RichParagraph(text: "1 x")]
+        c.load(d)
+        XCTAssertNil(c.editableNoteText(NoteReference(kind: .footnote, id: 1)))
+        XCTAssertFalse(c.setNoteText(NoteReference(kind: .footnote, id: 1), "y"))
+    }
+
+    /// A note is styled the Word way: Footnote Text / Footnote Reference (and the endnote pair), defined in styles.xml,
+    /// with no direct size or superscript on the note's runs.
+    func testNotesUseWordStyles() throws {
+        let c = controller(["Alpha beta gamma"])
+        c.moveTo(RichPosition(paragraph: 0, offset: 5), extend: false)
+        c.insertNote(.footnote)
+        let n = try XCTUnwrap(c.noteAtCaret())
+        XCTAssertTrue(c.setNoteText(n, "First\nSecond"))
+        c.moveTo(RichPosition(paragraph: 0, offset: 11), extend: false)
+        c.insertNote(.endnote)
+        let path = NSTemporaryDirectory() + "notestyles-\(getpid()).docx"
+        try DocxFormat.write(c.document, pageSetup: .letter).write(to: URL(fileURLWithPath: path))
+        defer { try? FileManager.default.removeItem(atPath: path) }
+        func part(_ name: String) throws -> String {
+            let p = Process(); p.executableURL = URL(fileURLWithPath: "/usr/bin/unzip"); p.arguments = ["-p", path, name]
+            let pipe = Pipe(); p.standardOutput = pipe; try p.run()
+            let d = pipe.fileHandleForReading.readDataToEndOfFile(); p.waitUntilExit()
+            return String(decoding: d, as: UTF8.self)
+        }
+        for (file, kind) in [("word/footnotes.xml", "Footnote"), ("word/endnotes.xml", "Endnote")] {
+            let xml = try part(file)
+            XCTAssertTrue(xml.contains("<w:pStyle w:val=\"\(kind)Text\"/>"), file)
+            XCTAssertTrue(xml.contains("<w:rStyle w:val=\"\(kind)Reference\"/>"), file)
+            XCTAssertFalse(xml.contains("w:vertAlign"), file)
+            XCTAssertFalse(xml.contains("<w:sz "), file)
+        }
+        let styles = try part("word/styles.xml")
+        for id in ["FootnoteText", "EndnoteText", "FootnoteReference", "EndnoteReference"] {
+            XCTAssertTrue(styles.contains("w:styleId=\"\(id)\""), id)
+        }
+        if let out = ProcessInfo.processInfo.environment["NOTE_CHECK_OUT3"] {
+            try DocxFormat.write(c.document, pageSetup: .letter).write(to: URL(fileURLWithPath: out))
+        }
+    }
 }

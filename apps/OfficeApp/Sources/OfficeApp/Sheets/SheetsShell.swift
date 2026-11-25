@@ -33,12 +33,14 @@ final class SheetsShellState: State<StatefulWidget> {
     let session = OfficeSession(kind: .workbook)
     var wb: WorkbookController { session.workbook! }
     private let _gridKey = GlobalKey<State<StatefulWidget>>()
-    private var _grid: SheetGridState? { _gridKey.currentState as? SheetGridState }
+    var _grid: SheetGridState? { _gridKey.currentState as? SheetGridState }
     private let _formula = TextEditingController()
     private let _nameBox = TextEditingController()
     private let _search = TextEditingController()
     /// The formula bar is being typed in (its text is the user's, not the cell's).
     private var _formulaEditing = false
+    /// A cell is being typed in (its text is the grid's, not the formula bar's).
+    private var _cellEditing = false
     /// The shell is writing the formula bar's text itself. This port's
     /// FluentTextBox reports a programmatic change through onChanged too
     /// (Flutter's does not), and without this the mirror of the cell
@@ -72,6 +74,10 @@ final class SheetsShellState: State<StatefulWidget> {
     private var _sizeDialog: SizeKind? = nil
     private var _pageSetupOpen = false
     private var _printOpen = false
+    private var _shortcutsOpen = false
+    var _printKinds: [PrintWhat] = []
+    var _printCounts: [Int] = []
+    private var _alertOpen: (alert: ValidationAlert, answer: (ValidationChoice) -> Void)?
     private var _sortOpen: (range: CellRange, hasHeader: Bool)?
     private var _consOpen = false
     private var _dupOpen: (range: CellRange, hasHeader: Bool)?
@@ -88,6 +94,8 @@ final class SheetsShellState: State<StatefulWidget> {
     private var _moveCopyFor: Int? = nil
     private var _pasteOpen = false
     private var _symbolOpen = false
+    /// The Insert Hyperlink dialog is open (X-LK-1).
+    private var _linkOpen = false
     private let _findQuery = TextEditingController()
     private let _contextMenu = FlyoutController()
     private let _filterMenu = FlyoutController()
@@ -117,6 +125,9 @@ final class SheetsShellState: State<StatefulWidget> {
         wb.addListener({ [weak self] in self?._changed() }, owner: self)
         _publishToolbar()
         wb.onCommand = { [weak self] cmd in self?._command(cmd) }
+        wb.onValidationAlert = { [weak self] alert, answer in
+            self?.setState { self?._alertOpen = (alert, answer) }
+        }
         session.onFind = { [weak self] replace in self?._openFind(replace: replace) }
         session.onToggleAutoSave = { [weak self] in
             guard let self else { return }
@@ -250,6 +261,7 @@ final class SheetsShellState: State<StatefulWidget> {
         }
         #endif
         session.onPrint = { [weak self] in self?._print() }
+        session.onShortcuts = { [weak self] in self?.setState { self?._backstage = nil; self?._shortcutsOpen = true } }
         session.onStatus = { [weak self] m in self?._flash(m) }
         session.onUndo = { [weak self] in self?.wb.undo() }
         session.onRedo = { [weak self] in self?.wb.redo() }
@@ -321,13 +333,26 @@ final class SheetsShellState: State<StatefulWidget> {
             undo: { [weak wb] in wb?.undo() }, redo: { [weak wb] in wb?.redo() },
             toggleBold: { [weak wb] in wb?.toggleStyle(\.bold) }, toggleItalic: { [weak wb] in wb?.toggleStyle(\.italic) },
             toggleUnderline: { [weak wb] in wb?.toggleStyle(\.underline) },
-            // What typing numbers into cells reaches for: a total, a number format, and a clean cell.
-            context: [
+            // While a cell is typed in, the keys a formula needs and a soft keyboard hides on another page; otherwise what
+            // typing numbers into cells reaches for: a total, a number format, and a clean cell.
+            context: _cellEditing ? Self._formulaKeys { [weak self] in self?._grid } : [
                 .init(id: "ctx-cell-sum", title: "AutoSum", symbol: "sum") { [weak wb] in if let wb { Ribbon._autoSum(wb) } },
                 .init(id: "ctx-cell-currency", title: "Currency", symbol: "dollarsign") { [weak wb] in wb?.setStyle { $0.numberFormat = "$#,##0.00" } },
                 .init(id: "ctx-cell-percent", title: "Percent Style", symbol: "percent") { [weak wb] in wb?.setStyle { $0.numberFormat = "0%" } },
                 .init(id: "ctx-cell-clear", title: "Clear Contents", symbol: "eraser") { [weak wb] in wb?.clearContents() },
             ]), owner: self)
+    }
+
+    /// The formula keys: each types its text at the caret, F4 cycles the reference at the caret absolute and relative.
+    private static func _formulaKeys(_ grid: @escaping () -> SheetGridState?) -> [OfficeScene.ToolbarButton] {
+        func key(_ shown: String, _ typed: String, _ name: String) -> OfficeScene.ToolbarButton {
+            .init(id: "ctx-key-\(name)", title: shown, symbol: "") { grid()?.typeText(typed) }
+        }
+        return [
+            key("=", "=", "equals"), key("+", "+", "plus"), key("−", "-", "minus"), key("*", "*", "times"), key("/", "/", "divide"),
+            key("(", "(", "open"), key(")", ")", "close"), key(":", ":", "colon"), key(",", ",", "comma"), key("$", "$", "dollar"),
+            .init(id: "ctx-key-f4", title: "F4", symbol: "") { grid()?.cycleAbsoluteReference() },
+        ]
     }
 
     /// The name box shows the active cell (or the selection's size while
@@ -620,25 +645,60 @@ final class SheetsShellState: State<StatefulWidget> {
         #endif
     }
 
-    /// File → Print: the PDF of the active sheet, handed to the host's print dialog.
-    private func _print() { setState { _backstage = nil; _printOpen = true } }
-
-    private func _print(_ what: PrintWhat) {
+    /// File → Print: the shared Print dialog. Its page counts come first (a layout pass for each
+    /// thing it can print), then it opens.
+    private func _print() {
         #if os(WASI)
         _flash("Printing is not available in the browser yet")
         #else
-        let path = NSTemporaryDirectory() + "sheets-print-\(ProcessInfo.processInfo.processIdentifier).pdf"
         _ = _grid?.commitEdit()
         setState { _backstage = nil }
         Task { @MainActor [weak self] in
             guard let self, let grid = self._grid else { return }
+            let sel = self.wb.selection
+            var kinds: [PrintWhat] = [.activeSheet, .entireWorkbook]
+            if sel.rows * sel.cols > 1 { kinds.append(.selection) }
+            var counts: [Int] = []
+            for k in kinds {
+                let n = SheetJobBox(0)
+                _ = await grid.writePdf(to: "", title: "", wholeBook: k == .entireWorkbook,
+                                        selection: k == .selection ? sel : nil, countOnly: n)
+                counts.append(n.value)
+            }
+            self.setState { self._printKinds = kinds; self._printCounts = counts; self._printOpen = true }
+        }
+        #endif
+    }
+
+    /// The shared dialog's hooks for this workbook: Active sheet, Entire workbook and (when
+    /// more than a cell is selected) Selection, each with its own page count.
+    var _printHooks: PrintHooks {
+        let kinds = _printKinds, counts = _printCounts
+        return PrintHooks(unit: "Pages", total: max(1, counts.first ?? 1), current: 1,
+                          totals: counts.map { max(1, $0) },
+                          outputs: kinds.map(\.label), hostCanPrint: hostPrintPDF != nil,
+                          print: { [weak self] pages, output in
+            guard let self, kinds.indices.contains(output) else { return "Nothing to print" }
+            return self._print(kinds[output], pages: pages)
+        })
+    }
+
+    private func _print(_ what: PrintWhat, pages: [Int]) -> String {
+        #if os(WASI)
+        return "Printing is not available in the browser yet"
+        #else
+        let path = NSTemporaryDirectory() + "sheets-print-\(ProcessInfo.processInfo.processIdentifier).pdf"
+        Task { @MainActor [weak self] in
+            guard let self, let grid = self._grid else { return }
             guard await grid.writePdf(to: path, title: self.session.title, filePath: self.session.path,
-                                      wholeBook: what == .entireWorkbook, selection: what == .selection ? self.wb.selection : nil) else {
+                                      wholeBook: what == .entireWorkbook, selection: what == .selection ? self.wb.selection : nil,
+                                      pages: pages) else {
                 self._flash("Nothing to print on this sheet")
                 return
             }
             if let print = hostPrintPDF { print(path) } else { self._flash("No print dialog on this host") }
         }
+        return ""
         #endif
     }
 
@@ -923,6 +983,11 @@ final class SheetsShellState: State<StatefulWidget> {
             Expanded(child: SheetGrid(
                 key: _gridKey, controller: wb, zoom: _zoom,
                 onEditText: { [weak self] text in
+                    // The bar over the keyboard is a formula's keys while a cell is typed in, and number commands otherwise.
+                    if let self, self._cellEditing != (text != nil) {
+                        self._cellEditing = text != nil
+                        self._publishToolbar()
+                    }
                     guard let self, !self._formulaEditing else { return }
                     self._setFormulaText(text ?? self.wb.input(self.wb.active))
                     self.setState {}
@@ -968,6 +1033,14 @@ final class SheetsShellState: State<StatefulWidget> {
             return Stack(children: [window, Positioned(left: 0, top: 0, right: 0, bottom: 0, child: ConsolidateDialog(
                 controller: wb, onClose: { [weak self] in
                     self?.setState { self?._consOpen = false }
+                    self?._grid?.focus.requestFocus()
+                }))])
+        }
+        if let open = _alertOpen {
+            return Stack(children: [window, Positioned(left: 0, top: 0, right: 0, bottom: 0, child: ValidationAlertDialog(
+                alert: open.alert, onChoice: { [weak self] choice in
+                    self?.setState { self?._alertOpen = nil }
+                    open.answer(choice)
                     self?._grid?.focus.requestFocus()
                 }))])
         }
@@ -1027,10 +1100,16 @@ final class SheetsShellState: State<StatefulWidget> {
                     self?._grid?.focus.requestFocus()
                 })))
         }
+        if _shortcutsOpen {
+            layers.append(Positioned(left: 0, top: 0, right: 0, bottom: 0, child: ShortcutListDialog(
+                table: ShortcutTable.sheets, onClose: { [weak self] in
+                    self?.setState { self?._shortcutsOpen = false }
+                    self?._grid?.focus.requestFocus()
+                })))
+        }
         if _printOpen {
-            layers.append(Positioned(left: 0, top: 0, right: 0, bottom: 0, child: PrintChoicePanel(
-                sheetName: wb.sheet.name, selectionText: wb.selection.a1,
-                onPrint: { [weak self] w in self?._print(w) },
+            layers.append(Positioned(left: 0, top: 0, right: 0, bottom: 0, child: PrintDialog(
+                hooks: _printHooks,
                 onClose: { [weak self] in
                     self?.setState { self?._printOpen = false }
                     self?._grid?.focus.requestFocus()
@@ -1095,6 +1174,11 @@ final class SheetsShellState: State<StatefulWidget> {
                     self?._grid?.focus.requestFocus()
                 })))
         }
+        if _linkOpen {
+            layers.append(Positioned(left: 0, top: 0, right: 0, bottom: 0, child: HyperlinkDialog(
+                hooks: wb.hyperlinkHooks(flash: { [weak self] in self?._flash($0) }),
+                onClose: { [weak self] in self?.setState { self?._linkOpen = false }; self?._grid?.focus.requestFocus() })))
+        }
         if layers.count > 1, _backstage == nil { return Stack(children: layers) }
         if _formatOpen, _backstage == nil {
             return Stack(children: layers + [
@@ -1128,6 +1212,7 @@ final class SheetsShellState: State<StatefulWidget> {
         case "o": session.onOpen?(); return true   // the picker in a tab, Backstage natively
         case "n": session.replacing { [weak self] in self?._newWorkbook() }; return true
         case "p": _print(); return true
+        case "/": session.onShortcuts?(); return true
         case "f": _openFind(replace: false); return true
         case "v" where chords.alt && _grid?.edit == nil: _openPasteSpecial(); return true
         case "1" where _grid?.edit == nil: _openFormatCells(); return true
@@ -1136,6 +1221,7 @@ final class SheetsShellState: State<StatefulWidget> {
         case "h": _openFind(replace: true); return true
         case "l" where chords.shift: wb.toggleAutoFilter(); return true
         // Excel for Mac's Group and Ungroup.
+        case "k" where !chords.shift && _grid?.edit == nil: setState { _linkOpen = true }; return true
         case "k" where chords.shift: wb.group(true); return true
         case "j" where chords.shift: wb.group(false); return true
         case "\u{1B}":
@@ -1328,6 +1414,10 @@ final class SheetsShellState: State<StatefulWidget> {
             let has = c.note(at: c.active) != nil
             item(has ? "Edit Note" : "New Note") { [weak self] in self?._editNote(at: c.active) }
             if has { item("Delete Note") { c.deleteNote(at: c.active) } }
+            sep()
+            let linked = c.link(at: c.active) != nil
+            item(linked ? "Edit Hyperlink…" : "Hyperlink…") { [weak self] in self?.setState { self?._linkOpen = true } }
+            if linked { item("Remove Hyperlink") { c.removeLink(c.selection) } }
         }
         sep()
         switch area {

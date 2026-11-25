@@ -35,6 +35,8 @@ final class DialogShell: StatefulWidget {
     let width: Double
     let onOK: () -> Void
     let onCancel: () -> Void
+    /// An optional third button between OK and Cancel (Yes / No / Cancel).
+    var middle: (label: String, action: () -> Void)?
 
     init(title: String, tabs: [DialogTab], okLabel: String = "OK", cancelLabel: String = "Cancel",
          okEnabled: Bool = true, width: Double = 440,
@@ -120,7 +122,7 @@ final class DialogShellState: State<StatefulWidget> {
         let touch = false
         #endif
         func button(_ b: Widget) -> Widget { touch ? SizedBox(width: nil, height: 44, child: b) : b }
-        var children: [Widget] = [Text(_w.title, style: fluent.typography.subtitle), SizedBox(width: nil, height: 12, child: nil)]
+        var children: [Widget] = [Semantics(label: _w.title, header: true, container: true, excludeSemantics: true, child: Text(_w.title, style: fluent.typography.subtitle)), SizedBox(width: nil, height: 12, child: nil)]
         if tabs.count > 1 {
             children.append(Row(children: tabs.enumerated().map { i, tab in
                 GestureDetector(onTap: { [weak self] in self?.select(i) }, behavior: .opaque, child: Padding(
@@ -135,6 +137,8 @@ final class DialogShellState: State<StatefulWidget> {
         children.append(Row(mainAxisAlignment: .end, children: [
             button(FilledButton(onPressed: _w.okEnabled ? { [weak self] in self?._w.onOK() } : nil, child: Text(_w.okLabel))),
             SizedBox(width: 8, height: nil, child: nil),
+        ] + (_w.middle.map { m in [button(Button(key: ValueKey("dialog-middle"), onPressed: m.action, child: Text(m.label))),
+                                   SizedBox(width: 8, height: nil, child: nil) as Widget] } ?? []) + [
             button(Button(onPressed: { [weak self] in self?._w.onCancel() }, child: Text(_w.cancelLabel))),
         ]))
         let card = Column(mainAxisSize: .min, crossAxisAlignment: .start, children: children)
