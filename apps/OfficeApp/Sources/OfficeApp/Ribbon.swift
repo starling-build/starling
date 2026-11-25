@@ -77,7 +77,7 @@ final class Ribbon: StatelessWidget {
     }
 
     override func build(_ context: any BuildContext) -> Widget {
-        KeyboardRegion(name: "ribbon", child: _body(context))
+        KeyboardRegion(name: "ribbon", child: KeyTipLayer(child: _body(context)))
     }
 
     private func _body(_ context: any BuildContext) -> Widget {
