@@ -417,15 +417,17 @@ enum Xlsx {
                 var value: CellValue = .empty
                 switch t {
                 case "s":
-                    value = Int(vText ?? "").flatMap { $0 < sst.count ? CellValue.text(sst[$0]) : nil } ?? .empty
-                    if let i = Int(vText ?? ""), sstScripts.contains(i) { ws.scriptRows.insert(a.row) }
-                    if let i = Int(vText ?? ""), let runs = sstRuns[i] { ws.richText[a] = runs }
-                    if let i = Int(vText ?? ""), let raw = sstRaw[i], i < sst.count { ws.richRaw[a] = (sst[i], raw) }
+                    // (A stored index may carry blanks: bug69769's "2 ".)
+                    let sstIndex = Int((vText ?? "").trimmingSpaces())
+                    value = sstIndex.flatMap { $0 >= 0 && $0 < sst.count ? CellValue.text(sst[$0]) : nil } ?? .empty
+                    if let i = sstIndex, sstScripts.contains(i) { ws.scriptRows.insert(a.row) }
+                    if let i = sstIndex, let runs = sstRuns[i] { ws.richText[a] = runs }
+                    if let i = sstIndex, let raw = sstRaw[i], i < sst.count { ws.richRaw[a] = (sst[i], raw) }
                 // (An inline string with nothing in it is still a string, the empty
                 // one: a cell with a value, which Excel prints the sheet as far as.)
                 case "inlineStr": value = .text(c.inlineNode.map { _text($0) } ?? "")
                 case "str": value = .text(vText ?? "")
-                case "b": value = .bool(vText == "1")
+                case "b": value = .bool(vText == "1" || vText == "true")
                 case "e": value = .error(ExcelError(rawValue: vText ?? "") ?? .value)
                 // (Excel reads a number stored with blanks around it: lo-tdf124525's
                 // "    0.0402000000" cells print as 0.0402, not as nothing.)
