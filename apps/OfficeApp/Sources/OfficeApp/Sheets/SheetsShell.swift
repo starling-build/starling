@@ -67,6 +67,11 @@ final class SheetsShellState: State<StatefulWidget> {
     private var _namesOpen = false
     /// The Format Cells dialog is open (X-FM-1).
     private var _formatOpen = false
+    private let _tabProbes = SheetTabProbes()
+    private var _tabDrag: (from: Int, x: Double, moved: Bool)? = nil
+    /// Sheet whose Tab Color or Move or Copy dialog is open.
+    private var _tabColorFor: Int? = nil
+    private var _moveCopyFor: Int? = nil
     private var _findReplace = false
     private var _findStatus = ""
     private let _findQuery = TextEditingController()
@@ -680,24 +685,39 @@ final class SheetsShellState: State<StatefulWidget> {
                 color: on ? accent : fluent.resources.textFillColorPrimary))
             // A right click opens the sheet menu for that tab, as Excel's
             // tabs do; it had nothing.
-            tabs.append(Listener(
+            tabs.append(SheetTabProbe(index: i, probes: _tabProbes, child: Listener(
                 onPointerDown: { [weak self] e in
-                    guard let self, e.buttons & kSecondaryMouseButton != 0, let context = self.context else { return }
+                    guard let self else { return }
+                    if e.buttons & kPrimaryMouseButton != 0 { self._tabDrag = (i, Double(e.position.dx), false) }
+                    guard e.buttons & kSecondaryMouseButton != 0, let context = self.context else { return }
                     _ = self._grid?.commitEdit()
                     self.wb.activeSheet = i
                     self._syncBars()
                     let items: [MenuFlyoutItemBase] = self._sheetMenu(i).map { text, action in MenuFlyoutItem(text: Text(text), onPressed: action) }
                     self._contextMenu.showFlyout(in: context, at: e.position) { _ in MenuFlyout(items: items) }
                 },
+                onPointerMove: { [weak self] e in
+                    guard let self, let d = self._tabDrag, !d.moved, abs(Double(e.position.dx) - d.x) > SheetTabDrag.threshold else { return }
+                    self._tabDrag?.moved = true
+                },
+                onPointerUp: { [weak self] e in
+                    guard let self, let d = self._tabDrag else { return }
+                    self._tabDrag = nil
+                    guard d.moved else { return }
+                    let spans = self._tabProbes.spans(self.wb.visibleSheets)
+                    if let to = SheetTabDrag.target(spans: spans, x: Double(e.position.dx)), to != d.from { self.wb.moveSheet(d.from, to: to) }
+                },
                 child: FlatButton(
                 child: Padding(padding: EdgeInsets(left: 12, top: 0, right: 12, bottom: 0), child: Column(
                     mainAxisAlignment: .center, crossAxisAlignment: .center, children: [
                         label,
                         Chrome.vgap(2),
-                        SizedBox(width: 24, height: 2, child: ColoredBox(color: on ? accent : Color(0x00000000), child: SizedBox(expand: ()))),
+                        SizedBox(width: 24, height: 2, child: ColoredBox(
+                            color: ws.tabColor.flatMap { UInt32($0.suffix(6), radix: 16) }.map { Color(Int64(0xFF000000 | $0)) }
+                                ?? (on ? accent : Color(0x00000000)), child: SizedBox(expand: ()))),
                     ])),
                 tip: on ? "Double-click to rename" : nil, checked: on, width: nil, height: 28,
-                action: { [weak self] in self?._tabClicked(i) })))
+                action: { [weak self] in self?._tabClicked(i) }))))
         }
         tabs.append(Chrome.icon(FluentSystemIcons.add, "New sheet", fluent) { [weak self] in self?.wb.addSheet() })
         tabs.append(Chrome.menu(nil, Icon(FluentSystemIcons.moreHorizontal, size: Chrome.iconSize,
@@ -712,11 +732,15 @@ final class SheetsShellState: State<StatefulWidget> {
 
     /// What can be done to sheet `i`: the tab's right-click menu and the
     /// "…" beside the tabs.
+    func _tabMenuTitles(_ i: Int) -> [String] { _sheetMenu(i).map(\.0) }
+
     private func _sheetMenu(_ i: Int) -> [(String, () -> Void)] {
         var menu: [(String, () -> Void)] = [
             ("Rename Sheet", { [weak self] in self?._startRename(i) }),
             ("Insert Sheet", { [weak self] in self?.wb.addSheet() }),
             ("Delete Sheet", { [weak self] in self?.wb.requestDeleteSheet(i) }),
+            ("Move or Copy…", { [weak self] in self?.setState { self?._moveCopyFor = i } }),
+            ("Tab Color…", { [weak self] in self?.setState { self?._tabColorFor = i } }),
             ("Hide Sheet", { [weak self] in self?.wb.hideSheet(i) }),
         ]
         // Hidden sheets can be shown again; very hidden ones only by code, as in Excel.
@@ -861,6 +885,25 @@ final class SheetsShellState: State<StatefulWidget> {
                     self?._grid?.focus.requestFocus()
                 }))])
         }
+        var layers: [Widget] = [window]
+        if let i = _tabColorFor, wb.book.sheets.indices.contains(i) {
+            let cur = wb.book.sheets[i].tabColor.flatMap { UInt32($0.suffix(6), radix: 16) }
+            layers.append(Positioned(left: 0, top: 0, right: 0, bottom: 0, child: TabColorPanel(
+                sheetName: wb.book.sheets[i].name, current: cur,
+                onPick: { [weak self] c in self?.wb.setTabColor(i, c.map { v -> String in let h = String(v, radix: 16, uppercase: true); return "FF" + String(repeating: "0", count: max(0, 6 - h.count)) + h }) },
+                onClose: { [weak self] in self?.setState { self?._tabColorFor = nil }; self?._grid?.focus.requestFocus() })))
+        }
+        if let i = _moveCopyFor, wb.book.sheets.indices.contains(i) {
+            layers.append(Positioned(left: 0, top: 0, right: 0, bottom: 0, child: MoveCopyPanel(
+                sheetName: wb.book.sheets[i].name, sheets: wb.book.sheets.map(\.name), canCopy: wb.copyBlocker(i),
+                onDone: { [weak self] before, copy in
+                    guard let self else { return }
+                    if copy { self.wb.copySheet(i, at: before) }
+                    else { self.wb.moveSheet(i, to: before > i ? before - 1 : before) }
+                },
+                onClose: { [weak self] in self?.setState { self?._moveCopyFor = nil }; self?._grid?.focus.requestFocus() })))
+        }
+        if layers.count > 1, _backstage == nil { return Stack(children: layers) }
         if _formatOpen, _backstage == nil {
             return Stack(children: [
                 window,
