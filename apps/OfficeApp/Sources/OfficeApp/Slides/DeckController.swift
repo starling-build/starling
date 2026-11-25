@@ -797,6 +797,13 @@ final class DeckController: ChangeNotifier {
     @discardableResult
     func addMedia(_ clip: MediaClip, poster: ImageAttachment, size: Size) -> SlideShape {
         let shape = addPicture(poster, naturalSize: size)
+        // A second clip does not land on the first: step down and right, as a duplicate does, until the centre is free.
+        let others = currentSlide.shapes.filter { $0 !== shape }
+        var step = 0.0
+        let cx = shape.frame.left + shape.frame.width / 2, cy = shape.frame.top + shape.frame.height / 2
+        while step < 18 * 20, others.contains(where: {
+            abs($0.frame.left + $0.frame.width / 2 - cx - step) < 1 && abs($0.frame.top + $0.frame.height / 2 - cy - step) < 1 }) { step += 18 }
+        if step > 0 { shape.frame = shape.frame.shift(Offset(step, step)) }
         shape.name = (clip.isVideo ? "Video " : "Audio ") + "\(_nextId)"
         shape.media = clip
         shape.altText = clip.name

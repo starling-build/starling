@@ -72,21 +72,12 @@ enum MediaPoster {
         #if os(WASI)
         return nil
         #else
-        guard clip.isVideo, let player = makeMediaPlayer() else { return nil }
+        guard clip.isVideo else { return nil }
         let file = FileManager.default.temporaryDirectory.appendingPathComponent("poster-\(UUID().uuidString).\(clip.fileExtension)")
         guard (try? clip.data.write(to: file)) != nil else { return nil }
-        defer { try? FileManager.default.removeItem(at: file); player.stop() }
-        player.open(url: file.absoluteString)
-        player.volume = 0
-        player.play()
-        for _ in 0 ..< 60 {
-            if let f = player.pollFrame(), f.width > 0, f.pixels.count >= f.width * f.height * 4 {
-                return (encode(Array(f.pixels.prefix(f.width * f.height * 4)), width: f.width, height: f.height), f.width, f.height)
-            }
-            if case .failed = player.status { return nil }
-            Thread.sleep(forTimeInterval: 0.05)
-        }
-        return nil
+        defer { try? FileManager.default.removeItem(at: file) }
+        guard let f = mediaFirstFrame(url: file.absoluteString), f.width > 0, f.pixels.count >= f.width * f.height * 4 else { return nil }
+        return (encode(Array(f.pixels.prefix(f.width * f.height * 4)), width: f.width, height: f.height), f.width, f.height)
         #endif
     }
 }

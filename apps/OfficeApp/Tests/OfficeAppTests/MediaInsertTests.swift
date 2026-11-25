@@ -51,6 +51,19 @@ final class MediaInsertTests: XCTestCase {
         XCTAssertEqual(again.parts.first { $0.key.hasPrefix("ppt/media/media") && $0.key.hasSuffix(".mp3") }?.value, Data(bytes))
     }
 
+    /// A second clip does not land on the first one's centre.
+    func testSecondClipIsOffsetFromTheFirst() {
+        let deck = deckWithClip("a.mp4", bytes: [1])
+        var audio = MediaClip(data: Data([2]), name: "b.mp3", isVideo: false)
+        audio.isVideo = false
+        let (poster, size) = MediaPoster.attachment(video: false, name: "poster.png")
+        let first = deck.currentSlide.shapes[0]
+        let second = deck.addMedia(audio, poster: poster, size: size)
+        func centre(_ s: SlideShape) -> (Double, Double) { (s.frame.left + s.frame.width / 2, s.frame.top + s.frame.height / 2) }
+        XCTAssertEqual(centre(second).0 - centre(first).0, 18, accuracy: 0.5)
+        XCTAssertEqual(centre(second).1 - centre(first).1, 18, accuracy: 0.5)
+    }
+
     func testPosterIsADecodablePng() {
         for video in [true, false] {
             let png = [UInt8](MediaPoster.png(video: video))
