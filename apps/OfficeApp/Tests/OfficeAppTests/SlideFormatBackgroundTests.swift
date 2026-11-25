@@ -103,6 +103,7 @@ final class SlideFormatBackgroundTests: XCTestCase {
         XCTAssertNotNil(deck.masterBackground?.image)
         XCTAssertTrue(deck.slides.allSatisfy { $0.background == nil })
         XCTAssertNotNil(deck.addSlide().inheritedBackground?.image)
+        if let out = ProcessInfo.processInfo.environment["STARLING_MASTERPIC_OUT"] { try Pptx.write(deck).write(to: URL(fileURLWithPath: out)) }
         func check(_ data: Data) throws {
             let pkg = PptxPackage(try Zip.read(data))
             XCTAssertEqual(pkg.parts.keys.filter { $0.hasPrefix("ppt/media/") }.count, 1, "\(pkg.parts.keys.sorted())")
