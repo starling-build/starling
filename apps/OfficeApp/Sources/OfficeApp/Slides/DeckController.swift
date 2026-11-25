@@ -1559,6 +1559,14 @@ final class DeckController: ChangeNotifier {
         _changed()
     }
 
+    /// The dash style of the selected shapes' lines: nil for solid, else a preset name ("dash", "sysDot"...).
+    func setOutlineDash(_ dash: String?) {
+        guard !selection.isEmpty else { return }
+        _checkpoint()
+        for s in selection { s.outlineDash = dash; s.keptLook?.dashEdited = true }
+        _changed()
+    }
+
     func setOutlineWidth(_ width: Double) {
         guard !selection.isEmpty else { return }
         _checkpoint()
