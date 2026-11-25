@@ -29,6 +29,9 @@ final class BigStackTests: XCTestCase {
         XCTAssertTrue(inner === outer, "a nested call must not spawn a second thread")
     }
 
+    #if canImport(Darwin)
+    // `runIfSmall` reads the calling thread's stack size with `pthread_get_stacksize_np`, so only Darwin hops from a small
+    // stack; elsewhere it runs the body where it is (a Linux thread has 512 KB too, and recursing 24 MB on it is signal 11).
     /// A thread with a small stack (an iPad's main thread has 1 MB) hops; one with a big stack (a Mac's) does not.
     func testRunIfSmallHopsOnlyFromASmallStack() {
         let caller = Thread.current
@@ -67,6 +70,7 @@ final class BigStackTests: XCTestCase {
         thread.start()
         wait(for: [done], timeout: 60)
     }
+    #endif
 
     func testAThrownErrorComesBack() {
         struct Boom: Error {}

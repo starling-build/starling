@@ -52,8 +52,9 @@ public enum BigStack {
     private static let alwaysHop = getenv("STARLING_BIGSTACK_ALWAYS") != nil
 
     /// `run`, but only when this thread's own stack is smaller than `threshold` (7 MB: a Mac's main thread has 8 MB, and reports a little less): for work that
-    /// happens every frame, where a thread per call is not free and a big stack needs no hop. Where the size is not
-    /// known (not Darwin) the body runs here, as it did before.
+    /// happens every frame, where a thread per call is not free and a big stack needs no hop. Only Darwin can ask a thread its
+    /// stack size (`pthread_get_stacksize_np`), and only there does an app's small main thread exist (an iPad's): elsewhere the body
+    /// runs here, as it did before.
     public static func runIfSmall<T>(threshold: Int = 7 << 20, _ body: @escaping () -> T) -> T {
         #if canImport(Darwin) && !(arch(wasm32))
         if _onBigStack() || (pthread_get_stacksize_np(pthread_self()) >= threshold && !alwaysHop) { return body() }
