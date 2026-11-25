@@ -96,6 +96,60 @@ final class SlideFormatShapeTests: XCTestCase {
         XCTAssertNotNil(a.fill, "unticking No fill gives a solid fill again")
     }
 
+    func testShadowFromThePaneAndOnAFileShape() throws {
+        // A new shape: the check box turns a default shadow on, the rows edit it, the file holds it, undo takes it back.
+        let deck = DeckController()
+        let a = deck.addShape(.rect); deck.selectShapes([a])
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light),
+                                        home: SizedBox(width: 400, height: 780, child: FormatShapePane(deck: deck, onClose: {})), title: "Test"), size: Size(1280, 800))
+        settle(ui)
+        // The pane's lower rows lie below the test window's bottom edge: reach them through their own callbacks.
+        func control<W>(_ id: String, _ type: W.Type) -> W? {
+            var found: W?
+            for e in ui.elements() where (e.widget.key as? ValueKey<String>)?.value == id {
+                if let w = e.widget as? W { return w }
+                e.visitChildElements { c in
+                    func walk(_ x: Element) { if found == nil, let w = x.widget as? W { found = w }; x.visitChildElements(walk) }
+                    walk(c)
+                }
+            }
+            return found
+        }
+        func enter(_ id: String, _ text: String) { control(id, FluentTextBox.self)?.onSubmitted?(text); settle(ui) }
+        XCTAssertNil(a.shadow)
+        control("fmt.shadow.on", Checkbox.self)?.onChanged?(true); settle(ui)
+        XCTAssertNotNil(a.shadow)
+        enter("fmt.shadow.blur", "10"); enter("fmt.shadow.distance", "6"); enter("fmt.shadow.angle", "90"); enter("fmt.shadow.transparency", "0")
+        let sh = try XCTUnwrap(a.shadow)
+        XCTAssertEqual(sh.blur, 10, accuracy: 0.01); XCTAssertEqual(sh.dy, 6, accuracy: 0.01); XCTAssertEqual(sh.dx, 0, accuracy: 0.01)
+        XCTAssertEqual(sh.color.value >> 24, 255)
+        let xml = try slideXML(deck)
+        XCTAssertTrue(xml.contains("<a:outerShdw blurRad=\"127000\" dist=\"76200\" dir=\"5400000\""))
+        let (back, _, _) = try Pptx.read(Pptx.write(deck))
+        XCTAssertEqual(try XCTUnwrap(back.slides[0].shapes.first { $0.name == a.name }?.shadow).blur, 10, accuracy: 0.01)
+        deck.undo()
+        XCTAssertEqual(try XCTUnwrap(a.shadow).color.value >> 24, 0x66)
+
+        // A file shape with a glow, a shadow and a soft edge: the shadow changes, the others stay.
+        let fx = "<a:effectLst><a:glow rad=\"63500\"><a:srgbClr val=\"FFFF00\"/></a:glow>"
+            + "<a:outerShdw blurRad=\"50800\" dist=\"38100\" dir=\"2700000\"><a:srgbClr val=\"000000\"/></a:outerShdw><a:softEdge rad=\"12700\"/></a:effectLst>"
+        let d2 = try deckWithGradientShape(effects: fx)
+        let g = try XCTUnwrap(d2.currentSlide.shapes.first { $0.name == "Grad" })
+        d2.selectShapes([g])
+        var moved = try XCTUnwrap(g.shadow); moved.blur = 20
+        d2.setShadow(moved)
+        let x2 = shapeXML(try slideXML(d2), "Grad")
+        XCTAssertTrue(x2.contains("blurRad=\"254000\""), "the new blur")
+        XCTAssertFalse(x2.contains("blurRad=\"50800\""), "the old shadow is gone, not doubled")
+        XCTAssertEqual(x2.components(separatedBy: "<a:outerShdw").count, 2)
+        XCTAssertTrue(x2.contains("<a:glow rad=\"63500\">")); XCTAssertTrue(x2.contains("<a:softEdge rad=\"12700\"/>"))
+        XCTAssertTrue(x2.range(of: "<a:glow")!.lowerBound < x2.range(of: "<a:outerShdw")!.lowerBound, "schema order: glow, then shadow")
+        XCTAssertTrue(x2.range(of: "<a:outerShdw")!.lowerBound < x2.range(of: "<a:softEdge")!.lowerBound)
+        d2.setShadow(nil)
+        let x3 = shapeXML(try slideXML(d2), "Grad")
+        XCTAssertFalse(x3.contains("outerShdw")); XCTAssertTrue(x3.contains("<a:glow"))
+    }
+
     func testScalePercentFromThePane() throws {
         let deck = DeckController()
         let a = deck.addShape(.rect)
@@ -177,14 +231,14 @@ final class SlideFormatShapeTests: XCTestCase {
     }
 
     /// A deck read from a file, with a gradient shape (and a green dashed line) added to its first slide.
-    private func deckWithGradientShape() throws -> DeckController {
+    private func deckWithGradientShape(effects: String = "") throws -> DeckController {
         let (_, _, _) = try Pptx.read(Pptx.write(SlidesSample.make()))
         var package = PptxPackage(try Zip.read(try Pptx.write(SlidesSample.make())))
         let sp = "<p:sp><p:nvSpPr><p:cNvPr id=\"91\" name=\"Grad\"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>"
             + "<p:spPr><a:xfrm><a:off x=\"1270000\" y=\"3810000\"/><a:ext cx=\"2540000\" cy=\"1270000\"/></a:xfrm>"
             + "<a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom>"
             + "<a:gradFill><a:gsLst><a:gs pos=\"0\"><a:srgbClr val=\"FF0000\"/></a:gs><a:gs pos=\"100000\"><a:srgbClr val=\"0000FF\"/></a:gs></a:gsLst><a:lin ang=\"0\"/></a:gradFill>"
-            + "<a:ln w=\"25400\"><a:solidFill><a:srgbClr val=\"00AA00\"/></a:solidFill><a:prstDash val=\"dash\"/><a:round/><a:tailEnd type=\"triangle\"/></a:ln></p:spPr></p:sp>"
+            + "<a:ln w=\"25400\"><a:solidFill><a:srgbClr val=\"00AA00\"/></a:solidFill><a:prstDash val=\"dash\"/><a:round/><a:tailEnd type=\"triangle\"/></a:ln>" + effects + "</p:spPr></p:sp>"
         var slide = String(data: package.parts["ppt/slides/slide1.xml"]!, encoding: .utf8)!
         slide = slide.replacingOccurrences(of: "</p:spTree>", with: sp + "</p:spTree>")
         package.parts["ppt/slides/slide1.xml"] = Data(slide.utf8)
@@ -258,6 +312,28 @@ final class SlideFormatShapeTests: XCTestCase {
         let lk = deck.addShape(.ellipse); lk.frame = Rect.fromLTWH(400, 320, 200, 100); lk.aspectLock = true
         lk.frame = SlideCanvasState.resizedFrame(lk.frame, rotation: 0, handle: 4, delta: Offset(100, 5), keepAspect: true)
         try Pptx.write(deck).write(to: URL(fileURLWithPath: dir + "/dash.pptx"))
+    }
+
+    /// Writes the effects check file: a new shape with a shadow, one with a long soft shadow, and a file shape whose shadow is edited next to its glow.
+    func testWritesTheEffectsCheckFile() throws {
+        let dir = "/data/s/amd-6/ui-check"
+        guard FileManager.default.fileExists(atPath: dir) else { return }
+        let fx = "<a:effectLst><a:glow rad=\"101600\"><a:srgbClr val=\"FFC000\"><a:alpha val=\"40000\"/></a:srgbClr></a:glow>"
+            + "<a:outerShdw blurRad=\"50800\" dist=\"38100\" dir=\"2700000\"><a:srgbClr val=\"000000\"/></a:outerShdw></a:effectLst>"
+        let deck = try deckWithGradientShape(effects: fx)
+        let g = try XCTUnwrap(deck.currentSlide.shapes.first { $0.name == "Grad" })
+        g.frame = Rect.fromLTWH(400, 200, 160, 90)
+        deck.selectShapes([g])
+        var sh = try XCTUnwrap(g.shadow); sh.blur = 12; sh.dx = 0; sh.dy = 10
+        deck.setShadow(sh)
+        let a = deck.addShape(.rect); a.frame = Rect.fromLTWH(40, 40, 200, 100)
+        deck.selectShapes([a]); deck.setFill(Color(0xFF4472C4)); deck.setShadow(FormatShapePaneState.defaultShadow)
+        let b = deck.addShape(.ellipse); b.frame = Rect.fromLTWH(40, 220, 200, 100)
+        deck.selectShapes([b]); deck.setFill(Color(0xFFED7D31))
+        deck.setShadow(CharShadow(color: Color(0x80000000), dx: 14, dy: 14, blur: 16))
+        let c = deck.addShape(.rect); c.frame = Rect.fromLTWH(40, 400, 200, 80)
+        deck.selectShapes([c]); deck.setFill(Color(0xFF70AD47)); deck.setShadow(FormatShapePaneState.defaultShadow); deck.setShadow(nil)
+        try Pptx.write(deck).write(to: URL(fileURLWithPath: dir + "/effects.pptx"))
     }
 
     /// Writes the fuller check file: no fill, no line, a gradient shape made solid, and a clear shape over another.

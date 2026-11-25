@@ -161,6 +161,8 @@ struct KeptLook: Equatable {
     var lineReplaced = false
     /// Set when the user chose a dash style: the file's own dash is swapped, the rest of its line kept.
     var dashEdited = false
+    /// Set when the user changed the shape's shadow: the file's own outer shadow is swapped, its other effects kept.
+    var shadowEdited = false
 
     func fillKept(_ s: ShapeState) -> Bool { !fillReplaced && s.fill == readFill && s.fillScheme == readFillScheme }
     func lineKept(_ s: ShapeState) -> Bool { !lineReplaced && !dashEdited && s.outline == readOutline && s.outlineWidth == readWidth }

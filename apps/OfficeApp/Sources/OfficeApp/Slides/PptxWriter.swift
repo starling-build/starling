@@ -770,6 +770,40 @@ private struct SlideXML {
     }
 
     /// An `a:ln` with its width and/or its fill element swapped, everything else kept.
+    /// `a:outerShdw` for a shape shadow (offset as dx, dy in points).
+    static func _outerShadowXML(_ sh: CharShadow) -> String {
+        let dist = Int((hypot(sh.dx, sh.dy) * Pptx.emu).rounded())
+        var deg = atan2(sh.dy, sh.dx) * 180 / .pi
+        if deg < 0 { deg += 360 }
+        let alpha = sh.color.alpha < 255 ? "<a:alpha val=\"\(Int((Double(sh.color.alpha) / 255 * 100000).rounded()))\"/>" : ""
+        let rgb = String(sh.color.value & 0xFFFFFF, radix: 16, uppercase: true)
+        let hex = String(repeating: "0", count: max(0, 6 - rgb.count)) + rgb
+        return "<a:outerShdw blurRad=\"\(Int((sh.blur * Pptx.emu).rounded()))\" dist=\"\(dist)\" dir=\"\(Int((deg * 60000).rounded()))\" algn=\"ctr\" rotWithShape=\"0\">"
+            + "<a:srgbClr val=\"\(hex)\">\(alpha)</a:srgbClr></a:outerShdw>"
+    }
+
+    /// The file's `a:effectLst` with its outer shadow swapped for `shadow` (none: removed). The list is kept even when
+    /// empty, so a theme shadow named by the shape's style stays off.
+    static func _effectsWithShadow(_ effects: String, _ shadow: CharShadow?) -> String {
+        var body = ""
+        var attrs = ""
+        if let open = effects.range(of: "<a:effectLst"), let gt = effects[open.upperBound...].firstIndex(of: ">") {
+            attrs = String(effects[open.upperBound..<gt])
+            if attrs.hasSuffix("/") { attrs.removeLast() } else if let close = effects.range(of: "</a:effectLst>") { body = String(effects[effects.index(after: gt)..<close.lowerBound]) }
+        }
+        if let a = body.range(of: "<a:outerShdw") {
+            if let e = body.range(of: "</a:outerShdw>", range: a.lowerBound..<body.endIndex) { body.removeSubrange(a.lowerBound..<e.upperBound) }
+            else if let e = body[a.lowerBound...].range(of: "/>") { body.removeSubrange(a.lowerBound..<e.upperBound) }
+        }
+        if let sh = shadow {
+            let new = _outerShadowXML(sh)
+            // Schema order: ... glow, innerShdw, outerShdw, prstShdw, reflection, softEdge.
+            let after = ["<a:prstShdw", "<a:reflection", "<a:softEdge"].compactMap { body.range(of: $0)?.lowerBound }.min()
+            if let at = after { body.insert(contentsOf: new, at: at) } else { body += new }
+        }
+        return "<a:effectLst\(attrs)>\(body)</a:effectLst>"
+    }
+
     static func _dashXML(_ dash: String?) -> String {
         guard let dash, !dash.isEmpty, dash != "solid" else { return "" }
         return "<a:prstDash val=\"\(PptxXML.escape(dash, attribute: true))\"/>"
@@ -1033,7 +1067,10 @@ private struct SlideXML {
                                                 dash: k.dashEdited ? .some(s.outlineDash) : nil)
                 }
             }
-            spPr += fillXML + lineXML + (look?.effects ?? "")
+            let effectsXML: String
+            if let k = look { effectsXML = k.shadowEdited ? Self._effectsWithShadow(k.effects, s.shadow) : k.effects }
+            else { effectsXML = s.shadow.map { "<a:effectLst>\(Self._outerShadowXML($0))</a:effectLst>" } ?? "" }
+            spPr += fillXML + lineXML + effectsXML
             var xml = "<p:sp><p:nvSpPr>\(nv)<p:nvPr>\(ph)</p:nvPr></p:nvSpPr><p:spPr>\(spPr)</p:spPr>\(look?.style ?? "")"
             if let doc = s.text {
                 let anchor = s.anchor.rawValue
