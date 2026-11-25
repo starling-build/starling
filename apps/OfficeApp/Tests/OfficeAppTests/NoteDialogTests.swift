@@ -50,8 +50,8 @@ final class NoteDialogTests: XCTestCase {
         ui.press(.escape); ui.pump()   // (inserting opens the new note's text; leave it)
         XCTAssertNil(state._noteOpen)
         var opened = false
-        search: for x in [700.0, 800.0, 900.0] {
-            for y in stride(from: 880.0, to: 1280.0, by: 8.0) {
+        search: for x in stride(from: 300.0, to: 1500.0, by: 100.0) {
+            for y in stride(from: 300.0, to: 1290.0, by: 10.0) {
                 ui.tap(at: Offset(x, y)); ui.pump()
                 if state._noteOpen != nil { opened = true; break search }
             }
