@@ -538,6 +538,21 @@ final class ShapeSelectTests: XCTestCase {
         if let path = ProcessInfo.processInfo.environment["SHAPE_LAB4"] {
             try DocxFormat.write(c.document, pageSetup: .letter).write(to: URL(fileURLWithPath: path))
         }
+        // A click into the selected group picks the child under it; a fill then paints that child alone.
+        let gi = try XCTUnwrap(c.selectedImageIndex)
+        let boxes = try XCTUnwrap(c.groupChildBoxes(at: gi))
+        XCTAssertEqual(boxes.count, 2)
+        XCTAssertEqual(boxes[0], Rect.fromLTWH(100, 20, 80, 60))
+        XCTAssertEqual(boxes[1], Rect.fromLTWH(0, 0, 80, 60))
+        XCTAssertFalse(c.pickGroupChild(at: gi, point: Offset(90, 70)), "between the children there is nothing to pick")
+        XCTAssertTrue(c.pickGroupChild(at: gi, point: Offset(40, 30)))
+        XCTAssertEqual(c.groupChild, 1)
+        XCTAssertTrue(c.setShapeFill(at: gi, Color(0xFFFF0000)))
+        let painted = try XCTUnwrap(c.document.paragraphs[gi].image?.sourceXML)
+        XCTAssertEqual(painted.components(separatedBy: "<a:srgbClr val=\"FF0000\"/>").count - 1, 1, "only the picked child took the fill")
+        let spPr = painted.components(separatedBy: "<wps:spPr>")
+        XCTAssertFalse(spPr[1].components(separatedBy: "</wps:spPr>")[0].contains("FF0000"), "the first child keeps its fill")
+        XCTAssertTrue(spPr[2].components(separatedBy: "</wps:spPr>")[0].contains("FF0000"))
         // Ungroup gives the two shapes back, by name and size.
         let g = try XCTUnwrap(c.document.paragraphs[c.selectedImageIndex!].image)
         let parts = try XCTUnwrap(ShapeGroups.ungroup(g, number: 20))
@@ -545,7 +560,8 @@ final class ShapeSelectTests: XCTestCase {
         let oval = try XCTUnwrap(parts.first { $0.sourceXML!.containsSubstring("name=\"Oval 2\"") })
         XCTAssertTrue(oval.sourceXML!.containsSubstring("<wp:posOffset>\(150 * 12700)</wp:posOffset></wp:positionH>"))
         XCTAssertTrue(parts.contains { $0.sourceXML!.containsSubstring("name=\"Rectangle 1\"") })
-        c.undo()
+        c.undo()   // the fill
+        c.undo()   // the group
         XCTAssertEqual(c.document.paragraphs.filter { $0.image != nil }.count, 3)
     }
 
