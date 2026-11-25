@@ -1945,6 +1945,24 @@ public struct ListLevelFormat: Hashable, Codable, Sendable {
     public static func defaultBullet(_ level: Int) -> String { level % 2 == 0 ? "\u{2022}" : "\u{25E6}" }
 
     /// Word's numbering library, in its order.
+    /// The multilevel gallery: each scheme names the nine levels.
+    public static let multilevelLibrary: [(name: String, levels: [ListLevelFormat])] = {
+        func cycle(_ formats: [ListNumberFormat], _ suffix: String) -> [ListLevelFormat] {
+            (0 ..< 9).map { ListLevelFormat(text: "%\($0 + 1)\(suffix)", format: formats[$0 % formats.count]) }
+        }
+        let legal = (0 ..< 9).map { l in
+            ListLevelFormat(text: (1 ... l + 1).map { "%\($0)" }.joined(separator: ".") + (l == 0 ? "." : ""), format: .decimal)
+        }
+        let glyphs = ["\u{2022}", "o", "\u{25AA}"]
+        let bullets = (0 ..< 9).map { ListLevelFormat(text: glyphs[$0 % 3], format: .bullet) }
+        return [
+            ("1. a. i.", cycle([.decimal, .lowerLetter, .lowerRoman], ".")),
+            ("1) a) i)", cycle([.decimal, .lowerLetter, .lowerRoman], ")")),
+            ("1. 1.1. 1.1.1.", legal),
+            ("Bullets", bullets),
+        ]
+    }()
+
     public static let numberingLibrary: [ListLevelFormat] = [
         ListLevelFormat(text: "%1.", format: .decimal),
         ListLevelFormat(text: "%1)", format: .decimal),

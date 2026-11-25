@@ -6910,6 +6910,55 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(RichListNumbering.labels(back), ["1.", "2.", "1.", "2."])
     }
 
+    func testSetNumberingValueSurvivesSave() throws {
+        var paras: [RichParagraph] = []
+        for t in ["a", "b", "c", "d"] {
+            var p = RichParagraph(text: t); p.style.list = .numbered; p.style.listId = "5"; paras.append(p)
+        }
+        let c = RichDocumentController(document: RichDocument(paragraphs: paras))
+        c.moveTo(RichPosition(paragraph: 2, offset: 0), extend: false)
+        c.setNumberingValue(7)
+        XCTAssertEqual(RichListNumbering.labels(c.document), ["1.", "2.", "7.", "8."])
+        let back = try DocxFormat.read(try DocxFormat.write(c.document, pageSetup: .letter)).document
+        XCTAssertEqual(RichListNumbering.labels(back), ["1.", "2.", "7.", "8."])
+        // The two halves stay one list definition: a later format change reaches both, in the file too.
+        c.setListFormat(ListLevelFormat(text: "%1)", format: .lowerLetter))
+        XCTAssertEqual(RichListNumbering.labels(c.document), ["a)", "b)", "g)", "h)"])
+        let again = try DocxFormat.read(try DocxFormat.write(c.document, pageSetup: .letter)).document
+        XCTAssertEqual(RichListNumbering.labels(again), ["a)", "b)", "g)", "h)"])
+        c.undo()
+        // LISTS_OUT=<path>: leave the file for a Word open check (expect 1. 2. 7. 8.).
+        if let out = ProcessInfo.processInfo.environment["LISTS_OUT"] {
+            try DocxFormat.write(c.document, pageSetup: .letter).write(to: URL(fileURLWithPath: out))
+        }
+    }
+
+    func testMultilevelSchemesSurviveSave() throws {
+        var paras: [RichParagraph] = []
+        for (n, scheme) in ListLevelFormat.multilevelLibrary.enumerated() {
+            var head = RichParagraph(text: scheme.name); head.style.list = nil; paras.append(head)
+            for (k, level) in [0, 1, 2, 2, 1, 0].enumerated() {
+                var p = RichParagraph(text: "item \(k)"); p.style.list = scheme.levels[0].format == .bullet ? .bullet : .numbered
+                p.style.listId = "m\(n)"; p.style.listLevel = level; paras.append(p)
+            }
+        }
+        let c = RichDocumentController(document: RichDocument(paragraphs: paras))
+        for (n, scheme) in ListLevelFormat.multilevelLibrary.enumerated() {
+            c.moveTo(RichPosition(paragraph: n * 7 + 1, offset: 0), extend: false)
+            c.moveTo(RichPosition(paragraph: n * 7 + 6, offset: 0), extend: true)
+            c.setMultilevelFormat(scheme.levels)
+        }
+        let labels = RichListNumbering.labels(c.document)
+        XCTAssertEqual(Array(labels[1 ... 6]), ["1.", "a.", "i.", "ii.", "b.", "2."])
+        XCTAssertEqual(Array(labels[15 ... 20]), ["1.", "1.1", "1.1.1", "1.1.2", "1.2", "2."])
+        let back = try DocxFormat.read(try DocxFormat.write(c.document, pageSetup: .letter)).document
+        XCTAssertEqual(RichListNumbering.labels(back), labels)
+        // MULTILEVEL_OUT=<path>: leave the file for a Word open check.
+        if let out = ProcessInfo.processInfo.environment["MULTILEVEL_OUT"] {
+            try DocxFormat.write(c.document, pageSetup: .letter).write(to: URL(fileURLWithPath: out))
+        }
+    }
+
     func testALevelOfNoneShowsNoNumber() {
         // zh-90e0cea8: chapters are "%1%2　" over a level 0 of "none".
         var none = ListLevelFormat(text: "%1"); none.rawFormat = "none"

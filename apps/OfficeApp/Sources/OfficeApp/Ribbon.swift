@@ -335,6 +335,9 @@ final class Ribbon: StatelessWidget {
             _listLibrary("Bullet Library", ListLevelFormat.bulletLibrary, c, fluent),
             Chrome.toggle(FluentSystemIcons.numberList, "Numbering", s.list == .numbered, fluent) { c.toggleList(.numbered) },
             _listLibrary("Numbering Library", ListLevelFormat.numberingLibrary, c, fluent),
+            Chrome.menuButton(FluentSystemIcons.numberList, "Multilevel List", nil, fluent, items: ListLevelFormat.multilevelLibrary.map { scheme in
+                MenuFlyoutItem(text: Text(scheme.name), onPressed: { c.setMultilevelFormat(scheme.levels) })
+            }),
             Chrome.gap(2),
             Chrome.icon(FluentSystemIcons.indentDecrease, "Decrease Indent", fluent) { c.indent(-1) },
             Chrome.icon(FluentSystemIcons.indentIncrease, "Increase Indent", fluent) { c.indent(1) },
@@ -451,7 +454,14 @@ final class Ribbon: StatelessWidget {
             let preview = f.format == .bullet ? "\(f.text)  \(f.text)  \(f.text)" : "\(f.sample(1))  \(f.sample(2))  \(f.sample(3))"
             return MenuFlyoutItem(text: Text(preview), onPressed: { c.setListFormat(f) }, selected: f == current)
         }
-        return Chrome.splitChevron(tip, fluent, items: items)
+        var all = items
+        if library.contains(where: { $0.format != .bullet }) {
+            all.append(MenuFlyoutSeparator())
+            all.append(MenuFlyoutItem(text: Text("Restart at 1"), onPressed: c.isNumberedItem ? { c.restartNumbering() } : nil))
+            all.append(MenuFlyoutItem(text: Text("Continue Numbering"), onPressed: c.canContinueNumbering ? { c.continueNumbering() } : nil))
+            all.append(MenuFlyoutItem(text: Text("Set Numbering Value…"), onPressed: c.isNumberedItem ? { [session] in session.onNumberingValueDialog?() } : nil))
+        }
+        return Chrome.splitChevron(tip, fluent, items: all)
     }
 
     private func _tableMenu(_ fluent: FluentThemeData) -> Widget {
