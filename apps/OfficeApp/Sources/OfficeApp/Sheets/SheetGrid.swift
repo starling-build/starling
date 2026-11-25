@@ -262,7 +262,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
     /// Set while a page is printed: one pixel per point (a zoom of 0.75),
     /// and no headers, panes, editor or filter dropdowns.
     var printing = false
-    var zoom: Double { printing ? 0.75 : _w.zoom }
+    var zoom: Double { printing ? 0.75 : (_headless != nil ? Double(controller.sheet.zoomPercent) / 100 : _w.zoom) }
     var headerWidth: Double { printing ? 0 : outlineWidth + (!controller.sheet.showHeadings ? 0 : 40 + Double(max(0, String(_lastVisibleRow + 1).count - 3)) * 8) * zoom }
     /// The outline gutters, left of the row numbers and above the column
     /// letters: a lane per level, and one more for the last level button.
@@ -313,7 +313,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
     var cols: GridAxis { _axes().cols }
     var rows: GridAxis { _axes().rows }
     /// The axes, rebuilt only when the sheet's sizes, hidden rows or the zoom change.
-    private var _axisCache: (sheet: ObjectIdentifier, version: Int, scale: Double, printing: Bool, rowScale: Double, colMax: Double, cols: GridAxis, rows: GridAxis)? = nil
+    private var _axisCache: (sheet: ObjectIdentifier, version: Int, scale: Double, printing: Bool, rowScale: Double, colMax: Double, wide: Bool, cols: GridAxis, rows: GridAxis)? = nil
     /// The sheet's print scale while it is cut into pages and painted: on
     /// paper each row is a whole number of the printer's dots at that scale
     /// (45544's default rows at 90% are 93 dots, 11.16 pt, where 103 × 0.9
@@ -349,7 +349,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         let ws = controller.sheet
         let id = ObjectIdentifier(ws)
         if let c = _axisCache, c.sheet == id, c.version == ws.layoutVersion, c.scale == scale, c.printing == printing,
-           c.rowScale == printRowScale, c.colMax == printColumnMax { return (c.cols, c.rows) }
+           c.rowScale == printRowScale, c.colMax == printColumnMax, c.wide == (!printing && ws.showFormulas) { return (c.cols, c.rows) }
         let cols: GridAxis, rows: GridAxis
         if printing {
             // On paper the sheet has the printer's sizes, not the screen's: a
@@ -627,7 +627,9 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             rows = GridAxis(def: wholeRow(unsized),
                             overrides: heights.mapValues(wholeRow), hidden: ws.filteredRows.union(ws.hiddenRows), scale: scale)
         } else {
-            cols = GridAxis(def: ws.defaultColWidthPt, overrides: ws.colWidths, hidden: ws.hiddenCols, scale: scale)
+            // Show Formulas widens every column to twice its width, as Excel does (until it is switched off).
+            let wide = ws.showFormulas ? 2.0 : 1.0
+            cols = GridAxis(def: ws.defaultColWidthPt * wide, overrides: wide == 1 ? ws.colWidths : ws.colWidths.mapValues { $0 * wide }, hidden: ws.hiddenCols, scale: scale)
             // A row nobody sized is as tall as its wrapped text, as Excel
             // fits it when Wrap Text goes on or the text changes. It was
             // fitted on paper only: on screen a wrapped cell kept its one
@@ -668,7 +670,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             }
             rows = GridAxis(def: ws.defaultRowHeightPt, overrides: heights, hidden: ws.filteredRows.union(ws.hiddenRows), scale: scale)
         }
-        _axisCache = (id, ws.layoutVersion, scale, printing, printRowScale, printColumnMax, cols, rows)
+        _axisCache = (id, ws.layoutVersion, scale, printing, printRowScale, printColumnMax, !printing && ws.showFormulas, cols, rows)
         return (cols, rows)
     }
 
@@ -833,12 +835,15 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         }
         func at(_ m: SheetMarker) -> Offset {
             let w = ws.colWidth(m.col), h = ws.rowHeight(m.row)
-            return Offset(colX(m.col) + (w > 0 ? min(m.colOff * across * scale, ca.size(m.col)) : 0),
+            // (On a mirrored page a column's offset runs in from its right edge.)
+            let offX = w > 0 ? min(m.colOff * across * scale, ca.size(m.col)) : 0
+            return Offset(printMirror != nil ? colX(m.col) + ca.size(m.col) - offX : colX(m.col) + offX,
                           rowY(m.row) + (h > 0 ? min(m.rowOff * down * scale, ra.size(m.row)) : 0))
         }
         switch anchor {
         case .twoCell(let from, let to):
             let a = at(from), b = at(to)
+            if printMirror != nil { return Rect.fromLTRB(min(a.dx, b.dx), a.dy, max(a.dx, b.dx), max(a.dy, b.dy)) }
             return Rect.fromLTRB(a.dx, a.dy, max(a.dx, b.dx), max(a.dy, b.dy))
         case .oneCell(let from, let w, let h):
             // (Its size as it says, not scaled as an offset is: scaled,
@@ -846,13 +851,24 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             // than Excel's, lo-tdf139763ShapeAnchor's shapes no longer
             // exact.)
             let a = at(from)
+            // (On a mirrored page its near corner is the right one: it runs left.)
+            if printMirror != nil { return Rect.fromLTWH(a.dx - w * scale, a.dy, w * scale, h * scale) }
             return Rect.fromLTWH(a.dx, a.dy, w * scale, h * scale)
         case .absolute(let x, let y, let w, let h):
             return Rect.fromLTWH(headerWidth + x * scale - scrollX, headerHeight + y * scale - scrollY, w * scale, h * scale)
         }
     }
 
+    /// A drawing stands upright on a mirrored screen: it keeps its place, not its handedness.
     func _paintDrawing(_ canvas: any Canvas, _ d: SheetDrawing, chart: Chart?, in r: Rect, theme: DeckTheme) {
+        guard rtl else { _paintDrawingBody(canvas, d, chart: chart, in: r, theme: theme); return }
+        canvas.save()
+        canvas.translate(r.center.dx, 0); canvas.scale(-1, 1); canvas.translate(-r.center.dx, 0)
+        _paintDrawingBody(canvas, d, chart: chart, in: r, theme: theme)
+        canvas.restore()
+    }
+
+    func _paintDrawingBody(_ canvas: any Canvas, _ d: SheetDrawing, chart: Chart?, in r: Rect, theme: DeckTheme) {
         // (A straight line along one axis has no extent across it: Excel's 2.25 pt title rule is a shape of zero height.)
         var isLine = false
         if case .shape(let shape) = d.kind, SheetShape.lineGeometries.contains(shape.geometry) { isLine = true }
@@ -1043,7 +1059,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
     /// A cell's top-right corner in global coordinates (where a note opens).
     func globalTopRight(of a: CellAddress) -> Offset {
         let r = rect(a)
-        let local = Offset(r.right + 8, r.top)
+        let local = _screen(Offset(r.right + 8, r.top))
         return _box?.localToGlobal(local) ?? local
     }
 
@@ -1663,7 +1679,12 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
 
     // MARK: Pointer
 
-    private func _local(_ e: PointerEvent) -> Offset { _box?.globalToLocal(e.position) ?? e.position }
+    private func _local(_ e: PointerEvent) -> Offset {
+        let p = _box?.globalToLocal(e.position) ?? e.position
+        return rtl ? Offset(size.width - p.dx, p.dy) : p
+    }
+    /// A point of the grid's own (unmirrored) layout as a point of the screen.
+    func _screen(_ p: Offset) -> Offset { rtl ? Offset(size.width - p.dx, p.dy) : p }
 
     /// The distance between the first two fingers down, or nil with fewer.
     private func _fingerDistance() -> Double? {
@@ -1776,7 +1797,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         }
         // A validation list's arrow.
         if let b = listButton(), b.contains(p), let choices = c.validationChoices(at: c.active) {
-            let origin = _box?.localToGlobal(Offset(b.left - rect(c.active).width, b.bottom)) ?? Offset(b.left, b.bottom)
+            let origin = _box?.localToGlobal(_screen(Offset(b.left - rect(c.active).width, b.bottom))) ?? Offset(b.left, b.bottom)
             _w.onListMenu(origin, c.active, choices)
             return
         }
@@ -1796,7 +1817,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
            filterButton(a).inflate(1).contains(p) {
             commitEdit()
             let b = filterButton(a)
-            let origin = _box?.localToGlobal(Offset(b.left, b.bottom)) ?? Offset(b.left, b.bottom)
+            let origin = _box?.localToGlobal(_screen(Offset(b.left, b.bottom))) ?? Offset(b.left, b.bottom)
             _w.onFilterMenu(origin, a.col)
             return
         }
@@ -2233,8 +2254,8 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         canvas.drawRect(box.deflate(0.5), p)
         canvas.drawLine(Offset(r.right - 1, r.top + 1), Offset(box.left, box.top + 6 * zoom), p)
         var y = box.top + pad
-        if let author { author.paint(canvas, Offset(box.left + pad, y)); y += author.height }
-        tp.paint(canvas, Offset(box.left + pad, y))
+        if let author { _put(author, Offset(box.left + pad, y), canvas); y += author.height }
+        _put(tp, Offset(box.left + pad, y), canvas)
     }
 
     /// Circle Invalid Data: a red ellipse round every cell that breaks its rule.
@@ -2278,8 +2299,8 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         p.color = Color(0xFF7F7F7F)
         canvas.drawRect(box.deflate(0.5), p)
         var y = box.top + pad
-        if let title { title.paint(canvas, Offset(box.left + pad, y)); y += title.height + 2 * zoom }
-        tp?.paint(canvas, Offset(box.left + pad, y))
+        if let title { _put(title, Offset(box.left + pad, y), canvas); y += title.height + 2 * zoom }
+        if let tp { _put(tp, Offset(box.left + pad, y), canvas) }
     }
 
     private func _signal(_ e: PointerSignalEvent) {
@@ -2342,6 +2363,15 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
     }
 
     fileprivate func paint(_ canvas: any Canvas, _ size: Size, fluent: FluentThemeData?) {
+        guard rtl else { _paintBody(canvas, size, fluent: fluent); return }
+        canvas.save()
+        canvas.translate(size.width, 0)
+        canvas.scale(-1, 1)
+        _paintBody(canvas, size, fluent: fluent)
+        canvas.restore()
+    }
+
+    private func _paintBody(_ canvas: any Canvas, _ size: Size, fluent: FluentThemeData?) {
         let c = controller
         let ws = c.sheet
         let book = c.book
@@ -2548,7 +2578,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             }
             let tp = texts.painter(CellAddress.columnName(col), on ? headStrong : headStyle)
             if x1 - x0 > tp.width + 2 {
-                tp.paint(canvas, Offset(((x0 + x1) / 2 - tp.width / 2).rounded(), (outlineHeight + (hh - outlineHeight - tp.height) / 2).rounded()))
+                _put(tp, Offset(((x0 + x1) / 2 - tp.width / 2).rounded(), (outlineHeight + (hh - outlineHeight - tp.height) / 2).rounded()), canvas)
             }
             canvas.drawLine(Offset(x1.rounded() - 0.5, outlineHeight), Offset(x1.rounded() - 0.5, hh), line)
         }
@@ -2570,7 +2600,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             let filtered = filterActive && row > ws.autoFilter!.range.top && row <= ws.autoFilter!.range.bottom
             let tp = texts.painter(String(row + 1), on ? headStrong : filtered ? headFiltered : headStyle)
             if y1 - y0 > tp.height - 2 {
-                tp.paint(canvas, Offset((hw - 6 - tp.width).rounded(), ((y0 + y1) / 2 - tp.height / 2).rounded()))
+                _put(tp, Offset((hw - 6 - tp.width).rounded(), ((y0 + y1) / 2 - tp.height / 2).rounded()), canvas)
             }
             canvas.drawLine(Offset(outlineWidth, y1.rounded() - 0.5), Offset(hw, y1.rounded() - 0.5), line)
         }
@@ -2591,7 +2621,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 let b = outlineLevelButton(k, axis)
                 canvas.drawRect(Rect.fromLTRB(b.left.rounded() + 0.5, b.top.rounded() + 0.5, b.right.rounded() - 0.5, b.bottom.rounded() - 0.5), box)
                 let tp = texts.painter("\(k)", GridTextStyle(family: SelawikFontName.regular, size: 9 * zoom, color: Int64(headerInk.value)))
-                tp.paint(canvas, Offset((b.center.dx - tp.width / 2).rounded(), (b.center.dy - tp.height / 2).rounded()))
+                _put(tp, Offset((b.center.dx - tp.width / 2).rounded(), (b.center.dy - tp.height / 2).rounded()), canvas)
             }
         }
         // The corner: a triangle that selects everything.
@@ -2796,6 +2826,12 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         for m in merges {
             let r = rect(m)
             let st = book.style(ws.cells[m.topLeft]?.style ?? 0)
+            // (Paper over paper hides nothing where no gridline runs and no cell inside has a fill or a border of its own, nor its row or column: Excel's print draws no such rectangle.)
+            if printing, !colors.showGrid, (mono || st.fill == nil), m.rows * m.cols <= 400,
+               !(m.left ... m.right).contains(where: { c in ws.colStyle(c).map { book.style($0).fill != nil } ?? false }),
+               !(m.top ... m.bottom).contains(where: { r in ws.rowStyle(r).map { book.style($0).fill != nil } ?? false }),
+               !(m.top ... m.bottom).contains(where: { row in (m.left ... m.right).contains { col in
+                   ws.cells[CellAddress(row: row, col: col)].map { let q = book.style($0.style); return q.fill != nil || q.borders != CellStyle.Borders() } ?? false } }) { continue }
             p.color = (mono ? nil : st.fill).map { Color(Int64(0xFF00_0000) | Int64($0)) } ?? colors.paper
             canvas.drawRect(Rect.fromLTRB(r.left + 0.5, r.top + 0.5, r.right - 1, r.bottom - 1), p)
         }
@@ -3069,6 +3105,21 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
     /// An underline and a strike, drawn at the place and thickness of the face the cell names (its post table),
     /// a rule a line, as Slides draws them: the stand-in's own is Carlito's 1.04 pt, 0.1 pt under the baseline,
     /// where Excel's Calibri 11 is 0.72 pt, 1.2 pt under.
+    /// Whether the screen is mirrored (a right-to-left sheet): the canvas is flipped, so text and pictures are turned back upright.
+    var rtl: Bool { !printing && controller.sheet.rightToLeft }
+
+    /// Paints text (and its rules) upright inside a mirrored canvas.
+    func _put(_ tp: TextPainter, _ o: Offset, _ canvas: any Canvas, rules: GridTextStyle? = nil) {
+        if rtl {
+            canvas.save()
+            let cx = o.dx + tp.width / 2
+            canvas.translate(cx, 0); canvas.scale(-1, 1); canvas.translate(-cx, 0)
+        }
+        tp.paint(canvas, o)
+        if let rules { _drawRules(tp, rules, at: o, canvas) }
+        if rtl { canvas.restore() }
+    }
+
     func _drawRules(_ tp: TextPainter, _ s: GridTextStyle, at o: Offset, _ canvas: any Canvas) {
         guard let m = s.rule, s.underline || s.strike else { return }
         let paint = Paint()
@@ -3143,10 +3194,13 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             // text would: lo-tdf153767's postal codes.)
             case .number: align = NumberFormat.isText(st.numberFormat) ? .left : .right
             case .bool, .error: align = .center
-            // (Text in a right-to-left sheet starts at the right edge of its cell.)
-            default: align = printing && printMirror != nil ? .right : .left
+            // (Text in a right-to-left sheet stands where its own direction starts: Excel's print of a mirrored sheet
+            // put Latin text at the cell's left edge and Hebrew or Arabic at its right.)
+            default: align = ((printing && printMirror != nil) || rtl) && _cellIsRTL(st, text) ? .right : .left
             }
         }
+        // (On a mirrored screen the canvas is flipped: what stands at the cell's visual left is at its logical right.)
+        if rtl { if align == .left { align = .right } else if align == .right { align = .left } }
         let pad = 2 * zoom   // Excel's cell margin
         let wrapLess = 0.15 * zoom
         // Wrapped text: lines within the cell's width, never spilling.
@@ -3284,11 +3338,11 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 let one = texts.painter(String(parts.fill), style).width
                 if one > 0 {
                     let fp = texts.painter(String(repeating: String(parts.fill), count: Int((x1 - x0) / one)), style)
-                    fp.paint(canvas, at(x1 - fp.width))
+                    _put(fp, at(x1 - fp.width), canvas)
                 }
             }
-            lp.paint(canvas, at(left + margin))
-            rp.paint(canvas, at(x1))
+            _put(lp, at(left + margin), canvas)
+            _put(rp, at(x1), canvas)
             canvas.restore()
             return
         }
@@ -3381,16 +3435,14 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 }
                 for (rp, y, rstyle) in parts {
                     let o = printing ? Offset(x, y) : Offset(x.rounded(), y.rounded())
-                    rp.paint(canvas, o)
-                    _drawRules(rp, rstyle, at: o, canvas)
+                    _put(rp, o, canvas, rules: rstyle)
                     x += rp.width
                 }
                 canvas.restore()
                 return
             }
         }
-        tp.paint(canvas, at(tx))
-        _drawRules(tp, style, at: at(tx), canvas)
+        _put(tp, at(tx), canvas, rules: style)
         canvas.restore()
     }
 
@@ -3687,7 +3739,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             p.color = accent.withAlpha(90)
             canvas.drawRect(Rect.fromLTWH(box.left + pad + x0, ty, x1 - x0, tp.height), p)
         }
-        if !text.isEmpty { tp.paint(canvas, Offset(box.left + pad, ty.rounded())) }
+        if !text.isEmpty { _put(tp, Offset(box.left + pad, ty.rounded()), canvas) }
         // The input method's marked text, underlined.
         if let c = _composing, c.upperBound <= e.text.count, c.lowerBound < c.upperBound {
             let x0 = c.lowerBound == 0 ? 0 : texts.painter(String(e.text[0 ..< c.lowerBound]), style).width

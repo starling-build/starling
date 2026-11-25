@@ -415,6 +415,7 @@ extension Ribbon {
             },
             Chrome.textToggle("Headings", wb.sheet.showHeadings, fluent, style: fluent.typography.caption) { wb.toggleHeadings() },
             Chrome.textToggle("Show Formulas", wb.sheet.showFormulas, fluent, style: fluent.typography.caption) { wb.toggleShowFormulas() },
+            Chrome.textToggle("Sheet Right-to-Left", wb.sheet.rightToLeft, fluent, style: fluent.typography.caption) { wb.toggleRightToLeft() },
             Chrome.textToggle("Page Break Preview", wb.breakPreview, fluent, style: fluent.typography.caption) {
                 wb.breakPreview.toggle(); wb._notify()
             },
