@@ -33,4 +33,37 @@ final class BigStackTests: XCTestCase {
         struct Boom: Error {}
         XCTAssertThrowsError(try BigStack.run { () throws -> Int in throw Boom() }) { XCTAssertTrue($0 is Boom) }
     }
+
+    /// A thread the system refuses (many renders at once, a limit) must not hang the caller: the body runs on its own stack.
+    func testARefusedThreadRunsTheBodyOnTheCallersStack() {
+        BigStack.simulatedRefusals = 1_000
+        defer { BigStack.simulatedRefusals = 0 }
+        let caller = Thread.current
+        let ran = BigStack.run { Thread.current }
+        XCTAssertTrue(ran === caller)
+    }
+
+    /// A refusal at the full size is retried with less.
+    func testARefusedFullStackIsRetried() {
+        BigStack.simulatedRefusals = 2
+        defer { BigStack.simulatedRefusals = 0 }
+        let caller = Thread.current
+        XCTAssertFalse(BigStack.run { Thread.current } === caller)
+    }
+
+    /// Many callers at once, each hopping many times: every body runs and returns its own value.
+    func testManyConcurrentHopsAllReturn() {
+        let group = DispatchGroup()
+        let lock = NSLock()
+        var bad = 0
+        for t in 0..<16 {
+            group.enter()
+            DispatchQueue.global().async {
+                for i in 0..<300 where BigStack.run({ t * 1000 + i }) != t * 1000 + i { lock.lock(); bad += 1; lock.unlock() }
+                group.leave()
+            }
+        }
+        XCTAssertEqual(group.wait(timeout: .now() + 60), .success)
+        XCTAssertEqual(bad, 0)
+    }
 }
