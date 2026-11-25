@@ -46,6 +46,26 @@ struct HeaderFooter: Equatable {
         return oddFooter
     }
 
+    /// The `<headerFooter>` element for this setup, in the schema's child order;
+    /// nil when there is nothing to say (no text, no flags).
+    func xml() -> String? {
+        func esc(_ t: String) -> String {
+            t.replacingAll("&", with: "&amp;").replacingAll("<", with: "&lt;").replacingAll(">", with: "&gt;")
+        }
+        var attrs = ""
+        if differentOddEven { attrs += " differentOddEven=\"1\"" }
+        if differentFirst { attrs += " differentFirst=\"1\"" }
+        if !scaleWithDoc { attrs += " scaleWithDoc=\"0\"" }
+        if !alignWithMargins { attrs += " alignWithMargins=\"0\"" }
+        var kids = ""
+        for (tag, t) in [("oddHeader", oddHeader), ("oddFooter", oddFooter),
+                         ("evenHeader", differentOddEven ? evenHeader : ""), ("evenFooter", differentOddEven ? evenFooter : ""),
+                         ("firstHeader", differentFirst ? firstHeader : ""), ("firstFooter", differentFirst ? firstFooter : "")]
+        where !t.isEmpty { kids += "<\(tag)>\(esc(t))</\(tag)>" }
+        if kids.isEmpty && attrs.isEmpty { return nil }
+        return "<headerFooter\(attrs)>\(kids)</headerFooter>"
+    }
+
     /// From the sheet's `<headerFooter>` element.
     static func read(_ node: XNode) -> HeaderFooter {
         var h = HeaderFooter()

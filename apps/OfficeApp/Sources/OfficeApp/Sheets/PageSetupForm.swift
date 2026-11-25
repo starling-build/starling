@@ -23,6 +23,7 @@ struct PageSetupForm {
     var left: String, right: String, top: String, bottom: String, header: String, footer: String
     var area: String, titleRows: String, titleCols: String
     var centerH: Bool, centerV: Bool, gridlines: Bool, headings: Bool, overThenDown: Bool
+    var hf: HeaderFooter
 
     /// The boxes as the sheet has them now.
     init(_ s: SheetPrintSetup, paper number: Int, area: CellRange? = nil, titleRows: ClosedRange<Int>? = nil, titleCols: ClosedRange<Int>? = nil) {
@@ -38,6 +39,7 @@ struct PageSetupForm {
         header = inch(s.headerMargin); footer = inch(s.footerMargin)
         centerH = s.centerHorizontally; centerV = s.centerVertically
         gridlines = s.gridlines; headings = s.headings; overThenDown = s.overThenDown
+        hf = s.headerFooter
     }
 
     static func text(_ d: Double) -> String { d == d.rounded() ? String(Int(d)) : String(d) }
@@ -97,6 +99,7 @@ struct PageSetupForm {
         c.left = v[0]; c.right = v[1]; c.top = v[2]; c.bottom = v[3]; c.header = v[4]; c.footer = v[5]
         c.centerHorizontally = centerH; c.centerVertically = centerV
         c.gridlines = gridlines; c.headings = headings; c.overThenDown = overThenDown
+        c.headerFooter = hf
         return (c, nil)
     }
 }
@@ -118,13 +121,18 @@ final class PageSetupPanelState: State<StatefulWidget> {
     var form: PageSetupForm!
     var message = ""
     var boxes: [String: TextEditingController] = [:]
+    /// The header or footer box the field buttons add to (the last one typed in or chosen).
+    var hfTarget = "hfOH"
+    static let hfKeys = ["hfOH", "hfOF", "hfEH", "hfEF", "hfFH", "hfFF"]
 
     override func initState() {
         super.initState()
         form = _w.form
         for (k, v) in [("scale", form.scale), ("wide", form.wide), ("tall", form.tall), ("left", form.left), ("right", form.right),
                        ("top", form.top), ("bottom", form.bottom), ("header", form.header), ("footer", form.footer),
-                       ("area", form.area), ("titleRows", form.titleRows), ("titleCols", form.titleCols)] {
+                       ("area", form.area), ("titleRows", form.titleRows), ("titleCols", form.titleCols),
+                       ("hfOH", form.hf.oddHeader), ("hfOF", form.hf.oddFooter), ("hfEH", form.hf.evenHeader),
+                       ("hfEF", form.hf.evenFooter), ("hfFH", form.hf.firstHeader), ("hfFF", form.hf.firstFooter)] {
             boxes[k] = TextEditingController(text: v)
         }
     }
@@ -135,6 +143,8 @@ final class PageSetupPanelState: State<StatefulWidget> {
         form.left = t("left"); form.right = t("right"); form.top = t("top"); form.bottom = t("bottom")
         form.header = t("header"); form.footer = t("footer")
         form.area = t("area"); form.titleRows = t("titleRows"); form.titleCols = t("titleCols")
+        form.hf.oddHeader = t("hfOH"); form.hf.oddFooter = t("hfOF"); form.hf.evenHeader = t("hfEH")
+        form.hf.evenFooter = t("hfEF"); form.hf.firstHeader = t("hfFH"); form.hf.firstFooter = t("hfFF")
         let (c, err) = form.change()
         let (n, nerr) = form.names()
         if let c, let n { _w.onApply(c, n); _w.onClose() } else { setState { message = err ?? nerr ?? "" } }
@@ -160,6 +170,21 @@ final class PageSetupPanelState: State<StatefulWidget> {
             Padding(padding: EdgeInsets(left: 0, top: 3, right: 0, bottom: 3), child: Checkbox(
                 key: ValueKey("pagesetup-\(k)"), checked: on, onChanged: { [weak self] v in self?.setState { set(v ?? false) } },
                 content: Text(label)))
+        }
+        func hfBox(_ k: String, _ label: String) -> Widget {
+            Padding(padding: EdgeInsets(left: 0, top: 3, right: 0, bottom: 3), child: Row(children: [
+                SizedBox(width: 90, height: nil, child: Text(label, style: fluent.typography.body)),
+                SizedBox(width: 300, height: 30, child: FluentTextBox(key: ValueKey("pagesetup-\(k)"), controller: boxes[k]!,
+                                                                     onChanged: { [weak self] _ in self?.hfTarget = k },
+                                                                     onSubmitted: { [weak self] _ in self?.apply() })),
+            ]))
+        }
+        func field(_ id: String, _ label: String, _ code: String) -> Widget {
+            Chrome.textToggle(label, false, fluent, action: { [weak self] in
+                guard let self, let c = self.boxes[self.hfTarget] else { return }
+                c.text += code
+                self.setState {}
+            })
         }
         func heading(_ s: String) -> Widget {
             Padding(padding: EdgeInsets(left: 0, top: 10, right: 0, bottom: 4), child: Text(s, style: fluent.typography.bodyStrong))
@@ -191,6 +216,18 @@ final class PageSetupPanelState: State<StatefulWidget> {
             Row(children: [box("header", "Header"), box("footer", "Footer")]),
             check("centerH", "Center horizontally on the page", form.centerH) { self.form.centerH = $0 },
             check("centerV", "Center vertically on the page", form.centerV) { self.form.centerV = $0 },
+            heading("Header and footer"),
+            Text("Use &L, &C and &R for the left, centre and right parts.", style: fluent.typography.caption),
+            hfBox("hfOH", form.hf.differentFirst || form.hf.differentOddEven ? "Header (odd)" : "Header"),
+            hfBox("hfOF", form.hf.differentFirst || form.hf.differentOddEven ? "Footer (odd)" : "Footer"),
+            form.hf.differentOddEven ? Column(crossAxisAlignment: .start, children: [hfBox("hfEH", "Header (even)"), hfBox("hfEF", "Footer (even)")]) : Chrome.gap(0),
+            form.hf.differentFirst ? Column(crossAxisAlignment: .start, children: [hfBox("hfFH", "Header (first)"), hfBox("hfFF", "Footer (first)")]) : Chrome.gap(0),
+            Row(children: [
+                field("page", "Page", "&P"), field("pages", "Pages", "&N"), field("date", "Date", "&D"),
+                field("time", "Time", "&T"), field("file", "File", "&F"), field("sheet", "Sheet", "&A"),
+            ]),
+            check("hfFirst", "Different first page", form.hf.differentFirst) { self.form.hf.differentFirst = $0 },
+            check("hfOddEven", "Different odd and even pages", form.hf.differentOddEven) { self.form.hf.differentOddEven = $0 },
             heading("Sheet"),
             wideBox("area", "Print area"), wideBox("titleRows", "Repeat rows"), wideBox("titleCols", "Repeat cols"),
             check("gridlines", "Print gridlines", form.gridlines) { self.form.gridlines = $0 },
@@ -199,7 +236,7 @@ final class PageSetupPanelState: State<StatefulWidget> {
             Chrome.gap(8),
             Text(message, style: fluent.typography.caption),
         ]))
-        return DialogShell(title: "Page Setup", page: SizedBox(width: nil, height: 400, child: SingleChildScrollView(child: content)),
+        return DialogShell(title: "Page Setup", page: SizedBox(width: nil, height: 560, child: SingleChildScrollView(child: content)),
                            width: 460, onOK: { [weak self] in self?.apply() }, onCancel: _w.onClose)
     }
 }
