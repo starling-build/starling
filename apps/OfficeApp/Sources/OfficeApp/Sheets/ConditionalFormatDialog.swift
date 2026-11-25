@@ -34,9 +34,10 @@ final class ConditionalFormatDialogState: State<StatefulWidget> {
         ("3 arrows", "3Arrows"), ("3 grey arrows", "3ArrowsGray"), ("3 flags", "3Flags"),
         ("3 traffic lights", "3TrafficLights1"), ("3 traffic lights (rimmed)", "3TrafficLights2"),
         ("3 signs", "3Signs"), ("3 symbols (circled)", "3Symbols"), ("3 symbols", "3Symbols2"),
-        ("4 arrows", "4Arrows"), ("4 grey arrows", "4ArrowsGray"), ("4 ratings", "4Rating"),
+        ("4 arrows", "4Arrows"), ("4 grey arrows", "4ArrowsGray"), ("4 red to black", "4RedToBlack"), ("4 ratings", "4Rating"),
         ("4 traffic lights", "4TrafficLights"), ("5 arrows", "5Arrows"), ("5 grey arrows", "5ArrowsGray"),
-        ("5 ratings", "5Rating"), ("5 quarters", "5Quarters")]
+        ("5 ratings", "5Rating"), ("5 quarters", "5Quarters"),
+        ("3 stars", "3Stars"), ("3 triangles", "3Triangles"), ("5 boxes", "5Boxes")]
     static let opChoices = ValidationDialogState.opChoices
     static let textChoices: [(label: String, op: String)] = [
         ("contains", "containsText"), ("does not contain", "notContainsText"),

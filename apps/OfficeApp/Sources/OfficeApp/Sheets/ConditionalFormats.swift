@@ -120,6 +120,7 @@ enum ConditionalFormats {
                                   dxf: r["dxfId"].flatMap { Int($0) }, stopIfTrue: r["stopIfTrue"] == "1", kind: kind))
             }
         }
+        out += IconSets2010.rules(ws)
         return out.sorted { $0.priority < $1.priority }
     }
 }
