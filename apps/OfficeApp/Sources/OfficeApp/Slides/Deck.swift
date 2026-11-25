@@ -206,6 +206,18 @@ struct ReadShape: Equatable {
     /// alt text...) survives a drag. (S-P0-1)
     func unchangedExceptPlacement(_ s: ShapeState) -> Bool { unchangedExceptPlacementAndText(s) && s.text == s.sourceText }
 
+    /// Still the same kind of shape, whatever else was edited among what a save can patch into the shape's own XML
+    /// (fill, line, anchor, insets, autofit, name, click action, place); text is the caller's to check.
+    func patchable(_ s: ShapeState) -> Bool {
+        var a = self
+        let b = ReadShape(s)
+        a.frame = b.frame; a.rotation = b.rotation; a.flipH = b.flipH; a.flipV = b.flipV; a.invisible = b.invisible
+        a.fill = b.fill; a.fillScheme = b.fillScheme; a.outline = b.outline; a.outlineWidth = b.outlineWidth
+        a.anchor = b.anchor; a.insets = b.insets; a.autofit = b.autofit; a.fontScale = b.fontScale
+        a.name = b.name; a.link = b.link; a.linkTip = b.linkTip
+        return a == b
+    }
+
     /// The same, whatever has been typed.
     func unchangedExceptPlacementAndText(_ s: ShapeState) -> Bool {
         var a = self

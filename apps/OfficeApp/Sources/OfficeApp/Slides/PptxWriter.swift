@@ -904,18 +904,28 @@ private struct SlideXML {
                             hidden: read.invisible != s.invisible ? s.invisible : nil,
                             edit: read.aspectLock != s.aspectLock ? Self._lockEdit(s.aspectLocked) : nil)
             }
-            // Typed in since it was read, nothing else changed (bar its place): the shape as it was,
-            // the typed text patched into its own runs (S-P0-1b).
-            if let xml = s.sourceXML, let read = s.readShape, read.unchangedExceptPlacementAndText(s), s.field == nil,
-               let old = s.sourceText, let new = s.text, let patched = PptxTextPatch.apply(xml, old: old, new: new),
+            // Edited since it was read (typed in, filled, outlined, renamed, its text box changed...): the
+            // shape as it was, with only what the edit touched patched into its own XML, so the theme
+            // colours, East Asian faces, adjust handles, effects and paragraph settings the model does not
+            // hold stay (S-P0-1b, and the sweep that found a fill change stripped them).
+            if let xml = s.sourceXML, let read = s.readShape, read.patchable(s), s.field == nil || s.text == s.sourceText,
                let p = source, let part = s.sourcePart {
-                let flipped = read.flipH != s.flipH || read.flipV != s.flipV
-                let moved = read.frame != s.frame || read.rotation != s.rotation || flipped
-                return kept(patched, sourcePart: part, package: p, builder: &builder, patch: s.frame, fileId: s.fileId,
-                            rotation: moved ? s.rotation : nil, placeIfMissing: moved,
-                            flips: flipped ? (s.flipH, s.flipV) : nil,
-                            hidden: read.invisible != s.invisible ? s.invisible : nil,
-                            edit: read.aspectLock != s.aspectLock ? Self._lockEdit(s.aspectLocked) : nil)
+                var base: String? = xml
+                if s.text != s.sourceText {
+                    base = nil
+                    if let old = s.sourceText, let new = s.text { base = PptxTextPatch.apply(xml, old: old, new: new) }
+                }
+                if let base {
+                    let flipped = read.flipH != s.flipH || read.flipV != s.flipV
+                    let moved = read.frame != s.frame || read.rotation != s.rotation || flipped
+                    let shapeEdit = Self._shapeEdit(s, read)
+                    let lockEdit = read.aspectLock != s.aspectLock ? Self._lockEdit(s.aspectLocked) : nil
+                    let edit: (XNode) -> Void = { n in shapeEdit(n); lockEdit?(n) }
+                    return kept(base, sourcePart: part, package: p, builder: &builder, patch: s.frame, fileId: s.fileId,
+                                rotation: moved ? s.rotation : nil, placeIfMissing: moved,
+                                flips: flipped ? (s.flipH, s.flipV) : nil,
+                                hidden: read.invisible != s.invisible ? s.invisible : nil, edit: edit)
+                }
             }
             let id = _id(s.fileId)
             var nv = "<p:cNvPr id=\"\(id)\" name=\"\(name)\"\(hid)\(PptxText.cNvPrEnd(s))"
@@ -994,6 +1004,74 @@ private struct SlideXML {
                     + "<a:lstStyle/>" + PptxText.paragraphs(doc, defaults: s, field: s.field) + "</p:txBody>"
             }
             return xml + "</p:sp>"
+        }
+    }
+
+    /// The fill and line a shape of ours writes, as XML (the same the regenerated shape gets).
+    private static func _shapeFillLine(_ s: ShapeState) -> (fill: String, line: String) {
+        if case .placeholder = s.kind {
+            return (s.fill.map { Self._fill($0) } ?? "", s.outline.map { "<a:ln w=\"\(Self._emu(s.outlineWidth))\">\(Self._fill($0))</a:ln>" } ?? "")
+        }
+        let fill: String
+        if let scheme = s.fillScheme, s.fill != nil { fill = "<a:solidFill><a:schemeClr val=\"\(scheme)\"/></a:solidFill>" }
+        else { fill = Self._fill(s.fill) }
+        return (fill, s.outline.map { "<a:ln w=\"\(Self._emu(s.outlineWidth))\">\(Self._fill($0))</a:ln>" } ?? "<a:ln><a:noFill/></a:ln>")
+    }
+
+    private static func _fragment(_ xml: String) -> [XNode] {
+        guard !xml.isEmpty, let root = XNode.parse(Data("<r>\(xml)</r>".utf8)) else { return [] }
+        return root.children
+    }
+
+    /// What a save patches into a shape's own XML for the properties the edit touched (and nothing else).
+    private static func _shapeEdit(_ s: ShapeState, _ read: ReadShape) -> (XNode) -> Void {
+        let (fillXML, lineXML) = _shapeFillLine(s)
+        let fillChanged = read.fill != s.fill || read.fillScheme != s.fillScheme
+        let lineChanged = read.outline != s.outline || read.outlineWidth != s.outlineWidth
+        let clickChanged = read.link != s.link || read.linkTip != s.linkTip
+        let click = clickChanged ? (PptxText.links?.xml(s.link, s.linkTip) ?? "") : ""
+        let fit: String? = {
+            guard read.autofit != s.autofit || read.fontScale != s.fontScale else { return nil }
+            if s.autofit {
+                let scale = Int((s.fontScale * 100000).rounded())
+                let reduction = Int((s.lineReduction * 100000).rounded())
+                var attrs = scale < 100000 ? " fontScale=\"\(scale)\"" : ""
+                if reduction > 0 { attrs += " lnSpcReduction=\"\(reduction)\"" }
+                return "<a:normAutofit\(attrs)/>"
+            }
+            return s.fitRule == "a:spAutoFit" || (s.fitRule == nil && s.kind == .textBox) ? "<a:spAutoFit/>" : "<a:noAutofit/>"
+        }()
+        let fills: Set<String> = ["a:noFill", "a:solidFill", "a:gradFill", "a:blipFill", "a:pattFill", "a:grpFill"]
+        return { node in
+            if let c = node.descendant("p:cNvPr") {
+                if read.name != s.name { c.attrs["name"] = s.name }
+                if clickChanged {
+                    c.children.removeAll { $0.name == "a:hlinkClick" }
+                    c.children.insert(contentsOf: _fragment(click), at: 0)
+                }
+            }
+            if let spPr = node.first("p:spPr") {
+                func after(_ names: Set<String>) -> Int { (spPr.children.lastIndex { names.contains($0.name) } ?? -1) + 1 }
+                if fillChanged {
+                    spPr.children.removeAll { fills.contains($0.name) }
+                    spPr.children.insert(contentsOf: _fragment(fillXML), at: after(["a:xfrm", "a:custGeom", "a:prstGeom"]))
+                }
+                if lineChanged {
+                    spPr.children.removeAll { $0.name == "a:ln" }
+                    spPr.children.insert(contentsOf: _fragment(lineXML), at: after(fills.union(["a:xfrm", "a:custGeom", "a:prstGeom"])))
+                }
+            }
+            if let body = node.first("p:txBody")?.first("a:bodyPr") {
+                if read.anchor != s.anchor { body.attrs["anchor"] = s.anchor.rawValue }
+                if read.insets != s.insets {
+                    body.attrs["lIns"] = "\(_emu(s.insets.left))"; body.attrs["tIns"] = "\(_emu(s.insets.top))"
+                    body.attrs["rIns"] = "\(_emu(s.insets.right))"; body.attrs["bIns"] = "\(_emu(s.insets.bottom))"
+                }
+                if let fit {
+                    body.children.removeAll { ["a:normAutofit", "a:noAutofit", "a:spAutoFit"].contains($0.name) }
+                    body.children.append(contentsOf: _fragment(fit))
+                }
+            }
         }
     }
 
