@@ -25,6 +25,8 @@ struct PivotFilter: Equatable, Sendable {
 
 /// What a pivot made here is made of. Fields are column positions in the source range (0 = its first column).
 struct PivotSpec: Equatable, Sendable {
+    /// Whether Insert PivotTable offers Filters (page fields): off while Excel crashes on the page fields we write.
+    static let offersFilters = false
     var name: String
     var rows: [Int]
     var cols: [Int]

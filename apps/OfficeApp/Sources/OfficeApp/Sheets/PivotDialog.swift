@@ -97,15 +97,19 @@ final class PivotDialogState: State<StatefulWidget> {
         for (i, name) in fields.enumerated() {
             let fn = values[i]
             list.append(Text(name.isEmpty ? "Column \(i + 1)" : name, style: fluent.typography.body))
-            list.append(Row(children: [
+            var choices: [Widget] = [
                 Checkbox(key: ValueKey("pivot-row-\(i)"), checked: rows.contains(i), onChanged: { [weak self] v in self?.toggle(0, i, v ?? false) }, content: Text("Row")),
                 SizedBox(width: 8, height: nil, child: nil),
                 Checkbox(key: ValueKey("pivot-col-\(i)"), checked: cols.contains(i), onChanged: { [weak self] v in self?.toggle(1, i, v ?? false) }, content: Text("Column")),
                 SizedBox(width: 8, height: nil, child: nil),
                 Checkbox(key: ValueKey("pivot-val-\(i)"), checked: fn != nil, onChanged: { [weak self] v in self?.setValue(i, v ?? false) }, content: Text("Value")),
-                SizedBox(width: 8, height: nil, child: nil),
-                Checkbox(key: ValueKey("pivot-flt-\(i)"), checked: filters.contains(i), onChanged: { [weak self] v in self?.toggle(2, i, v ?? false) }, content: Text("Filter")),
-            ]))
+            ]
+            // Page fields are held back while Excel crashes on the ones we write.
+            if PivotSpec.offersFilters {
+                choices.append(SizedBox(width: 8, height: nil, child: nil))
+                choices.append(Checkbox(key: ValueKey("pivot-flt-\(i)"), checked: filters.contains(i), onChanged: { [weak self] v in self?.toggle(2, i, v ?? false) }, content: Text("Filter")))
+            }
+            list.append(Row(children: choices))
             if let fn {
                 list.append(Button(key: ValueKey("pivot-fn-\(i)"), onPressed: { [weak self] in self?.cycle(i) },
                                    child: Text(String(fn.caption.dropLast(4)) + " (click to change)")))
