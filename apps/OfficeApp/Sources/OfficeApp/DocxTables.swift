@@ -1346,6 +1346,10 @@ extension DocxFormat {
             if !markRPr.isEmpty { pPr += "<w:rPr>\(markRPr)</w:rPr>" }
             if let sect = p.style.sectionXML, p.cell == nil, index < doc.paragraphs.count - 1 { pPr += keptFragmentXML(Self._sectionXML(sect, patchedTo: p.style.sectionPage), p.style.sectionRels) }
             body += "<w:p\(p.id != 0 ? " w14:paraId=\"\(_paraIdHex(p.id))\"" : "")><w:pPr>\(pPr)</w:pPr>"
+            // W-FD-2: the table of contents field opens in this paragraph; its entries are the paragraphs that follow.
+            if let toc = p.style.contentsStart {
+                body += "<w:r><w:fldChar w:fldCharType=\"begin\"/></w:r><w:r><w:instrText xml:space=\"preserve\"> \(_esc(toc)) </w:instrText></w:r><w:r><w:fldChar w:fldCharType=\"separate\"/></w:r>"
+            }
             for name in p.bookmarks where !rangedBookmarkNames.contains(name) && writtenBookmarks.insert(name).inserted {
                 // (Numbered clear of any a kept table's own XML carries.)
                 repeat { nextPointBookmarkID += 1 } while rangedBookmarkIDs.contains(String(nextPointBookmarkID)) || takenAnnotationIDs.contains(nextPointBookmarkID)
@@ -1564,6 +1568,7 @@ extension DocxFormat {
                 body += "<w:r>\(next.breakRunPropertiesXML ?? "")<w:br w:type=\"\(next.columnBreak ? "column" : "page")\"/></w:r>"
             }
             if commentsKept, index == doc.paragraphs.count - 1 { body += closeComments(except: []) }
+            if p.style.contentsEnd { body += "<w:r><w:fldChar w:fldCharType=\"end\"/></w:r>" }
             body += "</w:p>"
             return body
         }
