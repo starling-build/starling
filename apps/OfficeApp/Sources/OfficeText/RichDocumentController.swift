@@ -1330,7 +1330,7 @@ public final class RichDocumentController: ChangeNotifier {
         guard var entry = document.styles[id] else { return }
         let old = entry
         var char = currentCharStyle
-        char.link = nil
+        char.link = nil; char.linkTip = nil
         char.highlight = nil
         entry.char = char
         var ps = currentParagraphStyle
@@ -1475,7 +1475,7 @@ public final class RichDocumentController: ChangeNotifier {
         // tracked-change marks are content, not formatting: they stay.
         let keep: (inout CharStyle) -> Void = { s in
             var p = CharStyle.plain
-            p.link = s.link; p.note = s.note; p.inlineImage = s.inlineImage
+            p.link = s.link; p.linkTip = s.linkTip; p.note = s.note; p.inlineImage = s.inlineImage
             p.revision = s.revision; p.formatChange = s.formatChange
             s = p
         }
@@ -3011,7 +3011,7 @@ public final class RichDocumentController: ChangeNotifier {
                     var kept = CharStyle.plain
                     kept.bold = run.style.bold; kept.italic = run.style.italic
                     kept.underline = run.style.underline; kept.strikethrough = run.style.strikethrough
-                    kept.script = run.style.script; kept.link = run.style.link
+                    kept.script = run.style.script; kept.link = run.style.link; kept.linkTip = run.style.linkTip
                     return Run(length: run.length, style: kept)
                 }
             }
