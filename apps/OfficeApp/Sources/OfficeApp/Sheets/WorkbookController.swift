@@ -882,6 +882,7 @@ final class WorkbookController: ChangeNotifier {
                 let before = sc
                 sc.refs = sc.refs.map { (name: $0.name.map(map), cat: $0.cat.map(map), val: $0.val.map(map)) }
                 for (k, v) in sc.formulas { sc.formulas[k] = map(v) }
+                sc.seriesEdit = sc.seriesEdit.map { $0.map { ChartSeriesRef(source: $0.source, name: $0.name.map(map), cat: $0.cat.map(map), val: $0.val.map(map)) } }
                 if sc != before {
                     ws.drawings[i].kind = .chart(sc)
                     ws.drawingsEdited = true

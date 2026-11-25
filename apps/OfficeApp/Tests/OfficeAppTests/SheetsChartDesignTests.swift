@@ -96,6 +96,15 @@ final class SheetsChartDesignTests: XCTestCase {
         try Xlsx.write(back.book).write(to: URL(fileURLWithPath: dir + "/chartaxis.xlsx"))
         c.setChartAxisTitles(i, category: "Month", value: "Total sales")
         try Xlsx.write(c.book).write(to: URL(fileURLWithPath: dir + "/chartaxis-new.xlsx"))
+        // Select Data: Sales goes, Tax (column D) is added; on the chart made here and on the same one from a file.
+        c.setInputs([(CellAddress(row: 0, col: 3), "Tax"), (CellAddress(row: 1, col: 3), "1"), (CellAddress(row: 2, col: 3), "2")])
+        let tax = ChartSeriesRef(source: nil, name: "Sheet1!$D$1", cat: c.chartSeries(i)![0].cat, val: "Sheet1!$D$2:$D$3")
+        let fileBook = WorkbookController(); fileBook.load(try Xlsx.read(try Xlsx.write(c.book)))
+        c.setChartSeries(i, [c.chartSeries(i)![1], tax])
+        try Xlsx.write(c.book).write(to: URL(fileURLWithPath: dir + "/chartseries-new.xlsx"))
+        let k = fileBook.sheet.drawings.firstIndex(where: { $0.isChart })!
+        fileBook.setChartSeries(k, [fileBook.chartSeries(k)![1], tax])
+        try Xlsx.write(fileBook.book).write(to: URL(fileURLWithPath: dir + "/chartseries-file.xlsx"))
     }
 
     /// Element and attribute names (with counts) in a chart part.
@@ -162,6 +171,63 @@ final class SheetsChartDesignTests: XCTestCase {
         guard case .chart = c.sheet.drawings[i].kind else { return XCTFail() }
         let f = c.sheet.frame(c.sheet.drawings[i].anchor)
         XCTAssertLessThanOrEqual((f.x + f.width) * 51 / 48, setup.printableWidth)
+    }
+
+    func testSelectDataOnAChartMadeHereAndOnOneFromTheFile() throws {
+        let (c, i) = chartBook()
+        c.setInputs([(CellAddress(row: 0, col: 3), "Tax"), (CellAddress(row: 1, col: 3), "1"), (CellAddress(row: 2, col: 3), "2")])
+        let before = try XCTUnwrap(c.chartSeries(i))
+        XCTAssertEqual(before.map(\.source), [0, 1])
+        // A bad reference changes nothing.
+        XCTAssertFalse(c.setChartSeries(i, [ChartSeriesRef(source: 0, name: nil, cat: nil, val: "nowhere")]))
+        // The first series goes, a third is added.
+        let tax = ChartSeriesRef(source: nil, name: "Sheet1!$D$1", cat: before[0].cat, val: "Sheet1!$D$2:$D$3")
+        XCTAssertTrue(c.setChartSeries(i, [before[1], tax]))
+        let live = c.liveChart({ if case .chart(let sc) = c.sheet.drawings[i].kind { return sc }; fatalError() }())
+        XCTAssertEqual(live.series.map(\.name), ["Cost", "Tax"])
+        XCTAssertEqual(live.series[1].values, [1, 2])
+        c.undo()
+        XCTAssertEqual(c.chartSeries(i)?.count, 2)
+        c.redo()
+        // The same chart through a file: series 0 of the part goes, a new one is added; the part keeps the others as written.
+        let back = WorkbookController(); back.load(try Xlsx.read(try Xlsx.write(c.book)))
+        let j = back.sheet.drawings.firstIndex(where: { $0.isChart })!
+        XCTAssertEqual(back.chartSeries(j)?.count, 2)
+        let cur = try XCTUnwrap(back.chartSeries(j))
+        XCTAssertTrue(back.setChartSeries(j, [cur[1], ChartSeriesRef(source: nil, name: nil, cat: cur[1].cat, val: "Sheet1!$B$2:$B$3")]))
+        let entries = try Zip.read(try Xlsx.write(back.book))
+        let xml = String(decoding: entries.first { $0.name.hasPrefix("xl/charts/chart") && $0.name.hasSuffix(".xml") }!.data, as: UTF8.self)
+        XCTAssertEqual(xml.components(separatedBy: "<c:ser>").count - 1, 2)
+        let again = try Xlsx.read(try Xlsx.write(back.book))
+        guard let d = again.sheets[0].drawings.first(where: { $0.isChart }), case .chart(let sc) = d.kind else { return XCTFail("no chart") }
+        XCTAssertEqual(sc.refs.map(\.val), ["Sheet1!$D$2:$D$3", "Sheet1!$B$2:$B$3"])
+    }
+
+    func testSeriesPatchKeepsIdxAndOrderUniqueAcrossGroups() {
+        func ser(_ idx: Int, _ f: String) -> String {
+            "<c:ser><c:idx val=\"\(idx)\"/><c:order val=\"\(idx)\"/><c:tx><c:strRef><c:f>S!$A$1</c:f><c:strCache><c:pt idx=\"0\"><c:v>x</c:v></c:pt></c:strCache></c:strRef></c:tx><c:spPr><a:solidFill><a:srgbClr val=\"FF0000\"/></a:solidFill></c:spPr><c:dPt><c:idx val=\"0\"/></c:dPt><c:cat><c:strRef><c:f>S!$A$2:$A$3</c:f></c:strRef></c:cat><c:val><c:numRef><c:f>\(f)</c:f><c:numCache/></c:numRef></c:val></c:ser>"
+        }
+        let xml = "<c:plotArea><c:barChart>" + ser(0, "S!$B$2:$B$3") + ser(1, "S!$C$2:$C$3") + "</c:barChart><c:lineChart>" + ser(5, "S!$D$2:$D$3") + "</c:lineChart></c:plotArea>"
+        let list = [ChartSeriesRef(source: 0, name: "S!$A$1", cat: "S!$A$2:$A$3", val: "S!$B$2:$B$3"),
+                    ChartSeriesRef(source: 2, name: "S!$A$1", cat: "S!$A$2:$A$3", val: "S!$E$2:$E$3"),
+                    ChartSeriesRef(source: nil, name: nil, cat: "S!$A$2:$A$3", val: "S!$F$2:$F$3"),
+                    ChartSeriesRef(source: nil, name: nil, cat: nil, val: "S!$G$2:$G$3")]
+        let out = ChartPartPatch.series(xml, list)
+        var idxs: [String] = [], orders: [String] = []
+        for part in out.components(separatedBy: "<c:ser>").dropFirst() {
+            idxs.append(String(part.components(separatedBy: "<c:idx val=\"")[1].prefix(while: { $0 != "\"" })))
+            orders.append(String(part.components(separatedBy: "<c:order val=\"")[1].prefix(while: { $0 != "\"" })))
+        }
+        XCTAssertEqual(idxs.count, 4)
+        XCTAssertEqual(Set(idxs).count, 4); XCTAssertEqual(Set(orders).count, 4)
+        XCTAssertEqual(idxs.prefix(1), ["0"])
+        // The kept series are untouched where they were not edited (colour, cache); the new ones carry no colour.
+        XCTAssertTrue(out.containsSubstring("<c:strCache>"))
+        XCTAssertEqual(out.components(separatedBy: "FF0000").count - 1, 2)
+        XCTAssertFalse(out.containsSubstring("S!$C$2:$C$3"))
+        XCTAssertTrue(out.containsSubstring("<c:f>S!$G$2:$G$3</c:f>"))
+        // The new series sit in the line group, after the last kept series.
+        XCTAssertTrue(out.components(separatedBy: "<c:lineChart>")[1].containsSubstring("S!$F$2:$F$3"))
     }
 
     /// A chart part without its own title, its legend and autoTitleDeleted (what an edit may change), as one string.

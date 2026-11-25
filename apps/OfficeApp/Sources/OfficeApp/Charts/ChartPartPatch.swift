@@ -12,6 +12,14 @@ enum ChartPartEdit: Equatable {
     case remove
 }
 
+/// One series of a chart as Select Data edits it: where it came from in the part (`source`, its position among the part's series; nil for a new one) and the cells it reads.
+struct ChartSeriesRef: Equatable {
+    var source: Int?
+    var name: String?
+    var cat: String?
+    var val: String?
+}
+
 /// Patches on a chart part's XML text, shared by Sheets and Slides: each changes only the elements it names.
 enum ChartPartPatch {
     private static func _esc(_ s: String) -> String {
@@ -156,5 +164,105 @@ enum ChartPartPatch {
         var out = xml
         out.replaceSubrange(target.r, with: ax)
         return out
+    }
+
+    // MARK: Series (Select Data)
+
+    private static func _firstValue(_ x: String, _ tag: String) -> Int? {
+        guard let a = x.findRange(of: "<c:\(tag) val=\"", in: x.startIndex ..< x.endIndex),
+              let b = x.findRange(of: "\"", in: a.upperBound ..< x.endIndex) else { return nil }
+        return Int(x[a.upperBound ..< b.lowerBound])
+    }
+
+    /// `<c:tag>…</c:tag>` (or the tag's self-closed form) within `x`, as a range.
+    private static func _element(_ x: String, _ tag: String) -> Range<String.Index>? {
+        guard let a = x.findRange(of: "<c:\(tag)>", in: x.startIndex ..< x.endIndex),
+              let b = x.findRange(of: "</c:\(tag)>", in: a.upperBound ..< x.endIndex) else { return nil }
+        return a.lowerBound ..< b.upperBound
+    }
+
+    private static func _formula(_ element: String) -> String? {
+        guard let a = element.findRange(of: "<c:f>", in: element.startIndex ..< element.endIndex),
+              let b = element.findRange(of: "</c:f>", in: a.upperBound ..< element.endIndex) else { return nil }
+        return String(element[a.upperBound ..< b.lowerBound]).replacingAll("&lt;", with: "<").replacingAll("&gt;", with: ">")
+            .replacingAll("&quot;", with: "\"").replacingAll("&apos;", with: "'").replacingAll("&amp;", with: "&")
+    }
+
+    /// A series with one of its cell references set (nil takes the element off); an element already reading that text stays as written, cache and all.
+    private static func _setRef(_ ser: String, _ tag: String, _ ref: String?, numeric: Bool) -> String {
+        var x = ser
+        let existing = _element(x, tag)
+        if let r = existing, _formula(String(x[r])) == ref { return x }
+        guard let ref else {
+            if let r = existing { x.replaceSubrange(r, with: "") }
+            return x
+        }
+        let kind = numeric ? "numRef" : "strRef"
+        let element = "<c:\(tag)><c:\(kind)><c:f>\(_esc(ref))</c:f></c:\(kind)></c:\(tag)>"
+        if let r = existing { x.replaceSubrange(r, with: element); return x }
+        // Where the schema puts it: the name after the order, categories before the values, values before what trails them.
+        var at = x.endIndex
+        if tag == "tx" {
+            if let o = x.findRange(of: "<c:order val=\"", in: x.startIndex ..< x.endIndex), let e = x.findRange(of: "/>", in: o.upperBound ..< x.endIndex) { at = e.upperBound }
+        } else {
+            let before = tag == "cat" || tag == "xVal" ? ["<c:val>", "<c:yVal>", "<c:smooth", "<c:extLst>", "</c:ser>"] : ["<c:smooth", "<c:extLst>", "</c:ser>"]
+            at = before.compactMap { a in x.findRange(of: a, in: x.startIndex ..< x.endIndex)?.lowerBound }.min() ?? x.endIndex
+        }
+        x.insert(contentsOf: element, at: at)
+        return x
+    }
+
+    /// The part's series (`c:ser`, in document order) made to be `list`: a kept series keeps everything but the cells it reads, one left out goes, a new one is a copy of the last kept series without its colours or cached data, with an idx and order of its own (PowerPoint and Excel refuse a chart with two series of one idx or order).
+    static func series(_ xml: String, _ list: [ChartSeriesRef]) -> String {
+        var sers: [Range<String.Index>] = []
+        var at = xml.startIndex
+        while let a = xml.findRange(of: "<c:ser>", in: at ..< xml.endIndex), let b = xml.findRange(of: "</c:ser>", in: a.upperBound ..< xml.endIndex) {
+            sers.append(a.lowerBound ..< b.upperBound)
+            at = b.upperBound
+        }
+        guard !sers.isEmpty else { return xml }
+        let scatter = xml.containsSubstring("<c:scatterChart>")
+        var maxIdx = -1, maxOrder = -1
+        for r in sers {
+            let t = String(xml[r])
+            maxIdx = max(maxIdx, _firstValue(t, "idx") ?? -1); maxOrder = max(maxOrder, _firstValue(t, "order") ?? -1)
+        }
+        let kept = list.compactMap(\.source).filter { sers.indices.contains($0) }
+        guard let template = kept.max() else { return xml }
+        func rewritten(_ t: String, _ ref: ChartSeriesRef) -> String {
+            var s = _setRef(t, "tx", ref.name, numeric: false)
+            s = _setRef(s, scatter ? "xVal" : "cat", ref.cat, numeric: scatter)
+            return _setRef(s, scatter ? "yVal" : "val", ref.val, numeric: true)
+        }
+        func fresh(from t: String, _ ref: ChartSeriesRef) -> String {
+            var s = t
+            maxIdx += 1; maxOrder += 1
+            for (tag, v) in [("idx", maxIdx), ("order", maxOrder)] {
+                if let a = s.findRange(of: "<c:\(tag) val=\"", in: s.startIndex ..< s.endIndex),
+                   let b = s.findRange(of: "/>", in: a.upperBound ..< s.endIndex) { s.replaceSubrange(a.lowerBound ..< b.upperBound, with: "<c:\(tag) val=\"\(v)\"/>") }
+            }
+            // Its own colours and data points go; the cells it reads are written afresh.
+            while let a = s.findRange(of: "<c:dPt>", in: s.startIndex ..< s.endIndex), let b = s.findRange(of: "</c:dPt>", in: a.upperBound ..< s.endIndex) {
+                s.replaceSubrange(a.lowerBound ..< b.upperBound, with: "")
+            }
+            let head = ["<c:marker>", "<c:dLbls>", "<c:cat>", "<c:xVal>", "<c:val>", "<c:yVal>"].compactMap { s.findRange(of: $0, in: s.startIndex ..< s.endIndex)?.lowerBound }.min() ?? s.endIndex
+            if let a = s.findRange(of: "<c:spPr>", in: s.startIndex ..< head), let b = s.findRange(of: "</c:spPr>", in: a.upperBound ..< s.endIndex) {
+                s.replaceSubrange(a.lowerBound ..< b.upperBound, with: "")
+            }
+            for tag in ["tx", scatter ? "xVal" : "cat", scatter ? "yVal" : "val"] {
+                if let r = _element(s, tag) { s.replaceSubrange(r, with: "") }
+            }
+            return rewritten(s, ref)
+        }
+        var x = xml
+        for (k, r) in sers.enumerated().reversed() {
+            guard let ref = list.first(where: { $0.source == k }) else { x.replaceSubrange(r, with: ""); continue }
+            var out = rewritten(String(x[r]), ref)
+            if k == template {
+                for n in list where n.source == nil { out += fresh(from: String(xml[r]), n) }
+            }
+            x.replaceSubrange(r, with: out)
+        }
+        return x
     }
 }
