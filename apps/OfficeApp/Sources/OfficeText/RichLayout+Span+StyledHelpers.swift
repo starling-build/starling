@@ -189,6 +189,16 @@ extension _StyledFrame {
         // (Yu Gothic's Latin, where Word's box lacks the Hangul-named face, carries no pair kerning in the print; 22de7d.)
         if kind >= 0, yuOfMissingHangul, !aumsLatin { s = s.copyWith(fontFeatures: (s.fontFeatures ?? []) + [FontFeature("kern", 0)]) }
         if kind >= 0, let indic, indic.scale != 1, !latinNoScale { s = s.copyWith(scaleX: indic.scale) }
+        // (Mongolian script, in Word for Windows: Mongolian Baiti, the one face Windows has for it, whose letters are 0.578 of the width of
+        // Noto Sans Mongolian's, the stand-in, over the 41-letter line of lab textpitch5 at 9, 12 and 16 pt (Word 12.4 em in 3 lines, the
+        // stand-in 22.1 em shaped). A run mostly of such letters takes it whole, whatever face the run names.)
+        if kind >= 0, theme.wordRules, RichTextTheme.wordWindowsPages, text.unicodeScalars.contains(where: { $0.value >= 0x1800 && $0.value <= 0x18AF }) {
+            let mong = text.unicodeScalars.filter { $0.value >= 0x1800 && $0.value <= 0x18AF }.count
+            if mong * 2 >= text.unicodeScalars.filter({ !$0.properties.isWhitespace }).count {
+                RuleTrace.hit("mongolian-letters-are-baitis-width")
+                s = s.copyWith(scaleX: 0.578)
+            }
+        }
         // (The run's own line is the face's, not the stand-in's, where the face's is the shorter: Aparajita's 1.18 em (a516bfe9: 2.7 to 92.9) where Noto
         // Sans Devanagari's is taller; the joiner above only raises a line.)
         if kind >= 0, let indic, (indic.face == "kokila" && (kokilaLatin || text.unicodeScalars.contains(where: { RichLayout._isIndic($0.value) }))) || (indic.face == "utsaah" && utsaahLatin) || (indic.face == "malgun gothic" && malgunLatin) || (indic.face == "yu gothic" && (aumsLatin || aumsYuInIndic)) || indic.face == "vijaya" || indic.face == "mv boli" || indic.face == "latha" || indic.face == "shonar bangla" || indic.face == "leelawadee ui" || (namedFace != nil && (namedFace != "mangal" || namedKalimati)) || (indic.face == "nirmala ui" && !plainPiece && !p.text.unicodeScalars.contains(where: { RichLayout._tamil.contains($0.value) })), let m = RichLayout._indicLines[(indic.face == "shonar bangla" && (run.bold || ((named?.char.bold ?? false) && !run.off.contains(.bold)))) ? "shonar bangla bold" : indic.face], p.style.lineHeightPoints == nil, let size = s.fontSize, size > 0.5 {

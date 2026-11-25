@@ -361,4 +361,16 @@ final class TurnedCellPitchTests: XCTestCase {
         // Calibri 13 at double spacing (lab textpitch4, ascent 12): baselines 17.9, 50.3, 82.9 (4.9 past the edge) are all drawn.
         XCTAssertEqual(RichLayout.turnedLinesKept(tops: [5.9, 38.3, 70.9], room: 78), 3)
     }
+    /// Word's print of a turned cell of Mongolian (Mongolian Baiti): the letters are 0.578 of Noto Sans Mongolian's width, so a 41-letter
+    /// line breaks into 9 lines over three cells where the stand-in's own width made 18 (lab textpitch5).
+    func testMongolianLettersTakeBaitisWidthInTurnedCells() {
+        let saved = RichTextTheme.wordWindowsPages
+        defer { RichTextTheme.wordWindowsPages = saved }
+        let text = "ᠮᠣᠩᠭᠣᠯ ᠪᠢᠴᠢᠭ ᠦᠰᠦᠭ ᠲᠡᠺᠰᠲ ᠮᠣᠩᠭᠣᠯ ᠪᠢᠴᠢᠭ ᠦᠰᠦᠭ"
+        RichTextTheme.wordWindowsPages = false
+        let plain = linesHeight(.down, text: text)
+        RichTextTheme.wordWindowsPages = true
+        let word = linesHeight(.down, text: text)
+        XCTAssertLessThan(word, plain * 0.75)
+    }
 }
