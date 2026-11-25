@@ -249,13 +249,13 @@ final class TextPitch4LabWriter: XCTestCase {
 /// A turned cell's lines of Latin text step by 1.026 of the face's single line
 /// (Word for Windows, lab textpitch3), the same for Rotate Down and Up.
 final class TurnedCellPitchTests: XCTestCase {
-    private func linesHeight(_ direction: CellRef.CellTextDirection) -> Double {
+    private func linesHeight(_ direction: CellRef.CellTextDirection, spacing: Double = 1) -> Double {
         let theme = RichTextTheme(fontFamily: OfficeFonts.sans, fontSize: 20)
         theme.wordRules = true
         var a = RichParagraph(text: "Aaaa Bbbb Cccc")
         a.cell = CellRef(table: "t", row: 0, column: 0)
         a.cell?.textDirection = direction
-        a.style.lineSpacing = 1
+        a.style.lineSpacing = spacing
         var style = CharStyle()
         style.fontFamily = OfficeFonts.sans; style.fontSize = 20
         a.runs = [Run(length: 14, style: style)]
@@ -282,6 +282,18 @@ final class TurnedCellPitchTests: XCTestCase {
         // Lines of Calibri 20: 25.03 apiece in Word's print, 24.41 before.
         XCTAssertEqual(down / plain, 1.026, accuracy: 0.01)
         XCTAssertGreaterThan(down, plain)
+    }
+
+    /// Lab textpitch4: at 1.5 and double spacing a turned line steps by 1.5 and 2.0 times the same 1.026 step.
+    func testNonSingleSpacingScalesTheTurnedStep() {
+        let saved = RichTextTheme.wordWindowsPages
+        defer { RichTextTheme.wordWindowsPages = saved }
+        for spacing in [1.5, 2.0] {
+            RichTextTheme.wordWindowsPages = false
+            let plain = linesHeight(.down, spacing: spacing)
+            RichTextTheme.wordWindowsPages = true
+            XCTAssertEqual(linesHeight(.down, spacing: spacing) / plain, 1.026, accuracy: 0.01, "spacing \(spacing)")
+        }
     }
 
     /// Word's print of a 78 pt cell of Calibri 20 turned down has three lines of "Aaaa Bbbb Cccc Dddd": the fourth's top falls
