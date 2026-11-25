@@ -86,6 +86,21 @@ final class ScreenReaderTests: XCTestCase {
         XCTAssertEqual(ScreenReader.recorded?.last, "Slide 1 of 2")
     }
 
+    func testSelectingAShapeSaysNameKindTextAndPlace() {
+        let c = DeckController()
+        let box = c.addTextBox(at: Rect.fromLTWH(20, 20, 200, 60))
+        box.text?.insertText("Quarterly review of the numbers for the whole team now")
+        c.selectShapes([])
+        ScreenReader.recorded = []
+        c.selectShapes([box])
+        let said = ScreenReader.recorded?.last ?? ""
+        XCTAssertTrue(said.contains("text box") && said.contains("Quarterly review") && said.contains("top left") && said.contains(" of "), said)
+        box.altText = "Chart of sales"
+        c.selectShapes([])
+        c.selectShapes([box])
+        XCTAssertTrue((ScreenReader.recorded?.last ?? "").contains("Chart of sales"))
+    }
+
     func testSlideThumbnailsAreKeyboardStopsWithNames() {
         let ui = app(SlidesShell(initialPath: nil, startBlank: true, onSwitch: { _, _ in }))
         ui.pump()
