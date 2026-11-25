@@ -140,6 +140,27 @@ final class KeyboardTraversalTests: XCTestCase {
 
     /// Every Sheets dialog: Tab reaches each control and Esc closes it.
     /// On an empty sheet the four data dialogs must say why they do not open, never do nothing; with data they open.
+    /// An open drop-down menu is one modal keyboard region: Tab walks every item and activating one runs it.
+    func testMenuItemsAreReachableByTabAndActivate() {
+        KeyboardTraversal.shared.reset()
+        var ran: [String] = []
+        let menu = MenuFlyout(items: [
+            MenuFlyoutItem(text: Text("One"), onPressed: { ran.append("One") }),
+            MenuFlyoutItem(text: Text("Two"), onPressed: { ran.append("Two") }),
+            MenuFlyoutItem(text: Text("Three"), onPressed: { ran.append("Three") }),
+        ])
+        let ui = app(Center(child: menu))
+        ui.pump()
+        let reach = KeyboardTraversal.shared.reachable()
+        XCTAssertEqual(reach.count, 3, "each menu item has a keyboard stop")
+        XCTAssertTrue(reach.allSatisfy { $0.modal })
+        XCTAssertEqual(tabAround(ui), 3)
+        KeyboardTraversal.shared.move(reverse: false)
+        ui.press(.enter)
+        XCTAssertEqual(ran.count, 1, "Enter runs the focused item")
+        ui.dispose()
+    }
+
     func testDataDialogsExplainThemselvesOnAnEmptySheetAndOpenWithData() {
         let cmds: [(String, SheetCommand, String)] = [
             ("Remove Duplicates", .removeDuplicates, DuplicatesProblem.nothingToCheck.message),
