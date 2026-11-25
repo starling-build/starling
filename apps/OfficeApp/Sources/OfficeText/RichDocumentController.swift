@@ -514,6 +514,47 @@ public final class RichDocumentController: ChangeNotifier {
 
     public enum UndoKindHint { case typing, deleting, styleEdit, other }
 
+    // MARK: Content control locks
+
+    /// Whether an edit at the selection touches a locked content control: its contents (a group control's, or a
+    /// `contentLocked` one's) typed into or deleted, or a `sdtLocked` control deleted whole. Edits then do nothing, as in Word.
+    private func _selectionLocked() -> Bool {
+        let a = document.clamped(selection.start), b = document.clamped(selection.end)
+        let collapsed = selection.isCollapsed
+        // Block-level controls: the paragraphs from the one that starts the control to the one that ends it.
+        var open: [Int: (Int, RichControlLock)] = [:]
+        for i in 0 ... b.paragraph {
+            let p = document.paragraphs[i]
+            for c in p.blockControlsBefore where c.isStart { open[c.id] = (i, RichControlLock(properties: c.properties)) }
+            for c in p.blockControlsAfter where !c.isStart {
+                guard let (first, lock) = open.removeValue(forKey: c.id), lock.isAny, i >= a.paragraph else { continue }
+                let covers = a.paragraph <= first && b.paragraph >= i && !collapsed
+                if lock.contents && !(covers && !lock.control) { return true }
+                if lock.control && covers { return true }
+            }
+        }
+        // Controls over runs.
+        for i in a.paragraph ... b.paragraph {
+            let p = document.paragraphs[i]
+            guard !p.controlMarkers.isEmpty else { continue }
+            let from = i == a.paragraph ? a.offset : 0
+            let to = i == b.paragraph ? b.offset : p.length
+            for m in p.controlMarkers where m.isStart {
+                let lock = RichControlLock(properties: m.properties)
+                guard lock.isAny, let end = p.controlMarkers.first(where: { $0.id == m.id && !$0.isStart }) else { continue }
+                let lo = m.offset, hi = max(m.offset, end.offset)
+                if collapsed {
+                    if lock.contents && lo < from && from < hi { return true }
+                } else {
+                    let covers = from <= lo && to >= hi
+                    if lock.contents && from < hi && to > lo && !(covers && !lock.control) { return true }
+                    if lock.control && covers { return true }
+                }
+            }
+        }
+        return false
+    }
+
     /// Text of every control bound to custom XML, by control id (empty when the document has no custom XML part).
     private func _customBoundTexts() -> [Int: String] {
         guard document.keptParts.keys.contains(where: { $0.hasPrefix("customXml/item") }) else { return [:] }
@@ -609,6 +650,7 @@ public final class RichDocumentController: ChangeNotifier {
     /// paragraphs.
     /// Insert a symbol, in `font` when given (one undo step); the typing style is left as it was.
     public func insertSymbol(_ string: String, font: String?) {
+        guard !_selectionLocked() else { return }
         let saved = typingStyle
         if let font {
             var st = currentCharStyle
@@ -620,6 +662,7 @@ public final class RichDocumentController: ChangeNotifier {
     }
 
     public func insertText(_ string: String) {
+        guard !_selectionLocked() else { return }
         guard !string.isEmpty else { return }
         let hint: UndoKindHint = string.contains(Character("\n")) ? .other : .typing
         edit(kind: hint) {
@@ -664,6 +707,7 @@ public final class RichDocumentController: ChangeNotifier {
     /// Enter: split the paragraph at the caret. A heading's continuation is
     /// body text, as in every word processor.
     public func insertParagraphBreak() {
+        guard !_selectionLocked() else { return }
         edit {
             if hasSelection { _deleteSelectionOps() }
             // Enter on an empty list item ends the list (Word, Pages, every
@@ -715,6 +759,7 @@ public final class RichDocumentController: ChangeNotifier {
     /// `lastInserted` records where the text itself went.
     @discardableResult
     public func insertFragment(_ fragment: [RichParagraph], smart: Bool = false) -> (before: Bool, after: Bool) {
+        guard !_selectionLocked() else { return (false, false) }
         guard !fragment.isEmpty else { return (false, false) }
         var applied = (before: false, after: false)
         edit {
@@ -838,6 +883,7 @@ public final class RichDocumentController: ChangeNotifier {
     // MARK: Deletion
 
     public func deleteBackward() {
+        guard !_selectionLocked() else { return }
         edit(kind: hasSelection ? .other : .deleting) {
             if hasSelection {
                 _deleteSelectionOps()
@@ -848,6 +894,7 @@ public final class RichDocumentController: ChangeNotifier {
     }
 
     public func deleteForward() {
+        guard !_selectionLocked() else { return }
         edit {
             if hasSelection {
                 _deleteSelectionOps()
@@ -858,6 +905,7 @@ public final class RichDocumentController: ChangeNotifier {
     }
 
     public func deleteWordBackward() {
+        guard !_selectionLocked() else { return }
         edit {
             if hasSelection {
                 _deleteSelectionOps()
@@ -868,6 +916,7 @@ public final class RichDocumentController: ChangeNotifier {
     }
 
     public func deleteWordForward() {
+        guard !_selectionLocked() else { return }
         edit {
             if hasSelection {
                 _deleteSelectionOps()
@@ -1157,6 +1206,7 @@ public final class RichDocumentController: ChangeNotifier {
     }
 
     public func deleteSelection() {
+        guard !_selectionLocked() else { return }
         guard hasSelection else { return }
         edit { _deleteSelectionOps() }
     }
@@ -1307,6 +1357,7 @@ public final class RichDocumentController: ChangeNotifier {
     /// Typed text (one character at a time from the keyboard): autocorrect,
     /// then insert. Pasted or programmatic text uses `insertText`.
     public func insertTyped(_ text: String) {
+        guard !_selectionLocked() else { return }
         guard autocorrect, text.utf16.count == 1, !hasSelection else { insertText(text); return }
         let pos = selection.focus
         let para = document.paragraphs[pos.paragraph]
@@ -1354,6 +1405,7 @@ public final class RichDocumentController: ChangeNotifier {
 
     /// ⇧⏎: a line break inside the paragraph, not a new paragraph.
     public func insertLineBreak() {
+        guard !_selectionLocked() else { return }
         edit(kind: .typing) {
             if hasSelection { _deleteSelectionOps() }
             let pos = selection.focus
@@ -3772,6 +3824,7 @@ public final class RichDocumentController: ChangeNotifier {
     }
 
     public func cutSelection() -> String? {
+        guard !_selectionLocked() else { return nil }
         guard let text = copySelection() else { return nil }
         deleteSelection()
         return text
@@ -3780,6 +3833,7 @@ public final class RichDocumentController: ChangeNotifier {
     /// Paste: if the system text is exactly what we last copied, paste the
     /// rich fragment; otherwise plain text.
     public func paste(text: String) {
+        guard !_selectionLocked() else { return }
         if let fragment = copiedFragment,
            fragment.map(\.text).joined(separator: "\n") == text {
             insertFragment(fragment)
@@ -3817,6 +3871,7 @@ public final class RichDocumentController: ChangeNotifier {
     }
 
     public func cutSelectionData() -> ClipboardData? {
+        guard !_selectionLocked() else { return nil }
         guard let data = copySelectionData() else { return nil }
         guard hasSelection else { return data }
         edit {
@@ -3852,6 +3907,7 @@ public final class RichDocumentController: ChangeNotifier {
 
     /// Paste in one undoable step by Paste Options choice.
     public func paste(data: ClipboardData, mode: PasteMode) {
+        guard !_selectionLocked() else { return }
         switch mode {
         case .keepSource:
             paste(data: data)
