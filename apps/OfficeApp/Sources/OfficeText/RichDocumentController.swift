@@ -2910,6 +2910,31 @@ public final class RichDocumentController: ChangeNotifier {
         }
     }
 
+    /// Paragraph borders (W-PA-4): give each of `sides` (top, bottom, left, right; the inside sides are for cells and are ignored)
+    /// the line, or take the line off when it is nil or "none". One undo step for every paragraph the selection touches.
+    public func setParagraphBorders(_ sides: Set<CellSide>, _ line: CellBorderLine?) {
+        let edge: BorderLine? = {
+            guard let line, line.style != "none" else { return nil }
+            var b = BorderLine(width: line.width, color: line.color, space: 1)
+            if line.style != "single" { b.style = line.style }
+            return b
+        }()
+        applyParagraphStyle { st in
+            var b = st.borders ?? ParagraphBorders()
+            if sides.contains(.top) { b.top = edge }
+            if sides.contains(.bottom) { b.bottom = edge }
+            if sides.contains(.left) { b.left = edge }
+            if sides.contains(.right) { b.right = edge }
+            st.borders = b.isEmpty ? nil : b
+            if b.isEmpty { st.pBdrElement = false }
+        }
+    }
+
+    /// Paragraph shading (W-PA-4): nil takes it off.
+    public func setParagraphShading(_ color: Color?) {
+        applyParagraphStyle { $0.fill = color }
+    }
+
     public func setAlignment(_ alignment: ParagraphAlignment) {
         applyParagraphStyle { $0.alignment = alignment }
     }
