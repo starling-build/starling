@@ -577,8 +577,8 @@ public final class RichDocumentController: ChangeNotifier {
                 let text = String(piece)
                 if !text.isEmpty {
                     let pos = selection.focus
-                    let runs = style.map { [Run(length: text.utf16.count, style: $0)] }
-                    var inherited = document.paragraphs[pos.paragraph].style(at: pos.offset)
+                    let runs = style.map { [Run(length: text.utf16.count, style: _leavingField($0, at: pos))] }
+                    var inherited = _leavingField(document.paragraphs[pos.paragraph].style(at: pos.offset), at: pos)
                     if inherited.revision?.kind == .deleted { inherited.revision = nil }  // typed text is new, not struck out
                     perform(.insertText(pos, text, runs ?? [Run(length: text.utf16.count, style: inherited)]))
                     _setCaret(RichPosition(paragraph: pos.paragraph, offset: pos.offset + text.utf16.count))
@@ -586,6 +586,19 @@ public final class RichDocumentController: ChangeNotifier {
             }
             typingStyle = style  // a typed run keeps the pending style alive
         }
+    }
+
+    /// Text typed at the end of a field's result (or after it) is not part of the field: the field marks are dropped
+    /// from the style it would inherit. Inside the result, typing stays in it.
+    func _leavingField(_ style: CharStyle, at pos: RichPosition) -> CharStyle {
+        guard style.fieldResult != 0 || style.preservedField != nil else { return style }
+        let p = document.paragraphs[pos.paragraph]
+        if pos.offset < p.text.utf16.count, p.style(at: pos.offset + 1).fieldResult == style.fieldResult { return style }
+        var out = style
+        out.preservedField = nil
+        out.fieldResult = 0
+        out.preservedFieldProperties = [:]
+        return out
     }
 
     /// Enter: split the paragraph at the caret. A heading's continuation is

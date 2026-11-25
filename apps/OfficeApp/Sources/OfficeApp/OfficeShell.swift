@@ -90,6 +90,7 @@ final class OfficeShellState: State<StatefulWidget> {
     /// Set while the picker is open for Change Picture: the picture (paragraph, inline id) the chosen file replaces.
     private var _replaceTarget: (index: Int, inline: String?)?
     private var _numberingValueOpen = false
+    private var _dateTimeOpen = false
     private var _listSymbolPick: ((String, String?) -> Void)? = nil   // the Symbol picker is open for the Define Bullet dialog
     private var _listFormatOpen: Bool? = nil   // the dialog is open: true for a bullet
     var _noteOpen: NoteReference? = nil
@@ -428,6 +429,12 @@ final class OfficeShellState: State<StatefulWidget> {
             guard let self else { return }
             if let n = self.controller.noteAtCaret() { self._openNote(n) } else { self._flash("Put the caret next to a footnote or endnote mark") }
         }
+        session.onDateTimeDialog = { [weak self] in
+            guard let self else { return }
+            self.controller.breakUndoCoalescing()
+            self.setState { self._dateTimeOpen = true }
+        }
+        session.onUpdateFields = { [weak self] in self?._updateFields() }
         session.onSymbolDialog = { [weak self] in
             guard let self else { return }
             self.controller.breakUndoCoalescing()
@@ -1248,8 +1255,19 @@ final class OfficeShellState: State<StatefulWidget> {
         setState { session.summary = session.summarize() }
     }
 
+    /// F9: bring the fields in the selection (all of them when nothing is selected) up to date.
+    func _updateFields() {
+        let c = controller
+        let clock = FieldClock.current()
+        let props = FieldEvaluator.properties(keptParts: c.document.keptParts)
+        let n = c.updateFields { FieldEvaluator.evaluate($0, shown: $1, clock: clock, properties: props) }
+        _flash(n == 0 ? "No fields changed" : (n == 1 ? "Updated 1 field" : "Updated \(n) fields"))
+        setState { session.summary = session.summarize() }
+    }
+
     func _shortcut(_ key: KeyData, _ mods: KeyModifiers) -> Bool {
         let named = KeyChordTracker.named(key.logical)
+        if named == .function(9), !_dateTimeOpen { _updateFields(); return true }
         if named == .escape {
             if _boxEdit != nil { _leaveBox(); return true }
             if session.paintedStyle != nil { _cancelPainter(); return true }
@@ -1257,7 +1275,7 @@ final class OfficeShellState: State<StatefulWidget> {
             if _shortcutsOpen { return false }   // the dialog's own Esc closes it
             if LinkCard.link(caret: _cardLink, hover: _hoverCard, dismissed: _cardDismissed) != nil { setState { _cardDismissed = true }; return true }
             if _listSymbolPick != nil { setState { _listSymbolPick = nil }; return true }
-            if _paragraphOpen || _fontOpen || _insertTableOpen || _splitCellOpen || _bordersOpen || _pictureDialog != nil || _linkDialogOpen || _numberingValueOpen || _listFormatOpen != nil || _newStyleOpen { return false }   // the dialog's own Esc closes it
+            if _paragraphOpen || _fontOpen || _insertTableOpen || _splitCellOpen || _bordersOpen || _pictureDialog != nil || _linkDialogOpen || _numberingValueOpen || _dateTimeOpen || _listFormatOpen != nil || _newStyleOpen { return false }   // the dialog's own Esc closes it
             if _headerFooterOpen { setState { _headerFooterOpen = false }; return true }
             if _findOpen { setState { _findOpen = false }; _editorFocus.requestFocus(); return true }
             if _backstage != nil { setState { _backstage = nil }; return true }
@@ -1652,6 +1670,23 @@ final class OfficeShellState: State<StatefulWidget> {
                     },
                     onCancel: { [weak self] in
                         self?.setState { self?._newStyleOpen = false }
+                        self?._editorFocus.requestFocus()
+                    })),
+            ])
+        }
+        if _dateTimeOpen {
+            return Stack(children: [
+                window,
+                Positioned(left: 0, top: 0, right: 0, bottom: 0, child: DateTimeDialog(
+                    clock: FieldClock.current() ?? FieldClock(year: 2000, month: 1, day: 1, hour: 0, minute: 0, second: 0),
+                    onOK: { [weak self] picture, automatic in
+                        guard let self else { return }
+                        self.controller.insertDateTime(picture: picture, automatic: automatic, clock: FieldClock.current())
+                        self.setState { self._dateTimeOpen = false }
+                        self._editorFocus.requestFocus()
+                    },
+                    onCancel: { [weak self] in
+                        self?.setState { self?._dateTimeOpen = false }
                         self?._editorFocus.requestFocus()
                     })),
             ])

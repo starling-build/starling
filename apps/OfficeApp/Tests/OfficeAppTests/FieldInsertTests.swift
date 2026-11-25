@@ -59,4 +59,19 @@ final class FieldInsertTests: XCTestCase {
         XCTAssertEqual(back.fieldSpans().map(\.instruction), ["AUTHOR"])
         XCTAssertEqual(back.document.paragraphs[0].text, "Hello Ann")
     }
+
+    func testTypingAfterAFieldIsNotPartOfIt() {
+        let c = controller("")
+        c.insertField("AUTHOR", result: "Ann")
+        c.insertText(" wrote this")
+        c.insertParagraphBreak()
+        c.insertText("Next")
+        XCTAssertEqual(c.fieldSpans().count, 1)
+        XCTAssertEqual(c.fieldSpans()[0].shown, "Ann")
+        XCTAssertEqual(c.document.paragraphs[1].text, "Next")
+        // Inside the result, typing stays in the field.
+        c.moveTo(RichPosition(paragraph: 0, offset: 1), extend: false)
+        c.insertText("x")
+        XCTAssertEqual(c.fieldSpans()[0].shown, "Axnn")
+    }
 }

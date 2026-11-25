@@ -155,7 +155,7 @@ struct FieldClock: Equatable {
     }
 
     /// The text of a DATE or TIME field whose instruction is `instr` and whose cached result is `cached`.
-    func text(instr: String, cached: String) -> String? {
+    func text(instr: String, cached: String, english: Bool = false) -> String? {
         let words = instr.split(whereSeparator: { $0 == " " || $0 == "\t" || $0 == "\n" })
         guard let first = words.first else { return nil }
         let kind = first.uppercased()
@@ -170,7 +170,7 @@ struct FieldClock: Equatable {
                 picture = String(rest.prefix { $0 != " " && $0 != "\\" })
             }
         }
-        guard let p = picture ?? FieldClock.shape(of: cached, time: kind == "TIME"), let body = format(picture: p) else { return nil }
+        guard let p = picture ?? FieldClock.shape(of: cached, time: kind == "TIME"), let body = format(picture: p, english: english) else { return nil }
         let trailing = cached.reversed().prefix { $0 == " " || $0 == "\u{A0}" }
         return body + String(trailing.reversed())
     }

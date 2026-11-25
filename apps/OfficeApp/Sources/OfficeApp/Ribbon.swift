@@ -495,10 +495,13 @@ final class Ribbon: StatelessWidget {
                 Chrome.small(FluentSystemIcons.pageNumber, "Page Number", fluent) { [session] in if !c.togglePageNumbers() { session.onHeaderFooter?() } },
             ])]),
             Chrome.group("Text", fluent, [Chrome.rows([
-                Chrome.small(FluentSystemIcons.document, "Date & Time", fluent) { [session] in
-                    c.insertText(Backstage.todayLongDate())
-                    session.onStatus?("Inserted today's date")
-                },
+                Chrome.small(FluentSystemIcons.document, "Date & Time", fluent) { [session] in session.onDateTimeDialog?() },
+                Chrome.menu(Text("Field"), Icon(FluentSystemIcons.document, size: Chrome.iconSize,
+                                                color: fluent.resources.textFillColorPrimary), fluent,
+                            [("Author", { c.insertField(" AUTHOR ", result: "") }), ("Title", { c.insertField(" TITLE ", result: "") }),
+                             ("Subject", { c.insertField(" SUBJECT ", result: "") }), ("Date", { c.insertField(" DATE \\@ \"M/d/yyyy\" ", result: "") }),
+                             ("Time", { c.insertField(" TIME \\@ \"h:mm AM/PM\" ", result: "") }),
+                             ("Update Fields (F9)", { [session] in session.onUpdateFields?() })]),
             ])]),
             Chrome.group("Symbols", fluent, [
                 Chrome.menu(Text("Symbol"), Icon(FluentSystemIcons.symbols, size: Chrome.iconSize,
