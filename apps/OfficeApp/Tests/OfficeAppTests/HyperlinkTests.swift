@@ -39,6 +39,19 @@ final class HyperlinkTests: XCTestCase {
         XCTAssertTrue(c.document.paragraphs[0].bookmarks.isEmpty)
     }
 
+    func testHeadingBookmarkWrapsTheHeadingText() throws {
+        let c = controller(); select(c, 0, 3)
+        let t = c.linkTargets().first { $0.kind == .heading }!
+        c.applyHyperlink(address: "", target: t)
+        let data = try DocxFormat.write(c.document, pageSetup: .letter)
+        let back = try DocxFormat.read(data).document
+        let marks = back.paragraphs[0].bookmarkMarkers
+        XCTAssertEqual(marks.count, 2, "a start and an end, not an empty point")
+        XCTAssertEqual(marks.first?.name, "_Heading0")
+        XCTAssertEqual(marks.first?.offset, 0)
+        XCTAssertEqual(marks.last?.offset, back.paragraphs[0].length)
+    }
+
     func testCaretInsertsTheText() {
         let c = controller(); select(c, 3, 3)
         XCTAssertTrue(c.applyHyperlink(address: "https://a.example", text: "LINK"))

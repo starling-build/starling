@@ -57,6 +57,11 @@ extension RichDocumentController {
                     taken.insert(candidate)
                     var p = document.paragraphs[target.paragraph]
                     p.bookmarks.append(candidate)
+                    // A range over the heading's text (as Word's _Toc bookmarks), so a REF to it shows the heading.
+                    let used = document.paragraphs.flatMap { $0.bookmarkMarkers.map(\.id) }.compactMap { Int($0) }
+                    let id = String(max(300_000, (used.max() ?? 0) + 1))
+                    p.bookmarkMarkers.append(RichBookmarkMarker(id: id, name: candidate, offset: 0))
+                    p.bookmarkMarkers.append(RichBookmarkMarker(id: id, offset: p.length))
                     perform(.restoreParagraphs(target.paragraph, count: 1, [p]))
                     name = candidate
                 }
