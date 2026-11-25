@@ -280,7 +280,7 @@ final class Ribbon: StatelessWidget {
         let s = session.summary
         let sizes: [Double] = [8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 28, 36, 48, 72]
         let currentSize = session.effectiveFontSize
-        let fontRow1 = Chrome.row([
+        let fontRow1 = Chrome.row(([
             SizedBox(width: 140, height: nil, child: ComboBox<String>(
                 value: session.effectiveFontFamily,
                 // A document's own font, whatever it is, is shown by name;
@@ -308,8 +308,9 @@ final class Ribbon: StatelessWidget {
                 ("tOGGLE cASE", { c.changeCase(.toggle) }),
             ]),
             Chrome.icon(FluentSystemIcons.textClearFormatting, "Clear All Formatting", fluent) { c.clearFormatting() },
+        ] + (session.onFontDialog == nil ? [] : [   // Writer only: Slides has no Font dialog yet
             Chrome.icon(FluentSystemIcons.textFont, "Font… (⌘D)", fluent) { [session] in session.onFontDialog?() },
-        ])
+        ])))
         let fontRow2 = Chrome.row([
             Chrome.toggle(FluentSystemIcons.textBold, "Bold (⌘B)".keys, s.bold, fluent) { c.toggleBold() },
             Chrome.toggle(FluentSystemIcons.textItalic, "Italic (⌘I)".keys, s.italic, fluent) { c.toggleItalic() },
