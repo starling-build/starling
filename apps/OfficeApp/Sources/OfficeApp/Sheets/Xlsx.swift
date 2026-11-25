@@ -1214,7 +1214,7 @@ enum Xlsx {
         overrides.removeAll { dropped.contains(String($0.0.dropFirst())) }
         for (e, t) in [("png", "image/png"), ("jpeg", "image/jpeg"), ("jpg", "image/jpeg"), ("gif", "image/gif"), ("bmp", "image/bmp"),
                        ("emf", "image/x-emf"), ("wmf", "image/x-wmf"), ("tiff", "image/tiff")]
-        where original == nil && !defaults.contains(where: { $0.0 == e }) && mediaExtensions.contains(e) {
+        where !defaults.contains(where: { $0.0.lowercased() == e }) && mediaExtensions.contains(e) {
             defaults.append((e, t))
         }
         func ensure(_ part: String, _ type: String) {

@@ -38,6 +38,8 @@ enum SheetCommand {
     case protectSheetDialog        // Review → Protect Sheet / Unprotect Sheet
     case protectWorkbookDialog     // Review → Protect Workbook / Unprotect Workbook
     case pageSetup                 // Layout → Page Setup: the dialog
+    case insertPicture             // Insert → Pictures: choose an image file and place it
+    case altText                   // Insert → Alt Text: the selected picture's description
     case editNote                  // Review → New/Edit Note: the editor beside the active cell
 }
 
@@ -46,7 +48,7 @@ extension Ribbon {
         guard let wb = session.workbook else { return nil }
         switch tab {
         case .home: return _sheetsHome(wb, fluent)
-        case .insert: return [_tablesGroup(wb, fluent), _chartsGroup(wb, fluent), _functionsGroup(wb, fluent), _symbolsGroup(wb, fluent)]
+        case .insert: return [_tablesGroup(wb, fluent), _illustrationsGroup(wb, fluent), _chartsGroup(wb, fluent), _functionsGroup(wb, fluent), _symbolsGroup(wb, fluent)]
         case .formulas: return [_autoSumGroup(wb, fluent), _functionsGroup(wb, fluent), _namesGroup(wb, fluent)]
         case .data: return [_sortGroup(wb, fluent), _dataToolsGroup(wb, fluent), _outlineGroup(wb, fluent)]
         case .layout: return [_pageSetupGroup(wb, fluent)]
@@ -338,6 +340,15 @@ extension Ribbon {
             }))
         }
         return Chrome.group("Charts", fluent, parts)
+    }
+
+    /// Insert → Pictures; Alt Text once a picture is selected.
+    private func _illustrationsGroup(_ wb: WorkbookController, _ fluent: FluentThemeData) -> Widget {
+        var items: [Widget] = [Chrome.big(FluentSystemIcons.image, "Pictures", fluent) { wb.onCommand?(.insertPicture) }]
+        if let i = wb.selectedDrawing, wb.sheet.drawings.indices.contains(i), case .picture = wb.sheet.drawings[i].kind {
+            items.append(Chrome.big(FluentSystemIcons.image, "Alt Text", fluent) { wb.onCommand?(.altText) })
+        }
+        return Chrome.group("Illustrations", fluent, items)
     }
 
     private func _tablesGroup(_ wb: WorkbookController, _ fluent: FluentThemeData) -> Widget {
