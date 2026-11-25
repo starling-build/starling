@@ -110,6 +110,38 @@ final class SlideFormatShapeTests: XCTestCase {
         xml = try slideXML(deck)
         XCTAssertEqual(xml.components(separatedBy: "<a:scene3d>").count, 2)
         XCTAssertTrue(xml.contains("prst=\"perspectiveLeft\""))
+        if let dir = ProcessInfo.processInfo.environment["AMD6_UI_CHECK_DIR"], ProcessInfo.processInfo.environment["AMD6_CHECK_DECK2"] != nil {
+            // The presets the first check deck did not print: all other isometric, oblique (with depth) and perspective ones.
+            let iso = ["isometricBottomDown", "isometricBottomUp", "isometricLeftUp", "isometricRightDown", "isometricTopDown",
+                       "isometricOffAxis1Left", "isometricOffAxis1Top", "isometricOffAxis2Left", "isometricOffAxis2Right",
+                       "isometricOffAxis3Left", "isometricOffAxis3Right", "isometricOffAxis3Bottom", "isometricOffAxis4Left",
+                       "isometricOffAxis4Right", "isometricOffAxis4Bottom"]
+            let obl = ["obliqueBottom", "obliqueBottomLeft", "obliqueBottomRight", "obliqueLeft", "obliqueRight", "obliqueTop",
+                       "obliqueTopLeft", "obliqueTopRight"]
+            let per = ["perspectiveFront", "perspectiveRight", "perspectiveBelow", "perspectiveAboveLeftFacing", "perspectiveAboveRightFacing",
+                       "perspectiveContrastingLeftFacing", "perspectiveContrastingRightFacing", "perspectiveHeroicLeftFacing",
+                       "perspectiveHeroicRightFacing", "perspectiveHeroicExtremeRightFacing", "perspectiveRelaxedModerately", "orthographicFront"]
+            let d = DeckController()
+            _ = d.addSlide(.blank); _ = d.addSlide(.blank); _ = d.addSlide(.blank)
+            d.deleteSlide(0)
+            var s1: [String] = Array(iso.suffix(3))
+            s1.append(contentsOf: obl)
+            var s0: [String] = []
+            s0.append(contentsOf: iso.prefix(12))
+            let sets: [[String]] = [s0, s1, per]
+            for (si, names) in sets.enumerated() {
+                d.selectSlide(si)
+                for (i, p) in names.enumerated() {
+                    let s = d.addShape(.rect); d.selectShapes([s])
+                    let x: Double = 40 + Double(i % 4) * 225
+                    let y: Double = 30 + Double(i / 4) * 165
+                    d.setFramesLive([(s, Rect.fromLTWH(x, y, 120, 70))])
+                    d.setCamera(p)
+                    s.name = "chk\(si)_\(i)_\(p)"
+                }
+            }
+            try Pptx.write(d).write(to: URL(fileURLWithPath: dir + "/rotation2-base.pptx"))
+        }
         if let dir = ProcessInfo.processInfo.environment["AMD6_UI_CHECK_DIR"], ProcessInfo.processInfo.environment["AMD6_CHECK_DECK"] != nil {
             // A PowerPoint check deck: one shape per preset, patched afterwards (depth, bevel, labels) by a script.
             let d = DeckController()
@@ -138,6 +170,20 @@ final class SlideFormatShapeTests: XCTestCase {
         deck.undo(); deck.undo(); deck.undo()
         XCTAssertNil(try XCTUnwrap(deck.slides[0].shapes.first { $0.name == a.name }).camera)
         XCTAssertFalse(try slideXML(deck).contains("<a:scene3d>"))
+    }
+
+    /// PowerPoint's own RotX/RotY/RotZ for presets (rotation2-angles.txt): lat = RotY, lon = -RotX, rev = -RotZ.
+    func testCameraTableHoldsPowerPointsAngles() throws {
+        let want: [(String, Double, Double, Double)] = [
+            ("isometricBottomDown", 35.396, 314.719, 299.838), ("isometricOffAxis3Bottom", 58.738, 306.546, 302.357),
+            ("isometricOffAxis4Left", 342, 26, 0), ("perspectiveAboveLeftFacing", 39.306, 14.338, 341.124),
+            ("perspectiveHeroicRightFacing", 348.984, 345.707, 357.373)]
+        for (n, la, lo, re) in want {
+            let s = try XCTUnwrap(Extrusion.scene(camera: n, from: nil), n)
+            XCTAssertEqual(s.lat, la, accuracy: 0.01, n); XCTAssertEqual(s.lon, lo, accuracy: 0.01, n)
+            XCTAssertEqual(s.rev, re, accuracy: 0.01, n)
+        }
+        XCTAssertNil(Extrusion.scene(camera: "orthographicFront", from: nil))
     }
 
     func testIsometricTopCamerasAreTrueIsometric() throws {

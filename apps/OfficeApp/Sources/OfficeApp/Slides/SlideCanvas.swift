@@ -73,6 +73,8 @@ final class SlideCanvasState: State<StatefulWidget> {
         case move(start: Offset, frames: [(SlideShape, Rect)], shape: SlideShape, wasSelected: Bool, moved: Bool)
         case resize(shape: SlideShape, handle: Int, start: Offset, frame: Rect)
         case rotate(shape: SlideShape, startAngle: Double, startRotation: Double)
+        /// The yellow handle of an elbow's middle run.
+        case elbowRun(shape: SlideShape, key: String, alongWidth: Bool)
         case marquee(start: Offset, now: Offset)
         /// A shape chosen from the gallery, being drawn by dragging out its box.
         case draw(preset: ShapePreset, start: Offset, now: Offset)
@@ -386,6 +388,15 @@ final class SlideCanvasState: State<StatefulWidget> {
                                                self.deck.beginFrameEdit()
                                            }))
             }
+            for hd in shape.elbowAdjustHandles {
+                let p = hd.at
+                children.append(Positioned(left: ox + p.dx * px - reach / 2, top: oy + p.dy * px - reach / 2, width: reach, height: reach,
+                                           child: _handle(accent: Color(0xFFFFC000), round: true, shown: 9, cursor: SystemMouseCursors.grab) { [weak self] _ in
+                                               guard let self else { return }
+                                               self._drag = .elbowRun(shape: shape, key: hd.key, alongWidth: hd.alongWidth)
+                                               self.deck.beginFrameEdit()
+                                           }))
+            }
             if !isLine {
                 let top = Self._framePoint(shape, 0.5, 0)
                 let lift = _touchSeen ? Self.touchLift : 22.0
@@ -610,6 +621,8 @@ final class SlideCanvasState: State<StatefulWidget> {
             } else {
                 deck.setFramesLive([(shape, r)])
             }
+        case .elbowRun(let shape, let key, let alongWidth):
+            deck.setElbowRunLive(shape, key, alongWidth: alongWidth, to: p)
         case .rotate(let shape, let startAngle, let startRotation):
             let c = shape.frame.center
             let angle = atan2(p.dy - c.dy, p.dx - c.dx) * 180 / .pi
@@ -661,7 +674,7 @@ final class SlideCanvasState: State<StatefulWidget> {
                 }
                 PlatformDispatcher.instance.scheduleFrame()
             }
-        case .resize, .rotate:
+        case .resize, .rotate, .elbowRun:
             deck.endFrameEdit()
         case .draw(let preset, let a, let b):
             let m = _w.modifiers()
