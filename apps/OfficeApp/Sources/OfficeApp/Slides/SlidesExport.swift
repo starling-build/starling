@@ -11,11 +11,16 @@ import Foundation
 /// the page is the slide's own size in PDF points.
 enum SlidesPdf {
     @MainActor
-    static func write(_ deck: DeckController, cache: SlideTextCache, to path: String, title: String) async -> Bool {
+    /// What a print makes of the chosen slides: the slides, a notes page for each, or handouts (six to a page).
+    enum Output: Int { case slides, notes, handouts }
+
+    static func write(_ deck: DeckController, cache: SlideTextCache, to path: String, title: String,
+                      slides only: [Int]? = nil, output: Output = .slides, notesTheme: RichTextTheme? = nil) async -> Bool {
         // Pictures decode off the paint path; every one is waited for
         // first, or the page would record the grey placeholder.
         var images: [ImageAttachment] = []
-        for slide in deck.slides {
+        let chosen: [Slide] = only.map { $0.filter { deck.slides.indices.contains($0 - 1) }.map { deck.slides[$0 - 1] } } ?? deck.slides
+        for slide in chosen {
             if let i = slide.background?.image { images.append(i) }
             if let i = slide.inheritedBackground?.image { images.append(i) }
             // (The layout's and master's shapes too, picture fills and all:
@@ -40,9 +45,7 @@ enum SlidesPdf {
         defer { RichTextTheme.shadowBlurDeviceScale = nil }
         RichTextTheme.shadowsAsPaths = true
         defer { RichTextTheme.shadowsAsPaths = false }
-        for slide in deck.slides where !slide.hidden {
-            let recorder = NativePictureRecorder()
-            let canvas = NativeCanvas(recorder: recorder, cullRect: Rect.fromLTWH(0, 0, size.width, size.height))
+        func draw(_ slide: Slide, _ canvas: NativeCanvas, scale: Double) {
             let painter = SlidePainter(slide: slide, theme: deck.theme, slideSize: size, revision: deck.revision, cache: cache,
                                        placeholders: false)
             // Laid out at twenty pixels a point and scaled back: the engine
@@ -50,9 +53,51 @@ enum SlidesPdf {
             // line is 13 — a third of a line astray by the foot of a body.
             // (At four, 12.6 was 12.5, and sixteen lines ended 1.6 pt high.)
             let k = 20.0
-            canvas.scale(1 / k, 1 / k)
+            canvas.scale(scale / k, scale / k)
             painter.paint(canvas, Size(size.width * k, size.height * k))
-            pages.append(PdfDocument.Page(picture: recorder.endRecording(), width: size.width, height: size.height))
+        }
+        switch output {
+        case .slides:
+            for slide in chosen where !slide.hidden {
+                let recorder = NativePictureRecorder()
+                let canvas = NativeCanvas(recorder: recorder, cullRect: Rect.fromLTWH(0, 0, size.width, size.height))
+                draw(slide, canvas, scale: 1)
+                pages.append(PdfDocument.Page(picture: recorder.endRecording(), width: size.width, height: size.height))
+            }
+        case .notes:
+            // A notes page: the slide at the top, its notes below (7.5 × 10 in, as PowerPoint's).
+            let pw = 540.0, ph = 720.0
+            let tw = 432.0, th = tw * size.height / size.width
+            for slide in chosen {
+                let recorder = NativePictureRecorder()
+                let canvas = NativeCanvas(recorder: recorder, cullRect: Rect.fromLTWH(0, 0, pw, ph))
+                canvas.save()
+                canvas.translate(54, 54)
+                draw(slide, canvas, scale: tw / size.width)
+                canvas.restore()
+                if let theme = notesTheme, !slide.notes.document.paragraphs.allSatisfy({ $0.text.isEmpty }) {
+                    let box = SlideShape(id: 1, name: "Notes", kind: .textBox, frame: Rect.fromLTWH(54, 54 + th + 36, tw, ph - (54 + th + 36) - 54),
+                                         text: slide.notes, textTheme: theme)
+                    SlidePainter.paintShape(box, canvas, pxPerPt: 1, cache: cache, theme: deck.theme, text: true, placeholders: false)
+                }
+                pages.append(PdfDocument.Page(picture: recorder.endRecording(), width: pw, height: ph))
+            }
+        case .handouts:
+            // Six to a page, two across and three down, each with its number.
+            let pw = 540.0, ph = 720.0
+            let tw = 216.0, th = tw * size.height / size.width
+            let gapY = (ph - 2 * 54 - 3 * th) / 2
+            for start in stride(from: 0, to: chosen.count, by: 6) {
+                let recorder = NativePictureRecorder()
+                let canvas = NativeCanvas(recorder: recorder, cullRect: Rect.fromLTWH(0, 0, pw, ph))
+                for (n, slide) in chosen[start ..< min(start + 6, chosen.count)].enumerated() {
+                    canvas.save()
+                    canvas.translate(54 + Double(n % 2) * (tw + 54), 54 + Double(n / 2) * (th + max(0, gapY)))
+                    draw(slide, canvas, scale: tw / size.width)
+                    canvas.restore()
+                }
+                pages.append(PdfDocument.Page(picture: recorder.endRecording(), width: pw, height: ph))
+            }
         }
         guard PdfDocument.write(to: path, pages: pages, title: title, author: PdfExport.authorName()) else { return false }
         if let data = FileManager.default.contents(atPath: path), let smooth = smoothPictures(data) {
