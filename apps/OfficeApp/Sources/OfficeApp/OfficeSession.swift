@@ -324,6 +324,9 @@ final class OfficeSession {
     var onShare: ((String) -> Void)?
     var onFind: ((Bool) -> Void)?       // true = replace bar too
     var onInsertPicture: (() -> Void)?
+    /// Insert → Audio / Video: the same file list, showing sound and movie files.
+    var onInsertMedia: ((_ video: Bool) -> Void)?
+    var pickingMedia = false
     var onChangePicture: (() -> Void)?
     var onHeaderFooter: (() -> Void)?
     /// Opens the Slide Size dialog, with this size typed in (nil: the deck's own).

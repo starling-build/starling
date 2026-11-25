@@ -361,10 +361,12 @@ final class Backstage: StatelessWidget {
         let start = [homeDirectory() + "/Pictures", homeDirectory() + "/Desktop", homeDirectory()]
             .first { FileManager.default.fileExists(atPath: $0) } ?? homeDirectory()
         return Column(crossAxisAlignment: .stretch, children: [
-            _heading("Insert Picture", fluent),
+            _heading(session.pickingMedia ? "Insert Audio or Video" : "Insert Picture", fluent),
             Expanded(child: FluentFilePanel(
                 mode: .open, initialDirectory: start,
-                extensions: ["png", "jpg", "jpeg", "gif", "webp", "bmp"],
+                extensions: session.pickingMedia
+                    ? Array(MediaClip.videoExtensions.union(MediaClip.audioExtensions)).sorted()
+                    : ["png", "jpg", "jpeg", "gif", "webp", "bmp"],
                 onDone: { [onClose, onPicturePath] path in
                     guard let path else { onClose(); return }
                     onPicturePath(path)

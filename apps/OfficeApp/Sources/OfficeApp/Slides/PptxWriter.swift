@@ -385,6 +385,15 @@ enum PptxWriter {
                 }
             }
         }
+        // A sound or movie put here plays when clicked: PowerPoint's own media
+        // timing, where the slide has no other animation to merge it with.
+        if timing.isEmpty {
+            let written = w.written
+            timing = MediaTiming.write(slide.shapes.compactMap { sh in
+                guard let m = sh.media, let id = written[sh.id] else { return nil }
+                return (id, m.isVideo)
+            })
+        }
         rels += w.rels
         rels += links.rels
         // The colour map as read when the slide was; a slide of ours maps
@@ -771,6 +780,9 @@ enum RT {
     private static let base = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/"
     static let document = base + "officeDocument"
     static let slide = base + "slide"
+    static let video = base + "video"
+    static let audio = base + "audio"
+    static let media2007 = "http://schemas.microsoft.com/office/2007/relationships/media"
     static let layout = base + "slideLayout"
     static let master = base + "slideMaster"
     static let notesSlide = base + "notesSlide"
@@ -1109,6 +1121,26 @@ private struct SlideXML {
         case .opaque(let o):
             guard let p = source else { return "" }
             return kept(o.xml, sourcePart: o.sourcePart, package: p, builder: &builder, patch: s.frame, fileId: s.fileId)
+        case .picture(let image) where s.media != nil:
+            // A sound or movie put here: the poster frame as the picture, the
+            // file as a media part named twice, as PowerPoint writes it
+            // (`a:videoFile`/`a:audioFile` link, `p14:media` embed).
+            let clip = s.media!
+            let id = _id(s.fileId)
+            let poster = _media(image, media: &media, builder: &builder)
+            media.count += 1
+            let part = "ppt/media/media\(media.count).\(clip.fileExtension)"
+            builder.addBinary(part, clip.data)
+            let target = Pptx.relative(part, from: self.part)
+            let link = _rel(clip.isVideo ? RT.video : RT.audio, target, preferred: "rIdMedia\(media.count)")
+            let embed = _rel(RT.media2007, target, preferred: "rIdMediaX\(media.count)")
+            let tag = clip.isVideo ? "a:videoFile" : "a:audioFile"
+            return "<p:pic><p:nvPicPr><p:cNvPr id=\"\(id)\" name=\"\(name)\"\(s.altText.map { " descr=\"\(PptxXML.escape($0, attribute: true))\"" } ?? "")\(hid)/>"
+                + "<p:cNvPicPr><a:picLocks noChangeAspect=\"1\"/></p:cNvPicPr><p:nvPr><\(tag) r:link=\"\(link)\"/>"
+                + "<p:extLst><p:ext uri=\"{DAA4B4D4-6D71-4841-9C94-3DE7FCFB9230}\"><p14:media xmlns:p14=\"http://schemas.microsoft.com/office/powerpoint/2010/main\" r:embed=\"\(embed)\"/></p:ext></p:extLst></p:nvPr></p:nvPicPr>"
+                + "<p:blipFill><a:blip r:embed=\"\(poster)\"/><a:stretch><a:fillRect/></a:stretch></p:blipFill>"
+                + "<p:spPr>\(Self._xfrm(s.frame, rotation: s.rotation, flipH: s.flipH, flipV: s.flipV))"
+                + "<a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom></p:spPr></p:pic>"
         case .picture(let image):
             // Unchanged since it was read (same image, crop and turn): the
             // picture as it was, at its frame — its recolouring, transparency,

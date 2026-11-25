@@ -253,6 +253,22 @@ struct ReadShape: Equatable {
 }
 
 /// An element carried through a round trip verbatim.
+/// A sound or movie put on a slide: the file's bytes, written as a media part;
+/// the shape's own picture is the poster frame drawn at rest.
+struct MediaClip: Equatable {
+    var data: Data
+    /// The file's name ("clip.mp4"); its extension picks the part's type.
+    var name: String
+    var isVideo: Bool
+    var fileExtension: String {
+        guard let dot = name.lastIndex(of: "."), dot != name.startIndex else { return isVideo ? "mp4" : "mp3" }
+        return String(name[name.index(after: dot)...]).lowercased()
+    }
+    static let videoExtensions: Set<String> = ["mp4", "m4v", "mov", "avi", "wmv", "mpg", "mpeg"]
+    static let audioExtensions: Set<String> = ["mp3", "wav", "m4a", "wma"]
+    static func isVideo(extension ext: String) -> Bool { videoExtensions.contains(ext.lowercased()) }
+}
+
 struct OpaqueObject: Equatable {
     /// The element as read (`p:graphicFrame`, `p:grpSp`, …).
     var xml: String
@@ -637,6 +653,8 @@ final class SlideShape {
     var outlineJoin: String? = nil
     /// `a:ln cap`: "rnd" or "sq", or nil for flat ends.
     var outlineCap: String? = nil
+    /// A sound or movie inserted here (its poster frame is the shape's picture).
+    var media: MediaClip? = nil
     /// A gradient line (`a:ln/a:gradFill`), drawn along the outline over
     /// the shape's box; nil for a line of one colour (`outline`).
     var outlineFill: SlideFill? = nil

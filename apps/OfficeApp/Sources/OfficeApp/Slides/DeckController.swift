@@ -91,6 +91,7 @@ struct ShapeState: Equatable {
     var outlineDash: String? = nil
     var outlineJoin: String? = nil
     var outlineCap: String? = nil
+    var media: MediaClip? = nil
     @Boxed var outlineFill: SlideFill? = nil
     var headEnd: LineEnd? = nil
     var tailEnd: LineEnd? = nil
@@ -936,6 +937,16 @@ final class DeckController: ChangeNotifier {
         currentSlide.shapes.append(shape)
         selection = [shape]
         _changed()
+        return shape
+    }
+
+    /// A sound or movie: its poster frame as the picture, the file riding along.
+    @discardableResult
+    func addMedia(_ clip: MediaClip, poster: ImageAttachment, size: Size) -> SlideShape {
+        let shape = addPicture(poster, naturalSize: size)
+        shape.name = (clip.isVideo ? "Video " : "Audio ") + "\(_nextId)"
+        shape.media = clip
+        shape.altText = clip.name
         return shape
     }
 
@@ -2369,6 +2380,7 @@ final class DeckController: ChangeNotifier {
         st.outlineDash = s.outlineDash
         st.outlineJoin = s.outlineJoin
         st.outlineCap = s.outlineCap
+        st.media = s.media
         st.outlineFill = s.outlineFill
         st.outlineScheme = s.outlineScheme
         st.headEnd = s.headEnd
@@ -2508,6 +2520,7 @@ final class DeckController: ChangeNotifier {
         shape.outlineDash = st.outlineDash
         shape.outlineJoin = st.outlineJoin
         shape.outlineCap = st.outlineCap
+        shape.media = st.media
         shape.outlineFill = st.outlineFill
         shape.headEnd = st.headEnd
         shape.connStart = st.connStart

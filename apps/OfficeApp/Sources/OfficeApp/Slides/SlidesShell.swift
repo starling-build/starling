@@ -338,7 +338,14 @@ final class SlidesShellState: State<StatefulWidget> {
             guard let self else { return }
             self._pictureForBackground = false
             self._pictureForShapeFill = nil
+            self.session.pickingMedia = false
             self._pickPicture()
+        }
+        session.onInsertMedia = { [weak self] video in
+            guard let self else { return }
+            self._pictureForBackground = false
+            self.session.pickingMedia = true
+            self._pickMedia(video: video)
         }
         session.onMoreShapeColor = { [weak self] outline in
             guard let self else { return }
@@ -1062,7 +1069,53 @@ final class SlidesShellState: State<StatefulWidget> {
         #endif
     }
 
+    /// Insert → Audio / Video: the file as a clip on the slide, drawn as its
+    /// poster frame (the frame itself comes with playback).
+    private func _pickMedia(video: Bool) {
+        let done: (String, Data) -> Void = { [weak self] name, data in self?._insertMedia(name, data: data) }
+        #if os(WASI)
+        WebFiles.open(extensions: Array(MediaClip.videoExtensions.union(MediaClip.audioExtensions)).sorted()) { picked in
+            if let picked { done(picked.name, picked.data) }
+        }
+        #else
+        if let ask = officeScene.pictureRequested {
+            ask { path in
+                if let path, let data = FileManager.default.contents(atPath: path) { done(path.lastPathComponent, data) }
+            }
+            return
+        }
+        setState { _backstage = .insertPicture }
+        #endif
+    }
+
+    private func _insertMedia(_ name: String, data: Data) {
+        session.pickingMedia = false
+        setState { _backstage = nil }
+        var clip = MediaClip(data: data, name: name, isVideo: false)
+        let ext = clip.fileExtension
+        guard MediaClip.videoExtensions.contains(ext) || MediaClip.audioExtensions.contains(ext) else {
+            _flash("Not a sound or movie Slides can place: \(name)")
+            return
+        }
+        clip.isVideo = MediaClip.isVideo(extension: ext)
+        let (poster, size) = MediaPoster.attachment(video: clip.isVideo, name: "poster.png")
+        _endEditing()
+        deck.addMedia(clip, poster: poster, size: size)
+        _deckFocus.requestFocus()
+        _flash("Inserted \(name)")
+    }
+
     private func _insertPicture(_ path: String) {
+        if session.pickingMedia {
+            guard let data = FileManager.default.contents(atPath: path) else {
+                session.pickingMedia = false
+                setState { _backstage = nil }
+                _flash("Could not read \(path.lastPathComponent)")
+                return
+            }
+            _insertMedia(path.lastPathComponent, data: data)
+            return
+        }
         guard let data = FileManager.default.contents(atPath: path) else {
             setState { _backstage = nil }
             _flash("Could not read \(path.lastPathComponent)")

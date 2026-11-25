@@ -269,6 +269,10 @@ extension Ribbon {
             Chrome.group("Images", fluent, [
                 Chrome.big(FluentSystemIcons.image, "Pictures", fluent) { [session] in session.onInsertPicture?() },
             ]),
+            Chrome.group("Media", fluent, [
+                Chrome.big(FluentSystemIcons.image, "Video", fluent) { [session] in session.onInsertMedia?(true) },
+                Chrome.big(FluentSystemIcons.image, "Audio", fluent) { [session] in session.onInsertMedia?(false) },
+            ]),
             Chrome.group("Charts", fluent, [
                 FlatButton(child: Padding(padding: EdgeInsets(left: 6, top: 2, right: 6, bottom: 2),
                     child: Column(mainAxisAlignment: .center, crossAxisAlignment: .center, children: [
