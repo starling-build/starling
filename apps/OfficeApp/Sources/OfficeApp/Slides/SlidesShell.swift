@@ -120,11 +120,7 @@ final class SlidesShellState: State<StatefulWidget> {
     private var _printOpen = false
     private var _shortcutsOpen = false
     private let _findQuery = TextEditingController()
-    #if canImport(AppKit)
-    private let _spelling: RichSpellChecker? = CocoaSpellChecker()
-    #else
-    private let _spelling: RichSpellChecker? = nil
-    #endif
+    private let _spelling: RichSpellChecker? = makeSpellChecker()
 
     private var _w: SlidesShell { widget as! SlidesShell }
 

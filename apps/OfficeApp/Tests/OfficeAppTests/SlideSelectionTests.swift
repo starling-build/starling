@@ -203,4 +203,25 @@ final class SlideArrangeTests: XCTestCase {
         XCTAssertEqual(r.left, 100, accuracy: 0.01)
         XCTAssertEqual(r.center.dy, f.center.dy, accuracy: 0.01)
     }
+
+    /// A shape with its aspect lock on keeps its proportions when a corner is dragged.
+    func testCornerDragHonoursTheAspectLock() throws {
+        let (deck, a, _) = shapes()
+        a.frame = Rect.fromLTWH(100, 100, 200, 100); a.aspectLock = true
+        deck.selectShapes([a])
+        let canvas = SlideCanvas(deck: deck, cache: SlideTextCache(), active: nil, onEdit: { _ in },
+                                 onShortcut: { _, _ in false }, modifiers: { [] }, spellChecker: nil)
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: canvas, title: "Test"))
+        for _ in 0 ..< 3 { ui.pump(); for cb in FrameCallbackScheduler.shared.takePostFrameCallbacks() { cb(.zero) } }
+        ui.pump()
+        let state = try XCTUnwrap(ui.state(SlideCanvasState.self))
+        let from = state.screenPoint(Offset(a.frame.right, a.frame.bottom))
+        ui.drag(from: from, to: Offset(from.dx + 80, from.dy + 5))
+        XCTAssertEqual(a.frame.width / a.frame.height, 2, accuracy: 0.01, "the corner drag held 2:1")
+        XCTAssertGreaterThan(a.frame.width, 250)
+        a.aspectLock = false
+        let from2 = state.screenPoint(Offset(a.frame.right, a.frame.bottom))
+        ui.drag(from: from2, to: Offset(from2.dx + 80, from2.dy + 5))
+        XCTAssertNotEqual(a.frame.width / a.frame.height, 2, accuracy: 0.05, "unlocked, it goes free")
+    }
 }

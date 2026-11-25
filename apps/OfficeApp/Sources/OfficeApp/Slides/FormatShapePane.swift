@@ -47,6 +47,10 @@ final class FormatShapePaneState: State<StatefulWidget> {
     }
 
     /// Six upper-case hex digits of a colour, without its transparency.
+    /// The dash styles the pane offers, in the order its button steps through them (preset name, label).
+    static let dashStyles: [(String?, String)] = [(nil, "Solid"), ("sysDot", "Round dot"), ("sysDash", "Square dot"),
+                                                  ("dash", "Dash"), ("dashDot", "Dash dot"), ("lgDash", "Long dash"), ("lgDashDot", "Long dash dot")]
+
     static func hex(_ c: Color) -> String {
         let h = String(c.value & 0xFFFFFF, radix: 16, uppercase: true)
         return String(repeating: "0", count: 6 - h.count) + h
@@ -146,11 +150,21 @@ final class FormatShapePaneState: State<StatefulWidget> {
                 if v ?? false { deck.setOutline(nil) } else { deck.setOutline(first?.fill.map { Color(0xFF000000 | ($0.value & 0xFFFFFF)) } ?? deck.theme.accents[0]) }
             }, content: Text("No line")), gap(6),
             hexRow("fmt.line.color", "Colour (hex)", first?.outline, enabled: lineOn) { deck.setOutline($0) }, gap(6),
-            row("fmt.line.width", "Width", _common { $0.outlineWidth }, min: 0) { deck.setOutlineWidth($0) }, gap(14),
+            row("fmt.line.width", "Width", _common { $0.outlineWidth }, min: 0) { deck.setOutlineWidth($0) }, gap(6),
+            Row(children: [
+                SizedBox(width: 110, height: nil, child: Text("Dash type", style: caption)),
+                SizedBox(key: ValueKey("fmt.line.dash"), width: 120, height: 30, child: Button(onPressed: lineOn ? {
+                    let styles = Self.dashStyles
+                    let at = styles.firstIndex { $0.0 == first?.outlineDash } ?? 0
+                    deck.setOutlineDash(styles[(at + 1) % styles.count].0)
+                } : nil, child: Text(Self.dashStyles.first { $0.0 == first?.outlineDash }?.1 ?? first?.outlineDash ?? "Solid"))),
+            ]), gap(14),
             Text("Size & Properties", style: fluent.typography.bodyStrong), gap(10),
             Text("Size", style: caption), gap(4),
             row("fmt.height", "Height", _common { $0.frame.height }, min: 1) { deck.setSize(height: $0) }, gap(6),
             row("fmt.width", "Width", _common { $0.frame.width }, min: 1) { deck.setSize(width: $0) }, gap(6),
+            row("fmt.scale.height", "Scale height", _common { s in s.scaleBase.map { s.frame.height / $0.height * 100 } ?? 100 }, min: 1, unit: "%") { deck.setScale(height: $0) }, gap(6),
+            row("fmt.scale.width", "Scale width", _common { s in s.scaleBase.map { s.frame.width / $0.width * 100 } ?? 100 }, min: 1, unit: "%") { deck.setScale(width: $0) }, gap(6),
             row("fmt.rotation", "Rotation", _common { $0.rotation }, min: -360) { deck.setRotation($0) }, gap(6),
             Checkbox(key: ValueKey("fmt.lock"), checked: locked, onChanged: { v in
                 if some { deck.setAspectLock(v ?? false) }
