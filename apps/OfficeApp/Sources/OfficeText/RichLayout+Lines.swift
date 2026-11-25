@@ -1037,7 +1037,7 @@ extension RichLayout {
         var startLeft: (indent: Double, band: (top: Double, bottom: Double))?
         defer { if best?.right == true, best?.leftRoom == nil, let sl = startLeft, theme.wordRules, RichTextTheme.wordWindowsPages { _besideStartLeft[i] = sl } }
         _besideIndentOnTop.remove(i)
-        _besideListEarlier.remove(i); _besideTightTop[i] = nil; _besideLeftAt[i] = nil; _besideRightAt[i] = nil; _besideStartAt[i] = nil; _besideNoLeft[i] = nil
+        _besideListEarlier.remove(i); _besideTightTop[i] = nil; _besideLeftAt[i] = nil; _besideRightAt[i] = nil; _besideStartAt[i] = nil; _besideOutlineBox[i] = nil; _besideNoLeft[i] = nil
         defer { if boxes.count >= 2, best?.leftRoom != nil { _besideBoxes[i] = boxes } }
         let hang = max(0, -_px(firstLineIndent(p, at: i, document)))
         var offset = 0.0
@@ -1100,6 +1100,12 @@ extension RichLayout {
                 for (n, c) in candidates.enumerated() {
                     guard let hit = over.first(where: { $0.0 == "\(c.image.id)" }) else { continue }
                     var moved = c.image
+                    // (A box set from a side margin: the same place counted from the page's left edge.)
+                    if let h = moved.float?.horizontalFrom, ["leftMargin", "rightMargin", "insideMargin", "outsideMargin"].contains(h) {
+                        let setup = _setup(ofParagraph: i)
+                        moved.float?.horizontalFrom = "page"
+                        if h == "rightMargin" || h == "outsideMargin" { moved.float?.x += setup.width - setup.marginRight }
+                    }
                     moved.float?.verticalFrom = "paragraph"; moved.float?.verticalAlign = nil; moved.float?.y = hit.1 + offset / _px(1); if hit.2 > 0 { _besideNoLeft[i] = max(_besideNoLeft[i] ?? 0, hit.2) }
                     candidates[n] = (moved, c.size)
                 }
@@ -1176,6 +1182,7 @@ extension RichLayout {
                                     guard let m = Self._outlineMaxX(poly, ya, yb) else { return rightEdge - own }
                                     return max(x + w * m + gr - own, 0)
                                 }
+                                _besideOutlineBox[i] = (leftEdge - own, rightEdge - own)
                                 RuleTrace.hit("word-tight-wrap-line-meets-the-outline-over-its-own-rows")
                             }
                         }

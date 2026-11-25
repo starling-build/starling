@@ -2030,6 +2030,8 @@ public final class RichLayout {
     var _besideLeftAt: [Int: (Double, Double) -> Double] = [:]
     /// The right piece of a line beside a tight picture starts at the outline's rightmost edge over the line's rows (indent from the column's edge).
     var _besideStartAt: [Int: (Double, Double) -> Double] = [:]
+    /// The box (its left and right edges, counted from the paragraph's indent) whose outline `_besideLeftAt` / `_besideStartAt` follow.
+    var _besideOutlineBox: [Int: (left: Double, right: Double)] = [:]
     var _besideBoxes: [Int: [(top: Double, bottom: Double, left: Double, right: Double)]] = [:]
     /// A box standing at the line start of a paragraph whose other box is at its right: how far its lines start in, and its band.
     var _besideStartLeft: [Int: (indent: Double, band: (top: Double, bottom: Double))] = [:]

@@ -555,8 +555,12 @@ extension RichLayout {
                         // (From its paragraph: the offset is from where the paragraph starts down the column.)
                         let onPage = float.verticalFrom == "paragraph" ? insetTop + first.pageY + _px(float.y)
                             : base + (a == "center" ? (span - whole) / 2 : a == "bottom" ? span - whole : 0) + (float.verticalAlign == nil ? _px(float.y) : 0)
-                        let left = float.horizontalFrom == "page" ? 0 : _px(setup.marginLeft + setup.gutter)
-                        let across = float.horizontalFrom == "page" ? _px(setup.width) : _px(setup.contentWidth)
+                        // (From a side margin: its own strip of the page. Inside and outside are the left and right ones on pages that do not mirror.)
+                        let side = float.horizontalFrom
+                        if (side == "insideMargin" || side == "outsideMargin") && _mirrorsMargins { continue }
+                        let onRight = side == "rightMargin" || side == "outsideMargin"
+                        let left = side == "page" ? 0 : side == "leftMargin" || side == "insideMargin" ? 0 : onRight ? _px(setup.width - setup.marginRight) : _px(setup.marginLeft + setup.gutter)
+                        let across = side == "page" ? _px(setup.width) : side == "leftMargin" || side == "insideMargin" ? _px(setup.marginLeft + setup.gutter) : onRight ? _px(setup.marginRight) : _px(setup.contentWidth)
                         let x0: Double
                         switch float.horizontalAlign {
                         case "center": x0 = left + (across - w) / 2
