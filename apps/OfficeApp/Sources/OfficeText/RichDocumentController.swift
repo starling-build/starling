@@ -425,8 +425,10 @@ public final class RichDocumentController: ChangeNotifier {
                 if _undo.count > maxUndoDepth { _undo.removeFirst(_undo.count - maxUndoDepth) }
             }
         }
+        let boundBefore: [Int: String] = outer ? [:] : _customBoundTexts()
         body()
         if !outer {
+            _syncCustomBound(before: boundBefore)
             _inEdit = false
             _undo[_undo.count - 1].selectionAfter = selection
             _undo[_undo.count - 1].continuation = undoKind == .other ? nil : selection.focus
@@ -440,6 +442,34 @@ public final class RichDocumentController: ChangeNotifier {
     }
 
     public enum UndoKindHint { case typing, deleting, styleEdit, other }
+
+    /// Text of every control bound to custom XML, by control id (empty when the document has no custom XML part).
+    private func _customBoundTexts() -> [Int: String] {
+        guard document.keptParts.keys.contains(where: { $0.hasPrefix("customXml/item") }) else { return [:] }
+        var out: [Int: String] = [:]
+        for p in document.paragraphs { for c in p.customBoundControls { out[c.id] = c.text } }
+        return out
+    }
+
+    /// A control bound to custom XML that the edit changed sets its element; every other control on that element then
+    /// shows the same text (inside the same undo step). The save writes the element back to the XML part.
+    private func _syncCustomBound(before: [Int: String]) {
+        guard !before.isEmpty else { return }
+        var changed: (store: String, xpath: String, text: String)?
+        var all: [(index: Int, id: Int, store: String, xpath: String, text: String)] = []
+        for (i, p) in document.paragraphs.enumerated() {
+            for c in p.customBoundControls {
+                all.append((i, c.id, c.store, c.xpath, c.text))
+                if changed == nil, let was = before[c.id], was != c.text { changed = (c.store, c.xpath, c.text) }
+            }
+        }
+        guard let src = changed else { return }
+        for c in all where c.store == src.store && c.xpath == src.xpath && c.text != src.text {
+            if let after = document.paragraphs[c.index].settingControlText(c.id, to: src.text) {
+                perform(.restoreParagraphs(c.index, count: 1, [after]))
+            }
+        }
+    }
 
     /// End a run of coalesced edits: the next one starts a new undo step.
     /// A Modify Style strip calls this on Done, as typing does on a click.

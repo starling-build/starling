@@ -3088,6 +3088,7 @@ enum DocxFormat {
                 return KeptRel(id: id, type: type, target: target, external: r["TargetMode"] == "External")
             }
         }
+        for p in document.paragraphs { for c in p.customBoundControls where document.boundLoaded[c.store + "|" + c.xpath] == nil { document.boundLoaded[c.store + "|" + c.xpath] = c.text } }
         document.keptCustomXmlRels = relInfo.values.filter { $0.type.hasSuffix("/customXml") && notes.kept["customXml/" + ($0.target.split(separator: "/").last.map(String.init) ?? "")] != nil }
             .sorted { $0.id < $1.id }
         document.keptTables = keptTables
