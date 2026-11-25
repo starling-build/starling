@@ -65,7 +65,7 @@ final class HeaderFooterBar: StatelessWidget {
     override func build(_ context: any BuildContext) -> Widget {
         let fluent = FluentTheme.of(context)
         let hint = fluent.typography.caption?.copyWith(color: fluent.resources.textFillColorSecondary)
-        let items: [Widget] = [
+        let headerRow: [Widget] = [
             SizedBox(width: 60, height: nil, child: Text("Header", style: fluent.typography.body)),
             // (The field takes the keyboard as the bar opens, as Find's
             // does: Insert → Header and a typed line used to go into the
@@ -74,7 +74,12 @@ final class HeaderFooterBar: StatelessWidget {
                 controller: header, placeholderText: headerLocked ? "Has pictures or formatting: kept as is" : "Header text",  onSubmitted: { [onApply] _ in onApply() }, enabled: !headerLocked, autofocus: true,
                 tabGroup: "header-footer", tabOrder: 0)),
             Chrome.gap(4)] + lookButtons(true, headerLook, locked: headerLocked) + [
-            Chrome.gap(16),
+            Expanded(child: SizedBox(width: 0, height: 0, child: nil)),
+            FilledButton(key: ValueKey<String>("header-footer-done"), onPressed: onApply, child: Text("Done")),
+            Chrome.gap(4),
+            Chrome.icon(FluentSystemIcons.chromeClose, "Close (Esc)", fluent, action: onClose),
+        ]
+        let footerRow: [Widget] = [
             SizedBox(width: 60, height: nil, child: Text("Footer", style: fluent.typography.body)),
             SizedBox(width: 230, height: 30, child: FluentTextBox(
                 controller: footer, placeholderText: footerLocked ? "Has pictures or formatting: kept as is" : "Footer text",  onSubmitted: { [onApply] _ in onApply() }, enabled: !footerLocked,
@@ -86,16 +91,15 @@ final class HeaderFooterBar: StatelessWidget {
             Button(onPressed: footerLocked ? nil : { [footer] in footer.text += RichDocument.pageCountField }, child: Text("Pages")),
             Chrome.gap(12),
             Text("\(RichDocument.pageField) and \(RichDocument.pageCountField) fill in per page", style: hint),
-            Expanded(child: SizedBox(width: 0, height: 0, child: nil)),
-            FilledButton(key: ValueKey<String>("header-footer-done"), onPressed: onApply, child: Text("Done")),
-            Chrome.gap(4),
-            Chrome.icon(FluentSystemIcons.chromeClose, "Close (Esc)", fluent, action: onClose),
         ]
         return DecoratedBox(
             decoration: BoxDecoration(
                 color: fluent.resources.layerFillColorDefault,
                 border: Border(bottom: BorderSide(color: fluent.resources.dividerStrokeColorDefault, width: 1))),
             child: Padding(padding: EdgeInsets(left: 12, top: 6, right: 8, bottom: 6),
-                           child: Row(crossAxisAlignment: .center, children: items)))
+                           child: Column(mainAxisSize: .min, crossAxisAlignment: .start, children: [
+                               Row(crossAxisAlignment: .center, children: headerRow),
+                               Chrome.vgap(6),
+                               Row(crossAxisAlignment: .center, children: footerRow)])))
     }
 }
