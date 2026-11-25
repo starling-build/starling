@@ -81,14 +81,25 @@ extension DocxFormat {
         while let node = pending.popLast() {
             if node.name == "w:p" { titleFields(node) }
             if node.name == "w:sdt", let pr = node.first("w:sdtPr"), let bind = pr.first("w:dataBinding"),
-               bind["w:storeItemID"]?.uppercased() == "{6C3C8BC8-F283-45AE-878A-BAB7291924A1}",
+               let store = bind["w:storeItemID"]?.uppercased(),
                let xpath = bind["w:xpath"], let last = xpath.split(separator: "/").last,
                let content = node.first("w:sdtContent") {
                 let local = String(last.split(separator: "[").first ?? "").split(separator: ":").last.map(String.init) ?? ""
-                if core == nil { core = .some(part("docProps/core.xml").flatMap(XNode.parse)) }
-                guard let props = core ?? nil else { continue }
-                var value = props.children.first { $0.name.hasSuffix(":" + local) }?.text ?? ""
-                value = value.trimmingWhitespace(newlines: true)
+                var value: String
+                var custom = false
+                if store == "{6C3C8BC8-F283-45AE-878A-BAB7291924A1}" {
+                    if core == nil { core = .some(part("docProps/core.xml").flatMap(XNode.parse)) }
+                    guard let props = core ?? nil else { continue }
+                    value = props.children.first { $0.name.hasSuffix(":" + local) }?.text ?? ""
+                    value = value.trimmingWhitespace(newlines: true)
+                } else {
+                    // A control mapped to a custom XML part shows that element's text and drops what it cached, formatting
+                    // included (Word lab word-uicheck24: bold cached text came out plain). An element the part lacks leaves the
+                    // control unmapped, with its cached text.
+                    guard let found = Self._customXmlValue(store: store, xpath: xpath, part: part) else { continue }
+                    value = found
+                    custom = true
+                }
                 var placeholderRun: XNode?
                 if value.isEmpty {
                     guard let name = pr.first("w:placeholder")?.first("w:docPart")?["w:val"], !name.isEmpty else { continue }
@@ -105,8 +116,11 @@ extension DocxFormat {
                 var runs: [XNode] = []
                 texts(content, &runs)
                 guard let first = runs.first else { continue }
-                RuleTrace.hit("core-bound-control-shows-the-property")
+                RuleTrace.hit(custom ? "custom-xml-bound-control-shows-the-element" : "core-bound-control-shows-the-property")
                 first.text = value
+                if custom, placeholderRun == nil, let run = content.descendants("w:r").first(where: { $0.children.contains { $0 === first } }) {
+                    run.children.removeAll { $0.name == "w:rPr" }
+                }
                 // (The placeholder shows in its own formatting, not that of the text the control held:
                 // lo-c657ba7d's title, bold orange "Communication digitale" in the file, is "[Titre du
                 // document]" in the glossary's plain 16pt black in Word's print.)
@@ -119,6 +133,36 @@ extension DocxFormat {
             }
             pending.append(contentsOf: node.children.reversed())
         }
+    }
+
+    /// The text of the element a content control's binding names inside the custom XML part whose data store id is
+    /// `store`, or nil when there is no such part or element. The path is `/ns0:root[1]/ns0:a[1]`: each step is a name
+    /// (prefix ignored) and an optional 1-based position among the same-named children.
+    static func _customXmlValue(store: String, xpath: String, part: (String) -> Data?) -> String? {
+        var item: XNode?
+        for n in 1...64 {
+            guard let props = part("customXml/itemProps\(n).xml").flatMap(XNode.parse) else { continue }
+            if props["ds:itemID"]?.uppercased() == store { item = part("customXml/item\(n).xml").flatMap(XNode.parse); break }
+        }
+        guard var node = item else { return nil }
+        let steps = xpath.split(separator: "/").map(String.init)
+        guard !steps.isEmpty else { return nil }
+        for (i, step) in steps.enumerated() {
+            let name = String(step.split(separator: "[").first ?? "")
+            let local = String(name.split(separator: ":").last ?? "")
+            var position = 1
+            if let open = step.firstIndex(of: "["), let close = step.firstIndex(of: "]"), open < close,
+               let n = Int(step[step.index(after: open)..<close]) { position = n }
+            func matches(_ x: XNode) -> Bool { local == "*" || String(x.name.split(separator: ":").last ?? "") == local }
+            if i == 0 { guard matches(node), position == 1 else { return nil }; continue }
+            let same = node.children.filter(matches)
+            guard position >= 1, position <= same.count else { return nil }
+            node = same[position - 1]
+        }
+        var out = ""
+        func collect(_ n: XNode) { out += n.text; for c in n.children { collect(c) } }
+        collect(node)
+        return out
     }
 
     /// Plain-text inline controls showing one named placeholder share its

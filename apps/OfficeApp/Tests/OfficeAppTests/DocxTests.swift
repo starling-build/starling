@@ -7511,6 +7511,24 @@ final class DocxTests: XCTestCase {
 
     /// W-RV-3: a content control around whole paragraphs, around a table, or around the paragraphs of one cell keeps its
     /// settings through open and save; an edit that splits it or removes its last paragraph keeps the file valid.
+    func testControlsBoundToCustomXmlShowTheElement() throws {
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .letter))
+        let di = try XCTUnwrap(entries.firstIndex { $0.name == "word/document.xml" })
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let body = try XCTUnwrap(xml.range(of: "<w:body>")).upperBound ..< (try XCTUnwrap(xml.range(of: "<w:sectPr"))).lowerBound
+        func bound(_ el: String, _ cached: String, bold: Bool = false) -> String {
+            "<w:p><w:sdt><w:sdtPr><w:text/><w:dataBinding w:prefixMappings=\"xmlns:ns0='urn:lab'\" w:xpath=\"/ns0:root[1]/ns0:\(el)[1]\" w:storeItemID=\"{11111111-2222-3333-4444-555555555555}\"/></w:sdtPr><w:sdtContent><w:r>"
+                + (bold ? "<w:rPr><w:b/></w:rPr>" : "") + "<w:t>\(cached)</w:t></w:r></w:sdtContent></w:sdt></w:p>"
+        }
+        xml.replaceSubrange(body, with: bound("a", "CACHED-A") + bound("c", "CACHED-C", bold: true) + bound("f", "CACHED-F") + bound("a", "CACHED-A2"))
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        entries.append(ZipEntry(name: "customXml/item1.xml", data: Data("<root xmlns=\"urn:lab\"><a>FromXml A</a><c>FromXml C</c></root>".utf8)))
+        entries.append(ZipEntry(name: "customXml/itemProps1.xml", data: Data("<ds:datastoreItem ds:itemID=\"{11111111-2222-3333-4444-555555555555}\" xmlns:ds=\"http://schemas.openxmlformats.org/officeDocument/2006/customXml\"/>".utf8)))
+        let doc = try DocxFormat.read(try Zip.write(entries)).document
+        XCTAssertEqual(doc.paragraphs.map { $0.text }.prefix(4).map { String($0) }.filter { !$0.isEmpty }, ["FromXml A", "FromXml C", "CACHED-F", "FromXml A"])
+        XCTAssertFalse(doc.paragraphs[1].runs.contains { $0.style.bold })
+    }
+
     func testBlockLevelContentControlsSurviveASave() throws {
         var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .letter))
         let di = try XCTUnwrap(entries.firstIndex { $0.name == "word/document.xml" })
