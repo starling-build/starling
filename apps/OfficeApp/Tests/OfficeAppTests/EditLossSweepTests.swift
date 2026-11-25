@@ -72,6 +72,7 @@ final class EditLossSweepTests: XCTestCase {
         var docsDelta: [String: [String: Int]] = [:], instDelta: [String: [String: Int]] = [:]
         var applied: [String: Int] = [:], failed = 0, edited = 0
         let prog = FileHandle(forWritingAtPath: (env["STARLING_SWEEP_OUT"] ?? "/tmp/x") + ".progress") ?? { FileManager.default.createFile(atPath: (env["STARLING_SWEEP_OUT"] ?? "/tmp/x") + ".progress", contents: nil); return FileHandle(forWritingAtPath: (env["STARLING_SWEEP_OUT"] ?? "/tmp/x") + ".progress")! }()
+        var docsGain: [String: Int] = [:], instGain: [String: Int] = [:]
         for f in files {
             let t0 = Date(); defer { prog.write(Data("\(f)\t\(Int(Date().timeIntervalSince(t0) * 1000)) ms\n".utf8)) }
             guard let data = FileManager.default.contents(atPath: dir + "/" + f), let entries = try? Zip.read(data) else { failed += 1; continue }
@@ -118,8 +119,14 @@ final class EditLossSweepTests: XCTestCase {
                 }
                 guard did, let o = out, let saved = try? Zip.read(o) else { if did { failed += 1 }; continue }
                 applied[v, default: 0] += 1; if v != "base" { edited += 1 }
-                let l = lost(orig, counts(saved))
-                if v == "base" { baseLoss = l }
+                let sc = counts(saved)
+                let l = lost(orig, sc)
+                if v == "base" {
+                    baseLoss = l
+                    // Gains: effective attributes/elements present after the save but not before (a save that ADDS customHeight to every
+                    // row freezes heights Excel would refit). Only the no-edit save is checked: an edit adds its own marks on purpose.
+                    for (k, n) in lost(sc, orig) { docsGain[k, default: 0] += 1; instGain[k, default: 0] += n }
+                }
                 for (k, n) in l {
                     docsLost[v, default: [:]][k, default: 0] += 1; inst[v, default: [:]][k, default: 0] += n
                     if v != "base", n > (baseLoss[k] ?? 0) { docsDelta[v, default: [:]][k, default: 0] += 1; instDelta[v, default: [:]][k, default: 0] += n - (baseLoss[k] ?? 0) }
@@ -132,6 +139,8 @@ final class EditLossSweepTests: XCTestCase {
             let d = v == "base" ? docsLost[v] ?? [:] : docsDelta[v] ?? [:], n = v == "base" ? inst[v] ?? [:] : instDelta[v] ?? [:]
             for (k, c) in d.sorted(by: { $0.value != $1.value ? $0.value > $1.value : $0.key < $1.key }).prefix(400) { lines.append("\(c)\t\(n[k] ?? 0)\t\(k)") }
         }
+        lines.append("== gain-base (added by the save with no edit): docs\tinstances\tname")
+        for (k, c) in docsGain.sorted(by: { $0.value != $1.value ? $0.value > $1.value : $0.key < $1.key }).prefix(400) { lines.append("\(c)\t\(instGain[k] ?? 0)\t\(k)") }
         try lines.joined(separator: "\n").write(toFile: env["STARLING_SWEEP_OUT"] ?? "/data/s/amd-8/sweep/result.txt", atomically: true, encoding: .utf8)
     }
 }
