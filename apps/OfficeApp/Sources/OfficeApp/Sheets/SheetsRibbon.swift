@@ -24,6 +24,7 @@ enum SheetCommand {
     case cellsDialog(insert: Bool)   // Insert / Delete Cells…
     case sizeDialog(SizeKind)        // Row Height…, Column Width…, Default Width…
     case conditionalFormat         // Home → Conditional Formatting
+    case conditionalRules          // Home → Conditional Formatting → Manage Rules
     case dataValidation            // Data → Data Validation
     case consolidate               // Data → Consolidate
     case fillSeries                // Home → Fill → Series
@@ -192,6 +193,7 @@ extension Ribbon {
         ])])
         let styles = Chrome.group("Styles", fluent, [
             Chrome.big(FluentSystemIcons.paintBrush, "Conditional Formatting", fluent) { wb.onCommand?(.conditionalFormat) },
+            Chrome.small(FluentSystemIcons.paintBrush, "Manage Rules", fluent) { wb.onCommand?(.conditionalRules) },
         ])
         let editing = Chrome.group("Editing", fluent, [Chrome.rows([
             Chrome.small(FluentSystemIcons.mathFormula, "AutoSum", fluent) { Self._autoSum(wb) },

@@ -97,6 +97,7 @@ final class SheetsShellState: State<StatefulWidget> {
     private var _subOpen: CellRange?
     private var _validationOpen = false
     private var _cfOpen = false
+    private var _cfRulesOpen = false
     private var _tableOpen = false
     private var _filterOpen: (col: Int, kind: String)?
     private let _tabProbes = SheetTabProbes()
@@ -455,6 +456,8 @@ final class SheetsShellState: State<StatefulWidget> {
             _editNote(at: wb.active)
         case .conditionalFormat:
             setState { _cfOpen = true }
+        case .conditionalRules:
+            setState { _cfRulesOpen = true }
         case .dataValidation:
             setState { _validationOpen = true }
         case .consolidate:
@@ -1104,6 +1107,13 @@ final class SheetsShellState: State<StatefulWidget> {
             return Stack(children: [window, Positioned(left: 0, top: 0, right: 0, bottom: 0, child: ConditionalFormatDialog(
                 controller: wb, onClose: { [weak self] in
                     self?.setState { self?._cfOpen = false }
+                    self?._grid?.focus.requestFocus()
+                }))])
+        }
+        if _cfRulesOpen {
+            return Stack(children: [window, Positioned(left: 0, top: 0, right: 0, bottom: 0, child: ManageRulesDialog(
+                controller: wb, onClose: { [weak self] in
+                    self?.setState { self?._cfRulesOpen = false }
                     self?._grid?.focus.requestFocus()
                 }))])
         }
