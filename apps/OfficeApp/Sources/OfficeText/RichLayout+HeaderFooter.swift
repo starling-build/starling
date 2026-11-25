@@ -195,7 +195,9 @@ extension RichLayout {
         guard theme.wordRules, RichTextTheme.wordWindowsPages, let box = image.textBox, box.autoHeight,
               let inside = _textBox(image, document) else { return stated }
         let fitted = inside.height + _px(box.insetTop + box.insetBottom)
-        guard fitted > 0, fitted < stated else { return stated }
+        // (A box that wraps its text grows as well as shrinks: Word's print of a typed spAutoFit box, lab textbox-autofit. One that
+        // takes its text's width (`wrap="none"`, the drop cap's box too) only shrinks, as before.)
+        guard fitted > 0, fitted < stated || (fitted > stated && !box.fitsText) else { return stated }
         RuleTrace.hit("word-header-autofit-box-wraps-the-body-at-its-text-height")
         return fitted
     }
@@ -207,7 +209,7 @@ extension RichLayout {
         guard theme.wordRules, RichTextTheme.wordWindowsPages, image.float != nil, let box = image.textBox, box.autoHeight,
               !box.growsToFit else { return stated }
         let fitted = _fittedBoxHeight(image, document)
-        if fitted < stated { RuleTrace.hit("word-body-autofit-box-wraps-at-its-text-height"); _autofitHeights["\(image.id)"] = fitted }
+        if fitted != stated { RuleTrace.hit("word-body-autofit-box-wraps-at-its-text-height"); _autofitHeights["\(image.id)"] = fitted }
         return fitted
     }
 

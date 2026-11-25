@@ -391,6 +391,9 @@ extension SlideContext {
                 }
                 cell.padding = EdgeInsets(left: margin("marL", 7.2), top: margin("marT", 3.6),
                                           right: margin("marR", 7.2), bottom: margin("marB", 3.6))
+                // A fill the style gave (not this cell's own) stays the style's on a save.
+                let ownFill = tcPr?.first("a:solidFill") != nil || tcPr?.first("a:gradFill") != nil || tcPr?.has("a:noFill") == true
+                if cell.fill != nil, !ownFill { cell.styleFilled = true }
                 if let tcPr {
                     switch tcPr["anchor"] { case "ctr": cell.verticalAlign = "center"; case "b": cell.verticalAlign = "bottom"; default: break }
                     switch tcPr["vert"] {
@@ -735,15 +738,17 @@ extension SlideContext {
         var tableGradient: SlideFill? = nil
         var tableShadow: CharShadow? = nil
         var ts = plain
-            ? TableStyle(borders: styleId.isEmpty || styleId.hasPrefix("{5940675A"), headerRow: false, borderColor: colors.scheme("tx1"))
+            ? TableStyle(borders: styleId.isEmpty || styleId.hasPrefix("{5940675A"), headerRow: firstRow, borderColor: colors.scheme("tx1"))
             : TableStyle(borders: true, headerRow: firstRow, headerFill: accent,
                          bandFill: banded ? DeckController.tint(accent, 0.40) : nil,
                          bandAltFill: banded ? DeckController.tint(accent, 0.20) : nil,
                          borderColor: Color(0xFFFFFFFF))
+        if !styleId.isEmpty { ts.styleId = styleId }
         ts.totalRow = pr?["lastRow"] == "1"
         ts.firstColumn = pr?["firstCol"] == "1"
         ts.lastColumn = pr?["lastCol"] == "1"
         ts.bandedColumns = pr?["bandCol"] == "1"
+        if plain { ts.bandRows = banded }
         // A table with no style (or "Table Grid") is ruled in 1 pt black,
         // as PowerPoint draws tdf135843_export's grid, not the editor's ½.
         if plain, ts.borders { ts.borderWidth = 1 }

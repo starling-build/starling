@@ -59,7 +59,11 @@ final class SheetsShellState: State<StatefulWidget> {
     private var _status: String? = nil
     private var _statusGeneration = 0
     private var _recent: [String] = []
-    private var _zoom = 1.0
+    /// The active sheet's zoom (saved with it), as a factor.
+    private var _zoom: Double {
+        get { Double(wb.sheet.zoomPercent) / 100 }
+        set { wb.setZoom(percent: Int((newValue * 100).rounded())) }
+    }
     private var _windowTitle = ""
     /// The sheet tab being renamed, and its text.
     private var _renaming: Int? = nil
@@ -80,6 +84,8 @@ final class SheetsShellState: State<StatefulWidget> {
     private var _alertOpen: (alert: ValidationAlert, answer: (ValidationChoice) -> Void)?
     private var _sortOpen: (range: CellRange, hasHeader: Bool)?
     private var _consOpen = false
+    private var _scnOpen = false
+    private var _goalOpen = false
     private var _dupOpen: (range: CellRange, hasHeader: Bool)?
     private var _ttcOpen: CellRange?
     private var _subOpen: CellRange?
@@ -391,7 +397,7 @@ final class SheetsShellState: State<StatefulWidget> {
         case .zoom(let factor):
             setState { _zoom = factor == 0 ? 1 : max(0.25, min(4, _zoom * factor)) }
         case .toggleGridlines:
-            wb.structural { wb.sheet.showGridlines.toggle() }
+            wb.toggleGridlines()
         case .status(let m):
             _flash(m)
         case .editNote:
@@ -402,6 +408,10 @@ final class SheetsShellState: State<StatefulWidget> {
             setState { _validationOpen = true }
         case .consolidate:
             setState { _consOpen = true }
+        case .scenarioManager:
+            setState { _scnOpen = true }
+        case .goalSeek:
+            setState { _goalOpen = true }
         case .removeDuplicates:
             if let region = wb.sortRegion() { setState { _dupOpen = region } }
             else { _flash(DuplicatesProblem.nothingToCheck.message) }
@@ -1041,6 +1051,20 @@ final class SheetsShellState: State<StatefulWidget> {
                 alert: open.alert, onChoice: { [weak self] choice in
                     self?.setState { self?._alertOpen = nil }
                     open.answer(choice)
+                    self?._grid?.focus.requestFocus()
+                }))])
+        }
+        if _scnOpen {
+            return Stack(children: [window, Positioned(left: 0, top: 0, right: 0, bottom: 0, child: ScenarioDialog(
+                controller: wb, onClose: { [weak self] in
+                    self?.setState { self?._scnOpen = false }
+                    self?._grid?.focus.requestFocus()
+                }))])
+        }
+        if _goalOpen {
+            return Stack(children: [window, Positioned(left: 0, top: 0, right: 0, bottom: 0, child: GoalSeekDialog(
+                controller: wb, onClose: { [weak self] in
+                    self?.setState { self?._goalOpen = false }
                     self?._grid?.focus.requestFocus()
                 }))])
         }

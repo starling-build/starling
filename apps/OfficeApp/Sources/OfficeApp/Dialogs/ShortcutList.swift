@@ -105,6 +105,7 @@ enum ShortcutTable {
         ShortcutEntry("Edit", "Select all", "a"),
         ShortcutEntry("Edit", "Fill down", "d"),
         ShortcutEntry("Edit", "Fill right", "r"),
+        ShortcutEntry("View", "Show formulas", "`"),
         ShortcutEntry("Edit", "Insert cells", "+"),
         ShortcutEntry("Edit", "Insert cells", "="),
         ShortcutEntry("Edit", "Delete cells", "-"),

@@ -5,9 +5,8 @@
 // definitions PowerPoint writes into decks that use the styles. Merged last in
 // PptxTemplates.builtinTableStyles, so a definition already there wins.
 extension PptxTemplates {
-    static let builtinTableStyleFamilies: [String: String] = {
-        // (family name, id of the colourless variant, ids for Accent 1...6)
-        let families: [(String, String?, [String])] = [
+    /// (family name, id of the colourless variant, ids for Accent 1...6): the gallery lists these.
+    static let builtinTableStyleFamilyList: [(String, String?, [String])] = [
         ("Themed Style 1", nil, ["{3C2FFA5D-87B4-456A-9821-1D502468CF0F}", "{284E427A-3D55-4303-BF80-6455036E1DE7}", "{69C7853C-536D-4A76-A0AE-DD22124D55A5}", "{775DCB02-9BB8-47FD-8907-85C794F793BA}", "{35758FB7-9AC5-4552-8A53-C91805E547FA}", "{08FB837D-C827-4EFA-A057-4D05807E0F7C}"]),
         ("Themed Style 2", nil, ["{D113A9D2-9D6B-4929-AA2D-F23B5EE8CBE7}", "{18603FDC-E32A-4AB5-989C-0864C3EAD2B8}", "{306799F8-075E-4A3A-A7F6-7FBC6576F1A4}", "{E269D01E-BC32-4049-B463-5C60D7B0CCD2}", "{327F97BB-C833-4FB7-BDE5-3F7075034690}", "{638B1855-1B75-4FBE-930C-398BA8C253C6}"]),
         ("Light Style 1", "{9D7B26C5-4107-4FEC-AEDC-1716B250A1EF}", ["{3B4B98B0-60AC-42C2-AFA5-B58CD77FA1E5}", "{0E3FDE45-AF77-4B5C-9715-49D594BDF05E}", "{C083E6E3-FA7D-4D7B-A595-EF9225AFEA82}", "{D27102A9-8310-4765-A935-A1911B00CA55}", "{5FD0F851-EC5A-4D38-B0AD-8093EC10F338}", "{68D230F3-CF80-4859-8CE7-A43EE81993B5}"]),
@@ -19,7 +18,9 @@ extension PptxTemplates {
         ("Medium Style 4", "{D7AC3CCA-C797-4891-BE02-D94E43425B78}", ["{69CF1AB2-1976-4502-BF36-3FF5EA218861}", "{8A107856-5554-42FB-B03E-39F5DBC370BA}", "{0505E3EF-67EA-436B-97B2-0124C06EBD24}", "{C4B1156A-380E-4F78-BDF5-A606A8083BF9}", "{22838BEF-8BB2-4498-84A7-C5851F593DF1}", "{16D9F66E-5EB9-4882-86FB-DCBF35E3C3E4}"]),
         ("Dark Style 1", "{E8034E78-7F5D-4C2E-B375-FC64B27BC917}", ["{125E5076-3810-47DD-B79F-674D7AD40C01}", "{37CE84F3-28C3-443E-9E96-99CF82512B78}", "{D03447BB-5D67-496B-8E87-E561075AD55C}", "{E929F9F4-4A8F-4326-A1B4-22849713DDAB}", "{8FD4443E-F989-4FC4-A0C8-D5A2AF1F390B}", "{AF606853-7671-496A-8E4F-DF71F8EC918B}"]),
         ("Dark Style 2", "{5202B0CA-FC54-4496-8BCA-5EF66A818D29}", ["{0660B408-B3CF-4A94-85FC-2B1E0A45F4A2}", "{91EBBBCC-DAD2-459C-BE2E-F6DE35CF9A28}", "{46F890A9-2807-4EBB-B81D-B2AA78EC7F39}"]),
-        ]
+    ]
+    static let builtinTableStyleFamilies: [String: String] = {
+        let families = builtinTableStyleFamilyList
         let ns = "xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\""
         func clr(_ c: String, _ mod: String = "") -> String {
             mod.isEmpty ? "<a:schemeClr val=\"\(c)\"/>" : "<a:schemeClr val=\"\(c)\">\(mod)</a:schemeClr>"

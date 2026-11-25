@@ -254,6 +254,31 @@ final class Worksheet {
     var showGridlines = true
     /// Part of a selected group of sheets (tabSelected on several sheetViews).
     var tabSelected = false
+    /// The view settings the sheet's own `sheetView` carries, kept in `viewAttrs` so they save as read.
+    /// Zoom in percent (10 to 400); 100 is the default and is not written.
+    var zoomPercent: Int {
+        get { viewAttrs["zoomScale"].flatMap { Int($0) } ?? 100 }
+        set {
+            let z = max(10, min(400, newValue))
+            if z == 100 { viewAttrs["zoomScale"] = nil; viewAttrs["zoomScaleNormal"] = nil }
+            else { viewAttrs["zoomScale"] = String(z); viewAttrs["zoomScaleNormal"] = String(z) }
+        }
+    }
+    /// Row numbers and column letters (Excel's "Headings").
+    var showHeadings: Bool {
+        get { viewAttrs["showRowColHeaders"] != "0" }
+        set { viewAttrs["showRowColHeaders"] = newValue ? nil : "0" }
+    }
+    /// Cells show their formulas, not their results (Ctrl+`).
+    var showFormulas: Bool {
+        get { viewAttrs["showFormulas"] == "1" }
+        set { viewAttrs["showFormulas"] = newValue ? "1" : nil }
+    }
+    /// Right-to-left sheet: column A at the right edge.
+    var rightToLeft: Bool {
+        get { viewAttrs["rightToLeft"] == "1" }
+        set { viewAttrs["rightToLeft"] = newValue ? "1" : nil }
+    }
     /// The active cell as saved, restored on open and written on save.
     var savedActive: CellAddress? = nil
     /// The sheet's default sizes, in points.

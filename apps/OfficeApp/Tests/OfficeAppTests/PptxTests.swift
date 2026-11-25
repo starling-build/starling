@@ -698,6 +698,124 @@ final class DeepGroupTests: XCTestCase {
         XCTAssertNotNil(cell(1, 0)?.fill)
     }
 
+    /// S-TB-1d: a gallery style recolours the table, keeps shading and switches, undoes, and survives a save.
+    func testTableGalleryStyleRecoloursAndRoundTrips() throws {
+        let deck = DeckController()
+        deck.slides[0].shapes.removeAll()
+        let t = deck.addTable(rows: 3, columns: 2)
+        deck.selectShapes([t])
+        func para(_ r: Int, _ c: Int) -> RichParagraph? { t.text!.document.paragraphs.first { $0.cell?.row == r && $0.cell?.column == c } }
+        let yellow = Color(0xFFFFFF00)
+        deck.setTableShading(yellow, block: CellBlock(table: t.tableId!, rows: 2...2, columns: 0...0))
+        let green = deck.tableLookColor(.accent(4))!
+        deck.applyTableLook(.accent(4))
+        XCTAssertEqual(t.text!.document.tableStyles[t.tableId!]?.headerFill, green)
+        XCTAssertEqual(para(2, 0)?.cell?.fill, yellow)
+        XCTAssertEqual(deck.selectedTableOptions?.headerRow, true)
+        // The file names the real style (Medium Style 2 - Accent 5) and holds no fill but the user's yellow.
+        func saved(_ d: DeckController) throws -> String {
+            let package = PptxPackage(try Zip.read(try Pptx.write(d)))
+            return String(data: package.parts["ppt/slides/slide1.xml"]!, encoding: .utf8)!
+        }
+        let xml = try saved(deck)
+        XCTAssertTrue(xml.contains("<a:tableStyleId>{7DF18680-E054-41AD-8BC1-D1AEF772440D}</a:tableStyleId>"))
+        let cellFills = xml.components(separatedBy: "<a:tcPr").dropFirst().map { String($0.components(separatedBy: "</a:tcPr>")[0]) }
+            .filter { $0.contains("solidFill") }
+        XCTAssertEqual(cellFills.count, 1)
+        XCTAssertTrue(cellFills[0].contains(PptxText.hex(yellow)))
+        let (state, _, _) = try Pptx.read(Pptx.write(deck))
+        let again = DeckController(); again.restore(state)
+        let t2 = again.slides[0].shapes.first { $0.kind == .table }!
+        XCTAssertEqual(t2.text!.document.tableStyles[t2.tableId!]?.styleId, "{7DF18680-E054-41AD-8BC1-D1AEF772440D}")
+        // Read back, the style still draws from the fifth accent, and saving again adds no fills.
+        XCTAssertEqual(t2.text!.document.tableStyles[t2.tableId!]?.headerFill, green)
+        let again2 = try saved(again)
+        // (Edge lines the reader copies from the style are borders, not fills: cut them out first.)
+        let noLines = again2.replacingOccurrences(of: "<a:ln[LRTB][^>]*>.*?</a:ln[LRTB]>", with: "", options: .regularExpression)
+        XCTAssertEqual(noLines.components(separatedBy: "<a:tcPr").dropFirst().map { String($0.components(separatedBy: "</a:tcPr>")[0]) }
+            .filter { $0.contains("solidFill") }.count, 1)
+        deck.applyTableLook(.plain)
+        let st = t.text!.document.tableStyles[t.tableId!]
+        XCTAssertNil(st?.headerFill); XCTAssertNil(st?.bandFill)
+        XCTAssertEqual(st?.styleId, "{5940675A-B579-460E-94D1-54222C63F5DA}")
+        XCTAssertNil(para(0, 0)?.runs.first?.style.color)
+        XCTAssertEqual(para(0, 0)?.runs.first?.style.bold, true)
+        deck.undo()
+        XCTAssertEqual(t.text!.document.tableStyles[t.tableId!]?.headerFill, green)
+    }
+
+    /// S-TB-1d: a table in a family beyond Medium Style 2 (Dark Style 1, Accent 2) is drawn from the style's definition,
+    /// the file names the style and holds no fill of the style's, the user's own shading stays, undo restores.
+    func testTableFamilyStyleDrawsFromTheDefinition() throws {
+        let deck = DeckController()
+        deck.slides[0].shapes.removeAll()
+        let t = deck.addTable(rows: 3, columns: 2)
+        deck.selectShapes([t])
+        let yellow = Color(0xFFFFFF00)
+        deck.setTableShading(yellow, block: CellBlock(table: t.tableId!, rows: 2...2, columns: 0...0))
+        let dark = PptxTemplates.builtinTableStyleFamilyList.first { $0.0 == "Dark Style 1" }!.2[1]
+        let before = t.text!.document.tableStyles[t.tableId!]
+        deck.applyTableLook(.builtin(dark))
+        let st = t.text!.document.tableStyles[t.tableId!]
+        XCTAssertEqual(st?.styleId, dark)
+        XCTAssertNotNil(st?.bandFill)
+        XCTAssertNotEqual(st?.bandFill, before?.bandFill)
+        func cell(_ r: Int, _ c: Int) -> CellRef? { t.text!.document.paragraphs.first { $0.cell?.row == r && $0.cell?.column == c }?.cell }
+        XCTAssertEqual(cell(2, 0)?.fill, yellow)
+        XCTAssertNotEqual(cell(2, 0)?.styleFilled, true)
+        let head = t.text!.document.paragraphs.first { $0.cell?.row == 0 && $0.cell?.column == 0 }
+        XCTAssertEqual(head?.runs.first?.style.bold, true)
+        let package = PptxPackage(try Zip.read(try Pptx.write(deck)))
+        let xml = String(data: package.parts["ppt/slides/slide1.xml"]!, encoding: .utf8)!
+        XCTAssertTrue(xml.contains("<a:tableStyleId>\(dark)</a:tableStyleId>"))
+        let fills = xml.components(separatedBy: "<a:tcPr").dropFirst().map { String($0.components(separatedBy: "</a:tcPr>")[0]) }
+            .filter { $0.contains("solidFill") }
+        XCTAssertEqual(fills.count, 1)
+        deck.undo()
+        XCTAssertEqual(t.text!.document.tableStyles[t.tableId!]?.styleId, before?.styleId)
+    }
+
+    /// S-TB-1d: Table Grid has no header fill, so its header text must not stay white from the old style; and Dark Style 2's
+    /// first id is the Accent 1/Accent 2 pair (header in accent 2).
+    func testTableGridHeaderTextAndDarkStyle2Pair() throws {
+        let deck = DeckController()
+        deck.slides[0].shapes.removeAll()
+        let t = deck.addTable(rows: 3, columns: 2)
+        deck.selectShapes([t])
+        deck.applyTableLook(.builtin(DeckController.TableLook.plain.styleId))
+        let head = t.text!.document.paragraphs.first { $0.cell?.row == 0 && $0.cell?.column == 0 }
+        XCTAssertNotEqual(head?.runs.first?.style.color, Color(0xFFFFFFFF))
+        let pair = PptxTemplates.builtinTableStyleFamilyList.first { $0.0 == "Dark Style 2" }!.2
+        XCTAssertEqual(pair.count, 3)
+        deck.applyTableLook(.builtin(pair[0]))
+        XCTAssertEqual(t.text!.document.tableStyles[t.tableId!]?.headerFill, deck.theme.accents[1])
+        let back = t.text!.document.paragraphs.first { $0.cell?.row == 0 && $0.cell?.column == 0 }
+        XCTAssertEqual(back?.runs.first?.style.color, Color(0xFFFFFFFF))
+    }
+
+    /// Picking a style never moves the user's switches (header row, banded rows, first column...), through Table Grid, a family and back, and a save.
+    func testStylePickKeepsTableSwitches() throws {
+        let deck = DeckController()
+        deck.slides[0].shapes.removeAll()
+        let t = deck.addTable(rows: 3, columns: 2)
+        deck.selectShapes([t])
+        var o = try XCTUnwrap(deck.selectedTableOptions)
+        o.bandedRows = true; o.firstColumn = true
+        deck.setTableOptions(o)
+        let want = deck.selectedTableOptions
+        XCTAssertTrue(want?.bandedRows ?? false)
+        let pair = PptxTemplates.builtinTableStyleFamilyList.first { $0.0 == "Dark Style 2" }!.2
+        for look in [DeckController.TableLook.builtin(DeckController.TableLook.plain.styleId), .builtin(pair[0]), .plain, .accent(2)] {
+            deck.applyTableLook(look)
+            XCTAssertEqual(deck.selectedTableOptions, want)
+        }
+        deck.applyTableLook(.builtin(DeckController.TableLook.plain.styleId))
+        let (state, _, _) = try Pptx.read(Pptx.write(deck))
+        let again = DeckController(); again.restore(state)
+        again.selectShapes([again.slides[0].shapes.first { $0.kind == .table }!])
+        XCTAssertEqual(again.selectedTableOptions, want)
+    }
+
     /// S-TB-1b: shading some cells of a table undoes and survives a save, other cells keep the style's.
     func testTableCellShadingRoundTripAndUndo() throws {
         let deck = DeckController()

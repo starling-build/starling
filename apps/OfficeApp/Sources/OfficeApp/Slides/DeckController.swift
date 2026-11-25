@@ -1045,7 +1045,7 @@ final class DeckController: ChangeNotifier {
         let st = doc.tableStyles[id] ?? TableStyle()
         // Banding is on when the two band colours differ: a file with banding off
         // reads back with both set to the table's own background.
-        return TableOptions(headerRow: st.headerRow, bandedRows: st.bandFill != nil && st.bandFill != st.bandAltFill,
+        return TableOptions(headerRow: st.headerRow, bandedRows: st.bandRows ?? (st.bandFill != nil && st.bandFill != st.bandAltFill),
                             firstColumn: st.firstColumn, lastColumn: st.lastColumn, totalRow: st.totalRow, bandedColumns: st.bandedColumns)
     }
 
@@ -1070,17 +1070,77 @@ final class DeckController: ChangeNotifier {
 
     /// Set the selected table's header row and banded rows: one undo step.
     /// Turning one back on restores the theme-accent look.
-    func setTableOptions(_ o: TableOptions) {
+    /// A table style from the gallery: a colour for the emphasised cells and
+    /// bands (the theme's six accents, dark grey), or `.plain`: no fills, dark
+    /// text, black grid.
+    enum TableLook: Equatable {
+        case plain
+        case accent(Int)
+        /// Any other built-in style, by its id (Themed, Light, Medium 1/3/4, Dark, in every colour).
+        case builtin(String)
+
+        /// The PowerPoint built-in table style it names: "No Style, Table Grid", or "Medium Style 2 - Accent N".
+        var styleId: String {
+            switch self {
+            case .plain: return "{5940675A-B579-460E-94D1-54222C63F5DA}"
+            case .accent(let i):
+                return DeckController.mediumStyle2Ids[min(max(i, 0), 5)]
+            case .builtin(let id): return id
+            }
+        }
+    }
+
+    /// "Medium Style 2 - Accent 1" to "- Accent 6".
+    static let mediumStyle2Ids = ["{5C22544A-7EE6-4342-B048-85BDC9FD1C3A}", "{21E4AEA4-8DFA-4A89-87EB-49C32662AFE0}",
+                                  "{F5AB1C69-6EDB-4FF4-983F-18BD219EF322}", "{00A15C55-8517-42AA-B614-E9B94910E393}",
+                                  "{7DF18680-E054-41AD-8BC1-D1AEF772440D}", "{93296810-A885-4BE3-A3E7-6D5BEEA58F35}"]
+
+    /// The colour a gallery choice paints with; nil for plain.
+    func tableLookColor(_ l: TableLook) -> Color? {
+        switch l {
+        case .plain: return nil
+        case .accent(let i): return theme.accents[min(max(i, 0), theme.accents.count - 1)]
+        case .builtin: return nil
+        }
+    }
+
+    /// Give the selected table a gallery style: one undo step. Header, band
+    /// and column switches stay as they are; the user's own shading stays too.
+    func applyTableLook(_ l: TableLook) { setTableOptions(selectedTableOptions ?? TableOptions(), look: l) }
+
+    func setTableOptions(_ o: TableOptions, look chosen: TableLook? = nil) {
         guard let s = selection.first, s.kind == .table, let id = s.tableId, let text = s.text,
-              o != selectedTableOptions else { return }
+              chosen != nil || o != selectedTableOptions else { return }
         _checkpoint()
         var doc = text.document
+        // A table in (or moving to or from) a family drawn from the style's definition.
+        let oldId = doc.tableStyles[id]?.styleId
+        if let sid = chosen?.styleId ?? oldId, DeckController.drawsFromDefinition(sid) || DeckController.drawsFromDefinition(oldId) {
+            dressTable(&doc, shape: s, tableId: id, styleId: sid, options: o)
+            text.load(doc)
+            _changed()
+            return
+        }
         var st = doc.tableStyles[id] ?? TableStyle()
-        let look = tableStyle(accent: theme.accents[0])
+        // The colour the table is painted with now: the header's fill (the
+        // gallery's pick, or the theme's first accent when none is kept).
+        let oldAccent = st.headerFill ?? theme.accents[0]
+        if let chosen { st.styleId = chosen.styleId }
+        let plain = chosen == .plain || (chosen?.styleId).map { $0 == TableLook.plain.styleId } == true
+        let base = chosen.flatMap { tableLookColor($0) } ?? oldAccent
+        let look = tableStyle(accent: base)
         st.headerRow = o.headerRow
-        st.headerFill = o.headerRow ? (st.headerFill ?? look.headerFill) : nil
-        st.bandFill = o.bandedRows ? (st.bandFill ?? look.bandFill) : nil
-        st.bandAltFill = o.bandedRows ? (st.bandAltFill ?? look.bandAltFill) : nil
+        st.bandRows = plain ? o.bandedRows : nil
+        if chosen != nil {
+            st.headerFill = o.headerRow && !plain ? look.headerFill : nil
+            st.bandFill = o.bandedRows && !plain ? look.bandFill : nil
+            st.bandAltFill = o.bandedRows && !plain ? look.bandAltFill : nil
+            st.borderColor = plain ? Color(0xFF000000) : Color(0xFFFFFFFF)
+        } else {
+            st.headerFill = o.headerRow ? (st.headerFill ?? look.headerFill) : nil
+            st.bandFill = o.bandedRows ? (st.bandFill ?? look.bandFill) : nil
+            st.bandAltFill = o.bandedRows ? (st.bandAltFill ?? look.bandAltFill) : nil
+        }
         // Emphasised cells (header row, total row, first and last column) are
         // white bold on the accent; banded columns tint every other column.
         // The fills are baked per cell: a fill that is one of our two
@@ -1094,23 +1154,27 @@ final class DeckController: ChangeNotifier {
             (c.row == 0 && t.headerRow) || (c.row + c.rowSpan - 1 == maxRow && t.totalRow)
                 || (c.column == 0 && t.firstColumn) || (c.column + c.span - 1 == maxCol && t.lastColumn)
         }
-        let white = Color(0xFFFFFFFF), accent = look.headerFill, tint = DeckController.tint(theme.accents[0], 0.40)
+        let white = Color(0xFFFFFFFF), accent = look.headerFill, tint = DeckController.tint(base, 0.40)
+        let ink: Color? = plain ? nil : white
         for i in doc.paragraphs.indices {
             guard var c = doc.paragraphs[i].cell, c.table == id else { continue }
             let wasE = emphasised(c, was), nowE = emphasised(c, o)
-            if wasE != nowE {
+            if wasE != nowE || (chosen != nil && nowE) {
                 var runs = doc.paragraphs[i].runs.isEmpty ? [Run(length: doc.paragraphs[i].text.count)] : doc.paragraphs[i].runs
                 for j in runs.indices {
-                    if nowE { runs[j].style.bold = true; runs[j].style.color = white }
-                    else { runs[j].style.bold = false; if runs[j].style.color == white { runs[j].style.color = nil } }
+                    if nowE {
+                        runs[j].style.bold = true
+                        if runs[j].style.color == nil || runs[j].style.color == white { runs[j].style.color = ink }
+                    } else { runs[j].style.bold = false; if runs[j].style.color == white { runs[j].style.color = nil } }
                 }
                 doc.paragraphs[i].runs = runs
             }
-            if c.fill == accent || c.fill == tint { c.fill = nil }
+            // A fill the style gave (ours to move) goes; one the user set stays.
+            if c.styleFilled == true { c.fill = nil; c.styleFilled = nil }
             let headerCell = c.row == 0 && o.headerRow
-            if c.fill == nil, !headerCell {
-                if nowE { c.fill = accent }
-                else if o.bandedColumns, c.column - (o.firstColumn ? 1 : 0) >= 0, (c.column - (o.firstColumn ? 1 : 0)) % 2 == 0 { c.fill = tint }
+            if c.fill == nil, !headerCell, !plain {
+                if nowE { c.fill = accent; c.styleFilled = true }
+                else if o.bandedColumns, c.column - (o.firstColumn ? 1 : 0) >= 0, (c.column - (o.firstColumn ? 1 : 0)) % 2 == 0 { c.fill = tint; c.styleFilled = true }
             }
             doc.paragraphs[i].cell = c
         }
@@ -1209,7 +1273,9 @@ final class DeckController: ChangeNotifier {
             }
         }
         var doc = RichDocument(paragraphs: paragraphs)
-        doc.tableStyles[id] = tableStyle(accent: theme.accents[0])
+        var firstStyle = tableStyle(accent: theme.accents[0])
+        firstStyle.styleId = Self.mediumStyle2Ids[0]
+        doc.tableStyles[id] = firstStyle
         let w = min(slideSize.width * 0.8, Double(cols) * 144)
         let h = Double(rows) * 30
         let shape = SlideShape(id: _id(), name: "Table \(_nextId)", kind: .table,
@@ -1464,7 +1530,19 @@ final class DeckController: ChangeNotifier {
         for s in selection where s.preset?.isLine != true {
             s.fill = color
             s.fillScheme = scheme
+            s.fillStyle = nil              // a gradient or picture gives way to the chosen fill
+            s.keptLook?.fillReplaced = true
         }
+        _changed()
+    }
+
+    /// Fill transparency in percent (0 solid, 100 clear) on the selected shapes that have a fill.
+    func setFillTransparency(_ percent: Double) {
+        let a = Int(((100 - min(100, max(0, percent))) / 100 * 255).rounded())
+        let targets = selection.filter { $0.preset?.isLine != true && $0.fill != nil }
+        guard !targets.isEmpty else { return }
+        _checkpoint()
+        for s in targets { s.fill = Color((a << 24) | (s.fill!.value & 0xFFFFFF)); s.fillStyle = nil; s.keptLook?.fillReplaced = true }
         _changed()
     }
 
@@ -1491,7 +1569,9 @@ final class DeckController: ChangeNotifier {
             for shape in slide.shapes {
                 if shape.kind == .table, shape.fillScheme != nil, let id = shape.tableId, let text = shape.text {
                     var doc = text.document
+                    let kept = doc.tableStyles[id]?.styleId
                     doc.tableStyles[id] = tableStyle(accent: new.accents[0])
+                    doc.tableStyles[id]?.styleId = kept
                     text.load(doc)
                 } else if let scheme = shape.fillScheme, let i = Int(scheme.dropFirst(6)), (1 ... 6).contains(i) {
                     let c = new.accents[i - 1]
@@ -1539,7 +1619,11 @@ final class DeckController: ChangeNotifier {
     func setOutline(_ color: Color?) {
         guard !selection.isEmpty else { return }
         _checkpoint()
-        for s in selection { s.outline = color }
+        for s in selection {
+            s.outline = color
+            s.outlineFill = nil
+            s.keptLook?.lineReplaced = true
+        }
         _changed()
     }
 
@@ -1867,7 +1951,7 @@ final class DeckController: ChangeNotifier {
         _changed()
     }
 
-    private func _state(_ s: SlideShape) -> ShapeState {
+    func _state(_ s: SlideShape) -> ShapeState {
         var st = ShapeState(id: s.id, name: s.name, kind: s.kind, frame: s.frame, rotation: s.rotation,
                    fill: s.fill, outline: s.outline, outlineWidth: s.outlineWidth, anchor: s.anchor,
                    insets: s.insets, prompt: s.prompt, text: s.text?.document,

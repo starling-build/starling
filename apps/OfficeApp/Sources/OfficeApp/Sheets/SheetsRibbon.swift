@@ -26,6 +26,8 @@ enum SheetCommand {
     case conditionalFormat         // Home → Conditional Formatting
     case dataValidation            // Data → Data Validation
     case consolidate               // Data → Consolidate
+    case scenarioManager           // Data → What-If Analysis → Scenario Manager
+    case goalSeek                  // Data → What-If Analysis → Goal Seek
     case removeDuplicates          // Data → Remove Duplicates
     case textToColumns             // Data → Text to Columns
     case subtotal                  // Data → Subtotal
@@ -190,10 +192,12 @@ extension Ribbon {
             ]),
             Chrome.menu(Text("Clear", style: fluent.typography.caption), Icon(FluentSystemIcons.textClearFormatting, size: Chrome.iconSize,
                         color: fluent.resources.textFillColorPrimary), fluent, [
-                ("Clear All", { wb.clearContents(); wb.setStyle { $0 = .plain } }),
+                ("Clear All", { wb.clearAll() }),
                 ("Clear Formats", { wb.setStyle { $0 = .plain } }),
                 ("Clear Contents", { wb.clearContents() }),
-            ]),
+                ("Clear Comments", { wb.clearComments() }),
+                ("Clear Hyperlinks", { wb.removeLink(wb.selection) }),
+            ], keyPrefix: "sheets.clear"),
         ]), Chrome.rows([
             Chrome.small(FluentSystemIcons.search, "Find", fluent) { [session] in session.onFind?(false) },
             Chrome.small(FluentSystemIcons.textGrammarWand, "Replace", fluent) { [session] in session.onFind?(true) },
@@ -361,6 +365,7 @@ extension Ribbon {
             Chrome.big(FluentSystemIcons.columns, "Text to Columns", fluent) { wb.onCommand?(.textToColumns) },
             Chrome.big(FluentSystemIcons.numberList, "Subtotal", fluent) { wb.onCommand?(.subtotal) },
             Chrome.big(FluentSystemIcons.numberList, "Consolidate", fluent) { wb.onCommand?(.consolidate) },
+            Chrome.big(FluentSystemIcons.numberList, "Scenario Manager", fluent) { wb.onCommand?(.scenarioManager) },
             Chrome.rows([
                 Chrome.small(FluentSystemIcons.check, "Circle Invalid Data", fluent) {
                     let n = wb.circleInvalidData()
@@ -368,6 +373,7 @@ extension Ribbon {
                 },
                 Chrome.small(FluentSystemIcons.close, "Clear Validation Circles", fluent) { wb.clearValidationCircles() },
             ]),
+            Chrome.big(FluentSystemIcons.check, "Goal Seek", fluent) { wb.onCommand?(.goalSeek) },
         ])
     }
 
@@ -405,8 +411,10 @@ extension Ribbon {
                 MenuFlyoutItem(text: Text("Freeze First Column"), onPressed: { wb.freeze(at: CellAddress(row: 0, col: 1)) }),
             ]),
             Chrome.textToggle("Gridlines", wb.sheet.showGridlines, fluent, style: fluent.typography.caption) {
-                wb.structural { wb.sheet.showGridlines.toggle() }
+                wb.toggleGridlines()
             },
+            Chrome.textToggle("Headings", wb.sheet.showHeadings, fluent, style: fluent.typography.caption) { wb.toggleHeadings() },
+            Chrome.textToggle("Show Formulas", wb.sheet.showFormulas, fluent, style: fluent.typography.caption) { wb.toggleShowFormulas() },
             Chrome.textToggle("Page Break Preview", wb.breakPreview, fluent, style: fluent.typography.caption) {
                 wb.breakPreview.toggle(); wb._notify()
             },

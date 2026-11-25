@@ -263,7 +263,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
     /// and no headers, panes, editor or filter dropdowns.
     var printing = false
     var zoom: Double { printing ? 0.75 : _w.zoom }
-    var headerWidth: Double { printing ? 0 : outlineWidth + (40 + Double(max(0, String(_lastVisibleRow + 1).count - 3)) * 8) * zoom }
+    var headerWidth: Double { printing ? 0 : outlineWidth + (!controller.sheet.showHeadings ? 0 : 40 + Double(max(0, String(_lastVisibleRow + 1).count - 3)) * 8) * zoom }
     /// The outline gutters, left of the row numbers and above the column
     /// letters: a lane per level, and one more for the last level button.
     var outlineWidth: Double { _gutter(_outline().rowLevel) }
@@ -307,7 +307,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         let o = _at(axis, along: along, across: across)
         return Rect.fromLTWH(o.dx, o.dy, 12 * zoom, 12 * zoom)
     }
-    var headerHeight: Double { printing ? 0 : outlineHeight + 20 * zoom }
+    var headerHeight: Double { printing ? 0 : outlineHeight + (controller.sheet.showHeadings ? 20 * zoom : 0) }
     private var _lastVisibleRow = 0
 
     var cols: GridAxis { _axes().cols }
@@ -1363,6 +1363,8 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         let named = KeyChordTracker.named(k.logical)
         let c = controller
 
+        // ⌃` shows the formulas in the cells, or their results again.
+        if edit == nil, _chords.control || _chords.primary, k.logical == 0x60 { c.toggleShowFormulas(); return true }
         // ⌃; today's date, ⌃⇧; the time, typed into the cell as Excel puts
         // them (the editor opens with it, as if typed).
         if _chords.control || _chords.primary, k.logical == 0x3B || k.logical == 0x3A {
@@ -2188,7 +2190,10 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
 
     /// The hovered cell's note: a pale yellow box to its right, author first.
     private func _paintNote(_ canvas: any Canvas, ink: Color) {
-        guard let a = _hoverNote, let note = controller.sheet.notes.first(where: { $0.at == a }) else { return }
+        // (A finger cannot hover: once one has touched the grid, the active cell's note is the one shown, as a tap on
+        // the cell selects it, and it goes when another cell is selected.)
+        let touched = _touchSeen && controller.sheet.notes.contains(where: { $0.at == controller.active }) ? controller.active : nil
+        guard let a = _hoverNote ?? touched, let note = controller.sheet.notes.first(where: { $0.at == a }) else { return }
         let r = rect(a)
         let width = 200 * zoom, pad = 6 * zoom
         let body = GridTextStyle(family: OfficeFonts.drawn("Segoe UI"), size: 12 * zoom, color: Int64(0xFF00_0000))
@@ -2525,12 +2530,13 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         let headStyle = GridTextStyle(family: SelawikFontName.regular, size: 11 * zoom, color: Int64(headerInk.value))
         let headStrong = GridTextStyle(family: SelawikFontName.regular, size: 11 * zoom, bold: true, color: Int64(accent.value))
         let headFiltered = GridTextStyle(family: SelawikFontName.regular, size: 11 * zoom, color: Int64(0xFF2F6FDF))
+        let headings = ws.showHeadings
         let filterActive = ws.autoFilter?.isActive ?? false
         let wholeCols = sel.top == 0 && sel.bottom == CellAddress.maxRows - 1
         let wholeRows = sel.left == 0 && sel.right == CellAddress.maxCols - 1
         canvas.save()
         canvas.clipRect(Rect.fromLTRB(hw, 0, size.width, hh))
-        for col in allC {
+        for col in (headings ? allC : []) {
             let x0 = colX(col), x1 = x0 + ca.size(col)
             if fc > 0 && col >= fc && x0 < hw + fw { continue }
             let on = col >= sel.left && col <= sel.right
@@ -2550,7 +2556,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         canvas.restore()
         canvas.save()
         canvas.clipRect(Rect.fromLTRB(0, hh, hw, size.height))
-        for row in allR {
+        for row in (headings ? allR : []) {
             let y0 = rowY(row), y1 = y0 + ra.size(row)
             if fr > 0 && row >= fr && y0 < hh + fh { continue }
             let on = row >= sel.top && row <= sel.bottom
@@ -2589,6 +2595,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             }
         }
         // The corner: a triangle that selects everything.
+        guard headings else { return }
         p.color = dark ? Color(0xFF5A5A5A) : Color(0xFFBDBDBD)
         let path = Path()
         path.moveTo(hw - 4, hh - 14 * zoom)
@@ -3113,6 +3120,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             chars = max(1, Int(width / (7 * zoom)))
         }
         var (text, color) = NumberFormat.display(cell.value, st.numberFormat, width: chars, pads: true)
+        if ws.showFormulas, cell.formula != nil { text = cell.input }   // Ctrl+`: the formula, not its result
         if cell.value.isText, !st.wrap { text = Self.shown(text) }
         var style = _textStyle(st, color: color, ink: ink)
         // Pads before the text (`_W0`, Accounting's `_(@_)`) are a gap of
