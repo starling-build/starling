@@ -80,6 +80,7 @@ let appTarget: Target = {
                 .product(name: "FlutterSwiftBridge", package: "FlutterSwift"),
                 .product(name: "SwiftRuntime", package: "FlutterSwift"),
                 .product(name: "FluentSystemIcons", package: "FlutterSwift"),
+                .product(name: "CupertinoIcons", package: "FlutterSwift"),
                 "OfficeText",
                 "CZlib",
                 .product(name: "FlutterUIKit", package: "FlutterSwift"),
@@ -103,6 +104,9 @@ let appTarget: Target = {
             .product(name: "FlutterSwiftBridge", package: "FlutterSwift"),
             .product(name: "SwiftRuntime", package: "FlutterSwift"),
             .product(name: "FluentSystemIcons", package: "FlutterSwift"),
+            // Ribbon.swift imports it; FlutterShared carries it on Linux, but here nothing else builds it, and a
+            // plain `swift build` stopped at "no such module 'CupertinoIcons'".
+            .product(name: "CupertinoIcons", package: "FlutterSwift"),
             "OfficeText",
             "CZlib",
             .product(name: "FlutterCocoa", package: "FlutterSwift"),
