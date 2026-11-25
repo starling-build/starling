@@ -1,0 +1,156 @@
+// Copyright the Starling authors
+// SPDX-License-Identifier: Apache-2.0
+
+import Flutter
+
+/// Layout Options for a floating picture: how the text wraps round it, and where it stands. Both patch the picture's
+/// kept `wp:anchor` markup (the one source the layout and the writer read) and the matching `ImageFloat` flags, as one undo step.
+
+/// Word's wrapping choices for a picture that floats (In Line with Text is a different kind of object, not a wrap).
+public enum PictureWrap: String, CaseIterable, Sendable {
+    case square, tight, through, topAndBottom, behindText, inFrontOfText
+
+    public var title: String {
+        switch self {
+        case .square: return "Square"
+        case .tight: return "Tight"
+        case .through: return "Through"
+        case .topAndBottom: return "Top and Bottom"
+        case .behindText: return "Behind Text"
+        case .inFrontOfText: return "In Front of Text"
+        }
+    }
+
+    /// The `wp:wrap…` element Word writes for this choice.
+    var element: String {
+        let polygon = "<wp:wrapPolygon edited=\"0\"><wp:start x=\"0\" y=\"0\"/><wp:lineTo x=\"0\" y=\"21600\"/>"
+            + "<wp:lineTo x=\"21600\" y=\"21600\"/><wp:lineTo x=\"21600\" y=\"0\"/><wp:lineTo x=\"0\" y=\"0\"/></wp:wrapPolygon>"
+        switch self {
+        case .square: return "<wp:wrapSquare wrapText=\"bothSides\"/>"
+        case .tight: return "<wp:wrapTight wrapText=\"bothSides\">" + polygon + "</wp:wrapTight>"
+        case .through: return "<wp:wrapThrough wrapText=\"bothSides\">" + polygon + "</wp:wrapThrough>"
+        case .topAndBottom: return "<wp:wrapTopAndBottom/>"
+        case .behindText, .inFrontOfText: return "<wp:wrapNone/>"
+        }
+    }
+
+    var behind: Bool { self == .behindText }
+}
+
+extension String {
+    /// This `wp:anchor` markup with its wrapping element replaced by `wrap`'s and `behindDoc` set to match; nil when it holds no
+    /// anchor or no wrapping element.
+    static func _anchorWrapped(_ xml: String, _ wrap: PictureWrap) -> String? {
+        guard let anchor = xml.rangeOfSubstring("<wp:anchor"),
+              let tagEnd = xml.rangeOfSubstring(">", in: anchor.upperBound ..< xml.endIndex),
+              let open = xml.rangeOfSubstring("<wp:wrap", in: tagEnd.upperBound ..< xml.endIndex),
+              !xml[open.lowerBound...].hasPrefix("<wp:wrapPolygon") else { return nil }
+        // The element's name, then its end: self-closing, or up to its closing tag.
+        var nameEnd = open.upperBound
+        while nameEnd < xml.endIndex, !" />".contains(xml[nameEnd]) { nameEnd = xml.index(after: nameEnd) }
+        let name = "<wp:wrap" + String(xml[open.upperBound ..< nameEnd])
+        guard let gt = xml.rangeOfSubstring(">", in: nameEnd ..< xml.endIndex) else { return nil }
+        var end = gt.upperBound
+        if xml[xml.index(before: gt.lowerBound)] != "/" {
+            let close = "</" + name.dropFirst()
+            guard let c = xml.rangeOfSubstring(close + ">", in: gt.upperBound ..< xml.endIndex) else { return nil }
+            end = c.upperBound
+        }
+        var out = String(xml[xml.startIndex ..< open.lowerBound]) + wrap.element + String(xml[end...])
+        // behindDoc on the anchor's own tag.
+        guard let a = out.rangeOfSubstring("<wp:anchor"), let e = out.rangeOfSubstring(">", in: a.upperBound ..< out.endIndex) else { return nil }
+        var tag = String(out[a.lowerBound ..< e.lowerBound])
+        if let b = tag.rangeOfSubstring(" behindDoc=\""), let q = tag.rangeOfSubstring("\"", in: b.upperBound ..< tag.endIndex) {
+            tag.removeSubrange(b.lowerBound ..< q.upperBound)
+        }
+        tag += " behindDoc=\"\(wrap.behind ? 1 : 0)\""
+        out = String(out[out.startIndex ..< a.lowerBound]) + tag + String(out[e.lowerBound...])
+        return out
+    }
+
+    /// This `wp:anchor` markup with its horizontal and vertical offsets (`wp:posOffset`, EMU) set; nil when a position is held in
+    /// a way this does not rewrite (a share of the page, `wp14:pctPos…`) or the markup holds no anchor.
+    static func _anchorMoved(_ xml: String, x: Int, y: Int) -> String? {
+        guard !xml.containsSubstring("pctPos") else { return nil }
+        func set(_ xml: String, _ element: String, _ value: Int) -> String? {
+            guard let open = xml.rangeOfSubstring("<wp:\(element)"),
+                  let tagEnd = xml.rangeOfSubstring(">", in: open.upperBound ..< xml.endIndex),
+                  let close = xml.rangeOfSubstring("</wp:\(element)>", in: tagEnd.upperBound ..< xml.endIndex),
+                  xml[xml.index(before: tagEnd.lowerBound)] != "/" else { return nil }
+            return String(xml[xml.startIndex ..< tagEnd.upperBound]) + "<wp:posOffset>\(value)</wp:posOffset>" + String(xml[close.lowerBound...])
+        }
+        guard xml.containsSubstring("<wp:anchor"), let h = set(xml, "positionH", x) else { return nil }
+        return set(h, "positionV", y)
+    }
+}
+
+extension RichDocumentController {
+    /// The floating picture at paragraph `index` (its own, or inline picture `id`) with its kept anchor markup, or nil.
+    private func _floating(_ index: Int, _ id: String?) -> ImageAttachment? {
+        guard index < document.paragraphs.count else { return nil }
+        let image = id.map { document.paragraphs[index].inlineImages[$0] } ?? document.paragraphs[index].image
+        guard let image, image.float != nil, image.sourceXML?.containsSubstring("<wp:anchor") == true else { return nil }
+        return image
+    }
+
+    private func _store(_ index: Int, _ id: String?, old: ImageAttachment, new: ImageAttachment) {
+        if let id { edit { perform(.setInlineImage(index, id: id, old: old, new: new)) } }
+        else { edit { perform(.setImage(index, old: old, new: new)) } }
+    }
+
+    /// How the text wraps round the floating picture at `index` (or its inline picture `id`), if it is one that reads that way.
+    public func pictureWrap(at index: Int, inline id: String? = nil) -> PictureWrap? {
+        guard let image = _floating(index, id), let xml = image.sourceXML else { return nil }
+        if xml.containsSubstring("<wp:wrapTopAndBottom") { return .topAndBottom }
+        if xml.containsSubstring("<wp:wrapTight") { return .tight }
+        if xml.containsSubstring("<wp:wrapThrough") { return .through }
+        if xml.containsSubstring("<wp:wrapSquare") { return .square }
+        if xml.containsSubstring("<wp:wrapNone") { return xml.containsSubstring("behindDoc=\"1\"") ? .behindText : .inFrontOfText }
+        return nil
+    }
+
+    /// Set the wrapping of the floating picture at `index` (or its inline picture `id`), one undo step. False when the picture
+    /// does not float, its markup has no wrapping element, or it already wraps so.
+    @discardableResult
+    public func setPictureWrap(at index: Int, inline id: String? = nil, _ wrap: PictureWrap) -> Bool {
+        guard let old = _floating(index, id), let xml = old.sourceXML, pictureWrap(at: index, inline: id) != wrap,
+              let patched = String._anchorWrapped(xml, wrap), var f = old.float else { return false }
+        var new = old
+        new.sourceXML = patched
+        f.wraps = wrap == .square || wrap == .tight || wrap == .through
+        f.wrapsTight = wrap == .tight || wrap == .through
+        f.wrapSide = nil
+        f.wrapReach = 1
+        f.wrapBottomShare = 1
+        f.wrapTopSkip = 0
+        f.wrapPolygon = []
+        // (As the reader does: a top-and-bottom picture placed against the page or its paragraph bands its page.)
+        f.takesRoom = wrap == .topAndBottom
+        f.bandsPage = false
+        if f.takesRoom, f.verticalAlign == nil, ["page", "margin", "paragraph"].contains(f.verticalFrom) {
+            f.takesRoom = false
+            f.bandsPage = true
+        }
+        new.float = f
+        _store(index, id, old: old, new: new)
+        return true
+    }
+
+    /// Move the floating picture at `index` (or its inline picture `id`) by `dx`, `dy` points from where it stands, one undo
+    /// step. False when it does not float, is placed by alignment (left, centre, top…) or its position
+    /// is held in a form this does not rewrite.
+    @discardableResult
+    public func movePicture(at index: Int, inline id: String? = nil, dx: Double, dy: Double) -> Bool {
+        guard let old = _floating(index, id), let xml = old.sourceXML, var f = old.float, dx != 0 || dy != 0,
+              f.horizontalAlign == nil, f.verticalAlign == nil else { return false }
+        let x = f.x + dx, y = f.y + dy
+        guard let patched = String._anchorMoved(xml, x: Int((x * 12700).rounded()), y: Int((y * 12700).rounded())) else { return false }
+        var new = old
+        new.sourceXML = patched
+        f.x = x
+        f.y = y
+        new.float = f
+        _store(index, id, old: old, new: new)
+        return true
+    }
+}
