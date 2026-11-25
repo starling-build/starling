@@ -316,6 +316,23 @@ extension WorkbookController {
         select(next)
     }
 
+    /// Clear Comments: take every note in `r` (the selection by default) off its cell. One undo step.
+    func clearComments(_ r: CellRange? = nil) {
+        let r = r ?? selection, ws = sheet
+        guard ws.notes.contains(where: { $0.at.map { r.contains($0) } ?? false }) else { return }
+        structural { Self._dropNotes(ws, in: r) }
+    }
+
+    static func _dropNotes(_ ws: Worksheet, in r: CellRange) {
+        var i = ws.notes.count - 1
+        while i >= 0 {
+            if let a = ws.notes[i].at, r.contains(a) {
+                if ws.notes[i].origin == nil { ws.notes.remove(at: i) } else { ws.notes[i].at = nil }
+            }
+            i -= 1
+        }
+    }
+
     func deleteNote(at a: CellAddress) {
         let ws = sheet
         guard let i = ws.notes.firstIndex(where: { $0.at == a }) else { return }
