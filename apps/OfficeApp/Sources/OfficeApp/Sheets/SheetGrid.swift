@@ -183,6 +183,14 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             if edit == nil, oldValue != nil { _touchEditing = false; _dismissEditMenu() }
         }
     }
+    /// The formula-name list (X-CE-1): the highlighted row, and the text it was dismissed for with Escape.
+    private var _completeIndex = 0
+    private var _completeDismissedFor: String? = nil
+    /// The names offered for the word before the caret, nil when none (or Escape closed the list for this text).
+    var completion: FormulaHelp.Completion? {
+        guard let e = edit, e.selection == nil, String(e.text) != _completeDismissedFor else { return nil }
+        return FormulaHelp.completion(e.text, caret: e.caret)
+    }
     /// A finger is editing the cell: the caret and selection carry handles.
     private var _touchEditing = false
     private var _editMenuUp = false
@@ -1454,6 +1462,24 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
 
         if var e = edit {
             switch named {
+            case .tab where completion != nil && !_chords.shift:
+                if let comp = completion {
+                    let name = comp.matches[min(_completeIndex, comp.matches.count - 1)]
+                    let r = FormulaHelp.accept(name, in: e.text, from: comp.start, caret: e.caret)
+                    e.text = r.text; e.caret = r.caret; e.anchor = nil
+                    _completeIndex = 0
+                    edit = e; _w.onEditText(String(e.text)); _repaint.notifyListeners()
+                }
+                return true
+            case .up where completion != nil, .down where completion != nil:
+                if let comp = completion {
+                    let n = comp.matches.count
+                    _completeIndex = ((min(_completeIndex, n - 1) + (named == .down ? 1 : -1)) % n + n) % n
+                    _repaint.notifyListeners()
+                }
+                return true
+            case .escape where completion != nil:
+                _completeDismissedFor = String(e.text); _repaint.notifyListeners(); return true
             case .enter where _chords.alt:
                 // Alt+Enter: a line break inside the cell, as Excel's (which
                 // turns its Wrap Text on; setInputs does).
@@ -3766,6 +3792,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         frame.color = accent
         canvas.drawRect(Rect.fromLTRB(box.left.rounded(), box.top.rounded(), box.right.rounded() - 1, box.bottom.rounded() - 1), frame)
         let ty = box.bottom - tp.height - 1
+        let refs = FormulaHelp.references(e.text)
         canvas.save()
         canvas.clipRect(box.deflate(1))
         if let r = e.selection {
@@ -3774,7 +3801,21 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             p.color = accent.withAlpha(90)
             canvas.drawRect(Rect.fromLTWH(box.left + pad + x0, ty, x1 - x0, tp.height), p)
         }
-        if !text.isEmpty { _put(tp, Offset(box.left + pad, ty.rounded()), canvas) }
+        if refs.isEmpty {
+            if !text.isEmpty { _put(tp, Offset(box.left + pad, ty.rounded()), canvas) }
+        } else {
+            // Each reference in its own colour, the rest in the cell's ink.
+            var at = 0
+            func piece(_ a: Int, _ b: Int, _ color: Int64?) {
+                guard b > a else { return }
+                var st = style
+                if let color { st.color = color }
+                let x = a == 0 ? 0 : texts.painter(String(e.text[0 ..< a]), style).width
+                _put(texts.painter(String(e.text[a ..< b]), st), Offset((box.left + pad + x).rounded(), ty.rounded()), canvas)
+            }
+            for r in refs { piece(at, r.range.lowerBound, nil); piece(r.range.lowerBound, r.range.upperBound, Int64(r.color)); at = r.range.upperBound }
+            piece(at, e.text.count, nil)
+        }
         // The input method's marked text, underlined.
         if let c = _composing, c.upperBound <= e.text.count, c.lowerBound < c.upperBound {
             let x0 = c.lowerBound == 0 ? 0 : texts.painter(String(e.text[0 ..< c.lowerBound]), style).width
@@ -3787,6 +3828,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         p.color = ink
         canvas.drawRect(Rect.fromLTWH((box.left + pad + before).rounded(), ty + 1, 1.5, max(1, tp.height - 2)), p)
         canvas.restore()
+        _paintFormulaHelp(canvas, e, refs: refs, box: box, style: style, ink: ink, paper: paper, accent: accent, size: size)
         // A finger's handles: one knob on a caret, one at each end of a selection.
         if _touchEditing {
             p.color = accent
@@ -3800,6 +3842,67 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                              editableSize: size, transform: TextInputChannel.windowTransform(of: rb))
         }
     }
+}
+
+// MARK: Formula help (X-CE-1)
+
+extension SheetGridState {
+    fileprivate func _paintFormulaHelp(_ canvas: any Canvas, _ e: CellEdit, refs: [FormulaHelp.Reference], box: Rect,
+                                       style: GridTextStyle, ink: Color, paper: Color, accent: Color, size: Size) {
+        // A border on the grid round each reference, in the colour of its text.
+        let sheetName = controller.sheet.name.lowercased()
+        for r in refs where r.sheet == nil || r.sheet!.lowercased() == sheetName {
+            let b = Paint()
+            b.style = .stroke; b.strokeWidth = 2; b.color = Color(r.color)
+            canvas.drawRect(rect(r.cells).deflate(1), b)
+        }
+        let fill = Paint(), line = Paint()
+        fill.style = .fill
+        line.style = .stroke; line.strokeWidth = 1; line.color = Color(0xFF9E9E9E)
+        var below = box.bottom + 2
+        // The names that continue what is typed.
+        if let comp = completion {
+            let idx = min(_completeIndex, comp.matches.count - 1)
+            var plain = style; plain.family = OfficeFonts.drawn("Calibri")
+            let painters = comp.matches.map { texts.painter($0, plain) }
+            let rowH = (painters.first?.height ?? 14) + 4
+            let w = (painters.map(\.width).max() ?? 40) + 16
+            let x = min(box.left, max(0, size.width - w - 2))
+            let list = Rect.fromLTWH(x, below, w, rowH * Double(painters.count))
+            fill.color = paper; canvas.drawRect(list, fill); canvas.drawRect(list, line)
+            for (i, tp) in painters.enumerated() {
+                let row = Rect.fromLTWH(x, below + rowH * Double(i), w, rowH)
+                if i == idx { fill.color = accent; canvas.drawRect(row, fill) }
+                var st = plain; st.color = i == idx ? 0xFFFFFFFF : Int64(0xFF000000)
+                _put(texts.painter(comp.matches[i], st), Offset(x + 8, row.top + 2), canvas)
+                _ = tp
+            }
+            below = list.bottom + 2
+        }
+        // The arguments of the function the caret is in.
+        if let h = FormulaHelp.hint(e.text, caret: e.caret) {
+            var plain = style; plain.family = OfficeFonts.drawn("Calibri"); plain.color = 0xFF000000
+            var bold = plain; bold.bold = true
+            let head = h.name + "(", tail = ")"
+            var parts: [(String, GridTextStyle)] = [(head, plain)]
+            for (i, a) in h.signature.enumerated() {
+                if i > 0 { parts.append((", ", plain)) }
+                parts.append((a, i == h.index ? bold : plain))
+            }
+            parts.append((tail, plain))
+            let painters = parts.map { texts.painter($0.0, $0.1) }
+            let w = painters.map(\.width).reduce(0, +) + 12, hgt = (painters.first?.height ?? 14) + 6
+            let x = min(box.left, max(0, size.width - w - 2))
+            var y = box.top - hgt - 2
+            if y < 0 { y = comp0Bottom(below, box) }
+            let tip = Rect.fromLTWH(x, y, w, hgt)
+            fill.color = Color(0xFFFFFFE1); canvas.drawRect(tip, fill); canvas.drawRect(tip, line)
+            var px = x + 6
+            for tp in painters { _put(tp, Offset(px, y + 3), canvas); px += tp.width }
+        }
+    }
+
+    fileprivate func comp0Bottom(_ below: Double, _ box: Rect) -> Double { below }
 }
 
 // MARK: A finger in the cell editor
