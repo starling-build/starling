@@ -272,6 +272,14 @@ extension RichLayout {
                              size.width, size.height)
     }
 
+    /// The drawn box of the floating picture `id` anchored in paragraph `i`'s text, in document space, or nil when it is not one
+    /// that floats clear of the text or is not drawn.
+    public func inlineFloatRect(_ i: Int, id: String) -> Rect? {
+        guard theme.wordRules, i < count, i < _inline.count, _painters[i] != nil,
+              let image = _inline[i].first(where: { $0.id == id }), let float = image.float, !float.takesRoom else { return nil }
+        return _floatRect(float, image, geometry(i), i)
+    }
+
     // MARK: Geometry queries (call ensureLaidOut first)
 
     public var totalHeight: Double { _flowHeight }
