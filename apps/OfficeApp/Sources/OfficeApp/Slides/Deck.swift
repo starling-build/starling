@@ -376,6 +376,10 @@ struct SlideFill: Equatable {
     var tiled = false
     /// The picture is a generated pattern (`a:pattFill`), not the file's own.
     var isPattern = false
+    /// The preset and two colours a pattern was made from (`a:pattFill`), so a save writes it as a pattern.
+    var patternPreset: String? = nil
+    var patternFg: Color? = nil
+    var patternBg: Color? = nil
     var tileScale = 1.0
     var tileScaleY = 1.0
     var tileAlign = Offset(0, 0)

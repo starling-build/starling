@@ -983,6 +983,9 @@ private struct SlideXML {
 
     /// A fill element: solid, linear gradient or stretched picture.
     mutating func fill(_ f: SlideFill, media: inout MediaParts, builder: inout PackageBuilder) -> String {
+        if f.isPattern, let preset = f.patternPreset, let fg = f.patternFg, let bg = f.patternBg {
+            return "<a:pattFill prst=\"\(preset)\"><a:fgClr><a:srgbClr val=\"\(PptxText.hex(fg))\"/></a:fgClr><a:bgClr><a:srgbClr val=\"\(PptxText.hex(bg))\"/></a:bgClr></a:pattFill>"
+        }
         if let image = f.image {
             let rid = _media(image, media: &media, builder: &builder)
             return PptxTemplates.blipFillXML(f, rid: rid)
@@ -1191,6 +1194,11 @@ private struct SlideXML {
             default:
                 fillXML = Self._fill(s.fill, scheme: s.fillScheme)
                 lineXML = s.outline.map { "<a:ln w=\"\(Self._emu(s.outlineWidth))\">\(Self._fill($0, scheme: s.outlineScheme))\(Self._dashXML(s.outlineDash))</a:ln>" } ?? "<a:ln><a:noFill/></a:ln>"
+            }
+            // A gradient, picture or pattern the user gave the shape (or a new shape's): written as such.
+            if case .placeholder = s.kind {} else if let st = s.fillStyle, st.image != nil || st.stops.count >= 2,
+               s.keptLook == nil || s.keptLook?.fillReplaced == true {
+                fillXML = fill(st, media: &media, builder: &builder)
             }
             // The file's own fill and line while the shape's are unchanged
             // (gradients, patterns, a style's fill stay as they were); its

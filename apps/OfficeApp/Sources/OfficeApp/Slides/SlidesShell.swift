@@ -66,6 +66,8 @@ final class SlidesShellState: State<StatefulWidget> {
     private var _presenter = false
     /// Where the next picture from the picture panel goes.
     private var _pictureForBackground = false
+    /// Set while the picker is open for a shape's picture (false) or texture (true) fill.
+    private var _pictureForShapeFill: Bool? = nil
     private var _hadPicture = false
     private var _hadTable = false
     private var _hadChart: SlideShape? = nil
@@ -318,6 +320,7 @@ final class SlidesShellState: State<StatefulWidget> {
         session.onInsertPicture = { [weak self] in
             guard let self else { return }
             self._pictureForBackground = false
+            self._pictureForShapeFill = nil
             self._pickPicture()
         }
         session.onMoreShapeColor = { [weak self] outline in
@@ -374,6 +377,12 @@ final class SlidesShellState: State<StatefulWidget> {
             self._endEditing()
             let table = self.deck.addTable(rows: rows, columns: columns)
             self._editAtStart(table)
+        }
+        session.onShapeFillPicture = { [weak self] tiled in
+            guard let self else { return }
+            self._pictureForBackground = false
+            self._pictureForShapeFill = tiled
+            self._pickPicture()
         }
         session.onBackgroundPicture = { [weak self] in
             guard let self else { return }
@@ -1036,6 +1045,8 @@ final class SlidesShellState: State<StatefulWidget> {
     private func _insertPicture(_ path: String, data: Data) {
         setState { _backstage = nil }
         let forBackground = _pictureForBackground
+        let forShapeFill = _pictureForShapeFill
+        _pictureForShapeFill = nil
         Task { @MainActor [weak self] in
             guard let self else { return }
             do {
@@ -1050,6 +1061,8 @@ final class SlidesShellState: State<StatefulWidget> {
                 self._endEditing()
                 if forBackground {
                     self.deck.setBackground(SlideFill(image: image))
+                } else if let tiled = forShapeFill {
+                    self.deck.setPictureFill(image, tiled: tiled)
                 } else {
                     self.deck.addPicture(image, naturalSize: Size(w, h))
                 }
