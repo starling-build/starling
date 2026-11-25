@@ -252,6 +252,11 @@ final class SlideFormatShapeTests: XCTestCase {
         let g = try XCTUnwrap(deck.currentSlide.shapes.first { $0.name == "Grad" })
         g.frame = Rect.fromLTWH(400, 200, 160, 90)
         deck.selectShapes([g]); deck.setOutlineDash("sysDot")
+        // A shape scaled to 150% by 50%, and a locked shape resized in proportion (200x100 to 300x150).
+        let sc = deck.addShape(.rect); sc.frame = Rect.fromLTWH(400, 40, 100, 100)
+        deck.selectShapes([sc]); deck.setScale(width: 150, height: 50)
+        let lk = deck.addShape(.ellipse); lk.frame = Rect.fromLTWH(400, 320, 200, 100); lk.aspectLock = true
+        lk.frame = SlideCanvasState.resizedFrame(lk.frame, rotation: 0, handle: 4, delta: Offset(100, 5), keepAspect: true)
         try Pptx.write(deck).write(to: URL(fileURLWithPath: dir + "/dash.pptx"))
     }
 
