@@ -7,7 +7,9 @@
 // PlatformDispatcher.onPointerDataPacket and onKeyData - so view routing, hit testing, gestures, focus and
 // key dispatch are all exercised; the engine's packet converter and the UIKit responders are not.
 //
-// One command a line; '#' starts a comment; coordinates are logical pixels in the named view:
+// One command a line; '#' starts a comment; coordinates are logical pixels in the named view. The host pins view 0 to
+// the safe area (fluikit_host.m), so on an iPad it starts 24 pt below the screen's top (the status bar): a point on a
+// simulator screenshot (2 px per pt) is the view's y plus 24, and a UIKit touch arrives in the same view coordinates.
 //   <ms> tap  <view> <x> <y>
 //   <ms> drag <view> <x0> <y0> <x1> <y1> [steps]
 //   <ms> type <view> <text...>        (text up to end of line; \n is Return)
