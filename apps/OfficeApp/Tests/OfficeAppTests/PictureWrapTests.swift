@@ -334,7 +334,7 @@ final class TextBoxInsertTests: XCTestCase {
 
 final class ShapeInsertTests: XCTestCase {
     func testNewShapeReadsBackAndSaves() throws {
-        for preset in ["rect", "ellipse", "triangle"] {
+        for preset in ["rect", "roundRect", "ellipse", "triangle", "rightArrow"] {
             let shape = try XCTUnwrap(TextBoxInsert.makeShape(preset: preset), preset)
             XCTAssertNotNil(shape.float)
             XCTAssertNil(shape.textBox)
@@ -344,5 +344,15 @@ final class ShapeInsertTests: XCTestCase {
             XCTAssertTrue(xml.containsSubstring("prst=\"\(preset)\""), preset)
             XCTAssertFalse(xml.containsSubstring("txBox"))
         }
+    }
+
+    /// Set SHAPE_LAB to a file path to get a document with every menu shape, for a Word check.
+    func testWriteShapeLab() throws {
+        guard let path = ProcessInfo.processInfo.environment["SHAPE_LAB"] else { return }
+        let c = RichDocumentController(document: RichDocument(paragraphs: [RichParagraph(text: "Shapes inserted from the menu follow."), RichParagraph(text: "Second paragraph.")]))
+        for preset in ["rect", "roundRect", "ellipse", "triangle", "rightArrow"] {
+            c.insertImage(try XCTUnwrap(TextBoxInsert.makeShape(preset: preset)))
+        }
+        try DocxFormat.write(c.document, pageSetup: .letter).write(to: URL(fileURLWithPath: path))
     }
 }

@@ -433,6 +433,11 @@ final class Ribbon: StatelessWidget {
                                                 ("€ Euro", "€"), ("£ Pound", "£"), ("¥ Yen", "¥")]
             .map { name, ch in (name, { c.insertText(ch) }) }
             + [("More Symbols…", { [session] in session.onSymbolDialog?() })]
+        let shapeChoices: [(String, () -> Void)] = [("Rectangle", "rect"), ("Rounded Rectangle", "roundRect"), ("Oval", "ellipse"),
+                                                    ("Triangle", "triangle"), ("Right Arrow", "rightArrow")]
+            .map { name, preset in (name, { [session] in
+                if let shape = TextBoxInsert.makeShape(preset: preset) { c.insertImage(shape) } else { session.onStatus?("Could not insert the shape") }
+            }) }
         return [
             Chrome.group("Pages", fluent, [
                 Chrome.big(FluentSystemIcons.pageBreak, "Page Break", fluent) { c.insertPageBreak() },
@@ -443,6 +448,8 @@ final class Ribbon: StatelessWidget {
                 Chrome.big(FluentSystemIcons.textT, "Text Box", fluent) { [session] in
                     if let box = TextBoxInsert.make() { c.insertImage(box) } else { session.onStatus?("Could not insert a text box") }
                 },
+                Chrome.menu(Text("Shapes"), Icon(FluentSystemIcons.shapes, size: Chrome.iconSize,
+                                                 color: fluent.resources.textFillColorPrimary), fluent, shapeChoices),
             ]),
             Chrome.group("Links", fluent, [
                 Chrome.big(FluentSystemIcons.link, "Link", fluent) { [session] in session.onLink?() },
