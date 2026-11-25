@@ -64,6 +64,19 @@ final class MediaInsertTests: XCTestCase {
         XCTAssertEqual(centre(second).1 - centre(first).1, 18, accuracy: 0.5)
     }
 
+    /// The real first frame is a new picture (new id), or the painter's cache would keep drawing the generic poster.
+    func testReplacingThePosterMakesANewPicture() throws {
+        let deck = deckWithClip("a.mp4", bytes: [1])
+        let shape = deck.currentSlide.shapes[0]
+        guard case .picture(let before) = shape.kind else { return XCTFail("a picture") }
+        let png = MediaPoster.png(video: false)
+        deck.replacePoster(shape, png: png, width: 96, height: 96, frame: shape.frame)
+        guard case .picture(let after) = shape.kind else { return XCTFail("a picture") }
+        XCTAssertNotEqual(after.id, before.id)
+        XCTAssertEqual(after.data, png)
+        XCTAssertEqual(after.name, before.name)
+    }
+
     func testPosterIsADecodablePng() {
         for video in [true, false] {
             let png = [UInt8](MediaPoster.png(video: video))

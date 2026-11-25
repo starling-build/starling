@@ -813,9 +813,9 @@ final class DeckController: ChangeNotifier {
     /// A clip's real first frame takes the place of its generic poster (one undo step is not spent on it).
     func replacePoster(_ shape: SlideShape, png: Data, width: Int, height: Int, frame: Rect) {
         guard case .picture(let old) = shape.kind else { return }
-        var image = old
-        image.data = png; image.width = Double(width); image.height = Double(height)
-        image.naturalWidth = Double(width); image.naturalHeight = Double(height)
+        // A new attachment, so a new id: the painter caches decoded pictures by id and would keep the old poster.
+        let image = ImageAttachment(data: png, width: Double(width), height: Double(height), name: old.name,
+                                    naturalWidth: Double(width), naturalHeight: Double(height))
         shape.kind = .picture(image)
         shape.frame = frame
         _changed()
