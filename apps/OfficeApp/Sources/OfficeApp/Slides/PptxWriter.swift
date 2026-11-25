@@ -315,11 +315,22 @@ enum PptxWriter {
             }
         }
         // Comments (legacy or modern) hang off the slide by a relationship nothing in its XML names: carry each part, with its own rels, under the same id.
-        if let src = slide.sourcePart, let p = source {
+        // A copy of a commented slide (commentsFrom) carries the comments too; a part another slide already took goes out under a fresh name, since each slide owns its own.
+        if let src = slide.commentsFrom ?? slide.sourcePart, let p = source {
             for (n, c) in p.rels(src).filter({ $0.kind == "comments" && !$0.external && p.parts[$0.target] != nil }).enumerated() {
-                var done = Set<String>()
-                PptxWriterCopy.copy(c.target, from: p, into: &b, done: &done)
-                rels.append(Rel(id: "rIdCmt\(n + 1)", type: c.type, target: Pptx.relative(c.target, from: part)))
+                var target = c.target
+                if b.parts[target] != nil, let data = p.parts[target] {
+                    let dot = target.lastIndex(of: ".") ?? target.endIndex
+                    var k = 2
+                    while b.parts["\(target[..<dot])-c\(k)\(target[dot...])"] != nil { k += 1 }
+                    target = "\(target[..<dot])-c\(k)\(target[dot...])"
+                    b.parts[target] = data
+                    if let t = p.overrides[c.target] { b.overrides[target] = t }
+                } else {
+                    var done = Set<String>()
+                    PptxWriterCopy.copy(c.target, from: p, into: &b, done: &done)
+                }
+                rels.append(Rel(id: "rIdCmt\(n + 1)", type: c.type, target: Pptx.relative(target, from: part)))
             }
         }
         let hidden = (slide.hidden ? " show=\"0\"" : "") + (slide.hideMasterShapes ? " showMasterSp=\"0\"" : "")

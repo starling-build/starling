@@ -74,6 +74,25 @@ final class SlideIdentityTests: XCTestCase {
         XCTAssertEqual(again.parts.keys.filter { $0.hasPrefix("ppt/comments/") }.count, 2)
     }
 
+    func testADuplicatedCommentedSlideCarriesItsComments() throws {
+        let d = try load(try corpus("45545_Comment.pptx"))
+        let before = try roundTrip(d).parts.keys.filter { $0.hasPrefix("ppt/comments/") }.count
+        XCTAssertGreaterThan(before, 0)
+        d.duplicateSlide(0)
+        let out = try roundTrip(d)
+        let comments = out.parts.keys.filter { $0.hasPrefix("ppt/comments/") }
+        XCTAssertGreaterThan(comments.count, before, "the copy owns a comments part of its own")
+        // No two slides share one part.
+        var targets: [String] = []
+        for k in out.parts.keys where k.hasPrefix("ppt/slides/_rels/") {
+            let x = String(data: out.parts[k]!, encoding: .utf8)!
+            for c in comments where x.contains((c as NSString).lastPathComponent) { targets.append(c) }
+        }
+        XCTAssertEqual(Set(targets).count, targets.count)
+        let again = try roundTrip(try load(try Pptx.write(d)))
+        XCTAssertEqual(again.parts.keys.filter { $0.hasPrefix("ppt/comments/") }.count, comments.count)
+    }
+
     func testRichNotesKeepTheirLook() throws {
         let d = DeckController()
         d.newDeck()
