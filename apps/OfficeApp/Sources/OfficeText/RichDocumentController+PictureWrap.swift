@@ -188,4 +188,35 @@ extension RichDocumentController {
         _store(index, id, old: old, new: new)
         return true
     }
+
+    /// The text box at `index` as paragraphs to edit in place, when it holds nothing the in-place editor would lose
+    /// (no table, picture, field or markup it cannot write back); nil for anything else.
+    public func textBoxParagraphs(at index: Int, inline id: String? = nil) -> [RichParagraph]? {
+        guard let image = _floating(index, id), let box = image.textBox, let xml = image.sourceXML,
+              let open = xml.rangeOfSubstring("<w:txbxContent>"),
+              let close = xml.rangeOfSubstring("</w:txbxContent>", in: open.upperBound ..< xml.endIndex) else { return nil }
+        let inner = String(xml[open.upperBound ..< close.lowerBound])
+        for marker in ["<w:tbl", "<w:fld", "<w:hyperlink", "<w:drawing", "<mc:", "<w:sdt", "<w:ins", "<w:del", "<w:bookmark"]
+        where inner.containsSubstring(marker) { return nil }
+        guard box.paragraphs.allSatisfy({ $0.image == nil && $0.inlineImages.isEmpty && $0.keptTable == nil }) else { return nil }
+        return box.paragraphs
+    }
+
+    /// Replace the content of the text box at `index` with `paragraphs`, written as `contentXML` (the `w:txbxContent` body),
+    /// one undo step. False when the box is not editable in place or nothing changed.
+    @discardableResult
+    public func setTextBoxContent(at index: Int, inline id: String? = nil, paragraphs: [RichParagraph], contentXML: String) -> Bool {
+        guard textBoxParagraphs(at: index, inline: id) != nil,
+              let old = _floating(index, id), var box = old.textBox, let xml = old.sourceXML,
+              let open = xml.rangeOfSubstring("<w:txbxContent>"),
+              let close = xml.rangeOfSubstring("</w:txbxContent>", in: open.upperBound ..< xml.endIndex) else { return false }
+        let patched = String(xml[xml.startIndex ..< open.upperBound]) + contentXML + String(xml[close.lowerBound...])
+        guard patched != xml else { return false }
+        var new = old
+        new.sourceXML = patched
+        box.paragraphs = paragraphs
+        new.textBox = box
+        _store(index, id, old: old, new: new)
+        return true
+    }
 }

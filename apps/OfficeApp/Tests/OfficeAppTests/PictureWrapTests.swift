@@ -154,6 +154,28 @@ final class TextBoxInsertTests: XCTestCase {
         XCTAssertEqual(c.textBoxText(at: i), "one")
     }
 
+    func testTypingInTheBoxIsOneUndoStepWithFormattingAndSaves() throws {
+        let c = RichDocumentController(document: RichDocument(paragraphs: [RichParagraph(text: "body")]))
+        c.insertImage(try XCTUnwrap(TextBoxInsert.make(text: "one")))
+        let i = try XCTUnwrap(c.document.paragraphs.firstIndex { $0.image?.textBox != nil })
+        // What the shell does: a controller over the box's paragraphs, then the words back as one change.
+        let box = RichDocumentController(document: RichDocument(paragraphs: try XCTUnwrap(c.textBoxParagraphs(at: i))))
+        box.selectAll()
+        box.insertText("two & <three>")
+        box.selectAll()
+        box.toggleBold()
+        let xml = try XCTUnwrap(TextBoxInsert.contentXML(box.document.paragraphs))
+        XCTAssertFalse(xml.containsSubstring("<w:sectPr"))
+        XCTAssertTrue(c.setTextBoxContent(at: i, paragraphs: box.document.paragraphs, contentXML: xml))
+        XCTAssertEqual(c.textBoxText(at: i) ?? c.document.paragraphs[i].image?.textBox?.paragraphs.map(\.text).joined(), "two & <three>")
+        let back = try DocxFormat.read(try DocxFormat.write(c.document, pageSetup: .letter)).document
+        let kept = try XCTUnwrap(back.paragraphs.compactMap { $0.image }.first { $0.textBox != nil })
+        XCTAssertEqual(kept.textBox?.paragraphs.map(\.text), ["two & <three>"])
+        XCTAssertEqual(kept.textBox?.paragraphs.first?.runs.first?.style.bold, true)
+        c.undo()
+        XCTAssertEqual(c.document.paragraphs[i].image?.textBox?.paragraphs.map(\.text), ["one"])
+    }
+
     func testEditTextOnThePictureFormatTab() throws {
         let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(1280, 800))
         let c = try XCTUnwrap(ui.state(OfficeShellState.self)).session.controller
@@ -165,5 +187,20 @@ final class TextBoxInsertTests: XCTestCase {
         ui.pump()
         XCTAssertNotNil(ui.state(OfficeShellState.self))
         XCTAssertTrue(ui.tap(id: "box-text"))
+    }
+}
+
+final class ShapeInsertTests: XCTestCase {
+    func testNewShapeReadsBackAndSaves() throws {
+        for preset in ["rect", "ellipse", "triangle"] {
+            let shape = try XCTUnwrap(TextBoxInsert.makeShape(preset: preset), preset)
+            XCTAssertNotNil(shape.float)
+            XCTAssertNil(shape.textBox)
+            let c = RichDocumentController(document: RichDocument(paragraphs: [RichParagraph(text: "body")]))
+            c.insertImage(shape)
+            let xml = String(decoding: try XCTUnwrap(try Zip.read(try DocxFormat.write(c.document, pageSetup: .letter)).first { $0.name == "word/document.xml" }).data, as: UTF8.self)
+            XCTAssertTrue(xml.containsSubstring("prst=\"\(preset)\""), preset)
+            XCTAssertFalse(xml.containsSubstring("txBox"))
+        }
     }
 }

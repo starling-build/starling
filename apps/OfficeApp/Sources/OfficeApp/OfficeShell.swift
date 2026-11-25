@@ -80,6 +80,10 @@ final class OfficeShellState: State<StatefulWidget> {
     private var _bordersOpen = false
     private var _printOpen = false
     private var _pictureDialog: PictureDialogKind?
+    /// A text box being typed into in place: the box, where it is drawn (in the page area), and the document's own controller
+    /// while `session.controller` is the box's.
+    private var _boxEdit: (index: Int, inline: String?, rect: Rect, main: RichDocumentController)?
+    private let _boxFocus = FocusNode(debugLabel: "Text box")
     /// Set while the picker is open for Change Picture: the picture (paragraph, inline id) the chosen file replaces.
     private var _replaceTarget: (index: Int, inline: String?)?
     private var _numberingValueOpen = false
@@ -726,6 +730,7 @@ final class OfficeShellState: State<StatefulWidget> {
     }
 
     private func _save(afterSaving: (() -> Void)? = nil) {
+        _leaveBox()
         if let hosted = (widget as! OfficeShell).hosted {
             // The owner stores it (a wiki page: a new version). Export is
             // still the way to a .docx.
@@ -775,6 +780,7 @@ final class OfficeShellState: State<StatefulWidget> {
     }
 
     private func _saveTo(_ path: String) {
+        _leaveBox()
         do {
             try OfficeFormats.write(controller.document, to: path, pageSetup: session.pageSetup)
             officeScene.documentSaved?(path)
@@ -802,6 +808,7 @@ final class OfficeShellState: State<StatefulWidget> {
     }
 
     private func _export(_ ext: String, share: Bool = false) {
+        _leaveBox()
         let base = session.path.map { $0.deletingPathExtension }
             ?? homeDirectory() + "/Documents/" + session.title
         let target = base + "." + ext
@@ -1154,6 +1161,7 @@ final class OfficeShellState: State<StatefulWidget> {
     func _shortcut(_ key: KeyData, _ mods: KeyModifiers) -> Bool {
         let named = KeyChordTracker.named(key.logical)
         if named == .escape {
+            if _boxEdit != nil { _leaveBox(); return true }
             if session.paintedStyle != nil { _cancelPainter(); return true }
             if _styleOpen != nil { setState { _styleOpen = nil }; return true }
             if _shortcutsOpen { return false }   // the dialog's own Esc closes it
@@ -1532,8 +1540,8 @@ final class OfficeShellState: State<StatefulWidget> {
         theme.selectionColor = fluent.accentColor.defaultBrushFor(.light).withOpacity(0.25)
         let paged = session.viewMode == .printLayout
         let readMargin = session.viewMode == .readMode ? 120.0 : 24.0
-        return RichEditable(
-            controller: controller, theme: theme,
+        let editable = RichEditable(
+            controller: _boxEdit?.main ?? controller, theme: theme,
             padding: EdgeInsets(left: readMargin, top: 24, right: readMargin, bottom: 24),
             focusNode: _editorFocus,
             backgroundColor: paged ? backdrop : page, zoom: session.zoom,
@@ -1553,8 +1561,59 @@ final class OfficeShellState: State<StatefulWidget> {
             onHeaderFooterEdit: { [weak self] _ in self?.session.onHeaderFooter?() },
             onContextMenu: { [weak self] point in self?._showContextMenu(at: point) },
             onTouchMenu: { [weak self] rect in self?._showTouchMenu(rect) },
-            spellChecker: session.checkSpelling ? _spelling : nil
+            spellChecker: session.checkSpelling ? _spelling : nil,
+            onTextBoxEnter: { [weak self] index, inline, rect in self?._enterBox(index, inline, rect) }
         )
+        guard let b = _boxEdit else { return editable }
+        let z = session.zoom
+        let boxEditor = RichEditable(
+            controller: controller, theme: theme,
+            padding: EdgeInsets(left: 7.2 * z, top: 3.6 * z, right: 7.2 * z, bottom: 3.6 * z),
+            focusNode: _boxFocus, backgroundColor: Color(0xFFFFFFFF), zoom: z,
+            onShortcut: { [weak self] key, mods in self?._shortcut(key, mods) ?? false },
+            scrolls: false)
+        return Stack(children: [
+            Positioned(left: 0, top: 0, right: 0, bottom: 0, child: editable),
+            // A press anywhere outside the box ends the edit (and still reaches the page under it).
+            Positioned(left: 0, top: 0, right: 0, bottom: 0, child: Listener(
+                onPointerDown: { [weak self] _ in self?._leaveBox() }, behavior: .translucent, child: SizedBox(expand: ()))),
+            Positioned(left: b.rect.left, top: b.rect.top, width: b.rect.width, height: b.rect.height, child: boxEditor),
+        ])
+    }
+
+    /// Start typing in the text box at `index`: the ribbon and the keys act on a controller over the box's own paragraphs
+    /// until `_leaveBox` puts them back, as one undo step.
+    private func _enterBox(_ index: Int, _ inline: String?, _ rect: Rect) {
+        guard _boxEdit == nil, let paragraphs = controller.textBoxParagraphs(at: index, inline: inline) else { return }
+        let main = controller
+        let box = RichDocumentController(document: RichDocument(paragraphs: paragraphs.isEmpty ? [RichParagraph(text: "")] : paragraphs))
+        box.clipboardCodec = OfficeClipboardCodec()
+        box.addListener { [weak self] in
+            guard let self, self._boxEdit != nil else { return }
+            let s = self.session.summarize()
+            if s != self.session.summary { self.setState { self.session.summary = s } }
+        }
+        setState {
+            _boxEdit = (index, inline, rect, main)
+            session.controller = box
+            session.summary = session.summarize()
+        }
+        _boxFocus.requestFocus()
+    }
+
+    /// Put the box's words back into the document (one undo step) and return to the page.
+    private func _leaveBox() {
+        guard let b = _boxEdit else { return }
+        let box = controller
+        setState {
+            _boxEdit = nil
+            session.controller = b.main
+        }
+        if let xml = TextBoxInsert.contentXML(box.document.paragraphs) {
+            b.main.setTextBoxContent(at: b.index, inline: b.inline, paragraphs: box.document.paragraphs, contentXML: xml)
+        }
+        setState { session.summary = session.summarize() }
+        _editorFocus.requestFocus()
     }
 }
 
