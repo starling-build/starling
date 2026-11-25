@@ -2315,6 +2315,7 @@ struct SlideContext {
         st.sourceXML = PptxXML.serialize(sp)
         st.sourceText = st.text
         st.sourcePart = part
+        st.aspectLock = sp.first("p:nvSpPr")?.first("p:cNvSpPr")?.first("a:spLocks")?["noChangeAspect"] == "1"
         st.readShape = ReadShape(st)
         return st
     }

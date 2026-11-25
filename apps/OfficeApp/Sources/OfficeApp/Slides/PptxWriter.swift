@@ -724,6 +724,16 @@ private struct SlideXML {
 
     private static func _emu(_ v: Double) -> Int { Int((v * Pptx.emu).rounded()) }
 
+    /// Sets or clears `noChangeAspect` on a kept shape's own lock element (`spLocks`, `picLocks`).
+    static func _lockEdit(_ on: Bool) -> (XNode) -> Void {
+        return { node in
+            guard let c = node.first("p:nvSpPr")?.first("p:cNvSpPr") ?? node.first("p:nvPicPr")?.first("p:cNvPicPr") else { return }
+            let name = node.name == "p:pic" ? "a:picLocks" : "a:spLocks"
+            let l = c.first(name) ?? { let n = XNode(name: name, attrs: [:]); c.children.insert(n, at: 0); return n }()
+            l.attrs["noChangeAspect"] = on ? "1" : nil
+        }
+    }
+
     private static func _xfrm(_ f: Rect, rotation: Double, tag: String = "a:xfrm", flipH: Bool = false, flipV: Bool = false) -> String {
         var attrs = ""
         if rotation != 0 { attrs += " rot=\"\(Int((rotation * 60000).rounded()))\"" }
@@ -818,7 +828,9 @@ private struct SlideXML {
             // recolouring, transparency, flip, shape and outline stay.
             if let xml = s.sourceXML, let k = s.keptPicture, k.imageId == image.id, let p = source, let part = s.sourcePart {
                 let crop = s.crop, rotation = s.rotation, flipH = s.flipH, flipV = s.flipV
+                let lock = s.aspectLock
                 return kept(xml, sourcePart: part, package: p, builder: &builder, patch: s.frame, fileId: s.fileId, edit: { node in
+                    if let lock { Self._lockEdit(lock)(node) }
                     if let x = node.first("p:spPr")?.first("a:xfrm") {
                         if rotation != 0 { x.attrs["rot"] = "\(Int((rotation * 60000).rounded()))" } else { x.attrs["rot"] = nil }
                         x.attrs["flipH"] = flipH ? "1" : nil
@@ -836,7 +848,7 @@ private struct SlideXML {
             }
             let id = _id(s.fileId)
             let rid = _media(image, media: &media, builder: &builder)
-            return "<p:pic><p:nvPicPr><p:cNvPr id=\"\(id)\" name=\"\(name)\"\(s.altText.map { " descr=\"\(PptxXML.escape($0, attribute: true))\"" } ?? "")\(hid)/><p:cNvPicPr><a:picLocks noChangeAspect=\"1\"/></p:cNvPicPr><p:nvPr/></p:nvPicPr>"
+            return "<p:pic><p:nvPicPr><p:cNvPr id=\"\(id)\" name=\"\(name)\"\(s.altText.map { " descr=\"\(PptxXML.escape($0, attribute: true))\"" } ?? "")\(hid)/><p:cNvPicPr>\(s.aspectLocked ? "<a:picLocks noChangeAspect=\"1\"/>" : "<a:picLocks/>")</p:cNvPicPr><p:nvPr/></p:nvPicPr>"
                 + "<p:blipFill><a:blip r:embed=\"\(rid)\"/>\(Self._crop(s.crop))<a:stretch><a:fillRect/></a:stretch></p:blipFill>"
                 + "<p:spPr>\(Self._xfrm(s.frame, rotation: s.rotation, flipH: s.flipH, flipV: s.flipV))"
                 + "<a:prstGeom prst=\"\(s.pictureGeometry?.rawValue ?? "rect")\"><a:avLst/></a:prstGeom></p:spPr></p:pic>"
@@ -879,7 +891,8 @@ private struct SlideXML {
                 return kept(xml, sourcePart: part, package: p, builder: &builder, patch: s.frame, fileId: s.fileId,
                             rotation: moved ? s.rotation : nil, placeIfMissing: moved,
                             flips: flipped ? (s.flipH, s.flipV) : nil,
-                            hidden: read.invisible != s.invisible ? s.invisible : nil)
+                            hidden: read.invisible != s.invisible ? s.invisible : nil,
+                            edit: read.aspectLock != s.aspectLock ? Self._lockEdit(s.aspectLocked) : nil)
             }
             // Typed in since it was read, nothing else changed (bar its place): the shape as it was,
             // the typed text patched into its own runs (S-P0-1b).
@@ -891,7 +904,8 @@ private struct SlideXML {
                 return kept(patched, sourcePart: part, package: p, builder: &builder, patch: s.frame, fileId: s.fileId,
                             rotation: moved ? s.rotation : nil, placeIfMissing: moved,
                             flips: flipped ? (s.flipH, s.flipV) : nil,
-                            hidden: read.invisible != s.invisible ? s.invisible : nil)
+                            hidden: read.invisible != s.invisible ? s.invisible : nil,
+                            edit: read.aspectLock != s.aspectLock ? Self._lockEdit(s.aspectLocked) : nil)
             }
             let id = _id(s.fileId)
             var nv = "<p:cNvPr id=\"\(id)\" name=\"\(name)\"\(hid)/>"
@@ -905,9 +919,9 @@ private struct SlideXML {
                 if let idx = s.phIdx { attrs += " idx=\"\(idx)\"" }
                 ph = "<p:ph\(attrs)/>"
             case .textBox:
-                nv += "<p:cNvSpPr txBox=\"1\"/>"
+                nv += s.aspectLock == true ? "<p:cNvSpPr txBox=\"1\"><a:spLocks noChangeAspect=\"1\"/></p:cNvSpPr>" : "<p:cNvSpPr txBox=\"1\"/>"
             default:
-                nv += "<p:cNvSpPr/>"
+                nv += s.aspectLock == true ? "<p:cNvSpPr><a:spLocks noChangeAspect=\"1\"/></p:cNvSpPr>" : "<p:cNvSpPr/>"
             }
             var spPr = Self._xfrm(s.frame, rotation: s.rotation, flipH: s.flipH, flipV: s.flipV)
             let prst: String = {

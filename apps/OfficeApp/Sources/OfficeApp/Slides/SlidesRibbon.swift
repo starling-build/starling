@@ -111,12 +111,19 @@ extension Ribbon {
             MenuFlyoutItem(text: Text("Group"), onPressed: deck.canGroup ? { deck.groupSelection() } : nil),
             MenuFlyoutItem(text: Text("Ungroup"), onPressed: deck.canUngroup ? { deck.ungroupSelection() } : nil),
             MenuFlyoutSeparator(),
+            MenuFlyoutItem(text: Text("Rotate Right 90°"), onPressed: some ? { deck.rotateSelection(by: 90) } : nil),
+            MenuFlyoutItem(text: Text("Rotate Left 90°"), onPressed: some ? { deck.rotateSelection(by: -90) } : nil),
+            MenuFlyoutItem(text: Text("Flip Vertical"), onPressed: some ? { deck.flipSelection(horizontal: false) } : nil),
+            MenuFlyoutItem(text: Text("Flip Horizontal"), onPressed: some ? { deck.flipSelection(horizontal: true) } : nil),
+            MenuFlyoutSeparator(),
             MenuFlyoutItem(text: Text("Align Left"), onPressed: some ? { deck.align(.left) } : nil),
             MenuFlyoutItem(text: Text("Align Center"), onPressed: some ? { deck.align(.center) } : nil),
             MenuFlyoutItem(text: Text("Align Right"), onPressed: some ? { deck.align(.right) } : nil),
             MenuFlyoutItem(text: Text("Align Top"), onPressed: some ? { deck.align(.top) } : nil),
             MenuFlyoutItem(text: Text("Align Middle"), onPressed: some ? { deck.align(.middle) } : nil),
             MenuFlyoutItem(text: Text("Align Bottom"), onPressed: some ? { deck.align(.bottom) } : nil),
+            MenuFlyoutSeparator(),
+            MenuFlyoutItem(text: Text("Format Shape…"), onPressed: some ? { [session] in session.onFormatShape?() } : nil),
         ]
         let palette = Self.shapeColors(deck.theme)
         return Chrome.group("Drawing", fluent, [Chrome.rows([

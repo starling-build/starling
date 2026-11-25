@@ -417,6 +417,7 @@ final class SlideCanvasState: State<StatefulWidget> {
     // MARK: Pointer
 
     private var _marqueeBase: [SlideShape] = []
+    private var _pendingToggle = false
     private var _additive: Bool { let m = _w.modifiers(); return m.contains(.shift) || m.contains(.control) || m.contains(.meta) }
 
     private func _backdropDown(_ e: PointerDownEvent) {
@@ -454,10 +455,12 @@ final class SlideCanvasState: State<StatefulWidget> {
             FocusManager.instance.focusedNode?.unfocus()
             _w.onEdit(nil)
         }
+        _pendingToggle = false
         if _additive {
-            // Shift/Ctrl+click adds or removes; a shape just removed is not dragged.
-            deck.toggleSelected(shape)
-            if !deck.isSelected(shape) { _drag = nil; return }
+            // Shift/Ctrl+click adds or removes. A shape already selected may be
+            // the start of a Shift (straight) or Ctrl (copy) drag, so it is
+            // removed on release if the pointer never moved.
+            if wasSelected { _pendingToggle = true } else { deck.toggleSelected(shape) }
         } else if !wasSelected { deck.selectWholeGroup(of: shape) }
         let frames = deck.selection.map { ($0, $0.frame) }
         _drag = .move(start: _slidePoint(e.position), frames: frames, shape: shape,
@@ -489,13 +492,31 @@ final class SlideCanvasState: State<StatefulWidget> {
         switch drag {
         case .move(let start, let frames, let shape, let wasSelected, var moved):
             var dx = p.dx - start.dx, dy = p.dy - start.dy
+            var frames = frames
+            let m = _w.modifiers()
             if !moved {
                 guard abs(dx) * _px > 3 || abs(dy) * _px > 3 else { return }
                 moved = true
-                deck.beginFrameEdit()
+                if m.contains(.control) || m.contains(.meta), !m.contains(.shift) {
+                    // Ctrl+drag drags a copy and leaves the original where it was.
+                    deck.duplicateSelection(offset: 0)
+                    frames = deck.selection.map { ($0, $0.frame) }
+                } else {
+                    deck.beginFrameEdit()
+                }
             }
-            let snapped = _snapMove(frames.map(\.1), dx: dx, dy: dy)
-            dx = snapped.dx; dy = snapped.dy
+            if m.contains(.shift) {
+                // Shift keeps the move on one axis: the one dragged furthest.
+                if abs(dx) >= abs(dy) { dy = 0 } else { dx = 0 }
+            }
+            if m.contains(.alt) {
+                _guides = []
+            } else {
+                let snapped = _snapMove(frames.map(\.1), dx: dx, dy: dy)
+                // A locked axis stays locked.
+                if !m.contains(.shift) || dx != 0 { dx = snapped.dx }
+                if !m.contains(.shift) || dy != 0 { dy = snapped.dy }
+            }
             _drag = .move(start: start, frames: frames, shape: shape, wasSelected: wasSelected, moved: moved)
             deck.setFramesLive(frames.map { ($0.0, $0.1.shift(Offset(dx, dy))) })
         case .resize(let shape, let handle, let start, let frame):
@@ -506,7 +527,12 @@ final class SlideCanvasState: State<StatefulWidget> {
             let angle = atan2(p.dy - c.dy, p.dx - c.dx) * 180 / .pi
             var r = startRotation + angle - startAngle
             // Settle on the right angles when near them.
-            for target in stride(from: -360.0, through: 360, by: 90) where abs(r - target) < 3 { r = target }
+            let m = _w.modifiers()
+            if m.contains(.shift) {
+                r = (r / 15).rounded() * 15      // Shift turns in steps of 15°
+            } else if !m.contains(.alt) {
+                for target in stride(from: -360.0, through: 360, by: 90) where abs(r - target) < 3 { r = target }
+            }
             deck.setRotationLive(shape, r)
         case .marquee(let start, _):
             _drag = .marquee(start: start, now: p)
@@ -524,6 +550,8 @@ final class SlideCanvasState: State<StatefulWidget> {
         case .move(_, _, let shape, let wasSelected, let moved):
             if moved {
                 deck.endFrameEdit()
+            } else if _pendingToggle {
+                deck.toggleSelected(shape)
             } else if wasSelected, !_additive, shape.group != nil, deck.selection.count > 1,
                       deck.selection.count == deck.groupMembers(of: shape).count {
                 // A second click on a selected group picks the member.
@@ -568,16 +596,36 @@ final class SlideCanvasState: State<StatefulWidget> {
                 ? Rect.fromLTRB(frame.left + delta.dx, frame.top + delta.dy, frame.right, frame.bottom)
                 : Rect.fromLTRB(frame.left, frame.top, frame.right + delta.dx, frame.bottom + delta.dy)
         }
-        let r = Self.resizedFrame(frame, rotation: shape.rotation, handle: handle, delta: delta)
-        return shape.rotation == 0 ? _snapResize(r, handle: handle) : r
+        let m = _w.modifiers()
+        let r = Self.resizedFrame(frame, rotation: shape.rotation, handle: handle, delta: delta,
+                                  keepAspect: m.contains(.shift), fromCentre: m.contains(.control))
+        // Alt turns snapping off; a resize about the centre or by aspect has no edge to snap.
+        guard shape.rotation == 0, !m.contains(.alt), !m.contains(.shift), !m.contains(.control) else {
+            _guides = []
+            return r
+        }
+        return _snapResize(r, handle: handle)
     }
 
     /// Pure resize geometry, for tests: the opposite handle stays put.
-    static func resizedFrame(_ frame: Rect, rotation rot: Double, handle: Int, delta: Offset) -> Rect {
+    /// `keepAspect` (Shift, corner handles) holds the shape's proportions;
+    /// `fromCentre` (Ctrl) grows it both ways about its centre.
+    static func resizedFrame(_ frame: Rect, rotation rot: Double, handle: Int, delta: Offset,
+                             keepAspect: Bool = false, fromCentre: Bool = false) -> Rect {
         let (hx, hy) = handleUnits[handle]
-        let d = rotate(delta, -rot)
+        var d = rotate(delta, -rot)
         let sx = hx == 1 ? 1.0 : hx == 0 ? -1.0 : 0
         let sy = hy == 1 ? 1.0 : hy == 0 ? -1.0 : 0
+        if fromCentre { d = Offset(d.dx * 2, d.dy * 2) }
+        if keepAspect, sx != 0, sy != 0, frame.width > 0, frame.height > 0 {
+            let k = max((frame.width + d.dx * sx) / frame.width, (frame.height + d.dy * sy) / frame.height)
+            d = Offset(frame.width * (k - 1) * sx, frame.height * (k - 1) * sy)
+        }
+        if fromCentre {
+            let w = max(4, frame.width + d.dx * sx), h = max(4, frame.height + d.dy * sy)
+            let c = frame.center
+            return Rect.fromLTWH(c.dx - w / 2, c.dy - h / 2, w, h)
+        }
         let w = max(4, frame.width + d.dx * sx)
         let h = max(4, frame.height + d.dy * sy)
         let ax = 1 - hx, ay = 1 - hy
