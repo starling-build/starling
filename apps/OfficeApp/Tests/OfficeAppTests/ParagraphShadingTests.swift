@@ -52,4 +52,37 @@ final class ParagraphShadingTests: XCTestCase {
         let out = String(decoding: try XCTUnwrap(try Zip.read(try DocxFormat.write(doc, pageSetup: .letter)).first { $0.name == "word/document.xml" }).data, as: UTF8.self)
         XCTAssertTrue(out.containsSubstring("w:fill=\"auto\""), out)
     }
+
+    private func resave(_ bodyXML: String) throws -> String {
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .letter))
+        let di = try XCTUnwrap(entries.firstIndex { $0.name == "word/document.xml" })
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let body = try XCTUnwrap(xml.range(of: "<w:body>")).upperBound ..< (try XCTUnwrap(xml.range(of: "<w:sectPr"))).lowerBound
+        xml.replaceSubrange(body, with: bodyXML)
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let doc = try DocxFormat.read(try Zip.write(entries)).document
+        return String(decoding: try XCTUnwrap(try Zip.read(try DocxFormat.write(doc, pageSetup: .letter)).first { $0.name == "word/document.xml" }).data, as: UTF8.self)
+    }
+    func testMergedDownCellsKeepTheirShading() throws {
+        let out = try resave("""
+        <w:tbl><w:tblPr><w:tblW w:w="0" w:type="auto"/></w:tblPr><w:tblGrid><w:gridCol w:w="2000"/><w:gridCol w:w="2000"/></w:tblGrid>\
+        <w:tr><w:tc><w:tcPr><w:tcW w:w="2000" w:type="dxa"/><w:vMerge w:val="restart"/><w:shd w:val="clear" w:color="auto" w:fill="E6E6E6"/></w:tcPr><w:p><w:r><w:t>x</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>y</w:t></w:r></w:p></w:tc></w:tr>\
+        <w:tr><w:tc><w:tcPr><w:tcW w:w="2000" w:type="dxa"/><w:vMerge/><w:shd w:val="clear" w:color="auto" w:fill="E6E6E6"/></w:tcPr><w:p/></w:tc><w:tc><w:p><w:r><w:t>z</w:t></w:r></w:p></w:tc></w:tr></w:tbl><w:p/>
+        """)
+        XCTAssertEqual(out.components(separatedBy: "w:fill=\"E6E6E6\"").count - 1, 2, out)
+    }
+    func testPlainNoFillShadingOnParagraphsRunsAndMarksIsKept() throws {
+        let out = try resave("""
+        <w:p><w:pPr><w:shd w:val="clear" w:color="auto" w:fill="auto"/><w:rPr><w:shd w:val="clear" w:color="auto" w:fill="auto"/></w:rPr></w:pPr><w:r><w:rPr><w:shd w:val="clear" w:color="auto" w:fill="auto"/></w:rPr><w:t>x</w:t></w:r></w:p>
+        """)
+        XCTAssertEqual(out.components(separatedBy: "w:fill=\"auto\"").count - 1, 3, out)
+    }
+
+    func testTableAndRowShadingAreKept() throws {
+        let out = try resave("""
+        <w:tbl><w:tblPr><w:tblW w:w="0" w:type="auto"/><w:shd w:val="clear" w:color="auto" w:fill="DDEEFF"/></w:tblPr><w:tblGrid><w:gridCol w:w="2000"/><w:gridCol w:w="2000"/></w:tblGrid><w:tr><w:tblPrEx><w:shd w:val="pct15" w:color="auto" w:fill="auto"/></w:tblPrEx><w:tc><w:tcPr><w:tcW w:w="2000" w:type="dxa"/></w:tcPr><w:p><w:r><w:t>a</w:t></w:r></w:p></w:tc><w:tc><w:tcPr><w:tcW w:w="2000" w:type="dxa"/></w:tcPr><w:p><w:r><w:t>b</w:t></w:r></w:p></w:tc></w:tr></w:tbl><w:p/>
+        """)
+        XCTAssertTrue(out.contains("w:fill=\"DDEEFF\""), out)
+        XCTAssertTrue(out.contains("<w:tblPrEx><w:shd"), out)
+    }
 }

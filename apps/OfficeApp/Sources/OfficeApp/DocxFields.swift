@@ -1264,7 +1264,7 @@ extension DocxFormat {
                 .compactMap { k in shd[k].map { " \(k)=\"\(_esc($0))\"" } }.joined()
             style.fillAttrs = hex.uppercased() + "#" + extra
         }
-        else if let shd = pPr.first("w:shd"), let v = shd["w:val"], v != "clear", v != "nil" {
+        else if let shd = pPr.first("w:shd"), let v = shd["w:val"], v != "nil" {
             // A pattern over no fill colour: kept for the save (drawn as no fill).
             style.fillAttrs = "auto#" + ["w:val", "w:color", "w:themeFill", "w:themeFillTint", "w:themeFillShade", "w:themeColor", "w:themeTint", "w:themeShade"]
                 .compactMap { k in shd[k].map { " \(k)=\"\(_esc($0))\"" } }.joined()
