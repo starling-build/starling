@@ -19,6 +19,27 @@ final class SheetsPivotValueFieldTests: XCTestCase {
     }
     private func num(_ wc: WorkbookController, _ a: String) -> Double? { wc.sheet.cells[CellAddress(a)!]?.value.number }
 
+    /// The saved dataField carries its function, Show Values As and number format, and omits what is the default
+    /// (the attributes are built one at a time: as a single `+` chain the iOS compiler timed out on them).
+    func testTheSavedDataFieldCarriesFunctionShowAsAndFormat() throws {
+        func saved(_ d: PivotDataField) throws -> String {
+            let wc = book()
+            XCTAssertNil(wc.setPivotValueField(0, d))
+            let zip = try Zip.read(try Xlsx.write(wc.book))
+            let entry = try XCTUnwrap(zip.first { $0.name == "xl/pivotTables/pivotTable1.xml" })
+            return String(decoding: entry.data, as: UTF8.self)
+        }
+        let plain = try saved(PivotDataField(field: 2, function: .sum))
+        XCTAssertTrue(plain.contains("fld=\"2\" baseField=\"0\" baseItem=\"0\"/>"), plain)
+        XCTAssertFalse(plain.contains("subtotal="))
+        XCTAssertFalse(plain.contains("showDataAs="))
+        XCTAssertFalse(plain.contains("numFmtId="))
+        let max = try saved(PivotDataField(field: 2, function: .max, name: "Biggest"))
+        XCTAssertTrue(max.contains("<dataField name=\"Biggest\" fld=\"2\" subtotal=\"max\" baseField=\"0\""), max)
+        let share = try saved(PivotDataField(field: 2, function: .sum, showAs: .percentOfTotal))
+        XCTAssertTrue(share.contains("showDataAs=\"percentOfTotal\" numFmtId=\"10\" baseField=\"0\""), share)
+    }
+
     func testMinMaxAndName() {
         let wc = book()
         XCTAssertNil(wc.setPivotValueField(0, PivotDataField(field: 2, function: .max, name: "Biggest")))
