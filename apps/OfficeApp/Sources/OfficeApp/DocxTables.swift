@@ -1426,6 +1426,8 @@ extension DocxFormat {
             var pos = 0
             let utf16 = p.text.utf16
             let boxRanges = p.checkBoxes.map(\.range)   // a content-control check box shows its glyph as text, not as a legacy form field
+            // (Runs of the same target that follow each other share one w:hyperlink, as Word writes an entry.)
+            var linkOpen = "", linkClosedAt = -1
             for (runIndex, run) in p.runs.enumerated() where run.length > 0 {
                 body += bookmarkXML(at: pos) + controlXML(at: pos)
                 let a = utf16.index(utf16.startIndex, offsetBy: pos)
@@ -1459,7 +1461,7 @@ extension DocxFormat {
                     body += "</w:r>"
                     continue
                 }
-                if s.link != nil, !rPr.hasPrefix("<w:rStyle ") { rPr = "<w:rStyle w:val=\"\(_esc(doc.keptCharacterStyleIds["hyperlink"] ?? "Hyperlink"))\"/>" + rPr }
+                if s.link != nil, s.linkField == nil, !s.linkKeepsLook, !rPr.hasPrefix("<w:rStyle ") { rPr = "<w:rStyle w:val=\"\(_esc(doc.keptCharacterStyleIds["hyperlink"] ?? "Hyperlink"))\"/>" + rPr }
                 let rPrXML = rPr.isEmpty ? "" : "<w:rPr>\(rPr)</w:rPr>"
                 var runXML = ""
                 let isBox: (Character) -> Bool = { $0 == "\u{2610}" || $0 == "\u{2612}" }
@@ -1550,13 +1552,30 @@ extension DocxFormat {
                         openComments.append(id)
                     }
                 }
-                if let link = s.link {
-                    let tip = s.linkTip.map { " w:tooltip=\"\(_esc($0))\"" } ?? ""
-                    if link.hasPrefix("#") {
-                        body += "<w:hyperlink w:anchor=\"\(_esc(String(link.dropFirst())))\"\(tip)>\(runXML)</w:hyperlink>"
-                    } else {
-                        body += "<w:hyperlink r:id=\"\(relId(for: link))\"\(tip)>\(runXML)</w:hyperlink>"
+                if let lf = s.linkField, s.link != nil {
+                    // A HYPERLINK field kept as written: it opens before its first run and ends after its last, which may
+                    // sit in another paragraph.
+                    func same(_ o: Run?) -> Bool { o.map { $0.style.linkField == lf && $0.style.linkFieldID == s.linkFieldID } ?? false }
+                    let before = p.runs.prefix(runIndex).last { $0.length > 0 }
+                        ?? (index > 0 ? doc.paragraphs[index - 1].runs.last { $0.length > 0 } : nil)
+                    let after = p.runs.dropFirst(runIndex + 1).first { $0.length > 0 }
+                        ?? (index + 1 < doc.paragraphs.count ? doc.paragraphs[index + 1].runs.first { $0.length > 0 } : nil)
+                    if !same(before) {
+                        body += "<w:r><w:fldChar w:fldCharType=\"begin\"/></w:r><w:r><w:instrText xml:space=\"preserve\"> \(_esc(lf)) </w:instrText></w:r><w:r><w:fldChar w:fldCharType=\"separate\"/></w:r>"
                     }
+                    body += runXML
+                    if !same(after) { body += "<w:r><w:fldChar w:fldCharType=\"end\"/></w:r>" }
+                } else if let link = s.link {
+                    let tip = s.linkTip.map { " w:tooltip=\"\(_esc($0))\"" } ?? ""
+                    let open = link.hasPrefix("#") ? "<w:hyperlink w:anchor=\"\(_esc(String(link.dropFirst())))\"\(tip)>"
+                        : "<w:hyperlink r:id=\"\(relId(for: link))\"\(tip)>"
+                    if open == linkOpen, body.utf8.count == linkClosedAt {
+                        body.removeLast("</w:hyperlink>".count)
+                        body += runXML + "</w:hyperlink>"
+                    } else {
+                        body += open + runXML + "</w:hyperlink>"
+                    }
+                    linkOpen = open; linkClosedAt = body.utf8.count
                 } else {
                     body += runXML
                 }

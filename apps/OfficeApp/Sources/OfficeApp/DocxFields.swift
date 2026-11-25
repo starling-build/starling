@@ -366,6 +366,38 @@ extension DocxFormat {
 
     /// Metadata fields keep their cached result and instruction; layout
     /// does not update them or confuse them with page-number fields.
+    static func _isHyperlinkField(_ instr: String) -> Bool {
+        instr.split(whereSeparator: { $0.isWhitespace }).first?.uppercased() == "HYPERLINK"
+    }
+
+    /// Where a HYPERLINK field points: its address and/or `\l` place ("#place" for the document's own), and the `\o` tip.
+    static func _hyperlinkFieldTarget(_ instr: String) -> (target: String, tip: String?)? {
+        var tokens: [(text: String, quoted: Bool)] = []
+        var cur = "", quoted = false, inQuote = false, any = false
+        for ch in instr {
+            if ch == "\"" { if inQuote { tokens.append((cur, true)); cur = ""; any = false } ; inQuote.toggle(); quoted = inQuote; continue }
+            if ch.isWhitespace && !inQuote { if any { tokens.append((cur, false)); cur = ""; any = false }; continue }
+            cur.append(ch); any = true
+        }
+        if any { tokens.append((cur, quoted)) }
+        guard tokens.count > 1 else { return nil }
+        var url = "", place = "", tip: String? = nil
+        var i = 1
+        while i < tokens.count {
+            let t = tokens[i]
+            if !t.quoted, t.text.hasPrefix("\\") {
+                let sw = t.text.lowercased()
+                if (sw == "\\l" || sw == "\\o" || sw == "\\t"), i + 1 < tokens.count {
+                    if sw == "\\l" { place = tokens[i + 1].text } else if sw == "\\o" { tip = tokens[i + 1].text }
+                    i += 2; continue
+                }
+            } else if url.isEmpty { url = t.text }
+            i += 1
+        }
+        if url.isEmpty && place.isEmpty { return nil }
+        return (place.isEmpty ? url : url + "#" + place, tip)
+    }
+
     static func _preservesField(_ instr: String) -> Bool {
         let word = instr.split(whereSeparator: { $0.isWhitespace }).first?.uppercased() ?? ""
         return Self._keptFieldWords.contains(word)

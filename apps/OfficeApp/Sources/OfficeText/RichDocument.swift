@@ -171,6 +171,12 @@ public struct CharStyle: Hashable, Codable, Sendable {
     public var link: String? = nil
     /// The hyperlink's screen tip (Word's w:tooltip); only meaningful with a link.
     public var linkTip: String? = nil
+    /// The HYPERLINK field instruction (as written) this run's text is the result of, and which field it is: the link is
+    /// kept as the field on save, and is not drawn blue or underlined unless the run's own look says so.
+    public var linkField: String? = nil
+    public var linkFieldID = 0
+    /// The link came from a file: the save adds no Hyperlink character style to its runs (the file's runs keep the look they had).
+    public var linkKeepsLook = false
     public var script: ScriptPosition = .normal
     /// Slides fontAlgn t, ctr or b on a line that mixes faces or sizes: where this run's baseline stands below the line's top, and where the engine's own line puts it, in ems of the run's size (nil: the paragraph is moved as a whole).
     public var alignTop: Double? = nil
@@ -301,6 +307,9 @@ public struct CharStyle: Hashable, Codable, Sendable {
     /// document (0 for none): Word's markup ends a "Formatted:" stretch
     /// at a field's ends. Read, not written back.
     public var fieldResult = 0
+    /// Set on the "{ instruction }" text that stands in for a field's result while its code is shown (Shift+F9 / Alt+F9):
+    /// which field it is, so hiding the code puts the result back with the instruction as edited. Never written to a file.
+    public var fieldCodeID = 0
 
     public init(bold: Bool = false, italic: Bool = false, underline: Bool = false,
                 strikethrough: Bool = false, fontFamily: String? = nil,
