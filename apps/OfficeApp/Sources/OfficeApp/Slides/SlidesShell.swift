@@ -40,6 +40,16 @@ final class SlidesShellState: State<StatefulWidget> {
     private let _scratch = RichDocumentController()
     private var _active: SlideShape? = nil
     private var _notesActive = false
+    // Outline view: the left rail becomes one editable list of titles and bodies.
+    private var _outline = false
+    private let _outlineCtl = RichDocumentController()
+    private let _outlineFocus = FocusNode(debugLabel: "slide outline")
+    private var _outlineSyncing = false
+    private let _outlineTheme: RichTextTheme = {
+        let t = RichTextTheme(fontFamily: "Calibri", fontSize: 13, headingColor: nil)
+        t.fontFamilyResolver = OfficeFonts.drawn
+        return t
+    }()
     private var _focusShape: SlideShape? = nil
     private let _deckFocus = FocusNode(debugLabel: "slides deck")
     private let _deckChords = KeyChordTracker()
@@ -92,6 +102,10 @@ final class SlidesShellState: State<StatefulWidget> {
     private var _formatBackground = false
     /// A thumbnail being dragged to a new place: where it started, the
     /// pointer's start, and where it would land.
+    /// A slide dragged in the sorter: where it started, which slot it is over, and whether it has moved.
+    private var _sorterDrag: (from: Int, startX: Double, startY: Double, to: Int, moved: Bool)? = nil
+    /// How many tiles a sorter row holds (read back from the laid-out grid).
+    private var _sorterPerRow = 1
     private var _thumbDrag: (from: Int, startY: Double, startX: Double, to: Int, moved: Bool)? = nil
     private let _thumbMenu = FlyoutController()
     /// The thumbnail pane's scroll, and the slide it was last brought to:
@@ -141,6 +155,8 @@ final class SlidesShellState: State<StatefulWidget> {
         bind(_deckFocus)
         trackDocumentPath(session)
         bind(_notesFocus)
+        bind(_outlineFocus)
+        _outlineCtl.addListener({ [weak self] in self?._outlineEdited() }, owner: self)
         _recent = OfficeRecent.load()
         _wire()
         officeScene.registerFlush(owner: self) { [weak self] in self?._autosaveNow() }
@@ -184,6 +200,7 @@ final class SlidesShellState: State<StatefulWidget> {
         session.controller.removeListeners(owner: self)
         _deckFocus.dispose()
         _notesFocus.dispose()
+        _outlineFocus.dispose()
         _search.dispose()
         _thumbScroll.dispose()
         _sorterScroll.dispose()
@@ -399,7 +416,18 @@ final class SlidesShellState: State<StatefulWidget> {
             guard let self else { return }
             self._endEditing()
             self.deck.setNotesPageView(false)
-            self.setState { self._sorter = sorter }
+            if self._outline { self.deck.endOutlineEdit() }
+            self.session.slidesOutline = false
+            self.setState { self._sorter = sorter; self._outline = false }
+        }
+        session.onSlidesOutline = { [weak self] in
+            guard let self else { return }
+            self._endEditing()
+            self.deck.setNotesPageView(false)
+            let on = !self._outline
+            if on { self._loadOutline() } else { self.deck.endOutlineEdit() }
+            self.session.slidesOutline = on
+            self.setState { self._outline = on; self._sorter = false }
         }
         session.onSlidesNotesPage = { [weak self] in
             guard let self else { return }
@@ -663,6 +691,7 @@ final class SlidesShellState: State<StatefulWidget> {
     }
 
     private func _deckChanged() {
+        if _outline && !_outlineSyncing && !_outlineFocus.hasFocus { _loadOutline() }
         _fitTables()
         _autofit()
         // A selected picture opens its tab; leaving it returns Home.
@@ -1371,7 +1400,7 @@ final class SlidesShellState: State<StatefulWidget> {
         if _sorter {
             column.append(Expanded(child: _sorterView(fluent)))
         } else {
-            var row: [Widget] = _narrow && !_narrowRail ? [] : [_thumbnailPane(fluent)]
+            var row: [Widget] = _narrow && !_narrowRail ? [] : [_outline ? _outlinePane(fluent) : _thumbnailPane(fluent)]
             row.append(Expanded(child: Column(crossAxisAlignment: .stretch, children: work)))
             var panes: [Widget] = []
             if _animationPane {
@@ -1675,6 +1704,41 @@ final class SlidesShellState: State<StatefulWidget> {
         }
     }
 
+    private func _sorterDown(_ index: Int, _ e: PointerDownEvent, context: any BuildContext) {
+        if e.buttons & kSecondaryMouseButton != 0 {
+            if !deck.selectedSlides.contains(index) { _select(index) }
+            _paneFocused = true
+            _showThumbMenu(at: e.position, context: context)
+            return
+        }
+        // Dragging an unpicked tile picks it first; a picked group drags together.
+        if !deck.selectedSlides.contains(index), !_deckChords.shift, !_deckChords.primary { deck.selectSlide(index) }
+        _sorterDrag = (index, e.position.dx, e.position.dy, index, false)
+    }
+
+    private func _sorterMove(_ position: Offset, tile: (w: Double, h: Double)) {
+        guard var drag = _sorterDrag else { return }
+        let dx = position.dx - drag.startX, dy = position.dy - drag.startY
+        if !drag.moved && abs(dx) < 6 && abs(dy) < 6 { return }
+        drag.moved = true
+        let steps = Int((dx / tile.w).rounded()) + _sorterPerRow * Int((dy / tile.h).rounded())
+        let to = max(0, min(deck.slides.count - 1, drag.from + steps))
+        let changed = to != drag.to || !(_sorterDrag?.moved ?? false)
+        drag.to = to
+        _sorterDrag = drag
+        if changed { setState {} }
+    }
+
+    private func _sorterUp() {
+        guard let drag = _sorterDrag else { return }
+        _sorterDrag = nil
+        if drag.moved, drag.to != drag.from {
+            let picked = deck.selectedSlides
+            if picked.count > 1 { deck.moveSelectedSlides(to: picked[0] + (drag.to - drag.from)) }
+            else { deck.moveSlide(drag.from, to: drag.to) }
+        } else { setState {} }
+    }
+
     private func _thumbDown(_ index: Int, _ e: PointerDownEvent, context: any BuildContext) {
         if e.buttons & kSecondaryMouseButton != 0 {
             // A right-click inside the picked slides keeps the pick.
@@ -1825,7 +1889,23 @@ final class SlidesShellState: State<StatefulWidget> {
         let picked = Set(deck.selectedSlides)
         for (i, slide) in deck.slides.enumerated() {
             let current = picked.contains(i)
-            tiles.append(KeyboardRow(label: "Slide \(i + 1)", activate: { [weak self] in self?.deck.selectSlide(i); self?._deckFocus.requestFocus() }, child: GestureDetector(
+            let dropHere = _sorterDrag.map { $0.moved && $0.to == i && $0.to != $0.from } ?? false
+            let dropBefore = dropHere && _sorterDrag!.to < _sorterDrag!.from
+            let bar = Positioned(left: dropBefore ? 3 : nil, top: 12, right: dropBefore ? nil : 3, width: 5, height: h + 8,
+                                 child: ColoredBox(color: dropHere ? accent : Color(0x00000000), child: SizedBox(expand: ())))
+            tiles.append(Listener(
+              key: ValueKey("slide.sorter.\(i)"),
+              onPointerDown: { [weak self] e in
+                  guard let self, let context = self.context else { return }
+                  self._sorterDown(i, e, context: context)
+              },
+              onPointerMove: { [weak self] e in self?._sorterMove(e.position, tile: (w + 32, h + 52)) },
+              onPointerUp: { [weak self] e in
+                  self?._sorterMove(e.position, tile: (w + 32, h + 52))
+                  self?._sorterUp()
+              },
+              behavior: .translucent,
+            child: KeyboardRow(label: "Slide \(i + 1)", activate: { [weak self] in self?.deck.selectSlide(i); self?._deckFocus.requestFocus() }, child: GestureDetector(
                 key: ValueKey("slide.tile.\(i)"),
                 onTap: { [weak self] in
                     guard let self else { return }
@@ -1843,7 +1923,7 @@ final class SlidesShellState: State<StatefulWidget> {
                     self._deckFocus.requestFocus()
                     self._paneFocused = true
                 },
-                child: Padding(padding: EdgeInsets(all: 12), child: Column(crossAxisAlignment: .start, children: [
+                child: Stack(children: [Padding(padding: EdgeInsets(all: 12), child: Column(crossAxisAlignment: .start, children: [
                     DecoratedBox(
                         decoration: BoxDecoration(border: Border.all(
                             color: current ? accent : fluent.resources.controlStrokeColorDefault,
@@ -1856,7 +1936,7 @@ final class SlidesShellState: State<StatefulWidget> {
                                 child: SizedBox(expand: ()))))))),
                     Chrome.vgap(4),
                     Text("\(i + 1)\(slide.hidden ? "  (hidden)" : "")", style: fluent.typography.caption),
-                ])))))
+                ])), bar])))))
         }
         let dark = fluent.brightness == .dark
         // A tile: the thumbnail, its frame (8), the number under it (4 and
@@ -1877,6 +1957,8 @@ final class SlidesShellState: State<StatefulWidget> {
             guard let self, self._sorterScroll.hasClients else { return }
             let pos = self._sorterScroll.position
             let mounted = ObjectIdentifier(pos)
+            let allRows = max(1, Int(((pos.maxScrollExtent + pos.viewportDimension - 32) / rowHeight).rounded()))
+            self._sorterPerRow = max(1, Int((Double(self.deck.slides.count) / Double(allRows)).rounded(.up)))
             guard current != self._sorterShown || mounted != self._sorterPosition else { return }
             self._sorterShown = current
             self._sorterPosition = mounted
@@ -1931,6 +2013,64 @@ final class SlidesShellState: State<StatefulWidget> {
         return ColoredBox(color: dark ? Color(0xFF202020) : Color(0xFFE6E6E6), child: SingleChildScrollView(
             child: Padding(padding: EdgeInsets(left: 0, top: 20, right: 0, bottom: 20), child: Row(
                 mainAxisAlignment: .center, children: [page]))))
+    }
+
+    private func _loadOutline() {
+        let entries = deck.outlineEntries
+        if Outline.entries(from: _outlineCtl.document) == entries { return }
+        _outlineSyncing = true
+        _outlineCtl.load(Outline.document(entries))
+        _outlineSyncing = false
+    }
+
+    /// The list was typed in: the deck follows, and the slide under the caret shows.
+    private func _outlineEdited() {
+        guard _outline, !_outlineSyncing else { return }
+        _outlineSyncing = true
+        deck.applyOutline(Outline.entries(from: _outlineCtl.document))
+        // New rows (and rows whose tag Enter copied) learn their slide's id, so the next edit finds the right slide.
+        if Outline.entries(from: _outlineCtl.document).map(\.slideId) != deck.outlineEntries.map(\.slideId) {
+            let sel = _outlineCtl.selection
+            _outlineCtl.load(Outline.document(deck.outlineEntries))
+            _outlineCtl.selection = sel
+        }
+        let doc = _outlineCtl.document
+        let caret = _outlineCtl.selection.caret.paragraph
+        var slide = -1
+        for (i, p) in doc.paragraphs.enumerated() where i <= caret {
+            if p.style.listLevel <= 0 || slide < 0 { slide += 1 }
+        }
+        if slide >= 0 { deck.selectSlide(min(slide, deck.slides.count - 1)) }
+        _outlineSyncing = false
+    }
+
+    /// Tab demotes the line one level, Shift+Tab promotes it; a title is level 0.
+    private func _outlineShortcut(_ key: KeyData, _ mods: KeyModifiers) -> Bool {
+        guard KeyChordTracker.named(key.logical) == .tab else { return false }
+        let back = mods.contains(.shift)
+        _outlineCtl.applyParagraphStyle { st in
+            st.listLevel = max(0, min(5, st.listLevel + (back ? -1 : 1)))
+            st.indentLeft = Double(st.listLevel) * Outline.indentPerLevel
+        }
+        return true
+    }
+
+    private func _outlinePane(_ fluent: FluentThemeData) -> Widget {
+        let dark = fluent.brightness == .dark
+        _outlineTheme.textColor = dark ? Color(0xFFF0F0F0) : Color(0xFF1B1B1B)
+        _outlineTheme.caretColor = _outlineTheme.textColor
+        return SizedBox(key: ValueKey("outline.pane"), width: 320, height: nil, child: DecoratedBox(
+            decoration: BoxDecoration(
+                color: fluent.resources.solidBackgroundFillColorBase,
+                border: Border(right: BorderSide(color: fluent.resources.dividerStrokeColorDefault, width: 1))),
+            child: RichEditable(
+                key: ValueKey("outline.editor"),
+                controller: _outlineCtl, theme: _outlineTheme,
+                padding: EdgeInsets(left: 12, top: 10, right: 12, bottom: 10),
+                focusNode: _outlineFocus, autofocus: false, backgroundColor: nil,
+                onShortcut: { [weak self] key, mods in self?._outlineShortcut(key, mods) ?? false },
+                onTouchMenu: { [scene = self.officeScene, c = _outlineCtl] rect in scene.showTouchMenu(rect, controller: c) },
+                spellChecker: nil)))
     }
 
     private func _notesPane(_ fluent: FluentThemeData) -> Widget {
