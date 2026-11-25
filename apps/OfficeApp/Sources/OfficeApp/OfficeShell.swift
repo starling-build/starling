@@ -1564,7 +1564,9 @@ final class OfficeShellState: State<StatefulWidget> {
             spellChecker: session.checkSpelling ? _spelling : nil,
             onTextBoxEnter: { [weak self] index, inline, rect in self?._enterBox(index, inline, rect) }
         )
-        guard let b = _boxEdit else { return editable }
+        guard let b = _boxEdit else {
+            return WriterAccessibility.wrap(editable, controller: controller, focused: _editorFocus.hasFocus)
+        }
         let z = session.zoom
         let boxEditor = RichEditable(
             controller: controller, theme: theme,
