@@ -547,6 +547,12 @@ final class WorkbookController: ChangeNotifier {
 
     /// The ribbon's way to the grid (clipboard, a formula into the editor).
     var onCommand: ((SheetCommand) -> Void)?
+    /// Asks the user about an entry its validation rule objects to; the shell answers through the
+    /// callback. Unset (tests, headless): the entry is handled by the rule's style alone.
+    var onValidationAlert: ((ValidationAlert, @escaping (ValidationChoice) -> Void) -> Void)?
+    /// Data → Circle Invalid Data is on: cells breaking their rule are ringed until it is cleared.
+    var circlesOn = false
+    var circleCache: (edits: Int, cells: [CellAddress])?
 
     /// The block of data around a cell: the rectangle of filled cells
     /// reachable from it, Excel's "current region".

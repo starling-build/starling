@@ -319,6 +319,13 @@ extension Ribbon {
     private func _dataToolsGroup(_ wb: WorkbookController, _ fluent: FluentThemeData) -> Widget {
         Chrome.group("Data Tools", fluent, [
             Chrome.big(FluentSystemIcons.check, "Data Validation", fluent) { wb.onCommand?(.dataValidation) },
+            Chrome.rows([
+                Chrome.small(FluentSystemIcons.check, "Circle Invalid Data", fluent) {
+                    let n = wb.circleInvalidData()
+                    wb.onCommand?(.status(n == 0 ? "No invalid data found" : "\(n) invalid cell\(n == 1 ? "" : "s") circled"))
+                },
+                Chrome.small(FluentSystemIcons.close, "Clear Validation Circles", fluent) { wb.clearValidationCircles() },
+            ]),
         ])
     }
 
