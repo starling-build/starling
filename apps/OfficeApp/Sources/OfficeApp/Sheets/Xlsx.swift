@@ -485,6 +485,9 @@ enum Xlsx {
                     }
                 } else {
                     cell.value = value
+                    // A text constant that starts with "=" stays text (lo-tdf162093's "=myData[#Headers]"):
+                    // typed, it would be "'=abc", and that is its input here.
+                    if case .text(let t) = value, t.hasPrefix("="), t.count > 1 { cell.input = "'" + t }
                 }
                 if cell.value.isEmpty && cell.formula == nil && cell.style == 0 && cell.input.isEmpty { return }
                 cells[a] = cell
@@ -522,6 +525,7 @@ enum Xlsx {
                 for col in r.left ... r.right {
                     let a = CellAddress(row: row, col: col)
                     guard a != anchor, let c = cells[a], c.formula == nil, c.rawFormula == nil else { continue }
+                    if !c.value.isEmpty { ws.fileSpill[a] = c.value }
                     if c.style == 0 { cells[a] = nil } else { cells[a]?.value = .empty; cells[a]?.input = "" }
                 }
             }
@@ -1401,6 +1405,19 @@ enum Xlsx {
                 var c = Cell(input: "")
                 c.value = v
                 byRow[a.row, default: []].append((a, c))
+            }
+        }
+        // The file's own values for an array formula's other cells, where ours left one blank.
+        if !ws.fileSpill.isEmpty {
+            let arrays = ws.cells.values.compactMap { $0.arrayRef.flatMap { CellRange($0) } }
+            for (a, v) in ws.fileSpill where ws.spilled[a] == nil && ws.cells[a]?.value.isEmpty ?? true && ws.cells[a]?.formula == nil
+                && arrays.contains(where: { $0.contains(a) }) {
+                if let i = byRow[a.row]?.firstIndex(where: { $0.0 == a }) {
+                    byRow[a.row]![i].1.value = v
+                } else {
+                    var c = Cell(input: ""); c.value = v
+                    byRow[a.row, default: []].append((a, c))
+                }
             }
         }
         let rows = Set(byRow.keys).union(ws.rowHeights.keys).union(ws.filteredRows).union(ws.hiddenRows).union(ws.rowAttrs.keys).sorted()
