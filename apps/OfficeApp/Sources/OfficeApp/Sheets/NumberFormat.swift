@@ -300,6 +300,30 @@ enum NumberFormat {
         return (n < 0 ? "-" : "") + m + "E" + (exp < 0 ? "-" : "+") + (e < 10 ? "0" : "") + String(e)
     }
 
+    // MARK: Checking a typed code
+
+    /// Why a typed code cannot be kept, in plain words, or nil when it can.
+    /// (Excel accepts nearly anything; these are the cases it refuses: an empty
+    /// code, an open quote or bracket, more than four sections, a trailing
+    /// backslash.)
+    static func problem(_ code: String) -> String? {
+        if code.allSatisfy({ $0 == " " }) { return "The format is empty." }
+        var inQuote = false, inBracket = false, escape = false
+        for ch in code {
+            if escape { escape = false; continue }
+            if ch == "\\" { escape = true; continue }
+            if ch == "\"" { inQuote.toggle(); continue }
+            if inQuote { continue }
+            if ch == "[" { if inBracket { return "A [ is opened twice." }; inBracket = true }
+            if ch == "]" { if !inBracket { return "A ] has no [ before it." }; inBracket = false }
+        }
+        if inQuote { return "A quote is not closed." }
+        if inBracket { return "A [ is not closed." }
+        if escape { return "The format ends with a backslash." }
+        if _sections(code).count > 4 { return "A format has at most four sections (positive; negative; zero; text)." }
+        return nil
+    }
+
     // MARK: Codes
 
     /// Split on ";" outside quotes and brackets.
