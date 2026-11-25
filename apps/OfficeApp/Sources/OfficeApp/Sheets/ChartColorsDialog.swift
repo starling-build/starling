@@ -24,13 +24,15 @@ final class ChartColorsDialog: StatefulWidget {
 final class ChartColorsDialogState: State<StatefulWidget> {
     private var _w: ChartColorsDialog { widget as! ChartColorsDialog }
 
-    static let palette: [(String, Color)] = [
-        ("Black", Color(0xFF000000)), ("White", Color(0xFFFFFFFF)), ("Dark Gray", Color(0xFF595959)),
-        ("Light Gray", Color(0xFFD9D9D9)), ("Dark Red", Color(0xFFC00000)), ("Red", Color(0xFFFF0000)),
-        ("Orange", Color(0xFFFFC000)), ("Yellow", Color(0xFFFFFF00)), ("Light Green", Color(0xFF92D050)),
-        ("Green", Color(0xFF00B050)), ("Light Blue", Color(0xFF00B0F0)), ("Blue", Color(0xFF0070C0)),
-        ("Dark Blue", Color(0xFF002060)), ("Purple", Color(0xFF7030A0)),
-    ]
+    private var _open: String?      // the row whose colour panel is showing
+    private var _more: (id: String, target: WorkbookController.ChartColorTarget)?
+    private var _recent = RecentColors()
+
+    private func _choose(_ t: WorkbookController.ChartColorTarget, _ choice: ColorChoice) {
+        if let rgb = choice.resolved(theme: ColorMath.officeTheme) { _recent.use(rgb) }
+        _ = _w.controller.setChartColor(_w.index, series: t.series, point: t.point, choice: choice)
+        setState { self._open = nil; self._more = nil }
+    }
 
     override func build(_ context: any BuildContext) -> Widget {
         let fluent = FluentTheme.of(context)
@@ -38,15 +40,18 @@ final class ChartColorsDialogState: State<StatefulWidget> {
         let gap: (Double) -> Widget = { SizedBox(width: nil, height: $0, child: nil) }
         func row(_ t: WorkbookController.ChartColorTarget, _ id: String) -> Widget {
             let now: Widget = t.color.map { Chrome.swatch($0, fluent) } ?? Text(t.themed ? "Theme colour" : "Automatic", style: fluent.typography.caption)
-            return Row(children: [
+            var parts: [Widget] = [Row(children: [
                 SizedBox(width: 200, height: nil, child: Text(t.title)),
                 SizedBox(width: 90, height: nil, child: now),
-                Chrome.colorMenu(FluentSystemIcons.paintBrush, "Colour", fluent, colors: Self.palette, none: "Automatic") { [weak self] c in
-                    guard let self else { return }
-                    _ = self._w.controller.setChartColor(self._w.index, series: t.series, point: t.point, color: c)
-                    self.setState {}
-                },
-            ])
+                Chrome.textToggle("Colour", _open == id, fluent) { [weak self] in
+                    self?.setState { self?._open = self?._open == id ? nil : id } },
+            ])]
+            if _open == id {
+                parts.append(ColorPicker(recent: _recent.list, automaticLabel: "Automatic", noneLabel: nil,
+                                         onChoose: { [weak self] c in self?._choose(t, c) },
+                                         onMore: { [weak self] in self?.setState { self?._more = (id, t) } }))
+            }
+            return Column(mainAxisSize: .min, crossAxisAlignment: .stretch, children: parts)
         }
         var rows: [Widget] = []
         if let targets {
@@ -57,9 +62,17 @@ final class ChartColorsDialogState: State<StatefulWidget> {
                 for (n, t) in targets.points.enumerated() { rows.append(row(t, "chartcolor-point-\(n)")); rows.append(gap(4)) }
             }
         } else { rows.append(Text("This chart's colours cannot be changed here.")) }
-        return DialogShell(title: "Format Data Series", page: SizedBox(width: nil, height: 360, child: SingleChildScrollView(child: Column(
+        let dialog = DialogShell(title: "Format Data Series", page: SizedBox(width: nil, height: 360, child: SingleChildScrollView(child: Column(
                                mainAxisSize: .min, crossAxisAlignment: .stretch, children: rows))),
                            okLabel: "Close", cancelLabel: "Close", width: 460,
                            onOK: _w.onClose, onCancel: _w.onClose)
+        guard let m = _more else { return dialog }
+        return Stack(children: [
+            dialog,
+            Positioned(left: 0, top: 0, right: 0, bottom: 0, child: CustomColorDialog(
+                initial: UInt32(truncatingIfNeeded: m.target.color?.value ?? 0) & 0xFFFFFF,
+                onOK: { [weak self] rgb in self?._choose(m.target, .rgb(rgb)) },
+                onCancel: { [weak self] in self?.setState { self?._more = nil } })),
+        ])
     }
 }

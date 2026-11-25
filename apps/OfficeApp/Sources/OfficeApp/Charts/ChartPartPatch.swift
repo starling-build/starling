@@ -14,7 +14,21 @@ enum ChartPartEdit: Equatable {
 
 /// One series of a chart as Select Data edits it: where it came from in the part (`source`, its position among the part's series; nil for a new one) and the cells it reads.
 /// A colour set in Format Data Series on a file's chart: a series of the part (its place in the first chart group), or one point of it; nil is automatic.
-struct ChartColorEdit: Equatable { var series: Int; var point: Int?; var hex: String? }
+struct ChartColorEdit: Equatable {
+    var series: Int; var point: Int?; var hex: String?
+    /// A theme slot ("accent2") with its lumMod / lumOff in percent, written as a scheme colour so a new theme recolours it; wins over `hex`.
+    var scheme: String? = nil; var lumMod: Int = 100; var lumOff: Int = 0
+    /// The colour element to write; nil is automatic.
+    var element: String? {
+        if let scheme {
+            var mods = ""
+            if lumMod != 100 { mods += "<a:lumMod val=\"\(lumMod * 1000)\"/>" }
+            if lumOff != 0 { mods += "<a:lumOff val=\"\(lumOff * 1000)\"/>" }
+            return mods.isEmpty ? "<a:schemeClr val=\"\(scheme)\"/>" : "<a:schemeClr val=\"\(scheme)\">\(mods)</a:schemeClr>"
+        }
+        return hex.map { "<a:srgbClr val=\"\($0)\"/>" }
+    }
+}
 struct ChartSeriesRef: Equatable {
     var source: Int?
     var name: String?
@@ -320,7 +334,8 @@ enum ChartPartPatch {
         return x
     }
 
-    private static func _solid(_ hex: String) -> String { "<a:solidFill><a:srgbClr val=\"\(hex)\"/></a:solidFill>" }
+    /// A solid fill of the colour element `clr` (a scheme or an sRGB colour).
+    private static func _solid(_ clr: String) -> String { "<a:solidFill>\(clr)</a:solidFill>" }
 
     /// The `<a:ln …>…</a:ln>` (or `<a:ln …/>`) of a shape's properties, if any.
     private static func _lnRange(_ t: String) -> Range<String.Index>? {
@@ -444,8 +459,8 @@ enum ChartPartPatch {
             if mine.isEmpty { continue }
             var s = String(x[r])
             for e in mine {
-                if let p = e.point { if !line { s = _setPointColor(s, p, e.hex, group: g.tag) } }
-                else { s = _setSeriesColor(s, e.hex, line: line) }
+                if let p = e.point { if !line { s = _setPointColor(s, p, e.element, group: g.tag) } }
+                else { s = _setSeriesColor(s, e.element, line: line) }
             }
             x.replaceSubrange(r, with: s)
         }

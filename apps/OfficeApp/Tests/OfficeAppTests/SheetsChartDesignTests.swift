@@ -111,6 +111,7 @@ final class SheetsChartDesignTests: XCTestCase {
         // Series colours: Sales green, Feb point purple, Cost back to automatic; on a chart made here and on the same one from a file.
         let green = Color(0xFF00B050), purple = Color(0xFF7030A0)
         c.setChartColor(i, series: c.chartColorTargets(i)!.series[0].series, point: nil, color: green)
+        c.setChartColor(i, series: c.chartColorTargets(i)!.series[1].series, point: nil, choice: .theme(slot: 5, lumMod: 60, lumOff: 40))
         try Xlsx.write(c.book).write(to: URL(fileURLWithPath: dir + "/chartcolor-new.xlsx"))
         let (f2, fi) = chartBook()
         let f3 = WorkbookController(); f3.load(try Xlsx.read(try Xlsx.write(f2.book)))
@@ -393,6 +394,30 @@ final class SheetsChartDesignTests: XCTestCase {
 
     /// Corpus round trip for Select Data (CHART_CORPUS=<dir>): (1) every chart's series set to what it already is leaves the chart part
     /// byte-identical; (2) the last series removed leaves one fewer c:ser and every c:idx and c:order unique.
+    func testThemeColourIsWrittenAsSchemeColour() throws {
+        let (c, i) = chartBook()
+        let k = c.chartColorTargets(i)!.series[0].series
+        XCTAssertTrue(c.setChartColor(i, series: k, point: nil, choice: .theme(slot: 5, lumMod: 60, lumOff: 40)))
+        XCTAssertTrue(c.setChartColor(i, series: k, point: 1, choice: .theme(slot: 6, lumMod: 100, lumOff: 0)))
+        var xml = try chartXML(c)
+        XCTAssertTrue(xml.contains("<a:schemeClr val=\"accent2\"><a:lumMod val=\"60000\"/><a:lumOff val=\"40000\"/></a:schemeClr>"))
+        XCTAssertTrue(xml.contains("<a:schemeClr val=\"accent3\"/>"))
+        // From a file: the same patch lands in the original part.
+        let back = WorkbookController(); back.load(try Xlsx.read(try Xlsx.write(c.book)))
+        let j = back.sheet.drawings.firstIndex(where: { $0.isChart })!
+        XCTAssertTrue(back.setChartColor(j, series: back.chartColorTargets(j)!.series[1].series, point: nil, choice: .theme(slot: 7, lumMod: 75, lumOff: 0)))
+        xml = try chartXML(back)
+        XCTAssertTrue(xml.contains("<a:schemeClr val=\"accent4\"><a:lumMod val=\"75000\"/></a:schemeClr>"))
+        XCTAssertTrue(back.setChartColor(j, series: back.chartColorTargets(j)!.series[1].series, point: nil, choice: .rgb(0x112233)))
+        XCTAssertTrue(try chartXML(back).contains("<a:srgbClr val=\"112233\"/>"))
+    }
+
+    private func chartXML(_ c: WorkbookController) throws -> String {
+        let entries = try Zip.read(try Xlsx.write(c.book))
+        let e = try XCTUnwrap(entries.first { $0.name.hasPrefix("xl/charts/chart") && $0.name.hasSuffix(".xml") })
+        return String(decoding: e.data, as: UTF8.self)
+    }
+
     func testCorpusSeriesEdits() throws {
         guard let dir = ProcessInfo.processInfo.environment["CHART_CORPUS"] else { return }
         var charts = 0, same = 0, notSame = 0, removed = 0, dup = 0, wrongCount = 0

@@ -1100,7 +1100,23 @@ extension WorkbookController {
     /// Format Data Series: a series' (or one point's) colour, nil for automatic (one undo step).
     @discardableResult
     func setChartColor(_ index: Int, series key: Int, point: Int?, color: Color?) -> Bool {
+        setChartColor(index, series: key, point: point, choice: color.map { .rgb(UInt32(truncatingIfNeeded: $0.value) & 0xFFFFFF) } ?? .automatic)
+    }
+    /// The same from the colour picker: a theme pick is written as a scheme colour (with its lumMod / lumOff) so a new theme recolours it.
+    static let schemeSlots = ["bg1", "tx1", "bg2", "tx2", "accent1", "accent2", "accent3", "accent4", "accent5", "accent6"]
+    @discardableResult
+    func setChartColor(_ index: Int, series key: Int, point: Int?, choice: ColorChoice) -> Bool {
         let ws = sheet
+        var edit = ChartColorEdit(series: key, point: point, hex: nil)
+        var color: Color? = nil
+        switch choice {
+        case .automatic, .none: break
+        case .rgb(let c): color = Color(Int64(0xFF000000 | c)); edit.hex = color.map { PptxText.hex($0) }
+        case .theme(let slot, let mod, let off):
+            guard Self.schemeSlots.indices.contains(slot), let c = choice.resolved(theme: ColorMath.officeTheme) else { return false }
+            color = Color(Int64(0xFF000000 | c)); edit.scheme = Self.schemeSlots[slot]; edit.lumMod = mod; edit.lumOff = off
+        }
+        let xml = edit.element
         guard ws.drawings.indices.contains(index), case .chart(var sc) = ws.drawings[index].kind, _canEditSeries(sc) else { return false }
         var at = key
         if sc.path != nil {
@@ -1111,14 +1127,16 @@ extension WorkbookController {
         if let p = point {
             guard at == 0 else { return false }
             sc.chart.pointColors[p] = color
+            sc.chart.pointColorXML[p] = edit.scheme != nil ? xml : nil
             if color == nil { sc.chart.pointColors.removeValue(forKey: p) }
         } else if !sc.chart.type.isPie {
             sc.chart.series[at].color = color
             sc.chart.series[at].scheme = nil
+            sc.chart.series[at].colorXML = edit.scheme != nil ? xml : nil
         } else { return false }
         if sc.path != nil {
             sc.colorEdit.removeAll { $0.series == key && $0.point == point }
-            sc.colorEdit.append(ChartColorEdit(series: key, point: point, hex: color.map { PptxText.hex($0) }))
+            sc.colorEdit.append(edit)
         }
         structural {
             ws.drawings[index].kind = .chart(sc)
