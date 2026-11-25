@@ -102,12 +102,12 @@ final class SheetsFilterTests: XCTestCase {
         c.toggleAutoFilter()
         c.setFilter(col: 1, allowed: ["10"])
         var data = try Xlsx.write(c.book)
-        // Swap in a custom (greater-than) filter that is not modelled.
+        // Swap in a quarter filter, which is not modelled (comparisons are, since X-DA-2).
         var entries = try Zip.read(data)
         let i = try XCTUnwrap(entries.firstIndex { $0.name == "xl/worksheets/sheet1.xml" })
         var sheet = String(decoding: entries[i].data, as: UTF8.self)
         let start = sheet.findRange(of: "<autoFilter")!.lowerBound, end = sheet.findRange(of: "</autoFilter>")!.upperBound
-        let custom = "<autoFilter ref=\"A1:B6\"><filterColumn colId=\"1\"><customFilters><customFilter operator=\"greaterThan\" val=\"25\"/></customFilters></filterColumn></autoFilter>"
+        let custom = "<autoFilter ref=\"A1:B6\"><filterColumn colId=\"1\"><dynamicFilter type=\"Q1\" val=\"45658\" maxVal=\"45748\"/></filterColumn></autoFilter>"
         sheet.replaceSubrange(start ..< end, with: custom)
         entries[i] = ZipEntry(name: entries[i].name, data: Data(sheet.utf8))
         data = try Zip.write(entries)

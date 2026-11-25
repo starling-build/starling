@@ -17,6 +17,11 @@ struct AutoFilter: Sendable {
     /// Column → the shown texts allowed through ("" is blanks). A column
     /// with no entry is not filtered.
     var columns: [Int: Set<String>] = [:]
+    /// Column → its comparison, top N, average, date or colour rule (X-DA-2). A column has a
+    /// ticked list or a rule, never both.
+    var rules: [Int: FilterRule] = [:]
+    /// Whether any column is filtered.
+    var isActive: Bool { !columns.isEmpty || !rules.isEmpty }
     /// The element as the file wrote it, written back while nothing about
     /// the filter has changed: it may carry custom, top-10, colour or date
     /// filters and a sort state, none of which are modelled.
@@ -71,6 +76,7 @@ extension WorkbookController {
         if refuses("autoFilter") { return }
         guard var af = sheet.autoFilter else { return }
         af.columns[col] = allowed
+        af.rules[col] = nil
         af.raw = nil
         structural {
             sheet.autoFilter = af
@@ -79,8 +85,9 @@ extension WorkbookController {
     }
 
     func clearFilters() {
-        guard var af = sheet.autoFilter, !af.columns.isEmpty else { return }
+        guard var af = sheet.autoFilter, af.isActive else { return }
         af.columns = [:]
+        af.rules = [:]
         af.raw = nil
         structural {
             sheet.autoFilter = af
@@ -98,12 +105,11 @@ extension WorkbookController {
             sheet.autoFilter = af
         }
         var hidden = Set<Int>()
-        if !af.columns.isEmpty, af.range.rows > 1 {
+        if af.isActive, af.range.rows > 1 {
+            let tests = af.rules.map { (col, rule) in _ruleTest(rule, col: col, af) }
             for row in af.range.top + 1 ... af.range.bottom {
-                for (col, allowed) in af.columns where !allowed.contains(filterText(CellAddress(row: row, col: col))) {
-                    hidden.insert(row)
-                    break
-                }
+                if af.columns.contains(where: { !$0.value.contains(filterText(CellAddress(row: row, col: $0.key))) })
+                    || tests.contains(where: { !$0(row) }) { hidden.insert(row) }
             }
         }
         sheet.filteredRows = hidden
@@ -123,7 +129,7 @@ extension WorkbookController {
 
     /// "12 of 40 records found" — Excel's status-bar line for a filter.
     var filterSummary: String? {
-        guard let af = sheet.autoFilter, !af.columns.isEmpty, af.range.rows > 1 else { return nil }
+        guard let af = sheet.autoFilter, af.isActive, af.range.rows > 1 else { return nil }
         let total = af.range.rows - 1
         let shown = total - sheet.filteredRows.filter { $0 > af.range.top && $0 <= af.range.bottom }.count
         return "\(shown) of \(total) records found"

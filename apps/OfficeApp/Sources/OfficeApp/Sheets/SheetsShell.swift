@@ -72,6 +72,7 @@ final class SheetsShellState: State<StatefulWidget> {
     private var _sortOpen: (range: CellRange, hasHeader: Bool)?
     private var _validationOpen = false
     private var _cfOpen = false
+    private var _filterOpen: (col: Int, kind: String)?
     private var _findReplace = false
     private var _findStatus = ""
     private let _findQuery = TextEditingController()
@@ -355,6 +356,8 @@ final class SheetsShellState: State<StatefulWidget> {
         case .sortDialog:
             if let region = wb.sortRegion() { setState { _sortOpen = region } }
             else { _flash(SortProblem.nothingToSort.message) }
+        case .columnFilter(let col, let kind):
+            setState { _filterOpen = (col, kind) }
         case .nameManager:
             setState { _namesOpen = true }
         case .pageSetup:
@@ -889,6 +892,15 @@ final class SheetsShellState: State<StatefulWidget> {
         }
         if _cfOpen {
             return Stack(children: [window, Positioned(left: 0, top: 0, right: 0, bottom: 0, child: ConditionalFormatDialog(
+        if let open = _filterOpen {
+            return Stack(children: [window, Positioned(left: 0, top: 0, right: 0, bottom: 0, child: FilterDialog(
+                controller: wb, col: open.col, kind: open.kind, onClose: { [weak self] in
+                    self?.setState { self?._filterOpen = nil }
+                    self?._grid?.focus.requestFocus()
+                }))])
+        }
+        if _namesOpen {
+            return Stack(children: [window, Positioned(left: 0, top: 0, right: 0, bottom: 0, child: NameManagerDialog(
                 controller: wb, onClose: { [weak self] in
                     self?.setState { self?._cfOpen = false }
                     self?._grid?.focus.requestFocus()
