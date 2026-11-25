@@ -11,7 +11,7 @@ ROOT=$(cd "$(dirname "$0")/../.." && pwd); CC=${CORPUS_CACHE:-/data/corpus-cache
 [ -d "$CC/books" ] && [ -d "$CC/${SHEETS_EXCEL:-excel-20261122}" ] || { echo "sheets-gate: no xlsx corpus here; skipped"; exit 2; }
 PY=${PYTHON:-$( [ -x "$HOME/venv-word/bin/python" ] && echo "$HOME/venv-word/bin/python" || echo python3)}
 W=${SHEETS_SCRATCH:-${GATE_SCRATCH:-$HOME/scratch/gate}/sheets}; rm -rf "$W"; mkdir -p "$W"; T=$(date +%s)
-export OFFICE_FONT_SOURCE=bundled PDFDIFF_NO_PAIRS=1
+export OFFICE_FONT_SOURCE=bundled PDFDIFF_NO_PAIRS=1 OFFICE_NOW=${OFFICE_NOW:-2026-10-30T12:00:00}
 REUSE=
 SWEEP() { SHEETS_REUSE=$REUSE "$PY" "$ROOT/test/tools/sheets-sweep.py" "$1" "$2" -j "$JOBS" > "$2.log" 2>&1; [ -s "$2/per-book.tsv" ]; }
 STAMP=$("$ROOT/test/tools/gate-stamp.sh" sheets "$BASEBIN" 2>/dev/null)   # binary + scorer sha the base is drawn with

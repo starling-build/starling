@@ -57,7 +57,8 @@ def job(item):
     name, books, xl = item
     base = stem(name); pdf = f"{OUT}/pdf/{base}.pdf"; ref = refpdf(xl, name); t0 = time.time()
     M.WORD = xl
-    env = dict(os.environ, SHEET_PDF_MAX_PAGES="20", OFFICE_FONT_SOURCE=os.environ.get("OFFICE_FONT_SOURCE", "bundled"))
+    env = dict(os.environ, SHEET_PDF_MAX_PAGES="20", OFFICE_FONT_SOURCE=os.environ.get("OFFICE_FONT_SOURCE", "bundled"),
+               OFFICE_NOW=os.environ.get("OFFICE_NOW") or "2026-10-30T12:00:00")  # fixed clock: NOW()/TODAY() must draw the same in base and PR
     try:
         p = subprocess.run([BIN, "--sheet-pdf", f"{books}/{name}", pdf], capture_output=True, text=True, timeout=300, env=env)
         out = (p.stdout + p.stderr)
