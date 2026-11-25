@@ -627,6 +627,13 @@ extension Ribbon {
                                                                        size: Chrome.iconSize, color: fluent.resources.textFillColorPrimary),
                                                          onPressed: set { $0.stacked = stacked; $0.percent = percent })
                                       } : []),
+                    Chrome.menuButton(FluentSystemIcons.bulletList, "Legend Position", "Where the legend sits", fluent,
+                                      items: chart.legend ? [("Right", "r"), ("Top", "t"), ("Left", "l"), ("Bottom", "b")].map { name, pos in
+                                          MenuFlyoutItem(text: Text(name),
+                                                         leading: Icon(chart.legendPosition == pos ? FluentSystemIcons.check : FluentSystemIcons.bulletList,
+                                                                       size: Chrome.iconSize, color: fluent.resources.textFillColorPrimary),
+                                                         onPressed: set { $0.legendPosition = pos })
+                                      } : []),
                 ]),
             ]),
             Chrome.group("Arrange", fluent, [Chrome.rows([
