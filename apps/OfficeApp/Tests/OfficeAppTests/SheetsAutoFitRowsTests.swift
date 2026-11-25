@@ -53,4 +53,22 @@ final class SheetsAutoFitRowsTests: XCTestCase {
         XCTAssertEqual(g.rows.size(1), 20, accuracy: 0.5)
         XCTAssertLessThan(g.rows.size(5), 20)
     }
+
+    /// A file's rows with no stored height are fitted on load, as Excel does;
+    /// a stored height is kept (ru-94dde08ec0).
+    func testLoadedRowWithoutStoredHeightIsFittedAndStoredOneKept() throws {
+        let c = WorkbookController()
+        c.setInput("A long heading", at: CellAddress(row: 0, col: 0))
+        c.setInput("A long heading", at: CellAddress(row: 1, col: 0))
+        c.select(range: CellRange("A1:A2")!)
+        c.setStyle({ $0.rotation = 90 })
+        c.sheet.rowHeights[1] = 20
+        let data = try Xlsx.write(c.book)
+        let back = WorkbookController()
+        back.load(try Workbook.open(data, name: "t.xlsx"))
+        let g = SheetGridState(headless: back)
+        g.printing = true
+        XCTAssertGreaterThan(g.rows.size(0), 60)
+        XCTAssertEqual(g.rows.size(1), 20, accuracy: 0.5)
+    }
 }
