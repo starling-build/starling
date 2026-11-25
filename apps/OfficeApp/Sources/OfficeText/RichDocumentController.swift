@@ -55,6 +55,8 @@ public indirect enum EditOp: Equatable, Sendable {
     case insertParagraphs(at: Int, [RichParagraph])
     case removeParagraphs(at: Int, [RichParagraph])
     case setHeaderFooter(header: String, footer: String, oldHeader: String, oldFooter: String)
+    /// The formatted default header or footer (W-HF-1), with the plain texts the strip and the kept-part check read.
+    case setRichHeaderFooter(new: [RichHeaderFooter], old: [RichHeaderFooter], header: String, footer: String, oldHeader: String, oldFooter: String)
     /// A section's page (size, margins, columns): the paragraph that ends it, or -1 for the last section.
     case setSectionPage(Int, old: PageSetup?, new: PageSetup?)
     /// A picture's shown size (its attachment replaced; the id survives).
@@ -146,6 +148,12 @@ public indirect enum EditOp: Equatable, Sendable {
             doc.footer = footer
             changes.append(.all)
             return .setHeaderFooter(header: oldHeader, footer: oldFooter, oldHeader: header, oldFooter: footer)
+        case .setRichHeaderFooter(let new, let old, let header, let footer, let oldHeader, let oldFooter):
+            doc.headerFooters = new
+            doc.header = header
+            doc.footer = footer
+            changes.append(.all)
+            return .setRichHeaderFooter(new: old, old: new, header: oldHeader, footer: oldFooter, oldHeader: header, oldFooter: footer)
         case .setSectionPage(let index, let old, let new):
             if index < 0 { doc.lastSectionPage = new } else { doc.paragraphs[index].style.sectionPage = new }
             changes.append(.all)
@@ -2138,6 +2146,25 @@ public final class RichDocumentController: ChangeNotifier {
                                      oldHeader: document.header, oldFooter: document.footer))
         }
         return kept
+    }
+
+    /// W-HF-1: the default header or footer as formatted paragraphs (bold, italic, size, colour, font, alignment,
+    /// tabs, page fields). One undo step; the save writes a part from them. Pictures and tables are not carried
+    /// (use `hasRichHeaderFooter` to refuse those first).
+    public func setRichHeaderFooter(_ kind: KeptHeaderFooter.Kind, paragraphs: [RichParagraph]) {
+        let paras = paragraphs.isEmpty ? [RichParagraph()] : paragraphs
+        var all = document.headerFooters
+        var entry = RichHeaderFooter(kind: kind, type: "default", paragraphs: paras)
+        entry.edited = true
+        if let i = all.firstIndex(where: { $0.kind == kind && $0.type == "default" && $0.section == nil }) { entry.section = nil; all[i] = entry }
+        else { all.append(entry) }
+        let plain = paras.map { $0.text }.joined(separator: " ")
+        guard all != document.headerFooters else { return }
+        edit {
+            perform(.setRichHeaderFooter(new: all, old: document.headerFooters,
+                                         header: kind == .header ? plain : document.header, footer: kind == .footer ? plain : document.footer,
+                                         oldHeader: document.header, oldFooter: document.footer))
+        }
     }
 
     /// Word's Page Number: a centred "n" in the footer, or none.
