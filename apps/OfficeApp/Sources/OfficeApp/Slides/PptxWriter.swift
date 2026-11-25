@@ -1064,7 +1064,7 @@ private struct SlideXML {
             + "<p:cNvGraphicFramePr><a:graphicFrameLocks noGrp=\"1\"/></p:cNvGraphicFramePr><p:nvPr/></p:nvGraphicFramePr>"
             + Self._xfrm(s.frame, rotation: 0, tag: "p:xfrm")
             + "<a:graphic><a:graphicData uri=\"http://schemas.openxmlformats.org/drawingml/2006/table\"><a:tbl>"
-            + "<a:tblPr firstRow=\"\(style.headerRow ? 1 : 0)\" bandRow=\"\(style.bandFill != nil ? 1 : 0)\"\(style.totalRow ? " lastRow=\"1\"" : "")\(style.firstColumn ? " firstCol=\"1\"" : "")\(style.lastColumn ? " lastCol=\"1\"" : "")\(style.bandedColumns ? " bandCol=\"1\"" : "")>"
+            + "<a:tblPr firstRow=\"\(style.headerRow ? 1 : 0)\" bandRow=\"\((style.bandRows ?? (style.bandFill != nil)) ? 1 : 0)\"\(style.totalRow ? " lastRow=\"1\"" : "")\(style.firstColumn ? " firstCol=\"1\"" : "")\(style.lastColumn ? " lastCol=\"1\"" : "")\(style.bandedColumns ? " bandCol=\"1\"" : "")>"
             + "<a:tableStyleId>\(style.styleId ?? "{5C22544A-7EE6-4342-B048-85BDC9FD1C3A}")</a:tableStyleId></a:tblPr><a:tblGrid>"
             + widths.map { "<a:gridCol w=\"\(Self._emu($0))\"/>" }.joined() + "</a:tblGrid>"
         for r in 0 ..< rows {

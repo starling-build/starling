@@ -1045,7 +1045,7 @@ final class DeckController: ChangeNotifier {
         let st = doc.tableStyles[id] ?? TableStyle()
         // Banding is on when the two band colours differ: a file with banding off
         // reads back with both set to the table's own background.
-        return TableOptions(headerRow: st.headerRow, bandedRows: st.bandFill != nil && st.bandFill != st.bandAltFill,
+        return TableOptions(headerRow: st.headerRow, bandedRows: st.bandRows ?? (st.bandFill != nil && st.bandFill != st.bandAltFill),
                             firstColumn: st.firstColumn, lastColumn: st.lastColumn, totalRow: st.totalRow, bandedColumns: st.bandedColumns)
     }
 
@@ -1130,6 +1130,7 @@ final class DeckController: ChangeNotifier {
         let base = chosen.flatMap { tableLookColor($0) } ?? oldAccent
         let look = tableStyle(accent: base)
         st.headerRow = o.headerRow
+        st.bandRows = plain ? o.bandedRows : nil
         if chosen != nil {
             st.headerFill = o.headerRow && !plain ? look.headerFill : nil
             st.bandFill = o.bandedRows && !plain ? look.bandFill : nil

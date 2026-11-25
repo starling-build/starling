@@ -1581,6 +1581,9 @@ public struct TableStyle: Hashable, Codable, Sendable {
     public var firstColumn = false
     public var lastColumn = false
     public var bandedColumns = false
+    /// Slides: banded rows on or off as the file says (`bandRow`), for a style that has no band colour to read it from (Table
+    /// Grid); nil derives it from the band fills.
+    public var bandRows: Bool? = nil
     /// Slides: the built-in or deck table style (`a:tableStyleId`) the table names; nil writes the plain default.
     public var styleId: String? = nil
     /// How many leading rows repeat at the top of every page the table

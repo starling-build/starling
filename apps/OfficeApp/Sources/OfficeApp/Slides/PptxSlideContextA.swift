@@ -738,7 +738,7 @@ extension SlideContext {
         var tableGradient: SlideFill? = nil
         var tableShadow: CharShadow? = nil
         var ts = plain
-            ? TableStyle(borders: styleId.isEmpty || styleId.hasPrefix("{5940675A"), headerRow: false, borderColor: colors.scheme("tx1"))
+            ? TableStyle(borders: styleId.isEmpty || styleId.hasPrefix("{5940675A"), headerRow: firstRow, borderColor: colors.scheme("tx1"))
             : TableStyle(borders: true, headerRow: firstRow, headerFill: accent,
                          bandFill: banded ? DeckController.tint(accent, 0.40) : nil,
                          bandAltFill: banded ? DeckController.tint(accent, 0.20) : nil,
@@ -748,6 +748,7 @@ extension SlideContext {
         ts.firstColumn = pr?["firstCol"] == "1"
         ts.lastColumn = pr?["lastCol"] == "1"
         ts.bandedColumns = pr?["bandCol"] == "1"
+        if plain { ts.bandRows = banded }
         // A table with no style (or "Table Grid") is ruled in 1 pt black,
         // as PowerPoint draws tdf135843_export's grid, not the editor's ½.
         if plain, ts.borders { ts.borderWidth = 1 }

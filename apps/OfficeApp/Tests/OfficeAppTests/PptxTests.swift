@@ -793,6 +793,29 @@ final class DeepGroupTests: XCTestCase {
         XCTAssertEqual(back?.runs.first?.style.color, Color(0xFFFFFFFF))
     }
 
+    /// Picking a style never moves the user's switches (header row, banded rows, first column...), through Table Grid, a family and back, and a save.
+    func testStylePickKeepsTableSwitches() throws {
+        let deck = DeckController()
+        deck.slides[0].shapes.removeAll()
+        let t = deck.addTable(rows: 3, columns: 2)
+        deck.selectShapes([t])
+        var o = try XCTUnwrap(deck.selectedTableOptions)
+        o.bandedRows = true; o.firstColumn = true
+        deck.setTableOptions(o)
+        let want = deck.selectedTableOptions
+        XCTAssertTrue(want?.bandedRows ?? false)
+        let pair = PptxTemplates.builtinTableStyleFamilyList.first { $0.0 == "Dark Style 2" }!.2
+        for look in [DeckController.TableLook.builtin(DeckController.TableLook.plain.styleId), .builtin(pair[0]), .plain, .accent(2)] {
+            deck.applyTableLook(look)
+            XCTAssertEqual(deck.selectedTableOptions, want)
+        }
+        deck.applyTableLook(.builtin(DeckController.TableLook.plain.styleId))
+        let (state, _, _) = try Pptx.read(Pptx.write(deck))
+        let again = DeckController(); again.restore(state)
+        again.selectShapes([again.slides[0].shapes.first { $0.kind == .table }!])
+        XCTAssertEqual(again.selectedTableOptions, want)
+    }
+
     /// S-TB-1b: shading some cells of a table undoes and survives a save, other cells keep the style's.
     func testTableCellShadingRoundTripAndUndo() throws {
         let deck = DeckController()

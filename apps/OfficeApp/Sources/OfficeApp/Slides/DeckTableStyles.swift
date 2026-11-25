@@ -59,7 +59,7 @@ extension DeckController {
     func dressTable(_ doc: inout RichDocument, shape s: SlideShape, tableId id: String, styleId: String, options o: TableOptions) {
         let colors = tableStyleColors()
         let oldStyle = doc.tableStyles[id]
-        let oldOptions = TableOptions(headerRow: oldStyle?.headerRow ?? true, bandedRows: oldStyle?.bandFill != nil,
+        let oldOptions = TableOptions(headerRow: oldStyle?.headerRow ?? true, bandedRows: oldStyle?.bandRows ?? (oldStyle?.bandFill != nil),
                                       firstColumn: oldStyle?.firstColumn ?? false, lastColumn: oldStyle?.lastColumn ?? false,
                                       totalRow: oldStyle?.totalRow ?? false, bandedColumns: oldStyle?.bandedColumns ?? false)
         let oldDefinition = DeckController.builtinTableStyle(oldStyle?.styleId)
@@ -98,6 +98,7 @@ extension DeckController {
         ts.styleId = styleId; ts.headerRow = o.headerRow
         ts.totalRow = o.totalRow; ts.firstColumn = o.firstColumn; ts.lastColumn = o.lastColumn; ts.bandedColumns = o.bandedColumns
         if !o.bandedRows { ts.bandFill = nil; ts.bandAltFill = nil }
+        ts.bandRows = o.bandedRows
 
         // 2. The cells: the style's fill where the cell has none of its own; text weight and colour moved from the old
         // style's to the new one's where the run still shows the old one's (a colour the user chose stays).
