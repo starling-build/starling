@@ -3182,9 +3182,11 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             case .number: align = NumberFormat.isText(st.numberFormat) ? .left : .right
             case .bool, .error: align = .center
             // (Text in a right-to-left sheet starts at the right edge of its cell.)
-            default: align = printing && printMirror != nil ? .right : .left
+            default: align = (printing && printMirror != nil) || rtl ? .right : .left
             }
         }
+        // (On a mirrored screen the canvas is flipped: what stands at the cell's visual left is at its logical right.)
+        if rtl { if align == .left { align = .right } else if align == .right { align = .left } }
         let pad = 2 * zoom   // Excel's cell margin
         let wrapLess = 0.15 * zoom
         // Wrapped text: lines within the cell's width, never spilling.
