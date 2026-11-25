@@ -994,6 +994,8 @@ final class WorkbookController: ChangeNotifier {
         _notify()
     }
 
+    /// View > Page Break Preview: show where the pages are cut (view state, not saved, not undoable).
+    var breakPreview = false
     func _notify(selectionOnly: Bool = false) {
         revision += 1
         if !selectionOnly { dataRevision += 1 }
