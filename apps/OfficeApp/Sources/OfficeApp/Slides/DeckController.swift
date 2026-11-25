@@ -945,7 +945,8 @@ final class DeckController: ChangeNotifier {
     func duplicateSelection(offset: Double = 18) {
         guard !selection.isEmpty else { return }
         _checkpoint()
-        let copies = selection.map { _copy($0, offset: offset) }
+        let copies = selection.map { _copy($0, offset: offset, keepGroup: true) }
+        _regroupCopies(copies)
         currentSlide.shapes.append(contentsOf: copies)
         for c in copies { _watch(c) }
         selection = copies
@@ -997,6 +998,7 @@ final class DeckController: ChangeNotifier {
             pasted.append(shape)
             _watch(shape)
         }
+        _regroupCopies(pasted)
         currentSlide.shapes.append(contentsOf: pasted)
         selection = pasted
         _changed()
@@ -1172,6 +1174,77 @@ final class DeckController: ChangeNotifier {
         shapes.insert(shape, at: j)
         currentSlide.shapes = shapes
         _changed()
+    }
+
+    // MARK: Groups
+
+    /// Every shape of the slide that shares `shape`'s group, in stacking order; the shape alone when it has none.
+    func groupMembers(of shape: SlideShape) -> [SlideShape] {
+        guard let key = shape.group?.key else { return [shape] }
+        return currentSlide.shapes.filter { $0.group?.key == key }
+    }
+
+    /// The selection widened to whole groups: a group is moved, copied and ordered as one.
+    func selectWholeGroup(of shape: SlideShape) { selectShapes(groupMembers(of: shape)) }
+
+    /// Two or more shapes selected: they can be grouped.
+    var canGroup: Bool { selection.count >= 2 && Set(selection.map { $0.group?.key ?? -$0.id }).count >= 2 }
+    /// Something selected belongs to a group.
+    var canUngroup: Bool { selection.contains { $0.group != nil } }
+
+    /// Group the selected shapes: they become adjacent at the top-most one's place in the stack and share one
+    /// group, which the file writes as a `p:grpSp`. A group already among them is taken in whole, and its members
+    /// join the new one (a group inside a group is one group: the deck keeps one level).
+    func groupSelection() {
+        guard canGroup else { return }
+        _checkpoint()
+        let old = Set(selection.compactMap { $0.group?.key })
+        let all = currentSlide.shapes
+        let picked = all.filter { s in selection.contains { $0 === s } || (s.group.map { old.contains($0.key) } ?? false) }
+        let top = all.lastIndex { s in picked.contains { $0 === s } } ?? all.count - 1
+        let before = all[...top].filter { s in !picked.contains { $0 === s } }.count
+        var rest = all.filter { s in !picked.contains { $0 === s } }
+        let key = (all.compactMap { $0.group?.key }.max() ?? 0) + 1
+        let carried = picked.compactMap(\.group).first { $0.fillXML != nil }
+        var number = 1
+        let names = Set(all.compactMap { $0.group?.name })
+        while names.contains("Group \(number)") { number += 1 }
+        var g = ShapeGroup(fileId: nil, name: "Group \(number)", key: key)
+        g.fillXML = carried?.fillXML
+        g.fillColor = carried?.fillColor
+        for s in picked { s.group = g }
+        rest.insert(contentsOf: picked, at: before)
+        currentSlide.shapes = rest
+        selection = picked
+        _changed()
+    }
+
+    /// Ungroup: every group touched by the selection dissolves, its members stay selected.
+    func ungroupSelection() {
+        guard canUngroup else { return }
+        _checkpoint()
+        let keys = Set(selection.compactMap { $0.group?.key })
+        let members = currentSlide.shapes.filter { s in s.group.map { keys.contains($0.key) } ?? false }
+        for s in members { s.group = nil }
+        selection = members
+        _changed()
+    }
+
+    /// Copies that keep their grouping get groups of their own, not the original's.
+    private func _regroupCopies(_ copies: [SlideShape]) {
+        var fresh: [Int: ShapeGroup] = [:]
+        // One member copied alone is no group.
+        var count: [Int: Int] = [:]
+        for c in copies { if let k = c.group?.key { count[k, default: 0] += 1 } }
+        for c in copies where c.group.map({ count[$0.key] == 1 }) ?? false { c.group = nil }
+        var next = (currentSlide.shapes.compactMap { $0.group?.key }.max() ?? 0) + 1
+        for c in copies {
+            guard var g = c.group else { continue }
+            if let known = fresh[g.key] { c.group = known; continue }
+            g.key = next; g.fileId = nil; next += 1
+            fresh[c.group!.key] = g
+            c.group = g
+        }
     }
 
     enum Align { case left, center, right, top, middle, bottom }
@@ -1580,12 +1653,12 @@ final class DeckController: ChangeNotifier {
         notifyListeners()
     }
 
-    private func _copy(_ shape: SlideShape, offset: Double = 0) -> SlideShape {
+    private func _copy(_ shape: SlideShape, offset: Double = 0, keepGroup: Bool = false) -> SlideShape {
         var st = _state(shape)
         st.id = _id()
         st.fileId = nil
         st.sourceXML = nil
-        st.group = nil
+        if !keepGroup { st.group = nil }
         st.keptLine = nil
         st.keptPicture = nil
         st.frame = st.frame.shift(Offset(offset, offset))

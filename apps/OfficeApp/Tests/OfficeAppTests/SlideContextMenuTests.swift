@@ -55,4 +55,24 @@ final class SlideContextMenuTests: XCTestCase {
         settle(ui)
         XCTAssertEqual(deck.selection.count, deck.currentSlide.shapes.count)
     }
+
+    func testTheShapeMenuGroupsAndUngroups() throws {
+        let (ui, deck, canvas) = try shell()
+        let a = deck.currentSlide.shapes[0], b = deck.currentSlide.shapes[1]
+        deck.selectShapes([a, b])
+        func tapLast(_ label: String) throws {
+            let row = try XCTUnwrap(ui.elements().last { ($0.widget as? Text)?.data == label })
+            let box = try XCTUnwrap(row.findRenderObject() as? RenderBox)
+            ui.tap(at: box.localToGlobal(Offset(box.size.width / 2, box.size.height / 2)))
+            settle(ui)
+        }
+        ui.tap(at: canvas.screenPoint(a.frame.center), buttons: kSecondaryMouseButton)
+        settle(ui)
+        try tapLast("Group")
+        XCTAssertNotNil(a.group); XCTAssertEqual(a.group?.key, b.group?.key)
+        ui.tap(at: canvas.screenPoint(a.frame.center), buttons: kSecondaryMouseButton)
+        settle(ui)
+        try tapLast("Ungroup")
+        XCTAssertNil(a.group)
+    }
 }

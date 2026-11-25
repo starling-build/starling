@@ -298,11 +298,17 @@ final class SlideCanvasState: State<StatefulWidget> {
             onPointerDown: { [weak self] e in
                 guard let self else { return }
                 if e.buttons & kSecondaryMouseButton != 0, let menu = self._w.onContextMenu {
-                    if self._w.active !== shape, !self.deck.isSelected(shape) { self.deck.selectShapes([shape]) }
+                    if self._w.active !== shape, !self.deck.isSelected(shape) { self.deck.selectWholeGroup(of: shape) }
                     menu(e.position, shape)
                     return
                 }
                 guard self._w.active !== shape else { return }
+                if shape.group != nil, !self._additive {
+                    // The first click on a group selects it, the second its member; the third types.
+                    let whole = self.deck.groupMembers(of: shape)
+                    if !self.deck.isSelected(shape) { self.deck.selectShapes(whole); return }
+                    if self.deck.selection.count == whole.count, whole.count > 1 { self.deck.selectShapes([shape]); return }
+                }
                 // Shift/Ctrl+click adds or removes the shape and does not start typing.
                 if self._additive { self.deck.toggleSelected(shape); return }
                 self.deck.selectShapes([shape])
@@ -437,7 +443,7 @@ final class SlideCanvasState: State<StatefulWidget> {
                 FocusManager.instance.focusedNode?.unfocus()
                 _w.onEdit(nil)
             }
-            if !deck.isSelected(shape) { deck.selectShapes([shape]) }
+            if !deck.isSelected(shape) { deck.selectWholeGroup(of: shape) }
             menu(e.position, shape)
             return
         }
@@ -452,7 +458,7 @@ final class SlideCanvasState: State<StatefulWidget> {
             // Shift/Ctrl+click adds or removes; a shape just removed is not dragged.
             deck.toggleSelected(shape)
             if !deck.isSelected(shape) { _drag = nil; return }
-        } else if !wasSelected { deck.selectShapes([shape]) }
+        } else if !wasSelected { deck.selectWholeGroup(of: shape) }
         let frames = deck.selection.map { ($0, $0.frame) }
         _drag = .move(start: _slidePoint(e.position), frames: frames, shape: shape,
                       wasSelected: wasSelected, moved: false)
@@ -518,6 +524,10 @@ final class SlideCanvasState: State<StatefulWidget> {
         case .move(_, _, let shape, let wasSelected, let moved):
             if moved {
                 deck.endFrameEdit()
+            } else if wasSelected, !_additive, shape.group != nil, deck.selection.count > 1,
+                      deck.selection.count == deck.groupMembers(of: shape).count {
+                // A second click on a selected group picks the member.
+                deck.selectShapes([shape])
             } else if wasSelected, shape.text != nil, _w.active !== shape {
                 // A click on a shape already selected starts typing into it,
                 // at the end of its text.

@@ -264,14 +264,17 @@ enum PptxWriter {
         // Members of a group read from the file, still side by side, are
         // grouped again under the group's own id.
         var i = 0
+        var written = Set<Int>()
         while i < slide.shapes.count {
-            guard let g = slide.shapes[i].group else {
+            guard var g = slide.shapes[i].group else {
                 body += w.shape(slide.shapes[i], media: &media, builder: &b)
                 i += 1
                 continue
             }
             var j = i
             while j < slide.shapes.count, slide.shapes[j].group?.key == g.key { j += 1 }
+            // A group split by reordering is written as two groups: the second must not repeat the id.
+            if !written.insert(g.key).inserted { g.fileId = nil }
             body += w.group(g, members: Array(slide.shapes[i ..< j]), media: &media, builder: &b)
             i = j
         }
