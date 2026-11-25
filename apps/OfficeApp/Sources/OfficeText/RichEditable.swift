@@ -1600,6 +1600,13 @@ public final class RichEditableState: State<StatefulWidget> {
                       selection: _controller.selection,
                       caret: (focused && _caretVisible && _controller.selection.isCollapsed) ? caretRect : nil,
                       pageBackground: pageBackground)
+        // A caret inside a field shades the field gray, as Word does.
+        if focused, let field = _controller.fieldRangeAtCaret() {
+            let shade = Paint()
+            shade.style = .fill
+            shade.color = Color(0x30808080)
+            for r in _layout.canvasSelectionRects(field, _controller.document) { canvas.drawRect(r, shade) }
+        }
         // Paragraphs shown for the first time get checked after an idle,
         // not in the paint: NSSpellChecker takes milliseconds on a bad one.
         if !_layout.pendingSpellChecks.isEmpty, !_spellScheduled {
