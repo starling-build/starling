@@ -176,6 +176,26 @@ final class TextBoxInsertTests: XCTestCase {
         XCTAssertEqual(c.document.paragraphs[i].image?.textBox?.paragraphs.map(\.text), ["one"])
     }
 
+    func testNewTextBoxFitsItsTextAndGrowsWithTyping() throws {
+        let c = RichDocumentController(document: RichDocument(paragraphs: [RichParagraph(text: "body")]))
+        c.insertImage(try XCTUnwrap(TextBoxInsert.make(text: "one")))
+        let i = try XCTUnwrap(c.document.paragraphs.firstIndex { $0.image?.textBox != nil })
+        XCTAssertTrue(c.textBoxAutoHeight(at: i))
+        let h0 = try XCTUnwrap(c.document.paragraphs[i].image?.height)
+        let box = RichDocumentController(document: RichDocument(paragraphs: try XCTUnwrap(c.textBoxParagraphs(at: i))))
+        box.selectAll()
+        box.insertText("two")
+        let xml = try XCTUnwrap(TextBoxInsert.contentXML(box.document.paragraphs))
+        XCTAssertTrue(c.setTextBoxContent(at: i, paragraphs: box.document.paragraphs, contentXML: xml, height: h0 + 40))
+        XCTAssertEqual(c.document.paragraphs[i].image?.height, h0 + 40)
+        let back = try DocxFormat.read(try DocxFormat.write(c.document, pageSetup: .letter)).document
+        let kept = try XCTUnwrap(back.paragraphs.compactMap { $0.image }.first { $0.textBox != nil })
+        XCTAssertEqual(kept.height, h0 + 40, accuracy: 0.6)
+        c.undo()
+        XCTAssertEqual(c.document.paragraphs[i].image?.height, h0)
+        XCTAssertEqual(c.document.paragraphs[i].image?.textBox?.paragraphs.map(\.text), ["one"])
+    }
+
     func testEditTextOnThePictureFormatTab() throws {
         let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(1280, 800))
         let c = try XCTUnwrap(ui.state(OfficeShellState.self)).session.controller

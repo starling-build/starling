@@ -84,7 +84,8 @@ final class OfficeShellState: State<StatefulWidget> {
     private var _pictureDialog: PictureDialogKind?
     /// A text box being typed into in place: the box, where it is drawn (in the page area), and the document's own controller
     /// while `session.controller` is the box's.
-    private var _boxEdit: (index: Int, inline: String?, rect: Rect, main: RichDocumentController)?
+    private var _boxEdit: (index: Int, inline: String?, rect: Rect, main: RichDocumentController, autoFit: Bool)?
+    private var _boxContentHeight: Double?
     private let _boxFocus = FocusNode(debugLabel: "Text box")
     /// Set while the picker is open for Change Picture: the picture (paragraph, inline id) the chosen file replaces.
     private var _replaceTarget: (index: Int, inline: String?)?
@@ -1702,7 +1703,11 @@ final class OfficeShellState: State<StatefulWidget> {
             onContextMenu: { [weak self] point in self?._showContextMenu(at: point) },
             onTouchMenu: { [weak self] rect in self?._showTouchMenu(rect) },
             spellChecker: session.checkSpelling ? _spelling : nil,
-            onTextBoxEnter: { [weak self] index, inline, rect in self?._enterBox(index, inline, rect) }
+            onTextBoxEnter: { [weak self] index, inline, rect in self?._enterBox(index, inline, rect) },
+            onBoxRect: _boxEdit == nil ? nil : { [weak self] r in
+                guard let self, let r, let b = self._boxEdit, b.rect != r else { return }
+                self.setState { self._boxEdit?.rect = r }
+            }
         )
         guard let b = _boxEdit else {
             return WriterAccessibility.wrap(editable, controller: controller, focused: _editorFocus.hasFocus)
@@ -1713,13 +1718,20 @@ final class OfficeShellState: State<StatefulWidget> {
             padding: EdgeInsets(left: 7.2 * z, top: 3.6 * z, right: 7.2 * z, bottom: 3.6 * z),
             focusNode: _boxFocus, backgroundColor: Color(0xFFFFFFFF), zoom: z,
             onShortcut: { [weak self] key, mods in self?._shortcut(key, mods) ?? false },
-            scrolls: false)
+            scrolls: false,
+            onContentHeight: { [weak self] h in
+                guard let self, self._boxEdit != nil, self._boxContentHeight != h else { return }
+                self.setState { self._boxContentHeight = h }
+            })
+        // A box that fits its text grows as the words do.
+        var boxHeight = b.rect.height
+        if let h = _boxContentHeight, b.autoFit { boxHeight = h + 7.2 * z }
         return Stack(children: [
             Positioned(left: 0, top: 0, right: 0, bottom: 0, child: editable),
             // A press anywhere outside the box ends the edit (and still reaches the page under it).
             Positioned(left: 0, top: 0, right: 0, bottom: 0, child: Listener(
                 onPointerDown: { [weak self] _ in self?._leaveBox() }, behavior: .translucent, child: SizedBox(expand: ()))),
-            Positioned(left: b.rect.left, top: b.rect.top, width: b.rect.width, height: b.rect.height, child: boxEditor),
+            Positioned(left: b.rect.left, top: b.rect.top, width: b.rect.width, height: boxHeight, child: boxEditor),
         ])
     }
 
@@ -1736,7 +1748,8 @@ final class OfficeShellState: State<StatefulWidget> {
             if s != self.session.summary { self.setState { self.session.summary = s } }
         }
         setState {
-            _boxEdit = (index, inline, rect, main)
+            _boxEdit = (index, inline, rect, main, main.textBoxAutoHeight(at: index, inline: inline))
+            _boxContentHeight = nil
             session.controller = box
             session.summary = session.summarize()
         }
@@ -1752,7 +1765,8 @@ final class OfficeShellState: State<StatefulWidget> {
             session.controller = b.main
         }
         if let xml = TextBoxInsert.contentXML(box.document.paragraphs) {
-            b.main.setTextBoxContent(at: b.index, inline: b.inline, paragraphs: box.document.paragraphs, contentXML: xml)
+            let fitted = b.autoFit ? _boxContentHeight.map { ($0 + 7.2 * session.zoom) / session.zoom } : nil
+            b.main.setTextBoxContent(at: b.index, inline: b.inline, paragraphs: box.document.paragraphs, contentXML: xml, height: fitted)
         }
         setState { session.summary = session.summarize() }
         _editorFocus.requestFocus()

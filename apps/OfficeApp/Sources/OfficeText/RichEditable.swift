@@ -63,6 +63,12 @@ public final class RichEditable: StatefulWidget {
     public let scrolls: Bool
     /// A click (no drag) on a selected plain text box: its paragraph index, inline id and drawn rect in this widget's coordinates.
     public let onTextBoxEnter: ((Int, String?, Rect) -> Void)?
+    /// Reported after a paint whenever the selected picture's drawn rect moved (scroll, zoom, layout): lets an editor laid
+    /// over a text box follow it. Nil when no picture is selected.
+    public let onBoxRect: ((Rect?) -> Void)?
+    /// Reported after a paint whenever the height of the laid-out text (logical pixels, no padding) changed: lets the box
+    /// holding this editor grow with what is typed.
+    public let onContentHeight: ((Double) -> Void)?
 
     public init(key: (any Key)? = nil, controller: RichDocumentController,
                 theme: RichTextTheme = RichTextTheme(),
@@ -81,8 +87,12 @@ public final class RichEditable: StatefulWidget {
                 onTouchMenu: ((Rect?) -> Void)? = nil,
                 spellChecker: RichSpellChecker? = nil,
                 scrolls: Bool = true,
-                onTextBoxEnter: ((Int, String?, Rect) -> Void)? = nil) {
+                onTextBoxEnter: ((Int, String?, Rect) -> Void)? = nil,
+                onBoxRect: ((Rect?) -> Void)? = nil,
+                onContentHeight: ((Double) -> Void)? = nil) {
+        self.onContentHeight = onContentHeight
         self.onTextBoxEnter = onTextBoxEnter
+        self.onBoxRect = onBoxRect
         self.controller = controller
         self.theme = theme
         self.padding = padding
@@ -146,6 +156,8 @@ public final class RichEditableState: State<StatefulWidget> {
     private var _handleDrag: (index: Int, handle: Int, start: Offset, size: Size, inline: String?)? = nil
     private var _dragSize: Size? = nil
     /// A floating picture dragged by its body: which one, where the press was, and the live offset.
+    private var _lastBoxRect: Rect?
+    private var _lastContentHeight = -1.0
     private var _moveDrag: (index: Int, inline: String?, start: Offset)? = nil
     private var _moveDelta: Offset? = nil
     // Touch selection: a long press selects the word under the finger, a double
@@ -1591,6 +1603,20 @@ public final class RichEditableState: State<StatefulWidget> {
                                    Radius(circular: 3)), paint)
         }
 
+        if let report = _w.onContentHeight {
+            let h = _layout.totalHeight
+            if h != _lastContentHeight {
+                _lastContentHeight = h
+                DispatchQueue.main.async { report(h) }
+            }
+        }
+        if let follow = _w.onBoxRect {
+            let r = _selectedImageBox()?.rect
+            if r != _lastBoxRect {
+                _lastBoxRect = r
+                DispatchQueue.main.async { follow(r) }
+            }
+        }
         if let info = _w.onPageInfo {
             // Editing, the caret's page, as Word's status bar; reading, the
             // page at the top of the view, which is what scrolling changes.
