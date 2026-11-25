@@ -149,6 +149,26 @@ final class SlideFormatBackgroundTests: XCTestCase {
         XCTAssertNotNil(back.slides[0].inheritedBackground?.image)
     }
 
+    /// STARLING_BGPIC_OUT: slides with their own backgrounds, then Apply to All with a picture, then one new slide.
+    func testSaveMasterPictureAfterOwnBackgrounds() throws {
+        let deck = DeckController()
+        for _ in 0 ..< 2 { _ = deck.addSlide() }
+        deck.select(0); deck.setBackground(SlideFill(color: Color(0xFF336699)))
+        deck.select(1); deck.setBackground(FormatBackgroundPaneState.gradient(from: Color(0xFFCC3333)))
+        deck.select(0)
+        var pic = SlideFill(image: ImageAttachment(data: Self.png, width: 64, height: 64))
+        pic.tiled = true
+        pic.imageAlpha = 0.6
+        deck.setBackground(pic, all: true)
+        deck.select(2)
+        _ = deck.addSlide()
+        let data = try Pptx.write(deck)
+        if let out = ProcessInfo.processInfo.environment["STARLING_BGPIC_OUT"] { try data.write(to: URL(fileURLWithPath: out)) }
+        let (state, _, _) = try Pptx.read(data)
+        XCTAssertEqual(state.slides.count, 4)
+        XCTAssertTrue(state.slides.allSatisfy { $0.background == nil && $0.inheritedBackground?.image != nil })
+    }
+
     private static let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAABTklEQVR4nNXVQQrDMAxE0Rwnp+u6R+xJ5hppIRBCJKt2Ilka8M6D4K3+sm0b3qt86+ujPnWcuF9+f6qBCaAayADSwAe4GCgBZwMr4DAQA3YDDaD1wdKHJgAkfbAAqoEMIA18ANTuQxcAhfvQC0DVPgwAULIPesiMQ9X6MAxAsT7cAagGMoA08AFQow+PACjQh6cAZPfBAYDUPoyFzDiU1Qc3AJL64AlQDWQAaeADYG4fQgCY2IcoAGb1IRCAKX3wCZmxj+5DOADBfZgBUA1kAGngAyCmD1MBCOjDbAC8+5AAgGsfYkNm7L36kAaAUx8yAaqBDCANfAA860MJAB70oQoAd/tQCIBbfcgJmbEf7UM5AAb7UBGgGsgA0sAHQF8fSgPQ0YfqAPzrAwEAZh9qhczYt/pAA0CjD0wA1UAGkAY+wMVACTgbWAGHgRiwG77flX8a/qckzQAAAABJRU5ErkJggg==")!
 
     /// A deck for PowerPoint to open (STARLING_BACKGROUNDS_OUT): every kind of background, one per slide, after one Apply to All.
