@@ -53,7 +53,8 @@ public final class TextPattern {
 
     private let alternatives: [[Node]]
     private let groupCount: Int
-    private let options: FindOptions
+    /// The options this pattern was made with.
+    public let options: FindOptions
 
     public init(_ query: String, _ options: FindOptions) throws {
         guard !query.isEmpty else { throw FindPatternError(description: "Nothing to find") }

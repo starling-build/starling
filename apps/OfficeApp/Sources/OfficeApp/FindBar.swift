@@ -18,10 +18,14 @@ final class FindBar: StatelessWidget {
     let onReplace: () -> Void
     let onReplaceAll: () -> Void
     let onClose: () -> Void
+    /// Opens the full Find and Replace dialog (match case, whole word, wildcards, Go To); nil hides the button.
+    let onAdvanced: (() -> Void)?
 
     init(session: OfficeSession, query: TextEditingController, replacement: TextEditingController,
          showReplace: Bool, status: String, onNext: @escaping (Bool) -> Void,
-         onReplace: @escaping () -> Void, onReplaceAll: @escaping () -> Void, onClose: @escaping () -> Void) {
+         onReplace: @escaping () -> Void, onReplaceAll: @escaping () -> Void, onAdvanced: (() -> Void)? = nil,
+         onClose: @escaping () -> Void) {
+        self.onAdvanced = onAdvanced
         self.session = session
         self.query = query
         self.replacement = replacement
@@ -68,6 +72,10 @@ final class FindBar: StatelessWidget {
             items.append(Button(onPressed: onReplace, child: Text("Replace")))
             items.append(Chrome.gap(4))
             items.append(Button(onPressed: onReplaceAll, child: Text("Replace All")))
+        }
+        if let onAdvanced {
+            items.append(Chrome.gap(12))
+            items.append(Button(onPressed: onAdvanced, child: Text("Options...")))
         }
         items.append(Expanded(child: SizedBox(width: 0, height: 0, child: nil)))
         items.append(Chrome.icon(FluentSystemIcons.chromeClose, "Close (Esc)", fluent, action: onClose))
