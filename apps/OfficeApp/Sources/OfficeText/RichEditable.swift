@@ -1453,7 +1453,10 @@ public final class RichEditableState: State<StatefulWidget> {
             _moveDrag = nil
             let box = _selectedImageBox()
             _moveDelta = nil
-            if d.dx == 0, d.dy == 0, let box, let enter = _w.onTextBoxEnter, _controller.textBoxText(at: drag.index, inline: drag.inline) != nil {
+            if d.dx == 0, d.dy == 0, box != nil, _w.onTextBoxEnter != nil, _controller.textBoxDocument(at: drag.index, inline: drag.inline) == nil {
+                _controller.giveShapeText(at: drag.index, inline: drag.inline)   // a plain shape takes text when entered
+            }
+            if d.dx == 0, d.dy == 0, let box, let enter = _w.onTextBoxEnter, _controller.textBoxDocument(at: drag.index, inline: drag.inline) != nil {
                 enter(drag.index, drag.inline, box.rect)
                 return
             }

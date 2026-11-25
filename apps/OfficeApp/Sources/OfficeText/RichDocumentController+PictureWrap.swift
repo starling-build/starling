@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import Flutter
+import FlutterSwiftBridge
 
 /// Layout Options for a floating picture: how the text wraps round it, and where it stands. Both patch the picture's
 /// kept `wp:anchor` markup (the one source the layout and the writer read) and the matching `ImageFloat` flags, as one undo step.
@@ -150,6 +151,90 @@ extension RichDocumentController {
         f.x = x
         f.y = y
         new.float = f
+        _store(index, id, old: old, new: new)
+        return true
+    }
+
+    /// Make the shape at `index` (a `wps:wsp` with no text part, as a new shape is) ready to type in: add an empty centred
+    /// paragraph as its text part, one undo step, so it enters in place like a text box. False for anything that is not such a
+    /// shape, or already has text.
+    @discardableResult
+    public func giveShapeText(at index: Int, inline id: String? = nil) -> Bool {
+        guard let old = _floating(index, id), old.textBox == nil, let xml = old.sourceXML,
+              xml.containsSubstring("<wps:wsp"), !xml.containsSubstring("<wps:txbx"), !xml.containsSubstring("<mc:"),
+              let end = xml.rangeOfSubstring("</wps:spPr>") else { return false }
+        let part = "<wps:txbx><w:txbxContent><w:p><w:pPr><w:jc w:val=\"center\"/></w:pPr></w:p></w:txbxContent></wps:txbx>"
+        var patched = xml
+        patched.insert(contentsOf: part, at: end.upperBound)
+        // (Word centres a shape's text in it.)
+        if let body = patched.rangeOfSubstring("<wps:bodyPr "), let close = patched.rangeOfSubstring(">", in: body.upperBound ..< patched.endIndex),
+           let a = patched.rangeOfSubstring("anchor=\"t\"", in: body.upperBound ..< close.lowerBound) {
+            patched.replaceSubrange(a, with: "anchor=\"ctr\"")
+        }
+        var new = old
+        new.sourceXML = patched
+        var para = RichParagraph(text: "")
+        para.style.alignment = .center
+        new.textBox = RichTextBox(paragraphs: [para])
+        _store(index, id, old: old, new: new)
+        return true
+    }
+
+    /// The fill of the shape at `index` (nil: none), one undo step. False when it is not a shape drawn by a `wps:wsp`
+    /// whose fill is a plain colour or none (a gradient or picture fill is left as it is).
+    @discardableResult
+    public func setShapeFill(at index: Int, inline id: String? = nil, _ color: Color?, theme: (slot: Int, lumMod: Int, lumOff: Int)? = nil) -> Bool {
+        _setShapePaint(index, id, line: false, color, theme)
+    }
+
+    /// The outline colour of the shape at `index` (nil: no line), one undo step; false as `setShapeFill`.
+    @discardableResult
+    public func setShapeOutline(at index: Int, inline id: String? = nil, _ color: Color?, theme: (slot: Int, lumMod: Int, lumOff: Int)? = nil) -> Bool {
+        _setShapePaint(index, id, line: true, color, theme)
+    }
+
+    private func _setShapePaint(_ index: Int, _ id: String?, line: Bool, _ color: Color?, _ theme: (slot: Int, lumMod: Int, lumOff: Int)? = nil) -> Bool {
+        guard let old = _floating(index, id), let xml = old.sourceXML, xml.containsSubstring("<wps:wsp"),
+              let open = xml.rangeOfSubstring("<wps:spPr>"), let close = xml.rangeOfSubstring("</wps:spPr>", in: open.upperBound ..< xml.endIndex) else { return false }
+        var hex = ""
+        if let color { let v = String(color.value & 0xFFFFFF, radix: 16, uppercase: true); hex = String(repeating: "0", count: 6 - v.count) + v }
+        // A theme pick stays linked to its slot (`a:schemeClr` with lumMod / lumOff), so a theme change recolours it.
+        let names = ["bg1", "tx1", "bg2", "tx2", "accent1", "accent2", "accent3", "accent4", "accent5", "accent6"]
+        var paint = color == nil ? "<a:noFill/>" : "<a:solidFill><a:srgbClr val=\"\(hex)\"/></a:solidFill>"
+        if color != nil, let t = theme, t.slot >= 0, t.slot < names.count {
+            var mods = ""
+            if t.lumMod < 100 { mods += "<a:lumMod val=\"\(t.lumMod * 1000)\"/>" }
+            if t.lumOff > 0 { mods += "<a:lumOff val=\"\(t.lumOff * 1000)\"/>" }
+            paint = "<a:solidFill><a:schemeClr val=\"\(names[t.slot])\"" + (mods.isEmpty ? "/>" : ">\(mods)</a:schemeClr>") + "</a:solidFill>"
+        }
+        var body = String(xml[open.upperBound ..< close.lowerBound])
+        // Where the paint stands: after the geometry for the fill, inside the line's element for the outline.
+        var at: String.Index
+        if line {
+            guard let l = body.rangeOfSubstring("<a:ln"), let gt = body.rangeOfSubstring(">", in: l.upperBound ..< body.endIndex),
+                  !body[l.upperBound ..< gt.lowerBound].hasSuffix("/") else { return false }
+            at = gt.upperBound
+        } else {
+            guard let g = body.rangeOfSubstring("</a:prstGeom>") ?? body.rangeOfSubstring("</a:custGeom>") else { return false }
+            at = g.upperBound
+        }
+        let rest = body[at...]
+        if rest.hasPrefix("<a:solidFill>"), let e = body.rangeOfSubstring("</a:solidFill>", in: at ..< body.endIndex) {
+            body.replaceSubrange(at ..< e.upperBound, with: paint)
+        } else if rest.hasPrefix("<a:noFill/>") {
+            body.replaceSubrange(at ..< body.index(at, offsetBy: "<a:noFill/>".count), with: paint)
+        } else if rest.hasPrefix("<a:gradFill") || rest.hasPrefix("<a:blipFill") || rest.hasPrefix("<a:pattFill") {
+            return false
+        } else {
+            body.insert(contentsOf: paint, at: at)
+        }
+        var new = old
+        new.sourceXML = String(xml[xml.startIndex ..< open.upperBound]) + body + String(xml[close.lowerBound...])
+        if var outline = old.outline {
+            if line { outline.color = color.map { Color(0xFF00_0000 | Int64($0.value & 0xFFFFFF)) } } else { outline.fill = color.map { Color(0xFF00_0000 | Int64($0.value & 0xFFFFFF)) } }
+            new.outline = outline
+        }
+        guard new.sourceXML != xml else { return false }
         _store(index, id, old: old, new: new)
         return true
     }
