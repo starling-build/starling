@@ -164,6 +164,30 @@ final class CellBordersTests: XCTestCase {
         XCTAssertTrue(d.document.paragraphs.compactMap(\.cell).allSatisfy { $0.fillThemeAttrs != nil })
     }
 
+    func testSplitOfAMergedRowCellGivesEqualPiecesAndAddsGridlines() throws {
+        let c = RichDocumentController(plainText: "")
+        c.insertTable(rows: 2, columns: 3)
+        let t = c.currentCell!.table
+        let first = c.document.paragraphs.firstIndex { $0.cell != nil }!
+        c.moveTo(RichPosition(paragraph: first, offset: 0), extend: false)
+        c.moveTo(RichPosition(paragraph: c.document.paragraphs.firstIndex { $0.cell?.column == 2 }!, offset: 0), extend: true)
+        c.mergeCells()
+        c.moveTo(RichPosition(paragraph: first, offset: 0), extend: false)
+        XCTAssertTrue(c.splitCell(columns: 2, rows: 1))
+        let w = c.document.tableColumns[t]!
+        XCTAssertEqual(w.count, 4, "a gridline is added at the middle of the merged cell")
+        XCTAssertEqual(w[0] + w[1], w[2] + w[3], accuracy: 0.01)
+        let top = c.document.paragraphs.compactMap(\.cell).filter { $0.row == 0 }
+        let pieces = Set(top.map { "\($0.column),\($0.span)" })
+        XCTAssertEqual(pieces, ["0,2", "2,2"], "two equal halves")
+        let bottom = c.document.paragraphs.compactMap(\.cell).filter { $0.row == 1 }.map { "\($0.column),\($0.span)" }
+        XCTAssertEqual(bottom, ["0,1", "1,2", "3,1"], "the row below keeps its cells' places on the finer grid")
+        let back = try DocxFormat.read(try DocxFormat.write(c.document, pageSetup: .letter)).document
+        XCTAssertEqual(back.columnCount(of: back.paragraphs.compactMap(\.cell).first!.table), 4)
+        c.undo()
+        XCTAssertEqual(c.document.columnCount(of: t), 3)
+    }
+
     func testSplitCellInATableWithNoStoredWidthsKeepsTheNeighbourWide() {
         let c = RichDocumentController(plainText: "")
         c.insertTable(rows: 2, columns: 2)

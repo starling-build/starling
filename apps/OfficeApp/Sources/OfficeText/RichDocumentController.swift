@@ -2142,26 +2142,40 @@ public final class RichDocumentController: ChangeNotifier {
     public func splitCell(columns n: Int, rows m: Int) -> Bool {
         guard let here = currentCell, n >= 1, m >= 1, n * m > 1, n <= 63, m <= 200 else { return false }
         let s = here.span, q = here.rowSpan
-        let colExtra = max(0, n - s), rowExtra = max(0, m - q)
+        let rowExtra = max(0, m - q)
         let e = here.column + s, r1 = here.row + q - 1
         let cols = document.columnCount(of: here.table)
-        guard cols + colExtra <= 63 else { return false }
         var widths = document.tableColumns[here.table]
         if widths?.count != cols { widths = nil }
-        // A table with no stored widths draws its columns equal: write that down first, or the
-        // neighbours of a split cell would all be squeezed to the same width as its pieces.
-        if colExtra > 0, widths == nil { widths = Array(repeating: 468.0 / Double(cols), count: cols) }
-        if colExtra > 0, var w = widths {
-            let total = w[here.column ..< e].reduce(0, +)
-            w.replaceSubrange(here.column ..< e, with: Array(repeating: total / Double(n), count: n))
-            widths = w
+        // The split cell's width is cut into n EQUAL pieces. Every old gridline stays; a new
+        // gridline is added wherever a cut falls between two of them, and every cell is
+        // renumbered through the new grid.
+        let w0 = widths ?? Array(repeating: 468.0 / Double(cols), count: cols)
+        var x: [Double] = [0]
+        for v in w0 { x.append(x.last! + v) }
+        let x0 = x[here.column], x1 = x[e]
+        var newX = x
+        for j in 1 ..< n {
+            let t = x0 + (x1 - x0) * Double(j) / Double(n)
+            if !newX.contains(where: { abs($0 - t) < 0.5 }) { newX.append(t) }
         }
+        newX.sort()
+        func gridIndex(_ pos: Double) -> Int {
+            newX.indices.min { abs(newX[$0] - pos) < abs(newX[$1] - pos) }!
+        }
+        let newCols = newX.count - 1
+        let colExtra = newCols - cols
+        guard newCols <= 63 else { return false }
+        let oldIndex = x.map { gridIndex($0) }
+        let cuts = (0 ... n).map { gridIndex(x0 + (x1 - x0) * Double($0) / Double(n)) }
+        guard (0 ..< n).allSatisfy({ cuts[$0 + 1] > cuts[$0] }) else { return false }
+        if colExtra > 0 { widths = (0 ..< newCols).map { newX[$0 + 1] - newX[$0] } }
         let newWidths = widths
         let style = document.tableStyles[here.table]
         func pieces(_ total: Int, _ k: Int) -> [Int] {
             (0 ..< k).map { total / k + ($0 < total % k ? 1 : 0) }
         }
-        let colSizes = pieces(max(s, n), n), rowSizes = pieces(max(q, m), m)
+        let rowSizes = pieces(max(q, m), m)
         var caretAt: Int? = nil
         edit {
             _rewriteTable(caret: { _ in caretAt }, rewrite: { paras in
@@ -2177,20 +2191,20 @@ public final class RichDocumentController: ChangeNotifier {
                                 for j in 0 ..< n where i + j > 0 {
                                     var d = here
                                     d.row = here.row + rowSizes[..<i].reduce(0, +)
-                                    d.column = here.column + colSizes[..<j].reduce(0, +)
-                                    d.span = colSizes[j]; d.rowSpan = rowSizes[i]
+                                    d.column = cuts[j]
+                                    d.span = cuts[j + 1] - cuts[j]; d.rowSpan = rowSizes[i]
                                     extra.append(d)
                                 }
                             }
                         }
-                        c.span = colSizes[0]; c.rowSpan = rowSizes[0]
+                        c.column = cuts[0]; c.span = cuts[1] - cuts[0]; c.rowSpan = rowSizes[0]
                         p.cell = c
                         out.append(p)
                         continue
                     }
-                    if colExtra > 0 {
-                        if c.column >= e { c.column += colExtra }
-                        else if c.column + c.span >= e { c.span += colExtra }
+                    if colExtra != 0 {
+                        let from = oldIndex[c.column], to = oldIndex[c.column + c.span]
+                        c.column = from; c.span = to - from
                     }
                     if rowExtra > 0 {
                         if c.row > r1 { c.row += rowExtra }
