@@ -624,6 +624,7 @@ final class Ribbon: StatelessWidget {
             ]),
             Chrome.gap(8),
             Chrome.big(FluentSystemIcons.columns, "Distribute Columns", fluent) { c.distributeColumns() },
+            Chrome.big(FluentSystemIcons.table, "Distribute Rows", fluent) { c.distributeRows() },
         ])
         let alignItems: [MenuFlyoutItemBase] = [
             MenuFlyoutItem(text: Text("Align Top"), onPressed: { c.setCellVerticalAlignment("top") }),
@@ -651,6 +652,11 @@ final class Ribbon: StatelessWidget {
             MenuFlyoutItem(text: Text("Table Width: 75%"), onPressed: { c.setTableWidth(percent: 75) }),
             MenuFlyoutItem(text: Text("Table Width: 50%"), onPressed: { c.setTableWidth(percent: 50) }),
         ]
+        let autoFitItems: [MenuFlyoutItemBase] = [
+            MenuFlyoutItem(text: Text("AutoFit to Contents"), onPressed: { c.autoFitTable(.contents) }),
+            MenuFlyoutItem(text: Text("AutoFit to Window"), onPressed: { c.autoFitTable(.window) }),
+            MenuFlyoutItem(text: Text("Fixed Column Width"), onPressed: { c.autoFitTable(.fixed) }),
+        ]
         let alignment = Chrome.group("Alignment", fluent, [
             Chrome.rows([
                 Chrome.menuButton(FluentSystemIcons.table, "Cell Alignment", "Vertical alignment of the cell's text", fluent, items: alignItems),
@@ -661,6 +667,7 @@ final class Ribbon: StatelessWidget {
             Chrome.rows([
                 Chrome.menuButton(nil, "Cell Margins", "Margins inside the table's cells", fluent, items: marginsItems),
                 Chrome.menuButton(nil, "Table Width", "The table's width", fluent, items: tableWidthItems),
+                Chrome.menuButton(nil, "AutoFit", "Fit the table to its contents, the window, or fixed widths", fluent, items: autoFitItems),
                 Chrome.small(FluentSystemIcons.columns, style.fixedLayout ? "Fixed Widths" : "AutoFit", fluent) { c.setTableAutofit(style.fixedLayout) },
             ]),
             Chrome.gap(8),
