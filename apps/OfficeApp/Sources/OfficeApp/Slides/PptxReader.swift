@@ -1434,11 +1434,18 @@ struct PptxReader {
         case "p:push": t.kind = .push
         case "p:wipe": t.kind = .wipe
         case "p:cover": t.kind = .cover
+        case "p:pull": t.kind = .pull
+        case "p:split": t.kind = .split
+        case "p:zoom": t.kind = .zoom
         default:
             t.kind = .fade
             t.raw = PptxXML.serialize(ac ?? node)
         }
         if let d = effect?["dir"].flatMap(SlideTransition.Direction.init(rawValue:)) { t.direction = d }
+        if t.kind == .split { t.vertical = effect?["orient"] == "vert"; t.inward = effect?["dir"] == "in" }
+        if t.kind == .zoom { t.zoomIn = effect?["dir"] != "out" }
+        t.advanceOnClick = node["advClick"] != "0"
+        t.advanceAfter = node["advTm"].flatMap(Double.init).map { $0 / 1000 }
         return t
     }
 
