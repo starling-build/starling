@@ -849,6 +849,12 @@ public final class RichTextTheme {
     /// `characterClass` picks one of the face's `classScales`.
     /// `characterGrid` is what the document's grid adds to each
     /// character's width, in points.
+    /// Word draws automatic text colour white over a fill whose luminance is below this (of 255), black otherwise.
+    public static let autoTextWhiteBelow = 59.0
+    public static func autoTextIsWhite(on fill: Color) -> Bool {
+        0.299 * Double(fill.red) + 0.587 * Double(fill.green) + 0.114 * Double(fill.blue) < autoTextWhiteBelow
+    }
+
     public func textStyle(for style: CharStyle, in paragraph: RichParagraphStyle, backdrop: Color? = nil,
                           named: RichNamedStyle? = nil, normal: CharStyle? = nil,
                           scale: Double, fontScale: Double = 1,
@@ -874,11 +880,12 @@ public final class RichTextTheme {
         var color = style.color ?? (wordRules && style.off.contains(.autoColor) ? textColor : named?.char.color ?? normal?.color ?? textColor)
         // Word prints automatic text colour white over a black shaded paragraph
         // (ell-z20423699-8d41bb's title bar, fill 000000: ours drew it dark grey).
-        // (Table-look lab word-uicheck44: white on 000000, 1F3864 and C00000, black on 7030A0: luminance 0, 54, 57 against 80;
+        // (Word print of autocolor.docx, 40 shaded cells: automatic text is white below luminance 59 (0.299R+0.587G+0.114B of 255), else black;
+        // the darkest black is 7300E6 at 60.6, the lightest white C00000 at 57.4;
         // a table cell's fill counts as the paragraph's.)
         if wordRules, style.color == nil, let fill = paragraph.fill ?? backdrop, fill.alpha == 255,
            style.off.contains(.autoColor) || (named?.char.color == nil && normal?.color == nil),
-           0.299 * Double(fill.red) + 0.587 * Double(fill.green) + 0.114 * Double(fill.blue) < 0.3 * 255 {
+           Self.autoTextIsWhite(on: fill) {
             color = Color(0xFFFFFFFF)
         }
         let latinName = style.fontFamily ?? named?.char.fontFamily ?? normal?.fontFamily ?? fontFamily
