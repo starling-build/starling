@@ -38,6 +38,7 @@ extension SlideContext {
             st.outlineCap = ln?["cap"]
             st.headEnd = PptxReader.lineEnd(ln?.first("a:headEnd"))
             st.tailEnd = PptxReader.lineEnd(ln?.first("a:tailEnd"))
+            st.keptLine?.dash = st.outlineDash; st.keptLine?.head = st.headEnd; st.keptLine?.tail = st.tailEnd
             st.shadow = _shapeShadow(el.first("p:spPr"), el.first("p:style"))
             return st
         }
@@ -79,6 +80,7 @@ extension SlideContext {
         st.outlineCap = el.first("p:spPr")?.first("a:ln")?["cap"]
         st.headEnd = PptxReader.lineEnd(ln?.first("a:headEnd"))
         st.tailEnd = PptxReader.lineEnd(ln?.first("a:tailEnd"))
+        st.keptLine?.dash = st.outlineDash; st.keptLine?.head = st.headEnd; st.keptLine?.tail = st.tailEnd
         return st
     }
 

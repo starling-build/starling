@@ -48,6 +48,8 @@ final class FormatShapePaneState: State<StatefulWidget> {
 
     /// Six upper-case hex digits of a colour, without its transparency.
     /// The dash styles the pane offers, in the order its button steps through them (preset name, label).
+    static let arrowKinds: [(String?, String)] = [(nil, "None"), ("triangle", "Arrow"), ("arrow", "Open arrow"), ("stealth", "Stealth arrow"),
+                                                  ("diamond", "Diamond"), ("oval", "Oval")]
     static let dashStyles: [(String?, String)] = [(nil, "Solid"), ("sysDot", "Round dot"), ("sysDash", "Square dot"),
                                                   ("dash", "Dash"), ("dashDot", "Dash dot"), ("lgDash", "Long dash"), ("lgDashDot", "Long dash dot")]
 
@@ -200,6 +202,20 @@ final class FormatShapePaneState: State<StatefulWidget> {
                     let at = styles.firstIndex { $0.0 == first?.outlineDash } ?? 0
                     deck.setOutlineDash(styles[(at + 1) % styles.count].0)
                 } : nil, child: Text(Self.dashStyles.first { $0.0 == first?.outlineDash }?.1 ?? first?.outlineDash ?? "Solid"))),
+            ]), gap(6),
+            Row(children: [
+                SizedBox(width: 110, height: nil, child: Text("Arrow start", style: caption)),
+                SizedBox(key: ValueKey("fmt.line.head"), width: 120, height: 30, child: Button(onPressed: lineOn ? {
+                    let at = Self.arrowKinds.firstIndex { $0.0 == first?.headEnd?.kind } ?? 0
+                    deck.setLineEnd(start: true, kind: Self.arrowKinds[(at + 1) % Self.arrowKinds.count].0)
+                } : nil, child: Text(Self.arrowKinds.first { $0.0 == first?.headEnd?.kind }?.1 ?? first?.headEnd?.kind ?? "None"))),
+            ]), gap(6),
+            Row(children: [
+                SizedBox(width: 110, height: nil, child: Text("Arrow end", style: caption)),
+                SizedBox(key: ValueKey("fmt.line.tail"), width: 120, height: 30, child: Button(onPressed: lineOn ? {
+                    let at = Self.arrowKinds.firstIndex { $0.0 == first?.tailEnd?.kind } ?? 0
+                    deck.setLineEnd(start: false, kind: Self.arrowKinds[(at + 1) % Self.arrowKinds.count].0)
+                } : nil, child: Text(Self.arrowKinds.first { $0.0 == first?.tailEnd?.kind }?.1 ?? first?.tailEnd?.kind ?? "None"))),
             ]), gap(14),
             Text("Size & Properties", style: fluent.typography.bodyStrong), gap(10),
             Text("Size", style: caption), gap(4),

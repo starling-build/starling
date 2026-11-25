@@ -1789,6 +1789,19 @@ final class DeckController: ChangeNotifier {
         _changed()
     }
 
+    /// The arrowhead at a line's start (`start`) or end of the selected shapes: nil for none. Sizes stay as they were, else medium.
+    func setLineEnd(start: Bool, kind: String?) {
+        guard !selection.isEmpty else { return }
+        _checkpoint()
+        for s in selection {
+            let old = start ? s.headEnd : s.tailEnd
+            let e = kind.map { LineEnd(kind: $0, width: old?.width ?? 3, length: old?.length ?? 3) }
+            if start { s.headEnd = e } else { s.tailEnd = e }
+            s.keptLook?.endsEdited = true
+        }
+        _changed()
+    }
+
     /// The shape shadow of the selection: nil for none. A file shape's other effects (glow, reflection...) stay.
     func setShadow(_ shadow: CharShadow?) {
         guard !selection.isEmpty else { return }
