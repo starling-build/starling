@@ -40,6 +40,24 @@ public enum RichChange: Equatable, Sendable {
 // case of over a thousand scalars, and wasm32's outlined copy of it took
 // each as a parameter — 1296, past V8's limit of 1000, so Chrome would not
 // compile the Office app at all.)
+/// The footnotes and endnotes as the editor holds them: the paragraphs the layout sets, and the file's parts that carry
+/// them back on a save.
+public struct NotesState: Equatable, Sendable {
+    public var footnotes: [Int: [RichParagraph]]
+    public var endnotes: [Int: [RichParagraph]]
+    public var footnotePart: Data?
+    public var endnotePart: Data?
+    public init(_ doc: RichDocument) {
+        footnotes = doc.footnotes; endnotes = doc.endnotes
+        footnotePart = doc.keptParts["word/footnotes.xml"]; endnotePart = doc.keptParts["word/endnotes.xml"]
+    }
+    func put(into doc: inout RichDocument) {
+        doc.footnotes = footnotes; doc.endnotes = endnotes
+        doc.keptParts["word/footnotes.xml"] = footnotePart
+        doc.keptParts["word/endnotes.xml"] = endnotePart
+    }
+}
+
 public indirect enum EditOp: Equatable, Sendable {
     case insertText(RichPosition, String, [Run])
     case deleteText(RichPosition, String, [Run])
@@ -57,6 +75,8 @@ public indirect enum EditOp: Equatable, Sendable {
     case setHeaderFooter(header: String, footer: String, oldHeader: String, oldFooter: String)
     /// The formatted default header or footer (W-HF-1), with the plain texts the strip and the kept-part check read.
     case setRichHeaderFooter(new: [RichHeaderFooter], old: [RichHeaderFooter], header: String, footer: String, oldHeader: String, oldFooter: String)
+    /// The notes' text and their kept parts (W-FN-1): one step whatever it changes.
+    case setNotes(new: NotesState, old: NotesState)
     /// A section's page (size, margins, columns): the paragraph that ends it, or -1 for the last section.
     case setSectionPage(Int, old: PageSetup?, new: PageSetup?)
     /// A picture's shown size (its attachment replaced; the id survives).
@@ -157,6 +177,10 @@ public indirect enum EditOp: Equatable, Sendable {
             doc.footer = footer
             changes.append(.all)
             return .setRichHeaderFooter(new: old, old: new, header: oldHeader, footer: oldFooter, oldHeader: header, oldFooter: footer)
+        case .setNotes(let new, let old):
+            new.put(into: &doc)
+            changes.append(.all)
+            return .setNotes(new: old, old: new)
         case .setSectionPage(let index, let old, let new):
             if index < 0 { doc.lastSectionPage = new } else { doc.paragraphs[index].style.sectionPage = new }
             changes.append(.all)

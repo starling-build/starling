@@ -1,0 +1,127 @@
+// Copyright the Starling authors
+// SPDX-License-Identifier: Apache-2.0
+
+import Foundation
+
+/// W-FN-1: inserting a footnote or an endnote. One undoable step: the mark in the body, the note's text for the layout
+/// and the note's element in the file's notes part (made, with its separators, when the file had none), and the other
+/// marks renumbered.
+extension RichDocumentController {
+    private struct _Mark { var paragraph: Int; var offset: Int; var length: Int; var id: Int; var text: String; var style: CharStyle }
+
+    /// The kind's numbered marks in body order (a custom mark keeps its own text and has no number).
+    private func _marks(_ kind: NoteReference.Kind) -> [_Mark] {
+        var out: [_Mark] = []
+        for (pi, p) in document.paragraphs.enumerated() {
+            var offset = 0
+            let units = Array(p.text.utf16)
+            for r in p.runs {
+                defer { offset += r.length }
+                guard let n = r.style.note, n.kind == kind else { continue }
+                let text = String(decoding: units[offset ..< min(offset + r.length, units.count)], as: UTF16.self)
+                if text.contains("\u{200B}") { continue }
+                out.append(_Mark(paragraph: pi, offset: offset, length: r.length, id: n.id, text: text, style: r.style))
+            }
+        }
+        return out
+    }
+
+    /// The number format the file's marks use, from the first one; Word's defaults where there is none.
+    private func _labelFormat(_ kind: NoteReference.Kind, _ marks: [_Mark]) -> ListNumberFormat {
+        guard let first = marks.first?.text, let c = first.first else { return kind == .footnote ? .decimal : .lowerRoman }
+        if c.isNumber { return .decimal }
+        if first.allSatisfy({ "ivxlcdm".contains($0) }) { return .lowerRoman }
+        if first.allSatisfy({ "IVXLCDM".contains($0) }) { return .upperRoman }
+        if first.count == 1 || first.allSatisfy({ $0 == c }) { return c.isUppercase ? .upperLetter : .lowerLetter }
+        return .decimal
+    }
+
+    /// The notes part with a new, empty note added (the part made, with its separator notes, where the file had none).
+    private static func _addElement(to part: Data?, kind: NoteReference.Kind, id: Int) -> Data {
+        let tag = kind == .footnote ? "footnote" : "endnote"
+        var xml: String
+        if let part { xml = String(decoding: part, as: UTF8.self) } else {
+            func sep(_ type: String, _ n: Int, _ inner: String) -> String {
+                "<w:\(tag) w:type=\"\(type)\" w:id=\"\(n)\"><w:p><w:pPr><w:spacing w:after=\"0\" w:line=\"240\" w:lineRule=\"auto\"/></w:pPr><w:r><w:\(inner)/></w:r></w:p></w:\(tag)>"
+            }
+            xml = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<w:\(tag)s xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\">"
+                + sep("separator", -1, "separator") + sep("continuationSeparator", 0, "continuationSeparator") + "</w:\(tag)s>"
+        }
+        let element = "<w:\(tag) w:id=\"\(id)\"><w:p><w:pPr><w:spacing w:after=\"0\" w:line=\"240\" w:lineRule=\"auto\"/></w:pPr>"
+            + "<w:r><w:rPr><w:sz w:val=\"20\"/><w:vertAlign w:val=\"superscript\"/></w:rPr><w:\(tag)Ref/></w:r>"
+            + "<w:r><w:rPr><w:sz w:val=\"20\"/></w:rPr><w:t xml:space=\"preserve\"> </w:t></w:r></w:p></w:\(tag)>"
+        let closing = "</w:\(tag)s>"
+        while let last = xml.last, last == "\n" || last == " " || last == "\r" { xml.removeLast() }
+        if xml.hasSuffix(closing) { xml.removeLast(closing.count) }
+        xml += element + closing
+        return Data(xml.utf8)
+    }
+
+    /// Insert a footnote or endnote reference at the caret (the end of a selection) and an empty note for it; the
+    /// caret stays after the mark. One undo step.
+    public func insertNote(_ kind: NoteReference.Kind) {
+        guard !readOnly else { return }
+        let at = document.clamped(selection.end)
+        guard document.paragraphs[at.paragraph].image == nil else { return }
+        let marks = _marks(kind)
+        let notes = kind == .footnote ? document.footnotes : document.endnotes
+        let id = max(notes.keys.max() ?? 0, marks.map(\.id).max() ?? 0, 0) + 1
+        let format = _labelFormat(kind, marks)
+        func label(_ n: Int) -> String { format == .decimal ? String(n) : format.string(n) }
+        // (Marks before the caret keep their numbers; the new one is the next, the rest move up by one.)
+        let before = marks.filter { ($0.paragraph, $0.offset) < (at.paragraph, at.offset) }.count
+        var numbered: [Int: Int] = [:]   // note id -> its new number
+        for (i, m) in marks.enumerated() { numbered[m.id] = i < before ? i + 1 : i + 2 }
+        numbered[id] = before + 1
+        var state = NotesState(document)
+        var markStyle = CharStyle.plain
+        markStyle.script = .superscript
+        markStyle.note = NoteReference(kind: kind, id: id)
+        var noteMark = CharStyle.plain
+        noteMark.script = .superscript
+        noteMark.fontSize = 10
+        var noteText = CharStyle.plain
+        noteText.fontSize = 10
+        let first = label(before + 1)
+        let body = RichParagraph(text: first + " ", runs: [Run(length: first.utf16.count, style: noteMark), Run(length: 1, style: noteText)])
+        // The notes' own marks follow their numbers.
+        func relabeled(_ all: [Int: [RichParagraph]]) -> [Int: [RichParagraph]] {
+            var out = all
+            for (nid, paras) in all {
+                guard let n = numbered[nid], var p = paras.first, let r = p.runs.first, r.length > 0,
+                      Array(p.text.utf16).count >= r.length else { continue }
+                let units = Array(p.text.utf16)
+                let old = String(decoding: units[0 ..< r.length], as: UTF16.self)
+                guard !old.isEmpty, old.allSatisfy({ $0.isLetter || $0.isNumber }) else { continue }
+                let new = label(n)
+                if old == new { continue }
+                p = RichParagraph(text: new + String(decoding: units[r.length...], as: UTF16.self),
+                                  runs: [Run(length: new.utf16.count, style: r.style)] + p.runs.dropFirst(), style: p.style)
+                var list = paras; list[0] = p; out[nid] = list
+            }
+            return out
+        }
+        if kind == .footnote {
+            state.footnotes = relabeled(state.footnotes); state.footnotes[id] = [body]
+            state.footnotePart = Self._addElement(to: state.footnotePart, kind: .footnote, id: id)
+        } else {
+            state.endnotes = relabeled(state.endnotes); state.endnotes[id] = [body]
+            state.endnotePart = Self._addElement(to: state.endnotePart, kind: .endnote, id: id)
+        }
+        let old = NotesState(document)
+        edit {
+            perform(.setNotes(new: state, old: old))
+            // The later marks are renumbered first (last to first, so offsets before them hold), then the new one goes in.
+            for (i, m) in marks.enumerated().reversed() where i >= before {
+                let new = label(i + 2)
+                guard new != m.text else { continue }
+                let style = m.style
+                let pos = RichPosition(paragraph: m.paragraph, offset: m.offset)
+                perform(.deleteText(pos, m.text, [Run(length: m.length, style: style)]))
+                perform(.insertText(pos, new, [Run(length: new.utf16.count, style: style)]))
+            }
+            perform(.insertText(at, first, [Run(length: first.utf16.count, style: markStyle)]))
+            moveTo(RichPosition(paragraph: at.paragraph, offset: at.offset + first.utf16.count), extend: false)
+        }
+    }
+}
