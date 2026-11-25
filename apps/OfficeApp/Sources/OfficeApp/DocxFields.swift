@@ -1228,6 +1228,9 @@ extension DocxFormat {
         if let shd = pPr.first("w:shd"), let raw = shd["w:fill"], case let hex = raw.hasPrefix("#") ? String(raw.dropFirst()) : raw,
            hex.lowercased() != "auto", hex.count == 6, let v = Int(hex, radix: 16) {
             style.fill = Color(argb: 0xFF, (v >> 16) & 0xFF, (v >> 8) & 0xFF, v & 0xFF)
+            let extra = ["w:val", "w:color", "w:themeFill", "w:themeFillTint", "w:themeFillShade", "w:themeColor", "w:themeTint", "w:themeShade"]
+                .compactMap { k in shd[k].map { " \(k)=\"\(_esc($0))\"" } }.joined()
+            style.fillAttrs = hex.uppercased() + "#" + extra
         }
         if let c = pPr.first("w:contextualSpacing") { style.contextualSpacing = !_isOff(c) }
         if let frame = pPr.first("w:framePr") {
