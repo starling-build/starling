@@ -12,19 +12,22 @@ import OfficeText
 func widthLabel(_ w: Double) -> String { w == w.rounded() ? String(Int(w)) : "\(w)" }
 
 struct BordersShadingValues: Equatable {
+    enum Shade: Equatable { case unchanged, none, rgb(UInt32) }
     var sides: Set<CellSide> = []
     var style = "single"
     var width = 0.5
-    var colorText = ""      // RRGGBB; blank is automatic
-    var shadingText = ""    // RRGGBB; blank leaves the shading alone
-    var clearShading = false
+    var lineRGB: UInt32?            // nil is automatic
+    var shade = Shade.unchanged
 
     var line: CellBorderLine {
-        CellBorderLine(style: style, width: width, color: ColorMath.parseHex(colorText).map { Color(Int64(0xFF000000) | Int64($0)) })
+        CellBorderLine(style: style, width: width, color: lineRGB.map { Color(Int64(0xFF000000) | Int64($0)) })
     }
     var shading: Color?? {
-        if clearShading { return .some(nil) }
-        return ColorMath.parseHex(shadingText).map { .some(Color(Int64(0xFF000000) | Int64($0))) }
+        switch shade {
+        case .unchanged: return nil
+        case .none: return .some(nil)
+        case .rgb(let c): return .some(Color(Int64(0xFF000000) | Int64(c)))
+        }
     }
     /// One undoable change per OK: borders first, then shading.
     func apply(to c: RichDocumentController) {
@@ -46,12 +49,27 @@ final class BordersShadingDialog: StatefulWidget {
 }
 
 final class BordersShadingDialogState: State<StatefulWidget> {
+    private enum Target { case line, shading }
     private var _w: BordersShadingDialog { widget as! BordersShadingDialog }
     private(set) var v = BordersShadingValues()
-    private let _color = TextEditingController()
-    private let _shading = TextEditingController()
+    private var _open: Target?          // which colour panel is showing
+    private var _more: Target?          // which colour "More Colors…" is editing
+    private var _recent = RecentColors()
 
-    func commit() { v.colorText = _color.text; v.shadingText = _shading.text }
+    private func choose(_ t: Target, _ choice: ColorChoice) {
+        setState {
+            switch (t, choice) {
+            case (.line, .automatic), (.line, .none): v.lineRGB = nil
+            case (.shading, .automatic), (.shading, .none): v.shade = .none
+            default:
+                if let rgb = choice.resolved(theme: ColorMath.officeTheme) {
+                    if t == .line { v.lineRGB = rgb } else { v.shade = .rgb(rgb) }
+                    _recent.use(rgb)
+                }
+            }
+            _open = nil
+        }
+    }
 
     override func build(_ context: any BuildContext) -> Widget {
         let fluent = FluentTheme.of(context)
@@ -61,17 +79,31 @@ final class BordersShadingDialogState: State<StatefulWidget> {
         func side(_ label: String, _ s: CellSide) -> Widget {
             toggle(label, v.sides.contains(s)) { if self.v.sides.contains(s) { self.v.sides.remove(s) } else { self.v.sides.insert(s) } }
         }
-        func box(_ label: String, _ c: TextEditingController) -> Widget {
-            Padding(padding: EdgeInsets(left: 0, top: 0, right: 0, bottom: 8), child: Row(crossAxisAlignment: .center, children: [
-                SizedBox(width: 170, height: nil, child: Text(label)),
-                SizedBox(width: 90, height: 30, child: FluentTextBox(
-                    controller: c, onSubmitted: { [weak self] _ in self?.commit() },
-                    onFocusChanged: { [weak self] f in if !f { self?.commit() } })),
-            ]))
+        func swatch(_ rgb: UInt32?) -> Widget {
+            SizedBox(width: 18, height: 18, child: DecoratedBox(decoration: BoxDecoration(
+                color: rgb.map { Color(Int64(0xFF000000) | Int64($0)) },
+                border: Border.all(color: fluent.resources.controlStrokeColorDefault, width: 1))))
         }
+        func colorRow(_ label: String, _ t: Target, _ rgb: UInt32?, _ none: String) -> Widget {
+            Row(crossAxisAlignment: .center, children: [
+                SizedBox(width: 120, height: nil, child: Text(label)),
+                Chrome.textToggle(rgb.map(ColorMath.hex) ?? none, _open == t, fluent) { [weak self] in
+                    self?.setState { self?._open = self?._open == t ? nil : t } },
+                Chrome.gap(6), swatch(rgb),
+            ])
+        }
+        func panel(_ t: Target) -> Widget {
+            ColorPicker(recent: _recent.list, automaticLabel: t == .line ? "Automatic" : nil,
+                        noneLabel: t == .shading ? "No Color" : nil,
+                        onChoose: { [weak self] c in self?.choose(t, c) },
+                        onMore: { [weak self] in self?.setState { self?._more = t } })
+        }
+        var shadeRGB: UInt32?
+        if case .rgb(let c) = v.shade { shadeRGB = c }
+        let shadeNone = v.shade == .unchanged ? "Unchanged" : "No Color"
         let styles: [(String, String)] = [("single", "Single"), ("double", "Double"), ("dashed", "Dashed"), ("dotted", "Dotted"), ("none", "No line")]
         let widths = CellBorderLine.widths
-        let page = Column(crossAxisAlignment: .start, children: [
+        var children: [Widget] = [
             Text("Apply to"), Chrome.vgap(4),
             Row(children: [side("Top", .top), side("Bottom", .bottom), side("Left", .left), side("Right", .right),
                            side("Inside horizontal", .insideH), side("Inside vertical", .insideV)]),
@@ -80,12 +112,22 @@ final class BordersShadingDialogState: State<StatefulWidget> {
             Chrome.vgap(8), Text("Width (pt)"), Chrome.vgap(4),
             Row(children: widths.map { w in toggle(widthLabel(w), v.width == w) { self.v.width = w } }),
             Chrome.vgap(8),
-            box("Line colour (RRGGBB, blank is automatic)", _color),
-            box("Shading (RRGGBB)", _shading),
-            toggle("Remove shading", v.clearShading) { self.v.clearShading.toggle() },
+            colorRow("Line colour", .line, v.lineRGB, "Automatic"),
+        ]
+        if _open == .line { children.append(panel(.line)) }
+        children.append(Chrome.vgap(4))
+        children.append(colorRow("Shading", .shading, shadeRGB, shadeNone))
+        if _open == .shading { children.append(panel(.shading)) }
+        let dialog = DialogShell(title: "Borders and Shading", page: Column(crossAxisAlignment: .start, children: children), width: 620,
+                                 onOK: { [weak self] in guard let self else { return }; self._w.onOK(self.v) },
+                                 onCancel: { [weak self] in self?._w.onCancel() })
+        guard let t = _more else { return dialog }
+        return Stack(children: [
+            dialog,
+            Positioned(left: 0, top: 0, right: 0, bottom: 0, child: CustomColorDialog(
+                initial: (t == .line ? v.lineRGB : shadeRGB) ?? 0,
+                onOK: { [weak self] rgb in self?.setState { self?._more = nil }; self?.choose(t, .rgb(rgb)) },
+                onCancel: { [weak self] in self?.setState { self?._more = nil } })),
         ])
-        return DialogShell(title: "Borders and Shading", page: page, width: 620,
-                           onOK: { [weak self] in guard let self else { return }; self.commit(); self._w.onOK(self.v) },
-                           onCancel: { [weak self] in self?._w.onCancel() })
     }
 }

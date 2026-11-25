@@ -266,8 +266,15 @@ final class SheetsTitleBarUndoHarnessTests: XCTestCase {
         XCTAssertTrue(ui.tap(text: "Bottom"))
         XCTAssertTrue(ui.tap(text: "Double"))
         XCTAssertTrue(ui.tap(text: "3"))
+        XCTAssertTrue(ui.tap(text: "Automatic"))          // opens the line colour panel
+        XCTAssertTrue(ui.has(text: "Theme Colors"))
+        XCTAssertTrue(ui.tap(tip: "Accent 2"))
+        XCTAssertTrue(ui.tap(text: "Unchanged"))          // opens the shading panel
+        XCTAssertTrue(ui.tap(tip: "Accent 1"))
         XCTAssertTrue(ui.tap(text: "OK"))
+        XCTAssertEqual(c.currentCell?.fill, Color(Int64(0xFF4472C4)))
         let xml = c.currentCell?.bordersXML ?? ""
+        XCTAssertTrue(xml.contains("ED7D31"), "the picked theme colour is the line colour")
         XCTAssertTrue(xml.contains("w:bottom"))
         XCTAssertTrue(xml.contains("double"))
         XCTAssertTrue(xml.contains("w:sz=\"24\""))
