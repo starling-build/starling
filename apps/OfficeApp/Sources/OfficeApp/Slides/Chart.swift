@@ -278,6 +278,7 @@ struct Chart: Equatable {
     /// The axis titles say nothing of their look (openpyxl's): Excel sets them 20 pt.
     var bareAxisTitle = false
     var axisTitleDefaultBold = false
+    var axisTitleBoldOut = false   // (written bold: axis titles typed in Sheets, as Excel writes them)
     var axisTitleBold = false   // (a sheet's axis title that states b="1" is drawn bold)
     var axisTitleColor: Color? = nil   // (Word's own: the title's run, else its default run properties)
     /// An axis title the file places itself (`c:title/c:layout`, edge-mode
@@ -3109,8 +3110,8 @@ enum ChartXML {
             plot += "<c:lineChart><c:grouping val=\"standard\"/><c:varyColors val=\"0\"/>\(lsers)<c:marker val=\"1\"/>\(ax)</c:lineChart>"
         }
         if c.type.hasAxes {
-            let catTitle = c.categoryAxisTitle.map { _rich($0, size: c.categoryAxisTitleSize.map { Int(($0 * 100).rounded()) }, rotated: c.type == .bar) } ?? ""
-            let valTitle = c.valueAxisTitle.map { _rich($0, size: c.valueAxisTitleSize.map { Int(($0 * 100).rounded()) }, rotated: c.type != .bar) } ?? ""
+            let catTitle = c.categoryAxisTitle.map { _rich($0, size: c.categoryAxisTitleSize.map { Int(($0 * 100).rounded()) }, rotated: c.type == .bar, bold: c.axisTitleBoldOut) } ?? ""
+            let valTitle = c.valueAxisTitle.map { _rich($0, size: c.valueAxisTitleSize.map { Int(($0 * 100).rounded()) }, rotated: c.type != .bar, bold: c.axisTitleBoldOut) } ?? ""
             let catPos = c.type == .bar ? "l" : "b", valPos = c.type == .bar ? "b" : "l"
             let tail = "<c:majorTickMark val=\"none\"/><c:minorTickMark val=\"none\"/><c:tickLblPos val=\"nextTo\"/>"
             let format = c.percent ? "0%" : "General"

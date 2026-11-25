@@ -48,6 +48,11 @@ struct SheetChart: Equatable {
     /// Set when the file's own chart was turned between column and bar here:
     /// the save patches that part's direction and keeps all its formatting.
     var retype: ChartType? = nil
+    /// A title or legend changed here on the file's own chart: the save patches those two elements of its part.
+    var titleEdit: ChartPartEdit? = nil
+    var legendEdit: ChartPartEdit? = nil
+    var catTitleEdit: ChartPartEdit? = nil
+    var valTitleEdit: ChartPartEdit? = nil
     /// Every `<c:f>` in that part (series, titles, labels…): as read → as
     /// it reads now, after rows, columns or sheets moved. A save rewrites
     /// the part's references through it and keeps everything else.
@@ -69,7 +74,7 @@ struct SheetChart: Equatable {
     var pivotSeries: [String] = []
 
     static func == (a: SheetChart, b: SheetChart) -> Bool {
-        a.chart == b.chart && a.path == b.path && a.formulas == b.formulas && a.refs.count == b.refs.count
+        a.chart == b.chart && a.path == b.path && a.titleEdit == b.titleEdit && a.legendEdit == b.legendEdit && a.catTitleEdit == b.catTitleEdit && a.valTitleEdit == b.valTitleEdit && a.formulas == b.formulas && a.refs.count == b.refs.count
             && zip(a.refs, b.refs).allSatisfy { $0.name == $1.name && $0.cat == $1.cat && $0.val == $1.val }
     }
 }
@@ -559,11 +564,15 @@ extension SheetDrawingsXML {
         var shapeId = 2
         for d in ws.drawings {
             shapeId += 1
-            if case .chart(let sc) = d.kind, let path = sc.path, sc.formulasChanged || sc.retype != nil, let bytes = original[path] {
+            if case .chart(let sc) = d.kind, let path = sc.path, sc.formulasChanged || sc.retype != nil || sc.titleEdit != nil || sc.legendEdit != nil || sc.catTitleEdit != nil || sc.valTitleEdit != nil, let bytes = original[path] {
                 // The file's own chart, its references moved with the cells.
                 var xml = String(decoding: bytes, as: UTF8.self)
                 if sc.formulasChanged { xml = _rewriteFormulas(xml, sc.formulas) }
                 if let t = sc.retype { xml = _retypeBars(xml, t) }
+                if let e = sc.titleEdit { xml = ChartPartPatch.title(xml, e) }
+                if let e = sc.legendEdit { xml = ChartPartPatch.legend(xml, e) }
+                if let e = sc.catTitleEdit { xml = ChartPartPatch.axisTitle(xml, .category, e) }
+                if let e = sc.valTitleEdit { xml = ChartPartPatch.axisTitle(xml, .value, e) }
                 out.parts[path] = Data(xml.utf8)
             }
             if let raw = d.raw {
@@ -855,7 +864,39 @@ extension WorkbookController {
         sc.chart.title = live.series.count == 1 ? live.series[0].name : "Chart Title"
         // 5 × 3 inches (Excel's size), a column clear of the data, level with its top.
         let corner = ws.point(SheetMarker(col: r.right + 2, colOff: 0, row: r.top, rowOff: 0))
-        let anchor = ws.anchor(x: corner.x, y: corner.y, width: 360, height: 216)
+        // Inside the printable width when it fits there (Excel prints a chart over the page edge on 2 pages), never over the data.
+        // A sheet that states no default column width gets Excel's own, 51 pt where we assume 48 (Excel's check of a new chart: left 160.2, width 381 for our 151.2 and 360), so the fit is tested at that scale.
+        let printable = SheetPrintSetup.read(ws).printableWidth
+        let grow = ws.formatPrAttrs["defaultColWidth"] == nil ? 51.0 / 48.0 : 1.0
+        let dataEdge = ws.point(SheetMarker(col: r.right + 1, colOff: 0, row: r.top, rowOff: 0)).x
+        func place(_ x: Double, _ y: Double) -> (SheetAnchor, Bool) {
+            // (Offsets in whole EMU, as the file holds them, so it reads back as written.)
+            func emu(_ m: SheetMarker) -> SheetMarker { SheetMarker(col: m.col, colOff: (m.colOff * 12700).rounded() / 12700, row: m.row, rowOff: (m.rowOff * 12700).rounded() / 12700) }
+            var a = ws.anchor(x: x, y: y, width: 360, height: 216)
+            if case .twoCell(let from, let to) = a { a = .twoCell(from: emu(from), to: emu(to)) }
+            let f = ws.frame(a)
+            return (a, (f.x + f.width) * grow <= printable)
+        }
+        var (anchor, fits) = place(corner.x, corner.y)
+        if !fits {
+            // Beside the data when it fits there; else under it, from the data's left edge, so it never crosses the page edge.
+            var x = printable / grow - 360
+            for _ in 0 ..< 4 where x >= dataEdge {
+                let (a, ok) = place(x, corner.y)
+                if ok { anchor = a; fits = true; break }
+                x -= 1
+            }
+            if !fits {
+                let below = ws.point(SheetMarker(col: r.left, colOff: 0, row: r.bottom + 2, rowOff: 0))
+                var bx = below.x
+                for _ in 0 ..< 6 {
+                    let (a, ok) = place(bx, below.y)
+                    anchor = a
+                    if ok || bx <= 0 { break }
+                    bx = max(0, bx - 8)
+                }
+            }
+        }
         let n = ws.drawings.filter(\.isChart).count + 1
         structural {
             ws.drawings.append(SheetDrawing(name: "Chart \(n)", anchor: anchor, kind: .chart(sc)))
@@ -945,14 +986,20 @@ extension WorkbookController {
     func editChart(_ index: Int, _ change: (inout Chart) -> Void) -> Bool {
         let ws = sheet
         guard ws.drawings.indices.contains(index), case .chart(var sc) = ws.drawings[index].kind else { return false }
-        guard sc.path == nil else {
-            chartNotice = "This chart came from the file; its titles and legend can't be changed here yet."
-            _notify()
-            return false
-        }
         var chart = sc.chart
         change(&chart)
         guard chart != sc.chart else { return false }
+        if sc.path != nil {
+            // The file's own chart: its part is patched on save, only for what changed.
+            if chart.title != sc.chart.title || chart.autoTitle != sc.chart.autoTitle {
+                sc.titleEdit = chart.title.map { .set($0) } ?? .remove
+            }
+            if chart.categoryAxisTitle != sc.chart.categoryAxisTitle { sc.catTitleEdit = chart.categoryAxisTitle.map { .set($0) } ?? .remove }
+            if chart.valueAxisTitle != sc.chart.valueAxisTitle { sc.valTitleEdit = chart.valueAxisTitle.map { .set($0) } ?? .remove }
+            if chart.legend != sc.chart.legend || chart.legendPosition != sc.chart.legendPosition {
+                sc.legendEdit = chart.legend ? .set(chart.legendPosition) : .remove
+            }
+        }
         sc.chart = chart
         structural {
             ws.drawings[index].kind = .chart(sc)
@@ -969,6 +1016,17 @@ extension WorkbookController {
     }
 
     /// Chart Design → Add Chart Element → Legend: its side ("b", "t", "r", "l"), or nil for none.
+    /// Both axis titles at once (nil takes one off); nothing on a chart without axes.
+    func setChartAxisTitles(_ index: Int, category: String?, value: String?) {
+        editChart(index) { guard $0.type.hasAxes else { return }; $0.categoryAxisTitle = category; $0.valueAxisTitle = value; $0.sizeNewAxisTitles() }
+    }
+    /// The chart title and both axis titles in one edit (one undo step); nil takes one off. An axis title is left alone on a chart without axes.
+    func setChartTitles(_ index: Int, title: String?, category: String?, value: String?) {
+        editChart(index) {
+            $0.title = title; $0.autoTitle = false
+            if $0.type.hasAxes { $0.categoryAxisTitle = category; $0.valueAxisTitle = value; $0.sizeNewAxisTitles() }
+        }
+    }
     func setChartLegend(_ index: Int, position: String?) {
         editChart(index) {
             $0.legend = position != nil
@@ -1043,5 +1101,14 @@ extension SheetDrawingsXML {
             if width > 0, height > 0 { out[id] = HeaderPicture(path: path, data: data, width: width, height: height) }
         }
         return out
+    }
+}
+
+extension Chart {
+    /// Axis titles typed here are Excel's: 10 pt bold, not the unformatted 20 pt default that would squeeze the plot.
+    mutating func sizeNewAxisTitles() {
+        if categoryAxisTitle != nil, categoryAxisTitleSize == nil { categoryAxisTitleSize = 10 }
+        if valueAxisTitle != nil, valueAxisTitleSize == nil { valueAxisTitleSize = 10 }
+        if categoryAxisTitle != nil || valueAxisTitle != nil, axisTitleSize == nil { axisTitleBold = true; axisTitleBoldOut = true }
     }
 }
