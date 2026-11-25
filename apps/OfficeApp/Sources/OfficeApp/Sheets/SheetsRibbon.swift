@@ -20,6 +20,8 @@ enum SheetCommand {
     case zoom(Double)
     case toggleGridlines
     case status(String)
+    case cellsDialog(insert: Bool)   // Insert / Delete Cells…
+    case sizeDialog(SizeKind)        // Row Height…, Column Width…, Default Width…
     case conditionalFormat         // Home → Conditional Formatting
     case dataValidation            // Data → Data Validation
     case sortDialog                // Data → Sort…
@@ -151,14 +153,21 @@ extension Ribbon {
         ])])
         let cells = Chrome.group("Cells", fluent, [Chrome.rows([
             Chrome.menuButton(FluentSystemIcons.add, "Insert", "Insert cells", fluent, items: [
+                MenuFlyoutItem(text: Text("Insert Cells…"), onPressed: { wb.onCommand?(.cellsDialog(insert: true)) }),
                 MenuFlyoutItem(text: Text("Insert Sheet Rows"), onPressed: { wb.insertAtSelection(.rows) }),
                 MenuFlyoutItem(text: Text("Insert Sheet Columns"), onPressed: { wb.insertAtSelection(.cols) }),
                 MenuFlyoutItem(text: Text("Insert Sheet"), onPressed: { wb.addSheet() }),
             ]),
             Chrome.menuButton(FluentSystemIcons.delete, "Delete", "Delete cells", fluent, items: [
+                MenuFlyoutItem(text: Text("Delete Cells…"), onPressed: { wb.onCommand?(.cellsDialog(insert: false)) }),
                 MenuFlyoutItem(text: Text("Delete Sheet Rows"), onPressed: { wb.deleteAtSelection(.rows) }),
                 MenuFlyoutItem(text: Text("Delete Sheet Columns"), onPressed: { wb.deleteAtSelection(.cols) }),
                 MenuFlyoutItem(text: Text("Delete Sheet"), onPressed: wb.book.sheets.count > 1 ? { wb.requestDeleteSheet(wb.activeSheet) } : nil),
+            ]),
+            Chrome.menuButton(FluentSystemIcons.ruler, "Format", "Format cells size", fluent, items: [
+                MenuFlyoutItem(text: Text("Row Height…"), onPressed: { wb.onCommand?(.sizeDialog(.rowHeight)) }),
+                MenuFlyoutItem(text: Text("Column Width…"), onPressed: { wb.onCommand?(.sizeDialog(.columnWidth)) }),
+                MenuFlyoutItem(text: Text("Default Width…"), onPressed: { wb.onCommand?(.sizeDialog(.defaultWidth)) }),
             ]),
         ])])
         let styles = Chrome.group("Styles", fluent, [
