@@ -377,6 +377,22 @@ final class Ribbon: StatelessWidget {
             Chrome.gap(2),
             Chrome.toggle(FluentSystemIcons.paragraphMarks, "Show/Hide ¶ (⌘⇧8)".keys, session.showMarks, fluent) { [session] in session.onToggleMarks?() },
         ]))
+        // W-PA-4: paragraph borders (one thin line in automatic colour; the dialog picks style, width and colour) and shading.
+        func paraBorder(_ sides: Set<CellSide>, remove: Bool = false) -> () -> Void {
+            { c.setParagraphBorders(sides, remove ? nil : CellBorderLine()) }
+        }
+        let paraBorderItems: [MenuFlyoutItemBase] = [
+            MenuFlyoutItem(text: Text("Bottom Border"), onPressed: paraBorder([.bottom])),
+            MenuFlyoutItem(text: Text("Top Border"), onPressed: paraBorder([.top])),
+            MenuFlyoutItem(text: Text("Left Border"), onPressed: paraBorder([.left])),
+            MenuFlyoutItem(text: Text("Right Border"), onPressed: paraBorder([.right])),
+            MenuFlyoutSeparator(),
+            MenuFlyoutItem(text: Text("All Borders"), onPressed: paraBorder([.top, .bottom, .left, .right])),
+            MenuFlyoutItem(text: Text("Outside Borders"), onPressed: paraBorder([.top, .bottom, .left, .right])),
+            MenuFlyoutItem(text: Text("No Border"), onPressed: paraBorder([.top, .bottom, .left, .right], remove: true)),
+            MenuFlyoutSeparator(),
+            MenuFlyoutItem(text: Text("Borders and Shading…"), onPressed: { [session] in session.onBordersShadingDialog?() }),
+        ]
         let paraRow2 = Chrome.row([
             Chrome.toggle(FluentSystemIcons.alignLeft, "Align Left", s.alignment == .left, fluent) { c.setAlignment(.left) },
             Chrome.toggle(FluentSystemIcons.alignCenter, "Center", s.alignment == .center, fluent) { c.setAlignment(.center) },
@@ -385,6 +401,9 @@ final class Ribbon: StatelessWidget {
             Chrome.gap(2),
             Chrome.menu(nil, Icon(FluentSystemIcons.lineSpacing, size: Chrome.iconSize,
                                   color: fluent.resources.textFillColorPrimary), fluent, spacingChoices),
+            Chrome.colorMenu(FluentSystemIcons.highlight, "Shading", fluent,
+                             colors: OfficeColors.highlight, none: "No Shading") { col in c.setParagraphShading(col) },
+            Chrome.menuButton(FluentSystemIcons.table, "Borders", "Borders", fluent, items: paraBorderItems),
         ])
         let paragraph = Chrome.group("Paragraph", fluent, [Chrome.rows([paraRow1, Chrome.vgap(4), paraRow2])])
         return [font, paragraph]

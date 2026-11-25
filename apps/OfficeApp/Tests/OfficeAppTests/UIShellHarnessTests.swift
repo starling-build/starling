@@ -172,6 +172,20 @@ final class UIShellHarnessTests: XCTestCase {
         XCTAssertNotEqual(c.tableLook(of: t) & TableLook.noRowBands, 0)
     }
 
+    /// W-PA-4: Home's Borders menu and Shading colour reach the controller, for a paragraph outside any table.
+    func testHomeParagraphBordersAndShadingReachTheController() {
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(1280, 800))
+        let c = ui.state(OfficeShellState.self)!.session.controller
+        ui.pump()
+        XCTAssertTrue(ui.tap(text: "Borders"))
+        XCTAssertTrue(ui.tap(text: "Bottom Border"))
+        XCTAssertNotNil(c.document.paragraphs[0].style.borders?.bottom)
+        XCTAssertNil(c.document.paragraphs[0].style.borders?.top)
+        XCTAssertTrue(ui.tap(text: "Borders"))
+        XCTAssertTrue(ui.tap(text: "No Border"))
+        XCTAssertNil(c.document.paragraphs[0].style.borders)
+    }
+
     /// W-TB-2: the Table Layout tab's Borders and Shading menus reach the controller.
     func testTableLayoutBordersAndShadingReachTheController() {
         let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(1280, 800))
