@@ -137,9 +137,31 @@ final class SheetsChartDesignTests: XCTestCase {
         XCTAssertNil(s2.chart.categoryAxisTitle); XCTAssertNil(s2.chart.valueAxisTitle)
         let xml = "<c:plotArea><c:catAx><c:axId val=\"1\"/><c:axPos val=\"b\"/><c:numFmt/><c:crossAx val=\"2\"/></c:catAx><c:valAx><c:axId val=\"2\"/><c:axPos val=\"l\"/><c:majorGridlines><c:spPr/></c:majorGridlines><c:title><c:tx><c:rich><a:p><a:r><a:t>Old</a:t></a:r></a:p></c:rich></c:tx></c:title><c:numFmt/></c:valAx></c:plotArea>"
         let t = ChartPartPatch.axisTitle(ChartPartPatch.axisTitle(xml, .category, .set("X")), .value, .set("Y"))
-        XCTAssertTrue(t.contains("<c:axPos val=\"b\"/><c:title><c:tx><c:rich><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>X</a:t></a:r></a:p></c:rich></c:tx><c:overlay val=\"0\"/></c:title><c:numFmt/>"))
+        XCTAssertTrue(t.contains("<c:axPos val=\"b\"/><c:title><c:tx><c:rich><a:bodyPr/><a:lstStyle/><a:p><a:pPr><a:defRPr sz=\"1000\" b=\"1\"/></a:pPr><a:r><a:rPr lang=\"en-US\"/><a:t>X</a:t></a:r></a:p></c:rich></c:tx><c:overlay val=\"0\"/></c:title><c:numFmt/>"))
         XCTAssertTrue(t.contains("<a:t>Y</a:t>")); XCTAssertFalse(t.contains("Old"))
         XCTAssertFalse(ChartPartPatch.axisTitle(xml, .value, .remove).contains("<c:title>"))
+    }
+
+    func testEditTitlesIsOneUndoStep() {
+        let (c, i) = chartBook()
+        c.setChartTitles(i, title: "T", category: "X", value: "Y")
+        XCTAssertEqual(chart(c, i)!.title, "T"); XCTAssertEqual(chart(c, i)!.categoryAxisTitle, "X"); XCTAssertEqual(chart(c, i)!.valueAxisTitle, "Y")
+        c.setChartTitles(i, title: nil, category: nil, value: "Y")
+        XCTAssertNil(chart(c, i)!.title); XCTAssertNil(chart(c, i)!.categoryAxisTitle)
+        c.undo()
+        XCTAssertEqual(chart(c, i)!.title, "T"); XCTAssertEqual(chart(c, i)!.categoryAxisTitle, "X")
+    }
+
+    func testAxisTitlesAreWrittenTenPointBoldAndANewChartStaysOnThePage() throws {
+        let (c, i) = chartBook()
+        c.setChartAxisTitles(i, category: "Month", value: "Total")
+        let entries = try Zip.read(try Xlsx.write(c.book))
+        let xml = String(decoding: entries.first { $0.name.hasPrefix("xl/charts/chart") && $0.name.hasSuffix(".xml") }!.data, as: UTF8.self)
+        XCTAssertEqual(xml.components(separatedBy: "<a:defRPr sz=\"1000\" b=\"1\">").count - 1, 2)
+        let setup = SheetPrintSetup.read(c.sheet)
+        guard case .chart = c.sheet.drawings[i].kind else { return XCTFail() }
+        let f = c.sheet.frame(c.sheet.drawings[i].anchor)
+        XCTAssertLessThanOrEqual(f.x + f.width, setup.printableWidth)
     }
 
     /// A chart part without its own title, its legend and autoTitleDeleted (what an edit may change), as one string.
