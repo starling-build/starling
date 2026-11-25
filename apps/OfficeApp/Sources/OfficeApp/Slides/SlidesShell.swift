@@ -73,6 +73,8 @@ final class SlidesShellState: State<StatefulWidget> {
     private var _chartData = false
     /// The Header & Footer dialog is up.
     private var _headerFooter = false
+    private var _slideSize = false
+    private var _slideSizeInitial = Size(960, 540)
     /// Font Color > More Colors is open.
     private var _colorOpen = false
     /// More Colors… from Shape Fill (false) or Shape Outline (true), while its dialog is up.
@@ -330,6 +332,11 @@ final class SlidesShellState: State<StatefulWidget> {
             guard let self else { return }
             self._endEditing()
             self.setState { self._headerFooter = true }
+        }
+        session.onSlideSize = { [weak self] size in
+            guard let self else { return }
+            self._endEditing()
+            self.setState { self._slideSizeInitial = size ?? self.deck.slideSize; self._slideSize = true }
         }
         session.onLink = { [weak self] in self?._openLink() }
         session.onAltText = { [weak self] in
@@ -1210,6 +1217,7 @@ final class SlidesShellState: State<StatefulWidget> {
             // (Esc is Cancel in the Header and Footer dialog: it stayed
             // up — seen on screen 2026-10-13.)
             if _headerFooter { setState { _headerFooter = false }; return true }
+            if _slideSize { setState { _slideSize = false }; return true }
             if _altText { setState { _altText = false }; return true }
             if _linkOpen { setState { _linkOpen = false }; return true }
             if _textOptions { setState { _textOptions = false }; return true }
@@ -1463,6 +1471,18 @@ final class SlidesShellState: State<StatefulWidget> {
                         self?.setState { self?._altText = false }
                     },
                     onCancel: { [weak self] in self?.setState { self?._altText = false } })),
+            ])
+        }
+        if _slideSize {
+            return Stack(children: [
+                IgnorePointer(ignoring: true, child: window),
+                Positioned(left: 0, top: 0, right: 0, bottom: 0, child: SlideSizeDialog(
+                    size: _slideSizeInitial,
+                    onApply: { [weak self] size, scaling in
+                        self?.deck.setSlideSize(size, scaling: scaling)
+                        self?.setState { self?._slideSize = false }
+                    },
+                    onCancel: { [weak self] in self?.setState { self?._slideSize = false } })),
             ])
         }
         if _headerFooter {

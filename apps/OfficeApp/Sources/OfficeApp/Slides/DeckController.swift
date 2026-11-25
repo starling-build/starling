@@ -178,6 +178,8 @@ struct DeckState: Equatable {
     var firstSlideNum = 1
     /// The background Apply to All wrote on the master (solid or gradient); nil leaves the file's own.
     var masterBackground: SlideFill? = nil
+    /// How the last Slide Size change scaled the content; the writer scales the file's own master and layouts the same way.
+    var slideScaling: DeckController.SlideScaling? = nil
 }
 
 /// Every change to a deck goes through here. Listeners hear about slide
@@ -199,6 +201,7 @@ final class DeckController: ChangeNotifier {
     private(set) var firstSlideNum = 1
     /// Apply to All: the master's background, which every slide without its own shows and every new slide inherits.
     private(set) var masterBackground: SlideFill? = nil
+    private(set) var slideScaling: SlideScaling? = nil
     var theme = DeckTheme()
     private(set) var revision = 0
     /// The table pen and the drawing tool (not part of the document: no undo step, nothing saved).
@@ -334,19 +337,72 @@ final class DeckController: ChangeNotifier {
         current = 0
     }
 
-    func setSlideSize(_ size: Size) {
+    /// How the slides' shapes follow a new slide size (PowerPoint's Maximize and Ensure Fit): both keep each shape's
+    /// proportions and put its centre at the same place on the new slide, and scale the text (sizes, line spacing,
+    /// indents) by the same factor. Maximize scales by the larger of the two ratios (content may run off the slide),
+    /// Ensure Fit by the smaller (everything still fits).
+    enum SlideScaling: Equatable { case maximize, ensureFit }
+
+    func setSlideSize(_ size: Size, scaling: SlideScaling = .ensureFit) {
         guard size != slideSize else { return }
         _checkpoint()
         let sx = size.width / slideSize.width
         let sy = size.height / slideSize.height
+        let k = Self.slideScale(from: slideSize, to: size, scaling)
         for slide in slides {
             for shape in slide.shapes {
                 let f = shape.frame
-                shape.frame = Rect.fromLTWH(f.left * sx, f.top * sy, f.width * sx, f.height * sy)
+                let w = f.width * k, h = f.height * k
+                shape.frame = Rect.fromLTWH((f.left + f.width / 2) * sx - w / 2, (f.top + f.height / 2) * sy - h / 2, w, h)
+                _scaleText(of: shape, by: k)
             }
         }
         slideSize = size
+        slideScaling = scaling
         _changed()
+    }
+
+    /// The one factor a shape and its text are scaled by.
+    static func slideScale(from old: Size, to new: Size, _ scaling: SlideScaling) -> Double {
+        let sx = new.width / old.width, sy = new.height / old.height
+        return scaling == .maximize ? max(sx, sy) : min(sx, sy)
+    }
+
+    /// A shape's text at `k` times its size: the sizes the runs state, the size the shape's own look gives the rest,
+    /// line spacing in points, space before and after, indents and the box's margins.
+    private func _scaleText(of shape: SlideShape, by k: Double) {
+        guard k != 1, let text = shape.text else { return }
+        var doc = text.document
+        for i in doc.paragraphs.indices {
+            doc.paragraphs[i].style.indentLeft *= k
+            doc.paragraphs[i].style.indentRight *= k
+            doc.paragraphs[i].style.firstLineIndent *= k
+            doc.paragraphs[i].style.spaceBefore *= k
+            doc.paragraphs[i].style.spaceAfter *= k
+            doc.paragraphs[i].style.lineHeightPoints = doc.paragraphs[i].style.lineHeightPoints.map { $0 * k }
+            for j in doc.paragraphs[i].runs.indices {
+                doc.paragraphs[i].runs[j].style.fontSize = doc.paragraphs[i].runs[j].style.fontSize.map { $0 * k }
+            }
+        }
+        // A table's grid goes with its frame: column widths and any row heights it states.
+        for id in Array(doc.tableColumns.keys) { doc.tableColumns[id] = doc.tableColumns[id]?.map { $0 * k } }
+        for id in Array(doc.tableStyles.keys) {
+            guard var ts = doc.tableStyles[id] else { continue }
+            ts.rowHeights = ts.rowHeights.mapValues { $0 * k }
+            doc.tableStyles[id] = ts
+        }
+        text.load(doc)
+        shape.insets = EdgeInsets(left: shape.insets.left * k, top: shape.insets.top * k,
+                                  right: shape.insets.right * k, bottom: shape.insets.bottom * k)
+        if let tt = shape.textTheme {
+            let fresh = _textTheme(font: tt.fontFamily ?? theme.bodyFont, size: tt.fontSize * k, color: tt.textColor)
+            fresh.listIndent = tt.listIndent * k
+            fresh.faceResolver = tt.faceResolver
+            fresh.omitsLeadingSpace = tt.omitsLeadingSpace
+            fresh.singleLineHeight = tt.singleLineHeight
+            fresh.headingColor = tt.headingColor
+            shape.textTheme = fresh
+        }
     }
 
     // MARK: Slides
@@ -1671,8 +1727,8 @@ final class DeckController: ChangeNotifier {
     func setBackground(_ fill: SlideFill?, all: Bool = false) {
         _checkpoint()
         // Apply to All writes the master (new slides and layouts pick it up) and clears every slide's own
-        // background, as PowerPoint does. A picture keeps to the slides: the master's picture is not modelled.
-        if all, let fill, fill.image == nil {
+        // background, as PowerPoint does. A picture is written once, on the master.
+        if all, let fill {
             masterBackground = fill
             for slide in slides { slide.background = nil; slide.backgroundXML = nil; slide.inheritedBackground = fill }
         } else if all, fill == nil {
@@ -1968,7 +2024,7 @@ final class DeckController: ChangeNotifier {
                        transition: slide.transition, timingXML: slide.timingXML,
                        footerFrames: slide.footerFrames, animations: slide.animations,
                        sourceAnimations: slide.sourceAnimations, commentsFrom: slide.commentsFrom ?? slide.sourcePart)
-        }, current: current, slideSize: slideSize, theme: theme, ownTemplates: ownTemplates, recolourTheme: recolourTheme, firstSlideNum: firstSlideNum, masterBackground: masterBackground)
+        }, current: current, slideSize: slideSize, theme: theme, ownTemplates: ownTemplates, recolourTheme: recolourTheme, firstSlideNum: firstSlideNum, masterBackground: masterBackground, slideScaling: slideScaling)
     }
 
     /// Put the deck back as `state` was. Objects that still exist are kept
@@ -2031,6 +2087,7 @@ final class DeckController: ChangeNotifier {
         slideSize = state.slideSize
         firstSlideNum = state.firstSlideNum
         masterBackground = state.masterBackground
+        slideScaling = state.slideScaling
         if let t = state.theme { theme = t }
         if let o = state.ownTemplates { ownTemplates = o }
         if let r = state.recolourTheme { recolourTheme = r }

@@ -80,6 +80,10 @@ enum PptxWriter {
             b.rels(part, [Rel(id: "rId1", type: RT.master, target: "../slideMasters/slideMaster1.xml")])
             masterRels.append(Rel(id: "rIdL\(i + 1)", type: RT.layout, target: "../slideLayouts/slideLayout\(i + 1).xml"))
         }
+        if let pic = state.masterBackground?.image {
+            masterRels.append(Rel(id: PptxTemplates.masterPictureRID, type: RT.image, target: "../media/" + _masterPictureName(pic)))
+            b.addBinary("ppt/media/" + _masterPictureName(pic), pic.data)
+        }
         b.rels("ppt/slideMasters/slideMaster1.xml", masterRels)
         b.add("ppt/notesMasters/notesMaster1.xml", t.notesMaster(), type: CT.notesMaster)
         b.rels("ppt/notesMasters/notesMaster1.xml", [Rel(id: "rId1", type: RT.theme, target: "../theme/theme2.xml")])
@@ -140,6 +144,9 @@ enum PptxWriter {
         var copied = [String: String]()
         for part in keep { _copy(part, from: p, into: &b, done: &copied) }
         if let m = state.masterBackground { _setMasterBackground(m, in: &b) }
+        if let scaling = state.slideScaling, let old = _slideSize(presXML), old != state.slideSize {
+            _scaleMasters(from: old, to: state.slideSize, scaling, in: &b)
+        }
         if recolour {
             for r in presRelsAll where r.kind == "slideMaster" {
                 for tr in p.rels(r.target) where tr.kind == "theme" {
@@ -464,8 +471,113 @@ enum PptxWriter {
     }
 
     /// Apply to All: the masters' background becomes `fill`, and no layout keeps one of its own over it.
+    static func _masterPictureName(_ image: ImageAttachment) -> String { "master_background.\(PptxText.imageExtension(image))" }
+
+    /// `p:sldSz` of a presentation part, in points.
+    static func _slideSize(_ presXML: String) -> Size? {
+        guard let r = presXML.findRange(of: "<p:sldSz"), let e = presXML.findRange(of: ">", in: r.upperBound ..< presXML.endIndex) else { return nil }
+        let tag = String(presXML[r.upperBound ..< e.lowerBound])
+        func attr(_ n: String) -> Double? {
+            guard let a = tag.findRange(of: " \(n)=\""), let q = tag.findRange(of: "\"", in: a.upperBound ..< tag.endIndex) else { return nil }
+            return Double(String(tag[a.upperBound ..< q.lowerBound]))
+        }
+        guard let cx = attr("cx"), let cy = attr("cy"), cx > 0, cy > 0 else { return nil }
+        return Size(cx / Pptx.emu, cy / Pptx.emu)
+    }
+
+    /// The file's own master and layouts after a Slide Size change: each shape keeps its proportions and its centre's
+    /// place, and the sizes, spacing and indents of its text scale by the same factor as the slides' own.
+    private static func _scaleMasters(from old: Size, to new: Size, _ scaling: DeckController.SlideScaling, in b: inout PackageBuilder) {
+        let sx = new.width / old.width, sy = new.height / old.height
+        let k = DeckController.slideScale(from: old, to: new, scaling)
+        for part in Array(b.parts.keys) where (part.hasPrefix("ppt/slideMasters/slideMaster") || part.hasPrefix("ppt/slideLayouts/slideLayout")) && part.hasSuffix(".xml") {
+            guard let d = b.parts[part], let x = String(data: d, encoding: .utf8) else { continue }
+            b.parts[part] = Data(_scaledShapes(x, sx: sx, sy: sy, k: k).utf8)
+        }
+    }
+
+    static func _scaledShapes(_ x: String, sx: Double, sy: Double, k: Double) -> String {
+        let src = Array(x.utf8)
+        func find(_ pat: String, from: Int) -> Int? {
+            let p = Array(pat.utf8)
+            guard src.count >= p.count, from <= src.count - p.count else { return nil }
+            var i = from
+            while i <= src.count - p.count {
+                if src[i] == p[0], Array(src[i ..< i + p.count]) == p { return i }
+                i += 1
+            }
+            return nil
+        }
+        /// The integer in ` name="…"` inside src[from ..< to], with the range of its digits.
+        func attr(_ name: String, _ from: Int, _ to: Int) -> (Double, Range<Int>)? {
+            let key = Array((" " + name + "=\"").utf8)
+            var i = from
+            while i + key.count < to {
+                if src[i] == key[0], Array(src[i ..< i + key.count]) == key {
+                    let s0 = i + key.count
+                    var e = s0
+                    while e < to, src[e] != UInt8(ascii: "\"") { e += 1 }
+                    guard let v = Double(String(decoding: src[s0 ..< e], as: UTF8.self)) else { return nil }
+                    return (v, s0 ..< e)
+                }
+                i += 1
+            }
+            return nil
+        }
+        // Edits: byte range → replacement.
+        var edits: [(Range<Int>, String)] = []
+        // A shape's place: `<a:off x y/>` then `<a:ext cx cy/>`, together, so the centre is kept.
+        var at = 0
+        while let o = find("<a:off ", from: at) {
+            at = o + 7
+            guard let oe = find("/>", from: o), let e0 = find("<a:ext ", from: oe + 2), e0 - (oe + 2) <= 8,
+                  let ee = find("/>", from: e0),
+                  let (ox, rx) = attr("x", o, oe), let (oy, ry) = attr("y", o, oe),
+                  let (cx, rcx) = attr("cx", e0, ee), let (cy, rcy) = attr("cy", e0, ee) else { continue }
+            let w = cx * k, h = cy * k
+            edits.append((rx, String(Int(((ox + cx / 2) * sx - w / 2).rounded()))))
+            edits.append((ry, String(Int(((oy + cy / 2) * sy - h / 2).rounded()))))
+            edits.append((rcx, String(Int(w.rounded()))))
+            edits.append((rcy, String(Int(h.rounded()))))
+            at = ee
+        }
+        // Text: sizes (hundredths of a point), indents and margins (EMU) and `a:spcPts val` (hundredths of a point).
+        for name in ["sz", "marL", "marR", "indent", "lIns", "rIns", "tIns", "bIns"] {
+            var i = 0
+            while let p = find(" \(name)=\"", from: i) {
+                i = p + 1
+                if let (v, r) = attr(name, p, min(src.count, p + name.utf8.count + 16)) { edits.append((r, String(Int((v * k).rounded())))) }
+            }
+        }
+        var i = 0
+        while let p = find("<a:spcPts val=\"", from: i) {
+            i = p + 1
+            if let (v, r) = attr("val", p, min(src.count, p + 30)) { edits.append((r, String(Int((v * k).rounded())))) }
+        }
+        var out: [UInt8] = []
+        var pos = 0
+        for (r, text) in edits.sorted(by: { $0.0.lowerBound < $1.0.lowerBound }) where r.lowerBound >= pos {
+            out += src[pos ..< r.lowerBound]
+            out += Array(text.utf8)
+            pos = r.upperBound
+        }
+        out += src[pos...]
+        return String(decoding: out, as: UTF8.self)
+    }
+
     private static func _setMasterBackground(_ fill: SlideFill, in b: inout PackageBuilder) {
         let bg = PptxTemplates.backgroundXML(fill)
+        if let pic = fill.image {
+            // The picture is a part of its own, reached from the masters only.
+            let name = _masterPictureName(pic)
+            b.addBinary("ppt/media/" + name, pic.data)
+            for part in Array(b.parts.keys) where part.hasPrefix("ppt/slideMasters/slideMaster") && part.hasSuffix(".xml") {
+                let rp = Pptx.relsPath(part)
+                guard let d = b.parts[rp], var x = String(data: d, encoding: .utf8), let end = x.findRange(of: "</Relationships>") else { continue }
+                x.replaceSubrange(end.lowerBound ..< end.lowerBound, with: "<Relationship Id=\"\(PptxTemplates.masterPictureRID)\" Type=\"\(RT.image)\" Target=\"../media/\(name)\"/>")
+                b.parts[rp] = Data(x.utf8)
+            }
+        }
         func edit(_ part: String, _ f: (String) -> String) {
             if let d = b.parts[part], let x = String(data: d, encoding: .utf8) { b.parts[part] = Data(f(x).utf8) }
         }
@@ -873,12 +985,7 @@ private struct SlideXML {
     mutating func fill(_ f: SlideFill, media: inout MediaParts, builder: inout PackageBuilder) -> String {
         if let image = f.image {
             let rid = _media(image, media: &media, builder: &builder)
-            let alpha = f.imageAlpha < 1 ? "<a:alphaModFix amt=\"\(Int((f.imageAlpha * 100000).rounded()))\"/>" : ""
-            let blip = alpha.isEmpty ? "<a:blip r:embed=\"\(rid)\"/>" : "<a:blip r:embed=\"\(rid)\">\(alpha)</a:blip>"
-            let mode = f.tiled
-                ? "<a:tile tx=\"0\" ty=\"0\" sx=\"\(Int((f.tileScale * 100000).rounded()))\" sy=\"\(Int((f.tileScaleY * 100000).rounded()))\" flip=\"none\" algn=\"tl\"/>"
-                : "<a:stretch><a:fillRect/></a:stretch>"
-            return "<a:blipFill dpi=\"0\" rotWithShape=\"1\">\(blip)<a:srcRect/>\(mode)</a:blipFill>"
+            return PptxTemplates.blipFillXML(f, rid: rid)
         }
         if f.stops.count >= 2 {
             let stops = f.stops.map { "<a:gs pos=\"\(Int(($0.position * 100000).rounded()))\"><a:srgbClr val=\"\(PptxText.hex($0.color))\"/></a:gs>" }.joined()

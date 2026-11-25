@@ -78,7 +78,7 @@ final class DeckControllerTests: XCTestCase {
         deck.setSlideSize(Size(720, 540))
         XCTAssertEqual(title.frame.left, before.left * 0.75, accuracy: 0.001)
         XCTAssertEqual(title.frame.width, before.width * 0.75, accuracy: 0.001)
-        XCTAssertEqual(title.frame.top, before.top, accuracy: 0.001)
+        XCTAssertEqual(title.frame.height, before.height * 0.75, accuracy: 0.001, "Ensure Fit keeps the proportions")
         deck.addSlide()
         let body = deck.currentSlide.shapes.first { $0.role == .body }!
         XCTAssertLessThanOrEqual(body.frame.right, 720, "new slides are laid out for the new size")
