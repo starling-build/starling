@@ -83,6 +83,46 @@ final class SectFivePictureTests: XCTestCase {
         let anchorY = (layout.pieces[0].first { $0.paragraph == 2 }?.pageY ?? 9999) / px
         XCTAssertLessThan(anchorY, rowBottom - 5, "the anchor line stands beside the table")
     }
+    /// sa1 8b5747ec (Word's print): a square picture anchored in an otherwise empty paragraph, a table floating by the
+    /// text raised a few points over the paragraph after it: the paragraph stays where it is, with the picture at it,
+    /// not set under the table (ours put the picture 87pt too low, under the table).
+    func testAParagraphOfOnlyASquarePictureStaysAboveARaisedFloatingTable() throws {
+        RichTextTheme.wordWindowsPages = true
+        defer { RichTextTheme.wordWindowsPages = false }
+        let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")!
+        var pic = RichParagraph(text: "")
+        var image = ImageAttachment(data: png, width: 200, height: 115)
+        var float = ImageFloat()
+        float.wraps = true
+        float.horizontalFrom = "column"
+        float.verticalFrom = "paragraph"
+        float.x = 209
+        float.y = 1.1
+        image.float = float
+        pic.image = image
+        pic.style.spaceAfter = 0
+        var cell = RichParagraph(text: "cell")
+        cell.cell = CellRef(table: "t", row: 0, column: 0)
+        var cell2 = RichParagraph(text: "cell two")
+        cell2.cell = CellRef(table: "t", row: 1, column: 0)
+        var doc = RichDocument(paragraphs: [RichParagraph(text: "before"), pic, cell, cell2, RichParagraph(text: "after")])
+        doc.tableColumns["t"] = [120]
+        var ts = TableStyle()
+        ts.floatsOverText = true
+        ts.floatRaiseY = 3.4
+        ts.keptPosition = "<w:tblpPr w:leftFromText=\"141\" w:rightFromText=\"141\" w:vertAnchor=\"text\" w:horzAnchor=\"page\" w:tblpX=\"2834\" w:tblpY=\"-68\"/>"
+        doc.tableStyles["t"] = ts
+        let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+        theme.wordRules = true
+        let layout = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+        layout.pageSetup = .letter
+        layout.width = PageSetup.letter.width * theme.pixelsPerPoint
+        layout.ensureLaidOut(doc)
+        let px = theme.pixelsPerPoint
+        let picY = (layout.pieces[0].first { $0.paragraph == 1 }?.pageY ?? 9999) / px
+        let rowY = (layout.pieces[0].first { $0.paragraph == 2 }?.pageY ?? 0) / px
+        XCTAssertLessThan(picY, rowY, "the picture's paragraph stands above the table: \(picY) against \(rowY)")
+    }
     /// Lab table-props (Word's print): text after a centred floating table with room on both sides runs round it on
     /// both, a left piece and a right piece on each line level with the table, then across the page below it.
     func testTextRunsOnBothSidesOfACentredFloatingTable() throws {

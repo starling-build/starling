@@ -1517,7 +1517,14 @@ extension RichLayout {
     /// Word does set under the table.
     @inline(never)
     func _deferrable(_ p: RichParagraph, pageY: Double, tableTop: Double) -> Bool {
-        if p.image != nil || !p.inlineImages.isEmpty || p.text.contains(where: { $0 != " " }) { return true }
+        if p.text.contains(where: { $0 != " " }) { return true }
+        // (A picture the text goes round, anchored in an otherwise empty paragraph, is no line of text: the paragraph
+        // is as empty as any other, and the picture stays at its paragraph. sa1 8b5747ec: a square picture 1.1pt below
+        // its paragraph's top, a table raised 3.4pt over the paragraph after it; Word has the picture at the paragraph
+        // (393), ours stood the paragraph under the table and the picture below it at 480.)
+        func wrapped(_ i: ImageAttachment) -> Bool { RichTextTheme.wordWindowsPages && i.float?.wraps == true && i.float?.takesRoom != true }
+        if (p.image.map { !wrapped($0) } ?? false) || p.inlineImages.inOrder.contains(where: { !wrapped($0) }) { return true }
+        if p.image != nil || !p.inlineImages.isEmpty { return false }
         return pageY <= tableTop + 0.01
     }
 
