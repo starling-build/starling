@@ -1,5 +1,6 @@
 import XCTest
 import Flutter
+import OfficeText
 import FlutterSwiftBridge
 import OfficeText
 @testable import OfficeApp
@@ -70,16 +71,6 @@ final class UIShellHarnessTests: XCTestCase {
         XCTAssertEqual(enters, 1)
     }
 
-    /// W-ED-1: the Paste button is on the Home ribbon and the shell has wired every way of pasting
-    /// (plain click, plain-text key, the four Paste Options) to the controller.
-    func testPasteAndPasteOptionsAreWiredToTheShell() throws {
-        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(1280, 800))
-        XCTAssertTrue(ui.has(text: "Paste"))
-        let state = try XCTUnwrap(ui.state(OfficeShellState.self))
-        XCTAssertNotNil(state.session.onPaste)
-        XCTAssertNotNil(state.session.onPasteMode)
-    }
-
     /// W-OB-2: selecting a picture that sits in a line of text opens the Picture Format tab, and its Half Size button reaches the model.
     func testSelectingAnInlinePictureOpensPictureFormatAndHalfSizeResizesIt() throws {
         let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(1280, 800))
@@ -100,6 +91,16 @@ final class UIShellHarnessTests: XCTestCase {
         XCTAssertEqual(c.document.paragraphs[0].inlineImages[image.id]?.height, 45)
         c.undo()
         XCTAssertEqual(c.document.paragraphs[0].inlineImages[image.id]?.width, 120)
+    }
+
+    /// W-ED-1: the Paste button is on the Home ribbon and the shell has wired every way of pasting
+    /// (plain click, plain-text key, the four Paste Options) to the controller.
+    func testPasteAndPasteOptionsAreWiredToTheShell() throws {
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(1280, 800))
+        XCTAssertTrue(ui.has(text: "Paste"))
+        let state = try XCTUnwrap(ui.state(OfficeShellState.self))
+        XCTAssertNotNil(state.session.onPaste)
+        XCTAssertNotNil(state.session.onPasteMode)
     }
 
     /// W-TB-2: the Table Layout tab's Borders and Shading menus reach the controller.
@@ -132,5 +133,62 @@ final class UIShellHarnessTests: XCTestCase {
         XCTAssertEqual(c.currentTableStyle?.rowsCantSplit, [0])
         XCTAssertTrue(ui.tap(text: "AutoFit"))
         XCTAssertEqual(c.currentTableStyle?.fixedLayout, true)
+    }
+
+    /// S-PI-1a: Picture Format > Alt Text reaches the dialog, typing and OK set the text, Esc cancels.
+    func testAltTextButtonOpensTheDialogAndAppliesOrCancels() throws {
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: SlidesShell(initialPath: nil, startBlank: true, onSwitch: { _, _ in }), title: "Test"), size: Size(1280, 800))
+        let shell = try XCTUnwrap(ui.state(SlidesShellState.self))
+        let deck = try XCTUnwrap(shell.session.deck)
+        let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==")!
+        let pic = deck.addPicture(ImageAttachment(data: png, width: 1, height: 1), naturalSize: Size(100, 100))
+        deck.selectShapes([pic])
+        ui.pump()
+        XCTAssertTrue(ui.tap(text: "Picture Format"))
+        XCTAssertTrue(ui.tap(text: "Alt Text"))
+        XCTAssertTrue(ui.has(text: "How would you describe this object and its context to someone who is blind?"))
+        XCTAssertTrue(ui.press(.escape))
+        XCTAssertFalse(ui.has(text: "Cancel"))
+        XCTAssertNil(pic.altText)
+        XCTAssertTrue(ui.tap(text: "Alt Text"))
+        let box = try XCTUnwrap(ui.elements().last { $0.widget is FluentTextBox })
+        let r = try XCTUnwrap(box.findRenderObject() as? RenderBox)
+        ui.tap(at: r.localToGlobal(Offset(r.size.width / 2, r.size.height / 2)))
+        ui.type("A red square")
+        XCTAssertTrue(ui.tap(text: "OK"))
+        XCTAssertEqual(pic.altText, "A red square")
+    }
+}
+
+/// X-P0-3: the Sheets title bar's Undo and Redo follow the workbook, and Find names the workbook.
+final class SheetsTitleBarUndoHarnessTests: XCTestCase {
+    func testTitleBarUndoRedoFollowTheWorkbook() throws {
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: SheetsShell(initialPath: nil, onSwitch: { _, _ in }), title: "Test"), size: Size(1280, 800))
+        let shell = try XCTUnwrap(ui.state(SheetsShellState.self))
+        XCTAssertFalse(shell.session.summary.canUndo)
+        shell.wb.setInput("5", at: CellAddress("A1")!)
+        XCTAssertTrue(shell.session.summary.canUndo)
+        XCTAssertFalse(shell.session.summary.canRedo)
+        shell.session.onUndo?()
+        XCTAssertFalse(shell.session.summary.canUndo)
+        XCTAssertTrue(shell.session.summary.canRedo)
+    }
+
+    /// W-OB-1: Rotate Right and Rotate Left on the Picture Format tab turn a picture in its own paragraph, one undo step each.
+    func testRotateButtonsTurnAPictureInItsOwnParagraph() throws {
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(1280, 800))
+        let c = try XCTUnwrap(ui.state(OfficeShellState.self)).session.controller
+        let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")!
+        c.load(RichDocument(paragraphs: [RichParagraph(image: ImageAttachment(data: png, width: 200, height: 100))]))
+        c.selectImage(at: 0)
+        ui.pump()
+        XCTAssertTrue(ui.tap(text: "Rotate Right"))
+        XCTAssertEqual(c.document.paragraphs[0].image?.rotation, 90)
+        XCTAssertEqual(c.document.paragraphs[0].image?.width, 100)
+        ui.pump()
+        XCTAssertTrue(ui.tap(text: "Rotate Left"))
+        XCTAssertEqual(c.document.paragraphs[0].image?.rotation, 0)
+        c.undo()
+        XCTAssertEqual(c.document.paragraphs[0].image?.rotation, 90)
     }
 }

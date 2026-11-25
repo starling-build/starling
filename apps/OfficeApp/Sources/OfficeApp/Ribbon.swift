@@ -11,6 +11,7 @@ import Flutter
 import OfficeText
 import FlutterSwiftBridge
 import FluentSystemIcons
+import CupertinoIcons
 import Foundation
 
 enum RibbonTab: Int, CaseIterable {
@@ -30,7 +31,7 @@ enum RibbonTab: Int, CaseIterable {
         switch kind {
         case .document: return [.home, .insert, .layout, .review, .view]
         case .presentation: return [.home, .insert, .design, .transitions, .animations, .slideShow, .review, .view]
-        case .workbook: return [.home, .insert, .formulas, .data, .review, .view]
+        case .workbook: return [.home, .insert, .layout, .formulas, .data, .review, .view]
         }
     }
 
@@ -280,7 +281,7 @@ final class Ribbon: StatelessWidget {
         let s = session.summary
         let sizes: [Double] = [8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 28, 36, 48, 72]
         let currentSize = session.effectiveFontSize
-        let fontRow1 = Chrome.row([
+        let fontRow1 = Chrome.row(([
             SizedBox(width: 140, height: nil, child: ComboBox<String>(
                 value: session.effectiveFontFamily,
                 // A document's own font, whatever it is, is shown by name;
@@ -308,7 +309,9 @@ final class Ribbon: StatelessWidget {
                 ("tOGGLE cASE", { c.changeCase(.toggle) }),
             ]),
             Chrome.icon(FluentSystemIcons.textClearFormatting, "Clear All Formatting", fluent) { c.clearFormatting() },
-        ])
+        ] + (session.onFontDialog == nil ? [] : [   // Writer only: Slides has no Font dialog yet
+            Chrome.icon(FluentSystemIcons.textFont, "Font… (⌘D)", fluent) { [session] in session.onFontDialog?() },
+        ])))
         let fontRow2 = Chrome.row([
             Chrome.toggle(FluentSystemIcons.textBold, "Bold (⌘B)".keys, s.bold, fluent) { c.toggleBold() },
             Chrome.toggle(FluentSystemIcons.textItalic, "Italic (⌘I)".keys, s.italic, fluent) { c.toggleItalic() },
@@ -408,6 +411,7 @@ final class Ribbon: StatelessWidget {
                                                 ("• Bullet", "•"), ("§ Section", "§"), ("° Degree", "°"),
                                                 ("€ Euro", "€"), ("£ Pound", "£"), ("¥ Yen", "¥")]
             .map { name, ch in (name, { c.insertText(ch) }) }
+            + [("More Symbols…", { [session] in session.onSymbolDialog?() })]
         return [
             Chrome.group("Pages", fluent, [
                 Chrome.big(FluentSystemIcons.pageBreak, "Page Break", fluent) { c.insertPageBreak() },
@@ -422,7 +426,7 @@ final class Ribbon: StatelessWidget {
             Chrome.group("Header & Footer", fluent, [Chrome.rows([
                 Chrome.small(FluentSystemIcons.header, "Header", fluent) { [session] in session.onHeaderFooter?() },
                 Chrome.small(FluentSystemIcons.footer, "Footer", fluent) { [session] in session.onHeaderFooter?() },
-                Chrome.small(FluentSystemIcons.pageNumber, "Page Number", fluent) { c.togglePageNumbers() },
+                Chrome.small(FluentSystemIcons.pageNumber, "Page Number", fluent) { [session] in if !c.togglePageNumbers() { session.onHeaderFooter?() } },
             ])]),
             Chrome.group("Text", fluent, [Chrome.rows([
                 Chrome.small(FluentSystemIcons.document, "Date & Time", fluent) { [session] in
@@ -633,10 +637,14 @@ final class Ribbon: StatelessWidget {
                     },
                 ]),
             ])
+            let turn = Chrome.group("Rotate", fluent, [
+                Chrome.small(CupertinoIcons.rotate_right, "Rotate Right", fluent) { _ = c.rotatePicture(at: i, inline: id, quarters: 1) },
+                Chrome.small(CupertinoIcons.rotate_left, "Rotate Left", fluent) { _ = c.rotatePicture(at: i, inline: id, quarters: -1) },
+            ])
             let remove = Chrome.group("Picture", fluent, [
                 Chrome.big(FluentSystemIcons.delete, "Delete", fluent) { c.deleteForward() },
             ])
-            return [size, remove]
+            return [size, turn, remove]
         }
         guard let i = s.imageIndex, let image = c.document.paragraphs[i].image else { return [] }
         let aspect = image.height / max(1, image.width)
@@ -671,10 +679,14 @@ final class Ribbon: StatelessWidget {
             Chrome.big(FluentSystemIcons.alignCenter, "Center", fluent) { c.setAlignment(.center) },
             Chrome.big(FluentSystemIcons.alignRight, "Right", fluent) { c.setAlignment(.right) },
         ])
+        let turn = Chrome.group("Rotate", fluent, [
+            Chrome.small(CupertinoIcons.rotate_right, "Rotate Right", fluent) { _ = c.rotatePicture(at: i, quarters: 1) },
+            Chrome.small(CupertinoIcons.rotate_left, "Rotate Left", fluent) { _ = c.rotatePicture(at: i, quarters: -1) },
+        ])
         let remove = Chrome.group("Picture", fluent, [
             Chrome.big(FluentSystemIcons.delete, "Delete", fluent) { c.deleteForward() },
         ])
-        return [size, arrange, remove]
+        return [size, arrange, turn, remove]
     }
 
     // MARK: Layout

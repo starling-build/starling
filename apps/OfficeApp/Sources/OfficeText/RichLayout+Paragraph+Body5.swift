@@ -214,6 +214,8 @@ extension _ParaFrame {
         pushUnder = { [rl] foot in
             guard let first = self.firstLine(), first.line + self.before > 1 else { return foot }
             if let exact = self.style.lineHeightPoints, exact > 0, !self.style.lineHeightIsMinimum {
+                // (A line with text of its own, not just the anchor, goes to the foot: pt-720826652e's caption, the picture's anchor paragraph, exact 12.3, stands at the foot in Word's print, 477.7, not a step lower.)
+                if self.p.text.unicodeScalars.contains(where: { $0.value != 0xFFFC && $0 != " " }) { RuleTrace.hit("word-exact-line-with-text-goes-to-the-foot-of-its-float"); return foot }
                 let step = first.line + self.before
                 let k = max(0, ((foot - first.top) / step - 0.001).rounded(.up))
                 return max(0, first.top + k * step - self.before)

@@ -24,6 +24,8 @@ final class FormatCellsDialog: StatefulWidget {
     static let numberFormats: [(String, String)] = [
         ("General", "General"), ("Number", "0.00"), ("Currency", "$#,##0.00"),
         ("Percentage", "0.00%"), ("Scientific", "0.00E+00"), ("Text", "@"),
+        ("Thousands", "#,##0"), ("Negative red", "#,##0.00;[Red]-#,##0.00"), ("Fraction", "# ?/?"),
+        ("Date", "yyyy-mm-dd"), ("Time", "h:mm:ss"), ("Date and time", "yyyy-mm-dd h:mm"), ("Elapsed", "[h]:mm:ss"),
     ]
     /// The line styles a side can take (the names the file format uses).
     static let lineKinds: [(String, String)] = [
@@ -45,22 +47,27 @@ final class FormatCellsDialogState: State<StatefulWidget> {
     private(set) var values: CellFormatEdit.Values!
     private let _fontName = TextEditingController()
     private let _fontSize = TextEditingController()
+    private let _code = TextEditingController()
+    /// Why the typed code cannot be kept (nil when it can); OK waits until it can.
+    private(set) var codeProblem: String?
 
     override func initState() {
         super.initState()
         values = _w.start
+        _code.text = values.numberFormat
         _fontName.text = values.fontName ?? ""
         _fontSize.text = values.fontSize.map { $0 == $0.rounded() ? String(Int($0)) : String($0) } ?? ""
     }
 
     override func dispose() {
-        _fontName.dispose(); _fontSize.dispose()
+        _fontName.dispose(); _fontSize.dispose(); _code.dispose()
         super.dispose()
     }
 
     private func _set(_ change: (inout CellFormatEdit.Values) -> Void) { setState { change(&values) } }
 
     private func _ok() {
+        if codeProblem != nil { return }
         _w.onApply(CellFormatEdit.between(_w.start, values))
         _w.onClose()
     }
@@ -95,29 +102,72 @@ final class FormatCellsDialogState: State<StatefulWidget> {
         Checkbox(key: ValueKey(id), checked: on, onChanged: { [weak self] v in self?._set { set(&$0, v ?? false) } }, content: Text(label))
     }
 
+    /// Picking a ready-made format also fills the code box, so it can be edited from there.
+    private func _pickFormat(_ c: String) {
+        _code.text = c
+        setState { codeProblem = nil; values.numberFormat = c }
+    }
+
+    private func _typeCode(_ t: String) {
+        setState {
+            codeProblem = NumberFormat.problem(t)
+            if codeProblem == nil { values.numberFormat = t }
+        }
+    }
+
     private func _numberPage(_ fluent: FluentThemeData) -> Widget {
         let code = values.numberFormat
-        let sample = NumberFormat.format(1234.5678, code).text
+        func sample(_ v: CellValue) -> String { NumberFormat.display(v, code).text }
         let named = FormatCellsDialog.numberFormats.first { $0.1 == code }?.0
         return _column([
             Text("Category", style: fluent.typography.bodyStrong),
-            Column(crossAxisAlignment: .stretch, children: FormatCellsDialog.numberFormats.map { name, c in
-                _choice("fc-num-\(name)", name, selected: code == c) { [weak self] in self?._set { $0.numberFormat = c } }
+            Wrap(spacing: 4, runSpacing: 2, children: FormatCellsDialog.numberFormats.map { name, c in
+                SizedBox(width: 140, child: _choice("fc-num-\(name)", name, selected: code == c) { [weak self] in self?._pickFormat(c) })
             }),
-            // (A code the file holds that is not in the list stays: it is named here, and kept unless another is picked.)
-            Text(named == nil ? "Custom: \(code)" : "Format code: \(code)", style: fluent.typography.caption),
-            Text("Sample: \(sample)", style: fluent.typography.caption),
+            Row(children: [
+                SizedBox(width: 90, child: Text("Format code")),
+                SizedBox(key: ValueKey("fc-num-code"), width: 300, height: 30, child: FluentTextBox(controller: _code, onChanged: { [weak self] t in self?._typeCode(t) })),
+            ]),
+            Text(codeProblem ?? (named == nil ? "Custom format" : "Ready-made format: \(named!)"), style: fluent.typography.caption),
+            Text("Positive: \(sample(.number(1234.5678)))    Negative: \(sample(.number(-1234.5678)))", style: fluent.typography.caption),
+            Text("Zero: \(sample(.number(0)))    Text: \(sample(.text("abc")))", style: fluent.typography.caption),
         ])
+    }
+
+    /// Indent steps: more or fewer; text that is not yet aligned to a side moves to the left, as Excel does.
+    private func _indent(_ by: Int) {
+        _set {
+            $0.indent = max(0, min(15, $0.indent + by))
+            if $0.indent > 0, $0.hAlign == .general || $0.hAlign == .center { $0.hAlign = .left }
+        }
     }
 
     private func _alignmentPage(_ fluent: FluentThemeData) -> Widget {
         let h: [(String, CellStyle.HAlign)] = [("General", .general), ("Left", .left), ("Center", .center), ("Right", .right)]
         let v: [(String, CellStyle.VAlign)] = [("Top", .top), ("Middle", .center), ("Bottom", .bottom)]
+        // Rotation: the quarter turns the sheet draws; any other angle in the file is kept until one of these is picked.
+        let r: [(String, Int)] = [("Horizontal", 0), ("Up", 90), ("Down", 180)]
+        let turned = r.contains { $0.1 == values.rotation }
+        let degrees = values.rotation > 90 ? values.rotation - 90 : values.rotation
+        let note = (values.rotation == 255 ? "Stacked text" : "Text turned \(degrees) degrees") + " in the file; kept unless you pick one above."
         return _column([
             Text("Horizontal", style: fluent.typography.bodyStrong),
-            Row(children: h.map { n, a in _choice("fc-h-\(n)", n, selected: values.hAlign == a) { [weak self] in self?._set { $0.hAlign = a } } }),
+            Row(children: h.map { n, a in
+                _choice("fc-h-\(n)", n, selected: values.hAlign == a && !values.justify) { [weak self] in self?._set { $0.hAlign = a; $0.justify = false } }
+            } + [
+                _choice("fc-h-Justify", "Justify", selected: values.justify) { [weak self] in self?._set { $0.hAlign = .left; $0.justify = true; $0.wrap = true } },
+            ]),
+            Row(children: [
+                SizedBox(width: 60, child: Text("Indent")),
+                SizedBox(key: ValueKey("fc-indent-less"), width: nil, height: 28, child: FlatButton(child: Text("−"), checked: false, width: 32, height: 28, action: { [weak self] in self?._indent(-1) })),
+                SizedBox(width: 40, child: Center(child: Text("\(values.indent)"))),
+                SizedBox(key: ValueKey("fc-indent-more"), width: nil, height: 28, child: FlatButton(child: Text("+"), checked: false, width: 32, height: 28, action: { [weak self] in self?._indent(1) })),
+            ]),
             Text("Vertical", style: fluent.typography.bodyStrong),
             Row(children: v.map { n, a in _choice("fc-v-\(n)", n, selected: values.vAlign == a) { [weak self] in self?._set { $0.vAlign = a } } }),
+            Text("Text direction", style: fluent.typography.bodyStrong),
+            Row(children: r.map { n, d in _choice("fc-rot-\(n)", n, selected: values.rotation == d) { [weak self] in self?._set { $0.rotation = d } } }),
+            turned ? SizedBox(width: 1, height: 1) : Text(note, style: fluent.typography.caption),
             _check("fc-wrap", "Wrap text", values.wrap) { $0.wrap = $1 },
         ])
     }

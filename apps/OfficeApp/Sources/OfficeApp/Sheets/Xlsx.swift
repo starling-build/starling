@@ -1649,14 +1649,14 @@ enum Xlsx {
             if fillId != 0 { xf += " applyFill=\"1\"" }
             if borderId != 0 { xf += " applyBorder=\"1\"" }
             var align = ""
-            switch st.hAlign { case .left: align += " horizontal=\"left\""; case .center: align += " horizontal=\"center\""; case .right: align += " horizontal=\"right\""; case .general: break }
+            switch st.hAlign { case .left: align += st.justify ? " horizontal=\"justify\"" : " horizontal=\"left\""; case .center: align += " horizontal=\"center\""; case .right: align += " horizontal=\"right\""; case .general: break }
             switch st.vAlign { case .top: align += " vertical=\"top\""; case .center: align += " vertical=\"center\""; case .bottom: break }
             if st.wrap { align += " wrapText=\"1\"" }
             if st.indent > 0 { align += " indent=\"\(st.indent)\"" }
             if st.rotation != 0 { align += " textRotation=\"\(st.rotation)\"" }
             // Alignment the change left alone keeps its indent, rotation…
             var alignment = align.isEmpty ? "" : "<alignment\(align)/>"
-            if let base, st.hAlign == base.style.hAlign, st.vAlign == base.style.vAlign, st.wrap == base.style.wrap,
+            if let base, st.hAlign == base.style.hAlign, st.vAlign == base.style.vAlign, st.wrap == base.style.wrap, st.justify == base.style.justify,
                st.indent == base.style.indent, st.rotation == base.style.rotation {
                 alignment = base.xf.alignment ?? ""
             }

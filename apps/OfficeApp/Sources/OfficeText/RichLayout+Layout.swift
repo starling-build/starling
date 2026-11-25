@@ -1298,8 +1298,11 @@ extension RichLayout {
                     // outdent and a cell margin to the margin and the
                     // other — where ours, scaled to the column, wrapped
                     // "物业服务企业".)
+                    // (Compat 15 sets the table's edge at the indent, with no cell margin out into the margin: a grid wider than the column
+                    // by more than the outdent is shrunk, one that fits with the outdent stands — xb ara-z21988051's 364.3pt header table,
+                    // outdented 4.8pt in a column of 360.)
                     else if theme.wordRules,
-                            _px(sum) <= width + _px((ts.cellMarginLeft ?? 5.4) + (ts.cellMarginRight ?? 5.4) + max(0, -ts.indent)) + 1 { scale = 1 }
+                            _px(sum) <= width + _px(((document.compatibilityMode ?? 0) >= 15 ? 0 : (ts.cellMarginLeft ?? 5.4) + (ts.cellMarginRight ?? 5.4)) + max(0, -ts.indent)) + 1 { scale = 1 }
                 }
                 // (Whole pixels, down — from a hair over: 63.5pt is 1270px
                 // at the print's scale, which the scale's 4/3 times 15

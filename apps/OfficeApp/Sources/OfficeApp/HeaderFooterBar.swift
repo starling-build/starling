@@ -14,14 +14,21 @@ final class HeaderFooterBar: StatelessWidget {
     let session: OfficeSession
     let header: TextEditingController
     let footer: TextEditingController
+    /// The file's own header/footer holds pictures, tables or formatting the
+    /// strip cannot edit; that side is shown read-only and saved untouched.
+    let headerLocked: Bool
+    let footerLocked: Bool
     let onApply: () -> Void
     let onClose: () -> Void
 
     init(session: OfficeSession, header: TextEditingController, footer: TextEditingController,
+         headerLocked: Bool = false, footerLocked: Bool = false,
          onApply: @escaping () -> Void, onClose: @escaping () -> Void) {
         self.session = session
         self.header = header
         self.footer = footer
+        self.headerLocked = headerLocked
+        self.footerLocked = footerLocked
         self.onApply = onApply
         self.onClose = onClose
         super.init()
@@ -36,21 +43,21 @@ final class HeaderFooterBar: StatelessWidget {
             // does: Insert → Header and a typed line used to go into the
             // document's text — seen on screen 2026-10-13.)
             SizedBox(width: 300, height: 30, child: FluentTextBox(
-                controller: header, placeholderText: "Header text", onSubmitted: { [onApply] _ in onApply() }, autofocus: true,
+                controller: header, placeholderText: headerLocked ? "Has pictures or formatting: kept as is" : "Header text",  onSubmitted: { [onApply] _ in onApply() }, enabled: !headerLocked, autofocus: true,
                 tabGroup: "header-footer", tabOrder: 0)),
             Chrome.gap(16),
             SizedBox(width: 60, height: nil, child: Text("Footer", style: fluent.typography.body)),
             SizedBox(width: 300, height: 30, child: FluentTextBox(
-                controller: footer, placeholderText: "Footer text", onSubmitted: { [onApply] _ in onApply() },
+                controller: footer, placeholderText: footerLocked ? "Has pictures or formatting: kept as is" : "Footer text",  onSubmitted: { [onApply] _ in onApply() }, enabled: !footerLocked,
                 tabGroup: "header-footer", tabOrder: 1)),
             Chrome.gap(8),
-            Button(onPressed: { [footer] in footer.text += RichDocument.pageField }, child: Text("Page")),
+            Button(onPressed: footerLocked ? nil : { [footer] in footer.text += RichDocument.pageField }, child: Text("Page")),
             Chrome.gap(4),
-            Button(onPressed: { [footer] in footer.text += RichDocument.pageCountField }, child: Text("Pages")),
+            Button(onPressed: footerLocked ? nil : { [footer] in footer.text += RichDocument.pageCountField }, child: Text("Pages")),
             Chrome.gap(12),
             Text("\(RichDocument.pageField) and \(RichDocument.pageCountField) fill in per page", style: hint),
             Expanded(child: SizedBox(width: 0, height: 0, child: nil)),
-            FilledButton(onPressed: onApply, child: Text("Done")),
+            FilledButton(key: ValueKey<String>("header-footer-done"), onPressed: onApply, child: Text("Done")),
             Chrome.gap(4),
             Chrome.icon(FluentSystemIcons.chromeClose, "Close (Esc)", fluent, action: onClose),
         ]

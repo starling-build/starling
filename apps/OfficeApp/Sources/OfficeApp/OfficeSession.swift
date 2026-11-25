@@ -288,6 +288,8 @@ final class OfficeSession {
     var onPresenterView: (() -> Void)?
     /// Show or hide the Animation Pane (Slides).
     var onAnimationPane: (() -> Void)?
+    /// Show or hide the Selection Pane (Slides).
+    var onSelectionPane: (() -> Void)?
     /// Show (true) or hide the selected chart's data grid.
     var onChartData: ((Bool) -> Void)?
     /// Normal view (false) or Slide Sorter (true).
@@ -306,9 +308,13 @@ final class OfficeSession {
     var onFind: ((Bool) -> Void)?       // true = replace bar too
     var onInsertPicture: (() -> Void)?
     var onHeaderFooter: (() -> Void)?
+    /// Slides Picture Format > Alt Text: open the dialog for the selected picture.
+    var onAltText: (() -> Void)?
     var onLink: (() -> Void)?
+    var onSymbolDialog: (() -> Void)?
     var onMoreColors: (() -> Void)?
     var onParagraphDialog: (() -> Void)?
+    var onFontDialog: (() -> Void)?
     var onModifyStyle: ((String) -> Void)?
     /// Slides: Cut / Copy / Paste of the selected shapes. Each returns true
     /// when it handled the command, false to fall through to the text path.

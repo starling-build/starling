@@ -67,6 +67,11 @@ final class SheetsShellState: State<StatefulWidget> {
     private var _namesOpen = false
     /// The Format Cells dialog is open (X-FM-1).
     private var _formatOpen = false
+    private var _pageSetupOpen = false
+    private var _printOpen = false
+    private var _sortOpen: (range: CellRange, hasHeader: Bool)?
+    private var _validationOpen = false
+    private var _cfOpen = false
     private var _findReplace = false
     private var _findStatus = ""
     private let _findQuery = TextEditingController()
@@ -243,6 +248,10 @@ final class SheetsShellState: State<StatefulWidget> {
         if let n = wb.chartNotice { wb.chartNotice = nil; _flash(n) }
         session.dirty = wb.edits != 0
         _scheduleAutosave()
+        // The title bar's Undo and Redo read the session's summary, which
+        // only the Writer fills in; without this they stayed greyed out.
+        session.summary.canUndo = wb.canUndo
+        session.summary.canRedo = wb.canRedo
         _syncBars()
         _publishToolbar()
         setState {}
@@ -339,8 +348,17 @@ final class SheetsShellState: State<StatefulWidget> {
             _flash(m)
         case .editNote:
             _editNote(at: wb.active)
+        case .conditionalFormat:
+            setState { _cfOpen = true }
+        case .dataValidation:
+            setState { _validationOpen = true }
+        case .sortDialog:
+            if let region = wb.sortRegion() { setState { _sortOpen = region } }
+            else { _flash(SortProblem.nothingToSort.message) }
         case .nameManager:
             setState { _namesOpen = true }
+        case .pageSetup:
+            setState { _pageSetupOpen = true }
         }
     }
 
@@ -560,7 +578,9 @@ final class SheetsShellState: State<StatefulWidget> {
     }
 
     /// File → Print: the PDF of the active sheet, handed to the host's print dialog.
-    private func _print() {
+    private func _print() { setState { _backstage = nil; _printOpen = true } }
+
+    private func _print(_ what: PrintWhat) {
         #if os(WASI)
         _flash("Printing is not available in the browser yet")
         #else
@@ -569,7 +589,8 @@ final class SheetsShellState: State<StatefulWidget> {
         setState { _backstage = nil }
         Task { @MainActor [weak self] in
             guard let self, let grid = self._grid else { return }
-            guard await grid.writePdf(to: path, title: self.session.title, filePath: self.session.path) else {
+            guard await grid.writePdf(to: path, title: self.session.title, filePath: self.session.path,
+                                      wholeBook: what == .entireWorkbook, selection: what == .selection ? self.wb.selection : nil) else {
                 self._flash("Nothing to print on this sheet")
                 return
             }
@@ -854,25 +875,65 @@ final class SheetsShellState: State<StatefulWidget> {
         ]
         let window = ColoredBox(color: fluent.scaffoldBackgroundColor,
                                 child: Column(crossAxisAlignment: .stretch, children: column))
-        if _namesOpen {
-            return Stack(children: [window, Positioned(left: 0, top: 0, right: 0, bottom: 0, child: NameManagerDialog(
+        var layers: [Widget] = [window]
+        let _names = SheetPrintLayout.printNames(wb.book, sheet: wb.activeSheet)
+        if _pageSetupOpen {
+            layers.append(Positioned(left: 0, top: 0, right: 0, bottom: 0, child: PageSetupPanel(
+                        form: PageSetupForm(SheetPrintSetup.read(wb.sheet), paper: wb.paperNumber,
+                                            area: _names.areas.first, titleRows: _names.titleRows, titleCols: _names.titleCols),
+                        onApply: { [weak self] c, n in self?.wb.setPageSetup(c, printNames: n) },
+                        onClose: { [weak self] in
+                            self?.setState { self?._pageSetupOpen = false }
+                            self?._grid?.focus.requestFocus()
+                        })))
+        }
+        if _cfOpen {
+            return Stack(children: [window, Positioned(left: 0, top: 0, right: 0, bottom: 0, child: ConditionalFormatDialog(
                 controller: wb, onClose: { [weak self] in
-                    self?.setState { self?._namesOpen = false }
+                    self?.setState { self?._cfOpen = false }
                     self?._grid?.focus.requestFocus()
                 }))])
         }
+        if _validationOpen {
+            return Stack(children: [window, Positioned(left: 0, top: 0, right: 0, bottom: 0, child: ValidationDialog(
+                controller: wb, onClose: { [weak self] in
+                    self?.setState { self?._validationOpen = false }
+                    self?._grid?.focus.requestFocus()
+                }))])
+        }
+        if let open = _sortOpen {
+            return Stack(children: [window, Positioned(left: 0, top: 0, right: 0, bottom: 0, child: SortDialog(
+                controller: wb, range: open.range, hasHeader: open.hasHeader, onClose: { [weak self] in
+                    self?.setState { self?._sortOpen = nil }
+                    self?._grid?.focus.requestFocus()
+                }))])
+        }
+        if _namesOpen {
+            layers.append(Positioned(left: 0, top: 0, right: 0, bottom: 0, child: NameManagerDialog(
+                controller: wb, onClose: { [weak self] in
+                    self?.setState { self?._namesOpen = false }
+                    self?._grid?.focus.requestFocus()
+                })))
+        }
+        if _printOpen {
+            layers.append(Positioned(left: 0, top: 0, right: 0, bottom: 0, child: PrintChoicePanel(
+                sheetName: wb.sheet.name, selectionText: wb.selection.a1,
+                onPrint: { [weak self] w in self?._print(w) },
+                onClose: { [weak self] in
+                    self?.setState { self?._printOpen = false }
+                    self?._grid?.focus.requestFocus()
+                })))
+        }
         if _formatOpen, _backstage == nil {
-            return Stack(children: [
-                window,
+            return Stack(children: layers + [
                 FormatCellsDialog(
                     start: CellFormatEdit.Values(wb.style(at: wb.selection.topLeft)),
                     onApply: { [weak self] edit in self?.wb.formatCells(edit) },
                     onClose: { [weak self] in self?._closeFormatCells() }),
             ])
         }
-        guard let page = _backstage else { return window }
-        return Stack(children: [
-            window,
+        guard let page = _backstage else { return layers.count == 1 ? window : Stack(children: layers) }
+        return Stack(children: layers + [
             Positioned(left: 0, top: 0, right: 0, bottom: 0, child: Backstage(
                 session: session, page: page, recent: _recent, notice: _status,
                 onPage: { [weak self] p in self?.setState { self?._backstage = p } },
@@ -903,6 +964,7 @@ final class SheetsShellState: State<StatefulWidget> {
         case "k" where chords.shift: wb.group(true); return true
         case "j" where chords.shift: wb.group(false); return true
         case "\u{1B}":
+            if _pageSetupOpen { setState { _pageSetupOpen = false }; return true }
             if _findOpen { _closeFind(); return true }
             return false
         default: return false

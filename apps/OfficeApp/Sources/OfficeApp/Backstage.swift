@@ -163,6 +163,18 @@ final class Backstage: StatelessWidget {
             if let host = session.hostName, let back = session.onClose {
                 return _simple("Close", "Leave the document and go back to the \(host).", fluent, action: (session.hostReturnLabel ?? "Back to \(host)", back))
             }
+            // A host with its own document browser (the iPad's) shows it again, as Open does: closing is going
+            // back to the files, not starting a document nobody asked for. Unsaved edits get the prompt first.
+            if scene.openRequested != nil {
+                return _simple("Close", "Close the document and go back to your files.", fluent,
+                               action: ("Close document", { [session, scene, onClose] in
+                                   onClose()
+                                   session.replacing {
+                                       // A window without a browser (a test host's) answers false: a blank document, as before.
+                                       if scene.openRequested?() != true { session.onNew?() }
+                                   }
+                               }))
+            }
             return _simple("Close", "Close the document and start a blank one.", fluent, action: ("Close document", { [session] in session.replacing { session.onNew?() } }))
         }
     }
@@ -171,6 +183,10 @@ final class Backstage: StatelessWidget {
         Padding(padding: EdgeInsets(left: 0, top: 0, right: 0, bottom: 16),
                 child: Text(text, style: fluent.typography.title))
     }
+
+    /// A host with its own document browser (the iPad's): its documents live in the app's sandbox or in other
+    /// apps' storage, where a path means nothing to the person, and the desktop-only features stay out.
+    private var _hasHostBrowser: Bool { scene.openRequested != nil }
 
     private func _home(_ fluent: FluentThemeData) -> Widget {
         var recentRows: [Widget] = [Text("Recent", style: fluent.typography.subtitle), Chrome.vgap(8)]
@@ -183,7 +199,9 @@ final class Backstage: StatelessWidget {
                 onPressed: { [session, onOpenPath] in session.replacing { onOpenPath(path) } },
                 icon: Icon(FluentSystemIcons.document, size: 16, color: fluent.resources.textFillColorPrimary),
                 text: Text(path.lastPathComponent),
-                trailing: Text(path.deletingLastPathComponent.displayPath,
+                // The path as a trailing label took the row's whole width on a narrow screen and left the name a
+                // letter per line; the name is what a host with a browser shows.
+                trailing: _hasHostBrowser ? nil : Text(path.deletingLastPathComponent.displayPath,
                                style: fluent.typography.caption?.copyWith(color: fluent.resources.textFillColorSecondary))))
         }
         let templates: [Widget] = [
@@ -200,7 +218,7 @@ final class Backstage: StatelessWidget {
             Wrap(spacing: 0, runSpacing: 12, children: templates),
         ]
         #if !os(WASI)
-        if let onOpenSite {
+        if let onOpenSite, !_hasHostBrowser {
             rows += [Chrome.vgap(24), Text("Publish documents", style: fluent.typography.subtitle),
                      Chrome.vgap(8),
                      Text("Bring a Word document, review the reading experience, and publish when ready.", style: fluent.typography.body),
@@ -357,7 +375,7 @@ final class Backstage: StatelessWidget {
     private func _info(_ fluent: FluentThemeData) -> Widget {
         let s = session.summary
         let rows: [(String, String)] = [
-            ("Location", session.path?.displayPath ?? "Not saved yet"),
+            ("Location", session.path.map { _hasHostBrowser ? "In your Files" : $0.displayPath } ?? "Not saved yet"),
             ("Pages", "\(session.pageInfo.count)"),
             ("Words", "\(s.words)"),
             ("Characters", "\(s.characters)"),

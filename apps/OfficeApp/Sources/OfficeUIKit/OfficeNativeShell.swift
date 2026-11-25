@@ -112,6 +112,14 @@ public enum OfficeNativeShell {
         shell.presentShare(name: name, prepare: prepare, done: done)
     }
 
+    /// Insert > Picture: the Photo Library or Files, then `done` with a temporary copy's path (nil: cancelled).
+    public static func pickPicture(viewId: Int = 0, done: @escaping (String?) -> Void) {
+        guard let shell = shells[viewId] else { done(nil); return }
+        let presenter = shell.presentedViewController ?? shell
+        let b = presenter.view.bounds
+        PicturePicker.choose(over: presenter, anchor: CGRect(x: b.midX, y: b.midY * 0.5, width: 1, height: 1), done: done)
+    }
+
     /// Runs the browser's "Open in New Window" action for `url` in window `viewId`, as its menu item does (a test:
     /// the menu itself is a system popover no in-app driver can tap).
     public static func runNewWindowAction(viewId: Int, url: URL) {

@@ -55,6 +55,8 @@ public indirect enum EditOp: Equatable, Sendable {
     case insertParagraphs(at: Int, [RichParagraph])
     case removeParagraphs(at: Int, [RichParagraph])
     case setHeaderFooter(header: String, footer: String, oldHeader: String, oldFooter: String)
+    /// The formatted default header or footer (W-HF-1), with the plain texts the strip and the kept-part check read.
+    case setRichHeaderFooter(new: [RichHeaderFooter], old: [RichHeaderFooter], header: String, footer: String, oldHeader: String, oldFooter: String)
     /// A section's page (size, margins, columns): the paragraph that ends it, or -1 for the last section.
     case setSectionPage(Int, old: PageSetup?, new: PageSetup?)
     /// A picture's shown size (its attachment replaced; the id survives).
@@ -79,14 +81,14 @@ public indirect enum EditOp: Equatable, Sendable {
             let before = doc.paragraphs[pos.paragraph]
             doc.paragraphs[pos.paragraph].insert(text, at: pos.offset, runs: runs)
             changes.append(.changed(pos.paragraph))
-            if !before.bookmarkMarkers.isEmpty { return .restoreParagraphs(pos.paragraph, count: 1, [before]) }
+            if before.hasMarkers { return .restoreParagraphs(pos.paragraph, count: 1, [before]) }
             return .deleteText(pos, text, runs)
         case .deleteText(let pos, let text, let runs):
             let before = doc.paragraphs[pos.paragraph]
             let units = text.utf16.count
             let removed = doc.paragraphs[pos.paragraph].delete(pos.offset ..< pos.offset + units)
             changes.append(.changed(pos.paragraph))
-            if !before.bookmarkMarkers.isEmpty { return .restoreParagraphs(pos.paragraph, count: 1, [before]) }
+            if before.hasMarkers { return .restoreParagraphs(pos.paragraph, count: 1, [before]) }
             // Prefer what was actually removed (defensive: identical unless a
             // caller composed ops by hand).
             return .insertText(pos, removed.text.isEmpty ? text : removed.text,
@@ -107,7 +109,7 @@ public indirect enum EditOp: Equatable, Sendable {
             changes.append(.changed(pos.paragraph))
             changes.append(.inserted(at: pos.paragraph + 1, count: 1))
             _ = removedStyle
-            if !before.bookmarkMarkers.isEmpty { return .restoreParagraphs(pos.paragraph, count: 2, [before]) }
+            if before.hasMarkers { return .restoreParagraphs(pos.paragraph, count: 2, [before]) }
             return .mergeParagraph(pos.paragraph, removedStyle: tailStyle)
         case .mergeParagraph(let index, let removedStyle):
             let head = doc.paragraphs[index]
@@ -117,7 +119,7 @@ public indirect enum EditOp: Equatable, Sendable {
             changes.append(.changed(index))
             changes.append(.removed(at: index + 1, count: 1))
             _ = removedStyle
-            if !head.bookmarkMarkers.isEmpty || !tail.bookmarkMarkers.isEmpty {
+            if head.hasMarkers || tail.hasMarkers {
                 return .restoreParagraphs(index, count: 1, [head, tail])
             }
             return .splitParagraph(RichPosition(paragraph: index, offset: headLength),
@@ -146,6 +148,12 @@ public indirect enum EditOp: Equatable, Sendable {
             doc.footer = footer
             changes.append(.all)
             return .setHeaderFooter(header: oldHeader, footer: oldFooter, oldHeader: header, oldFooter: footer)
+        case .setRichHeaderFooter(let new, let old, let header, let footer, let oldHeader, let oldFooter):
+            doc.headerFooters = new
+            doc.header = header
+            doc.footer = footer
+            changes.append(.all)
+            return .setRichHeaderFooter(new: old, old: new, header: oldHeader, footer: oldFooter, oldHeader: header, oldFooter: footer)
         case .setSectionPage(let index, let old, let new):
             if index < 0 { doc.lastSectionPage = new } else { doc.paragraphs[index].style.sectionPage = new }
             changes.append(.all)
@@ -442,6 +450,18 @@ public final class RichDocumentController: ChangeNotifier {
 
     /// Type `string` at the caret, replacing any selection. Newlines split
     /// paragraphs.
+    /// Insert a symbol, in `font` when given (one undo step); the typing style is left as it was.
+    public func insertSymbol(_ string: String, font: String?) {
+        let saved = typingStyle
+        if let font {
+            var st = currentCharStyle
+            st.fontFamily = font
+            typingStyle = st
+        }
+        insertText(string)
+        typingStyle = font == nil ? saved : nil
+    }
+
     public func insertText(_ string: String) {
         guard !string.isEmpty else { return }
         let hint: UndoKindHint = string.contains(Character("\n")) ? .other : .typing
@@ -741,6 +761,87 @@ public final class RichDocumentController: ChangeNotifier {
         new.width = w
         new.height = h
         edit { perform(.setInlineImage(index, id: id, old: old, new: new)) }
+    }
+
+    /// Set the alternative text of the picture at `index` (a picture in its own paragraph), or of the inline picture
+    /// `inline` of that paragraph, one undo step.
+    public func setImageAltText(at index: Int, inline id: String? = nil, _ text: String) {
+        guard index < document.paragraphs.count else { return }
+        if let id {
+            guard var new = document.paragraphs[index].inlineImages[id], new.altText != text else { return }
+            let old = new
+            new.altText = text
+            edit { perform(.setInlineImage(index, id: id, old: old, new: new)) }
+        } else {
+            guard var new = document.paragraphs[index].image, new.altText != text else { return }
+            let old = new
+            new.altText = text
+            edit { perform(.setImage(index, old: old, new: new)) }
+        }
+    }
+
+    /// Cut `crop` (shares of the picture's pixels, each side) off the picture at `index` or its inline picture `id`, one undo
+    /// step. The picture keeps its scale: its frame shrinks or grows by the visible share, so nothing is stretched. nil
+    /// shows the whole picture again. A crop that would leave under 5% in either direction is refused (returns false).
+    @discardableResult
+    public func setImageCrop(at index: Int, inline id: String? = nil, _ crop: PictureCrop?) -> Bool {
+        guard index < document.paragraphs.count else { return false }
+        guard let old = id.map({ document.paragraphs[index].inlineImages[$0] }) ?? document.paragraphs[index].image else { return false }
+        let c = crop.flatMap { $0.left > 0 || $0.top > 0 || $0.right > 0 || $0.bottom > 0 ? $0 : nil }
+        if let c {
+            guard c.left >= 0, c.top >= 0, c.right >= 0, c.bottom >= 0, 1 - c.left - c.right >= 0.05, 1 - c.top - c.bottom >= 0.05 else { return false }
+        }
+        guard c != old.crop else { return true }
+        let was = old.crop ?? PictureCrop(left: 0, top: 0, right: 0, bottom: 0)
+        let now = c ?? PictureCrop(left: 0, top: 0, right: 0, bottom: 0)
+        var new = old
+        new.crop = c
+        new.width = max(4, old.width * (1 - now.left - now.right) / max(0.01, 1 - was.left - was.right))
+        new.height = max(4, old.height * (1 - now.top - now.bottom) / max(0.01, 1 - was.top - was.bottom))
+        edit { perform(id.map { .setInlineImage(index, id: $0, old: old, new: new) } ?? .setImage(index, old: old, new: new)) }
+        return true
+    }
+
+    /// Turn the picture at `index` (or its inline picture `id`) a quarter turn: `quarters` of 1 is clockwise, -1 anticlockwise. The
+    /// picture's box swaps width and height (it stands in its turned box), one undo step. Returns false when `quarters` is a
+    /// whole turn, there is no picture, or the picture floats (a floating picture keeps its unturned size: W-OB-3).
+    @discardableResult
+    public func rotatePicture(at index: Int, inline id: String? = nil, quarters: Int) -> Bool {
+        guard index < document.paragraphs.count, quarters % 4 != 0 else { return false }
+        guard let old = id.map({ document.paragraphs[index].inlineImages[$0] }) ?? document.paragraphs[index].image else { return false }
+        guard old.float == nil else { return false }
+        var new = old
+        let degrees = (old.rotation + Double(quarters % 4) * 90).truncatingRemainder(dividingBy: 360)
+        new.rotation = degrees < 0 ? degrees + 360 : degrees
+        if quarters % 2 != 0 { swap(&new.width, &new.height) }
+        edit { perform(id.map { .setInlineImage(index, id: $0, old: old, new: new) } ?? .setImage(index, old: old, new: new)) }
+        return true
+    }
+
+    /// Swap the pixels of the picture at `index` (or its inline picture `id`) for `data`, one undo step. The picture keeps its
+    /// width and its alternative text; its height follows the new picture's shape so nothing is stretched. The old
+    /// picture's own markup (crop, effects) is dropped, as a replacement starts afresh. A floating picture is not replaced
+    /// here (its anchor would be lost): returns false.
+    @discardableResult
+    public func replacePicture(at index: Int, inline id: String? = nil, with data: Data, name: String,
+                               naturalWidth: Double, naturalHeight: Double) -> Bool {
+        guard index < document.paragraphs.count, naturalWidth > 0, naturalHeight > 0 else { return false }
+        guard let old = id.map({ document.paragraphs[index].inlineImages[$0] }) ?? document.paragraphs[index].image,
+              old.float == nil, !old.data.isEmpty else { return false }
+        var new = old
+        new.data = data
+        new.name = name
+        new.naturalWidth = naturalWidth
+        new.naturalHeight = naturalHeight
+        new.height = max(4, old.width * naturalHeight / naturalWidth)
+        new.crop = nil
+        new.sourceXML = nil
+        new.sourceRels = []
+        new.sourceWidth = nil
+        new.sourceHeight = nil
+        new.sourceRunPropertiesXML = nil
+        edit { perform(id.map { .setInlineImage(index, id: $0, old: old, new: new) } ?? .setImage(index, old: old, new: new)) }
+        return true
     }
 
     /// Show the picture at `index` at `width` × `height` points, one undo step.
@@ -1271,6 +1372,43 @@ public final class RichDocumentController: ChangeNotifier {
     public func toggleStrikethrough() {
         let on = !selectionAll { $0.strikethrough }
         applyCharStyle { $0.strikethrough = on }
+    }
+
+    /// Everything the Font dialog sets, applied as one undo step. Each field
+    /// replaces the run's value; nil means "none" (the style's own).
+    public struct CharFormat: Equatable {
+        public var family: String?
+        public var size: Double?
+        public var bold = false, italic = false, underline = false
+        public var strikethrough = false, doubleStrike = false
+        public var script: ScriptPosition = .normal
+        public var smallCaps = false, caps = false, hidden = false
+        public var spacing: Double?       // points between letters
+        public var scale: Double?         // horizontal scale, 1 = 100%
+        public var raised: Double?        // points up (negative: down)
+        public var kerningFrom: Double?   // kern from this size, points
+        public init() {}
+        public init(_ s: CharStyle) {
+            family = s.fontFamily; size = s.fontSize
+            bold = s.bold; italic = s.italic; underline = s.underline
+            strikethrough = s.strikethrough && !s.doubleStrike; doubleStrike = s.doubleStrike
+            script = s.script; smallCaps = s.smallCaps; caps = s.caps; hidden = s.hidden
+            spacing = s.letterSpacing; scale = s.horizontalScale
+            raised = s.raised; kerningFrom = s.kerningFrom
+        }
+    }
+
+    public func setCharFormat(_ f: CharFormat) {
+        applyCharStyle { s in
+            s.fontFamily = f.family; s.fontSize = f.size
+            s.bold = f.bold; s.italic = f.italic; s.underline = f.underline
+            s.strikethrough = f.strikethrough || f.doubleStrike; s.doubleStrike = f.doubleStrike
+            s.script = f.script; s.smallCaps = f.smallCaps; s.caps = f.caps; s.hidden = f.hidden
+            s.letterSpacing = f.spacing
+            s.horizontalScale = (f.scale ?? 1) == 1 ? nil : f.scale
+            s.raised = (f.raised ?? 0) == 0 ? nil : f.raised
+            s.kerningFrom = f.kerningFrom
+        }
     }
 
     public func setFontFamily(_ family: String?) {
@@ -2110,20 +2248,48 @@ public final class RichDocumentController: ChangeNotifier {
 
     // MARK: Header and footer
 
-    public func setHeaderFooter(header: String? = nil, footer: String? = nil) {
-        let newHeader = header ?? document.header
-        let newFooter = footer ?? document.footer
-        guard newHeader != document.header || newFooter != document.footer else { return }
+    /// Sets the header and footer text. A side whose file part holds more than
+    /// plain text (see `hasRichHeaderFooter`) is left alone, and named in the
+    /// result, so the caller can say so: the strip must not flatten it.
+    @discardableResult
+    public func setHeaderFooter(header: String? = nil, footer: String? = nil) -> [KeptHeaderFooter.Kind] {
+        var kept: [KeptHeaderFooter.Kind] = []
+        var newHeader = header ?? document.header
+        var newFooter = footer ?? document.footer
+        if newHeader != document.header, document.hasRichHeaderFooter(.header) { newHeader = document.header; kept.append(.header) }
+        if newFooter != document.footer, document.hasRichHeaderFooter(.footer) { newFooter = document.footer; kept.append(.footer) }
+        guard newHeader != document.header || newFooter != document.footer else { return kept }
         edit {
             perform(.setHeaderFooter(header: newHeader, footer: newFooter,
                                      oldHeader: document.header, oldFooter: document.footer))
         }
+        return kept
+    }
+
+    /// W-HF-1: the default header or footer as formatted paragraphs (bold, italic, size, colour, font, alignment,
+    /// tabs, page fields). One undo step; the save writes a part from them. Pictures and tables are not carried
+    /// (use `hasRichHeaderFooter` to refuse those first).
+    public func setRichHeaderFooter(_ kind: KeptHeaderFooter.Kind, paragraphs: [RichParagraph]) {
+        let paras = paragraphs.isEmpty ? [RichParagraph()] : paragraphs
+        var all = document.headerFooters
+        var entry = RichHeaderFooter(kind: kind, type: "default", paragraphs: paras)
+        entry.edited = true
+        if let i = all.firstIndex(where: { $0.kind == kind && $0.type == "default" && $0.section == nil }) { entry.section = nil; all[i] = entry }
+        else { all.append(entry) }
+        let plain = paras.map { $0.text }.joined(separator: " ")
+        guard all != document.headerFooters else { return }
+        edit {
+            perform(.setRichHeaderFooter(new: all, old: document.headerFooters,
+                                         header: kind == .header ? plain : document.header, footer: kind == .footer ? plain : document.footer,
+                                         oldHeader: document.header, oldFooter: document.footer))
+        }
     }
 
     /// Word's Page Number: a centred "n" in the footer, or none.
-    public func togglePageNumbers() {
+    @discardableResult
+    public func togglePageNumbers() -> Bool {
         let field = "Page \(RichDocument.pageField) of \(RichDocument.pageCountField)"
-        setHeaderFooter(footer: document.footer.containsSubstring(RichDocument.pageField) ? "" : field)
+        return setHeaderFooter(footer: document.footer.containsSubstring(RichDocument.pageField) ? "" : field).isEmpty
     }
 
     // MARK: Find
@@ -2194,6 +2360,85 @@ public final class RichDocumentController: ChangeNotifier {
             _setCaret(document.clamped(selection.focus))
         }
         return count
+    }
+
+    // MARK: Find with a pattern (U-FR-1: match case, whole word, wildcards, regex)
+
+    /// The next match of `pattern` after the caret (before it when `backwards`), wrapping; nil when none.
+    public func find(_ pattern: TextPattern, backwards: Bool = false) -> RichSelection? {
+        let start = document.clamped(backwards ? selection.start : selection.end)
+        let n = document.paragraphs.count
+        func hit(_ i: Int, from: Int?, back: Bool) -> RichSelection? {
+            let text = document.paragraphs[i].text
+            let at = from.map { String.Index(utf16Offset: min(max($0, 0), text.utf16.count), in: text) }
+                ?? (back ? text.endIndex : text.startIndex)
+            guard let m = pattern.firstMatch(in: text, from: at, backwards: back) else { return nil }
+            return RichSelection(
+                anchor: RichPosition(paragraph: i, offset: m.range.lowerBound.utf16Offset(in: text)),
+                focus: RichPosition(paragraph: i, offset: m.range.upperBound.utf16Offset(in: text)))
+        }
+        if let s = hit(start.paragraph, from: start.offset, back: backwards) { return s }
+        for k in 1 ..< max(n, 1) {
+            let i = backwards ? (start.paragraph - k + n * 2) % n : (start.paragraph + k) % n
+            if let s = hit(i, from: nil, back: backwards) { return s }
+        }
+        return hit(start.paragraph, from: nil, back: backwards)
+    }
+
+    /// Replace the selection when it is exactly one match of `pattern`; one undo step. False when it is not.
+    @discardableResult
+    public func replaceSelection(_ pattern: TextPattern, with template: String) -> Bool {
+        let sel = selection
+        guard sel.anchor.paragraph == sel.focus.paragraph, sel.anchor != sel.focus else { return false }
+        let i = sel.start.paragraph
+        let text = document.paragraphs[i].text
+        let lo = sel.start.offset, hi = sel.end.offset
+        guard let m = pattern.matches(in: text).first(where: {
+            $0.range.lowerBound.utf16Offset(in: text) == lo && $0.range.upperBound.utf16Offset(in: text) == hi
+        }) else { return false }
+        let replacement = pattern.replacement(template, for: m, in: text)
+        edit {
+            let style = document.paragraphs[i].style(at: lo + 1)
+            _deleteRange(in: i, lo ..< hi)
+            if !replacement.isEmpty {
+                perform(.insertText(RichPosition(paragraph: i, offset: lo), replacement,
+                                    [Run(length: replacement.utf16.count, style: style)]))
+            }
+            _setCaret(RichPosition(paragraph: i, offset: lo + replacement.utf16.count))
+        }
+        return true
+    }
+
+    /// Replace every match of `pattern` in the document; one undo step. Returns the count.
+    @discardableResult
+    public func replaceAll(_ pattern: TextPattern, with template: String) -> Int {
+        var count = 0
+        edit {
+            for i in document.paragraphs.indices {
+                let text = document.paragraphs[i].text
+                let found = pattern.matches(in: text)
+                // Backwards so earlier offsets stay valid.
+                for m in found.reversed() {
+                    let lo = m.range.lowerBound.utf16Offset(in: text)
+                    let hi = m.range.upperBound.utf16Offset(in: text)
+                    let replacement = pattern.replacement(template, for: m, in: text)
+                    let style = document.paragraphs[i].style(at: lo + 1)
+                    _deleteRange(in: i, lo ..< hi)
+                    if !replacement.isEmpty {
+                        perform(.insertText(RichPosition(paragraph: i, offset: lo), replacement,
+                                            [Run(length: replacement.utf16.count, style: style)]))
+                    }
+                    count += 1
+                }
+            }
+            _setCaret(document.clamped(selection.focus))
+        }
+        return count
+    }
+
+    /// How many matches `pattern` has in the document.
+    public func countMatches(_ pattern: TextPattern) -> Int {
+        document.paragraphs.reduce(0) { $0 + pattern.matches(in: $1.text).count }
     }
 
     /// Apply `transform` to every paragraph the selection touches.

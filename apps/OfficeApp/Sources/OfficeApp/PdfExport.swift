@@ -72,6 +72,7 @@ enum PdfExport {
         let deadline = Date().addingTimeInterval(8)
         while layout.hasPendingImages || WriterMetafiles.hasPendingImages || WriterGroups.hasPendingImages, Date() < deadline {
             RunLoop.main.run(until: Date().addingTimeInterval(0.005))
+            layout.applyDecodedPictures()
         }
         #endif
 

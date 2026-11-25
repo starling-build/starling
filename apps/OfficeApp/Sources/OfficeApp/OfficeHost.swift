@@ -63,6 +63,11 @@ final class OfficeScene {
     /// Set by a host that keeps its own copy of the file.
     var documentSaved: ((String) -> Void)?
 
+    /// The host's own way to pick a picture (the iPad's Photo Library / Files sheet): calls `done` with the path of a
+    /// readable copy, nil if the user cancelled. Set by a host that has one; nil elsewhere, where the Backstage
+    /// picture panel stays.
+    var pictureRequested: ((_ done: @escaping (String?) -> Void) -> Void)?
+
     /// The user asked for Open (or Close). Returns true if the host took it
     /// over, so the editor does not show its own file panel.
     var openRequested: (() -> Bool)?

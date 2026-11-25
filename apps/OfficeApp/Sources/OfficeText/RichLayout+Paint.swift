@@ -213,30 +213,44 @@ extension RichLayout {
         _decoding.insert(image.id)
         let bytes = [UInt8](image.data)
         let id = image.id
-        Task { @MainActor [weak self] in
+        let mailbox = _decodeMailbox
+        // Off the main queue, and handed over through the mailbox: a picture the main queue is too busy to take
+        // (a PDF being written from inside a block of it, which waits for its pictures by spinning the run loop
+        // and cannot drain the queue it is running on) is still taken by `applyDecodedPictures`, which that wait
+        // calls itself. The screen takes them through the hop below, as before.
+        Task.detached(priority: .userInitiated) { [weak self] in
             var decoded: Image? = nil
             do {
                 let codec = try await instantiateImageCodec(bytes)
                 let frame = try await codec.getNextFrame()
                 codec.dispose()
                 decoded = frame.image
-                if let d = decoded {
-                    let key = UInt64(d.width) << 32 | UInt64(d.height)
-                    if bytes.starts(with: [0xFF, 0xD8]) { RichLayout.jpegSizes.insert(key) } else { RichLayout.otherPictureSizes.insert(key) }
-                }
             } catch {
                 if ProcessInfo.processInfo.environment["STARLING_RICHTEXT_PERF"] != nil {
                     FileHandle.standardError.write(Data("image \(id): not decoded: \(error) (\(bytes.count) bytes, \(bytes.prefix(8)))\n".utf8))
                 }
                 decoded = nil
             }
-            guard let self else { decoded?.dispose(); return }
-            self._decoding.remove(id)
-            if let decoded {
-                self._decoded[id] = decoded
-                self.onNeedsRepaint?()
-            }
+            mailbox.put(id: id, image: decoded, jpeg: bytes.starts(with: [0xFF, 0xD8]))
+            await MainActor.run { self?.applyDecodedPictures() }
         }
+    }
+
+    /// Takes the pictures decoded since the last call into the layout (main thread), and those of its headers,
+    /// footers and text boxes. The repaint callback fires once if any arrived.
+    public func applyDecodedPictures() {
+        var arrived = false
+        for r in _decodeMailbox.take() {
+            _decoding.remove(r.id)
+            guard let image = r.image else { continue }
+            let key = UInt64(image.width) << 32 | UInt64(image.height)
+            if r.jpeg { RichLayout.jpegSizes.insert(key) } else { RichLayout.otherPictureSizes.insert(key) }
+            _decoded[r.id] = image
+            arrived = true
+        }
+        for v in _headerFooterCache.values { v.layout.applyDecodedPictures() }
+        for v in _textBoxCache.values { v.layout.applyDecodedPictures() }
+        if arrived { onNeedsRepaint?() }
     }
 
     /// The picture's box for paragraph `i` in document space, or nil.
@@ -2116,9 +2130,20 @@ extension RichLayout {
     func _paintVerticalPictures(_ p: Int, _ canvas: any Canvas, _ document: RichDocument) {
         guard theme.wordRules, RichTextTheme.wordWindowsPages, _columns >= 1, p * _columns < _pages.count else { return }
         var seen = Set<String>()
+        var order: [Int] = []
         for c in 0 ..< _columns where p * _columns + c < _pages.count {
-            for piece in _pages[p * _columns + c] {
-                let i = piece.paragraph
+            for piece in _pages[p * _columns + c] where !order.contains(piece.paragraph) { order.append(piece.paragraph) }
+        }
+        // (A box seeded on this page stays on it even when its paragraph's lines all went to the next page: no gap beside the floats
+        // took a whole line, so the paragraph began later, and the box did not vanish with it.)
+        if let seeds = _verticalSeeds[p], !seeds.isEmpty {
+            for k in 0 ..< min(count, document.paragraphs.count) where !order.contains(k) {
+                let held = (k < _floatImages.count ? [_floatImages[k]].compactMap { $0 } : []) + (k < _inline.count ? _inline[k] : [])
+                if held.contains(where: { image in seeds.contains { $0.id == image.id } }) { order.append(k) }
+            }
+        }
+        do {
+            for i in order {
                 guard i >= 0, i < count, i < document.paragraphs.count else { continue }
                 var own: [ImageAttachment] = []
                 if i < _floatImages.count, let image = _floatImages[i] { own.append(image) }

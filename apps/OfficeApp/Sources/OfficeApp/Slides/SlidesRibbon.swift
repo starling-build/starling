@@ -83,6 +83,7 @@ extension Ribbon {
         let fp = fontAndParagraphGroups(fluent)
         let editing = Chrome.group("Editing", fluent, [Chrome.rows([
             Chrome.small(FluentSystemIcons.textT, "Select All", fluent) { [session] in session.controller.selectAll() },
+            Chrome.small(FluentSystemIcons.numberList, "Selection Pane", fluent) { [session] in session.onSelectionPane?() },
         ])])
         return [clipboardGroup(fluent), _slidesGroup(deck, fluent), fp[0], fp[1], _drawingGroup(deck, fluent), editing]
     }
@@ -471,6 +472,7 @@ extension Ribbon {
         return [
             Chrome.group("Adjust", fluent, [
                 Chrome.big(FluentSystemIcons.refresh, "Reset Picture", fluent) { deck.resetPictures() },
+                Chrome.big(FluentSystemIcons.info, "Alt Text", fluent) { [session] in session.onAltText?() },
             ]),
             Chrome.group("Size", fluent, [Chrome.rows([
                 Chrome.menuButton(FluentSystemIcons.pageFit, "Crop to Aspect", "Crop the picture to a shape", fluent,

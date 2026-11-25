@@ -458,6 +458,141 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(back.paragraphs[1].text, "plain")
     }
 
+    /// W-OB-1: a picture's alternative text is read from the file, changed as one undo step, and written back into the kept
+    /// markup (escaped) without losing the picture's effect extent or the paragraph after it; an unchanged text leaves the file's markup alone.
+    func testAlternativeTextOfAPictureRoundTripsAndKeepsTheRestOfItsMarkup() throws {
+        let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")!
+        var p = RichParagraph(text: "x" + RichParagraph.inlineImageCharacter + "y")
+        let image = ImageAttachment(data: png, width: 120, height: 90)
+        p.inlineImages[image.id] = image
+        p.applyStyle(1 ..< 2) { $0.inlineImage = image.id }
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [p, RichParagraph(text: "after")]), pageSetup: .letter))
+        let di = try XCTUnwrap(entries.firstIndex { $0.name == "word/document.xml" })
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        xml = xml.replacingAll("<wp:docPr", with: "<wp:effectExtent l=\"19050\" t=\"0\" r=\"8214\" b=\"0\"/><wp:docPr descr=\"A small box\"")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let opened = try DocxFormat.read(try Zip.write(entries)).document
+        let c = RichDocumentController(document: opened)
+        let id = try XCTUnwrap(c.inlineImageOffsets(in: 0).first?.id)
+        XCTAssertEqual(c.document.paragraphs[0].inlineImages[id]?.altText, "A small box")
+        // Unchanged: the file's markup is written as it was.
+        let same = try DocxFormat.read(try DocxFormat.write(c.document, pageSetup: .letter)).document
+        XCTAssertEqual(same.paragraphs[0].inlineImages.values.first?.altText, "A small box")
+        c.setImageAltText(at: 0, inline: id, "A \"red\" box & <more>")
+        c.undo()
+        XCTAssertEqual(c.document.paragraphs[0].inlineImages[id]?.altText, "A small box")
+        c.redo()
+        let back = try DocxFormat.read(try DocxFormat.write(c.document, pageSetup: .letter)).document
+        let saved = try XCTUnwrap(back.paragraphs[0].inlineImages.values.first)
+        XCTAssertEqual(saved.altText, "A \"red\" box & <more>")
+        XCTAssertEqual(saved.effectLeft, 1.5, accuracy: 0.01)
+        XCTAssertEqual(back.paragraphs[1].text, "after")
+        c.setImageAltText(at: 0, inline: id, "")
+        let cleared = try DocxFormat.read(try DocxFormat.write(c.document, pageSetup: .letter)).document
+        XCTAssertEqual(cleared.paragraphs[0].inlineImages.values.first?.altText, "")
+    }
+
+    /// W-OB-1: Change Picture swaps the pixels of a picture in its own paragraph, keeps its width and alt text, follows the new
+    /// picture's shape, undoes in one step, and the saved file holds the new pixels and the paragraphs around it.
+    func testChangingAPictureKeepsItsWidthAndAltTextAndSavesTheNewPixels() throws {
+        let old = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")!
+        let new = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==")!
+        XCTAssertNotEqual(old, new)
+        var img = ImageAttachment(data: old, width: 200, height: 100)
+        img.altText = "Site plan"
+        let c = RichDocumentController(document: RichDocument(paragraphs: [RichParagraph(text: "above"), RichParagraph(image: img), RichParagraph(text: "below")]))
+        XCTAssertTrue(c.replacePicture(at: 1, with: new, name: "new.png", naturalWidth: 100, naturalHeight: 400))
+        XCTAssertEqual(c.document.paragraphs[1].image?.width, 200)
+        XCTAssertEqual(c.document.paragraphs[1].image?.height, 800)
+        c.undo()
+        XCTAssertEqual(c.document.paragraphs[1].image?.data, old)
+        XCTAssertEqual(c.document.paragraphs[1].image?.height, 100)
+        c.redo()
+        XCTAssertFalse(c.replacePicture(at: 0, with: new, name: "x.png", naturalWidth: 1, naturalHeight: 1), "a text paragraph is not a picture")
+        let back = try DocxFormat.read(try DocxFormat.write(c.document, pageSetup: .letter)).document
+        XCTAssertEqual(back.paragraphs.map(\.text).filter { !$0.isEmpty }, ["above", "below"])
+        let saved = try XCTUnwrap(back.paragraphs.compactMap(\.image).first)
+        XCTAssertEqual(saved.data, new)
+        XCTAssertEqual(saved.altText, "Site plan")
+        XCTAssertEqual(saved.width, 200, accuracy: 0.1)
+    }
+
+    /// W-OB-1: cropping a picture cuts shares off its sides, keeps its scale (the frame follows the visible part), undoes in one
+    /// step, is written as `a:srcRect` into the file's own markup (a picture read back from a file too) and clears again.
+    func testCroppingAPictureKeepsItsScaleAndSavesTheCrop() throws {
+        let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")!
+        var img = ImageAttachment(data: png, width: 200, height: 100)
+        img.altText = "Chart"
+        let c = RichDocumentController(document: RichDocument(paragraphs: [RichParagraph(text: "above"), RichParagraph(image: img), RichParagraph(text: "below")]))
+        XCTAssertFalse(c.setImageCrop(at: 1, PictureCrop(left: 0.5, top: 0, right: 0.5, bottom: 0)), "nothing would be left")
+        XCTAssertTrue(c.setImageCrop(at: 1, PictureCrop(left: 0.25, top: 0.1, right: 0, bottom: 0)))
+        XCTAssertEqual(c.document.paragraphs[1].image?.width ?? 0, 150, accuracy: 0.01)
+        XCTAssertEqual(c.document.paragraphs[1].image?.height ?? 0, 90, accuracy: 0.01)
+        c.undo()
+        XCTAssertNil(c.document.paragraphs[1].image?.crop)
+        XCTAssertEqual(c.document.paragraphs[1].image?.width, 200)
+        c.redo()
+        // First save: the generated picture carries the crop. Second: the kept markup is patched.
+        let once = try DocxFormat.read(try DocxFormat.write(c.document, pageSetup: .letter)).document
+        let first = try XCTUnwrap(once.paragraphs.compactMap(\.image).first)
+        XCTAssertEqual(first.crop?.left ?? 0, 0.25, accuracy: 0.001)
+        XCTAssertEqual(first.crop?.top ?? 0, 0.1, accuracy: 0.001)
+        XCTAssertEqual(first.altText, "Chart")
+        let d = RichDocumentController(document: once)
+        let at = try XCTUnwrap(once.paragraphs.firstIndex { $0.image != nil })
+        XCTAssertTrue(d.setImageCrop(at: at, PictureCrop(left: 0, top: 0, right: 0.2, bottom: 0)))
+        let twice = try DocxFormat.read(try DocxFormat.write(d.document, pageSetup: .letter)).document
+        let second = try XCTUnwrap(twice.paragraphs.compactMap(\.image).first)
+        XCTAssertEqual(second.crop?.right ?? 0, 0.2, accuracy: 0.001)
+        XCTAssertEqual(second.crop?.left ?? 0, 0, accuracy: 0.001)
+        XCTAssertEqual(second.width, 200 * 0.8, accuracy: 0.2)
+        XCTAssertEqual(twice.paragraphs.map(\.text).filter { !$0.isEmpty }, ["above", "below"])
+        XCTAssertTrue(d.setImageCrop(at: at, nil))
+        let cleared = try DocxFormat.read(try DocxFormat.write(d.document, pageSetup: .letter)).document
+        XCTAssertNil(cleared.paragraphs.compactMap(\.image).first?.crop)
+        XCTAssertEqual(cleared.paragraphs.compactMap(\.image).first?.width ?? 0, 200, accuracy: 0.2)
+    }
+
+    /// W-OB-1: turning a picture a quarter swaps its box, undoes in one step, and the file holds the unturned frame with the turn
+    /// in `a:xfrm rot` (first from a generated picture, then patched into the kept markup); four turns bring it home.
+    func testTurningAPictureAQuarterSwapsItsBoxAndSavesTheTurn() throws {
+        let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")!
+        var img = ImageAttachment(data: png, width: 200, height: 100)
+        img.altText = "Map"
+        let c = RichDocumentController(document: RichDocument(paragraphs: [RichParagraph(text: "above"), RichParagraph(image: img), RichParagraph(text: "below")]))
+        XCTAssertFalse(c.rotatePicture(at: 1, quarters: 4))
+        XCTAssertFalse(c.rotatePicture(at: 0, quarters: 1), "a text paragraph is not a picture")
+        XCTAssertTrue(c.rotatePicture(at: 1, quarters: 1))
+        XCTAssertEqual(c.document.paragraphs[1].image?.rotation, 90)
+        XCTAssertEqual(c.document.paragraphs[1].image?.width, 100)
+        XCTAssertEqual(c.document.paragraphs[1].image?.height, 200)
+        c.undo()
+        XCTAssertEqual(c.document.paragraphs[1].image?.rotation, 0)
+        XCTAssertEqual(c.document.paragraphs[1].image?.width, 200)
+        c.redo()
+        let once = try DocxFormat.read(try DocxFormat.write(c.document, pageSetup: .letter)).document
+        let first = try XCTUnwrap(once.paragraphs.compactMap(\.image).first)
+        XCTAssertEqual(first.rotation, 90)
+        XCTAssertEqual(first.width, 100, accuracy: 0.2)
+        XCTAssertEqual(first.height, 200, accuracy: 0.2)
+        XCTAssertEqual(first.altText, "Map")
+        // Turned again from the file's markup: 180, the box as it was at first; then back to 0 with a left turn.
+        let d = RichDocumentController(document: once)
+        let at = try XCTUnwrap(once.paragraphs.firstIndex { $0.image != nil })
+        XCTAssertTrue(d.rotatePicture(at: at, quarters: 1))
+        let twice = try DocxFormat.read(try DocxFormat.write(d.document, pageSetup: .letter)).document
+        let second = try XCTUnwrap(twice.paragraphs.compactMap(\.image).first)
+        XCTAssertEqual(second.rotation, 180)
+        XCTAssertEqual(second.width, 200, accuracy: 0.2)
+        XCTAssertEqual(second.height, 100, accuracy: 0.2)
+        XCTAssertTrue(d.rotatePicture(at: at, quarters: 2))
+        let home = try DocxFormat.read(try DocxFormat.write(d.document, pageSetup: .letter)).document
+        let back = try XCTUnwrap(home.paragraphs.compactMap(\.image).first)
+        XCTAssertEqual(back.rotation, 0)
+        XCTAssertEqual(back.width, 200, accuracy: 0.2)
+        XCTAssertEqual(home.paragraphs.map(\.text).filter { !$0.isEmpty }, ["above", "below"])
+    }
+
     /// Tracked changes stay tracked: an insertion and a deletion read as
     /// marked runs and are written back as the changes they were, so Word
     /// shows the same markup for the copy.
@@ -811,6 +946,63 @@ final class DocxTests: XCTestCase {
         XCTAssertFalse(RichLayout.turnedBoxCutsPastFarEdge(box))
     }
 
+    /// ja-b852b9029c: beside a picture a vertical line is set only where its WHOLE pitch fits (planner spec, amd-opus): a 16pt gap at
+    /// the foot of a band, under the 18pt line pitch, stays empty (Word's page 1 left it), a gap past the pitch is used.
+    func testVerticalGapUnderOneLinePitchBesideAPictureStaysEmpty() throws {
+        let narrow = try pictureBesideVerticalText(gap: 16).0.pageCount, wide = try pictureBesideVerticalText(gap: 40).0.pageCount
+        XCTAssertGreaterThan(narrow, wide, "16pt gap \(narrow) pages, 40pt gap \(wide)")
+    }
+
+    func testVerticalBoxStaysDrawnWhenNoGapBesideItTakesALine() throws {
+        // The gap under one pitch stays empty, so the text starts on the next page: the box is still drawn on the page it was seeded on.
+        let (l, doc) = try pictureBesideVerticalText(gap: 16)
+        RichTextTheme.wordWindowsPages = true
+        defer { RichTextTheme.wordWindowsPages = false }
+        let canvas = TurnedTextCanvas()
+        l.paint(canvas, visible: l.pageRect(0), document: doc, selection: nil, caret: nil)
+        XCTAssertGreaterThan(canvas.turns.count, 0, "the box vanished from page 1")
+    }
+
+    private func pictureBesideVerticalText(gap: Double) throws -> (RichLayout, RichDocument) {
+        do {
+            let doc = RichDocument(paragraphs: [RichParagraph(text: String(repeating: "あいうえお", count: 400))])
+            var entries = try Zip.read(try DocxFormat.write(doc, pageSetup: .a4))
+            let di = try XCTUnwrap(entries.firstIndex { $0.name == "word/document.xml" })
+            var xml = String(decoding: entries[di].data, as: UTF8.self)
+            xml = xml.replacingAll("</w:sectPr>", with: "<w:textDirection w:val=\"tbRl\"/><w:docGrid w:type=\"lines\" w:linePitch=\"360\"/></w:sectPr>")
+            let setup = PageSetup.a4
+            let cx = Int((setup.width - setup.marginLeft - setup.marginRight) * 12700)
+            let cy = Int((setup.height - setup.marginTop - setup.marginBottom - gap) * 12700)
+            let anchor = "<w:drawing><wp:anchor distT=\"0\" distB=\"0\" distL=\"114300\" distR=\"114300\" simplePos=\"0\" relativeHeight=\"1\" behindDoc=\"0\" locked=\"0\" layoutInCell=\"1\" allowOverlap=\"1\">"
+                + "<wp:simplePos x=\"0\" y=\"0\"/><wp:positionH relativeFrom=\"margin\"><wp:posOffset>0</wp:posOffset></wp:positionH>"
+                + "<wp:positionV relativeFrom=\"margin\"><wp:posOffset>0</wp:posOffset></wp:positionV><wp:extent cx=\"\(cx)\" cy=\"\(cy)\"/>"
+                + "<wp:wrapSquare wrapText=\"bothSides\"/><wp:docPr id=\"2\" name=\"p\"/><a:graphic xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\">"
+                + "<a:graphicData uri=\"http://schemas.microsoft.com/office/word/2010/wordprocessingShape\"><wps:wsp xmlns:wps=\"http://schemas.microsoft.com/office/word/2010/wordprocessingShape\">"
+                + "<wps:cNvSpPr txBox=\"1\"/><wps:spPr><a:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"\(cx)\" cy=\"\(cy)\"/></a:xfrm><a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom></wps:spPr>"
+                + "<wps:txbx><w:txbxContent><w:p><w:r><w:t>box</w:t></w:r></w:p></w:txbxContent></wps:txbx>"
+                + "<wps:bodyPr wrap=\"square\"/></wps:wsp></a:graphicData></a:graphic></wp:anchor></w:drawing>"
+            xml = xml.replacingAll("<w:r>", with: "<w:r>" + anchor + "</w:r><w:r>")
+            let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")!
+            entries.append(ZipEntry(name: "word/media/image9.png", data: png))
+            let ri = try XCTUnwrap(entries.firstIndex { $0.name == "word/_rels/document.xml.rels" })
+            var rels = String(decoding: entries[ri].data, as: UTF8.self)
+            rels = rels.replacingAll("</Relationships>", with: "<Relationship Id=\"rId9\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/image\" Target=\"media/image9.png\"/></Relationships>")
+            entries[ri] = ZipEntry(name: "word/_rels/document.xml.rels", data: Data(rels.utf8))
+            entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+            RichTextTheme.wordWindowsPages = true
+            defer { RichTextTheme.wordWindowsPages = false }
+            let opened = try DocxFormat.read(try Zip.write(entries))
+            let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+            theme.wordRules = true
+            let l = RichLayout(theme: theme, paragraphCount: opened.document.paragraphs.count)
+            let ps = opened.pageSetup ?? .a4
+            l.pageSetup = ps
+            l.width = ps.columnWidth * theme.pixelsPerPoint
+            l.ensureLaidOut(opened.document)
+            return (l, opened.document)
+        }
+    }
+
     func testRichAndFirstPageHeadersKeptVerbatim() throws {
         // A default header holding a table (60329's banner) and a
         // first-page header: both parts come back as they were, the
@@ -973,6 +1165,38 @@ final class DocxTests: XCTestCase {
         XCTAssertLessThan(multiple, 36 + 14, "the multiple's extra does not reach the box")
     }
 
+    func testAnExactLineWithTextGoesToTheFootOfAPictureNotAStepBelow() throws {
+        // Lab carry3 (Word for Windows): a top-and-bottom box a little way down its paragraph
+        // (paragraph-relative, in the body) puts the first line under it while the line reaches past
+        // the box's top, and leaves it above when the box starts at or below the line's foot.
+        RichTextTheme.wordWindowsPages = true
+        defer { RichTextTheme.wordWindowsPages = false }
+        let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")!
+        func foot(offsetTwips: Int, spacing: Double) throws -> Double {
+            let doc = RichDocument(paragraphs: [RichParagraph(image: ImageAttachment(data: png, width: 72, height: 36)), RichParagraph(text: "after")])
+            var entries = try Zip.read(try DocxFormat.write(doc, pageSetup: .letter))
+            let di = entries.firstIndex { $0.name == "word/document.xml" }!
+            var xml = String(decoding: entries[di].data, as: UTF8.self)
+            xml = xml.replacingAll("<wp:inline distT=\"0\" distB=\"0\" distL=\"0\" distR=\"0\">", with: "<wp:anchor distT=\"0\" distB=\"0\" distL=\"0\" distR=\"0\" simplePos=\"0\" relativeHeight=\"1\" behindDoc=\"0\" locked=\"0\" layoutInCell=\"1\" allowOverlap=\"1\"><wp:simplePos x=\"0\" y=\"0\"/><wp:positionH relativeFrom=\"column\"><wp:posOffset>0</wp:posOffset></wp:positionH><wp:positionV relativeFrom=\"paragraph\"><wp:posOffset>\(offsetTwips * 635)</wp:posOffset></wp:positionV>")
+            xml = xml.replacingAll("<wp:docPr", with: "<wp:wrapTopAndBottom/><wp:docPr").replacingAll("</wp:inline>", with: "</wp:anchor>")
+            xml = xml.replacingAll("<w:r><w:drawing>", with: "<w:r><w:t>text</w:t></w:r><w:r><w:drawing>")
+            XCTAssertTrue(xml.contains("<w:t>text</w:t></w:r><w:r><w:drawing>"), xml)
+            entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+            var back = try DocxFormat.read(try Zip.write(entries)).document
+            back.paragraphs[0].style.lineHeightPoints = 20; back.paragraphs[0].style.lineHeightIsMinimum = false
+            let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+            theme.wordRules = true
+            let layout = RichLayout(theme: theme, paragraphCount: 2)
+            layout.pageSetup = .letter
+            layout.width = 612 * 96.0 / 72.0
+            layout.ensureLaidOut(back)
+            return layout.geometry(1).top / theme.pixelsPerPoint
+        }
+        // pt-720826652e: the caption in the picture's own paragraph, an exact line, stands at the picture's foot in Word's print, not a whole step below it.
+        let at = try foot(offsetTwips: 0, spacing: 1)
+        XCTAssertLessThan(at, 66, "the exact line (20 pt) stands at the foot (36), so the next paragraph is at 64, not 68 one step (40) lower")
+    }
+
     func testAnchoredPictureKeepsItsAnchor() throws {
         let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")!
         var doc = RichDocument(paragraphs: [RichParagraph(image: ImageAttachment(data: png, width: 72, height: 36)), RichParagraph(text: "text")])
@@ -1121,6 +1345,34 @@ final class DocxTests: XCTestCase {
         while WriterMetafiles.hasPendingImages, Date() < deadline { RunLoop.main.run(until: Date().addingTimeInterval(0.005)) }
         XCTAssertFalse(WriterMetafiles.hasPendingImages, "its bitmaps decoded")
         XCTAssertGreaterThan(painted(), caption, "and drawn with the caption")
+    }
+
+    /// The same bitmap, asked for and waited on from inside a block of the main queue (a driven tap, a command
+    /// chord, an export started from a menu action): the wait spins the run loop, which cannot drain the serial
+    /// queue it is itself running a block of, so a decode that hops to the main actor never finishes and the PDF
+    /// printed the icon without its bitmap after the eight-second timeout.
+    func testAMetafilesBitmapsDecodeFromInsideAMainQueueBlock() throws {
+        let file = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("test/corpus/docx/docs/WordWithAttachments.docx")
+        guard let docData = try? Data(contentsOf: file) else { throw XCTSkip("the corpus is not in this checkout (test/tools/corpus-cache.sh restore)") }
+        let wmf = try XCTUnwrap(try Zip.read(docData).first { $0.name == "word/media/image1.wmf" }).data
+        let icon = ImageAttachment(data: wmf, width: 54, height: 38.25, name: "image1.wmf")
+        XCTAssertTrue(WriterMetafiles.register(wmf, for: icon.id))
+        let finished = expectation(description: "decoded inside the block")
+        var decoded = false
+        DispatchQueue.main.async {
+            let recorder = NativePictureRecorder()
+            let canvas = NativeCanvas(recorder: recorder, cullRect: Rect.fromLTWH(0, 0, 54, 38.25))
+            _ = WriterMetafiles.paint(icon, canvas, Rect.fromLTWH(0, 0, 54, 38.25))
+            recorder.endRecording().dispose()
+            let deadline = Date().addingTimeInterval(3)
+            while WriterMetafiles.hasPendingImages, Date() < deadline { RunLoop.main.run(until: Date().addingTimeInterval(0.005)) }
+            decoded = !WriterMetafiles.hasPendingImages
+            finished.fulfill()
+        }
+        wait(for: [finished], timeout: 20)
+        XCTAssertTrue(decoded, "its bitmaps decoded without the main queue")
     }
 
     /// zh-8112041b: a 1.5-spaced line's extra space stands under its text,
@@ -7124,6 +7376,42 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(Array(out.suffix(8)), [UInt8](repeating: 0, count: 8), "only the first 32 bytes are keyed")
         XCTAssertNil(OfficeFonts.deobfuscate(Data(count: 40), key: "{not-a-guid}"))
     }
+
+    /// W-RV-3: a content control over runs (check box, drop-down list, text) survives open and save with its
+    /// properties whole, and the text around it is untouched; an edit that deletes across its end keeps the file valid.
+    func testContentControlsOverRunsSurviveASave() throws {
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .letter))
+        let di = try XCTUnwrap(entries.firstIndex { $0.name == "word/document.xml" })
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let body = try XCTUnwrap(xml.range(of: "<w:body>")).upperBound ..< (try XCTUnwrap(xml.range(of: "<w:sectPr"))).lowerBound
+        xml.replaceSubrange(body, with: "<w:p><w:r><w:t xml:space=\"preserve\">Agree </w:t></w:r>"
+            + "<w:sdt><w:sdtPr><w:id w:val=\"11\"/><w14:checkbox><w14:checked w14:val=\"0\"/><w14:checkedState w14:val=\"2612\" w14:font=\"MS Gothic\"/><w14:uncheckedState w14:val=\"2610\" w14:font=\"MS Gothic\"/></w14:checkbox></w:sdtPr><w:sdtContent><w:r><w:t>\u{2610}</w:t></w:r></w:sdtContent></w:sdt>"
+            + "<w:r><w:t xml:space=\"preserve\"> then </w:t></w:r>"
+            + "<w:sdt><w:sdtPr><w:alias w:val=\"Colour\"/><w:dropDownList><w:listItem w:displayText=\"Red\" w:value=\"r\"/><w:listItem w:displayText=\"Blue\" w:value=\"b\"/></w:dropDownList></w:sdtPr><w:sdtContent><w:r><w:t>Red</w:t></w:r></w:sdtContent></w:sdt>"
+            + "<w:r><w:t>.</w:t></w:r></w:p>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let back = try DocxFormat.read(try Zip.write(entries)).document
+        XCTAssertEqual(back.paragraphs.map(\.text), ["Agree \u{2610} then Red."])
+        XCTAssertEqual(back.paragraphs[0].controlMarkers.count, 4)
+        XCTAssertEqual(back.paragraphs[0].controlMarkers.map(\.offset), [6, 7, 13, 16])
+        func part(_ name: String, of doc: RichDocument) throws -> String {
+            String(decoding: try XCTUnwrap(try Zip.read(try DocxFormat.write(doc, pageSetup: .letter)).first { $0.name == name }).data, as: UTF8.self)
+        }
+        let again = try part("word/document.xml", of: back)
+        XCTAssertTrue(again.containsSubstring("<w14:checkedState w14:font=\"MS Gothic\" w14:val=\"2612\"/>"), again)
+        XCTAssertTrue(again.containsSubstring("<w:listItem w:displayText=\"Blue\" w:value=\"b\"/>"), again)
+        XCTAssertTrue(again.containsSubstring("<w:alias w:val=\"Colour\"/>"), again)
+        // Reopen the saved file: the same controls, the same text.
+        let saved = try Zip.read(try DocxFormat.write(back, pageSetup: .letter))
+        let reread = try DocxFormat.read(try Zip.write(saved)).document
+        XCTAssertEqual(reread.paragraphs.map(\.text), back.paragraphs.map(\.text))
+        XCTAssertEqual(reread.paragraphs[0].controlMarkers.map(\.offset), [6, 7, 13, 16])
+        // Deleting from inside the first control to inside the second leaves no half pair on the page.
+        var edited = back
+        edited.paragraphs[0].delete(6 ..< 14)
+        let after = try part("word/document.xml", of: edited)
+        XCTAssertEqual(after.components(separatedBy: "<w:sdt>").count, after.components(separatedBy: "</w:sdt>").count)
+    }
 }
 
 /// Records, for each quarter turn, the translate just before it (a
@@ -7252,5 +7540,4 @@ private final class TurnedTextCanvas: Canvas {
         XCTAssertEqual(width(hint: "cs"), 4 * 0.278 * 16, accuracy: 0.3, "four brackets at the face's 0.278 em")
         XCTAssertGreaterThan(width(hint: nil), 4 * 0.35 * 16, "no hint: the Latin face's width")
     }
-
 }

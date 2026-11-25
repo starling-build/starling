@@ -139,6 +139,31 @@ final class SheetsFormatCellsDialogTests: XCTestCase {
         XCTAssertEqual(got?.numberFormat, .set("0.00%"))
     }
 
+    func testTypedCodeIsApplied() {
+        var got: CellFormatEdit?
+        let ui = dialog({ got = $0 }, {})
+        XCTAssertTrue(ui.tap(id: "fc-num-Thousands"))
+        XCTAssertTrue(ui.tap(id: "fc-num-code"))
+        ui.type(";0")
+        ui.press(.enter)
+        XCTAssertEqual(got?.numberFormat, .set("#,##0;0"))
+    }
+
+    func testBadCodeBlocksOKUntilFixed() {
+        var got: CellFormatEdit?
+        var closed = false
+        let ui = dialog({ got = $0 }, { closed = true })
+        XCTAssertTrue(ui.tap(id: "fc-num-Thousands"))
+        XCTAssertTrue(ui.tap(id: "fc-num-code"))
+        ui.type("\"")
+        XCTAssertTrue(ui.has(text: "A quote is not closed."))
+        ui.press(.enter)
+        XCTAssertNil(got); XCTAssertFalse(closed)
+        ui.press(.backspace)
+        ui.press(.enter)
+        XCTAssertEqual(got?.numberFormat, .set("#,##0"))
+    }
+
     func testControlKeysSetLayoutFields() {
         var got: CellFormatEdit?
         let ui = dialog({ got = $0 }, {})
@@ -164,5 +189,112 @@ final class SheetsFormatCellsShellTests: XCTestCase {
         ui.press(.escape)
         ui.pump()
         XCTAssertFalse(ui.has(id: "fc-num-Percentage"))
+    }
+}
+
+/// X-FM-2: custom number formats.
+final class SheetsCustomFormatTests: XCTestCase {
+    func testWhatACodeMustNotDo() {
+        XCTAssertNil(NumberFormat.problem("#,##0.00;[Red]-#,##0.00"))
+        XCTAssertNil(NumberFormat.problem("0\" kg\""))
+        XCTAssertNil(NumberFormat.problem("[>100]0.0;0"))
+        XCTAssertNotNil(NumberFormat.problem(""))
+        XCTAssertNotNil(NumberFormat.problem("0\"abc"))
+        XCTAssertNotNil(NumberFormat.problem("[Red0"))
+        XCTAssertNotNil(NumberFormat.problem("0]"))
+        XCTAssertNotNil(NumberFormat.problem("0;0;0;@;0"))
+        XCTAssertNotNil(NumberFormat.problem("0\\"))
+    }
+
+    func testCustomCodeShowsAndSurvivesASave() throws {
+        let c = WorkbookController()
+        let a = CellAddress("A1")!
+        c.setInput("-1234.5", at: a)
+        c.formatCells(CellFormatEdit(numberFormat: .set("#,##0.0;[Red](#,##0.0)")))
+        XCTAssertEqual(NumberFormat.display(.number(-1234.5), c.style(at: a).numberFormat).text, "(1,234.5)")
+        let c2 = WorkbookController(); c2.load(try Xlsx.read(try Xlsx.write(c.book)))
+        XCTAssertEqual(c2.style(at: a).numberFormat, "#,##0.0;[Red](#,##0.0)")
+        // With UI_CHECK_DIR set, also leave a workbook for the Excel check.
+        if let dir = ProcessInfo.processInfo.environment["UI_CHECK_DIR"] {
+            let w = WorkbookController()
+            for (i, code) in ["#,##0.0;[Red](#,##0.0)", "0.00\" kg\"", "yyyy-mm-dd", "[h]:mm:ss", "# ?/?"].enumerated() {
+                let at = CellAddress("A\(i + 1)")!
+                w.setInput(i == 2 ? "45000" : i == 3 ? "1.5" : i == 4 ? "0.75" : "-1234.5", at: at)
+                w.select(at); w.formatCells(CellFormatEdit(numberFormat: .set(code)))
+            }
+            try Xlsx.write(w.book).write(to: URL(fileURLWithPath: dir + "/custom-formats-xfm2.xlsx"))
+        }
+    }
+}
+
+/// X-FM-4: indent, justify and text direction.
+final class SheetsFormatCellsAlignTests: XCTestCase {
+    func testAlignmentFieldsSurviveASave() throws {
+        let c = WorkbookController()
+        let a = CellAddress("A1")!, b = CellAddress("B1")!
+        c.setInput("x", at: a); c.setInput("y", at: b)
+        c.select(a)
+        c.formatCells(CellFormatEdit(hAlign: .set(.left), wrap: .set(true), justify: .set(true), indent: .set(2)))
+        c.select(b)
+        c.formatCells(CellFormatEdit(rotation: .set(90)))
+        let c2 = WorkbookController(); c2.load(try Xlsx.read(try Xlsx.write(c.book)))
+        XCTAssertTrue(c2.style(at: a).justify)
+        XCTAssertEqual(c2.style(at: a).indent, 2)
+        XCTAssertEqual(c2.style(at: b).rotation, 90)
+        XCTAssertFalse(c2.style(at: b).justify)
+        // With UI_CHECK_DIR set, also leave a workbook for the Excel check.
+        if let dir = ProcessInfo.processInfo.environment["UI_CHECK_DIR"] {
+            let w = WorkbookController()
+            let words = "one two three four five six seven eight nine ten eleven twelve"
+            for (i, e) in [CellFormatEdit(hAlign: .set(.left), wrap: .set(true), justify: .set(true)),
+                           CellFormatEdit(hAlign: .set(.left), indent: .set(3)),
+                           CellFormatEdit(hAlign: .set(.right), indent: .set(2)),
+                           CellFormatEdit(rotation: .set(90)),
+                           CellFormatEdit(rotation: .set(180))].enumerated() {
+                let at = CellAddress("A\(i + 1)")!
+                w.setInput(words, at: at); w.select(at); w.formatCells(e)
+            }
+            try Xlsx.write(w.book).write(to: URL(fileURLWithPath: dir + "/align-xfm4.xlsx"))
+        }
+    }
+
+    private func dialog(_ start: CellStyle, _ applied: @escaping (CellFormatEdit) -> Void) -> WidgetTester {
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light),
+            home: FormatCellsDialog(start: CellFormatEdit.Values(start), onApply: applied, onClose: {}), title: "Test"), size: Size(1280, 800))
+        addTeardownBlock { ui.replace(with: SizedBox(width: 1, height: 1)) }
+        XCTAssertTrue(ui.tap(text: "Alignment"))
+        return ui
+    }
+
+    func testIndentJustifyAndDirectionReachTheEdit() {
+        var got: CellFormatEdit?
+        let ui = dialog(.plain) { got = $0 }
+        XCTAssertTrue(ui.tap(id: "fc-indent-more")); XCTAssertTrue(ui.tap(id: "fc-indent-more"))
+        XCTAssertTrue(ui.tap(id: "fc-rot-Up"))
+        ui.press(.enter)
+        XCTAssertEqual(got?.indent, .set(2))
+        XCTAssertEqual(got?.hAlign, .set(.left))   // indent moves General text to the left
+        XCTAssertEqual(got?.rotation, .set(90))
+        XCTAssertEqual(got?.justify, CellFieldEdit<Bool>.keep)
+    }
+
+    func testJustifyAndIndentFloor() {
+        var got: CellFormatEdit?
+        let ui = dialog(.plain) { got = $0 }
+        XCTAssertTrue(ui.tap(id: "fc-indent-less"))   // cannot go below none
+        XCTAssertTrue(ui.tap(id: "fc-h-Justify"))
+        ui.press(.enter)
+        XCTAssertEqual(got?.justify, .set(true))
+        XCTAssertEqual(got?.indent, CellFieldEdit<Int>.keep)
+        XCTAssertEqual(got?.wrap, .set(true))
+    }
+
+    func testAnOddAngleFromAFileIsKept() {
+        var got: CellFormatEdit?
+        var st = CellStyle.plain; st.rotation = 45
+        let ui = dialog(st) { got = $0 }
+        XCTAssertTrue(ui.has(text: "Text turned 45 degrees in the file; kept unless you pick one above."))
+        ui.press(.enter)
+        XCTAssertEqual(got?.rotation, CellFieldEdit<Int>.keep)
     }
 }

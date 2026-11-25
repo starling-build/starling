@@ -1598,6 +1598,24 @@ public struct ParagraphGeometry {
     public var bottom: Double { top + height }
 }
 
+/// Pictures decoded off the main queue, waiting to be taken into a layout. Locked: the decoder puts, the main
+/// thread takes. Images nobody took are released with it.
+final class DecodeMailbox: @unchecked Sendable {
+    struct Result { let id: String; let image: Image?; let jpeg: Bool }
+    private let lock = NSLock()
+    private var results: [Result] = []
+    func put(id: String, image: Image?, jpeg: Bool) {
+        lock.lock(); results.append(Result(id: id, image: image, jpeg: jpeg)); lock.unlock()
+    }
+    func take() -> [Result] {
+        lock.lock(); defer { lock.unlock() }
+        let taken = results
+        results = []
+        return taken
+    }
+    deinit { for r in results { r.image?.dispose() } }
+}
+
 public final class RichLayout {
     private let _leakProbe = LeakProbe("RichLayout")
     public let theme: RichTextTheme
@@ -1666,6 +1684,7 @@ public final class RichLayout {
     var _decoded: [String: Image] = [:]
     var _tileSource: (ImageAttachment, Double, Double)? = nil
     var _decoding: Set<String> = []
+    let _decodeMailbox = DecodeMailbox()
     var _imageSize: [Size?] = []
     /// How far a picture paragraph's picture stands in from its text's
     /// left, as the paragraph aligns it (pixels).

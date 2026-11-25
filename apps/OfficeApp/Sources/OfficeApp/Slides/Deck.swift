@@ -137,6 +137,8 @@ struct KeptLine: Equatable {
 /// fill or outline behind the picture — survives a save.
 struct KeptPicture: Equatable {
     var imageId: String
+    /// The alt text (`descr`) as read: a changed one is patched into the kept element.
+    var alt: String? = nil
     var crop: EdgeInsets?
     var rotation: Double
 }
@@ -180,11 +182,14 @@ struct ReadShape: Equatable {
     var autofit: Bool
     var fontScale: Double
     var field: SlideField?
+    /// `cNvPr hidden`: shown or hidden (the Selection Pane's eye). The file's own XML takes the change.
+    var invisible: Bool
 
     init(_ s: ShapeState) {
         name = s.name; kind = s.kind; frame = s.frame; rotation = s.rotation; flipH = s.flipH; flipV = s.flipV
         fill = s.fill; fillScheme = s.fillScheme; outline = s.outline; outlineWidth = s.outlineWidth
         anchor = s.anchor; insets = s.insets; autofit = s.autofit; fontScale = s.fontScale; field = s.field
+        invisible = s.invisible
     }
 
     /// Still the shape that was read, text included.
@@ -201,7 +206,7 @@ struct ReadShape: Equatable {
     func unchangedExceptPlacementAndText(_ s: ShapeState) -> Bool {
         var a = self
         let b = ReadShape(s)
-        a.frame = b.frame; a.rotation = b.rotation; a.flipH = b.flipH; a.flipV = b.flipV
+        a.frame = b.frame; a.rotation = b.rotation; a.flipH = b.flipH; a.flipV = b.flipV; a.invisible = b.invisible
         return a == b
     }
 }
@@ -708,6 +713,8 @@ final class SlideShape {
     /// A connector's geometry as read (with `sourceXML`).
     var keptLine: KeptLine? = nil
     /// A picture as read (with `sourceXML`).
+    /// Alt text (`descr` on the shape's `cNvPr`): what a screen reader says for a picture.
+    var altText: String? = nil
     var keptPicture: KeptPicture? = nil
     /// Shrink the text to fit the shape (PowerPoint's `normAutofit`), and
     /// the scale it is drawn at now (its sizes stay as typed).

@@ -69,6 +69,9 @@ final class OfficeShellState: State<StatefulWidget> {
     private var _linkOpen = false
     private var _colorOpen = false
     private var _paragraphOpen = false
+    private var _findDialogOpen = false
+    private var _symbolOpen = false
+    private var _fontOpen = false
     private let _colorText = TextEditingController()
     private var _styleOpen: String? = nil
     private let _linkText = TextEditingController()
@@ -360,10 +363,20 @@ final class OfficeShellState: State<StatefulWidget> {
             self.setState { self._headerFooterOpen = true }
         }
         session.onLink = { [weak self] in self?._openLink() }
+        session.onSymbolDialog = { [weak self] in
+            guard let self else { return }
+            self.controller.breakUndoCoalescing()
+            self.setState { self._symbolOpen = true }
+        }
         session.onParagraphDialog = { [weak self] in
             guard let self else { return }
             self.controller.breakUndoCoalescing()
             self.setState { self._paragraphOpen = true }
+        }
+        session.onFontDialog = { [weak self] in
+            guard let self else { return }
+            self.controller.breakUndoCoalescing()
+            self.setState { self._fontOpen = true }
         }
         session.onMoreColors = { [weak self] in
             guard let self else { return }
@@ -379,6 +392,10 @@ final class OfficeShellState: State<StatefulWidget> {
         session.onPasteMode = { [weak self] mode in self?._paste(mode: mode) }
         session.onInsertPicture = { [weak self] in
             guard let self else { return }
+            if let ask = self.officeScene.pictureRequested {
+                ask { [weak self] path in if let path { self?._insertPicture(path) } }
+                return
+            }
             self.setState { self._backstage = .insertPicture }
         }
         session.onStatus = { [weak self] msg in self?._flash(msg) }
@@ -417,6 +434,23 @@ final class OfficeShellState: State<StatefulWidget> {
     /// Render to a PDF in the temporary directory and hand it to the host's
     /// print dialog.
     private func _print() {
+        _outOfThisBlock { [weak self] in self?._printNow() }
+    }
+
+    /// Runs `work` from the run loop, not from the block it was asked in. A PDF still waits for the pictures a
+    /// header's metafile or a drawing group decodes on the main queue (the body's, headers' and text boxes' reach
+    /// it through the layout's mailbox), by spinning the run loop, which cannot drain a serial queue it is itself
+    /// running a block of; asked from one (the driven tap of the simulator tests is one) that wait runs out its
+    /// eight seconds and the picture prints as a grey box. A plain call outside iOS, where nothing is known to.
+    private func _outOfThisBlock(_ work: @escaping () -> Void) {
+        #if os(iOS)
+        RunLoop.main.perform(work)
+        #else
+        work()
+        #endif
+    }
+
+    private func _printNow() {
         #if os(WASI)
         _flash("Printing is not available in the browser yet")
         #else
@@ -715,8 +749,10 @@ final class OfficeShellState: State<StatefulWidget> {
             ask(target.lastPathComponent, { [weak self] path, finished in
                 guard let self else { finished(false); return }
                 if ext == "pdf" {
-                    finished(PdfExport.write(self.controller.document, pageSetup: self.session.pageSetup,
-                                             theme: self.session.theme, to: path, title: self.session.title))
+                    self._outOfThisBlock {
+                        finished(PdfExport.write(self.controller.document, pageSetup: self.session.pageSetup,
+                                                 theme: self.session.theme, to: path, title: self.session.title))
+                    }
                 } else {
                     finished((try? OfficeFormats.write(self.controller.document, to: path,
                                                        pageSetup: self.session.pageSetup)) != nil)
@@ -803,6 +839,51 @@ final class OfficeShellState: State<StatefulWidget> {
         // so typing a different one replaces it.
         let seed = _findQuery.text
         _findQuery.value = TextEditingValue(text: seed, selection: TextSelection(baseOffset: 0, extentOffset: seed.utf16.count))
+    }
+
+    private func _openFindDialog() {
+        if controller.hasSelection, !controller.selectedText.contains(Character("\n")) {
+            _findQuery.text = controller.selectedText
+        }
+        setState { _findDialogOpen = true }
+    }
+
+    private func _closeFindDialog() {
+        setState { _findDialogOpen = false }
+        _editorFocus.requestFocus()
+    }
+
+    /// What the shared Find and Replace dialog does in Writer (U-FR-1).
+    private var _findHooks: FindHooks {
+        func select(_ s: RichSelection?) -> String {
+            guard let s else { return "No matches" }
+            controller.selection = s
+            return ""
+        }
+        var hooks = FindHooks(
+            findNext: { [unowned self] p, _, back in select(controller.find(p, backwards: back)) },
+            replace: { [unowned self] p, template, _ in
+                // Replace the match the caret is on, then move to the next one.
+                let replaced = controller.replaceSelection(p, with: template)
+                let next = select(controller.find(p))
+                return replaced ? (next.isEmpty ? "Replaced" : "Replaced. No more matches") : next
+            },
+            replaceAll: { [unowned self] p, template, _ in
+                let n = controller.replaceAll(p, with: template)
+                return n == 0 ? "No matches" : "Replaced \(n)"
+            })
+        hooks.goToLabel = "Go to paragraph"
+        hooks.goToHint = "A paragraph number, from 1"
+        hooks.goTo = { [unowned self] text in
+            guard let n = Int(text.trimmingWhitespace()), n >= 1 else { return "Type a paragraph number" }
+            guard n <= controller.document.paragraphs.count else {
+                return "The document has \(controller.document.paragraphs.count) paragraphs"
+            }
+            controller.selection = RichSelection(anchor: RichPosition(paragraph: n - 1, offset: 0),
+                                                 focus: RichPosition(paragraph: n - 1, offset: 0))
+            return nil
+        }
+        return hooks
     }
 
     private func _findNext(backwards: Bool) {
@@ -978,7 +1059,7 @@ final class OfficeShellState: State<StatefulWidget> {
             if session.paintedStyle != nil { _cancelPainter(); return true }
             if _styleOpen != nil { setState { _styleOpen = nil }; return true }
             if _linkOpen { setState { _linkOpen = false }; return true }
-            if _paragraphOpen { return false }   // the dialog's own Esc closes it
+            if _paragraphOpen || _fontOpen { return false }   // the dialog's own Esc closes it
             if _colorOpen { setState { _colorOpen = false }; return true }
             if _headerFooterOpen { setState { _headerFooterOpen = false }; return true }
             if _findOpen { setState { _findOpen = false }; _editorFocus.requestFocus(); return true }
@@ -1014,10 +1095,11 @@ final class OfficeShellState: State<StatefulWidget> {
         case "o": session.onOpen?()
         case "n": session.replacing { [weak self] in self?._new() }
         case "f": _openFind(replace: false)
-        case "h": _openFind(replace: true)
+        case "h": if mods.contains(.shift) { _openFindDialog() } else { _openFind(replace: true) }
         case "g": _findNext(backwards: mods.contains(.shift))
         case "p": setState { _backstage = .print }
         case "k": _openLink()
+        case "d": session.onFontDialog?()   // ⌘D: the Font dialog, as in Word
         case "c" where mods.contains(.shift): session.paintedStyle = c.copyFormat(); session.paintSticky = false; setState { session.summary = session.summarize() }
         case "v" where mods.contains(.shift): c.pasteFormat(session.paintedStyle ?? c.copyFormat()); setState { session.summary = session.summarize() }
         // Word's alignment keys; Export lives in Backstage.
@@ -1061,6 +1143,7 @@ final class OfficeShellState: State<StatefulWidget> {
                                   onNext: { [weak self] back in self?._findNext(backwards: back) },
                                   onReplace: { [weak self] in self?._replaceOne() },
                                   onReplaceAll: { [weak self] in self?._replaceAll() },
+                                  onAdvanced: { [weak self] in self?._openFindDialog() },
                                   onClose: { [weak self] in
                                       // (A field being torn down blurs too: once is enough.)
                                       guard let self, self._findOpen else { return }
@@ -1105,6 +1188,8 @@ final class OfficeShellState: State<StatefulWidget> {
         }
         if _headerFooterOpen {
             column.append(HeaderFooterBar(session: session, header: _headerText, footer: _footerText,
+                                          headerLocked: controller.document.hasRichHeaderFooter(.header),
+                                          footerLocked: controller.document.hasRichHeaderFooter(.footer),
                                           onApply: { [weak self] in
                                               guard let self else { return }
                                               self.controller.setHeaderFooter(header: self._headerText.text,
@@ -1133,6 +1218,43 @@ final class OfficeShellState: State<StatefulWidget> {
 
         let window = ColoredBox(color: fluent.scaffoldBackgroundColor,
                                 child: Column(crossAxisAlignment: .stretch, children: column))
+        if _findDialogOpen {
+            return Stack(children: [
+                window,
+                Positioned(left: 0, top: 0, right: 0, bottom: 0, child: FindReplaceDialog(
+                    initialQuery: _findQuery.text, hooks: _findHooks, onClose: { [weak self] in self?._closeFindDialog() })),
+            ])
+        }
+        if _symbolOpen {
+            return Stack(children: [
+                window,
+                Positioned(left: 0, top: 0, right: 0, bottom: 0, child: SymbolPicker(
+                    hooks: SymbolHooks(
+                        fonts: ["(current font)"] + OfficeFonts.families(including: controller.currentCharStyle.fontFamily ?? OfficeFonts.defaultFamily),
+                        insert: { [weak self] text, font in self?.controller.insertSymbol(text, font: font) }),
+                    onClose: { [weak self] in
+                        self?.setState { self?._symbolOpen = false }
+                        self?._editorFocus.requestFocus()
+                    })),
+            ])
+        }
+        if _fontOpen {
+            return Stack(children: [
+                window,
+                Positioned(left: 0, top: 0, right: 0, bottom: 0, child: FontDialog(
+                    initial: RichDocumentController.CharFormat(controller.currentCharStyle),
+                    onOK: { [weak self] f in
+                        guard let self else { return }
+                        self.controller.setCharFormat(f)
+                        self.setState { self._fontOpen = false }
+                        self._editorFocus.requestFocus()
+                    },
+                    onCancel: { [weak self] in
+                        self?.setState { self?._fontOpen = false }
+                        self?._editorFocus.requestFocus()
+                    })),
+            ])
+        }
         if _paragraphOpen {
             return Stack(children: [
                 window,

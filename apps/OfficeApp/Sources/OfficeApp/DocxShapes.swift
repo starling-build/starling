@@ -318,6 +318,7 @@ extension DocxFormat {
         var text = ""
         var clearsFirstLine = false
         var bookmarkMarkers: [RichBookmarkMarker] = []
+        var controlMarkers: [RichControlMarker] = []
         var runs: [Run] = []
         var positionalTabs: [Int: TabStop.Alignment] = [:]
         var inlineImages: [String: ImageAttachment] = [:]
@@ -377,6 +378,8 @@ extension DocxFormat {
             // first piece of a w:p split at a page break carries it.
             if built.isEmpty, let hex = p["w14:paraId"], let id = UInt32(hex, radix: 16), id != 0 { para.id = id }
             para.bookmarkMarkers = notes.pendingBookmarkMarkers + bookmarkMarkers
+            para.controlMarkers = controlMarkers
+            controlMarkers = []
             notes.pendingBookmarkMarkers = []
             bookmarkMarkers = []
             built.append(_Built(paragraph: para, pageBreakAfter: pageBreakAfter))
@@ -1204,12 +1207,16 @@ extension DocxFormat {
                 att.data = data
                 att.name = target.lastPathComponent
                 att.crop = Self._pictureCrop(drawing)
+                att.sourceCrop = att.crop
+                att.altText = drawing.descendant("wp:docPr")?["descr"] ?? ""
+                att.sourceAltText = att.altText
                 if Metafile.isMetafile(data) { WriterMetafiles.register(data, for: att.id) }
                 // (Turned, a photo taken sideways: a quarter turn makes
                 // its box as tall as it was wide — zh-37b6536f.)
                 if let rot = drawing.descendant("a:graphic")?.descendant("a:xfrm")?["rot"].flatMap({ Double($0) }) {
                     att.rotation = rot / 60000
                 }
+                att.sourceRotation = att.rotation
                 addInline(att)
                 return
             }
@@ -1221,15 +1228,20 @@ extension DocxFormat {
             // (An inline picture turned a quarter occupies its turned box: sa2 d1fab599's 630 by 379 pt
             // map, turned 270 degrees, stands 379 wide and 630 tall in Word's print.)
             var inlineTurn = 0.0
-            if Self.wordOnWindows, let rot = drawing.descendant("a:graphic")?.descendant("a:xfrm")?["rot"].flatMap({ Double($0) }) {
+            if let rot = drawing.descendant("a:graphic")?.descendant("a:xfrm")?["rot"].flatMap({ Double($0) }) {
                 let deg = rot / 60000
                 let r = (deg.truncatingRemainder(dividingBy: 180) + 180).truncatingRemainder(dividingBy: 180)
-                if abs(r - 90) < 1 { inlineTurn = deg; swap(&w, &h) }
+                if abs(r - 90) < 1 { swap(&w, &h) }
+                inlineTurn = deg
             }
             if RichTextTheme.wordWindowsPages, h > 1 { h = (h * 20 + 1e-6).rounded(.down) / 20 }
             var att = ImageAttachment(data: data, width: w, height: h, name: target.lastPathComponent)
             if inlineTurn != 0 { att.rotation = inlineTurn }
+            att.sourceRotation = att.rotation
             att.crop = Self._pictureCrop(drawing)
+            att.sourceCrop = att.crop
+            att.altText = drawing.descendant("wp:docPr")?["descr"] ?? ""
+            att.sourceAltText = att.altText
             att.inset = Self._canvasInset(drawing)
             if let effect = drawing.descendant("wp:effectExtent") {
                 att.effectLeft = max(0, (Double(effect["l"] ?? "") ?? 0) / 12700)
@@ -1958,7 +1970,17 @@ extension DocxFormat {
                         RuleTrace.hit("empty-simple-field-leaves-a-default-face-strut")
                         addText("\u{2060}\u{2060}\u{2060}", cellChar)
                     }
-                    walkInline(child, link: link, revision: revision)
+                    // A content control over runs keeps its properties whole (W-RV-3), so a save writes it back.
+                    if child.name == "w:sdt", let pr = child.first("w:sdtPr"), child.first("w:sdtContent") != nil,
+                       let kept = Self._keptFragment(pr, notes) {
+                        notes.controlCount += 1
+                        let id = notes.controlCount
+                        controlMarkers.append(RichControlMarker(id: id, properties: kept.xml, offset: text.utf16.count))
+                        walkInline(child, link: link, revision: revision)
+                        controlMarkers.append(RichControlMarker(id: id, offset: text.utf16.count))
+                    } else {
+                        walkInline(child, link: link, revision: revision)
+                    }
                 case "m:oMathPara", "m:oMath":
                     // (A comment whose reference stands inside the equation, its
                     // range empty, anchors at the equation: tdf170236's

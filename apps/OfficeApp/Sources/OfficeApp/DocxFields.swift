@@ -843,6 +843,7 @@ extension DocxFormat {
             }
             Self._bandPage(&f)
             if let b = Double(anchor.first("wp:effectExtent")?["b"] ?? "") { f.effectBottom = b / 12700 }
+            if let t = Double(anchor.first("wp:effectExtent")?["t"] ?? "") { f.effectTop = t / 12700 }
             if let l = Double(anchor.first("wp:effectExtent")?["l"] ?? "") { f.effectLeft = l / 12700 }
             if let r = Double(anchor.first("wp:effectExtent")?["r"] ?? "") { f.effectRight = r / 12700 }
             // (A height that is a share of the page's or margins': 60316's
@@ -1619,6 +1620,7 @@ extension DocxFormat {
         /// to the next one.
         var pendingBookmarks: [String] = []
         var pendingBookmarkMarkers: [RichBookmarkMarker] = []
+        var controlCount = 0
         /// The names (lower-cased) of the bookmarks the body defines, and the
         /// page references already answered "Error! Bookmark not defined."
         /// (one answer per field, however many runs its old result was in).
@@ -1921,9 +1923,15 @@ extension DocxFormat {
         // by w:divId (drawing.docx's last banner sits 4.5pt lower for one).
         // Kept only for a document that names one: the part says nothing
         // else a page shows.
-        if let web = part("word/webSettings.xml"), _wellFormed(web),
-           part("word/document.xml").map({ String(decoding: $0, as: UTF8.self).containsSubstring("<w:divId") }) == true {
+        if let web = part("word/webSettings.xml"), _wellFormed(web) {
             kept["word/webSettings.xml"] = web
+        }
+        // The package's own properties and the custom XML items (data bound
+        // to content controls, bibliography sources), with their rels and
+        // item properties: nothing here is shown, and a save must not drop it.
+        for e in entries where (e.name.hasPrefix("docProps/") || e.name.hasPrefix("customXml/")) && !e.name.hasSuffix("/") {
+            let text = e.name.hasSuffix(".xml") || e.name.hasSuffix(".rels")
+            if !text || _wellFormed(e.data) { kept[e.name] = e.data }
         }
         // (And the font table: what Word substitutes for a face the machine
         // lacks is chosen by the family, pitch and alternate name stated

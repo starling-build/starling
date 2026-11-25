@@ -417,6 +417,8 @@ public struct ImageFloat: Hashable, Codable, Sendable {
     /// `b`, points): its outline's and shadow's share of the room Word
     /// gives it.
     public var effectBottom = 0.0
+    /// How far its effects reach above its box (`wp:effectExtent`'s `t`, points).
+    public var effectTop = 0.0
     /// Set for a VML straight line (`v:line`) given by its end points: the only float whose own `y` and height stand its line down.
     public var fromVMLLine = false
     /// What `wp:effectExtent` adds on the left and right (points): Word centres a box aligned "center" with these counted, so its box stands
@@ -563,6 +565,9 @@ public struct RichHeaderFooter: Hashable, Codable, Sendable {
     public var type: String
     public var paragraphs: [RichParagraph]
     public var section: Int?
+    /// Set when the editor wrote these paragraphs (W-HF-1): the save writes a part from them
+    /// rather than keeping the file's own.
+    public var edited: Bool? = nil
     public init(kind: KeptHeaderFooter.Kind, type: String, paragraphs: [RichParagraph], section: Int? = nil) {
         self.kind = kind; self.type = type; self.paragraphs = paragraphs; self.section = section
     }
@@ -1187,6 +1192,14 @@ public struct ImageAttachment: Hashable, Codable, Sendable {
     /// when regenerated, and the row of them wrapped elsewhere.
     public var sourceWidth: Double? = nil
     public var sourceHeight: Double? = nil
+    /// The picture's alternative text (`wp:docPr descr`): what a screen reader says for it. `sourceAltText` is what
+    /// the file held, so a save patches the kept markup only when the text was changed.
+    /// What `crop` was when the file was read, so a save rewrites the kept markup's `a:srcRect` only after a crop.
+    public var sourceCrop: PictureCrop? = nil
+    /// What `rotation` was when the file was read (see `sourceCrop`).
+    public var sourceRotation: Double = 0
+    public var altText: String = ""
+    public var sourceAltText: String = ""
     /// The properties of the run the picture sat in (`w:rPr`), as the
     /// file wrote them: a character border round a thumbnail, the size
     /// that sets the line it stands on. Written back with `sourceXML`.
@@ -2063,6 +2076,22 @@ public struct RichBookmarkMarker: Hashable, Codable, Sendable {
     }
 }
 
+/// One end of a content control (`w:sdt`) that wraps runs inside one paragraph, in paragraph-local UTF-16 units.
+/// The start carries the control's properties as the file had them (`w:sdtPr` kept whole, namespaces declared),
+/// so a save writes back every setting, known to us or not. A control whose other end is gone (an edit joined or
+/// split it) is written as its plain content.
+public struct RichControlMarker: Hashable, Codable, Sendable {
+    public var id: Int
+    /// The start's `w:sdtPr` element as XML; nil for the matching end.
+    public var properties: String?
+    public var offset: Int
+    public var isStart: Bool { properties != nil }
+
+    public init(id: Int, properties: String? = nil, offset: Int) {
+        self.id = id; self.properties = properties; self.offset = offset
+    }
+}
+
 /// One paragraph: its text, the runs that cover it exactly, and its style.
 ///
 /// Invariant (`isValid`): the run lengths sum to `text.utf16.count`, no run
@@ -2095,6 +2124,10 @@ public struct RichParagraph: Hashable, Codable, Sendable {
     public var id: UInt32 = 0
     /// Ordered start/end markers at UTF-16 positions, including empty ranges.
     public var bookmarkMarkers: [RichBookmarkMarker] = []
+    /// Content controls over runs of this paragraph (see `RichControlMarker`).
+    public var controlMarkers: [RichControlMarker] = []
+    /// Whether an edit here moves markers (undo then restores the whole paragraph).
+    public var hasMarkers: Bool { !bookmarkMarkers.isEmpty || !controlMarkers.isEmpty }
     /// Set on a paragraph that is a copy of an endnote (-1: the separator above them), flowed after the body's last
     /// paragraph where the notes are too long to stand under it. Layout only: the file's endnotes part is kept as it
     /// was and a save leaves these out.
@@ -2228,6 +2261,9 @@ public struct RichParagraph: Hashable, Codable, Sendable {
         for i in bookmarkMarkers.indices where bookmarkMarkers[i].offset >= offset {
             bookmarkMarkers[i].offset += insertUnits
         }
+        for i in controlMarkers.indices where controlMarkers[i].offset > offset || controlMarkers[i].offset == offset && controlMarkers[i].isStart {
+            controlMarkers[i].offset += insertUnits
+        }
         let styled = newRuns ?? [Run(length: insertUnits, style: style(at: offset))]
         // Split the run at `offset` and splice the new runs between.
         var out: [Run] = []
@@ -2266,6 +2302,11 @@ public struct RichParagraph: Hashable, Codable, Sendable {
             bookmarkMarkers[i].offset = bookmarkMarkers[i].offset > hi
                 ? bookmarkMarkers[i].offset - (hi - lo)
                 : min(bookmarkMarkers[i].offset, lo)
+        }
+        for i in controlMarkers.indices {
+            controlMarkers[i].offset = controlMarkers[i].offset > hi
+                ? controlMarkers[i].offset - (hi - lo)
+                : min(controlMarkers[i].offset, lo)
         }
         let removedRuns = runs(in: lo ..< hi)
         var out: [Run] = []
@@ -2338,6 +2379,10 @@ public struct RichParagraph: Hashable, Codable, Sendable {
             RichBookmarkMarker(id: $0.id, name: $0.name, offset: $0.offset - offset)
         }
         bookmarkMarkers.removeAll { $0.offset >= offset }
+        tail.controlMarkers = controlMarkers.filter { $0.offset >= offset }.map {
+            RichControlMarker(id: $0.id, properties: $0.properties, offset: $0.offset - offset)
+        }
+        controlMarkers.removeAll { $0.offset >= offset }
         let movedNames = Set(tail.bookmarkMarkers.compactMap(\.name))
         tail.bookmarks = bookmarks.filter { movedNames.contains($0) }
         bookmarks.removeAll { movedNames.contains($0) }
@@ -2356,6 +2401,9 @@ public struct RichParagraph: Hashable, Codable, Sendable {
     public mutating func append(_ other: RichParagraph) {
         bookmarkMarkers += other.bookmarkMarkers.map {
             RichBookmarkMarker(id: $0.id, name: $0.name, offset: length + $0.offset)
+        }
+        controlMarkers += other.controlMarkers.map {
+            RichControlMarker(id: $0.id, properties: $0.properties, offset: length + $0.offset)
         }
         bookmarks += other.bookmarks.filter { !bookmarks.contains($0) }
         if other.text.isEmpty { return }
@@ -2609,6 +2657,20 @@ public struct RichDocument: Hashable, Codable, Sendable {
     public var keptTableStyles: [String: String] = [:]
     public var tableStyleIds: [String: String] = [:]
     public var tableLooks: [String: String] = [:]
+
+    /// True when the file's default header (or footer) holds more than the
+    /// plain line the strip edits: a picture, a table, a text box, a content
+    /// control or its own formatting. Saving the strip's text would replace
+    /// all of that, so the strip leaves such a part alone.
+    public func hasRichHeaderFooter(_ kind: KeptHeaderFooter.Kind) -> Bool {
+        guard let k = keptHeaderFooters.first(where: { $0.kind == kind && $0.type == "default" }),
+              let data = keptParts[k.part] else { return false }
+        let xml = String(decoding: data, as: UTF8.self)
+        for marker in ["<w:drawing", "<w:pict", "<w:tbl>", "<w:tbl ", "<w:object", "<w:sdt", "<w:txbxContent", "<w:rPr>", "<w:jc ", "<w:pStyle ", "<w:tabs>", "<w:ind "] {
+            if xml.containsSubstring(marker) { return true }
+        }
+        return false
+    }
     /// Those styles' ids by lower-cased name ("hyperlink", "footnote
     /// reference"): where the file has its own, the writer names that one
     /// instead of adding a second style of the same name.
@@ -2997,6 +3059,12 @@ public struct RichDocument: Hashable, Codable, Sendable {
     /// Content types of `keptParts`, by package path, as the file declared
     /// them (a kept part the editor knows nothing about still needs one).
     public var keptPartTypes: [String: String] = [:]
+    /// The package's own relationships the editor does not write (core,
+    /// extended and custom properties, thumbnail), and the document's to
+    /// `customXml` items: kept so a save carries the file's properties and
+    /// bound data. Their parts are in `keptParts`.
+    public var keptRootRels: [KeptRel] = []
+    public var keptCustomXmlRels: [KeptRel] = []
 
     public static let pageField = "{PAGE}"
     public static let pageCountField = "{NUMPAGES}"

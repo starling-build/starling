@@ -121,7 +121,9 @@ extension DocxFormat {
     if let em = s.emphasis { rPr += "<w:em w:val=\"\(em)\"/>" }
     if let color = s.color { rPr += "<w:color w:val=\"\(_hex(color))\"/>" }
     if let ls = s.letterSpacing, ls != 0 { rPr += "<w:spacing w:val=\"\(Int((ls * 20).rounded()))\"/>" }
+    if let w = s.horizontalScale, w != 1 { rPr += "<w:w w:val=\"\(Int((w * 100).rounded()))\"/>" }
     if let k = s.kerningFrom { rPr += "<w:kern w:val=\"\(Int((k * 2).rounded()))\"/>" }
+    if let r = s.raised, r != 0 { rPr += "<w:position w:val=\"\(Int((r * 2).rounded()))\"/>" }
     if let size = s.fontSize { rPr += "<w:sz w:val=\"\(Int(size * 2))\"/><w:szCs w:val=\"\(Int(size * 2))\"/>" }
     if let hl = s.highlight {
         if let name = highlightNames.first(where: { $0.1 == hl })?.0 {
@@ -136,7 +138,15 @@ extension DocxFormat {
         rPr += "<w:rPrChange w:id=\"\(id)\" w:author=\"\(_esc(fc.author.isEmpty ? "Author" : fc.author))\"\(fc.date.isEmpty ? "" : " w:date=\"\(_esc(fc.date))\"")>\(fc.oldRPrXML)</w:rPrChange>"
     }
     if s.rightToLeft { rPr += "<w:rtl/>" }
-    if let kept = s.keptXML { rPr += kept }
+    if var kept = s.keptXML {
+        // The scale and raise are fields now (the Font dialog sets them), so the
+        // copy kept from the file must not say them a second time or out of date.
+        if kept.containsSubstring("<w:w ") || kept.containsSubstring("<w:position ") {
+            let parts = _keptRunProperties(kept).filter { $0.key != "w:w" && $0.key != "w:position" }
+            kept = parts.keys.sorted().map { parts[$0]! }.joined()
+        }
+        rPr += kept
+    }
         return rPr
     }
 
@@ -363,11 +373,73 @@ extension DocxFormat {
         return (PptxXML.serialize(node), found)
     }
 
+    /// `xml` with its picture's `a:xfrm` turned `degrees` (clockwise; `rot` is removed for none), the rest as it was.
+    static func _drawingWithRotation(_ xml: String, _ degrees: Double) -> String {
+        guard let spPr = xml.rangeOfSubstring("<pic:spPr", in: xml.startIndex ..< xml.endIndex),
+              let open = xml.rangeOfSubstring("<a:xfrm", in: spPr.upperBound ..< xml.endIndex),
+              let close = xml.rangeOfSubstring(">", in: open.upperBound ..< xml.endIndex) else { return xml }
+        var tag = String(xml[open.lowerBound ..< close.lowerBound])
+        let selfClosing = tag.hasSuffix("/")
+        if selfClosing { tag.removeLast() }
+        if let r = tag.rangeOfSubstring(" rot=\"", in: tag.startIndex ..< tag.endIndex),
+           let e = tag.rangeOfSubstring("\"", in: r.upperBound ..< tag.endIndex) {
+            tag.removeSubrange(r.lowerBound ..< e.upperBound)
+        }
+        let turned = Int(((degrees.truncatingRemainder(dividingBy: 360) + 360).truncatingRemainder(dividingBy: 360) * 60000).rounded())
+        if turned != 0 { tag += " rot=\"\(turned)\"" }
+        if selfClosing { tag += "/" }
+        return String(xml[xml.startIndex ..< open.lowerBound]) + tag + String(xml[close.lowerBound...])
+    }
+
+    /// The `a:srcRect` element for `crop` (shares of the picture cut off each side, in 1/100000), or "" for none.
+    static func _srcRectXML(_ crop: PictureCrop?) -> String {
+        guard let c = crop, c.left > 0 || c.top > 0 || c.right > 0 || c.bottom > 0 else { return "" }
+        func part(_ name: String, _ v: Double) -> String { v > 0 ? " \(name)=\"\(Int((v * 100000).rounded()))\"" : "" }
+        return "<a:srcRect" + part("l", c.left) + part("t", c.top) + part("r", c.right) + part("b", c.bottom) + "/>"
+    }
+
+    /// `xml` with its picture's `a:srcRect` set to `crop` (removed for none), the rest as it was; unchanged when it holds no `pic:blipFill`.
+    static func _drawingWithCrop(_ xml: String, _ crop: PictureCrop?) -> String {
+        guard let fill = xml.rangeOfSubstring("</pic:blipFill>", in: xml.startIndex ..< xml.endIndex),
+              let fillOpen = xml.rangeOfSubstring("<pic:blipFill", in: xml.startIndex ..< fill.lowerBound) else { return xml }
+        var inner = String(xml[fillOpen.lowerBound ..< fill.lowerBound])
+        if let r = inner.rangeOfSubstring("<a:srcRect", in: inner.startIndex ..< inner.endIndex),
+           let e = inner.rangeOfSubstring(">", in: r.upperBound ..< inner.endIndex) {
+            inner.removeSubrange(r.lowerBound ..< e.upperBound)
+        }
+        let rect = _srcRectXML(crop)
+        if !rect.isEmpty {
+            if let st = inner.rangeOfSubstring("<a:stretch", in: inner.startIndex ..< inner.endIndex) ?? inner.rangeOfSubstring("<a:tile", in: inner.startIndex ..< inner.endIndex) {
+                inner.insert(contentsOf: rect, at: st.lowerBound)
+            } else {
+                inner += rect
+            }
+        }
+        return String(xml[xml.startIndex ..< fillOpen.lowerBound]) + inner + String(xml[fill.lowerBound...])
+    }
+
+    /// `xml` with the `descr` (alternative text) of its first `wp:docPr` set to `text`, the rest as it was.
+    static func _drawingWithAltText(_ xml: String, _ text: String) -> String {
+        guard let open = xml.rangeOfSubstring("<wp:docPr", in: xml.startIndex ..< xml.endIndex),
+              let close = xml.rangeOfSubstring(">", in: open.upperBound ..< xml.endIndex) else { return xml }
+        var tag = String(xml[open.lowerBound ..< close.lowerBound])
+        let selfClosing = tag.hasSuffix("/")
+        if selfClosing { tag.removeLast() }
+        // Drop an existing descr="…" attribute.
+        if let d = tag.rangeOfSubstring(" descr=\"", in: tag.startIndex ..< tag.endIndex),
+           let e = tag.rangeOfSubstring("\"", in: d.upperBound ..< tag.endIndex) {
+            tag.removeSubrange(d.lowerBound ..< e.upperBound)
+        }
+        if !text.isEmpty { tag += " descr=\"\(_esc(text))\"" }
+        if selfClosing { tag += "/" }
+        return String(xml[xml.startIndex ..< open.lowerBound]) + tag + String(xml[close.lowerBound...])
+    }
+
     /// A kept drawing's markup with its size changed in place: the first `wp:extent` and the first `a:ext`
     /// after it (the drawing's own frame, not a group child's) take the new size, so a resize keeps the
     /// float's position, wrap, crop, turn, alt text and effects. Returns nil where the markup names no
     /// size to patch; `unchanged` is true when the markup already has this size (then it is written as read).
-    static func _resizedDrawingXML(_ xml: String, width: Double, height: Double, sourceWidth: Double?, sourceHeight: Double?) -> (xml: String, unchanged: Bool)? {
+    static func _resizedDrawingXML(_ xml: String, width: Double, height: Double, sourceWidth: Double?, sourceHeight: Double?, turned: Bool? = nil) -> (xml: String, unchanged: Bool)? {
         func pair(_ tag: String, from start: String.Index) -> (range: Range<String.Index>, cx: Double, cy: Double)? {
             guard let open = xml.rangeOfSubstring(tag, in: start ..< xml.endIndex),
                   let close = xml.rangeOfSubstring("/>", in: open.upperBound ..< xml.endIndex) else { return nil }
@@ -384,7 +456,8 @@ extension DocxFormat {
         guard let ext = pair("<wp:extent", from: xml.startIndex) else { return nil }
         let oldW = ext.cx / 12700, oldH = ext.cy / 12700
         // (A picture turned a quarter was read with its width and height swapped.)
-        let swapped = sourceWidth.map { abs($0 - oldH) < 0.1 && abs($0 - oldW) >= 0.1 } ?? false
+        // (`turned`, when the editor turned it, says it outright.)
+        let swapped = turned ?? sourceWidth.map { abs($0 - oldH) < 0.1 && abs($0 - oldW) >= 0.1 } ?? false
         let newW = swapped ? height : width, newH = swapped ? width : height
         if abs(newW - oldW) < 0.1, abs(newH - oldH) < 0.1 { return (xml, true) }
         let cx = Int((newW * 12700).rounded()), cy = Int((newH * 12700).rounded())
@@ -1067,7 +1140,12 @@ extension DocxFormat {
             var p = doc.paragraphs[index]
             // Boundaries can fall inside a normalized run. Split only the
             // serialization view, keeping the document's run invariants.
-            let cuts = Set(p.bookmarkMarkers.map { max(0, min($0.offset, p.length)) })
+            // (A content control is written only when both its ends are in this paragraph, start first.)
+            var controlStarts = Set<Int>()
+            var pairedControls = Set<Int>()
+            for m in p.controlMarkers { if m.isStart { controlStarts.insert(m.id) } else if controlStarts.contains(m.id) { pairedControls.insert(m.id) } }
+            let controlsHere = p.controlMarkers.filter { pairedControls.contains($0.id) }
+            let cuts = Set(p.bookmarkMarkers.map { max(0, min($0.offset, p.length)) } + controlsHere.map { max(0, min($0.offset, p.length)) })
             if !cuts.isEmpty {
                 var split: [Run] = [], offset = 0
                 for run in p.runs {
@@ -1087,6 +1165,11 @@ extension DocxFormat {
                         return "<w:bookmarkStart w:id=\"\(_esc(marker.id))\" w:name=\"\(_esc(name))\"/>"
                     }
                     return "<w:bookmarkEnd w:id=\"\(_esc(marker.id))\"/>"
+                }.joined()
+            }
+            func controlXML(at offset: Int) -> String {
+                controlsHere.filter { max(0, min($0.offset, p.length)) == offset }.map { marker in
+                    marker.properties.map { "<w:sdt>\($0)<w:sdtContent>" } ?? "</w:sdtContent></w:sdt>"
                 }.joined()
             }
             var body = ""
@@ -1203,13 +1286,28 @@ extension DocxFormat {
             }
             /// A picture or kept object as a run's content.
             func drawingXML(_ image: ImageAttachment) -> String {
+                var image = image
+                if image.altText != image.sourceAltText, let xml = image.sourceXML, image.name != "m:oMath", image.name != "m:oMathPara" {
+                    image.sourceXML = Self._drawingWithAltText(xml, image.altText)
+                    image.sourceAltText = image.altText
+                }
+                var turnedNow: Bool? = nil
+                if image.rotation != image.sourceRotation, let xml = image.sourceXML, image.name != "m:oMath", image.name != "m:oMathPara" {
+                    image.sourceXML = Self._drawingWithRotation(xml, image.rotation)
+                    image.sourceRotation = image.rotation
+                    turnedNow = RichLayout._quarterTurned(image)
+                }
+                if image.crop != image.sourceCrop, let xml = image.sourceXML, image.name != "m:oMath", image.name != "m:oMathPara" {
+                    image.sourceXML = Self._drawingWithCrop(xml, image.crop)
+                    image.sourceCrop = image.crop
+                }
                 let unresized = image.sourceWidth == nil || (image.sourceWidth == image.width && image.sourceHeight == image.height)
                 // (An equation stands in the paragraph itself, not in a run.)
                 if let xml = image.sourceXML, image.name == "m:oMath" || image.name == "m:oMathPara" {
                     return keptFragmentXML(xml, image.sourceRels)
                 }
                 if let xml = image.sourceXML, !unresized || image.sourceWidth == nil,
-                   let patched = Self._resizedDrawingXML(xml, width: image.width, height: image.height, sourceWidth: image.sourceWidth, sourceHeight: image.sourceHeight) {
+                   let patched = Self._resizedDrawingXML(xml, width: image.width, height: image.height, sourceWidth: image.sourceWidth, sourceHeight: image.sourceHeight, turned: turnedNow) {
                     // (Resized: the size is patched in the kept markup, which keeps everything else the file said.)
                     return "<w:r>\(image.sourceRunPropertiesXML ?? "")\(keptFragmentXML(patched.xml, image.sourceRels))</w:r>"
                 }
@@ -1233,8 +1331,14 @@ extension DocxFormat {
                 media.append(ZipEntry(name: "word/media/\(name)", data: image.data))
                 let rid = "rIdImage\(n)"
                 mediaRels.append((rid, "media/\(name)"))
-                let cx = Int(image.width * 12700), cy = Int(image.height * 12700)
-                return "<w:r><w:drawing><wp:inline distT=\"0\" distB=\"0\" distL=\"0\" distR=\"0\"><wp:extent cx=\"\(cx)\" cy=\"\(cy)\"/><wp:docPr id=\"\(n)\" name=\"Picture \(n)\"/><a:graphic xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\"><a:graphicData uri=\"http://schemas.openxmlformats.org/drawingml/2006/picture\"><pic:pic xmlns:pic=\"http://schemas.openxmlformats.org/drawingml/2006/picture\"><pic:nvPicPr><pic:cNvPr id=\"0\" name=\"\(name)\"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed=\"\(rid)\"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"\(cx)\" cy=\"\(cy)\"/></a:xfrm><a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>"
+                // (A picture turned a quarter stands in its turned box; the file holds the unturned frame.)
+                let quarter = RichLayout._quarterTurned(image)
+                let cx = Int((quarter ? image.height : image.width) * 12700), cy = Int((quarter ? image.width : image.height) * 12700)
+                let turn: String = {
+                    let d = (image.rotation.truncatingRemainder(dividingBy: 360) + 360).truncatingRemainder(dividingBy: 360)
+                    return d == 0 ? "" : " rot=\"\(Int((d * 60000).rounded()))\""
+                }()
+                return "<w:r><w:drawing><wp:inline distT=\"0\" distB=\"0\" distL=\"0\" distR=\"0\"><wp:extent cx=\"\(cx)\" cy=\"\(cy)\"/><wp:docPr id=\"\(n)\" name=\"Picture \(n)\"\(image.altText.isEmpty ? "" : " descr=\"\(Self._esc(image.altText))\"")/><a:graphic xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\"><a:graphicData uri=\"http://schemas.openxmlformats.org/drawingml/2006/picture\"><pic:pic xmlns:pic=\"http://schemas.openxmlformats.org/drawingml/2006/picture\"><pic:nvPicPr><pic:cNvPr id=\"0\" name=\"\(name)\"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed=\"\(rid)\"/>\(Self._srcRectXML(image.crop))<a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm\(turn)><a:off x=\"0\" y=\"0\"/><a:ext cx=\"\(cx)\" cy=\"\(cy)\"/></a:xfrm><a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>"
             }
             if let image = p.image {
                 body += drawingXML(image) + "</w:p>"
@@ -1243,7 +1347,7 @@ extension DocxFormat {
             var pos = 0
             let utf16 = p.text.utf16
             for (runIndex, run) in p.runs.enumerated() where run.length > 0 {
-                body += bookmarkXML(at: pos)
+                body += bookmarkXML(at: pos) + controlXML(at: pos)
                 let a = utf16.index(utf16.startIndex, offsetBy: pos)
                 let b = utf16.index(a, offsetBy: run.length)
                 let piece = String(utf16[a ..< b]) ?? ""
@@ -1374,7 +1478,7 @@ extension DocxFormat {
                 }
                 if commentsKept { body += closeComments(except: commentsAfter(index, runIndex, in: p)) }
             }
-            body += bookmarkXML(at: p.length)
+            body += bookmarkXML(at: p.length) + controlXML(at: p.length)
             if breakRidesOnPrevious(index + 1) {
                 let next = doc.paragraphs[index + 1].style
                 body += "<w:r>\(next.breakRunPropertiesXML ?? "")<w:br w:type=\"\(next.columnBreak ? "column" : "page")\"/></w:r>"
@@ -1624,8 +1728,11 @@ extension DocxFormat {
         // Kept header/footer parts: the default ones only while their text
         // is what the editor still shows; the generated ones take a name
         // no kept part uses.
+        func editedHF(_ kind: KeptHeaderFooter.Kind) -> RichHeaderFooter? {
+            doc.headerFooters.first { $0.kind == kind && $0.type == "default" && $0.section == nil && $0.edited == true }
+        }
         let keptHF = doc.keptHeaderFooters.enumerated().filter { doc.keptParts[$0.element.part] != nil }.filter { (_, k) in
-            k.type != "default" || (k.kind == .header ? doc.header : doc.footer) == k.text
+            k.type != "default" || (editedHF(k.kind) == nil && (k.kind == .header ? doc.header : doc.footer) == k.text)
         }
         let keptDefaultHeader = keptHF.contains { $0.element.kind == .header && $0.element.type == "default" }
         let keptDefaultFooter = keptHF.contains { $0.element.kind == .footer && $0.element.type == "default" }
@@ -1675,16 +1782,19 @@ extension DocxFormat {
             relsXML += "<Relationship Id=\"\(r.id)\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/image\" Target=\"\(r.target)\"/>"
         }
         relsXML += keptRels
+        for (i, r) in doc.keptCustomXmlRels.enumerated() {
+            relsXML += "<Relationship Id=\"rIdCustomXml\(i + 1)\" Type=\"\(_esc(r.type))\" Target=\"\(_esc(r.target))\"/>"
+        }
         var extraParts: [ZipEntry] = []
         var extraOverrides = ""
         if writeHeader {
             relsXML += "<Relationship Id=\"rIdHeader\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/header\" Target=\"\(headerName)\"/>"
-            extraParts.append(ZipEntry(name: "word/\(headerName)", data: Data(_headerFooterPart("w:hdr", doc.header, center: false, width: pageSetup.contentWidth).utf8)))
+            extraParts.append(ZipEntry(name: "word/\(headerName)", data: Data((editedHF(.header).map { _richHeaderFooterPart("w:hdr", $0.paragraphs, width: pageSetup.contentWidth) } ?? _headerFooterPart("w:hdr", doc.header, center: false, width: pageSetup.contentWidth)).utf8)))
             extraOverrides += "<Override PartName=\"/word/\(headerName)\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml\"/>"
         }
         if writeFooter {
             relsXML += "<Relationship Id=\"rIdFooter\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer\" Target=\"\(footerName)\"/>"
-            extraParts.append(ZipEntry(name: "word/\(footerName)", data: Data(_headerFooterPart("w:ftr", doc.footer, center: true, width: pageSetup.contentWidth).utf8)))
+            extraParts.append(ZipEntry(name: "word/\(footerName)", data: Data((editedHF(.footer).map { _richHeaderFooterPart("w:ftr", $0.paragraphs, width: pageSetup.contentWidth) } ?? _headerFooterPart("w:ftr", doc.footer, center: true, width: pageSetup.contentWidth)).utf8)))
             extraOverrides += "<Override PartName=\"/word/\(footerName)\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml\"/>"
         }
         for (i, k) in keptHF {
@@ -1793,9 +1903,11 @@ extension DocxFormat {
 
         let entries: [ZipEntry] = [
             ZipEntry(name: "[Content_Types].xml", data: Data(contentTypes.utf8)),
-            ZipEntry(name: "_rels/.rels", data: Data(_rootRels.utf8)),
+            ZipEntry(name: "_rels/.rels", data: Data(_rootRels.replacingAll("</Relationships>", with: doc.keptRootRels.enumerated().map { i, r in
+                "<Relationship Id=\"rIdPkg\(i + 1)\" Type=\"\(_esc(r.type))\" Target=\"\(_esc(r.target))\"\(r.external ? " TargetMode=\"External\"" : "")/>"
+            }.joined() + "</Relationships>").utf8)),
             ZipEntry(name: "word/document.xml", data: Data(document.utf8)),
-            ZipEntry(name: "word/styles.xml", data: Data(_stylesPart(doc.styles, notes: !doc.keptParts.isEmpty, aliases: doc.styleAliases, fileFonts: doc.fileFonts, fromFile: doc.readFromFile,
+            ZipEntry(name: "word/styles.xml", data: Data(_stylesPart(doc.styles, notes: doc.keptParts.keys.contains { !$0.hasPrefix("docProps/") && !$0.hasPrefix("customXml/") && $0 != "word/webSettings.xml" }, aliases: doc.styleAliases, fileFonts: doc.fileFonts, fromFile: doc.readFromFile,
                                                                          characterStyles: doc.keptCharacterStyles, characterStyleIds: doc.keptCharacterStyleIds, tableStyles: doc.keptTableStyles)
                 .replacingAll("<w:lang w:val=\"en-US\"/>", with: doc.defaultLangXML ?? "<w:lang w:val=\"en-US\"/>").utf8)),
             ZipEntry(name: "word/numbering.xml", data: Data(_numberingPart(numKinds, numFormats, bulletId: bulletId, decimalId: decimalId,
@@ -1820,6 +1932,43 @@ extension DocxFormat {
     }
 
     /// A header or footer part: one paragraph, fields as fldSimple.
+    /// A header or footer part written from the editor's formatted paragraphs (W-HF-1): direct formatting only,
+    /// tabs as the Header/Footer centre and right stops, page fields as simple fields.
+    static func _richHeaderFooterPart(_ tag: String, _ paragraphs: [RichParagraph], width: Double) -> String {
+        var body = ""
+        for p in paragraphs {
+            var pPr = ""
+            if p.text.contains("\t" as Character) {
+                pPr += "<w:tabs><w:tab w:val=\"center\" w:pos=\"\(Int((width * 10).rounded()))\"/><w:tab w:val=\"right\" w:pos=\"\(Int((width * 20).rounded()))\"/></w:tabs>"
+            }
+            switch p.style.alignment {
+            case .center: pPr += "<w:jc w:val=\"center\"/>"
+            case .right: pPr += "<w:jc w:val=\"right\"/>"
+            case .justify: pPr += "<w:jc w:val=\"both\"/>"
+            default: break
+            }
+            var runs = ""
+            var offset = 0
+            let units = Array(p.text.utf16)
+            for r in p.runs where r.length > 0 {
+                let piece = String(decoding: units[offset..<min(offset + r.length, units.count)], as: UTF16.self)
+                offset += r.length
+                let rPr = _rPrXML(r.style)
+                let props = rPr.isEmpty ? "" : "<w:rPr>\(rPr)</w:rPr>"
+                var inner = ""
+                var literal = ""
+                func flush() { if !literal.isEmpty { inner += "<w:r>\(props)\(_text(literal))</w:r>"; literal = "" } }
+                for ch in piece {
+                    if ch == "\t" { flush(); inner += "<w:r>\(props)<w:tab/></w:r>" } else { literal.append(ch) }
+                }
+                flush()
+                if let f = r.style.field { runs += "<w:fldSimple w:instr=\" \(_esc(f)) \">\(inner)</w:fldSimple>" } else { runs += inner }
+            }
+            body += "<w:p>\(pPr.isEmpty ? "" : "<w:pPr>\(pPr)</w:pPr>")\(runs)</w:p>"
+        }
+        return "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<\(tag) xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\">\(body)</\(tag)>"
+    }
+
     static func _headerFooterPart(_ tag: String, _ template: String, center: Bool, width: Double) -> String {
         var runs = ""
         var literal = ""

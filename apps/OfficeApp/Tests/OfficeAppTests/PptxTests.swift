@@ -269,6 +269,34 @@ final class TableTests: XCTestCase {
         XCTAssertFalse(c.flipH || c.flipV, "an unflipped shape has no flip left")
     }
 
+    /// S-AR-1b: hiding a shape writes `hidden` into its own XML and keeps the rest; showing it again takes it out.
+    func testHidingAShapePatchesItsHiddenFlagAndKeepsWhatTheModelDoesNotHold() throws {
+        var (state, theme, pkg) = try deckWithAnnotatedShape()
+        let si = try XCTUnwrap(state.slides.firstIndex { $0.shapes.contains { $0.name == "Rounded" } })
+        let i = try XCTUnwrap(state.slides[si].shapes.firstIndex { $0.name == "Rounded" })
+        state.slides[si].shapes[i].invisible = true
+        let written = try writtenAnnotatedShape(state, theme, pkg)
+        for kept in annotatedKept { XCTAssertTrue(written.contains(kept), "kept after hiding: \(kept)") }
+        let (again, _, _) = try Pptx.read(try PptxWriter.write(state, theme: theme, package: pkg))
+        XCTAssertTrue(try XCTUnwrap(again.slides.flatMap { $0.shapes }.first { $0.name == "Rounded" }).invisible)
+        state.slides[si].shapes[i].invisible = false
+        let (clear, _, _) = try Pptx.read(try PptxWriter.write(state, theme: theme, package: pkg))
+        XCTAssertFalse(try XCTUnwrap(clear.slides.flatMap { $0.shapes }.first { $0.name == "Rounded" }).invisible)
+    }
+
+    /// S-AR-1b: writes the file for the PowerPoint check (SELPANE_CHECK_OUT=path): one shape hidden, two reordered, as the pane does.
+    func testWriteSelectionPaneCheckFile() throws {
+        guard let out = ProcessInfo.processInfo.environment["SELPANE_CHECK_OUT"] else { throw XCTSkip("no output path") }
+        var (state, theme, pkg) = try deckWithAnnotatedShape()
+        let si = try XCTUnwrap(state.slides.firstIndex { $0.shapes.contains { $0.name == "Rounded" } })
+        let i = try XCTUnwrap(state.slides[si].shapes.firstIndex { $0.name == "Rounded" })
+        state.slides[si].shapes[i].invisible = true
+        let others = state.slides[si].shapes.indices.filter { $0 != i }
+        XCTAssertGreaterThanOrEqual(others.count, 2)
+        state.slides[si].shapes.swapAt(others[0], others[1])
+        try PptxWriter.write(state, theme: theme, package: pkg).write(to: URL(fileURLWithPath: out))
+    }
+
     /// S-P0-1b: typing in the shape changes its text and nothing else.
     func testTypingInAShapeKeepsWhatTheModelDoesNotHold() throws {
         var (state, theme, pkg) = try deckWithAnnotatedShape()
@@ -565,5 +593,40 @@ final class DeepGroupTests: XCTestCase {
         XCTAssertEqual(f.classScales, [1, 1, 1, 1, 0.82])
         XCTAssertFalse(try XCTUnwrap(f.otherAdvances).isEmpty)
         XCTAssertFalse(try XCTUnwrap(f.boldOtherAdvances).isEmpty)
+    }
+
+    /// S-PI-1a: a picture's alt text is set in one undoable step, saved, and the picture's recolour (kept XML) and neighbours survive.
+    func testPictureAltTextRoundTripsAndKeepsTheKeptElement() throws {
+        let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==")!
+        let deck = SlidesSample.make()
+        let pic = deck.addPicture(ImageAttachment(data: png, width: 1, height: 1), naturalSize: Size(100, 100))
+        deck.selectShapes([pic])
+        deck.setAltText("A red square")
+        XCTAssertEqual(pic.altText, "A red square")
+        deck.undo()
+        XCTAssertNil(deck.slides[deck.current].shapes.first { $0.picture != nil }?.altText)
+        deck.selectShapes(deck.slides[deck.current].shapes.filter { $0.picture != nil })
+        deck.setAltText("A \"red\" <square>")
+        let (state, theme, package) = try Pptx.read(Pptx.write(deck))
+        let read = try XCTUnwrap(state.slides[deck.current].shapes.first { if case .picture = $0.kind { return true }; return false })
+        XCTAssertEqual(read.altText, "A \"red\" <square>")
+        // Reopen with a recolour in the picture's blip (kept XML), change the alt text, save: the recolour stays and the new text is in.
+        var pkg = package
+        let part = try XCTUnwrap(read.sourcePart)
+        var xml = String(data: try XCTUnwrap(pkg.parts[part]), encoding: .utf8)!
+        let blip = try XCTUnwrap(xml.range(of: "<a:blip [^>]*?/>", options: .regularExpression))
+        xml.replaceSubrange(blip, with: String(xml[blip].dropLast(2)) + "><a:lum bright=\"20000\"/></a:blip>")
+        pkg.parts[part] = Data(xml.utf8)
+        let (s2r, t2, p2) = try Pptx.read(try Zip.write(pkg.parts.map { ZipEntry(name: $0.key, data: $0.value) }))
+        var s2 = s2r
+        let ki = try XCTUnwrap(s2.slides[deck.current].shapes.firstIndex { if case .picture = $0.kind { return true }; return false })
+        s2.slides[deck.current].shapes[ki].altText = "New text"
+        let out = PptxPackage(try Zip.read(try PptxWriter.write(s2, theme: t2, package: p2)))
+        let written = String(data: try XCTUnwrap(out.parts[part]), encoding: .utf8)!
+        XCTAssertTrue(written.contains("<a:lum bright=\"20000\"/>"))
+        XCTAssertTrue(written.contains("descr=\"New text\""))
+        let again = try Pptx.read(PptxWriter.write(state, theme: theme, package: package))
+        XCTAssertEqual(again.0.slides[deck.current].shapes.first { if case .picture = $0.kind { return true }; return false }?.altText, "A \"red\" <square>")
+        XCTAssertEqual(again.0.slides[deck.current].shapes.count, state.slides[deck.current].shapes.count)
     }
 }

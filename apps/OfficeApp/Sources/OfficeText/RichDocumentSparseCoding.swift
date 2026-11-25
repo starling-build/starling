@@ -568,7 +568,7 @@ extension ImageAttachment {
 
 extension ImageFloat {
     enum CodingKeys: String, CodingKey {
-        case x, y, horizontalFrom, verticalFrom, horizontalAlign, verticalAlign, takesRoom, bandsPage, wraps, effectBottom, distanceTop, distanceBottom, heightShare, heightFrom
+        case x, y, horizontalFrom, verticalFrom, horizontalAlign, verticalAlign, takesRoom, bandsPage, wraps, effectBottom, effectTop, distanceTop, distanceBottom, heightShare, heightFrom
     }
 
     public init(from decoder: Decoder) throws {
@@ -583,6 +583,7 @@ extension ImageFloat {
         bandsPage = try c.decodeIfPresent(Bool.self, forKey: .bandsPage) ?? false
         wraps = try c.decodeIfPresent(Bool.self, forKey: .wraps) ?? false
         effectBottom = try c.decodeIfPresent(Double.self, forKey: .effectBottom) ?? 0.0
+        effectTop = try c.decodeIfPresent(Double.self, forKey: .effectTop) ?? 0.0
         distanceTop = try c.decodeIfPresent(Double.self, forKey: .distanceTop) ?? 0.0
         distanceBottom = try c.decodeIfPresent(Double.self, forKey: .distanceBottom) ?? 0.0
         heightShare = try c.decodeIfPresent(Double.self, forKey: .heightShare)
@@ -601,6 +602,7 @@ extension ImageFloat {
         try c.encode(bandsPage, forKey: .bandsPage)
         try c.encode(wraps, forKey: .wraps)
         try c.encode(effectBottom, forKey: .effectBottom)
+        try c.encode(effectTop, forKey: .effectTop)
         try c.encode(distanceTop, forKey: .distanceTop)
         try c.encode(distanceBottom, forKey: .distanceBottom)
         try c.encodeIfPresent(heightShare, forKey: .heightShare)
