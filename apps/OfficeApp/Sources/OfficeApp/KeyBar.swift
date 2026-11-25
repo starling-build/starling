@@ -56,8 +56,8 @@ final class WriterKeyBar: StatelessWidget {
                        tip: tip, width: nil, height: 44, action: action)
         }
         func divider() -> Widget {
-            Padding(padding: EdgeInsets(left: 6, top: 10, right: 6, bottom: 10),
-                    child: SizedBox(width: 1, height: nil, child: ColoredBox(color: OfficeAppearance.border(fluent))))
+            Padding(padding: EdgeInsets(left: 6, top: 0, right: 6, bottom: 0),
+                    child: SizedBox(width: 1, height: 24, child: ColoredBox(color: OfficeAppearance.border(fluent))))
         }
         var items: [Widget] = [
             icon(FluentSystemIcons.undo, "Undo", enabled: s.canUndo) { [session] in

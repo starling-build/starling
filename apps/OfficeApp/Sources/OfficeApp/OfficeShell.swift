@@ -1234,8 +1234,7 @@ final class OfficeShellState: State<StatefulWidget> {
         column.append(StatusBar(session: session, message: _status ?? _linkHover.map { "⌘-click to open \($0)".keys }))
         // On an iPad the soft keyboard covers the bottom of the view: the window ends above it, and a bar of what
         // typing needs (undo, B/I/U, lists, and table or picture commands in those contexts) sits just over it.
-        var keyboard = softKeyboardHeight(context)
-        if let fake = getenv("TMP_FAKE_KB"), let v = Double(String(cString: fake)) { keyboard = v }  // TMPFAKE
+        let keyboard = softKeyboardHeight(context)
         if keyboard > 0, session.deck == nil {
             column.append(WriterKeyBar(session: session, controller: controller))
         }
