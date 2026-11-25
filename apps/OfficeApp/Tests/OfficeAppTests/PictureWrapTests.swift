@@ -375,3 +375,21 @@ final class ShapeInsertTests: XCTestCase {
         try DocxFormat.write(c.document, pageSetup: .letter).write(to: URL(fileURLWithPath: path))
     }
 }
+
+final class ShapeSelectTests: XCTestCase {
+    func testSelectedShapeMovesAndDeletes() throws {
+        let c = RichDocumentController(document: RichDocument(paragraphs: [RichParagraph(text: "before"), RichParagraph(text: "after")]))
+        c.pendingShape = { x, y, w, h in TextBoxInsert.makeShape(preset: "rect", width: w, height: h, number: 1, page: (x, y)) }
+        XCTAssertTrue(c.placePendingShape(x: 100, y: 200, width: 96, height: 72, at: RichPosition(paragraph: 1, offset: 0)))
+        let i = try XCTUnwrap(c.selectedImageIndex)
+        XCTAssertTrue(c.movePicture(at: i, dx: 10, dy: -20))
+        let f = try XCTUnwrap(c.document.paragraphs[i].image?.float)
+        XCTAssertEqual(f.x, 110); XCTAssertEqual(f.y, 180)
+        let before = c.document.paragraphs.count
+        c.deleteBackward()
+        XCTAssertEqual(c.document.paragraphs.count, before - 1)
+        XCTAssertFalse(c.document.paragraphs.contains { $0.image != nil })
+        c.undo()
+        XCTAssertTrue(c.document.paragraphs.contains { $0.image != nil })
+    }
+}
