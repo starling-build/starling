@@ -1111,6 +1111,14 @@ extension DocxFormat {
         func keptFragmentXML(_ xml: String, _ rels: [KeptRel]) -> String {
             var frag = _renumberDocPr(xml, next: &keptDocPrCount)
             for rel in rels {
+                // A relationship the fragment never names (its old id appears nowhere in the markup, in any
+                // attribute) is a leftover of an edit: not written. One the file gave and the markup names
+                // by any attribute stays, even where we do not read that attribute.
+                // Only kinds this writer re-creates (picture, link, embedded object, chart, diagram) are ever dropped:
+                // other kinds are found by type or from other parts (template, glossary, settings...) and stay.
+                let kind = String(rel.type.split(separator: "/").last ?? "")
+                let droppable = ["image", "hyperlink", "oleObject", "chart", "diagramData", "diagramLayout", "diagramQuickStyle", "diagramColors", "diagramDrawing"].contains(kind)
+                if droppable, !xml.containsSubstring("\"\(rel.id)\"") { continue }
                 keptRelCount += 1
                 let nid = "rIdKept\(keptRelCount)"
                 for attr in _relationshipAttributes {
