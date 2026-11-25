@@ -165,7 +165,7 @@ extension Ribbon {
         let reflections: [MenuFlyoutItemBase] = [item("fx.reflection.none", "No Reflection") { deck.setReflection(nil) }]
             + ShapeEffectPresets.reflections.enumerated().map { i, r in
                 item("fx.reflection.\(i)", r.name) {
-                    deck.setReflection(ShapeEffectPresets.reflection(dist: r.dist, endPos: r.endPos, startAlpha: r.startAlpha)) } }
+                    deck.setReflection(ShapeEffectPresets.reflection(r)) } }
         let soft: [MenuFlyoutItemBase] = [item("fx.soft.none", "No Soft Edges") { deck.setSoftEdge(nil) }]
             + ShapeEffectPresets.softEdgeSizes.map { r in
                 item("fx.soft.\(r)", "\(r == r.rounded() ? String(Int(r)) : String(r)) Point") { deck.setSoftEdge(r) } }

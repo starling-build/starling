@@ -25,18 +25,19 @@ enum ShapeEffectPresets {
     /// The glow's colour: the accent at 40% opacity, as PowerPoint's gallery does.
     static func glowColor(_ accent: Color) -> Color { Color((102 << 24) | (accent.value & 0xFFFFFF)) }
 
-    /// Tight, half and full reflections, touching the shape or 4 or 8 pt below it.
-    static let reflections: [(name: String, dist: Double, endPos: Double, startAlpha: Double)] = [
-        ("Tight Reflection, touching", 0, 0.35, 0.52), ("Tight Reflection, 4 pt offset", 4, 0.35, 0.52),
-        ("Tight Reflection, 8 pt offset", 8, 0.35, 0.52),
-        ("Half Reflection, touching", 0, 0.55, 0.52), ("Half Reflection, 4 pt offset", 4, 0.55, 0.52),
-        ("Half Reflection, 8 pt offset", 8, 0.55, 0.52),
-        ("Full Reflection, touching", 0, 0.90, 0.52), ("Full Reflection, 4 pt offset", 4, 0.90, 0.52),
-        ("Full Reflection, 8 pt offset", 8, 0.90, 0.52),
+    /// Office's nine reflection presets, exactly as PowerPoint writes them (blur 0.5 pt; touching, 4 pt and 8 pt below):
+    /// tight, half and full. Only the first uses a start opacity of 52%; the end opacity and end position vary too.
+    static let reflections: [(name: String, dist: Double, startAlpha: Double, endAlpha: Double, endPos: Double)] = [
+        ("Tight Reflection, touching", 0, 0.52, 0.003, 0.35), ("Half Reflection, touching", 0, 0.50, 0.003, 0.55),
+        ("Full Reflection, touching", 0, 0.50, 0.003, 0.90),
+        ("Tight Reflection, 4 pt offset", 4, 0.50, 0.003, 0.385), ("Half Reflection, 4 pt offset", 4, 0.50, 0.003, 0.555),
+        ("Full Reflection, 4 pt offset", 4, 0.50, 0.003, 0.90),
+        ("Tight Reflection, 8 pt offset", 8, 0.50, 0.00275, 0.40), ("Half Reflection, 8 pt offset", 8, 0.50, 0.003, 0.555),
+        ("Full Reflection, 8 pt offset", 8, 0.50, 0.00295, 0.92),
     ]
 
-    static func reflection(dist: Double, endPos: Double, startAlpha: Double) -> Reflection {
-        Reflection(blur: 0.5, dist: dist, startAlpha: startAlpha, endAlpha: 0.003, startPos: 0, endPos: endPos,
+    static func reflection(_ r: (name: String, dist: Double, startAlpha: Double, endAlpha: Double, endPos: Double)) -> Reflection {
+        Reflection(blur: 0.5, dist: r.dist, startAlpha: r.startAlpha, endAlpha: r.endAlpha, startPos: 0, endPos: r.endPos,
                    scaleY: -1, onText: false)
     }
 

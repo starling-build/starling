@@ -33,13 +33,13 @@ final class SlideShapeEffectsTests: XCTestCase {
         let (deck, s) = newShape()
         deck.setShadow(ShapeEffectPresets.shadow(angle: 45))
         deck.setGlow(radius: 11, color: ShapeEffectPresets.glowColor(Color(0xFF4472C4)))
-        deck.setReflection(ShapeEffectPresets.reflection(dist: 4, endPos: 0.55, startAlpha: 0.5))
+        deck.setReflection(ShapeEffectPresets.reflection(ShapeEffectPresets.reflections[4]))
         deck.setSoftEdge(10)
         deck.setBevel(ShapeBevel(width: 6, height: 6, preset: "coolSlant"))
         let b = try XCTUnwrap(try reload(deck).currentSlide.shapes.last)
         XCTAssertNotNil(b.shadow); XCTAssertEqual(b.glowRadius ?? 0, 11, accuracy: 0.01)
         XCTAssertEqual(b.reflection?.dist ?? 0, 4, accuracy: 0.01)
-        XCTAssertEqual(b.reflection?.endPos ?? 0, 0.55, accuracy: 0.001)
+        XCTAssertEqual(b.reflection?.endPos ?? 0, 0.555, accuracy: 0.0001)
         XCTAssertEqual(b.softEdge ?? 0, 10, accuracy: 0.01)
         XCTAssertEqual(b.bevel?.preset, "coolSlant")
         _ = s
@@ -87,14 +87,26 @@ final class SlideShapeEffectsTests: XCTestCase {
         XCTAssertEqual(s.bevel?.preset, "slope")
     }
 
-    func testReflectionPresetsAreOfficesOwnValues() {
-        // Office's presets: start opacity 52%, end opacity 0.3%, ends at 35 / 55 / 90 %, 0 / 4 / 8 pt below.
-        for r in ShapeEffectPresets.reflections {
-            XCTAssertEqual(r.startAlpha, 0.52, accuracy: 1e-9, r.name)
-            let x = ShapeEffectPresets.reflection(dist: r.dist, endPos: r.endPos, startAlpha: r.startAlpha)
-            XCTAssertEqual(x.endAlpha, 0.003, accuracy: 1e-9); XCTAssertEqual(x.scaleY, -1)
+    /// What PowerPoint itself writes for presets 1-9 (start opacity, end opacity, end position, distance, all x 1000 or EMU).
+    func testReflectionPresetsAreExactlyOfficesNine() throws {
+        let office: [(Int, Int, Int, Int)] = [
+            (52000, 300, 35000, 0), (50000, 300, 55000, 0), (50000, 300, 90000, 0),
+            (50000, 300, 38500, 50800), (50000, 300, 55500, 50800), (50000, 300, 90000, 50800),
+            (50000, 275, 40000, 101600), (50000, 300, 55500, 101600), (50000, 295, 92000, 101600),
+        ]
+        XCTAssertEqual(ShapeEffectPresets.reflections.count, 9)
+        let deck = DeckController()
+        for r in ShapeEffectPresets.reflections { let s = deck.addShape(.rect); deck.selectShapes([s]); deck.setReflection(ShapeEffectPresets.reflection(r)) }
+        let back = Array(try reload(deck).currentSlide.shapes.suffix(9))
+        XCTAssertEqual(back.count, 9)
+        for (i, o) in office.enumerated() {
+            let r = try XCTUnwrap(back[i].reflection, "\(i + 1)")
+            XCTAssertEqual(Int((r.startAlpha * 100000).rounded()), o.0, "start \(i + 1)")
+            XCTAssertEqual(Int((r.endAlpha * 100000).rounded()), o.1, "end \(i + 1)")
+            XCTAssertEqual(Int((r.endPos * 100000).rounded()), o.2, "endPos \(i + 1)")
+            XCTAssertEqual(Int((r.dist * 12700).rounded()), o.3, "dist \(i + 1)")
+            XCTAssertEqual(Int((r.blur * 12700).rounded()), 6350); XCTAssertEqual(r.scaleY, -1)
         }
-        XCTAssertEqual(ShapeEffectPresets.reflections.map(\.endPos), [0.35, 0.35, 0.35, 0.55, 0.55, 0.55, 0.9, 0.9, 0.9])
     }
 
     func testHomeTabStillFitsAt1280() throws {
@@ -115,14 +127,14 @@ final class SlideShapeEffectsTests: XCTestCase {
             let slot = n % 12
             if n > 0 && slot == 0 { _ = deck.addSlide() }
             let s = deck.addShape(.roundRect)
-            let x = 40 + Double(slot % 4) * 230, y = 40 + Double(slot / 4) * 160
+            let x = 40 + Double(slot % 4) * 230, y = 30 + Double(slot / 4) * 140
             s.frame = Rect.fromLTWH(x, y, 170, 100)
             s.name = name; deck.selectShapes([s]); f(deck); n += 1
         }
         for sh in ShapeEffectPresets.shadows { put(sh.name) { $0.setShadow(ShapeEffectPresets.shadow(angle: sh.angle)) } }
         for g in ShapeEffectPresets.glowSizes { put("Glow \(g)") { $0.setGlow(radius: g, color: ShapeEffectPresets.glowColor($0.theme.accents[2])) } }
         for r in ShapeEffectPresets.reflections {
-            put(r.name) { $0.setReflection(ShapeEffectPresets.reflection(dist: r.dist, endPos: r.endPos, startAlpha: r.startAlpha)) } }
+            put(r.name) { $0.setReflection(ShapeEffectPresets.reflection(r)) } }
         for r in ShapeEffectPresets.softEdgeSizes { put("Soft \(r)") { $0.setSoftEdge(r) } }
         for b in ShapeEffectPresets.bevels { put("Bevel \(b.name)") { $0.setBevel(ShapeBevel(width: 6, height: 6, preset: b.preset)) } }
         let dir = "/data/s/amd-6/ui-check"
