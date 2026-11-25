@@ -1980,7 +1980,9 @@ extension DocxFormat {
         // (And the font table: what Word substitutes for a face the machine
         // lacks is chosen by the family, pitch and alternate name stated
         // there, and a Chinese document names faces few machines have.)
-        for name in ["footnotes", "endnotes", "fontTable"] {
+        // (And the settings: the zoom, the colour map, the revision ids, the math and shape defaults, the notes' settings;
+        // a save changes only what the app itself sets in it.)
+        for name in ["footnotes", "endnotes", "fontTable", "settings"] {
             guard let data = part("word/\(name).xml"), _wellFormed(data) else { continue }
             kept["word/\(name).xml"] = data
             guard let rels = part("word/_rels/\(name).xml.rels") else { continue }
