@@ -168,6 +168,9 @@ public struct CharStyle: Hashable, Codable, Sendable {
         return c.hashValue == origCheck ? o : nil
     }
     public var highlight: Color? = nil
+    /// The highlight came from a `w:shd` (not `w:highlight`): its hex, `#`, then the element's other attributes as written (pattern, theme link).
+    /// Written back as that `w:shd` while the highlight is still that colour.
+    public var shdSource: String? = nil
     public var link: String? = nil
     /// The hyperlink's screen tip (Word's w:tooltip); only meaningful with a link.
     public var linkTip: String? = nil
