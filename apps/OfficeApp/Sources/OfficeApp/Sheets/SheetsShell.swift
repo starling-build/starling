@@ -59,7 +59,11 @@ final class SheetsShellState: State<StatefulWidget> {
     private var _status: String? = nil
     private var _statusGeneration = 0
     private var _recent: [String] = []
-    private var _zoom = 1.0
+    /// The active sheet's zoom (saved with it), as a factor.
+    private var _zoom: Double {
+        get { Double(wb.sheet.zoomPercent) / 100 }
+        set { wb.setZoom(percent: Int((newValue * 100).rounded())) }
+    }
     private var _windowTitle = ""
     /// The sheet tab being renamed, and its text.
     private var _renaming: Int? = nil
@@ -392,7 +396,7 @@ final class SheetsShellState: State<StatefulWidget> {
         case .zoom(let factor):
             setState { _zoom = factor == 0 ? 1 : max(0.25, min(4, _zoom * factor)) }
         case .toggleGridlines:
-            wb.structural { wb.sheet.showGridlines.toggle() }
+            wb.toggleGridlines()
         case .status(let m):
             _flash(m)
         case .editNote:
