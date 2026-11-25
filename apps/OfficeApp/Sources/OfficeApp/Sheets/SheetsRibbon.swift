@@ -26,6 +26,7 @@ enum SheetCommand {
     case conditionalFormat         // Home → Conditional Formatting
     case dataValidation            // Data → Data Validation
     case consolidate               // Data → Consolidate
+    case scenarioManager           // Data → What-If Analysis → Scenario Manager
     case removeDuplicates          // Data → Remove Duplicates
     case textToColumns             // Data → Text to Columns
     case subtotal                  // Data → Subtotal
@@ -363,6 +364,7 @@ extension Ribbon {
             Chrome.big(FluentSystemIcons.columns, "Text to Columns", fluent) { wb.onCommand?(.textToColumns) },
             Chrome.big(FluentSystemIcons.numberList, "Subtotal", fluent) { wb.onCommand?(.subtotal) },
             Chrome.big(FluentSystemIcons.numberList, "Consolidate", fluent) { wb.onCommand?(.consolidate) },
+            Chrome.big(FluentSystemIcons.numberList, "Scenario Manager", fluent) { wb.onCommand?(.scenarioManager) },
             Chrome.rows([
                 Chrome.small(FluentSystemIcons.check, "Circle Invalid Data", fluent) {
                     let n = wb.circleInvalidData()
