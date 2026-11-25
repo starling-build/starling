@@ -52,9 +52,48 @@ final class SlideTablePenPointerTests: XCTestCase {
         XCTAssertEqual(cell(0, 1)?.borders.left?.color, Color(0xFFFF0000), "neighbour shares it")
         XCTAssertEqual(cell(0, 1)?.borders.right?.width, 3, "second edge drawn")
 
+        // The whole stroke, two edges, is one undo step; redo it by drawing again below.
+        deck.undo()
+        XCTAssertNil(cell(0, 0)?.borders.right, "one undo takes the whole drag back")
+        XCTAssertNil(cell(0, 1)?.borders.right)
+        ui.drag(from: pt(xs[1] - 30, midY), to: pt(xs[2] + 30, midY))
+        XCTAssertEqual(cell(0, 1)?.borders.right?.width, 3)
         deck.tableTool = .erase; state.setState {}; ui.pump()
         ui.drag(from: pt(xs[1] - 30, midY), to: pt(xs[1] + 30, midY))
         XCTAssertEqual(cell(0, 0)?.borders.right, CellRef.CellLine.hidden, "eraser hides the first edge")
         XCTAssertEqual(cell(0, 1)?.borders.right?.width, 3, "other edge untouched")
+    }
+
+    func testOnePenStrokeAcrossSeveralEdgesIsOneUndoStep() throws {
+        let deck = DeckController()
+        deck.slides[0].shapes.removeAll()
+        let t = deck.addTable(rows: 3, columns: 3)
+        t.frame = Rect.fromLTWH(100, 100, 600, 300)
+        deck.selectShapes([t])
+        func cell(_ r: Int, _ c: Int) -> CellRef? { t.text!.document.paragraphs.compactMap { $0.cell }.first { $0.row == r && $0.column == c } }
+        deck.tablePen = DeckController.TablePen(width: 3, color: Color(0xFF0000FF), dash: "solid")
+        deck.tableTool = .draw
+        deck.penStroke(true)
+        deck.penTouch(t, row: 0, column: 0, side: .right)
+        deck.penTouch(t, row: 0, column: 1, side: .right)
+        deck.penTouch(t, row: 1, column: 1, side: .bottom)
+        deck.penStroke(false)
+        XCTAssertEqual(cell(0, 0)?.borders.right?.width, 3)
+        XCTAssertEqual(cell(0, 1)?.borders.right?.width, 3)
+        XCTAssertEqual(cell(1, 1)?.borders.bottom?.width, 3)
+        deck.undo()
+        XCTAssertNil(cell(0, 0)?.borders.right, "one undo takes the whole stroke back")
+        XCTAssertNil(cell(0, 1)?.borders.right)
+        XCTAssertNil(cell(1, 1)?.borders.bottom)
+        // A second stroke is its own step.
+        deck.penStroke(true)
+        deck.penTouch(t, row: 0, column: 0, side: .right)
+        deck.penStroke(false)
+        deck.penStroke(true)
+        deck.penTouch(t, row: 0, column: 1, side: .right)
+        deck.penStroke(false)
+        deck.undo()
+        XCTAssertEqual(cell(0, 0)?.borders.right?.width, 3)
+        XCTAssertNil(cell(0, 1)?.borders.right)
     }
 }

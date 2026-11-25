@@ -201,6 +201,9 @@ final class DeckController: ChangeNotifier {
     private(set) var revision = 0
     /// The table pen and the drawing tool (not part of the document: no undo step, nothing saved).
     var tablePen = TablePen()
+    /// A pen stroke is down: its edits share one undo step (saved by the first edge that changes something).
+    var _penStrokeOpen = false
+    var _penStrokeSaved = false
     var tableTool: TableTool = .none { didSet { if tableTool != oldValue { notifyListeners() } } }
     enum TableTool { case none, draw, erase }
 

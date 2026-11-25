@@ -44,6 +44,8 @@ public final class RichEditable: StatefulWidget {
     /// Slides' border pen and eraser: when set, a mouse press (and a drag) near a table cell's edge calls it with the cell
     /// (table, row, column) and the side, instead of placing the caret.
     public let onCellEdge: ((String, Int, Int, CellSide) -> Void)?
+    /// True when a pen stroke starts, false when it ends (so the host can make the whole stroke one undo step).
+    public let onCellEdgeStroke: ((Bool) -> Void)?
     /// The link under the pointer, or nil as it leaves one — for a status bar.
     public let onLinkHover: ((String?) -> Void)?
     /// ⌘-click on a link. Nil opens it through the host.
@@ -83,6 +85,7 @@ public final class RichEditable: StatefulWidget {
                 onPageInfo: ((Int, Int) -> Void)? = nil,
                 onShortcut: ((KeyData, KeyModifiers) -> Bool)? = nil,
                 onCellEdge: ((String, Int, Int, CellSide) -> Void)? = nil,
+                onCellEdgeStroke: ((Bool) -> Void)? = nil,
                 onLinkHover: ((String?) -> Void)? = nil,
                 onLinkActivate: ((String) -> Void)? = nil,
                 onSelectionGestureEnd: (() -> Void)? = nil,
@@ -110,6 +113,7 @@ public final class RichEditable: StatefulWidget {
         self.onPageInfo = onPageInfo
         self.onShortcut = onShortcut
         self.onCellEdge = onCellEdge
+        self.onCellEdgeStroke = onCellEdgeStroke
         self.onLinkHover = onLinkHover
         self.onLinkActivate = onLinkActivate
         self.onSelectionGestureEnd = onSelectionGestureEnd
@@ -945,6 +949,7 @@ public final class RichEditableState: State<StatefulWidget> {
         if _w.onCellEdge != nil, event.kind == .touch || event.buttons & 1 != 0 {
             _edgeStroke = nil
             _edgeLast = nil
+            _w.onCellEdgeStroke?(true)
             _edgeToolAlong(event.localPosition)
             _edgeDragging = true
             return
@@ -1240,7 +1245,7 @@ public final class RichEditableState: State<StatefulWidget> {
     }
 
     private func _pointerUp(_ event: PointerEvent) {
-        if _edgeDragging { _edgeDragging = false; _edgeStroke = nil; _edgeLast = nil; return }
+        if _edgeDragging { _edgeDragging = false; _edgeStroke = nil; _edgeLast = nil; _w.onCellEdgeStroke?(false); return }
         if event.kind == .touch {
             _fingers[event.pointer] = nil
             if _twoFingerActive {

@@ -331,6 +331,7 @@ final class SlideCanvasState: State<StatefulWidget> {
                 onShortcut: _w.onShortcut,
                 onCellEdge: shape.kind == .table && deck.tableTool != .none
                     ? { [weak deck, weak shape] _, row, column, side in if let deck, let shape { deck.penTouch(shape, row: row, column: column, side: side) } } : nil,
+                onCellEdgeStroke: shape.kind == .table && deck.tableTool != .none ? { [weak deck] on in deck?.penStroke(on) } : nil,
                 onTouchMenu: { [weak controller, scene = self.officeScene] rect in
                     if let controller { scene.showTouchMenu(rect, controller: controller) }
                 },
