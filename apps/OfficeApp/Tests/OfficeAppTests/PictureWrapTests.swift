@@ -12,7 +12,7 @@ final class PictureWrapTests: XCTestCase {
     private let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")!
 
     /// A document whose second paragraph holds a picture floating square, 20pt in and 30pt down.
-    func floatingDocument() throws -> Data {
+    func floatingDocument(inText: Bool = false) throws -> Data {
         let base = try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "text"), RichParagraph(image: ImageAttachment(data: png, width: 100, height: 50))]), pageSetup: .letter)
         var entries = try Zip.read(base)
         let di = try XCTUnwrap(entries.firstIndex { $0.name == "word/document.xml" })
@@ -29,6 +29,7 @@ final class PictureWrapTests: XCTestCase {
             + "<pic:blipFill><a:blip r:embed=\"\(id)\"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>"
             + "<pic:spPr><a:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"1270000\" cy=\"635000\"/></a:xfrm><a:prstGeom prst=\"rect\"/></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:anchor>"
         xml.replaceSubrange(start.lowerBound ..< end.lowerBound, with: drawing)
+        if inText, let r = xml.rangeOfSubstring("<w:r><w:drawing>") { xml.replaceSubrange(r, with: "<w:r><w:t>hello</w:t></w:r><w:r><w:drawing>") }
         entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
         return try Zip.write(entries)
     }
@@ -90,5 +91,21 @@ final class PictureWrapTests: XCTestCase {
         c.undo()
         c.undo()
         XCTAssertEqual(c.pictureWrap(at: i), .square)
+    }
+
+    /// A picture anchored in a line of text has a drawn box the click test can use.
+    func testFloatAnchoredInTextHasADrawnBox() throws {
+        let doc = try DocxFormat.read(try floatingDocument(inText: true)).document
+        let k = try XCTUnwrap(doc.paragraphs.firstIndex { $0.inlineImages.values.contains { $0.float != nil } })
+        let id = try XCTUnwrap(doc.paragraphs[k].inlineImages.first { $0.value.float != nil }?.key)
+        let theme = RichTextTheme(fontFamily: OfficeFonts.serif)
+        theme.wordRules = true
+        let l = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+        l.width = 450 * theme.pixelsPerPoint
+        l.ensureLaidOut(doc)
+        let px = theme.pixelsPerPoint
+        let box = try XCTUnwrap(l.inlineFloatRect(k, id: id))
+        XCTAssertEqual(box.width / px, 100, accuracy: 0.5)
+        XCTAssertEqual(box.height / px, 50, accuracy: 0.5)
     }
 }

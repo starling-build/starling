@@ -753,6 +753,12 @@ public final class RichEditableState: State<StatefulWidget> {
         let doc = _controller.document
         let pos = _layout.canvasPosition(at: _canvasPoint(local), doc)
         let canvasPoint = _canvasPoint(local)
+        // A picture that floats clear of the text is hit where it is drawn, not at its anchor mark.
+        for (k, p) in doc.paragraphs.enumerated() where !p.inlineImages.isEmpty {
+            for (_, id) in _controller.inlineImageOffsets(in: k) where p.inlineImages[id]?.float != nil {
+                if let r = _layout.inlineFloatRect(k, id: id), r.contains(canvasPoint) { return (k, id) }
+            }
+        }
         for (offset, id) in _controller.inlineImageOffsets(in: pos.paragraph) where abs(offset - pos.offset) <= 1 {
             let sel = RichSelection(anchor: RichPosition(paragraph: pos.paragraph, offset: offset),
                                     focus: RichPosition(paragraph: pos.paragraph, offset: offset + 1))
