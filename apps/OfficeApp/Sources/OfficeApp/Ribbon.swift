@@ -18,7 +18,7 @@ enum RibbonTab: Int, CaseIterable {
     case home, insert, layout, review, view
     /// Contextual: shown while a picture is selected or the caret is in a
     /// table, as Word does.
-    case pictureFormat, tableLayout
+    case pictureFormat, tableLayout, tableDesign
     /// Slides only; contextual while a chart is selected.
     case chartDesign
     /// Slides only.
@@ -44,6 +44,7 @@ enum RibbonTab: Int, CaseIterable {
         case .view: return "View"
         case .pictureFormat: return "Picture Format"
         case .tableLayout: return "Table Layout"
+        case .tableDesign: return "Table Design"
         case .chartDesign: return "Chart Design"
         case .design: return "Design"
         case .transitions: return "Transitions"
@@ -54,7 +55,7 @@ enum RibbonTab: Int, CaseIterable {
         }
     }
 
-    var isContextual: Bool { self == .pictureFormat || self == .tableLayout || self == .chartDesign }
+    var isContextual: Bool { self == .pictureFormat || self == .tableLayout || self == .tableDesign || self == .chartDesign }
 }
 
 final class Ribbon: StatelessWidget {
@@ -100,6 +101,7 @@ final class Ribbon: StatelessWidget {
         for t in RibbonTab.strip(for: session.kind) { items.append(_tab(t, fluent)) }
         let slidePicture = session.deck?.selection.contains { $0.picture != nil } ?? false
         if session.summary.imageIndex != nil || slidePicture { items.append(_tab(.pictureFormat, fluent)) }
+        if session.deck?.selectedTableOptions != nil { items.append(_tab(.tableDesign, fluent)) }
         if session.summary.inCell { items.append(_tab(.tableLayout, fluent)) }
         if session.deck?.selectedChart != nil { items.append(_tab(.chartDesign, fluent)) }
         return ColoredBox(color: OfficeAppearance.surface(fluent),
@@ -162,7 +164,7 @@ final class Ribbon: StatelessWidget {
         case .pictureFormat: return _pictureFormat(fluent)
         case .tableLayout: return _tableLayout(fluent)
         case .review: return _review(fluent)
-        case .design, .transitions, .slideShow, .chartDesign, .animations, .formulas, .data: return []
+        case .design, .transitions, .slideShow, .chartDesign, .tableDesign, .animations, .formulas, .data: return []
         }
     }
 
