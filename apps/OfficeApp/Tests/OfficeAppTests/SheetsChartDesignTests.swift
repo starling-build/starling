@@ -4,7 +4,9 @@
 // X-CH-1a: Chart Design on a chart made here: its title and legend, saved and read back.
 
 import XCTest
-import FoundationXML
+#if canImport(FoundationXML)
+import FoundationXML   // XMLParser, off Darwin
+#endif
 import Flutter
 import FlutterSwiftBridge
 @testable import OfficeApp
