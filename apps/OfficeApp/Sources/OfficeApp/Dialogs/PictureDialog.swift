@@ -17,14 +17,17 @@ private final class PicKeyed: StatelessWidget {
 }
 
 /// Which picture dialog is open.
-enum PictureDialogKind { case altText, crop }
+enum PictureDialogKind { case altText, crop, boxText }
 
 final class PictureAltTextDialog: StatefulWidget {
     let initial: String
+    let title: String
+    let prompt: String
     let onOK: (String) -> Void
     let onCancel: () -> Void
-    init(initial: String, onOK: @escaping (String) -> Void, onCancel: @escaping () -> Void) {
-        self.initial = initial; self.onOK = onOK; self.onCancel = onCancel
+    init(initial: String, title: String = "Alt Text", prompt: String = "Describe the picture for people who cannot see it.",
+         onOK: @escaping (String) -> Void, onCancel: @escaping () -> Void) {
+        self.initial = initial; self.title = title; self.prompt = prompt; self.onOK = onOK; self.onCancel = onCancel
         super.init()
     }
     override func createState() -> State<StatefulWidget> { PictureAltTextDialogState() }
@@ -39,10 +42,10 @@ final class PictureAltTextDialogState: State<StatefulWidget> {
     override func build(_ context: any BuildContext) -> Widget {
         let page = Column(crossAxisAlignment: .start, children: [
             Padding(padding: EdgeInsets(left: 0, top: 0, right: 0, bottom: 8),
-                    child: Text("Describe the picture for people who cannot see it.")),
-            PicKeyed("alt-text", SizedBox(height: 90, child: FluentTextBox(controller: _text, maxLines: 4))),
+                    child: Text(_w.prompt)),
+            PicKeyed(_w.title == "Alt Text" ? "alt-text" : "box-text", SizedBox(height: 90, child: FluentTextBox(controller: _text, maxLines: 4))),
         ])
-        return DialogShell(title: "Alt Text", page: page,
+        return DialogShell(title: _w.title, page: page,
                            onOK: { [weak self] in guard let self else { return }; self._w.onOK(self._text.text) },
                            onCancel: { [weak self] in self?._w.onCancel() })
     }

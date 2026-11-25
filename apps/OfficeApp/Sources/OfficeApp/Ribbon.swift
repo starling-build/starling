@@ -731,6 +731,12 @@ final class Ribbon: StatelessWidget {
             Chrome.big(FluentSystemIcons.delete, "Delete", fluent) { c.deleteForward() },
         ])
         // Layout Options: only a picture that floats has a wrap to choose and a place to nudge.
+        var boxGroup: [Widget] = []
+        if c.textBoxText(at: i) != nil {
+            boxGroup.append(Chrome.group("Text Box", fluent, [
+                Chrome.big(FluentSystemIcons.textT, "Edit Text", fluent) { [session] in session.onPictureDialog?(.boxText) },
+            ]))
+        }
         var floating: [Widget] = []
         if let wrap = c.pictureWrap(at: i) {
             func pick(_ w: PictureWrap) -> Widget {
@@ -753,7 +759,7 @@ final class Ribbon: StatelessWidget {
                 ]),
             ]))
         }
-        return [size, arrange] + floating + [turn, tools, remove]
+        return [size, arrange] + floating + boxGroup + [turn, tools, remove]
     }
 
     // MARK: Layout
