@@ -1520,8 +1520,8 @@ final class SlidesShellState: State<StatefulWidget> {
                                            onClose: { [weak self] in self?.setState { self?._selectionPane = false } }))
             }
             if _formatBackground {
-                row.append(FormatBackgroundPane(deck: deck, onPicture: { [weak self] in self?.session.onBackgroundPicture?() },
-                                                onClose: { [weak self] in self?.setState { self?._formatBackground = false } }))
+                panes.append(FormatBackgroundPane(deck: deck, onPicture: { [weak self] in self?.session.onBackgroundPicture?() },
+                                                  onClose: { [weak self] in self?.setState { self?._formatBackground = false } }))
             }
             if _formatShape {
                 panes.append(FormatShapePane(deck: deck, onClose: { [weak self] in self?.setState { self?._formatShape = false } }))
