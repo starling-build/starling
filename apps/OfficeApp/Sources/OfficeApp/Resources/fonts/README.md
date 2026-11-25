@@ -145,6 +145,7 @@ Sources, unchanged from the release named:
 
 | Files | Source |
 |---|---|
+| NotoSansMongolian-Regular.ttf | github.com/notofonts/mongolian, release NotoSansMongolian-v3.103, `unhinted/ttf` (OFL 1.1, NotoSansMongolian-LICENSE.txt; the family has no Bold). Stands in for Mongolian Baiti, which Windows has and we may not ship |
 | NotoSansCJK-Regular.ttc, -Bold.ttc | github.com/notofonts/noto-cjk, tag Sans2.004, 03_NotoSansCJK-OTC.zip |
 | NotoSerifCJK-Regular.ttc, -Bold.ttc | github.com/notofonts/noto-cjk, tag Serif2.003, 04_NotoSerifCJKOTC.zip |
 | the CJK files above | byte-identical to Ubuntu's `fonts-noto-cjk` 1:20240730 |
@@ -188,6 +189,7 @@ sha256:
     77ad688cfe1dc55185bf4edb4db3c614202c65dd23a1463ad0e23fc52bcc9a5c  NotoSansDevanagari-Bold.ttf
     9bb35b3547829ecc42041b6017e87fd4c5f1da1edcd00f59171777050f346018  NotoSansBengali-Regular.ttf
     22c9ff99baca4d31c531ce450a1369beed889467e1ad964f4b8a6f810aa46955  NotoSansBengali-Bold.ttf
+    2986e50b7c66b7cbc42a0d82cc8143697a25ef56e134fe19adfd685c5f4ea57f  NotoSansMongolian-Regular.ttf
     cb3165071121b1e80c55a041d0c1f79b3bbc68e4b0eab37b0d881958dfc3ed7a  NotoSansTelugu-Regular.ttf
     34e3a81c02ea8474f00b1046cbb183461648fd253a56475140d6b025db828b5b  NotoSansTelugu-Bold.ttf
     1db960ff6f506a98f5b3ece78f54618388c6187e7edf8ceee5ab63389c0db3ab  NotoSansGurmukhi-Regular.ttf
