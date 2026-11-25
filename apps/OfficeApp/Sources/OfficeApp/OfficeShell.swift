@@ -414,6 +414,7 @@ final class OfficeShellState: State<StatefulWidget> {
             guard let self else { return }
             self.controller.breakUndoCoalescing()
             self.setState { self._pictureDialog = kind }
+        }
         session.onListFormatDialog = { [weak self] bullet in
             guard let self else { return }
             self.controller.breakUndoCoalescing()
