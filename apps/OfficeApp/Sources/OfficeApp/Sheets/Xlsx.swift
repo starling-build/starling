@@ -417,15 +417,17 @@ enum Xlsx {
                 var value: CellValue = .empty
                 switch t {
                 case "s":
-                    value = Int(vText ?? "").flatMap { $0 < sst.count ? CellValue.text(sst[$0]) : nil } ?? .empty
-                    if let i = Int(vText ?? ""), sstScripts.contains(i) { ws.scriptRows.insert(a.row) }
-                    if let i = Int(vText ?? ""), let runs = sstRuns[i] { ws.richText[a] = runs }
-                    if let i = Int(vText ?? ""), let raw = sstRaw[i], i < sst.count { ws.richRaw[a] = (sst[i], raw) }
+                    // (A stored index may carry blanks: bug69769's "2 ".)
+                    let sstIndex = Int((vText ?? "").trimmingSpaces())
+                    value = sstIndex.flatMap { $0 >= 0 && $0 < sst.count ? CellValue.text(sst[$0]) : nil } ?? .empty
+                    if let i = sstIndex, sstScripts.contains(i) { ws.scriptRows.insert(a.row) }
+                    if let i = sstIndex, let runs = sstRuns[i] { ws.richText[a] = runs }
+                    if let i = sstIndex, let raw = sstRaw[i], i < sst.count { ws.richRaw[a] = (sst[i], raw) }
                 // (An inline string with nothing in it is still a string, the empty
                 // one: a cell with a value, which Excel prints the sheet as far as.)
                 case "inlineStr": value = .text(c.inlineNode.map { _text($0) } ?? "")
                 case "str": value = .text(vText ?? "")
-                case "b": value = .bool(vText == "1")
+                case "b": value = .bool(vText == "1" || vText == "true")
                 case "e": value = .error(ExcelError(rawValue: vText ?? "") ?? .value)
                 // (Excel reads a number stored with blanks around it: lo-tdf124525's
                 // "    0.0402000000" cells print as 0.0402, not as nothing.)
@@ -483,6 +485,9 @@ enum Xlsx {
                     }
                 } else {
                     cell.value = value
+                    // A text constant that starts with "=" stays text (lo-tdf162093's "=myData[#Headers]"):
+                    // typed, it would be "'=abc", and that is its input here.
+                    if case .text(let t) = value, t.hasPrefix("="), t.count > 1 { cell.input = "'" + t }
                 }
                 if cell.value.isEmpty && cell.formula == nil && cell.style == 0 && cell.input.isEmpty { return }
                 cells[a] = cell
@@ -520,6 +525,7 @@ enum Xlsx {
                 for col in r.left ... r.right {
                     let a = CellAddress(row: row, col: col)
                     guard a != anchor, let c = cells[a], c.formula == nil, c.rawFormula == nil else { continue }
+                    if !c.value.isEmpty { ws.fileSpill[a] = c.value }
                     if c.style == 0 { cells[a] = nil } else { cells[a]?.value = .empty; cells[a]?.input = "" }
                 }
             }
@@ -1399,6 +1405,19 @@ enum Xlsx {
                 var c = Cell(input: "")
                 c.value = v
                 byRow[a.row, default: []].append((a, c))
+            }
+        }
+        // The file's own values for an array formula's other cells, where ours left one blank.
+        if !ws.fileSpill.isEmpty {
+            let arrays = ws.cells.values.compactMap { $0.arrayRef.flatMap { CellRange($0) } }
+            for (a, v) in ws.fileSpill where ws.spilled[a] == nil && ws.cells[a]?.value.isEmpty ?? true && ws.cells[a]?.formula == nil
+                && arrays.contains(where: { $0.contains(a) }) {
+                if let i = byRow[a.row]?.firstIndex(where: { $0.0 == a }) {
+                    byRow[a.row]![i].1.value = v
+                } else {
+                    var c = Cell(input: ""); c.value = v
+                    byRow[a.row, default: []].append((a, c))
+                }
             }
         }
         let rows = Set(byRow.keys).union(ws.rowHeights.keys).union(ws.filteredRows).union(ws.hiddenRows).union(ws.rowAttrs.keys).sorted()

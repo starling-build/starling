@@ -367,6 +367,9 @@ final class Worksheet {
     /// Values dynamic arrays spilled into otherwise empty cells: shown and
     /// read like the cells' own, written to the file beside their formula.
     var spilled: [CellAddress: CellValue] = [:]
+    /// What the file held in the cells of an array formula's range other than its first (Excel's last result): written back where
+    /// our own result leaves a cell blank, so a viewer that does not recalculate still shows the file's values.
+    var fileSpill: [CellAddress: CellValue] = [:]
     /// Excel tables on the sheet (their parts are kept; see Tables.swift).
     var tables: [SheetTable] = []
     /// Pivot tables on the sheet, for their styles (the parts are kept).
@@ -426,6 +429,7 @@ final class Worksheet {
         s.drawingRoot = drawingRoot
         s.drawingsEdited = drawingsEdited
         s.spilled = spilled
+        s.fileSpill = fileSpill
         s.colAttrRuns = colAttrRuns
         s.colWidthChars = colWidthChars
         s.widenedCols = widenedCols
