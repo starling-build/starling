@@ -445,6 +445,41 @@ extension WorkbookController {
         }
     }
 
+    /// Lay pivot `k` of `ws` out again from `spec` over `src`, where it stands now (rows may have been inserted above it since it was made).
+    func _relayPivot(_ ws: Worksheet, _ k: Int, _ made: PivotSpec, _ src: PivotSource) {
+        var spec = made
+        let pageRows = spec.filters.isEmpty ? 0 : spec.filters.count + 1
+        var old = ws.pivots[k].ref
+        // (The page filters sit above the table, of the OLD spec's count: take the old origin from the old spec.)
+        let oldPage = (ws.pivots[k].made ?? ws.pivots[k].fileSpec).map { $0.filters.isEmpty ? 0 : $0.filters.count + 1 } ?? pageRows
+        spec.origin = CellAddress(row: old.top - oldPage, col: old.left)
+        if oldPage > 0 { old = CellRange(top: spec.origin.row, left: old.left, bottom: old.bottom, right: max(old.right, old.left + 1)) }
+        let lay = PivotCalc.layout(spec, src)
+        if ws.pivots[k].made != nil { ws.pivots[k].made = spec } else { ws.pivots[k].refreshedHere = true }
+        _writePivot(lay, on: ws, replacing: old)
+        ws.pivots[k].ref = lay.location
+    }
+
+    /// The pivot made here that the active cell is in (its page filters included).
+    func madePivotIndex(on ws: Worksheet, at a: CellAddress) -> Int? {
+        ws.pivots.indices.first { k in
+            guard let m = ws.pivots[k].made else { return false }
+            let r = ws.pivots[k].ref, pr = m.filters.isEmpty ? 0 : m.filters.count + 1
+            return a.row >= r.top - pr && a.row <= r.bottom && a.col >= r.left && a.col <= r.right
+        }
+    }
+
+    /// The PivotTable Fields pane: put the fields where the user dragged them. One undoable step; the problem when the new setup cannot be laid out.
+    @discardableResult
+    func setPivotFields(sheet ws: Worksheet, pivot k: Int, rows: [Int], cols: [Int], data: [PivotDataField], filters: [PivotFilter]) -> PivotProblem? {
+        guard ws.pivots.indices.contains(k), var spec = ws.pivots[k].made, let s = ws.pivots[k].source, let src = PivotSource.read(s, book: book) else { return .noSource }
+        spec.rows = rows; spec.cols = cols; spec.data = data; spec.filters = filters
+        if let p = PivotCalc.problem(spec, src) { return p }
+        // (A page filter added or removed moves the table down or up: the old page rows are cleared by `_relayPivot`, and the table keeps its top.)
+        structural { _relayPivot(ws, k, spec, src) }
+        return nil
+    }
+
     /// Refresh the pivot tables made here from their sources as they are now; returns how many were refreshed.
     /// (A pivot table from a file is laid out again too when it is a kind made here; its parts stay as the file had them, and its cache is
     /// set to refresh when Excel opens the file. Any other kind is left for Excel.)
@@ -456,16 +491,7 @@ extension WorkbookController {
                 for k in ws.pivots.indices {
                     guard let made = ws.pivots[k].made ?? ws.pivots[k].fileSpec, let s = ws.pivots[k].source, let src = PivotSource.read(s, book: book),
                           PivotCalc.problem(made, src) == nil else { continue }
-                    // Where it stands now (rows may have been inserted above it since it was made).
-                    var spec = made
-                    let pageRows = spec.filters.isEmpty ? 0 : spec.filters.count + 1
-                    var old = ws.pivots[k].ref
-                    spec.origin = CellAddress(row: old.top - pageRows, col: old.left)
-                    if pageRows > 0 { old = CellRange(top: spec.origin.row, left: old.left, bottom: old.bottom, right: max(old.right, old.left + 1)) }
-                    let lay = PivotCalc.layout(spec, src)
-                    if ws.pivots[k].made != nil { ws.pivots[k].made = spec } else { ws.pivots[k].refreshedHere = true }
-                    _writePivot(lay, on: ws, replacing: old)
-                    ws.pivots[k].ref = lay.location
+                    _relayPivot(ws, k, made, src)
                     n += 1
                 }
             }

@@ -1053,7 +1053,8 @@ final class SheetsShellState: State<StatefulWidget> {
             action: "Delete sheet", onConfirm: { [weak self] in self?.wb.confirmSheetDelete() },
             onCancel: { [weak self] in self?.wb.cancelSheetDelete() })] } ?? []) + [
             _formulaBar(fluent),
-            Expanded(child: SheetGrid(
+            Expanded(child: Row(crossAxisAlignment: .stretch, children: [
+                Expanded(child: SheetGrid(
                 key: _gridKey, controller: wb, zoom: _zoom,
                 onEditText: { [weak self] text in
                     // The bar over the keyboard is a formula's keys while a cell is typed in, and number commands otherwise.
@@ -1071,6 +1072,8 @@ final class SheetsShellState: State<StatefulWidget> {
                 onFilterMenu: { [weak self] point, col in self?._showFilterMenu(at: point, col: col) },
                 onListMenu: { [weak self] point, cell, choices in self?._showListMenu(at: point, cell: cell, choices) },
                 onZoom: { [weak self] f in self?.setState { self?._zoom = max(0.25, min(4, (self?._zoom ?? 1) * f)) } })),
+                PivotFieldsPane(controller: wb, onChange: { [weak self] in self?.setState {} }),
+            ])),
             _sheetTabs(fluent),
             _statusBar(fluent),
         ]
