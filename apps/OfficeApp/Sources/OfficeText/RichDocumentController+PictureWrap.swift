@@ -309,6 +309,8 @@ extension RichDocumentController {
         return out
     }
 
+    public static func _annotationIds(in xml: String) -> [Int] { _revisionIds(in: xml).map(\.1) }
+
     public static func _highestRevisionId(in xml: String) -> Int { _revisionIds(in: xml).map(\.1).max() ?? 0 }
 
     /// `xml` with every revision and bookmark id raised by `offset` (start and end of a bookmark move together).

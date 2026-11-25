@@ -1034,6 +1034,23 @@ extension DocxFormat {
             return (np.runs.first(where: { $0.length > 0 }) ?? np.runs.first)?.style.comments ?? []
         }
         var revisionCount = 0
+        // Ids the file already uses and we keep as they are (kept header, footer and note parts, boxes and
+        // pictures written from their own XML, bookmark markers): new revision and point-bookmark ids skip them,
+        // so one id never names two annotations anywhere in the package.
+        var takenAnnotationIDs = Set<Int>()
+        for (name, data) in doc.keptParts where name.hasPrefix("word/") && name.hasSuffix(".xml") && name != "word/document.xml" && name != "word/comments.xml" {
+            takenAnnotationIDs.formUnion(RichDocumentController._annotationIds(in: String(decoding: data, as: UTF8.self)))
+        }
+        for p in doc.paragraphs {
+            for img in [p.image].compactMap({ $0 }) + Array(p.inlineImages.values) {
+                if let x = img.sourceXML { takenAnnotationIDs.formUnion(RichDocumentController._annotationIds(in: x)) }
+            }
+            for m in p.bookmarkMarkers { if let n = Int(m.id) { takenAnnotationIDs.insert(n) } }
+        }
+        func nextRevisionID() -> Int {
+            repeat { revisionCount += 1 } while takenAnnotationIDs.contains(revisionCount)
+            return revisionCount
+        }
         var usedExtensions: Set<String> = []
         func relId(for link: String) -> String {
             if let r = rels.first(where: { $0.target == link }) { return r.id }
@@ -1285,7 +1302,7 @@ extension DocxFormat {
             // every spelling, probed 2026-10-09; bib-chernigovka's cover).
             var markRPr = ""
             if let rev = p.style.markRevision {
-                revisionCount += 1
+                _ = nextRevisionID()
                 let tag = rev.kind == .inserted ? "w:ins" : "w:del"
                 markRPr += "<\(tag) w:id=\"\(revisionCount)\" w:author=\"\(_esc(rev.author.isEmpty ? "Author" : rev.author))\"\(rev.date.isEmpty ? "" : " w:date=\"\(_esc(rev.date))\"")/>"
             }
@@ -1305,7 +1322,7 @@ extension DocxFormat {
             body += "<w:p\(p.id != 0 ? " w14:paraId=\"\(_paraIdHex(p.id))\"" : "")><w:pPr>\(pPr)</w:pPr>"
             for name in p.bookmarks where !rangedBookmarkNames.contains(name) && writtenBookmarks.insert(name).inserted {
                 // (Numbered clear of any a kept table's own XML carries.)
-                repeat { nextPointBookmarkID += 1 } while rangedBookmarkIDs.contains(String(nextPointBookmarkID))
+                repeat { nextPointBookmarkID += 1 } while rangedBookmarkIDs.contains(String(nextPointBookmarkID)) || takenAnnotationIDs.contains(nextPointBookmarkID)
                 let id = nextPointBookmarkID
                 body += "<w:bookmarkStart w:id=\"\(id)\" w:name=\"\(_esc(name))\"/><w:bookmarkEnd w:id=\"\(id)\"/>"
             }
@@ -1391,7 +1408,7 @@ extension DocxFormat {
                     continue
                 }
                 var changeId: Int? = nil
-                if s.formatChange != nil { revisionCount += 1; changeId = revisionCount }
+                if s.formatChange != nil { changeId = nextRevisionID() }
                 var rPr = _rPrXML(s, fileFonts: doc.fileFonts, changeId: changeId)
                 if let note = s.note, doc.keptParts[note.kind == .footnote ? "word/footnotes.xml" : "word/endnotes.xml"] != nil {
                     // The mark's number is Word's to show; the run carries
@@ -1488,7 +1505,7 @@ extension DocxFormat {
                     }
                 }
                 if let rev = s.revision {
-                    revisionCount += 1
+                    _ = nextRevisionID()
                     let tag = rev.kind == .inserted ? "w:ins" : "w:del"
                     runXML = "<\(tag) w:id=\"\(revisionCount)\" w:author=\"\(_esc(rev.author.isEmpty ? "Author" : rev.author))\"\(rev.date.isEmpty ? "" : " w:date=\"\(_esc(rev.date))\"")>\(runXML)</\(tag)>"
                 }
