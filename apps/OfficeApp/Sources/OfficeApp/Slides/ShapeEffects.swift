@@ -29,10 +29,10 @@ enum ShapeEffectPresets {
     static let reflections: [(name: String, dist: Double, endPos: Double, startAlpha: Double)] = [
         ("Tight Reflection, touching", 0, 0.35, 0.52), ("Tight Reflection, 4 pt offset", 4, 0.35, 0.52),
         ("Tight Reflection, 8 pt offset", 8, 0.35, 0.52),
-        ("Half Reflection, touching", 0, 0.55, 0.50), ("Half Reflection, 4 pt offset", 4, 0.55, 0.50),
-        ("Half Reflection, 8 pt offset", 8, 0.55, 0.50),
-        ("Full Reflection, touching", 0, 0.90, 0.50), ("Full Reflection, 4 pt offset", 4, 0.90, 0.50),
-        ("Full Reflection, 8 pt offset", 8, 0.90, 0.50),
+        ("Half Reflection, touching", 0, 0.55, 0.52), ("Half Reflection, 4 pt offset", 4, 0.55, 0.52),
+        ("Half Reflection, 8 pt offset", 8, 0.55, 0.52),
+        ("Full Reflection, touching", 0, 0.90, 0.52), ("Full Reflection, 4 pt offset", 4, 0.90, 0.52),
+        ("Full Reflection, 8 pt offset", 8, 0.90, 0.52),
     ]
 
     static func reflection(dist: Double, endPos: Double, startAlpha: Double) -> Reflection {

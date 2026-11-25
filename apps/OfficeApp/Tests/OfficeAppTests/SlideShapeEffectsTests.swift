@@ -87,17 +87,41 @@ final class SlideShapeEffectsTests: XCTestCase {
         XCTAssertEqual(s.bevel?.preset, "slope")
     }
 
+    func testReflectionPresetsAreOfficesOwnValues() {
+        // Office's presets: start opacity 52%, end opacity 0.3%, ends at 35 / 55 / 90 %, 0 / 4 / 8 pt below.
+        for r in ShapeEffectPresets.reflections {
+            XCTAssertEqual(r.startAlpha, 0.52, accuracy: 1e-9, r.name)
+            let x = ShapeEffectPresets.reflection(dist: r.dist, endPos: r.endPos, startAlpha: r.startAlpha)
+            XCTAssertEqual(x.endAlpha, 0.003, accuracy: 1e-9); XCTAssertEqual(x.scaleY, -1)
+        }
+        XCTAssertEqual(ShapeEffectPresets.reflections.map(\.endPos), [0.35, 0.35, 0.35, 0.55, 0.55, 0.55, 0.9, 0.9, 0.9])
+    }
+
+    func testHomeTabStillFitsAt1280() throws {
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light),
+                                        home: SlidesShell(initialPath: nil, onSwitch: { _, _ in }), title: "Test"),
+                              size: Size(1280, 800))
+        ui.pump()
+        for label in ["Shape Effects", "Text Options", "Arrange", "Drawing"] {
+            let c = try XCTUnwrap(ui.centre(ofText: label), label)
+            XCTAssertLessThan(c.dx + 30, 1280, "\(label) is pushed off the tab")
+        }
+    }
+
     func testWritesThePowerPointCheckFile() throws {
         let deck = DeckController()
-        var i = 0.0
+        var n = 0
         func put(_ name: String, _ f: (DeckController) -> Void) {
+            let slot = n % 12
+            if n > 0 && slot == 0 { _ = deck.addSlide() }
             let s = deck.addShape(.roundRect)
-            let x = 60 + i.truncatingRemainder(dividingBy: 4) * 220, y = 60 + (i / 4).rounded(.down) * 150; s.frame = Rect.fromLTWH(x, y, 180, 110)
-            s.name = name; deck.selectShapes([s]); f(deck); i += 1
+            let x = 40 + Double(slot % 4) * 230, y = 40 + Double(slot / 4) * 160
+            s.frame = Rect.fromLTWH(x, y, 170, 100)
+            s.name = name; deck.selectShapes([s]); f(deck); n += 1
         }
-        for (k, sh) in ShapeEffectPresets.shadows.enumerated() where k % 3 == 0 { put(sh.name) { $0.setShadow(ShapeEffectPresets.shadow(angle: sh.angle)) } }
+        for sh in ShapeEffectPresets.shadows { put(sh.name) { $0.setShadow(ShapeEffectPresets.shadow(angle: sh.angle)) } }
         for g in ShapeEffectPresets.glowSizes { put("Glow \(g)") { $0.setGlow(radius: g, color: ShapeEffectPresets.glowColor($0.theme.accents[2])) } }
-        for r in [ShapeEffectPresets.reflections[0], ShapeEffectPresets.reflections[4], ShapeEffectPresets.reflections[8]] {
+        for r in ShapeEffectPresets.reflections {
             put(r.name) { $0.setReflection(ShapeEffectPresets.reflection(dist: r.dist, endPos: r.endPos, startAlpha: r.startAlpha)) } }
         for r in ShapeEffectPresets.softEdgeSizes { put("Soft \(r)") { $0.setSoftEdge(r) } }
         for b in ShapeEffectPresets.bevels { put("Bevel \(b.name)") { $0.setBevel(ShapeBevel(width: 6, height: 6, preset: b.preset)) } }
