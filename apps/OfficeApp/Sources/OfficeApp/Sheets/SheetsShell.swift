@@ -33,7 +33,7 @@ final class SheetsShellState: State<StatefulWidget> {
     let session = OfficeSession(kind: .workbook)
     var wb: WorkbookController { session.workbook! }
     private let _gridKey = GlobalKey<State<StatefulWidget>>()
-    private var _grid: SheetGridState? { _gridKey.currentState as? SheetGridState }
+    var _grid: SheetGridState? { _gridKey.currentState as? SheetGridState }
     private let _formula = TextEditingController()
     private let _nameBox = TextEditingController()
     private let _search = TextEditingController()
@@ -70,6 +70,9 @@ final class SheetsShellState: State<StatefulWidget> {
     private var _formatOpen = false
     private var _pageSetupOpen = false
     private var _printOpen = false
+    private var _shortcutsOpen = false
+    var _printKinds: [PrintWhat] = []
+    var _printCounts: [Int] = []
     private var _sortOpen: (range: CellRange, hasHeader: Bool)?
     private var _validationOpen = false
     private var _cfOpen = false
@@ -246,6 +249,7 @@ final class SheetsShellState: State<StatefulWidget> {
         }
         #endif
         session.onPrint = { [weak self] in self?._print() }
+        session.onShortcuts = { [weak self] in self?.setState { self?._backstage = nil; self?._shortcutsOpen = true } }
         session.onStatus = { [weak self] m in self?._flash(m) }
         session.onUndo = { [weak self] in self?.wb.undo() }
         session.onRedo = { [weak self] in self?.wb.redo() }
@@ -593,25 +597,60 @@ final class SheetsShellState: State<StatefulWidget> {
         #endif
     }
 
-    /// File → Print: the PDF of the active sheet, handed to the host's print dialog.
-    private func _print() { setState { _backstage = nil; _printOpen = true } }
-
-    private func _print(_ what: PrintWhat) {
+    /// File → Print: the shared Print dialog. Its page counts come first (a layout pass for each
+    /// thing it can print), then it opens.
+    private func _print() {
         #if os(WASI)
         _flash("Printing is not available in the browser yet")
         #else
-        let path = NSTemporaryDirectory() + "sheets-print-\(ProcessInfo.processInfo.processIdentifier).pdf"
         _ = _grid?.commitEdit()
         setState { _backstage = nil }
         Task { @MainActor [weak self] in
             guard let self, let grid = self._grid else { return }
+            let sel = self.wb.selection
+            var kinds: [PrintWhat] = [.activeSheet, .entireWorkbook]
+            if sel.rows * sel.cols > 1 { kinds.append(.selection) }
+            var counts: [Int] = []
+            for k in kinds {
+                let n = SheetJobBox(0)
+                _ = await grid.writePdf(to: "", title: "", wholeBook: k == .entireWorkbook,
+                                        selection: k == .selection ? sel : nil, countOnly: n)
+                counts.append(n.value)
+            }
+            self.setState { self._printKinds = kinds; self._printCounts = counts; self._printOpen = true }
+        }
+        #endif
+    }
+
+    /// The shared dialog's hooks for this workbook: Active sheet, Entire workbook and (when
+    /// more than a cell is selected) Selection, each with its own page count.
+    var _printHooks: PrintHooks {
+        let kinds = _printKinds, counts = _printCounts
+        return PrintHooks(unit: "Pages", total: max(1, counts.first ?? 1), current: 1,
+                          totals: counts.map { max(1, $0) },
+                          outputs: kinds.map(\.label), hostCanPrint: hostPrintPDF != nil,
+                          print: { [weak self] pages, output in
+            guard let self, kinds.indices.contains(output) else { return "Nothing to print" }
+            return self._print(kinds[output], pages: pages)
+        })
+    }
+
+    private func _print(_ what: PrintWhat, pages: [Int]) -> String {
+        #if os(WASI)
+        return "Printing is not available in the browser yet"
+        #else
+        let path = NSTemporaryDirectory() + "sheets-print-\(ProcessInfo.processInfo.processIdentifier).pdf"
+        Task { @MainActor [weak self] in
+            guard let self, let grid = self._grid else { return }
             guard await grid.writePdf(to: path, title: self.session.title, filePath: self.session.path,
-                                      wholeBook: what == .entireWorkbook, selection: what == .selection ? self.wb.selection : nil) else {
+                                      wholeBook: what == .entireWorkbook, selection: what == .selection ? self.wb.selection : nil,
+                                      pages: pages) else {
                 self._flash("Nothing to print on this sheet")
                 return
             }
             if let print = hostPrintPDF { print(path) } else { self._flash("No print dialog on this host") }
         }
+        return ""
         #endif
     }
 
@@ -972,10 +1011,16 @@ final class SheetsShellState: State<StatefulWidget> {
                     self?._grid?.focus.requestFocus()
                 })))
         }
+        if _shortcutsOpen {
+            layers.append(Positioned(left: 0, top: 0, right: 0, bottom: 0, child: ShortcutListDialog(
+                table: ShortcutTable.sheets, onClose: { [weak self] in
+                    self?.setState { self?._shortcutsOpen = false }
+                    self?._grid?.focus.requestFocus()
+                })))
+        }
         if _printOpen {
-            layers.append(Positioned(left: 0, top: 0, right: 0, bottom: 0, child: PrintChoicePanel(
-                sheetName: wb.sheet.name, selectionText: wb.selection.a1,
-                onPrint: { [weak self] w in self?._print(w) },
+            layers.append(Positioned(left: 0, top: 0, right: 0, bottom: 0, child: PrintDialog(
+                hooks: _printHooks,
                 onClose: { [weak self] in
                     self?.setState { self?._printOpen = false }
                     self?._grid?.focus.requestFocus()
@@ -1031,6 +1076,7 @@ final class SheetsShellState: State<StatefulWidget> {
         case "o": session.onOpen?(); return true   // the picker in a tab, Backstage natively
         case "n": session.replacing { [weak self] in self?._newWorkbook() }; return true
         case "p": _print(); return true
+        case "/": session.onShortcuts?(); return true
         case "f": _openFind(replace: false); return true
         case "1" where _grid?.edit == nil: _openFormatCells(); return true
         case "h": _openFind(replace: true); return true

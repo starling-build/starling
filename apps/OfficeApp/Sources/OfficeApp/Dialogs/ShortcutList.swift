@@ -94,6 +94,34 @@ enum ShortcutTable {
         ShortcutEntry("View", "Show or hide ¶", "8", .shift),
     ]
 
+    /// Sheets' shortcuts (the grid's own chords, then the window's).
+    static let sheets: [ShortcutEntry] = [
+        ShortcutEntry("Edit", "Undo", "z"),
+        ShortcutEntry("Edit", "Redo", "y"),
+        ShortcutEntry("Edit", "Redo", "z", .shift),
+        ShortcutEntry("Edit", "Copy", "c"),
+        ShortcutEntry("Edit", "Cut", "x"),
+        ShortcutEntry("Edit", "Paste", "v"),
+        ShortcutEntry("Edit", "Select all", "a"),
+        ShortcutEntry("Edit", "Fill down", "d"),
+        ShortcutEntry("Edit", "Fill right", "r"),
+        ShortcutEntry("Format", "Bold", "b"),
+        ShortcutEntry("Format", "Italic", "i"),
+        ShortcutEntry("Format", "Underline", "u"),
+        ShortcutEntry("Format", "Format Cells", "1"),
+        ShortcutEntry("Find", "Find", "f"),
+        ShortcutEntry("Find", "Replace", "h"),
+        ShortcutEntry("Data", "Turn the filter on or off", "l", .shift),
+        ShortcutEntry("Data", "Group rows or columns", "k", .shift),
+        ShortcutEntry("Data", "Ungroup rows or columns", "j", .shift),
+        ShortcutEntry("File", "Save", "s"),
+        ShortcutEntry("File", "Save as", "s", .shift),
+        ShortcutEntry("File", "Open", "o"),
+        ShortcutEntry("File", "New", "n"),
+        ShortcutEntry("File", "Print", "p"),
+        ShortcutEntry("Help", "Keyboard shortcuts", "/"),
+    ]
+
     /// Entries grouped in first-seen order.
     static func groups(_ table: [ShortcutEntry]) -> [(name: String, entries: [ShortcutEntry])] {
         var order: [String] = []

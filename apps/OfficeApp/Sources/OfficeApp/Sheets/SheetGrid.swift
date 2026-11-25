@@ -1299,7 +1299,9 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             return true
         }
 
-        // Chords first.
+        // Chords first. ⌘/ (the shortcut list) and ⌘1 (Format Cells) are not letters, so the window gets them here.
+        if _chords.primary, k.logical == 0x2F || k.logical == 0x31,
+           _w.onShortcut(Character(UnicodeScalar(UInt8(k.logical))), _chords) { return true }
         if _chords.primary, let letter = KeyChordTracker.letter(k.logical) {
             switch letter {
             case "z" where edit == nil: _chords.shift ? c.redo() : c.undo(); return true
