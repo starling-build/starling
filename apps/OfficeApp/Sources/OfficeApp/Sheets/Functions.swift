@@ -1242,15 +1242,27 @@ enum SheetFunctions {
             let rgOf: (Int) -> CellRange = { k in
                 let a = areas[k]; return CellRange(top: a.1.top, left: a.1.left, bottom: a.1.top + r - 1, right: a.1.left + cc - 1)
             }
-            // Indexable criteria: exact text or number, no wildcard or operator. Walk the shortest list of matching positions.
-            var best: [Int]? = nil
+            // Indexable criteria: exact text or number, no wildcard or operator. Walk the positions every one of them
+            // allows: the shortest list, kept to the positions found in all the others (each list is ascending, so a
+            // cell's own check below sees the same cells in the same order as before, only fewer of them).
+            var lists: [[Int]] = []
             for k in 0 ..< crits.count where crits[k].op == .eq && crits[k].glob == nil && blocks[k].count > 64
                 && rgOf(k).bottom < CellAddress.maxRows && rgOf(k).right < CellAddress.maxCols {
                 guard CalcEngine.indexKey(crits[k].value) != nil else { continue }
-                let l = c.engine.candidates(areas[k].0, rgOf(k), crits[k].value)
-                if best == nil || l.count < best!.count { best = l }
+                lists.append(c.engine.candidates(areas[k].0, rgOf(k), crits[k].value))
             }
-            if let best {
+            if let shortest = lists.indices.min(by: { lists[$0].count < lists[$1].count }) {
+                var best = lists[shortest]
+                if lists.count > 1 && !best.isEmpty {
+                    for (j, l) in lists.enumerated() where j != shortest {
+                        best = best.filter { i in
+                            var lo = 0, hi = l.count
+                            while lo < hi { let m = (lo + hi) / 2; if l[m] < i { lo = m + 1 } else { hi = m } }
+                            return lo < l.count && l[lo] == i
+                        }
+                        if best.isEmpty { break }
+                    }
+                }
                 for i in best { visit(i) }
             } else {
                 for i in 0 ..< r * cc { visit(i) }

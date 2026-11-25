@@ -74,6 +74,7 @@ final class CalcEngine {
     /// formulas that read them.
     func recalculate() {
         _graph = nil
+        _orderMemo = nil
         _rangeCache.removeAll(keepingCapacity: true); _textIndexCache.removeAll(keepingCapacity: true)
         _extents.removeAll()
         _done.removeAll(keepingCapacity: true)
@@ -112,8 +113,14 @@ final class CalcEngine {
             }
             spillsChanged = false
             _reentered.removeAll()
+            // What the pass starts from (spill ranges and the values they hold): when it ends in the same state,
+            // the next round would start from the same state and compute the same cells again.
+            let startSpills = round > 0 ? book.sheets.map { $0.spilled } : []
+            let startKnown = round > 0 ? _spillSignature(_knownSpills) : []
             _pass()
             if !spillsChanged || round == 3 { break }
+            if round > 0, _spillSignature(_collectSpills()) == startKnown,
+               zip(book.sheets, startSpills).allSatisfy({ $0.spilled == $1 }) { break }
         }
         if book.iterate, !_reentered.isEmpty { _iterate() }
     }
@@ -223,13 +230,15 @@ final class CalcEngine {
     /// added or removed): writing computed values back would otherwise make
     /// every reader of a whole column rescan the sheet. Each pass starts
     /// afresh, since moving rows keeps the count and changes the extent.
-    private var _extents: [Int: (count: Int, extent: CellAddress)] = [:]
+    private var _extents: [Int: (count: Int, spilled: Int, extent: CellAddress)] = [:]
 
+    /// (Spilled cells are on the sheet too: a range ending past the last cell of its own still reads them.)
     func usedExtent(_ sheet: Int) -> CellAddress {
         let ws = book.sheets[sheet]
-        if let e = _extents[sheet], e.count == ws.cells.count { return e.extent }
-        let e = ws.usedExtent
-        _extents[sheet] = (ws.cells.count, e)
+        if let e = _extents[sheet], e.count == ws.cells.count, e.spilled == ws.spilled.count { return e.extent }
+        var e = ws.usedExtent
+        for a in ws.spilled.keys { e.row = max(e.row, a.row); e.col = max(e.col, a.col) }
+        _extents[sheet] = (ws.cells.count, ws.spilled.count, e)
         return e
     }
 
@@ -287,6 +296,14 @@ final class CalcEngine {
         // a blocked FILTER left it empty, where it is #SPILL!.)
         for a in changed where g.formulaCells.contains(SheetCell(sheet: sheet, cell: a)) { dirty.insert(SheetCell(sheet: sheet, cell: a)) }
         while let x = queue.popLast() {
+            // A spill's other cells take new values with its anchor, and cells read them as their own.
+            if let sr = book.sheets[x.sheet].cells[x.cell]?.spillRange, !sr.isSingle, g.formulaCells.contains(x) {
+                for row in sr.top ... sr.bottom {
+                    for col in sr.left ... sr.right where !(row == x.cell.row && col == x.cell.col) {
+                        queue.append(SheetCell(sheet: x.sheet, cell: CellAddress(row: row, col: col)))
+                    }
+                }
+            }
             var readers = g.cellReaders[x] ?? []
             var candidates = g.wide
             if let cols = g.byColumn[x.sheet], let list = cols[x.cell.col] { candidates += list }
@@ -308,46 +325,87 @@ final class CalcEngine {
         }
     }
 
-    private func _evaluationOrder() -> [SheetCell] {
-        // Formula cells by sheet and column, rows sorted: what a range holds.
-        var index: [Int: [Int: [Int]]] = [:]
-        var all: [SheetCell] = []
-        for (si, sheet) in book.sheets.enumerated() {
-            for (addr, cell) in sheet.cells where cell.formula != nil {
-                index[si, default: [:]][addr.col, default: []].append(addr.row)
-                all.append(SheetCell(sheet: si, cell: addr))
-            }
-        }
-        for si in index.keys { for c in index[si]!.keys { index[si]![c]!.sort() } }
-        all.sort { ($0.sheet, $0.cell.row, $0.cell.col) < ($1.sheet, $1.cell.row, $1.cell.col) }
+    /// The order last built in this recalculate(), and what it was built from: the formulas cannot change inside one, so
+    /// a round whose known spills are the last round's (and each iteration of a looping book) walks the same graph.
+    private var _orderMemo: (spills: [Int], order: [SheetCell], graph: _Graph, cycle: Set<SheetCell>)? = nil
 
-        func formulaCells(_ si: Int, _ r: CellRange) -> [_Node] {
+    private func _evaluationOrder() -> [SheetCell] {
+        var sig: [Int] = []
+        for (si, l) in _knownSpills.sorted(by: { $0.key < $1.key }) {
+            for (a, r) in l.sorted(by: { ($0.0.row, $0.0.col) < ($1.0.row, $1.0.col) }) { sig += [si, a.row, a.col, r.top, r.left, r.bottom, r.right] }
+        }
+        if let m = _orderMemo, m.spills == sig {
+            _cycle = m.cycle; _graph = m.graph
+            return m.order
+        }
+        let order = _buildEvaluationOrder()
+        if let g = _graph { _orderMemo = (sig, order, g, _cycle) }
+        return order
+    }
+
+    private func _buildEvaluationOrder() -> [SheetCell] {
+        // Every formula cell, sorted; its position is its id in the walk below. (The walk keeps its marks in arrays
+        // indexed by id, not in dictionaries keyed by node: a dictionary hit per mark per edge was a fifth of a big book's load.)
+        var found: [(SheetCell, FormulaExpr)] = []
+        for (si, sheet) in book.sheets.enumerated() {
+            for (addr, cell) in sheet.cells { if let f = cell.formula { found.append((SheetCell(sheet: si, cell: addr), f)) } }
+        }
+        found.sort { ($0.0.sheet, $0.0.cell.row, $0.0.cell.col) < ($1.0.sheet, $1.0.cell.row, $1.0.cell.col) }
+        let all = found.map { $0.0 }
+        let formulas = found.map { $0.1 }
+        // Formula cells by sheet and column, rows ascending (they come sorted), with their ids: what a range holds.
+        var index: [Int: [Int: (rows: [Int], ids: [Int])]] = [:]
+        var nodes: [_Node] = []
+        var ids: [_Node: Int] = [:]
+        nodes.reserveCapacity(all.count * 2)
+        for (i, k) in all.enumerated() {
+            index[k.sheet, default: [:]][k.cell.col, default: ([], [])].rows.append(k.cell.row)
+            index[k.sheet]![k.cell.col]!.ids.append(i)
+            nodes.append(.cell(k)); ids[.cell(k)] = i
+        }
+        var seen: [Int] = Array(repeating: -1, count: all.count)       // the order the walk reached each node
+        var low: [Int] = Array(repeating: 0, count: all.count)
+        var onStack: [Bool] = Array(repeating: false, count: all.count)
+        var selfLoop: [Bool] = Array(repeating: false, count: all.count)
+        var readersOf: [[SheetCell]] = Array(repeating: [], count: all.count)   // who reads each range node
+        func intern(_ n: _Node) -> Int {
+            if let i = ids[n] { return i }
+            let i = nodes.count
+            nodes.append(n); ids[n] = i
+            seen.append(-1); low.append(0); onStack.append(false); selfLoop.append(false); readersOf.append([])
+            return i
+        }
+
+        func formulaCells(_ si: Int, _ r: CellRange) -> [Int] {
             guard let cols = index[si] else { return [] }
-            var out: [_Node] = []
-            let colKeys = r.cols <= cols.count ? Array(r.left ... r.right).filter { cols[$0] != nil } : cols.keys.filter { $0 >= r.left && $0 <= r.right }
+            var out: [Int] = []
+            var colKeys = r.cols <= cols.count ? Array(r.left ... r.right).filter { cols[$0] != nil } : cols.keys.filter { $0 >= r.left && $0 <= r.right }
+            colKeys.sort()
             for c in colKeys {
-                let rows = cols[c]!
-                var lo = 0, hi = rows.count
-                while lo < hi { let m = (lo + hi) / 2; if rows[m] < r.top { lo = m + 1 } else { hi = m } }
-                while lo < rows.count, rows[lo] <= r.bottom {
-                    out.append(.cell(SheetCell(sheet: si, cell: CellAddress(row: rows[lo], col: c))))
+                let col = cols[c]!
+                var lo = 0, hi = col.rows.count
+                while lo < hi { let m = (lo + hi) / 2; if col.rows[m] < r.top { lo = m + 1 } else { hi = m } }
+                while lo < col.rows.count, col.rows[lo] <= r.bottom {
+                    out.append(col.ids[lo])
                     lo += 1
                 }
             }
             return out
         }
-        func inputs(_ node: _Node) -> [_Node] {
-            switch node {
+        var nameParsed: [String: FormulaExpr?] = [:]
+        func inputs(_ id: Int) -> [Int] {
+            switch nodes[id] {
             case .range(let si, let r):
-                var out = r.isSingle ? (book.sheets[si].cells[r.topLeft]?.formula != nil ? [_Node.cell(SheetCell(sheet: si, cell: r.topLeft))] : [])
-                                     : formulaCells(si, r)
+                var out: [Int] = []
+                if r.isSingle { if let i = ids[.cell(SheetCell(sheet: si, cell: r.topLeft))] { out = [i] } }
+                else { out = formulaCells(si, r) }
                 // A spill over this range: its formula is an input too.
                 for (anchor, spill) in _knownSpills[si] ?? [] where spill.intersects(r) {
-                    out.append(.cell(SheetCell(sheet: si, cell: anchor)))
+                    if let i = ids[.cell(SheetCell(sheet: si, cell: anchor))] { out.append(i) }
                 }
                 return out
             case .cell(let k):
-                guard let f = book.sheets[k.sheet].cells[k.cell]?.formula else { return [] }
+                let f = formulas[id]
                 if Formula.isVolatile(f) { graph.volatile.insert(k) }
                 var refs: [FormulaRef] = [], indexed: [FormulaRef] = []
                 Formula.references(f, into: &refs, indexed: &indexed)
@@ -355,11 +413,14 @@ final class CalcEngine {
                 var names: [String] = []
                 Formula.names(f, into: &names)
                 for n in names {
-                    if let t = book.nameText(n, sheet: k.sheet), let e = try? Formula.parse(t) {
+                    let nk = "\(k.sheet)|\(n)"
+                    if nameParsed[nk] == nil { nameParsed[nk] = .some(book.nameText(n, sheet: k.sheet).flatMap { try? Formula.parse($0) }) }
+                    if let e = nameParsed[nk]! {
+                        if Formula.isVolatile(e) { graph.volatile.insert(k) }
                         Formula.references(Formula.shifted(e, rows: k.cell.row, cols: k.cell.col, wrapping: true), into: &refs, indexed: &indexed)
                     }
                 }
-                func read(_ ref: FormulaRef) -> _Node? {
+                func read(_ ref: FormulaRef) -> Int? {
                     // (A sheet of another workbook is none of ours.)
                     if let n = ref.sheet, n.hasPrefix("[") { return nil }
                     let si = ref.sheet.flatMap { book.sheet(named: $0) } ?? k.sheet
@@ -367,10 +428,10 @@ final class CalcEngine {
                     let r = ref.range
                     if r.isSingle {
                         graph.cellReaders[SheetCell(sheet: si, cell: r.topLeft), default: []].append(k)
-                    } else {
-                        rangeReaders[_Node.range(si, r), default: []].append(k)
                     }
-                    return .range(si, r)
+                    let i = intern(.range(si, r))
+                    if !r.isSingle { readersOf[i].append(k) }
+                    return i
                 }
                 // What INDEX picks from is read when it changes, but is not
                 // walked for loops: a loop through the one cell it picks is
@@ -381,7 +442,6 @@ final class CalcEngine {
         }
         var graph = _Graph(order: [], formulaCells: Set(all))
 
-        var rangeReaders: [_Node: [SheetCell]] = [:]
         var order: [SheetCell] = []
         order.reserveCapacity(all.count)
         // The walk finds the loops too, whole (Tarjan's components): every
@@ -391,47 +451,43 @@ final class CalcEngine {
         // through a range showed 0 after one full pass and its sum after
         // the next (SheetsEngineTests' random edits, seed 80: A5's VLOOKUP
         // over A1:D12 and C8 reading C3's FILTER of A1:A12).
-        var seen: [_Node: Int] = [:]           // the order the walk reached each node
-        var low: [_Node: Int] = [:]
-        var onStack: Set<_Node> = []
-        var component: [_Node] = []
-        var selfLoop: Set<_Node> = []
+        var reached = 0
+        var component: [Int] = []
         var cycle: Set<SheetCell> = []
-        func reach(_ n: _Node) {
-            seen[n] = seen.count; low[n] = seen[n]
-            component.append(n); onStack.insert(n)
+        func reach(_ n: Int) {
+            seen[n] = reached; low[n] = reached; reached += 1
+            component.append(n); onStack[n] = true
         }
-        for start in all {
-            let root = _Node.cell(start)
-            guard seen[root] == nil else { continue }
+        for root in 0 ..< all.count {
+            guard seen[root] < 0 else { continue }
             reach(root)
-            var stack: [(node: _Node, inputs: [_Node], next: Int)] = [(root, inputs(root), 0)]
+            var stack: [(node: Int, inputs: [Int], next: Int)] = [(root, inputs(root), 0)]
             while !stack.isEmpty {
                 let top = stack.count - 1
                 if stack[top].next < stack[top].inputs.count {
                     let node = stack[top].node
                     let child = stack[top].inputs[stack[top].next]
                     stack[top].next += 1
-                    if child == node { selfLoop.insert(node) }
-                    if seen[child] == nil {
+                    if child == node { selfLoop[node] = true }
+                    if seen[child] < 0 {
                         reach(child)
                         stack.append((child, inputs(child), 0))
-                    } else if onStack.contains(child) {
-                        low[node] = min(low[node]!, seen[child]!)
+                    } else if onStack[child] {
+                        low[node] = min(low[node], seen[child])
                     }
                 } else {
                     let done = stack.removeLast().node
-                    if case .cell(let k) = done { order.append(k) }
-                    if let parent = stack.last?.node { low[parent] = min(low[parent]!, low[done]!) }
+                    if case .cell(let k) = nodes[done] { order.append(k) }
+                    if let parent = stack.last?.node { low[parent] = min(low[parent], low[done]) }
                     if low[done] == seen[done] {
-                        var members: [_Node] = []
+                        var members: [Int] = []
                         while let w = component.popLast() {
-                            onStack.remove(w)
+                            onStack[w] = false
                             members.append(w)
                             if w == done { break }
                         }
-                        if members.count > 1 || selfLoop.contains(done) {
-                            for case .cell(let k) in members { cycle.insert(k) }
+                        if members.count > 1 || selfLoop[done] {
+                            for w in members { if case .cell(let k) = nodes[w] { cycle.insert(k) } }
                         }
                     }
                 }
@@ -439,10 +495,10 @@ final class CalcEngine {
         }
         _cycle = cycle
         // Who reads which range, findable by column.
-        for (node, readers) in rangeReaders {
-            guard case .range(let si, let r) = node else { continue }
+        for i0 in 0 ..< nodes.count {
+            guard case .range(let si, let r) = nodes[i0], !readersOf[i0].isEmpty, !r.isSingle else { continue }
             let i = graph.ranges.count
-            graph.ranges.append((si, r, readers))
+            graph.ranges.append((si, r, readersOf[i0]))
             if r.cols > 64 { graph.wide.append(i); continue }
             for c in r.left ... r.right { graph.byColumn[si, default: [:]][c, default: []].append(i) }
         }
@@ -979,6 +1035,14 @@ final class CalcEngine {
     }
 
     private var _knownSpills: [Int: [(CellAddress, CellRange)]] = [:]
+
+    private func _spillSignature(_ spills: [Int: [(CellAddress, CellRange)]]) -> [Int] {
+        var sig: [Int] = []
+        for (si, l) in spills.sorted(by: { $0.key < $1.key }) {
+            for (a, r) in l.sorted(by: { ($0.0.row, $0.0.col) < ($1.0.row, $1.0.col) }) { sig += [si, a.row, a.col, r.top, r.left, r.bottom, r.right] }
+        }
+        return sig
+    }
 
     private func _collectSpills() -> [Int: [(CellAddress, CellRange)]] {
         var out: [Int: [(CellAddress, CellRange)]] = [:]

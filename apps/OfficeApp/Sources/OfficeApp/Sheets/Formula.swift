@@ -312,7 +312,7 @@ enum Formula {
         case lparen, rparen, comma
     }
 
-    static func _tokenize(_ s: Substring) throws -> [Token] {
+    static func _tokenizeCharacters(_ s: Substring) throws -> [Token] {
         var out: [Token] = []
         var braces = 0
         var i = s.startIndex

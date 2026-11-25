@@ -54,6 +54,41 @@ final class SheetsEngineTests: XCTestCase {
         }
     }
 
+    /// The key column (or row) of an approximate VLOOKUP / HLOOKUP made of formulas is calculated before it is compared.
+    func testLookupKeysThatAreFormulas() {
+        var t: [String: String] = [:], h: [String: String] = [:]
+        for i in 1 ... 30 { t["A\(i)"] = "=\(i)*Sheet1!$Z$2"; t["B\(i)"] = "=\"v\"&\(i)"; h["\(CellAddress.columnName(i - 1))1"] = "=\(i)*Sheet1!$Z$2"; h["\(CellAddress.columnName(i - 1))2"] = "=\(i)+Sheet1!$Z$2" }
+        let c = book(["C1": "=VLOOKUP(95,T!A1:B30,2,TRUE)", "C2": "=VLOOKUP(5,T!A1:B30,2,TRUE)", "C3": "=VLOOKUP(1,T!A1:B30,2,TRUE)",
+                      "C4": "=HLOOKUP(95,H!A1:AD2,2,TRUE)", "Z2": "=5"], sheets: ["T": t, "H": h])
+        XCTAssertEqual(v(c, "C1"), .text("v19"))
+        XCTAssertEqual(v(c, "C2"), .text("v1"))
+        XCTAssertEqual(v(c, "C3"), .error(.na))
+        XCTAssertEqual(v(c, "C4"), .number(24))
+    }
+
+    /// Editing an input of a spill that keeps its shape must refresh the cells reading the spilled cells.
+    func testSpilledValuesRefreshOnEditWhenShapeStays() {
+        let c = book(["E1": "2", "A1": "=SEQUENCE(3)*$E$1", "C1": "=SUM(A2:A3)", "C2": "=A3+1"])
+        XCTAssertEqual(v(c, "C1"), .number(10), "a range ending past the last cell still reads the spill")
+        c.setInputs([(CellAddress("E1")!, "5")])
+        XCTAssertEqual(c.book.sheets[0].spilled[CellAddress("A3")!], .number(15))
+        XCTAssertEqual(v(c, "C1"), .number(25))
+        XCTAssertEqual(v(c, "C2"), .number(16))
+    }
+
+    /// A defined name that is an OFFSET / INDIRECT range makes the cells using it volatile.
+    func testNamedOffsetIsVolatileOnEdit() {
+        let c = book(["A1": "1", "A2": "2", "A3": "3", "B1": "1", "C1": "=SUM(Win)"])
+        c.book.names["WIN"] = "OFFSET(Sheet1!$A$1,0,0,Sheet1!$B$1,1)"
+        c.setInputs([(CellAddress("C1")!, "=SUM(Win)+0")])
+        XCTAssertEqual(v(c, "C1"), .number(1))
+        c.setInputs([(CellAddress("B1")!, "3")])
+        XCTAssertEqual(v(c, "C1"), .number(6))
+        // A3 is read only through what OFFSET reaches, not named by the formula.
+        c.setInputs([(CellAddress("A3")!, "10")])
+        XCTAssertEqual(v(c, "C1"), .number(13))
+    }
+
     func testLambdaThroughDefinedNames() {
         let c = book(["A1": "4", "B1": "10"])
         c.book.names["DOUBLE"] = "_xlfn.LAMBDA(_xlpm.x,_xlpm.x*2)"
