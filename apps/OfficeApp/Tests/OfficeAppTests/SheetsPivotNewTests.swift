@@ -260,4 +260,19 @@ final class SheetsPivotNewTests: XCTestCase {
         XCTAssertEqual(p.keys.filter { $0.hasPrefix("xl/pivotTables/pivotTable") && $0.hasSuffix(".xml") }.count, 1)
         XCTAssertTrue(p["xl/pivotCache/pivotCacheDefinition1.xml"]?.contains("refreshOnLoad=\"1\"") ?? false)
     }
+
+    /// Corpus book 54436 (a pivot Excel made): two source scores changed, refreshed here, saved for the Excel check.
+    func testWriteRefreshedCorpusPivot() throws {
+        guard let out = ProcessInfo.processInfo.environment["STARLING_PIVOT_REFRESHED"] else { throw XCTSkip("no STARLING_PIVOT_REFRESHED") }
+        var dir = URL(fileURLWithPath: #filePath)
+        for _ in 0 ..< 5 { dir.deleteLastPathComponent() }
+        let wc = WorkbookController()
+        wc.load(try Xlsx.read(try Data(contentsOf: dir.appendingPathComponent("test/corpus/xlsx/books/54436.xlsx"))))
+        XCTAssertNotNil(wc.sheet.pivots[0].fileSpec)
+        wc.setInputs([(CellAddress("C2")!, "11"), (CellAddress("C5")!, "14")])
+        XCTAssertEqual(wc.refreshPivots(), 1)
+        XCTAssertEqual(v(wc, "A9"), .text("Category 1")); XCTAssertEqual(v(wc, "B9"), .number(13))
+        XCTAssertEqual(v(wc, "B10"), .number(22)); XCTAssertEqual(v(wc, "B11"), .number(35))
+        try Xlsx.write(wc.book).write(to: URL(fileURLWithPath: out))
+    }
 }
