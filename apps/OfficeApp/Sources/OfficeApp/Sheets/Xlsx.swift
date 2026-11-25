@@ -540,6 +540,19 @@ enum Xlsx {
         return _pointsToChars(pt, digit: ws.digitWidth)
     }
 
+    /// What Excel's dialogs call a width: the characters that fit, without
+    /// the 5 px of padding the file's width includes (stored 20.7109375 is 20).
+    static func _displayChars(points pt: Double, digit: Double = 7) -> Double {
+        let px = (pt / 0.75).rounded()
+        return (((px - 5) / digit) * 100).rounded() / 100
+    }
+    /// Points for a width typed as characters: the file's width is
+    /// trunc((chars * digit + 5) / digit * 256) / 256, as Excel writes it.
+    static func _pointsForDisplayChars(_ chars: Double, digit: Double = 7) -> Double {
+        let stored = ((chars * digit + 5) / digit * 256).rounded(.down) / 256
+        return _charsToPoints(stored, digit: digit)
+    }
+
     static func _pointsToChars(_ pt: Double, digit: Double = 7) -> Double {
         let px = (pt / 0.75).rounded()
         return (px / digit * 256).rounded(.down) / 256

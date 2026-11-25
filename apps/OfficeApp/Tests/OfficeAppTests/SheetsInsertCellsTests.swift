@@ -53,13 +53,32 @@ final class SheetsInsertCellsTests: XCTestCase {
         let c = book()
         c.select(CellAddress("A1")!)
         c.setRowHeights(30)
-        c.setColumnWidths(Xlsx._charsToPoints(20, digit: c.sheet.digitWidth))
-        c.setDefaultColumnWidth(Xlsx._charsToPoints(12, digit: c.sheet.digitWidth))
+        c.setColumnWidths(Xlsx._pointsForDisplayChars(20, digit: c.sheet.digitWidth))
+        c.setDefaultColumnWidth(Xlsx._pointsForDisplayChars(12, digit: c.sheet.digitWidth))
         let back = WorkbookController()
         back.load(try Xlsx.read(try Xlsx.write(c.book)))
         XCTAssertEqual(back.sheet.defaultColWidthPt, c.sheet.defaultColWidthPt, accuracy: 0.8)
         XCTAssertEqual(back.sheet.colWidth(0), c.sheet.colWidth(0), accuracy: 0.8)
         XCTAssertEqual(back.sheet.rowHeight(0), 30)
+    }
+
+    /// Excel's file width is the characters plus 5 px of padding: 20 typed
+    /// is 20.7109375 stored, and the default 12 is 12.7109375.
+    func testFileWidthIncludesExcelsPadding() throws {
+        let c = book()
+        c.select(CellAddress("A1")!)
+        let d = c.sheet.digitWidth
+        c.setColumnWidths(Xlsx._pointsForDisplayChars(20, digit: d))
+        c.setDefaultColumnWidth(Xlsx._pointsForDisplayChars(12, digit: d))
+        XCTAssertEqual(Xlsx._displayChars(points: c.sheet.colWidth(0), digit: d), 20)
+        XCTAssertEqual(Xlsx._displayChars(points: c.sheet.defaultColWidthPt, digit: d), 12)
+        let data = try Xlsx.write(c.book)
+        let xml = String(decoding: try XCTUnwrap(try Zip.read(data).first { $0.name == "xl/worksheets/sheet1.xml" }).data, as: UTF8.self)
+        XCTAssertTrue(xml.contains("width=\"20.7109375\""), xml)
+        XCTAssertTrue(xml.contains("defaultColWidth=\"12.7109375\""), xml)
+        let back = WorkbookController()
+        back.load(try Xlsx.read(data))
+        XCTAssertEqual(Xlsx._displayChars(points: back.sheet.colWidth(0), digit: d), 20)
     }
 
     func testSizesAreOneUndoStep() {
