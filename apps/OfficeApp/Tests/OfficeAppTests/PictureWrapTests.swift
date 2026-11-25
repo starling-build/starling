@@ -264,6 +264,40 @@ final class TextBoxInsertTests: XCTestCase {
         XCTAssertEqual(box.paragraphs.first?.runs.last?.style.link, "https://example.com/a?b=1&c=2")
     }
 
+    func testBoxHoldingAPictureIsEditedInPlaceAndKeepsThePicture() throws {
+        let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")!
+        let box0 = try XCTUnwrap(TextBoxInsert.make(text: "one"))
+        let base = try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(image: box0), RichParagraph(image: ImageAttachment(data: png, width: 40, height: 40))]), pageSetup: .letter)
+        var entries = try Zip.read(base)
+        let di = try XCTUnwrap(entries.firstIndex { $0.name == "word/document.xml" })
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        var ds: Range<String.Index>?, de: Range<String.Index>?
+        var from = xml.startIndex
+        while let r = xml.rangeOfSubstring("<w:drawing>", in: from ..< xml.endIndex) { ds = r; from = r.upperBound }
+        de = xml.rangeOfSubstring("</w:drawing>", in: (ds?.upperBound ?? xml.startIndex) ..< xml.endIndex)
+        let (ds0, de0) = (try XCTUnwrap(ds), try XCTUnwrap(de))
+        let pic = String(xml[ds0.lowerBound ..< de0.upperBound])
+        xml.replaceSubrange(ds0.lowerBound ..< de0.upperBound, with: "")
+        let open = try XCTUnwrap(xml.rangeOfSubstring("<w:txbxContent>")), close = try XCTUnwrap(xml.rangeOfSubstring("</w:txbxContent>"))
+        xml.replaceSubrange(open.upperBound ..< close.lowerBound, with: "<w:p><w:r>" + pic + "</w:r><w:r><w:t>caption</w:t></w:r></w:p>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let c = RichDocumentController(document: try DocxFormat.read(try Zip.write(entries)).document)
+        let i = try XCTUnwrap(c.document.paragraphs.firstIndex { $0.image?.textBox != nil })
+        var inside = try XCTUnwrap(c.textBoxDocument(at: i), "a picture the file carried is no bar to editing in place")
+        XCTAssertEqual(inside.paragraphs.flatMap { [$0.image].compactMap { $0 } + Array($0.inlineImages.values) }.count, 1)
+        inside.paragraphs[0].insert("X", at: inside.paragraphs[0].length)
+        let (out, rels) = try XCTUnwrap(TextBoxInsert.content(inside))
+        XCTAssertTrue(rels.contains { $0.target.hasPrefix("media/") }, "the picture's file is named")
+        XCTAssertTrue(c.setTextBoxContent(at: i, document: inside, contentXML: out, rels: rels))
+        let saved = try DocxFormat.write(c.document, pageSetup: .letter)
+        let back = try DocxFormat.read(saved).document
+        let boxBack = try XCTUnwrap(back.paragraphs.first { $0.image?.textBox != nil }?.image?.textBox)
+        let images = boxBack.paragraphs.flatMap { [$0.image].compactMap { $0 } + Array($0.inlineImages.values) }
+        XCTAssertEqual(images.count, 1)
+        XCTAssertEqual(images.first?.data, png, "the picture still has its file")
+        XCTAssertTrue(boxBack.paragraphs.map(\.text).joined().contains("captionX"))
+    }
+
     func testNewTextBoxFitsItsTextAndGrowsWithTyping() throws {
         let c = RichDocumentController(document: RichDocument(paragraphs: [RichParagraph(text: "body")]))
         c.insertImage(try XCTUnwrap(TextBoxInsert.make(text: "one")))

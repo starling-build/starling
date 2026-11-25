@@ -72,7 +72,7 @@ enum TextBoxInsert {
         let xml = String(decoding: e.data, as: UTF8.self)
         guard let body = xml.rangeOfSubstring("<w:body>"),
               let end = xml.rangeOfSubstring("<w:sectPr", in: body.upperBound ..< xml.endIndex) ?? xml.rangeOfSubstring("</w:body>") else { return nil }
-        let inner = String(xml[body.upperBound ..< end.lowerBound])
+        var inner = String(xml[body.upperBound ..< end.lowerBound])
         var rels: [KeptRel] = []
         if let r = entries.first(where: { $0.name == "word/_rels/document.xml.rels" }) {
             let text = String(decoding: r.data, as: UTF8.self)
@@ -85,9 +85,15 @@ enum TextBoxInsert {
                     guard let s = tag.rangeOfSubstring(" \(n)=\""), let q = tag.rangeOfSubstring("\"", in: s.upperBound ..< tag.endIndex) else { return nil }
                     return String(tag[s.upperBound ..< q.lowerBound])
                 }
-                if let id = attr("Id"), id.hasPrefix("rIdLink"), inner.containsSubstring("\"\(id)\""), let target = attr("Target") {
+                if let id = attr("Id"), (id.hasPrefix("rIdLink") || id.hasPrefix("rIdKept")), inner.containsSubstring("\"\(id)\""), let target = attr("Target") {
                     // (The file's text is escaped; the writer escapes it again when it keeps the relationship.)
                     let plain = target.replacingAll("&quot;", with: "\"").replacingAll("&lt;", with: "<").replacingAll("&gt;", with: ">").replacingAll("&amp;", with: "&")
+                    var id = id
+                    if id.hasPrefix("rIdKept") {
+                        // (A save renumbers kept ids one after another, so a name that is itself a later id would be renamed twice.)
+                        let own = "rIdBox" + id.dropFirst(4)
+                        inner = inner.replacingAll("\"\(id)\"", with: "\"\(own)\""); id = own
+                    }
                     rels.append(KeptRel(id: id, type: attr("Type") ?? "", target: plain, external: tag.containsSubstring("TargetMode=\"External\"")))
                 }
             }
