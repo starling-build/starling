@@ -1765,6 +1765,11 @@ public final class RichDocumentController: ChangeNotifier {
     /// Change the caret's table's look (Borders, Header Row), one undo step.
     public func setTableStyle(_ transform: (inout TableStyle) -> Void) {
         guard let t = currentCell?.table else { return }
+        setTableStyle(of: t, transform)
+    }
+
+    /// The same for a named table (a drag on a border of a table the caret is not in).
+    public func setTableStyle(of t: String, _ transform: (inout TableStyle) -> Void) {
         let old = document.tableStyles[t]
         var new = old ?? TableStyle()
         transform(&new)
@@ -1912,6 +1917,11 @@ public final class RichDocumentController: ChangeNotifier {
                 }
             }
         }
+    }
+
+    /// Dragging a row's bottom border: that row gets at least `points` of height (kept exact if it already was), one undo.
+    public func setRowHeight(table: String, row: Int, points: Double) {
+        setTableStyle(of: table) { $0.rowHeights[row] = max(1, points) }
     }
 
     /// Whether the target rows may split across a page.

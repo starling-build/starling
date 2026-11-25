@@ -179,6 +179,11 @@ public final class RichEditableState: State<StatefulWidget> {
     private var _columnDrag: (table: String, column: Int, startX: Double, widths: [Double])? = nil
     private var _columnDragWidths: [Double]? = nil
     private var _hoverColumnBorder = false
+    /// A row's bottom border being dragged: the table and row, the pointer's start y and the row's height (points), and
+    /// the table's edges relative to the pointer's x; `_rowDragHeight` is the height it would take now.
+    private var _rowDrag: (table: String, row: Int, startY: Double, height: Double, canvasY: Double, left: Double, right: Double, canvasX: Double)? = nil
+    private var _rowDragHeight: Double? = nil
+    private var _hoverRowBorder = false
     /// A press inside the selection: a drag of the selected text once the
     /// pointer moves, a click that collapses the selection if it does not.
     private var _textDrag: (start: Offset, active: Bool)? = nil
@@ -848,7 +853,10 @@ public final class RichEditableState: State<StatefulWidget> {
         let border = handle == nil && !overImage && _layout.width > 0
             && _layout.columnBorder(at: _layout.flowPoint(_canvasPoint(event.localPosition))) != nil
         if border != _hoverColumnBorder { setState { _hoverColumnBorder = border } }
-        let link = handle == nil && !overImage && !border ? _link(at: event.localPosition) : nil
+        let rowEdge = handle == nil && !overImage && !border && _layout.width > 0
+            && _layout.rowBorder(at: _layout.flowPoint(_canvasPoint(event.localPosition))) != nil
+        if rowEdge != _hoverRowBorder { setState { _hoverRowBorder = rowEdge } }
+        let link = handle == nil && !overImage && !border && !rowEdge ? _link(at: event.localPosition) : nil
         let linkChanged = (link != nil) != (_hoverLink != nil)
         if link != _hoverLink {
             _hoverLink = link
@@ -866,7 +874,7 @@ public final class RichEditableState: State<StatefulWidget> {
         _fingers[event.pointer] = nil
         if _fingers.isEmpty { _twoFingerActive = false }
         _twoFinger = nil
-        let hadDrop = _dropPosition != nil || _columnDragWidths != nil || _dragSize != nil
+        let hadDrop = _dropPosition != nil || _columnDragWidths != nil || _rowDragHeight != nil || _dragSize != nil
         _dragging = false
         _touchScroll = nil
         _selHandle = nil
@@ -885,6 +893,7 @@ public final class RichEditableState: State<StatefulWidget> {
             _columnDragWidths = nil
             _layout.previewColumns(drag.table, nil, _controller.document)
         }
+        if _rowDrag != nil { _rowDrag = nil; _rowDragHeight = nil; _repaint.notifyListeners() }
         if hadDrop { _repaint.notifyListeners() }
     }
 
@@ -982,6 +991,14 @@ public final class RichEditableState: State<StatefulWidget> {
            let widths = _layout.columnWidths(of: border.table) {
             let pt = _layout.theme.pixelsPerPoint * _layout.scale
             _columnDrag = (border.table, border.column, event.localPosition.dx / pt, widths)
+            _dragging = false
+            return
+        }
+        if _layout.width > 0, let edge = _layout.rowBorder(at: _layout.flowPoint(_canvasPoint(event.localPosition))) {
+            let pt = _layout.theme.pixelsPerPoint * _layout.scale
+            let canvas = _canvasPoint(event.localPosition)
+            _rowDrag = (edge.table, edge.row, event.localPosition.dy / pt, edge.height, canvas.dy, edge.left, edge.right, canvas.dx)
+            _rowDragHeight = edge.height
             _dragging = false
             return
         }
@@ -1120,6 +1137,13 @@ public final class RichEditableState: State<StatefulWidget> {
         }
         if let drag = _moveDrag {
             _moveDelta = Offset(event.localPosition.dx - drag.start.dx, event.localPosition.dy - drag.start.dy)
+            _repaint.notifyListeners()
+            return
+        }
+        if let drag = _rowDrag {
+            // The row's bottom border follows the pointer; a guide line shows where it will land. Never under 6 pt.
+            let pt = _layout.theme.pixelsPerPoint * _layout.scale
+            _rowDragHeight = max(6, drag.height + event.localPosition.dy / pt - drag.startY)
             _repaint.notifyListeners()
             return
         }
@@ -1275,6 +1299,14 @@ public final class RichEditableState: State<StatefulWidget> {
             _repaint.notifyListeners()
             return
         }
+        if let drag = _rowDrag {
+            _rowDrag = nil
+            let final = _rowDragHeight
+            _rowDragHeight = nil
+            if let final, abs(final - drag.height) >= 0.5 { _controller.setRowHeight(table: drag.table, row: drag.row, points: final) }
+            _repaint.notifyListeners()
+            return
+        }
         if let drag = _handleDrag, let size = _dragSize {
             _handleDrag = nil
             _dragSize = nil
@@ -1411,6 +1443,16 @@ public final class RichEditableState: State<StatefulWidget> {
             paint.style = .fill
             paint.color = _layout.theme.caretColor
             canvas.drawRRect(RRect(fromRectAndRadius: r, Radius(circular: 1)), paint)
+        }
+        // A row border being dragged: a guide line where the row's bottom will land.
+        if let drag = _rowDrag, let h = _rowDragHeight {
+            let pt = _layout.theme.pixelsPerPoint * _layout.scale
+            let y = drag.canvasY + (h - drag.height) * pt
+            let guide = Paint()
+            guide.style = .stroke
+            guide.strokeWidth = 1
+            guide.color = _layout.theme.caretColor
+            canvas.drawLine(Offset(drag.canvasX + drag.left, y), Offset(drag.canvasX + drag.right, y), guide)
         }
         // An IME's uncommitted text: a line under the composing range.
         if let composing = _controller.composingRange, _layout.count > composing.paragraph {
@@ -1567,14 +1609,15 @@ public final class RichEditableState: State<StatefulWidget> {
         if _textDrag?.active == true { cursor = _chords.alt ? SystemMouseCursors.copy : SystemMouseCursors.grabbing }
         else if let k = _hoverHandle ?? _handleDrag?.handle { cursor = Self._cursor(forHandle: k) }
         else if _hoverColumnBorder || _columnDrag != nil { cursor = SystemMouseCursors.resizeColumn }
+        else if _hoverRowBorder || _rowDrag != nil { cursor = SystemMouseCursors.resizeRow }
         else if _hoverOverImage { cursor = SystemMouseCursors.basic }
         else if _hoverLink != nil && _chords.primary { cursor = SystemMouseCursors.click }
         else { cursor = SystemMouseCursors.text }
         return MouseRegion(onExit: { [weak self] _ in
-            guard let self, self._hoverLink != nil || self._hoverHandle != nil || self._hoverOverImage || self._hoverColumnBorder else { return }
+            guard let self, self._hoverLink != nil || self._hoverHandle != nil || self._hoverOverImage || self._hoverColumnBorder || self._hoverRowBorder else { return }
             self._hoverLink = nil
             self._w.onLinkHover?(nil)
-            self.setState { self._hoverHandle = nil; self._hoverOverImage = false; self._hoverColumnBorder = false }
+            self.setState { self._hoverHandle = nil; self._hoverOverImage = false; self._hoverColumnBorder = false; self._hoverRowBorder = false }
         }, cursor: cursor, child: Listener(
             onPointerDown: { [weak self] e in self?._pointerDown(e) },
             onPointerMove: { [weak self] e in self?._pointerMove(e) },
