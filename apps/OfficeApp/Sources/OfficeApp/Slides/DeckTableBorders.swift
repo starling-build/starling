@@ -67,7 +67,8 @@ extension DeckController {
             }
         }
         guard changed else { return }
-        _checkpoint()
+        if !_penStrokeOpen || !_penStrokeSaved { _checkpoint() }
+        if _penStrokeOpen { _penStrokeSaved = true }
         text.load(doc)
         _changed()
     }
@@ -87,5 +88,11 @@ extension DeckController {
         default: which = .right
         }
         setTableBorders([which], line: tableTool == .draw ? tablePen.line : nil, block: block)
+    }
+
+    /// The pen stroke starts (true) or ends (false): everything drawn between is one undo step.
+    func penStroke(_ on: Bool) {
+        _penStrokeOpen = on
+        _penStrokeSaved = false
     }
 }
