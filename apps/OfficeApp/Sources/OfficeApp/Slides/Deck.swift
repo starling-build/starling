@@ -908,6 +908,10 @@ final class Slide {
     /// `animations` as read from `timingXML`; nil when the file's timing
     /// holds what this app does not model, which is then kept, not edited.
     var sourceAnimations: [ShapeAnimation]? = nil
+    /// The source slide whose comments this copy carries (a duplicate or paste has no part of its own).
+    var commentsFrom: String? = nil
+    /// The source part slide-level kept things (background, controls, comments, drawings) are carried from.
+    var carryPart: String? { commentsFrom ?? sourcePart }
 
     /// The file's animations are kept as they are and cannot be edited here.
     var animationsKept: Bool { timingXML != nil && sourceAnimations == nil }

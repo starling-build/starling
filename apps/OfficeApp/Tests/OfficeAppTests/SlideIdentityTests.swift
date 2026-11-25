@@ -74,6 +74,34 @@ final class SlideIdentityTests: XCTestCase {
         XCTAssertEqual(again.parts.keys.filter { $0.hasPrefix("ppt/comments/") }.count, 2)
     }
 
+    /// Every internal relationship target exists, and no slide-owned part (an embedding, a drawing, a chart, comments) is named by two parts.
+    private func assertWholeAndUnshared(_ p: PptxPackage, file: StaticString = #filePath, line: UInt = #line) {
+        var owners: [String: String] = [:]
+        for k in p.parts.keys.sorted() where k.hasSuffix(".rels") {
+            let source = k.replacingOccurrences(of: "_rels/", with: "").replacingOccurrences(of: ".rels", with: "")
+            for r in p.rels(source) where !r.external {
+                XCTAssertNotNil(p.parts[r.target], "\(source) points at missing \(r.target)", file: file, line: line)
+                if PptxWriterCopy.isOwned(r.target) {
+                    if let o = owners[r.target], o != source { XCTFail("\(r.target) is shared by \(o) and \(source)", file: file, line: line) }
+                    owners[r.target] = source
+                }
+            }
+        }
+    }
+
+    func testADuplicatedCommentedSlideCarriesItsComments() throws {
+        let d = try load(try corpus("45545_Comment.pptx"))
+        let before = try roundTrip(d).parts.keys.filter { $0.hasPrefix("ppt/comments/") }.count
+        XCTAssertGreaterThan(before, 0)
+        d.duplicateSlide(0)
+        let out = try roundTrip(d)
+        let comments = out.parts.keys.filter { $0.hasPrefix("ppt/comments/") }
+        XCTAssertGreaterThan(comments.count, before, "the copy owns a comments part of its own")
+        assertWholeAndUnshared(out)
+        let again = try roundTrip(try load(try Pptx.write(d)))
+        XCTAssertEqual(again.parts.keys.filter { $0.hasPrefix("ppt/comments/") }.count, comments.count)
+    }
+
     func testRichNotesKeepTheirLook() throws {
         let d = DeckController()
         d.newDeck()

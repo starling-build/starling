@@ -134,7 +134,7 @@ enum PptxWriter {
         var keep: [String] = []
         for r in p.rels("") where !r.external && r.target != pres { keep.append(r.target) }
         for r in presRelsAll where !r.external && r.kind != "slide" { keep.append(r.target) }
-        var copied = Set<String>()
+        var copied = [String: String]()
         for part in keep { _copy(part, from: p, into: &b, done: &copied) }
         if recolour {
             for r in presRelsAll where r.kind == "slideMaster" {
@@ -243,7 +243,7 @@ enum PptxWriter {
     }
 
     /// Copy a part, its relationships, and everything they reach.
-    private static func _copy(_ part: String, from p: PptxPackage, into b: inout PackageBuilder, done: inout Set<String>) {
+    private static func _copy(_ part: String, from p: PptxPackage, into b: inout PackageBuilder, done: inout [String: String]) {
         PptxWriterCopy.copy(part, from: p, into: &b, done: &done)
     }
 
@@ -279,7 +279,7 @@ enum PptxWriter {
             i = j
         }
         var bg = ""
-        if let xml = slide.backgroundXML, let src = slide.sourcePart, let p = source {
+        if let xml = slide.backgroundXML, let src = slide.carryPart, let p = source {
             bg = w.kept(xml, sourcePart: src, package: p, builder: &b, patch: nil)
         } else if let fill = slide.background {
             bg = "<p:bg><p:bgPr>" + w.fill(fill, media: &media, builder: &b) + "<a:effectLst/></p:bgPr></p:bg>"
@@ -292,41 +292,42 @@ enum PptxWriter {
         // ActiveX controls (`p:controls`): kept, their parts and pictures
         // carried; the VML drawing below places them, as it does OLE objects.
         var controls = ""
-        if let c = slide.controlsXML, let src = slide.sourcePart, let p = source {
+        if let c = slide.controlsXML, let src = slide.carryPart, let p = source {
             controls = w.kept(c, sourcePart: src, package: p, builder: &b, patch: nil)
         }
-        if body.containsSubstring("<p:oleObj") || !controls.isEmpty, let src = slide.sourcePart, let p = source,
+        if body.containsSubstring("<p:oleObj") || !controls.isEmpty, let src = slide.carryPart, let p = source,
            let vml = p.rels(src).first(where: { ["vmlDrawing", "legacyDrawing"].contains($0.kind) && !$0.external && p.parts[$0.target] != nil }) {
-            var done = Set<String>()
-            PptxWriterCopy.copy(vml.target, from: p, into: &b, done: &done)
-            rels.append(Rel(id: "rIdVml", type: vml.type, target: Pptx.relative(vml.target, from: part)))
+            var done = [String: String]()
+            let name = PptxWriterCopy.copy(vml.target, from: p, into: &b, done: &done)
+            rels.append(Rel(id: "rIdVml", type: vml.type, target: Pptx.relative(name, from: part)))
         }
         // A SmartArt's drawing part is reached the same way: the data part's
         // `dsp:dataModelExt relId` names a slide relationship nothing in the
         // slide XML does. PowerPoint lays the diagram out afresh without it,
         // but everything else (this app included) draws from it — carried
         // under its own id, which the data part still names.
-        if body.containsSubstring("dgm:relIds"), let src = slide.sourcePart, let p = source {
+        if body.containsSubstring("dgm:relIds"), let src = slide.carryPart, let p = source {
             for d in p.rels(src) where d.kind == "diagramDrawing" && !d.external && p.parts[d.target] != nil
                 && !rels.contains(where: { $0.id == d.id }) {
-                var done = Set<String>()
-                PptxWriterCopy.copy(d.target, from: p, into: &b, done: &done)
-                rels.append(Rel(id: d.id, type: d.type, target: Pptx.relative(d.target, from: part)))
+                var done = [String: String]()
+                let name = PptxWriterCopy.copy(d.target, from: p, into: &b, done: &done)
+                rels.append(Rel(id: d.id, type: d.type, target: Pptx.relative(name, from: part)))
             }
         }
         // Comments (legacy or modern) hang off the slide by a relationship nothing in its XML names: carry each part, with its own rels, under the same id.
-        if let src = slide.sourcePart, let p = source {
+        // A copy of a commented slide (commentsFrom) carries the comments too; a part another slide already took goes out under a fresh name, since each slide owns its own.
+        if let src = slide.carryPart, let p = source {
             for (n, c) in p.rels(src).filter({ $0.kind == "comments" && !$0.external && p.parts[$0.target] != nil }).enumerated() {
-                var done = Set<String>()
-                PptxWriterCopy.copy(c.target, from: p, into: &b, done: &done)
-                rels.append(Rel(id: "rIdCmt\(n + 1)", type: c.type, target: Pptx.relative(c.target, from: part)))
+                var done = [String: String]()
+                let target = PptxWriterCopy.copy(c.target, from: p, into: &b, done: &done)
+                rels.append(Rel(id: "rIdCmt\(n + 1)", type: c.type, target: Pptx.relative(target, from: part)))
             }
         }
         let hidden = (slide.hidden ? " show=\"0\"" : "") + (slide.hideMasterShapes ? " showMasterSp=\"0\"" : "")
         // Kept XML may lean on prefixes the source slide declared at its
         // root (a14, p14, mc…): the same declarations go on ours.
         var ns = PptxTemplates.namespaces
-        if let src = slide.sourcePart, let root = source?.xml(src) {
+        if let src = slide.carryPart, let root = source?.xml(src) {
             for (k, v) in root.attrs.sorted(by: { $0.key < $1.key })
             where k.hasPrefix("xmlns:") && !["xmlns:a", "xmlns:r", "xmlns:p"].contains(k) {
                 ns += " \(k)=\"\(PptxXML.escape(v, attribute: true))\""
@@ -335,7 +336,7 @@ enum PptxWriter {
         var transition = _transition(slide.transition, namespaces: &ns)
         // Kept as read, a transition's sound (`p:snd r:embed`) still names
         // the source slide's relationship: remap it, carrying the .wav.
-        if slide.transition.raw != nil, transition.containsSubstring("r:embed"), let src = slide.sourcePart, let p = source {
+        if slide.transition.raw != nil, transition.containsSubstring("r:embed"), let src = slide.carryPart, let p = source {
             transition = w.kept(transition, sourcePart: src, package: p, builder: &b, patch: nil)
         }
         // Animations: as read while unchanged (or, for timing this app does
@@ -353,7 +354,7 @@ enum PptxWriter {
             let named = t.components(separatedBy: "spid=\"").dropFirst().compactMap { Int($0.prefix { $0.isNumber }) }
             if Set(named).isSubset(of: w.usedIds) {
                 // Likewise an animation's sound (`p:sndTgt r:embed`).
-                if t.containsSubstring("r:embed"), let src = slide.sourcePart, let p = source {
+                if t.containsSubstring("r:embed"), let src = slide.carryPart, let p = source {
                     timing = w.kept(t, sourcePart: src, package: p, builder: &b, patch: nil)
                 } else {
                     timing = t
@@ -379,7 +380,7 @@ enum PptxWriter {
         let hasText = !slide.notes.paragraphs.allSatisfy({ $0.text.isEmpty })
         // A notes page the file had, holding only placeholders (date, number, slide image) and no note text, is kept as read.
         var keptNotesXML: Data? = nil
-        if let notesMaster, !hasText, let src = slide.sourcePart, let p = source,
+        if let notesMaster, !hasText, let src = slide.carryPart, let p = source,
            let np = p.rel(src, kind: "notesSlide")?.target, let data = p.parts[np],
            let tree = p.xml(np)?.first("p:cSld")?.first("p:spTree"),
            !tree.all("p:sp").contains(where: { sp in
@@ -1112,7 +1113,7 @@ private struct SlideXML {
             if let c = node.descendant("p:cNvPr") { c.attrs["id"] = "\(_id(fileId ?? c["id"].flatMap(Int.init)))" }
         }
         let sourceRels = p.rels(sourcePart)
-        var done = Set<String>()
+        var done = [String: String]()
         // Elements that are nothing but their reference: without the part
         // they point at, the element goes too — `<a:snd name="hammer.wav"/>`
         // with no r:embed is a schema error PowerPoint repairs
@@ -1134,10 +1135,8 @@ private struct SlideXML {
                     n.attrs[k] = nil
                     if referenceOnly.contains(n.name) { dead = true }
                 } else {
-                    var copied = done
-                    PptxWriterCopy.copy(r.target, from: p, into: &b, done: &copied)
-                    done = copied
-                    n.attrs[k] = _rel(r.type, Pptx.relative(r.target, from: part), preferred: v)
+                    let child = PptxWriterCopy.copy(r.target, from: p, into: &b, done: &done)
+                    n.attrs[k] = _rel(r.type, Pptx.relative(child, from: part), preferred: v)
                 }
             }
             n.children.removeAll { remap($0) }
@@ -1150,23 +1149,48 @@ private struct SlideXML {
 }
 
 enum PptxWriterCopy {
-    static func copy(_ part: String, from p: PptxPackage, into b: inout PackageBuilder, done: inout Set<String>) {
-        guard !done.contains(part), let data = p.parts[part] else { return }
-        done.insert(part)
-        b.parts[part] = data
+    /// Parts one slide (or one object) owns: a second reference from another
+    /// slide must get a part of its own, as PowerPoint writes them. Pictures,
+    /// media, layouts, masters and themes are shared by design.
+    static func isOwned(_ part: String) -> Bool {
+        ["ppt/embeddings/", "ppt/charts/", "ppt/drawings/", "ppt/diagrams/", "ppt/comments/", "ppt/ink/",
+         "ppt/activeX/", "ppt/tags/", "ppt/slideUpdateInfos/"].contains { part.hasPrefix($0) }
+    }
+
+    /// Copies `part`, its relationships and everything they reach; returns the
+    /// name it was written under (a fresh one when another slide already
+    /// owns a part of that name). `done` maps each source part to its name.
+    @discardableResult
+    static func copy(_ part: String, from p: PptxPackage, into b: inout PackageBuilder, done: inout [String: String]) -> String {
+        if let name = done[part] { return name }
+        guard let data = p.parts[part] else { return part }
+        var name = part
+        if isOwned(part), b.parts[part] != nil {
+            let dot = part.lastIndex(of: ".") ?? part.endIndex
+            var k = 2
+            while b.parts["\(part[..<dot])-c\(k)\(part[dot...])"] != nil { k += 1 }
+            name = "\(part[..<dot])-c\(k)\(part[dot...])"
+        }
+        done[part] = name
+        b.parts[name] = data
         if let type = p.overrides[part] {
-            b.overrides[part] = type
+            b.overrides[name] = type
         } else if let ext = part.split(separator: ".").last.map({ String($0).lowercased() }),
                   b.defaults[ext] == nil, let type = p.defaults[ext] {
             // A part typed by extension (a video.avi, a .wav): the file's own
             // Default carries over, or the package has a part with no type.
             b.defaults[ext] = type
         }
-        let relsPart = Pptx.relsPath(part)
-        if let rels = p.parts[relsPart] {
-            b.parts[relsPart] = rels
-            for r in p.rels(part) where !r.external { copy(r.target, from: p, into: &b, done: &done) }
+        if p.parts[Pptx.relsPath(part)] != nil {
+            var out: [Rel] = []
+            for r in p.rels(part) {
+                if r.external { out.append(Rel(id: r.id, type: r.type, target: r.target, external: true)); continue }
+                let child = copy(r.target, from: p, into: &b, done: &done)
+                out.append(Rel(id: r.id, type: r.type, target: Pptx.relative(child, from: name)))
+            }
+            b.rels(name, out)
         }
+        return name
     }
 }
 
