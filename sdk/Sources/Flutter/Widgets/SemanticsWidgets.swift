@@ -11,7 +11,7 @@ public class Semantics: SingleChildRenderObjectWidget {
         key: (any Key)? = nil,
         label: String? = nil, hint: String? = nil, value: String? = nil,
         button: Bool = false, textField: Bool = false, header: Bool = false, link: Bool = false,
-        checked: Bool? = nil, toggled: Bool? = nil, selected: Bool? = nil, enabled: Bool? = nil,
+        checked: Bool? = nil, toggled: Bool? = nil, selected: Bool? = nil, enabled: Bool? = nil, focused: Bool? = nil,
         onTap: VoidCallback? = nil,
         container: Bool = false, excludeSemantics: Bool = false,
         child: Widget? = nil
@@ -19,7 +19,7 @@ public class Semantics: SingleChildRenderObjectWidget {
         self.info = SemanticsInfo(label: label, hint: hint, value: value, isButton: button,
                                   isTextField: textField, isHeader: header, isLink: link,
                                   isChecked: checked, isToggled: toggled, isSelected: selected,
-                                  isEnabled: enabled, onTap: onTap)
+                                  isEnabled: enabled, isFocused: focused, onTap: onTap)
         self.container = container
         self.excludeSemantics = excludeSemantics
         super.init(key: key, child: child)
@@ -67,14 +67,14 @@ extension Semantics {
         key: (any Key)? = nil,
         label: String? = nil, hint: String? = nil, value: String? = nil,
         button: Bool = false, textField: Bool = false, header: Bool = false, link: Bool = false,
-        checked: Bool? = nil, toggled: Bool? = nil, selected: Bool? = nil, enabled: Bool? = nil,
+        checked: Bool? = nil, toggled: Bool? = nil, selected: Bool? = nil, enabled: Bool? = nil, focused: Bool? = nil,
         onTap: VoidCallback? = nil,
         container: Bool = false, excludeSemantics: Bool = false,
         @ChildBuilder child: () -> Widget
     ) {
         self.init(key: key, label: label, hint: hint, value: value, button: button, textField: textField,
                   header: header, link: link, checked: checked, toggled: toggled, selected: selected,
-                  enabled: enabled, onTap: onTap, container: container, excludeSemantics: excludeSemantics,
+                  enabled: enabled, focused: focused, onTap: onTap, container: container, excludeSemantics: excludeSemantics,
                   child: child())
     }
 }

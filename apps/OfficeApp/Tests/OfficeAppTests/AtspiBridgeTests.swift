@@ -80,6 +80,42 @@ final class AtspiBridgeTests: XCTestCase {
         XCTAssertTrue(text.contains("SIZE 20 20"), "client saw: \(text)")
         XCTAssertTrue(text.contains("PRESSED True"), "client saw: \(text)")
         XCTAssertEqual(pressed, 1)
+    
+        // And a client that listens hears a rename.
+        let script2 = """
+        import gi, sys
+        gi.require_version('Atspi','2.0')
+        from gi.repository import Atspi, GLib
+        Atspi.init()
+        d = Atspi.get_desktop(0)
+        for i in range(d.get_child_count()):
+            app = d.get_child_at_index(i)
+            if app.get_name() == 'bridge-test': app.get_child_count(); app.get_child_at_index(0).get_name()
+        def on(e):
+            print('EVENT', e.type, e.source.get_name()); sys.stdout.flush()
+        l = Atspi.EventListener.new(on)
+        l.register('object:property-change:accessible-name')
+        print('READY'); sys.stdout.flush()
+        GLib.timeout_add_seconds(15, lambda: sys.exit(0))
+        Atspi.event_main()
+        """
+        let client2 = Process()
+        client2.executableURL = URL(fileURLWithPath: python)
+        client2.arguments = ["-c", script2]
+        let cout2 = Pipe(); client2.standardOutput = cout2; client2.standardError = FileHandle.nullDevice
+        var seen = ""
+        cout2.fileHandleForReading.readabilityHandler = { h in seen += String(decoding: h.availableData, as: UTF8.self) }
+        try client2.run()
+        defer { if client2.isRunning { client2.terminate() } }
+        func wait(_ cond: () -> Bool, _ secs: Double) {
+            let end = Date().addingTimeInterval(secs)
+            while !cond() && Date() < end { RunLoop.current.run(until: Date().addingTimeInterval(0.05)) }
+        }
+        wait({ seen.contains("READY") }, 20)
+        XCTAssertTrue(seen.contains("READY"), "client saw: \(seen)")
+        t.replace(with: Directionality(textDirection: .ltr, child: Semantics(label: "Saved", button: true, onTap: {}, child: SizedBox(width: 20, height: 20, child: nil))))
+        wait({ seen.contains("EVENT") }, 10)
+        XCTAssertTrue(seen.contains("EVENT object:property-change:accessible-name Saved"), "client saw: \(seen)")
     }
 }
 #endif

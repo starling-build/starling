@@ -34,6 +34,7 @@ enum {
     ATSPI_BRIDGE_STATE_EDITABLE = 7,
     ATSPI_BRIDGE_STATE_ENABLED = 8,
     ATSPI_BRIDGE_STATE_FOCUSABLE = 11,
+    ATSPI_BRIDGE_STATE_FOCUSED = 12,
     ATSPI_BRIDGE_STATE_PRESSED = 20,
     ATSPI_BRIDGE_STATE_SELECTED = 23,
     ATSPI_BRIDGE_STATE_SENSITIVE = 24,
@@ -63,6 +64,10 @@ typedef struct {
 // Connects to the accessibility bus, registers the app under `app_name` and serves requests on a
 // background thread. Returns 0 on success; negative when there is no bus or sd-bus is missing.
 int atspi_bridge_start(const atspi_bridge_host *host, const char *app_name);
+
+// Turns the change signals (name, state, nodes added or removed) on or off. Off by default; they cost a
+// look at the whole app a few times a second.
+void atspi_bridge_set_events(int on);
 
 // The bus connection's unique name once started (for tests), or NULL.
 const char *atspi_bridge_bus_name(void);

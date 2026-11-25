@@ -22,7 +22,7 @@ __attribute__((visibility("hidden"))) const unsigned sd_bus_object_vtable_format
     X(sd_bus_get_unique_name) X(sd_bus_message_read) X(sd_bus_message_append) \
     X(sd_bus_message_open_container) X(sd_bus_message_close_container) X(sd_bus_message_get_path) \
     X(sd_bus_message_append_array) X(sd_bus_reply_method_return) X(sd_bus_message_unref) \
-    X(sd_bus_message_new_method_return) X(sd_bus_send) X(sd_bus_error_free) X(sd_bus_error_set_const) X(sd_bus_flush_close_unref)
+    X(sd_bus_message_new_method_return) X(sd_bus_message_new_signal) X(sd_bus_send) X(sd_bus_error_free) X(sd_bus_error_set_const) X(sd_bus_flush_close_unref)
 
 #define DECLARE(n) static __typeof__(&n) p_##n;
 SYMBOLS(DECLARE)
@@ -43,6 +43,7 @@ static int load_sdbus(void) {
 #define NODE_PREFIX "/org/a11y/atspi/accessible/"
 #define NULL_PATH "/org/a11y/atspi/null"
 
+static volatile int g_listening;
 static atspi_bridge_host g_host;
 static char *g_app_name;
 static sd_bus *g_bus;
@@ -65,6 +66,7 @@ static void free_nodes(void) {
 
 // The nodes as of a moment ago (a client asks many small questions in a row). Call with g_lock held.
 static void refresh(void) {
+    g_listening = 1;   // someone is asking: start telling them what changes
     if (g_nodes && age_ms() < 250) return;
     atspi_bridge_node *fresh = NULL;
     int n = g_host.snapshot ? g_host.snapshot(g_host.ctx, &fresh) : 0;
@@ -359,16 +361,78 @@ static const sd_bus_vtable application_vt[] = {
 
 // ---- connection ----------------------------------------------------------------------------------
 
+// ---- events --------------------------------------------------------------------------------------
+// A screen reader only speaks what it is told changed, so the bridge looks at the app a few times a
+// second and sends AT-SPI signals for what differs from the last look: a node's name, its states
+// (focused, checked, enabled ...), and nodes that came or went.
+
+static void emit_object_event(const char *member, const char *path, const char *kind, int d1, int d2,
+                              const char *variant_sig, int ref_idx) {
+    sd_bus_message *m = NULL;
+    if (p_sd_bus_message_new_signal(g_bus, &m, path, "org.a11y.atspi.Event.Object", member) < 0) return;
+    p_sd_bus_message_append(m, "sii", kind, d1, d2);
+    if (variant_sig && variant_sig[0] == '(') {
+        char p[64]; path_of(ref_idx, p, sizeof p);
+        p_sd_bus_message_append(m, "v", "(so)", uname(g_bus), p);
+    } else {
+        p_sd_bus_message_append(m, "v", "i", 0);
+    }
+    p_sd_bus_message_append(m, "a{sv}", 0);
+    p_sd_bus_send(g_bus, m, NULL);
+    p_sd_bus_message_unref(m);
+}
+
+static const char *state_kind(int bit) {
+    switch (bit) {
+    case ATSPI_BRIDGE_STATE_CHECKED: return "checked";
+    case ATSPI_BRIDGE_STATE_ENABLED: return "enabled";
+    case ATSPI_BRIDGE_STATE_FOCUSED: return "focused";
+    case ATSPI_BRIDGE_STATE_PRESSED: return "pressed";
+    case ATSPI_BRIDGE_STATE_SELECTED: return "selected";
+    case ATSPI_BRIDGE_STATE_SHOWING: return "showing";
+    default: return NULL;
+    }
+}
+
+static void poll_events(void) {
+    atspi_bridge_node *fresh = NULL;
+    int n = g_host.snapshot ? g_host.snapshot(g_host.ctx, &fresh) : 0;
+    if (n < 0) n = 0;
+    pthread_mutex_lock(&g_lock);
+    atspi_bridge_node *old = g_nodes; int oc = g_count;
+    for (int i = 0; i < n && i < oc; i++) {
+        char p[64]; path_of(i, p, sizeof p);
+        const char *a = old[i].name ? old[i].name : "", *b = fresh[i].name ? fresh[i].name : "";
+        if (strcmp(a, b)) emit_object_event("PropertyChange", p, "accessible-name", 0, 0, NULL, -1);
+        uint64_t diff = old[i].states ^ fresh[i].states;
+        for (int bit = 0; bit < 64; bit++) {
+            if (!(diff >> bit & 1)) continue;
+            const char *k = state_kind(bit);
+            if (k) emit_object_event("StateChanged", p, k, (int)(fresh[i].states >> bit & 1), 0, NULL, -1);
+        }
+    }
+    for (int i = oc; i < n; i++) emit_object_event("ChildrenChanged", ROOT_PATH, "add", i, 0, "(so)", i);
+    for (int i = n; i < oc; i++) emit_object_event("ChildrenChanged", ROOT_PATH, "remove", i, 0, "(so)", i);
+    g_nodes = old; g_count = oc;
+    free_nodes();
+    g_nodes = fresh; g_count = n;
+    clock_gettime(CLOCK_MONOTONIC, &g_taken);
+    pthread_mutex_unlock(&g_lock);
+}
+
 static void *serve(void *arg) {
     (void)arg;
     for (;;) {
         int r;
         while ((r = p_sd_bus_process(g_bus, NULL)) > 0) {}
         if (r < 0) break;
-        p_sd_bus_wait(g_bus, (uint64_t)-1);
+        p_sd_bus_wait(g_bus, 400000);
+        if (g_listening) poll_events();
     }
     return NULL;
 }
+
+void atspi_bridge_set_events(int on) { g_listening = on; }
 
 int atspi_bridge_start(const atspi_bridge_host *host, const char *app_name) {
     if (g_bus) return 0;

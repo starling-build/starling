@@ -14,6 +14,7 @@ public struct SemanticsSnapshotNode {
     public var isToggled: Bool?
     public var isSelected: Bool?
     public var isEnabled: Bool?
+    public var isFocused: Bool?
     public var canTap: Bool
     public var tap: VoidCallback?
     /// Where the node is in view coordinates (nil when it has no box).
@@ -66,6 +67,7 @@ public enum SemanticsSnapshot {
                 if tap == nil { tap = cfg.onTap }
                 if cfg.isButton { merged.isButton = true }
                 if cfg.isTextField { merged.isTextField = true }
+                if merged.isFocused == nil { merged.isFocused = cfg.isFocused }
                 if merged.isEnabled == nil { merged.isEnabled = cfg.isEnabled }
                 if merged.isSelected == nil { merged.isSelected = cfg.isSelected }
                 if merged.isChecked == nil { merged.isChecked = cfg.isChecked }
@@ -89,6 +91,6 @@ public enum SemanticsSnapshot {
         return SemanticsSnapshotNode(
             label: label, hint: c.hint, value: c.value, isButton: c.isButton, isTextField: c.isTextField,
             isHeader: c.isHeader, isChecked: c.isChecked, isToggled: c.isToggled, isSelected: c.isSelected,
-            isEnabled: c.isEnabled, canTap: t != nil, tap: t, frame: frame)
+            isEnabled: c.isEnabled, isFocused: c.isFocused, canTap: t != nil, tap: t, frame: frame)
     }
 }

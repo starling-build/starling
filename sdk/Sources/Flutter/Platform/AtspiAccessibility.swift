@@ -69,6 +69,7 @@ public final class AtspiAccessibility: @unchecked Sendable {
             if n.isChecked == true { st |= 1 << UInt64(ATSPI_BRIDGE_STATE_CHECKED) }
             if n.isToggled == true { st |= 1 << UInt64(ATSPI_BRIDGE_STATE_PRESSED) }
             if n.isSelected == true { st |= 1 << UInt64(ATSPI_BRIDGE_STATE_SELECTED) }
+            if n.isFocused == true { st |= 1 << UInt64(ATSPI_BRIDGE_STATE_FOCUSED) }
             if n.isTextField { st |= 1 << UInt64(ATSPI_BRIDGE_STATE_EDITABLE)
                                    | 1 << UInt64(ATSPI_BRIDGE_STATE_FOCUSABLE) }
             node.states = st
