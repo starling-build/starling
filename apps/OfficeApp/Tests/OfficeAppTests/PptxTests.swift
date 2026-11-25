@@ -816,6 +816,74 @@ final class DeepGroupTests: XCTestCase {
         XCTAssertEqual(again.selectedTableOptions, want)
     }
 
+    /// S-TB-1e: borders and the pen: a line on a block's outside also lands on the neighbours' matching edge, erase
+    /// hides it, undo puts it back, and a save keeps colour, weight and dash.
+    func testTableBordersPenRoundTripAndUndo() throws {
+        let deck = DeckController()
+        deck.slides[0].shapes.removeAll()
+        let t = deck.addTable(rows: 3, columns: 3)
+        deck.selectShapes([t])
+        func cell(_ d: DeckController, _ sh: SlideShape, _ r: Int, _ c: Int) -> CellRef? { sh.text!.document.paragraphs.compactMap { $0.cell }.first { $0.row == r && $0.column == c } }
+        deck.tablePen = DeckController.TablePen(width: 3, color: Color(0xFFFF0000), dash: "dash")
+        let block = CellBlock(table: t.tableId!, rows: 1...1, columns: 1...1)
+        deck.setTableBorders([.top, .bottom, .left, .right], line: deck.tablePen.line, block: block)
+        XCTAssertEqual(cell(deck, t, 1, 1)?.borders.top?.width, 3)
+        XCTAssertEqual(cell(deck, t, 0, 1)?.borders.bottom?.color, Color(0xFFFF0000))
+        XCTAssertEqual(cell(deck, t, 2, 1)?.borders.top?.width, 3)
+        XCTAssertEqual(cell(deck, t, 1, 0)?.borders.right?.width, 3)
+        XCTAssertEqual(cell(deck, t, 1, 2)?.borders.left?.width, 3)
+        XCTAssertNil(cell(deck, t, 0, 0)?.borders.right)
+        let (state, _, _) = try Pptx.read(Pptx.write(deck))
+        let again = DeckController(); again.restore(state)
+        let t2 = again.slides[0].shapes.first { $0.kind == .table }!
+        let line = cell(again, t2, 1, 1)?.borders.left
+        XCTAssertEqual(line?.width, 3)
+        XCTAssertEqual(line?.color, Color(0xFFFF0000))
+        XCTAssertEqual(line?.dash, SlidePainter.dashPattern("dash"))
+        deck.setTableBorders([.insideH], line: nil, block: CellBlock(table: t.tableId!, rows: 0...2, columns: 0...2))
+        XCTAssertEqual(cell(deck, t, 1, 1)?.borders.top, CellRef.CellLine.hidden)
+        XCTAssertEqual(cell(deck, t, 0, 1)?.borders.bottom, CellRef.CellLine.hidden)
+        deck.undo()
+        XCTAssertEqual(cell(deck, t, 1, 1)?.borders.top?.width, 3)
+    }
+
+    /// S-TB-1e: the pen and eraser find the edge under a point and lay or hide that edge on both cells.
+    func testTablePenAndEraserTouchAnEdge() throws {
+        let deck = DeckController()
+        deck.slides[0].shapes.removeAll()
+        let t = deck.addTable(rows: 3, columns: 3)
+        deck.selectShapes([t])
+        let doc = t.text!.document
+        let layout = RichLayout(theme: RichTextTheme(fontFamily: OfficeFonts.sans), paragraphCount: doc.paragraphs.count)
+        layout.width = 600
+        layout.ensureLaidOut(doc)
+        var found: Set<String> = []
+        var y = 0.0
+        while y < 400 {
+            var x = 0.0
+            while x < 640 {
+                if let e = layout.cellEdge(at: Offset(x, y), tolerance: 2, doc) { found.insert("\(e.side)") }
+                x += 1
+            }
+            y += 1
+        }
+        XCTAssertEqual(found, ["left", "right", "top", "bottom"])
+        XCTAssertNil(layout.cellEdge(at: Offset(-50, -50), tolerance: 2, doc))
+        func cell(_ r: Int, _ c: Int) -> CellRef? { t.text!.document.paragraphs.compactMap { $0.cell }.first { $0.row == r && $0.column == c } }
+        deck.tablePen = DeckController.TablePen(width: 2.25, color: Color(0xFF0000FF), dash: "lgDash")
+        deck.tableTool = .draw
+        deck.penTouch(t, row: 1, column: 1, side: .right)
+        XCTAssertEqual(cell(1, 1)?.borders.right?.width, 2.25)
+        XCTAssertEqual(cell(1, 2)?.borders.left?.color, Color(0xFF0000FF))
+        XCTAssertNil(cell(1, 1)?.borders.left)
+        deck.tableTool = .erase
+        deck.penTouch(t, row: 1, column: 2, side: .left)
+        XCTAssertEqual(cell(1, 1)?.borders.right, CellRef.CellLine.hidden)
+        deck.tableTool = .none
+        deck.penTouch(t, row: 0, column: 0, side: .top)
+        XCTAssertNil(cell(0, 0)?.borders.top)
+    }
+
     /// S-TB-1b: shading some cells of a table undoes and survives a save, other cells keep the style's.
     func testTableCellShadingRoundTripAndUndo() throws {
         let deck = DeckController()

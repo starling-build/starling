@@ -2456,3 +2456,25 @@ extension RichLayout {
         }
     }
 }
+
+extension RichLayout {
+    /// The cell edge nearest a point in the flow (within `tolerance` px): the cell's own table, its row and column, and which of
+    /// its four sides. Slides' border pen and eraser use it. nil when no edge is that close.
+    public func cellEdge(at flow: Offset, tolerance: Double, _ document: RichDocument)
+        -> (table: String, row: Int, column: Int, side: CellSide)? {
+        guard count > 0 else { return nil }
+        var best: (table: String, row: Int, column: Int, side: CellSide)? = nil
+        var bestD = tolerance
+        for i in 0 ..< min(count, _cells.count) {
+            guard let d = _cells[i], d.colWidth > 0, d.rowHeight > 0 else { continue }
+            let l = d.colLeft, r = d.colLeft + d.colWidth, t = d.rowTop, b = d.rowTop + d.rowHeight
+            guard flow.dx >= l - tolerance, flow.dx <= r + tolerance, flow.dy >= t - tolerance, flow.dy <= b + tolerance else { continue }
+            for (side, dist) in [(CellSide.left, abs(flow.dx - l)), (.right, abs(flow.dx - r)), (.top, abs(flow.dy - t)), (.bottom, abs(flow.dy - b))]
+            where dist < bestD {
+                bestD = dist
+                best = (d.table, d.row, d.column, side)
+            }
+        }
+        return best
+    }
+}

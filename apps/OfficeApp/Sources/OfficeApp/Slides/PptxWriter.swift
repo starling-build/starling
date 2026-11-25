@@ -1271,7 +1271,7 @@ private struct SlideXML {
                 func own(_ tag: String, _ l: CellRef.CellLine?) -> String {
                     guard let l else { return style.styleId != nil ? "" : border(tag) }
                     guard let c = l.color, l.width > 0 else { return "<\(tag) w=\"12700\"><a:noFill/></\(tag)>" }
-                    return "<\(tag) w=\"\(Self._emu(l.width))\"><a:solidFill><a:srgbClr val=\"\(PptxText.hex(c))\"/></a:solidFill></\(tag)>"
+                    return "<\(tag) w=\"\(Self._emu(l.width))\"><a:solidFill><a:srgbClr val=\"\(PptxText.hex(c))\"/></a:solidFill>\(DeckController.penDashName(l.dash).map { "<a:prstDash val=\"\($0)\"/>" } ?? "")</\(tag)>"
                 }
                 let lines = cell.borders.isEmpty ? borders
                     : own("a:lnL", cell.borders.left) + own("a:lnR", cell.borders.right) + own("a:lnT", cell.borders.top) + own("a:lnB", cell.borders.bottom)

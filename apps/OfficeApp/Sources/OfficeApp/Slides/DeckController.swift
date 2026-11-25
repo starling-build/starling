@@ -195,6 +195,10 @@ final class DeckController: ChangeNotifier {
     private(set) var firstSlideNum = 1
     var theme = DeckTheme()
     private(set) var revision = 0
+    /// The table pen and the drawing tool (not part of the document: no undo step, nothing saved).
+    var tablePen = TablePen()
+    var tableTool: TableTool = .none { didSet { if tableTool != oldValue { notifyListeners() } } }
+    enum TableTool { case none, draw, erase }
 
     // MARK: View zoom (not part of the document: no undo step, nothing saved)
 
@@ -1860,7 +1864,7 @@ final class DeckController: ChangeNotifier {
     }
 
     /// Called first by every edit: what the deck was becomes an undo step.
-    private func _checkpoint() {
+    func _checkpoint() {
         edits += 1
         _flushSession()
         _undo.append(snapshot())
@@ -2376,7 +2380,7 @@ final class DeckController: ChangeNotifier {
         }
     }
 
-    private func _changed(keepSession: Bool = false) {
+    func _changed(keepSession: Bool = false) {
         _updateFields()
         // A shape that went takes its animations with it.
         for slide in slides where !slide.animations.isEmpty {

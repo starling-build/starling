@@ -568,6 +568,45 @@ extension Ribbon {
         }
         let more = [menu("Themed", "Themed table styles", family("Themed")), menu("Light", "Light table styles", family("Light")),
                     menu("Medium", "Medium table styles", family("Medium")), menu("Dark", "Dark table styles", family("Dark"))]
+        // Borders and the pen: the cells the user selected, else the whole table.
+        func block() -> CellBlock? {
+            let t = deck.selection.first?.text
+            return t.flatMap { $0.selection.block ?? ($0.selection.isCollapsed ? nil : $0.targetCellBlock) }
+        }
+        func lay(_ sides: Set<DeckController.TableBorderSide>, erase: Bool = false) -> () -> Void {
+            { deck.setTableBorders(sides, line: erase ? nil : deck.tablePen.line, block: block()) }
+        }
+        let outside: Set<DeckController.TableBorderSide> = [.top, .bottom, .left, .right]
+        let borderItems: [MenuFlyoutItemBase] = [
+            MenuFlyoutItem(text: Text("Bottom Border"), onPressed: lay([.bottom])),
+            MenuFlyoutItem(text: Text("Top Border"), onPressed: lay([.top])),
+            MenuFlyoutItem(text: Text("Left Border"), onPressed: lay([.left])),
+            MenuFlyoutItem(text: Text("Right Border"), onPressed: lay([.right])),
+            MenuFlyoutSeparator(),
+            MenuFlyoutItem(text: Text("No Border"), onPressed: lay(Set(DeckController.TableBorderSide.allCases), erase: true)),
+            MenuFlyoutItem(text: Text("All Borders"), onPressed: lay(Set(DeckController.TableBorderSide.allCases))),
+            MenuFlyoutItem(text: Text("Outside Borders"), onPressed: lay(outside)),
+            MenuFlyoutItem(text: Text("Inside Borders"), onPressed: lay([.insideH, .insideV])),
+            MenuFlyoutItem(text: Text("Inside Horizontal Border"), onPressed: lay([.insideH])),
+            MenuFlyoutItem(text: Text("Inside Vertical Border"), onPressed: lay([.insideV])),
+        ]
+        let dashItems: [MenuFlyoutItemBase] = DeckController.penDashes.map { d in
+            MenuFlyoutItem(text: Text((deck.tablePen.dash == d.name ? "✓ " : "") + d.label), onPressed: { deck.tablePen.dash = d.name; deck.notifyViewChanged() }) }
+        let weightItems: [MenuFlyoutItemBase] = DeckController.penWeights.map { w in
+            let label = w == w.rounded() ? "\(Int(w))" : "\(w)"
+            return MenuFlyoutItem(text: Text((deck.tablePen.width == w ? "✓ " : "") + label + " pt"), onPressed: { deck.tablePen.width = w; deck.notifyViewChanged() }) }
+        let penColor = Chrome.colorMenu(FluentSystemIcons.textColor, "Pen Color", fluent,
+                                        colors: OfficeColors.text, none: "Automatic") { col in
+            deck.tablePen.color = col ?? Color(0xFF000000); deck.notifyViewChanged() }
+        let bordersGroup = Chrome.group("Draw Borders", fluent, [
+            Chrome.rows([Chrome.menuButton(FluentSystemIcons.table, "Borders", "Borders", fluent, items: borderItems),
+                         Chrome.menuButton(nil, "Pen Style", "Pen style", fluent, items: dashItems),
+                         Chrome.menuButton(nil, "Pen Weight", "Pen weight", fluent, items: weightItems)]),
+            Chrome.gap(8),
+            Chrome.rows([penColor,
+                         Chrome.textToggle("Draw Borders", deck.tableTool == .draw, fluent) { deck.tableTool = deck.tableTool == .draw ? .none : .draw },
+                         Chrome.textToggle("Eraser", deck.tableTool == .erase, fluent) { deck.tableTool = deck.tableTool == .erase ? .none : .erase }]),
+        ])
         return [Chrome.group("Table Styles", fluent, [Chrome.rows([styles, shading]), Chrome.rows(Array(more.prefix(2))), Chrome.rows(Array(more.suffix(2)))]),
                 Chrome.group("Table Style Options", fluent, [
             Chrome.rows([
@@ -580,6 +619,6 @@ extension Ribbon {
                 Chrome.textToggle("Last Column", o.lastColumn, fluent) { var n = o; n.lastColumn.toggle(); deck.setTableOptions(n) },
                 Chrome.textToggle("Banded Columns", o.bandedColumns, fluent) { var n = o; n.bandedColumns.toggle(); deck.setTableOptions(n) },
             ]),
-        ])]
+        ]), bordersGroup]
     }
 }

@@ -328,6 +328,8 @@ final class SlideCanvasState: State<StatefulWidget> {
                 focusNode: focusNode(for: shape), autofocus: false,
                 backgroundColor: nil, zoom: px * shape.fontScale / theme.pixelsPerPoint,
                 onShortcut: _w.onShortcut,
+                onCellEdge: shape.kind == .table && deck.tableTool != .none
+                    ? { [weak deck, weak shape] _, row, column, side in if let deck, let shape { deck.penTouch(shape, row: row, column: column, side: side) } } : nil,
                 onTouchMenu: { [weak controller, scene = self.officeScene] rect in
                     if let controller { scene.showTouchMenu(rect, controller: controller) }
                 },
