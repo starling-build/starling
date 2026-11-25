@@ -1293,6 +1293,43 @@ public final class RichDocumentController: ChangeNotifier {
         applyCharStyle { $0.strikethrough = on }
     }
 
+    /// Everything the Font dialog sets, applied as one undo step. Each field
+    /// replaces the run's value; nil means "none" (the style's own).
+    public struct CharFormat: Equatable {
+        public var family: String?
+        public var size: Double?
+        public var bold = false, italic = false, underline = false
+        public var strikethrough = false, doubleStrike = false
+        public var script: ScriptPosition = .normal
+        public var smallCaps = false, caps = false, hidden = false
+        public var spacing: Double?       // points between letters
+        public var scale: Double?         // horizontal scale, 1 = 100%
+        public var raised: Double?        // points up (negative: down)
+        public var kerningFrom: Double?   // kern from this size, points
+        public init() {}
+        public init(_ s: CharStyle) {
+            family = s.fontFamily; size = s.fontSize
+            bold = s.bold; italic = s.italic; underline = s.underline
+            strikethrough = s.strikethrough && !s.doubleStrike; doubleStrike = s.doubleStrike
+            script = s.script; smallCaps = s.smallCaps; caps = s.caps; hidden = s.hidden
+            spacing = s.letterSpacing; scale = s.horizontalScale
+            raised = s.raised; kerningFrom = s.kerningFrom
+        }
+    }
+
+    public func setCharFormat(_ f: CharFormat) {
+        applyCharStyle { s in
+            s.fontFamily = f.family; s.fontSize = f.size
+            s.bold = f.bold; s.italic = f.italic; s.underline = f.underline
+            s.strikethrough = f.strikethrough || f.doubleStrike; s.doubleStrike = f.doubleStrike
+            s.script = f.script; s.smallCaps = f.smallCaps; s.caps = f.caps; s.hidden = f.hidden
+            s.letterSpacing = f.spacing
+            s.horizontalScale = (f.scale ?? 1) == 1 ? nil : f.scale
+            s.raised = (f.raised ?? 0) == 0 ? nil : f.raised
+            s.kerningFrom = f.kerningFrom
+        }
+    }
+
     public func setFontFamily(_ family: String?) {
         applyCharStyle { $0.fontFamily = family }
     }

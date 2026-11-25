@@ -71,6 +71,7 @@ final class OfficeShellState: State<StatefulWidget> {
     private var _paragraphOpen = false
     private var _findDialogOpen = false
     private var _symbolOpen = false
+    private var _fontOpen = false
     private let _colorText = TextEditingController()
     private var _styleOpen: String? = nil
     private let _linkText = TextEditingController()
@@ -371,6 +372,11 @@ final class OfficeShellState: State<StatefulWidget> {
             guard let self else { return }
             self.controller.breakUndoCoalescing()
             self.setState { self._paragraphOpen = true }
+        }
+        session.onFontDialog = { [weak self] in
+            guard let self else { return }
+            self.controller.breakUndoCoalescing()
+            self.setState { self._fontOpen = true }
         }
         session.onMoreColors = { [weak self] in
             guard let self else { return }
@@ -1053,7 +1059,7 @@ final class OfficeShellState: State<StatefulWidget> {
             if session.paintedStyle != nil { _cancelPainter(); return true }
             if _styleOpen != nil { setState { _styleOpen = nil }; return true }
             if _linkOpen { setState { _linkOpen = false }; return true }
-            if _paragraphOpen { return false }   // the dialog's own Esc closes it
+            if _paragraphOpen || _fontOpen { return false }   // the dialog's own Esc closes it
             if _colorOpen { setState { _colorOpen = false }; return true }
             if _headerFooterOpen { setState { _headerFooterOpen = false }; return true }
             if _findOpen { setState { _findOpen = false }; _editorFocus.requestFocus(); return true }
@@ -1093,6 +1099,7 @@ final class OfficeShellState: State<StatefulWidget> {
         case "g": _findNext(backwards: mods.contains(.shift))
         case "p": setState { _backstage = .print }
         case "k": _openLink()
+        case "d": session.onFontDialog?()   // ⌘D: the Font dialog, as in Word
         case "c" where mods.contains(.shift): session.paintedStyle = c.copyFormat(); session.paintSticky = false; setState { session.summary = session.summarize() }
         case "v" where mods.contains(.shift): c.pasteFormat(session.paintedStyle ?? c.copyFormat()); setState { session.summary = session.summarize() }
         // Word's alignment keys; Export lives in Backstage.
@@ -1227,6 +1234,23 @@ final class OfficeShellState: State<StatefulWidget> {
                         insert: { [weak self] text, font in self?.controller.insertSymbol(text, font: font) }),
                     onClose: { [weak self] in
                         self?.setState { self?._symbolOpen = false }
+                        self?._editorFocus.requestFocus()
+                    })),
+            ])
+        }
+        if _fontOpen {
+            return Stack(children: [
+                window,
+                Positioned(left: 0, top: 0, right: 0, bottom: 0, child: FontDialog(
+                    initial: RichDocumentController.CharFormat(controller.currentCharStyle),
+                    onOK: { [weak self] f in
+                        guard let self else { return }
+                        self.controller.setCharFormat(f)
+                        self.setState { self._fontOpen = false }
+                        self._editorFocus.requestFocus()
+                    },
+                    onCancel: { [weak self] in
+                        self?.setState { self?._fontOpen = false }
                         self?._editorFocus.requestFocus()
                     })),
             ])
