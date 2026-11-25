@@ -558,6 +558,23 @@ enum ChartPartPatch {
         return x
     }
 
+    /// Where inside `ax` (a `c:valAx` element) a new child goes: before its first direct child named in `after` (children of children, such as a
+    /// gridline's `c:spPr` or a title's `c:txPr`, do not count), else at the end.
+    private static func _axisInsertion(_ ax: String, before after: [String]) -> String.Index {
+        guard let open = ax.findRange(of: ">", in: ax.startIndex ..< ax.endIndex) else { return ax.endIndex }
+        var depth = 0
+        var at = open.upperBound
+        while let a = ax.findRange(of: "<", in: at ..< ax.endIndex), let b = ax.findRange(of: ">", in: a.upperBound ..< ax.endIndex) {
+            let tag = String(ax[a.upperBound ..< b.lowerBound])
+            at = b.upperBound
+            if tag.hasPrefix("/") { if depth == 0 { return a.lowerBound }; depth -= 1; continue }
+            let name = String(tag.split(whereSeparator: { $0 == " " || $0 == "/" }).first ?? "")
+            if depth == 0, after.contains(name) { return a.lowerBound }
+            if !tag.hasSuffix("/") { depth += 1 }
+        }
+        return ax.endIndex
+    }
+
     /// The first group's value axis (the one its second `c:axId` names; a scatter's y axis) with its scale and number format set.
     static func valueAxis(_ xml: String, _ edit: ChartAxisEdit) -> String {
         guard let g = _firstGroup(xml), let first = g.sers.first, let close = xml.findRange(of: "</c:\(g.tag)>", in: first.upperBound ..< xml.endIndex) else { return xml }
@@ -592,11 +609,7 @@ enum ChartPartPatch {
             strip("majorUnit", &ax)
             if let m = edit.major {
                 let unit = "<c:majorUnit val=\"\(num(m))\"/>"
-                var pos = ax.endIndex
-                if let e = ax.findRange(of: "</c:valAx>", in: ax.startIndex ..< ax.endIndex) { pos = e.lowerBound }
-                for t in ["<c:minorUnit", "<c:dispUnits", "<c:extLst"] {
-                    if let q = ax.findRange(of: t, in: ax.startIndex ..< ax.endIndex), q.lowerBound < pos { pos = q.lowerBound }
-                }
+                let pos = _axisInsertion(ax, before: ["c:minorUnit", "c:dispUnits", "c:extLst"])
                 ax.insert(contentsOf: unit, at: pos)
             }
             // Number format: after the title (or gridlines), before the tick marks.
@@ -604,19 +617,13 @@ enum ChartPartPatch {
                 ax.removeSubrange(f.lowerBound ..< e.upperBound)
             }
             if let code = edit.format {
-                var pos = ax.endIndex
-                for t in ["<c:majorTickMark", "<c:minorTickMark", "<c:tickLblPos", "<c:spPr>", "<c:txPr>", "<c:crossAx"] {
-                    if let q = ax.findRange(of: t, in: ax.startIndex ..< ax.endIndex), q.lowerBound < pos { pos = q.lowerBound }
-                }
+                let pos = _axisInsertion(ax, before: ["c:majorTickMark", "c:minorTickMark", "c:tickLblPos", "c:spPr", "c:txPr", "c:crossAx", "c:crosses", "c:crossesAt", "c:crossBetween", "c:majorUnit", "c:minorUnit", "c:dispUnits", "c:extLst"])
                 var esc = code
                 esc = _esc(esc)
                 ax.insert(contentsOf: "<c:numFmt formatCode=\"\(esc)\" sourceLinked=\"0\"/>", at: pos)
             } else {
                 // Linked to the cells: the axis says so itself.
-                var pos = ax.endIndex
-                for t in ["<c:majorTickMark", "<c:minorTickMark", "<c:tickLblPos", "<c:spPr>", "<c:txPr>", "<c:crossAx"] {
-                    if let q = ax.findRange(of: t, in: ax.startIndex ..< ax.endIndex), q.lowerBound < pos { pos = q.lowerBound }
-                }
+                let pos = _axisInsertion(ax, before: ["c:majorTickMark", "c:minorTickMark", "c:tickLblPos", "c:spPr", "c:txPr", "c:crossAx", "c:crosses", "c:crossesAt", "c:crossBetween", "c:majorUnit", "c:minorUnit", "c:dispUnits", "c:extLst"])
                 ax.insert(contentsOf: "<c:numFmt formatCode=\"General\" sourceLinked=\"1\"/>", at: pos)
             }
             var x = xml
