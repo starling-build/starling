@@ -269,6 +269,8 @@ enum ChartPartPatcher {
             vNode.children = [literal("c:numLit", valStrings, text: false)]
         }
         // Name: its own cell, else the one above the values, else literal text.
+        // A series the file never named stays unnamed (PowerPoint numbers it by position), unless the user named it.
+        let unnamed = ser.first("c:tx") == nil && s.name == "Series\(i + 1)"
         let tx = XNode(name: "c:tx", attrs: [:])
         var nameSpan = oldTx
         if nameSpan == nil, let vs = valSpan, oldVal == nil || oldTx != nil {
@@ -282,8 +284,10 @@ enum ChartPartPatcher {
             let v = XNode(name: "c:v", attrs: [:]); v.text = s.name
             tx.children = [v]
         }
-        put(ser, "c:tx", tx, before: ["c:spPr", "c:invertIfNegative", "c:marker", "c:dPt", "c:dLbls", "c:trendline", "c:errBars",
-                                      "c:cat", "c:val", "c:xVal", "c:yVal", "c:smooth"])
+        if !unnamed {
+            put(ser, "c:tx", tx, before: ["c:spPr", "c:invertIfNegative", "c:marker", "c:dPt", "c:dLbls", "c:trendline", "c:errBars",
+                                          "c:cat", "c:val", "c:xVal", "c:yVal", "c:smooth"])
+        }
         // Categories (or x values): shared by the series, so a new series reuses the first one's cells.
         let catSpan = (oldCat ?? alloc.cat)?.resized(n)
         let cNode = XNode(name: cName, attrs: [:])

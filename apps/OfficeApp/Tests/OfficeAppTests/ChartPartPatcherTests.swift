@@ -118,6 +118,24 @@ final class ChartPartPatcherTests: XCTestCase {
         XCTAssertTrue(r.writes.allSatisfy { $0.sheet == "資料" })
     }
 
+    func testDataEditKeepsAnUnnamedSeriesUnnamed() throws {
+        let named = twoGroupPart
+        var xml = named
+        while let a = xml.range(of: "<c:tx>"), let b = xml.range(of: "</c:tx>", range: a.upperBound ..< xml.endIndex) {
+            xml.removeSubrange(a.lowerBound ..< b.upperBound)
+        }
+        let old = try XCTUnwrap(readBack(xml))
+        var new = old
+        new.categories = old.categories + ["c"]
+        new.series = old.series.map { var x = $0; x.values.append(9); return x }
+        let r = try XCTUnwrap(ChartPartPatcher.patch(xml, old: old, new: new))
+        XCTAssertFalse(r.xml.contains("<c:tx>"), "no name invented for a series the file left unnamed")
+        // A name the user typed is written.
+        new.series[0].name = "Sales"
+        let r2 = try XCTUnwrap(ChartPartPatcher.patch(xml, old: old, new: new))
+        XCTAssertTrue(r2.xml.contains("Sales"))
+    }
+
     func testTypeChangeKeepsIdsCellsAndTheSecondAxis() throws {
         var xml = twoGroupPart
         xml = xml.replacingOccurrences(of: "<c:lineChart>", with: "<c:barChart><c:barDir val=\"col\"/>", options: [], range: xml.range(of: "<c:lineChart>"))
