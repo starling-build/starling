@@ -27,6 +27,7 @@ enum SheetCommand {
     case dataValidation            // Data → Data Validation
     case consolidate               // Data → Consolidate
     case scenarioManager           // Data → What-If Analysis → Scenario Manager
+    case dataTable                 // Data → What-If Analysis → Data Table
     case goalSeek                  // Data → What-If Analysis → Goal Seek
     case removeDuplicates          // Data → Remove Duplicates
     case textToColumns             // Data → Text to Columns
@@ -392,6 +393,7 @@ extension Ribbon {
                 Chrome.small(FluentSystemIcons.close, "Clear Validation Circles", fluent) { wb.clearValidationCircles() },
             ]),
             Chrome.big(FluentSystemIcons.check, "Goal Seek", fluent) { wb.onCommand?(.goalSeek) },
+            Chrome.big(FluentSystemIcons.table, "Data Table", fluent) { wb.onCommand?(.dataTable) },
         ])
     }
 
