@@ -314,7 +314,14 @@ final class SheetsShellState: State<StatefulWidget> {
             // (Weak: UIKit keeps the buttons past the window, and a strong workbook kept a closed window's data alive.)
             undo: { [weak wb] in wb?.undo() }, redo: { [weak wb] in wb?.redo() },
             toggleBold: { [weak wb] in wb?.toggleStyle(\.bold) }, toggleItalic: { [weak wb] in wb?.toggleStyle(\.italic) },
-            toggleUnderline: { [weak wb] in wb?.toggleStyle(\.underline) }), owner: self)
+            toggleUnderline: { [weak wb] in wb?.toggleStyle(\.underline) },
+            // What typing numbers into cells reaches for: a total, a number format, and a clean cell.
+            context: [
+                .init(id: "ctx-cell-sum", title: "AutoSum", symbol: "sum") { [weak wb] in if let wb { Ribbon._autoSum(wb) } },
+                .init(id: "ctx-cell-currency", title: "Currency", symbol: "dollarsign") { [weak wb] in wb?.setStyle { $0.numberFormat = "$#,##0.00" } },
+                .init(id: "ctx-cell-percent", title: "Percent Style", symbol: "percent") { [weak wb] in wb?.setStyle { $0.numberFormat = "0%" } },
+                .init(id: "ctx-cell-clear", title: "Clear Contents", symbol: "eraser") { [weak wb] in wb?.clearContents() },
+            ]), owner: self)
     }
 
     /// The name box shows the active cell (or the selection's size while
