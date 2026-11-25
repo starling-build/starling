@@ -534,7 +534,18 @@ class _TextBoxState: State<StatefulWidget>, TextInputClient {
     override func build(_ context: any BuildContext) -> Widget {
         Semantics(
             label: textBox.placeholderText, value: textBox.obscureText ? nil : _effectiveController.text,
-            textField: true, enabled: textBox.enabled,
+            textField: true, enabled: textBox.enabled, focused: _isFocused,
+            textSelection: textBox.obscureText ? nil : _effectiveController.selection,
+            // A screen reader types and moves the caret through the same controller the keyboard does.
+            onSetSelection: textBox.obscureText || !textBox.enabled ? nil : { [weak self] sel in
+                self?._effectiveController.selection = sel
+            },
+            onReplaceRange: textBox.obscureText || textBox.readOnly || !textBox.enabled ? nil : { [weak self] start, end, text in
+                guard let c = self?._effectiveController else { return }
+                let u = Array(c.text.utf16)
+                let lo = max(0, min(start, u.count)), hi = max(lo, min(end, u.count))
+                c.text = String(decoding: u[0..<lo], as: UTF16.self) + text + String(decoding: u[hi...], as: UTF16.self)
+            },
             child: _buildBox(context))
     }
 

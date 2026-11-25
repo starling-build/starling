@@ -346,7 +346,7 @@ products += [
     .library(name: "FlutterShared", type: .dynamic,
              targets: ["Flutter", "SwiftRuntime", "FlutterSwiftBridge",
                        "CupertinoIcons", "FluentSystemIcons",
-                       "FlutterEmbedderBridge", "DmaBufBridge"]),
+                       "FlutterEmbedderBridge", "DmaBufBridge", "AtspiBridge"]),
 ]
 #endif
 
@@ -419,6 +419,7 @@ let flutterDeps: [Target.Dependency] = [
     .target(name: "FlutterEmbedderBridge"),
     .target(name: "DmaBufBridge"),
     .target(name: "WaylandClipboardBridge"),
+    .target(name: "AtspiBridge"),
 ]
 #elseif os(Windows)
 let flutterDeps: [Target.Dependency] = [
@@ -590,6 +591,14 @@ targets += [
         ],
         swiftSettings: cxxInteropSettings + [.swiftLanguageMode(.v5)]
     ),
+    // Headless VoiceOver-bridge test; run on the iOS simulator.
+    .testTarget(
+        name: "FlutterUIKitTests",
+        dependencies: ["FlutterUIKit", "Flutter"],
+        path: "Tests/FlutterUIKitTests",
+        swiftSettings: cxxInteropSettings + [.swiftLanguageMode(.v5)],
+        linkerSettings: engineLinkSettings
+    ),
 ]
 } else {
 targets += [
@@ -625,6 +634,13 @@ targets += [
             .target(name: "FlutterCocoaBridge"),
         ],
         swiftSettings: cxxInteropSettings + [.swiftLanguageMode(.v5)]
+    ),
+    .testTarget(
+        name: "FlutterCocoaTests",
+        dependencies: ["FlutterCocoa", "Flutter"],
+        path: "Tests/FlutterCocoaTests",
+        swiftSettings: cxxInteropSettings + [.swiftLanguageMode(.v5)],
+        linkerSettings: engineLinkSettings
     ),
     // Shared plumbing for the ported example apps: the engine-data bootstrap,
     // the run sequence, and the Material-look chrome. Same target as on Linux
@@ -783,6 +799,11 @@ targets += [
         linkerSettings: [
             .linkedLibrary("wayland-client"),
         ]
+    ),
+    // AT-SPI server for screen readers (sd-bus loaded at run time, so nothing to link).
+    .target(
+        name: "AtspiBridge",
+        linkerSettings: [.linkedLibrary("dl")]
     ),
     // System GTK 3 via pkg-config — supplies GTK/GLib include paths and libs
     // to dependents without hardcoding multiarch paths.

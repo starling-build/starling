@@ -1,0 +1,4 @@
+module AtspiBridge {
+  header "AtspiBridge.h"
+  export *
+}
