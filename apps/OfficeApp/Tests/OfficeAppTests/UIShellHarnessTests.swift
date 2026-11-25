@@ -252,4 +252,26 @@ final class SheetsTitleBarUndoHarnessTests: XCTestCase {
         c.setCellShading(Color(0xFFDDEEFF))
         XCTAssertEqual(c.document.paragraphs.compactMap { $0.cell }.filter { $0.fill != nil }.count, 2)
     }
+
+    /// W-TB-2: the Borders and Shading dialog applies sides, line and shading as one undo.
+    func testBordersAndShadingDialogReachesTheController() {
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(1280, 800))
+        let c = ui.state(OfficeShellState.self)!.session.controller
+        c.insertTable(rows: 2, columns: 2)
+        ui.pump()
+        XCTAssertTrue(ui.tap(text: "Table Layout"))
+        XCTAssertTrue(ui.tap(text: "Borders"))
+        XCTAssertTrue(ui.tap(text: "Borders and Shading…"))
+        XCTAssertTrue(ui.has(text: "Apply to"))
+        XCTAssertTrue(ui.tap(text: "Bottom"))
+        XCTAssertTrue(ui.tap(text: "Double"))
+        XCTAssertTrue(ui.tap(text: "3"))
+        XCTAssertTrue(ui.tap(text: "OK"))
+        let xml = c.currentCell?.bordersXML ?? ""
+        XCTAssertTrue(xml.contains("w:bottom"))
+        XCTAssertTrue(xml.contains("double"))
+        XCTAssertTrue(xml.contains("w:sz=\"24\""))
+        c.undo()
+        XCTAssertNil(c.currentCell?.bordersXML)
+    }
 }
