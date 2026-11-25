@@ -1,0 +1,50 @@
+// Copyright the Starling authors
+// SPDX-License-Identifier: Apache-2.0
+
+// One audio/video playback interface (like Flutter's video_player), backed by
+// the platform media stack: GStreamer on Linux, AVFoundation on Apple
+// platforms, the HTML video element on web. Poster frames are drawn by the
+// caller and do not depend on any of this.
+
+import Foundation
+
+public enum MediaPlayerStatus: Equatable {
+    case idle, loading, playing, paused, ended
+    case failed(String)
+}
+
+/// One decoded video frame, tightly packed RGBA8888.
+public struct MediaFrame {
+    public let pixels: [UInt8]
+    public let width: Int
+    public let height: Int
+}
+
+public protocol MediaPlayer: AnyObject {
+    var status: MediaPlayerStatus { get }
+    /// Seconds; 0 until known.
+    var position: Double { get }
+    var duration: Double { get }
+    /// 0...1.
+    var volume: Double { get set }
+
+    /// Starts loading `url` (file:// or http(s)://) and plays it.
+    func open(url: String)
+    func play()
+    func pause()
+    func stop()
+    func seek(to seconds: Double)
+    /// Drains pending events and returns the video frame that is due, if
+    /// any. Call from the UI's frame timer; it never blocks.
+    func pollFrame() -> MediaFrame?
+}
+
+/// A player for this platform, or nil when no backend is available (for
+/// example GStreamer is not installed).
+public func makeMediaPlayer() -> MediaPlayer? {
+    #if os(Linux)
+    return GStreamerPlayer()
+    #else
+    return nil
+    #endif
+}
