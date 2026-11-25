@@ -1048,6 +1048,8 @@ private struct SlideXML {
         }
         /// A cell the user shaded keeps its own colour (alpha 0 means "no fill"); else the style's.
         func ownFill(_ cell: CellRef, _ row: Int) -> String {
+            // A table that names a style leaves its fills to the style: only a colour the user set stays in the cell.
+            if style.styleId != nil, cell.fill == nil || cell.styleFilled == true { return "" }
             guard let c = cell.fill else { return fill(row) }
             if c.alpha == 0 { return "<a:noFill/>" }
             return "<a:solidFill><a:srgbClr val=\"\(PptxText.hex(c))\"/></a:solidFill>"
@@ -1057,13 +1059,13 @@ private struct SlideXML {
             let c = style.borderColor ?? Color(0xFF000000)
             return "<\(tag) w=\"12700\"><a:solidFill><a:srgbClr val=\"\(PptxText.hex(c))\"/></a:solidFill></\(tag)>"
         }
-        let borders = border("a:lnL") + border("a:lnR") + border("a:lnT") + border("a:lnB")
+        let borders = style.styleId != nil ? "" : border("a:lnL") + border("a:lnR") + border("a:lnT") + border("a:lnB")
         var xml = "<p:graphicFrame><p:nvGraphicFramePr><p:cNvPr id=\"\(_id(s.fileId))\" name=\"\(name)\"" + PptxText.cNvPrEnd(s)
             + "<p:cNvGraphicFramePr><a:graphicFrameLocks noGrp=\"1\"/></p:cNvGraphicFramePr><p:nvPr/></p:nvGraphicFramePr>"
             + Self._xfrm(s.frame, rotation: 0, tag: "p:xfrm")
             + "<a:graphic><a:graphicData uri=\"http://schemas.openxmlformats.org/drawingml/2006/table\"><a:tbl>"
             + "<a:tblPr firstRow=\"\(style.headerRow ? 1 : 0)\" bandRow=\"\(style.bandFill != nil ? 1 : 0)\"\(style.totalRow ? " lastRow=\"1\"" : "")\(style.firstColumn ? " firstCol=\"1\"" : "")\(style.lastColumn ? " lastCol=\"1\"" : "")\(style.bandedColumns ? " bandCol=\"1\"" : "")>"
-            + "<a:tableStyleId>{5C22544A-7EE6-4342-B048-85BDC9FD1C3A}</a:tableStyleId></a:tblPr><a:tblGrid>"
+            + "<a:tableStyleId>\(style.styleId ?? "{5C22544A-7EE6-4342-B048-85BDC9FD1C3A}")</a:tableStyleId></a:tblPr><a:tblGrid>"
             + widths.map { "<a:gridCol w=\"\(Self._emu($0))\"/>" }.joined() + "</a:tblGrid>"
         for r in 0 ..< rows {
             xml += "<a:tr h=\"\(rowH)\">"
@@ -1074,7 +1076,7 @@ private struct SlideXML {
                 }
                 let paras = doc.paragraphs.filter { $0.cell?.row == r && $0.cell?.column == k }
                 guard let cell = paras.first?.cell else {
-                    xml += "<a:tc><a:txBody><a:bodyPr/><a:lstStyle/><a:p/></a:txBody><a:tcPr>\(borders)\(fill(r))</a:tcPr></a:tc>"
+                    xml += "<a:tc><a:txBody><a:bodyPr/><a:lstStyle/><a:p/></a:txBody><a:tcPr>\(borders)\(style.styleId != nil ? "" : fill(r))</a:tcPr></a:tc>"
                     continue
                 }
                 var attrs = ""
@@ -1091,7 +1093,7 @@ private struct SlideXML {
                 // The cell's own edge lines where it has them, the style's
                 // elsewhere.
                 func own(_ tag: String, _ l: CellRef.CellLine?) -> String {
-                    guard let l else { return border(tag) }
+                    guard let l else { return style.styleId != nil ? "" : border(tag) }
                     guard let c = l.color, l.width > 0 else { return "<\(tag) w=\"12700\"><a:noFill/></\(tag)>" }
                     return "<\(tag) w=\"\(Self._emu(l.width))\"><a:solidFill><a:srgbClr val=\"\(PptxText.hex(c))\"/></a:solidFill></\(tag)>"
                 }

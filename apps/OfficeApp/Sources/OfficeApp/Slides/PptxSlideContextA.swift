@@ -391,6 +391,9 @@ extension SlideContext {
                 }
                 cell.padding = EdgeInsets(left: margin("marL", 7.2), top: margin("marT", 3.6),
                                           right: margin("marR", 7.2), bottom: margin("marB", 3.6))
+                // A fill the style gave (not this cell's own) stays the style's on a save.
+                let ownFill = tcPr?.first("a:solidFill") != nil || tcPr?.first("a:gradFill") != nil || tcPr?.has("a:noFill") == true
+                if cell.fill != nil, !ownFill { cell.styleFilled = true }
                 if let tcPr {
                     switch tcPr["anchor"] { case "ctr": cell.verticalAlign = "center"; case "b": cell.verticalAlign = "bottom"; default: break }
                     switch tcPr["vert"] {
@@ -740,6 +743,7 @@ extension SlideContext {
                          bandFill: banded ? DeckController.tint(accent, 0.40) : nil,
                          bandAltFill: banded ? DeckController.tint(accent, 0.20) : nil,
                          borderColor: Color(0xFFFFFFFF))
+        if !styleId.isEmpty { ts.styleId = styleId }
         ts.totalRow = pr?["lastRow"] == "1"
         ts.firstColumn = pr?["firstCol"] == "1"
         ts.lastColumn = pr?["lastCol"] == "1"

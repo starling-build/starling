@@ -539,7 +539,15 @@ extension Ribbon {
             let block = t.flatMap { $0.selection.block ?? ($0.selection.isCollapsed ? nil : $0.targetCellBlock) }
             deck.setTableShading(col, block: block)
         }
-        return [Chrome.group("Table Styles", fluent, [Chrome.rows([shading])]),
+        var looks: [(String, DeckController.TableLook)] = [("No Style, Table Grid", .plain)]
+        for i in 0 ..< min(6, deck.theme.accents.count) { looks.append(("Medium Style 2 - Accent \(i + 1)", .accent(i))) }
+        let styles = Chrome.menuButton(FluentSystemIcons.grid, "Table Styles", "Choose a table style", fluent,
+            items: looks.map { name, look in
+                MenuFlyoutItem(text: Text(name), leading: SizedBox(width: 14, height: 14, child: DecoratedBox(decoration: BoxDecoration(
+                                   color: deck.tableLookColor(look) ?? Color(0xFFFFFFFF),
+                                   border: Border.all(color: fluent.resources.controlStrokeColorDefault, width: 1)))),
+                               onPressed: { deck.applyTableLook(look) }) as MenuFlyoutItemBase })
+        return [Chrome.group("Table Styles", fluent, [Chrome.rows([styles, shading])]),
                 Chrome.group("Table Style Options", fluent, [
             Chrome.rows([
                 Chrome.textToggle("Header Row", o.headerRow, fluent) { var n = o; n.headerRow.toggle(); deck.setTableOptions(n) },
