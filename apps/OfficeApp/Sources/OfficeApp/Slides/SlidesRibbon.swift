@@ -166,6 +166,9 @@ extension Ribbon {
                         MenuFlyoutItem(text: Text("\(c) × \(r) table"), onPressed: { [session] in session.onInsertTable?(r, c) })
                     }),
             ]),
+            Chrome.group("Symbols", fluent, [
+                Chrome.big(FluentSystemIcons.textT, "Symbol", fluent) { [session] in session.onSymbolDialog?() },
+            ]),
             Chrome.group("Images", fluent, [
                 Chrome.big(FluentSystemIcons.image, "Pictures", fluent) { [session] in session.onInsertPicture?() },
             ]),

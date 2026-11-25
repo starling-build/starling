@@ -57,4 +57,22 @@ extension DeckController {
         }
         return out
     }
+
+    /// Every match of `pattern` (match case, whole word, wildcards, regex), in reading order.
+    func matches(_ pattern: TextPattern) -> [DeckMatch] {
+        var out: [DeckMatch] = []
+        for i in slides.indices {
+            for (stop, body) in textStops(i).enumerated() {
+                for (p, para) in body.controller.document.paragraphs.enumerated() {
+                    let text = para.text
+                    for m in pattern.matches(in: text) where m.range.lowerBound < m.range.upperBound {
+                        out.append(DeckMatch(slide: i, stop: stop, shapeId: body.shape?.id, selection: RichSelection(
+                            anchor: RichPosition(paragraph: p, offset: m.range.lowerBound.utf16Offset(in: text)),
+                            focus: RichPosition(paragraph: p, offset: m.range.upperBound.utf16Offset(in: text)))))
+                    }
+                }
+            }
+        }
+        return out
+    }
 }
