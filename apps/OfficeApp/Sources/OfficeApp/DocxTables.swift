@@ -1338,12 +1338,25 @@ extension DocxFormat {
             // does, so a later Modify Style in Word reaches it.
             let ownSheet = !doc.readFromFile && p.style.heading == nil && p.style.list == nil
                 ? p.style.named.flatMap { doc.styles[$0] }?.paragraph : nil
+            // A paragraph of a file whose spacing is just what its style (or
+            // Normal) gives it says none: the file never wrote it, and writing
+            // it bakes the style's numbers into the body, where a later style
+            // change in Word no longer reaches it.
+            let fileSheet: RichParagraphStyle? = doc.readFromFile
+                ? (p.style.heading.flatMap { doc.styles["Heading\(min($0, 6))"] } ?? p.style.named.flatMap { doc.styles[$0] } ?? doc.styles["Normal"])?.paragraph : nil
             func holds(_ k: KeyPath<RichParagraphStyle, Double>) -> Bool { ownSheet.map { $0[keyPath: k] == p.style[keyPath: k] } ?? false }
             let inheritsSpacing = ownSheet != nil && holds(\.spaceBefore) && holds(\.spaceAfter) && holds(\.lineSpacing)
                 && ownSheet!.lineHeightPoints == p.style.lineHeightPoints && !p.style.spaceBeforeAuto && !p.style.spaceAfterAuto
                 && !ownSheet!.spaceBeforeAuto && !ownSheet!.spaceAfterAuto
             let inheritsInd = ownSheet != nil && holds(\.indentLeft) && holds(\.indentRight) && holds(\.firstLineIndent)
-            if !inheritsSpacing { pPr += _withEastAsian(_spacingXML(p.style, under: (p.style.heading.flatMap { doc.styles["Heading\(min($0, 6))"] } ?? p.style.named.flatMap { doc.styles[$0] })?.paragraph), "w:spacing", _eastAsianSpacing, p.style) }
+            let fileInheritsSpacing: Bool = fileSheet.map { sh in
+                sh.spaceBefore == p.style.spaceBefore && sh.spaceAfter == p.style.spaceAfter && sh.lineSpacing == p.style.lineSpacing
+                    && sh.lineHeightPoints == p.style.lineHeightPoints && sh.lineHeightIsMinimum == p.style.lineHeightIsMinimum
+                    && sh.lineCollapsed == p.style.lineCollapsed
+                    && sh.spaceBeforeAuto == p.style.spaceBeforeAuto && sh.spaceAfterAuto == p.style.spaceAfterAuto
+                    && _withEastAsian(_spacingXML(p.style), "w:spacing", _eastAsianSpacing, p.style) == _spacingXML(p.style)
+            } ?? false
+            if !inheritsSpacing && !fileInheritsSpacing { pPr += _withEastAsian(_spacingXML(p.style, under: (p.style.heading.flatMap { doc.styles["Heading\(min($0, 6))"] } ?? p.style.named.flatMap { doc.styles[$0] })?.paragraph), "w:spacing", _eastAsianSpacing, p.style) }
             // Indents the style sets and the paragraph unsets are written
             // as zero: IllustrativeCases' Body Text Indent hangs 0.75in
             // into the margin and every paragraph of it says left 0.
@@ -2250,7 +2263,13 @@ extension DocxFormat {
         var out = ""
         var buf = ""
         func flush() {
-            if !buf.isEmpty { out += "<w:t xml:space=\"preserve\">\(_esc(buf))</w:t>"; buf = "" }
+            // xml:space only where whitespace could be lost: an edge, a run of
+            // blanks, or a control whitespace character.
+            if !buf.isEmpty {
+                let needs = buf.first!.isWhitespace || buf.last!.isWhitespace || buf.containsSubstring("  ")
+                    || buf.unicodeScalars.contains { $0.value < 0x20 || $0.value == 0xA0 || $0.value == 0x3000 }
+                out += needs ? "<w:t xml:space=\"preserve\">\(_esc(buf))</w:t>" : "<w:t>\(_esc(buf))</w:t>"; buf = ""
+            }
         }
         for ch in s {
             switch ch {
