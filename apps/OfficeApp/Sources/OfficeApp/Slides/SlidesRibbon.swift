@@ -127,6 +127,9 @@ extension Ribbon {
             MenuFlyoutItem(text: Text("Align Middle"), onPressed: some ? { deck.align(.middle) } : nil),
             MenuFlyoutItem(text: Text("Align Bottom"), onPressed: some ? { deck.align(.bottom) } : nil),
             MenuFlyoutSeparator(),
+            MenuFlyoutItem(key: ValueKey("arrange.reroute"), text: Text("Reroute Connectors"),
+                           onPressed: deck.reroutableLines.isEmpty ? nil : { deck.rerouteConnectors() }),
+            MenuFlyoutSeparator(),
             MenuFlyoutItem(text: Text("Format Shape…"), onPressed: some ? { [session] in session.onFormatShape?() } : nil),
         ]
         let palette = Self.shapeColors(deck.theme)

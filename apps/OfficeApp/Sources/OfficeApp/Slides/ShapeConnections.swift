@@ -98,6 +98,53 @@ extension DeckController {
         }
     }
 
+    /// The glued lines Reroute Connectors acts on: the selected ones, or every glued line on the slide when none is selected.
+    var reroutableLines: [SlideShape] {
+        let glued: (SlideShape) -> Bool = { $0.isGluableLine && ($0.connStart != nil || $0.connEnd != nil) }
+        let picked = selection.filter(glued)
+        return picked.isEmpty && !selection.contains(where: { $0.preset?.isLine == true }) ? currentSlide.shapes.filter(glued) : picked
+    }
+
+    /// PowerPoint's Reroute Connectors: each glued line moves its ends to the pair of connection sites that makes it the
+    /// shortest. A line glued at both ends picks both sites; glued at one end, it keeps the free end and picks that shape's
+    /// nearest site. One undo step; nothing happens when no line would change.
+    func rerouteConnectors() {
+        let lines = reroutableLines
+        guard !lines.isEmpty else { return }
+        func dist(_ a: Offset, _ b: Offset) -> Double { ((a.dx - b.dx) * (a.dx - b.dx) + (a.dy - b.dy) * (a.dy - b.dy)).squareRoot() }
+        func shape(_ c: ShapeConn?) -> SlideShape? { c.flatMap { c in currentSlide.shapes.first { $0.id == c.shape } } }
+        var plan: [(SlideShape, ShapeConn?, ShapeConn?)] = []
+        for l in lines {
+            let a = shape(l.connStart), b = shape(l.connEnd)
+            var best: (Double, Int, Int)? = nil
+            if let a, let b {
+                for i in 0..<a.connectionSiteCount { for j in 0..<b.connectionSiteCount {
+                    guard let p = a.connectionSite(i), let q = b.connectionSite(j) else { continue }
+                    let d = dist(p, q); if best == nil || d < best!.0 - 1e-9 { best = (d, i, j) }
+                } }
+                if let best { plan.append((l, ShapeConn(shape: a.id, site: best.1), ShapeConn(shape: b.id, site: best.2))) }
+            } else if let a {
+                for i in 0..<a.connectionSiteCount {
+                    guard let p = a.connectionSite(i) else { continue }
+                    let d = dist(p, l.lineEndPoint); if best == nil || d < best!.0 - 1e-9 { best = (d, i, 0) }
+                }
+                if let best { plan.append((l, ShapeConn(shape: a.id, site: best.1), nil)) }
+            } else if let b {
+                for j in 0..<b.connectionSiteCount {
+                    guard let q = b.connectionSite(j) else { continue }
+                    let d = dist(q, l.lineStart); if best == nil || d < best!.0 - 1e-9 { best = (d, 0, j) }
+                }
+                if let best { plan.append((l, nil, ShapeConn(shape: b.id, site: best.2))) }
+            }
+        }
+        plan = plan.filter { l, s, e in (s != nil && s != l.connStart) || (e != nil && e != l.connEnd) }
+        guard !plan.isEmpty else { return }
+        _checkpoint()
+        for (l, s, e) in plan { if let s { l.connStart = s }; if let e { l.connEnd = e } }
+        followConnections()
+        _changed()
+    }
+
     /// After any change: each glued end sits on its site again, and an end whose shape has gone comes unglued.
     func followConnections() {
         for slide in slides {
