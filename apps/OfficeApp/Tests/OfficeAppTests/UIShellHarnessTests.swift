@@ -75,6 +75,44 @@ final class UIShellHarnessTests: XCTestCase {
         XCTAssertEqual(entered, 1, "a click on the selected box enters its text")
     }
 
+    /// A finger has no Shift: with Select Multiple on, a touch tap on another floating shape picks it along with the selected one (a
+    /// second tap drops it); with it off, the same tap just selects that shape.
+    func testSelectMultipleLetsAFingerPickShapesToGroup() throws {
+        let controller = RichDocumentController(document: RichDocument(paragraphs: [RichParagraph(text: "Some body text before the shapes.")]))
+        for (n, preset) in ["rect", "ellipse"].enumerated() {
+            controller.pendingShape = { x, y, w, h in TextBoxInsert.makeShape(preset: preset, width: w, height: h, number: n + 1, page: (x, y)) }
+            XCTAssertTrue(controller.placePendingShape(x: 60 + Double(n) * 220, y: 140, width: 120, height: 80, at: RichPosition(paragraph: 0, offset: 0)))
+        }
+        let shapes = controller.document.paragraphs.indices.filter { controller.document.paragraphs[$0].image?.float != nil }
+        XCTAssertEqual(shapes.count, 2)
+        var rect: Rect?
+        let ui = app(SizedBox(width: 800, height: 600, child: RichEditable(controller: controller, onBoxRect: { rect = $0 })))
+        func settle() { for _ in 0 ..< 3 { ui.pump(); RunLoop.main.run(until: Date().addingTimeInterval(0.05)) } }
+        settle()
+        let editor = try XCTUnwrap(ui.elements().first { $0.widget is RichEditable })
+        let box = try XCTUnwrap(editor.findRenderObject() as? RenderBox)
+        func centre(of index: Int) throws -> Offset {
+            controller.selectImage(at: index); settle()
+            return box.localToGlobal(try XCTUnwrap(rect, "shape \(index) is selected and drawn").center)
+        }
+        let second = try centre(of: shapes[1])
+        let first = try centre(of: shapes[0])
+        XCTAssertEqual(controller.selectedImageIndex, shapes[0])
+        // Off: a tap on the other shape selects it, nothing is picked.
+        ui.tap(at: second, kind: .touch); settle()
+        XCTAssertEqual(controller.selectedImageIndex, shapes[1])
+        XCTAssertEqual(controller.pickedShapeIndexes, [shapes[1]])
+        controller.selectImage(at: shapes[0]); settle()
+        // On: the same tap picks it along with the selected one; another tap drops it again.
+        controller.setSelectMultiple(true)
+        ui.tap(at: second, kind: .touch); settle()
+        XCTAssertEqual(controller.selectedImageIndex, shapes[0], "the first stays the selected one")
+        XCTAssertEqual(controller.pickedShapeIndexes, shapes)
+        ui.tap(at: second, kind: .touch); settle()
+        XCTAssertEqual(controller.pickedShapeIndexes, [shapes[0]])
+        _ = first
+    }
+
     func testTheSlidesShellBuildsAndItsTabsTap() {
         let ui = app(SlidesShell(initialPath: nil, startBlank: true, onSwitch: { _, _ in }))
         XCTAssertNotNil(ui.state(SlidesShellState.self))

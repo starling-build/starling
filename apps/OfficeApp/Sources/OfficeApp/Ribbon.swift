@@ -873,6 +873,12 @@ final class Ribbon: StatelessWidget {
                 Chrome.big(FluentSystemIcons.shapes, "Group", fluent, enabled: false) {},
             ]))
         }
+        if c.pictureWrap(at: i) != nil {
+            // A finger has no Shift: while this is on, a tap on another floating shape picks it to group with this one.
+            groupWidgets.append(Chrome.group("Select", fluent, [
+                Chrome.small(FluentSystemIcons.check, "Select Multiple", fluent, checked: c.selectMultiple) { c.setSelectMultiple(!c.selectMultiple) },
+            ]))
+        }
         var floating: [Widget] = []
         if let wrap = c.pictureWrap(at: i) {
             func pick(_ w: PictureWrap) -> Widget {

@@ -971,6 +971,33 @@ extension WorkbookController {
         selectedDrawing = index
     }
 
+    /// Move several drawings at once, each to a frame in points (one undo step); each `from` is the anchor it had before a live drag.
+    func setDrawingFrames(_ items: [(index: Int, x: Double, y: Double, width: Double, height: Double, from: SheetAnchor)]) {
+        let ws = sheet
+        let items = items.filter { ws.drawings.indices.contains($0.index) }
+        guard !items.isEmpty else { return }
+        for i in items { ws.drawings[i.index].anchor = i.from }
+        let anchors = items.map { ws.anchor(x: max(0, $0.x), y: max(0, $0.y), width: max(8, $0.width), height: max(8, $0.height)) }
+        guard zip(items, anchors).contains(where: { ws.drawings[$0.index].anchor != $1 }) else { return }
+        structural {
+            for (i, a) in zip(items, anchors) { ws.drawings[i.index].anchor = a }
+            ws.drawingsEdited = true
+        }
+    }
+
+    /// Delete every selected chart and picture (one undo step).
+    func deleteSelectedDrawings() {
+        let ws = sheet
+        let gone = selectedDrawingIndexes.filter { ws.drawings.indices.contains($0) && ws.drawings[$0].kind != .other }
+        guard !gone.isEmpty else { return }
+        structural {
+            for i in gone.sorted(by: >) { ws.drawings.remove(at: i) }
+            ws.drawingsEdited = true
+        }
+        selectedDrawing = nil
+        _notify(selectionOnly: true)
+    }
+
     func deleteDrawing(_ index: Int) {
         let ws = sheet
         guard ws.drawings.indices.contains(index), ws.drawings[index].kind != .other else { return }

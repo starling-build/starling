@@ -390,6 +390,13 @@ extension Ribbon {
         if let i = wb.selectedDrawing, wb.sheet.drawings.indices.contains(i), case .picture = wb.sheet.drawings[i].kind {
             items.append(Chrome.big(FluentSystemIcons.image, "Alt Text", fluent) { wb.onCommand?(.altText) })
         }
+        if wb.selectedDrawing != nil {
+            // A finger has no Shift: while this is on, a tap on another chart or picture picks it along with this one.
+            items.append(Chrome.small(FluentSystemIcons.check, "Select Multiple", fluent, checked: wb.selectMultiple) {
+                wb.selectMultiple.toggle()
+                wb._notify(selectionOnly: true)
+            })
+        }
         return Chrome.group("Illustrations", fluent, items)
     }
 
