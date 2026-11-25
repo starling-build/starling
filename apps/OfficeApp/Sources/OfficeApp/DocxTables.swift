@@ -1807,7 +1807,14 @@ extension DocxFormat {
         // default spacing, older line breaking — which the corpus showed
         // on every saved copy (2026-10-07).
         let written = Set(media.map(\.name))
-        for (name, data) in doc.keptParts.sorted(by: { $0.key < $1.key }) where !written.contains(name) {
+        // A theme-linked table colour in a document with no theme part: Word would fall back on ITS default
+        // palette and draw other colours than the app did. Write the palette the app drew with.
+        var keptAll = doc.keptParts
+        if !keptAll.keys.contains(where: { $0.hasPrefix("word/theme/") }),
+           doc.paragraphs.contains(where: { $0.cell?.fillThemeAttrs != nil || $0.cell?.bordersXML?.containsSubstring("w:themeColor=") == true }) {
+            keptAll["word/theme/theme1.xml"] = Data(_defaultThemePart().utf8)
+        }
+        for (name, data) in keptAll.sorted(by: { $0.key < $1.key }) where !written.contains(name) {
             extraParts.append(ZipEntry(name: name, data: data))
             switch name {
             case "word/footnotes.xml":
@@ -1916,6 +1923,26 @@ extension DocxFormat {
             ZipEntry(name: "word/_rels/document.xml.rels", data: Data(relsXML.utf8)),
         ] + media + extraParts
         return try Zip.write(entries)
+    }
+
+    /// Office's 2013 default theme (the palette `ColorMath.officeTheme` draws): colours, Calibri fonts, plain format scheme.
+    static func _defaultThemePart() -> String {
+        let c = ColorMath.officeTheme.map { String($0, radix: 16, uppercase: true) }.map { String(repeating: "0", count: 6 - $0.count) + $0 }
+        let names = ["lt1", "dk1", "lt2", "dk2", "accent1", "accent2", "accent3", "accent4", "accent5", "accent6"]
+        // Theme order is dk1, lt1, dk2, lt2, accents; the picker's order is Background 1 (lt1), Text 1 (dk1), ...
+        var scheme = ""
+        for n in ["dk1", "lt1", "dk2", "lt2", "accent1", "accent2", "accent3", "accent4", "accent5", "accent6"] {
+            scheme += "<a:\(n)><a:srgbClr val=\"\(c[names.firstIndex(of: n)!])\"/></a:\(n)>"
+        }
+        scheme += "<a:hlink><a:srgbClr val=\"0563C1\"/></a:hlink><a:folHlink><a:srgbClr val=\"954F72\"/></a:folHlink>"
+        let fill = "<a:solidFill><a:schemeClr val=\"phClr\"/></a:solidFill>"
+        let ln = "<a:ln w=\"6350\"><a:solidFill><a:schemeClr val=\"phClr\"/></a:solidFill></a:ln>"
+        return "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<a:theme xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\" name=\"Office Theme\"><a:themeElements>"
+            + "<a:clrScheme name=\"Office\">\(scheme)</a:clrScheme>"
+            + "<a:fontScheme name=\"Office\"><a:majorFont><a:latin typeface=\"Calibri Light\"/><a:ea typeface=\"\"/><a:cs typeface=\"\"/></a:majorFont><a:minorFont><a:latin typeface=\"Calibri\"/><a:ea typeface=\"\"/><a:cs typeface=\"\"/></a:minorFont></a:fontScheme>"
+            + "<a:fmtScheme name=\"Office\"><a:fillStyleLst>\(fill)\(fill)\(fill)</a:fillStyleLst><a:lnStyleLst>\(ln)\(ln)\(ln)</a:lnStyleLst>"
+            + "<a:effectStyleLst><a:effectStyle><a:effectLst/></a:effectStyle><a:effectStyle><a:effectLst/></a:effectStyle><a:effectStyle><a:effectLst/></a:effectStyle></a:effectStyleLst>"
+            + "<a:bgFillStyleLst>\(fill)\(fill)\(fill)</a:bgFillStyleLst></a:fmtScheme></a:themeElements></a:theme>"
     }
 
     static func _imageMime(_ ext: String) -> String {
