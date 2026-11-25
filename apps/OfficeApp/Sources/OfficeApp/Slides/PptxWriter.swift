@@ -768,6 +768,33 @@ private struct SlideXML {
         return _rel(RT.image, Pptx.relative(mediaPart, from: part), preferred: "rIdImg\(media.count)")
     }
 
+    /// An `a:ln` with its width and/or its fill element swapped, everything else kept.
+    static func _patchedLine(_ ln: String, widthEMU: Int?, fill: String?) -> String {
+        guard let open = ln.firstIndex(of: ">") else { return ln }
+        var head = String(ln[...open])
+        var rest = String(ln[ln.index(after: open)...])
+        let selfClosing = head.hasSuffix("/>")
+        if selfClosing { head = String(head.dropLast(2)) + ">"; rest = "</a:ln>" }
+        if let w = widthEMU {
+            if let r = head.range(of: " w=\"") , let e = head[r.upperBound...].firstIndex(of: "\"") {
+                head.replaceSubrange(r.upperBound ..< e, with: String(w))
+            } else {
+                head = String(head.dropLast()) + " w=\"\(w)\">"
+            }
+        }
+        if let fill {
+            var start = rest.startIndex
+            for tag in ["<a:noFill/>", "<a:solidFill>", "<a:gradFill", "<a:pattFill"] where rest.hasPrefix(tag) {
+                if tag == "<a:noFill/>" { start = rest.index(rest.startIndex, offsetBy: tag.count); break }
+                let close = tag == "<a:solidFill>" ? "</a:solidFill>" : (tag == "<a:gradFill" ? "</a:gradFill>" : "</a:pattFill>")
+                if let r = rest.range(of: close) { start = r.upperBound }
+                break
+            }
+            rest = fill + String(rest[start...])
+        }
+        return head + rest
+    }
+
     /// A fill element: solid, linear gradient or stretched picture.
     mutating func fill(_ f: SlideFill, media: inout MediaParts, builder: inout PackageBuilder) -> String {
         if let image = f.image {
@@ -967,6 +994,12 @@ private struct SlideXML {
                 }
                 if k.fillKept(s) { fillXML = k.fill.map(own) ?? "" }
                 if k.lineKept(s) { lineXML = k.line.map(own) ?? "" }
+                else if let ln = k.line {
+                    // A changed colour or width: only the line's fill (and width) change; its dash, caps, joins and arrowheads stay.
+                    let replaceFill = k.lineReplaced || s.outline != k.readOutline
+                    lineXML = Self._patchedLine(ln, widthEMU: s.outlineWidth == k.readWidth ? nil : Self._emu(s.outlineWidth),
+                                                fill: replaceFill ? (s.outline.map { Self._fill($0) } ?? "<a:noFill/>") : nil)
+                }
             }
             spPr += fillXML + lineXML + (look?.effects ?? "")
             var xml = "<p:sp><p:nvSpPr>\(nv)<p:nvPr>\(ph)</p:nvPr></p:nvSpPr><p:spPr>\(spPr)</p:spPr>\(look?.style ?? "")"
