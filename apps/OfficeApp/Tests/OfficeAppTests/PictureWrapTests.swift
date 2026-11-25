@@ -205,6 +205,65 @@ final class TextBoxInsertTests: XCTestCase {
         XCTAssertEqual(c.document.paragraphs[i].image?.textBox?.paragraphs.map(\.text), ["one"])
     }
 
+    func testBoxWithAFieldAndATrackedInsertionIsEditedInPlace() throws {
+        let c = RichDocumentController(document: RichDocument(paragraphs: [RichParagraph(text: "body")]))
+        c.insertImage(try XCTUnwrap(TextBoxInsert.make(text: "one")))
+        let i = try XCTUnwrap(c.document.paragraphs.firstIndex { $0.image?.textBox != nil })
+        // A box whose words hold a page field and a tracked insertion, as a file would carry them.
+        var field = RichParagraph(text: "Page 7")
+        field.runs = [Run(length: 5, style: .plain), Run(length: 1, style: { var s = CharStyle.plain; s.field = "PAGE"; s.fieldResult = 7; return s }())]
+        var ins = RichParagraph(text: "added")
+        ins.runs = [Run(length: 5, style: { var s = CharStyle.plain; s.revision = RevisionMark(kind: .inserted, author: "A", date: ""); return s }())]
+        let paragraphs = [field, ins]
+        let xml = try XCTUnwrap(TextBoxInsert.contentXML(paragraphs))
+        XCTAssertTrue(xml.containsSubstring("PAGE"))
+        XCTAssertTrue(xml.containsSubstring("<w:ins "))
+        XCTAssertTrue(c.setTextBoxContent(at: i, paragraphs: paragraphs, contentXML: xml))
+        XCTAssertNotNil(c.textBoxParagraphs(at: i), "a field and a tracked change are no bar to editing in place")
+        let box = RichDocumentController(document: RichDocument(paragraphs: try XCTUnwrap(c.textBoxParagraphs(at: i))))
+        box.selectAll()
+        box.insertText("x")
+        let again = try XCTUnwrap(TextBoxInsert.contentXML(box.document.paragraphs))
+        XCTAssertTrue(c.setTextBoxContent(at: i, paragraphs: box.document.paragraphs, contentXML: again))
+        c.undo()
+        XCTAssertTrue(c.document.paragraphs[i].image?.sourceXML?.containsSubstring("PAGE") == true)
+    }
+
+    func testRevisionIdsOfTwoEditedBoxesNeverRepeat() throws {
+        var ins = RichParagraph(text: "added")
+        ins.runs = [Run(length: 5, style: { var s = CharStyle.plain; s.revision = RevisionMark(kind: .inserted, author: "A", date: ""); return s }())]
+        let xml = try XCTUnwrap(TextBoxInsert.contentXML([ins]))
+        // A body with its own tracked changes and a bookmark whose id came from the file.
+        var bodyP = RichParagraph(text: "kept gone")
+        bodyP.runs = [Run(length: 5, style: .plain), Run(length: 4, style: { var s = CharStyle.plain; s.revision = RevisionMark(kind: .deleted, author: "A", date: ""); return s }())]
+        let c = RichDocumentController(document: RichDocument(paragraphs: [bodyP]))
+        var ids: [Int] = []
+        for n in 0..<2 {
+            c.insertImage(try XCTUnwrap(TextBoxInsert.make(text: "box \(n)")))
+            let i = try XCTUnwrap(c.document.paragraphs.lastIndex { $0.image?.textBox != nil })
+            XCTAssertTrue(c.setTextBoxContent(at: i, paragraphs: [ins], contentXML: xml))
+            ids.append(RichDocumentController._highestRevisionId(in: try XCTUnwrap(c.document.paragraphs[i].image?.sourceXML)))
+        }
+        XCTAssertEqual(Set(ids).count, 2, "each box's revisions get their own ids")
+        let bodyIds = RichDocumentController._highestRevisionId(in: String(decoding: try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [bodyP]), pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self))
+        XCTAssertGreaterThan(ids.min() ?? 0, bodyIds, "box ids sit above the body's")
+    }
+
+    func testBoxWithAnExternalLinkIsEditedInPlaceAndKeepsItsLink() throws {
+        let c = RichDocumentController(document: RichDocument(paragraphs: [RichParagraph(text: "body")]))
+        c.insertImage(try XCTUnwrap(TextBoxInsert.make(text: "one")))
+        let i = try XCTUnwrap(c.document.paragraphs.firstIndex { $0.image?.textBox != nil })
+        var p = RichParagraph(text: "see site")
+        p.runs = [Run(length: 4, style: .plain), Run(length: 4, style: { var s = CharStyle.plain; s.link = "https://example.com/a?b=1&c=2"; return s }())]
+        let (xml, rels) = try XCTUnwrap(TextBoxInsert.content([p]))
+        XCTAssertEqual(rels.map(\.target), ["https://example.com/a?b=1&c=2"])
+        XCTAssertTrue(c.setTextBoxContent(at: i, paragraphs: [p], contentXML: xml, rels: rels))
+        XCTAssertNotNil(c.textBoxParagraphs(at: i), "an external link is no bar to editing in place")
+        let back = try DocxFormat.read(try DocxFormat.write(c.document, pageSetup: .letter)).document
+        let box = try XCTUnwrap(back.paragraphs.first { $0.image?.textBox != nil }?.image?.textBox)
+        XCTAssertEqual(box.paragraphs.first?.runs.last?.style.link, "https://example.com/a?b=1&c=2")
+    }
+
     func testNewTextBoxFitsItsTextAndGrowsWithTyping() throws {
         let c = RichDocumentController(document: RichDocument(paragraphs: [RichParagraph(text: "body")]))
         c.insertImage(try XCTUnwrap(TextBoxInsert.make(text: "one")))
