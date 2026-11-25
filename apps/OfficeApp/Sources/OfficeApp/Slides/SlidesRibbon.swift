@@ -160,7 +160,8 @@ extension Ribbon {
             ColorGridMenuItem(theme: deck.theme.slots, recent: deck.recentShapeColors.list,
                               noneLabel: outline ? "No Outline" : "No Fill",
                               onChoose: { deck.applyShapeColor($0, outline: outline) },
-                              onMore: { [session] in session.onMoreShapeColor?(outline) }),
+                              onMore: { [session] in session.onMoreShapeColor?(outline) },
+                              onEyedropper: { deck.eyedropperFor = outline }),
         ])
     }
 

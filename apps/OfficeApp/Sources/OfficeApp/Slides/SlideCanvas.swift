@@ -307,6 +307,7 @@ final class SlideCanvasState: State<StatefulWidget> {
         stack.append(Positioned(left: 0, top: 0, right: 0, bottom: 0, child: Listener(
             onPointerDown: { [weak self] e in
                 guard let self else { return }
+                if self._eyedrop(e) { return }
                 if e.kind == .touch { self._touchSeen = true }
                 if e.buttons & kSecondaryMouseButton != 0, let menu = self._w.onContextMenu {
                     if self._w.active !== shape, !self.deck.isSelected(shape) { self.deck.selectWholeGroup(of: shape) }
@@ -442,7 +443,16 @@ final class SlideCanvasState: State<StatefulWidget> {
     private var _pendingToggle = false
     private var _additive: Bool { let m = _w.modifiers(); return m.contains(.shift) || m.contains(.control) || m.contains(.meta) }
 
+    /// While the eyedropper is on, a click takes the colour under it for the fill or outline and does nothing else.
+    private func _eyedrop(_ e: PointerDownEvent) -> Bool {
+        guard let outline = deck.eyedropperFor else { return false }
+        deck.eyedropperFor = nil
+        deck.pickShapeColor(at: _slidePoint(e.position), outline: outline)
+        return true
+    }
+
     private func _backdropDown(_ e: PointerDownEvent) {
+        if _eyedrop(e) { return }
         if e.kind == .touch { _touchSeen = true }
         if e.buttons & kSecondaryMouseButton != 0, let menu = _w.onContextMenu {
             FocusManager.instance.focusedNode?.unfocus()
@@ -461,6 +471,7 @@ final class SlideCanvasState: State<StatefulWidget> {
     }
 
     private func _shapeDown(_ shape: SlideShape, _ e: PointerDownEvent) {
+        if _eyedrop(e) { return }
         if e.kind == .touch { _touchSeen = true }
         Self._log("down on shape \(shape.id) at \(e.position)")
         if e.buttons & kSecondaryMouseButton != 0, let menu = _w.onContextMenu {
