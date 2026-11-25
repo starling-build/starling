@@ -166,3 +166,75 @@ final class SheetsFormatCellsShellTests: XCTestCase {
         XCTAssertFalse(ui.has(id: "fc-num-Percentage"))
     }
 }
+
+/// X-FM-4: indent, justify and text direction.
+final class SheetsFormatCellsAlignTests: XCTestCase {
+    func testAlignmentFieldsSurviveASave() throws {
+        let c = WorkbookController()
+        let a = CellAddress("A1")!, b = CellAddress("B1")!
+        c.setInput("x", at: a); c.setInput("y", at: b)
+        c.select(a)
+        c.formatCells(CellFormatEdit(hAlign: .set(.left), wrap: .set(true), justify: .set(true), indent: .set(2)))
+        c.select(b)
+        c.formatCells(CellFormatEdit(rotation: .set(90)))
+        let c2 = WorkbookController(); c2.load(try Xlsx.read(try Xlsx.write(c.book)))
+        XCTAssertTrue(c2.style(at: a).justify)
+        XCTAssertEqual(c2.style(at: a).indent, 2)
+        XCTAssertEqual(c2.style(at: b).rotation, 90)
+        XCTAssertFalse(c2.style(at: b).justify)
+        // With UI_CHECK_DIR set, also leave a workbook for the Excel check.
+        if let dir = ProcessInfo.processInfo.environment["UI_CHECK_DIR"] {
+            let w = WorkbookController()
+            let words = "one two three four five six seven eight nine ten eleven twelve"
+            for (i, e) in [CellFormatEdit(hAlign: .set(.left), wrap: .set(true), justify: .set(true)),
+                           CellFormatEdit(hAlign: .set(.left), indent: .set(3)),
+                           CellFormatEdit(hAlign: .set(.right), indent: .set(2)),
+                           CellFormatEdit(rotation: .set(90)),
+                           CellFormatEdit(rotation: .set(180))].enumerated() {
+                let at = CellAddress("A\(i + 1)")!
+                w.setInput(words, at: at); w.select(at); w.formatCells(e)
+            }
+            try Xlsx.write(w.book).write(to: URL(fileURLWithPath: dir + "/align-xfm4.xlsx"))
+        }
+    }
+
+    private func dialog(_ start: CellStyle, _ applied: @escaping (CellFormatEdit) -> Void) -> WidgetTester {
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light),
+            home: FormatCellsDialog(start: CellFormatEdit.Values(start), onApply: applied, onClose: {}), title: "Test"), size: Size(1280, 800))
+        addTeardownBlock { ui.replace(with: SizedBox(width: 1, height: 1)) }
+        XCTAssertTrue(ui.tap(text: "Alignment"))
+        return ui
+    }
+
+    func testIndentJustifyAndDirectionReachTheEdit() {
+        var got: CellFormatEdit?
+        let ui = dialog(.plain) { got = $0 }
+        XCTAssertTrue(ui.tap(id: "fc-indent-more")); XCTAssertTrue(ui.tap(id: "fc-indent-more"))
+        XCTAssertTrue(ui.tap(id: "fc-rot-Up"))
+        ui.press(.enter)
+        XCTAssertEqual(got?.indent, .set(2))
+        XCTAssertEqual(got?.hAlign, .set(.left))   // indent moves General text to the left
+        XCTAssertEqual(got?.rotation, .set(90))
+        XCTAssertEqual(got?.justify, CellFieldEdit<Bool>.keep)
+    }
+
+    func testJustifyAndIndentFloor() {
+        var got: CellFormatEdit?
+        let ui = dialog(.plain) { got = $0 }
+        XCTAssertTrue(ui.tap(id: "fc-indent-less"))   // cannot go below none
+        XCTAssertTrue(ui.tap(id: "fc-h-Justify"))
+        ui.press(.enter)
+        XCTAssertEqual(got?.justify, .set(true))
+        XCTAssertEqual(got?.indent, CellFieldEdit<Int>.keep)
+        XCTAssertEqual(got?.wrap, .set(true))
+    }
+
+    func testAnOddAngleFromAFileIsKept() {
+        var got: CellFormatEdit?
+        var st = CellStyle.plain; st.rotation = 45
+        let ui = dialog(st) { got = $0 }
+        XCTAssertTrue(ui.has(text: "Text turned 45 degrees in the file; kept unless you pick one above."))
+        ui.press(.enter)
+        XCTAssertEqual(got?.rotation, CellFieldEdit<Int>.keep)
+    }
+}
