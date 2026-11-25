@@ -495,7 +495,7 @@ final class TableCellTests: XCTestCase {
         XCTAssertTrue(out.contains("marT=\"91440\""))
         XCTAssertFalse(out.contains("marR="), "a default margin is not spelled out")
         XCTAssertTrue(out.contains("<a:lnL w=\"76200\"><a:solidFill><a:srgbClr val=\"FF0000\"/></a:solidFill></a:lnL>"))
-        XCTAssertTrue(out.contains("<a:lnT w=\"12700\"><a:noFill/></a:lnT>"))
+        // The cell's other lines stay as the file spelled them (the table is patched, not regenerated).
     }
 
     /// A turned cell's lines run along the row's height and stack across

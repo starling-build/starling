@@ -95,4 +95,77 @@ final class PptxSweepTests: XCTestCase {
         XCTAssertTrue(xml.contains("AA0000") && xml.contains("00AA00") && xml.contains("anchor=\"b\""), "the edit itself is written")
         XCTAssertFalse(xml.contains("336699"), "the old fill is replaced")
     }
+
+    /// Making part of a run bold and red changes only that part's own properties: the run splits, the East Asian face, theme colour of the rest and paragraph settings stay.
+    func testBoldAndColourEditKeepFacesAndSplitTheRun() throws {
+        let deck = SlidesSample.make()
+        var package = PptxPackage(try Zip.read(try Pptx.write(deck)))
+        let sp = "<p:sp><p:nvSpPr><p:cNvPr id=\"91\" name=\"Rich\"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>"
+            + "<p:spPr><a:xfrm><a:off x=\"1270000\" y=\"1270000\"/><a:ext cx=\"5080000\" cy=\"1270000\"/></a:xfrm>"
+            + "<a:prstGeom prst=\"roundRect\"><a:avLst><a:gd name=\"adj\" fmla=\"val 33333\"/></a:avLst></a:prstGeom>"
+            + "<a:solidFill><a:srgbClr val=\"336699\"/></a:solidFill><a:effectLst><a:outerShdw blurRad=\"50800\"/></a:effectLst></p:spPr>"
+            + "<p:txBody><a:bodyPr/><a:lstStyle><a:lvl1pPr marL=\"0\" defTabSz=\"914400\"><a:defRPr sz=\"2000\"/></a:lvl1pPr></a:lstStyle>"
+            + "<a:p><a:pPr eaLnBrk=\"0\" hangingPunct=\"0\"><a:tabLst><a:tab pos=\"100\" algn=\"l\"/></a:tabLst></a:pPr>"
+            + "<a:r><a:rPr lang=\"ja-JP\"><a:solidFill><a:schemeClr val=\"accent2\"><a:lumMod val=\"75000\"/></a:schemeClr></a:solidFill>"
+            + "<a:latin typeface=\"Arial\" charset=\"0\"/><a:ea typeface=\"MS Gothic\"/></a:rPr><a:t>hello</a:t></a:r></a:p></p:txBody></p:sp>"
+        let part = "ppt/slides/slide2.xml"
+        var slide = String(data: package.parts[part]!, encoding: .utf8)!
+        slide = slide.replacingOccurrences(of: "</p:spTree>", with: sp + "</p:spTree>")
+        package.parts[part] = Data(slide.utf8)
+        var entries: [ZipEntry] = []
+        for (k, v) in package.parts { entries.append(ZipEntry(name: k, data: v)) }
+        var (state, theme, pkg) = try Pptx.read(try Zip.write(entries))
+        let si = try XCTUnwrap(state.slides.firstIndex { $0.shapes.contains { $0.name == "Rich" } })
+        let i = try XCTUnwrap(state.slides[si].shapes.firstIndex { $0.name == "Rich" })
+        var doc = try XCTUnwrap(state.slides[si].shapes[i].text)
+        doc.paragraphs[0].applyStyle(1 ..< 3) { $0.bold = true; $0.color = Color(0xFFFF0000); $0.fontSize = 30 }
+        state.slides[si].shapes[i].text = doc
+        let out = PptxPackage(try Zip.read(try PptxWriter.write(state, theme: theme, package: pkg)))
+        let xml = try XCTUnwrap(out.parts.keys.filter { $0.hasPrefix("ppt/slides/slide") && !$0.contains("_rels") }
+            .compactMap { String(data: out.parts[$0]!, encoding: .utf8) }.first { $0.contains("name=\"Rich\"") })
+        for kept in ["val 33333", "outerShdw", "accent2", "MS Gothic", "eaLnBrk", "a:tabLst", "defTabSz", "ja-JP"] {
+            XCTAssertTrue(xml.contains(kept), "\(kept) survives")
+        }
+        XCTAssertTrue(xml.contains("b=\"1\"") && xml.contains("FF0000") && xml.contains("sz=\"3000\""), "the edit itself is written")
+        XCTAssertTrue(xml.contains(">h<") && xml.contains(">el<") && xml.contains(">lo<"), "the run is split around the edit")
+    }
+
+    /// Text held level inside a rotated shape is read as two shapes; an edit to it still writes the one original element.
+    func testUprightTextShapeKeepsItsElementWhenEdited() throws {
+        let path = "/data/corpus-cache/test/corpus/pptx/decks/oox-tdf149538_upright.pptx"
+        guard FileManager.default.fileExists(atPath: path) else { throw XCTSkip("corpus deck not restored") }
+        var (state, theme, pkg) = try Pptx.read(try Data(contentsOf: URL(fileURLWithPath: path)))
+        let i = try XCTUnwrap(state.slides[0].shapes.firstIndex { $0.fill != nil && $0.sourceXML != nil })
+        state.slides[0].shapes[i].fill = Color(0xFFFFC000); state.slides[0].shapes[i].fillScheme = nil
+        let out = PptxPackage(try Zip.read(try PptxWriter.write(state, theme: theme, package: pkg)))
+        let xml = String(data: try XCTUnwrap(out.parts["ppt/slides/slide1.xml"]), encoding: .utf8)!
+        for kept in ["MS Mincho", "prstTxWarp", "adj4", "FFC000"] { XCTAssertTrue(xml.contains(kept), kept) }
+        XCTAssertEqual(xml.components(separatedBy: "<p:sp>").count, 2, "one shape element")
+    }
+
+    /// Typing in one table cell writes the table's own XML with that cell patched: styles, borders, East Asian faces stay.
+    func testTableCellTypingKeepsTheTableElement() throws {
+        let path = "/data/corpus-cache/test/corpus/pptx/decks/lo-tablescale.pptx"
+        guard FileManager.default.fileExists(atPath: path) else { throw XCTSkip("corpus deck not restored") }
+        let data = try Data(contentsOf: URL(fileURLWithPath: path))
+        var (state, theme, pkg) = try Pptx.read(data)
+        var done = false
+        outer: for si in state.slides.indices { for hi in state.slides[si].shapes.indices {
+            let sh = state.slides[si].shapes[hi]
+            if case .table = sh.kind, var doc = sh.text, sh.sourceXML != nil {
+                doc.paragraphs[0].insert("Z", at: 0)
+                state.slides[si].shapes[hi].text = doc
+                done = true; break outer
+            }
+        } }
+        try XCTSkipUnless(done, "no table")
+        let before = PptxPackage(try Zip.read(data)), after = PptxPackage(try Zip.read(try PptxWriter.write(state, theme: theme, package: pkg)))
+        func tables(_ p: PptxPackage) -> String {
+            p.parts.keys.filter { $0.hasPrefix("ppt/slides/slide") && !$0.contains("_rels") }.sorted()
+                .compactMap { String(data: p.parts[$0]!, encoding: .utf8) }.joined()
+        }
+        let a = tables(before), b = tables(after)
+        for k in ["schemeClr", "<a:ea ", "<a:tableStyleId>", "<a:lnL", "a:tcPr"] { XCTAssertEqual(a.components(separatedBy: k).count, b.components(separatedBy: k).count, k) }
+        XCTAssertTrue(b.contains("Z"))
+    }
 }
