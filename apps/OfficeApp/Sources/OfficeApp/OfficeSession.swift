@@ -338,6 +338,9 @@ final class OfficeSession {
     var onPageSetupDialog: (() -> Void)?
     var onInsertTableDialog: (() -> Void)?
     var onSplitCellDialog: (() -> Void)?
+    /// Writer's Draw Table / Eraser: the active table tool ("draw", "erase" or nil) and the ribbon's way to switch it.
+    var tableTool: String?
+    var onTableTool: ((String?) -> Void)?
     /// Convert Text to Table (true) or Table to Text (false).
     var onConvertTextTableDialog: ((Bool) -> Void)?
     var onTablePropertiesDialog: (() -> Void)?

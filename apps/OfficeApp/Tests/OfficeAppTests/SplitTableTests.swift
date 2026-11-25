@@ -90,6 +90,27 @@ final class SplitTableTests: XCTestCase {
         XCTAssertTrue(c.splitCell(columns: 3, rows: 1))
         XCTAssertEqual(Set(c.document.paragraphs.filter { $0.cell?.row == 0 }.compactMap { $0.cell?.column }).count, 3)
     }
+
+    func testEraserMergesNeighboursAcrossAnInnerEdgeOnly() {
+        let c = table(rows: 2, columns: 2)
+        let t = c.document.paragraphs.first { $0.cell != nil }!.cell!.table
+        XCTAssertFalse(c.eraseCellEdge(table: t, row: 0, column: 0, side: .left))   // outer border
+        XCTAssertTrue(c.eraseCellEdge(table: t, row: 0, column: 0, side: .right))
+        XCTAssertEqual(c.currentCell?.span, 2)
+        XCTAssertFalse(c.eraseCellEdge(table: t, row: 0, column: 0, side: .bottom))  // cell below is narrower
+        c.undo()
+        XCTAssertEqual(c.document.paragraphs.first { $0.cell?.row == 0 && $0.cell?.column == 0 }?.cell?.span, 1)
+    }
+
+    func testDrawTableSplitsACellAlongTheStroke() {
+        let c = table(rows: 1, columns: 1)
+        let t = c.document.paragraphs.first { $0.cell != nil }!.cell!.table
+        XCTAssertFalse(c.drawTable(in: (t, 0, 0), dx: 2, dy: 3))
+        XCTAssertTrue(c.drawTable(in: (t, 0, 0), dx: 80, dy: 4))
+        XCTAssertEqual(Set(c.document.paragraphs.compactMap { $0.cell?.row }).count, 2)
+        XCTAssertTrue(c.drawTable(in: (t, 0, 0), dx: 3, dy: 60))
+        XCTAssertEqual(Set(c.document.paragraphs.filter { $0.cell?.row == 0 }.compactMap { $0.cell?.column }).count, 2)
+    }
 }
 
 /// Writes the Word lab for Split Table / alignment when SPLIT_LAB_OUT names a file (skipped otherwise).
@@ -112,6 +133,25 @@ final class SplitTableLabWriter: XCTestCase {
             c.insertText("\(v[k / 3])-\(k % 3)")
             if k % 3 == 0 { c.setRowHeight(48) }
             c.setCellAlignment(vertical: v[k / 3], horizontal: h[k % 3])
+        }
+        try DocxFormat.write(c.document, pageSetup: .letter).write(to: URL(fileURLWithPath: out))
+    }
+}
+
+/// Writes the Text Direction lab when TEXTDIR_LAB_OUT names a file (skipped otherwise).
+final class TextDirectionLabWriter: XCTestCase {
+    func testWriteLab() throws {
+        guard let out = ProcessInfo.processInfo.environment["TEXTDIR_LAB_OUT"] else { throw XCTSkip("no TEXTDIR_LAB_OUT") }
+        let c = RichDocumentController(plainText: "")
+        c.insertTable(rows: 2, columns: 3)
+        let idx = c.document.paragraphs.indices.filter { c.document.paragraphs[$0].cell != nil }
+        let dirs: [CellRef.CellTextDirection] = [.horizontal, .down, .up]
+        for (k, i) in idx.enumerated() {
+            c.moveTo(RichPosition(paragraph: i, offset: 0), extend: false)
+            c.insertText(k < 3 ? "Dir \(k) text" : "Dir \(k - 3) tall")
+            if k == 0 { c.setRowHeight(110) }
+            c.setCellTextDirection(dirs[k % 3])
+            if k >= 3 { c.setCellAlignment(vertical: "bottom", horizontal: .right) }
         }
         try DocxFormat.write(c.document, pageSetup: .letter).write(to: URL(fileURLWithPath: out))
     }

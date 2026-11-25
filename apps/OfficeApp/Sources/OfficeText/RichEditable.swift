@@ -46,6 +46,9 @@ public final class RichEditable: StatefulWidget {
     public let onCellEdge: ((String, Int, Int, CellSide) -> Void)?
     /// True when a pen stroke starts, false when it ends (so the host can make the whole stroke one undo step).
     public let onCellEdgeStroke: ((Bool) -> Void)?
+    /// Writer's Draw Table: when set, a drag calls it with the cell it began in (nil outside a table) and the drag's
+    /// size in flow pixels, instead of selecting.
+    public let onDrawTable: (((table: String, row: Int, column: Int)?, Double, Double) -> Void)?
     /// The link under the pointer, or nil as it leaves one — for a status bar.
     public let onLinkHover: ((String?) -> Void)?
     /// ⌘-click on a link. Nil opens it through the host.
@@ -88,6 +91,7 @@ public final class RichEditable: StatefulWidget {
                 onShortcut: ((KeyData, KeyModifiers) -> Bool)? = nil,
                 onCellEdge: ((String, Int, Int, CellSide) -> Void)? = nil,
                 onCellEdgeStroke: ((Bool) -> Void)? = nil,
+                onDrawTable: (((table: String, row: Int, column: Int)?, Double, Double) -> Void)? = nil,
                 onLinkHover: ((String?) -> Void)? = nil,
                 onLinkActivate: ((String) -> Void)? = nil,
                 onNoteActivate: ((NoteReference, Rect) -> Void)? = nil,
@@ -117,6 +121,7 @@ public final class RichEditable: StatefulWidget {
         self.onShortcut = onShortcut
         self.onCellEdge = onCellEdge
         self.onCellEdgeStroke = onCellEdgeStroke
+        self.onDrawTable = onDrawTable
         self.onLinkHover = onLinkHover
         self.onLinkActivate = onLinkActivate
         self.onNoteActivate = onNoteActivate
@@ -216,6 +221,7 @@ public final class RichEditableState: State<StatefulWidget> {
     private var _textDrag: (start: Offset, active: Bool)? = nil
     private var _edgeStroke: String? = nil
     private var _edgeDragging = false
+    private var _drawFrom: (local: Offset, cell: (table: String, row: Int, column: Int)?)? = nil
     private var _edgeLast: Offset? = nil
     /// The pen along a move: sampled every few pixels so a fast drag cannot step over an edge.
     private func _edgeToolAlong(_ to: Offset) {
@@ -985,6 +991,11 @@ public final class RichEditableState: State<StatefulWidget> {
         _textDrag = nil
         _dropPosition = nil
         _touchMode = event.kind == .touch
+        if _w.onDrawTable != nil, event.kind == .touch || event.buttons & 1 != 0 {
+            _syncLayoutIfNeeded()
+            _drawFrom = (event.localPosition, _layout.cellContaining(_layout.flowPoint(_canvasPoint(event.localPosition))))
+            return
+        }
         // The border pen or eraser: a press draws, whatever the pointer (a finger included).
         if _w.onCellEdge != nil, event.kind == .touch || event.buttons & 1 != 0 {
             _edgeStroke = nil
@@ -1187,6 +1198,7 @@ public final class RichEditableState: State<StatefulWidget> {
     }
 
     private func _pointerMove(_ event: PointerEvent) {
+        if _drawFrom != nil { return }
         if _edgeDragging, _w.onCellEdge != nil { _edgeToolAlong(event.localPosition); return }
         if event.kind == .touch, _twoFingerActive {
             // Two fingers are down: a tap only while neither travels.
@@ -1324,6 +1336,11 @@ public final class RichEditableState: State<StatefulWidget> {
     }
 
     private func _pointerUp(_ event: PointerEvent) {
+        if let d = _drawFrom {
+            _drawFrom = nil
+            _w.onDrawTable?(d.cell, event.localPosition.dx - d.local.dx, event.localPosition.dy - d.local.dy)
+            return
+        }
         if _edgeDragging { _edgeDragging = false; _edgeStroke = nil; _edgeLast = nil; _w.onCellEdgeStroke?(false); return }
         if event.kind == .touch {
             _fingers[event.pointer] = nil
