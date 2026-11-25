@@ -80,12 +80,40 @@ final class EditorToolbar: UIView {
     func update(_ new: [OfficeToolbarButton]?) {
         buttons = new ?? []
         let snapshot = buttons.map { ($0.id, $0.isOn, $0.isEnabled) }
-        if snapshot.elementsEqual(shown, by: { $0 == $1 }) { relayout(); return }
+        if snapshot.elementsEqual(shown, by: { $0 == $1 }) && builtWidth == availableWidth { relayout(); return }
         shown = snapshot
-        var items: [UIBarButtonItem] = []
-        for (i, b) in buttons.enumerated() {
-            // A gap before the formatting group, the lists, and the buttons for what the selection is in.
-            if i == 2 || i == 5 || (b.id.hasPrefix("ctx-") && !(i > 0 && buttons[i - 1].id.hasPrefix("ctx-"))) { items.append(UIBarButtonItem(systemItem: .fixedSpace)); items[items.count - 1].width = 12 }
+        rebuild()
+        relayout()
+    }
+
+    /// The width the buttons have: the editor's, or `OFFICE_TOOLBAR_FORCE_WIDTH` (a test's stand-in for a narrow window).
+    private var availableWidth: CGFloat { Self.forcedWidth ?? superview?.bounds.width ?? 0 }
+    private var builtWidth: CGFloat = -1
+
+    /// A button's width in the toolbar, and a gap's.
+    private static let slot: CGFloat = 44, gap: CGFloat = 12
+
+    /// How many of `buttons` fit in `width` as they are: every one that is not a context button, then as many context
+    /// buttons as there is room for beside a "More" button that holds the rest. (Hide Keyboard always has its slot.)
+    static func fitting(ids: [String], width: CGFloat) -> Int {
+        func needed(_ count: Int, more: Bool) -> CGFloat {
+            var w = CGFloat(count) * slot + slot  // + Hide Keyboard
+            if count > 2 { w += gap }
+            if count > 5 { w += gap }
+            if ids.prefix(count).contains(where: { $0.hasPrefix("ctx-") }) { w += gap }
+            return w + (more ? slot : 0)
+        }
+        if width <= 0 || needed(ids.count, more: false) <= width { return ids.count }
+        let fixed = ids.firstIndex { $0.hasPrefix("ctx-") } ?? ids.count
+        var keep = ids.count - 1
+        while keep > fixed, needed(keep, more: true) > width { keep -= 1 }
+        return keep
+    }
+
+    private func rebuild() {
+        builtWidth = availableWidth
+        let keep = Self.fitting(ids: buttons.map(\.id), width: builtWidth)
+        func item(_ b: OfficeToolbarButton) -> UIBarButtonItem {
             // No symbol: the button is its title, a key that types that text.
             let item = b.symbol.isEmpty
                 ? UIBarButtonItem(title: b.title, primaryAction: UIAction(title: b.title) { _ in b.action() })
@@ -93,14 +121,30 @@ final class EditorToolbar: UIView {
             item.isEnabled = b.isEnabled
             item.isSelected = b.isOn
             item.accessibilityLabel = b.title
-            items.append(item)
+            return item
+        }
+        var items: [UIBarButtonItem] = []
+        for (i, b) in buttons.prefix(keep).enumerated() {
+            // A gap before the formatting group, the lists, and the buttons for what the selection is in.
+            if i == 2 || i == 5 || (b.id.hasPrefix("ctx-") && !(i > 0 && buttons[i - 1].id.hasPrefix("ctx-"))) { items.append(UIBarButtonItem(systemItem: .fixedSpace)); items[items.count - 1].width = Self.gap }
+            items.append(item(b))
+        }
+        // The buttons that did not fit, in a menu: a window narrower than the bar (Split View, a small iPad) loses none.
+        if keep < buttons.count {
+            let rest = buttons[keep...].map { b in
+                UIAction(title: b.title, image: b.symbol.isEmpty ? nil : UIImage(systemName: b.symbol),
+                         attributes: b.isEnabled ? [] : .disabled, state: b.isOn ? .on : .off) { _ in b.action() }
+            }
+            let more = UIBarButtonItem(image: UIImage(systemName: "ellipsis.circle"), menu: UIMenu(children: rest))
+            more.accessibilityLabel = "More"
+            items.append(more)
         }
         items.append(UIBarButtonItem(systemItem: .flexibleSpace))
         items.append(UIBarButtonItem(image: UIImage(systemName: "keyboard.chevron.compact.down"), primaryAction: UIAction(title: "Hide Keyboard") { _ in
             UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
         }))
         bar.setItems(buttons.isEmpty ? [] : items, animated: false)
-        relayout()
+        if Self.debug { fputs("[toolbar] width \(builtWidth): \(keep) of \(buttons.count) buttons shown\(keep < buttons.count ? ", \(buttons.count - keep) in More" : "")\n", stderr) }
     }
 
     @objc private func keyWindowChanged() { relayout() }
@@ -115,12 +159,23 @@ final class EditorToolbar: UIView {
     }
 
     private static let debug = ProcessInfo.processInfo.environment["OFFICE_TOOLBAR_DEBUG"] != nil
+    /// OFFICE_TOOLBAR_FORCE_WIDTH=W: the bar is always shown, W points wide, near the bottom of the editor. A hardware
+    /// keyboard hides the bar, so this is how a test sees it, and at the width of a narrow window.
+    private static let forcedWidth: CGFloat? = ProcessInfo.processInfo.environment["OFFICE_TOOLBAR_FORCE_WIDTH"]
+        .flatMap { Double($0) }.map { CGFloat($0) }
 
     private func relayout() {
         if Self.debug {
             fputs("[toolbar] relayout super=\(superview != nil) window=\(superview?.window != nil) buttons=\(buttons.count) kb=\(String(describing: keyboardFrame))\n", stderr)
         }
         guard let view = superview else { return }
+        if builtWidth != availableWidth, !buttons.isEmpty { rebuild() }
+        if let w = Self.forcedWidth {
+            isHidden = buttons.isEmpty
+            frame = CGRect(x: 0, y: view.bounds.height - Self.height - 60, width: w, height: Self.height)
+            view.bringSubviewToFront(self)
+            return
+        }
         // A docked soft keyboard is tall; a hardware keyboard's floating
         // assistant bar is a strip, and gets no toolbar of ours.
         var keyboardTop: CGFloat?
