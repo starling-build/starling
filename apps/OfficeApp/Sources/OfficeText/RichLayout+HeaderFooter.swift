@@ -62,18 +62,19 @@ extension RichLayout {
         return nil
     }
 
-    static func _pageBox(_ p: RichParagraph) -> (image: ImageAttachment, float: ImageFloat)? { _pageBoxes(p).first }
+    static func _pageBox(_ p: RichParagraph, outlines: Bool = false, column: Bool = false) -> (image: ImageAttachment, float: ImageFloat)? { _pageBoxes(p, outlines: outlines, column: column).first }
 
     /// Every such box of a paragraph, in the order `_pageBox` takes them (a paragraph's second picture wraps the text too:
     /// the lab's two square pictures in one paragraph).
-    static func _pageBoxes(_ p: RichParagraph) -> [(image: ImageAttachment, float: ImageFloat)] {
+    /// (`column`: a box measured from its column counts as one from the margin, for a text of one column: the two are the same line.)
+    static func _pageBoxes(_ p: RichParagraph, outlines: Bool = false, column: Bool = false) -> [(image: ImageAttachment, float: ImageFloat)] {
         guard p.cell == nil else { return [] }
         var found: [(image: ImageAttachment, float: ImageFloat)] = []
         for image in p.inlineImages.inOrder + (p.image.map { [$0] } ?? []) {
             guard let float = image.float, float.wraps, !float.takesRoom, !float.bandsPage,
-                  (float.verticalAlign == nil && !float.wrapsTight) || float.verticalAlign == "top" || float.verticalAlign == "center" || float.verticalAlign == "bottom",
-                  float.verticalFrom == "page" || float.verticalFrom == "margin",
-                  float.horizontalFrom == "page" || float.horizontalFrom == "margin",
+                  (float.verticalAlign == nil && (!float.wrapsTight || (outlines && float.wrapPolygon.count > 5))) || float.verticalAlign == "top" || float.verticalAlign == "center" || float.verticalAlign == "bottom",
+                  float.verticalFrom == "page" || float.verticalFrom == "margin" || (column && float.verticalFrom == "paragraph" && float.wrapsTight && float.verticalAlign == nil),
+                  float.horizontalFrom == "page" || float.horizontalFrom == "margin" || (column && float.horizontalFrom == "column"),
                   float.horizontalAlign != "inside", float.horizontalAlign != "outside",
                   float.heightShare == nil, image.textBox?.fitsText != true, image.width > 0, image.height > 0 else { continue }
             found.append((image, float))
