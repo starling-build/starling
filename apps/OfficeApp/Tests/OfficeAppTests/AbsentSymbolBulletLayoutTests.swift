@@ -81,7 +81,7 @@ final class AbsentSymbolBulletLayoutTests: XCTestCase {
     /// separator though its extra reaches into it (es-28716e1db6 page 3, lab
     /// afn1: both lines stay with 0 to 12 pt after).
     func testAMultipleSpacedLastLineHangsItsExtraOverFootnotes() throws {
-        func pages(size: Int, count: Int) throws -> Int {
+        func pages(size: Int, count: Int, compat: Int) throws -> Int {
             var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .letter))
             let notes = """
             <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -96,9 +96,10 @@ final class AbsentSymbolBulletLayoutTests: XCTestCase {
                 with: "<w:p><w:r><w:t>note</w:t></w:r><w:r><w:footnoteReference w:id=\"1\"/></w:r></w:p>" + rows)
             entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
             var doc = try DocxFormat.read(try Zip.write(entries)).document
-            doc.compatibilityMode = 12
+            doc.compatibilityMode = compat
             let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
             theme.wordRules = true
+            theme.fontFamilyResolver = OfficeFonts.drawn
             let layout = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
             layout.pageSetup = .letter
             layout.width = 612 * 96.0 / 72.0
@@ -108,11 +109,23 @@ final class AbsentSymbolBulletLayoutTests: XCTestCase {
         let was = RichTextTheme.wordWindowsPages
         RichTextTheme.wordWindowsPages = true
         defer { RichTextTheme.wordWindowsPages = was }
-        // (The number of 1.5-spaced one-line paragraphs after which a second page opens; the extra of the page's last line hangs over the note.)
-        for (size, opens) in [(20, 36), (24, 30)] {
+        // The number of 1.5-spaced one-line paragraphs after which a second page opens, with the rule on (compat 12) and off
+        // (compat 15, where it is unmeasured and not applied): the rule lets the last line's extra hang over the note, so the
+        // page opens later by a line. Only the difference is asserted. The absolute counts this test used to pin
+        // (36 at 10 pt, 30 at 12 pt) were our own layout's output on the box where the rule landed, not a Word number, and they
+        // follow whichever face the name "Calibri" reached there (33/27 with the bundled Carlito, 34/28 with the Calibri a
+        // Mac with Word has); under the production resolver the bundled faces make the difference the same on every host.
+        // The extra only matters where the last line's text ends within it of the separator, so the sizes are ones where it
+        // does with those faces (10 and 11 pt: 33 against 32 and 30 against 29 lines; at 8, 9, 12, 13, 14 and 15 pt both open
+        // at the same line).
+        func opens(size: Int, compat: Int) throws -> Int {
             var n = 1
-            while try pages(size: size, count: n) < 2 { n += 1 }
-            XCTAssertEqual(n, opens, "size \(size)")
+            while try pages(size: size, count: n, compat: compat) < 2 { n += 1 }
+            return n
+        }
+        for size in [20, 22] {
+            let on = try opens(size: size, compat: 12), off = try opens(size: size, compat: 15)
+            XCTAssertGreaterThanOrEqual(on - off, 1, "size \(size): the page opens after \(on) lines with the rule, \(off) without")
         }
     }
 }
