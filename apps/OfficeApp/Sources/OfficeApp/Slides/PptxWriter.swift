@@ -1231,6 +1231,9 @@ private struct SlideXML {
                 guard let r = sourceRels.first(where: { $0.id == v }) else { continue }
                 if r.external {
                     n.attrs[k] = _rel(r.type, r.target, external: true, preferred: v)
+                } else if r.type.hasSuffix("/hyperlink"), p.parts[r.target] == nil, r.target.contains("#") {
+                    // A jump to a bookmark in the same file (Word's footnote links, `#_ftn1`): no part, and the link stays.
+                    n.attrs[k] = _rel(r.type, Pptx.relative(r.target, from: part), external: false, preferred: v)
                 } else if p.parts[r.target] == nil {
                     // A part the file names but does not have (a damaged
                     // file): no relationship to nowhere.
