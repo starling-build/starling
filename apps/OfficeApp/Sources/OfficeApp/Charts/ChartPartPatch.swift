@@ -12,6 +12,21 @@ enum ChartPartEdit: Equatable {
     case remove
 }
 
+/// The look a brand-new chart title gets: what the host application itself writes for a new title. A run with no
+/// size is drawn at about 20 pt by Excel, so the default is always written (as the paragraph's defRPr).
+struct ChartTitleStyle: Equatable {
+    /// Font size in hundredths of a point.
+    var size: Int
+    static let excel = ChartTitleStyle(size: 1400)
+    static let powerPoint = ChartTitleStyle(size: 1862)
+    /// Regular weight, the theme's text colour at 65 %, the theme's body font.
+    var paragraphProperties: String {
+        "<a:pPr><a:defRPr sz=\"\(size)\" b=\"0\" i=\"0\" u=\"none\" strike=\"noStrike\" kern=\"1200\" baseline=\"0\">"
+            + "<a:solidFill><a:schemeClr val=\"tx1\"><a:lumMod val=\"65000\"/><a:lumOff val=\"35000\"/></a:schemeClr></a:solidFill>"
+            + "<a:latin typeface=\"+mn-lt\"/><a:ea typeface=\"+mn-ea\"/><a:cs typeface=\"+mn-cs\"/></a:defRPr></a:pPr>"
+    }
+}
+
 /// Patches on a chart part's XML text, shared by Sheets and Slides: each changes only the elements it names.
 enum ChartPartPatch {
     private static func _esc(_ s: String) -> String {
@@ -19,7 +34,7 @@ enum ChartPartPatch {
     }
 
     /// The chart's own title (not an axis title: those stand inside the plot area).
-    static func title(_ xml: String, _ edit: ChartPartEdit) -> String {
+    static func title(_ xml: String, _ edit: ChartPartEdit, style: ChartTitleStyle = .excel) -> String {
         guard let chartOpen = xml.findRange(of: "<c:chart>", in: xml.startIndex ..< xml.endIndex) else { return xml }
         let plot = xml.findRange(of: "<c:plotArea>", in: chartOpen.upperBound ..< xml.endIndex)?.lowerBound ?? xml.endIndex
         var x = xml
@@ -38,7 +53,7 @@ enum ChartPartPatch {
             if let r = existing {
                 x.replaceSubrange(r, with: retext(String(x[r]), esc))
             } else {
-                x.insert(contentsOf: "<c:title><c:tx><c:rich><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>\(esc)</a:t></a:r></a:p></c:rich></c:tx><c:overlay val=\"0\"/></c:title>",
+                x.insert(contentsOf: "<c:title><c:tx><c:rich><a:bodyPr/><a:lstStyle/><a:p>\(style.paragraphProperties)<a:r><a:rPr lang=\"en-US\"/><a:t>\(esc)</a:t></a:r></a:p></c:rich></c:tx><c:overlay val=\"0\"/></c:title>",
                          at: x.findRange(of: "<c:chart>", in: x.startIndex ..< x.endIndex)!.upperBound)
             }
             x = setAutoTitleDeleted(x, false)

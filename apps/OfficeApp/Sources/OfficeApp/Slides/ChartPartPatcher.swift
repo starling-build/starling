@@ -58,7 +58,7 @@ enum ChartPartPatcher {
         }
         // Title and legend: the shared patches (Charts/ChartPartPatch) on the part's text.
         var out = PptxXML.serialize(space)
-        if old.title != new.title { out = ChartPartPatch.title(out, new.title.map { .set($0) } ?? .remove) }
+        if old.title != new.title { out = ChartPartPatch.title(out, new.title.map { .set($0) } ?? .remove, style: .powerPoint) }
         if old.legend != new.legend || old.legendPosition != new.legendPosition {
             out = ChartPartPatch.legend(out, new.legend ? .set(new.legendPosition) : .remove)
         }

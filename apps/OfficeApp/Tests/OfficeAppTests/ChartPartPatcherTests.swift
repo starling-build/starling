@@ -136,6 +136,20 @@ final class ChartPartPatcherTests: XCTestCase {
         XCTAssertTrue(r2.xml.contains("Sales"))
     }
 
+    func testNewTitleCarriesItsHostDefaultStyle() throws {
+        let bare = "<c:chartSpace><c:chart><c:autoTitleDeleted val=\"1\"/><c:plotArea><c:barChart/></c:plotArea></c:chart></c:chartSpace>"
+        let ppt = ChartPartPatch.title(bare, .set("T"), style: .powerPoint)
+        XCTAssertTrue(ppt.contains("<a:defRPr sz=\"1862\" b=\"0\""), "PowerPoint: 18.6 pt regular")
+        XCTAssertTrue(ppt.contains("<a:lumMod val=\"65000\"/><a:lumOff val=\"35000\"/>"), "tx1 at 65 %")
+        let xl = ChartPartPatch.title(bare, .set("T"))
+        XCTAssertTrue(xl.contains("<a:defRPr sz=\"1400\" b=\"0\""), "Excel: 14 pt regular")
+        XCTAssertTrue(ppt.contains("<a:t>T</a:t>") && ppt.contains("autoTitleDeleted val=\"0\""))
+        // An existing title keeps its own look.
+        let own = "<c:chartSpace><c:chart><c:title><c:tx><c:rich><a:p><a:r><a:rPr sz=\"3000\"/><a:t>Old</a:t></a:r></a:p></c:rich></c:tx></c:title><c:plotArea><c:barChart/></c:plotArea></c:chart></c:chartSpace>"
+        let kept = ChartPartPatch.title(own, .set("New"), style: .powerPoint)
+        XCTAssertTrue(kept.contains("sz=\"3000\"") && !kept.contains("1862"))
+    }
+
     func testTypeChangeKeepsIdsCellsAndTheSecondAxis() throws {
         var xml = twoGroupPart
         xml = xml.replacingOccurrences(of: "<c:lineChart>", with: "<c:barChart><c:barDir val=\"col\"/>", options: [], range: xml.range(of: "<c:lineChart>"))
