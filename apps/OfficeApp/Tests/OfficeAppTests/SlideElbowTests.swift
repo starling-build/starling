@@ -77,6 +77,41 @@ final class SlideElbowTests: XCTestCase {
         XCTAssertEqual(line().preset?.rawValue, "bentConnector3")
     }
 
+    /// PowerPoint draws a file's stored route as it is until a glued shape moves: an end 10 pt off its site opens and saves untouched.
+    func testAnEndOffItsSiteOpensAndSavesUnchangedUntilAShapeMoves() throws {
+        let deck = DeckController()
+        let (a, b) = boxes(deck, Rect.fromLTWH(400, 260, 100, 60))
+        let l = elbow(deck)
+        deck.connect(l, start: true, to: a, site: 3); deck.connect(l, start: false, to: b, site: 1)
+        var package = PptxPackage(try Zip.read(try Pptx.write(deck)))
+        let part = try XCTUnwrap(package.parts.keys.first { $0.hasPrefix("ppt/slides/slide") && !$0.contains("_rels") })
+        var xml = String(data: package.parts[part]!, encoding: .utf8)!
+        let cx = try XCTUnwrap(xml.range(of: "<p:cxnSp>.*?</p:cxnSp>", options: .regularExpression))
+        let off = try XCTUnwrap(xml.range(of: "<a:off x=\"[0-9]+\"", options: .regularExpression, range: cx))
+        let x = Int(xml[off].dropFirst(12).dropLast())!
+        xml.replaceSubrange(off, with: "<a:off x=\"\(x + 127000)\"")   // 10 pt to the right
+        package.parts[part] = Data(xml.utf8)
+        let data = try Zip.write(package.parts.keys.sorted().map { ZipEntry(name: $0, data: package.parts[$0]!) })
+        func connector(_ d: Data) throws -> String {
+            let p = PptxPackage(try Zip.read(d))
+            let part = try XCTUnwrap(p.parts.keys.first { $0.hasPrefix("ppt/slides/slide") && !$0.contains("_rels") })
+            let x = String(data: p.parts[part]!, encoding: .utf8)!
+            let c = String(x[try XCTUnwrap(x.range(of: "<p:cxnSp>.*?</p:cxnSp>", options: .regularExpression))])
+            // The geometry as stored: the frame, turn, flips and adjust values (attribute order and tag style may differ).
+            let g = try XCTUnwrap(c.range(of: "<a:xfrm.*?</a:prstGeom>", options: .regularExpression))
+            return String(c[g]).replacingOccurrences(of: "name=\"adj1\" fmla=\"val 50000\"", with: "fmla=\"val 50000\" name=\"adj1\"")
+        }
+        let before = try connector(data)
+        let (state, theme, pkg) = try Pptx.read(data)
+        let d2 = DeckController(); d2.load(state, theme: theme, package: pkg)
+        d2.nudgeSelection(dx: 0, dy: 0)   // any later edit also leaves it be
+        XCTAssertEqual(try connector(try Pptx.write(d2)), before)
+        // Moving a glued shape does route it.
+        let b2 = try XCTUnwrap(d2.slides[0].shapes.first { $0.name == b.name })
+        d2.selectShapes([b2]); d2.nudgeSelection(dx: 0, dy: 20)
+        XCTAssertNotEqual(try connector(try Pptx.write(d2)), before)
+    }
+
     func testBottomToTopTurnsTheBox() {
         let deck = DeckController()
         let (a, b) = boxes(deck, Rect.fromLTWH(300, 300, 100, 60))

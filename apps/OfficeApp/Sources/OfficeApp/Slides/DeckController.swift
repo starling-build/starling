@@ -67,6 +67,7 @@ struct ShapeState: Equatable {
     var inheritedPreset: ShapePreset? = nil
     var customPath: FreeformGeometry? = nil
     var adjusts: [String: Double] = [:]
+    var connAnchor: [Int: Rect] = [:]
     @Boxed var fillStyle: SlideFill? = nil
     var invisible = false
     var fileId: Int? = nil
@@ -339,9 +340,20 @@ final class DeckController: ChangeNotifier {
         _undo = []
         _redo = []
         _session = nil
+        _loading = true
         restore(state)
+        _loading = false
+        // A glued connector drawn by the file stays as stored until a shape it is glued to moves or Reroute runs.
+        for slide in slides {
+            for s in slide.shapes where s.keptLine != nil && (s.connStart != nil || s.connEnd != nil) {
+                for c in [s.connStart, s.connEnd] {
+                    if let c, let t = slide.shapes.first(where: { $0.id == c.shape }) { s.connAnchor[c.shape] = t.frame }
+                }
+            }
+        }
         current = 0
     }
+    var _loading = false
 
     /// How the slides' shapes follow a new slide size (PowerPoint's Maximize and Ensure Fit): both keep each shape's
     /// proportions and put its centre at the same place on the new slide, and scale the text (sizes, line spacing,
@@ -2317,6 +2329,7 @@ final class DeckController: ChangeNotifier {
         st.headEnd = s.headEnd
         st.connStart = s.connStart
         st.adjusts = s.adjusts
+        st.connAnchor = s.connAnchor
         st.connEnd = s.connEnd
         st.outlineCompound = s.outlineCompound
         st.tailEnd = s.tailEnd
@@ -2456,6 +2469,7 @@ final class DeckController: ChangeNotifier {
         shape.headEnd = st.headEnd
         shape.connStart = st.connStart
         shape.adjusts = st.adjusts
+        shape.connAnchor = st.connAnchor
         shape.connEnd = st.connEnd
         shape.outlineCompound = st.outlineCompound
         shape.tailEnd = st.tailEnd

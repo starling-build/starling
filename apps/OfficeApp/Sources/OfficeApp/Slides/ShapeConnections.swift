@@ -278,8 +278,13 @@ extension DeckController {
     /// After any change: each glued end sits on its site again, and an end whose shape has gone comes unglued. An elbow or
     /// curve is routed again between its ends, leaving and entering the shapes at the sides its sites face.
     func followConnections() {
+        if _loading { return }
         for slide in slides {
             for s in slide.shapes where s.connStart != nil || s.connEnd != nil {
+                if !s.connAnchor.isEmpty {
+                    if s.connAnchor.allSatisfy({ id, f in slide.shapes.first(where: { $0.id == id })?.frame == f }) { continue }
+                    s.connAnchor = [:]
+                }
                 var ends: [Bool: (Offset, (Double, Double))] = [:]
                 for start in [true, false] {
                     guard let c = start ? s.connStart : s.connEnd else { continue }
@@ -290,9 +295,6 @@ extension DeckController {
                     } else if start { s.connStart = nil } else { s.connEnd = nil }
                 }
                 guard s.isElbow, !ends.isEmpty else { continue }
-                // Ends already on their sites (a deck just opened): keep the route the file draws.
-                if s.keptLine != nil, ends[true].map({ hypot($0.0.dx - s.lineStart.dx, $0.0.dy - s.lineStart.dy) < 1 }) ?? true,
-                   ends[false].map({ hypot($0.0.dx - s.lineEndPoint.dx, $0.0.dy - s.lineEndPoint.dy) < 1 }) ?? true { continue }
                 let from = ends[true]?.0 ?? s.lineStart, to = ends[false]?.0 ?? s.lineEndPoint
                 s.apply(ElbowRoute.make(from: from, to: to, leaving: ends[true]?.1, arriving: ends[false]?.1,
                                         curved: s.preset?.rawValue.hasPrefix("curved") == true))

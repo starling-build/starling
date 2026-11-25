@@ -771,6 +771,8 @@ final class SlideShape {
     var inheritedPreset: ShapePreset? = nil
     var customPath: FreeformGeometry? = nil
     /// An elbow or curved connector's adjust values (`adj1`...), in hundred-thousandths of its box, over the preset's own.
+    /// Where each shape this connector is glued to stood when the file was read: while none has moved, the file's own route stands.
+    var connAnchor: [Int: Rect] = [:]
     var adjusts: [String: Double] = [:]
     /// A gradient or picture fill as read: drawn within the outline where
     /// `fill` (a flat colour) would be. Written back through the kept look.
