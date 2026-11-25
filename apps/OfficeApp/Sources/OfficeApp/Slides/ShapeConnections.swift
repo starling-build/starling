@@ -130,6 +130,21 @@ extension SlideShape {
                                              adjustments: adj)
     }
 
+    /// The way a path should leave site `i` to reach `target`: a site on a corner of a round shape (neither axis clearly its
+    /// facing) takes the axis that heads towards the target, so the path goes round the shape rather than across it.
+    func connectionSiteDirection(_ i: Int, towards target: Offset) -> (Double, Double)? {
+        guard let d = connectionSiteDirection(i), let p = connectionSite(i), connectionSiteCount != 4 else { return connectionSiteDirection(i) }
+        let c = frame.center
+        let dx = p.dx - c.dx, dy = p.dy - c.dy
+        let ax = abs(dx), ay = abs(dy)
+        guard ax > 1e-6, ay > 1e-6, min(ax, ay) / max(ax, ay) > 0.5 else { return d }
+        let sx = dx >= 0 ? 1.0 : -1.0, sy = dy >= 0 ? 1.0 : -1.0
+        let gx = (target.dx - p.dx) * sx, gy = (target.dy - p.dy) * sy
+        // Heading along an axis is only useful if the target lies that way; otherwise keep the default facing.
+        if abs(d.0) == 1 { return gx > 0 || gy <= 0 ? d : (0, sy) }
+        return gy > 0 || gx <= 0 ? d : (sx, 0)
+    }
+
     /// Which way site `i` faces, on the slide, as a unit step along an axis: up, left, down or right.
     func connectionSiteDirection(_ i: Int) -> (Double, Double)? {
         guard let p = connectionSite(i) else { return nil }
@@ -333,7 +348,10 @@ extension DeckController {
                 for start in [true, false] {
                     guard let c = start ? s.connStart : s.connEnd else { continue }
                     if let t = slide.shapes.first(where: { $0.id == c.shape }), s.isGluableLine, let q = t.connectionSite(c.site) {
-                        if s.isElbow, let d = t.connectionSiteDirection(c.site) {
+                        let other = start ? s.connEnd : s.connStart
+                        var goal = start ? s.lineEndPoint : s.lineStart
+                        if let o = other, let ot = slide.shapes.first(where: { $0.id == o.shape }), let oq = ot.connectionSite(o.site) { goal = oq }
+                        if s.isElbow, let d = t.connectionSiteDirection(c.site, towards: goal) {
                             ends[start] = (q, start ? d : (-d.0, -d.1))
                         } else { s.moveLineEnd(start: start, to: q) }
                     } else if start { s.connStart = nil } else { s.connEnd = nil }

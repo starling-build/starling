@@ -175,23 +175,27 @@ final class SlideElbowTests: XCTestCase {
         let dir = "/data/s/amd-6/ui-check"
         guard FileManager.default.fileExists(atPath: dir) else { return }
         let deck = DeckController()
-        // Two slides' worth in one: left column of boxes, right column of targets, one connector per site pairing.
-        func pair(_ y: Double, _ ax: Rect, _ bx: Rect, _ sa: Int, _ sb: Int, curved: Bool, arrow: Bool = true) {
-            let a = deck.addShape(.roundRect); a.frame = ax.shift(Offset(0, y))
-            let b = deck.addShape(.ellipse); b.frame = bx.shift(Offset(0, y))
+        // One cell per connector (4 rows x 2 columns), each with its own box and oval, so nothing overlaps.
+        @discardableResult
+        func pair(_ col: Int, _ row: Int, oval: Offset, _ sa: Int, _ sb: Int, curved: Bool) -> SlideShape {
+            let o = Offset(Double(col) * 470 + 20, Double(row) * 130 + 20)
+            let a = deck.addShape(.roundRect); a.frame = Rect.fromLTWH(o.dx, o.dy + 20, 90, 40)
+            let b = deck.addShape(.ellipse); b.frame = Rect.fromLTWH(o.dx + oval.dx, o.dy + oval.dy, 90, 60)
             let l = elbow(deck, curved ? "curvedConnector3" : "bentConnector3")
-            deck.selectShapes([l]); deck.setOutlineWidth(2); if arrow { deck.setLineEnd(start: false, kind: "triangle") }
+            deck.selectShapes([l]); deck.setOutlineWidth(2); deck.setLineEnd(start: false, kind: "triangle")
             deck.connect(l, start: true, to: a, site: sa); deck.connect(l, start: false, to: b, site: sb)
+            return b
         }
-        let a = Rect.fromLTWH(30, 20, 90, 40), b = Rect.fromLTWH(300, 20, 90, 60)
-        pair(0, a, b.shift(Offset(0, 40)), 3, 2, curved: false)    // right of A to bottom of B (a corner)
-        pair(0, a.shift(Offset(480, 0)), b.shift(Offset(150, 150)), 2, 0, curved: false)   // down then across, turned
-        pair(150, a, b, 3, 1, curved: false)                       // S shape
-        pair(150, a.shift(Offset(450, 0)), b.shift(Offset(60, 30)), 3, 3, curved: true)    // round the back
-        pair(300, a, b, 2, 0, curved: true)
-        pair(300, a.shift(Offset(450, 0)), b.shift(Offset(-30, 80)), 1, 2, curved: false)
+        pair(0, 0, oval: Offset(260, 60), 3, 2, curved: false)    // right of the box to the oval's bottom (a corner)
+        pair(1, 0, oval: Offset(200, 80), 2, 0, curved: false)    // down then across, turned
+        pair(0, 1, oval: Offset(280, 0), 3, 1, curved: false)     // S shape
+        pair(1, 1, oval: Offset(180, 50), 3, 3, curved: true)     // round the back
+        pair(0, 2, oval: Offset(260, 10), 2, 0, curved: true)
+        pair(1, 2, oval: Offset(120, 60), 1, 2, curved: false)
+        // The oval's lower-left site, reached from the right: the path goes round the oval, not through it.
+        pair(0, 3, oval: Offset(250, 0), 3, 3, curved: true)
         // The ellipse in the first pair moves: the elbow follows it.
-        deck.selectShapes([deck.currentSlide.shapes[3]]); deck.nudgeSelection(dx: 20, dy: 10)
+        deck.selectShapes([deck.currentSlide.shapes[1]]); deck.nudgeSelection(dx: 20, dy: 10)
         try Pptx.write(deck).write(to: URL(fileURLWithPath: dir + "/elbows.pptx"))
     }
 
@@ -214,5 +218,13 @@ final class SlideElbowTests: XCTestCase {
         near(m.elbowAdjustHandles[0].at, Offset(200, 350))
         deck.setElbowRunLive(m, "adj1", alongWidth: true, to: Offset(250, 330))
         near(m.elbowAdjustHandles[0].at, Offset(250, 350))
+    }
+
+    func testCornerSiteOfAnOvalFacesTheWayOfTheOtherEnd() {
+        let deck = DeckController()
+        let o = deck.addShape(.ellipse); o.frame = Rect.fromLTWH(300, 100, 90, 60)
+        // Site 3 is the lower left: a start to its left heads left, one below it heads down; never into the oval.
+        XCTAssertEqual(o.connectionSiteDirection(3, towards: Offset(100, 130))?.0, -1)
+        XCTAssertEqual(o.connectionSiteDirection(3, towards: Offset(330, 400))?.1, 1)
     }
 }
