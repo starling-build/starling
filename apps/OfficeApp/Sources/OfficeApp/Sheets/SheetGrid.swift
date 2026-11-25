@@ -852,7 +852,16 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         }
     }
 
+    /// A drawing stands upright on a mirrored screen: it keeps its place, not its handedness.
     func _paintDrawing(_ canvas: any Canvas, _ d: SheetDrawing, chart: Chart?, in r: Rect, theme: DeckTheme) {
+        guard rtl else { _paintDrawingBody(canvas, d, chart: chart, in: r, theme: theme); return }
+        canvas.save()
+        canvas.translate(r.center.dx, 0); canvas.scale(-1, 1); canvas.translate(-r.center.dx, 0)
+        _paintDrawingBody(canvas, d, chart: chart, in: r, theme: theme)
+        canvas.restore()
+    }
+
+    func _paintDrawingBody(_ canvas: any Canvas, _ d: SheetDrawing, chart: Chart?, in r: Rect, theme: DeckTheme) {
         // (A straight line along one axis has no extent across it: Excel's 2.25 pt title rule is a shape of zero height.)
         var isLine = false
         if case .shape(let shape) = d.kind, SheetShape.lineGeometries.contains(shape.geometry) { isLine = true }
@@ -1043,7 +1052,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
     /// A cell's top-right corner in global coordinates (where a note opens).
     func globalTopRight(of a: CellAddress) -> Offset {
         let r = rect(a)
-        let local = Offset(r.right + 8, r.top)
+        let local = _screen(Offset(r.right + 8, r.top))
         return _box?.localToGlobal(local) ?? local
     }
 
@@ -1663,7 +1672,12 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
 
     // MARK: Pointer
 
-    private func _local(_ e: PointerEvent) -> Offset { _box?.globalToLocal(e.position) ?? e.position }
+    private func _local(_ e: PointerEvent) -> Offset {
+        let p = _box?.globalToLocal(e.position) ?? e.position
+        return rtl ? Offset(size.width - p.dx, p.dy) : p
+    }
+    /// A point of the grid's own (unmirrored) layout as a point of the screen.
+    func _screen(_ p: Offset) -> Offset { rtl ? Offset(size.width - p.dx, p.dy) : p }
 
     /// The distance between the first two fingers down, or nil with fewer.
     private func _fingerDistance() -> Double? {
@@ -1776,7 +1790,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         }
         // A validation list's arrow.
         if let b = listButton(), b.contains(p), let choices = c.validationChoices(at: c.active) {
-            let origin = _box?.localToGlobal(Offset(b.left - rect(c.active).width, b.bottom)) ?? Offset(b.left, b.bottom)
+            let origin = _box?.localToGlobal(_screen(Offset(b.left - rect(c.active).width, b.bottom))) ?? Offset(b.left, b.bottom)
             _w.onListMenu(origin, c.active, choices)
             return
         }
@@ -1796,7 +1810,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
            filterButton(a).inflate(1).contains(p) {
             commitEdit()
             let b = filterButton(a)
-            let origin = _box?.localToGlobal(Offset(b.left, b.bottom)) ?? Offset(b.left, b.bottom)
+            let origin = _box?.localToGlobal(_screen(Offset(b.left, b.bottom))) ?? Offset(b.left, b.bottom)
             _w.onFilterMenu(origin, a.col)
             return
         }
@@ -2233,8 +2247,8 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         canvas.drawRect(box.deflate(0.5), p)
         canvas.drawLine(Offset(r.right - 1, r.top + 1), Offset(box.left, box.top + 6 * zoom), p)
         var y = box.top + pad
-        if let author { author.paint(canvas, Offset(box.left + pad, y)); y += author.height }
-        tp.paint(canvas, Offset(box.left + pad, y))
+        if let author { _put(author, Offset(box.left + pad, y), canvas); y += author.height }
+        _put(tp, Offset(box.left + pad, y), canvas)
     }
 
     /// Circle Invalid Data: a red ellipse round every cell that breaks its rule.
@@ -2278,8 +2292,8 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         p.color = Color(0xFF7F7F7F)
         canvas.drawRect(box.deflate(0.5), p)
         var y = box.top + pad
-        if let title { title.paint(canvas, Offset(box.left + pad, y)); y += title.height + 2 * zoom }
-        tp?.paint(canvas, Offset(box.left + pad, y))
+        if let title { _put(title, Offset(box.left + pad, y), canvas); y += title.height + 2 * zoom }
+        if let tp { _put(tp, Offset(box.left + pad, y), canvas) }
     }
 
     private func _signal(_ e: PointerSignalEvent) {
@@ -2342,6 +2356,15 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
     }
 
     fileprivate func paint(_ canvas: any Canvas, _ size: Size, fluent: FluentThemeData?) {
+        guard rtl else { _paintBody(canvas, size, fluent: fluent); return }
+        canvas.save()
+        canvas.translate(size.width, 0)
+        canvas.scale(-1, 1)
+        _paintBody(canvas, size, fluent: fluent)
+        canvas.restore()
+    }
+
+    private func _paintBody(_ canvas: any Canvas, _ size: Size, fluent: FluentThemeData?) {
         let c = controller
         let ws = c.sheet
         let book = c.book
@@ -2548,7 +2571,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             }
             let tp = texts.painter(CellAddress.columnName(col), on ? headStrong : headStyle)
             if x1 - x0 > tp.width + 2 {
-                tp.paint(canvas, Offset(((x0 + x1) / 2 - tp.width / 2).rounded(), (outlineHeight + (hh - outlineHeight - tp.height) / 2).rounded()))
+                _put(tp, Offset(((x0 + x1) / 2 - tp.width / 2).rounded(), (outlineHeight + (hh - outlineHeight - tp.height) / 2).rounded()), canvas)
             }
             canvas.drawLine(Offset(x1.rounded() - 0.5, outlineHeight), Offset(x1.rounded() - 0.5, hh), line)
         }
@@ -2570,7 +2593,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             let filtered = filterActive && row > ws.autoFilter!.range.top && row <= ws.autoFilter!.range.bottom
             let tp = texts.painter(String(row + 1), on ? headStrong : filtered ? headFiltered : headStyle)
             if y1 - y0 > tp.height - 2 {
-                tp.paint(canvas, Offset((hw - 6 - tp.width).rounded(), ((y0 + y1) / 2 - tp.height / 2).rounded()))
+                _put(tp, Offset((hw - 6 - tp.width).rounded(), ((y0 + y1) / 2 - tp.height / 2).rounded()), canvas)
             }
             canvas.drawLine(Offset(outlineWidth, y1.rounded() - 0.5), Offset(hw, y1.rounded() - 0.5), line)
         }
@@ -2591,7 +2614,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 let b = outlineLevelButton(k, axis)
                 canvas.drawRect(Rect.fromLTRB(b.left.rounded() + 0.5, b.top.rounded() + 0.5, b.right.rounded() - 0.5, b.bottom.rounded() - 0.5), box)
                 let tp = texts.painter("\(k)", GridTextStyle(family: SelawikFontName.regular, size: 9 * zoom, color: Int64(headerInk.value)))
-                tp.paint(canvas, Offset((b.center.dx - tp.width / 2).rounded(), (b.center.dy - tp.height / 2).rounded()))
+                _put(tp, Offset((b.center.dx - tp.width / 2).rounded(), (b.center.dy - tp.height / 2).rounded()), canvas)
             }
         }
         // The corner: a triangle that selects everything.
@@ -3069,6 +3092,21 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
     /// An underline and a strike, drawn at the place and thickness of the face the cell names (its post table),
     /// a rule a line, as Slides draws them: the stand-in's own is Carlito's 1.04 pt, 0.1 pt under the baseline,
     /// where Excel's Calibri 11 is 0.72 pt, 1.2 pt under.
+    /// Whether the screen is mirrored (a right-to-left sheet): the canvas is flipped, so text and pictures are turned back upright.
+    var rtl: Bool { !printing && controller.sheet.rightToLeft }
+
+    /// Paints text (and its rules) upright inside a mirrored canvas.
+    func _put(_ tp: TextPainter, _ o: Offset, _ canvas: any Canvas, rules: GridTextStyle? = nil) {
+        if rtl {
+            canvas.save()
+            let cx = o.dx + tp.width / 2
+            canvas.translate(cx, 0); canvas.scale(-1, 1); canvas.translate(-cx, 0)
+        }
+        tp.paint(canvas, o)
+        if let rules { _drawRules(tp, rules, at: o, canvas) }
+        if rtl { canvas.restore() }
+    }
+
     func _drawRules(_ tp: TextPainter, _ s: GridTextStyle, at o: Offset, _ canvas: any Canvas) {
         guard let m = s.rule, s.underline || s.strike else { return }
         let paint = Paint()
@@ -3284,11 +3322,11 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 let one = texts.painter(String(parts.fill), style).width
                 if one > 0 {
                     let fp = texts.painter(String(repeating: String(parts.fill), count: Int((x1 - x0) / one)), style)
-                    fp.paint(canvas, at(x1 - fp.width))
+                    _put(fp, at(x1 - fp.width), canvas)
                 }
             }
-            lp.paint(canvas, at(left + margin))
-            rp.paint(canvas, at(x1))
+            _put(lp, at(left + margin), canvas)
+            _put(rp, at(x1), canvas)
             canvas.restore()
             return
         }
@@ -3381,16 +3419,14 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 }
                 for (rp, y, rstyle) in parts {
                     let o = printing ? Offset(x, y) : Offset(x.rounded(), y.rounded())
-                    rp.paint(canvas, o)
-                    _drawRules(rp, rstyle, at: o, canvas)
+                    _put(rp, o, canvas, rules: rstyle)
                     x += rp.width
                 }
                 canvas.restore()
                 return
             }
         }
-        tp.paint(canvas, at(tx))
-        _drawRules(tp, style, at: at(tx), canvas)
+        _put(tp, at(tx), canvas, rules: style)
         canvas.restore()
     }
 
@@ -3687,7 +3723,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             p.color = accent.withAlpha(90)
             canvas.drawRect(Rect.fromLTWH(box.left + pad + x0, ty, x1 - x0, tp.height), p)
         }
-        if !text.isEmpty { tp.paint(canvas, Offset(box.left + pad, ty.rounded())) }
+        if !text.isEmpty { _put(tp, Offset(box.left + pad, ty.rounded()), canvas) }
         // The input method's marked text, underlined.
         if let c = _composing, c.upperBound <= e.text.count, c.lowerBound < c.upperBound {
             let x0 = c.lowerBound == 0 ? 0 : texts.painter(String(e.text[0 ..< c.lowerBound]), style).width

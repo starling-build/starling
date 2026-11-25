@@ -4,6 +4,8 @@
 // X-VW-1: View options per sheet: zoom, headings, show formulas, right-to-left. Saved and read back.
 
 import XCTest
+import Flutter
+import FlutterSwiftBridge
 @testable import OfficeApp
 
 final class SheetsViewOptionsTests: XCTestCase {
@@ -35,6 +37,33 @@ final class SheetsViewOptionsTests: XCTestCase {
         XCTAssertTrue(c.sheet.showFormulas)
         XCTAssertTrue(c.sheet.rightToLeft)
         XCTAssertFalse(c.sheet.showGridlines)
+    }
+
+    func testShowFormulasDoublesTheColumnsOnScreen() {
+        let c = WorkbookController()
+        let g = SheetGridState(headless: c)
+        let w = g.cols.size(0)
+        c.toggleShowFormulas()
+        XCTAssertEqual(g.cols.size(0), w * 2, accuracy: 0.01)
+        XCTAssertEqual(g.cols.size(5), w * 2, accuracy: 0.01)
+        c.toggleShowFormulas()
+        XCTAssertEqual(g.cols.size(0), w, accuracy: 0.01)
+    }
+
+    func testRightToLeftSheetMirrorsTheScreenButNotThePrint() {
+        let c = WorkbookController()
+        let g = SheetGridState(headless: c)
+        XCTAssertFalse(g.rtl)
+        XCTAssertEqual(g._screen(Offset(10, 5)).dx, 10)
+        c.toggleRightToLeft()
+        XCTAssertTrue(g.rtl)
+        XCTAssertEqual(g._screen(Offset(10, 5)).dx, -10)   // (the window is 0 wide here: x becomes width - x)
+        XCTAssertEqual(g._screen(Offset(10, 5)).dy, 5)
+        g.printing = true
+        XCTAssertFalse(g.rtl)   // paper has its own mirroring
+        g.printing = false
+        c.toggleRightToLeft()
+        XCTAssertFalse(g.rtl)
     }
 
     func testViewOptionsSaveAndReadBack() throws {
