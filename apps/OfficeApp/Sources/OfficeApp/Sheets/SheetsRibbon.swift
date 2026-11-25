@@ -40,6 +40,7 @@ enum SheetCommand {
     case columnFilter(col: Int, kind: String)   // a filter dropdown's Number/Text/Date/Colour Filters…
     case nameManager               // Formulas → Name Manager
     case createNames               // Formulas → Create from Selection
+    case useName(String)           // Formulas → Use in Formula: the name into the formula being typed
     case protectSheetDialog        // Review → Protect Sheet / Unprotect Sheet
     case protectWorkbookDialog     // Review → Protect Workbook / Unprotect Workbook
     case pageSetup                 // Layout → Page Setup: the dialog
@@ -275,6 +276,10 @@ extension Ribbon {
         Chrome.group("Defined Names", fluent, [
             Chrome.big(FluentSystemIcons.rename, "Name Manager", fluent) { wb.onCommand?(.nameManager) },
             Chrome.big(FluentSystemIcons.rename, "Create from Selection", fluent) { wb.onCommand?(.createNames) },
+            Chrome.menu(Text("Use in Formula", style: fluent.typography.caption), nil, fluent,
+                        wb.definedNameEntries().filter { $0.scopeSheet == nil || $0.scopeSheet == wb.activeSheet }
+                            .map { e in (e.name, { wb.onCommand?(.useName(e.name)) }) }
+                        + [("Name Manager…", { wb.onCommand?(.nameManager) })]),
         ])
     }
 

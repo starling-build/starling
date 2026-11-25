@@ -495,6 +495,9 @@ final class SheetsShellState: State<StatefulWidget> {
             setState { _filterOpen = (col, kind) }
         case .nameManager:
             setState { _namesOpen = true }
+        case .useName(let name):
+            grid.focus.requestFocus()
+            if grid.isEditing { grid.typeText(name) } else { grid.beginEdit(replace: "=" + name) }
         case .createNames:
             setState { _createNamesOpen = true }
         case .protectSheetDialog:

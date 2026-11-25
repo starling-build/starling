@@ -48,3 +48,18 @@ final class SheetsFormulaHelpShellTests: XCTestCase {
         XCTAssertEqual(st.wb.input(CellAddress("A1")!), "=SUMIF()")
     }
 }
+
+final class SheetsUseInFormulaTests: XCTestCase {
+    func testUseNameStartsAFormulaAndInsertsIntoOne() {
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light),
+                                        home: SheetsShell(initialPath: nil, onSwitch: { _, _ in }), title: "t"),
+                              size: Size(1280, 800))
+        let st = ui.state(SheetsShellState.self)!
+        XCTAssertNil(st.wb.defineName("Rate", refersTo: "Sheet1!$A$1"))
+        st.wb.onCommand?(.useName("Rate")); ui.pump()
+        ui.type("+1"); ui.pump()
+        st.wb.onCommand?(.useName("Rate")); ui.pump()
+        ui.press(.enter); ui.pump()
+        XCTAssertEqual(st.wb.input(CellAddress("A1")!), "=Rate+1Rate")
+    }
+}
