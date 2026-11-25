@@ -827,10 +827,8 @@ final class Ribbon: StatelessWidget {
         var styleGroup: [Widget] = []
         if c.document.paragraphs[i].image?.outline != nil, c.document.paragraphs[i].image?.sourceXML?.containsSubstring("<wps:wsp") == true {
             styleGroup.append(Chrome.group("Shape Styles", fluent, [
-                Chrome.colorMenu(FluentSystemIcons.highlight, "Shape Fill", fluent, colors: OfficeColors.text, none: "No Fill",
-                                 more: { [session] in session.onMoreColors?() }) { color in _ = c.setShapeFill(at: i, color) },
-                Chrome.colorMenu(FluentSystemIcons.textColor, "Shape Outline", fluent, colors: OfficeColors.text, none: "No Outline",
-                                 more: { [session] in session.onMoreColors?() }) { color in _ = c.setShapeOutline(at: i, color) },
+                _shapeColorMenu(FluentSystemIcons.highlight, "Shape Fill", c, i, fluent, outline: false),
+                _shapeColorMenu(FluentSystemIcons.textColor, "Shape Outline", c, i, fluent, outline: true),
             ]))
         }
         var floating: [Widget] = []
@@ -856,6 +854,21 @@ final class Ribbon: StatelessWidget {
             ]))
         }
         return [size, arrange] + floating + boxGroup + styleGroup + [turn, tools, remove]
+    }
+
+    /// Shape Fill / Shape Outline: the shared colour picker; a theme pick is written as a theme colour.
+    private func _shapeColorMenu(_ icon: IconData, _ tip: String, _ c: RichDocumentController, _ i: Int,
+                                 _ fluent: FluentThemeData, outline: Bool) -> Widget {
+        Chrome.menuButton(icon, nil, tip, fluent, items: [
+            ColorGridMenuItem(theme: ColorMath.officeTheme, recent: [], noneLabel: outline ? "No Outline" : "No Fill",
+                              onChoose: { choice in
+                guard let rgb = choice.resolved(theme: ColorMath.officeTheme) else { _ = outline ? c.setShapeOutline(at: i, nil) : c.setShapeFill(at: i, nil); return }
+                let color = Color(0xFF00_0000 | Int64(rgb))
+                var theme: (slot: Int, lumMod: Int, lumOff: Int)?
+                if case .theme(let slot, let mod, let off) = choice { theme = (slot, mod, off) }
+                _ = outline ? c.setShapeOutline(at: i, color, theme: theme) : c.setShapeFill(at: i, color, theme: theme)
+            }, onMore: { [session] in session.onMoreColors?() }),
+        ])
     }
 
     // MARK: Layout

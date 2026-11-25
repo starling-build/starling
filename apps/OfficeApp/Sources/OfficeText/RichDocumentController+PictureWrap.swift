@@ -183,22 +183,30 @@ extension RichDocumentController {
     /// The fill of the shape at `index` (nil: none), one undo step. False when it is not a shape drawn by a `wps:wsp`
     /// whose fill is a plain colour or none (a gradient or picture fill is left as it is).
     @discardableResult
-    public func setShapeFill(at index: Int, inline id: String? = nil, _ color: Color?) -> Bool {
-        _setShapePaint(index, id, line: false, color)
+    public func setShapeFill(at index: Int, inline id: String? = nil, _ color: Color?, theme: (slot: Int, lumMod: Int, lumOff: Int)? = nil) -> Bool {
+        _setShapePaint(index, id, line: false, color, theme)
     }
 
     /// The outline colour of the shape at `index` (nil: no line), one undo step; false as `setShapeFill`.
     @discardableResult
-    public func setShapeOutline(at index: Int, inline id: String? = nil, _ color: Color?) -> Bool {
-        _setShapePaint(index, id, line: true, color)
+    public func setShapeOutline(at index: Int, inline id: String? = nil, _ color: Color?, theme: (slot: Int, lumMod: Int, lumOff: Int)? = nil) -> Bool {
+        _setShapePaint(index, id, line: true, color, theme)
     }
 
-    private func _setShapePaint(_ index: Int, _ id: String?, line: Bool, _ color: Color?) -> Bool {
+    private func _setShapePaint(_ index: Int, _ id: String?, line: Bool, _ color: Color?, _ theme: (slot: Int, lumMod: Int, lumOff: Int)? = nil) -> Bool {
         guard let old = _floating(index, id), let xml = old.sourceXML, xml.containsSubstring("<wps:wsp"),
               let open = xml.rangeOfSubstring("<wps:spPr>"), let close = xml.rangeOfSubstring("</wps:spPr>", in: open.upperBound ..< xml.endIndex) else { return false }
         var hex = ""
         if let color { let v = String(color.value & 0xFFFFFF, radix: 16, uppercase: true); hex = String(repeating: "0", count: 6 - v.count) + v }
-        let paint = color == nil ? "<a:noFill/>" : "<a:solidFill><a:srgbClr val=\"\(hex)\"/></a:solidFill>"
+        // A theme pick stays linked to its slot (`a:schemeClr` with lumMod / lumOff), so a theme change recolours it.
+        let names = ["bg1", "tx1", "bg2", "tx2", "accent1", "accent2", "accent3", "accent4", "accent5", "accent6"]
+        var paint = color == nil ? "<a:noFill/>" : "<a:solidFill><a:srgbClr val=\"\(hex)\"/></a:solidFill>"
+        if color != nil, let t = theme, t.slot >= 0, t.slot < names.count {
+            var mods = ""
+            if t.lumMod < 100 { mods += "<a:lumMod val=\"\(t.lumMod * 1000)\"/>" }
+            if t.lumOff > 0 { mods += "<a:lumOff val=\"\(t.lumOff * 1000)\"/>" }
+            paint = "<a:solidFill><a:schemeClr val=\"\(names[t.slot])\"" + (mods.isEmpty ? "/>" : ">\(mods)</a:schemeClr>") + "</a:solidFill>"
+        }
         var body = String(xml[open.upperBound ..< close.lowerBound])
         // Where the paint stands: after the geometry for the fill, inside the line's element for the outline.
         var at: String.Index

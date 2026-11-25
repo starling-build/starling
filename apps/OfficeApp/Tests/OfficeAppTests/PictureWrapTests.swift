@@ -495,4 +495,20 @@ final class ShapeSelectTests: XCTestCase {
         c.undo()
         XCTAssertNotNil(c.document.paragraphs[i].image?.outline?.fill)
     }
+
+    func testThemePicksStayLinkedToTheThemeSlot() throws {
+        let c = RichDocumentController(document: RichDocument(paragraphs: [RichParagraph(text: "x", style: .init())]))
+        c.pendingShape = { x, y, w, h in TextBoxInsert.makeShape(preset: "ellipse", width: w, height: h, number: 1, page: (x, y)) }
+        XCTAssertTrue(c.placePendingShape(x: 5, y: 5, width: 96, height: 72, at: RichPosition(paragraph: 0, offset: 0)))
+        let i = try XCTUnwrap(c.selectedImageIndex)
+        // Accent 2, Lighter 40 percent; Accent 1, Darker 25 percent (outline); plain Text 1 is not touched here.
+        XCTAssertTrue(c.setShapeFill(at: i, Color(0xFFF4B183), theme: (5, 60, 40)))
+        XCTAssertTrue(c.setShapeOutline(at: i, Color(0xFF2F5597), theme: (4, 75, 0)))
+        let xml = try XCTUnwrap(c.document.paragraphs[i].image?.sourceXML)
+        XCTAssertTrue(xml.containsSubstring("<a:solidFill><a:schemeClr val=\"accent2\"><a:lumMod val=\"60000\"/><a:lumOff val=\"40000\"/></a:schemeClr></a:solidFill>"))
+        XCTAssertTrue(xml.containsSubstring("<a:ln w=\"9525\"><a:solidFill><a:schemeClr val=\"accent1\"><a:lumMod val=\"75000\"/></a:schemeClr></a:solidFill>"))
+        let out = String(decoding: try XCTUnwrap(try Zip.read(try DocxFormat.write(c.document, pageSetup: .letter)).first { $0.name == "word/document.xml" }).data, as: UTF8.self)
+        XCTAssertTrue(out.containsSubstring("<a:schemeClr val=\"accent2\">"))
+        XCTAssertFalse(out.containsSubstring("4472C4"))
+    }
 }
