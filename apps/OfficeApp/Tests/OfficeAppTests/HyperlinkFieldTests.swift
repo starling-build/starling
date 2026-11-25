@@ -87,3 +87,10 @@ extension HyperlinkFieldTests {
         XCTAssertFalse(xml.contains("w:val=\"Hyperlink\""))
     }
 }
+
+extension HyperlinkFieldTests {
+    func testHyperlinkElementRunWithHyperlinkStyleKeepsItOnce() throws {
+        let (_, xml) = try roundTrip("<w:p><w:hyperlink w:anchor=\"bm\"><w:r><w:rPr><w:rStyle w:val=\"Hyperlink\"/></w:rPr><w:t>styled</w:t></w:r></w:hyperlink></w:p>")
+        XCTAssertEqual(xml.components(separatedBy: "<w:rStyle w:val=\"Hyperlink\"/>").count - 1, 1)
+    }
+}
