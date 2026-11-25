@@ -42,11 +42,30 @@ final class TablePropertiesDialogTests: XCTestCase {
         XCTAssertTrue(t.rowsExactHeight.contains(cell.row))
         XCTAssertTrue(t.rowsCantSplit.contains(cell.row))
         XCTAssertTrue(t.headerRow)
-        XCTAssertEqual(t.cellMarginTop, 2)
+        XCTAssertNil(t.cellMarginTop, "a cell's margin is the cell's, not the table's")
+        XCTAssertEqual(c.currentCell?.padding?.top, 2)
+        XCTAssertEqual(c.currentCell?.padding?.left, 7)
         XCTAssertEqual(c.document.tableColumns[cell.table]?[cell.column], 100)
         XCTAssertEqual(c.currentCell?.verticalAlign, "center")
         let again = TablePropertiesValues(of: c)
-        XCTAssertEqual(again, v)
+        XCTAssertEqual(again.marginTop, 2)
+        XCTAssertEqual(again.tableMarginTop, 0)
+        XCTAssertEqual(again.columnWidth, 100)
+        XCTAssertEqual(again.heightRule, .exactly)
+    }
+
+    func testCellMarginsAreWrittenOnThatCellOnly() throws {
+        let c = grid()
+        var v = TablePropertiesValues(of: c)
+        v.marginTop = 4; v.marginLeft = 10
+        v.apply(to: c)
+        let back = try DocxFormat.read(try DocxFormat.write(c.document, pageSetup: .letter)).document
+        let cells = back.paragraphs.compactMap(\.cell)
+        XCTAssertEqual(cells[0].padding?.top, 4)
+        XCTAssertEqual(cells[0].padding?.left, 10)
+        XCTAssertTrue(cells.dropFirst().allSatisfy { $0.marginsXML == nil })
+        let xml = String(decoding: try DocxFormat.write(c.document, pageSetup: .letter), as: UTF8.self)
+        XCTAssertFalse(xml.contains("tblCellMar"))
     }
 
     func testTurningOffRepeatAndWrapClearsThem() throws {

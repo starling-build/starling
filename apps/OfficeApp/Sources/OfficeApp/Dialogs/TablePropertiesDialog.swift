@@ -22,7 +22,10 @@ struct TablePropertiesValues: Equatable {
     var repeatHeader = false
     var columnWidth: Double = 0
     var verticalAlign = "top"
+    /// The caret cell's own margins (Cell tab; written as that cell's tcMar) and the table's default ones (Table tab).
     var marginTop: Double = 0, marginBottom: Double = 0, marginLeft: Double = 5.4, marginRight: Double = 5.4
+    var tableMarginTop: Double = 0, tableMarginBottom: Double = 0, tableMarginLeft: Double = 5.4, tableMarginRight: Double = 5.4
+    private var startCell: [Double] = [], startTable: [Double] = []
 
     /// What Word writes for a table that text runs around.
     static let aroundPosition = "<w:tblpPr w:leftFromText=\"180\" w:rightFromText=\"180\" w:vertAnchor=\"text\" w:tblpY=\"1\"/>"
@@ -44,8 +47,12 @@ struct TablePropertiesValues: Equatable {
         if widths?.count != cols { widths = nil }
         columnWidth = widths.map { cell.column < $0.count ? $0[cell.column] : 0 } ?? 468.0 / Double(max(1, cols))
         verticalAlign = cell.verticalAlign ?? "top"
-        marginTop = t.cellMarginTop ?? 0; marginBottom = t.cellMarginBottom ?? 0
-        marginLeft = t.cellMarginLeft ?? 5.4; marginRight = t.cellMarginRight ?? 5.4
+        tableMarginTop = t.cellMarginTop ?? 0; tableMarginBottom = t.cellMarginBottom ?? 0
+        tableMarginLeft = t.cellMarginLeft ?? 5.4; tableMarginRight = t.cellMarginRight ?? 5.4
+        marginTop = cell.padding?.top ?? tableMarginTop; marginBottom = cell.padding?.bottom ?? tableMarginBottom
+        marginLeft = cell.padding?.left ?? tableMarginLeft; marginRight = cell.padding?.right ?? tableMarginRight
+        startCell = [marginTop, marginBottom, marginLeft, marginRight]
+        startTable = [tableMarginTop, tableMarginBottom, tableMarginLeft, tableMarginRight]
     }
 
     func apply(to c: RichDocumentController) {
@@ -72,8 +79,10 @@ struct TablePropertiesValues: Equatable {
                 t.headerRowCount = rows.lowerBound
                 if t.headerRowCount == 0 { t.headerRow = false; t.headerRowCount = 1 }
             }
-            t.cellMarginTop = max(0, new.marginTop); t.cellMarginBottom = max(0, new.marginBottom)
-            t.cellMarginLeft = max(0, new.marginLeft); t.cellMarginRight = max(0, new.marginRight)
+            if [new.tableMarginTop, new.tableMarginBottom, new.tableMarginLeft, new.tableMarginRight] != new.startTable {
+                t.cellMarginTop = max(0, new.tableMarginTop); t.cellMarginBottom = max(0, new.tableMarginBottom)
+                t.cellMarginLeft = max(0, new.tableMarginLeft); t.cellMarginRight = max(0, new.tableMarginRight)
+            }
         }
         let cols = c.document.columnCount(of: cell.table)
         var widths = c.document.tableColumns[cell.table]
@@ -83,6 +92,9 @@ struct TablePropertiesValues: Equatable {
             c.setTableColumnWidths(cell.table, widths)
         }
         if verticalAlign != (cell.verticalAlign ?? "top") { c.setCellVerticalAlignment(verticalAlign) }
+        if [marginTop, marginBottom, marginLeft, marginRight] != startCell {
+            c.setCellMargins(top: marginTop, left: marginLeft, bottom: marginBottom, right: marginRight)
+        }
     }
 }
 
@@ -128,6 +140,10 @@ final class TablePropertiesDialogState: State<StatefulWidget> {
                 choice("tp-wrap-none", "None", v.wrap == .none) { [weak self] in self?.setState { self?.v.wrap = .none } },
                 choice("tp-wrap-around", "Around", v.wrap == .around) { [weak self] in self?.setState { self?.v.wrap = .around } },
             ]),
+            row("Default margin top", [spin("tp-tm-top", v.tableMarginTop) { [weak self] n in self?.v.tableMarginTop = n }]),
+            row("Default margin bottom", [spin("tp-tm-bottom", v.tableMarginBottom) { [weak self] n in self?.v.tableMarginBottom = n }]),
+            row("Default margin left", [spin("tp-tm-left", v.tableMarginLeft) { [weak self] n in self?.v.tableMarginLeft = n }]),
+            row("Default margin right", [spin("tp-tm-right", v.tableMarginRight) { [weak self] n in self?.v.tableMarginRight = n }]),
         ])
         let rules: [(String, String, TablePropertiesValues.HeightRule)] = [("tp-h-auto", "Auto", .auto), ("tp-h-least", "At least", .atLeast), ("tp-h-exact", "Exactly", .exactly)]
         var rowChildren: [Widget] = [row("Row height", rules.map { id, t, r in choice(id, t, v.heightRule == r) { [weak self] in
