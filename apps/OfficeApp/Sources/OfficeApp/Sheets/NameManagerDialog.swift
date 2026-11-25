@@ -31,6 +31,8 @@ final class NameManagerDialogState: State<StatefulWidget> {
     private let _refersField = TextEditingController()
     /// The entry being edited (its name), or nil while a new name is being typed.
     private(set) var picked: String?
+    /// The sheet the picked name is local to, nil for a workbook-wide name.
+    private(set) var pickedScope: Int?
     private(set) var message = ""
 
     override func initState() {
@@ -49,6 +51,7 @@ final class NameManagerDialogState: State<StatefulWidget> {
     /// Clear the form for a new name; "Refers to" starts as the current selection.
     func startNew() {
         picked = nil
+        pickedScope = nil
         message = ""
         _nameField.text = ""
         _refersField.text = _w.controller.selectionReference() ?? ""
@@ -57,7 +60,8 @@ final class NameManagerDialogState: State<StatefulWidget> {
 
     func pick(_ entry: NameEntry) {
         picked = entry.name
-        message = entry.editable ? "" : "This name belongs to one sheet and can't be changed here."
+        pickedScope = entry.scopeSheet
+        message = entry.editable ? "" : "This name is hidden in the file and can't be changed here."
         _nameField.text = entry.name
         _refersField.text = entry.refersTo
         setState {}
@@ -68,7 +72,7 @@ final class NameManagerDialogState: State<StatefulWidget> {
         let c = _w.controller
         let name = _nameField.text, refers = _refersField.text
         let problem: NameProblem?
-        if let old = picked { problem = c.editName(old, to: name, refersTo: refers) }
+        if let old = picked { problem = c.editName(old, to: name, refersTo: refers, scope: pickedScope) }
         else { problem = c.defineName(name, refersTo: refers) }
         if let problem {
             message = problem.message
@@ -80,7 +84,7 @@ final class NameManagerDialogState: State<StatefulWidget> {
 
     func deletePicked() {
         guard let old = picked else { return }
-        if let problem = _w.controller.deleteName(old) {
+        if let problem = _w.controller.deleteName(old, scope: pickedScope) {
             message = problem.message
             setState {}
         } else {
@@ -92,19 +96,19 @@ final class NameManagerDialogState: State<StatefulWidget> {
         let fluent = FluentTheme.of(context)
         let entries = _entries
         let rows: [Widget] = entries.map { e in
-            let on = e.name == picked
-            return GestureDetector(onTap: { [weak self] in self?.pick(e) }, behavior: .opaque, child: ColoredBox(
+            let on = e.name == picked && e.scopeSheet == pickedScope
+            return KeyboardRow(label: e.name, activate: { [weak self] in self?.pick(e) }, child: GestureDetector(onTap: { [weak self] in self?.pick(e) }, behavior: .opaque, child: ColoredBox(
                 color: on ? fluent.resources.subtleFillColorSecondary : Color(0x00000000),
                 child: Padding(padding: EdgeInsets(left: 8, top: 4, right: 8, bottom: 4), child: Row(children: [
                     SizedBox(width: 130, height: nil, child: Text(e.name, style: on ? fluent.typography.bodyStrong : fluent.typography.body)),
                     Expanded(child: Text(e.refersTo, style: fluent.typography.caption)),
-                    Text(e.scopeSheet == nil ? "Workbook" : "Sheet", style: fluent.typography.caption),
-                ]))))
+                    Text(e.scopeSheet.flatMap { $0 < _w.controller.book.sheets.count ? _w.controller.book.sheets[$0].name : nil } ?? (e.scopeSheet == nil ? "Workbook" : "Sheet"), style: fluent.typography.caption),
+                ])))))
         }
         let list = SizedBox(width: nil, height: 150, child: SingleChildScrollView(child: Column(
             crossAxisAlignment: .stretch,
             children: rows.isEmpty ? [Padding(padding: EdgeInsets(all: 8), child: Text("No names yet", style: fluent.typography.caption))] : rows)))
-        let editable = picked == nil || entries.first { $0.name == picked }?.editable == true
+        let editable = picked == nil || entries.first { $0.name == picked && $0.scopeSheet == pickedScope }?.editable == true
         let page = Column(mainAxisSize: .min, crossAxisAlignment: .stretch, children: [
             list,
             SizedBox(width: nil, height: 10, child: nil),

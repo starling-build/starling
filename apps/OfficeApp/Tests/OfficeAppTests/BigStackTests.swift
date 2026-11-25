@@ -29,6 +29,49 @@ final class BigStackTests: XCTestCase {
         XCTAssertTrue(inner === outer, "a nested call must not spawn a second thread")
     }
 
+    #if canImport(Darwin)
+    // `runIfSmall` reads the calling thread's stack size with `pthread_get_stacksize_np`, so only Darwin hops from a small
+    // stack; elsewhere it runs the body where it is (a Linux thread has 512 KB too, and recursing 24 MB on it is signal 11).
+    /// A thread with a small stack (an iPad's main thread has 1 MB) hops; one with a big stack (a Mac's) does not.
+    func testRunIfSmallHopsOnlyFromASmallStack() {
+        let caller = Thread.current
+        var ranOn: Thread?
+        BigStack.runIfSmall { ranOn = Thread.current }
+        XCTAssertTrue(ranOn === caller, "an 8 MB thread keeps the work")
+
+        let small = expectation(description: "small thread")
+        let thread = Thread {
+            let me = Thread.current
+            var inner: Thread?
+            let depth = BigStack.runIfSmall { () -> Int in
+                inner = Thread.current
+                return self.descend(3_800)   // ~24 MB: signal 11 on this thread's 512 KB
+            }
+            XCTAssertFalse(inner === me, "a 512 KB thread hops")
+            XCTAssertGreaterThanOrEqual(depth, 0)
+            small.fulfill()
+        }
+        thread.stackSize = 512 << 10
+        thread.start()
+        wait(for: [small], timeout: 60)
+    }
+
+    /// The hop from a small stack is one long-lived thread, not a thread per call: a paint every frame must not pay for a
+    /// 64 MB mapping each time.
+    func testRunIfSmallReusesOneWorkerThread() {
+        let done = expectation(description: "small thread")
+        let thread = Thread {
+            var seen: [ObjectIdentifier] = []
+            for _ in 0 ..< 20 { seen.append(ObjectIdentifier(BigStack.runIfSmall { Thread.current })) }
+            XCTAssertEqual(Set(seen).count, 1, "every hop lands on the same worker thread")
+            done.fulfill()
+        }
+        thread.stackSize = 512 << 10
+        thread.start()
+        wait(for: [done], timeout: 60)
+    }
+    #endif
+
     func testAThrownErrorComesBack() {
         struct Boom: Error {}
         XCTAssertThrowsError(try BigStack.run { () throws -> Int in throw Boom() }) { XCTAssertTrue($0 is Boom) }

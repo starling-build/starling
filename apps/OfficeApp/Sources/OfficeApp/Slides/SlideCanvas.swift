@@ -74,6 +74,8 @@ final class SlideCanvasState: State<StatefulWidget> {
         case resize(shape: SlideShape, handle: Int, start: Offset, frame: Rect)
         case rotate(shape: SlideShape, startAngle: Double, startRotation: Double)
         case marquee(start: Offset, now: Offset)
+        /// A shape chosen from the gallery, being drawn by dragging out its box.
+        case draw(preset: ShapePreset, start: Offset, now: Offset)
     }
     private var _drag: Drag? = nil
     /// A finger has touched the canvas: the handles get a fingertip's reach (they are drawn the same).
@@ -307,6 +309,7 @@ final class SlideCanvasState: State<StatefulWidget> {
         stack.append(Positioned(left: 0, top: 0, right: 0, bottom: 0, child: Listener(
             onPointerDown: { [weak self] e in
                 guard let self else { return }
+                if self._eyedrop(e) { return }
                 if e.kind == .touch { self._touchSeen = true }
                 if e.buttons & kSecondaryMouseButton != 0, let menu = self._w.onContextMenu {
                     if self._w.active !== shape, !self.deck.isSelected(shape) { self.deck.selectWholeGroup(of: shape) }
@@ -432,18 +435,67 @@ final class SlideCanvasState: State<StatefulWidget> {
     }
 
     private var _marqueeRect: Rect? {
-        guard case .marquee(let a, let b)? = _drag else { return nil }
+        let ends: (Offset, Offset)
+        if case .marquee(let a, let b)? = _drag { ends = (a, b) } else if case .draw(_, let a, let b)? = _drag { ends = (a, b) } else { return nil }
+        let (a, b) = ends
         return Rect.fromLTRB(min(a.dx, b.dx), min(a.dy, b.dy), max(a.dx, b.dx), max(a.dy, b.dy))
     }
 
     // MARK: Pointer
 
     private var _marqueeBase: [SlideShape] = []
+    /// A finger held still on a shape (or the empty slide) opens the same menu a right click does: bumped at every press and
+    /// release, so a stale timer finds it changed.
+    private var _pressGeneration = 0
+    private static let longPressDelay = 0.5
+
+    private func _armLongPress(_ e: PointerDownEvent, on shape: SlideShape?) {
+        _pressGeneration &+= 1
+        guard e.kind == .touch, let menu = _w.onContextMenu else { return }
+        let generation = _pressGeneration, at = e.position
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.longPressDelay) { [weak self] in
+            guard let self, generation == self._pressGeneration else { return }
+            switch self._drag {
+            case .move(_, _, _, _, let moved)? where !moved: break
+            case .marquee(let a, let b)? where shape == nil && a == b: break
+            default: return
+            }
+            self._drag = nil
+            self._pendingToggle = false
+            self._guides = []
+            if let shape {
+                if !self.deck.isSelected(shape) { self.deck.selectWholeGroup(of: shape) }
+            } else {
+                self.deck.selectShapes([])
+            }
+            menu(at, shape)
+        }
+    }
     private var _pendingToggle = false
-    private var _additive: Bool { let m = _w.modifiers(); return m.contains(.shift) || m.contains(.control) || m.contains(.meta) }
+    private var _additive: Bool { let m = _w.modifiers(); return deck.selectMultiple || m.contains(.shift) || m.contains(.control) || m.contains(.meta) }
+
+    /// While the eyedropper is on, a click takes the colour under it for the fill or outline and does nothing else.
+    private func _eyedrop(_ e: PointerDownEvent) -> Bool {
+        guard let outline = deck.eyedropperFor else { return false }
+        deck.eyedropperFor = nil
+        deck.pickShapeColor(at: _slidePoint(e.position), outline: outline)
+        return true
+    }
+
+    /// A shape chosen from the gallery waits for the drag (or click) that places it.
+    private func _beginDraw(_ e: PointerDownEvent) -> Bool {
+        guard let preset = deck.pendingInsert, e.buttons & kSecondaryMouseButton == 0 else { return false }
+        FocusManager.instance.focusedNode?.unfocus()
+        _w.onEdit(nil)
+        let p = _slidePoint(e.position)
+        _drag = .draw(preset: preset, start: p, now: p)
+        return true
+    }
 
     private func _backdropDown(_ e: PointerDownEvent) {
+        if _eyedrop(e) { return }
         if e.kind == .touch { _touchSeen = true }
+        if _beginDraw(e) { return }
         if e.buttons & kSecondaryMouseButton != 0, let menu = _w.onContextMenu {
             FocusManager.instance.focusedNode?.unfocus()
             _w.onEdit(nil)
@@ -458,10 +510,13 @@ final class SlideCanvasState: State<StatefulWidget> {
         deck.selectShapes(_marqueeBase)
         let p = _slidePoint(e.position)
         _drag = .marquee(start: p, now: p)
+        _armLongPress(e, on: nil)
     }
 
     private func _shapeDown(_ shape: SlideShape, _ e: PointerDownEvent) {
+        if _eyedrop(e) { return }
         if e.kind == .touch { _touchSeen = true }
+        if _beginDraw(e) { return }
         Self._log("down on shape \(shape.id) at \(e.position)")
         if e.buttons & kSecondaryMouseButton != 0, let menu = _w.onContextMenu {
             if _w.active !== shape {
@@ -489,6 +544,7 @@ final class SlideCanvasState: State<StatefulWidget> {
         let frames = deck.selection.map { ($0, $0.frame) }
         _drag = .move(start: _slidePoint(e.position), frames: frames, shape: shape,
                       wasSelected: wasSelected, moved: false)
+        _armLongPress(e, on: shape)
     }
 
     private static let _debug = ProcessInfo.processInfo.environment["STARLING_SLIDES_DEBUG"] != nil
@@ -544,8 +600,13 @@ final class SlideCanvasState: State<StatefulWidget> {
             _drag = .move(start: start, frames: frames, shape: shape, wasSelected: wasSelected, moved: moved)
             deck.setFramesLive(frames.map { ($0.0, $0.1.shift(Offset(dx, dy))) })
         case .resize(let shape, let handle, let start, let frame):
-            deck.setFramesLive([(shape, _resized(shape, frame, handle: handle,
-                                                 delta: Offset(p.dx - start.dx, p.dy - start.dy)))])
+            let r = _resized(shape, frame, handle: handle, delta: Offset(p.dx - start.dx, p.dy - start.dy))
+            if shape.preset?.isLine == true {
+                let m = _w.modifiers()
+                deck.dragLineEnd(shape, handle: handle, frame: r, snap: !m.contains(.shift) && !m.contains(.alt))
+            } else {
+                deck.setFramesLive([(shape, r)])
+            }
         case .rotate(let shape, let startAngle, let startRotation):
             let c = shape.frame.center
             let angle = atan2(p.dy - c.dy, p.dx - c.dx) * 180 / .pi
@@ -561,11 +622,15 @@ final class SlideCanvasState: State<StatefulWidget> {
         case .marquee(let start, _):
             _drag = .marquee(start: start, now: p)
             setState {}
+        case .draw(let preset, let start, _):
+            _drag = .draw(preset: preset, start: start, now: p)
+            setState {}
         }
     }
 
     private func _pointerUp(_ e: PointerUpEvent) {
         Self._log("up \(e.position)")
+        _pressGeneration &+= 1
         _dragTo(e.position)
         guard let drag = _drag else { return }
         _drag = nil
@@ -595,6 +660,10 @@ final class SlideCanvasState: State<StatefulWidget> {
             }
         case .resize, .rotate:
             deck.endFrameEdit()
+        case .draw(let preset, let a, let b):
+            let m = _w.modifiers()
+            deck.placeInsert(preset, from: a, to: b, keepProportions: m.contains(.shift))
+            setState {}
         case .marquee(let a, let b):
             let box = Rect.fromLTRB(min(a.dx, b.dx), min(a.dy, b.dy), max(a.dx, b.dx), max(a.dy, b.dy))
             if box.width > 2 || box.height > 2 {

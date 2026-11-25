@@ -137,6 +137,82 @@ final class TransitionTests: XCTestCase {
         XCTAssertEqual(state.slides[0].transition.kind, .none)
     }
 
+    func testMoreEffectsAndAdvanceRoundTrip() throws {
+        let deck = SlidesSample.make()
+        deck.select(0)
+        deck.setTransition(.split, vertical: true, inward: true)
+        deck.select(1)
+        deck.setTransition(.zoom, duration: 0.7, zoomIn: false)
+        deck.setTransition(advanceOnClick: false, advanceAfter: .some(3.5))
+        deck.select(2)
+        deck.setTransition(.pull, direction: .right)
+        deck.select(3)
+        deck.setTransition(advanceOnClick: false, advanceAfter: .some(2))   // no effect, advance only, not on a click
+        let bytes = try Pptx.write(deck)
+        let (state, _, package) = try Pptx.read(bytes)
+        let t = state.slides.map(\.transition)
+        XCTAssertEqual(t[0].kind, .split); XCTAssertTrue(t[0].vertical); XCTAssertTrue(t[0].inward)
+        XCTAssertEqual(t[1].kind, .zoom); XCTAssertFalse(t[1].zoomIn)
+        XCTAssertEqual(t[1].duration, 0.7, accuracy: 0.001)
+        XCTAssertFalse(t[1].advanceOnClick); XCTAssertEqual(t[1].advanceAfter, 3.5)
+        XCTAssertEqual(t[2].kind, .pull); XCTAssertEqual(t[2].direction, .right)
+        XCTAssertTrue(t[2].advanceOnClick); XCTAssertNil(t[2].advanceAfter)
+        XCTAssertEqual(t[3].kind, .none); XCTAssertEqual(t[3].advanceAfter, 2)
+        XCTAssertFalse(t[3].advanceOnClick)
+        XCTAssertTrue(String(decoding: package.parts["ppt/slides/slide4.xml"]!, as: UTF8.self).contains("advClick=\"0\" advTm=\"2000\""))
+        let xml = String(decoding: package.parts["ppt/slides/slide2.xml"]!, as: UTF8.self)
+        XCTAssertTrue(xml.contains("p14:dur=\"700\""))
+        XCTAssertTrue(xml.contains("advClick=\"0\" advTm=\"3500\""))
+        XCTAssertTrue(xml.contains("<mc:Fallback>"))
+    }
+
+    func testAdvanceOnlyKeepsAnUnknownTransition() throws {
+        let deck = SlidesSample.make()
+        let bytes = try Pptx.write(deck)
+        var package = PptxPackage(try Zip.read(bytes))
+        var slide = String(decoding: package.parts["ppt/slides/slide1.xml"]!, as: UTF8.self)
+        slide = slide.replacingOccurrences(of: "</p:cSld>", with: "</p:cSld><p:transition spd=\"slow\"><p:vortex dir=\"r\"/></p:transition>")
+        package.parts["ppt/slides/slide1.xml"] = Data(slide.utf8)
+        let zipped = try Zip.write(package.parts.map { ZipEntry(name: $0.key, data: $0.value) })
+        let (state, theme, pkg) = try Pptx.read(zipped)
+        var slide0 = state.slides[0]
+        XCTAssertNotNil(slide0.transition.raw)
+        slide0.transition.advanceAfter = 4
+        var edited = state
+        edited.slides[0] = slide0
+        let out = PptxPackage(try Zip.read(try PptxWriter.write(edited, theme: theme, package: pkg)))
+        let xml = String(decoding: out.parts["ppt/slides/slide1.xml"]!, as: UTF8.self)
+        XCTAssertTrue(xml.contains("<p:vortex"))
+        XCTAssertTrue(xml.contains("advTm=\"4000\""))
+    }
+
+    /// For the PowerPoint check: a corpus deck with one transition of each kind, saved to STARLING_TRANSITION_OUT.
+    func testSaveTransitionDeck() throws {
+        guard let out = ProcessInfo.processInfo.environment["STARLING_TRANSITION_OUT"] else { throw XCTSkip("no output path") }
+        let path = "/data/corpus-cache/test/corpus/pptx/decks/layouts.pptx"
+        guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)) else { throw XCTSkip("no corpus cache") }
+        let (state, theme, pkg) = try Pptx.read(data)
+        let deck = DeckController()
+        deck.load(state, theme: theme, package: pkg)
+        var notes: [String] = []
+        func set(_ i: Int, _ label: String, _ body: () -> Void) {
+            deck.select(i); body(); notes.append("slide \(i + 1): \(label)")
+        }
+        set(0, "Fade, 0.5 s") { deck.setTransition(.fade, duration: 0.5) }
+        set(1, "Push from left, 1.5 s") { deck.setTransition(.push, direction: .right, duration: 1.5) }
+        set(2, "Wipe from bottom, 0.75 s, advance after 3 s as well as on click") {
+            deck.setTransition(.wipe, direction: .up, duration: 0.75); deck.setTransition(advanceAfter: .some(3)) }
+        set(3, "Cover from top, click does not advance, after 2 s") {
+            deck.setTransition(.cover, direction: .down); deck.setTransition(advanceOnClick: false, advanceAfter: .some(2)) }
+        set(4, "Uncover to the left") { deck.setTransition(.pull, direction: .left) }
+        set(5, "Split vertical in, 2 s") { deck.setTransition(.split, duration: 2, vertical: true, inward: true) }
+        set(6, "Zoom out") { deck.setTransition(.zoom, zoomIn: false) }
+        set(7, "No effect, advance after 1 s only (click does not advance)") {
+            deck.setTransition(.none); deck.setTransition(advanceOnClick: false, advanceAfter: .some(1)) }
+        try Pptx.write(deck).write(to: URL(fileURLWithPath: out))
+        try notes.joined(separator: "\n").write(toFile: out + ".txt", atomically: true, encoding: .utf8)
+    }
+
     func testApplyToAllAndUndo() {
         let deck = SlidesSample.make()
         deck.setTransition(.wipe, all: true)

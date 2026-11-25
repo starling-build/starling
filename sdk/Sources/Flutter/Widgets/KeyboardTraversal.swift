@@ -26,6 +26,94 @@ public final class KeyboardRegion: StatelessWidget {
     public override func build(_ context: any BuildContext) -> Widget { child }
 }
 
+/// Marks a document page as a keyboard stop: F6 (or Ctrl+F6) moves typing into it. `focus` puts the
+/// caret there (it requests the editor's focus).
+public final class KeyboardPage: StatefulWidget {
+    public let name: String
+    public let region: String
+    public let focus: () -> Void
+    public let child: Widget
+    public init(name: String = "Document", region: String = "page", focus: @escaping () -> Void, child: Widget) {
+        self.name = name; self.region = region; self.focus = focus; self.child = child
+        super.init(key: nil)
+    }
+    public override func createState() -> State<StatefulWidget> { _KeyboardPageState() }
+}
+
+final class _KeyboardPageState: State<StatefulWidget> {
+    private var _stop: KeyStop?
+    override func initState() {
+        super.initState()
+        let stop = KeyStop(region: (widget as! KeyboardPage).region, modal: false)
+        stop.handsOver = true
+        stop.onFocus = { [weak self] on in if on, let w = self?.widget as? KeyboardPage { w.focus() } }
+        stop.label = { [weak self] in (self?.widget as? KeyboardPage)?.name }
+        stop.origin = { [weak self] in
+            guard let self, self.mounted, let box = self.context?.findRenderObject() as? RenderBox,
+                  box.attached, box.hasSize else { return nil }
+            return box.localToGlobal(Offset(0, 0))
+        }
+        _stop = stop
+        KeyboardTraversal.shared.register(stop)
+    }
+    override func dispose() {
+        if let s = _stop { KeyboardTraversal.shared.unregister(s) }
+        super.dispose()
+    }
+    override func build(_ context: any BuildContext) -> Widget { (widget as! KeyboardPage).child }
+}
+
+/// A row of a list (a name, a slide tile, a page of a menu): the keyboard can walk it, up and down
+/// arrows (and Tab) move to the next row, Enter does what a click does. A ring marks the row.
+public final class KeyboardRow: StatefulWidget {
+    public let label: String
+    public let activate: () -> Void
+    public let child: Widget
+    public init(label: String, activate: @escaping () -> Void, child: Widget) {
+        self.label = label; self.activate = activate; self.child = child
+        super.init(key: nil)
+    }
+    public override func createState() -> State<StatefulWidget> { _KeyboardRowState() }
+}
+
+final class _KeyboardRowState: State<StatefulWidget> {
+    private var _stop: KeyStop?
+    private var _ring = false
+    override func initState() {
+        super.initState()
+        let r = KeyboardTraversal.regionName(context!)
+        let stop = KeyStop(region: r.name, modal: r.modal)
+        stop.activate = { [weak self] in (self?.widget as? KeyboardRow)?.activate() }
+        stop.label = { [weak self] in (self?.widget as? KeyboardRow)?.label }
+        stop.onFocus = { [weak self] on in
+            guard let self, self.mounted else { return }
+            self.setState { self._ring = on }
+        }
+        stop.onArrow = { dx, dy in
+            let d = dy != 0 ? dy : dx
+            if d == 0 { return false }
+            KeyboardTraversal.shared.move(reverse: d < 0); return true
+        }
+        stop.origin = { [weak self] in
+            guard let self, self.mounted, let box = self.context?.findRenderObject() as? RenderBox,
+                  box.attached, box.hasSize else { return nil }
+            return box.localToGlobal(Offset(0, 0))
+        }
+        _stop = stop
+        KeyboardTraversal.shared.register(stop)
+    }
+    override func dispose() {
+        if let s = _stop { KeyboardTraversal.shared.unregister(s) }
+        super.dispose()
+    }
+    override func build(_ context: any BuildContext) -> Widget {
+        let child = (widget as! KeyboardRow).child
+        guard _ring else { return child }
+        return Stack(clipBehavior: .none, children: [child, Positioned(left: 0, top: 0, right: 0, bottom: 0, child: IgnorePointer(child: DecoratedBox(
+            decoration: BoxDecoration(border: Border.all(color: Color(0xFF0F6CBD), width: 2)))))])
+    }
+}
+
 /// One control the keyboard can reach.
 public final class KeyStop {
     public let region: String
@@ -42,6 +130,11 @@ public final class KeyStop {
     public var origin: () -> Offset? = { nil }
     /// What it is called (a key tip is taken from its letters); nil when it has no name.
     public var label: () -> String? = { nil }
+    /// An arrow key while this control holds the ring (dx, dy each -1, 0 or 1); true when it used the key
+    /// (a slider moves its thumb). Unset, the arrows walk on like Tab.
+    /// True for a document page: F6 puts typing there and the ring steps aside, so Tab and the arrows stay the editor's.
+    public var handsOver = false
+    public var onArrow: ((Int, Int) -> Bool)?
 
     public init(region: String, modal: Bool) {
         self.region = region
@@ -178,6 +271,12 @@ public final class KeyboardTraversal {
     }
 
     private func _focus(_ stop: KeyStop?) {
+        if let stop, stop.handsOver {
+            focused?.onFocus(false); focused = nil
+            _currentRegion = stop.region
+            stop.onFocus(true)
+            return
+        }
         if focused === stop { return }
         if focused == nil, stop != nil { _saved = FocusManager.instance.focusedNode }
         focused?.onFocus(false)
@@ -245,7 +344,9 @@ public final class KeyboardTraversal {
             guard focused != nil else { return false }
             leave(); return true
         case 0xFF51, 0xFF53, 0xFF52, 0xFF54:             // arrows walk the ribbon like Tab
-            guard let f = focused, !f.modal else { return false }
+            guard let f = focused else { return false }
+            if f.modal && f.isCurrent() { return false }     // a text box in a dialog keeps its caret keys
+            if let a = f.onArrow, a(l == 0xFF51 ? -1 : l == 0xFF53 ? 1 : 0, l == 0xFF52 ? -1 : l == 0xFF54 ? 1 : 0) { return true }
             move(reverse: l == 0xFF51 || l == 0xFF52); return true
         default:
             if focused != nil, key.character?.isEmpty == false { _focus(nil) }   // typing goes to the editor

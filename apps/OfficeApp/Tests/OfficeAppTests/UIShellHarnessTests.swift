@@ -21,6 +21,18 @@ final class UIShellHarnessTests: XCTestCase {
         WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: home, title: "Test"), size: Size(1280, 800))
     }
 
+    /// The tester's view outlives one tester: a later one that asks for another size gets it (it used to keep the first one's,
+    /// so a test that needed a wide window ran at whatever width the first test of the process had).
+    func testATesterTakesTheSizeItAsksForWhateverAnEarlierOneAsked() {
+        let narrow = WidgetTester(SizedBox(width: 10, height: 10, child: nil), size: Size(640, 480))
+        XCTAssertEqual(narrow.renderView.configuration.logicalConstraints.maxWidth, 640)
+        narrow.dispose()
+        let wide = WidgetTester(SizedBox(width: 10, height: 10, child: nil), size: Size(1500, 800))
+        XCTAssertEqual(wide.renderView.configuration.logicalConstraints.maxWidth, 1500)
+        XCTAssertEqual(wide.renderView.configuration.logicalConstraints.maxHeight, 800)
+        wide.dispose()
+    }
+
     /// W-RV-3: a click on a check box control flips it; a click beside it does not.
     func testClickingACheckBoxControlFlipsIt() {
         var p = RichParagraph(text: "Agree \u{2610} yes")
@@ -35,11 +47,17 @@ final class UIShellHarnessTests: XCTestCase {
         func state() -> Bool? { controller.document.paragraphs[0].checkBoxes.first?.checked }
         XCTAssertEqual(state(), false)
         // Far right of the line: nothing there.
-        ui.tap(at: r.localToGlobal(Offset(500, 34)))
+        // (A mouse: a touch tap on the line raises the caret's knob, and where the text ends depends on the platform's font, so on
+        // macOS the knob sat over the glyph and took the next taps.)
+        ui.click(at: r.localToGlobal(Offset(500, 34)), kind: .mouse)
         XCTAssertEqual(state(), false)
         // Walk along the line until the glyph is hit.
         var x = 24.0
-        while x < 200, state() == false { ui.tap(at: r.localToGlobal(Offset(x, 34))); x += 6 }
+        while x < 200, state() == false {
+            // (and down the line's height, which is the platform font's: 34 was the middle of it on Linux)
+            for y in stride(from: 16.0, through: 40, by: 6) where state() == false { ui.click(at: r.localToGlobal(Offset(x, y)), kind: .mouse) }
+            x += 2
+        }
         XCTAssertEqual(state(), true, "a click on the glyph flips the box")
         XCTAssertEqual(controller.document.paragraphs[0].text, "Agree \u{2612} yes")
         controller.undo()
@@ -73,6 +91,44 @@ final class UIShellHarnessTests: XCTestCase {
         let r2 = try XCTUnwrap(rect)
         ui.click(at: box.localToGlobal(r2.center), kind: .mouse)
         XCTAssertEqual(entered, 1, "a click on the selected box enters its text")
+    }
+
+    /// A finger has no Shift: with Select Multiple on, a touch tap on another floating shape picks it along with the selected one (a
+    /// second tap drops it); with it off, the same tap just selects that shape.
+    func testSelectMultipleLetsAFingerPickShapesToGroup() throws {
+        let controller = RichDocumentController(document: RichDocument(paragraphs: [RichParagraph(text: "Some body text before the shapes.")]))
+        for (n, preset) in ["rect", "ellipse"].enumerated() {
+            controller.pendingShape = { x, y, w, h in TextBoxInsert.makeShape(preset: preset, width: w, height: h, number: n + 1, page: (x, y)) }
+            XCTAssertTrue(controller.placePendingShape(x: 60 + Double(n) * 220, y: 140, width: 120, height: 80, at: RichPosition(paragraph: 0, offset: 0)))
+        }
+        let shapes = controller.document.paragraphs.indices.filter { controller.document.paragraphs[$0].image?.float != nil }
+        XCTAssertEqual(shapes.count, 2)
+        var rect: Rect?
+        let ui = app(SizedBox(width: 800, height: 600, child: RichEditable(controller: controller, onBoxRect: { rect = $0 })))
+        func settle() { for _ in 0 ..< 3 { ui.pump(); RunLoop.main.run(until: Date().addingTimeInterval(0.05)) } }
+        settle()
+        let editor = try XCTUnwrap(ui.elements().first { $0.widget is RichEditable })
+        let box = try XCTUnwrap(editor.findRenderObject() as? RenderBox)
+        func centre(of index: Int) throws -> Offset {
+            controller.selectImage(at: index); settle()
+            return box.localToGlobal(try XCTUnwrap(rect, "shape \(index) is selected and drawn").center)
+        }
+        let second = try centre(of: shapes[1])
+        let first = try centre(of: shapes[0])
+        XCTAssertEqual(controller.selectedImageIndex, shapes[0])
+        // Off: a tap on the other shape selects it, nothing is picked.
+        ui.tap(at: second, kind: .touch); settle()
+        XCTAssertEqual(controller.selectedImageIndex, shapes[1])
+        XCTAssertEqual(controller.pickedShapeIndexes, [shapes[1]])
+        controller.selectImage(at: shapes[0]); settle()
+        // On: the same tap picks it along with the selected one; another tap drops it again.
+        controller.setSelectMultiple(true)
+        ui.tap(at: second, kind: .touch); settle()
+        XCTAssertEqual(controller.selectedImageIndex, shapes[0], "the first stays the selected one")
+        XCTAssertEqual(controller.pickedShapeIndexes, shapes)
+        ui.tap(at: second, kind: .touch); settle()
+        XCTAssertEqual(controller.pickedShapeIndexes, [shapes[0]])
+        _ = first
     }
 
     func testTheSlidesShellBuildsAndItsTabsTap() {
@@ -172,9 +228,58 @@ final class UIShellHarnessTests: XCTestCase {
         XCTAssertNotEqual(c.tableLook(of: t) & TableLook.noRowBands, 0)
     }
 
+    /// W-PA-4: Home's Borders menu and Shading colour reach the controller, for a paragraph outside any table.
+    func testHomeParagraphBordersAndShadingReachTheController() {
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(1280, 800))
+        let c = ui.state(OfficeShellState.self)!.session.controller
+        ui.pump()
+        XCTAssertTrue(ui.tap(text: "Borders"))
+        XCTAssertTrue(ui.tap(text: "Bottom Border"))
+        XCTAssertNotNil(c.document.paragraphs[0].style.borders?.bottom)
+        XCTAssertNil(c.document.paragraphs[0].style.borders?.top)
+        XCTAssertTrue(ui.tap(text: "Borders"))
+        XCTAssertTrue(ui.tap(text: "No Border"))
+        XCTAssertNil(c.document.paragraphs[0].style.borders)
+    }
+
+    /// W-TB-8: Select > Table Properties opens the dialog; Row tab, "Allow row to break" off, OK reaches the controller.
+    func testTablePropertiesDialogReachesTheController() {
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(1280, 800))
+        let c = ui.state(OfficeShellState.self)!.session.controller
+        c.insertTable(rows: 2, columns: 2)
+        ui.pump()
+        XCTAssertTrue(ui.tap(text: "Table Layout"))
+        XCTAssertTrue(ui.tap(text: "Select"))
+        XCTAssertTrue(ui.tap(text: "Table Properties…"))
+        XCTAssertTrue(ui.tap(text: "Row"))
+        XCTAssertTrue(ui.tap(text: "Allow row to break across pages"))
+        XCTAssertTrue(ui.tap(text: "OK"))
+        XCTAssertTrue(c.currentTableStyle?.rowsCantSplit.contains(c.currentCell?.row ?? 0) == true)
+    }
+
+    /// Draw Table, Eraser and Split Table sit on the Table Layout tab at 1280 wide: the groups they live in stay on screen (the later groups were already past 1280 before them: Delete Table at 1509 with and without).
+    func testTableLayoutTabFitsAt1280WithDrawAndEraser() {
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(1280, 800))
+        let c = ui.state(OfficeShellState.self)!.session.controller
+        c.insertTable(rows: 2, columns: 2)
+        ui.pump()
+        XCTAssertTrue(ui.tap(text: "Table Layout"))
+        for label in ["Select", "Merge", "Cell Alignment", "Table Alignment", "Table Width", "Cell Margins", "AutoFit", "Row May Break",
+                      "Repeat Header: Off", "Delete Table", "Row Height", "Indent", "Distribute Columns", "Borders", "Line Style", "Line Width",
+                      "Header Row", "Insert Above", "Delete Column"] {
+            guard let at = ui.centre(ofText: label) else { XCTFail("\(label) missing"); continue }
+            XCTAssertTrue(at.dx > 0 && at.dx < 1270, "\(label) at x=\(at.dx) is off the tab")
+        }
+        XCTAssertTrue(ui.tap(text: "Select"))
+        XCTAssertTrue(ui.tap(text: "Eraser"))
+        XCTAssertEqual(ui.state(OfficeShellState.self)!.session.tableTool, "erase")
+    }
+
     /// W-TB-2: the Table Layout tab's Borders and Shading menus reach the controller.
     func testTableLayoutBordersAndShadingReachTheController() {
-        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(1280, 800))
+        // (2000 wide: the Table Layout ribbon is wider than the 1240 a 1280 window gives it on macOS, where the UI font is wider than
+        // on Linux, so the Borders & Shading group sat past the viewport's edge and a tap on it hit the page.)
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(2000, 800))
         let c = ui.state(OfficeShellState.self)!.session.controller
         c.insertTable(rows: 2, columns: 2)
         ui.pump()
@@ -193,7 +298,7 @@ final class UIShellHarnessTests: XCTestCase {
         ui.pump()
         XCTAssertTrue(ui.tap(text: "Table Layout"))
         XCTAssertTrue(ui.tap(text: "Cell Alignment"))
-        XCTAssertTrue(ui.tap(text: "Align Middle"))
+        XCTAssertTrue(ui.tap(text: "Align Center Left"))
         XCTAssertEqual(c.currentCell?.verticalAlign, "center")
         XCTAssertTrue(ui.tap(text: "Table Alignment"))
         XCTAssertTrue(ui.tap(text: "Table Center"))
@@ -201,6 +306,7 @@ final class UIShellHarnessTests: XCTestCase {
         XCTAssertTrue(ui.tap(text: "Row May Break"))
         XCTAssertEqual(c.currentTableStyle?.rowsCantSplit, [0])
         XCTAssertTrue(ui.tap(text: "AutoFit"))
+        XCTAssertTrue(ui.tap(text: "Fixed Column Width"))
         XCTAssertEqual(c.currentTableStyle?.fixedLayout, true)
     }
 
@@ -328,13 +434,37 @@ final class SheetsTitleBarUndoHarnessTests: XCTestCase {
         c.insertTable(rows: 2, columns: 2)
         ui.pump()
         XCTAssertTrue(ui.tap(text: "Table Layout"))
-        XCTAssertTrue(ui.tap(text: "Split Cell"))
+        XCTAssertTrue(ui.tap(text: "Merge"))
+        XCTAssertTrue(ui.tap(text: "Split Cell…"))
         XCTAssertTrue(ui.has(text: "Number of columns"))
         XCTAssertTrue(ui.tap(text: "OK"))                  // defaults: 2 columns, 1 row
         XCTAssertEqual(c.document.columnCount(of: c.currentCell!.table), 3)
         XCTAssertEqual(c.document.paragraphs.compactMap(\.cell).count, 5)
         c.undo()
         XCTAssertEqual(c.document.paragraphs.compactMap(\.cell).count, 4)
+    }
+
+    /// W-TB-9: Convert Text to Table and Convert Table to Text reach the controller.
+    func testConvertTextAndTableDialogsReachTheController() {
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(1280, 800))
+        let c = ui.state(OfficeShellState.self)!.session.controller
+        c.insertText("a\tb")
+        c.moveTo(RichPosition(paragraph: 0, offset: 0), extend: false)
+        c.moveTo(RichPosition(paragraph: 0, offset: 3), extend: true)
+        ui.pump()
+        XCTAssertTrue(ui.tap(text: "Insert"))
+        XCTAssertTrue(ui.tap(text: "Table"))
+        XCTAssertTrue(ui.tap(text: "Convert Text to Table…"))
+        XCTAssertTrue(ui.has(text: "Separate text at"))
+        XCTAssertTrue(ui.tap(text: "OK"))                   // tabs by default
+        XCTAssertEqual(c.document.paragraphs.filter { $0.cell != nil }.map(\.text), ["a", "b"])
+        XCTAssertTrue(ui.tap(text: "Table Layout"))
+        XCTAssertTrue(ui.tap(text: "Select"))
+        XCTAssertTrue(ui.tap(text: "Convert Table to Text…"))
+        XCTAssertTrue(ui.has(text: "Separate text with"))
+        XCTAssertTrue(ui.tap(text: "OK"))
+        XCTAssertNil(c.document.paragraphs.first { $0.cell != nil })
+        XCTAssertEqual(c.document.paragraphs.first?.text, "a\tb")
     }
 
     /// W-TB-1: the Select menu and the Insert Table dialog reach the controller.
@@ -359,7 +489,8 @@ final class SheetsTitleBarUndoHarnessTests: XCTestCase {
 
     /// W-TB-2: the Borders and Shading dialog applies sides, line and shading as one undo.
     func testBordersAndShadingDialogReachesTheController() {
-        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(1280, 800))
+        // (2000 wide: see testTableLayoutBordersAndShadingReachTheController.)
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(2000, 800))
         let c = ui.state(OfficeShellState.self)!.session.controller
         c.insertTable(rows: 2, columns: 2)
         ui.pump()

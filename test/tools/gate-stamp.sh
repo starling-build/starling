@@ -14,5 +14,5 @@ esac
 [ -r "${2:-}" ] || { echo "gate-stamp: no binary $2" >&2; exit 2; }
 S=$(cd "$ROOT" && cat $F 2>/dev/null | sha1sum | cut -c1-40)
 # settings: the env knobs a render depends on (a base drawn without the gate's Windows fonts differed, 2026-11-25)
-E="fonts=${OFFICE_WORD_FONTS:-} src=${OFFICE_FONT_SOURCE:-} nopairs=${PDFDIFF_NO_PAIRS:-}"
+E="fonts=${OFFICE_WORD_FONTS:-} src=${OFFICE_FONT_SOURCE:-} nopairs=${PDFDIFF_NO_PAIRS:-} now=${OFFICE_NOW:-}"
 echo "bin=$(sha1sum < "$2" | cut -c1-40) scorer=$S $E"

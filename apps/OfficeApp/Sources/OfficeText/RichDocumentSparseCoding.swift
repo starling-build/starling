@@ -51,7 +51,7 @@ extension RichParagraphStyle {
         case listFirstLine
         case heading
         case named
-        case pageBreakBefore
+        case pageBreakBefore, contentsStart, contentsEnd
         case pageBreakInline
         case columnBreak
         case breakRunPropertiesXML
@@ -115,6 +115,8 @@ extension RichParagraphStyle {
         heading = try c.decodeIfPresent(Int.self, forKey: .heading) ?? d.heading
         named = try c.decodeIfPresent(String.self, forKey: .named) ?? d.named
         pageBreakBefore = try c.decodeIfPresent(Bool.self, forKey: .pageBreakBefore) ?? d.pageBreakBefore
+        contentsStart = try c.decodeIfPresent(String.self, forKey: .contentsStart) ?? d.contentsStart
+        contentsEnd = try c.decodeIfPresent(Bool.self, forKey: .contentsEnd) ?? d.contentsEnd
         pageBreakInline = try c.decodeIfPresent(Bool.self, forKey: .pageBreakInline) ?? d.pageBreakInline
         columnBreak = try c.decodeIfPresent(Bool.self, forKey: .columnBreak) ?? d.columnBreak
         breakRunPropertiesXML = try c.decodeIfPresent(String.self, forKey: .breakRunPropertiesXML) ?? d.breakRunPropertiesXML
@@ -177,6 +179,8 @@ extension RichParagraphStyle {
         if heading != d.heading, let v = heading { try c.encode(v, forKey: .heading) }
         if named != d.named, let v = named { try c.encode(v, forKey: .named) }
         if pageBreakBefore != d.pageBreakBefore { try c.encode(pageBreakBefore, forKey: .pageBreakBefore) }
+        if contentsStart != d.contentsStart { try c.encode(contentsStart, forKey: .contentsStart) }
+        if contentsEnd != d.contentsEnd { try c.encode(contentsEnd, forKey: .contentsEnd) }
         if pageBreakInline != d.pageBreakInline { try c.encode(pageBreakInline, forKey: .pageBreakInline) }
         if columnBreak != d.columnBreak { try c.encode(columnBreak, forKey: .columnBreak) }
         if breakRunPropertiesXML != d.breakRunPropertiesXML, let v = breakRunPropertiesXML { try c.encode(v, forKey: .breakRunPropertiesXML) }
@@ -240,6 +244,7 @@ extension CharStyle {
         case ruby
         case fieldCodeChanged
         case fieldResult
+        case linkField, linkFieldID, fieldCodeID, linkKeepsLook, linkHistory
     }
 
     public init(from decoder: Decoder) throws {
@@ -283,6 +288,11 @@ extension CharStyle {
         ruby = try c.decodeIfPresent(RubyText.self, forKey: .ruby) ?? d.ruby
         fieldCodeChanged = try c.decodeIfPresent(Bool.self, forKey: .fieldCodeChanged) ?? d.fieldCodeChanged
         fieldResult = try c.decodeIfPresent(Int.self, forKey: .fieldResult) ?? d.fieldResult
+        linkField = try c.decodeIfPresent(String.self, forKey: .linkField) ?? d.linkField
+        linkFieldID = try c.decodeIfPresent(Int.self, forKey: .linkFieldID) ?? d.linkFieldID
+        fieldCodeID = try c.decodeIfPresent(Int.self, forKey: .fieldCodeID) ?? d.fieldCodeID
+        linkKeepsLook = try c.decodeIfPresent(Bool.self, forKey: .linkKeepsLook) ?? d.linkKeepsLook
+        linkHistory = try c.decodeIfPresent(Bool.self, forKey: .linkHistory) ?? d.linkHistory
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -325,6 +335,11 @@ extension CharStyle {
         if ruby != d.ruby, let v = ruby { try c.encode(v, forKey: .ruby) }
         if fieldCodeChanged != d.fieldCodeChanged { try c.encode(fieldCodeChanged, forKey: .fieldCodeChanged) }
         if fieldResult != d.fieldResult { try c.encode(fieldResult, forKey: .fieldResult) }
+        if linkField != d.linkField, let v = linkField { try c.encode(v, forKey: .linkField) }
+        if linkFieldID != d.linkFieldID { try c.encode(linkFieldID, forKey: .linkFieldID) }
+        if fieldCodeID != d.fieldCodeID { try c.encode(fieldCodeID, forKey: .fieldCodeID) }
+        if linkKeepsLook != d.linkKeepsLook { try c.encode(linkKeepsLook, forKey: .linkKeepsLook) }
+        if linkHistory != d.linkHistory { try c.encode(linkHistory, forKey: .linkHistory) }
     }
 }
 
@@ -366,7 +381,7 @@ extension CharShadow {
 
 extension RichDocument {
     enum CodingKeys: String, CodingKey {
-        case paragraphs, header, footer, tableColumns, tableStyles, styles, listFormats, listCounterOf, listRestarts, keptParts, keptCharacterStyles, keptCharacterStyleIds, keptTableStyles, tableStyleIds, tableLooks, tableCondFills, keptHeaderFooters, keptTables, keptCompat, defaultTabStop, pageBordersXML, docGridXML, lineGridPitch, characterGridSpace, sectionLeadXML, sectionTypeXML, columnsXML, columnsKeptUnder, gutterTwips, marginSettingsXML, keptSettings, sectionTailXML, defaultLangXML, themeFontLangXML, characterSpacingControl, usesEastAsianLayout, indentNotNumberingTabStop, kernsPunctuation, balancesSpaceWidth, adjustsLineHeightInTable, compatibilityMode, hangsHalf, flipsMirrorIndents, htmlAutoSpacing, divMargins, backgroundXML, backgroundRels, styleAliases, fileFonts, readFromFile, fromBinaryDoc, addsParagraphSpacing, titlePage, headerFooters, footnotes, footnoteSeparator, endnotes, endnoteSeparator, pageNumberStart, pageNumberFormat, evenAndOddHeaders, keptPartTypes
+        case keptNumberingXML, listFormatsSnapshot, listRestartsSnapshot, keptStylesXML, styleFileIds, styleSource, styleSnapshot, paragraphs, header, footer, tableColumns, tableStyles, styles, listFormats, listCounterOf, listRestarts, keptParts, keptCharacterStyles, keptCharacterStyleIds, keptTableStyles, tableStyleIds, tableLooks, tableCondFills, keptHeaderFooters, keptTables, keptCompat, defaultTabStop, pageBordersXML, docGridXML, lineGridPitch, characterGridSpace, sectionLeadXML, sectionTypeXML, columnsXML, columnsKeptUnder, gutterTwips, marginSettingsXML, keptSettings, sectionTailXML, defaultLangXML, themeFontLangXML, characterSpacingControl, usesEastAsianLayout, indentNotNumberingTabStop, kernsPunctuation, balancesSpaceWidth, adjustsLineHeightInTable, compatibilityMode, hangsHalf, flipsMirrorIndents, htmlAutoSpacing, divMargins, backgroundXML, backgroundRels, styleAliases, fileFonts, readFromFile, fromBinaryDoc, addsParagraphSpacing, titlePage, headerFooters, footnotes, footnoteSeparator, endnotes, endnoteSeparator, pageNumberStart, pageNumberFormat, evenAndOddHeaders, keptPartTypes
     }
 
     public init(from decoder: Decoder) throws {
@@ -380,6 +395,9 @@ extension RichDocument {
         listFormats = try c.decodeIfPresent([String: [Int: ListLevelFormat]].self, forKey: .listFormats) ?? [:]
         listCounterOf = try c.decodeIfPresent([String: String].self, forKey: .listCounterOf) ?? [:]
         listRestarts = try c.decodeIfPresent([String: [Int: Int]].self, forKey: .listRestarts) ?? [:]
+        keptNumberingXML = try c.decodeIfPresent(String.self, forKey: .keptNumberingXML)
+        listFormatsSnapshot = try c.decodeIfPresent([String: [Int: ListLevelFormat]].self, forKey: .listFormatsSnapshot) ?? [:]
+        listRestartsSnapshot = try c.decodeIfPresent([String: [Int: Int]].self, forKey: .listRestartsSnapshot) ?? [:]
         keptParts = try c.decodeIfPresent([String: Data].self, forKey: .keptParts) ?? [:]
         keptCharacterStyles = try c.decodeIfPresent([String: String].self, forKey: .keptCharacterStyles) ?? [:]
         keptTableStyles = try c.decodeIfPresent([String: String].self, forKey: .keptTableStyles) ?? [:]
@@ -419,6 +437,10 @@ extension RichDocument {
         backgroundXML = try c.decodeIfPresent(String.self, forKey: .backgroundXML)
         backgroundRels = try c.decodeIfPresent([KeptRel].self, forKey: .backgroundRels) ?? []
         styleAliases = try c.decodeIfPresent([String: String].self, forKey: .styleAliases) ?? [:]
+        keptStylesXML = try c.decodeIfPresent(String.self, forKey: .keptStylesXML)
+        styleFileIds = try c.decodeIfPresent([String: String].self, forKey: .styleFileIds) ?? [:]
+        styleSource = try c.decodeIfPresent([String: String].self, forKey: .styleSource) ?? [:]
+        styleSnapshot = try c.decodeIfPresent([RichNamedStyle].self, forKey: .styleSnapshot) ?? []
         fileFonts = try c.decodeIfPresent(Set<String>.self, forKey: .fileFonts) ?? []
         readFromFile = try c.decodeIfPresent(Bool.self, forKey: .readFromFile) ?? false
         fromBinaryDoc = try c.decodeIfPresent(Bool.self, forKey: .fromBinaryDoc) ?? false
@@ -446,6 +468,11 @@ extension RichDocument {
         try c.encode(listFormats, forKey: .listFormats)
         try c.encode(listCounterOf, forKey: .listCounterOf)
         try c.encode(listRestarts, forKey: .listRestarts)
+        try c.encodeIfPresent(keptNumberingXML, forKey: .keptNumberingXML)
+        if keptNumberingXML != nil {
+            try c.encode(listFormatsSnapshot, forKey: .listFormatsSnapshot)
+            try c.encode(listRestartsSnapshot, forKey: .listRestartsSnapshot)
+        }
         try c.encode(keptParts, forKey: .keptParts)
         try c.encode(keptCharacterStyles, forKey: .keptCharacterStyles)
         if !keptTableStyles.isEmpty { try c.encode(keptTableStyles, forKey: .keptTableStyles) }
@@ -485,6 +512,10 @@ extension RichDocument {
         try c.encodeIfPresent(backgroundXML, forKey: .backgroundXML)
         try c.encode(backgroundRels, forKey: .backgroundRels)
         try c.encode(styleAliases, forKey: .styleAliases)
+        try c.encodeIfPresent(keptStylesXML, forKey: .keptStylesXML)
+        if !styleFileIds.isEmpty { try c.encode(styleFileIds, forKey: .styleFileIds) }
+        if !styleSource.isEmpty { try c.encode(styleSource, forKey: .styleSource) }
+        if !styleSnapshot.isEmpty { try c.encode(styleSnapshot, forKey: .styleSnapshot) }
         try c.encode(fileFonts, forKey: .fileFonts)
         try c.encode(readFromFile, forKey: .readFromFile)
         try c.encode(fromBinaryDoc, forKey: .fromBinaryDoc)

@@ -2282,7 +2282,7 @@ extension RichLayout {
             defer { at += run.length }
             guard run.length > 0 else { continue }
             let st = run.style
-            let under = st.underline || ((st.link != nil || (named?.char.underline ?? false)) && !st.off.contains(.underline))
+            let under = st.underline || (((st.link != nil && st.linkField == nil) || (named?.char.underline ?? false)) && !st.off.contains(.underline))
             let strike = st.strikethrough || ((named?.char.strikethrough ?? false) && !st.off.contains(.strikethrough))
             guard under || strike else { continue }
             let bold = st.bold || ((named?.char.bold ?? false) && !st.off.contains(.bold))

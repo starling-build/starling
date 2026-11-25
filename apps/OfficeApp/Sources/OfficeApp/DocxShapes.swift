@@ -366,6 +366,9 @@ extension DocxFormat {
                 }
                 para.inlineImages = inlineImages
             }
+            para.style.contentsStart = notes.contentsStart
+            para.style.contentsEnd = notes.contentsEnd
+            notes.contentsStart = nil; notes.contentsEnd = false
             para.style.positionalTabs = positionalTabs
             para.style.clearsFirstLine = clearsFirstLine
             clearsFirstLine = false
@@ -1349,6 +1352,7 @@ extension DocxFormat {
             }
             runs.append(Run(length: s.utf16.count, style: stamped(cs)))
         }
+        var hyperlinkHistory = false       // the enclosing w:hyperlink's w:history
         var hyperlinkTip: String? = nil    // the enclosing w:hyperlink's w:tooltip
         var pendingCheckbox: Bool? = nil   // a FORMCHECKBOX field's state, from its begin
         var pendingDropdown: String? = nil // a FORMDROPDOWN field's chosen entry, from its begin
@@ -1392,6 +1396,8 @@ extension DocxFormat {
             }
             var cs = cellChar
             cs.link = link
+            cs.linkKeepsLook = link != nil
+            cs.linkHistory = link != nil && hyperlinkHistory
             cs.linkTip = link == nil ? nil : hyperlinkTip
             cs.revision = revision
             cs.comments = notes.openComments
@@ -1436,11 +1442,18 @@ extension DocxFormat {
                         pageResultInCodeLook = true
                         cs.fieldResult = id
                         cs.link = link
+                        cs.linkKeepsLook = link != nil
                         cs.revision = revision
                         cs.comments = comments
                     }
                     cs.field = instr; notes.fieldShown = true
                 }
+            }
+            // A HYPERLINK field's result is the link's text, whatever fields sit inside it (and across paragraphs).
+            if cs.link == nil, let h = notes.fields.last(where: { $0.result && Self._isHyperlinkField($0.instr) }),
+               let t = Self._hyperlinkFieldTarget(h.instr) {
+                cs.link = t.target; cs.linkTip = t.tip; cs.linkKeepsLook = true
+                cs.linkField = h.instr.trimmingWhitespace(newlines: true); cs.linkFieldID = h.id
             }
             // (Its style reference would name an id the save may rename.)
             runPropertiesXML = r.first("w:rPr").flatMap { $0.first("w:rStyle") == nil && !$0.children.isEmpty ? PptxXML.serialize($0) : nil }
@@ -1488,6 +1501,9 @@ extension DocxFormat {
                 var styleId: String? = nil
                 if let id = rPr.first("w:rStyle")?["w:val"], let chain = notes.charStyleChains[id], !(inContents && id.lowercased() == "hyperlink") {
                     for styled in chain { cs = _charStyle(styled, base: cs, complexText: complex, complexSize: complexSize, thaiStyleSize: thaiStyleSize, indicOnly: indicOnly, rtlLettersOnly: rtlLettersOnly) }
+                    styleId = id
+                } else if inContents, let id = rPr.first("w:rStyle")?["w:val"], notes.charStyleChains[id] != nil {
+                    // (The entry is drawn in the paragraph's own look, but the file's style name stays for the save.)
                     styleId = id
                 }
                 cs = _charStyle(rPr, base: cs, complexText: complex, complexSize: complexSize, thaiStyleSize: thaiStyleSize, indicOnly: indicOnly, rtlLettersOnly: rtlLettersOnly)
@@ -1600,6 +1616,7 @@ extension DocxFormat {
                                              properties: child.attrs.filter { $0.key == "w:fldLock" || $0.key == "w:dirty" })); notes.fieldShown = false
                     case "separate": if !notes.fields.isEmpty { notes.fields[notes.fields.count - 1].result = true }
                     case "end":
+                        if notes.fields.count == 1, let f = notes.fields.last, f.instr.uppercased().trimmingWhitespace(newlines: true).hasPrefix("TOC") { notes.contentsEnd = true }
                         if notes.fields.count >= 2, let f = notes.fields.last {
                             let word = f.instr.trimmingWhitespace(newlines: true).uppercased().split(separator: " ").first.map(String.init) ?? ""
                             if word == "PAGE" || word == "NUMPAGES" { notes.nestedPageFields.insert(word) }
@@ -1695,6 +1712,9 @@ extension DocxFormat {
                         addText(child.text, cs)
                     } else if let f = notes.fields.last, !f.result {
                         notes.fields[notes.fields.count - 1].instr += child.text
+                        if notes.fields.count == 1, notes.fields[0].instr.uppercased().trimmingWhitespace(newlines: true).hasPrefix("TOC") {
+                            notes.contentsStart = notes.fields[0].instr.trimmingWhitespace(newlines: true)
+                        }
                         if notes.fieldCodeStyle[f.id] == nil, !child.text.trimmingWhitespace(newlines: true).isEmpty { notes.fieldCodeStyle[f.id] = cs }
                         if !child.text.trimmingWhitespace(newlines: true).isEmpty { notes.fieldLastCodeStyle[f.id] = cs }
                     }
@@ -1920,8 +1940,8 @@ extension DocxFormat {
             }
         }
         func walkInline(_ node: XNode, link: String?, revision: RevisionMark? = nil) {
-            let outerTip = hyperlinkTip
-            defer { hyperlinkTip = outerTip }
+            let outerTip = hyperlinkTip, outerHistory = hyperlinkHistory
+            defer { hyperlinkTip = outerTip; hyperlinkHistory = outerHistory }
             for child in node.children {
                 switch child.name {
                 case "w:r": walkRun(child, link: link, revision: revision)
@@ -1939,6 +1959,7 @@ extension DocxFormat {
                     let target = external.map { $0 + (child["w:anchor"].map { "#\($0)" } ?? "") }
                         ?? child["w:anchor"].map { "#\($0)" }
                     hyperlinkTip = child["w:tooltip"]
+                    hyperlinkHistory = ["1", "true", "on"].contains(child["w:history"] ?? "")
                     walkInline(child, link: target, revision: revision)
                 case "w:ins", "w:del":
                     // Tracked changes stay tracked: the text with its mark,

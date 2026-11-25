@@ -9,7 +9,7 @@ final class DocxKeptFieldsTests: XCTestCase {
     }
     private let fields: [(String, String)] = [
         ("REF bm1 \\h", "refres"), ("SEQ Figure \\* ARABIC", "7"), ("MERGEFIELD Name", "NAMEVAL"), ("PAGE", "3"),
-        ("NUMPAGES", "9"), ("TITLE", "ttlres"), ("DATE \\@ \"d MMMM yyyy\"", "1 May 2024"), ("AUTHOR", "authres"),
+        ("NUMPAGES", "9"), ("DATE \\@ \"d MMMM yyyy\"", "1 May 2024"), ("AUTHOR", "authres"),
     ]
 
     private func roundTrip(_ body: String) throws -> (doc: RichDocument, xml: String) {

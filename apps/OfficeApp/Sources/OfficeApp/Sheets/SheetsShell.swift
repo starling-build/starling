@@ -71,6 +71,7 @@ final class SheetsShellState: State<StatefulWidget> {
     private var _lastTabClick: (index: Int, at: Date)? = nil
     private var _findOpen = false
     private var _namesOpen = false
+    private var _createNamesOpen = false
     private var _protectOpen: Bool? = nil   // nil closed; false = sheet, true = workbook structure
     /// The Format Cells dialog is open (X-FM-1).
     private var _formatOpen = false
@@ -89,11 +90,19 @@ final class SheetsShellState: State<StatefulWidget> {
     private var _goalOpen = false
     private var _chartTitlesOpen: Int? = nil
     private var _dtOpen = false
+    private var _chartSeriesOpen: Int? = nil
+    private var _chartColorsOpen: Int? = nil
+    private var _chartLabelsOpen: Int? = nil
+    private var _chartAxisOpen: Int? = nil
+    private var _sparklineOpen = false
+    private var _chartForm: ChartFormKind? = nil
+    private var _sparklineKind: SparklineGroup.Kind? = nil
     private var _dupOpen: (range: CellRange, hasHeader: Bool)?
     private var _ttcOpen: CellRange?
     private var _subOpen: CellRange?
     private var _validationOpen = false
     private var _cfOpen = false
+    private var _cfRulesOpen = false
     private var _tableOpen = false
     private var _pivotOpen = false
     private var _filterOpen: (col: Int, kind: String)?
@@ -453,6 +462,8 @@ final class SheetsShellState: State<StatefulWidget> {
             _editNote(at: wb.active)
         case .conditionalFormat:
             setState { _cfOpen = true }
+        case .conditionalRules:
+            setState { _cfRulesOpen = true }
         case .dataValidation:
             setState { _validationOpen = true }
         case .consolidate:
@@ -466,6 +477,18 @@ final class SheetsShellState: State<StatefulWidget> {
         case .dataTable:
             if wb.selection.bottom > wb.selection.top, wb.selection.right > wb.selection.left { setState { _dtOpen = true } }
             else { _flash(DataTableProblem.selectionTooSmall.message) }
+        case .chartSeries(let i):
+            setState { _chartSeriesOpen = i }
+        case .chartColors(let i):
+            setState { _chartColorsOpen = i }
+        case .chartAxis(let i):
+            setState { _chartAxisOpen = i }
+        case .chartLabels(let i):
+            setState { _chartLabelsOpen = i }
+        case .chartForm(let kind):
+            setState { _chartForm = kind }
+        case .sparklineDialog(let kind):
+            setState { _sparklineOpen = true; _sparklineKind = kind }
         case .goalSeek:
             setState { _goalOpen = true }
         case .removeDuplicates:
@@ -494,6 +517,11 @@ final class SheetsShellState: State<StatefulWidget> {
             setState { _filterOpen = (col, kind) }
         case .nameManager:
             setState { _namesOpen = true }
+        case .useName(let name):
+            grid.focus.requestFocus()
+            if grid.isEditing { grid.typeText(name) } else { grid.beginEdit(replace: "=" + name) }
+        case .createNames:
+            setState { _createNamesOpen = true }
         case .protectSheetDialog:
             setState { _protectOpen = false }
         case .protectWorkbookDialog:
@@ -788,6 +816,9 @@ final class SheetsShellState: State<StatefulWidget> {
                     SizedBox(width: 96, height: 28, child: FluentTextBox(
                         controller: _nameBox,
                         onSubmitted: { [weak self] text in self?._goTo(text) })),
+                    Padding(key: ValueKey("name-box-list"), padding: EdgeInsets(left: 0, top: 0, right: 0, bottom: 0), child: Chrome.menu(nil, nil, fluent,
+                        wb.definedNameEntries().prefix(60).map { e in (e.name, { [weak self] in self?._goTo(e.name) }) }
+                            + (wb.definedNameEntries().isEmpty ? [("No names defined", {})] : []))),
                     Chrome.gap(6),
                     Chrome.icon(FluentSystemIcons.close, "Cancel", fluent, enabled: _formulaEditing || _grid?.edit != nil) { [weak self] in
                         self?._cancelFormula()
@@ -914,7 +945,7 @@ final class SheetsShellState: State<StatefulWidget> {
         }
         tabs.append(Chrome.icon(FluentSystemIcons.add, "New sheet", fluent) { [weak self] in self?.wb.addSheet() })
         tabs.append(Chrome.menu(nil, Icon(FluentSystemIcons.moreHorizontal, size: Chrome.iconSize,
-                                          color: fluent.resources.textFillColorPrimary), fluent, _sheetMenu(wb.activeSheet)))
+                                          color: fluent.resources.textFillColorPrimary), fluent, _sheetMenu(wb.activeSheet), tip: "Sheet Menu"))
         return DecoratedBox(
             decoration: BoxDecoration(
                 color: fluent.resources.solidBackgroundFillColorBase,
@@ -1053,7 +1084,7 @@ final class SheetsShellState: State<StatefulWidget> {
             action: "Delete sheet", onConfirm: { [weak self] in self?.wb.confirmSheetDelete() },
             onCancel: { [weak self] in self?.wb.cancelSheetDelete() })] } ?? []) + [
             _formulaBar(fluent),
-            Expanded(child: SheetGrid(
+            Expanded(child: KeyboardPage(focus: { [weak self] in self?._grid?.focus.requestFocus() }, child: SheetGrid(
                 key: _gridKey, controller: wb, zoom: _zoom,
                 onEditText: { [weak self] text in
                     // The bar over the keyboard is a formula's keys while a cell is typed in, and number commands otherwise.
@@ -1070,7 +1101,7 @@ final class SheetsShellState: State<StatefulWidget> {
                 onContextMenu: { [weak self] point, area in self?._showContextMenu(at: point, area) },
                 onFilterMenu: { [weak self] point, col in self?._showFilterMenu(at: point, col: col) },
                 onListMenu: { [weak self] point, cell, choices in self?._showListMenu(at: point, cell: cell, choices) },
-                onZoom: { [weak self] f in self?.setState { self?._zoom = max(0.25, min(4, (self?._zoom ?? 1) * f)) } })),
+                onZoom: { [weak self] f in self?.setState { self?._zoom = max(0.25, min(4, (self?._zoom ?? 1) * f)) } }))),
             _sheetTabs(fluent),
             _statusBar(fluent),
         ]
@@ -1092,6 +1123,13 @@ final class SheetsShellState: State<StatefulWidget> {
             return Stack(children: [window, Positioned(left: 0, top: 0, right: 0, bottom: 0, child: ConditionalFormatDialog(
                 controller: wb, onClose: { [weak self] in
                     self?.setState { self?._cfOpen = false }
+                    self?._grid?.focus.requestFocus()
+                }))])
+        }
+        if _cfRulesOpen {
+            return Stack(children: [window, Positioned(left: 0, top: 0, right: 0, bottom: 0, child: ManageRulesDialog(
+                controller: wb, onClose: { [weak self] in
+                    self?.setState { self?._cfRulesOpen = false }
                     self?._grid?.focus.requestFocus()
                 }))])
         }
@@ -1128,6 +1166,48 @@ final class SheetsShellState: State<StatefulWidget> {
             return Stack(children: [window, Positioned(left: 0, top: 0, right: 0, bottom: 0, child: ScenarioDialog(
                 controller: wb, onClose: { [weak self] in
                     self?.setState { self?._scnOpen = false }
+                    self?._grid?.focus.requestFocus()
+                }))])
+        }
+        if let i = _chartSeriesOpen {
+            return Stack(children: [window, Positioned(left: 0, top: 0, right: 0, bottom: 0, child: ChartSeriesDialog(
+                controller: wb, index: i, onClose: { [weak self] in
+                    self?.setState { self?._chartSeriesOpen = nil }
+                    self?._grid?.focus.requestFocus()
+                }))])
+        }
+        if let i = _chartAxisOpen {
+            return Stack(children: [window, Positioned(left: 0, top: 0, right: 0, bottom: 0, child: ChartAxisDialog(
+                controller: wb, index: i, onClose: { [weak self] in
+                    self?.setState { self?._chartAxisOpen = nil }
+                    self?._grid?.focus.requestFocus()
+                }))])
+        }
+        if let i = _chartLabelsOpen {
+            return Stack(children: [window, Positioned(left: 0, top: 0, right: 0, bottom: 0, child: ChartLabelsDialog(
+                controller: wb, index: i, onClose: { [weak self] in
+                    self?.setState { self?._chartLabelsOpen = nil }
+                    self?._grid?.focus.requestFocus()
+                }))])
+        }
+        if let kind = _chartForm {
+            return Stack(children: [window, Positioned(left: 0, top: 0, right: 0, bottom: 0, child: ChartFormDialog(
+                controller: wb, kind: kind, onClose: { [weak self] in
+                    self?.setState { self?._chartForm = nil }
+                    self?._grid?.focus.requestFocus()
+                }))])
+        }
+        if _sparklineOpen {
+            return Stack(children: [window, Positioned(left: 0, top: 0, right: 0, bottom: 0, child: SparklineDialog(
+                controller: wb, create: _sparklineKind, onClose: { [weak self] in
+                    self?.setState { self?._sparklineOpen = false }
+                    self?._grid?.focus.requestFocus()
+                }))])
+        }
+        if let i = _chartColorsOpen {
+            return Stack(children: [window, Positioned(left: 0, top: 0, right: 0, bottom: 0, child: ChartColorsDialog(
+                controller: wb, index: i, onClose: { [weak self] in
+                    self?.setState { self?._chartColorsOpen = nil }
                     self?._grid?.focus.requestFocus()
                 }))])
         }
@@ -1198,6 +1278,13 @@ final class SheetsShellState: State<StatefulWidget> {
             return Stack(children: [window, Positioned(left: 0, top: 0, right: 0, bottom: 0, child: FilterDialog(
                 controller: wb, col: open.col, kind: open.kind, onClose: { [weak self] in
                     self?.setState { self?._filterOpen = nil }
+                    self?._grid?.focus.requestFocus()
+                }))])
+        }
+        if _createNamesOpen {
+            return Stack(children: [window, Positioned(left: 0, top: 0, right: 0, bottom: 0, child: CreateNamesDialog(
+                controller: wb, onClose: { [weak self] in
+                    self?.setState { self?._createNamesOpen = false }
                     self?._grid?.focus.requestFocus()
                 }))])
         }
@@ -1503,6 +1590,7 @@ final class SheetsShellState: State<StatefulWidget> {
             item("Delete") { c.deleteDrawing(i) }
             if c.sheet.drawings.indices.contains(i), case .chart(let sc) = c.sheet.drawings[i].kind {
                 sep()
+                item("Change to 3-D Chart") { c.setChartVariant(i, .threeD) }
                 for t in ChartType.allCases where t != sc.chart.type {
                     item("Change to \(t.name) Chart") { c.setChartType(i, t) }
                 }

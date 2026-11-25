@@ -514,7 +514,7 @@ extension RichLayout {
         // The page is where the paragraph holding them stands; every line there level with
         // one is held in to the side with the room, and laid out again until the lines settle.
         if theme.wordRules, RichTextTheme.wordWindowsPages, pageSetup != nil, _columns == 1 || _perSection, !_stripPassing,
-           document.paragraphs.contains(where: { ($0.cell == nil && Self._stripFrame($0.style)) || Self._pageBox($0) != nil })
+           document.paragraphs.contains(where: { ($0.cell == nil && Self._stripFrame($0.style)) || Self._pageBox($0, outlines: true, column: true) != nil })
             || (theme.wordRules && RichTextTheme.wordWindowsPages && pageSetup != nil && _columns == 1 && !_stripPassing
                 && document.headerFooters.contains(where: { $0.paragraphs.contains { Self._hfBox($0) != nil } }))
             || (theme.wordRules && RichTextTheme.wordWindowsPages && pageSetup != nil && _columns == 1 && !_stripPassing
@@ -526,7 +526,9 @@ extension RichLayout {
                 // (What stands in the way: its page, its place from the text area's top and
                 // from the page's left, its room kept clear at each side, the sides text may
                 // take, and the paragraph that is itself the frame, set apart.)
-                var blocks: [(page: Int, frame: Int?, top: Double, h: Double, x0: Double, w: Double, spaceL: Double, spaceR: Double, side: String?)] = []
+                var wantPage: [Int: [(String, Double, Double)]] = [:]
+                var clearBlocks: [(page: Int, top: Double, bottom: Double)] = []
+                var blocks: [(page: Int, frame: Int?, top: Double, h: Double, x0: Double, w: Double, spaceL: Double, spaceR: Double, side: String?, image: ImageAttachment?)] = []
                 for (f, fp) in document.paragraphs.enumerated() where fp.cell == nil && f < _pieceStart.count && _pieceStart[f] < _allPieces.count {
                     let first = _allPieces[_pieceStart[f]]
                     let setup = pageSetup(forPage: first.page)
@@ -538,9 +540,9 @@ extension RichLayout {
                         let top = frame.verticalAlign == "top" ? 0 : frame.verticalAlign == "center" ? (contentH - h) / 2 : contentH - h
                         let xml = fp.style.frameXML ?? ""
                         let space = xml.firstRange(of: "w:hSpace=\"").flatMap { r in Double(xml[r.upperBound...].prefix { $0 != "\"" }) }.map { _px($0 / 20) } ?? 0
-                        blocks.append((first.page, f, top, h, (_px(setup.width) - w) / 2, w, space, space, nil))
+                        blocks.append((first.page, f, top, h, (_px(setup.width) - w) / 2, w, space, space, nil, nil))
                     }
-                    if _columnsOf(paragraph: f) == 1 { for box in Self._pageBoxes(fp) {
+                    if _columnsOf(paragraph: f) == 1 { for box in Self._pageBoxes(fp, outlines: theme.wordRules && RichTextTheme.wordWindowsPages, column: theme.wordRules && RichTextTheme.wordWindowsPages) {
                         let float = box.float, image = box.image
                         let pageH = _px(setup.height), marginTop = _px(setup.marginTop), marginBottom = _px(setup.marginBottom)
                         let h = _px(image.height), w = _px(image.width)
@@ -548,11 +550,17 @@ extension RichLayout {
                         let base = float.verticalFrom == "page" ? 0 : marginTop
                         let span = float.verticalFrom == "page" ? pageH : pageH - marginTop - marginBottom
                         let a = float.verticalAlign ?? "top"
-                        let onPage = base + (a == "center" ? (span - whole) / 2 : a == "bottom" ? span - whole : 0) + (float.verticalAlign == nil ? _px(float.y) : 0)
                         let physical = first.page / _columns
                         let insetTop = physical < _pageInsetTop.count ? _pageInsetTop[physical] : marginTop
-                        let left = float.horizontalFrom == "page" ? 0 : _px(setup.marginLeft + setup.gutter)
-                        let across = float.horizontalFrom == "page" ? _px(setup.width) : _px(setup.contentWidth)
+                        // (From its paragraph: the offset is from where the paragraph starts down the column.)
+                        let onPage = float.verticalFrom == "paragraph" ? insetTop + first.pageY + _px(float.y)
+                            : base + (a == "center" ? (span - whole) / 2 : a == "bottom" ? span - whole : 0) + (float.verticalAlign == nil ? _px(float.y) : 0)
+                        // (From a side margin: its own strip of the page. Inside and outside are the left and right ones on pages that do not mirror.)
+                        let side = float.horizontalFrom
+                        if (side == "insideMargin" || side == "outsideMargin") && _mirrorsMargins { continue }
+                        let onRight = side == "rightMargin" || side == "outsideMargin"
+                        let left = side == "page" ? 0 : side == "leftMargin" || side == "insideMargin" ? 0 : onRight ? _px(setup.width - setup.marginRight) : _px(setup.marginLeft + setup.gutter)
+                        let across = side == "page" ? _px(setup.width) : side == "leftMargin" || side == "insideMargin" ? _px(setup.marginLeft + setup.gutter) : onRight ? _px(setup.marginRight) : _px(setup.contentWidth)
                         let x0: Double
                         switch float.horizontalAlign {
                         case "center": x0 = left + (across - w) / 2
@@ -560,8 +568,21 @@ extension RichLayout {
                         case "left": x0 = left
                         default: x0 = left + _px(float.x)
                         }
-                        blocks.append((first.page, nil, onPage - insetTop, whole, x0, w, _px(float.distanceLeft ?? 9), _px(float.distanceRight ?? 9), float.wrapSide))
+                        blocks.append((first.page, nil, onPage - insetTop, whole, x0, w, _px(float.distanceLeft ?? 9), _px(float.distanceRight ?? 9), float.wrapSide, image))
                     } }
+                    // (A top-and-bottom box set from the page or its margin, in the middle of the text: no line goes into its rows. Word's
+                    // print of lab shape-format leaves y 257 to 341 empty beside it.)
+                    if theme.wordRules, RichTextTheme.wordWindowsPages, _columnsOf(paragraph: f) == 1 {
+                        for image in fp.inlineImages.inOrder + (fp.image.map { [$0] } ?? []) {
+                            guard let float = image.float, float.takesRoom || float.bandsPage, !float.wraps, float.verticalAlign == nil,
+                                  float.verticalFrom == "page" || float.verticalFrom == "margin" || float.verticalFrom == "paragraph", image.height > 0, float.y >= 0 else { continue }
+                            let marginTop = _px(setup.marginTop)
+                            let physical = first.page / _columns
+                            let insetTop = physical < _pageInsetTop.count ? _pageInsetTop[physical] : marginTop
+                            let onPage = float.verticalFrom == "paragraph" ? insetTop + first.pageY + _px(float.y) : (float.verticalFrom == "page" ? 0 : marginTop) + _px(float.y)
+                            clearBlocks.append((first.page, onPage - insetTop - _px(float.distanceTop), onPage - insetTop + _px(image.height + float.effectBottom + float.distanceBottom)))
+                        }
+                    }
                 }
                 // (And a header's or footer's own boxes that the text goes round: Word wraps the
                 // body round a sidebar picture anchored in the header — lo tdf38575's, 84pt wide
@@ -622,7 +643,7 @@ extension RichLayout {
                                     let h = hf.layout._fittedBoxHeight(image, hf.document)
                                     bandTop += h * lo; bandHeight = h * (hi - lo)
                                 }
-                                blocks.append((page, nil, bandTop, bandHeight, x0, w, _px(float.distanceLeft ?? 9), _px(float.distanceRight ?? 9), float.wrapSide))
+                                blocks.append((page, nil, bandTop, bandHeight, x0, w, _px(float.distanceLeft ?? 9), _px(float.distanceRight ?? 9), float.wrapSide, nil))
                             }
                         }
                     }
@@ -642,9 +663,19 @@ extension RichLayout {
                         var rightRoom = (colLeft + column - rightGap) - (block.x0 + block.w + block.spaceR)
                         if block.side == "left" { rightRoom = 0 } else if block.side == "right" { leftRoom = 0 }
                         guard max(leftRoom, rightRoom) >= size * 2 else { continue }
+                        // (A tight box with an outline is only taken up as pieces on both sides: the one-sided strip keeps its old rule.)
+                        if let f = block.image?.float, f.wrapsTight, block.side != nil || min(leftRoom, rightRoom) < size * 3 { continue }
                         // (The piece's flow offsets are the flow's; the band is from the paragraph's top.)
                         let fromTop = piece.flowTop - (k < _tops.count ? _tops[k] : 0)
                         let band = (top: block.top - piece.pageY + fromTop, bottom: block.top + block.h - piece.pageY + fromTop)
+                        // (A box with room for three ems on both sides, wrapping both: the lines alternate between a left and a right
+                        // piece, following a tight outline, as they do for a box placed from the paragraph. Word's print of lab shape-format.)
+                        if theme.wordRules, RichTextTheme.wordWindowsPages, let image = block.image, block.side == nil, let f = image.float, f.wraps, !f.takesRoom,
+                           min(leftRoom, rightRoom) >= size * 3 {
+                            wantPage[k, default: []].append(("\(image.id)", (block.top - piece.pageY + fromTop) / _px(1), 0))
+                            RuleTrace.hit("word-page-box-with-room-both-sides-wraps-as-pieces")
+                            continue
+                        }
                         if rightRoom >= leftRoom {
                             want[k] = ((block.x0 + block.w + block.spaceR) - colLeft - own, band, false)
                         } else {
@@ -694,6 +725,56 @@ extension RichLayout {
                     if let f = firstOf[t] { changes.append(.changed(f)) }
                 }
                 _floatPin = pins
+                // (Another page box level with the same lines: the paragraph keeps the strip's one-sided hold, as before.)
+                if !wantPage.isEmpty {
+                    for block in blocks where block.frame == nil || block.image == nil {
+                        for piece in _pages[block.page] where !piece.repeated && wantPage[piece.paragraph] != nil {
+                            guard piece.pageY < block.top + block.h - 0.01, piece.pageY + (piece.flowBottom - piece.flowTop) > block.top + 0.01 else { continue }
+                            if let image = block.image, (wantPage[piece.paragraph] ?? []).count == 1, wantPage[piece.paragraph]![0].0 == "\(image.id)" { continue }
+                            // (A box wholly at the left of the shape with less than a word's room between them: the lines level with both
+                            // start at the shape's outline, as the strip between would hold no word. Word's print of lab shape-format, a
+                            // square at the margin and an ellipse 9pt from it: the lines beside the ellipse start at 260.6, not 169.)
+                            if let entry = wantPage[piece.paragraph], entry.count == 1,
+                               let own = blocks.first(where: { $0.image.map { "\($0.id)" } == entry[0].0 }), own.page == block.page,
+                               block.x0 + block.w <= own.x0 + 0.01,
+                               (own.x0 - own.spaceL) - (block.x0 + block.w + block.spaceR) < _px(document.paragraphs[piece.paragraph].runs.first?.style.fontSize ?? theme.fontSize) * 2 {
+                                let k = piece.paragraph
+                                let upTo = block.top + block.h - piece.pageY + (piece.flowTop - (k < _tops.count ? _tops[k] : 0))
+                                wantPage[k] = [(entry[0].0, entry[0].1, max(entry[0].2, upTo))]
+                                want[piece.paragraph] = nil
+                                RuleTrace.hit("word-page-shape-beside-a-box-with-no-word-room-between-starts-at-its-outline")
+                                continue
+                            }
+                            wantPage[piece.paragraph] = nil
+                        }
+                    }
+                }
+                var wantClear: [Int: (top: Double, bottom: Double)] = [:]
+                for block in clearBlocks {
+                    for piece in _pages[block.page] where !piece.repeated {
+                        let k = piece.paragraph
+                        let q = document.paragraphs[k]
+                        guard q.cell == nil, q.style.frame == nil, !q.text.isEmpty, !q.style.rightToLeft, k < _tops.count, _columnsOf(paragraph: k) == 1,
+                              wantClear[k] == nil, block.top - piece.pageY > 1, block.top < piece.pageY + (piece.flowBottom - piece.flowTop) - 0.01 else { continue }
+                        let fromTop = piece.flowTop - _tops[k]
+                        wantClear[k] = (block.top - piece.pageY + fromTop, block.bottom - piece.pageY + fromTop)
+                        RuleTrace.hit("word-page-top-and-bottom-box-keeps-the-lines-of-the-text-around-it-clear")
+                    }
+                }
+                var clearChanged = Set<Int>()
+                for k in Set(wantClear.keys).union(_stripClear.keys) {
+                    if let a = wantClear[k], let b = _stripClear[k], abs(a.top - b.top) < 0.05, abs(a.bottom - b.bottom) < 0.05 { continue }
+                    if wantClear[k] == nil, _stripClear[k] == nil { continue }
+                    _stripClear[k] = wantClear[k]
+                    clearChanged.insert(k)
+                }
+                var pageChanged = Set<Int>()
+                for k in Set(wantPage.keys).union(_stripPage.keys) {
+                    let a = wantPage[k] ?? [], b = _stripPage[k] ?? []
+                    if a.count == b.count, zip(a, b).allSatisfy({ $0.0 == $1.0 && abs($0.1 - $1.1) < 0.05 && abs($0.2 - $1.2) < 0.05 }) { continue }
+                    _stripPage[k] = a.isEmpty ? nil : a
+                    pageChanged.insert(k)
+                }
                 for k in Set(want.keys).union(_stripUse.keys) {
                     let a = want[k], b = _stripUse[k]
                     if let a, let b, abs(a.indent - b.indent) < 0.5, a.right == b.right, abs(a.band.top - b.band.top) < 0.5, abs(a.band.bottom - b.band.bottom) < 0.5 { continue }
@@ -701,6 +782,7 @@ extension RichLayout {
                     _stripUse[k] = a
                     changes.append(.changed(k))
                 }
+                for k in pageChanged.union(clearChanged) { changes.append(.changed(k)) }
                 if changes.isEmpty { break }
                 apply(changes, paragraphCount: document.paragraphs.count)
                 ensureLaidOut(document)

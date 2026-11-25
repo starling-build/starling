@@ -26,6 +26,13 @@ final class DocxPackagePartsTests: XCTestCase {
     private func fixture() throws -> Data {
         var parts = try Zip.read(DocxFormat.write(RichDocument(paragraphs: [RichParagraph()]), pageSetup: .letter))
         let rt = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+        // (A fresh save already carries its own property parts; the fixture brings its own.)
+        parts.removeAll { $0.name.hasPrefix("docProps/") }
+        try replacing(&parts, "_rels/.rels") { s in
+            var out = s
+            while let r = out.range(of: "<Relationship Id=\"rIdPkg") { let e = out.range(of: "/>", range: r.upperBound ..< out.endIndex)!; out.removeSubrange(r.lowerBound ..< e.upperBound) }
+            return out }
+        try replacing(&parts, "[Content_Types].xml") { $0.replacingOccurrences(of: "<Override PartName=\"/docProps/core.xml\" ContentType=\"application/vnd.openxmlformats-package.core-properties+xml\"/><Override PartName=\"/docProps/app.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.extended-properties+xml\"/>", with: "") }
         try replacing(&parts, "_rels/.rels") { $0.replacingOccurrences(of: "</Relationships>", with:
             "<Relationship Id=\"rId2\" Type=\"http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties\" Target=\"docProps/core.xml\"/>"
             + "<Relationship Id=\"rId3\" Type=\"\(rt)/extended-properties\" Target=\"docProps/app.xml\"/>"

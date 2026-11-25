@@ -86,7 +86,7 @@ enum OfficeFormats {
     static func encode(_ doc: RichDocument, as ext: String, pageSetup: PageSetup = .letter) throws -> Data {
         let text: String
         switch ext.lowercased() {
-        case "docx": return try DocxFormat.write(doc, pageSetup: pageSetup)
+        case "docx": var saved = doc; saved.stampSaved(); return try DocxFormat.write(saved, pageSetup: pageSetup)
         case "rtf": text = RtfFormat.render(doc)
         case "md", "markdown": text = MarkdownFormat.render(doc)
         case "txt", "text", "": text = doc.plainText()

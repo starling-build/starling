@@ -91,6 +91,7 @@ extension RichLayout {
     @discardableResult
     func _paintOutline(_ image: ImageAttachment, _ rect: Rect, _ canvas: any Canvas) -> Bool {
         guard theme.wordRules else { return false }
+        if image.id == hiddenFrameID { return false }
         let drawn = _paintObject(image, rect, canvas)
         guard let outline = image.outline else { return drawn }
         if outline.kind == .box, let fill = outline.fill {
@@ -1583,12 +1584,33 @@ extension RichLayout {
                 - short * (aligned == .center ? 0.5 : aligned == .right ? 1 : 0)
                 - (theme.wordRules && fromStart && c.direction == .down && indent > 0.01 && !c.wrapsPart && !japaneseFace && !(_spaceBefore[i] > 0.01) ? min(indent, _px(2.25)) : 0)
             let origin = Offset(along, c.across + _spaceBefore[i] + _turnedInkShift(i, document))
+            // (Upright ideograph lines run on past the cell's far edge and are cut there, not dropped whole: lab textpitch5, Word's print
+            // of 6 East Asian faces at 9 to 16 pt in Rotate Down cells 70 pt tall; Meiryo 16 pt keeps a character of a third line standing 12 pt
+            // past the left border, and the text layer holds only what shows.)
+            if c.direction == .down, document.paragraphs[i].cell?.uprightIdeographs == true, theme.wordRules, RichTextTheme.wordWindowsPages, c.rowSpan == 1,
+               !document.paragraphs[i].text.unicodeScalars.contains(where: { $0.value >= 0x0590 && $0.value < 0x2000 }) {   // measured on ideographs, kana, Hangul and Latin; dx2 79ea8977's Mongolian cells keep their lines
+                RuleTrace.hit("upright-cell-lines-are-cut-at-the-cells-far-edge")
+                canvas.clipRect(Rect.fromLTRB(-1e5, -1e5, 1e5, c.colWidth))
+            }
             if c.direction == .down, document.paragraphs[i].cell?.uprightIdeographs == true,
                _paintUpright(g.painter, at: origin, canvas, distribute: document.paragraphs[i].style.eastAsian["w:jc"] == "distribute", justify: theme.wordRules && aligned == .justify && document.paragraphs[i].style.eastAsian["w:jc"] == nil, mixed: true, centred: aligned == .center, rubyShifts: _rubyColumnShifts(i, document)) {
                 canvas.restore()
                 _paintVerticalCellPictures(i, g, canvas, c, origin, document)
                 _paintVerticalCellFloats(i, g, canvas)
                 return
+            }
+            // (A line whose top (baseline less ascent) falls past the cell's far edge is not drawn: Word's print of a 78pt cell of Calibri 20
+            // turned down has three lines, baselines 24.8, 49.8 and 74.8 from the near edge, and not the fourth at 99.8; the
+            // padding does not count. Lab textpitch. A line is kept whole or not drawn, never cut through.)
+            if theme.wordRules, RichTextTheme.wordWindowsPages, c.rowSpan == 1,
+               !document.paragraphs[i].text.unicodeScalars.contains(where: { $0.value >= 0x0590 }) {   // measured on Latin only
+                let lines = g.painter.computeLineMetrics()
+                let kept = RichLayout.turnedLinesKept(tops: lines.map { origin.dy + $0.baseline - $0.unscaledAscent }, room: c.colWidth)
+                if kept < lines.count, kept > 0 {
+                    let last = lines[kept - 1]
+                    RuleTrace.hit("turned-line-past-the-cell-is-not-drawn")
+                    canvas.clipRect(Rect.fromLTRB(-1e5, -1e5, 1e5, origin.dy + last.baseline + last.descent + 0.5))
+                }
             }
             if _paintMode != 2 { g.painter.paint(canvas, origin) }
             canvas.restore()
@@ -1622,7 +1644,9 @@ extension RichLayout {
                     canvas.drawLine(Offset(x0, y), Offset(x1, y), p)
                 }
             }
-            if let l = b.top, l.style != "none", !(theme.wordRules && _bordersJoin(i - 1, i, document)) {
+            // (Joined to the paragraph above: the box's Inside line stands where a top line would.)
+            let joinedAbove = theme.wordRules && _bordersJoin(i - 1, i, document)
+            if let l = joinedAbove ? b.between : b.top, l.style != "none" {
                 if Self._ruleLines(l.style, l.width).count > 1 {
                     compound(l, from: g.textTop - _px(l.space), outward: -1)
                 } else {
@@ -1643,7 +1667,7 @@ extension RichLayout {
             if let box {
                 // (One box: no top line or room under a joined edge, the sides on to the next
                 // paragraph's text where it follows on the page.)
-                if _bordersJoin(i - 1, i, document) { y0 = g.textTop }
+                if _bordersJoin(i - 1, i, document) { y0 = b.between.map { g.textTop - _px(2 * $0.space + Self._ruleRoom($0.style, $0.width)) } ?? g.textTop }
                 if _bordersJoin(i, i + 1, document) { y1 = box.bottom }
                 y0 -= _droppedBefore(i, document)
             }
@@ -2249,5 +2273,15 @@ extension RichLayout {
         if f.hasPrefix("hg") { return true }
         if f.hasPrefix("ms ") { return ["mincho", "gothic", "明朝", "ゴシック", "ui"].contains { f.containsSubstring($0) } }
         return ["meiryo", "メイリオ", "yu mincho", "yu gothic", "游"].contains { f.containsSubstring($0) }
+    }
+}
+
+extension RichLayout {
+    /// How many of a turned cell's lines are drawn: a line is dropped when its TOP (baseline minus ascent, measured from
+    /// the near edge) falls past the cell's far edge. Word's prints: Calibri 20 in a 78 pt cell keeps baselines 24.8, 49.8,
+    /// 74.8 and drops 99.8 (top 84.8); Calibri 13 at double spacing keeps a third baseline 4.9 pt past the edge (top 70.9);
+    /// labs textpitch and textpitch4 (6 faces: baselines up to 5.9 past the edge were all drawn).
+    static func turnedLinesKept(tops: [Double], room: Double) -> Int {
+        tops.prefix { $0 <= room + 0.01 }.count
     }
 }

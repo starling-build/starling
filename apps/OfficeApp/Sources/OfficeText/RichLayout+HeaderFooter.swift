@@ -62,18 +62,19 @@ extension RichLayout {
         return nil
     }
 
-    static func _pageBox(_ p: RichParagraph) -> (image: ImageAttachment, float: ImageFloat)? { _pageBoxes(p).first }
+    static func _pageBox(_ p: RichParagraph, outlines: Bool = false, column: Bool = false) -> (image: ImageAttachment, float: ImageFloat)? { _pageBoxes(p, outlines: outlines, column: column).first }
 
     /// Every such box of a paragraph, in the order `_pageBox` takes them (a paragraph's second picture wraps the text too:
     /// the lab's two square pictures in one paragraph).
-    static func _pageBoxes(_ p: RichParagraph) -> [(image: ImageAttachment, float: ImageFloat)] {
+    /// (`column`: a box measured from its column counts as one from the margin, for a text of one column: the two are the same line.)
+    static func _pageBoxes(_ p: RichParagraph, outlines: Bool = false, column: Bool = false) -> [(image: ImageAttachment, float: ImageFloat)] {
         guard p.cell == nil else { return [] }
         var found: [(image: ImageAttachment, float: ImageFloat)] = []
         for image in p.inlineImages.inOrder + (p.image.map { [$0] } ?? []) {
             guard let float = image.float, float.wraps, !float.takesRoom, !float.bandsPage,
-                  (float.verticalAlign == nil && !float.wrapsTight) || float.verticalAlign == "top" || float.verticalAlign == "center" || float.verticalAlign == "bottom",
-                  float.verticalFrom == "page" || float.verticalFrom == "margin",
-                  float.horizontalFrom == "page" || float.horizontalFrom == "margin",
+                  (float.verticalAlign == nil && (!float.wrapsTight || (outlines && float.wrapPolygon.count > 5))) || float.verticalAlign == "top" || float.verticalAlign == "center" || float.verticalAlign == "bottom",
+                  float.verticalFrom == "page" || float.verticalFrom == "margin" || (column && float.verticalFrom == "paragraph" && float.verticalAlign == nil),
+                  float.horizontalFrom == "page" || float.horizontalFrom == "margin" || (column && ["column", "leftMargin", "rightMargin", "insideMargin", "outsideMargin"].contains(float.horizontalFrom)),
                   float.horizontalAlign != "inside", float.horizontalAlign != "outside",
                   float.heightShare == nil, image.textBox?.fitsText != true, image.width > 0, image.height > 0 else { continue }
             found.append((image, float))
@@ -2669,11 +2670,11 @@ extension RichLayout {
         let width = _px(setup.contentWidth)
         // (Each from `from` to `to` of its height: a note parted over the
         // page before or the next — `_noteCarryIn`, `_noteCutOut`.)
-        let notes: [(note: _HeaderFooter, from: Double, to: Double)] = ids.compactMap { id in
+        let notes: [(id: Int, note: _HeaderFooter, from: Double, to: Double)] = ids.compactMap { id in
             guard let note = _note(id, width: width, document) else { return nil }
             let from = _noteCarryIn[p]?.id == id ? _noteCarryIn[p]!.from : 0
             let to = _noteCutOut[p]?.id == id ? _noteCutOut[p]!.keep : note.height
-            return (note, from, max(from, to))
+            return (id, note, from, max(from, to))
         }
         guard !notes.isEmpty else { return }
         let rect = pageRect(p)
@@ -2703,13 +2704,14 @@ extension RichLayout {
             }
             top += separator.height
         }
-        for (note, from, to) in notes {
+        for (id, note, from, to) in notes {
             canvas.save()
             if from > 0 || to < note.height { canvas.clipRect(Rect.fromLTRB(rect.left, top, rect.right, top + to - from)) }
             canvas.translate(left, top - from)
             note.layout.paint(canvas, visible: Rect.fromLTWH(-100_000, -100_000, 200_000, 200_000), document: note.document,
                               selection: nil, caret: nil)
             canvas.restore()
+            noteRects[id] = Rect.fromLTWH(left, top, width, to - from)
             top += to - from
         }
     }
@@ -2920,6 +2922,17 @@ extension RichLayout {
     public func paint(_ canvas: any Canvas, visible: Rect, document: RichDocument,
                       selection: RichSelection?, caret: Rect?,
                       pageBackground: ((Int, Rect) -> Void)? = nil) {
+        // (Painting recurses as deep as layout does, in frames as big: an iPad's main thread, 1 MB, is not enough for
+        // drawing.docx, so a thread with a small stack paints on the big one, as layout does.)
+        BigStack.runIfSmall {
+            self._paint(canvas, visible: visible, document: document, selection: selection, caret: caret,
+                        pageBackground: pageBackground)
+        }
+    }
+
+    private func _paint(_ canvas: any Canvas, visible: Rect, document: RichDocument,
+                        selection: RichSelection?, caret: Rect?,
+                        pageBackground: ((Int, Rect) -> Void)?) {
         _paintCaret = selection.flatMap { $0.isCollapsed ? $0.focus : nil }
         _behindDrawn = []
         if isPaged {

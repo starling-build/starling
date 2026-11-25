@@ -34,9 +34,11 @@ final class ColorGridMenuItem: MenuFlyoutItemBase {
     let noneLabel: String
     let onChoose: (ColorChoice) -> Void
     let onMore: () -> Void
+    let onEyedropper: (() -> Void)?
 
     init(theme: [UInt32], recent: [UInt32], noneLabel: String,
-         onChoose: @escaping (ColorChoice) -> Void, onMore: @escaping () -> Void) {
+         onChoose: @escaping (ColorChoice) -> Void, onMore: @escaping () -> Void, onEyedropper: (() -> Void)? = nil) {
+        self.onEyedropper = onEyedropper
         self.theme = theme; self.recent = recent; self.noneLabel = noneLabel
         self.onChoose = onChoose; self.onMore = onMore
         super.init(key: ValueKey("shape-color-grid"))
@@ -46,9 +48,16 @@ final class ColorGridMenuItem: MenuFlyoutItemBase {
         let close: () -> Void = {
             if let scope = FlyoutScope.maybeOf(context) { scope.close() } else { Navigator.maybeOf(context)?.maybePop() }
         }
-        return ColorPicker(theme: theme, recent: recent, noneLabel: noneLabel,
-                           onChoose: { [onChoose] c in close(); onChoose(c) },
-                           onMore: { [onMore] in close(); onMore() })
+        let picker = ColorPicker(theme: theme, recent: recent, noneLabel: noneLabel,
+                                 onChoose: { [onChoose] c in close(); onChoose(c) },
+                                 onMore: { [onMore] in close(); onMore() })
+        guard let onEyedropper else { return picker }
+        return Column(mainAxisSize: .min, crossAxisAlignment: .stretch) {
+            picker
+            GestureDetector(onTap: { close(); onEyedropper() }, child: Padding(
+                padding: EdgeInsets(left: 12, top: 6, right: 12, bottom: 6),
+                child: Text("Eyedropper", key: ValueKey("shape-eyedropper"))))
+        }
     }
 }
 
@@ -118,5 +127,32 @@ enum SchemeColor {
         guard let (slot, mod, off) = parse(spec), slots.indices.contains(slot) else { return nil }
         let rgb = mod == 100 && off == 0 ? slots[slot] : ColorMath.adjusted(slots[slot], lumMod: mod, lumOff: off)
         return Color(Int64(0xFF00_0000 | UInt64(rgb)))
+    }
+}
+
+extension DeckController {
+    /// The colour the slide shows at `point` (slide points), as the eyedropper reads it: the slide is drawn
+    /// whole at one pixel per point and the pixel under the point is taken. Nil outside the slide.
+    func sampleSlideColor(at point: Offset) -> UInt32? {
+        let w = Int(slideSize.width), h = Int(slideSize.height)
+        let x = Int(point.dx), y = Int(point.dy)
+        guard x >= 0, y >= 0, x < w, y < h else { return nil }
+        let painter = SlidePainter(slide: currentSlide, theme: theme, slideSize: slideSize, revision: revision,
+                                   cache: SlideTextCache(), placeholders: false)
+        let recorder = NativePictureRecorder()
+        let canvas = NativeCanvas(recorder: recorder, cullRect: Rect.fromLTWH(0, 0, Double(w), Double(h)))
+        painter.paint(canvas, Size(Double(w), Double(h)))
+        guard let image = recorder.endRecording().toImageSync(width: w, height: h),
+              let data = try? image.toByteData(format: .rawRgba) else { return nil }
+        let i = (y * w + x) * 4
+        guard data.count >= i + 4 else { return nil }
+        return UInt32(data[i]) << 16 | UInt32(data[i + 1]) << 8 | UInt32(data[i + 2])
+    }
+
+    /// Eyedropper: takes the colour under `point` for the fill or outline of the selection.
+    @discardableResult func pickShapeColor(at point: Offset, outline: Bool) -> Bool {
+        guard let rgb = sampleSlideColor(at: point) else { return false }
+        applyShapeColor(.rgb(rgb), outline: outline)
+        return true
     }
 }

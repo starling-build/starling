@@ -273,7 +273,7 @@ extension _ParaFrame {
         // 2.16 + 0.72 + 0.72 in Word's print and the page under it 1.14pt
         // lower than ours was.)
         bareBreak = _emptyBreakFragment(i, document)
-        bTop = bareBreak || _bordersJoin(i - 1, i, document) ? 0 : style.borders?.top.map { _px($0.space + RichLayout._ruleRoom($0.style, $0.width)) } ?? 0
+        bTop = bareBreak ? 0 : _bordersJoin(i - 1, i, document) ? style.borders?.between.map { _px(2 * $0.space + RichLayout._ruleRoom($0.style, $0.width)) } ?? 0 : style.borders?.top.map { _px($0.space + RichLayout._ruleRoom($0.style, $0.width)) } ?? 0
         bBottom = bareBreak || _bordersJoin(i, i + 1, document) ? 0 : style.borders?.bottom.map { _px($0.space + RichLayout._ruleRoom($0.style, $0.width)) } ?? 0
         spacing = _spacing(i, document)
         // (Exact under Word's rules, whose lines keep their fractions

@@ -200,6 +200,7 @@ extension _ParaFrame {
     func _besideIndent(_ a0: Int, _ a1: RichParagraph, _ a2: RichDocument, table a3: String? = nil) -> (indent: Double, right: Bool)? { rl._besideIndent(a0, a1, a2, table: a3) }
     var _besideIndentOnTop: Set<Int> { get { rl._besideIndentOnTop } set { rl._besideIndentOnTop = newValue } _modify { yield &rl._besideIndentOnTop } }
     var _besideLabelShift: [Int : Double] { get { rl._besideLabelShift } set { rl._besideLabelShift = newValue } _modify { yield &rl._besideLabelShift } }
+    var _tableBothLeft: [Int: Double] { get { rl._tableBothLeft } set { rl._tableBothLeft = newValue } }
     var _besideLead: [Double] { get { rl._besideLead } set { rl._besideLead = newValue } _modify { yield &rl._besideLead } }
     var _besideLeftAt: [Int : (Double, Double) -> Double] { get { rl._besideLeftAt } set { rl._besideLeftAt = newValue } _modify { yield &rl._besideLeftAt } }
     var _besideListEarlier: Set<Int> { get { rl._besideListEarlier } set { rl._besideListEarlier = newValue } _modify { yield &rl._besideListEarlier } }
@@ -210,6 +211,7 @@ extension _ParaFrame {
     var _besideRightSide: [Bool] { get { rl._besideRightSide } set { rl._besideRightSide = newValue } _modify { yield &rl._besideRightSide } }
     var _besideSeq: [Int : [RichLayout.ColWrapBox]] { get { rl._besideSeq } set { rl._besideSeq = newValue } _modify { yield &rl._besideSeq } }
     var _besideStartAt: [Int : (Double, Double) -> Double] { get { rl._besideStartAt } set { rl._besideStartAt = newValue } _modify { yield &rl._besideStartAt } }
+    var _besideOutlineBox: [Int : (left: Double, right: Double)] { get { rl._besideOutlineBox } set { rl._besideOutlineBox = newValue } _modify { yield &rl._besideOutlineBox } }
     var _besideStartLeft: [Int : (indent: Double, band: (top: Double, bottom: Double))] { get { rl._besideStartLeft } set { rl._besideStartLeft = newValue } _modify { yield &rl._besideStartLeft } }
     var _besideTightTop: [Int : Double] { get { rl._besideTightTop } set { rl._besideTightTop = newValue } _modify { yield &rl._besideTightTop } }
     func _bodyBoxHeight(_ a0: ImageAttachment, _ a1: RichDocument) -> Double { rl._bodyBoxHeight(a0, a1) }
@@ -311,6 +313,9 @@ extension _ParaFrame {
     func _span(for a0: RichParagraph, at a1: Int?, _ a2: RichDocument, textWidth a3: Double, lead a4: Double = 0, adjust a5: [Int: Double] = [:], held a6: Set<Int> = [], spread a7: [Int: Double] = [:], fitProbe a8: Bool = false, autoSpaces a9: ((Int, Double) -> Void)? = nil) -> (TextSpan, [(image: ImageAttachment?, dimensions: PlaceholderDimensions)], [Int]) { rl._span(for: a0, at: a1, a2, textWidth: a3, lead: a4, adjust: a5, held: a6, spread: a7, fitProbe: a8, autoSpaces: a9) }
     func _stripBesideLeftTable(_ a0: String, _ a1: Int, _ a2: RichDocument) -> Bool { rl._stripBesideLeftTable(a0, a1, a2) }
     var _stripUse: [Int : (indent: Double, band: (top: Double, bottom: Double), right: Bool)] { get { rl._stripUse } set { rl._stripUse = newValue } _modify { yield &rl._stripUse } }
+    var _stripClear: [Int : (top: Double, bottom: Double)] { get { rl._stripClear } set { rl._stripClear = newValue } _modify { yield &rl._stripClear } }
+    var _besideNoLeft: [Int : Double] { get { rl._besideNoLeft } set { rl._besideNoLeft = newValue } _modify { yield &rl._besideNoLeft } }
+    var _stripPage: [Int : [(String, Double, Double)]] { get { rl._stripPage } set { rl._stripPage = newValue } _modify { yield &rl._stripPage } }
     func _strut(_ a0: TextSpan, tallest a1: Bool = false, near a2: Bool = false, wide a3: Bool = false, joiners a4: Bool = true) -> StrutStyle? { rl._strut(a0, tallest: a1, near: a2, wide: a3, joiners: a4) }
     func _firstLeafStyle(_ a0: InlineSpan) -> TextStyle? { rl._firstLeafStyle(a0) }
     func _tableLeft(_ a0: String, _ a1: RichDocument) -> Double { rl._tableLeft(a0, a1) }

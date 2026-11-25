@@ -1093,7 +1093,7 @@ enum Xlsx {
         }
         var sheetIds: [String] = []
         for p in paths {
-            if let r = rels.first(where: { _resolve($0.target, base: "xl/") == p && $0.type.hasSuffix("/worksheet") }) {
+            if let r = rels.first(where: { _resolve($0.target, base: "xl/") == p && ($0.type.hasSuffix("/worksheet") || $0.type.hasSuffix("/chartsheet")) }) {
                 sheetIds.append(r.id)
             } else {
                 let id = _freshId(rels)
@@ -1110,6 +1110,11 @@ enum Xlsx {
         }
         if !rels.contains(where: { $0.type.hasSuffix("/sharedStrings") }) {
             rels.append((_freshId(rels), "http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings", "sharedStrings.xml"))
+        }
+        // A new workbook (nothing opened from a file) carries the standard Office theme, as Excel's own do. An
+        // opened file keeps the theme it came with, or none: giving a theme-less one a theme would change its fonts.
+        if original.isEmpty && !rels.contains(where: { $0.type.hasSuffix("/theme") }) {
+            rels.append((_freshId(rels), "http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme", "theme/theme1.xml"))
         }
         let stylesPath = rels.first { $0.type.hasSuffix("/styles") }.map { _resolve($0.target, base: "xl/") } ?? "xl/styles.xml"
         let sstPath = rels.first { $0.type.hasSuffix("/sharedStrings") }.map { _resolve($0.target, base: "xl/") } ?? "xl/sharedStrings.xml"
@@ -1128,7 +1133,9 @@ enum Xlsx {
         for (k, v) in PivotsXML.patched(sheets: book.sheets, parts: originalParts) { generated[k] = v }
         generated["xl/workbook.xml"] = Data(_workbookXML(book, ids: sheetIds, original: originalParts["xl/workbook.xml"], newCaches: madePivots.filter(\.ownsCache).map { ($0.cacheId, $0.workbookRel) }).utf8)
         generated["xl/_rels/workbook.xml.rels"] = Data(_relsXML(rels).utf8)
-        for (i, p) in paths.enumerated() { generated[p] = Data(sheetXML[i].utf8) }
+        // A chart sheet is not edited here: its own part stays as it was (a worksheet body
+        // inside a chartsheet root is not a file Excel opens as a chart sheet).
+        for (i, p) in paths.enumerated() where !(book.sheets[i].isChartSheet && originalParts[p] != nil) { generated[p] = Data(sheetXML[i].utf8) }
         generated[stylesPath] = Data(_stylesXML(book).utf8)
         if newMetadata { generated["xl/metadata.xml"] = Data(_dynamicArrayMetadata.utf8) }
         generated[sstPath] = Data(_sstXML(sst).utf8)
@@ -1156,6 +1163,10 @@ enum Xlsx {
             guard m.ownsCache else { continue }
             extraTypes.append(("/" + m.cache, "application/vnd.openxmlformats-officedocument.spreadsheetml.pivotCacheDefinition+xml"))
             extraTypes.append(("/" + m.records, "application/vnd.openxmlformats-officedocument.spreadsheetml.pivotCacheRecords+xml"))
+        }
+        if original.isEmpty {
+            generated["xl/theme/theme1.xml"] = Data(DocxFormat._defaultThemePart().utf8)
+            extraTypes.append(("/xl/theme/theme1.xml", "application/vnd.openxmlformats-officedocument.theme+xml"))
         }
         var droppedDrawings = Set<String>()
         for d in drawingParts {

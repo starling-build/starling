@@ -51,13 +51,24 @@ def refpdf(xl, name):
         if os.path.exists(f"{xl}/{b}-orig.pdf"): return f"{xl}/{b}-orig.pdf"
     return f"{xl}/{stem(name)}-orig.pdf"
 
+def refnow(ref):
+    """The wall time Excel printed the reference PDF (its /CreationDate), so a book with NOW()/TODAY() is scored for layout, not for a date mismatch.
+    No readable date: one fixed time. Same value for base and PR draws (amd-8, 2026-11-25)."""
+    try:
+        with open(ref, "rb") as f: d = f.read()
+        m = re.search(rb"/CreationDate\s*\(D:(\d{4})(\d\d)(\d\d)(\d\d)(\d\d)(\d\d)", d)
+        if m: return "%s-%s-%sT%s:%s:%s" % tuple(x.decode() for x in m.groups())
+    except OSError: pass
+    return "2026-10-30T12:00:00"
+
 def stem(name): return name[:-5] if name.endswith(".xlsx") else name   # an .xls book keeps its extension: it prints to NAME.xls-orig.pdf
 
 def job(item):
     name, books, xl = item
     base = stem(name); pdf = f"{OUT}/pdf/{base}.pdf"; ref = refpdf(xl, name); t0 = time.time()
     M.WORD = xl
-    env = dict(os.environ, SHEET_PDF_MAX_PAGES="20", OFFICE_FONT_SOURCE=os.environ.get("OFFICE_FONT_SOURCE", "bundled"))
+    env = dict(os.environ, SHEET_PDF_MAX_PAGES="20", OFFICE_FONT_SOURCE=os.environ.get("OFFICE_FONT_SOURCE", "bundled"),
+               OFFICE_NOW=os.environ.get("OFFICE_NOW") or refnow(ref))  # fixed clock: NOW()/TODAY() draw the day Excel printed the reference, the same in base and PR
     try:
         p = subprocess.run([BIN, "--sheet-pdf", f"{books}/{name}", pdf], capture_output=True, text=True, timeout=300, env=env)
         out = (p.stdout + p.stderr)

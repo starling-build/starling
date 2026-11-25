@@ -366,6 +366,38 @@ extension DocxFormat {
 
     /// Metadata fields keep their cached result and instruction; layout
     /// does not update them or confuse them with page-number fields.
+    static func _isHyperlinkField(_ instr: String) -> Bool {
+        instr.split(whereSeparator: { $0.isWhitespace }).first?.uppercased() == "HYPERLINK"
+    }
+
+    /// Where a HYPERLINK field points: its address and/or `\l` place ("#place" for the document's own), and the `\o` tip.
+    static func _hyperlinkFieldTarget(_ instr: String) -> (target: String, tip: String?)? {
+        var tokens: [(text: String, quoted: Bool)] = []
+        var cur = "", quoted = false, inQuote = false, any = false
+        for ch in instr {
+            if ch == "\"" { if inQuote { tokens.append((cur, true)); cur = ""; any = false } ; inQuote.toggle(); quoted = inQuote; continue }
+            if ch.isWhitespace && !inQuote { if any { tokens.append((cur, false)); cur = ""; any = false }; continue }
+            cur.append(ch); any = true
+        }
+        if any { tokens.append((cur, quoted)) }
+        guard tokens.count > 1 else { return nil }
+        var url = "", place = "", tip: String? = nil
+        var i = 1
+        while i < tokens.count {
+            let t = tokens[i]
+            if !t.quoted, t.text.hasPrefix("\\") {
+                let sw = t.text.lowercased()
+                if (sw == "\\l" || sw == "\\o" || sw == "\\t"), i + 1 < tokens.count {
+                    if sw == "\\l" { place = tokens[i + 1].text } else if sw == "\\o" { tip = tokens[i + 1].text }
+                    i += 2; continue
+                }
+            } else if url.isEmpty { url = t.text }
+            i += 1
+        }
+        if url.isEmpty && place.isEmpty { return nil }
+        return (place.isEmpty ? url : url + "#" + place, tip)
+    }
+
     static func _preservesField(_ instr: String) -> Bool {
         let word = instr.split(whereSeparator: { $0.isWhitespace }).first?.uppercased() ?? ""
         return Self._keptFieldWords.contains(word)
@@ -1228,6 +1260,14 @@ extension DocxFormat {
         if let shd = pPr.first("w:shd"), let raw = shd["w:fill"], case let hex = raw.hasPrefix("#") ? String(raw.dropFirst()) : raw,
            hex.lowercased() != "auto", hex.count == 6, let v = Int(hex, radix: 16) {
             style.fill = Color(argb: 0xFF, (v >> 16) & 0xFF, (v >> 8) & 0xFF, v & 0xFF)
+            let extra = ["w:val", "w:color", "w:themeFill", "w:themeFillTint", "w:themeFillShade", "w:themeColor", "w:themeTint", "w:themeShade"]
+                .compactMap { k in shd[k].map { " \(k)=\"\(_esc($0))\"" } }.joined()
+            style.fillAttrs = hex.uppercased() + "#" + extra
+        }
+        else if let shd = pPr.first("w:shd"), let v = shd["w:val"], v != "clear", v != "nil" {
+            // A pattern over no fill colour: kept for the save (drawn as no fill).
+            style.fillAttrs = "auto#" + ["w:val", "w:color", "w:themeFill", "w:themeFillTint", "w:themeFillShade", "w:themeColor", "w:themeTint", "w:themeShade"]
+                .compactMap { k in shd[k].map { " \(k)=\"\(_esc($0))\"" } }.joined()
         }
         if let c = pPr.first("w:contextualSpacing") { style.contextualSpacing = !_isOff(c) }
         if let frame = pPr.first("w:framePr") {
@@ -1362,7 +1402,7 @@ extension DocxFormat {
             // 3ebc3ec5's "Intense Quote" lost its group's bottom rule.)
             let old = style.borders
             func side(_ name: String, _ prev: BorderLine?) -> BorderLine? { bdr.first(name) == nil ? prev : line(name) }
-            let b = ParagraphBorders(top: side("w:top", old?.top), bottom: side("w:bottom", old?.bottom), left: side("w:left", old?.left), right: side("w:right", old?.right))
+            let b = ParagraphBorders(top: side("w:top", old?.top), bottom: side("w:bottom", old?.bottom), left: side("w:left", old?.left), right: side("w:right", old?.right), between: side("w:between", old?.between))
             style.borders = b.isEmpty ? nil : b
             style.pBdrElement = true
         }
@@ -1682,6 +1722,8 @@ extension DocxFormat {
         var nestedPageFields: Set<String> = []
         var lastTextFamily: String? = nil   // the face of the last plain (non-field) text run, for an eq ring that names none
         var fieldCount = 0
+        var contentsStart: String? = nil   // W-FD-2: the TOC instruction opened in the paragraph being read
+        var contentsEnd = false
         /// Every style's name, lowercased, and the fields whose STYLEREF
         /// error has been written: a STYLEREF naming no style prints Word's
         /// error, not the result it was saved with.
@@ -1965,6 +2007,14 @@ extension DocxFormat {
         // saved file as unopenable as the original.
         for e in entries where e.name.hasPrefix("word/theme/") && e.name.hasSuffix(".xml") && _wellFormed(e.data) {
             kept[e.name] = e.data
+        }
+        // The legacy copy of the styles (Word 2010's stylesWithEffects) and the glossary document
+        // (the user's Quick Parts and building blocks, with its own styles, settings, fonts and rels):
+        // parts we do not model must never vanish on a save.
+        for e in entries where e.name == "word/stylesWithEffects.xml" || e.name.hasPrefix("word/glossary/") {
+            if e.name.hasSuffix("/") { continue }
+            let text = e.name.hasSuffix(".xml") || e.name.hasSuffix(".rels")
+            if !text || _wellFormed(e.data) { kept[e.name] = e.data }
         }
         // The web settings: the margins of the HTML blocks paragraphs name
         // by w:divId (drawing.docx's last banner sits 4.5pt lower for one).

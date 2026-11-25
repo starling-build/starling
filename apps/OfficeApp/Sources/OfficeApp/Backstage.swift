@@ -361,10 +361,12 @@ final class Backstage: StatelessWidget {
         let start = [homeDirectory() + "/Pictures", homeDirectory() + "/Desktop", homeDirectory()]
             .first { FileManager.default.fileExists(atPath: $0) } ?? homeDirectory()
         return Column(crossAxisAlignment: .stretch, children: [
-            _heading("Insert Picture", fluent),
+            _heading(session.pickingMedia ? "Insert Audio or Video" : "Insert Picture", fluent),
             Expanded(child: FluentFilePanel(
                 mode: .open, initialDirectory: start,
-                extensions: ["png", "jpg", "jpeg", "gif", "webp", "bmp"],
+                extensions: session.pickingMedia
+                    ? Array(MediaClip.videoExtensions.union(MediaClip.audioExtensions)).sorted()
+                    : ["png", "jpg", "jpeg", "gif", "webp", "bmp"],
                 onDone: { [onClose, onPicturePath] path in
                     guard let path else { onClose(); return }
                     onPicturePath(path)
@@ -389,6 +391,7 @@ final class Backstage: StatelessWidget {
                 Text(v, style: fluent.typography.body),
             ]))
         } + [
+            Button(onPressed: { [onClose, session] in onClose(); session.onPropertiesDialog?() }, child: Text("Properties…", style: fluent.typography.body)),
             Chrome.vgap(24),
             _heading("About \(session.kind.appName)", fluent),
             Text("Built with Fluent UI System Icons and the fluent_ui controls (MIT), the Selawik, Liberation, Carlito, Poppins, Work Sans and Libre Franklin fonts (SIL OFL), the Caladea font (Apache 2.0), the TeX Gyre fonts (GUST Font License), zlib, and the Flutter engine (BSD).",

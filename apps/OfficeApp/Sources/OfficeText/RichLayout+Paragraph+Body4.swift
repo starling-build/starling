@@ -40,6 +40,7 @@ extension _ParaFrame {
             }
         }
         if theme.wordRules, RichTextTheme.wordWindowsPages, _columns > 1, p.cell == nil, let band = _clearBand[i] { keepClear = band }
+        if theme.wordRules, RichTextTheme.wordWindowsPages, p.cell == nil, keepClear == nil, let band = _stripClear[i] { keepClear = band }
         // (An equation taller than the text in a 1.5-line paragraph: Word applies the multiple to the line's
         // tallest content, so the line is 1.5 times the equation's own height where the strut holds it to 1.5
         // times the text's. Word's print of jpn-z22855378-6fca0f: a line with a 17.0 over 7.9pt fraction is 36pt,

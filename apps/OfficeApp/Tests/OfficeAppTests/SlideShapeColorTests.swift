@@ -85,3 +85,42 @@ final class SlideShapeColorTests: XCTestCase {
         XCTAssertEqual(state.slides[0].shapes.filter { $0.outlineScheme == "accent1|40000|60000" }.count, 1)
     }
 }
+
+final class SlideEyedropperTests: XCTestCase {
+    func testTheEyedropperTakesTheColourUnderThePoint() throws {
+        let deck = DeckController()
+        let a = deck.addShape(.rect); a.frame = Rect.fromLTWH(100, 100, 200, 100)
+        deck.selectShapes([a]); deck.applyShapeColor(.rgb(0x7030A0), outline: false)
+        let b = deck.addShape(.rect); b.frame = Rect.fromLTWH(500, 300, 100, 100)
+        deck.selectShapes([b])
+        XCTAssertTrue(deck.pickShapeColor(at: Offset(150, 150), outline: false))
+        XCTAssertEqual(UInt32(truncatingIfNeeded: b.fill!.value) & 0xFFFFFF, 0x7030A0)
+        XCTAssertNil(b.fillScheme, "a sampled colour is its own colour")
+        XCTAssertFalse(deck.pickShapeColor(at: Offset(-5, 10), outline: false), "outside the slide")
+    }
+}
+
+final class SlideEyedropperUITests: XCTestCase {
+    func testTheMenuArmsTheEyedropperAndTheNextClickOnTheSlideTakesTheColour() throws {
+        let deck = DeckController()
+        let a = deck.addShape(.rect); a.frame = Rect.fromLTWH(100, 100, 200, 100)
+        deck.selectShapes([a]); deck.applyShapeColor(.rgb(0x7030A0), outline: false)
+        let b = deck.addShape(.rect); b.frame = Rect.fromLTWH(500, 300, 100, 100)
+        deck.selectShapes([b])
+        let item = ColorGridMenuItem(theme: deck.theme.slots, recent: [], noneLabel: "No Fill",
+                                     onChoose: { _ in }, onMore: {}, onEyedropper: { deck.eyedropperFor = false })
+        let menu = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: Builder(builder: { ctx in item.buildItem(ctx) }), title: "T"))
+        XCTAssertTrue(menu.tap(text: "Eyedropper"))
+        XCTAssertEqual(deck.eyedropperFor, false)
+        menu.dispose()
+        let canvas = SlideCanvas(deck: deck, cache: SlideTextCache(), active: nil, onEdit: { _ in },
+                                 onShortcut: { _, _ in false }, modifiers: { [] }, spellChecker: nil)
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: canvas, title: "Test"))
+        for _ in 0 ..< 3 { ui.pump(); for cb in FrameCallbackScheduler.shared.takePostFrameCallbacks() { cb(.zero) } }
+        let st = try XCTUnwrap(ui.state(SlideCanvasState.self))
+        ui.tap(at: st.screenPoint(Offset(150, 150)))
+        XCTAssertNil(deck.eyedropperFor)
+        XCTAssertEqual(UInt32(truncatingIfNeeded: b.fill!.value) & 0xFFFFFF, 0x7030A0)
+        XCTAssertTrue(deck.isSelected(b), "the click picked a colour; it did not change the selection")
+    }
+}

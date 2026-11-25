@@ -80,4 +80,24 @@ final class SlideThumbSelectionTests: XCTestCase {
         deck.toggleHiddenSelected()
         XCTAssertTrue(deck.slides[0].hidden && deck.slides[1].hidden)
     }
+
+    func testSorterDragReordersOneSlideAndAGroup() throws {
+        let path = "/data/corpus-cache/test/corpus/pptx/decks/45545_Comment.pptx"
+        guard FileManager.default.fileExists(atPath: path) else { throw XCTSkip("deck not in the corpus cache") }
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light),
+                                        home: SlidesShell(initialPath: path, onSwitch: { _, _ in }), title: "Test"),
+                              size: Size(1280, 800))
+        let session = try XCTUnwrap(ui.state(SlidesShellState.self)?.session)
+        let deck = try XCTUnwrap(session.deck)
+        while deck.slides.count < 4 { _ = deck.addSlide() }
+        session.onSlidesView?(true); ui.pump()
+        let ids = deck.slides.map(\.id)
+        let a = try XCTUnwrap(ui.centre(id: "slide.sorter.0")), b = try XCTUnwrap(ui.centre(id: "slide.sorter.2"))
+        // Drag the first tile onto the third's place: it lands at index 2.
+        ui.drag(from: a, to: b); ui.pump()
+        XCTAssertEqual(Array(deck.slides.map(\.id).prefix(4)), [ids[1], ids[2], ids[0], ids[3]])
+        XCTAssertTrue(session.slidesSorter)
+        deck.undo()
+        XCTAssertEqual(deck.slides.map(\.id), ids)
+    }
 }

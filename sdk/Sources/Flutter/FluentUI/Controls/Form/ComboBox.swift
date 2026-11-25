@@ -80,6 +80,9 @@ public class ComboBox<T: Equatable>: StatefulWidget {
     /// Widget displayed when `value` is nil.
     public let placeholder: Widget?
 
+    /// What the box is called, for key tips and screen readers.
+    public let semanticLabel: String?
+
     /// Whether to close the flyout after selecting an item.
     public let closeAfterClick: Bool
 
@@ -110,8 +113,10 @@ public class ComboBox<T: Equatable>: StatefulWidget {
         icon: Widget? = nil,
         iconEnabledColor: Color? = nil,
         iconDisabledColor: Color? = nil,
-        iconSize: Double = 8.0
+        iconSize: Double = 8.0,
+        semanticLabel: String? = nil
     ) {
+        self.semanticLabel = semanticLabel
         self.value = value
         self.items = items
         self.onChanged = onChanged
@@ -250,7 +255,8 @@ class _ComboBoxState<T: Equatable>: State<StatefulWidget> {
                 builder: { context, states in
                     buttonContent
                 },
-                onPressed: isDisabled ? nil : { [self] in _openPopup() }
+                onPressed: isDisabled ? nil : { [self] in _openPopup() },
+                semanticLabel: comboBox.semanticLabel
             )
         )
     }

@@ -104,6 +104,8 @@ struct ChartSeries: Equatable {
     var autoIndex: Int? = nil
     /// The theme slot the file named ("accent3"), followed by a new theme.
     var scheme: String? = nil
+    /// The colour element written for a colour picked from the theme grid (a scheme colour with lumMod / lumOff); `color` holds what it comes to.
+    var colorXML: String? = nil
     /// A scatter series whose points are joined by its line (the file gave
     /// the series a line, or the chart's style is one with lines).
     var joined = false
@@ -262,6 +264,10 @@ struct Chart: Equatable {
     /// The legend's text names a size of its own (even the default 12), where LibreOffice's export names none.
     var legendSized = false
     var dataLabels = false
+    /// What Data Labels set here says (value, category, series, percent, position), written as the labels' own `c:dLbls`; nil writes the plain value labels.
+    var labelEdit: ChartLabelEdit? = nil
+    /// What a chart from a file says in its plain labels (category / series name), for the Data Labels dialog.
+    var fileLabelCategory = false, fileLabelSeries = false
     /// Where a column or bar chart's labels stand (`c:dLblPos` of its first series' labels, else the chart's).
     var barLabelPos: String? = nil
     /// `c:grouping`: clustered/standard, stacked or percentStacked.
@@ -486,6 +492,8 @@ struct Chart: Equatable {
     }
     /// A pie's slices in their own colours (`c:dPt`), by index.
     var pointColors: [Int: Color] = [:]
+    /// The colour element written for a point colour picked from the theme grid (a scheme colour with its tint), by index.
+    var pointColorXML: [Int: String] = [:]
     /// The outline the first slice's `c:dPt` gives (colour, width in pt): a pie's legend keys wear it.
     var pointRim: Color? = nil
     var pointRimWidth = 0.75
@@ -2290,6 +2298,9 @@ enum ChartXML {
         if c.series.contains(where: { !$0.labelPointsOn.isEmpty }) { c.dataLabels = true }
         else if !c.dataLabels || c.series.allSatisfy({ !$0.labelsShown }) { for i in c.series.indices { c.series[i].labelsShown = true } }
         if type == .column || type == .bar { c.barLabelPos = (el.first("c:ser")?.first("c:dLbls")?.first("c:dLblPos") ?? el.first("c:dLbls")?.first("c:dLblPos"))?["val"] }
+        if type == .column || type == .bar, let d = el.first("c:ser")?.first("c:dLbls") ?? el.first("c:dLbls") {
+            c.fileLabelCategory = d.first("c:showCatName")?["val"] == "1"; c.fileLabelSeries = d.first("c:showSerName")?["val"] == "1"
+        }
         if type == .doughnut, let hole = el.first("c:holeSize")?["val"].flatMap(Int.init) { c.holeSize = hole }
         if type == .pie || type == .doughnut, let ser = el.first("c:ser"), let d = ser.first("c:dLbls") ?? el.first("c:dLbls") {
             func on(_ n: XNode?, _ name: String) -> Bool { ["1", "true"].contains(n?.first(name)?["val"] ?? "") }
@@ -2999,6 +3010,7 @@ enum ChartXML {
 
     private static func _solid(_ chart: Chart, _ i: Int) -> String {
         let s = chart.series[i]
+        if let x = s.colorXML { return "<a:solidFill>\(x)</a:solidFill>" }
         if let c = s.color { return "<a:solidFill><a:srgbClr val=\"\(PptxText.hex(c))\"/></a:solidFill>" }
         if let scheme = s.scheme { return "<a:solidFill><a:schemeClr val=\"\(scheme)\"/></a:solidFill>" }
         // A monochrome style colours the series itself: no fill of its own.
@@ -3022,6 +3034,13 @@ enum ChartXML {
     /// The chart part, cached values and all, pointing at its workbook
     /// through relationship `rId1`.
     static func chartSpace(_ c: Chart) -> String {
+        let xml = _chartSpaceBase(c)
+        // Labels set in Data Labels go on each series, as Excel writes them from its own dialog.
+        guard c.dataLabels, let e = c.labelEdit else { return xml }
+        return ChartPartPatch.labels(xml, e)
+    }
+
+    private static func _chartSpaceBase(_ c: Chart) -> String {
         let n = c.categories.count
         let last = n + 1
         var sers = ""
@@ -3035,6 +3054,10 @@ enum ChartXML {
             return "<c:strRef><c:f>\(catRef)</c:f><c:strCache><c:ptCount val=\"\(n)\"/>\(pts)</c:strCache></c:strRef>"
         }()
         let seriesList = c.type.isPie ? Array(c.series.prefix(1)) : c.series
+        // A point of the first series in a colour of its own (a bar, a column, an area's).
+        func ownPoints(_ extra: String) -> String {
+            c.pointColors.sorted { $0.key < $1.key }.map { "<c:dPt><c:idx val=\"\($0.key)\"/>\(extra)<c:spPr><a:solidFill>\(c.pointColorXML[$0.key] ?? "<a:srgbClr val=\"\(PptxText.hex($0.value))\"/>")</a:solidFill></c:spPr></c:dPt>" }.joined()
+        }
         for (i, s) in seriesList.enumerated() {
             let col = column(i + 1)
             let tx = "<c:tx><c:strRef><c:f>Sheet1!$\(col)$1</c:f><c:strCache><c:ptCount val=\"1\"/><c:pt idx=\"0\"><c:v>\(_esc(s.name))</c:v></c:pt></c:strCache></c:strRef></c:tx>"
@@ -3043,9 +3066,9 @@ enum ChartXML {
             let head = "<c:idx val=\"\(s.autoIndex ?? i)\"/><c:order val=\"\(i)\"/>\(tx)"
             switch c.type {
             case .column, .bar:
-                sers += "<c:ser>\(head)<c:spPr>\(_solid(c, i))<a:ln><a:noFill/></a:ln></c:spPr><c:invertIfNegative val=\"0\"/><c:cat>\(catCache)</c:cat><c:val>\(val)</c:val></c:ser>"
+                sers += "<c:ser>\(head)<c:spPr>\(_solid(c, i))<a:ln><a:noFill/></a:ln></c:spPr><c:invertIfNegative val=\"0\"/>\(i == 0 ? ownPoints("<c:invertIfNegative val=\"0\"/>") : "")<c:cat>\(catCache)</c:cat><c:val>\(val)</c:val></c:ser>"
             case .area:
-                sers += "<c:ser>\(head)<c:spPr>\(_solid(c, i))<a:ln><a:noFill/></a:ln></c:spPr><c:cat>\(catCache)</c:cat><c:val>\(val)</c:val></c:ser>"
+                sers += "<c:ser>\(head)<c:spPr>\(_solid(c, i))<a:ln><a:noFill/></a:ln></c:spPr>\(i == 0 ? ownPoints("") : "")<c:cat>\(catCache)</c:cat><c:val>\(val)</c:val></c:ser>"
             case .line:
                 sers += "<c:ser>\(head)<c:spPr><a:ln w=\"28575\" cap=\"rnd\">\(_solid(c, i))<a:round/></a:ln></c:spPr><c:marker><c:symbol val=\"none\"/></c:marker><c:cat>\(catCache)</c:cat><c:val>\(val)</c:val><c:smooth val=\"0\"/></c:ser>"
             case .scatter:
@@ -3057,7 +3080,7 @@ enum ChartXML {
             case .pie, .doughnut:
                 var dpts = ""
                 for p in 0 ..< n {
-                    let own = c.pointColors[p].map { "<a:solidFill><a:srgbClr val=\"\(PptxText.hex($0))\"/></a:solidFill>" }
+                    let own = c.pointColors[p].map { "<a:solidFill>\(c.pointColorXML[p] ?? "<a:srgbClr val=\"\(PptxText.hex($0))\"/>")</a:solidFill>" }
                     dpts += "<c:dPt><c:idx val=\"\(p)\"/><c:bubble3D val=\"0\"/><c:spPr>\(own ?? _cycleFill(p))<a:ln w=\"19050\"><a:solidFill><a:schemeClr val=\"lt1\"/></a:solidFill></a:ln></c:spPr></c:dPt>"
                 }
                 sers += "<c:ser>\(head)\(dpts)<c:cat>\(catCache)</c:cat><c:val>\(val)</c:val></c:ser>"
@@ -3065,9 +3088,10 @@ enum ChartXML {
         }
         // (A pie's says where its labels stand, as it was read: inside,
         // as this app draws plain ones, or round it.)
-        let labels = !c.dataLabels ? "" : c.type.isPie
+        let labels = !c.dataLabels ? "" : c.labelEdit.map { _ in ""
+        } ?? (c.type.isPie
             ? _labels.replacingAll("<c:showLegendKey", with: "<c:dLblPos val=\"\(c.pieLabelsAround ? "bestFit" : "ctr")\"/><c:showLegendKey")
-            : _labels
+            : _labels)
         let grouping = c.percent ? "percentStacked" : c.stacked ? "stacked" : (c.type == .column || c.type == .bar ? "clustered" : "standard")
         let ax = "<c:axId val=\"500000001\"/><c:axId val=\"500000002\"/>"
         var plot: String
@@ -3114,10 +3138,11 @@ enum ChartXML {
             let valTitle = c.valueAxisTitle.map { _rich($0, size: c.valueAxisTitleSize.map { Int(($0 * 100).rounded()) }, rotated: c.type != .bar, bold: c.axisTitleBoldOut) } ?? ""
             let catPos = c.type == .bar ? "l" : "b", valPos = c.type == .bar ? "b" : "l"
             let tail = "<c:majorTickMark val=\"none\"/><c:minorTickMark val=\"none\"/><c:tickLblPos val=\"nextTo\"/>"
-            let format = c.percent ? "0%" : "General"
-            let bounds = (c.valueMax.map { "<c:max val=\"\($0)\"/>" } ?? "") + (c.valueMin.map { "<c:min val=\"\($0)\"/>" } ?? "")
-            let unit = c.valueStep.map { "<c:majorUnit val=\"\($0)\"/>" } ?? ""
-            let valAx = "<c:valAx><c:axId val=\"500000002\"/><c:scaling><c:orientation val=\"minMax\"/>\(bounds)</c:scaling><c:delete val=\"\(c.valueAxisDeleted ? 1 : 0)\"/><c:axPos val=\"\(valPos)\"/>\(c.valueGrid ? "<c:majorGridlines><c:spPr>\(_gridLine)</c:spPr></c:majorGridlines>" : "")\(valTitle)<c:numFmt formatCode=\"\(format)\" sourceLinked=\"1\"/>\(tail)<c:spPr><a:noFill/><a:ln><a:noFill/></a:ln></c:spPr><c:crossAx val=\"500000001\"/><c:crosses val=\"autoZero\"/><c:crossBetween val=\"\(c.type == .scatter || c.type == .area ? "midCat" : "between")\"/>\(unit)</c:valAx>"
+            let format = c.percent ? "0%" : PptxXML.escape(c.valueFormat ?? "General", attribute: true), linked = c.percent || c.valueFormat == nil ? "1" : "0"
+            let whole: (Double) -> String = { $0 == $0.rounded() && Swift.abs($0) < 1e15 ? String(Int64($0)) : String($0) }
+            let bounds = (c.valueMax.map { "<c:max val=\"\(whole($0))\"/>" } ?? "") + (c.valueMin.map { "<c:min val=\"\(whole($0))\"/>" } ?? "")
+            let unit = c.valueStep.map { "<c:majorUnit val=\"\(whole($0))\"/>" } ?? ""
+            let valAx = "<c:valAx><c:axId val=\"500000002\"/><c:scaling><c:orientation val=\"minMax\"/>\(bounds)</c:scaling><c:delete val=\"\(c.valueAxisDeleted ? 1 : 0)\"/><c:axPos val=\"\(valPos)\"/>\(c.valueGrid ? "<c:majorGridlines><c:spPr>\(_gridLine)</c:spPr></c:majorGridlines>" : "")\(valTitle)<c:numFmt formatCode=\"\(format)\" sourceLinked=\"\(linked)\"/>\(tail)<c:spPr><a:noFill/><a:ln><a:noFill/></a:ln></c:spPr><c:crossAx val=\"500000001\"/><c:crosses val=\"autoZero\"/><c:crossBetween val=\"\(c.type == .scatter || c.type == .area ? "midCat" : "between")\"/>\(unit)</c:valAx>"
             if c.type == .scatter {
                 plot += "<c:valAx><c:axId val=\"500000001\"/><c:scaling><c:orientation val=\"minMax\"/></c:scaling><c:delete val=\"0\"/><c:axPos val=\"b\"/>\(c.scatterXGrid ? "<c:majorGridlines><c:spPr>\(_gridLine)</c:spPr></c:majorGridlines>" : "")\(catTitle)<c:numFmt formatCode=\"General\" sourceLinked=\"1\"/>\(tail)<c:spPr><a:noFill/>\(_gridLine)</c:spPr><c:crossAx val=\"500000002\"/><c:crosses val=\"autoZero\"/><c:crossBetween val=\"midCat\"/></c:valAx>"
             } else {

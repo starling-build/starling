@@ -141,6 +141,26 @@ enum PdfExport {
 }
 
 extension PdfExport {
+    /// The page label of each paragraph and the page count, from a laying out of `document` as it prints (for F9).
+    static func pageInfo(_ document: RichDocument, pageSetup: PageSetup, theme: RichTextTheme) -> (label: (Int) -> String?, count: Int) {
+        let layout = RichLayout(theme: theme, paragraphCount: document.paragraphs.count)
+        layout.scale = 15.0
+        layout.pageSetup = pageSetup
+        layout.width = pageSetup.columnWidth * theme.pixelsPerPoint * 15.0
+        layout.ensureLaidOut(document)
+        return ({ layout.pageLabel(ofParagraph: $0, document) }, layout.pageCount)
+    }
+
+    /// The page label of each paragraph, from a laying out of `document` as it prints (for a table of contents).
+    static func pageLabels(_ document: RichDocument, pageSetup: PageSetup, theme: RichTextTheme) -> (Int) -> String? {
+        let layout = RichLayout(theme: theme, paragraphCount: document.paragraphs.count)
+        layout.scale = 15.0
+        layout.pageSetup = pageSetup
+        layout.width = pageSetup.columnWidth * theme.pixelsPerPoint * 15.0
+        layout.ensureLaidOut(document)
+        return { layout.pageLabel(ofParagraph: $0, document) }
+    }
+
     /// The document with each page reference (`PAGEREF name`) to a bookmark it has set to the page
     /// that bookmark's paragraph starts on in `layout`; nil where none changes.
     static func pageReferencesUpdated(_ document: RichDocument, _ layout: RichLayout) -> RichDocument? {

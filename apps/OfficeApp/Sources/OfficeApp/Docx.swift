@@ -297,6 +297,7 @@ enum DocxFormat {
         // style, then the paragraph's own — every paragraph comes out
         // with the absolute values the layout draws.
         var styleByDocx: [String: String] = [:]
+        var styleSourceIds: [String: String] = [:]
         var sheet = RichStyleSheet.word
         var base = RichParagraphStyle(spaceAfter: 0, lineSpacing: 1.0)
         // A package with no styles part at all is laid out by Word's own
@@ -723,6 +724,7 @@ enum DocxFormat {
                     // and Intense Quote): the first defines the look, both use it.
                     let first = !styleByDocx.values.contains(ours)
                     styleByDocx[id] = ours
+                    if first { styleSourceIds[ours] = id }
                     guard first, var entry = sheet[ours], ours != RichNamedStyle.normalId else { continue }
                     var cs = chain.char
                     if cs.fontFamily == nil { cs.fontFamily = entry.char.fontFamily }
@@ -737,6 +739,7 @@ enum DocxFormat {
                     // prints a document's markup balloons in it — delins's
                     // Tahoma 8pt, which went to the 9pt serif without it.)
                     styleByDocx[id] = id
+                    styleSourceIds[id] = id
                     sheet[id] = RichNamedStyle(id: id, name: rawName, paragraph: chain.paragraph, char: chain.char)
                 }
             }
@@ -2006,6 +2009,7 @@ enum DocxFormat {
                     if Self.wordOnWindows, pos["w:vertAnchor"] == "margin", pos["w:tblpYSpec"] == nil, let v = Double(pos["w:tblpY"] ?? ""), v > 0 {
                         style.marginOffsetY = v / 20
                     }
+                    if Self.wordOnWindows, pos["w:vertAnchor"] == "margin", pos["w:tblpYSpec"] == nil, style.marginOffsetY != nil { style.floatOffsetY = style.marginOffsetY }
                     // (`w:tblpYSpec="top"` with no anchor stated stands at the margin's top, over the empty
                     // paragraph before it: LibreOffice's lo-0dd5bc0a, a cover-page SDT; Word's print has it 26pt
                     // higher than ours, which set it under that paragraph.)
@@ -2015,7 +2019,7 @@ enum DocxFormat {
                     }
                     // (A table placed "inside" the text's line takes no room in it either: LibreOffice's
                     // tdf-less lo-4c84a541 has "After table1" level with it in Word's print.)
-                    if vertText, pos["w:tblpYSpec"] == nil || pos["w:tblpYSpec"] == "inside" { style.floatsOverText = true }
+                    if vertText || (Self.wordOnWindows && pos["w:vertAnchor"] == "margin" && style.marginOffsetY != nil), pos["w:tblpYSpec"] == nil || pos["w:tblpYSpec"] == "inside" { style.floatsOverText = true }
                     if pos["w:vertAnchor"] == "text", pos["w:tblpYSpec"] == "top" { style.floatsTopByText = true }
                     // (A drawing the table holds that is not laid out in its cell.)
                     if node.descendants("wp:anchor").contains(where: { $0["layoutInCell"] == "0" }) { style.shapesLeaveCell = true }
@@ -2437,6 +2441,7 @@ enum DocxFormat {
                         let vAlign = tcPr?.first("w:vAlign")?["w:val"].flatMap { ["center", "bottom"].contains($0) ? $0 : nil } ?? (tcPr?.first("w:vAlign") == nil ? ((r == 0 && firstRowOn ? cond.headerVAlign : nil) ?? cond.cellVAlign) : nil)
                         currentCell = CellRef(table: id, row: r, column: column, span: span, fill: fill, edges: ownEdges, verticalAlign: vAlign)
                         if fromStyle { currentCell?.styleFilled = true }
+                        if let shd = tcPr?.first("w:shd"), shd["w:fill"]?.lowercased() == "auto", fill == nil { currentCell?.fillAuto = true }
                         if let shd = tcPr?.first("w:shd"), shd["w:fill"]?.count == 6, shd["w:themeFill"] != nil {
                             currentCell?.fillThemeAttrs = ["w:themeFill", "w:themeFillTint", "w:themeFillShade"].compactMap { k in shd[k].map { " \(k)=\"\(_esc($0))\"" } }.joined()
                         }
@@ -3090,6 +3095,9 @@ enum DocxFormat {
         document.listFormats = listFormats
         document.listCounterOf = listCounterOf
         document.listRestarts = listRestarts
+        document.keptNumberingXML = part("word/numbering.xml").flatMap { String(data: $0, encoding: .utf8) }
+        document.listFormatsSnapshot = listFormats
+        document.listRestartsSnapshot = listRestarts
         if let bg = root.first("w:background"), let frag = _keptFragment(bg, notes) {
             document.backgroundXML = frag.xml
             document.backgroundRels = frag.rels
@@ -3413,6 +3421,12 @@ enum DocxFormat {
                     document.footer = _fieldText(node)
                 }
             }
+        }
+        if let raw = part("word/styles.xml"), let text = String(data: raw, encoding: .utf8) {
+            document.keptStylesXML = text
+            document.styleFileIds = styleByDocx
+            document.styleSource = styleSourceIds
+            document.styleSnapshot = document.styles.styles
         }
         return DocxDocument(document: document, pageSetup: pageSetup)
     }

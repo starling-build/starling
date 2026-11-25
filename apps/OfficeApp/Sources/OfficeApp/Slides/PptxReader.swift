@@ -823,6 +823,36 @@ struct PptxReader {
         if changed { node.children = out }
     }
 
+    /// Set Up Slide Show (`ppt/presProps.xml` `p:showPr`) and the custom shows (`p:custShowLst`).
+    static func _showSettings(_ presentation: XNode, rels: [PptxRel], slides: [SlideState], package: PptxPackage)
+        -> (ShowSettings, [CustomShow]) {
+        var shows: [CustomShow] = []
+        for cs in presentation.first("p:custShowLst")?.all("p:custShow") ?? [] {
+            var ids: [Int] = []
+            for sld in cs.first("p:sldLst")?.all("p:sld") ?? [] {
+                guard let rid = sld["r:id"], let part = rels.first(where: { $0.id == rid })?.target,
+                      let slide = slides.first(where: { $0.sourcePart == part }) else { continue }
+                ids.append(slide.id)
+            }
+            shows.append(CustomShow(id: cs["id"].flatMap(Int.init) ?? shows.count, name: cs["name"] ?? "Custom Show", slides: ids))
+        }
+        var show = ShowSettings()
+        if let rel = rels.first(where: { $0.kind == "presProps" }), let pr = package.xml(rel.target)?.first("p:showPr") {
+            if pr.first("p:browse") != nil { show.kind = .window }
+            if pr.first("p:kiosk") != nil { show.kind = .kiosk }
+            show.loop = pr["loop"] == "1" || pr["loop"] == "true"
+            show.useTimings = !(pr["useTimings"] == "0" || pr["useTimings"] == "false")
+            show.narration = !(pr["showNarration"] == "0" || pr["showNarration"] == "false")
+            if let rg = pr.first("p:sldRg"), let a = rg["st"].flatMap(Int.init), let b = rg["end"].flatMap(Int.init) {
+                show.range = .slides(from: a, to: b)
+            } else if let cs = pr.first("p:custShow"), let id = cs["id"].flatMap(Int.init), shows.contains(where: { $0.id == id }) {
+                show.range = .custom(id)
+            }
+            if pr["loop"] == nil, pr.first("p:kiosk") != nil { show.loop = true }
+        }
+        return (show, shows)
+    }
+
     func read() throws -> (DeckState, DeckTheme, PptxPackage) {
         guard let root = package.xml("_rels/.rels"),
               let presPart = root.all("Relationship").first(where: { ($0["Type"] ?? "").hasSuffix("/officeDocument") })?["Target"]
@@ -1090,10 +1120,17 @@ struct PptxReader {
             }
             // Entrance animations this app models, aimed at shapes by the
             // file ids they kept.
+            let byFileId = Dictionary(shapes.compactMap { s in s.fileId.map { ($0, s.id) } }, uniquingKeysWith: { a, _ in a })
+            for i in shapes.indices where shapes[i].pendingConnStart != nil || shapes[i].pendingConnEnd != nil {
+                let ps = shapes[i].pendingConnStart, pe = shapes[i].pendingConnEnd
+                let cs = ps.flatMap { p in byFileId[p.shape].map { ShapeConn(shape: $0, site: p.site) } }
+                let ce = pe.flatMap { p in byFileId[p.shape].map { ShapeConn(shape: $0, site: p.site) } }
+                shapes[i].connStart = cs; shapes[i].connEnd = ce
+                shapes[i].keptLine?.connStart = cs; shapes[i].keptLine?.connEnd = ce
+            }
             var animations: [ShapeAnimation] = []
             var sourceAnimations: [ShapeAnimation]? = nil
             if let timing = slide.first("p:timing"), let read = AnimationXML.read(timing) {
-                let byFileId = Dictionary(shapes.compactMap { s in s.fileId.map { ($0, s.id) } }, uniquingKeysWith: { a, _ in a })
                 let mapped = read.compactMap { r -> ShapeAnimation? in
                     byFileId[r.spid].map { var a = r.animation; a.shapeId = $0; return a }
                 }
@@ -1120,7 +1157,38 @@ struct PptxReader {
             slides.append(SlideState(id: id(), layout: .blank, hidden: false,
                                      notes: RichDocument(), shapes: []))
         }
-        return (DeckState(slides: slides, current: 0, slideSize: size, firstSlideNum: presentation["firstSlideNum"].flatMap(Int.init) ?? 1), deckTheme, package)
+        var state = DeckState(slides: slides, current: 0, slideSize: size, firstSlideNum: presentation["firstSlideNum"].flatMap(Int.init) ?? 1)
+        (state.show, state.customShows) = Self._showSettings(presentation, rels: rels, slides: slides, package: package)
+        (state.sections, state.slides) = Self._sections(presentation, rels: rels, slides: slides)
+        return (state, deckTheme, package)
+    }
+
+    /// The deck's sections (`p14:sectionLst`): each slide gets the guid of the section that lists its slide id. A slide no section lists joins the one before it; a file whose list names no slide has no sections.
+    static func _sections(_ presentation: XNode, rels: [PptxRel], slides: [SlideState]) -> ([SlideSection], [SlideState]) {
+        guard let list = presentation.descendant("p14:sectionLst") else { return ([], slides) }
+        var byFileId: [Int: Int] = [:]
+        for e in presentation.descendant("p:sldIdLst")?.all("p:sldId") ?? [] {
+            guard let fid = e["id"].flatMap(Int.init), let rid = e["r:id"],
+                  let part = rels.first(where: { $0.id == rid })?.target,
+                  let at = slides.firstIndex(where: { $0.sourcePart == part }) else { continue }
+            byFileId[fid] = at
+        }
+        var out = slides
+        var sections: [SlideSection] = []
+        var tagged = Set<Int>()
+        for sec in list.all("p14:section") {
+            let guid = sec["id"] ?? DeckController.newSectionGuid()
+            sections.append(SlideSection(guid: guid, name: sec["name"] ?? "Section"))
+            for s in sec.first("p14:sldIdLst")?.all("p14:sldId") ?? [] {
+                if let fid = s["id"].flatMap(Int.init), let at = byFileId[fid] { out[at].section = guid; tagged.insert(at) }
+            }
+        }
+        guard !tagged.isEmpty else { return ([], slides) }
+        var last = out[tagged.min()!].section
+        for i in out.indices {
+            if tagged.contains(i) { last = out[i].section } else { out[i].section = last }
+        }
+        return (sections, out)
     }
 
     /// A `p:bg`: its own properties, or a reference into the theme's
@@ -1427,11 +1495,18 @@ struct PptxReader {
         case "p:push": t.kind = .push
         case "p:wipe": t.kind = .wipe
         case "p:cover": t.kind = .cover
+        case "p:pull": t.kind = .pull
+        case "p:split": t.kind = .split
+        case "p:zoom": t.kind = .zoom
         default:
             t.kind = .fade
             t.raw = PptxXML.serialize(ac ?? node)
         }
         if let d = effect?["dir"].flatMap(SlideTransition.Direction.init(rawValue:)) { t.direction = d }
+        if t.kind == .split { t.vertical = effect?["orient"] == "vert"; t.inward = effect?["dir"] == "in" }
+        if t.kind == .zoom { t.zoomIn = effect?["dir"] != "out" }
+        t.advanceOnClick = node["advClick"] != "0"
+        t.advanceAfter = node["advTm"].flatMap(Double.init).map { $0 / 1000 }
         return t
     }
 

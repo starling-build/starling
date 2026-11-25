@@ -1061,6 +1061,9 @@ enum ExcelDate {
 
     /// Now, as a serial in the local time zone.
     static func now() -> Double {
+        // OFFICE_NOW pins the clock (amd-8, 2026-11-25): a book showing NOW() drew a different time width on every render, so the
+        // gate's base and PR draws of LIBRE_OFFICE-128382-0 scored 83.3 and 82.5 depending on the minute.
+        if let c = FieldClock.pinned() { return serial(c.year, c.month, c.day) + Double(c.hour * 3600 + c.minute * 60 + c.second) / 86400 }
         let t = Date().timeIntervalSince1970 + Double(TimeZone.current.secondsFromGMT())
         return t / 86400 - Double(system1904 ? _epoch1904 : _epoch)
     }

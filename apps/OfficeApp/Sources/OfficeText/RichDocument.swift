@@ -148,6 +148,8 @@ public struct CharStyle: Hashable, Codable, Sendable {
     public var color: Color? = nil
     /// The colour's theme attributes as the file wrote them: its six-digit hex, then ` w:themeColor=".."` (and tint/shade). Written back only while `color` still has that hex, so a colour the user changed loses them.
     public var colorTheme: String? = nil
+    /// The theme-font attributes of `w:rFonts` as the file wrote them (` w:asciiTheme=".."` ...), behind the faces they resolved to when read (the four faces joined by `|`, then `#`). Written back only while those faces are unchanged: a face the user picked replaces the theme font.
+    public var fontTheme: String? = nil
     /// The run properties (`w:rPr` children) exactly as the file wrote them, and a check of every other field of this look at that moment.
     /// A save writes them back while the look still matches, so a run the user did not touch keeps all its properties (theme fonts, effects,
     /// complex-script twins); any edit to the look makes the check fail and the properties are written from the fields as before.
@@ -166,9 +168,20 @@ public struct CharStyle: Hashable, Codable, Sendable {
         return c.hashValue == origCheck ? o : nil
     }
     public var highlight: Color? = nil
+    /// The highlight came from a `w:shd` (not `w:highlight`): its hex, `#`, then the element's other attributes as written (pattern, theme link).
+    /// Written back as that `w:shd` while the highlight is still that colour.
+    public var shdSource: String? = nil
     public var link: String? = nil
     /// The hyperlink's screen tip (Word's w:tooltip); only meaningful with a link.
     public var linkTip: String? = nil
+    /// The HYPERLINK field instruction (as written) this run's text is the result of, and which field it is: the link is
+    /// kept as the field on save, and is not drawn blue or underlined unless the run's own look says so.
+    public var linkField: String? = nil
+    public var linkFieldID = 0
+    /// The link came from a file: the save adds no Hyperlink character style to its runs (the file's runs keep the look they had).
+    public var linkKeepsLook = false
+    /// The file's w:hyperlink carried w:history (a link made in the app gets it on save).
+    public var linkHistory = false
     public var script: ScriptPosition = .normal
     /// Slides fontAlgn t, ctr or b on a line that mixes faces or sizes: where this run's baseline stands below the line's top, and where the engine's own line puts it, in ems of the run's size (nil: the paragraph is moved as a whole).
     public var alignTop: Double? = nil
@@ -299,6 +312,9 @@ public struct CharStyle: Hashable, Codable, Sendable {
     /// document (0 for none): Word's markup ends a "Formatted:" stretch
     /// at a field's ends. Read, not written back.
     public var fieldResult = 0
+    /// Set on the "{ instruction }" text that stands in for a field's result while its code is shown (Shift+F9 / Alt+F9):
+    /// which field it is, so hiding the code puts the result back with the instruction as edited. Never written to a file.
+    public var fieldCodeID = 0
 
     public init(bold: Bool = false, italic: Bool = false, underline: Bool = false,
                 strikethrough: Bool = false, fontFamily: String? = nil,
@@ -629,13 +645,16 @@ public struct ParagraphBorders: Hashable, Codable, Sendable {
     public var bottom: BorderLine? = nil
     public var left: BorderLine? = nil
     public var right: BorderLine? = nil
-    public init(top: BorderLine? = nil, bottom: BorderLine? = nil, left: BorderLine? = nil, right: BorderLine? = nil) {
+    /// The line between two joined paragraphs of one box (`w:between`, Word's Inside border).
+    public var between: BorderLine? = nil
+    public init(top: BorderLine? = nil, bottom: BorderLine? = nil, left: BorderLine? = nil, right: BorderLine? = nil, between: BorderLine? = nil) {
+        self.between = between
         self.top = top
         self.bottom = bottom
         self.left = left
         self.right = right
     }
-    public var isEmpty: Bool { top == nil && bottom == nil && left == nil && right == nil }
+    public var isEmpty: Bool { top == nil && bottom == nil && left == nil && right == nil && between == nil }
 }
 
 /// Paragraph-level formatting. Lengths are in points.
@@ -820,6 +839,10 @@ public struct RichParagraphStyle: Hashable, Codable, Sendable {
     /// sheet, under any direct formatting.
     public var named: String? = nil
     public var pageBreakBefore = false
+    /// W-FD-2: the paragraph opens a table of contents field (the instruction, `TOC \o "1-3" \h`); its entries are the
+    /// paragraphs up to the one that `contentsEnd` closes. Written back as the field so Word can update it.
+    public var contentsStart: String? = nil
+    public var contentsEnd = false
     /// The page break is a break character at the paragraph's start
     /// (Word's `w:br w:type="page"` in its first run), not the paragraph
     /// property: laid out the same here, written back as it was — Word
@@ -876,6 +899,9 @@ public struct RichParagraphStyle: Hashable, Codable, Sendable {
     public var pBdrElement = false
     /// A fill behind the whole paragraph (Word's paragraph shading).
     public var fill: Color? = nil
+    /// The rest of that shading as the file wrote it (pattern, pattern colour, theme link), after the fill's hex and a `#`:
+    /// `FFFFFF# w:val="pct10" w:color="auto"`. Written back only while the fill is still that colour.
+    public var fillAttrs: String? = nil
     /// Word's frame (w:framePr: a paragraph positioned on the page), kept
     /// as written for the save; the layout flows it like any other.
     public var frameXML: String? = nil
@@ -1339,6 +1365,8 @@ public struct CellRef: Hashable, Codable, Sendable {
     /// The theme link of that shading as the file wrote it (` w:themeFill="accent1" w:themeFillTint="99"`): the fill
     /// above is the colour it resolved to. Cleared when the shading is set to a plain colour.
     public var fillThemeAttrs: String? = nil
+    /// The file shaded this cell `auto` (an explicit no fill, over its table style's): written back as it was while the cell has no colour.
+    public var fillAuto = false
     /// `fill` is the table style's colour (drawn, but not the user's own): a save leaves it to the style.
     public var styleFilled: Bool? = nil
     /// This cell's own borders, by side (Word's `w:tcBorders`), where
@@ -2883,6 +2911,12 @@ public struct RichDocument: Hashable, Codable, Sendable {
     /// Per list id, the levels it restarts the first time it is used, at
     /// these numbers (Word's w:lvlOverride/w:startOverride).
     public var listRestarts: [String: [Int: Int]] = [:]
+    /// The file's own numbering.xml text, kept so a save patches it (nsid, tmpl,
+    /// tentative, tplc and tab survive) instead of rebuilding it; with the lists
+    /// as read, to tell which the user changed.
+    public var keptNumberingXML: String? = nil
+    public var listFormatsSnapshot: [String: [Int: ListLevelFormat]] = [:]
+    public var listRestartsSnapshot: [String: [Int: Int]] = [:]
     /// Parts of the file the editor does not model but a save must keep —
     /// Word's footnotes and endnotes, with their rels and what those
     /// reach — by package path. The body refers into them (`NoteReference`);
@@ -3234,6 +3268,14 @@ public struct RichDocument: Hashable, Codable, Sendable {
     /// them: a nested table's heading, a header's paragraphs. The writer
     /// defines each as a style based on ours.
     public var styleAliases: [String: String] = [:]
+    /// The file's styles part as read, with `styleFileIds` (the file's id -> ours, for every paragraph style
+    /// that maps to one of ours), `styleSource` (ours -> the file id that defined its look) and `styleSnapshot`
+    /// (the sheet as read). A save patches only the styles that were created, changed or deleted, so basedOn,
+    /// link, latent styles, aliases and rsids survive.
+    public var keptStylesXML: String?
+    public var styleFileIds: [String: String] = [:]
+    public var styleSource: [String: String] = [:]
+    public var styleSnapshot: [RichNamedStyle] = []
     /// Font families the file itself named (in its styles or its runs),
     /// written back as named. The editor's own faces are Liberation
     /// Sans/Serif/Mono and export as Arial/Times/Courier — but a file that

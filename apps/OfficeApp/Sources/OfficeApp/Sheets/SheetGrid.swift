@@ -183,6 +183,22 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             if edit == nil, oldValue != nil { _touchEditing = false; _dismissEditMenu() }
         }
     }
+    /// The formula-name list (X-CE-1): the highlighted row, and the text it was dismissed for with Escape.
+    private var _completeIndex = 0
+    private var _completeDismissedFor: String? = nil
+    /// The names offered for the word before the caret, nil when none (or Escape closed the list for this text).
+    var completion: FormulaHelp.Completion? {
+        guard let e = edit, e.selection == nil, String(e.text) != _completeDismissedFor else { return nil }
+        return FormulaHelp.completion(e.text, caret: e.caret)
+    }
+    /// Alt+Down's list of the column's words, and the highlighted one (X-CE-1).
+    private var _pick: [String]? = nil
+    private var _pickIndex = 0
+    /// The rest of a word already in the column that the typed text begins, shown grey after the caret.
+    var columnGhost: String? {
+        guard let e = edit, e.selection == nil, e.caret == e.text.count else { return nil }
+        return controller.columnSuggestion(for: String(e.text), at: e.cell)
+    }
     /// A finger is editing the cell: the caret and selection carry handles.
     private var _touchEditing = false
     private var _editMenuUp = false
@@ -190,6 +206,17 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
     private var _drag: _Drag? = nil
     /// A finger has touched the grid: the fill handle is drawn as a knob a finger can take.
     private var _touchSeen = false
+    /// A finger went down on a drawing that was not selected: the drawing a tap on release would select (a drag
+    /// scrolls instead).
+    private var _pendingDrawingTap: Int?
+
+    /// Whether a press on a chart or picture starts moving it (or its handle's resize): a mouse always does; a finger
+    /// only on one that is already selected, since a finger on any other drawing is trying to scroll the sheet.
+    static func drawingPressDrags(touch: Bool, wasSelected: Bool) -> Bool { !touch || wasSelected }
+    /// The drawing a finger touched that is not selected, to be picked (not selected alone) when the tap lifts.
+    private var _pendingDrawingPick = false
+    /// The other selected drawings and where they stood when a move began, so they travel with the one under the pointer.
+    private var _groupStart: [(index: Int, anchor: SheetAnchor, frame: (x: Double, y: Double, width: Double, height: Double))] = []
     /// Fingers down, by pointer id, for a pinch; and the last distance between two.
     private var _fingers: [Int: Offset] = [:]
     private var _pinchLast: Double? = nil
@@ -806,6 +833,10 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         p.style = .stroke
         p.strokeWidth = 1
         p.color = accent
+        // The others picked along with it: a frame, no handles.
+        for j in controller.alsoSelectedDrawings.sorted() where ws.drawings.indices.contains(j) {
+            canvas.drawRect(drawingRect(ws.drawings[j].anchor), p)
+        }
         canvas.drawRect(r, p)
         let radius = _touchSeen ? 7.0 : 4.0   // (a dot a finger can see under itself)
         for q in _handles(r) {
@@ -1320,6 +1351,8 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         _ime?.sync()
     }
 
+    var isEditing: Bool { edit != nil }
+
     /// Text typed from outside the keyboard (the bar over it): into the cell being edited, at the caret.
     func typeText(_ s: String) {
         guard edit != nil else { return }
@@ -1384,6 +1417,34 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         let named = KeyChordTracker.named(k.logical)
         let c = controller
 
+        // Alt+Down: the column's words in a list; Up/Down move, Enter or Tab take one, anything else closes it.
+        if let list = _pick {
+            switch named {
+            case .up, .down:
+                _pickIndex = ((_pickIndex + (named == .down ? 1 : -1)) % list.count + list.count) % list.count
+                _repaint.notifyListeners(); return true
+            case .enter, .tab:
+                let w = list[min(_pickIndex, list.count - 1)]
+                _pick = nil
+                if var e = edit {
+                    e.text = Array(w); e.caret = e.text.count; e.anchor = nil
+                    edit = e; _w.onEditText(w)
+                } else {
+                    beginEdit(replace: w); _ = commitEdit()
+                }
+                _repaint.notifyListeners(); return true
+            case .escape:
+                _pick = nil; _repaint.notifyListeners(); return true
+            default:
+                _pick = nil
+            }
+        }
+        if named == .down, _chords.alt, !_chords.control, !_chords.shift {
+            let words = c.columnWords(at: edit?.cell ?? c.active)
+            if !words.isEmpty { _pick = words; _pickIndex = 0; _repaint.notifyListeners() }
+            return true
+        }
+
         // ⌃` shows the formulas in the cells, or their results again.
         if edit == nil, _chords.control || _chords.primary, k.logical == 0x60 { c.toggleShowFormulas(); return true }
         // ⌃; today's date, ⌃⇧; the time, typed into the cell as Excel puts
@@ -1446,7 +1507,31 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         }
 
         if var e = edit {
+            // Enter or Tab takes the grey rest of a word from the column, then goes on as usual.
+            if (named == .enter || named == .tab), completion == nil, !_chords.alt, !_chords.control, !_chords.shift,
+               let g = columnGhost {
+                e.text = Array(g); e.caret = e.text.count; e.anchor = nil
+                edit = e; _w.onEditText(g)
+            }
             switch named {
+            case .tab where completion != nil && !_chords.shift:
+                if let comp = completion {
+                    let name = comp.matches[min(_completeIndex, comp.matches.count - 1)]
+                    let r = FormulaHelp.accept(name, in: e.text, from: comp.start, caret: e.caret)
+                    e.text = r.text; e.caret = r.caret; e.anchor = nil
+                    _completeIndex = 0
+                    edit = e; _w.onEditText(String(e.text)); _repaint.notifyListeners()
+                }
+                return true
+            case .up where completion != nil, .down where completion != nil:
+                if let comp = completion {
+                    let n = comp.matches.count
+                    _completeIndex = ((min(_completeIndex, n - 1) + (named == .down ? 1 : -1)) % n + n) % n
+                    _repaint.notifyListeners()
+                }
+                return true
+            case .escape where completion != nil:
+                _completeDismissedFor = String(e.text); _repaint.notifyListeners(); return true
             case .enter where _chords.alt:
                 // Alt+Enter: a line break inside the cell, as Excel's (which
                 // turns its Wrap Text on; setInputs does).
@@ -1515,7 +1600,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         // the cells, and typing does nothing (as Excel).
         if let d = c.selectedDrawing {
             switch named {
-            case .delete, .backspace: c.deleteDrawing(d); return true
+            case .delete, .backspace: _ = d; c.deleteSelectedDrawings(); return true
             case .escape: c.select(c.active); return true
             case .left, .right, .up, .down: c.select(c.active)
             default: if _chords.typedText(k) != nil { return true }
@@ -1554,6 +1639,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             c.select(CellAddress(row: c.active.row + d, col: c.active.col), extend: _chords.shift)
             scrollY = max(0, scrollY + Double(d) * rows.def)
             reveal(c.active); return true
+        case .function(3) where _chords.control || _chords.primary: c.onCommand?(.nameManager); return true
         case .function(2): beginEdit(); return true
         case .delete: marquee = nil; c.clearContents(); return true
         case .backspace: beginEdit(replace: ""); return true
@@ -1712,6 +1798,9 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
 
     private func _down(_ e: PointerEvent) {
         focus.requestFocus()
+        _pendingDrawingTap = nil
+        _pendingDrawingPick = false
+        _groupStart = []
         if e.kind == .touch { _touchSeen = true }
         let p = _local(e)
         let c = controller
@@ -1810,9 +1899,31 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         // Pictures and charts sit over the cells: they take the press first.
         if let hit = _drawingHit(p) {
             commitEdit()
-            c.selectedDrawing = hit.index
+            // Picking several: Shift-click, or Select Multiple's tap. A mouse toggles on the press; a finger on one that is not
+            // selected still scrolls, and picks it on release if it never moved.
+            let picking = (_chords.shift || c.selectMultiple) && c.selectedDrawing != nil && hit.handle == nil
+            // (While picking, a finger on a picked one that is not the main one taps to drop it rather than moving the group.)
+            let wasSelected = picking ? hit.index == c.selectedDrawing : c.selectedDrawingIndexes.contains(hit.index)
+            if picking, e.kind != .touch, _chords.shift || hit.index != c.selectedDrawing {
+                c.toggleDrawingPick(hit.index)
+                return
+            }
+            if !Self.drawingPressDrags(touch: e.kind == .touch, wasSelected: wasSelected) {
+                _pendingDrawingPick = picking
+                // A finger on a chart or picture that is not selected scrolls the sheet, as it does anywhere else; a tap
+                // (a finger that never moved) selects the drawing instead, on release.
+                _pendingDrawingTap = hit.index
+                _drag = .touchScroll(start: p, last: p, moved: false, cell: cell(atLocal: p))
+                return
+            }
+            c.selectDrawing(hit.index, keepingGroup: true)
             c._notify(selectionOnly: true)
             let ws = c.sheet
+            // The others picked move with it (a handle resizes only the one it is on).
+            _groupStart = hit.handle == nil
+                ? c.selectedDrawingIndexes.filter { $0 != hit.index && ws.drawings.indices.contains($0) }
+                    .map { (index: $0, anchor: ws.drawings[$0].anchor, frame: ws.frame(ws.drawings[$0].anchor)) }
+                : []
             _drag = .drawing(index: hit.index, handle: hit.handle, frame: ws.frame(ws.drawings[hit.index].anchor),
                              anchor: ws.drawings[hit.index].anchor, start: p)
             return
@@ -1951,7 +2062,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         }
         guard p.dx >= headerWidth && p.dy >= headerHeight else { return }
         if let hit = _drawingHit(p) {
-            c.selectedDrawing = hit.index
+            c.selectDrawing(hit.index, keepingGroup: true)
             c._notify(selectionOnly: true)
             _w.onContextMenu(global, .drawing(hit.index))
             return
@@ -2086,6 +2197,11 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 if y < 0 { b -= y; y = 0 }
             }
             let ws = c.sheet
+            if handle == nil {
+                for g in _groupStart where ws.drawings.indices.contains(g.index) {
+                    ws.drawings[g.index].anchor = ws.anchor(x: max(0, g.frame.x + dx), y: max(0, g.frame.y + dy), width: g.frame.width, height: g.frame.height)
+                }
+            }
             if ws.drawings.indices.contains(index) {
                 // Live, without an undo step per pixel: committed on release.
                 ws.drawings[index].anchor = ws.anchor(x: x, y: y, width: r - x, height: b - y)
@@ -2165,7 +2281,18 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             }
         }
         _move(e)
-        if case .touchScroll(_, _, let moved, let cell)? = _drag, !moved { _cellPress(cell) }
+        if case .touchScroll(_, _, let moved, let cell)? = _drag, !moved {
+            if let i = _pendingDrawingTap, controller.sheet.drawings.indices.contains(i) {
+                if _pendingDrawingPick { controller.toggleDrawingPick(i) } else {
+                    controller.selectDrawing(i)
+                    controller._notify(selectionOnly: true)
+                }
+            } else {
+                _cellPress(cell)
+            }
+        }
+        _pendingDrawingTap = nil
+        _pendingDrawingPick = false
         if case .editTouch(_, let moved, let before)? = _drag, let ed = edit {
             // A tap on the caret where it already was brings the menu; one that
             // moved it, or a drag that selected, shows it over the selection.
@@ -2176,8 +2303,17 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             let ws = controller.sheet
             if ws.drawings.indices.contains(index) {
                 let f = ws.frame(ws.drawings[index].anchor)
-                controller.setDrawingFrame(index, x: f.x, y: f.y, width: f.width, height: f.height, from: old)
+                if _groupStart.isEmpty {
+                    controller.setDrawingFrame(index, x: f.x, y: f.y, width: f.width, height: f.height, from: old)
+                } else {
+                    controller.setDrawingFrames(([(index: index, anchor: old)] + _groupStart.map { (index: $0.index, anchor: $0.anchor) }).map {
+                        let g = ws.frame(ws.drawings[$0.index].anchor)
+                        return (index: $0.index, x: g.x, y: g.y, width: g.width, height: g.height, from: $0.anchor)
+                    })
+                    controller.selectedDrawing = index
+                }
             }
+            _groupStart = []
         }
         switch _drag {
         case .cells?, .columns?, .rows?: if controller.painterSource != nil { controller.applyFormatPainter() }
@@ -2557,6 +2693,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         if let e = edit {
             _paintEditor(canvas, e, ink: ink, paper: paper, accent: accent, size: size)
         }
+        if let list = _pick { _paintPickList(canvas, list, ink: ink, paper: paper, accent: accent, size: size) }
         canvas.restore()
 
         // Headers.
@@ -2878,6 +3015,14 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             let side = min(r.height - 4 * zoom, 12 * zoom)
             guard side > 3 else { continue }
             IconSets.paint(icon.set, icon.index, canvas, in: Rect.fromLTWH(r.left + 3 * zoom, r.center.dy - side / 2, side, side))
+        }
+        // Sparklines, in the cells that have one.
+        if controller.sheet.keptElements.contains(where: { $0.name == "extLst" }), !controller.sparklineGroups().isEmpty {
+            for row in rs { for col in cs {
+                let a = CellAddress(row: row, col: col)
+                guard !covered.contains(a), let look = controller.sparklineLook(a) else { continue }
+                Sparklines.paint(look, canvas, in: rect(a), zoom: zoom)
+            } }
         }
         // Values.
         for row in rs { for col in cs {
@@ -3741,6 +3886,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         frame.color = accent
         canvas.drawRect(Rect.fromLTRB(box.left.rounded(), box.top.rounded(), box.right.rounded() - 1, box.bottom.rounded() - 1), frame)
         let ty = box.bottom - tp.height - 1
+        let refs = FormulaHelp.references(e.text)
         canvas.save()
         canvas.clipRect(box.deflate(1))
         if let r = e.selection {
@@ -3749,7 +3895,21 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             p.color = accent.withAlpha(90)
             canvas.drawRect(Rect.fromLTWH(box.left + pad + x0, ty, x1 - x0, tp.height), p)
         }
-        if !text.isEmpty { _put(tp, Offset(box.left + pad, ty.rounded()), canvas) }
+        if refs.isEmpty {
+            if !text.isEmpty { _put(tp, Offset(box.left + pad, ty.rounded()), canvas) }
+        } else {
+            // Each reference in its own colour, the rest in the cell's ink.
+            var at = 0
+            func piece(_ a: Int, _ b: Int, _ color: Int64?) {
+                guard b > a else { return }
+                var st = style
+                if let color { st.color = color }
+                let x = a == 0 ? 0 : texts.painter(String(e.text[0 ..< a]), style).width
+                _put(texts.painter(String(e.text[a ..< b]), st), Offset((box.left + pad + x).rounded(), ty.rounded()), canvas)
+            }
+            for r in refs { piece(at, r.range.lowerBound, nil); piece(r.range.lowerBound, r.range.upperBound, Int64(r.color)); at = r.range.upperBound }
+            piece(at, e.text.count, nil)
+        }
         // The input method's marked text, underlined.
         if let c = _composing, c.upperBound <= e.text.count, c.lowerBound < c.upperBound {
             let x0 = c.lowerBound == 0 ? 0 : texts.painter(String(e.text[0 ..< c.lowerBound]), style).width
@@ -3762,6 +3922,12 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         p.color = ink
         canvas.drawRect(Rect.fromLTWH((box.left + pad + before).rounded(), ty + 1, 1.5, max(1, tp.height - 2)), p)
         canvas.restore()
+        if let g = columnGhost, g.count > e.text.count {
+            var gs = style; gs.color = 0xFF8C8C8C
+            let rest = String(g.dropFirst(e.text.count))
+            _put(texts.painter(rest, gs), Offset((box.left + pad + tp.width).rounded(), ty.rounded()), canvas)
+        }
+        _paintFormulaHelp(canvas, e, refs: refs, box: box, style: style, ink: ink, paper: paper, accent: accent, size: size)
         // A finger's handles: one knob on a caret, one at each end of a selection.
         if _touchEditing {
             p.color = accent
@@ -3775,6 +3941,96 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                              editableSize: size, transform: TextInputChannel.windowTransform(of: rb))
         }
     }
+}
+
+// MARK: Formula help (X-CE-1)
+
+extension SheetGridState {
+    /// Alt+Down's list, under the cell being edited or the active one.
+    fileprivate func _paintPickList(_ canvas: any Canvas, _ list: [String], ink: Color, paper: Color, accent: Color, size: Size) {
+        let cell = edit?.cell ?? controller.active
+        let r = rect(cell)
+        var plain = _textStyle(controller.style(at: cell), color: nil, ink: ink)
+        plain.color = 0xFF000000
+        let painters = list.map { texts.painter($0, plain) }
+        let rowH = (painters.first?.height ?? 14) + 4
+        let w = max(r.width, (painters.map(\.width).max() ?? 40) + 16)
+        let x = min(r.left, max(0, size.width - w - 2))
+        let shown = min(list.count, 10)
+        let list0 = Rect.fromLTWH(x, r.bottom + 1, w, rowH * Double(shown))
+        let first = max(0, min(_pickIndex - shown + 1, list.count - shown))
+        let fill = Paint(), line = Paint()
+        fill.style = .fill; fill.color = paper
+        canvas.drawRect(list0, fill)
+        line.style = .stroke; line.strokeWidth = 1; line.color = Color(0xFF9E9E9E)
+        canvas.drawRect(list0, line)
+        for i in 0 ..< shown {
+            let k = first + i
+            let row = Rect.fromLTWH(x, list0.top + rowH * Double(i), w, rowH)
+            var st = plain
+            if k == _pickIndex { fill.color = accent; canvas.drawRect(row, fill); st.color = 0xFFFFFFFF }
+            _put(texts.painter(list[k], st), Offset(x + 8, row.top + 2), canvas)
+        }
+    }
+}
+
+extension SheetGridState {
+    fileprivate func _paintFormulaHelp(_ canvas: any Canvas, _ e: CellEdit, refs: [FormulaHelp.Reference], box: Rect,
+                                       style: GridTextStyle, ink: Color, paper: Color, accent: Color, size: Size) {
+        // A border on the grid round each reference, in the colour of its text.
+        let sheetName = controller.sheet.name.lowercased()
+        for r in refs where r.sheet == nil || r.sheet!.lowercased() == sheetName {
+            let b = Paint()
+            b.style = .stroke; b.strokeWidth = 2; b.color = Color(r.color)
+            canvas.drawRect(rect(r.cells).deflate(1), b)
+        }
+        let fill = Paint(), line = Paint()
+        fill.style = .fill
+        line.style = .stroke; line.strokeWidth = 1; line.color = Color(0xFF9E9E9E)
+        var below = box.bottom + 2
+        // The names that continue what is typed.
+        if let comp = completion {
+            let idx = min(_completeIndex, comp.matches.count - 1)
+            var plain = style; plain.family = OfficeFonts.drawn("Calibri")
+            let painters = comp.matches.map { texts.painter($0, plain) }
+            let rowH = (painters.first?.height ?? 14) + 4
+            let w = (painters.map(\.width).max() ?? 40) + 16
+            let x = min(box.left, max(0, size.width - w - 2))
+            let list = Rect.fromLTWH(x, below, w, rowH * Double(painters.count))
+            fill.color = paper; canvas.drawRect(list, fill); canvas.drawRect(list, line)
+            for (i, tp) in painters.enumerated() {
+                let row = Rect.fromLTWH(x, below + rowH * Double(i), w, rowH)
+                if i == idx { fill.color = accent; canvas.drawRect(row, fill) }
+                var st = plain; st.color = i == idx ? 0xFFFFFFFF : Int64(0xFF000000)
+                _put(texts.painter(comp.matches[i], st), Offset(x + 8, row.top + 2), canvas)
+                _ = tp
+            }
+            below = list.bottom + 2
+        }
+        // The arguments of the function the caret is in.
+        if let h = FormulaHelp.hint(e.text, caret: e.caret) {
+            var plain = style; plain.family = OfficeFonts.drawn("Calibri"); plain.color = 0xFF000000
+            var bold = plain; bold.bold = true
+            let head = h.name + "(", tail = ")"
+            var parts: [(String, GridTextStyle)] = [(head, plain)]
+            for (i, a) in h.signature.enumerated() {
+                if i > 0 { parts.append((", ", plain)) }
+                parts.append((a, i == h.index ? bold : plain))
+            }
+            parts.append((tail, plain))
+            let painters = parts.map { texts.painter($0.0, $0.1) }
+            let w = painters.map(\.width).reduce(0, +) + 12, hgt = (painters.first?.height ?? 14) + 6
+            let x = min(box.left, max(0, size.width - w - 2))
+            var y = box.top - hgt - 2
+            if y < 0 { y = comp0Bottom(below, box) }
+            let tip = Rect.fromLTWH(x, y, w, hgt)
+            fill.color = Color(0xFFFFFFE1); canvas.drawRect(tip, fill); canvas.drawRect(tip, line)
+            var px = x + 6
+            for tp in painters { _put(tp, Offset(px, y + 3), canvas); px += tp.width }
+        }
+    }
+
+    fileprivate func comp0Bottom(_ below: Double, _ box: Rect) -> Double { below }
 }
 
 // MARK: A finger in the cell editor

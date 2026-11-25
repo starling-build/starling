@@ -80,6 +80,10 @@ enum PptxWriter {
             b.rels(part, [Rel(id: "rId1", type: RT.master, target: "../slideMasters/slideMaster1.xml")])
             masterRels.append(Rel(id: "rIdL\(i + 1)", type: RT.layout, target: "../slideLayouts/slideLayout\(i + 1).xml"))
         }
+        if let pic = state.masterBackground?.image {
+            masterRels.append(Rel(id: PptxTemplates.masterPictureRID, type: RT.image, target: "../media/" + _masterPictureName(pic)))
+            b.addBinary("ppt/media/" + _masterPictureName(pic), pic.data)
+        }
         b.rels("ppt/slideMasters/slideMaster1.xml", masterRels)
         b.add("ppt/notesMasters/notesMaster1.xml", t.notesMaster(), type: CT.notesMaster)
         b.rels("ppt/notesMasters/notesMaster1.xml", [Rel(id: "rId1", type: RT.theme, target: "../theme/theme2.xml")])
@@ -116,7 +120,8 @@ enum PptxWriter {
             ids += "<p:sldId id=\"\(256 + i)\" r:id=\"rIdS\(i + 1)\"/>"
         }
         b.rels("ppt/presentation.xml", presRels)
-        b.add("ppt/presentation.xml", t.presentation(slideIds: ids), type: CT.presentation)
+        b.add("ppt/presentation.xml", _setSections(_setCustomShows(t.presentation(slideIds: ids), state), state, slideIds: state.slides.indices.map { 256 + $0 }), type: CT.presentation)
+        b.add("ppt/presProps.xml", _applyShowPr(PptxTemplates.presProps, state.show), type: CT.presProps)
     }
 
     // MARK: Through a package
@@ -140,6 +145,13 @@ enum PptxWriter {
         var copied = [String: String]()
         for part in keep { _copy(part, from: p, into: &b, done: &copied) }
         if let m = state.masterBackground { _setMasterBackground(m, in: &b) }
+        if let pp = presRelsAll.first(where: { $0.kind == "presProps" })?.target,
+           let d = b.parts[pp], let x = String(data: d, encoding: .utf8) {
+            b.parts[pp] = Data(_applyShowPr(x, state.show).utf8)
+        }
+        if let scaling = state.slideScaling, let old = _slideSize(presXML), old != state.slideSize {
+            _scaleMasters(from: old, to: state.slideSize, scaling, in: &b)
+        }
         if recolour {
             for r in presRelsAll where r.kind == "slideMaster" {
                 for tr in p.rels(r.target) where tr.kind == "theme" {
@@ -230,16 +242,9 @@ enum PptxWriter {
         presOut = _replaceElement("p:sldIdLst", in: presOut, with: "<p:sldIdLst>\(ids)</p:sldIdLst>",
                                   after: "</p:notesMasterIdLst>", orAfter: "</p:sldMasterIdLst>")
         // Custom shows (`p:custShowLst`) list slides by the same relationship
-        // ids this just renumbered: each `<p:sld r:id>` follows its slide,
-        // or goes when the slide did; an emptied show goes with it.
-        presOut = _remapSections(presOut, kept: slideIds, oldIds: Set(oldIdByPart.values), oldOrder: p.xml(pres)?.descendant("p:sldIdLst")?.all("p:sldId").compactMap { Int($0["id"] ?? "") } ?? [])
-        if presOut.containsSubstring("<p:custShowLst") {
-            var newId: [String: String] = [:]
-            for r in presRelsAll where r.kind == "slide" {
-                if let i = state.slides.firstIndex(where: { $0.sourcePart == r.target }) { newId[r.id] = "rIdS\(i + 1)" }
-            }
-            presOut = _remapCustomShows(presOut, newId)
-        }
+        // ids this just numbered, written from the deck's own list.
+        presOut = _setSections(presOut, state, slideIds: slideIds)
+        presOut = _setCustomShows(presOut, state)
         let cx = Int((state.slideSize.width * Pptx.emu).rounded()), cy = Int((state.slideSize.height * Pptx.emu).rounded())
         presOut = _replaceElement("p:sldSz", in: presOut, with: "<p:sldSz cx=\"\(cx)\" cy=\"\(cy)\"/>",
                                   after: "</p:sldIdLst>", orAfter: nil)
@@ -353,6 +358,7 @@ enum PptxWriter {
         // Animations: as read while unchanged (or, for timing this app does
         // not model, while every shape it names is still here); our own
         // timing tree once they are edited.
+        body = w.resolveConnections(body)
         var timing = ""
         let modelled = slide.sourceAnimations != nil
         if modelled && slide.animations != slide.sourceAnimations || !modelled && slide.timingXML == nil {
@@ -376,6 +382,15 @@ enum PptxWriter {
                     ns += " xmlns:\(prefix)=\"\(uri)\""
                 }
             }
+        }
+        // A sound or movie put here plays when clicked: PowerPoint's own media
+        // timing, where the slide has no other animation to merge it with.
+        if timing.isEmpty {
+            let written = w.written
+            timing = MediaTiming.write(slide.shapes.compactMap { sh in
+                guard let m = sh.media, let id = written[sh.id] else { return nil }
+                return (id, m.isVideo)
+            })
         }
         rels += w.rels
         rels += links.rels
@@ -419,9 +434,31 @@ enum PptxWriter {
             where raw.containsSubstring("\(prefix):") && !ns.containsSubstring("xmlns:\(prefix)=") {
                 ns += " xmlns:\(prefix)=\"\(uri)\""
             }
-            return raw
+            // (Its Advance Slide settings are the ones set here: swapped into each transition tag.)
+            var out = ""
+            var rest = raw
+            while let r = rest.rangeOfSubstring("<p:transition ") ?? rest.rangeOfSubstring("<p:transition>") {
+                out += rest[..<r.lowerBound] + "<p:transition"
+                let tail = String(rest[r.upperBound...])
+                guard let close = tail.firstIndex(of: ">") else { rest = tail; break }
+                var attrs = String(tail[..<close])
+                for name in ["advClick", "advTm"] {
+                    if let a = attrs.rangeOfSubstring(" \(name)=\""),
+                       let e = attrs.rangeOfSubstring("\"", in: a.upperBound ..< attrs.endIndex) {
+                        attrs = attrs.replacingSubrange(a.lowerBound ..< e.upperBound, with: "")
+                    }
+                }
+                if !t.advanceOnClick { attrs += " advClick=\"0\"" }
+                if let after = t.advanceAfter { attrs += " advTm=\"\(Int((after * 1000).rounded()))\"" }
+                out += attrs.hasPrefix(" ") || attrs.isEmpty || attrs.hasPrefix("/") ? attrs : " " + attrs
+                rest = String(tail[close...])
+            }
+            return out + rest
         }
-        guard t.kind != .none else { return "" }
+        // Advance Slide is attributes of the transition itself; a slide that advances only on a click
+        // and has no effect writes no transition at all.
+        let plainAdvance = t.advanceOnClick && t.advanceAfter == nil
+        guard t.kind != .none || !plainAdvance else { return "" }
         let spd = t.duration <= 0.5 ? "fast" : t.duration >= 1.0 ? "slow" : "med"
         let effect: String
         switch t.kind {
@@ -429,43 +466,199 @@ enum PptxWriter {
         case .push: effect = "<p:push dir=\"\(t.direction.rawValue)\"/>"
         case .wipe: effect = "<p:wipe dir=\"\(t.direction.rawValue)\"/>"
         case .cover: effect = "<p:cover dir=\"\(t.direction.rawValue)\"/>"
+        case .pull: effect = "<p:pull dir=\"\(t.direction.rawValue)\"/>"
+        case .split: effect = "<p:split orient=\"\(t.vertical ? "vert" : "horz")\" dir=\"\(t.inward ? "in" : "out")\"/>"
+        case .zoom: effect = "<p:zoom dir=\"\(t.zoomIn ? "in" : "out")\"/>"
         case .none: effect = ""
         }
-        return "<p:transition spd=\"\(spd)\">\(effect)</p:transition>"
+        var advance = t.advanceOnClick ? "" : " advClick=\"0\""
+        if let after = t.advanceAfter { advance += " advTm=\"\(Int((after * 1000).rounded()))\"" }
+        let plain = "<p:transition spd=\"\(spd)\"\(advance)>\(effect)</p:transition>"
+        guard t.kind != .none else { return plain }
+        // PowerPoint 2010+ writes the exact duration in p14:dur inside mc:AlternateContent, the plain
+        // transition (speed word only) as the fallback.
+        for (prefix, uri) in [("mc", "http://schemas.openxmlformats.org/markup-compatibility/2006"),
+                              ("p14", "http://schemas.microsoft.com/office/powerpoint/2010/main")]
+        where !ns.containsSubstring("xmlns:\(prefix)=") { ns += " xmlns:\(prefix)=\"\(uri)\"" }
+        let ms = Int((t.duration * 1000).rounded())
+        return "<mc:AlternateContent><mc:Choice Requires=\"p14\"><p:transition spd=\"\(spd)\"\(advance) p14:dur=\"\(ms)\">\(effect)</p:transition></mc:Choice><mc:Fallback>\(plain)</mc:Fallback></mc:AlternateContent>"
     }
 
-    /// `p:custShowLst` with every `<p:sld r:id="…"/>` renamed through
-    /// `newId`, listed slides without a new id dropped, shows left with no
-    /// slides dropped, and the list itself dropped once it is empty.
-    static func _remapCustomShows(_ s: String, _ newId: [String: String]) -> String {
-        guard let start = s.findRange(of: "<p:custShowLst"),
-              let end = s.findRange(of: "</p:custShowLst>", in: start.upperBound ..< s.endIndex) else { return s }
-        let list = String(s[start.lowerBound ..< end.upperBound])
-        /// Every `<open …>…<close>` span of `list`, rewritten by `f` (nil drops it).
-        func rewrite(_ list: String, open: String, close: String, _ f: (String) -> String?) -> String {
-            var out = "", cursor = list.startIndex
-            while let r = list.findRange(of: open, in: cursor ..< list.endIndex) {
-                out += list[cursor ..< r.lowerBound]
-                guard let c = list.findRange(of: close, in: r.upperBound ..< list.endIndex) else { cursor = r.lowerBound; break }
-                if let kept = f(String(list[r.lowerBound ..< c.upperBound])) { out += kept }
-                cursor = c.upperBound
+    /// `p:custShowLst` written from the deck's custom shows (slides by their
+    /// `rIdS<n>` ids), replacing the file's own; none left, none written.
+    static func _setCustomShows(_ pres: String, _ state: DeckState) -> String {
+        var out = pres
+        if let r = _elementRange("p:custShowLst", in: out) { out = out.replacingSubrange(r, with: "") }
+        var shows = ""
+        for cs in state.customShows {
+            let slides = cs.slides.compactMap { sid in state.slides.firstIndex { $0.id == sid } }
+            guard !slides.isEmpty else { continue }
+            shows += "<p:custShow name=\"\(PptxXML.escape(cs.name, attribute: true))\" id=\"\(cs.id)\"><p:sldLst>"
+                + slides.map { "<p:sld r:id=\"rIdS\($0 + 1)\"/>" }.joined() + "</p:sldLst></p:custShow>"
+        }
+        guard !shows.isEmpty else { return out }
+        let list = "<p:custShowLst>" + shows + "</p:custShowLst>"
+        for marker in ["<p:photoAlbum", "<p:custDataLst", "<p:kinsoku", "<p:defaultTextStyle", "<p:modifyVerifier", "<p:extLst", "</p:presentation>"] {
+            if let r = out.findRange(of: marker) { return out.replacingSubrange(r.lowerBound ..< r.lowerBound, with: list) }
+        }
+        return out
+    }
+
+    /// The span of `<name …>…</name>` or `<name …/>` in `s`.
+    static func _elementRange(_ name: String, in s: String) -> Range<String.Index>? {
+        guard let start = s.findRange(of: "<\(name)"),
+              let close = s.findRange(of: ">", in: start.upperBound ..< s.endIndex) else { return nil }
+        if s[s.index(before: close.lowerBound)] == "/" { return start.lowerBound ..< close.upperBound }
+        guard let end = s.findRange(of: "</\(name)>", in: close.upperBound ..< s.endIndex) else { return nil }
+        return start.lowerBound ..< end.upperBound
+    }
+
+    /// `p:showPr` in a `presProps` part, from the deck's show settings. A file
+    /// without one, and a deck with the defaults, is left as it was; the
+    /// pen colour and extensions the file had are kept.
+    static func _applyShowPr(_ xml: String, _ show: ShowSettings) -> String {
+        var out = xml, kept = ""
+        let had = _elementRange("p:showPr", in: out)
+        if let had {
+            let old = String(out[had])
+            for name in ["p:penClr", "p:extLst"] {
+                if let r = _elementRange(name, in: old) { kept += old[r] }
             }
-            return out + list[cursor...]
+            out = out.replacingSubrange(had, with: "")
+        } else if show == ShowSettings() { return xml }
+        var attrs = ""
+        if show.loop || show.kind == .kiosk { attrs += " loop=\"1\"" }
+        if !show.narration { attrs += " showNarration=\"0\"" }
+        if !show.useTimings { attrs += " useTimings=\"0\"" }
+        let type = show.kind == .window ? "<p:browse/>" : show.kind == .kiosk ? "<p:kiosk/>" : "<p:present/>"
+        let range: String
+        switch show.range {
+        case .all: range = "<p:sldAll/>"
+        case .slides(let a, let b): range = "<p:sldRg st=\"\(min(a, b))\" end=\"\(max(a, b))\"/>"
+        case .custom(let id): range = "<p:custShow id=\"\(id)\"/>"
         }
-        var pruned = rewrite(list, open: "<p:sld ", close: "/>") { tag in
-            guard let q = tag.findRange(of: "r:id=\""),
-                  let qe = tag.findRange(of: "\"", in: q.upperBound ..< tag.endIndex),
-                  let new = newId[String(tag[q.upperBound ..< qe.lowerBound])] else { return nil }
-            return "<p:sld r:id=\"\(new)\"/>"
+        let el = "<p:showPr\(attrs)>" + type + range + kept + "</p:showPr>"
+        if let r = _elementRange("p:presentationPr", in: out) {
+            let whole = String(out[r])
+            if whole.hasSuffix("/>") {
+                let open = String(whole.dropLast(2))
+                return out.replacingSubrange(r, with: open + ">" + el + "</p:presentationPr>")
+            }
+            for marker in ["<p:clrMru", "<p:extLst", "</p:presentationPr>"] {
+                if let m = out.findRange(of: marker) { return out.replacingSubrange(m.lowerBound ..< m.lowerBound, with: el) }
+            }
         }
-        pruned = rewrite(pruned, open: "<p:custShow ", close: "</p:custShow>") { $0.containsSubstring("<p:sld ") ? $0 : nil }
-        if !pruned.containsSubstring("<p:custShow ") { pruned = "" }
-        return s.replacingSubrange(start.lowerBound ..< end.upperBound, with: pruned)
+        return out
     }
 
     /// Apply to All: the masters' background becomes `fill`, and no layout keeps one of its own over it.
+    static func _masterPictureName(_ image: ImageAttachment) -> String { "master_background.\(PptxText.imageExtension(image))" }
+
+    /// `p:sldSz` of a presentation part, in points.
+    static func _slideSize(_ presXML: String) -> Size? {
+        guard let r = presXML.findRange(of: "<p:sldSz"), let e = presXML.findRange(of: ">", in: r.upperBound ..< presXML.endIndex) else { return nil }
+        let tag = String(presXML[r.upperBound ..< e.lowerBound])
+        func attr(_ n: String) -> Double? {
+            guard let a = tag.findRange(of: " \(n)=\""), let q = tag.findRange(of: "\"", in: a.upperBound ..< tag.endIndex) else { return nil }
+            return Double(String(tag[a.upperBound ..< q.lowerBound]))
+        }
+        guard let cx = attr("cx"), let cy = attr("cy"), cx > 0, cy > 0 else { return nil }
+        return Size(cx / Pptx.emu, cy / Pptx.emu)
+    }
+
+    /// The file's own master and layouts after a Slide Size change: each shape keeps its proportions and its centre's
+    /// place, and the sizes, spacing and indents of its text scale by the same factor as the slides' own.
+    private static func _scaleMasters(from old: Size, to new: Size, _ scaling: DeckController.SlideScaling, in b: inout PackageBuilder) {
+        let sx = new.width / old.width, sy = new.height / old.height
+        let k = DeckController.slideScale(from: old, to: new, scaling)
+        for part in Array(b.parts.keys) where (part.hasPrefix("ppt/slideMasters/slideMaster") || part.hasPrefix("ppt/slideLayouts/slideLayout")) && part.hasSuffix(".xml") {
+            guard let d = b.parts[part], let x = String(data: d, encoding: .utf8) else { continue }
+            b.parts[part] = Data(_scaledShapes(x, sx: sx, sy: sy, k: k).utf8)
+        }
+    }
+
+    static func _scaledShapes(_ x: String, sx: Double, sy: Double, k: Double) -> String {
+        let src = Array(x.utf8)
+        func find(_ pat: String, from: Int) -> Int? {
+            let p = Array(pat.utf8)
+            guard src.count >= p.count, from <= src.count - p.count else { return nil }
+            var i = from
+            while i <= src.count - p.count {
+                if src[i] == p[0], Array(src[i ..< i + p.count]) == p { return i }
+                i += 1
+            }
+            return nil
+        }
+        /// The integer in ` name="…"` inside src[from ..< to], with the range of its digits.
+        func attr(_ name: String, _ from: Int, _ to: Int) -> (Double, Range<Int>)? {
+            let key = Array((" " + name + "=\"").utf8)
+            var i = from
+            while i + key.count < to {
+                if src[i] == key[0], Array(src[i ..< i + key.count]) == key {
+                    let s0 = i + key.count
+                    var e = s0
+                    while e < to, src[e] != UInt8(ascii: "\"") { e += 1 }
+                    guard let v = Double(String(decoding: src[s0 ..< e], as: UTF8.self)) else { return nil }
+                    return (v, s0 ..< e)
+                }
+                i += 1
+            }
+            return nil
+        }
+        // Edits: byte range → replacement.
+        var edits: [(Range<Int>, String)] = []
+        // A shape's place: `<a:off x y/>` then `<a:ext cx cy/>`, together, so the centre is kept.
+        var at = 0
+        while let o = find("<a:off ", from: at) {
+            at = o + 7
+            guard let oe = find("/>", from: o), let e0 = find("<a:ext ", from: oe + 2), e0 - (oe + 2) <= 8,
+                  let ee = find("/>", from: e0),
+                  let (ox, rx) = attr("x", o, oe), let (oy, ry) = attr("y", o, oe),
+                  let (cx, rcx) = attr("cx", e0, ee), let (cy, rcy) = attr("cy", e0, ee) else { continue }
+            let w = cx * k, h = cy * k
+            edits.append((rx, String(Int(((ox + cx / 2) * sx - w / 2).rounded()))))
+            edits.append((ry, String(Int(((oy + cy / 2) * sy - h / 2).rounded()))))
+            edits.append((rcx, String(Int(w.rounded()))))
+            edits.append((rcy, String(Int(h.rounded()))))
+            at = ee
+        }
+        // Text: sizes (hundredths of a point), indents and margins (EMU) and `a:spcPts val` (hundredths of a point).
+        for name in ["sz", "marL", "marR", "indent", "lIns", "rIns", "tIns", "bIns"] {
+            var i = 0
+            while let p = find(" \(name)=\"", from: i) {
+                i = p + 1
+                if let (v, r) = attr(name, p, min(src.count, p + name.utf8.count + 16)) { edits.append((r, String(Int((v * k).rounded())))) }
+            }
+        }
+        var i = 0
+        while let p = find("<a:spcPts val=\"", from: i) {
+            i = p + 1
+            if let (v, r) = attr("val", p, min(src.count, p + 30)) { edits.append((r, String(Int((v * k).rounded())))) }
+        }
+        var out: [UInt8] = []
+        var pos = 0
+        for (r, text) in edits.sorted(by: { $0.0.lowerBound < $1.0.lowerBound }) where r.lowerBound >= pos {
+            out += src[pos ..< r.lowerBound]
+            out += Array(text.utf8)
+            pos = r.upperBound
+        }
+        out += src[pos...]
+        return String(decoding: out, as: UTF8.self)
+    }
+
     private static func _setMasterBackground(_ fill: SlideFill, in b: inout PackageBuilder) {
         let bg = PptxTemplates.backgroundXML(fill)
+        if let pic = fill.image {
+            // The picture is a part of its own, reached from the masters only.
+            let name = _masterPictureName(pic)
+            b.addBinary("ppt/media/" + name, pic.data)
+            for part in Array(b.parts.keys) where part.hasPrefix("ppt/slideMasters/slideMaster") && part.hasSuffix(".xml") {
+                let rp = Pptx.relsPath(part)
+                guard let d = b.parts[rp], var x = String(data: d, encoding: .utf8), let end = x.findRange(of: "</Relationships>") else { continue }
+                x.replaceSubrange(end.lowerBound ..< end.lowerBound, with: "<Relationship Id=\"\(PptxTemplates.masterPictureRID)\" Type=\"\(RT.image)\" Target=\"../media/\(name)\"/>")
+                b.parts[rp] = Data(x.utf8)
+            }
+        }
         func edit(_ part: String, _ f: (String) -> String) {
             if let d = b.parts[part], let x = String(data: d, encoding: .utf8) { b.parts[part] = Data(f(x).utf8) }
         }
@@ -511,53 +704,30 @@ enum PptxWriter {
         return out
     }
 
-    /// The deck's sections (`p14:sectionLst`) after slides were added, deleted or moved: each section starts at its first slide that is still there, and a new slide joins the section of the slide before it. A section whose slides all went stays, empty.
-    static func _remapSections(_ pres: String, kept newOrder: [Int], oldIds: Set<Int>, oldOrder: [Int]) -> String {
-        guard let open = pres.findRange(of: "<p14:sectionLst"),
-              let close = pres.findRange(of: "</p14:sectionLst>", in: open.upperBound ..< pres.endIndex) else { return pres }
-        let block = String(pres[open.lowerBound ..< close.upperBound])
-        // The sections as they were: (opening tag, ids).
-        var sections: [(tag: String, ids: [Int])] = []
-        var cursor = block.startIndex
-        while let s = block.findRange(of: "<p14:section ", in: cursor ..< block.endIndex),
-              let tagEnd = block.findRange(of: ">", in: s.upperBound ..< block.endIndex) {
-            let end = block.findRange(of: "</p14:section>", in: tagEnd.upperBound ..< block.endIndex)?.lowerBound ?? block.endIndex
-            let inner = String(block[tagEnd.upperBound ..< end])
-            var ids: [Int] = []
-            var c = inner.startIndex
-            while let d = inner.findRange(of: "<p14:sldId id=\"", in: c ..< inner.endIndex),
-                  let q = inner.findRange(of: "\"", in: d.upperBound ..< inner.endIndex) {
-                if let n = Int(String(inner[d.upperBound ..< q.lowerBound])) { ids.append(n) }
-                c = q.upperBound
-            }
-            sections.append((String(block[s.lowerBound ..< tagEnd.upperBound]), ids))
-            cursor = end
+    static let sectionExtUri = "{521415D9-36F7-43E2-AB2F-B90AF26B5E84}"
+
+    /// The deck's sections as `p14:sectionLst` in the presentation's extension list, written from the deck's own sections and each slide's tag (the file's old list is replaced; other extensions stay).
+    static func _setSections(_ pres: String, _ state: DeckState, slideIds: [Int]) -> String {
+        var out = pres
+        // Drop the old one: its ext element, or the whole list when it was the only extension.
+        if let u = out.findRange(of: "uri=\"\(sectionExtUri)\""),
+           let s = out.findRange(of: "<p:ext ", backwards: true, in: out.startIndex ..< u.lowerBound),
+           let e = out.findRange(of: "</p:ext>", in: u.upperBound ..< out.endIndex) {
+            out = out.replacingSubrange(s.lowerBound ..< e.upperBound, with: "")
+            if let l = out.findRange(of: "<p:extLst></p:extLst>") { out = out.replacingSubrange(l, with: "") }
         }
-        guard !sections.isEmpty else { return pres }
-        // Where each section starts in the new order: its first old slide still there.
-        var starts: [(section: Int, at: Int)] = []
-        for (si, sec) in sections.enumerated() {
-            if let id = sec.ids.first(where: { newOrder.contains($0) }), let at = newOrder.firstIndex(of: id) { starts.append((si, at)) }
+        guard !state.sections.isEmpty else { return out }
+        var xml = "<p14:sectionLst xmlns:p14=\"http://schemas.microsoft.com/office/powerpoint/2010/main\">"
+        for sec in state.sections {
+            let ids = state.slides.indices.filter { state.slides[$0].section == sec.guid }.map { "<p14:sldId id=\"\(slideIds[$0])\"/>" }
+            xml += "<p14:section name=\"\(PptxXML.escape(sec.name, attribute: true))\" id=\"\(PptxXML.escape(sec.guid, attribute: true))\"><p14:sldIdLst>\(ids.joined())</p14:sldIdLst></p14:section>"
         }
-        starts.sort { $0.at < $1.at }
-        var members = Array(repeating: [Int](), count: sections.count)
-        if let first = starts.first {
-            var cur = first.section
-            var next = 0
-            for (i, id) in newOrder.enumerated() {
-                while next < starts.count, starts[next].at <= i { cur = starts[next].section; next += 1 }
-                members[cur].append(id)
-            }
-        }
-        var out = "<p14:sectionLst xmlns:p14=\"http://schemas.microsoft.com/office/powerpoint/2010/main\">"
-        // In the order they now start; a section left with no slide stays, last.
-        let order = starts.map(\.section) + sections.indices.filter { si in !starts.contains { $0.section == si } }
-        for si in order {
-            let sec = sections[si]
-            out += sec.tag + "<p14:sldIdLst>" + members[si].map { "<p14:sldId id=\"\($0)\"/>" }.joined() + "</p14:sldIdLst></p14:section>"
-        }
-        out += "</p14:sectionLst>"
-        return pres.replacingSubrange(open.lowerBound ..< close.upperBound, with: out)
+        xml += "</p14:sectionLst>"
+        let ext = "<p:ext uri=\"\(sectionExtUri)\">\(xml)</p:ext>"
+        // PowerPoint puts it first in the list.
+        if let open = out.findRange(of: "<p:extLst>") { return out.replacingSubrange(open, with: "<p:extLst>" + ext) }
+        if out.findRange(of: "<p:extLst/>") != nil { return out.replacingAll("<p:extLst/>", with: "<p:extLst>\(ext)</p:extLst>") }
+        return out.replacingAll("</p:presentation>", with: "<p:extLst>\(ext)</p:extLst></p:presentation>")
     }
 
     private static func _insertAfter(_ marker: String, in s: String, _ insert: String) -> String {
@@ -623,6 +793,9 @@ enum RT {
     private static let base = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/"
     static let document = base + "officeDocument"
     static let slide = base + "slide"
+    static let video = base + "video"
+    static let audio = base + "audio"
+    static let media2007 = "http://schemas.microsoft.com/office/2007/relationships/media"
     static let layout = base + "slideLayout"
     static let master = base + "slideMaster"
     static let notesSlide = base + "notesSlide"
@@ -732,6 +905,41 @@ private struct SlideXML {
     private(set) var written: [Int: Int] = [:]
     private var _current: Int? = nil
 
+    /// A connector's glued ends. The target may be written after the connector, so the id is a token
+    /// (`@@CXN<deck id>@@`) that `resolveConnections` swaps for the id the target was written under.
+    static func _connXML(_ s: ShapeState) -> String {
+        var x = ""
+        if let c = s.connStart { x += "<a:stCxn id=\"@@CXN\(c.shape)@@\" idx=\"\(c.site)\"/>" }
+        if let c = s.connEnd { x += "<a:endCxn id=\"@@CXN\(c.shape)@@\" idx=\"\(c.site)\"/>" }
+        return x
+    }
+
+    /// Swaps each connection token for its shape's written id; an end whose shape was not written is left out.
+    func resolveConnections(_ body: String) -> String {
+        guard body.containsSubstring("@@CXN") else { return body }
+        var out = ""
+        let parts = body.components(separatedBy: "<a:")
+        for (i, part) in parts.enumerated() {
+            var piece = part
+            if i > 0 {
+                if (piece.hasPrefix("stCxn ") || piece.hasPrefix("endCxn ")), let a = piece.range(of: "@@CXN"),
+                   let b = piece.range(of: "@@\"", range: a.upperBound..<piece.endIndex) {
+                    let n = Int(piece[a.upperBound..<b.lowerBound])
+                    if let n, let id = written[n] {
+                        piece.replaceSubrange(a.lowerBound..<b.upperBound, with: "\(id)\"")
+                    } else if let close = piece.range(of: "/>") {
+                        piece.removeSubrange(piece.startIndex..<close.upperBound)
+                        out += piece
+                        continue
+                    }
+                }
+                out += "<a:"
+            }
+            out += piece
+        }
+        return out
+    }
+
     private mutating func _id(_ preferred: Int? = nil) -> Int {
         let id: Int
         if let p = preferred, p > 1, !_used.contains(p) {
@@ -810,34 +1018,21 @@ private struct SlideXML {
             + "<a:srgbClr val=\"\(hex)\">\(alpha)</a:srgbClr></a:outerShdw>"
     }
 
-    /// The file's `a:effectLst` with its outer shadow swapped for `shadow` (none: removed). The list is kept even when
-    /// empty, so a theme shadow named by the shape's style stays off.
-    static func _effectsWithShadow(_ effects: String, _ shadow: CharShadow?) -> String {
-        var body = ""
-        var attrs = ""
-        if let open = effects.range(of: "<a:effectLst"), let gt = effects[open.upperBound...].firstIndex(of: ">") {
-            attrs = String(effects[open.upperBound..<gt])
-            if attrs.hasSuffix("/") { attrs.removeLast() } else if let close = effects.range(of: "</a:effectLst>") { body = String(effects[effects.index(after: gt)..<close.lowerBound]) }
-        }
-        if let a = body.range(of: "<a:outerShdw") {
-            if let e = body.range(of: "</a:outerShdw>", range: a.lowerBound..<body.endIndex) { body.removeSubrange(a.lowerBound..<e.upperBound) }
-            else if let e = body[a.lowerBound...].range(of: "/>") { body.removeSubrange(a.lowerBound..<e.upperBound) }
-        }
-        if let sh = shadow {
-            let new = _outerShadowXML(sh)
-            // Schema order: ... glow, innerShdw, outerShdw, prstShdw, reflection, softEdge.
-            let after = ["<a:prstShdw", "<a:reflection", "<a:softEdge"].compactMap { body.range(of: $0)?.lowerBound }.min()
-            if let at = after { body.insert(contentsOf: new, at: at) } else { body += new }
-        }
-        return "<a:effectLst\(attrs)>\(body)</a:effectLst>"
+    /// An arrowhead as `a:headEnd` / `a:tailEnd`; sizes are the multiples of the line width the reader gives (2, 3, 5).
+    static func _endXML(_ tag: String, _ e: LineEnd?) -> String {
+        guard let e else { return "" }
+        func size(_ v: Double) -> String { v <= 2 ? "sm" : v >= 5 ? "lg" : "med" }
+        return "<a:\(tag) type=\"\(PptxXML.escape(e.kind, attribute: true))\" w=\"\(size(e.width))\" len=\"\(size(e.length))\"/>"
     }
+
+    static func _endsXML(_ s: ShapeState) -> String { _endXML("headEnd", s.headEnd) + _endXML("tailEnd", s.tailEnd) }
 
     static func _dashXML(_ dash: String?) -> String {
         guard let dash, !dash.isEmpty, dash != "solid" else { return "" }
         return "<a:prstDash val=\"\(PptxXML.escape(dash, attribute: true))\"/>"
     }
 
-    static func _patchedLine(_ ln: String, widthEMU: Int?, fill: String?, dash: String?? = nil) -> String {
+    static func _patchedLine(_ ln: String, widthEMU: Int?, fill: String?, dash: String?? = nil, ends: String? = nil) -> String {
         guard let open = ln.firstIndex(of: ">") else { return ln }
         var head = String(ln[...open])
         var rest = String(ln[ln.index(after: open)...])
@@ -865,23 +1060,30 @@ private struct SlideXML {
             else if tail.hasPrefix("<a:custDash>"), let e = tail.range(of: "</a:custDash>") { tail = String(tail[e.upperBound...]) }
             tail = _dashXML(dash) + tail
         }
+        if let ends {
+            // The file's own arrowheads give way to the chosen ones; they sit last, before any extension list.
+            for tag in ["<a:headEnd", "<a:tailEnd"] {
+                if let r = tail.range(of: tag), let e = tail[r.lowerBound...].range(of: "/>") { tail.removeSubrange(r.lowerBound ..< e.upperBound) }
+            }
+            if let x = tail.range(of: "<a:extLst") { tail.insert(contentsOf: ends, at: x.lowerBound) }
+            else if let c = tail.range(of: "</a:ln>") { tail.insert(contentsOf: ends, at: c.lowerBound) }
+            else { tail += ends }
+        }
         rest = fillPart + tail
         return head + rest
     }
 
     /// A fill element: solid, linear gradient or stretched picture.
     mutating func fill(_ f: SlideFill, media: inout MediaParts, builder: inout PackageBuilder) -> String {
+        if f.isPattern, let preset = f.patternPreset, let fg = f.patternFg, let bg = f.patternBg {
+            return "<a:pattFill prst=\"\(preset)\"><a:fgClr><a:srgbClr val=\"\(PptxText.hex(fg))\"/></a:fgClr><a:bgClr><a:srgbClr val=\"\(PptxText.hex(bg))\"/></a:bgClr></a:pattFill>"
+        }
         if let image = f.image {
             let rid = _media(image, media: &media, builder: &builder)
-            let alpha = f.imageAlpha < 1 ? "<a:alphaModFix amt=\"\(Int((f.imageAlpha * 100000).rounded()))\"/>" : ""
-            let blip = alpha.isEmpty ? "<a:blip r:embed=\"\(rid)\"/>" : "<a:blip r:embed=\"\(rid)\">\(alpha)</a:blip>"
-            let mode = f.tiled
-                ? "<a:tile tx=\"0\" ty=\"0\" sx=\"\(Int((f.tileScale * 100000).rounded()))\" sy=\"\(Int((f.tileScaleY * 100000).rounded()))\" flip=\"none\" algn=\"tl\"/>"
-                : "<a:stretch><a:fillRect/></a:stretch>"
-            return "<a:blipFill dpi=\"0\" rotWithShape=\"1\">\(blip)<a:srcRect/>\(mode)</a:blipFill>"
+            return PptxTemplates.blipFillXML(f, rid: rid)
         }
         if f.stops.count >= 2 {
-            let stops = f.stops.map { "<a:gs pos=\"\(Int(($0.position * 100000).rounded()))\"><a:srgbClr val=\"\(PptxText.hex($0.color))\"/></a:gs>" }.joined()
+            let stops = f.stops.map { "<a:gs pos=\"\(Int(($0.position * 100000).rounded()))\"><a:srgbClr val=\"\(PptxText.hex($0.color))\">\($0.color.alpha < 255 ? "<a:alpha val=\"\($0.color.alpha * 100000 / 255)\"/>" : "")</a:srgbClr></a:gs>" }.joined()
             return "<a:gradFill rotWithShape=\"1\"><a:gsLst>\(stops)</a:gsLst><a:lin ang=\"\(Int((f.angle * 60000).rounded()))\" scaled=\"0\"/></a:gradFill>"
         }
         return Self._fill(f.color ?? Color(0xFFFFFFFF))
@@ -932,6 +1134,26 @@ private struct SlideXML {
         case .opaque(let o):
             guard let p = source else { return "" }
             return kept(o.xml, sourcePart: o.sourcePart, package: p, builder: &builder, patch: s.frame, fileId: s.fileId)
+        case .picture(let image) where s.media != nil:
+            // A sound or movie put here: the poster frame as the picture, the
+            // file as a media part named twice, as PowerPoint writes it
+            // (`a:videoFile`/`a:audioFile` link, `p14:media` embed).
+            let clip = s.media!
+            let id = _id(s.fileId)
+            let poster = _media(image, media: &media, builder: &builder)
+            media.count += 1
+            let part = "ppt/media/media\(media.count).\(clip.fileExtension)"
+            builder.addBinary(part, clip.data)
+            let target = Pptx.relative(part, from: self.part)
+            let link = _rel(clip.isVideo ? RT.video : RT.audio, target, preferred: "rIdMedia\(media.count)")
+            let embed = _rel(RT.media2007, target, preferred: "rIdMediaX\(media.count)")
+            let tag = clip.isVideo ? "a:videoFile" : "a:audioFile"
+            return "<p:pic><p:nvPicPr><p:cNvPr id=\"\(id)\" name=\"\(name)\"\(s.altText.map { " descr=\"\(PptxXML.escape($0, attribute: true))\"" } ?? "")\(hid)/>"
+                + "<p:cNvPicPr><a:picLocks noChangeAspect=\"1\"/></p:cNvPicPr><p:nvPr><\(tag) r:link=\"\(link)\"/>"
+                + "<p:extLst><p:ext uri=\"{DAA4B4D4-6D71-4841-9C94-3DE7FCFB9230}\"><p14:media xmlns:p14=\"http://schemas.microsoft.com/office/powerpoint/2010/main\" r:embed=\"\(embed)\"/></p:ext></p:extLst></p:nvPr></p:nvPicPr>"
+                + "<p:blipFill><a:blip r:embed=\"\(poster)\"/><a:stretch><a:fillRect/></a:stretch></p:blipFill>"
+                + "<p:spPr>\(Self._xfrm(s.frame, rotation: s.rotation, flipH: s.flipH, flipV: s.flipV))"
+                + "<a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom></p:spPr></p:pic>"
         case .picture(let image):
             // Unchanged since it was read (same image, crop and turn): the
             // picture as it was, at its frame — its recolouring, transparency,
@@ -990,20 +1212,30 @@ private struct SlideXML {
             if let xml = s.sourceXML, chart == s.sourceChart, let p = source, let part = s.sourcePart {
                 return kept(xml, sourcePart: part, package: p, builder: &builder, patch: s.frame, fileId: s.fileId)
             }
+            // Edited since: the file's own part, patched where the user changed it.
+            if let xml = s.sourceXML, let old = s.sourceChart, let p = source, let part = s.sourcePart,
+               let rel = p.rels(part).first(where: { $0.type.hasSuffix("/chart") && !$0.external }),
+               let data = p.parts[rel.target], let text = String(data: data, encoding: .utf8),
+               ChartPartPatcher.patch(text, old: old, new: chart) != nil {
+                return kept(xml, sourcePart: part, package: p, builder: &builder, patch: s.frame, fileId: s.fileId,
+                            chartEdit: { ChartPartPatcher.patch($0, old: old, new: chart) },
+                            chartBook: { ChartPartPatcher.apply($0, to: $1) })
+            }
             return _chart(chart, s, name: name, media: &media, builder: &builder)
         case .geometry(let preset) where (preset.isLine || preset.rawValue.hasPrefix("bentConnector")
                                           || preset.rawValue.hasPrefix("curvedConnector")) && s.text == nil:
             // A connector as read, while its line and outline are: the
             // original, at its frame on the slide.
             if let xml = s.sourceXML, let k = s.keptLine, k.line == s.frame, k.outline == s.outline,
-               k.width == s.outlineWidth, let p = source, let part = s.sourcePart {
+               k.width == s.outlineWidth, k.dash == s.outlineDash, k.head == s.headEnd, k.tail == s.tailEnd, k.connStart == s.connStart, k.connEnd == s.connEnd,
+               let p = source, let part = s.sourcePart {
                 return kept(xml, sourcePart: part, package: p, builder: &builder, patch: k.box, fileId: s.fileId)
             }
             let id = _id(s.fileId)
             let f = s.frame
             let box = Rect.fromLTRB(min(f.left, f.right), min(f.top, f.bottom), max(f.left, f.right), max(f.top, f.bottom))
-            let line = s.outline.map { "<a:ln w=\"\(Self._emu(s.outlineWidth))\">\(Self._fill($0, scheme: s.outlineScheme))\(Self._dashXML(s.outlineDash))</a:ln>" } ?? "<a:ln><a:noFill/></a:ln>"
-            return "<p:cxnSp><p:nvCxnSpPr><p:cNvPr id=\"\(id)\" name=\"\(name)\"\(hid)/><p:cNvCxnSpPr/><p:nvPr/></p:nvCxnSpPr>"
+            let line = s.outline.map { "<a:ln w=\"\(Self._emu(s.outlineWidth))\">\(Self._fill($0, scheme: s.outlineScheme))\(Self._dashXML(s.outlineDash))\(Self._endsXML(s))</a:ln>" } ?? "<a:ln><a:noFill/></a:ln>"
+            return "<p:cxnSp><p:nvCxnSpPr><p:cNvPr id=\"\(id)\" name=\"\(name)\"\(hid)/><p:cNvCxnSpPr>\(Self._connXML(s))</p:cNvCxnSpPr><p:nvPr/></p:nvCxnSpPr>"
                 + "<p:spPr>\(Self._xfrm(box, rotation: s.rotation, flipH: s.flipH != (f.right < f.left), flipV: s.flipV != (f.bottom < f.top)))"
                 + "<a:prstGeom prst=\"\(preset.rawValue)\"><a:avLst/></a:prstGeom>\(line)</p:spPr></p:cxnSp>"
         default:
@@ -1071,10 +1303,15 @@ private struct SlideXML {
             switch s.kind {
             case .placeholder:
                 fillXML = s.fill.map { Self._fill($0) } ?? ""
-                lineXML = s.outline.map { "<a:ln w=\"\(Self._emu(s.outlineWidth))\">\(Self._fill($0, scheme: s.outlineScheme))\(Self._dashXML(s.outlineDash))</a:ln>" } ?? ""
+                lineXML = s.outline.map { "<a:ln w=\"\(Self._emu(s.outlineWidth))\">\(Self._fill($0, scheme: s.outlineScheme))\(Self._dashXML(s.outlineDash))\(Self._endsXML(s))</a:ln>" } ?? ""
             default:
                 fillXML = Self._fill(s.fill, scheme: s.fillScheme)
-                lineXML = s.outline.map { "<a:ln w=\"\(Self._emu(s.outlineWidth))\">\(Self._fill($0, scheme: s.outlineScheme))\(Self._dashXML(s.outlineDash))</a:ln>" } ?? "<a:ln><a:noFill/></a:ln>"
+                lineXML = s.outline.map { "<a:ln w=\"\(Self._emu(s.outlineWidth))\">\(Self._fill($0, scheme: s.outlineScheme))\(Self._dashXML(s.outlineDash))\(Self._endsXML(s))</a:ln>" } ?? "<a:ln><a:noFill/></a:ln>"
+            }
+            // A gradient, picture or pattern the user gave the shape (or a new shape's): written as such.
+            if case .placeholder = s.kind {} else if let st = s.fillStyle, st.image != nil || st.stops.count >= 2,
+               s.keptLook == nil || s.keptLook?.fillReplaced == true {
+                fillXML = fill(st, media: &media, builder: &builder)
             }
             // The file's own fill and line while the shape's are unchanged
             // (gradients, patterns, a style's fill stay as they were); its
@@ -1094,12 +1331,19 @@ private struct SlideXML {
                     let replaceFill = k.lineReplaced || s.outline != k.readOutline
                     lineXML = Self._patchedLine(ln, widthEMU: s.outlineWidth == k.readWidth ? nil : Self._emu(s.outlineWidth),
                                                 fill: replaceFill ? (s.outline.map { Self._fill($0, scheme: s.outlineScheme) } ?? "<a:noFill/>") : nil,
-                                                dash: k.dashEdited ? .some(s.outlineDash) : nil)
+                                                dash: k.dashEdited ? .some(s.outlineDash) : nil,
+                                                ends: k.endsEdited ? Self._endsXML(s) : nil)
                 }
             }
             let effectsXML: String
-            if let k = look { effectsXML = k.shadowEdited ? Self._effectsWithShadow(k.effects, s.shadow) : k.effects }
-            else { effectsXML = s.shadow.map { "<a:effectLst>\(Self._outerShadowXML($0))</a:effectLst>" } ?? "" }
+            if let k = look, !k.effectsEdited, !k.bevelEdited { effectsXML = k.effects }
+            else {
+                effectsXML = Self._effectsEdited(look?.effects ?? "", shadow: s.shadow,
+                                                 glow: s.glowRadius.flatMap { r in r > 0 ? (r, s.glowColor ?? Color(0x66000000)) : nil },
+                                                 reflection: s.reflection, softEdge: s.softEdge, bevel: s.bevel,
+                                                 lists: look?.effectsEdited ?? true, bevelEdit: look?.bevelEdited ?? true,
+                                                 emptyList: look?.effectsEdited == true)
+            }
             spPr += fillXML + lineXML + effectsXML
             var xml = "<p:sp><p:nvSpPr>\(nv)<p:nvPr>\(ph)</p:nvPr></p:nvSpPr><p:spPr>\(spPr)</p:spPr>\(look?.style ?? "")"
             if let doc = s.text {
@@ -1190,7 +1434,7 @@ private struct SlideXML {
             return (s.fill.map { Self._fill($0) } ?? "", s.outline.map { "<a:ln w=\"\(Self._emu(s.outlineWidth))\">\(Self._fill($0, scheme: s.outlineScheme))</a:ln>" } ?? "")
         }
         let fill = Self._fill(s.fill, scheme: s.fillScheme)
-        return (fill, s.outline.map { "<a:ln w=\"\(Self._emu(s.outlineWidth))\">\(Self._fill($0, scheme: s.outlineScheme))</a:ln>" } ?? "<a:ln><a:noFill/></a:ln>")
+        return (fill, s.outline.map { "<a:ln w=\"\(Self._emu(s.outlineWidth))\">\(Self._fill($0, scheme: s.outlineScheme))\(Self._dashXML(s.outlineDash))\(Self._endsXML(s))</a:ln>" } ?? "<a:ln><a:noFill/></a:ln>")
     }
 
     private static func _fragment(_ xml: String) -> [XNode] {
@@ -1366,7 +1610,8 @@ private struct SlideXML {
     mutating func kept(_ xml: String, sourcePart: String, package p: PptxPackage,
                        builder b: inout PackageBuilder, patch frame: Rect?, fileId: Int? = nil,
                        rotation: Double? = nil, placeIfMissing: Bool = false, flips: (h: Bool, v: Bool)? = nil,
-                       hidden: Bool? = nil, edit: ((XNode) -> Void)? = nil, descr: String?? = nil) -> String {
+                       hidden: Bool? = nil, edit: ((XNode) -> Void)? = nil, descr: String?? = nil,
+                       chartEdit: ((String) -> ChartPartPatcher.Result?)? = nil, chartBook: (([ChartPartPatcher.CellWrite], Data) -> Data?)? = nil) -> String {
         guard let node = XNode.parse(Data(xml.utf8)) else { return "" }
         edit?(node)
         // A changed alt text: set (or remove) `descr` on the element's own `cNvPr`.
@@ -1418,6 +1663,16 @@ private struct SlideXML {
                     if referenceOnly.contains(n.name) { dead = true }
                 } else {
                     let child = PptxWriterCopy.copy(r.target, from: p, into: &b, done: &done)
+                    // A chart the user edited: its own part with the edit made in it, the rest as the file wrote it.
+                    if r.type.hasSuffix("/chart"), let chartEdit, let data = p.parts[r.target], let xml = String(data: data, encoding: .utf8),
+                       let result = chartEdit(xml) {
+                        b.parts[child] = Data(result.xml.utf8)
+                        if !result.writes.isEmpty, let chartBook,
+                           let book = p.rels(r.target).first(where: { $0.type.hasSuffix("/package") && !$0.external }), let name = done[book.target],
+                           let old = b.parts[name], let patched = chartBook(result.writes, old) {
+                            b.parts[name] = patched
+                        }
+                    }
                     n.attrs[k] = _rel(r.type, Pptx.relative(child, from: part), preferred: v)
                 }
             }
@@ -1668,5 +1923,125 @@ enum PptxText {
             }
             return "<a:p>" + parts.joined(separator: "<a:br><a:rPr lang=\"en-US\"/></a:br>") + "</a:p>"
         }.joined()
+    }
+}
+
+// S-SH-5: a shape's effects as the file holds them.
+extension SlideXML {
+    /// The end of the element that starts at `start` (an opening `<tag`), self-closing or not.
+    private static func _elementEnd(_ s: String, _ start: String.Index, _ tag: String) -> String.Index? {
+        guard let gt = s[start...].firstIndex(of: ">") else { return nil }
+        if s[s.index(before: gt)] == "/" { return s.index(after: gt) }
+        guard let close = s.range(of: "</\(tag)>", range: gt..<s.endIndex) else { return nil }
+        return close.upperBound
+    }
+
+    /// The first element `<tag ...>` in `s` (not a longer name sharing the prefix).
+    private static func _element(_ s: String, _ tag: String) -> Range<String.Index>? {
+        var from = s.startIndex
+        while let r = s.range(of: "<\(tag)", range: from..<s.endIndex) {
+            let after = r.upperBound
+            if after < s.endIndex, " />".contains(s[after]), let end = _elementEnd(s, r.lowerBound, tag) {
+                return r.lowerBound..<end
+            }
+            from = r.upperBound
+        }
+        return nil
+    }
+
+    /// The top-level children of an element body, in order.
+    private static func _children(_ body: String) -> [(tag: String, xml: String)] {
+        var out: [(String, String)] = []
+        var i = body.startIndex
+        while let lt = body[i...].firstIndex(of: "<") {
+            var j = body.index(after: lt)
+            while j < body.endIndex, !" />".contains(body[j]) { j = body.index(after: j) }
+            let tag = String(body[body.index(after: lt)..<j])
+            guard let end = _elementEnd(body, lt, tag) else { break }
+            out.append((tag, String(body[lt..<end]))); i = end
+        }
+        return out
+    }
+
+    private static func _hex(_ c: Color) -> String {
+        let rgb = String(c.value & 0xFFFFFF, radix: 16, uppercase: true)
+        return String(repeating: "0", count: max(0, 6 - rgb.count)) + rgb
+    }
+
+    private static func _glowXML(_ r: Double, _ c: Color) -> String {
+        let alpha = c.alpha < 255 ? "<a:alpha val=\"\(Int((Double(c.alpha) / 255 * 100000).rounded()))\"/>" : ""
+        return "<a:glow rad=\"\(Int((r * Pptx.emu).rounded()))\"><a:srgbClr val=\"\(_hex(c))\">\(alpha)</a:srgbClr></a:glow>"
+    }
+
+    private static func _reflectionXML(_ r: Reflection) -> String {
+        func pct(_ v: Double) -> Int { Int((v * 100000).rounded()) }
+        return "<a:reflection blurRad=\"\(Int((r.blur * Pptx.emu).rounded()))\" stA=\"\(pct(r.startAlpha))\" "
+            + "endA=\"\(pct(r.endAlpha))\" endPos=\"\(pct(r.endPos))\" dist=\"\(Int((r.dist * Pptx.emu).rounded()))\" "
+            + "dir=\"5400000\" sy=\"\(pct(r.scaleY))\" algn=\"bl\" rotWithShape=\"0\"/>"
+    }
+
+    private static func _bevelXML(_ b: ShapeBevel) -> String {
+        "<a:bevelT w=\"\(Int((b.width * Pptx.emu).rounded()))\" h=\"\(Int((b.height * Pptx.emu).rounded()))\" prst=\"\(b.preset)\"/>"
+    }
+
+    /// A shape's effects as the file holds them: `effects` is what the file had (its `a:effectLst`, `a:effectDag`,
+    /// `a:scene3d` and `a:sp3d`, in that order; empty for a new shape). With `lists`, the shadow, glow, reflection
+    /// and soft edge are rebuilt from the model and the list's other effects kept; with `bevel`, the `a:bevelT` is
+    /// swapped and the rest of the 3-D settings kept.
+    static func _effectsEdited(_ effects: String, shadow: CharShadow?, glow: (Double, Color)?, reflection: Reflection?,
+                               softEdge: Double?, bevel: ShapeBevel?, lists: Bool, bevelEdit: Bool, emptyList: Bool = false) -> String {
+        var list = _element(effects, "a:effectLst").map { String(effects[$0]) }
+        let dag = _element(effects, "a:effectDag").map { String(effects[$0]) } ?? ""
+        var scene = _element(effects, "a:scene3d").map { String(effects[$0]) } ?? ""
+        var sp3d = _element(effects, "a:sp3d").map { String(effects[$0]) } ?? ""
+        if lists {
+            var attrs = ""
+            var kids: [(Int, String)] = []
+            if let l = list, let gt = l.firstIndex(of: ">") {
+                attrs = String(l[l.index(l.startIndex, offsetBy: "<a:effectLst".count)..<gt])
+                if attrs.hasSuffix("/") { attrs.removeLast() }
+                if !l[..<gt].hasSuffix("/") {
+                    let body = String(l[l.index(after: gt)..<(l.range(of: "</a:effectLst>")?.lowerBound ?? l.endIndex)])
+                    let rank = ["a:blur": 0, "a:fillOverlay": 1, "a:glow": 2, "a:innerShdw": 3, "a:outerShdw": 4,
+                                "a:prstShdw": 5, "a:reflection": 6, "a:softEdge": 7]
+                    for c in _children(body) {
+                        if ["a:glow", "a:outerShdw", "a:softEdge"].contains(c.tag) { continue }
+                        if c.tag == "a:reflection" { continue }
+                        kids.append((rank[c.tag] ?? 8, c.xml))
+                    }
+                }
+            }
+            if let g = glow { kids.append((2, _glowXML(g.0, g.1))) }
+            if let s = shadow { kids.append((4, _outerShadowXML(s))) }
+            if let r = reflection, !r.onText { kids.append((6, _reflectionXML(r))) }
+            if let e = softEdge, e > 0 { kids.append((7, "<a:softEdge rad=\"\(Int((e * Pptx.emu).rounded()))\"/>")) }
+            // (A reflection of the text lives on its runs: the file's list keeps none of its own.)
+            if list != nil || !kids.isEmpty || emptyList {
+                let sorted = kids.enumerated().sorted { ($0.element.0, $0.offset) < ($1.element.0, $1.offset) }
+                list = "<a:effectLst\(attrs)>" + sorted.map { $0.element.1 }.joined() + "</a:effectLst>"
+            } else { list = nil }
+        }
+        if bevelEdit {
+            var attrs = "", rest = ""
+            if let gt = sp3d.firstIndex(of: ">"), !sp3d.isEmpty {
+                attrs = String(sp3d[sp3d.index(sp3d.startIndex, offsetBy: "<a:sp3d".count)..<gt])
+                if attrs.hasSuffix("/") { attrs.removeLast() }
+                if !sp3d[..<gt].hasSuffix("/") {
+                    let body = String(sp3d[sp3d.index(after: gt)..<(sp3d.range(of: "</a:sp3d>")?.lowerBound ?? sp3d.endIndex)])
+                    rest = _children(body).filter { $0.tag != "a:bevelT" }.map(\.xml).joined()
+                }
+            }
+            if let b = bevel {
+                if let m = attrs.range(of: " prstMaterial=\"[^\"]*\"", options: .regularExpression) { attrs.removeSubrange(m) }
+                if b.material != "warmMatte" { attrs += " prstMaterial=\"\(b.material)\"" }
+                sp3d = "<a:sp3d\(attrs)>\(_bevelXML(b))\(rest)</a:sp3d>"
+                if scene.isEmpty {
+                    scene = "<a:scene3d><a:camera prst=\"orthographicFront\"/><a:lightRig rig=\"\(b.rig)\" dir=\"t\"/></a:scene3d>"
+                }
+            } else {
+                sp3d = (attrs.isEmpty && rest.isEmpty) ? "" : "<a:sp3d\(attrs)>\(rest)</a:sp3d>"
+            }
+        }
+        return (list ?? "") + dag + scene + sp3d
     }
 }

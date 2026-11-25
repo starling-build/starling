@@ -48,6 +48,8 @@ final class FormatShapePaneState: State<StatefulWidget> {
 
     /// Six upper-case hex digits of a colour, without its transparency.
     /// The dash styles the pane offers, in the order its button steps through them (preset name, label).
+    static let arrowKinds: [(String?, String)] = [(nil, "None"), ("triangle", "Arrow"), ("arrow", "Open arrow"), ("stealth", "Stealth arrow"),
+                                                  ("diamond", "Diamond"), ("oval", "Oval")]
     static let dashStyles: [(String?, String)] = [(nil, "Solid"), ("sysDot", "Round dot"), ("sysDash", "Square dot"),
                                                   ("dash", "Dash"), ("dashDot", "Dash dot"), ("lgDash", "Long dash"), ("lgDashDot", "Long dash dot")]
 
@@ -177,6 +179,56 @@ final class FormatShapePaneState: State<StatefulWidget> {
         })
         fx.append(gap(14))
         let effects = Column(crossAxisAlignment: .start, children: fx)
+        // Gradient fill: one row per stop, add/remove, reverse and the angle.
+        var gr: [Widget] = [
+            Checkbox(key: ValueKey("fmt.grad.on"), checked: deck.selectionGradient != nil, onChanged: { v in
+                guard !drawn.isEmpty else { return }
+                if v ?? false { deck.editGradient { _ in } }
+                else { deck.setFill(drawn.first?.fill ?? deck.theme.accents[0]) }
+            }, content: Text("Gradient fill")),
+        ]
+        if let g = deck.selectionGradient {
+            gr.append(gap(6))
+            for (i, stop) in g.stops.enumerated() {
+                let hexId = "fmt.grad.color.\(i)", posId = "fmt.grad.pos.\(i)"
+                let hexShown = Self.hex(stop.color), posShown = Self.text(stop.position * 100)
+                let hc = _field(hexId, hexShown), pc = _field(posId, posShown)
+                gr.append(Row(children: [
+                    SizedBox(width: 44, height: nil, child: Text("Stop \(i + 1)", style: caption)),
+                    SizedBox(key: ValueKey(hexId), width: 82, height: 30, child: FluentTextBox(
+                        controller: hc,
+                        onSubmitted: { [weak self] text in
+                            if let v = Self.parseHex(text) {
+                                deck.editGradient { gg in
+                                    guard gg.stops.indices.contains(i) else { return }
+                                    gg.stops[i].color = Color(Int64(gg.stops[i].color.value & 0xFF000000) | Int64(v))
+                                }
+                            } else { hc.text = hexShown; self?._shown[hexId] = hexShown }
+                        })),
+                    SizedBox(width: 6, height: nil, child: nil),
+                    SizedBox(key: ValueKey(posId), width: 50, height: 30, child: FluentTextBox(
+                        controller: pc,
+                        onSubmitted: { [weak self] text in
+                            if let v = Double(Self.digits(text)), v >= 0, v <= 100 {
+                                deck.editGradient { gg in if gg.stops.indices.contains(i) { gg.stops[i].position = v / 100 } }
+                            } else { pc.text = posShown; self?._shown[posId] = posShown }
+                        })),
+                    SizedBox(width: 14, height: nil, child: Text("%", style: caption)),
+                    IconButton(key: ValueKey("fmt.grad.remove.\(i)"), icon: Icon(FluentSystemIcons.close, size: 12, color: fluent.resources.textFillColorPrimary),
+                               onPressed: g.stops.count > 2 ? { deck.removeGradientStop(at: i) } : nil),
+                ]))
+                gr.append(gap(4))
+            }
+            gr.append(Row(children: [
+                Button(key: ValueKey("fmt.grad.add"), onPressed: { deck.addGradientStop() }, child: Text("Add stop")),
+                SizedBox(width: 8, height: nil, child: nil),
+                Button(key: ValueKey("fmt.grad.reverse"), onPressed: { deck.reverseGradient() }, child: Text("Reverse")),
+            ]))
+            gr.append(gap(6))
+            gr.append(row("fmt.grad.angle", "Angle", Self.text(g.angle), min: -360, unit: "°") { (v: Double) in deck.editGradient { $0.angle = v } })
+        }
+        gr.append(gap(14))
+        let gradient = Column(crossAxisAlignment: .start, children: gr)
         let body = Column(crossAxisAlignment: .start, children: [
             Text("Fill & Line", style: fluent.typography.bodyStrong), gap(10),
             Text("Fill", style: caption), gap(4),
@@ -185,7 +237,8 @@ final class FormatShapePaneState: State<StatefulWidget> {
                 if v ?? false { deck.setFill(nil) } else { deck.setFill(deck.theme.accents[0], scheme: "accent1") }
             }, content: Text("No fill")), gap(6),
             hexRow("fmt.fill.color", "Colour (hex)", drawn.first?.fill, enabled: fillOn) { deck.setFill($0) }, gap(6),
-            row("fmt.fill.transparency", "Transparency", transparency, min: 0, unit: "%") { deck.setFillTransparency($0) }, gap(14),
+            row("fmt.fill.transparency", "Transparency", transparency, min: 0, unit: "%") { deck.setFillTransparency($0) }, gap(10),
+            gradient,
             Text("Line", style: caption), gap(4),
             Checkbox(key: ValueKey("fmt.line.none"), checked: some && !lineOn, onChanged: { v in
                 guard some else { return }
@@ -200,6 +253,20 @@ final class FormatShapePaneState: State<StatefulWidget> {
                     let at = styles.firstIndex { $0.0 == first?.outlineDash } ?? 0
                     deck.setOutlineDash(styles[(at + 1) % styles.count].0)
                 } : nil, child: Text(Self.dashStyles.first { $0.0 == first?.outlineDash }?.1 ?? first?.outlineDash ?? "Solid"))),
+            ]), gap(6),
+            Row(children: [
+                SizedBox(width: 110, height: nil, child: Text("Arrow start", style: caption)),
+                SizedBox(key: ValueKey("fmt.line.head"), width: 120, height: 30, child: Button(onPressed: lineOn ? {
+                    let at = Self.arrowKinds.firstIndex { $0.0 == first?.headEnd?.kind } ?? 0
+                    deck.setLineEnd(start: true, kind: Self.arrowKinds[(at + 1) % Self.arrowKinds.count].0)
+                } : nil, child: Text(Self.arrowKinds.first { $0.0 == first?.headEnd?.kind }?.1 ?? first?.headEnd?.kind ?? "None"))),
+            ]), gap(6),
+            Row(children: [
+                SizedBox(width: 110, height: nil, child: Text("Arrow end", style: caption)),
+                SizedBox(key: ValueKey("fmt.line.tail"), width: 120, height: 30, child: Button(onPressed: lineOn ? {
+                    let at = Self.arrowKinds.firstIndex { $0.0 == first?.tailEnd?.kind } ?? 0
+                    deck.setLineEnd(start: false, kind: Self.arrowKinds[(at + 1) % Self.arrowKinds.count].0)
+                } : nil, child: Text(Self.arrowKinds.first { $0.0 == first?.tailEnd?.kind }?.1 ?? first?.tailEnd?.kind ?? "None"))),
             ]), gap(14),
             Text("Size & Properties", style: fluent.typography.bodyStrong), gap(10),
             Text("Size", style: caption), gap(4),

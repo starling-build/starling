@@ -93,6 +93,20 @@ final class PictureWrapTests: XCTestCase {
         XCTAssertEqual(c.pictureWrap(at: i), .square)
     }
 
+    /// The Picture Format tab of a floating shape has Select Multiple, which a finger needs for picking shapes to group.
+    func testPictureFormatTabHasSelectMultiple() throws {
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(1280, 800))
+        let c = try XCTUnwrap(ui.state(OfficeShellState.self)).session.controller
+        c.load(try DocxFormat.read(try floatingDocument()).document)
+        c.selectImage(at: try floatIndex(c))
+        ui.pump()
+        XCTAssertFalse(c.selectMultiple)
+        XCTAssertTrue(ui.tap(text: "Select Multiple"))
+        XCTAssertTrue(c.selectMultiple)
+        XCTAssertTrue(ui.tap(text: "Select Multiple"))
+        XCTAssertFalse(c.selectMultiple)
+    }
+
     /// A picture anchored in a line of text has a drawn box the click test can use.
     func testFloatAnchoredInTextHasADrawnBox() throws {
         let doc = try DocxFormat.read(try floatingDocument(inText: true)).document
@@ -375,7 +389,7 @@ final class TextBoxInsertTests: XCTestCase {
 
 final class ShapeInsertTests: XCTestCase {
     func testNewShapeReadsBackAndSaves() throws {
-        for preset in ["rect", "ellipse", "triangle"] {
+        for preset in ["rect", "roundRect", "ellipse", "triangle", "rightArrow"] {
             let shape = try XCTUnwrap(TextBoxInsert.makeShape(preset: preset), preset)
             XCTAssertNotNil(shape.float)
             XCTAssertNil(shape.textBox)
@@ -383,7 +397,430 @@ final class ShapeInsertTests: XCTestCase {
             c.insertImage(shape)
             let xml = String(decoding: try XCTUnwrap(try Zip.read(try DocxFormat.write(c.document, pageSetup: .letter)).first { $0.name == "word/document.xml" }).data, as: UTF8.self)
             XCTAssertTrue(xml.containsSubstring("prst=\"\(preset)\""), preset)
-            XCTAssertFalse(xml.containsSubstring("txBox"))
+            XCTAssertFalse(xml.containsSubstring("txBox"))   // (a shape, not a text box)
         }
+    }
+
+    func testShapesAreNamedLikeWordAndStandWhereTheyWerePlaced() throws {
+        let c = RichDocumentController(document: RichDocument(paragraphs: [RichParagraph(text: "body")]))
+        c.pendingShape = { x, y, w, h in
+            TextBoxInsert.makeShape(preset: "ellipse", width: w, height: h, number: TextBoxInsert.nextShapeNumber(in: c.document), page: (x, y))
+        }
+        XCTAssertTrue(c.placePendingShape(x: 100, y: 200, width: 50, height: 40, at: RichPosition(paragraph: 0, offset: 4)))
+        XCTAssertNil(c.pendingShape)
+        XCTAssertNotNil(c.selectedImageIndex)
+        c.pendingShape = { x, y, w, h in
+            TextBoxInsert.makeShape(preset: "rect", width: w, height: h, number: TextBoxInsert.nextShapeNumber(in: c.document), page: (x, y))
+        }
+        XCTAssertTrue(c.placePendingShape(x: 10, y: 20, width: 96, height: 72, at: RichPosition(paragraph: 0, offset: 0)))
+        let xml = String(decoding: try XCTUnwrap(try Zip.read(try DocxFormat.write(c.document, pageSetup: .letter)).first { $0.name == "word/document.xml" }).data, as: UTF8.self)
+        XCTAssertTrue(xml.containsSubstring("name=\"Oval 1\""))
+        XCTAssertTrue(xml.containsSubstring("name=\"Rectangle 2\""))
+        XCTAssertTrue(xml.containsSubstring("<wp:posOffset>1270000</wp:posOffset>"))   // 100 pt
+        XCTAssertTrue(xml.containsSubstring("relativeFrom=\"page\""))
+    }
+
+    /// Set SHAPE_LAB2 to a file path to get shapes with typed text, other fills and outlines, for a Word check.
+    func testWriteShapeStyleLab() throws {
+        guard let path = ProcessInfo.processInfo.environment["SHAPE_LAB2"] else { return }
+        let c = RichDocumentController(document: RichDocument(paragraphs: [RichParagraph(text: "Shapes with text and styles follow."), RichParagraph(text: "Second paragraph.")]))
+        var n = 0
+        for (preset, text, fill, line) in [("rect", "Hello", Color?.some(Color(0xFFFF0000)), Color?.some(Color(0xFF00AA00))),
+                                           ("ellipse", "Oval text", Color?.none, Color?.some(Color(0xFF0000FF))),
+                                           ("roundRect", "Rounded", Color?.some(Color(0xFFFFC000)), Color?.none),
+                                           ("triangle", "", Color?.some(Color(0xFF7030A0)), Color?.some(Color(0xFF000000)))] {
+            n += 1
+            c.pendingShape = { x, y, w, h in TextBoxInsert.makeShape(preset: preset, width: 120, height: 90, number: n, page: (x, y)) }
+            XCTAssertTrue(c.placePendingShape(x: 60 + Double(n - 1) * 130, y: 200, width: 120, height: 90, at: RichPosition(paragraph: 0, offset: 0)))
+            let i = try XCTUnwrap(c.selectedImageIndex)
+            _ = c.setShapeFill(at: i, fill); _ = c.setShapeOutline(at: i, line)
+            if !text.isEmpty {
+                XCTAssertTrue(c.giveShapeText(at: i))
+                var doc = try XCTUnwrap(c.textBoxDocument(at: i))
+                doc.paragraphs[0] = RichParagraph(text: text, style: doc.paragraphs[0].style)
+                let (xml, rels) = try XCTUnwrap(TextBoxInsert.content(doc))
+                XCTAssertTrue(c.setTextBoxContent(at: i, document: doc, contentXML: xml, rels: rels))
+            }
+        }
+        try DocxFormat.write(c.document, pageSetup: .letter).write(to: URL(fileURLWithPath: path))
+    }
+
+    /// Set SHAPE_LAB to a file path to get a document with every menu shape, for a Word check.
+    func testWriteShapeLab() throws {
+        guard let path = ProcessInfo.processInfo.environment["SHAPE_LAB"] else { return }
+        let c = RichDocumentController(document: RichDocument(paragraphs: [RichParagraph(text: "Shapes inserted from the menu follow."), RichParagraph(text: "Second paragraph.")]))
+        for preset in ["rect", "roundRect", "ellipse", "triangle", "rightArrow"] {
+            c.insertImage(try XCTUnwrap(TextBoxInsert.makeShape(preset: preset, number: TextBoxInsert.nextShapeNumber(in: c.document))))
+        }
+        try DocxFormat.write(c.document, pageSetup: .letter).write(to: URL(fileURLWithPath: path))
+    }
+}
+
+final class ShapeSelectTests: XCTestCase {
+    func testSelectedShapeMovesAndDeletes() throws {
+        let c = RichDocumentController(document: RichDocument(paragraphs: [RichParagraph(text: "before"), RichParagraph(text: "after")]))
+        c.pendingShape = { x, y, w, h in TextBoxInsert.makeShape(preset: "rect", width: w, height: h, number: 1, page: (x, y)) }
+        XCTAssertTrue(c.placePendingShape(x: 100, y: 200, width: 96, height: 72, at: RichPosition(paragraph: 1, offset: 0)))
+        let i = try XCTUnwrap(c.selectedImageIndex)
+        XCTAssertTrue(c.movePicture(at: i, dx: 10, dy: -20))
+        let f = try XCTUnwrap(c.document.paragraphs[i].image?.float)
+        XCTAssertEqual(f.x, 110); XCTAssertEqual(f.y, 180)
+        let before = c.document.paragraphs.count
+        c.deleteBackward()
+        XCTAssertEqual(c.document.paragraphs.count, before - 1)
+        XCTAssertFalse(c.document.paragraphs.contains { $0.image != nil })
+        c.undo()
+        XCTAssertTrue(c.document.paragraphs.contains { $0.image != nil })
+    }
+
+    func testTypingIntoAShapeKeepsItsGeometryAndCentresTheText() throws {
+        let c = RichDocumentController(document: RichDocument(paragraphs: [RichParagraph(text: "body")]))
+        c.pendingShape = { x, y, w, h in TextBoxInsert.makeShape(preset: "ellipse", width: w, height: h, number: 1, page: (x, y)) }
+        XCTAssertTrue(c.placePendingShape(x: 50, y: 60, width: 96, height: 72, at: RichPosition(paragraph: 0, offset: 0)))
+        let i = try XCTUnwrap(c.selectedImageIndex)
+        XCTAssertNil(c.textBoxDocument(at: i))
+        XCTAssertTrue(c.giveShapeText(at: i))
+        XCTAssertFalse(c.giveShapeText(at: i))
+        let inside = try XCTUnwrap(c.textBoxDocument(at: i))
+        XCTAssertEqual(inside.paragraphs.count, 1)
+        var typed = inside
+        typed.paragraphs[0] = RichParagraph(text: "Hello", style: typed.paragraphs[0].style)
+        let (xml, rels) = try XCTUnwrap(TextBoxInsert.content(typed))
+        XCTAssertTrue(c.setTextBoxContent(at: i, document: typed, contentXML: xml, rels: rels))
+        let out = String(decoding: try XCTUnwrap(try Zip.read(try DocxFormat.write(c.document, pageSetup: .letter)).first { $0.name == "word/document.xml" }).data, as: UTF8.self)
+        XCTAssertTrue(out.containsSubstring("Hello"))
+        XCTAssertTrue(out.containsSubstring("prst=\"ellipse\""))
+        XCTAssertTrue(out.containsSubstring("w:jc w:val=\"center\""))
+    }
+
+    func testShapeFillAndOutlineChangeTheMarkupAndTheDrawnShape() throws {
+        let c = RichDocumentController(document: RichDocument(paragraphs: [RichParagraph(text: "body")]))
+        c.pendingShape = { x, y, w, h in TextBoxInsert.makeShape(preset: "rect", width: w, height: h, number: 1, page: (x, y)) }
+        XCTAssertTrue(c.placePendingShape(x: 5, y: 5, width: 96, height: 72, at: RichPosition(paragraph: 0, offset: 0)))
+        let i = try XCTUnwrap(c.selectedImageIndex)
+        XCTAssertTrue(c.setShapeFill(at: i, Color(0xFFFF0000)))
+        XCTAssertTrue(c.setShapeOutline(at: i, Color(0xFF00FF00)))
+        XCTAssertEqual(c.document.paragraphs[i].image?.outline?.fill?.value, 0xFFFF0000)
+        XCTAssertTrue(c.setShapeFill(at: i, nil))
+        XCTAssertNil(c.document.paragraphs[i].image?.outline?.fill)
+        let out = String(decoding: try XCTUnwrap(try Zip.read(try DocxFormat.write(c.document, pageSetup: .letter)).first { $0.name == "word/document.xml" }).data, as: UTF8.self)
+        XCTAssertTrue(out.containsSubstring("</a:prstGeom><a:noFill/><a:ln w=\"9525\"><a:solidFill><a:srgbClr val=\"00FF00\"/>"))
+        XCTAssertFalse(out.containsSubstring("4472C4"))
+        c.undo()
+        XCTAssertNotNil(c.document.paragraphs[i].image?.outline?.fill)
+    }
+
+    func testThemePicksStayLinkedToTheThemeSlot() throws {
+        let c = RichDocumentController(document: RichDocument(paragraphs: [RichParagraph(text: "x", style: .init())]))
+        c.pendingShape = { x, y, w, h in TextBoxInsert.makeShape(preset: "ellipse", width: w, height: h, number: 1, page: (x, y)) }
+        XCTAssertTrue(c.placePendingShape(x: 5, y: 5, width: 96, height: 72, at: RichPosition(paragraph: 0, offset: 0)))
+        let i = try XCTUnwrap(c.selectedImageIndex)
+        // Accent 2, Lighter 40 percent; Accent 1, Darker 25 percent (outline); plain Text 1 is not touched here.
+        XCTAssertTrue(c.setShapeFill(at: i, Color(0xFFF4B183), theme: (5, 60, 40)))
+        XCTAssertTrue(c.setShapeOutline(at: i, Color(0xFF2F5597), theme: (4, 75, 0)))
+        let xml = try XCTUnwrap(c.document.paragraphs[i].image?.sourceXML)
+        XCTAssertTrue(xml.containsSubstring("<a:solidFill><a:schemeClr val=\"accent2\"><a:lumMod val=\"60000\"/><a:lumOff val=\"40000\"/></a:schemeClr></a:solidFill>"))
+        XCTAssertTrue(xml.containsSubstring("<a:ln w=\"9525\"><a:solidFill><a:schemeClr val=\"accent1\"><a:lumMod val=\"75000\"/></a:schemeClr></a:solidFill>"))
+        let out = String(decoding: try XCTUnwrap(try Zip.read(try DocxFormat.write(c.document, pageSetup: .letter)).first { $0.name == "word/document.xml" }).data, as: UTF8.self)
+        XCTAssertTrue(out.containsSubstring("<a:schemeClr val=\"accent2\">"))
+        XCTAssertFalse(out.containsSubstring("4472C4"))
+        if let path = ProcessInfo.processInfo.environment["SHAPE_LAB3"] {
+            try DocxFormat.write(c.document, pageSetup: .letter).write(to: URL(fileURLWithPath: path))
+        }
+    }
+
+    func testShapesGroupAndUngroupAndKeepTheirPlaceAndNames() throws {
+        let c = RichDocumentController(document: RichDocument(paragraphs: [RichParagraph(text: "x", style: .init())]))
+        for (n, preset) in ["rect", "ellipse", "triangle"].enumerated() {
+            c.pendingShape = { x, y, w, h in TextBoxInsert.makeShape(preset: preset, width: w, height: h, number: TextBoxInsert.nextShapeNumber(in: c.document), page: (x, y)) }
+            XCTAssertTrue(c.placePendingShape(x: 50 + Double(n) * 100, y: 200 + Double(n) * 20, width: 80, height: 60, at: RichPosition(paragraph: 0, offset: 0)))
+        }
+        let shapes = c.document.paragraphs.indices.filter { c.document.paragraphs[$0].image != nil }
+        XCTAssertEqual(shapes.count, 3)
+        c.selectImage(at: shapes[0])
+        c.toggleShapePick(at: shapes[2])
+        XCTAssertEqual(c.pickedShapeIndexes, [shapes[0], shapes[2]])
+        let members = c.pickedShapeIndexes.compactMap { c.document.paragraphs[$0].image }
+        let group = try XCTUnwrap(ShapeGroups.group(members, number: 9))
+        XCTAssertTrue(ShapeGroups.isGroup(group))
+        XCTAssertTrue(c.replaceImageParagraphs(c.pickedShapeIndexes, with: [group]))
+        XCTAssertEqual(c.document.paragraphs.filter { $0.image != nil }.count, 2)
+        XCTAssertTrue(c.document.paragraphs[c.selectedImageIndex!].image!.sourceXML!.containsSubstring("name=\"Group 9\""))
+        // The file keeps the group and reads back as one.
+        let back = try DocxFormat.read(try DocxFormat.write(c.document, pageSetup: .letter)).document
+        XCTAssertEqual(back.paragraphs.compactMap(\.image).filter { $0.sourceXML?.containsSubstring("<wpg:wgp") == true }.count, 1)
+        if let path = ProcessInfo.processInfo.environment["SHAPE_LAB4"] {
+            try DocxFormat.write(c.document, pageSetup: .letter).write(to: URL(fileURLWithPath: path))
+        }
+        // A click into the selected group picks the child under it; a fill then paints that child alone.
+        let gi = try XCTUnwrap(c.selectedImageIndex)
+        let boxes = try XCTUnwrap(c.groupChildBoxes(at: gi))
+        XCTAssertEqual(boxes.count, 2)
+        XCTAssertEqual(boxes[0], Rect.fromLTWH(100, 20, 80, 60))
+        XCTAssertEqual(boxes[1], Rect.fromLTWH(0, 0, 80, 60))
+        XCTAssertFalse(c.pickGroupChild(at: gi, point: Offset(90, 70)), "between the children there is nothing to pick")
+        XCTAssertTrue(c.pickGroupChild(at: gi, point: Offset(40, 30)))
+        XCTAssertEqual(c.groupChild, 1)
+        XCTAssertTrue(c.setShapeFill(at: gi, Color(0xFFFF0000)))
+        let painted = try XCTUnwrap(c.document.paragraphs[gi].image?.sourceXML)
+        XCTAssertEqual(painted.components(separatedBy: "<a:srgbClr val=\"FF0000\"/>").count - 1, 1, "only the picked child took the fill")
+        let spPr = painted.components(separatedBy: "<wps:spPr>")
+        XCTAssertFalse(spPr[1].components(separatedBy: "</wps:spPr>")[0].contains("FF0000"), "the first child keeps its fill")
+        XCTAssertTrue(spPr[2].components(separatedBy: "</wps:spPr>")[0].contains("FF0000"))
+        // The picked child moves (one undo step); the group keeps both children and the pick.
+        RichDocumentController.groupChildEditor = { ShapeGroups.editChild($0, child: $1, $2) }
+        XCTAssertTrue(c.editGroupChild(.move(dx: 12700 * 10, dy: 12700 * 5)))
+        XCTAssertEqual(c.groupChild, 1)
+        var moved = try XCTUnwrap(c.groupChildBoxes(at: gi))
+        XCTAssertEqual(moved[0].width, boxes[0].width, accuracy: 0.5, "the other child stays")
+        // (Boxes run from the group's own corner, which follows the children: the other one now sits 10 left and 5 up from it.)
+        XCTAssertEqual(boxes[0].left - moved[0].left, 10, accuracy: 0.5)
+        XCTAssertEqual(boxes[0].top - moved[0].top, 5, accuracy: 0.5)
+        c.undo()
+        XCTAssertEqual(try XCTUnwrap(c.groupChildBoxes(at: c.selectedImageIndex ?? gi))[1], boxes[1], "one undo puts it back")
+        c.selectImage(at: c.selectedImageIndex ?? gi)
+        XCTAssertTrue(c.pickGroupChild(at: c.selectedImageIndex ?? gi, point: Offset(40, 30)))
+        XCTAssertTrue(c.editGroupChild(.resize(cx: 12700 * 40, cy: 12700 * 30)))
+        moved = try XCTUnwrap(c.groupChildBoxes(at: c.selectedImageIndex ?? gi))
+        XCTAssertEqual(moved[1].width, 40, accuracy: 0.5)
+        XCTAssertEqual(moved[1].height, 30, accuracy: 0.5)
+        if let path = ProcessInfo.processInfo.environment["SHAPE_LAB5"] {   // a group whose child was moved up-left and resized
+            try DocxFormat.write(c.document, pageSetup: .letter).write(to: URL(fileURLWithPath: path))
+        }
+        XCTAssertTrue(c.editGroupChild(.delete))
+        XCTAssertEqual(try XCTUnwrap(c.groupChildBoxes(at: c.selectedImageIndex ?? gi)).count, 1, "the child is gone, the other stays")
+        c.undo()   // the delete
+        c.undo()   // the resize
+        XCTAssertEqual(try XCTUnwrap(c.groupChildBoxes(at: c.selectedImageIndex ?? gi)), boxes, "each edit was one undo step")
+        // Words typed into the picked child stay in the group: it keeps both children, and undo takes them out.
+        c.selectImage(at: c.selectedImageIndex ?? gi)
+        XCTAssertTrue(c.pickGroupChild(at: c.selectedImageIndex ?? gi, point: Offset(40, 30)))
+        var typed = try XCTUnwrap(c.groupChildTextDocument())
+        typed.paragraphs = [RichParagraph(text: "typed in a child")]
+        let (body, rels) = try XCTUnwrap(TextBoxInsert.content(typed))
+        XCTAssertTrue(c.setGroupChildText(document: typed, contentXML: body, rels: rels))
+        XCTAssertEqual(c.groupChild, 1)
+        XCTAssertEqual(try XCTUnwrap(c.groupChildBoxes(at: c.selectedImageIndex ?? gi)).count, 2)
+        XCTAssertTrue(c.document.paragraphs[c.selectedImageIndex ?? gi].image!.sourceXML!.containsSubstring("typed in a child"))
+        XCTAssertEqual(c.groupChildTextDocument()?.paragraphs.first?.text, "typed in a child", "the child reads back what was typed")
+        if let path = ProcessInfo.processInfo.environment["SHAPE_LAB6"] {
+            try DocxFormat.write(c.document, pageSetup: .letter).write(to: URL(fileURLWithPath: path))
+        }
+        c.undo()
+        XCTAssertFalse(c.document.paragraphs[c.selectedImageIndex ?? gi].image!.sourceXML!.containsSubstring("typed in a child"))
+        // Ungroup gives the two shapes back, by name and size.
+        let g = try XCTUnwrap(c.document.paragraphs[c.selectedImageIndex!].image)
+        let parts = try XCTUnwrap(ShapeGroups.ungroup(g, number: 20))
+        XCTAssertEqual(parts.count, 2)
+        let oval = try XCTUnwrap(parts.first { $0.sourceXML!.containsSubstring("name=\"Oval 2\"") })
+        XCTAssertTrue(oval.sourceXML!.containsSubstring("<wp:posOffset>\(150 * 12700)</wp:posOffset></wp:positionH>"))
+        XCTAssertTrue(parts.contains { $0.sourceXML!.containsSubstring("name=\"Rectangle 1\"") })
+        c.undo()   // the fill
+        c.undo()   // the group
+        XCTAssertEqual(c.document.paragraphs.filter { $0.image != nil }.count, 3)
+    }
+
+    /// A saved document for the Word check of what the Shape Format tab writes: fills, outlines, wraps and text.
+    /// A tight ellipse placed from the page, in the middle of the column: the text goes round it on both sides, left piece
+    /// and right piece on one line, and keeps off the ellipse (Word's print of lab shape-format; before, the lines ran through).
+    func testTightEllipseFromThePageWrapsOnBothSides() throws {
+        let was = RichTextTheme.wordWindowsPages
+        RichTextTheme.wordWindowsPages = true
+        defer { RichTextTheme.wordWindowsPages = was }
+        let c = RichDocumentController(document: RichDocument(paragraphs: [RichParagraph(text: String(repeating: "Body text of the page, long enough to flow past the shape. ", count: 60))]))
+        c.pendingShape = { x, y, w, h in TextBoxInsert.makeShape(preset: "ellipse", width: w, height: h, number: 1, page: (x, y)) }
+        XCTAssertTrue(c.placePendingShape(x: 200, y: 200, width: 100, height: 70, at: RichPosition(paragraph: 0, offset: 0)))
+        let i = try XCTUnwrap(c.selectedImageIndex)
+        _ = c.setPictureWrap(at: i, .tight)
+        let parsed = try DocxFormat.read(try DocxFormat.write(c.document, pageSetup: .letter))
+        let doc = parsed.document
+        let setup = parsed.pageSetup ?? .letter
+        let theme = RichTextTheme(fontFamily: OfficeFonts.serif)
+        theme.wordRules = true
+        let layout = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+        layout.pageSetup = setup
+        layout.width = setup.columnWidth * theme.pixelsPerPoint
+        layout.ensureLaidOut(doc)
+        let body = try XCTUnwrap(doc.paragraphs.firstIndex { $0.text.hasPrefix("Body text") })
+        let px = theme.pixelsPerPoint
+        var rows: [Double: [Double]] = [:]
+        for off in stride(from: 0, to: 2400, by: 3) {
+            let r = layout.caretRect(RichPosition(paragraph: body, offset: off), doc)
+            rows[(r.top / px).rounded(), default: []].append(r.left / px)
+        }
+        // (The ellipse stands at 128...228 across the column, rows 128...198 down; its widest rows are the middle ones.)
+        // (A caret in a left piece reports the row of the piece before it, so the rows are taken together.)
+        let lefts = rows.filter { $0.key > 120 && $0.key < 200 }.flatMap(\.value)
+        XCTAssertFalse(lefts.isEmpty)
+        XCTAssertFalse(rows.filter { $0.key > 150 && $0.key < 176 }.flatMap(\.value).contains { $0 > 125 && $0 < 235 }, "no text inside the ellipse's widest rows")
+        XCTAssertTrue(lefts.contains { $0 < 119 }, "a left piece")
+        XCTAssertTrue(lefts.contains { $0 > 236 }, "a right piece")
+    }
+
+    /// Word's print of lab shape-format: a square at the margin, a tight ellipse 9pt from it on the same rows, and a top-and-bottom
+    /// box lower down, all set from the page, in one long paragraph.
+    func testSquareBesideATightEllipseFromThePageAsWordSetsThem() throws {
+        let was = RichTextTheme.wordWindowsPages
+        RichTextTheme.wordWindowsPages = true
+        defer { RichTextTheme.wordWindowsPages = was }
+        /// Lays the page out with the fourth shape wrapped `last`; the caret rows by row top (column points) and the foot of the text.
+        func lay(_ last: PictureWrap) throws -> (rows: [Double: [Double]], foot: Double) {
+            let c = RichDocumentController(document: RichDocument(paragraphs: [RichParagraph(text: String(repeating: "Body text of the page, long enough to flow past every one of the four shapes so the wrap of each can be seen acting on it. ", count: 14))]))
+            let specs: [(String, PictureWrap)] = [("rect", .square), ("ellipse", .tight), ("rect", .behindText), ("roundRect", last)]
+            for (n, spec) in specs.enumerated() {
+                c.pendingShape = { x, y, w, h in TextBoxInsert.makeShape(preset: spec.0, width: w, height: h, number: n + 1, page: (x, y)) }
+                XCTAssertTrue(c.placePendingShape(x: 60 + Double(n) * 110, y: 150 + Double(n) * 40, width: 100, height: 70, at: RichPosition(paragraph: 0, offset: 0)))
+                _ = c.setPictureWrap(at: try XCTUnwrap(c.selectedImageIndex), spec.1)
+            }
+            let parsed = try DocxFormat.read(try DocxFormat.write(c.document, pageSetup: .letter))
+            let doc = parsed.document
+            let theme = RichTextTheme(fontFamily: OfficeFonts.serif)
+            theme.wordRules = true
+            let layout = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+            layout.pageSetup = parsed.pageSetup ?? .letter
+            layout.width = layout.pageSetup!.columnWidth * theme.pixelsPerPoint
+            layout.ensureLaidOut(doc)
+            let body = try XCTUnwrap(doc.paragraphs.firstIndex { $0.text.hasPrefix("Body text") })
+            let px = theme.pixelsPerPoint
+            var rows: [Double: [Double]] = [:]
+            for off in stride(from: 0, to: 3600, by: 2) {
+                let r = layout.caretRect(RichPosition(paragraph: body, offset: off), doc)
+                rows[(r.top / px).rounded(), default: []].append(r.left / px)
+            }
+            return (rows, layout.totalHeight / px)
+        }
+        let (rows, foot) = try lay(.topAndBottom)
+        // Rows are down the column (page y - 72), carets across it (page x - 72). Square 60...160 x 150...220 on the page: -12...88 across,
+        // 78...148 down. Ellipse 170...270 x 190...260: 98...198 across, 118...188 down. Top-and-bottom box 390...490 x 270...340.
+        // Beside the ellipse above the square's foot, no word sits in the 9pt strip or under the ellipse; the first starts at its outline
+        // (Word's print: 260.6 / 275.6 / 279.0 on the page, 188.6 / 203.6 / 207.0 across the column; the rows here are a little further right).
+        let beside = rows.filter { $0.key > 118 && $0.key < 148 }.flatMap(\.value)
+        XCTAssertFalse(beside.isEmpty)
+        XCTAssertFalse(beside.contains { $0 > 30 && $0 < 196 }, "no text in the strip or the ellipse: \(rows.keys.sorted())")
+        XCTAssertTrue(beside.contains { $0 > 196 && $0 < 216 }, "the first line beside the ellipse starts at its outline")
+        // Below the square the left piece is back at the margin.
+        XCTAssertTrue(rows.filter { $0.key > 150 && $0.key < 188 }.flatMap(\.value).contains { $0 < 8 })
+        // The top-and-bottom box takes its rows out of the text: the lines that would stand in them go under it, so the page is
+        // taller than with the same box behind the text (the push is the box's 70pt less the lines that fell above it).
+        let (_, behind) = try lay(.behindText)
+        XCTAssertGreaterThan(foot, behind + 40, "the top-and-bottom box pushes the lines under it: \(foot) against \(behind)")
+    }
+
+    /// The same four shapes at the same places on the page, but anchored to the margin or the column instead of the page, lay the
+    /// text out the same way: where a shape is measured from changes only the numbers, not what the text does around it.
+    func testShapesLayTheTextTheSameWhateverTheyAreMeasuredFrom() throws {
+        let was = RichTextTheme.wordWindowsPages
+        RichTextTheme.wordWindowsPages = true
+        defer { RichTextTheme.wordWindowsPages = was }
+        func lay(_ from: (h: String, v: String)) throws -> (rows: [Double: [Double]], height: Double) {
+            let c = RichDocumentController(document: RichDocument(paragraphs: [RichParagraph(text: String(repeating: "Body text of the page, long enough to flow past every one of the four shapes so the wrap of each can be seen acting on it. ", count: 14))]))
+            let specs: [(String, PictureWrap)] = [("rect", .square), ("ellipse", .tight), ("rect", .behindText), ("roundRect", .topAndBottom)]
+            for (n, spec) in specs.enumerated() {
+                c.pendingShape = { x, y, w, h in TextBoxInsert.makeShape(preset: spec.0, width: w, height: h, number: n + 1, page: (x, y)) }
+                XCTAssertTrue(c.placePendingShape(x: 60 + Double(n) * 110, y: 150 + Double(n) * 40, width: 100, height: 70, at: RichPosition(paragraph: 0, offset: 0)))
+                _ = c.setPictureWrap(at: try XCTUnwrap(c.selectedImageIndex), spec.1)
+            }
+            let parsed = try DocxFormat.read(try DocxFormat.write(c.document, pageSetup: .letter))
+            var doc = parsed.document
+            let setup = parsed.pageSetup ?? .letter
+            // (Where each paragraph starts down the column, from the file as it stands: a paragraph's offset is from its top.)
+            let flat = { let t = RichTextTheme(fontFamily: OfficeFonts.serif); t.wordRules = true; return t }()
+            let probe = RichLayout(theme: flat, paragraphCount: doc.paragraphs.count)
+            probe.pageSetup = setup
+            probe.width = setup.columnWidth * flat.pixelsPerPoint
+            probe.ensureLaidOut(doc)
+            for n in doc.paragraphs.indices {
+                guard var image = doc.paragraphs[n].image, var float = image.float, float.verticalFrom == "page", float.horizontalFrom == "page" else { continue }
+                if from.h == "leftMargin" || from.h == "insideMargin" { float.horizontalFrom = from.h }
+                else if from.h == "rightMargin" || from.h == "outsideMargin" { float.x -= setup.width - setup.marginRight; float.horizontalFrom = from.h }
+                else if from.h != "page" { float.x -= setup.marginLeft; float.horizontalFrom = from.h }
+                if from.v == "paragraph", float.wraps || float.takesRoom || float.bandsPage { float.y -= setup.marginTop + probe._tops[n] / flat.pixelsPerPoint; float.verticalFrom = "paragraph" }
+                else if from.v != "page" { float.y -= setup.marginTop; float.verticalFrom = from.v == "paragraph" ? "margin" : from.v }
+                image.float = float
+                doc.paragraphs[n].image = image
+            }
+            let theme = RichTextTheme(fontFamily: OfficeFonts.serif)
+            theme.wordRules = true
+            let layout = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+            layout.pageSetup = setup
+            layout.width = setup.columnWidth * theme.pixelsPerPoint
+            layout.ensureLaidOut(doc)
+            let body = try XCTUnwrap(doc.paragraphs.firstIndex { $0.text.hasPrefix("Body text") })
+            let px = theme.pixelsPerPoint
+            var rows: [Double: [Double]] = [:]
+            for off in stride(from: 0, to: 1800, by: 2) {
+                let r = layout.caretRect(RichPosition(paragraph: body, offset: off), doc)
+                rows[(r.top / px).rounded(), default: []].append((r.left / px * 2).rounded() / 2)
+            }
+            return (rows, layout.totalHeight / px)
+        }
+        let page = try lay(("page", "page"))
+        for from in [("margin", "margin"), ("column", "margin"), ("margin", "page"), ("page", "margin"), ("column", "paragraph"), ("margin", "paragraph"), ("page", "paragraph"), ("leftMargin", "page"), ("rightMargin", "page"), ("insideMargin", "page"), ("outsideMargin", "page")] {
+            let other = try lay(from)
+            XCTAssertEqual(other.height, page.height, accuracy: 0.6, "page height measured from \(from)")
+            XCTAssertEqual(other.rows.keys.sorted(), page.rows.keys.sorted(), "rows measured from \(from)")
+            for k in page.rows.keys {
+                XCTAssertEqual(other.rows[k]?.min() ?? -1, page.rows[k]!.min() ?? -2, accuracy: 0.6, "row \(k) start measured from \(from)")
+            }
+        }
+    }
+
+    func testShapeFormatChoicesSaveForTheWordCheck() throws {
+        let c = RichDocumentController(document: RichDocument(paragraphs: [RichParagraph(text: String(repeating: "Body text of the page, long enough to flow past every one of the four shapes so the wrap of each can be seen acting on it. ", count: 40), style: .init())]))
+        let specs: [(String, PictureWrap, Color?, Color?, String?)] = [
+            ("rect", .square, Color(0xFFFF0000), Color(0xFF0000FF), "square"),
+            ("ellipse", .tight, Color(0xFF00AA00), nil, "tight"),
+            ("rect", .behindText, Color(0xFFFFFF00), Color(0xFF000000), "behind"),
+            ("roundRect", .topAndBottom, nil, Color(0xFFCC0000), "top and bottom"),
+        ]
+        for (n, spec) in specs.enumerated() {
+            c.pendingShape = { x, y, w, h in TextBoxInsert.makeShape(preset: spec.0, width: w, height: h, number: n + 1, page: (x, y)) }
+            XCTAssertTrue(c.placePendingShape(x: 60 + Double(n) * 110, y: 150 + Double(n) * 40, width: 100, height: 70, at: RichPosition(paragraph: 0, offset: 0)))
+            let i = try XCTUnwrap(c.selectedImageIndex)
+            _ = c.setPictureWrap(at: i, spec.1)
+            XCTAssertTrue(c.setShapeFill(at: i, spec.2))
+            _ = c.setShapeOutline(at: i, spec.3)
+            XCTAssertTrue(c.giveShapeText(at: i))
+            var para = RichParagraph(text: spec.4 ?? "")
+            para.style.alignment = .center
+            XCTAssertTrue(c.setTextBoxContent(at: i, paragraphs: [para], contentXML: "<w:p><w:pPr><w:jc w:val=\"center\"/></w:pPr><w:r><w:t>\(spec.4 ?? "")</w:t></w:r></w:p>"))
+        }
+        let ellipse = try XCTUnwrap(c.document.paragraphs.compactMap(\.image).first { $0.sourceXML?.containsSubstring("prst=\"ellipse\"") == true })
+        let xml = try XCTUnwrap(ellipse.sourceXML)
+        XCTAssertEqual(xml.components(separatedBy: "<wp:lineTo").count - 1, 36, "a smooth ellipse: 36 points, closed")
+        XCTAssertFalse(xml.containsSubstring("<wp:lineTo x=\"21600\" y=\"21600\"/><wp:lineTo x=\"21600\" y=\"0\"/>"), "not the full rectangle")
+        let poly = try XCTUnwrap(ellipse.float).wrapPolygon
+        XCTAssertGreaterThan(poly.count, 20)
+        XCTAssertTrue(poly.contains { abs($0.x - 0.5) < 0.01 && $0.y < 0.01 }, "reaches the top middle")
+        XCTAssertFalse(poly.contains { $0.x < 0.05 && $0.y < 0.05 }, "the corner of the box is not in it")
+        if let path = ProcessInfo.processInfo.environment["SHAPE_LAB7"] {
+            try DocxFormat.write(c.document, pageSetup: .letter).write(to: URL(fileURLWithPath: path))
+        }
+    }
+
+    func testTurnedShapesGroupByTheBoxTheirTurnSweeps() throws {
+        let c = RichDocumentController(document: RichDocument(paragraphs: [RichParagraph(text: "x", style: .init())]))
+        for (n, preset) in ["rect", "ellipse"].enumerated() {
+            c.pendingShape = { x, y, w, h in TextBoxInsert.makeShape(preset: preset, width: w, height: h, number: TextBoxInsert.nextShapeNumber(in: c.document), page: (x, y)) }
+            XCTAssertTrue(c.placePendingShape(x: 50 + Double(n) * 200, y: 200, width: 80, height: 60, at: RichPosition(paragraph: 0, offset: 0)))
+        }
+        var shapes = c.document.paragraphs.compactMap(\.image).filter { $0.float != nil }
+        XCTAssertEqual(shapes.count, 2)
+        let r = try XCTUnwrap(shapes.firstIndex { $0.sourceXML!.containsSubstring("name=\"Rectangle") })
+        shapes[r].sourceXML = shapes[r].sourceXML!.replacingAll("<a:xfrm>", with: "<a:xfrm rot=\"5400000\">").replacingAll("<a:xfrm ", with: "<a:xfrm rot=\"5400000\" ")
+        XCTAssertTrue(shapes[r].sourceXML!.containsSubstring("rot=\"5400000\""))
+        let g = try XCTUnwrap(ShapeGroups.group(shapes, number: 5))
+        let xml = try XCTUnwrap(g.sourceXML)
+        // Turned a quarter, the 80 x 60 box fills 60 x 80 about its centre: 60..120 across, 190..270 down; the group ends at 330.
+        XCTAssertTrue(xml.containsSubstring("<wp:posOffset>\(60 * 12700)</wp:posOffset></wp:positionH>"))
+        XCTAssertTrue(xml.containsSubstring("<wp:posOffset>\(190 * 12700)</wp:posOffset></wp:positionV>"))
+        XCTAssertTrue(xml.containsSubstring("<wp:extent cx=\"\(270 * 12700)\" cy=\"\(80 * 12700)\"/>"))
+        if let path = ProcessInfo.processInfo.environment["SHAPE_LAB5"] {
+            let idx = c.document.paragraphs.indices.filter { c.document.paragraphs[$0].image?.float != nil }
+            XCTAssertTrue(c.replaceImageParagraphs(idx, with: [g]))
+            try DocxFormat.write(c.document, pageSetup: .letter).write(to: URL(fileURLWithPath: path))
+        }
+        let parts = try XCTUnwrap(ShapeGroups.ungroup(g, number: 9))
+        XCTAssertTrue(parts.contains { $0.sourceXML!.containsSubstring("rot=\"5400000\"") })
     }
 }

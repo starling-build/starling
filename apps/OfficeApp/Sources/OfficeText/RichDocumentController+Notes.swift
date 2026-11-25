@@ -264,4 +264,69 @@ extension RichDocumentController {
         edit { perform(.setNotes(new: after, old: before)) }
         return true
     }
+
+    /// After an edit: a note whose mark is gone from the body (deleted with its text, or cut) goes too, in the same
+    /// undo step, and the marks after it (and the notes' own) renumber. Called by `edit` at the end of the outer step.
+    func _noteMarkIds() -> [Set<Int>]? {
+        guard !document.footnotes.isEmpty || !document.endnotes.isEmpty else { return nil }
+        var out: [Set<Int>] = [[], []]
+        for p in document.paragraphs { for r in p.runs { if let n = r.style.note { out[n.kind == .footnote ? 0 : 1].insert(n.id) } } }
+        return out
+    }
+
+    func _dropOrphanNotes(before: [Set<Int>]?) {
+        guard let before else { return }
+        for kind in [NoteReference.Kind.footnote, .endnote] {
+            let notes = kind == .footnote ? document.footnotes : document.endnotes
+            guard !notes.isEmpty else { continue }
+            var present = Set<Int>()
+            for p in document.paragraphs { for r in p.runs { if let n = r.style.note, n.kind == kind { present.insert(n.id) } } }
+            let was = before[kind == .footnote ? 0 : 1]
+            let gone = notes.keys.filter { was.contains($0) && !present.contains($0) }.sorted()
+            guard !gone.isEmpty else { continue }
+            var state = NotesState(document)
+            for id in gone {
+                if kind == .footnote {
+                    state.footnotes[id] = nil
+                    if let d = state.footnotePart { state.footnotePart = Self._removeElement(d, kind: kind, id: id) }
+                } else {
+                    state.endnotes[id] = nil
+                    if let d = state.endnotePart { state.endnotePart = Self._removeElement(d, kind: kind, id: id) }
+                }
+            }
+            // The rest renumber in body order.
+            let marks = _marks(kind)
+            let format = _labelFormat(kind, marks)
+            func label(_ n: Int) -> String { format == .decimal ? String(n) : format.string(n) }
+            var numbered: [Int: Int] = [:]
+            for (i, m) in marks.enumerated() { numbered[m.id] = i + 1 }
+            var all = kind == .footnote ? state.footnotes : state.endnotes
+            for (nid, paras) in all {
+                guard let n = numbered[nid], var p = paras.first, let r = p.runs.first, r.length > 0,
+                      Array(p.text.utf16).count >= r.length else { continue }
+                let units = Array(p.text.utf16)
+                let old = String(decoding: units[0 ..< r.length], as: UTF16.self)
+                guard !old.isEmpty, old.allSatisfy({ $0.isLetter || $0.isNumber }), old != label(n) else { continue }
+                p = RichParagraph(text: label(n) + String(decoding: units[r.length...], as: UTF16.self),
+                                  runs: [Run(length: label(n).utf16.count, style: r.style)] + p.runs.dropFirst(), style: p.style)
+                var list = paras; list[0] = p; all[nid] = list
+            }
+            if kind == .footnote { state.footnotes = all } else { state.endnotes = all }
+            let old = NotesState(document)
+            perform(.setNotes(new: state, old: old))
+            for (i, m) in marks.enumerated().reversed() {
+                let new = label(i + 1)
+                guard new != m.text else { continue }
+                let pos = RichPosition(paragraph: m.paragraph, offset: m.offset)
+                perform(.deleteText(pos, m.text, [Run(length: m.length, style: m.style)]))
+                perform(.insertText(pos, new, [Run(length: new.utf16.count, style: m.style)]))
+            }
+        }
+    }
+
+    private static func _removeElement(_ data: Data, kind: NoteReference.Kind, id: Int) -> Data {
+        let part = Array(data)
+        guard let r = _elementRange(part, kind: kind, id: id) else { return data }
+        return Data(Array(part[0 ..< r.lowerBound]) + Array(part[r.upperBound...]))
+    }
 }
