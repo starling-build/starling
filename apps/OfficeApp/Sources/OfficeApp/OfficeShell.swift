@@ -1048,18 +1048,19 @@ final class OfficeShellState: State<StatefulWidget> {
 
     /// What the shared Find and Replace dialog does in Writer (U-FR-1).
     private var _findHooks: FindHooks {
-        func select(_ s: RichSelection?) -> String {
+        func select(_ s: RichSelection?, _ p: TextPattern) -> String {
             guard let s else { return "No matches" }
             controller.selection = s
-            return ""
+            guard let at = controller.matchPosition(p) else { return "" }
+            return "\(at.index) of \(at.total)"
         }
         var hooks = FindHooks(
-            findNext: { [unowned self] p, _, back in select(controller.find(p, backwards: back)) },
+            findNext: { [unowned self] p, _, back in select(controller.find(p, backwards: back), p) },
             replace: { [unowned self] p, template, _ in
                 // Replace the match the caret is on, then move to the next one.
                 let replaced = controller.replaceSelection(p, with: template)
-                let next = select(controller.find(p))
-                return replaced ? (next.isEmpty ? "Replaced" : "Replaced. No more matches") : next
+                let next = select(controller.find(p), p)
+                return replaced ? (next == "No matches" ? "Replaced. No more matches" : "Replaced") : next
             },
             replaceAll: { [unowned self] p, template, _ in
                 let n = controller.replaceAll(p, with: template)
@@ -1085,8 +1086,10 @@ final class OfficeShellState: State<StatefulWidget> {
         if let sel = controller.find(q, backwards: backwards) {
             controller.selection = sel
             setState { _findStatus = "" }
+            if let at = (try? TextPattern(q, FindOptions())).flatMap({ controller.matchPosition($0) }) { ScreenReader.announce("\(at.index) of \(at.total)") }
         } else {
             setState { _findStatus = "No matches" }
+            ScreenReader.announce("No matches")
         }
     }
 

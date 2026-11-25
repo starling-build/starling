@@ -952,6 +952,7 @@ final class WorkbookController: ChangeNotifier {
         case cells(sheet: Int, before: [CellAddress: Cell?], after: [CellAddress: Cell?],
                    selection: CellRange, active: CellAddress)
         case structure(before: _BookState, after: _BookState, selection: CellRange, active: CellAddress)
+        var isStructure: Bool { if case .structure = self { return true } else { return false } }
     }
 
     struct _BookState {
@@ -1022,7 +1023,8 @@ final class WorkbookController: ChangeNotifier {
     }
 
     func undo() {
-        guard let s = _undo.popLast() else { return }
+        guard let s = _undo.popLast() else { ScreenReader.announce("Nothing to undo"); return }
+        ScreenReader.announce(s.isStructure ? "Undo row or column change" : "Undo cell edit")
         switch s {
         case .cells(let si, let before, _, let sel, let act):
             _apply(si, before)
@@ -1041,7 +1043,8 @@ final class WorkbookController: ChangeNotifier {
     }
 
     func redo() {
-        guard let s = _redo.popLast() else { return }
+        guard let s = _redo.popLast() else { ScreenReader.announce("Nothing to redo"); return }
+        ScreenReader.announce(s.isStructure ? "Redo row or column change" : "Redo cell edit")
         switch s {
         case .cells(let si, _, let after, _, _):
             _apply(si, after)

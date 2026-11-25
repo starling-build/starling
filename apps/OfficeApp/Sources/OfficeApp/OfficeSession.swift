@@ -83,7 +83,14 @@ final class OfficeSession {
     /// The text the chrome acts on. Writer's document; in Slides, the text
     /// body being edited (the shell points this at it), so the Font and
     /// Paragraph groups, undo and the clipboard work unchanged.
-    var controller = RichDocumentController()
+    var controller = OfficeSession.makeController() {
+        didSet { controller.onHistory = { ScreenReader.announce($0) } }
+    }
+    private static func makeController() -> RichDocumentController {
+        let c = RichDocumentController()
+        c.onHistory = { ScreenReader.announce($0) }
+        return c
+    }
     /// The line the Borders menu applies to a cell's sides (table layout tab).
     var cellPen = CellBorderLine()
     /// The deck, in Slides.

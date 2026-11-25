@@ -2428,14 +2428,16 @@ final class DeckController: ChangeNotifier {
 
     func undo() {
         _flushSession()
-        guard let state = _undo.popLast() else { return }
+        guard let state = _undo.popLast() else { ScreenReader.announce("Nothing to undo"); return }
+        ScreenReader.announce("Undo")
         _redo.append(snapshot())
         restore(state)
     }
 
     func redo() {
         _flushSession()
-        guard let state = _redo.popLast() else { return }
+        guard let state = _redo.popLast() else { ScreenReader.announce("Nothing to redo"); return }
+        ScreenReader.announce("Redo")
         _undo.append(snapshot())
         restore(state)
     }
