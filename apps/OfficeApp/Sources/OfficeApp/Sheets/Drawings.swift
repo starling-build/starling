@@ -1214,6 +1214,12 @@ extension WorkbookController {
         return (t, engine.values(si, r.range, includeEmpty: true).map { $0.number })
     }
 
+    /// A numeric range of the right length to offer as the bubble sizes: the chart's first series' own values.
+    func suggestedBubbleSizes(_ index: Int) -> String {
+        guard sheet.drawings.indices.contains(index), case .chart(let sc) = sheet.drawings[index].kind else { return "" }
+        return sc.refs.first?.val ?? ""
+    }
+
     /// Chart `index` as its 3D, stock or bubble form. Stock takes the chart's series in order (`extra` are the ranges of
     /// roles it lacks); bubble takes the ranges of the sizes. Returns false, with `chartNotice` saying why, where it cannot.
     @discardableResult
@@ -1243,6 +1249,17 @@ extension WorkbookController {
             target = .scatter
             guard !sizes.isEmpty, !sizes.contains(where: { chartRange($0) == nil }) else {
                 chartNotice = "The bubble sizes need a range of cells."; _notify(); return false
+            }
+            // Excel draws nothing when a size is missing or the sizes are fewer than the values.
+            let want = first.chart.series.map { $0.values.count }.max() ?? 0
+            for r in sizes {
+                guard let range = chartRange(r) else { continue }
+                if range.values.contains(where: { $0 == nil }) {
+                    chartNotice = "\(r) has cells that are empty or not numbers; every bubble needs a numeric size."; _notify(); return false
+                }
+                if range.values.count != want {
+                    chartNotice = "\(r) has \(range.values.count) cells but the chart has \(want) values; the sizes need the same count."; _notify(); return false
+                }
             }
         }
         if first.chart.type != target || first.variant != nil || first.path != nil { setChartType(index, target) }

@@ -55,7 +55,11 @@ final class ChartFormDialogState: State<StatefulWidget> {
         let fluent = FluentTheme.of(context)
         let gap: (Double) -> Widget = { SizedBox(width: nil, height: $0, child: nil) }
         let roles = _roles
-        while _fields.count < roles.count { _fields.append(TextEditingController()) }
+        while _fields.count < roles.count {
+            let f = TextEditingController()
+            if case .bubble = _w.kind, let i = _w.controller.selectedDrawing { f.text = _w.controller.suggestedBubbleSizes(i) }
+            _fields.append(f)
+        }
         var rows: [Widget] = []
         switch _w.kind {
         case .stock(let ohlc):

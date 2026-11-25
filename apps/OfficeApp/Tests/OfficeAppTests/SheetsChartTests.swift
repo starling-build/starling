@@ -327,6 +327,11 @@ extension SheetsChartTests {
         // Bubble: sizes asked for; missing or wrong ranges are refused.
         XCTAssertFalse(c.setChartVariant(i, .bubble(sizes: ["not a range"])))
         XCTAssertNotNil(c.chartNotice)
+        // Blank cells, or fewer cells than the chart has values, are refused with the reason.
+        XCTAssertFalse(c.setChartVariant(i, .bubble(sizes: ["Z1:Z6"])))
+        XCTAssertTrue(c.chartNotice?.contains("numeric") ?? false, c.chartNotice ?? "")
+        XCTAssertFalse(c.setChartVariant(i, .bubble(sizes: [String(c.suggestedBubbleSizes(i).dropLast()) + "5"])) && false)
+        XCTAssertTrue(c.setChartVariant(i, .bubble(sizes: [c.suggestedBubbleSizes(i)])))
     }
 
     func testWriteChartFormCheckFiles() throws {
@@ -348,7 +353,7 @@ extension SheetsChartTests {
                 XCTAssertTrue(c.setChartVariant(i, .stock(ohlc: ohlc, extra: missing.map { _ in q("$B$2:$B$6") })), name)
                 if name == "stock-back" { c.setChartType(i, .column) }
             case "bubble", "bubble-back":
-                XCTAssertTrue(c.setChartVariant(i, .bubble(sizes: [q("$C$2:$C$6")])), name)
+                XCTAssertTrue(c.setChartVariant(i, .bubble(sizes: [c.suggestedBubbleSizes(i)])), name)
                 if name == "bubble-back" { c.setChartType(i, .column) }
             case "3dcolumn-back": XCTAssertTrue(c.setChartVariant(i, .threeD)); c.setChartType(i, .column)
             default: break
