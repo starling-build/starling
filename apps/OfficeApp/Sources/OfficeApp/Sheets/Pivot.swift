@@ -445,9 +445,12 @@ enum PivotWriter {
         }
         s += "<dataFields count=\"\(spec.data.count)\">"
         for (k, d) in spec.data.enumerated() {
-            s += "<dataField name=\"\(esc(lay.dataNames[k]))\" fld=\"\(d.field)\"" + (d.function == .sum ? "" : " subtotal=\"\(d.function.rawValue)\"")
-                + (d.showAs == .normal ? "" : " showDataAs=\"\(d.showAs.rawValue)\"")
-                + (d.cellFormat.flatMap { f in Xlsx.builtinFormats.first { $0.value == f }?.key }.map { " numFmtId=\"\($0)\"" } ?? "") + " baseField=\"0\" baseItem=\"0\"/>"
+            // (Built in steps: as one `+` chain the compiler gives up type-checking it, and the iOS build fails.)
+            var df = "<dataField name=\"\(esc(lay.dataNames[k]))\" fld=\"\(d.field)\""
+            if d.function != .sum { df += " subtotal=\"\(d.function.rawValue)\"" }
+            if d.showAs != .normal { df += " showDataAs=\"\(d.showAs.rawValue)\"" }
+            if let f = d.cellFormat, let id = Xlsx.builtinFormats.first(where: { $0.value == f })?.key { df += " numFmtId=\"\(id)\"" }
+            s += df + " baseField=\"0\" baseItem=\"0\"/>"
         }
         s += "</dataFields>"
         s += "<pivotTableStyleInfo name=\"\(esc(style))\" showRowHeaders=\"1\" showColHeaders=\"1\" showRowStripes=\"0\" showColStripes=\"0\" showLastColumn=\"1\"/>"
