@@ -28,7 +28,7 @@ enum TextBoxInsert {
     }
 
     /// A new text box as the picture-like object the document holds, or nil if the reader does not take it as one.
-    static func make(text: String = "Text box", width: Double = 144, height: Double = 54) -> ImageAttachment? {
+    static func make(text: String = "Text box", width: Double = 144, height: Double = 30.4) -> ImageAttachment? {
         read(drawingXML(text: text, width: width, height: height)) { $0.textBox != nil }
     }
 
