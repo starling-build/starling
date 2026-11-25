@@ -262,7 +262,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
     /// Set while a page is printed: one pixel per point (a zoom of 0.75),
     /// and no headers, panes, editor or filter dropdowns.
     var printing = false
-    var zoom: Double { printing ? 0.75 : _w.zoom }
+    var zoom: Double { printing ? 0.75 : (_headless != nil ? Double(controller.sheet.zoomPercent) / 100 : _w.zoom) }
     var headerWidth: Double { printing ? 0 : outlineWidth + (!controller.sheet.showHeadings ? 0 : 40 + Double(max(0, String(_lastVisibleRow + 1).count - 3)) * 8) * zoom }
     /// The outline gutters, left of the row numbers and above the column
     /// letters: a lane per level, and one more for the last level button.
@@ -313,7 +313,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
     var cols: GridAxis { _axes().cols }
     var rows: GridAxis { _axes().rows }
     /// The axes, rebuilt only when the sheet's sizes, hidden rows or the zoom change.
-    private var _axisCache: (sheet: ObjectIdentifier, version: Int, scale: Double, printing: Bool, rowScale: Double, colMax: Double, cols: GridAxis, rows: GridAxis)? = nil
+    private var _axisCache: (sheet: ObjectIdentifier, version: Int, scale: Double, printing: Bool, rowScale: Double, colMax: Double, wide: Bool, cols: GridAxis, rows: GridAxis)? = nil
     /// The sheet's print scale while it is cut into pages and painted: on
     /// paper each row is a whole number of the printer's dots at that scale
     /// (45544's default rows at 90% are 93 dots, 11.16 pt, where 103 × 0.9
@@ -349,7 +349,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         let ws = controller.sheet
         let id = ObjectIdentifier(ws)
         if let c = _axisCache, c.sheet == id, c.version == ws.layoutVersion, c.scale == scale, c.printing == printing,
-           c.rowScale == printRowScale, c.colMax == printColumnMax { return (c.cols, c.rows) }
+           c.rowScale == printRowScale, c.colMax == printColumnMax, c.wide == (!printing && ws.showFormulas) { return (c.cols, c.rows) }
         let cols: GridAxis, rows: GridAxis
         if printing {
             // On paper the sheet has the printer's sizes, not the screen's: a
@@ -627,7 +627,9 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             rows = GridAxis(def: wholeRow(unsized),
                             overrides: heights.mapValues(wholeRow), hidden: ws.filteredRows.union(ws.hiddenRows), scale: scale)
         } else {
-            cols = GridAxis(def: ws.defaultColWidthPt, overrides: ws.colWidths, hidden: ws.hiddenCols, scale: scale)
+            // Show Formulas widens every column to twice its width, as Excel does (until it is switched off).
+            let wide = ws.showFormulas ? 2.0 : 1.0
+            cols = GridAxis(def: ws.defaultColWidthPt * wide, overrides: wide == 1 ? ws.colWidths : ws.colWidths.mapValues { $0 * wide }, hidden: ws.hiddenCols, scale: scale)
             // A row nobody sized is as tall as its wrapped text, as Excel
             // fits it when Wrap Text goes on or the text changes. It was
             // fitted on paper only: on screen a wrapped cell kept its one
@@ -668,7 +670,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             }
             rows = GridAxis(def: ws.defaultRowHeightPt, overrides: heights, hidden: ws.filteredRows.union(ws.hiddenRows), scale: scale)
         }
-        _axisCache = (id, ws.layoutVersion, scale, printing, printRowScale, printColumnMax, cols, rows)
+        _axisCache = (id, ws.layoutVersion, scale, printing, printRowScale, printColumnMax, !printing && ws.showFormulas, cols, rows)
         return (cols, rows)
     }
 
