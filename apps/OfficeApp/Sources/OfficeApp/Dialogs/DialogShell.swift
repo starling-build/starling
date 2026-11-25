@@ -81,6 +81,7 @@ final class DialogShellState: State<StatefulWidget> {
 
     override func initState() {
         super.initState()
+        ScreenReader.announce("\(_w.title) dialog", priority: .assertive)
         // Ahead of the focused field, so Enter and Esc work wherever focus is.
         _keys = FocusManager.instance.addKeyInterceptor { [weak self] key in
             if KeyboardTraversal.shared.handle(key) { return true }

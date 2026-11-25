@@ -48,7 +48,7 @@ final class SelectionPane: StatelessWidget {
                     Padding(key: ValueKey("selpane.eye.\(i)"), padding: EdgeInsets(left: 0, top: 0, right: 0, bottom: 0), child:
                         FlatButton(child: Text(hidden ? "○" : "●", style: fluent.typography.body?.copyWith(color: color)),
                                    tip: hidden ? "Show" : "Hide", enabled: !byGroup) { [deck] in deck.setHidden(shape, !hidden) }),
-                    Expanded(child: Listener(
+                    Expanded(child: KeyboardRow(label: label, activate: { [deck] in deck.selectShapes([shape]) }, child: Listener(
                         key: ValueKey("selpane.row.\(i)"),
                         onPointerDown: { [deck, modifiers] _ in
                             let m = modifiers()
@@ -58,7 +58,7 @@ final class SelectionPane: StatelessWidget {
                         behavior: .opaque,
                         child: Padding(padding: EdgeInsets(left: 4, top: 8, right: 4, bottom: 8),
                                        child: Text(label, style: fluent.typography.body?.copyWith(color: color),
-                                                   overflow: .ellipsis, maxLines: 1)))),
+                                                   overflow: .ellipsis, maxLines: 1))))),
                     Padding(key: ValueKey("selpane.front.\(i)"), padding: EdgeInsets(left: 0, top: 0, right: 0, bottom: 0), child:
                         Chrome.icon(FluentSystemIcons.chevronUp, "Bring forward", fluent, enabled: i < shapes.count - 1) { [deck] in
                             deck.moveInStack(shape, by: 1) }),

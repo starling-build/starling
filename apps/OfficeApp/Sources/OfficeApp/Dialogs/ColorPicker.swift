@@ -146,14 +146,14 @@ final class ColorPicker: StatelessWidget {
         func swatch(_ rgb: UInt32, _ tip: String, _ choice: ColorChoice) -> Widget {
             Padding(padding: EdgeInsets(left: 0, top: 0, right: 3, bottom: 3), child: Tooltip(
                 message: tip,
-                child: GestureDetector(onTap: { [onChoose] in onChoose(choice) }, behavior: .opaque, child: SizedBox(width: 18, height: 18, child: DecoratedBox(
+                child: KeyboardRow(label: tip, activate: { [onChoose] in onChoose(choice) }, child: GestureDetector(onTap: { [onChoose] in onChoose(choice) }, behavior: .opaque, child: SizedBox(width: 18, height: 18, child: DecoratedBox(
                     decoration: BoxDecoration(
                         color: Color(Int64(0xFF000000 | UInt64(rgb))),
-                        border: Border.all(color: fluent.resources.controlStrokeColorDefault, width: 1)))))))
+                        border: Border.all(color: fluent.resources.controlStrokeColorDefault, width: 1))))))))
         }
         func entry(_ label: String, _ action: @escaping () -> Void) -> Widget {
-            GestureDetector(onTap: action, behavior: .opaque, child: Padding(
-                padding: EdgeInsets(left: 2, top: 4, right: 2, bottom: 4), child: Text(label)))
+            KeyboardRow(label: label, activate: action, child: GestureDetector(onTap: action, behavior: .opaque, child: Padding(
+                padding: EdgeInsets(left: 2, top: 4, right: 2, bottom: 4), child: Text(label))))
         }
         // Rows of the grid: the base colours, then the five tints under each.
         var rows: [[Widget]] = Array(repeating: [], count: 6)

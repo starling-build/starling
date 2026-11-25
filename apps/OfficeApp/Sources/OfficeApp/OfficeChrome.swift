@@ -233,7 +233,12 @@ enum Chrome {
         FlatButton(child: Icon(icon, size: iconSize, color: on
                               ? fluent.accentColor.defaultBrushFor(fluent.brightness)
                               : OfficeAppearance.ink(fluent)),
-                   tip: tip, checked: on, action: action)
+                   tip: tip, checked: on, action: {
+                       action()
+                       // "Bold (Ctrl+B)" is said "Bold on": the shortcut is not part of the name.
+                       let name = tip.firstIndex(of: "(").map { String(tip[..<$0]) } ?? tip
+                       ScreenReader.announce("\(name.hasSuffix(" ") ? String(name.dropLast()) : name) \(on ? "off" : "on")")
+                   })
     }
 
     /// Text toggle (the view switches).

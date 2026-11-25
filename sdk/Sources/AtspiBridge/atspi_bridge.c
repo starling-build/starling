@@ -566,6 +566,46 @@ static void poll_events(void) {
     pthread_mutex_unlock(&g_lock);
 }
 
+// Announcements: the app asks from its own thread; the bus is only touched by the serving thread, so the
+// text waits in a short queue until the next turn of the loop (which is woken at least every 0.4 s).
+#define ANN_MAX 8
+static char *g_ann_text[ANN_MAX];
+static int g_ann_level[ANN_MAX];
+static int g_ann_n;
+
+static void flush_announcements(void) {
+    char *texts[ANN_MAX]; int levels[ANN_MAX]; int n;
+    pthread_mutex_lock(&g_lock);
+    n = g_ann_n;
+    for (int i = 0; i < n; i++) { texts[i] = g_ann_text[i]; levels[i] = g_ann_level[i]; }
+    g_ann_n = 0;
+    pthread_mutex_unlock(&g_lock);
+    for (int i = 0; i < n; i++) {
+        sd_bus_message *m = NULL;
+        if (p_sd_bus_message_new_signal(g_bus, &m, ROOT_PATH, "org.a11y.atspi.Event.Object", "Announcement") >= 0) {
+            p_sd_bus_message_append(m, "sii", "", levels[i], 0);
+            p_sd_bus_message_append(m, "v", "s", texts[i]);
+            p_sd_bus_message_append(m, "a{sv}", 0);
+            p_sd_bus_send(g_bus, m, NULL);
+            p_sd_bus_message_unref(m);
+        }
+        free(texts[i]);
+    }
+}
+
+// assertive: 0 polite, 1 interrupts what is being read. Returns 0 when queued, -1 when the bridge is not
+// running or the queue is full.
+int atspi_bridge_announce(const char *text, int assertive) {
+    if (!g_bus || !text || !text[0]) return -1;
+    int ok = -1;
+    pthread_mutex_lock(&g_lock);
+    if (g_ann_n < ANN_MAX) {
+        g_ann_text[g_ann_n] = strdup(text); g_ann_level[g_ann_n] = assertive ? 1 : 0; g_ann_n++; ok = 0;
+    }
+    pthread_mutex_unlock(&g_lock);
+    return ok;
+}
+
 static void *serve(void *arg) {
     (void)arg;
     for (;;) {
@@ -574,6 +614,7 @@ static void *serve(void *arg) {
         if (r < 0) break;
         p_sd_bus_wait(g_bus, 400000);
         if (g_listening) poll_events();
+        flush_announcements();
     }
     return NULL;
 }
