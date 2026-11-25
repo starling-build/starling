@@ -1225,7 +1225,8 @@ private struct SlideXML {
                 effectsXML = Self._effectsEdited(look?.effects ?? "", shadow: s.shadow,
                                                  glow: s.glowRadius.flatMap { r in r > 0 ? (r, s.glowColor ?? Color(0x66000000)) : nil },
                                                  reflection: s.reflection, softEdge: s.softEdge, bevel: s.bevel,
-                                                 lists: look?.effectsEdited ?? true, bevelEdit: look?.bevelEdited ?? true)
+                                                 lists: look?.effectsEdited ?? true, bevelEdit: look?.bevelEdited ?? true,
+                                                 emptyList: look?.effectsEdited == true)
             }
             spPr += fillXML + lineXML + effectsXML
             var xml = "<p:sp><p:nvSpPr>\(nv)<p:nvPr>\(ph)</p:nvPr></p:nvSpPr><p:spPr>\(spPr)</p:spPr>\(look?.style ?? "")"
@@ -1872,7 +1873,7 @@ extension SlideXML {
     /// and soft edge are rebuilt from the model and the list's other effects kept; with `bevel`, the `a:bevelT` is
     /// swapped and the rest of the 3-D settings kept.
     static func _effectsEdited(_ effects: String, shadow: CharShadow?, glow: (Double, Color)?, reflection: Reflection?,
-                               softEdge: Double?, bevel: ShapeBevel?, lists: Bool, bevelEdit: Bool) -> String {
+                               softEdge: Double?, bevel: ShapeBevel?, lists: Bool, bevelEdit: Bool, emptyList: Bool = false) -> String {
         var list = _element(effects, "a:effectLst").map { String(effects[$0]) }
         let dag = _element(effects, "a:effectDag").map { String(effects[$0]) } ?? ""
         var scene = _element(effects, "a:scene3d").map { String(effects[$0]) } ?? ""
@@ -1899,7 +1900,7 @@ extension SlideXML {
             if let r = reflection, !r.onText { kids.append((6, _reflectionXML(r))) }
             if let e = softEdge, e > 0 { kids.append((7, "<a:softEdge rad=\"\(Int((e * Pptx.emu).rounded()))\"/>")) }
             // (A reflection of the text lives on its runs: the file's list keeps none of its own.)
-            if list != nil || !kids.isEmpty {
+            if list != nil || !kids.isEmpty || emptyList {
                 let sorted = kids.enumerated().sorted { ($0.element.0, $0.offset) < ($1.element.0, $1.offset) }
                 list = "<a:effectLst\(attrs)>" + sorted.map { $0.element.1 }.joined() + "</a:effectLst>"
             } else { list = nil }
