@@ -1180,6 +1180,7 @@ final class SlidesShellState: State<StatefulWidget> {
         case "n" where mods.contains(.shift): _endEditing(); deck.addSlide()
         case "n": session.replacing { [weak self] in self?._newDeck() }
         case "o": session.onOpen?()
+        case "p": session.onPrint?()
         case "s" where mods.contains(.shift): session.onSaveAs?()
         case "s": session.onSave?()
         case "a" where !typing && !shapes && (_paneFocused || _sorter): deck.selectAllSlides()
