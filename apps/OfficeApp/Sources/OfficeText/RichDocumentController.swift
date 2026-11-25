@@ -1479,6 +1479,12 @@ public final class RichDocumentController: ChangeNotifier {
                 new.named = nil
                 if new != old { perform(.setParagraphStyle(i, old: old, new: new)) }
             }
+            // Another style whose "next" was this one points at Normal, as Word does.
+            for other in document.styles.styles where other.id != id && other.next == id {
+                var moved = other
+                moved.next = RichNamedStyle.normalId
+                perform(.setStyleEntry(old: other, new: moved))
+            }
             perform(.removeStyle(entry))
         }
     }

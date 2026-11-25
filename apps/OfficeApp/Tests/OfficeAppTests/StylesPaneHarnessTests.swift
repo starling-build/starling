@@ -41,4 +41,20 @@ final class StylesPaneHarnessTests: XCTestCase {
         XCTAssertNotNil(c.document.styles["Mine"])
         XCTAssertEqual(c.currentNamedStyleId, "Mine")
     }
+
+    func testDeleteRepointsNextAtNormal() {
+        let (_, session) = shell()
+        let c = session.controller
+        c.edit {
+            c.perform(.addStyle(RichNamedStyle(id: "Gone", name: "Gone")))
+            c.perform(.addStyle(RichNamedStyle(id: "Other", name: "Other", next: "Gone")))
+        }
+        XCTAssertEqual(c.document.styles["Other"]?.next, "Gone")
+        c.deleteStyle("Gone")
+        XCTAssertNil(c.document.styles["Gone"])
+        XCTAssertEqual(c.document.styles["Other"]?.next, RichNamedStyle.normalId)
+        c.undo()
+        XCTAssertEqual(c.document.styles["Other"]?.next, "Gone")
+        XCTAssertNotNil(c.document.styles["Gone"])
+    }
 }
