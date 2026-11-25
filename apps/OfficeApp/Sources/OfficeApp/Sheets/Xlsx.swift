@@ -980,6 +980,8 @@ enum Xlsx {
             .map { XNode.parse($0.value).flatMap { Int($0["id"] ?? "") } ?? 0 }.max() ?? 0)
         // Pivot tables made here: their parts, numbered past the file's.
         var madePivots: [MadePivotParts] = []
+        // A file's pivot edited here is written afresh: the parts the file had for it (and its cache) go.
+        var droppedPivotParts = Set<String>(), droppedCachePaths = Set<String>(), droppedCacheIds = Set<Int>()
         var cacheOf: [String: Int] = [:]
         var nextCacheId = 1 + ((originalParts["xl/workbook.xml"].flatMap { XNode.parse($0) }?.child("pivotCaches")?.kids("pivotCache") ?? [])
             .compactMap { Int($0["cacheId"] ?? "") }.max() ?? 0)
@@ -1040,12 +1042,23 @@ enum Xlsx {
                 var m = MadePivotParts(sheet: i, spec: spec, src: src, location: p.ref, style: p.style ?? "PivotStyleLight16",
                                        table: freshPart("xl/pivotTables", "pivotTable"), cache: freshPart("xl/pivotCache", "pivotCacheDefinition"),
                                        records: freshPart("xl/pivotCache", "pivotCacheRecords"), cacheId: nextCacheId, workbookRel: "")
+                var reusedId = false
+                if let old = p.path, let oldCache = p.cachePath {
+                    droppedPivotParts.insert(old); droppedPivotParts.insert(_relsPath(old))
+                    droppedPivotParts.insert(oldCache); droppedPivotParts.insert(_relsPath(oldCache)); droppedCachePaths.insert(oldCache)
+                    for r in _relList(originalParts[_relsPath(oldCache)]) where r.type.hasSuffix("/pivotCacheRecords") {
+                        droppedPivotParts.insert(_resolve(r.target, base: "xl/pivotCache/"))
+                    }
+                    let base = String(paths[i].prefix(upTo: paths[i].lastIndex(of: "/").map { paths[i].index(after: $0) } ?? paths[i].startIndex))
+                    for r in rels where r.type.hasSuffix("/pivotTable") && _resolve(r.target, base: base) == old { rels.removeAll { $0.id == r.id } }
+                    if let id = p.cacheId, cacheOf[key] == nil { m.cacheId = id; droppedCacheIds.insert(id); reusedId = true }
+                }
                 if let o = cacheOf[key] {
                     // freshPart reserved names for a cache this pivot will not write; the owner's are used.
                     m.cache = madePivots[o].cache; m.records = madePivots[o].records; m.cacheId = madePivots[o].cacheId; m.ownsCache = false
                 } else {
                     cacheOf[key] = madePivots.count
-                    nextCacheId += 1
+                    if !reusedId { nextCacheId += 1 }
                 }
                 rels.append((Xlsx._freshId(rels), "http://schemas.openxmlformats.org/officeDocument/2006/relationships/pivotTable",
                              "../pivotTables/" + String(m.table.dropFirst("xl/pivotTables/".count))))
@@ -1119,6 +1132,7 @@ enum Xlsx {
         let stylesPath = rels.first { $0.type.hasSuffix("/styles") }.map { _resolve($0.target, base: "xl/") } ?? "xl/styles.xml"
         let sstPath = rels.first { $0.type.hasSuffix("/sharedStrings") }.map { _resolve($0.target, base: "xl/") } ?? "xl/sharedStrings.xml"
 
+        rels.removeAll { r in r.type.hasSuffix("/pivotCacheDefinition") && droppedCachePaths.contains(_resolve(r.target, base: "xl/")) }
         var cacheUnion: [Int: Set<Int>] = [:]
         for m in madePivots { cacheUnion[m.cacheId, default: []].formUnion(m.spec.rows + m.spec.cols + m.spec.filters.map(\.field)) }
         for k in madePivots.indices { madePivots[k].cacheFields = cacheUnion[madePivots[k].cacheId] ?? [] }
@@ -1131,7 +1145,7 @@ enum Xlsx {
         var generated: [String: Data] = [:]
         for k in madePivots.indices { for (path, data) in madePivots[k].parts() { generated[path] = Data(data.utf8) } }
         for (k, v) in PivotsXML.patched(sheets: book.sheets, parts: originalParts) { generated[k] = v }
-        generated["xl/workbook.xml"] = Data(_workbookXML(book, ids: sheetIds, original: originalParts["xl/workbook.xml"], newCaches: madePivots.filter(\.ownsCache).map { ($0.cacheId, $0.workbookRel) }).utf8)
+        generated["xl/workbook.xml"] = Data(_workbookXML(book, ids: sheetIds, original: originalParts["xl/workbook.xml"], newCaches: madePivots.filter(\.ownsCache).map { ($0.cacheId, $0.workbookRel) }, droppedCacheIds: droppedCacheIds).utf8)
         generated["xl/_rels/workbook.xml.rels"] = Data(_relsXML(rels).utf8)
         // A chart sheet is not edited here: its own part stays as it was (a worksheet body
         // inside a chartsheet root is not a file Excel opens as a chart sheet).
@@ -1188,6 +1202,7 @@ enum Xlsx {
         dropped.formUnion(originalParts.keys.filter { $0.hasSuffix("calcChain.xml") })
         dropped.formUnion(droppedDrawings)
         dropped.formUnion(droppedTables)
+        dropped.formUnion(droppedPivotParts)
         // A package built from an .xls has no content-type list of its own: type the
         // chart and drawing parts it holds, and the picture extensions, or Excel refuses the file.
         for name in Set(originalParts.keys).union(generated.keys) where !dropped.contains(name) {
@@ -1292,7 +1307,7 @@ enum Xlsx {
         return s + "</Types>"
     }
 
-    private static func _workbookXML(_ book: Workbook, ids: [String], original: Data?, newCaches: [(Int, String)] = []) -> String {
+    private static func _workbookXML(_ book: Workbook, ids: [String], original: Data?, newCaches: [(Int, String)] = [], droppedCacheIds: Set<Int> = []) -> String {
         let cacheItems = newCaches.map { "<pivotCache cacheId=\"\($0.0)\" r:id=\"\($0.1)\"/>" }.joined()
         var wrotePivotCaches = newCaches.isEmpty
         var sheets = "<sheets>"
@@ -1330,7 +1345,14 @@ enum Xlsx {
                 case "bookViews": body += (wroteProt ? "" : prot) + _bookViews(text, active: book.activeTab); wroteProt = true
                 case "pivotCaches" where !newCaches.isEmpty:
                     if let end = text.findRange(of: "</pivotCaches>", backwards: true) {
-                        var t = text; t.insert(contentsOf: cacheItems, at: end.lowerBound); body += t
+                        var t = text
+                        for id in droppedCacheIds.sorted() {
+                            if let a = t.findRange(of: "<pivotCache cacheId=\"\(id)\""), let e = t.findRange(of: "/>", in: a.upperBound ..< t.endIndex) {
+                                t.removeSubrange(a.lowerBound ..< e.upperBound)
+                            }
+                        }
+                        let end = t.findRange(of: "</pivotCaches>", backwards: true) ?? end
+                        t.insert(contentsOf: cacheItems, at: end.lowerBound); body += t
                     } else { body += "<pivotCaches>" + cacheItems + "</pivotCaches>" }
                     wrotePivotCaches = true
                 default:
