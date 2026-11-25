@@ -35,7 +35,7 @@ struct PivotSpec: Equatable, Sendable {
 }
 
 enum PivotProblem: Equatable, Sendable {
-    case noSource, sourceNeedsHeaders, needsRowField, needsValues, oneColumnField, columnFieldNeedsOneValue, fieldUsedTwice, destinationInsideSource, noSuchFilterItem, structureLocked
+    case noSource, sourceNeedsHeaders, needsRowField, needsValues, fieldUsedTwice, destinationInsideSource, noSuchFilterItem, structureLocked
 
     var message: String {
         switch self {
@@ -43,8 +43,6 @@ enum PivotProblem: Equatable, Sendable {
         case .sourceNeedsHeaders: return "The range needs a heading in each column of its first row, and at least one row below."
         case .needsRowField: return "Choose at least one field for Rows."
         case .needsValues: return "Choose at least one field for Values."
-        case .oneColumnField: return "A pivot table made here takes one field for Columns."
-        case .columnFieldNeedsOneValue: return "With a field for Columns, choose exactly one field for Values."
         case .fieldUsedTwice: return "A field can be in Rows, Columns or Filters, not in two of them."
         case .destinationInsideSource: return "The pivot table cannot be placed over its own source."
         case .noSuchFilterItem: return "A filter's item is not among that field's values."
@@ -109,9 +107,10 @@ struct PivotLayout {
     var firstHeaderRow = 1, firstDataRow = 1, firstDataCol = 1
     /// Each field's items, in the order the table shows them.
     var items: [Int: [PivotItem]] = [:]
-    /// Row lines: (depth, item index) and the column items (item index into the column field).
+    /// Row lines: (depth, item index). Column nodes, left to right: a leaf (every column field chosen) or the
+    /// subtotal of an outer item, with the item index chosen at each column field so far.
     var rowLines: [(depth: Int, item: Int)] = []
-    var colLines: [Int] = []
+    var colNodes: [(subtotal: Bool, path: [Int])] = []
     var dataNames: [String] = []
     var headerRows: Int { firstDataRow }
 }
@@ -121,8 +120,6 @@ enum PivotCalc {
         if src.headers.isEmpty || src.rows.isEmpty { return .sourceNeedsHeaders }
         if spec.rows.isEmpty { return .needsRowField }
         if spec.data.isEmpty { return .needsValues }
-        if spec.cols.count > 1 { return .oneColumnField }
-        if !spec.cols.isEmpty && spec.data.count != 1 { return .columnFieldNeedsOneValue }
         let axes = spec.rows + spec.cols + spec.filters.map(\.field)
         if Set(axes).count != axes.count { return .fieldUsedTwice }
         if (axes + spec.data.map(\.field)).contains(where: { $0 < 0 || $0 >= src.headers.count }) { return .noSource }
@@ -177,13 +174,6 @@ enum PivotCalc {
         walk(recs, 0)
         out.rowLines = lines.map { ($0.depth, $0.item) }
 
-        var colItemsShown: [(item: Int, it: PivotItem)] = []
-        if let cf = spec.cols.first {
-            let present = Set(recs.map { PivotItem($0[cf]) })
-            for (k, it) in (out.items[cf] ?? []).enumerated() where present.contains(it) { colItemsShown.append((k, it)) }
-            out.colLines = colItemsShown.map(\.item)
-        }
-
         let pageRows = spec.filters.isEmpty ? 0 : spec.filters.count + 1
         let top = spec.origin.row + pageRows, left = spec.origin.col
         var grid: [[CellValue]] = []
@@ -197,16 +187,59 @@ enum PivotCalc {
             for l in lines { grid.append([.text(l.label)] + spec.data.map { aggregate(l.recs, $0) }) }
             grid.append([.text("Grand Total")] + spec.data.map { aggregate(recs, $0) })
         } else {
-            out.firstHeaderRow = 1
-            out.firstDataRow = 2
-            let d = spec.data[0]
-            grid.append([.text(out.dataNames[0]), .text("Column Labels")] + Array(repeating: .empty, count: colItemsShown.count))
-            grid.append([.text("Row Labels")] + colItemsShown.map { .text($0.it.shown) } + [.text("Grand Total")])
-            let cf = spec.cols[0]
-            for l in lines {
-                grid.append([.text(l.label)] + colItemsShown.map { c in aggregate(l.recs.filter { PivotItem($0[cf]) == c.it }, d) } + [aggregate(l.recs, d)])
+            // Column fields: a tree like the rows, but an outer item's subtotal comes after its items.
+            struct ColNode { var subtotal: Bool; var path: [Int]; var label: String; var recs: [[CellValue]] }
+            var nodes: [ColNode] = []
+            let n = spec.cols.count
+            func walkCols(_ rs: [[CellValue]], _ depth: Int, _ path: [Int]) {
+                let f = spec.cols[depth]
+                var groups: [PivotItem: [[CellValue]]] = [:]
+                for r in rs { groups[PivotItem(r[f]), default: []].append(r) }
+                for (k, it) in (out.items[f] ?? []).enumerated() {
+                    guard let g = groups[it] else { continue }
+                    if depth + 1 < n {
+                        walkCols(g, depth + 1, path + [k])
+                        nodes.append(ColNode(subtotal: true, path: path + [k], label: it.shown + " Total", recs: g))
+                    } else {
+                        nodes.append(ColNode(subtotal: false, path: path + [k], label: it.shown, recs: g))
+                    }
+                }
             }
-            grid.append([.text("Grand Total")] + colItemsShown.map { c in aggregate(recs.filter { PivotItem($0[cf]) == c.it }, d) } + [aggregate(recs, d)])
+            walkCols(recs, 0, [])
+            out.colNodes = nodes.map { ($0.subtotal, $0.path) }
+            let several = spec.data.count > 1
+            let v = several ? spec.data.count : 1
+            let headerRows = 1 + n + (several ? 1 : 0)
+            out.firstHeaderRow = 1
+            out.firstDataRow = headerRows
+            let width = 1 + (nodes.count + 1) * v
+            func blankRow() -> [CellValue] { Array(repeating: .empty, count: width) }
+            var head = (0 ..< headerRows).map { _ in blankRow() }
+            head[0][0] = several ? .empty : .text(out.dataNames[0])
+            head[0][1] = .text("Column Labels")
+            head[headerRows - 1][0] = .text("Row Labels")
+            var seen = Set<[Int]>()
+            for (i, nd) in nodes.enumerated() {
+                let c0 = 1 + i * v
+                // The outer items' labels sit over the first column of their group.
+                for d in 0 ..< n - 1 where !seen.contains(Array(nd.path.prefix(d + 1))) {
+                    seen.insert(Array(nd.path.prefix(d + 1)))
+                    if nd.path.count > d { head[1 + d][c0] = .text(out.items[spec.cols[d]]![nd.path[d]].shown) }
+                }
+                head[1 + (nd.subtotal ? nd.path.count - 1 : n - 1)][c0] = .text(nd.label)
+                if several { for k in 0 ..< v { head[headerRows - 1][c0 + k] = .text(out.dataNames[k]) } }
+            }
+            let g0 = 1 + nodes.count * v
+            for k in 0 ..< v { head[1][g0 + k] = .text(several ? "Total " + out.dataNames[k] : "Grand Total") }
+            grid += head
+            func line(_ label: String, _ rs: [[CellValue]]) -> [CellValue] {
+                var row: [CellValue] = [.text(label)]
+                for nd in nodes { for k in 0 ..< v { row.append(aggregate(rs.filter { r in nd.path.indices.allSatisfy { PivotItem(r[spec.cols[$0]]) == out.items[spec.cols[$0]]![nd.path[$0]] } }, spec.data[k])) } }
+                for k in 0 ..< v { row.append(aggregate(rs, spec.data[k])) }
+                return row
+            }
+            for l in lines { grid.append(line(l.label, l.recs)) }
+            grid.append(line("Grand Total", recs))
         }
         out.firstDataCol = 1
         let width = grid.map(\.count).max() ?? 1
@@ -246,7 +279,7 @@ enum PivotWriter {
     /// The cache definition: every field with its heading, the axis fields with their items.
     static func cacheDefinition(_ spec: PivotSpec, _ src: PivotSource, items: [Int: [PivotItem]], relId: String) -> String {
         var s = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<pivotCacheDefinition xmlns=\"\(main)\" xmlns:r=\"\(rel)\" r:id=\"\(relId)\""
-        s += " refreshOnLoad=\"1\" refreshedBy=\"Starling\" refreshedDate=\"0\" createdVersion=\"6\" refreshedVersion=\"6\" minRefreshableVersion=\"3\" recordCount=\"\(src.rows.count)\">"
+        s += " refreshOnLoad=\"1\" refreshedBy=\"Starling\" refreshedDate=\"\(num(((Date().timeIntervalSince1970 / 86400 + 25569) * 100000).rounded() / 100000))\" createdVersion=\"8\" refreshedVersion=\"8\" minRefreshableVersion=\"3\" recordCount=\"\(src.rows.count)\">"
         s += "<cacheSource type=\"worksheet\"><worksheetSource ref=\"\(esc(src.ref.a1))\" sheet=\"\(esc(src.sheet))\"/></cacheSource>"
         s += "<cacheFields count=\"\(src.headers.count)\">"
         for (f, h) in src.headers.enumerated() {
@@ -299,7 +332,7 @@ enum PivotWriter {
         let loc = lay.location
         var s = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<pivotTableDefinition xmlns=\"\(main)\" name=\"\(esc(spec.name))\" cacheId=\"\(cacheId)\""
         s += " applyNumberFormats=\"0\" applyBorderFormats=\"0\" applyFontFormats=\"0\" applyPatternFormats=\"0\" applyAlignmentFormats=\"0\" applyWidthHeightFormats=\"1\""
-        s += " dataCaption=\"Values\" updatedVersion=\"6\" minRefreshableVersion=\"3\" useAutoFormatting=\"1\" itemPrintTitles=\"1\" createdVersion=\"6\" indent=\"0\" outline=\"1\" outlineData=\"1\" multipleFieldFilters=\"0\""
+        s += " dataCaption=\"Values\" updatedVersion=\"8\" minRefreshableVersion=\"3\" useAutoFormatting=\"1\" itemPrintTitles=\"1\" createdVersion=\"8\" indent=\"0\" outline=\"1\" outlineData=\"1\" multipleFieldFilters=\"0\""
         if spec.data.count > 1 { s += " dataOnRows=\"0\"" }
         s += ">"
         s += "<location ref=\"\(loc.a1)\" firstHeaderRow=\"\(lay.firstHeaderRow)\" firstDataRow=\"\(lay.firstDataRow)\" firstDataCol=\"\(lay.firstDataCol)\""
@@ -321,10 +354,17 @@ enum PivotWriter {
         s += "<rowItems count=\"\(lay.rowLines.count + 1)\">"
         for l in lay.rowLines { s += "<i" + (l.depth > 0 ? " r=\"\(l.depth)\"" : "") + ">" + x(l.item) + "</i>" }
         s += "<i t=\"grand\"><x/></i></rowItems>"
-        if let cf = spec.cols.first {
-            s += "<colFields count=\"1\"><field x=\"\(cf)\"/></colFields><colItems count=\"\(lay.colLines.count + 1)\">"
-            for c in lay.colLines { s += "<i>" + x(c) + "</i>" }
-            s += "<i t=\"grand\"><x/></i></colItems>"
+        if !spec.cols.isEmpty {
+            let several = spec.data.count > 1, v = several ? spec.data.count : 1
+            s += "<colFields count=\"\(spec.cols.count + (several ? 1 : 0))\">" + (spec.cols.map { "<field x=\"\($0)\"/>" } + (several ? ["<field x=\"-2\"/>"] : [])).joined() + "</colFields>"
+            s += "<colItems count=\"\((lay.colNodes.count + 1) * v)\">"
+            for nd in lay.colNodes {
+                for k in 0 ..< v {
+                    s += "<i" + (nd.subtotal ? " t=\"default\"" : "") + (k > 0 ? " i=\"\(k)\"" : "") + ">" + nd.path.map(x).joined() + (several ? x(k) : "") + "</i>"
+                }
+            }
+            for k in 0 ..< v { s += "<i t=\"grand\"" + (k > 0 ? " i=\"\(k)\"" : "") + ">" + x(several ? k : 0) + "</i>" }
+            s += "</colItems>"
         } else if spec.data.count > 1 {
             s += "<colFields count=\"1\"><field x=\"-2\"/></colFields><colItems count=\"\(spec.data.count)\">"
             for k in spec.data.indices { s += "<i" + (k > 0 ? " i=\"\(k)\"" : "") + ">" + x(k) + "</i>" }
@@ -437,6 +477,10 @@ struct MadePivotParts {
     var style: String
     var table: String, cache: String, records: String
     var cacheId: Int
+    /// Pivots over the same source range share one cache: the first of them writes it (with the items of every
+    /// field any of them puts on an axis or a filter), the others only point at it.
+    var ownsCache = true
+    var cacheFields: Set<Int> = []
     /// The workbook's relationship id for the cache definition.
     var workbookRel: String
 
@@ -449,12 +493,20 @@ struct MadePivotParts {
         func rels(_ type: String, _ target: String) -> String {
             "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"><Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/\(type)\" Target=\"\(target)\"/></Relationships>"
         }
-        return [
-            (cache, PivotWriter.cacheDefinition(spec, src, items: items, relId: "rId1")),
-            ("xl/pivotCache/_rels/" + name(cache) + ".rels", rels("pivotCacheRecords", name(records))),
-            (records, PivotWriter.cacheRecords(src, items: items)),
+        var out: [(String, String)] = []
+        if ownsCache {
+            var all = spec; all.rows = cacheFields.sorted(); all.cols = []; all.filters = []
+            let shared = PivotCalc.items(all, src)
+            out += [
+                (cache, PivotWriter.cacheDefinition(spec, src, items: shared, relId: "rId1")),
+                ("xl/pivotCache/_rels/" + name(cache) + ".rels", rels("pivotCacheRecords", name(records))),
+                (records, PivotWriter.cacheRecords(src, items: shared)),
+            ]
+        }
+        out += [
             (table, PivotWriter.table(spec, src, lay, cacheId: cacheId, style: style)),
             ("xl/pivotTables/_rels/" + name(table) + ".rels", rels("pivotCacheDefinition", "../pivotCache/" + name(cache))),
         ]
+        return out
     }
 }

@@ -45,6 +45,48 @@ final class SheetsPivotNewTests: XCTestCase {
         XCTAssertEqual(wc.sheet.pivots.last?.headerRows, 2)
     }
 
+    func testSeveralValuesWithAColumnField() {
+        let wc = book()
+        XCTAssertNil(wc.insertPivotTable(source: src, rows: [0], cols: [1], data: [PivotDataField(field: 2, function: .sum), PivotDataField(field: 2, function: .average)],
+                                         filters: [], origin: CellAddress("F1")!, newSheet: false))
+        XCTAssertEqual(v(wc, "G1"), .text("Column Labels")); XCTAssertEqual(v(wc, "F1"), .empty)
+        XCTAssertEqual(v(wc, "G2"), .text("Ink")); XCTAssertEqual(v(wc, "I2"), .text("Pen"))
+        XCTAssertEqual(v(wc, "K2"), .text("Total Sum of Sales")); XCTAssertEqual(v(wc, "L2"), .text("Total Average of Sales"))
+        XCTAssertEqual(v(wc, "F3"), .text("Row Labels")); XCTAssertEqual(v(wc, "G3"), .text("Sum of Sales")); XCTAssertEqual(v(wc, "J3"), .text("Average of Sales"))
+        XCTAssertEqual(v(wc, "F4"), .text("East"))
+        XCTAssertEqual(v(wc, "G4"), .number(5)); XCTAssertEqual(v(wc, "H4"), .number(5)); XCTAssertEqual(v(wc, "I4"), .number(40)); XCTAssertEqual(v(wc, "J4"), .number(20))
+        XCTAssertEqual(v(wc, "K4"), .number(45)); XCTAssertEqual(v(wc, "L4"), .number(15))
+        XCTAssertEqual(v(wc, "F7"), .text("Grand Total")); XCTAssertEqual(v(wc, "K7"), .number(80)); XCTAssertEqual(v(wc, "L7"), .number(80.0 / 6))
+        XCTAssertEqual(wc.sheet.pivots.last?.ref, CellRange("F1:L7"))
+        XCTAssertEqual(wc.sheet.pivots.last?.headerRows, 3)
+    }
+
+    func testTwoColumnFields() {
+        let wc = WorkbookController()
+        let rows: [[String]] = [["Region", "Product", "Year", "Sales"], ["East", "Pen", "2020", "10"], ["East", "Pen", "2021", "20"],
+                                ["East", "Ink", "2020", "5"], ["West", "Pen", "2020", "7"]]
+        var inputs: [(CellAddress, String)] = []
+        for (r, row) in rows.enumerated() { for (c, x) in row.enumerated() { inputs.append((CellAddress(row: r, col: c), x)) } }
+        wc.setInputs(inputs)
+        XCTAssertNil(wc.insertPivotTable(source: "Sheet1!A1:D5", rows: [0], cols: [1, 2], data: [PivotDataField(field: 3, function: .sum)],
+                                         filters: [], origin: CellAddress("F1")!, newSheet: false))
+        XCTAssertEqual(v(wc, "F1"), .text("Sum of Sales")); XCTAssertEqual(v(wc, "G1"), .text("Column Labels"))
+        XCTAssertEqual(v(wc, "G2"), .text("Ink")); XCTAssertEqual(v(wc, "H2"), .text("Ink Total")); XCTAssertEqual(v(wc, "I2"), .text("Pen"))
+        XCTAssertEqual(v(wc, "K2"), .text("Pen Total")); XCTAssertEqual(v(wc, "L2"), .text("Grand Total"))
+        XCTAssertEqual(v(wc, "F3"), .text("Row Labels")); XCTAssertEqual(v(wc, "G3"), .text("2020")); XCTAssertEqual(v(wc, "J3"), .text("2021"))
+        XCTAssertEqual(v(wc, "G4"), .number(5)); XCTAssertEqual(v(wc, "I4"), .number(10)); XCTAssertEqual(v(wc, "J4"), .number(20))
+        XCTAssertEqual(v(wc, "K4"), .number(30)); XCTAssertEqual(v(wc, "L4"), .number(35))
+        XCTAssertEqual(v(wc, "G5"), .empty); XCTAssertEqual(v(wc, "I5"), .number(7)); XCTAssertEqual(v(wc, "L5"), .number(7))
+        XCTAssertEqual(v(wc, "L6"), .number(42))
+        XCTAssertEqual(wc.sheet.pivots.last?.ref, CellRange("F1:L6"))
+        // The saved table lists the columns the way Excel does, subtotals after their items.
+        let p = try? parts(wc)
+        let t = p?["xl/pivotTables/pivotTable1.xml"] ?? ""
+        XCTAssertTrue(t.containsSubstring("<colFields count=\"2\"><field x=\"1\"/><field x=\"2\"/></colFields>"))
+        XCTAssertTrue(t.containsSubstring("<i t=\"default\"><x/></i>"))
+        XCTAssertTrue(t.containsSubstring("<colItems count=\"6\">"))
+    }
+
     func testColumnField() {
         let wc = book()
         XCTAssertNil(wc.insertPivotTable(source: src, rows: [0], cols: [1], data: [PivotDataField(field: 2, function: .sum)], filters: [],
@@ -90,7 +132,6 @@ final class SheetsPivotNewTests: XCTestCase {
         XCTAssertEqual(put([], [], sum), .needsRowField)
         XCTAssertEqual(put([0], [], []), .needsValues)
         XCTAssertEqual(put([0], [0], sum), .fieldUsedTwice)
-        XCTAssertEqual(put([0], [1], sum + sum), .columnFieldNeedsOneValue)
         XCTAssertEqual(put([0], [], sum, at: "B2"), .destinationInsideSource)
         XCTAssertEqual(wc.insertPivotTable(source: "Nowhere!A1:C7", rows: [0], cols: [], data: sum, filters: [], origin: CellAddress("F1")!, newSheet: false), .noSource)
         XCTAssertEqual(wc.insertPivotTable(source: src, rows: [0], cols: [], data: sum, filters: [PivotFilter(field: 1, item: "Cap")], origin: CellAddress("F1")!, newSheet: false), .noSuchFilterItem)
