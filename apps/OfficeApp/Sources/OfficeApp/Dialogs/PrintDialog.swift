@@ -46,6 +46,8 @@ struct PrintHooks {
     var unit = "Pages"                 // "Slides" in Slides
     var total: Int
     var current: Int                   // 1-based
+    /// The page count of each output when it differs by output (Sheets: sheet, workbook, selection); `total` otherwise.
+    var totals: [Int] = []
     /// Pages the selection covers (1-based), or nil when there is none / the app cannot say.
     var selection: [Int]? = nil
     /// "Print what": empty hides the choice; Slides offers Slides, Notes Pages, Handouts.
@@ -54,6 +56,11 @@ struct PrintHooks {
     var hostCanPrint = true
     /// Print `pages` (1-based, copies already applied) of output `output`; returns the status line.
     var print: (_ pages: [Int], _ output: Int) -> String
+}
+
+extension PrintHooks {
+    /// Pages in output `i`.
+    func total(of i: Int) -> Int { totals.indices.contains(i) ? totals[i] : total }
 }
 
 final class PrintDialog: StatefulWidget {
@@ -89,14 +96,15 @@ final class PrintDialogState: State<StatefulWidget> {
     /// The pages the choices name, or why they name none.
     func resolve() -> (pages: [Int], error: String?) {
         let h = _w.hooks
+        let total = h.total(of: output)
         let set: [Int]
         switch range {
-        case .all: set = h.total > 0 ? Array(1 ... h.total) : []
-        case .current: set = [min(max(1, h.current), max(1, h.total))]
+        case .all: set = total > 0 ? Array(1 ... total) : []
+        case .current: set = [min(max(1, h.current), max(1, total))]
         case .selection: set = h.selection ?? []
         case .custom:
-            guard let p = PrintPlan.parse(_pages.text, total: h.total) else {
-                return ([], "Type pages like 1-3, 5 (1 to \(h.total))")
+            guard let p = PrintPlan.parse(_pages.text, total: total) else {
+                return ([], "Type pages like 1-3, 5 (1 to \(total))")
             }
             set = p
         }
@@ -140,7 +148,7 @@ final class PrintDialogState: State<StatefulWidget> {
             page.append(gap)
         }
         page.append(Text(h.unit, style: fluent.typography.bodyStrong))
-        page.append(radio(.all, "All \(h.total) \(h.unit.lowercased())"))
+        page.append(radio(.all, "All \(h.total(of: output)) \(h.unit.lowercased())"))
         page.append(radio(.current, "Current (\(h.current))"))
         if let s = h.selection, !s.isEmpty { page.append(radio(.selection, "Selection")) }
         page.append(Row(crossAxisAlignment: .center, children: [radio(.custom, "Range"),
