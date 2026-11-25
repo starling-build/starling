@@ -1992,6 +1992,7 @@ enum DocxFormat {
                 }
                 // A floating table's anchor (Bug54771b's title block sits at
                 // the right margin, a set distance down the page).
+                style.keptShdXML = node.first("w:tblPr")?.first("w:shd").map { PptxXML.serialize($0) }
                 if let pos = node.first("w:tblPr")?.first("w:tblpPr") {
                     if pos["w:vertAnchor"] == "page" { style.pageAnchored = true }
                     if pos["w:vertAnchor"] == "page", pos["w:tblpYSpec"] == nil, let v = Double(pos["w:tblpY"] ?? "") { style.pageOffsetY = v / 20 }
@@ -2116,7 +2117,7 @@ enum DocxFormat {
                     // Its cell spacing, borders and cell margins (the table's own
                     // and each cell's go back beside them).
                     if let ex = tr.first("w:tblPrEx") {
-                        let kept = ["w:tblCellSpacing", "w:tblBorders", "w:tblCellMar"].compactMap { ex.first($0) }.map { PptxXML.serialize($0) }.joined()
+                        let kept = ["w:tblCellSpacing", "w:tblBorders", "w:shd", "w:tblCellMar"].compactMap { ex.first($0) }.map { PptxXML.serialize($0) }.joined()
                         if !kept.isEmpty { style.rowExceptions[r] = "<w:tblPrEx>" + kept + "</w:tblPrEx>" }
                     }
                 }
@@ -2324,6 +2325,7 @@ enum DocxFormat {
                                     paragraphs[k].cell?.rowSpan += 1
                                     paragraphs[k].cell?.continuationEdges.append(contEdges)
                                     paragraphs[k].cell?.continuationBordersXML.append(contXML)
+                                    paragraphs[k].cell?.continuationShdXML.append(tcPr?.first("w:shd").map { PptxXML.serialize($0) })
                                     paragraphs[k].cell?.continuationContentXML.append(contContent)
                                     paragraphs[k].cell?.continuationParagraphs.append(contParagraphs)
                                     paragraphs[k].cell?.continuationHidden.append(tcPr?.first("w:hideMark") != nil)

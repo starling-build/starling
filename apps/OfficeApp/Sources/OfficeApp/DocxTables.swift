@@ -136,6 +136,7 @@ extension DocxFormat {
     if let k = s.kerningFrom { rPr += "<w:kern w:val=\"\(Int((k * 2).rounded()))\"/>" }
     if let r = s.raised, r != 0 { rPr += "<w:position w:val=\"\(Int((r * 2).rounded()))\"/>" }
     if let size = s.fontSize { rPr += "<w:sz w:val=\"\(Int(size * 2))\"/><w:szCs w:val=\"\(Int(size * 2))\"/>" }
+    if s.highlight == nil, let t = s.shdSource, t.hasPrefix("auto#") { rPr += "<w:shd\(t.dropFirst(5)) w:fill=\"auto\"/>" }
     if let hl = s.highlight {
         if let t = s.shdSource, let h = t.firstIndex(of: "#"), t[t.startIndex ..< h].lowercased() == _hex(hl).lowercased() {
             rPr += "<w:shd\(t[t.index(after: h)...]) w:fill=\"\(_hex(hl))\"/>"
@@ -873,6 +874,11 @@ extension DocxFormat {
                 cs.highlight = _highlight(child["w:val"] ?? "none")
                 cs.shdSource = nil
             case "w:shd":
+                if cs.highlight == nil, child["w:fill"] == nil || child["w:fill"]?.lowercased() == "auto", child["w:val"] != "nil" {
+                    // An explicit no fill (or a pattern over none): kept for the save, drawn as nothing.
+                    cs.shdSource = "auto#" + ["w:val", "w:color", "w:themeFill", "w:themeFillTint", "w:themeFillShade", "w:themeColor", "w:themeTint", "w:themeShade"]
+                        .compactMap { k in child[k].map { " \(k)=\"\(_esc($0))\"" } }.joined()
+                }
                 if let hex = child["w:fill"], hex.lowercased() != "auto", let v = Int(hex, radix: 16), cs.highlight == nil {
                     cs.highlight = Color(argb: 0xFF, (v >> 16) & 0xFF, (v >> 8) & 0xFF, v & 0xFF)
                     cs.shdSource = hex.uppercased() + "#" + ["w:val", "w:color", "w:themeFill", "w:themeFillTint", "w:themeFillShade", "w:themeColor", "w:themeTint", "w:themeShade"]
@@ -1629,6 +1635,7 @@ extension DocxFormat {
                                               : "<w:\(side) w:val=\"none\" w:sz=\"0\" w:space=\"0\" w:color=\"auto\"/>"
             }
             if !borderless { xml += "</w:tblBorders>" }
+            if let shd = style.keptShdXML { xml += shd }
             if style.fixedLayout { xml += "<w:tblLayout w:type=\"fixed\"/>" }
             let margins: [(String, Double?)] = [("top", style.cellMarginTop), ("left", style.cellMarginLeft),
                                                 ("bottom", style.cellMarginBottom), ("right", style.cellMarginRight)]
@@ -1702,6 +1709,7 @@ extension DocxFormat {
                         let contEdges = offset < above.continuationEdges.count ? above.continuationEdges[offset] : above.edges
                         let contKept = offset < above.continuationBordersXML.count ? above.continuationBordersXML[offset] : nil
                         xml += "<w:vMerge/>" + cellBordersXML(contEdges, width: above.borderWidth, kept: contKept, under: above.bordersKeptUnder)
+                        if offset < above.continuationShdXML.count, let shd = above.continuationShdXML[offset] { xml += shd }
                         if let v = above.verticalAlign { xml += "<w:vAlign w:val=\"\(v)\"/>" }
                         let contContent = offset < above.continuationContentXML.count ? above.continuationContentXML[offset] : nil
                         xml += "</w:tcPr>" + (contContent ?? "<w:p/>") + "</w:tc>"
