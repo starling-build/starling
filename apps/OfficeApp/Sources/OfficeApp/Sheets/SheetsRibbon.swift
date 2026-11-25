@@ -21,6 +21,7 @@ enum SheetCommand {
     case toggleGridlines
     case status(String)
     case nameManager               // Formulas → Name Manager
+    case pageSetup                 // Layout → Page Setup: the dialog
     case editNote                  // Review → New/Edit Note: the editor beside the active cell
 }
 
@@ -32,6 +33,7 @@ extension Ribbon {
         case .insert: return [_chartsGroup(wb, fluent), _functionsGroup(wb, fluent)]
         case .formulas: return [_autoSumGroup(wb, fluent), _functionsGroup(wb, fluent), _namesGroup(wb, fluent)]
         case .data: return [_sortGroup(wb, fluent), _outlineGroup(wb, fluent)]
+        case .layout: return [_pageSetupGroup(wb, fluent)]
         case .view: return [_sheetsZoomGroup(wb, fluent)]
         case .review: return [_notesGroup(wb, fluent)]
         default: return nil
@@ -311,6 +313,22 @@ extension Ribbon {
             Chrome.small(FluentSystemIcons.indentIncrease, "Group", fluent) { wb.group(true) },
             Chrome.small(FluentSystemIcons.indentDecrease, "Ungroup", fluent) { wb.group(false) },
         ])])
+    }
+
+    private func _pageSetupGroup(_ wb: WorkbookController, _ fluent: FluentThemeData) -> Widget {
+        let landscape = SheetPrintSetup.read(wb.sheet).landscape
+        return Chrome.group("Page Setup", fluent, [
+            Chrome.big(FluentSystemIcons.grid, "Page Setup", fluent) { wb.onCommand?(.pageSetup) },
+            Chrome.menuButton(FluentSystemIcons.grid, "Orientation", landscape ? "Landscape" : "Portrait", fluent, items: [
+                MenuFlyoutItem(text: Text("Portrait"), onPressed: { wb.setPageSetup(PageSetupChange(landscape: false)) }),
+                MenuFlyoutItem(text: Text("Landscape"), onPressed: { wb.setPageSetup(PageSetupChange(landscape: true)) }),
+            ]),
+            Chrome.menuButton(FluentSystemIcons.grid, "Breaks", "Page breaks", fluent, items: [
+                MenuFlyoutItem(text: Text("Insert Page Break"), onPressed: { wb.insertPageBreak(row: wb.active.row, col: wb.active.col) }),
+                MenuFlyoutItem(text: Text("Remove Page Break"), onPressed: { wb.removePageBreak(row: wb.active.row, col: wb.active.col) }),
+                MenuFlyoutItem(text: Text("Reset All Page Breaks"), onPressed: { wb.resetPageBreaks() }),
+            ]),
+        ])
     }
 
     private func _sheetsZoomGroup(_ wb: WorkbookController, _ fluent: FluentThemeData) -> Widget {
