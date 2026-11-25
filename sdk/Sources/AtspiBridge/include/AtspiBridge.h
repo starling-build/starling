@@ -53,6 +53,7 @@ typedef struct {
     const char *text;        // a text box's contents (UTF-8), NULL for nodes that are not text
     int caret;               // caret and selection, in characters (not bytes); -1 when unknown
     int sel_start, sel_end;  // equal when nothing is selected
+    int can_edit;            // a screen reader may insert, delete and move the caret (EditableText)
 } atspi_bridge_node;
 
 typedef struct {
@@ -62,6 +63,11 @@ typedef struct {
     int (*snapshot)(void *ctx, atspi_bridge_node **out);
     // Press node `index` (0-based, as in the last snapshot). Returns 1 when something happened.
     int (*press)(void *ctx, int index);
+    // Edit text node `index`. Offsets are in characters (code points). op: 1 insert `s` at a; 2 delete a..b;
+    // 3 put the caret at a; 4 select a..b; 5 replace the whole contents with `s`. Returns 1 when done.
+    int (*edit)(void *ctx, int index, int op, int a, int b, const char *s);
+    // The window's top-left corner on the screen; returns 0 when the app does not know it.
+    int (*origin)(void *ctx, int *x, int *y);
 } atspi_bridge_host;
 
 // Connects to the accessibility bus, registers the app under `app_name` and serves requests on a

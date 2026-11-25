@@ -11,6 +11,8 @@ import Glibc
 /// opens a connection to the accessibility bus.
 public final class AtspiAccessibility: @unchecked Sendable {
     public nonisolated(unsafe) static var rootElementProvider: (() -> Element?)? = nil
+    /// The window's top-left on the screen, when the app knows it (a Wayland client does not; the shell can say).
+    public nonisolated(unsafe) static var windowOrigin: (() -> (x: Int, y: Int)?)? = nil
     private nonisolated(unsafe) static var started = false
     /// The last snapshot's nodes, so a press by index runs the handler it described. Main thread only.
     private nonisolated(unsafe) static var last: [SemanticsSnapshotNode] = []
@@ -29,6 +31,14 @@ public final class AtspiAccessibility: @unchecked Sendable {
         host.ctx = nil
         host.snapshot = { _, out in AtspiAccessibility.snapshotForBridge(out) }
         host.press = { _, index in AtspiAccessibility.pressForBridge(Int(index)) }
+        host.edit = { _, index, op, a, b, s in
+            AtspiAccessibility.editForBridge(Int(index), op, a, b, s.map { String(cString: $0) })
+        }
+        host.origin = { _, x, y in
+            guard let o = AtspiAccessibility.windowOrigin?() else { return 0 }
+            x?.pointee = Int32(o.x); y?.pointee = Int32(o.y)
+            return 1
+        }
         let rc = atspi_bridge_start(&host, appName)
         if rc == 0 { started = true }
         return rc
@@ -73,6 +83,7 @@ public final class AtspiAccessibility: @unchecked Sendable {
             if n.isTextField { st |= 1 << UInt64(ATSPI_BRIDGE_STATE_EDITABLE)
                                    | 1 << UInt64(ATSPI_BRIDGE_STATE_FOCUSABLE) }
             node.states = st
+            node.can_edit = n.isTextField && (n.replaceRange != nil || n.setSelection != nil) ? 1 : 0
             node.caret = -1
             if n.isTextField {
                 node.text = UnsafePointer(strdup(n.value))
@@ -103,6 +114,40 @@ public final class AtspiAccessibility: @unchecked Sendable {
         if n.isToggled != nil { return Int(ATSPI_BRIDGE_ROLE_TOGGLE_BUTTON) }
         if n.isButton || n.canTap { return Int(ATSPI_BRIDGE_ROLE_PUSH_BUTTON) }
         return Int(ATSPI_BRIDGE_ROLE_LABEL)
+    }
+
+    /// A screen reader typing into, deleting from or moving the caret in a text node. Offsets arrive in
+    /// characters; the node's handlers want UTF-16 units of its value.
+    private static func editForBridge(_ index: Int, _ op: Int32, _ a: Int32, _ b: Int32, _ text: String?) -> Int32 {
+        onMain {
+            guard index >= 0, index < last.count, last[index].isTextField else { return 0 }
+            let n = last[index]
+            let scalars = Array(n.value.unicodeScalars)
+            func u16(_ cp: Int32) -> Int {
+                scalars[0..<max(0, min(Int(cp), scalars.count))].reduce(0) { $0 + String($1).utf16.count }
+            }
+            let insert = text ?? ""
+            switch op {
+            case 1, 2, 5:
+                guard let replace = n.replaceRange else { return 0 }
+                let (lo, hi) = op == 5 ? (0, n.value.utf16.count) : (u16(min(a, b)), u16(max(a, b)))
+                replace(lo, hi, op == 2 ? "" : insert)
+                // The caret follows what was typed (or sits where the deletion was).
+                let caret = lo + (op == 2 ? 0 : insert.utf16.count)
+                n.setSelection?(TextSelection(baseOffset: caret, extentOffset: caret))
+                return 1
+            case 3:
+                guard let set = n.setSelection else { return 0 }
+                set(TextSelection(baseOffset: u16(a), extentOffset: u16(a)))
+                return 1
+            case 4:
+                guard let set = n.setSelection else { return 0 }
+                set(TextSelection(baseOffset: u16(a), extentOffset: u16(b)))
+                return 1
+            default:
+                return 0
+            }
+        }
     }
 
     private static func pressForBridge(_ index: Int) -> Int32 {

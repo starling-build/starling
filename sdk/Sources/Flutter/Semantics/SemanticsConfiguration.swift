@@ -475,6 +475,10 @@ public class SemanticsConfiguration: Hashable {
   }
   private var _onSetText: SetTextHandler?
 
+  /// Replace the UTF-16 range `start..<end` of `value` with a string (assistive technology typing and deleting).
+  /// DIFFERENCE FROM DART: Flutter only has whole-text `onSetText`, which would drop a rich editor's formatting.
+  public var onReplaceRange: ((_ start: Int, _ end: Int, _ text: String) -> Void)?
+
   /// The handler for `SemanticsAction.didGainAccessibilityFocus`.
   ///
   /// **Dart Source:** `semantics.dart:5056-5061`

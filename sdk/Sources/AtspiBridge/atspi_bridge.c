@@ -235,6 +235,7 @@ static int m_interfaces(sd_bus_message *m, void *u, sd_bus_error *e) {
         p_sd_bus_message_append(r, "s", "org.a11y.atspi.Component");
         if (g_nodes[n].can_press) p_sd_bus_message_append(r, "s", "org.a11y.atspi.Action");
         if (g_nodes[n].text) p_sd_bus_message_append(r, "s", "org.a11y.atspi.Text");
+        if (g_nodes[n].can_edit) p_sd_bus_message_append(r, "s", "org.a11y.atspi.EditableText");
     }
     p_sd_bus_message_close_container(r);
     pthread_mutex_unlock(&g_lock);
@@ -288,8 +289,12 @@ static int m_extents(sd_bus_message *m, void *u, sd_bus_error *e) {
     sd_bus_message *r = NULL; p_sd_bus_message_new_method_return(m, &r);
     int x = 0, y = 0, w = 0, h = 0;
     if (n >= 0) { x = g_nodes[n].x; y = g_nodes[n].y; w = g_nodes[n].w; h = g_nodes[n].h; }
-    p_sd_bus_message_append(r, "(iiii)", x, y, w, h);
     pthread_mutex_unlock(&g_lock);
+    if (coord == 0 && n >= 0 && g_host.origin) {   // ATSPI_COORD_TYPE_SCREEN: add the window's place on the screen
+        int ox = 0, oy = 0;
+        if (g_host.origin(g_host.ctx, &ox, &oy)) { x += ox; y += oy; }
+    }
+    p_sd_bus_message_append(r, "(iiii)", x, y, w, h);
     return send_reply(r);
 }
 
@@ -300,6 +305,39 @@ static int m_grab_focus(sd_bus_message *m, void *u, sd_bus_error *e) {
 }
 
 // ---- Text ----------------------------------------------------------------------------------------
+
+// Runs an edit on the node the message is addressed to (not under the lock: the host hops to the main thread).
+static int do_edit(sd_bus_message *m, int op, int a, int b, const char *s) {
+    pthread_mutex_lock(&g_lock); refresh();
+    int n = node_of(p_sd_bus_message_get_path(m));
+    int ok = n >= 0 && g_nodes[n].can_edit && g_host.edit;
+    pthread_mutex_unlock(&g_lock);
+    int did = ok ? g_host.edit(g_host.ctx, n, op, a, b, s) : 0;
+    if (did) { pthread_mutex_lock(&g_lock); g_taken.tv_sec = 0; g_taken.tv_nsec = 0; pthread_mutex_unlock(&g_lock); }
+    sd_bus_message *r = NULL; p_sd_bus_message_new_method_return(m, &r);
+    p_sd_bus_message_append(r, "b", did);
+    return send_reply(r);
+}
+static int m_set_caret(sd_bus_message *m, void *u, sd_bus_error *e) {
+    int32_t o = 0; p_sd_bus_message_read(m, "i", &o);
+    return do_edit(m, 3, o, o, NULL);
+}
+static int m_set_selection(sd_bus_message *m, void *u, sd_bus_error *e) {
+    int32_t num = 0, a = 0, b = 0; p_sd_bus_message_read(m, "iii", &num, &a, &b);
+    return num == 0 ? do_edit(m, 4, a, b, NULL) : do_edit(m, -1, 0, 0, NULL);
+}
+static int m_insert_text(sd_bus_message *m, void *u, sd_bus_error *e) {
+    int32_t pos = 0, len = 0; const char *s = ""; p_sd_bus_message_read(m, "isi", &pos, &s, &len);
+    return do_edit(m, 1, pos, pos, s);
+}
+static int m_delete_text(sd_bus_message *m, void *u, sd_bus_error *e) {
+    int32_t a = 0, b = 0; p_sd_bus_message_read(m, "ii", &a, &b);
+    return do_edit(m, 2, a, b, NULL);
+}
+static int m_set_contents(sd_bus_message *m, void *u, sd_bus_error *e) {
+    const char *s = ""; p_sd_bus_message_read(m, "s", &s);
+    return do_edit(m, 5, 0, 0, s);
+}
 
 static int text_len(const char *s) {   // characters, not bytes
     int n = 0; for (; *s; s++) if (((unsigned char)*s & 0xC0) != 0x80) n++;
@@ -442,6 +480,15 @@ static const sd_bus_vtable text_vt[] = {
     SD_BUS_METHOD("GetCharacterAtOffset", "i", "i", m_char_at, 0),
     SD_BUS_METHOD("GetNSelections", "", "i", m_nselections, 0),
     SD_BUS_METHOD("GetSelection", "i", "ii", m_get_selection, 0),
+    SD_BUS_METHOD("SetCaretOffset", "i", "b", m_set_caret, 0),
+    SD_BUS_METHOD("SetSelection", "iii", "b", m_set_selection, 0),
+    SD_BUS_VTABLE_END
+};
+static const sd_bus_vtable editable_vt[] = {
+    SD_BUS_VTABLE_START(0),
+    SD_BUS_METHOD("SetTextContents", "s", "b", m_set_contents, 0),
+    SD_BUS_METHOD("InsertText", "isi", "b", m_insert_text, 0),
+    SD_BUS_METHOD("DeleteText", "ii", "b", m_delete_text, 0),
     SD_BUS_VTABLE_END
 };
 static const sd_bus_vtable application_vt[] = {
@@ -551,9 +598,9 @@ int atspi_bridge_start(const atspi_bridge_host *host, const char *app_name) {
     p_sd_bus_flush_close_unref(session);
 
     g_host = *host; g_app_name = strdup(app_name ? app_name : "app"); g_bus = bus;
-    const char *ifaces[] = {"org.a11y.atspi.Accessible", "org.a11y.atspi.Action", "org.a11y.atspi.Component", "org.a11y.atspi.Text"};
-    const sd_bus_vtable *vts[] = {accessible_vt, action_vt, component_vt, text_vt};
-    for (int i = 0; i < 4; i++)
+    const char *ifaces[] = {"org.a11y.atspi.Accessible", "org.a11y.atspi.Action", "org.a11y.atspi.Component", "org.a11y.atspi.Text", "org.a11y.atspi.EditableText"};
+    const sd_bus_vtable *vts[] = {accessible_vt, action_vt, component_vt, text_vt, editable_vt};
+    for (int i = 0; i < 5; i++)
         if (p_sd_bus_add_fallback_vtable(bus, NULL, "/org/a11y/atspi/accessible", ifaces[i], vts[i], NULL, NULL) < 0) return -5;
     if (p_sd_bus_add_fallback_vtable(bus, NULL, ROOT_PATH, "org.a11y.atspi.Application", application_vt, NULL, NULL) < 0) return -5;
 
