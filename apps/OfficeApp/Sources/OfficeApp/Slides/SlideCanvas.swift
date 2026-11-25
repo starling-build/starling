@@ -584,8 +584,13 @@ final class SlideCanvasState: State<StatefulWidget> {
             _drag = .move(start: start, frames: frames, shape: shape, wasSelected: wasSelected, moved: moved)
             deck.setFramesLive(frames.map { ($0.0, $0.1.shift(Offset(dx, dy))) })
         case .resize(let shape, let handle, let start, let frame):
-            deck.setFramesLive([(shape, _resized(shape, frame, handle: handle,
-                                                 delta: Offset(p.dx - start.dx, p.dy - start.dy)))])
+            let r = _resized(shape, frame, handle: handle, delta: Offset(p.dx - start.dx, p.dy - start.dy))
+            if shape.preset?.isLine == true {
+                let m = _w.modifiers()
+                deck.dragLineEnd(shape, handle: handle, frame: r, snap: !m.contains(.shift) && !m.contains(.alt))
+            } else {
+                deck.setFramesLive([(shape, r)])
+            }
         case .rotate(let shape, let startAngle, let startRotation):
             let c = shape.frame.center
             let angle = atan2(p.dy - c.dy, p.dx - c.dx) * 180 / .pi
