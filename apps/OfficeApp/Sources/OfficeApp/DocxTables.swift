@@ -1700,6 +1700,8 @@ extension DocxFormat {
             }
             if doc.paragraphs[i].cell != nil {
                 let t = tableXML(from: i)
+                // Two tables with nothing between them are one table to Word.
+                if body.hasSuffix("</w:tbl>") { body += "<w:p/>" }
                 body += t.xml
                 i = t.end
             } else {
