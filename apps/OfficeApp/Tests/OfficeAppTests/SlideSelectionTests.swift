@@ -179,4 +179,28 @@ final class SlideArrangeTests: XCTestCase {
         deck.undo()
         XCTAssertEqual(deck.currentSlide.shapes.count, count, "one undo takes the copy back")
     }
+
+    func testShiftHoldsALineEndToA45DegreeStep() {
+        let f = Rect.fromLTRB(100, 100, 300, 200)
+        let h = SlideCanvasState.lineEndSnapped(f, handle: 1, delta: Offset(10, 20))
+        XCTAssertEqual(h.right - h.left, h.bottom - h.top, accuracy: 0.01, "29.7 degrees goes to 45")
+        XCTAssertEqual(h.left, 100); XCTAssertEqual(h.top, 100)
+        let flat = SlideCanvasState.lineEndSnapped(Rect.fromLTRB(0, 0, 100, 0), handle: 1, delta: Offset(0, 10))
+        XCTAssertEqual(flat.bottom, 0, accuracy: 0.01, "a nearly flat line goes flat")
+        XCTAssertEqual(flat.right, 100.5, accuracy: 0.6, "length kept")
+        let diag = SlideCanvasState.lineEndSnapped(Rect.fromLTRB(0, 0, 100, 0), handle: 1, delta: Offset(-30, 80))
+        XCTAssertEqual(diag.right - diag.left, diag.bottom - diag.top, accuracy: 0.01, "steep line goes to 45 degrees")
+        let top = SlideCanvasState.lineEndSnapped(Rect.fromLTRB(0, 0, 100, 100), handle: 0, delta: Offset(30, 20))
+        XCTAssertEqual(top.right - top.left, 100 - top.top, accuracy: 0.01)
+    }
+
+    func testShiftOnAnEdgeHandleKeepsTheProportions() {
+        let f = Rect.fromLTWH(100, 100, 200, 100)
+        // Handle 3 is the right edge: drag it 40 right; the height grows 20, half each way.
+        let r = SlideCanvasState.resizedFrame(f, rotation: 0, handle: 3, delta: Offset(40, 0), keepAspect: true)
+        XCTAssertEqual(r.width, 240, accuracy: 0.01)
+        XCTAssertEqual(r.height, 120, accuracy: 0.01)
+        XCTAssertEqual(r.left, 100, accuracy: 0.01)
+        XCTAssertEqual(r.center.dy, f.center.dy, accuracy: 0.01)
+    }
 }

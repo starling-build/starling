@@ -591,7 +591,8 @@ final class SlideCanvasState: State<StatefulWidget> {
     /// included, so a turned shape grows along its own axes.
     private func _resized(_ shape: SlideShape, _ frame: Rect, handle: Int, delta: Offset) -> Rect {
         if shape.preset?.isLine == true {
-            // A line's two ends move freely.
+            // A line's two ends move freely; Shift holds the angle to a multiple of 45 degrees.
+            if _w.modifiers().contains(.shift) { return Self.lineEndSnapped(frame, handle: handle, delta: delta) }
             return handle == 0
                 ? Rect.fromLTRB(frame.left + delta.dx, frame.top + delta.dy, frame.right, frame.bottom)
                 : Rect.fromLTRB(frame.left, frame.top, frame.right + delta.dx, frame.bottom + delta.dy)
@@ -607,6 +608,22 @@ final class SlideCanvasState: State<StatefulWidget> {
         return _snapResize(r, handle: handle)
     }
 
+    /// A line with its end `handle` (0 = top left, 1 = bottom right) dragged by `delta`, the other end
+    /// fixed, the angle turned to the nearest multiple of 45 degrees and the length kept.
+    static func lineEndSnapped(_ frame: Rect, handle: Int, delta: Offset) -> Rect {
+        let anchor = handle == 0 ? frame.bottomRight : frame.topLeft
+        let end = handle == 0 ? Offset(frame.left + delta.dx, frame.top + delta.dy)
+                              : Offset(frame.right + delta.dx, frame.bottom + delta.dy)
+        let vx = end.dx - anchor.dx, vy = end.dy - anchor.dy
+        let len = (vx * vx + vy * vy).squareRoot()
+        guard len > 0 else { return frame }
+        let step = Double.pi / 4
+        let a = (atan2(vy, vx) / step).rounded() * step
+        let e = Offset(anchor.dx + len * cos(a), anchor.dy + len * sin(a))
+        return handle == 0 ? Rect.fromLTRB(e.dx, e.dy, frame.right, frame.bottom)
+                           : Rect.fromLTRB(frame.left, frame.top, e.dx, e.dy)
+    }
+
     /// Pure resize geometry, for tests: the opposite handle stays put.
     /// `keepAspect` (Shift, corner handles) holds the shape's proportions;
     /// `fromCentre` (Ctrl) grows it both ways about its centre.
@@ -614,12 +631,21 @@ final class SlideCanvasState: State<StatefulWidget> {
                              keepAspect: Bool = false, fromCentre: Bool = false) -> Rect {
         let (hx, hy) = handleUnits[handle]
         var d = rotate(delta, -rot)
-        let sx = hx == 1 ? 1.0 : hx == 0 ? -1.0 : 0
-        let sy = hy == 1 ? 1.0 : hy == 0 ? -1.0 : 0
+        var sx = hx == 1 ? 1.0 : hx == 0 ? -1.0 : 0
+        var sy = hy == 1 ? 1.0 : hy == 0 ? -1.0 : 0
         if fromCentre { d = Offset(d.dx * 2, d.dy * 2) }
-        if keepAspect, sx != 0, sy != 0, frame.width > 0, frame.height > 0 {
-            let k = max((frame.width + d.dx * sx) / frame.width, (frame.height + d.dy * sy) / frame.height)
-            d = Offset(frame.width * (k - 1) * sx, frame.height * (k - 1) * sy)
+        if keepAspect, frame.width > 0, frame.height > 0 {
+            if sx != 0, sy != 0 {
+                let k = max((frame.width + d.dx * sx) / frame.width, (frame.height + d.dy * sy) / frame.height)
+                d = Offset(frame.width * (k - 1) * sx, frame.height * (k - 1) * sy)
+            } else if sx != 0 {
+                // An edge handle with Shift grows the other side too, about the shape's middle.
+                let k = (frame.width + d.dx * sx) / frame.width
+                d = Offset(d.dx, frame.height * (k - 1)); sy = 1
+            } else if sy != 0 {
+                let k = (frame.height + d.dy * sy) / frame.height
+                d = Offset(frame.width * (k - 1), d.dy); sx = 1
+            }
         }
         if fromCentre {
             let w = max(4, frame.width + d.dx * sx), h = max(4, frame.height + d.dy * sy)
