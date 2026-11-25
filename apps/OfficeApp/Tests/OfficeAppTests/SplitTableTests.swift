@@ -190,3 +190,68 @@ final class TextPitchLabWriter: XCTestCase {
         try DocxFormat.write(c.document, pageSetup: .letter).write(to: URL(fileURLWithPath: out))
     }
 }
+
+/// Lab 2 for the turned-cell line pitch: eight faces by three sizes, every cell
+/// "Aaaa Bbbb" in a 100 pt row, Rotate Down, so each prints two lines whose
+/// step is the face's turned pitch.
+final class TextPitch2LabWriter: XCTestCase {
+    func testWriteLab() throws {
+        guard let out = ProcessInfo.processInfo.environment["TEXTPITCH2_LAB_OUT"] else { throw XCTSkip("no TEXTPITCH2_LAB_OUT") }
+        let c = RichDocumentController(plainText: "")
+        c.insertTable(rows: 3, columns: 8)
+        let idx = c.document.paragraphs.indices.filter { c.document.paragraphs[$0].cell != nil }
+        let faces = ["Calibri", "Cambria", "Consolas", "Verdana", "Tahoma", "Georgia", "Segoe UI", "Courier New"]
+        let sizes: [Double] = [9, 11, 13]
+        for (k, i) in idx.enumerated() {
+            let col = k % 8, row = k / 8
+            c.moveTo(RichPosition(paragraph: i, offset: 0), extend: false)
+            c.insertText("Aaaa Bbbb Cccc")
+            c.moveTo(RichPosition(paragraph: i, offset: 0), extend: false)
+            c.moveTo(RichPosition(paragraph: i, offset: 14), extend: true)
+            c.setFontFamily(faces[col]); c.setFontSize(sizes[row])
+            c.moveTo(RichPosition(paragraph: i, offset: 0), extend: false)
+            if col == 0 { c.setRowHeight(40, exact: true) }
+            c.setCellTextDirection(.down)
+        }
+        try DocxFormat.write(c.document, pageSetup: .letter).write(to: URL(fileURLWithPath: out))
+    }
+}
+
+/// A turned cell's lines of Latin text step by 1.026 of the face's single line
+/// (Word for Windows, lab textpitch3), the same for Rotate Down and Up.
+final class TurnedCellPitchTests: XCTestCase {
+    private func linesHeight(_ direction: CellRef.CellTextDirection) -> Double {
+        let theme = RichTextTheme(fontFamily: OfficeFonts.sans, fontSize: 20)
+        theme.wordRules = true
+        var a = RichParagraph(text: "Aaaa Bbbb Cccc")
+        a.cell = CellRef(table: "t", row: 0, column: 0)
+        a.cell?.textDirection = direction
+        a.style.lineSpacing = 1
+        var style = CharStyle()
+        style.fontFamily = OfficeFonts.sans; style.fontSize = 20
+        a.runs = [Run(length: 14, style: style)]
+        var doc = RichDocument(paragraphs: [a])
+        doc.tableColumns["t"] = [120]
+        var ts = TableStyle()
+        ts.rowHeights[0] = 70
+        ts.rowsExactHeight.insert(0)
+        doc.tableStyles["t"] = ts
+        let l = RichLayout(theme: theme, paragraphCount: 1)
+        l.width = 400
+        l.ensureLaidOut(doc)
+        return l._heights[0]
+    }
+
+    func testTurnedLinesAreOnePointZeroTwoSixOfTheSingleLine() {
+        let saved = RichTextTheme.wordWindowsPages
+        defer { RichTextTheme.wordWindowsPages = saved }
+        RichTextTheme.wordWindowsPages = false
+        let plain = linesHeight(.down)
+        RichTextTheme.wordWindowsPages = true
+        let down = linesHeight(.down), up = linesHeight(.up)
+        XCTAssertEqual(down, up, accuracy: 0.01)
+        // Lines of Calibri 20: 25.03 apiece in Word's print, 24.41 before.
+        XCTAssertEqual(down / plain, 1.026, accuracy: 0.01)
+        XCTAssertGreaterThan(down, plain)
+    }
+}
