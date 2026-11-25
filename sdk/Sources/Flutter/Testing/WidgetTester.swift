@@ -96,13 +96,15 @@ public final class WidgetTester {
     public func has(text label: String) -> Bool { centre(ofText: label) != nil }
 
     /// Presses and lifts a pointer at `position`, as the app's pointer handler does.
-    public func tap(at position: Offset, buttons: Int = kPrimaryButton, modifiers: KeyModifiers = []) {
-        drag(from: position, to: position, steps: 0, buttons: buttons, modifiers: modifiers)
+    public func tap(at position: Offset, buttons: Int = kPrimaryButton, modifiers: KeyModifiers = [],
+                    kind: PointerDeviceKind = .touch) {
+        drag(from: position, to: position, steps: 0, buttons: buttons, modifiers: modifiers, kind: kind)
     }
 
     /// A click: the same as `tap(at:)`, named for what a mouse does.
-    public func click(at position: Offset, buttons: Int = kPrimaryButton, modifiers: KeyModifiers = []) {
-        tap(at: position, buttons: buttons, modifiers: modifiers)
+    public func click(at position: Offset, buttons: Int = kPrimaryButton, modifiers: KeyModifiers = [],
+                      kind: PointerDeviceKind = .touch) {
+        tap(at: position, buttons: buttons, modifiers: modifiers, kind: kind)
     }
 
     /// Two clicks in a row at `position`.
@@ -115,7 +117,7 @@ public final class WidgetTester {
     /// hit testing, the gesture arena and the pointer router, as the shell's real pointer events do.
     /// `modifiers` are held (as key events through the focus manager) from before the press until after the lift.
     public func drag(from: Offset, to: Offset, steps: Int = 8, buttons: Int = kPrimaryButton,
-                     modifiers: KeyModifiers = []) {
+                     modifiers: KeyModifiers = [], kind: PointerDeviceKind = .touch) {
         let held = WidgetTester.modifierKeys.filter { modifiers.contains($0.0) }
         for (_, logical) in held { _modifier(logical, down: true) }
         let pointer = nextPointer; nextPointer += 1
@@ -132,17 +134,17 @@ public final class WidgetTester {
             if event is PointerDownEvent { gb.gestureArena.close(pointer) }
             else if event is PointerUpEvent { gb.gestureArena.sweep(pointer) }
         }
-        send(PointerDownEvent(pointer: pointer, position: from, buttons: buttons))
+        send(PointerDownEvent(pointer: pointer, kind: kind, position: from, buttons: buttons))
         var last = from
         if steps > 0 {
             for i in 1...steps {
                 let t = Double(i) / Double(steps)
                 let p = Offset(from.dx + (to.dx - from.dx) * t, from.dy + (to.dy - from.dy) * t)
-                send(PointerMoveEvent(pointer: pointer, position: p, delta: p - last, buttons: buttons))
+                send(PointerMoveEvent(pointer: pointer, kind: kind, position: p, delta: p - last, buttons: buttons))
                 last = p
             }
         }
-        send(PointerUpEvent(pointer: pointer, position: to))
+        send(PointerUpEvent(pointer: pointer, kind: kind, position: to))
         for (_, logical) in held.reversed() { _modifier(logical, down: false) }
         pump()
     }
