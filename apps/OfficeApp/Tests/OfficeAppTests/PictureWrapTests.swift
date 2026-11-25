@@ -278,12 +278,16 @@ final class TextBoxInsertTests: XCTestCase {
         let img2rel = KeptRel(id: "rId7", type: "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image", target: "media/a.png", external: false)
         let named = KeptRel(id: "rId8", type: "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image", target: "media/b.png", external: false)
         let stale = KeptRel(id: "rId9", type: "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image", target: "media/c.png", external: false)
-        img.sourceRels = [img2rel, named, stale]
+        let tpl = KeptRel(id: "rId10", type: "http://schemas.openxmlformats.org/officeDocument/2006/relationships/attachedTemplate", target: "file:///C:/t.dotm", external: true)
+        let glossary = KeptRel(id: "rId11", type: "http://schemas.openxmlformats.org/officeDocument/2006/relationships/glossaryDocument", target: "glossary/document.xml", external: false)
+        img.sourceRels = [img2rel, named, stale, tpl, glossary]
         let out = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(image: img)]), pageSetup: .letter))
         let rels = String(decoding: try XCTUnwrap(out.first { $0.name == "word/_rels/document.xml.rels" }).data, as: UTF8.self)
         XCTAssertTrue(rels.containsSubstring("media/a.png"))
         XCTAssertTrue(rels.containsSubstring("media/b.png"), "named by an attribute we do not read: kept")
         XCTAssertFalse(rels.containsSubstring("media/c.png"), "named nowhere: dropped")
+        XCTAssertTrue(rels.containsSubstring("t.dotm"), "a template rel is never dropped")
+        XCTAssertTrue(rels.containsSubstring("glossary/document.xml"), "a glossary rel is never dropped")
     }
 
     func testBoxWithAnExternalLinkIsEditedInPlaceAndKeepsItsLink() throws {
