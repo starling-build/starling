@@ -550,6 +550,97 @@ final class DeckController: ChangeNotifier {
         _changed()
     }
 
+    // MARK: Outline view
+
+    /// The deck as the Outline view lists it: each slide's title and the paragraphs of its body.
+    var outlineEntries: [OutlineEntry] { slides.map { Self._outlineEntry($0) } }
+
+    private static func _outlineEntry(_ slide: Slide) -> OutlineEntry {
+        let title = slide.shapes.first { $0.role == .title || $0.role == .ctrTitle }
+        let body = slide.shapes.first { $0.role == .body || $0.role == .subTitle }
+        var entry = OutlineEntry(title: (title?.text?.document.paragraphs.map(\.text) ?? []).joined(separator: " "))
+        for p in body?.text?.document.paragraphs ?? [] where !(p.text.isEmpty && p.image != nil) {
+            entry.body.append(OutlineLine(level: p.style.listLevel + 1, text: p.text))
+        }
+        return entry
+    }
+
+    /// True while one run of outline typing is being folded into a single undo step.
+    private var _outlineOpen = false
+
+    /// The Outline view lost focus or closed: the next outline change is a new undo step.
+    func endOutlineEdit() { _outlineOpen = false }
+
+    /// Make the slides match the outline `new`. Slides whose entry did not change are left alone; an edited entry changes only
+    /// the text that differs (so its formatting stays); an entry with no slide gets a new Title and Content slide, and a slide
+    /// whose entry went is deleted. The whole run of typing is one undo step.
+    func applyOutline(_ new: [OutlineEntry]) {
+        let old = outlineEntries
+        guard old != new, !new.isEmpty else { return }
+        let steps = Outline.diff(old: old, new: new)
+        if !_outlineOpen { _checkpoint(); _outlineOpen = true }
+        let before = slides
+        let currentSlide = slides.indices.contains(current) ? slides[current] : nil
+        var result: [Slide] = []
+        var lastKept: Slide? = nil
+        for step in steps {
+            switch step {
+            case .keep(let o):
+                result.append(before[o]); lastKept = before[o]
+            case .edit(let o, let n):
+                _setOutline(new[n], on: before[o], was: old[o])
+                result.append(before[o]); lastKept = before[o]
+            case .insert(let n):
+                let slide = _makeSlide(.titleAndContent)
+                if let ref = lastKept ?? before.first { slide.footerFrames = ref.footerFrames }
+                _setOutline(new[n], on: slide, was: OutlineEntry(title: ""))
+                result.append(slide)
+            case .delete(let o):
+                _unwatch(before[o])
+            }
+        }
+        if result.isEmpty { return }
+        slides = result
+        if let currentSlide, let at = slides.firstIndex(where: { $0 === currentSlide }) { current = at }
+        else { current = min(current, slides.count - 1) }
+        selection = []
+        slideSelectionIds = []
+        _changed()
+    }
+
+    private func _setOutline(_ entry: OutlineEntry, on slide: Slide, was old: OutlineEntry) {
+        if entry.title != old.title, let shape = slide.shapes.first(where: { $0.role == .title || $0.role == .ctrTitle }), let text = shape.text {
+            text.load(Self._retext(text.document, [entry.title], levels: nil))
+        }
+        guard entry.body != old.body else { return }
+        var body = slide.shapes.first { $0.role == .body || $0.role == .subTitle }
+        if body == nil, !entry.body.isEmpty {
+            // A slide with no body placeholder gains one: its layout becomes Title and Content.
+            let at = slides.firstIndex { $0 === slide }
+            if let at { applyLayout(.titleAndContent, to: at) }
+            body = slide.shapes.first { $0.role == .body || $0.role == .subTitle }
+        }
+        if let text = body?.text {
+            text.load(Self._retext(text.document, entry.body.map(\.text), levels: entry.body.map { $0.level - 1 }))
+        }
+    }
+
+    /// `doc` with its paragraphs replaced by `lines`: a line unchanged from the paragraph at the same place stays as it was
+    /// (runs and all); a changed one takes that paragraph's look, or the last one's.
+    private static func _retext(_ doc: RichDocument, _ lines: [String], levels: [Int]?) -> RichDocument {
+        var out = doc
+        out.paragraphs = lines.enumerated().map { i, line in
+            let model = doc.paragraphs.indices.contains(i) ? doc.paragraphs[i] : doc.paragraphs.last
+            var p = RichParagraph(text: line, style: model?.style ?? .body)
+            if let levels { p.style.listLevel = max(0, levels[i]) }
+            if let model, model.text == line, model.style.listLevel == p.style.listLevel { return model }
+            if !line.isEmpty { p.runs = [Run(length: line.count, style: model?.runs.first?.style ?? .plain)] }
+            return p
+        }
+        if out.paragraphs.isEmpty { out.paragraphs = [RichParagraph(text: "", style: doc.paragraphs.first?.style ?? .body)] }
+        return out
+    }
+
     func moveSlide(_ from: Int, to: Int) {
         guard slides.indices.contains(from) else { return }
         let target = max(0, min(slides.count - 1, to))

@@ -40,6 +40,16 @@ final class SlidesShellState: State<StatefulWidget> {
     private let _scratch = RichDocumentController()
     private var _active: SlideShape? = nil
     private var _notesActive = false
+    // Outline view: the left rail becomes one editable list of titles and bodies.
+    private var _outline = false
+    private let _outlineCtl = RichDocumentController()
+    private let _outlineFocus = FocusNode(debugLabel: "slide outline")
+    private var _outlineSyncing = false
+    private let _outlineTheme: RichTextTheme = {
+        let t = RichTextTheme(fontFamily: "Calibri", fontSize: 13, headingColor: nil)
+        t.fontFamilyResolver = OfficeFonts.drawn
+        return t
+    }()
     private var _focusShape: SlideShape? = nil
     private let _deckFocus = FocusNode(debugLabel: "slides deck")
     private let _deckChords = KeyChordTracker()
@@ -137,6 +147,8 @@ final class SlidesShellState: State<StatefulWidget> {
         bind(_deckFocus)
         trackDocumentPath(session)
         bind(_notesFocus)
+        bind(_outlineFocus)
+        _outlineCtl.addListener({ [weak self] in self?._outlineEdited() }, owner: self)
         _recent = OfficeRecent.load()
         _wire()
         officeScene.registerFlush(owner: self) { [weak self] in self?._autosaveNow() }
@@ -180,6 +192,7 @@ final class SlidesShellState: State<StatefulWidget> {
         session.controller.removeListeners(owner: self)
         _deckFocus.dispose()
         _notesFocus.dispose()
+        _outlineFocus.dispose()
         _search.dispose()
         _thumbScroll.dispose()
         _sorterScroll.dispose()
@@ -383,7 +396,18 @@ final class SlidesShellState: State<StatefulWidget> {
             guard let self else { return }
             self._endEditing()
             self.deck.setNotesPageView(false)
-            self.setState { self._sorter = sorter }
+            if self._outline { self.deck.endOutlineEdit() }
+            self.session.slidesOutline = false
+            self.setState { self._sorter = sorter; self._outline = false }
+        }
+        session.onSlidesOutline = { [weak self] in
+            guard let self else { return }
+            self._endEditing()
+            self.deck.setNotesPageView(false)
+            let on = !self._outline
+            if on { self._loadOutline() } else { self.deck.endOutlineEdit() }
+            self.session.slidesOutline = on
+            self.setState { self._outline = on; self._sorter = false }
         }
         session.onSlidesNotesPage = { [weak self] in
             guard let self else { return }
@@ -647,6 +671,7 @@ final class SlidesShellState: State<StatefulWidget> {
     }
 
     private func _deckChanged() {
+        if _outline && !_outlineSyncing && !_outlineFocus.hasFocus { _loadOutline() }
         _fitTables()
         _autofit()
         // A selected picture opens its tab; leaving it returns Home.
@@ -1350,7 +1375,7 @@ final class SlidesShellState: State<StatefulWidget> {
         if _sorter {
             column.append(Expanded(child: _sorterView(fluent)))
         } else {
-            var row: [Widget] = _narrow && !_narrowRail ? [] : [_thumbnailPane(fluent)]
+            var row: [Widget] = _narrow && !_narrowRail ? [] : [_outline ? _outlinePane(fluent) : _thumbnailPane(fluent)]
             row.append(Expanded(child: Column(crossAxisAlignment: .stretch, children: work)))
             var panes: [Widget] = []
             if _animationPane {
@@ -1896,6 +1921,58 @@ final class SlidesShellState: State<StatefulWidget> {
         return ColoredBox(color: dark ? Color(0xFF202020) : Color(0xFFE6E6E6), child: SingleChildScrollView(
             child: Padding(padding: EdgeInsets(left: 0, top: 20, right: 0, bottom: 20), child: Row(
                 mainAxisAlignment: .center, children: [page]))))
+    }
+
+    private func _loadOutline() {
+        let entries = deck.outlineEntries
+        if Outline.entries(from: _outlineCtl.document) == entries { return }
+        _outlineSyncing = true
+        _outlineCtl.load(Outline.document(entries))
+        _outlineSyncing = false
+    }
+
+    /// The list was typed in: the deck follows, and the slide under the caret shows.
+    private func _outlineEdited() {
+        guard _outline, !_outlineSyncing else { return }
+        _outlineSyncing = true
+        deck.applyOutline(Outline.entries(from: _outlineCtl.document))
+        let doc = _outlineCtl.document
+        let caret = _outlineCtl.selection.caret.paragraph
+        var slide = -1
+        for (i, p) in doc.paragraphs.enumerated() where i <= caret {
+            if p.style.listLevel <= 0 || slide < 0 { slide += 1 }
+        }
+        if slide >= 0 { deck.selectSlide(min(slide, deck.slides.count - 1)) }
+        _outlineSyncing = false
+    }
+
+    /// Tab demotes the line one level, Shift+Tab promotes it; a title is level 0.
+    private func _outlineShortcut(_ key: KeyData, _ mods: KeyModifiers) -> Bool {
+        guard KeyChordTracker.named(key.logical) == .tab else { return false }
+        let back = mods.contains(.shift)
+        _outlineCtl.applyParagraphStyle { st in
+            st.listLevel = max(0, min(5, st.listLevel + (back ? -1 : 1)))
+            st.indentLeft = Double(st.listLevel) * Outline.indentPerLevel
+        }
+        return true
+    }
+
+    private func _outlinePane(_ fluent: FluentThemeData) -> Widget {
+        let dark = fluent.brightness == .dark
+        _outlineTheme.textColor = dark ? Color(0xFFF0F0F0) : Color(0xFF1B1B1B)
+        _outlineTheme.caretColor = _outlineTheme.textColor
+        return SizedBox(key: ValueKey("outline.pane"), width: 320, height: nil, child: DecoratedBox(
+            decoration: BoxDecoration(
+                color: fluent.resources.solidBackgroundFillColorBase,
+                border: Border(right: BorderSide(color: fluent.resources.dividerStrokeColorDefault, width: 1))),
+            child: RichEditable(
+                key: ValueKey("outline.editor"),
+                controller: _outlineCtl, theme: _outlineTheme,
+                padding: EdgeInsets(left: 12, top: 10, right: 12, bottom: 10),
+                focusNode: _outlineFocus, autofocus: false, backgroundColor: nil,
+                onShortcut: { [weak self] key, mods in self?._outlineShortcut(key, mods) ?? false },
+                onTouchMenu: { [scene = self.officeScene, c = _outlineCtl] rect in scene.showTouchMenu(rect, controller: c) },
+                spellChecker: nil)))
     }
 
     private func _notesPane(_ fluent: FluentThemeData) -> Widget {

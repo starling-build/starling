@@ -301,6 +301,9 @@ final class OfficeSession {
     /// Normal view (false) or Slide Sorter (true).
     var onSlidesView: ((Bool) -> Void)?
     var onSlidesNotesPage: (() -> Void)?
+    /// Outline view: the slides' titles and body text as one editable list.
+    var onSlidesOutline: (() -> Void)?
+    var slidesOutline = false
     var slidesSorter = false
     /// Undo and redo when the kind has more history than the text (a deck).
     var onUndo: (() -> Void)?

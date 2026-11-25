@@ -522,9 +522,13 @@ extension Ribbon {
     private func _slidesView(_ fluent: FluentThemeData) -> [Widget] {
         [
             Chrome.group("Presentation Views", fluent, [
-                Chrome.bigToggle(FluentSystemIcons.onePage, "Normal", !session.slidesSorter && !(session.deck?.notesPageView ?? false), fluent) { [session] in
+                Chrome.bigToggle(FluentSystemIcons.onePage, "Normal", !session.slidesSorter && !session.slidesOutline && !(session.deck?.notesPageView ?? false), fluent) { [session] in
                     session.onSlidesView?(false)
                 },
+                Padding(key: ValueKey("view.outline"), padding: EdgeInsets(left: 0, top: 0, right: 0, bottom: 0),
+                        child: Chrome.bigToggle(FluentSystemIcons.document, "Outline View", session.slidesOutline && !session.slidesSorter, fluent) { [session] in
+                    session.onSlidesOutline?()
+                }),
                 Padding(key: ValueKey("view.notesPage"), padding: EdgeInsets(left: 0, top: 0, right: 0, bottom: 0),
                         child: Chrome.bigToggle(FluentSystemIcons.document, "Notes Page", (session.deck?.notesPageView ?? false) && !session.slidesSorter, fluent) { [session] in
                     session.onSlidesNotesPage?()
