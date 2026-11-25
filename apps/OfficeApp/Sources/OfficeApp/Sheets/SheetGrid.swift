@@ -1227,6 +1227,20 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         _repaint.notifyListeners()
     }
 
+    /// Text typed from outside the keyboard (the bar over it): into the cell being edited, at the caret.
+    func typeText(_ s: String) {
+        guard edit != nil else { return }
+        _pointRef = nil
+        _insert(s)
+        _ime?.sync()
+    }
+
+    /// F4 from outside the keyboard: the reference at the caret cycles absolute and relative.
+    func cycleAbsoluteReference() {
+        _cycleAbsolute()
+        _ime?.sync()
+    }
+
     // MARK: Keys
 
     /// F4: the reference at the caret cycles A1 → $A$1 → A$1 → $A1 → A1.
