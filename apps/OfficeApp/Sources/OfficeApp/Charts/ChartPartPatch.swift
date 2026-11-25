@@ -12,9 +12,14 @@ enum ChartPartEdit: Equatable {
     case remove
 }
 
-extension SheetDrawingsXML {
+/// Patches on a chart part's XML text, shared by Sheets and Slides: each changes only the elements it names.
+enum ChartPartPatch {
+    private static func _esc(_ s: String) -> String {
+        s.replacingAll("&", with: "&amp;").replacingAll("<", with: "&lt;").replacingAll(">", with: "&gt;").replacingAll("\"", with: "&quot;")
+    }
+
     /// The chart's own title (not an axis title: those stand inside the plot area).
-    static func _patchChartTitle(_ xml: String, _ edit: ChartPartEdit) -> String {
+    static func title(_ xml: String, _ edit: ChartPartEdit) -> String {
         guard let chartOpen = xml.findRange(of: "<c:chart>", in: xml.startIndex ..< xml.endIndex) else { return xml }
         let plot = xml.findRange(of: "<c:plotArea>", in: chartOpen.upperBound ..< xml.endIndex)?.lowerBound ?? xml.endIndex
         var x = xml
@@ -27,22 +32,22 @@ extension SheetDrawingsXML {
         switch edit {
         case .remove:
             if let r = existing { x.replaceSubrange(r, with: "") }
-            x = _setAutoTitleDeleted(x, true)
+            x = setAutoTitleDeleted(x, true)
         case .set(let text):
-            let esc = Xlsx._esc(text)
+            let esc = _esc(text)
             if let r = existing {
-                x.replaceSubrange(r, with: _retext(String(x[r]), esc))
+                x.replaceSubrange(r, with: retext(String(x[r]), esc))
             } else {
                 x.insert(contentsOf: "<c:title><c:tx><c:rich><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>\(esc)</a:t></a:r></a:p></c:rich></c:tx><c:overlay val=\"0\"/></c:title>",
                          at: x.findRange(of: "<c:chart>", in: x.startIndex ..< x.endIndex)!.upperBound)
             }
-            x = _setAutoTitleDeleted(x, false)
+            x = setAutoTitleDeleted(x, false)
         }
         return x
     }
 
     /// A title's XML with its words replaced: the first run keeps its formatting, later runs go.
-    private static func _retext(_ title: String, _ esc: String) -> String {
+    private static func retext(_ title: String, _ esc: String) -> String {
         guard let t0 = title.findRange(of: "<a:t>", in: title.startIndex ..< title.endIndex),
               let t1 = title.findRange(of: "</a:t>", in: t0.upperBound ..< title.endIndex) else {
             // A title from a cell (c:strRef) or without runs: a plain one in its place.
@@ -59,7 +64,7 @@ extension SheetDrawingsXML {
         return out
     }
 
-    private static func _setAutoTitleDeleted(_ xml: String, _ deleted: Bool) -> String {
+    private static func setAutoTitleDeleted(_ xml: String, _ deleted: Bool) -> String {
         let want = "<c:autoTitleDeleted val=\"\(deleted ? 1 : 0)\"/>"
         if let a = xml.findRange(of: "<c:autoTitleDeleted ", in: xml.startIndex ..< xml.endIndex),
            let e = xml.findRange(of: "/>", in: a.upperBound ..< xml.endIndex) {
@@ -75,7 +80,7 @@ extension SheetDrawingsXML {
     }
 
     /// The legend: its side, or none.
-    static func _patchChartLegend(_ xml: String, _ edit: ChartPartEdit) -> String {
+    static func legend(_ xml: String, _ edit: ChartPartEdit) -> String {
         var x = xml
         guard let plotEnd = x.findRange(of: "</c:plotArea>", in: x.startIndex ..< x.endIndex) else { return xml }
         var existing: Range<String.Index>? = nil
