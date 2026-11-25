@@ -621,7 +621,13 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             // (seen 2026-10-13).
             var heights = ws.rowHeights
             let book = controller.book
-            let wrapping = Set(book.styles.indices.filter { book.styles[$0].wrap })
+            // Larger type and turned text grow an unsized row the same way
+            // (X-AF-1); a row with a set height is never touched.
+            let defSize = book.defaultFontSize ?? 11
+            let wrapping = Set(book.styles.indices.filter {
+                let s = book.styles[$0]
+                return s.wrap || (s.fontSize ?? defSize) > defSize + 0.01 || s.rotation != 0
+            })
             if !wrapping.isEmpty {
                 for (a, cell) in ws.cells where wrapping.contains(cell.style) && ws.rowHeights[a.row] == nil && cell.value.isText {
                     if ws.merges.contains(where: { $0.contains(a) }) { continue }
@@ -629,7 +635,18 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                     let width = cols.size(a.col) - 4 * zoom
                     guard width > 4 else { continue }
                     let text = NumberFormat.display(cell.value, st.numberFormat, width: 255).text
-                    let tall = texts.painter(text, _textStyle(st, color: nil, ink: Color(0xFF00_0000)), maxWidth: width).height / scale + 1.5
+                    let ts = _textStyle(st, color: nil, ink: Color(0xFF00_0000))
+                    var tall: Double
+                    if st.rotation != 0 && st.rotation != 255 {
+                        let one = texts.painter(text, ts, maxWidth: 10_000)
+                        let w = one.width / scale, h = one.height / scale
+                        let th = Double(st.rotation > 90 ? st.rotation - 90 : st.rotation) * .pi / 180
+                        tall = w * abs(sin(th)) + h * abs(cos(th)) + 1.5
+                    } else if st.wrap {
+                        tall = texts.painter(text, ts, maxWidth: width).height / scale + 1.5
+                    } else {
+                        tall = texts.painter(text, ts, maxWidth: 10_000).height / scale + 1.5
+                    }
                     if tall > ws.defaultRowHeightPt, tall > heights[a.row] ?? 0 { heights[a.row] = tall }
                 }
             }
