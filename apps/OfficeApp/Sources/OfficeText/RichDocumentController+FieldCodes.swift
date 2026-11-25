@@ -158,3 +158,72 @@ extension RichDocumentController {
         }
     }
 }
+
+/// F9 (Update Field): PAGE, NUMPAGES and PAGEREF in the body brought up to date from the layout.
+extension RichDocumentController {
+    /// The field's new result, or nil where this update does not know the kind.
+    private func _fieldResult(_ instr: String, paragraph: Int, pageOf: (Int) -> String?, pageCount: Int) -> String? {
+        let words = instr.split(separator: " ", omittingEmptySubsequences: true).map(String.init)
+        guard let kind = words.first?.uppercased() else { return nil }
+        switch kind {
+        case "PAGE": return pageOf(paragraph)
+        case "NUMPAGES": return String(pageCount)
+        case "PAGEREF":
+            guard words.count > 1, !words.contains("\\p") else { return nil }
+            let name = words[1].filter { $0 != "\"" }.lowercased()
+            guard let home = document.paragraphs.firstIndex(where: { $0.bookmarks.contains { $0.lowercased() == name } }) else { return nil }
+            return pageOf(home)
+        default: return nil
+        }
+    }
+
+    /// Update the fields in the selection, or the one at the caret. Returns how many results changed.
+    @discardableResult
+    public func updateFields(pageOf: (Int) -> String?, pageCount: Int) -> Int {
+        guard !readOnly else { return 0 }
+        let a = document.clamped(selection.start), b = document.clamped(selection.end)
+        var changed: [(Int, RichParagraph)] = []
+        for i in a.paragraph ... b.paragraph {
+            let p = document.paragraphs[i]
+            let lo = i == a.paragraph ? a.offset : 0, hi = i == b.paragraph ? b.offset : Int.max
+            let groups = _resultGroups(p).filter { $0.end >= lo && $0.start <= hi }
+            guard !groups.isEmpty else { continue }
+            let units = _units(p)
+            var text = "", runs: [Run] = [], cursor = 0, runIndex = 0, touched = false
+            func copyUntil(_ target: Int) {
+                while runIndex < p.runs.count, cursor < target {
+                    let r = p.runs[runIndex]
+                    text += String(decoding: units[min(cursor, units.count) ..< min(cursor + r.length, units.count)], as: UTF16.self)
+                    runs.append(r); cursor += r.length; runIndex += 1
+                }
+            }
+            for g in groups {
+                copyUntil(g.start)
+                let first = p.runs[g.runs.lowerBound].style
+                guard let instr = Self._instruction(first),
+                      let result = _fieldResult(instr, paragraph: i, pageOf: pageOf, pageCount: pageCount) else { continue }
+                let old = String(decoding: units[min(g.start, units.count) ..< min(g.end, units.count)], as: UTF16.self)
+                while runIndex < g.runs.upperBound { cursor += p.runs[runIndex].length; runIndex += 1 }
+                if old == result {
+                    text += old
+                    for k in g.runs { runs.append(p.runs[k]) }
+                } else {
+                    touched = true
+                    text += result
+                    if !result.isEmpty { runs.append(Run(length: result.utf16.count, style: first)) }
+                }
+            }
+            copyUntil(units.count)
+            guard touched else { continue }
+            var q = p; q.text = text; q.runs = runs
+            changed.append((i, q))
+        }
+        guard !changed.isEmpty else { return 0 }
+        let caret = selection.focus
+        edit {
+            for (i, q) in changed { perform(.restoreParagraphs(i, count: 1, [q])) }
+            moveTo(document.clamped(caret), extend: false)
+        }
+        return changed.count
+    }
+}
