@@ -408,6 +408,7 @@ final class Ribbon: StatelessWidget {
                                                 ("• Bullet", "•"), ("§ Section", "§"), ("° Degree", "°"),
                                                 ("€ Euro", "€"), ("£ Pound", "£"), ("¥ Yen", "¥")]
             .map { name, ch in (name, { c.insertText(ch) }) }
+            + [("More Symbols…", { [session] in session.onSymbolDialog?() })]
         return [
             Chrome.group("Pages", fluent, [
                 Chrome.big(FluentSystemIcons.pageBreak, "Page Break", fluent) { c.insertPageBreak() },
