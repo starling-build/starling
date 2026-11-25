@@ -1052,6 +1052,13 @@ extension WorkbookController {
             else if sc.path == nil, let at = r.source, sc.chart.series.indices.contains(at) { series.append(sc.chart.series[at]) }
             else { series.append(ChartSeries(name: "Series\(n + 1)", values: [])) }
         }
+        if sc.path == nil {
+            // A series keeps its own number (c:idx) when another is removed, so its automatic colour stays; a new one takes the next free number.
+            var keep: [Int?] = list.map { r in r.source.flatMap { at in sc.chart.series.indices.contains(at) ? (sc.chart.series[at].autoIndex ?? at) : nil } }
+            var next = (keep.compactMap { $0 }.max() ?? -1) + 1
+            for k in keep.indices where keep[k] == nil { keep[k] = next; next += 1 }
+            for k in series.indices { series[k].autoIndex = keep[k] }
+        }
         sc.chart.series = series
         sc.refs = list.map { (name: $0.name, cat: $0.cat, val: $0.val) }
         if sc.path != nil { sc.seriesEdit = list } else { sc.chart.series = series }

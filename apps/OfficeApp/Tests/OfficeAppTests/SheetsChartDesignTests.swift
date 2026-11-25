@@ -186,6 +186,13 @@ final class SheetsChartDesignTests: XCTestCase {
         let live = c.liveChart({ if case .chart(let sc) = c.sheet.drawings[i].kind { return sc }; fatalError() }())
         XCTAssertEqual(live.series.map(\.name), ["Cost", "Tax"])
         XCTAssertEqual(live.series[1].values, [1, 2])
+        // Cost keeps its own number (so its automatic colour), the new series takes the next free one.
+        do {
+            let w = try XCTUnwrap(Xlsx.write(c.book)); let ents = try Zip.read(w)
+            let x = String(decoding: ents.first { $0.name.hasPrefix("xl/charts/chart") && $0.name.hasSuffix(".xml") }!.data, as: UTF8.self)
+            let ids = x.components(separatedBy: "<c:ser><c:idx val=\"").dropFirst().map { String($0.prefix { $0 != "\"" }) }
+            XCTAssertEqual(ids, ["1", "2"])
+        }
         c.undo()
         XCTAssertEqual(c.chartSeries(i)?.count, 2)
         c.redo()
@@ -209,7 +216,7 @@ final class SheetsChartDesignTests: XCTestCase {
         }
         let xml = "<c:plotArea><c:barChart>" + ser(0, "S!$B$2:$B$3") + ser(1, "S!$C$2:$C$3") + "</c:barChart><c:lineChart>" + ser(5, "S!$D$2:$D$3") + "</c:lineChart></c:plotArea>"
         let list = [ChartSeriesRef(source: 0, name: "S!$A$1", cat: "S!$A$2:$A$3", val: "S!$B$2:$B$3"),
-                    ChartSeriesRef(source: 2, name: "S!$A$1", cat: "S!$A$2:$A$3", val: "S!$E$2:$E$3"),
+                    ChartSeriesRef(source: 1, name: "S!$A$1", cat: "S!$A$2:$A$3", val: "S!$E$2:$E$3"),
                     ChartSeriesRef(source: nil, name: nil, cat: "S!$A$2:$A$3", val: "S!$F$2:$F$3"),
                     ChartSeriesRef(source: nil, name: nil, cat: nil, val: "S!$G$2:$G$3")]
         let out = ChartPartPatch.series(xml, list)
@@ -218,16 +225,18 @@ final class SheetsChartDesignTests: XCTestCase {
             idxs.append(String(part.components(separatedBy: "<c:idx val=\"")[1].prefix(while: { $0 != "\"" })))
             orders.append(String(part.components(separatedBy: "<c:order val=\"")[1].prefix(while: { $0 != "\"" })))
         }
-        XCTAssertEqual(idxs.count, 4)
-        XCTAssertEqual(Set(idxs).count, 4); XCTAssertEqual(Set(orders).count, 4)
+        // Four listed (first group) plus the second group's own series, left as it was.
+        XCTAssertEqual(idxs.count, 5)
+        XCTAssertEqual(Set(idxs).count, 5); XCTAssertEqual(Set(orders).count, 5)
         XCTAssertEqual(idxs.prefix(1), ["0"])
         // The kept series are untouched where they were not edited (colour, cache); the new ones carry no colour.
         XCTAssertTrue(out.containsSubstring("<c:strCache>"))
-        XCTAssertEqual(out.components(separatedBy: "FF0000").count - 1, 2)
+        XCTAssertEqual(out.components(separatedBy: "FF0000").count - 1, 3)
         XCTAssertFalse(out.containsSubstring("S!$C$2:$C$3"))
         XCTAssertTrue(out.containsSubstring("<c:f>S!$G$2:$G$3</c:f>"))
-        // The new series sit in the line group, after the last kept series.
-        XCTAssertTrue(out.components(separatedBy: "<c:lineChart>")[1].containsSubstring("S!$F$2:$F$3"))
+        // The new series sit after the last kept series; the other group is not touched.
+        XCTAssertTrue(out.components(separatedBy: "<c:lineChart>")[0].containsSubstring("S!$F$2:$F$3"))
+        XCTAssertTrue(out.components(separatedBy: "<c:lineChart>")[1].containsSubstring("S!$D$2:$D$3"))
     }
 
     /// A chart part without its own title, its legend and autoTitleDeleted (what an edit may change), as one string.
@@ -290,5 +299,54 @@ final class SheetsChartDesignTests: XCTestCase {
         print("CHARTCORPUS books=\(books) unread=\(unread) charts=\(charts) parts=\(parts) partsDifferingOutsideTitleLegend=\(bad)")
         for (k, v) in changed.sorted(by: { $0.key < $1.key }) { print("CHARTCHANGED \(k) in \(v) parts") }
         XCTAssertEqual(bad, 0)
+    }
+
+    /// Corpus round trip for Select Data (CHART_CORPUS=<dir>): (1) every chart's series set to what it already is leaves the chart part
+    /// byte-identical; (2) the last series removed leaves one fewer c:ser and every c:idx and c:order unique.
+    func testCorpusSeriesEdits() throws {
+        guard let dir = ProcessInfo.processInfo.environment["CHART_CORPUS"] else { return }
+        var charts = 0, same = 0, notSame = 0, removed = 0, dup = 0, wrongCount = 0
+        let fm = FileManager.default
+        func count(_ x: String, _ t: String) -> Int { x.components(separatedBy: t).count - 1 }
+        func ids(_ x: String, _ tag: String) -> [String] {
+            x.components(separatedBy: "<c:\(tag) val=\"").dropFirst().map { String($0.prefix { $0 != "\"" }) }
+        }
+        let names = (fm.enumerator(atPath: dir)?.allObjects as? [String] ?? []).filter { $0.hasSuffix(".xlsx") }.sorted()
+        for n in names {
+            guard let data = fm.contents(atPath: dir + "/" + n), let entries = try? Zip.read(data),
+                  entries.contains(where: { $0.name.hasPrefix("xl/charts/chart") && $0.name.hasSuffix(".xml") }),
+                  let book = try? Xlsx.read(data) else { continue }
+            let was = Dictionary(entries.map { ($0.name, $0.data) }, uniquingKeysWith: { a, _ in a })
+            for mode in 0 ..< 2 {
+                let c = WorkbookController(); c.load(book)
+                var any = false
+                for si in 0 ..< c.book.sheets.count {
+                    c.activeSheet = si
+                    for (j, d) in c.sheet.drawings.enumerated() where d.isChart {
+                        guard let list = c.chartSeries(j) else { continue }
+                        any = true
+                        if mode == 0 { charts += 1; _ = c.setChartSeries(j, list) }
+                        else if list.count > 1 { _ = c.setChartSeries(j, Array(list.dropLast())) }
+                    }
+                }
+                guard any, let out = try? Xlsx.write(c.book), let outEntries = try? Zip.read(out) else { continue }
+                for e in outEntries where e.name.hasPrefix("xl/charts/chart") && e.name.hasSuffix(".xml") {
+                    guard let old = was[e.name] else { continue }
+                    let oa = String(decoding: old, as: UTF8.self), ob = String(decoding: e.data, as: UTF8.self)
+                    if mode == 0 { if oa == ob { same += 1 } else { notSame += 1; print("SERDIFF \(n) \(e.name)") } }
+                    else if oa != ob {
+                        removed += 1
+                        let i = ids(ob, "idx").filter { _ in true }, o = ids(ob, "order")
+                        let sers = count(ob, "<c:ser>")
+                        // c:idx also appears on c:dLbl; compare only the ser-level ones through the order list, which is ser-only
+                        if Set(o).count != o.count { dup += 1; print("SERDUP \(n) \(e.name)") }
+                        if sers != count(oa, "<c:ser>") - 1 { wrongCount += 1; print("SERCOUNT \(n) \(e.name) was \(count(oa, "<c:ser>")) now \(sers)") }
+                        _ = i
+                    }
+                }
+            }
+        }
+        print("SERCORPUS charts=\(charts) identityUnchanged=\(same) identityChanged=\(notSame) removedParts=\(removed) duplicateOrder=\(dup) wrongSeriesCount=\(wrongCount)")
+        XCTAssertEqual(notSame, 0); XCTAssertEqual(dup, 0); XCTAssertEqual(wrongCount, 0)
     }
 }

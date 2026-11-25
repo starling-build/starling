@@ -220,10 +220,17 @@ enum ChartPartPatch {
             sers.append(a.lowerBound ..< b.upperBound)
             at = b.upperBound
         }
+        let allSers = sers
+        // Only the first chart group's series are the model's (a second group, a secondary axis, is not listed): the others stay as written.
+        if let g = xml.findRange(of: "<c:plotArea>", in: xml.startIndex ..< xml.endIndex),
+           let first = sers.first(where: { $0.lowerBound >= g.upperBound }),
+           let close = xml.findRange(of: "Chart>", in: first.upperBound ..< xml.endIndex) {
+            sers = sers.filter { $0.lowerBound < close.lowerBound }
+        }
         guard !sers.isEmpty else { return xml }
         let scatter = xml.containsSubstring("<c:scatterChart>")
         var maxIdx = -1, maxOrder = -1
-        for r in sers {
+        for r in allSers {
             let t = String(xml[r])
             maxIdx = max(maxIdx, _firstValue(t, "idx") ?? -1); maxOrder = max(maxOrder, _firstValue(t, "order") ?? -1)
         }
