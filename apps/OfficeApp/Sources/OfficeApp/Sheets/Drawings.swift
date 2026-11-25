@@ -119,6 +119,8 @@ struct SheetDrawing: Equatable {
     /// `cNvPr@descr`: the alt text a screen reader says. `rawDescr` is what the file had.
     var descr: String? = nil
     var rawDescr: String? = nil
+    /// A shape made here as a text box (`cNvSpPr@txBox`).
+    var textBox = false
 
     var isChart: Bool { if case .chart = kind { return true } else { return false } }
 }
@@ -599,7 +601,11 @@ extension SheetDrawingsXML {
             let name = Xlsx._esc(d.name.isEmpty ? (d.isChart ? "Chart \(shapeId)" : "Picture \(shapeId)") : d.name)
             var content: String
             switch d.kind {
-            case .other, .shape: continue      // kept by their raw text above
+            case .other: continue      // kept by their raw text above
+            case .shape(let s):
+                // Made here (a file's shape is kept by its raw text above).
+                if s.isGroup { continue }
+                content = s.xml(id: shapeId, name: d.name, textBox: d.textBox)
             case .picture(let path, let data):
                 // A picture put in here carries its bytes: the media part is new.
                 if original[path] == nil, !path.isEmpty { out.parts[path] = data; taken.insert(path) }

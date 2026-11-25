@@ -361,4 +361,32 @@ extension SheetsChartTests {
             try Xlsx.write(c.book).write(to: URL(fileURLWithPath: "\(dir)/chartform-\(name).xlsx"))
         }
     }
+
+    func testInsertedShapesAndTextBoxAreWrittenAndReadBack() throws {
+        let (c, _, _) = try formController()
+        let before = c.sheet.drawings.count
+        XCTAssertTrue(c.insertShape(.roundRect))
+        c.setShapeText(c.sheet.drawings.count - 1, "Hello\nthere")
+        XCTAssertTrue(c.insertShape(.textBox))
+        c.setShapeText(c.sheet.drawings.count - 1, "A & B")
+        XCTAssertTrue(c.insertShape(.arrow))
+        let data = try Xlsx.write(c.book)
+        let drawing = try Zip.read(data).first { $0.name.hasPrefix("xl/drawings/drawing") && !$0.name.contains("_rels")
+            && String(decoding: $0.data, as: UTF8.self).containsSubstring("roundRect") }
+        let xml = String(decoding: try XCTUnwrap(drawing).data, as: UTF8.self)
+        XCTAssertTrue(xml.contains("prst=\"roundRect\""))
+        XCTAssertTrue(xml.contains("txBox=\"1\""))
+        XCTAssertTrue(xml.contains("<xdr:cxnSp"))
+        XCTAssertTrue(xml.contains("<a:tailEnd type=\"triangle\"/>"))
+        XCTAssertTrue(xml.contains("A &amp; B"))
+        let back = WorkbookController()
+        back.load(try Xlsx.read(data))
+        XCTAssertEqual(back.sheet.drawings.count, before + 3)
+        let texts = back.sheet.drawings.compactMap { d -> String? in if case .shape(let s) = d.kind { return s.plainText }; return nil }
+        XCTAssertTrue(texts.contains("Hello\nthere"))
+        XCTAssertTrue(texts.contains("A & B"))
+        if let dir = ProcessInfo.processInfo.environment["XCHECK_DIR"] {
+            try data.write(to: URL(fileURLWithPath: "\(dir)/shapes-insert.xlsx"))
+        }
+    }
 }

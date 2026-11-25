@@ -48,6 +48,8 @@ enum SheetCommand {
     case protectWorkbookDialog     // Review → Protect Workbook / Unprotect Workbook
     case pageSetup                 // Layout → Page Setup: the dialog
     case insertPicture             // Insert → Pictures: choose an image file and place it
+    case insertShape(ShapeChoice)  // Insert → Shapes / Text Box: a new shape at the active cell
+    case editShapeText             // the selected shape's words
     case altText                   // Insert → Alt Text: the selected picture's description
     case editNote                  // Review → New/Edit Note: the editor beside the active cell
 }
@@ -381,6 +383,13 @@ extension Ribbon {
         var items: [Widget] = [Chrome.big(FluentSystemIcons.image, "Pictures", fluent) { wb.onCommand?(.insertPicture) }]
         if let i = wb.selectedDrawing, wb.sheet.drawings.indices.contains(i), case .picture = wb.sheet.drawings[i].kind {
             items.append(Chrome.big(FluentSystemIcons.image, "Alt Text", fluent) { wb.onCommand?(.altText) })
+        }
+        items.append(Chrome.menuButton(FluentSystemIcons.image, "Shapes", "Insert a shape", fluent,
+            items: ShapeChoice.allCases.filter { $0 != .textBox }.map { c in
+                MenuFlyoutItem(text: Text(c.label), onPressed: { wb.onCommand?(.insertShape(c)) }) }))
+        items.append(Chrome.big(FluentSystemIcons.image, "Text Box", fluent) { wb.onCommand?(.insertShape(.textBox)) })
+        if let i = wb.selectedDrawing, wb.sheet.drawings.indices.contains(i), wb.sheet.drawings[i].raw == nil, case .shape(let s) = wb.sheet.drawings[i].kind, s.geometry != "line" {
+            items.append(Chrome.big(FluentSystemIcons.image, "Edit Text", fluent) { wb.onCommand?(.editShapeText) })
         }
         return Chrome.group("Illustrations", fluent, items)
     }

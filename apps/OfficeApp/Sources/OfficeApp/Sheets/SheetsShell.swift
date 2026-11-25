@@ -112,6 +112,7 @@ final class SheetsShellState: State<StatefulWidget> {
     /// The Insert Hyperlink dialog is open (X-LK-1).
     private var _linkOpen = false
     private var _altOpen = false
+    private var _shapeTextOpen = false
     private let _findQuery = TextEditingController()
     private let _contextMenu = FlyoutController()
     private let _filterMenu = FlyoutController()
@@ -495,6 +496,10 @@ final class SheetsShellState: State<StatefulWidget> {
             if let region = wb.sortRegion() { setState { _sortOpen = region } }
             else { _flash(SortProblem.nothingToSort.message) }
         case .insertPicture: _pickPicture()
+        case .insertShape(let c):
+            if wb.insertShape(c), c == .textBox { setState { _shapeTextOpen = true } }
+        case .editShapeText:
+            if let i = wb.selectedDrawing, wb.sheet.drawings.indices.contains(i), wb.sheet.drawings[i].raw == nil { setState { _shapeTextOpen = true } }
         case .altText:
             if let i = wb.selectedDrawing, wb.sheet.drawings.indices.contains(i), case .picture = wb.sheet.drawings[i].kind {
                 setState { _altOpen = true }
@@ -1345,6 +1350,16 @@ final class SheetsShellState: State<StatefulWidget> {
                     self?._grid?.focus.requestFocus()
                 },
                 onCancel: { [weak self] in self?.setState { self?._altOpen = false }; self?._grid?.focus.requestFocus() })))
+        }
+        if _shapeTextOpen, let i = wb.selectedDrawing, wb.sheet.drawings.indices.contains(i), case .shape(let s) = wb.sheet.drawings[i].kind {
+            layers.append(Positioned(left: 0, top: 0, right: 0, bottom: 0, child: AltTextDialog(
+                initial: s.plainText, title: "Edit Text", prompt: "The words in this shape:", lines: 4,
+                onApply: { [weak self] text in
+                    self?.wb.setShapeText(i, text)
+                    self?.setState { self?._shapeTextOpen = false }
+                    self?._grid?.focus.requestFocus()
+                },
+                onCancel: { [weak self] in self?.setState { self?._shapeTextOpen = false }; self?._grid?.focus.requestFocus() })))
         }
         if _linkOpen {
             layers.append(Positioned(left: 0, top: 0, right: 0, bottom: 0, child: HyperlinkDialog(
