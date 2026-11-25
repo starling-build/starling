@@ -472,6 +472,17 @@ extension XlsxTests {
         XCTAssertTrue(out.containsSubstring("t=\"s\""), out)
     }
 
+    /// A strict-format date cell (t="d") reads as the date's serial number.
+    func testIsoDateCellReadsAsSerial() throws {
+        let c = WorkbookController()
+        c.load(Workbook(sheets: [Worksheet(name: "S")]))
+        c.setInputs([(a("A1"), "x")])
+        let (book, _) = try readPatchedSheet(c, "<sheetData><row r=\"1\"><c r=\"A1\" t=\"d\"><v>1990-01-01</v></c><c r=\"B1\" t=\"d\"><v>1990-01-01T12:00:00</v></c><c r=\"C1\" t=\"d\"><v>junk</v></c></row></sheetData>")
+        XCTAssertEqual(book.sheets[0].value(a("A1")), .number(32874))
+        XCTAssertEqual(book.sheets[0].value(a("B1")), .number(32874.5))
+        XCTAssertEqual(book.sheets[0].value(a("C1")), .empty)
+    }
+
     /// An array formula's other cells keep the file's values when our result leaves them blank.
     func testArraySpillCellsKeepTheFilesValues() throws {
         let c = WorkbookController()

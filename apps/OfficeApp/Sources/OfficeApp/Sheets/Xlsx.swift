@@ -429,6 +429,9 @@ enum Xlsx {
                 case "str": value = .text(vText ?? "")
                 case "b": value = .bool(vText == "1" || vText == "true")
                 case "e": value = .error(ExcelError(rawValue: vText ?? "") ?? .value)
+                // (An ISO 8601 date, "1990-01-01" or with a time: the strict format's
+                // date cell. It becomes the date's serial number.)
+                case "d": value = vText.flatMap { Xlsx._isoDateSerial($0) }.map { .number($0) } ?? .empty
                 // (Excel reads a number stored with blanks around it: lo-tdf124525's
                 // "    0.0402000000" cells print as 0.0402, not as nothing.)
                 default: value = vText.flatMap { Double($0.drop(while: { $0 == " " || $0 == "\n" || $0 == "\t" })) }.map { .number($0) } ?? .empty
@@ -1872,6 +1875,22 @@ enum Xlsx {
         var out = ""
         for shift in stride(from: 20, through: 0, by: -4) { out.append(digits[Int((v >> UInt32(shift)) & 0xF)]) }
         return out
+    }
+
+    /// "yyyy-mm-dd" or "yyyy-mm-ddThh:mm[:ss]" as a date serial; nil when it is neither.
+    static func _isoDateSerial(_ text: String) -> Double? {
+        let t = text.trimmingSpaces()
+        let parts = t.split(separator: "T", omittingEmptySubsequences: false).map(String.init)
+        let d = parts[0].split(separator: "-", omittingEmptySubsequences: false).map { Int($0) }
+        guard parts.count <= 2, d.count == 3, let y = d[0], let m = d[1], let day = d[2],
+              m >= 1, m <= 12, day >= 1, day <= 31 else { return nil }
+        var serial = ExcelDate.serial(y, m, day)
+        if parts.count == 2 {
+            let hms = parts[1].prefix(while: { $0 != "Z" && $0 != "+" }).split(separator: ":").map { Double($0) }
+            guard hms.count >= 2, let h = hms[0], let mi = hms[1] else { return nil }
+            serial += (h * 3600 + mi * 60 + (hms.count > 2 ? (hms[2] ?? 0) : 0)) / 86400
+        }
+        return serial
     }
 
     static func _esc(_ s: String) -> String {
