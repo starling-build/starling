@@ -7383,7 +7383,7 @@ final class DocxTests: XCTestCase {
             let at = try XCTUnwrap(stylesAgain.range(of: "w:styleId=\"\(id)\""))
             return String(stylesAgain[at.upperBound...]).components(separatedBy: "</w:style>")[0]
         }
-        XCTAssertFalse(try style("Heading5").contains("<w:keepNext/>"), stylesAgain)
+        XCTAssertFalse(try style("5").contains("<w:keepNext/>"), stylesAgain)
         XCTAssertTrue(try style("Kept").contains("<w:keepNext/>"), stylesAgain)
         XCTAssertTrue(try style("Own").contains("<w:sz w:val=\"24\"/>"), stylesAgain)  // kept as the file wrote it
         XCTAssertFalse(try style("Kept").contains("<w:kern w:val=\"0\"/>"), stylesAgain)

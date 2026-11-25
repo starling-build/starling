@@ -568,22 +568,28 @@ extension DocxFormat {
     /// `under` is the paragraph style's spacing: auto spacing the style
     /// turns on and the paragraph turns off is written as off (drawing's
     /// "after 240, afterAutospacing 0" under an auto-spaced style).
-    static func _spacingXML(_ s: RichParagraphStyle, under: RichParagraphStyle? = nil) -> String {
+    static func _spacingXML(_ s: RichParagraphStyle, under: RichParagraphStyle? = nil, omittingWhatItsStyleSays sheet: RichParagraphStyle? = nil) -> String {
+        func same(_ f: (RichParagraphStyle) -> AnyHashable) -> Bool { sheet.map { f($0) == f(s) } ?? false }
         var spacing = ""
         // Zero included, when the paragraph's style has space before: a
         // Heading 6 spacer that says before 0 came back with the style's
         // 2pt, which moved the rest of form_footnotes' first page.
-        if s.spaceBefore > 0 || (under?.spaceBefore ?? 0) > 0 { spacing += " w:before=\"\(Int((s.spaceBefore * 20).rounded()))\"" }
-        if s.spaceBeforeAuto { spacing += " w:beforeAutospacing=\"1\"" } else if under?.spaceBeforeAuto ?? false { spacing += " w:beforeAutospacing=\"0\"" }
-        spacing += " w:after=\"\(Int((s.spaceAfter * 20).rounded()))\""
-        if s.spaceAfterAuto { spacing += " w:afterAutospacing=\"1\"" } else if under?.spaceAfterAuto ?? false { spacing += " w:afterAutospacing=\"0\"" }
-        if s.lineCollapsed, s.lineHeightPoints == nil {
+        let beforeSaid = same { [$0.spaceBefore, $0.spaceBeforeAuto] as [AnyHashable] }
+        let afterSaid = same { [$0.spaceAfter, $0.spaceAfterAuto] as [AnyHashable] }
+        let lineSaid = same { [$0.lineSpacing, $0.lineHeightPoints as Double?, $0.lineHeightIsMinimum, $0.lineCollapsed] as [AnyHashable] }
+        if !beforeSaid, s.spaceBefore > 0 || (under?.spaceBefore ?? 0) > 0 { spacing += " w:before=\"\(Int((s.spaceBefore * 20).rounded()))\"" }
+        if beforeSaid {} else if s.spaceBeforeAuto { spacing += " w:beforeAutospacing=\"1\"" } else if under?.spaceBeforeAuto ?? false { spacing += " w:beforeAutospacing=\"0\"" }
+        if !afterSaid { spacing += " w:after=\"\(Int((s.spaceAfter * 20).rounded()))\"" }
+        if afterSaid {} else if s.spaceAfterAuto { spacing += " w:afterAutospacing=\"1\"" } else if under?.spaceAfterAuto ?? false { spacing += " w:afterAutospacing=\"0\"" }
+        if lineSaid {
+        } else if s.lineCollapsed, s.lineHeightPoints == nil {
             spacing += " w:line=\"0\" w:lineRule=\"auto\""
         } else if let pts = s.lineHeightPoints {
             spacing += " w:line=\"\(Int((pts * 20).rounded()))\" w:lineRule=\"\(s.lineHeightIsMinimum ? "atLeast" : "exact")\""
         } else {
             spacing += " w:line=\"\(Int((s.lineSpacing * 240).rounded()))\" w:lineRule=\"auto\""
         }
+        if spacing.isEmpty, sheet != nil { return "" }
         return "<w:spacing\(spacing)/>"
     }
 
@@ -1292,8 +1298,11 @@ extension DocxFormat {
             }
             var body = ""
             var pPr = ""
-            if let h = p.style.heading { pPr += "<w:pStyle w:val=\"Heading\(min(h, 6))\"/>" }
-            else if let n = p.style.named, doc.styles[n] != nil { pPr += "<w:pStyle w:val=\"\(_esc(n))\"/>" }
+            // A paragraph of a file keeps the id its style has in that file (Heading 1 is "2" there, "HTML Preformatted"
+            // is "HTML"): the file defines it, and the save must not add a second definition under our id.
+            func fileId(_ ours: String) -> String { doc.readFromFile ? (doc.styleSource[ours] ?? ours) : ours }
+            if let h = p.style.heading { pPr += "<w:pStyle w:val=\"\(_esc(fileId("Heading\(min(h, 6))")))\"/>" }
+            else if let n = p.style.named, doc.styles[n] != nil { pPr += "<w:pStyle w:val=\"\(_esc(fileId(n)))\"/>" }
             else if p.style.list != nil, !doc.readFromFile { pPr += "<w:pStyle w:val=\"ListParagraph\"/>" }
             // (Said as off where the file's style keeps and this one does not.)
             let styled = doc.readFromFile ? (p.style.heading.map { "Heading\(min($0, 6))" } ?? p.style.named).flatMap { doc.styles[$0]?.paragraph } : nil
@@ -1349,14 +1358,12 @@ extension DocxFormat {
                 && ownSheet!.lineHeightPoints == p.style.lineHeightPoints && !p.style.spaceBeforeAuto && !p.style.spaceAfterAuto
                 && !ownSheet!.spaceBeforeAuto && !ownSheet!.spaceAfterAuto
             let inheritsInd = ownSheet != nil && holds(\.indentLeft) && holds(\.indentRight) && holds(\.firstLineIndent)
-            let fileInheritsSpacing: Bool = fileSheet.map { sh in
-                sh.spaceBefore == p.style.spaceBefore && sh.spaceAfter == p.style.spaceAfter && sh.lineSpacing == p.style.lineSpacing
-                    && sh.lineHeightPoints == p.style.lineHeightPoints && sh.lineHeightIsMinimum == p.style.lineHeightIsMinimum
-                    && sh.lineCollapsed == p.style.lineCollapsed
-                    && sh.spaceBeforeAuto == p.style.spaceBeforeAuto && sh.spaceAfterAuto == p.style.spaceAfterAuto
-                    && _withEastAsian(_spacingXML(p.style), "w:spacing", _eastAsianSpacing, p.style) == _spacingXML(p.style)
-            } ?? false
-            if !inheritsSpacing && !fileInheritsSpacing { pPr += _withEastAsian(_spacingXML(p.style, under: (p.style.heading.flatMap { doc.styles["Heading\(min($0, 6))"] } ?? p.style.named.flatMap { doc.styles[$0] })?.paragraph), "w:spacing", _eastAsianSpacing, p.style) }
+            if !inheritsSpacing {
+                let under = (p.style.heading.flatMap { doc.styles["Heading\(min($0, 6))"] } ?? p.style.named.flatMap { doc.styles[$0] })?.paragraph
+                let plain = _spacingXML(p.style, under: under)
+                let withEA = _withEastAsian(plain, "w:spacing", _eastAsianSpacing, p.style)
+                pPr += withEA == plain ? _spacingXML(p.style, under: under, omittingWhatItsStyleSays: fileSheet) : withEA
+            }
             // Indents the style sets and the paragraph unsets are written
             // as zero: IllustrativeCases' Body Text Indent hangs 0.75in
             // into the margin and every paragraph of it says left 0.
@@ -1528,7 +1535,7 @@ extension DocxFormat {
                     body += "</w:r>"
                     continue
                 }
-                if s.link != nil, s.linkField == nil, !s.linkKeepsLook, !rPr.hasPrefix("<w:rStyle ") { rPr = "<w:rStyle w:val=\"\(_esc(doc.keptCharacterStyleIds["hyperlink"] ?? "Hyperlink"))\"/>" + rPr }
+                if s.link != nil, s.linkField == nil, !s.linkKeepsLook, !rPr.hasPrefix("<w:rStyle "), !doc.readFromFile || doc.keptCharacterStyleIds["hyperlink"] != nil { rPr = "<w:rStyle w:val=\"\(_esc(doc.keptCharacterStyleIds["hyperlink"] ?? "Hyperlink"))\"/>" + rPr }
                 let rPrXML = rPr.isEmpty ? "" : "<w:rPr>\(rPr)</w:rPr>"
                 var runXML = ""
                 let isBox: (Character) -> Bool = { $0 == "\u{2610}" || $0 == "\u{2612}" }
@@ -1959,7 +1966,9 @@ extension DocxFormat {
 
         var relsXML = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">"
         relsXML += "<Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles\" Target=\"styles.xml\"/>"
-        relsXML += "<Relationship Id=\"rId2\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering\" Target=\"numbering.xml\"/>"
+        // A file with no numbering part and no list keeps none (the save used to add one to every such file).
+        let dropNumbering = doc.readFromFile && doc.keptNumberingXML == nil && !numIdOf.contains { $0 != 0 }
+        if !dropNumbering { relsXML += "<Relationship Id=\"rId2\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering\" Target=\"numbering.xml\"/>" }
         for r in rels {
             relsXML += "<Relationship Id=\"\(r.id)\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink\" Target=\"\(_esc(r.target))\" TargetMode=\"External\"/>"
         }
@@ -2124,6 +2133,7 @@ extension DocxFormat {
         extraOverrides += "<Override PartName=\"/word/settings.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml\"/>"
         relsXML += "</Relationships>"
         var contentTypes = _contentTypes.replacingAll("</Types>", with: extraOverrides + "</Types>")
+        if dropNumbering { contentTypes = contentTypes.replacingAll("<Override PartName=\"/word/numbering.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml\"/>", with: "") }
         for ext in usedExtensions.sorted() {
             let mime = _imageMime(ext)
             contentTypes = contentTypes.replacingAll("<Override PartName=\"/word/document.xml\"",
@@ -2148,7 +2158,7 @@ extension DocxFormat {
             ZipEntry(name: "word/numbering.xml", data: Data(numberingXML.utf8)),
             ZipEntry(name: "word/_rels/document.xml.rels", data: Data(relsXML.utf8)),
         ] + media + extraParts
-        return try Zip.write(entries)
+        return try Zip.write(dropNumbering ? entries.filter { $0.name != "word/numbering.xml" } : entries)
     }
 
     /// Office's 2013 default theme (the palette `ColorMath.officeTheme` draws): colours, Calibri fonts, plain format scheme.

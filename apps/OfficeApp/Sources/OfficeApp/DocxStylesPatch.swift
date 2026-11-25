@@ -74,7 +74,8 @@ extension DocxFormat {
                 // A built-in the sheet always carries is not the user's; it goes in only when the text uses it.
                 let builtIn = RichStyleSheet.word[entry.id] != nil
                 if let g = genById[entry.id], !builtIn || usedIn.containsSubstring("\"\(entry.id)\"") { add(g) }
-            } else if let src = doc.styleSource[entry.id], src != entry.id, !present.contains(entry.id), present.contains(src) {
+            } else if let src = doc.styleSource[entry.id], src != entry.id, !present.contains(entry.id), present.contains(src),
+                      usedIn.containsSubstring("\"\(entry.id)\"") {
                 let shim = XNode(name: "w:style", attrs: ["w:type": "paragraph", "w:styleId": entry.id])
                 shim.children = [XNode(name: "w:name", attrs: ["w:val": "\(entry.id) \(src)"]),
                                  XNode(name: "w:basedOn", attrs: ["w:val": src])]
