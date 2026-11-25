@@ -96,23 +96,63 @@ public final class WidgetTester {
     public func has(text label: String) -> Bool { centre(ofText: label) != nil }
 
     /// Presses and lifts a pointer at `position`, as the app's pointer handler does.
-    public func tap(at position: Offset, buttons: Int = kPrimaryButton) {
+    public func tap(at position: Offset, buttons: Int = kPrimaryButton, modifiers: KeyModifiers = []) {
+        drag(from: position, to: position, steps: 0, buttons: buttons, modifiers: modifiers)
+    }
+
+    /// A click: the same as `tap(at:)`, named for what a mouse does.
+    public func click(at position: Offset, buttons: Int = kPrimaryButton, modifiers: KeyModifiers = []) {
+        tap(at: position, buttons: buttons, modifiers: modifiers)
+    }
+
+    /// Two clicks in a row at `position`.
+    public func doubleClick(at position: Offset, modifiers: KeyModifiers = []) {
+        tap(at: position, modifiers: modifiers)
+        tap(at: position, modifiers: modifiers)
+    }
+
+    /// Presses at `from`, moves to `to` in `steps` equal moves, and lifts there. The events go through
+    /// hit testing, the gesture arena and the pointer router, as the shell's real pointer events do.
+    /// `modifiers` are held (as key events through the focus manager) from before the press until after the lift.
+    public func drag(from: Offset, to: Offset, steps: Int = 8, buttons: Int = kPrimaryButton,
+                     modifiers: KeyModifiers = []) {
+        let held = WidgetTester.modifierKeys.filter { modifiers.contains($0.0) }
+        for (_, logical) in held { _modifier(logical, down: true) }
         let pointer = nextPointer; nextPointer += 1
         let gb = WidgetTester.gestures!
         var hit: HitTestResult?
-        for event in [PointerDownEvent(pointer: pointer, position: position, buttons: buttons) as PointerEvent,
-                      PointerUpEvent(pointer: pointer, position: position)] {
+        func send(_ event: PointerEvent) {
             if event is PointerDownEvent {
                 hit = HitTestResult()
-                _ = renderView.hitTest(hit!, position: position)
+                _ = renderView.hitTest(hit!, position: event.position)
             }
-            guard let result = hit else { continue }
+            guard let result = hit else { return }
             for entry in result.path { entry.target.handleEvent(event.transformed(entry.transform), entry: entry) }
             gb.pointerRouter.route(event)
             if event is PointerDownEvent { gb.gestureArena.close(pointer) }
-            else { gb.gestureArena.sweep(pointer) }
+            else if event is PointerUpEvent { gb.gestureArena.sweep(pointer) }
         }
+        send(PointerDownEvent(pointer: pointer, position: from, buttons: buttons))
+        var last = from
+        if steps > 0 {
+            for i in 1...steps {
+                let t = Double(i) / Double(steps)
+                let p = Offset(from.dx + (to.dx - from.dx) * t, from.dy + (to.dy - from.dy) * t)
+                send(PointerMoveEvent(pointer: pointer, position: p, delta: p - last, buttons: buttons))
+                last = p
+            }
+        }
+        send(PointerUpEvent(pointer: pointer, position: to))
+        for (_, logical) in held.reversed() { _modifier(logical, down: false) }
         pump()
+    }
+
+    private static let modifierKeys: [(KeyModifiers, Int64)] =
+        [(.shift, 0xFFE1), (.control, 0xFFE3), (.alt, 0xFFE9), (.meta, 0xFFE7)]
+
+    private func _modifier(_ logical: Int64, down: Bool) {
+        _ = FocusManager.instance.dispatchKeyData(
+            KeyData(timeStamp: 0, type: down ? .down : .up, physical: 0, logical: logical, character: nil, synthesized: false))
     }
 
     /// Taps the first control labelled `label`. Returns false when no such label is on screen.
