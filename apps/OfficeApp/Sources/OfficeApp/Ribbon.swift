@@ -706,7 +706,30 @@ final class Ribbon: StatelessWidget {
         let remove = Chrome.group("Picture", fluent, [
             Chrome.big(FluentSystemIcons.delete, "Delete", fluent) { c.deleteForward() },
         ])
-        return [size, arrange, turn, tools, remove]
+        // Layout Options: only a picture that floats has a wrap to choose and a place to nudge.
+        var floating: [Widget] = []
+        if let wrap = c.pictureWrap(at: i) {
+            func pick(_ w: PictureWrap) -> Widget {
+                Chrome.small(FluentSystemIcons.image, w.title, fluent, enabled: w != wrap) { _ = c.setPictureWrap(at: i, w) }
+            }
+            floating.append(Chrome.group("Wrap Text", fluent, [
+                Chrome.rows([pick(.square), pick(.tight), pick(.through)]),
+                Chrome.gap(8),
+                Chrome.rows([pick(.topAndBottom), pick(.behindText), pick(.inFrontOfText)]),
+            ]))
+            floating.append(Chrome.group("Position", fluent, [
+                Chrome.rows([
+                    Chrome.small(CupertinoIcons.arrow_left, "Nudge Left", fluent) { _ = c.movePicture(at: i, dx: -6, dy: 0) },
+                    Chrome.small(CupertinoIcons.arrow_right, "Nudge Right", fluent) { _ = c.movePicture(at: i, dx: 6, dy: 0) },
+                ]),
+                Chrome.gap(8),
+                Chrome.rows([
+                    Chrome.small(CupertinoIcons.arrow_up, "Nudge Up", fluent) { _ = c.movePicture(at: i, dx: 0, dy: -6) },
+                    Chrome.small(CupertinoIcons.arrow_down, "Nudge Down", fluent) { _ = c.movePicture(at: i, dx: 0, dy: 6) },
+                ]),
+            ]))
+        }
+        return [size, arrange] + floating + [turn, tools, remove]
     }
 
     // MARK: Layout
