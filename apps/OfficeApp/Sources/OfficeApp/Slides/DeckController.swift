@@ -562,6 +562,8 @@ final class DeckController: ChangeNotifier {
         for p in body?.text?.document.paragraphs ?? [] where !(p.text.isEmpty && p.image != nil) {
             entry.body.append(OutlineLine(level: p.style.listLevel + 1, text: p.text))
         }
+        // A body holding only its one empty paragraph is a slide with no body lines.
+        if entry.body.count == 1, entry.body[0].text.isEmpty { entry.body = [] }
         return entry
     }
 

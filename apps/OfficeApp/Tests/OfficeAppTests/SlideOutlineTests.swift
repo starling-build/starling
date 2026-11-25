@@ -86,4 +86,54 @@ final class SlideOutlineTests: XCTestCase {
         session.onSlidesOutline?(); ui.pump()
         XCTAssertFalse(ui.has(id: "outline.pane"))
     }
+
+    /// STARLING_OUTLINE_OUT: a real deck edited the way the Outline view edits it, saved for PowerPoint.
+    func testSaveOutlineEditedDeck() throws {
+        guard let out = ProcessInfo.processInfo.environment["STARLING_OUTLINE_OUT"] else { throw XCTSkip("no output path") }
+        let dir = "/data/corpus-cache/test/corpus/pptx/decks"
+        guard let names = try? FileManager.default.contentsOfDirectory(atPath: dir) else { throw XCTSkip("no corpus cache") }
+        let deck = DeckController()
+        var picked = ""
+        for n in names.sorted() where n.hasSuffix(".pptx") {
+            guard let data = try? Data(contentsOf: URL(fileURLWithPath: dir + "/" + n)), data.count < 1_500_000,
+                  let (state, theme, pkg) = try? Pptx.read(data) else { continue }
+            let d = DeckController()
+            d.load(state, theme: theme, package: pkg)
+            let en = d.outlineEntries
+            let titled = en.filter { !$0.title.isEmpty }.count
+            let bodied = en.filter { $0.body.count >= 2 }.count
+            if en.count >= 5, en.count <= 12, titled >= en.count - 1, titled >= 5, bodied >= 3,
+               !(en[1].body.isEmpty || en[2].body.isEmpty || en[3].body.isEmpty), !en[0].title.isEmpty, !en[en.count - 1].title.isEmpty {
+                deck.load(state, theme: theme, package: pkg); picked = n; break
+            }
+        }
+        guard !picked.isEmpty else { throw XCTSkip("no suitable deck") }
+        var e = Outline.entries(from: Outline.document(deck.outlineEntries))
+        func show(_ e: [OutlineEntry]) -> String {
+            e.enumerated().map { i, x in "\(i + 1). \(x.title)\n" + x.body.map { "     " + String(repeating: "  ", count: $0.level - 1) + "- " + $0.text + "\n" }.joined() }.joined()
+        }
+        var log = "DECK \(picked)\n\nBEFORE\n" + show(e)
+        precondition(e.count >= 4)
+        // 1. Enter on slide 1's title: a new slide 2 titled "Added in outline" with one body line.
+        e.insert(OutlineEntry(title: "Added in outline", body: [OutlineLine(level: 1, text: "First point of the new slide")]), at: 1)
+        // 2. Tab on a body line: demote the first body line of the (old) slide 2 one level.
+        if let k = e[2].body.indices.first { e[2].body[k].level += 1 }
+        // 3. Shift+Tab on a body line of the old slide 3: promote its first line to a title (a new slide).
+        if let first = e[3].body.first {
+            let rest = Array(e[3].body.dropFirst())
+            e[3].body = []
+            e.insert(OutlineEntry(title: first.text, body: rest), at: 4)
+        }
+        // 4. Delete the last title (its slide goes).
+        let removed = e.removeLast().title
+        // 5. Type into another title.
+        e[0].title += " (edited in outline)"
+        deck.applyOutline(e)
+        deck.endOutlineEdit()
+        log += "\nEDITS\n1. Enter after slide 1's title: new slide 2 'Added in outline'\n2. Tab: first body line of old slide 2 demoted\n3. Shift+Tab: first body line of old slide 3 promoted to its own slide\n4. Deleted the last title: '\(removed)'\n5. Typed ' (edited in outline)' into slide 1's title\n"
+        log += "\nAFTER\n" + show(deck.outlineEntries)
+        try Pptx.write(deck).write(to: URL(fileURLWithPath: out))
+        try log.write(toFile: out + ".txt", atomically: true, encoding: .utf8)
+        XCTAssertEqual(deck.outlineEntries, e)
+    }
 }
