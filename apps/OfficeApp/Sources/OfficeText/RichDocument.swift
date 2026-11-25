@@ -1354,6 +1354,8 @@ public struct CellRef: Hashable, Codable, Sendable {
     /// The theme link of that shading as the file wrote it (` w:themeFill="accent1" w:themeFillTint="99"`): the fill
     /// above is the colour it resolved to. Cleared when the shading is set to a plain colour.
     public var fillThemeAttrs: String? = nil
+    /// The file shaded this cell `auto` (an explicit no fill, over its table style's): written back as it was while the cell has no colour.
+    public var fillAuto = false
     /// `fill` is the table style's colour (drawn, but not the user's own): a save leaves it to the style.
     public var styleFilled: Bool? = nil
     /// This cell's own borders, by side (Word's `w:tcBorders`), where
