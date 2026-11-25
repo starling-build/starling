@@ -408,26 +408,45 @@ static NSMutableDictionary<NSNumber*, FlUIKitExtraView*>* g_extra_views;
 static NSMutableDictionary<NSNumber*, CAMetalLayer*>* g_extra_layers;
 static NSMutableDictionary<NSNumber*, NSNumber*>* g_extra_insets;   // the keyboard's share of each view, points
 static id g_keyboard_observer;
+static CGRect g_keyboard_frame;     // the last keyboard frame the system reported (screen coordinates)
+static BOOL g_keyboard_docked;
+// The window whose text input owns the keyboard (nil: view 0's). The keyboard is the system's, one for the screen, and
+// the frame it reports is the same to every window; only the window it is attached to shrinks (as view 0's
+// FlutterViewController does for itself), not a neighbour in Split View that merely lies under its rectangle.
+static __weak UIView* g_text_input_container;
+// Scale is per view: a window on an external display (or another screen) has its own, and a view's pixel ratio must
+// be its screen's, not the main screen's (every extra view used UIScreen.mainScreen, right only while all windows
+// share it). A view not yet in a window has no screen: the main one.
+static CGFloat FlUIKitScaleOf(UIView* v) { return v.window.screen != nil ? v.window.screen.scale : UIScreen.mainScreen.scale; }
 static void FlUIKitSetOrigin(int64_t view_id, CGPoint* p);
 
 // The docked keyboard covers the bottom of every extra view it overlaps: tell each view how much (its
 // viewInsets.bottom), as the view controller does for view 0. The frame is in screen coordinates.
 static void FlUIKitUpdateExtraInsets(CGRect keyboardFrame, BOOL docked) {
   FlUIKitAppDelegate* delegate = (FlUIKitAppDelegate*)UIApplication.sharedApplication.delegate;
-  CGFloat scale = UIScreen.mainScreen.scale;
+  g_keyboard_frame = keyboardFrame;
+  g_keyboard_docked = docked;
+  UIWindow* keyboardWindow = g_text_input_container != nil ? g_text_input_container.window : delegate.window;
   for (NSNumber* key in g_extra_views.allKeys) {
     FlUIKitExtraView* host = g_extra_views[key];
     UIWindow* window = host.window;   // each window (scene) has its own, and the keyboard is over one of them
     if (window == nil) continue;
     CGRect inWindow = [window convertRect:keyboardFrame fromCoordinateSpace:window.screen.coordinateSpace];
     double inset = 0;
-    if (docked && !CGRectIsEmpty(keyboardFrame)) {
+    if (docked && !CGRectIsEmpty(keyboardFrame) && window == keyboardWindow) {
       CGRect hit = CGRectIntersection(inWindow, [host convertRect:host.bounds toView:window]);
       if (!CGRectIsNull(hit)) inset = CGRectGetHeight(hit);
     }
+    if (getenv("STARLING_KEYBOARD_LOG")) {
+      fprintf(stderr, "[kb] view %lld: keyboard %.0f,%.0f %.0fx%.0f docked=%d in window %.0f,%.0f %.0fx%.0f host %.0f,%.0f %.0fx%.0f -> inset %.0f (was %.0f)\n",
+              key.longLongValue, keyboardFrame.origin.x, keyboardFrame.origin.y, keyboardFrame.size.width, keyboardFrame.size.height,
+              docked, inWindow.origin.x, inWindow.origin.y, inWindow.size.width, inWindow.size.height,
+              [host convertRect:host.bounds toView:window].origin.x, [host convertRect:host.bounds toView:window].origin.y,
+              host.bounds.size.width, host.bounds.size.height, inset, g_extra_insets[key].doubleValue);
+    }
     if (inset == g_extra_insets[key].doubleValue) continue;
     g_extra_insets[key] = @(inset);
-    [delegate.engine starlingResizeViewWithId:key.longLongValue size:host.bounds.size pixelRatio:scale insetBottom:inset];
+    [delegate.engine starlingResizeViewWithId:key.longLongValue size:host.bounds.size pixelRatio:FlUIKitScaleOf(host) insetBottom:inset];
   }
 }
 
@@ -447,6 +466,7 @@ static void FlUIKitAddViewIn(UIView* container, int64_t view_id, CGRect frame, F
       UIScreen* screen = UIScreen.mainScreen;
       // Docked: the keyboard's bottom edge is the screen's (a floating one has an inset of none).
       BOOL docked = !hide && CGRectGetMaxY(end) >= CGRectGetHeight(screen.bounds) - 0.5;
+      if (getenv("STARLING_KEYBOARD_LOG")) fprintf(stderr, "[kb] %s end %.0f,%.0f %.0fx%.0f screen %.0fx%.0f\n", n.name.UTF8String, end.origin.x, end.origin.y, end.size.width, end.size.height, screen.bounds.size.width, screen.bounds.size.height);
       FlUIKitUpdateExtraInsets(end, docked);
     };
     for (NSNotificationName name in @[UIKeyboardWillChangeFrameNotification, UIKeyboardWillHideNotification]) {
@@ -454,7 +474,13 @@ static void FlUIKitAddViewIn(UIView* container, int64_t view_id, CGRect frame, F
     }
   }
   g_extra_insets[@(view_id)] = @0;
-  CGFloat scale = UIScreen.mainScreen.scale;
+  CGFloat scale = FlUIKitScaleOf(container);
+  if (getenv("STARLING_VIEW_LOG")) {
+    UIScreen* s = container.window.screen;
+    fprintf(stderr, "[view] add %lld: screen %s %.0fx%.0f pt scale %.1f (main %.1f), %zu screens\n", view_id,
+            s == UIScreen.mainScreen ? "main" : (s ? "EXTERNAL" : "none yet"), s.bounds.size.width, s.bounds.size.height,
+            scale, UIScreen.mainScreen.scale, (size_t)UIScreen.screens.count);
+  }
   double w = frame.size.width, h = frame.size.height;
   FlUIKitExtraView* host = [[FlUIKitExtraView alloc] initWithFrame:frame];
   host.engine = delegate.engine;
@@ -485,7 +511,7 @@ static void FlUIKitPlaceView(int64_t view_id, CGRect frame) {
   CAMetalLayer* layer = g_extra_layers[@(view_id)];
   if (host == nil || layer == nil) return;
   if (CGRectEqualToRect(host.frame, frame)) return;
-  CGFloat scale = UIScreen.mainScreen.scale;
+  CGFloat scale = FlUIKitScaleOf(host);
   host.frame = frame;
   layer.frame = host.bounds;
   layer.drawableSize = CGSizeMake(frame.size.width * scale, frame.size.height * scale);
@@ -754,6 +780,9 @@ void fluikit_text_input_host(int64_t view_id) {
     FlUIKitAppDelegate* delegate = (FlUIKitAppDelegate*)UIApplication.sharedApplication.delegate;
     FlUIKitExtraView* host = view_id == 0 ? nil : g_extra_views[@(view_id)];
     [delegate.engine starlingSetTextInputHostView:host.superview];
+    // The keyboard moves with the text input: the window it left stops being covered, the one it joined starts.
+    g_text_input_container = host.superview;
+    if (g_extra_views.count > 0) FlUIKitUpdateExtraInsets(g_keyboard_frame, g_keyboard_docked);
   };
   // On the main thread at once: a focus request that follows this call in the same turn must find its
   // window's hider already parented there, not the previous window's.

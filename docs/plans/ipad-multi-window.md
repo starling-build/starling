@@ -288,6 +288,32 @@ Driven in the simulator with the in-app driver (`STARLING_SPIKE_INPUT`), no Mac 
   driver: marked first-view-only. Desktop apps outside the iPad (ImageViewer, VideoPlayer, TextEditor, TerminalApp,
   FlutterDemo) still read the implicit view; they are single-window.
 
+## Step 5, round 5: keyboard insets and scale per view (2026-11-24)
+
+### Keyboard insets per view
+
+The keyboard is the system's: one frame for the screen, reported identically to every window. In Split View its
+rectangle (here a full-width 69 pt bar, docked) lies under the bottom of BOTH panes, so "intersects my view" was the
+wrong test for an extra view: with the text input in the LEFT window the right pane still got a 44 pt inset
+(measured with `STARLING_KEYBOARD_LOG=1`: view 0 136 px, view 1 88 px), while the engine already gave view 0 nothing
+when the input sat in the right window. An extra view now takes the inset only when it is in the window the text
+input is attached to (`fluikit_text_input_host`), and every extra view is recomputed when the keyboard changes window
+(the frame does not change then, so no notification would). Measured after: input in view 0 -> view 0 136 px,
+view 1 0; input moved to view 1 -> view 1 44 px (transiently, the simulator's bar hides itself), view 0 0.
+Not verified: a full-height soft keyboard (this simulator shows the minimized bar), a floating keyboard (docked=0:
+no inset, as before), a real iPad.
+
+### Scale per view (round 5, 2026-11-24)
+
+Every extra view took its pixel ratio and layer `contentsScale` from `UIScreen.mainScreen`, right only while all windows
+share a screen. They now take the scale of the screen their window is on (`FlUIKitScaleOf`, at add, resize and inset
+updates). `STARLING_VIEW_LOG=1` prints it per added view. Measured: on the simulator's one screen both views log
+screen main, scale 2.0 (unchanged). NOT exercised: a window on an external display. Two things stand in the way and
+are a decision, not a fix: the Info.plist declares only `UIWindowSceneSessionRoleApplication`, so iOS never creates a
+scene for an external display (it mirrors), and a scene there would be the non-interactive role (no touch), so it
+could show a presentation (Slides) but not host an editor. A window that moves to another screen after it was added
+keeps the scale it was added with (no screen-change hook yet).
+
 ## Recommendation and order
 
 Option B, in the reviewed order. Multiple scenes stay OFF (`UIApplicationSupportsMultipleScenes` = NO)
