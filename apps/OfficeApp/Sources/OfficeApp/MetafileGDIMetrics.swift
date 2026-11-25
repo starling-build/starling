@@ -1,4 +1,4 @@
-// Generated from Windows GDI GetTextMetrics (metrics only), 2026-11-21 (/data/corpus-cache/metrics/gdi-20261121).
+// Generated from Windows GDI GetTextMetrics (metrics only), 2026-11-21 (/data/corpus-cache/metrics/gdi-20261121), and for the CJK faces GDI selects on the print box 2026-11-23 (gdi-20261123-cjk).
 // Per face and weight: the whole-pixel ascent and descent GDI gives a font of lfHeight -72...-6, then 6...72, two characters (value + 32) each; a space where the face was not measured.
 enum MetafileGDIMetrics {
     static let heights: [Int] = Array(-72 ... -6) + Array(6 ... 72)
@@ -71,14 +71,59 @@ enum MetafileGDIMetrics {
         "wingdings 2|700": "^0]0\\0[0Z/Y/Y/X/W/V.U.T.T.S-R-Q-P-O-O,N,M,L,K,J+I+I+H+G*F*E*D*D*C)B)A)@)?)?(>(=(<(;(:'9'9'8'7&6&5&4&4&3%2%1%0%/%/$.$-$,$,$*#*#)#(#'\"&\"&\"'\"'#(#)#*#*#*#,$-$.$/$/%0%1%2%3%3%4&5&6&7&7&8'9':':';(<(=(>(?(?)@)A)B)C)C)D*E*F*G*G*H+I+J+J+K,L,M,N,O,O-P-Q-R-S-S-T.U.V.V.W/X/Y/Z/Z/",
         "wingdings 3|400": "d0c0b0a0`0_/^/].\\/[.Z.Z.Y.X.W.V.U-U-T-R,Q,P,O+N+M+L+K*K+J+J+I+G*F)E)D)C)B)B(A(@)?(>(=(;&:&9'9'9'8&7&6&5&4&3&2%0$/$/$.$-$,#+#*#)$)#'\"'\"&\"'\"(\"(#)#)$+#,#,#-$.$/$0$0$0$2%2%3&4&5&6&7&8&8&9';&;&;&;&=(>(?(?(@)B(B)C)D)E)F)F)G*G*G*I+J+K+L+M+N+O+O+P,Q,R,R,R,T-U-U-V.W.X.Y.Z.[.[.",
         "wingdings 3|700": "d0c0b0a0`0_/^/].\\/[.Z.Z.Y.X.W.V.U-U-T-R,Q,P,O+N+M+L+K*K+J+J+I+G*F)E)D)C)B)B(A(@)?(>(=(;&:&9'9'9'8&7&6&5&4&3&2%0$/$/$.$-$,#+#*#)$)#'\"'\"&\"'\"(\"(#)#)$+#,#,#-$.$/$0$0$0$2%2%3&4&5&6&7&8&8&9';&;&;&;&=(>(?(?(@)B(B)C)D)E)F)F)G*G*G*I+J+K+L+M+N+O+O+P,Q,R,R,R,T-U-U-V.W.X.Y.Z.[.[.",
+        "malgun gothic|400": "o3m3l3l2k2i2h2h1g1f1e1d0c0`0_0_/]/]/[/Z/Z.X.X-W-W,T,T,S,S+R+P+N+N*L*K*J*H*H)G)F)F)D(C(B(@(@'?'>';';&:&:&8&5&6%4%2%1%0%.%-$+$*$*$*#)#(\"&\"'\"(\"(#)#*#*$+$+$-$-$.%.%0%1%2%2%4%4%6%5&5&8&8&:&;&;';';'>'?'@'@(@(B(C(D(D(D(F)G)H)H*H*J*K*L*L*N*N+N+P+P+R+S+S,T,T,T,W,W-X-X.X.Z.Z/[/",
+        "malgun gothic|700": "o3m3l3l2k2i2h2h1g1f1e1d0c0`0_0_/]/]/[/Z/Z.X.X-W-W,T,T,S,S+R+P+N+N*L*K*J*H*H)G)F)F)D(C(B(@(@'?'>';';&:&:&8&5&6%4%2%1%0%.%-$+$*$*$*#)#(\"&\"'\"(\"(#)#*#*$+$+$-$-$.%.%0%1%2%2%4%4%6%5&5&8&8&:&;&;';';'>'?'@'@(@(B(C(D(D(D(F)G)H)H*H*J*K*L*L*N*N+N+P+P+R+S+S,T,T,T,W,W-X-X.X.Z.Z/[/",
+        "microsoft jhenghei|400": "i4h4g3f3e3d3c3b2a2`2_1^1]1\\1[0Z0Y0X0W0V/U/T.S.R.Q.P-O-N,M,L,K,J+I+H+G+F+E*D*C*B*A)@)?)>(=(<(;(:'9'8'7'6'5&4&3&2&1%0%/%.%-%,%,%+%)#)#'#&\"'\"'#(#)#)#)#)#+%,%-%.%/%0%1%1%2&3&4&5&5&6'7'8'9':':';(<(=(>(>(?)@)A)A)B*C*D*E*E*F+G+H+I+J+J+K,L,M,N,N,O-P-P-Q.R.S.T.T.U/V/V/W0X0Y0Z0",
+        "microsoft jhenghei|700": "i4h4g3f3e3d3c2b2a2`2_1^1]1\\1[0Z0Y0X0W/V/U/T/S.R.Q.P.O-N-M-L-K,J,I+H+G+F+E+D+C*B*A)@)?)>)=)<);(:(9(8'7'6&5&4&3&2&1&0%/%.%-%,%,%+$)#)#'#&\"'\"'#(#)#)#)#+$+$,%-%.%/%0%0%1&2&3&4&5&6&6&7'8'8'9(:(;(;(<)=)>)?)@)A)A)B*C*C*D+E+F+G+H+I+I+J,K,K,L-M-N-O-O-P.Q.R.S.S.T/U/V/W/W/X0Y0Z0",
+        "microsoft yahei|400": "l4j4i3h3h3g3f2d2c2b2b1a1_1_1^0]0]0Z/Y/X.W.V.U.T.S-Q-P-P,O,O,M,K+K+J+I+H*F*F*E*D)B)A)@)?)>(=(=(;':'9'9'7'6'5&4&3&2%1%1%0%.%-%-%,$*#(#'#&\"'\"'#(#)#*#*#*#,$,$-%.%.%0%1%2%2%3&4&5&5&6'7'7'9':';';';'=(>(>(?)@)A)B)B)D)D)E*F*F*H*H*I+J+K+K+K+M,M,O,P,P-Q-Q-S-S-T.U.V.W.X.X.Y/Z/Z/",
+        "microsoft yahei|700": "m5m5k4j4i4h4g3e3e3d3c2b2`2_1^0^0]0[0Z0Y/X/W/V.U.T.S-Q-P-O-O,N,L,K+J+I+I+G*F*E*D*C)A)A)@)?(>(<(;(:':'9'7'6'5'4'3'2&0%0%0%.%-%-$,$*#(#'#&\"'\"'#(#)#*#*#*#,$-$-%.%.%0%0%0%2&2&3'4'5'6'7'7'9':':';(<(<(>(?(?(@)A)A)C)C)D*E*F*G*G*G*I+J+K+K+L,L,N,O,O-P-Q-Q-S-S-T.U.V.V.W/X/Y/Y/Z0",
+        "mingliu|400": "[/Z/Y/X/W/W.V.U.T.S.S-R-Q-P-O-O,N,M,L,K,K+J+I+H+G+G*F*E*D*C*C)B)A)@)?)?(>(=(<(;(;':'9'8'7'7&6&5&4&3&3%2%1%0%/%/$.$-$,$+$+#*#)#(#'#'\"&\"&\"'\"'#(#)#*#+#+$,$-$.$/$/%0%1%2%3%3&4&5&6&7&7'8'9':';';(<(=(>(?(?)@)A)B)C)C*D*E*F*G*G+H+I+J+K+K,L,M,N,O,O-P-Q-R-S-S.T.U.V.W.W/X/Y/Z/[/",
+        "mingliu|700": "[/Z/Y/X/W/W.V.U.T.S.S-R-Q-P-O-O,N,M,L,K,K+J+I+H+G+G*F*E*D*C*C)B)A)@)?)?(>(=(<(;(;':'9'8'7'7&6&5&4&3&3%2%1%0%/%/$.$-$,$+$+#*#)#(#'#'\"&\"&\"'\"'#(#)#*#+#+$,$-$.$/$/%0%1%2%3%3&4&5&6&7&7'8'9':';';(<(=(>(?(?)@)A)B)C)C*D*E*F*G*G+H+I+J+K+K,L,M,N,O,O-P-Q-R-S-S.T.U.V.W.W/X/Y/Z/[/",
+        "pmingliu|400": "[/Z/Y/X/W/W.V.U.T.S.S-R-Q-P-O-O,N,M,L,K,K+J+I+H+G+G*F*E*D*C*C)B)A)@)?)?(>(=(<(;(;':'9'8'7'7&6&5&4&3&3%2%1%0%/%/$.$-$,$+$+#*#)#(#'#'\"&\"&\"'\"'#(#)#*#+#+$,$-$.$/$/%0%1%2%3%3&4&5&6&7&7'8'9':';';(<(=(>(?(?)@)A)B)C)C*D*E*F*G*G+H+I+J+K+K,L,M,N,O,O-P-Q-R-S-S.T.U.V.W.W/X/Y/Z/[/",
+        "pmingliu|700": "[/Z/Y/X/W/W.V.U.T.S.S-R-Q-P-O-O,N,M,L,K,K+J+I+H+G+G*F*E*D*C*C)B)A)@)?)?(>(=(<(;(;':'9'8'7'7&6&5&4&3&3%2%1%0%/%/$.$-$,$+$+#*#)#(#'#'\"&\"&\"'\"'#(#)#*#+#+$,$-$.$/$/%0%1%2%3%3&4&5&6&7&7'8'9':';';(<(=(>(?(?)@)A)B)C)C*D*E*F*G*G+H+I+J+K+K,L,M,N,O,O-P-Q-R-S-S.T.U.V.W.W/X/Y/Z/[/",
+        "simhei|400": "_+^+]+\\+[+[*Z*Y*X*W*V*U*U)T)S)R)Q)P)O)O(N(M(L(K(J(I(I'H'G'F'E'D'C'C&B&A&@&?&>&=&=&<%;%:%9%8%7%6%6$5$4$3$2$1$0$0#/#.#-#,#+#*#*\")\"(\"'\"&\"&\"'\"(\")\"*\"*#+#,#-#.#/#0#0$1$2$3$4$5$6$6%7%8%9%:%;%<%=&=&>&?&@&A&B&C&C'D'E'F'G'H'I'I(J(K(L(M(N(O(O)P)Q)R)S)T)U)U*V*W*X*Y*Z*[*[+\\+]+^+_+",
+        "simhei|700": "_+^+]+\\+[+[*Z*Y*X*W*V*U*U)T)S)R)Q)P)O)O(N(M(L(K(J(I(I'H'G'F'E'D'C'C&B&A&@&?&>&=&=&<%;%:%9%8%7%6%6$5$4$3$2$1$0$0#/#.#-#,#+#*#*\")\"(\"'\"&\"&\"'\"(\")\"*\"*#+#,#-#.#/#0#0$1$2$3$4$5$6$6%7%8%9%:%;%<%=&=&>&?&@&A&B&C&C'D'E'F'G'H'I'I(J(K(L(M(N(O(O)P)Q)R)S)T)U)U*V*W*X*Y*Z*[*[+\\+]+^+_+",
+        "simsun|400": "_+^+]+\\+[+[*Z*Y*X*W*V*U*U)T)S)R)Q)P)O)O(N(M(L(K(J(I(I'H'G'F'E'D'C'C&B&A&@&?&>&=&=&<%;%:%9%8%7%6%6$5$4$3$2$1$0$0#/#.#-#,#+#*#*\")\"(\"'\"&\"&\"'\"(\")\"*\"*#+#,#-#.#/#0#0$1$2$3$4$5$6$6%7%8%9%:%;%<%=&=&>&?&@&A&B&C&C'D'E'F'G'H'I'I(J(K(L(M(N(O(O)P)Q)R)S)T)U)U*V*W*X*Y*Z*[*[+\\+]+^+_+",
+        "simsun|700": "_+^+]+\\+[+[*Z*Y*X*W*V*U*U)T)S)R)Q)P)O)O(N(M(L(K(J(I(I'H'G'F'E'D'C'C&B&A&@&?&>&=&=&<%;%:%9%8%7%6%6$5$4$3$2$1$0$0#/#.#-#,#+#*#*\")\"(\"'\"&\"&\"'\"(\")\"*\"*#+#,#-#.#/#0#0$1$2$3$4$5$6$6%7%8%9%:%;%<%=&=&>&?&@&A&B&C&C'D'E'F'G'H'I'I(J(K(L(M(N(O(O)P)Q)R)S)T)U)U*V*W*X*Y*Z*[*[+\\+]+^+_+",
+        "yu gothic|400": "h7g6f6e6d6c5b5a5`4_4^4]3\\3[3Z3Y2X2W2V1U1T1S0R0Q0P0O/N/M/L.K.J.I-H-G-F,E,D,C,B+B+A+@*?*>*=)<);):)9(8(7(6'5'4'3&2&1&0&/%.%-%,$+$*$)#(#'#&\"&#'#(#)#)$*$+$,$,%-%.%/%0%0&1&2&3&3'4'5'6'6(7(8(9(9):);)<)=)=*>*?*@*@+A+B+C+C,D,E,F,F-G-H-I-J-J.K.L.M.M/N/O/P/P0Q0R0S0T0T1U1V1W1W2X2",
+        "yu gothic|700": "h7g6f6e6d5c5b5a4`4_4^4]3\\3[3Z2Y2X2W1V1U1T1S0R0Q0P/O/N/M.L.K.K.J-I-H-G,F,E,D+C+B+A+@*?*>*=)<);):(9(8(7(6'5'4'3&2&1&0%/%.%-%,$+$*$)#(#'#&\"&#'#(#)#)$*$+$,$-$-%.%/%0%0&1&2&3&3'4'5'6'6'7(8(9(:(:);)<)=)=*>*?*@*@+A+B+C+D+D,E,F,G,G-H-I-J-J.K.L.M.N.N/O/P/Q/Q0R0S0T0T1U1V1W1X1X2",
+        "宋体|400": "_+^+]+\\+[+[*Z*Y*X*W*V*U*U)T)S)R)Q)P)O)O(N(M(L(K(J(I(I'H'G'F'E'D'C'C&B&A&@&?&>&=&=&<%;%:%9%8%7%6%6$5$4$3$2$1$0$0#/#.#-#,#+#*#*\")\"(\"'\"&\"&\"'\"(\")\"*\"*#+#,#-#.#/#0#0$1$2$3$4$5$6$6%7%8%9%:%;%<%=&=&>&?&@&A&B&C&C'D'E'F'G'H'I'I(J(K(L(M(N(O(O)P)Q)R)S)T)U)U*V*W*X*Y*Z*[*[+\\+]+^+_+",
+        "宋体|700": "_+^+]+\\+[+[*Z*Y*X*W*V*U*U)T)S)R)Q)P)O)O(N(M(L(K(J(I(I'H'G'F'E'D'C'C&B&A&@&?&>&=&=&<%;%:%9%8%7%6%6$5$4$3$2$1$0$0#/#.#-#,#+#*#*\")\"(\"'\"&\"&\"'\"(\")\"*\"*#+#,#-#.#/#0#0$1$2$3$4$5$6$6%7%8%9%:%;%<%=&=&>&?&@&A&B&C&C'D'E'F'G'H'I'I(J(K(L(M(N(O(O)P)Q)R)S)T)U)U*V*W*X*Y*Z*[*[+\\+]+^+_+",
+        "游ゴシック|400": "h7g6f6e6d6c5b5a5`4_4^4]3\\3[3Z3Y2X2W2V1U1T1S0R0Q0P0O/N/M/L.K.J.I-H-G-F,E,D,C,B+B+A+@*?*>*=)<);):)9(8(7(6'5'4'3&2&1&0&/%.%-%,$+$*$)#(#'#&\"&#'#(#)#)$*$+$,$,%-%.%/%0%0&1&2&3&3'4'5'6'6(7(8(9(9):);)<)=)=*>*?*@*@+A+B+C+C,D,E,F,F-G-H-I-J-J.K.L.M.M/N/O/P/P0Q0R0S0T0T1U1V1W1W2X2",
+        "游ゴシック|700": "h7g6f6e6d5c5b5a4`4_4^4]3\\3[3Z2Y2X2W1V1U1T1S0R0Q0P/O/N/M.L.K.K.J-I-H-G,F,E,D+C+B+A+@*?*>*=)<);):(9(8(7(6'5'4'3&2&1&0%/%.%-%,$+$*$)#(#'#&\"&#'#(#)#)$*$+$,$-$-%.%/%0%0&1&2&3&3'4'5'6'6'7(8(9(:(:);)<)=)=*>*?*@*@+A+B+C+D+D,E,F,G,G-H-I-J-J.K.L.M.N.N/O/P/Q/Q0R0S0T0T1U1V1W1X1X2",
+        "ｍｓ ゴシック|400": "_+^+]+\\+[+[*Z*Y*X*W*V*U*U)T)S)R)Q)P)O)O(N(M(L(K(J(I(I'H'G'F'E'D'C'C&B&A&@&?&>&=&=&<%;%:%9%8%7%6%6$5$4$3$2$1$0$0#/#.#-#,#+#*#*\")\"(\"'\"&\"&\"'\"(\")\"*\"*#+#,#-#.#/#0#0$1$2$3$4$5$6$6%7%8%9%:%;%<%=&=&>&?&@&A&B&C&C'D'E'F'G'H'I'I(J(K(L(M(N(O(O)P)Q)R)S)T)U)U*V*W*X*Y*Z*[*[+\\+]+^+_+",
+        "ｍｓ ゴシック|700": "_+^+]+\\+[+[*Z*Y*X*W*V*U*U)T)S)R)Q)P)O)O(N(M(L(K(J(I(I'H'G'F'E'D'C'C&B&A&@&?&>&=&=&<%;%:%9%8%7%6%6$5$4$3$2$1$0$0#/#.#-#,#+#*#*\")\"(\"'\"&\"&\"'\"(\")\"*\"*#+#,#-#.#/#0#0$1$2$3$4$5$6$6%7%8%9%:%;%<%=&=&>&?&@&A&B&C&C'D'E'F'G'H'I'I(J(K(L(M(N(O(O)P)Q)R)S)T)U)U*V*W*X*Y*Z*[*[+\\+]+^+_+",
+        "ｍｓ ｐゴシック|400": "_+^+]+\\+[+[*Z*Y*X*W*V*U*U)T)S)R)Q)P)O)O(N(M(L(K(J(I(I'H'G'F'E'D'C'C&B&A&@&?&>&=&=&<%;%:%9%8%7%6%6$5$4$3$2$1$0$0#/#.#-#,#+#*#*\")\"(\"'\"&\"&\"'\"(\")\"*\"*#+#,#-#.#/#0#0$1$2$3$4$5$6$6%7%8%9%:%;%<%=&=&>&?&@&A&B&C&C'D'E'F'G'H'I'I(J(K(L(M(N(O(O)P)Q)R)S)T)U)U*V*W*X*Y*Z*[*[+\\+]+^+_+",
+        "ｍｓ ｐゴシック|700": "_+^+]+\\+[+[*Z*Y*X*W*V*U*U)T)S)R)Q)P)O)O(N(M(L(K(J(I(I'H'G'F'E'D'C'C&B&A&@&?&>&=&=&<%;%:%9%8%7%6%6$5$4$3$2$1$0$0#/#.#-#,#+#*#*\")\"(\"'\"&\"&\"'\"(\")\"*\"*#+#,#-#.#/#0#0$1$2$3$4$5$6$6%7%8%9%:%;%<%=&=&>&?&@&A&B&C&C'D'E'F'G'H'I'I(J(K(L(M(N(O(O)P)Q)R)S)T)U)U*V*W*X*Y*Z*[*[+\\+]+^+_+",
     ]
     /// (ascent, descent) in pixels for `face` at `lfHeight`, nil when not measured.
     static func metrics(face: String, bold: Bool, height: Int) -> (ascent: Int, descent: Int)? {
-        guard let s = table["\(face.lowercased())|\(bold ? 700 : 400)"] else { return nil }
+        guard let s = table["\(face.lowercased())|\(bold ? 700 : 400)"] else { return fileMetrics(face: face, bold: bold, height: height) }
         let at = height < 0 ? height + 72 : 67 + height - 6
         guard height >= -72, height <= 72, height != 0, abs(height) >= 6 else { return nil }
         let u = Array(s.utf8); let i = at * 2
         guard i + 1 < u.count, u[i] != 32 else { return nil }
         return (Int(u[i]) - 33, Int(u[i + 1]) - 33)
+    }
+    /// Faces GDI cannot select on the print box (it falls back to Arial there), so there is no measured table: Windows' whole-pixel
+    /// ascent and descent are the font file's winAscent and winDescent scaled to the em in pixels and rounded half up (checked
+    /// against every measured row of MS Gothic, MS PGothic and Yu Gothic, both weights, 6...72 and negative). A positive lfHeight
+    /// is the whole cell, so the em is the height less the file's own lead, i.e. height * upem / (winAscent + winDescent).
+    /// (face, bold) -> (upem, winAscent, winDescent), from the fonts' OS/2 tables (cjk-line-20261122/file-metrics-*.tsv).
+    private static let files: [String: (Int, Int, Int)] = {
+        var t: [String: (Int, Int, Int)] = [:]
+        for n in ["ms mincho", "ｍｓ 明朝", "ms pmincho", "ｍｓ ｐ明朝", "ｍｓ明朝", "ｍｓ ｐ明朝"] { t[n + "|400"] = (256, 220, 36); t[n + "|700"] = (256, 220, 36) }
+        for n in ["yu mincho", "游明朝"] { t[n + "|400"] = (2048, 2038, 598); t[n + "|700"] = (2048, 2005, 631) }
+        for n in ["meiryo", "メイリオ"] { t[n + "|400"] = (2048, 2171, 901); t[n + "|700"] = (2048, 2171, 901) }
+        for n in ["meiryo ui"] { t[n + "|400"] = (2048, 2171, 430); t[n + "|700"] = (2048, 2171, 430) }
+        for n in ["gulim", "굴림", "gulimche", "굴림체", "batang", "바탕", "batangche", "바탕체", "dotum", "돋움", "dotumche", "돋움체",
+                  "gungsuh", "궁서", "gungsuhche", "궁서체"] { t[n + "|400"] = (1024, 879, 145); t[n + "|700"] = (1024, 879, 145) }
+        return t
+    }()
+    private static func fileMetrics(face: String, bold: Bool, height: Int) -> (ascent: Int, descent: Int)? {
+        guard let f = files["\(face.lowercased())|\(bold ? 700 : 400)"], height != 0, abs(height) >= 6, abs(height) <= 72 else { return nil }
+        let em = height < 0 ? Double(-height) : Double(height) * Double(f.0) / Double(f.1 + f.2)
+        func up(_ v: Int) -> Int { Int((Double(v) * em / Double(f.0) + 0.5).rounded(.down)) }
+        return (up(f.1), up(f.2))
     }
 }
