@@ -52,7 +52,10 @@ final class WorkbookController: ChangeNotifier {
     /// tab), as Excel's group mode: what is typed or formatted on the
     /// active one goes to each of them at the same cells. Empty when only
     /// the active sheet is selected.
-    private(set) var groupedSheets: Set<Int> = []
+    var groupedSheets: Set<Int> {
+        get { Set(book.sheets.indices.filter { book.sheets[$0].tabSelected }) }
+        set { for (i, ws) in book.sheets.enumerated() { ws.tabSelected = newValue.contains(i) } }
+    }
     private var _sheetOverride: Int?
     var isGrouped: Bool { groupedSheets.count > 1 && groupedSheets.contains(activeSheet) }
 
