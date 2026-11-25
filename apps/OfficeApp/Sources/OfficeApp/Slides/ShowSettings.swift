@@ -29,3 +29,11 @@ struct CustomShow: Equatable {
     /// Slide ids (`SlideState.id`), in play order. A slide may appear twice.
     var slides: [Int]
 }
+
+/// One section of the deck (`p14:section`): a named run of slides. Which slides are in it is each slide's own `section` tag; the order here is the order in the deck.
+struct SlideSection: Equatable {
+    var guid: String
+    var name: String
+    /// Folded in the thumbnail rail and Slide Sorter. Not saved with the file.
+    var collapsed = false
+}

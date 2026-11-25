@@ -70,14 +70,34 @@ extension Ribbon {
                        menu: _layoutItems(fluent, current: nil) { kind in deck.addSlide(kind) }),
             Chrome.gap(2),
             Chrome.rows([
-                Chrome.menuButton(FluentSystemIcons.grid, "Layout", "Slide layout", fluent,
-                                  items: _slideLayoutItems(deck, fluent)),
+                Chrome.row([
+                    Chrome.menuButton(FluentSystemIcons.grid, "Layout", "Slide layout", fluent,
+                                      items: _slideLayoutItems(deck, fluent)),
+                    _sectionMenu(deck, fluent),
+                ]),
                 Chrome.small(FluentSystemIcons.copy, "Duplicate", fluent) { deck.duplicateSlide(deck.current) },
                 Chrome.small(FluentSystemIcons.delete, "Delete", fluent, enabled: deck.slides.count > 1) {
                     deck.deleteSlide(deck.current)
                 },
             ]),
         ])
+    }
+
+    private func _sectionMenu(_ deck: DeckController, _ fluent: FluentThemeData) -> Widget {
+        let si = deck.sectionIndex(ofSlide: deck.current)
+        func item(_ text: String, enabled: Bool = true, _ act: @escaping () -> Void) -> MenuFlyoutItemBase {
+            MenuFlyoutItem(text: Text(text), onPressed: enabled ? act : nil)
+        }
+        let items: [MenuFlyoutItemBase] = [
+            item("Add Section") { [session] in session.onSectionName?(false) },
+            item("Rename Section", enabled: si != nil) { [session] in session.onSectionName?(true) },
+            item("Remove Section", enabled: si != nil) { if let si { deck.removeSection(si) } },
+            item("Remove Section & Slides", enabled: si != nil && deck.sections.count > 1) { if let si { deck.removeSectionAndSlides(si) } },
+            item("Remove All Sections", enabled: !deck.sections.isEmpty) { deck.removeAllSections() },
+            item("Collapse All", enabled: !deck.sections.isEmpty) { deck.setAllSectionsCollapsed(true) },
+            item("Expand All", enabled: !deck.sections.isEmpty) { deck.setAllSectionsCollapsed(false) },
+        ]
+        return Chrome.menuButton(FluentSystemIcons.bulletList, nil, "Sections", fluent, items: items)
     }
 
     private func _slidesHome(_ deck: DeckController, _ fluent: FluentThemeData) -> [Widget] {
