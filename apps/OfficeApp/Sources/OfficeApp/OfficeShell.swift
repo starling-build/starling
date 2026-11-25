@@ -80,6 +80,7 @@ final class OfficeShellState: State<StatefulWidget> {
     private var _pageSetupOpen = false
     private var _insertTableOpen = false
     private var _splitCellOpen = false
+    private var _formulaOpen = false
     private var _convertTextTable: Bool? = nil   // the open Convert dialog: true to a table, false to text
     private var _bordersOpen = false
     private var _printOpen = false
@@ -454,6 +455,11 @@ final class OfficeShellState: State<StatefulWidget> {
             guard let self else { return }
             self.controller.breakUndoCoalescing()
             self.setState { self._insertTableOpen = true }
+        }
+        session.onFormulaDialog = { [weak self] in
+            guard let self else { return }
+            self.controller.breakUndoCoalescing()
+            self.setState { self._formulaOpen = true }
         }
         session.onConvertTextTableDialog = { [weak self] toTable in
             guard let self else { return }
@@ -1269,7 +1275,7 @@ final class OfficeShellState: State<StatefulWidget> {
             if _shortcutsOpen { return false }   // the dialog's own Esc closes it
             if LinkCard.link(caret: _cardLink, hover: _hoverCard, dismissed: _cardDismissed) != nil { setState { _cardDismissed = true }; return true }
             if _listSymbolPick != nil { setState { _listSymbolPick = nil }; return true }
-            if _paragraphOpen || _tablePropsOpen || _fontOpen || _insertTableOpen || _splitCellOpen || _convertTextTable != nil || _bordersOpen || _pictureDialog != nil || _linkDialogOpen || _numberingValueOpen || _listFormatOpen != nil || _newStyleOpen { return false }   // the dialog's own Esc closes it
+            if _paragraphOpen || _tablePropsOpen || _fontOpen || _insertTableOpen || _splitCellOpen || _convertTextTable != nil || _formulaOpen || _bordersOpen || _pictureDialog != nil || _linkDialogOpen || _numberingValueOpen || _listFormatOpen != nil || _newStyleOpen { return false }   // the dialog's own Esc closes it
             if _headerFooterOpen { setState { _headerFooterOpen = false }; return true }
             if _findOpen { setState { _findOpen = false }; _editorFocus.requestFocus(); return true }
             if _backstage != nil { setState { _backstage = nil }; return true }
@@ -1566,6 +1572,24 @@ final class OfficeShellState: State<StatefulWidget> {
                     hooks: _linkHooks,
                     onClose: { [weak self] in
                         self?.setState { self?._linkDialogOpen = false }
+                        self?._editorFocus.requestFocus()
+                    })),
+            ])
+        }
+        if _formulaOpen {
+            return Stack(children: [
+                window,
+                Positioned(left: 0, top: 0, right: 0, bottom: 0, child: FormulaDialog(
+                    formula: controller.suggestedFormula,
+                    preview: { [weak self] f, p in self?.controller.formulaResult(f, picture: p) },
+                    onOK: { [weak self] f, p in
+                        guard let self else { return }
+                        self.controller.insertFormula(f, picture: p)
+                        self.setState { self._formulaOpen = false }
+                        self._editorFocus.requestFocus()
+                    },
+                    onCancel: { [weak self] in
+                        self?.setState { self?._formulaOpen = false }
                         self?._editorFocus.requestFocus()
                     })),
             ])
