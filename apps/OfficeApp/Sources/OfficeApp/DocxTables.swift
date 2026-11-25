@@ -1861,7 +1861,7 @@ extension DocxFormat {
            doc.paragraphs.contains(where: { $0.cell?.fillThemeAttrs != nil || $0.cell?.bordersXML?.containsSubstring("w:themeColor=") == true }) {
             keptAll["word/theme/theme1.xml"] = Data(_defaultThemePart().utf8)
         }
-        for (name, data) in keptAll.sorted(by: { $0.key < $1.key }) where !written.contains(name) && !orphanMedia(name) {
+        for (name, data) in keptAll.sorted(by: { $0.key < $1.key }) where !written.contains(name) && !orphanMedia(name) && name != "word/settings.xml" {
             extraParts.append(ZipEntry(name: name, data: data))
             switch name {
             case "word/footnotes.xml":
@@ -1944,6 +1944,10 @@ extension DocxFormat {
             // 2010 files (a third of the corpus) break lines and space
             // tables by their mode's rules, and a copy that said 15 did not.
             settings.replaceSubrange(start.lowerBound ..< end.upperBound, with: compat)
+        }
+        if let original = doc.keptParts["word/settings.xml"] {
+            settings = Self._patchedSettings(String(decoding: original, as: UTF8.self), even: doc.evenAndOddHeaders, evenReferenced: evenReferenced,
+                                             tab: doc.defaultTabStop, spacing: doc.characterSpacingControl)
         }
         extraParts.append(ZipEntry(name: "word/settings.xml", data: Data(settings.utf8)))
         extraOverrides += "<Override PartName=\"/word/settings.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml\"/>"
@@ -2121,6 +2125,42 @@ extension DocxFormat {
 
     static func _hex(_ c: Color) -> String {
         String(printf: "%06X", c.value & 0xFFFFFF)
+    }
+
+    /// The file's own settings with only what the app sets changed: the even/odd headers switch, the default tab stop and the
+    /// character spacing control. Everything else (zoom, colour map, revision ids, math and shape defaults, note settings...)
+    /// stays as the file had it.
+    static func _patchedSettings(_ original: String, even: Bool, evenReferenced: Bool, tab: Double?, spacing: String?) -> String {
+        var xml = original
+        /// The range of the first `<w:name .../>` (or `<w:name ...>...</w:name>`) element.
+        func element(_ name: String) -> Range<String.Index>? {
+            guard let start = xml.rangeOfSubstring("<w:\(name)") else { return nil }
+            let after = xml[start.upperBound...]
+            guard let c = after.first, c == " " || c == "/" || c == ">" else { return nil }
+            guard let close = after.firstIndex(of: ">") else { return nil }
+            if xml[xml.index(before: close)] == "/" { return start.lowerBound ..< xml.index(after: close) }
+            if let end = xml.rangeOfSubstring("</w:\(name)>") { return start.lowerBound ..< end.upperBound }
+            return nil
+        }
+        func setValue(_ name: String, _ value: String) {
+            guard let r = element(name) else { return }
+            var tag = String(xml[r])
+            guard let at = tag.rangeOfSubstring("w:val=\""), let end = tag[at.upperBound...].firstIndex(of: "\"") else { return }
+            if tag[at.upperBound ..< end] == value { return }
+            tag.replaceSubrange(at.upperBound ..< end, with: value)
+            xml.replaceSubrange(r, with: tag)
+        }
+        if let r = element("evenAndOddHeaders") {
+            let off = ["0", "false", "off"].contains { String(xml[r]).containsSubstring("w:val=\"\($0)\"") }
+            if !even { xml.removeSubrange(r) }
+            else if off { xml.replaceSubrange(r, with: "<w:evenAndOddHeaders/>") }
+        } else if even, evenReferenced {
+            let marker = ["<w:defaultTabStop", "<w:characterSpacingControl", "<w:compat", "</w:settings>"].first { xml.containsSubstring($0) }
+            if let marker, let at = xml.rangeOfSubstring(marker) { xml.insert(contentsOf: "<w:evenAndOddHeaders/>", at: at.lowerBound) }
+        }
+        if let tab { setValue("defaultTabStop", String(Int((tab * 20).rounded()))) }
+        if let spacing { setValue("characterSpacingControl", _esc(spacing)) }
+        return xml
     }
 
     static let _settingsPart = """
