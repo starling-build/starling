@@ -775,6 +775,24 @@ final class DeepGroupTests: XCTestCase {
         XCTAssertEqual(t.text!.document.tableStyles[t.tableId!]?.styleId, before?.styleId)
     }
 
+    /// S-TB-1d: Table Grid has no header fill, so its header text must not stay white from the old style; and Dark Style 2's
+    /// first id is the Accent 1/Accent 2 pair (header in accent 2).
+    func testTableGridHeaderTextAndDarkStyle2Pair() throws {
+        let deck = DeckController()
+        deck.slides[0].shapes.removeAll()
+        let t = deck.addTable(rows: 3, columns: 2)
+        deck.selectShapes([t])
+        deck.applyTableLook(.builtin(DeckController.TableLook.plain.styleId))
+        let head = t.text!.document.paragraphs.first { $0.cell?.row == 0 && $0.cell?.column == 0 }
+        XCTAssertNotEqual(head?.runs.first?.style.color, Color(0xFFFFFFFF))
+        let pair = PptxTemplates.builtinTableStyleFamilyList.first { $0.0 == "Dark Style 2" }!.2
+        XCTAssertEqual(pair.count, 3)
+        deck.applyTableLook(.builtin(pair[0]))
+        XCTAssertEqual(t.text!.document.tableStyles[t.tableId!]?.headerFill, deck.theme.accents[1])
+        let back = t.text!.document.paragraphs.first { $0.cell?.row == 0 && $0.cell?.column == 0 }
+        XCTAssertEqual(back?.runs.first?.style.color, Color(0xFFFFFFFF))
+    }
+
     /// S-TB-1b: shading some cells of a table undoes and survives a save, other cells keep the style's.
     func testTableCellShadingRoundTripAndUndo() throws {
         let deck = DeckController()

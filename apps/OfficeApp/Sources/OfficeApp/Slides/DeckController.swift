@@ -1126,7 +1126,7 @@ final class DeckController: ChangeNotifier {
         // gallery's pick, or the theme's first accent when none is kept).
         let oldAccent = st.headerFill ?? theme.accents[0]
         if let chosen { st.styleId = chosen.styleId }
-        let plain = chosen == .plain
+        let plain = chosen == .plain || (chosen?.styleId).map { $0 == TableLook.plain.styleId } == true
         let base = chosen.flatMap { tableLookColor($0) } ?? oldAccent
         let look = tableStyle(accent: base)
         st.headerRow = o.headerRow

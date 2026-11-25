@@ -555,8 +555,13 @@ extension Ribbon {
             var out: [(String, DeckController.TableLook, Color?)] = []
             for (name, plain, accents) in PptxTemplates.builtinTableStyleFamilyList where name.hasPrefix(word) && name != "Medium Style 2" {
                 if let plain { out.append((name, .builtin(plain), word == "Dark" ? Color(0xFF404040) : Color(0xFFFFFFFF))) }
-                for (i, id) in accents.enumerated() where i < deck.theme.accents.count {
-                    out.append(("\(name) - Accent \(i + 1)", .builtin(id), deck.theme.accents[i]))
+                // Dark Style 2 has three ids, each for a PAIR of accents (1/2, 3/4, 5/6): header and body take one each.
+                let paired = accents.count == 3
+                for (i, id) in accents.enumerated() {
+                    let a = paired ? i * 2 : i
+                    guard a < deck.theme.accents.count else { continue }
+                    let label = paired ? "Accent \(a + 1)/Accent \(a + 2)" : "Accent \(a + 1)"
+                    out.append(("\(name) - \(label)", .builtin(id), deck.theme.accents[a]))
                 }
             }
             return out

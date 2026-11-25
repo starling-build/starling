@@ -103,7 +103,15 @@ extension DeckController {
         // style's to the new one's where the run still shows the old one's (a colour the user chose stays).
         for i in doc.paragraphs.indices {
             guard var c = doc.paragraphs[i].cell, c.table == id else { continue }
-            let was = tableTextLook(oldDefinition, oldOptions, row: c.row, column: c.column, rows: rows, cols: cols, colors: colors)
+            // A style with no definition here (Table Grid, Medium Style 2) has its text look baked on the runs: a white bold
+            // header, bold first/last column and total row. Count that as the old look so it moves with the style.
+            let was: (bold: Bool, color: Color?) = (oldDefinition == nil || oldStyle?.styleId == TableLook.plain.styleId) ? {
+                if oldStyle?.styleId == TableLook.plain.styleId { return (false, nil) }  // Table Grid: plain text, nothing baked
+                let head = oldOptions.headerRow && c.row == 0
+                let bold = head || (oldOptions.firstColumn && c.column == 0) || (oldOptions.lastColumn && c.column == cols - 1)
+                    || (oldOptions.totalRow && c.row == rows - 1 && c.row > 0)
+                return (bold, head ? Color(0xFFFFFFFF) : nil)
+            }() : tableTextLook(oldDefinition, oldOptions, row: c.row, column: c.column, rows: rows, cols: cols, colors: colors)
             let now = tableTextLook(definition, o, row: c.row, column: c.column, rows: rows, cols: cols, colors: colors)
             var runs = doc.paragraphs[i].runs.isEmpty ? [Run(length: doc.paragraphs[i].text.count)] : doc.paragraphs[i].runs
             for j in runs.indices {
