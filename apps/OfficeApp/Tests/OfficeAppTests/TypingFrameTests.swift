@@ -96,6 +96,12 @@ final class TypingFrameTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(Double(low), old.top + grown - 2, "and it reaches at least the grown height")
         // ... and no piece of it is left across the box at the height it had when it was entered.
         XCTAssertFalse((-2 ... 2).contains { isFrame(at(mid, old.bottom + Double($0))) }, "the old lower edge is gone")
+        // The strip above the new frame is clean: the page's own (old) frame is not drawn behind the editor, so the
+        // frame colour starts at one row and nothing sits above it down the box's middle.
+        let rows = (0 ..< h).filter { isFrame(at(mid, Double($0))) }
+        var runs = 0
+        for (k, y) in rows.enumerated() where k == 0 || y != rows[k - 1] + 1 { runs += 1 }
+        XCTAssertEqual(runs, 2, "one frame: a top edge and a bottom edge, no doubled line")
         if let path = ProcessInfo.processInfo.environment["TYPING_FRAME_PNG"] {
             try png(px, w, h).write(to: URL(fileURLWithPath: path))
         }

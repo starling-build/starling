@@ -1628,6 +1628,8 @@ final class DecodeMailbox: @unchecked Sendable {
 public final class RichLayout {
     private let _leakProbe = LeakProbe("RichLayout")
     public let theme: RichTextTheme
+    /// An image whose frame the page does not draw (the editor over it draws its own).
+    public var hiddenFrameID: String?
 
     /// Zoom. Invalidates every painter.
     /// The fonts' own scale, over `scale`: PowerPoint's shrink-to-fit
