@@ -34,6 +34,24 @@ final class SlideSizeDialogTests: XCTestCase {
         XCTAssertEqual(s.frame.width, b.width * k, accuracy: 0.001)
     }
 
+    func testTableColumnsScaleWithTheFrame() throws {
+        let deck = DeckController()
+        let t = deck.addTable(rows: 2, columns: 3)
+        var doc = t.text!.document
+        let id = try XCTUnwrap(doc.paragraphs.first?.cell?.table)
+        doc.tableColumns[id] = [400, 300, 200]
+        t.text!.load(doc)
+        t.frame = Rect.fromLTWH(30, 40, 900, 100)
+        deck.setSlideSize(Size(720, 540))   // 16:9 (960) to 4:3, fit: k = 0.75
+        let cols = try XCTUnwrap(t.text!.document.tableColumns[id])
+        XCTAssertEqual(cols, [300, 225, 150])
+        let pkg = PptxPackage(try Zip.read(try Pptx.write(deck)))
+        let slide = String(data: pkg.parts["ppt/slides/slide1.xml"]!, encoding: .utf8)!
+        XCTAssertTrue(slide.contains("<a:gridCol w=\"3810000\"/>"), String(slide.suffix(1500)))
+        deck.undo()
+        XCTAssertEqual(t.text!.document.tableColumns[id], [400, 300, 200])
+    }
+
     func testTextScalesWithTheShape() {
         let deck = DeckController()
         let s = deck.currentSlide.shapes[0]

@@ -379,6 +379,13 @@ final class DeckController: ChangeNotifier {
                 doc.paragraphs[i].runs[j].style.fontSize = doc.paragraphs[i].runs[j].style.fontSize.map { $0 * k }
             }
         }
+        // A table's grid goes with its frame: column widths and any row heights it states.
+        for id in Array(doc.tableColumns.keys) { doc.tableColumns[id] = doc.tableColumns[id]?.map { $0 * k } }
+        for id in Array(doc.tableStyles.keys) {
+            guard var ts = doc.tableStyles[id] else { continue }
+            ts.rowHeights = ts.rowHeights.mapValues { $0 * k }
+            doc.tableStyles[id] = ts
+        }
         text.load(doc)
         shape.insets = EdgeInsets(left: shape.insets.left * k, top: shape.insets.top * k,
                                   right: shape.insets.right * k, bottom: shape.insets.bottom * k)
@@ -1711,8 +1718,8 @@ final class DeckController: ChangeNotifier {
     func setBackground(_ fill: SlideFill?, all: Bool = false) {
         _checkpoint()
         // Apply to All writes the master (new slides and layouts pick it up) and clears every slide's own
-        // background, as PowerPoint does. A picture keeps to the slides: the master's picture is not modelled.
-        if all, let fill, fill.image == nil {
+        // background, as PowerPoint does. A picture is written once, on the master.
+        if all, let fill {
             masterBackground = fill
             for slide in slides { slide.background = nil; slide.backgroundXML = nil; slide.inheritedBackground = fill }
         } else if all, fill == nil {

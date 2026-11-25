@@ -80,6 +80,10 @@ enum PptxWriter {
             b.rels(part, [Rel(id: "rId1", type: RT.master, target: "../slideMasters/slideMaster1.xml")])
             masterRels.append(Rel(id: "rIdL\(i + 1)", type: RT.layout, target: "../slideLayouts/slideLayout\(i + 1).xml"))
         }
+        if let pic = state.masterBackground?.image {
+            masterRels.append(Rel(id: PptxTemplates.masterPictureRID, type: RT.image, target: "../media/" + _masterPictureName(pic)))
+            b.addBinary("ppt/media/" + _masterPictureName(pic), pic.data)
+        }
         b.rels("ppt/slideMasters/slideMaster1.xml", masterRels)
         b.add("ppt/notesMasters/notesMaster1.xml", t.notesMaster(), type: CT.notesMaster)
         b.rels("ppt/notesMasters/notesMaster1.xml", [Rel(id: "rId1", type: RT.theme, target: "../theme/theme2.xml")])
@@ -467,6 +471,8 @@ enum PptxWriter {
     }
 
     /// Apply to All: the masters' background becomes `fill`, and no layout keeps one of its own over it.
+    static func _masterPictureName(_ image: ImageAttachment) -> String { "master_background.\(PptxText.imageExtension(image))" }
+
     /// `p:sldSz` of a presentation part, in points.
     static func _slideSize(_ presXML: String) -> Size? {
         guard let r = presXML.findRange(of: "<p:sldSz"), let e = presXML.findRange(of: ">", in: r.upperBound ..< presXML.endIndex) else { return nil }
@@ -561,6 +567,17 @@ enum PptxWriter {
 
     private static func _setMasterBackground(_ fill: SlideFill, in b: inout PackageBuilder) {
         let bg = PptxTemplates.backgroundXML(fill)
+        if let pic = fill.image {
+            // The picture is a part of its own, reached from the masters only.
+            let name = _masterPictureName(pic)
+            b.addBinary("ppt/media/" + name, pic.data)
+            for part in Array(b.parts.keys) where part.hasPrefix("ppt/slideMasters/slideMaster") && part.hasSuffix(".xml") {
+                let rp = Pptx.relsPath(part)
+                guard let d = b.parts[rp], var x = String(data: d, encoding: .utf8), let end = x.findRange(of: "</Relationships>") else { continue }
+                x.replaceSubrange(end.lowerBound ..< end.lowerBound, with: "<Relationship Id=\"\(PptxTemplates.masterPictureRID)\" Type=\"\(RT.image)\" Target=\"../media/\(name)\"/>")
+                b.parts[rp] = Data(x.utf8)
+            }
+        }
         func edit(_ part: String, _ f: (String) -> String) {
             if let d = b.parts[part], let x = String(data: d, encoding: .utf8) { b.parts[part] = Data(f(x).utf8) }
         }
@@ -934,12 +951,7 @@ private struct SlideXML {
     mutating func fill(_ f: SlideFill, media: inout MediaParts, builder: inout PackageBuilder) -> String {
         if let image = f.image {
             let rid = _media(image, media: &media, builder: &builder)
-            let alpha = f.imageAlpha < 1 ? "<a:alphaModFix amt=\"\(Int((f.imageAlpha * 100000).rounded()))\"/>" : ""
-            let blip = alpha.isEmpty ? "<a:blip r:embed=\"\(rid)\"/>" : "<a:blip r:embed=\"\(rid)\">\(alpha)</a:blip>"
-            let mode = f.tiled
-                ? "<a:tile tx=\"0\" ty=\"0\" sx=\"\(Int((f.tileScale * 100000).rounded()))\" sy=\"\(Int((f.tileScaleY * 100000).rounded()))\" flip=\"none\" algn=\"tl\"/>"
-                : "<a:stretch><a:fillRect/></a:stretch>"
-            return "<a:blipFill dpi=\"0\" rotWithShape=\"1\">\(blip)<a:srcRect/>\(mode)</a:blipFill>"
+            return PptxTemplates.blipFillXML(f, rid: rid)
         }
         if f.stops.count >= 2 {
             let stops = f.stops.map { "<a:gs pos=\"\(Int(($0.position * 100000).rounded()))\"><a:srgbClr val=\"\(PptxText.hex($0.color))\"/></a:gs>" }.joined()

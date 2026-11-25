@@ -158,7 +158,21 @@ struct PptxTemplates {
     }
 
     /// A `p:bg` holding a solid or gradient fill.
+    /// A picture fill: the blip by relationship id `rid`, its transparency, stretched or tiled.
+    static func blipFillXML(_ f: SlideFill, rid: String) -> String {
+        let alpha = f.imageAlpha < 1 ? "<a:alphaModFix amt=\"\(Int((f.imageAlpha * 100000).rounded()))\"/>" : ""
+        let blip = alpha.isEmpty ? "<a:blip r:embed=\"\(rid)\"/>" : "<a:blip r:embed=\"\(rid)\">\(alpha)</a:blip>"
+        let mode = f.tiled
+            ? "<a:tile tx=\"0\" ty=\"0\" sx=\"\(Int((f.tileScale * 100000).rounded()))\" sy=\"\(Int((f.tileScaleY * 100000).rounded()))\" flip=\"none\" algn=\"tl\"/>"
+            : "<a:stretch><a:fillRect/></a:stretch>"
+        return "<a:blipFill dpi=\"0\" rotWithShape=\"1\">\(blip)<a:srcRect/>\(mode)</a:blipFill>"
+    }
+
+    /// The relationship id the master's background picture is held under (the picture's one use: the master's).
+    static let masterPictureRID = "rIdMasterBg"
+
     static func backgroundXML(_ f: SlideFill) -> String {
+        if f.image != nil { return "<p:bg><p:bgPr>\(blipFillXML(f, rid: masterPictureRID))<a:effectLst/></p:bgPr></p:bg>" }
         if f.stops.count >= 2 {
             let stops = f.stops.map { "<a:gs pos=\"\(Int(($0.position * 100000).rounded()))\"><a:srgbClr val=\"\(PptxText.hex($0.color))\"/></a:gs>" }.joined()
             return "<p:bg><p:bgPr><a:gradFill rotWithShape=\"1\"><a:gsLst>\(stops)</a:gsLst><a:lin ang=\"\(Int((f.angle * 60000).rounded()))\" scaled=\"0\"/></a:gradFill><a:effectLst/></p:bgPr></p:bg>"
