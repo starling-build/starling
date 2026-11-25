@@ -5,6 +5,7 @@ import Flutter
 import OfficeText
 import FlutterSwiftBridge
 import FluentSystemIcons
+import CupertinoIcons
 import Foundation
 #if os(macOS) || os(iOS)
 import CoreText
@@ -6398,6 +6399,7 @@ enum OfficeFonts {
         // Selawik ship in the SDK and are registered by whoever draws them
         // (the shell does the same).
         _ = FluentSystemIcons.registerFont()
+        _ = CupertinoIcons.registerFont()
         _ = SelawikFont.registerFont()
         // Coverage for what the document faces lack (⌘, arrows): the browser
         // build lists DejaVu Sans as its glyph fallback and macOS has the
