@@ -398,6 +398,8 @@ extension Ribbon {
             Chrome.textToggle("Gridlines", wb.sheet.showGridlines, fluent, style: fluent.typography.caption) {
                 wb.structural { wb.sheet.showGridlines.toggle() }
             },
+            Chrome.textToggle("Headings", wb.sheet.showHeadings, fluent, style: fluent.typography.caption) { wb.toggleHeadings() },
+            Chrome.textToggle("Show Formulas", wb.sheet.showFormulas, fluent, style: fluent.typography.caption) { wb.toggleShowFormulas() },
             Chrome.textToggle("Page Break Preview", wb.breakPreview, fluent, style: fluent.typography.caption) {
                 wb.breakPreview.toggle(); wb._notify()
             },

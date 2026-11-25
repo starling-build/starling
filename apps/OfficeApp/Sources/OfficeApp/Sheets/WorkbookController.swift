@@ -193,6 +193,19 @@ final class WorkbookController: ChangeNotifier {
     }
 
     /// Freeze the rows above and the columns left of `at` (A1 unfreezes).
+    /// View > Zoom: the sheet's zoom in percent. Not an undo step, as in Excel; saved with the sheet.
+    func setZoom(percent: Int) {
+        sheet.zoomPercent = percent
+        _notify(selectionOnly: true)
+    }
+
+    /// View > Show: Headings (row numbers and column letters). One undo step.
+    func toggleHeadings() { structural { sheet.showHeadings.toggle() } }
+    /// Formulas > Show Formulas (Ctrl+`). One undo step.
+    func toggleShowFormulas() { structural { sheet.showFormulas.toggle() } }
+    /// Page Layout > Sheet Right-to-Left. One undo step.
+    func toggleRightToLeft() { structural { sheet.rightToLeft.toggle() } }
+
     func freeze(at a: CellAddress) {
         structural {
             sheet.freezeRows = a.row
