@@ -445,7 +445,19 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 // default, as its L8:R8 headers do.)
                 if let g = merged[a.row]?.first(where: { $0.contains(a) }),
                    g.top != g.bottom || (a == g.topLeft && book.style(cell.style).wrap) { continue }
-                let l = cell.style == 0 && cell.value.isEmpty ? m.defaultRow : line(cell.style)
+                var l = cell.style == 0 && cell.value.isEmpty ? m.defaultRow : line(cell.style)
+                // Turned text stands as tall as the text is long, along its angle: Excel fits the row to it (X-AF-1). A row the file
+                // fitted (`scriptRows`) keeps that fit, where it is taller.
+                let rot = book.style(cell.style).rotation
+                if rot != 0, rot != 255, cell.value.isText, !merged[a.row, default: []].contains(where: { $0.contains(a) }) {
+                    let st = book.style(cell.style)
+                    let text = NumberFormat.display(cell.value, st.numberFormat, width: 255).text
+                    if !text.isEmpty {
+                        let one = texts.painter(text, _textStyle(st, color: nil, ink: Color(0xFF00_0000)), maxWidth: 10_000)
+                        let th = Double(rot > 90 ? rot - 90 : rot) * .pi / 180
+                        l = max(l, min(409.5, one.width / scale * abs(sin(th)) + one.height / scale * abs(cos(th))))
+                    }
+                }
                 if l > fit[a.row] ?? 0 { fit[a.row] = l; fitSize[a.row] = book.fontSize(book.style(cell.style)) }
                 let acc = book.style(cell.style).accounting
                 if acc > 0 { accounting[a.row, default: []].append((book.fontSize(book.style(cell.style)), acc)) }

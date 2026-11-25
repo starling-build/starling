@@ -38,4 +38,19 @@ final class SheetsAutoFitRowsTests: XCTestCase {
         c.setStyle({ $0.rotation = 90 })
         XCTAssertGreaterThan(rowHeight(c, 0), plain * 2)
     }
+
+    /// The printed page fits turned text too, so screen and PDF agree.
+    func testPrintGrowsTurnedTextRowAndKeepsSetHeight() {
+        let c = WorkbookController()
+        c.setInput("A long heading", at: CellAddress(row: 0, col: 0))
+        c.setInput("A long heading", at: CellAddress(row: 1, col: 0))
+        c.select(range: CellRange("A1:A2")!)
+        c.setStyle({ $0.rotation = 90 })
+        c.sheet.rowHeights[1] = 20
+        let g = SheetGridState(headless: c)
+        g.printing = true
+        XCTAssertGreaterThan(g.rows.size(0), 60)
+        XCTAssertEqual(g.rows.size(1), 20, accuracy: 0.5)
+        XCTAssertLessThan(g.rows.size(5), 20)
+    }
 }
