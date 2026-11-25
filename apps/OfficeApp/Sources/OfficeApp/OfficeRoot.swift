@@ -44,6 +44,8 @@ private final class _OfficeRootState: State<StatefulWidget> {
     override func initState() {
         super.initState()
         let root = widget as! OfficeRoot
+        // The system's text size, contrast and bold settings reach the chrome through the theme.
+        SystemDisplay.onChange = { [weak self] in self?.setState {} }
         _kind = root.initialKind
         _path = root.initialPath
         // A host that owns the file browser (the iPad's) hands the window a
@@ -128,6 +130,7 @@ private final class _OfficeRootState: State<StatefulWidget> {
                 home: ButtonTheme(data: WikiAppearance.buttons, child: reader), title: "Starling Site"))
         }
         #endif
+        let display = SystemDisplay.current
         let onOpenSite: (String, Bool) -> Void = { [weak self] dir, startEditing in
             guard let self else { return }
             self.setState { self._site = dir; self._editSiteOnOpen = startEditing; self._generation += 1 }
@@ -144,8 +147,8 @@ private final class _OfficeRootState: State<StatefulWidget> {
         // once, into its first route, so a new home under the same app is
         // never shown.
         return _Keyed(key: ValueKey(_generation), child: FluentApp(
-            theme: OfficeAppearance.theme(.light),
-            darkTheme: OfficeAppearance.theme(.dark),
+            theme: OfficeAppearance.theme(.light, display: display),
+            darkTheme: OfficeAppearance.theme(.dark, display: display),
             themeMode: _dark ? .dark : .light,
             home: _update.map { release in
                 UpdateNoticeHost(release: release, home: touched) { [weak self] in

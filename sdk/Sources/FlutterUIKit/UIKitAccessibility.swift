@@ -33,9 +33,17 @@ public enum UIKitAccessibility {
             guard UIAccessibility.isVoiceOverRunning else { return }
             UIAccessibility.post(notification: .announcement, argument: text)
         }
-        let t = Timer(timeInterval: 0.4, repeats: true) { _ in refresh() }
+        pollDisplaySettings()
+        let t = Timer(timeInterval: 0.4, repeats: true) { _ in refresh(); pollDisplaySettings() }
         RunLoop.main.add(t, forMode: .common)
         timer = t
+    }
+
+    /// Dynamic Type, Increase Contrast and Bold Text, as the chrome follows them.
+    static func pollDisplaySettings() {
+        let scale = Double(UIFontMetrics.default.scaledValue(for: 100)) / 100
+        SystemDisplay.update(DisplaySettings(textScale: scale, increasedContrast: UIAccessibility.isDarkerSystemColorsEnabled,
+                                             boldText: UIAccessibility.isBoldTextEnabled))
     }
 
     static func rootView() -> UIView? {
