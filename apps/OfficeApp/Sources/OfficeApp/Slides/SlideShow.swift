@@ -58,6 +58,9 @@ final class SlideShowState: State<StatefulWidget>, TickerProvider {
     private var _cache: SlideTextCache!
     private var _cursorGeneration = 0
     private var _advanceGeneration = 0
+    /// Presenter view: the notes' type size, and whether the grid of every slide is open.
+    private(set) var _notesSize = 22.0
+    private(set) var _seeAll = false
     /// The editor's repaint-on-decode, restored when the show ends.
     private var _sourceDecoded: (() -> Void)?
     /// The current slide's animations: groups played so far, and the one
@@ -398,11 +401,35 @@ final class SlideShowState: State<StatefulWidget>, TickerProvider {
                     if self._timerSince != nil { self._timerSince = Date() }
                 }
             },
+            button("A−") { [weak self] in self?.setState { self?._notesSize = max(12, (self?._notesSize ?? 22) - 2) } },
+            SizedBox(width: 4, height: nil, child: nil),
+            button("A+") { [weak self] in self?.setState { self?._notesSize = min(48, (self?._notesSize ?? 22) + 2) } },
+            SizedBox(width: 12, height: nil, child: nil),
+            button(_blank == nil ? "Black" : "Unblack") { [weak self] in
+                self?.setState { self?._blank = self?._blank == nil ? Color(0xFF000000) : nil }
+            },
+            SizedBox(width: 6, height: nil, child: nil),
+            button(_seeAll ? "Hide slides" : "See all slides") { [weak self] in self?.setState { self?._seeAll.toggle() } },
             Expanded(child: Center(child: label(counter, 18, white))),
             label(clock, 22, white),
             SizedBox(width: 16, height: nil, child: nil),
             button("End Show") { [weak self] in self?._w.onEnd() },
         ]))
+        // "See all slides": every slide of the show's order as a thumbnail; a click jumps there.
+        let grid = SingleChildScrollView(child: Wrap(spacing: 10, runSpacing: 10, children: _order.enumerated().map { pos, i in
+            Listener(onPointerDown: { [weak self] _ in
+                guard let self else { return }
+                self.setState { self._seeAll = false }
+                self._go(to: pos, animate: false)
+            }, child: SizedBox(width: 190, height: 190 * deck.slideSize.height / deck.slideSize.width + 18, child: Column(
+                crossAxisAlignment: .start, children: [
+                    AspectRatio(aspectRatio: deck.slideSize.width / deck.slideSize.height, child: ClipRect(child: CustomPaint(
+                        painter: SlidePainter(slide: deck.slides[i], theme: deck.theme, slideSize: deck.slideSize,
+                                              revision: deck.revision, cache: _cache, placeholders: false),
+                        child: SizedBox(expand: ())))),
+                    label("\(i + 1)", 12, pos == _at ? white : dim),
+                ])))
+        }))
         let controls = Padding(padding: EdgeInsets(left: 0, top: 10, right: 0, bottom: 0), child: Row(
             mainAxisAlignment: .center, children: [
                 button("◀  Back") { [weak self] in self?._previous() },
@@ -415,7 +442,7 @@ final class SlideShowState: State<StatefulWidget>, TickerProvider {
                     Expanded(flex: 3, child: Column(crossAxisAlignment: .stretch, children: [
                         label("Current slide", 13, dim),
                         SizedBox(width: nil, height: 6, child: nil),
-                        Expanded(child: show),
+                        Expanded(child: _seeAll ? grid : show),
                         controls,
                     ])),
                     SizedBox(width: 24, height: nil, child: nil),
@@ -428,7 +455,7 @@ final class SlideShowState: State<StatefulWidget>, TickerProvider {
                         SizedBox(width: nil, height: 6, child: nil),
                         Expanded(child: SingleChildScrollView(child: Text(
                             notes.isEmpty ? "No notes for this slide." : notes,
-                            style: Flutter.TextStyle(color: notes.isEmpty ? dim : white, fontSize: 22, height: 1.35, fontFamily: font)))),
+                            style: Flutter.TextStyle(color: notes.isEmpty ? dim : white, fontSize: _notesSize, height: 1.35, fontFamily: font)))),
                     ])),
                 ]))),
             bar,
