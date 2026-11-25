@@ -120,6 +120,7 @@ final class NoteInsertTests: XCTestCase {
             XCTAssertFalse(xml.contains("w:vertAlign"), file)
             XCTAssertFalse(xml.contains("<w:sz "), file)
         }
+        XCTAssertFalse(try part("word/document.xml").contains("w:vertAlign"), "the body marks take their raise from the style")
         let styles = try part("word/styles.xml")
         for id in ["FootnoteText", "EndnoteText", "FootnoteReference", "EndnoteReference"] {
             XCTAssertTrue(styles.contains("w:styleId=\"\(id)\""), id)

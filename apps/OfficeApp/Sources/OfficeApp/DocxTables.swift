@@ -1431,6 +1431,7 @@ extension DocxFormat {
                     // (A mark the file set on the baseline keeps it, under
                     // the reference style's superscript.)
                     if s.script != .superscript { rPr += "<w:vertAlign w:val=\"baseline\"/>" }
+                    else { rPr = rPr.replacingAll("<w:vertAlign w:val=\"superscript\"/>", with: "") }   // (the reference style raises it)
                     body += "<w:r><w:rPr>\(rPr.hasPrefix("<w:rStyle ") ? "" : "<w:rStyle w:val=\"\(st)\"/>")\(rPr)</w:rPr>"
                     body += custom.isEmpty ? "<\(tag) w:id=\"\(note.id)\"/>" : "<\(tag) w:customMarkFollows=\"1\" w:id=\"\(note.id)\"/>\(_text(custom))"
                     body += "</w:r>"
