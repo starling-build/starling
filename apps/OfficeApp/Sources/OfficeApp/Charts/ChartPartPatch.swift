@@ -107,4 +107,54 @@ enum ChartPartPatch {
         }
         return x
     }
+
+    enum Axis { case category, value }
+
+    /// An axis's own title: its text set, or the title taken off. The category axis is the first c:catAx / c:dateAx,
+    /// else (a scatter chart) the first c:valAx; the value axis is the other c:valAx. Everything else stays as written.
+    static func axisTitle(_ xml: String, _ axis: Axis, _ edit: ChartPartEdit) -> String {
+        var spans: [(tag: String, r: Range<String.Index>)] = []
+        for tag in ["catAx", "dateAx", "valAx"] {
+            var from = xml.startIndex
+            while let o = xml.findRange(of: "<c:\(tag)>", in: from ..< xml.endIndex),
+                  let c = xml.findRange(of: "</c:\(tag)>", in: o.upperBound ..< xml.endIndex) {
+                spans.append((tag, o.lowerBound ..< c.upperBound)); from = c.upperBound
+            }
+        }
+        spans.sort { $0.r.lowerBound < $1.r.lowerBound }
+        let cat = spans.first(where: { $0.tag != "valAx" }) ?? spans.first(where: { $0.tag == "valAx" })
+        let val = spans.first(where: { $0.tag == "valAx" && $0.r != cat?.r })
+        guard let target = (axis == .category ? cat : val) else { return xml }
+        var ax = String(xml[target.r])
+        let vertical = ax.containsSubstring("<c:axPos val=\"l\"") || ax.containsSubstring("<c:axPos val=\"r\"")
+        var existing: Range<String.Index>? = nil
+        if let t0 = ax.findRange(of: "<c:title>", in: ax.startIndex ..< ax.endIndex),
+           let t1 = ax.findRange(of: "</c:title>", in: t0.upperBound ..< ax.endIndex) { existing = t0.lowerBound ..< t1.upperBound }
+        switch edit {
+        case .remove:
+            if let r = existing { ax.replaceSubrange(r, with: "") }
+        case .set(let text):
+            if let r = existing {
+                ax.replaceSubrange(r, with: retext(String(ax[r]), _esc(text)))
+            } else {
+                let body = vertical ? "<a:bodyPr rot=\"-5400000\" vert=\"horz\"/>" : "<a:bodyPr/>"
+                let title = "<c:title><c:tx><c:rich>\(body)<a:lstStyle/><a:p><a:r><a:t>\(_esc(text))</a:t></a:r></a:p></c:rich></c:tx><c:overlay val=\"0\"/></c:title>"
+                // Schema order: ... axPos, majorGridlines, minorGridlines, title, numFmt, majorTickMark ...
+                guard let pos = ax.findRange(of: "<c:axPos ", in: ax.startIndex ..< ax.endIndex),
+                      let posEnd = ax.findRange(of: "/>", in: pos.upperBound ..< ax.endIndex) else { return xml }
+                var at = posEnd.upperBound
+                // Past the gridlines, whose own children (spPr) are not the axis's.
+                for name in ["majorGridlines", "minorGridlines"] {
+                    guard ax.findRange(of: "<c:\(name)", in: at ..< ax.endIndex)?.lowerBound == at,
+                          let open = ax.findRange(of: ">", in: at ..< ax.endIndex) else { continue }
+                    if ax[ax.index(before: open.lowerBound)] == "/" { at = open.upperBound }
+                    else if let c = ax.findRange(of: "</c:\(name)>", in: at ..< ax.endIndex) { at = c.upperBound }
+                }
+                ax.insert(contentsOf: title, at: at)
+            }
+        }
+        var out = xml
+        out.replaceSubrange(target.r, with: ax)
+        return out
+    }
 }

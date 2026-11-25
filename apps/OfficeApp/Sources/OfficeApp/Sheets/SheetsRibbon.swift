@@ -326,6 +326,10 @@ extension Ribbon {
                 Chrome.textToggle("Chart Title", c.title != nil, fluent, style: fluent.typography.caption) {
                     wb.setChartTitle(i, c.title == nil ? "Chart Title" : nil)
                 },
+                Chrome.textToggle("Axis Titles", c.categoryAxisTitle != nil || c.valueAxisTitle != nil, fluent, style: fluent.typography.caption) {
+                    let on = c.categoryAxisTitle != nil || c.valueAxisTitle != nil
+                    wb.setChartAxisTitles(i, category: on ? nil : "Axis Title", value: on ? nil : "Axis Title")
+                },
                 Chrome.textToggle("Legend", c.legend, fluent, style: fluent.typography.caption) {
                     wb.setChartLegend(i, position: c.legend ? nil : (c.legendPosition.isEmpty ? "b" : c.legendPosition))
                 },
