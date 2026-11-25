@@ -100,6 +100,6 @@ extension HyperlinkFieldTests {
         let (_, xml) = try roundTrip("<w:p>\(fc("begin"))\(it("HYPERLINK \"http://x.y\""))\(fc("separate"))<w:r><w:rPr><w:rStyle w:val=\"Hyperlink\"/></w:rPr><w:t>go</w:t></w:r>\(fc("end"))</w:p>")
         XCTAssertFalse(xml.contains("<w:rPr><w:rStyle w:val=\"Hyperlink\"/></w:rPr><w:fldChar"))
         XCTAssertFalse(xml.contains("<w:rStyle w:val=\"Hyperlink\"/></w:rPr><w:instrText"))
-        XCTAssertTrue(xml.contains("<w:rStyle w:val=\"Hyperlink\"/></w:rPr><w:t>go"))
+        XCTAssertTrue(xml.contains("<w:rStyle w:val=\"Hyperlink\"/></w:rPr><w:t xml:space=\"preserve\">go"))
     }
 }
