@@ -540,6 +540,19 @@ enum Xlsx {
         return _pointsToChars(pt, digit: ws.digitWidth)
     }
 
+    /// What Excel's dialogs call a width: the characters that fit, without
+    /// the 5 px of padding the file's width includes (stored 20.7109375 is 20).
+    static func _displayChars(points pt: Double, digit: Double = 7) -> Double {
+        let px = (pt / 0.75).rounded()
+        return (((px - 5) / digit) * 100).rounded() / 100
+    }
+    /// Points for a width typed as characters: the file's width is
+    /// trunc((chars * digit + 5) / digit * 256) / 256, as Excel writes it.
+    static func _pointsForDisplayChars(_ chars: Double, digit: Double = 7) -> Double {
+        let stored = ((chars * digit + 5) / digit * 256).rounded(.down) / 256
+        return _charsToPoints(stored, digit: digit)
+    }
+
     static func _pointsToChars(_ pt: Double, digit: Double = 7) -> Double {
         let px = (pt / 0.75).rounded()
         return (px / digit * 256).rounded(.down) / 256
@@ -1302,7 +1315,15 @@ enum Xlsx {
         }
         view += "</sheetView></sheetViews>"
         generated["sheetViews"] = view
-        generated["sheetFormatPr"] = "<sheetFormatPr" + ws.formatPrAttrs.filter { $0.key != "defaultRowHeight" }.sorted { $0.key < $1.key }
+        // A default width the user changed (Format > Default Width) is written; one the file gave stays as it wrote it.
+        var formatAttrs = ws.formatPrAttrs.filter { $0.key != "defaultRowHeight" }
+        let readBack: Double = {
+            if let w = Double(formatAttrs["defaultColWidth"] ?? ""), w > 0 { return _charsToPoints(w, digit: ws.digitWidth) }
+            let base = Double(formatAttrs["baseColWidth"] ?? "") ?? 8
+            return ((base * ws.digitWidth + 5) / 8).rounded(.up) * 8 * 0.75
+        }()
+        if abs(readBack - ws.defaultColWidthPt) > 0.01 { formatAttrs["defaultColWidth"] = _num(_pointsToChars(ws.defaultColWidthPt, digit: ws.digitWidth)) }
+        generated["sheetFormatPr"] = "<sheetFormatPr" + formatAttrs.sorted { $0.key < $1.key }
             .map { " \($0.key)=\"\(_esc($0.value))\"" }.joined() + " defaultRowHeight=\"\(_num(ws.defaultRowHeightPt))\"/>"
         // Columns: segments where the width and the file's other attributes
         // (style, outline level…) are all the same.

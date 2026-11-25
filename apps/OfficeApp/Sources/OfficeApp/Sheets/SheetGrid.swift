@@ -1299,6 +1299,10 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             return true
         }
 
+        // Ctrl++ and Ctrl+-: insert and delete cells.
+        if _chords.primary, edit == nil, k.logical == 0x2D || k.logical == 0x3D || k.logical == 0x2B {
+            if _w.onShortcut(k.logical == 0x2D ? "-" : "+", _chords) { return true }
+        }
         // Chords first.
         if _chords.primary, let letter = KeyChordTracker.letter(k.logical) {
             switch letter {
