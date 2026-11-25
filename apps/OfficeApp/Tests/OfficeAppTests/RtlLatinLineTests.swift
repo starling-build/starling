@@ -62,4 +62,45 @@ final class RtlLatinLineTests: XCTestCase {
         let times = lineBox(latinFace: "Times New Roman")
         XCTAssertEqual(times.bottom - times.top, 12 * 1.1499 * 1.15, accuracy: 0.004)
     }
+
+    func testRightToLeftTextRoundABoxFillsTheRightRoomFirstAndStandsLevelWithTheLeft() {
+        // dx2 c2c3a2f3 (Word for Windows): a box in the middle of the column with room on both sides; a right-to-left paragraph
+        // starts at the room at the box's RIGHT and the next piece stands at its LEFT, level with it.
+        RichTextTheme.wordWindowsPages = true
+        defer { RichTextTheme.wordWindowsPages = false }
+        let theme = RichTextTheme(fontFamily: OfficeFonts.serif)
+        theme.wordRules = true
+        var image = ImageAttachment(data: Data(), width: 120, height: 60)
+        var float = ImageFloat()
+        float.verticalFrom = "paragraph"
+        float.horizontalFrom = "column"
+        float.x = 165
+        float.wraps = true
+        image.float = float
+        image.textBox = RichTextBox(paragraphs: [RichParagraph(text: "box")])
+        var holder = RichParagraph(text: "")
+        holder.image = image
+        var style = RichParagraphStyle()
+        style.rightToLeft = true
+        let words = String(repeating: "שלום עולם ", count: 40)
+        var hebrew = CharStyle()
+        hebrew.rightToLeft = true
+        hebrew.fontSize = 12
+        let body = RichParagraph(text: words, runs: [Run(length: words.utf16.count, style: hebrew)], style: style)
+        let layout = RichLayout(theme: theme, paragraphCount: 2)
+        layout.width = 450 * theme.pixelsPerPoint
+        var doc = RichDocument(paragraphs: [holder, body])
+        doc.compatibilityMode = 15
+        layout.ensureLaidOut(doc)
+        let px = theme.pixelsPerPoint
+        var byTop: [Int: [Double]] = [:]
+        for o in stride(from: 0, to: words.utf16.count, by: 3) {
+            let r = layout.caretRect(RichPosition(paragraph: 1, offset: o), doc)
+            byTop[Int((r.top / px).rounded()), default: []].append(r.left / px)
+        }
+        let level = byTop.values.filter { xs in (xs.max() ?? 0) > 290 && (xs.min() ?? 999) < 160 }
+        XCTAssertFalse(level.isEmpty, "a row holds a piece right of the box and one left of it: \(byTop.keys.sorted())")
+        let firstTop = byTop.keys.min() ?? 0
+        XCTAssertGreaterThan(byTop[firstTop]?.first ?? 0, 290, "the paragraph starts at the room right of the box")
+    }
 }
