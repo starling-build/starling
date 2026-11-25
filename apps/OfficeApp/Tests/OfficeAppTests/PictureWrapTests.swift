@@ -578,6 +578,22 @@ final class ShapeSelectTests: XCTestCase {
         c.undo()   // the delete
         c.undo()   // the resize
         XCTAssertEqual(try XCTUnwrap(c.groupChildBoxes(at: c.selectedImageIndex ?? gi)), boxes, "each edit was one undo step")
+        // Words typed into the picked child stay in the group: it keeps both children, and undo takes them out.
+        c.selectImage(at: c.selectedImageIndex ?? gi)
+        XCTAssertTrue(c.pickGroupChild(at: c.selectedImageIndex ?? gi, point: Offset(40, 30)))
+        var typed = try XCTUnwrap(c.groupChildTextDocument())
+        typed.paragraphs = [RichParagraph(text: "typed in a child")]
+        let (body, rels) = try XCTUnwrap(TextBoxInsert.content(typed))
+        XCTAssertTrue(c.setGroupChildText(document: typed, contentXML: body, rels: rels))
+        XCTAssertEqual(c.groupChild, 1)
+        XCTAssertEqual(try XCTUnwrap(c.groupChildBoxes(at: c.selectedImageIndex ?? gi)).count, 2)
+        XCTAssertTrue(c.document.paragraphs[c.selectedImageIndex ?? gi].image!.sourceXML!.containsSubstring("typed in a child"))
+        XCTAssertEqual(c.groupChildTextDocument()?.paragraphs.first?.text, "typed in a child", "the child reads back what was typed")
+        if let path = ProcessInfo.processInfo.environment["SHAPE_LAB6"] {
+            try DocxFormat.write(c.document, pageSetup: .letter).write(to: URL(fileURLWithPath: path))
+        }
+        c.undo()
+        XCTAssertFalse(c.document.paragraphs[c.selectedImageIndex ?? gi].image!.sourceXML!.containsSubstring("typed in a child"))
         // Ungroup gives the two shapes back, by name and size.
         let g = try XCTUnwrap(c.document.paragraphs[c.selectedImageIndex!].image)
         let parts = try XCTUnwrap(ShapeGroups.ungroup(g, number: 20))

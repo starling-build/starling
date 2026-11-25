@@ -87,7 +87,7 @@ final class OfficeShellState: State<StatefulWidget> {
     private var _pictureDialog: PictureDialogKind?
     /// A text box being typed into in place: the box, where it is drawn (in the page area), and the document's own controller
     /// while `session.controller` is the box's.
-    var _boxEdit: (index: Int, inline: String?, rect: Rect, main: RichDocumentController, autoFit: Bool)?
+    var _boxEdit: (index: Int, inline: String?, rect: Rect, main: RichDocumentController, autoFit: Bool, child: Int?)?
     var _boxContentHeight: Double?
     private let _boxFocus = FocusNode(debugLabel: "Text box")
     /// Set while the picker is open for Change Picture: the picture (paragraph, inline id) the chosen file replaces.
@@ -1812,7 +1812,7 @@ final class OfficeShellState: State<StatefulWidget> {
             padding: EdgeInsets(left: readMargin, top: 24, right: readMargin, bottom: 24),
             focusNode: _editorFocus,
             backgroundColor: paged ? backdrop : page,
-            hiddenFrameID: _boxEdit.flatMap { b in b.index < b.main.document.paragraphs.count ? b.main.document.paragraphs[b.index].image?.id : nil },
+            hiddenFrameID: _boxEdit.flatMap { b in b.child != nil ? nil : b.index < b.main.document.paragraphs.count ? b.main.document.paragraphs[b.index].image?.id : nil },
             zoom: session.zoom,
             pageSetup: paged ? session.pageSetup : nil, pageColor: page,
             onPageInfo: { [weak self] p, n in
@@ -1847,7 +1847,7 @@ final class OfficeShellState: State<StatefulWidget> {
         let z = session.zoom
         // The shape's own frame (its line and fill) is drawn round the editor, so the frame grows with the words
         // instead of staying the size the page was laid out at.
-        let frame = (b.index < b.main.document.paragraphs.count ? b.main.document.paragraphs[b.index].image?.outline : nil).flatMap { $0.kind == .box ? $0 : nil }
+        let frame = (b.child != nil ? nil : b.index < b.main.document.paragraphs.count ? b.main.document.paragraphs[b.index].image?.outline : nil).flatMap { $0.kind == .box ? $0 : nil }
         let boxEditor = RichEditable(
             controller: controller, theme: theme,
             padding: EdgeInsets(left: 7.2 * z, top: 3.6 * z, right: 7.2 * z, bottom: 3.6 * z),
@@ -1882,7 +1882,8 @@ final class OfficeShellState: State<StatefulWidget> {
     /// Start typing in the text box at `index`: the ribbon and the keys act on a controller over the box's own paragraphs
     /// until `_leaveBox` puts them back, as one undo step.
     func _enterBox(_ index: Int, _ inline: String?, _ rect: Rect) {
-        guard _boxEdit == nil, var inside = controller.textBoxDocument(at: index, inline: inline) else { return }
+        let child = inline == nil ? controller.groupChild : nil
+        guard _boxEdit == nil, var inside = (child != nil ? controller.groupChildTextDocument() : controller.textBoxDocument(at: index, inline: inline)) else { return }
         let main = controller
         if inside.paragraphs.isEmpty { inside.paragraphs = [RichParagraph(text: "")] }
         let box = RichDocumentController(document: inside)
@@ -1893,7 +1894,7 @@ final class OfficeShellState: State<StatefulWidget> {
             if s != self.session.summary { self.setState { self.session.summary = s } }
         }
         setState {
-            _boxEdit = (index, inline, rect, main, main.textBoxAutoHeight(at: index, inline: inline))
+            _boxEdit = (index, inline, rect, main, child == nil && main.textBoxAutoHeight(at: index, inline: inline), child)
             _boxContentHeight = nil
             session.controller = box
             session.summary = session.summarize()
@@ -1902,7 +1903,7 @@ final class OfficeShellState: State<StatefulWidget> {
     }
 
     /// Put the box's words back into the document (one undo step) and return to the page.
-    private func _leaveBox() {
+    func _leaveBox() {
         guard let b = _boxEdit else { return }
         let box = controller
         setState {
@@ -1910,8 +1911,12 @@ final class OfficeShellState: State<StatefulWidget> {
             session.controller = b.main
         }
         if let (xml, rels) = TextBoxInsert.content(box.document) {
+            if b.child != nil {
+                b.main.setGroupChildText(document: box.document, contentXML: xml, rels: rels)
+            } else {
             let fitted = b.autoFit ? _boxContentHeight.map { ($0 + 7.2 * session.zoom) / session.zoom } : nil
             b.main.setTextBoxContent(at: b.index, inline: b.inline, document: box.document, contentXML: xml, rels: rels, height: fitted)
+            }
         }
         setState { session.summary = session.summarize() }
         _editorFocus.requestFocus()
