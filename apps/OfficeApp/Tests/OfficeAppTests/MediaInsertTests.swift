@@ -40,7 +40,14 @@ final class MediaInsertTests: XCTestCase {
         guard case .opaque(let o) = shape.kind, case .picture = o.rendering.first?.kind else {
             return XCTFail("a file's clip is kept whole and drawn as its poster")
         }
+        // The show plays a file's clip: its bytes ride on the shape, and re-saving adds no second timing.
+        let clip = try XCTUnwrap(shape.media)
+        XCTAssertEqual(clip.data, Data(bytes))
+        XCTAssertTrue(clip.existing)
+        XCTAssertFalse(clip.isVideo)
         let again = PptxPackage(try Zip.read(try Pptx.write(loaded)))
+        let slide2 = String(data: again.parts["ppt/slides/slide1.xml"] ?? Data(), encoding: .utf8) ?? ""
+        XCTAssertEqual(slide2.components(separatedBy: "<p:audio>").count, slide.components(separatedBy: "<p:audio>").count)
         XCTAssertEqual(again.parts.first { $0.key.hasPrefix("ppt/media/media") && $0.key.hasSuffix(".mp3") }?.value, Data(bytes))
     }
 

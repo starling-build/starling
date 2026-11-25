@@ -389,7 +389,7 @@ enum PptxWriter {
         if timing.isEmpty {
             let written = w.written
             timing = MediaTiming.write(slide.shapes.compactMap { sh in
-                guard let m = sh.media, let id = written[sh.id] else { return nil }
+                guard let m = sh.media, !m.existing, let id = written[sh.id] else { return nil }
                 return (id, m.isVideo)
             })
         }
