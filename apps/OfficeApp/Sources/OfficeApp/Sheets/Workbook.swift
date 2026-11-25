@@ -41,6 +41,8 @@ struct CellStyle: Hashable, Sendable {
     var underline = false
     /// The cell wears the built-in Hyperlink cell style (`cellStyle` builtinId 8).
     var linkStyle = false
+    /// A pivot's field button (the page field's name, the Row and Column Labels headings): `pivotButton="1"` on the xf.
+    var pivotButton = false
     /// The underline is an accounting one: 1 single, 2 double (they sit at
     /// the cell's foot, and make its row taller).
     var accounting = 0

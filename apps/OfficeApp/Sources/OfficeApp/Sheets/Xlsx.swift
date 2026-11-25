@@ -779,6 +779,7 @@ enum Xlsx {
         for xf in st.child("cellXfs")?.kids("xf") ?? [] {
             var s = CellStyle()
             if let linkXf, xf["xfId"] == linkXf { s.linkStyle = true }
+            if xf["pivotButton"] == "1" { s.pivotButton = true }
             if let id = Int(xf["numFmtId"] ?? "0") { s.numberFormat = formats[id] ?? "General" }
             if let fi = Int(xf["fontId"] ?? "0"), fi < fonts.count {
                 let f = fonts[fi]
@@ -1889,6 +1890,7 @@ enum Xlsx {
                 xfId = linkXfId ?? "0"
             }
             var xf = "<xf numFmtId=\"\(fmtId)\" fontId=\"\(fontId)\" fillId=\"\(fillId)\" borderId=\"\(borderId)\" xfId=\"\(xfId)\""
+            if st.pivotButton { xf += " pivotButton=\"1\"" }
             if fmtId != 0 { xf += " applyNumberFormat=\"1\"" }
             if fontId != 0 { xf += " applyFont=\"1\"" }
             if fillId != 0 { xf += " applyFill=\"1\"" }
