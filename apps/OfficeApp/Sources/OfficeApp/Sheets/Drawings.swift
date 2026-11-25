@@ -868,6 +868,44 @@ extension WorkbookController {
         _notify(selectionOnly: true)
     }
 
+    /// Change one chart made here (Chart Design). A chart that came from the
+    /// file keeps its own part, which these edits would not reach: it is
+    /// refused with a notice rather than changed on screen and lost on save.
+    @discardableResult
+    func editChart(_ index: Int, _ change: (inout Chart) -> Void) -> Bool {
+        let ws = sheet
+        guard ws.drawings.indices.contains(index), case .chart(var sc) = ws.drawings[index].kind else { return false }
+        guard sc.path == nil else {
+            chartNotice = "This chart came from the file; its titles and legend can't be changed here yet."
+            _notify()
+            return false
+        }
+        var chart = sc.chart
+        change(&chart)
+        guard chart != sc.chart else { return false }
+        sc.chart = chart
+        structural {
+            ws.drawings[index].kind = .chart(sc)
+            ws.drawings[index].raw = nil
+            ws.drawingsEdited = true
+        }
+        selectedDrawing = index
+        return true
+    }
+
+    /// Chart Design → Add Chart Element → Chart Title: a text, or nil for none.
+    func setChartTitle(_ index: Int, _ title: String?) {
+        editChart(index) { $0.title = title; $0.autoTitle = false }
+    }
+
+    /// Chart Design → Add Chart Element → Legend: its side ("b", "t", "r", "l"), or nil for none.
+    func setChartLegend(_ index: Int, position: String?) {
+        editChart(index) {
+            $0.legend = position != nil
+            if let position { $0.legendPosition = position }
+        }
+    }
+
     /// Change a chart's kind; its part is then written afresh.
     func setChartType(_ index: Int, _ type: ChartType) {
         let ws = sheet

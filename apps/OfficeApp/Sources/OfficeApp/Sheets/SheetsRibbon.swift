@@ -315,10 +315,28 @@ extension Ribbon {
                 }
             }
         }
-        return Chrome.group("Charts", fluent, [
+        var parts: [Widget] = [
             Chrome.rows([button(.column), button(.bar), button(.line)]),
             Chrome.rows([button(.pie), button(.area), button(.scatter)]),
-        ])
+        ]
+        // Chart Design, with a chart selected: its title and legend.
+        if let i = wb.selectedDrawing, wb.sheet.drawings.indices.contains(i), case .chart(let sc) = wb.sheet.drawings[i].kind {
+            let c = sc.chart
+            parts.append(Chrome.rows([
+                Chrome.textToggle("Chart Title", c.title != nil, fluent, style: fluent.typography.caption) {
+                    wb.setChartTitle(i, c.title == nil ? "Chart Title" : nil)
+                },
+                Chrome.textToggle("Legend", c.legend, fluent, style: fluent.typography.caption) {
+                    wb.setChartLegend(i, position: c.legend ? nil : (c.legendPosition.isEmpty ? "b" : c.legendPosition))
+                },
+            ]))
+            parts.append(Chrome.rows(["b": "Legend Bottom", "r": "Legend Right", "t": "Legend Top"].sorted { $0.value < $1.value }.map { side in
+                Chrome.textToggle(side.value, c.legend && c.legendPosition == side.key, fluent, style: fluent.typography.caption) {
+                    wb.setChartLegend(i, position: side.key)
+                }
+            }))
+        }
+        return Chrome.group("Charts", fluent, parts)
     }
 
     private func _tablesGroup(_ wb: WorkbookController, _ fluent: FluentThemeData) -> Widget {
