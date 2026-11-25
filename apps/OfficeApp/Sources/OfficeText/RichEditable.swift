@@ -789,6 +789,22 @@ public final class RichEditableState: State<StatefulWidget> {
         }
     }
 
+    /// The content-control check box under `local`, as (paragraph, control id): the point is over the glyph itself.
+    private func _checkBox(at local: Offset) -> (paragraph: Int, id: Int)? {
+        guard _layout.width > 0, _layout.count > 0 else { return nil }
+        _syncLayoutIfNeeded()
+        let doc = _controller.document
+        let flow = _layout.flowPoint(_canvasPoint(local))
+        let pos = _layout.canvasPosition(at: _canvasPoint(local), doc)
+        guard pos.paragraph < doc.paragraphs.count, !doc.paragraphs[pos.paragraph].isImage else { return nil }
+        for box in doc.paragraphs[pos.paragraph].checkBoxes {
+            let l = _layout.caretRect(RichPosition(paragraph: pos.paragraph, offset: box.range.lowerBound), doc)
+            let r = _layout.caretRect(RichPosition(paragraph: pos.paragraph, offset: box.range.upperBound), doc)
+            if flow.dx >= l.left - 1, flow.dx <= r.left + 1, flow.dy >= l.top, flow.dy <= l.top + l.height { return (pos.paragraph, box.id) }
+        }
+        return nil
+    }
+
     /// The link at a point in the editable, if the text there carries one.
     private func _link(at local: Offset) -> String? {
         guard _layout.width > 0, _layout.count > 0 else { return nil }
@@ -914,6 +930,12 @@ public final class RichEditableState: State<StatefulWidget> {
         // plain click does, as a page does.
         if _chords.primary || _controller.readOnly, let link = _link(at: event.localPosition) {
             if let activate = _w.onLinkActivate { activate(link) } else { hostOpenURL?(link) }
+            return
+        }
+        // A click on a check box control flips it, as Word does.
+        if !_controller.readOnly, !_chords.shift, let box = _checkBox(at: event.localPosition) {
+            _focus.requestFocus()
+            _controller.toggleCheckBox(in: box.paragraph, control: box.id)
             return
         }
         if _chords.primary, !_chords.shift, event.buttons & 1 != 0, _layout.width > 0 {
@@ -1142,6 +1164,11 @@ public final class RichEditableState: State<StatefulWidget> {
                 // A tap: a link opens, else the caret goes there.
                 if let link = _link(at: event.localPosition) {
                     if let activate = _w.onLinkActivate { activate(link) } else { hostOpenURL?(link) }
+                    return
+                }
+                if !_controller.readOnly, let box = _checkBox(at: event.localPosition) {
+                    _focus.requestFocus()
+                    _controller.toggleCheckBox(in: box.paragraph, control: box.id)
                     return
                 }
                 _focus.requestFocus()

@@ -21,6 +21,31 @@ final class UIShellHarnessTests: XCTestCase {
         WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: home, title: "Test"), size: Size(1280, 800))
     }
 
+    /// W-RV-3: a click on a check box control flips it; a click beside it does not.
+    func testClickingACheckBoxControlFlipsIt() {
+        var p = RichParagraph(text: "Agree \u{2610} yes")
+        p.controlMarkers = [
+            RichControlMarker(id: 1, properties: "<w:sdtPr><w14:checkbox><w14:checked w14:val=\"0\"/><w14:checkedState w14:val=\"2612\"/><w14:uncheckedState w14:val=\"2610\"/></w14:checkbox></w:sdtPr>", offset: 6),
+            RichControlMarker(id: 1, offset: 7),
+        ]
+        let controller = RichDocumentController(document: RichDocument(paragraphs: [p]))
+        let ui = app(SizedBox(width: 600, height: 300, child: RichEditable(controller: controller)))
+        let box = ui.elements().first { $0.widget is RichEditable }!
+        let r = box.findRenderObject() as! RenderBox
+        func state() -> Bool? { controller.document.paragraphs[0].checkBoxes.first?.checked }
+        XCTAssertEqual(state(), false)
+        // Far right of the line: nothing there.
+        ui.tap(at: r.localToGlobal(Offset(500, 34)))
+        XCTAssertEqual(state(), false)
+        // Walk along the line until the glyph is hit.
+        var x = 24.0
+        while x < 200, state() == false { ui.tap(at: r.localToGlobal(Offset(x, 34))); x += 6 }
+        XCTAssertEqual(state(), true, "a click on the glyph flips the box")
+        XCTAssertEqual(controller.document.paragraphs[0].text, "Agree \u{2612} yes")
+        controller.undo()
+        XCTAssertEqual(state(), false)
+    }
+
     func testTheSlidesShellBuildsAndItsTabsTap() {
         let ui = app(SlidesShell(initialPath: nil, startBlank: true, onSwitch: { _, _ in }))
         XCTAssertNotNil(ui.state(SlidesShellState.self))

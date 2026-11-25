@@ -2112,6 +2112,69 @@ public struct RichControlMarker: Hashable, Codable, Sendable {
     }
 }
 
+extension RichControlMarker {
+    /// The range of `attr`'s value inside the first `<tag ...>` of the properties.
+    private func _valueRange(_ attr: String, of tag: String, in props: String) -> Range<String.Index>? {
+        guard let t = props.rangeOfSubstring("<" + tag + " ") ?? props.rangeOfSubstring("<" + tag + "/"),
+              let close = props[t.upperBound...].firstIndex(of: ">"),
+              let a = props.rangeOfSubstring(attr + "=\"", in: t.upperBound ..< close),
+              let q = props[a.upperBound...].firstIndex(of: "\""), q <= close else { return nil }
+        return a.upperBound ..< q
+    }
+    private func _attribute(_ attr: String, of tag: String) -> String? {
+        guard let props = properties, let r = _valueRange(attr, of: tag, in: props) else { return nil }
+        return String(props[r])
+    }
+    /// Whether this is a check box control (Word 2010's `w14:checkbox`).
+    public var isCheckBox: Bool { properties?.containsSubstring("<w14:checkbox") ?? false }
+    /// A check box control's state; nil when this is not a check box.
+    public var isChecked: Bool? {
+        guard isCheckBox else { return nil }
+        let v = _attribute("w14:val", of: "w14:checked") ?? "0"
+        return v == "1" || v == "true" || v == "on"
+    }
+    /// The text a check box shows in `state`: the control's own glyph when it names one, Word's default otherwise.
+    public func checkBoxGlyph(_ state: Bool) -> String {
+        let hex = _attribute("w14:val", of: state ? "w14:checkedState" : "w14:uncheckedState")
+        let code = hex.flatMap { UInt32($0, radix: 16) } ?? (state ? 0x2612 : 0x2610)
+        return Unicode.Scalar(code).map { String($0) } ?? (state ? "\u{2612}" : "\u{2610}")
+    }
+    /// This start marker's properties with the check box state set to `state`.
+    fileprivate func _settingChecked(_ state: Bool) -> String? {
+        guard var props = properties, let r = _valueRange("w14:val", of: "w14:checked", in: props) else { return properties }
+        props.replaceSubrange(r, with: state ? "1" : "0")
+        return props
+    }
+}
+
+extension RichParagraph {
+    /// The check box controls of this paragraph: each start marker with its text range.
+    public var checkBoxes: [(id: Int, range: Range<Int>, checked: Bool)] {
+        controlMarkers.compactMap { m in
+            guard m.isStart, let on = m.isChecked,
+                  let end = controlMarkers.first(where: { $0.id == m.id && !$0.isStart }) else { return nil }
+            return (m.id, m.offset ..< max(m.offset, end.offset), on)
+        }
+    }
+    /// This paragraph with check box `id` set to `state`, its glyph swapped; nil when there is no such box or it is already so.
+    public func settingCheckBox(_ id: Int, to state: Bool) -> RichParagraph? {
+        guard let box = checkBoxes.first(where: { $0.id == id }), box.checked != state,
+              let si = controlMarkers.firstIndex(where: { $0.id == id && $0.isStart }),
+              let ei = controlMarkers.firstIndex(where: { $0.id == id && !$0.isStart }) else { return nil }
+        var p = self
+        let glyph = p.controlMarkers[si].checkBoxGlyph(state)
+        let lo = box.range.lowerBound, hi = box.range.upperBound
+        let style = p.style(at: hi > lo ? lo + 1 : lo)
+        let n = glyph.utf16.count
+        p.insert(glyph, at: hi, runs: [Run(length: n, style: style)])
+        p.controlMarkers[si].offset = lo
+        p.controlMarkers[ei].offset = hi + n   // the insert left the end marker before the glyph
+        if hi > lo { _ = p.delete(lo ..< hi) }
+        if let props = p.controlMarkers[si]._settingChecked(state) { p.controlMarkers[si].properties = props }
+        return p
+    }
+}
+
 /// One paragraph: its text, the runs that cover it exactly, and its style.
 ///
 /// Invariant (`isValid`): the run lengths sum to `text.utf16.count`, no run
