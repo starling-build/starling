@@ -71,6 +71,7 @@ final class SheetsShellState: State<StatefulWidget> {
     private var _lastTabClick: (index: Int, at: Date)? = nil
     private var _findOpen = false
     private var _namesOpen = false
+    private var _createNamesOpen = false
     private var _protectOpen: Bool? = nil   // nil closed; false = sheet, true = workbook structure
     /// The Format Cells dialog is open (X-FM-1).
     private var _formatOpen = false
@@ -494,6 +495,8 @@ final class SheetsShellState: State<StatefulWidget> {
             setState { _filterOpen = (col, kind) }
         case .nameManager:
             setState { _namesOpen = true }
+        case .createNames:
+            setState { _createNamesOpen = true }
         case .protectSheetDialog:
             setState { _protectOpen = false }
         case .protectWorkbookDialog:
@@ -788,6 +791,9 @@ final class SheetsShellState: State<StatefulWidget> {
                     SizedBox(width: 96, height: 28, child: FluentTextBox(
                         controller: _nameBox,
                         onSubmitted: { [weak self] text in self?._goTo(text) })),
+                    Padding(key: ValueKey("name-box-list"), padding: EdgeInsets(left: 0, top: 0, right: 0, bottom: 0), child: Chrome.menu(nil, nil, fluent,
+                        wb.definedNameEntries().prefix(60).map { e in (e.name, { [weak self] in self?._goTo(e.name) }) }
+                            + (wb.definedNameEntries().isEmpty ? [("No names defined", {})] : []))),
                     Chrome.gap(6),
                     Chrome.icon(FluentSystemIcons.close, "Cancel", fluent, enabled: _formulaEditing || _grid?.edit != nil) { [weak self] in
                         self?._cancelFormula()
@@ -1198,6 +1204,13 @@ final class SheetsShellState: State<StatefulWidget> {
             return Stack(children: [window, Positioned(left: 0, top: 0, right: 0, bottom: 0, child: FilterDialog(
                 controller: wb, col: open.col, kind: open.kind, onClose: { [weak self] in
                     self?.setState { self?._filterOpen = nil }
+                    self?._grid?.focus.requestFocus()
+                }))])
+        }
+        if _createNamesOpen {
+            return Stack(children: [window, Positioned(left: 0, top: 0, right: 0, bottom: 0, child: CreateNamesDialog(
+                controller: wb, onClose: { [weak self] in
+                    self?.setState { self?._createNamesOpen = false }
                     self?._grid?.focus.requestFocus()
                 }))])
         }
