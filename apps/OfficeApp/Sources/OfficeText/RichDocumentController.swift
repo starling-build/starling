@@ -426,9 +426,11 @@ public final class RichDocumentController: ChangeNotifier {
             }
         }
         let boundBefore: [Int: String] = outer ? [:] : _customBoundTexts()
+        let noteMarks = outer ? nil : _noteMarkIds()
         body()
         if !outer {
             _syncCustomBound(before: boundBefore)
+            _dropOrphanNotes(before: noteMarks)
             _inEdit = false
             _undo[_undo.count - 1].selectionAfter = selection
             _undo[_undo.count - 1].continuation = undoKind == .other ? nil : selection.focus
