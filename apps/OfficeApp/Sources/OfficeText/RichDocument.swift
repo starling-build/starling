@@ -148,6 +148,8 @@ public struct CharStyle: Hashable, Codable, Sendable {
     public var color: Color? = nil
     /// The colour's theme attributes as the file wrote them: its six-digit hex, then ` w:themeColor=".."` (and tint/shade). Written back only while `color` still has that hex, so a colour the user changed loses them.
     public var colorTheme: String? = nil
+    /// The theme-font attributes of `w:rFonts` as the file wrote them (` w:asciiTheme=".."` ...), behind the faces they resolved to when read (the four faces joined by `|`, then `#`). Written back only while those faces are unchanged: a face the user picked replaces the theme font.
+    public var fontTheme: String? = nil
     /// The run properties (`w:rPr` children) exactly as the file wrote them, and a check of every other field of this look at that moment.
     /// A save writes them back while the look still matches, so a run the user did not touch keeps all its properties (theme fonts, effects,
     /// complex-script twins); any edit to the look makes the check fail and the properties are written from the fields as before.

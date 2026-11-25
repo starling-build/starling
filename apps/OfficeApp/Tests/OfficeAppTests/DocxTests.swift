@@ -7590,6 +7590,33 @@ final class DocxTests: XCTestCase {
         XCTAssertTrue(edited.containsSubstring("<w:b/>"), edited)
     }
 
+    /// Save-loss: editing a word (here: bold) keeps the run's theme fonts, so the font does not change; a face the user picks replaces them.
+    func testEditedRunKeepsItsThemeFonts() throws {
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .letter))
+        let di = try XCTUnwrap(entries.firstIndex { $0.name == "word/document.xml" })
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let body = try XCTUnwrap(xml.range(of: "<w:body>")).upperBound ..< (try XCTUnwrap(xml.range(of: "<w:sectPr"))).lowerBound
+        xml.replaceSubrange(body, with: "<w:p><w:r><w:rPr><w:rFonts w:asciiTheme=\"majorHAnsi\" w:eastAsiaTheme=\"majorEastAsia\" w:hAnsiTheme=\"majorHAnsi\" w:cstheme=\"majorBidi\"/></w:rPr><w:t>Heading text</w:t></w:r></w:p>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        func xmlOf(_ d: RichDocument) throws -> String {
+            String(decoding: try XCTUnwrap(try Zip.read(try DocxFormat.write(d, pageSetup: .letter)).first { $0.name == "word/document.xml" }).data, as: UTF8.self)
+        }
+        let doc = try DocxFormat.read(try Zip.write(entries)).document
+        let c = RichDocumentController(document: doc)
+        c.moveTo(RichPosition(paragraph: 0, offset: 0), extend: false)
+        c.moveTo(RichPosition(paragraph: 0, offset: 7), extend: true)
+        c.toggleBold()
+        let edited = try xmlOf(c.document)
+        for part in ["w:asciiTheme=\"majorHAnsi\"", "w:hAnsiTheme=\"majorHAnsi\"", "w:eastAsiaTheme=\"majorEastAsia\"", "w:cstheme=\"majorBidi\""] {
+            XCTAssertTrue(edited.containsSubstring(part), part + " " + edited)
+        }
+        XCTAssertEqual(edited.components(separatedBy: "w:asciiTheme=").count - 1, 2, "the bold word and the rest both keep it: " + edited)
+        c.setFontFamily("Courier New")
+        let picked = try xmlOf(c.document)
+        XCTAssertEqual(picked.components(separatedBy: "w:asciiTheme=").count - 1, 1, "only the untouched rest keeps its theme font: " + picked)
+        XCTAssertTrue(picked.containsSubstring("Courier New"), picked)
+    }
+
     /// Save-loss: a run that switches bold off inside a bold paragraph style stays not-bold through read, edit and save, whether its
     /// own properties are kept (untouched) or regenerated (edited), and neighbouring runs that merge do not pick the bold back up.
     func testBoldOffInsideABoldStyleStaysOffAfterASave() throws {
