@@ -1342,21 +1342,34 @@ final class SlidesShellState: State<StatefulWidget> {
         } else {
             var row: [Widget] = _narrow && !_narrowRail ? [] : [_thumbnailPane(fluent)]
             row.append(Expanded(child: Column(crossAxisAlignment: .stretch, children: work)))
+            var panes: [Widget] = []
             if _animationPane {
-                row.append(AnimationPane(deck: deck, onClose: { [weak self] in self?.setState { self?._animationPane = false } }))
+                panes.append(AnimationPane(deck: deck, onClose: { [weak self] in self?.setState { self?._animationPane = false } }))
             }
             if _selectionPane {
-                row.append(SelectionPane(deck: deck, modifiers: { [weak self] in self?._deckChords.modifiers ?? [] },
-                                         onClose: { [weak self] in self?.setState { self?._selectionPane = false } }))
+                panes.append(SelectionPane(deck: deck, modifiers: { [weak self] in self?._deckChords.modifiers ?? [] },
+                                           onClose: { [weak self] in self?.setState { self?._selectionPane = false } }))
             }
             if _formatShape {
-                row.append(FormatShapePane(deck: deck, onClose: { [weak self] in self?.setState { self?._formatShape = false } }))
+                panes.append(FormatShapePane(deck: deck, onClose: { [weak self] in self?.setState { self?._formatShape = false } }))
             }
             if _chartData, let chart = deck.selectedChart {
-                row.append(ChartDataPane(key: ValueKey("chart data \(chart.id)"), deck: deck, shape: chart,
-                                         onClose: { [weak self] in self?.setState { self?._chartData = false } }))
+                panes.append(ChartDataPane(key: ValueKey("chart data \(chart.id)"), deck: deck, shape: chart,
+                                           onClose: { [weak self] in self?.setState { self?._chartData = false } }))
             }
-            column.append(Expanded(child: Row(crossAxisAlignment: .stretch, children: row)))
+            if _narrow, let pane = panes.last {
+                // A 300 pt pane beside the slide would leave a narrow window (Split View) no slide: the newest pane is a
+                // sheet along the bottom instead, full width, with the slide above it. (A pane fills the width it is given.)
+                column.append(Expanded(child: Column(crossAxisAlignment: .stretch, children: [
+                    Expanded(flex: 5, child: Row(crossAxisAlignment: .stretch, children: row)),
+                    Expanded(flex: 4, child: DecoratedBox(
+                        decoration: BoxDecoration(border: Border(top: BorderSide(color: fluent.resources.controlStrokeColorDefault, width: 1))),
+                        child: pane)),
+                ])))
+            } else {
+                row.append(contentsOf: panes)
+                column.append(Expanded(child: Row(crossAxisAlignment: .stretch, children: row)))
+            }
         }
         column.append(_statusBar(fluent))
 

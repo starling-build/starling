@@ -98,6 +98,10 @@ final class OfficeShellState: State<StatefulWidget> {
     private let _colorText = TextEditingController()
     private var _styleOpen: String? = nil
     private var _linkHover: String? = nil
+    /// The window is narrower than a side pane and a page fit side by side (a Split View pane on an iPad): panes become a
+    /// bottom sheet.
+    private var _narrow = false
+    private static let narrowBelow = 600.0
     private var _autosaveGeneration = 0
     private let _contextMenu = FlyoutController()
     private let _spelling: RichSpellChecker? = makeSpellChecker()
@@ -1399,20 +1403,37 @@ final class OfficeShellState: State<StatefulWidget> {
         }
         pages.append(Expanded(child: _pageArea(fluent)))
         var area: [Widget] = []
+        var sidePanes: [Widget] = []
         if session.showNavigation {
-            area.append(NavigationPane(session: session, onClose: { [session] in session.onToggleNavigation?() }))
+            sidePanes.append(NavigationPane(session: session, onClose: { [session] in session.onToggleNavigation?() }))
         }
-        area.append(Expanded(child: Column(crossAxisAlignment: .stretch, children: pages)))
         if session.showStyles {
-            area.append(StylesPane(session: session,
-                                   onModify: { [weak self] id in self?.session.onModifyStyle?(id) },
-                                   onClose: { [session] in session.onToggleStyles?() }))
+            sidePanes.append(StylesPane(session: session,
+                                        onModify: { [weak self] id in self?.session.onModifyStyle?(id) },
+                                        onClose: { [session] in session.onToggleStyles?() }))
         }
-        column.append(Expanded(child: Row(crossAxisAlignment: .stretch, children: area)))
+        if _narrow, let pane = sidePanes.last {
+            // A side pane beside the page would leave a narrow window (Split View) no page: the newest is a sheet along
+            // the bottom instead, full width, with the page above it. (A pane fills the width it is given.)
+            column.append(Expanded(child: Column(crossAxisAlignment: .stretch, children: [
+                Expanded(flex: 5, child: Column(crossAxisAlignment: .stretch, children: pages)),
+                Expanded(flex: 4, child: DecoratedBox(
+                    decoration: BoxDecoration(border: Border(top: BorderSide(color: fluent.resources.controlStrokeColorDefault, width: 1))),
+                    child: pane)),
+            ])))
+        } else {
+            if session.showNavigation, let nav = sidePanes.first { area.append(nav) }
+            area.append(Expanded(child: Column(crossAxisAlignment: .stretch, children: pages)))
+            if session.showStyles, let styles = sidePanes.last { area.append(styles) }
+            column.append(Expanded(child: Row(crossAxisAlignment: .stretch, children: area)))
+        }
         column.append(StatusBar(session: session, message: _status ?? _linkHover.map { "⌘-click to open \($0)".keys }))
 
-        let window = ColoredBox(color: fluent.scaffoldBackgroundColor,
-                                child: Column(crossAxisAlignment: .stretch, children: column))
+        let window = SizeReporter(onSize: { [weak self] size in
+            guard let self, self.mounted, (size.width < Self.narrowBelow) != self._narrow else { return }
+            self.setState { self._narrow = size.width < Self.narrowBelow }
+        }, child: ColoredBox(color: fluent.scaffoldBackgroundColor,
+                             child: Column(crossAxisAlignment: .stretch, children: column)))
         if _findDialogOpen {
             return Stack(children: [
                 window,
