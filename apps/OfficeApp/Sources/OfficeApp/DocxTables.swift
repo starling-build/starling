@@ -1136,6 +1136,27 @@ extension DocxFormat {
             return p.style.pageBreakBefore && p.style.breakEndsPrevious && !p.style.pageBreakInline && sameCell
                 && prev.image == nil && prev.keptTable == nil && p.keptTable == nil
         }
+        // Block-level content controls (W-RV-3): written only when the start and the end are both still there, start first.
+        var pairedBlockControls = Set<Int>()
+        do {
+            var open = Set<Int>()
+            for q in doc.paragraphs {
+                for c in q.blockControlsBefore where c.isStart { open.insert(c.id) }
+                for c in q.blockControlsAfter where open.contains(c.id) { pairedBlockControls.insert(c.id) }
+            }
+        }
+        /// The control starts / ends that go around paragraph `index`; `table`: those that wrap a whole table (written
+        /// outside its cells) rather than the paragraphs inside one.
+        func blockOpen(_ index: Int, table: Bool) -> String {
+            doc.paragraphs[index].blockControlsBefore.filter {
+                pairedBlockControls.contains($0.id) && $0.aroundTable == table
+            }.compactMap { $0.properties.map { "<w:sdt>\($0)<w:sdtContent>" } }.joined()
+        }
+        func blockClose(_ index: Int, table: Bool) -> String {
+            doc.paragraphs[index].blockControlsAfter.filter {
+                pairedBlockControls.contains($0.id) && $0.aroundTable == table
+            }.map { _ in "</w:sdtContent></w:sdt>" }.joined()
+        }
         func paragraphXML(_ index: Int) -> String {
             var p = doc.paragraphs[index]
             // Boundaries can fall inside a normalized run. Split only the
@@ -1651,11 +1672,11 @@ extension DocxFormat {
                                 endedWithTable = true
                                 continue
                             }
-                            for g in group { xml += paragraphXML(g) }
+                            for g in group { xml += blockOpen(g, table: false) + paragraphXML(g) + blockClose(g, table: false) }
                             endedWithTable = false
                             continue
                         }
-                        xml += paragraphXML(k)
+                        xml += blockOpen(k, table: false) + paragraphXML(k) + blockClose(k, table: false)
                         endedWithTable = false
                         j += 1
                     }
@@ -1705,9 +1726,11 @@ extension DocxFormat {
                 let t = tableXML(from: i)
                 // Two tables with nothing between them are one table to Word.
                 if body.hasSuffix("</w:tbl>") { body += "<w:p/>" }
-                body += t.xml
+                body += blockOpen(i, table: true) + t.xml + blockClose(t.end - 1, table: true)
                 i = t.end
             } else {
+                body += blockOpen(i, table: false)
+                defer { body += blockClose(i - 1, table: false) }
                 let xml = paragraphXML(i)
                 // (The rest of a paragraph a page break split goes back into
                 // it: the break ended the one before as its last run, and the
