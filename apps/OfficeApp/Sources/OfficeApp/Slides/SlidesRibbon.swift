@@ -268,6 +268,9 @@ extension Ribbon {
             Chrome.group("Links", fluent, [
                 Chrome.big(FluentSystemIcons.link, "Link", fluent) { [session] in session.onLink?() },
             ]),
+            Chrome.group("Accessibility", fluent, [
+                Chrome.big(FluentSystemIcons.info, "Alt Text", fluent, enabled: !deck.selection.isEmpty) { [session] in session.onAltText?() },
+            ]),
             Chrome.group("Text", fluent, [
                 Chrome.big(FluentSystemIcons.textT, "Text Box", fluent) { [session] in session.onInsertTextBox?() },
                 Chrome.big(FluentSystemIcons.header, "Header & Footer", fluent) { [session] in session.onHeaderFooter?() },
@@ -635,6 +638,9 @@ extension Ribbon {
                                                          onPressed: set { $0.legendPosition = pos })
                                       } : []),
                 ]),
+            ]),
+            Chrome.group("Accessibility", fluent, [
+                Chrome.big(FluentSystemIcons.info, "Alt Text", fluent) { [session] in session.onAltText?() },
             ]),
             Chrome.group("Arrange", fluent, [Chrome.rows([
                 Chrome.small(FluentSystemIcons.delete, "Delete Chart", fluent) { deck.deleteSelection() },

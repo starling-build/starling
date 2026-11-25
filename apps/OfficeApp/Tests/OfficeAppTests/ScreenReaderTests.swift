@@ -101,6 +101,34 @@ final class ScreenReaderTests: XCTestCase {
         XCTAssertTrue((ScreenReader.recorded?.last ?? "").contains("Chart of sales"))
     }
 
+    func testAltTextAndTitleOnAnyShapeSurviveSaveAndOpen() throws {
+        let c = DeckController()
+        let box = c.addTextBox(at: Rect.fromLTWH(20, 20, 200, 60))
+        let shape = c.addShape(.rect)
+        let chart = c.addChart(.column)
+        for (s, d, t) in [(box, "Heading \"one\" & more", "Top"), (shape, "A red box", "Box"), (chart, "Sales by quarter", "Sales")] {
+            c.selectShapes([s]); c.setAltText(d, title: t)
+        }
+        // Saved and opened again (twice: the second save patches the kept elements).
+        func reopen(_ d: DeckController) throws -> DeckController {
+            let (st, th, pk) = try Pptx.read(try Pptx.write(d))
+            let n = DeckController(); n.load(st, theme: th, package: pk); return n
+        }
+        let once = try reopen(c)
+        let twice = try reopen(once)
+        for d in [once, twice] {
+            let alts = d.slides[0].shapes.map { [$0.altText ?? "", $0.altTitle ?? ""] }
+            XCTAssertTrue(alts.contains(["Heading \"one\" & more", "Top"]), "\(alts)")
+            XCTAssertTrue(alts.contains(["A red box", "Box"]), "\(alts)")
+            XCTAssertTrue(alts.contains(["Sales by quarter", "Sales"]), "\(alts)")
+        }
+        // Editing it on a kept shape changes the saved file.
+        let kept = twice.slides[0].shapes.first { $0.altText == "A red box" }!
+        twice.selectShapes([kept]); twice.setAltText("A blue box", title: "")
+        let third = try reopen(twice)
+        XCTAssertTrue(third.slides[0].shapes.contains { $0.altText == "A blue box" && $0.altTitle == nil })
+    }
+
     func testSlideThumbnailsAreKeyboardStopsWithNames() {
         let ui = app(SlidesShell(initialPath: nil, startBlank: true, onSwitch: { _, _ in }))
         ui.pump()
