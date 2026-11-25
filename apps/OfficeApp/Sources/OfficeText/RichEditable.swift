@@ -25,6 +25,8 @@ public final class RichEditable: StatefulWidget {
     public let focusNode: FocusNode?
     public let autofocus: Bool
     public let backgroundColor: Color?
+    /// The shape being typed into: its own frame is drawn by the editor over it, so the page leaves its frame out.
+    public let hiddenFrameID: String?
     /// Zoom, 1.0 = 100%.
     public let zoom: Double
     /// Paginate onto paper of this size; nil is a continuous column.
@@ -81,7 +83,7 @@ public final class RichEditable: StatefulWidget {
                 theme: RichTextTheme = RichTextTheme(),
                 padding: EdgeInsets = EdgeInsets(left: 24, top: 24, right: 24, bottom: 24),
                 focusNode: FocusNode? = nil, autofocus: Bool = true,
-                backgroundColor: Color? = nil, zoom: Double = 1.0,
+                backgroundColor: Color? = nil, hiddenFrameID: String? = nil, zoom: Double = 1.0,
                 pageSetup: PageSetup? = nil, pageColor: Color = Color(0xFFFFFFFF),
                 onCaretRect: ((Rect?) -> Void)? = nil,
                 onPageInfo: ((Int, Int) -> Void)? = nil,
@@ -109,6 +111,7 @@ public final class RichEditable: StatefulWidget {
         self.focusNode = focusNode
         self.autofocus = autofocus
         self.backgroundColor = backgroundColor
+        self.hiddenFrameID = hiddenFrameID
         self.zoom = zoom
         self.pageSetup = pageSetup
         self.pageColor = pageColor
@@ -1568,6 +1571,7 @@ public final class RichEditableState: State<StatefulWidget> {
         if _layout.width != contentWidth {
             _layout.width = contentWidth
         }
+        _layout.hiddenFrameID = _w.hiddenFrameID
         _syncLayout()
         _clampScroll()
         let canvasW = _layout.canvasSize.width

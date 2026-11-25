@@ -1809,7 +1809,9 @@ final class OfficeShellState: State<StatefulWidget> {
             controller: _boxEdit?.main ?? controller, theme: theme,
             padding: EdgeInsets(left: readMargin, top: 24, right: readMargin, bottom: 24),
             focusNode: _editorFocus,
-            backgroundColor: paged ? backdrop : page, zoom: session.zoom,
+            backgroundColor: paged ? backdrop : page,
+            hiddenFrameID: _boxEdit.flatMap { b in b.index < b.main.document.paragraphs.count ? b.main.document.paragraphs[b.index].image?.id : nil },
+            zoom: session.zoom,
             pageSetup: paged ? session.pageSetup : nil, pageColor: page,
             onPageInfo: { [weak self] p, n in
                 guard let self, self.session.pageInfo != (p, n) else { return }
@@ -1855,7 +1857,6 @@ final class OfficeShellState: State<StatefulWidget> {
                 self.setState { self._boxContentHeight = h }
             })
         // A box that fits its text grows as the words do.
-        let lw = frame.map { max(1, $0.width * z) } ?? 0
         var boxHeight = b.rect.height
         if let h = _boxContentHeight, b.autoFit { boxHeight = h + 7.2 * z }
         return Stack(children: [
@@ -1863,7 +1864,7 @@ final class OfficeShellState: State<StatefulWidget> {
             // A press anywhere outside the box ends the edit (and still reaches the page under it).
             Positioned(left: 0, top: 0, right: 0, bottom: 0, child: Listener(
                 onPointerDown: { [weak self] _ in self?._leaveBox() }, behavior: .translucent, child: SizedBox(expand: ()))),
-            Positioned(left: b.rect.left - lw, top: b.rect.top - lw, width: b.rect.width + 2 * lw, height: boxHeight + 2 * lw, child: framed(boxEditor, frame, z)),
+            Positioned(left: b.rect.left, top: b.rect.top, width: b.rect.width, height: boxHeight, child: framed(boxEditor, frame, z)),
         ])
     }
 
