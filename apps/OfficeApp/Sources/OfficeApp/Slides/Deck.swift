@@ -181,6 +181,7 @@ struct ReadShape: Equatable {
     var aspectLock: Bool?
     var fill: Color?
     var fillScheme: String?
+    var outlineScheme: String?
     var outline: Color?
     var outlineWidth: Double
     var anchor: TextAnchor
@@ -196,7 +197,7 @@ struct ReadShape: Equatable {
     init(_ s: ShapeState) {
         link = s.link; linkTip = s.linkTip
         name = s.name; kind = s.kind; frame = s.frame; rotation = s.rotation; flipH = s.flipH; flipV = s.flipV; aspectLock = s.aspectLock
-        fill = s.fill; fillScheme = s.fillScheme; outline = s.outline; outlineWidth = s.outlineWidth
+        fill = s.fill; fillScheme = s.fillScheme; outlineScheme = s.outlineScheme; outline = s.outline; outlineWidth = s.outlineWidth
         anchor = s.anchor; insets = s.insets; autofit = s.autofit; fontScale = s.fontScale; field = s.field
         invisible = s.invisible
     }
@@ -217,7 +218,7 @@ struct ReadShape: Equatable {
         var a = self
         let b = ReadShape(s)
         a.frame = b.frame; a.rotation = b.rotation; a.flipH = b.flipH; a.flipV = b.flipV; a.invisible = b.invisible; a.aspectLock = b.aspectLock
-        a.fill = b.fill; a.fillScheme = b.fillScheme; a.outline = b.outline; a.outlineWidth = b.outlineWidth
+        a.fill = b.fill; a.fillScheme = b.fillScheme; a.outlineScheme = b.outlineScheme; a.outline = b.outline; a.outlineWidth = b.outlineWidth
         a.anchor = b.anchor; a.insets = b.insets; a.autofit = b.autofit; a.fontScale = b.fontScale
         a.name = b.name; a.link = b.link; a.linkTip = b.linkTip
         return a == b
@@ -571,6 +572,7 @@ final class SlideShape {
     /// The theme slot the fill came from ("accent1"), so a new theme
     /// recolours it; nil for a colour picked as itself.
     var fillScheme: String? = nil
+    var outlineScheme: String? = nil
     var outlineWidth = 0.75
     /// The text body, if the shape has one.
     let text: RichDocumentController?

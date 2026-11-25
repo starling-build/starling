@@ -62,7 +62,61 @@ extension DeckController {
         }
         let color = Color(Int64(0xFF00_0000 | UInt64(rgb)))
         recentShapeColors.use(rgb)
-        if outline { setOutline(color); return }
-        if case .theme(let slot, 100, 0) = choice, slot >= 4 { setFill(color, scheme: "accent\(slot - 3)") } else { setFill(color) }
+        var scheme: String? = nil
+        if case .theme(let slot, let mod, let off) = choice { scheme = SchemeColor.spec(slot: slot, mod: mod, off: off) }
+        if outline { setOutline(color, scheme: scheme) } else { setFill(color, scheme: scheme) }
+    }
+}
+
+
+/// A shape colour tied to a theme slot, as PowerPoint writes it: `<a:schemeClr val="accent2">` with
+/// `lumMod`/`lumOff` children for a tint or shade. Held as "accent2" or "accent2|60000|40000", so a new
+/// theme can recolour it.
+enum SchemeColor {
+    static let names = ["bg1", "tx1", "bg2", "tx2", "accent1", "accent2", "accent3", "accent4", "accent5", "accent6"]
+
+    /// The spec for picker slot 0…9 with lumMod/lumOff in percent.
+    static func spec(slot: Int, mod: Int, off: Int) -> String? {
+        guard names.indices.contains(slot) else { return nil }
+        return mod == 100 && off == 0 ? names[slot] : "\(names[slot])|\(mod * 1000)|\(off * 1000)"
+    }
+
+    /// Slot index and lumMod/lumOff in percent.
+    static func parse(_ spec: String) -> (slot: Int, mod: Int, off: Int)? {
+        let p = spec.split(separator: "|", omittingEmptySubsequences: false).map(String.init)
+        guard let slot = names.firstIndex(of: p[0]) else { return nil }
+        if p.count == 1 { return (slot, 100, 0) }
+        guard p.count == 3, let m = Int(p[1]), let o = Int(p[2]) else { return nil }
+        return (slot, m / 1000, o / 1000)
+    }
+
+    /// The spec of a fill that is a theme colour with at most lumMod/lumOff; nil for anything else.
+    static func read(_ fill: XNode) -> String? {
+        guard let c = fill.first("a:schemeClr"), let v = c["val"], let slot = names.firstIndex(of: v) else { return nil }
+        var mod = 100000, off = 0
+        for k in c.children {
+            guard let n = k["val"].flatMap(Int.init) else { return nil }
+            switch k.name {
+            case "a:lumMod": mod = n
+            case "a:lumOff": off = n
+            default: return nil
+            }
+        }
+        return mod == 100000 && off == 0 ? names[slot] : "\(names[slot])|\(mod)|\(off)"
+    }
+
+    static func xml(_ spec: String, alpha: Int = 255) -> String? {
+        let p = spec.split(separator: "|", omittingEmptySubsequences: false).map(String.init)
+        guard names.contains(p[0]) else { return nil }
+        var kids = ""
+        if p.count == 3 { kids += "<a:lumMod val=\"\(p[1])\"/><a:lumOff val=\"\(p[2])\"/>" }
+        if alpha < 255 { kids += "<a:alpha val=\"\(alpha * 100000 / 255)\"/>" }
+        return "<a:solidFill><a:schemeClr val=\"\(p[0])\">\(kids)</a:schemeClr></a:solidFill>"
+    }
+
+    static func resolve(_ spec: String, slots: [UInt32]) -> Color? {
+        guard let (slot, mod, off) = parse(spec), slots.indices.contains(slot) else { return nil }
+        let rgb = mod == 100 && off == 0 ? slots[slot] : ColorMath.adjusted(slots[slot], lumMod: mod, lumOff: off)
+        return Color(Int64(0xFF00_0000 | UInt64(rgb)))
     }
 }

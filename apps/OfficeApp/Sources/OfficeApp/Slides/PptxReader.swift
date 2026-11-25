@@ -1899,6 +1899,7 @@ struct SlideContext {
         var fill: Color? = nil
         var fillStyle: SlideFill? = nil
         var fillScheme: String? = nil
+        var outlineScheme: String? = nil
         var outline: Color? = nil
         var outlineWidth = 0.75
         let style = sp.first("p:style")
@@ -1907,7 +1908,7 @@ struct SlideContext {
             fill = nil
         } else if let f = spPr?.first("a:solidFill") {
             fill = colors.color(in: f)
-            fillScheme = Self._accentSlot(f)
+            fillScheme = SchemeColor.read(f)
         } else if let g = spPr?.first("a:gradFill"), let gradient = PptxReader.gradient(g, colors: colors) {
             // A gradient: its middle colour stands for it (the theme gallery,
             // a save that regenerates the shape); drawn as itself. (One with
@@ -1946,7 +1947,7 @@ struct SlideContext {
             // the referred colour, through the theme's fill style when that
             // is a gradient (oox-gradient-multistep-transparency).
             fill = colors.color(in: ref)
-            fillScheme = Self._accentSlot(ref)
+            fillScheme = SchemeColor.read(ref)
             // A solid fill style's own modifiers on the referring colour
             // (a theme whose second fill is phClr tint 69%, satMod 105%,
             // lumMod 110%: a91e3e82 p13's callouts print light lavender).
@@ -1994,7 +1995,7 @@ struct SlideContext {
         }
         if let ln = spPr?.first("a:ln") {
             outlineWidth = ln["w"].flatMap(Double.init).map { $0 / Pptx.emu } ?? outlineWidth
-            if ln.has("a:noFill") { outline = nil } else if let f = ln.first("a:solidFill") { outline = colors.color(in: f) }
+            if ln.has("a:noFill") { outline = nil } else if let f = ln.first("a:solidFill") { outline = colors.color(in: f); outlineScheme = SchemeColor.read(f) }
             else if let gs = ln.first("a:gradFill")?.first("a:gsLst")?.all("a:gs"), !gs.isEmpty {
                 // A gradient line by its first stop that shows — or no line,
                 // when every stop is fully transparent (tdf149588's curve).
@@ -2019,7 +2020,7 @@ struct SlideContext {
             for node in [inherited.layout, inherited.master] {
                 guard let pr = node?.first("p:spPr") else { continue }
                 if pr.has("a:noFill") { break }
-                if let f = pr.first("a:solidFill") { fill = colors.color(in: f); fillScheme = Self._accentSlot(f); break }
+                if let f = pr.first("a:solidFill") { fill = colors.color(in: f); fillScheme = SchemeColor.read(f); break }
                 if let g = pr.first("a:gradFill"), let gradient = PptxReader.gradient(g, colors: colors) {
                     // The layout's gradient (tdf114848's title bar).
                     let stops = gradient.stops.map(\.color)
@@ -2054,6 +2055,7 @@ struct SlideContext {
                             text: text.document, font: text.font, size: text.size, color: text.color,
                             listIndent: text.listIndent, phType: phRead?["type"], phIdx: phRead?["idx"],
                             fillScheme: fillScheme)
+        st.outlineScheme = outlineScheme
         if let prst, ph == nil, !isTextBox, !PresetGeometry.has(prst) { st.text = nil; st.fill = nil }
         st.autofit = text.autofit
         st.fontScale = text.fontScale
