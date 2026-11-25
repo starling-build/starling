@@ -84,6 +84,7 @@ final class SheetsShellState: State<StatefulWidget> {
     private var _alertOpen: (alert: ValidationAlert, answer: (ValidationChoice) -> Void)?
     private var _sortOpen: (range: CellRange, hasHeader: Bool)?
     private var _consOpen = false
+    private var _seriesOpen = false
     private var _scnOpen = false
     private var _goalOpen = false
     private var _dupOpen: (range: CellRange, hasHeader: Bool)?
@@ -408,6 +409,8 @@ final class SheetsShellState: State<StatefulWidget> {
             setState { _validationOpen = true }
         case .consolidate:
             setState { _consOpen = true }
+        case .fillSeries:
+            setState { _seriesOpen = true }
         case .scenarioManager:
             setState { _scnOpen = true }
         case .goalSeek:
@@ -1036,6 +1039,13 @@ final class SheetsShellState: State<StatefulWidget> {
             return Stack(children: [window, Positioned(left: 0, top: 0, right: 0, bottom: 0, child: ValidationDialog(
                 controller: wb, onClose: { [weak self] in
                     self?.setState { self?._validationOpen = false }
+                    self?._grid?.focus.requestFocus()
+                }))])
+        }
+        if _seriesOpen {
+            return Stack(children: [window, Positioned(left: 0, top: 0, right: 0, bottom: 0, child: SeriesDialog(
+                controller: wb, onClose: { [weak self] in
+                    self?.setState { self?._seriesOpen = false }
                     self?._grid?.focus.requestFocus()
                 }))])
         }
