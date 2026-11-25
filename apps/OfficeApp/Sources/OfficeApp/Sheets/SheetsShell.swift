@@ -89,6 +89,7 @@ final class SheetsShellState: State<StatefulWidget> {
     private var _goalOpen = false
     private var _chartTitlesOpen: Int? = nil
     private var _dtOpen = false
+    private var _chartSeriesOpen: Int? = nil
     private var _dupOpen: (range: CellRange, hasHeader: Bool)?
     private var _ttcOpen: CellRange?
     private var _subOpen: CellRange?
@@ -465,6 +466,8 @@ final class SheetsShellState: State<StatefulWidget> {
         case .dataTable:
             if wb.selection.bottom > wb.selection.top, wb.selection.right > wb.selection.left { setState { _dtOpen = true } }
             else { _flash(DataTableProblem.selectionTooSmall.message) }
+        case .chartSeries(let i):
+            setState { _chartSeriesOpen = i }
         case .goalSeek:
             setState { _goalOpen = true }
         case .removeDuplicates:
@@ -1125,6 +1128,13 @@ final class SheetsShellState: State<StatefulWidget> {
             return Stack(children: [window, Positioned(left: 0, top: 0, right: 0, bottom: 0, child: ScenarioDialog(
                 controller: wb, onClose: { [weak self] in
                     self?.setState { self?._scnOpen = false }
+                    self?._grid?.focus.requestFocus()
+                }))])
+        }
+        if let i = _chartSeriesOpen {
+            return Stack(children: [window, Positioned(left: 0, top: 0, right: 0, bottom: 0, child: ChartSeriesDialog(
+                controller: wb, index: i, onClose: { [weak self] in
+                    self?.setState { self?._chartSeriesOpen = nil }
                     self?._grid?.focus.requestFocus()
                 }))])
         }

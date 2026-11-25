@@ -30,6 +30,7 @@ enum SheetCommand {
     case scenarioManager           // Data → What-If Analysis → Scenario Manager
     case chartTitles(Int)          // Chart Design → Edit Titles
     case dataTable                 // Data → What-If Analysis → Data Table
+    case chartSeries(Int)          // Chart Design → Select Data
     case goalSeek                  // Data → What-If Analysis → Goal Seek
     case removeDuplicates          // Data → Remove Duplicates
     case textToColumns             // Data → Text to Columns
@@ -333,6 +334,7 @@ extension Ribbon {
                 Chrome.textToggle("Chart Title", c.title != nil, fluent, style: fluent.typography.caption) {
                     wb.setChartTitle(i, c.title == nil ? "Chart Title" : nil)
                 },
+                Chrome.textToggle("Select Data", false, fluent, style: fluent.typography.caption) { wb.onCommand?(.chartSeries(i)) },
                 Chrome.textToggle("Edit Titles", false, fluent, style: fluent.typography.caption) { wb.onCommand?(.chartTitles(i)) },
                 Chrome.textToggle("Axis Titles", c.categoryAxisTitle != nil || c.valueAxisTitle != nil, fluent, style: fluent.typography.caption) {
                     let on = c.categoryAxisTitle != nil || c.valueAxisTitle != nil

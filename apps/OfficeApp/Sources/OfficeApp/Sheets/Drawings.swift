@@ -53,6 +53,8 @@ struct SheetChart: Equatable {
     var legendEdit: ChartPartEdit? = nil
     var catTitleEdit: ChartPartEdit? = nil
     var valTitleEdit: ChartPartEdit? = nil
+    /// Select Data on the file's own chart: its series as they are now (which of the part's each came from, and the cells they read); the save rewrites the part's series to match.
+    var seriesEdit: [ChartSeriesRef]? = nil
     /// Every `<c:f>` in that part (series, titles, labels…): as read → as
     /// it reads now, after rows, columns or sheets moved. A save rewrites
     /// the part's references through it and keeps everything else.
@@ -74,7 +76,7 @@ struct SheetChart: Equatable {
     var pivotSeries: [String] = []
 
     static func == (a: SheetChart, b: SheetChart) -> Bool {
-        a.chart == b.chart && a.path == b.path && a.titleEdit == b.titleEdit && a.legendEdit == b.legendEdit && a.catTitleEdit == b.catTitleEdit && a.valTitleEdit == b.valTitleEdit && a.formulas == b.formulas && a.refs.count == b.refs.count
+        a.chart == b.chart && a.path == b.path && a.titleEdit == b.titleEdit && a.legendEdit == b.legendEdit && a.catTitleEdit == b.catTitleEdit && a.valTitleEdit == b.valTitleEdit && a.seriesEdit == b.seriesEdit && a.formulas == b.formulas && a.refs.count == b.refs.count
             && zip(a.refs, b.refs).allSatisfy { $0.name == $1.name && $0.cat == $1.cat && $0.val == $1.val }
     }
 }
@@ -564,10 +566,11 @@ extension SheetDrawingsXML {
         var shapeId = 2
         for d in ws.drawings {
             shapeId += 1
-            if case .chart(let sc) = d.kind, let path = sc.path, sc.formulasChanged || sc.retype != nil || sc.titleEdit != nil || sc.legendEdit != nil || sc.catTitleEdit != nil || sc.valTitleEdit != nil, let bytes = original[path] {
+            if case .chart(let sc) = d.kind, let path = sc.path, sc.formulasChanged || sc.retype != nil || sc.titleEdit != nil || sc.legendEdit != nil || sc.catTitleEdit != nil || sc.valTitleEdit != nil || sc.seriesEdit != nil, let bytes = original[path] {
                 // The file's own chart, its references moved with the cells.
                 var xml = String(decoding: bytes, as: UTF8.self)
                 if sc.formulasChanged { xml = _rewriteFormulas(xml, sc.formulas) }
+                if let e = sc.seriesEdit { xml = ChartPartPatch.series(xml, e) }
                 if let t = sc.retype { xml = _retypeBars(xml, t) }
                 if let e = sc.titleEdit { xml = ChartPartPatch.title(xml, e) }
                 if let e = sc.legendEdit { xml = ChartPartPatch.legend(xml, e) }
@@ -1013,6 +1016,59 @@ extension WorkbookController {
     /// Chart Design → Add Chart Element → Chart Title: a text, or nil for none.
     func setChartTitle(_ index: Int, _ title: String?) {
         editChart(index) { $0.title = title; $0.autoTitle = false }
+    }
+
+    /// Chart Design → Select Data: the series as they read now (for a file's chart, each with its place in the part).
+    func chartSeries(_ index: Int) -> [ChartSeriesRef]? {
+        guard sheet.drawings.indices.contains(index), case .chart(let sc) = sheet.drawings[index].kind, _canEditSeries(sc) else { return nil }
+        if let e = sc.seriesEdit { return e }
+        return sc.refs.indices.map { ChartSeriesRef(source: $0, name: sc.refs[$0].name, cat: sc.refs[$0].cat, val: sc.refs[$0].val) }
+    }
+    private func _canEditSeries(_ sc: SheetChart) -> Bool {
+        !sc.pivot && sc.chart.boxes == nil && sc.chart.sunburst == nil && sc.chart.histogram == nil && !(sc.path ?? "").containsSubstring("chartEx")
+            && sc.refs.count == sc.chart.series.count
+    }
+    /// Whether a text reads as a reference to cells of a sheet in this book.
+    func isChartRef(_ text: String) -> Bool {
+        guard let e = try? Formula.parse("=" + text), case .ref(let r) = e, let n = r.sheet else { return false }
+        return book.sheet(named: n) != nil
+    }
+    /// Select Data: the chart's series made to be `list` (one undo step). A series keeps what it has (colours, line, markers) and
+    /// changes only the cells it reads; one left out goes; a new one starts plain. Nothing happens for a list with a bad reference.
+    @discardableResult
+    func setChartSeries(_ index: Int, _ list: [ChartSeriesRef]) -> Bool {
+        let ws = sheet
+        guard ws.drawings.indices.contains(index), case .chart(var sc) = ws.drawings[index].kind, _canEditSeries(sc),
+              let before = chartSeries(index), list != before, !list.isEmpty else { return false }
+        for r in list { for t in [r.name, r.cat, r.val] { if let t, !isChartRef(t) { return false } }; if r.val == nil { return false } }
+        if sc.path != nil {
+            // The part's series stay in their order: kept ones ascend, each once.
+            let kept = list.compactMap(\.source)
+            guard kept == kept.sorted(), Set(kept).count == kept.count else { return false }
+        }
+        var series: [ChartSeries] = []
+        for (n, r) in list.enumerated() {
+            if let s = r.source, let at = before.firstIndex(where: { $0.source == s }), sc.chart.series.indices.contains(at) { series.append(sc.chart.series[at]) }
+            else if sc.path == nil, let at = r.source, sc.chart.series.indices.contains(at) { series.append(sc.chart.series[at]) }
+            else { series.append(ChartSeries(name: "Series\(n + 1)", values: [])) }
+        }
+        if sc.path == nil {
+            // A series keeps its own number (c:idx) when another is removed, so its automatic colour stays; a new one takes the next free number.
+            var keep: [Int?] = list.map { r in r.source.flatMap { at in sc.chart.series.indices.contains(at) ? (sc.chart.series[at].autoIndex ?? at) : nil } }
+            var next = (keep.compactMap { $0 }.max() ?? -1) + 1
+            for k in keep.indices where keep[k] == nil { keep[k] = next; next += 1 }
+            for k in series.indices { series[k].autoIndex = keep[k] }
+        }
+        sc.chart.series = series
+        sc.refs = list.map { (name: $0.name, cat: $0.cat, val: $0.val) }
+        if sc.path != nil { sc.seriesEdit = list } else { sc.chart.series = series }
+        structural {
+            ws.drawings[index].kind = .chart(sc)
+            ws.drawings[index].raw = nil
+            ws.drawingsEdited = true
+        }
+        selectedDrawing = index
+        return true
     }
 
     /// Chart Design → Add Chart Element → Legend: its side ("b", "t", "r", "l"), or nil for none.
