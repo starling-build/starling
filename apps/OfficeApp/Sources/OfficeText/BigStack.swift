@@ -55,8 +55,29 @@ public enum BigStack {
     #if !(arch(wasm32) || !(canImport(Darwin) || canImport(Glibc)))
     private final class Job {
         let run: () -> Void
+        /// The stack this job's thread was asked for, bytes.
+        var stack = 0
         init(_ run: @escaping () -> Void) { self.run = run }
+
+        /// Runs the body; `STARLING_BIGSTACK_LOG=1` first prints the thread's stack range (its top is read off a
+        /// local, its bottom is `size` below that) so a fault address in a crash report can be placed against it:
+        /// inside means a real overflow of the guard page or a wild pointer, far outside means not the stack.
+        func start() {
+            if BigStack.logRanges {
+                var probe = 0
+                withUnsafeMutablePointer(to: &probe) { p in
+                    let top = UInt(bitPattern: p)
+                    fputs("BigStack: thread stack 0x\(String(top - UInt(stack), radix: 16))-0x\(String(top, radix: 16)) (\(stack >> 20) MB)\n", stderr)
+                }
+            }
+            run()
+        }
     }
+
+    private static let logRanges = getenv("STARLING_BIGSTACK_LOG") != nil
+    /// A/B switch for a stress run: make the thread with `Foundation.Thread`, as this file did before it used
+    /// `pthread_create` (no checking, no retry), to tell a crash of this change from one of the hop itself.
+    private static let useFoundationThread = getenv("STARLING_BIGSTACK_FOUNDATION") != nil
 
     private static let flagKey: pthread_key_t = {
         var key = pthread_key_t()
@@ -75,6 +96,13 @@ public enum BigStack {
     /// One thread, detached, with `stack` bytes. False when the system refused it.
     private static func _create(_ job: Job, stack: Int) -> Int32 {
         if _refused() { return EAGAIN }
+        job.stack = stack
+        if useFoundationThread {
+            let thread = Thread { job.start() }
+            thread.stackSize = stack
+            thread.start()
+            return 0
+        }
         var attr = pthread_attr_t()
         let initRC = pthread_attr_init(&attr)
         guard initRC == 0 else { return initRC }
@@ -85,13 +113,13 @@ public enum BigStack {
         #if canImport(Darwin)
         var tid: pthread_t? = nil
         let rc = pthread_create(&tid, &attr, { raw in
-            Unmanaged<Job>.fromOpaque(raw).takeRetainedValue().run()
+            Unmanaged<Job>.fromOpaque(raw).takeRetainedValue().start()
             return nil
         }, ref.toOpaque())
         #else
         var tid = pthread_t()
         let rc = pthread_create(&tid, &attr, { raw in
-            Unmanaged<Job>.fromOpaque(raw!).takeRetainedValue().run()
+            Unmanaged<Job>.fromOpaque(raw!).takeRetainedValue().start()
             return nil
         }, ref.toOpaque())
         #endif
