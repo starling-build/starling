@@ -74,6 +74,8 @@ final class OfficeShellState: State<StatefulWidget> {
     private var _fontOpen = false
     private var _pageSetupOpen = false
     private var _pictureDialog: PictureDialogKind?
+    /// Set while the picker is open for Change Picture: the picture (paragraph, inline id) the chosen file replaces.
+    private var _replaceTarget: (index: Int, inline: String?)?
     private let _colorText = TextEditingController()
     private var _styleOpen: String? = nil
     private let _linkText = TextEditingController()
@@ -410,6 +412,15 @@ final class OfficeShellState: State<StatefulWidget> {
             guard let self else { return }
             if let ask = self.officeScene.pictureRequested {
                 ask { [weak self] path in if let path { self?._insertPicture(path) } }
+                return
+            }
+            self.setState { self._backstage = .insertPicture }
+        }
+        session.onChangePicture = { [weak self] in
+            guard let self, let i = self.session.summary.imageIndex else { return }
+            self._replaceTarget = (i, self.session.summary.inlineImageID)
+            if let ask = self.officeScene.pictureRequested {
+                ask { [weak self] path in if let path { self?._insertPicture(path) } else { self?._replaceTarget = nil } }
                 return
             }
             self.setState { self._backstage = .insertPicture }
@@ -816,6 +827,7 @@ final class OfficeShellState: State<StatefulWidget> {
     private func _insertPicture(_ path: String) {
         setState { _backstage = nil }
         guard let data = FileManager.default.contents(atPath: path) else {
+            _replaceTarget = nil
             _flash("Could not read \(path.lastPathComponent)")
             return
         }
@@ -827,6 +839,14 @@ final class OfficeShellState: State<StatefulWidget> {
                 codec.dispose()
                 let px = Double(frame.image.width), py = Double(frame.image.height)
                 frame.image.dispose()
+                if let t = self._replaceTarget {
+                    self._replaceTarget = nil
+                    if self.controller.replacePicture(at: t.index, inline: t.inline, with: data, name: path.lastPathComponent,
+                                                      naturalWidth: px * 0.75, naturalHeight: py * 0.75) {
+                        self._flash("Changed to \(path.lastPathComponent)")
+                    } else { self._flash("This picture cannot be changed") }
+                    return
+                }
                 let maxW = self.session.pageSetup.contentWidth
                 var w = px * 0.75, h = py * 0.75
                 if w > maxW { h *= maxW / w; w = maxW }

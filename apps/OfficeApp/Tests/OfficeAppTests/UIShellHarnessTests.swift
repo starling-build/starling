@@ -275,4 +275,31 @@ final class SheetsTitleBarUndoHarnessTests: XCTestCase {
         c.undo()
         XCTAssertNil(c.document.paragraphs[0].image?.crop)
     }
+
+    /// W-OB-1: Reset Picture takes the crop and the turn off and shows the picture at its own size, in one undo step.
+    func testResetPictureTakesCropAndTurnOff() throws {
+        let (ui, c) = try pictureShell()
+        _ = c.setImageCrop(at: 0, PictureCrop(left: 0.25, top: 0, right: 0, bottom: 0))
+        _ = c.rotatePicture(at: 0, quarters: 1)
+        ui.pump()
+        XCTAssertTrue(ui.tap(text: "Reset Picture"))
+        let img = try XCTUnwrap(c.document.paragraphs[0].image)
+        XCTAssertNil(img.crop)
+        XCTAssertEqual(img.rotation, 0)
+        XCTAssertEqual(img.width / img.height, 2, accuracy: 0.01)
+        c.undo()
+        XCTAssertEqual(c.document.paragraphs[0].image?.rotation, 90)
+        XCTAssertNotNil(c.document.paragraphs[0].image?.crop)
+    }
+
+    /// W-OB-1: Change Picture on the Picture Format tab asks the host for a file (the swap itself is the controller's
+    /// replacePicture, tested in DocxTests; image decoding needs the engine, which a harness test lacks).
+    func testChangePictureAsksForAFile() throws {
+        let (ui, _) = try pictureShell()
+        var asked = false
+        defer { OfficeScene.main.pictureRequested = nil }
+        OfficeScene.main.pictureRequested = { _ in asked = true }
+        XCTAssertTrue(ui.tap(text: "Change Picture"))
+        XCTAssertTrue(asked)
+    }
 }
