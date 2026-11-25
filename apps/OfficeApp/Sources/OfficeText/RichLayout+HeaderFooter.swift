@@ -2921,6 +2921,17 @@ extension RichLayout {
     public func paint(_ canvas: any Canvas, visible: Rect, document: RichDocument,
                       selection: RichSelection?, caret: Rect?,
                       pageBackground: ((Int, Rect) -> Void)? = nil) {
+        // (Painting recurses as deep as layout does, in frames as big: an iPad's main thread, 1 MB, is not enough for
+        // drawing.docx, so a thread with a small stack paints on the big one, as layout does.)
+        BigStack.runIfSmall {
+            self._paint(canvas, visible: visible, document: document, selection: selection, caret: caret,
+                        pageBackground: pageBackground)
+        }
+    }
+
+    private func _paint(_ canvas: any Canvas, visible: Rect, document: RichDocument,
+                        selection: RichSelection?, caret: Rect?,
+                        pageBackground: ((Int, Rect) -> Void)?) {
         _paintCaret = selection.flatMap { $0.isCollapsed ? $0.focus : nil }
         _behindDrawn = []
         if isPaged {

@@ -47,6 +47,67 @@ public enum BigStack {
         #endif
     }
 
+    /// `STARLING_BIGSTACK_ALWAYS=1`: `runIfSmall` always hops, so a Mac (8 MB main thread) or the simulator exercises the path an
+    /// iPad's takes.
+    private static let alwaysHop = getenv("STARLING_BIGSTACK_ALWAYS") != nil
+
+    /// `run`, but only when this thread's own stack is smaller than `threshold` (7 MB: a Mac's main thread has 8 MB, and reports a little less): for work that
+    /// happens every frame, where a thread per call is not free and a big stack needs no hop. Only Darwin can ask a thread its
+    /// stack size (`pthread_get_stacksize_np`), and only there does an app's small main thread exist (an iPad's): elsewhere the body
+    /// runs here, as it did before.
+    public static func runIfSmall<T>(threshold: Int = 7 << 20, _ body: @escaping () -> T) -> T {
+        #if canImport(Darwin) && !(arch(wasm32))
+        if _onBigStack() || (pthread_get_stacksize_np(pthread_self()) >= threshold && !alwaysHop) { return body() }
+        if perCallThread { return run(body) }
+        guard let worker = Worker.shared else { return run(body) }
+        let box = Box<T>()
+        let done = DispatchSemaphore(value: 0)
+        worker.submit {
+            box.value = body()
+            done.signal()
+        }
+        done.wait()
+        return box.value!
+        #else
+        return body()
+        #endif
+    }
+
+    /// `STARLING_BIGSTACK_PERCALL=1`: `runIfSmall` makes a thread per call, as `run` does (to measure what the worker saves).
+    private static let perCallThread = getenv("STARLING_BIGSTACK_PERCALL") != nil
+
+    #if canImport(Darwin) && !(arch(wasm32))
+    /// ONE long-lived thread with the big stack, fed by a queue: what `runIfSmall` hands its bodies to, so a paint every frame
+    /// costs a wake-up and not a `pthread_create` with a 64 MB mapping. Jobs run one at a time, in order; the thread is made on
+    /// the first hop, and nil when the system refused it (the caller then falls back to `run`).
+    private final class Worker: @unchecked Sendable {
+        static let shared: Worker? = Worker()
+        private let cond = NSCondition()
+        private var jobs: [() -> Void] = []
+
+        private init?() {
+            let started = BigStack._spawn { [self] in
+                BigStack._markBigStack()
+                while true {
+                    cond.lock()
+                    while jobs.isEmpty { cond.wait() }
+                    let job = jobs.removeFirst()
+                    cond.unlock()
+                    job()
+                }
+            }
+            if !started { return nil }
+        }
+
+        func submit(_ job: @escaping () -> Void) {
+            cond.lock()
+            jobs.append(job)
+            cond.signal()
+            cond.unlock()
+        }
+    }
+    #endif
+
     /// The same for a body that throws.
     public static func run<T>(_ body: @escaping () throws -> T) throws -> T {
         try run { Result { try body() } }.get()
