@@ -463,7 +463,7 @@ enum PivotWriter {
             if let group, let lo = nums.min(), let hi = nums.max() {
                 var range = ""
                 switch group {
-                case .numbers(let start, let end, let by): range = "startNum=\"\(num(start))\" endNum=\"\(num(end))\" groupInterval=\"\(num(by))\""
+                case .numbers(let start, let end, let by): range = "autoStart=\"0\" autoEnd=\"0\" startNum=\"\(num(start))\" endNum=\"\(num(end))\" groupInterval=\"\(num(by))\""
                 case .dates(let unit): range = "groupBy=\"\(unit.rawValue)\" startDate=\"\(isoDate(lo))\" endDate=\"\(isoDate(hi))\""
                 }
                 let gi = group.items(col)
