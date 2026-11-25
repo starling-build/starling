@@ -16,3 +16,14 @@ final class WriterAccessibilityTests: XCTestCase {
         XCTAssertEqual(r.selection.extentOffset, 10)
     }
 }
+
+final class WriterAccessibilityTableTests: XCTestCase {
+    func testCellsOfARowAreTabSeparatedAndRowsAreLines() {
+        func cell(_ t: String, _ r: Int, _ c: Int) -> RichParagraph {
+            var p = RichParagraph(text: t); p.cell = CellRef(table: "t", row: r, column: c); return p
+        }
+        let c = RichDocumentController(document: RichDocument(paragraphs: [
+            RichParagraph(text: "Intro"), cell("A", 0, 0), cell("B", 0, 1), cell("C", 1, 0), cell("D", 1, 1)]))
+        XCTAssertEqual(WriterAccessibility.reading(of: c).text, "Intro\nA\tB\nC\tD")
+    }
+}
