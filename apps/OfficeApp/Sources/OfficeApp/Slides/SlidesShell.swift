@@ -80,6 +80,7 @@ final class SlidesShellState: State<StatefulWidget> {
     /// The Animation Pane is open beside the slide.
     private var _animationPane = false
     private var _selectionPane = false
+    private var _formatShape = false
     /// A thumbnail being dragged to a new place: where it started, the
     /// pointer's start, and where it would land.
     private var _thumbDrag: (from: Int, startY: Double, startX: Double, to: Int, moved: Bool)? = nil
@@ -334,6 +335,9 @@ final class SlidesShellState: State<StatefulWidget> {
             guard let self else { return }
             self.setState { self.session.autoSave.toggle() }
             self._flash(self.session.autoSave ? "AutoSave on" : "AutoSave off — a recovery copy is still kept")
+        }
+        session.onFormatShape = { [weak self] in
+            self?.setState { self?._formatShape.toggle() }
         }
         session.onSelectionPane = { [weak self] in
             self?.setState { self?._selectionPane.toggle() }
@@ -1277,6 +1281,9 @@ final class SlidesShellState: State<StatefulWidget> {
                 row.append(SelectionPane(deck: deck, modifiers: { [weak self] in self?._deckChords.modifiers ?? [] },
                                          onClose: { [weak self] in self?.setState { self?._selectionPane = false } }))
             }
+            if _formatShape {
+                row.append(FormatShapePane(deck: deck, onClose: { [weak self] in self?.setState { self?._formatShape = false } }))
+            }
             if _chartData, let chart = deck.selectedChart {
                 row.append(ChartDataPane(key: ValueKey("chart data \(chart.id)"), deck: deck, shape: chart,
                                          onClose: { [weak self] in self?.setState { self?._chartData = false } }))
@@ -1593,6 +1600,8 @@ final class SlidesShellState: State<StatefulWidget> {
             m.separator()
             m.item("Group", enabled: deck.canGroup) { deck.groupSelection() }
             m.item("Ungroup", enabled: deck.canUngroup) { deck.ungroupSelection() }
+            m.separator()
+            m.item("Format Shape…") { [weak self] in self?.setState { self?._formatShape = true } }
             m.separator()
             m.item("Rotate Right 90°") { deck.rotateSelection(by: 90) }
             m.item("Rotate Left 90°") { deck.rotateSelection(by: -90) }

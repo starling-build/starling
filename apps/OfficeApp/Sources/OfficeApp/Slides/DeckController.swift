@@ -48,6 +48,13 @@ struct ShapeState: Equatable {
     var crop: EdgeInsets? = nil
     var flipH = false
     var flipV = false
+    /// Lock aspect ratio (`noChangeAspect`): nil until set, when a picture counts as locked and any other shape as free.
+    var aspectLock: Bool? = nil
+    var aspectLocked: Bool {
+        if let l = aspectLock { return l }
+        if case .picture = kind { return true }
+        return false
+    }
     var pictureGeometry: ShapePreset? = nil
     var pictureAlpha = 1.0
     var pictureDuotone: [Color]? = nil
@@ -1289,6 +1296,51 @@ final class DeckController: ChangeNotifier {
         _changed()
     }
 
+    // MARK: Size and position (S-SH-6)
+
+    /// Sets the selected shapes' width and/or height, keeping each one's top left corner. With the
+    /// aspect lock on, the side not given follows in proportion. One undo step.
+    func setSize(width: Double? = nil, height: Double? = nil) {
+        guard !selection.isEmpty, width != nil || height != nil else { return }
+        _checkpoint()
+        for s in selection {
+            var w = width ?? s.frame.width, h = height ?? s.frame.height
+            if s.aspectLocked, s.frame.width > 0, s.frame.height > 0 {
+                if let width, height == nil { h = width * s.frame.height / s.frame.width }
+                else if let height, width == nil { w = height * s.frame.width / s.frame.height }
+            }
+            s.frame = Rect.fromLTWH(s.frame.left, s.frame.top, max(1, w), max(1, h))
+        }
+        _changed()
+    }
+
+    /// Moves the selection so the top left of its box sits at `left`, `top` (either may be left out).
+    func setPosition(left: Double? = nil, top: Double? = nil) {
+        guard let box = _selectionBounds, left != nil || top != nil else { return }
+        _checkpoint()
+        let d = Offset((left ?? box.left) - box.left, (top ?? box.top) - box.top)
+        for s in selection { s.frame = s.frame.shift(d) }
+        _changed()
+    }
+
+    /// Sets the turn of every selected shape, in degrees.
+    func setRotation(_ degrees: Double) {
+        guard !selection.isEmpty else { return }
+        _checkpoint()
+        var d = degrees.truncatingRemainder(dividingBy: 360)
+        if d < 0 { d += 360 }
+        for s in selection { s.rotation = d }
+        _changed()
+    }
+
+    /// Turns the aspect lock on or off for the selected shapes.
+    func setAspectLock(_ on: Bool) {
+        guard !selection.isEmpty, selection.contains(where: { $0.aspectLocked != on }) else { return }
+        _checkpoint()
+        for s in selection { s.aspectLock = on }
+        _changed()
+    }
+
     /// The box around the selection, drawn at the frames' own (unrotated) extents.
     private var _selectionBounds: Rect? {
         guard var r = selection.first?.frame else { return nil }
@@ -1720,7 +1772,7 @@ final class DeckController: ChangeNotifier {
                    font: s.textTheme?.fontFamily, size: s.textTheme?.fontSize ?? 18,
                    color: s.textTheme?.textColor ?? theme.text, listIndent: s.textTheme?.listIndent ?? 18,
                    phType: s.phType, phIdx: s.phIdx, fillScheme: s.fillScheme, crop: s.crop,
-                   flipH: s.flipH, flipV: s.flipV, pictureGeometry: s.pictureGeometry,
+                   flipH: s.flipH, flipV: s.flipV, aspectLock: s.aspectLock, pictureGeometry: s.pictureGeometry,
                    pictureAlpha: s.pictureAlpha, pictureDuotone: s.pictureDuotone, pictureColorChange: s.pictureColorChange,
                    pictureInset: s.pictureInset,
                    fillsWithBackground: s.fillsWithBackground, inheritedPreset: s.inheritedPreset,
@@ -1799,6 +1851,7 @@ final class DeckController: ChangeNotifier {
         shape.crop = st.crop
         shape.flipH = st.flipH
         shape.flipV = st.flipV
+        shape.aspectLock = st.aspectLock
         shape.pictureGeometry = st.pictureGeometry
         shape.pictureAlpha = st.pictureAlpha
         shape.pictureDuotone = st.pictureDuotone

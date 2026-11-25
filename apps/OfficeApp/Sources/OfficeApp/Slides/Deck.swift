@@ -173,6 +173,7 @@ struct ReadShape: Equatable {
     var rotation: Double
     var flipH: Bool
     var flipV: Bool
+    var aspectLock: Bool?
     var fill: Color?
     var fillScheme: String?
     var outline: Color?
@@ -186,7 +187,7 @@ struct ReadShape: Equatable {
     var invisible: Bool
 
     init(_ s: ShapeState) {
-        name = s.name; kind = s.kind; frame = s.frame; rotation = s.rotation; flipH = s.flipH; flipV = s.flipV
+        name = s.name; kind = s.kind; frame = s.frame; rotation = s.rotation; flipH = s.flipH; flipV = s.flipV; aspectLock = s.aspectLock
         fill = s.fill; fillScheme = s.fillScheme; outline = s.outline; outlineWidth = s.outlineWidth
         anchor = s.anchor; insets = s.insets; autofit = s.autofit; fontScale = s.fontScale; field = s.field
         invisible = s.invisible
@@ -206,7 +207,7 @@ struct ReadShape: Equatable {
     func unchangedExceptPlacementAndText(_ s: ShapeState) -> Bool {
         var a = self
         let b = ReadShape(s)
-        a.frame = b.frame; a.rotation = b.rotation; a.flipH = b.flipH; a.flipV = b.flipV; a.invisible = b.invisible
+        a.frame = b.frame; a.rotation = b.rotation; a.flipH = b.flipH; a.flipV = b.flipV; a.invisible = b.invisible; a.aspectLock = b.aspectLock
         return a == b
     }
 }
@@ -668,6 +669,10 @@ final class SlideShape {
     /// rect), as read: drawn, and written back through the kept element.
     var flipH = false
     var flipV = false
+    /// Lock aspect ratio (`noChangeAspect`); nil = not set, so a picture is locked and other shapes are free.
+    var aspectLock: Bool? = nil
+    /// What the Format Shape pane and the canvas honour.
+    var aspectLocked: Bool { aspectLock ?? (picture != nil) }
     var pictureGeometry: ShapePreset? = nil
     /// A picture's transparency and duotone recolouring, as read.
     var pictureAlpha = 1.0
