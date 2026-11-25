@@ -111,7 +111,7 @@ final class Ribbon: StatelessWidget {
         if session.summary.inCell { items.append(_tab(.tableDesign, fluent)); items.append(_tab(.tableLayout, fluent)) }
         if session.deck?.selectedChart != nil { items.append(_tab(.chartDesign, fluent)) }
         return ColoredBox(color: OfficeAppearance.surface(fluent),
-            child: SizedBox(width: nil, height: 44, child: SingleChildScrollView(scrollDirection: .horizontal,
+            child: SizedBox(width: nil, height: OfficeAppearance.rowHeight(44), child: SingleChildScrollView(scrollDirection: .horizontal,
                 child: Padding(padding: EdgeInsets(left: 12, top: 5, right: 12, bottom: 0),
                     child: Row(crossAxisAlignment: .end, children: items)))))
     }
@@ -277,7 +277,7 @@ final class Ribbon: StatelessWidget {
                            child: Row(mainAxisSize: .min, crossAxisAlignment: .center, children: tiles)))
         let styles = Chrome.group("Styles", fluent, [
             gallery, Chrome.gap(2),
-            FlatButton(child: Chrome.chevron(fluent), tip: "All styles", width: 16, height: 58, menu: more),
+            FlatButton(child: Chrome.chevron(fluent), tip: "All styles", width: 16, height: OfficeAppearance.rowHeight(58), menu: more),
         ])
 
         let editing = Chrome.group("Editing", fluent, [Chrome.rows([
@@ -432,7 +432,7 @@ final class Ribbon: StatelessWidget {
                         Text("AaBb", style: look),
                         Chrome.vgap(2),
                         Text(entry.name, style: fluent.typography.caption, softWrap: false),
-                    ]), checked: on, width: 74, height: 54, action: action)
+                    ]), checked: on, width: 74 * SystemDisplay.current.chromeTextScale, height: OfficeAppearance.rowHeight(54), action: action)
     }
 
     /// Menu previews cap at 14pt. This used to be 13 because exactly 14pt

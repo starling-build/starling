@@ -50,7 +50,7 @@ final class FindBar: StatelessWidget {
         var items: [Widget] = [
             SizedBox(width: 60, height: nil, child: Text("Find", style: fluent.typography.body)),
             // The field takes the keyboard as the bar opens: ⌘F then type.
-            SizedBox(width: 260, height: 30, child: FluentTextBox(
+            SizedBox(width: 260 * SystemDisplay.current.chromeTextScale, height: OfficeAppearance.rowHeight(30), child: FluentTextBox(
                 controller: query,
                 placeholderText: session.kind == .presentation ? "Search presentation" : session.kind == .workbook ? "Search workbook" : "Search document",
                 onSubmitted: { [onNext] _ in onNext(false) }, autofocus: true, onFocusChanged: blurred,
@@ -64,7 +64,7 @@ final class FindBar: StatelessWidget {
         if showReplace {
             items.append(Chrome.gap(24))
             items.append(SizedBox(width: 70, height: nil, child: Text("Replace", style: fluent.typography.body)))
-            items.append(SizedBox(width: 220, height: 30, child: FluentTextBox(
+            items.append(SizedBox(width: 220 * SystemDisplay.current.chromeTextScale, height: OfficeAppearance.rowHeight(30), child: FluentTextBox(
                 controller: replacement, placeholderText: "Replace with",
                 onSubmitted: { [onReplace] _ in onReplace() }, onFocusChanged: blurred,
                 tabGroup: "find", tabOrder: 1)))
