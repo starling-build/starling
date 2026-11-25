@@ -32,4 +32,11 @@ final class LinkCardTests: XCTestCase {
     func testAPlaceInTheDocumentIsNamedAsSuch() {
         XCTAssertTrue(card("#_Heading0").has(text: "Place in this document"))
     }
+
+    func testCaretLinkWinsOverHoverAndCloseHidesBoth() {
+        XCTAssertEqual(LinkCard.link(caret: "a", hover: "b", dismissed: false), "a")
+        XCTAssertEqual(LinkCard.link(caret: nil, hover: "b", dismissed: false), "b")
+        XCTAssertNil(LinkCard.link(caret: "a", hover: "b", dismissed: true))
+        XCTAssertNil(LinkCard.link(caret: nil, hover: nil, dismissed: false))
+    }
 }

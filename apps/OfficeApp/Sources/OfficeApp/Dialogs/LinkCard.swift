@@ -23,6 +23,12 @@ final class LinkCard: StatelessWidget {
         super.init()
     }
 
+    /// The link the card shows: the one under the caret, else the one the pointer last rested on.
+    /// Nothing once the user closed it; a new caret link or hover reopens it.
+    static func link(caret: String?, hover: String?, dismissed: Bool) -> String? {
+        dismissed ? nil : (caret ?? hover)
+    }
+
     /// What the card shows for a link target: "#name" reads as a place in this document.
     static func shown(_ link: String) -> String {
         link.hasPrefix("#") ? "Place in this document" : link

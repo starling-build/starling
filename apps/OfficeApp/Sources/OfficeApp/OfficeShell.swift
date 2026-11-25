@@ -69,6 +69,7 @@ final class OfficeShellState: State<StatefulWidget> {
     private var _shortcutsOpen = false
     private var _cardLink: String? = nil      // the link under the caret, shown on the link card
     private var _cardDismissed = false
+    private var _hoverCard: String? = nil     // a link the pointer rested on; stays until the caret or another link replaces it
     private var _linkDialogOpen = false
     private var _colorOpen = false
     private var _paragraphOpen = false
@@ -188,7 +189,7 @@ final class OfficeShellState: State<StatefulWidget> {
                 self.setState { self.session.pageSetup = last }
             }
             let under = self.controller.currentLink
-            if under != self._cardLink { self.setState { self._cardLink = under; self._cardDismissed = false } }
+            if under != self._cardLink { self.setState { self._cardLink = under; self._hoverCard = nil; self._cardDismissed = false } }
             let s = self.session.summarize()
             let dirty = self.controller.revision != self._savedRevision
             if dirty { self._scheduleAutosave() }
@@ -1157,7 +1158,7 @@ final class OfficeShellState: State<StatefulWidget> {
             if session.paintedStyle != nil { _cancelPainter(); return true }
             if _styleOpen != nil { setState { _styleOpen = nil }; return true }
             if _shortcutsOpen { return false }   // the dialog's own Esc closes it
-            if _cardLink != nil && !_cardDismissed { setState { _cardDismissed = true }; return true }
+            if LinkCard.link(caret: _cardLink, hover: _hoverCard, dismissed: _cardDismissed) != nil { setState { _cardDismissed = true }; return true }
             if _paragraphOpen || _fontOpen || _insertTableOpen || _bordersOpen || _pictureDialog != nil || _linkDialogOpen || _numberingValueOpen { return false }   // the dialog's own Esc closes it
             if _colorOpen { setState { _colorOpen = false }; return true }
             if _headerFooterOpen { setState { _headerFooterOpen = false }; return true }
@@ -1276,9 +1277,9 @@ final class OfficeShellState: State<StatefulWidget> {
                                    },
                                    onClose: { [weak self] in self?.setState { self?._colorOpen = false } }))
         }
-        if let link = _cardLink, !_cardDismissed {
+        if let link = LinkCard.link(caret: _cardLink, hover: _hoverCard, dismissed: _cardDismissed) {
             column.append(LinkCard(
-                address: link, tip: controller.currentLinkTip ?? "",
+                address: link, tip: link == _cardLink ? (controller.currentLinkTip ?? "") : "",
                 onOpen: { [weak self] in self?._followLink(link) },
                 onEdit: { [weak self] in self?._openLink() },
                 onRemove: { [weak self] in
@@ -1540,7 +1541,10 @@ final class OfficeShellState: State<StatefulWidget> {
             onShortcut: { [weak self] key, mods in self?._shortcut(key, mods) ?? false },
             onLinkHover: { [weak self] link in
                 guard let self, self._linkHover != link else { return }
-                self.setState { self._linkHover = link }
+                self.setState {
+                    self._linkHover = link
+                    if let link, link != self._hoverCard { self._hoverCard = link; self._cardDismissed = false }
+                }
             },
             onLinkActivate: { [weak self] link in self?._followLink(link) },
             // Format Painter applies when a selection gesture ends, as Word does.
