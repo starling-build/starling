@@ -824,6 +824,62 @@ if let i = CommandLine.arguments.firstIndex(of: "--trace-rules"), i + 1 < Comman
     }
 }
 
+/// The theme the headless Word commands (`--convert` to PDF, `--paint-pages`) lay out with.
+func headlessWordTheme() -> RichTextTheme {
+    let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
+    theme.fontFamilyResolver = OfficeFonts.drawn
+    theme.faceResolver = OfficeFonts.face
+    theme.complexFaceResolver = OfficeFonts.complexFace
+    theme.complexFaceKeepsDigits = OfficeFonts.complexFaceKeepsDigits
+    theme.averageCharWidth = OfficeFonts.averageCharWidth
+    theme.winLineBox = OfficeFonts.standInWinBox
+    theme.winDescent = { name in name.flatMap { n in SheetPrintMetrics.descent(family: n).flatMap { d in SheetPrintMetrics.ascent(family: n).map { d / ($0 + d) } } } }
+    theme.symbolGlyphs = { face, text in face.map { Metafile.symbols(text, face: $0) } ?? text }
+    theme.isSymbolFace = { Metafile.isSymbolFace($0) }
+    theme.symbolAdvance = Metafile.symbolAdvance
+    theme.wordRules = true
+    theme.disablesLigatures = true
+    return theme
+}
+
+// `--paint-pages <in>`: lays the document out and paints every page the way the window does (`RichLayout.paint` with
+// a paper behind each page) on THIS thread, then prints the page count. A diagnostic for the stack the window paints
+// on: under `ulimit -s 1024` (an iPad's main thread) a document that overflows it dies here with signal 11.
+if let i = CommandLine.arguments.firstIndex(of: "--paint-pages"), i + 1 < CommandLine.arguments.count {
+    initializeHeadlessText()
+    do {
+        let opened = try OfficeFormats.read(CommandLine.arguments[i + 1])
+        let theme = headlessWordTheme()
+        let setup = opened.pageSetup ?? .letter
+        let layout = RichLayout(theme: theme, paragraphCount: opened.document.paragraphs.count)
+        layout.pageSetup = setup
+        layout.width = setup.columnWidth * theme.pixelsPerPoint
+        layout.ensureLaidOut(opened.document)
+        for round in 0 ..< 2 {   // (the second pass paints what the first one asked for: headers, text boxes)
+            for p in 0 ..< layout.pageCount {
+                let rect = layout.pageRect(p)
+                let recorder = NativePictureRecorder()
+                let canvas = NativeCanvas(recorder: recorder, cullRect: Rect.fromLTWH(0, 0, rect.width, rect.height))
+                canvas.translate(0, -rect.top)
+                layout.paint(canvas, visible: rect, document: opened.document, selection: nil, caret: nil,
+                             pageBackground: { _, r in
+                                 let paper = Paint()
+                                 paper.color = Color(0xFFFFFFFF)
+                                 paper.style = .fill
+                                 canvas.drawRect(r, paper)
+                             })
+                _ = recorder.endRecording()
+            }
+            _ = round
+        }
+        print("painted \(layout.pageCount) pages")
+        exit(0)
+    } catch {
+        FileHandle.standardError.write("paint-pages failed: \(error)\n".data(using: .utf8)!)
+        exit(1)
+    }
+}
+
 if let i = CommandLine.arguments.firstIndex(of: "--convert"), i + 2 < CommandLine.arguments.count {
     let src = CommandLine.arguments[i + 1]
     let dst = CommandLine.arguments[i + 2]
@@ -834,19 +890,7 @@ if let i = CommandLine.arguments.firstIndex(of: "--convert"), i + 2 < CommandLin
             ? OpenedDocument(document: WelcomeDocument.make(), pageSetup: .letter)
             : OfficeFormats.read(src)
         if dst.pathExtension.lowercased() == "pdf" {
-            let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
-            theme.fontFamilyResolver = OfficeFonts.drawn
-            theme.faceResolver = OfficeFonts.face
-            theme.complexFaceResolver = OfficeFonts.complexFace
-            theme.complexFaceKeepsDigits = OfficeFonts.complexFaceKeepsDigits
-            theme.averageCharWidth = OfficeFonts.averageCharWidth
-            theme.winLineBox = OfficeFonts.standInWinBox
-            theme.winDescent = { name in name.flatMap { n in SheetPrintMetrics.descent(family: n).flatMap { d in SheetPrintMetrics.ascent(family: n).map { d / ($0 + d) } } } }
-            theme.symbolGlyphs = { face, text in face.map { Metafile.symbols(text, face: $0) } ?? text }
-        theme.isSymbolFace = { Metafile.isSymbolFace($0) }
-            theme.symbolAdvance = Metafile.symbolAdvance
-            theme.wordRules = true
-            theme.disablesLigatures = true
+            let theme = headlessWordTheme()
             guard PdfExport.write(opened.document, pageSetup: opened.pageSetup ?? .letter, theme: theme,
                                   to: dst, title: src.lastPathComponent) else {
                 FileHandle.standardError.write("convert failed: could not write PDF\n".data(using: .utf8)!)

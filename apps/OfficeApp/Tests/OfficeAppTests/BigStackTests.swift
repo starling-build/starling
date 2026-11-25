@@ -29,6 +29,30 @@ final class BigStackTests: XCTestCase {
         XCTAssertTrue(inner === outer, "a nested call must not spawn a second thread")
     }
 
+    /// A thread with a small stack (an iPad's main thread has 1 MB) hops; one with a big stack (a Mac's) does not.
+    func testRunIfSmallHopsOnlyFromASmallStack() {
+        let caller = Thread.current
+        var ranOn: Thread?
+        BigStack.runIfSmall { ranOn = Thread.current }
+        XCTAssertTrue(ranOn === caller, "an 8 MB thread keeps the work")
+
+        let small = expectation(description: "small thread")
+        let thread = Thread {
+            let me = Thread.current
+            var inner: Thread?
+            let depth = BigStack.runIfSmall { () -> Int in
+                inner = Thread.current
+                return self.descend(3_800)   // ~24 MB: signal 11 on this thread's 512 KB
+            }
+            XCTAssertFalse(inner === me, "a 512 KB thread hops")
+            XCTAssertGreaterThanOrEqual(depth, 0)
+            small.fulfill()
+        }
+        thread.stackSize = 512 << 10
+        thread.start()
+        wait(for: [small], timeout: 60)
+    }
+
     func testAThrownErrorComesBack() {
         struct Boom: Error {}
         XCTAssertThrowsError(try BigStack.run { () throws -> Int in throw Boom() }) { XCTAssertTrue($0 is Boom) }
