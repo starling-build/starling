@@ -19,6 +19,12 @@ final class RtlLatinLineTests: XCTestCase {
         defer { RichTextTheme.wordWindowsPages = false }
         let theme = RichTextTheme(fontFamily: OfficeFonts.serif)
         theme.wordRules = true
+        // Fonts as the app draws them (`OfficeFonts.drawn`, what `--convert` sets), except that "Calibri" is pinned to
+        // Liberation Sans: left to the host's font manager the name found Microsoft's own Calibri on a Mac that has Word
+        // (1.1777 em) and a fallback on Linux (1.1499), and with the bundled Carlito (1.2207) the Latin letters' line would
+        // equal the 1.2207 the digit rule (`_latinFaceLines`) gives, so the letters test could not tell whether that rule
+        // fired. Liberation Sans' 1.1499 differs from it on every host.
+        theme.fontFamilyResolver = { $0.trimmingWhitespace().lowercased() == "calibri" ? OfficeFonts.sans : OfficeFonts.drawn($0) }
         theme.complexFaceResolver = { _ in var f = RichResolvedFace(family: "Arial"); f.arialStandIn = true; return f }
         var arabic = CharStyle()
         arabic.rightToLeft = true
