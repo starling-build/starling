@@ -542,12 +542,14 @@ extension Ribbon {
         return [Chrome.group("Table Styles", fluent, [Chrome.rows([shading])]),
                 Chrome.group("Table Style Options", fluent, [
             Chrome.rows([
-                Chrome.textToggle("Header Row", o.headerRow, fluent) {
-                    var n = o; n.headerRow.toggle(); deck.setTableOptions(n)
-                },
-                Chrome.textToggle("Banded Rows", o.bandedRows, fluent) {
-                    var n = o; n.bandedRows.toggle(); deck.setTableOptions(n)
-                },
+                Chrome.textToggle("Header Row", o.headerRow, fluent) { var n = o; n.headerRow.toggle(); deck.setTableOptions(n) },
+                Chrome.textToggle("Total Row", o.totalRow, fluent) { var n = o; n.totalRow.toggle(); deck.setTableOptions(n) },
+                Chrome.textToggle("Banded Rows", o.bandedRows, fluent) { var n = o; n.bandedRows.toggle(); deck.setTableOptions(n) },
+            ]),
+            Chrome.rows([
+                Chrome.textToggle("First Column", o.firstColumn, fluent) { var n = o; n.firstColumn.toggle(); deck.setTableOptions(n) },
+                Chrome.textToggle("Last Column", o.lastColumn, fluent) { var n = o; n.lastColumn.toggle(); deck.setTableOptions(n) },
+                Chrome.textToggle("Banded Columns", o.bandedColumns, fluent) { var n = o; n.bandedColumns.toggle(); deck.setTableOptions(n) },
             ]),
         ])]
     }

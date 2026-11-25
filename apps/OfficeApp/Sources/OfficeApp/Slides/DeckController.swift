@@ -1033,6 +1033,10 @@ final class DeckController: ChangeNotifier {
     struct TableOptions: Equatable {
         var headerRow = true
         var bandedRows = true
+        var firstColumn = false
+        var lastColumn = false
+        var totalRow = false
+        var bandedColumns = false
     }
 
     /// The look switches of the selected table, nil when none is selected.
@@ -1041,7 +1045,8 @@ final class DeckController: ChangeNotifier {
         let st = doc.tableStyles[id] ?? TableStyle()
         // Banding is on when the two band colours differ: a file with banding off
         // reads back with both set to the table's own background.
-        return TableOptions(headerRow: st.headerRow, bandedRows: st.bandFill != nil && st.bandFill != st.bandAltFill)
+        return TableOptions(headerRow: st.headerRow, bandedRows: st.bandFill != nil && st.bandFill != st.bandAltFill,
+                            firstColumn: st.firstColumn, lastColumn: st.lastColumn, totalRow: st.totalRow, bandedColumns: st.bandedColumns)
     }
 
     /// Shade cells of the selected table (nil clears the shading back to the
@@ -1076,23 +1081,38 @@ final class DeckController: ChangeNotifier {
         st.headerFill = o.headerRow ? (st.headerFill ?? look.headerFill) : nil
         st.bandFill = o.bandedRows ? (st.bandFill ?? look.bandFill) : nil
         st.bandAltFill = o.bandedRows ? (st.bandAltFill ?? look.bandAltFill) : nil
-        // The first row's text look follows the header: white and bold on the
-        // header fill, plain when there is none.
-        if o.headerRow != selectedTableOptions?.headerRow {
-            let white = Color(0xFFFFFFFF)
-            for i in doc.paragraphs.indices where doc.paragraphs[i].cell?.table == id && doc.paragraphs[i].cell?.row == 0 {
-                var runs = doc.paragraphs[i].runs ?? [Run(length: doc.paragraphs[i].text.count)]
+        // Emphasised cells (header row, total row, first and last column) are
+        // white bold on the accent; banded columns tint every other column.
+        // The fills are baked per cell: a fill that is one of our two
+        // generated colours is ours to move, any other is the user's shading.
+        let was = selectedTableOptions ?? TableOptions()
+        st.totalRow = o.totalRow; st.firstColumn = o.firstColumn; st.lastColumn = o.lastColumn; st.bandedColumns = o.bandedColumns
+        let cells = doc.paragraphs.compactMap { $0.cell }.filter { $0.table == id }
+        let maxRow = cells.map { $0.row + $0.rowSpan - 1 }.max() ?? 0
+        let maxCol = cells.map { $0.column + $0.span - 1 }.max() ?? 0
+        func emphasised(_ c: CellRef, _ t: TableOptions) -> Bool {
+            (c.row == 0 && t.headerRow) || (c.row + c.rowSpan - 1 == maxRow && t.totalRow)
+                || (c.column == 0 && t.firstColumn) || (c.column + c.span - 1 == maxCol && t.lastColumn)
+        }
+        let white = Color(0xFFFFFFFF), accent = look.headerFill, tint = DeckController.tint(theme.accents[0], 0.40)
+        for i in doc.paragraphs.indices {
+            guard var c = doc.paragraphs[i].cell, c.table == id else { continue }
+            let wasE = emphasised(c, was), nowE = emphasised(c, o)
+            if wasE != nowE {
+                var runs = doc.paragraphs[i].runs.isEmpty ? [Run(length: doc.paragraphs[i].text.count)] : doc.paragraphs[i].runs
                 for j in runs.indices {
-                    if o.headerRow {
-                        runs[j].style.bold = true
-                        runs[j].style.color = white
-                    } else {
-                        runs[j].style.bold = false
-                        if runs[j].style.color == white { runs[j].style.color = nil }
-                    }
+                    if nowE { runs[j].style.bold = true; runs[j].style.color = white }
+                    else { runs[j].style.bold = false; if runs[j].style.color == white { runs[j].style.color = nil } }
                 }
                 doc.paragraphs[i].runs = runs
             }
+            if c.fill == accent || c.fill == tint { c.fill = nil }
+            let headerCell = c.row == 0 && o.headerRow
+            if c.fill == nil, !headerCell {
+                if nowE { c.fill = accent }
+                else if o.bandedColumns, c.column - (o.firstColumn ? 1 : 0) >= 0, (c.column - (o.firstColumn ? 1 : 0)) % 2 == 0 { c.fill = tint }
+            }
+            doc.paragraphs[i].cell = c
         }
         doc.tableStyles[id] = st
         text.load(doc)

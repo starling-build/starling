@@ -1574,6 +1574,11 @@ public struct TableStyle: Hashable, Codable, Sendable {
     /// not between its cells); nil sides follow `borders`.
     public var edges: BorderEdges? = nil
     public var headerRow = false
+    /// Slides' other table style switches (`a:tblPr` lastRow, firstCol, lastCol, bandCol): kept so a save writes them back.
+    public var totalRow = false
+    public var firstColumn = false
+    public var lastColumn = false
+    public var bandedColumns = false
     /// How many leading rows repeat at the top of every page the table
     /// runs onto when `headerRow` is set (Word's w:tblHeader on each):
     /// bug59058's data tables repeat a caption row and a column-heading

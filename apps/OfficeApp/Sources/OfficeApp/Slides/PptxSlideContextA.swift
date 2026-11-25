@@ -740,6 +740,10 @@ extension SlideContext {
                          bandFill: banded ? DeckController.tint(accent, 0.40) : nil,
                          bandAltFill: banded ? DeckController.tint(accent, 0.20) : nil,
                          borderColor: Color(0xFFFFFFFF))
+        ts.totalRow = pr?["lastRow"] == "1"
+        ts.firstColumn = pr?["firstCol"] == "1"
+        ts.lastColumn = pr?["lastCol"] == "1"
+        ts.bandedColumns = pr?["bandCol"] == "1"
         // A table with no style (or "Table Grid") is ruled in 1 pt black,
         // as PowerPoint draws tdf135843_export's grid, not the editor's ½.
         if plain, ts.borders { ts.borderWidth = 1 }

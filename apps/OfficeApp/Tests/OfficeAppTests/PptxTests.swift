@@ -661,6 +661,43 @@ final class DeepGroupTests: XCTestCase {
                        box.text?.document.paragraphs.count)
     }
 
+    /// S-TB-1c: First/Last Column, Total Row and Banded Columns colour their cells, undo, keep the user's shading, and survive a save.
+    func testTableStyleSwitchesColourCellsAndRoundTrip() throws {
+        let deck = DeckController()
+        deck.slides[0].shapes.removeAll()
+        let t = deck.addTable(rows: 4, columns: 4)
+        deck.selectShapes([t])
+        func cell(_ r: Int, _ c: Int) -> CellRef? { t.text!.document.paragraphs.first { $0.cell?.row == r && $0.cell?.column == c }?.cell }
+        func bold(_ r: Int, _ c: Int) -> Bool? { t.text!.document.paragraphs.first { $0.cell?.row == r && $0.cell?.column == c }?.runs.first?.style.bold }
+        let yellow = Color(0xFFFFFF00)
+        deck.setTableShading(yellow, block: CellBlock(table: t.tableId!, rows: 3...3, columns: 0...0))
+        var o = deck.selectedTableOptions!
+        o.firstColumn = true; o.totalRow = true; o.bandedColumns = true
+        deck.setTableOptions(o)
+        XCTAssertNotNil(cell(1, 0)?.fill)             // first column
+        XCTAssertEqual(bold(1, 0), true)
+        XCTAssertNotNil(cell(3, 2)?.fill)             // total row
+        XCTAssertEqual(cell(3, 0)?.fill, yellow)      // the user's shading stays
+        XCTAssertNotNil(cell(1, 1)?.fill)             // banded columns: 1 and 3 (counted after the first column)
+        XCTAssertNotNil(cell(1, 3)?.fill)
+        XCTAssertNil(cell(1, 2)?.fill)
+        let (state, _, _) = try Pptx.read(Pptx.write(deck))
+        let again = DeckController(); again.restore(state)
+        again.selectShapes(again.slides[0].shapes.filter { $0.kind == .table })
+        XCTAssertEqual(again.selectedTableOptions?.firstColumn, true)
+        XCTAssertEqual(again.selectedTableOptions?.totalRow, true)
+        XCTAssertEqual(again.selectedTableOptions?.bandedColumns, true)
+        XCTAssertEqual(again.selectedTableOptions?.lastColumn, false)
+        o.firstColumn = false; o.totalRow = false; o.bandedColumns = false
+        deck.setTableOptions(o)
+        XCTAssertNil(cell(1, 0)?.fill)
+        XCTAssertNil(cell(3, 2)?.fill)
+        XCTAssertEqual(cell(3, 0)?.fill, yellow)
+        XCTAssertEqual(bold(1, 0), false)
+        deck.undo()
+        XCTAssertNotNil(cell(1, 0)?.fill)
+    }
+
     /// S-TB-1b: shading some cells of a table undoes and survives a save, other cells keep the style's.
     func testTableCellShadingRoundTripAndUndo() throws {
         let deck = DeckController()
