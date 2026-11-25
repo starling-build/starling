@@ -57,3 +57,46 @@ extension RichDocumentController {
         return true
     }
 }
+
+extension RichDocumentController {
+    /// Word's Eraser: wiping an inner border merges the two cells it separates (when they line up edge to edge).
+    /// Returns false for an outer border or cells that do not line up.
+    @discardableResult
+    public func eraseCellEdge(table: String, row: Int, column: Int, side: CellSide) -> Bool {
+        let ps = document.paragraphs
+        guard let here = ps.firstIndex(where: { $0.cell?.table == table && $0.cell?.row == row && $0.cell?.column == column }),
+              let a = ps[here].cell else { return false }
+        let r1 = a.row + a.rowSpan - 1, c1 = a.column + a.span - 1
+        let nr: Int, nc: Int
+        switch side {
+        case .left: nr = a.row; nc = a.column - 1
+        case .right: nr = a.row; nc = c1 + 1
+        case .top: nr = a.row - 1; nc = a.column
+        case .bottom: nr = r1 + 1; nc = a.column
+        case .insideH, .insideV: return false
+        }
+        guard nr >= 0, nc >= 0, let other = ps.firstIndex(where: { q in
+            guard let c = q.cell, c.table == table else { return false }
+            return c.row <= nr && nr <= c.row + c.rowSpan - 1 && c.column <= nc && nc <= c.column + c.span - 1
+        }), let b = ps[other].cell else { return false }
+        let horizontal = side == .left || side == .right
+        if horizontal ? (b.row != a.row || b.rowSpan != a.rowSpan) : (b.column != a.column || b.span != a.span) { return false }
+        _setCaret(RichPosition(paragraph: min(here, other), offset: 0))
+        moveTo(RichPosition(paragraph: max(here, other), offset: 0), extend: true)
+        guard selection.block != nil else { return false }
+        mergeCells()
+        return true
+    }
+
+    /// Word's Draw Table, in a cell: a stroke across the cell splits it in two along the stroke (a mostly horizontal
+    /// stroke makes two rows, a mostly vertical one two columns). Outside a table the stroke makes a one-cell table.
+    @discardableResult
+    public func drawTable(in cell: (table: String, row: Int, column: Int)?, dx: Double, dy: Double) -> Bool {
+        guard abs(dx) > 6 || abs(dy) > 6 else { return false }
+        guard let cell else { insertTable(rows: 1, columns: 1); return true }
+        guard let i = document.paragraphs.firstIndex(where: { $0.cell?.table == cell.table && $0.cell?.row == cell.row && $0.cell?.column == cell.column })
+        else { return false }
+        _setCaret(RichPosition(paragraph: i, offset: 0))
+        return abs(dx) >= abs(dy) ? splitCell(columns: 1, rows: 2) : splitCell(columns: 2, rows: 1)
+    }
+}

@@ -605,6 +605,11 @@ final class Ribbon: StatelessWidget {
                 MenuFlyoutItem(text: Text("Convert Table to Text…"), onPressed: { self.session.onConvertTextTableDialog?(false) }),
             ]),
         ])
+        let draw = Chrome.group("Draw", fluent, [Chrome.rows([
+            Chrome.small(FluentSystemIcons.table, session.tableTool == "draw" ? "Draw Table ✓" : "Draw Table", fluent) { [session] in session.onTableTool?("draw") },
+            Chrome.small(FluentSystemIcons.table, session.tableTool == "erase" ? "Eraser ✓" : "Eraser", fluent,
+                         enabled: c.currentCell != nil || session.tableTool == "erase") { [session] in session.onTableTool?("erase") },
+        ])])
         let merge = Chrome.group("Merge", fluent, [Chrome.rows([
             Chrome.small(FluentSystemIcons.table, "Merge Cells", fluent,
                          enabled: c.selection.block != nil || c.selectedCellsInRow.count > 1 || c.selectedCellsInColumn.count > 1) { c.mergeCells() },
@@ -722,7 +727,7 @@ final class Ribbon: StatelessWidget {
         let table = Chrome.group("Table", fluent, [
             Chrome.big(FluentSystemIcons.delete, "Delete Table", fluent) { c.deleteTable() },
         ])
-        return [select, rows, merge, size, alignment, borders, look, table]
+        return [select, draw, rows, merge, size, alignment, borders, look, table]
     }
 
     // MARK: Picture Format
