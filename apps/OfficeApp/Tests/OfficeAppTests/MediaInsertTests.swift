@@ -78,4 +78,19 @@ final class MediaInsertTests: XCTestCase {
         let tn = slide.components(separatedBy: "<p:cTn id=\"").dropFirst().compactMap { Int($0.prefix { $0.isNumber }) }
         XCTAssertEqual(Set(tn).count, tn.count)
     }
+
+    /// A slide with animations gets its clip's timing added to the same tree: ids stay unique and the animations stay.
+    func testClipTimingJoinsExistingAnimations() throws {
+        let animations = [ShapeAnimation(shapeId: 10, effect: .fade), ShapeAnimation(shapeId: 11, effect: .appear)]
+        let own = AnimationXML.write(animations, spid: { $0 }, textShapes: [])
+        let merged = MediaTiming.merge([(spid: 30, isVideo: true)], into: own)
+        XCTAssertEqual(merged.components(separatedBy: "cmd=\"playFrom(0.0)\"").count - 1, 1)
+        XCTAssertTrue(merged.contains("<p:video><p:cMediaNode"))
+        XCTAssertTrue(merged.hasSuffix("</p:childTnLst></p:cTn></p:par></p:tnLst></p:timing>"))
+        let tn = merged.components(separatedBy: "<p:cTn id=\"").dropFirst().compactMap { Int($0.prefix { $0.isNumber }) }
+        XCTAssertEqual(Set(tn).count, tn.count)
+        // The animations stay in the tree; a file read back keeps such a tree whole rather than remodelling it.
+        XCTAssertTrue(merged.contains("spid=\"10\"") && merged.contains("spid=\"11\"") && merged.contains("spid=\"30\""))
+        XCTAssertNil(AnimationXML.read(try XCTUnwrap(XNode.parse(Data(merged.utf8)))))
+    }
 }
