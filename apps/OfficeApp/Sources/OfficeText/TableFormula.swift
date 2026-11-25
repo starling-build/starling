@@ -30,8 +30,7 @@ public struct TableFormula {
 
     enum Failure: Error { case syntax, reference, divideByZero }
 
-    /// The values of the cells ABOVE / LEFT / BELOW / RIGHT of the current cell: the run of cells that hold
-    /// something, up to the first empty one (text with no number in it is passed over).
+    /// The values of the cells ABOVE / LEFT / BELOW / RIGHT of the current cell (measured against Word 2026-11-25).
     func direction(_ name: String) -> [Double] {
         var r = row, c = column
         var out: [Double] = []
@@ -42,12 +41,13 @@ public struct TableFormula {
         case "LEFT": (dr, dc) = (0, -1)
         default: (dr, dc) = (0, 1)
         }
+        // Word walks away from the cell, passes over blank and text cells until it meets a number, then
+        // adds the numbers that follow and stops at the first blank or text cell after them.
         while true {
             r += dr; c += dc
             guard r >= 0, r < grid.count, c >= 0, c < grid[r].count else { break }
-            let t = grid[r][c]
-            if t.trimmingWhitespace(newlines: true).isEmpty { break }
-            if let v = Self.number(in: t) { out.append(v) }
+            if let v = Self.number(in: grid[r][c]) { out.append(v) }
+            else if !out.isEmpty { break }
         }
         return out
     }
@@ -220,8 +220,7 @@ public struct TableFormula {
         let prefix = String(chars[..<first].filter { $0 != "'" })
         let suffix = String(chars[(last + 1)...].filter { $0 != "'" })
         let body = String(chars[first ... last])
-        let percent = suffix.contains("%") || prefix.contains("%")
-        if percent { v *= 100 }
+        // The % in a picture is a literal: Word does not scale by 100 (0.256 with "0%" shows 0%).
         let parts = body.split(separator: ".", omittingEmptySubsequences: false).map(String.init)
         let decimals = parts.count > 1 ? parts[1].count : 0
         let grouped = parts[0].contains(",")
@@ -241,6 +240,12 @@ public struct TableFormula {
             var out = "", n = 0
             for ch in intPart.reversed() { if n > 0, n % 3 == 0 { out.append(",") }; out.append(ch); n += 1 }
             intPart = String(out.reversed())
+        }
+        // In a later section (negative, zero) Word pads the unused # places with spaces.
+        if chosen != sections[0] {
+            let hashes = parts[0].filter { $0 == "#" }.count
+            let used = max(0, intPart.filter { $0 != "," }.count - minInt)
+            intPart = String(repeating: " ", count: max(0, hashes - used)) + intPart
         }
         text = intPart + (frac.isEmpty ? "" : "." + frac)
         let negative = value < 0 && sections.count < 2 && Double(fixed(abs(v), decimals)) != 0

@@ -24,6 +24,21 @@ final class TableFormulaTests: XCTestCase {
         XCTAssertEqual(f.evaluate("=SUM(ABOVE)"), 1203.5)
     }
 
+    /// Word's own prints of the formula lab (2026-11-25).
+    func testWordSkipsLeadingBlanksAndTextThenStopsAtTheNextBlankOrText() {
+        XCTAssertEqual(TableFormula(grid: [["100"], [""], ["50"], [""]], row: 3, column: 0).evaluate("=SUM(ABOVE)"), 50)
+        XCTAssertEqual(TableFormula(grid: [["100"], [""], ["50"], ["x"], [""]], row: 4, column: 0).evaluate("=SUM(ABOVE)"), 50)
+        XCTAssertEqual(TableFormula(grid: [["Head"], ["3"], ["x"], ["2"], [""]], row: 4, column: 0).evaluate("=SUM(ABOVE)"), 2)
+        XCTAssertEqual(TableFormula(grid: [["Head", "3", "2", "x", "5", ""]], row: 0, column: 5).evaluate("=SUM(LEFT)"), 5)
+        XCTAssertEqual(TableFormula(grid: [["", "x", "3", "2", ""]], row: 0, column: 4).evaluate("=SUM(LEFT)"), 5)
+        let f = TableFormula(grid: [["1", "2"], ["3", "4"]], row: 1, column: 1)
+        XCTAssertEqual(f.evaluate("=A1+B2"), 5)
+        XCTAssertEqual(f.evaluate("=SUM(A1:B2)"), 10)
+        XCTAssertEqual(f.evaluate("=AVERAGE(A1:B2)"), 2.5)
+        XCTAssertEqual(f.evaluate("=MAX(A1:B2)-MIN(A1:B2)"), 3)
+        XCTAssertEqual(f.evaluate("=5/2"), 2.5)
+    }
+
     func testFunctionsAndReferences() {
         let f = TableFormula(grid: [["1", "2", "3"], ["4", "5", ""]], row: 1, column: 2)
         XCTAssertEqual(f.evaluate("=SUM(LEFT)"), 9)
@@ -38,8 +53,8 @@ final class TableFormulaTests: XCTestCase {
     func testNumberPictures() {
         XCTAssertEqual(TableFormula.format(1234.5, picture: "0.00"), "1234.50")
         XCTAssertEqual(TableFormula.format(1234.5, picture: "#,##0.00"), "1,234.50")
-        XCTAssertEqual(TableFormula.format(0.256, picture: "0%"), "26%")
-        XCTAssertEqual(TableFormula.format(-5, picture: "$#,##0.00;($#,##0.00)"), "($5.00)")
+        XCTAssertEqual(TableFormula.format(0.256, picture: "0%"), "0%")
+        XCTAssertEqual(TableFormula.format(-5, picture: "$#,##0.00;($#,##0.00)"), "($   5.00)")
         XCTAssertEqual(TableFormula.format(12, picture: ""), "12")
         XCTAssertEqual(TableFormula.format(2.5, picture: ""), "2.5")
         XCTAssertEqual(TableFormula.format(7, picture: "000"), "007")
