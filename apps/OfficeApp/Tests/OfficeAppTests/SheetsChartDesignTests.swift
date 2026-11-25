@@ -105,6 +105,16 @@ final class SheetsChartDesignTests: XCTestCase {
         let k = fileBook.sheet.drawings.firstIndex(where: { $0.isChart })!
         fileBook.setChartSeries(k, [fileBook.chartSeries(k)![1], tax])
         try Xlsx.write(fileBook.book).write(to: URL(fileURLWithPath: dir + "/chartseries-file.xlsx"))
+        // A corpus chart with a secondary-axis group: the first group's first series goes, one is added; the other group stays.
+        let two = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("test/corpus/xlsx/books/chart-add_series_secondary_axis.xlsx")
+        if let d = FileManager.default.contents(atPath: two.path) {
+            let w = WorkbookController(); w.load(try Xlsx.read(d))
+            let m = w.sheet.drawings.firstIndex(where: { $0.isChart })!
+            let cur = try XCTUnwrap(w.chartSeries(m))
+            XCTAssertTrue(w.setChartSeries(m, [cur[1], ChartSeriesRef(source: nil, name: nil, cat: cur[1].cat, val: "Munka1!$B$3:$D$3")]))
+            try Xlsx.write(w.book).write(to: URL(fileURLWithPath: dir + "/chartseries-2axis.xlsx"))
+        }
     }
 
     /// Element and attribute names (with counts) in a chart part.
