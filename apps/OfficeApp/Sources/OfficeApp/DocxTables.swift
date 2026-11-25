@@ -2259,7 +2259,10 @@ extension DocxFormat {
         // Word's default table style, as Word writes it. Without it Word
         // (in its legacy layout mode) set form_footnotes' tables 5pt to
         // the right of the original's: 12.3% -> 9.9% with it.
+        // (A file that already had one keeps its own: two styles with one id is a file Word may refuse.)
+        if !tableStyles.values.contains(where: { $0.containsSubstring("w:styleId=\"TableNormal\"") }) {
         out += "<w:style w:type=\"table\" w:default=\"1\" w:styleId=\"TableNormal\"><w:name w:val=\"Normal Table\"/><w:uiPriority w:val=\"99\"/><w:semiHidden/><w:unhideWhenUsed/><w:tblPr><w:tblInd w:w=\"0\" w:type=\"dxa\"/><w:tblCellMar><w:top w:w=\"0\" w:type=\"dxa\"/><w:left w:w=\"108\" w:type=\"dxa\"/><w:bottom w:w=\"0\" w:type=\"dxa\"/><w:right w:w=\"108\" w:type=\"dxa\"/></w:tblCellMar></w:tblPr></w:style>"
+        }
         // The file's ids for our styles, for kept markup that names them.
         for (fileId, ours) in aliases.sorted(by: { $0.key < $1.key }) where sheet[ours] != nil || ours == RichNamedStyle.normalId {
             out += "<w:style w:type=\"paragraph\" w:styleId=\"\(_esc(fileId))\"><w:name w:val=\"\(_esc(ours)) \(_esc(fileId))\"/><w:basedOn w:val=\"\(_esc(ours))\"/></w:style>"

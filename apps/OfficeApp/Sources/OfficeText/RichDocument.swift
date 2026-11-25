@@ -1509,8 +1509,41 @@ public struct BorderEdges: Hashable, Codable, Sendable {
 
 /// The bits of a Word table's `w:tblLook`, the Table Style Options.
 public struct TableCondFills: Hashable, Codable, Sendable {
-    public var header: Color?, band1: Color?, band2: Color?
-    public init(header: Color?, band1: Color?, band2: Color?) { self.header = header; self.band1 = band1; self.band2 = band2 }
+    /// The fill of each conditional part of the style (Word's `w:tblStylePr` types: "firstRow", "lastRow",
+    /// "firstCol", "lastCol", "band1Horz", "band2Horz", "band1Vert", "band2Vert", "nwCell", "neCell", "swCell", "seCell").
+    public var byType: [String: Color]
+    /// How many rows or columns make one band (`w:tblStyleRowBandSize` / `w:tblStyleColBandSize` in the style's `w:tblPr`).
+    /// Word draws no band at all when the style does not say: 0 here.
+    public var rowBandSize = 0, colBandSize = 0
+    public init(byType: [String: Color], rowBandSize: Int = 0, colBandSize: Int = 0) {
+        self.byType = byType; self.rowBandSize = rowBandSize; self.colBandSize = colBandSize
+    }
+
+    /// The colour the style gives the cell at `row`, `column` under the look switches (`TableLook` bits). Word applies the
+    /// parts in order, each over the last: column bands, row bands, first and last column, first and last row, the corners.
+    public func fill(look: Int, row r: Int, column c: Int, lastRow: Bool, lastColumn: Bool) -> Color? {
+        let firstRowOn = look & TableLook.firstRow != 0, lastRowOn = look & TableLook.lastRow != 0
+        let firstColOn = look & TableLook.firstColumn != 0, lastColOn = look & TableLook.lastColumn != 0
+        let isFirstRow = firstRowOn && r == 0, isLastRow = lastRowOn && lastRow
+        let isFirstCol = firstColOn && c == 0, isLastCol = lastColOn && lastColumn
+        var f: Color? = nil
+        func over(_ key: String) { if let v = byType[key] { f = v } }
+        if look & TableLook.noColumnBands == 0, colBandSize > 0, !isFirstCol, !isLastCol {
+            over((c - (firstColOn ? 1 : 0)) / colBandSize % 2 == 0 ? "band1Vert" : "band2Vert")
+        }
+        if look & TableLook.noRowBands == 0, rowBandSize > 0, !isFirstRow, !isLastRow {
+            over((r - (firstRowOn ? 1 : 0)) / rowBandSize % 2 == 0 ? "band1Horz" : "band2Horz")
+        }
+        if isFirstCol { over("firstCol") }
+        if isLastCol { over("lastCol") }
+        if isFirstRow { over("firstRow") }
+        if isLastRow { over("lastRow") }
+        if isFirstRow && isFirstCol { over("nwCell") }
+        if isFirstRow && isLastCol { over("neCell") }
+        if isLastRow && isFirstCol { over("swCell") }
+        if isLastRow && isLastCol { over("seCell") }
+        return f
+    }
 }
 
 public enum TableLook {

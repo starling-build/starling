@@ -56,7 +56,7 @@ final class TableLookTests: XCTestCase {
         var entries = try Zip.read(try DocxFormat.write(doc, pageSetup: .letter))
         let si = entries.firstIndex { $0.name == "word/styles.xml" }!
         var styles = String(decoding: entries[si].data, as: UTF8.self)
-        styles = styles.replacingAll("</w:styles>", with: "<w:style w:type=\"table\" w:styleId=\"G4\"><w:name w:val=\"G4\"/><w:tblStylePr w:type=\"firstRow\"><w:tcPr><w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"000000\"/></w:tcPr></w:tblStylePr><w:tblStylePr w:type=\"band1Horz\"><w:tcPr><w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"CCCCCC\"/></w:tcPr></w:tblStylePr></w:style></w:styles>")
+        styles = styles.replacingAll("</w:styles>", with: "<w:style w:type=\"table\" w:styleId=\"G4\"><w:name w:val=\"G4\"/><w:tblPr><w:tblStyleRowBandSize w:val=\"1\"/><w:tblStyleColBandSize w:val=\"1\"/></w:tblPr><w:tblStylePr w:type=\"firstRow\"><w:tcPr><w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"000000\"/></w:tcPr></w:tblStylePr><w:tblStylePr w:type=\"band1Horz\"><w:tcPr><w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"CCCCCC\"/></w:tcPr></w:tblStylePr><w:tblStylePr w:type=\"lastRow\"><w:tcPr><w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"FF0000\"/></w:tcPr></w:tblStylePr></w:style></w:styles>")
         entries[si] = ZipEntry(name: "word/styles.xml", data: Data(styles.utf8))
         let di = entries.firstIndex { $0.name == "word/document.xml" }!
         var xml = String(decoding: entries[di].data, as: UTF8.self)
@@ -92,5 +92,52 @@ final class TableLookTests: XCTestCase {
         let xml = String(decoding: try Zip.read(try DocxFormat.write(c.document, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
         XCTAssertEqual(xml.components(separatedBy: "w:shd ").count - 1, 1, "only the cell's own shading is written")
         XCTAssertTrue(xml.containsSubstring("FFFF00"))
+    }
+
+    func testTotalRowFillAppearsWhenTheSwitchIsOn() throws {
+        let c = try styled()
+        let black = Color(0xFF000000), grey = Color(0xFFCCCCCC), red = Color(0xFFFF0000)
+        XCTAssertEqual(fills(c), [black, grey, nil], "Total Row is off in Word's default look")
+        c.selection = RichSelection(anchor: RichPosition(paragraph: 0, offset: 0), focus: RichPosition(paragraph: 0, offset: 0))
+        c.setTableLook(TableLook.lastRow, on: true)
+        XCTAssertEqual(fills(c), [black, grey, red])
+        c.undo()
+        XCTAssertEqual(fills(c), [black, grey, nil])
+    }
+
+    func testEveryConditionalPartIsAppliedInWordsOrder() {
+        let f = TableCondFills(byType: ["band1Vert": Color(1), "band2Vert": Color(2), "band1Horz": Color(3), "band2Horz": Color(4),
+                                        "firstCol": Color(5), "lastCol": Color(6), "firstRow": Color(7), "lastRow": Color(8),
+                                        "nwCell": Color(9), "seCell": Color(10)], rowBandSize: 1, colBandSize: 1)
+        let all = TableLook.firstRow | TableLook.lastRow | TableLook.firstColumn | TableLook.lastColumn
+        func at(_ r: Int, _ c: Int, _ look: Int) -> Color? { f.fill(look: look, row: r, column: c, lastRow: r == 3, lastColumn: c == 3) }
+        XCTAssertEqual(at(0, 0, all), Color(9), "corner over header over first column")
+        XCTAssertEqual(at(3, 3, all), Color(10))
+        XCTAssertEqual(at(0, 1, all), Color(7))
+        XCTAssertEqual(at(3, 1, all), Color(8))
+        XCTAssertEqual(at(1, 0, all), Color(5))
+        XCTAssertEqual(at(1, 3, all), Color(6))
+        XCTAssertEqual(at(1, 1, all), Color(3), "row bands over column bands; the first band starts under the header")
+        XCTAssertEqual(at(2, 2, all), Color(4))
+        XCTAssertEqual(at(1, 1, all | TableLook.noRowBands), Color(1), "column bands show when row bands are off")
+        XCTAssertEqual(at(1, 2, all | TableLook.noRowBands), Color(2))
+        XCTAssertNil(at(1, 1, all | TableLook.noRowBands | TableLook.noColumnBands))
+    }
+
+    func testASavedAndReopenedFileHasOneTableNormalStyle() throws {
+        let c = try styled()
+        let out = try Zip.read(try DocxFormat.write(c.document, pageSetup: .letter))
+        let styles = String(decoding: out.first { $0.name == "word/styles.xml" }!.data, as: UTF8.self)
+        XCTAssertEqual(styles.components(separatedBy: "w:styleId=\"TableNormal\"").count - 1, 1)
+    }
+
+    func testWithoutABandSizeWordDrawsNoBandAndALargerSizeMakesTallerBands() {
+        let bands = ["band1Horz": Color(3), "band2Horz": Color(4)]
+        let look = TableLook.firstRow
+        func at(_ f: TableCondFills, _ r: Int) -> Color? { f.fill(look: look, row: r, column: 1, lastRow: false, lastColumn: false) }
+        let none = TableCondFills(byType: bands)
+        XCTAssertNil(at(none, 1), "no w:tblStyleRowBandSize: no band")
+        let two = TableCondFills(byType: bands, rowBandSize: 2)
+        XCTAssertEqual([1, 2, 3, 4, 5].map { at(two, $0) }, [Color(3), Color(3), Color(4), Color(4), Color(3)])
     }
 }

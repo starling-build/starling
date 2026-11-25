@@ -500,6 +500,8 @@ enum DocxFormat {
                 while let c = cur, !seen.contains(c), let node = tableNodes[c] {
                     seen.insert(c)
                     if cond.cellVAlign == nil, let v = node.first("w:tcPr")?.first("w:vAlign")?["w:val"], v == "center" || v == "bottom" { cond.cellVAlign = v }
+                    if cond.rowBandSize == nil, let v = node.first("w:tblPr")?.first("w:tblStyleRowBandSize")?["w:val"].flatMap({ Int($0) }) { cond.rowBandSize = v }
+                    if cond.colBandSize == nil, let v = node.first("w:tblPr")?.first("w:tblStyleColBandSize")?["w:val"].flatMap({ Int($0) }) { cond.colBandSize = v }
                     for part in node.all("w:tblStylePr") {
                         let fill = part.first("w:tcPr")?.first("w:shd")?["w:fill"].flatMap { hex -> Color? in
                             guard hex.count == 6, let v = Int64(hex, radix: 16) else { return nil }
@@ -507,17 +509,19 @@ enum DocxFormat {
                         }
                         switch part["w:type"] {
                         case "firstRow":
-                            if cond.headerFill == nil { cond.headerFill = fill }
                             if cond.headerChar == nil, let rPr = part.first("w:rPr") { cond.headerChar = _charStyle(rPr, base: CharStyle()) }
                             if cond.headerBorders == nil { cond.headerBorders = part.first("w:tcPr")?.first("w:tcBorders") }
                             if cond.headerVAlign == nil, let v = part.first("w:tcPr")?.first("w:vAlign")?["w:val"], v == "center" || v == "bottom" { cond.headerVAlign = v }
                             if let h = part.first("w:trPr")?.first("w:tblHeader"), !_isOff(h) { cond.headerRepeats = true }
                         case "firstCol":
                             if cond.firstColChar == nil, let rPr = part.first("w:rPr") { cond.firstColChar = _charStyle(rPr, base: CharStyle()) }
-                        case "band1Horz": if cond.band1 == nil { cond.band1 = fill }
-                        case "band2Horz": if cond.band2 == nil { cond.band2 = fill }
+                        case "lastRow":
+                            if cond.lastRowChar == nil, let rPr = part.first("w:rPr") { cond.lastRowChar = _charStyle(rPr, base: CharStyle()) }
+                        case "lastCol":
+                            if cond.lastColChar == nil, let rPr = part.first("w:rPr") { cond.lastColChar = _charStyle(rPr, base: CharStyle()) }
                         default: break
                         }
+                        if let t = part["w:type"], let fill, cond.fills[t] == nil { cond.fills[t] = fill }
                     }
                     cur = node.first("w:basedOn")?["w:val"]
                 }
@@ -1759,9 +1763,8 @@ enum DocxFormat {
                 if let pr = node.first("w:tblPr") {
                     if let sid = pr.first("w:tblStyle")?["w:val"], keptTableStyles[sid] != nil { tableStyleIds[id] = sid }
                     if tableStyleIds[id] != nil, let look = pr.first("w:tblLook") { tableLooks[id] = PptxXML.serialize(_standaloneW(look)) }
-                    if tableStyleIds[id] != nil, let c = pr.first("w:tblStyle")?["w:val"].flatMap({ tableConds[$0] }),
-                       c.headerFill != nil || c.band1 != nil || c.band2 != nil {
-                        tableCondFills[id] = TableCondFills(header: c.headerFill, band1: c.band1, band2: c.band2)
+                    if tableStyleIds[id] != nil, let c = pr.first("w:tblStyle")?["w:val"].flatMap({ tableConds[$0] }), !c.fills.isEmpty {
+                        tableCondFills[id] = TableCondFills(byType: c.fills, rowBandSize: c.rowBandSize ?? 0, colBandSize: c.colBandSize ?? 0)
                     }
                 }
                 // The table's own borders, else its style's, else none —
@@ -1873,6 +1876,9 @@ enum DocxFormat {
                         | (bit("w:lastColumn", 0x100) ? 0x100 : 0) | (bit("w:noHBand", 0x200) ? 0x200 : 0) | (bit("w:noVBand", 0x400) ? 0x400 : 0)
                     if v != 0x04A0 { style.look = v }
                 }
+                let lookBit: (String, Int) -> Bool = { name, mask in look?[name].map { $0 != "0" } ?? (lookVal & mask != 0) }
+                let lookBits = (lookBit("w:firstRow", 0x20) ? 0x20 : 0) | (lookBit("w:lastRow", 0x40) ? 0x40 : 0) | (lookBit("w:firstColumn", 0x80) ? 0x80 : 0)
+                    | (lookBit("w:lastColumn", 0x100) ? 0x100 : 0) | (lookBit("w:noHBand", 0x200) ? 0x200 : 0) | (lookBit("w:noVBand", 0x400) ? 0x400 : 0)
                 let firstRowOn = look?["w:firstRow"].map { $0 != "0" } ?? (lookVal & 0x0020 != 0)
                 // (A style whose first row repeats does so in every table of
                 // it that has a header row on: LibreOffice's fdo78904_fileHang,
@@ -1881,7 +1887,6 @@ enum DocxFormat {
                 // Word's print, with no tblHeader in the file's rows.)
                 if repeating == 0, firstRowOn, cond.headerRepeats { repeating = 1 }
                 if repeating > 0 { style.headerRow = true; style.headerRowCount = repeating }
-                let bandsOn = !(look?["w:noHBand"].map { $0 != "0" } ?? (lookVal & 0x0200 != 0))
                 let firstColOn = look?["w:firstColumn"].map { $0 != "0" } ?? (lookVal & 0x0080 != 0)
                 // Where the table sits in the column (w:jc on the table).
                 // (Or on its rows, every one of them, when the table says
@@ -2333,8 +2338,7 @@ enum DocxFormat {
                         }
                         var fromStyle = false
                         if fill == nil {
-                            if r == 0 && firstRowOn { fill = cond.headerFill }
-                            else if bandsOn { fill = (r - (firstRowOn ? 1 : 0)) % 2 == 0 ? cond.band1 : cond.band2 }
+                            fill = TableCondFills(byType: cond.fills, rowBandSize: cond.rowBandSize ?? 0, colBandSize: cond.colBandSize ?? 0).fill(look: lookBits, row: r, column: column, lastRow: r == rowCount - 1, lastColumn: column + span >= gridCount)
                             fromStyle = fill != nil && tableStyleIds[id] != nil
                         }
                         // The cell's own borders, when they differ from the
@@ -2540,7 +2544,9 @@ enum DocxFormat {
                         // save writes it back.)
                         if direction != nil, currentCell?.textDirection != .horizontal || direction == "lrTbV" { currentCell?.textDirectionValue = direction }
                         cellChar = r == 0 && firstRowOn ? (cond.headerChar ?? CharStyle())
-                            : (column == 0 && firstColOn ? (cond.firstColChar ?? CharStyle()) : CharStyle())
+                            : (lookBits & 0x40 != 0 && r == rowCount - 1 && cond.lastRowChar != nil ? cond.lastRowChar!
+                            : (column == 0 && firstColOn ? (cond.firstColChar ?? CharStyle())
+                            : (lookBits & 0x100 != 0 && column + span >= gridCount ? (cond.lastColChar ?? CharStyle()) : CharStyle())))
                         // (Normal's own face stands over a conditional part's too: a replaced Normal
                         // in Cambria, table style firstRow Arial, prints Cambria in Word.)
                         for (name, k) in _tableCharKeys where normalStatedChar[keyPath: k] != nil || (name == "hAnsi" && normalStatedChar.fontFamily != nil) { cellChar[keyPath: k] = nil }

@@ -1919,12 +1919,11 @@ public final class RichDocumentController: ChangeNotifier {
         let oldParas = range.map { Array(document.paragraphs[$0]) }
         var paras = oldParas
         if let fills, paras != nil {
-            let firstRow = now & TableLook.firstRow != 0, bands = now & TableLook.noRowBands == 0
+            let rows = (paras!.compactMap { $0.cell?.row }.max() ?? 0) + 1
+            let cols = paras!.compactMap { $0.cell.map { $0.column + $0.span } }.max() ?? 1
             for i in paras!.indices {
                 guard var c = paras![i].cell, c.table == t, c.fill == nil || c.styleFilled == true else { continue }
-                if c.row == 0 && firstRow { c.fill = fills.header }
-                else if bands { c.fill = (c.row - (firstRow ? 1 : 0)) % 2 == 0 ? fills.band1 : fills.band2 }
-                else { c.fill = nil }
+                c.fill = fills.fill(look: now, row: c.row, column: c.column, lastRow: c.row + c.rowSpan >= rows, lastColumn: c.column + c.span >= cols)
                 c.styleFilled = c.fill == nil ? nil : true
                 paras![i].cell = c
             }
