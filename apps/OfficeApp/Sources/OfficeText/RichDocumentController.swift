@@ -2157,6 +2157,35 @@ public final class RichDocumentController: ChangeNotifier {
         edit { perform(.setTableColumns(table, old: old, new: widths)) }
     }
 
+    /// Set by the editor: the laid-out height of the row a cell paragraph is in.
+    public var rowHeightProbe: ((Int) -> Double?)?
+
+    /// Equal heights: every target row (the whole table when one row is chosen) gets the tallest of them.
+    public func distributeRows() {
+        guard let here = currentCell else { return }
+        var rows = targetRows ?? (here.row ... here.row)
+        if rows.count < 2 { rows = 0 ... Int.max / 2 }
+        var heights: [Int: Double] = [:]
+        for (i, p) in document.paragraphs.enumerated() {
+            guard let c = p.cell, c.table == here.table, rows.contains(c.row), c.rowSpan == 1, heights[c.row] == nil,
+                  let h = rowHeightProbe?(i) else { continue }
+            heights[c.row] = h
+        }
+        guard let tallest = heights.values.max() else { return }
+        setTableStyle { t in
+            for r in heights.keys { t.rowHeights[r] = tallest; t.rowsExactHeight.remove(r) }
+        }
+    }
+
+    /// AutoFit: to contents (grid follows the text), to window (full text width), or fixed column widths.
+    public func autoFitTable(_ fit: TableFit) {
+        switch fit {
+        case .contents: setTableStyle { $0.fixedLayout = false; $0.width = nil; $0.widthPercent = nil }
+        case .window: setTableStyle { $0.fixedLayout = false; $0.width = nil; $0.widthPercent = 100 }
+        case .fixed: setTableStyle { $0.fixedLayout = true }
+        }
+    }
+
     /// Equal columns across the content width.
     public func distributeColumns() {
         guard let here = currentCell else { return }
@@ -2237,6 +2266,27 @@ public final class RichDocumentController: ChangeNotifier {
     public func setCellVerticalAlignment(_ align: String) {
         guard ["top", "center", "bottom"].contains(align) else { return }
         _formatCells { c, _ in c.verticalAlign = align == "top" ? nil : align }
+    }
+
+    /// Word's nine Align buttons: where the target cells' text stands, across (the paragraphs' alignment) and
+    /// down (the cell's), in one undo step.
+    public func setCellAlignment(vertical: String, horizontal: ParagraphAlignment) {
+        guard ["top", "center", "bottom"].contains(vertical), let block = targetCellBlock, let range = currentTableRange else { return }
+        let old = Array(document.paragraphs[range])
+        var paras = old
+        for i in paras.indices {
+            guard var c = paras[i].cell, block.contains(c) else { continue }
+            c.verticalAlign = vertical == "top" ? nil : vertical
+            paras[i].cell = c
+            paras[i].style.alignment = horizontal
+        }
+        guard paras != old else { return }
+        let sel = selection
+        edit {
+            perform(.removeParagraphs(at: range.lowerBound, old))
+            perform(.insertParagraphs(at: range.lowerBound, paras))
+            selection = sel
+        }
     }
 
     /// The target cells' own margins in points (Word's `w:tcMar`), over the table's.
@@ -2535,7 +2585,7 @@ public final class RichDocumentController: ChangeNotifier {
     /// split cell are shared evenly. The text stays in the first piece.
     /// Returns false when nothing was split.
     @discardableResult
-    public func splitCell(columns n: Int, rows m: Int) -> Bool {
+    public func splitCell(columns n: Int, rows m: Int, columnFraction: Double? = nil) -> Bool {
         guard let here = currentCell, n >= 1, m >= 1, n * m > 1, n <= 63, m <= 200 else { return false }
         let s = here.span, q = here.rowSpan
         let rowExtra = max(0, m - q)
@@ -2552,7 +2602,7 @@ public final class RichDocumentController: ChangeNotifier {
         let x0 = x[here.column], x1 = x[e]
         var newX = x
         for j in 1 ..< n {
-            let t = x0 + (x1 - x0) * Double(j) / Double(n)
+            let t = x0 + (x1 - x0) * (n == 2 ? (columnFraction ?? 0.5) : Double(j) / Double(n))
             if !newX.contains(where: { abs($0 - t) < 0.5 }) { newX.append(t) }
         }
         newX.sort()
@@ -2563,7 +2613,7 @@ public final class RichDocumentController: ChangeNotifier {
         let colExtra = newCols - cols
         guard newCols <= 63 else { return false }
         let oldIndex = x.map { gridIndex($0) }
-        let cuts = (0 ... n).map { gridIndex(x0 + (x1 - x0) * Double($0) / Double(n)) }
+        let cuts = (0 ... n).map { gridIndex(n == 2 && $0 == 1 ? x0 + (x1 - x0) * (columnFraction ?? 0.5) : x0 + (x1 - x0) * Double($0) / Double(n)) }
         guard (0 ..< n).allSatisfy({ cuts[$0 + 1] > cuts[$0] }) else { return false }
         if colExtra > 0 { widths = (0 ..< newCols).map { newX[$0 + 1] - newX[$0] } }
         let newWidths = widths

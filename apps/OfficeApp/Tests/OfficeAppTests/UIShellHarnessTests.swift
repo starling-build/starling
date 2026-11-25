@@ -239,6 +239,24 @@ final class UIShellHarnessTests: XCTestCase {
         XCTAssertTrue(c.currentTableStyle?.rowsCantSplit.contains(c.currentCell?.row ?? 0) == true)
     }
 
+    /// Draw Table, Eraser and Split Table sit on the Table Layout tab at 1280 wide: the groups they live in stay on screen (the later groups were already past 1280 before them: Delete Table at 1509 with and without).
+    func testTableLayoutTabFitsAt1280WithDrawAndEraser() {
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(1280, 800))
+        let c = ui.state(OfficeShellState.self)!.session.controller
+        c.insertTable(rows: 2, columns: 2)
+        ui.pump()
+        XCTAssertTrue(ui.tap(text: "Table Layout"))
+        for label in ["Select", "Merge", "Cell Alignment", "Table Alignment", "Table Width", "Cell Margins", "AutoFit", "Row May Break",
+                      "Repeat Header: Off", "Delete Table", "Row Height", "Indent", "Distribute Columns", "Borders", "Line Style", "Line Width",
+                      "Header Row", "Insert Above", "Delete Column"] {
+            guard let at = ui.centre(ofText: label) else { XCTFail("\(label) missing"); continue }
+            XCTAssertTrue(at.dx > 0 && at.dx < 1270, "\(label) at x=\(at.dx) is off the tab")
+        }
+        XCTAssertTrue(ui.tap(text: "Select"))
+        XCTAssertTrue(ui.tap(text: "Eraser"))
+        XCTAssertEqual(ui.state(OfficeShellState.self)!.session.tableTool, "erase")
+    }
+
     /// W-TB-2: the Table Layout tab's Borders and Shading menus reach the controller.
     func testTableLayoutBordersAndShadingReachTheController() {
         let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(1280, 800))
@@ -260,7 +278,7 @@ final class UIShellHarnessTests: XCTestCase {
         ui.pump()
         XCTAssertTrue(ui.tap(text: "Table Layout"))
         XCTAssertTrue(ui.tap(text: "Cell Alignment"))
-        XCTAssertTrue(ui.tap(text: "Align Middle"))
+        XCTAssertTrue(ui.tap(text: "Align Center Left"))
         XCTAssertEqual(c.currentCell?.verticalAlign, "center")
         XCTAssertTrue(ui.tap(text: "Table Alignment"))
         XCTAssertTrue(ui.tap(text: "Table Center"))
@@ -268,6 +286,7 @@ final class UIShellHarnessTests: XCTestCase {
         XCTAssertTrue(ui.tap(text: "Row May Break"))
         XCTAssertEqual(c.currentTableStyle?.rowsCantSplit, [0])
         XCTAssertTrue(ui.tap(text: "AutoFit"))
+        XCTAssertTrue(ui.tap(text: "Fixed Column Width"))
         XCTAssertEqual(c.currentTableStyle?.fixedLayout, true)
     }
 
@@ -395,7 +414,8 @@ final class SheetsTitleBarUndoHarnessTests: XCTestCase {
         c.insertTable(rows: 2, columns: 2)
         ui.pump()
         XCTAssertTrue(ui.tap(text: "Table Layout"))
-        XCTAssertTrue(ui.tap(text: "Split Cell"))
+        XCTAssertTrue(ui.tap(text: "Merge"))
+        XCTAssertTrue(ui.tap(text: "Split Cell…"))
         XCTAssertTrue(ui.has(text: "Number of columns"))
         XCTAssertTrue(ui.tap(text: "OK"))                  // defaults: 2 columns, 1 row
         XCTAssertEqual(c.document.columnCount(of: c.currentCell!.table), 3)

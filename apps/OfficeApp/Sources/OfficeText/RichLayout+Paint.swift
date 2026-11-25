@@ -1591,6 +1591,19 @@ extension RichLayout {
                 _paintVerticalCellFloats(i, g, canvas)
                 return
             }
+            // (A line whose top (baseline less ascent) falls past the cell's far edge is not drawn: Word's print of a 78pt cell of Calibri 20
+            // turned down has three lines, baselines 24.8, 49.8 and 74.8 from the near edge, and not the fourth at 99.8; the
+            // padding does not count. Lab textpitch. A line is kept whole or not drawn, never cut through.)
+            if theme.wordRules, RichTextTheme.wordWindowsPages, c.rowSpan == 1,
+               !document.paragraphs[i].text.unicodeScalars.contains(where: { $0.value >= 0x0590 }) {   // measured on Latin only
+                let lines = g.painter.computeLineMetrics()
+                let kept = RichLayout.turnedLinesKept(tops: lines.map { origin.dy + $0.baseline - $0.unscaledAscent }, room: c.colWidth)
+                if kept < lines.count, kept > 0 {
+                    let last = lines[kept - 1]
+                    RuleTrace.hit("turned-line-past-the-cell-is-not-drawn")
+                    canvas.clipRect(Rect.fromLTRB(-1e5, -1e5, 1e5, origin.dy + last.baseline + last.descent + 0.5))
+                }
+            }
             if _paintMode != 2 { g.painter.paint(canvas, origin) }
             canvas.restore()
             _paintVerticalCellPictures(i, g, canvas, c, origin, document)
@@ -2252,5 +2265,15 @@ extension RichLayout {
         if f.hasPrefix("hg") { return true }
         if f.hasPrefix("ms ") { return ["mincho", "gothic", "明朝", "ゴシック", "ui"].contains { f.containsSubstring($0) } }
         return ["meiryo", "メイリオ", "yu mincho", "yu gothic", "游"].contains { f.containsSubstring($0) }
+    }
+}
+
+extension RichLayout {
+    /// How many of a turned cell's lines are drawn: a line is dropped when its TOP (baseline minus ascent, measured from
+    /// the near edge) falls past the cell's far edge. Word's prints: Calibri 20 in a 78 pt cell keeps baselines 24.8, 49.8,
+    /// 74.8 and drops 99.8 (top 84.8); Calibri 13 at double spacing keeps a third baseline 4.9 pt past the edge (top 70.9);
+    /// labs textpitch and textpitch4 (6 faces: baselines up to 5.9 past the edge were all drawn).
+    static func turnedLinesKept(tops: [Double], room: Double) -> Int {
+        tops.prefix { $0 <= room + 0.01 }.count
     }
 }
