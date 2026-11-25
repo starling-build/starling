@@ -34,6 +34,21 @@ final class NoteDialogTests: XCTestCase {
         XCTAssertEqual(s.controller.document.footnotes[1]?.first?.text, "1 Typed note")
     }
 
+    func testOpenNoteIsAnnouncedHoldsTabAndEscapeSaysSaved() throws {
+        ScreenReader.resetForTesting(); ScreenReader.recorded = []
+        defer { ScreenReader.resetForTesting() }
+        let (ui, _) = shell("Alpha beta")
+        XCTAssertTrue(ui.tap(text: "References")); ui.pump()
+        XCTAssertTrue(ui.tap(text: "Insert Footnote")); ui.pump()
+        XCTAssertTrue(ScreenReader.recorded?.contains("Editing note. Escape to finish.") ?? false)
+        let stops = KeyboardTraversal.shared.reachable()
+        XCTAssertTrue(stops.contains { $0.modal })
+        ui.press(.tab); ui.pump()
+        XCTAssertTrue(KeyboardTraversal.shared.focused?.modal ?? true, "Tab left the note")
+        ui.press(.escape); ui.pump()
+        XCTAssertEqual(ScreenReader.recorded?.last, "Note saved")
+    }
+
     func testAltCtrlDInsertsEndnote() throws {
         let (ui, s) = shell("Alpha beta")
         s.onInsertNote?(.endnote); ui.pump()

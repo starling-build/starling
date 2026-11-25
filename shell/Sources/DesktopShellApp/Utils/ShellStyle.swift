@@ -415,12 +415,30 @@ extension ShellTheme {
         }
         let micaBase = mica(fluent.micaBackgroundColor, dark ? 0.15 : 0.20)
 
+        /// WCAG AA for text: Fluent's tertiary text is 3.3:1 on the light chrome, so
+        /// the shell leans it toward the primary ink in steps until it reads at 4.5:1
+        /// on every surface the shell puts it on. A rule on the token, not a literal.
+        func readable(_ c: Color, _ surfaces: [Color]) -> Color {
+            func ok(_ x: Color) -> Bool {
+                surfaces.allSatisfy { bg in
+                    let l1 = Color.alphaBlend(foreground: x, background: bg).computeLuminance() + 0.05
+                    let l2 = bg.computeLuminance() + 0.05
+                    return max(l1, l2) / min(l1, l2) >= 4.5
+                }
+            }
+            var out = c
+            var step = 0.0
+            while !ok(out) && step < 1 { step += 0.05; out = c.mixed(toward: r.textFillColorPrimary, by: step) }
+            return out
+        }
+        let surfaces = [r.solidBackgroundFillColorBase, r.solidBackgroundFillColorSecondary, r.solidBackgroundFillColorTertiary]
+
         return ShellTheme(
             name: dark ? "Dark" : "Light",
             isDark: dark,
             fgPrimary: r.textFillColorPrimary,
             fgSecondary: r.textFillColorSecondary,
-            fgTertiary: r.textFillColorTertiary,
+            fgTertiary: readable(r.textFillColorTertiary, surfaces),
             // The taskbar is a solid shell surface, not a flyout.
             barTint: r.solidBackgroundFillColorBase,
             barHairline: r.dividerStrokeColorDefault,
