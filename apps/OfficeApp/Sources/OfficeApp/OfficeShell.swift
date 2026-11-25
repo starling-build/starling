@@ -92,7 +92,9 @@ final class OfficeShellState: State<StatefulWidget> {
     private var _numberingValueOpen = false
     private var _listSymbolPick: ((String, String?) -> Void)? = nil   // the Symbol picker is open for the Define Bullet dialog
     private var _listFormatOpen: Bool? = nil   // the dialog is open: true for a bullet
-    private var _noteOpen: NoteReference? = nil
+    var _noteOpen: NoteReference? = nil
+    private var _noteBox = Rect.zero
+    private var _noteKeys: Int?
     private let _noteText = TextEditingController()
     private var _newStyleOpen = false
     private let _colorText = TextEditingController()
@@ -1200,12 +1202,27 @@ final class OfficeShellState: State<StatefulWidget> {
         return h
     }
 
-    private func _openNote(_ n: NoteReference) {
+    private func _openNote(_ n: NoteReference, box: Rect? = nil) {
         _noteText.text = controller.editableNoteText(n) ?? ""
-        setState { _noteOpen = n }
+        if controller.editableNoteText(n) == nil { _flash("This note holds formatting, a link or a picture; edit it in Word."); return }
+        if let k = _noteKeys { FocusManager.instance.removeKeyInterceptor(k) }
+        // Escape keeps the text and goes back to the page.
+        _noteKeys = FocusManager.instance.addKeyInterceptor { [weak self] key in
+            guard let self, self._noteOpen != nil, key.type == .down, key.logical == 0x1_0000_001B || key.logical == 0xFF1B else { return false }
+            self._commitNote()
+            return true
+        }
+        setState { _noteOpen = n; _noteBox = box ?? Rect.fromLTWH(120, 200, 480, 60) }
+    }
+
+    private func _commitNote() {
+        if let n = _noteOpen { controller.setNoteText(n, _noteText.text) }
+        _closeNote()
     }
 
     private func _closeNote() {
+        if let k = _noteKeys { FocusManager.instance.removeKeyInterceptor(k) }
+        _noteKeys = nil
         setState { _noteOpen = nil }
         _editorFocus.requestFocus()
     }
@@ -1483,18 +1500,14 @@ final class OfficeShellState: State<StatefulWidget> {
             ])
         }
         if let note = _noteOpen {
-            let refusal = controller.editableNoteText(note) == nil
-                ? "This note holds formatting, a link or a picture that this box would lose; edit it in Word." : nil
+            // The note is edited where it sits on the page: a box over it. Escape or a click outside keeps the text.
+            let box = _noteBox
             return Stack(children: [
                 window,
-                Positioned(left: 0, top: 0, right: 0, bottom: 0, child: NoteDialog(
-                    title: note.kind == .footnote ? "Footnote" : "Endnote", text: _noteText, refusal: refusal,
-                    onOK: { [weak self] in
-                        guard let self else { return }
-                        self.controller.setNoteText(note, self._noteText.text)
-                        self._closeNote()
-                    },
-                    onCancel: { [weak self] in self?._closeNote() })),
+                Positioned(left: 0, top: 0, right: 0, bottom: 0, child: Listener(
+                    onPointerDown: { [weak self] _ in self?._commitNote() }, behavior: .translucent, child: SizedBox(expand: ()))),
+                Positioned(left: box.left, top: box.top, child: SizedBox(width: max(box.width, 240),
+                    child: FluentTextBox(controller: _noteText, maxLines: 8, autofocus: true))),
             ])
         }
         if _pageSetupOpen {
@@ -1740,6 +1753,7 @@ final class OfficeShellState: State<StatefulWidget> {
                 }
             },
             onLinkActivate: { [weak self] link in self?._followLink(link) },
+            onNoteActivate: { [weak self] n, box in self?._openNote(n, box: box) },
             // Format Painter applies when a selection gesture ends, as Word does.
             onSelectionGestureEnd: { [weak self] in self?._applyPainter() },
             onHeaderFooterEdit: { [weak self] _ in self?.session.onHeaderFooter?() },
