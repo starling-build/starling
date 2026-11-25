@@ -581,13 +581,15 @@ final class Ribbon: StatelessWidget {
             MenuFlyoutItem(text: Text("Inside Borders"), onPressed: apply([.insideH, .insideV])),
             MenuFlyoutSeparator(),
             MenuFlyoutItem(text: Text("No Border"), onPressed: apply(CellSide.allCases, .none)),
+            MenuFlyoutSeparator(),
+            MenuFlyoutItem(text: Text("Borders and Shading…"), onPressed: { [session] in session.onBordersShadingDialog?() }),
         ]
         let styleItems: [MenuFlyoutItemBase] = ["single", "double", "dashed", "dotted"].map { st in
             MenuFlyoutItem(text: Text(st.prefix(1).uppercased() + st.dropFirst() + " Line"), onPressed: { [session] in
                 session.cellPen.style = st })
         }
         let widthItems: [MenuFlyoutItemBase] = CellBorderLine.widths.map { w in
-            MenuFlyoutItem(text: Text("\((w == w.rounded() ? String(Int(w)) : "\(w)")) pt"), onPressed: { [session] in
+            MenuFlyoutItem(text: Text("\(widthLabel(w)) pt"), onPressed: { [session] in
                 session.cellPen.width = w })
         }
         let penColors = Chrome.colorMenu(FluentSystemIcons.textColor, "Pen Color", fluent,

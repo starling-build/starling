@@ -74,6 +74,7 @@ final class OfficeShellState: State<StatefulWidget> {
     private var _fontOpen = false
     private var _pageSetupOpen = false
     private var _insertTableOpen = false
+    private var _bordersOpen = false
     private let _colorText = TextEditingController()
     private var _styleOpen: String? = nil
     private let _linkText = TextEditingController()
@@ -393,6 +394,11 @@ final class OfficeShellState: State<StatefulWidget> {
             guard let self else { return }
             self.controller.breakUndoCoalescing()
             self.setState { self._insertTableOpen = true }
+        }
+        session.onBordersShadingDialog = { [weak self] in
+            guard let self else { return }
+            self.controller.breakUndoCoalescing()
+            self.setState { self._bordersOpen = true }
         }
         session.onMoreColors = { [weak self] in
             guard let self else { return }
@@ -1075,7 +1081,7 @@ final class OfficeShellState: State<StatefulWidget> {
             if session.paintedStyle != nil { _cancelPainter(); return true }
             if _styleOpen != nil { setState { _styleOpen = nil }; return true }
             if _linkOpen { setState { _linkOpen = false }; return true }
-            if _paragraphOpen || _fontOpen || _insertTableOpen { return false }   // the dialog's own Esc closes it
+            if _paragraphOpen || _fontOpen || _insertTableOpen || _bordersOpen { return false }   // the dialog's own Esc closes it
             if _colorOpen { setState { _colorOpen = false }; return true }
             if _headerFooterOpen { setState { _headerFooterOpen = false }; return true }
             if _findOpen { setState { _findOpen = false }; _editorFocus.requestFocus(); return true }
@@ -1295,6 +1301,22 @@ final class OfficeShellState: State<StatefulWidget> {
                     },
                     onCancel: { [weak self] in
                         self?.setState { self?._pageSetupOpen = false }
+                        self?._editorFocus.requestFocus()
+                    })),
+            ])
+        }
+        if _bordersOpen {
+            return Stack(children: [
+                window,
+                Positioned(left: 0, top: 0, right: 0, bottom: 0, child: BordersShadingDialog(
+                    onOK: { [weak self] v in
+                        guard let self else { return }
+                        v.apply(to: self.controller)
+                        self.setState { self._bordersOpen = false }
+                        self._editorFocus.requestFocus()
+                    },
+                    onCancel: { [weak self] in
+                        self?.setState { self?._bordersOpen = false }
                         self?._editorFocus.requestFocus()
                     })),
             ])
