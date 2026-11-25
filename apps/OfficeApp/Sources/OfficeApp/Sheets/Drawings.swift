@@ -842,29 +842,35 @@ extension WorkbookController {
         // 5 × 3 inches (Excel's size), a column clear of the data, level with its top.
         let corner = ws.point(SheetMarker(col: r.right + 2, colOff: 0, row: r.top, rowOff: 0))
         // Inside the printable width when it fits there (Excel prints a chart over the page edge on 2 pages), never over the data.
-        var anchor = ws.anchor(x: corner.x, y: corner.y, width: 360, height: 216)
+        // A sheet that states no default column width gets Excel's own, 51 pt where we assume 48 (Excel's check of a new chart: left 160.2, width 381 for our 151.2 and 360), so the fit is tested at that scale.
         let printable = SheetPrintSetup.read(ws).printableWidth
+        let grow = ws.formatPrAttrs["defaultColWidth"] == nil ? 51.0 / 48.0 : 1.0
         let dataEdge = ws.point(SheetMarker(col: r.right + 1, colOff: 0, row: r.top, rowOff: 0)).x
-        // The anchor snaps to the grid, so its real width is read back; shift left until it ends inside the page.
-        var f = ws.frame(anchor)
-        if f.x + f.width > printable {
+        func place(_ x: Double, _ y: Double) -> (SheetAnchor, Bool) {
+            // (Offsets in whole EMU, as the file holds them, so it reads back as written.)
+            func emu(_ m: SheetMarker) -> SheetMarker { SheetMarker(col: m.col, colOff: (m.colOff * 12700).rounded() / 12700, row: m.row, rowOff: (m.rowOff * 12700).rounded() / 12700) }
+            var a = ws.anchor(x: x, y: y, width: 360, height: 216)
+            if case .twoCell(let from, let to) = a { a = .twoCell(from: emu(from), to: emu(to)) }
+            let f = ws.frame(a)
+            return (a, (f.x + f.width) * grow <= printable)
+        }
+        var (anchor, fits) = place(corner.x, corner.y)
+        if !fits {
             // Beside the data when it fits there; else under it, from the data's left edge, so it never crosses the page edge.
-            var placed = false
-            var x = printable - f.width
+            var x = printable / grow - 360
             for _ in 0 ..< 4 where x >= dataEdge {
-                let a = ws.anchor(x: x, y: corner.y, width: 360, height: 216)
-                f = ws.frame(a)
-                if f.x + f.width <= printable { anchor = a; placed = true; break }
-                x -= (f.x + f.width - printable) + 0.5
+                let (a, ok) = place(x, corner.y)
+                if ok { anchor = a; fits = true; break }
+                x -= 1
             }
-            if !placed {
+            if !fits {
                 let below = ws.point(SheetMarker(col: r.left, colOff: 0, row: r.bottom + 2, rowOff: 0))
                 var bx = below.x
                 for _ in 0 ..< 6 {
-                    let a = ws.anchor(x: bx, y: below.y, width: 360, height: 216)
-                    let g = ws.frame(a)
-                    if g.x + g.width <= printable || bx <= 0 { anchor = a; break }
-                    bx = max(0, bx - (g.x + g.width - printable) - 0.5)
+                    let (a, ok) = place(bx, below.y)
+                    anchor = a
+                    if ok || bx <= 0 { break }
+                    bx = max(0, bx - 8)
                 }
             }
         }

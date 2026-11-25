@@ -161,7 +161,7 @@ final class SheetsChartDesignTests: XCTestCase {
         let setup = SheetPrintSetup.read(c.sheet)
         guard case .chart = c.sheet.drawings[i].kind else { return XCTFail() }
         let f = c.sheet.frame(c.sheet.drawings[i].anchor)
-        XCTAssertLessThanOrEqual(f.x + f.width, setup.printableWidth)
+        XCTAssertLessThanOrEqual((f.x + f.width) * 51 / 48, setup.printableWidth)
     }
 
     /// A chart part without its own title, its legend and autoTitleDeleted (what an edit may change), as one string.
