@@ -142,9 +142,6 @@ extension Ribbon {
             Chrome.row([
                 Chrome.menuButton(FluentSystemIcons.textEffects, "Shape Effects", "Shadow, glow, reflection, soft edges, bevel",
                                   fluent, items: _effectItems(deck, fluent)),
-            ]),
-            Chrome.vgap(4),
-            Chrome.row([
                 Chrome.small(FluentSystemIcons.textT, "Text Options", fluent) { [session] in session.onTextOptions?() },
             ]),
         ])])
