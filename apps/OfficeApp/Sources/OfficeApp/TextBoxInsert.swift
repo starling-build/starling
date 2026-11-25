@@ -10,14 +10,14 @@ import OfficeText
 enum TextBoxInsert {
     /// The `w:drawing` of a text box `width` × `height` points, holding `text` as one paragraph, 18 pt in and 18 pt below its
     /// paragraph; `id` numbers its `wp:docPr`.
-    static func drawingXML(text: String?, width: Double, height: Double, id: Int = 100, preset: String = "rect", fill: String = "FFFFFF", name: String = "Text Box") -> String {
+    static func drawingXML(text: String?, width: Double, height: Double, id: Int = 100, preset: String = "rect", fill: String = "FFFFFF", name: String = "Text Box", number: Int? = nil, page: (x: Double, y: Double)? = nil) -> String {
         let cx = Int(width * 12700), cy = Int(height * 12700)
         let esc = DocxFormat._esc(text ?? "")
         return "<w:drawing><wp:anchor distT=\"0\" distB=\"0\" distL=\"114300\" distR=\"114300\" simplePos=\"0\" relativeHeight=\"251659264\" behindDoc=\"0\" locked=\"0\" layoutInCell=\"1\" allowOverlap=\"1\">"
-            + "<wp:simplePos x=\"0\" y=\"0\"/><wp:positionH relativeFrom=\"column\"><wp:posOffset>228600</wp:posOffset></wp:positionH>"
-            + "<wp:positionV relativeFrom=\"paragraph\"><wp:posOffset>228600</wp:posOffset></wp:positionV>"
+            + "<wp:simplePos x=\"0\" y=\"0\"/><wp:positionH relativeFrom=\"\(page == nil ? "column" : "page")\"><wp:posOffset>\(page.map { Int($0.x * 12700) } ?? 228600)</wp:posOffset></wp:positionH>"
+            + "<wp:positionV relativeFrom=\"\(page == nil ? "paragraph" : "page")\"><wp:posOffset>\(page.map { Int($0.y * 12700) } ?? 228600)</wp:posOffset></wp:positionV>"
             + "<wp:extent cx=\"\(cx)\" cy=\"\(cy)\"/><wp:effectExtent l=\"0\" t=\"0\" r=\"0\" b=\"0\"/><wp:wrapSquare wrapText=\"bothSides\"/>"
-            + "<wp:docPr id=\"\(id)\" name=\"\(name) \(id)\"/><wp:cNvGraphicFramePr/>"
+            + "<wp:docPr id=\"\(id)\" name=\"\(name) \(number ?? id)\"/><wp:cNvGraphicFramePr/>"
             + "<a:graphic xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\"><a:graphicData uri=\"http://schemas.microsoft.com/office/word/2010/wordprocessingShape\">"
             + "<wps:wsp xmlns:wps=\"http://schemas.microsoft.com/office/word/2010/wordprocessingShape\"><wps:cNvSpPr\(text == nil ? "" : " txBox=\"1\"")/>"
             + "<wps:spPr><a:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"\(cx)\" cy=\"\(cy)\"/></a:xfrm><a:prstGeom prst=\"\(preset)\"><a:avLst/></a:prstGeom>"
@@ -32,9 +32,41 @@ enum TextBoxInsert {
         read(drawingXML(text: text, width: width, height: height)) { $0.textBox != nil }
     }
 
-    /// A new filled shape (`rect`, `roundRect`, `ellipse`, `triangle`, `rightArrow`…), without text.
-    static func makeShape(preset: String, width: Double = 96, height: Double = 72) -> ImageAttachment? {
-        read(drawingXML(text: nil, width: width, height: height, preset: preset, fill: "4472C4", name: "Shape")) { _ in true }
+    /// The words Word names a shape of this preset by ("Rectangle 1", "Oval 2"…).
+    static func shapeLabel(_ preset: String) -> String {
+        switch preset {
+        case "rect": return "Rectangle"
+        case "roundRect": return "Rectangle: Rounded Corners"
+        case "ellipse": return "Oval"
+        case "triangle": return "Isosceles Triangle"
+        case "rightArrow": return "Arrow: Right"
+        default: return "Shape"
+        }
+    }
+
+    /// One more than the highest number any drawing in `document` already carries in its name ("Oval 7" → 8), as Word counts.
+    static func nextShapeNumber(in document: RichDocument) -> Int {
+        var highest = 0
+        func scan(_ xml: String?) {
+            guard let xml else { return }
+            var rest = Substring(xml)
+            while let r = rest.range(of: "<wp:docPr ") {
+                rest = rest[r.upperBound...]
+                guard let n = rest.range(of: "name=\""), let e = rest[n.upperBound...].firstIndex(of: "\"") else { continue }
+                if let v = Int(rest[n.upperBound ..< e].split(separator: " ").last ?? "") { highest = max(highest, v) }
+            }
+        }
+        for p in document.paragraphs {
+            scan(p.image?.sourceXML)
+            for image in p.inlineImages.values { scan(image.sourceXML) }
+        }
+        return highest + 1
+    }
+
+    /// A new filled shape (`rect`, `roundRect`, `ellipse`, `triangle`, `rightArrow`…), without text. `page` puts its corner that
+    /// many points from the page's top left corner (where the user clicked); `number` is the one in its name.
+    static func makeShape(preset: String, width: Double = 96, height: Double = 72, number: Int? = nil, page: (x: Double, y: Double)? = nil) -> ImageAttachment? {
+        read(drawingXML(text: nil, width: width, height: height, preset: preset, fill: "4472C4", name: shapeLabel(preset), number: number, page: page)) { _ in true }
     }
 
     private static func read(_ drawing: String, _ wanted: (ImageAttachment) -> Bool) -> ImageAttachment? {

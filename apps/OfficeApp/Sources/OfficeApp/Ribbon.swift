@@ -464,6 +464,15 @@ final class Ribbon: StatelessWidget {
                                                 ("€ Euro", "€"), ("£ Pound", "£"), ("¥ Yen", "¥")]
             .map { name, ch in (name, { c.insertText(ch) }) }
             + [("More Symbols…", { [session] in session.onSymbolDialog?() })]
+        let shapeChoices: [(String, () -> Void)] = [("Rectangle", "rect"), ("Rounded Rectangle", "roundRect"), ("Oval", "ellipse"),
+                                                    ("Triangle", "triangle"), ("Right Arrow", "rightArrow")]
+            .map { name, preset in (name, { [session] in
+                // The shape waits for a click or drag on the page, and is made where the user puts it.
+                c.pendingShape = { x, y, w, h in
+                    TextBoxInsert.makeShape(preset: preset, width: w, height: h, number: TextBoxInsert.nextShapeNumber(in: c.document), page: (x, y))
+                }
+                session.onStatus?("Click on the page, or drag, to draw the \(name.lowercased())")
+            }) }
         return [
             Chrome.group("Pages", fluent, [
                 Chrome.big(FluentSystemIcons.pageBreak, "Page Break", fluent) { c.insertPageBreak() },
@@ -474,6 +483,8 @@ final class Ribbon: StatelessWidget {
                 Chrome.big(FluentSystemIcons.textT, "Text Box", fluent) { [session] in
                     if let box = TextBoxInsert.make() { c.insertImage(box) } else { session.onStatus?("Could not insert a text box") }
                 },
+                Chrome.menu(Text("Shapes"), Icon(FluentSystemIcons.shapes, size: Chrome.iconSize,
+                                                 color: fluent.resources.textFillColorPrimary), fluent, shapeChoices),
             ]),
             Chrome.group("Links", fluent, [
                 Chrome.big(FluentSystemIcons.link, "Link", fluent) { [session] in session.onLink?() },
