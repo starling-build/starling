@@ -23,7 +23,7 @@ enum TextBoxInsert {
             + "<wps:spPr><a:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"\(cx)\" cy=\"\(cy)\"/></a:xfrm><a:prstGeom prst=\"\(preset)\"><a:avLst/></a:prstGeom>"
             + "<a:solidFill><a:srgbClr val=\"\(fill)\"/></a:solidFill><a:ln w=\"9525\"><a:solidFill><a:srgbClr val=\"000000\"/></a:solidFill></a:ln></wps:spPr>"
             + (text == nil ? "" : "<wps:txbx><w:txbxContent><w:p><w:r><w:t xml:space=\"preserve\">\(esc)</w:t></w:r></w:p></w:txbxContent></wps:txbx>")
-            + "<wps:bodyPr rot=\"0\" vert=\"horz\" wrap=\"square\" lIns=\"91440\" tIns=\"45720\" rIns=\"91440\" bIns=\"45720\" anchor=\"t\" anchorCtr=\"0\"><a:noAutofit/></wps:bodyPr>"
+            + "<wps:bodyPr rot=\"0\" vert=\"horz\" wrap=\"square\" lIns=\"91440\" tIns=\"45720\" rIns=\"91440\" bIns=\"45720\" anchor=\"t\" anchorCtr=\"0\">" + (text != nil ? "<a:spAutoFit/>" : "<a:noAutofit/>") + "</wps:bodyPr>"
             + "</wps:wsp></a:graphicData></a:graphic></wp:anchor></w:drawing>"
     }
 
