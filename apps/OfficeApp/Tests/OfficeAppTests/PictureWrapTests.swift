@@ -230,10 +230,13 @@ final class TextBoxInsertTests: XCTestCase {
     }
 
     func testRevisionIdsOfTwoEditedBoxesNeverRepeat() throws {
-        let c = RichDocumentController(document: RichDocument(paragraphs: [RichParagraph(text: "body")]))
         var ins = RichParagraph(text: "added")
         ins.runs = [Run(length: 5, style: { var s = CharStyle.plain; s.revision = RevisionMark(kind: .inserted, author: "A", date: ""); return s }())]
         let xml = try XCTUnwrap(TextBoxInsert.contentXML([ins]))
+        // A body with its own tracked changes and a bookmark whose id came from the file.
+        var bodyP = RichParagraph(text: "kept gone")
+        bodyP.runs = [Run(length: 5, style: .plain), Run(length: 4, style: { var s = CharStyle.plain; s.revision = RevisionMark(kind: .deleted, author: "A", date: ""); return s }())]
+        let c = RichDocumentController(document: RichDocument(paragraphs: [bodyP]))
         var ids: [Int] = []
         for n in 0..<2 {
             c.insertImage(try XCTUnwrap(TextBoxInsert.make(text: "box \(n)")))
@@ -242,6 +245,8 @@ final class TextBoxInsertTests: XCTestCase {
             ids.append(RichDocumentController._highestRevisionId(in: try XCTUnwrap(c.document.paragraphs[i].image?.sourceXML)))
         }
         XCTAssertEqual(Set(ids).count, 2, "each box's revisions get their own ids")
+        let bodyIds = RichDocumentController._highestRevisionId(in: String(decoding: try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [bodyP]), pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self))
+        XCTAssertGreaterThan(ids.min() ?? 0, bodyIds, "box ids sit above the body's")
     }
 
     func testNewTextBoxFitsItsTextAndGrowsWithTyping() throws {

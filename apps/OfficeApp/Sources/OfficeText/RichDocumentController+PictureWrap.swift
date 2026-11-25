@@ -272,6 +272,9 @@ extension RichDocumentController {
         // them above every id the other boxes already hold (the body's revisions are renumbered from 1 on save).
         var highest = 99_999
         for (i, p) in document.paragraphs.enumerated() {
+            // (The body: the ids its bookmarks keep from the file, and as many revision ids as it has revision runs.)
+            highest = max(highest, p.bookmarkMarkers.compactMap { Int($0.id) }.max() ?? 0)
+            highest = max(highest, p.runs.filter { $0.style.revision != nil }.count + p.bookmarks.count)
             for other in [p.image].compactMap({ $0 }) + Array(p.inlineImages.values) {
                 if i == index, other.id == old.id { continue }
                 if let x = other.sourceXML { highest = max(highest, Self._highestRevisionId(in: x)) }
