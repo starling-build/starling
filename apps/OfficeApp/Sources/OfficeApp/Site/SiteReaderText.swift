@@ -117,10 +117,10 @@ struct SiteReaderText: Codable {
     }
 
     private static func escape(_ value: String) -> String {
-        value.replacingOccurrences(of: "&", with: "&amp;")
-            .replacingOccurrences(of: "<", with: "&lt;")
-            .replacingOccurrences(of: ">", with: "&gt;")
-            .replacingOccurrences(of: "\"", with: "&quot;")
+        value.replacingAll("&", with: "&amp;")
+            .replacingAll("<", with: "&lt;")
+            .replacingAll(">", with: "&gt;")
+            .replacingAll("\"", with: "&quot;")
     }
 }
 
@@ -168,7 +168,7 @@ extension SiteReaderText {
                 } else {
                     kind = .sourceFile
                 }
-                let excerpt = String(paragraph.text.replacingOccurrences(of: "\n", with: " ").prefix(140))
+                let excerpt = String(paragraph.text.replacingAll("\n", with: " ").prefix(140))
                 issues.append(ReferenceIssue(target: target, excerpt: excerpt, kind: kind,
                                              paragraphID: ids.contains(paragraph.id) ? paragraph.id : nil))
             }

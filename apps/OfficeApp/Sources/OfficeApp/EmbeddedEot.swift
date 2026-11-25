@@ -409,15 +409,15 @@ enum EmbeddedEot {
         let base = 12 + 16 * n
         for name in names {
             let t = tables[name]!
-            var sum = 0
+            var sum: UInt32 = 0
             var i = 0
             while i < t.count {
-                var w = 0
-                for k in 0 ..< 4 { w = w << 8 | (i + k < t.count ? Int(t[i + k]) : 0) }
-                sum = (sum + w) & 0xFFFF_FFFF
+                var w: UInt32 = 0
+                for k in 0 ..< 4 { w = w << 8 | (i + k < t.count ? UInt32(t[i + k]) : 0) }
+                sum = sum &+ w
                 i += 4
             }
-            out += Array(name.utf8) + be32(sum) + be32(base + body.count) + be32(t.count)
+            out += Array(name.utf8) + be32(Int(Int32(bitPattern: sum))) + be32(base + body.count) + be32(t.count)
             body += t
             while body.count % 4 != 0 { body.append(0) }
         }

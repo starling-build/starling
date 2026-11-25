@@ -488,7 +488,7 @@ enum SiteShellPage {
                        downloads: (pdf: String, docx: String)? = nil, details: SitePublicationDetails? = nil,
                        canonical: URL? = nil, indexable: Bool = true, readerText: SiteReaderText? = nil,
                        history: String? = nil) -> String {
-        let desc = String(description.replacingOccurrences(of: "\n", with: " ").prefix(300))
+        let desc = String(description.replacingAll("\n", with: " ").prefix(300))
         let full = title == siteTitle ? title : "\(title) — \(siteTitle)"
         var meta = """
         <meta property="og:type" content="article">
@@ -508,6 +508,7 @@ enum SiteShellPage {
         if let edition = details?.edition { meta += "<meta name=\"starling-edition\" content=\"\(escape(edition))\">\n" }
         if let rights = details?.rights { meta += "<meta name=\"copyright\" content=\"\(escape(rights))\">\n" }
         var html = template
+#if !os(WASI)  // regular expressions on String are Foundation-only
         if let language = details?.language, let range = html.range(of: #"<html\b[^>]*>"#, options: .regularExpression) {
             var tag = String(html[range])
             if let lang = tag.range(of: #"\blang\s*=\s*("[^"]*"|'[^']*')"#, options: .regularExpression) {
@@ -515,19 +516,22 @@ enum SiteShellPage {
             } else { tag.insert(contentsOf: " lang=\"\(escape(language))\"", at: tag.index(before: tag.endIndex)) }
             html.replaceSubrange(range, with: tag)
         }
-        if let r = html.range(of: "<head>") { html.replaceSubrange(r, with: "<head>\n<base href=\"\(escape(base))\">") }
-        if let r = html.range(of: "<title>") { html.replaceSubrange(r, with: meta + "<title>") }
-        else if let r = html.range(of: "</head>") { html.replaceSubrange(r, with: meta + "</head>") }
+#endif
+        if let r = html.rangeOfSubstring("<head>") { html.replaceSubrange(r, with: "<head>\n<base href=\"\(escape(base))\">") }
+        if let r = html.rangeOfSubstring("<title>") { html.replaceSubrange(r, with: meta + "<title>") }
+        else if let r = html.rangeOfSubstring("</head>") { html.replaceSubrange(r, with: meta + "</head>") }
+#if !os(WASI)
         if let r = html.range(of: #"<title>[^<]*</title>"#, options: .regularExpression) {
             html.replaceSubrange(r, with: "<title>\(escape(full))</title>")
         }
+#endif
         // The app's command line: site mode, served under this base.
-        if let r = html.range(of: "args: [],") {
+        if let r = html.rangeOfSubstring("args: [],") {
             html.replaceSubrange(r, with: "args: ['--site', '\(escape(base))'],")
         }
         // Keep navigation and downloads available even for empty documents.
         // The app replaces the article as the reader moves between pages.
-        if let r = html.range(of: "<body>") {
+        if let r = html.rangeOfSubstring("<body>") {
             let all = lines.isEmpty ? text.split(separator: "\n").map { (level: 0, text: String($0)) } : lines
             let elements = readerText?.html ?? all.map { line -> String in
                 let tag = (1 ... 3).contains(line.level) ? "h\(line.level)" : "p"

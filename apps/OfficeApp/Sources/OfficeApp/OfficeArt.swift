@@ -119,7 +119,7 @@ enum OfficeArt {
     /// MSODRAWING record of the sheet joined.
     static func shapes(drawing b: [UInt8], in whole: Range<Int>? = nil) -> [ArtShape] {
         var out: [ArtShape] = []
-        func i32(_ k: Int) -> Int { let v = u32(b, k); return v >= 0x8000_0000 ? v - 0x1_0000_0000 : v }
+        func i32(_ k: Int) -> Int { let v = u32(b, k); return Int(Int32(truncatingIfNeeded: v)) }
         func walk(_ r: Range<Int>, parent: Int = 0, isGroup: Bool = false) {
             var cur = parent, first = isGroup
             for rec in records(b, in: r) where rec.isContainer {

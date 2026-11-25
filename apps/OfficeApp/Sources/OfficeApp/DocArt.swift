@@ -20,7 +20,7 @@ enum DocArt {
         var children: [Int: [Int]] = [:]     // a group's shape ids, in file order
     }
 
-    static func i32(_ b: [UInt8], _ k: Int) -> Int { let v = OfficeArt.u32(b, k); return v >= 0x8000_0000 ? v - 0x1_0000_0000 : v }
+    static func i32(_ b: [UInt8], _ k: Int) -> Int { let v = OfficeArt.u32(b, k); return Int(Int32(truncatingIfNeeded: v)) }
 
     static func spas(_ t: [UInt8], at fc: Int, count lcb: Int) -> [Spa] {
         guard let p = DocProps.plex(t, at: fc, count: lcb, size: 26) else { return [] }
@@ -49,7 +49,7 @@ enum DocArt {
                     let cbName = Int(t.indices.contains(s + 33) ? t[s + 33] : 0)
                     if e.body.count > 36 + cbName + 8 { a.blips.append(OfficeArt.fbse(t, e)); continue }
                     let fo = OfficeArt.u32(t, s + 28)
-                    if fo != 0xFFFF_FFFF, fo + 8 <= w.count {
+                    if UInt32(truncatingIfNeeded: fo) != UInt32.max, fo >= 0, fo + 8 <= w.count {
                         let h = OfficeArt.u16(w, fo + 2)
                         a.blips.append(OfficeArt.blipRecord(w, ArtRecord(ver: OfficeArt.u16(w, fo) & 0xF, inst: OfficeArt.u16(w, fo) >> 4, type: h, body: fo + 8 ..< min(w.count, fo + 8 + OfficeArt.u32(w, fo + 4)))))
                     } else { a.blips.append(nil) }
@@ -171,7 +171,7 @@ enum DocArt {
         let n = OfficeArt.u16(vd, 0), cb = OfficeArt.u16(vd, 4)
         let size = cb == 0xFFF0 ? 4 : cb
         guard size == 4 || size == 8, n > 1, vd.count >= 6 + n * size else { return nil }
-        func i32(_ k: Int) -> Int { let v = OfficeArt.u32(vd, k); return v >= 0x8000_0000 ? v - 0x1_0000_0000 : v }
+        func i32(_ k: Int) -> Int { let v = OfficeArt.u32(vd, k); return Int(Int32(truncatingIfNeeded: v)) }
         func i16(_ k: Int) -> Int { let v = OfficeArt.u16(vd, k); return v >= 0x8000 ? v - 0x10000 : v }
         var pts: [(Int, Int)] = []
         for k in 0 ..< n {
@@ -180,7 +180,7 @@ enum DocArt {
         }
         let gl = s.props[0x140] ?? 0, gt = s.props[0x141] ?? 0
         let gr = s.props[0x142] ?? 21600, gb = s.props[0x143] ?? 21600
-        func sg(_ v: Int) -> Int { v >= 0x8000_0000 ? v - 0x1_0000_0000 : v }
+        func sg(_ v: Int) -> Int { Int(Int32(truncatingIfNeeded: v)) }
         var l = sg(gl), t = sg(gt), r = sg(gr), b = sg(gb)
         if r <= l || b <= t {
             l = pts.map { $0.0 }.min() ?? 0; r = pts.map { $0.0 }.max() ?? 0
@@ -218,7 +218,7 @@ enum DocArt {
     /// The part of the picture that shows: the crop properties are fractions of the picture (16.16 fixed), top, bottom, left, right.
     static func crop(_ s: ArtShape?) -> String {
         guard let s else { return "" }
-        func f(_ pid: Int) -> Int { let v = s.props[pid] ?? 0; return (v >= 0x8000_0000 ? v - 0x1_0000_0000 : v) * 100_000 / 65536 }
+        func f(_ pid: Int) -> Int { let v = s.props[pid] ?? 0; return Int(Int32(truncatingIfNeeded: v)) * 100_000 / 65536 }
         let t = f(0x100), b = f(0x101), l = f(0x102), r = f(0x103)
         return t == 0 && b == 0 && l == 0 && r == 0 ? "" : "<a:srcRect l=\"\(l)\" t=\"\(t)\" r=\"\(r)\" b=\"\(b)\"/>"
     }

@@ -632,9 +632,9 @@ enum SlideFonts {
         case "microsoft jhenghei", "微軟正黑體": (units, upem, descent) = (2724, 2048, 521)   // (zh c788f8818f12 p11: 18 pt lines at 90% stand 28 apart)
         case "microsoft yahei", "微软雅黑": (units, upem, descent) = (2703, 2048, 536)   // (zh c00f1ec0d573 p12: 12 pt lines at 90% stand 18.55 apart, 0.9 of 1.3 x (2167+536)/2048)
         case "ms gothic", "ｍｓ ゴシック", "ms pgothic", "ｍｓ ｐゴシック", "ms ui gothic", "ｍｓ ｕｉ ゴシック", "ms mincho", "ｍｓ 明朝", "ms pmincho", "ｍｓ ｐ明朝":
-            (units, upem, descent) = (256, 256, n.contains("pgothic") || n.contains("ｐゴシック") ? 52 : 36)
+            (units, upem, descent) = (256, 256, n.containsSubstring("pgothic") || n.containsSubstring("ｐゴシック") ? 52 : 36)
         default:
-            guard n.contains("dfkai") || n.contains("標楷") || n.contains("mingliu") || n.contains("細明體") else { return nil }   // (PMingLiU / MingLiU: 7c3069f9808a slide 8, 12 pt at 90% stands 14.1 apart = 0.9 x 1.306 em)
+            guard n.containsSubstring("dfkai") || n.containsSubstring("標楷") || n.containsSubstring("mingliu") || n.containsSubstring("細明體") else { return nil }   // (PMingLiU / MingLiU: 7c3069f9808a slide 8, 12 pt at 90% stands 14.1 apart = 0.9 x 1.306 em)
             (units, upem, descent) = (1024, 1024, 204)
         }
         return (1.3 * units / upem, (descent / units + 0.15) / 1.3)

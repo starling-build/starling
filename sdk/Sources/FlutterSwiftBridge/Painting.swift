@@ -5512,8 +5512,12 @@ public class Image {
   // ImageBridge::JpegCopy(int) const, by its Itanium-mangled name.
   private typealias JpegCopyFn = @convention(c) (UnsafeRawPointer, Int32) -> UnsafeMutableRawPointer?
   private static let jpegCopyFunction: JpegCopyFn? = {
+#if os(WASI)
+    return nil  // no dynamic symbol lookup on the web: images stay lossless in a PDF there
+#else
     guard let sym = dlsym(UnsafeMutableRawPointer(bitPattern: 0), "_ZNK7flutter12swift_bridge11ImageBridge8JpegCopyEi") else { return nil }
     return unsafeBitCast(sym, to: JpegCopyFn.self)
+#endif
   }()
 
   /// Whether this reference to the underlying image is `dispose`d.

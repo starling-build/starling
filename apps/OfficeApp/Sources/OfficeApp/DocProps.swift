@@ -186,7 +186,7 @@ enum DocProps {
                                                    14: "dashDotDotHeavy", 15: "wavyHeavy", 16: "dashLong", 17: "wavyDouble", 18: "dashLongHeavy"]
 
     private static func attr(_ s: String) -> String {
-        s.replacingOccurrences(of: "&", with: "&amp;").replacingOccurrences(of: "\"", with: "&quot;").replacingOccurrences(of: "<", with: "&lt;")
+        s.replacingAll("&", with: "&amp;").replacingAll("\"", with: "&quot;").replacingAll("<", with: "&lt;")
     }
 
     /// `<w:rPr>` for a character property list ("" when it sets nothing).
@@ -501,7 +501,7 @@ enum DocProps {
             if vm == 1 { pr += "<w:vMerge/>" } else if vm >= 2 { pr += "<w:vMerge w:val=\"restart\"/>" }
             if tc.count >= 20 {
                 let b = [("top", 4), ("left", 8), ("bottom", 12), ("right", 16)].map { brc($0.0, width: Int(tc[$0.1]), type: Int(tc[$0.1 + 1]), ico: Int(tc[$0.1 + 2]) & 31) }
-                let some = b.filter { !$0.contains("w:val=\"nil\"") }
+                let some = b.filter { !$0.containsSubstring("w:val=\"nil\"") }
                 if !some.isEmpty { pr += "<w:tcBorders>" + some.joined() + "</w:tcBorders>" }
             }
             if k < shd.count { let f = shade(shd[k]); if !f.isEmpty { pr += "<w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"\(f)\"/>" } }
