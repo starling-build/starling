@@ -3,6 +3,7 @@ import Foundation
 /// One line of the Manage Rules list: a rule of the active sheet, with where it applies and how it ranks.
 struct CFRuleRow: Equatable {
     var element: Int          // index in the sheet's kept elements
+    var ext: Bool = false     // an x14 rule in the extension list (the 2010 icon sets)
     var occurrence: Int       // which cfRule inside that element
     var priority: Int
     var stopIfTrue: Bool
@@ -12,10 +13,10 @@ struct CFRuleRow: Equatable {
 
 extension WorkbookController {
     /// Open-tag range of the `n`-th `<cfRule` in `text`.
-    private static func _cfTag(_ text: String, _ n: Int) -> Range<String.Index>? {
+    private static func _cfTag(_ text: String, _ n: Int, ext: Bool = false) -> Range<String.Index>? {
         var from = text.startIndex
         var seen = 0
-        while let a = text.findRange(of: "<cfRule", in: from ..< text.endIndex) {
+        while let a = text.findRange(of: ext ? "<x14:cfRule" : "<cfRule", in: from ..< text.endIndex) {
             guard let b = text.findRange(of: ">", in: a.upperBound ..< text.endIndex) else { return nil }
             if seen == n { return a.lowerBound ..< b.upperBound }
             seen += 1
@@ -35,7 +36,7 @@ extension WorkbookController {
         if let a = t.findRange(of: " \(name)=\""), let b = t.findRange(of: "\"", in: a.upperBound ..< t.endIndex) {
             if let v = value { t.replaceSubrange(a.upperBound ..< b.lowerBound, with: v) }
             else { t.removeSubrange(a.lowerBound ..< b.upperBound) }
-        } else if let v = value, let c = t.findRange(of: "<cfRule") {
+        } else if let v = value, let c = t.findRange(of: "<cfRule") ?? t.findRange(of: "<x14:cfRule") {
             t.insert(contentsOf: " \(name)=\"\(v)\"", at: c.upperBound)
         }
         return t
@@ -103,13 +104,23 @@ extension WorkbookController {
                 n += 1
             }
         }
+        for (i, e) in sheet.keptElements.enumerated() where e.name == "extLst" {
+            guard let root = XNode.parse(Data(e.text.utf8)) else { continue }
+            for (n, r) in root.descendants("x14:cfRule").enumerated() {
+                guard r["type"] == "iconSet", let set = r.first("x14:iconSet"), let name = set["iconSet"],
+                      IconSets2010.names.contains(name), set["custom"] != "1",
+                      let block = root.descendants("x14:conditionalFormatting").first(where: { $0.all("x14:cfRule").contains { $0 === r } }) else { continue }
+                out.append(CFRuleRow(element: i, ext: true, occurrence: n, priority: Int(r["priority"] ?? "") ?? 0,
+                                     stopIfTrue: r["stopIfTrue"] == "1", applies: block.first("xm:sqref")?.text ?? "", summary: "Icon set"))
+            }
+        }
         return out.sorted { $0.priority < $1.priority }
     }
 
     private func _editCFTag(_ row: CFRuleRow, _ change: (String) -> String) {
         guard row.element < sheet.keptElements.count else { return }
         var t = sheet.keptElements[row.element].text
-        guard let r = Self._cfTag(t, row.occurrence) else { return }
+        guard let r = Self._cfTag(t, row.occurrence, ext: row.ext) else { return }
         t.replaceSubrange(r, with: change(String(t[r])))
         sheet.keptElements[row.element].text = t
     }
@@ -119,19 +130,38 @@ extension WorkbookController {
         guard row.element < sheet.keptElements.count else { return }
         structural {
             var t = sheet.keptElements[row.element].text
-            guard let r = Self._cfTag(t, row.occurrence) else { return }
+            guard let r = Self._cfTag(t, row.occurrence, ext: row.ext) else { return }
             var end = r.upperBound
-            if !t[r].hasSuffix("/>"), let c = t.findRange(of: "</cfRule>", in: r.upperBound ..< t.endIndex) { end = c.upperBound }
+            let close = row.ext ? "</x14:cfRule>" : "</cfRule>"
+            if !t[r].hasSuffix("/>"), let c = t.findRange(of: close, in: r.upperBound ..< t.endIndex) { end = c.upperBound }
             t.removeSubrange(r.lowerBound ..< end)
-            if Self._cfTag(t, 0) == nil { sheet.keptElements.remove(at: row.element) }
+            if row.ext { t = Self._tidyExt(t) }
+            if row.ext ? t.findRange(of: "<ext ") == nil : Self._cfTag(t, 0) == nil { sheet.keptElements.remove(at: row.element) }
             else { sheet.keptElements[row.element].text = t }
         }
+    }
+
+    /// After an x14 rule left: drop a block with no rule, then a container with no block, then an ext with no container.
+    private static func _tidyExt(_ text: String) -> String {
+        var t = text
+        func drop(_ open: String, _ close: String, unless inner: String) {
+            var from = t.startIndex
+            while let a = t.findRange(of: open, in: from ..< t.endIndex), let b = t.findRange(of: close, in: a.upperBound ..< t.endIndex) {
+                if String(t[a.upperBound ..< b.lowerBound]).findRange(of: inner) == nil {
+                    t.removeSubrange(a.lowerBound ..< b.upperBound); from = a.lowerBound
+                } else { from = b.upperBound }
+            }
+        }
+        drop("<x14:conditionalFormatting ", "</x14:conditionalFormatting>", unless: "<x14:cfRule")
+        drop("<x14:conditionalFormattings>", "</x14:conditionalFormattings>", unless: "<x14:conditionalFormatting ")
+        drop("<ext ", "</ext>", unless: "<x14:")
+        return t
     }
 
     /// Swap the priority of `row` with its neighbour above (`up`) or below. One undo step.
     func moveConditionalRule(_ row: CFRuleRow, up: Bool) {
         let rows = conditionalRuleRows()
-        guard let i = rows.firstIndex(where: { $0.element == row.element && $0.occurrence == row.occurrence }) else { return }
+        guard let i = rows.firstIndex(where: { $0.element == row.element && $0.ext == row.ext && $0.occurrence == row.occurrence }) else { return }
         let j = up ? i - 1 : i + 1
         guard rows.indices.contains(j) else { return }
         let a = rows[i], b = rows[j]
