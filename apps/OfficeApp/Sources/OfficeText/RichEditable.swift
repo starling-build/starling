@@ -1192,8 +1192,9 @@ public final class RichEditableState: State<StatefulWidget> {
                     _glide(_momentumGeneration, velocity: t.velocity)
                 }
             } else if _layout.width > 0 {
-                // A tap: a link opens, else the caret goes there.
-                if let link = _link(at: event.localPosition) {
+                // A tap: reading, a link opens; editing, the caret goes there (a finger cannot hover, so the link
+                // card the caret under a link raises is how it is opened, edited or removed), as a click does.
+                if _controller.readOnly, let link = _link(at: event.localPosition) {
                     if let activate = _w.onLinkActivate { activate(link) } else { hostOpenURL?(link) }
                     return
                 }
