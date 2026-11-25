@@ -19,7 +19,7 @@ final class KeyboardTraversalTests: XCTestCase {
         var n = 0
         for e in ui.elements() {
             if let b = e.widget as? FlatButton, b.enabled { n += 1 }
-            else if let h = e.widget as? HoverButton, h.onPressed != nil || h.forceEnabled { n += 1 }
+            else if let h = e.widget as? HoverButton, h.keyStop, h.onPressed != nil || h.forceEnabled { n += 1 }
             else if e.widget is FluentTextBox { n += 1 }
         }
         return n
@@ -134,6 +134,26 @@ final class KeyboardTraversalTests: XCTestCase {
         ui.press(.escape)
         XCTAssertFalse(KeyboardTraversal.shared.tipsOn, "Esc turns the tips off")
         ui.dispose()
+    }
+
+    /// Every ribbon control must have a name (tooltip or caption) so it gets an Alt key tip.
+    func testEveryRibbonControlHasAName() {
+        let tabs = ["Home", "Insert", "Design", "Layout", "Transitions", "Review", "View", "Data", "Formulas",
+                    "Page Layout", "Draw", "References", "Animations", "Slide Show"]
+        var nameless: [String] = []
+        func rowOf(_ s: KeyStop) -> Double { (s.origin()!.dy / 10).rounded() }
+        func sweep(_ name: String, _ ui: WidgetTester) {
+            for tab in tabs where ui.has(text: tab) {
+                ui.tap(text: tab)
+                let strip = KeyboardTraversal.shared.reachable().filter { $0.region == "ribbon" }
+                let top = strip.map { rowOf($0) }.min() ?? 0
+                for s in strip where rowOf(s) != top && s.label() == nil { nameless.append("\(name)/\(tab) at \(Int(s.origin()!.dx)),\(Int(s.origin()!.dy))") }
+            }
+        }
+        sweep("Writer", app(OfficeShell(initialPath: nil, startBlank: true)))
+        sweep("Slides", app(SlidesShell(initialPath: nil, startBlank: true, onSwitch: { _, _ in })))
+        sweep("Sheets", app(SheetsShell(initialPath: nil, onSwitch: { _, _ in })))
+        XCTAssertEqual(nameless.count, 0)
     }
 
     func testEveryRibbonButtonOfEveryTabIsReachable() {

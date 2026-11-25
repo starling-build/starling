@@ -91,6 +91,8 @@ public class HoverButton: StatefulWidget {
 
     /// How this widget should behave during hit testing.
     public let hitTestBehavior: HitTestBehavior
+    /// False when a control around it already owns the keyboard stop (a text box).
+    public let keyStop: Bool
 
     public init(
         key: (any Key)? = nil,
@@ -106,8 +108,10 @@ public class HoverButton: StatefulWidget {
         cursor: MouseCursor? = nil,
         semanticLabel: String? = nil,
         forceEnabled: Bool = false,
-        hitTestBehavior: HitTestBehavior = .opaque
+        hitTestBehavior: HitTestBehavior = .opaque,
+        keyStop: Bool = true
     ) {
+        self.keyStop = keyStop
         self.builder = builder
         self.onPressed = onPressed
         self.onLongPress = onLongPress
@@ -172,7 +176,7 @@ class HoverButtonState: State<StatefulWidget> {
             return box.localToGlobal(Offset(0, 0))
         }
         _stop = stop
-        KeyboardTraversal.shared.register(stop)
+        if hoverButton.keyStop { KeyboardTraversal.shared.register(stop) }
     }
 
     override func dispose() {

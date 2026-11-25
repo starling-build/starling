@@ -323,7 +323,7 @@ final class Ribbon: StatelessWidget {
                 items: OfficeFonts.families(including: session.effectiveFontFamily).map { f in
                     ComboBoxItem<String>(value: f, child: Text(f, style: fluent.typography.body?.copyWith(color: nil)))
                 },
-                onChanged: { f in c.setFontFamily(f) })),
+                onChanged: { f in c.setFontFamily(f) }, semanticLabel: "Font")),
             Chrome.gap(),
             FontSizeBox(size: currentSize, sizes: sizes, onSize: { n in c.setFontSize(n) }),
             Chrome.gap(6),
@@ -337,7 +337,7 @@ final class Ribbon: StatelessWidget {
                 ("UPPERCASE", { c.changeCase(.upper) }),
                 ("Capitalize Each Word", { c.changeCase(.capitalizeWords) }),
                 ("tOGGLE cASE", { c.changeCase(.toggle) }),
-            ]),
+            ], tip: "Change Case"),
             Chrome.icon(FluentSystemIcons.textClearFormatting, "Clear All Formatting", fluent) { c.clearFormatting() },
         ] + (session.onFontDialog == nil ? [] : [   // Writer only: Slides has no Font dialog yet
             Chrome.icon(FluentSystemIcons.textFont, "Font… (⌘D)", fluent) { [session] in session.onFontDialog?() },
@@ -400,7 +400,7 @@ final class Ribbon: StatelessWidget {
             Chrome.toggle(FluentSystemIcons.alignJustify, "Justify", s.alignment == .justify, fluent) { c.setAlignment(.justify) },
             Chrome.gap(2),
             Chrome.menu(nil, Icon(FluentSystemIcons.lineSpacing, size: Chrome.iconSize,
-                                  color: fluent.resources.textFillColorPrimary), fluent, spacingChoices),
+                                  color: fluent.resources.textFillColorPrimary), fluent, spacingChoices, tip: "Line Spacing"),
             Chrome.colorMenu(FluentSystemIcons.highlight, "Shading", fluent,
                              colors: OfficeColors.highlight, none: "No Shading") { col in c.setParagraphShading(col) },
             Chrome.menuButton(FluentSystemIcons.table, "Borders", "Borders", fluent, items: paraBorderItems),
