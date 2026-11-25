@@ -73,7 +73,7 @@ final class SheetsPivotGroupTests: XCTestCase {
         XCTAssertNil(wc.setPivotGroup(sheet: wc.sheet, pivot: 0, field: 0, group: .numbers(start: 0, end: 29, by: 10)))
         let files = try Zip.read(try Xlsx.write(wc.book))
         let cache = try XCTUnwrap(files.first { $0.name.hasPrefix("xl/pivotCache/pivotCacheDefinition") }.map { String(decoding: $0.data, as: UTF8.self) })
-        XCTAssertTrue(cache.contains("<fieldGroup base=\"0\"><rangePr startNum=\"0\" endNum=\"29\" groupInterval=\"10\"/><groupItems count=\"5\">"), cache)
+        XCTAssertTrue(cache.contains("<fieldGroup base=\"0\"><rangePr autoStart=\"0\" autoEnd=\"0\" startNum=\"0\" endNum=\"29\" groupInterval=\"10\"/><groupItems count=\"5\">"), cache)
         XCTAssertTrue(cache.contains("<s v=\"10-19\"/>"))
     }
 
