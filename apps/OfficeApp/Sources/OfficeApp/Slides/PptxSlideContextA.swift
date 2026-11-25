@@ -42,9 +42,12 @@ extension SlideContext {
             st.flipH = x["flipH"] == "1"
             st.flipV = x["flipV"] == "1"
             st.customPath = g
+            st.adjusts = PresetGeometry.adjustments(el.first("p:spPr")?.first("a:prstGeom"))
             st.sourceXML = PptxXML.serialize(el)
             st.sourcePart = part
             st.keptLine = KeptLine(line: box, box: box, outline: color, width: width)
+            st.keptLine?.rotation = st.rotation; st.keptLine?.flipH = st.flipH; st.keptLine?.flipV = st.flipV
+            st.keptLine?.adjusts = st.adjusts
             st.outlineDash = PptxReader.dash(ln)
             st.outlineJoin = PptxReader.join(ln)
             st.outlineCap = ln?["cap"]
