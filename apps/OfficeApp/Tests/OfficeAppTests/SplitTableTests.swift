@@ -292,16 +292,17 @@ final class TextPitch5LabWriter: XCTestCase {
 /// A turned cell's lines of Latin text step by 1.026 of the face's single line
 /// (Word for Windows, lab textpitch3), the same for Rotate Down and Up.
 final class TurnedCellPitchTests: XCTestCase {
-    private func linesHeight(_ direction: CellRef.CellTextDirection, spacing: Double = 1) -> Double {
+    private func linesHeight(_ direction: CellRef.CellTextDirection, spacing: Double = 1, text: String = "Aaaa Bbbb Cccc", upright: Bool = false) -> Double {
         let theme = RichTextTheme(fontFamily: OfficeFonts.sans, fontSize: 20)
         theme.wordRules = true
-        var a = RichParagraph(text: "Aaaa Bbbb Cccc")
+        var a = RichParagraph(text: text)
         a.cell = CellRef(table: "t", row: 0, column: 0)
         a.cell?.textDirection = direction
+        a.cell?.uprightIdeographs = upright
         a.style.lineSpacing = spacing
         var style = CharStyle()
         style.fontFamily = OfficeFonts.sans; style.fontSize = 20
-        a.runs = [Run(length: 14, style: style)]
+        a.runs = [Run(length: text.utf16.count, style: style)]
         var doc = RichDocument(paragraphs: [a])
         doc.tableColumns["t"] = [120]
         var ts = TableStyle()
@@ -337,6 +338,18 @@ final class TurnedCellPitchTests: XCTestCase {
             RichTextTheme.wordWindowsPages = true
             XCTAssertEqual(linesHeight(.down, spacing: spacing) / plain, 1.026, accuracy: 0.01, "spacing \(spacing)")
         }
+    }
+
+    /// Lab textpitch5: an upright (Rotate Down) column of ideographs steps by the same 1.026 of its face's single line, in 6 faces at 9 and 12 pt.
+    func testUprightIdeographColumnsStepByOnePointZeroTwoSix() {
+        let saved = RichTextTheme.wordWindowsPages
+        defer { RichTextTheme.wordWindowsPages = saved }
+        let kanji = "日本語の文章を縦に並べて行の間隔を測ります日本語の文章を縦に並べて"
+        RichTextTheme.wordWindowsPages = false
+        let plain = linesHeight(.down, text: kanji, upright: true)
+        RichTextTheme.wordWindowsPages = true
+        let word = linesHeight(.down, text: kanji, upright: true)
+        XCTAssertEqual(word / plain, 1.026, accuracy: 0.01)
     }
 
     /// Word's print of a 78 pt cell of Calibri 20 turned down has three lines of "Aaaa Bbbb Cccc Dddd": the fourth's top falls

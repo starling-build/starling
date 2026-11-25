@@ -1583,6 +1583,14 @@ extension RichLayout {
                 - short * (aligned == .center ? 0.5 : aligned == .right ? 1 : 0)
                 - (theme.wordRules && fromStart && c.direction == .down && indent > 0.01 && !c.wrapsPart && !japaneseFace && !(_spaceBefore[i] > 0.01) ? min(indent, _px(2.25)) : 0)
             let origin = Offset(along, c.across + _spaceBefore[i] + _turnedInkShift(i, document))
+            // (Upright ideograph lines run on past the cell's far edge and are cut there, not dropped whole: lab textpitch5, Word's print
+            // of 6 East Asian faces at 9 to 16 pt in Rotate Down cells 70 pt tall; Meiryo 16 pt keeps a character of a third line standing 12 pt
+            // past the left border, and the text layer holds only what shows.)
+            if c.direction == .down, document.paragraphs[i].cell?.uprightIdeographs == true, theme.wordRules, RichTextTheme.wordWindowsPages, c.rowSpan == 1,
+               !document.paragraphs[i].text.unicodeScalars.contains(where: { $0.value >= 0x0590 && $0.value < 0x2000 }) {   // measured on ideographs, kana, Hangul and Latin; dx2 79ea8977's Mongolian cells keep their lines
+                RuleTrace.hit("upright-cell-lines-are-cut-at-the-cells-far-edge")
+                canvas.clipRect(Rect.fromLTRB(-1e5, -1e5, 1e5, c.colWidth))
+            }
             if c.direction == .down, document.paragraphs[i].cell?.uprightIdeographs == true,
                _paintUpright(g.painter, at: origin, canvas, distribute: document.paragraphs[i].style.eastAsian["w:jc"] == "distribute", justify: theme.wordRules && aligned == .justify && document.paragraphs[i].style.eastAsian["w:jc"] == nil, mixed: true, centred: aligned == .center, rubyShifts: _rubyColumnShifts(i, document)) {
                 canvas.restore()
