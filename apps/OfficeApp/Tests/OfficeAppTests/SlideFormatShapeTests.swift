@@ -96,6 +96,36 @@ final class SlideFormatShapeTests: XCTestCase {
         XCTAssertNotNil(a.fill, "unticking No fill gives a solid fill again")
     }
 
+    func testRotationPresetIsWrittenReplacedAndUndone() throws {
+        let deck = DeckController()
+        let a = deck.addShape(.rect); deck.selectShapes([a])
+        deck.setCamera("isometricOffAxis1Right")
+        XCTAssertEqual(a.scene3d?.cameraName, "isometricOffAxis1Right")
+        var xml = try slideXML(deck)
+        XCTAssertTrue(xml.contains("<a:scene3d><a:camera prst=\"isometricOffAxis1Right\"/><a:lightRig rig=\"threePt\" dir=\"t\"/></a:scene3d>"))
+        let (back, _, _) = try Pptx.read(Pptx.write(deck))
+        XCTAssertEqual(back.slides[0].shapes.first { $0.name == a.name }?.scene3d?.cameraName, "isometricOffAxis1Right")
+        // Another preset replaces the camera, never adds a second scene.
+        deck.setCamera("perspectiveLeft")
+        xml = try slideXML(deck)
+        XCTAssertEqual(xml.components(separatedBy: "<a:scene3d>").count, 2)
+        XCTAssertTrue(xml.contains("prst=\"perspectiveLeft\""))
+        if let dir = ProcessInfo.processInfo.environment["AMD6_UI_CHECK_DIR"] {
+            let d = DeckController()
+            for (i, p) in ["isometricOffAxis1Right", "perspectiveLeft", "obliqueTopRight", "perspectiveAbove"].enumerated() {
+                let s = d.addShape(.rect); d.selectShapes([s])
+                d.setFramesLive([(s, Rect.fromLTWH(40 + Double(i % 2) * 300, 40 + Double(i / 2) * 200, 200, 120))])
+                d.setCamera(p)
+            }
+            try Pptx.write(d).write(to: URL(fileURLWithPath: dir + "/rotation.pptx"))
+        }
+        deck.setCamera("orthographicFront")
+        XCTAssertNil(a.scene3d)
+        deck.undo(); deck.undo(); deck.undo()
+        XCTAssertNil(try XCTUnwrap(deck.slides[0].shapes.first { $0.name == a.name }).camera)
+        XCTAssertFalse(try slideXML(deck).contains("<a:scene3d>"))
+    }
+
     func testShadowFromThePaneAndOnAFileShape() throws {
         // A new shape: the check box turns a default shadow on, the rows edit it, the file holds it, undo takes it back.
         let deck = DeckController()

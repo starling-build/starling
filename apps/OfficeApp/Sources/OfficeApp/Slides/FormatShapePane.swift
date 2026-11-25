@@ -178,6 +178,17 @@ final class FormatShapePaneState: State<StatefulWidget> {
             editShadow { (sh: inout CharShadow) in let d = hypot(sh.dx, sh.dy); let a = v * Double.pi / 180; sh.dx = cos(a) * d; sh.dy = sin(a) * d }
         })
         fx.append(gap(14))
+        fx.append(Text("3-D rotation", style: caption)); fx.append(gap(4))
+        let camera = first.map { $0.camera ?? ($0.scene3d?.cameraName.isEmpty == false ? $0.scene3d!.cameraName : "orthographicFront") } ?? "orthographicFront"
+        fx.append(Row(children: [
+            SizedBox(width: 110, height: nil, child: Text("Preset", style: caption)),
+            SizedBox(key: ValueKey("fmt.rotation3d"), width: 120, height: 30, child: Button(onPressed: some ? {
+                let presets = Extrusion.rotationPresets
+                let at = presets.firstIndex { $0.0 == camera } ?? 0
+                deck.setCamera(presets[(at + 1) % presets.count].0)
+            } : nil, child: Text(Extrusion.rotationPresets.first { $0.0 == camera }?.1 ?? camera))),
+        ]))
+        fx.append(gap(14))
         let effects = Column(crossAxisAlignment: .start, children: fx)
         let body = Column(crossAxisAlignment: .start, children: [
             Text("Fill & Line", style: fluent.typography.bodyStrong), gap(10),

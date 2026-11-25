@@ -134,6 +134,7 @@ struct ShapeState: Equatable {
     var warp: TextWarp? = nil
     var runLooks: [[RunLook]] = []
     var scene3d: Scene3D? = nil
+    var camera: String? = nil
     var lineReduction = 0.0
     var keptLook: KeptLook? = nil
     /// Set for a text shape read from a file: see `ReadShape`.
@@ -1975,6 +1976,18 @@ final class DeckController: ChangeNotifier {
         _changed()
     }
 
+    /// The 3-D Rotation preset of the selection (`a:camera prst`; "orthographicFront" turns it off). A shape's depth,
+    /// bevel and lights stay; only the camera changes.
+    func setCamera(_ name: String) {
+        guard !selection.isEmpty else { return }
+        _checkpoint()
+        for s in selection {
+            s.camera = name
+            s.scene3d = Extrusion.scene(camera: name, from: s.scene3d)
+        }
+        _changed()
+    }
+
     func setOutlineWidth(_ width: Double) {
         guard !selection.isEmpty else { return }
         _checkpoint()
@@ -2359,6 +2372,7 @@ final class DeckController: ChangeNotifier {
         st.warp = s.warp
         st.runLooks = s.runLooks
         st.scene3d = s.scene3d
+        st.camera = s.camera
         if case .chart = s.kind { st.chartDrawing = s.rendered.map(_state) }
         return st
     }
@@ -2499,6 +2513,7 @@ final class DeckController: ChangeNotifier {
         shape.warp = st.warp
         shape.runLooks = st.runLooks
         shape.scene3d = st.scene3d
+        shape.camera = st.camera
         shape.lineReduction = st.lineReduction
         shape.textTheme?.lineSpacingReduction = st.lineReduction
         shape.keptLook = st.keptLook
