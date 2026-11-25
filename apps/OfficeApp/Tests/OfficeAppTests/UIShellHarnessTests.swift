@@ -238,6 +238,11 @@ final class UIShellHarnessTests: XCTestCase {
         ui.pump()
         XCTAssertTrue(ui.tap(text: "No Shading"))
         XCTAssertEqual(fills(), [nil])
+        // Table Styles gallery: Accent 3 paints the header with the theme's third accent.
+        XCTAssertTrue(ui.tap(text: "Table Styles"))
+        ui.pump()
+        XCTAssertTrue(ui.tap(text: "Medium Style 2 - Accent 3"))
+        XCTAssertEqual(t.text!.document.tableStyles[t.tableId!]?.headerFill, deck.tableLookColor(.accent(2)))
     }
 }
 

@@ -478,8 +478,7 @@ final class TableCellTests: XCTestCase {
         let other = try XCTUnwrap(doc.paragraphs.first { $0.cell?.column == 1 }?.cell)
         XCTAssertEqual(other.textDirection, .horizontal)
         XCTAssertEqual(other.padding, EdgeInsets(left: 7.2, top: 3.6, right: 7.2, bottom: 3.6))
-        XCTAssertNotNil(other.borders.left, "the sample spells its lines on every cell")
-        XCTAssertNotEqual(other.borders.left, CellRef.CellLine.hidden)
+        XCTAssertNil(other.borders.left, "the sample names its table style and leaves the lines to it")
         let style = try XCTUnwrap(doc.tableStyles.values.first)
         XCTAssertNotEqual(style.borderColor, Color(0xFFFF0000), "one cell's line does not recolour the table's rules")
         // Edited, so the table is regenerated.

@@ -1320,6 +1320,8 @@ public struct CellRef: Hashable, Codable, Sendable {
     /// The theme link of that shading as the file wrote it (` w:themeFill="accent1" w:themeFillTint="99"`): the fill
     /// above is the colour it resolved to. Cleared when the shading is set to a plain colour.
     public var fillThemeAttrs: String? = nil
+    /// `fill` is the table style's colour (drawn, but not the user's own): a save leaves it to the style.
+    public var styleFilled: Bool? = nil
     /// This cell's own borders, by side (Word's `w:tcBorders`), where
     /// they differ from the table's: a heading cell that says none on
     /// every side inside a ruled table (bug65649's estimates), a title
@@ -1579,6 +1581,11 @@ public struct TableStyle: Hashable, Codable, Sendable {
     public var firstColumn = false
     public var lastColumn = false
     public var bandedColumns = false
+    /// Slides: banded rows on or off as the file says (`bandRow`), for a style that has no band colour to read it from (Table
+    /// Grid); nil derives it from the band fills.
+    public var bandRows: Bool? = nil
+    /// Slides: the built-in or deck table style (`a:tableStyleId`) the table names; nil writes the plain default.
+    public var styleId: String? = nil
     /// How many leading rows repeat at the top of every page the table
     /// runs onto when `headerRow` is set (Word's w:tblHeader on each):
     /// bug59058's data tables repeat a caption row and a column-heading

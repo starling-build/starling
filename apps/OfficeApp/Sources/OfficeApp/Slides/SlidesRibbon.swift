@@ -539,7 +539,36 @@ extension Ribbon {
             let block = t.flatMap { $0.selection.block ?? ($0.selection.isCollapsed ? nil : $0.targetCellBlock) }
             deck.setTableShading(col, block: block)
         }
-        return [Chrome.group("Table Styles", fluent, [Chrome.rows([shading])]),
+        var looks: [(String, DeckController.TableLook)] = [("No Style, Table Grid", .plain)]
+        for i in 0 ..< min(6, deck.theme.accents.count) { looks.append(("Medium Style 2 - Accent \(i + 1)", .accent(i))) }
+        func menu(_ title: String, _ tip: String, _ looks: [(String, DeckController.TableLook, Color?)]) -> Widget {
+            Chrome.menuButton(FluentSystemIcons.grid, title, tip, fluent,
+                items: looks.map { name, look, swatch in
+                    MenuFlyoutItem(text: Text(name), leading: SizedBox(width: 14, height: 14, child: DecoratedBox(decoration: BoxDecoration(
+                                       color: swatch ?? deck.tableLookColor(look) ?? Color(0xFFFFFFFF),
+                                       border: Border.all(color: fluent.resources.controlStrokeColorDefault, width: 1)))),
+                                   onPressed: { deck.applyTableLook(look) }) as MenuFlyoutItemBase })
+        }
+        let styles = menu("Table Styles", "Choose a table style", looks.map { ($0.0, $0.1, nil) })
+        // The built-in families, as PowerPoint groups them: Themed, Light, Medium (1, 3, 4), Dark.
+        func family(_ word: String) -> [(String, DeckController.TableLook, Color?)] {
+            var out: [(String, DeckController.TableLook, Color?)] = []
+            for (name, plain, accents) in PptxTemplates.builtinTableStyleFamilyList where name.hasPrefix(word) && name != "Medium Style 2" {
+                if let plain { out.append((name, .builtin(plain), word == "Dark" ? Color(0xFF404040) : Color(0xFFFFFFFF))) }
+                // Dark Style 2 has three ids, each for a PAIR of accents (1/2, 3/4, 5/6): header and body take one each.
+                let paired = accents.count == 3
+                for (i, id) in accents.enumerated() {
+                    let a = paired ? i * 2 : i
+                    guard a < deck.theme.accents.count else { continue }
+                    let label = paired ? "Accent \(a + 1)/Accent \(a + 2)" : "Accent \(a + 1)"
+                    out.append(("\(name) - \(label)", .builtin(id), deck.theme.accents[a]))
+                }
+            }
+            return out
+        }
+        let more = [menu("Themed", "Themed table styles", family("Themed")), menu("Light", "Light table styles", family("Light")),
+                    menu("Medium", "Medium table styles", family("Medium")), menu("Dark", "Dark table styles", family("Dark"))]
+        return [Chrome.group("Table Styles", fluent, [Chrome.rows([styles, shading]), Chrome.rows(Array(more.prefix(2))), Chrome.rows(Array(more.suffix(2)))]),
                 Chrome.group("Table Style Options", fluent, [
             Chrome.rows([
                 Chrome.textToggle("Header Row", o.headerRow, fluent) { var n = o; n.headerRow.toggle(); deck.setTableOptions(n) },
