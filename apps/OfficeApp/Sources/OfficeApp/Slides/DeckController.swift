@@ -94,6 +94,11 @@ struct ShapeState: Equatable {
     @Boxed var outlineFill: SlideFill? = nil
     var headEnd: LineEnd? = nil
     var tailEnd: LineEnd? = nil
+    var connStart: ShapeConn? = nil
+    var connEnd: ShapeConn? = nil
+    /// As read: the file's `cNvPr` ids (not yet deck ids), resolved once the slide's shapes are known.
+    var pendingConnStart: ShapeConn? = nil
+    var pendingConnEnd: ShapeConn? = nil
     var outlineCompound: String? = nil
     var textTurn = 0
     var textStacked = 0
@@ -1603,6 +1608,7 @@ final class DeckController: ChangeNotifier {
     func beginFrameEdit() { _checkpoint() }
 
     func setFramesLive(_ frames: [(SlideShape, Rect)]) {
+        detachLines(moving: frames.map(\.0))
         for (shape, frame) in frames { shape.frame = frame }
         _changed(keepSession: true)
     }
@@ -1620,6 +1626,7 @@ final class DeckController: ChangeNotifier {
     func nudgeSelection(dx: Double, dy: Double) {
         guard !selection.isEmpty else { return }
         _checkpoint()
+        detachLines(moving: Array(selection))
         for s in selection { s.frame = s.frame.shift(Offset(dx, dy)) }
         _changed()
     }
@@ -2265,6 +2272,8 @@ final class DeckController: ChangeNotifier {
         st.outlineFill = s.outlineFill
         st.outlineScheme = s.outlineScheme
         st.headEnd = s.headEnd
+        st.connStart = s.connStart
+        st.connEnd = s.connEnd
         st.outlineCompound = s.outlineCompound
         st.tailEnd = s.tailEnd
         st.textTurn = s.textTurn
@@ -2401,6 +2410,8 @@ final class DeckController: ChangeNotifier {
         shape.outlineCap = st.outlineCap
         shape.outlineFill = st.outlineFill
         shape.headEnd = st.headEnd
+        shape.connStart = st.connStart
+        shape.connEnd = st.connEnd
         shape.outlineCompound = st.outlineCompound
         shape.tailEnd = st.tailEnd
         shape.textTurn = st.textTurn
@@ -2668,6 +2679,7 @@ final class DeckController: ChangeNotifier {
     }
 
     func _changed(keepSession: Bool = false) {
+        followConnections()
         _updateFields()
         // A shape that went takes its animations with it.
         for slide in slides where !slide.animations.isEmpty {

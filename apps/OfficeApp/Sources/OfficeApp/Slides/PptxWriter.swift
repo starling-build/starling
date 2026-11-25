@@ -360,6 +360,7 @@ enum PptxWriter {
         // Animations: as read while unchanged (or, for timing this app does
         // not model, while every shape it names is still here); our own
         // timing tree once they are edited.
+        body = w.resolveConnections(body)
         var timing = ""
         let modelled = slide.sourceAnimations != nil
         if modelled && slide.animations != slide.sourceAnimations || !modelled && slide.timingXML == nil {
@@ -844,6 +845,41 @@ private struct SlideXML {
     private(set) var written: [Int: Int] = [:]
     private var _current: Int? = nil
 
+    /// A connector's glued ends. The target may be written after the connector, so the id is a token
+    /// (`@@CXN<deck id>@@`) that `resolveConnections` swaps for the id the target was written under.
+    static func _connXML(_ s: ShapeState) -> String {
+        var x = ""
+        if let c = s.connStart { x += "<a:stCxn id=\"@@CXN\(c.shape)@@\" idx=\"\(c.site)\"/>" }
+        if let c = s.connEnd { x += "<a:endCxn id=\"@@CXN\(c.shape)@@\" idx=\"\(c.site)\"/>" }
+        return x
+    }
+
+    /// Swaps each connection token for its shape's written id; an end whose shape was not written is left out.
+    func resolveConnections(_ body: String) -> String {
+        guard body.containsSubstring("@@CXN") else { return body }
+        var out = ""
+        let parts = body.components(separatedBy: "<a:")
+        for (i, part) in parts.enumerated() {
+            var piece = part
+            if i > 0 {
+                if (piece.hasPrefix("stCxn ") || piece.hasPrefix("endCxn ")), let a = piece.range(of: "@@CXN"),
+                   let b = piece.range(of: "@@\"", range: a.upperBound..<piece.endIndex) {
+                    let n = Int(piece[a.upperBound..<b.lowerBound])
+                    if let n, let id = written[n] {
+                        piece.replaceSubrange(a.lowerBound..<b.upperBound, with: "\(id)\"")
+                    } else if let close = piece.range(of: "/>") {
+                        piece.removeSubrange(piece.startIndex..<close.upperBound)
+                        out += piece
+                        continue
+                    }
+                }
+                out += "<a:"
+            }
+            out += piece
+        }
+        return out
+    }
+
     private mutating func _id(_ preferred: Int? = nil) -> Int {
         let id: Int
         if let p = preferred, p > 1, !_used.contains(p) {
@@ -1133,7 +1169,7 @@ private struct SlideXML {
             // A connector as read, while its line and outline are: the
             // original, at its frame on the slide.
             if let xml = s.sourceXML, let k = s.keptLine, k.line == s.frame, k.outline == s.outline,
-               k.width == s.outlineWidth, k.dash == s.outlineDash, k.head == s.headEnd, k.tail == s.tailEnd,
+               k.width == s.outlineWidth, k.dash == s.outlineDash, k.head == s.headEnd, k.tail == s.tailEnd, k.connStart == s.connStart, k.connEnd == s.connEnd,
                let p = source, let part = s.sourcePart {
                 return kept(xml, sourcePart: part, package: p, builder: &builder, patch: k.box, fileId: s.fileId)
             }
@@ -1141,7 +1177,7 @@ private struct SlideXML {
             let f = s.frame
             let box = Rect.fromLTRB(min(f.left, f.right), min(f.top, f.bottom), max(f.left, f.right), max(f.top, f.bottom))
             let line = s.outline.map { "<a:ln w=\"\(Self._emu(s.outlineWidth))\">\(Self._fill($0, scheme: s.outlineScheme))\(Self._dashXML(s.outlineDash))\(Self._endsXML(s))</a:ln>" } ?? "<a:ln><a:noFill/></a:ln>"
-            return "<p:cxnSp><p:nvCxnSpPr><p:cNvPr id=\"\(id)\" name=\"\(name)\"\(hid)/><p:cNvCxnSpPr/><p:nvPr/></p:nvCxnSpPr>"
+            return "<p:cxnSp><p:nvCxnSpPr><p:cNvPr id=\"\(id)\" name=\"\(name)\"\(hid)/><p:cNvCxnSpPr>\(Self._connXML(s))</p:cNvCxnSpPr><p:nvPr/></p:nvCxnSpPr>"
                 + "<p:spPr>\(Self._xfrm(box, rotation: s.rotation, flipH: s.flipH != (f.right < f.left), flipV: s.flipV != (f.bottom < f.top)))"
                 + "<a:prstGeom prst=\"\(preset.rawValue)\"><a:avLst/></a:prstGeom>\(line)</p:spPr></p:cxnSp>"
         default:
