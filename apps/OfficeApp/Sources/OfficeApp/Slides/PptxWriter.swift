@@ -66,7 +66,8 @@ enum PptxWriter {
     private static func _writeNew(_ state: DeckState, theme: DeckTheme, source: PptxPackage?,
                                   into b: inout PackageBuilder) {
         if let source { b.defaults.merge(source.defaults) { mine, _ in mine } }
-        let t = PptxTemplates(theme: theme, slideSize: state.slideSize)
+        var t = PptxTemplates(theme: theme, slideSize: state.slideSize)
+        t.masterBackground = state.masterBackground
         b.add("ppt/theme/theme1.xml", t.themeXML(), type: CT.theme)
         b.add("ppt/theme/theme2.xml", t.themeXML(), type: CT.theme)
         b.add("ppt/slideMasters/slideMaster1.xml", t.master(), type: CT.master)
@@ -138,6 +139,7 @@ enum PptxWriter {
         for r in presRelsAll where !r.external && r.kind != "slide" { keep.append(r.target) }
         var copied = [String: String]()
         for part in keep { _copy(part, from: p, into: &b, done: &copied) }
+        if let m = state.masterBackground { _setMasterBackground(m, in: &b) }
         if recolour {
             for r in presRelsAll where r.kind == "slideMaster" {
                 for tr in p.rels(r.target) where tr.kind == "theme" {
@@ -459,6 +461,32 @@ enum PptxWriter {
         pruned = rewrite(pruned, open: "<p:custShow ", close: "</p:custShow>") { $0.containsSubstring("<p:sld ") ? $0 : nil }
         if !pruned.containsSubstring("<p:custShow ") { pruned = "" }
         return s.replacingSubrange(start.lowerBound ..< end.upperBound, with: pruned)
+    }
+
+    /// Apply to All: the masters' background becomes `fill`, and no layout keeps one of its own over it.
+    private static func _setMasterBackground(_ fill: SlideFill, in b: inout PackageBuilder) {
+        let bg = PptxTemplates.backgroundXML(fill)
+        func edit(_ part: String, _ f: (String) -> String) {
+            if let d = b.parts[part], let x = String(data: d, encoding: .utf8) { b.parts[part] = Data(f(x).utf8) }
+        }
+        func dropBackground(_ x: String) -> String {
+            guard let c = x.findRange(of: "<p:cSld"), let open = x.findRange(of: "<p:bg>", in: c.upperBound ..< x.endIndex),
+                  let close = x.findRange(of: "</p:bg>", in: open.upperBound ..< x.endIndex) else { return x }
+            // Only a background that opens the shape tree's parent: the first child of cSld.
+            guard let gt = x.findRange(of: ">", in: c.upperBound ..< x.endIndex), x[gt.upperBound ..< open.lowerBound].allSatisfy({ $0 == " " || $0 == "\n" }) else { return x }
+            return x.replacingSubrange(open.lowerBound ..< close.upperBound, with: "")
+        }
+        for part in Array(b.parts.keys) {
+            if part.hasPrefix("ppt/slideMasters/slideMaster"), part.hasSuffix(".xml") {
+                edit(part) { x in
+                    let y = dropBackground(x)
+                    guard let c = y.findRange(of: "<p:cSld"), let gt = y.findRange(of: ">", in: c.upperBound ..< y.endIndex) else { return y }
+                    return y.replacingSubrange(gt.upperBound ..< gt.upperBound, with: bg)
+                }
+            } else if part.hasPrefix("ppt/slideLayouts/slideLayout"), part.hasSuffix(".xml") {
+                edit(part, dropBackground)
+            }
+        }
     }
 
     /// The file's own theme part with `theme`'s colours (dark and light 1, the six accents) and Latin fonts; everything else in it is left alone.
@@ -811,7 +839,12 @@ private struct SlideXML {
     mutating func fill(_ f: SlideFill, media: inout MediaParts, builder: inout PackageBuilder) -> String {
         if let image = f.image {
             let rid = _media(image, media: &media, builder: &builder)
-            return "<a:blipFill dpi=\"0\" rotWithShape=\"1\"><a:blip r:embed=\"\(rid)\"/><a:srcRect/><a:stretch><a:fillRect/></a:stretch></a:blipFill>"
+            let alpha = f.imageAlpha < 1 ? "<a:alphaModFix amt=\"\(Int((f.imageAlpha * 100000).rounded()))\"/>" : ""
+            let blip = alpha.isEmpty ? "<a:blip r:embed=\"\(rid)\"/>" : "<a:blip r:embed=\"\(rid)\">\(alpha)</a:blip>"
+            let mode = f.tiled
+                ? "<a:tile tx=\"0\" ty=\"0\" sx=\"\(Int((f.tileScale * 100000).rounded()))\" sy=\"\(Int((f.tileScaleY * 100000).rounded()))\" flip=\"none\" algn=\"tl\"/>"
+                : "<a:stretch><a:fillRect/></a:stretch>"
+            return "<a:blipFill dpi=\"0\" rotWithShape=\"1\">\(blip)<a:srcRect/>\(mode)</a:blipFill>"
         }
         if f.stops.count >= 2 {
             let stops = f.stops.map { "<a:gs pos=\"\(Int(($0.position * 100000).rounded()))\"><a:srgbClr val=\"\(PptxText.hex($0.color))\"/></a:gs>" }.joined()

@@ -174,6 +174,8 @@ struct DeckState: Equatable {
     var recolourTheme: Bool? = nil
     /// `p:presentation firstSlideNum`: the number the first slide shows in a slide-number field (PowerPoint prints 0 when a deck says 0).
     var firstSlideNum = 1
+    /// The background Apply to All wrote on the master (solid or gradient); nil leaves the file's own.
+    var masterBackground: SlideFill? = nil
 }
 
 /// Every change to a deck goes through here. Listeners hear about slide
@@ -193,6 +195,8 @@ final class DeckController: ChangeNotifier {
     /// default since 2013 (13.333 x 7.5 in).
     private(set) var slideSize = Size(960, 540)
     private(set) var firstSlideNum = 1
+    /// Apply to All: the master's background, which every slide without its own shows and every new slide inherits.
+    private(set) var masterBackground: SlideFill? = nil
     var theme = DeckTheme()
     private(set) var revision = 0
     /// The table pen and the drawing tool (not part of the document: no undo step, nothing saved).
@@ -1657,9 +1661,19 @@ final class DeckController: ChangeNotifier {
     /// the theme's.
     func setBackground(_ fill: SlideFill?, all: Bool = false) {
         _checkpoint()
-        for slide in all ? slides : [currentSlide] {
-            slide.background = fill
-            slide.backgroundXML = nil
+        // Apply to All writes the master (new slides and layouts pick it up) and clears every slide's own
+        // background, as PowerPoint does. A picture keeps to the slides: the master's picture is not modelled.
+        if all, let fill, fill.image == nil {
+            masterBackground = fill
+            for slide in slides { slide.background = nil; slide.backgroundXML = nil; slide.inheritedBackground = fill }
+        } else if all, fill == nil {
+            masterBackground = nil
+            for slide in slides { slide.background = nil; slide.backgroundXML = nil; slide.inheritedBackground = nil }
+        } else {
+            for slide in all ? slides : [currentSlide] {
+                slide.background = fill
+                slide.backgroundXML = nil
+            }
         }
         _changed()
     }
@@ -1936,7 +1950,7 @@ final class DeckController: ChangeNotifier {
                        transition: slide.transition, timingXML: slide.timingXML,
                        footerFrames: slide.footerFrames, animations: slide.animations,
                        sourceAnimations: slide.sourceAnimations, commentsFrom: slide.commentsFrom ?? slide.sourcePart)
-        }, current: current, slideSize: slideSize, theme: theme, ownTemplates: ownTemplates, recolourTheme: recolourTheme, firstSlideNum: firstSlideNum)
+        }, current: current, slideSize: slideSize, theme: theme, ownTemplates: ownTemplates, recolourTheme: recolourTheme, firstSlideNum: firstSlideNum, masterBackground: masterBackground)
     }
 
     /// Put the deck back as `state` was. Objects that still exist are kept
@@ -1998,6 +2012,7 @@ final class DeckController: ChangeNotifier {
         slides = next
         slideSize = state.slideSize
         firstSlideNum = state.firstSlideNum
+        masterBackground = state.masterBackground
         if let t = state.theme { theme = t }
         if let o = state.ownTemplates { ownTemplates = o }
         if let r = state.recolourTheme { recolourTheme = r }
@@ -2228,6 +2243,7 @@ final class DeckController: ChangeNotifier {
             RichParagraph(text: "", style: RichParagraphStyle(spaceAfter: 0, lineSpacing: 1.0)),
         ]))
         let slide = Slide(id: _id(), layout: layout, shapes: shapes, notes: notes)
+        slide.inheritedBackground = masterBackground
         _watch(slide)
         return slide
     }
