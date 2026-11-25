@@ -209,6 +209,8 @@ struct SheetPivot: Equatable, Sendable {
     var source: String? = nil
     var originalSource: String? = nil
     var originalRef: CellRange? = nil
+    /// A pivot table made here (its cells are ordinary cells; its parts are written on save).
+    var made: PivotSpec? = nil
 }
 
 enum PivotsXML {

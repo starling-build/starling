@@ -95,6 +95,7 @@ final class SheetsShellState: State<StatefulWidget> {
     private var _validationOpen = false
     private var _cfOpen = false
     private var _tableOpen = false
+    private var _pivotOpen = false
     private var _filterOpen: (col: Int, kind: String)?
     private let _tabProbes = SheetTabProbes()
     private var _tabDrag: (from: Int, x: Double, moved: Bool)? = nil
@@ -485,6 +486,8 @@ final class SheetsShellState: State<StatefulWidget> {
             if let i = wb.selectedDrawing, wb.sheet.drawings.indices.contains(i), case .picture = wb.sheet.drawings[i].kind {
                 setState { _altOpen = true }
             }
+        case .insertPivotTable:
+            setState { _pivotOpen = true }
         case .tableDialog:
             setState { _tableOpen = true }
         case .columnFilter(let col, let kind):
@@ -1176,6 +1179,13 @@ final class SheetsShellState: State<StatefulWidget> {
                     self?.setState { self?._sortOpen = nil }
                     self?._grid?.focus.requestFocus()
                 }))])
+        }
+        if _pivotOpen {
+            layers.append(Positioned(left: 0, top: 0, right: 0, bottom: 0, child: PivotDialog(
+                controller: wb, onClose: { [weak self] in
+                    self?.setState { self?._pivotOpen = false }
+                    self?._grid?.focus.requestFocus()
+                })))
         }
         if _tableOpen {
             layers.append(Positioned(left: 0, top: 0, right: 0, bottom: 0, child: TableDialog(

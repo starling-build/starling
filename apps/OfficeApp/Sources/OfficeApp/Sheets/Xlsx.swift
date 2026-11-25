@@ -977,6 +977,16 @@ enum Xlsx {
         var newTableParts: [String: (path: String, id: Int)] = [:]
         var nextTableId = 1 + (originalParts.filter { $0.key.hasPrefix("xl/tables/") && $0.key.hasSuffix(".xml") }
             .map { XNode.parse($0.value).flatMap { Int($0["id"] ?? "") } ?? 0 }.max() ?? 0)
+        // Pivot tables made here: their parts, numbered past the file's.
+        var madePivots: [MadePivotParts] = []
+        var nextCacheId = 1 + ((originalParts["xl/workbook.xml"].flatMap { XNode.parse($0) }?.child("pivotCaches")?.kids("pivotCache") ?? [])
+            .compactMap { Int($0["cacheId"] ?? "") }.max() ?? 0)
+        func freshPart(_ dir: String, _ base: String) -> String {
+            var n = 1
+            while taken.contains("\(dir)/\(base)\(n).xml") || originalParts["\(dir)/\(base)\(n).xml"] != nil { n += 1 }
+            taken.insert("\(dir)/\(base)\(n).xml")
+            return "\(dir)/\(base)\(n).xml"
+        }
         let calc: CalcEngine? = book.sheets.contains(where: \.drawingsEdited) ? CalcEngine(book) : nil
         calc?.storedValuesOnly = true
         for (i, ws) in book.sheets.enumerated() {
@@ -1019,6 +1029,19 @@ enum Xlsx {
                     text.replaceSubrange(c.upperBound ..< q.lowerBound, with: "\(left)")
                 }
                 tablePartsOverride[i] = text
+            }
+            // Pivot tables made here: the part, and the sheet's relationship to it.
+            for p in ws.pivots {
+                guard let spec = p.made, let source = p.source, let src = PivotSource.read(source, book: book),
+                      PivotCalc.problem(spec, src) == nil else { continue }
+                let m = MadePivotParts(sheet: i, spec: spec, src: src, location: p.ref, style: p.style ?? "PivotStyleLight16",
+                                       table: freshPart("xl/pivotTables", "pivotTable"), cache: freshPart("xl/pivotCache", "pivotCacheDefinition"),
+                                       records: freshPart("xl/pivotCache", "pivotCacheRecords"), cacheId: nextCacheId, workbookRel: "")
+                nextCacheId += 1
+                rels.append((Xlsx._freshId(rels), "http://schemas.openxmlformats.org/officeDocument/2006/relationships/pivotTable",
+                             "../pivotTables/" + String(m.table.dropFirst("xl/pivotTables/".count))))
+                changed = true
+                madePivots.append(m)
             }
             // Links made here: their addresses join the sheet's relationships.
             for (id, url) in ws.linkTargets.sorted(by: { $0.key < $1.key }) where !rels.contains(where: { $0.id == id }) {
@@ -1082,9 +1105,16 @@ enum Xlsx {
         let stylesPath = rels.first { $0.type.hasSuffix("/styles") }.map { _resolve($0.target, base: "xl/") } ?? "xl/styles.xml"
         let sstPath = rels.first { $0.type.hasSuffix("/sharedStrings") }.map { _resolve($0.target, base: "xl/") } ?? "xl/sharedStrings.xml"
 
+        for k in madePivots.indices {
+            let id = _freshId(rels)
+            rels.append((id, "http://schemas.openxmlformats.org/officeDocument/2006/relationships/pivotCacheDefinition",
+                         String(madePivots[k].cache.dropFirst("xl/".count))))
+            madePivots[k].workbookRel = id
+        }
         var generated: [String: Data] = [:]
+        for k in madePivots.indices { for (path, data) in madePivots[k].parts() { generated[path] = Data(data.utf8) } }
         for (k, v) in PivotsXML.patched(sheets: book.sheets, parts: originalParts) { generated[k] = v }
-        generated["xl/workbook.xml"] = Data(_workbookXML(book, ids: sheetIds, original: originalParts["xl/workbook.xml"]).utf8)
+        generated["xl/workbook.xml"] = Data(_workbookXML(book, ids: sheetIds, original: originalParts["xl/workbook.xml"], newCaches: madePivots.map { ($0.cacheId, $0.workbookRel) }).utf8)
         generated["xl/_rels/workbook.xml.rels"] = Data(_relsXML(rels).utf8)
         for (i, p) in paths.enumerated() { generated[p] = Data(sheetXML[i].utf8) }
         generated[stylesPath] = Data(_stylesXML(book).utf8)
@@ -1109,6 +1139,11 @@ enum Xlsx {
             }
         }
         var extraTypes: [(String, String)] = newTableTypes
+        for m in madePivots {
+            extraTypes.append(("/" + m.table, "application/vnd.openxmlformats-officedocument.spreadsheetml.pivotTable+xml"))
+            extraTypes.append(("/" + m.cache, "application/vnd.openxmlformats-officedocument.spreadsheetml.pivotCacheDefinition+xml"))
+            extraTypes.append(("/" + m.records, "application/vnd.openxmlformats-officedocument.spreadsheetml.pivotCacheRecords+xml"))
+        }
         var droppedDrawings = Set<String>()
         for d in drawingParts {
             generated.merge(d.parts) { $1 }
@@ -1233,7 +1268,9 @@ enum Xlsx {
         return s + "</Types>"
     }
 
-    private static func _workbookXML(_ book: Workbook, ids: [String], original: Data?) -> String {
+    private static func _workbookXML(_ book: Workbook, ids: [String], original: Data?, newCaches: [(Int, String)] = []) -> String {
+        let cacheItems = newCaches.map { "<pivotCache cacheId=\"\($0.0)\" r:id=\"\($0.1)\"/>" }.joined()
+        var wrotePivotCaches = newCaches.isEmpty
         var sheets = "<sheets>"
         // Each sheet keeps the id it was read with (pivot caches and external references can name it); a new
         // sheet, or a clashing one, gets the next id nobody uses.
@@ -1265,7 +1302,17 @@ enum Xlsx {
                 case "calcPr": body += calc; wroteCalc = true
                 case "workbookProtection": body += prot; wroteProt = true
                 case "bookViews": body += (wroteProt ? "" : prot) + _bookViews(text, active: book.activeTab); wroteProt = true
+                case "pivotCaches" where !newCaches.isEmpty:
+                    if let end = text.findRange(of: "</pivotCaches>", backwards: true) {
+                        var t = text; t.insert(contentsOf: cacheItems, at: end.lowerBound); body += t
+                    } else { body += "<pivotCaches>" + cacheItems + "</pivotCaches>" }
+                    wrotePivotCaches = true
                 default:
+                    if !wrotePivotCaches && ["smartTagPr", "smartTagTypes", "webPublishing", "fileRecoveryPr", "webPublishObjects", "extLst"].contains(name) {
+                        if !wroteCalc { body += calc; wroteCalc = true }
+                        body += "<pivotCaches>" + cacheItems + "</pivotCaches>"
+                        wrotePivotCaches = true
+                    }
                     if name == "definedNames" || name == "extLst" || name == "pivotCaches" || name == "webPublishing"
                         || name == "fileRecoveryPr" || name == "webPublishObjects" || name == "oleSize" || name == "customWorkbookViews" {
                         if !wroteCalc && (name != "definedNames") { body += calc; wroteCalc = true }
@@ -1275,10 +1322,11 @@ enum Xlsx {
             }
             if !wroteSheets { body = sheets + (wroteNames ? "" : names) + body }
             if !wroteCalc { body += calc }
+            if !wrotePivotCaches { body += "<pivotCaches>" + cacheItems + "</pivotCaches>" }
             return "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n" + _withRels(split.rootStart) + body + "</" + split.rootName + ">"
         }
         let names = _definedNamesXML(book)
-        return "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<workbook xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\">" + prot + "<bookViews><workbookView activeTab=\"\(book.activeTab)\"/></bookViews>" + sheets + names + calc + "</workbook>"
+        return "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<workbook xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\">" + prot + "<bookViews><workbookView activeTab=\"\(book.activeTab)\"/></bookViews>" + sheets + names + calc + (newCaches.isEmpty ? "" : "<pivotCaches>" + cacheItems + "</pivotCaches>") + "</workbook>"
     }
 
     /// The file's names in order — a book-wide one with its current formula,
