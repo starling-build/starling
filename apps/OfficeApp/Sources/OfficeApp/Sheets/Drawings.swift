@@ -57,6 +57,10 @@ struct SheetChart: Equatable {
     var seriesEdit: [ChartSeriesRef]? = nil
     /// Colours set in Format Data Series on the file's own chart, by the part's series; the save patches them in before the series are rewritten.
     var colorEdit: [ChartColorEdit] = []
+    /// Data Labels set on the file's own chart; the save patches its labels.
+    var labelEdit: ChartLabelEdit? = nil
+    /// Axis options set on the file's own chart; the save patches its value axis.
+    var axisEdit: ChartAxisEdit? = nil
     /// Every `<c:f>` in that part (series, titles, labels…): as read → as
     /// it reads now, after rows, columns or sheets moved. A save rewrites
     /// the part's references through it and keeps everything else.
@@ -78,7 +82,7 @@ struct SheetChart: Equatable {
     var pivotSeries: [String] = []
 
     static func == (a: SheetChart, b: SheetChart) -> Bool {
-        a.chart == b.chart && a.path == b.path && a.titleEdit == b.titleEdit && a.colorEdit == b.colorEdit && a.legendEdit == b.legendEdit && a.catTitleEdit == b.catTitleEdit && a.valTitleEdit == b.valTitleEdit && a.seriesEdit == b.seriesEdit && a.formulas == b.formulas && a.refs.count == b.refs.count
+        a.chart == b.chart && a.path == b.path && a.titleEdit == b.titleEdit && a.colorEdit == b.colorEdit && a.labelEdit == b.labelEdit && a.axisEdit == b.axisEdit && a.legendEdit == b.legendEdit && a.catTitleEdit == b.catTitleEdit && a.valTitleEdit == b.valTitleEdit && a.seriesEdit == b.seriesEdit && a.formulas == b.formulas && a.refs.count == b.refs.count
             && zip(a.refs, b.refs).allSatisfy { $0.name == $1.name && $0.cat == $1.cat && $0.val == $1.val }
     }
 }
@@ -568,12 +572,14 @@ extension SheetDrawingsXML {
         var shapeId = 2
         for d in ws.drawings {
             shapeId += 1
-            if case .chart(let sc) = d.kind, let path = sc.path, sc.formulasChanged || sc.retype != nil || sc.titleEdit != nil || sc.legendEdit != nil || sc.catTitleEdit != nil || sc.valTitleEdit != nil || sc.seriesEdit != nil || !sc.colorEdit.isEmpty, let bytes = original[path] {
+            if case .chart(let sc) = d.kind, let path = sc.path, sc.formulasChanged || sc.retype != nil || sc.titleEdit != nil || sc.legendEdit != nil || sc.catTitleEdit != nil || sc.valTitleEdit != nil || sc.seriesEdit != nil || !sc.colorEdit.isEmpty || sc.labelEdit != nil || sc.axisEdit != nil, let bytes = original[path] {
                 // The file's own chart, its references moved with the cells.
                 var xml = String(decoding: bytes, as: UTF8.self)
                 if sc.formulasChanged { xml = _rewriteFormulas(xml, sc.formulas) }
                 if !sc.colorEdit.isEmpty { xml = ChartPartPatch.colors(xml, sc.colorEdit) }
                 if let e = sc.seriesEdit { xml = ChartPartPatch.series(xml, e) }
+                if let e = sc.labelEdit { xml = ChartPartPatch.labels(xml, e) }
+                if let e = sc.axisEdit { xml = ChartPartPatch.valueAxis(xml, e) }
                 if let t = sc.retype { xml = _retypeBars(xml, t) }
                 if let e = sc.titleEdit { xml = ChartPartPatch.title(xml, e) }
                 if let e = sc.legendEdit { xml = ChartPartPatch.legend(xml, e) }
@@ -1138,6 +1144,105 @@ extension WorkbookController {
             sc.colorEdit.removeAll { $0.series == key && $0.point == point }
             sc.colorEdit.append(edit)
         }
+        structural {
+            ws.drawings[index].kind = .chart(sc)
+            ws.drawings[index].raw = nil
+            ws.drawingsEdited = true
+        }
+        selectedDrawing = index
+        return true
+    }
+
+    /// Data Labels: what this chart's labels can show and where they can stand, with what they do now.
+    struct ChartLabelOptions { var edit: ChartLabelEdit; var canCategory: Bool; var canSeries: Bool; var canPercent: Bool; var positions: [String] }
+    func chartLabelOptions(_ index: Int) -> ChartLabelOptions? {
+        guard sheet.drawings.indices.contains(index), case .chart(let sc) = sheet.drawings[index].kind,
+              sc.chart.boxes == nil, sc.chart.sunburst == nil, sc.chart.histogram == nil, !(sc.path ?? "").containsSubstring("chartEx") else { return nil }
+        let c = sc.chart, t = c.type
+        var e = sc.chart.labelEdit ?? ChartLabelEdit()
+        if c.labelEdit == nil {
+            e.show = c.dataLabels || c.pieLabels != nil
+            if let l = c.pieLabels { e.value = l.value || !(l.series || l.category || l.percent); e.category = l.category; e.series = l.series; e.percent = l.percent; e.position = l.position }
+            else { e.position = c.barLabelPos; e.category = c.fileLabelCategory; e.series = c.fileLabelSeries }
+        }
+        let pie = t.isPie, bars = t == .column || t == .bar
+        let tag = pie ? (t == .pie ? "pieChart" : "doughnutChart") : bars ? "barChart" : ""
+        return ChartLabelOptions(edit: e, canCategory: pie || bars, canSeries: pie || bars, canPercent: pie,
+                                 positions: ChartLabelEdit.positions(group: tag, stacked: c.stacked || c.percent))
+    }
+    /// The value axis options now: lowest and highest value, major unit, number format (nil = automatic / linked to the cells).
+    func chartAxisOptions(_ index: Int) -> ChartAxisEdit? {
+        guard sheet.drawings.indices.contains(index), case .chart(let sc) = sheet.drawings[index].kind,
+              sc.chart.type.hasAxes, sc.chart.boxes == nil, sc.chart.histogram == nil, !(sc.path ?? "").containsSubstring("chartEx") else { return nil }
+        if let e = sc.axisEdit { return e }
+        let c = sc.chart
+        return ChartAxisEdit(min: c.valueMin, max: c.valueMax, major: c.valueStep, format: c.valueFormat)
+    }
+    /// Axis options: the value axis scale and number format (one undo step).
+    @discardableResult
+    func setChartAxis(_ index: Int, _ e: ChartAxisEdit) -> Bool {
+        guard chartAxisOptions(index) != nil, case .chart(var sc) = sheet.drawings[index].kind else { return false }
+        var clean = e
+        if let lo = clean.min, let hi = clean.max, lo >= hi { clean.min = nil; clean.max = nil }
+        if let f = clean.format, f.isEmpty || f.lowercased() == "general" { clean.format = nil }
+        if let m = clean.major, m <= 0 { clean.major = nil }
+        var c = sc.chart
+        c.valueMin = clean.min; c.valueMax = clean.max; c.valueStep = clean.major; c.valueFormat = clean.format
+        guard c != sc.chart || sc.path != nil else { return false }
+        sc.chart = c
+        if sc.path != nil { sc.axisEdit = clean }
+        let ws = sheet
+        structural {
+            ws.drawings[index].kind = .chart(sc)
+            ws.drawings[index].raw = nil
+            ws.drawingsEdited = true
+        }
+        selectedDrawing = index
+        return true
+    }
+
+    /// Data Labels: show or hide the labels, what they say and where they stand (one undo step).
+    @discardableResult
+    func setChartLabels(_ index: Int, _ wanted: ChartLabelEdit) -> Bool {
+        let ws = sheet
+        guard let o = chartLabelOptions(index), case .chart(var sc) = ws.drawings[index].kind else { return false }
+        var e = wanted
+        if !o.canCategory { e.category = false }
+        if !o.canSeries { e.series = false }
+        if !o.canPercent { e.percent = false }
+        if let p = e.position, !o.positions.contains(p) { e.position = nil }
+        if e.show, !(e.value || e.category || e.series || e.percent) { e.value = true }
+        var c = sc.chart
+        c.labelEdit = e
+        c.dataLabels = e.show
+        if c.type.isPie {
+            let outside = e.position == "outEnd" || e.position == "bestFit"
+            c.pieLabelsAround = e.show && outside
+            if e.show, e.category || e.series || e.percent || outside {
+                var l = Chart.PieLabels()
+                l.series = e.series; l.category = e.category; l.value = e.value; l.percent = e.percent
+                l.outside = outside; l.fitted = e.position == "bestFit"; l.position = e.position
+                c.pieLabels = l
+            } else { c.pieLabels = nil }
+        } else if c.type == .column || c.type == .bar {
+            c.barLabelPos = e.position
+            for j in c.series.indices {
+                c.series[j].labelParts = [:]
+                guard e.show, e.category || e.series else { continue }
+                for i in c.categories.indices {
+                    var parts: [String] = []
+                    if e.series { parts.append(c.series[j].name) }
+                    if e.category { parts.append(ChartSeries.labelCategoryMark) }
+                    if e.value { parts.append(ChartSeries.labelValueMark) }
+                    var joined: [String] = []
+                    for (n, x) in parts.enumerated() { if n > 0 { joined.append(", ") }; joined.append(x) }
+                    c.series[j].labelParts[i] = joined
+                }
+            }
+        }
+        guard c != sc.chart || sc.path != nil else { return false }
+        sc.chart = c
+        if sc.path != nil { sc.labelEdit = e }
         structural {
             ws.drawings[index].kind = .chart(sc)
             ws.drawings[index].raw = nil
