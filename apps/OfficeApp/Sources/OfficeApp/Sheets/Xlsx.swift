@@ -136,6 +136,7 @@ enum Xlsx {
             guard let name = s["name"], let rid, let path = wbRels[rid] else { continue }
             let ws = Worksheet(name: name)
             ws.origin = path
+            ws.sheetId = Int(s["sheetId"] ?? "")
             if let raw = _part(parts, path) { sheetRoots[path] = try _readSheet(raw, into: ws, sst: sst, sstScripts: sstScripts, sstRuns: sstRuns, sstRaw: sstRaw, book: book) }
             if s["state"] == "hidden" || s["state"] == "veryHidden" { ws.hidden = true }
             if s["state"] == "veryHidden" { ws.veryHidden = true }
@@ -1233,8 +1234,16 @@ enum Xlsx {
 
     private static func _workbookXML(_ book: Workbook, ids: [String], original: Data?) -> String {
         var sheets = "<sheets>"
+        // Each sheet keeps the id it was read with (pivot caches and external references can name it); a new
+        // sheet, or a clashing one, gets the next id nobody uses.
+        var taken = Set<Int>(), sheetIds: [Int] = []
+        for ws in book.sheets {
+            if let id = ws.sheetId, id > 0, !taken.contains(id) { taken.insert(id); sheetIds.append(id) } else { sheetIds.append(0) }
+        }
+        var nextId = (taken.max() ?? 0) + 1
+        for i in sheetIds.indices where sheetIds[i] == 0 { sheetIds[i] = nextId; nextId += 1 }
         for (i, ws) in book.sheets.enumerated() {
-            sheets += "<sheet name=\"\(_esc(ws.name))\" sheetId=\"\(i + 1)\"" + (ws.veryHidden ? " state=\"veryHidden\"" : ws.hidden ? " state=\"hidden\"" : "") + " r:id=\"\(ids[i])\"/>"
+            sheets += "<sheet name=\"\(_esc(ws.name))\" sheetId=\"\(sheetIds[i])\"" + (ws.veryHidden ? " state=\"veryHidden\"" : ws.hidden ? " state=\"hidden\"" : "") + " r:id=\"\(ids[i])\"/>"
         }
         sheets += "</sheets>"
         let calc = "<calcPr calcId=\"191029\" fullCalcOnLoad=\"1\""

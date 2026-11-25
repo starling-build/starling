@@ -251,6 +251,8 @@ final class Worksheet {
     var hidden = false
     /// Hidden so that only code can show it again (state="veryHidden").
     var veryHidden = false
+    /// The sheetId the file gave it, kept on save (nil for a sheet made here).
+    var sheetId: Int? = nil
     var showGridlines = true
     /// Part of a selected group of sheets (tabSelected on several sheetViews).
     var tabSelected = false
@@ -422,6 +424,7 @@ final class Worksheet {
         s.tabColor = tabColor
         s.hidden = hidden
         s.veryHidden = veryHidden
+        s.sheetId = sheetId
         s.showGridlines = showGridlines
         s.savedActive = savedActive
         s.defaultColWidthPt = defaultColWidthPt
