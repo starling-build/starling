@@ -78,8 +78,10 @@ final class PivotFieldsPane: StatelessWidget {
     let onChange: () -> Void
     /// Opens Value Field Settings for the value field at this position.
     let onValueSettings: ((Int) -> Void)?
-    init(controller: WorkbookController, onChange: @escaping () -> Void, onValueSettings: ((Int) -> Void)? = nil) {
-        self.controller = controller; self.onChange = onChange; self.onValueSettings = onValueSettings
+    /// Open the Group dialog for a field (given by its source column).
+    let onGroup: ((Int) -> Void)?
+    init(controller: WorkbookController, onChange: @escaping () -> Void, onValueSettings: ((Int) -> Void)? = nil, onGroup: ((Int) -> Void)? = nil) {
+        self.controller = controller; self.onChange = onChange; self.onValueSettings = onValueSettings; self.onGroup = onGroup
     }
 
     override func build(_ context: any BuildContext) -> Widget {
@@ -114,6 +116,9 @@ final class PivotFieldsPane: StatelessWidget {
                 var buttons: [Widget] = []
                 if a == .values, let open = onValueSettings {
                     buttons.append(Button(key: ValueKey("pvf-settings-\(f)"), onPressed: { open(at) }, child: Text("⚙")))
+                }
+                if a == .rows || a == .columns, let open = onGroup {
+                    buttons.append(Button(key: ValueKey("pvf-group-\(f)"), onPressed: { open(f) }, child: Text("▦")))
                 }
                 let chip = Row(children: [
                     Expanded(child: Text(label, style: fluent.typography.body)),
