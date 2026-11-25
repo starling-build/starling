@@ -110,6 +110,20 @@ final class SlideFormatShapeTests: XCTestCase {
         xml = try slideXML(deck)
         XCTAssertEqual(xml.components(separatedBy: "<a:scene3d>").count, 2)
         XCTAssertTrue(xml.contains("prst=\"perspectiveLeft\""))
+        if let dir = ProcessInfo.processInfo.environment["AMD6_UI_CHECK_DIR"], ProcessInfo.processInfo.environment["AMD6_CHECK_DECK"] != nil {
+            // A PowerPoint check deck: one shape per preset, patched afterwards (depth, bevel, labels) by a script.
+            let d = DeckController()
+            let presets = ["isometricLeftDown", "isometricRightUp", "isometricTopUp", "isometricOffAxis1Right", "isometricOffAxis2Top",
+                           "obliqueTopLeft", "obliqueBottomRight", "perspectiveLeft", "perspectiveAbove", "perspectiveRelaxed",
+                           "perspectiveHeroicExtremeLeftFacing", "isometricOffAxis1Right", "obliqueTopRight", "isometricLeftDown"]
+            for (i, p) in presets.enumerated() {
+                let s = d.addShape(.rect); d.selectShapes([s])
+                d.setFramesLive([(s, Rect.fromLTWH(30 + Double(i % 4) * 230, 40 + Double(i / 4) * 125, 130, 70))])
+                d.setCamera(p)
+                s.name = "chk\(i)_\(p)"
+            }
+            try Pptx.write(d).write(to: URL(fileURLWithPath: dir + "/rotation-base.pptx"))
+        }
         if let dir = ProcessInfo.processInfo.environment["AMD6_UI_CHECK_DIR"] {
             let d = DeckController()
             for (i, p) in ["isometricOffAxis1Right", "perspectiveLeft", "obliqueTopRight", "perspectiveAbove"].enumerated() {
