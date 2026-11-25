@@ -3239,6 +3239,14 @@ public struct RichDocument: Hashable, Codable, Sendable {
     /// them: a nested table's heading, a header's paragraphs. The writer
     /// defines each as a style based on ours.
     public var styleAliases: [String: String] = [:]
+    /// The file's styles part as read, with `styleFileIds` (the file's id -> ours, for every paragraph style
+    /// that maps to one of ours), `styleSource` (ours -> the file id that defined its look) and `styleSnapshot`
+    /// (the sheet as read). A save patches only the styles that were created, changed or deleted, so basedOn,
+    /// link, latent styles, aliases and rsids survive.
+    public var keptStylesXML: String?
+    public var styleFileIds: [String: String] = [:]
+    public var styleSource: [String: String] = [:]
+    public var styleSnapshot: [RichNamedStyle] = []
     /// Font families the file itself named (in its styles or its runs),
     /// written back as named. The editor's own faces are Liberation
     /// Sans/Serif/Mono and export as Arial/Times/Courier — but a file that

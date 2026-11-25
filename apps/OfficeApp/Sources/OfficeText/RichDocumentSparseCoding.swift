@@ -366,7 +366,7 @@ extension CharShadow {
 
 extension RichDocument {
     enum CodingKeys: String, CodingKey {
-        case paragraphs, header, footer, tableColumns, tableStyles, styles, listFormats, listCounterOf, listRestarts, keptParts, keptCharacterStyles, keptCharacterStyleIds, keptTableStyles, tableStyleIds, tableLooks, tableCondFills, keptHeaderFooters, keptTables, keptCompat, defaultTabStop, pageBordersXML, docGridXML, lineGridPitch, characterGridSpace, sectionLeadXML, sectionTypeXML, columnsXML, columnsKeptUnder, gutterTwips, marginSettingsXML, keptSettings, sectionTailXML, defaultLangXML, themeFontLangXML, characterSpacingControl, usesEastAsianLayout, indentNotNumberingTabStop, kernsPunctuation, balancesSpaceWidth, adjustsLineHeightInTable, compatibilityMode, hangsHalf, flipsMirrorIndents, htmlAutoSpacing, divMargins, backgroundXML, backgroundRels, styleAliases, fileFonts, readFromFile, fromBinaryDoc, addsParagraphSpacing, titlePage, headerFooters, footnotes, footnoteSeparator, endnotes, endnoteSeparator, pageNumberStart, pageNumberFormat, evenAndOddHeaders, keptPartTypes
+        case keptStylesXML, styleFileIds, styleSource, styleSnapshot, paragraphs, header, footer, tableColumns, tableStyles, styles, listFormats, listCounterOf, listRestarts, keptParts, keptCharacterStyles, keptCharacterStyleIds, keptTableStyles, tableStyleIds, tableLooks, tableCondFills, keptHeaderFooters, keptTables, keptCompat, defaultTabStop, pageBordersXML, docGridXML, lineGridPitch, characterGridSpace, sectionLeadXML, sectionTypeXML, columnsXML, columnsKeptUnder, gutterTwips, marginSettingsXML, keptSettings, sectionTailXML, defaultLangXML, themeFontLangXML, characterSpacingControl, usesEastAsianLayout, indentNotNumberingTabStop, kernsPunctuation, balancesSpaceWidth, adjustsLineHeightInTable, compatibilityMode, hangsHalf, flipsMirrorIndents, htmlAutoSpacing, divMargins, backgroundXML, backgroundRels, styleAliases, fileFonts, readFromFile, fromBinaryDoc, addsParagraphSpacing, titlePage, headerFooters, footnotes, footnoteSeparator, endnotes, endnoteSeparator, pageNumberStart, pageNumberFormat, evenAndOddHeaders, keptPartTypes
     }
 
     public init(from decoder: Decoder) throws {
@@ -419,6 +419,10 @@ extension RichDocument {
         backgroundXML = try c.decodeIfPresent(String.self, forKey: .backgroundXML)
         backgroundRels = try c.decodeIfPresent([KeptRel].self, forKey: .backgroundRels) ?? []
         styleAliases = try c.decodeIfPresent([String: String].self, forKey: .styleAliases) ?? [:]
+        keptStylesXML = try c.decodeIfPresent(String.self, forKey: .keptStylesXML)
+        styleFileIds = try c.decodeIfPresent([String: String].self, forKey: .styleFileIds) ?? [:]
+        styleSource = try c.decodeIfPresent([String: String].self, forKey: .styleSource) ?? [:]
+        styleSnapshot = try c.decodeIfPresent([RichNamedStyle].self, forKey: .styleSnapshot) ?? []
         fileFonts = try c.decodeIfPresent(Set<String>.self, forKey: .fileFonts) ?? []
         readFromFile = try c.decodeIfPresent(Bool.self, forKey: .readFromFile) ?? false
         fromBinaryDoc = try c.decodeIfPresent(Bool.self, forKey: .fromBinaryDoc) ?? false
@@ -485,6 +489,10 @@ extension RichDocument {
         try c.encodeIfPresent(backgroundXML, forKey: .backgroundXML)
         try c.encode(backgroundRels, forKey: .backgroundRels)
         try c.encode(styleAliases, forKey: .styleAliases)
+        try c.encodeIfPresent(keptStylesXML, forKey: .keptStylesXML)
+        if !styleFileIds.isEmpty { try c.encode(styleFileIds, forKey: .styleFileIds) }
+        if !styleSource.isEmpty { try c.encode(styleSource, forKey: .styleSource) }
+        if !styleSnapshot.isEmpty { try c.encode(styleSnapshot, forKey: .styleSnapshot) }
         try c.encode(fileFonts, forKey: .fileFonts)
         try c.encode(readFromFile, forKey: .readFromFile)
         try c.encode(fromBinaryDoc, forKey: .fromBinaryDoc)

@@ -1966,6 +1966,14 @@ extension DocxFormat {
         for e in entries where e.name.hasPrefix("word/theme/") && e.name.hasSuffix(".xml") && _wellFormed(e.data) {
             kept[e.name] = e.data
         }
+        // The legacy copy of the styles (Word 2010's stylesWithEffects) and the glossary document
+        // (the user's Quick Parts and building blocks, with its own styles, settings, fonts and rels):
+        // parts we do not model must never vanish on a save.
+        for e in entries where e.name == "word/stylesWithEffects.xml" || e.name.hasPrefix("word/glossary/") {
+            if e.name.hasSuffix("/") { continue }
+            let text = e.name.hasSuffix(".xml") || e.name.hasSuffix(".rels")
+            if !text || _wellFormed(e.data) { kept[e.name] = e.data }
+        }
         // The web settings: the margins of the HTML blocks paragraphs name
         // by w:divId (drawing.docx's last banner sits 4.5pt lower for one).
         // Kept only for a document that names one: the part says nothing

@@ -2276,7 +2276,9 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(back.paragraphs[0].style.heading, 1)
         XCTAssertEqual(back.styleAliases, ["1": "Heading1"])
         let again = String(decoding: try Zip.read(try DocxFormat.write(back, pageSetup: .letter)).first { $0.name == "word/styles.xml" }!.data, as: UTF8.self)
-        XCTAssertTrue(again.contains("<w:style w:type=\"paragraph\" w:styleId=\"1\"><w:name w:val=\"Heading1 1\"/><w:basedOn w:val=\"Heading1\"/></w:style>"), again)
+        // The file's own style "1" is kept as the file wrote it (the file's id stays usable for its kept markup).
+        XCTAssertTrue(again.contains("w:styleId=\"1\""), again)
+        XCTAssertTrue(again.contains("<w:name w:val=\"heading 1\"/><w:basedOn w:val=\"Normal\"/><w:pPr><w:keepNext/>"), again)
     }
 
     func testSeveralHeaderRowsRepeat() throws {
@@ -7147,7 +7149,7 @@ final class DocxTests: XCTestCase {
                                from: "<w:docDefaults>", through: "</w:docDefaults>", with: defaults)
         let back = try DocxFormat.read(data).document
         let styles = try part("word/styles.xml", of: back)
-        XCTAssertTrue(styles.contains("<w:rFonts w:ascii=\"Liberation Serif\" w:hAnsi=\"Liberation Serif\" w:cs=\"Noto Sans Arabic UI\" w:eastAsia=\"Noto Serif CJK SC\"/><w:kern w:val=\"2\"/>"), styles)
+        XCTAssertTrue(styles.contains("<w:rFonts w:ascii=\"Liberation Serif\" w:cs=\"Noto Sans Arabic UI\" w:eastAsia=\"Noto Serif CJK SC\" w:hAnsi=\"Liberation Serif\"/><w:kern w:val=\"2\"/>"), styles)
     }
 
     func testOptionalAndNonBreakingHyphensAreElements() throws {
@@ -7383,7 +7385,7 @@ final class DocxTests: XCTestCase {
         }
         XCTAssertFalse(try style("Heading5").contains("<w:keepNext/>"), stylesAgain)
         XCTAssertTrue(try style("Kept").contains("<w:keepNext/>"), stylesAgain)
-        XCTAssertTrue(try style("Own").contains("<w:kern w:val=\"0\"/>"), stylesAgain)
+        XCTAssertTrue(try style("Own").contains("<w:sz w:val=\"24\"/>"), stylesAgain)  // kept as the file wrote it
         XCTAssertFalse(try style("Kept").contains("<w:kern w:val=\"0\"/>"), stylesAgain)
         // Our own headings still keep with what follows.
         var heading = RichParagraph(text: "h"); heading.style.heading = 1
@@ -7441,8 +7443,8 @@ final class DocxTests: XCTestCase {
         let back = try DocxFormat.read(try Zip.write(entries)).document
         XCTAssertEqual(back.keptCharacterStyleIds["footnote reference"], "ae")
         let stylesAgain = try part("word/styles.xml", of: back)
-        XCTAssertTrue(stylesAgain.contains("<w:style w:styleId=\"ae\" w:type=\"character\"><w:name w:val=\"footnote reference\"/><w:rPr><w:vertAlign w:val=\"superscript\"/></w:rPr></w:style>"), stylesAgain)
-        XCTAssertTrue(stylesAgain.contains("<w:color w:val=\"0000FF\"/>"), stylesAgain)
+        XCTAssertTrue(stylesAgain.contains("<w:style w:styleId=\"ae\" w:type=\"character\"><w:name w:val=\"footnote reference\"/><w:link w:val=\"zz\"/><w:rPr><w:vertAlign w:val=\"superscript\"/></w:rPr></w:style>"), stylesAgain)
+        XCTAssertTrue(stylesAgain.contains("w:val=\"0000FF\""), stylesAgain)
         XCTAssertFalse(stylesAgain.contains("w:styleId=\"Hyperlink\""), stylesAgain)
         XCTAssertTrue(try part("word/document.xml", of: back).contains("<w:rStyle w:val=\"a5\"/>"))
         // A document of our own still gets ours.

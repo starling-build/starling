@@ -297,6 +297,7 @@ enum DocxFormat {
         // style, then the paragraph's own — every paragraph comes out
         // with the absolute values the layout draws.
         var styleByDocx: [String: String] = [:]
+        var styleSourceIds: [String: String] = [:]
         var sheet = RichStyleSheet.word
         var base = RichParagraphStyle(spaceAfter: 0, lineSpacing: 1.0)
         // A package with no styles part at all is laid out by Word's own
@@ -723,6 +724,7 @@ enum DocxFormat {
                     // and Intense Quote): the first defines the look, both use it.
                     let first = !styleByDocx.values.contains(ours)
                     styleByDocx[id] = ours
+                    if first { styleSourceIds[ours] = id }
                     guard first, var entry = sheet[ours], ours != RichNamedStyle.normalId else { continue }
                     var cs = chain.char
                     if cs.fontFamily == nil { cs.fontFamily = entry.char.fontFamily }
@@ -737,6 +739,7 @@ enum DocxFormat {
                     // prints a document's markup balloons in it — delins's
                     // Tahoma 8pt, which went to the 9pt serif without it.)
                     styleByDocx[id] = id
+                    styleSourceIds[id] = id
                     sheet[id] = RichNamedStyle(id: id, name: rawName, paragraph: chain.paragraph, char: chain.char)
                 }
             }
@@ -3413,6 +3416,12 @@ enum DocxFormat {
                     document.footer = _fieldText(node)
                 }
             }
+        }
+        if let raw = part("word/styles.xml"), let text = String(data: raw, encoding: .utf8) {
+            document.keptStylesXML = text
+            document.styleFileIds = styleByDocx
+            document.styleSource = styleSourceIds
+            document.styleSnapshot = document.styles.styles
         }
         return DocxDocument(document: document, pageSetup: pageSetup)
     }
