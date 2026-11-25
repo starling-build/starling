@@ -2148,6 +2148,9 @@ public final class RichDocumentController: ChangeNotifier {
         guard cols + colExtra <= 63 else { return false }
         var widths = document.tableColumns[here.table]
         if widths?.count != cols { widths = nil }
+        // A table with no stored widths draws its columns equal: write that down first, or the
+        // neighbours of a split cell would all be squeezed to the same width as its pieces.
+        if colExtra > 0, widths == nil { widths = Array(repeating: 468.0 / Double(cols), count: cols) }
         if colExtra > 0, var w = widths {
             let total = w[here.column ..< e].reduce(0, +)
             w.replaceSubrange(here.column ..< e, with: Array(repeating: total / Double(n), count: n))

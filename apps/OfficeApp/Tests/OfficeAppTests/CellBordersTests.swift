@@ -164,6 +164,18 @@ final class CellBordersTests: XCTestCase {
         XCTAssertTrue(d.document.paragraphs.compactMap(\.cell).allSatisfy { $0.fillThemeAttrs != nil })
     }
 
+    func testSplitCellInATableWithNoStoredWidthsKeepsTheNeighbourWide() {
+        let c = RichDocumentController(plainText: "")
+        c.insertTable(rows: 2, columns: 2)
+        let t = c.currentCell!.table
+        XCTAssertNil(c.document.tableColumns[t])
+        c.moveTo(RichPosition(paragraph: c.document.paragraphs.firstIndex { $0.cell != nil }!, offset: 0), extend: false)
+        XCTAssertTrue(c.splitCell(columns: 3, rows: 1))
+        let w = c.document.tableColumns[t]!
+        XCTAssertEqual(w.count, 4)
+        XCTAssertEqual(w[3], w[0] * 3, accuracy: 0.01, "the old second column stays as wide as the three pieces together")
+    }
+
     func testSplitCellIntoColumnsAndRowsKeepsTheGrid() throws {
         let c = RichDocumentController(plainText: "")
         c.insertTable(rows: 2, columns: 2)
