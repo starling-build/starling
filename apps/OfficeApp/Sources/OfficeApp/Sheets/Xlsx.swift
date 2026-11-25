@@ -1061,7 +1061,7 @@ enum Xlsx {
         }
         var sheetIds: [String] = []
         for p in paths {
-            if let r = rels.first(where: { _resolve($0.target, base: "xl/") == p && $0.type.hasSuffix("/worksheet") }) {
+            if let r = rels.first(where: { _resolve($0.target, base: "xl/") == p && ($0.type.hasSuffix("/worksheet") || $0.type.hasSuffix("/chartsheet")) }) {
                 sheetIds.append(r.id)
             } else {
                 let id = _freshId(rels)
@@ -1091,7 +1091,9 @@ enum Xlsx {
         for (k, v) in PivotsXML.patched(sheets: book.sheets, parts: originalParts) { generated[k] = v }
         generated["xl/workbook.xml"] = Data(_workbookXML(book, ids: sheetIds, original: originalParts["xl/workbook.xml"]).utf8)
         generated["xl/_rels/workbook.xml.rels"] = Data(_relsXML(rels).utf8)
-        for (i, p) in paths.enumerated() { generated[p] = Data(sheetXML[i].utf8) }
+        // A chart sheet is not edited here: its own part stays as it was (a worksheet body
+        // inside a chartsheet root is not a file Excel opens as a chart sheet).
+        for (i, p) in paths.enumerated() where !(book.sheets[i].isChartSheet && originalParts[p] != nil) { generated[p] = Data(sheetXML[i].utf8) }
         generated[stylesPath] = Data(_stylesXML(book).utf8)
         if newMetadata { generated["xl/metadata.xml"] = Data(_dynamicArrayMetadata.utf8) }
         generated[sstPath] = Data(_sstXML(sst).utf8)
