@@ -85,6 +85,7 @@ final class SheetsShellState: State<StatefulWidget> {
     private var _sortOpen: (range: CellRange, hasHeader: Bool)?
     private var _consOpen = false
     private var _scnOpen = false
+    private var _goalOpen = false
     private var _dupOpen: (range: CellRange, hasHeader: Bool)?
     private var _ttcOpen: CellRange?
     private var _subOpen: CellRange?
@@ -409,6 +410,8 @@ final class SheetsShellState: State<StatefulWidget> {
             setState { _consOpen = true }
         case .scenarioManager:
             setState { _scnOpen = true }
+        case .goalSeek:
+            setState { _goalOpen = true }
         case .removeDuplicates:
             if let region = wb.sortRegion() { setState { _dupOpen = region } }
             else { _flash(DuplicatesProblem.nothingToCheck.message) }
@@ -1055,6 +1058,13 @@ final class SheetsShellState: State<StatefulWidget> {
             return Stack(children: [window, Positioned(left: 0, top: 0, right: 0, bottom: 0, child: ScenarioDialog(
                 controller: wb, onClose: { [weak self] in
                     self?.setState { self?._scnOpen = false }
+                    self?._grid?.focus.requestFocus()
+                }))])
+        }
+        if _goalOpen {
+            return Stack(children: [window, Positioned(left: 0, top: 0, right: 0, bottom: 0, child: GoalSeekDialog(
+                controller: wb, onClose: { [weak self] in
+                    self?.setState { self?._goalOpen = false }
                     self?._grid?.focus.requestFocus()
                 }))])
         }
