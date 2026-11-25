@@ -78,6 +78,7 @@ final class SlideFormatBackgroundTests: XCTestCase {
         deck.select(2)
         var pic = SlideFill(image: ImageAttachment(data: Self.png, width: 8, height: 8))
         pic.imageAlpha = 0.6
+        pic.tiled = true
         deck.setBackground(pic)
         deck.select(3); deck.setBackground(nil)
         let data = try Pptx.write(deck)
@@ -86,6 +87,8 @@ final class SlideFormatBackgroundTests: XCTestCase {
         XCTAssertEqual((state.slides[0].background?.color?.value ?? 0) & 0xFFFFFF, 0x336699)
         XCTAssertGreaterThanOrEqual(state.slides[1].background?.stops.count ?? 0, 2)
         XCTAssertNotNil(state.slides[2].background?.image)
+        XCTAssertEqual(state.slides[2].background?.imageAlpha ?? 1, 0.6, accuracy: 0.01)
+        XCTAssertTrue(state.slides[2].background?.tiled ?? false)
         XCTAssertNil(state.slides[3].background)
     }
 }

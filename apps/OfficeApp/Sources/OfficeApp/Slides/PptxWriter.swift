@@ -811,7 +811,12 @@ private struct SlideXML {
     mutating func fill(_ f: SlideFill, media: inout MediaParts, builder: inout PackageBuilder) -> String {
         if let image = f.image {
             let rid = _media(image, media: &media, builder: &builder)
-            return "<a:blipFill dpi=\"0\" rotWithShape=\"1\"><a:blip r:embed=\"\(rid)\"/><a:srcRect/><a:stretch><a:fillRect/></a:stretch></a:blipFill>"
+            let alpha = f.imageAlpha < 1 ? "<a:alphaModFix amt=\"\(Int((f.imageAlpha * 100000).rounded()))\"/>" : ""
+            let blip = alpha.isEmpty ? "<a:blip r:embed=\"\(rid)\"/>" : "<a:blip r:embed=\"\(rid)\">\(alpha)</a:blip>"
+            let mode = f.tiled
+                ? "<a:tile tx=\"0\" ty=\"0\" sx=\"\(Int((f.tileScale * 100000).rounded()))\" sy=\"\(Int((f.tileScaleY * 100000).rounded()))\" flip=\"none\" algn=\"tl\"/>"
+                : "<a:stretch><a:fillRect/></a:stretch>"
+            return "<a:blipFill dpi=\"0\" rotWithShape=\"1\">\(blip)<a:srcRect/>\(mode)</a:blipFill>"
         }
         if f.stops.count >= 2 {
             let stops = f.stops.map { "<a:gs pos=\"\(Int(($0.position * 100000).rounded()))\"><a:srgbClr val=\"\(PptxText.hex($0.color))\"/></a:gs>" }.joined()
