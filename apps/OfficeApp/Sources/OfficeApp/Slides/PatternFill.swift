@@ -97,6 +97,9 @@ enum PatternFill {
         f.image = ImageAttachment(data: data, width: Double(8 * repeats), height: Double(8 * repeats), name: name)
         f.tiled = true
         f.isPattern = true
+        f.patternPreset = rows[preset] != nil ? preset : "pct50"
+        f.patternFg = foreground
+        f.patternBg = background
         // A picture's pixel is 0.75 pt at a tile scale of 1.
         f.tileScale = 1 / (0.75 * Double(magnify))
         f.tileScaleY = f.tileScale

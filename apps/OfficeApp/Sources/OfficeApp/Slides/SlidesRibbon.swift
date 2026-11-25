@@ -156,12 +156,28 @@ extension Ribbon {
     /// Shape Fill / Shape Outline: the shared colour picker in a drop-down.
     private func _shapeColorMenu(_ icon: IconData, _ tip: String, _ deck: DeckController, _ fluent: FluentThemeData,
                                  outline: Bool) -> Widget {
-        Chrome.menuButton(icon, nil, tip, fluent, items: [
+        var items: [MenuFlyoutItemBase] = [
             ColorGridMenuItem(theme: deck.theme.slots, recent: deck.recentShapeColors.list,
                               noneLabel: outline ? "No Outline" : "No Fill",
                               onChoose: { deck.applyShapeColor($0, outline: outline) },
                               onMore: { [session] in session.onMoreShapeColor?(outline) }),
-        ])
+        ]
+        if !outline {
+            func entry(_ id: String, _ label: String, _ run: @escaping () -> Void) -> MenuFlyoutItem {
+                MenuFlyoutItem(text: Padding(key: ValueKey(id), padding: EdgeInsets(left: 0, top: 0, right: 0, bottom: 0), child: Text(label)),
+                               onPressed: deck.selection.isEmpty ? nil : run)
+            }
+            let ink = Color(Int64(deck.theme.slots[1]) | 0xFF00_0000)
+            let patterns: [(String, String)] = [("Light upward diagonal", "ltUpDiag"), ("Wide upward diagonal", "wdUpDiag"),
+                ("Horizontal lines", "ltHorz"), ("Vertical lines", "ltVert"), ("Grid", "smGrid"), ("Dotted grid", "dotGrid"),
+                ("Checker board", "smCheck"), ("5 percent", "pct5"), ("25 percent", "pct25"), ("50 percent", "pct50")]
+            items.append(entry("shape-fill-picture", "Picture…") { [session] in session.onShapeFillPicture?(false) })
+            items.append(entry("shape-fill-texture", "Texture…") { [session] in session.onShapeFillPicture?(true) })
+            items.append(MenuFlyoutSubItem(text: Text("Pattern"), items: patterns.map { name, preset in
+                entry("shape-fill-pattern-\(preset)", name) { deck.setPatternFill(preset, foreground: ink, background: Color(0xFFFFFFFF)) }
+            }))
+        }
+        return Chrome.menuButton(icon, nil, tip, fluent, items: items)
     }
 
     private func _slidesInsert(_ deck: DeckController, _ fluent: FluentThemeData) -> [Widget] {

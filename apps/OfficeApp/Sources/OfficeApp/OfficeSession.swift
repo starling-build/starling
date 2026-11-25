@@ -287,6 +287,8 @@ final class OfficeSession {
     var onInsertTextBox: (() -> Void)?
     var onInsertShape: ((ShapePreset) -> Void)?
     var onBackgroundPicture: (() -> Void)?
+    /// Slides: Shape Fill > Picture (false) or Texture (true) wants a picture file.
+    var onShapeFillPicture: ((Bool) -> Void)?
     var onInsertTable: ((Int, Int) -> Void)?
     /// Slide Show → Presenter View, from the current slide.
     var onPresenterView: (() -> Void)?

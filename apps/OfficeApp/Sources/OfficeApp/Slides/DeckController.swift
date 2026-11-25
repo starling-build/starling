@@ -1584,6 +1584,30 @@ final class DeckController: ChangeNotifier {
     /// Colours picked lately in Shape Fill and Outline (not part of the document, not undone).
     var recentShapeColors = RecentColors()
 
+    /// Gives the selected shapes a picture, texture (a tiled picture), pattern or gradient fill.
+    /// `fill` is what the painter draws; the plain colour stands in where the file cannot say more.
+    func setFillStyle(_ style: SlideFill) {
+        guard !selection.isEmpty else { return }
+        _checkpoint()
+        for s in selection where s.preset?.isLine != true {
+            s.fillStyle = style
+            s.fill = style.color ?? style.stops.first?.color ?? s.fill ?? Color(0xFFFFFFFF)
+            s.fillScheme = nil
+            s.keptLook?.fillReplaced = true
+        }
+        _changed()
+    }
+
+    func setPictureFill(_ image: ImageAttachment, tiled: Bool = false) {
+        var f = SlideFill(image: image)
+        f.tiled = tiled
+        setFillStyle(f)
+    }
+
+    func setPatternFill(_ preset: String, foreground: Color, background: Color) {
+        setFillStyle(PatternFill.fill(preset: preset, foreground: foreground, background: background))
+    }
+
     func setFill(_ color: Color?, scheme: String? = nil) {
         guard !selection.isEmpty else { return }
         _checkpoint()
