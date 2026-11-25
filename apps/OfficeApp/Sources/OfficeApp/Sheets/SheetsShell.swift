@@ -93,6 +93,7 @@ final class SheetsShellState: State<StatefulWidget> {
     private var _chartSeriesOpen: Int? = nil
     private var _chartColorsOpen: Int? = nil
     private var _chartLabelsOpen: Int? = nil
+    private var _chartAxisOpen: Int? = nil
     private var _dupOpen: (range: CellRange, hasHeader: Bool)?
     private var _ttcOpen: CellRange?
     private var _subOpen: CellRange?
@@ -473,6 +474,8 @@ final class SheetsShellState: State<StatefulWidget> {
             setState { _chartSeriesOpen = i }
         case .chartColors(let i):
             setState { _chartColorsOpen = i }
+        case .chartAxis(let i):
+            setState { _chartAxisOpen = i }
         case .chartLabels(let i):
             setState { _chartLabelsOpen = i }
         case .goalSeek:
@@ -1147,6 +1150,13 @@ final class SheetsShellState: State<StatefulWidget> {
             return Stack(children: [window, Positioned(left: 0, top: 0, right: 0, bottom: 0, child: ChartSeriesDialog(
                 controller: wb, index: i, onClose: { [weak self] in
                     self?.setState { self?._chartSeriesOpen = nil }
+                    self?._grid?.focus.requestFocus()
+                }))])
+        }
+        if let i = _chartAxisOpen {
+            return Stack(children: [window, Positioned(left: 0, top: 0, right: 0, bottom: 0, child: ChartAxisDialog(
+                controller: wb, index: i, onClose: { [weak self] in
+                    self?.setState { self?._chartAxisOpen = nil }
                     self?._grid?.focus.requestFocus()
                 }))])
         }

@@ -12,6 +12,15 @@ enum ChartPartEdit: Equatable {
     case remove
 }
 
+/// Axis options set on the value axis (X-CH-3): its lowest and highest value, the distance between major ticks, and its number format.
+/// `nil` is automatic (min, max, major) or "linked to the cells" (format).
+struct ChartAxisEdit: Equatable {
+    var min: Double? = nil
+    var max: Double? = nil
+    var major: Double? = nil
+    var format: String? = nil
+}
+
 /// One series of a chart as Select Data edits it: where it came from in the part (`source`, its position among the part's series; nil for a new one) and the cells it reads.
 /// A colour set in Format Data Series on a file's chart: a series of the part (its place in the first chart group), or one point of it; nil is automatic.
 /// Data Labels: what a chart's labels show and where they stand (the first chart group's series).
@@ -532,6 +541,74 @@ enum ChartPartPatch {
                let b = x.findRange(of: "</c:dLbls>", in: l.upperBound ..< end.lowerBound) { x.removeSubrange(l.upperBound ..< b.upperBound) }
         }
         return x
+    }
+
+    /// The first group's value axis (the one its second `c:axId` names; a scatter's y axis) with its scale and number format set.
+    static func valueAxis(_ xml: String, _ edit: ChartAxisEdit) -> String {
+        guard let g = _firstGroup(xml), let first = g.sers.first, let close = xml.findRange(of: "</c:\(g.tag)>", in: first.upperBound ..< xml.endIndex) else { return xml }
+        // The ids the group names after its series: category (or x) axis first, value axis second.
+        var ids: [String] = []
+        var at = first.upperBound
+        while let a = xml.findRange(of: "<c:axId val=\"", in: at ..< close.lowerBound), let b = xml.findRange(of: "\"", in: a.upperBound ..< close.lowerBound) {
+            ids.append(String(xml[a.upperBound ..< b.lowerBound])); at = b.upperBound
+        }
+        guard ids.count >= 2 else { return xml }
+        var from = xml.startIndex
+        while let a = xml.findRange(of: "<c:valAx>", in: from ..< xml.endIndex), let b = xml.findRange(of: "</c:valAx>", in: a.upperBound ..< xml.endIndex) {
+            from = b.upperBound
+            var ax = String(xml[a.lowerBound ..< b.upperBound])
+            guard ax.containsSubstring("<c:axId val=\"\(ids[1])\"/>") else { continue }
+            func strip(_ tag: String, _ s: inout String) {
+                while let q = s.findRange(of: "<c:\(tag) val=\"", in: s.startIndex ..< s.endIndex), let e = s.findRange(of: "/>", in: q.upperBound ..< s.endIndex) {
+                    s.replaceSubrange(q.lowerBound ..< e.upperBound, with: "")
+                }
+            }
+            func num(_ v: Double) -> String { v == v.rounded() && abs(v) < 1e15 ? String(Int64(v)) : String(v) }
+            // Scale: orientation, then max, then min.
+            if let sa = ax.findRange(of: "<c:scaling>", in: ax.startIndex ..< ax.endIndex), let sb = ax.findRange(of: "</c:scaling>", in: sa.upperBound ..< ax.endIndex) {
+                var sc = String(ax[sa.upperBound ..< sb.lowerBound])
+                strip("max", &sc); strip("min", &sc)
+                let add = (edit.max.map { "<c:max val=\"\(num($0))\"/>" } ?? "") + (edit.min.map { "<c:min val=\"\(num($0))\"/>" } ?? "")
+                if let o = sc.findRange(of: "<c:orientation val=\"", in: sc.startIndex ..< sc.endIndex), let e = sc.findRange(of: "/>", in: o.upperBound ..< sc.endIndex) { sc.insert(contentsOf: add, at: e.upperBound) }
+                else { sc += add }
+                ax.replaceSubrange(sa.upperBound ..< sb.lowerBound, with: sc)
+            }
+            // Major unit: after crossBetween, before minorUnit / dispUnits.
+            strip("majorUnit", &ax)
+            if let m = edit.major {
+                let unit = "<c:majorUnit val=\"\(num(m))\"/>"
+                var pos = ax.endIndex
+                if let e = ax.findRange(of: "</c:valAx>", in: ax.startIndex ..< ax.endIndex) { pos = e.lowerBound }
+                for t in ["<c:minorUnit", "<c:dispUnits", "<c:extLst"] {
+                    if let q = ax.findRange(of: t, in: ax.startIndex ..< ax.endIndex), q.lowerBound < pos { pos = q.lowerBound }
+                }
+                ax.insert(contentsOf: unit, at: pos)
+            }
+            // Number format: after the title (or gridlines), before the tick marks.
+            if let f = ax.findRange(of: "<c:numFmt ", in: ax.startIndex ..< ax.endIndex), let e = ax.findRange(of: "/>", in: f.upperBound ..< ax.endIndex) {
+                ax.removeSubrange(f.lowerBound ..< e.upperBound)
+            }
+            if let code = edit.format {
+                var pos = ax.endIndex
+                for t in ["<c:majorTickMark", "<c:minorTickMark", "<c:tickLblPos", "<c:spPr>", "<c:txPr>", "<c:crossAx"] {
+                    if let q = ax.findRange(of: t, in: ax.startIndex ..< ax.endIndex), q.lowerBound < pos { pos = q.lowerBound }
+                }
+                var esc = code
+                esc = _esc(esc)
+                ax.insert(contentsOf: "<c:numFmt formatCode=\"\(esc)\" sourceLinked=\"0\"/>", at: pos)
+            } else {
+                // Linked to the cells: the axis says so itself.
+                var pos = ax.endIndex
+                for t in ["<c:majorTickMark", "<c:minorTickMark", "<c:tickLblPos", "<c:spPr>", "<c:txPr>", "<c:crossAx"] {
+                    if let q = ax.findRange(of: t, in: ax.startIndex ..< ax.endIndex), q.lowerBound < pos { pos = q.lowerBound }
+                }
+                ax.insert(contentsOf: "<c:numFmt formatCode=\"General\" sourceLinked=\"1\"/>", at: pos)
+            }
+            var x = xml
+            x.replaceSubrange(a.lowerBound ..< b.upperBound, with: ax)
+            return x
+        }
+        return xml
     }
 
     /// `labels` placed in a series before the first thing the schema puts after them.

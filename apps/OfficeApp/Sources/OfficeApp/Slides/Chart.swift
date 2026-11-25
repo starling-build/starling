@@ -3034,6 +3034,13 @@ enum ChartXML {
     /// The chart part, cached values and all, pointing at its workbook
     /// through relationship `rId1`.
     static func chartSpace(_ c: Chart) -> String {
+        let xml = _chartSpaceBase(c)
+        // Labels set in Data Labels go on each series, as Excel writes them from its own dialog.
+        guard c.dataLabels, let e = c.labelEdit else { return xml }
+        return ChartPartPatch.labels(xml, e)
+    }
+
+    private static func _chartSpaceBase(_ c: Chart) -> String {
         let n = c.categories.count
         let last = n + 1
         var sers = ""
@@ -3081,10 +3088,7 @@ enum ChartXML {
         }
         // (A pie's says where its labels stand, as it was read: inside,
         // as this app draws plain ones, or round it.)
-        let labels = !c.dataLabels ? "" : c.labelEdit.map { e in
-            func f(_ v: Bool) -> String { v ? "1" : "0" }
-            let pos = e.position.map { "<c:dLblPos val=\"\($0)\"/>" } ?? ""
-            return "<c:dLbls>\(pos)<c:showLegendKey val=\"0\"/><c:showVal val=\"\(f(e.value))\"/><c:showCatName val=\"\(f(e.category))\"/><c:showSerName val=\"\(f(e.series))\"/><c:showPercent val=\"\(f(e.percent))\"/><c:showBubbleSize val=\"0\"/></c:dLbls>"
+        let labels = !c.dataLabels ? "" : c.labelEdit.map { _ in ""
         } ?? (c.type.isPie
             ? _labels.replacingAll("<c:showLegendKey", with: "<c:dLblPos val=\"\(c.pieLabelsAround ? "bestFit" : "ctr")\"/><c:showLegendKey")
             : _labels)
@@ -3134,10 +3138,11 @@ enum ChartXML {
             let valTitle = c.valueAxisTitle.map { _rich($0, size: c.valueAxisTitleSize.map { Int(($0 * 100).rounded()) }, rotated: c.type != .bar, bold: c.axisTitleBoldOut) } ?? ""
             let catPos = c.type == .bar ? "l" : "b", valPos = c.type == .bar ? "b" : "l"
             let tail = "<c:majorTickMark val=\"none\"/><c:minorTickMark val=\"none\"/><c:tickLblPos val=\"nextTo\"/>"
-            let format = c.percent ? "0%" : "General"
-            let bounds = (c.valueMax.map { "<c:max val=\"\($0)\"/>" } ?? "") + (c.valueMin.map { "<c:min val=\"\($0)\"/>" } ?? "")
-            let unit = c.valueStep.map { "<c:majorUnit val=\"\($0)\"/>" } ?? ""
-            let valAx = "<c:valAx><c:axId val=\"500000002\"/><c:scaling><c:orientation val=\"minMax\"/>\(bounds)</c:scaling><c:delete val=\"\(c.valueAxisDeleted ? 1 : 0)\"/><c:axPos val=\"\(valPos)\"/>\(c.valueGrid ? "<c:majorGridlines><c:spPr>\(_gridLine)</c:spPr></c:majorGridlines>" : "")\(valTitle)<c:numFmt formatCode=\"\(format)\" sourceLinked=\"1\"/>\(tail)<c:spPr><a:noFill/><a:ln><a:noFill/></a:ln></c:spPr><c:crossAx val=\"500000001\"/><c:crosses val=\"autoZero\"/><c:crossBetween val=\"\(c.type == .scatter || c.type == .area ? "midCat" : "between")\"/>\(unit)</c:valAx>"
+            let format = c.percent ? "0%" : PptxXML.escape(c.valueFormat ?? "General", attribute: true), linked = c.percent || c.valueFormat == nil ? "1" : "0"
+            let whole: (Double) -> String = { $0 == $0.rounded() && Swift.abs($0) < 1e15 ? String(Int64($0)) : String($0) }
+            let bounds = (c.valueMax.map { "<c:max val=\"\(whole($0))\"/>" } ?? "") + (c.valueMin.map { "<c:min val=\"\(whole($0))\"/>" } ?? "")
+            let unit = c.valueStep.map { "<c:majorUnit val=\"\(whole($0))\"/>" } ?? ""
+            let valAx = "<c:valAx><c:axId val=\"500000002\"/><c:scaling><c:orientation val=\"minMax\"/>\(bounds)</c:scaling><c:delete val=\"\(c.valueAxisDeleted ? 1 : 0)\"/><c:axPos val=\"\(valPos)\"/>\(c.valueGrid ? "<c:majorGridlines><c:spPr>\(_gridLine)</c:spPr></c:majorGridlines>" : "")\(valTitle)<c:numFmt formatCode=\"\(format)\" sourceLinked=\"\(linked)\"/>\(tail)<c:spPr><a:noFill/><a:ln><a:noFill/></a:ln></c:spPr><c:crossAx val=\"500000001\"/><c:crosses val=\"autoZero\"/><c:crossBetween val=\"\(c.type == .scatter || c.type == .area ? "midCat" : "between")\"/>\(unit)</c:valAx>"
             if c.type == .scatter {
                 plot += "<c:valAx><c:axId val=\"500000001\"/><c:scaling><c:orientation val=\"minMax\"/></c:scaling><c:delete val=\"0\"/><c:axPos val=\"b\"/>\(c.scatterXGrid ? "<c:majorGridlines><c:spPr>\(_gridLine)</c:spPr></c:majorGridlines>" : "")\(catTitle)<c:numFmt formatCode=\"General\" sourceLinked=\"1\"/>\(tail)<c:spPr><a:noFill/>\(_gridLine)</c:spPr><c:crossAx val=\"500000002\"/><c:crosses val=\"autoZero\"/><c:crossBetween val=\"midCat\"/></c:valAx>"
             } else {

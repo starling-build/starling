@@ -138,6 +138,15 @@ final class SheetsChartDesignTests: XCTestCase {
         off.show = false
         g4.setChartLabels(gj, off)
         try Xlsx.write(g4.book).write(to: URL(fileURLWithPath: dir + "/chartlabels-off.xlsx"))
+        // Axis options: 0 to 20 in steps of 5, format 0.0, on a chart made here and on the same one from a file.
+        let (h1, hi) = chartBook()
+        h1.setChartAxis(hi, ChartAxisEdit(min: 0, max: 20, major: 5, format: "0.0"))
+        try Xlsx.write(h1.book).write(to: URL(fileURLWithPath: dir + "/chartaxisopt-new.xlsx"))
+        let (h2, _) = chartBook()
+        let h3 = WorkbookController(); h3.load(try Xlsx.read(try Xlsx.write(h2.book)))
+        let hj = h3.sheet.drawings.firstIndex(where: { $0.isChart })!
+        h3.setChartAxis(hj, ChartAxisEdit(min: 0, max: 20, major: 5, format: "0.0"))
+        try Xlsx.write(h3.book).write(to: URL(fileURLWithPath: dir + "/chartaxisopt-file.xlsx"))
         _ = fi
         // A corpus chart with a secondary-axis group: the first group's first series goes, one is added; the other group stays.
         let two = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
@@ -476,6 +485,40 @@ final class SheetsChartDesignTests: XCTestCase {
         e.show = false
         XCTAssertTrue(back.setChartLabels(j, e))
         XCTAssertTrue(try chartXML(back).containsSubstring("<c:delete val=\"1\"/>"))
+    }
+
+    func testValueAxisPatch() throws {
+        let xml = "<c:chartSpace><c:chart><c:plotArea><c:layout/><c:barChart><c:barDir val=\"col\"/><c:ser><c:idx val=\"0\"/><c:order val=\"0\"/><c:val/></c:ser><c:axId val=\"1\"/><c:axId val=\"2\"/></c:barChart><c:catAx><c:axId val=\"1\"/><c:scaling><c:orientation val=\"minMax\"/></c:scaling><c:delete val=\"0\"/><c:axPos val=\"b\"/><c:numFmt formatCode=\"General\" sourceLinked=\"1\"/><c:majorTickMark val=\"none\"/><c:crossAx val=\"2\"/></c:catAx><c:valAx><c:axId val=\"2\"/><c:scaling><c:orientation val=\"minMax\"/><c:max val=\"9\"/></c:scaling><c:delete val=\"0\"/><c:axPos val=\"l\"/><c:majorGridlines/><c:numFmt formatCode=\"General\" sourceLinked=\"1\"/><c:majorTickMark val=\"none\"/><c:crossAx val=\"1\"/><c:crossBetween val=\"between\"/><c:majorUnit val=\"3\"/></c:valAx></c:plotArea></c:chart></c:chartSpace>"
+        var e = ChartAxisEdit(); e.min = 0; e.max = 50.5; e.major = 10; e.format = "0.00\"%\""
+        let x = ChartPartPatch.valueAxis(xml, e)
+        XCTAssertTrue(x.containsSubstring("<c:orientation val=\"minMax\"/><c:max val=\"50.5\"/><c:min val=\"0\"/></c:scaling>"))
+        XCTAssertTrue(x.containsSubstring("<c:crossBetween val=\"between\"/><c:majorUnit val=\"10\"/></c:valAx>"))
+        XCTAssertTrue(x.containsSubstring("<c:majorGridlines/><c:numFmt formatCode=\"0.00&quot;%&quot;\" sourceLinked=\"0\"/><c:majorTickMark"))
+        // The category axis is left alone.
+        XCTAssertTrue(x.containsSubstring("<c:axPos val=\"b\"/><c:numFmt formatCode=\"General\" sourceLinked=\"1\"/>"))
+        let auto = ChartPartPatch.valueAxis(x, ChartAxisEdit())
+        XCTAssertFalse(auto.containsSubstring("<c:max"))
+        XCTAssertFalse(auto.containsSubstring("<c:min "))
+        XCTAssertFalse(auto.containsSubstring("majorUnit"))
+        XCTAssertTrue(auto.containsSubstring("<c:majorGridlines/><c:numFmt formatCode=\"General\" sourceLinked=\"1\"/>"))
+    }
+
+    func testAxisOptionsOnAChartMadeHereAndFromTheFile() throws {
+        let (c, i) = chartBook()
+        XCTAssertTrue(c.setChartAxis(i, ChartAxisEdit(min: 0, max: 100, major: 20, format: "0.0")))
+        let xml = try chartXML(c)
+        XCTAssertTrue(xml.containsSubstring("<c:max val=\"100\"/><c:min val=\"0\"/>"))
+        XCTAssertTrue(xml.containsSubstring("<c:majorUnit val=\"20\"/>"))
+        XCTAssertTrue(xml.containsSubstring("formatCode=\"0.0\" sourceLinked=\"0\""))
+        let back = WorkbookController(); back.load(try Xlsx.read(try Xlsx.write(c.book)))
+        let j = back.sheet.drawings.firstIndex(where: { $0.isChart })!
+        XCTAssertEqual(back.chartAxisOptions(j), ChartAxisEdit(min: 0, max: 100, major: 20, format: "0.0"))
+        XCTAssertTrue(back.setChartAxis(j, ChartAxisEdit(min: 10, max: 60, major: nil, format: nil)))
+        let x2 = try chartXML(back)
+        XCTAssertTrue(x2.containsSubstring("<c:max val=\"60\"/><c:min val=\"10\"/>"))
+        XCTAssertFalse(x2.containsSubstring("majorUnit"))
+        XCTAssertTrue(back.setChartAxis(j, ChartAxisEdit()))
+        XCTAssertFalse(try chartXML(back).containsSubstring("<c:max"))
     }
 
     func testCorpusSeriesEdits() throws {
