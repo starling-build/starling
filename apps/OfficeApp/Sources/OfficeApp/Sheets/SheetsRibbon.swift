@@ -25,6 +25,7 @@ enum SheetCommand {
     case sizeDialog(SizeKind)        // Row Height…, Column Width…, Default Width…
     case conditionalFormat         // Home → Conditional Formatting
     case dataValidation            // Data → Data Validation
+    case goalSeek                  // Data → What-If Analysis → Goal Seek
     case removeDuplicates          // Data → Remove Duplicates
     case textToColumns             // Data → Text to Columns
     case subtotal                  // Data → Subtotal
@@ -359,6 +360,7 @@ extension Ribbon {
             Chrome.big(FluentSystemIcons.delete, "Remove Duplicates", fluent) { wb.onCommand?(.removeDuplicates) },
             Chrome.big(FluentSystemIcons.columns, "Text to Columns", fluent) { wb.onCommand?(.textToColumns) },
             Chrome.big(FluentSystemIcons.numberList, "Subtotal", fluent) { wb.onCommand?(.subtotal) },
+            Chrome.big(FluentSystemIcons.check, "Goal Seek", fluent) { wb.onCommand?(.goalSeek) },
         ])
     }
 
