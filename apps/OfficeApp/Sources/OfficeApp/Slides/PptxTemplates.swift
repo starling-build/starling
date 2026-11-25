@@ -20,6 +20,8 @@ import Foundation
 struct PptxTemplates {
     let theme: DeckTheme
     let slideSize: Size
+    /// Apply to All's background (solid or gradient), written on the master in place of the theme's.
+    var masterBackground: SlideFill? = nil
 
     static let namespaces = "xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\" "
         + "xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\" "
@@ -155,8 +157,18 @@ struct PptxTemplates {
         """
     }
 
+    /// A `p:bg` holding a solid or gradient fill.
+    static func backgroundXML(_ f: SlideFill) -> String {
+        if f.stops.count >= 2 {
+            let stops = f.stops.map { "<a:gs pos=\"\(Int(($0.position * 100000).rounded()))\"><a:srgbClr val=\"\(PptxText.hex($0.color))\"/></a:gs>" }.joined()
+            return "<p:bg><p:bgPr><a:gradFill rotWithShape=\"1\"><a:gsLst>\(stops)</a:gsLst><a:lin ang=\"\(Int((f.angle * 60000).rounded()))\" scaled=\"0\"/></a:gradFill><a:effectLst/></p:bgPr></p:bg>"
+        }
+        return "<p:bg><p:bgPr><a:solidFill><a:srgbClr val=\"\(PptxText.hex(f.color ?? Color(0xFFFFFFFF)))\"/></a:solidFill><a:effectLst/></p:bgPr></p:bg>"
+    }
+
     /// The theme's background: its colour by reference, or its gradient.
     private func _masterBackground() -> String {
+        if let m = masterBackground { return Self.backgroundXML(m) }
         let f = theme.backgroundFill
         guard f.stops.count >= 2 else {
             return "<p:bg><p:bgRef idx=\"1001\"><a:schemeClr val=\"bg1\"/></p:bgRef></p:bg>"

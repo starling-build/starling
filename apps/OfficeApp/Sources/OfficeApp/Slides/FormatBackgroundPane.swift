@@ -58,7 +58,7 @@ final class FormatBackgroundPaneState: State<StatefulWidget> {
         let onPicture = _w.onPicture
         let fluent = FluentTheme.of(context)
         let caption = fluent.typography.caption?.copyWith(color: fluent.resources.textFillColorSecondary)
-        let fill = deck.currentSlide.background
+        let fill = deck.currentSlide.background ?? deck.currentSlide.inheritedBackground
         let kind = _kind(fill)
         let base = fill?.color ?? deck.theme.backgroundFill.color ?? deck.theme.background
         func gap(_ h: Double) -> Widget { SizedBox(width: nil, height: h, child: nil) }

@@ -51,7 +51,8 @@ final class SlideFormatBackgroundTests: XCTestCase {
         ui.tap(id: "bg.kind.solid"); settle(ui)
         enter(ui, "bg.color", "00AA00")
         ui.tap(id: "bg.all"); settle(ui)
-        XCTAssertTrue(deck.slides.allSatisfy { ($0.background?.color?.value ?? 0) & 0xFFFFFF == 0x00AA00 })
+        XCTAssertEqual((deck.masterBackground?.color?.value ?? 0) & 0xFFFFFF, 0x00AA00)
+        XCTAssertTrue(deck.slides.allSatisfy { $0.background == nil && ($0.inheritedBackground?.color?.value ?? 0) & 0xFFFFFF == 0x00AA00 })
         ui.tap(id: "bg.kind.picture"); settle(ui)
         XCTAssertEqual(asked, 1)
     }
@@ -65,7 +66,34 @@ final class SlideFormatBackgroundTests: XCTestCase {
         XCTAssertEqual(f.angle, 90, accuracy: 0.5)
     }
 
-    private static let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")!
+    func testApplyToAllWritesTheMasterAndOneUndoStepRestoresIt() throws {
+        let deck = DeckController()
+        _ = deck.addSlide()
+        deck.select(1); deck.setBackground(SlideFill(color: Color(0xFFAA0000)))
+        deck.select(0)
+        deck.setBackground(SlideFill(color: Color(0xFF00AA00)), all: true)
+        XCTAssertTrue(deck.slides.allSatisfy { $0.background == nil })
+        // A slide added later picks it up.
+        let added = deck.addSlide()
+        XCTAssertEqual((added.inheritedBackground?.color?.value ?? 0) & 0xFFFFFF, 0x00AA00)
+        let data = try Pptx.write(deck)
+        let pkg = PptxPackage(try Zip.read(data))
+        let master = String(data: pkg.parts["ppt/slideMasters/slideMaster1.xml"]!, encoding: .utf8)!
+        XCTAssertTrue(master.contains("<p:bg><p:bgPr><a:solidFill><a:srgbClr val=\"00AA00\""), String(master.prefix(600)))
+        for i in 1 ... deck.slides.count {
+            let slide = String(data: pkg.parts["ppt/slides/slide\(i).xml"]!, encoding: .utf8)!
+            XCTAssertFalse(slide.contains("<p:bg>"), "slide \(i)")
+        }
+        // Through a file: the master is changed and a layout's own background is dropped.
+        let (state, _, _) = try Pptx.read(data)
+        XCTAssertTrue(state.slides.allSatisfy { $0.background == nil })
+        deck.undo()   // removes the added slide
+        deck.undo()   // the Apply to All
+        XCTAssertNil(deck.masterBackground)
+        XCTAssertEqual((deck.slides[1].background?.color?.value ?? 0) & 0xFFFFFF, 0xAA0000)
+    }
+
+    private static let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAABTklEQVR4nNXVQQrDMAxE0Rwnp+u6R+xJ5hppIRBCJKt2Ilka8M6D4K3+sm0b3qt86+ujPnWcuF9+f6qBCaAayADSwAe4GCgBZwMr4DAQA3YDDaD1wdKHJgAkfbAAqoEMIA18ANTuQxcAhfvQC0DVPgwAULIPesiMQ9X6MAxAsT7cAagGMoA08AFQow+PACjQh6cAZPfBAYDUPoyFzDiU1Qc3AJL64AlQDWQAaeADYG4fQgCY2IcoAGb1IRCAKX3wCZmxj+5DOADBfZgBUA1kAGngAyCmD1MBCOjDbAC8+5AAgGsfYkNm7L36kAaAUx8yAaqBDCANfAA860MJAB70oQoAd/tQCIBbfcgJmbEf7UM5AAb7UBGgGsgA0sAHQF8fSgPQ0YfqAPzrAwEAZh9qhczYt/pAA0CjD0wA1UAGkAY+wMVACTgbWAGHgRiwG77flX8a/qckzQAAAABJRU5ErkJggg==")!
 
     /// A deck for PowerPoint to open (STARLING_BACKGROUNDS_OUT): every kind of background, one per slide, after one Apply to All.
     func testSaveEveryKindOfBackground() throws {
@@ -76,11 +104,12 @@ final class SlideFormatBackgroundTests: XCTestCase {
         deck.select(0); deck.setBackground(SlideFill(color: Color(0xFF336699)))
         deck.select(1); deck.setBackground(FormatBackgroundPaneState.gradient(from: Color(0xFFCC3333)))
         deck.select(2)
-        var pic = SlideFill(image: ImageAttachment(data: Self.png, width: 8, height: 8))
+        var pic = SlideFill(image: ImageAttachment(data: Self.png, width: 64, height: 64))
         pic.imageAlpha = 0.6
         pic.tiled = true
         deck.setBackground(pic)
         deck.select(3); deck.setBackground(nil)
+        _ = deck.addSlide()   // slide 5: follows the master
         let data = try Pptx.write(deck)
         if let out = ProcessInfo.processInfo.environment["STARLING_BACKGROUNDS_OUT"] { try data.write(to: URL(fileURLWithPath: out)) }
         let (state, _, _) = try Pptx.read(data)
@@ -90,5 +119,7 @@ final class SlideFormatBackgroundTests: XCTestCase {
         XCTAssertEqual(state.slides[2].background?.imageAlpha ?? 1, 0.6, accuracy: 0.01)
         XCTAssertTrue(state.slides[2].background?.tiled ?? false)
         XCTAssertNil(state.slides[3].background)
+        XCTAssertNil(state.slides[4].background)
+        XCTAssertEqual(state.slides.count, 5)
     }
 }
