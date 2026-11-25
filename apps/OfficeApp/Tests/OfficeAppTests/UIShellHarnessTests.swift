@@ -186,6 +186,21 @@ final class UIShellHarnessTests: XCTestCase {
         XCTAssertNil(c.document.paragraphs[0].style.borders)
     }
 
+    /// W-TB-8: Select > Table Properties opens the dialog; Row tab, "Allow row to break" off, OK reaches the controller.
+    func testTablePropertiesDialogReachesTheController() {
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(1280, 800))
+        let c = ui.state(OfficeShellState.self)!.session.controller
+        c.insertTable(rows: 2, columns: 2)
+        ui.pump()
+        XCTAssertTrue(ui.tap(text: "Table Layout"))
+        XCTAssertTrue(ui.tap(text: "Select"))
+        XCTAssertTrue(ui.tap(text: "Table Properties…"))
+        XCTAssertTrue(ui.tap(text: "Row"))
+        XCTAssertTrue(ui.tap(text: "Allow row to break across pages"))
+        XCTAssertTrue(ui.tap(text: "OK"))
+        XCTAssertTrue(c.currentTableStyle?.rowsCantSplit.contains(c.currentCell?.row ?? 0) == true)
+    }
+
     /// W-TB-2: the Table Layout tab's Borders and Shading menus reach the controller.
     func testTableLayoutBordersAndShadingReachTheController() {
         let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(1280, 800))

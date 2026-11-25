@@ -73,6 +73,7 @@ final class OfficeShellState: State<StatefulWidget> {
     private var _linkDialogOpen = false
     private var _colorOpen = false
     private var _paragraphOpen = false
+    private var _tablePropsOpen = false
     private var _findDialogOpen = false
     private var _symbolOpen = false
     private var _fontOpen = false
@@ -457,6 +458,11 @@ final class OfficeShellState: State<StatefulWidget> {
             guard let self else { return }
             self.controller.breakUndoCoalescing()
             self.setState { self._splitCellOpen = true }
+        }
+        session.onTablePropertiesDialog = { [weak self] in
+            guard let self else { return }
+            self.controller.breakUndoCoalescing()
+            self.setState { self._tablePropsOpen = true }
         }
         session.onBordersShadingDialog = { [weak self] in
             guard let self else { return }
@@ -1257,7 +1263,7 @@ final class OfficeShellState: State<StatefulWidget> {
             if _shortcutsOpen { return false }   // the dialog's own Esc closes it
             if LinkCard.link(caret: _cardLink, hover: _hoverCard, dismissed: _cardDismissed) != nil { setState { _cardDismissed = true }; return true }
             if _listSymbolPick != nil { setState { _listSymbolPick = nil }; return true }
-            if _paragraphOpen || _fontOpen || _insertTableOpen || _splitCellOpen || _bordersOpen || _pictureDialog != nil || _linkDialogOpen || _numberingValueOpen || _listFormatOpen != nil || _newStyleOpen { return false }   // the dialog's own Esc closes it
+            if _paragraphOpen || _tablePropsOpen || _fontOpen || _insertTableOpen || _splitCellOpen || _bordersOpen || _pictureDialog != nil || _linkDialogOpen || _numberingValueOpen || _listFormatOpen != nil || _newStyleOpen { return false }   // the dialog's own Esc closes it
             if _headerFooterOpen { setState { _headerFooterOpen = false }; return true }
             if _findOpen { setState { _findOpen = false }; _editorFocus.requestFocus(); return true }
             if _backstage != nil { setState { _backstage = nil }; return true }
@@ -1554,6 +1560,23 @@ final class OfficeShellState: State<StatefulWidget> {
                     hooks: _linkHooks,
                     onClose: { [weak self] in
                         self?.setState { self?._linkDialogOpen = false }
+                        self?._editorFocus.requestFocus()
+                    })),
+            ])
+        }
+        if _tablePropsOpen {
+            return Stack(children: [
+                window,
+                Positioned(left: 0, top: 0, right: 0, bottom: 0, child: TablePropertiesDialog(
+                    initial: TablePropertiesValues(of: controller),
+                    onOK: { [weak self] vals in
+                        guard let self else { return }
+                        vals.apply(to: self.controller)
+                        self.setState { self._tablePropsOpen = false }
+                        self._editorFocus.requestFocus()
+                    },
+                    onCancel: { [weak self] in
+                        self?.setState { self?._tablePropsOpen = false }
                         self?._editorFocus.requestFocus()
                     })),
             ])

@@ -598,6 +598,8 @@ final class Ribbon: StatelessWidget {
                 MenuFlyoutItem(text: Text("Select Row"), onPressed: { c.selectRow() }),
                 MenuFlyoutItem(text: Text("Select Column"), onPressed: { c.selectColumn() }),
                 MenuFlyoutItem(text: Text("Select Table"), onPressed: { c.selectTable() }),
+                MenuFlyoutSeparator(),
+                MenuFlyoutItem(text: Text("Table Properties…"), onPressed: { [session] in session.onTablePropertiesDialog?() }),
             ]),
         ])
         let merge = Chrome.group("Merge", fluent, [Chrome.rows([
