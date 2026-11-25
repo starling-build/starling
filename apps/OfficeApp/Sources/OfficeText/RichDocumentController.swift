@@ -2132,6 +2132,94 @@ public final class RichDocumentController: ChangeNotifier {
         })
     }
 
+    /// Word's Split Cells: the caret's cell becomes `columns` x `rows` cells,
+    /// one undo step. A cell with fewer grid columns (or rows) than asked
+    /// makes the grid wider (taller): the cells across the new columns widen
+    /// (or grow taller) to keep their place, and the column widths of the
+    /// split cell are shared evenly. The text stays in the first piece.
+    /// Returns false when nothing was split.
+    @discardableResult
+    public func splitCell(columns n: Int, rows m: Int) -> Bool {
+        guard let here = currentCell, n >= 1, m >= 1, n * m > 1, n <= 63, m <= 200 else { return false }
+        let s = here.span, q = here.rowSpan
+        let colExtra = max(0, n - s), rowExtra = max(0, m - q)
+        let e = here.column + s, r1 = here.row + q - 1
+        let cols = document.columnCount(of: here.table)
+        guard cols + colExtra <= 63 else { return false }
+        var widths = document.tableColumns[here.table]
+        if widths?.count != cols { widths = nil }
+        if colExtra > 0, var w = widths {
+            let total = w[here.column ..< e].reduce(0, +)
+            w.replaceSubrange(here.column ..< e, with: Array(repeating: total / Double(n), count: n))
+            widths = w
+        }
+        let newWidths = widths
+        let style = document.tableStyles[here.table]
+        func pieces(_ total: Int, _ k: Int) -> [Int] {
+            (0 ..< k).map { total / k + ($0 < total % k ? 1 : 0) }
+        }
+        let colSizes = pieces(max(s, n), n), rowSizes = pieces(max(q, m), m)
+        var caretAt: Int? = nil
+        edit {
+            _rewriteTable(caret: { _ in caretAt }, rewrite: { paras in
+                var out: [RichParagraph] = []
+                var extra: [CellRef] = []
+                for var p in paras {
+                    guard var c = p.cell else { out.append(p); continue }
+                    if c.sameCell(as: here) {
+                        if caretAt == nil {
+                            caretAt = out.count
+                            // The empty pieces, once, at the first paragraph.
+                            for i in 0 ..< m {
+                                for j in 0 ..< n where i + j > 0 {
+                                    var d = here
+                                    d.row = here.row + rowSizes[..<i].reduce(0, +)
+                                    d.column = here.column + colSizes[..<j].reduce(0, +)
+                                    d.span = colSizes[j]; d.rowSpan = rowSizes[i]
+                                    extra.append(d)
+                                }
+                            }
+                        }
+                        c.span = colSizes[0]; c.rowSpan = rowSizes[0]
+                        p.cell = c
+                        out.append(p)
+                        continue
+                    }
+                    if colExtra > 0 {
+                        if c.column >= e { c.column += colExtra }
+                        else if c.column + c.span >= e { c.span += colExtra }
+                    }
+                    if rowExtra > 0 {
+                        if c.row > r1 { c.row += rowExtra }
+                        else if c.row + c.rowSpan - 1 >= r1 { c.rowSpan += rowExtra }
+                    }
+                    p.cell = c
+                    out.append(p)
+                }
+                // Each empty piece goes in reading order among the cells.
+                for d in extra {
+                    var e = RichParagraph(style: .cell)
+                    e.cell = d
+                    let at = out.firstIndex { q in
+                        guard let c = q.cell, c.table == d.table else { return false }
+                        return c.row > d.row || (c.row == d.row && c.column > d.column)
+                    } ?? out.count
+                    out.insert(e, at: at)
+                }
+                paras = out
+            })
+            if let w = newWidths, w != document.tableColumns[here.table] {
+                perform(.setTableColumns(here.table, old: document.tableColumns[here.table], new: w))
+            }
+            if rowExtra > 0, var st = style, !(st.rowHeights.isEmpty && st.rowsCantSplit.isEmpty) {
+                st.rowHeights = Dictionary(uniqueKeysWithValues: st.rowHeights.map { ($0.key > r1 ? $0.key + rowExtra : $0.key, $0.value) })
+                st.rowsCantSplit = Set(st.rowsCantSplit.map { $0 > r1 ? $0 + rowExtra : $0 })
+                perform(.setTableStyle(here.table, old: style, new: st))
+            }
+        }
+        return true
+    }
+
     /// Insert an empty column left or right of the caret's column. The new
     /// column takes half of the current one's width so the table keeps
     /// its width, as Word's "Insert Left/Right" does inside a fixed table.

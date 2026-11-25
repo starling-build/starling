@@ -163,4 +163,50 @@ final class CellBordersTests: XCTestCase {
         d.undo()
         XCTAssertTrue(d.document.paragraphs.compactMap(\.cell).allSatisfy { $0.fillThemeAttrs != nil })
     }
+
+    func testSplitCellIntoColumnsAndRowsKeepsTheGrid() throws {
+        let c = RichDocumentController(plainText: "")
+        c.insertTable(rows: 2, columns: 2)
+        let t = c.currentCell!.table
+        c.setTableColumnWidths(t, [200, 100])
+        c.moveTo(RichPosition(paragraph: c.document.paragraphs.firstIndex { $0.cell != nil }!, offset: 0), extend: false)
+        c.insertText("a")
+        XCTAssertTrue(c.splitCell(columns: 3, rows: 2))
+        func check(_ d: RichDocument, _ label: String) {
+            let cells = d.paragraphs.compactMap(\.cell)
+            let grid = Set(cells.map { "\($0.row),\($0.column),\($0.span),\($0.rowSpan)" })
+            // 3 x 2 pieces of the split cell, the top right cell now two rows tall, the old bottom row below.
+            let want: Set<String> = ["0,0,1,1", "0,1,1,1", "0,2,1,1", "1,0,1,1", "1,1,1,1", "1,2,1,1",
+                                     "0,3,1,2", "2,0,3,1", "2,3,1,1"]
+            XCTAssertEqual(grid, want, label)
+            XCTAssertEqual(d.columnCount(of: t), 4, label)
+        }
+        check(c.document, "after split")
+        XCTAssertEqual(c.document.tableColumns[t]?.count, 4)
+        XCTAssertEqual(c.document.tableColumns[t]![0], 200.0 / 3, accuracy: 0.01)
+        XCTAssertEqual(c.document.tableColumns[t]![3], 100, accuracy: 0.01)
+        XCTAssertEqual(c.document.paragraphs.first { $0.cell != nil }?.text, "a", "the text stays in the first piece")
+        let back = try DocxFormat.read(try DocxFormat.write(c.document, pageSetup: .letter)).document
+        let tb = back.paragraphs.compactMap(\.cell).first!.table
+        let cells = back.paragraphs.compactMap(\.cell)
+        XCTAssertEqual(Set(cells.map { "\($0.row),\($0.column),\($0.span),\($0.rowSpan)" }).count, 9)
+        XCTAssertEqual(back.columnCount(of: tb), 4)
+        c.undo()
+        XCTAssertEqual(c.document.columnCount(of: t), 2)
+        XCTAssertEqual(c.document.tableColumns[t], [200, 100])
+        XCTAssertEqual(c.document.paragraphs.compactMap(\.cell).count, 4, "one undo puts the cell back")
+    }
+
+    func testSplitMergedCellBackIntoItsColumns() {
+        let c = RichDocumentController(plainText: "")
+        c.insertTable(rows: 2, columns: 3)
+        c.moveTo(RichPosition(paragraph: c.document.paragraphs.firstIndex { $0.cell != nil }!, offset: 0), extend: false)
+        c.selectRow()
+        c.mergeCells()
+        XCTAssertEqual(c.currentCell?.span, 3)
+        XCTAssertTrue(c.splitCell(columns: 3, rows: 1))
+        XCTAssertEqual(c.document.columnCount(of: c.currentCell!.table), 3)
+        XCTAssertEqual(Set(c.document.paragraphs.compactMap(\.cell).filter { $0.row == 0 }.map(\.column)).count, 3)
+        XCTAssertFalse(c.splitCell(columns: 1, rows: 1))
+    }
 }
