@@ -2108,7 +2108,10 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
 
     /// The hovered cell's note: a pale yellow box to its right, author first.
     private func _paintNote(_ canvas: any Canvas, ink: Color) {
-        guard let a = _hoverNote, let note = controller.sheet.notes.first(where: { $0.at == a }) else { return }
+        // (A finger cannot hover: once one has touched the grid, the active cell's note is the one shown, as a tap on
+        // the cell selects it, and it goes when another cell is selected.)
+        let touched = _touchSeen && controller.sheet.notes.contains(where: { $0.at == controller.active }) ? controller.active : nil
+        guard let a = _hoverNote ?? touched, let note = controller.sheet.notes.first(where: { $0.at == a }) else { return }
         let r = rect(a)
         let width = 200 * zoom, pad = 6 * zoom
         let body = GridTextStyle(family: OfficeFonts.drawn("Segoe UI"), size: 12 * zoom, color: Int64(0xFF00_0000))
