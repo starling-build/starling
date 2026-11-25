@@ -201,18 +201,13 @@ extension SheetsChartTests {
         XCTAssertFalse(out.containsSubstring("<xdr:row>1</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:from><xdr:to><xdr:col>4</xdr:col>"))
     }
 
-    func testAFilesColumnChartTurnsToBarKeepingItsFormattingAndPieIsRefused() throws {
+    func testAFilesColumnChartTurnsToBarKeepingItsFormatting() throws {
         let url = try XCTUnwrap(Bundle.module.url(forResource: "karma_performance", withExtension: "xlsx", subdirectory: "Fixtures"))
         let c = WorkbookController()
         c.load(try Xlsx.read(try Data(contentsOf: url)))
         let i = try XCTUnwrap(c.sheet.drawings.firstIndex { if case .chart(let sc) = $0.kind { return sc.chart.type == .column && sc.path != nil }; return false })
         guard case .chart(let before) = c.sheet.drawings[i].kind, let path = before.path else { return XCTFail() }
         let origPart = String(decoding: try XCTUnwrap(try Zip.read(try Data(contentsOf: url)).first { $0.name == path }).data, as: UTF8.self)
-        c.setChartType(i, .pie)
-        XCTAssertNotNil(c.chartNotice)
-        guard case .chart(let same) = c.sheet.drawings[i].kind else { return XCTFail() }
-        XCTAssertEqual(same.chart.type, .column)
-        c.chartNotice = nil
         c.setChartType(i, .bar)
         XCTAssertNil(c.chartNotice)
         let part = String(decoding: try XCTUnwrap(try Zip.read(try Xlsx.write(c.book)).first { $0.name == path }).data, as: UTF8.self)
@@ -222,5 +217,40 @@ extension SheetsChartTests {
         let back = try Xlsx.read(try Xlsx.write(c.book))
         guard case .chart(let r) = back.sheets[0].drawings[i].kind else { return XCTFail() }
         XCTAssertEqual(r.chart.type, .bar)
+    }
+
+    func testAFilesColumnChartConvertsToLineAndPieInPlace() throws {
+        let url = try XCTUnwrap(Bundle.module.url(forResource: "karma_performance", withExtension: "xlsx", subdirectory: "Fixtures"))
+        let c = WorkbookController()
+        c.load(try Xlsx.read(try Data(contentsOf: url)))
+        let i = try XCTUnwrap(c.sheet.drawings.firstIndex { if case .chart(let sc) = $0.kind { return sc.chart.type == .column && sc.path != nil }; return false })
+        guard case .chart(let before) = c.sheet.drawings[i].kind, let path = before.path else { return XCTFail() }
+        // Any other type converts the part in place: the group changes, the rest of the part stays.
+        c.setChartType(i, .line)
+        XCTAssertNil(c.chartNotice)
+        let asLine = String(decoding: try XCTUnwrap(try Zip.read(try Xlsx.write(c.book)).first { $0.name == path }).data, as: UTF8.self)
+        XCTAssertTrue(asLine.containsSubstring("<c:lineChart>"))
+        XCTAssertFalse(asLine.containsSubstring("<c:barChart>"))
+        XCTAssertTrue(asLine.containsSubstring("<c:f>"), "the series keep their cells")
+        guard case .chart(let lined) = try Xlsx.read(try Xlsx.write(c.book)).sheets[0].drawings[i].kind else { return XCTFail() }
+        XCTAssertEqual(lined.chart.type, .line)
+        c.setChartType(i, .pie)
+        XCTAssertNil(c.chartNotice)
+        let asPie = String(decoding: try XCTUnwrap(try Zip.read(try Xlsx.write(c.book)).first { $0.name == path }).data, as: UTF8.self)
+        XCTAssertTrue(asPie.containsSubstring("<c:pieChart>"))
+        XCTAssertFalse(asPie.containsSubstring("<c:catAx>"))
+    }
+
+    func testWriteChartTypeCheckFiles() throws {
+        guard let dir = ProcessInfo.processInfo.environment["XCHECK_DIR"] else { return }
+        let url = try XCTUnwrap(Bundle.module.url(forResource: "karma_performance", withExtension: "xlsx", subdirectory: "Fixtures"))
+        for (name, type) in [("line", ChartType.line), ("pie", .pie), ("bar", .bar), ("area", .area), ("scatter", .scatter)] {
+            let c = WorkbookController()
+            c.load(try Xlsx.read(try Data(contentsOf: url)))
+            let i = try XCTUnwrap(c.sheet.drawings.firstIndex { if case .chart(let sc) = $0.kind { return sc.chart.type == .column && sc.path != nil }; return false })
+            c.setChartType(i, type)
+            XCTAssertNil(c.chartNotice, name)
+            try Xlsx.write(c.book).write(to: URL(fileURLWithPath: "\(dir)/charttype-\(name).xlsx"))
+        }
     }
 }

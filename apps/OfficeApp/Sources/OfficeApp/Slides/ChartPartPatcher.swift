@@ -51,7 +51,7 @@ enum ChartPartPatcher {
         let dataChanged = old.categories != new.categories || old.series.map(\.name) != new.series.map(\.name)
             || old.series.map(\.values) != new.series.map(\.values)
         if old.type != new.type {
-            guard convert(plot, to: new) else { return nil }
+            guard ChartPartType.convert(plot, to: new) else { return nil }
         }
         if dataChanged {
             guard rewriteData(plot, new, covered: old.series.count, writes: &writes) else { return nil }
@@ -67,11 +67,7 @@ enum ChartPartPatcher {
 
     // MARK: Data
 
-    private static let groupNames: Set<String> = ["c:barChart", "c:lineChart", "c:areaChart", "c:pieChart", "c:doughnutChart",
-                                                  "c:scatterChart", "c:radarChart", "c:bar3DChart", "c:line3DChart",
-                                                  "c:area3DChart", "c:pie3DChart", "c:stockChart", "c:bubbleChart"]
 
-    private static func groups(_ plot: XNode) -> [XNode] { plot.children.filter { groupNames.contains($0.name) } }
 
     private static func col(_ i: Int) -> String { ChartXML.column(i) }
 
@@ -243,25 +239,11 @@ enum ChartPartPatcher {
         if alloc.cat == nil { alloc.cat = catSpan }
     }
 
-    /// The series' name, categories and values as the file wrote them (a type change keeps the data and its cells).
-    private static func carry(_ ser: XNode, from old: XNode, scatter: Bool) {
-        if let tx = old.first("c:tx") { ser.children.append(copy(tx)) }
-        let x = old.first("c:cat") ?? old.first("c:xVal"), y = old.first("c:val") ?? old.first("c:yVal")
-        if let x { let n = copy(x); n.name = scatter ? "c:xVal" : "c:cat"; ser.children.append(n) }
-        if let y { let n = copy(y); n.name = scatter ? "c:yVal" : "c:val"; ser.children.append(n) }
-    }
-
-    private static func copy(_ n: XNode) -> XNode {
-        let c = XNode(name: n.name, attrs: n.attrs)
-        c.text = n.text
-        c.children = n.children.map(copy)
-        return c
-    }
 
     /// The same type, new data: each series keeps its own look; extra series are cloned from the last (without its
     /// colour, so the style's next one shows), fewer drop the last ones.
     private static func rewriteData(_ plot: XNode, _ c: Chart, covered: Int, writes: inout [CellWrite]) -> Bool {
-        let gs = groups(plot)
+        let gs = ChartPartType.groups(plot)
         guard !gs.isEmpty, !gs.contains(where: { ["c:stockChart", "c:bubbleChart"].contains($0.name) }) else { return false }
         let wanted = c.type.isPie ? Array(c.series.prefix(1)) : c.series
         let scatter = c.type == .scatter
@@ -285,11 +267,11 @@ enum ChartPartPatcher {
             all = Array(all[..<wanted.count])
         }
         while all.count < wanted.count {
-            let clone = copy(template.ser)
+            let clone = ChartPartType.copy(template.ser)
             clone.children.removeAll { ["c:spPr", "c:dPt", "c:dLbls", "c:trendline", "c:errBars", "c:marker", "c:extLst",
                                         "c:tx", "c:cat", "c:val", "c:xVal", "c:yVal"].contains($0.name) }
             var top = -1
-            for g in groups(plot) { for e in g.all("c:ser") {
+            for g in ChartPartType.groups(plot) { for e in g.all("c:ser") {
                 top = max(top, Int(e.first("c:idx")?["val"] ?? "") ?? -1, Int(e.first("c:order")?["val"] ?? "") ?? -1)
             } }
             clone.first("c:idx")?.attrs["val"] = "\(top + 1)"
@@ -304,100 +286,4 @@ enum ChartPartPatcher {
         return true
     }
 
-    // MARK: Type
-
-    private static func node(_ name: String, _ attrs: [String: String] = [:]) -> XNode { XNode(name: name, attrs: attrs) }
-
-    /// The first chart group becomes the new type's, its series rebuilt from `c` (their colours stay on a type that
-    /// paints series alike); axes added or dropped as the type needs. Other groups of a combination chart stay.
-    private static func convert(_ plot: XNode, to c: Chart) -> Bool {
-        let gs = groups(plot)
-        guard let group = gs.first, !gs.contains(where: { ["c:stockChart", "c:bubbleChart", "c:bar3DChart", "c:line3DChart",
-                                                          "c:area3DChart", "c:pie3DChart"].contains($0.name) }) else { return false }
-        // Old axes referenced by the group, to reuse when the new type has axes too.
-        let oldAx = group.all("c:axId").compactMap { $0["val"] }
-        let name: String
-        switch c.type {
-        case .column, .bar: name = "c:barChart"
-        case .line: name = "c:lineChart"
-        case .area: name = "c:areaChart"
-        case .pie: name = "c:pieChart"
-        case .doughnut: name = "c:doughnutChart"
-        case .scatter: name = "c:scatterChart"
-        case .radar: name = "c:radarChart"
-        }
-        let oldSers = group.all("c:ser")
-        let wanted = c.type.isPie ? Array(c.series.prefix(1)) : c.series
-        var shown = c; shown.series = wanted
-        let keepsLook = !(c.type.isPie || group.name == "c:pieChart" || group.name == "c:doughnutChart" || c.type == .scatter || group.name == "c:scatterChart")
-        // A pie shows one series, so the others have no cells of their own to carry over.
-        guard oldSers.count >= wanted.count else { return false }
-        var sers: [XNode] = []
-        for i in wanted.indices {
-            let ser = node("c:ser")
-            ser.children = [node("c:idx", ["val": oldSers[i].first("c:idx")?["val"] ?? "\(i)"]),
-                            node("c:order", ["val": oldSers[i].first("c:order")?["val"] ?? "\(i)"])]
-            if keepsLook, i < oldSers.count, let sp = oldSers[i].first("c:spPr") {
-                let spc = copy(sp)
-                // A line type draws with the series' line, an area or bar with its fill.
-                if c.type == .line || c.type == .radar, spc.first("a:ln") == nil, let fill = spc.first("a:solidFill") {
-                    let ln = node("a:ln", ["w": "28575", "cap": "rnd"]); ln.children = [copy(fill), node("a:round")]
-                    spc.children = [ln]
-                }
-                ser.children.append(spc)
-            }
-            carry(ser, from: oldSers[i], scatter: c.type == .scatter)
-            if c.type == .line || c.type == .scatter { ser.children.append(node("c:smooth", ["val": "0"])) }
-            sers.append(ser)
-        }
-        let g = node(name)
-        func axIds() -> [XNode] { c.type.isPie ? [] : [node("c:axId", ["val": oldAx.first ?? "111111111"]), node("c:axId", ["val": oldAx.dropFirst().first ?? "222222222"])] }
-        switch c.type {
-        case .column, .bar:
-            g.children = [node("c:barDir", ["val": c.type == .bar ? "bar" : "col"]), node("c:grouping", ["val": "clustered"]),
-                          node("c:varyColors", ["val": "0"])] + sers + [node("c:gapWidth", ["val": "219"])] + axIds()
-        case .line:
-            g.children = [node("c:grouping", ["val": "standard"]), node("c:varyColors", ["val": "0"])] + sers + [node("c:marker", ["val": "1"])] + axIds()
-        case .area:
-            g.children = [node("c:grouping", ["val": "standard"]), node("c:varyColors", ["val": "0"])] + sers + axIds()
-        case .pie:
-            g.children = [node("c:varyColors", ["val": "1"])] + sers + [node("c:firstSliceAng", ["val": "0"])]
-        case .doughnut:
-            g.children = [node("c:varyColors", ["val": "1"])] + sers + [node("c:firstSliceAng", ["val": "0"]), node("c:holeSize", ["val": "50"])]
-        case .scatter:
-            g.children = [node("c:scatterStyle", ["val": "lineMarker"]), node("c:varyColors", ["val": "0"])] + sers + axIds()
-        case .radar:
-            g.children = [node("c:radarStyle", ["val": "marker"]), node("c:varyColors", ["val": "0"])] + sers + axIds()
-        }
-        guard let at = plot.children.firstIndex(where: { $0 === group }) else { return false }
-        plot.children[at] = g
-        // Axes: drop for a pie; for a type that needs them and the plot lacks them, add the usual pair.
-        let hasAxes = plot.children.contains { ["c:catAx", "c:valAx", "c:dateAx", "c:serAx"].contains($0.name) }
-        if c.type.isPie {
-            if gs.count == 1 { plot.children.removeAll { ["c:catAx", "c:valAx", "c:dateAx", "c:serAx"].contains($0.name) } }
-        } else if !hasAxes {
-            let a = "111111111", b = "222222222"
-            let cat = c.type == .scatter ? node("c:valAx") : node("c:catAx")
-            cat.children = [node("c:axId", ["val": a]), node("c:scaling"), node("c:delete", ["val": "0"]),
-                            node("c:axPos", ["val": c.type == .bar ? "l" : "b"]), node("c:crossAx", ["val": b])]
-            cat.children[1].children = [node("c:orientation", ["val": "minMax"])]
-            let val = node("c:valAx")
-            val.children = [node("c:axId", ["val": b]), node("c:scaling"), node("c:delete", ["val": "0"]),
-                            node("c:axPos", ["val": c.type == .bar ? "b" : "l"]), node("c:majorGridlines"), node("c:crossAx", ["val": a])]
-            val.children[1].children = [node("c:orientation", ["val": "minMax"])]
-            let i = (plot.children.lastIndex { groupNames.contains($0.name) } ?? 0) + 1
-            plot.children.insert(contentsOf: [cat, val], at: i)
-        }
-        // A bar chart's category axis stands at the left, its value axis at the bottom (and the other way for a column).
-        if c.type == .bar || c.type == .column {
-            let own = Set(g.all("c:axId").compactMap { $0["val"] })
-            for ax in plot.children where (ax.name == "c:catAx" || ax.name == "c:valAx") && own.contains(ax.first("c:axId")?["val"] ?? "") {
-                if let pos = ax.first("c:axPos") {
-                    let vertical = (ax.name == "c:catAx") == (c.type == .bar)
-                    pos.attrs["val"] = vertical ? "l" : "b"
-                }
-            }
-        }
-        return true
-    }
 }

@@ -574,7 +574,7 @@ extension SheetDrawingsXML {
                 if sc.formulasChanged { xml = _rewriteFormulas(xml, sc.formulas) }
                 if !sc.colorEdit.isEmpty { xml = ChartPartPatch.colors(xml, sc.colorEdit) }
                 if let e = sc.seriesEdit { xml = ChartPartPatch.series(xml, e) }
-                if let t = sc.retype { xml = _retypeBars(xml, t) }
+                if sc.retype != nil { xml = ChartPartType.retype(xml, to: sc.chart) ?? xml }
                 if let e = sc.titleEdit { xml = ChartPartPatch.title(xml, e) }
                 if let e = sc.legendEdit { xml = ChartPartPatch.legend(xml, e) }
                 if let e = sc.catTitleEdit { xml = ChartPartPatch.axisTitle(xml, .category, e) }
@@ -669,20 +669,6 @@ extension SheetDrawingsXML {
     }
 
     /// A chart part with each `<c:f>` mapped through `formulas`.
-    /// Column <-> bar in a chart part: the bars' direction and where each axis sits.
-    static func _retypeBars(_ xml: String, _ type: ChartType) -> String {
-        let col = type == .column
-        var x = xml.replacingOccurrences(of: "<c:barDir val=\"\(col ? "bar" : "col")\"/>", with: "<c:barDir val=\"\(col ? "col" : "bar")\"/>")
-        func swap(_ tag: String, _ from: String, _ to: String) {
-            guard let r = x.range(of: "<c:\(tag)>"), let e = x.range(of: "</c:\(tag)>", range: r.upperBound..<x.endIndex) else { return }
-            let body = x[r.upperBound..<e.lowerBound].replacingOccurrences(of: "<c:axPos val=\"\(from)\"/>", with: "<c:axPos val=\"\(to)\"/>")
-            x.replaceSubrange(r.upperBound..<e.lowerBound, with: body)
-        }
-        swap("catAx", col ? "l" : "b", col ? "b" : "l")
-        swap("valAx", col ? "b" : "l", col ? "l" : "b")
-        return x
-    }
-
     static func _rewriteFormulas(_ xml: String, _ formulas: [String: String]) -> String {
         var out = ""
         var at = xml.startIndex
@@ -1171,10 +1157,11 @@ extension WorkbookController {
         let ws = sheet
         guard ws.drawings.indices.contains(index), case .chart(var sc) = ws.drawings[index].kind, sc.chart.type != type else { return }
         if sc.path != nil {
-            // The file's own chart: only column <-> bar can be done without losing
-            // formatting the chart model does not hold; refuse the rest, saying so.
-            let barFamily: Set<ChartType> = [.column, .bar]
-            guard barFamily.contains(type), barFamily.contains(sc.chart.type) else {
+            // The file's own chart: its part is converted in place (ChartPartType), so what the model does not hold
+            // stays. A part that cannot be (3D, stock, bubble) is refused, saying so.
+            let converted = sc.chart.converted(to: type)
+            let part = book.package?.first(where: { $0.name == sc.path })
+            guard let part, ChartPartType.retype(String(decoding: part.data, as: UTF8.self), to: converted) != nil else {
                 chartNotice = "This chart came from the file; changing it to \(type.name) would drop its formatting."
                 _notify()
                 return
