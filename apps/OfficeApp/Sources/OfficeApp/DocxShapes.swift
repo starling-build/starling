@@ -1395,6 +1395,7 @@ extension DocxFormat {
             }
             var cs = cellChar
             cs.link = link
+            cs.linkKeepsLook = link != nil
             cs.linkTip = link == nil ? nil : hyperlinkTip
             cs.revision = revision
             cs.comments = notes.openComments
@@ -1439,6 +1440,7 @@ extension DocxFormat {
                         pageResultInCodeLook = true
                         cs.fieldResult = id
                         cs.link = link
+                        cs.linkKeepsLook = link != nil
                         cs.revision = revision
                         cs.comments = comments
                     }
@@ -1448,7 +1450,7 @@ extension DocxFormat {
             // A HYPERLINK field's result is the link's text, whatever fields sit inside it (and across paragraphs).
             if cs.link == nil, let h = notes.fields.last(where: { $0.result && Self._isHyperlinkField($0.instr) }),
                let t = Self._hyperlinkFieldTarget(h.instr) {
-                cs.link = t.target; cs.linkTip = t.tip
+                cs.link = t.target; cs.linkTip = t.tip; cs.linkKeepsLook = true
                 cs.linkField = h.instr.trimmingWhitespace(newlines: true); cs.linkFieldID = h.id
             }
             // (Its style reference would name an id the save may rename.)
