@@ -1217,6 +1217,12 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         }
     }
 
+    /// Insert Symbol: into the cell being edited, or into the active cell (opened for editing at its end).
+    func insertSymbol(_ s: String) {
+        if edit == nil { beginEdit() }
+        _insert(s)
+    }
+
     private func _insert(_ s: String) {
         guard var e = edit else { return }
         let chars = Array(s)

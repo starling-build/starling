@@ -86,10 +86,8 @@ final class SheetsShellState: State<StatefulWidget> {
     private var _tabColorFor: Int? = nil
     private var _moveCopyFor: Int? = nil
     private var _pasteOpen = false
-    private var _findReplace = false
-    private var _findStatus = ""
+    private var _symbolOpen = false
     private let _findQuery = TextEditingController()
-    private let _findReplacement = TextEditingController()
     private let _contextMenu = FlyoutController()
     private let _filterMenu = FlyoutController()
 
@@ -177,7 +175,6 @@ final class SheetsShellState: State<StatefulWidget> {
         _formula.dispose()
         _nameBox.dispose()
         _findQuery.dispose()
-        _findReplacement.dispose()
         _search.dispose()
         _renameText.dispose()
         super.dispose()
@@ -361,6 +358,7 @@ final class SheetsShellState: State<StatefulWidget> {
         case .cut: grid.copySelection(cut: true)
         case .paste: grid.paste()
         case .pasteSpecial: _openPasteSpecial()
+        case .symbol: setState { _symbolOpen = true }
         case .startFormula(let text):
             grid.focus.requestFocus()
             grid.beginEdit(replace: text)
@@ -909,17 +907,11 @@ final class SheetsShellState: State<StatefulWidget> {
                 guard let self else { return }
                 self._findQuery.text = q
                 self._openFind(replace: false)
-                self._findNext(backwards: false)
             }),
             Ribbon(session: session, tab: _tab, collapsed: _ribbonCollapsed,
                    onTab: { [weak self] t in self?.setState { self?._tab = t } },
                    onCollapse: { [weak self] in self?.setState { self?._ribbonCollapsed.toggle() } }),
-        ] + (_findOpen ? [FindBar(session: session, query: _findQuery, replacement: _findReplacement,
-                                 showReplace: _findReplace, status: _findStatus,
-                                 onNext: { [weak self] back in self?._findNext(backwards: back) },
-                                 onReplace: { [weak self] in self?._replaceOne() },
-                                 onReplaceAll: { [weak self] in self?._replaceAll() },
-                                 onClose: { [weak self] in self?._closeFind() })] : [])
+        ]
         + (wb.pendingSheetDelete.map { i in [ConfirmBar(
             message: "Delete “\(wb.book.sheets.indices.contains(i) ? wb.book.sheets[i].name : "")”? Its cells and objects go with it (Undo brings it back).",
             action: "Delete sheet", onConfirm: { [weak self] in self?.wb.confirmSheetDelete() },
@@ -1081,6 +1073,18 @@ final class SheetsShellState: State<StatefulWidget> {
                 },
                 onClose: { [weak self] in self?.setState { self?._sizeDialog = nil }; self?._grid?.focus.requestFocus() }))
         }
+        if _findOpen, _backstage == nil {
+            layers.append(Positioned(left: 0, top: 0, right: 0, bottom: 0, child: FindReplaceDialog(
+                initialQuery: _findQuery.text, hooks: _findHooks, onClose: { [weak self] in self?._closeFind() })))
+        }
+        if _symbolOpen, _backstage == nil {
+            layers.append(Positioned(left: 0, top: 0, right: 0, bottom: 0, child: SymbolPicker(
+                hooks: SymbolHooks(fonts: ["(current font)"], insert: { [weak self] text, _ in self?._grid?.insertSymbol(text) }),
+                onClose: { [weak self] in
+                    self?.setState { self?._symbolOpen = false }
+                    self?._grid?.focus.requestFocus()
+                })))
+        }
         if layers.count > 1, _backstage == nil { return Stack(children: layers) }
         if _formatOpen, _backstage == nil {
             return Stack(children: layers + [
@@ -1126,7 +1130,7 @@ final class SheetsShellState: State<StatefulWidget> {
         case "j" where chords.shift: wb.group(false); return true
         case "\u{1B}":
             if _pageSetupOpen { setState { _pageSetupOpen = false }; return true }
-            if _findOpen { _closeFind(); return true }
+            if _symbolOpen { setState { _symbolOpen = false }; _grid?.focus.requestFocus(); return true }
             return false
         default: return false
         }
@@ -1173,44 +1177,38 @@ final class SheetsShellState: State<StatefulWidget> {
     // MARK: Find
 
     private func _openFind(replace: Bool) {
-        setState {
-            _findOpen = true
-            _findReplace = replace
-            _findStatus = ""
-        }
+        setState { _findOpen = true }
     }
 
     private func _closeFind() {
-        guard _findOpen else { return }   // a field being torn down blurs too
+        guard _findOpen else { return }
         setState { _findOpen = false }
         _grid?.focus.requestFocus()
     }
 
-    private func _findNext(backwards: Bool) {
-        let q = _findQuery.text
-        guard !q.isEmpty else { return }
-        if wb.findNext(q, backwards: backwards) {
-            _grid?.reveal(wb.active)
-            setState { _findStatus = "" }
-        } else {
-            setState { _findStatus = "No matches" }
+    private var _findHooks: FindHooks {
+        func status(_ found: Bool) -> String {
+            if found { _grid?.reveal(wb.active) }
+            return found ? "" : "No matches"
         }
-    }
-
-    private func _replaceOne() {
-        let q = _findQuery.text
-        guard !q.isEmpty else { return }
-        if wb.replaceCurrent(q, with: _findReplacement.text) {
-            _grid?.reveal(wb.active)
-            setState { _findStatus = "" }
-        } else {
-            setState { _findStatus = "No matches" }
+        var hooks = FindHooks(
+            findNext: { [unowned self] p, scope, back in status(wb.findNext(p, scope: scope, backwards: back)) },
+            replace: { [unowned self] p, template, scope in status(wb.replaceCurrent(p, with: template, scope: scope)) },
+            replaceAll: { [unowned self] p, template, scope in
+                let n = wb.replaceAll(p, with: template, scope: scope)
+                return n == 0 ? "No matches" : "Replaced \(n)"
+            })
+        hooks.wholeLabel = "Match entire cell contents"
+        hooks.wholeIsEntireCell = true
+        hooks.scopes = ["Sheet", "Workbook"]
+        hooks.goToLabel = "Go to cell"
+        hooks.goToHint = "A cell or range, like B7 or Sheet2!A1:C3"
+        hooks.goTo = { [unowned self] text in
+            let problem = wb.goTo(text)
+            if problem == nil { _grid?.reveal(wb.active) }
+            return problem
         }
-    }
-
-    private func _replaceAll() {
-        let n = wb.replaceAll(_findQuery.text, with: _findReplacement.text)
-        setState { _findStatus = n == 0 ? "No matches" : "Replaced \(n)" }
+        return hooks
     }
 
     // MARK: Notes
