@@ -291,4 +291,72 @@ final class SheetsTitleBarUndoHarnessTests: XCTestCase {
         c.undo()
         XCTAssertNil(c.currentCell?.bordersXML)
     }
+
+    private func pictureShell() throws -> (WidgetTester, RichDocumentController) {
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(1280, 800))
+        let c = try XCTUnwrap(ui.state(OfficeShellState.self)).session.controller
+        let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")!
+        c.load(RichDocument(paragraphs: [RichParagraph(image: ImageAttachment(data: png, width: 200, height: 100))]))
+        c.selectImage(at: 0)
+        ui.pump()
+        return (ui, c)
+    }
+
+    /// W-OB-1: the Alt Text dialog sets the picture's alternative text in one undo step; Cancel changes nothing.
+    func testAltTextDialogSetsTheTextAndCancelDoesNot() throws {
+        let (ui, c) = try pictureShell()
+        XCTAssertTrue(ui.tap(text: "Alt Text"))
+        XCTAssertTrue(ui.tap(id: "alt-text"))
+        ui.type("A red box")
+        XCTAssertTrue(ui.tap(text: "Cancel"))
+        XCTAssertEqual(c.document.paragraphs[0].image?.altText, "")
+        XCTAssertTrue(ui.tap(text: "Alt Text"))
+        XCTAssertTrue(ui.tap(id: "alt-text"))
+        ui.type("A red box")
+        XCTAssertTrue(ui.tap(text: "OK"))
+        XCTAssertEqual(c.document.paragraphs[0].image?.altText, "A red box")
+        c.undo()
+        XCTAssertEqual(c.document.paragraphs[0].image?.altText, "")
+    }
+
+    /// W-OB-1: the Crop dialog cuts the typed percents off each side, keeps the scale, and refuses a crop that leaves nothing.
+    func testCropDialogCutsTheTypedPercents() throws {
+        let (ui, c) = try pictureShell()
+        XCTAssertTrue(ui.tap(text: "Crop"))
+        XCTAssertTrue(ui.tap(id: "crop-left"))
+        ui.type("25")
+        XCTAssertTrue(ui.tap(text: "OK"))
+        let img = try XCTUnwrap(c.document.paragraphs[0].image)
+        XCTAssertEqual(img.crop?.left ?? 0, 0.25, accuracy: 0.001)
+        XCTAssertEqual(img.width, 150, accuracy: 0.1)
+        c.undo()
+        XCTAssertNil(c.document.paragraphs[0].image?.crop)
+    }
+
+    /// W-OB-1: Reset Picture takes the crop and the turn off and shows the picture at its own size, in one undo step.
+    func testResetPictureTakesCropAndTurnOff() throws {
+        let (ui, c) = try pictureShell()
+        _ = c.setImageCrop(at: 0, PictureCrop(left: 0.25, top: 0, right: 0, bottom: 0))
+        _ = c.rotatePicture(at: 0, quarters: 1)
+        ui.pump()
+        XCTAssertTrue(ui.tap(text: "Reset Picture"))
+        let img = try XCTUnwrap(c.document.paragraphs[0].image)
+        XCTAssertNil(img.crop)
+        XCTAssertEqual(img.rotation, 0)
+        XCTAssertEqual(img.width / img.height, 2, accuracy: 0.01)
+        c.undo()
+        XCTAssertEqual(c.document.paragraphs[0].image?.rotation, 90)
+        XCTAssertNotNil(c.document.paragraphs[0].image?.crop)
+    }
+
+    /// W-OB-1: Change Picture on the Picture Format tab asks the host for a file (the swap itself is the controller's
+    /// replacePicture, tested in DocxTests; image decoding needs the engine, which a harness test lacks).
+    func testChangePictureAsksForAFile() throws {
+        let (ui, _) = try pictureShell()
+        var asked = false
+        defer { OfficeScene.main.pictureRequested = nil }
+        OfficeScene.main.pictureRequested = { _ in asked = true }
+        XCTAssertTrue(ui.tap(text: "Change Picture"))
+        XCTAssertTrue(asked)
+    }
 }

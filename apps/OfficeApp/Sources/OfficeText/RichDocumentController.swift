@@ -844,6 +844,29 @@ public final class RichDocumentController: ChangeNotifier {
         return true
     }
 
+    /// Reset Picture: take the crop and the turn off the picture at `index` (or its inline picture `id`) and show it at its own size
+    /// (the scale it had, when the file does not say what its own size is), one undo step. False when nothing changes.
+    @discardableResult
+    public func resetPicture(at index: Int, inline id: String? = nil) -> Bool {
+        guard index < document.paragraphs.count else { return false }
+        guard let old = id.map({ document.paragraphs[index].inlineImages[$0] }) ?? document.paragraphs[index].image else { return false }
+        var new = old
+        let was = old.crop ?? PictureCrop(left: 0, top: 0, right: 0, bottom: 0)
+        new.crop = nil
+        new.rotation = 0
+        if let nw = old.naturalWidth, let nh = old.naturalHeight, nw > 0, nh > 0 {
+            new.width = nw; new.height = nh
+        } else {
+            let turned = Int((old.rotation / 90).rounded()) % 2 != 0
+            let (bw, bh) = turned ? (old.height, old.width) : (old.width, old.height)
+            new.width = bw / max(0.01, 1 - was.left - was.right)
+            new.height = bh / max(0.01, 1 - was.top - was.bottom)
+        }
+        guard new != old else { return false }
+        edit { perform(id.map { .setInlineImage(index, id: $0, old: old, new: new) } ?? .setImage(index, old: old, new: new)) }
+        return true
+    }
+
     /// Show the picture at `index` at `width` × `height` points, one undo step.
     public func setImageSize(at index: Int, width: Double, height: Double) {
         guard index < document.paragraphs.count, let old = document.paragraphs[index].image else { return }

@@ -309,6 +309,7 @@ final class OfficeSession {
     var onShare: ((String) -> Void)?
     var onFind: ((Bool) -> Void)?       // true = replace bar too
     var onInsertPicture: (() -> Void)?
+    var onChangePicture: (() -> Void)?
     var onHeaderFooter: (() -> Void)?
     /// Slides Picture Format > Alt Text: open the dialog for the selected picture.
     var onAltText: (() -> Void)?
@@ -321,6 +322,7 @@ final class OfficeSession {
     var onPageSetupDialog: (() -> Void)?
     var onInsertTableDialog: (() -> Void)?
     var onBordersShadingDialog: (() -> Void)?
+    var onPictureDialog: ((PictureDialogKind) -> Void)?
     var onModifyStyle: ((String) -> Void)?
     /// Slides: Cut / Copy / Paste of the selected shapes. Each returns true
     /// when it handled the command, false to fall through to the text path.

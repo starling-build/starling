@@ -650,10 +650,21 @@ final class Ribbon: StatelessWidget {
                 Chrome.small(CupertinoIcons.rotate_right, "Rotate Right", fluent) { _ = c.rotatePicture(at: i, inline: id, quarters: 1) },
                 Chrome.small(CupertinoIcons.rotate_left, "Rotate Left", fluent) { _ = c.rotatePicture(at: i, inline: id, quarters: -1) },
             ])
+            let tools = Chrome.group("Adjust", fluent, [
+                Chrome.rows([
+                    Chrome.small(FluentSystemIcons.image, "Alt Text", fluent) { [session] in session.onPictureDialog?(.altText) },
+                    Chrome.small(FluentSystemIcons.pageFit, "Crop", fluent) { [session] in session.onPictureDialog?(.crop) },
+                ]),
+                Chrome.gap(8),
+                Chrome.rows([
+                    Chrome.small(FluentSystemIcons.image, "Change Picture", fluent) { [session] in session.onChangePicture?() },
+                    Chrome.small(FluentSystemIcons.zoomOut, "Reset Picture", fluent) { c.resetPicture(at: i, inline: id) },
+                ]),
+            ])
             let remove = Chrome.group("Picture", fluent, [
                 Chrome.big(FluentSystemIcons.delete, "Delete", fluent) { c.deleteForward() },
             ])
-            return [size, turn, remove]
+            return [size, turn, tools, remove]
         }
         guard let i = s.imageIndex, let image = c.document.paragraphs[i].image else { return [] }
         let aspect = image.height / max(1, image.width)
@@ -692,10 +703,21 @@ final class Ribbon: StatelessWidget {
             Chrome.small(CupertinoIcons.rotate_right, "Rotate Right", fluent) { _ = c.rotatePicture(at: i, quarters: 1) },
             Chrome.small(CupertinoIcons.rotate_left, "Rotate Left", fluent) { _ = c.rotatePicture(at: i, quarters: -1) },
         ])
+        let tools = Chrome.group("Adjust", fluent, [
+            Chrome.rows([
+                Chrome.small(FluentSystemIcons.image, "Alt Text", fluent) { [session] in session.onPictureDialog?(.altText) },
+                Chrome.small(FluentSystemIcons.pageFit, "Crop", fluent) { [session] in session.onPictureDialog?(.crop) },
+            ]),
+            Chrome.gap(8),
+            Chrome.rows([
+                Chrome.small(FluentSystemIcons.image, "Change Picture", fluent) { [session] in session.onChangePicture?() },
+                Chrome.small(FluentSystemIcons.zoomOut, "Reset Picture", fluent) { c.resetPicture(at: i) },
+            ]),
+        ])
         let remove = Chrome.group("Picture", fluent, [
             Chrome.big(FluentSystemIcons.delete, "Delete", fluent) { c.deleteForward() },
         ])
-        return [size, arrange, turn, remove]
+        return [size, arrange, turn, tools, remove]
     }
 
     // MARK: Layout

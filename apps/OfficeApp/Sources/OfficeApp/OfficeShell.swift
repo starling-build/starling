@@ -77,6 +77,9 @@ final class OfficeShellState: State<StatefulWidget> {
     private var _insertTableOpen = false
     private var _bordersOpen = false
     private var _printOpen = false
+    private var _pictureDialog: PictureDialogKind?
+    /// Set while the picker is open for Change Picture: the picture (paragraph, inline id) the chosen file replaces.
+    private var _replaceTarget: (index: Int, inline: String?)?
     private let _colorText = TextEditingController()
     private var _styleOpen: String? = nil
     private let _linkText = TextEditingController()
@@ -403,6 +406,11 @@ final class OfficeShellState: State<StatefulWidget> {
             self.controller.breakUndoCoalescing()
             self.setState { self._bordersOpen = true }
         }
+        session.onPictureDialog = { [weak self] kind in
+            guard let self else { return }
+            self.controller.breakUndoCoalescing()
+            self.setState { self._pictureDialog = kind }
+        }
         session.onMoreColors = { [weak self] in
             guard let self else { return }
             self._colorText.text = self.controller.currentCharStyle.color.map(ColorBar.hex) ?? ""
@@ -419,6 +427,15 @@ final class OfficeShellState: State<StatefulWidget> {
             guard let self else { return }
             if let ask = self.officeScene.pictureRequested {
                 ask { [weak self] path in if let path { self?._insertPicture(path) } }
+                return
+            }
+            self.setState { self._backstage = .insertPicture }
+        }
+        session.onChangePicture = { [weak self] in
+            guard let self, let i = self.session.summary.imageIndex else { return }
+            self._replaceTarget = (i, self.session.summary.inlineImageID)
+            if let ask = self.officeScene.pictureRequested {
+                ask { [weak self] path in if let path { self?._insertPicture(path) } else { self?._replaceTarget = nil } }
                 return
             }
             self.setState { self._backstage = .insertPicture }
@@ -834,6 +851,7 @@ final class OfficeShellState: State<StatefulWidget> {
     private func _insertPicture(_ path: String) {
         setState { _backstage = nil }
         guard let data = FileManager.default.contents(atPath: path) else {
+            _replaceTarget = nil
             _flash("Could not read \(path.lastPathComponent)")
             return
         }
@@ -845,6 +863,14 @@ final class OfficeShellState: State<StatefulWidget> {
                 codec.dispose()
                 let px = Double(frame.image.width), py = Double(frame.image.height)
                 frame.image.dispose()
+                if let t = self._replaceTarget {
+                    self._replaceTarget = nil
+                    if self.controller.replacePicture(at: t.index, inline: t.inline, with: data, name: path.lastPathComponent,
+                                                      naturalWidth: px * 0.75, naturalHeight: py * 0.75) {
+                        self._flash("Changed to \(path.lastPathComponent)")
+                    } else { self._flash("This picture cannot be changed") }
+                    return
+                }
                 let maxW = self.session.pageSetup.contentWidth
                 var w = px * 0.75, h = py * 0.75
                 if w > maxW { h *= maxW / w; w = maxW }
@@ -1094,7 +1120,7 @@ final class OfficeShellState: State<StatefulWidget> {
             if _styleOpen != nil { setState { _styleOpen = nil }; return true }
             if _shortcutsOpen { return false }   // the dialog's own Esc closes it
             if _linkOpen { setState { _linkOpen = false }; return true }
-            if _paragraphOpen || _fontOpen || _insertTableOpen || _bordersOpen { return false }   // the dialog's own Esc closes it
+            if _paragraphOpen || _fontOpen || _insertTableOpen || _bordersOpen || _pictureDialog != nil { return false }   // the dialog's own Esc closes it
             if _colorOpen { setState { _colorOpen = false }; return true }
             if _headerFooterOpen { setState { _headerFooterOpen = false }; return true }
             if _findOpen { setState { _findOpen = false }; _editorFocus.requestFocus(); return true }
@@ -1368,6 +1394,22 @@ final class OfficeShellState: State<StatefulWidget> {
                 Positioned(left: 0, top: 0, right: 0, bottom: 0, child: ShortcutListDialog(
                     table: ShortcutTable.writer, onClose: { [weak self] in self?.setState { self?._shortcutsOpen = false } })),
             ])
+        }
+        if let kind = _pictureDialog, let i = session.summary.imageIndex {
+            let inline = session.summary.inlineImageID
+            let image = inline.map { controller.document.paragraphs[i].inlineImages[$0] } ?? controller.document.paragraphs[i].image
+            let close = { [weak self] in
+                self?.setState { self?._pictureDialog = nil }
+                self?._editorFocus.requestFocus()
+            }
+            let dialog: Widget = kind == .altText
+                ? PictureAltTextDialog(initial: image?.altText ?? "",
+                                onOK: { [weak self] t in self?.controller.setImageAltText(at: i, inline: inline, t); close() },
+                                onCancel: close)
+                : CropDialog(initial: image?.crop,
+                             onOK: { [weak self] c in _ = self?.controller.setImageCrop(at: i, inline: inline, c); close() },
+                             onCancel: close)
+            return Stack(children: [window, Positioned(left: 0, top: 0, right: 0, bottom: 0, child: dialog)])
         }
         if _paragraphOpen {
             return Stack(children: [

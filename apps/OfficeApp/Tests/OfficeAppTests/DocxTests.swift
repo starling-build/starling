@@ -517,6 +517,21 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(saved.width, 200, accuracy: 0.1)
     }
 
+    /// W-OB-1: after Change Picture the saved package holds no picture part that nothing points at.
+    func testChangingAPictureLeavesNoOrphanMediaInTheSavedPackage() throws {
+        let old = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")!
+        let new = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==")!
+        let first = try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(image: ImageAttachment(data: old, width: 200, height: 100)),
+                                                                   RichParagraph(image: ImageAttachment(data: old, width: 50, height: 50))]), pageSetup: .letter)
+        let c = RichDocumentController(document: try DocxFormat.read(first).document)
+        XCTAssertTrue(c.replacePicture(at: 0, with: new, name: "new.png", naturalWidth: 100, naturalHeight: 100))
+        let entries = try Zip.read(try DocxFormat.write(c.document, pageSetup: .letter))
+        let media = entries.map(\.name).filter { $0.hasPrefix("word/media/") }
+        let rels = String(decoding: entries.first { $0.name == "word/_rels/document.xml.rels" }!.data, as: UTF8.self)
+        XCTAssertEqual(media.count, 2)
+        for m in media { XCTAssertTrue(rels.contains("\"" + m.dropFirst(5) + "\""), "\(m) is not referenced") }
+    }
+
     /// W-OB-1: cropping a picture cuts shares off its sides, keeps its scale (the frame follows the visible part), undoes in one
     /// step, is written as `a:srcRect` into the file's own markup (a picture read back from a file too) and clears again.
     func testCroppingAPictureKeepsItsScaleAndSavesTheCrop() throws {
