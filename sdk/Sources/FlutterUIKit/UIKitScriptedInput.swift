@@ -10,6 +10,8 @@
 // One command a line; '#' starts a comment; coordinates are logical pixels in the named view:
 //   <ms> tap  <view> <x> <y>
 //   <ms> drag <view> <x0> <y0> <x1> <y1> [steps]
+//   <ms> hold <view> <x> <y> [ms]     (one finger held still, default 700 ms: a long press)
+//   <ms> twotap <view> <x1> <y1> <x2> <y2>   (two fingers down and up together, in place)
 //   <ms> type <view> <text...>        (text up to end of line; \n is Return)
 //   <ms> key  <view> <keysym>         (decimal or 0x..; 0xFF08 Backspace, 0xFF0D Enter)
 //   <ms> log  <message...>            (a marker in the output)
@@ -64,6 +66,28 @@ enum UIKitScriptedInput {
             DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(60)) {
                 post(v, [(.up, nums[1], nums[2], id), (.remove, nums[1], nums[2], id)])
                 report("after tap")
+            }
+        case "hold" where nums.count >= 3:
+            // A finger held still: down, then up after `nums[3]` ms (default 700), for long-press paths.
+            let v = Int(nums[0]), ms = nums.count > 3 ? Int(nums[3]) : 700
+            report("hold view \(v) at \(nums[1]),\(nums[2]) for \(ms) ms")
+            let id = pointerId()
+            post(v, [(.add, nums[1], nums[2], id), (.down, nums[1], nums[2], id)])
+            DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(ms)) {
+                post(v, [(.up, nums[1], nums[2], id), (.remove, nums[1], nums[2], id)])
+                report("after hold")
+            }
+        case "twotap" where nums.count >= 5:
+            // Two fingers down and up together in place: view x1 y1 x2 y2.
+            let v = Int(nums[0])
+            report("twotap view \(v) at \(nums[1]),\(nums[2]) and \(nums[3]),\(nums[4])")
+            let a = pointerId(), b = pointerId()
+            post(v, [(.add, nums[1], nums[2], a), (.down, nums[1], nums[2], a)])
+            post(v, [(.add, nums[3], nums[4], b), (.down, nums[3], nums[4], b)])
+            DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(80)) {
+                post(v, [(.up, nums[1], nums[2], a), (.remove, nums[1], nums[2], a)])
+                post(v, [(.up, nums[3], nums[4], b), (.remove, nums[3], nums[4], b)])
+                report("after twotap")
             }
         case "drag" where nums.count >= 5:
             let v = Int(nums[0]), steps = nums.count > 5 ? max(1, Int(nums[5])) : 12
