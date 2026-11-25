@@ -13,6 +13,22 @@ enum ChartPartEdit: Equatable {
 }
 
 /// One series of a chart as Select Data edits it: where it came from in the part (`source`, its position among the part's series; nil for a new one) and the cells it reads.
+/// A colour set in Format Data Series on a file's chart: a series of the part (its place in the first chart group), or one point of it; nil is automatic.
+struct ChartColorEdit: Equatable {
+    var series: Int; var point: Int?; var hex: String?
+    /// A theme slot ("accent2") with its lumMod / lumOff in percent, written as a scheme colour so a new theme recolours it; wins over `hex`.
+    var scheme: String? = nil; var lumMod: Int = 100; var lumOff: Int = 0
+    /// The colour element to write; nil is automatic.
+    var element: String? {
+        if let scheme {
+            var mods = ""
+            if lumMod != 100 { mods += "<a:lumMod val=\"\(lumMod * 1000)\"/>" }
+            if lumOff != 0 { mods += "<a:lumOff val=\"\(lumOff * 1000)\"/>" }
+            return mods.isEmpty ? "<a:schemeClr val=\"\(scheme)\"/>" : "<a:schemeClr val=\"\(scheme)\">\(mods)</a:schemeClr>"
+        }
+        return hex.map { "<a:srgbClr val=\"\($0)\"/>" }
+    }
+}
 struct ChartSeriesRef: Equatable {
     var source: Int?
     var name: String?
@@ -288,6 +304,180 @@ enum ChartPartPatch {
                 for n in list where n.source == nil { out += fresh(from: String(xml[r]), n) }
             }
             x.replaceSubrange(r, with: out)
+        }
+        return x
+    }
+
+    // MARK: series colours (X-CH-1f: Format Data Series)
+
+    /// The part's first chart group's series (what the model lists), in document order, and that group's tag ("barChart", "lineChart"…).
+    private static func _firstGroup(_ xml: String) -> (sers: [Range<String.Index>], tag: String)? {
+        guard let g = xml.findRange(of: "<c:plotArea>", in: xml.startIndex ..< xml.endIndex) else { return nil }
+        var sers: [Range<String.Index>] = []
+        var at = g.upperBound
+        while let a = xml.findRange(of: "<c:ser>", in: at ..< xml.endIndex), let b = xml.findRange(of: "</c:ser>", in: a.upperBound ..< xml.endIndex) {
+            sers.append(a.lowerBound ..< b.upperBound)
+            at = b.upperBound
+        }
+        guard let first = sers.first, let close = xml.findRange(of: "Chart>", in: first.upperBound ..< xml.endIndex) else { return nil }
+        let head = String(xml[g.upperBound ..< first.lowerBound])
+        // The group tag is the last "<c:xxxChart>" before the first series.
+        var tag = ""
+        var from = head.startIndex
+        while let a = head.findRange(of: "<c:", in: from ..< head.endIndex) {
+            guard let e = head.findRange(of: ">", in: a.upperBound ..< head.endIndex) else { break }
+            let name = String(head[a.upperBound ..< e.lowerBound])
+            if name.hasSuffix("Chart") { tag = name }
+            from = e.upperBound
+        }
+        return tag.isEmpty ? nil : (sers.filter { $0.lowerBound < close.lowerBound }, tag)
+    }
+
+    private static let _fillTags = ["a:solidFill", "a:gradFill", "a:pattFill", "a:blipFill", "a:grpFill"]
+
+    /// `t` without its own (top-level) fills.
+    private static func _withoutFill(_ t: String) -> String {
+        var x = t
+        for tag in _fillTags {
+            while let a = x.findRange(of: "<\(tag)", in: x.startIndex ..< x.endIndex) {
+                if let e = x.findRange(of: "</\(tag)>", in: a.upperBound ..< x.endIndex) { x.replaceSubrange(a.lowerBound ..< e.upperBound, with: "") }
+                else if let e = x.findRange(of: "/>", in: a.upperBound ..< x.endIndex) { x.replaceSubrange(a.lowerBound ..< e.upperBound, with: "") }
+                else { break }
+            }
+        }
+        while let a = x.findRange(of: "<a:noFill/>", in: x.startIndex ..< x.endIndex) { x.replaceSubrange(a, with: "") }
+        return x
+    }
+
+    /// A solid fill of the colour element `clr` (a scheme or an sRGB colour).
+    private static func _solid(_ clr: String) -> String { "<a:solidFill>\(clr)</a:solidFill>" }
+
+    /// The `<a:ln …>…</a:ln>` (or `<a:ln …/>`) of a shape's properties, if any.
+    private static func _lnRange(_ t: String) -> Range<String.Index>? {
+        var from = t.startIndex
+        while let a = t.findRange(of: "<a:ln", in: from ..< t.endIndex) {
+            guard a.upperBound < t.endIndex else { return nil }
+            let c = t[a.upperBound]
+            if c == " " || c == ">" || c == "/" {
+                guard let e = t.findRange(of: ">", in: a.upperBound ..< t.endIndex) else { return nil }
+                if t[t.index(before: e.lowerBound)] == "/" { return a.lowerBound ..< e.upperBound }
+                if let close = t.findRange(of: "</a:ln>", in: e.upperBound ..< t.endIndex) { return a.lowerBound ..< close.upperBound }
+                return nil
+            }
+            from = a.upperBound
+        }
+        return nil
+    }
+
+    /// The shape properties' inside with its fill (or, for a line, the outline's fill) set to `hex`, or taken off when nil.
+    private static func _paint(_ inner: String, _ hex: String?, line: Bool) -> String {
+        if !line {
+            if let ln = _lnRange(inner) {
+                return (hex.map(_solid) ?? "") + _withoutFill(String(inner[inner.startIndex ..< ln.lowerBound])) + String(inner[ln]) + _withoutFill(String(inner[ln.upperBound ..< inner.endIndex]))
+            }
+            return (hex.map(_solid) ?? "") + _withoutFill(inner)
+        }
+        guard let ln = _lnRange(inner) else {
+            guard let hex else { return inner }
+            return inner + "<a:ln w=\"28575\" cap=\"rnd\">\(_solid(hex))<a:round/></a:ln>"
+        }
+        var l = String(inner[ln])
+        var open: String, body: String, selfClosed = false
+        if l.hasSuffix("/>") { open = String(l.dropLast(2)) + ">"; body = ""; selfClosed = true } else {
+            let e = l.findRange(of: ">", in: l.startIndex ..< l.endIndex)!
+            open = String(l[l.startIndex ..< e.upperBound]); body = String(l[e.upperBound ..< l.index(l.endIndex, offsetBy: -7)])
+        }
+        _ = selfClosed
+        l = open + (hex.map(_solid) ?? "") + _withoutFill(body) + "</a:ln>"
+        return String(inner[inner.startIndex ..< ln.lowerBound]) + l + String(inner[ln.upperBound ..< inner.endIndex])
+    }
+
+    /// Where a shape-properties element `<c:spPr>` of `s` sits: searched after `after` (a marker's own comes before a data point's).
+    private static func _spPr(_ s: String, from: String.Index, before limit: String.Index) -> Range<String.Index>? {
+        guard let a = s.findRange(of: "<c:spPr", in: from ..< limit) else { return nil }
+        if let e = s.findRange(of: ">", in: a.upperBound ..< s.endIndex), s[s.index(before: e.lowerBound)] == "/" { return a.lowerBound ..< e.upperBound }
+        guard let b = s.findRange(of: "</c:spPr>", in: a.upperBound ..< s.endIndex) else { return nil }
+        return a.lowerBound ..< b.upperBound
+    }
+
+    private static func _inner(_ s: String, _ r: Range<String.Index>) -> String {
+        let t = String(s[r])
+        if t.hasSuffix("/>") { return "" }
+        guard let e = t.findRange(of: ">", in: t.startIndex ..< t.endIndex) else { return "" }
+        return String(t[e.upperBound ..< t.index(t.endIndex, offsetBy: -9)])
+    }
+
+    /// A series element with its colour set to `hex` (nil: automatic, from its number).
+    private static func _setSeriesColor(_ ser: String, _ hex: String?, line: Bool) -> String {
+        var s = ser
+        let stops = ["<c:marker>", "<c:dPt>", "<c:dLbls>", "<c:invertIfNegative", "<c:explosion", "<c:cat>", "<c:xVal>", "<c:val>", "<c:yVal>"]
+        let head = stops.compactMap { s.findRange(of: $0, in: s.startIndex ..< s.endIndex)?.lowerBound }.min() ?? s.endIndex
+        if let r = _spPr(s, from: s.startIndex, before: head) {
+            let inner = _paint(_inner(s, r), hex, line: line)
+            s.replaceSubrange(r, with: inner.isEmpty ? "" : "<c:spPr>\(inner)</c:spPr>")
+        } else if let hex {
+            let inner = _paint("", hex, line: line)
+            var at = s.startIndex
+            if let t = s.findRange(of: "</c:tx>", in: s.startIndex ..< s.endIndex) { at = t.upperBound }
+            else if let o = s.findRange(of: "<c:order val=\"", in: s.startIndex ..< s.endIndex), let e = s.findRange(of: "/>", in: o.upperBound ..< s.endIndex) { at = e.upperBound }
+            s.insert(contentsOf: "<c:spPr>\(inner)</c:spPr>", at: at)
+        }
+        // A line's markers follow it (their automatic colour follows the series number, not the line).
+        if line, let a = s.findRange(of: "<c:marker>", in: s.startIndex ..< s.endIndex), let b = s.findRange(of: "</c:marker>", in: a.upperBound ..< s.endIndex),
+           !s[a.lowerBound ..< b.upperBound].containsSubstring("<c:symbol val=\"none\"/>") {
+            var m = String(s[a.lowerBound ..< b.upperBound])
+            if let r = _spPr(m, from: m.startIndex, before: m.endIndex) { m.replaceSubrange(r, with: "") }
+            if let hex { m = m.replacingAll("</c:marker>", with: "<c:spPr>\(_solid(hex))<a:ln w=\"9525\">\(_solid(hex))</a:ln></c:spPr></c:marker>") }
+            s.replaceSubrange(a.lowerBound ..< b.upperBound, with: m)
+        }
+        return s
+    }
+
+    /// A series element with data point `p` (its bar, column or slice) coloured `hex`, or put back to automatic when nil.
+    private static func _setPointColor(_ ser: String, _ p: Int, _ hex: String?, group: String) -> String {
+        var s = ser
+        var found: Range<String.Index>? = nil
+        var from = s.startIndex
+        while let a = s.findRange(of: "<c:dPt>", in: from ..< s.endIndex), let b = s.findRange(of: "</c:dPt>", in: a.upperBound ..< s.endIndex) {
+            if s[a.upperBound ..< b.lowerBound].hasPrefix("<c:idx val=\"\(p)\"/>") { found = a.lowerBound ..< b.upperBound; break }
+            from = b.upperBound
+        }
+        guard let hex else {
+            if let f = found { s.removeSubrange(f) }
+            return s
+        }
+        if let f = found {
+            var d = String(s[f])
+            let after = d.findRange(of: "</c:marker>", in: d.startIndex ..< d.endIndex)?.upperBound ?? d.startIndex
+            if let r = _spPr(d, from: after, before: d.endIndex) {
+                d.replaceSubrange(r, with: "<c:spPr>\(_paint(_inner(d, r), hex, line: false))</c:spPr>")
+            } else { d = d.replacingAll("</c:dPt>", with: "<c:spPr>\(_solid(hex))</c:spPr></c:dPt>") }
+            s.replaceSubrange(f, with: d)
+            return s
+        }
+        let extra = group.hasPrefix("bar") ? "<c:invertIfNegative val=\"0\"/>" : (group.hasPrefix("pie") || group.hasPrefix("doughnut") ? "<c:bubble3D val=\"0\"/>" : "")
+        let dpt = "<c:dPt><c:idx val=\"\(p)\"/>\(extra)<c:spPr>\(_solid(hex))</c:spPr></c:dPt>"
+        let follow = ["<c:dLbls>", "<c:trendline>", "<c:errBars>", "<c:cat>", "<c:val>", "<c:xVal>", "<c:yVal>", "<c:bubbleSize>"]
+        let at = follow.compactMap { s.findRange(of: $0, in: s.startIndex ..< s.endIndex)?.lowerBound }.min() ?? s.endIndex
+        s.insert(contentsOf: dpt, at: at)
+        return s
+    }
+
+    /// The part's series coloured as `edits` say (series by their place in the part's first chart group). A line or scatter series is
+    /// coloured on its line and markers; the others on their fill; a data point only on bars, columns, areas and pie slices.
+    static func colors(_ xml: String, _ edits: [ChartColorEdit]) -> String {
+        guard !edits.isEmpty, let g = _firstGroup(xml) else { return xml }
+        let line = g.tag.hasPrefix("line") || g.tag.hasPrefix("scatter") || (g.tag == "radarChart" && !xml.containsSubstring("<c:radarStyle val=\"filled\""))
+        var x = xml
+        for (k, r) in g.sers.enumerated().reversed() {
+            let mine = edits.filter { $0.series == k }
+            if mine.isEmpty { continue }
+            var s = String(x[r])
+            for e in mine {
+                if let p = e.point { if !line { s = _setPointColor(s, p, e.element, group: g.tag) } }
+                else { s = _setSeriesColor(s, e.element, line: line) }
+            }
+            x.replaceSubrange(r, with: s)
         }
         return x
     }

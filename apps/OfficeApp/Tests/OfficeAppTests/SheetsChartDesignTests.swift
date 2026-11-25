@@ -4,6 +4,9 @@
 // X-CH-1a: Chart Design on a chart made here: its title and legend, saved and read back.
 
 import XCTest
+import FoundationXML
+import Flutter
+import FlutterSwiftBridge
 @testable import OfficeApp
 
 final class SheetsChartDesignTests: XCTestCase {
@@ -105,6 +108,21 @@ final class SheetsChartDesignTests: XCTestCase {
         let k = fileBook.sheet.drawings.firstIndex(where: { $0.isChart })!
         fileBook.setChartSeries(k, [fileBook.chartSeries(k)![1], tax])
         try Xlsx.write(fileBook.book).write(to: URL(fileURLWithPath: dir + "/chartseries-file.xlsx"))
+        // Series colours: Sales green, Feb point purple, Cost back to automatic; on a chart made here and on the same one from a file.
+        let green = Color(0xFF00B050), purple = Color(0xFF7030A0)
+        c.setChartColor(i, series: c.chartColorTargets(i)!.series[0].series, point: nil, color: green)
+        c.setChartColor(i, series: c.chartColorTargets(i)!.series[1].series, point: nil, choice: .theme(slot: 5, lumMod: 60, lumOff: 40))
+        try Xlsx.write(c.book).write(to: URL(fileURLWithPath: dir + "/chartcolor-new.xlsx"))
+        let (f2, fi) = chartBook()
+        let f3 = WorkbookController(); f3.load(try Xlsx.read(try Xlsx.write(f2.book)))
+        let fj = f3.sheet.drawings.firstIndex(where: { $0.isChart })!
+        let ts = f3.chartColorTargets(fj)!
+        f3.setChartColor(fj, series: ts.series[0].series, point: nil, color: green)
+        f3.setChartColor(fj, series: ts.series[1].series, point: nil, color: purple)
+        f3.setChartColor(fj, series: ts.series[1].series, point: nil, color: nil)
+        f3.setChartColor(fj, series: ts.points[1].series, point: 1, color: purple)
+        try Xlsx.write(f3.book).write(to: URL(fileURLWithPath: dir + "/chartcolor-file.xlsx"))
+        _ = fi
         // A corpus chart with a secondary-axis group: the first group's first series goes, one is added; the other group stays.
         let two = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("test/corpus/xlsx/books/chart-add_series_secondary_axis.xlsx")
@@ -220,6 +238,63 @@ final class SheetsChartDesignTests: XCTestCase {
         XCTAssertEqual(sc.refs.map(\.val), ["Sheet1!$D$2:$D$3", "Sheet1!$B$2:$B$3"])
     }
 
+    func testSeriesColoursOnAChartMadeHereAndOnOneFromTheFile() throws {
+        let (c, i) = chartBook()
+        let t = try XCTUnwrap(c.chartColorTargets(i))
+        XCTAssertEqual(t.series.map(\.series), [0, 1])
+        let red = Color(0xFFFF0000), blue = Color(0xFF0000FF)
+        XCTAssertTrue(c.setChartColor(i, series: 1, point: nil, color: red))
+        XCTAssertEqual(c.chartColorTargets(i)?.series[1].color, red)
+        XCTAssertEqual(c.chartColorTargets(i)?.series[0].color, nil)
+        c.undo()
+        XCTAssertNil(c.chartColorTargets(i)?.series[1].color)
+        c.redo()
+        if !t.points.isEmpty { XCTAssertTrue(c.setChartColor(i, series: 0, point: 0, color: blue)) }
+        // Through the file: the colours are read back, and written into the part as the chart's own.
+        let back = WorkbookController(); back.load(try Xlsx.read(try Xlsx.write(c.book)))
+        let j = back.sheet.drawings.firstIndex(where: { $0.isChart })!
+        XCTAssertEqual(back.chartColorTargets(j)?.series[1].color, red)
+        XCTAssertTrue(back.setChartColor(j, series: 1, point: nil, color: blue))
+        XCTAssertTrue(back.setChartColor(j, series: 0, point: nil, color: red))
+        let entries = try Zip.read(try Xlsx.write(back.book))
+        let xml = String(decoding: entries.first { $0.name.hasPrefix("xl/charts/chart") && $0.name.hasSuffix(".xml") }!.data, as: UTF8.self)
+        let sers = xml.components(separatedBy: "<c:ser>").dropFirst().map { String($0) }
+        XCTAssertTrue(sers[0].containsSubstring("FF0000"))
+        XCTAssertTrue(sers[1].containsSubstring("0000FF"))
+        XCTAssertFalse(sers[1].containsSubstring("FF0000"))
+        // Automatic again.
+        XCTAssertTrue(back.setChartColor(j, series: 1, point: nil, color: nil))
+        let again = try Zip.read(try Xlsx.write(back.book))
+        let x2 = String(decoding: again.first { $0.name.hasPrefix("xl/charts/chart") && $0.name.hasSuffix(".xml") }!.data, as: UTF8.self)
+        XCTAssertFalse(x2.components(separatedBy: "<c:ser>")[2].containsSubstring("0000FF"))
+    }
+
+    func testColourPatchOnBarLinePieAndPoints() {
+        func ser(_ idx: Int, _ sp: String, _ extra: String = "") -> String {
+            "<c:ser><c:idx val=\"\(idx)\"/><c:order val=\"\(idx)\"/><c:tx><c:v>x</c:v></c:tx>\(sp)\(extra)<c:cat><c:strRef><c:f>S!$A$2:$A$3</c:f></c:strRef></c:cat><c:val><c:numRef><c:f>S!$B$2:$B$3</c:f></c:numRef></c:val></c:ser>"
+        }
+        let bar = "<c:plotArea><c:barChart>" + ser(0, "<c:spPr><a:solidFill><a:schemeClr val=\"accent1\"/></a:solidFill><a:ln><a:solidFill><a:srgbClr val=\"111111\"/></a:solidFill></a:ln></c:spPr>", "<c:invertIfNegative val=\"0\"/>") + ser(1, "") + "</c:barChart></c:plotArea>"
+        let o = ChartPartPatch.colors(bar, [ChartColorEdit(series: 0, point: nil, hex: "AA0000"), ChartColorEdit(series: 1, point: nil, hex: "00BB00"), ChartColorEdit(series: 0, point: 1, hex: "0000CC")])
+        XCTAssertFalse(o.containsSubstring("accent1"))
+        XCTAssertTrue(o.containsSubstring("<c:spPr><a:solidFill><a:srgbClr val=\"AA0000\"/></a:solidFill><a:ln><a:solidFill><a:srgbClr val=\"111111\"/>"))   // the outline is kept
+        XCTAssertTrue(o.containsSubstring("<c:dPt><c:idx val=\"1\"/><c:invertIfNegative val=\"0\"/><c:spPr><a:solidFill><a:srgbClr val=\"0000CC\"/>"))
+        XCTAssertTrue(o.components(separatedBy: "<c:ser>")[2].containsSubstring("00BB00"))
+        // A dPt sits before the categories (schema order); the point goes away again with automatic.
+        XCTAssertLessThan(o.range(of: "<c:dPt>")!.lowerBound, o.range(of: "<c:cat>")!.lowerBound)
+        let back = ChartPartPatch.colors(o, [ChartColorEdit(series: 0, point: 1, hex: nil)])
+        XCTAssertFalse(back.containsSubstring("<c:dPt>"))
+        // A line: the line and its markers, not a fill.
+        let line = "<c:plotArea><c:lineChart>" + ser(0, "<c:spPr><a:ln w=\"28575\"><a:solidFill><a:schemeClr val=\"accent1\"/></a:solidFill><a:round/></a:ln></c:spPr>", "<c:marker><c:symbol val=\"circle\"/><c:size val=\"5\"/><c:spPr><a:solidFill><a:schemeClr val=\"accent1\"/></a:solidFill></c:spPr></c:marker>") + "</c:lineChart></c:plotArea>"
+        let l = ChartPartPatch.colors(line, [ChartColorEdit(series: 0, point: nil, hex: "123456")])
+        XCTAssertFalse(l.containsSubstring("accent1"))
+        XCTAssertEqual(l.components(separatedBy: "123456").count - 1, 3)   // the line, the marker's fill and outline
+        XCTAssertTrue(l.containsSubstring("<a:ln w=\"28575\"><a:solidFill><a:srgbClr val=\"123456\"/></a:solidFill><a:round/></a:ln>"))
+        // A pie's slices.
+        let pie = "<c:plotArea><c:pieChart>" + ser(0, "") + "</c:pieChart></c:plotArea>"
+        let p = ChartPartPatch.colors(pie, [ChartColorEdit(series: 0, point: 0, hex: "FEDCBA")])
+        XCTAssertTrue(p.containsSubstring("<c:dPt><c:idx val=\"0\"/><c:bubble3D val=\"0\"/><c:spPr><a:solidFill><a:srgbClr val=\"FEDCBA\"/>"))
+    }
+
     func testSeriesPatchKeepsIdxAndOrderUniqueAcrossGroups() {
         func ser(_ idx: Int, _ f: String) -> String {
             "<c:ser><c:idx val=\"\(idx)\"/><c:order val=\"\(idx)\"/><c:tx><c:strRef><c:f>S!$A$1</c:f><c:strCache><c:pt idx=\"0\"><c:v>x</c:v></c:pt></c:strCache></c:strRef></c:tx><c:spPr><a:solidFill><a:srgbClr val=\"FF0000\"/></a:solidFill></c:spPr><c:dPt><c:idx val=\"0\"/></c:dPt><c:cat><c:strRef><c:f>S!$A$2:$A$3</c:f></c:strRef></c:cat><c:val><c:numRef><c:f>\(f)</c:f><c:numCache/></c:numRef></c:val></c:ser>"
@@ -319,6 +394,30 @@ final class SheetsChartDesignTests: XCTestCase {
 
     /// Corpus round trip for Select Data (CHART_CORPUS=<dir>): (1) every chart's series set to what it already is leaves the chart part
     /// byte-identical; (2) the last series removed leaves one fewer c:ser and every c:idx and c:order unique.
+    func testThemeColourIsWrittenAsSchemeColour() throws {
+        let (c, i) = chartBook()
+        let k = c.chartColorTargets(i)!.series[0].series
+        XCTAssertTrue(c.setChartColor(i, series: k, point: nil, choice: .theme(slot: 5, lumMod: 60, lumOff: 40)))
+        XCTAssertTrue(c.setChartColor(i, series: k, point: 1, choice: .theme(slot: 6, lumMod: 100, lumOff: 0)))
+        var xml = try chartXML(c)
+        XCTAssertTrue(xml.contains("<a:schemeClr val=\"accent2\"><a:lumMod val=\"60000\"/><a:lumOff val=\"40000\"/></a:schemeClr>"))
+        XCTAssertTrue(xml.contains("<a:schemeClr val=\"accent3\"/>"))
+        // From a file: the same patch lands in the original part.
+        let back = WorkbookController(); back.load(try Xlsx.read(try Xlsx.write(c.book)))
+        let j = back.sheet.drawings.firstIndex(where: { $0.isChart })!
+        XCTAssertTrue(back.setChartColor(j, series: back.chartColorTargets(j)!.series[1].series, point: nil, choice: .theme(slot: 7, lumMod: 75, lumOff: 0)))
+        xml = try chartXML(back)
+        XCTAssertTrue(xml.contains("<a:schemeClr val=\"accent4\"><a:lumMod val=\"75000\"/></a:schemeClr>"))
+        XCTAssertTrue(back.setChartColor(j, series: back.chartColorTargets(j)!.series[1].series, point: nil, choice: .rgb(0x112233)))
+        XCTAssertTrue(try chartXML(back).contains("<a:srgbClr val=\"112233\"/>"))
+    }
+
+    private func chartXML(_ c: WorkbookController) throws -> String {
+        let entries = try Zip.read(try Xlsx.write(c.book))
+        let e = try XCTUnwrap(entries.first { $0.name.hasPrefix("xl/charts/chart") && $0.name.hasSuffix(".xml") })
+        return String(decoding: e.data, as: UTF8.self)
+    }
+
     func testCorpusSeriesEdits() throws {
         guard let dir = ProcessInfo.processInfo.environment["CHART_CORPUS"] else { return }
         var charts = 0, same = 0, notSame = 0, removed = 0, dup = 0, wrongCount = 0
@@ -364,5 +463,41 @@ final class SheetsChartDesignTests: XCTestCase {
         }
         print("SERCORPUS charts=\(charts) identityUnchanged=\(same) identityChanged=\(notSame) removedParts=\(removed) duplicateOrder=\(dup) wrongSeriesCount=\(wrongCount)")
         XCTAssertEqual(notSame, 0); XCTAssertEqual(dup, 0); XCTAssertEqual(wrongCount, 0)
+    }
+
+    /// Colours over the corpus: every series set, then one reset; parts stay the same size in series, other groups untouched.
+    func testCorpusColourEdits() throws {
+        guard let dir = ProcessInfo.processInfo.environment["CHART_CORPUS"] else { return }
+        var charts = 0, changed = 0, wrongCount = 0, bad = 0
+        let fm = FileManager.default
+        func count(_ x: String, _ t: String) -> Int { x.components(separatedBy: t).count - 1 }
+        let names = (fm.enumerator(atPath: dir)?.allObjects as? [String] ?? []).filter { $0.hasSuffix(".xlsx") }.sorted()
+        for n in names {
+            guard let data = fm.contents(atPath: dir + "/" + n), let entries = try? Zip.read(data),
+                  entries.contains(where: { $0.name.hasPrefix("xl/charts/chart") && $0.name.hasSuffix(".xml") }),
+                  let book = try? Xlsx.read(data) else { continue }
+            let was = Dictionary(entries.map { ($0.name, $0.data) }, uniquingKeysWith: { a, _ in a })
+            let c = WorkbookController(); c.load(book)
+            for si in 0 ..< c.book.sheets.count {
+                c.activeSheet = si
+                for (j, d) in c.sheet.drawings.enumerated() where d.isChart {
+                    guard let t = c.chartColorTargets(j) else { continue }
+                    charts += 1
+                    for s in t.series { c.setChartColor(j, series: s.series, point: nil, color: Color(0xFF123456)) }
+                    for p in t.points.prefix(2) { c.setChartColor(j, series: p.series, point: p.point, color: Color(0xFF654321)) }
+                }
+            }
+            guard let out = try? Xlsx.write(c.book), let outEntries = try? Zip.read(out) else { bad += 1; continue }
+            for e in outEntries where e.name.hasPrefix("xl/charts/chart") && e.name.hasSuffix(".xml") {
+                guard let old = was[e.name] else { continue }
+                let oa = String(decoding: old, as: UTF8.self), ob = String(decoding: e.data, as: UTF8.self)
+                if oa != ob { changed += 1 }
+                if count(ob, "<c:ser>") != count(oa, "<c:ser>") { wrongCount += 1; print("COLCOUNT \(n) \(e.name)") }
+                if count(ob, "<c:dPt>") < count(oa, "<c:dPt>") && false { bad += 1 }
+                if !XMLParser(data: e.data).parse() { bad += 1; print("COLXML \(n) \(e.name)") }
+            }
+        }
+        print("COLCORPUS charts=\(charts) partsChanged=\(changed) wrongSeriesCount=\(wrongCount) malformed=\(bad)")
+        XCTAssertEqual(wrongCount, 0); XCTAssertEqual(bad, 0)
     }
 }

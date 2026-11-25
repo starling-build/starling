@@ -55,6 +55,8 @@ struct SheetChart: Equatable {
     var valTitleEdit: ChartPartEdit? = nil
     /// Select Data on the file's own chart: its series as they are now (which of the part's each came from, and the cells they read); the save rewrites the part's series to match.
     var seriesEdit: [ChartSeriesRef]? = nil
+    /// Colours set in Format Data Series on the file's own chart, by the part's series; the save patches them in before the series are rewritten.
+    var colorEdit: [ChartColorEdit] = []
     /// Every `<c:f>` in that part (series, titles, labels…): as read → as
     /// it reads now, after rows, columns or sheets moved. A save rewrites
     /// the part's references through it and keeps everything else.
@@ -76,7 +78,7 @@ struct SheetChart: Equatable {
     var pivotSeries: [String] = []
 
     static func == (a: SheetChart, b: SheetChart) -> Bool {
-        a.chart == b.chart && a.path == b.path && a.titleEdit == b.titleEdit && a.legendEdit == b.legendEdit && a.catTitleEdit == b.catTitleEdit && a.valTitleEdit == b.valTitleEdit && a.seriesEdit == b.seriesEdit && a.formulas == b.formulas && a.refs.count == b.refs.count
+        a.chart == b.chart && a.path == b.path && a.titleEdit == b.titleEdit && a.colorEdit == b.colorEdit && a.legendEdit == b.legendEdit && a.catTitleEdit == b.catTitleEdit && a.valTitleEdit == b.valTitleEdit && a.seriesEdit == b.seriesEdit && a.formulas == b.formulas && a.refs.count == b.refs.count
             && zip(a.refs, b.refs).allSatisfy { $0.name == $1.name && $0.cat == $1.cat && $0.val == $1.val }
     }
 }
@@ -566,10 +568,11 @@ extension SheetDrawingsXML {
         var shapeId = 2
         for d in ws.drawings {
             shapeId += 1
-            if case .chart(let sc) = d.kind, let path = sc.path, sc.formulasChanged || sc.retype != nil || sc.titleEdit != nil || sc.legendEdit != nil || sc.catTitleEdit != nil || sc.valTitleEdit != nil || sc.seriesEdit != nil, let bytes = original[path] {
+            if case .chart(let sc) = d.kind, let path = sc.path, sc.formulasChanged || sc.retype != nil || sc.titleEdit != nil || sc.legendEdit != nil || sc.catTitleEdit != nil || sc.valTitleEdit != nil || sc.seriesEdit != nil || !sc.colorEdit.isEmpty, let bytes = original[path] {
                 // The file's own chart, its references moved with the cells.
                 var xml = String(decoding: bytes, as: UTF8.self)
                 if sc.formulasChanged { xml = _rewriteFormulas(xml, sc.formulas) }
+                if !sc.colorEdit.isEmpty { xml = ChartPartPatch.colors(xml, sc.colorEdit) }
                 if let e = sc.seriesEdit { xml = ChartPartPatch.series(xml, e) }
                 if let t = sc.retype { xml = _retypeBars(xml, t) }
                 if let e = sc.titleEdit { xml = ChartPartPatch.title(xml, e) }
@@ -1062,6 +1065,79 @@ extension WorkbookController {
         sc.chart.series = series
         sc.refs = list.map { (name: $0.name, cat: $0.cat, val: $0.val) }
         if sc.path != nil { sc.seriesEdit = list } else { sc.chart.series = series }
+        structural {
+            ws.drawings[index].kind = .chart(sc)
+            ws.drawings[index].raw = nil
+            ws.drawingsEdited = true
+        }
+        selectedDrawing = index
+        return true
+    }
+
+    /// Format Data Series: what can be coloured on a chart, each with the colour it has now (nil follows the theme or its number).
+    struct ChartColorTarget { var title: String; var series: Int; var point: Int?; var color: Color?; var themed: Bool }
+    /// A series (by its place in the part for a file's chart, in the chart for one made here) and, for the first series of a bar, column, area or pie chart, its points.
+    func chartColorTargets(_ index: Int) -> (series: [ChartColorTarget], points: [ChartColorTarget])? {
+        guard sheet.drawings.indices.contains(index), case .chart(let sc) = sheet.drawings[index].kind, _canEditSeries(sc) else { return nil }
+        let list = chartSeries(index) ?? []
+        var series: [ChartColorTarget] = []
+        for (n, s) in sc.chart.series.enumerated() {
+            let key: Int
+            if sc.path != nil { guard list.indices.contains(n), let src = list[n].source else { continue }; key = src } else { key = n }
+            if sc.chart.type.isPie { continue }
+            series.append(ChartColorTarget(title: s.name.isEmpty ? "Series \(n + 1)" : s.name, series: key, point: nil, color: s.color, themed: s.color == nil && s.scheme != nil))
+        }
+        var points: [ChartColorTarget] = []
+        let t = sc.chart.type
+        if t == .column || t == .bar || t == .area || t.isPie, let first = series.first, let s0 = sc.chart.series.first {
+            for (p, name) in sc.chart.categories.enumerated().prefix(40) {
+                points.append(ChartColorTarget(title: name.isEmpty ? "Point \(p + 1)" : name, series: first.series, point: p, color: sc.chart.pointColors[p], themed: false))
+            }
+            _ = s0
+        }
+        return (series, points)
+    }
+    /// Format Data Series: a series' (or one point's) colour, nil for automatic (one undo step).
+    @discardableResult
+    func setChartColor(_ index: Int, series key: Int, point: Int?, color: Color?) -> Bool {
+        setChartColor(index, series: key, point: point, choice: color.map { .rgb(UInt32(truncatingIfNeeded: $0.value) & 0xFFFFFF) } ?? .automatic)
+    }
+    /// The same from the colour picker: a theme pick is written as a scheme colour (with its lumMod / lumOff) so a new theme recolours it.
+    static let schemeSlots = ["bg1", "tx1", "bg2", "tx2", "accent1", "accent2", "accent3", "accent4", "accent5", "accent6"]
+    @discardableResult
+    func setChartColor(_ index: Int, series key: Int, point: Int?, choice: ColorChoice) -> Bool {
+        let ws = sheet
+        var edit = ChartColorEdit(series: key, point: point, hex: nil)
+        var color: Color? = nil
+        switch choice {
+        case .automatic, .none: break
+        case .rgb(let c): color = Color(Int64(0xFF000000 | c)); edit.hex = color.map { PptxText.hex($0) }
+        case .theme(let slot, let mod, let off):
+            guard Self.schemeSlots.indices.contains(slot), let c = choice.resolved(theme: ColorMath.officeTheme) else { return false }
+            color = Color(Int64(0xFF000000 | c)); edit.scheme = Self.schemeSlots[slot]; edit.lumMod = mod; edit.lumOff = off
+        }
+        let xml = edit.element
+        guard ws.drawings.indices.contains(index), case .chart(var sc) = ws.drawings[index].kind, _canEditSeries(sc) else { return false }
+        var at = key
+        if sc.path != nil {
+            guard let list = chartSeries(index), let n = list.firstIndex(where: { $0.source == key }) else { return false }
+            at = n
+        }
+        guard sc.chart.series.indices.contains(at) else { return false }
+        if let p = point {
+            guard at == 0 else { return false }
+            sc.chart.pointColors[p] = color
+            sc.chart.pointColorXML[p] = edit.scheme != nil ? xml : nil
+            if color == nil { sc.chart.pointColors.removeValue(forKey: p) }
+        } else if !sc.chart.type.isPie {
+            sc.chart.series[at].color = color
+            sc.chart.series[at].scheme = nil
+            sc.chart.series[at].colorXML = edit.scheme != nil ? xml : nil
+        } else { return false }
+        if sc.path != nil {
+            sc.colorEdit.removeAll { $0.series == key && $0.point == point }
+            sc.colorEdit.append(edit)
+        }
         structural {
             ws.drawings[index].kind = .chart(sc)
             ws.drawings[index].raw = nil

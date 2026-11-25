@@ -104,6 +104,8 @@ struct ChartSeries: Equatable {
     var autoIndex: Int? = nil
     /// The theme slot the file named ("accent3"), followed by a new theme.
     var scheme: String? = nil
+    /// The colour element written for a colour picked from the theme grid (a scheme colour with lumMod / lumOff); `color` holds what it comes to.
+    var colorXML: String? = nil
     /// A scatter series whose points are joined by its line (the file gave
     /// the series a line, or the chart's style is one with lines).
     var joined = false
@@ -486,6 +488,8 @@ struct Chart: Equatable {
     }
     /// A pie's slices in their own colours (`c:dPt`), by index.
     var pointColors: [Int: Color] = [:]
+    /// The colour element written for a point colour picked from the theme grid (a scheme colour with its tint), by index.
+    var pointColorXML: [Int: String] = [:]
     /// The outline the first slice's `c:dPt` gives (colour, width in pt): a pie's legend keys wear it.
     var pointRim: Color? = nil
     var pointRimWidth = 0.75
@@ -2999,6 +3003,7 @@ enum ChartXML {
 
     private static func _solid(_ chart: Chart, _ i: Int) -> String {
         let s = chart.series[i]
+        if let x = s.colorXML { return "<a:solidFill>\(x)</a:solidFill>" }
         if let c = s.color { return "<a:solidFill><a:srgbClr val=\"\(PptxText.hex(c))\"/></a:solidFill>" }
         if let scheme = s.scheme { return "<a:solidFill><a:schemeClr val=\"\(scheme)\"/></a:solidFill>" }
         // A monochrome style colours the series itself: no fill of its own.
@@ -3035,6 +3040,10 @@ enum ChartXML {
             return "<c:strRef><c:f>\(catRef)</c:f><c:strCache><c:ptCount val=\"\(n)\"/>\(pts)</c:strCache></c:strRef>"
         }()
         let seriesList = c.type.isPie ? Array(c.series.prefix(1)) : c.series
+        // A point of the first series in a colour of its own (a bar, a column, an area's).
+        func ownPoints(_ extra: String) -> String {
+            c.pointColors.sorted { $0.key < $1.key }.map { "<c:dPt><c:idx val=\"\($0.key)\"/>\(extra)<c:spPr><a:solidFill>\(c.pointColorXML[$0.key] ?? "<a:srgbClr val=\"\(PptxText.hex($0.value))\"/>")</a:solidFill></c:spPr></c:dPt>" }.joined()
+        }
         for (i, s) in seriesList.enumerated() {
             let col = column(i + 1)
             let tx = "<c:tx><c:strRef><c:f>Sheet1!$\(col)$1</c:f><c:strCache><c:ptCount val=\"1\"/><c:pt idx=\"0\"><c:v>\(_esc(s.name))</c:v></c:pt></c:strCache></c:strRef></c:tx>"
@@ -3043,9 +3052,9 @@ enum ChartXML {
             let head = "<c:idx val=\"\(s.autoIndex ?? i)\"/><c:order val=\"\(i)\"/>\(tx)"
             switch c.type {
             case .column, .bar:
-                sers += "<c:ser>\(head)<c:spPr>\(_solid(c, i))<a:ln><a:noFill/></a:ln></c:spPr><c:invertIfNegative val=\"0\"/><c:cat>\(catCache)</c:cat><c:val>\(val)</c:val></c:ser>"
+                sers += "<c:ser>\(head)<c:spPr>\(_solid(c, i))<a:ln><a:noFill/></a:ln></c:spPr><c:invertIfNegative val=\"0\"/>\(i == 0 ? ownPoints("<c:invertIfNegative val=\"0\"/>") : "")<c:cat>\(catCache)</c:cat><c:val>\(val)</c:val></c:ser>"
             case .area:
-                sers += "<c:ser>\(head)<c:spPr>\(_solid(c, i))<a:ln><a:noFill/></a:ln></c:spPr><c:cat>\(catCache)</c:cat><c:val>\(val)</c:val></c:ser>"
+                sers += "<c:ser>\(head)<c:spPr>\(_solid(c, i))<a:ln><a:noFill/></a:ln></c:spPr>\(i == 0 ? ownPoints("") : "")<c:cat>\(catCache)</c:cat><c:val>\(val)</c:val></c:ser>"
             case .line:
                 sers += "<c:ser>\(head)<c:spPr><a:ln w=\"28575\" cap=\"rnd\">\(_solid(c, i))<a:round/></a:ln></c:spPr><c:marker><c:symbol val=\"none\"/></c:marker><c:cat>\(catCache)</c:cat><c:val>\(val)</c:val><c:smooth val=\"0\"/></c:ser>"
             case .scatter:
@@ -3057,7 +3066,7 @@ enum ChartXML {
             case .pie, .doughnut:
                 var dpts = ""
                 for p in 0 ..< n {
-                    let own = c.pointColors[p].map { "<a:solidFill><a:srgbClr val=\"\(PptxText.hex($0))\"/></a:solidFill>" }
+                    let own = c.pointColors[p].map { "<a:solidFill>\(c.pointColorXML[p] ?? "<a:srgbClr val=\"\(PptxText.hex($0))\"/>")</a:solidFill>" }
                     dpts += "<c:dPt><c:idx val=\"\(p)\"/><c:bubble3D val=\"0\"/><c:spPr>\(own ?? _cycleFill(p))<a:ln w=\"19050\"><a:solidFill><a:schemeClr val=\"lt1\"/></a:solidFill></a:ln></c:spPr></c:dPt>"
                 }
                 sers += "<c:ser>\(head)\(dpts)<c:cat>\(catCache)</c:cat><c:val>\(val)</c:val></c:ser>"
