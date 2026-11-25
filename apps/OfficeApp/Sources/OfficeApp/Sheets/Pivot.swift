@@ -81,11 +81,12 @@ enum PivotGroup: Equatable, Sendable {
         case .numbers(let start, let end, let by):
             guard by > 0, end >= start else { return [] }
             var labels = ["<" + PivotCalc.numText(start)]
-            var lo = start
-            while lo <= end {
-                let whole = lo == lo.rounded() && by == by.rounded()
-                labels.append(PivotCalc.numText(lo) + "-" + PivotCalc.numText(whole ? lo + by - 1 : lo + by))
-                lo += by
+            let whole = start == start.rounded() && by == by.rounded()
+            for k in 0 ..< Self.bucketCount(start, end, by) {
+                let lo = start + Double(k) * by
+                // (The last bucket runs on to the end, inclusive, as in Excel.)
+                let hi = lo + by >= end ? end : (whole ? lo + by - 1 : lo + by)
+                labels.append(PivotCalc.numText(lo) + "-" + PivotCalc.numText(hi))
             }
             labels.append(">" + PivotCalc.numText(end))
             return mk(labels)
@@ -101,14 +102,21 @@ enum PivotGroup: Equatable, Sendable {
         }
     }
 
+    static func bucketCount(_ start: Double, _ end: Double, _ by: Double) -> Int {
+        var n = 1
+        while start + Double(n) * by < end { n += 1 }
+        return n
+    }
+
     /// The index of the group a value falls in (see `items`), or nil when it is not a number.
     func index(of v: CellValue, minYear: Int) -> Int? {
         guard let x = v.number else { return nil }
         switch self {
         case .numbers(let start, let end, let by):
+            let n = Self.bucketCount(start, end, by)
             if x < start { return 0 }
-            if x > end { return Int(((end - start) / by).rounded(.down)) + 2 }
-            return 1 + Int(((x - start) / by).rounded(.down))
+            if x > end { return n + 1 }
+            return min(1 + Int(((x - start) / by).rounded(.down)), n)
         case .dates(let unit):
             let (y, m, _) = ExcelDate.ymd(x)
             switch unit {
