@@ -807,6 +807,19 @@ public final class RichEditableState: State<StatefulWidget> {
         return (index, rect, inline)
     }
 
+    /// The floating picture of its own paragraph under the point (editable coordinates), if any: it is drawn away from
+    /// its paragraph, so a press there lands on other text; the paragraph's index.
+    private func _floatingImage(at local: Offset) -> Int? {
+        guard _layout.width > 0 else { return nil }
+        _syncLayoutIfNeeded()
+        let canvasPoint = _canvasPoint(local)
+        let doc = _controller.document
+        for i in doc.paragraphs.indices.reversed() where doc.paragraphs[i].isImage && _controller.pictureWrap(at: i) != nil {
+            if let flow = _layout.imageRect(i), _layout.canvasRects(flow).contains(where: { $0.contains(canvasPoint) }) { return i }
+        }
+        return nil
+    }
+
     /// The picture set in a line of text under the point (editable coordinates), if any.
     private func _inlineImage(at local: Offset) -> (paragraph: Int, id: String)? {
         guard _layout.width > 0 else { return nil }
@@ -994,6 +1007,16 @@ public final class RichEditableState: State<StatefulWidget> {
                 // A selected picture's size handle: the finger resizes it, as a mouse does.
                 _handleDrag = (box.index, k, event.localPosition, box.rect.size, box.inline)
                 _dragSize = box.rect.size
+                _touchScroll = nil
+                _dragging = false
+                return
+            }
+            if let box = _selectedImageBox(), box.rect.contains(event.localPosition),
+               _controller.pictureWrap(at: box.index, inline: box.inline) != nil {
+                // The body of a selected floating picture: the finger moves it, as a mouse does (a tap that does not travel
+                // is still a tap: a text box opens for editing).
+                _moveDrag = (box.index, box.inline, event.localPosition)
+                _moveDelta = Offset(0, 0)
                 _touchScroll = nil
                 _dragging = false
                 return
@@ -1309,6 +1332,15 @@ public final class RichEditableState: State<StatefulWidget> {
                     let onCaret = _controller.selection.isCollapsed && _controller.caret == pos
                     _controller.moveTo(pos, extend: false)
                     _caretHandleShown = true
+                    // A tap on a picture set in a line of text, or floating clear of it, selects it (with its handles),
+                    // as a click does.
+                    if let hit = _inlineImage(at: event.localPosition) {
+                        _controller.selectInlineImage(in: hit.paragraph, id: hit.id)
+                        _caretHandleShown = false
+                    } else if let i = _floatingImage(at: event.localPosition) {
+                        _controller.selectImage(at: i)
+                        _caretHandleShown = false
+                    }
                     if onCaret { _touchMenu(true) }
                 }
             }

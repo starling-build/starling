@@ -777,7 +777,11 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         guard p.dx >= headerWidth, p.dy >= headerHeight else { return nil }
         let ws = controller.sheet
         if let sel = controller.selectedDrawing, ws.drawings.indices.contains(sel) {
-            for (h, q) in _handles(drawingRect(ws.drawings[sel].anchor)).enumerated() where (q - p).distance <= 6 {
+            // (A finger's reach is wider than a pointer's: 22 pt, kept to a quarter of the drawing's short side so that
+            // neighbouring handles, half that apart, never share it.)
+            let box = drawingRect(ws.drawings[sel].anchor)
+            let reach = _touchSeen ? max(6, min(22, min(box.width, box.height) / 4)) : 6
+            for (h, q) in _handles(box).enumerated() where (q - p).distance <= reach {
                 return (sel, h)
             }
         }
@@ -803,13 +807,14 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         p.strokeWidth = 1
         p.color = accent
         canvas.drawRect(r, p)
+        let radius = _touchSeen ? 7.0 : 4.0   // (a dot a finger can see under itself)
         for q in _handles(r) {
             p.style = .fill
             p.color = Color(0xFFFFFFFF)
-            canvas.drawCircle(q, 4, p)
+            canvas.drawCircle(q, radius, p)
             p.style = .stroke
             p.color = accent
-            canvas.drawCircle(q, 4, p)
+            canvas.drawCircle(q, radius, p)
         }
     }
 
