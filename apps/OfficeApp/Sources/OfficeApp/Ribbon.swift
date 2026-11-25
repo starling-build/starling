@@ -836,6 +836,30 @@ final class Ribbon: StatelessWidget {
                 _shapeColorMenu(FluentSystemIcons.textColor, "Shape Outline", c, i, fluent, outline: true),
             ]))
         }
+        var groupWidgets: [Widget] = []
+        let picked = c.pickedShapeIndexes
+        let pickedImages = picked.compactMap { c.document.paragraphs[$0].image }
+        if picked.count >= 2, pickedImages.allSatisfy(ShapeGroups.isGroupable) {
+            groupWidgets.append(Chrome.group("Group", fluent, [
+                Chrome.big(FluentSystemIcons.shapes, "Group", fluent) { [session] in
+                    if let g = ShapeGroups.group(pickedImages, number: TextBoxInsert.nextShapeNumber(in: c.document)), c.replaceImageParagraphs(picked, with: [g]) {
+                        session.onStatus?("Grouped \(picked.count) shapes")
+                    }
+                },
+            ]))
+        } else if let image = c.document.paragraphs[i].image, ShapeGroups.isGroup(image) {
+            groupWidgets.append(Chrome.group("Group", fluent, [
+                Chrome.big(FluentSystemIcons.shapes, "Ungroup", fluent) { [session] in
+                    if let parts = ShapeGroups.ungroup(image, number: TextBoxInsert.nextShapeNumber(in: c.document)), c.replaceImageParagraphs([i], with: parts) {
+                        session.onStatus?("Ungrouped into \(parts.count) shapes")
+                    }
+                },
+            ]))
+        } else if picked.count < 2, let image = c.document.paragraphs[i].image, ShapeGroups.isGroupable(image) {
+            groupWidgets.append(Chrome.group("Group", fluent, [
+                Chrome.big(FluentSystemIcons.shapes, "Group", fluent, enabled: false) {},
+            ]))
+        }
         var floating: [Widget] = []
         if let wrap = c.pictureWrap(at: i) {
             func pick(_ w: PictureWrap) -> Widget {
@@ -858,7 +882,7 @@ final class Ribbon: StatelessWidget {
                 ]),
             ]))
         }
-        return [size, arrange] + floating + boxGroup + styleGroup + [turn, tools, remove]
+        return [size, arrange] + floating + groupWidgets + boxGroup + styleGroup + [turn, tools, remove]
     }
 
     /// Shape Fill / Shape Outline: the shared colour picker; a theme pick is written as a theme colour.

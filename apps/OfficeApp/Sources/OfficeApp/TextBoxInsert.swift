@@ -69,7 +69,7 @@ enum TextBoxInsert {
         read(drawingXML(text: nil, width: width, height: height, preset: preset, fill: "4472C4", name: shapeLabel(preset), number: number, page: page)) { _ in true }
     }
 
-    private static func read(_ drawing: String, _ wanted: (ImageAttachment) -> Bool) -> ImageAttachment? {
+    static func read(_ drawing: String, _ wanted: (ImageAttachment) -> Bool) -> ImageAttachment? {
         guard let base = try? DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "x")]), pageSetup: .letter),
               var entries = try? Zip.read(base), let di = entries.firstIndex(where: { $0.name == "word/document.xml" }) else { return nil }
         var xml = String(decoding: entries[di].data, as: UTF8.self)

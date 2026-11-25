@@ -510,5 +510,63 @@ final class ShapeSelectTests: XCTestCase {
         let out = String(decoding: try XCTUnwrap(try Zip.read(try DocxFormat.write(c.document, pageSetup: .letter)).first { $0.name == "word/document.xml" }).data, as: UTF8.self)
         XCTAssertTrue(out.containsSubstring("<a:schemeClr val=\"accent2\">"))
         XCTAssertFalse(out.containsSubstring("4472C4"))
+        if let path = ProcessInfo.processInfo.environment["SHAPE_LAB3"] {
+            try DocxFormat.write(c.document, pageSetup: .letter).write(to: URL(fileURLWithPath: path))
+        }
+    }
+
+    func testShapesGroupAndUngroupAndKeepTheirPlaceAndNames() throws {
+        let c = RichDocumentController(document: RichDocument(paragraphs: [RichParagraph(text: "x", style: .init())]))
+        for (n, preset) in ["rect", "ellipse", "triangle"].enumerated() {
+            c.pendingShape = { x, y, w, h in TextBoxInsert.makeShape(preset: preset, width: w, height: h, number: TextBoxInsert.nextShapeNumber(in: c.document), page: (x, y)) }
+            XCTAssertTrue(c.placePendingShape(x: 50 + Double(n) * 100, y: 200 + Double(n) * 20, width: 80, height: 60, at: RichPosition(paragraph: 0, offset: 0)))
+        }
+        let shapes = c.document.paragraphs.indices.filter { c.document.paragraphs[$0].image != nil }
+        XCTAssertEqual(shapes.count, 3)
+        c.selectImage(at: shapes[0])
+        c.toggleShapePick(at: shapes[2])
+        XCTAssertEqual(c.pickedShapeIndexes, [shapes[0], shapes[2]])
+        let members = c.pickedShapeIndexes.compactMap { c.document.paragraphs[$0].image }
+        let group = try XCTUnwrap(ShapeGroups.group(members, number: 9))
+        XCTAssertTrue(ShapeGroups.isGroup(group))
+        XCTAssertTrue(c.replaceImageParagraphs(c.pickedShapeIndexes, with: [group]))
+        XCTAssertEqual(c.document.paragraphs.filter { $0.image != nil }.count, 2)
+        XCTAssertTrue(c.document.paragraphs[c.selectedImageIndex!].image!.sourceXML!.containsSubstring("name=\"Group 9\""))
+        // The file keeps the group and reads back as one.
+        let back = try DocxFormat.read(try DocxFormat.write(c.document, pageSetup: .letter)).document
+        XCTAssertEqual(back.paragraphs.compactMap(\.image).filter { $0.sourceXML?.containsSubstring("<wpg:wgp") == true }.count, 1)
+        if let path = ProcessInfo.processInfo.environment["SHAPE_LAB4"] {
+            try DocxFormat.write(c.document, pageSetup: .letter).write(to: URL(fileURLWithPath: path))
+        }
+        // Ungroup gives the two shapes back, by name and size.
+        let g = try XCTUnwrap(c.document.paragraphs[c.selectedImageIndex!].image)
+        let parts = try XCTUnwrap(ShapeGroups.ungroup(g, number: 20))
+        XCTAssertEqual(parts.count, 2)
+        let oval = try XCTUnwrap(parts.first { $0.sourceXML!.containsSubstring("name=\"Oval 2\"") })
+        XCTAssertTrue(oval.sourceXML!.containsSubstring("<wp:posOffset>\(150 * 12700)</wp:posOffset></wp:positionH>"))
+        XCTAssertTrue(parts.contains { $0.sourceXML!.containsSubstring("name=\"Rectangle 1\"") })
+        c.undo()
+        XCTAssertEqual(c.document.paragraphs.filter { $0.image != nil }.count, 3)
+    }
+
+    func testTurnedShapesGroupByTheBoxTheirTurnSweeps() throws {
+        let c = RichDocumentController(document: RichDocument(paragraphs: [RichParagraph(text: "x", style: .init())]))
+        for (n, preset) in ["rect", "triangle"].enumerated() {
+            c.pendingShape = { x, y, w, h in TextBoxInsert.makeShape(preset: preset, width: w, height: h, number: TextBoxInsert.nextShapeNumber(in: c.document), page: (x, y)) }
+            XCTAssertTrue(c.placePendingShape(x: 50 + Double(n) * 200, y: 200, width: 80, height: 60, at: RichPosition(paragraph: 0, offset: 0)))
+        }
+        var shapes = c.document.paragraphs.compactMap(\.image).filter { $0.float != nil }
+        XCTAssertEqual(shapes.count, 2)
+        let r = try XCTUnwrap(shapes.firstIndex { $0.sourceXML!.containsSubstring("name=\"Rectangle") })
+        shapes[r].sourceXML = shapes[r].sourceXML!.replacingAll("<a:xfrm>", with: "<a:xfrm rot=\"5400000\">").replacingAll("<a:xfrm ", with: "<a:xfrm rot=\"5400000\" ")
+        XCTAssertTrue(shapes[r].sourceXML!.containsSubstring("rot=\"5400000\""))
+        let g = try XCTUnwrap(ShapeGroups.group(shapes, number: 5))
+        let xml = try XCTUnwrap(g.sourceXML)
+        // Turned a quarter, the 80 x 60 box fills 60 x 80 about its centre: 60..120 across, 190..270 down; the group ends at 330.
+        XCTAssertTrue(xml.containsSubstring("<wp:posOffset>\(60 * 12700)</wp:posOffset></wp:positionH>"))
+        XCTAssertTrue(xml.containsSubstring("<wp:posOffset>\(190 * 12700)</wp:posOffset></wp:positionV>"))
+        XCTAssertTrue(xml.containsSubstring("<wp:extent cx=\"\(270 * 12700)\" cy=\"\(80 * 12700)\"/>"))
+        let parts = try XCTUnwrap(ShapeGroups.ungroup(g, number: 9))
+        XCTAssertTrue(parts.contains { $0.sourceXML!.containsSubstring("rot=\"5400000\"") })
     }
 }
