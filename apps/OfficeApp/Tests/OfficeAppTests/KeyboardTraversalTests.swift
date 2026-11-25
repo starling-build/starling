@@ -137,6 +137,35 @@ final class KeyboardTraversalTests: XCTestCase {
     }
 
     /// Every ribbon control must have a name (tooltip or caption) so it gets an Alt key tip.
+    func testArrowKeysMoveASliderTheRingIsOn() {
+        var value = 100.0
+        let ui = app(SizedBox(width: 200, height: 40, child: Slider(value: 100, onChanged: { value = $0 }, min: 50, max: 300, label: "Zoom")))
+        ui.press(.f6)
+        XCTAssertEqual(KeyboardTraversal.shared.focused?.label(), "Zoom")
+        ui.press(.right)
+        XCTAssertEqual(value, 112.5, accuracy: 0.01)
+        ui.press(.left); ui.press(.left)
+        XCTAssertEqual(value, 87.5, accuracy: 0.01)
+    }
+
+    func testF6ReachesTheDocumentPageAndTheEditorKeepsTheKeys() {
+        let makers: [(String, () -> WidgetTester)] = [
+            ("Writer", { self.app(OfficeShell(initialPath: nil, startBlank: true)) }),
+            ("Slides", { self.app(SlidesShell(initialPath: nil, startBlank: true, onSwitch: { _, _ in })) }),
+            ("Sheets", { self.app(SheetsShell(initialPath: nil, onSwitch: { _, _ in })) }),
+        ]
+        for (name, make) in makers {
+            let ui = make()
+            XCTAssertTrue(KeyboardTraversal.shared.regions().contains("page"), "\(name): the page is a region")
+            for _ in 0..<5 where KeyboardTraversal.shared.focused != nil || FocusManager.instance.focusedNode == nil { ui.press(.f6) }
+            ui.press(.f6); ui.press(.f6)   // round the regions back to the page at most once more
+            var onPage = false
+            for _ in 0..<5 { ui.press(.f6); if KeyboardTraversal.shared.focused == nil { onPage = true; break } }
+            XCTAssertTrue(onPage, "\(name): F6 reaches the page and the ring steps aside")
+            XCTAssertNotNil(FocusManager.instance.focusedNode, "\(name): the editor holds the keys")
+        }
+    }
+
     func testEveryRibbonControlHasAName() {
         let tabs = ["Home", "Insert", "Design", "Layout", "Transitions", "Review", "View", "Data", "Formulas",
                     "Page Layout", "Draw", "References", "Animations", "Slide Show"]
@@ -164,7 +193,7 @@ final class KeyboardTraversalTests: XCTestCase {
             for tab in tabs where ui.has(text: tab) {
                 ui.tap(text: tab)
                 let want = buttonsOnScreen(ui)
-                let got = KeyboardTraversal.shared.reachable().count
+                let got = KeyboardTraversal.shared.reachable().filter { $0.region != "page" && $0.region != "thumbnails" }.count
                 inspected += want
                 XCTAssertEqual(got, want, "\(name)/\(tab): \(want) buttons on screen, \(got) reachable by keyboard")
             }
