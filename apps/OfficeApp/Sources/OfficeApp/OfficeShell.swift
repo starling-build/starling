@@ -1277,6 +1277,11 @@ final class OfficeShellState: State<StatefulWidget> {
             if session.viewMode == .readMode { session.onViewMode?(.printLayout); return true }
             return false
         }
+        // Shift+F9 shows or hides the field code at the caret; Alt+F9 all of them.
+        if named == .function(9), mods.contains(.shift) || mods.contains(.alt) {
+            controller.toggleFieldCodes(all: mods.contains(.alt))
+            return true
+        }
         guard mods.contains(.primary) else { return false }
         let c = controller
         guard let letter = KeyChordTracker.letter(key.logical) else {
