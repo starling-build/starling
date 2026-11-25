@@ -10,11 +10,17 @@ import FlutterSwiftBridge
 
 final class AltTextDialog: StatefulWidget {
     let initial: String
+    var title = "Alt Text"
+    var prompt = "How would you describe this object and its context to someone who is blind?"
+    var lines = 4
     let onApply: (String) -> Void
     let onCancel: () -> Void
 
-    init(initial: String, onApply: @escaping (String) -> Void, onCancel: @escaping () -> Void) {
+    init(initial: String, title: String = "Alt Text", prompt: String = "How would you describe this object and its context to someone who is blind?", lines: Int = 4, onApply: @escaping (String) -> Void, onCancel: @escaping () -> Void) {
         self.initial = initial
+        self.title = title
+        self.prompt = prompt
+        self.lines = lines
         self.onApply = onApply
         self.onCancel = onCancel
         super.init()
@@ -41,11 +47,11 @@ final class AltTextDialogState: State<StatefulWidget> {
         let fluent = FluentTheme.of(context)
         let caption = fluent.typography.caption?.copyWith(color: fluent.resources.textFillColorSecondary)
         let page = Column(mainAxisSize: .min, crossAxisAlignment: .start, children: [
-            Text("How would you describe this object and its context to someone who is blind?", style: caption),
+            Text(_w.prompt, style: caption),
             SizedBox(width: nil, height: 12, child: nil),
-            SizedBox(width: nil, height: 96, child: FluentTextBox(controller: _text, maxLines: 4)),
+            SizedBox(width: nil, height: 96, child: FluentTextBox(controller: _text, maxLines: _w.lines)),
         ])
-        return DialogShell(title: "Alt Text", page: page, width: 400,
+        return DialogShell(title: _w.title, page: page, width: 400,
                            onOK: { [weak self] in guard let self else { return }; self._w.onApply(self._text.text) },
                            onCancel: { [weak self] in self?._w.onCancel() })
     }

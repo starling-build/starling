@@ -46,6 +46,8 @@ enum SheetCommand {
     case protectWorkbookDialog     // Review → Protect Workbook / Unprotect Workbook
     case pageSetup                 // Layout → Page Setup: the dialog
     case insertPicture             // Insert → Pictures: choose an image file and place it
+    case insertShape(ShapePreset, textBox: Bool)  // Insert → Shapes / Text Box: a new shape at the active cell
+    case editShapeText             // the selected shape's words
     case altText                   // Insert → Alt Text: the selected picture's description
     case editNote                  // Review → New/Edit Note: the editor beside the active cell
 }
@@ -367,6 +369,18 @@ extension Ribbon {
         var items: [Widget] = [Chrome.big(FluentSystemIcons.image, "Pictures", fluent) { wb.onCommand?(.insertPicture) }]
         if let i = wb.selectedDrawing, wb.sheet.drawings.indices.contains(i), case .picture = wb.sheet.drawings[i].kind {
             items.append(Chrome.big(FluentSystemIcons.image, "Alt Text", fluent) { wb.onCommand?(.altText) })
+        }
+        items.append(Chrome.menuButton(FluentSystemIcons.shapes, "Shapes", "Insert a shape", fluent,
+            items: ShapeGallery.groups.map { group in
+                MenuFlyoutSubItem(text: Text(group.name), items: group.presets.map { preset in
+                    MenuFlyoutItem(text: Text(preset.name),
+                                   leading: Icon(FluentSystemIcons.shapes, size: Chrome.iconSize, color: fluent.resources.textFillColorPrimary),
+                                   onPressed: { wb.onCommand?(.insertShape(preset, textBox: false)) })
+                })
+            }))
+        items.append(Chrome.big(FluentSystemIcons.image, "Text Box", fluent) { wb.onCommand?(.insertShape(.rect, textBox: true)) })
+        if let i = wb.selectedDrawing, wb.sheet.drawings.indices.contains(i), wb.sheet.drawings[i].raw == nil, case .shape(let s) = wb.sheet.drawings[i].kind, !ShapePreset(rawValue: s.geometry).isLine {
+            items.append(Chrome.big(FluentSystemIcons.image, "Edit Text", fluent) { wb.onCommand?(.editShapeText) })
         }
         return Chrome.group("Illustrations", fluent, items)
     }
