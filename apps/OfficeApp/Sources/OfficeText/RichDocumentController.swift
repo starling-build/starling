@@ -1897,6 +1897,136 @@ public final class RichDocumentController: ChangeNotifier {
         }
     }
 
+    /// Convert Text to Table / Table to Text: what separates the pieces.
+    public enum TextTableSeparator: Equatable, Sendable {
+        case paragraph, tab, comma, other(Character)
+        var character: Character? {
+            switch self {
+            case .paragraph: return nil
+            case .tab: return "\t"
+            case .comma: return ","
+            case .other(let c): return c
+            }
+        }
+    }
+
+    /// Whether the selection holds plain paragraphs a table can be made of.
+    public var canConvertTextToTable: Bool {
+        let lo = min(selection.anchor.paragraph, selection.focus.paragraph)
+        let hi = max(selection.anchor.paragraph, selection.focus.paragraph)
+        return (lo ... hi).contains { document.paragraphs[$0].cell == nil } && hasSelection
+    }
+
+    /// Make the selected paragraphs a table, one undo step. With a character separator each paragraph is a row and the
+    /// character cuts it into cells; with `.paragraph` each paragraph is a cell, filled `columns` to a row.
+    @discardableResult
+    public func convertTextToTable(separator: TextTableSeparator, columns: Int = 1) -> Bool {
+        guard hasSelection else { return false }
+        let lo = min(selection.anchor.paragraph, selection.focus.paragraph)
+        var hi = max(selection.anchor.paragraph, selection.focus.paragraph)
+        let sel = selection
+        // A selection ending at the very start of a paragraph leaves that paragraph out.
+        let endP = sel.anchor.paragraph > sel.focus.paragraph || (sel.anchor.paragraph == sel.focus.paragraph && sel.anchor.offset > sel.focus.offset) ? sel.anchor : sel.focus
+        if hi > lo, endP.offset == 0 { hi -= 1 }
+        let source = Array(document.paragraphs[lo ... hi])
+        guard !source.contains(where: { $0.cell != nil }) else { return false }
+        var rowsOfCells: [[RichParagraph]] = []
+        if let ch = separator.character {
+            for var para in source {
+                var cells: [RichParagraph] = []
+                while let r = para.text.firstIndex(of: ch) {
+                    let at = para.text.utf16.distance(from: para.text.startIndex, to: r)
+                    var tail = para.split(at: at)
+                    _ = tail.delete(0 ..< ch.utf16.count)
+                    cells.append(para)
+                    para = tail
+                }
+                cells.append(para)
+                rowsOfCells.append(cells)
+            }
+        } else {
+            let n = max(1, columns)
+            var i = 0
+            while i < source.count {
+                rowsOfCells.append(Array(source[i ..< min(source.count, i + n)]))
+                i += n
+            }
+        }
+        let width = max(1, rowsOfCells.map(\.count).max() ?? 1)
+        let id = UUID().uuidString
+        var out: [RichParagraph] = []
+        for (r, row) in rowsOfCells.enumerated() {
+            for c in 0 ..< width {
+                var p = c < row.count ? row[c] : RichParagraph()
+                p.style = .cell
+                p.cell = CellRef(table: id, row: r, column: c)
+                out.append(p)
+            }
+        }
+        edit {
+            // (The table goes in before the source goes out, so the document is never left empty mid-edit.)
+            var at = lo
+            if at > 0, document.paragraphs[at - 1].cell != nil {
+                perform(.insertParagraphs(at: at, [RichParagraph()]))
+                at += 1
+            }
+            perform(.insertParagraphs(at: at, out))
+            let sourceAt = at + out.count
+            perform(.removeParagraphs(at: sourceAt, source))
+            if sourceAt >= document.paragraphs.count || document.paragraphs[sourceAt].cell != nil {
+                perform(.insertParagraphs(at: sourceAt, [RichParagraph()]))
+            }
+            _setCaret(RichPosition(paragraph: at, offset: 0))
+        }
+        return true
+    }
+
+    /// Turn the caret's table into text, one undo step. A character separator joins a row's cells into one paragraph;
+    /// `.paragraph` makes every cell a paragraph of its own.
+    @discardableResult
+    public func convertTableToText(separator: TextTableSeparator) -> Bool {
+        guard let range = currentTableRange, let id = document.paragraphs[range.lowerBound].cell?.table else { return false }
+        let old = Array(document.paragraphs[range])
+        var out: [RichParagraph] = []
+        for (i, var p) in old.enumerated() {
+            guard let cell = p.cell else { continue }
+            let next = i + 1 < old.count ? old[i + 1].cell : nil
+            // The last paragraph of a cell that has a neighbour in its row takes the separator after it.
+            let endsCell = next == nil || next!.row != cell.row || next!.column != cell.column
+            let rowContinues = next != nil && next!.row == cell.row
+            p.cell = nil
+            if p.style == .cell { p.style = .body }
+            if let ch = separator.character, endsCell, rowContinues {
+                p.append(RichParagraph(text: String(ch), charStyle: p.style(at: max(0, p.length - 1))))
+                out.append(p)
+            } else if separator.character != nil, endsCell == false {
+                out.append(p)
+            } else {
+                out.append(p)
+            }
+        }
+        // With a character separator the pieces of one row must share a paragraph.
+        if separator.character != nil {
+            var merged: [RichParagraph] = []
+            var joinNext = false
+            for (i, p) in out.enumerated() {
+                let src = old[i].cell!
+                let nextSame = i + 1 < old.count && old[i + 1].cell!.row == src.row
+                let endsCell = i + 1 >= old.count || old[i + 1].cell!.column != src.column || old[i + 1].cell!.row != src.row
+                if joinNext, !merged.isEmpty { merged[merged.count - 1].append(p) } else { merged.append(p) }
+                joinNext = nextSame && endsCell
+            }
+            out = merged
+        }
+        edit {
+            perform(.insertParagraphs(at: range.lowerBound, out))
+            perform(.removeParagraphs(at: range.lowerBound + out.count, old))
+            if document.tableStyles[id] != nil { perform(.setTableStyle(id, old: document.tableStyles[id], new: nil)) }
+            _setCaret(RichPosition(paragraph: range.lowerBound, offset: 0))
+        }
+        return true
+    }
+
     /// The cell the caret is in, or nil.
     public var currentCell: CellRef? { document.paragraphs[selection.focus.paragraph].cell }
 

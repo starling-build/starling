@@ -351,6 +351,29 @@ final class SheetsTitleBarUndoHarnessTests: XCTestCase {
         XCTAssertEqual(c.document.paragraphs.compactMap(\.cell).count, 4)
     }
 
+    /// W-TB-9: Convert Text to Table and Convert Table to Text reach the controller.
+    func testConvertTextAndTableDialogsReachTheController() {
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(1280, 800))
+        let c = ui.state(OfficeShellState.self)!.session.controller
+        c.insertText("a\tb")
+        c.moveTo(RichPosition(paragraph: 0, offset: 0), extend: false)
+        c.moveTo(RichPosition(paragraph: 0, offset: 3), extend: true)
+        ui.pump()
+        XCTAssertTrue(ui.tap(text: "Insert"))
+        XCTAssertTrue(ui.tap(text: "Table"))
+        XCTAssertTrue(ui.tap(text: "Convert Text to Table…"))
+        XCTAssertTrue(ui.has(text: "Separate text at"))
+        XCTAssertTrue(ui.tap(text: "OK"))                   // tabs by default
+        XCTAssertEqual(c.document.paragraphs.filter { $0.cell != nil }.map(\.text), ["a", "b"])
+        XCTAssertTrue(ui.tap(text: "Table Layout"))
+        XCTAssertTrue(ui.tap(text: "Select"))
+        XCTAssertTrue(ui.tap(text: "Convert Table to Text…"))
+        XCTAssertTrue(ui.has(text: "Separate text with"))
+        XCTAssertTrue(ui.tap(text: "OK"))
+        XCTAssertNil(c.document.paragraphs.first { $0.cell != nil })
+        XCTAssertEqual(c.document.paragraphs.first?.text, "a\tb")
+    }
+
     /// W-TB-1: the Select menu and the Insert Table dialog reach the controller.
     func testTableSelectAndInsertTableDialogReachTheController() {
         let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(1280, 800))
