@@ -2371,7 +2371,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         let headStyle = GridTextStyle(family: SelawikFontName.regular, size: 11 * zoom, color: Int64(headerInk.value))
         let headStrong = GridTextStyle(family: SelawikFontName.regular, size: 11 * zoom, bold: true, color: Int64(accent.value))
         let headFiltered = GridTextStyle(family: SelawikFontName.regular, size: 11 * zoom, color: Int64(0xFF2F6FDF))
-        let filterActive = !(ws.autoFilter?.columns.isEmpty ?? true)
+        let filterActive = ws.autoFilter?.isActive ?? false
         let wholeCols = sel.top == 0 && sel.bottom == CellAddress.maxRows - 1
         let wholeRows = sel.left == 0 && sel.right == CellAddress.maxCols - 1
         canvas.save()
@@ -2823,7 +2823,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 let cx = box.center.dx, cy = box.center.dy, u = box.width / 16
                 let glyph = Path()
                 p.color = colors.ink
-                if af.columns[col] != nil {
+                if af.columns[col] != nil || af.rules[col] != nil {
                     // A funnel: a wide triangle over a short stem.
                     glyph.moveTo(cx - 5 * u, cy - 4 * u)
                     glyph.lineTo(cx + 5 * u, cy - 4 * u)
