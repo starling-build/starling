@@ -2112,6 +2112,20 @@ public struct RichControlMarker: Hashable, Codable, Sendable {
     }
 }
 
+/// A block-level content control (`w:sdt` around whole paragraphs or a table). The first paragraph it covers carries the
+/// start in `blockControlsBefore`, the last carries the end in `blockControlsAfter`; the start holds the control's
+/// `w:sdtPr` as the file had it. `aroundTable`: the control wraps a table, so it is written outside the table's cells.
+/// A start whose end is gone (an edit removed the paragraph) is written as the plain paragraphs.
+public struct RichBlockControl: Hashable, Codable, Sendable {
+    public var id: Int
+    public var properties: String?
+    public var aroundTable: Bool
+    public var isStart: Bool { properties != nil }
+    public init(id: Int, properties: String? = nil, aroundTable: Bool = false) {
+        self.id = id; self.properties = properties; self.aroundTable = aroundTable
+    }
+}
+
 extension RichControlMarker {
     /// The range of `attr`'s value inside the first `<tag ...>` of the properties.
     private func _valueRange(_ attr: String, of tag: String, in props: String) -> Range<String.Index>? {
@@ -2210,7 +2224,10 @@ public struct RichParagraph: Hashable, Codable, Sendable {
     /// Content controls over runs of this paragraph (see `RichControlMarker`).
     public var controlMarkers: [RichControlMarker] = []
     /// Whether an edit here moves markers (undo then restores the whole paragraph).
-    public var hasMarkers: Bool { !bookmarkMarkers.isEmpty || !controlMarkers.isEmpty }
+    public var hasMarkers: Bool { !bookmarkMarkers.isEmpty || !controlMarkers.isEmpty || !blockControlsBefore.isEmpty || !blockControlsAfter.isEmpty }
+    /// Block-level content controls that open before / close after this paragraph (outermost first / innermost first).
+    public var blockControlsBefore: [RichBlockControl] = []
+    public var blockControlsAfter: [RichBlockControl] = []
     /// Set on a paragraph that is a copy of an endnote (-1: the separator above them), flowed after the body's last
     /// paragraph where the notes are too long to stand under it. Layout only: the file's endnotes part is kept as it
     /// was and a save leaves these out.
@@ -2466,6 +2483,8 @@ public struct RichParagraph: Hashable, Codable, Sendable {
             RichControlMarker(id: $0.id, properties: $0.properties, offset: $0.offset - offset)
         }
         controlMarkers.removeAll { $0.offset >= offset }
+        tail.blockControlsAfter = blockControlsAfter
+        blockControlsAfter = []
         let movedNames = Set(tail.bookmarkMarkers.compactMap(\.name))
         tail.bookmarks = bookmarks.filter { movedNames.contains($0) }
         bookmarks.removeAll { movedNames.contains($0) }
@@ -2488,6 +2507,8 @@ public struct RichParagraph: Hashable, Codable, Sendable {
         controlMarkers += other.controlMarkers.map {
             RichControlMarker(id: $0.id, properties: $0.properties, offset: length + $0.offset)
         }
+        blockControlsBefore += other.blockControlsBefore
+        blockControlsAfter += other.blockControlsAfter
         bookmarks += other.bookmarks.filter { !bookmarks.contains($0) }
         if other.text.isEmpty { return }
         if text.isEmpty {

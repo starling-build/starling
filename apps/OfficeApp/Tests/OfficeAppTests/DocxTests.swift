@@ -7477,6 +7477,58 @@ final class DocxTests: XCTestCase {
         XCTAssertNil(OfficeFonts.deobfuscate(Data(count: 40), key: "{not-a-guid}"))
     }
 
+    /// W-RV-3: a content control around whole paragraphs, around a table, or around the paragraphs of one cell keeps its
+    /// settings through open and save; an edit that splits it or removes its last paragraph keeps the file valid.
+    func testBlockLevelContentControlsSurviveASave() throws {
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .letter))
+        let di = try XCTUnwrap(entries.firstIndex { $0.name == "word/document.xml" })
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let body = try XCTUnwrap(xml.range(of: "<w:body>")).upperBound ..< (try XCTUnwrap(xml.range(of: "<w:sectPr"))).lowerBound
+        xml.replaceSubrange(body, with: "<w:p><w:r><w:t>Before</w:t></w:r></w:p>"
+            + "<w:sdt><w:sdtPr><w:alias w:val=\"Terms\"/><w:id w:val=\"21\"/><w:lock w:val=\"sdtContentLocked\"/></w:sdtPr><w:sdtContent>"
+            + "<w:p><w:r><w:t>One</w:t></w:r></w:p><w:p><w:r><w:t>Two</w:t></w:r></w:p></w:sdtContent></w:sdt>"
+            + "<w:sdt><w:sdtPr><w:alias w:val=\"Grid\"/><w:id w:val=\"22\"/></w:sdtPr><w:sdtContent><w:tbl><w:tblPr><w:tblW w:w=\"0\" w:type=\"auto\"/></w:tblPr><w:tblGrid><w:gridCol w:w=\"4000\"/><w:gridCol w:w=\"4000\"/></w:tblGrid>"
+            + "<w:tr><w:tc><w:tcPr><w:tcW w:w=\"4000\" w:type=\"dxa\"/></w:tcPr>"
+            + "<w:sdt><w:sdtPr><w:alias w:val=\"InCell\"/><w:id w:val=\"23\"/></w:sdtPr><w:sdtContent><w:p><w:r><w:t>C1</w:t></w:r></w:p></w:sdtContent></w:sdt></w:tc>"
+            + "<w:tc><w:tcPr><w:tcW w:w=\"4000\" w:type=\"dxa\"/></w:tcPr><w:p><w:r><w:t>C2</w:t></w:r></w:p></w:tc></w:tr></w:tbl></w:sdtContent></w:sdt>"
+            + "<w:p><w:r><w:t>After</w:t></w:r></w:p>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let opened = try DocxFormat.read(try Zip.write(entries)).document
+        func part(_ doc: RichDocument) throws -> String {
+            String(decoding: try XCTUnwrap(try Zip.read(try DocxFormat.write(doc, pageSetup: .letter)).first { $0.name == "word/document.xml" }).data, as: UTF8.self)
+        }
+        let saved = try part(opened)
+        for needle in ["w:alias w:val=\"Terms\"", "w:lock w:val=\"sdtContentLocked\"", "w:alias w:val=\"Grid\"", "w:alias w:val=\"InCell\""] {
+            XCTAssertTrue(saved.containsSubstring(needle), needle)
+        }
+        XCTAssertEqual(saved.components(separatedBy: "<w:sdt>").count, 4)
+        XCTAssertEqual(saved.components(separatedBy: "</w:sdt>").count, 4)
+        // The table's control is outside the table, the cell's inside the cell.
+        let grid = try XCTUnwrap(saved.range(of: "w:alias w:val=\"Grid\""))
+        XCTAssertTrue(saved[grid.upperBound...].containsSubstring("<w:tbl>"))
+        let table = try XCTUnwrap(saved.range(of: "<w:tbl>"))
+        XCTAssertTrue(saved[..<table.lowerBound].hasSuffix("<w:sdtContent>") || saved[..<table.lowerBound].containsSubstring("Grid"))
+        XCTAssertEqual(saved.components(separatedBy: "<w:tbl>").count, 2)
+        // Still the same after a second trip.
+        XCTAssertEqual(try part(try DocxFormat.read(try DocxFormat.write(opened, pageSetup: .letter)).document), saved)
+        // Split inside the control, then delete its last paragraph: always whole pairs.
+        let c = RichDocumentController(document: opened)
+        let one = try XCTUnwrap(c.document.paragraphs.firstIndex { $0.text == "One" })
+        c.moveTo(RichPosition(paragraph: one, offset: 1), extend: false)
+        c.insertParagraphBreak()
+        let edited = try part(c.document)
+        XCTAssertEqual(edited.components(separatedBy: "<w:sdt>").count, edited.components(separatedBy: "</w:sdt>").count)
+        XCTAssertEqual(edited.components(separatedBy: "<w:sdt>").count, 4)
+        c.undo()
+        XCTAssertEqual(try part(c.document), saved)
+        let two = try XCTUnwrap(c.document.paragraphs.firstIndex { $0.text == "Two" })
+        c.moveTo(RichPosition(paragraph: one, offset: 3), extend: false)
+        c.moveTo(RichPosition(paragraph: two, offset: 3), extend: true)
+        c.deleteSelection()
+        let cut = try part(c.document)
+        XCTAssertEqual(cut.components(separatedBy: "<w:sdt>").count, cut.components(separatedBy: "</w:sdt>").count)
+    }
+
     /// W-RV-3: clicking a check box control flips it: the glyph, the saved state and one undo step.
     func testCheckBoxControlTogglesAndUndoes() throws {
         var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .letter))
