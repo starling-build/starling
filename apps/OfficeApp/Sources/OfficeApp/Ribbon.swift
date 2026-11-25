@@ -107,7 +107,7 @@ final class Ribbon: StatelessWidget {
         let slidePicture = session.deck?.selection.contains { $0.picture != nil } ?? false
         if session.summary.imageIndex != nil || slidePicture { items.append(_tab(.pictureFormat, fluent)) }
         if session.deck?.selectedTableOptions != nil { items.append(_tab(.tableDesign, fluent)) }
-        if session.summary.inCell { items.append(_tab(.tableLayout, fluent)) }
+        if session.summary.inCell { items.append(_tab(.tableDesign, fluent)); items.append(_tab(.tableLayout, fluent)) }
         if session.deck?.selectedChart != nil { items.append(_tab(.chartDesign, fluent)) }
         return ColoredBox(color: OfficeAppearance.surface(fluent),
             child: SizedBox(width: nil, height: 44, child: SingleChildScrollView(scrollDirection: .horizontal,
@@ -170,7 +170,8 @@ final class Ribbon: StatelessWidget {
         case .tableLayout: return _tableLayout(fluent)
         case .references: return _references(fluent)
         case .review: return _review(fluent)
-        case .design, .transitions, .slideShow, .chartDesign, .tableDesign, .animations, .formulas, .data: return []
+        case .tableDesign: return session.summary.inCell ? _tableDesign(fluent) : []
+        case .design, .transitions, .slideShow, .chartDesign, .animations, .formulas, .data: return []
         }
     }
 
@@ -514,6 +515,27 @@ final class Ribbon: StatelessWidget {
     }
 
     // MARK: Table Layout
+
+    /// Table Design for a Writer table: the Table Style Options (Word's tblLook switches).
+    private func _tableDesign(_ fluent: FluentThemeData) -> [Widget] {
+        let c = session.controller
+        guard let t = c.currentCell?.table else { return [] }
+        let look = c.tableLook(of: t)
+        func on(_ bit: Int) -> Bool { look & bit != 0 }
+        func toggle(_ bit: Int) { c.setTableLook(bit, on: !on(bit)) }
+        return [Chrome.group("Table Style Options", fluent, [
+            Chrome.rows([
+                Chrome.textToggle("Header Row", on(TableLook.firstRow), fluent) { toggle(TableLook.firstRow) },
+                Chrome.textToggle("Total Row", on(TableLook.lastRow), fluent) { toggle(TableLook.lastRow) },
+                Chrome.textToggle("Banded Rows", !on(TableLook.noRowBands), fluent) { toggle(TableLook.noRowBands) },
+            ]),
+            Chrome.rows([
+                Chrome.textToggle("First Column", on(TableLook.firstColumn), fluent) { toggle(TableLook.firstColumn) },
+                Chrome.textToggle("Last Column", on(TableLook.lastColumn), fluent) { toggle(TableLook.lastColumn) },
+                Chrome.textToggle("Banded Columns", !on(TableLook.noColumnBands), fluent) { toggle(TableLook.noColumnBands) },
+            ]),
+        ])]
+    }
 
     private func _tableLayout(_ fluent: FluentThemeData) -> [Widget] {
         let c = session.controller

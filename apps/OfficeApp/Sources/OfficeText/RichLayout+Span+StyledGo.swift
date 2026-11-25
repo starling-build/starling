@@ -772,7 +772,7 @@ extension _StyledFrame {
                }()) + 0.01 {
                 var whole = run
                 whole.script = .normal
-                let s = theme.textStyle(for: whole, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale,
+                let s = theme.textStyle(for: whole, in: p.style, backdrop: p.cell?.fill, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale,
                                         eastAsian: RichLayout.isEastAsian(first, hinted: hinted), gridPitch: pitch, scriptHidden: true)
                 // (No width of its own: shaped alone, as it is set, it has
                 // one, and a line at its limit took a character less.)

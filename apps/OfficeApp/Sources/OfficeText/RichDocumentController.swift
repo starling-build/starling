@@ -1895,6 +1895,51 @@ public final class RichDocumentController: ChangeNotifier {
         setTableStyle(of: t, transform)
     }
 
+    /// The table's `w:tblLook` bits as they stand: the user's, else the file's, else Word's default (04A0).
+    public func tableLook(of t: String) -> Int {
+        if let l = document.tableStyles[t]?.look { return l }
+        if let xml = document.tableLooks[t], let r = xml.rangeOfSubstring("w:val=\""),
+           let e = xml.rangeOfSubstring("\"", in: r.upperBound ..< xml.endIndex),
+           let v = Int(String(xml[r.upperBound ..< e.lowerBound]), radix: 16) { return v }
+        return 0x04A0
+    }
+
+    /// Turn one Table Style Option on or off for the caret's table (`TableLook` bits), one undo step. Header Row is a look
+    /// switch only; repeating the row on each page is the separate Repeat Header Rows setting.
+    public func setTableLook(_ bit: Int, on: Bool) {
+        guard let t = currentCell?.table else { return }
+        let was = tableLook(of: t)
+        let now = on ? was | bit : was & ~bit
+        guard now != was else { return }
+        // The style's header and band fills follow the switches: redrawn in the same undo step as the look.
+        var new = document.tableStyles[t] ?? TableStyle()
+        let oldStyle = document.tableStyles[t]
+        new.look = now
+        let fills = document.tableCondFills[t]
+        let range = currentTableRange
+        let oldParas = range.map { Array(document.paragraphs[$0]) }
+        var paras = oldParas
+        if let fills, paras != nil {
+            let rows = (paras!.compactMap { $0.cell?.row }.max() ?? 0) + 1
+            let cols = paras!.compactMap { $0.cell.map { $0.column + $0.span } }.max() ?? 1
+            for i in paras!.indices {
+                guard var c = paras![i].cell, c.table == t, c.fill == nil || c.styleFilled == true else { continue }
+                c.fill = fills.fill(look: now, row: c.row, column: c.column, lastRow: c.row + c.rowSpan >= rows, lastColumn: c.column + c.span >= cols)
+                c.styleFilled = c.fill == nil ? nil : true
+                paras![i].cell = c
+            }
+        }
+        let sel = selection
+        edit {
+            perform(.setTableStyle(t, old: oldStyle, new: new == TableStyle() ? nil : new))
+            if let range, let oldParas, let paras, paras != oldParas {
+                perform(.removeParagraphs(at: range.lowerBound, oldParas))
+                perform(.insertParagraphs(at: range.lowerBound, paras))
+                selection = sel
+            }
+        }
+    }
+
     /// The same for a named table (a drag on a border of a table the caret is not in).
     public func setTableStyle(of t: String, _ transform: (inout TableStyle) -> Void) {
         let old = document.tableStyles[t]
@@ -1981,7 +2026,7 @@ public final class RichDocumentController: ChangeNotifier {
     /// `themeAttrs` (from `WordTheme.attrs`) keeps the shading following the document's theme in the file; the
     /// colour is what it resolves to now. A plain colour clears any earlier theme link.
     public func setCellShading(_ color: Color?, themeAttrs: String? = nil) {
-        _formatCells { c, _ in c.fill = color; c.fillThemeAttrs = color == nil ? nil : themeAttrs }
+        _formatCells { c, _ in c.fill = color; c.styleFilled = nil; c.fillThemeAttrs = color == nil ? nil : themeAttrs }
     }
 
     // MARK: Table properties (W-TB-3). Each is one undo step.

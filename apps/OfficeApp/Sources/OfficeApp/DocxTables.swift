@@ -1611,7 +1611,12 @@ extension DocxFormat {
                 for (side, v) in margins { if let v { xml += "<w:\(side) w:w=\"\(Int((v * 20).rounded()))\" w:type=\"dxa\"/>" } }
                 xml += "</w:tblCellMar>"
             }
-            xml += (namedStyle != nil ? doc.tableLooks[id] : nil) ?? "<w:tblLook w:val=\"04A0\"/>"
+            if let look = style.look {
+                func bit(_ b: Int) -> String { look & b != 0 ? "1" : "0" }
+                xml += "<w:tblLook w:val=\"" + TableLook.hex(look) + "\" w:firstRow=\"\(bit(0x20))\" w:lastRow=\"\(bit(0x40))\" w:firstColumn=\"\(bit(0x80))\" w:lastColumn=\"\(bit(0x100))\" w:noHBand=\"\(bit(0x200))\" w:noVBand=\"\(bit(0x400))\"/>"
+            } else {
+                xml += (namedStyle != nil ? doc.tableLooks[id] : nil) ?? "<w:tblLook w:val=\"04A0\"/>"
+            }
             xml += "</w:tblPr><w:tblGrid>"
             // A cell's preferred width: the grid's, or none at all when the
             // file's cells stated none and Word autofits them.
@@ -1681,7 +1686,7 @@ extension DocxFormat {
                     if span > 1 { xml += "<w:gridSpan w:val=\"\(span)\"/>" }
                     if (ref?.rowSpan ?? 1) > 1 { xml += "<w:vMerge w:val=\"restart\"/>" }
                     xml += cellBordersXML(ref?.edges, width: ref?.borderWidth, kept: ref?.bordersXML ?? (ref?.rowBordersXML != nil ? "" : nil), under: ref?.bordersKeptUnder)   // schema order: borders, then shading
-                    if let fill = ref?.fill { xml += "<w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"\(_hex(fill))\"\(ref?.fillThemeAttrs ?? "")/>" }
+                    if let fill = ref?.fill, !(ref?.styleFilled == true && doc.tableStyleIds[ref?.table ?? ""] != nil) { xml += "<w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"\(_hex(fill))\"\(ref?.fillThemeAttrs ?? "")/>" }
                     if let mar = ref?.marginsXML { xml += mar }
                     // Schema order: the text direction before the alignment.
                     // (As the file wrote it while it still reads that way.)
@@ -2319,7 +2324,10 @@ extension DocxFormat {
         // Word's default table style, as Word writes it. Without it Word
         // (in its legacy layout mode) set form_footnotes' tables 5pt to
         // the right of the original's: 12.3% -> 9.9% with it.
+        // (A file that already had one keeps its own: two styles with one id is a file Word may refuse.)
+        if !tableStyles.values.contains(where: { $0.containsSubstring("w:styleId=\"TableNormal\"") }) {
         out += "<w:style w:type=\"table\" w:default=\"1\" w:styleId=\"TableNormal\"><w:name w:val=\"Normal Table\"/><w:uiPriority w:val=\"99\"/><w:semiHidden/><w:unhideWhenUsed/><w:tblPr><w:tblInd w:w=\"0\" w:type=\"dxa\"/><w:tblCellMar><w:top w:w=\"0\" w:type=\"dxa\"/><w:left w:w=\"108\" w:type=\"dxa\"/><w:bottom w:w=\"0\" w:type=\"dxa\"/><w:right w:w=\"108\" w:type=\"dxa\"/></w:tblCellMar></w:tblPr></w:style>"
+        }
         // The file's ids for our styles, for kept markup that names them.
         for (fileId, ours) in aliases.sorted(by: { $0.key < $1.key }) where sheet[ours] != nil || ours == RichNamedStyle.normalId {
             out += "<w:style w:type=\"paragraph\" w:styleId=\"\(_esc(fileId))\"><w:name w:val=\"\(_esc(ours)) \(_esc(fileId))\"/><w:basedOn w:val=\"\(_esc(ours))\"/></w:style>"
