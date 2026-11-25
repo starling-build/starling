@@ -449,7 +449,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 // Turned text stands as tall as the text is long, along its angle: Excel fits the row to it (X-AF-1). A row the file
                 // fitted (`scriptRows`) keeps that fit, where it is taller.
                 let rot = book.style(cell.style).rotation
-                if rot != 0, rot != 255, cell.value.isText, !merged[a.row, default: []].contains(where: { $0.contains(a) }) {
+                if rot != 0, rot != 255, cell.value.isText, !ws.scriptRows.contains(a.row), !merged[a.row, default: []].contains(where: { $0.contains(a) }) {
                     let st = book.style(cell.style)
                     let text = NumberFormat.display(cell.value, st.numberFormat, width: 255).text
                     if !text.isEmpty {
@@ -644,6 +644,8 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 for (a, cell) in ws.cells where wrapping.contains(cell.style) && ws.rowHeights[a.row] == nil && cell.value.isText {
                     if ws.merges.contains(where: { $0.contains(a) }) { continue }
                     let st = book.style(cell.style)
+                    // (Excel keeps the height a file stores for turned text; only rows the app edits are fitted: `Worksheet.scriptRows`.)
+                    if st.rotation != 0 && ws.scriptRows.contains(a.row) { continue }
                     let width = cols.size(a.col) - 4 * zoom
                     guard width > 4 else { continue }
                     let text = NumberFormat.display(cell.value, st.numberFormat, width: 255).text
