@@ -701,8 +701,9 @@ final class Ribbon: StatelessWidget {
                 session.onPageSetup?(p)
             })
         }
+        let customMargins: (String, () -> Void) = ("Custom Margins…", { [session] in session.onPageSetupDialog?() })
         let marginChoices = [margins("Normal (1\")", 72, 72), margins("Narrow (0.5\")", 36, 36),
-                             margins("Moderate (1\" × 0.75\")", 72, 54), margins("Wide (1\" × 2\")", 72, 144)]
+                             margins("Moderate (1\" × 0.75\")", 72, 54), margins("Wide (1\" × 2\")", 72, 144), customMargins]
         let orientation: [(String, () -> Void)] = [
             ("Portrait", { [session] in if session.sectionSetup().isLandscape { session.onPageSetup?(session.sectionSetup().rotated()) } }),
             ("Landscape", { [session] in if !session.sectionSetup().isLandscape { session.onPageSetup?(session.sectionSetup().rotated()) } }),
@@ -715,8 +716,9 @@ final class Ribbon: StatelessWidget {
                 session.onPageSetup?(session.sectionSetup().isLandscape ? p.rotated() : p)
             })
         }
-        let sizes = [paper("Letter (8.5 × 11 in)", .letter), paper("A4 (210 × 297 mm)", .a4),
-                     paper("Legal (8.5 × 14 in)", PageSetup(width: 612, height: 1008))]
+        let sizes: [(String, () -> Void)] = [paper("Letter (8.5 × 11 in)", .letter), paper("A4 (210 × 297 mm)", .a4),
+                     paper("Legal (8.5 × 14 in)", PageSetup(width: 612, height: 1008)),
+                     ("More Paper Sizes…", { [session] in session.onPageSetupDialog?() })]
         let ps = c.currentParagraphStyle
         let pageSetup = Chrome.group("Page Setup", fluent, [
             Chrome.rows([
