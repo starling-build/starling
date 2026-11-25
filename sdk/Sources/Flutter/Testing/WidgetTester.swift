@@ -54,6 +54,9 @@ public final class WidgetTester {
             pipelineOwner.flushCompositingBits()
             pipelineOwner.flushPaint()
             buildOwner.finalizeTree()
+            // As a real frame ends: post-frame callbacks run (a widget that learns its size after layout, such as the
+            // slide canvas, only mounts its shapes once one has run).
+            for callback in FrameCallbackScheduler.shared.takePostFrameCallbacks() { callback(.zero) }
         }
     }
 
