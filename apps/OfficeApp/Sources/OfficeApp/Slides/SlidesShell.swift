@@ -424,8 +424,16 @@ final class SlidesShellState: State<StatefulWidget> {
             toggleBold: { [weak self] in self?.session.controller.toggleBold() },
             toggleItalic: { [weak self] in self?.session.controller.toggleItalic() },
             toggleUnderline: { [weak self] in self?.session.controller.toggleUnderline() },
-            toggleList: { [weak self] in self?.session.controller.toggleList($0) }), owner: self)
+            toggleList: { [weak self] in self?.session.controller.toggleList($0) },
+            // A selected shape (typing in one counts): copy it, remove it, move it in the stack.
+            context: deck.selection.isEmpty ? [] : [
+                .init(id: "ctx-shape-dup", title: "Duplicate", symbol: "plus.square.on.square") { [weak self] in self?.deck.duplicateSelection() },
+                .init(id: "ctx-shape-del", title: "Delete", symbol: "trash") { [weak self] in self?.deck.deleteSelection() },
+                .init(id: "ctx-shape-fwd", title: "Bring Forward", symbol: "square.2.layers.3d.top.filled") { [weak self] in self?.deck.arrange(.forward) },
+                .init(id: "ctx-shape-back", title: "Send Backward", symbol: "square.2.layers.3d.bottom.filled") { [weak self] in self?.deck.arrange(.backward) },
+            ]), owner: self)
     }
+
 
     /// The ribbon's summary, with undo and redo covering the deck as well
     /// as the text being typed.
