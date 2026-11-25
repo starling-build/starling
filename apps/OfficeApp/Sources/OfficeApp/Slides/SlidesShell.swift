@@ -1342,7 +1342,7 @@ final class SlidesShellState: State<StatefulWidget> {
                    onTab: { [weak self] t in self?.setState { self?._tab = t } },
                    onCollapse: { [weak self] in self?.setState { self?._ribbonCollapsed.toggle() } }),
         ]
-        var work: [Widget] = [Expanded(child: SlideCanvas(
+        var work: [Widget] = [Expanded(child: KeyboardPage(focus: { [weak self] in self?._deckFocus.requestFocus() }, child: SlideCanvas(
             key: _canvasKey,
             deck: deck, cache: _cache, active: _active,
             onEdit: { [weak self] shape in self?._activate(shape) },
@@ -1350,7 +1350,7 @@ final class SlidesShellState: State<StatefulWidget> {
             modifiers: { [weak self] in self?._deckChords.modifiers ?? [] },
             spellChecker: session.checkSpelling ? _spelling : nil,
             animationBadges: _tab == .animations || _animationPane,
-            onContextMenu: { [weak self] at, shape in self?._showSlideMenu(at: at, on: shape) }))]
+            onContextMenu: { [weak self] at, shape in self?._showSlideMenu(at: at, on: shape) })))]
         if _showNotes { work.append(_notesPane(fluent)) }
         if deck.notesPageView && !_sorter {
             work = [Expanded(child: _notesPageView(fluent))]
@@ -1600,13 +1600,15 @@ final class SlidesShellState: State<StatefulWidget> {
                         ]),
                     ]))))
         }
-        return SizedBox(width: thumbW + 46, height: nil, child: DecoratedBox(
+        return KeyboardPage(name: "Slide thumbnails", region: "thumbnails", focus: { [weak self] in
+            self?._deckFocus.requestFocus(); self?.setState { self?._paneFocused = true }
+        }, child: SizedBox(width: thumbW + 46, height: nil, child: DecoratedBox(
             decoration: BoxDecoration(
                 color: fluent.resources.solidBackgroundFillColorBase,
                 border: Border(right: BorderSide(color: fluent.resources.dividerStrokeColorDefault, width: 1))),
             child: SingleChildScrollView(controller: _thumbScroll, child: Padding(
                 padding: EdgeInsets(left: 0, top: 6, right: 0, bottom: 12),
-                child: Column(crossAxisAlignment: .start, children: items)))))
+                child: Column(crossAxisAlignment: .start, children: items))))))
     }
 
     /// A hidden slide's thumbnail, faded: the slide as it is with a wash of

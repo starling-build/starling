@@ -91,6 +91,10 @@ public class HoverButton: StatefulWidget {
 
     /// How this widget should behave during hit testing.
     public let hitTestBehavior: HitTestBehavior
+    /// False when a control around it already owns the keyboard stop (a text box).
+    public let keyStop: Bool
+    /// Arrow keys while the keyboard ring is on it (see KeyStop.onArrow).
+    public let onArrow: ((Int, Int) -> Bool)?
 
     public init(
         key: (any Key)? = nil,
@@ -106,8 +110,12 @@ public class HoverButton: StatefulWidget {
         cursor: MouseCursor? = nil,
         semanticLabel: String? = nil,
         forceEnabled: Bool = false,
-        hitTestBehavior: HitTestBehavior = .opaque
+        hitTestBehavior: HitTestBehavior = .opaque,
+        keyStop: Bool = true,
+        onArrow: ((Int, Int) -> Bool)? = nil
     ) {
+        self.keyStop = keyStop
+        self.onArrow = onArrow
         self.builder = builder
         self.onPressed = onPressed
         self.onLongPress = onLongPress
@@ -161,6 +169,7 @@ class HoverButtonState: State<StatefulWidget> {
         let stop = KeyStop(region: r.name, modal: r.modal)
         stop.isEnabled = { [weak self] in self?.enabled ?? false }
         stop.activate = { [weak self] in self?.hoverButton.onPressed?() }
+        stop.onArrow = { [weak self] dx, dy in self?.hoverButton.onArrow?(dx, dy) ?? false }
         stop.label = { [weak self] in self?.hoverButton.semanticLabel }
         stop.onFocus = { [weak self] (on: Bool) in
             guard let self, self.mounted else { return }
@@ -172,7 +181,7 @@ class HoverButtonState: State<StatefulWidget> {
             return box.localToGlobal(Offset(0, 0))
         }
         _stop = stop
-        KeyboardTraversal.shared.register(stop)
+        if hoverButton.keyStop { KeyboardTraversal.shared.register(stop) }
     }
 
     override func dispose() {

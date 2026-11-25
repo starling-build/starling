@@ -920,7 +920,7 @@ final class SheetsShellState: State<StatefulWidget> {
         }
         tabs.append(Chrome.icon(FluentSystemIcons.add, "New sheet", fluent) { [weak self] in self?.wb.addSheet() })
         tabs.append(Chrome.menu(nil, Icon(FluentSystemIcons.moreHorizontal, size: Chrome.iconSize,
-                                          color: fluent.resources.textFillColorPrimary), fluent, _sheetMenu(wb.activeSheet)))
+                                          color: fluent.resources.textFillColorPrimary), fluent, _sheetMenu(wb.activeSheet), tip: "Sheet Menu"))
         return DecoratedBox(
             decoration: BoxDecoration(
                 color: fluent.resources.solidBackgroundFillColorBase,
@@ -1059,7 +1059,7 @@ final class SheetsShellState: State<StatefulWidget> {
             action: "Delete sheet", onConfirm: { [weak self] in self?.wb.confirmSheetDelete() },
             onCancel: { [weak self] in self?.wb.cancelSheetDelete() })] } ?? []) + [
             _formulaBar(fluent),
-            Expanded(child: SheetGrid(
+            Expanded(child: KeyboardPage(focus: { [weak self] in self?._grid?.focus.requestFocus() }, child: SheetGrid(
                 key: _gridKey, controller: wb, zoom: _zoom,
                 onEditText: { [weak self] text in
                     // The bar over the keyboard is a formula's keys while a cell is typed in, and number commands otherwise.
@@ -1076,7 +1076,7 @@ final class SheetsShellState: State<StatefulWidget> {
                 onContextMenu: { [weak self] point, area in self?._showContextMenu(at: point, area) },
                 onFilterMenu: { [weak self] point, col in self?._showFilterMenu(at: point, col: col) },
                 onListMenu: { [weak self] point, cell, choices in self?._showListMenu(at: point, cell: cell, choices) },
-                onZoom: { [weak self] f in self?.setState { self?._zoom = max(0.25, min(4, (self?._zoom ?? 1) * f)) } })),
+                onZoom: { [weak self] f in self?.setState { self?._zoom = max(0.25, min(4, (self?._zoom ?? 1) * f)) } }))),
             _sheetTabs(fluent),
             _statusBar(fluent),
         ]
