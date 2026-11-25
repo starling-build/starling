@@ -249,6 +249,21 @@ final class TextBoxInsertTests: XCTestCase {
         XCTAssertGreaterThan(ids.min() ?? 0, bodyIds, "box ids sit above the body's")
     }
 
+    func testBoxWithAnExternalLinkIsEditedInPlaceAndKeepsItsLink() throws {
+        let c = RichDocumentController(document: RichDocument(paragraphs: [RichParagraph(text: "body")]))
+        c.insertImage(try XCTUnwrap(TextBoxInsert.make(text: "one")))
+        let i = try XCTUnwrap(c.document.paragraphs.firstIndex { $0.image?.textBox != nil })
+        var p = RichParagraph(text: "see site")
+        p.runs = [Run(length: 4, style: .plain), Run(length: 4, style: { var s = CharStyle.plain; s.link = "https://example.com/a?b=1&c=2"; return s }())]
+        let (xml, rels) = try XCTUnwrap(TextBoxInsert.content([p]))
+        XCTAssertEqual(rels.map(\.target), ["https://example.com/a?b=1&c=2"])
+        XCTAssertTrue(c.setTextBoxContent(at: i, paragraphs: [p], contentXML: xml, rels: rels))
+        XCTAssertNotNil(c.textBoxParagraphs(at: i), "an external link is no bar to editing in place")
+        let back = try DocxFormat.read(try DocxFormat.write(c.document, pageSetup: .letter)).document
+        let box = try XCTUnwrap(back.paragraphs.first { $0.image?.textBox != nil }?.image?.textBox)
+        XCTAssertEqual(box.paragraphs.first?.runs.last?.style.link, "https://example.com/a?b=1&c=2")
+    }
+
     func testNewTextBoxFitsItsTextAndGrowsWithTyping() throws {
         let c = RichDocumentController(document: RichDocument(paragraphs: [RichParagraph(text: "body")]))
         c.insertImage(try XCTUnwrap(TextBoxInsert.make(text: "one")))

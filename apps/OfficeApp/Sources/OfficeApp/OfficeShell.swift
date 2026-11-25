@@ -1808,9 +1808,9 @@ final class OfficeShellState: State<StatefulWidget> {
             _boxEdit = nil
             session.controller = b.main
         }
-        if let xml = TextBoxInsert.contentXML(box.document) {
+        if let (xml, rels) = TextBoxInsert.content(box.document) {
             let fitted = b.autoFit ? _boxContentHeight.map { ($0 + 7.2 * session.zoom) / session.zoom } : nil
-            b.main.setTextBoxContent(at: b.index, inline: b.inline, document: box.document, contentXML: xml, height: fitted)
+            b.main.setTextBoxContent(at: b.index, inline: b.inline, document: box.document, contentXML: xml, rels: rels, height: fitted)
         }
         setState { session.summary = session.summarize() }
         _editorFocus.requestFocus()

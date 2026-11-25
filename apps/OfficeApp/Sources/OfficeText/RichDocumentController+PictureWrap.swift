@@ -205,7 +205,6 @@ extension RichDocumentController {
         // page outside the file needs a relationship in the file's own list, which the box's text cannot make: not editable yet.)
         for marker in ["<w:tbl", "<w:drawing", "<mc:", "<w:sdt", "<w:object", "<w:pict"]
         where inner.containsSubstring(marker) { return nil }
-        if inner.containsSubstring("<w:hyperlink"), inner.containsSubstring("r:id=") { return nil }
         guard box.paragraphs.allSatisfy({ $0.image == nil && $0.inlineImages.isEmpty && $0.keptTable == nil }) else { return nil }
         return box.paragraphs
     }
@@ -218,7 +217,7 @@ extension RichDocumentController {
               let open = xml.rangeOfSubstring("<w:txbxContent>"),
               let close = xml.rangeOfSubstring("</w:txbxContent>", in: open.upperBound ..< xml.endIndex) else { return nil }
         let inner = String(xml[open.upperBound ..< close.lowerBound])
-        for marker in ["<w:fld", "<w:hyperlink", "<w:drawing", "<mc:", "<w:sdt", "<w:ins ", "<w:ins>", "<w:del ", "<w:del>", "<w:bookmark"]
+        for marker in ["<w:drawing", "<mc:", "<w:sdt", "<w:object", "<w:pict"]
         where inner.containsSubstring(marker) { return nil }
         // A table inside a cell is not rewritten.
         var from = inner.startIndex
@@ -240,38 +239,15 @@ extension RichDocumentController {
     /// Put an edited box back (`textBoxDocument`'s counterpart): its paragraphs and table looks and grids, written as
     /// `contentXML`, one undo step. False when the box is not editable in place or nothing changed.
     @discardableResult
-    public func setTextBoxContent(at index: Int, inline id: String? = nil, document: RichDocument, contentXML: String, height: Double? = nil) -> Bool {
+    public func setTextBoxContent(at index: Int, inline id: String? = nil, document: RichDocument, contentXML: String, rels: [KeptRel] = [], height: Double? = nil) -> Bool {
         guard textBoxDocument(at: index, inline: id) != nil,
-              let old = _floating(index, id), var box = old.textBox, let xml = old.sourceXML,
-              let open = xml.rangeOfSubstring("<w:txbxContent>"),
-              let close = xml.rangeOfSubstring("</w:txbxContent>", in: open.upperBound ..< xml.endIndex) else { return false }
-        let patched = String(xml[xml.startIndex ..< open.upperBound]) + contentXML + String(xml[close.lowerBound...])
-        let ids = Set(document.paragraphs.compactMap { $0.cell?.table })
-        var new = old
-        // (A box that resizes to fit its text keeps the height its text now needs, as Word's does.)
-        if let height, box.autoHeight, abs(height - old.height) > 0.5 { new.height = height }
-        guard patched != xml || new.height != old.height else { return false }
-        new.sourceXML = patched
-        box.paragraphs = document.paragraphs
-        box.tableStyles = document.tableStyles.filter { ids.contains($0.key) }
-        box.tableColumns = document.tableColumns.filter { ids.contains($0.key) }
-        new.textBox = box
-        _store(index, id, old: old, new: new)
-        return true
-    }
-
-    /// Replace the content of the text box at `index` with `paragraphs`, written as `contentXML` (the `w:txbxContent` body),
-    /// one undo step. False when the box is not editable in place or nothing changed.
-    @discardableResult
-    public func setTextBoxContent(at index: Int, inline id: String? = nil, paragraphs: [RichParagraph], contentXML: String, height: Double? = nil) -> Bool {
-        guard textBoxParagraphs(at: index, inline: id) != nil,
               let old = _floating(index, id), var box = old.textBox, let xml = old.sourceXML,
               let open = xml.rangeOfSubstring("<w:txbxContent>"),
               let close = xml.rangeOfSubstring("</w:txbxContent>", in: open.upperBound ..< xml.endIndex) else { return false }
         // Revision and bookmark ids are one space for the whole file. The writer numbers a box's from 1 like the body's, so move
         // them above every id the other boxes already hold (the body's revisions are renumbered from 1 on save).
         var highest = 99_999
-        for (i, p) in document.paragraphs.enumerated() {
+        for (i, p) in self.document.paragraphs.enumerated() {
             // (The body: the ids its bookmarks keep from the file, and as many revision ids as it has revision runs.)
             highest = max(highest, p.bookmarkMarkers.compactMap { Int($0.id) }.max() ?? 0)
             highest = max(highest, p.runs.filter { $0.style.revision != nil }.count + p.bookmarks.count)
@@ -281,15 +257,26 @@ extension RichDocumentController {
             }
         }
         let patched = String(xml[xml.startIndex ..< open.upperBound]) + Self._shiftRevisionIds(contentXML, by: highest) + String(xml[close.lowerBound...])
+        let ids = Set(document.paragraphs.compactMap { $0.cell?.table })
         var new = old
         // (A box that resizes to fit its text keeps the height its text now needs, as Word's does.)
         if let height, box.autoHeight, abs(height - old.height) > 0.5 { new.height = height }
         guard patched != xml || new.height != old.height else { return false }
         new.sourceXML = patched
-        box.paragraphs = paragraphs
+        // (The links the new words name replace the ones the writer made last time; the file's own relationships stay.)
+        new.sourceRels = old.sourceRels.filter { !$0.id.hasPrefix("rIdLink") } + rels
+        box.paragraphs = document.paragraphs
+        box.tableStyles = document.tableStyles.filter { ids.contains($0.key) }
+        box.tableColumns = document.tableColumns.filter { ids.contains($0.key) }
         new.textBox = box
         _store(index, id, old: old, new: new)
         return true
+    }
+
+    /// The same for a box of plain paragraphs (no table looks).
+    @discardableResult
+    public func setTextBoxContent(at index: Int, inline id: String? = nil, paragraphs: [RichParagraph], contentXML: String, rels: [KeptRel] = [], height: Double? = nil) -> Bool {
+        setTextBoxContent(at: index, inline: id, document: RichDocument(paragraphs: paragraphs), contentXML: contentXML, rels: rels, height: height)
     }
 
     private static let _idTags = ["<w:ins ", "<w:del ", "<w:bookmarkStart ", "<w:bookmarkEnd ", "<w:rPrChange ", "<w:pPrChange ", "<w:moveFrom ", "<w:moveTo "]
