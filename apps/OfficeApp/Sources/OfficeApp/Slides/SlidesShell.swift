@@ -116,6 +116,8 @@ final class SlidesShellState: State<StatefulWidget> {
     /// Find and Replace across the deck.
     private var _findOpen = false
     private var _symbolOpen = false
+    private var _printOpen = false
+    private var _shortcutsOpen = false
     private let _findQuery = TextEditingController()
     #if canImport(AppKit)
     private let _spelling: RichSpellChecker? = CocoaSpellChecker()
@@ -256,7 +258,8 @@ final class SlidesShellState: State<StatefulWidget> {
         }
         session.onExport = { [weak self] ext in self?._export(ext) }
         session.onShare = { [weak self] ext in self?._export(ext, share: true) }
-        session.onPrint = { [weak self] in self?._print() }
+        session.onPrint = { [weak self] in self?._endEditing(); self?.setState { self?._backstage = nil; self?._printOpen = true } }
+        session.onShortcuts = { [weak self] in self?.setState { self?._backstage = nil; self?._shortcutsOpen = true } }
         #if os(iOS)
         // OFFICE_DRIVE_EXPORT=pdf (or print): File → Export → PDF (File → Print) a few seconds after the
         // document opens, so a driven run can reach the export picker
@@ -937,22 +940,42 @@ final class SlidesShellState: State<StatefulWidget> {
         }
     }
 
-    /// File → Print: the deck as a PDF, handed to the host's print dialog.
-    private func _print() {
+    /// What the Print dialog asks of the deck: Slides, Notes Pages or
+    /// Handouts, for a page range, with the selected slides as a choice.
+    private var _printHooks: PrintHooks {
+        PrintHooks(unit: "Slides", total: max(1, deck.slides.count), current: deck.current + 1,
+                   selection: _selectedSlideNumbers(), outputs: ["Slides", "Notes Pages", "Handouts"],
+                   hostCanPrint: hostPrintPDF != nil, print: { [weak self] pages, output in
+                       self?._print(slides: pages, output: output) ?? ""
+                   })
+    }
+
+    /// The selected slides' numbers (1-based), or nil when only one is.
+    private func _selectedSlideNumbers() -> [Int]? {
+        let ids = deck.slideSelectionIds
+        let n = deck.slides.enumerated().filter { ids.contains($0.element.id) }.map { $0.offset + 1 }
+        return n.count > 1 ? n : nil
+    }
+
+    /// File → Print: the chosen slides (or their notes pages, or handouts)
+    /// as a PDF, handed to the host's print dialog. Returns the status line.
+    private func _print(slides: [Int], output: Int) -> String {
         #if os(WASI)
-        _flash("Printing is not available in the browser yet")
+        return "Printing is not available in the browser yet"
         #else
-        _endEditing()
+        guard hostPrintPDF != nil else { return "No print dialog on this host" }
         let path = NSTemporaryDirectory() + "slides-print-\(ProcessInfo.processInfo.processIdentifier).pdf"
-        setState { _backstage = nil }
+        let kind = SlidesPdf.Output(rawValue: output) ?? .slides
         Task { @MainActor [weak self] in
             guard let self else { return }
-            guard await SlidesPdf.write(self.deck, cache: self._cache, to: path, title: self.session.title) else {
+            guard await SlidesPdf.write(self.deck, cache: self._cache, to: path, title: self.session.title,
+                                        slides: slides, output: kind, notesTheme: self._notesTheme) else {
                 self._flash("Could not render the deck for printing")
                 return
             }
-            if let print = hostPrintPDF { print(path) } else { self._flash("No print dialog on this host") }
+            if let print = hostPrintPDF { print(path) }
         }
+        return "Sent to the print dialog"
         #endif
     }
 
@@ -1146,7 +1169,7 @@ final class SlidesShellState: State<StatefulWidget> {
         PlatformDispatcher.instance.scheduleFrame()
     }
 
-    private func _shortcut(_ key: KeyData, _ mods: KeyModifiers) -> Bool {
+    func _shortcut(_ key: KeyData, _ mods: KeyModifiers) -> Bool {
         let named = KeyChordTracker.named(key.logical)
         let typing = _active != nil || _notesActive
         // Alt+F10 shows or hides the Selection Pane (PowerPoint).
@@ -1176,6 +1199,7 @@ final class SlidesShellState: State<StatefulWidget> {
             if !deck.selection.isEmpty { deck.selectShapes([]); return true }
             return false
         }
+        if key.logical == 0x2F, mods.contains(.primary) { session.onShortcuts?(); return true }   // ⌘/ the shortcut list
         guard mods.contains(.primary), !mods.contains(.alt),
               let letter = KeyChordTracker.letter(key.logical) else { return false }
         let c = session.controller
@@ -1283,6 +1307,20 @@ final class SlidesShellState: State<StatefulWidget> {
             self.setState { self._narrow = size.width < Self.narrowBelow }
         }, child: ColoredBox(color: fluent.scaffoldBackgroundColor,
                              child: Column(crossAxisAlignment: .stretch, children: column)))
+        if _printOpen {
+            return Stack(children: [
+                IgnorePointer(ignoring: true, child: window),
+                Positioned(left: 0, top: 0, right: 0, bottom: 0, child: PrintDialog(
+                    hooks: _printHooks, onClose: { [weak self] in self?.setState { self?._printOpen = false } })),
+            ])
+        }
+        if _shortcutsOpen {
+            return Stack(children: [
+                IgnorePointer(ignoring: true, child: window),
+                Positioned(left: 0, top: 0, right: 0, bottom: 0, child: ShortcutListDialog(
+                    table: ShortcutTable.slides, onClose: { [weak self] in self?.setState { self?._shortcutsOpen = false } })),
+            ])
+        }
         if _findOpen {
             return Stack(children: [
                 IgnorePointer(ignoring: true, child: window),

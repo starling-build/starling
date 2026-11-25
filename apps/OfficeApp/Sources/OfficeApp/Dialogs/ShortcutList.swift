@@ -94,6 +94,33 @@ enum ShortcutTable {
         ShortcutEntry("View", "Show or hide ¶", "8", .shift),
     ]
 
+    /// Slides' shortcuts: the shell's. (Text editing keys belong to the editor.)
+    static let slides: [ShortcutEntry] = [
+        ShortcutEntry("Edit", "Undo", "z"),
+        ShortcutEntry("Edit", "Redo", "y"),
+        ShortcutEntry("Edit", "Redo", "z", .shift),
+        ShortcutEntry("Edit", "Select all", "a"),
+        ShortcutEntry("Edit", "Copy", "c"),
+        ShortcutEntry("Edit", "Cut", "x"),
+        ShortcutEntry("Edit", "Paste", "v"),
+        ShortcutEntry("Edit", "Duplicate", "d"),
+        ShortcutEntry("Slides", "New slide", "n", .shift),
+        ShortcutEntry("Arrange", "Group", "g"),
+        ShortcutEntry("Arrange", "Ungroup", "g", .shift),
+        ShortcutEntry("Paragraph", "Center", "e"),
+        ShortcutEntry("Paragraph", "Align left", "l"),
+        ShortcutEntry("Paragraph", "Align right", "r"),
+        ShortcutEntry("Paragraph", "Justify", "j"),
+        ShortcutEntry("Find", "Find", "f"),
+        ShortcutEntry("Find", "Replace", "h"),
+        ShortcutEntry("File", "Save", "s"),
+        ShortcutEntry("File", "Save as", "s", .shift),
+        ShortcutEntry("File", "Open", "o"),
+        ShortcutEntry("File", "New", "n"),
+        ShortcutEntry("File", "Print", "p"),
+        ShortcutEntry("Help", "Keyboard shortcuts", "/"),
+    ]
+
     /// Entries grouped in first-seen order.
     static func groups(_ table: [ShortcutEntry]) -> [(name: String, entries: [ShortcutEntry])] {
         var order: [String] = []
