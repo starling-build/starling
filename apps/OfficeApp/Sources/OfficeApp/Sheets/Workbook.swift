@@ -368,6 +368,8 @@ final class Worksheet {
     /// Hidden runs too long to list column by column (FillWithoutColor's
     /// G to the sheet's end).
     var hiddenColRuns: [ClosedRange<Int>] = []
+    /// A hidden run's own width in characters, by the run's first column, so showing it again changes no layout.
+    var hiddenRunChars: [Int: Double] = [:]
 
     /// Hidden for any reason: filtered, hidden, or height 0.
     func isRowHidden(_ r: Int) -> Bool { filteredRows.contains(r) || hiddenRows.contains(r) || rowHeights[r] == 0 }
@@ -422,6 +424,7 @@ final class Worksheet {
         s.richRaw = richRaw
         s.rowSpanGaps = rowSpanGaps
         s.hiddenColRuns = hiddenColRuns
+        s.hiddenRunChars = hiddenRunChars
         s.tables = tables
         s.pivots = pivots
         s.removedTables = removedTables

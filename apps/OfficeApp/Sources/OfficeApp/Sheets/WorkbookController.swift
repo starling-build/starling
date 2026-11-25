@@ -587,7 +587,7 @@ final class WorkbookController: ChangeNotifier {
 
     func setRowHeight(_ row: Int, _ h: Double, from: Double? = nil) {
         if let from { sheet.rowHeights[row] = from }
-        structural { sheet.rowHeights[row] = max(0, h) }
+        structural { sheet.rowHeights[row] = max(0, h); sheet.fittedRows.remove(row) }
     }
 
     // MARK: Sorting

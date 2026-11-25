@@ -341,6 +341,7 @@ enum Xlsx {
                 for c in lo ... hi where c >= 1 && c <= CellAddress.maxCols { ws.hiddenCols.insert(c - 1) }
             } else if hidden, lo >= 1, lo <= hi {
                 ws.hiddenColRuns.append((lo - 1) ... (min(hi, CellAddress.maxCols) - 1))
+                if let w = Double(col["width"] ?? ""), w > 0 { ws.hiddenRunChars[lo - 1] = w }
             }
             guard let w = Double(col["width"] ?? "") else { continue }
             let pt = w == 0 ? 0 : _charsToPoints(w, digit: digit)
@@ -1375,7 +1376,8 @@ enum Xlsx {
                 if let w = ws.colWidths[start] {
                     key += " width=\"\(_num(_widthChars(ws, start, w)))\"" + (w == 0 || hidden ? " hidden=\"1\"" : "") + " customWidth=\"1\""
                 } else if !attrs.isEmpty || hidden {
-                    let d = ws.defaultColWidthChars.flatMap { _charsToPoints($0, digit: ws.digitWidth) == ws.defaultColWidthPt ? $0 : nil }
+                    let own = ws.hiddenColRuns.first { $0.contains(start) }.flatMap { ws.hiddenRunChars[$0.lowerBound] }
+                    let d = own ?? ws.defaultColWidthChars.flatMap { _charsToPoints($0, digit: ws.digitWidth) == ws.defaultColWidthPt ? $0 : nil }
                         ?? _pointsToChars(ws.defaultColWidthPt, digit: ws.digitWidth)
                     key += " width=\"\(_num(d))\"" + (hidden ? " hidden=\"1\"" : "")
                 }
@@ -1418,7 +1420,7 @@ enum Xlsx {
         var data = "<sheetData>"
         for r in rows {
             data += "<row r=\"\(r + 1)\""
-            if let h = ws.rowHeights[r] { data += h == 0 ? " hidden=\"1\"" : " ht=\"\(_num(h))\" customHeight=\"1\"" }
+            if let h = ws.rowHeights[r] { data += h == 0 ? " hidden=\"1\"" : " ht=\"\(_num(h))\"" + (ws.fittedRows.contains(r) ? "" : " customHeight=\"1\"") }
             if (ws.filteredRows.contains(r) || ws.hiddenRows.contains(r)) && ws.rowHeights[r] != 0 { data += " hidden=\"1\"" }
             let cells = (byRow[r] ?? []).sorted { $0.0.col < $1.0.col }
             let ownSpan = !cells.isEmpty || ws.rowSpanGaps[r] != nil

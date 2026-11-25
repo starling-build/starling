@@ -38,6 +38,7 @@ final class SheetsSaveLossTests: XCTestCase {
                                    rows: "<row r=\"1\"><c r=\"A1\"><v>1</v></c></row>"))
         XCTAssertTrue(out.containsSubstring("showGridLines=\"0\""), out)
         XCTAssertTrue(out.containsSubstring("min=\"11\" max=\"16384\"") && out.containsSubstring("hidden=\"1\""), out)
+        XCTAssertTrue(out.containsSubstring("width=\"11.4\""), "a hidden run keeps its own width: " + out)
     }
 
     func testSelectionsOfEveryPaneAndRangesSurvive() throws {
@@ -56,5 +57,25 @@ final class SheetsSaveLossTests: XCTestCase {
         let c = WorkbookController()
         c.load(try Xlsx.read(try Data(contentsOf: URL(fileURLWithPath: inp))))
         try Xlsx.write(c.book).write(to: URL(fileURLWithPath: out))
+    }
+
+    /// customHeight stays as read: a fitted row (ht without it) is refitted by Excel on open, a sized one is not.
+    func testCustomHeightStaysAsRead() throws {
+        let out = try resave(sheet(rows: "<row r=\"1\" ht=\"21.5\"><c r=\"A1\"><v>1</v></c></row>"
+            + "<row r=\"2\" ht=\"30\" customHeight=\"1\"><c r=\"A2\"><v>2</v></c></row>"))
+        XCTAssertTrue(out.containsSubstring("<row r=\"1\" ht=\"21.5\" spans"), "a fitted row gets no customHeight: " + out)
+        XCTAssertTrue(out.containsSubstring("ht=\"30\" customHeight=\"1\""), out)
+        // The user sizing a fitted row makes it a sized one.
+        let c = WorkbookController()
+        c.load(try Xlsx.read(try Zip.write({
+            var e = try Zip.read(try Xlsx.write(WorkbookController().book))
+            let i = try XCTUnwrap(e.firstIndex { $0.name == "xl/worksheets/sheet1.xml" })
+            e[i] = ZipEntry(name: e[i].name, data: Data(sheet(rows: "<row r=\"1\" ht=\"21.5\"><c r=\"A1\"><v>1</v></c></row>").utf8))
+            return e
+        }())))
+        c.setRowHeight(0, 40)
+        let saved = try Zip.read(try Xlsx.write(c.book))
+        let xml = String(decoding: try XCTUnwrap(saved.first { $0.name == "xl/worksheets/sheet1.xml" }).data, as: UTF8.self)
+        XCTAssertTrue(xml.containsSubstring("ht=\"40\" customHeight=\"1\""), xml)
     }
 }
