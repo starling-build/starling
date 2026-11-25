@@ -3,8 +3,11 @@ import Foundation
 /// W-TB-6: Layout > Formula.
 extension RichDocumentController {
     /// The cell texts of the caret's table and the caret's place in it.
-    private func _formulaGrid() -> TableFormula? {
-        guard let range = currentTableRange, let here = document.paragraphs[selection.focus.paragraph].cell else { return nil }
+    func _formulaGrid(at paragraph: Int? = nil) -> TableFormula? {
+        let at = paragraph ?? selection.focus.paragraph
+        guard let id = document.paragraphs[at].cell?.table, let here = document.paragraphs[at].cell,
+              let first = document.paragraphs(inTable: id).first, let last = document.paragraphs(inTable: id).last else { return nil }
+        let range = first ..< last + 1
         let paras = document.paragraphs[range]
         let rows = (paras.compactMap { $0.cell.map { $0.row + $0.rowSpan } }.max() ?? 0)
         let cols = (paras.compactMap { $0.cell.map { $0.column + $0.span } }.max() ?? 0)

@@ -165,9 +165,30 @@ extension RichDocumentController {
     private func _fieldResult(_ instr: String, paragraph: Int, pageOf: (Int) -> String?, pageCount: Int) -> String? {
         let words = instr.split(separator: " ", omittingEmptySubsequences: true).map(String.init)
         guard let kind = words.first?.uppercased() else { return nil }
+        if kind.hasPrefix("=") {
+            // A table formula: "=SUM(ABOVE) \# "0.00"" (the picture is optional).
+            var code = instr.trimmingWhitespace(newlines: true), picture = ""
+            if let r = code.rangeOfSubstring("\\#") {
+                picture = String(code[r.upperBound...]).trimmingWhitespace(newlines: true).filter { $0 != "\"" }
+                code = String(code[..<r.lowerBound])
+            }
+            guard let grid = _formulaGrid(at: paragraph), let v = grid.evaluate(code) else { return nil }
+            return TableFormula.format(v, picture: picture)
+        }
         switch kind {
         case "PAGE": return pageOf(paragraph)
         case "NUMPAGES": return String(pageCount)
+        case "REF":
+            // The bookmark's text, where its start and end lie in one paragraph (a paragraph-number switch is not worked out).
+            guard words.count > 1, !words.contains(where: { ["\\n", "\\r", "\\w", "\\p", "\\f"].contains($0) }) else { return nil }
+            let name = words[1].filter { $0 != "\"" }.lowercased()
+            for q in document.paragraphs {
+                guard let start = q.bookmarkMarkers.first(where: { $0.name?.lowercased() == name }),
+                      let end = q.bookmarkMarkers.first(where: { $0.name == nil && $0.id == start.id }), end.offset >= start.offset else { continue }
+                let u = Array(q.text.utf16)
+                return String(decoding: u[min(start.offset, u.count) ..< min(end.offset, u.count)], as: UTF16.self)
+            }
+            return nil
         case "PAGEREF":
             guard words.count > 1, !words.contains("\\p") else { return nil }
             let name = words[1].filter { $0 != "\"" }.lowercased()

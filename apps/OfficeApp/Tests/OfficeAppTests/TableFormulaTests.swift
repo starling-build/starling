@@ -4,7 +4,7 @@ import XCTest
 
 /// W-TB-6: Layout > Formula.
 final class TableFormulaTests: XCTestCase {
-    private func table(_ rows: [[String]]) -> RichDocumentController {
+    func makeTable(_ rows: [[String]]) -> RichDocumentController {
         let c = RichDocumentController(plainText: "")
         c.insertTable(rows: rows.count, columns: rows[0].count)
         let idx = c.document.paragraphs.indices.filter { c.document.paragraphs[$0].cell != nil }
@@ -14,7 +14,7 @@ final class TableFormulaTests: XCTestCase {
         }
         return c
     }
-    private func goTo(_ c: RichDocumentController, row: Int, column: Int) {
+    func go(_ c: RichDocumentController, row: Int, column: Int) {
         let i = c.document.paragraphs.firstIndex { $0.cell?.row == row && $0.cell?.column == column }!
         c.moveTo(RichPosition(paragraph: i, offset: 0), extend: false)
     }
@@ -46,8 +46,8 @@ final class TableFormulaTests: XCTestCase {
     }
 
     func testTheFormulaIsAFieldWordCanUpdateAndSurvivesASave() throws {
-        let c = table([["10"], ["20"], [""]])
-        goTo(c, row: 2, column: 0)
+        let c = makeTable([["10"], ["20"], [""]])
+        go(c, row: 2, column: 0)
         XCTAssertEqual(c.suggestedFormula, "=SUM(ABOVE)")
         XCTAssertTrue(c.insertFormula("=SUM(ABOVE)", picture: "0.00"))
         let cell = c.document.paragraphs.first { $0.cell?.row == 2 }!
@@ -62,9 +62,22 @@ final class TableFormulaTests: XCTestCase {
     func testNoFormulaOutsideATableOrWhenItCannotBeWorkedOut() {
         let plain = RichDocumentController(plainText: "x")
         XCTAssertFalse(plain.insertFormula("=SUM(ABOVE)"))
-        let c = table([["a"], [""]])
-        goTo(c, row: 1, column: 0)
+        let c = makeTable([["a"], [""]])
+        go(c, row: 1, column: 0)
         XCTAssertTrue(c.insertFormula("=SUM(ABOVE)"))
         XCTAssertEqual(c.document.paragraphs.first { $0.cell?.row == 1 }!.text, "0")
+    }
+
+    func testF9RecomputesATableFormulaAfterItsCellsChange() throws {
+                let c = makeTable([["10"], ["20"], [""]])
+        go(c, row: 2, column: 0)
+        XCTAssertTrue(c.insertFormula("=SUM(ABOVE)", picture: "0.00"))
+        // The first cell changes; the total is stale until F9.
+        c.moveTo(RichPosition(paragraph: c.document.paragraphs.firstIndex { $0.cell?.row == 0 }!, offset: 2), extend: false)
+        c.insertText("5")
+        XCTAssertEqual(c.document.paragraphs.first { $0.cell?.row == 2 }!.text, "30.00")
+        c.selectAll()
+        XCTAssertEqual(c.updateFields(pageOf: { (_: Int) -> String? in nil }, pageCount: 1), 1)
+        XCTAssertEqual(c.document.paragraphs.first { $0.cell?.row == 2 }!.text, "125.00")
     }
 }

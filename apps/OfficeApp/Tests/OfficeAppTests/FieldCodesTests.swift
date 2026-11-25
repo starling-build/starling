@@ -64,4 +64,16 @@ final class FieldCodesTests: XCTestCase {
         XCTAssertEqual(c.document.paragraphs[0].text, "see 7")
         q.text = ""
     }
+
+    func testF9RefShowsTheBookmarkedText() {
+        var f = CharStyle.plain; f.field = "REF target"
+        let q = RichParagraph(text: "see old", runs: [Run(length: 4, style: .plain), Run(length: 3, style: f)])
+        var t = RichParagraph(text: "a new text b", runs: [Run(length: 12, style: .plain)])
+        t.bookmarks = ["target"]
+        t.bookmarkMarkers = [RichBookmarkMarker(id: "1", name: "target", offset: 2), RichBookmarkMarker(id: "1", offset: 10)]
+        let c = RichDocumentController(document: RichDocument(paragraphs: [q, t]))
+        c.selectAll()
+        XCTAssertEqual(c.updateFields(pageOf: { (_: Int) -> String? in nil }, pageCount: 1), 1)
+        XCTAssertEqual(c.document.paragraphs[0].text, "see new text")
+    }
 }
