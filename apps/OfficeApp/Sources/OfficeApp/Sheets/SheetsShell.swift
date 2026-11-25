@@ -1396,6 +1396,12 @@ final class SheetsShellState: State<StatefulWidget> {
             item("Delete…") { [weak self] in self?._openCellsDialog(insert: false) }
         case .drawing: break
         }
+        // The fill handle's drag, as commands a finger can reach: the selection's first row (or column) copied across it,
+        // or, with one row (column) selected, the one before it.
+        if case .cells = area {
+            item("Fill Down") { c.fillDown() }
+            item("Fill Right") { c.fillRight() }
+        }
         item("Clear Contents") { c.clearContents() }
         item("Clear Formats") { c.setStyle { $0 = .plain } }
         item("Format Cells…") { [weak self] in self?._openFormatCells() }
