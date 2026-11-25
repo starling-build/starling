@@ -56,9 +56,41 @@ final class ScreenReaderTests: XCTestCase {
         XCTAssertEqual(ScreenReader.recorded?.last, "Slide 1 of 2")
     }
 
+    func testSlideThumbnailsAreKeyboardStopsWithNames() {
+        let ui = app(SlidesShell(initialPath: nil, startBlank: true, onSwitch: { _, _ in }))
+        ui.pump()
+        XCTAssertTrue(KeyboardTraversal.shared.reachable().contains { $0.label() == "Slide 1" })
+    }
+
     func testOpeningADialogSaysItsTitle() {
         let ui = app(DialogShell(title: "Subtotal", page: Text("x"), onOK: {}, onCancel: {}))
         ui.pump()
         XCTAssertEqual(ScreenReader.recorded?.last, "Subtotal dialog")
+    }
+
+    func testUndoAndRedoSayWhatTheyDidInWriter() {
+        let ui = app(OfficeShell(initialPath: nil, startBlank: true))
+        ui.pump()
+        let c = OfficeSession().controller
+        c.insertText("hello")
+        c.undo()
+        XCTAssertEqual(ScreenReader.recorded?.last, "Undo Typing")
+        Thread.sleep(forTimeInterval: 0.3)
+        c.redo()
+        XCTAssertEqual(ScreenReader.recorded?.last, "Redo Typing")
+        Thread.sleep(forTimeInterval: 0.3)
+        c.redo()
+        XCTAssertEqual(ScreenReader.recorded?.last, "Nothing to redo")
+    }
+
+    func testFindSaysWhichMatchOfHowManyInSheets() {
+        let c = WorkbookController()
+        c.setInput("a", at: CellAddress(row: 0, col: 0)); c.setInput("a", at: CellAddress(row: 1, col: 0))
+        c.setInput("a", at: CellAddress(row: 2, col: 0))
+        let p = try! TextPattern("a", FindOptions())
+        c.select(CellAddress(row: 0, col: 0))
+        XCTAssertTrue(c.findNext(p, scope: 0))
+        let at = c.findPosition(p, scope: 0)
+        XCTAssertEqual(at?.index, 2); XCTAssertEqual(at?.total, 3)
     }
 }

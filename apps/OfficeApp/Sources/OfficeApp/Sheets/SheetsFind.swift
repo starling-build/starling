@@ -36,6 +36,19 @@ extension WorkbookController {
         return false
     }
 
+    /// Which match the active cell is among the cells that match, and how many there are ("3 of 12").
+    func findPosition(_ p: TextPattern, scope: Int) -> (index: Int, total: Int)? {
+        var total = 0, index: Int?
+        for si in _scopeSheets(scope) {
+            let ws = book.sheets[si]
+            for a in ws.cells.filter({ !p.matches(in: _searchText($0.value, $0.key, sheet: ws)).isEmpty }).map(\.key).sorted() {
+                total += 1
+                if index == nil, si == activeSheet, a == active { index = total }
+            }
+        }
+        return index.map { ($0, total) }
+    }
+
     /// The cell's text with every match replaced; nil when nothing matched.
     private func _replaced(_ text: String, _ p: TextPattern, _ template: String) -> String? {
         let ms = p.matches(in: text)

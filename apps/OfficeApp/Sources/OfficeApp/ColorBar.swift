@@ -75,10 +75,10 @@ final class ColorBar: StatelessWidget {
         func swatch(_ color: Color) -> Widget {
             Padding(padding: EdgeInsets(left: 0, top: 0, right: 3, bottom: 3), child: Tooltip(
                 message: Self.hex(color),
-                child: GestureDetector(onTap: { [onPick] in onPick(color) }, child: SizedBox(width: 15, height: 15, child: DecoratedBox(
+                child: KeyboardRow(label: Self.hex(color), activate: { [onPick] in onPick(color) }, child: GestureDetector(onTap: { [onPick] in onPick(color) }, child: SizedBox(width: 15, height: 15, child: DecoratedBox(
                     decoration: BoxDecoration(
                         color: color,
-                        border: Border.all(color: fluent.resources.controlStrokeColorDefault, width: 1)))))))
+                        border: Border.all(color: fluent.resources.controlStrokeColorDefault, width: 1))))))))
         }
         let themeGrid = Column(crossAxisAlignment: .start, children: Self.theme.map { row in
             Row(mainAxisSize: .min, children: row.map(swatch))

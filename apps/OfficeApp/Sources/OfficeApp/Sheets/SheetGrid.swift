@@ -1145,6 +1145,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         _w.onEditText(text)
         _repaint.notifyListeners()
         _ime?.sync()
+        ScreenReader.announce("Editing \(a.a1)")
     }
 
     /// Put the editor's text into the cell. Returns false if nothing was being edited.
@@ -1258,6 +1259,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
 
     func cancelEdit() {
         guard edit != nil else { return }
+        ScreenReader.announce("Edit cancelled")
         edit = nil
         _composing = nil
         _pointRef = nil
