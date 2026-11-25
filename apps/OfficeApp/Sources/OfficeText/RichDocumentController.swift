@@ -1466,6 +1466,29 @@ public final class RichDocumentController: ChangeNotifier {
         if style.color == held.color { style.color = none.color }
     }
 
+    /// Delete the style `id`; paragraphs in it go back to Normal. Normal
+    /// and the headings stay. One undo step.
+    public func deleteStyle(_ id: String) {
+        guard id != RichNamedStyle.normalId, !id.hasPrefix("Heading"), let entry = document.styles[id] else { return }
+        edit {
+            let sheet = document.styles
+            for i in document.paragraphs.indices where document.paragraphs[i].style.named == id {
+                let old = document.paragraphs[i].style
+                var new = old
+                sheet.apply(RichNamedStyle.normalId, to: &new)
+                new.named = nil
+                if new != old { perform(.setParagraphStyle(i, old: old, new: new)) }
+            }
+            // Another style whose "next" was this one points at Normal, as Word does.
+            for other in document.styles.styles where other.id != id && other.next == id {
+                var moved = other
+                moved.next = RichNamedStyle.normalId
+                perform(.setStyleEntry(old: other, new: moved))
+            }
+            perform(.removeStyle(entry))
+        }
+    }
+
     /// Link the selection to `url`; with nothing selected, insert the URL
     /// as the link's text, as Word does. nil removes the link.
     public func setLink(_ url: String?) {

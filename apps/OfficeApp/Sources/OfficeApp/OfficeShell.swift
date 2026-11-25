@@ -300,6 +300,10 @@ final class OfficeShellState: State<StatefulWidget> {
             guard let self else { return }
             self.setState { self.session.showNavigation.toggle() }
         }
+        session.onToggleStyles = { [weak self] in
+            guard let self else { return }
+            self.setState { self.session.showStyles.toggle() }
+        }
         session.onToggleSpelling = { [weak self] in
             guard let self else { return }
             self.setState { self.session.checkSpelling.toggle() }
@@ -1376,6 +1380,11 @@ final class OfficeShellState: State<StatefulWidget> {
             area.append(NavigationPane(session: session, onClose: { [session] in session.onToggleNavigation?() }))
         }
         area.append(Expanded(child: Column(crossAxisAlignment: .stretch, children: pages)))
+        if session.showStyles {
+            area.append(StylesPane(session: session,
+                                   onModify: { [weak self] id in self?.session.onModifyStyle?(id) },
+                                   onClose: { [session] in session.onToggleStyles?() }))
+        }
         column.append(Expanded(child: Row(crossAxisAlignment: .stretch, children: area)))
         column.append(StatusBar(session: session, message: _status ?? _linkHover.map { "⌘-click to open \($0)".keys }))
 
