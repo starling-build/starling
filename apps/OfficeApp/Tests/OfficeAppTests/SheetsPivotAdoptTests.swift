@@ -28,6 +28,55 @@ final class SheetsPivotAdoptTests: XCTestCase {
     private func text(_ f: [String: Data], _ p: String) -> String { f[p].map { String(decoding: $0, as: UTF8.self) } ?? "" }
     private func pivotParts(_ f: [String: Data]) -> [String] { f.keys.filter { $0.hasPrefix("xl/pivotTables/pivotTable") }.sorted() }
 
+    /// The automatic heading follows the function; a typed one stays.
+    func testAutomaticHeadingFollowsTheFunction() throws {
+        for (typed, expect) in [("Sum of Sales", nil), ("Total", "Total")] as [(String, String?)] {
+            let wc = made()
+            let ws = wc.book.sheets[0]
+            var d = ws.pivots[0].made!.data
+            d[0].name = typed
+            XCTAssertNil(wc.setPivotFields(sheet: ws, pivot: 0, rows: [0], cols: [], data: d, filters: []))
+            d[0].function = .count
+            XCTAssertNil(wc.setPivotFields(sheet: ws, pivot: 0, rows: [0], cols: [], data: d, filters: []))
+            XCTAssertEqual(ws.pivots[0].made!.data[0].name, expect)
+        }
+    }
+
+    /// Blank source cells add nothing and count as nothing; a crossing of only blanks stays empty.
+    func testBlankSourceCellsStayEmpty() throws {
+        let wc = WorkbookController()
+        let rows: [[String]] = [["Region", "Sales"], ["N", "10"], ["S", ""], ["N", ""]]
+        var inputs: [(CellAddress, String)] = []
+        for (r, row) in rows.enumerated() { for (c, v) in row.enumerated() where !v.isEmpty { inputs.append((CellAddress(row: r, col: c), v)) } }
+        wc.setInputs(inputs)
+        for f in [PivotFunction.sum, .count] {
+            XCTAssertNil(wc.insertPivotTable(source: "Sheet1!A1:B4", rows: [0], cols: [], data: [PivotDataField(field: 1, function: f)], filters: [],
+                                             origin: CellAddress(row: 0, col: f == .sum ? 4 : 8), newSheet: false))
+        }
+        let ws = wc.book.sheets[0]
+        for col in [5, 9] {   // rows: header, N, S, Grand Total
+            XCTAssertEqual(ws.value(CellAddress(row: 1, col: col)), .number(col == 5 ? 10 : 1))
+            XCTAssertEqual(ws.value(CellAddress(row: 2, col: col)), .empty, "S has only a blank")
+            XCTAssertEqual(ws.value(CellAddress(row: 3, col: col)), .number(col == 5 ? 10 : 1))
+        }
+    }
+
+    /// A chart sheet keeps its own part and its chartsheet link through a save (it came back as a
+    /// worksheet link over a worksheet-style body, and Excel opened an empty sheet).
+    func testChartSheetSurvivesASave() throws {
+        let path = "/data/corpus-cache/test/corpus/xlsx/books/WithChartSheet.xlsx"
+        guard let data = FileManager.default.contents(atPath: path) else { throw XCTSkip("no WithChartSheet.xlsx") }
+        let orig = try zip(data)
+        let c = WorkbookController()
+        c.load(try Xlsx.read(data))
+        let out = try zip(try Xlsx.write(c.book))
+        XCTAssertEqual(out["xl/chartsheets/sheet1.xml"], orig["xl/chartsheets/sheet1.xml"])
+        let rels = text(out, "xl/_rels/workbook.xml.rels")
+        XCTAssertTrue(rels.containsSubstring("relationships/chartsheet\" Target=\"chartsheets/sheet1.xml\""))
+        XCTAssertFalse(rels.containsSubstring("relationships/worksheet\" Target=\"chartsheets/"))
+        XCTAssertEqual(text(out, "xl/workbook.xml").components(separatedBy: "<sheet ").count, text(orig, "xl/workbook.xml").components(separatedBy: "<sheet ").count)
+    }
+
     func testUntouchedFilePivotKeepsItsPartsByteForByte() throws {
         let (back, first) = try reopen(made())
         XCTAssertNotNil(back.sheet.pivots.first?.fileSpec)

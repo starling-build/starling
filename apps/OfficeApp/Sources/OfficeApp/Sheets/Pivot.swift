@@ -260,10 +260,13 @@ enum PivotCalc {
 
     private static func aggregate(_ recs: [[CellValue]], _ d: PivotDataField) -> CellValue {
         switch d.function {
-        case .count: return recs.isEmpty ? .empty : .number(Double(recs.filter { !$0[d.field].isEmpty }.count))
+        // Blank source cells add nothing and count as nothing; a crossing with only blanks stays empty.
+        case .count:
+            let n = recs.filter { !$0[d.field].isEmpty }.count
+            return n == 0 ? .empty : .number(Double(n))
         case .sum:
-            let n = recs.compactMap { $0[d.field].number }
-            return recs.isEmpty ? .empty : .number(n.reduce(0, +))
+            guard recs.contains(where: { !$0[d.field].isEmpty }) else { return .empty }
+            return .number(recs.compactMap { $0[d.field].number }.reduce(0, +))
         case .average:
             let n = recs.compactMap { $0[d.field].number }
             return n.isEmpty ? .empty : .number(n.reduce(0, +) / Double(n.count))
@@ -662,6 +665,15 @@ extension WorkbookController {
     @discardableResult
     func setPivotFields(sheet ws: Worksheet, pivot k: Int, rows: [Int], cols: [Int], data: [PivotDataField], filters: [PivotFilter]) -> PivotProblem? {
         guard ws.pivots.indices.contains(k), var spec = editableSpec(ws, k), let s = ws.pivots[k].source, let src = PivotSource.read(s, book: book) else { return .noSource }
+        // A heading still the automatic one ("Sum of Score") follows a change of function ("Count of Score");
+        // one the user typed stays.
+        var data = data
+        for i in data.indices where i < spec.data.count {
+            let old = spec.data[i]
+            guard old.field == data[i].field, old.function != data[i].function, data[i].name == old.name,
+                  let n = old.name, src.headers.indices.contains(old.field), n == old.function.caption + src.headers[old.field] else { continue }
+            data[i].name = nil
+        }
         spec.rows = rows; spec.cols = cols; spec.data = data; spec.filters = filters
         if let p = PivotCalc.problem(spec, src) { return p }
         // (A page filter added or removed moves the table down or up: the old page rows are cleared by `_relayPivot`, and the table keeps its top.)
