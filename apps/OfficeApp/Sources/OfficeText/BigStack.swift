@@ -16,8 +16,9 @@ import Glibc
 ///
 /// The thread is made with `pthread_create` and the result is checked. `Foundation.Thread.start()` on Linux
 /// ignores a failed `pthread_create`, so under load (many renders at once, a pid or address-space limit) the body
-/// never ran and the caller waited forever on the semaphore. Now a refused thread is retried, then tried with a
-/// smaller stack, and as the last resort the body runs on the caller's own stack, as it did before the hop existed.
+/// never ran and the caller waited forever on the semaphore. Now a refused thread is retried for about half a second,
+/// then tried with 32 and 16 MB, and as the last resort the body runs on the caller's own stack, as it did before the
+/// hop existed. Each refusal and step down prints one line on stderr.
 public enum BigStack {
     static let size = 64 << 20
     /// Test hook: this many of the next thread creations are treated as refused.
@@ -72,10 +73,11 @@ public enum BigStack {
     }
 
     /// One thread, detached, with `stack` bytes. False when the system refused it.
-    private static func _create(_ job: Job, stack: Int) -> Bool {
-        if _refused() { return false }
+    private static func _create(_ job: Job, stack: Int) -> Int32 {
+        if _refused() { return EAGAIN }
         var attr = pthread_attr_t()
-        guard pthread_attr_init(&attr) == 0 else { return false }
+        let initRC = pthread_attr_init(&attr)
+        guard initRC == 0 else { return initRC }
         defer { pthread_attr_destroy(&attr) }
         pthread_attr_setstacksize(&attr, stack)
         pthread_attr_setdetachstate(&attr, Int32(PTHREAD_CREATE_DETACHED))
@@ -93,26 +95,28 @@ public enum BigStack {
             return nil
         }, ref.toOpaque())
         #endif
-        if rc != 0 { ref.release(); return false }
-        return true
+        if rc != 0 { ref.release() }
+        return rc
     }
 
-    nonisolated(unsafe) private static var _reported = false
-
-    /// Tries the full stack a few times (a refusal under load is usually brief), then smaller ones.
+    /// Tries the full stack for about half a second (a refusal under load is usually brief), then 32 and 16 MB. Every
+    /// refusal and every step down says so on stderr, with the errno and the size got, so a stress run shows what a
+    /// crash was running on: a deep document needs 6 MB, and a smaller stack than the full one is a risk, not a cure.
     private static func _spawn(_ run: @escaping () -> Void) -> Bool {
         let job = Job(run)
-        for stack in [size, size / 2, size / 4, size / 8] {
-            for attempt in 0..<3 {
-                if _create(job, stack: stack) { return true }
-                usleep(UInt32(2_000 << attempt))
+        for stack in [size, size / 2, size / 4] {
+            let attempts = stack == size ? 8 : 2
+            for attempt in 0..<attempts {
+                let rc = _create(job, stack: stack)
+                if rc == 0 {
+                    if stack != size { fputs("BigStack: thread got only \(stack >> 20) MB (the full \(size >> 20) MB was refused)\n", stderr) }
+                    return true
+                }
+                fputs("BigStack: pthread_create refused a \(stack >> 20) MB stack (errno \(rc), attempt \(attempt + 1) of \(attempts))\n", stderr)
+                usleep(UInt32(min(100_000, 2_000 << attempt)))
             }
         }
-        refusalLock.lock()
-        let first = !_reported
-        _reported = true
-        refusalLock.unlock()
-        if first { fputs("BigStack: no thread could be created; running on the caller's stack\n", stderr) }
+        fputs("BigStack: no thread could be created; running on the caller's stack\n", stderr)
         return false
     }
     #endif
