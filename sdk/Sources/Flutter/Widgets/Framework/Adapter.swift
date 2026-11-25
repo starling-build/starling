@@ -440,6 +440,8 @@ func _setupWidgetBinding(_ app: Widget) {
             // agent launch path; no-op otherwise).
             AgentSemanticsEndpoint.rootElementProvider = { rootElement }
             AgentSemanticsEndpoint.startIfConfigured()
+            AtspiAccessibility.rootElementProvider = { rootElement }
+            AtspiAccessibility.startIfConfigured()
             #endif
         }
 

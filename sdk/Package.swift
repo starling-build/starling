@@ -346,7 +346,7 @@ products += [
     .library(name: "FlutterShared", type: .dynamic,
              targets: ["Flutter", "SwiftRuntime", "FlutterSwiftBridge",
                        "CupertinoIcons", "FluentSystemIcons",
-                       "FlutterEmbedderBridge", "DmaBufBridge"]),
+                       "FlutterEmbedderBridge", "DmaBufBridge", "AtspiBridge"]),
 ]
 #endif
 
@@ -419,6 +419,7 @@ let flutterDeps: [Target.Dependency] = [
     .target(name: "FlutterEmbedderBridge"),
     .target(name: "DmaBufBridge"),
     .target(name: "WaylandClipboardBridge"),
+    .target(name: "AtspiBridge"),
 ]
 #elseif os(Windows)
 let flutterDeps: [Target.Dependency] = [
@@ -783,6 +784,11 @@ targets += [
         linkerSettings: [
             .linkedLibrary("wayland-client"),
         ]
+    ),
+    // AT-SPI server for screen readers (sd-bus loaded at run time, so nothing to link).
+    .target(
+        name: "AtspiBridge",
+        linkerSettings: [.linkedLibrary("dl")]
     ),
     // System GTK 3 via pkg-config — supplies GTK/GLib include paths and libs
     // to dependents without hardcoding multiarch paths.
