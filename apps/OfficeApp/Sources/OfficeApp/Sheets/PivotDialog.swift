@@ -94,6 +94,7 @@ final class PivotDialogState: State<StatefulWidget> {
             gap(8), Text("Use each heading as:", style: fluent.typography.bodyStrong), gap(4),
         ]
         if fields.isEmpty { list += [Text("Type a range whose first row holds headings.", style: fluent.typography.caption)] }
+        else if !PivotSpec.offersFilters { list += [Text("Filters (report filter fields) are not offered yet.", style: fluent.typography.caption), gap(4)] }
         for (i, name) in fields.enumerated() {
             let fn = values[i]
             list.append(Text(name.isEmpty ? "Column \(i + 1)" : name, style: fluent.typography.body))
