@@ -2285,6 +2285,70 @@ public final class RichDocumentController: ChangeNotifier {
         }
     }
 
+    /// W-HF-1 PR 2: how the strip shows one side's line.
+    public struct HeaderFooterLook: Equatable, Sendable {
+        public var bold = false
+        public var italic = false
+        public var alignment: ParagraphAlignment = .left
+        public init(bold: Bool = false, italic: Bool = false, alignment: ParagraphAlignment = .left) {
+            self.bold = bold; self.italic = italic; self.alignment = alignment
+        }
+        public var isDefault: Bool { self == HeaderFooterLook() }
+    }
+
+    /// The look of the file's edited default header or footer (first paragraph, first run), else plain.
+    public func headerFooterLook(_ kind: KeptHeaderFooter.Kind) -> HeaderFooterLook {
+        guard let e = document.headerFooters.first(where: { $0.kind == kind && $0.type == "default" && $0.section == nil && $0.edited == true }),
+              let p = e.paragraphs.first else { return HeaderFooterLook() }
+        let st = p.runs.first?.style
+        return HeaderFooterLook(bold: st?.bold ?? false, italic: st?.italic ?? false, alignment: p.style.alignment)
+    }
+
+    /// A strip line ("Report {PAGE}") as one paragraph: the page fields become field runs, the look applies to all.
+    public static func headerFooterParagraph(template: String, look: HeaderFooterLook) -> RichParagraph {
+        var text = ""
+        var runs: [Run] = []
+        var plain = CharStyle.plain
+        plain.bold = look.bold; plain.italic = look.italic
+        var rest = Substring(template)
+        func emit(_ s: String, _ st: CharStyle) {
+            guard !s.isEmpty else { return }
+            text += s
+            runs.append(Run(length: s.utf16.count, style: st))
+        }
+        while !rest.isEmpty {
+            var hit: (Range<Substring.Index>, String, String)? = nil
+            for (token, instr, shown) in [(RichDocument.pageField, "PAGE", "1"), (RichDocument.pageCountField, "NUMPAGES", "1")] {
+                if let r = rest.range(of: token), hit == nil || r.lowerBound < hit!.0.lowerBound { hit = (r, instr, shown) }
+            }
+            guard let h = hit else { emit(String(rest), plain); break }
+            emit(String(rest[rest.startIndex..<h.0.lowerBound]), plain)
+            var f = plain; f.field = h.1
+            emit(h.2, f)
+            rest = rest[h.0.upperBound...]
+        }
+        var para = RichParagraph(text: text, runs: runs.isEmpty ? nil : runs)
+        para.style.alignment = look.alignment
+        return para
+    }
+
+    /// Done in the strip: a plain line keeps the old plain path; a formatted one becomes a rich part.
+    public func applyHeaderFooterStrip(header: String, footer: String, headerLook: HeaderFooterLook, footerLook: HeaderFooterLook,
+                                       headerLocked: Bool, footerLocked: Bool) {
+        let hOld = headerFooterLook(.header), fOld = headerFooterLook(.footer)
+        let hRich = !headerLocked && (!headerLook.isDefault || !hOld.isDefault)
+        let fRich = !footerLocked && (!footerLook.isDefault || !fOld.isDefault)
+        if !hRich && !fRich {
+            _ = setHeaderFooter(header: header, footer: footer); return
+        }
+        edit {
+            if hRich { setRichHeaderFooter(.header, paragraphs: [Self.headerFooterParagraph(template: header, look: headerLook)]) }
+            else if !headerLocked { _ = setHeaderFooter(header: header, footer: document.footer) }
+            if fRich { setRichHeaderFooter(.footer, paragraphs: [Self.headerFooterParagraph(template: footer, look: footerLook)]) }
+            else if !footerLocked { _ = setHeaderFooter(header: document.header, footer: footer) }
+        }
+    }
+
     /// Word's Page Number: a centred "n" in the footer, or none.
     @discardableResult
     public func togglePageNumbers() -> Bool {
