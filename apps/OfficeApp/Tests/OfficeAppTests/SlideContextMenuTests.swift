@@ -75,4 +75,27 @@ final class SlideContextMenuTests: XCTestCase {
         try tapLast("Ungroup")
         XCTAssertNil(a.group)
     }
+
+    /// S-AR-2: the shape menu flips and turns the selection.
+    func testTheShapeMenuFlipsAndRotates() throws {
+        let (ui, deck, canvas) = try shell()
+        let a = deck.addShape(.rect)
+        a.frame = Rect.fromLTWH(100, 440, 80, 40)
+        deck.selectShapes([a])
+        settle(ui)
+        func tapLast(_ label: String) throws {
+            let row = try XCTUnwrap(ui.elements().last { ($0.widget as? Text)?.data == label })
+            let box = try XCTUnwrap(row.findRenderObject() as? RenderBox)
+            ui.tap(at: box.localToGlobal(Offset(box.size.width / 2, box.size.height / 2)))
+            settle(ui)
+        }
+        ui.tap(at: canvas.screenPoint(a.frame.center), buttons: kSecondaryMouseButton)
+        settle(ui)
+        try tapLast("Flip Horizontal")
+        XCTAssertTrue(a.flipH)
+        ui.tap(at: canvas.screenPoint(a.frame.center), buttons: kSecondaryMouseButton)
+        settle(ui)
+        try tapLast("Rotate Right 90°")
+        XCTAssertEqual(a.rotation, 90, accuracy: 0.01)
+    }
 }

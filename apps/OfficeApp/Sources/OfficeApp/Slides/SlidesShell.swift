@@ -1074,8 +1074,11 @@ final class SlidesShellState: State<StatefulWidget> {
         }
         // With shapes selected, keys act on them.
         if !deck.selection.isEmpty && !_paneFocused {
-            let step = _deckChords.shift ? 12.0 : 2.0
+            // Ctrl nudges by a hair, Shift by a lot; Alt+Left/Right turns by 15°.
+            let step = _deckChords.primary ? 0.5 : _deckChords.shift ? 12.0 : 2.0
             switch named {
+            case .left where _deckChords.alt: deck.rotateSelection(by: -15)
+            case .right where _deckChords.alt: deck.rotateSelection(by: 15)
             case .left: deck.nudgeSelection(dx: -step, dy: 0)
             case .right: deck.nudgeSelection(dx: step, dy: 0)
             case .up: deck.nudgeSelection(dx: 0, dy: -step)
@@ -1590,6 +1593,11 @@ final class SlidesShellState: State<StatefulWidget> {
             m.separator()
             m.item("Group", enabled: deck.canGroup) { deck.groupSelection() }
             m.item("Ungroup", enabled: deck.canUngroup) { deck.ungroupSelection() }
+            m.separator()
+            m.item("Rotate Right 90°") { deck.rotateSelection(by: 90) }
+            m.item("Rotate Left 90°") { deck.rotateSelection(by: -90) }
+            m.item("Flip Vertical") { deck.flipSelection(horizontal: false) }
+            m.item("Flip Horizontal") { deck.flipSelection(horizontal: true) }
             m.separator()
             m.item("Align Left") { deck.align(.left) }
             m.item("Align Center") { deck.align(.center) }

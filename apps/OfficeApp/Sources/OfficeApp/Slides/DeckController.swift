@@ -1289,6 +1289,57 @@ final class DeckController: ChangeNotifier {
         _changed()
     }
 
+    /// The box around the selection, drawn at the frames' own (unrotated) extents.
+    private var _selectionBounds: Rect? {
+        guard var r = selection.first?.frame else { return nil }
+        for s in selection.dropFirst() {
+            r = Rect.fromLTRB(min(r.left, s.frame.left), min(r.top, s.frame.top),
+                              max(r.right, s.frame.right), max(r.bottom, s.frame.bottom))
+        }
+        return r
+    }
+
+    /// Mirrors the selection about its common centre. Each shape's own flip
+    /// toggles and its turn reverses, so a lone shape flips in place.
+    func flipSelection(horizontal: Bool) {
+        guard let box = _selectionBounds else { return }
+        _checkpoint()
+        let c = box.center
+        for s in selection {
+            let f = s.frame
+            let m = f.center
+            let n = horizontal ? Offset(2 * c.dx - m.dx, m.dy) : Offset(m.dx, 2 * c.dy - m.dy)
+            s.frame = Rect.fromLTWH(n.dx - f.width / 2, n.dy - f.height / 2, f.width, f.height)
+            if horizontal { s.flipH.toggle() } else { s.flipV.toggle() }
+            var d = (-s.rotation).truncatingRemainder(dividingBy: 360)
+            if d < 0 { d += 360 }
+            s.rotation = d
+        }
+        _changed()
+    }
+
+    /// Turns the selection by `degrees` (clockwise) about its common centre.
+    func rotateSelection(by degrees: Double) {
+        guard let box = _selectionBounds else { return }
+        _checkpoint()
+        let c = box.center
+        let a = degrees * Double.pi / 180
+        let (sn, cs) = (sin(a), cos(a))
+        for s in selection {
+            if selection.count > 1 {
+                let f = s.frame
+                let m = f.center
+                let dx = m.dx - c.dx, dy = m.dy - c.dy
+                let n = Offset(c.dx + dx * cs - dy * sn, c.dy + dx * sn + dy * cs)
+                s.frame = Rect.fromLTWH(n.dx - f.width / 2, n.dy - f.height / 2, f.width, f.height)
+            }
+            var d = (s.rotation + degrees).truncatingRemainder(dividingBy: 360)
+            if d < 0 { d += 360 }
+            s.rotation = d
+        }
+        _changed()
+    }
+
     func setFill(_ color: Color?, scheme: String? = nil) {
         guard !selection.isEmpty else { return }
         _checkpoint()
