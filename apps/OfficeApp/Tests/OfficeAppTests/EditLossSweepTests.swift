@@ -14,15 +14,43 @@ final class EditLossSweepTests: XCTestCase {
         if part.contains("worksheets/") { return "sheet" }
         return n.hasSuffix(".rels") ? "rels" : n
     }
-    private func walk(_ n: XNode, _ k: String, _ out: inout [String: Int]) {
+    /// Attributes that change nothing a reader sees (amd-8, 2026-11-25; lenovo-3 found these counted as losses): a false flag equals the
+    /// attribute being absent, row heights are only effective with customHeight, a height or width equal to the sheet default is the
+    /// default, row spans are an optimisation hint, rsid* attributes are revision ids.
+    private static let flagNames: Set<String> = ["hidden", "customHeight", "customWidth", "bestFit", "collapsed", "thickBot", "thickTop",
+        "phonetic", "ph", "quotePrefix", "pivotButton"]
+    private func effective(_ n: XNode, _ a: String, _ v: String, _ ctx: [String: String]) -> Bool {
+        let local = a.split(separator: ":").last.map(String.init) ?? a
+        if local.hasPrefix("rsid") { return false }
+        let off = (v == "0" || v == "false" || v == "off")
+        if Self.flagNames.contains(local) && off { return false }
+        if local == "outlineLevel" && v == "0" { return false }
+        if n.name == "row" {
+            if local == "spans" { return false }
+            if local == "ht" {
+                let custom = n.attrs["customHeight"]
+                if custom == nil || custom == "0" || custom == "false" { return false }
+                if let d = ctx["rowH"], Double(d) == Double(v) { return false }
+            }
+        }
+        if n.name == "col" && local == "width", let d = ctx["colW"], Double(d) == Double(v) { return false }
+        return true
+    }
+    private func walk(_ n: XNode, _ k: String, _ out: inout [String: Int], _ ctx: inout [String: String]) {
         out[k + ":" + n.name, default: 0] += 1
-        for (a, _) in n.attrs where !a.hasPrefix("xmlns") && a != "mc:Ignorable" { out[k + ":" + n.name + "@" + a, default: 0] += 1 }
-        for c in n.children { walk(c, k, &out) }
+        if n.name == "sheetFormatPr" {
+            if let v = n.attrs["defaultRowHeight"] { ctx["rowH"] = v }
+            if let v = n.attrs["defaultColWidth"] ?? n.attrs["baseColWidth"] { ctx["colW"] = v }
+        }
+        for (a, v) in n.attrs where !a.hasPrefix("xmlns") && a != "mc:Ignorable" && effective(n, a, v, ctx) {
+            out[k + ":" + n.name + "@" + a, default: 0] += 1
+        }
+        for c in n.children { walk(c, k, &out, &ctx) }
     }
     private func counts(_ entries: [ZipEntry]) -> [String: Int] {
         var out: [String: Int] = [:]
         for e in entries where e.name.hasSuffix(".xml") || e.name.hasSuffix(".rels") {
-            if let x = XNode.parse(e.data) { walk(x, kind(e.name), &out) } else { out["UNPARSED:" + kind(e.name), default: 0] += 1 }
+            if let x = XNode.parse(e.data) { var ctx: [String: String] = [:]; walk(x, kind(e.name), &out, &ctx) } else { out["UNPARSED:" + kind(e.name), default: 0] += 1 }
         }
         return out
     }
