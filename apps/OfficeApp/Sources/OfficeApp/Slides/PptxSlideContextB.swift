@@ -392,7 +392,10 @@ extension SlideContext {
         var font: String? = nil
     }
 
-    func _tablePart(_ style: XNode, _ name: String) -> TablePartStyle? {
+    func _tablePart(_ style: XNode, _ name: String) -> TablePartStyle? { Self.tablePart(style, name, colors: colors) }
+
+    /// A region of a table style read with the given colours (the editor's gallery reads a built-in style's too).
+    static func tablePart(_ style: XNode, _ name: String, colors: ColorContext) -> TablePartStyle? {
         guard let part = style.first(name) else { return nil }
         var r = TablePartStyle()
         if let tc = part.first("a:tcStyle") {

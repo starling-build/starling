@@ -744,6 +744,37 @@ final class DeepGroupTests: XCTestCase {
         XCTAssertEqual(t.text!.document.tableStyles[t.tableId!]?.headerFill, green)
     }
 
+    /// S-TB-1d: a table in a family beyond Medium Style 2 (Dark Style 1, Accent 2) is drawn from the style's definition,
+    /// the file names the style and holds no fill of the style's, the user's own shading stays, undo restores.
+    func testTableFamilyStyleDrawsFromTheDefinition() throws {
+        let deck = DeckController()
+        deck.slides[0].shapes.removeAll()
+        let t = deck.addTable(rows: 3, columns: 2)
+        deck.selectShapes([t])
+        let yellow = Color(0xFFFFFF00)
+        deck.setTableShading(yellow, block: CellBlock(table: t.tableId!, rows: 2...2, columns: 0...0))
+        let dark = PptxTemplates.builtinTableStyleFamilyList.first { $0.0 == "Dark Style 1" }!.2[1]
+        let before = t.text!.document.tableStyles[t.tableId!]
+        deck.applyTableLook(.builtin(dark))
+        let st = t.text!.document.tableStyles[t.tableId!]
+        XCTAssertEqual(st?.styleId, dark)
+        XCTAssertNotNil(st?.bandFill)
+        XCTAssertNotEqual(st?.bandFill, before?.bandFill)
+        func cell(_ r: Int, _ c: Int) -> CellRef? { t.text!.document.paragraphs.first { $0.cell?.row == r && $0.cell?.column == c }?.cell }
+        XCTAssertEqual(cell(2, 0)?.fill, yellow)
+        XCTAssertNotEqual(cell(2, 0)?.styleFilled, true)
+        let head = t.text!.document.paragraphs.first { $0.cell?.row == 0 && $0.cell?.column == 0 }
+        XCTAssertEqual(head?.runs.first?.style.bold, true)
+        let package = PptxPackage(try Zip.read(try Pptx.write(deck)))
+        let xml = String(data: package.parts["ppt/slides/slide1.xml"]!, encoding: .utf8)!
+        XCTAssertTrue(xml.contains("<a:tableStyleId>\(dark)</a:tableStyleId>"))
+        let fills = xml.components(separatedBy: "<a:tcPr").dropFirst().map { String($0.components(separatedBy: "</a:tcPr>")[0]) }
+            .filter { $0.contains("solidFill") }
+        XCTAssertEqual(fills.count, 1)
+        deck.undo()
+        XCTAssertEqual(t.text!.document.tableStyles[t.tableId!]?.styleId, before?.styleId)
+    }
+
     /// S-TB-1b: shading some cells of a table undoes and survives a save, other cells keep the style's.
     func testTableCellShadingRoundTripAndUndo() throws {
         let deck = DeckController()

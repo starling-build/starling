@@ -1076,6 +1076,8 @@ final class DeckController: ChangeNotifier {
     enum TableLook: Equatable {
         case plain
         case accent(Int)
+        /// Any other built-in style, by its id (Themed, Light, Medium 1/3/4, Dark, in every colour).
+        case builtin(String)
 
         /// The PowerPoint built-in table style it names: "No Style, Table Grid", or "Medium Style 2 - Accent N".
         var styleId: String {
@@ -1083,6 +1085,7 @@ final class DeckController: ChangeNotifier {
             case .plain: return "{5940675A-B579-460E-94D1-54222C63F5DA}"
             case .accent(let i):
                 return DeckController.mediumStyle2Ids[min(max(i, 0), 5)]
+            case .builtin(let id): return id
             }
         }
     }
@@ -1097,6 +1100,7 @@ final class DeckController: ChangeNotifier {
         switch l {
         case .plain: return nil
         case .accent(let i): return theme.accents[min(max(i, 0), theme.accents.count - 1)]
+        case .builtin: return nil
         }
     }
 
@@ -1109,6 +1113,14 @@ final class DeckController: ChangeNotifier {
               chosen != nil || o != selectedTableOptions else { return }
         _checkpoint()
         var doc = text.document
+        // A table in (or moving to or from) a family drawn from the style's definition.
+        let oldId = doc.tableStyles[id]?.styleId
+        if let sid = chosen?.styleId ?? oldId, DeckController.drawsFromDefinition(sid) || DeckController.drawsFromDefinition(oldId) {
+            dressTable(&doc, shape: s, tableId: id, styleId: sid, options: o)
+            text.load(doc)
+            _changed()
+            return
+        }
         var st = doc.tableStyles[id] ?? TableStyle()
         // The colour the table is painted with now: the header's fill (the
         // gallery's pick, or the theme's first accent when none is kept).
@@ -1917,7 +1929,7 @@ final class DeckController: ChangeNotifier {
         _changed()
     }
 
-    private func _state(_ s: SlideShape) -> ShapeState {
+    func _state(_ s: SlideShape) -> ShapeState {
         var st = ShapeState(id: s.id, name: s.name, kind: s.kind, frame: s.frame, rotation: s.rotation,
                    fill: s.fill, outline: s.outline, outlineWidth: s.outlineWidth, anchor: s.anchor,
                    insets: s.insets, prompt: s.prompt, text: s.text?.document,

@@ -541,13 +541,29 @@ extension Ribbon {
         }
         var looks: [(String, DeckController.TableLook)] = [("No Style, Table Grid", .plain)]
         for i in 0 ..< min(6, deck.theme.accents.count) { looks.append(("Medium Style 2 - Accent \(i + 1)", .accent(i))) }
-        let styles = Chrome.menuButton(FluentSystemIcons.grid, "Table Styles", "Choose a table style", fluent,
-            items: looks.map { name, look in
-                MenuFlyoutItem(text: Text(name), leading: SizedBox(width: 14, height: 14, child: DecoratedBox(decoration: BoxDecoration(
-                                   color: deck.tableLookColor(look) ?? Color(0xFFFFFFFF),
-                                   border: Border.all(color: fluent.resources.controlStrokeColorDefault, width: 1)))),
-                               onPressed: { deck.applyTableLook(look) }) as MenuFlyoutItemBase })
-        return [Chrome.group("Table Styles", fluent, [Chrome.rows([styles, shading])]),
+        func menu(_ title: String, _ tip: String, _ looks: [(String, DeckController.TableLook, Color?)]) -> Widget {
+            Chrome.menuButton(FluentSystemIcons.grid, title, tip, fluent,
+                items: looks.map { name, look, swatch in
+                    MenuFlyoutItem(text: Text(name), leading: SizedBox(width: 14, height: 14, child: DecoratedBox(decoration: BoxDecoration(
+                                       color: swatch ?? deck.tableLookColor(look) ?? Color(0xFFFFFFFF),
+                                       border: Border.all(color: fluent.resources.controlStrokeColorDefault, width: 1)))),
+                                   onPressed: { deck.applyTableLook(look) }) as MenuFlyoutItemBase })
+        }
+        let styles = menu("Table Styles", "Choose a table style", looks.map { ($0.0, $0.1, nil) })
+        // The built-in families, as PowerPoint groups them: Themed, Light, Medium (1, 3, 4), Dark.
+        func family(_ word: String) -> [(String, DeckController.TableLook, Color?)] {
+            var out: [(String, DeckController.TableLook, Color?)] = []
+            for (name, plain, accents) in PptxTemplates.builtinTableStyleFamilyList where name.hasPrefix(word) && name != "Medium Style 2" {
+                if let plain { out.append((name, .builtin(plain), word == "Dark" ? Color(0xFF404040) : Color(0xFFFFFFFF))) }
+                for (i, id) in accents.enumerated() where i < deck.theme.accents.count {
+                    out.append(("\(name) - Accent \(i + 1)", .builtin(id), deck.theme.accents[i]))
+                }
+            }
+            return out
+        }
+        let more = [menu("Themed", "Themed table styles", family("Themed")), menu("Light", "Light table styles", family("Light")),
+                    menu("Medium", "Medium table styles", family("Medium")), menu("Dark", "Dark table styles", family("Dark"))]
+        return [Chrome.group("Table Styles", fluent, [Chrome.rows([styles, shading]), Chrome.rows(Array(more.prefix(2))), Chrome.rows(Array(more.suffix(2)))]),
                 Chrome.group("Table Style Options", fluent, [
             Chrome.rows([
                 Chrome.textToggle("Header Row", o.headerRow, fluent) { var n = o; n.headerRow.toggle(); deck.setTableOptions(n) },
