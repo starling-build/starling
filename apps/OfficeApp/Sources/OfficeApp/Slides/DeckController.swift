@@ -1583,6 +1583,8 @@ final class DeckController: ChangeNotifier {
 
     /// Colours picked lately in Shape Fill and Outline (not part of the document, not undone).
     var recentShapeColors = RecentColors()
+    /// Set while the eyedropper waits for a click on the slide (false: for the fill, true: for the outline).
+    var eyedropperFor: Bool? = nil
 
     func setFill(_ color: Color?, scheme: String? = nil) {
         guard !selection.isEmpty else { return }
