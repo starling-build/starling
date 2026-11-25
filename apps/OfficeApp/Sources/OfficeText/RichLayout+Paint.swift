@@ -91,6 +91,7 @@ extension RichLayout {
     @discardableResult
     func _paintOutline(_ image: ImageAttachment, _ rect: Rect, _ canvas: any Canvas) -> Bool {
         guard theme.wordRules else { return false }
+        if image.id == hiddenFrameID { return false }
         let drawn = _paintObject(image, rect, canvas)
         guard let outline = image.outline else { return drawn }
         if outline.kind == .box, let fill = outline.fill {
