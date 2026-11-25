@@ -1260,9 +1260,18 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         _repaint.notifyListeners()
     }
 
+    /// An input method's unfinished text (a Pinyin syllable still being chosen) stands as typed: it is already in the
+    /// cell's text, so ending the composition is only telling the keyboard it is no longer marked.
+    private func _endComposition() {
+        guard _composing != nil else { return }
+        _composing = nil
+        _ime?.sync()
+    }
+
     /// Text typed from outside the keyboard (the bar over it): into the cell being edited, at the caret.
     func typeText(_ s: String) {
         guard edit != nil else { return }
+        _endComposition()
         _pointRef = nil
         _insert(s)
         _ime?.sync()
@@ -1270,6 +1279,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
 
     /// F4 from outside the keyboard: the reference at the caret cycles absolute and relative.
     func cycleAbsoluteReference() {
+        _endComposition()
         _cycleAbsolute()
         _ime?.sync()
     }
