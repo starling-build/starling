@@ -23,6 +23,7 @@ enum SheetCommand {
     case conditionalFormat         // Home → Conditional Formatting
     case dataValidation            // Data → Data Validation
     case sortDialog                // Data → Sort…
+    case tableDialog               // Insert → Table: create one, or the options of the table at the cell
     case nameManager               // Formulas → Name Manager
     case pageSetup                 // Layout → Page Setup: the dialog
     case editNote                  // Review → New/Edit Note: the editor beside the active cell
@@ -33,7 +34,7 @@ extension Ribbon {
         guard let wb = session.workbook else { return nil }
         switch tab {
         case .home: return _sheetsHome(wb, fluent)
-        case .insert: return [_chartsGroup(wb, fluent), _functionsGroup(wb, fluent)]
+        case .insert: return [_tablesGroup(wb, fluent), _chartsGroup(wb, fluent), _functionsGroup(wb, fluent)]
         case .formulas: return [_autoSumGroup(wb, fluent), _functionsGroup(wb, fluent), _namesGroup(wb, fluent)]
         case .data: return [_sortGroup(wb, fluent), _dataToolsGroup(wb, fluent), _outlineGroup(wb, fluent)]
         case .layout: return [_pageSetupGroup(wb, fluent)]
@@ -288,6 +289,12 @@ extension Ribbon {
         return Chrome.group("Charts", fluent, [
             Chrome.rows([button(.column), button(.bar), button(.line)]),
             Chrome.rows([button(.pie), button(.area), button(.scatter)]),
+        ])
+    }
+
+    private func _tablesGroup(_ wb: WorkbookController, _ fluent: FluentThemeData) -> Widget {
+        Chrome.group("Tables", fluent, [
+            Chrome.big(FluentSystemIcons.grid, "Table", fluent) { wb.onCommand?(.tableDialog) },
         ])
     }
 

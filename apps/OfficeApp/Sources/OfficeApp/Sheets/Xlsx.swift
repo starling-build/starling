@@ -907,6 +907,10 @@ enum Xlsx {
         var sheetRelParts: [String: Data] = [:]
         var droppedTables = Set<String>()
         var tablePartsOverride: [Int: String] = [:]
+        // Tables made here: the part each gets, and its id (unique in the book).
+        var newTableParts: [String: (path: String, id: Int)] = [:]
+        var nextTableId = 1 + (originalParts.filter { $0.key.hasPrefix("xl/tables/") && $0.key.hasSuffix(".xml") }
+            .map { XNode.parse($0.value).flatMap { Int($0["id"] ?? "") } ?? 0 }.max() ?? 0)
         let calc: CalcEngine? = book.sheets.contains(where: \.drawingsEdited) ? CalcEngine(book) : nil
         calc?.storedValuesOnly = true
         for (i, ws) in book.sheets.enumerated() {
@@ -920,7 +924,7 @@ enum Xlsx {
                                             sheetRels: &rels, relsChanged: &changed))
             // A table deleted with all its rows: its part, relationship and
             // <tablePart> go, or Excel repairs the file.
-            if !ws.removedTables.isEmpty {
+            if !ws.removedTables.isEmpty || ws.tables.contains(where: \.isNew) {
                 let base = String(paths[i].prefix(upTo: paths[i].lastIndex(of: "/").map { paths[i].index(after: $0) } ?? paths[i].startIndex))
                 var text = ws.keptElements.first { $0.name == "tableParts" }?.text ?? ""
                 for t in ws.removedTables {
@@ -930,6 +934,19 @@ enum Xlsx {
                         changed = true
                         text = text.replacingAll("<tablePart r:id=\"\(r.id)\"/>", with: "")
                     }
+                }
+                for (j, t) in ws.tables.enumerated() where t.isNew {
+                    var n = 1
+                    while taken.contains("xl/tables/table\(n).xml") || originalParts["xl/tables/table\(n).xml"] != nil { n += 1 }
+                    let path = "xl/tables/table\(n).xml"
+                    taken.insert(path)
+                    newTableParts["\(i)/\(j)"] = (path, nextTableId)
+                    nextTableId += 1
+                    let rid = Xlsx._freshId(rels)
+                    rels.append((rid, "http://schemas.openxmlformats.org/officeDocument/2006/relationships/table", "../tables/table\(n).xml"))
+                    changed = true
+                    if text.isEmpty { text = "<tableParts count=\"0\"></tableParts>" }
+                    if let at = text.findRange(of: "</tableParts>")?.lowerBound { text.insert(contentsOf: "<tablePart r:id=\"\(rid)\"/>", at: at) }
                 }
                 let left = text.components(separatedBy: "<tablePart ").count - 1
                 if left == 0 { text = "" } else if let c = text.findRange(of: " count=\""), let q = text.findRange(of: "\"", in: c.upperBound ..< text.endIndex) {
@@ -1003,9 +1020,15 @@ enum Xlsx {
         generated[sstPath] = Data(_sstXML(sst).utf8)
         // Tables: rewritten whenever their header cells or range could have
         // changed, which is any save (names must match the cells exactly).
-        for ws in book.sheets {
-            for t in ws.tables {
-                guard let original = originalParts[t.path] else { continue }
+        var newTableTypes: [(String, String)] = []
+        for (i, ws) in book.sheets.enumerated() {
+            for (j, t) in ws.tables.enumerated() {
+                var t = t
+                if t.isNew, let np = newTableParts["\(i)/\(j)"] {
+                    t.path = np.path
+                    newTableTypes.append(("/" + np.path, "application/vnd.openxmlformats-officedocument.spreadsheetml.table+xml"))
+                }
+                guard let original = originalParts[t.path] ?? (newTableParts["\(i)/\(j)"].map { TablesXML.newPart(t, id: $0.id) }) else { continue }
                 generated[t.path] = TablesXML.write(t, original: original, header: { col in
                     let v = ws.value(CellAddress(row: t.ref.top, col: col))
                     return NumberFormat.display(v, book.style(ws.cells[CellAddress(row: t.ref.top, col: col)]?.style ?? 0).numberFormat,
@@ -1013,7 +1036,7 @@ enum Xlsx {
                 })
             }
         }
-        var extraTypes: [(String, String)] = []
+        var extraTypes: [(String, String)] = newTableTypes
         var droppedDrawings = Set<String>()
         for d in drawingParts {
             generated.merge(d.parts) { $1 }
