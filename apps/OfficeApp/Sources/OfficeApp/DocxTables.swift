@@ -1004,6 +1004,7 @@ extension DocxFormat {
     static func write(_ source: RichDocument, pageSetup: PageSetup) throws -> Data {
         var doc = source
         doc.paragraphs.removeAll { $0.flowedEndnote != nil }
+        _writeBackBoundValues(&doc)
         var rels: [(id: String, target: String)] = []
         var media: [ZipEntry] = []
         var mediaRels: [(id: String, target: String)] = []

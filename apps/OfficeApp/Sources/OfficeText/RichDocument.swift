@@ -2149,6 +2149,13 @@ extension RichControlMarker {
         guard let props = properties, let r = _valueRange(attr, of: tag, in: props) else { return nil }
         return String(props[r])
     }
+    /// The custom XML data store and path this control is bound to (`w:dataBinding`); nil when unbound or bound to the
+    /// document's own properties, which are not edited here.
+    public var customBinding: (store: String, xpath: String)? {
+        guard let store = _attribute("w:storeItemID", of: "w:dataBinding"), let xpath = _attribute("w:xpath", of: "w:dataBinding"),
+              store.uppercased() != "{6C3C8BC8-F283-45AE-878A-BAB7291924A1}" else { return nil }
+        return (store.uppercased(), xpath)
+    }
     /// Whether this is a check box control (Word 2010's `w14:checkbox`).
     public var isCheckBox: Bool { properties?.containsSubstring("<w14:checkbox") ?? false }
     /// A check box control's state; nil when this is not a check box.
@@ -2179,6 +2186,33 @@ extension RichParagraph {
                   let end = controlMarkers.first(where: { $0.id == m.id && !$0.isStart }) else { return nil }
             return (m.id, m.offset ..< max(m.offset, end.offset), on)
         }
+    }
+    /// The controls of this paragraph bound to custom XML: each with its text range and text.
+    public var customBoundControls: [(id: Int, store: String, xpath: String, range: Range<Int>, text: String)] {
+        guard !controlMarkers.isEmpty else { return [] }
+        let units = Array(text.utf16)
+        return controlMarkers.compactMap { m in
+            guard m.isStart, let b = m.customBinding,
+                  let end = controlMarkers.first(where: { $0.id == m.id && !$0.isStart }) else { return nil }
+            let lo = min(m.offset, units.count), hi = min(max(m.offset, end.offset), units.count)
+            return (m.id, b.store, b.xpath, lo ..< hi, String(decoding: units[lo ..< hi], as: UTF16.self))
+        }
+    }
+    /// This paragraph with the text of control `id` replaced by `value` (the control's first character's formatting
+    /// carries over); nil when there is no such control or it already shows `value`.
+    public func settingControlText(_ id: Int, to value: String) -> RichParagraph? {
+        guard let c = customBoundControls.first(where: { $0.id == id }), c.text != value,
+              let si = controlMarkers.firstIndex(where: { $0.id == id && $0.isStart }),
+              let ei = controlMarkers.firstIndex(where: { $0.id == id && !$0.isStart }) else { return nil }
+        var p = self
+        let lo = c.range.lowerBound, hi = c.range.upperBound
+        let style = p.style(at: hi > lo ? lo + 1 : lo)
+        let n = value.utf16.count
+        if n > 0 { p.insert(value, at: hi, runs: [Run(length: n, style: style)]) }
+        p.controlMarkers[si].offset = lo
+        p.controlMarkers[ei].offset = hi + n
+        if hi > lo { _ = p.delete(lo ..< hi) }
+        return p
     }
     /// This paragraph with check box `id` set to `state`, its glyph swapped; nil when there is no such box or it is already so.
     public func settingCheckBox(_ id: Int, to state: Bool) -> RichParagraph? {
@@ -2371,8 +2405,17 @@ public struct RichParagraph: Hashable, Codable, Sendable {
         for i in bookmarkMarkers.indices where bookmarkMarkers[i].offset >= offset {
             bookmarkMarkers[i].offset += insertUnits
         }
-        for i in controlMarkers.indices where controlMarkers[i].offset > offset || controlMarkers[i].offset == offset && controlMarkers[i].isStart {
-            controlMarkers[i].offset += insertUnits
+        // (A control bound to custom XML takes text typed at either end, and into the empty one: what the user types there
+        // is the bound value, and outside the control it would be lost on the next open.)
+        let boundIds = Set(controlMarkers.filter { $0.customBinding != nil }.map { $0.id })
+        for i in controlMarkers.indices {
+            let m = controlMarkers[i]
+            let bound = boundIds.contains(m.id)
+            if m.offset > offset
+                || m.offset == offset && m.isStart && !(bound && controlMarkers.contains { $0.id == m.id && !$0.isStart && $0.offset == offset })
+                || m.offset == offset && !m.isStart && bound {
+                controlMarkers[i].offset += insertUnits
+            }
         }
         let styled = newRuns ?? [Run(length: insertUnits, style: style(at: offset))]
         // Split the run at `offset` and splice the new runs between.
@@ -3179,6 +3222,9 @@ public struct RichDocument: Hashable, Codable, Sendable {
     /// bound data. Their parts are in `keptParts`.
     public var keptRootRels: [KeptRel] = []
     public var keptCustomXmlRels: [KeptRel] = []
+    /// What each control bound to custom XML showed when the file was opened, by "store|path": a save writes an element
+    /// back only where its control now shows something else (the XML is never rewritten from cached text).
+    public var boundLoaded: [String: String] = [:]
 
     public static let pageField = "{PAGE}"
     public static let pageCountField = "{NUMPAGES}"

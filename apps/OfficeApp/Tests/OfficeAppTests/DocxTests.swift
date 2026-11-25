@@ -7529,6 +7529,40 @@ final class DocxTests: XCTestCase {
         XCTAssertFalse(doc.paragraphs[1].runs.contains { $0.style.bold })
     }
 
+    func testTypingIntoABoundControlIsSavedToTheCustomXml() throws {
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .letter))
+        let di = try XCTUnwrap(entries.firstIndex { $0.name == "word/document.xml" })
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let body = try XCTUnwrap(xml.range(of: "<w:body>")).upperBound ..< (try XCTUnwrap(xml.range(of: "<w:sectPr"))).lowerBound
+        func bound(_ id: Int, _ el: String) -> String {
+            "<w:p><w:sdt><w:sdtPr><w:id w:val=\"\(id)\"/><w:text/><w:dataBinding w:prefixMappings=\"xmlns:ns0='urn:lab'\" w:xpath=\"/ns0:root[1]/ns0:\(el)[1]\" w:storeItemID=\"{11111111-2222-3333-4444-555555555555}\"/></w:sdtPr><w:sdtContent><w:r><w:t>old</w:t></w:r></w:sdtContent></w:sdt></w:p>"
+        }
+        xml.replaceSubrange(body, with: bound(1, "a") + bound(2, "a") + bound(3, "b"))
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        entries.append(ZipEntry(name: "customXml/item1.xml", data: Data("<?xml version=\"1.0\"?><root xmlns=\"urn:lab\"><a>FromXml A</a><b/></root>".utf8)))
+        entries.append(ZipEntry(name: "customXml/itemProps1.xml", data: Data("<ds:datastoreItem ds:itemID=\"{11111111-2222-3333-4444-555555555555}\" xmlns:ds=\"http://schemas.openxmlformats.org/officeDocument/2006/customXml\"/>".utf8)))
+        let c = RichDocumentController(document: try DocxFormat.read(try Zip.write(entries)).document)
+        XCTAssertEqual(c.document.paragraphs.prefix(3).map { $0.text }, ["FromXml A", "FromXml A", "old"])
+        c.moveTo(RichPosition(paragraph: 0, offset: 4), extend: false)
+        c.insertText("X")
+        XCTAssertEqual(c.document.paragraphs.prefix(2).map { $0.text }, ["FromXXml A", "FromXXml A"])
+        let untouched = String(decoding: try XCTUnwrap(try Zip.read(try DocxFormat.write(try DocxFormat.read(try Zip.write(entries)).document, pageSetup: .letter)).first { $0.name == "customXml/item1.xml" }).data, as: UTF8.self)
+        XCTAssertTrue(untouched.containsSubstring("<a>FromXml A</a><b/>"), untouched)   // cached text never goes into the XML
+        c.moveTo(RichPosition(paragraph: 2, offset: 0), extend: false)
+        c.moveTo(RichPosition(paragraph: 2, offset: 3), extend: true)
+        c.insertText("bee")
+        let saved = try Zip.read(try DocxFormat.write(c.document, pageSetup: .letter))
+        let item = String(decoding: try XCTUnwrap(saved.first { $0.name == "customXml/item1.xml" }).data, as: UTF8.self)
+        XCTAssertTrue(item.containsSubstring("<a>FromXXml A</a>"), item)
+        XCTAssertTrue(item.containsSubstring("<b>bee</b>"), item)
+        let reopened = try DocxFormat.read(try Zip.write(saved)).document
+        XCTAssertEqual(reopened.paragraphs.prefix(3).map { $0.text }, ["FromXXml A", "FromXXml A", "bee"])
+        c.undo()
+        XCTAssertEqual(c.document.paragraphs.prefix(3).map { $0.text }, ["FromXXml A", "FromXXml A", "old"])
+        c.undo()
+        XCTAssertEqual(c.document.paragraphs.prefix(2).map { $0.text }, ["FromXml A", "FromXml A"])
+    }
+
     func testBlockLevelContentControlsSurviveASave() throws {
         var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .letter))
         let di = try XCTUnwrap(entries.firstIndex { $0.name == "word/document.xml" })
