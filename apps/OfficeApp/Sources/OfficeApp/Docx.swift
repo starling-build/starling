@@ -964,7 +964,7 @@ enum DocxFormat {
         var tableColumns: [String: [Double]] = [:]
         var tableCellColumns: [String: [Double]] = [:]
         var tableStyles: [String: TableStyle] = [:]
-        var tableStyleIds: [String: String] = [:], tableLooks: [String: String] = [:]
+        var tableStyleIds: [String: String] = [:], tableLooks: [String: String] = [:], tableCondFills: [String: TableCondFills] = [:]
         var tableCount = 0
         var currentCell: CellRef? = nil
         var rowExcepted = false   // the row of `currentCell` states its own cell margins (w:tblPrEx)
@@ -1759,6 +1759,10 @@ enum DocxFormat {
                 if let pr = node.first("w:tblPr") {
                     if let sid = pr.first("w:tblStyle")?["w:val"], keptTableStyles[sid] != nil { tableStyleIds[id] = sid }
                     if tableStyleIds[id] != nil, let look = pr.first("w:tblLook") { tableLooks[id] = PptxXML.serialize(_standaloneW(look)) }
+                    if tableStyleIds[id] != nil, let c = pr.first("w:tblStyle")?["w:val"].flatMap({ tableConds[$0] }),
+                       c.headerFill != nil || c.band1 != nil || c.band2 != nil {
+                        tableCondFills[id] = TableCondFills(header: c.headerFill, band1: c.band1, band2: c.band2)
+                    }
                 }
                 // The table's own borders, else its style's, else none —
                 // 64 of the corpus's 109 tables say nothing and have none.
@@ -2327,9 +2331,11 @@ enum DocxFormat {
                            let v = UInt32(hex, radix: 16) {
                             fill = Color(0xFF00_0000 | Int64(v))
                         }
+                        var fromStyle = false
                         if fill == nil {
                             if r == 0 && firstRowOn { fill = cond.headerFill }
                             else if bandsOn { fill = (r - (firstRowOn ? 1 : 0)) % 2 == 0 ? cond.band1 : cond.band2 }
+                            fromStyle = fill != nil && tableStyleIds[id] != nil
                         }
                         // The cell's own borders, when they differ from the
                         // table's verdict: nil sides inside a ruled table.
@@ -2426,6 +2432,7 @@ enum DocxFormat {
                         // (A cell with no vAlign of its own takes its table style's: jpn-z22306877-1047a4's Table1.)
                         let vAlign = tcPr?.first("w:vAlign")?["w:val"].flatMap { ["center", "bottom"].contains($0) ? $0 : nil } ?? (tcPr?.first("w:vAlign") == nil ? ((r == 0 && firstRowOn ? cond.headerVAlign : nil) ?? cond.cellVAlign) : nil)
                         currentCell = CellRef(table: id, row: r, column: column, span: span, fill: fill, edges: ownEdges, verticalAlign: vAlign)
+                        if fromStyle { currentCell?.styleFilled = true }
                         if let shd = tcPr?.first("w:shd"), shd["w:fill"]?.count == 6, shd["w:themeFill"] != nil {
                             currentCell?.fillThemeAttrs = ["w:themeFill", "w:themeFillTint", "w:themeFillShade"].compactMap { k in shd[k].map { " \(k)=\"\(_esc($0))\"" } }.joined()
                         }
@@ -3059,6 +3066,7 @@ enum DocxFormat {
         document.tableStyles = tableStyles
         document.tableStyleIds = tableStyleIds
         document.tableLooks = tableLooks
+        document.tableCondFills = tableCondFills
         document.keptTableStyles = keptTableStyles
         document.styles = sheet
         document.styleAliases = styleAliases

@@ -1508,6 +1508,11 @@ public struct BorderEdges: Hashable, Codable, Sendable {
 }
 
 /// The bits of a Word table's `w:tblLook`, the Table Style Options.
+public struct TableCondFills: Hashable, Codable, Sendable {
+    public var header: Color?, band1: Color?, band2: Color?
+    public init(header: Color?, band1: Color?, band2: Color?) { self.header = header; self.band1 = band1; self.band2 = band2 }
+}
+
 public enum TableLook {
     public static let firstRow = 0x20, lastRow = 0x40, firstColumn = 0x80, lastColumn = 0x100
     /// Set when the style's row bands are OFF (Word writes the switches as "no band").
@@ -2836,6 +2841,9 @@ public struct RichDocument: Hashable, Codable, Sendable {
     public var keptTableStyles: [String: String] = [:]
     public var tableStyleIds: [String: String] = [:]
     public var tableLooks: [String: String] = [:]
+    /// The fills a table's named style gives its header row and its two row bands, by table id, so that
+    /// Table Style Options can redraw them when a switch flips.
+    public var tableCondFills: [String: TableCondFills] = [:]
 
     /// True when the file's default header (or footer) holds more than the
     /// plain line the strip edits: a picture, a table, a text box, a content

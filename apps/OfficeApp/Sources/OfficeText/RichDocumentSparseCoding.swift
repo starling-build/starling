@@ -366,7 +366,7 @@ extension CharShadow {
 
 extension RichDocument {
     enum CodingKeys: String, CodingKey {
-        case paragraphs, header, footer, tableColumns, tableStyles, styles, listFormats, listCounterOf, listRestarts, keptParts, keptCharacterStyles, keptCharacterStyleIds, keptTableStyles, tableStyleIds, tableLooks, keptHeaderFooters, keptTables, keptCompat, defaultTabStop, pageBordersXML, docGridXML, lineGridPitch, characterGridSpace, sectionLeadXML, sectionTypeXML, columnsXML, columnsKeptUnder, gutterTwips, marginSettingsXML, keptSettings, sectionTailXML, defaultLangXML, themeFontLangXML, characterSpacingControl, usesEastAsianLayout, indentNotNumberingTabStop, kernsPunctuation, balancesSpaceWidth, adjustsLineHeightInTable, compatibilityMode, hangsHalf, flipsMirrorIndents, htmlAutoSpacing, divMargins, backgroundXML, backgroundRels, styleAliases, fileFonts, readFromFile, fromBinaryDoc, addsParagraphSpacing, titlePage, headerFooters, footnotes, footnoteSeparator, endnotes, endnoteSeparator, pageNumberStart, pageNumberFormat, evenAndOddHeaders, keptPartTypes
+        case paragraphs, header, footer, tableColumns, tableStyles, styles, listFormats, listCounterOf, listRestarts, keptParts, keptCharacterStyles, keptCharacterStyleIds, keptTableStyles, tableStyleIds, tableLooks, tableCondFills, keptHeaderFooters, keptTables, keptCompat, defaultTabStop, pageBordersXML, docGridXML, lineGridPitch, characterGridSpace, sectionLeadXML, sectionTypeXML, columnsXML, columnsKeptUnder, gutterTwips, marginSettingsXML, keptSettings, sectionTailXML, defaultLangXML, themeFontLangXML, characterSpacingControl, usesEastAsianLayout, indentNotNumberingTabStop, kernsPunctuation, balancesSpaceWidth, adjustsLineHeightInTable, compatibilityMode, hangsHalf, flipsMirrorIndents, htmlAutoSpacing, divMargins, backgroundXML, backgroundRels, styleAliases, fileFonts, readFromFile, fromBinaryDoc, addsParagraphSpacing, titlePage, headerFooters, footnotes, footnoteSeparator, endnotes, endnoteSeparator, pageNumberStart, pageNumberFormat, evenAndOddHeaders, keptPartTypes
     }
 
     public init(from decoder: Decoder) throws {
@@ -385,6 +385,7 @@ extension RichDocument {
         keptTableStyles = try c.decodeIfPresent([String: String].self, forKey: .keptTableStyles) ?? [:]
         tableStyleIds = try c.decodeIfPresent([String: String].self, forKey: .tableStyleIds) ?? [:]
         tableLooks = try c.decodeIfPresent([String: String].self, forKey: .tableLooks) ?? [:]
+        tableCondFills = try c.decodeIfPresent([String: TableCondFills].self, forKey: .tableCondFills) ?? [:]
         keptCharacterStyleIds = try c.decodeIfPresent([String: String].self, forKey: .keptCharacterStyleIds) ?? [:]
         keptHeaderFooters = try c.decodeIfPresent([KeptHeaderFooter].self, forKey: .keptHeaderFooters) ?? []
         keptTables = try c.decodeIfPresent([String: KeptTable].self, forKey: .keptTables) ?? [:]
@@ -450,6 +451,7 @@ extension RichDocument {
         if !keptTableStyles.isEmpty { try c.encode(keptTableStyles, forKey: .keptTableStyles) }
         if !tableStyleIds.isEmpty { try c.encode(tableStyleIds, forKey: .tableStyleIds) }
         if !tableLooks.isEmpty { try c.encode(tableLooks, forKey: .tableLooks) }
+        if !tableCondFills.isEmpty { try c.encode(tableCondFills, forKey: .tableCondFills) }
         try c.encode(keptCharacterStyleIds, forKey: .keptCharacterStyleIds)
         try c.encode(keptHeaderFooters, forKey: .keptHeaderFooters)
         try c.encode(keptTables, forKey: .keptTables)

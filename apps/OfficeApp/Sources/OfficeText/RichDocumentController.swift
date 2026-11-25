@@ -1908,7 +1908,35 @@ public final class RichDocumentController: ChangeNotifier {
         guard let t = currentCell?.table else { return }
         let was = tableLook(of: t)
         let now = on ? was | bit : was & ~bit
-        setTableStyle(of: t) { $0.look = now }
+        guard now != was else { return }
+        // The style's header and band fills follow the switches: redrawn in the same undo step as the look.
+        var new = document.tableStyles[t] ?? TableStyle()
+        let oldStyle = document.tableStyles[t]
+        new.look = now
+        let fills = document.tableCondFills[t]
+        let range = currentTableRange
+        let oldParas = range.map { Array(document.paragraphs[$0]) }
+        var paras = oldParas
+        if let fills, paras != nil {
+            let firstRow = now & TableLook.firstRow != 0, bands = now & TableLook.noRowBands == 0
+            for i in paras!.indices {
+                guard var c = paras![i].cell, c.table == t, c.fill == nil || c.styleFilled == true else { continue }
+                if c.row == 0 && firstRow { c.fill = fills.header }
+                else if bands { c.fill = (c.row - (firstRow ? 1 : 0)) % 2 == 0 ? fills.band1 : fills.band2 }
+                else { c.fill = nil }
+                c.styleFilled = c.fill == nil ? nil : true
+                paras![i].cell = c
+            }
+        }
+        let sel = selection
+        edit {
+            perform(.setTableStyle(t, old: oldStyle, new: new == TableStyle() ? nil : new))
+            if let range, let oldParas, let paras, paras != oldParas {
+                perform(.removeParagraphs(at: range.lowerBound, oldParas))
+                perform(.insertParagraphs(at: range.lowerBound, paras))
+                selection = sel
+            }
+        }
     }
 
     /// The same for a named table (a drag on a border of a table the caret is not in).
@@ -1997,7 +2025,7 @@ public final class RichDocumentController: ChangeNotifier {
     /// `themeAttrs` (from `WordTheme.attrs`) keeps the shading following the document's theme in the file; the
     /// colour is what it resolves to now. A plain colour clears any earlier theme link.
     public func setCellShading(_ color: Color?, themeAttrs: String? = nil) {
-        _formatCells { c, _ in c.fill = color; c.fillThemeAttrs = color == nil ? nil : themeAttrs }
+        _formatCells { c, _ in c.fill = color; c.styleFilled = nil; c.fillThemeAttrs = color == nil ? nil : themeAttrs }
     }
 
     // MARK: Table properties (W-TB-3). Each is one undo step.
