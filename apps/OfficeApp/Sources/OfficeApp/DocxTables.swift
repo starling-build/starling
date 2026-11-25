@@ -1807,7 +1807,14 @@ extension DocxFormat {
         // default spacing, older line breaking — which the corpus showed
         // on every saved copy (2026-10-07).
         let written = Set(media.map(\.name))
-        for (name, data) in doc.keptParts.sorted(by: { $0.key < $1.key }) where !written.contains(name) {
+        // A kept picture part nothing points at any more (its picture was replaced or deleted) is not written back.
+        let relTexts = [relsXML, keptRels] + doc.keptParts.filter { $0.key.hasSuffix(".rels") }.map { String(decoding: $0.value, as: UTF8.self) }
+        func orphanMedia(_ name: String) -> Bool {
+            guard name.hasPrefix("word/media/") else { return false }
+            let target = "media/" + name.dropFirst("word/media/".count)
+            return !relTexts.contains { $0.containsSubstring("\"\(target)\"") || $0.containsSubstring("\"/\(name)\"") || $0.containsSubstring("\"../\(target)\"") }
+        }
+        for (name, data) in doc.keptParts.sorted(by: { $0.key < $1.key }) where !written.contains(name) && !orphanMedia(name) {
             extraParts.append(ZipEntry(name: name, data: data))
             switch name {
             case "word/footnotes.xml":
