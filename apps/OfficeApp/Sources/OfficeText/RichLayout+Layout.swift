@@ -2648,6 +2648,19 @@ extension RichLayout {
         return nil
     }
 
+    /// The row whose bottom border lies within `reach` of the point (flow coordinates): its table, row, current height in
+    /// points, and the table's left and right edges as offsets from the point's x. Rows a tall cell spans are skipped.
+    public func rowBorder(at point: Offset, reach: Double = 4) -> (table: String, row: Int, height: Double, left: Double, right: Double)? {
+        guard !_rowTops.isEmpty else { return nil }
+        let i = paragraphIndex(atY: point.dy - reach)
+        guard i >= 0, i < _cells.count, let c = _cells[i], c.rowSpan == 1,
+              abs(point.dy - (c.rowTop + c.rowHeight)) <= reach, let widths = _columnWidths[c.table] else { return nil }
+        let left = c.colLeft - widths.prefix(c.column).reduce(0, +)
+        let right = left + widths.reduce(0, +)
+        guard point.dx >= left - reach, point.dx <= right + reach else { return nil }
+        return (c.table, c.row, c.rowHeight / (theme.pixelsPerPoint * scale), left - point.dx, right - point.dx)
+    }
+
     /// A table's column widths as laid out, in points.
     public func columnWidths(of table: String) -> [Double]? {
         _columnWidths[table].map { $0.map { $0 / (theme.pixelsPerPoint * scale) } }
