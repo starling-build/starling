@@ -23,6 +23,7 @@ enum SheetCommand {
     case conditionalFormat         // Home → Conditional Formatting
     case dataValidation            // Data → Data Validation
     case removeDuplicates          // Data → Remove Duplicates
+    case textToColumns             // Data → Text to Columns
     case sortDialog                // Data → Sort…
     case tableDialog               // Insert → Table: create one, or the options of the table at the cell
     case columnFilter(col: Int, kind: String)   // a filter dropdown's Number/Text/Date/Colour Filters…
@@ -337,6 +338,7 @@ extension Ribbon {
         Chrome.group("Data Tools", fluent, [
             Chrome.big(FluentSystemIcons.check, "Data Validation", fluent) { wb.onCommand?(.dataValidation) },
             Chrome.big(FluentSystemIcons.delete, "Remove Duplicates", fluent) { wb.onCommand?(.removeDuplicates) },
+            Chrome.big(FluentSystemIcons.columns, "Text to Columns", fluent) { wb.onCommand?(.textToColumns) },
         ])
     }
 
