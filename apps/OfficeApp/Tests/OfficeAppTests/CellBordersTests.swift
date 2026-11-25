@@ -28,8 +28,8 @@ final class CellBordersTests: XCTestCase {
         XCTAssertTrue(c.document.paragraphs.compactMap(\.cell).allSatisfy { $0.fill == Color(0xFFFFE699) })
         c.undo()
         XCTAssertEqual(c.document.paragraphs, before)
-        c.setCellBorders([.top: CellBorderLine(style: "double", width: 2, color: Color(0xFFFF0000)), .insideV: CellBorderLine()])
-        XCTAssertTrue(cell(c, 0, 1).bordersXML!.containsSubstring("<w:top w:val=\"double\" w:sz=\"16\""))
+        c.setCellBorders([.top: CellBorderLine(style: "double", width: 2.25, color: Color(0xFFFF0000)), .insideV: CellBorderLine()])
+        XCTAssertTrue(cell(c, 0, 1).bordersXML!.containsSubstring("<w:top w:val=\"double\" w:sz=\"18\""))
         XCTAssertNil(cell(c, 1, 1).bordersXML.flatMap { $0.containsSubstring("<w:top") ? $0 : nil }, "only the block's top row gets the top line")
         XCTAssertTrue(cell(c, 0, 0).bordersXML!.containsSubstring("<w:right "), "inside verticals: right of the first column")
         XCTAssertFalse(cell(c, 0, 0).bordersXML!.containsSubstring("<w:left "))
@@ -72,12 +72,15 @@ final class CellBordersTests: XCTestCase {
     func testHeavyBorderIsASingleLineWithItsWidth() throws {
         let c = grid()
         c.insertText("a")
-        c.setCellBorders([.right: CellBorderLine(style: "single", width: 4, color: nil)])
+        c.setCellBorders([.right: CellBorderLine(style: "single", width: 4.5, color: nil)])
         let back = try DocxFormat.read(try DocxFormat.write(c.document, pageSetup: .letter)).document
         let xml = back.paragraphs.compactMap(\.cell).first { $0.row == 0 && $0.column == 0 }?.bordersXML ?? ""
-        XCTAssertTrue(xml.containsSubstring("w:sz=\"32\""))
+        XCTAssertTrue(xml.containsSubstring("w:sz=\"36\""))
         XCTAssertFalse(xml.containsSubstring("thick"))
-        XCTAssertEqual(CellBorderLine(style: "thick", width: 1, color: nil).style, "thick" == CellBorderLine.styles.first ? "thick" : "single")
+        XCTAssertEqual(CellBorderLine(style: "thick", width: 1).style, "single", "an unknown style is a single line")
+        XCTAssertEqual(CellBorderLine(width: 4).width, 4.5, "Word rounds 4 pt to 4.5")
+        XCTAssertEqual(CellBorderLine(width: 2).width, 2.25)
+        XCTAssertEqual(CellBorderLine(width: 12).width, 6)
     }
 
     func testVerticalAlignmentOfASelectedRowSetsEveryCell() throws {
@@ -105,5 +108,24 @@ final class CellBordersTests: XCTestCase {
         XCTAssertEqual(d.document.tableStyles[id]?.widthPercent, 100)
         d.undo()
         XCTAssertTrue(d.document.paragraphs.compactMap(\.cell).isEmpty)
+    }
+
+    func testTwoTablesNeverTouch() throws {
+        let c = RichDocumentController(plainText: "")
+        c.insertTable(rows: 2, columns: 2)
+        c.insertTable(rows: 2, columns: 3, fit: .window)   // caret is in the first table
+        c.moveTo(RichPosition(paragraph: c.document.paragraphs.count - 1, offset: 0), extend: false)
+        c.insertTable(rows: 1, columns: 1)                 // on the empty paragraph after a table
+        let ps = c.document.paragraphs
+        for i in 1 ..< ps.count where ps[i].cell != nil && ps[i - 1].cell != nil {
+            XCTAssertEqual(ps[i].cell!.table, ps[i - 1].cell!.table, "a paragraph sits between tables")
+        }
+        XCTAssertEqual(Set(ps.compactMap(\.cell).map(\.table)).count, 3)
+        // The writer also guards a document that already has them touching.
+        var d = c.document
+        d.paragraphs.removeAll { $0.cell == nil }
+        let xml = try DocxFormat.write(d, pageSetup: .letter)
+        let back = try DocxFormat.read(xml).document
+        XCTAssertEqual(Set(back.paragraphs.compactMap(\.cell).map(\.table)).count, 3, "Word would merge them into one")
     }
 }

@@ -586,8 +586,8 @@ final class Ribbon: StatelessWidget {
             MenuFlyoutItem(text: Text(st.prefix(1).uppercased() + st.dropFirst() + " Line"), onPressed: { [session] in
                 session.cellPen.style = st })
         }
-        let widthItems: [MenuFlyoutItemBase] = [0.25, 0.5, 1, 1.5, 2.25, 3, 4.5, 6, 8, 12].map { w in
-            MenuFlyoutItem(text: Text("\(w) pt"), onPressed: { [session] in
+        let widthItems: [MenuFlyoutItemBase] = CellBorderLine.widths.map { w in
+            MenuFlyoutItem(text: Text("\((w == w.rounded() ? String(Int(w)) : "\(w)")) pt"), onPressed: { [session] in
                 session.cellPen.width = w })
         }
         let penColors = Chrome.colorMenu(FluentSystemIcons.textColor, "Pen Color", fluent,

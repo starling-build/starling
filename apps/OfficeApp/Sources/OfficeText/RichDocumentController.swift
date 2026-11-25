@@ -1592,12 +1592,17 @@ public final class RichDocumentController: ChangeNotifier {
             var at = pos.paragraph + 1
             if para.text.isEmpty && !para.isImage && para.cell == nil {
                 at = pos.paragraph
+                // Word reads two tables with nothing between them as one: keep a paragraph.
+                if at > 0, document.paragraphs[at - 1].cell != nil {
+                    perform(.insertParagraphs(at: at, [RichParagraph()]))
+                    at += 1
+                }
                 perform(.insertParagraphs(at: at, cells))
             } else if para.cell != nil {
                 // A table inside a table is a step too far: put it after.
                 let after = _tableEnd(from: pos.paragraph) + 1
-                perform(.insertParagraphs(at: after, cells + [RichParagraph()]))
-                at = after
+                perform(.insertParagraphs(at: after, [RichParagraph()] + cells + [RichParagraph()]))
+                at = after + 1
             } else {
                 if pos.offset < para.length {
                     perform(.splitParagraph(pos, tailStyle: .body))
@@ -3041,7 +3046,7 @@ public enum CellSide: String, CaseIterable, Hashable, Sendable {
 }
 
 /// One border line: Word's line style ("single", "double", "dashed",
-/// "dotted", or "none" for no line), width in points (0.25 to 12; a heavy
+/// "dotted", or "none" for no line), width in points (one of Word's nine, 1/4 to 6; a heavy
 /// line is "single" with a large width, as Word writes it) and colour (nil
 /// is automatic).
 public struct CellBorderLine: Hashable, Sendable {
@@ -3051,10 +3056,11 @@ public struct CellBorderLine: Hashable, Sendable {
     public var color: Color?
     public init(style: String = "single", width: Double = 0.5, color: Color? = nil) {
         self.style = Self.styles.contains(style) ? style : "single"
-        // "thick" is not a line Word draws by name; it is a single line made heavy.
-        self.width = min(12, max(style == "thick" ? 4.5 : 0.25, width))
+        // Word has only these widths and rounds any other to the nearest one.
+        self.width = Self.widths.min { abs($0 - width) < abs($1 - width) } ?? 0.5
         self.color = color
     }
+    public static let widths: [Double] = [0.25, 0.5, 0.75, 1, 1.5, 2.25, 3, 4.5, 6]
     public static let none = CellBorderLine(style: "none")
 
     func xml(_ side: String) -> String {
