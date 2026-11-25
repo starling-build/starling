@@ -1914,6 +1914,12 @@ extension DocxFormat {
             rootRelsExtra.append(KeptRel(id: "", type: "http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties", target: "docProps/core.xml", external: false))
             rootRelsExtra.append(KeptRel(id: "", type: "http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties", target: "docProps/app.xml", external: false))
         }
+        // A file with core properties but no extended ones (a Properties edit made them first) gets app.xml too.
+        if keptAll["docProps/app.xml"] == nil, !rootRelsExtra.contains(where: { $0.type.hasSuffix("extended-properties") }) {
+            keptAll["docProps/app.xml"] = Data("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<Properties xmlns=\"http://schemas.openxmlformats.org/officeDocument/2006/extended-properties\"><Application>Starling Office</Application></Properties>".utf8)
+            extraOverrides += "<Override PartName=\"/docProps/app.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.extended-properties+xml\"/>"
+            rootRelsExtra.append(KeptRel(id: "", type: "http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties", target: "docProps/app.xml", external: false))
+        }
         for (name, data) in keptAll.sorted(by: { $0.key < $1.key }) where !written.contains(name) && !orphanMedia(name) && name != "word/settings.xml" {
             extraParts.append(ZipEntry(name: name, data: data))
             switch name {

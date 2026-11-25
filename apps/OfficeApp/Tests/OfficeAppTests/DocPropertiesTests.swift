@@ -19,6 +19,11 @@ final class DocPropertiesTests: XCTestCase {
         d2.setProperty("creator", "Ann")
         XCTAssertEqual(d2.property("subject"), "Budget")
         XCTAssertEqual(d2.property("creator"), "Ann")
+        // properties edited before the first save: the file still gets app.xml and a created time
+        let saved = try Zip.read(try OfficeFormats.encode(d2, as: "docx"))
+        XCTAssertNotNil(saved.first { $0.name == "docProps/app.xml" })
+        XCTAssertTrue(String(decoding: saved.first { $0.name == "[Content_Types].xml" }!.data, as: UTF8.self).contains("/docProps/app.xml"))
+        XCTAssertTrue(String(decoding: saved.first { $0.name == "docProps/core.xml" }!.data, as: UTF8.self).contains("<dcterms:created"))
     }
 
     func testSaveStampsModifiedAndLastSavedByButKeepsAuthor() throws {
