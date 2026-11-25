@@ -151,6 +151,8 @@ struct SlideState: Equatable {
     var sourceAnimations: [ShapeAnimation]? = nil
     /// The file part whose comments this slide shows: its own source part, or the one it was copied from.
     var commentsFrom: String? = nil
+    /// The source part slide-level kept things are carried from.
+    var carryPart: String? { commentsFrom ?? sourcePart }
 }
 
 struct DeckState: Equatable {
