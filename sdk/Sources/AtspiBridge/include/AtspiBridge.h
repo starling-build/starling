@@ -1,0 +1,73 @@
+// A small AT-SPI server: lets a screen reader (Orca, Accerciser, any AT-SPI client) see an app's
+// accessibility nodes on the desktop accessibility bus. It speaks D-Bus through libsystemd's sd-bus,
+// loaded at run time (dlopen), so nothing links against it and a machine without it just gets no bridge.
+//
+// The host (Swift) describes the app as a flat list of nodes under one application root and says what to
+// do when a client presses one. Both callbacks are called on the bridge's own thread; the host must hop
+// to its UI thread itself.
+#ifndef ATSPI_BRIDGE_H
+#define ATSPI_BRIDGE_H
+
+#include <stdint.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+// AT-SPI role numbers used by the bridge (Atspi.Role).
+enum {
+    ATSPI_BRIDGE_ROLE_CHECK_BOX = 7,
+    ATSPI_BRIDGE_ROLE_DIALOG = 16,
+    ATSPI_BRIDGE_ROLE_FRAME = 23,
+    ATSPI_BRIDGE_ROLE_LABEL = 29,
+    ATSPI_BRIDGE_ROLE_MENU_ITEM = 35,
+    ATSPI_BRIDGE_ROLE_PANEL = 39,
+    ATSPI_BRIDGE_ROLE_PUSH_BUTTON = 43,
+    ATSPI_BRIDGE_ROLE_TOGGLE_BUTTON = 62,
+    ATSPI_BRIDGE_ROLE_ENTRY = 79,
+    ATSPI_BRIDGE_ROLE_HEADING = 83,
+};
+
+// State bits (Atspi.StateType numbers); a node's `states` is a mask built as (1ull << state).
+enum {
+    ATSPI_BRIDGE_STATE_CHECKED = 4,
+    ATSPI_BRIDGE_STATE_EDITABLE = 7,
+    ATSPI_BRIDGE_STATE_ENABLED = 8,
+    ATSPI_BRIDGE_STATE_FOCUSABLE = 11,
+    ATSPI_BRIDGE_STATE_PRESSED = 20,
+    ATSPI_BRIDGE_STATE_SELECTED = 23,
+    ATSPI_BRIDGE_STATE_SENSITIVE = 24,
+    ATSPI_BRIDGE_STATE_SHOWING = 25,
+    ATSPI_BRIDGE_STATE_SINGLE_LINE = 26,
+    ATSPI_BRIDGE_STATE_VISIBLE = 30,
+};
+
+typedef struct {
+    const char *name;        // what the screen reader says
+    const char *description; // may be NULL
+    int role;
+    uint64_t states;
+    int can_press;           // has a "press" action
+    int x, y, w, h;          // screen rectangle, 0 when unknown
+} atspi_bridge_node;
+
+typedef struct {
+    void *ctx;
+    // Fills *out with a malloc'd array and returns its length. The bridge frees the array with free()
+    // and each name/description with free() too (so the host strdup()s them).
+    int (*snapshot)(void *ctx, atspi_bridge_node **out);
+    // Press node `index` (0-based, as in the last snapshot). Returns 1 when something happened.
+    int (*press)(void *ctx, int index);
+} atspi_bridge_host;
+
+// Connects to the accessibility bus, registers the app under `app_name` and serves requests on a
+// background thread. Returns 0 on success; negative when there is no bus or sd-bus is missing.
+int atspi_bridge_start(const atspi_bridge_host *host, const char *app_name);
+
+// The bus connection's unique name once started (for tests), or NULL.
+const char *atspi_bridge_bus_name(void);
+
+#ifdef __cplusplus
+}
+#endif
+#endif
