@@ -1758,8 +1758,10 @@ public final class RichDocumentController: ChangeNotifier {
     }
 
     /// Shade the target cells (nil clears the shading), one undo step.
-    public func setCellShading(_ color: Color?) {
-        _formatCells { c, _ in c.fill = color }
+    /// `themeAttrs` (from `WordTheme.attrs`) keeps the shading following the document's theme in the file; the
+    /// colour is what it resolves to now. A plain colour clears any earlier theme link.
+    public func setCellShading(_ color: Color?, themeAttrs: String? = nil) {
+        _formatCells { c, _ in c.fill = color; c.fillThemeAttrs = color == nil ? nil : themeAttrs }
     }
 
     // MARK: Table properties (W-TB-3). Each is one undo step.
@@ -2997,7 +2999,11 @@ public struct CellBorderLine: Hashable, Sendable {
     public var style: String
     public var width: Double
     public var color: Color?
-    public init(style: String = "single", width: Double = 0.5, color: Color? = nil) {
+    /// The colour's theme link (` w:themeColor="accent2" w:themeShade="BF"`, from `WordTheme.attrs`), written after the
+    /// colour so the line keeps following the theme.
+    public var themeAttrs: String?
+    public init(style: String = "single", width: Double = 0.5, color: Color? = nil, themeAttrs: String? = nil) {
+        self.themeAttrs = color == nil ? nil : themeAttrs
         self.style = Self.styles.contains(style) ? style : "single"
         self.width = min(12, max(0.25, width))
         self.color = color
@@ -3010,6 +3016,27 @@ public struct CellBorderLine: Hashable, Sendable {
             let h = String(v.value & 0xFFFFFF, radix: 16, uppercase: true)
             return String(repeating: "0", count: 6 - h.count) + h
         } ?? "auto"
-        return "<w:\(side) w:val=\"\(style)\" w:sz=\"\(Int((width * 8).rounded()))\" w:space=\"0\" w:color=\"\(hex)\"/>"
+        return "<w:\(side) w:val=\"\(style)\" w:sz=\"\(Int((width * 8).rounded()))\" w:space=\"0\" w:color=\"\(hex)\"\(themeAttrs ?? "")/>"
+    }
+}
+
+/// Word's theme-colour attributes for a colour picked from the theme grid.
+public enum WordTheme {
+    static let slots = ["background1", "text1", "background2", "text2", "accent1", "accent2", "accent3", "accent4", "accent5", "accent6"]
+
+    /// The attributes for slot 0...9 (Background 1, Text 1, Background 2, Text 2, Accent 1...6) at OOXML's `lumMod` and
+    /// `lumOff` in percent. Lighter steps are a tint of the slot, darker ones a shade (Word writes both as hex bytes of
+    /// the share kept: Lighter 40 percent is tint 99, Darker 25 percent is shade BF). `fill`: a shading
+    /// (`w:themeFill`), otherwise a line or text colour (`w:themeColor`).
+    public static func attrs(slot: Int, lumMod: Int, lumOff: Int, fill: Bool) -> String? {
+        guard slot >= 0, slot < slots.count else { return nil }
+        let base = fill ? "w:themeFill" : "w:themeColor"
+        var out = " \(base)=\"\(slots[slot])\""
+        if lumMod < 100 {
+            let hex = String(Int((Double(lumMod) * 2.55).rounded()), radix: 16, uppercase: true)
+            let kind = lumOff > 0 ? "Tint" : "Shade"
+            out += " \(base == "w:themeFill" ? "w:themeFill" : "w:theme")\(kind)=\"\(hex.count < 2 ? "0" + hex : hex)\""
+        }
+        return out
     }
 }

@@ -1315,6 +1315,9 @@ public struct CellRef: Hashable, Codable, Sendable {
     /// This cell's own shading (Word's `w:shd` on the cell), over the
     /// table style's row fills.
     public var fill: Color? = nil
+    /// The theme link of that shading as the file wrote it (` w:themeFill="accent1" w:themeFillTint="99"`): the fill
+    /// above is the colour it resolved to. Cleared when the shading is set to a plain colour.
+    public var fillThemeAttrs: String? = nil
     /// This cell's own borders, by side (Word's `w:tcBorders`), where
     /// they differ from the table's: a heading cell that says none on
     /// every side inside a ruled table (bug65649's estimates), a title
