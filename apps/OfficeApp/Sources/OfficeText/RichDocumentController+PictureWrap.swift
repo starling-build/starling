@@ -201,8 +201,11 @@ extension RichDocumentController {
               let open = xml.rangeOfSubstring("<w:txbxContent>"),
               let close = xml.rangeOfSubstring("</w:txbxContent>", in: open.upperBound ..< xml.endIndex) else { return nil }
         let inner = String(xml[open.upperBound ..< close.lowerBound])
-        for marker in ["<w:tbl", "<w:fld", "<w:hyperlink", "<w:drawing", "<mc:", "<w:sdt", "<w:ins", "<w:del", "<w:bookmark"]
+        // (Fields, tracked changes and bookmarks are written back by the document writer as they were read. A link to a
+        // page outside the file needs a relationship in the file's own list, which the box's text cannot make: not editable yet.)
+        for marker in ["<w:tbl", "<w:drawing", "<mc:", "<w:sdt", "<w:object", "<w:pict"]
         where inner.containsSubstring(marker) { return nil }
+        if inner.containsSubstring("<w:hyperlink"), inner.containsSubstring("r:id=") { return nil }
         guard box.paragraphs.allSatisfy({ $0.image == nil && $0.inlineImages.isEmpty && $0.keptTable == nil }) else { return nil }
         return box.paragraphs
     }
