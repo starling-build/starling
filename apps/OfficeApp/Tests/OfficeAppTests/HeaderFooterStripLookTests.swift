@@ -34,4 +34,19 @@ final class HeaderFooterStripLookTests: XCTestCase {
         s.controller.undo()
         XCTAssertNil(s.controller.document.headerFooters.first { $0.kind == .footer && $0.edited == true })
     }
+
+    /// W-HF-1 PR 3: the page's top and bottom bands are the header and the footer; the body is neither.
+    func testHeaderFooterZoneOnThePage() {
+        let doc = RichDocument(paragraphs: [RichParagraph(), RichParagraph()])
+        let layout = RichLayout(theme: RichTextTheme(), paragraphCount: 2)
+        layout.pageSetup = .letter
+        layout.width = 612 * 96.0 / 72.0
+        layout.ensureLaidOut(doc)
+        let r = layout.pageRect(0)
+        let mid = (r.left + r.right) / 2
+        XCTAssertEqual(layout.headerFooterZone(atCanvas: Offset(mid, r.top + 10), doc), .header)
+        XCTAssertEqual(layout.headerFooterZone(atCanvas: Offset(mid, r.bottom - 10), doc), .footer)
+        XCTAssertNil(layout.headerFooterZone(atCanvas: Offset(mid, (r.top + r.bottom) / 2), doc))
+        XCTAssertNil(layout.headerFooterZone(atCanvas: Offset(r.right + 50, r.top + 10), doc))
+    }
 }

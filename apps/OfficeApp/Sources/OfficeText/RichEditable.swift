@@ -48,6 +48,8 @@ public final class RichEditable: StatefulWidget {
     /// A pointer selection gesture ended (click, drag, double or triple click)
     /// — when Word's Format Painter applies (a bare click may leave no selection).
     public let onSelectionGestureEnd: (() -> Void)?
+    /// A double-click in a page's header or footer band (edit that part in the strip).
+    public let onHeaderFooterEdit: ((KeptHeaderFooter.Kind) -> Void)?
     /// Checks paragraphs as they are shown and underlines misspellings.
     public let spellChecker: RichSpellChecker?
     /// A right click, with the pointer's position in global coordinates.
@@ -72,6 +74,7 @@ public final class RichEditable: StatefulWidget {
                 onLinkHover: ((String?) -> Void)? = nil,
                 onLinkActivate: ((String) -> Void)? = nil,
                 onSelectionGestureEnd: (() -> Void)? = nil,
+                onHeaderFooterEdit: ((KeptHeaderFooter.Kind) -> Void)? = nil,
                 onContextMenu: ((Offset) -> Void)? = nil,
                 onTouchMenu: ((Rect?) -> Void)? = nil,
                 spellChecker: RichSpellChecker? = nil,
@@ -91,6 +94,7 @@ public final class RichEditable: StatefulWidget {
         self.onLinkHover = onLinkHover
         self.onLinkActivate = onLinkActivate
         self.onSelectionGestureEnd = onSelectionGestureEnd
+        self.onHeaderFooterEdit = onHeaderFooterEdit
         self.onContextMenu = onContextMenu
         self.onTouchMenu = onTouchMenu
         self.spellChecker = spellChecker
@@ -965,6 +969,12 @@ public final class RichEditableState: State<StatefulWidget> {
                 _dragging = false
             }
         case 2:
+            if let edit = _w.onHeaderFooterEdit,
+               let kind = _layout.headerFooterZone(atCanvas: _canvasPoint(event.localPosition), _controller.document) {
+                _dragging = false
+                edit(kind)
+                return
+            }
             _controller.selectWord(at: pos)
             _dragging = true
             _unitDrag = (_controller.selection, false)

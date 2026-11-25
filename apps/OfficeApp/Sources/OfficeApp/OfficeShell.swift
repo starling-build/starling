@@ -1478,6 +1478,7 @@ final class OfficeShellState: State<StatefulWidget> {
             onLinkActivate: { [weak self] link in self?._followLink(link) },
             // Format Painter applies when a selection gesture ends, as Word does.
             onSelectionGestureEnd: { [weak self] in self?._applyPainter() },
+            onHeaderFooterEdit: { [weak self] _ in self?.session.onHeaderFooter?() },
             onContextMenu: { [weak self] point in self?._showContextMenu(at: point) },
             onTouchMenu: { [weak self] rect in self?._showTouchMenu(rect) },
             spellChecker: session.checkSpelling ? _spelling : nil
