@@ -59,6 +59,8 @@ final class StylesKeptOnSaveTests: XCTestCase {
         }
         XCTAssertFalse(ids.contains("Title"))
         XCTAssertFalse(ids.contains("Heading1"))
+        XCTAssertFalse(ids.contains("Subtitle"))
+        XCTAssertFalse(ids.contains("Quote"))
     }
 
     func testUntouchedStylesKeepEverything() throws {

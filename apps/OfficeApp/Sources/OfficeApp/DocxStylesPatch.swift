@@ -71,7 +71,9 @@ extension DocxFormat {
         // Created styles, and our id for a style the file knows under another one.
         for entry in sheet.styles where entry.id != RichNamedStyle.normalId {
             if snapshot[entry.id] == nil {
-                if let g = genById[entry.id] { add(g) }
+                // A built-in the sheet always carries is not the user's; it goes in only when the text uses it.
+                let builtIn = RichStyleSheet.word[entry.id] != nil
+                if let g = genById[entry.id], !builtIn || usedIn.containsSubstring("\"\(entry.id)\"") { add(g) }
             } else if let src = doc.styleSource[entry.id], src != entry.id, !present.contains(entry.id), present.contains(src) {
                 let shim = XNode(name: "w:style", attrs: ["w:type": "paragraph", "w:styleId": entry.id])
                 shim.children = [XNode(name: "w:name", attrs: ["w:val": "\(entry.id) \(src)"]),
