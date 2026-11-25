@@ -297,6 +297,22 @@ public final class RichDocumentController: ChangeNotifier {
     /// Editing is refused when set (a viewer, a locked document).
     public var readOnly = false
 
+    /// A shape picked from Insert > Shapes that waits for the user to click or drag on the page: given the corner
+    /// (points from the page's top left) and the size, it makes the picture to put there.
+    public var pendingShape: ((_ x: Double, _ y: Double, _ width: Double, _ height: Double) -> ImageAttachment?)? = nil
+
+    /// Put the pending shape (if any) at that corner and size on the page, select it, and stop waiting.
+    @discardableResult
+    public func placePendingShape(x: Double, y: Double, width: Double, height: Double, at position: RichPosition) -> Bool {
+        guard let make = pendingShape else { return false }
+        pendingShape = nil
+        guard let shape = make(x, y, width, height) else { return false }
+        _setCaret(position)
+        insertImage(shape)
+        if let i = document.paragraphs.firstIndex(where: { $0.image?.id == shape.id }) { selectImage(at: i) }
+        return true
+    }
+
     private var _undo: [UndoEntry] = []
     private var _redo: [UndoEntry] = []
     private var _pendingChanges: [RichChange] = []

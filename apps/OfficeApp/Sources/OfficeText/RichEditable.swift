@@ -165,6 +165,8 @@ public final class RichEditableState: State<StatefulWidget> {
     private var _lastContentHeight = -1.0
     private var _moveDrag: (index: Int, inline: String?, start: Offset)? = nil
     private var _moveDelta: Offset? = nil
+    /// A shape waiting from Insert > Shapes, pressed on the page: where the press was and where the mouse is now.
+    private var _shapeDraw: (start: Offset, now: Offset)? = nil
     // Touch selection: a long press selects the word under the finger, a double
     // tap does too, and a selection shows a handle at each end to drag.
     private var _touchMode = false
@@ -1008,6 +1010,12 @@ public final class RichEditableState: State<StatefulWidget> {
             _openContextMenu(local: event.localPosition, global: event.position)
             return
         }
+        if _controller.pendingShape != nil, !_controller.readOnly, event.buttons & 1 != 0, _layout.width > 0 {
+            _focus.requestFocus()
+            _shapeDraw = (event.localPosition, event.localPosition)
+            _dragging = false
+            return
+        }
         // ⌘-click follows a link while editing, as Word does; reading, a
         // plain click does, as a page does.
         if _chords.primary || _controller.readOnly, let link = _link(at: event.localPosition) {
@@ -1192,6 +1200,10 @@ public final class RichEditableState: State<StatefulWidget> {
             _repaint.notifyListeners()
             return
         }
+        if _shapeDraw != nil {
+            _shapeDraw?.now = event.localPosition
+            return
+        }
         if let drag = _moveDrag {
             _moveDelta = Offset(event.localPosition.dx - drag.start.dx, event.localPosition.dy - drag.start.dy)
             _repaint.notifyListeners()
@@ -1344,6 +1356,21 @@ public final class RichEditableState: State<StatefulWidget> {
             return
         }
 
+        if let draw = _shapeDraw {
+            _shapeDraw = nil
+            _syncLayoutIfNeeded()
+            let a = _canvasPoint(draw.start), b = _canvasPoint(draw.now)
+            let page = _layout.page(atCanvasY: a.dy), origin = _layout.pageRect(page)
+            let pt = _layout.theme.pixelsPerPoint * _layout.scale
+            // A bare click makes the usual size with its top left corner at the click; a drag makes the box it covers.
+            let dragged = abs(b.dx - a.dx) >= 4 * pt && abs(b.dy - a.dy) >= 4 * pt
+            let w = dragged ? abs(b.dx - a.dx) / pt : 96, h = dragged ? abs(b.dy - a.dy) / pt : 72
+            let x = (min(a.dx, b.dx) - origin.left) / pt, y = (min(a.dy, b.dy) - origin.top) / pt
+            _controller.placePendingShape(x: max(0, x.rounded()), y: max(0, y.rounded()), width: w.rounded(), height: h.rounded(),
+                                          at: _layout.canvasPosition(at: a, _controller.document))
+            _repaint.notifyListeners()
+            return
+        }
         if let drag = _moveDrag {
             let d = _moveDelta ?? Offset(0, 0)
             _moveDrag = nil

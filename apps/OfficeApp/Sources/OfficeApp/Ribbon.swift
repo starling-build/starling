@@ -436,7 +436,11 @@ final class Ribbon: StatelessWidget {
         let shapeChoices: [(String, () -> Void)] = [("Rectangle", "rect"), ("Rounded Rectangle", "roundRect"), ("Oval", "ellipse"),
                                                     ("Triangle", "triangle"), ("Right Arrow", "rightArrow")]
             .map { name, preset in (name, { [session] in
-                if let shape = TextBoxInsert.makeShape(preset: preset) { c.insertImage(shape) } else { session.onStatus?("Could not insert the shape") }
+                // The shape waits for a click or drag on the page, and is made where the user puts it.
+                c.pendingShape = { x, y, w, h in
+                    TextBoxInsert.makeShape(preset: preset, width: w, height: h, number: TextBoxInsert.nextShapeNumber(in: c.document), page: (x, y))
+                }
+                session.onStatus?("Click on the page, or drag, to draw the \(name.lowercased())")
             }) }
         return [
             Chrome.group("Pages", fluent, [
