@@ -50,4 +50,19 @@ final class NoteInsertTests: XCTestCase {
         XCTAssertEqual(c.document.endnotes.count, 1)
         XCTAssertNotNil(c.document.keptParts["word/endnotes.xml"])
     }
+
+    /// Writes the file for the Word check (only when NOTE_CHECK_OUT names a path).
+    func testWriteWordCheckFile() throws {
+        guard let out = ProcessInfo.processInfo.environment["NOTE_CHECK_OUT"] else { return }
+        let c = controller(["First paragraph with some words in it.", "Second paragraph, more words here.", "Third paragraph at the end."])
+        c.moveTo(RichPosition(paragraph: 1, offset: 9), extend: false)
+        c.insertNote(.footnote)          // 1
+        c.moveTo(RichPosition(paragraph: 2, offset: 5), extend: false)
+        c.insertNote(.footnote)          // 2
+        c.moveTo(RichPosition(paragraph: 0, offset: 5), extend: false)
+        c.insertNote(.footnote)          // before both: new 1, others 2 and 3
+        c.moveTo(RichPosition(paragraph: 2, offset: 15), extend: false)
+        c.insertNote(.endnote)           // i
+        try DocxFormat.write(c.document, pageSetup: .letter).write(to: URL(fileURLWithPath: out))
+    }
 }
