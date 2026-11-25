@@ -48,15 +48,35 @@ final class SheetsChartDesignTests: XCTestCase {
         XCTAssertTrue(sc.chart.legend)
     }
 
-    func testAChartFromTheFileIsRefusedNotSilentlyChanged() throws {
-        let (c, i) = chartBook()
-        let back = WorkbookController(); back.load(try Xlsx.read(try Xlsx.write(c.book)))
+    func testAChartFromTheFileIsPatchedOnlyInItsTitleAndLegend() throws {
+        let (c, _) = chartBook()
+        let first = try Xlsx.write(c.book)
+        let back = WorkbookController(); back.load(try Xlsx.read(first))
         let j = back.sheet.drawings.firstIndex(where: { $0.isChart })!
-        let before = back.sheet.drawings[j].kind
         back.setChartTitle(j, "Changed")
-        XCTAssertEqual(back.sheet.drawings[j].kind, before)
-        XCTAssertNotNil(back.chartNotice)
-        _ = i
+        back.setChartLegend(j, position: "t")
+        XCTAssertNil(back.chartNotice)
+        let again = try Xlsx.read(try Xlsx.write(back.book))
+        guard let d = again.sheets[0].drawings.first(where: { $0.isChart }), case .chart(let sc) = d.kind else { return XCTFail("no chart") }
+        XCTAssertEqual(sc.chart.title, "Changed")
+        XCTAssertEqual(sc.chart.legendPosition, "t")
+        // Removing both, and a title with markup characters.
+        back.setChartTitle(j, "A & <B>"); back.setChartLegend(j, position: nil)
+        let third = try Xlsx.read(try Xlsx.write(back.book))
+        guard let d3 = third.sheets[0].drawings.first(where: { $0.isChart }), case .chart(let s3) = d3.kind else { return XCTFail("no chart") }
+        XCTAssertEqual(s3.chart.title, "A & <B>")
+        XCTAssertFalse(s3.chart.legend)
+    }
+
+    func testPatchChangesNothingButTheTitleAndLegend() {
+        let xml = "<c:chartSpace><c:chart><c:title><c:tx><c:rich><a:p><a:r><a:rPr b=\"1\"/><a:t>Old</a:t></a:r><a:r><a:t>x</a:t></a:r></a:p></c:rich></c:tx></c:title><c:autoTitleDeleted val=\"0\"/><c:plotArea><c:title>AXIS</c:title></c:plotArea><c:legend><c:legendPos val=\"r\"/></c:legend></c:chart></c:chartSpace>"
+        let t = SheetDrawingsXML._patchChartTitle(xml, .set("New"))
+        XCTAssertTrue(t.contains("<a:rPr b=\"1\"/><a:t>New</a:t></a:r><"))
+        XCTAssertFalse(t.contains("Old")); XCTAssertTrue(t.contains("AXIS"))
+        let l = SheetDrawingsXML._patchChartLegend(xml, .set("b"))
+        XCTAssertTrue(l.contains("<c:legendPos val=\"b\"/>"))
+        XCTAssertEqual(SheetDrawingsXML._patchChartLegend(xml, .remove).contains("legend"), false)
+        XCTAssertTrue(SheetDrawingsXML._patchChartTitle(xml, .remove).contains("autoTitleDeleted val=\"1\""))
     }
 
     /// Writes the file for the Excel check (only when XCHECK_DIR is set): a chart titled "Results", legend on the right.
@@ -66,5 +86,10 @@ final class SheetsChartDesignTests: XCTestCase {
         c.setChartTitle(i, "Results")
         c.setChartLegend(i, position: "r")
         try Xlsx.write(c.book).write(to: URL(fileURLWithPath: dir + "/chartdesign.xlsx"))
+        // The same chart after a trip through a file: title "From file", legend at the top.
+        let back = WorkbookController(); back.load(try Xlsx.read(try Xlsx.write(c.book)))
+        let j = back.sheet.drawings.firstIndex(where: { $0.isChart })!
+        back.setChartTitle(j, "From file"); back.setChartLegend(j, position: "t")
+        try Xlsx.write(back.book).write(to: URL(fileURLWithPath: dir + "/chartfile.xlsx"))
     }
 }

@@ -48,6 +48,9 @@ struct SheetChart: Equatable {
     /// Set when the file's own chart was turned between column and bar here:
     /// the save patches that part's direction and keeps all its formatting.
     var retype: ChartType? = nil
+    /// A title or legend changed here on the file's own chart: the save patches those two elements of its part.
+    var titleEdit: ChartPartEdit? = nil
+    var legendEdit: ChartPartEdit? = nil
     /// Every `<c:f>` in that part (series, titles, labels…): as read → as
     /// it reads now, after rows, columns or sheets moved. A save rewrites
     /// the part's references through it and keeps everything else.
@@ -69,7 +72,7 @@ struct SheetChart: Equatable {
     var pivotSeries: [String] = []
 
     static func == (a: SheetChart, b: SheetChart) -> Bool {
-        a.chart == b.chart && a.path == b.path && a.formulas == b.formulas && a.refs.count == b.refs.count
+        a.chart == b.chart && a.path == b.path && a.titleEdit == b.titleEdit && a.legendEdit == b.legendEdit && a.formulas == b.formulas && a.refs.count == b.refs.count
             && zip(a.refs, b.refs).allSatisfy { $0.name == $1.name && $0.cat == $1.cat && $0.val == $1.val }
     }
 }
@@ -559,11 +562,13 @@ extension SheetDrawingsXML {
         var shapeId = 2
         for d in ws.drawings {
             shapeId += 1
-            if case .chart(let sc) = d.kind, let path = sc.path, sc.formulasChanged || sc.retype != nil, let bytes = original[path] {
+            if case .chart(let sc) = d.kind, let path = sc.path, sc.formulasChanged || sc.retype != nil || sc.titleEdit != nil || sc.legendEdit != nil, let bytes = original[path] {
                 // The file's own chart, its references moved with the cells.
                 var xml = String(decoding: bytes, as: UTF8.self)
                 if sc.formulasChanged { xml = _rewriteFormulas(xml, sc.formulas) }
                 if let t = sc.retype { xml = _retypeBars(xml, t) }
+                if let e = sc.titleEdit { xml = _patchChartTitle(xml, e) }
+                if let e = sc.legendEdit { xml = _patchChartLegend(xml, e) }
                 out.parts[path] = Data(xml.utf8)
             }
             if let raw = d.raw {
@@ -855,7 +860,12 @@ extension WorkbookController {
         sc.chart.title = live.series.count == 1 ? live.series[0].name : "Chart Title"
         // 5 × 3 inches (Excel's size), a column clear of the data, level with its top.
         let corner = ws.point(SheetMarker(col: r.right + 2, colOff: 0, row: r.top, rowOff: 0))
-        let anchor = ws.anchor(x: corner.x, y: corner.y, width: 360, height: 216)
+        // Inside the printable width when it fits there (Excel prints a chart over the page edge on 2 pages), never over the data.
+        var left = corner.x
+        let printable = SheetPrintSetup.read(ws).printableWidth
+        let dataEdge = ws.point(SheetMarker(col: r.right + 1, colOff: 0, row: r.top, rowOff: 0)).x
+        if left + 360 > printable, printable - 360 >= dataEdge { left = printable - 360 }
+        let anchor = ws.anchor(x: left, y: corner.y, width: 360, height: 216)
         let n = ws.drawings.filter(\.isChart).count + 1
         structural {
             ws.drawings.append(SheetDrawing(name: "Chart \(n)", anchor: anchor, kind: .chart(sc)))
@@ -945,14 +955,18 @@ extension WorkbookController {
     func editChart(_ index: Int, _ change: (inout Chart) -> Void) -> Bool {
         let ws = sheet
         guard ws.drawings.indices.contains(index), case .chart(var sc) = ws.drawings[index].kind else { return false }
-        guard sc.path == nil else {
-            chartNotice = "This chart came from the file; its titles and legend can't be changed here yet."
-            _notify()
-            return false
-        }
         var chart = sc.chart
         change(&chart)
         guard chart != sc.chart else { return false }
+        if sc.path != nil {
+            // The file's own chart: its part is patched on save, only for what changed.
+            if chart.title != sc.chart.title || chart.autoTitle != sc.chart.autoTitle {
+                sc.titleEdit = chart.title.map { .set($0) } ?? .remove
+            }
+            if chart.legend != sc.chart.legend || chart.legendPosition != sc.chart.legendPosition {
+                sc.legendEdit = chart.legend ? .set(chart.legendPosition) : .remove
+            }
+        }
         sc.chart = chart
         structural {
             ws.drawings[index].kind = .chart(sc)
