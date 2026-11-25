@@ -1019,7 +1019,7 @@ final class SlidesShellState: State<StatefulWidget> {
             case .left, .up: _select(deck.current - 1); _paneFocused = true
             case .right, .down: _select(deck.current + 1); _paneFocused = true
             case .enter: setState { _sorter = false }
-            case .delete, .backspace where deck.slides.count > 1: deck.deleteSlide(deck.current)
+            case .delete, .backspace where deck.slides.count > 1: deck.deleteSelectedSlides()
             default: break
             }
             if [.left, .up, .right, .down, .enter, .delete, .backspace].contains(named) { return true }
@@ -1073,7 +1073,7 @@ final class SlidesShellState: State<StatefulWidget> {
         case .tab where !_paneFocused: _cycleSelection(back: _deckChords.shift)
         case .delete, .backspace:
             guard _paneFocused, deck.slides.count > 1 else { return false }
-            deck.deleteSlide(deck.current)
+            deck.deleteSelectedSlides()
         default: return false
         }
         return true
@@ -1149,7 +1149,11 @@ final class SlidesShellState: State<StatefulWidget> {
         case "o": session.onOpen?()
         case "s" where mods.contains(.shift): session.onSaveAs?()
         case "s": session.onSave?()
+        case "a" where !typing && !shapes && (_paneFocused || _sorter): deck.selectAllSlides()
         case "a" where !typing: deck.selectShapes(deck.currentSlide.shapes)
+        case "c" where !typing && !shapes && (_paneFocused || _sorter): deck.copySlides(); _flash("Copied")
+        case "x" where !typing && !shapes && (_paneFocused || _sorter): deck.cutSlides()
+        case "v" where !typing && !shapes && (_paneFocused || _sorter) && deck.canPasteSlides: deck.pasteSlides()
         case "c" where shapes: deck.copyShapes(); _flash("Copied")
         case "x" where shapes: deck.cutShapes()
         case "v" where !typing && deck.canPasteShapes: deck.pasteShapes()
@@ -1304,8 +1308,9 @@ final class SlidesShellState: State<StatefulWidget> {
         // line above and below (3 each), 3 of padding each side.
         _revealThumbnail(itemHeight: thumbH + 17)
         var items: [Widget] = []
+        let picked = Set(deck.selectedSlides)
         for (i, slide) in deck.slides.enumerated() {
-            let current = i == deck.current
+            let current = picked.contains(i)
             let number = Text("\(i + 1)", style: fluent.typography.caption?.copyWith(
                 color: slide.hidden ? fluent.resources.textFillColorDisabled : fluent.resources.textFillColorPrimary))
             let frame = DecoratedBox(
@@ -1328,6 +1333,7 @@ final class SlidesShellState: State<StatefulWidget> {
             let line = SizedBox(width: thumbW, height: 3, child: ColoredBox(
                 color: dropHere ? accent : Color(0x00000000), child: SizedBox(expand: ())))
             items.append(Listener(
+                key: ValueKey("slide.thumb.\(i)"),
                 onPointerDown: { [weak self] e in
                     guard let self, let context = self.context else { return }
                     self._thumbDown(i, e, context: context)
@@ -1412,13 +1418,20 @@ final class SlidesShellState: State<StatefulWidget> {
 
     private func _thumbDown(_ index: Int, _ e: PointerDownEvent, context: any BuildContext) {
         if e.buttons & kSecondaryMouseButton != 0 {
-            _select(index)
+            // A right-click inside the picked slides keeps the pick.
+            if !deck.selectedSlides.contains(index) { _select(index) }
             _paneFocused = true
             _showThumbMenu(at: e.position, context: context)
             return
         }
-        _select(index)
+        _endEditing()
         _paneFocused = true
+        _deckFocus.requestFocus()
+        if _deckChords.shift { deck.selectSlide(index, extend: true); return }
+        if _deckChords.primary { deck.selectSlide(index, toggle: true); return }
+        // Pressing on one of several picked slides keeps the pick, so the
+        // group can be dragged; a plain click without a drag narrows it.
+        if !(deck.selectedSlides.count > 1 && deck.selectedSlides.contains(index)) { deck.selectSlide(index) }
         _thumbDrag = (index, e.position.dy, e.position.dx, index, false)
     }
 
@@ -1439,7 +1452,13 @@ final class SlidesShellState: State<StatefulWidget> {
     private func _thumbUp() {
         guard let drag = _thumbDrag else { return }
         _thumbDrag = nil
-        if drag.moved, drag.to != drag.from { deck.moveSlide(drag.from, to: drag.to) } else { setState {} }
+        if drag.moved, drag.to != drag.from {
+            let picked = deck.selectedSlides
+            if picked.count > 1 { deck.moveSelectedSlides(to: picked[0] + (drag.to - drag.from)) }
+            else { deck.moveSlide(drag.from, to: drag.to) }
+        } else {
+            if !drag.moved, deck.selectedSlides.count > 1 { deck.selectSlide(drag.from) } else { setState {} }
+        }
     }
 
     /// The thumbnail pane's right-click menu.
@@ -1448,12 +1467,16 @@ final class SlidesShellState: State<StatefulWidget> {
         let hidden = deck.currentSlide.hidden
         var items: [MenuFlyoutItemBase] = [
             MenuFlyoutItem(text: Text("New Slide"), onPressed: { [weak self] in self?.deck.addSlide() }),
+            MenuFlyoutItem(text: Text("Cut"), onPressed: { [weak self] in self?.deck.cutSlides() }),
+            MenuFlyoutItem(text: Text("Copy"), onPressed: { [weak self] in self?.deck.copySlides() }),
+            MenuFlyoutItem(text: Text("Paste"), onPressed: deck.canPasteSlides ? { [weak self] in self?.deck.pasteSlides() } : nil),
+            MenuFlyoutSeparator(),
             MenuFlyoutItem(text: Text("Duplicate Slide"), onPressed: { [weak self] in self?.deck.duplicateSlide(i) }),
             MenuFlyoutItem(text: Text("Delete Slide"),
-                           onPressed: deck.slides.count > 1 ? { [weak self] in self?.deck.deleteSlide(i) } : nil),
+                           onPressed: deck.slides.count > 1 ? { [weak self] in self?.deck.deleteSelectedSlides() } : nil),
             MenuFlyoutSeparator(),
             MenuFlyoutItem(text: Text(hidden ? "Show Slide" : "Hide Slide"),
-                           onPressed: { [weak self] in self?.deck.toggleHidden(i) }),
+                           onPressed: { [weak self] in self?.deck.toggleHiddenSelected() }),
             MenuFlyoutSeparator(),
         ]
         for kind in SlideLayoutKind.allCases {
@@ -1474,9 +1497,11 @@ final class SlidesShellState: State<StatefulWidget> {
         let w = 240.0
         let h = (w * deck.slideSize.height / deck.slideSize.width).rounded()
         var tiles: [Widget] = []
+        let picked = Set(deck.selectedSlides)
         for (i, slide) in deck.slides.enumerated() {
-            let current = i == deck.current
+            let current = picked.contains(i)
             tiles.append(GestureDetector(
+                key: ValueKey("slide.tile.\(i)"),
                 onTap: { [weak self] in
                     guard let self else { return }
                     let now = Date()
@@ -1486,7 +1511,11 @@ final class SlidesShellState: State<StatefulWidget> {
                         return
                     }
                     self._lastSorterTap = (i, now)
-                    self._select(i)
+                    self._endEditing()
+                    if self._deckChords.shift { self.deck.selectSlide(i, extend: true) }
+                    else if self._deckChords.primary { self.deck.selectSlide(i, toggle: true) }
+                    else { self.deck.selectSlide(i) }
+                    self._deckFocus.requestFocus()
                     self._paneFocused = true
                 },
                 child: Padding(padding: EdgeInsets(all: 12), child: Column(crossAxisAlignment: .start, children: [
