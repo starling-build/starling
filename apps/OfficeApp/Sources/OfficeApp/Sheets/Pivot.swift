@@ -25,8 +25,9 @@ struct PivotFilter: Equatable, Sendable {
 
 /// What a pivot made here is made of. Fields are column positions in the source range (0 = its first column).
 struct PivotSpec: Equatable, Sendable {
-    /// Whether Insert PivotTable offers Filters (page fields): off while Excel crashes on the page fields we write.
-    static let offersFilters = false
+    /// Whether Insert PivotTable offers Filters (page fields): on again: the Excel crash on page-field pivots under COM refresh also hits Excel's own files
+    /// (other-4efc4d8920, es-b129c8bac2), so it is that build, not what we write.
+    static let offersFilters = true
     var name: String
     var rows: [Int]
     var cols: [Int]
