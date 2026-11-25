@@ -137,7 +137,9 @@ extension DocxFormat {
     if let r = s.raised, r != 0 { rPr += "<w:position w:val=\"\(Int((r * 2).rounded()))\"/>" }
     if let size = s.fontSize { rPr += "<w:sz w:val=\"\(Int(size * 2))\"/><w:szCs w:val=\"\(Int(size * 2))\"/>" }
     if let hl = s.highlight {
-        if let name = highlightNames.first(where: { $0.1 == hl })?.0 {
+        if let t = s.shdSource, let h = t.firstIndex(of: "#"), t[t.startIndex ..< h].lowercased() == _hex(hl).lowercased() {
+            rPr += "<w:shd\(t[t.index(after: h)...]) w:fill=\"\(_hex(hl))\"/>"
+        } else if let name = highlightNames.first(where: { $0.1 == hl })?.0 {
             rPr += "<w:highlight w:val=\"\(name)\"/>"
         } else {
             rPr += "<w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"\(_hex(hl))\"/>"
@@ -869,9 +871,12 @@ extension DocxFormat {
                 if cs.color != nil { cs.off.remove(.autoColor) }
             case "w:highlight":
                 cs.highlight = _highlight(child["w:val"] ?? "none")
+                cs.shdSource = nil
             case "w:shd":
                 if let hex = child["w:fill"], hex.lowercased() != "auto", let v = Int(hex, radix: 16), cs.highlight == nil {
                     cs.highlight = Color(argb: 0xFF, (v >> 16) & 0xFF, (v >> 8) & 0xFF, v & 0xFF)
+                    cs.shdSource = hex.uppercased() + "#" + ["w:val", "w:color", "w:themeFill", "w:themeFillTint", "w:themeFillShade", "w:themeColor", "w:themeTint", "w:themeShade"]
+                        .compactMap { k in child[k].map { " \(k)=\"\(_esc($0))\"" } }.joined()
                 }
             case "w:rFonts":
                 // A slot the element leaves out is inherited, not cleared
@@ -1271,7 +1276,8 @@ extension DocxFormat {
             let ownStyle = (p.style.heading.flatMap { doc.styles["Heading\(min($0, 6))"] } ?? p.style.named.flatMap { doc.styles[$0] })?.paragraph
             if let b = p.style.borders { pPr += _bordersXML(b) }
             else if ownStyle?.borders != nil { pPr += "<w:pBdr><w:top w:val=\"nil\"/><w:left w:val=\"nil\"/><w:bottom w:val=\"nil\"/><w:right w:val=\"nil\"/></w:pBdr>" }
-            if p.style.fill == nil, ownStyle?.fill != nil { pPr += "<w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"auto\"/>" }
+            if p.style.fill == nil, let t = p.style.fillAttrs, t.hasPrefix("auto#") { pPr += "<w:shd\(t.dropFirst(5)) w:fill=\"auto\"/>" }
+            else if p.style.fill == nil, ownStyle?.fill != nil { pPr += "<w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"auto\"/>" }
             if let fill = p.style.fill { pPr += _paraShdXML(fill, p.style.fillAttrs) }
             if p.style.rightToLeft { pPr += "<w:bidi/>" }
             else if p.style.named.flatMap({ doc.styles[$0] })?.paragraph.rightToLeft ?? false { pPr += "<w:bidi w:val=\"0\"/>" }
@@ -1731,7 +1737,8 @@ extension DocxFormat {
                     if span > 1 { xml += "<w:gridSpan w:val=\"\(span)\"/>" }
                     if (ref?.rowSpan ?? 1) > 1 { xml += "<w:vMerge w:val=\"restart\"/>" }
                     xml += cellBordersXML(ref?.edges, width: ref?.borderWidth, kept: ref?.bordersXML ?? (ref?.rowBordersXML != nil ? "" : nil), under: ref?.bordersKeptUnder)   // schema order: borders, then shading
-                    if let fill = ref?.fill, !(ref?.styleFilled == true && doc.tableStyleIds[ref?.table ?? ""] != nil) { xml += "<w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"\(_hex(fill))\"\(ref?.fillThemeAttrs ?? "")/>" }
+                    if ref?.fill == nil, ref?.fillAuto == true { xml += "<w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"auto\"/>" }
+                    else if let fill = ref?.fill, !(ref?.styleFilled == true && doc.tableStyleIds[ref?.table ?? ""] != nil) { xml += "<w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"\(_hex(fill))\"\(ref?.fillThemeAttrs ?? "")/>" }
                     if let mar = ref?.marginsXML { xml += mar }
                     // Schema order: the text direction before the alignment.
                     // (As the file wrote it while it still reads that way.)
@@ -2325,6 +2332,7 @@ extension DocxFormat {
             // A style's own rule (the line under a "header" style: the
             // kept header part's paragraphs draw it by their style).
             if let b = entry.paragraph.borders { out += _bordersXML(b) }
+            if entry.paragraph.fill == nil, let t = entry.paragraph.fillAttrs, t.hasPrefix("auto#") { out += "<w:shd\(t.dropFirst(5)) w:fill=\"auto\"/>" }
             if let fill = entry.paragraph.fill { out += _paraShdXML(fill, entry.paragraph.fillAttrs) }
             if entry.paragraph.rightToLeft { out += "<w:bidi/>" }
             // The style's tab stops: a header style's centre and right
