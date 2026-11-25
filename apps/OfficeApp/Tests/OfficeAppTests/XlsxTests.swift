@@ -426,4 +426,23 @@ extension XlsxTests {
         XCTAssertTrue(out.containsSubstring("<top style=\"thin\"><color theme=\"5\" tint=\"-0.25\"/></top>"), out)
         XCTAssertFalse(out.containsSubstring("<color rgb=\"FF"), "no theme colour turned into a fixed one")
     }
+
+    /// A boolean written "true" (xsd:boolean) and a shared-string index with a blank after it
+    /// (bug69769's "2 ") read as the value, not as nothing / FALSE.
+    func testLooseBooleanAndPaddedStringIndex() throws {
+        let c = WorkbookController()
+        c.load(Workbook(sheets: [Worksheet(name: "S")]))
+        c.setInputs([(a("A1"), "hello"), (a("B1"), "TRUE")])
+        var entries = try Zip.read(try Xlsx.write(c.book))
+        let i = try XCTUnwrap(entries.firstIndex { $0.name == "xl/worksheets/sheet1.xml" })
+        var x = String(decoding: entries[i].data, as: UTF8.self)
+        let zero = try XCTUnwrap(x.findRange(of: "<v>0</v>"))
+        x.replaceSubrange(zero, with: "<v>0 </v>")
+        let one = try XCTUnwrap(x.findRange(of: "<v>1</v>"))
+        x.replaceSubrange(one, with: "<v>true</v>")
+        entries[i] = ZipEntry(name: entries[i].name, data: Data(x.utf8))
+        let book = try Xlsx.read(try Zip.write(entries))
+        XCTAssertEqual(book.sheets[0].value(a("A1")), .text("hello"))
+        XCTAssertEqual(book.sheets[0].value(a("B1")), .bool(true))
+    }
 }
