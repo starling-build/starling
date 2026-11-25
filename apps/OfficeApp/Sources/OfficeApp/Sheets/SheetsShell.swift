@@ -390,6 +390,8 @@ final class SheetsShellState: State<StatefulWidget> {
         case .cut: grid.copySelection(cut: true)
         case .paste: grid.paste()
         case .pasteSpecial: _openPasteSpecial()
+        case .formatPainter:
+            if wb.painterSource == nil { wb.armFormatPainter() } else { wb.cancelFormatPainter() }
         case .symbol: setState { _symbolOpen = true }
         case .startFormula(let text):
             grid.focus.requestFocus()

@@ -240,6 +240,8 @@ final class WorkbookController: ChangeNotifier {
     /// The picture or chart selected (an index into the sheet's drawings),
     /// instead of cells. Any cell selection clears it.
     var selectedDrawing: Int? = nil
+    /// Format Painter, armed: the cells whose formats the next selection takes.
+    var painterSource: (sheet: Int, range: CellRange)? = nil
     private var _cf: (sheet: ObjectIdentifier, revision: Int, evaluator: CFEvaluator)? = nil
     private var _dv: (sheet: ObjectIdentifier, revision: Int, rules: [ValidationRule])? = nil
 
