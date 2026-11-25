@@ -167,6 +167,78 @@ final class ChartPartPatcherTests: XCTestCase {
         XCTAssertTrue(kept.contains("sz=\"3000\"") && !kept.contains("1862"))
     }
 
+    /// The Edit Data pane's four buttons, as it applies them, against a file chart.
+    func testEditDataPaneButtonsOnAFileChart() throws {
+        let xml = twoGroupPart
+        let old = try XCTUnwrap(readBack(xml))
+        func idxs(_ x: String) -> [String] {
+            x.components(separatedBy: "<c:idx val=\"").dropFirst().map { String($0.prefix(while: { $0 != "\"" })) }
+        }
+        // Add Series: a fresh id, its own column in the file's sheet, the others untouched.
+        var add = old
+        add.series.append(ChartSeries(name: "Series 2", values: Array(repeating: nil, count: add.categories.count)))
+        let a = try XCTUnwrap(ChartPartPatcher.patch(xml, old: old, new: add))
+        XCTAssertEqual(Set(idxs(a.xml)).count, idxs(a.xml).count, "ids stay unique")
+        XCTAssertEqual(idxs(a.xml).count, 3)
+        XCTAssertTrue(a.xml.contains("Series 2"))
+        XCTAssertTrue(a.writes.allSatisfy { $0.sheet == "資料" })
+        XCTAssertEqual(readBack(a.xml)?.series.count, 2)
+        // Add Row, then Remove Row.
+        var row = old
+        row.categories.append("Category 3")
+        for i in row.series.indices { row.series[i].values.append(nil) }
+        let r = try XCTUnwrap(ChartPartPatcher.patch(xml, old: old, new: row))
+        XCTAssertEqual(readBack(r.xml)?.categories.count, old.categories.count + 1)
+        var less = old
+        less.categories.removeLast()
+        for i in less.series.indices { less.series[i].values.removeLast() }
+        let l = try XCTUnwrap(ChartPartPatcher.patch(xml, old: old, new: less))
+        XCTAssertEqual(readBack(l.xml)?.categories.count, old.categories.count - 1)
+        XCTAssertTrue(l.xml.contains("<c:legend>"), "legend stays")
+        // Remove Series: from a two-series chart back to one.
+        let two = try XCTUnwrap(readBack(a.xml))
+        var one = two
+        one.series.removeLast()
+        let o = try XCTUnwrap(ChartPartPatcher.patch(a.xml, old: two, new: one))
+        XCTAssertEqual(readBack(o.xml)?.series.count, 1)
+        XCTAssertEqual(Set(idxs(o.xml)).count, idxs(o.xml).count)
+    }
+
+    /// A file pie chart becomes a column chart, keeps its series, and can take more series after.
+    func testPieFileChartBecomesColumnAndGrows() throws {
+        var pie = Chart(type: .pie, categories: ["a", "b", "c"], series: [ChartSeries(name: "Share", values: [1, 2, 3])])
+        pie.title = "Pie"
+        let xml = part(pie)
+        let old = try XCTUnwrap(readBack(xml))
+        XCTAssertEqual(old.type, .pie)
+        var col = old.converted(to: .column)
+        let c1 = try XCTUnwrap(ChartPartPatcher.patch(xml, old: old, new: col))
+        let back = try XCTUnwrap(readBack(c1.xml))
+        XCTAssertEqual(back.type, .column)
+        XCTAssertEqual(back.series.map(\.values), [[1, 2, 3]])
+        XCTAssertEqual(back.series.map(\.name), ["Share"])
+        XCTAssertTrue(c1.xml.contains("<c:style val=\"42\"/>"), "the file's own part, not a fresh chart")
+        col.series.append(ChartSeries(name: "More", values: [4, 5, 6]))
+        let c2 = try XCTUnwrap(ChartPartPatcher.patch(xml, old: old, new: col))
+        let b2 = try XCTUnwrap(readBack(c2.xml))
+        XCTAssertEqual(b2.series.map(\.values), [[1, 2, 3], [4, 5, 6]])
+        XCTAssertEqual(b2.series.map(\.name), ["Share", "More"])
+        XCTAssertEqual(Set(c2.xml.components(separatedBy: "<c:idx val=\"").dropFirst().map { $0.prefix(while: { $0 != "\"" }) }).count, 2)
+    }
+
+    func testLegendPositionChangeOnAFileChart() throws {
+        var c = Chart(type: .column, categories: ["a", "b"], series: [ChartSeries(name: "S", values: [1, 2])])
+        c.legend = true; c.legendPosition = "r"
+        let xml = part(c)
+        let old = try XCTUnwrap(readBack(xml))
+        for pos in ["t", "l", "b"] {
+            var new = old; new.legendPosition = pos
+            let r = try XCTUnwrap(ChartPartPatcher.patch(xml, old: old, new: new))
+            XCTAssertEqual(readBack(r.xml)?.legendPosition, pos)
+            XCTAssertTrue(r.xml.contains("<c:style val=\"42\"/>"))
+        }
+    }
+
     func testTypeChangeKeepsIdsCellsAndTheSecondAxis() throws {
         var xml = twoGroupPart
         xml = xml.replacingOccurrences(of: "<c:lineChart>", with: "<c:barChart><c:barDir val=\"col\"/>", options: [], range: xml.range(of: "<c:lineChart>"))
