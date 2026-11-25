@@ -143,6 +143,7 @@ enum ShortcutTable {
         ShortcutEntry("Paragraph", "Align right", "r"),
         ShortcutEntry("Paragraph", "Justify", "j"),
         ShortcutEntry("Find", "Find", "f"),
+        ShortcutEntry("Insert", "Link", "k"),
         ShortcutEntry("Find", "Replace", "h"),
        ShortcutEntry("File", "Save", "s"),
         ShortcutEntry("File", "Save as", "s", .shift),

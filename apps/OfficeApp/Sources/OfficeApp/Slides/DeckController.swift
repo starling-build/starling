@@ -1009,6 +1009,35 @@ final class DeckController: ChangeNotifier {
         _changed()
     }
 
+    // MARK: Links (the shared Insert Hyperlink dialog)
+
+    /// The slides a link can jump to: the key the file records ("slide:<part>"; "new:<id>" for a slide added here) and a title.
+    func slideLinkTargets() -> [(key: String, title: String)] {
+        slides.enumerated().map { i, sl in
+            let name = sl.titleText
+            return (sl.sourcePart ?? "new:\(sl.id)", "Slide \(i + 1)" + (name.isEmpty ? "" : ": " + name))
+        }
+    }
+
+    /// The click action of the first selected shape (whole-shape link), for the dialog to start from.
+    var selectedShapeLink: (link: String?, tip: String?) {
+        guard let s = selection.first else { return (nil, nil) }
+        return (s.link, s.linkTip)
+    }
+
+    /// Link every selected shape (nil or empty clears it). One undo step. False with no shape selected.
+    @discardableResult
+    func setShapeLink(_ link: String?, tip: String?) -> Bool {
+        guard !selection.isEmpty else { return false }
+        let value = (link?.isEmpty ?? true) ? nil : link
+        let tipValue = value == nil || (tip?.isEmpty ?? true) ? nil : tip
+        guard selection.contains(where: { $0.link != value || $0.linkTip != tipValue }) else { return true }
+        _checkpoint()
+        for s in selection { s.link = value; s.linkTip = tipValue }
+        _changed()
+        return true
+    }
+
     /// The alt text of the first selected picture, for the dialog to start from.
     var selectedAltText: String? { selection.first { $0.picture != nil }?.altText }
 

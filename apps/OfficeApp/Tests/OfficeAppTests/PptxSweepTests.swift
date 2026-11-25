@@ -183,4 +183,22 @@ final class PptxSweepTests: XCTestCase {
         for k in ["schemeClr", "<a:ea ", "<a:tableStyleId>", "<a:lnL", "a:tcPr"] { XCTAssertEqual(a.components(separatedBy: k).count, b.components(separatedBy: k).count, k) }
         XCTAssertTrue(b.contains("Z"))
     }
+
+    func testShapeLinkToASlideWritesAnInternalJump() throws {
+        let deck = DeckController()
+        _ = deck.addSlide()
+        deck.select(0)
+        deck.selectShapes([deck.currentSlide.shapes[0]])
+        let target = try XCTUnwrap(deck.slideLinkTargets().last)
+        XCTAssertTrue(deck.setShapeLink("slide:" + target.key, tip: "Go"))
+        XCTAssertEqual(deck.selectedShapeLink.link, "slide:" + target.key)
+        let (state, theme, pkg) = (deck.snapshot(), deck.theme, deck.package)
+        let out = PptxPackage(try Zip.read(try PptxWriter.write(state, theme: theme, package: pkg)))
+        let slide = String(data: out.parts["ppt/slides/slide1.xml"]!, encoding: .utf8)!
+        XCTAssertTrue(slide.contains("ppaction://hlinksldjump"), slide)
+        let rels = String(data: out.parts["ppt/slides/_rels/slide1.xml.rels"]!, encoding: .utf8)!
+        XCTAssertTrue(rels.contains("slide2.xml"), rels)
+        XCTAssertTrue(deck.setShapeLink(nil, tip: nil))
+        XCTAssertNil(deck.selectedShapeLink.link)
+    }
 }

@@ -158,6 +158,9 @@ extension Ribbon {
     private func _slidesInsert(_ deck: DeckController, _ fluent: FluentThemeData) -> [Widget] {
         [
             _slidesGroup(deck, fluent),
+            Chrome.group("Links", fluent, [
+                Chrome.big(FluentSystemIcons.link, "Link", fluent) { [session] in session.onLink?() },
+            ]),
             Chrome.group("Text", fluent, [
                 Chrome.big(FluentSystemIcons.textT, "Text Box", fluent) { [session] in session.onInsertTextBox?() },
                 Chrome.big(FluentSystemIcons.header, "Header & Footer", fluent) { [session] in session.onHeaderFooter?() },

@@ -1402,7 +1402,7 @@ enum PptxText {
     nonisolated(unsafe) static var slideParts: [String: String] = [:]
     static func setSlideParts(_ slides: [SlideState]) {
         slideParts = [:]
-        for (i, s) in slides.enumerated() { if let p = s.sourcePart { slideParts[p] = "ppt/slides/slide\(i + 1).xml" } }
+        for (i, s) in slides.enumerated() { slideParts[s.sourcePart ?? "new:\(s.id)"] = "ppt/slides/slide\(i + 1).xml" }
     }    /// The end of a `p:cNvPr`: a click action on the shape is its child.
     static func cNvPrEnd(_ s: ShapeState) -> String {
         let l = links?.xml(s.link, s.linkTip) ?? ""
