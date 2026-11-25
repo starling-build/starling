@@ -616,9 +616,9 @@ final class SlideCanvasState: State<StatefulWidget> {
         }
         let m = _w.modifiers()
         let r = Self.resizedFrame(frame, rotation: shape.rotation, handle: handle, delta: delta,
-                                  keepAspect: m.contains(.shift), fromCentre: m.contains(.control))
+                                  keepAspect: m.contains(.shift) != (shape.aspectLock == true), fromCentre: m.contains(.control))
         // Alt turns snapping off; a resize about the centre or by aspect has no edge to snap.
-        guard shape.rotation == 0, !m.contains(.alt), !m.contains(.shift), !m.contains(.control) else {
+        guard shape.rotation == 0, !m.contains(.alt), !m.contains(.shift), shape.aspectLock != true, !m.contains(.control) else {
             _guides = []
             return r
         }
