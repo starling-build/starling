@@ -176,6 +176,30 @@ final class TextBoxInsertTests: XCTestCase {
         XCTAssertEqual(c.document.paragraphs[i].image?.textBox?.paragraphs.map(\.text), ["one"])
     }
 
+    func testBoxWithAFieldAndATrackedInsertionIsEditedInPlace() throws {
+        let c = RichDocumentController(document: RichDocument(paragraphs: [RichParagraph(text: "body")]))
+        c.insertImage(try XCTUnwrap(TextBoxInsert.make(text: "one")))
+        let i = try XCTUnwrap(c.document.paragraphs.firstIndex { $0.image?.textBox != nil })
+        // A box whose words hold a page field and a tracked insertion, as a file would carry them.
+        var field = RichParagraph(text: "Page 7")
+        field.runs = [Run(length: 5, style: .plain), Run(length: 1, style: { var s = CharStyle.plain; s.field = "PAGE"; s.fieldResult = 7; return s }())]
+        var ins = RichParagraph(text: "added")
+        ins.runs = [Run(length: 5, style: { var s = CharStyle.plain; s.revision = RevisionMark(kind: .inserted, author: "A", date: ""); return s }())]
+        let paragraphs = [field, ins]
+        let xml = try XCTUnwrap(TextBoxInsert.contentXML(paragraphs))
+        XCTAssertTrue(xml.containsSubstring("PAGE"))
+        XCTAssertTrue(xml.containsSubstring("<w:ins "))
+        XCTAssertTrue(c.setTextBoxContent(at: i, paragraphs: paragraphs, contentXML: xml))
+        XCTAssertNotNil(c.textBoxParagraphs(at: i), "a field and a tracked change are no bar to editing in place")
+        let box = RichDocumentController(document: RichDocument(paragraphs: try XCTUnwrap(c.textBoxParagraphs(at: i))))
+        box.selectAll()
+        box.insertText("x")
+        let again = try XCTUnwrap(TextBoxInsert.contentXML(box.document.paragraphs))
+        XCTAssertTrue(c.setTextBoxContent(at: i, paragraphs: box.document.paragraphs, contentXML: again))
+        c.undo()
+        XCTAssertTrue(c.document.paragraphs[i].image?.sourceXML?.containsSubstring("PAGE") == true)
+    }
+
     func testNewTextBoxFitsItsTextAndGrowsWithTyping() throws {
         let c = RichDocumentController(document: RichDocument(paragraphs: [RichParagraph(text: "body")]))
         c.insertImage(try XCTUnwrap(TextBoxInsert.make(text: "one")))
