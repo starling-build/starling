@@ -19,7 +19,7 @@ private final class PicKeyed: StatelessWidget {
 /// Which picture dialog is open.
 enum PictureDialogKind { case altText, crop }
 
-final class AltTextDialog: StatefulWidget {
+final class PictureAltTextDialog: StatefulWidget {
     let initial: String
     let onOK: (String) -> Void
     let onCancel: () -> Void
@@ -27,11 +27,11 @@ final class AltTextDialog: StatefulWidget {
         self.initial = initial; self.onOK = onOK; self.onCancel = onCancel
         super.init()
     }
-    override func createState() -> State<StatefulWidget> { AltTextDialogState() }
+    override func createState() -> State<StatefulWidget> { PictureAltTextDialogState() }
 }
 
-final class AltTextDialogState: State<StatefulWidget> {
-    private var _w: AltTextDialog { widget as! AltTextDialog }
+final class PictureAltTextDialogState: State<StatefulWidget> {
+    private var _w: PictureAltTextDialog { widget as! PictureAltTextDialog }
     private let _text = TextEditingController()
     override func initState() { super.initState(); _text.text = _w.initial }
     override func dispose() { _text.dispose(); super.dispose() }

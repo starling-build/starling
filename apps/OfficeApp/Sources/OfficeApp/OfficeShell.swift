@@ -1327,7 +1327,7 @@ final class OfficeShellState: State<StatefulWidget> {
                 self?._editorFocus.requestFocus()
             }
             let dialog: Widget = kind == .altText
-                ? AltTextDialog(initial: image?.altText ?? "",
+                ? PictureAltTextDialog(initial: image?.altText ?? "",
                                 onOK: { [weak self] t in self?.controller.setImageAltText(at: i, inline: inline, t); close() },
                                 onCancel: close)
                 : CropDialog(initial: image?.crop,
