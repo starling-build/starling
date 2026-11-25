@@ -76,6 +76,11 @@ final class SlideCanvasState: State<StatefulWidget> {
         case marquee(start: Offset, now: Offset)
     }
     private var _drag: Drag? = nil
+    /// A finger has touched the canvas: the handles get a fingertip's reach (they are drawn the same).
+    private var _touchSeen = false
+    private static let touchReach = 44.0
+    /// How far above the top edge a finger's rotate handle sits (a mouse's is 22), clear of the top-middle handle's reach.
+    private static let touchLift = 44.0
     private var _guides: [SlideGuide] = []
 
     private var _w: SlideCanvas { widget as! SlideCanvas }
@@ -297,6 +302,7 @@ final class SlideCanvasState: State<StatefulWidget> {
         stack.append(Positioned(left: 0, top: 0, right: 0, bottom: 0, child: Listener(
             onPointerDown: { [weak self] e in
                 guard let self else { return }
+                if e.kind == .touch { self._touchSeen = true }
                 if e.buttons & kSecondaryMouseButton != 0, let menu = self._w.onContextMenu {
                     if self._w.active !== shape, !self.deck.isSelected(shape) { self.deck.selectWholeGroup(of: shape) }
                     menu(e.position, shape)
@@ -338,7 +344,8 @@ final class SlideCanvasState: State<StatefulWidget> {
             Positioned(left: 0, top: 0, right: 0, bottom: 0, child: IgnorePointer(child: CustomPaint(
                 painter: _ChromePainter(selection: deck.selection, active: _w.active, guides: _guides,
                                         marquee: _marqueeRect, slideSize: deck.slideSize,
-                                        ox: ox, oy: oy, px: px, accent: accent),
+                                        ox: ox, oy: oy, px: px, accent: accent,
+                                        stalk: _touchSeen ? Self.touchLift - 6 : 16),
                 child: SizedBox(expand: ())))),
         ]
         if _w.animationBadges, !slide.animations.isEmpty {
@@ -350,14 +357,17 @@ final class SlideCanvasState: State<StatefulWidget> {
         // Handles on a single selection.
         if deck.selection.count == 1, let shape = deck.selection.first {
             let s = 9.0
+            // A finger's reach, where the shape leaves room: neighbouring handles are half the shape's short side
+            // apart, so a hit area never grows past half of that and never over a neighbour's.
+            let reach = _touchSeen ? max(s, min(Self.touchReach, min(shape.frame.width, shape.frame.height) * px / 2)) : s
             let isLine = shape.preset?.isLine == true
             let units: [(Int, (Double, Double))] = isLine
                 ? [(0, (0, 0)), (4, (1, 1))]
                 : Array(Self.handleUnits.enumerated()).map { ($0.offset, $0.element) }
             for (i, u) in units {
                 let p = Self._framePoint(shape, u.0, u.1)
-                children.append(Positioned(left: ox + p.dx * px - s / 2, top: oy + p.dy * px - s / 2, width: s, height: s,
-                                           child: _handle(accent: accent, cursor: Self._cursor(i, shape.rotation)) { [weak self] e in
+                children.append(Positioned(left: ox + p.dx * px - reach / 2, top: oy + p.dy * px - reach / 2, width: reach, height: reach,
+                                           child: _handle(accent: accent, shown: s, cursor: Self._cursor(i, shape.rotation)) { [weak self] e in
                                                guard let self else { return }
                                                self._drag = .resize(shape: shape, handle: i,
                                                                     start: self._slidePoint(e.position),
@@ -367,10 +377,12 @@ final class SlideCanvasState: State<StatefulWidget> {
             }
             if !isLine {
                 let top = Self._framePoint(shape, 0.5, 0)
-                let up = Self.rotate(Offset(0, -22 / px), shape.rotation)
+                let lift = _touchSeen ? Self.touchLift : 22.0
+                let up = Self.rotate(Offset(0, -lift / px), shape.rotation)
                 let p = Offset(top.dx + up.dx, top.dy + up.dy)
-                children.append(Positioned(left: ox + p.dx * px - 6, top: oy + p.dy * px - 6, width: 12, height: 12,
-                                           child: _handle(accent: accent, round: true, cursor: SystemMouseCursors.grab) { [weak self] e in
+                let rr = _touchSeen ? Self.touchReach - 4 : 12.0
+                children.append(Positioned(left: ox + p.dx * px - rr / 2, top: oy + p.dy * px - rr / 2, width: rr, height: rr,
+                                           child: _handle(accent: accent, round: true, shown: 12, cursor: SystemMouseCursors.grab) { [weak self] e in
                                                guard let self else { return }
                                                let c = shape.frame.center
                                                let q = self._slidePoint(e.position)
@@ -395,18 +407,20 @@ final class SlideCanvasState: State<StatefulWidget> {
         }
     }
 
-    private func _handle(accent: Color, round: Bool = false, cursor: MouseCursor,
+    /// `shown` is the handle as drawn; the widget is as big as the hit area, so the drawn square sits in its middle.
+    private func _handle(accent: Color, round: Bool = false, shown: Double, cursor: MouseCursor,
                          onDown: @escaping (PointerDownEvent) -> Void) -> Widget {
-        Listener(
+        let box = DecoratedBox(
+            decoration: BoxDecoration(color: Color(0xFFFFFFFF),
+                                      border: Border.all(color: accent, width: 1.5),
+                                      borderRadius: BorderRadius.all(Radius(circular: round ? 6 : 1))),
+            child: SizedBox(expand: ()))
+        return Listener(
             onPointerDown: onDown,
             onPointerMove: { [weak self] e in self?._pointerMove(e) },
             onPointerUp: { [weak self] e in self?._pointerUp(e) },
             behavior: .opaque,
-            child: MouseRegion(cursor: cursor, child: DecoratedBox(
-                decoration: BoxDecoration(color: Color(0xFFFFFFFF),
-                                          border: Border.all(color: accent, width: 1.5),
-                                          borderRadius: BorderRadius.all(Radius(circular: round ? 6 : 1))),
-                child: SizedBox(expand: ()))))
+            child: MouseRegion(cursor: cursor, child: Center(child: SizedBox(width: shown, height: shown, child: box))))
     }
 
     private var _marqueeRect: Rect? {
@@ -421,6 +435,7 @@ final class SlideCanvasState: State<StatefulWidget> {
     private var _additive: Bool { let m = _w.modifiers(); return m.contains(.shift) || m.contains(.control) || m.contains(.meta) }
 
     private func _backdropDown(_ e: PointerDownEvent) {
+        if e.kind == .touch { _touchSeen = true }
         if e.buttons & kSecondaryMouseButton != 0, let menu = _w.onContextMenu {
             FocusManager.instance.focusedNode?.unfocus()
             _w.onEdit(nil)
@@ -438,6 +453,7 @@ final class SlideCanvasState: State<StatefulWidget> {
     }
 
     private func _shapeDown(_ shape: SlideShape, _ e: PointerDownEvent) {
+        if e.kind == .touch { _touchSeen = true }
         Self._log("down on shape \(shape.id) at \(e.position)")
         if e.buttons & kSecondaryMouseButton != 0, let menu = _w.onContextMenu {
             if _w.active !== shape {
@@ -773,9 +789,11 @@ private final class _ChromePainter: CustomPainter {
     let slideSize: Size
     let ox: Double, oy: Double, px: Double
     let accent: Color
+    let stalk: Double
 
     init(selection: [SlideShape], active: SlideShape?, guides: [SlideGuide], marquee: Rect?, slideSize: Size,
-         ox: Double, oy: Double, px: Double, accent: Color) {
+         ox: Double, oy: Double, px: Double, accent: Color, stalk: Double = 16) {
+        self.stalk = stalk
         self.selection = selection
         self.active = active
         self.guides = guides
@@ -810,7 +828,7 @@ private final class _ChromePainter: CustomPainter {
                 }
                 if selection.count == 1 {
                     // The stalk of the rotation handle.
-                    canvas.drawLine(Offset(r.center.dx, r.top), Offset(r.center.dx, r.top - 16), line)
+                    canvas.drawLine(Offset(r.center.dx, r.top), Offset(r.center.dx, r.top - stalk), line)
                 }
             }
             canvas.restore()
