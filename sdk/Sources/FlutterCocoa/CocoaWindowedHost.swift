@@ -58,6 +58,7 @@ public enum CocoaWindowedHost {
                 }
             }
             h.mountWidget(root)
+            CocoaAccessibility.start()
             h.run()
         }
         // hostPeriodicTimerInstall is deliberately left unset. On Darwin
