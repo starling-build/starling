@@ -365,6 +365,8 @@ extension SlideContext {
                 // masters say 12 pt); none where it says nothing.
                 if Self._unkerned(cs.fontFamily, bold: cs.bold) { cs.kerningFrom = 0 } else { cs.kerningFrom = s.kern ?? unsaidKern }
                 if symbolRun { cs.symbolFace = "Symbol" }
+                let click = package.clickAction(rPr?.first("a:hlinkClick"), part: part)
+                cs.link = click.link; cs.linkTip = click.tip
                 let plain = cs
                 Self.faceSpacing(&cs)
                 cs.shadow = s.shadow

@@ -184,8 +184,11 @@ struct ReadShape: Equatable {
     var field: SlideField?
     /// `cNvPr hidden`: shown or hidden (the Selection Pane's eye). The file's own XML takes the change.
     var invisible: Bool
+    var link: String?
+    var linkTip: String?
 
     init(_ s: ShapeState) {
+        link = s.link; linkTip = s.linkTip
         name = s.name; kind = s.kind; frame = s.frame; rotation = s.rotation; flipH = s.flipH; flipV = s.flipV
         fill = s.fill; fillScheme = s.fillScheme; outline = s.outline; outlineWidth = s.outlineWidth
         anchor = s.anchor; insets = s.insets; autofit = s.autofit; fontScale = s.fontScale; field = s.field
@@ -719,6 +722,9 @@ final class SlideShape {
     /// A picture as read (with `sourceXML`).
     /// Alt text (`descr` on the shape's `cNvPr`): what a screen reader says for a picture.
     var altText: String? = nil
+    /// The click action on the whole shape (a:hlinkClick on its cNvPr): a URL, "slide:<part>" or "action:<ppaction>".
+    var link: String? = nil
+    var linkTip: String? = nil
     var keptPicture: KeptPicture? = nil
     /// Shrink the text to fit the shape (PowerPoint's `normAutofit`), and
     /// the scale it is drawn at now (its sizes stay as typed).
