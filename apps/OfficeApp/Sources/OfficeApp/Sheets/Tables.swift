@@ -36,6 +36,12 @@ struct SheetTable: Equatable, Sendable {
     /// as the file wrote them.
     var name = ""
     var columnNames: [String] = []
+    /// A totals row made here: the label and function (`sum`, `count`) for
+    /// the columns that carry one, by position in the table.
+    var totalsLabels: [Int: String] = [:]
+    var totalsFunctions: [Int: String] = [:]
+    /// Made here, with no part in the file yet.
+    var isNew: Bool { path.isEmpty }
 }
 
 enum TablesXML {
@@ -99,12 +105,27 @@ enum TablesXML {
             var unique = name, n = 2
             while used.contains(unique.lowercased()) { unique = name + "\(n)"; n += 1 }
             used.insert(unique.lowercased())
+            var col: String
             if let id, let text = byId[id] {
-                cols += _setAttr(text, "name", Xlsx._esc(unique))
+                col = _setAttr(text, "name", Xlsx._esc(unique))
             } else {
-                cols += "<tableColumn id=\"\(nextId)\" name=\"\(Xlsx._esc(unique))\"/>"
+                col = "<tableColumn id=\"\(nextId)\" name=\"\(Xlsx._esc(unique))\"/>"
                 nextId += 1
             }
+            if t.edited {
+                // The totals row made or removed here.
+                if t.totalsRow {
+                    if let l = t.totalsLabels[i] { col = _setAttr(col, "totalsRowLabel", Xlsx._esc(l)) }
+                    if let f = t.totalsFunctions[i] { col = _setAttr(col, "totalsRowFunction", f) }
+                } else {
+                    col = _removeAttr(col, "totalsRowLabel")
+                    col = _removeAttr(col, "totalsRowFunction")
+                    while let f = col.findRange(of: "<totalsRowFormula"), let e = col.findRange(of: "</totalsRowFormula>", in: f.upperBound ..< col.endIndex) {
+                        col.removeSubrange(f.lowerBound ..< e.upperBound)
+                    }
+                }
+            }
+            cols += col
         }
         let start = String(block[..<(block.firstIndex(of: ">").map { block.index(after: $0) } ?? block.endIndex)])
         xml.replaceSubrange(a.lowerBound ..< b.upperBound,
@@ -115,7 +136,37 @@ enum TablesXML {
                 xml.removeSubrange(f.lowerBound ..< e.upperBound)
             }
         }
+        if t.edited {
+            if let r = xml.findRange(of: "<table "), let e = xml.findRange(of: ">", in: r.upperBound ..< xml.endIndex) {
+                var tag = String(xml[r.lowerBound ..< e.upperBound])
+                tag = t.totalsRow ? _removeAttr(_setAttr(tag, "totalsRowCount", "1"), "totalsRowShown") : _removeAttr(tag, "totalsRowCount")
+                xml.replaceSubrange(r.lowerBound ..< e.upperBound, with: tag)
+            }
+            if let a = xml.findRange(of: "<tableStyleInfo"), let b = xml.findRange(of: "/>", in: a.upperBound ..< xml.endIndex) {
+                xml.removeSubrange(a.lowerBound ..< b.upperBound)
+            }
+            if let name = t.style {
+                let el = "<tableStyleInfo name=\"\(Xlsx._esc(name))\" showFirstColumn=\"\(t.firstColumn ? 1 : 0)\" showLastColumn=\"\(t.lastColumn ? 1 : 0)\" showRowStripes=\"\(t.rowStripes ? 1 : 0)\" showColumnStripes=\"\(t.columnStripes ? 1 : 0)\"/>"
+                let at = xml.findRange(of: "<extLst")?.lowerBound ?? xml.findRange(of: "</table>")?.lowerBound ?? xml.endIndex
+                xml.insert(contentsOf: el, at: at)
+            }
+        }
         return Data(xml.utf8)
+    }
+
+    /// The part for a table made here: its ranges, columns and style are
+    /// filled in by `write`.
+    static func newPart(_ t: SheetTable, id: Int) -> Data {
+        Data(("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<table xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" id=\"\(id)\" name=\"\(Xlsx._esc(t.name))\" displayName=\"\(Xlsx._esc(t.name))\" ref=\"A1\" totalsRowShown=\"0\"><autoFilter ref=\"A1\"/><tableColumns count=\"0\"></tableColumns></table>").utf8)
+    }
+
+    private static func _removeAttr(_ text: String, _ name: String) -> String {
+        var s = text
+        let tagEnd = s.firstIndex(of: ">") ?? s.endIndex
+        if let a = s.findRange(of: " \(name)=\"", in: s.startIndex ..< tagEnd), let b = s.findRange(of: "\"", in: a.upperBound ..< s.endIndex) {
+            s.removeSubrange(a.lowerBound ..< b.upperBound)
+        }
+        return s
     }
 
     private static func _attr(_ tag: String, _ name: String) -> String? {

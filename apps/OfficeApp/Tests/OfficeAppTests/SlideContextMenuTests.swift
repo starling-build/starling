@@ -58,8 +58,10 @@ final class SlideContextMenuTests: XCTestCase {
 
     func testTheShapeMenuGroupsAndUngroups() throws {
         let (ui, deck, canvas) = try shell()
-        let a = deck.currentSlide.shapes[0], b = deck.currentSlide.shapes[1]
+        let a = deck.addShape(.rect), b = deck.addShape(.rect)
+        a.frame = Rect.fromLTWH(20, 440, 200, 60); b.frame = Rect.fromLTWH(300, 440, 200, 60)
         deck.selectShapes([a, b])
+        settle(ui)
         func tapLast(_ label: String) throws {
             let row = try XCTUnwrap(ui.elements().last { ($0.widget as? Text)?.data == label })
             let box = try XCTUnwrap(row.findRenderObject() as? RenderBox)
@@ -68,11 +70,35 @@ final class SlideContextMenuTests: XCTestCase {
         }
         ui.tap(at: canvas.screenPoint(a.frame.center), buttons: kSecondaryMouseButton)
         settle(ui)
+        XCTAssertTrue(ui.has(text: "Align Left"), "menu open: \(ui.texts().suffix(25))")
         try tapLast("Group")
         XCTAssertNotNil(a.group); XCTAssertEqual(a.group?.key, b.group?.key)
         ui.tap(at: canvas.screenPoint(a.frame.center), buttons: kSecondaryMouseButton)
         settle(ui)
         try tapLast("Ungroup")
         XCTAssertNil(a.group)
+    }
+
+    /// S-AR-2: the shape menu flips and turns the selection.
+    func testTheShapeMenuFlipsAndRotates() throws {
+        let (ui, deck, canvas) = try shell()
+        let a = deck.addShape(.rect)
+        a.frame = Rect.fromLTWH(100, 440, 80, 40)
+        deck.selectShapes([a])
+        settle(ui)
+        func tapLast(_ label: String) throws {
+            let row = try XCTUnwrap(ui.elements().last { ($0.widget as? Text)?.data == label })
+            let box = try XCTUnwrap(row.findRenderObject() as? RenderBox)
+            ui.tap(at: box.localToGlobal(Offset(box.size.width / 2, box.size.height / 2)))
+            settle(ui)
+        }
+        ui.tap(at: canvas.screenPoint(a.frame.center), buttons: kSecondaryMouseButton)
+        settle(ui)
+        try tapLast("Flip Horizontal")
+        XCTAssertTrue(a.flipH)
+        ui.tap(at: canvas.screenPoint(a.frame.center), buttons: kSecondaryMouseButton)
+        settle(ui)
+        try tapLast("Rotate Right 90°")
+        XCTAssertEqual(a.rotation, 90, accuracy: 0.01)
     }
 }

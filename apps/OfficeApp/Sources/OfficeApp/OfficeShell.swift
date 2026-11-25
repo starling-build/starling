@@ -66,16 +66,29 @@ final class OfficeShellState: State<StatefulWidget> {
     private let _editorFocus = FocusNode(debugLabel: "Writer document")
     private let _findReplacement = TextEditingController()
     private var _headerFooterOpen = false
-    private var _linkOpen = false
+    private var _shortcutsOpen = false
+    private var _cardLink: String? = nil      // the link under the caret, shown on the link card
+    private var _cardDismissed = false
+    private var _linkDialogOpen = false
     private var _colorOpen = false
     private var _paragraphOpen = false
     private var _findDialogOpen = false
     private var _symbolOpen = false
     private var _fontOpen = false
     private var _pageSetupOpen = false
+    private var _insertTableOpen = false
+    private var _bordersOpen = false
+    private var _printOpen = false
+    private var _pictureDialog: PictureDialogKind?
+    /// A text box being typed into in place: the box, where it is drawn (in the page area), and the document's own controller
+    /// while `session.controller` is the box's.
+    private var _boxEdit: (index: Int, inline: String?, rect: Rect, main: RichDocumentController)?
+    private let _boxFocus = FocusNode(debugLabel: "Text box")
+    /// Set while the picker is open for Change Picture: the picture (paragraph, inline id) the chosen file replaces.
+    private var _replaceTarget: (index: Int, inline: String?)?
+    private var _numberingValueOpen = false
     private let _colorText = TextEditingController()
     private var _styleOpen: String? = nil
-    private let _linkText = TextEditingController()
     private var _linkHover: String? = nil
     private var _autosaveGeneration = 0
     private let _contextMenu = FlyoutController()
@@ -178,6 +191,8 @@ final class OfficeShellState: State<StatefulWidget> {
             if let last = self.controller.document.lastSectionPage, last != self.session.pageSetup {
                 self.setState { self.session.pageSetup = last }
             }
+            let under = self.controller.currentLink
+            if under != self._cardLink { self.setState { self._cardLink = under; self._cardDismissed = false } }
             let s = self.session.summarize()
             let dirty = self.controller.revision != self._savedRevision
             if dirty { self._scheduleAutosave() }
@@ -202,6 +217,26 @@ final class OfficeShellState: State<StatefulWidget> {
         let c = controller
         let style = c.currentCharStyle
         let list = c.document.paragraphs[min(c.selection.focus.paragraph, c.document.paragraphs.count - 1)].style.list
+        // What the selection is in: a table cell gets row and column commands, a picture its size and removal.
+        var context: [OfficeScene.ToolbarButton] = []
+        if c.isInCell {
+            context += [
+                .init(id: "ctx-row-add", title: "Insert Row Below", symbol: "plus.rectangle") { [weak c] in c?.insertRow(below: true) },
+                .init(id: "ctx-row-del", title: "Delete Row", symbol: "minus.rectangle") { [weak c] in c?.deleteRow() },
+                .init(id: "ctx-col-add", title: "Insert Column Right", symbol: "plus.rectangle.portrait") { [weak c] in c?.insertColumn(after: true) },
+                .init(id: "ctx-col-del", title: "Delete Column", symbol: "minus.rectangle.portrait") { [weak c] in c?.deleteColumn() },
+            ]
+        }
+        if let i = c.selectedImageIndex, i < c.document.paragraphs.count, let image = c.document.paragraphs[i].image {
+            context += [
+                .init(id: "ctx-pic-fit", title: "Fit Picture to Width", symbol: "arrow.left.and.right") { [weak c, weak session] in
+                    guard let c, let session else { return }
+                    let w = session.pageSetup.columnWidth
+                    c.setImageSize(at: i, width: w, height: w * image.height / max(1, image.width))
+                },
+                .init(id: "ctx-pic-del", title: "Delete Picture", symbol: "trash") { [weak c] in c?.deleteForward() },
+            ]
+        }
         officeScene.publishToolbar(.init(
             canUndo: c.canUndo, canRedo: c.canRedo,
             bold: style.bold, italic: style.italic, underline: style.underline,
@@ -210,7 +245,8 @@ final class OfficeShellState: State<StatefulWidget> {
             // closed window's whole document in memory.)
             undo: { [weak c] in c?.undo() }, redo: { [weak c] in c?.redo() },
             toggleBold: { [weak c] in c?.toggleBold() }, toggleItalic: { [weak c] in c?.toggleItalic() },
-            toggleUnderline: { [weak c] in c?.toggleUnderline() }, toggleList: { [weak c] in c?.toggleList($0) }), owner: self)
+            toggleUnderline: { [weak c] in c?.toggleUnderline() }, toggleList: { [weak c] in c?.toggleList($0) },
+            context: context), owner: self)
     }
 
     override func dispose() {
@@ -222,7 +258,6 @@ final class OfficeShellState: State<StatefulWidget> {
         _findReplacement.dispose()
         _editorFocus.dispose()
         _headerText.dispose()
-        _linkText.dispose()
         _colorText.dispose()
         _footerText.dispose()
         super.dispose()
@@ -358,6 +393,7 @@ final class OfficeShellState: State<StatefulWidget> {
             }
         }
         #endif
+        session.onShortcuts = { [weak self] in self?.setState { self?._backstage = nil; self?._shortcutsOpen = true } }
         session.onFind = { [weak self] replace in self?._openFind(replace: replace) }
         session.onHeaderFooter = { [weak self] in
             guard let self else { return }
@@ -388,6 +424,26 @@ final class OfficeShellState: State<StatefulWidget> {
             self.controller.breakUndoCoalescing()
             self.setState { self._pageSetupOpen = true }
         }
+        session.onInsertTableDialog = { [weak self] in
+            guard let self else { return }
+            self.controller.breakUndoCoalescing()
+            self.setState { self._insertTableOpen = true }
+        }
+        session.onBordersShadingDialog = { [weak self] in
+            guard let self else { return }
+            self.controller.breakUndoCoalescing()
+            self.setState { self._bordersOpen = true }
+        }
+        session.onPictureDialog = { [weak self] kind in
+            guard let self else { return }
+            self.controller.breakUndoCoalescing()
+            self.setState { self._pictureDialog = kind }
+        }
+        session.onNumberingValueDialog = { [weak self] in
+            guard let self else { return }
+            self.controller.breakUndoCoalescing()
+            self.setState { self._numberingValueOpen = true }
+        }
         session.onMoreColors = { [weak self] in
             guard let self else { return }
             self._colorText.text = self.controller.currentCharStyle.color.map(ColorBar.hex) ?? ""
@@ -408,6 +464,15 @@ final class OfficeShellState: State<StatefulWidget> {
             }
             self.setState { self._backstage = .insertPicture }
         }
+        session.onChangePicture = { [weak self] in
+            guard let self, let i = self.session.summary.imageIndex else { return }
+            self._replaceTarget = (i, self.session.summary.inlineImageID)
+            if let ask = self.officeScene.pictureRequested {
+                ask { [weak self] path in if let path { self?._insertPicture(path) } else { self?._replaceTarget = nil } }
+                return
+            }
+            self.setState { self._backstage = .insertPicture }
+        }
         session.onStatus = { [weak self] msg in self?._flash(msg) }
         session.onToggleAutoSave = { [weak self] in
             guard let self else { return }
@@ -415,7 +480,11 @@ final class OfficeShellState: State<StatefulWidget> {
             self._flash(self.session.autoSave ? "AutoSave on" : "AutoSave off — a recovery copy is still kept")
             self._scheduleAutosave()
         }
-        session.onPrint = { [weak self] in self?._print() }
+        session.onPrint = { [weak self] in
+            guard let self else { return }
+            self.controller.breakUndoCoalescing()
+            self.setState { self._backstage = nil; self._printOpen = true }
+        }
     }
 
     // MARK: Diagnostics
@@ -443,10 +512,6 @@ final class OfficeShellState: State<StatefulWidget> {
 
     /// Render to a PDF in the temporary directory and hand it to the host's
     /// print dialog.
-    private func _print() {
-        _outOfThisBlock { [weak self] in self?._printNow() }
-    }
-
     /// Runs `work` from the run loop, not from the block it was asked in. A PDF still waits for the pictures a
     /// header's metafile or a drawing group decodes on the main queue (the body's, headers' and text boxes' reach
     /// it through the layout's mailbox), by spinning the run loop, which cannot drain a serial queue it is itself
@@ -460,19 +525,28 @@ final class OfficeShellState: State<StatefulWidget> {
         #endif
     }
 
-    private func _printNow() {
+    private func _print(pages: [Int]) -> String {
         #if os(WASI)
-        _flash("Printing is not available in the browser yet")
+        return "Printing is not available in the browser yet"
         #else
         let path = NSTemporaryDirectory() + "office-print-\(ProcessInfo.processInfo.processIdentifier).pdf"
         guard PdfExport.write(controller.document, pageSetup: session.pageSetup, theme: session.theme,
-                              to: path, title: session.title) else {
-            _flash("Could not render the document for printing")
-            return
+                              to: path, title: session.title, printPages: pages) else {
+            return "Could not render the document for printing"
         }
-        setState { _backstage = nil }
-        if let print = hostPrintPDF { print(path) } else { _flash("No print dialog on this host") }
+        if let print = hostPrintPDF { print(path); return "" }
+        return "No print dialog on this host"
         #endif
+    }
+
+    private var _printHooks: PrintHooks {
+        PrintHooks(unit: "Pages", total: max(1, session.pageInfo.count), current: session.pageInfo.page,
+                   hostCanPrint: hostPrintPDF != nil, print: { [weak self] pages, _ in
+                       // Off iOS the work runs at once and its message comes back to the dialog.
+                       var result = ""
+                       self?._outOfThisBlock { result = self?._print(pages: pages) ?? "" }
+                       return result
+                   })
     }
 
     // MARK: AutoSave and recovery
@@ -656,6 +730,7 @@ final class OfficeShellState: State<StatefulWidget> {
     }
 
     private func _save(afterSaving: (() -> Void)? = nil) {
+        _leaveBox()
         if let hosted = (widget as! OfficeShell).hosted {
             // The owner stores it (a wiki page: a new version). Export is
             // still the way to a .docx.
@@ -705,6 +780,7 @@ final class OfficeShellState: State<StatefulWidget> {
     }
 
     private func _saveTo(_ path: String) {
+        _leaveBox()
         do {
             try OfficeFormats.write(controller.document, to: path, pageSetup: session.pageSetup)
             officeScene.documentSaved?(path)
@@ -732,6 +808,7 @@ final class OfficeShellState: State<StatefulWidget> {
     }
 
     private func _export(_ ext: String, share: Bool = false) {
+        _leaveBox()
         let base = session.path.map { $0.deletingPathExtension }
             ?? homeDirectory() + "/Documents/" + session.title
         let target = base + "." + ext
@@ -810,6 +887,7 @@ final class OfficeShellState: State<StatefulWidget> {
     private func _insertPicture(_ path: String) {
         setState { _backstage = nil }
         guard let data = FileManager.default.contents(atPath: path) else {
+            _replaceTarget = nil
             _flash("Could not read \(path.lastPathComponent)")
             return
         }
@@ -821,6 +899,14 @@ final class OfficeShellState: State<StatefulWidget> {
                 codec.dispose()
                 let px = Double(frame.image.width), py = Double(frame.image.height)
                 frame.image.dispose()
+                if let t = self._replaceTarget {
+                    self._replaceTarget = nil
+                    if self.controller.replacePicture(at: t.index, inline: t.inline, with: data, name: path.lastPathComponent,
+                                                      naturalWidth: px * 0.75, naturalHeight: py * 0.75) {
+                        self._flash("Changed to \(path.lastPathComponent)")
+                    } else { self._flash("This picture cannot be changed") }
+                    return
+                }
                 let maxW = self.session.pageSetup.contentWidth
                 var w = px * 0.75, h = py * 0.75
                 if w > maxW { h *= maxW / w; w = maxW }
@@ -1026,20 +1112,29 @@ final class OfficeShellState: State<StatefulWidget> {
     // MARK: Links
 
     private func _openLink() {
-        _linkText.text = controller.currentLink ?? ""
-        setState { _linkOpen = true }
+        setState { _linkDialogOpen = true }
     }
 
-    private func _applyLink() {
-        var url = _linkText.text.trimmingWhitespace()
-        guard !url.isEmpty else { setState { _linkOpen = false }; return }
-        // A bare host becomes https, a bare address mailto.
-        if !url.containsSubstring("://") && !url.hasPrefix("mailto:") && !url.hasPrefix("#") {
-            url = url.containsSubstring("@") && !url.containsSubstring("/") ? "mailto:" + url : "https://" + url
+    private var _linkHooks: HyperlinkHooks {
+        let targets = controller.linkTargets()
+        let places = targets.enumerated().map { i, t in
+            HyperlinkPlace(id: "\(i)", title: t.title,
+                           kind: t.kind == .bookmark ? "Bookmark" : "Heading \(t.level)")
         }
-        controller.setLink(url)
-        setState { _linkOpen = false }
-        _flash("Linked to \(url)")
+        var h = HyperlinkHooks(apply: { [weak self] addr, place, text, tip in
+            guard let self else { return "" }
+            let target = place.flatMap { Int($0) }.flatMap { $0 < targets.count ? targets[$0] : nil }
+            guard self.controller.applyHyperlink(address: addr, target: target, text: text, tip: tip) else { return "Nothing to link to" }
+            self._flash("Linked")
+            return ""
+        })
+        h.places = targets.isEmpty ? [] : places
+        h.address = controller.currentLink ?? ""
+        h.displayText = controller.selectedText
+        h.tip = controller.currentLinkTip ?? ""
+        h.canRemove = controller.currentLink != nil
+        h.remove = { [weak self] in self?.controller.setLink(nil) }
+        return h
     }
 
     // MARK: Shortcuts
@@ -1063,13 +1158,15 @@ final class OfficeShellState: State<StatefulWidget> {
         setState { session.summary = session.summarize() }
     }
 
-    private func _shortcut(_ key: KeyData, _ mods: KeyModifiers) -> Bool {
+    func _shortcut(_ key: KeyData, _ mods: KeyModifiers) -> Bool {
         let named = KeyChordTracker.named(key.logical)
         if named == .escape {
+            if _boxEdit != nil { _leaveBox(); return true }
             if session.paintedStyle != nil { _cancelPainter(); return true }
             if _styleOpen != nil { setState { _styleOpen = nil }; return true }
-            if _linkOpen { setState { _linkOpen = false }; return true }
-            if _paragraphOpen || _fontOpen { return false }   // the dialog's own Esc closes it
+            if _shortcutsOpen { return false }   // the dialog's own Esc closes it
+            if _cardLink != nil && !_cardDismissed { setState { _cardDismissed = true }; return true }
+            if _paragraphOpen || _fontOpen || _insertTableOpen || _bordersOpen || _pictureDialog != nil || _linkDialogOpen || _numberingValueOpen { return false }   // the dialog's own Esc closes it
             if _colorOpen { setState { _colorOpen = false }; return true }
             if _headerFooterOpen { setState { _headerFooterOpen = false }; return true }
             if _findOpen { setState { _findOpen = false }; _editorFocus.requestFocus(); return true }
@@ -1090,6 +1187,7 @@ final class OfficeShellState: State<StatefulWidget> {
             if mods.contains(.shift), key.logical == 0x38 || key.logical == 0x2A { session.onToggleMarks?(); return true }
             // ⌘= / ⌘- / ⌘0 zoom; ⌘] / ⌘[ grow and shrink the font.
             if key.logical == 0x3D || key.logical == 0x2B { session.onZoom?(session.zoom + 0.1); return true }
+            if key.logical == 0x2F { session.onShortcuts?(); return true }   // ⌘/ the shortcut list
             if key.logical == 0x2D { session.onZoom?(session.zoom - 0.1); return true }
             if key.logical == 0x30 { session.onZoom?(1.0); return true }
             if key.logical == 0x5D { c.stepFontSize(1, base: session.effectiveFontSize); return true }
@@ -1107,7 +1205,7 @@ final class OfficeShellState: State<StatefulWidget> {
         case "f": _openFind(replace: false)
         case "h": if mods.contains(.shift) { _openFindDialog() } else { _openFind(replace: true) }
         case "g": _findNext(backwards: mods.contains(.shift))
-        case "p": setState { _backstage = .print }
+        case "p": session.onPrint?()
         case "k": _openLink()
         case "d": session.onFontDialog?()   // ⌘D: the Font dialog, as in Word
         case "c" where mods.contains(.shift): session.paintedStyle = c.copyFormat(); session.paintSticky = false; setState { session.summary = session.summarize() }
@@ -1186,15 +1284,16 @@ final class OfficeShellState: State<StatefulWidget> {
                                    },
                                    onClose: { [weak self] in self?.setState { self?._colorOpen = false } }))
         }
-        if _linkOpen {
-            column.append(LinkBar(session: session, address: _linkText, hasLink: controller.currentLink != nil,
-                                  onApply: { [weak self] in self?._applyLink() },
-                                  onRemove: { [weak self] in
-                                      guard let self else { return }
-                                      self.controller.setLink(nil)
-                                      self.setState { self._linkOpen = false }
-                                  },
-                                  onClose: { [weak self] in self?.setState { self?._linkOpen = false } }))
+        if let link = _cardLink, !_cardDismissed {
+            column.append(LinkCard(
+                address: link, tip: controller.currentLinkTip ?? "",
+                onOpen: { [weak self] in self?._followLink(link) },
+                onEdit: { [weak self] in self?._openLink() },
+                onRemove: { [weak self] in
+                    self?.controller.setLink(nil)
+                    self?._editorFocus.requestFocus()
+                },
+                onClose: { [weak self] in self?.setState { self?._cardDismissed = true } }))
         }
         if _headerFooterOpen {
             column.append(HeaderFooterBar(session: session, header: _headerText, footer: _footerText,
@@ -1272,6 +1371,17 @@ final class OfficeShellState: State<StatefulWidget> {
                     })),
             ])
         }
+        if _printOpen {
+            return Stack(children: [
+                window,
+                Positioned(left: 0, top: 0, right: 0, bottom: 0, child: PrintDialog(
+                    hooks: _printHooks,
+                    onClose: { [weak self] in
+                        self?.setState { self?._printOpen = false }
+                        self?._editorFocus.requestFocus()
+                    })),
+            ])
+        }
         if _pageSetupOpen {
             let sections = controller.document.paragraphs.filter { $0.cell == nil && $0.style.sectionPage != nil }.count + 1
             return Stack(children: [
@@ -1293,6 +1403,77 @@ final class OfficeShellState: State<StatefulWidget> {
                     })),
             ])
         }
+        if _bordersOpen {
+            return Stack(children: [
+                window,
+                Positioned(left: 0, top: 0, right: 0, bottom: 0, child: BordersShadingDialog(
+                    onOK: { [weak self] v in
+                        guard let self else { return }
+                        v.apply(to: self.controller)
+                        self.setState { self._bordersOpen = false }
+                        self._editorFocus.requestFocus()
+                    },
+                    onCancel: { [weak self] in
+                        self?.setState { self?._bordersOpen = false }
+                        self?._editorFocus.requestFocus()
+                    })),
+            ])
+        }
+        if _linkDialogOpen {
+            return Stack(children: [
+                window,
+                Positioned(left: 0, top: 0, right: 0, bottom: 0, child: HyperlinkDialog(
+                    hooks: _linkHooks,
+                    onClose: { [weak self] in
+                        self?.setState { self?._linkDialogOpen = false }
+                        self?._editorFocus.requestFocus()
+                    })),
+            ])
+        }
+        if _insertTableOpen {
+            return Stack(children: [
+                window,
+                Positioned(left: 0, top: 0, right: 0, bottom: 0, child: InsertTableDialog(
+                    onOK: { [weak self] v in
+                        guard let self else { return }
+                        self.controller.insertTable(rows: v.rows, columns: v.columns, fit: v.fit)
+                        self.setState { self._insertTableOpen = false }
+                        self._editorFocus.requestFocus()
+                    },
+                    onCancel: { [weak self] in
+                        self?.setState { self?._insertTableOpen = false }
+                        self?._editorFocus.requestFocus()
+                    })),
+            ])
+        }
+        if _shortcutsOpen {
+            return Stack(children: [
+                window,
+                Positioned(left: 0, top: 0, right: 0, bottom: 0, child: ShortcutListDialog(
+                    table: ShortcutTable.writer, onClose: { [weak self] in self?.setState { self?._shortcutsOpen = false } })),
+            ])
+        }
+        if let kind = _pictureDialog, let i = session.summary.imageIndex {
+            let inline = session.summary.inlineImageID
+            let image = inline.map { controller.document.paragraphs[i].inlineImages[$0] } ?? controller.document.paragraphs[i].image
+            let close = { [weak self] in
+                self?.setState { self?._pictureDialog = nil }
+                self?._editorFocus.requestFocus()
+            }
+            let dialog: Widget = kind == .boxText
+                ? PictureAltTextDialog(initial: controller.textBoxText(at: i, inline: inline) ?? "", title: "Edit Text",
+                                       prompt: "The words in the text box. A new line starts a new paragraph.",
+                                       onOK: { [weak self] t in self?.controller.setTextBoxText(at: i, inline: inline, t); close() },
+                                       onCancel: close)
+                : kind == .altText
+                ? PictureAltTextDialog(initial: image?.altText ?? "",
+                                onOK: { [weak self] t in self?.controller.setImageAltText(at: i, inline: inline, t); close() },
+                                onCancel: close)
+                : CropDialog(initial: image?.crop,
+                             onOK: { [weak self] c in _ = self?.controller.setImageCrop(at: i, inline: inline, c); close() },
+                             onCancel: close)
+            return Stack(children: [window, Positioned(left: 0, top: 0, right: 0, bottom: 0, child: dialog)])
+        }
         if _paragraphOpen {
             return Stack(children: [
                 window,
@@ -1306,6 +1487,23 @@ final class OfficeShellState: State<StatefulWidget> {
                     },
                     onCancel: { [weak self] in
                         self?.setState { self?._paragraphOpen = false }
+                        self?._editorFocus.requestFocus()
+                    })),
+            ])
+        }
+        if _numberingValueOpen {
+            return Stack(children: [
+                window,
+                Positioned(left: 0, top: 0, right: 0, bottom: 0, child: NumberingValueDialog(
+                    initial: controller.currentNumberValue,
+                    onOK: { [weak self] n in
+                        guard let self else { return }
+                        self.controller.setNumberingValue(n)
+                        self.setState { self._numberingValueOpen = false }
+                        self._editorFocus.requestFocus()
+                    },
+                    onCancel: { [weak self] in
+                        self?.setState { self?._numberingValueOpen = false }
                         self?._editorFocus.requestFocus()
                     })),
             ])
@@ -1342,8 +1540,8 @@ final class OfficeShellState: State<StatefulWidget> {
         theme.selectionColor = fluent.accentColor.defaultBrushFor(.light).withOpacity(0.25)
         let paged = session.viewMode == .printLayout
         let readMargin = session.viewMode == .readMode ? 120.0 : 24.0
-        return RichEditable(
-            controller: controller, theme: theme,
+        let editable = RichEditable(
+            controller: _boxEdit?.main ?? controller, theme: theme,
             padding: EdgeInsets(left: readMargin, top: 24, right: readMargin, bottom: 24),
             focusNode: _editorFocus,
             backgroundColor: paged ? backdrop : page, zoom: session.zoom,
@@ -1360,10 +1558,62 @@ final class OfficeShellState: State<StatefulWidget> {
             onLinkActivate: { [weak self] link in self?._followLink(link) },
             // Format Painter applies when a selection gesture ends, as Word does.
             onSelectionGestureEnd: { [weak self] in self?._applyPainter() },
+            onHeaderFooterEdit: { [weak self] _ in self?.session.onHeaderFooter?() },
             onContextMenu: { [weak self] point in self?._showContextMenu(at: point) },
             onTouchMenu: { [weak self] rect in self?._showTouchMenu(rect) },
-            spellChecker: session.checkSpelling ? _spelling : nil
+            spellChecker: session.checkSpelling ? _spelling : nil,
+            onTextBoxEnter: { [weak self] index, inline, rect in self?._enterBox(index, inline, rect) }
         )
+        guard let b = _boxEdit else { return editable }
+        let z = session.zoom
+        let boxEditor = RichEditable(
+            controller: controller, theme: theme,
+            padding: EdgeInsets(left: 7.2 * z, top: 3.6 * z, right: 7.2 * z, bottom: 3.6 * z),
+            focusNode: _boxFocus, backgroundColor: Color(0xFFFFFFFF), zoom: z,
+            onShortcut: { [weak self] key, mods in self?._shortcut(key, mods) ?? false },
+            scrolls: false)
+        return Stack(children: [
+            Positioned(left: 0, top: 0, right: 0, bottom: 0, child: editable),
+            // A press anywhere outside the box ends the edit (and still reaches the page under it).
+            Positioned(left: 0, top: 0, right: 0, bottom: 0, child: Listener(
+                onPointerDown: { [weak self] _ in self?._leaveBox() }, behavior: .translucent, child: SizedBox(expand: ()))),
+            Positioned(left: b.rect.left, top: b.rect.top, width: b.rect.width, height: b.rect.height, child: boxEditor),
+        ])
+    }
+
+    /// Start typing in the text box at `index`: the ribbon and the keys act on a controller over the box's own paragraphs
+    /// until `_leaveBox` puts them back, as one undo step.
+    private func _enterBox(_ index: Int, _ inline: String?, _ rect: Rect) {
+        guard _boxEdit == nil, let paragraphs = controller.textBoxParagraphs(at: index, inline: inline) else { return }
+        let main = controller
+        let box = RichDocumentController(document: RichDocument(paragraphs: paragraphs.isEmpty ? [RichParagraph(text: "")] : paragraphs))
+        box.clipboardCodec = OfficeClipboardCodec()
+        box.addListener { [weak self] in
+            guard let self, self._boxEdit != nil else { return }
+            let s = self.session.summarize()
+            if s != self.session.summary { self.setState { self.session.summary = s } }
+        }
+        setState {
+            _boxEdit = (index, inline, rect, main)
+            session.controller = box
+            session.summary = session.summarize()
+        }
+        _boxFocus.requestFocus()
+    }
+
+    /// Put the box's words back into the document (one undo step) and return to the page.
+    private func _leaveBox() {
+        guard let b = _boxEdit else { return }
+        let box = controller
+        setState {
+            _boxEdit = nil
+            session.controller = b.main
+        }
+        if let xml = TextBoxInsert.contentXML(box.document.paragraphs) {
+            b.main.setTextBoxContent(at: b.index, inline: b.inline, paragraphs: box.document.paragraphs, contentXML: xml)
+        }
+        setState { session.summary = session.summarize() }
+        _editorFocus.requestFocus()
     }
 }
 

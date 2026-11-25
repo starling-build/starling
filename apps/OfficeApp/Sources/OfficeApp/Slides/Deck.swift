@@ -173,6 +173,7 @@ struct ReadShape: Equatable {
     var rotation: Double
     var flipH: Bool
     var flipV: Bool
+    var aspectLock: Bool?
     var fill: Color?
     var fillScheme: String?
     var outline: Color?
@@ -184,9 +185,12 @@ struct ReadShape: Equatable {
     var field: SlideField?
     /// `cNvPr hidden`: shown or hidden (the Selection Pane's eye). The file's own XML takes the change.
     var invisible: Bool
+    var link: String?
+    var linkTip: String?
 
     init(_ s: ShapeState) {
-        name = s.name; kind = s.kind; frame = s.frame; rotation = s.rotation; flipH = s.flipH; flipV = s.flipV
+        link = s.link; linkTip = s.linkTip
+        name = s.name; kind = s.kind; frame = s.frame; rotation = s.rotation; flipH = s.flipH; flipV = s.flipV; aspectLock = s.aspectLock
         fill = s.fill; fillScheme = s.fillScheme; outline = s.outline; outlineWidth = s.outlineWidth
         anchor = s.anchor; insets = s.insets; autofit = s.autofit; fontScale = s.fontScale; field = s.field
         invisible = s.invisible
@@ -206,7 +210,7 @@ struct ReadShape: Equatable {
     func unchangedExceptPlacementAndText(_ s: ShapeState) -> Bool {
         var a = self
         let b = ReadShape(s)
-        a.frame = b.frame; a.rotation = b.rotation; a.flipH = b.flipH; a.flipV = b.flipV; a.invisible = b.invisible
+        a.frame = b.frame; a.rotation = b.rotation; a.flipH = b.flipH; a.flipV = b.flipV; a.invisible = b.invisible; a.aspectLock = b.aspectLock
         return a == b
     }
 }
@@ -668,6 +672,10 @@ final class SlideShape {
     /// rect), as read: drawn, and written back through the kept element.
     var flipH = false
     var flipV = false
+    /// Lock aspect ratio (`noChangeAspect`); nil = not set, so a picture is locked and other shapes are free.
+    var aspectLock: Bool? = nil
+    /// What the Format Shape pane and the canvas honour.
+    var aspectLocked: Bool { aspectLock ?? (picture != nil) }
     var pictureGeometry: ShapePreset? = nil
     /// A picture's transparency and duotone recolouring, as read.
     var pictureAlpha = 1.0
@@ -719,6 +727,9 @@ final class SlideShape {
     /// A picture as read (with `sourceXML`).
     /// Alt text (`descr` on the shape's `cNvPr`): what a screen reader says for a picture.
     var altText: String? = nil
+    /// The click action on the whole shape (a:hlinkClick on its cNvPr): a URL, "slide:<part>" or "action:<ppaction>".
+    var link: String? = nil
+    var linkTip: String? = nil
     var keptPicture: KeptPicture? = nil
     /// Shrink the text to fit the shape (PowerPoint's `normAutofit`), and
     /// the scale it is drawn at now (its sizes stay as typed).
@@ -908,6 +919,10 @@ final class Slide {
     /// `animations` as read from `timingXML`; nil when the file's timing
     /// holds what this app does not model, which is then kept, not edited.
     var sourceAnimations: [ShapeAnimation]? = nil
+    /// The source slide whose comments this copy carries (a duplicate or paste has no part of its own).
+    var commentsFrom: String? = nil
+    /// The source part slide-level kept things (background, controls, comments, drawings) are carried from.
+    var carryPart: String? { commentsFrom ?? sourcePart }
 
     /// The file's animations are kept as they are and cannot be edited here.
     var animationsKept: Bool { timingXML != nil && sourceAnimations == nil }

@@ -2489,6 +2489,21 @@ extension RichLayout {
         return (top, bottom)
     }
 
+    /// Which running part a canvas point falls in: the page's header band (above the body's top margin) or its
+    /// footer band (below the body's foot), nil on the body or off a horizontal paged layout. For double-click
+    /// to edit the header or footer on the page.
+    public func headerFooterZone(atCanvas pt: Offset, _ document: RichDocument) -> KeptHeaderFooter.Kind? {
+        guard isPaged, pageSetup != nil else { return nil }
+        let p = page(atCanvasY: pt.dy)
+        guard !pageSetup(forPage: p).vertical else { return nil }
+        let r = pageRect(p)
+        guard pt.dx >= r.left, pt.dx <= r.right, pt.dy >= r.top, pt.dy <= r.bottom else { return nil }
+        let ins = _bodyInsets(page: p, document)
+        if pt.dy - r.top < ins.top { return .header }
+        if r.bottom - pt.dy < ins.bottom { return .footer }
+        return nil
+    }
+
     /// Where the body of page `p` stands, in points down the paper: its top and its foot once a tall header or
     /// footer has pushed the margins out (what the balloon column of a marked-up print packs against).
     public func bodyBandPoints(page p: Int, _ document: RichDocument) -> (top: Double, bottom: Double) {

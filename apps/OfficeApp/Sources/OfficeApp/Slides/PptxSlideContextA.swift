@@ -222,6 +222,7 @@ extension SlideContext {
         let xfrm = el.first("p:spPr")?.first("a:xfrm")
         s.flipH = xfrm?["flipH"] == "1"
         s.flipV = xfrm?["flipV"] == "1"
+        s.aspectLock = el.first("p:nvPicPr")?.first("p:cNvPicPr")?.first("a:picLocks")?["noChangeAspect"] == "1"
         if let spPr = el.first("p:spPr") { s.scene3d = Extrusion.read(spPr, colors: colors) }
         if let prst = el.first("p:spPr")?.first("a:prstGeom")?["prst"], prst != "rect" {
             s.pictureGeometry = ShapePreset(rawValue: prst)

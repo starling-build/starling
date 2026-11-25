@@ -131,7 +131,11 @@ touch "$BC/$BSHA.lock" 2>/dev/null; chmod g+w "$BC/$BSHA.lock" 2>/dev/null; exec
 RC=$BC/$BSHA/rows
 fill_rows() { fill_rows_locked; local r=$?; flock -u 8; return $r; }
 fill_rows_locked() {
-  mkdir -p "$RC"; touch "$RC/tried.txt"; flock 8
+  mkdir -p "$RC"; flock 8
+  # STAMP (amd-8, 2026-11-25): rows are reused only if drawn with THIS base binary and THESE scorer files; otherwise redrawn.
+  RSTAMP=$(test/tools/gate-stamp.sh rows "$BASEBIN" 2>/dev/null)
+  if [ -n "$RSTAMP" ] && [ "$(cat "$RC/STAMP" 2>/dev/null)" != "$RSTAMP" ]; then echo "render-gate: base rows have no matching stamp (binary/scorer differ); redrawing"; rm -f "$RC"/*.v2 "$RC"/*.v1 "$RC/tried.txt" "$RC/REFS" "$RC/STAMP"; fi
+  touch "$RC/tried.txt"
   sort -u "$RC/tried.txt" | comm -23 "$ids" - > "$W/missing.txt"
   [ -s "$W/missing.txt" ] || { echo "render-gate: base scores cached for all $(wc -l < "$ids") documents"; return 0; }
   echo "render-gate: rendering base for $(wc -l < "$W/missing.txt") uncached documents"
@@ -141,6 +145,7 @@ fill_rows_locked() {
   if [ -s "$RC/REFS" ] && ! cmp -s "$RC/REFS" "$W/fill/fix/REFS"; then rm -f "$RC"/*.v2 "$RC"/*.v1 "$RC/tried.txt"; fi   # corpus changed: older rows are stale
   for f in "$W"/fill/fix/*.v2 "$W"/fill/fix/*.v1; do [ -f "$f" ] && cat "$f" >> "$RC/$(basename "$f")"; done
   cp "$W/fill/fix/REFS" "$RC/REFS"; cat "$W/missing.txt" >> "$RC/tried.txt"
+  [ -z "$RSTAMP" ] || echo "$RSTAMP" > "$RC/STAMP"
 }
 T0=$(date +%s); echo "render-gate: setup before the build $(( T0-S0 )) s (lock wait $(( SL-S0 )) s, corpus restore $(( ER-SR )) s)"; echo "render-gate: building"
 build_base() {   # builds BSHA into the shared cache once: the sha lock makes a second runner wait for the first instead of building it again

@@ -31,6 +31,16 @@ final class SheetsTabEditTests: XCTestCase {
         XCTAssertEqual(SheetPrintLayout.printNames(c.book, sheet: 0).areas.count, 1)
     }
 
+    func testDropOnATabMovesWithoutCtrlAndCopiesWithCtrl() throws {
+        let c = book3()
+        let n = c.book.sheets.count
+        c.dropTab(from: 0, to: 2, copy: false)
+        XCTAssertEqual(c.book.sheets.count, n, "no Ctrl: a move, not a copy")
+        let c2 = book3()
+        XCTAssertNil(c2.dropTab(from: 0, to: 2, copy: true))
+        XCTAssertEqual(c2.book.sheets.count, n + 1, "Ctrl: a copy")
+    }
+
     func testCopyRenamesAndPointsItsOwnReferencesAtTheCopy() throws {
         let c = WorkbookController()
         c.setInput("5", at: CellAddress(row: 0, col: 0))

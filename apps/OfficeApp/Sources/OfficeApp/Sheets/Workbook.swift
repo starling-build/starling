@@ -65,6 +65,9 @@ struct CellStyle: Hashable, Sendable {
     /// quarter; written back with the alignment it came in.
     var rotation = 0
     var numberFormat = "General"
+    /// `protection@locked` (a locked cell refuses edits once its sheet is protected) and `@hidden` (its formula is not shown).
+    var locked = true
+    var formulaHidden = false
     var borders = Borders()
     /// The file's cell format this one is, or was derived from: whatever
     /// the model does not hold (border kinds and colours, pattern fills,
@@ -503,7 +506,12 @@ final class Workbook {
     var iterateDelta = 0.001
     /// workbookProtection lockStructure: sheets cannot be added, deleted,
     /// renamed, hidden or shown.
-    var structureLocked = false
+    var structureLocked: Bool {
+        get { workbookProtection?["lockStructure"] == "1" || workbookProtection?["lockStructure"] == "true" }
+        set { var a = workbookProtection ?? [:]; a["lockStructure"] = newValue ? "1" : nil; workbookProtection = a.isEmpty ? nil : a }
+    }
+    /// The `workbookProtection` element's attributes as the file had them (nil: none), kept so a save writes them back.
+    var workbookProtection: [String: String]? = nil
     /// Every defined name the file had, built-ins (print areas, filter
     /// ranges) and sheet-local ones included, in order: what a save writes,
     /// with references kept current as rows, columns and sheets move.

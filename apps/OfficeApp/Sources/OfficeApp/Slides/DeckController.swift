@@ -48,6 +48,13 @@ struct ShapeState: Equatable {
     var crop: EdgeInsets? = nil
     var flipH = false
     var flipV = false
+    /// Lock aspect ratio (`noChangeAspect`): nil until set, when a picture counts as locked and any other shape as free.
+    var aspectLock: Bool? = nil
+    var aspectLocked: Bool {
+        if let l = aspectLock { return l }
+        if case .picture = kind { return true }
+        return false
+    }
     var pictureGeometry: ShapePreset? = nil
     var pictureAlpha = 1.0
     var pictureDuotone: [Color]? = nil
@@ -68,6 +75,8 @@ struct ShapeState: Equatable {
     var group: ShapeGroup? = nil
     var keptLine: KeptLine? = nil
     var altText: String? = nil
+    var link: String? = nil
+    var linkTip: String? = nil
     var keptPicture: KeptPicture? = nil
     var autofit = false
     var fontScale = 1.0
@@ -149,6 +158,10 @@ struct SlideState: Equatable {
     var footerFrames: [String: Rect] = [:]
     var animations: [ShapeAnimation] = []
     var sourceAnimations: [ShapeAnimation]? = nil
+    /// The file part whose comments this slide shows: its own source part, or the one it was copied from.
+    var commentsFrom: String? = nil
+    /// The source part slide-level kept things are carried from.
+    var carryPart: String? { commentsFrom ?? sourcePart }
 }
 
 struct DeckState: Equatable {
@@ -373,6 +386,7 @@ final class DeckController: ChangeNotifier {
         copy.transition = source.transition
         copy.footerFrames = source.footerFrames
         copy.layoutPart = source.layoutPart
+        copy.commentsFrom = source.commentsFrom ?? source.sourcePart
         return copy
     }
 
@@ -827,6 +841,19 @@ final class DeckController: ChangeNotifier {
         return count
     }
 
+    /// Replace every match of `pattern` in the deck's text (shapes, tables, notes) as one undo step; returns how many.
+    @discardableResult
+    func replaceEverywhere(_ pattern: TextPattern, with template: String) -> Int {
+        let count = matches(pattern).count
+        guard count > 0 else { return 0 }
+        _checkpoint()
+        for i in slides.indices {
+            for body in textStops(i) { body.controller.replaceAll(pattern, with: template) }
+        }
+        _changed()
+        return count
+    }
+
     // MARK: Header and footer
 
     /// PowerPoint's Header & Footer settings for slides.
@@ -1017,6 +1044,25 @@ final class DeckController: ChangeNotifier {
         return TableOptions(headerRow: st.headerRow, bandedRows: st.bandFill != nil && st.bandFill != st.bandAltFill)
     }
 
+    /// Shade cells of the selected table (nil clears the shading back to the
+    /// style's): one undo step. `block` names the cells; nil means every cell.
+    func setTableShading(_ color: Color?, block: CellBlock? = nil) {
+        guard let s = selection.first, s.kind == .table, let id = s.tableId, let text = s.text else { return }
+        var doc = text.document
+        var changed = false
+        for i in doc.paragraphs.indices {
+            guard var c = doc.paragraphs[i].cell, c.table == id, block.map({ $0.contains(c) }) ?? true,
+                  c.fill != color else { continue }
+            c.fill = color
+            doc.paragraphs[i].cell = c
+            changed = true
+        }
+        guard changed else { return }
+        _checkpoint()
+        text.load(doc)
+        _changed()
+    }
+
     /// Set the selected table's header row and banded rows: one undo step.
     /// Turning one back on restores the theme-accent look.
     func setTableOptions(_ o: TableOptions) {
@@ -1204,6 +1250,7 @@ final class DeckController: ChangeNotifier {
         _checkpoint()
         let copies = selection.map { _copy($0, offset: offset, keepGroup: true) }
         _regroupCopies(copies)
+        _renameCopies(copies)
         currentSlide.shapes.append(contentsOf: copies)
         for c in copies { _watch(c) }
         selection = copies
@@ -1256,6 +1303,7 @@ final class DeckController: ChangeNotifier {
             _watch(shape)
         }
         _regroupCopies(pasted)
+        _renameCopies(pasted)
         currentSlide.shapes.append(contentsOf: pasted)
         selection = pasted
         _changed()
@@ -1286,6 +1334,102 @@ final class DeckController: ChangeNotifier {
         guard !selection.isEmpty else { return }
         _checkpoint()
         for s in selection { s.frame = s.frame.shift(Offset(dx, dy)) }
+        _changed()
+    }
+
+    // MARK: Size and position (S-SH-6)
+
+    /// Sets the selected shapes' width and/or height, keeping each one's top left corner. With the
+    /// aspect lock on, the side not given follows in proportion. One undo step.
+    func setSize(width: Double? = nil, height: Double? = nil) {
+        guard !selection.isEmpty, width != nil || height != nil else { return }
+        _checkpoint()
+        for s in selection {
+            var w = width ?? s.frame.width, h = height ?? s.frame.height
+            if s.aspectLocked, s.frame.width > 0, s.frame.height > 0 {
+                if let width, height == nil { h = width * s.frame.height / s.frame.width }
+                else if let height, width == nil { w = height * s.frame.width / s.frame.height }
+            }
+            s.frame = Rect.fromLTWH(s.frame.left, s.frame.top, max(1, w), max(1, h))
+        }
+        _changed()
+    }
+
+    /// Moves the selection so the top left of its box sits at `left`, `top` (either may be left out).
+    func setPosition(left: Double? = nil, top: Double? = nil) {
+        guard let box = _selectionBounds, left != nil || top != nil else { return }
+        _checkpoint()
+        let d = Offset((left ?? box.left) - box.left, (top ?? box.top) - box.top)
+        for s in selection { s.frame = s.frame.shift(d) }
+        _changed()
+    }
+
+    /// Sets the turn of every selected shape, in degrees.
+    func setRotation(_ degrees: Double) {
+        guard !selection.isEmpty else { return }
+        _checkpoint()
+        var d = degrees.truncatingRemainder(dividingBy: 360)
+        if d < 0 { d += 360 }
+        for s in selection { s.rotation = d }
+        _changed()
+    }
+
+    /// Turns the aspect lock on or off for the selected shapes.
+    func setAspectLock(_ on: Bool) {
+        guard !selection.isEmpty, selection.contains(where: { $0.aspectLocked != on }) else { return }
+        _checkpoint()
+        for s in selection { s.aspectLock = on }
+        _changed()
+    }
+
+    /// The box around the selection, drawn at the frames' own (unrotated) extents.
+    private var _selectionBounds: Rect? {
+        guard var r = selection.first?.frame else { return nil }
+        for s in selection.dropFirst() {
+            r = Rect.fromLTRB(min(r.left, s.frame.left), min(r.top, s.frame.top),
+                              max(r.right, s.frame.right), max(r.bottom, s.frame.bottom))
+        }
+        return r
+    }
+
+    /// Mirrors the selection about its common centre. Each shape's own flip
+    /// toggles and its turn reverses, so a lone shape flips in place.
+    func flipSelection(horizontal: Bool) {
+        guard let box = _selectionBounds else { return }
+        _checkpoint()
+        let c = box.center
+        for s in selection {
+            let f = s.frame
+            let m = f.center
+            let n = horizontal ? Offset(2 * c.dx - m.dx, m.dy) : Offset(m.dx, 2 * c.dy - m.dy)
+            s.frame = Rect.fromLTWH(n.dx - f.width / 2, n.dy - f.height / 2, f.width, f.height)
+            if horizontal { s.flipH.toggle() } else { s.flipV.toggle() }
+            var d = (-s.rotation).truncatingRemainder(dividingBy: 360)
+            if d < 0 { d += 360 }
+            s.rotation = d
+        }
+        _changed()
+    }
+
+    /// Turns the selection by `degrees` (clockwise) about its common centre.
+    func rotateSelection(by degrees: Double) {
+        guard let box = _selectionBounds else { return }
+        _checkpoint()
+        let c = box.center
+        let a = degrees * Double.pi / 180
+        let (sn, cs) = (sin(a), cos(a))
+        for s in selection {
+            if selection.count > 1 {
+                let f = s.frame
+                let m = f.center
+                let dx = m.dx - c.dx, dy = m.dy - c.dy
+                let n = Offset(c.dx + dx * cs - dy * sn, c.dy + dx * sn + dy * cs)
+                s.frame = Rect.fromLTWH(n.dx - f.width / 2, n.dy - f.height / 2, f.width, f.height)
+            }
+            var d = (s.rotation + degrees).truncatingRemainder(dividingBy: 360)
+            if d < 0 { d += 360 }
+            s.rotation = d
+        }
         _changed()
     }
 
@@ -1445,7 +1589,12 @@ final class DeckController: ChangeNotifier {
     func selectWholeGroup(of shape: SlideShape) { selectShapes(groupMembers(of: shape)) }
 
     /// Two or more shapes selected: they can be grouped.
-    var canGroup: Bool { selection.count >= 2 && Set(selection.map { $0.group?.key ?? -$0.id }).count >= 2 }
+    /// Why the selection cannot be grouped, or nil. A placeholder takes its frame from its layout, and a group
+    /// would cut that link (PowerPoint does not group them either).
+    var groupRefusal: String? {
+        selection.contains { $0.role != nil } ? "Placeholders can't be grouped" : nil
+    }
+    var canGroup: Bool { groupRefusal == nil && selection.count >= 2 && Set(selection.map { $0.group?.key ?? -$0.id }).count >= 2 }
     /// Something selected belongs to a group.
     var canUngroup: Bool { selection.contains { $0.group != nil } }
 
@@ -1485,6 +1634,36 @@ final class DeckController: ChangeNotifier {
         for s in members { s.group = nil }
         selection = members
         _changed()
+    }
+
+    /// A name not yet used on the slide: "Title" becomes "Title 2", "Group 1" becomes "Group 3" if 2 is taken.
+    private func _freshName(_ name: String, taken: Set<String>) -> String {
+        if !taken.contains(name) { return name }
+        var base = name
+        if let sp = name.lastIndex(of: " "), Int(name[name.index(after: sp)...]) != nil { base = String(name[..<sp]) }
+        var n = 2
+        while taken.contains("\(base) \(n)") { n += 1 }
+        return "\(base) \(n)"
+    }
+
+    /// Copies get names of their own, as they get ids; a copied group too.
+    private func _renameCopies(_ copies: [SlideShape]) {
+        var taken = Set(currentSlide.shapes.map(\.name))
+        for c in copies {
+            c.name = _freshName(c.name, taken: taken)
+            taken.insert(c.name)
+        }
+        var groupNames = Set(currentSlide.shapes.compactMap { $0.group?.name })
+        var renamed: [Int: String] = [:]
+        for c in copies {
+            guard var g = c.group else { continue }
+            if let known = renamed[g.key] { g.name = known } else {
+                g.name = _freshName(g.name, taken: groupNames)
+                groupNames.insert(g.name)
+                renamed[g.key] = g.name
+            }
+            c.group = g
+        }
     }
 
     /// Copies that keep their grouping get groups of their own, not the original's.
@@ -1591,7 +1770,7 @@ final class DeckController: ChangeNotifier {
                        sourcePart: slide.sourcePart,
                        transition: slide.transition, timingXML: slide.timingXML,
                        footerFrames: slide.footerFrames, animations: slide.animations,
-                       sourceAnimations: slide.sourceAnimations)
+                       sourceAnimations: slide.sourceAnimations, commentsFrom: slide.commentsFrom ?? slide.sourcePart)
         }, current: current, slideSize: slideSize, theme: theme, ownTemplates: ownTemplates, recolourTheme: recolourTheme, firstSlideNum: firstSlideNum)
     }
 
@@ -1644,6 +1823,7 @@ final class DeckController: ChangeNotifier {
             slide.footerFrames = ss.footerFrames
             slide.animations = ss.animations
             slide.sourceAnimations = ss.sourceAnimations
+            slide.commentsFrom = ss.commentsFrom
             next.append(slide)
         }
         for slide in slides {
@@ -1669,14 +1849,14 @@ final class DeckController: ChangeNotifier {
                    font: s.textTheme?.fontFamily, size: s.textTheme?.fontSize ?? 18,
                    color: s.textTheme?.textColor ?? theme.text, listIndent: s.textTheme?.listIndent ?? 18,
                    phType: s.phType, phIdx: s.phIdx, fillScheme: s.fillScheme, crop: s.crop,
-                   flipH: s.flipH, flipV: s.flipV, pictureGeometry: s.pictureGeometry,
+                   flipH: s.flipH, flipV: s.flipV, aspectLock: s.aspectLock, pictureGeometry: s.pictureGeometry,
                    pictureAlpha: s.pictureAlpha, pictureDuotone: s.pictureDuotone, pictureColorChange: s.pictureColorChange,
                    pictureInset: s.pictureInset,
                    fillsWithBackground: s.fillsWithBackground, inheritedPreset: s.inheritedPreset,
                    customPath: s.customPath, fillStyle: s.fillStyle, invisible: s.invisible, fileId: s.fileId,
                    sourceXML: s.sourceXML, sourceText: s.sourceText, sourcePart: s.sourcePart,
                    sourceChart: s.sourceChart, field: s.field, group: s.group, keptLine: s.keptLine,
-                   altText: s.altText, keptPicture: s.keptPicture, autofit: s.autofit, fontScale: s.fontScale,
+                   altText: s.altText, link: s.link, linkTip: s.linkTip, keptPicture: s.keptPicture, autofit: s.autofit, fontScale: s.fontScale,
                    insetsFollowFont: s.insetsFollowFont, keptLook: s.keptLook)
         st.lineReduction = s.lineReduction
         st.pictureLevels = s.pictureLevels
@@ -1748,6 +1928,7 @@ final class DeckController: ChangeNotifier {
         shape.crop = st.crop
         shape.flipH = st.flipH
         shape.flipV = st.flipV
+        shape.aspectLock = st.aspectLock
         shape.pictureGeometry = st.pictureGeometry
         shape.pictureAlpha = st.pictureAlpha
         shape.pictureDuotone = st.pictureDuotone
@@ -1809,6 +1990,8 @@ final class DeckController: ChangeNotifier {
         shape.keptLine = st.keptLine
         shape.keptPicture = st.keptPicture
         shape.altText = st.altText
+        shape.link = st.link
+        shape.linkTip = st.linkTip
         shape.autofit = st.autofit
         shape.fontScale = st.fontScale
         shape.insetsFollowFont = st.insetsFollowFont

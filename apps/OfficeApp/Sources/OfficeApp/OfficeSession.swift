@@ -191,6 +191,8 @@ final class OfficeSession {
     var onFormatPainter: (() -> Void)?
     var onToggleAutoSave: (() -> Void)?
     var onPrint: (() -> Void)?
+    /// Opens the keyboard-shortcut list.
+    var onShortcuts: (() -> Void)?
     var onPageSetup: ((PageSetup) -> Void)?
     var onBackstage: ((Bool) -> Void)?
     var onNew: (() -> Void)?
@@ -290,6 +292,7 @@ final class OfficeSession {
     var onAnimationPane: (() -> Void)?
     /// Show or hide the Selection Pane (Slides).
     var onSelectionPane: (() -> Void)?
+    var onFormatShape: (() -> Void)?
     /// Show (true) or hide the selected chart's data grid.
     var onChartData: ((Bool) -> Void)?
     /// Normal view (false) or Slide Sorter (true).
@@ -307,6 +310,7 @@ final class OfficeSession {
     var onShare: ((String) -> Void)?
     var onFind: ((Bool) -> Void)?       // true = replace bar too
     var onInsertPicture: (() -> Void)?
+    var onChangePicture: (() -> Void)?
     var onHeaderFooter: (() -> Void)?
     /// Slides Picture Format > Alt Text: open the dialog for the selected picture.
     var onAltText: (() -> Void)?
@@ -317,6 +321,11 @@ final class OfficeSession {
     var onParagraphDialog: (() -> Void)?
     var onFontDialog: (() -> Void)?
     var onPageSetupDialog: (() -> Void)?
+    var onInsertTableDialog: (() -> Void)?
+    var onBordersShadingDialog: (() -> Void)?
+    var onPictureDialog: ((PictureDialogKind) -> Void)?
+    /// Opens the Set Numbering Value prompt.
+    var onNumberingValueDialog: (() -> Void)?
     var onModifyStyle: ((String) -> Void)?
     /// Slides: Cut / Copy / Paste of the selected shapes. Each returns true
     /// when it handled the command, false to fall through to the text path.

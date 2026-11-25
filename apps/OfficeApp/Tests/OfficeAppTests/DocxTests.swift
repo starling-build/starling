@@ -517,6 +517,21 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(saved.width, 200, accuracy: 0.1)
     }
 
+    /// W-OB-1: after Change Picture the saved package holds no picture part that nothing points at.
+    func testChangingAPictureLeavesNoOrphanMediaInTheSavedPackage() throws {
+        let old = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")!
+        let new = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==")!
+        let first = try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(image: ImageAttachment(data: old, width: 200, height: 100)),
+                                                                   RichParagraph(image: ImageAttachment(data: old, width: 50, height: 50))]), pageSetup: .letter)
+        let c = RichDocumentController(document: try DocxFormat.read(first).document)
+        XCTAssertTrue(c.replacePicture(at: 0, with: new, name: "new.png", naturalWidth: 100, naturalHeight: 100))
+        let entries = try Zip.read(try DocxFormat.write(c.document, pageSetup: .letter))
+        let media = entries.map(\.name).filter { $0.hasPrefix("word/media/") }
+        let rels = String(decoding: entries.first { $0.name == "word/_rels/document.xml.rels" }!.data, as: UTF8.self)
+        XCTAssertEqual(media.count, 2)
+        for m in media { XCTAssertTrue(rels.contains("\"" + m.dropFirst(5) + "\""), "\(m) is not referenced") }
+    }
+
     /// W-OB-1: cropping a picture cuts shares off its sides, keeps its scale (the frame follows the visible part), undoes in one
     /// step, is written as `a:srcRect` into the file's own markup (a picture read back from a file too) and clears again.
     func testCroppingAPictureKeepsItsScaleAndSavesTheCrop() throws {
@@ -3706,6 +3721,42 @@ final class DocxTests: XCTestCase {
         }
         let h = try nazaninBodyHeights(para(" w:hint=\"eastAsia\"") + para(""))
         XCTAssertEqual(h[0], h[1], accuracy: 0.05)
+    /// lab shadow5: Word's blurred text shadow (dist 0) is a soft halo, a picture, whose reach past the letters is
+    /// 0.5 x blur x (size/72)^(2/3) (the planner's size rule): at 72 pt twice the 36 pt text's halo reaches 2^(2/3) = 1.587 times as far.
+    func testABlurredTextShadowIsAHaloWhoseReachScalesWithTheTextSize() throws {
+        guard TestText.icuLoaded else { throw XCTSkip("no icudtl.dat (STARLING_ICU)") }
+        _ = OfficeFonts.register()
+        RichTextTheme.wordWindowsPages = true
+        RichTextTheme.shadowsAsPaths = true
+        defer { RichTextTheme.wordWindowsPages = false; RichTextTheme.shadowsAsPaths = false }
+        func height(_ size: Double, blur: Double) -> (halos: Int, margin: Double) {
+            var style = CharStyle()
+            style.fontFamily = "Calibri"; style.fontSize = size; style.bold = true
+            style.shadow = CharShadow(color: Color(0xFFFF66AA), dx: 0, dy: 0, blur: blur)
+            var para = RichParagraph(text: "HHH", runs: [Run(length: 3, style: style)])
+            para.style.lineSpacing = 1
+            var doc = RichDocument(paragraphs: [para])
+            doc.readFromFile = true
+            let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
+            theme.fontFamilyResolver = OfficeFonts.drawn
+            theme.faceResolver = OfficeFonts.face
+            theme.wordRules = true
+            let l = RichLayout(theme: theme, paragraphCount: 1)
+            l.width = 600 * theme.pixelsPerPoint
+            l.ensureLaidOut(doc)
+            let canvas = ShadowHaloCanvas()
+            l.paint(canvas, visible: Rect.fromLTWH(0, 0, 600 * theme.pixelsPerPoint, 600 * theme.pixelsPerPoint), document: doc, selection: nil, caret: nil)
+            let ink = canvas.halos.first
+            // the halo's picture is the letters grown by 1.4 x the reach each side: its height minus the letters' is 2.8 x the reach.
+            return (canvas.halos.count, ink.map { $0.height / theme.pixelsPerPoint } ?? 0)
+        }
+        XCTAssertGreaterThan(height(36, blur: 8).halos, 0, "a blurred shadow is drawn as a halo picture, not a sharp copy")
+        // The picture is the letters grown by 1.4 x the reach each side, so blur 4 to 8 adds 2.8 x 2 x the size factor.
+        func growth(_ size: Double) -> Double { height(size, blur: 8).margin - height(size, blur: 4).margin }
+        XCTAssertEqual(growth(72) / growth(36), pow(2.0, 2.0 / 3), accuracy: 0.05)
+        XCTAssertEqual(growth(72), 2.8 * 2, accuracy: 0.6)  // reach = 0.5 x 4 x 1 at 72 pt
+    }
+
     }
 
     func testAnOpeningMarkMayEndALineSqueezedUnderCompressPunctuation() throws {
@@ -6895,6 +6946,55 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(RichListNumbering.labels(back), ["1.", "2.", "1.", "2."])
     }
 
+    func testSetNumberingValueSurvivesSave() throws {
+        var paras: [RichParagraph] = []
+        for t in ["a", "b", "c", "d"] {
+            var p = RichParagraph(text: t); p.style.list = .numbered; p.style.listId = "5"; paras.append(p)
+        }
+        let c = RichDocumentController(document: RichDocument(paragraphs: paras))
+        c.moveTo(RichPosition(paragraph: 2, offset: 0), extend: false)
+        c.setNumberingValue(7)
+        XCTAssertEqual(RichListNumbering.labels(c.document), ["1.", "2.", "7.", "8."])
+        let back = try DocxFormat.read(try DocxFormat.write(c.document, pageSetup: .letter)).document
+        XCTAssertEqual(RichListNumbering.labels(back), ["1.", "2.", "7.", "8."])
+        // The two halves stay one list definition: a later format change reaches both, in the file too.
+        c.setListFormat(ListLevelFormat(text: "%1)", format: .lowerLetter))
+        XCTAssertEqual(RichListNumbering.labels(c.document), ["a)", "b)", "g)", "h)"])
+        let again = try DocxFormat.read(try DocxFormat.write(c.document, pageSetup: .letter)).document
+        XCTAssertEqual(RichListNumbering.labels(again), ["a)", "b)", "g)", "h)"])
+        c.undo()
+        // LISTS_OUT=<path>: leave the file for a Word open check (expect 1. 2. 7. 8.).
+        if let out = ProcessInfo.processInfo.environment["LISTS_OUT"] {
+            try DocxFormat.write(c.document, pageSetup: .letter).write(to: URL(fileURLWithPath: out))
+        }
+    }
+
+    func testMultilevelSchemesSurviveSave() throws {
+        var paras: [RichParagraph] = []
+        for (n, scheme) in ListLevelFormat.multilevelLibrary.enumerated() {
+            var head = RichParagraph(text: scheme.name); head.style.list = nil; paras.append(head)
+            for (k, level) in [0, 1, 2, 2, 1, 0].enumerated() {
+                var p = RichParagraph(text: "item \(k)"); p.style.list = scheme.levels[0].format == .bullet ? .bullet : .numbered
+                p.style.listId = "m\(n)"; p.style.listLevel = level; paras.append(p)
+            }
+        }
+        let c = RichDocumentController(document: RichDocument(paragraphs: paras))
+        for (n, scheme) in ListLevelFormat.multilevelLibrary.enumerated() {
+            c.moveTo(RichPosition(paragraph: n * 7 + 1, offset: 0), extend: false)
+            c.moveTo(RichPosition(paragraph: n * 7 + 6, offset: 0), extend: true)
+            c.setMultilevelFormat(scheme.levels)
+        }
+        let labels = RichListNumbering.labels(c.document)
+        XCTAssertEqual(Array(labels[1 ... 6]), ["1.", "a.", "i.", "ii.", "b.", "2."])
+        XCTAssertEqual(Array(labels[15 ... 20]), ["1.", "1.1", "1.1.1", "1.1.2", "1.2", "2."])
+        let back = try DocxFormat.read(try DocxFormat.write(c.document, pageSetup: .letter)).document
+        XCTAssertEqual(RichListNumbering.labels(back), labels)
+        // MULTILEVEL_OUT=<path>: leave the file for a Word open check.
+        if let out = ProcessInfo.processInfo.environment["MULTILEVEL_OUT"] {
+            try DocxFormat.write(c.document, pageSetup: .letter).write(to: URL(fileURLWithPath: out))
+        }
+    }
+
     func testALevelOfNoneShowsNoNumber() {
         // zh-90e0cea8: chapters are "%1%2　" over a level 0 of "none".
         var none = ListLevelFormat(text: "%1"); none.rawFormat = "none"
@@ -7377,6 +7477,89 @@ final class DocxTests: XCTestCase {
         XCTAssertNil(OfficeFonts.deobfuscate(Data(count: 40), key: "{not-a-guid}"))
     }
 
+    /// W-RV-3: a content control around whole paragraphs, around a table, or around the paragraphs of one cell keeps its
+    /// settings through open and save; an edit that splits it or removes its last paragraph keeps the file valid.
+    func testBlockLevelContentControlsSurviveASave() throws {
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .letter))
+        let di = try XCTUnwrap(entries.firstIndex { $0.name == "word/document.xml" })
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let body = try XCTUnwrap(xml.range(of: "<w:body>")).upperBound ..< (try XCTUnwrap(xml.range(of: "<w:sectPr"))).lowerBound
+        xml.replaceSubrange(body, with: "<w:p><w:r><w:t>Before</w:t></w:r></w:p>"
+            + "<w:sdt><w:sdtPr><w:alias w:val=\"Terms\"/><w:id w:val=\"21\"/><w:lock w:val=\"sdtContentLocked\"/></w:sdtPr><w:sdtContent>"
+            + "<w:p><w:r><w:t>One</w:t></w:r></w:p><w:p><w:r><w:t>Two</w:t></w:r></w:p></w:sdtContent></w:sdt>"
+            + "<w:sdt><w:sdtPr><w:alias w:val=\"Grid\"/><w:id w:val=\"22\"/></w:sdtPr><w:sdtContent><w:tbl><w:tblPr><w:tblW w:w=\"0\" w:type=\"auto\"/></w:tblPr><w:tblGrid><w:gridCol w:w=\"4000\"/><w:gridCol w:w=\"4000\"/></w:tblGrid>"
+            + "<w:tr><w:tc><w:tcPr><w:tcW w:w=\"4000\" w:type=\"dxa\"/></w:tcPr>"
+            + "<w:sdt><w:sdtPr><w:alias w:val=\"InCell\"/><w:id w:val=\"23\"/></w:sdtPr><w:sdtContent><w:p><w:r><w:t>C1</w:t></w:r></w:p></w:sdtContent></w:sdt></w:tc>"
+            + "<w:tc><w:tcPr><w:tcW w:w=\"4000\" w:type=\"dxa\"/></w:tcPr><w:p><w:r><w:t>C2</w:t></w:r></w:p></w:tc></w:tr></w:tbl></w:sdtContent></w:sdt>"
+            + "<w:p><w:r><w:t>After</w:t></w:r></w:p>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let opened = try DocxFormat.read(try Zip.write(entries)).document
+        func part(_ doc: RichDocument) throws -> String {
+            String(decoding: try XCTUnwrap(try Zip.read(try DocxFormat.write(doc, pageSetup: .letter)).first { $0.name == "word/document.xml" }).data, as: UTF8.self)
+        }
+        let saved = try part(opened)
+        for needle in ["w:alias w:val=\"Terms\"", "w:lock w:val=\"sdtContentLocked\"", "w:alias w:val=\"Grid\"", "w:alias w:val=\"InCell\""] {
+            XCTAssertTrue(saved.containsSubstring(needle), needle)
+        }
+        XCTAssertEqual(saved.components(separatedBy: "<w:sdt>").count, 4)
+        XCTAssertEqual(saved.components(separatedBy: "</w:sdt>").count, 4)
+        // The table's control is outside the table, the cell's inside the cell.
+        let grid = try XCTUnwrap(saved.range(of: "w:alias w:val=\"Grid\""))
+        XCTAssertTrue(saved[grid.upperBound...].containsSubstring("<w:tbl>"))
+        let table = try XCTUnwrap(saved.range(of: "<w:tbl>"))
+        XCTAssertTrue(saved[..<table.lowerBound].hasSuffix("<w:sdtContent>") || saved[..<table.lowerBound].containsSubstring("Grid"))
+        XCTAssertEqual(saved.components(separatedBy: "<w:tbl>").count, 2)
+        // Still the same after a second trip.
+        XCTAssertEqual(try part(try DocxFormat.read(try DocxFormat.write(opened, pageSetup: .letter)).document), saved)
+        // Split inside the control, then delete its last paragraph: always whole pairs.
+        let c = RichDocumentController(document: opened)
+        let one = try XCTUnwrap(c.document.paragraphs.firstIndex { $0.text == "One" })
+        c.moveTo(RichPosition(paragraph: one, offset: 1), extend: false)
+        c.insertParagraphBreak()
+        let edited = try part(c.document)
+        XCTAssertEqual(edited.components(separatedBy: "<w:sdt>").count, edited.components(separatedBy: "</w:sdt>").count)
+        XCTAssertEqual(edited.components(separatedBy: "<w:sdt>").count, 4)
+        c.undo()
+        XCTAssertEqual(try part(c.document), saved)
+        let two = try XCTUnwrap(c.document.paragraphs.firstIndex { $0.text == "Two" })
+        c.moveTo(RichPosition(paragraph: one, offset: 3), extend: false)
+        c.moveTo(RichPosition(paragraph: two, offset: 3), extend: true)
+        c.deleteSelection()
+        let cut = try part(c.document)
+        XCTAssertEqual(cut.components(separatedBy: "<w:sdt>").count, cut.components(separatedBy: "</w:sdt>").count)
+    }
+
+    /// W-RV-3: clicking a check box control flips it: the glyph, the saved state and one undo step.
+    func testCheckBoxControlTogglesAndUndoes() throws {
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .letter))
+        let di = try XCTUnwrap(entries.firstIndex { $0.name == "word/document.xml" })
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let body = try XCTUnwrap(xml.range(of: "<w:body>")).upperBound ..< (try XCTUnwrap(xml.range(of: "<w:sectPr"))).lowerBound
+        xml.replaceSubrange(body, with: "<w:p><w:r><w:t xml:space=\"preserve\">Agree </w:t></w:r>"
+            + "<w:sdt><w:sdtPr><w:id w:val=\"11\"/><w14:checkbox><w14:checked w14:val=\"0\"/><w14:checkedState w14:val=\"2612\" w14:font=\"MS Gothic\"/><w14:uncheckedState w14:val=\"2610\" w14:font=\"MS Gothic\"/></w14:checkbox></w:sdtPr>"
+            + "<w:sdtContent><w:r><w:t>\u{2610}</w:t></w:r></w:sdtContent></w:sdt><w:r><w:t xml:space=\"preserve\"> yes</w:t></w:r></w:p>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let doc = try DocxFormat.read(try Zip.write(entries)).document
+        let c = RichDocumentController(document: doc)
+        let box = try XCTUnwrap(c.document.paragraphs[0].checkBoxes.first)
+        XCTAssertFalse(box.checked)
+        XCTAssertTrue(c.toggleCheckBox(in: 0, control: box.id))
+        XCTAssertEqual(c.document.paragraphs[0].text, "Agree \u{2612} yes")
+        XCTAssertEqual(c.document.paragraphs[0].checkBoxes.first?.checked, true)
+        XCTAssertEqual(c.document.paragraphs[0].checkBoxes.first?.range, 6 ..< 7)
+        let saved = String(decoding: try XCTUnwrap(try Zip.read(try DocxFormat.write(c.document, pageSetup: .letter)).first { $0.name == "word/document.xml" }).data, as: UTF8.self)
+        XCTAssertTrue(saved.containsSubstring("<w14:checked w14:val=\"1\"/>"), saved)
+        XCTAssertTrue(saved.containsSubstring("\u{2612}"), saved)
+        let reread = try DocxFormat.read(try DocxFormat.write(c.document, pageSetup: .letter)).document
+        XCTAssertEqual(reread.paragraphs[0].checkBoxes.first?.checked, true)
+        c.undo()
+        XCTAssertEqual(c.document.paragraphs[0].text, "Agree \u{2610} yes")
+        XCTAssertEqual(c.document.paragraphs[0].checkBoxes.first?.checked, false)
+        XCTAssertTrue(c.toggleCheckBox(in: 0, control: box.id))
+        XCTAssertTrue(c.toggleCheckBox(in: 0, control: box.id))
+        XCTAssertEqual(c.document.paragraphs[0].text, "Agree \u{2610} yes")
+    }
+
     /// W-RV-3: a content control over runs (check box, drop-down list, text) survives open and save with its
     /// properties whole, and the text around it is untouched; an edit that deletes across its end keeps the file valid.
     func testContentControlsOverRunsSurviveASave() throws {
@@ -7417,6 +7600,49 @@ final class DocxTests: XCTestCase {
 /// Records, for each quarter turn, the translate just before it (a
 /// turned cell's corner, in the flow's terms).
 /// Records the height of each paragraph drawn.
+private final class ShadowHaloCanvas: Canvas {
+    var halos: [Rect] = []
+    func save() {}
+    func saveLayer(_ bounds: Rect?, _ paint: Paint) {}
+    func restore() {}
+    func restoreToCount(_ count: Int) {}
+    func getSaveCount() -> Int { 1 }
+    func translate(_ dx: Double, _ dy: Double) {}
+    func scale(_ sx: Double, _ sy: Double?) {}
+    func rotate(_ radians: Double) {}
+    func skew(_ sx: Double, _ sy: Double) {}
+    func transform(_ matrix4: [Double]) {}
+    func getTransform() -> [Double] { [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1] }
+    func clipRect(_ rect: Rect, clipOp: ClipOp, doAntiAlias: Bool) {}
+    func clipRRect(_ rrect: RRect, doAntiAlias: Bool) {}
+    func clipRSuperellipse(_ rsuperellipse: RSuperellipse, doAntiAlias: Bool) {}
+    func clipPath(_ path: Path, doAntiAlias: Bool) {}
+    func getLocalClipBounds() -> Rect { Rect.fromLTWH(-1e6, -1e6, 2e6, 2e6) }
+    func getDestinationClipBounds() -> Rect { Rect.fromLTWH(-1e6, -1e6, 2e6, 2e6) }
+    func drawColor(_ color: Color, _ blendMode: BlendMode) {}
+    func drawLine(_ p1: Offset, _ p2: Offset, _ paint: Paint) {}
+    func drawPaint(_ paint: Paint) {}
+    func drawRect(_ rect: Rect, _ paint: Paint) {}
+    func drawRRect(_ rrect: RRect, _ paint: Paint) {}
+    func drawDRRect(_ outer: RRect, _ inner: RRect, _ paint: Paint) {}
+    func drawRSuperellipse(_ rsuperellipse: RSuperellipse, _ paint: Paint) {}
+    func drawOval(_ rect: Rect, _ paint: Paint) {}
+    func drawCircle(_ c: Offset, _ radius: Double, _ paint: Paint) {}
+    func drawArc(_ rect: Rect, _ startAngle: Double, _ sweepAngle: Double, _ useCenter: Bool, _ paint: Paint) {}
+    func drawPath(_ path: Path, _ paint: Paint) {}
+    func drawImage(_ image: Image, _ offset: Offset, _ paint: Paint) {}
+    func drawImageRect(_ image: Image, _ src: Rect, _ dst: Rect, _ paint: Paint) { halos.append(dst) }
+    func drawImageNine(_ image: Image, _ center: Rect, _ dst: Rect, _ paint: Paint) {}
+    func drawPicture(_ picture: any FlutterSwiftBridge.Picture) {}
+    func drawParagraph(_ paragraph: any Paragraph, _ offset: Offset) {}
+    func drawPoints(_ pointMode: PointMode, _ points: [Offset], _ paint: Paint) {}
+    func drawRawPoints(_ pointMode: PointMode, _ points: [Float], _ paint: Paint) {}
+    func drawVertices(_ vertices: Vertices, _ blendMode: BlendMode, _ paint: Paint) {}
+    func drawAtlas(_ atlas: Image, _ transforms: [RSTransform], _ rects: [Rect], _ colors: [Color]?, _ blendMode: BlendMode?, _ cullRect: Rect?, _ paint: Paint) {}
+    func drawRawAtlas(_ atlas: Image, _ rstTransforms: [Float], _ rects: [Float], _ colors: [Int32]?, _ blendMode: BlendMode?, _ cullRect: Rect?, _ paint: Paint) {}
+    func drawShadow(_ path: Path, _ color: Color, _ elevation: Double, _ transparentOccluder: Bool) {}
+}
+
 private final class ParagraphHeightCanvas: Canvas {
     var heights: [Double] = []
     func save() {}

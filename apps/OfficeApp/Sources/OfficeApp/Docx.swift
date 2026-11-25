@@ -25,6 +25,10 @@ enum DocxFormat {
 
 
     static func read(_ archive: Data) throws -> DocxDocument {
+        try BigStack.run { try _read(archive) }
+    }
+
+    private static func _read(_ archive: Data) throws -> DocxDocument {
         let entries = _withStandardMainPart(try Zip.read(archive))
         func part(_ name: String) -> Data? { entries.first { $0.name == name }?.data }
         /// The styles part as Word reads it: a document with `w:linkStyles` ("automatically
@@ -2415,6 +2419,9 @@ enum DocxFormat {
                         // (A cell with no vAlign of its own takes its table style's: jpn-z22306877-1047a4's Table1.)
                         let vAlign = tcPr?.first("w:vAlign")?["w:val"].flatMap { ["center", "bottom"].contains($0) ? $0 : nil } ?? (tcPr?.first("w:vAlign") == nil ? ((r == 0 && firstRowOn ? cond.headerVAlign : nil) ?? cond.cellVAlign) : nil)
                         currentCell = CellRef(table: id, row: r, column: column, span: span, fill: fill, edges: ownEdges, verticalAlign: vAlign)
+                        if let shd = tcPr?.first("w:shd"), shd["w:fill"]?.count == 6, shd["w:themeFill"] != nil {
+                            currentCell?.fillThemeAttrs = ["w:themeFill", "w:themeFillTint", "w:themeFillShade"].compactMap { k in shd[k].map { " \(k)=\"\(_esc($0))\"" } }.joined()
+                        }
                         // (The foot of a merged header cell is no drawn line, yet it takes its room where the span ends: lab sa1f9, Word's merged rows stand 0.96 taller than their stated sum.)
                         if r == 0, firstRowOn, tcPr?.first("w:vMerge")?["w:val"] == "restart", let e = cond.headerBorders?.first("w:bottom") ?? styledSides?.first("w:insideH"),
                            let sz = Double(e["w:sz"] ?? ""), tcPr?.first("w:tcBorders")?.first("w:bottom") == nil {
@@ -2555,7 +2562,19 @@ enum DocxFormat {
                 cellChar = CharStyle()
             case "w:sdt":
                 if let content = node.first("w:sdtContent") {
+                    // A control over whole paragraphs keeps its properties (W-RV-3): start on the first paragraph
+                    // it yields, end on the last.
+                    let first = paragraphs.count
                     for child in content.children { walkBlock(child, indent: indent) }
+                    if paragraphs.count > first, let pr = node.first("w:sdtPr"), let kept = Self._keptFragment(pr, notes) {
+                        notes.controlCount += 1
+                        let id = notes.controlCount
+                        let kids = content.children.filter { ["w:p", "w:tbl", "w:sdt"].contains($0.name) }
+                        paragraphs[first].blockControlsBefore.insert(
+                            RichBlockControl(id: id, properties: kept.xml, aroundTable: kids.first?.name == "w:tbl"), at: 0)
+                        paragraphs[paragraphs.count - 1].blockControlsAfter.append(
+                            RichBlockControl(id: id, aroundTable: kids.last?.name == "w:tbl"))
+                    }
                 }
             case "w:bookmarkStart":
                 if let name = node["w:name"], name != "_GoBack" {

@@ -840,6 +840,7 @@ final class WorkbookController: ChangeNotifier {
         let names: [String: String]
         let fileNames: [DefinedName]
         let activeSheet: Int
+        var workbookProtection: [String: String]? = nil
     }
 
     private var _undo: [Step] = []
@@ -878,13 +879,14 @@ final class WorkbookController: ChangeNotifier {
     }
 
     private func _bookState() -> _BookState {
-        _BookState(sheets: book.sheets.map { $0.copy() }, names: book.names, fileNames: book.fileNames, activeSheet: activeSheet)
+        _BookState(sheets: book.sheets.map { $0.copy() }, names: book.names, fileNames: book.fileNames, activeSheet: activeSheet, workbookProtection: book.workbookProtection)
     }
 
     private func _restore(_ s: _BookState) {
         book.sheets = s.sheets.map { $0.copy() }
         book.names = s.names
         book.fileNames = s.fileNames
+        book.workbookProtection = s.workbookProtection
         _selections.removeAll()
         let target = min(s.activeSheet, book.sheets.count - 1)
         if activeSheet != target { activeSheet = target }

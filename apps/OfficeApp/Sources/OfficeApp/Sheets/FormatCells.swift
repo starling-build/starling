@@ -40,6 +40,8 @@ struct CellFormatEdit: Equatable {
     /// The line style (thin, medium, thick, double, dashed, dotted, hair…) and colour of every side that is drawn once this edit is applied.
     var borderKind: CellFieldEdit<String> = .keep
     var borderColor: CellFieldEdit<UInt32?> = .keep
+    var locked: CellFieldEdit<Bool> = .keep
+    var formulaHidden: CellFieldEdit<Bool> = .keep
 
     var isEmpty: Bool { self == CellFormatEdit() }
 
@@ -56,6 +58,7 @@ struct CellFormatEdit: Equatable {
         var hAlign: CellStyle.HAlign, vAlign: CellStyle.VAlign
         var wrap: Bool
         var justify: Bool, indent: Int, rotation: Int
+        var locked: Bool, formulaHidden: Bool
         var top: Bool, left: Bool, bottom: Bool, right: Bool
         /// The pen: the style and colour of the first drawn side ("thin", automatic when none is drawn).
         var lineKind: String, lineColor: UInt32?
@@ -64,6 +67,7 @@ struct CellFormatEdit: Equatable {
             bold = s.bold; italic = s.italic; underline = s.underline; strike = s.strike
             color = s.color; fill = s.fill; hAlign = s.hAlign; vAlign = s.vAlign; wrap = s.wrap
             justify = s.justify; indent = s.indent; rotation = s.rotation
+            locked = s.locked; formulaHidden = s.formulaHidden
             top = s.borders.top; left = s.borders.left; bottom = s.borders.bottom; right = s.borders.right
             let b = s.borders
             let first = ["top", "left", "bottom", "right"].first { (name: String) -> Bool in
@@ -87,6 +91,7 @@ struct CellFormatEdit: Equatable {
         e.wrap = .diff(new.wrap, from: old.wrap)
         e.justify = .diff(new.justify, from: old.justify); e.indent = .diff(new.indent, from: old.indent)
         e.rotation = .diff(new.rotation, from: old.rotation)
+        e.locked = .diff(new.locked, from: old.locked); e.formulaHidden = .diff(new.formulaHidden, from: old.formulaHidden)
         e.borderTop = .diff(new.top, from: old.top); e.borderLeft = .diff(new.left, from: old.left)
         e.borderBottom = .diff(new.bottom, from: old.bottom); e.borderRight = .diff(new.right, from: old.right)
         e.borderKind = .diff(new.lineKind, from: old.lineKind)
@@ -101,6 +106,7 @@ struct CellFormatEdit: Equatable {
         color.apply(&s.color); fill.apply(&s.fill)
         hAlign.apply(&s.hAlign); vAlign.apply(&s.vAlign); wrap.apply(&s.wrap)
         justify.apply(&s.justify); indent.apply(&s.indent); rotation.apply(&s.rotation)
+        locked.apply(&s.locked); formulaHidden.apply(&s.formulaHidden)
         Self._side(borderTop, "top", &s.borders, \.top)
         Self._side(borderLeft, "left", &s.borders, \.left)
         Self._side(borderBottom, "bottom", &s.borders, \.bottom)

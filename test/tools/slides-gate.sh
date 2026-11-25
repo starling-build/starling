@@ -125,7 +125,8 @@ for l in sys.stdin:
 BASEMODE=""
 if [ -n "${BASE_BIN:-}" ]; then
   BC=${BASE_CACHE:-}
-  if [ -n "$BC" ] && [ -s "$BC/render.tsv" ] && [ -s "$BC/combined.tsv" ]; then
+  BSTAMP=$("$ROOT/test/tools/gate-stamp.sh" slides "$BASE_BIN" 2>/dev/null)   # base binary + scorer sha; a cache drawn by another binary/scorer is not reused
+  if [ -n "$BC" ] && [ -s "$BC/render.tsv" ] && [ -s "$BC/combined.tsv" ] && [ -n "$BSTAMP" ] && [ "$(cat "$BC/STAMP" 2>/dev/null)" = "$BSTAMP" ]; then
     echo "slides-gate: base render from the cache ($BC)"; mkdir -p "$W/base"; cp "$BC/render.tsv" "$BC/combined.tsv" "$W/base/"; BASEMODE=1
   else
     n=0; while [ ! -x "$BASE_BIN" ] && [ $n -lt 300 ]; do sleep 6; n=$((n+1)); done   # the base binary is still being built by the Word half
@@ -143,7 +144,7 @@ if [ -n "${BASE_BIN:-}" ]; then
       for f in "$W/base/pdf"/*.pdf; do b=$(basename "$f" .pdf); printf '%s\t%s\t%s\n' "$b" "$(sha1sum < "$f" | cut -c1-40)" "$(stat -L -c%s "$PPT/$b-orig.pdf" 2>/dev/null)"; done > "$W/base/pdfsha.tsv"
       echo "$SCH" > "$W/base/scorers.sha"
     fi
-    if [ -n "$BC" ] && [ -z "${SLIDES_ONLY:-}" ] && [ -s "$W/base/combined.tsv" ]; then mkdir -p "$BC.tmp$$" 2>/dev/null && cp "$W/base/render.tsv" "$W/base/combined.tsv" "$W/base/pdfsha.tsv" "$W/base/lines.txt" "$W/base/scorers.sha" "$BC.tmp$$/" && { [ ! -s "$W/base/per-page.tsv" ] || cp "$W/base/per-page.tsv" "$BC.tmp$$/"; } && { rm -rf "$BC"; mv "$BC.tmp$$" "$BC"; chmod -R g+rwX,o+rX "$BC" 2>/dev/null; }; fi
+    if [ -n "$BC" ] && [ -z "${SLIDES_ONLY:-}" ] && [ -s "$W/base/combined.tsv" ]; then mkdir -p "$BC.tmp$$" 2>/dev/null && cp "$W/base/render.tsv" "$W/base/combined.tsv" "$W/base/pdfsha.tsv" "$W/base/lines.txt" "$W/base/scorers.sha" "$BC.tmp$$/" && echo "$BSTAMP" > "$BC.tmp$$/STAMP" && { [ ! -s "$W/base/per-page.tsv" ] || cp "$W/base/per-page.tsv" "$BC.tmp$$/"; } && { rm -rf "$BC"; mv "$BC.tmp$$" "$BC"; chmod -R g+rwX,o+rX "$BC" 2>/dev/null; }; fi
     BASEMODE=1
   fi
   BASEALL=$W/base/render.tsv; BASELBL=$W/base/combined.tsv
@@ -221,5 +222,6 @@ if [ "$rc" = 0 ] && [ -z "${SLIDES_ONLY:-}" ] && [ -z "${BASE_ONLY:-}" ] && [ -s
   cp "$W/render.tsv" "$W/combined.tsv" "$W/lines.txt" "$W/seed/"
   for f in "$W/pdf"/*.pdf; do b=$(basename "$f" .pdf); printf '%s\t%s\t%s\n' "$b" "$(sha1sum < "$f" | cut -c1-40)" "$(stat -L -c%s "$PPT/$b-orig.pdf" 2>/dev/null)"; done > "$W/seed/pdfsha.tsv"
   echo "$SCH" > "$W/seed/scorers.sha"
+  "$ROOT/test/tools/gate-stamp.sh" slides "$BIN" > "$W/seed/STAMP" 2>/dev/null || rm -f "$W/seed/STAMP"
 fi
 echo "slides-gate: $(( $(date +%s)-T )) s"; exit $rc

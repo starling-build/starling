@@ -15,7 +15,7 @@ extension RichDocumentController {
     /// Pick up the formatting at the selection (or caret).
     public func copyFormat() -> FormatSample {
         var char = currentCharStyle
-        char.link = nil
+        char.link = nil; char.linkTip = nil
         char.note = nil; char.inlineImage = nil; char.revision = nil; char.formatChange = nil
         let a = document.clamped(selection.start), b = document.clamped(selection.end)
         let wholeParagraph = selection.isCollapsed
@@ -29,9 +29,9 @@ extension RichDocumentController {
     public func pasteFormat(_ sample: FormatSample) {
         let painted = sample.char
         applyCharStyle { style in
-            let (link, note, image, rev, change) = (style.link, style.note, style.inlineImage, style.revision, style.formatChange)
+            let (link, linkTip, note, image, rev, change) = (style.link, style.linkTip, style.note, style.inlineImage, style.revision, style.formatChange)
             style = painted
-            style.link = link; style.note = note; style.inlineImage = image
+            style.link = link; style.linkTip = linkTip; style.note = note; style.inlineImage = image
             style.revision = rev; style.formatChange = change
         }
         guard let src = sample.paragraph, !selection.isCollapsed else { return }

@@ -1136,6 +1136,27 @@ extension DocxFormat {
             return p.style.pageBreakBefore && p.style.breakEndsPrevious && !p.style.pageBreakInline && sameCell
                 && prev.image == nil && prev.keptTable == nil && p.keptTable == nil
         }
+        // Block-level content controls (W-RV-3): written only when the start and the end are both still there, start first.
+        var pairedBlockControls = Set<Int>()
+        do {
+            var open = Set<Int>()
+            for q in doc.paragraphs {
+                for c in q.blockControlsBefore where c.isStart { open.insert(c.id) }
+                for c in q.blockControlsAfter where open.contains(c.id) { pairedBlockControls.insert(c.id) }
+            }
+        }
+        /// The control starts / ends that go around paragraph `index`; `table`: those that wrap a whole table (written
+        /// outside its cells) rather than the paragraphs inside one.
+        func blockOpen(_ index: Int, table: Bool) -> String {
+            doc.paragraphs[index].blockControlsBefore.filter {
+                pairedBlockControls.contains($0.id) && $0.aroundTable == table
+            }.compactMap { $0.properties.map { "<w:sdt>\($0)<w:sdtContent>" } }.joined()
+        }
+        func blockClose(_ index: Int, table: Bool) -> String {
+            doc.paragraphs[index].blockControlsAfter.filter {
+                pairedBlockControls.contains($0.id) && $0.aroundTable == table
+            }.map { _ in "</w:sdtContent></w:sdt>" }.joined()
+        }
         func paragraphXML(_ index: Int) -> String {
             var p = doc.paragraphs[index]
             // Boundaries can fall inside a normalized run. Split only the
@@ -1346,6 +1367,7 @@ extension DocxFormat {
             }
             var pos = 0
             let utf16 = p.text.utf16
+            let boxRanges = p.checkBoxes.map(\.range)   // a content-control check box shows its glyph as text, not as a legacy form field
             for (runIndex, run) in p.runs.enumerated() where run.length > 0 {
                 body += bookmarkXML(at: pos) + controlXML(at: pos)
                 let a = utf16.index(utf16.startIndex, offsetBy: pos)
@@ -1381,7 +1403,8 @@ extension DocxFormat {
                 let rPrXML = rPr.isEmpty ? "" : "<w:rPr>\(rPr)</w:rPr>"
                 var runXML = ""
                 let isBox: (Character) -> Bool = { $0 == "\u{2610}" || $0 == "\u{2612}" }
-                if s.revision?.kind != .deleted, piece.contains(where: isBox) {
+                if s.revision?.kind != .deleted, piece.contains(where: isBox),
+                   !boxRanges.contains(where: { $0.lowerBound <= pos - run.length && pos - run.length < $0.upperBound }) {
                     // A checkbox glyph goes back as the form field it came
                     // from (form_footnotes' 29): the glyph's fallback font
                     // made every line it sat on taller than Word's.
@@ -1468,10 +1491,11 @@ extension DocxFormat {
                     }
                 }
                 if let link = s.link {
+                    let tip = s.linkTip.map { " w:tooltip=\"\(_esc($0))\"" } ?? ""
                     if link.hasPrefix("#") {
-                        body += "<w:hyperlink w:anchor=\"\(_esc(String(link.dropFirst())))\">\(runXML)</w:hyperlink>"
+                        body += "<w:hyperlink w:anchor=\"\(_esc(String(link.dropFirst())))\"\(tip)>\(runXML)</w:hyperlink>"
                     } else {
-                        body += "<w:hyperlink r:id=\"\(relId(for: link))\">\(runXML)</w:hyperlink>"
+                        body += "<w:hyperlink r:id=\"\(relId(for: link))\"\(tip)>\(runXML)</w:hyperlink>"
                     }
                 } else {
                     body += runXML
@@ -1620,7 +1644,7 @@ extension DocxFormat {
                     if span > 1 { xml += "<w:gridSpan w:val=\"\(span)\"/>" }
                     if (ref?.rowSpan ?? 1) > 1 { xml += "<w:vMerge w:val=\"restart\"/>" }
                     xml += cellBordersXML(ref?.edges, width: ref?.borderWidth, kept: ref?.bordersXML ?? (ref?.rowBordersXML != nil ? "" : nil), under: ref?.bordersKeptUnder)   // schema order: borders, then shading
-                    if let fill = ref?.fill { xml += "<w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"\(_hex(fill))\"/>" }
+                    if let fill = ref?.fill { xml += "<w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"\(_hex(fill))\"\(ref?.fillThemeAttrs ?? "")/>" }
                     if let mar = ref?.marginsXML { xml += mar }
                     // Schema order: the text direction before the alignment.
                     // (As the file wrote it while it still reads that way.)
@@ -1648,11 +1672,11 @@ extension DocxFormat {
                                 endedWithTable = true
                                 continue
                             }
-                            for g in group { xml += paragraphXML(g) }
+                            for g in group { xml += blockOpen(g, table: false) + paragraphXML(g) + blockClose(g, table: false) }
                             endedWithTable = false
                             continue
                         }
-                        xml += paragraphXML(k)
+                        xml += blockOpen(k, table: false) + paragraphXML(k) + blockClose(k, table: false)
                         endedWithTable = false
                         j += 1
                     }
@@ -1700,9 +1724,13 @@ extension DocxFormat {
             }
             if doc.paragraphs[i].cell != nil {
                 let t = tableXML(from: i)
-                body += t.xml
+                // Two tables with nothing between them are one table to Word.
+                if body.hasSuffix("</w:tbl>") { body += "<w:p/>" }
+                body += blockOpen(i, table: true) + t.xml + blockClose(t.end - 1, table: true)
                 i = t.end
             } else {
+                body += blockOpen(i, table: false)
+                defer { body += blockClose(i - 1, table: false) }
                 let xml = paragraphXML(i)
                 // (The rest of a paragraph a page break split goes back into
                 // it: the break ended the one before as its last run, and the
@@ -1807,7 +1835,21 @@ extension DocxFormat {
         // default spacing, older line breaking — which the corpus showed
         // on every saved copy (2026-10-07).
         let written = Set(media.map(\.name))
-        for (name, data) in doc.keptParts.sorted(by: { $0.key < $1.key }) where !written.contains(name) {
+        // A kept picture part nothing points at any more (its picture was replaced or deleted) is not written back.
+        let relTexts = [relsXML, keptRels] + doc.keptParts.filter { $0.key.hasSuffix(".rels") }.map { String(decoding: $0.value, as: UTF8.self) }
+        func orphanMedia(_ name: String) -> Bool {
+            guard name.hasPrefix("word/media/") else { return false }
+            let target = "media/" + name.dropFirst("word/media/".count)
+            return !relTexts.contains { $0.containsSubstring("\"\(target)\"") || $0.containsSubstring("\"/\(name)\"") || $0.containsSubstring("\"../\(target)\"") }
+        }
+        // A theme-linked table colour in a document with no theme part: Word would fall back on ITS default
+        // palette and draw other colours than the app did. Write the palette the app drew with.
+        var keptAll = doc.keptParts
+        if !keptAll.keys.contains(where: { $0.hasPrefix("word/theme/") }),
+           doc.paragraphs.contains(where: { $0.cell?.fillThemeAttrs != nil || $0.cell?.bordersXML?.containsSubstring("w:themeColor=") == true }) {
+            keptAll["word/theme/theme1.xml"] = Data(_defaultThemePart().utf8)
+        }
+        for (name, data) in keptAll.sorted(by: { $0.key < $1.key }) where !written.contains(name) && !orphanMedia(name) {
             extraParts.append(ZipEntry(name: name, data: data))
             switch name {
             case "word/footnotes.xml":
@@ -1916,6 +1958,26 @@ extension DocxFormat {
             ZipEntry(name: "word/_rels/document.xml.rels", data: Data(relsXML.utf8)),
         ] + media + extraParts
         return try Zip.write(entries)
+    }
+
+    /// Office's 2013 default theme (the palette `ColorMath.officeTheme` draws): colours, Calibri fonts, plain format scheme.
+    static func _defaultThemePart() -> String {
+        let c = ColorMath.officeTheme.map { String($0, radix: 16, uppercase: true) }.map { String(repeating: "0", count: 6 - $0.count) + $0 }
+        let names = ["lt1", "dk1", "lt2", "dk2", "accent1", "accent2", "accent3", "accent4", "accent5", "accent6"]
+        // Theme order is dk1, lt1, dk2, lt2, accents; the picker's order is Background 1 (lt1), Text 1 (dk1), ...
+        var scheme = ""
+        for n in ["dk1", "lt1", "dk2", "lt2", "accent1", "accent2", "accent3", "accent4", "accent5", "accent6"] {
+            scheme += "<a:\(n)><a:srgbClr val=\"\(c[names.firstIndex(of: n)!])\"/></a:\(n)>"
+        }
+        scheme += "<a:hlink><a:srgbClr val=\"0563C1\"/></a:hlink><a:folHlink><a:srgbClr val=\"954F72\"/></a:folHlink>"
+        let fill = "<a:solidFill><a:schemeClr val=\"phClr\"/></a:solidFill>"
+        let ln = "<a:ln w=\"6350\"><a:solidFill><a:schemeClr val=\"phClr\"/></a:solidFill></a:ln>"
+        return "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<a:theme xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\" name=\"Office Theme\"><a:themeElements>"
+            + "<a:clrScheme name=\"Office\">\(scheme)</a:clrScheme>"
+            + "<a:fontScheme name=\"Office\"><a:majorFont><a:latin typeface=\"Calibri Light\"/><a:ea typeface=\"\"/><a:cs typeface=\"\"/></a:majorFont><a:minorFont><a:latin typeface=\"Calibri\"/><a:ea typeface=\"\"/><a:cs typeface=\"\"/></a:minorFont></a:fontScheme>"
+            + "<a:fmtScheme name=\"Office\"><a:fillStyleLst>\(fill)\(fill)\(fill)</a:fillStyleLst><a:lnStyleLst>\(ln)\(ln)\(ln)</a:lnStyleLst>"
+            + "<a:effectStyleLst><a:effectStyle><a:effectLst/></a:effectStyle><a:effectStyle><a:effectLst/></a:effectStyle><a:effectStyle><a:effectLst/></a:effectStyle></a:effectStyleLst>"
+            + "<a:bgFillStyleLst>\(fill)\(fill)\(fill)</a:bgFillStyleLst></a:fmtScheme></a:themeElements></a:theme>"
     }
 
     static func _imageMime(_ ext: String) -> String {

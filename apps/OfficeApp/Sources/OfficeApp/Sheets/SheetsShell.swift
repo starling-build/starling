@@ -65,20 +65,28 @@ final class SheetsShellState: State<StatefulWidget> {
     private var _lastTabClick: (index: Int, at: Date)? = nil
     private var _findOpen = false
     private var _namesOpen = false
+    private var _protectOpen: Bool? = nil   // nil closed; false = sheet, true = workbook structure
     /// The Format Cells dialog is open (X-FM-1).
     private var _formatOpen = false
+    private var _cellsDialog: Bool? = nil          // Insert (true) or Delete (false) cells
+    private var _sizeDialog: SizeKind? = nil
     private var _pageSetupOpen = false
     private var _printOpen = false
     private var _alertOpen: (alert: ValidationAlert, answer: (ValidationChoice) -> Void)?
     private var _sortOpen: (range: CellRange, hasHeader: Bool)?
+    private var _dupOpen: (range: CellRange, hasHeader: Bool)?
+    private var _ttcOpen: CellRange?
+    private var _subOpen: CellRange?
     private var _validationOpen = false
     private var _cfOpen = false
+    private var _tableOpen = false
     private var _filterOpen: (col: Int, kind: String)?
     private let _tabProbes = SheetTabProbes()
     private var _tabDrag: (from: Int, x: Double, moved: Bool)? = nil
     /// Sheet whose Tab Color or Move or Copy dialog is open.
     private var _tabColorFor: Int? = nil
     private var _moveCopyFor: Int? = nil
+    private var _pasteOpen = false
     private var _findReplace = false
     private var _findStatus = ""
     private let _findQuery = TextEditingController()
@@ -318,7 +326,14 @@ final class SheetsShellState: State<StatefulWidget> {
             // (Weak: UIKit keeps the buttons past the window, and a strong workbook kept a closed window's data alive.)
             undo: { [weak wb] in wb?.undo() }, redo: { [weak wb] in wb?.redo() },
             toggleBold: { [weak wb] in wb?.toggleStyle(\.bold) }, toggleItalic: { [weak wb] in wb?.toggleStyle(\.italic) },
-            toggleUnderline: { [weak wb] in wb?.toggleStyle(\.underline) }), owner: self)
+            toggleUnderline: { [weak wb] in wb?.toggleStyle(\.underline) },
+            // What typing numbers into cells reaches for: a total, a number format, and a clean cell.
+            context: [
+                .init(id: "ctx-cell-sum", title: "AutoSum", symbol: "sum") { [weak wb] in if let wb { Ribbon._autoSum(wb) } },
+                .init(id: "ctx-cell-currency", title: "Currency", symbol: "dollarsign") { [weak wb] in wb?.setStyle { $0.numberFormat = "$#,##0.00" } },
+                .init(id: "ctx-cell-percent", title: "Percent Style", symbol: "percent") { [weak wb] in wb?.setStyle { $0.numberFormat = "0%" } },
+                .init(id: "ctx-cell-clear", title: "Clear Contents", symbol: "eraser") { [weak wb] in wb?.clearContents() },
+            ]), owner: self)
     }
 
     /// The name box shows the active cell (or the selection's size while
@@ -344,9 +359,12 @@ final class SheetsShellState: State<StatefulWidget> {
     private func _command(_ cmd: SheetCommand) {
         guard let grid = _grid else { return }
         switch cmd {
+        case .cellsDialog(let insert): _openCellsDialog(insert: insert)
+        case .sizeDialog(let k): _openSizeDialog(k)
         case .copy: grid.copySelection()
         case .cut: grid.copySelection(cut: true)
         case .paste: grid.paste()
+        case .pasteSpecial: _openPasteSpecial()
         case .startFormula(let text):
             grid.focus.requestFocus()
             grid.beginEdit(replace: text)
@@ -362,13 +380,29 @@ final class SheetsShellState: State<StatefulWidget> {
             setState { _cfOpen = true }
         case .dataValidation:
             setState { _validationOpen = true }
+        case .removeDuplicates:
+            if let region = wb.sortRegion() { setState { _dupOpen = region } }
+            else { _flash(DuplicatesProblem.nothingToCheck.message) }
+        case .textToColumns:
+            let r = wb.selection
+            if r.left == r.right, r.bottom > r.top { setState { _ttcOpen = r } }
+            else { _flash(TextToColumnsProblem.oneColumn.message) }
+        case .subtotal:
+            if let region = wb.sortRegion() { setState { _subOpen = region.range } }
+            else { _flash(SubtotalProblem.nothingToTotal.message) }
         case .sortDialog:
             if let region = wb.sortRegion() { setState { _sortOpen = region } }
             else { _flash(SortProblem.nothingToSort.message) }
+        case .tableDialog:
+            setState { _tableOpen = true }
         case .columnFilter(let col, let kind):
             setState { _filterOpen = (col, kind) }
         case .nameManager:
             setState { _namesOpen = true }
+        case .protectSheetDialog:
+            setState { _protectOpen = false }
+        case .protectWorkbookDialog:
+            setState { _protectOpen = true }
         case .pageSetup:
             setState { _pageSetupOpen = true }
         }
@@ -733,7 +767,8 @@ final class SheetsShellState: State<StatefulWidget> {
                     self._tabDrag = nil
                     guard d.moved else { return }
                     let spans = self._tabProbes.spans(self.wb.visibleSheets)
-                    if let to = SheetTabDrag.target(spans: spans, x: Double(e.position.dx)), to != d.from { self.wb.moveSheet(d.from, to: to) }
+                    guard let to = SheetTabDrag.target(spans: spans, x: Double(e.position.dx)) else { return }
+                    if let why = self.wb.dropTab(from: d.from, to: to, copy: self._grid?.controlHeld == true) { self._flash(why) }
                 },
                 child: FlatButton(
                 child: Padding(padding: EdgeInsets(left: 12, top: 0, right: 12, bottom: 0), child: Column(
@@ -940,12 +975,40 @@ final class SheetsShellState: State<StatefulWidget> {
                     self?._grid?.focus.requestFocus()
                 }))])
         }
+        if let open = _dupOpen {
+            return Stack(children: [window, Positioned(left: 0, top: 0, right: 0, bottom: 0, child: RemoveDuplicatesDialog(
+                controller: wb, range: open.range, hasHeader: open.hasHeader, onClose: { [weak self] in
+                    self?.setState { self?._dupOpen = nil }
+                    self?._grid?.focus.requestFocus()
+                }))])
+        }
+        if let open = _ttcOpen {
+            return Stack(children: [window, Positioned(left: 0, top: 0, right: 0, bottom: 0, child: TextToColumnsDialog(
+                controller: wb, range: open, onClose: { [weak self] in
+                    self?.setState { self?._ttcOpen = nil }
+                    self?._grid?.focus.requestFocus()
+                }))])
+        }
+        if let open = _subOpen {
+            return Stack(children: [window, Positioned(left: 0, top: 0, right: 0, bottom: 0, child: SubtotalDialog(
+                controller: wb, range: open, onClose: { [weak self] in
+                    self?.setState { self?._subOpen = nil }
+                    self?._grid?.focus.requestFocus()
+                }))])
+        }
         if let open = _sortOpen {
             return Stack(children: [window, Positioned(left: 0, top: 0, right: 0, bottom: 0, child: SortDialog(
                 controller: wb, range: open.range, hasHeader: open.hasHeader, onClose: { [weak self] in
                     self?.setState { self?._sortOpen = nil }
                     self?._grid?.focus.requestFocus()
                 }))])
+        }
+        if _tableOpen {
+            layers.append(Positioned(left: 0, top: 0, right: 0, bottom: 0, child: TableDialog(
+                controller: wb, onClose: { [weak self] in
+                    self?.setState { self?._tableOpen = false }
+                    self?._grid?.focus.requestFocus()
+                })))
         }
         if let open = _filterOpen {
             return Stack(children: [window, Positioned(left: 0, top: 0, right: 0, bottom: 0, child: FilterDialog(
@@ -958,6 +1021,13 @@ final class SheetsShellState: State<StatefulWidget> {
             layers.append(Positioned(left: 0, top: 0, right: 0, bottom: 0, child: NameManagerDialog(
                 controller: wb, onClose: { [weak self] in
                     self?.setState { self?._namesOpen = false }
+                    self?._grid?.focus.requestFocus()
+                })))
+        }
+        if let workbook = _protectOpen {
+            layers.append(Positioned(left: 0, top: 0, right: 0, bottom: 0, child: ProtectDialog(
+                controller: wb, workbook: workbook, onClose: { [weak self] in
+                    self?.setState { self?._protectOpen = nil }
                     self?._grid?.focus.requestFocus()
                 })))
         }
@@ -986,6 +1056,36 @@ final class SheetsShellState: State<StatefulWidget> {
                     else { self.wb.moveSheet(i, to: before > i ? before - 1 : before) }
                 },
                 onClose: { [weak self] in self?.setState { self?._moveCopyFor = nil }; self?._grid?.focus.requestFocus() })))
+        }
+        if _pasteOpen, _backstage == nil {
+            layers.append(Positioned(left: 0, top: 0, right: 0, bottom: 0, child: PasteSpecialDialog(
+                onApply: { [weak self] how in self?._grid?.paste(how) },
+                onClose: { [weak self] in self?._closePasteSpecial() })))
+        }
+        if let insert = _cellsDialog, _backstage == nil {
+            layers.append(InsertDeleteCellsDialog(
+                insert: insert,
+                onApply: { [weak self] c in self?.wb.applyCells(insert: insert, c) },
+                onClose: { [weak self] in self?.setState { self?._cellsDialog = nil }; self?._grid?.focus.requestFocus() }))
+        }
+        if let kind = _sizeDialog, _backstage == nil {
+            let sh = wb.sheet
+            let start: Double
+            switch kind {
+            case .rowHeight: start = sh.rowHeight(wb.selection.top)
+            case .columnWidth: start = Xlsx._displayChars(points: sh.colWidth(wb.selection.left), digit: sh.digitWidth)
+            case .defaultWidth: start = Xlsx._displayChars(points: sh.defaultColWidthPt, digit: sh.digitWidth)
+            }
+            layers.append(SizeDialog(
+                title: kind.title, unit: kind.unit, start: start,
+                onApply: { [weak self] v in
+                    switch kind {
+                    case .rowHeight: self?.wb.setRowHeights(v)
+                    case .columnWidth: self?.wb.setColumnWidths(Xlsx._pointsForDisplayChars(v, digit: sh.digitWidth))
+                    case .defaultWidth: self?.wb.setDefaultColumnWidth(Xlsx._pointsForDisplayChars(v, digit: sh.digitWidth))
+                    }
+                },
+                onClose: { [weak self] in self?.setState { self?._sizeDialog = nil }; self?._grid?.focus.requestFocus() }))
         }
         if layers.count > 1, _backstage == nil { return Stack(children: layers) }
         if _formatOpen, _backstage == nil {
@@ -1021,7 +1121,10 @@ final class SheetsShellState: State<StatefulWidget> {
         case "n": session.replacing { [weak self] in self?._newWorkbook() }; return true
         case "p": _print(); return true
         case "f": _openFind(replace: false); return true
+        case "v" where chords.alt && _grid?.edit == nil: _openPasteSpecial(); return true
         case "1" where _grid?.edit == nil: _openFormatCells(); return true
+        case "+" where _grid?.edit == nil: _openCellsDialog(insert: true); return true
+        case "-" where _grid?.edit == nil: _openCellsDialog(insert: false); return true
         case "h": _openFind(replace: true); return true
         case "l" where chords.shift: wb.toggleAutoFilter(); return true
         // Excel for Mac's Group and Ungroup.
@@ -1034,6 +1137,32 @@ final class SheetsShellState: State<StatefulWidget> {
         default: return false
         }
     }
+
+    // MARK: Paste Special
+    func _openPasteSpecial() {
+        setState { _pasteOpen = true }
+    }
+
+    private func _closePasteSpecial() {
+        guard _pasteOpen else { return }
+        setState { _pasteOpen = false }
+        _grid?.focus.requestFocus()
+    }
+
+    // MARK: Insert / Delete cells, sizes
+    /// Ctrl++ / Ctrl+-: whole rows or columns act at once; a block of cells asks which way to shift.
+    func _openCellsDialog(insert: Bool) {
+        let r = wb.selection
+        let wholeRows = r.left == 0 && r.right >= CellAddress.maxCols - 1
+        let wholeCols = r.top == 0 && r.bottom >= CellAddress.maxRows - 1
+        if wholeRows || wholeCols {
+            wb.applyCells(insert: insert, wholeRows ? .entireRow : .entireColumn)
+        } else {
+            setState { _cellsDialog = insert }
+        }
+    }
+
+    func _openSizeDialog(_ kind: SizeKind) { setState { _sizeDialog = kind } }
 
     // MARK: Format Cells
     func _openFormatCells() {
@@ -1172,6 +1301,7 @@ final class SheetsShellState: State<StatefulWidget> {
         item("Cut") { grid.copySelection(cut: true) }
         item("Copy") { grid.copySelection() }
         item("Paste") { grid.paste() }
+        item("Paste Special…") { [weak self] in self?._openPasteSpecial() }
         sep()
         let sel = c.selection
         switch area {
@@ -1184,10 +1314,8 @@ final class SheetsShellState: State<StatefulWidget> {
             item(n > 1 ? "Insert \(n) Rows" : "Insert Row") { c.insertAtSelection(.rows) }
             item(n > 1 ? "Delete \(n) Rows" : "Delete Row") { c.deleteAtSelection(.rows) }
         case .cells:
-            item("Insert Rows Above") { c.insertAtSelection(.rows) }
-            item("Insert Columns Left") { c.insertAtSelection(.cols) }
-            item("Delete Rows") { c.deleteAtSelection(.rows) }
-            item("Delete Columns") { c.deleteAtSelection(.cols) }
+            item("Insert…") { [weak self] in self?._openCellsDialog(insert: true) }
+            item("Delete…") { [weak self] in self?._openCellsDialog(insert: false) }
         case .drawing: break
         }
         item("Clear Contents") { c.clearContents() }
@@ -1203,10 +1331,12 @@ final class SheetsShellState: State<StatefulWidget> {
         switch area {
         case .columns:
             item("AutoFit Column Width") { grid.autofit(.cols, sel.left) }
+            item("Column Width…") { [weak self] in self?._openSizeDialog(.columnWidth) }
             item("Hide") { c.setHidden(.cols, true) }
             item("Unhide") { c.setHidden(.cols, false) }
         case .rows:
             item("AutoFit Row Height") { grid.autofit(.rows, sel.top) }
+            item("Row Height…") { [weak self] in self?._openSizeDialog(.rowHeight) }
             item("Hide") { c.setHidden(.rows, true) }
             item("Unhide") { c.setHidden(.rows, false) }
         case .cells:

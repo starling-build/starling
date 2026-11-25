@@ -102,6 +102,10 @@ enum Pptx {
     enum ReadError: Error { case noPresentation, notAPresentation }
 
     static func read(_ data: Data) throws -> (DeckState, DeckTheme, PptxPackage) {
+        try BigStack.run { try _read(data) }
+    }
+
+    private static func _read(_ data: Data) throws -> (DeckState, DeckTheme, PptxPackage) {
         // A legacy .ppt (PowerPoint 97-2003, a compound file holding a "PowerPoint Document" stream) is
         // read as the package it translates to; an encrypted .pptx is a compound file too and stays on its path.
         if data.count > 8, data.starts(with: [0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1]),
@@ -753,6 +757,23 @@ struct LevelStyle {
 }
 
 // MARK: - Reader
+
+extension PptxPackage {
+    /// A click action (`a:hlinkClick`) as the model keeps it: the URL (web,
+    /// mailto), "slide:<part>" for a jump to a slide, "action:<ppaction>" for
+    /// one with no target (next slide, end show…). The tip is its tooltip.
+    func clickAction(_ n: XNode?, part: String) -> (link: String?, tip: String?) {
+        guard let n else { return (nil, nil) }
+        let tip = (n["tooltip"]).flatMap { $0.isEmpty ? nil : $0 }
+        if let rid = n["r:id"], !rid.isEmpty, let rel = rels(part).first(where: { $0.id == rid }) {
+            if rel.external { return (rel.target, tip) }
+            if rel.kind == "slide" { return ("slide:" + rel.target, tip) }
+            return (nil, nil)
+        }
+        if let a = n["action"], !a.isEmpty { return ("action:" + a, tip) }
+        return (nil, nil)
+    }
+}
 
 struct PptxReader {
     let package: PptxPackage
@@ -1552,6 +1573,9 @@ struct SlideContext {
             guard var s else { return }
             s.fileId = el.descendant("p:cNvPr")?["id"].flatMap(Int.init)
             s.group = group
+            let click = package.clickAction(el.descendant("p:cNvPr")?.first("a:hlinkClick"), part: part)
+            s.link = click.link; s.linkTip = click.tip
+            if click.link != nil, s.readShape != nil { s.readShape = ReadShape(s) }
             // Hidden (`cNvPr hidden="1"`), itself or by its group: in the
             // file, and not drawn — lo-hidden_group_shape's red square.
             if group?.hidden == true || el.descendant("p:cNvPr")?["hidden"] == "1" { s.invisible = true }
@@ -2311,6 +2335,7 @@ struct SlideContext {
         st.sourceXML = PptxXML.serialize(sp)
         st.sourceText = st.text
         st.sourcePart = part
+        st.aspectLock = sp.first("p:nvSpPr")?.first("p:cNvSpPr")?.first("a:spLocks")?["noChangeAspect"] == "1"
         st.readShape = ReadShape(st)
         return st
     }

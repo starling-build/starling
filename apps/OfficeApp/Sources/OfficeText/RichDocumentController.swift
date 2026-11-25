@@ -71,6 +71,9 @@ public indirect enum EditOp: Equatable, Sendable {
     case setTableStyle(String, old: TableStyle?, new: TableStyle?)
     /// One level's format of one list (nil: the level's default).
     case setListFormat(String, level: Int, old: ListLevelFormat?, new: ListLevelFormat?)
+    /// The number a list's level restarts at, the first time it is used (nil: none).
+    case setListRestart(String, level: Int, old: Int?, new: Int?)
+    case setListCounter(String, old: String?, new: String?)
 
     /// Apply to `doc`, appending the invalidation to `changes`, and return
     /// the inverse.
@@ -186,6 +189,18 @@ public indirect enum EditOp: Equatable, Sendable {
             for i in doc.paragraphs.indices where doc.paragraphs[i].style.listId == id { changes.append(.changed(i)) }
             changes.append(.lists)
             return .setListFormat(id, level: level, old: new, new: old)
+        case .setListRestart(let id, let level, let old, let new):
+            var restarts = doc.listRestarts[id] ?? [:]
+            restarts[level] = new
+            doc.listRestarts[id] = restarts.isEmpty ? nil : restarts
+            for i in doc.paragraphs.indices where doc.paragraphs[i].style.listId == id { changes.append(.changed(i)) }
+            changes.append(.lists)
+            return .setListRestart(id, level: level, old: new, new: old)
+        case .setListCounter(let id, let old, let new):
+            doc.listCounterOf[id] = new
+            for i in doc.paragraphs.indices where doc.paragraphs[i].style.listId == id { changes.append(.changed(i)) }
+            changes.append(.lists)
+            return .setListCounter(id, old: new, new: old)
         }
     }
 }
@@ -844,6 +859,29 @@ public final class RichDocumentController: ChangeNotifier {
         return true
     }
 
+    /// Reset Picture: take the crop and the turn off the picture at `index` (or its inline picture `id`) and show it at its own size
+    /// (the scale it had, when the file does not say what its own size is), one undo step. False when nothing changes.
+    @discardableResult
+    public func resetPicture(at index: Int, inline id: String? = nil) -> Bool {
+        guard index < document.paragraphs.count else { return false }
+        guard let old = id.map({ document.paragraphs[index].inlineImages[$0] }) ?? document.paragraphs[index].image else { return false }
+        var new = old
+        let was = old.crop ?? PictureCrop(left: 0, top: 0, right: 0, bottom: 0)
+        new.crop = nil
+        new.rotation = 0
+        if let nw = old.naturalWidth, let nh = old.naturalHeight, nw > 0, nh > 0 {
+            new.width = nw; new.height = nh
+        } else {
+            let turned = Int((old.rotation / 90).rounded()) % 2 != 0
+            let (bw, bh) = turned ? (old.height, old.width) : (old.width, old.height)
+            new.width = bw / max(0.01, 1 - was.left - was.right)
+            new.height = bh / max(0.01, 1 - was.top - was.bottom)
+        }
+        guard new != old else { return false }
+        edit { perform(id.map { .setInlineImage(index, id: $0, old: old, new: new) } ?? .setImage(index, old: old, new: new)) }
+        return true
+    }
+
     /// Show the picture at `index` at `width` × `height` points, one undo step.
     public func setImageSize(at index: Int, width: Double, height: Double) {
         guard index < document.paragraphs.count, let old = document.paragraphs[index].image else { return }
@@ -1205,6 +1243,16 @@ public final class RichDocumentController: ChangeNotifier {
         }
     }
 
+    /// Flip content-control check box `id` of paragraph `index` (one undo step). Returns whether it changed.
+    @discardableResult
+    public func toggleCheckBox(in index: Int, control id: Int) -> Bool {
+        guard index >= 0, index < document.paragraphs.count,
+              let box = document.paragraphs[index].checkBoxes.first(where: { $0.id == id }),
+              let after = document.paragraphs[index].settingCheckBox(id, to: !box.checked) else { return false }
+        edit { perform(.restoreParagraphs(index, count: 1, [after])) }
+        return true
+    }
+
     public enum CaseChange { case sentence, lower, upper, capitalizeWords, toggle }
 
     /// Word's Change Case over the selection, or the word at the caret.
@@ -1307,7 +1355,7 @@ public final class RichDocumentController: ChangeNotifier {
         guard var entry = document.styles[id] else { return }
         let old = entry
         var char = currentCharStyle
-        char.link = nil
+        char.link = nil; char.linkTip = nil
         char.highlight = nil
         entry.char = char
         var ps = currentParagraphStyle
@@ -1452,7 +1500,7 @@ public final class RichDocumentController: ChangeNotifier {
         // tracked-change marks are content, not formatting: they stay.
         let keep: (inout CharStyle) -> Void = { s in
             var p = CharStyle.plain
-            p.link = s.link; p.note = s.note; p.inlineImage = s.inlineImage
+            p.link = s.link; p.linkTip = s.linkTip; p.note = s.note; p.inlineImage = s.inlineImage
             p.revision = s.revision; p.formatChange = s.formatChange
             s = p
         }
@@ -1570,7 +1618,11 @@ public final class RichDocumentController: ChangeNotifier {
 
     /// Insert an empty rows×columns table at the caret, with a plain
     /// paragraph after it so the caret can leave it.
-    public func insertTable(rows: Int, columns: Int) {
+    /// How a new table sizes its columns: `fixed` keeps the widths it is given,
+    /// `contents` lets Word-style autofit follow the text, `window` also spans the text width.
+    public enum TableFit: Sendable { case fixed, contents, window }
+
+    public func insertTable(rows: Int, columns: Int, fit: TableFit = .contents) {
         let rows = max(1, rows), columns = max(1, columns)
         edit {
             if hasSelection { _deleteSelectionOps() }
@@ -1588,12 +1640,17 @@ public final class RichDocumentController: ChangeNotifier {
             var at = pos.paragraph + 1
             if para.text.isEmpty && !para.isImage && para.cell == nil {
                 at = pos.paragraph
+                // Word reads two tables with nothing between them as one: keep a paragraph.
+                if at > 0, document.paragraphs[at - 1].cell != nil {
+                    perform(.insertParagraphs(at: at, [RichParagraph()]))
+                    at += 1
+                }
                 perform(.insertParagraphs(at: at, cells))
             } else if para.cell != nil {
                 // A table inside a table is a step too far: put it after.
                 let after = _tableEnd(from: pos.paragraph) + 1
-                perform(.insertParagraphs(at: after, cells + [RichParagraph()]))
-                at = after
+                perform(.insertParagraphs(at: after, [RichParagraph()] + cells + [RichParagraph()]))
+                at = after + 1
             } else {
                 if pos.offset < para.length {
                     perform(.splitParagraph(pos, tailStyle: .body))
@@ -1603,6 +1660,13 @@ public final class RichDocumentController: ChangeNotifier {
                 perform(.insertParagraphs(at: at, cells))
             }
             _setCaret(RichPosition(paragraph: at, offset: 0))
+            var style = TableStyle()
+            switch fit {
+            case .contents: break
+            case .fixed: style.fixedLayout = true
+            case .window: style.widthPercent = 100
+            }
+            if style != TableStyle() { perform(.setTableStyle(id, old: nil, new: style)) }
         }
     }
 
@@ -1758,8 +1822,10 @@ public final class RichDocumentController: ChangeNotifier {
     }
 
     /// Shade the target cells (nil clears the shading), one undo step.
-    public func setCellShading(_ color: Color?) {
-        _formatCells { c, _ in c.fill = color }
+    /// `themeAttrs` (from `WordTheme.attrs`) keeps the shading following the document's theme in the file; the
+    /// colour is what it resolves to now. A plain colour clears any earlier theme link.
+    public func setCellShading(_ color: Color?, themeAttrs: String? = nil) {
+        _formatCells { c, _ in c.fill = color; c.fillThemeAttrs = color == nil ? nil : themeAttrs }
     }
 
     // MARK: Table properties (W-TB-3). Each is one undo step.
@@ -2155,6 +2221,46 @@ public final class RichDocumentController: ChangeNotifier {
     /// Remove the table the caret is in; the caret lands where it was.
     public func deleteTable() {
         _rewriteTable(caret: { _ in 0 }, rewrite: { $0.removeAll() })
+    }
+
+    // MARK: Selecting parts of a table
+
+    /// Select the cells of `rows` x `columns` in the caret's table (the
+    /// corner cells become anchor and focus, so the block selection and
+    /// every command that works on one follow).
+    private func _selectCells(rows: (Int) -> ClosedRange<Int>, columns: (Int) -> ClosedRange<Int>) {
+        guard let here = currentCell else { return }
+        let members = document.paragraphs(inTable: here.table)
+        let cells = members.compactMap { i in document.paragraphs[i].cell.map { (i, $0) } }
+        let maxRow = cells.map { $0.1.row + $0.1.rowSpan - 1 }.max() ?? 0
+        let maxCol = cells.map { $0.1.column + $0.1.span - 1 }.max() ?? 0
+        let r = rows(maxRow), k = columns(maxCol)
+        func paragraph(row: Int, column: Int) -> Int? {
+            cells.first { $0.1.intersects(rows: row ... row, columns: column ... column) }?.0
+        }
+        guard let a = paragraph(row: r.lowerBound, column: k.lowerBound),
+              let f = paragraph(row: r.upperBound, column: k.upperBound) else { return }
+        moveTo(RichPosition(paragraph: a, offset: 0), extend: false)
+        moveTo(RichPosition(paragraph: f, offset: 0), extend: true)
+    }
+
+    /// Select the whole row the caret is in.
+    public func selectRow() {
+        guard let here = currentCell else { return }
+        let rows = here.row ... here.row + here.rowSpan - 1
+        _selectCells(rows: { _ in rows }, columns: { 0 ... $0 })
+    }
+
+    /// Select the whole column the caret is in.
+    public func selectColumn() {
+        guard let here = currentCell else { return }
+        let cols = here.column ... here.column + here.span - 1
+        _selectCells(rows: { 0 ... $0 }, columns: { _ in cols })
+    }
+
+    /// Select every cell of the caret's table.
+    public func selectTable() {
+        _selectCells(rows: { 0 ... $0 }, columns: { 0 ... $0 })
     }
 
     /// Insert an empty row above or below the caret's row.
@@ -2593,10 +2699,112 @@ public final class RichDocumentController: ChangeNotifier {
                 let t = (st.listId!, st.listLevel)
                 if !targets.contains(where: { $0 == t }) { targets.append(t) }
             }
-            for (id, level) in targets {
+            for (id, level) in targets.flatMap({ t in _listIdsSharing(t.0).map { ($0, t.1) } }) {
                 let old = document.listFormats[id]?[level]
                 let new = format.forLevel(level)
                 if old != new { perform(.setListFormat(id, level: level, old: old, new: new)) }
+            }
+        }
+    }
+
+    /// Word's multilevel list gallery: the selected items become one list
+    /// whose every level (0 to 8) takes its format from `scheme`.
+    public func setMultilevelFormat(_ scheme: [ListLevelFormat]) {
+        guard let top = scheme.first else { return }
+        setListFormat(top)   // converts the kind, assigns the id, formats the levels in use
+        edit {
+            let ids = Set(document.paragraphIndices(in: selection).compactMap { document.paragraphs[$0].style.listId })
+            for id in ids.sorted() {
+                for (level, f) in scheme.prefix(9).enumerated() {
+                    let old = document.listFormats[id]?[level]
+                    if old != f { perform(.setListFormat(id, level: level, old: old, new: f)) }
+                }
+            }
+        }
+    }
+
+    /// Word's Set Numbering Value (and Restart at 1): the caret's item and
+    /// every later item of its list become a list of their own whose level
+    /// starts at `n`. Deeper levels count from their own start again.
+    public func setNumberingValue(_ n: Int) {
+        let i = selection.focus.paragraph
+        guard document.paragraphs[i].style.list == .numbered else { return }
+        edit {
+            if document.paragraphs[i].style.listId == nil { _assignListId(around: i) }
+            let oldId = document.paragraphs[i].style.listId!
+            let level = document.paragraphs[i].style.listLevel
+            let fresh = _freshListId()
+            for k in i ..< document.paragraphs.count where document.paragraphs[k].style.listId == oldId {
+                let old = document.paragraphs[k].style
+                var new = old
+                new.listId = fresh
+                perform(.setParagraphStyle(k, old: old, new: new))
+            }
+            for (lvl, f) in (document.listFormats[oldId] ?? [:]).sorted(by: { $0.key < $1.key }) {
+                perform(.setListFormat(fresh, level: lvl, old: nil, new: f))
+            }
+            perform(.setListRestart(fresh, level: level, old: nil, new: max(0, n)))
+            // Both halves stay one list definition: a later format change reaches both, and the
+            // file writes one abstract list with a start override on the second.
+            let key = document.listCounterOf[oldId] ?? oldId
+            if document.listCounterOf[oldId] == nil { perform(.setListCounter(oldId, old: nil, new: key)) }
+            perform(.setListCounter(fresh, old: nil, new: key))
+        }
+    }
+
+    /// `id` and every other list id that shares its counter (a list split by Set Numbering Value).
+    private func _listIdsSharing(_ id: String) -> [String] {
+        guard let key = document.listCounterOf[id] else { return [id] }
+        let others = document.listCounterOf.filter { $0.value == key && $0.key != id }.keys.sorted()
+        return [id] + others
+    }
+
+    public func restartNumbering() { setNumberingValue(1) }
+
+    /// The list item above the caret's that Continue Numbering would join: the
+    /// nearest earlier numbered item of another list.
+    private func _previousListId() -> String? {
+        let i = selection.focus.paragraph
+        let mine = document.paragraphs[i].style.listId
+        var k = i - 1
+        while k >= 0 {
+            let s = document.paragraphs[k].style
+            if s.list == .numbered, let id = s.listId, id != mine { return id }
+            if s.list == .numbered, s.listId == mine { return nil }
+            k -= 1
+        }
+        return nil
+    }
+
+    /// True when the caret paragraph is a numbered (not bullet) list item.
+    public var isNumberedItem: Bool {
+        document.paragraphs[selection.focus.paragraph].style.list == .numbered
+    }
+
+    /// The number the caret item shows now (1 when it is not a plain number), the prompt's start value.
+    public var currentNumberValue: Int {
+        let labels = RichListNumbering.labels(document)
+        guard let l = labels[selection.focus.paragraph] else { return 1 }
+        let digits = l.filter { $0.isNumber }
+        return Int(digits) ?? 1
+    }
+
+    public var canContinueNumbering: Bool {
+        document.paragraphs[selection.focus.paragraph].style.list == .numbered && _previousListId() != nil
+    }
+
+    /// Word's Continue Numbering: the caret's item and the rest of its list join the list above.
+    public func continueNumbering() {
+        let i = selection.focus.paragraph
+        guard document.paragraphs[i].style.list == .numbered, let target = _previousListId() else { return }
+        edit {
+            if document.paragraphs[i].style.listId == nil { _assignListId(around: i) }
+            let mine = document.paragraphs[i].style.listId!
+            for k in i ..< document.paragraphs.count where document.paragraphs[k].style.listId == mine {
+                let old = document.paragraphs[k].style
+                var new = old
+                new.listId = target
+                perform(.setParagraphStyle(k, old: old, new: new))
             }
         }
     }
@@ -2932,7 +3140,7 @@ public final class RichDocumentController: ChangeNotifier {
                     var kept = CharStyle.plain
                     kept.bold = run.style.bold; kept.italic = run.style.italic
                     kept.underline = run.style.underline; kept.strikethrough = run.style.strikethrough
-                    kept.script = run.style.script; kept.link = run.style.link
+                    kept.script = run.style.script; kept.link = run.style.link; kept.linkTip = run.style.linkTip
                     return Run(length: run.length, style: kept)
                 }
             }
@@ -2990,18 +3198,25 @@ public enum CellSide: String, CaseIterable, Hashable, Sendable {
 }
 
 /// One border line: Word's line style ("single", "double", "dashed",
-/// "dotted", "thick", or "none" for no line), width in points (0.25 to
-/// 12) and colour (nil is automatic).
+/// "dotted", or "none" for no line), width in points (one of Word's nine, 1/4 to 6; a heavy
+/// line is "single" with a large width, as Word writes it) and colour (nil
+/// is automatic).
 public struct CellBorderLine: Hashable, Sendable {
-    public static let styles = ["single", "double", "dashed", "dotted", "thick", "none"]
+    public static let styles = ["single", "double", "dashed", "dotted", "none"]
     public var style: String
     public var width: Double
     public var color: Color?
-    public init(style: String = "single", width: Double = 0.5, color: Color? = nil) {
+    /// The colour's theme link (` w:themeColor="accent2" w:themeShade="BF"`, from `WordTheme.attrs`), written after the
+    /// colour so the line keeps following the theme.
+    public var themeAttrs: String?
+    public init(style: String = "single", width: Double = 0.5, color: Color? = nil, themeAttrs: String? = nil) {
+        self.themeAttrs = color == nil ? nil : themeAttrs
         self.style = Self.styles.contains(style) ? style : "single"
-        self.width = min(12, max(0.25, width))
+        // Word has only these widths and rounds any other to the nearest one.
+        self.width = Self.widths.min { abs($0 - width) < abs($1 - width) } ?? 0.5
         self.color = color
     }
+    public static let widths: [Double] = [0.25, 0.5, 0.75, 1, 1.5, 2.25, 3, 4.5, 6]
     public static let none = CellBorderLine(style: "none")
 
     func xml(_ side: String) -> String {
@@ -3010,6 +3225,27 @@ public struct CellBorderLine: Hashable, Sendable {
             let h = String(v.value & 0xFFFFFF, radix: 16, uppercase: true)
             return String(repeating: "0", count: 6 - h.count) + h
         } ?? "auto"
-        return "<w:\(side) w:val=\"\(style)\" w:sz=\"\(Int((width * 8).rounded()))\" w:space=\"0\" w:color=\"\(hex)\"/>"
+        return "<w:\(side) w:val=\"\(style)\" w:sz=\"\(Int((width * 8).rounded()))\" w:space=\"0\" w:color=\"\(hex)\"\(themeAttrs ?? "")/>"
+    }
+}
+
+/// Word's theme-colour attributes for a colour picked from the theme grid.
+public enum WordTheme {
+    static let slots = ["background1", "text1", "background2", "text2", "accent1", "accent2", "accent3", "accent4", "accent5", "accent6"]
+
+    /// The attributes for slot 0...9 (Background 1, Text 1, Background 2, Text 2, Accent 1...6) at OOXML's `lumMod` and
+    /// `lumOff` in percent. Lighter steps are a tint of the slot, darker ones a shade (Word writes both as hex bytes of
+    /// the share kept: Lighter 40 percent is tint 99, Darker 25 percent is shade BF). `fill`: a shading
+    /// (`w:themeFill`), otherwise a line or text colour (`w:themeColor`).
+    public static func attrs(slot: Int, lumMod: Int, lumOff: Int, fill: Bool) -> String? {
+        guard slot >= 0, slot < slots.count else { return nil }
+        let base = fill ? "w:themeFill" : "w:themeColor"
+        var out = " \(base)=\"\(slots[slot])\""
+        if lumMod < 100 {
+            let hex = String(Int((Double(lumMod) * 2.55).rounded()), radix: 16, uppercase: true)
+            let kind = lumOff > 0 ? "Tint" : "Shade"
+            out += " \(base == "w:themeFill" ? "w:themeFill" : "w:theme")\(kind)=\"\(hex.count < 2 ? "0" + hex : hex)\""
+        }
+        return out
     }
 }

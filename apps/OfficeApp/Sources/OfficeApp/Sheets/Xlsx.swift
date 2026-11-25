@@ -50,7 +50,7 @@ enum Xlsx {
         let wbRels = _rels(_part(parts, "xl/_rels/workbook.xml.rels"), base: "xl/")
         let book = Workbook(sheets: [])
         book.package = entries
-        if let p = wbNode.child("workbookProtection") { book.structureLocked = p["lockStructure"] == "1" || p["lockStructure"] == "true" }
+        if let p = wbNode.child("workbookProtection") { book.workbookProtection = p.attrs }
         if let pr = wbNode.child("workbookPr") { book.date1904 = pr["date1904"] == "1" || pr["date1904"] == "true" }
         if let cp = wbNode.child("calcPr") {
             book.iterate = cp["iterate"] == "1" || cp["iterate"] == "true"
@@ -540,6 +540,19 @@ enum Xlsx {
         return _pointsToChars(pt, digit: ws.digitWidth)
     }
 
+    /// What Excel's dialogs call a width: the characters that fit, without
+    /// the 5 px of padding the file's width includes (stored 20.7109375 is 20).
+    static func _displayChars(points pt: Double, digit: Double = 7) -> Double {
+        let px = (pt / 0.75).rounded()
+        return (((px - 5) / digit) * 100).rounded() / 100
+    }
+    /// Points for a width typed as characters: the file's width is
+    /// trunc((chars * digit + 5) / digit * 256) / 256, as Excel writes it.
+    static func _pointsForDisplayChars(_ chars: Double, digit: Double = 7) -> Double {
+        let stored = ((chars * digit + 5) / digit * 256).rounded(.down) / 256
+        return _charsToPoints(stored, digit: digit)
+    }
+
     static func _pointsToChars(_ pt: Double, digit: Double = 7) -> Double {
         let px = (pt / 0.75).rounded()
         return (px / digit * 256).rounded(.down) / 256
@@ -768,6 +781,10 @@ enum Xlsx {
                 s.indent = max(0, min(250, Int(al["indent"] ?? "") ?? 0))
                 s.rotation = Int(al["textRotation"] ?? "") ?? 0
             }
+            if let pr = xf.child("protection") {
+                s.locked = pr["locked"] != "0" && pr["locked"] != "false"
+                s.formulaHidden = pr["hidden"] == "1" || pr["hidden"] == "true"
+            }
             out.append(s)
         }
         return out
@@ -928,6 +945,10 @@ enum Xlsx {
         var sheetRelParts: [String: Data] = [:]
         var droppedTables = Set<String>()
         var tablePartsOverride: [Int: String] = [:]
+        // Tables made here: the part each gets, and its id (unique in the book).
+        var newTableParts: [String: (path: String, id: Int)] = [:]
+        var nextTableId = 1 + (originalParts.filter { $0.key.hasPrefix("xl/tables/") && $0.key.hasSuffix(".xml") }
+            .map { XNode.parse($0.value).flatMap { Int($0["id"] ?? "") } ?? 0 }.max() ?? 0)
         let calc: CalcEngine? = book.sheets.contains(where: \.drawingsEdited) ? CalcEngine(book) : nil
         calc?.storedValuesOnly = true
         for (i, ws) in book.sheets.enumerated() {
@@ -941,7 +962,7 @@ enum Xlsx {
                                             sheetRels: &rels, relsChanged: &changed))
             // A table deleted with all its rows: its part, relationship and
             // <tablePart> go, or Excel repairs the file.
-            if !ws.removedTables.isEmpty {
+            if !ws.removedTables.isEmpty || ws.tables.contains(where: \.isNew) {
                 let base = String(paths[i].prefix(upTo: paths[i].lastIndex(of: "/").map { paths[i].index(after: $0) } ?? paths[i].startIndex))
                 var text = ws.keptElements.first { $0.name == "tableParts" }?.text ?? ""
                 for t in ws.removedTables {
@@ -951,6 +972,19 @@ enum Xlsx {
                         changed = true
                         text = text.replacingAll("<tablePart r:id=\"\(r.id)\"/>", with: "")
                     }
+                }
+                for (j, t) in ws.tables.enumerated() where t.isNew {
+                    var n = 1
+                    while taken.contains("xl/tables/table\(n).xml") || originalParts["xl/tables/table\(n).xml"] != nil { n += 1 }
+                    let path = "xl/tables/table\(n).xml"
+                    taken.insert(path)
+                    newTableParts["\(i)/\(j)"] = (path, nextTableId)
+                    nextTableId += 1
+                    let rid = Xlsx._freshId(rels)
+                    rels.append((rid, "http://schemas.openxmlformats.org/officeDocument/2006/relationships/table", "../tables/table\(n).xml"))
+                    changed = true
+                    if text.isEmpty { text = "<tableParts count=\"0\"></tableParts>" }
+                    if let at = text.findRange(of: "</tableParts>")?.lowerBound { text.insert(contentsOf: "<tablePart r:id=\"\(rid)\"/>", at: at) }
                 }
                 let left = text.components(separatedBy: "<tablePart ").count - 1
                 if left == 0 { text = "" } else if let c = text.findRange(of: " count=\""), let q = text.findRange(of: "\"", in: c.upperBound ..< text.endIndex) {
@@ -1024,9 +1058,15 @@ enum Xlsx {
         generated[sstPath] = Data(_sstXML(sst).utf8)
         // Tables: rewritten whenever their header cells or range could have
         // changed, which is any save (names must match the cells exactly).
-        for ws in book.sheets {
-            for t in ws.tables {
-                guard let original = originalParts[t.path] else { continue }
+        var newTableTypes: [(String, String)] = []
+        for (i, ws) in book.sheets.enumerated() {
+            for (j, t) in ws.tables.enumerated() {
+                var t = t
+                if t.isNew, let np = newTableParts["\(i)/\(j)"] {
+                    t.path = np.path
+                    newTableTypes.append(("/" + np.path, "application/vnd.openxmlformats-officedocument.spreadsheetml.table+xml"))
+                }
+                guard let original = originalParts[t.path] ?? (newTableParts["\(i)/\(j)"].map { TablesXML.newPart(t, id: $0.id) }) else { continue }
                 generated[t.path] = TablesXML.write(t, original: original, header: { col in
                     let v = ws.value(CellAddress(row: t.ref.top, col: col))
                     return NumberFormat.display(v, book.style(ws.cells[CellAddress(row: t.ref.top, col: col)]?.style ?? 0).numberFormat,
@@ -1034,7 +1074,7 @@ enum Xlsx {
                 })
             }
         }
-        var extraTypes: [(String, String)] = []
+        var extraTypes: [(String, String)] = newTableTypes
         var droppedDrawings = Set<String>()
         for d in drawingParts {
             generated.merge(d.parts) { $1 }
@@ -1163,20 +1203,22 @@ enum Xlsx {
         sheets += "</sheets>"
         let calc = "<calcPr calcId=\"191029\" fullCalcOnLoad=\"1\""
             + (book.iterate ? " iterate=\"1\" iterateCount=\"\(book.iterateCount)\" iterateDelta=\"\(_num(book.iterateDelta))\"" : "") + "/>"
+        let prot = book.workbookProtection.map { a in "<workbookProtection" + a.keys.sorted().map { " \($0)=\"\(_esc(a[$0] ?? ""))\"" }.joined() + "/>" } ?? ""
         // The original's other elements (workbookPr, bookViews, definedNames,
         // pivot caches, extLst…) stay, in their places.
         if let original {
             let split = RawXML.split([UInt8](original))
             var body = ""
-            var wroteSheets = false, wroteCalc = false
+            var wroteSheets = false, wroteCalc = false, wroteProt = false
             let names = _definedNamesXML(book)
             var wroteNames = false
             for (name, text) in split.children {
                 switch name {
-                case "sheets": body += sheets + (split.children.contains { $0.name == "definedNames" } ? "" : names); wroteSheets = true
+                case "sheets": body += (wroteProt ? "" : prot) + sheets + (split.children.contains { $0.name == "definedNames" } ? "" : names); wroteSheets = true
                 case "definedNames": body += names; wroteNames = true
                 case "calcPr": body += calc; wroteCalc = true
-                case "bookViews": body += _bookViews(text, active: book.activeTab)
+                case "workbookProtection": body += prot; wroteProt = true
+                case "bookViews": body += (wroteProt ? "" : prot) + _bookViews(text, active: book.activeTab); wroteProt = true
                 default:
                     if name == "definedNames" || name == "extLst" || name == "pivotCaches" || name == "webPublishing"
                         || name == "fileRecoveryPr" || name == "webPublishObjects" || name == "oleSize" || name == "customWorkbookViews" {
@@ -1190,7 +1232,7 @@ enum Xlsx {
             return "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n" + _withRels(split.rootStart) + body + "</" + split.rootName + ">"
         }
         let names = _definedNamesXML(book)
-        return "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<workbook xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\"><bookViews><workbookView activeTab=\"\(book.activeTab)\"/></bookViews>" + sheets + names + calc + "</workbook>"
+        return "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<workbook xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\">" + prot + "<bookViews><workbookView activeTab=\"\(book.activeTab)\"/></bookViews>" + sheets + names + calc + "</workbook>"
     }
 
     /// The file's names in order — a book-wide one with its current formula,
@@ -1273,7 +1315,15 @@ enum Xlsx {
         }
         view += "</sheetView></sheetViews>"
         generated["sheetViews"] = view
-        generated["sheetFormatPr"] = "<sheetFormatPr" + ws.formatPrAttrs.filter { $0.key != "defaultRowHeight" }.sorted { $0.key < $1.key }
+        // A default width the user changed (Format > Default Width) is written; one the file gave stays as it wrote it.
+        var formatAttrs = ws.formatPrAttrs.filter { $0.key != "defaultRowHeight" }
+        let readBack: Double = {
+            if let w = Double(formatAttrs["defaultColWidth"] ?? ""), w > 0 { return _charsToPoints(w, digit: ws.digitWidth) }
+            let base = Double(formatAttrs["baseColWidth"] ?? "") ?? 8
+            return ((base * ws.digitWidth + 5) / 8).rounded(.up) * 8 * 0.75
+        }()
+        if abs(readBack - ws.defaultColWidthPt) > 0.01 { formatAttrs["defaultColWidth"] = _num(_pointsToChars(ws.defaultColWidthPt, digit: ws.digitWidth)) }
+        generated["sheetFormatPr"] = "<sheetFormatPr" + formatAttrs.sorted { $0.key < $1.key }
             .map { " \($0.key)=\"\(_esc($0.value))\"" }.joined() + " defaultRowHeight=\"\(_num(ws.defaultRowHeightPt))\"/>"
         // Columns: segments where the width and the file's other attributes
         // (style, outline level…) are all the same.
@@ -1709,7 +1759,12 @@ enum Xlsx {
                st.indent == base.style.indent, st.rotation == base.style.rotation {
                 alignment = base.xf.alignment ?? ""
             }
-            let inner = alignment + (base?.xf.protection ?? "")
+            var protection = base?.xf.protection ?? ""
+            if st.locked != (base?.style.locked ?? true) || st.formulaHidden != (base?.style.formulaHidden ?? false) {
+                protection = st.locked && !st.formulaHidden ? "" : "<protection" + (st.locked ? "" : " locked=\"0\"") + (st.formulaHidden ? " hidden=\"1\"" : "") + "/>"
+            }
+            if !protection.isEmpty { xf += " applyProtection=\"1\"" }
+            let inner = alignment + protection
             xf += inner.isEmpty ? "/>" : (alignment.isEmpty ? "" : " applyAlignment=\"1\"") + ">" + inner + "</xf>"
             xfs.append(xf)
         }

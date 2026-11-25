@@ -559,6 +559,55 @@ final class RichDocumentControllerTests: XCTestCase {
         XCTAssertEqual(c.document.paragraphs[0].text, "")
     }
 
+    func testSetNumberingValueRestartAndContinue() {
+        let c = controller("a", "b", "c", "d", "x", "e")
+        for i in [0, 1, 2, 3, 5] {
+            c.moveTo(RichPosition(paragraph: i, offset: 0), extend: false)
+            c.toggleList(.numbered)
+        }
+        XCTAssertEqual(RichListNumbering.labels(c.document), ["1.", "2.", "3.", "4.", nil, "1."])
+        // Set the third item to 7: it and the items below count on from there.
+        c.moveTo(RichPosition(paragraph: 2, offset: 0), extend: false)
+        XCTAssertTrue(c.isNumberedItem)
+        c.setNumberingValue(7)
+        XCTAssertEqual(RichListNumbering.labels(c.document), ["1.", "2.", "7.", "8.", nil, "1."])
+        // One undo step takes it back; redo puts it again.
+        c.undo()
+        XCTAssertEqual(RichListNumbering.labels(c.document), ["1.", "2.", "3.", "4.", nil, "1."])
+        c.redo()
+        XCTAssertEqual(RichListNumbering.labels(c.document), ["1.", "2.", "7.", "8.", nil, "1."])
+        // Restart at 1 on the fourth item.
+        c.moveTo(RichPosition(paragraph: 3, offset: 0), extend: false)
+        c.restartNumbering()
+        XCTAssertEqual(RichListNumbering.labels(c.document), ["1.", "2.", "7.", "1.", nil, "1."])
+        // Continue Numbering joins the last item to the list above it.
+        c.moveTo(RichPosition(paragraph: 5, offset: 0), extend: false)
+        XCTAssertTrue(c.canContinueNumbering)
+        c.continueNumbering()
+        XCTAssertEqual(RichListNumbering.labels(c.document), ["1.", "2.", "7.", "1.", nil, "2."])
+        c.undo()
+        XCTAssertEqual(RichListNumbering.labels(c.document), ["1.", "2.", "7.", "1.", nil, "1."])
+    }
+
+    func testMultilevelGalleryFormatsEveryLevel() {
+        let c = controller("a", "b", "c", "d")
+        c.moveTo(RichPosition(paragraph: 0, offset: 0), extend: false)
+        c.moveTo(RichPosition(paragraph: 3, offset: 0), extend: true)
+        c.toggleList(.numbered)
+        c.moveTo(RichPosition(paragraph: 1, offset: 0), extend: false)
+        c.indent(1)
+        c.moveTo(RichPosition(paragraph: 2, offset: 0), extend: false)
+        c.indent(1); c.indent(1)
+        let before = RichListNumbering.labels(c.document)
+        let legal = ListLevelFormat.multilevelLibrary.first { $0.name.hasPrefix("1. 1.1.") }!
+        c.moveTo(RichPosition(paragraph: 0, offset: 0), extend: false)
+        c.moveTo(RichPosition(paragraph: 3, offset: 0), extend: true)
+        c.setMultilevelFormat(legal.levels)
+        XCTAssertEqual(RichListNumbering.labels(c.document), ["1.", "1.1", "1.1.1", "2."])
+        c.undo()
+        XCTAssertEqual(RichListNumbering.labels(c.document), before)
+    }
+
     func testListLibraryAssignsIdsAndFormats() {
         let c = controller("a", "b", "c", "x", "d")
         // An anonymous numbered run of three, then a body line, then one more.

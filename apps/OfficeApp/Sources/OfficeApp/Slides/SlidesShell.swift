@@ -80,6 +80,7 @@ final class SlidesShellState: State<StatefulWidget> {
     /// The Animation Pane is open beside the slide.
     private var _animationPane = false
     private var _selectionPane = false
+    private var _formatShape = false
     /// A thumbnail being dragged to a new place: where it started, the
     /// pointer's start, and where it would land.
     private var _thumbDrag: (from: Int, startY: Double, startX: Double, to: Int, moved: Bool)? = nil
@@ -115,10 +116,8 @@ final class SlidesShellState: State<StatefulWidget> {
     private let _search = TextEditingController()
     /// Find and Replace across the deck.
     private var _findOpen = false
-    private var _findReplace = false
-    private var _findStatus = ""
+    private var _symbolOpen = false
     private let _findQuery = TextEditingController()
-    private let _findReplacement = TextEditingController()
     #if canImport(AppKit)
     private let _spelling: RichSpellChecker? = CocoaSpellChecker()
     #else
@@ -195,6 +194,10 @@ final class SlidesShellState: State<StatefulWidget> {
             return self._deckFocus
         }
         session.onFind = { [weak self] replace in self?._openFind(replace: replace) }
+        session.onSymbolDialog = { [weak self] in
+            guard let self, self._active != nil || self._notesActive else { return }
+            self.setState { self._symbolOpen = true }
+        }
         // F5 starts the show wherever the keyboard is — in a title being
         // typed, the notes, a field — not only when the deck itself has it
         // (PowerPoint's F5 does not care what you were doing). Taken ahead
@@ -335,6 +338,9 @@ final class SlidesShellState: State<StatefulWidget> {
             self.setState { self.session.autoSave.toggle() }
             self._flash(self.session.autoSave ? "AutoSave on" : "AutoSave off — a recovery copy is still kept")
         }
+        session.onFormatShape = { [weak self] in
+            self?.setState { self?._formatShape.toggle() }
+        }
         session.onSelectionPane = { [weak self] in
             self?.setState { self?._selectionPane.toggle() }
         }
@@ -418,8 +424,16 @@ final class SlidesShellState: State<StatefulWidget> {
             toggleBold: { [weak self] in self?.session.controller.toggleBold() },
             toggleItalic: { [weak self] in self?.session.controller.toggleItalic() },
             toggleUnderline: { [weak self] in self?.session.controller.toggleUnderline() },
-            toggleList: { [weak self] in self?.session.controller.toggleList($0) }), owner: self)
+            toggleList: { [weak self] in self?.session.controller.toggleList($0) },
+            // A selected shape (typing in one counts): copy it, remove it, move it in the stack.
+            context: deck.selection.isEmpty ? [] : [
+                .init(id: "ctx-shape-dup", title: "Duplicate", symbol: "plus.square.on.square") { [weak self] in self?.deck.duplicateSelection() },
+                .init(id: "ctx-shape-del", title: "Delete", symbol: "trash") { [weak self] in self?.deck.deleteSelection() },
+                .init(id: "ctx-shape-fwd", title: "Bring Forward", symbol: "square.2.layers.3d.top.filled") { [weak self] in self?.deck.arrange(.forward) },
+                .init(id: "ctx-shape-back", title: "Send Backward", symbol: "square.2.layers.3d.bottom.filled") { [weak self] in self?.deck.arrange(.backward) },
+            ]), owner: self)
     }
+
 
     /// The ribbon's summary, with undo and redo covering the deck as well
     /// as the text being typed.
@@ -459,15 +473,38 @@ final class SlidesShellState: State<StatefulWidget> {
         if (_active != nil || _notesActive), c.hasSelection, !c.selectedText.contains(Character("\n")) {
             _findQuery.text = c.selectedText
         }
-        // The query — the selection's, or the last one — comes up selected,
-        // so typing a different one replaces it.
-        let seed = _findQuery.text
-        _findQuery.value = TextEditingValue(text: seed, selection: TextSelection(baseOffset: 0, extentOffset: seed.utf16.count))
-        setState {
-            _findOpen = true
-            _findReplace = replace
-            _findStatus = ""
+        _endEditing()
+        setState { _findOpen = true }
+    }
+
+    /// What the shared Find and Replace dialog does in Slides: the whole deck, every text body and the notes.
+    private var _findHooks: FindHooks {
+        var hooks = FindHooks(
+            findNext: { [unowned self] p, _, back in _findNext(p, backwards: back) },
+            replace: { [unowned self] p, template, _ in
+                // The match the caret is on goes, then on to the next one.
+                let c = session.controller
+                let replaced = (_active != nil || _notesActive) && c.replaceSelection(p, with: template)
+                let next = _findNext(p, backwards: false)
+                return replaced ? (next.hasPrefix("No") ? "Replaced. No more matches" : "Replaced") : next
+            },
+            replaceAll: { [unowned self] p, template, _ in
+                _endEditing()
+                let n = deck.replaceEverywhere(p, with: template)
+                setState {}
+                return n == 0 ? "No matches" : "Replaced \(n)"
+            })
+        hooks.goToLabel = "Go to slide"
+        hooks.goToHint = "A slide number, from 1"
+        hooks.goTo = { [unowned self] text in
+            guard let n = Int(text.trimmingWhitespace()), n >= 1 else { return "Type a slide number" }
+            guard n <= deck.slides.count else { return "The deck has \(deck.slides.count) slides" }
+            _endEditing()
+            deck.select(n - 1)
+            setState {}
+            return nil
         }
+        return hooks
     }
 
     /// Where the search stands: the slide, the body being edited (or before
@@ -481,10 +518,9 @@ final class SlidesShellState: State<StatefulWidget> {
         return (deck.current, stop, backwards ? sel.start : sel.end)
     }
 
-    private func _findNext(backwards: Bool) {
-        let q = _findQuery.text
-        let all = deck.matches(q)
-        guard !all.isEmpty else { setState { _findStatus = q.isEmpty ? "" : "No matches" }; return }
+    private func _findNext(_ pattern: TextPattern, backwards: Bool) -> String {
+        let all = deck.matches(pattern)
+        guard !all.isEmpty else { return "No matches" }
         let here = _findPosition(backwards: backwards)
         let pick: DeckMatch
         if backwards {
@@ -495,8 +531,7 @@ final class SlidesShellState: State<StatefulWidget> {
             pick = all.first { !$0.isBefore(here.slide, here.stop, here.at) } ?? all.first!
         }
         _show(pick)
-        let n = (all.firstIndex(of: pick) ?? 0) + 1
-        setState { _findStatus = "\(n) of \(all.count)" }
+        return "\((all.firstIndex(of: pick) ?? 0) + 1) of \(all.count)"
     }
 
     /// Go to a match: its slide, its body being edited, the text selected.
@@ -521,22 +556,6 @@ final class SlidesShellState: State<StatefulWidget> {
             notes.selection = m.selection
         }
         setState {}
-    }
-
-    private func _replaceOne() {
-        let q = _findQuery.text
-        guard !q.isEmpty else { return }
-        let c = session.controller
-        if (_active != nil || _notesActive), c.hasSelection, c.selectedText.lowercased() == q.lowercased() {
-            c.insertText(_findReplacement.text)
-        }
-        _findNext(backwards: false)
-    }
-
-    private func _replaceAll() {
-        _endEditing()
-        let n = deck.replaceEverywhere(_findQuery.text, with: _findReplacement.text)
-        setState { _findStatus = n == 0 ? "No matches" : "Replaced \(n)" }
     }
 
     /// Type into the current slide's notes (a click there, or F6). `focus`:
@@ -1074,8 +1093,11 @@ final class SlidesShellState: State<StatefulWidget> {
         }
         // With shapes selected, keys act on them.
         if !deck.selection.isEmpty && !_paneFocused {
-            let step = _deckChords.shift ? 12.0 : 2.0
+            // Ctrl nudges by a hair, Shift by a lot; Alt+Left/Right turns by 15°.
+            let step = _deckChords.primary ? 0.5 : _deckChords.shift ? 12.0 : 2.0
             switch named {
+            case .left where _deckChords.alt: deck.rotateSelection(by: -15)
+            case .right where _deckChords.alt: deck.rotateSelection(by: 15)
             case .left: deck.nudgeSelection(dx: -step, dy: 0)
             case .right: deck.nudgeSelection(dx: step, dy: 0)
             case .up: deck.nudgeSelection(dx: 0, dy: -step)
@@ -1180,6 +1202,7 @@ final class SlidesShellState: State<StatefulWidget> {
         case "n" where mods.contains(.shift): _endEditing(); deck.addSlide()
         case "n": session.replacing { [weak self] in self?._newDeck() }
         case "o": session.onOpen?()
+        case "p": session.onPrint?()
         case "s" where mods.contains(.shift): session.onSaveAs?()
         case "s": session.onSave?()
         case "a" where !typing && !shapes && (_paneFocused || _sorter): deck.selectAllSlides()
@@ -1191,7 +1214,8 @@ final class SlidesShellState: State<StatefulWidget> {
         case "x" where shapes: deck.cutShapes()
         case "v" where !typing && deck.canPasteShapes: deck.pasteShapes()
         case "g" where shapes && !typing && mods.contains(.shift): deck.ungroupSelection()
-        case "g" where shapes && !typing: deck.groupSelection()
+        case "g" where shapes && !typing:
+            if let why = deck.groupRefusal { _flash(why) } else { deck.groupSelection() }
         case "d" where shapes: deck.duplicateSelection()
         case "d" where !typing: deck.duplicateSlide(deck.current)
         case "f": _openFind(replace: false)
@@ -1231,24 +1255,11 @@ final class SlidesShellState: State<StatefulWidget> {
                 guard let self else { return }
                 self._findQuery.text = self._search.text
                 self._openFind(replace: false)
-                self._findNext(backwards: false)
             }),
             Ribbon(session: session, tab: _tab, collapsed: _ribbonCollapsed,
                    onTab: { [weak self] t in self?.setState { self?._tab = t } },
                    onCollapse: { [weak self] in self?.setState { self?._ribbonCollapsed.toggle() } }),
         ]
-        if _findOpen {
-            column.append(FindBar(session: session, query: _findQuery, replacement: _findReplacement,
-                                  showReplace: _findReplace, status: _findStatus,
-                                  onNext: { [weak self] back in self?._findNext(backwards: back) },
-                                  onReplace: { [weak self] in self?._replaceOne() },
-                                  onReplaceAll: { [weak self] in self?._replaceAll() },
-                                  onClose: { [weak self] in
-                                      // (A field being torn down blurs too: once is enough.)
-                                      guard let self, self._findOpen else { return }
-                                      self.setState { self._findOpen = false }
-                                  }))
-        }
         var work: [Widget] = [Expanded(child: SlideCanvas(
             key: _canvasKey,
             deck: deck, cache: _cache, active: _active,
@@ -1274,6 +1285,9 @@ final class SlidesShellState: State<StatefulWidget> {
                 row.append(SelectionPane(deck: deck, modifiers: { [weak self] in self?._deckChords.modifiers ?? [] },
                                          onClose: { [weak self] in self?.setState { self?._selectionPane = false } }))
             }
+            if _formatShape {
+                row.append(FormatShapePane(deck: deck, onClose: { [weak self] in self?.setState { self?._formatShape = false } }))
+            }
             if _chartData, let chart = deck.selectedChart {
                 row.append(ChartDataPane(key: ValueKey("chart data \(chart.id)"), deck: deck, shape: chart,
                                          onClose: { [weak self] in self?.setState { self?._chartData = false } }))
@@ -1287,6 +1301,24 @@ final class SlidesShellState: State<StatefulWidget> {
             self.setState { self._narrow = size.width < Self.narrowBelow }
         }, child: ColoredBox(color: fluent.scaffoldBackgroundColor,
                              child: Column(crossAxisAlignment: .stretch, children: column)))
+        if _findOpen {
+            return Stack(children: [
+                IgnorePointer(ignoring: true, child: window),
+                Positioned(left: 0, top: 0, right: 0, bottom: 0, child: FindReplaceDialog(
+                    initialQuery: _findQuery.text, hooks: _findHooks,
+                    onClose: { [weak self] in self?.setState { self?._findOpen = false } })),
+            ])
+        }
+        if _symbolOpen {
+            return Stack(children: [
+                IgnorePointer(ignoring: true, child: window),
+                Positioned(left: 0, top: 0, right: 0, bottom: 0, child: SymbolPicker(
+                    hooks: SymbolHooks(
+                        fonts: ["(current font)"] + OfficeFonts.families(including: session.controller.currentCharStyle.fontFamily ?? OfficeFonts.defaultFamily),
+                        insert: { [weak self] text, font in self?.session.controller.insertSymbol(text, font: font) }),
+                    onClose: { [weak self] in self?.setState { self?._symbolOpen = false } })),
+            ])
+        }
         if let start = _show {
             return Stack(children: [
                 window,
@@ -1590,6 +1622,13 @@ final class SlidesShellState: State<StatefulWidget> {
             m.separator()
             m.item("Group", enabled: deck.canGroup) { deck.groupSelection() }
             m.item("Ungroup", enabled: deck.canUngroup) { deck.ungroupSelection() }
+            m.separator()
+            m.item("Format Shape…") { [weak self] in self?.setState { self?._formatShape = true } }
+            m.separator()
+            m.item("Rotate Right 90°") { deck.rotateSelection(by: 90) }
+            m.item("Rotate Left 90°") { deck.rotateSelection(by: -90) }
+            m.item("Flip Vertical") { deck.flipSelection(horizontal: false) }
+            m.item("Flip Horizontal") { deck.flipSelection(horizontal: true) }
             m.separator()
             m.item("Align Left") { deck.align(.left) }
             m.item("Align Center") { deck.align(.center) }

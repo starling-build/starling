@@ -148,6 +148,8 @@ public struct CharStyle: Hashable, Codable, Sendable {
     public var color: Color? = nil
     public var highlight: Color? = nil
     public var link: String? = nil
+    /// The hyperlink's screen tip (Word's w:tooltip); only meaningful with a link.
+    public var linkTip: String? = nil
     public var script: ScriptPosition = .normal
     /// Slides fontAlgn t, ctr or b on a line that mixes faces or sizes: where this run's baseline stands below the line's top, and where the engine's own line puts it, in ems of the run's size (nil: the paragraph is moved as a whole).
     public var alignTop: Double? = nil
@@ -1315,6 +1317,9 @@ public struct CellRef: Hashable, Codable, Sendable {
     /// This cell's own shading (Word's `w:shd` on the cell), over the
     /// table style's row fills.
     public var fill: Color? = nil
+    /// The theme link of that shading as the file wrote it (` w:themeFill="accent1" w:themeFillTint="99"`): the fill
+    /// above is the colour it resolved to. Cleared when the shading is set to a plain colour.
+    public var fillThemeAttrs: String? = nil
     /// This cell's own borders, by side (Word's `w:tcBorders`), where
     /// they differ from the table's: a heading cell that says none on
     /// every side inside a ruled table (bug65649's estimates), a title
@@ -1943,6 +1948,24 @@ public struct ListLevelFormat: Hashable, Codable, Sendable {
     public static func defaultBullet(_ level: Int) -> String { level % 2 == 0 ? "\u{2022}" : "\u{25E6}" }
 
     /// Word's numbering library, in its order.
+    /// The multilevel gallery: each scheme names the nine levels.
+    public static let multilevelLibrary: [(name: String, levels: [ListLevelFormat])] = {
+        func cycle(_ formats: [ListNumberFormat], _ suffix: String) -> [ListLevelFormat] {
+            (0 ..< 9).map { ListLevelFormat(text: "%\($0 + 1)\(suffix)", format: formats[$0 % formats.count]) }
+        }
+        let legal = (0 ..< 9).map { l in
+            ListLevelFormat(text: (1 ... l + 1).map { "%\($0)" }.joined(separator: ".") + (l == 0 ? "." : ""), format: .decimal)
+        }
+        let glyphs = ["\u{2022}", "o", "\u{25AA}"]
+        let bullets = (0 ..< 9).map { ListLevelFormat(text: glyphs[$0 % 3], format: .bullet) }
+        return [
+            ("1. a. i.", cycle([.decimal, .lowerLetter, .lowerRoman], ".")),
+            ("1) a) i)", cycle([.decimal, .lowerLetter, .lowerRoman], ")")),
+            ("1. 1.1. 1.1.1.", legal),
+            ("Bullets", bullets),
+        ]
+    }()
+
     public static let numberingLibrary: [ListLevelFormat] = [
         ListLevelFormat(text: "%1.", format: .decimal),
         ListLevelFormat(text: "%1)", format: .decimal),
@@ -2092,6 +2115,83 @@ public struct RichControlMarker: Hashable, Codable, Sendable {
     }
 }
 
+/// A block-level content control (`w:sdt` around whole paragraphs or a table). The first paragraph it covers carries the
+/// start in `blockControlsBefore`, the last carries the end in `blockControlsAfter`; the start holds the control's
+/// `w:sdtPr` as the file had it. `aroundTable`: the control wraps a table, so it is written outside the table's cells.
+/// A start whose end is gone (an edit removed the paragraph) is written as the plain paragraphs.
+public struct RichBlockControl: Hashable, Codable, Sendable {
+    public var id: Int
+    public var properties: String?
+    public var aroundTable: Bool
+    public var isStart: Bool { properties != nil }
+    public init(id: Int, properties: String? = nil, aroundTable: Bool = false) {
+        self.id = id; self.properties = properties; self.aroundTable = aroundTable
+    }
+}
+
+extension RichControlMarker {
+    /// The range of `attr`'s value inside the first `<tag ...>` of the properties.
+    private func _valueRange(_ attr: String, of tag: String, in props: String) -> Range<String.Index>? {
+        guard let t = props.rangeOfSubstring("<" + tag + " ") ?? props.rangeOfSubstring("<" + tag + "/"),
+              let close = props[t.upperBound...].firstIndex(of: ">"),
+              let a = props.rangeOfSubstring(attr + "=\"", in: t.upperBound ..< close),
+              let q = props[a.upperBound...].firstIndex(of: "\""), q <= close else { return nil }
+        return a.upperBound ..< q
+    }
+    private func _attribute(_ attr: String, of tag: String) -> String? {
+        guard let props = properties, let r = _valueRange(attr, of: tag, in: props) else { return nil }
+        return String(props[r])
+    }
+    /// Whether this is a check box control (Word 2010's `w14:checkbox`).
+    public var isCheckBox: Bool { properties?.containsSubstring("<w14:checkbox") ?? false }
+    /// A check box control's state; nil when this is not a check box.
+    public var isChecked: Bool? {
+        guard isCheckBox else { return nil }
+        let v = _attribute("w14:val", of: "w14:checked") ?? "0"
+        return v == "1" || v == "true" || v == "on"
+    }
+    /// The text a check box shows in `state`: the control's own glyph when it names one, Word's default otherwise.
+    public func checkBoxGlyph(_ state: Bool) -> String {
+        let hex = _attribute("w14:val", of: state ? "w14:checkedState" : "w14:uncheckedState")
+        let code = hex.flatMap { UInt32($0, radix: 16) } ?? (state ? 0x2612 : 0x2610)
+        return Unicode.Scalar(code).map { String($0) } ?? (state ? "\u{2612}" : "\u{2610}")
+    }
+    /// This start marker's properties with the check box state set to `state`.
+    fileprivate func _settingChecked(_ state: Bool) -> String? {
+        guard var props = properties, let r = _valueRange("w14:val", of: "w14:checked", in: props) else { return properties }
+        props.replaceSubrange(r, with: state ? "1" : "0")
+        return props
+    }
+}
+
+extension RichParagraph {
+    /// The check box controls of this paragraph: each start marker with its text range.
+    public var checkBoxes: [(id: Int, range: Range<Int>, checked: Bool)] {
+        controlMarkers.compactMap { m in
+            guard m.isStart, let on = m.isChecked,
+                  let end = controlMarkers.first(where: { $0.id == m.id && !$0.isStart }) else { return nil }
+            return (m.id, m.offset ..< max(m.offset, end.offset), on)
+        }
+    }
+    /// This paragraph with check box `id` set to `state`, its glyph swapped; nil when there is no such box or it is already so.
+    public func settingCheckBox(_ id: Int, to state: Bool) -> RichParagraph? {
+        guard let box = checkBoxes.first(where: { $0.id == id }), box.checked != state,
+              let si = controlMarkers.firstIndex(where: { $0.id == id && $0.isStart }),
+              let ei = controlMarkers.firstIndex(where: { $0.id == id && !$0.isStart }) else { return nil }
+        var p = self
+        let glyph = p.controlMarkers[si].checkBoxGlyph(state)
+        let lo = box.range.lowerBound, hi = box.range.upperBound
+        let style = p.style(at: hi > lo ? lo + 1 : lo)
+        let n = glyph.utf16.count
+        p.insert(glyph, at: hi, runs: [Run(length: n, style: style)])
+        p.controlMarkers[si].offset = lo
+        p.controlMarkers[ei].offset = hi + n   // the insert left the end marker before the glyph
+        if hi > lo { _ = p.delete(lo ..< hi) }
+        if let props = p.controlMarkers[si]._settingChecked(state) { p.controlMarkers[si].properties = props }
+        return p
+    }
+}
+
 /// One paragraph: its text, the runs that cover it exactly, and its style.
 ///
 /// Invariant (`isValid`): the run lengths sum to `text.utf16.count`, no run
@@ -2127,7 +2227,10 @@ public struct RichParagraph: Hashable, Codable, Sendable {
     /// Content controls over runs of this paragraph (see `RichControlMarker`).
     public var controlMarkers: [RichControlMarker] = []
     /// Whether an edit here moves markers (undo then restores the whole paragraph).
-    public var hasMarkers: Bool { !bookmarkMarkers.isEmpty || !controlMarkers.isEmpty }
+    public var hasMarkers: Bool { !bookmarkMarkers.isEmpty || !controlMarkers.isEmpty || !blockControlsBefore.isEmpty || !blockControlsAfter.isEmpty }
+    /// Block-level content controls that open before / close after this paragraph (outermost first / innermost first).
+    public var blockControlsBefore: [RichBlockControl] = []
+    public var blockControlsAfter: [RichBlockControl] = []
     /// Set on a paragraph that is a copy of an endnote (-1: the separator above them), flowed after the body's last
     /// paragraph where the notes are too long to stand under it. Layout only: the file's endnotes part is kept as it
     /// was and a save leaves these out.
@@ -2383,6 +2486,8 @@ public struct RichParagraph: Hashable, Codable, Sendable {
             RichControlMarker(id: $0.id, properties: $0.properties, offset: $0.offset - offset)
         }
         controlMarkers.removeAll { $0.offset >= offset }
+        tail.blockControlsAfter = blockControlsAfter
+        blockControlsAfter = []
         let movedNames = Set(tail.bookmarkMarkers.compactMap(\.name))
         tail.bookmarks = bookmarks.filter { movedNames.contains($0) }
         bookmarks.removeAll { movedNames.contains($0) }
@@ -2405,6 +2510,8 @@ public struct RichParagraph: Hashable, Codable, Sendable {
         controlMarkers += other.controlMarkers.map {
             RichControlMarker(id: $0.id, properties: $0.properties, offset: length + $0.offset)
         }
+        blockControlsBefore += other.blockControlsBefore
+        blockControlsAfter += other.blockControlsAfter
         bookmarks += other.bookmarks.filter { !bookmarks.contains($0) }
         if other.text.isEmpty { return }
         if text.isEmpty {

@@ -15,16 +15,24 @@ import Foundation
 
 /// What the ribbon asks of the grid.
 enum SheetCommand {
-    case cut, copy, paste
+    case cut, copy, paste, pasteSpecial
     case startFormula(String)      // "=SUM(" into the editor, the selection's range filled in
     case zoom(Double)
     case toggleGridlines
     case status(String)
+    case cellsDialog(insert: Bool)   // Insert / Delete Cells…
+    case sizeDialog(SizeKind)        // Row Height…, Column Width…, Default Width…
     case conditionalFormat         // Home → Conditional Formatting
     case dataValidation            // Data → Data Validation
+    case removeDuplicates          // Data → Remove Duplicates
+    case textToColumns             // Data → Text to Columns
+    case subtotal                  // Data → Subtotal
     case sortDialog                // Data → Sort…
+    case tableDialog               // Insert → Table: create one, or the options of the table at the cell
     case columnFilter(col: Int, kind: String)   // a filter dropdown's Number/Text/Date/Colour Filters…
     case nameManager               // Formulas → Name Manager
+    case protectSheetDialog        // Review → Protect Sheet / Unprotect Sheet
+    case protectWorkbookDialog     // Review → Protect Workbook / Unprotect Workbook
     case pageSetup                 // Layout → Page Setup: the dialog
     case editNote                  // Review → New/Edit Note: the editor beside the active cell
 }
@@ -34,12 +42,12 @@ extension Ribbon {
         guard let wb = session.workbook else { return nil }
         switch tab {
         case .home: return _sheetsHome(wb, fluent)
-        case .insert: return [_chartsGroup(wb, fluent), _functionsGroup(wb, fluent)]
+        case .insert: return [_tablesGroup(wb, fluent), _chartsGroup(wb, fluent), _functionsGroup(wb, fluent)]
         case .formulas: return [_autoSumGroup(wb, fluent), _functionsGroup(wb, fluent), _namesGroup(wb, fluent)]
         case .data: return [_sortGroup(wb, fluent), _dataToolsGroup(wb, fluent), _outlineGroup(wb, fluent)]
         case .layout: return [_pageSetupGroup(wb, fluent)]
         case .view: return [_sheetsZoomGroup(wb, fluent)]
-        case .review: return [_notesGroup(wb, fluent)]
+        case .review: return [_notesGroup(wb, fluent), _protectGroup(wb, fluent)]
         default: return nil
         }
     }
@@ -54,6 +62,7 @@ extension Ribbon {
             Chrome.rows([
                 Chrome.small(FluentSystemIcons.cut, "Cut", fluent) { wb.onCommand?(.cut) },
                 Chrome.small(FluentSystemIcons.copy, "Copy", fluent) { wb.onCommand?(.copy) },
+                Chrome.small(FluentSystemIcons.paste, "Paste Special", fluent) { wb.onCommand?(.pasteSpecial) },
             ]),
         ])
         let colors: [(String, Color)] = [
@@ -150,14 +159,21 @@ extension Ribbon {
         ])])
         let cells = Chrome.group("Cells", fluent, [Chrome.rows([
             Chrome.menuButton(FluentSystemIcons.add, "Insert", "Insert cells", fluent, items: [
+                MenuFlyoutItem(text: Text("Insert Cells…"), onPressed: { wb.onCommand?(.cellsDialog(insert: true)) }),
                 MenuFlyoutItem(text: Text("Insert Sheet Rows"), onPressed: { wb.insertAtSelection(.rows) }),
                 MenuFlyoutItem(text: Text("Insert Sheet Columns"), onPressed: { wb.insertAtSelection(.cols) }),
                 MenuFlyoutItem(text: Text("Insert Sheet"), onPressed: { wb.addSheet() }),
             ]),
             Chrome.menuButton(FluentSystemIcons.delete, "Delete", "Delete cells", fluent, items: [
+                MenuFlyoutItem(text: Text("Delete Cells…"), onPressed: { wb.onCommand?(.cellsDialog(insert: false)) }),
                 MenuFlyoutItem(text: Text("Delete Sheet Rows"), onPressed: { wb.deleteAtSelection(.rows) }),
                 MenuFlyoutItem(text: Text("Delete Sheet Columns"), onPressed: { wb.deleteAtSelection(.cols) }),
                 MenuFlyoutItem(text: Text("Delete Sheet"), onPressed: wb.book.sheets.count > 1 ? { wb.requestDeleteSheet(wb.activeSheet) } : nil),
+            ]),
+            Chrome.menuButton(FluentSystemIcons.ruler, "Format", "Format cells size", fluent, items: [
+                MenuFlyoutItem(text: Text("Row Height…"), onPressed: { wb.onCommand?(.sizeDialog(.rowHeight)) }),
+                MenuFlyoutItem(text: Text("Column Width…"), onPressed: { wb.onCommand?(.sizeDialog(.columnWidth)) }),
+                MenuFlyoutItem(text: Text("Default Width…"), onPressed: { wb.onCommand?(.sizeDialog(.defaultWidth)) }),
             ]),
         ])])
         let styles = Chrome.group("Styles", fluent, [
@@ -292,6 +308,19 @@ extension Ribbon {
         ])
     }
 
+    private func _tablesGroup(_ wb: WorkbookController, _ fluent: FluentThemeData) -> Widget {
+        Chrome.group("Tables", fluent, [
+            Chrome.big(FluentSystemIcons.grid, "Table", fluent) { wb.onCommand?(.tableDialog) },
+        ])
+    }
+
+    private func _protectGroup(_ wb: WorkbookController, _ fluent: FluentThemeData) -> Widget {
+        Chrome.group("Protect", fluent, [
+            Chrome.big(FluentSystemIcons.lock, wb.protection() != nil ? "Unprotect Sheet" : "Protect Sheet", fluent) { wb.onCommand?(.protectSheetDialog) },
+            Chrome.big(FluentSystemIcons.lock, wb.book.structureLocked ? "Unprotect Workbook" : "Protect Workbook", fluent) { wb.onCommand?(.protectWorkbookDialog) },
+        ])
+    }
+
     private func _notesGroup(_ wb: WorkbookController, _ fluent: FluentThemeData) -> Widget {
         let has = wb.note(at: wb.active) != nil
         return Chrome.group("Notes", fluent, [
@@ -319,6 +348,9 @@ extension Ribbon {
     private func _dataToolsGroup(_ wb: WorkbookController, _ fluent: FluentThemeData) -> Widget {
         Chrome.group("Data Tools", fluent, [
             Chrome.big(FluentSystemIcons.check, "Data Validation", fluent) { wb.onCommand?(.dataValidation) },
+            Chrome.big(FluentSystemIcons.delete, "Remove Duplicates", fluent) { wb.onCommand?(.removeDuplicates) },
+            Chrome.big(FluentSystemIcons.columns, "Text to Columns", fluent) { wb.onCommand?(.textToColumns) },
+            Chrome.big(FluentSystemIcons.numberList, "Subtotal", fluent) { wb.onCommand?(.subtotal) },
             Chrome.rows([
                 Chrome.small(FluentSystemIcons.check, "Circle Invalid Data", fluent) {
                     let n = wb.circleInvalidData()

@@ -335,6 +335,9 @@ final class Ribbon: StatelessWidget {
             _listLibrary("Bullet Library", ListLevelFormat.bulletLibrary, c, fluent),
             Chrome.toggle(FluentSystemIcons.numberList, "Numbering", s.list == .numbered, fluent) { c.toggleList(.numbered) },
             _listLibrary("Numbering Library", ListLevelFormat.numberingLibrary, c, fluent),
+            Chrome.menuButton(FluentSystemIcons.numberList, "Multilevel List", nil, fluent, items: ListLevelFormat.multilevelLibrary.map { scheme in
+                MenuFlyoutItem(text: Text(scheme.name), onPressed: { c.setMultilevelFormat(scheme.levels) })
+            }),
             Chrome.gap(2),
             Chrome.icon(FluentSystemIcons.indentDecrease, "Decrease Indent", fluent) { c.indent(-1) },
             Chrome.icon(FluentSystemIcons.indentIncrease, "Increase Indent", fluent) { c.indent(1) },
@@ -417,6 +420,9 @@ final class Ribbon: StatelessWidget {
             Chrome.group("Tables", fluent, [_tableMenu(fluent)]),
             Chrome.group("Illustrations", fluent, [
                 Chrome.big(FluentSystemIcons.image, "Pictures", fluent) { [session] in session.onInsertPicture?() },
+                Chrome.big(FluentSystemIcons.textT, "Text Box", fluent) { [session] in
+                    if let box = TextBoxInsert.make() { c.insertImage(box) } else { session.onStatus?("Could not insert a text box") }
+                },
             ]),
             Chrome.group("Links", fluent, [
                 Chrome.big(FluentSystemIcons.link, "Link", fluent) { [session] in session.onLink?() },
@@ -451,7 +457,14 @@ final class Ribbon: StatelessWidget {
             let preview = f.format == .bullet ? "\(f.text)  \(f.text)  \(f.text)" : "\(f.sample(1))  \(f.sample(2))  \(f.sample(3))"
             return MenuFlyoutItem(text: Text(preview), onPressed: { c.setListFormat(f) }, selected: f == current)
         }
-        return Chrome.splitChevron(tip, fluent, items: items)
+        var all = items
+        if library.contains(where: { $0.format != .bullet }) {
+            all.append(MenuFlyoutSeparator())
+            all.append(MenuFlyoutItem(text: Text("Restart at 1"), onPressed: c.isNumberedItem ? { c.restartNumbering() } : nil))
+            all.append(MenuFlyoutItem(text: Text("Continue Numbering"), onPressed: c.canContinueNumbering ? { c.continueNumbering() } : nil))
+            all.append(MenuFlyoutItem(text: Text("Set Numbering Value…"), onPressed: c.isNumberedItem ? { [session] in session.onNumberingValueDialog?() } : nil))
+        }
+        return Chrome.splitChevron(tip, fluent, items: all)
     }
 
     private func _tableMenu(_ fluent: FluentThemeData) -> Widget {
@@ -465,6 +478,8 @@ final class Ribbon: StatelessWidget {
                                             session.onStatus?("Inserted a \(rows) × \(cols) table")
                                         }))
         }
+        items.append(MenuFlyoutSeparator())
+        items.append(MenuFlyoutItem(text: Text("Insert Table…"), onPressed: { [session] in session.onInsertTableDialog?() }))
         items.append(MenuFlyoutSeparator())
         items.append(MenuFlyoutItem(text: Text("Insert Row Above"), onPressed: inCell ? { c.insertRow(below: false) } : nil))
         items.append(MenuFlyoutItem(text: Text("Insert Row Below"), onPressed: inCell ? { c.insertRow(below: true) } : nil))
@@ -489,6 +504,13 @@ final class Ribbon: StatelessWidget {
                 Chrome.small(FluentSystemIcons.chevronLeft, "Insert Left", fluent) { c.insertColumn(after: false) },
                 Chrome.small(FluentSystemIcons.chevronRight, "Insert Right", fluent) { c.insertColumn(after: true) },
                 Chrome.small(FluentSystemIcons.delete, "Delete Column", fluent) { c.deleteColumn() },
+            ]),
+        ])
+        let select = Chrome.group("Select", fluent, [
+            Chrome.menuButton(FluentSystemIcons.table, "Select", "Select cells", fluent, items: [
+                MenuFlyoutItem(text: Text("Select Row"), onPressed: { c.selectRow() }),
+                MenuFlyoutItem(text: Text("Select Column"), onPressed: { c.selectColumn() }),
+                MenuFlyoutItem(text: Text("Select Table"), onPressed: { c.selectTable() }),
             ]),
         ])
         let merge = Chrome.group("Merge", fluent, [Chrome.rows([
@@ -572,13 +594,15 @@ final class Ribbon: StatelessWidget {
             MenuFlyoutItem(text: Text("Inside Borders"), onPressed: apply([.insideH, .insideV])),
             MenuFlyoutSeparator(),
             MenuFlyoutItem(text: Text("No Border"), onPressed: apply(CellSide.allCases, .none)),
+            MenuFlyoutSeparator(),
+            MenuFlyoutItem(text: Text("Borders and Shading…"), onPressed: { [session] in session.onBordersShadingDialog?() }),
         ]
-        let styleItems: [MenuFlyoutItemBase] = ["single", "double", "dashed", "dotted", "thick"].map { st in
+        let styleItems: [MenuFlyoutItemBase] = ["single", "double", "dashed", "dotted"].map { st in
             MenuFlyoutItem(text: Text(st.prefix(1).uppercased() + st.dropFirst() + " Line"), onPressed: { [session] in
                 session.cellPen.style = st })
         }
-        let widthItems: [MenuFlyoutItemBase] = [0.25, 0.5, 1, 1.5, 2.25, 3, 4.5, 6].map { w in
-            MenuFlyoutItem(text: Text("\(w) pt"), onPressed: { [session] in
+        let widthItems: [MenuFlyoutItemBase] = CellBorderLine.widths.map { w in
+            MenuFlyoutItem(text: Text("\(widthLabel(w)) pt"), onPressed: { [session] in
                 session.cellPen.width = w })
         }
         let penColors = Chrome.colorMenu(FluentSystemIcons.textColor, "Pen Color", fluent,
@@ -603,7 +627,7 @@ final class Ribbon: StatelessWidget {
         let table = Chrome.group("Table", fluent, [
             Chrome.big(FluentSystemIcons.delete, "Delete Table", fluent) { c.deleteTable() },
         ])
-        return [rows, merge, size, alignment, borders, look, table]
+        return [select, rows, merge, size, alignment, borders, look, table]
     }
 
     // MARK: Picture Format
@@ -639,10 +663,21 @@ final class Ribbon: StatelessWidget {
                 Chrome.small(CupertinoIcons.rotate_right, "Rotate Right", fluent) { _ = c.rotatePicture(at: i, inline: id, quarters: 1) },
                 Chrome.small(CupertinoIcons.rotate_left, "Rotate Left", fluent) { _ = c.rotatePicture(at: i, inline: id, quarters: -1) },
             ])
+            let tools = Chrome.group("Adjust", fluent, [
+                Chrome.rows([
+                    Chrome.small(FluentSystemIcons.image, "Alt Text", fluent) { [session] in session.onPictureDialog?(.altText) },
+                    Chrome.small(FluentSystemIcons.pageFit, "Crop", fluent) { [session] in session.onPictureDialog?(.crop) },
+                ]),
+                Chrome.gap(8),
+                Chrome.rows([
+                    Chrome.small(FluentSystemIcons.image, "Change Picture", fluent) { [session] in session.onChangePicture?() },
+                    Chrome.small(FluentSystemIcons.zoomOut, "Reset Picture", fluent) { c.resetPicture(at: i, inline: id) },
+                ]),
+            ])
             let remove = Chrome.group("Picture", fluent, [
                 Chrome.big(FluentSystemIcons.delete, "Delete", fluent) { c.deleteForward() },
             ])
-            return [size, turn, remove]
+            return [size, turn, tools, remove]
         }
         guard let i = s.imageIndex, let image = c.document.paragraphs[i].image else { return [] }
         let aspect = image.height / max(1, image.width)
@@ -681,10 +716,50 @@ final class Ribbon: StatelessWidget {
             Chrome.small(CupertinoIcons.rotate_right, "Rotate Right", fluent) { _ = c.rotatePicture(at: i, quarters: 1) },
             Chrome.small(CupertinoIcons.rotate_left, "Rotate Left", fluent) { _ = c.rotatePicture(at: i, quarters: -1) },
         ])
+        let tools = Chrome.group("Adjust", fluent, [
+            Chrome.rows([
+                Chrome.small(FluentSystemIcons.image, "Alt Text", fluent) { [session] in session.onPictureDialog?(.altText) },
+                Chrome.small(FluentSystemIcons.pageFit, "Crop", fluent) { [session] in session.onPictureDialog?(.crop) },
+            ]),
+            Chrome.gap(8),
+            Chrome.rows([
+                Chrome.small(FluentSystemIcons.image, "Change Picture", fluent) { [session] in session.onChangePicture?() },
+                Chrome.small(FluentSystemIcons.zoomOut, "Reset Picture", fluent) { c.resetPicture(at: i) },
+            ]),
+        ])
         let remove = Chrome.group("Picture", fluent, [
             Chrome.big(FluentSystemIcons.delete, "Delete", fluent) { c.deleteForward() },
         ])
-        return [size, arrange, turn, remove]
+        // Layout Options: only a picture that floats has a wrap to choose and a place to nudge.
+        var boxGroup: [Widget] = []
+        if c.textBoxText(at: i) != nil {
+            boxGroup.append(Chrome.group("Text Box", fluent, [
+                Chrome.big(FluentSystemIcons.textT, "Edit Text", fluent) { [session] in session.onPictureDialog?(.boxText) },
+            ]))
+        }
+        var floating: [Widget] = []
+        if let wrap = c.pictureWrap(at: i) {
+            func pick(_ w: PictureWrap) -> Widget {
+                Chrome.small(FluentSystemIcons.image, w.title, fluent, enabled: w != wrap) { _ = c.setPictureWrap(at: i, w) }
+            }
+            floating.append(Chrome.group("Wrap Text", fluent, [
+                Chrome.rows([pick(.square), pick(.tight), pick(.through)]),
+                Chrome.gap(8),
+                Chrome.rows([pick(.topAndBottom), pick(.behindText), pick(.inFrontOfText)]),
+            ]))
+            floating.append(Chrome.group("Position", fluent, [
+                Chrome.rows([
+                    Chrome.small(CupertinoIcons.arrow_left, "Nudge Left", fluent) { _ = c.movePicture(at: i, dx: -6, dy: 0) },
+                    Chrome.small(CupertinoIcons.arrow_right, "Nudge Right", fluent) { _ = c.movePicture(at: i, dx: 6, dy: 0) },
+                ]),
+                Chrome.gap(8),
+                Chrome.rows([
+                    Chrome.small(CupertinoIcons.arrow_up, "Nudge Up", fluent) { _ = c.movePicture(at: i, dx: 0, dy: -6) },
+                    Chrome.small(CupertinoIcons.arrow_down, "Nudge Down", fluent) { _ = c.movePicture(at: i, dx: 0, dy: 6) },
+                ]),
+            ]))
+        }
+        return [size, arrange] + floating + boxGroup + [turn, tools, remove]
     }
 
     // MARK: Layout

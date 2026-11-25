@@ -5,6 +5,17 @@
 import Foundation
 
 extension WorkbookController {
+    /// A tab dropped on tab `to`: Ctrl copies the sheet there, no Ctrl moves it.
+    /// Returns a message when a copy is refused.
+    @discardableResult
+    func dropTab(from: Int, to: Int, copy: Bool) -> String? {
+        if copy {
+            if let why = copyBlocker(from) { return "A copy is not possible yet: the sheet has \(why)." }
+            copySheet(from, at: to > from ? to + 1 : to)
+        } else if to != from { moveSheet(from, to: to) }
+        return nil
+    }
+
     /// Move sheet `i` so it ends at position `to` (0-based, in the sheet list after the move).
     /// Sheet-local names (print areas and titles) follow their sheets. Returns false if nothing moved.
     @discardableResult

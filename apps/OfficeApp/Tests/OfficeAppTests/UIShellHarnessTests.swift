@@ -21,6 +21,31 @@ final class UIShellHarnessTests: XCTestCase {
         WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: home, title: "Test"), size: Size(1280, 800))
     }
 
+    /// W-RV-3: a click on a check box control flips it; a click beside it does not.
+    func testClickingACheckBoxControlFlipsIt() {
+        var p = RichParagraph(text: "Agree \u{2610} yes")
+        p.controlMarkers = [
+            RichControlMarker(id: 1, properties: "<w:sdtPr><w14:checkbox><w14:checked w14:val=\"0\"/><w14:checkedState w14:val=\"2612\"/><w14:uncheckedState w14:val=\"2610\"/></w14:checkbox></w:sdtPr>", offset: 6),
+            RichControlMarker(id: 1, offset: 7),
+        ]
+        let controller = RichDocumentController(document: RichDocument(paragraphs: [p]))
+        let ui = app(SizedBox(width: 600, height: 300, child: RichEditable(controller: controller)))
+        let box = ui.elements().first { $0.widget is RichEditable }!
+        let r = box.findRenderObject() as! RenderBox
+        func state() -> Bool? { controller.document.paragraphs[0].checkBoxes.first?.checked }
+        XCTAssertEqual(state(), false)
+        // Far right of the line: nothing there.
+        ui.tap(at: r.localToGlobal(Offset(500, 34)))
+        XCTAssertEqual(state(), false)
+        // Walk along the line until the glyph is hit.
+        var x = 24.0
+        while x < 200, state() == false { ui.tap(at: r.localToGlobal(Offset(x, 34))); x += 6 }
+        XCTAssertEqual(state(), true, "a click on the glyph flips the box")
+        XCTAssertEqual(controller.document.paragraphs[0].text, "Agree \u{2612} yes")
+        controller.undo()
+        XCTAssertEqual(state(), false)
+    }
+
     func testTheSlidesShellBuildsAndItsTabsTap() {
         let ui = app(SlidesShell(initialPath: nil, startBlank: true, onSwitch: { _, _ in }))
         XCTAssertNotNil(ui.state(SlidesShellState.self))
@@ -200,6 +225,14 @@ final class UIShellHarnessTests: XCTestCase {
         XCTAssertEqual(deck.selectedTableOptions?.bandedRows, false)
         XCTAssertTrue(ui.tap(text: "Header Row"))
         XCTAssertEqual(deck.selectedTableOptions?.headerRow, true)
+        // Shading menu: "No Shading" clears every cell's own colour.
+        deck.setTableShading(Color(0xFFFFFF00))
+        func fills() -> Set<Color?> { Set(t.text!.document.paragraphs.compactMap { $0.cell }.map { $0.fill }) }
+        XCTAssertEqual(fills(), [Color(0xFFFFFF00)])
+        XCTAssertTrue(ui.tap(text: "Shading"))
+        ui.pump()
+        XCTAssertTrue(ui.tap(text: "No Shading"))
+        XCTAssertEqual(fills(), [nil])
     }
 }
 
@@ -233,5 +266,122 @@ final class SheetsTitleBarUndoHarnessTests: XCTestCase {
         XCTAssertEqual(c.document.paragraphs[0].image?.rotation, 0)
         c.undo()
         XCTAssertEqual(c.document.paragraphs[0].image?.rotation, 90)
+    }
+
+    /// W-TB-1: the Select menu and the Insert Table dialog reach the controller.
+    func testTableSelectAndInsertTableDialogReachTheController() {
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(1280, 800))
+        let c = ui.state(OfficeShellState.self)!.session.controller
+        XCTAssertTrue(ui.tap(text: "Insert"))
+        XCTAssertTrue(ui.tap(text: "Table"))
+        XCTAssertTrue(ui.tap(text: "Insert Table…"))
+        XCTAssertTrue(ui.has(text: "Number of columns"))
+        XCTAssertTrue(ui.tap(text: "AutoFit to window"))
+        XCTAssertTrue(ui.tap(text: "OK"))
+        let cells = c.document.paragraphs.compactMap { $0.cell }
+        XCTAssertEqual(cells.count, 10, "the default 5 x 2 grid")
+        XCTAssertEqual(c.currentTableStyle?.widthPercent, 100)
+        XCTAssertTrue(ui.tap(text: "Table Layout"))
+        XCTAssertTrue(ui.tap(text: "Select"))
+        XCTAssertTrue(ui.tap(text: "Select Column"))
+        c.setCellShading(Color(0xFFDDEEFF))
+        XCTAssertEqual(c.document.paragraphs.compactMap { $0.cell }.filter { $0.fill != nil }.count, 2)
+    }
+
+    /// W-TB-2: the Borders and Shading dialog applies sides, line and shading as one undo.
+    func testBordersAndShadingDialogReachesTheController() {
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(1280, 800))
+        let c = ui.state(OfficeShellState.self)!.session.controller
+        c.insertTable(rows: 2, columns: 2)
+        ui.pump()
+        XCTAssertTrue(ui.tap(text: "Table Layout"))
+        XCTAssertTrue(ui.tap(text: "Borders"))
+        XCTAssertTrue(ui.tap(text: "Borders and Shading…"))
+        XCTAssertTrue(ui.has(text: "Apply to"))
+        XCTAssertTrue(ui.tap(text: "Bottom"))
+        XCTAssertTrue(ui.tap(text: "Double"))
+        XCTAssertTrue(ui.tap(text: "3"))
+        XCTAssertTrue(ui.tap(text: "Automatic"))          // opens the line colour panel
+        XCTAssertTrue(ui.has(text: "Theme Colors"))
+        XCTAssertTrue(ui.tap(tip: "Accent 2"))
+        XCTAssertTrue(ui.tap(text: "Unchanged"))          // opens the shading panel
+        XCTAssertTrue(ui.tap(tip: "Accent 1"))
+        XCTAssertTrue(ui.tap(text: "OK"))
+        XCTAssertEqual(c.currentCell?.fill, Color(Int64(0xFF4472C4)))
+        let xml = c.currentCell?.bordersXML ?? ""
+        XCTAssertTrue(xml.contains("ED7D31"), "the picked theme colour is the line colour")
+        XCTAssertTrue(xml.contains("w:bottom"))
+        XCTAssertTrue(xml.contains("double"))
+        XCTAssertTrue(xml.contains("w:sz=\"24\""))
+        c.undo()
+        XCTAssertNil(c.currentCell?.bordersXML)
+    }
+
+    private func pictureShell() throws -> (WidgetTester, RichDocumentController) {
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(1280, 800))
+        let c = try XCTUnwrap(ui.state(OfficeShellState.self)).session.controller
+        let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")!
+        c.load(RichDocument(paragraphs: [RichParagraph(image: ImageAttachment(data: png, width: 200, height: 100))]))
+        c.selectImage(at: 0)
+        ui.pump()
+        return (ui, c)
+    }
+
+    /// W-OB-1: the Alt Text dialog sets the picture's alternative text in one undo step; Cancel changes nothing.
+    func testAltTextDialogSetsTheTextAndCancelDoesNot() throws {
+        let (ui, c) = try pictureShell()
+        XCTAssertTrue(ui.tap(text: "Alt Text"))
+        XCTAssertTrue(ui.tap(id: "alt-text"))
+        ui.type("A red box")
+        XCTAssertTrue(ui.tap(text: "Cancel"))
+        XCTAssertEqual(c.document.paragraphs[0].image?.altText, "")
+        XCTAssertTrue(ui.tap(text: "Alt Text"))
+        XCTAssertTrue(ui.tap(id: "alt-text"))
+        ui.type("A red box")
+        XCTAssertTrue(ui.tap(text: "OK"))
+        XCTAssertEqual(c.document.paragraphs[0].image?.altText, "A red box")
+        c.undo()
+        XCTAssertEqual(c.document.paragraphs[0].image?.altText, "")
+    }
+
+    /// W-OB-1: the Crop dialog cuts the typed percents off each side, keeps the scale, and refuses a crop that leaves nothing.
+    func testCropDialogCutsTheTypedPercents() throws {
+        let (ui, c) = try pictureShell()
+        XCTAssertTrue(ui.tap(text: "Crop"))
+        XCTAssertTrue(ui.tap(id: "crop-left"))
+        ui.type("25")
+        XCTAssertTrue(ui.tap(text: "OK"))
+        let img = try XCTUnwrap(c.document.paragraphs[0].image)
+        XCTAssertEqual(img.crop?.left ?? 0, 0.25, accuracy: 0.001)
+        XCTAssertEqual(img.width, 150, accuracy: 0.1)
+        c.undo()
+        XCTAssertNil(c.document.paragraphs[0].image?.crop)
+    }
+
+    /// W-OB-1: Reset Picture takes the crop and the turn off and shows the picture at its own size, in one undo step.
+    func testResetPictureTakesCropAndTurnOff() throws {
+        let (ui, c) = try pictureShell()
+        _ = c.setImageCrop(at: 0, PictureCrop(left: 0.25, top: 0, right: 0, bottom: 0))
+        _ = c.rotatePicture(at: 0, quarters: 1)
+        ui.pump()
+        XCTAssertTrue(ui.tap(text: "Reset Picture"))
+        let img = try XCTUnwrap(c.document.paragraphs[0].image)
+        XCTAssertNil(img.crop)
+        XCTAssertEqual(img.rotation, 0)
+        XCTAssertEqual(img.width / img.height, 2, accuracy: 0.01)
+        c.undo()
+        XCTAssertEqual(c.document.paragraphs[0].image?.rotation, 90)
+        XCTAssertNotNil(c.document.paragraphs[0].image?.crop)
+    }
+
+    /// W-OB-1: Change Picture on the Picture Format tab asks the host for a file (the swap itself is the controller's
+    /// replacePicture, tested in DocxTests; image decoding needs the engine, which a harness test lacks).
+    func testChangePictureAsksForAFile() throws {
+        let (ui, _) = try pictureShell()
+        var asked = false
+        defer { OfficeScene.main.pictureRequested = nil }
+        OfficeScene.main.pictureRequested = { _ in asked = true }
+        XCTAssertTrue(ui.tap(text: "Change Picture"))
+        XCTAssertTrue(asked)
     }
 }
