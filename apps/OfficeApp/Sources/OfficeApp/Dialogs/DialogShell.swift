@@ -61,16 +61,6 @@ final class DialogShell: StatefulWidget {
     override func createState() -> State<StatefulWidget> { DialogShellState() }
 }
 
-/// The view this context is drawn in: its render tree's root, else the only view there is.
-private func _hostView(_ context: any BuildContext) -> FlutterView? {
-    var node: RenderObject? = context.findRenderObject()
-    while let n = node {
-        if let root = n as? RenderView { return root.flutterView }
-        node = n.parent
-    }
-    return PlatformDispatcher.instance.views.first
-}
-
 final class DialogShellState: State<StatefulWidget> {
     private var _w: DialogShell { widget as! DialogShell }
     /// The tab showing.
@@ -110,7 +100,7 @@ final class DialogShellState: State<StatefulWidget> {
         let index = min(selectedTab, max(0, tabs.count - 1))
         // The room there is: the view less the soft keyboard (nothing is known before the first frame).
         var keyboard = 0.0, viewWidth = Double.infinity
-        if let view = _hostView(context), view.devicePixelRatio > 0 {
+        if let view = hostView(context), view.devicePixelRatio > 0 {
             keyboard = view.viewInsets.bottom / view.devicePixelRatio
             viewWidth = view.physicalSize.width / view.devicePixelRatio
         }
