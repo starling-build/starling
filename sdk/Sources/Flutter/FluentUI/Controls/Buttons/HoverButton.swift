@@ -151,8 +151,34 @@ class HoverButtonState: State<StatefulWidget> {
     // nothing. Without this a touch drag over a list opened the row under
     // the finger (the Site's Pages panel on a phone).
     private var _downAt: Offset?
-    // Focus tracking deferred — always false for now.
+    // True while the keyboard ring (Tab, F6) is on this button.
     private var _shouldShowFocus = false
+    private var _stop: KeyStop?
+
+    override func initState() {
+        super.initState()
+        let r = KeyboardTraversal.regionName(context!)
+        let stop = KeyStop(region: r.name, modal: r.modal)
+        stop.isEnabled = { [weak self] in self?.enabled ?? false }
+        stop.activate = { [weak self] in self?.hoverButton.onPressed?() }
+        stop.onFocus = { [weak self] (on: Bool) in
+            guard let self, self.mounted else { return }
+            self.setState { self._shouldShowFocus = on }
+        }
+        stop.origin = { [weak self] in
+            guard let self, self.mounted, let box = self.context?.findRenderObject() as? RenderBox,
+                  box.attached, box.hasSize else { return nil }
+            return box.localToGlobal(Offset(0, 0))
+        }
+        _stop = stop
+        KeyboardTraversal.shared.register(stop)
+    }
+
+    override func dispose() {
+        if let s = _stop { KeyboardTraversal.shared.unregister(s) }
+        _stop = nil
+        super.dispose()
+    }
 
     private var hoverButton: HoverButton {
         return widget as! HoverButton

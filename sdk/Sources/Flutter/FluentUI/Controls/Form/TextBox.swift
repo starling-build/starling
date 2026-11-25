@@ -221,9 +221,23 @@ class _TextBoxState: State<StatefulWidget>, TextInputClient {
     private let _controllerListener: VoidCallback = {}
     private var _boundListener: VoidCallback?
 
+    private var _stop: KeyStop?
+
     override func initState() {
         super.initState()
         bind(_focusNode)
+        let r = KeyboardTraversal.regionName(context!)
+        let stop = KeyStop(region: r.name, modal: r.modal)
+        stop.activate = {}
+        stop.onFocus = { [weak self] (on: Bool) in if on { self?._focusNode.requestFocus() } }
+        stop.isCurrent = { [weak self] in self?._focusNode.hasFocus ?? false }
+        stop.origin = { [weak self] in
+            guard let self, self.mounted, let box = self.context?.findRenderObject() as? RenderBox,
+                  box.attached, box.hasSize else { return nil }
+            return box.localToGlobal(Offset(0, 0))
+        }
+        _stop = stop
+        KeyboardTraversal.shared.register(stop)
         if textBox.controller == nil {
             _controller = TextEditingController()
         }
@@ -273,6 +287,8 @@ class _TextBoxState: State<StatefulWidget>, TextInputClient {
     }
 
     override func dispose() {
+        if let s = _stop { KeyboardTraversal.shared.unregister(s) }
+        _stop = nil
         _stopCaretBlink()
         _ime?.detach()
         _ime = nil

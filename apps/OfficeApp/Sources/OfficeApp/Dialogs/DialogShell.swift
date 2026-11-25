@@ -83,6 +83,7 @@ final class DialogShellState: State<StatefulWidget> {
         super.initState()
         // Ahead of the focused field, so Enter and Esc work wherever focus is.
         _keys = FocusManager.instance.addKeyInterceptor { [weak self] key in
+            if KeyboardTraversal.shared.handle(key) { return true }
             guard let self, key.type == .down else { return false }
             switch key.logical {
             case 0x1_0000_000D, 0xFF0D, 0xFF8D:
@@ -125,9 +126,10 @@ final class DialogShellState: State<StatefulWidget> {
         var children: [Widget] = [Semantics(label: _w.title, header: true, container: true, excludeSemantics: true, child: Text(_w.title, style: fluent.typography.subtitle)), SizedBox(width: nil, height: 12, child: nil)]
         if tabs.count > 1 {
             children.append(Row(children: tabs.enumerated().map { i, tab in
-                GestureDetector(onTap: { [weak self] in self?.select(i) }, behavior: .opaque, child: Padding(
-                    padding: EdgeInsets(left: 0, top: 4, right: 18, bottom: 6),
-                    child: Text(tab.title, style: i == index ? fluent.typography.bodyStrong : fluent.typography.body)))
+                Padding(padding: EdgeInsets(left: 0, top: 0, right: 8, bottom: 4), child: FlatButton(
+                    child: Padding(padding: EdgeInsets(left: 8, top: 0, right: 8, bottom: 0),
+                                   child: Text(tab.title, style: i == index ? fluent.typography.bodyStrong : fluent.typography.body)),
+                    checked: i == index, width: nil, height: 28, action: { [weak self] in self?.select(i) }))
             }))
             children.append(SizedBox(width: nil, height: 12, child: nil))
         }
@@ -154,7 +156,7 @@ final class DialogShellState: State<StatefulWidget> {
                                           border: Border.all(color: fluent.resources.controlStrokeColorDefault, width: 1),
                                           borderRadius: BorderRadius.circular(8),
                                           boxShadow: [BoxShadow(color: Color(0x40000000), offset: Offset(0, 8), blurRadius: 24)]),
-                child: Padding(padding: EdgeInsets(all: 24), child: card)))))),
+                child: Padding(padding: EdgeInsets(all: 24), child: KeyboardRegion(name: "dialog", modal: true, child: card))))))),
         ])
     }
 }
