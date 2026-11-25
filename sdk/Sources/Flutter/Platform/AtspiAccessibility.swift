@@ -72,6 +72,10 @@ public final class AtspiAccessibility: @unchecked Sendable {
             if n.isTextField { st |= 1 << UInt64(ATSPI_BRIDGE_STATE_EDITABLE)
                                    | 1 << UInt64(ATSPI_BRIDGE_STATE_FOCUSABLE) }
             node.states = st
+            if let f = n.frame {
+                node.x = Int32(f.x.rounded()); node.y = Int32(f.y.rounded())
+                node.w = Int32(f.width.rounded()); node.h = Int32(f.height.rounded())
+            }
             (buf + i).initialize(to: node)
         }
         out.pointee = buf
