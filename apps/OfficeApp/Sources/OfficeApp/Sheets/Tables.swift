@@ -209,6 +209,13 @@ struct SheetPivot: Equatable, Sendable {
     var source: String? = nil
     var originalSource: String? = nil
     var originalRef: CellRange? = nil
+    /// A pivot table made here (its cells are ordinary cells; its parts are written on save).
+    var made: PivotSpec? = nil
+    /// What a pivot that came with the file is made of, when it is one this app can lay out again (compact form, sums, counts and
+    /// averages, no hidden or grouped items); nil for the rest, which only Excel refreshes.
+    var fileSpec: PivotSpec? = nil
+    /// Set once the cells were laid out again here: the saved cache then tells Excel to read its source again on open.
+    var refreshedHere = false
 }
 
 enum PivotsXML {
@@ -228,6 +235,7 @@ enum PivotsXML {
             // above, and fewer items than fields (tabular form puts the
             // first inner item beside it).
             p.path = path; p.originalRef = ref
+            p.fileSpec = spec(root)
             if let cache = SheetDrawingsXML._relTargets(parts, of: path).values.sorted().first(where: { $0.containsSubstring("pivotCacheDefinition") }),
                let src = Xlsx._part(parts, cache).flatMap({ XNode.parse($0) })?.child("cacheSource"), src["type"] == "worksheet",
                let ws = src.child("worksheetSource"), let sheet = ws["sheet"], let r = ws["ref"], ws["r:id"] == nil {
@@ -245,6 +253,38 @@ enum PivotsXML {
 }
 
 extension PivotsXML {
+    /// The spec of a file's pivot table, or nil when it uses anything the compact layout here would not reproduce.
+    static func spec(_ root: XNode) -> PivotSpec? {
+        func idx(_ n: XNode?, _ tag: String, _ attr: String) -> [Int] { (n?.kids(tag) ?? []).compactMap { Int($0[attr] ?? "") } }
+        if root["compact"] == "0" || root["outline"] == "0" || root["rowGrandTotals"] == "0" || root["colGrandTotals"] == "0"
+            || root["dataOnRows"] == "1" { return nil }
+        let fields = root.child("pivotFields")?.kids("pivotField") ?? []
+        for f in fields {
+            if f["compact"] == "0" || f["outline"] == "0" || f["defaultSubtotal"] == "0" || f["sortType"] != nil && f["sortType"] != "manual"
+                || f.child("fieldGroup") != nil || f["calculatedField"] == "1" { return nil }
+            for i in f.child("items")?.kids("item") ?? [] where i["h"] == "1" || i["sd"] == "0" { return nil }
+        }
+        let rows = idx(root.child("rowFields"), "field", "x").filter { $0 >= 0 }
+        let cols = idx(root.child("colFields"), "field", "x").filter { $0 >= 0 }
+        var data: [PivotDataField] = []
+        for d in root.child("dataFields")?.kids("dataField") ?? [] {
+            guard let f = Int(d["fld"] ?? ""), d["showDataAs"] == nil || d["showDataAs"] == "normal", d["baseField"] == nil || d["baseField"] == "0" else { return nil }
+            switch d["subtotal"] ?? "sum" {
+            case "sum": data.append(PivotDataField(field: f, function: .sum))
+            case "count": data.append(PivotDataField(field: f, function: .count))
+            case "average": data.append(PivotDataField(field: f, function: .average))
+            default: return nil
+            }
+        }
+        var filters: [PivotFilter] = []
+        for g in root.child("pageFields")?.kids("pageField") ?? [] {
+            guard let f = Int(g["fld"] ?? ""), g["item"] == nil else { return nil }
+            filters.append(PivotFilter(field: f, item: nil))
+        }
+        if rows.isEmpty || data.isEmpty { return nil }
+        return PivotSpec(name: root["name"] ?? "PivotTable1", rows: rows, cols: cols, data: data, filters: filters, origin: CellAddress(row: 0, col: 0))
+    }
+
     /// `'Sheet 1'!$A$1:$D$20` as the two attributes of a worksheetSource.
     static func splitSource(_ t: String) -> (sheet: String, ref: String)? {
         guard let bang = t.lastIndex(of: "!") else { return nil }
@@ -272,6 +312,14 @@ extension PivotsXML {
                 if let path = p.path, let ref = p.ref as CellRange?, let was = p.originalRef, ref != was,
                    let d = out[path] ?? parts[path], var x = Optional(String(decoding: d, as: UTF8.self)),
                    let y = setAttr(x, tag: "location", "ref", ref.a1) { x = y; out[path] = Data(x.utf8) }
+                if p.refreshedHere, let cp = p.cachePath, let d = out[cp] ?? parts[cp] {
+                    var x = String(decoding: d, as: UTF8.self)
+                    if x.findRange(of: "refreshOnLoad=") == nil, let a = x.findRange(of: "<pivotCacheDefinition"),
+                       let e = x.findRange(of: ">", in: a.upperBound ..< x.endIndex) {
+                        x.insert(contentsOf: " refreshOnLoad=\"1\"", at: e.lowerBound)
+                        out[cp] = Data(x.utf8)
+                    }
+                }
                 if let cp = p.cachePath, let src = p.source, src != p.originalSource, let (sheet, ref) = splitSource(src),
                    let d = out[cp] ?? parts[cp] {
                     var x = String(decoding: d, as: UTF8.self)

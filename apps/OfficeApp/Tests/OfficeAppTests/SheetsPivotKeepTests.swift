@@ -96,4 +96,16 @@ final class SheetsPivotKeepTests: XCTestCase {
         XCTAssertEqual(p["xl/pivotCache/pivotCacheDefinition1.xml"], before["xl/pivotCache/pivotCacheDefinition1.xml"], "undone: the part is as it was")
         XCTAssertEqual(p["xl/pivotTables/pivotTable1.xml"], before["xl/pivotTables/pivotTable1.xml"])
     }
+
+    /// Writes the Excel check book when STARLING_PIVOT_FOLLOW names a file; skipped otherwise.
+    func testWriteFollowBook() throws {
+        guard let out = ProcessInfo.processInfo.environment["STARLING_PIVOT_FOLLOW"] else { throw XCTSkip("no STARLING_PIVOT_FOLLOW") }
+        let data = try XCTUnwrap(FileManager.default.contents(atPath: "/data/corpus-cache/test/corpus/xlsx/books/54436.xlsx"))
+        let c = WorkbookController()
+        c.load(try Xlsx.read(data))
+        c.activeSheet = 0
+        c.insert(.rows, at: 2, count: 2)
+        XCTAssertTrue(c.renameSheet(0, "Sales Data"))
+        try Xlsx.write(c.book).write(to: URL(fileURLWithPath: out))
+    }
 }

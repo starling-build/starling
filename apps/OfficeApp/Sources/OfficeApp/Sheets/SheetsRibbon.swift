@@ -42,6 +42,7 @@ enum SheetCommand {
     case textToColumns             // Data → Text to Columns
     case subtotal                  // Data → Subtotal
     case sortDialog                // Data → Sort…
+    case insertPivotTable          // Insert → PivotTable
     case tableDialog               // Insert → Table: create one, or the options of the table at the cell
     case columnFilter(col: Int, kind: String)   // a filter dropdown's Number/Text/Date/Colour Filters…
     case nameManager               // Formulas → Name Manager
@@ -412,6 +413,7 @@ extension Ribbon {
 
     private func _tablesGroup(_ wb: WorkbookController, _ fluent: FluentThemeData) -> Widget {
         Chrome.group("Tables", fluent, [
+            Chrome.big(FluentSystemIcons.grid, "PivotTable", fluent) { wb.onCommand?(.insertPivotTable) },
             Chrome.big(FluentSystemIcons.grid, "Table", fluent) { wb.onCommand?(.tableDialog) },
         ])
     }
@@ -455,6 +457,10 @@ extension Ribbon {
             Chrome.big(FluentSystemIcons.numberList, "Subtotal", fluent) { wb.onCommand?(.subtotal) },
             Chrome.big(FluentSystemIcons.numberList, "Consolidate", fluent) { wb.onCommand?(.consolidate) },
             Chrome.big(FluentSystemIcons.numberList, "Scenario Manager", fluent) { wb.onCommand?(.scenarioManager) },
+            Chrome.big(FluentSystemIcons.grid, "Refresh PivotTables", fluent) {
+                let n = wb.refreshPivots()
+                wb.onCommand?(.status(n == 0 ? "No PivotTables here Excel did not make in a way this app can refresh (Excel refreshes the others)" : "\(n) PivotTable\(n == 1 ? "" : "s") refreshed"))
+            },
             Chrome.rows([
                 Chrome.small(FluentSystemIcons.check, "Circle Invalid Data", fluent) {
                     let n = wb.circleInvalidData()

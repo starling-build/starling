@@ -756,7 +756,12 @@ final class WorkbookController: ChangeNotifier {
 
     func addSheet() {
         if _structureLocked() { return }
-        structural {
+        structural { _insertFreshSheet() }
+    }
+
+    /// A new sheet after the active one, made active (no undo step of its own).
+    func _insertFreshSheet() {
+        do {
             let at = activeSheet + 1
             let fresh = Worksheet(name: book.nextSheetName())
             // Its columns are counted in the workbook's default font, as the others'.

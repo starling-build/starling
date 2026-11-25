@@ -779,6 +779,7 @@ enum Xlsx {
         for xf in st.child("cellXfs")?.kids("xf") ?? [] {
             var s = CellStyle()
             if let linkXf, xf["xfId"] == linkXf { s.linkStyle = true }
+            if xf["pivotButton"] == "1" { s.pivotButton = true }
             if let id = Int(xf["numFmtId"] ?? "0") { s.numberFormat = formats[id] ?? "General" }
             if let fi = Int(xf["fontId"] ?? "0"), fi < fonts.count {
                 let f = fonts[fi]
@@ -977,6 +978,17 @@ enum Xlsx {
         var newTableParts: [String: (path: String, id: Int)] = [:]
         var nextTableId = 1 + (originalParts.filter { $0.key.hasPrefix("xl/tables/") && $0.key.hasSuffix(".xml") }
             .map { XNode.parse($0.value).flatMap { Int($0["id"] ?? "") } ?? 0 }.max() ?? 0)
+        // Pivot tables made here: their parts, numbered past the file's.
+        var madePivots: [MadePivotParts] = []
+        var cacheOf: [String: Int] = [:]
+        var nextCacheId = 1 + ((originalParts["xl/workbook.xml"].flatMap { XNode.parse($0) }?.child("pivotCaches")?.kids("pivotCache") ?? [])
+            .compactMap { Int($0["cacheId"] ?? "") }.max() ?? 0)
+        func freshPart(_ dir: String, _ base: String) -> String {
+            var n = 1
+            while taken.contains("\(dir)/\(base)\(n).xml") || originalParts["\(dir)/\(base)\(n).xml"] != nil { n += 1 }
+            taken.insert("\(dir)/\(base)\(n).xml")
+            return "\(dir)/\(base)\(n).xml"
+        }
         let calc: CalcEngine? = book.sheets.contains(where: \.drawingsEdited) ? CalcEngine(book) : nil
         calc?.storedValuesOnly = true
         for (i, ws) in book.sheets.enumerated() {
@@ -1019,6 +1031,26 @@ enum Xlsx {
                     text.replaceSubrange(c.upperBound ..< q.lowerBound, with: "\(left)")
                 }
                 tablePartsOverride[i] = text
+            }
+            // Pivot tables made here: the part, and the sheet's relationship to it.
+            for p in ws.pivots {
+                guard let spec = p.made, let source = p.source, let src = PivotSource.read(source, book: book),
+                      PivotCalc.problem(spec, src) == nil else { continue }
+                let key = src.sheet + "!" + src.ref.a1
+                var m = MadePivotParts(sheet: i, spec: spec, src: src, location: p.ref, style: p.style ?? "PivotStyleLight16",
+                                       table: freshPart("xl/pivotTables", "pivotTable"), cache: freshPart("xl/pivotCache", "pivotCacheDefinition"),
+                                       records: freshPart("xl/pivotCache", "pivotCacheRecords"), cacheId: nextCacheId, workbookRel: "")
+                if let o = cacheOf[key] {
+                    // freshPart reserved names for a cache this pivot will not write; the owner's are used.
+                    m.cache = madePivots[o].cache; m.records = madePivots[o].records; m.cacheId = madePivots[o].cacheId; m.ownsCache = false
+                } else {
+                    cacheOf[key] = madePivots.count
+                    nextCacheId += 1
+                }
+                rels.append((Xlsx._freshId(rels), "http://schemas.openxmlformats.org/officeDocument/2006/relationships/pivotTable",
+                             "../pivotTables/" + String(m.table.dropFirst("xl/pivotTables/".count))))
+                changed = true
+                madePivots.append(m)
             }
             // Links made here: their addresses join the sheet's relationships.
             for (id, url) in ws.linkTargets.sorted(by: { $0.key < $1.key }) where !rels.contains(where: { $0.id == id }) {
@@ -1087,9 +1119,19 @@ enum Xlsx {
         let stylesPath = rels.first { $0.type.hasSuffix("/styles") }.map { _resolve($0.target, base: "xl/") } ?? "xl/styles.xml"
         let sstPath = rels.first { $0.type.hasSuffix("/sharedStrings") }.map { _resolve($0.target, base: "xl/") } ?? "xl/sharedStrings.xml"
 
+        var cacheUnion: [Int: Set<Int>] = [:]
+        for m in madePivots { cacheUnion[m.cacheId, default: []].formUnion(m.spec.rows + m.spec.cols + m.spec.filters.map(\.field)) }
+        for k in madePivots.indices { madePivots[k].cacheFields = cacheUnion[madePivots[k].cacheId] ?? [] }
+        for k in madePivots.indices where madePivots[k].ownsCache {
+            let id = _freshId(rels)
+            rels.append((id, "http://schemas.openxmlformats.org/officeDocument/2006/relationships/pivotCacheDefinition",
+                         String(madePivots[k].cache.dropFirst("xl/".count))))
+            madePivots[k].workbookRel = id
+        }
         var generated: [String: Data] = [:]
+        for k in madePivots.indices { for (path, data) in madePivots[k].parts() { generated[path] = Data(data.utf8) } }
         for (k, v) in PivotsXML.patched(sheets: book.sheets, parts: originalParts) { generated[k] = v }
-        generated["xl/workbook.xml"] = Data(_workbookXML(book, ids: sheetIds, original: originalParts["xl/workbook.xml"]).utf8)
+        generated["xl/workbook.xml"] = Data(_workbookXML(book, ids: sheetIds, original: originalParts["xl/workbook.xml"], newCaches: madePivots.filter(\.ownsCache).map { ($0.cacheId, $0.workbookRel) }).utf8)
         generated["xl/_rels/workbook.xml.rels"] = Data(_relsXML(rels).utf8)
         // A chart sheet is not edited here: its own part stays as it was (a worksheet body
         // inside a chartsheet root is not a file Excel opens as a chart sheet).
@@ -1116,6 +1158,12 @@ enum Xlsx {
             }
         }
         var extraTypes: [(String, String)] = newTableTypes
+        for m in madePivots {
+            extraTypes.append(("/" + m.table, "application/vnd.openxmlformats-officedocument.spreadsheetml.pivotTable+xml"))
+            guard m.ownsCache else { continue }
+            extraTypes.append(("/" + m.cache, "application/vnd.openxmlformats-officedocument.spreadsheetml.pivotCacheDefinition+xml"))
+            extraTypes.append(("/" + m.records, "application/vnd.openxmlformats-officedocument.spreadsheetml.pivotCacheRecords+xml"))
+        }
         if original.isEmpty {
             generated["xl/theme/theme1.xml"] = Data(DocxFormat._defaultThemePart().utf8)
             extraTypes.append(("/xl/theme/theme1.xml", "application/vnd.openxmlformats-officedocument.theme+xml"))
@@ -1244,7 +1292,9 @@ enum Xlsx {
         return s + "</Types>"
     }
 
-    private static func _workbookXML(_ book: Workbook, ids: [String], original: Data?) -> String {
+    private static func _workbookXML(_ book: Workbook, ids: [String], original: Data?, newCaches: [(Int, String)] = []) -> String {
+        let cacheItems = newCaches.map { "<pivotCache cacheId=\"\($0.0)\" r:id=\"\($0.1)\"/>" }.joined()
+        var wrotePivotCaches = newCaches.isEmpty
         var sheets = "<sheets>"
         // Each sheet keeps the id it was read with (pivot caches and external references can name it); a new
         // sheet, or a clashing one, gets the next id nobody uses.
@@ -1258,7 +1308,9 @@ enum Xlsx {
             sheets += "<sheet name=\"\(_esc(ws.name))\" sheetId=\"\(sheetIds[i])\"" + (ws.veryHidden ? " state=\"veryHidden\"" : ws.hidden ? " state=\"hidden\"" : "") + " r:id=\"\(ids[i])\"/>"
         }
         sheets += "</sheets>"
-        let calc = "<calcPr calcId=\"191029\" fullCalcOnLoad=\"1\""
+        // (A book with pivot tables leaves out the full recalculation on load: Excel refreshes those on load, and
+        // none of Excel's own pivot files ask for both.)
+        let calc = "<calcPr calcId=\"191029\"" + (book.sheets.contains { !$0.pivots.isEmpty } ? "" : " fullCalcOnLoad=\"1\"")
             + (book.iterate ? " iterate=\"1\" iterateCount=\"\(book.iterateCount)\" iterateDelta=\"\(_num(book.iterateDelta))\"" : "") + "/>"
         let prot = book.workbookProtection.map { a in "<workbookProtection" + a.keys.sorted().map { " \($0)=\"\(_esc(a[$0] ?? ""))\"" }.joined() + "/>" } ?? ""
         // The original's other elements (workbookPr, bookViews, definedNames,
@@ -1276,7 +1328,17 @@ enum Xlsx {
                 case "calcPr": body += calc; wroteCalc = true
                 case "workbookProtection": body += prot; wroteProt = true
                 case "bookViews": body += (wroteProt ? "" : prot) + _bookViews(text, active: book.activeTab); wroteProt = true
+                case "pivotCaches" where !newCaches.isEmpty:
+                    if let end = text.findRange(of: "</pivotCaches>", backwards: true) {
+                        var t = text; t.insert(contentsOf: cacheItems, at: end.lowerBound); body += t
+                    } else { body += "<pivotCaches>" + cacheItems + "</pivotCaches>" }
+                    wrotePivotCaches = true
                 default:
+                    if !wrotePivotCaches && ["smartTagPr", "smartTagTypes", "webPublishing", "fileRecoveryPr", "webPublishObjects", "extLst"].contains(name) {
+                        if !wroteCalc { body += calc; wroteCalc = true }
+                        body += "<pivotCaches>" + cacheItems + "</pivotCaches>"
+                        wrotePivotCaches = true
+                    }
                     if name == "definedNames" || name == "extLst" || name == "pivotCaches" || name == "webPublishing"
                         || name == "fileRecoveryPr" || name == "webPublishObjects" || name == "oleSize" || name == "customWorkbookViews" {
                         if !wroteCalc && (name != "definedNames") { body += calc; wroteCalc = true }
@@ -1286,10 +1348,11 @@ enum Xlsx {
             }
             if !wroteSheets { body = sheets + (wroteNames ? "" : names) + body }
             if !wroteCalc { body += calc }
+            if !wrotePivotCaches { body += "<pivotCaches>" + cacheItems + "</pivotCaches>" }
             return "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n" + _withRels(split.rootStart) + body + "</" + split.rootName + ">"
         }
         let names = _definedNamesXML(book)
-        return "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<workbook xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\">" + prot + "<bookViews><workbookView activeTab=\"\(book.activeTab)\"/></bookViews>" + sheets + names + calc + "</workbook>"
+        return "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<workbook xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\">" + prot + "<bookViews><workbookView activeTab=\"\(book.activeTab)\"/></bookViews>" + sheets + names + calc + (newCaches.isEmpty ? "" : "<pivotCaches>" + cacheItems + "</pivotCaches>") + "</workbook>"
     }
 
     /// The file's names in order — a book-wide one with its current formula,
@@ -1838,6 +1901,7 @@ enum Xlsx {
                 xfId = linkXfId ?? "0"
             }
             var xf = "<xf numFmtId=\"\(fmtId)\" fontId=\"\(fontId)\" fillId=\"\(fillId)\" borderId=\"\(borderId)\" xfId=\"\(xfId)\""
+            if st.pivotButton { xf += " pivotButton=\"1\"" }
             if fmtId != 0 { xf += " applyNumberFormat=\"1\"" }
             if fontId != 0 { xf += " applyFont=\"1\"" }
             if fillId != 0 { xf += " applyFill=\"1\"" }

@@ -100,10 +100,12 @@ final class SheetsShellState: State<StatefulWidget> {
     private var _dupOpen: (range: CellRange, hasHeader: Bool)?
     private var _ttcOpen: CellRange?
     private var _subOpen: CellRange?
+    private var _pvValueOpen: Int?
     private var _validationOpen = false
     private var _cfOpen = false
     private var _cfRulesOpen = false
     private var _tableOpen = false
+    private var _pivotOpen = false
     private var _filterOpen: (col: Int, kind: String)?
     private let _tabProbes = SheetTabProbes()
     private var _tabDrag: (from: Int, x: Double, moved: Bool)? = nil
@@ -508,6 +510,8 @@ final class SheetsShellState: State<StatefulWidget> {
             if let i = wb.selectedDrawing, wb.sheet.drawings.indices.contains(i), case .picture = wb.sheet.drawings[i].kind {
                 setState { _altOpen = true }
             }
+        case .insertPivotTable:
+            setState { _pivotOpen = true }
         case .tableDialog:
             setState { _tableOpen = true }
         case .columnFilter(let col, let kind):
@@ -1081,7 +1085,8 @@ final class SheetsShellState: State<StatefulWidget> {
             action: "Delete sheet", onConfirm: { [weak self] in self?.wb.confirmSheetDelete() },
             onCancel: { [weak self] in self?.wb.cancelSheetDelete() })] } ?? []) + [
             _formulaBar(fluent),
-            Expanded(child: KeyboardPage(focus: { [weak self] in self?._grid?.focus.requestFocus() }, child: SheetGrid(
+            Expanded(child: Row(crossAxisAlignment: .stretch, children: [
+                Expanded(child: KeyboardPage(focus: { [weak self] in self?._grid?.focus.requestFocus() }, child: SheetGrid(
                 key: _gridKey, controller: wb, zoom: _zoom,
                 onEditText: { [weak self] text in
                     // The bar over the keyboard is a formula's keys while a cell is typed in, and number commands otherwise.
@@ -1099,6 +1104,9 @@ final class SheetsShellState: State<StatefulWidget> {
                 onFilterMenu: { [weak self] point, col in self?._showFilterMenu(at: point, col: col) },
                 onListMenu: { [weak self] point, cell, choices in self?._showListMenu(at: point, cell: cell, choices) },
                 onZoom: { [weak self] f in self?.setState { self?._zoom = max(0.25, min(4, (self?._zoom ?? 1) * f)) } }))),
+                PivotFieldsPane(controller: wb, onChange: { [weak self] in self?.setState {} },
+                                onValueSettings: { [weak self] k in self?.setState { self?._pvValueOpen = k } }),
+            ])),
             _sheetTabs(fluent),
             _statusBar(fluent),
         ]
@@ -1243,6 +1251,13 @@ final class SheetsShellState: State<StatefulWidget> {
                     self?._grid?.focus.requestFocus()
                 }))])
         }
+        if let open = _pvValueOpen {
+            return Stack(children: [window, Positioned(left: 0, top: 0, right: 0, bottom: 0, child: PivotValueFieldDialog(
+                controller: wb, index: open, onClose: { [weak self] in
+                    self?.setState { self?._pvValueOpen = nil }
+                    self?._grid?.focus.requestFocus()
+                }))])
+        }
         if let open = _subOpen {
             return Stack(children: [window, Positioned(left: 0, top: 0, right: 0, bottom: 0, child: SubtotalDialog(
                 controller: wb, range: open, onClose: { [weak self] in
@@ -1256,6 +1271,13 @@ final class SheetsShellState: State<StatefulWidget> {
                     self?.setState { self?._sortOpen = nil }
                     self?._grid?.focus.requestFocus()
                 }))])
+        }
+        if _pivotOpen {
+            layers.append(Positioned(left: 0, top: 0, right: 0, bottom: 0, child: PivotDialog(
+                controller: wb, onClose: { [weak self] in
+                    self?.setState { self?._pivotOpen = false }
+                    self?._grid?.focus.requestFocus()
+                })))
         }
         if _tableOpen {
             layers.append(Positioned(left: 0, top: 0, right: 0, bottom: 0, child: TableDialog(
