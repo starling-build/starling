@@ -1313,6 +1313,12 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             case "x" where edit == nil: copySelection(cut: true); return true
             case "d" where edit == nil: c.fillDown(); return true
             case "r" where edit == nil: c.fillRight(); return true
+            case "v" where _chords.alt && edit == nil:
+                _ = _w.onShortcut("v", _chords)   // the shell opens Paste Special
+                return true
+            case "v" where _chords.shift && edit == nil:
+                paste(PasteSpecial(what: .values))   // Ctrl+Shift+V: values only
+                return true
             case "v":
                 paste()
                 return true
@@ -1511,7 +1517,12 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         _repaint.notifyListeners()
     }
 
-    func paste() {
+    /// Whether the app's own copy is what the clipboard holds (Paste Special offers every choice then;
+    /// text from another app can only be pasted as values).
+    static func hasOwnClip(_ text: String?) -> Bool { _clip != nil && _clip?.text == text }
+
+    /// `how` is Paste Special's choice; the default is the ordinary paste.
+    func paste(_ how: PasteSpecial = PasteSpecial()) {
         Clipboard.getData(Clipboard.kAll) { [weak self] data in
             let html = data?.html
             guard let text = data?.text ?? (html == nil ? nil : ""), !(text.isEmpty && html == nil) else { return }
@@ -1525,13 +1536,15 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 // Our own copy (the system clipboard still holds what we put
                 // there): paste the cells themselves.
                 if let clip = Self._clip, clip.text == text {
-                    c.paste(clip)
-                    if clip.cut { Self._clip = nil; self.marquee = nil }
+                    c.pasteSpecial(clip, how)
+                    if clip.cut, how.isPlain { Self._clip = nil; self.marquee = nil }
                     self.reveal(c.active)
                     return
                 }
                 // Another app's table, with its formatting.
-                if let html, let table = HtmlTable.parse(html) {
+                // (Text from another app has no formulas, formats or widths: only as values.)
+                if how.what != .all && how.what != .values { return }
+                if how.isPlain, let html, let table = HtmlTable.parse(html) {
                     c.pasteTable(table)
                     return
                 }

@@ -15,7 +15,7 @@ import Foundation
 
 /// What the ribbon asks of the grid.
 enum SheetCommand {
-    case cut, copy, paste
+    case cut, copy, paste, pasteSpecial
     case startFormula(String)      // "=SUM(" into the editor, the selection's range filled in
     case zoom(Double)
     case toggleGridlines
@@ -54,6 +54,7 @@ extension Ribbon {
             Chrome.rows([
                 Chrome.small(FluentSystemIcons.cut, "Cut", fluent) { wb.onCommand?(.cut) },
                 Chrome.small(FluentSystemIcons.copy, "Copy", fluent) { wb.onCommand?(.copy) },
+                Chrome.small(FluentSystemIcons.paste, "Paste Special", fluent) { wb.onCommand?(.pasteSpecial) },
             ]),
         ])
         let colors: [(String, Color)] = [
