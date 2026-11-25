@@ -302,10 +302,12 @@ enum Xlsx {
             } else if let pane = view.child("pane") {
                 // A split: the divider is a position, not a cell count, so it is kept as the file wrote it.
                 ws.splitPane = pane.attrs
-                ws.splitSelections = view.kids("selection").map(\.attrs)
             }
+            // Every selection as the file wrote it (a pane each, activeCellId, ranges), for the save to hand back.
+            ws.splitSelections = view.kids("selection").map(\.attrs)
+            ws.selectionFreeze = ws.freezeRows > 0 || ws.freezeCols > 0 ? (ws.freezeRows > 0 ? 1 : 0) + (ws.freezeCols > 0 ? 2 : 0) : 0
             if let sel = view.kids("selection").last, let a = sel["activeCell"].flatMap({ CellAddress($0) }) { ws.savedActive = a }
-            if view["showGridLines"] == "0" { ws.showGridlines = false }
+            if view["showGridLines"] == "0" || view["showGridLines"] == "false" { ws.showGridlines = false }
             ws.tabSelected = view["tabSelected"] == "1"
             ws.viewAttrs = view.attrs.filter { !["tabSelected", "showGridLines", "workbookViewId"].contains($0.key) }
         }
@@ -369,9 +371,11 @@ enum Xlsx {
         }
         cells.reserveCapacity(cellTags)
         var rowsSeen: Set<Int> = []
+        var spanText: [Int: String] = [:]
         func rowSetup(_ row: XNode) {
             rowIndex = Int(row["r"] ?? "").map { $0 - 1 } ?? rowIndex
-            let rowExtra = row.attrs.filter { !["r", "ht", "customHeight", "hidden", "spans"].contains($0.key) }
+            var rowExtra = row.attrs.filter { !["r", "ht", "customHeight", "hidden", "spans"].contains($0.key) }
+            if let sp = row["spans"] { spanText[rowIndex] = sp }
             if !rowExtra.isEmpty { ws.rowAttrs[rowIndex] = rowExtra }
             if ["1", "true"].contains(row["customFormat"] ?? ""), let span = row["spans"],
                let end = span.split(separator: ":").last.flatMap({ Int($0) }), end > 0, end <= 1024 {
@@ -505,6 +509,11 @@ enum Xlsx {
                 for c in row.kids("c") { cellBody(MiniXML.XlsxCell(node: c)) }
                 rowIndex += 1
             }
+        }
+        // A row left with no cell keeps the span the file gave it (nothing to compute one from); the rest are computed on save.
+        if !spanText.isEmpty {
+            let withCells = Set(cells.keys.map(\.row))
+            for (r, sp) in spanText where !withCells.contains(r) { ws.rowAttrs[r, default: [:]]["spans"] = sp }
         }
         // A sheet whose rows are hidden by default (zeroHeight): only the rows
         // the file lists show. pt-734a1b506b's Índice lists rows 1-35 and
@@ -1318,7 +1327,9 @@ enum Xlsx {
             let pane = ws.freezeRows > 0 && ws.freezeCols > 0 ? "bottomRight" : (ws.freezeRows > 0 ? "bottomLeft" : "topRight")
             view += "<pane" + (ws.freezeCols > 0 ? " xSplit=\"\(ws.freezeCols)\"" : "") + (ws.freezeRows > 0 ? " ySplit=\"\(ws.freezeRows)\"" : "")
                 + " topLeftCell=\"\(tl)\" activePane=\"\(pane)\" state=\"frozen\"/>"
-            view += "<selection pane=\"\(pane)\" activeCell=\"\(active.a1)\" sqref=\"\(active.a1)\"/>"
+            let sig = (ws.freezeRows > 0 ? 1 : 0) + (ws.freezeCols > 0 ? 2 : 0)
+            if sig == ws.selectionFreeze, let kept = _selectionsXML(ws.splitSelections, activePane: pane, active: active) { view += kept }
+            else { view += "<selection pane=\"\(pane)\" activeCell=\"\(active.a1)\" sqref=\"\(active.a1)\"/>" }
         } else if let split = ws.splitPane {
             view += "<pane" + split.sorted { $0.key < $1.key }.map { " \($0.key)=\"\(_esc($0.value))\"" }.joined() + "/>"
             let activePane = split["activePane"] ?? "topLeft"
@@ -1326,6 +1337,8 @@ enum Xlsx {
                 if (sel["pane"] ?? "topLeft") == activePane { sel["activeCell"] = active.a1; sel["sqref"] = active.a1 }
                 view += "<selection" + sel.sorted { $0.key < $1.key }.map { " \($0.key)=\"\(_esc($0.value))\"" }.joined() + "/>"
             }
+        } else if ws.selectionFreeze == 0, let kept = _selectionsXML(ws.splitSelections, activePane: "topLeft", active: active) {
+            view += kept
         } else {
             view += "<selection activeCell=\"\(active.a1)\" sqref=\"\(active.a1)\"/>"
         }
@@ -1343,10 +1356,11 @@ enum Xlsx {
             .map { " \($0.key)=\"\(_esc($0.value))\"" }.joined() + " defaultRowHeight=\"\(_num(ws.defaultRowHeightPt))\"/>"
         // Columns: segments where the width and the file's other attributes
         // (style, outline level…) are all the same.
-        if !ws.colAttrRuns.isEmpty || !ws.hiddenCols.isEmpty {
+        if !ws.colAttrRuns.isEmpty || !ws.hiddenCols.isEmpty || !ws.hiddenColRuns.isEmpty {
             var points = Set<Int>()
             for r in ws.colAttrRuns { points.insert(r.lo); points.insert(r.hi + 1) }
             for k in ws.hiddenCols { points.insert(k); points.insert(k + 1) }
+            for r in ws.hiddenColRuns { points.insert(r.lowerBound); points.insert(r.upperBound + 1) }
             for k in ws.colWidths.keys { points.insert(k); points.insert(k + 1) }
             let sorted = points.sorted()
             var cols = "<cols>"
@@ -1357,7 +1371,7 @@ enum Xlsx {
                 var attrs: [String: String] = [:]
                 for r in ws.colAttrRuns where r.lo <= start && start <= r.hi { attrs.merge(r.attrs) { $1 } }
                 var key = ""
-                let hidden = ws.hiddenCols.contains(start)
+                let hidden = ws.hiddenCols.contains(start) || ws.hiddenColRuns.contains { $0.contains(start) }
                 if let w = ws.colWidths[start] {
                     key += " width=\"\(_num(_widthChars(ws, start, w)))\"" + (w == 0 || hidden ? " hidden=\"1\"" : "") + " customWidth=\"1\""
                 } else if !attrs.isEmpty || hidden {
@@ -1406,8 +1420,13 @@ enum Xlsx {
             data += "<row r=\"\(r + 1)\""
             if let h = ws.rowHeights[r] { data += h == 0 ? " hidden=\"1\"" : " ht=\"\(_num(h))\" customHeight=\"1\"" }
             if (ws.filteredRows.contains(r) || ws.hiddenRows.contains(r)) && ws.rowHeights[r] != 0 { data += " hidden=\"1\"" }
-            for (k, v) in (ws.rowAttrs[r] ?? [:]).sorted(by: { $0.key < $1.key }) { data += " \(k)=\"\(_esc(v))\"" }
             let cells = (byRow[r] ?? []).sorted { $0.0.col < $1.0.col }
+            let ownSpan = !cells.isEmpty || ws.rowSpanGaps[r] != nil
+            for (k, v) in (ws.rowAttrs[r] ?? [:]).sorted(by: { $0.key < $1.key }) where !(k == "spans" && ownSpan) { data += " \(k)=\"\(_esc(v))\"" }
+            // `spans` is Excel's hint of the columns a row touches; the bare formatted cells a customFormat row
+            // spans (rowSpanGaps) count too, since printing reads them.
+            let spanCols = cells.map(\.0.col) + (ws.rowSpanGaps[r] ?? [])
+            if let lo = spanCols.min(), let hi = spanCols.max() { data += " spans=\"\(lo + 1):\(hi + 1)\"" }
             if cells.isEmpty { data += "/>"; continue }
             data += ">"
             for (a, c) in cells { data += _cellXML(a, c, dynamicCm: dynamicCm, rich: ws.richRaw[a], stringIndex: stringIndex) }
@@ -1959,4 +1978,21 @@ extension XNode {
     func kids(_ local: String) -> [XNode] {
         children.filter { $0.name == local || $0.name.hasSuffix(":" + local) }
     }
+}
+
+/// The selections a file carried (one per pane, activeCellId, ranges), handed back on save. The one in `activePane` follows the
+/// active cell if that moved; nil when none belongs to that pane (the caller writes a fresh one).
+func _selectionsXML(_ sels: [[String: String]], activePane: String, active: CellAddress) -> String? {
+    // (A lone selection that names no pane is the file's whole view, whatever pane the frozen split makes active.)
+    let lone = sels.count == 1 && sels[0]["pane"] == nil
+    guard lone || sels.contains(where: { ($0["pane"] ?? "topLeft") == activePane }) else { return nil }
+    var out = ""
+    let last = lone ? 0 : sels.lastIndex { ($0["pane"] ?? "topLeft") == activePane }
+    for (i, var sel) in sels.enumerated() {
+        if i == last, (sel["activeCell"] ?? "A1") != active.a1 {
+            sel["activeCell"] = active.a1; sel["sqref"] = active.a1; sel["activeCellId"] = nil
+        }
+        out += "<selection" + sel.sorted { $0.key < $1.key }.map { " \($0.key)=\"\(Xlsx._esc($0.value))\"" }.joined() + "/>"
+    }
+    return out
 }

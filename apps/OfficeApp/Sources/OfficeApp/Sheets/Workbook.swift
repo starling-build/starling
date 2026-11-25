@@ -301,6 +301,8 @@ final class Worksheet {
     /// A split (not frozen) pane as the file had it: `pane`'s attributes and each `selection`'s, written back while the sheet has no frozen pane.
     var splitPane: [String: String]? = nil
     var splitSelections: [[String: String]] = []
+    /// 0, or which freeze (1 rows, 2 columns, 3 both) the file's `splitSelections` were written under.
+    var selectionFreeze = 0
     /// Whether the file gave the sheet a view (`sheetView`) at all. Excel
     /// prints a sheet without one with its set row heights halved — labs
     /// of 20 pt rows, Excel 16, 2026-10-15: 9.72 pt on paper, 19.32 with an
@@ -413,6 +415,7 @@ final class Worksheet {
         s.viewAttrs = viewAttrs
         s.splitPane = splitPane
         s.splitSelections = splitSelections
+        s.selectionFreeze = selectionFreeze
         s.hasView = hasView
         s.scriptRows = scriptRows
         s.richText = richText
