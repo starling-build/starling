@@ -93,13 +93,13 @@ final class NameManagerDialogState: State<StatefulWidget> {
         let entries = _entries
         let rows: [Widget] = entries.map { e in
             let on = e.name == picked
-            return GestureDetector(onTap: { [weak self] in self?.pick(e) }, behavior: .opaque, child: ColoredBox(
+            return KeyboardRow(label: e.name, activate: { [weak self] in self?.pick(e) }, child: GestureDetector(onTap: { [weak self] in self?.pick(e) }, behavior: .opaque, child: ColoredBox(
                 color: on ? fluent.resources.subtleFillColorSecondary : Color(0x00000000),
                 child: Padding(padding: EdgeInsets(left: 8, top: 4, right: 8, bottom: 4), child: Row(children: [
                     SizedBox(width: 130, height: nil, child: Text(e.name, style: on ? fluent.typography.bodyStrong : fluent.typography.body)),
                     Expanded(child: Text(e.refersTo, style: fluent.typography.caption)),
                     Text(e.scopeSheet == nil ? "Workbook" : "Sheet", style: fluent.typography.caption),
-                ]))))
+                ])))))
         }
         let list = SizedBox(width: nil, height: 150, child: SingleChildScrollView(child: Column(
             crossAxisAlignment: .stretch,
