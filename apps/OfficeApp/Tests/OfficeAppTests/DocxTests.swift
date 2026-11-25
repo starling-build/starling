@@ -458,6 +458,141 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(back.paragraphs[1].text, "plain")
     }
 
+    /// W-OB-1: a picture's alternative text is read from the file, changed as one undo step, and written back into the kept
+    /// markup (escaped) without losing the picture's effect extent or the paragraph after it; an unchanged text leaves the file's markup alone.
+    func testAlternativeTextOfAPictureRoundTripsAndKeepsTheRestOfItsMarkup() throws {
+        let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")!
+        var p = RichParagraph(text: "x" + RichParagraph.inlineImageCharacter + "y")
+        let image = ImageAttachment(data: png, width: 120, height: 90)
+        p.inlineImages[image.id] = image
+        p.applyStyle(1 ..< 2) { $0.inlineImage = image.id }
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [p, RichParagraph(text: "after")]), pageSetup: .letter))
+        let di = try XCTUnwrap(entries.firstIndex { $0.name == "word/document.xml" })
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        xml = xml.replacingAll("<wp:docPr", with: "<wp:effectExtent l=\"19050\" t=\"0\" r=\"8214\" b=\"0\"/><wp:docPr descr=\"A small box\"")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let opened = try DocxFormat.read(try Zip.write(entries)).document
+        let c = RichDocumentController(document: opened)
+        let id = try XCTUnwrap(c.inlineImageOffsets(in: 0).first?.id)
+        XCTAssertEqual(c.document.paragraphs[0].inlineImages[id]?.altText, "A small box")
+        // Unchanged: the file's markup is written as it was.
+        let same = try DocxFormat.read(try DocxFormat.write(c.document, pageSetup: .letter)).document
+        XCTAssertEqual(same.paragraphs[0].inlineImages.values.first?.altText, "A small box")
+        c.setImageAltText(at: 0, inline: id, "A \"red\" box & <more>")
+        c.undo()
+        XCTAssertEqual(c.document.paragraphs[0].inlineImages[id]?.altText, "A small box")
+        c.redo()
+        let back = try DocxFormat.read(try DocxFormat.write(c.document, pageSetup: .letter)).document
+        let saved = try XCTUnwrap(back.paragraphs[0].inlineImages.values.first)
+        XCTAssertEqual(saved.altText, "A \"red\" box & <more>")
+        XCTAssertEqual(saved.effectLeft, 1.5, accuracy: 0.01)
+        XCTAssertEqual(back.paragraphs[1].text, "after")
+        c.setImageAltText(at: 0, inline: id, "")
+        let cleared = try DocxFormat.read(try DocxFormat.write(c.document, pageSetup: .letter)).document
+        XCTAssertEqual(cleared.paragraphs[0].inlineImages.values.first?.altText, "")
+    }
+
+    /// W-OB-1: Change Picture swaps the pixels of a picture in its own paragraph, keeps its width and alt text, follows the new
+    /// picture's shape, undoes in one step, and the saved file holds the new pixels and the paragraphs around it.
+    func testChangingAPictureKeepsItsWidthAndAltTextAndSavesTheNewPixels() throws {
+        let old = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")!
+        let new = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==")!
+        XCTAssertNotEqual(old, new)
+        var img = ImageAttachment(data: old, width: 200, height: 100)
+        img.altText = "Site plan"
+        let c = RichDocumentController(document: RichDocument(paragraphs: [RichParagraph(text: "above"), RichParagraph(image: img), RichParagraph(text: "below")]))
+        XCTAssertTrue(c.replacePicture(at: 1, with: new, name: "new.png", naturalWidth: 100, naturalHeight: 400))
+        XCTAssertEqual(c.document.paragraphs[1].image?.width, 200)
+        XCTAssertEqual(c.document.paragraphs[1].image?.height, 800)
+        c.undo()
+        XCTAssertEqual(c.document.paragraphs[1].image?.data, old)
+        XCTAssertEqual(c.document.paragraphs[1].image?.height, 100)
+        c.redo()
+        XCTAssertFalse(c.replacePicture(at: 0, with: new, name: "x.png", naturalWidth: 1, naturalHeight: 1), "a text paragraph is not a picture")
+        let back = try DocxFormat.read(try DocxFormat.write(c.document, pageSetup: .letter)).document
+        XCTAssertEqual(back.paragraphs.map(\.text).filter { !$0.isEmpty }, ["above", "below"])
+        let saved = try XCTUnwrap(back.paragraphs.compactMap(\.image).first)
+        XCTAssertEqual(saved.data, new)
+        XCTAssertEqual(saved.altText, "Site plan")
+        XCTAssertEqual(saved.width, 200, accuracy: 0.1)
+    }
+
+    /// W-OB-1: cropping a picture cuts shares off its sides, keeps its scale (the frame follows the visible part), undoes in one
+    /// step, is written as `a:srcRect` into the file's own markup (a picture read back from a file too) and clears again.
+    func testCroppingAPictureKeepsItsScaleAndSavesTheCrop() throws {
+        let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")!
+        var img = ImageAttachment(data: png, width: 200, height: 100)
+        img.altText = "Chart"
+        let c = RichDocumentController(document: RichDocument(paragraphs: [RichParagraph(text: "above"), RichParagraph(image: img), RichParagraph(text: "below")]))
+        XCTAssertFalse(c.setImageCrop(at: 1, PictureCrop(left: 0.5, top: 0, right: 0.5, bottom: 0)), "nothing would be left")
+        XCTAssertTrue(c.setImageCrop(at: 1, PictureCrop(left: 0.25, top: 0.1, right: 0, bottom: 0)))
+        XCTAssertEqual(c.document.paragraphs[1].image?.width ?? 0, 150, accuracy: 0.01)
+        XCTAssertEqual(c.document.paragraphs[1].image?.height ?? 0, 90, accuracy: 0.01)
+        c.undo()
+        XCTAssertNil(c.document.paragraphs[1].image?.crop)
+        XCTAssertEqual(c.document.paragraphs[1].image?.width, 200)
+        c.redo()
+        // First save: the generated picture carries the crop. Second: the kept markup is patched.
+        let once = try DocxFormat.read(try DocxFormat.write(c.document, pageSetup: .letter)).document
+        let first = try XCTUnwrap(once.paragraphs.compactMap(\.image).first)
+        XCTAssertEqual(first.crop?.left ?? 0, 0.25, accuracy: 0.001)
+        XCTAssertEqual(first.crop?.top ?? 0, 0.1, accuracy: 0.001)
+        XCTAssertEqual(first.altText, "Chart")
+        let d = RichDocumentController(document: once)
+        let at = try XCTUnwrap(once.paragraphs.firstIndex { $0.image != nil })
+        XCTAssertTrue(d.setImageCrop(at: at, PictureCrop(left: 0, top: 0, right: 0.2, bottom: 0)))
+        let twice = try DocxFormat.read(try DocxFormat.write(d.document, pageSetup: .letter)).document
+        let second = try XCTUnwrap(twice.paragraphs.compactMap(\.image).first)
+        XCTAssertEqual(second.crop?.right ?? 0, 0.2, accuracy: 0.001)
+        XCTAssertEqual(second.crop?.left ?? 0, 0, accuracy: 0.001)
+        XCTAssertEqual(second.width, 200 * 0.8, accuracy: 0.2)
+        XCTAssertEqual(twice.paragraphs.map(\.text).filter { !$0.isEmpty }, ["above", "below"])
+        XCTAssertTrue(d.setImageCrop(at: at, nil))
+        let cleared = try DocxFormat.read(try DocxFormat.write(d.document, pageSetup: .letter)).document
+        XCTAssertNil(cleared.paragraphs.compactMap(\.image).first?.crop)
+        XCTAssertEqual(cleared.paragraphs.compactMap(\.image).first?.width ?? 0, 200, accuracy: 0.2)
+    }
+
+    /// W-OB-1: turning a picture a quarter swaps its box, undoes in one step, and the file holds the unturned frame with the turn
+    /// in `a:xfrm rot` (first from a generated picture, then patched into the kept markup); four turns bring it home.
+    func testTurningAPictureAQuarterSwapsItsBoxAndSavesTheTurn() throws {
+        let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")!
+        var img = ImageAttachment(data: png, width: 200, height: 100)
+        img.altText = "Map"
+        let c = RichDocumentController(document: RichDocument(paragraphs: [RichParagraph(text: "above"), RichParagraph(image: img), RichParagraph(text: "below")]))
+        XCTAssertFalse(c.rotatePicture(at: 1, quarters: 4))
+        XCTAssertFalse(c.rotatePicture(at: 0, quarters: 1), "a text paragraph is not a picture")
+        XCTAssertTrue(c.rotatePicture(at: 1, quarters: 1))
+        XCTAssertEqual(c.document.paragraphs[1].image?.rotation, 90)
+        XCTAssertEqual(c.document.paragraphs[1].image?.width, 100)
+        XCTAssertEqual(c.document.paragraphs[1].image?.height, 200)
+        c.undo()
+        XCTAssertEqual(c.document.paragraphs[1].image?.rotation, 0)
+        XCTAssertEqual(c.document.paragraphs[1].image?.width, 200)
+        c.redo()
+        let once = try DocxFormat.read(try DocxFormat.write(c.document, pageSetup: .letter)).document
+        let first = try XCTUnwrap(once.paragraphs.compactMap(\.image).first)
+        XCTAssertEqual(first.rotation, 90)
+        XCTAssertEqual(first.width, 100, accuracy: 0.2)
+        XCTAssertEqual(first.height, 200, accuracy: 0.2)
+        XCTAssertEqual(first.altText, "Map")
+        // Turned again from the file's markup: 180, the box as it was at first; then back to 0 with a left turn.
+        let d = RichDocumentController(document: once)
+        let at = try XCTUnwrap(once.paragraphs.firstIndex { $0.image != nil })
+        XCTAssertTrue(d.rotatePicture(at: at, quarters: 1))
+        let twice = try DocxFormat.read(try DocxFormat.write(d.document, pageSetup: .letter)).document
+        let second = try XCTUnwrap(twice.paragraphs.compactMap(\.image).first)
+        XCTAssertEqual(second.rotation, 180)
+        XCTAssertEqual(second.width, 200, accuracy: 0.2)
+        XCTAssertEqual(second.height, 100, accuracy: 0.2)
+        XCTAssertTrue(d.rotatePicture(at: at, quarters: 2))
+        let home = try DocxFormat.read(try DocxFormat.write(d.document, pageSetup: .letter)).document
+        let back = try XCTUnwrap(home.paragraphs.compactMap(\.image).first)
+        XCTAssertEqual(back.rotation, 0)
+        XCTAssertEqual(back.width, 200, accuracy: 0.2)
+        XCTAssertEqual(home.paragraphs.map(\.text).filter { !$0.isEmpty }, ["above", "below"])
+    }
+
     /// Tracked changes stay tracked: an insertion and a deletion read as
     /// marked runs and are written back as the changes they were, so Word
     /// shows the same markup for the copy.

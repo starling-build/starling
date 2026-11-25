@@ -373,11 +373,73 @@ extension DocxFormat {
         return (PptxXML.serialize(node), found)
     }
 
+    /// `xml` with its picture's `a:xfrm` turned `degrees` (clockwise; `rot` is removed for none), the rest as it was.
+    static func _drawingWithRotation(_ xml: String, _ degrees: Double) -> String {
+        guard let spPr = xml.rangeOfSubstring("<pic:spPr", in: xml.startIndex ..< xml.endIndex),
+              let open = xml.rangeOfSubstring("<a:xfrm", in: spPr.upperBound ..< xml.endIndex),
+              let close = xml.rangeOfSubstring(">", in: open.upperBound ..< xml.endIndex) else { return xml }
+        var tag = String(xml[open.lowerBound ..< close.lowerBound])
+        let selfClosing = tag.hasSuffix("/")
+        if selfClosing { tag.removeLast() }
+        if let r = tag.rangeOfSubstring(" rot=\"", in: tag.startIndex ..< tag.endIndex),
+           let e = tag.rangeOfSubstring("\"", in: r.upperBound ..< tag.endIndex) {
+            tag.removeSubrange(r.lowerBound ..< e.upperBound)
+        }
+        let turned = Int(((degrees.truncatingRemainder(dividingBy: 360) + 360).truncatingRemainder(dividingBy: 360) * 60000).rounded())
+        if turned != 0 { tag += " rot=\"\(turned)\"" }
+        if selfClosing { tag += "/" }
+        return String(xml[xml.startIndex ..< open.lowerBound]) + tag + String(xml[close.lowerBound...])
+    }
+
+    /// The `a:srcRect` element for `crop` (shares of the picture cut off each side, in 1/100000), or "" for none.
+    static func _srcRectXML(_ crop: PictureCrop?) -> String {
+        guard let c = crop, c.left > 0 || c.top > 0 || c.right > 0 || c.bottom > 0 else { return "" }
+        func part(_ name: String, _ v: Double) -> String { v > 0 ? " \(name)=\"\(Int((v * 100000).rounded()))\"" : "" }
+        return "<a:srcRect" + part("l", c.left) + part("t", c.top) + part("r", c.right) + part("b", c.bottom) + "/>"
+    }
+
+    /// `xml` with its picture's `a:srcRect` set to `crop` (removed for none), the rest as it was; unchanged when it holds no `pic:blipFill`.
+    static func _drawingWithCrop(_ xml: String, _ crop: PictureCrop?) -> String {
+        guard let fill = xml.rangeOfSubstring("</pic:blipFill>", in: xml.startIndex ..< xml.endIndex),
+              let fillOpen = xml.rangeOfSubstring("<pic:blipFill", in: xml.startIndex ..< fill.lowerBound) else { return xml }
+        var inner = String(xml[fillOpen.lowerBound ..< fill.lowerBound])
+        if let r = inner.rangeOfSubstring("<a:srcRect", in: inner.startIndex ..< inner.endIndex),
+           let e = inner.rangeOfSubstring(">", in: r.upperBound ..< inner.endIndex) {
+            inner.removeSubrange(r.lowerBound ..< e.upperBound)
+        }
+        let rect = _srcRectXML(crop)
+        if !rect.isEmpty {
+            if let st = inner.rangeOfSubstring("<a:stretch", in: inner.startIndex ..< inner.endIndex) ?? inner.rangeOfSubstring("<a:tile", in: inner.startIndex ..< inner.endIndex) {
+                inner.insert(contentsOf: rect, at: st.lowerBound)
+            } else {
+                inner += rect
+            }
+        }
+        return String(xml[xml.startIndex ..< fillOpen.lowerBound]) + inner + String(xml[fill.lowerBound...])
+    }
+
+    /// `xml` with the `descr` (alternative text) of its first `wp:docPr` set to `text`, the rest as it was.
+    static func _drawingWithAltText(_ xml: String, _ text: String) -> String {
+        guard let open = xml.rangeOfSubstring("<wp:docPr", in: xml.startIndex ..< xml.endIndex),
+              let close = xml.rangeOfSubstring(">", in: open.upperBound ..< xml.endIndex) else { return xml }
+        var tag = String(xml[open.lowerBound ..< close.lowerBound])
+        let selfClosing = tag.hasSuffix("/")
+        if selfClosing { tag.removeLast() }
+        // Drop an existing descr="…" attribute.
+        if let d = tag.rangeOfSubstring(" descr=\"", in: tag.startIndex ..< tag.endIndex),
+           let e = tag.rangeOfSubstring("\"", in: d.upperBound ..< tag.endIndex) {
+            tag.removeSubrange(d.lowerBound ..< e.upperBound)
+        }
+        if !text.isEmpty { tag += " descr=\"\(_esc(text))\"" }
+        if selfClosing { tag += "/" }
+        return String(xml[xml.startIndex ..< open.lowerBound]) + tag + String(xml[close.lowerBound...])
+    }
+
     /// A kept drawing's markup with its size changed in place: the first `wp:extent` and the first `a:ext`
     /// after it (the drawing's own frame, not a group child's) take the new size, so a resize keeps the
     /// float's position, wrap, crop, turn, alt text and effects. Returns nil where the markup names no
     /// size to patch; `unchanged` is true when the markup already has this size (then it is written as read).
-    static func _resizedDrawingXML(_ xml: String, width: Double, height: Double, sourceWidth: Double?, sourceHeight: Double?) -> (xml: String, unchanged: Bool)? {
+    static func _resizedDrawingXML(_ xml: String, width: Double, height: Double, sourceWidth: Double?, sourceHeight: Double?, turned: Bool? = nil) -> (xml: String, unchanged: Bool)? {
         func pair(_ tag: String, from start: String.Index) -> (range: Range<String.Index>, cx: Double, cy: Double)? {
             guard let open = xml.rangeOfSubstring(tag, in: start ..< xml.endIndex),
                   let close = xml.rangeOfSubstring("/>", in: open.upperBound ..< xml.endIndex) else { return nil }
@@ -394,7 +456,8 @@ extension DocxFormat {
         guard let ext = pair("<wp:extent", from: xml.startIndex) else { return nil }
         let oldW = ext.cx / 12700, oldH = ext.cy / 12700
         // (A picture turned a quarter was read with its width and height swapped.)
-        let swapped = sourceWidth.map { abs($0 - oldH) < 0.1 && abs($0 - oldW) >= 0.1 } ?? false
+        // (`turned`, when the editor turned it, says it outright.)
+        let swapped = turned ?? sourceWidth.map { abs($0 - oldH) < 0.1 && abs($0 - oldW) >= 0.1 } ?? false
         let newW = swapped ? height : width, newH = swapped ? width : height
         if abs(newW - oldW) < 0.1, abs(newH - oldH) < 0.1 { return (xml, true) }
         let cx = Int((newW * 12700).rounded()), cy = Int((newH * 12700).rounded())
@@ -1223,13 +1286,28 @@ extension DocxFormat {
             }
             /// A picture or kept object as a run's content.
             func drawingXML(_ image: ImageAttachment) -> String {
+                var image = image
+                if image.altText != image.sourceAltText, let xml = image.sourceXML, image.name != "m:oMath", image.name != "m:oMathPara" {
+                    image.sourceXML = Self._drawingWithAltText(xml, image.altText)
+                    image.sourceAltText = image.altText
+                }
+                var turnedNow: Bool? = nil
+                if image.rotation != image.sourceRotation, let xml = image.sourceXML, image.name != "m:oMath", image.name != "m:oMathPara" {
+                    image.sourceXML = Self._drawingWithRotation(xml, image.rotation)
+                    image.sourceRotation = image.rotation
+                    turnedNow = RichLayout._quarterTurned(image)
+                }
+                if image.crop != image.sourceCrop, let xml = image.sourceXML, image.name != "m:oMath", image.name != "m:oMathPara" {
+                    image.sourceXML = Self._drawingWithCrop(xml, image.crop)
+                    image.sourceCrop = image.crop
+                }
                 let unresized = image.sourceWidth == nil || (image.sourceWidth == image.width && image.sourceHeight == image.height)
                 // (An equation stands in the paragraph itself, not in a run.)
                 if let xml = image.sourceXML, image.name == "m:oMath" || image.name == "m:oMathPara" {
                     return keptFragmentXML(xml, image.sourceRels)
                 }
                 if let xml = image.sourceXML, !unresized || image.sourceWidth == nil,
-                   let patched = Self._resizedDrawingXML(xml, width: image.width, height: image.height, sourceWidth: image.sourceWidth, sourceHeight: image.sourceHeight) {
+                   let patched = Self._resizedDrawingXML(xml, width: image.width, height: image.height, sourceWidth: image.sourceWidth, sourceHeight: image.sourceHeight, turned: turnedNow) {
                     // (Resized: the size is patched in the kept markup, which keeps everything else the file said.)
                     return "<w:r>\(image.sourceRunPropertiesXML ?? "")\(keptFragmentXML(patched.xml, image.sourceRels))</w:r>"
                 }
@@ -1253,8 +1331,14 @@ extension DocxFormat {
                 media.append(ZipEntry(name: "word/media/\(name)", data: image.data))
                 let rid = "rIdImage\(n)"
                 mediaRels.append((rid, "media/\(name)"))
-                let cx = Int(image.width * 12700), cy = Int(image.height * 12700)
-                return "<w:r><w:drawing><wp:inline distT=\"0\" distB=\"0\" distL=\"0\" distR=\"0\"><wp:extent cx=\"\(cx)\" cy=\"\(cy)\"/><wp:docPr id=\"\(n)\" name=\"Picture \(n)\"/><a:graphic xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\"><a:graphicData uri=\"http://schemas.openxmlformats.org/drawingml/2006/picture\"><pic:pic xmlns:pic=\"http://schemas.openxmlformats.org/drawingml/2006/picture\"><pic:nvPicPr><pic:cNvPr id=\"0\" name=\"\(name)\"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed=\"\(rid)\"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"\(cx)\" cy=\"\(cy)\"/></a:xfrm><a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>"
+                // (A picture turned a quarter stands in its turned box; the file holds the unturned frame.)
+                let quarter = RichLayout._quarterTurned(image)
+                let cx = Int((quarter ? image.height : image.width) * 12700), cy = Int((quarter ? image.width : image.height) * 12700)
+                let turn: String = {
+                    let d = (image.rotation.truncatingRemainder(dividingBy: 360) + 360).truncatingRemainder(dividingBy: 360)
+                    return d == 0 ? "" : " rot=\"\(Int((d * 60000).rounded()))\""
+                }()
+                return "<w:r><w:drawing><wp:inline distT=\"0\" distB=\"0\" distL=\"0\" distR=\"0\"><wp:extent cx=\"\(cx)\" cy=\"\(cy)\"/><wp:docPr id=\"\(n)\" name=\"Picture \(n)\"\(image.altText.isEmpty ? "" : " descr=\"\(Self._esc(image.altText))\"")/><a:graphic xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\"><a:graphicData uri=\"http://schemas.openxmlformats.org/drawingml/2006/picture\"><pic:pic xmlns:pic=\"http://schemas.openxmlformats.org/drawingml/2006/picture\"><pic:nvPicPr><pic:cNvPr id=\"0\" name=\"\(name)\"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed=\"\(rid)\"/>\(Self._srcRectXML(image.crop))<a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm\(turn)><a:off x=\"0\" y=\"0\"/><a:ext cx=\"\(cx)\" cy=\"\(cy)\"/></a:xfrm><a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>"
             }
             if let image = p.image {
                 body += drawingXML(image) + "</w:p>"

@@ -1192,6 +1192,14 @@ public struct ImageAttachment: Hashable, Codable, Sendable {
     /// when regenerated, and the row of them wrapped elsewhere.
     public var sourceWidth: Double? = nil
     public var sourceHeight: Double? = nil
+    /// The picture's alternative text (`wp:docPr descr`): what a screen reader says for it. `sourceAltText` is what
+    /// the file held, so a save patches the kept markup only when the text was changed.
+    /// What `crop` was when the file was read, so a save rewrites the kept markup's `a:srcRect` only after a crop.
+    public var sourceCrop: PictureCrop? = nil
+    /// What `rotation` was when the file was read (see `sourceCrop`).
+    public var sourceRotation: Double = 0
+    public var altText: String = ""
+    public var sourceAltText: String = ""
     /// The properties of the run the picture sat in (`w:rPr`), as the
     /// file wrote them: a character border round a thumbnail, the size
     /// that sets the line it stands on. Written back with `sourceXML`.

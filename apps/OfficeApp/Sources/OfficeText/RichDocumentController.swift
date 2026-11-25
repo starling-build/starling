@@ -763,6 +763,87 @@ public final class RichDocumentController: ChangeNotifier {
         edit { perform(.setInlineImage(index, id: id, old: old, new: new)) }
     }
 
+    /// Set the alternative text of the picture at `index` (a picture in its own paragraph), or of the inline picture
+    /// `inline` of that paragraph, one undo step.
+    public func setImageAltText(at index: Int, inline id: String? = nil, _ text: String) {
+        guard index < document.paragraphs.count else { return }
+        if let id {
+            guard var new = document.paragraphs[index].inlineImages[id], new.altText != text else { return }
+            let old = new
+            new.altText = text
+            edit { perform(.setInlineImage(index, id: id, old: old, new: new)) }
+        } else {
+            guard var new = document.paragraphs[index].image, new.altText != text else { return }
+            let old = new
+            new.altText = text
+            edit { perform(.setImage(index, old: old, new: new)) }
+        }
+    }
+
+    /// Cut `crop` (shares of the picture's pixels, each side) off the picture at `index` or its inline picture `id`, one undo
+    /// step. The picture keeps its scale: its frame shrinks or grows by the visible share, so nothing is stretched. nil
+    /// shows the whole picture again. A crop that would leave under 5% in either direction is refused (returns false).
+    @discardableResult
+    public func setImageCrop(at index: Int, inline id: String? = nil, _ crop: PictureCrop?) -> Bool {
+        guard index < document.paragraphs.count else { return false }
+        guard let old = id.map({ document.paragraphs[index].inlineImages[$0] }) ?? document.paragraphs[index].image else { return false }
+        let c = crop.flatMap { $0.left > 0 || $0.top > 0 || $0.right > 0 || $0.bottom > 0 ? $0 : nil }
+        if let c {
+            guard c.left >= 0, c.top >= 0, c.right >= 0, c.bottom >= 0, 1 - c.left - c.right >= 0.05, 1 - c.top - c.bottom >= 0.05 else { return false }
+        }
+        guard c != old.crop else { return true }
+        let was = old.crop ?? PictureCrop(left: 0, top: 0, right: 0, bottom: 0)
+        let now = c ?? PictureCrop(left: 0, top: 0, right: 0, bottom: 0)
+        var new = old
+        new.crop = c
+        new.width = max(4, old.width * (1 - now.left - now.right) / max(0.01, 1 - was.left - was.right))
+        new.height = max(4, old.height * (1 - now.top - now.bottom) / max(0.01, 1 - was.top - was.bottom))
+        edit { perform(id.map { .setInlineImage(index, id: $0, old: old, new: new) } ?? .setImage(index, old: old, new: new)) }
+        return true
+    }
+
+    /// Turn the picture at `index` (or its inline picture `id`) a quarter turn: `quarters` of 1 is clockwise, -1 anticlockwise. The
+    /// picture's box swaps width and height (it stands in its turned box), one undo step. Returns false when `quarters` is a
+    /// whole turn, there is no picture, or the picture floats (a floating picture keeps its unturned size: W-OB-3).
+    @discardableResult
+    public func rotatePicture(at index: Int, inline id: String? = nil, quarters: Int) -> Bool {
+        guard index < document.paragraphs.count, quarters % 4 != 0 else { return false }
+        guard let old = id.map({ document.paragraphs[index].inlineImages[$0] }) ?? document.paragraphs[index].image else { return false }
+        guard old.float == nil else { return false }
+        var new = old
+        let degrees = (old.rotation + Double(quarters % 4) * 90).truncatingRemainder(dividingBy: 360)
+        new.rotation = degrees < 0 ? degrees + 360 : degrees
+        if quarters % 2 != 0 { swap(&new.width, &new.height) }
+        edit { perform(id.map { .setInlineImage(index, id: $0, old: old, new: new) } ?? .setImage(index, old: old, new: new)) }
+        return true
+    }
+
+    /// Swap the pixels of the picture at `index` (or its inline picture `id`) for `data`, one undo step. The picture keeps its
+    /// width and its alternative text; its height follows the new picture's shape so nothing is stretched. The old
+    /// picture's own markup (crop, effects) is dropped, as a replacement starts afresh. A floating picture is not replaced
+    /// here (its anchor would be lost): returns false.
+    @discardableResult
+    public func replacePicture(at index: Int, inline id: String? = nil, with data: Data, name: String,
+                               naturalWidth: Double, naturalHeight: Double) -> Bool {
+        guard index < document.paragraphs.count, naturalWidth > 0, naturalHeight > 0 else { return false }
+        guard let old = id.map({ document.paragraphs[index].inlineImages[$0] }) ?? document.paragraphs[index].image,
+              old.float == nil, !old.data.isEmpty else { return false }
+        var new = old
+        new.data = data
+        new.name = name
+        new.naturalWidth = naturalWidth
+        new.naturalHeight = naturalHeight
+        new.height = max(4, old.width * naturalHeight / naturalWidth)
+        new.crop = nil
+        new.sourceXML = nil
+        new.sourceRels = []
+        new.sourceWidth = nil
+        new.sourceHeight = nil
+        new.sourceRunPropertiesXML = nil
+        edit { perform(id.map { .setInlineImage(index, id: $0, old: old, new: new) } ?? .setImage(index, old: old, new: new)) }
+        return true
+    }
+
     /// Show the picture at `index` at `width` × `height` points, one undo step.
     public func setImageSize(at index: Int, width: Double, height: Double) {
         guard index < document.paragraphs.count, let old = document.paragraphs[index].image else { return }
