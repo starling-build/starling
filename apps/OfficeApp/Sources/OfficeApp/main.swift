@@ -873,6 +873,25 @@ if let i = CommandLine.arguments.firstIndex(of: "--paint-pages"), i + 1 < Comman
             _ = round
         }
         print("painted \(layout.pageCount) pages")
+        // STARLING_PAINT_BENCH=N: N more paints, one page each, walking down the document as a scroll does, each into a fresh
+        // recording as the window's paint is; the mean milliseconds a paint takes (STARLING_BIGSTACK_ALWAYS=1 puts it through
+        // the hop, STARLING_BIGSTACK_PERCALL=1 through a thread per paint).
+        if let n = getenv("STARLING_PAINT_BENCH").flatMap({ Int(String(cString: $0)) }), n > 0 {
+            var samples: [Double] = []
+            for frame in 0 ..< n {
+                let rect = layout.pageRect(frame % max(1, layout.pageCount))
+                let t0 = DispatchTime.now().uptimeNanoseconds
+                let recorder = NativePictureRecorder()
+                let canvas = NativeCanvas(recorder: recorder, cullRect: Rect.fromLTWH(0, 0, rect.width, rect.height))
+                canvas.translate(0, -rect.top)
+                layout.paint(canvas, visible: rect, document: opened.document, selection: nil, caret: nil)
+                _ = recorder.endRecording()
+                samples.append(Double(DispatchTime.now().uptimeNanoseconds - t0) / 1e6)
+            }
+            samples.sort()
+            let mean = samples.reduce(0, +) / Double(n)
+            print(String(format: "bench %d paints: mean %.3f ms, median %.3f ms, p95 %.3f ms", n, mean, samples[n / 2], samples[n * 95 / 100]))
+        }
         exit(0)
     } catch {
         FileHandle.standardError.write("paint-pages failed: \(error)\n".data(using: .utf8)!)

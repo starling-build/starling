@@ -53,6 +53,21 @@ final class BigStackTests: XCTestCase {
         wait(for: [small], timeout: 60)
     }
 
+    /// The hop from a small stack is one long-lived thread, not a thread per call: a paint every frame must not pay for a
+    /// 64 MB mapping each time.
+    func testRunIfSmallReusesOneWorkerThread() {
+        let done = expectation(description: "small thread")
+        let thread = Thread {
+            var seen: [ObjectIdentifier] = []
+            for _ in 0 ..< 20 { seen.append(ObjectIdentifier(BigStack.runIfSmall { Thread.current })) }
+            XCTAssertEqual(Set(seen).count, 1, "every hop lands on the same worker thread")
+            done.fulfill()
+        }
+        thread.stackSize = 512 << 10
+        thread.start()
+        wait(for: [done], timeout: 60)
+    }
+
     func testAThrownErrorComesBack() {
         struct Boom: Error {}
         XCTAssertThrowsError(try BigStack.run { () throws -> Int in throw Boom() }) { XCTAssertTrue($0 is Boom) }
