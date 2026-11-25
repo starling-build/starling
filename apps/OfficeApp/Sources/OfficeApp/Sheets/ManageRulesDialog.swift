@@ -25,14 +25,14 @@ final class ManageRulesDialog: StatefulWidget {
 final class ManageRulesDialogState: State<StatefulWidget> {
     private var _w: ManageRulesDialog { widget as! ManageRulesDialog }
     /// The picked rule's place, kept by element and occurrence so it survives a reorder.
-    private var picked: (Int, Int)?
+    private var picked: (Int, Int, Bool)?
 
     private func _row() -> CFRuleRow? {
         guard let p = picked else { return nil }
-        return _w.controller.conditionalRuleRows().first { $0.element == p.0 && $0.occurrence == p.1 }
+        return _w.controller.conditionalRuleRows().first { $0.element == p.0 && $0.occurrence == p.1 && $0.ext == p.2 }
     }
 
-    func pick(_ r: CFRuleRow) { picked = (r.element, r.occurrence); setState {} }
+    func pick(_ r: CFRuleRow) { picked = (r.element, r.occurrence, r.ext); setState {} }
 
     func moveUp(_ up: Bool) {
         guard let r = _row() else { return }
@@ -58,7 +58,7 @@ final class ManageRulesDialogState: State<StatefulWidget> {
         let rows = _w.controller.conditionalRuleRows()
         let cur = _row()
         let items: [Widget] = rows.map { r in
-            let on = picked.map { $0.0 == r.element && $0.1 == r.occurrence } ?? false
+            let on = picked.map { $0.0 == r.element && $0.1 == r.occurrence && $0.2 == r.ext } ?? false
             return KeyboardRow(label: r.summary, activate: { [weak self] in self?.pick(r) }, child: GestureDetector(onTap: { [weak self] in self?.pick(r) }, behavior: .opaque, child: ColoredBox(
                 color: on ? fluent.resources.subtleFillColorSecondary : Color(0x00000000),
                 child: Padding(padding: EdgeInsets(left: 8, top: 4, right: 8, bottom: 4), child: Row(children: [
