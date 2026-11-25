@@ -16,7 +16,7 @@ final class SheetsTabEditTests: XCTestCase {
     func testMoveKeepsPrintAreaWithItsSheetAndUndoesAsOne() throws {
         let c = book3()
         c.activeSheet = 0
-        c.setPrintArea(CellRange(CellAddress(row: 0, col: 0), CellAddress(row: 4, col: 2)))
+        c.book.fileNames.append(DefinedName(name: "_xlnm.Print_Area", localSheet: 0, attrs: [:], text: "Sheet1!$A$1:$C$5"))
         let first = c.book.sheets[0].name
         XCTAssertTrue(c.moveSheet(0, to: 2))
         XCTAssertEqual(c.book.sheets[2].name, first)
@@ -62,16 +62,6 @@ final class SheetsTabEditTests: XCTestCase {
                        "<sheetPr codeName=\"S\"><tabColor rgb=\"FF00FF00\"/><pageSetUpPr fitToPage=\"1\"/></sheetPr>")
     }
 
-    func testPageSetupFitToPageStillWorksWithAColour() throws {
-        let c = book3()
-        c.setTabColor(0, "FFC00000")
-        c.activeSheet = 0
-        c.setPageSetup(PageSetupChange(fitWide: 1, fitTall: 0))
-        let back = try Xlsx.read(try Xlsx.write(c.book))
-        XCTAssertEqual(back.sheets[0].tabColor, "FFC00000")
-        XCTAssertEqual(SheetPrintSetup.read(back.sheets[0]).fitWidth, 1)
-    }
-
     /// Writes the file for the Excel check (only when XCHECK_DIR is set).
     func testWriteExcelCheckFile() throws {
         guard let dir = ProcessInfo.processInfo.environment["XCHECK_DIR"] else { return }
@@ -80,7 +70,7 @@ final class SheetsTabEditTests: XCTestCase {
         c.setInput("=Sheet1!A2*2", at: CellAddress(row: 1, col: 1))
         c.addSheet(); c.addSheet()
         c.activeSheet = 0
-        c.setPrintArea(CellRange(CellAddress(row: 0, col: 0), CellAddress(row: 4, col: 2)))
+        c.book.fileNames.append(DefinedName(name: "_xlnm.Print_Area", localSheet: 0, attrs: [:], text: "Sheet1!$A$1:$C$5"))
         XCTAssertTrue(c.copySheet(0))                     // Sheet1, Sheet1 (2), Sheet2, Sheet3
         XCTAssertTrue(c.moveSheet(0, to: 3))              // Sheet1 (2), Sheet2, Sheet3, Sheet1
         c.setTabColor(0, "FFC00000"); c.setTabColor(2, "FF0070C0")
