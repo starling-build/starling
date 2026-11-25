@@ -304,7 +304,8 @@ enum PivotWriter {
             else { s += "<sharedItems\(a)/>" }
             s += "</cacheField>"
         }
-        return s + "</cacheFields></pivotCacheDefinition>"
+        // (Excel's own extension block: the 2009 cache marker.)
+        return s + "</cacheFields><extLst><ext uri=\"{725AE2AE-9491-48be-B2B4-4EB974FC3084}\" xmlns:x14=\"http://schemas.microsoft.com/office/spreadsheetml/2009/9/main\"><x14:pivotCacheDefinition/></ext></extLst></pivotCacheDefinition>"
     }
 
     static func cacheRecords(_ src: PivotSource, items: [Int: [PivotItem]]) -> String {
@@ -333,7 +334,6 @@ enum PivotWriter {
         var s = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<pivotTableDefinition xmlns=\"\(main)\" name=\"\(esc(spec.name))\" cacheId=\"\(cacheId)\""
         s += " applyNumberFormats=\"0\" applyBorderFormats=\"0\" applyFontFormats=\"0\" applyPatternFormats=\"0\" applyAlignmentFormats=\"0\" applyWidthHeightFormats=\"1\""
         s += " dataCaption=\"Values\" updatedVersion=\"8\" minRefreshableVersion=\"3\" useAutoFormatting=\"1\" itemPrintTitles=\"1\" createdVersion=\"8\" indent=\"0\" outline=\"1\" outlineData=\"1\" multipleFieldFilters=\"0\""
-        if spec.data.count > 1 { s += " dataOnRows=\"0\"" }
         s += ">"
         s += "<location ref=\"\(loc.a1)\" firstHeaderRow=\"\(lay.firstHeaderRow)\" firstDataRow=\"\(lay.firstDataRow)\" firstDataCol=\"\(lay.firstDataCol)\""
         if !spec.filters.isEmpty { s += " rowPageCount=\"\(spec.filters.count)\" colPageCount=\"1\"" }
@@ -384,6 +384,9 @@ enum PivotWriter {
         }
         s += "</dataFields>"
         s += "<pivotTableStyleInfo name=\"\(esc(style))\" showRowHeaders=\"1\" showColHeaders=\"1\" showRowStripes=\"0\" showColStripes=\"0\" showLastColumn=\"1\"/>"
+        // (Excel's own extension blocks: the 2009 table marker, and the 2016 default layout one.)
+        s += "<extLst><ext uri=\"{962EF5D1-5CA2-4c93-8EF4-DBF5C05439D2}\" xmlns:x14=\"http://schemas.microsoft.com/office/spreadsheetml/2009/9/main\"><x14:pivotTableDefinition\(spec.data.count == 1 ? " hideValuesRow=\"1\"" : "") xmlns:xm=\"http://schemas.microsoft.com/office/excel/2006/main\"/></ext>"
+        s += "<ext uri=\"{747A6164-185A-40DC-8AA5-F01512510D54}\" xmlns:xpdl=\"http://schemas.microsoft.com/office/spreadsheetml/2016/pivotdefaultlayout\"><xpdl:pivotTableDefinition16/></ext></extLst>"
         return s + "</pivotTableDefinition>"
     }
 }
