@@ -138,7 +138,7 @@ enum ChartPartPatch {
                 ax.replaceSubrange(r, with: retext(String(ax[r]), _esc(text)))
             } else {
                 let body = vertical ? "<a:bodyPr rot=\"-5400000\" vert=\"horz\"/>" : "<a:bodyPr/>"
-                let title = "<c:title><c:tx><c:rich>\(body)<a:lstStyle/><a:p><a:r><a:t>\(_esc(text))</a:t></a:r></a:p></c:rich></c:tx><c:overlay val=\"0\"/></c:title>"
+                let title = "<c:title><c:tx><c:rich>\(body)<a:lstStyle/><a:p><a:pPr><a:defRPr sz=\"1000\" b=\"1\"/></a:pPr><a:r><a:rPr lang=\"en-US\"/><a:t>\(_esc(text))</a:t></a:r></a:p></c:rich></c:tx><c:overlay val=\"0\"/></c:title>"
                 // Schema order: ... axPos, majorGridlines, minorGridlines, title, numFmt, majorTickMark ...
                 guard let pos = ax.findRange(of: "<c:axPos ", in: ax.startIndex ..< ax.endIndex),
                       let posEnd = ax.findRange(of: "/>", in: pos.upperBound ..< ax.endIndex) else { return xml }

@@ -848,12 +848,24 @@ extension WorkbookController {
         // The anchor snaps to the grid, so its real width is read back; shift left until it ends inside the page.
         var f = ws.frame(anchor)
         if f.x + f.width > printable {
+            // Beside the data when it fits there; else under it, from the data's left edge, so it never crosses the page edge.
+            var placed = false
             var x = printable - f.width
             for _ in 0 ..< 4 where x >= dataEdge {
                 let a = ws.anchor(x: x, y: corner.y, width: 360, height: 216)
                 f = ws.frame(a)
-                if f.x + f.width <= printable { anchor = a; break }
+                if f.x + f.width <= printable { anchor = a; placed = true; break }
                 x -= (f.x + f.width - printable) + 0.5
+            }
+            if !placed {
+                let below = ws.point(SheetMarker(col: r.left, colOff: 0, row: r.bottom + 2, rowOff: 0))
+                var bx = below.x
+                for _ in 0 ..< 6 {
+                    let a = ws.anchor(x: bx, y: below.y, width: 360, height: 216)
+                    let g = ws.frame(a)
+                    if g.x + g.width <= printable || bx <= 0 { anchor = a; break }
+                    bx = max(0, bx - (g.x + g.width - printable) - 0.5)
+                }
             }
         }
         let n = ws.drawings.filter(\.isChart).count + 1
@@ -930,7 +942,14 @@ extension WorkbookController {
     /// Chart Design → Add Chart Element → Legend: its side ("b", "t", "r", "l"), or nil for none.
     /// Both axis titles at once (nil takes one off); nothing on a chart without axes.
     func setChartAxisTitles(_ index: Int, category: String?, value: String?) {
-        editChart(index) { guard $0.type.hasAxes else { return }; $0.categoryAxisTitle = category; $0.valueAxisTitle = value }
+        editChart(index) { guard $0.type.hasAxes else { return }; $0.categoryAxisTitle = category; $0.valueAxisTitle = value; $0.sizeNewAxisTitles() }
+    }
+    /// The chart title and both axis titles in one edit (one undo step); nil takes one off. An axis title is left alone on a chart without axes.
+    func setChartTitles(_ index: Int, title: String?, category: String?, value: String?) {
+        editChart(index) {
+            $0.title = title; $0.autoTitle = false
+            if $0.type.hasAxes { $0.categoryAxisTitle = category; $0.valueAxisTitle = value; $0.sizeNewAxisTitles() }
+        }
     }
     func setChartLegend(_ index: Int, position: String?) {
         editChart(index) {
@@ -1006,5 +1025,14 @@ extension SheetDrawingsXML {
             if width > 0, height > 0 { out[id] = HeaderPicture(path: path, data: data, width: width, height: height) }
         }
         return out
+    }
+}
+
+extension Chart {
+    /// Axis titles typed here are Excel's: 10 pt bold, not the unformatted 20 pt default that would squeeze the plot.
+    mutating func sizeNewAxisTitles() {
+        if categoryAxisTitle != nil, categoryAxisTitleSize == nil { categoryAxisTitleSize = 10 }
+        if valueAxisTitle != nil, valueAxisTitleSize == nil { valueAxisTitleSize = 10 }
+        if categoryAxisTitle != nil || valueAxisTitle != nil, axisTitleSize == nil { axisTitleBold = true; axisTitleBoldOut = true }
     }
 }
