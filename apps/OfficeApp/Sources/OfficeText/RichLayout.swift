@@ -2038,6 +2038,7 @@ public final class RichLayout {
     /// How far a paragraph's first line is held in beside a floating table
     /// it follows (`_besideIndent`), in layout pixels; 0 for none.
     var _besideLead: [Double] = []
+    var _tableBothLeft: [Int: Double] = [:]
     /// Whether that hold is on the paragraph's RIGHT: the table stands at the right, and the lines end short of it.
     var _besideRightSide: [Bool] = []
     /// Paragraphs laid out before the rows of the table they sit beside were

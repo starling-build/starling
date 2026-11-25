@@ -110,9 +110,8 @@ extension WorkbookController {
         case .iconSet(let name):
             highlight = false
             let n = Int(name.prefix(1)) ?? 3
-            let step = 100 / n
             var cfvo = "<cfvo type=\"percent\" val=\"0\"/>"
-            for i in 1 ..< n { cfvo += "<cfvo type=\"percent\" val=\"\(step * i)\"/>" }
+            for i in 1 ..< n { cfvo += "<cfvo type=\"percent\" val=\"\((100 * i + n / 2) / n)\"/>" }   // Excel's own 33/67, 25/50/75
             body = "type=\"iconSet\"|<iconSet iconSet=\"\(Xlsx._esc(name))\">" + cfvo + "</iconSet>"
         }
         var dxfAttr = ""
@@ -121,6 +120,18 @@ extension WorkbookController {
             dxfAttr = " dxfId=\"\(_appendDxf(spec.look))\""
         }
         let priority = _nextCFPriority()
+        if case .iconSet(let name) = spec.kind, IconSets2010.names.contains(name) {
+            let sq = ranges.map { $0.isSingle ? $0.topLeft.a1 : $0.a1 }.joined(separator: " ")
+            let blk = IconSets2010.block(name, sqref: sq, priority: priority)
+            structural {
+                if let i = sheet.keptElements.firstIndex(where: { $0.name == "extLst" }) {
+                    sheet.keptElements[i].text = IconSets2010.inserting(blk, into: sheet.keptElements[i].text)
+                } else {
+                    sheet.keptElements.append(("extLst", IconSets2010.inserting(blk, into: nil)))
+                }
+            }
+            return nil
+        }
         let parts = body.split(separator: "|", maxSplits: 1, omittingEmptySubsequences: false)
         let rule = "<cfRule " + parts[0] + dxfAttr + " priority=\"\(priority)\"" + (spec.stopIfTrue ? " stopIfTrue=\"1\"" : "")
             + (parts.count > 1 && !parts[1].isEmpty ? ">" + parts[1] + "</cfRule>" : "/>")
@@ -151,8 +162,14 @@ extension WorkbookController {
             t.replaceSubrange(a.upperBound ..< b.lowerBound, with: left.map { $0.isSingle ? $0.topLeft.a1 : $0.a1 }.joined(separator: " "))
             plan.append((i, t))
         }
-        guard !plan.isEmpty else { return nil }
+        var extPlan: (Int, String)?
+        if let i = sheet.keptElements.firstIndex(where: { $0.name == "extLst" }) {
+            let t = IconSets2010.clearing(sheet.keptElements[i].text, ranges)
+            if t != sheet.keptElements[i].text { extPlan = (i, t) }
+        }
+        guard !plan.isEmpty || extPlan != nil else { return nil }
         structural {
+            if let (i, t) = extPlan { sheet.keptElements[i].text = t }
             for (i, t) in plan.reversed() {
                 if let t = t { sheet.keptElements[i].text = t } else { sheet.keptElements.remove(at: i) }
             }

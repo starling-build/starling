@@ -360,6 +360,7 @@ enum PptxWriter {
         // Animations: as read while unchanged (or, for timing this app does
         // not model, while every shape it names is still here); our own
         // timing tree once they are edited.
+        body = w.resolveConnections(body)
         var timing = ""
         let modelled = slide.sourceAnimations != nil
         if modelled && slide.animations != slide.sourceAnimations || !modelled && slide.timingXML == nil {
@@ -426,9 +427,31 @@ enum PptxWriter {
             where raw.containsSubstring("\(prefix):") && !ns.containsSubstring("xmlns:\(prefix)=") {
                 ns += " xmlns:\(prefix)=\"\(uri)\""
             }
-            return raw
+            // (Its Advance Slide settings are the ones set here: swapped into each transition tag.)
+            var out = ""
+            var rest = raw
+            while let r = rest.rangeOfSubstring("<p:transition ") ?? rest.rangeOfSubstring("<p:transition>") {
+                out += rest[..<r.lowerBound] + "<p:transition"
+                let tail = String(rest[r.upperBound...])
+                guard let close = tail.firstIndex(of: ">") else { rest = tail; break }
+                var attrs = String(tail[..<close])
+                for name in ["advClick", "advTm"] {
+                    if let a = attrs.rangeOfSubstring(" \(name)=\""),
+                       let e = attrs.rangeOfSubstring("\"", in: a.upperBound ..< attrs.endIndex) {
+                        attrs = attrs.replacingSubrange(a.lowerBound ..< e.upperBound, with: "")
+                    }
+                }
+                if !t.advanceOnClick { attrs += " advClick=\"0\"" }
+                if let after = t.advanceAfter { attrs += " advTm=\"\(Int((after * 1000).rounded()))\"" }
+                out += attrs.hasPrefix(" ") || attrs.isEmpty || attrs.hasPrefix("/") ? attrs : " " + attrs
+                rest = String(tail[close...])
+            }
+            return out + rest
         }
-        guard t.kind != .none else { return "" }
+        // Advance Slide is attributes of the transition itself; a slide that advances only on a click
+        // and has no effect writes no transition at all.
+        let plainAdvance = t.advanceOnClick && t.advanceAfter == nil
+        guard t.kind != .none || !plainAdvance else { return "" }
         let spd = t.duration <= 0.5 ? "fast" : t.duration >= 1.0 ? "slow" : "med"
         let effect: String
         switch t.kind {
@@ -436,9 +459,22 @@ enum PptxWriter {
         case .push: effect = "<p:push dir=\"\(t.direction.rawValue)\"/>"
         case .wipe: effect = "<p:wipe dir=\"\(t.direction.rawValue)\"/>"
         case .cover: effect = "<p:cover dir=\"\(t.direction.rawValue)\"/>"
+        case .pull: effect = "<p:pull dir=\"\(t.direction.rawValue)\"/>"
+        case .split: effect = "<p:split orient=\"\(t.vertical ? "vert" : "horz")\" dir=\"\(t.inward ? "in" : "out")\"/>"
+        case .zoom: effect = "<p:zoom dir=\"\(t.zoomIn ? "in" : "out")\"/>"
         case .none: effect = ""
         }
-        return "<p:transition spd=\"\(spd)\">\(effect)</p:transition>"
+        var advance = t.advanceOnClick ? "" : " advClick=\"0\""
+        if let after = t.advanceAfter { advance += " advTm=\"\(Int((after * 1000).rounded()))\"" }
+        let plain = "<p:transition spd=\"\(spd)\"\(advance)>\(effect)</p:transition>"
+        guard t.kind != .none else { return plain }
+        // PowerPoint 2010+ writes the exact duration in p14:dur inside mc:AlternateContent, the plain
+        // transition (speed word only) as the fallback.
+        for (prefix, uri) in [("mc", "http://schemas.openxmlformats.org/markup-compatibility/2006"),
+                              ("p14", "http://schemas.microsoft.com/office/powerpoint/2010/main")]
+        where !ns.containsSubstring("xmlns:\(prefix)=") { ns += " xmlns:\(prefix)=\"\(uri)\"" }
+        let ms = Int((t.duration * 1000).rounded())
+        return "<mc:AlternateContent><mc:Choice Requires=\"p14\"><p:transition spd=\"\(spd)\"\(advance) p14:dur=\"\(ms)\">\(effect)</p:transition></mc:Choice><mc:Fallback>\(plain)</mc:Fallback></mc:AlternateContent>"
     }
 
     /// `p:custShowLst` with every `<p:sld r:id="…"/>` renamed through
@@ -844,6 +880,41 @@ private struct SlideXML {
     private(set) var written: [Int: Int] = [:]
     private var _current: Int? = nil
 
+    /// A connector's glued ends. The target may be written after the connector, so the id is a token
+    /// (`@@CXN<deck id>@@`) that `resolveConnections` swaps for the id the target was written under.
+    static func _connXML(_ s: ShapeState) -> String {
+        var x = ""
+        if let c = s.connStart { x += "<a:stCxn id=\"@@CXN\(c.shape)@@\" idx=\"\(c.site)\"/>" }
+        if let c = s.connEnd { x += "<a:endCxn id=\"@@CXN\(c.shape)@@\" idx=\"\(c.site)\"/>" }
+        return x
+    }
+
+    /// Swaps each connection token for its shape's written id; an end whose shape was not written is left out.
+    func resolveConnections(_ body: String) -> String {
+        guard body.containsSubstring("@@CXN") else { return body }
+        var out = ""
+        let parts = body.components(separatedBy: "<a:")
+        for (i, part) in parts.enumerated() {
+            var piece = part
+            if i > 0 {
+                if (piece.hasPrefix("stCxn ") || piece.hasPrefix("endCxn ")), let a = piece.range(of: "@@CXN"),
+                   let b = piece.range(of: "@@\"", range: a.upperBound..<piece.endIndex) {
+                    let n = Int(piece[a.upperBound..<b.lowerBound])
+                    if let n, let id = written[n] {
+                        piece.replaceSubrange(a.lowerBound..<b.upperBound, with: "\(id)\"")
+                    } else if let close = piece.range(of: "/>") {
+                        piece.removeSubrange(piece.startIndex..<close.upperBound)
+                        out += piece
+                        continue
+                    }
+                }
+                out += "<a:"
+            }
+            out += piece
+        }
+        return out
+    }
+
     private mutating func _id(_ preferred: Int? = nil) -> Int {
         let id: Int
         if let p = preferred, p > 1, !_used.contains(p) {
@@ -922,28 +993,6 @@ private struct SlideXML {
             + "<a:srgbClr val=\"\(hex)\">\(alpha)</a:srgbClr></a:outerShdw>"
     }
 
-    /// The file's `a:effectLst` with its outer shadow swapped for `shadow` (none: removed). The list is kept even when
-    /// empty, so a theme shadow named by the shape's style stays off.
-    static func _effectsWithShadow(_ effects: String, _ shadow: CharShadow?) -> String {
-        var body = ""
-        var attrs = ""
-        if let open = effects.range(of: "<a:effectLst"), let gt = effects[open.upperBound...].firstIndex(of: ">") {
-            attrs = String(effects[open.upperBound..<gt])
-            if attrs.hasSuffix("/") { attrs.removeLast() } else if let close = effects.range(of: "</a:effectLst>") { body = String(effects[effects.index(after: gt)..<close.lowerBound]) }
-        }
-        if let a = body.range(of: "<a:outerShdw") {
-            if let e = body.range(of: "</a:outerShdw>", range: a.lowerBound..<body.endIndex) { body.removeSubrange(a.lowerBound..<e.upperBound) }
-            else if let e = body[a.lowerBound...].range(of: "/>") { body.removeSubrange(a.lowerBound..<e.upperBound) }
-        }
-        if let sh = shadow {
-            let new = _outerShadowXML(sh)
-            // Schema order: ... glow, innerShdw, outerShdw, prstShdw, reflection, softEdge.
-            let after = ["<a:prstShdw", "<a:reflection", "<a:softEdge"].compactMap { body.range(of: $0)?.lowerBound }.min()
-            if let at = after { body.insert(contentsOf: new, at: at) } else { body += new }
-        }
-        return "<a:effectLst\(attrs)>\(body)</a:effectLst>"
-    }
-
     /// An arrowhead as `a:headEnd` / `a:tailEnd`; sizes are the multiples of the line width the reader gives (2, 3, 5).
     static func _endXML(_ tag: String, _ e: LineEnd?) -> String {
         guard let e else { return "" }
@@ -1009,7 +1058,7 @@ private struct SlideXML {
             return PptxTemplates.blipFillXML(f, rid: rid)
         }
         if f.stops.count >= 2 {
-            let stops = f.stops.map { "<a:gs pos=\"\(Int(($0.position * 100000).rounded()))\"><a:srgbClr val=\"\(PptxText.hex($0.color))\"/></a:gs>" }.joined()
+            let stops = f.stops.map { "<a:gs pos=\"\(Int(($0.position * 100000).rounded()))\"><a:srgbClr val=\"\(PptxText.hex($0.color))\">\($0.color.alpha < 255 ? "<a:alpha val=\"\($0.color.alpha * 100000 / 255)\"/>" : "")</a:srgbClr></a:gs>" }.joined()
             return "<a:gradFill rotWithShape=\"1\"><a:gsLst>\(stops)</a:gsLst><a:lin ang=\"\(Int((f.angle * 60000).rounded()))\" scaled=\"0\"/></a:gradFill>"
         }
         return Self._fill(f.color ?? Color(0xFFFFFFFF))
@@ -1133,7 +1182,7 @@ private struct SlideXML {
             // A connector as read, while its line and outline are: the
             // original, at its frame on the slide.
             if let xml = s.sourceXML, let k = s.keptLine, k.line == s.frame, k.outline == s.outline,
-               k.width == s.outlineWidth, k.dash == s.outlineDash, k.head == s.headEnd, k.tail == s.tailEnd,
+               k.width == s.outlineWidth, k.dash == s.outlineDash, k.head == s.headEnd, k.tail == s.tailEnd, k.connStart == s.connStart, k.connEnd == s.connEnd,
                let p = source, let part = s.sourcePart {
                 return kept(xml, sourcePart: part, package: p, builder: &builder, patch: k.box, fileId: s.fileId)
             }
@@ -1141,7 +1190,7 @@ private struct SlideXML {
             let f = s.frame
             let box = Rect.fromLTRB(min(f.left, f.right), min(f.top, f.bottom), max(f.left, f.right), max(f.top, f.bottom))
             let line = s.outline.map { "<a:ln w=\"\(Self._emu(s.outlineWidth))\">\(Self._fill($0, scheme: s.outlineScheme))\(Self._dashXML(s.outlineDash))\(Self._endsXML(s))</a:ln>" } ?? "<a:ln><a:noFill/></a:ln>"
-            return "<p:cxnSp><p:nvCxnSpPr><p:cNvPr id=\"\(id)\" name=\"\(name)\"\(hid)/><p:cNvCxnSpPr/><p:nvPr/></p:nvCxnSpPr>"
+            return "<p:cxnSp><p:nvCxnSpPr><p:cNvPr id=\"\(id)\" name=\"\(name)\"\(hid)/><p:cNvCxnSpPr>\(Self._connXML(s))</p:cNvCxnSpPr><p:nvPr/></p:nvCxnSpPr>"
                 + "<p:spPr>\(Self._xfrm(box, rotation: s.rotation, flipH: s.flipH != (f.right < f.left), flipV: s.flipV != (f.bottom < f.top)))"
                 + "<a:prstGeom prst=\"\(preset.rawValue)\"><a:avLst/></a:prstGeom>\(line)</p:spPr></p:cxnSp>"
         default:
@@ -1242,8 +1291,14 @@ private struct SlideXML {
                 }
             }
             let effectsXML: String
-            if let k = look { effectsXML = k.shadowEdited ? Self._effectsWithShadow(k.effects, s.shadow) : k.effects }
-            else { effectsXML = s.shadow.map { "<a:effectLst>\(Self._outerShadowXML($0))</a:effectLst>" } ?? "" }
+            if let k = look, !k.effectsEdited, !k.bevelEdited { effectsXML = k.effects }
+            else {
+                effectsXML = Self._effectsEdited(look?.effects ?? "", shadow: s.shadow,
+                                                 glow: s.glowRadius.flatMap { r in r > 0 ? (r, s.glowColor ?? Color(0x66000000)) : nil },
+                                                 reflection: s.reflection, softEdge: s.softEdge, bevel: s.bevel,
+                                                 lists: look?.effectsEdited ?? true, bevelEdit: look?.bevelEdited ?? true,
+                                                 emptyList: look?.effectsEdited == true)
+            }
             spPr += fillXML + lineXML + effectsXML
             var xml = "<p:sp><p:nvSpPr>\(nv)<p:nvPr>\(ph)</p:nvPr></p:nvSpPr><p:spPr>\(spPr)</p:spPr>\(look?.style ?? "")"
             if let doc = s.text {
@@ -1823,5 +1878,125 @@ enum PptxText {
             }
             return "<a:p>" + parts.joined(separator: "<a:br><a:rPr lang=\"en-US\"/></a:br>") + "</a:p>"
         }.joined()
+    }
+}
+
+// S-SH-5: a shape's effects as the file holds them.
+extension SlideXML {
+    /// The end of the element that starts at `start` (an opening `<tag`), self-closing or not.
+    private static func _elementEnd(_ s: String, _ start: String.Index, _ tag: String) -> String.Index? {
+        guard let gt = s[start...].firstIndex(of: ">") else { return nil }
+        if s[s.index(before: gt)] == "/" { return s.index(after: gt) }
+        guard let close = s.range(of: "</\(tag)>", range: gt..<s.endIndex) else { return nil }
+        return close.upperBound
+    }
+
+    /// The first element `<tag ...>` in `s` (not a longer name sharing the prefix).
+    private static func _element(_ s: String, _ tag: String) -> Range<String.Index>? {
+        var from = s.startIndex
+        while let r = s.range(of: "<\(tag)", range: from..<s.endIndex) {
+            let after = r.upperBound
+            if after < s.endIndex, " />".contains(s[after]), let end = _elementEnd(s, r.lowerBound, tag) {
+                return r.lowerBound..<end
+            }
+            from = r.upperBound
+        }
+        return nil
+    }
+
+    /// The top-level children of an element body, in order.
+    private static func _children(_ body: String) -> [(tag: String, xml: String)] {
+        var out: [(String, String)] = []
+        var i = body.startIndex
+        while let lt = body[i...].firstIndex(of: "<") {
+            var j = body.index(after: lt)
+            while j < body.endIndex, !" />".contains(body[j]) { j = body.index(after: j) }
+            let tag = String(body[body.index(after: lt)..<j])
+            guard let end = _elementEnd(body, lt, tag) else { break }
+            out.append((tag, String(body[lt..<end]))); i = end
+        }
+        return out
+    }
+
+    private static func _hex(_ c: Color) -> String {
+        let rgb = String(c.value & 0xFFFFFF, radix: 16, uppercase: true)
+        return String(repeating: "0", count: max(0, 6 - rgb.count)) + rgb
+    }
+
+    private static func _glowXML(_ r: Double, _ c: Color) -> String {
+        let alpha = c.alpha < 255 ? "<a:alpha val=\"\(Int((Double(c.alpha) / 255 * 100000).rounded()))\"/>" : ""
+        return "<a:glow rad=\"\(Int((r * Pptx.emu).rounded()))\"><a:srgbClr val=\"\(_hex(c))\">\(alpha)</a:srgbClr></a:glow>"
+    }
+
+    private static func _reflectionXML(_ r: Reflection) -> String {
+        func pct(_ v: Double) -> Int { Int((v * 100000).rounded()) }
+        return "<a:reflection blurRad=\"\(Int((r.blur * Pptx.emu).rounded()))\" stA=\"\(pct(r.startAlpha))\" "
+            + "endA=\"\(pct(r.endAlpha))\" endPos=\"\(pct(r.endPos))\" dist=\"\(Int((r.dist * Pptx.emu).rounded()))\" "
+            + "dir=\"5400000\" sy=\"\(pct(r.scaleY))\" algn=\"bl\" rotWithShape=\"0\"/>"
+    }
+
+    private static func _bevelXML(_ b: ShapeBevel) -> String {
+        "<a:bevelT w=\"\(Int((b.width * Pptx.emu).rounded()))\" h=\"\(Int((b.height * Pptx.emu).rounded()))\" prst=\"\(b.preset)\"/>"
+    }
+
+    /// A shape's effects as the file holds them: `effects` is what the file had (its `a:effectLst`, `a:effectDag`,
+    /// `a:scene3d` and `a:sp3d`, in that order; empty for a new shape). With `lists`, the shadow, glow, reflection
+    /// and soft edge are rebuilt from the model and the list's other effects kept; with `bevel`, the `a:bevelT` is
+    /// swapped and the rest of the 3-D settings kept.
+    static func _effectsEdited(_ effects: String, shadow: CharShadow?, glow: (Double, Color)?, reflection: Reflection?,
+                               softEdge: Double?, bevel: ShapeBevel?, lists: Bool, bevelEdit: Bool, emptyList: Bool = false) -> String {
+        var list = _element(effects, "a:effectLst").map { String(effects[$0]) }
+        let dag = _element(effects, "a:effectDag").map { String(effects[$0]) } ?? ""
+        var scene = _element(effects, "a:scene3d").map { String(effects[$0]) } ?? ""
+        var sp3d = _element(effects, "a:sp3d").map { String(effects[$0]) } ?? ""
+        if lists {
+            var attrs = ""
+            var kids: [(Int, String)] = []
+            if let l = list, let gt = l.firstIndex(of: ">") {
+                attrs = String(l[l.index(l.startIndex, offsetBy: "<a:effectLst".count)..<gt])
+                if attrs.hasSuffix("/") { attrs.removeLast() }
+                if !l[..<gt].hasSuffix("/") {
+                    let body = String(l[l.index(after: gt)..<(l.range(of: "</a:effectLst>")?.lowerBound ?? l.endIndex)])
+                    let rank = ["a:blur": 0, "a:fillOverlay": 1, "a:glow": 2, "a:innerShdw": 3, "a:outerShdw": 4,
+                                "a:prstShdw": 5, "a:reflection": 6, "a:softEdge": 7]
+                    for c in _children(body) {
+                        if ["a:glow", "a:outerShdw", "a:softEdge"].contains(c.tag) { continue }
+                        if c.tag == "a:reflection" { continue }
+                        kids.append((rank[c.tag] ?? 8, c.xml))
+                    }
+                }
+            }
+            if let g = glow { kids.append((2, _glowXML(g.0, g.1))) }
+            if let s = shadow { kids.append((4, _outerShadowXML(s))) }
+            if let r = reflection, !r.onText { kids.append((6, _reflectionXML(r))) }
+            if let e = softEdge, e > 0 { kids.append((7, "<a:softEdge rad=\"\(Int((e * Pptx.emu).rounded()))\"/>")) }
+            // (A reflection of the text lives on its runs: the file's list keeps none of its own.)
+            if list != nil || !kids.isEmpty || emptyList {
+                let sorted = kids.enumerated().sorted { ($0.element.0, $0.offset) < ($1.element.0, $1.offset) }
+                list = "<a:effectLst\(attrs)>" + sorted.map { $0.element.1 }.joined() + "</a:effectLst>"
+            } else { list = nil }
+        }
+        if bevelEdit {
+            var attrs = "", rest = ""
+            if let gt = sp3d.firstIndex(of: ">"), !sp3d.isEmpty {
+                attrs = String(sp3d[sp3d.index(sp3d.startIndex, offsetBy: "<a:sp3d".count)..<gt])
+                if attrs.hasSuffix("/") { attrs.removeLast() }
+                if !sp3d[..<gt].hasSuffix("/") {
+                    let body = String(sp3d[sp3d.index(after: gt)..<(sp3d.range(of: "</a:sp3d>")?.lowerBound ?? sp3d.endIndex)])
+                    rest = _children(body).filter { $0.tag != "a:bevelT" }.map(\.xml).joined()
+                }
+            }
+            if let b = bevel {
+                if let m = attrs.range(of: " prstMaterial=\"[^\"]*\"", options: .regularExpression) { attrs.removeSubrange(m) }
+                if b.material != "warmMatte" { attrs += " prstMaterial=\"\(b.material)\"" }
+                sp3d = "<a:sp3d\(attrs)>\(_bevelXML(b))\(rest)</a:sp3d>"
+                if scene.isEmpty {
+                    scene = "<a:scene3d><a:camera prst=\"orthographicFront\"/><a:lightRig rig=\"\(b.rig)\" dir=\"t\"/></a:scene3d>"
+                }
+            } else {
+                sp3d = (attrs.isEmpty && rest.isEmpty) ? "" : "<a:sp3d\(attrs)>\(rest)</a:sp3d>"
+            }
+        }
+        return (list ?? "") + dag + scene + sp3d
     }
 }

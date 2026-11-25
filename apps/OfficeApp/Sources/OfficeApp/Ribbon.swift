@@ -190,7 +190,19 @@ final class Ribbon: StatelessWidget {
 
     /// W-FN-1: footnotes and endnotes. (The other References groups arrive with their own rows.)
     func _references(_ fluent: FluentThemeData) -> [Widget] {
-        [Chrome.group("Footnotes", fluent, [
+        let automatic1 = ContentsOptions(), automatic2 = ContentsOptions()
+        return [Chrome.group("Table of Contents", fluent, [
+            Chrome.menuButton(FluentSystemIcons.textT, "Table of Contents", nil, fluent, items: [
+                MenuFlyoutItem(text: Text("Automatic Table (dot leader)"), onPressed: { [session] in session.onInsertContents?(automatic1) }),
+                MenuFlyoutItem(text: Text("Automatic Table (no leader)"), onPressed: { [session] in
+                    var o = automatic2; o.tabLeader = nil; session.onInsertContents?(o) }),
+                MenuFlyoutItem(text: Text("Custom Table of Contents…"), onPressed: { [session] in session.onContentsDialog?() }),
+            ]),
+            Chrome.menuButton(FluentSystemIcons.textT, "Update Table", nil, fluent, items: [
+                MenuFlyoutItem(text: Text("Update page numbers only"), onPressed: { [session] in session.onUpdateContents?(true) }),
+                MenuFlyoutItem(text: Text("Update entire table"), onPressed: { [session] in session.onUpdateContents?(false) }),
+            ]),
+        ]), Chrome.group("Footnotes", fluent, [
             Chrome.big(FluentSystemIcons.textT, "Insert Footnote", fluent) { [session] in session.onInsertNote?(.footnote) },
             Chrome.big(FluentSystemIcons.textT, "Insert Endnote", fluent) { [session] in session.onInsertNote?(.endnote) },
             Chrome.big(FluentSystemIcons.textT, "Edit Note", fluent) { [session] in session.onEditNote?() },
@@ -602,6 +614,7 @@ final class Ribbon: StatelessWidget {
                 MenuFlyoutItem(text: Text("Select Table"), onPressed: { c.selectTable() }),
                 MenuFlyoutSeparator(),
                 MenuFlyoutItem(text: Text("Table Properties…"), onPressed: { [session] in session.onTablePropertiesDialog?() }),
+                MenuFlyoutItem(text: Text("Formula…"), onPressed: c.canInsertFormula ? { [session] in session.onFormulaDialog?() } : nil),
                 MenuFlyoutItem(text: Text("Convert Table to Text…"), onPressed: { self.session.onConvertTextTableDialog?(false) }),
             ]),
         ])
@@ -858,6 +871,12 @@ final class Ribbon: StatelessWidget {
         } else if picked.count < 2, let image = c.document.paragraphs[i].image, ShapeGroups.isGroupable(image) {
             groupWidgets.append(Chrome.group("Group", fluent, [
                 Chrome.big(FluentSystemIcons.shapes, "Group", fluent, enabled: false) {},
+            ]))
+        }
+        if c.pictureWrap(at: i) != nil {
+            // A finger has no Shift: while this is on, a tap on another floating shape picks it to group with this one.
+            groupWidgets.append(Chrome.group("Select", fluent, [
+                Chrome.small(FluentSystemIcons.check, "Select Multiple", fluent, checked: c.selectMultiple) { c.setSelectMultiple(!c.selectMultiple) },
             ]))
         }
         var floating: [Widget] = []

@@ -95,12 +95,14 @@ final class SheetsShellState: State<StatefulWidget> {
     private var _chartLabelsOpen: Int? = nil
     private var _chartAxisOpen: Int? = nil
     private var _sparklineOpen = false
+    private var _chartForm: ChartFormKind? = nil
     private var _sparklineKind: SparklineGroup.Kind? = nil
     private var _dupOpen: (range: CellRange, hasHeader: Bool)?
     private var _ttcOpen: CellRange?
     private var _subOpen: CellRange?
     private var _validationOpen = false
     private var _cfOpen = false
+    private var _cfRulesOpen = false
     private var _tableOpen = false
     private var _filterOpen: (col: Int, kind: String)?
     private let _tabProbes = SheetTabProbes()
@@ -459,6 +461,8 @@ final class SheetsShellState: State<StatefulWidget> {
             _editNote(at: wb.active)
         case .conditionalFormat:
             setState { _cfOpen = true }
+        case .conditionalRules:
+            setState { _cfRulesOpen = true }
         case .dataValidation:
             setState { _validationOpen = true }
         case .consolidate:
@@ -480,6 +484,8 @@ final class SheetsShellState: State<StatefulWidget> {
             setState { _chartAxisOpen = i }
         case .chartLabels(let i):
             setState { _chartLabelsOpen = i }
+        case .chartForm(let kind):
+            setState { _chartForm = kind }
         case .sparklineDialog(let kind):
             setState { _sparklineOpen = true; _sparklineKind = kind }
         case .goalSeek:
@@ -1117,6 +1123,13 @@ final class SheetsShellState: State<StatefulWidget> {
                     self?._grid?.focus.requestFocus()
                 }))])
         }
+        if _cfRulesOpen {
+            return Stack(children: [window, Positioned(left: 0, top: 0, right: 0, bottom: 0, child: ManageRulesDialog(
+                controller: wb, onClose: { [weak self] in
+                    self?.setState { self?._cfRulesOpen = false }
+                    self?._grid?.focus.requestFocus()
+                }))])
+        }
         if _validationOpen {
             return Stack(children: [window, Positioned(left: 0, top: 0, right: 0, bottom: 0, child: ValidationDialog(
                 controller: wb, onClose: { [weak self] in
@@ -1171,6 +1184,13 @@ final class SheetsShellState: State<StatefulWidget> {
             return Stack(children: [window, Positioned(left: 0, top: 0, right: 0, bottom: 0, child: ChartLabelsDialog(
                 controller: wb, index: i, onClose: { [weak self] in
                     self?.setState { self?._chartLabelsOpen = nil }
+                    self?._grid?.focus.requestFocus()
+                }))])
+        }
+        if let kind = _chartForm {
+            return Stack(children: [window, Positioned(left: 0, top: 0, right: 0, bottom: 0, child: ChartFormDialog(
+                controller: wb, kind: kind, onClose: { [weak self] in
+                    self?.setState { self?._chartForm = nil }
                     self?._grid?.focus.requestFocus()
                 }))])
         }
@@ -1560,6 +1580,7 @@ final class SheetsShellState: State<StatefulWidget> {
             item("Delete") { c.deleteDrawing(i) }
             if c.sheet.drawings.indices.contains(i), case .chart(let sc) = c.sheet.drawings[i].kind {
                 sep()
+                item("Change to 3-D Chart") { c.setChartVariant(i, .threeD) }
                 for t in ChartType.allCases where t != sc.chart.type {
                     item("Change to \(t.name) Chart") { c.setChartType(i, t) }
                 }

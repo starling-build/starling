@@ -124,6 +124,12 @@ struct ShapeGroup: Equatable {
 /// between its ends, and while that line and its outline are unchanged a
 /// save writes the original back — curves, arrowheads, connections and
 /// all — at `box`, its unrotated frame on the slide.
+/// A connector's end glued to a shape: the shape's deck id and the connection site's index (`a:stCxn` / `a:endCxn`).
+struct ShapeConn: Equatable {
+    var shape: Int
+    var site: Int
+}
+
 struct KeptLine: Equatable {
     var line: Rect
     var box: Rect
@@ -133,6 +139,8 @@ struct KeptLine: Equatable {
     var dash: String? = nil
     var head: LineEnd? = nil
     var tail: LineEnd? = nil
+    var connStart: ShapeConn? = nil
+    var connEnd: ShapeConn? = nil
 }
 
 /// A picture as read (with `sourceXML`): written back verbatim while its
@@ -167,8 +175,11 @@ struct KeptLook: Equatable {
     var dashEdited = false
     /// Set when the user chose arrowheads: the file's own are swapped, the rest of its line kept.
     var endsEdited = false
-    /// Set when the user changed the shape's shadow: the file's own outer shadow is swapped, its other effects kept.
-    var shadowEdited = false
+    /// Set when the user changed the shape's shadow, glow, reflection or soft edges: those four are written from the
+    /// model and the file's other effects kept.
+    var effectsEdited = false
+    /// Set when the user chose a bevel: the file's own `a:bevelT` is swapped, its other 3-D settings kept.
+    var bevelEdited = false
 
     func fillKept(_ s: ShapeState) -> Bool { !fillReplaced && s.fill == readFill && s.fillScheme == readFillScheme }
     func lineKept(_ s: ShapeState) -> Bool { !lineReplaced && !dashEdited && !endsEdited && s.outline == readOutline && s.outlineWidth == readWidth }
@@ -311,7 +322,8 @@ struct ShapePreset: RawRepresentable, Hashable {
         case "line": return "Line"
         case "star5": return "Star"
         case "wedgeRectCallout": return "Callout"
-        default: return rawValue
+        case "straightConnector1": return "Line Arrow"
+        default: return ShapeGallery.title(rawValue)
         }
     }
 
@@ -327,7 +339,7 @@ struct ShapePreset: RawRepresentable, Hashable {
 
 /// How a slide comes on in the show.
 struct SlideTransition: Equatable {
-    enum Kind: String, CaseIterable { case none, fade, push, wipe, cover }
+    enum Kind: String, CaseIterable { case none, fade, push, wipe, cover, pull, split, zoom }
     enum Direction: String { case left = "l", right = "r", up = "u", down = "d" }
 
     var kind: Kind = .none
@@ -335,6 +347,16 @@ struct SlideTransition: Equatable {
     /// `dir`, which names the side the motion heads to.
     var direction: Direction = .left
     var duration = 0.5
+    /// Split: the bars open from the middle ("out") or close to it, across
+    /// (`vertical` false: `orient="horz"`) or down the slide.
+    var vertical = false
+    var inward = false
+    /// Zoom: in (the new slide grows from the middle) or out.
+    var zoomIn = true
+    /// Advance Slide: on a click or key (`advClick`, default on), and by
+    /// itself after this many seconds (`advTm`), when set.
+    var advanceOnClick = true
+    var advanceAfter: Double? = nil
     /// A transition this app does not draw (morph, vortex…), as read:
     /// shown as a fade, written back as it was until the slide's
     /// transition is changed here.
@@ -347,6 +369,9 @@ struct SlideTransition: Equatable {
         case .push: return "Push"
         case .wipe: return "Wipe"
         case .cover: return "Cover"
+        case .pull: return "Uncover"
+        case .split: return "Split"
+        case .zoom: return "Zoom"
         }
     }
 }
@@ -619,6 +644,9 @@ final class SlideShape {
     /// and end.
     var headEnd: LineEnd? = nil
     var tailEnd: LineEnd? = nil
+    /// The shapes this line's start and end are glued to (`a:stCxn`, `a:endCxn`); the ends follow them when they move.
+    var connStart: ShapeConn? = nil
+    var connEnd: ShapeConn? = nil
     /// `a:ln cmpd`: "dbl", "thickThin", "thinThick" or "tri"; nil for one
     /// line.
     var outlineCompound: String? = nil

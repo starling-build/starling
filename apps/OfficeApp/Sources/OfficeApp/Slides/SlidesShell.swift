@@ -409,7 +409,7 @@ final class SlidesShellState: State<StatefulWidget> {
         session.onInsertShape = { [weak self] preset in
             guard let self else { return }
             self._endEditing()
-            self.deck.addShape(preset)
+            self.deck.beginInsert(preset)
             self._deckFocus.requestFocus()
         }
         session.onSlidesView = { [weak self] sorter in

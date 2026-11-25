@@ -213,6 +213,10 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
     /// Whether a press on a chart or picture starts moving it (or its handle's resize): a mouse always does; a finger
     /// only on one that is already selected, since a finger on any other drawing is trying to scroll the sheet.
     static func drawingPressDrags(touch: Bool, wasSelected: Bool) -> Bool { !touch || wasSelected }
+    /// The drawing a finger touched that is not selected, to be picked (not selected alone) when the tap lifts.
+    private var _pendingDrawingPick = false
+    /// The other selected drawings and where they stood when a move began, so they travel with the one under the pointer.
+    private var _groupStart: [(index: Int, anchor: SheetAnchor, frame: (x: Double, y: Double, width: Double, height: Double))] = []
     /// Fingers down, by pointer id, for a pinch; and the last distance between two.
     private var _fingers: [Int: Offset] = [:]
     private var _pinchLast: Double? = nil
@@ -829,6 +833,10 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         p.style = .stroke
         p.strokeWidth = 1
         p.color = accent
+        // The others picked along with it: a frame, no handles.
+        for j in controller.alsoSelectedDrawings.sorted() where ws.drawings.indices.contains(j) {
+            canvas.drawRect(drawingRect(ws.drawings[j].anchor), p)
+        }
         canvas.drawRect(r, p)
         let radius = _touchSeen ? 7.0 : 4.0   // (a dot a finger can see under itself)
         for q in _handles(r) {
@@ -1592,7 +1600,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         // the cells, and typing does nothing (as Excel).
         if let d = c.selectedDrawing {
             switch named {
-            case .delete, .backspace: c.deleteDrawing(d); return true
+            case .delete, .backspace: _ = d; c.deleteSelectedDrawings(); return true
             case .escape: c.select(c.active); return true
             case .left, .right, .up, .down: c.select(c.active)
             default: if _chords.typedText(k) != nil { return true }
@@ -1791,6 +1799,8 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
     private func _down(_ e: PointerEvent) {
         focus.requestFocus()
         _pendingDrawingTap = nil
+        _pendingDrawingPick = false
+        _groupStart = []
         if e.kind == .touch { _touchSeen = true }
         let p = _local(e)
         let c = controller
@@ -1889,17 +1899,31 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         // Pictures and charts sit over the cells: they take the press first.
         if let hit = _drawingHit(p) {
             commitEdit()
-            let wasSelected = c.selectedDrawing == hit.index
+            // Picking several: Shift-click, or Select Multiple's tap. A mouse toggles on the press; a finger on one that is not
+            // selected still scrolls, and picks it on release if it never moved.
+            let picking = (_chords.shift || c.selectMultiple) && c.selectedDrawing != nil && hit.handle == nil
+            // (While picking, a finger on a picked one that is not the main one taps to drop it rather than moving the group.)
+            let wasSelected = picking ? hit.index == c.selectedDrawing : c.selectedDrawingIndexes.contains(hit.index)
+            if picking, e.kind != .touch, _chords.shift || hit.index != c.selectedDrawing {
+                c.toggleDrawingPick(hit.index)
+                return
+            }
             if !Self.drawingPressDrags(touch: e.kind == .touch, wasSelected: wasSelected) {
+                _pendingDrawingPick = picking
                 // A finger on a chart or picture that is not selected scrolls the sheet, as it does anywhere else; a tap
                 // (a finger that never moved) selects the drawing instead, on release.
                 _pendingDrawingTap = hit.index
                 _drag = .touchScroll(start: p, last: p, moved: false, cell: cell(atLocal: p))
                 return
             }
-            c.selectedDrawing = hit.index
+            c.selectDrawing(hit.index, keepingGroup: true)
             c._notify(selectionOnly: true)
             let ws = c.sheet
+            // The others picked move with it (a handle resizes only the one it is on).
+            _groupStart = hit.handle == nil
+                ? c.selectedDrawingIndexes.filter { $0 != hit.index && ws.drawings.indices.contains($0) }
+                    .map { (index: $0, anchor: ws.drawings[$0].anchor, frame: ws.frame(ws.drawings[$0].anchor)) }
+                : []
             _drag = .drawing(index: hit.index, handle: hit.handle, frame: ws.frame(ws.drawings[hit.index].anchor),
                              anchor: ws.drawings[hit.index].anchor, start: p)
             return
@@ -2038,7 +2062,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         }
         guard p.dx >= headerWidth && p.dy >= headerHeight else { return }
         if let hit = _drawingHit(p) {
-            c.selectedDrawing = hit.index
+            c.selectDrawing(hit.index, keepingGroup: true)
             c._notify(selectionOnly: true)
             _w.onContextMenu(global, .drawing(hit.index))
             return
@@ -2173,6 +2197,11 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 if y < 0 { b -= y; y = 0 }
             }
             let ws = c.sheet
+            if handle == nil {
+                for g in _groupStart where ws.drawings.indices.contains(g.index) {
+                    ws.drawings[g.index].anchor = ws.anchor(x: max(0, g.frame.x + dx), y: max(0, g.frame.y + dy), width: g.frame.width, height: g.frame.height)
+                }
+            }
             if ws.drawings.indices.contains(index) {
                 // Live, without an undo step per pixel: committed on release.
                 ws.drawings[index].anchor = ws.anchor(x: x, y: y, width: r - x, height: b - y)
@@ -2254,13 +2283,16 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         _move(e)
         if case .touchScroll(_, _, let moved, let cell)? = _drag, !moved {
             if let i = _pendingDrawingTap, controller.sheet.drawings.indices.contains(i) {
-                controller.selectedDrawing = i
-                controller._notify(selectionOnly: true)
+                if _pendingDrawingPick { controller.toggleDrawingPick(i) } else {
+                    controller.selectDrawing(i)
+                    controller._notify(selectionOnly: true)
+                }
             } else {
                 _cellPress(cell)
             }
         }
         _pendingDrawingTap = nil
+        _pendingDrawingPick = false
         if case .editTouch(_, let moved, let before)? = _drag, let ed = edit {
             // A tap on the caret where it already was brings the menu; one that
             // moved it, or a drag that selected, shows it over the selection.
@@ -2271,8 +2303,17 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             let ws = controller.sheet
             if ws.drawings.indices.contains(index) {
                 let f = ws.frame(ws.drawings[index].anchor)
-                controller.setDrawingFrame(index, x: f.x, y: f.y, width: f.width, height: f.height, from: old)
+                if _groupStart.isEmpty {
+                    controller.setDrawingFrame(index, x: f.x, y: f.y, width: f.width, height: f.height, from: old)
+                } else {
+                    controller.setDrawingFrames(([(index: index, anchor: old)] + _groupStart.map { (index: $0.index, anchor: $0.anchor) }).map {
+                        let g = ws.frame(ws.drawings[$0.index].anchor)
+                        return (index: $0.index, x: g.x, y: g.y, width: g.width, height: g.height, from: $0.anchor)
+                    })
+                    controller.selectedDrawing = index
+                }
             }
+            _groupStart = []
         }
         switch _drag {
         case .cells?, .columns?, .rows?: if controller.painterSource != nil { controller.applyFormatPainter() }

@@ -92,11 +92,13 @@ extension Ribbon {
     }
 
     private func _shapeItems(_ fluent: FluentThemeData) -> [MenuFlyoutItemBase] {
-        ShapePreset.allCases.map { preset in
-            MenuFlyoutItem(text: Text(preset.name),
-                           leading: Icon(FluentSystemIcons.shapes, size: Chrome.iconSize,
-                                         color: fluent.resources.textFillColorPrimary),
-                           onPressed: { [session] in session.onInsertShape?(preset) })
+        ShapeGallery.groups.map { group in
+            MenuFlyoutSubItem(text: Text(group.name), items: group.presets.map { preset in
+                MenuFlyoutItem(text: Text(preset.name),
+                               leading: Icon(FluentSystemIcons.shapes, size: Chrome.iconSize,
+                                             color: fluent.resources.textFillColorPrimary),
+                               onPressed: { [session] in session.onInsertShape?(preset) })
+            })
         }
     }
 
@@ -125,6 +127,9 @@ extension Ribbon {
             MenuFlyoutItem(text: Text("Align Middle"), onPressed: some ? { deck.align(.middle) } : nil),
             MenuFlyoutItem(text: Text("Align Bottom"), onPressed: some ? { deck.align(.bottom) } : nil),
             MenuFlyoutSeparator(),
+            MenuFlyoutItem(key: ValueKey("arrange.reroute"), text: Text("Reroute Connectors"),
+                           onPressed: deck.reroutableLines.isEmpty ? nil : { deck.rerouteConnectors() }),
+            MenuFlyoutSeparator(),
             MenuFlyoutItem(text: Text("Format Shape…"), onPressed: some ? { [session] in session.onFormatShape?() } : nil),
         ]
         let palette = Self.shapeColors(deck.theme)
@@ -140,9 +145,47 @@ extension Ribbon {
             ]),
             Chrome.vgap(4),
             Chrome.row([
+                Chrome.menuButton(FluentSystemIcons.textEffects, "Shape Effects", "Shadow, glow, reflection, soft edges, bevel",
+                                  fluent, items: _effectItems(deck, fluent)),
                 Chrome.small(FluentSystemIcons.textT, "Text Options", fluent) { [session] in session.onTextOptions?() },
             ]),
         ])])
+    }
+
+    /// Shape Effects: PowerPoint's presets for shadow, glow, reflection, soft edges and bevel.
+    private func _effectItems(_ deck: DeckController, _ fluent: FluentThemeData) -> [MenuFlyoutItemBase] {
+        let some = !deck.selection.isEmpty
+        func item(_ id: String, _ text: String, _ act: @escaping () -> Void) -> MenuFlyoutItem {
+            MenuFlyoutItem(key: ValueKey(id), text: Text(text), onPressed: some ? act : nil)
+        }
+        let shadows: [MenuFlyoutItemBase] = [item("fx.shadow.none", "No Shadow") { deck.setShadow(nil) }]
+            + ShapeEffectPresets.shadows.enumerated().map { i, sh in
+                item("fx.shadow.\(i)", sh.name) { deck.setShadow(ShapeEffectPresets.shadow(angle: sh.angle)) } }
+        let glows: [MenuFlyoutItemBase] = [item("fx.glow.none", "No Glow") { deck.setGlow(radius: nil, color: nil) }]
+            + ShapeEffectPresets.glowSizes.map { size in
+                MenuFlyoutSubItem(text: Text("Glow: \(Int(size)) point"), items: deck.theme.accents.prefix(6).enumerated().map { i, c in
+                    item("fx.glow.\(Int(size)).\(i)", "Accent \(i + 1)") {
+                        deck.setGlow(radius: size, color: ShapeEffectPresets.glowColor(c)) } })
+            }
+        let reflections: [MenuFlyoutItemBase] = [item("fx.reflection.none", "No Reflection") { deck.setReflection(nil) }]
+            + ShapeEffectPresets.reflections.enumerated().map { i, r in
+                item("fx.reflection.\(i)", r.name) {
+                    deck.setReflection(ShapeEffectPresets.reflection(r)) } }
+        let soft: [MenuFlyoutItemBase] = [item("fx.soft.none", "No Soft Edges") { deck.setSoftEdge(nil) }]
+            + ShapeEffectPresets.softEdgeSizes.map { r in
+                item("fx.soft.\(r)", "\(r == r.rounded() ? String(Int(r)) : String(r)) Point") { deck.setSoftEdge(r) } }
+        let bevels: [MenuFlyoutItemBase] = [item("fx.bevel.none", "No Bevel") { deck.setBevel(nil) }]
+            + ShapeEffectPresets.bevels.map { b in
+                item("fx.bevel.\(b.preset)", b.name) { deck.setBevel(ShapeBevel(width: 6, height: 6, preset: b.preset)) } }
+        return [
+            item("fx.clear", "No Effects") { deck.clearEffects() },
+            MenuFlyoutSeparator(),
+            MenuFlyoutSubItem(text: Text("Shadow"), items: shadows),
+            MenuFlyoutSubItem(text: Text("Reflection"), items: reflections),
+            MenuFlyoutSubItem(text: Text("Glow"), items: glows),
+            MenuFlyoutSubItem(text: Text("Soft Edges"), items: soft),
+            MenuFlyoutSubItem(text: Text("Bevel"), items: bevels),
+        ]
     }
 
     /// The theme's accents first, then the neutrals and standard colours.
@@ -330,27 +373,41 @@ extension Ribbon {
         let t = deck.currentSlide.transition
         let icons: [SlideTransition.Kind: IconData] = [.none: FluentSystemIcons.close, .fade: FluentSystemIcons.brightness,
                                                        .push: FluentSystemIcons.forward, .wipe: FluentSystemIcons.textClearFormatting,
-                                                       .cover: FluentSystemIcons.onePage]
+                                                       .cover: FluentSystemIcons.onePage, .pull: FluentSystemIcons.onePage,
+                                                       .split: FluentSystemIcons.window, .zoom: FluentSystemIcons.desktop]
         let kinds: [Widget] = SlideTransition.Kind.allCases.map { kind in
             Chrome.bigToggle(icons[kind] ?? FluentSystemIcons.onePage, SlideTransition(kind: kind).name,
                              t.kind == kind && t.raw == nil, fluent) { deck.setTransition(kind) }
         }
-        let directed = t.kind == .push || t.kind == .wipe || t.kind == .cover
+        func option(_ name: String, _ on: Bool, _ act: @escaping () -> Void) -> MenuFlyoutItem {
+            MenuFlyoutItem(text: Text(name),
+                           leading: Icon(on ? FluentSystemIcons.check : FluentSystemIcons.forward, size: Chrome.iconSize,
+                                         color: fluent.resources.textFillColorPrimary),
+                           onPressed: act)
+        }
         let directions: [(String, SlideTransition.Direction)] = [
             ("From Right", .left), ("From Left", .right), ("From Bottom", .up), ("From Top", .down),
         ]
+        var options: [MenuFlyoutItemBase] = []
+        switch t.kind {
+        case .push, .wipe, .cover, .pull:
+            options = directions.map { name, dir in option(name, t.direction == dir) { deck.setTransition(direction: dir) } }
+        case .split:
+            options = [option("Vertical In", t.vertical && t.inward) { deck.setTransition(vertical: true, inward: true) },
+                       option("Vertical Out", t.vertical && !t.inward) { deck.setTransition(vertical: true, inward: false) },
+                       option("Horizontal In", !t.vertical && t.inward) { deck.setTransition(vertical: false, inward: true) },
+                       option("Horizontal Out", !t.vertical && !t.inward) { deck.setTransition(vertical: false, inward: false) }]
+        case .zoom:
+            options = [option("In", t.zoomIn) { deck.setTransition(zoomIn: true) },
+                       option("Out", !t.zoomIn) { deck.setTransition(zoomIn: false) }]
+        case .none, .fade:
+            options = [MenuFlyoutItem(text: Text("No options"), onPressed: nil)]
+        }
+        let after = t.advanceAfter
         return [
             Chrome.group("Transition to This Slide", fluent, kinds + [
                 Chrome.gap(4),
-                Chrome.rows([
-                    Chrome.menuButton(FluentSystemIcons.settings, "Effect Options", "Direction", fluent,
-                                      items: directions.map { name, dir in
-                                          MenuFlyoutItem(text: Text(name),
-                                                         leading: Icon(t.direction == dir && directed ? FluentSystemIcons.check : FluentSystemIcons.forward,
-                                                                       size: Chrome.iconSize, color: fluent.resources.textFillColorPrimary),
-                                                         onPressed: directed ? { deck.setTransition(direction: dir) } : nil)
-                                      }),
-                ]),
+                Chrome.rows([Chrome.menuButton(FluentSystemIcons.settings, "Effect Options", "Effect Options", fluent, items: options)]),
             ]),
             Chrome.group("Timing", fluent, [Chrome.rows([
                 // Stepped in hundredths of a second, shown in seconds like the
@@ -360,6 +417,18 @@ extension Ribbon {
                     deck.setTransition(duration: v / 100)
                 },
                 Chrome.small(FluentSystemIcons.copy, "Apply To All", fluent) { deck.setTransition(all: true) },
+            ])]),
+            Chrome.group("Advance Slide", fluent, [Chrome.rows([
+                Chrome.small(t.advanceOnClick ? FluentSystemIcons.check : FluentSystemIcons.close, "On Mouse Click", fluent) {
+                    deck.setTransition(advanceOnClick: !t.advanceOnClick)
+                },
+                Chrome.small(after != nil ? FluentSystemIcons.check : FluentSystemIcons.close, "After", fluent) {
+                    deck.setTransition(advanceAfter: .some(after == nil ? 5 : nil))
+                },
+                Chrome.spinner("Seconds", after ?? 0, fluent, step: 1, unit: "s", minimum: 0,
+                               shown: after == nil ? "Off" : ChartPainter.label(after!, percent: false) + " s") { v in
+                    deck.setTransition(advanceAfter: .some(v))
+                },
             ])]),
         ]
     }

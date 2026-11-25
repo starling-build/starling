@@ -94,6 +94,11 @@ struct ShapeState: Equatable {
     @Boxed var outlineFill: SlideFill? = nil
     var headEnd: LineEnd? = nil
     var tailEnd: LineEnd? = nil
+    var connStart: ShapeConn? = nil
+    var connEnd: ShapeConn? = nil
+    /// As read: the file's `cNvPr` ids (not yet deck ids), resolved once the slide's shapes are known.
+    var pendingConnStart: ShapeConn? = nil
+    var pendingConnEnd: ShapeConn? = nil
     var outlineCompound: String? = nil
     var textTurn = 0
     var textStacked = 0
@@ -712,14 +717,21 @@ final class DeckController: ChangeNotifier {
 
     /// The current slide's transition, or every slide's.
     func setTransition(_ kind: SlideTransition.Kind? = nil, direction: SlideTransition.Direction? = nil,
-                       duration: Double? = nil, all: Bool = false) {
+                       duration: Double? = nil, vertical: Bool? = nil, inward: Bool? = nil, zoomIn: Bool? = nil,
+                       advanceOnClick: Bool? = nil, advanceAfter: Double?? = nil, all: Bool = false) {
         _checkpoint()
         for slide in all ? slides : [currentSlide] {
             var t = all ? currentSlide.transition : slide.transition
             if let kind { t.kind = kind }
             if let direction { t.direction = direction }
             if let duration { t.duration = max(0.1, min(10, duration)) }
-            t.raw = nil
+            if let vertical { t.vertical = vertical }
+            if let inward { t.inward = inward }
+            if let zoomIn { t.zoomIn = zoomIn }
+            if let advanceOnClick { t.advanceOnClick = advanceOnClick }
+            if let advanceAfter { t.advanceAfter = advanceAfter.map { max(0, min(86400, $0)) } }
+            // (Advance Slide alone leaves a transition this app cannot draw as it was read.)
+            if kind != nil || direction != nil || duration != nil || vertical != nil || inward != nil || zoomIn != nil { t.raw = nil }
             slide.transition = t
         }
         _changed()
@@ -854,23 +866,55 @@ final class DeckController: ChangeNotifier {
 
     /// A drawn shape from the gallery, centred on the slide, in the theme's
     /// first accent with white text — PowerPoint's default look.
+    /// A shape chosen from the gallery: the next drag on the slide draws it, a click places it one inch square.
+    private(set) var pendingInsert: ShapePreset? = nil
+
+    func beginInsert(_ preset: ShapePreset) { pendingInsert = preset; notifyListeners() }
+    func cancelInsert() { if pendingInsert != nil { pendingInsert = nil; notifyListeners() } }
+
+    /// The drag that draws the pending shape ended: its box runs from `a` to `b` (a square or a 45-degree line with
+    /// `keepProportions`); a click, with nothing dragged, drops a 1 in (72 pt) box with its corner there.
     @discardableResult
-    func addShape(_ preset: ShapePreset) -> SlideShape {
+    func placeInsert(_ preset: ShapePreset, from a: Offset, to b: Offset, keepProportions: Bool) -> SlideShape {
+        pendingInsert = nil
+        var b = b
+        let dragged = abs(b.dx - a.dx) >= 4 || abs(b.dy - a.dy) >= 4
+        if !dragged { b = Offset(a.dx + (preset.isLine ? 72 : 72), a.dy + (preset.isLine ? 0 : 72)) }
+        else if keepProportions {
+            if preset.isLine {
+                let l = ((b.dx - a.dx) * (b.dx - a.dx) + (b.dy - a.dy) * (b.dy - a.dy)).squareRoot()
+                let ang = ((atan2(b.dy - a.dy, b.dx - a.dx)) / (Double.pi / 4)).rounded() * (Double.pi / 4)
+                b = Offset(a.dx + l * cos(ang), a.dy + l * sin(ang))
+            } else {
+                let side = max(abs(b.dx - a.dx), abs(b.dy - a.dy))
+                b = Offset(a.dx + (b.dx < a.dx ? -side : side), a.dy + (b.dy < a.dy ? -side : side))
+            }
+        }
+        let frame = preset.isLine ? Rect.fromLTRB(a.dx, a.dy, b.dx, b.dy)
+                                  : Rect.fromLTRB(min(a.dx, b.dx), min(a.dy, b.dy), max(a.dx, b.dx), max(a.dy, b.dy))
+        return addShape(preset, frame: frame)
+    }
+
+    @discardableResult
+    func addShape(_ preset: ShapePreset, frame given: Rect? = nil) -> SlideShape {
         _checkpoint()
+        pendingInsert = nil
         let w = preset.isLine ? 192.0 : 144.0
         let h = preset.isLine ? 0.0 : (preset == .rightArrow ? 72.0 : 108.0)
-        let frame = Rect.fromLTWH((slideSize.width - w) / 2, (slideSize.height - h) / 2, w, h)
-        let accent = theme.accents[0]
+        let frame = given ?? Rect.fromLTWH((slideSize.width - w) / 2, (slideSize.height - h) / 2, w, h)
+        let accent = self.theme.accents[0]
         let theme = _textTheme(font: self.theme.bodyFont, size: 18, color: Color(0xFFFFFFFF))
         let style = RichParagraphStyle(alignment: .center, spaceAfter: 0, lineSpacing: 1.0)
+        let open = preset.isOpenPath
         let shape = SlideShape(id: _id(), name: "\(preset.name) \(_nextId)", kind: .geometry(preset), frame: frame,
                                text: preset.isLine ? nil
                                    : _textController(RichDocument(paragraphs: [RichParagraph(text: "", style: style)])),
                                textTheme: preset.isLine ? nil : theme, anchor: .middle)
-        shape.fill = preset.isLine ? nil : accent
-        shape.outline = preset.isLine ? accent : Self.darker(accent)
+        shape.fill = open ? nil : accent
+        shape.outline = open ? accent : Self.darker(accent)
         shape.fillScheme = "accent1"
-        shape.outlineWidth = preset.isLine ? 1.5 : 1
+        shape.outlineWidth = open ? 1.5 : 1
+        if preset.rawValue == "straightConnector1" { shape.tailEnd = LineEnd(kind: "triangle", width: 3, length: 3) }
         currentSlide.shapes.append(shape)
         _watch(shape)
         selection = [shape]
@@ -1603,6 +1647,7 @@ final class DeckController: ChangeNotifier {
     func beginFrameEdit() { _checkpoint() }
 
     func setFramesLive(_ frames: [(SlideShape, Rect)]) {
+        detachLines(moving: frames.map(\.0))
         for (shape, frame) in frames { shape.frame = frame }
         _changed(keepSession: true)
     }
@@ -1620,6 +1665,7 @@ final class DeckController: ChangeNotifier {
     func nudgeSelection(dx: Double, dy: Double) {
         guard !selection.isEmpty else { return }
         _checkpoint()
+        detachLines(moving: Array(selection))
         for s in selection { s.frame = s.frame.shift(Offset(dx, dy)) }
         _changed()
     }
@@ -1769,6 +1815,58 @@ final class DeckController: ChangeNotifier {
         setFillStyle(PatternFill.fill(preset: preset, foreground: foreground, background: background))
     }
 
+    /// The straight-line gradient the Format Shape pane shows: the first selected shape's, or nil when it has none
+    /// (a radial or path gradient is left to the file).
+    var selectionGradient: SlideFill? {
+        guard let f = selection.first(where: { $0.preset?.isLine != true })?.fillStyle,
+              f.image == nil, f.stops.count >= 2, f.path == nil else { return nil }
+        return f
+    }
+
+    /// Changes the gradient of every selected shape, giving one that has none a two-stop gradient from its colour.
+    /// One undo step. A shape with a radial or path gradient, which this editor cannot show, is left alone.
+    func editGradient(_ edit: (inout SlideFill) -> Void) {
+        let targets = selection.filter { $0.preset?.isLine != true && $0.fillStyle?.path == nil }
+        guard !targets.isEmpty else { return }
+        _checkpoint()
+        for s in targets {
+            var g: SlideFill
+            if let f = s.fillStyle, f.image == nil, f.stops.count >= 2 { g = f }
+            else {
+                let base = s.fill ?? theme.accents[0]
+                g = SlideFill(color: base, stops: [.init(position: 0, color: base), .init(position: 1, color: Self.darker(base))], angle: 90)
+            }
+            edit(&g)
+            g.stops.sort { $0.position < $1.position }
+            g.color = g.stops.first?.color
+            s.fillStyle = g
+            s.fill = g.color
+            s.fillScheme = nil
+            s.keptLook?.fillReplaced = true
+        }
+        _changed()
+    }
+
+    /// A stop in the middle of the widest gap, in the colour the gradient has there.
+    func addGradientStop() {
+        editGradient { g in
+            var best = (0.0, 0.0)
+            for (a, b) in zip(g.stops, g.stops.dropFirst()) where b.position - a.position > best.1 - best.0 { best = (a.position, b.position) }
+            let at = (best.0 + best.1) / 2
+            g.stops.append(.init(position: at, color: SlideFill.colorAt(g.stops, at)))
+        }
+    }
+
+    /// Takes stop `index` out; a gradient keeps at least two.
+    func removeGradientStop(at index: Int) {
+        guard let g = selectionGradient, g.stops.count > 2, g.stops.indices.contains(index) else { return }
+        editGradient { $0.stops.remove(at: index) }
+    }
+
+    func reverseGradient() {
+        editGradient { g in g.stops = g.stops.reversed().map { .init(position: 1 - $0.position, color: $0.color) } }
+    }
+
     func setFill(_ color: Color?, scheme: String? = nil) {
         guard !selection.isEmpty else { return }
         _checkpoint()
@@ -1787,7 +1885,16 @@ final class DeckController: ChangeNotifier {
         let targets = selection.filter { $0.preset?.isLine != true && $0.fill != nil }
         guard !targets.isEmpty else { return }
         _checkpoint()
-        for s in targets { s.fill = Color((a << 24) | (s.fill!.value & 0xFFFFFF)); s.fillStyle = nil; s.keptLook?.fillReplaced = true }
+        for s in targets {
+            s.fill = Color((a << 24) | (s.fill!.value & 0xFFFFFF))
+            if var g = s.fillStyle, g.image == nil, g.stops.count >= 2, g.path == nil {
+                // A gradient keeps its colours; the transparency goes on each stop.
+                for i in g.stops.indices { g.stops[i].color = Color((a << 24) | (g.stops[i].color.value & 0xFFFFFF)) }
+                g.color = g.stops.first?.color
+                s.fillStyle = g
+            } else { s.fillStyle = nil }
+            s.keptLook?.fillReplaced = true
+        }
         _changed()
     }
 
@@ -1909,7 +2016,7 @@ final class DeckController: ChangeNotifier {
     func setShadow(_ shadow: CharShadow?) {
         guard !selection.isEmpty else { return }
         _checkpoint()
-        for s in selection { s.shadow = shadow; s.keptLook?.shadowEdited = true }
+        for s in selection { s.shadow = shadow; s.keptLook?.effectsEdited = true }
         _changed()
     }
 
@@ -2265,6 +2372,8 @@ final class DeckController: ChangeNotifier {
         st.outlineFill = s.outlineFill
         st.outlineScheme = s.outlineScheme
         st.headEnd = s.headEnd
+        st.connStart = s.connStart
+        st.connEnd = s.connEnd
         st.outlineCompound = s.outlineCompound
         st.tailEnd = s.tailEnd
         st.textTurn = s.textTurn
@@ -2401,6 +2510,8 @@ final class DeckController: ChangeNotifier {
         shape.outlineCap = st.outlineCap
         shape.outlineFill = st.outlineFill
         shape.headEnd = st.headEnd
+        shape.connStart = st.connStart
+        shape.connEnd = st.connEnd
         shape.outlineCompound = st.outlineCompound
         shape.tailEnd = st.tailEnd
         shape.textTurn = st.textTurn
@@ -2668,6 +2779,7 @@ final class DeckController: ChangeNotifier {
     }
 
     func _changed(keepSession: Bool = false) {
+        followConnections()
         _updateFields()
         // A shape that went takes its animations with it.
         for slide in slides where !slide.animations.isEmpty {

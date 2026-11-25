@@ -328,6 +328,11 @@ final class OfficeSession {
     var onLink: (() -> Void)?
     /// W-FN-1: insert a footnote or endnote at the caret and open its text; edit the note the caret is next to.
     var onInsertNote: ((NoteReference.Kind) -> Void)?
+    /// W-FD-2: a table of contents made with these options, the Custom Table of Contents dialog, and brought up to date
+    /// (page numbers only, or the whole table).
+    var onInsertContents: ((ContentsOptions) -> Void)?
+    var onContentsDialog: (() -> Void)?
+    var onUpdateContents: ((Bool) -> Void)?
     var onEditNote: (() -> Void)?
     var onSymbolDialog: (() -> Void)?
     var onMoreColors: (() -> Void)?
@@ -340,6 +345,7 @@ final class OfficeSession {
     var onSplitCellDialog: (() -> Void)?
     /// Convert Text to Table (true) or Table to Text (false).
     var onConvertTextTableDialog: ((Bool) -> Void)?
+    var onFormulaDialog: (() -> Void)?
     var onTablePropertiesDialog: (() -> Void)?
     var onBordersShadingDialog: (() -> Void)?
     var onPictureDialog: ((PictureDialogKind) -> Void)?

@@ -93,6 +93,20 @@ final class PictureWrapTests: XCTestCase {
         XCTAssertEqual(c.pictureWrap(at: i), .square)
     }
 
+    /// The Picture Format tab of a floating shape has Select Multiple, which a finger needs for picking shapes to group.
+    func testPictureFormatTabHasSelectMultiple() throws {
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(1280, 800))
+        let c = try XCTUnwrap(ui.state(OfficeShellState.self)).session.controller
+        c.load(try DocxFormat.read(try floatingDocument()).document)
+        c.selectImage(at: try floatIndex(c))
+        ui.pump()
+        XCTAssertFalse(c.selectMultiple)
+        XCTAssertTrue(ui.tap(text: "Select Multiple"))
+        XCTAssertTrue(c.selectMultiple)
+        XCTAssertTrue(ui.tap(text: "Select Multiple"))
+        XCTAssertFalse(c.selectMultiple)
+    }
+
     /// A picture anchored in a line of text has a drawn box the click test can use.
     func testFloatAnchoredInTextHasADrawnBox() throws {
         let doc = try DocxFormat.read(try floatingDocument(inText: true)).document

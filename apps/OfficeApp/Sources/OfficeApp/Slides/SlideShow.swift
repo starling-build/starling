@@ -57,6 +57,7 @@ final class SlideShowState: State<StatefulWidget>, TickerProvider {
     /// and the show's layouts do not evict each other.
     private var _cache: SlideTextCache!
     private var _cursorGeneration = 0
+    private var _advanceGeneration = 0
     /// The editor's repaint-on-decode, restored when the show ends.
     private var _sourceDecoded: (() -> Void)?
     /// The current slide's animations: groups played so far, and the one
@@ -141,6 +142,24 @@ final class SlideShowState: State<StatefulWidget>, TickerProvider {
         _plan = _at < _order.count ? AnimationPlan(_w.deck.slides[_order[_at]].animations) : AnimationPlan([])
         _played = forward ? 0 : _plan.groups.count
         if forward && _plan.autoStart { _playGroup() }
+        _scheduleAutoAdvance()
+    }
+
+    /// Advance Slide "After": the show moves on by itself this many seconds after the slide arrives,
+    /// once its animations have finished.
+    private func _scheduleAutoAdvance() {
+        _advanceGeneration += 1
+        guard _at < _order.count, !_w.landing,
+              let after = _w.deck.slides[_order[_at]].transition.advanceAfter else { return }
+        let gen = _advanceGeneration
+        func fire(_ wait: Double) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + wait) { [weak self] in
+                guard let self, self.mounted, self._advanceGeneration == gen else { return }
+                if self._playing || self._controller.value < 1 { fire(0.25); return }
+                self._go(to: self._at + 1, animate: true)
+            }
+        }
+        fire(after)
     }
 
     private func _playGroup() {
@@ -176,8 +195,10 @@ final class SlideShowState: State<StatefulWidget>, TickerProvider {
         _w.onSlideChanged?(t)
     }
 
-    private func _next() {
+    /// `click`: a mouse click, which a slide set not to advance on a click ignores (keys still move on).
+    private func _next(click: Bool = false) {
         if _at >= _order.count { _w.onEnd(); return }
+        if click, !_w.deck.slides[_order[_at]].transition.advanceOnClick { return }
         // A transition still running finishes at once on the next press;
         // so does a group of animations.
         if _controller.value < 1 { _controller.value = 1; return }
@@ -430,7 +451,7 @@ final class SlideShowState: State<StatefulWidget>, TickerProvider {
                 if e.buttons & kSecondaryMouseButton == 0, let box = context.findRenderObject() as? RenderBox,
                    let l = self._link(at: box.globalToLocal(e.position), size: box.size), self._follow(l) { return }
                 if self._w.landing { self._pointerStart = e.position }
-                else if e.buttons & kSecondaryMouseButton != 0 { self._previous() } else { self._next() }
+                else if e.buttons & kSecondaryMouseButton != 0 { self._previous() } else { self._next(click: true) }
             },
             onPointerUp: { [weak self] e in
                 guard let self, self._w.landing, let start = self._pointerStart else { return }
@@ -551,6 +572,43 @@ private final class _ShowPainter: CustomPainter {
         case .cover:
             draw(previous, at: .zero)
             draw(current, at: Offset(dx * (1 - t), dy * (1 - t)))
+        case .pull:
+            draw(current, at: .zero)
+            draw(previous, at: Offset(-dx * t, -dy * t))
+        case .split:
+            // The new slide opens from the middle (out) or closes in from both edges (in), in two halves.
+            let tr = current.transition
+            draw(previous, at: .zero)
+            let bars: [Rect]
+            let cx = box.left + w / 2, cy = box.top + h / 2
+            if tr.vertical {
+                let half = h / 2 * t
+                bars = tr.inward
+                    ? [Rect.fromLTRB(box.left, box.top, box.right, box.top + half), Rect.fromLTRB(box.left, box.bottom - half, box.right, box.bottom)]
+                    : [Rect.fromLTRB(box.left, cy - half, box.right, cy + half)]
+            } else {
+                let half = w / 2 * t
+                bars = tr.inward
+                    ? [Rect.fromLTRB(box.left, box.top, box.left + half, box.bottom), Rect.fromLTRB(box.right - half, box.top, box.right, box.bottom)]
+                    : [Rect.fromLTRB(cx - half, box.top, cx + half, box.bottom)]
+            }
+            for bar in bars {
+                canvas.save()
+                canvas.clipRect(bar)
+                draw(current, at: .zero)
+                canvas.restore()
+            }
+        case .zoom:
+            // In: the new slide grows from the middle over the old one. Out: the old one shrinks away.
+            let growing = current.transition.zoomIn
+            draw(growing ? previous : current, at: .zero)
+            let scale = growing ? t : 1 - t
+            canvas.save()
+            canvas.translate(box.left + w / 2, box.top + h / 2)
+            canvas.scale(scale, scale)
+            canvas.translate(-(box.left + w / 2), -(box.top + h / 2))
+            draw(growing ? current : previous, at: .zero)
+            canvas.restore()
         case .wipe:
             draw(previous, at: .zero)
             let reveal: Rect

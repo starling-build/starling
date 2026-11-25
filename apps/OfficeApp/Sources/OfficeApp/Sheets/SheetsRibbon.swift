@@ -24,6 +24,7 @@ enum SheetCommand {
     case cellsDialog(insert: Bool)   // Insert / Delete Cells…
     case sizeDialog(SizeKind)        // Row Height…, Column Width…, Default Width…
     case conditionalFormat         // Home → Conditional Formatting
+    case conditionalRules          // Home → Conditional Formatting → Manage Rules
     case dataValidation            // Data → Data Validation
     case consolidate               // Data → Consolidate
     case fillSeries                // Home → Fill → Series
@@ -34,6 +35,7 @@ enum SheetCommand {
     case chartColors(Int)          // Chart Design → Format Data Series
     case chartAxis(Int)            // Chart Design → Axis Options
     case chartLabels(Int)          // Chart Design → Add Chart Element → Data Labels
+    case chartForm(ChartFormKind)  // Insert → Charts: Stock or Bubble, asking for the data the chart lacks
     case sparklineDialog(SparklineGroup.Kind?)   // Insert → Sparklines: make them, or (nil) change the ones under the active cell
     case goalSeek                  // Data → What-If Analysis → Goal Seek
     case removeDuplicates          // Data → Remove Duplicates
@@ -194,7 +196,10 @@ extension Ribbon {
             ]),
         ])])
         let styles = Chrome.group("Styles", fluent, [
-            Chrome.big(FluentSystemIcons.paintBrush, "Conditional Formatting", fluent) { wb.onCommand?(.conditionalFormat) },
+            Chrome.menuButton(FluentSystemIcons.paintBrush, "Conditional Formatting", "Conditional formatting", fluent, items: [
+                MenuFlyoutItem(text: Text("New Rule…"), onPressed: { wb.onCommand?(.conditionalFormat) }),
+                MenuFlyoutItem(text: Text("Manage Rules…"), onPressed: { wb.onCommand?(.conditionalRules) }),
+            ]),
         ])
         let editing = Chrome.group("Editing", fluent, [Chrome.rows([
             Chrome.small(FluentSystemIcons.mathFormula, "AutoSum", fluent) { Self._autoSum(wb) },
@@ -334,9 +339,21 @@ extension Ribbon {
                 }
             }
         }
+        func form(_ icon: IconData, _ name: String, _ kind: ChartFormKind?) -> Widget {
+            Chrome.small(icon, name, fluent) {
+                if wb.selectedDrawing == nil || !(wb.selectedDrawing.map { wb.sheet.drawings.indices.contains($0) && wb.sheet.drawings[$0].isChart } ?? false) {
+                    wb.insertChart(kind == nil ? .column : .line)
+                }
+                guard let i = wb.selectedDrawing else { return }
+                if let kind { wb.onCommand?(.chartForm(kind)) } else { wb.setChartVariant(i, .threeD) }
+            }
+        }
         var parts: [Widget] = [
             Chrome.rows([button(.column), button(.bar), button(.line)]),
             Chrome.rows([button(.pie), button(.area), button(.scatter)]),
+            Chrome.rows([form(ChartType.column.icon, "3-D", nil), form(ChartType.line.icon, "Stock", .stock(ohlc: false)),
+                         form(ChartType.scatter.icon, "Bubble", .bubble)]),
+            Chrome.rows([form(ChartType.line.icon, "Open-High-Low-Close", .stock(ohlc: true))]),
         ]
         // Chart Design, with a chart selected: its title and legend.
         if let i = wb.selectedDrawing, wb.sheet.drawings.indices.contains(i), case .chart(let sc) = wb.sheet.drawings[i].kind {
@@ -372,6 +389,13 @@ extension Ribbon {
         var items: [Widget] = [Chrome.big(FluentSystemIcons.image, "Pictures", fluent) { wb.onCommand?(.insertPicture) }]
         if let i = wb.selectedDrawing, wb.sheet.drawings.indices.contains(i), case .picture = wb.sheet.drawings[i].kind {
             items.append(Chrome.big(FluentSystemIcons.image, "Alt Text", fluent) { wb.onCommand?(.altText) })
+        }
+        if wb.selectedDrawing != nil {
+            // A finger has no Shift: while this is on, a tap on another chart or picture picks it along with this one.
+            items.append(Chrome.small(FluentSystemIcons.check, "Select Multiple", fluent, checked: wb.selectMultiple) {
+                wb.selectMultiple.toggle()
+                wb._notify(selectionOnly: true)
+            })
         }
         return Chrome.group("Illustrations", fluent, items)
     }

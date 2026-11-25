@@ -1090,10 +1090,17 @@ struct PptxReader {
             }
             // Entrance animations this app models, aimed at shapes by the
             // file ids they kept.
+            let byFileId = Dictionary(shapes.compactMap { s in s.fileId.map { ($0, s.id) } }, uniquingKeysWith: { a, _ in a })
+            for i in shapes.indices where shapes[i].pendingConnStart != nil || shapes[i].pendingConnEnd != nil {
+                let ps = shapes[i].pendingConnStart, pe = shapes[i].pendingConnEnd
+                let cs = ps.flatMap { p in byFileId[p.shape].map { ShapeConn(shape: $0, site: p.site) } }
+                let ce = pe.flatMap { p in byFileId[p.shape].map { ShapeConn(shape: $0, site: p.site) } }
+                shapes[i].connStart = cs; shapes[i].connEnd = ce
+                shapes[i].keptLine?.connStart = cs; shapes[i].keptLine?.connEnd = ce
+            }
             var animations: [ShapeAnimation] = []
             var sourceAnimations: [ShapeAnimation]? = nil
             if let timing = slide.first("p:timing"), let read = AnimationXML.read(timing) {
-                let byFileId = Dictionary(shapes.compactMap { s in s.fileId.map { ($0, s.id) } }, uniquingKeysWith: { a, _ in a })
                 let mapped = read.compactMap { r -> ShapeAnimation? in
                     byFileId[r.spid].map { var a = r.animation; a.shapeId = $0; return a }
                 }
@@ -1427,11 +1434,18 @@ struct PptxReader {
         case "p:push": t.kind = .push
         case "p:wipe": t.kind = .wipe
         case "p:cover": t.kind = .cover
+        case "p:pull": t.kind = .pull
+        case "p:split": t.kind = .split
+        case "p:zoom": t.kind = .zoom
         default:
             t.kind = .fade
             t.raw = PptxXML.serialize(ac ?? node)
         }
         if let d = effect?["dir"].flatMap(SlideTransition.Direction.init(rawValue:)) { t.direction = d }
+        if t.kind == .split { t.vertical = effect?["orient"] == "vert"; t.inward = effect?["dir"] == "in" }
+        if t.kind == .zoom { t.zoomIn = effect?["dir"] != "out" }
+        t.advanceOnClick = node["advClick"] != "0"
+        t.advanceAfter = node["advTm"].flatMap(Double.init).map { $0 / 1000 }
         return t
     }
 

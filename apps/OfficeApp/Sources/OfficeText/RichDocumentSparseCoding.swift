@@ -51,7 +51,7 @@ extension RichParagraphStyle {
         case listFirstLine
         case heading
         case named
-        case pageBreakBefore
+        case pageBreakBefore, contentsStart, contentsEnd
         case pageBreakInline
         case columnBreak
         case breakRunPropertiesXML
@@ -115,6 +115,8 @@ extension RichParagraphStyle {
         heading = try c.decodeIfPresent(Int.self, forKey: .heading) ?? d.heading
         named = try c.decodeIfPresent(String.self, forKey: .named) ?? d.named
         pageBreakBefore = try c.decodeIfPresent(Bool.self, forKey: .pageBreakBefore) ?? d.pageBreakBefore
+        contentsStart = try c.decodeIfPresent(String.self, forKey: .contentsStart) ?? d.contentsStart
+        contentsEnd = try c.decodeIfPresent(Bool.self, forKey: .contentsEnd) ?? d.contentsEnd
         pageBreakInline = try c.decodeIfPresent(Bool.self, forKey: .pageBreakInline) ?? d.pageBreakInline
         columnBreak = try c.decodeIfPresent(Bool.self, forKey: .columnBreak) ?? d.columnBreak
         breakRunPropertiesXML = try c.decodeIfPresent(String.self, forKey: .breakRunPropertiesXML) ?? d.breakRunPropertiesXML
@@ -177,6 +179,8 @@ extension RichParagraphStyle {
         if heading != d.heading, let v = heading { try c.encode(v, forKey: .heading) }
         if named != d.named, let v = named { try c.encode(v, forKey: .named) }
         if pageBreakBefore != d.pageBreakBefore { try c.encode(pageBreakBefore, forKey: .pageBreakBefore) }
+        if contentsStart != d.contentsStart { try c.encode(contentsStart, forKey: .contentsStart) }
+        if contentsEnd != d.contentsEnd { try c.encode(contentsEnd, forKey: .contentsEnd) }
         if pageBreakInline != d.pageBreakInline { try c.encode(pageBreakInline, forKey: .pageBreakInline) }
         if columnBreak != d.columnBreak { try c.encode(columnBreak, forKey: .columnBreak) }
         if breakRunPropertiesXML != d.breakRunPropertiesXML, let v = breakRunPropertiesXML { try c.encode(v, forKey: .breakRunPropertiesXML) }
