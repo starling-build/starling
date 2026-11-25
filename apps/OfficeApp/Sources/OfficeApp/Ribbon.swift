@@ -293,11 +293,7 @@ final class Ribbon: StatelessWidget {
                 },
                 onChanged: { f in c.setFontFamily(f) })),
             Chrome.gap(),
-            SizedBox(width: 72, height: nil, child: ComboBox<Double>(
-                value: sizes.contains(currentSize) ? currentSize : nil,
-                items: sizes.map { n in ComboBoxItem<Double>(value: n, child: Text(Self._fmt(n))) },
-                onChanged: { n in if let n { c.setFontSize(n) } },
-                placeholder: Text(Self._fmt(currentSize)))),
+            FontSizeBox(size: currentSize, sizes: sizes, onSize: { n in c.setFontSize(n) }),
             Chrome.gap(6),
             FlatButton(child: Chrome.sizeArrowIcon(up: true, fluent), tip: "Grow Font (⌘])".keys) { [session] in c.stepFontSize(1, base: session.effectiveFontSize) },
             FlatButton(child: Chrome.sizeArrowIcon(up: false, fluent), tip: "Shrink Font (⌘[)".keys) { [session] in c.stepFontSize(-1, base: session.effectiveFontSize) },
