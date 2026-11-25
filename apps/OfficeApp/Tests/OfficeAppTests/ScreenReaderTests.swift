@@ -166,4 +166,15 @@ final class ScreenReaderTests: XCTestCase {
         let at = c.findPosition(p, scope: 0)
         XCTAssertEqual(at?.index, 2); XCTAssertEqual(at?.total, 3)
     }
+
+    func testSheetsAltPatchSetsAndClearsDescrAndTitle() {
+        let raw = "<xdr:graphicFrame><xdr:nvGraphicFramePr><xdr:cNvPr id=\"2\" name=\"Chart 1\" descr=\"old\"/><xdr:cNvGraphicFramePr/></xdr:nvGraphicFramePr></xdr:graphicFrame>"
+        let a = SheetDrawingsXML._patchAlt(raw, "Sales by year", "Sales")
+        XCTAssertTrue(a.contains("descr=\"Sales by year\""))
+        XCTAssertTrue(a.contains("title=\"Sales\""))
+        XCTAssertFalse(a.contains("old"))
+        let b = SheetDrawingsXML._patchAlt(a, nil, nil)
+        XCTAssertFalse(b.contains("descr")); XCTAssertFalse(b.contains("title"))
+        XCTAssertTrue(b.contains("name=\"Chart 1\"/>"))
+    }
 }

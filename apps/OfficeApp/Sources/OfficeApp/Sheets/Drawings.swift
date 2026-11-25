@@ -123,6 +123,9 @@ struct SheetDrawing: Equatable {
     /// `cNvPr@descr`: the alt text a screen reader says. `rawDescr` is what the file had.
     var descr: String? = nil
     var rawDescr: String? = nil
+    /// `cNvPr@title`, the alt text's short title; `rawTitle` is what the file had.
+    var title: String? = nil
+    var rawTitle: String? = nil
 
     var isChart: Bool { if case .chart = kind { return true } else { return false } }
 }
@@ -212,6 +215,8 @@ enum SheetDrawingsXML {
             }
             let named = (el.child("pic")?.child("nvPicPr") ?? el.child("graphicFrame")?.child("nvGraphicFramePr")
                 ?? el.child("sp")?.child("nvSpPr") ?? el.child("cxnSp")?.child("nvCxnSpPr") ?? el.child("grpSp")?.child("nvGrpSpPr"))?.child("cNvPr")
+            d.descr = named?["descr"]; d.rawDescr = d.descr
+            d.title = named?["title"]; d.rawTitle = d.title
             d.hidden = named?["hidden"] == "1" || named?["hidden"] == "true"
             if let p = el.child("clientData")?["fPrintsWithSheet"], p == "0" || p == "false" { d.screenOnly = true }
             out.append(d)
@@ -591,7 +596,7 @@ extension SheetDrawingsXML {
                 out.parts[path] = Data(xml.utf8)
             }
             if let raw = d.raw {
-                let raw = d.descr == d.rawDescr ? raw : _patchDescr(raw, d.descr)
+                let raw = d.descr == d.rawDescr && d.title == d.rawTitle ? raw : _patchAlt(raw, d.descr, d.title)
                 if d.kind == .other || d.rawAnchor == d.anchor {
                     body += raw
                     continue
@@ -610,7 +615,7 @@ extension SheetDrawingsXML {
                 // A picture put in here carries its bytes: the media part is new.
                 if original[path] == nil, !path.isEmpty { out.parts[path] = data; taken.insert(path) }
                 let id = d.relId.flatMap { id in rels.contains { $0.id == id } ? id : nil } ?? relTo("image", path)
-                let alt = (d.descr ?? "").isEmpty ? "" : " descr=\"\(Xlsx._esc(d.descr!))\""
+                let alt = _altAttrs(d)
                 content = "<xdr:pic><xdr:nvPicPr><xdr:cNvPr id=\"\(shapeId)\" name=\"\(name)\"\(alt)/><xdr:cNvPicPr><a:picLocks noChangeAspect=\"1\"/></xdr:cNvPicPr></xdr:nvPicPr>"
                     + "<xdr:blipFill><a:blip r:embed=\"\(id)\"/><a:stretch><a:fillRect/></a:stretch></xdr:blipFill>"
                     + "<xdr:spPr><a:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"0\" cy=\"0\"/></a:xfrm><a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom></xdr:spPr></xdr:pic>"
@@ -626,7 +631,7 @@ extension SheetDrawingsXML {
                     out.overrides.append(("/" + chartPath, chartType))
                     id = relTo("chart", chartPath)
                 }
-                content = "<xdr:graphicFrame macro=\"\"><xdr:nvGraphicFramePr><xdr:cNvPr id=\"\(shapeId)\" name=\"\(name)\"/><xdr:cNvGraphicFramePr/></xdr:nvGraphicFramePr>"
+                content = "<xdr:graphicFrame macro=\"\"><xdr:nvGraphicFramePr><xdr:cNvPr id=\"\(shapeId)\" name=\"\(name)\"\(_altAttrs(d))/><xdr:cNvGraphicFramePr/></xdr:nvGraphicFramePr>"
                     + "<xdr:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"0\" cy=\"0\"/></xdr:xfrm><a:graphic><a:graphicData uri=\"http://schemas.openxmlformats.org/drawingml/2006/chart\">"
                     + "<c:chart xmlns:c=\"http://schemas.openxmlformats.org/drawingml/2006/chart\" r:id=\"\(id)\"/></a:graphicData></a:graphic></xdr:graphicFrame>"
             }
@@ -648,16 +653,27 @@ extension SheetDrawingsXML {
     }
 
     /// `raw` with the alt text of its first `cNvPr` set (or taken off when nil or empty).
-    static func _patchDescr(_ raw: String, _ descr: String?) -> String {
+    static func _altAttrs(_ d: SheetDrawing) -> String {
+        var a = ""
+        if let x = d.descr, !x.isEmpty { a += " descr=\"\(Xlsx._esc(x))\"" }
+        if let x = d.title, !x.isEmpty { a += " title=\"\(Xlsx._esc(x))\"" }
+        return a
+    }
+
+    static func _patchAlt(_ raw: String, _ descr: String?, _ title: String?) -> String {
         guard let s = raw.rangeOfSubstring("<xdr:cNvPr") ?? raw.rangeOfSubstring("<cNvPr"),
               let e = raw.rangeOfSubstring(">", in: s.upperBound..<raw.endIndex) else { return raw }
         var tag = String(raw[s.lowerBound..<e.lowerBound])
         if let a = tag.rangeOfSubstring(" descr=\""), let q = tag.rangeOfSubstring("\"", in: a.upperBound..<tag.endIndex) {
             tag.removeSubrange(a.lowerBound..<q.upperBound)
         }
+        if let a = tag.rangeOfSubstring(" title=\""), let q = tag.rangeOfSubstring("\"", in: a.upperBound..<tag.endIndex) {
+            tag.removeSubrange(a.lowerBound..<q.upperBound)
+        }
         var selfClosing = false
         if tag.hasSuffix("/") { tag.removeLast(); selfClosing = true }
         if let d = descr, !d.isEmpty { tag += " descr=\"\(Xlsx._esc(d))\"" }
+        if let t = title, !t.isEmpty { tag += " title=\"\(Xlsx._esc(t))\"" }
         return String(raw[raw.startIndex..<s.lowerBound]) + tag + (selfClosing ? "/" : "") + String(raw[e.lowerBound...])
     }
 
@@ -946,13 +962,14 @@ extension WorkbookController {
         return nil
     }
 
-    /// Alt text of a picture (one undo step).
-    func setDrawingAlt(_ index: Int, _ text: String) {
+    /// Alt text and title of a picture, chart or shape (one undo step).
+    func setDrawingAlt(_ index: Int, _ text: String, title: String = "") {
         let ws = sheet
-        guard ws.drawings.indices.contains(index), case .picture = ws.drawings[index].kind,
-              (ws.drawings[index].descr ?? "") != text else { return }
+        guard ws.drawings.indices.contains(index), ws.drawings[index].kind != .other,
+              (ws.drawings[index].descr ?? "") != text || (ws.drawings[index].title ?? "") != title else { return }
         structural {
             ws.drawings[index].descr = text.isEmpty ? nil : text
+            ws.drawings[index].title = title.isEmpty ? nil : title
             ws.drawingsEdited = true
         }
     }
