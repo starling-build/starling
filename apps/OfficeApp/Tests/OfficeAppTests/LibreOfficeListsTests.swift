@@ -39,7 +39,8 @@ final class LibreOfficeListsTests: XCTestCase {
     /// (lo-486e8e62 and lo-79583fa0 print 11pt in Word).
     func testStatedSizeStandsWithoutRunDefaults() throws {
         for id in ["lo-486e8e62d1d9861f", "lo-79583fa0c8bed68b"] {
-            XCTAssertEqual(try read(id).styles[RichNamedStyle.normalId]?.char.fontSize, 11, id)
+            let size = try read(id).styles[RichNamedStyle.normalId]?.char.fontSize
+            XCTAssertEqual(size, 11, id)
         }
     }
 
