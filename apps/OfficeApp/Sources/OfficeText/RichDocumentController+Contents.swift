@@ -83,7 +83,12 @@ extension RichDocumentController {
                 runs.append(Run(length: page.utf16.count, style: pageStyle))
             }
             var style = RichParagraphStyle()
-            style.named = _contentsStyle(level).id
+            let own = _contentsStyle(level)
+            style.named = own.id
+            // The paragraph holds the style's resolved look (as a file's paragraphs do), so a save writes only the style name.
+            let look = (document.styles[own.id] ?? own.new)?.paragraph
+            style.indentLeft = look?.indentLeft ?? 0
+            style.spaceAfter = look?.spaceAfter ?? style.spaceAfter
             if options.showPageNumbers {
                 var tab = TabStop(position: width, alignment: options.rightAlignNumbers ? .right : .left)
                 tab.leader = options.tabLeader

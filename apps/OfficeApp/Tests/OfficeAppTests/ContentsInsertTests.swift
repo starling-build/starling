@@ -44,13 +44,20 @@ final class ContentsInsertTests: XCTestCase {
         let ps = c.document.paragraphs
         XCTAssertEqual(ps[0].style.named, "TOC1")
         XCTAssertEqual(ps[1].style.named, "TOC2")
-        XCTAssertEqual(ps[1].style.indentLeft, 0, "the indent is the style's")
+        XCTAssertEqual(ps[1].style.indentLeft, 11, "level 2 gets 11 pt from the style")
         XCTAssertEqual(c.document.styles["TOC2"]?.name, "toc 2")
         XCTAssertEqual(c.document.styles["TOC2"]?.paragraph.indentLeft, 11)
         let parts = try Zip.read(DocxFormat.write(c.document, pageSetup: .letter))
         let xml = String(decoding: try XCTUnwrap(parts.first { $0.name == "word/styles.xml" }).data, as: UTF8.self)
         XCTAssertTrue(xml.contains("w:styleId=\"TOC2\""), "styles.xml defines it")
         XCTAssertTrue(xml.contains("w:val=\"toc 2\""))
+        // The entries say only their style and the tab: no direct indent or spacing (Word's Update drops them).
+        let body = String(decoding: try XCTUnwrap(parts.first { $0.name == "word/document.xml" }).data, as: UTF8.self)
+        let entry = try XCTUnwrap(body.components(separatedBy: "<w:p>").first { $0.contains("w:val=\"TOC2\"") && $0.contains("Details") })
+        let pPr = String(entry[entry.range(of: "<w:pPr>")!.lowerBound ..< entry.range(of: "</w:pPr>")!.upperBound])
+        XCTAssertFalse(pPr.contains("<w:ind"), pPr)
+        XCTAssertFalse(pPr.contains("<w:spacing"), pPr)
+        XCTAssertTrue(pPr.contains("<w:tab "), pPr)
     }
 
     func testInsertListsHeadingsAndSavesAsAField() throws {
