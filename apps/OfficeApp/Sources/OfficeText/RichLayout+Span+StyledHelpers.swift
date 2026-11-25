@@ -517,9 +517,10 @@ extension _StyledFrame {
         }
         // (A turned cell's line of Latin text steps by 1.026 of the face's single line: lab textpitch3 (Word for Windows' print,
         // Rotate Down, 3 sizes of 8 faces): Calibri 11 13.80 for 13.43, Segoe UI 15.00 for 14.63, Tahoma 13.6 for 13.28, Georgia 12.84
-        // for 12.5, Courier New 12.8 for 12.46; 9 and 13 pt in the same ratio, Rotate Up the same as Down.)
-        if !vertical, kind >= 0, theme.wordRules, RichTextTheme.wordWindowsPages, p.style.lineHeightPoints == nil, pitch == nil,
-           abs(p.style.lineSpacing - 1) < 0.005, let i = index, rl._cells[i]?.vertical == true, !p.text.unicodeScalars.contains(where: { $0.value >= 0x0590 }), let h = s.height, s.fontSize ?? 0 > 0.5 {
+        // for 12.5, Courier New 12.8 for 12.46; 9 and 13 pt in the same ratio, Rotate Up the same as Down. Lab textpitch4: at 1.5 and double the pitch is 1.5 and 2.0 times that step, in 6 faces at 11 and
+        // 13 pt (ratios 1.492 to 1.505 and 1.992 to 2.005); an exact height is the value itself, 19.98 for 20 pt. Lab textpitch5: the upright ideograph, kana and Hangul lines of a Rotate Down cell step by the same 1.026 of the face's own line, in 6 faces at 9 and 12 pt.)
+        if !vertical, kind >= 0 || p.cell?.uprightIdeographs == true, theme.wordRules, RichTextTheme.wordWindowsPages, p.style.lineHeightPoints == nil, pitch == nil,
+           p.style.lineSpacing > 0.995, let i = index, rl._cells[i]?.vertical == true, !p.text.unicodeScalars.contains(where: { $0.value >= 0x0590 && !(p.cell?.uprightIdeographs == true && $0.value >= 0x2000) }), let h = s.height, s.fontSize ?? 0 > 0.5 {
             RuleTrace.hit("turned-cell-latin-line-is-1.026-single")
             if let asc = s.ascentOverride, let desc = s.descentOverride {
                 s = s.copyWith(ascentOverride: asc * 1.026, descentOverride: desc * 1.026, height: h * 1.026)

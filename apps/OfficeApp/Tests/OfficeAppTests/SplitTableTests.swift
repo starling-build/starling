@@ -246,19 +246,63 @@ final class TextPitch4LabWriter: XCTestCase {
     }
 }
 
+/// Lab textpitch5: how a turned cell's lines of NON-Latin text step and where they stop. Rows 1-3: six CJK faces
+/// (MS Mincho, Yu Gothic, Meiryo, SimSun, Microsoft YaHei, Malgun Gothic) at 9, 12 and 16 pt; row 4: Mongolian Baiti and
+/// Nirmala UI at 9, 12 and 16 pt. Single spacing, Rotate Down, 70 pt exact rows, 78 pt cells, 14 or more characters so
+/// that the lines run past the cell.
+final class TextPitch5LabWriter: XCTestCase {
+    func testWriteLab() throws {
+        guard let out = ProcessInfo.processInfo.environment["TEXTPITCH5_LAB_OUT"] else { throw XCTSkip("no TEXTPITCH5_LAB_OUT") }
+        let c = RichDocumentController(plainText: "")
+        c.insertTable(rows: 4, columns: 6)
+        let idx = c.document.paragraphs.indices.filter { c.document.paragraphs[$0].cell != nil }
+        let faces = ["MS Mincho", "Yu Gothic", "Meiryo", "SimSun", "Microsoft YaHei", "Malgun Gothic"]
+        let texts = ["日本語の文章を縦に並べて行の間隔を測ります", "日本語の文章を縦に並べて行の間隔を測ります", "日本語の文章を縦に並べて行の間隔を測ります",
+                     "中文文本竖排以测量行距和截断位置", "中文文本竖排以测量行距和截断位置", "한국어 문장을 세로로 배열하여 줄 간격을 측정합니다"]
+        let mongolian = "ᠮᠣᠩᠭᠣᠯ ᠪᠢᠴᠢᠭ ᠦᠰᠦᠭ ᠲᠡᠺᠰᠲ ᠮᠣᠩᠭᠣᠯ ᠪᠢᠴᠢᠭ ᠦᠰᠦᠭ"
+        let hindi = "हिंदी पाठ को घुमाकर पंक्ति अंतर मापना है"
+        let sizes: [Double] = [9, 12, 16]
+        var facesByParagraph: [Int: String] = [:]
+        for (k, i) in idx.enumerated() {
+            let col = k % 6, row = k / 6
+            let (face, text): (String, String) = row < 3 ? (faces[col], texts[col]) : (col < 3 ? "Mongolian Baiti" : "Nirmala UI", col < 3 ? mongolian : hindi)
+            let size = sizes[row < 3 ? row : col % 3]
+            c.moveTo(RichPosition(paragraph: i, offset: 0), extend: false)
+            c.insertText(text)
+            c.moveTo(RichPosition(paragraph: i, offset: 0), extend: false)
+            c.moveTo(RichPosition(paragraph: i, offset: text.utf16.count), extend: true)
+            c.setFontFamily(face); c.setFontSize(size)
+            c.moveTo(RichPosition(paragraph: i, offset: 0), extend: false)
+            if col == 0 { c.setRowHeight(70, exact: true) }
+            c.setCellTextDirection(.down)
+            facesByParagraph[i] = face
+        }
+        // East Asian and complex-script text takes its own face slot: name the face there too.
+        var doc = c.document
+        for (i, face) in facesByParagraph {
+            for r in doc.paragraphs[i].runs.indices {
+                doc.paragraphs[i].runs[r].style.eastAsiaFontFamily = face
+                doc.paragraphs[i].runs[r].style.complexFontFamily = face
+            }
+        }
+        try DocxFormat.write(doc, pageSetup: .letter).write(to: URL(fileURLWithPath: out))
+    }
+}
+
 /// A turned cell's lines of Latin text step by 1.026 of the face's single line
 /// (Word for Windows, lab textpitch3), the same for Rotate Down and Up.
 final class TurnedCellPitchTests: XCTestCase {
-    private func linesHeight(_ direction: CellRef.CellTextDirection) -> Double {
+    private func linesHeight(_ direction: CellRef.CellTextDirection, spacing: Double = 1, text: String = "Aaaa Bbbb Cccc", upright: Bool = false) -> Double {
         let theme = RichTextTheme(fontFamily: OfficeFonts.sans, fontSize: 20)
         theme.wordRules = true
-        var a = RichParagraph(text: "Aaaa Bbbb Cccc")
+        var a = RichParagraph(text: text)
         a.cell = CellRef(table: "t", row: 0, column: 0)
         a.cell?.textDirection = direction
-        a.style.lineSpacing = 1
+        a.cell?.uprightIdeographs = upright
+        a.style.lineSpacing = spacing
         var style = CharStyle()
         style.fontFamily = OfficeFonts.sans; style.fontSize = 20
-        a.runs = [Run(length: 14, style: style)]
+        a.runs = [Run(length: text.utf16.count, style: style)]
         var doc = RichDocument(paragraphs: [a])
         doc.tableColumns["t"] = [120]
         var ts = TableStyle()
@@ -282,6 +326,30 @@ final class TurnedCellPitchTests: XCTestCase {
         // Lines of Calibri 20: 25.03 apiece in Word's print, 24.41 before.
         XCTAssertEqual(down / plain, 1.026, accuracy: 0.01)
         XCTAssertGreaterThan(down, plain)
+    }
+
+    /// Lab textpitch4: at 1.5 and double spacing a turned line steps by 1.5 and 2.0 times the same 1.026 step.
+    func testNonSingleSpacingScalesTheTurnedStep() {
+        let saved = RichTextTheme.wordWindowsPages
+        defer { RichTextTheme.wordWindowsPages = saved }
+        for spacing in [1.5, 2.0] {
+            RichTextTheme.wordWindowsPages = false
+            let plain = linesHeight(.down, spacing: spacing)
+            RichTextTheme.wordWindowsPages = true
+            XCTAssertEqual(linesHeight(.down, spacing: spacing) / plain, 1.026, accuracy: 0.01, "spacing \(spacing)")
+        }
+    }
+
+    /// Lab textpitch5: an upright (Rotate Down) column of ideographs steps by the same 1.026 of its face's single line, in 6 faces at 9 and 12 pt.
+    func testUprightIdeographColumnsStepByOnePointZeroTwoSix() {
+        let saved = RichTextTheme.wordWindowsPages
+        defer { RichTextTheme.wordWindowsPages = saved }
+        let kanji = "日本語の文章を縦に並べて行の間隔を測ります日本語の文章を縦に並べて"
+        RichTextTheme.wordWindowsPages = false
+        let plain = linesHeight(.down, text: kanji, upright: true)
+        RichTextTheme.wordWindowsPages = true
+        let word = linesHeight(.down, text: kanji, upright: true)
+        XCTAssertEqual(word / plain, 1.026, accuracy: 0.01)
     }
 
     /// Word's print of a 78 pt cell of Calibri 20 turned down has three lines of "Aaaa Bbbb Cccc Dddd": the fourth's top falls
