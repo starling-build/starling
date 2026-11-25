@@ -396,7 +396,7 @@ extension Ribbon {
                 MenuFlyoutItem(text: Text("Freeze First Column"), onPressed: { wb.freeze(at: CellAddress(row: 0, col: 1)) }),
             ]),
             Chrome.textToggle("Gridlines", wb.sheet.showGridlines, fluent, style: fluent.typography.caption) {
-                wb.structural { wb.sheet.showGridlines.toggle() }
+                wb.toggleGridlines()
             },
             Chrome.textToggle("Headings", wb.sheet.showHeadings, fluent, style: fluent.typography.caption) { wb.toggleHeadings() },
             Chrome.textToggle("Show Formulas", wb.sheet.showFormulas, fluent, style: fluent.typography.caption) { wb.toggleShowFormulas() },

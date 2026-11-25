@@ -369,7 +369,7 @@ final class SheetsShellState: State<StatefulWidget> {
         case .zoom(let factor):
             setState { _zoom = factor == 0 ? 1 : max(0.25, min(4, _zoom * factor)) }
         case .toggleGridlines:
-            wb.structural { wb.sheet.showGridlines.toggle() }
+            wb.toggleGridlines()
         case .status(let m):
             _flash(m)
         case .editNote:

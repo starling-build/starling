@@ -20,18 +20,21 @@ final class SheetsViewOptionsTests: XCTestCase {
         XCTAssertEqual(c.sheet.zoomPercent, 400)
     }
 
-    func testTogglesAreOneUndoStepEach() {
+    func testViewSettingsAreNotUndoStepsButMarkTheFileChanged() {
         let c = WorkbookController()
-        c.toggleHeadings(); c.toggleShowFormulas(); c.toggleRightToLeft()
+        c.setInput("x", at: CellAddress(row: 0, col: 0))
+        c.markSaved()
+        XCTAssertEqual(c.edits, 0)
+        c.setZoom(percent: 120)
+        XCTAssertGreaterThan(c.edits, 0)
+        c.toggleHeadings(); c.toggleShowFormulas(); c.toggleRightToLeft(); c.toggleGridlines()
+        c.undo()   // takes back the typing, not the view
+        XCTAssertNil(c.sheet.cells[CellAddress(row: 0, col: 0)])
+        XCTAssertEqual(c.sheet.zoomPercent, 120)
         XCTAssertFalse(c.sheet.showHeadings)
         XCTAssertTrue(c.sheet.showFormulas)
         XCTAssertTrue(c.sheet.rightToLeft)
-        c.undo()
-        XCTAssertFalse(c.sheet.rightToLeft)
-        XCTAssertTrue(c.sheet.showFormulas)
-        c.undo(); c.undo()
-        XCTAssertTrue(c.sheet.showHeadings)
-        XCTAssertFalse(c.sheet.showFormulas)
+        XCTAssertFalse(c.sheet.showGridlines)
     }
 
     func testViewOptionsSaveAndReadBack() throws {

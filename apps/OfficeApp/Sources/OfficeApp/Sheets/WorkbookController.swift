@@ -193,18 +193,22 @@ final class WorkbookController: ChangeNotifier {
     }
 
     /// Freeze the rows above and the columns left of `at` (A1 unfreezes).
-    /// View > Zoom: the sheet's zoom in percent. Not an undo step, as in Excel; saved with the sheet.
-    func setZoom(percent: Int) {
-        sheet.zoomPercent = percent
-        _notify(selectionOnly: true)
-    }
+    /// View > Zoom: the sheet's zoom in percent. Saved with the sheet.
+    func setZoom(percent: Int) { viewChange { sheet.zoomPercent = percent } }
 
-    /// View > Show: Headings (row numbers and column letters). One undo step.
-    func toggleHeadings() { structural { sheet.showHeadings.toggle() } }
-    /// Formulas > Show Formulas (Ctrl+`). One undo step.
-    func toggleShowFormulas() { structural { sheet.showFormulas.toggle() } }
-    /// Page Layout > Sheet Right-to-Left. One undo step.
-    func toggleRightToLeft() { structural { sheet.rightToLeft.toggle() } }
+    /// A view setting changed (zoom, headings, gridlines...): not an undo step, as in Excel, but the file is changed and saves it.
+    func viewChange(_ change: () -> Void) {
+        change()
+        markUnsaved()
+    }
+    /// View > Show: Headings (row numbers and column letters).
+    func toggleHeadings() { viewChange { sheet.showHeadings.toggle() } }
+    /// View > Show: Gridlines.
+    func toggleGridlines() { viewChange { sheet.showGridlines.toggle() } }
+    /// Formulas > Show Formulas (Ctrl+`).
+    func toggleShowFormulas() { viewChange { sheet.showFormulas.toggle() } }
+    /// Page Layout > Sheet Right-to-Left.
+    func toggleRightToLeft() { viewChange { sheet.rightToLeft.toggle() } }
 
     func freeze(at a: CellAddress) {
         structural {
