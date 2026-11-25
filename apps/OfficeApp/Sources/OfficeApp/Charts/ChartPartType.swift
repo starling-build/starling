@@ -115,11 +115,13 @@ enum ChartPartType {
             let a = "111111111", b = "222222222"
             let cat = c.type == .scatter ? node("c:valAx") : node("c:catAx")
             cat.children = [node("c:axId", ["val": a]), node("c:scaling"), node("c:delete", ["val": "0"]),
-                            node("c:axPos", ["val": c.type == .bar ? "l" : "b"]), node("c:crossAx", ["val": b])]
+                            node("c:axPos", ["val": c.type == .bar ? "l" : "b"]), node("c:majorTickMark", ["val": "out"]),
+                            node("c:minorTickMark", ["val": "none"]), node("c:tickLblPos", ["val": "nextTo"]), node("c:crossAx", ["val": b])]
             cat.children[1].children = [node("c:orientation", ["val": "minMax"])]
             let val = node("c:valAx")
             val.children = [node("c:axId", ["val": b]), node("c:scaling"), node("c:delete", ["val": "0"]),
-                            node("c:axPos", ["val": c.type == .bar ? "b" : "l"]), node("c:majorGridlines"), node("c:crossAx", ["val": a])]
+                            node("c:axPos", ["val": c.type == .bar ? "b" : "l"]), node("c:majorGridlines"), node("c:majorTickMark", ["val": "out"]),
+                            node("c:minorTickMark", ["val": "none"]), node("c:tickLblPos", ["val": "nextTo"]), node("c:crossAx", ["val": a])]
             val.children[1].children = [node("c:orientation", ["val": "minMax"])]
             let i = (plot.children.lastIndex { groupNames.contains($0.name) } ?? 0) + 1
             plot.children.insert(contentsOf: [cat, val], at: i)

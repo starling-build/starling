@@ -61,6 +61,23 @@ final class ChartPartPatcherTests: XCTestCase {
         }
     }
 
+    /// A pie turned into a column chart gets new axes; they say "no minor ticks" outright, as PowerPoint's own do.
+    func testNewAxesStateTheirTickMarks() throws {
+        let old = Chart.sample(.pie)
+        var new = old; new.type = .column
+        let r = try XCTUnwrap(ChartPartPatcher.patch(part(old), old: old, new: new))
+        for axis in ["c:catAx", "c:valAx"] {
+            let a = try XCTUnwrap(r.xml.range(of: "<\(axis)>"))
+            let body = String(r.xml[a.upperBound...].prefix { _ in true })
+            let end = try XCTUnwrap(body.range(of: "</\(axis)>"))
+            let text = String(body[..<end.lowerBound])
+            XCTAssertTrue(text.contains("<c:minorTickMark val=\"none\"/>"), axis)
+            XCTAssertTrue(text.contains("<c:majorTickMark val=\"out\"/>"), axis)
+            XCTAssertTrue(text.contains("<c:tickLblPos val=\"nextTo\"/>"), axis)
+            XCTAssertLessThan(try XCTUnwrap(text.range(of: "<c:tickLblPos")).lowerBound, try XCTUnwrap(text.range(of: "<c:crossAx")).lowerBound)
+        }
+    }
+
     /// The deck path: a chart read from a file, edited, saved: one chart part (patched), one workbook, the new data.
     func testEditedFileChartSavesThroughItsOwnPart() throws {
         let deck = DeckController()
