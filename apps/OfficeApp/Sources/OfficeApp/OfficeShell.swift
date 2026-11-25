@@ -67,6 +67,7 @@ final class OfficeShellState: State<StatefulWidget> {
     private let _findReplacement = TextEditingController()
     private var _headerFooterOpen = false
     private var _linkOpen = false
+    private var _linkDialogOpen = false
     private var _colorOpen = false
     private var _paragraphOpen = false
     private var _findDialogOpen = false
@@ -1026,8 +1027,29 @@ final class OfficeShellState: State<StatefulWidget> {
     // MARK: Links
 
     private func _openLink() {
-        _linkText.text = controller.currentLink ?? ""
-        setState { _linkOpen = true }
+        setState { _linkDialogOpen = true }
+    }
+
+    private var _linkHooks: HyperlinkHooks {
+        let targets = controller.linkTargets()
+        let places = targets.enumerated().map { i, t in
+            HyperlinkPlace(id: "\(i)", title: t.title,
+                           kind: t.kind == .bookmark ? "Bookmark" : "Heading \(t.level)")
+        }
+        var h = HyperlinkHooks(apply: { [weak self] addr, place, text, tip in
+            guard let self else { return "" }
+            let target = place.flatMap { Int($0) }.flatMap { $0 < targets.count ? targets[$0] : nil }
+            guard self.controller.applyHyperlink(address: addr, target: target, text: text, tip: tip) else { return "Nothing to link to" }
+            self._flash("Linked")
+            return ""
+        })
+        h.places = targets.isEmpty ? [] : places
+        h.address = controller.currentLink ?? ""
+        h.displayText = controller.selectedText
+        h.tip = controller.currentLinkTip ?? ""
+        h.canRemove = controller.currentLink != nil
+        h.remove = { [weak self] in self?.controller.setLink(nil) }
+        return h
     }
 
     private func _applyLink() {
@@ -1069,7 +1091,7 @@ final class OfficeShellState: State<StatefulWidget> {
             if session.paintedStyle != nil { _cancelPainter(); return true }
             if _styleOpen != nil { setState { _styleOpen = nil }; return true }
             if _linkOpen { setState { _linkOpen = false }; return true }
-            if _paragraphOpen || _fontOpen { return false }   // the dialog's own Esc closes it
+            if _paragraphOpen || _fontOpen || _linkDialogOpen { return false }   // the dialog's own Esc closes it
             if _colorOpen { setState { _colorOpen = false }; return true }
             if _headerFooterOpen { setState { _headerFooterOpen = false }; return true }
             if _findOpen { setState { _findOpen = false }; _editorFocus.requestFocus(); return true }
@@ -1289,6 +1311,17 @@ final class OfficeShellState: State<StatefulWidget> {
                     },
                     onCancel: { [weak self] in
                         self?.setState { self?._pageSetupOpen = false }
+                        self?._editorFocus.requestFocus()
+                    })),
+            ])
+        }
+        if _linkDialogOpen {
+            return Stack(children: [
+                window,
+                Positioned(left: 0, top: 0, right: 0, bottom: 0, child: HyperlinkDialog(
+                    hooks: _linkHooks,
+                    onClose: { [weak self] in
+                        self?.setState { self?._linkDialogOpen = false }
                         self?._editorFocus.requestFocus()
                     })),
             ])

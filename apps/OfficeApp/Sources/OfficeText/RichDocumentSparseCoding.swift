@@ -214,6 +214,7 @@ extension CharStyle {
         case color
         case highlight
         case link
+        case linkTip
         case script
         case note
         case inlineImage
@@ -254,6 +255,7 @@ extension CharStyle {
         color = try c.decodeIfPresent(Color.self, forKey: .color) ?? d.color
         highlight = try c.decodeIfPresent(Color.self, forKey: .highlight) ?? d.highlight
         link = try c.decodeIfPresent(String.self, forKey: .link) ?? d.link
+        linkTip = try c.decodeIfPresent(String.self, forKey: .linkTip) ?? d.linkTip
         script = try c.decodeIfPresent(ScriptPosition.self, forKey: .script) ?? d.script
         note = try c.decodeIfPresent(NoteReference.self, forKey: .note) ?? d.note
         inlineImage = try c.decodeIfPresent(String.self, forKey: .inlineImage) ?? d.inlineImage
@@ -295,6 +297,7 @@ extension CharStyle {
         if color != d.color, let v = color { try c.encode(v, forKey: .color) }
         if highlight != d.highlight, let v = highlight { try c.encode(v, forKey: .highlight) }
         if link != d.link, let v = link { try c.encode(v, forKey: .link) }
+        if linkTip != d.linkTip, let v = linkTip { try c.encode(v, forKey: .linkTip) }
         if script != d.script { try c.encode(script, forKey: .script) }
         if note != d.note, let v = note { try c.encode(v, forKey: .note) }
         if inlineImage != d.inlineImage, let v = inlineImage { try c.encode(v, forKey: .inlineImage) }

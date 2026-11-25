@@ -1468,10 +1468,11 @@ extension DocxFormat {
                     }
                 }
                 if let link = s.link {
+                    let tip = s.linkTip.map { " w:tooltip=\"\(_esc($0))\"" } ?? ""
                     if link.hasPrefix("#") {
-                        body += "<w:hyperlink w:anchor=\"\(_esc(String(link.dropFirst())))\">\(runXML)</w:hyperlink>"
+                        body += "<w:hyperlink w:anchor=\"\(_esc(String(link.dropFirst())))\"\(tip)>\(runXML)</w:hyperlink>"
                     } else {
-                        body += "<w:hyperlink r:id=\"\(relId(for: link))\">\(runXML)</w:hyperlink>"
+                        body += "<w:hyperlink r:id=\"\(relId(for: link))\"\(tip)>\(runXML)</w:hyperlink>"
                     }
                 } else {
                     body += runXML

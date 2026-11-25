@@ -148,6 +148,8 @@ public struct CharStyle: Hashable, Codable, Sendable {
     public var color: Color? = nil
     public var highlight: Color? = nil
     public var link: String? = nil
+    /// The hyperlink's screen tip (Word's w:tooltip); only meaningful with a link.
+    public var linkTip: String? = nil
     public var script: ScriptPosition = .normal
     /// Slides fontAlgn t, ctr or b on a line that mixes faces or sizes: where this run's baseline stands below the line's top, and where the engine's own line puts it, in ems of the run's size (nil: the paragraph is moved as a whole).
     public var alignTop: Double? = nil
