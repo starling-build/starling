@@ -6895,6 +6895,19 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(RichListNumbering.labels(back), ["1.", "2.", "1.", "2."])
     }
 
+    func testSetNumberingValueSurvivesSave() throws {
+        var paras: [RichParagraph] = []
+        for t in ["a", "b", "c", "d"] {
+            var p = RichParagraph(text: t); p.style.list = .numbered; p.style.listId = "5"; paras.append(p)
+        }
+        let c = RichDocumentController(document: RichDocument(paragraphs: paras))
+        c.moveTo(RichPosition(paragraph: 2, offset: 0), extend: false)
+        c.setNumberingValue(7)
+        XCTAssertEqual(RichListNumbering.labels(c.document), ["1.", "2.", "7.", "8."])
+        let back = try DocxFormat.read(try DocxFormat.write(c.document, pageSetup: .letter)).document
+        XCTAssertEqual(RichListNumbering.labels(back), ["1.", "2.", "7.", "8."])
+    }
+
     func testALevelOfNoneShowsNoNumber() {
         // zh-90e0cea8: chapters are "%1%2　" over a level 0 of "none".
         var none = ListLevelFormat(text: "%1"); none.rawFormat = "none"

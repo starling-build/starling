@@ -71,6 +71,8 @@ public indirect enum EditOp: Equatable, Sendable {
     case setTableStyle(String, old: TableStyle?, new: TableStyle?)
     /// One level's format of one list (nil: the level's default).
     case setListFormat(String, level: Int, old: ListLevelFormat?, new: ListLevelFormat?)
+    /// The number a list's level restarts at, the first time it is used (nil: none).
+    case setListRestart(String, level: Int, old: Int?, new: Int?)
 
     /// Apply to `doc`, appending the invalidation to `changes`, and return
     /// the inverse.
@@ -186,6 +188,13 @@ public indirect enum EditOp: Equatable, Sendable {
             for i in doc.paragraphs.indices where doc.paragraphs[i].style.listId == id { changes.append(.changed(i)) }
             changes.append(.lists)
             return .setListFormat(id, level: level, old: new, new: old)
+        case .setListRestart(let id, let level, let old, let new):
+            var restarts = doc.listRestarts[id] ?? [:]
+            restarts[level] = new
+            doc.listRestarts[id] = restarts.isEmpty ? nil : restarts
+            for i in doc.paragraphs.indices where doc.paragraphs[i].style.listId == id { changes.append(.changed(i)) }
+            changes.append(.lists)
+            return .setListRestart(id, level: level, old: new, new: old)
         }
     }
 }
@@ -2597,6 +2606,80 @@ public final class RichDocumentController: ChangeNotifier {
                 let old = document.listFormats[id]?[level]
                 let new = format.forLevel(level)
                 if old != new { perform(.setListFormat(id, level: level, old: old, new: new)) }
+            }
+        }
+    }
+
+    /// Word's Set Numbering Value (and Restart at 1): the caret's item and
+    /// every later item of its list become a list of their own whose level
+    /// starts at `n`. Deeper levels count from their own start again.
+    public func setNumberingValue(_ n: Int) {
+        let i = selection.focus.paragraph
+        guard document.paragraphs[i].style.list == .numbered else { return }
+        edit {
+            if document.paragraphs[i].style.listId == nil { _assignListId(around: i) }
+            let oldId = document.paragraphs[i].style.listId!
+            let level = document.paragraphs[i].style.listLevel
+            let fresh = _freshListId()
+            for k in i ..< document.paragraphs.count where document.paragraphs[k].style.listId == oldId {
+                let old = document.paragraphs[k].style
+                var new = old
+                new.listId = fresh
+                perform(.setParagraphStyle(k, old: old, new: new))
+            }
+            for (lvl, f) in (document.listFormats[oldId] ?? [:]).sorted(by: { $0.key < $1.key }) {
+                perform(.setListFormat(fresh, level: lvl, old: nil, new: f))
+            }
+            perform(.setListRestart(fresh, level: level, old: nil, new: max(0, n)))
+        }
+    }
+
+    public func restartNumbering() { setNumberingValue(1) }
+
+    /// The list item above the caret's that Continue Numbering would join: the
+    /// nearest earlier numbered item of another list.
+    private func _previousListId() -> String? {
+        let i = selection.focus.paragraph
+        let mine = document.paragraphs[i].style.listId
+        var k = i - 1
+        while k >= 0 {
+            let s = document.paragraphs[k].style
+            if s.list == .numbered, let id = s.listId, id != mine { return id }
+            if s.list == .numbered, s.listId == mine { return nil }
+            k -= 1
+        }
+        return nil
+    }
+
+    /// True when the caret paragraph is a numbered (not bullet) list item.
+    public var isNumberedItem: Bool {
+        document.paragraphs[selection.focus.paragraph].style.list == .numbered
+    }
+
+    /// The number the caret item shows now (1 when it is not a plain number), the prompt's start value.
+    public var currentNumberValue: Int {
+        let labels = RichListNumbering.labels(document)
+        guard let l = labels[selection.focus.paragraph] else { return 1 }
+        let digits = l.filter { $0.isNumber }
+        return Int(digits) ?? 1
+    }
+
+    public var canContinueNumbering: Bool {
+        document.paragraphs[selection.focus.paragraph].style.list == .numbered && _previousListId() != nil
+    }
+
+    /// Word's Continue Numbering: the caret's item and the rest of its list join the list above.
+    public func continueNumbering() {
+        let i = selection.focus.paragraph
+        guard document.paragraphs[i].style.list == .numbered, let target = _previousListId() else { return }
+        edit {
+            if document.paragraphs[i].style.listId == nil { _assignListId(around: i) }
+            let mine = document.paragraphs[i].style.listId!
+            for k in i ..< document.paragraphs.count where document.paragraphs[k].style.listId == mine {
+                let old = document.paragraphs[k].style
+                var new = old
+                new.listId = target
+                perform(.setParagraphStyle(k, old: old, new: new))
             }
         }
     }

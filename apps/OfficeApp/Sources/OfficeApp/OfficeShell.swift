@@ -73,6 +73,7 @@ final class OfficeShellState: State<StatefulWidget> {
     private var _symbolOpen = false
     private var _fontOpen = false
     private var _pageSetupOpen = false
+    private var _numberingValueOpen = false
     private let _colorText = TextEditingController()
     private var _styleOpen: String? = nil
     private let _linkText = TextEditingController()
@@ -387,6 +388,11 @@ final class OfficeShellState: State<StatefulWidget> {
             guard let self else { return }
             self.controller.breakUndoCoalescing()
             self.setState { self._pageSetupOpen = true }
+        }
+        session.onNumberingValueDialog = { [weak self] in
+            guard let self else { return }
+            self.controller.breakUndoCoalescing()
+            self.setState { self._numberingValueOpen = true }
         }
         session.onMoreColors = { [weak self] in
             guard let self else { return }
@@ -1069,7 +1075,7 @@ final class OfficeShellState: State<StatefulWidget> {
             if session.paintedStyle != nil { _cancelPainter(); return true }
             if _styleOpen != nil { setState { _styleOpen = nil }; return true }
             if _linkOpen { setState { _linkOpen = false }; return true }
-            if _paragraphOpen || _fontOpen { return false }   // the dialog's own Esc closes it
+            if _paragraphOpen || _fontOpen || _numberingValueOpen { return false }   // the dialog's own Esc closes it
             if _colorOpen { setState { _colorOpen = false }; return true }
             if _headerFooterOpen { setState { _headerFooterOpen = false }; return true }
             if _findOpen { setState { _findOpen = false }; _editorFocus.requestFocus(); return true }
@@ -1306,6 +1312,23 @@ final class OfficeShellState: State<StatefulWidget> {
                     },
                     onCancel: { [weak self] in
                         self?.setState { self?._paragraphOpen = false }
+                        self?._editorFocus.requestFocus()
+                    })),
+            ])
+        }
+        if _numberingValueOpen {
+            return Stack(children: [
+                window,
+                Positioned(left: 0, top: 0, right: 0, bottom: 0, child: NumberingValueDialog(
+                    initial: controller.currentNumberValue,
+                    onOK: { [weak self] n in
+                        guard let self else { return }
+                        self.controller.setNumberingValue(n)
+                        self.setState { self._numberingValueOpen = false }
+                        self._editorFocus.requestFocus()
+                    },
+                    onCancel: { [weak self] in
+                        self?.setState { self?._numberingValueOpen = false }
                         self?._editorFocus.requestFocus()
                     })),
             ])
