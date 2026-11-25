@@ -202,6 +202,13 @@ struct SheetPivot: Equatable, Sendable {
     /// Rows heading a group of an outer field's items, set on a line of
     /// their own (outline and compact form).
     var subheadingRows: Set<Int> = []
+    /// The parts, so a save can follow what moved: the pivot table part, its cache definition, the cache's source
+    /// (`'Sheet 1'!A1:D20`, as a formula would write it) and the two as the file had them.
+    var path: String? = nil
+    var cachePath: String? = nil
+    var source: String? = nil
+    var originalSource: String? = nil
+    var originalRef: CellRange? = nil
 }
 
 enum PivotsXML {
@@ -220,12 +227,61 @@ enum PivotsXML {
             // its row: `<i>` with no type, nothing repeated from the row
             // above, and fewer items than fields (tabular form puts the
             // first inner item beside it).
+            p.path = path; p.originalRef = ref
+            if let cache = SheetDrawingsXML._relTargets(parts, of: path).values.sorted().first(where: { $0.containsSubstring("pivotCacheDefinition") }),
+               let src = Xlsx._part(parts, cache).flatMap({ XNode.parse($0) })?.child("cacheSource"), src["type"] == "worksheet",
+               let ws = src.child("worksheetSource"), let sheet = ws["sheet"], let r = ws["ref"], ws["r:id"] == nil {
+                p.cachePath = cache
+                p.source = Formula.quoteSheet(sheet) + "!" + r
+                p.originalSource = p.source
+            }
             for (j, i) in (root.child("rowItems")?.kids("i") ?? []).enumerated()
             where fields >= 2 && i["t"] == nil && (Int(i["r"] ?? "0") ?? 0) == 0 && i.kids("x").count < fields {
                 p.subheadingRows.insert(ref.top + p.headerRows + j)
             }
             return p
         }
+    }
+}
+
+extension PivotsXML {
+    /// `'Sheet 1'!$A$1:$D$20` as the two attributes of a worksheetSource.
+    static func splitSource(_ t: String) -> (sheet: String, ref: String)? {
+        guard let bang = t.lastIndex(of: "!") else { return nil }
+        var sheet = String(t[t.startIndex ..< bang])
+        if sheet.hasPrefix("'"), sheet.hasSuffix("'"), sheet.count >= 2 { sheet = String(sheet.dropFirst().dropLast()).replacingAll("''", with: "'") }
+        let ref = String(t[t.index(after: bang)...]).replacingAll("$", with: "")
+        guard CellRange(ref) != nil else { return nil }
+        return (sheet, ref)
+    }
+
+    /// The attribute `name="..."` of the first `<tag ...>` in `xml` set to `value` (escaped); nil when there is none.
+    private static func setAttr(_ xml: String, tag: String, _ name: String, _ value: String) -> String? {
+        guard let a = xml.findRange(of: "<" + tag), let end = xml.findRange(of: ">", in: a.upperBound ..< xml.endIndex),
+              let k = xml.findRange(of: " " + name + "=\"", in: a.upperBound ..< end.lowerBound),
+              let q = xml.findRange(of: "\"", in: k.upperBound ..< end.lowerBound) else { return nil }
+        return String(xml[..<k.upperBound]) + Xlsx._esc(value) + String(xml[q.lowerBound...])
+    }
+
+    /// The pivot parts a save must change because the sheet's cells moved or its source sheet was renamed:
+    /// nothing for a pivot whose source and place are as the file had them (those parts stay byte for byte).
+    static func patched(sheets: [Worksheet], parts: [String: Data]) -> [String: Data] {
+        var out: [String: Data] = [:]
+        for ws in sheets {
+            for p in ws.pivots {
+                if let path = p.path, let ref = p.ref as CellRange?, let was = p.originalRef, ref != was,
+                   let d = out[path] ?? parts[path], var x = Optional(String(decoding: d, as: UTF8.self)),
+                   let y = setAttr(x, tag: "location", "ref", ref.a1) { x = y; out[path] = Data(x.utf8) }
+                if let cp = p.cachePath, let src = p.source, src != p.originalSource, let (sheet, ref) = splitSource(src),
+                   let d = out[cp] ?? parts[cp] {
+                    var x = String(decoding: d, as: UTF8.self)
+                    if let y = setAttr(x, tag: "worksheetSource", "sheet", sheet) { x = y }
+                    if let y = setAttr(x, tag: "worksheetSource", "ref", ref) { x = y }
+                    out[cp] = Data(x.utf8)
+                }
+            }
+        }
+        return out
     }
 }
 
