@@ -7563,6 +7563,33 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(c.document.paragraphs.prefix(2).map { $0.text }, ["FromXml A", "FromXml A"])
     }
 
+    /// A saved run keeps its original properties until it is edited.
+    func testASavedRunKeepsItsPropertiesUntilItIsEdited() throws {
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .letter))
+        let di = try XCTUnwrap(entries.firstIndex { $0.name == "word/document.xml" })
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let body = try XCTUnwrap(xml.range(of: "<w:body>")).upperBound ..< (try XCTUnwrap(xml.range(of: "<w:sectPr"))).lowerBound
+        let rPr = "<w:rPr><w:rFonts w:asciiTheme=\"minorHAnsi\" w:hAnsiTheme=\"minorHAnsi\" w:cstheme=\"minorBidi\"/><w:b w:val=\"0\"/><w:bCs w:val=\"0\"/><w:color w:val=\"1F497D\" w:themeColor=\"text2\" w:themeShade=\"BF\"/><w:szCs w:val=\"30\"/></w:rPr>"
+        xml.replaceSubrange(body, with: "<w:p><w:r>\(rPr)<w:t>Theme text</w:t></w:r></w:p>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        func saved(_ doc: RichDocument) throws -> String {
+            String(decoding: try XCTUnwrap(try Zip.read(try DocxFormat.write(doc, pageSetup: .letter)).first { $0.name == "word/document.xml" }).data, as: UTF8.self)
+        }
+        let doc = try DocxFormat.read(try Zip.write(entries)).document
+        let out = try saved(doc)
+        for part in ["w:asciiTheme=\"minorHAnsi\"", "w:cstheme=\"minorBidi\"", "<w:b w:val=\"0\"/><w:bCs w:val=\"0\"/>", "w:themeColor=\"text2\" w:themeShade=\"BF\"", "<w:szCs w:val=\"30\"/>"] {
+            XCTAssertTrue(out.containsSubstring(part), part)
+        }
+        // Edited: bold on writes the new look from the fields, the old properties are not repeated.
+        let c = RichDocumentController(document: doc)
+        c.moveTo(RichPosition(paragraph: 0, offset: 0), extend: false)
+        c.moveTo(RichPosition(paragraph: 0, offset: 10), extend: true)
+        c.toggleBold()
+        let edited = try saved(c.document)
+        XCTAssertFalse(edited.containsSubstring("<w:b w:val=\"0\"/>"), edited)
+        XCTAssertTrue(edited.containsSubstring("<w:b/>"), edited)
+    }
+
     func testBlockLevelContentControlsSurviveASave() throws {
         var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .letter))
         let di = try XCTUnwrap(entries.firstIndex { $0.name == "word/document.xml" })

@@ -146,6 +146,25 @@ public struct CharStyle: Hashable, Codable, Sendable {
     /// In points, the unit documents are written in (11pt, not 14.67px).
     public var fontSize: Double? = nil
     public var color: Color? = nil
+    /// The colour's theme attributes as the file wrote them: its six-digit hex, then ` w:themeColor=".."` (and tint/shade). Written back only while `color` still has that hex, so a colour the user changed loses them.
+    public var colorTheme: String? = nil
+    /// The run properties (`w:rPr` children) exactly as the file wrote them, and a check of every other field of this look at that moment.
+    /// A save writes them back while the look still matches, so a run the user did not touch keeps all its properties (theme fonts, effects,
+    /// complex-script twins); any edit to the look makes the check fail and the properties are written from the fields as before.
+    public var origRPr: String? = nil
+    public var origCheck: Int = 0
+    public mutating func stampOriginal(_ xml: String) {
+        origRPr = nil; origCheck = 0
+        let h = hashValue
+        origRPr = xml; origCheck = h
+    }
+    /// The file's own run properties, when the look has not changed since the file was read.
+    public var originalRPr: String? {
+        guard let o = origRPr else { return nil }
+        var c = self
+        c.origRPr = nil; c.origCheck = 0
+        return c.hashValue == origCheck ? o : nil
+    }
     public var highlight: Color? = nil
     public var link: String? = nil
     /// The hyperlink's screen tip (Word's w:tooltip); only meaningful with a link.

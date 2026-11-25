@@ -103,6 +103,7 @@ extension DocxFormat {
     /// bold heading 3 came back bold; 52288's plain runs under a bold
     /// style must not come back un-bold).
     static func _rPrXML(_ s: CharStyle, fileFonts: Set<String> = [], changeId: Int? = nil) -> String {
+        if changeId == nil, let original = s.originalRPr { return original }
         var rPr = s.styleId.map { "<w:rStyle w:val=\"\(_esc($0))\"/>" } ?? ""
         func off(_ tag: String, _ sw: CharSwitches) -> String { s.off.contains(sw) ? "<w:\(tag) w:val=\"0\"/>" : "" }
     rPr += _rFontsXML(s, fileFonts: fileFonts)
@@ -119,7 +120,11 @@ extension DocxFormat {
     } else if s.off.contains(.underline) { rPr += "<w:u w:val=\"none\"/>" }
     if s.strikethrough { rPr += s.doubleStrike ? "<w:dstrike/>" : "<w:strike/>" } else { rPr += off("strike", .strikethrough) }
     if let em = s.emphasis { rPr += "<w:em w:val=\"\(em)\"/>" }
-    if let color = s.color { rPr += "<w:color w:val=\"\(_hex(color))\"/>" }
+    if let color = s.color {
+        let hex = _hex(color)
+        let theme = s.colorTheme.flatMap { $0.hasPrefix(hex) ? String($0.dropFirst(hex.count)) : nil } ?? ""
+        rPr += "<w:color w:val=\"\(hex)\"\(theme)/>"
+    }
     if let ls = s.letterSpacing, ls != 0 { rPr += "<w:spacing w:val=\"\(Int((ls * 20).rounded()))\"/>" }
     if let w = s.horizontalScale, w != 1 { rPr += "<w:w w:val=\"\(Int((w * 100).rounded()))\"/>" }
     if let k = s.kerningFrom { rPr += "<w:kern w:val=\"\(Int((k * 2).rounded()))\"/>" }
@@ -844,8 +849,11 @@ extension DocxFormat {
             case "w:smallCaps": cs.smallCaps = !_isOff(child); if cs.smallCaps { cs.off.remove(.smallCaps) } else { cs.off.insert(.smallCaps) }
             case "w:sz": sawSz = true; if let v = Double(child["w:val"] ?? "") { cs.fontSize = v / 2 }
             case "w:color":
+                cs.colorTheme = nil
                 if let hex = child["w:val"], hex.lowercased() != "auto", let v = Int(hex, radix: 16) {
                     cs.color = Color(argb: 0xFF, (v >> 16) & 0xFF, (v >> 8) & 0xFF, v & 0xFF)
+                    let theme = ["w:themeColor", "w:themeTint", "w:themeShade"].compactMap { k in child[k].map { " \(k)=\"\(_esc($0))\"" } }.joined()
+                    if !theme.isEmpty { cs.colorTheme = _hex(cs.color!) + theme }
                 } else if child["w:val"]?.lowercased() == "auto" {
                     // "auto" is the text colour: a style based on a blue
                     // heading that says auto is black (65099's Edf Titre 3).
@@ -1291,12 +1299,12 @@ extension DocxFormat {
             }
             let anchorOnly = p.image?.sourceXML?.containsSubstring("<wp:anchor") ?? false
             if p.text.isEmpty, p.image == nil || anchorOnly, let first = p.runs.first {
-                markRPr += _rPrXML(first.style, fileFonts: doc.fileFonts)
+                markRPr += _rPrXML({ var m = first.style; m.origRPr = nil; return m }(), fileFonts: doc.fileFonts)
             } else if let mark = p.style.mark {
                 // The mark's own look on a paragraph with text: a list
                 // number is formatted with it, and a hidden mark over
                 // hidden text makes Word show no line and no border.
-                markRPr += _rPrXML(mark, fileFonts: doc.fileFonts)
+                markRPr += _rPrXML({ var m = mark; m.origRPr = nil; return m }(), fileFonts: doc.fileFonts)
             } else if p.style.markHidden {
                 markRPr += "<w:vanish/>"
             }
