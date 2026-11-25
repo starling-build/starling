@@ -1568,7 +1568,11 @@ final class OfficeShellState: State<StatefulWidget> {
                 Positioned(left: 0, top: 0, right: 0, bottom: 0, child: Listener(
                     onPointerDown: { [weak self] _ in self?._commitNote() }, behavior: .translucent, child: SizedBox(expand: ()))),
                 Positioned(left: box.left, top: box.top, child: SizedBox(width: max(box.width, 240),
-                    child: FluentTextBox(controller: _noteText, maxLines: 8, autofocus: true))),
+                    child: FluentTextBox(controller: _noteText, maxLines: 8,
+                        style: TextStyle(color: Color(0xFF000000), fontSize: 10 * 96 / 72 * session.zoom),
+                        padding: EdgeInsets.zero,
+                        decoration: BoxDecoration(color: Color(0xFFFFFFFF)), focusedDecoration: BoxDecoration(color: Color(0xFFFFFFFF)),
+                        showFocusRing: false, autofocus: true))),
             ])
         }
         if _pageSetupOpen {
