@@ -679,6 +679,19 @@ final class DeckController: ChangeNotifier {
         return count
     }
 
+    /// Replace every match of `pattern` in the deck's text (shapes, tables, notes) as one undo step; returns how many.
+    @discardableResult
+    func replaceEverywhere(_ pattern: TextPattern, with template: String) -> Int {
+        let count = matches(pattern).count
+        guard count > 0 else { return 0 }
+        _checkpoint()
+        for i in slides.indices {
+            for body in textStops(i) { body.controller.replaceAll(pattern, with: template) }
+        }
+        _changed()
+        return count
+    }
+
     // MARK: Header and footer
 
     /// PowerPoint's Header & Footer settings for slides.
