@@ -59,8 +59,16 @@ final class SheetsPivotKeepTests: XCTestCase {
                 return Set(r.children.compactMap { $0.attrs["PartName"] }.filter { pv($0) })
             }
             let ctGone = ct(orig).subtracting(ct(saved)).sorted()
-            let bad = !gone.isEmpty || !diff.isEmpty || wo != ws || !refGone.isEmpty || !ctGone.isEmpty
-            lines.append("\(f)\t\(bad ? "LOSS" : "ok")\tbyte-same \(same), equal \(effective)" + (gone.isEmpty ? "" : "\tGONE \(gone)") + (diff.isEmpty ? "" : "\tDIFF \(diff)") + (wo != ws ? "\tWORKBOOK pivotCaches \(wo) -> \(ws)" : "") + (refGone.isEmpty ? "" : "\tREF-GONE \(refGone)") + (ctGone.isEmpty ? "" : "\tCT-GONE \(ctGone)"))
+            // the workbook's own relationships, Type and Target together (a chart sheet once came
+            // back as a worksheet link)
+            let wrels: (([ZipEntry]) -> Set<String>) = { es in
+                guard let w = es.first(where: { $0.name == "xl/_rels/workbook.xml.rels" }) else { return [] }
+                return Set((XNode.parse(w.data)?.relationships() ?? []).map { ($0.attrs["Type"] ?? "").split(separator: "/").last.map(String.init)! + " " + ($0.attrs["Target"] ?? "") }
+                    .filter { !$0.hasPrefix("calcChain") })
+            }
+            let relGone = wrels(orig).subtracting(wrels(saved)).sorted()
+            let bad = !gone.isEmpty || !diff.isEmpty || wo != ws || !refGone.isEmpty || !ctGone.isEmpty || !relGone.isEmpty
+            lines.append("\(f)\t\(bad ? "LOSS" : "ok")\tbyte-same \(same), equal \(effective)" + (gone.isEmpty ? "" : "\tGONE \(gone)") + (diff.isEmpty ? "" : "\tDIFF \(diff)") + (relGone.isEmpty ? "" : "\tWORKBOOK RELS \(relGone)") + (wo != ws ? "\tWORKBOOK pivotCaches \(wo) -> \(ws)" : "") + (refGone.isEmpty ? "" : "\tREF-GONE \(refGone)") + (ctGone.isEmpty ? "" : "\tCT-GONE \(ctGone)"))
         }
         try lines.joined(separator: "\n").write(toFile: env["STARLING_PIVOT_OUT"] ?? "/tmp/pivot-out.txt", atomically: true, encoding: .utf8)
     }
