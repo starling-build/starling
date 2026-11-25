@@ -14,10 +14,11 @@ enum ChartPartType {
         guard let parsed = XNode.parse(Data(xml.utf8)) else { return nil }
         // Column <-> bar keeps every byte: only the bars' direction and the axes' sides change.
         let existing = groups(ChartXML.canonical(parsed).first("c:chart")?.first("c:plotArea") ?? parsed)
-        if chart.type == .column || chart.type == .bar, existing.count == 1, existing[0].name == "c:barChart" {
+        if !hasVariant(xml), chart.type == .column || chart.type == .bar, existing.count == 1, existing[0].name == "c:barChart" {
             return swapBars(xml, chart.type)
         }
         let space = ChartXML.canonical(parsed)
+        flatten(space)
         guard space.name == "c:chartSpace", let plot = space.first("c:chart")?.first("c:plotArea"), convert(plot, to: chart) else { return nil }
         return PptxXML.serialize(space)
     }
@@ -50,8 +51,7 @@ enum ChartPartType {
     /// paints series alike); axes added or dropped as the type needs. Other groups of a combination chart stay.
     static func convert(_ plot: XNode, to c: Chart) -> Bool {
         let gs = groups(plot)
-        guard let group = gs.first, !gs.contains(where: { ["c:stockChart", "c:bubbleChart", "c:bar3DChart", "c:line3DChart",
-                                                          "c:area3DChart", "c:pie3DChart"].contains($0.name) }) else { return false }
+        guard let group = gs.first, !gs.contains(where: { variantGroups.contains($0.name) }) else { return false }
         // Old axes referenced by the group, to reuse when the new type has axes too.
         let oldAx = group.all("c:axId").compactMap { $0["val"] }
         let name: String
@@ -66,9 +66,8 @@ enum ChartPartType {
         }
         let oldSers = group.all("c:ser")
         // A pie keeps every series in the part (Excel draws the first and keeps the rest, so a switch back loses nothing).
-        let wanted = c.type.isPie ? Array(0..<oldSers.count) : Array(0..<c.series.count)
+        let wanted = (c.type.isPie ? Array(0..<oldSers.count) : Array(0..<c.series.count)).filter { $0 < oldSers.count }
         let keepsLook = !(c.type.isPie || group.name == "c:pieChart" || group.name == "c:doughnutChart" || c.type == .scatter || group.name == "c:scatterChart")
-        guard oldSers.count >= wanted.count else { return false }
         var sers: [XNode] = []
         for i in wanted.indices {
             let ser = node("c:ser")
