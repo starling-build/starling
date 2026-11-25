@@ -58,8 +58,10 @@ final class SlideContextMenuTests: XCTestCase {
 
     func testTheShapeMenuGroupsAndUngroups() throws {
         let (ui, deck, canvas) = try shell()
-        let a = deck.currentSlide.shapes[0], b = deck.currentSlide.shapes[1]
+        let a = deck.addShape(.rect), b = deck.addShape(.rect)
+        a.frame = Rect.fromLTWH(20, 440, 200, 60); b.frame = Rect.fromLTWH(300, 440, 200, 60)
         deck.selectShapes([a, b])
+        settle(ui)
         func tapLast(_ label: String) throws {
             let row = try XCTUnwrap(ui.elements().last { ($0.widget as? Text)?.data == label })
             let box = try XCTUnwrap(row.findRenderObject() as? RenderBox)
@@ -68,6 +70,7 @@ final class SlideContextMenuTests: XCTestCase {
         }
         ui.tap(at: canvas.screenPoint(a.frame.center), buttons: kSecondaryMouseButton)
         settle(ui)
+        XCTAssertTrue(ui.has(text: "Align Left"), "menu open: \(ui.texts().suffix(25))")
         try tapLast("Group")
         XCTAssertNotNil(a.group); XCTAssertEqual(a.group?.key, b.group?.key)
         ui.tap(at: canvas.screenPoint(a.frame.center), buttons: kSecondaryMouseButton)

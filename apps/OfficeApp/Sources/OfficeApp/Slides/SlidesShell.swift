@@ -1199,7 +1199,8 @@ final class SlidesShellState: State<StatefulWidget> {
         case "x" where shapes: deck.cutShapes()
         case "v" where !typing && deck.canPasteShapes: deck.pasteShapes()
         case "g" where shapes && !typing && mods.contains(.shift): deck.ungroupSelection()
-        case "g" where shapes && !typing: deck.groupSelection()
+        case "g" where shapes && !typing:
+            if let why = deck.groupRefusal { _flash(why) } else { deck.groupSelection() }
         case "d" where shapes: deck.duplicateSelection()
         case "d" where !typing: deck.duplicateSlide(deck.current)
         case "f": _openFind(replace: false)

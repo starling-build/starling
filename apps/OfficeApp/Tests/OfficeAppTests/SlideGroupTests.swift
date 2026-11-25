@@ -8,8 +8,8 @@ import OfficeText
 final class SlideGroupTests: XCTestCase {
     private func deckWithThree() -> (DeckController, [SlideShape]) {
         let deck = DeckController()
-        _ = deck.addShape(.rect); _ = deck.addShape(.rect)
-        return (deck, deck.currentSlide.shapes)
+        _ = deck.addShape(.rect); _ = deck.addShape(.rect); _ = deck.addShape(.rect)
+        return (deck, deck.currentSlide.shapes.filter { $0.role == nil })
     }
 
     func testGroupUngroupAndUndo() {
@@ -40,8 +40,30 @@ final class SlideGroupTests: XCTestCase {
         XCTAssertEqual(copies[0].group?.key, copies[1].group?.key)
     }
 
+    func testCopiesGetFreshNamesAndPlaceholdersRefuseGrouping() {
+        let (deck, s) = deckWithThree()
+        let placeholders = deck.currentSlide.shapes.filter { $0.role != nil }
+        if placeholders.count >= 2 {
+            deck.selectShapes(Array(placeholders.prefix(2)))
+            XCTAssertFalse(deck.canGroup)
+            XCTAssertNotNil(deck.groupRefusal)
+        }
+        let plain = deck.currentSlide.shapes.filter { $0.role == nil }
+        XCTAssertGreaterThanOrEqual(plain.count, 2)
+        deck.selectShapes(Array(plain.prefix(2))); deck.groupSelection()
+        let before = Set(deck.currentSlide.shapes.map(\.name))
+        deck.duplicateSelection()
+        for c in deck.selection { XCTAssertFalse(before.contains(c.name), "\(c.name) is new") }
+        XCTAssertNotEqual(deck.selection[0].group?.name, plain[0].group?.name)
+        deck.copyShapes(); deck.pasteShapes()
+        XCTAssertEqual(Set(deck.currentSlide.shapes.map(\.name)).count, deck.currentSlide.shapes.count, "no two shapes share a name")
+        _ = s
+    }
+
     func testAClickSelectsTheGroupAndASecondClickTheMember() throws {
         let (deck, s) = deckWithThree()
+        s[0].frame = Rect.fromLTWH(50, 50, 200, 100); s[1].frame = Rect.fromLTWH(300, 300, 200, 100)
+        s[2].frame = Rect.fromLTWH(600, 50, 100, 100)
         deck.selectShapes([s[0], s[1]]); deck.groupSelection()
         deck.selectShapes([])
         let canvas = SlideCanvas(deck: deck, cache: SlideTextCache(), active: nil, onEdit: { _ in },

@@ -1236,6 +1236,7 @@ final class DeckController: ChangeNotifier {
         _checkpoint()
         let copies = selection.map { _copy($0, offset: offset, keepGroup: true) }
         _regroupCopies(copies)
+        _renameCopies(copies)
         currentSlide.shapes.append(contentsOf: copies)
         for c in copies { _watch(c) }
         selection = copies
@@ -1288,6 +1289,7 @@ final class DeckController: ChangeNotifier {
             _watch(shape)
         }
         _regroupCopies(pasted)
+        _renameCopies(pasted)
         currentSlide.shapes.append(contentsOf: pasted)
         selection = pasted
         _changed()
@@ -1477,7 +1479,12 @@ final class DeckController: ChangeNotifier {
     func selectWholeGroup(of shape: SlideShape) { selectShapes(groupMembers(of: shape)) }
 
     /// Two or more shapes selected: they can be grouped.
-    var canGroup: Bool { selection.count >= 2 && Set(selection.map { $0.group?.key ?? -$0.id }).count >= 2 }
+    /// Why the selection cannot be grouped, or nil. A placeholder takes its frame from its layout, and a group
+    /// would cut that link (PowerPoint does not group them either).
+    var groupRefusal: String? {
+        selection.contains { $0.role != nil } ? "Placeholders can't be grouped" : nil
+    }
+    var canGroup: Bool { groupRefusal == nil && selection.count >= 2 && Set(selection.map { $0.group?.key ?? -$0.id }).count >= 2 }
     /// Something selected belongs to a group.
     var canUngroup: Bool { selection.contains { $0.group != nil } }
 
@@ -1517,6 +1524,36 @@ final class DeckController: ChangeNotifier {
         for s in members { s.group = nil }
         selection = members
         _changed()
+    }
+
+    /// A name not yet used on the slide: "Title" becomes "Title 2", "Group 1" becomes "Group 3" if 2 is taken.
+    private func _freshName(_ name: String, taken: Set<String>) -> String {
+        if !taken.contains(name) { return name }
+        var base = name
+        if let sp = name.lastIndex(of: " "), Int(name[name.index(after: sp)...]) != nil { base = String(name[..<sp]) }
+        var n = 2
+        while taken.contains("\(base) \(n)") { n += 1 }
+        return "\(base) \(n)"
+    }
+
+    /// Copies get names of their own, as they get ids; a copied group too.
+    private func _renameCopies(_ copies: [SlideShape]) {
+        var taken = Set(currentSlide.shapes.map(\.name))
+        for c in copies {
+            c.name = _freshName(c.name, taken: taken)
+            taken.insert(c.name)
+        }
+        var groupNames = Set(currentSlide.shapes.compactMap { $0.group?.name })
+        var renamed: [Int: String] = [:]
+        for c in copies {
+            guard var g = c.group else { continue }
+            if let known = renamed[g.key] { g.name = known } else {
+                g.name = _freshName(g.name, taken: groupNames)
+                groupNames.insert(g.name)
+                renamed[g.key] = g.name
+            }
+            c.group = g
+        }
     }
 
     /// Copies that keep their grouping get groups of their own, not the original's.
