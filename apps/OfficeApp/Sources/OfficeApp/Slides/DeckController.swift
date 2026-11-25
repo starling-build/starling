@@ -146,6 +146,8 @@ struct SlideState: Equatable {
     var footerFrames: [String: Rect] = [:]
     var animations: [ShapeAnimation] = []
     var sourceAnimations: [ShapeAnimation]? = nil
+    /// The file part whose comments this slide shows: its own source part, or the one it was copied from.
+    var commentsFrom: String? = nil
 }
 
 struct DeckState: Equatable {
@@ -370,6 +372,7 @@ final class DeckController: ChangeNotifier {
         copy.transition = source.transition
         copy.footerFrames = source.footerFrames
         copy.layoutPart = source.layoutPart
+        copy.commentsFrom = source.commentsFrom ?? source.sourcePart
         return copy
     }
 
@@ -1409,7 +1412,7 @@ final class DeckController: ChangeNotifier {
                        sourcePart: slide.sourcePart,
                        transition: slide.transition, timingXML: slide.timingXML,
                        footerFrames: slide.footerFrames, animations: slide.animations,
-                       sourceAnimations: slide.sourceAnimations)
+                       sourceAnimations: slide.sourceAnimations, commentsFrom: slide.commentsFrom ?? slide.sourcePart)
         }, current: current, slideSize: slideSize, theme: theme, ownTemplates: ownTemplates, recolourTheme: recolourTheme, firstSlideNum: firstSlideNum)
     }
 
@@ -1462,6 +1465,7 @@ final class DeckController: ChangeNotifier {
             slide.footerFrames = ss.footerFrames
             slide.animations = ss.animations
             slide.sourceAnimations = ss.sourceAnimations
+            slide.commentsFrom = ss.commentsFrom
             next.append(slide)
         }
         for slide in slides {
