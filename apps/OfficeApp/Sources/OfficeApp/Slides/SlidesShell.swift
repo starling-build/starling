@@ -1241,7 +1241,8 @@ final class SlidesShellState: State<StatefulWidget> {
             onShortcut: { [weak self] key, mods in self?._shortcut(key, mods) ?? false },
             modifiers: { [weak self] in self?._deckChords.modifiers ?? [] },
             spellChecker: session.checkSpelling ? _spelling : nil,
-            animationBadges: _tab == .animations || _animationPane))]
+            animationBadges: _tab == .animations || _animationPane,
+            onContextMenu: { [weak self] at, shape in self?._showSlideMenu(at: at, on: shape) }))]
         if _showNotes { work.append(_notesPane(fluent)) }
         if deck.notesPageView && !_sorter {
             work = [Expanded(child: _notesPageView(fluent))]
@@ -1502,26 +1503,82 @@ final class SlidesShellState: State<StatefulWidget> {
     private func _showThumbMenu(at point: Offset, context: any BuildContext) {
         let i = deck.current
         let hidden = deck.currentSlide.hidden
-        var items: [MenuFlyoutItemBase] = [
-            MenuFlyoutItem(text: Text("New Slide"), onPressed: { [weak self] in self?.deck.addSlide() }),
-            MenuFlyoutItem(text: Text("Cut"), onPressed: { [weak self] in self?.deck.cutSlides() }),
-            MenuFlyoutItem(text: Text("Copy"), onPressed: { [weak self] in self?.deck.copySlides() }),
-            MenuFlyoutItem(text: Text("Paste"), onPressed: deck.canPasteSlides ? { [weak self] in self?.deck.pasteSlides() } : nil),
-            MenuFlyoutSeparator(),
-            MenuFlyoutItem(text: Text("Duplicate Slide"), onPressed: { [weak self] in self?.deck.duplicateSlide(i) }),
-            MenuFlyoutItem(text: Text("Delete Slide"),
-                           onPressed: deck.slides.count > 1 ? { [weak self] in self?.deck.deleteSelectedSlides() } : nil),
-            MenuFlyoutSeparator(),
-            MenuFlyoutItem(text: Text(hidden ? "Show Slide" : "Hide Slide"),
-                           onPressed: { [weak self] in self?.deck.toggleHiddenSelected() }),
-            MenuFlyoutSeparator(),
-        ]
+        let m = ContextMenuBuilder()
+        m.item("New Slide") { [weak self] in self?.deck.addSlide() }
+        m.item("Cut") { [weak self] in self?.deck.cutSlides() }
+        m.item("Copy") { [weak self] in self?.deck.copySlides() }
+        m.item("Paste", enabled: deck.canPasteSlides) { [weak self] in self?.deck.pasteSlides() }
+        m.separator()
+        m.item("Duplicate Slide") { [weak self] in self?.deck.duplicateSlide(i) }
+        m.item("Delete Slide", enabled: deck.slides.count > 1) { [weak self] in self?.deck.deleteSelectedSlides() }
+        m.separator()
+        m.item(hidden ? "Show Slide" : "Hide Slide") { [weak self] in self?.deck.toggleHiddenSelected() }
+        m.separator()
         for kind in SlideLayoutKind.allCases {
-            items.append(MenuFlyoutItem(text: Text("Layout: \(kind.name)"),
-                                        onPressed: kind == deck.currentSlide.layout ? nil
-                                            : { [weak self] in self?.deck.applyLayout(kind, to: i) }))
+            m.item("Layout: \(kind.name)", enabled: kind != deck.currentSlide.layout) { [weak self] in
+                self?.deck.applyLayout(kind, to: i)
+            }
         }
-        _thumbMenu.showFlyout(in: context, at: point) { _ in MenuFlyout(items: items) }
+        m.show(_thumbMenu, in: context, at: point)
+    }
+
+    /// The right-click menu on the slide: a shape or picture, the text being
+    /// edited (with a table's row and column commands inside a table), or the
+    /// empty slide. Every row acts on the selection as it stands.
+    private func _showSlideMenu(at point: Offset, on shape: SlideShape?) {
+        let m = ContextMenuBuilder()
+        let deck = self.deck
+        if let shape, _active === shape, !_notesActive {
+            let c = session.controller
+            let has = c.hasSelection
+            m.item("Cut", enabled: has) { if let d = c.cutSelectionData() { Clipboard.setData(d) } }
+            m.item("Copy", enabled: has) { if let d = c.copySelectionData() { Clipboard.setData(d) } }
+            m.item("Paste") { [weak self] in self?.session.onPaste?(false) }
+            m.item("Paste: Keep Text Only") { [weak self] in self?.session.onPaste?(true) }
+            m.separator()
+            m.miniButton(FluentSystemIcons.textBold, "Bold", on: c.selectionAll { $0.bold }) { c.toggleBold() }
+            m.miniButton(FluentSystemIcons.textItalic, "Italic", on: c.selectionAll { $0.italic }) { c.toggleItalic() }
+            m.miniButton(FluentSystemIcons.textUnderline, "Underline", on: c.selectionAll { $0.underline }) { c.toggleUnderline() }
+            if c.isInCell {
+                m.separator()
+                m.item("Insert Row Above") { c.insertRow(below: false) }
+                m.item("Insert Row Below") { c.insertRow(below: true) }
+                m.item("Insert Column Left") { c.insertColumn(after: false) }
+                m.item("Insert Column Right") { c.insertColumn(after: true) }
+                m.item("Delete Row") { c.deleteRow() }
+                m.item("Delete Column") { c.deleteColumn() }
+            }
+        } else if shape != nil, !deck.selection.isEmpty {
+            m.item("Cut") { deck.cutShapes() }
+            m.item("Copy") { deck.copyShapes() }
+            m.item("Paste", enabled: deck.canPasteShapes) { deck.pasteShapes() }
+            m.item("Duplicate") { deck.duplicateSelection() }
+            m.item("Delete") { deck.deleteSelection() }
+            m.separator()
+            m.item("Bring to Front") { deck.arrange(.front) }
+            m.item("Bring Forward") { deck.arrange(.forward) }
+            m.item("Send Backward") { deck.arrange(.backward) }
+            m.item("Send to Back") { deck.arrange(.back) }
+            m.separator()
+            m.item("Align Left") { deck.align(.left) }
+            m.item("Align Center") { deck.align(.center) }
+            m.item("Align Right") { deck.align(.right) }
+            m.item("Align Top") { deck.align(.top) }
+            m.item("Align Middle") { deck.align(.middle) }
+            m.item("Align Bottom") { deck.align(.bottom) }
+            if deck.selection.contains(where: { if case .picture = $0.kind { return true } else { return false } }) {
+                m.separator()
+                m.item("Reset Picture") { deck.resetPictures() }
+            }
+        } else {
+            m.item("Paste", enabled: deck.canPasteShapes) { deck.pasteShapes() }
+            m.item("Select All") { deck.selectShapes(deck.currentSlide.shapes) }
+            m.separator()
+            m.item("New Slide") { deck.addSlide() }
+            m.item("Duplicate Slide") { deck.duplicateSlide(deck.current) }
+        }
+        guard let context else { return }
+        m.show(_thumbMenu, in: context, at: point)
     }
 
     // MARK: Slide Sorter

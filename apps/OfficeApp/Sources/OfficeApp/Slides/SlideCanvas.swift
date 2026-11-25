@@ -30,13 +30,17 @@ final class SlideCanvas: StatefulWidget {
     /// Number each animated shape by the click that brings it in, as
     /// PowerPoint does while its Animations tab is open.
     let animationBadges: Bool
+    /// A right-click: where, and on which shape (nil for the empty slide).
+    let onContextMenu: ((Offset, SlideShape?) -> Void)?
 
     init(key: (any Key)? = nil, deck: DeckController, cache: SlideTextCache, active: SlideShape?,
          onEdit: @escaping (SlideShape?) -> Void,
          onShortcut: @escaping (KeyData, KeyModifiers) -> Bool,
          modifiers: @escaping () -> KeyModifiers = { [] },
-         spellChecker: RichSpellChecker?, animationBadges: Bool = false) {
+         spellChecker: RichSpellChecker?, animationBadges: Bool = false,
+         onContextMenu: ((Offset, SlideShape?) -> Void)? = nil) {
         self.modifiers = modifiers
+        self.onContextMenu = onContextMenu
         self.animationBadges = animationBadges
         self.deck = deck
         self.cache = cache
@@ -291,8 +295,14 @@ final class SlideCanvasState: State<StatefulWidget> {
                                     showPrompt ? shape.prompt! : "", style: promptStyle,
                                     textAlign: align == .center ? .center : align == .right ? .right : .left))))
         stack.append(Positioned(left: 0, top: 0, right: 0, bottom: 0, child: Listener(
-            onPointerDown: { [weak self] _ in
-                guard let self, self._w.active !== shape else { return }
+            onPointerDown: { [weak self] e in
+                guard let self else { return }
+                if e.buttons & kSecondaryMouseButton != 0, let menu = self._w.onContextMenu {
+                    if self._w.active !== shape, !self.deck.isSelected(shape) { self.deck.selectShapes([shape]) }
+                    menu(e.position, shape)
+                    return
+                }
+                guard self._w.active !== shape else { return }
                 // Shift/Ctrl+click adds or removes the shape and does not start typing.
                 if self._additive { self.deck.toggleSelected(shape); return }
                 self.deck.selectShapes([shape])
@@ -404,6 +414,13 @@ final class SlideCanvasState: State<StatefulWidget> {
     private var _additive: Bool { let m = _w.modifiers(); return m.contains(.shift) || m.contains(.control) || m.contains(.meta) }
 
     private func _backdropDown(_ e: PointerDownEvent) {
+        if e.buttons & kSecondaryMouseButton != 0, let menu = _w.onContextMenu {
+            FocusManager.instance.focusedNode?.unfocus()
+            _w.onEdit(nil)
+            deck.selectShapes([])
+            menu(e.position, nil)
+            return
+        }
         FocusManager.instance.focusedNode?.unfocus()
         _w.onEdit(nil)
         // With Shift or Ctrl held the marquee adds to what is selected.
@@ -415,6 +432,15 @@ final class SlideCanvasState: State<StatefulWidget> {
 
     private func _shapeDown(_ shape: SlideShape, _ e: PointerDownEvent) {
         Self._log("down on shape \(shape.id) at \(e.position)")
+        if e.buttons & kSecondaryMouseButton != 0, let menu = _w.onContextMenu {
+            if _w.active !== shape {
+                FocusManager.instance.focusedNode?.unfocus()
+                _w.onEdit(nil)
+            }
+            if !deck.isSelected(shape) { deck.selectShapes([shape]) }
+            menu(e.position, shape)
+            return
+        }
         let wasSelected = deck.isSelected(shape)
         if _w.active !== shape {
             // Leaves any text being edited (a box's or the notes') and
