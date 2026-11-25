@@ -32,6 +32,9 @@ final class NoteInsertTests: XCTestCase {
         let back = try DocxFormat.read(bytes).document
         XCTAssertEqual(back.footnotes.count, 2)
         XCTAssertEqual(back.paragraphs[0].runs.compactMap { $0.style.note }.map(\.id), [2, 1])
+        // Bodies are mapped by w:id, not by order: ids run 2, 1 in the text.
+        XCTAssertEqual(back.footnotes[2]?.first?.text, "1 ")
+        XCTAssertEqual(back.footnotes[1]?.first?.text, "2 ")
         // One undo takes back the mark, the note and the renumbering.
         c.undo()
         XCTAssertEqual(c.document.paragraphs[0].text, "Alpha beta 1gamma")
