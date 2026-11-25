@@ -186,6 +186,15 @@ final class SlideFormatShapeTests: XCTestCase {
         XCTAssertNil(Extrusion.scene(camera: "orthographicFront", from: nil))
     }
 
+    func testTextLiesOnTheTiltedFace() throws {
+        XCTAssertNil(Extrusion.frontMap(Scene3D(depth: 0)))
+        let s = try XCTUnwrap(Extrusion.scene(camera: "isometricLeftDown", from: nil))
+        let m = try XCTUnwrap(Extrusion.frontMap(s))
+        // The shape's x step shortens to .707 across and slides down by .408; its y step stays upright and keeps .816 of its length.
+        XCTAssertEqual(m.a, 0.707, accuracy: 0.01); XCTAssertEqual(abs(m.b), 0.408, accuracy: 0.01)
+        XCTAssertEqual(m.c, 0, accuracy: 0.01); XCTAssertEqual(m.d, 0.816, accuracy: 0.01)
+    }
+
     func testIsometricTopCamerasAreTrueIsometric() throws {
         // PowerPoint's print of a 130x70 rect under isometricTopUp (rotation-check.pdf): corners at (-71.5,11.5), (71.5,-12.5),
         // (21,-41.5), (-22,41.5) from the centre, i.e. rows (.707,.707) and (-.408,.408) of the turn.
