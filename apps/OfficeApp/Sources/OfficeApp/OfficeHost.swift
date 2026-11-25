@@ -128,6 +128,7 @@ final class OfficeScene {
             buttons.append(.init(id: "bullets", title: "Bullets", symbol: "list.bullet", isOn: c.list == .bullet) { c.toggleList(.bullet) })
             buttons.append(.init(id: "numbering", title: "Numbering", symbol: "list.number", isOn: c.list == .numbered) { c.toggleList(.numbered) })
         }
+        buttons.append(contentsOf: c.context)
         publishToolbar(buttons, owner: owner)
     }
 
@@ -348,6 +349,9 @@ enum OfficeHost {
         var toggleItalic: () -> Void
         var toggleUnderline: () -> Void
         var toggleList: (ListKind) -> Void = { _ in }
+        /// Buttons for what the selection is in (a table cell, a picture, a shape), after the fixed ones; their ids
+        /// start with "ctx-", which is what the native bar sets them apart by.
+        var context: [ToolbarButton] = []
     }
 
     /// Writes an empty document of `kind` to `path`. Used by the host's own
