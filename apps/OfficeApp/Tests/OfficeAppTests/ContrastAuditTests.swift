@@ -51,8 +51,11 @@ final class SystemDisplayChromeTests: XCTestCase {
     func testTextSizeScalesTheChromeUpToItsCap() {
         let big = OfficeAppearance.theme(.light, display: DisplaySettings(textScale: 1.2))
         XCTAssertEqual(big.typography.body?.fontSize ?? 0, 13 * 1.2, accuracy: 0.001)
-        let huge = OfficeAppearance.theme(.light, display: DisplaySettings(textScale: 3))
+        let huge = OfficeAppearance.theme(.light, display: DisplaySettings(textScale: 5))
         XCTAssertEqual(huge.typography.body?.fontSize ?? 0, 13 * DisplaySettings.maxChromeTextScale, accuracy: 0.001)
+        // A fixed row grows with the text, so it never clips it.
+        XCTAssertEqual(OfficeAppearance.rowHeight(30, display: DisplaySettings(textScale: 2)), 60, accuracy: 0.001)
+        XCTAssertEqual(OfficeAppearance.rowHeight(30, display: DisplaySettings(textScale: 0.8)), 30, accuracy: 0.001)
         let small = OfficeAppearance.theme(.light, display: DisplaySettings(textScale: 0.8))
         XCTAssertEqual(small.typography.body?.fontSize ?? 0, 13, accuracy: 0.001)
     }

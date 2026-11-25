@@ -82,7 +82,7 @@ final class TitleRowBar: StatelessWidget {
                         Icon(FluentSystemIcons.back, size: 16, color: white), Chrome.gap(6),
                         Text(session.hostReturnLabel ?? "Back to \(host)", style: captionStyle, softWrap: false),
                     ])),
-                    tip: session.hostReturnLabel ?? "Back to the \(host)", width: nil, height: 32, onAccent: true,
+                    tip: session.hostReturnLabel ?? "Back to the \(host)", width: nil, height: OfficeAppearance.rowHeight(32), onAccent: true,
                     action: { [session] in session.onClose?() }),
                 Chrome.gap(12),
             ]
@@ -115,11 +115,11 @@ final class TitleRowBar: StatelessWidget {
                     FlatButton(child: Padding(padding: EdgeInsets(left: 9, top: 0, right: 9, bottom: 0),
                         child: Text(session.autoSave ? "AutoSave on" : "AutoSave off", style: captionStyle)),
                         tip: "Toggle automatic recovery copies", checked: session.autoSave,
-                        width: nil, height: 30, onAccent: true,
+                        width: nil, height: OfficeAppearance.rowHeight(30), onAccent: true,
                         action: { [session] in session.onToggleAutoSave?() }),
                 ] : []) + (roomy ? [
                     Chrome.gap(16),
-                    SizedBox(width: 230, height: 32, child: FluentTextBox(
+                    SizedBox(width: 230 * SystemDisplay.current.chromeTextScale, height: OfficeAppearance.rowHeight(32), child: FluentTextBox(
                         controller: searchController,
                         placeholderText: session.kind == .document ? "Find in document (⌘F)".keys : session.kind == .workbook ? "Find in workbook (⌘F)".keys : "Find in presentation (⌘F)".keys,
                         onSubmitted: { [onSearch] q in onSearch(q) })),

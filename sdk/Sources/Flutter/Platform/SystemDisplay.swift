@@ -16,9 +16,9 @@ public struct DisplaySettings: Equatable, Sendable {
     public init(textScale: Double = 1, increasedContrast: Bool = false, boldText: Bool = false) {
         self.textScale = textScale; self.increasedContrast = increasedContrast; self.boldText = boldText
     }
-    /// The chrome has fixed-height rows, so its text follows the system size only this far.
-    public static let maxChromeTextScale = 1.3
-    /// `textScale` limited to what the chrome can hold: never below 1 (a smaller size is not honoured), never past the cap.
+    /// The chrome's rows grow with the text; this is only a sanity limit (the largest accessibility size on iOS is about 3.1).
+    public static let maxChromeTextScale = 3.0
+    /// `textScale` limited: never below 1 (a smaller size is not honoured), never past the sanity limit.
     public var chromeTextScale: Double { min(max(textScale, 1), Self.maxChromeTextScale) }
 }
 
