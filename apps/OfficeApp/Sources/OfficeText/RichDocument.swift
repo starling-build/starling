@@ -1520,7 +1520,7 @@ public struct TableCondFills: Hashable, Codable, Sendable {
     }
 
     /// The colour the style gives the cell at `row`, `column` under the look switches (`TableLook` bits). Word applies the
-    /// parts in order, each over the last: column bands, row bands, first and last column, first and last row, the corners.
+    /// parts in order, each over the last: row bands, column bands (Word prints the column band where both meet), first and last column, first and last row, the corners.
     public func fill(look: Int, row r: Int, column c: Int, lastRow: Bool, lastColumn: Bool) -> Color? {
         let firstRowOn = look & TableLook.firstRow != 0, lastRowOn = look & TableLook.lastRow != 0
         let firstColOn = look & TableLook.firstColumn != 0, lastColOn = look & TableLook.lastColumn != 0
@@ -1528,11 +1528,11 @@ public struct TableCondFills: Hashable, Codable, Sendable {
         let isFirstCol = firstColOn && c == 0, isLastCol = lastColOn && lastColumn
         var f: Color? = nil
         func over(_ key: String) { if let v = byType[key] { f = v } }
-        if look & TableLook.noColumnBands == 0, colBandSize > 0, !isFirstCol, !isLastCol {
-            over((c - (firstColOn ? 1 : 0)) / colBandSize % 2 == 0 ? "band1Vert" : "band2Vert")
-        }
         if look & TableLook.noRowBands == 0, rowBandSize > 0, !isFirstRow, !isLastRow {
             over((r - (firstRowOn ? 1 : 0)) / rowBandSize % 2 == 0 ? "band1Horz" : "band2Horz")
+        }
+        if look & TableLook.noColumnBands == 0, colBandSize > 0, !isFirstCol, !isLastCol {
+            over((c - (firstColOn ? 1 : 0)) / colBandSize % 2 == 0 ? "band1Vert" : "band2Vert")
         }
         if isFirstCol { over("firstCol") }
         if isLastCol { over("lastCol") }
