@@ -1090,6 +1090,14 @@ public final class RichEditableState: State<StatefulWidget> {
             return
         }
 
+        if _chords.shift, !_controller.readOnly, event.buttons & 1 != 0, _controller.selectedImageIndex != nil, let hit = _floatingImage(at: event.localPosition),
+           hit != _controller.selectedImageIndex {
+            // Shift-click on another floating shape: picks it along with the selected one, to group them.
+            _focus.requestFocus()
+            _controller.toggleShapePick(at: hit)
+            return
+        }
+
         if let box = _selectedImageBox(), _handleHit(event.localPosition, box.rect) == nil, box.rect.contains(event.localPosition),
            _controller.pictureWrap(at: box.index, inline: box.inline) != nil {
             // The body of a selected floating picture: pressed and dragged, it moves.
@@ -1661,6 +1669,19 @@ public final class RichEditableState: State<StatefulWidget> {
                 let h = Rect.fromLTWH(c.dx - half, c.dy - half, Self.handleSize, Self.handleSize)
                 canvas.drawRect(h, fill)
                 canvas.drawRect(h, line)
+            }
+        }
+
+        // Shapes picked along with it (Shift-click): their outlines.
+        if focused, !_controller.shapePicks.isEmpty {
+            let line = Paint()
+            line.style = .stroke
+            line.strokeWidth = 1
+            line.color = _layout.theme.selectionColor.withOpacity(1)
+            for i in _controller.pickedShapeIndexes where i != _controller.selectedImageIndex {
+                guard let flow = _layout.imageRect(i), let c = _layout.canvasRects(flow).first else { continue }
+                let r = Rect.fromLTWH(c.left + _originX, c.top + _w.padding.top - _scrollY, c.width, c.height)
+                canvas.drawRect(Rect.fromLTRB(r.left.rounded() + 0.5, r.top.rounded() + 0.5, r.right.rounded() - 0.5, r.bottom.rounded() - 0.5), line)
             }
         }
 

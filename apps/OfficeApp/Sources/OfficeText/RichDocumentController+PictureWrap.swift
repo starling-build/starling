@@ -86,6 +86,37 @@ extension String {
 }
 
 extension RichDocumentController {
+    /// The picture paragraphs picked for grouping: the selected one and every Shift-clicked one, in document order.
+    public var pickedShapeIndexes: [Int] {
+        guard let main = selectedImageIndex else { return [] }
+        let picked = document.paragraphs.indices.filter { i in
+            i == main || document.paragraphs[i].image.map { image in shapePicks.contains(image.id) } == true
+        }
+        return picked
+    }
+
+    /// Shift-click on the floating shape at paragraph `index`: picks it along with the selected one, or drops it again.
+    public func toggleShapePick(at index: Int) {
+        guard let main = selectedImageIndex, index != main, let image = _floating(index, nil) else { return }
+        if let at = shapePicks.firstIndex(of: image.id) { shapePicks.remove(at: at) } else { shapePicks.append(image.id) }
+        notifyListeners()
+    }
+
+    /// One undo step: the picture paragraphs `indices` give way to paragraphs holding `images` (at the first one's place), and
+    /// the first of them is selected.
+    @discardableResult
+    public func replaceImageParagraphs(_ indices: [Int], with images: [ImageAttachment]) -> Bool {
+        let sorted = Set(indices).sorted()
+        guard let first = sorted.first, !images.isEmpty, sorted.allSatisfy({ $0 < document.paragraphs.count && document.paragraphs[$0].isImage }) else { return false }
+        edit {
+            for i in sorted.reversed() { perform(.removeParagraphs(at: i, [document.paragraphs[i]])) }
+            perform(.insertParagraphs(at: first, images.map { RichParagraph(image: $0) }))
+            shapePicks = []
+        }
+        selectImage(at: first)
+        return true
+    }
+
     /// The floating picture at paragraph `index` (its own, or inline picture `id`) with its kept anchor markup, or nil.
     private func _floating(_ index: Int, _ id: String?) -> ImageAttachment? {
         guard index < document.paragraphs.count else { return nil }

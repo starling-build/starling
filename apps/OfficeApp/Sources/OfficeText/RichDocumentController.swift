@@ -275,6 +275,8 @@ public final class RichDocumentController: ChangeNotifier {
             }
             selection = RichSelection(anchor: a, focus: f, block: block)
             if selection != oldValue {
+                // Shapes picked along with the selected one (Shift-click) last only while a picture stays selected.
+                if !shapePicks.isEmpty, selectedImageIndex == nil { shapePicks = [] }
                 // A caret move breaks the typing run and drops the pending
                 // style: Word does exactly this.
                 if !_inEdit {
@@ -299,6 +301,9 @@ public final class RichDocumentController: ChangeNotifier {
 
     /// A shape picked from Insert > Shapes that waits for the user to click or drag on the page: given the corner
     /// (points from the page's top left) and the size, it makes the picture to put there.
+    /// The ids of the floating shapes picked in addition to the selected one (Shift-click), to be grouped with it.
+    public internal(set) var shapePicks: [String] = []
+
     public var pendingShape: ((_ x: Double, _ y: Double, _ width: Double, _ height: Double) -> ImageAttachment?)? = nil
 
     /// Put the pending shape (if any) at that corner and size on the page, select it, and stop waiting.
