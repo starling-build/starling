@@ -283,7 +283,9 @@ enum WriterMetafiles {
         guard !decoding.contains(bitmap.id), !bitmap.data.isEmpty else { return nil }
         decoding.insert(bitmap.id)
         let bytes = [UInt8](bitmap.data), id = bitmap.id
-        Task { @MainActor in
+        // Not on the main actor: an export waits for this by spinning the run loop, which cannot drain the main
+        // queue from inside a block of it, and the result goes into a table under `lock` that needs no thread.
+        Task.detached(priority: .userInitiated) {
             var image: Image? = nil
             if let codec = try? await instantiateImageCodec(bytes) {
                 image = (try? await codec.getNextFrame())?.image
@@ -426,7 +428,9 @@ enum WriterGroups {
         guard !decoding.contains(key), !data.isEmpty else { return nil }
         decoding.insert(key)
         let bytes = [UInt8](data)
-        Task { @MainActor in
+        // Not on the main actor: an export waits for this by spinning the run loop, which cannot drain the main
+        // queue from inside a block of it, and the result goes into a table under `lock` that needs no thread.
+        Task.detached(priority: .userInitiated) {
             var image: Image? = nil
             if let codec = try? await instantiateImageCodec(bytes) {
                 image = (try? await codec.getNextFrame())?.image

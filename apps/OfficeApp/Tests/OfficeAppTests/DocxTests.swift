@@ -1123,6 +1123,34 @@ final class DocxTests: XCTestCase {
         XCTAssertGreaterThan(painted(), caption, "and drawn with the caption")
     }
 
+    /// The same bitmap, asked for and waited on from inside a block of the main queue (a driven tap, a command
+    /// chord, an export started from a menu action): the wait spins the run loop, which cannot drain the serial
+    /// queue it is itself running a block of, so a decode that hops to the main actor never finishes and the PDF
+    /// printed the icon without its bitmap after the eight-second timeout.
+    func testAMetafilesBitmapsDecodeFromInsideAMainQueueBlock() throws {
+        let file = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("test/corpus/docx/docs/WordWithAttachments.docx")
+        guard let docData = try? Data(contentsOf: file) else { throw XCTSkip("the corpus is not in this checkout (test/tools/corpus-cache.sh restore)") }
+        let wmf = try XCTUnwrap(try Zip.read(docData).first { $0.name == "word/media/image1.wmf" }).data
+        let icon = ImageAttachment(data: wmf, width: 54, height: 38.25, name: "image1.wmf")
+        XCTAssertTrue(WriterMetafiles.register(wmf, for: icon.id))
+        let finished = expectation(description: "decoded inside the block")
+        var decoded = false
+        DispatchQueue.main.async {
+            let recorder = NativePictureRecorder()
+            let canvas = NativeCanvas(recorder: recorder, cullRect: Rect.fromLTWH(0, 0, 54, 38.25))
+            _ = WriterMetafiles.paint(icon, canvas, Rect.fromLTWH(0, 0, 54, 38.25))
+            recorder.endRecording().dispose()
+            let deadline = Date().addingTimeInterval(3)
+            while WriterMetafiles.hasPendingImages, Date() < deadline { RunLoop.main.run(until: Date().addingTimeInterval(0.005)) }
+            decoded = !WriterMetafiles.hasPendingImages
+            finished.fulfill()
+        }
+        wait(for: [finished], timeout: 20)
+        XCTAssertTrue(decoded, "its bitmaps decoded without the main queue")
+    }
+
     /// zh-8112041b: a 1.5-spaced line's extra space stands under its text,
     /// and at a page's foot it may reach past the margin — Word's page 2
     /// keeps a fourth empty paragraph whose line runs 5pt over and whose
