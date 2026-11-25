@@ -163,4 +163,22 @@ final class CellBordersTests: XCTestCase {
         d.undo()
         XCTAssertTrue(d.document.paragraphs.compactMap(\.cell).allSatisfy { $0.fillThemeAttrs != nil })
     }
+
+    func testThemeColoursPickedInTheDialogKeepTheirThemeLink() throws {
+        let c = grid()
+        selectAll(c)
+        var v = BordersShadingValues()
+        v.sides = [.bottom]
+        v.pickLine(.theme(slot: 5, lumMod: 75, lumOff: 0))
+        v.pickShading(.theme(slot: 4, lumMod: 40, lumOff: 60))
+        v.apply(to: c)
+        let saved = try DocxFormat.read(try DocxFormat.write(c.document, pageSetup: .letter)).document.paragraphs.compactMap(\.cell)
+        XCTAssertTrue(saved.allSatisfy { $0.fillThemeAttrs == " w:themeFill=\"accent1\" w:themeFillTint=\"66\"" })
+        XCTAssertTrue(saved.filter { $0.row == 1 }.allSatisfy { $0.bordersXML?.containsSubstring("w:themeColor=\"accent2\" w:themeShade=\"BF\"") == true })
+        // A custom colour or "No Color" afterwards drops the link.
+        v.pickShading(.rgb(0x123456)); v.pickLine(.rgb(0x654321))
+        v.apply(to: c)
+        XCTAssertTrue(c.document.paragraphs.compactMap(\.cell).allSatisfy { $0.fillThemeAttrs == nil && $0.fill == Color(0xFF123456) })
+        XCTAssertFalse(cell(c, 1, 0).bordersXML!.containsSubstring("themeColor"))
+    }
 }
