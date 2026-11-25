@@ -71,6 +71,7 @@ final class OfficeShellState: State<StatefulWidget> {
     private var _paragraphOpen = false
     private var _findDialogOpen = false
     private var _symbolOpen = false
+    private var _printOpen = false
     private let _colorText = TextEditingController()
     private var _styleOpen: String? = nil
     private let _linkText = TextEditingController()
@@ -399,7 +400,11 @@ final class OfficeShellState: State<StatefulWidget> {
             self._flash(self.session.autoSave ? "AutoSave on" : "AutoSave off — a recovery copy is still kept")
             self._scheduleAutosave()
         }
-        session.onPrint = { [weak self] in self?._print() }
+        session.onPrint = { [weak self] in
+            guard let self else { return }
+            self.controller.breakUndoCoalescing()
+            self.setState { self._backstage = nil; self._printOpen = true }
+        }
     }
 
     // MARK: Diagnostics
@@ -427,10 +432,6 @@ final class OfficeShellState: State<StatefulWidget> {
 
     /// Render to a PDF in the temporary directory and hand it to the host's
     /// print dialog.
-    private func _print() {
-        _outOfThisBlock { [weak self] in self?._printNow() }
-    }
-
     /// Runs `work` from the run loop, not from the block it was asked in. A PDF still waits for the pictures a
     /// header's metafile or a drawing group decodes on the main queue (the body's, headers' and text boxes' reach
     /// it through the layout's mailbox), by spinning the run loop, which cannot drain a serial queue it is itself
@@ -444,19 +445,28 @@ final class OfficeShellState: State<StatefulWidget> {
         #endif
     }
 
-    private func _printNow() {
+    private func _print(pages: [Int]) -> String {
         #if os(WASI)
-        _flash("Printing is not available in the browser yet")
+        return "Printing is not available in the browser yet"
         #else
         let path = NSTemporaryDirectory() + "office-print-\(ProcessInfo.processInfo.processIdentifier).pdf"
         guard PdfExport.write(controller.document, pageSetup: session.pageSetup, theme: session.theme,
-                              to: path, title: session.title) else {
-            _flash("Could not render the document for printing")
-            return
+                              to: path, title: session.title, printPages: pages) else {
+            return "Could not render the document for printing"
         }
-        setState { _backstage = nil }
-        if let print = hostPrintPDF { print(path) } else { _flash("No print dialog on this host") }
+        if let print = hostPrintPDF { print(path); return "" }
+        return "No print dialog on this host"
         #endif
+    }
+
+    private var _printHooks: PrintHooks {
+        PrintHooks(unit: "Pages", total: max(1, session.pageInfo.count), current: session.pageInfo.page,
+                   hostCanPrint: hostPrintPDF != nil, print: { [weak self] pages, _ in
+                       // Off iOS the work runs at once and its message comes back to the dialog.
+                       var result = ""
+                       self?._outOfThisBlock { result = self?._print(pages: pages) ?? "" }
+                       return result
+                   })
     }
 
     // MARK: AutoSave and recovery
@@ -1091,7 +1101,7 @@ final class OfficeShellState: State<StatefulWidget> {
         case "f": _openFind(replace: false)
         case "h": if mods.contains(.shift) { _openFindDialog() } else { _openFind(replace: true) }
         case "g": _findNext(backwards: mods.contains(.shift))
-        case "p": setState { _backstage = .print }
+        case "p": session.onPrint?()
         case "k": _openLink()
         case "c" where mods.contains(.shift): session.paintedStyle = c.copyFormat(); session.paintSticky = false; setState { session.summary = session.summarize() }
         case "v" where mods.contains(.shift): c.pasteFormat(session.paintedStyle ?? c.copyFormat()); setState { session.summary = session.summarize() }
@@ -1227,6 +1237,17 @@ final class OfficeShellState: State<StatefulWidget> {
                         insert: { [weak self] text, font in self?.controller.insertSymbol(text, font: font) }),
                     onClose: { [weak self] in
                         self?.setState { self?._symbolOpen = false }
+                        self?._editorFocus.requestFocus()
+                    })),
+            ])
+        }
+        if _printOpen {
+            return Stack(children: [
+                window,
+                Positioned(left: 0, top: 0, right: 0, bottom: 0, child: PrintDialog(
+                    hooks: _printHooks,
+                    onClose: { [weak self] in
+                        self?.setState { self?._printOpen = false }
                         self?._editorFocus.requestFocus()
                     })),
             ])
