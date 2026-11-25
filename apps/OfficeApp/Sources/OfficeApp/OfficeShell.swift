@@ -1128,6 +1128,8 @@ final class OfficeShellState: State<StatefulWidget> {
         }
         if _headerFooterOpen {
             column.append(HeaderFooterBar(session: session, header: _headerText, footer: _footerText,
+                                          headerLocked: controller.document.hasRichHeaderFooter(.header),
+                                          footerLocked: controller.document.hasRichHeaderFooter(.footer),
                                           onApply: { [weak self] in
                                               guard let self else { return }
                                               self.controller.setHeaderFooter(header: self._headerText.text,

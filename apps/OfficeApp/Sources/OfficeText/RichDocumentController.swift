@@ -2110,20 +2110,29 @@ public final class RichDocumentController: ChangeNotifier {
 
     // MARK: Header and footer
 
-    public func setHeaderFooter(header: String? = nil, footer: String? = nil) {
-        let newHeader = header ?? document.header
-        let newFooter = footer ?? document.footer
-        guard newHeader != document.header || newFooter != document.footer else { return }
+    /// Sets the header and footer text. A side whose file part holds more than
+    /// plain text (see `hasRichHeaderFooter`) is left alone, and named in the
+    /// result, so the caller can say so: the strip must not flatten it.
+    @discardableResult
+    public func setHeaderFooter(header: String? = nil, footer: String? = nil) -> [KeptHeaderFooter.Kind] {
+        var kept: [KeptHeaderFooter.Kind] = []
+        var newHeader = header ?? document.header
+        var newFooter = footer ?? document.footer
+        if newHeader != document.header, document.hasRichHeaderFooter(.header) { newHeader = document.header; kept.append(.header) }
+        if newFooter != document.footer, document.hasRichHeaderFooter(.footer) { newFooter = document.footer; kept.append(.footer) }
+        guard newHeader != document.header || newFooter != document.footer else { return kept }
         edit {
             perform(.setHeaderFooter(header: newHeader, footer: newFooter,
                                      oldHeader: document.header, oldFooter: document.footer))
         }
+        return kept
     }
 
     /// Word's Page Number: a centred "n" in the footer, or none.
-    public func togglePageNumbers() {
+    @discardableResult
+    public func togglePageNumbers() -> Bool {
         let field = "Page \(RichDocument.pageField) of \(RichDocument.pageCountField)"
-        setHeaderFooter(footer: document.footer.containsSubstring(RichDocument.pageField) ? "" : field)
+        return setHeaderFooter(footer: document.footer.containsSubstring(RichDocument.pageField) ? "" : field).isEmpty
     }
 
     // MARK: Find
