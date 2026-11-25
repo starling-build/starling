@@ -1171,7 +1171,7 @@ public final class RichDocumentController: ChangeNotifier {
         _setCaret(a)
     }
 
-    private func _setCaret(_ p: RichPosition) {
+    func _setCaret(_ p: RichPosition) {
         selection = RichSelection(caret: p)
     }
 
