@@ -73,6 +73,7 @@ final class OfficeShellState: State<StatefulWidget> {
     private var _symbolOpen = false
     private var _fontOpen = false
     private var _pageSetupOpen = false
+    private var _pictureDialog: PictureDialogKind?
     private let _colorText = TextEditingController()
     private var _styleOpen: String? = nil
     private let _linkText = TextEditingController()
@@ -387,6 +388,11 @@ final class OfficeShellState: State<StatefulWidget> {
             guard let self else { return }
             self.controller.breakUndoCoalescing()
             self.setState { self._pageSetupOpen = true }
+        }
+        session.onPictureDialog = { [weak self] kind in
+            guard let self else { return }
+            self.controller.breakUndoCoalescing()
+            self.setState { self._pictureDialog = kind }
         }
         session.onMoreColors = { [weak self] in
             guard let self else { return }
@@ -1069,7 +1075,7 @@ final class OfficeShellState: State<StatefulWidget> {
             if session.paintedStyle != nil { _cancelPainter(); return true }
             if _styleOpen != nil { setState { _styleOpen = nil }; return true }
             if _linkOpen { setState { _linkOpen = false }; return true }
-            if _paragraphOpen || _fontOpen { return false }   // the dialog's own Esc closes it
+            if _paragraphOpen || _fontOpen || _pictureDialog != nil { return false }   // the dialog's own Esc closes it
             if _colorOpen { setState { _colorOpen = false }; return true }
             if _headerFooterOpen { setState { _headerFooterOpen = false }; return true }
             if _findOpen { setState { _findOpen = false }; _editorFocus.requestFocus(); return true }
@@ -1292,6 +1298,22 @@ final class OfficeShellState: State<StatefulWidget> {
                         self?._editorFocus.requestFocus()
                     })),
             ])
+        }
+        if let kind = _pictureDialog, let i = session.summary.imageIndex {
+            let inline = session.summary.inlineImageID
+            let image = inline.map { controller.document.paragraphs[i].inlineImages[$0] } ?? controller.document.paragraphs[i].image
+            let close = { [weak self] in
+                self?.setState { self?._pictureDialog = nil }
+                self?._editorFocus.requestFocus()
+            }
+            let dialog: Widget = kind == .altText
+                ? AltTextDialog(initial: image?.altText ?? "",
+                                onOK: { [weak self] t in self?.controller.setImageAltText(at: i, inline: inline, t); close() },
+                                onCancel: close)
+                : CropDialog(initial: image?.crop,
+                             onOK: { [weak self] c in _ = self?.controller.setImageCrop(at: i, inline: inline, c); close() },
+                             onCancel: close)
+            return Stack(children: [window, Positioned(left: 0, top: 0, right: 0, bottom: 0, child: dialog)])
         }
         if _paragraphOpen {
             return Stack(children: [
