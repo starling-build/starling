@@ -548,4 +548,25 @@ final class ShapeSelectTests: XCTestCase {
         c.undo()
         XCTAssertEqual(c.document.paragraphs.filter { $0.image != nil }.count, 3)
     }
+
+    func testTurnedShapesGroupByTheBoxTheirTurnSweeps() throws {
+        let c = RichDocumentController(document: RichDocument(paragraphs: [RichParagraph(text: "x", style: .init())]))
+        for (n, preset) in ["rect", "triangle"].enumerated() {
+            c.pendingShape = { x, y, w, h in TextBoxInsert.makeShape(preset: preset, width: w, height: h, number: TextBoxInsert.nextShapeNumber(in: c.document), page: (x, y)) }
+            XCTAssertTrue(c.placePendingShape(x: 50 + Double(n) * 200, y: 200, width: 80, height: 60, at: RichPosition(paragraph: 0, offset: 0)))
+        }
+        var shapes = c.document.paragraphs.compactMap(\.image).filter { $0.float != nil }
+        XCTAssertEqual(shapes.count, 2)
+        let r = try XCTUnwrap(shapes.firstIndex { $0.sourceXML!.containsSubstring("name=\"Rectangle") })
+        shapes[r].sourceXML = shapes[r].sourceXML!.replacingAll("<a:xfrm>", with: "<a:xfrm rot=\"5400000\">").replacingAll("<a:xfrm ", with: "<a:xfrm rot=\"5400000\" ")
+        XCTAssertTrue(shapes[r].sourceXML!.containsSubstring("rot=\"5400000\""))
+        let g = try XCTUnwrap(ShapeGroups.group(shapes, number: 5))
+        let xml = try XCTUnwrap(g.sourceXML)
+        // Turned a quarter, the 80 x 60 box fills 60 x 80 about its centre: 60..120 across, 190..270 down; the group ends at 330.
+        XCTAssertTrue(xml.containsSubstring("<wp:posOffset>\(60 * 12700)</wp:posOffset></wp:positionH>"))
+        XCTAssertTrue(xml.containsSubstring("<wp:posOffset>\(190 * 12700)</wp:posOffset></wp:positionV>"))
+        XCTAssertTrue(xml.containsSubstring("<wp:extent cx=\"\(270 * 12700)\" cy=\"\(80 * 12700)\"/>"))
+        let parts = try XCTUnwrap(ShapeGroups.ungroup(g, number: 9))
+        XCTAssertTrue(parts.contains { $0.sourceXML!.containsSubstring("rot=\"5400000\"") })
+    }
 }

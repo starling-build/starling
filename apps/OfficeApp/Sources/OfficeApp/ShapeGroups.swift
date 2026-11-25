@@ -75,13 +75,26 @@ enum ShapeGroups {
         return Piece(x: x, y: y, cx: cx, cy: cy, wsp: wsp, name: name)
     }
 
+    /// The box a piece fills on the page once its turn (`rot` on its transform, 60000ths of a degree) is applied.
+    private static func visibleBox(_ p: Piece) -> Piece {
+        guard let r = intAttr(p.wsp, "a:xfrm", "rot"), r % 21_600_000 != 0 else { return p }
+        let t = Double(r) / 60000 * Double.pi / 180
+        let w = abs(Double(p.cx) * cos(t)) + abs(Double(p.cy) * sin(t)), h = abs(Double(p.cx) * sin(t)) + abs(Double(p.cy) * cos(t))
+        var q = p
+        let rw = Int(w.rounded()), rh = Int(h.rounded())
+        q.x = p.x + (p.cx - rw) / 2; q.y = p.y + (p.cy - rh) / 2; q.cx = rw; q.cy = rh
+        return q
+    }
+
     /// The shapes as one group (named "Group `number`"), standing where the shapes stand; nil unless there are two or more and
     /// every one is groupable.
     static func group(_ shapes: [ImageAttachment], number: Int) -> ImageAttachment? {
         let pieces = shapes.compactMap(piece)
         guard shapes.count >= 2, pieces.count == shapes.count else { return nil }
-        let left = pieces.map(\.x).min()!, top = pieces.map(\.y).min()!
-        let cx = pieces.map { $0.x + $0.cx }.max()! - left, cy = pieces.map { $0.y + $0.cy }.max()! - top
+        // The group's box holds what the eye sees: a turned shape counts by the box its turn sweeps.
+        let seen = pieces.map(visibleBox)
+        let left = seen.map(\.x).min()!, top = seen.map(\.y).min()!
+        let cx = seen.map { $0.x + $0.cx }.max()! - left, cy = seen.map { $0.y + $0.cy }.max()! - top
         var children = ""
         for (k, p) in pieces.enumerated() {
             guard var c = placed(p.wsp, x: p.x, y: p.y, cx: p.cx, cy: p.cy) else { return nil }
