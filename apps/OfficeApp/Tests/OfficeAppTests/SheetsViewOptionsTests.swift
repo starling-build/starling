@@ -66,6 +66,29 @@ final class SheetsViewOptionsTests: XCTestCase {
         XCTAssertFalse(g.rtl)
     }
 
+    func testMirroredPrintKeepsAPictureAtItsColumnsAndGeneralTextByDirection() {
+        let c = WorkbookController()
+        let g = SheetGridState(headless: c)
+        g.printing = true
+        let total = g.cols.start(6)
+        g.printMirror = (0, total, 0)
+        let a = SheetAnchor.twoCell(from: SheetMarker(col: 4, colOff: 0, row: 1, rowOff: 0),
+                                    to: SheetMarker(col: 5, colOff: 32, row: 5, rowOff: 0))
+        let r = g.drawingRect(a)
+        XCTAssertGreaterThan(r.width, 0)   // (it collapsed to nothing: the far corner stood left of the near one)
+        // It starts at column E's right edge and runs left, into column F's side.
+        XCTAssertEqual(r.right, g.colX(4) + g.cols.size(4), accuracy: 0.01)
+        XCTAssertLessThan(r.left, g.colX(4))
+        // A one-cell picture runs left from the same point.
+        let one = g.drawingRect(.oneCell(from: SheetMarker(col: 2, colOff: 0, row: 1, rowOff: 0), width: 100, height: 50))
+        XCTAssertEqual(one.right, g.colX(2) + g.cols.size(2), accuracy: 0.01)
+        XCTAssertEqual(one.width, 100 * g.scale, accuracy: 0.01)
+        // General text goes where its own direction starts; Latin left, Hebrew right.
+        let st = CellStyle()
+        XCTAssertFalse(_cellIsRTL(st, "Left text"))
+        XCTAssertTrue(_cellIsRTL(st, "\u{05E9}\u{05DC}\u{05D5}\u{05DD}"))
+    }
+
     func testViewOptionsSaveAndReadBack() throws {
         let c = WorkbookController()
         c.setZoom(percent: 130)

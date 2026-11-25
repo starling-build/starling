@@ -833,12 +833,15 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         }
         func at(_ m: SheetMarker) -> Offset {
             let w = ws.colWidth(m.col), h = ws.rowHeight(m.row)
-            return Offset(colX(m.col) + (w > 0 ? min(m.colOff * across * scale, ca.size(m.col)) : 0),
+            // (On a mirrored page a column's offset runs in from its right edge.)
+            let offX = w > 0 ? min(m.colOff * across * scale, ca.size(m.col)) : 0
+            return Offset(printMirror != nil ? colX(m.col) + ca.size(m.col) - offX : colX(m.col) + offX,
                           rowY(m.row) + (h > 0 ? min(m.rowOff * down * scale, ra.size(m.row)) : 0))
         }
         switch anchor {
         case .twoCell(let from, let to):
             let a = at(from), b = at(to)
+            if printMirror != nil { return Rect.fromLTRB(min(a.dx, b.dx), a.dy, max(a.dx, b.dx), max(a.dy, b.dy)) }
             return Rect.fromLTRB(a.dx, a.dy, max(a.dx, b.dx), max(a.dy, b.dy))
         case .oneCell(let from, let w, let h):
             // (Its size as it says, not scaled as an offset is: scaled,
@@ -846,6 +849,8 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             // than Excel's, lo-tdf139763ShapeAnchor's shapes no longer
             // exact.)
             let a = at(from)
+            // (On a mirrored page its near corner is the right one: it runs left.)
+            if printMirror != nil { return Rect.fromLTWH(a.dx - w * scale, a.dy, w * scale, h * scale) }
             return Rect.fromLTWH(a.dx, a.dy, w * scale, h * scale)
         case .absolute(let x, let y, let w, let h):
             return Rect.fromLTWH(headerWidth + x * scale - scrollX, headerHeight + y * scale - scrollY, w * scale, h * scale)
@@ -2819,6 +2824,12 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         for m in merges {
             let r = rect(m)
             let st = book.style(ws.cells[m.topLeft]?.style ?? 0)
+            // (Paper over paper hides nothing where no gridline runs and no cell inside has a fill or a border of its own, nor its row or column: Excel's print draws no such rectangle.)
+            if printing, !colors.showGrid, (mono || st.fill == nil), m.rows * m.cols <= 400,
+               !(m.left ... m.right).contains(where: { c in ws.colStyle(c).map { book.style($0).fill != nil } ?? false }),
+               !(m.top ... m.bottom).contains(where: { r in ws.rowStyle(r).map { book.style($0).fill != nil } ?? false }),
+               !(m.top ... m.bottom).contains(where: { row in (m.left ... m.right).contains { col in
+                   ws.cells[CellAddress(row: row, col: col)].map { let q = book.style($0.style); return q.fill != nil || q.borders != CellStyle.Borders() } ?? false } }) { continue }
             p.color = (mono ? nil : st.fill).map { Color(Int64(0xFF00_0000) | Int64($0)) } ?? colors.paper
             canvas.drawRect(Rect.fromLTRB(r.left + 0.5, r.top + 0.5, r.right - 1, r.bottom - 1), p)
         }
@@ -3181,8 +3192,9 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             // text would: lo-tdf153767's postal codes.)
             case .number: align = NumberFormat.isText(st.numberFormat) ? .left : .right
             case .bool, .error: align = .center
-            // (Text in a right-to-left sheet starts at the right edge of its cell.)
-            default: align = (printing && printMirror != nil) || rtl ? .right : .left
+            // (Text in a right-to-left sheet stands where its own direction starts: Excel's print of a mirrored sheet
+            // put Latin text at the cell's left edge and Hebrew or Arabic at its right.)
+            default: align = ((printing && printMirror != nil) || rtl) && _cellIsRTL(st, text) ? .right : .left
             }
         }
         // (On a mirrored screen the canvas is flipped: what stands at the cell's visual left is at its logical right.)
