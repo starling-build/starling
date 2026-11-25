@@ -193,6 +193,10 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
     private var _pinchLast: Double? = nil
     /// A pinch is under way or just ended: the fingers lifting select nothing.
     private var _pinched = false
+    /// A finger held on a cell opens the right-click menu (0.5 s, in place); so do two fingers that land and lift in place.
+    private var _longGen = 0
+    private var _firstDown: (local: Offset, global: Offset)? = nil
+    private var _twoTap: (at: Double, local: Offset, global: Offset, distance: Double)? = nil
     private var _lastClick: (cell: CellAddress, at: Double)? = nil
     /// The noted cell under the pointer: its note shows beside it.
     private var _hoverNote: CellAddress? = nil
@@ -1577,18 +1581,26 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         let c = controller
         if e.kind == .touch {
             _fingers[e.pointer] = e.position
+            _longGen += 1
             if _fingers.count >= 2 {
                 // A second finger: whatever the first began is abandoned, and the pair pinches.
                 _drag = nil
                 _pinched = true
                 _pinchLast = _fingerDistance()
+                if _fingers.count == 2, let first = _firstDown, let d = _pinchLast {
+                    _twoTap = (Date().timeIntervalSince1970, first.local, first.global, d)
+                } else {
+                    _twoTap = nil
+                }
                 return
             }
             _pinched = false
+            _firstDown = (p, e.position)
+            _twoTap = nil
         }
         if e.kind == .touch, e.buttons & kSecondaryMouseButton == 0, _touchEditDown(p) { return }
         if e.buttons & kSecondaryMouseButton != 0 {
-            _secondaryDown(e, at: p)
+            _secondaryDown(global: e.position, at: p)
             return
         }
         // The outline gutters: level buttons and +/− boxes.
@@ -1728,6 +1740,13 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         // A finger scrolls; it selects only when it lands and lifts in place.
         if e.kind == .touch {
             _drag = .touchScroll(start: p, last: p, moved: false, cell: a)
+            let generation = _longGen, global = e.position
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+                guard let self, generation == self._longGen, case .touchScroll(_, _, let moved, _)? = self._drag, !moved else { return }
+                // Held in place: the menu a right click opens; lifting afterwards selects nothing more.
+                self._drag = nil
+                self._secondaryDown(global: global, at: p)
+            }
             return
         }
         _cellPress(a)
@@ -1762,7 +1781,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
     /// A right click: inside the selection it keeps it (Excel acts on the
     /// whole selection); outside, it selects what is under the pointer
     /// first. Headers select whole rows or columns.
-    private func _secondaryDown(_ e: PointerEvent, at p: Offset) {
+    private func _secondaryDown(global: Offset, at p: Offset) {
         let c = controller
         commitEdit()
         _lastClick = nil
@@ -1776,7 +1795,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 c.select(range: CellRange(top: 0, left: col, bottom: CellAddress.maxRows - 1, right: col),
                          active: CellAddress(row: scrollY > 0 ? rows.index(at: scrollY) : 0, col: col))
             }
-            _w.onContextMenu(e.position, .columns)
+            _w.onContextMenu(global, .columns)
             return
         }
         if p.dx < headerWidth && p.dy >= headerHeight {
@@ -1785,19 +1804,19 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 c.select(range: CellRange(top: row, left: 0, bottom: row, right: CellAddress.maxCols - 1),
                          active: CellAddress(row: row, col: scrollX > 0 ? cols.index(at: scrollX) : 0))
             }
-            _w.onContextMenu(e.position, .rows)
+            _w.onContextMenu(global, .rows)
             return
         }
         guard p.dx >= headerWidth && p.dy >= headerHeight else { return }
         if let hit = _drawingHit(p) {
             c.selectedDrawing = hit.index
             c._notify(selectionOnly: true)
-            _w.onContextMenu(e.position, .drawing(hit.index))
+            _w.onContextMenu(global, .drawing(hit.index))
             return
         }
         let a = cell(atLocal: p)
         if !sel.contains(a) { c.select(a) }
-        _w.onContextMenu(e.position, wholeCols && sel.contains(a) ? .columns : wholeRows && sel.contains(a) ? .rows : .cells)
+        _w.onContextMenu(global, wholeCols && sel.contains(a) ? .columns : wholeRows && sel.contains(a) ? .rows : .cells)
     }
 
     // MARK: Autofit
@@ -1865,6 +1884,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 if _fingers.count >= 2, let last = _pinchLast, last > 0, let now = _fingerDistance(), now > 0 {
                     let f = now / last
                     if abs(f - 1) > 0.002 { _w.onZoom(f); _pinchLast = now }
+                    if let two = _twoTap, abs(now - two.distance) > 12 { _twoTap = nil }
                 }
                 return
             }
@@ -1981,9 +2001,18 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
     private func _up(_ e: PointerEvent) {
         if e.kind == .touch, _fingers[e.pointer] != nil {
             _fingers[e.pointer] = nil
+            _longGen += 1
             if _pinched {
                 _pinchLast = _fingers.count >= 2 ? _fingerDistance() : nil
-                if _fingers.isEmpty { _pinched = false }
+                if _fingers.isEmpty {
+                    _pinched = false
+                    // Two fingers down and up in place: a tap with two fingers, the right-click menu.
+                    if let two = _twoTap, Date().timeIntervalSince1970 - two.at < 0.6 {
+                        _twoTap = nil
+                        _secondaryDown(global: two.global, at: two.local)
+                    }
+                    _twoTap = nil
+                }
                 _drag = nil
                 return
             }

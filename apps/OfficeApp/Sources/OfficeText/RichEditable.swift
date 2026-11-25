@@ -149,6 +149,11 @@ public final class RichEditableState: State<StatefulWidget> {
     static let loupeZoom = 1.6
     private var _longPressGen = 0
     private var _longPressed = false
+    /// Fingers down, by pointer id (view coordinates too, for where the menu goes). Two fingers that land and lift
+    /// together without moving are a tap with two fingers: the right-click menu, as a long press opens it.
+    private var _fingers: [Int: (local: Offset, global: Offset)] = [:]
+    private var _twoFinger: (at: Double, local: Offset, global: Offset)? = nil
+    private var _twoFingerActive = false
     private var _lastTap: (at: Double, pos: Offset) = (0, Offset(-100, -100))
     static let knobRadius = 7.0
 
@@ -691,16 +696,34 @@ public final class RichEditableState: State<StatefulWidget> {
     }
 
     /// A finger held still on text: the word under it is selected.
-    private func _longPress(_ generation: Int, _ at: Offset) {
+    private func _longPress(_ generation: Int, _ at: Offset, _ global: Offset) {
         guard generation == _longPressGen, let t = _touchScroll, !t.moved, _layout.width > 0 else { return }
         _longPressed = true
         _focus.requestFocus()
         _textInput?.show()
         _syncLayoutIfNeeded()
         _controller.selectWord(at: _layout.canvasPosition(at: _canvasPoint(at), _controller.document))
+        // A picture set in a line of text is selected, as a click on it does; one of its own is selected by the caret.
+        if let hit = _inlineImage(at: at) { _controller.selectInlineImage(in: hit.paragraph, id: hit.id) }
         if _controller.hasSelection { _w.onSelectionGestureEnd?() }
         _repaint.notifyListeners()
-        _touchMenu(true)
+        // The same menu a right click opens (text, a table cell, a picture); a host without one gets the edit menu.
+        if let menu = _w.onContextMenu { menu(global) } else { _touchMenu(true) }
+    }
+
+    /// The right-click menu at `global` for what is under `local`: inside the selection it is about the selection,
+    /// elsewhere the caret goes there first, as Word does.
+    private func _openContextMenu(local: Offset, global: Offset) {
+        _focus.requestFocus()
+        if _layout.width > 0 {
+            _syncLayoutIfNeeded()
+            let pos = _layout.canvasPosition(at: _canvasPoint(local), _controller.document)
+            if !_controller.hasSelection || pos < _controller.selection.start || pos > _controller.selection.end {
+                _controller.moveTo(pos, extend: false)
+                if let hit = _inlineImage(at: local) { _controller.selectInlineImage(in: hit.paragraph, id: hit.id) }
+            }
+        }
+        _w.onContextMenu?(global)
     }
 
     /// The selected picture's box in the editable's own coordinates, with
@@ -805,6 +828,9 @@ public final class RichEditableState: State<StatefulWidget> {
     /// A cancelled pointer (the window lost the pointer mid-press) ends
     /// every drag; nothing from it may hijack the next gesture.
     private func _pointerCancel(_ event: PointerEvent) {
+        _fingers[event.pointer] = nil
+        if _fingers.isEmpty { _twoFingerActive = false }
+        _twoFinger = nil
         let hadDrop = _dropPosition != nil || _columnDragWidths != nil || _dragSize != nil
         _dragging = false
         _touchScroll = nil
@@ -832,6 +858,23 @@ public final class RichEditableState: State<StatefulWidget> {
         if event.kind == .touch {
             _momentumGeneration += 1   // a glide in progress stops under it
             _touchMenu(false)
+            _fingers[event.pointer] = (event.localPosition, event.position)
+            if _fingers.count >= 2 {
+                // A second finger: what the first began (a scroll, a long press) is abandoned; if both lift in place
+                // soon, it was a two-finger tap.
+                _longPressGen += 1
+                _touchScroll = nil
+                _selHandle = nil
+                _dragging = false
+                _longPressed = false
+                if _fingers.count == 2, !_twoFingerActive, let first = _fingers.first(where: { $0.key != event.pointer })?.value {
+                    _twoFinger = (Date().timeIntervalSince1970, first.local, first.global)
+                } else {
+                    _twoFinger = nil
+                }
+                _twoFingerActive = true
+                return
+            }
             if let k = _selectionHandleHit(event.localPosition), let ends = _selectionEnds() {
                 // A selection handle: the far end stays, the finger moves this one.
                 let sel = _controller.selection
@@ -852,24 +895,15 @@ public final class RichEditableState: State<StatefulWidget> {
             _longPressed = false
             _longPressGen += 1
             let generation = _longPressGen, downAt = event.localPosition
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in self?._longPress(generation, downAt) }
+            let downGlobal = event.position
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in self?._longPress(generation, downAt, downGlobal) }
             _touchScroll = (event.localPosition.dy, _scrollY, event.localPosition.dy, Date().timeIntervalSince1970, 0, false)
             _dragging = false
             return
         }
         if event.buttons & kSecondaryButton != 0 {
-            _focus.requestFocus()
-            if _layout.width > 0 {
-                _syncLayoutIfNeeded()
-                let pos = _layout.canvasPosition(at: _canvasPoint(event.localPosition), _controller.document)
-                // Inside the selection the menu is about the selection;
-                // elsewhere the caret goes to the click first, as Word does.
-                if !_controller.hasSelection || pos < _controller.selection.start || pos > _controller.selection.end {
-                    _controller.moveTo(pos, extend: false)
-                }
-            }
             // The event's position is already the view's: the menu goes there.
-            _w.onContextMenu?(event.position)
+            _openContextMenu(local: event.localPosition, global: event.position)
             return
         }
         // ⌘-click follows a link while editing, as Word does; reading, a
@@ -942,6 +976,14 @@ public final class RichEditableState: State<StatefulWidget> {
     }
 
     private func _pointerMove(_ event: PointerEvent) {
+        if event.kind == .touch, _twoFingerActive {
+            // Two fingers are down: a tap only while neither travels.
+            if let start = _fingers[event.pointer]?.local,
+               abs(event.localPosition.dx - start.dx) > 12 || abs(event.localPosition.dy - start.dy) > 12 {
+                _twoFinger = nil
+            }
+            return
+        }
         if let h = _selHandle, _layout.width > 0 {
             // The finger holds the knob below the line; the position is the line it is on.
             let y = event.localPosition.dy
@@ -1054,6 +1096,20 @@ public final class RichEditableState: State<StatefulWidget> {
     }
 
     private func _pointerUp(_ event: PointerEvent) {
+        if event.kind == .touch {
+            _fingers[event.pointer] = nil
+            if _twoFingerActive {
+                if _fingers.isEmpty {
+                    _twoFingerActive = false
+                    if let two = _twoFinger, Date().timeIntervalSince1970 - two.at < 0.6 {
+                        _twoFinger = nil
+                        _openContextMenu(local: two.local, global: two.global)
+                    }
+                    _twoFinger = nil
+                }
+                return
+            }
+        }
         if let h = _selHandle {
             _selHandle = nil
             _loupeAt = nil
