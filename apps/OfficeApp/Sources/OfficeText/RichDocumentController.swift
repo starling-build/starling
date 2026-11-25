@@ -1902,16 +1902,13 @@ public final class RichDocumentController: ChangeNotifier {
         return 0x04A0
     }
 
-    /// Turn one Table Style Option on or off for the caret's table (`TableLook` bits), one undo step. The header row
-    /// switch also makes the first row repeat on each page, as Word's does.
+    /// Turn one Table Style Option on or off for the caret's table (`TableLook` bits), one undo step. Header Row is a look
+    /// switch only; repeating the row on each page is the separate Repeat Header Rows setting.
     public func setTableLook(_ bit: Int, on: Bool) {
         guard let t = currentCell?.table else { return }
         let was = tableLook(of: t)
         let now = on ? was | bit : was & ~bit
-        setTableStyle(of: t) {
-            $0.look = now
-            if bit == TableLook.firstRow { $0.headerRow = on; if on { $0.headerRowCount = max(1, $0.headerRowCount) } }
-        }
+        setTableStyle(of: t) { $0.look = now }
     }
 
     /// The same for a named table (a drag on a border of a table the caret is not in).

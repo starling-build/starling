@@ -26,13 +26,12 @@ final class TableLookTests: XCTestCase {
         XCTAssertEqual(c.tableLook(of: t), 0x04A0)
     }
 
-    func testHeaderRowAlsoRepeatsTheFirstRow() {
+    func testHeaderRowIsALookSwitchAndDoesNotRepeatTheRow() {
         let c = grid()
         let t = c.currentCell!.table
         c.setTableLook(TableLook.firstRow, on: false)
-        XCTAssertEqual(c.document.tableStyles[t]?.headerRow, false)
         c.setTableLook(TableLook.firstRow, on: true)
-        XCTAssertEqual(c.document.tableStyles[t]?.headerRow, true)
+        XCTAssertNotEqual(c.document.tableStyles[t]?.headerRow, true, "repeating is its own setting")
     }
 
     func testTheLookIsSavedAndReadBack() throws {
