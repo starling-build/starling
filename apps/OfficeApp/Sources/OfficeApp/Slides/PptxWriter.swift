@@ -795,7 +795,8 @@ private struct SlideXML {
             // shape crop, flip, fill and outline are not modelled here.
             if let xml = s.sourceXML, let k = s.keptPicture, k.imageId == image.id, k.crop == s.crop,
                k.rotation == s.rotation, let p = source, let part = s.sourcePart {
-                return kept(xml, sourcePart: part, package: p, builder: &builder, patch: s.frame, fileId: s.fileId)
+                return kept(xml, sourcePart: part, package: p, builder: &builder, patch: s.frame, fileId: s.fileId,
+                            descr: k.alt == s.altText ? nil : .some(s.altText))
             }
             // The same image, turned or cropped since it was read: the picture as it was with only the turn and the crop changed, so its
             // recolouring, transparency, flip, shape and outline stay.
@@ -819,7 +820,7 @@ private struct SlideXML {
             }
             let id = _id(s.fileId)
             let rid = _media(image, media: &media, builder: &builder)
-            return "<p:pic><p:nvPicPr><p:cNvPr id=\"\(id)\" name=\"\(name)\"/><p:cNvPicPr><a:picLocks noChangeAspect=\"1\"/></p:cNvPicPr><p:nvPr/></p:nvPicPr>"
+            return "<p:pic><p:nvPicPr><p:cNvPr id=\"\(id)\" name=\"\(name)\"\(s.altText.map { " descr=\"\(PptxXML.escape($0, attribute: true))\"" } ?? "")/><p:cNvPicPr><a:picLocks noChangeAspect=\"1\"/></p:cNvPicPr><p:nvPr/></p:nvPicPr>"
                 + "<p:blipFill><a:blip r:embed=\"\(rid)\"/>\(Self._crop(s.crop))<a:stretch><a:fillRect/></a:stretch></p:blipFill>"
                 + "<p:spPr>\(Self._xfrm(s.frame, rotation: s.rotation, flipH: s.flipH, flipV: s.flipV))"
                 + "<a:prstGeom prst=\"\(s.pictureGeometry?.rawValue ?? "rect")\"><a:avLst/></a:prstGeom></p:spPr></p:pic>"
@@ -1059,9 +1060,11 @@ private struct SlideXML {
     mutating func kept(_ xml: String, sourcePart: String, package p: PptxPackage,
                        builder b: inout PackageBuilder, patch frame: Rect?, fileId: Int? = nil,
                        rotation: Double? = nil, placeIfMissing: Bool = false, flips: (h: Bool, v: Bool)? = nil,
-                       edit: ((XNode) -> Void)? = nil) -> String {
+                       edit: ((XNode) -> Void)? = nil, descr: String?? = nil) -> String {
         guard let node = XNode.parse(Data(xml.utf8)) else { return "" }
         edit?(node)
+        // A changed alt text: set (or remove) `descr` on the element's own `cNvPr`.
+        if let descr, let c = node.descendant("p:cNvPr") { c.attrs["descr"] = descr }
         if let frame {
             let x = node.first("p:xfrm") ?? node.first("p:spPr")?.first("a:xfrm") ?? node.first("p:grpSpPr")?.first("a:xfrm")
             if let x {

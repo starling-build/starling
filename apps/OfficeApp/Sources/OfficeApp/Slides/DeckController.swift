@@ -67,6 +67,7 @@ struct ShapeState: Equatable {
     var field: SlideField? = nil
     var group: ShapeGroup? = nil
     var keptLine: KeptLine? = nil
+    var altText: String? = nil
     var keptPicture: KeptPicture? = nil
     var autofit = false
     var fontScale = 1.0
@@ -822,6 +823,20 @@ final class DeckController: ChangeNotifier {
         _changed()
     }
 
+    /// Set the alt text of the selected pictures (empty clears it). One undo step.
+    func setAltText(_ text: String) {
+        let pics = selection.filter { $0.picture != nil }
+        guard !pics.isEmpty else { return }
+        let value = text.isEmpty ? nil : text
+        guard pics.contains(where: { $0.altText != value }) else { return }
+        _checkpoint()
+        for s in pics { s.altText = value }
+        _changed()
+    }
+
+    /// The alt text of the first selected picture, for the dialog to start from.
+    var selectedAltText: String? { selection.first { $0.picture != nil }?.altText }
+
     /// Crop the selected pictures to a shape: width over height, centred.
     func cropPictures(aspect: Double) {
         let pics = selection.filter { $0.picture != nil }
@@ -1311,7 +1326,7 @@ final class DeckController: ChangeNotifier {
                    customPath: s.customPath, fillStyle: s.fillStyle, invisible: s.invisible, fileId: s.fileId,
                    sourceXML: s.sourceXML, sourceText: s.sourceText, sourcePart: s.sourcePart,
                    sourceChart: s.sourceChart, field: s.field, group: s.group, keptLine: s.keptLine,
-                   keptPicture: s.keptPicture, autofit: s.autofit, fontScale: s.fontScale,
+                   altText: s.altText, keptPicture: s.keptPicture, autofit: s.autofit, fontScale: s.fontScale,
                    insetsFollowFont: s.insetsFollowFont, keptLook: s.keptLook)
         st.lineReduction = s.lineReduction
         st.pictureLevels = s.pictureLevels
@@ -1440,6 +1455,7 @@ final class DeckController: ChangeNotifier {
         shape.group = st.group
         shape.keptLine = st.keptLine
         shape.keptPicture = st.keptPicture
+        shape.altText = st.altText
         shape.autofit = st.autofit
         shape.fontScale = st.fontScale
         shape.insetsFollowFont = st.insetsFollowFont

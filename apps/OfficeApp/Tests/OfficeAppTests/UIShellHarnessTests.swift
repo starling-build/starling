@@ -1,5 +1,6 @@
 import XCTest
 import Flutter
+import OfficeText
 import FlutterSwiftBridge
 import OfficeText
 @testable import OfficeApp
@@ -132,6 +133,30 @@ final class UIShellHarnessTests: XCTestCase {
         XCTAssertEqual(c.currentTableStyle?.rowsCantSplit, [0])
         XCTAssertTrue(ui.tap(text: "AutoFit"))
         XCTAssertEqual(c.currentTableStyle?.fixedLayout, true)
+    }
+
+    /// S-PI-1a: Picture Format > Alt Text reaches the dialog, typing and OK set the text, Esc cancels.
+    func testAltTextButtonOpensTheDialogAndAppliesOrCancels() throws {
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: SlidesShell(initialPath: nil, startBlank: true, onSwitch: { _, _ in }), title: "Test"), size: Size(1280, 800))
+        let shell = try XCTUnwrap(ui.state(SlidesShellState.self))
+        let deck = try XCTUnwrap(shell.session.deck)
+        let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==")!
+        let pic = deck.addPicture(ImageAttachment(data: png, width: 1, height: 1), naturalSize: Size(100, 100))
+        deck.selectShapes([pic])
+        ui.pump()
+        XCTAssertTrue(ui.tap(text: "Picture Format"))
+        XCTAssertTrue(ui.tap(text: "Alt Text"))
+        XCTAssertTrue(ui.has(text: "How would you describe this object and its context to someone who is blind?"))
+        XCTAssertTrue(ui.press(.escape))
+        XCTAssertFalse(ui.has(text: "Cancel"))
+        XCTAssertNil(pic.altText)
+        XCTAssertTrue(ui.tap(text: "Alt Text"))
+        let box = try XCTUnwrap(ui.elements().last { $0.widget is FluentTextBox })
+        let r = try XCTUnwrap(box.findRenderObject() as? RenderBox)
+        ui.tap(at: r.localToGlobal(Offset(r.size.width / 2, r.size.height / 2)))
+        ui.type("A red square")
+        XCTAssertTrue(ui.tap(text: "OK"))
+        XCTAssertEqual(pic.altText, "A red square")
     }
 }
 

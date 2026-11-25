@@ -74,6 +74,7 @@ final class SlidesShellState: State<StatefulWidget> {
     private var _headerFooter = false
     /// Font Color > More Colors is open.
     private var _colorOpen = false
+    private var _altText = false
     /// The Animation Pane is open beside the slide.
     private var _animationPane = false
     /// A thumbnail being dragged to a new place: where it started, the
@@ -315,6 +316,11 @@ final class SlidesShellState: State<StatefulWidget> {
             guard let self else { return }
             self._endEditing()
             self.setState { self._headerFooter = true }
+        }
+        session.onAltText = { [weak self] in
+            guard let self, self.deck.selectedAltText != nil || self.deck.selection.contains(where: { $0.picture != nil }) else { return }
+            self._endEditing()
+            self.setState { self._altText = true }
         }
         session.onToggleAutoSave = { [weak self] in
             guard let self else { return }
@@ -1129,6 +1135,7 @@ final class SlidesShellState: State<StatefulWidget> {
             // (Esc is Cancel in the Header and Footer dialog: it stayed
             // up — seen on screen 2026-10-13.)
             if _headerFooter { setState { _headerFooter = false }; return true }
+            if _altText { setState { _altText = false }; return true }
             if _backstage != nil { setState { _backstage = nil }; return true }
             if typing {
                 // Esc leaves the text with its shape still selected.
@@ -1252,6 +1259,18 @@ final class SlidesShellState: State<StatefulWidget> {
                 Positioned(left: 0, top: 0, right: 0, bottom: 0, child: SlideShowView(
                     deck: deck, images: _cache, start: start, presenter: _presenter,
                     onEnd: { [weak self] in self?._endShow() })),
+            ])
+        }
+        if _altText {
+            return Stack(children: [
+                IgnorePointer(ignoring: true, child: window),
+                Positioned(left: 0, top: 0, right: 0, bottom: 0, child: AltTextDialog(
+                    initial: deck.selectedAltText ?? "",
+                    onApply: { [weak self] text in
+                        self?.deck.setAltText(text)
+                        self?.setState { self?._altText = false }
+                    },
+                    onCancel: { [weak self] in self?.setState { self?._altText = false } })),
             ])
         }
         if _headerFooter {

@@ -137,6 +137,8 @@ struct KeptLine: Equatable {
 /// fill or outline behind the picture — survives a save.
 struct KeptPicture: Equatable {
     var imageId: String
+    /// The alt text (`descr`) as read: a changed one is patched into the kept element.
+    var alt: String? = nil
     var crop: EdgeInsets?
     var rotation: Double
 }
@@ -708,6 +710,8 @@ final class SlideShape {
     /// A connector's geometry as read (with `sourceXML`).
     var keptLine: KeptLine? = nil
     /// A picture as read (with `sourceXML`).
+    /// Alt text (`descr` on the shape's `cNvPr`): what a screen reader says for a picture.
+    var altText: String? = nil
     var keptPicture: KeptPicture? = nil
     /// Shrink the text to fit the shape (PowerPoint's `normAutofit`), and
     /// the scale it is drawn at now (its sizes stay as typed).
