@@ -36,7 +36,7 @@ final class ChartFormDialogState: State<StatefulWidget> {
         guard let i = _w.controller.selectedDrawing else { return [] }
         switch _w.kind {
         case .stock(let ohlc): return _w.controller.stockRolesMissing(i, ohlc: ohlc)
-        case .bubble: return ["Bubble sizes"]
+        case .bubble: return _w.controller.bubbleSizeRoles(i)
         }
     }
 
@@ -57,7 +57,7 @@ final class ChartFormDialogState: State<StatefulWidget> {
         let roles = _roles
         while _fields.count < roles.count {
             let f = TextEditingController()
-            if case .bubble = _w.kind, let i = _w.controller.selectedDrawing { f.text = _w.controller.suggestedBubbleSizes(i) }
+            if case .bubble = _w.kind, let i = _w.controller.selectedDrawing { f.text = _w.controller.suggestedBubbleSizes(i, series: _fields.count) }
             _fields.append(f)
         }
         var rows: [Widget] = []

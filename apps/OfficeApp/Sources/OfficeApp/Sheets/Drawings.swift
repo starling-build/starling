@@ -1214,10 +1214,17 @@ extension WorkbookController {
         return (t, engine.values(si, r.range, includeEmpty: true).map { $0.number })
     }
 
-    /// A numeric range of the right length to offer as the bubble sizes: the chart's first series' own values.
-    func suggestedBubbleSizes(_ index: Int) -> String {
-        guard sheet.drawings.indices.contains(index), case .chart(let sc) = sheet.drawings[index].kind else { return "" }
-        return sc.refs.first?.val ?? ""
+    /// A numeric range of the right length to offer as a series' bubble sizes: that series' own values.
+    func suggestedBubbleSizes(_ index: Int, series: Int = 0) -> String {
+        guard sheet.drawings.indices.contains(index), case .chart(let sc) = sheet.drawings[index].kind,
+              sc.refs.indices.contains(series) else { return "" }
+        return sc.refs[series].val ?? ""
+    }
+
+    /// The labels of the size boxes: one per series.
+    func bubbleSizeRoles(_ index: Int) -> [String] {
+        guard sheet.drawings.indices.contains(index), case .chart(let sc) = sheet.drawings[index].kind else { return [] }
+        return sc.chart.series.enumerated().map { "Sizes for " + ($0.element.name.isEmpty ? "series \($0.offset + 1)" : $0.element.name) }
     }
 
     /// Chart `index` as its 3D, stock or bubble form. Stock takes the chart's series in order (`extra` are the ranges of
@@ -1268,13 +1275,15 @@ extension WorkbookController {
         if case .stock(let o, let extra) = v { variant = .stock(ohlc: o, extra: extra.compactMap { chartRange($0)?.formula }) }
         if case .bubble(let sizes) = v {
             variant = .bubble(sizes: sizes.compactMap { chartRange($0)?.formula })
+        }
+        sc.variant = variant
+        sc.chart.setForm(variant)      // (it clears the sizes: they are set after)
+        if case .bubble(let sizes) = v {
             for i in sc.chart.series.indices {
                 let r = sizes[min(i, sizes.count - 1)]
                 sc.chart.series[i].bubbleSizes = chartRange(r)?.values
             }
         }
-        sc.variant = variant
-        sc.chart.setForm(variant)
         sc.chart.series += series
         sc.refs += refs
         if sc.path != nil, sc.retype == nil { sc.retype = target }

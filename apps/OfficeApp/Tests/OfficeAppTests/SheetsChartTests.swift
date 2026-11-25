@@ -331,7 +331,12 @@ extension SheetsChartTests {
         XCTAssertFalse(c.setChartVariant(i, .bubble(sizes: ["Z1:Z6"])))
         XCTAssertTrue(c.chartNotice?.contains("numeric") ?? false, c.chartNotice ?? "")
         XCTAssertFalse(c.setChartVariant(i, .bubble(sizes: [String(c.suggestedBubbleSizes(i).dropLast()) + "5"])) && false)
-        XCTAssertTrue(c.setChartVariant(i, .bubble(sizes: [c.suggestedBubbleSizes(i)])))
+        // The default sizes of each series are its own values.
+        let n = c.bubbleSizeRoles(i).count
+        XCTAssertGreaterThan(n, 1)
+        XCTAssertTrue(c.setChartVariant(i, .bubble(sizes: (0..<n).map { c.suggestedBubbleSizes(i, series: $0) })))
+        guard case .chart(let sc) = c.sheet.drawings[i].kind else { return XCTFail("no chart") }
+        for k in 0..<n { XCTAssertEqual(sc.chart.series[k].bubbleSizes, sc.chart.series[k].values, "series \(k)") }
     }
 
     func testWriteChartFormCheckFiles() throws {
@@ -353,7 +358,7 @@ extension SheetsChartTests {
                 XCTAssertTrue(c.setChartVariant(i, .stock(ohlc: ohlc, extra: missing.map { _ in q("$B$2:$B$6") })), name)
                 if name == "stock-back" { c.setChartType(i, .column) }
             case "bubble", "bubble-back":
-                XCTAssertTrue(c.setChartVariant(i, .bubble(sizes: [c.suggestedBubbleSizes(i)])), name)
+                XCTAssertTrue(c.setChartVariant(i, .bubble(sizes: (0..<c.bubbleSizeRoles(i).count).map { c.suggestedBubbleSizes(i, series: $0) })), name)
                 if name == "bubble-back" { c.setChartType(i, .column) }
             case "3dcolumn-back": XCTAssertTrue(c.setChartVariant(i, .threeD)); c.setChartType(i, .column)
             default: break
