@@ -191,6 +191,8 @@ final class OfficeSession {
     var onFormatPainter: (() -> Void)?
     var onToggleAutoSave: (() -> Void)?
     var onPrint: (() -> Void)?
+    /// Opens the keyboard-shortcut list.
+    var onShortcuts: (() -> Void)?
     var onPageSetup: ((PageSetup) -> Void)?
     var onBackstage: ((Bool) -> Void)?
     var onNew: (() -> Void)?

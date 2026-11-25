@@ -67,6 +67,7 @@ final class OfficeShellState: State<StatefulWidget> {
     private let _findReplacement = TextEditingController()
     private var _headerFooterOpen = false
     private var _linkOpen = false
+    private var _shortcutsOpen = false
     private var _colorOpen = false
     private var _paragraphOpen = false
     private var _findDialogOpen = false
@@ -354,6 +355,7 @@ final class OfficeShellState: State<StatefulWidget> {
             }
         }
         #endif
+        session.onShortcuts = { [weak self] in self?.setState { self?._backstage = nil; self?._shortcutsOpen = true } }
         session.onFind = { [weak self] replace in self?._openFind(replace: replace) }
         session.onHeaderFooter = { [weak self] in
             guard let self else { return }
@@ -1047,11 +1049,12 @@ final class OfficeShellState: State<StatefulWidget> {
         setState { session.summary = session.summarize() }
     }
 
-    private func _shortcut(_ key: KeyData, _ mods: KeyModifiers) -> Bool {
+    func _shortcut(_ key: KeyData, _ mods: KeyModifiers) -> Bool {
         let named = KeyChordTracker.named(key.logical)
         if named == .escape {
             if session.paintedStyle != nil { _cancelPainter(); return true }
             if _styleOpen != nil { setState { _styleOpen = nil }; return true }
+            if _shortcutsOpen { return false }   // the dialog's own Esc closes it
             if _linkOpen { setState { _linkOpen = false }; return true }
             if _paragraphOpen { return false }   // the dialog's own Esc closes it
             if _colorOpen { setState { _colorOpen = false }; return true }
@@ -1074,6 +1077,7 @@ final class OfficeShellState: State<StatefulWidget> {
             if mods.contains(.shift), key.logical == 0x38 || key.logical == 0x2A { session.onToggleMarks?(); return true }
             // ⌘= / ⌘- / ⌘0 zoom; ⌘] / ⌘[ grow and shrink the font.
             if key.logical == 0x3D || key.logical == 0x2B { session.onZoom?(session.zoom + 0.1); return true }
+            if key.logical == 0x2F { session.onShortcuts?(); return true }   // ⌘/ the shortcut list
             if key.logical == 0x2D { session.onZoom?(session.zoom - 0.1); return true }
             if key.logical == 0x30 { session.onZoom?(1.0); return true }
             if key.logical == 0x5D { c.stepFontSize(1, base: session.effectiveFontSize); return true }
@@ -1229,6 +1233,13 @@ final class OfficeShellState: State<StatefulWidget> {
                         self?.setState { self?._symbolOpen = false }
                         self?._editorFocus.requestFocus()
                     })),
+            ])
+        }
+        if _shortcutsOpen {
+            return Stack(children: [
+                window,
+                Positioned(left: 0, top: 0, right: 0, bottom: 0, child: ShortcutListDialog(
+                    table: ShortcutTable.writer, onClose: { [weak self] in self?.setState { self?._shortcutsOpen = false } })),
             ])
         }
         if _paragraphOpen {
