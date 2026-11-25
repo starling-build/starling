@@ -49,6 +49,19 @@ final class SheetsInsertCellsTests: XCTestCase {
         XCTAssertEqual(v(c, "A1"), .number(2))
     }
 
+    func testSizesAndDefaultWidthSurviveSaving() throws {
+        let c = book()
+        c.select(CellAddress("A1")!)
+        c.setRowHeights(30)
+        c.setColumnWidths(Xlsx._charsToPoints(20, digit: c.sheet.digitWidth))
+        c.setDefaultColumnWidth(Xlsx._charsToPoints(12, digit: c.sheet.digitWidth))
+        let back = WorkbookController()
+        back.load(try Xlsx.read(try Xlsx.write(c.book)))
+        XCTAssertEqual(back.sheet.defaultColWidthPt, c.sheet.defaultColWidthPt, accuracy: 0.8)
+        XCTAssertEqual(back.sheet.colWidth(0), c.sheet.colWidth(0), accuracy: 0.8)
+        XCTAssertEqual(back.sheet.rowHeight(0), 30)
+    }
+
     func testSizesAreOneUndoStep() {
         let c = book()
         c.select(range: CellRange(top: 0, left: 0, bottom: 2, right: 1), active: CellAddress("A1")!)

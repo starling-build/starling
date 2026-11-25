@@ -1296,7 +1296,15 @@ enum Xlsx {
         }
         view += "</sheetView></sheetViews>"
         generated["sheetViews"] = view
-        generated["sheetFormatPr"] = "<sheetFormatPr" + ws.formatPrAttrs.filter { $0.key != "defaultRowHeight" }.sorted { $0.key < $1.key }
+        // A default width the user changed (Format > Default Width) is written; one the file gave stays as it wrote it.
+        var formatAttrs = ws.formatPrAttrs.filter { $0.key != "defaultRowHeight" }
+        let readBack: Double = {
+            if let w = Double(formatAttrs["defaultColWidth"] ?? ""), w > 0 { return _charsToPoints(w, digit: ws.digitWidth) }
+            let base = Double(formatAttrs["baseColWidth"] ?? "") ?? 8
+            return ((base * ws.digitWidth + 5) / 8).rounded(.up) * 8 * 0.75
+        }()
+        if abs(readBack - ws.defaultColWidthPt) > 0.01 { formatAttrs["defaultColWidth"] = _num(_pointsToChars(ws.defaultColWidthPt, digit: ws.digitWidth)) }
+        generated["sheetFormatPr"] = "<sheetFormatPr" + formatAttrs.sorted { $0.key < $1.key }
             .map { " \($0.key)=\"\(_esc($0.value))\"" }.joined() + " defaultRowHeight=\"\(_num(ws.defaultRowHeightPt))\"/>"
         // Columns: segments where the width and the file's other attributes
         // (style, outline level…) are all the same.

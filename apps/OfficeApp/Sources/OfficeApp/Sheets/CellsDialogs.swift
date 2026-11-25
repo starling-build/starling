@@ -9,6 +9,8 @@ import FlutterSwiftBridge
 
 enum SizeKind {
     case rowHeight, columnWidth, defaultWidth
+    /// Rows are in points; column widths in characters, as Excel asks.
+    var unit: String { self == .rowHeight ? "points" : "characters" }
     var title: String { switch self { case .rowHeight: return "Row Height"; case .columnWidth: return "Column Width"; case .defaultWidth: return "Default Width" } }
 }
 
@@ -41,7 +43,10 @@ extension WorkbookController {
 
     /// The sheet's standard column width in points (Format > Default Width); one undo step.
     func setDefaultColumnWidth(_ points: Double) {
-        structural { sheet.defaultColWidthPt = max(1, points) }
+        structural {
+            sheet.defaultColWidthPt = max(1, points)
+            sheet.defaultColWidthChars = Xlsx._pointsToChars(max(1, points), digit: sheet.digitWidth)
+        }
     }
 }
 
@@ -86,11 +91,12 @@ final class InsertDeleteCellsDialogState: State<StatefulWidget> {
 /// A one-number box in points: Row Height, Column Width, Default Width.
 final class SizeDialog: StatefulWidget {
     let title: String
+    let unit: String
     let start: Double
     let onApply: (Double) -> Void
     let onClose: () -> Void
-    init(title: String, start: Double, onApply: @escaping (Double) -> Void, onClose: @escaping () -> Void) {
-        self.title = title; self.start = start; self.onApply = onApply; self.onClose = onClose
+    init(title: String, unit: String, start: Double, onApply: @escaping (Double) -> Void, onClose: @escaping () -> Void) {
+        self.title = title; self.unit = unit; self.start = start; self.onApply = onApply; self.onClose = onClose
         super.init()
     }
     override func createState() -> State<StatefulWidget> { SizeDialogState() }
@@ -115,7 +121,7 @@ final class SizeDialogState: State<StatefulWidget> {
 
     override func build(_ context: BuildContext) -> Widget {
         let page = Padding(padding: EdgeInsets(all: 8), child: Column(crossAxisAlignment: .stretch, children: [
-            Text("\(_w.title) (points)"),
+            Text("\(_w.title) (\(_w.unit))"),
             SizedBox(key: ValueKey("size-input"), width: 120, height: 30, child: FluentTextBox(controller: _field)),
         ]))
         return DialogShell(

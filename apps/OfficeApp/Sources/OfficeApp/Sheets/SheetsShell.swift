@@ -1000,16 +1000,16 @@ final class SheetsShellState: State<StatefulWidget> {
             let start: Double
             switch kind {
             case .rowHeight: start = sh.rowHeight(wb.selection.top)
-            case .columnWidth: start = sh.colWidth(wb.selection.left)
-            case .defaultWidth: start = sh.defaultColWidthPt
+            case .columnWidth: start = Xlsx._widthChars(sh, wb.selection.left, sh.colWidth(wb.selection.left))
+            case .defaultWidth: start = sh.defaultColWidthChars ?? Xlsx._pointsToChars(sh.defaultColWidthPt, digit: sh.digitWidth)
             }
             layers.append(SizeDialog(
-                title: kind.title, start: start,
+                title: kind.title, unit: kind.unit, start: start,
                 onApply: { [weak self] v in
                     switch kind {
                     case .rowHeight: self?.wb.setRowHeights(v)
-                    case .columnWidth: self?.wb.setColumnWidths(v)
-                    case .defaultWidth: self?.wb.setDefaultColumnWidth(v)
+                    case .columnWidth: self?.wb.setColumnWidths(Xlsx._charsToPoints(v, digit: sh.digitWidth))
+                    case .defaultWidth: self?.wb.setDefaultColumnWidth(Xlsx._charsToPoints(v, digit: sh.digitWidth))
                     }
                 },
                 onClose: { [weak self] in self?.setState { self?._sizeDialog = nil }; self?._grid?.focus.requestFocus() }))
