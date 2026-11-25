@@ -71,7 +71,8 @@ final class SheetsManageRulesTests: XCTestCase {
     func testTheRibbonButtonOpensTheDialog() throws {
         let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light),
                                         home: SheetsShell(initialPath: nil, onSwitch: { _, _ in }), title: "t"), size: Size(1280, 800))
-        XCTAssertTrue(ui.tap(text: "Manage Rules"))
+        XCTAssertTrue(ui.tap(text: "Conditional Formatting"))
+        XCTAssertTrue(ui.tap(text: "Manage Rules…"))
         ui.pump()
         XCTAssertNotNil(ui.state(ManageRulesDialogState.self))
     }

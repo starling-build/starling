@@ -192,8 +192,10 @@ extension Ribbon {
             ]),
         ])])
         let styles = Chrome.group("Styles", fluent, [
-            Chrome.big(FluentSystemIcons.paintBrush, "Conditional Formatting", fluent) { wb.onCommand?(.conditionalFormat) },
-            Chrome.small(FluentSystemIcons.paintBrush, "Manage Rules", fluent) { wb.onCommand?(.conditionalRules) },
+            Chrome.menuButton(FluentSystemIcons.paintBrush, "Conditional Formatting", "Conditional formatting", fluent, items: [
+                MenuFlyoutItem(text: Text("New Rule…"), onPressed: { wb.onCommand?(.conditionalFormat) }),
+                MenuFlyoutItem(text: Text("Manage Rules…"), onPressed: { wb.onCommand?(.conditionalRules) }),
+            ]),
         ])
         let editing = Chrome.group("Editing", fluent, [Chrome.rows([
             Chrome.small(FluentSystemIcons.mathFormula, "AutoSum", fluent) { Self._autoSum(wb) },
