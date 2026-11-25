@@ -870,6 +870,22 @@ final class WorkbookController: ChangeNotifier {
                 if text != ws.keptElements[k].text { ws.keptElements[k].text = text }
             }
         }
+        // Pivot tables: where each sits, and the cells its cache was built from.
+        for ws in book.sheets {
+            for i in ws.pivots.indices {
+                if let src = ws.pivots[i].source, let e = try? Formula.parse("=" + src) {
+                    let g = Formula.mapRefs(e) { f($0, -1) }
+                    if g != e { ws.pivots[i].source = Formula.print(g) }
+                }
+            }
+        }
+        for (si, ws) in book.sheets.enumerated() {
+            for i in ws.pivots.indices {
+                guard let e = try? Formula.parse("=" + ws.pivots[i].ref.a1) else { continue }
+                let g = Formula.mapRefs(e) { f($0, si) }
+                if g != e, let r = CellRange(Formula.print(g).replacingAll("$", with: "")) { ws.pivots[i].ref = r }
+            }
+        }
         // Charts read cells by sheet-qualified references too.
         func map(_ t: String) -> String {
             guard let e = try? Formula.parse("=" + t) else { return t }
