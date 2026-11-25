@@ -85,6 +85,8 @@ extension Ribbon {
         let editing = Chrome.group("Editing", fluent, [Chrome.rows([
             Chrome.small(FluentSystemIcons.textT, "Select All", fluent) { [session] in session.controller.selectAll() },
             Chrome.small(FluentSystemIcons.numberList, "Selection Pane", fluent) { [session] in session.onSelectionPane?() },
+            // A finger has no Shift: while this is on, a tap adds a shape to the selection or takes it out.
+            Chrome.small(FluentSystemIcons.check, "Select Multiple", fluent, checked: deck.selectMultiple) { deck.setSelectMultiple(!deck.selectMultiple) },
         ])])
         return [clipboardGroup(fluent), _slidesGroup(deck, fluent), fp[0], fp[1], _drawingGroup(deck, fluent), editing]
     }

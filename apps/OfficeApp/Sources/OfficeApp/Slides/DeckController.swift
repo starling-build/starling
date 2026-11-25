@@ -733,6 +733,16 @@ final class DeckController: ChangeNotifier {
 
     func isSelected(_ shape: SlideShape) -> Bool { selection.contains { $0 === shape } }
 
+    /// "Select Multiple" (the touch stand-in for holding Shift or Ctrl): while on, a tap on a shape adds it to the selection or,
+    /// if it is in already, removes it, and a tap on the empty slide keeps the selection. A mode of the view, not an edit.
+    private(set) var selectMultiple = false
+
+    func setSelectMultiple(_ on: Bool) {
+        guard on != selectMultiple else { return }
+        selectMultiple = on
+        _notify()
+    }
+
     // MARK: Shapes
 
     func addTextBox(at frame: Rect) -> SlideShape {

@@ -52,7 +52,7 @@ final class SelectionPane: StatelessWidget {
                         key: ValueKey("selpane.row.\(i)"),
                         onPointerDown: { [deck, modifiers] _ in
                             let m = modifiers()
-                            if m.contains(.shift) || m.contains(.control) || m.contains(.meta) { deck.toggleSelected(shape) }
+                            if deck.selectMultiple || m.contains(.shift) || m.contains(.control) || m.contains(.meta) { deck.toggleSelected(shape) }
                             else { deck.selectShapes([shape]) }
                         },
                         behavior: .opaque,
