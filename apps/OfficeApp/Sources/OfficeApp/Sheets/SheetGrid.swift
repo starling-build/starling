@@ -447,7 +447,19 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 // default, as its L8:R8 headers do.)
                 if let g = merged[a.row]?.first(where: { $0.contains(a) }),
                    g.top != g.bottom || (a == g.topLeft && book.style(cell.style).wrap) { continue }
-                let l = cell.style == 0 && cell.value.isEmpty ? m.defaultRow : line(cell.style)
+                var l = cell.style == 0 && cell.value.isEmpty ? m.defaultRow : line(cell.style)
+                // Turned text stands as tall as the text is long, along its angle: Excel fits the row to it (X-AF-1). A row the file
+                // fitted (`scriptRows`) keeps that fit, where it is taller.
+                let rot = book.style(cell.style).rotation
+                if rot != 0, rot != 255, cell.value.isText, !ws.scriptRows.contains(a.row), !merged[a.row, default: []].contains(where: { $0.contains(a) }) {
+                    let st = book.style(cell.style)
+                    let text = NumberFormat.display(cell.value, st.numberFormat, width: 255).text
+                    if !text.isEmpty {
+                        let one = texts.painter(text, _textStyle(st, color: nil, ink: Color(0xFF00_0000)), maxWidth: 10_000)
+                        let th = Double(rot > 90 ? rot - 90 : rot) * .pi / 180
+                        l = max(l, min(409.5, one.width / scale * abs(sin(th)) + one.height / scale * abs(cos(th))))
+                    }
+                }
                 if l > fit[a.row] ?? 0 { fit[a.row] = l; fitSize[a.row] = book.fontSize(book.style(cell.style)) }
                 let acc = book.style(cell.style).accounting
                 if acc > 0 { accounting[a.row, default: []].append((book.fontSize(book.style(cell.style)), acc)) }
@@ -623,15 +635,34 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             // (seen 2026-10-13).
             var heights = ws.rowHeights
             let book = controller.book
-            let wrapping = Set(book.styles.indices.filter { book.styles[$0].wrap })
+            // Larger type and turned text grow an unsized row the same way
+            // (X-AF-1); a row with a set height is never touched.
+            let defSize = book.defaultFontSize ?? 11
+            let wrapping = Set(book.styles.indices.filter {
+                let s = book.styles[$0]
+                return s.wrap || (s.fontSize ?? defSize) > defSize + 0.01 || s.rotation != 0
+            })
             if !wrapping.isEmpty {
                 for (a, cell) in ws.cells where wrapping.contains(cell.style) && ws.rowHeights[a.row] == nil && cell.value.isText {
                     if ws.merges.contains(where: { $0.contains(a) }) { continue }
                     let st = book.style(cell.style)
+                    // (Excel keeps the height a file stores for turned text; only rows the app edits are fitted: `Worksheet.scriptRows`.)
+                    if st.rotation != 0 && ws.scriptRows.contains(a.row) { continue }
                     let width = cols.size(a.col) - 4 * zoom
                     guard width > 4 else { continue }
                     let text = NumberFormat.display(cell.value, st.numberFormat, width: 255).text
-                    let tall = texts.painter(text, _textStyle(st, color: nil, ink: Color(0xFF00_0000)), maxWidth: width).height / scale + 1.5
+                    let ts = _textStyle(st, color: nil, ink: Color(0xFF00_0000))
+                    var tall: Double
+                    if st.rotation != 0 && st.rotation != 255 {
+                        let one = texts.painter(text, ts, maxWidth: 10_000)
+                        let w = one.width / scale, h = one.height / scale
+                        let th = Double(st.rotation > 90 ? st.rotation - 90 : st.rotation) * .pi / 180
+                        tall = w * abs(sin(th)) + h * abs(cos(th)) + 1.5
+                    } else if st.wrap {
+                        tall = texts.painter(text, ts, maxWidth: width).height / scale + 1.5
+                    } else {
+                        tall = texts.painter(text, ts, maxWidth: 10_000).height / scale + 1.5
+                    }
                     if tall > ws.defaultRowHeightPt, tall > heights[a.row] ?? 0 { heights[a.row] = tall }
                 }
             }

@@ -435,7 +435,8 @@ enum Xlsx {
                 cell.style = styleIndex < book.styles.count ? styleIndex : 0
                 // (Turned text is fitted by its length, which only the file's
                 // fit has: lo-forum-mso-en4-134670's headings' 196.5 pt.)
-                if book.styles[cell.style].rotation != 0, !value.isEmpty { ws.scriptRows.insert(a.row) }
+                // (A row the file stores no height for is fitted on load, as Excel does: only a stored one is kept.)
+                if book.styles[cell.style].rotation != 0, !value.isEmpty, ws.fittedRows.contains(a.row) || ws.rowHeights[a.row] != nil { ws.scriptRows.insert(a.row) }
                 for (k, v) in c.kept { cell.keptAttrs[k] = v }
                 if c.hasF {
                     // As the file wrote it, for when it cannot be read.
