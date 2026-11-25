@@ -62,13 +62,18 @@ enum PdfExport {
         // painted, and its pictures asked for then: the pages are painted
         // once to nowhere first.)
         #if !os(WASI)
-        for p in 0 ..< layout.pageCount {
-            let recorder = NativePictureRecorder()
-            let rect = layout.pageRect(p)
-            let canvas = NativeCanvas(recorder: recorder, cullRect: Rect.fromLTWH(0, 0, rect.width, rect.height))
-            canvas.translate(0, -rect.top)
-            layout.paint(canvas, visible: rect, document: document, selection: nil, caret: nil, pageBackground: nil)
-            _ = recorder.endRecording()
+        // (Painting recurses as deep as layout does, in frames as big: on a 64 MB stack, like the layout itself.
+        // The wait below stays on the calling thread: it turns that thread's run loop.)
+        let measured = layout, measuredDocument = document
+        BigStack.run {
+            for p in 0 ..< measured.pageCount {
+                let recorder = NativePictureRecorder()
+                let rect = measured.pageRect(p)
+                let canvas = NativeCanvas(recorder: recorder, cullRect: Rect.fromLTWH(0, 0, rect.width, rect.height))
+                canvas.translate(0, -rect.top)
+                measured.paint(canvas, visible: rect, document: measuredDocument, selection: nil, caret: nil, pageBackground: nil)
+                _ = recorder.endRecording()
+            }
         }
         let deadline = Date().addingTimeInterval(8)
         while layout.hasPendingImages || WriterMetafiles.hasPendingImages || WriterGroups.hasPendingImages, Date() < deadline {
@@ -81,7 +86,10 @@ enum PdfExport {
         // as a PDF is written from them; no page of it is.)
         if layoutOnly { return true }
 
+        let finalLayout = layout, finalDocument = document
+        var pages: [PdfDocument.Page] = BigStack.run {
         var pages: [PdfDocument.Page] = []
+        let layout = finalLayout, document = finalDocument
         for p in 0 ..< layout.pageCount {
             let rect = layout.pageRect(p)
             // (Each page at its own section's size.)
@@ -114,6 +122,8 @@ enum PdfExport {
             if markup != nil { canvas.restore() }
             pages.append(PdfDocument.Page(picture: recorder.endRecording(),
                                           width: pageSetup.width, height: pageSetup.height))
+        }
+        return pages
         }
         // A print job names its pages (1-based, in print order, repeats for copies).
         if let printPages {
