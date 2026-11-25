@@ -68,4 +68,42 @@ final class CellBordersTests: XCTestCase {
         XCTAssertEqual(Set(cells.map(\.table)).count, 1)
         XCTAssertEqual(back.tableColumns.values.first?.count, 3, "the grid is untouched")
     }
+
+    func testHeavyBorderIsASingleLineWithItsWidth() throws {
+        let c = grid()
+        c.insertText("a")
+        c.setCellBorders([.right: CellBorderLine(style: "single", width: 4, color: nil)])
+        let back = try DocxFormat.read(try DocxFormat.write(c.document, pageSetup: .letter)).document
+        let xml = back.paragraphs.compactMap(\.cell).first { $0.row == 0 && $0.column == 0 }?.bordersXML ?? ""
+        XCTAssertTrue(xml.containsSubstring("w:sz=\"32\""))
+        XCTAssertFalse(xml.containsSubstring("thick"))
+        XCTAssertEqual(CellBorderLine(style: "thick", width: 1, color: nil).style, "thick" == CellBorderLine.styles.first ? "thick" : "single")
+    }
+
+    func testVerticalAlignmentOfASelectedRowSetsEveryCell() throws {
+        let c = grid()
+        c.moveTo(RichPosition(paragraph: c.document.paragraphs.firstIndex { $0.cell?.row == 1 }!, offset: 0), extend: false)
+        c.selectRow()
+        c.setCellVerticalAlignment("center")
+        let back = try DocxFormat.read(try DocxFormat.write(c.document, pageSetup: .letter)).document
+        let cells = back.paragraphs.compactMap(\.cell)
+        XCTAssertEqual(cells.filter { $0.row == 1 }.map(\.verticalAlign), ["center", "center", "center"])
+        XCTAssertTrue(cells.filter { $0.row == 0 }.allSatisfy { $0.verticalAlign == nil })
+    }
+
+    func testSelectColumnAndTableAndInsertTableFit() {
+        let c = grid()
+        c.selectColumn()
+        c.setCellShading(Color(0xFFDDEEFF))
+        XCTAssertEqual(c.document.paragraphs.compactMap(\.cell).filter { $0.fill != nil }.map(\.column), [0, 0])
+        c.selectTable()
+        c.setCellShading(Color(0xFF112233))
+        XCTAssertTrue(c.document.paragraphs.compactMap(\.cell).allSatisfy { $0.fill == Color(0xFF112233) })
+        let d = RichDocumentController(plainText: "")
+        d.insertTable(rows: 2, columns: 2, fit: .window)
+        let id = d.document.paragraphs.compactMap(\.cell).first!.table
+        XCTAssertEqual(d.document.tableStyles[id]?.widthPercent, 100)
+        d.undo()
+        XCTAssertTrue(d.document.paragraphs.compactMap(\.cell).isEmpty)
+    }
 }

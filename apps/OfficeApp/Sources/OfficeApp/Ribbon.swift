@@ -466,6 +466,8 @@ final class Ribbon: StatelessWidget {
                                         }))
         }
         items.append(MenuFlyoutSeparator())
+        items.append(MenuFlyoutItem(text: Text("Insert Table…"), onPressed: { [session] in session.onInsertTableDialog?() }))
+        items.append(MenuFlyoutSeparator())
         items.append(MenuFlyoutItem(text: Text("Insert Row Above"), onPressed: inCell ? { c.insertRow(below: false) } : nil))
         items.append(MenuFlyoutItem(text: Text("Insert Row Below"), onPressed: inCell ? { c.insertRow(below: true) } : nil))
         items.append(MenuFlyoutItem(text: Text("Delete Row"), onPressed: inCell ? { c.deleteRow() } : nil))
@@ -489,6 +491,13 @@ final class Ribbon: StatelessWidget {
                 Chrome.small(FluentSystemIcons.chevronLeft, "Insert Left", fluent) { c.insertColumn(after: false) },
                 Chrome.small(FluentSystemIcons.chevronRight, "Insert Right", fluent) { c.insertColumn(after: true) },
                 Chrome.small(FluentSystemIcons.delete, "Delete Column", fluent) { c.deleteColumn() },
+            ]),
+        ])
+        let select = Chrome.group("Select", fluent, [
+            Chrome.menuButton(FluentSystemIcons.table, "Select", "Select cells", fluent, items: [
+                MenuFlyoutItem(text: Text("Select Row"), onPressed: { c.selectRow() }),
+                MenuFlyoutItem(text: Text("Select Column"), onPressed: { c.selectColumn() }),
+                MenuFlyoutItem(text: Text("Select Table"), onPressed: { c.selectTable() }),
             ]),
         ])
         let merge = Chrome.group("Merge", fluent, [Chrome.rows([
@@ -573,11 +582,11 @@ final class Ribbon: StatelessWidget {
             MenuFlyoutSeparator(),
             MenuFlyoutItem(text: Text("No Border"), onPressed: apply(CellSide.allCases, .none)),
         ]
-        let styleItems: [MenuFlyoutItemBase] = ["single", "double", "dashed", "dotted", "thick"].map { st in
+        let styleItems: [MenuFlyoutItemBase] = ["single", "double", "dashed", "dotted"].map { st in
             MenuFlyoutItem(text: Text(st.prefix(1).uppercased() + st.dropFirst() + " Line"), onPressed: { [session] in
                 session.cellPen.style = st })
         }
-        let widthItems: [MenuFlyoutItemBase] = [0.25, 0.5, 1, 1.5, 2.25, 3, 4.5, 6].map { w in
+        let widthItems: [MenuFlyoutItemBase] = [0.25, 0.5, 1, 1.5, 2.25, 3, 4.5, 6, 8, 12].map { w in
             MenuFlyoutItem(text: Text("\(w) pt"), onPressed: { [session] in
                 session.cellPen.width = w })
         }
@@ -603,7 +612,7 @@ final class Ribbon: StatelessWidget {
         let table = Chrome.group("Table", fluent, [
             Chrome.big(FluentSystemIcons.delete, "Delete Table", fluent) { c.deleteTable() },
         ])
-        return [rows, merge, size, alignment, borders, look, table]
+        return [select, rows, merge, size, alignment, borders, look, table]
     }
 
     // MARK: Picture Format

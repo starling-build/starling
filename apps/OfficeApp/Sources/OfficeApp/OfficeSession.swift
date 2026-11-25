@@ -317,6 +317,7 @@ final class OfficeSession {
     var onParagraphDialog: (() -> Void)?
     var onFontDialog: (() -> Void)?
     var onPageSetupDialog: (() -> Void)?
+    var onInsertTableDialog: (() -> Void)?
     var onModifyStyle: ((String) -> Void)?
     /// Slides: Cut / Copy / Paste of the selected shapes. Each returns true
     /// when it handled the command, false to fall through to the text path.

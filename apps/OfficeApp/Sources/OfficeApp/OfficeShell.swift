@@ -73,6 +73,7 @@ final class OfficeShellState: State<StatefulWidget> {
     private var _symbolOpen = false
     private var _fontOpen = false
     private var _pageSetupOpen = false
+    private var _insertTableOpen = false
     private let _colorText = TextEditingController()
     private var _styleOpen: String? = nil
     private let _linkText = TextEditingController()
@@ -387,6 +388,11 @@ final class OfficeShellState: State<StatefulWidget> {
             guard let self else { return }
             self.controller.breakUndoCoalescing()
             self.setState { self._pageSetupOpen = true }
+        }
+        session.onInsertTableDialog = { [weak self] in
+            guard let self else { return }
+            self.controller.breakUndoCoalescing()
+            self.setState { self._insertTableOpen = true }
         }
         session.onMoreColors = { [weak self] in
             guard let self else { return }
@@ -1069,7 +1075,7 @@ final class OfficeShellState: State<StatefulWidget> {
             if session.paintedStyle != nil { _cancelPainter(); return true }
             if _styleOpen != nil { setState { _styleOpen = nil }; return true }
             if _linkOpen { setState { _linkOpen = false }; return true }
-            if _paragraphOpen || _fontOpen { return false }   // the dialog's own Esc closes it
+            if _paragraphOpen || _fontOpen || _insertTableOpen { return false }   // the dialog's own Esc closes it
             if _colorOpen { setState { _colorOpen = false }; return true }
             if _headerFooterOpen { setState { _headerFooterOpen = false }; return true }
             if _findOpen { setState { _findOpen = false }; _editorFocus.requestFocus(); return true }
@@ -1289,6 +1295,22 @@ final class OfficeShellState: State<StatefulWidget> {
                     },
                     onCancel: { [weak self] in
                         self?.setState { self?._pageSetupOpen = false }
+                        self?._editorFocus.requestFocus()
+                    })),
+            ])
+        }
+        if _insertTableOpen {
+            return Stack(children: [
+                window,
+                Positioned(left: 0, top: 0, right: 0, bottom: 0, child: InsertTableDialog(
+                    onOK: { [weak self] v in
+                        guard let self else { return }
+                        self.controller.insertTable(rows: v.rows, columns: v.columns, fit: v.fit)
+                        self.setState { self._insertTableOpen = false }
+                        self._editorFocus.requestFocus()
+                    },
+                    onCancel: { [weak self] in
+                        self?.setState { self?._insertTableOpen = false }
                         self?._editorFocus.requestFocus()
                     })),
             ])

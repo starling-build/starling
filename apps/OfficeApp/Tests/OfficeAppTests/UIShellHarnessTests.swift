@@ -233,5 +233,23 @@ final class SheetsTitleBarUndoHarnessTests: XCTestCase {
         XCTAssertEqual(c.document.paragraphs[0].image?.rotation, 0)
         c.undo()
         XCTAssertEqual(c.document.paragraphs[0].image?.rotation, 90)
+    /// W-TB-1: the Select menu and the Insert Table dialog reach the controller.
+    func testTableSelectAndInsertTableDialogReachTheController() {
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(1280, 800))
+        let c = ui.state(OfficeShellState.self)!.session.controller
+        XCTAssertTrue(ui.tap(text: "Insert"))
+        XCTAssertTrue(ui.tap(text: "Table"))
+        XCTAssertTrue(ui.tap(text: "Insert Table…"))
+        XCTAssertTrue(ui.has(text: "Number of columns"))
+        XCTAssertTrue(ui.tap(text: "AutoFit to window"))
+        XCTAssertTrue(ui.tap(text: "OK"))
+        let cells = c.document.paragraphs.compactMap { $0.cell }
+        XCTAssertEqual(cells.count, 10, "the default 5 x 2 grid")
+        XCTAssertEqual(c.currentTableStyle?.widthPercent, 100)
+        XCTAssertTrue(ui.tap(text: "Table Layout"))
+        XCTAssertTrue(ui.tap(text: "Select"))
+        XCTAssertTrue(ui.tap(text: "Select Column"))
+        c.setCellShading(Color(0xFFDDEEFF))
+        XCTAssertEqual(c.document.paragraphs.compactMap { $0.cell }.filter { $0.fill != nil }.count, 2)
     }
 }

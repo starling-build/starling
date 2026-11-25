@@ -1570,7 +1570,11 @@ public final class RichDocumentController: ChangeNotifier {
 
     /// Insert an empty rows×columns table at the caret, with a plain
     /// paragraph after it so the caret can leave it.
-    public func insertTable(rows: Int, columns: Int) {
+    /// How a new table sizes its columns: `fixed` keeps the widths it is given,
+    /// `contents` lets Word-style autofit follow the text, `window` also spans the text width.
+    public enum TableFit: Sendable { case fixed, contents, window }
+
+    public func insertTable(rows: Int, columns: Int, fit: TableFit = .contents) {
         let rows = max(1, rows), columns = max(1, columns)
         edit {
             if hasSelection { _deleteSelectionOps() }
@@ -1603,6 +1607,13 @@ public final class RichDocumentController: ChangeNotifier {
                 perform(.insertParagraphs(at: at, cells))
             }
             _setCaret(RichPosition(paragraph: at, offset: 0))
+            var style = TableStyle()
+            switch fit {
+            case .contents: break
+            case .fixed: style.fixedLayout = true
+            case .window: style.widthPercent = 100
+            }
+            if style != TableStyle() { perform(.setTableStyle(id, old: nil, new: style)) }
         }
     }
 
@@ -2155,6 +2166,46 @@ public final class RichDocumentController: ChangeNotifier {
     /// Remove the table the caret is in; the caret lands where it was.
     public func deleteTable() {
         _rewriteTable(caret: { _ in 0 }, rewrite: { $0.removeAll() })
+    }
+
+    // MARK: Selecting parts of a table
+
+    /// Select the cells of `rows` x `columns` in the caret's table (the
+    /// corner cells become anchor and focus, so the block selection and
+    /// every command that works on one follow).
+    private func _selectCells(rows: (Int) -> ClosedRange<Int>, columns: (Int) -> ClosedRange<Int>) {
+        guard let here = currentCell else { return }
+        let members = document.paragraphs(inTable: here.table)
+        let cells = members.compactMap { i in document.paragraphs[i].cell.map { (i, $0) } }
+        let maxRow = cells.map { $0.1.row + $0.1.rowSpan - 1 }.max() ?? 0
+        let maxCol = cells.map { $0.1.column + $0.1.span - 1 }.max() ?? 0
+        let r = rows(maxRow), k = columns(maxCol)
+        func paragraph(row: Int, column: Int) -> Int? {
+            cells.first { $0.1.intersects(rows: row ... row, columns: column ... column) }?.0
+        }
+        guard let a = paragraph(row: r.lowerBound, column: k.lowerBound),
+              let f = paragraph(row: r.upperBound, column: k.upperBound) else { return }
+        moveTo(RichPosition(paragraph: a, offset: 0), extend: false)
+        moveTo(RichPosition(paragraph: f, offset: 0), extend: true)
+    }
+
+    /// Select the whole row the caret is in.
+    public func selectRow() {
+        guard let here = currentCell else { return }
+        let rows = here.row ... here.row + here.rowSpan - 1
+        _selectCells(rows: { _ in rows }, columns: { 0 ... $0 })
+    }
+
+    /// Select the whole column the caret is in.
+    public func selectColumn() {
+        guard let here = currentCell else { return }
+        let cols = here.column ... here.column + here.span - 1
+        _selectCells(rows: { 0 ... $0 }, columns: { _ in cols })
+    }
+
+    /// Select every cell of the caret's table.
+    public func selectTable() {
+        _selectCells(rows: { 0 ... $0 }, columns: { 0 ... $0 })
     }
 
     /// Insert an empty row above or below the caret's row.
@@ -2990,16 +3041,18 @@ public enum CellSide: String, CaseIterable, Hashable, Sendable {
 }
 
 /// One border line: Word's line style ("single", "double", "dashed",
-/// "dotted", "thick", or "none" for no line), width in points (0.25 to
-/// 12) and colour (nil is automatic).
+/// "dotted", or "none" for no line), width in points (0.25 to 12; a heavy
+/// line is "single" with a large width, as Word writes it) and colour (nil
+/// is automatic).
 public struct CellBorderLine: Hashable, Sendable {
-    public static let styles = ["single", "double", "dashed", "dotted", "thick", "none"]
+    public static let styles = ["single", "double", "dashed", "dotted", "none"]
     public var style: String
     public var width: Double
     public var color: Color?
     public init(style: String = "single", width: Double = 0.5, color: Color? = nil) {
         self.style = Self.styles.contains(style) ? style : "single"
-        self.width = min(12, max(0.25, width))
+        // "thick" is not a line Word draws by name; it is a single line made heavy.
+        self.width = min(12, max(style == "thick" ? 4.5 : 0.25, width))
         self.color = color
     }
     public static let none = CellBorderLine(style: "none")
