@@ -2310,11 +2310,11 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 if let c = self._a11y, c.key == key { return c.widget }
                 let w = SheetsAccessibility.wrap(child!, controller: self.controller,
                     visible: { [unowned self] a in
-                        let r = self.rect(a)
+                        let r = self.rect(self.controller.sheet.merges.first { $0.topLeft == a } ?? CellRange(a))
                         return r.width > 0 && r.height > 0 && r.right > self.headerWidth && r.bottom > self.headerHeight
                             && r.left < self.size.width && r.top < self.size.height
                     },
-                    frame: { [unowned self] a in self.rect(a) })
+                    frame: { [unowned self] r in self.rect(r) })
                 self._a11y = (key, w)
                 return w
             }, child: ClipRect(child: CustomPaint(painter: _painter, child: SizedBox(expand: ()))))))
