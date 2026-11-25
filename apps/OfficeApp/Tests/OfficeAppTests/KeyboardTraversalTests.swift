@@ -136,4 +136,43 @@ final class KeyboardTraversalTests: XCTestCase {
         }
         XCTAssertGreaterThanOrEqual(opened, 5, "the sweep must really open dialogs")
     }
+
+    // MARK: Tab keeps its own meaning inside the editing surfaces
+
+    func testTabInWriterTextInsertsATabAndDoesNotWalkTheRibbon() {
+        let ui = app(OfficeShell(initialPath: nil, startBlank: true))
+        let session = ui.state(OfficeShellState.self)!.session
+        ui.tap(at: Offset(640, 400))
+        ui.type("a")
+        ui.press(.tab); ui.type("b")
+        XCTAssertNil(KeyboardTraversal.shared.focused)
+        XCTAssertEqual(session.controller.document.paragraphs[0].text, "a\tb")
+    }
+
+    func testTabInSheetsMovesToTheNextCell() {
+        let ui = app(SheetsShell(initialPath: nil, onSwitch: { _, _ in }))
+        let wb = ui.state(SheetsShellState.self)!.wb
+        ui.tap(at: Offset(300, 300))
+        let before = wb.active
+        ui.press(.tab)
+        XCTAssertNil(KeyboardTraversal.shared.focused)
+        XCTAssertEqual(wb.active.col, before.col + 1)
+        XCTAssertEqual(wb.active.row, before.row)
+    }
+
+    func testTabInSlidesCyclesShapesAndF6LeavesAfterAClick() {
+        let ui = app(SlidesShell(initialPath: nil, startBlank: true, onSwitch: { _, _ in }))
+        let deck = ui.state(SlidesShellState.self)!.session.deck!
+        let shapes = deck.currentSlide.shapes
+        XCTAssertGreaterThanOrEqual(shapes.count, 2)
+        deck.selectShapes([shapes[0]]); ui.pump()
+        ui.press(.tab)
+        XCTAssertNil(KeyboardTraversal.shared.focused)
+        XCTAssertTrue(deck.selection.first === shapes[1])
+        // F6 gets out to the ribbon; a click on the canvas gives Tab back to the slide.
+        ui.press(.f6)
+        XCTAssertNotNil(KeyboardTraversal.shared.focused)
+        ui.tap(at: Offset(700, 400))
+        XCTAssertNil(KeyboardTraversal.shared.focused)
+    }
 }
