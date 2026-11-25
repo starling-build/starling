@@ -79,6 +79,7 @@ final class SheetsShellState: State<StatefulWidget> {
     var _printCounts: [Int] = []
     private var _alertOpen: (alert: ValidationAlert, answer: (ValidationChoice) -> Void)?
     private var _sortOpen: (range: CellRange, hasHeader: Bool)?
+    private var _consOpen = false
     private var _dupOpen: (range: CellRange, hasHeader: Bool)?
     private var _ttcOpen: CellRange?
     private var _subOpen: CellRange?
@@ -399,6 +400,8 @@ final class SheetsShellState: State<StatefulWidget> {
             setState { _cfOpen = true }
         case .dataValidation:
             setState { _validationOpen = true }
+        case .consolidate:
+            setState { _consOpen = true }
         case .removeDuplicates:
             if let region = wb.sortRegion() { setState { _dupOpen = region } }
             else { _flash(DuplicatesProblem.nothingToCheck.message) }
@@ -1023,6 +1026,13 @@ final class SheetsShellState: State<StatefulWidget> {
             return Stack(children: [window, Positioned(left: 0, top: 0, right: 0, bottom: 0, child: ValidationDialog(
                 controller: wb, onClose: { [weak self] in
                     self?.setState { self?._validationOpen = false }
+                    self?._grid?.focus.requestFocus()
+                }))])
+        }
+        if _consOpen {
+            return Stack(children: [window, Positioned(left: 0, top: 0, right: 0, bottom: 0, child: ConsolidateDialog(
+                controller: wb, onClose: { [weak self] in
+                    self?.setState { self?._consOpen = false }
                     self?._grid?.focus.requestFocus()
                 }))])
         }
