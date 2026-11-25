@@ -329,15 +329,26 @@ final class DeckController: ChangeNotifier {
         current = 0
     }
 
-    func setSlideSize(_ size: Size) {
+    /// How the slides' shapes follow a new slide size (PowerPoint's Maximize and Ensure Fit): both keep each shape's
+    /// proportions and put its centre at the same place on the new slide; Maximize scales by the larger of the two
+    /// ratios (content may run off the slide), Ensure Fit by the smaller (everything still fits).
+    enum SlideScaling { case maximize, ensureFit }
+
+    func setSlideSize(_ size: Size, scaling: SlideScaling? = nil) {
         guard size != slideSize else { return }
         _checkpoint()
         let sx = size.width / slideSize.width
         let sy = size.height / slideSize.height
+        let k = scaling == .maximize ? max(sx, sy) : min(sx, sy)
         for slide in slides {
             for shape in slide.shapes {
                 let f = shape.frame
-                shape.frame = Rect.fromLTWH(f.left * sx, f.top * sy, f.width * sx, f.height * sy)
+                if scaling == nil {
+                    shape.frame = Rect.fromLTWH(f.left * sx, f.top * sy, f.width * sx, f.height * sy)
+                } else {
+                    let w = f.width * k, h = f.height * k
+                    shape.frame = Rect.fromLTWH((f.left + f.width / 2) * sx - w / 2, (f.top + f.height / 2) * sy - h / 2, w, h)
+                }
             }
         }
         slideSize = size

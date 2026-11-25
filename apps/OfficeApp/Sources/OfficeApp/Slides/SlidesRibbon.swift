@@ -276,6 +276,7 @@ extension Ribbon {
                                    leading: Icon(wide ? FluentSystemIcons.check : FluentSystemIcons.onePage,
                                                  size: Chrome.iconSize, color: fluent.resources.textFillColorPrimary),
                                    onPressed: { deck.setSlideSize(Size(960, 540)) }),
+                    MenuFlyoutItem(text: Text("Custom Slide Size…"), onPressed: { [session] in session.onSlideSize?() }),
                 ]),
             ]),
         ]
