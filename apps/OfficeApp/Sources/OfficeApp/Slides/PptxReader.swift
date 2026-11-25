@@ -1090,10 +1090,17 @@ struct PptxReader {
             }
             // Entrance animations this app models, aimed at shapes by the
             // file ids they kept.
+            let byFileId = Dictionary(shapes.compactMap { s in s.fileId.map { ($0, s.id) } }, uniquingKeysWith: { a, _ in a })
+            for i in shapes.indices where shapes[i].pendingConnStart != nil || shapes[i].pendingConnEnd != nil {
+                let ps = shapes[i].pendingConnStart, pe = shapes[i].pendingConnEnd
+                let cs = ps.flatMap { p in byFileId[p.shape].map { ShapeConn(shape: $0, site: p.site) } }
+                let ce = pe.flatMap { p in byFileId[p.shape].map { ShapeConn(shape: $0, site: p.site) } }
+                shapes[i].connStart = cs; shapes[i].connEnd = ce
+                shapes[i].keptLine?.connStart = cs; shapes[i].keptLine?.connEnd = ce
+            }
             var animations: [ShapeAnimation] = []
             var sourceAnimations: [ShapeAnimation]? = nil
             if let timing = slide.first("p:timing"), let read = AnimationXML.read(timing) {
-                let byFileId = Dictionary(shapes.compactMap { s in s.fileId.map { ($0, s.id) } }, uniquingKeysWith: { a, _ in a })
                 let mapped = read.compactMap { r -> ShapeAnimation? in
                     byFileId[r.spid].map { var a = r.animation; a.shapeId = $0; return a }
                 }

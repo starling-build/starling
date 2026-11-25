@@ -94,6 +94,11 @@ struct ShapeState: Equatable {
     @Boxed var outlineFill: SlideFill? = nil
     var headEnd: LineEnd? = nil
     var tailEnd: LineEnd? = nil
+    var connStart: ShapeConn? = nil
+    var connEnd: ShapeConn? = nil
+    /// As read: the file's `cNvPr` ids (not yet deck ids), resolved once the slide's shapes are known.
+    var pendingConnStart: ShapeConn? = nil
+    var pendingConnEnd: ShapeConn? = nil
     var outlineCompound: String? = nil
     var textTurn = 0
     var textStacked = 0
@@ -761,23 +766,55 @@ final class DeckController: ChangeNotifier {
 
     /// A drawn shape from the gallery, centred on the slide, in the theme's
     /// first accent with white text — PowerPoint's default look.
+    /// A shape chosen from the gallery: the next drag on the slide draws it, a click places it one inch square.
+    private(set) var pendingInsert: ShapePreset? = nil
+
+    func beginInsert(_ preset: ShapePreset) { pendingInsert = preset; notifyListeners() }
+    func cancelInsert() { if pendingInsert != nil { pendingInsert = nil; notifyListeners() } }
+
+    /// The drag that draws the pending shape ended: its box runs from `a` to `b` (a square or a 45-degree line with
+    /// `keepProportions`); a click, with nothing dragged, drops a 1 in (72 pt) box with its corner there.
     @discardableResult
-    func addShape(_ preset: ShapePreset) -> SlideShape {
+    func placeInsert(_ preset: ShapePreset, from a: Offset, to b: Offset, keepProportions: Bool) -> SlideShape {
+        pendingInsert = nil
+        var b = b
+        let dragged = abs(b.dx - a.dx) >= 4 || abs(b.dy - a.dy) >= 4
+        if !dragged { b = Offset(a.dx + (preset.isLine ? 72 : 72), a.dy + (preset.isLine ? 0 : 72)) }
+        else if keepProportions {
+            if preset.isLine {
+                let l = ((b.dx - a.dx) * (b.dx - a.dx) + (b.dy - a.dy) * (b.dy - a.dy)).squareRoot()
+                let ang = ((atan2(b.dy - a.dy, b.dx - a.dx)) / (Double.pi / 4)).rounded() * (Double.pi / 4)
+                b = Offset(a.dx + l * cos(ang), a.dy + l * sin(ang))
+            } else {
+                let side = max(abs(b.dx - a.dx), abs(b.dy - a.dy))
+                b = Offset(a.dx + (b.dx < a.dx ? -side : side), a.dy + (b.dy < a.dy ? -side : side))
+            }
+        }
+        let frame = preset.isLine ? Rect.fromLTRB(a.dx, a.dy, b.dx, b.dy)
+                                  : Rect.fromLTRB(min(a.dx, b.dx), min(a.dy, b.dy), max(a.dx, b.dx), max(a.dy, b.dy))
+        return addShape(preset, frame: frame)
+    }
+
+    @discardableResult
+    func addShape(_ preset: ShapePreset, frame given: Rect? = nil) -> SlideShape {
         _checkpoint()
+        pendingInsert = nil
         let w = preset.isLine ? 192.0 : 144.0
         let h = preset.isLine ? 0.0 : (preset == .rightArrow ? 72.0 : 108.0)
-        let frame = Rect.fromLTWH((slideSize.width - w) / 2, (slideSize.height - h) / 2, w, h)
-        let accent = theme.accents[0]
+        let frame = given ?? Rect.fromLTWH((slideSize.width - w) / 2, (slideSize.height - h) / 2, w, h)
+        let accent = self.theme.accents[0]
         let theme = _textTheme(font: self.theme.bodyFont, size: 18, color: Color(0xFFFFFFFF))
         let style = RichParagraphStyle(alignment: .center, spaceAfter: 0, lineSpacing: 1.0)
+        let open = preset.isOpenPath
         let shape = SlideShape(id: _id(), name: "\(preset.name) \(_nextId)", kind: .geometry(preset), frame: frame,
                                text: preset.isLine ? nil
                                    : _textController(RichDocument(paragraphs: [RichParagraph(text: "", style: style)])),
                                textTheme: preset.isLine ? nil : theme, anchor: .middle)
-        shape.fill = preset.isLine ? nil : accent
-        shape.outline = preset.isLine ? accent : Self.darker(accent)
+        shape.fill = open ? nil : accent
+        shape.outline = open ? accent : Self.darker(accent)
         shape.fillScheme = "accent1"
-        shape.outlineWidth = preset.isLine ? 1.5 : 1
+        shape.outlineWidth = open ? 1.5 : 1
+        if preset.rawValue == "straightConnector1" { shape.tailEnd = LineEnd(kind: "triangle", width: 3, length: 3) }
         currentSlide.shapes.append(shape)
         _watch(shape)
         selection = [shape]
@@ -1510,6 +1547,7 @@ final class DeckController: ChangeNotifier {
     func beginFrameEdit() { _checkpoint() }
 
     func setFramesLive(_ frames: [(SlideShape, Rect)]) {
+        detachLines(moving: frames.map(\.0))
         for (shape, frame) in frames { shape.frame = frame }
         _changed(keepSession: true)
     }
@@ -1527,6 +1565,7 @@ final class DeckController: ChangeNotifier {
     func nudgeSelection(dx: Double, dy: Double) {
         guard !selection.isEmpty else { return }
         _checkpoint()
+        detachLines(moving: Array(selection))
         for s in selection { s.frame = s.frame.shift(Offset(dx, dy)) }
         _changed()
     }
@@ -2172,6 +2211,8 @@ final class DeckController: ChangeNotifier {
         st.outlineFill = s.outlineFill
         st.outlineScheme = s.outlineScheme
         st.headEnd = s.headEnd
+        st.connStart = s.connStart
+        st.connEnd = s.connEnd
         st.outlineCompound = s.outlineCompound
         st.tailEnd = s.tailEnd
         st.textTurn = s.textTurn
@@ -2308,6 +2349,8 @@ final class DeckController: ChangeNotifier {
         shape.outlineCap = st.outlineCap
         shape.outlineFill = st.outlineFill
         shape.headEnd = st.headEnd
+        shape.connStart = st.connStart
+        shape.connEnd = st.connEnd
         shape.outlineCompound = st.outlineCompound
         shape.tailEnd = st.tailEnd
         shape.textTurn = st.textTurn
@@ -2575,6 +2618,7 @@ final class DeckController: ChangeNotifier {
     }
 
     func _changed(keepSession: Bool = false) {
+        followConnections()
         _updateFields()
         // A shape that went takes its animations with it.
         for slide in slides where !slide.animations.isEmpty {

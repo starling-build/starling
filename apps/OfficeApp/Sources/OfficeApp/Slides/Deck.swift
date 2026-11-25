@@ -124,6 +124,12 @@ struct ShapeGroup: Equatable {
 /// between its ends, and while that line and its outline are unchanged a
 /// save writes the original back — curves, arrowheads, connections and
 /// all — at `box`, its unrotated frame on the slide.
+/// A connector's end glued to a shape: the shape's deck id and the connection site's index (`a:stCxn` / `a:endCxn`).
+struct ShapeConn: Equatable {
+    var shape: Int
+    var site: Int
+}
+
 struct KeptLine: Equatable {
     var line: Rect
     var box: Rect
@@ -133,6 +139,8 @@ struct KeptLine: Equatable {
     var dash: String? = nil
     var head: LineEnd? = nil
     var tail: LineEnd? = nil
+    var connStart: ShapeConn? = nil
+    var connEnd: ShapeConn? = nil
 }
 
 /// A picture as read (with `sourceXML`): written back verbatim while its
@@ -311,7 +319,8 @@ struct ShapePreset: RawRepresentable, Hashable {
         case "line": return "Line"
         case "star5": return "Star"
         case "wedgeRectCallout": return "Callout"
-        default: return rawValue
+        case "straightConnector1": return "Line Arrow"
+        default: return ShapeGallery.title(rawValue)
         }
     }
 
@@ -619,6 +628,9 @@ final class SlideShape {
     /// and end.
     var headEnd: LineEnd? = nil
     var tailEnd: LineEnd? = nil
+    /// The shapes this line's start and end are glued to (`a:stCxn`, `a:endCxn`); the ends follow them when they move.
+    var connStart: ShapeConn? = nil
+    var connEnd: ShapeConn? = nil
     /// `a:ln cmpd`: "dbl", "thickThin", "thinThick" or "tri"; nil for one
     /// line.
     var outlineCompound: String? = nil
