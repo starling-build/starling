@@ -177,6 +177,8 @@ public struct CharStyle: Hashable, Codable, Sendable {
     public var linkFieldID = 0
     /// The link came from a file: the save adds no Hyperlink character style to its runs (the file's runs keep the look they had).
     public var linkKeepsLook = false
+    /// The file's w:hyperlink carried w:history (a link made in the app gets it on save).
+    public var linkHistory = false
     public var script: ScriptPosition = .normal
     /// Slides fontAlgn t, ctr or b on a line that mixes faces or sizes: where this run's baseline stands below the line's top, and where the engine's own line puts it, in ems of the run's size (nil: the paragraph is moved as a whole).
     public var alignTop: Double? = nil
