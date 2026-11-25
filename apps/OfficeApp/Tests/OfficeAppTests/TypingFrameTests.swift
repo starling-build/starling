@@ -106,4 +106,17 @@ final class TypingFrameTests: XCTestCase {
             try png(px, w, h).write(to: URL(fileURLWithPath: path))
         }
     }
+
+    func testAShapeGetsShapeFormatAndAPictureKeepsPictureFormat() throws {
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(900, 600))
+        let shell = try XCTUnwrap(ui.state(OfficeShellState.self))
+        let c = shell.session.controller
+        c.insertImage(try XCTUnwrap(TextBoxInsert.make(text: "one")))
+        let i = try XCTUnwrap(c.document.paragraphs.firstIndex { $0.image?.textBox != nil })
+        c.selectImage(at: i)
+        for _ in 0 ..< 3 { ui.pump(); RunLoop.main.run(until: Date().addingTimeInterval(0.05)) }
+        XCTAssertEqual(shell.session.imageTab, .shapeFormat)
+        XCTAssertTrue(ui.has(text: "Shape Format"))
+        XCTAssertFalse(ui.has(text: "Picture Format"))
+    }
 }
