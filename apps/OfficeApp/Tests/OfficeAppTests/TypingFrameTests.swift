@@ -16,6 +16,9 @@ final class TypingFrameTests: XCTestCase {
             guard let c = layer as? ContainerLayer else { return }
             canvas.save()
             if let t = c as? TransformLayer, let m = t.transform { canvas.transform(m.storage) }
+            if let l = c as? LeaderLayer { canvas.translate(l.offset.dx, l.offset.dy) }
+            if let o = c as? OpacityLayer { canvas.translate(o.offset.dx, o.offset.dy) }
+            if let r = c as? ClipRRectLayer, let rr = r.clipRRect { canvas.clipRRect(rr) }
             if let r = c as? ClipRectLayer, let rect = r.clipRect { canvas.clipRect(rect) }
             var child = c.firstChild
             while let k = child { walk(k); child = k.nextSibling }
@@ -102,6 +105,7 @@ final class TypingFrameTests: XCTestCase {
         var runs = 0
         for (k, y) in rows.enumerated() where k == 0 || y != rows[k - 1] + 1 { runs += 1 }
         XCTAssertEqual(runs, 2, "one frame: a top edge and a bottom edge, no doubled line")
+        XCTAssertTrue(ui.has(text: "Paste"), "typing in a box leaves the Home ribbon drawn, not an empty body")
         if let path = ProcessInfo.processInfo.environment["TYPING_FRAME_PNG"] {
             try png(px, w, h).write(to: URL(fileURLWithPath: path))
         }
