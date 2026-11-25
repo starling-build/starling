@@ -51,6 +51,17 @@ struct FieldClock: Equatable {
         #endif
     }
 
+    static let monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September",
+                             "October", "November", "December"]
+    static let dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+
+    /// 0 for Sunday (the civil calendar's day of the week, from the date alone).
+    var weekday: Int {
+        let t = [0, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4]
+        let y = month < 3 ? year - 1 : year
+        return (y + y / 4 - y / 100 + y / 400 + t[max(1, min(12, month)) - 1] + day) % 7
+    }
+
     private func pad(_ n: Int, _ w: Int) -> String {
         var s = String(n)
         while s.count < w { s = "0" + s }
@@ -58,8 +69,9 @@ struct FieldClock: Equatable {
     }
 
     /// A Word date-time picture: yyyy yy MM M dd d HH H hh h mm m ss s AM/PM am/pm, 'quoted text', anything else
-    /// literal (年月日 included). nil for names (MMM, ddd) we cannot spell.
-    func format(picture: String) -> String? {
+    /// literal (年月日 included). nil for names (MMM, ddd) we cannot spell, unless `english` is set (the app's own
+    /// Date & Time, whose formats are English).
+    func format(picture: String, english: Bool = false) -> String? {
         let c = Array(picture)
         var out = ""
         var i = 0
@@ -72,8 +84,20 @@ struct FieldClock: Equatable {
             let n = j - i
             switch ch {
             case "y": out += n >= 3 ? pad(year, 4) : pad(year % 100, 2); i = j
-            case "M": if n >= 3 { return nil }; out += pad(month, n); i = j
-            case "d": if n >= 3 { return nil }; out += pad(day, n); i = j
+            case "M":
+                if n >= 3 {
+                    guard english else { return nil }
+                    let name = FieldClock.monthNames[max(1, min(12, month)) - 1]
+                    out += n == 3 ? String(name.prefix(3)) : name
+                } else { out += pad(month, n) }
+                i = j
+            case "d":
+                if n >= 3 {
+                    guard english else { return nil }
+                    let name = FieldClock.dayNames[weekday]
+                    out += n == 3 ? String(name.prefix(3)) : name
+                } else { out += pad(day, n) }
+                i = j
             case "H": out += pad(hour, n >= 2 ? 2 : 1); i = j
             case "h": out += pad(h12, n >= 2 ? 2 : 1); i = j
             case "m": out += pad(minute, n >= 2 ? 2 : 1); i = j

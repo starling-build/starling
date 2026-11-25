@@ -1099,7 +1099,7 @@ public final class RichDocumentController: ChangeNotifier {
     }
 
     /// Remove the selection's contents; caret lands at its start.
-    private func _deleteSelectionOps() {
+    func _deleteSelectionOps() {
         if let block = selection.block {
             // Whole cells: their contents go, the cells stay. Extra
             // paragraphs of a cell are removed, the first emptied.
