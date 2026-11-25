@@ -737,7 +737,8 @@ final class SheetsShellState: State<StatefulWidget> {
                     self._tabDrag = nil
                     guard d.moved else { return }
                     let spans = self._tabProbes.spans(self.wb.visibleSheets)
-                    if let to = SheetTabDrag.target(spans: spans, x: Double(e.position.dx)), to != d.from { self.wb.moveSheet(d.from, to: to) }
+                    guard let to = SheetTabDrag.target(spans: spans, x: Double(e.position.dx)) else { return }
+                    if let why = self.wb.dropTab(from: d.from, to: to, copy: self._grid?.controlHeld == true) { self._flash(why) }
                 },
                 child: FlatButton(
                 child: Padding(padding: EdgeInsets(left: 12, top: 0, right: 12, bottom: 0), child: Column(
