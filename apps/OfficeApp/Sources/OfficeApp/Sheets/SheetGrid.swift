@@ -1335,6 +1335,8 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         _ime?.sync()
     }
 
+    var isEditing: Bool { edit != nil }
+
     /// Text typed from outside the keyboard (the bar over it): into the cell being edited, at the caret.
     func typeText(_ s: String) {
         guard edit != nil else { return }
