@@ -48,7 +48,7 @@ final class PrintChoicePanelState: State<StatefulWidget> {
                 line(.entireWorkbook, "every visible sheet"),
                 line(.selection, _w.selectionText),
             ]))
-        return DialogShell(title: "Print", page: content, okLabel: "Print", width: 420,
+        return DialogShell(title: "Print Options", page: content, okLabel: "Print", width: 420,
                            onOK: { [weak self] in guard let self else { return }; self._w.onPrint(self.what); self._w.onClose() },
                            onCancel: _w.onClose)
     }
