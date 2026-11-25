@@ -838,11 +838,20 @@ extension WorkbookController {
         // 5 × 3 inches (Excel's size), a column clear of the data, level with its top.
         let corner = ws.point(SheetMarker(col: r.right + 2, colOff: 0, row: r.top, rowOff: 0))
         // Inside the printable width when it fits there (Excel prints a chart over the page edge on 2 pages), never over the data.
-        var left = corner.x
+        var anchor = ws.anchor(x: corner.x, y: corner.y, width: 360, height: 216)
         let printable = SheetPrintSetup.read(ws).printableWidth
         let dataEdge = ws.point(SheetMarker(col: r.right + 1, colOff: 0, row: r.top, rowOff: 0)).x
-        if left + 360 > printable, printable - 360 >= dataEdge { left = printable - 360 }
-        let anchor = ws.anchor(x: left, y: corner.y, width: 360, height: 216)
+        // The anchor snaps to the grid, so its real width is read back; shift left until it ends inside the page.
+        var f = ws.frame(anchor)
+        if f.x + f.width > printable {
+            var x = printable - f.width
+            for _ in 0 ..< 4 where x >= dataEdge {
+                let a = ws.anchor(x: x, y: corner.y, width: 360, height: 216)
+                f = ws.frame(a)
+                if f.x + f.width <= printable { anchor = a; break }
+                x -= (f.x + f.width - printable) + 0.5
+            }
+        }
         let n = ws.drawings.filter(\.isChart).count + 1
         structural {
             ws.drawings.append(SheetDrawing(name: "Chart \(n)", anchor: anchor, kind: .chart(sc)))
