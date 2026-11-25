@@ -519,7 +519,7 @@ extension _StyledFrame {
         // Rotate Down, 3 sizes of 8 faces): Calibri 11 13.80 for 13.43, Segoe UI 15.00 for 14.63, Tahoma 13.6 for 13.28, Georgia 12.84
         // for 12.5, Courier New 12.8 for 12.46; 9 and 13 pt in the same ratio, Rotate Up the same as Down.)
         if !vertical, kind >= 0, theme.wordRules, RichTextTheme.wordWindowsPages, p.style.lineHeightPoints == nil, pitch == nil,
-           abs(p.style.lineSpacing - 1) < 0.005, let i = index, rl._cells[i]?.vertical == true, let h = s.height, s.fontSize ?? 0 > 0.5 {
+           abs(p.style.lineSpacing - 1) < 0.005, let i = index, rl._cells[i]?.vertical == true, !p.text.unicodeScalars.contains(where: { $0.value >= 0x0590 }), let h = s.height, s.fontSize ?? 0 > 0.5 {
             RuleTrace.hit("turned-cell-latin-line-is-1.026-single")
             if let asc = s.ascentOverride, let desc = s.descentOverride {
                 s = s.copyWith(ascentOverride: asc * 1.026, descentOverride: desc * 1.026, height: h * 1.026)

@@ -1593,7 +1593,8 @@ extension RichLayout {
             // (A line whose baseline falls past the cell's far edge is not drawn: Word's print of a 78pt cell of Calibri 20
             // turned down has three lines, baselines 24.8, 49.8 and 74.8 from the near edge, and not the fourth at 99.8; the
             // padding does not count. Lab textpitch. A line is kept whole or not drawn, never cut through.)
-            if theme.wordRules, RichTextTheme.wordWindowsPages, c.rowSpan == 1 {
+            if theme.wordRules, RichTextTheme.wordWindowsPages, c.rowSpan == 1,
+               !document.paragraphs[i].text.unicodeScalars.contains(where: { $0.value >= 0x0590 }) {   // measured on Latin only
                 let lines = g.painter.computeLineMetrics()
                 let kept = RichLayout.turnedLinesKept(baselines: lines.map { origin.dy + $0.baseline }, room: c.colWidth)
                 if kept < lines.count, kept > 0 {
