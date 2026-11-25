@@ -1001,11 +1001,8 @@ final class SheetsShellState: State<StatefulWidget> {
                 onClose: { [weak self] in self?.setState { self?._moveCopyFor = nil }; self?._grid?.focus.requestFocus() })))
         }
         if _linkOpen {
-            let sel = wb.selection
-            layers.append(Positioned(left: 0, top: 0, right: 0, bottom: 0, child: HyperlinkPanel(
-                current: wb.link(at: wb.active),
-                onDone: { [weak self] link, tip in self?.wb.setLink(sel, link, tip: tip) },
-                onRemove: wb.link(at: wb.active) == nil ? nil : { [weak self] in self?.wb.removeLink(sel) },
+            layers.append(Positioned(left: 0, top: 0, right: 0, bottom: 0, child: HyperlinkDialog(
+                hooks: wb.hyperlinkHooks(flash: { [weak self] in self?._flash($0) }),
                 onClose: { [weak self] in self?.setState { self?._linkOpen = false }; self?._grid?.focus.requestFocus() })))
         }
         if layers.count > 1, _backstage == nil { return Stack(children: layers) }
