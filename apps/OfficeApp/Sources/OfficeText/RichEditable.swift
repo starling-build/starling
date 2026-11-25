@@ -793,7 +793,9 @@ public final class RichEditableState: State<StatefulWidget> {
     }
 
     private func _handleHit(_ p: Offset, _ rect: Rect) -> Int? {
-        let reach = Self.handleSize
+        // A finger's reach is wider than a pointer's, kept to a quarter of the picture's short side so that
+        // neighbouring handles (half that apart) never share it.
+        let reach = _touchMode ? max(Self.handleSize, min(22, min(rect.width, rect.height) / 4)) : Self.handleSize
         for (k, c) in Self._handles(rect).enumerated() where abs(p.dx - c.dx) <= reach && abs(p.dy - c.dy) <= reach {
             return k
         }
@@ -933,6 +935,14 @@ public final class RichEditableState: State<StatefulWidget> {
             if _caretHandleHit(event.localPosition), let box = _caretHandleBox() {
                 // The caret's own knob: the finger moves the caret.
                 _selHandle = (nil, event.localPosition.dy - (box.top + box.height / 2), false)
+                _touchScroll = nil
+                _dragging = false
+                return
+            }
+            if let box = _selectedImageBox(), let k = _handleHit(event.localPosition, box.rect) {
+                // A selected picture's size handle: the finger resizes it, as a mouse does.
+                _handleDrag = (box.index, k, event.localPosition, box.rect.size, box.inline)
+                _dragSize = box.rect.size
                 _touchScroll = nil
                 _dragging = false
                 return
