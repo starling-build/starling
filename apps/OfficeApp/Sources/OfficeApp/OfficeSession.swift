@@ -295,6 +295,8 @@ final class OfficeSession {
     /// Slide Show → Set Up Slide Show, Custom Shows and Rehearse Timings.
     var onSetUpShow: (() -> Void)?
     var onCustomShows: (() -> Void)?
+    /// Add Section (false) or Rename Section (true): the Slides shell opens its name box.
+    var onSectionName: ((Bool) -> Void)?
     var onRehearse: (() -> Void)?
     /// Show or hide the Animation Pane (Slides).
     var onAnimationPane: (() -> Void)?

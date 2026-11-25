@@ -149,6 +149,7 @@ struct SlideState: Equatable {
     var id: Int
     var layout: SlideLayoutKind
     var hidden: Bool
+    var section: String? = nil
     var hideMasterShapes = false
     var clrMapOvrXML: String? = nil
     var controlsXML: String? = nil
@@ -187,6 +188,7 @@ struct DeckState: Equatable {
     var slideScaling: DeckController.SlideScaling? = nil
     var show = ShowSettings()
     var customShows: [CustomShow] = []
+    var sections: [SlideSection] = []
 }
 
 /// Every change to a deck goes through here. Listeners hear about slide
@@ -209,6 +211,8 @@ final class DeckController: ChangeNotifier {
     /// Set Up Slide Show, and the custom shows; both saved with the deck.
     private(set) var show = ShowSettings()
     private(set) var customShows: [CustomShow] = []
+    /// The deck's sections, in order; empty when it has none.
+    private(set) var sections: [SlideSection] = []
     /// Apply to All: the master's background, which every slide without its own shows and every new slide inherits.
     private(set) var masterBackground: SlideFill? = nil
     private(set) var slideScaling: SlideScaling? = nil
@@ -421,6 +425,7 @@ final class DeckController: ChangeNotifier {
         let i = max(0, min(slides.count - 1, index))
         slideSelectionIds = []
         guard i != current else { return }
+        if let si = sectionIndex(ofSlide: i), sections[si].collapsed { sections[si].collapsed = false }
         current = i
         selection = []
         _changed()
@@ -439,6 +444,7 @@ final class DeckController: ChangeNotifier {
         if !slides.isEmpty { slide.footerFrames = currentSlide.footerFrames }
         let at = slides.isEmpty ? 0 : current + 1
         slides.insert(slide, at: at)
+        _adoptSection(at ..< at + 1)
         current = at
         selection = []
         slideSelectionIds = []
@@ -453,6 +459,7 @@ final class DeckController: ChangeNotifier {
         let copy = Slide(id: _id(), layout: source.layout, shapes: shapes,
                          notes: _textController(source.notes.document))
         copy.hidden = source.hidden
+        copy.section = source.section
         copy.hideMasterShapes = source.hideMasterShapes
         copy.clrMapOvrXML = source.clrMapOvrXML
         copy.controlsXML = source.controlsXML
@@ -475,6 +482,7 @@ final class DeckController: ChangeNotifier {
         let copy = _cloneSlide(slides[index])
         _watch(copy)
         slides.insert(copy, at: index + 1)
+        _adoptSection(index + 1 ..< index + 2)
         current = index + 1
         selection = []
         slideSelectionIds = []
@@ -574,6 +582,7 @@ final class DeckController: ChangeNotifier {
         _checkpoint()
         let keepId = slides[current].id
         slides = result
+        _adoptSection(at ..< at + moving.count)
         current = slides.firstIndex { $0.id == keepId } ?? 0
         slideSelectionIds = moving.count > 1 ? Set(moving.map(\.id)) : []
         _changed()
@@ -598,6 +607,7 @@ final class DeckController: ChangeNotifier {
         let first = at
         let copies = slideClipboard.map { _cloneSlide($0) }
         for copy in copies { _watch(copy); slides.insert(copy, at: at); at += 1 }
+        _adoptSection(first ..< at)
         current = at - 1
         slideSelectionIds = copies.count > 1 ? Set(copies.map(\.id)) : []
         _slideAnchor = first
@@ -716,6 +726,7 @@ final class DeckController: ChangeNotifier {
         _checkpoint()
         let slide = slides.remove(at: from)
         slides.insert(slide, at: target)
+        _adoptSection(target ..< target + 1)
         current = target
         _changed()
     }
@@ -789,6 +800,126 @@ final class DeckController: ChangeNotifier {
             guard let cs = customShows.first(where: { $0.id == id }) else { return slides.indices.filter { !slides[$0].hidden } }
             return cs.slides.compactMap { sid in slides.firstIndex { $0.id == sid && !$0.hidden } }
         }
+    }
+
+    // MARK: Sections
+
+    /// The slides just put at `range` join the section of the slide before them (the one after, at the top of the deck). Does nothing while the deck has no sections.
+    private func _adoptSection(_ range: Range<Int>) {
+        guard !sections.isEmpty, !range.isEmpty else { return }
+        let tag: String? = range.lowerBound > 0 ? slides[range.lowerBound - 1].section
+            : (range.upperBound < slides.count ? slides[range.upperBound].section : sections[0].guid)
+        for i in range { slides[i].section = tag ?? sections[0].guid }
+    }
+
+    /// The slide indices in section `index`.
+    func slides(inSection index: Int) -> [Int] {
+        guard sections.indices.contains(index) else { return [] }
+        return slides.indices.filter { slides[$0].section == sections[index].guid }
+    }
+
+    /// The index of the section the slide at `slide` is in.
+    func sectionIndex(ofSlide slide: Int) -> Int? {
+        guard slides.indices.contains(slide), let g = slides[slide].section else { return nil }
+        return sections.firstIndex { $0.guid == g }
+    }
+
+    /// Start a new section at slide `index`: it takes that slide and the rest of its section. The first section a deck gets also makes a "Default Section" for any slides before it.
+    func addSection(at index: Int, name: String = "Untitled Section", guid: String = DeckController.newSectionGuid()) {
+        guard slides.indices.contains(index) else { return }
+        _checkpoint()
+        if sections.isEmpty {
+            let first = SlideSection(guid: DeckController.newSectionGuid(), name: "Default Section")
+            sections = [first]
+            for s in slides { s.section = first.guid }
+        }
+        guard let si = sectionIndex(ofSlide: index) else { return }
+        // At the first slide of a section the old one is left empty; PowerPoint keeps it, so do we.
+        let run = slides(inSection: si)
+        let moved = run.filter { $0 >= index }
+        sections.insert(SlideSection(guid: guid, name: name), at: si + 1)
+        for i in moved { slides[i].section = guid }
+        _changed()
+    }
+
+    func renameSection(_ index: Int, to name: String) {
+        guard sections.indices.contains(index) else { return }
+        let n = name.trimmingWhitespace()
+        guard !n.isEmpty, n != sections[index].name else { return }
+        _checkpoint()
+        sections[index].name = n
+        _changed()
+    }
+
+    /// Remove the section and keep its slides: they join the section before it (the one after, for the first). The last section going leaves a deck with none.
+    func removeSection(_ index: Int) {
+        guard sections.indices.contains(index) else { return }
+        _checkpoint()
+        let gone = sections.remove(at: index)
+        if sections.isEmpty {
+            for s in slides { s.section = nil }
+        } else {
+            let into = sections[max(0, index - 1)].guid
+            for s in slides where s.section == gone.guid { s.section = into }
+        }
+        _changed()
+    }
+
+    func removeAllSections() {
+        guard !sections.isEmpty else { return }
+        _checkpoint()
+        sections = []
+        for s in slides { s.section = nil }
+        _changed()
+    }
+
+    /// Remove the section and its slides (the deck keeps at least one slide).
+    func removeSectionAndSlides(_ index: Int) {
+        guard sections.indices.contains(index) else { return }
+        let run = slides(inSection: index)
+        guard run.count < slides.count else { return }
+        _checkpoint()
+        let keepId = slides[current].id
+        for i in run.reversed() { _unwatch(slides[i]); slides.remove(at: i) }
+        sections.remove(at: index)
+        current = slides.firstIndex { $0.id == keepId } ?? max(0, min(run[0], slides.count - 1))
+        slideSelectionIds = []
+        selection = []
+        _changed()
+    }
+
+    /// Move section `index` up or down one place, its slides with it.
+    func moveSection(_ index: Int, by delta: Int) {
+        let to = index + delta
+        guard sections.indices.contains(index), sections.indices.contains(to), delta != 0 else { return }
+        _checkpoint()
+        let keepId = slides[current].id
+        var groups = sections.map { sec in slides.filter { $0.section == sec.guid } }
+        let sec = sections.remove(at: index), grp = groups.remove(at: index)
+        sections.insert(sec, at: to)
+        groups.insert(grp, at: to)
+        slides = groups.flatMap { $0 }
+        current = slides.firstIndex { $0.id == keepId } ?? 0
+        _changed()
+    }
+
+    func setSectionCollapsed(_ index: Int, _ collapsed: Bool) {
+        guard sections.indices.contains(index), sections[index].collapsed != collapsed else { return }
+        sections[index].collapsed = collapsed
+        notifyListeners()
+    }
+
+    /// Collapse All / Expand All.
+    func setAllSectionsCollapsed(_ collapsed: Bool) {
+        guard sections.contains(where: { $0.collapsed != collapsed }) else { return }
+        for i in sections.indices { sections[i].collapsed = collapsed }
+        notifyListeners()
+    }
+
+    /// A section id as PowerPoint writes it: a braced upper-case GUID.
+    static func newSectionGuid() -> String {
+        func hex(_ n: Int) -> String { (0 ..< n).map { _ in String(Int.random(in: 0 ..< 16), radix: 16, uppercase: true) }.joined() }
+        return "{\(hex(8))-\(hex(4))-4\(hex(3))-A\(hex(3))-\(hex(12))}"
     }
 
     func toggleHidden(_ index: Int) {
@@ -2317,7 +2448,7 @@ final class DeckController: ChangeNotifier {
 
     func snapshot() -> DeckState {
         DeckState(slides: slides.map { slide in
-            SlideState(id: slide.id, layout: slide.layout, hidden: slide.hidden,
+            SlideState(id: slide.id, layout: slide.layout, hidden: slide.hidden, section: slide.section,
                        hideMasterShapes: slide.hideMasterShapes, clrMapOvrXML: slide.clrMapOvrXML,
                        controlsXML: slide.controlsXML, decorations: slide.decorations.map(_state),
                        notes: slide.notes.document, shapes: slide.shapes.map(_state),
@@ -2327,7 +2458,7 @@ final class DeckController: ChangeNotifier {
                        transition: slide.transition, timingXML: slide.timingXML,
                        footerFrames: slide.footerFrames, animations: slide.animations,
                        sourceAnimations: slide.sourceAnimations, commentsFrom: slide.commentsFrom ?? slide.sourcePart)
-        }, current: current, slideSize: slideSize, theme: theme, ownTemplates: ownTemplates, recolourTheme: recolourTheme, firstSlideNum: firstSlideNum, masterBackground: masterBackground, slideScaling: slideScaling, show: show, customShows: customShows)
+        }, current: current, slideSize: slideSize, theme: theme, ownTemplates: ownTemplates, recolourTheme: recolourTheme, firstSlideNum: firstSlideNum, masterBackground: masterBackground, slideScaling: slideScaling, show: show, customShows: customShows, sections: sections)
     }
 
     /// Put the deck back as `state` was. Objects that still exist are kept
@@ -2365,6 +2496,7 @@ final class DeckController: ChangeNotifier {
                 slide.notes.addListener({ [weak self] in self?._textChanged() }, owner: self)
             }
             slide.hidden = ss.hidden
+            slide.section = ss.section
             slide.hideMasterShapes = ss.hideMasterShapes
             slide.clrMapOvrXML = ss.clrMapOvrXML
             slide.controlsXML = ss.controlsXML
@@ -2393,6 +2525,7 @@ final class DeckController: ChangeNotifier {
         slideScaling = state.slideScaling
         show = state.show
         customShows = state.customShows
+        sections = state.sections
         if let t = state.theme { theme = t }
         if let o = state.ownTemplates { ownTemplates = o }
         if let r = state.recolourTheme { recolourTheme = r }

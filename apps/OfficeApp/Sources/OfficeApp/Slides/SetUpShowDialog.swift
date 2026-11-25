@@ -369,3 +369,54 @@ final class CustomShowsDialogState: State<StatefulWidget> {
         return _sheet(fluent, width: 440, card)
     }
 }
+
+/// Rename Section / Add Section: one name box.
+final class SectionNameDialog: StatefulWidget {
+    let title: String
+    let initial: String
+    let onOK: (String) -> Void
+    let onCancel: () -> Void
+    init(title: String, initial: String, onOK: @escaping (String) -> Void, onCancel: @escaping () -> Void) {
+        self.title = title; self.initial = initial; self.onOK = onOK; self.onCancel = onCancel
+        super.init()
+    }
+    override func createState() -> State<StatefulWidget> { SectionNameDialogState() }
+}
+
+final class SectionNameDialogState: State<StatefulWidget> {
+    private var _w: SectionNameDialog { widget as! SectionNameDialog }
+    private let _name = TextEditingController()
+
+    override func initState() {
+        super.initState()
+        _name.text = _w.initial
+    }
+
+    override func dispose() {
+        _name.dispose()
+        super.dispose()
+    }
+
+    override func build(_ context: any BuildContext) -> Widget {
+        let fluent = FluentTheme.of(context)
+        let card = Column(mainAxisSize: .min, crossAxisAlignment: .start, children: [
+            Text(_w.title, style: fluent.typography.subtitle),
+            _gap(12),
+            Row(children: [
+                Text("Section name:"),
+                SizedBox(width: 10, height: nil, child: nil),
+                SizedBox(width: 240, height: 30, child: FluentTextBox(controller: _name)),
+            ]),
+            _gap(16),
+            Row(mainAxisAlignment: .end, children: [
+                FilledButton(onPressed: { [weak self] in
+                    guard let self else { return }
+                    self._w.onOK(self._name.text.trimmingWhitespace())
+                }, child: Text("OK")),
+                SizedBox(width: 8, height: nil, child: nil),
+                Button(onPressed: { [weak self] in self?._w.onCancel() }, child: Text("Cancel")),
+            ]),
+        ])
+        return _sheet(fluent, width: 400, card)
+    }
+}

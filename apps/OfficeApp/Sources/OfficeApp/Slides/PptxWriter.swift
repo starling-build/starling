@@ -120,7 +120,7 @@ enum PptxWriter {
             ids += "<p:sldId id=\"\(256 + i)\" r:id=\"rIdS\(i + 1)\"/>"
         }
         b.rels("ppt/presentation.xml", presRels)
-        b.add("ppt/presentation.xml", _setCustomShows(t.presentation(slideIds: ids), state), type: CT.presentation)
+        b.add("ppt/presentation.xml", _setSections(_setCustomShows(t.presentation(slideIds: ids), state), state, slideIds: state.slides.indices.map { 256 + $0 }), type: CT.presentation)
         b.add("ppt/presProps.xml", _applyShowPr(PptxTemplates.presProps, state.show), type: CT.presProps)
     }
 
@@ -243,7 +243,7 @@ enum PptxWriter {
                                   after: "</p:notesMasterIdLst>", orAfter: "</p:sldMasterIdLst>")
         // Custom shows (`p:custShowLst`) list slides by the same relationship
         // ids this just numbered, written from the deck's own list.
-        presOut = _remapSections(presOut, kept: slideIds, oldIds: Set(oldIdByPart.values), oldOrder: p.xml(pres)?.descendant("p:sldIdLst")?.all("p:sldId").compactMap { Int($0["id"] ?? "") } ?? [])
+        presOut = _setSections(presOut, state, slideIds: slideIds)
         presOut = _setCustomShows(presOut, state)
         let cx = Int((state.slideSize.width * Pptx.emu).rounded()), cy = Int((state.slideSize.height * Pptx.emu).rounded())
         presOut = _replaceElement("p:sldSz", in: presOut, with: "<p:sldSz cx=\"\(cx)\" cy=\"\(cy)\"/>",
@@ -695,53 +695,30 @@ enum PptxWriter {
         return out
     }
 
-    /// The deck's sections (`p14:sectionLst`) after slides were added, deleted or moved: each section starts at its first slide that is still there, and a new slide joins the section of the slide before it. A section whose slides all went stays, empty.
-    static func _remapSections(_ pres: String, kept newOrder: [Int], oldIds: Set<Int>, oldOrder: [Int]) -> String {
-        guard let open = pres.findRange(of: "<p14:sectionLst"),
-              let close = pres.findRange(of: "</p14:sectionLst>", in: open.upperBound ..< pres.endIndex) else { return pres }
-        let block = String(pres[open.lowerBound ..< close.upperBound])
-        // The sections as they were: (opening tag, ids).
-        var sections: [(tag: String, ids: [Int])] = []
-        var cursor = block.startIndex
-        while let s = block.findRange(of: "<p14:section ", in: cursor ..< block.endIndex),
-              let tagEnd = block.findRange(of: ">", in: s.upperBound ..< block.endIndex) {
-            let end = block.findRange(of: "</p14:section>", in: tagEnd.upperBound ..< block.endIndex)?.lowerBound ?? block.endIndex
-            let inner = String(block[tagEnd.upperBound ..< end])
-            var ids: [Int] = []
-            var c = inner.startIndex
-            while let d = inner.findRange(of: "<p14:sldId id=\"", in: c ..< inner.endIndex),
-                  let q = inner.findRange(of: "\"", in: d.upperBound ..< inner.endIndex) {
-                if let n = Int(String(inner[d.upperBound ..< q.lowerBound])) { ids.append(n) }
-                c = q.upperBound
-            }
-            sections.append((String(block[s.lowerBound ..< tagEnd.upperBound]), ids))
-            cursor = end
+    static let sectionExtUri = "{521415D9-36F7-43E2-AB2F-B90AF26B5E84}"
+
+    /// The deck's sections as `p14:sectionLst` in the presentation's extension list, written from the deck's own sections and each slide's tag (the file's old list is replaced; other extensions stay).
+    static func _setSections(_ pres: String, _ state: DeckState, slideIds: [Int]) -> String {
+        var out = pres
+        // Drop the old one: its ext element, or the whole list when it was the only extension.
+        if let u = out.findRange(of: "uri=\"\(sectionExtUri)\""),
+           let s = out.findRange(of: "<p:ext ", backwards: true, in: out.startIndex ..< u.lowerBound),
+           let e = out.findRange(of: "</p:ext>", in: u.upperBound ..< out.endIndex) {
+            out = out.replacingSubrange(s.lowerBound ..< e.upperBound, with: "")
+            if let l = out.findRange(of: "<p:extLst></p:extLst>") { out = out.replacingSubrange(l, with: "") }
         }
-        guard !sections.isEmpty else { return pres }
-        // Where each section starts in the new order: its first old slide still there.
-        var starts: [(section: Int, at: Int)] = []
-        for (si, sec) in sections.enumerated() {
-            if let id = sec.ids.first(where: { newOrder.contains($0) }), let at = newOrder.firstIndex(of: id) { starts.append((si, at)) }
+        guard !state.sections.isEmpty else { return out }
+        var xml = "<p14:sectionLst xmlns:p14=\"http://schemas.microsoft.com/office/powerpoint/2010/main\">"
+        for sec in state.sections {
+            let ids = state.slides.indices.filter { state.slides[$0].section == sec.guid }.map { "<p14:sldId id=\"\(slideIds[$0])\"/>" }
+            xml += "<p14:section name=\"\(PptxXML.escape(sec.name, attribute: true))\" id=\"\(PptxXML.escape(sec.guid, attribute: true))\"><p14:sldIdLst>\(ids.joined())</p14:sldIdLst></p14:section>"
         }
-        starts.sort { $0.at < $1.at }
-        var members = Array(repeating: [Int](), count: sections.count)
-        if let first = starts.first {
-            var cur = first.section
-            var next = 0
-            for (i, id) in newOrder.enumerated() {
-                while next < starts.count, starts[next].at <= i { cur = starts[next].section; next += 1 }
-                members[cur].append(id)
-            }
-        }
-        var out = "<p14:sectionLst xmlns:p14=\"http://schemas.microsoft.com/office/powerpoint/2010/main\">"
-        // In the order they now start; a section left with no slide stays, last.
-        let order = starts.map(\.section) + sections.indices.filter { si in !starts.contains { $0.section == si } }
-        for si in order {
-            let sec = sections[si]
-            out += sec.tag + "<p14:sldIdLst>" + members[si].map { "<p14:sldId id=\"\($0)\"/>" }.joined() + "</p14:sldIdLst></p14:section>"
-        }
-        out += "</p14:sectionLst>"
-        return pres.replacingSubrange(open.lowerBound ..< close.upperBound, with: out)
+        xml += "</p14:sectionLst>"
+        let ext = "<p:ext uri=\"\(sectionExtUri)\">\(xml)</p:ext>"
+        // PowerPoint puts it first in the list.
+        if let open = out.findRange(of: "<p:extLst>") { return out.replacingSubrange(open, with: "<p:extLst>" + ext) }
+        if out.findRange(of: "<p:extLst/>") != nil { return out.replacingAll("<p:extLst/>", with: "<p:extLst>\(ext)</p:extLst>") }
+        return out.replacingAll("</p:presentation>", with: "<p:extLst>\(ext)</p:extLst></p:presentation>")
     }
 
     private static func _insertAfter(_ marker: String, in s: String, _ insert: String) -> String {

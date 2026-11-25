@@ -88,6 +88,8 @@ final class SlidesShellState: State<StatefulWidget> {
     private var _setUpShow = false
     private var _rehearsing = false
     private var _customShowsOpen = false
+    /// Add or Rename Section: the dialog's title, the name it starts with and what OK does with it.
+    private var _sectionDialog: (title: String, initial: String, apply: (String) -> Void)? = nil
     private var _slideSize = false
     private var _slideSizeInitial = Size(960, 540)
     /// Font Color > More Colors is open.
@@ -453,6 +455,7 @@ final class SlidesShellState: State<StatefulWidget> {
             self._endEditing()
             self.setState { self._setUpShow = true }
         }
+        session.onSectionName = { [weak self] rename in self?._nameSection(rename: rename) }
         session.onCustomShows = { [weak self] in
             guard let self else { return }
             self._endEditing()
@@ -1558,6 +1561,15 @@ final class SlidesShellState: State<StatefulWidget> {
                     onCancel: { [weak self] in self?.setState { self?._setUpShow = false } })),
             ])
         }
+        if let d = _sectionDialog {
+            return Stack(children: [
+                IgnorePointer(ignoring: true, child: window),
+                Positioned(left: 0, top: 0, right: 0, bottom: 0, child: SectionNameDialog(
+                    title: d.title, initial: d.initial,
+                    onOK: { [weak self] n in d.apply(n); self?.setState { self?._sectionDialog = nil } },
+                    onCancel: { [weak self] in self?.setState { self?._sectionDialog = nil } })),
+            ])
+        }
         if _customShowsOpen {
             return Stack(children: [
                 IgnorePointer(ignoring: true, child: window),
@@ -1644,7 +1656,7 @@ final class SlidesShellState: State<StatefulWidget> {
         _revealThumbnail(itemHeight: thumbH + 17)
         var items: [Widget] = []
         let picked = Set(deck.selectedSlides)
-        for (i, slide) in deck.slides.enumerated() {
+        func makeItem(_ i: Int, _ slide: Slide) {
             let current = picked.contains(i)
             let number = Text("\(i + 1)", style: fluent.typography.caption?.copyWith(
                 color: slide.hidden ? fluent.resources.textFillColorDisabled : fluent.resources.textFillColorPrimary))
@@ -1691,6 +1703,15 @@ final class SlidesShellState: State<StatefulWidget> {
                         ]),
                     ]))))
         }
+        if deck.sections.isEmpty {
+            for (i, slide) in deck.slides.enumerated() { makeItem(i, slide) }
+        } else {
+            for (si, sec) in deck.sections.enumerated() {
+                let members = deck.slides(inSection: si)
+                items.append(_sectionHeader(fluent, si, count: members.count, width: thumbW + 16))
+                if !sec.collapsed { for i in members { makeItem(i, deck.slides[i]) } }
+            }
+        }
         return KeyboardPage(name: "Slide thumbnails", region: "thumbnails", focus: { [weak self] in
             self?._deckFocus.requestFocus(); self?.setState { self?._paneFocused = true }
         }, child: SizedBox(width: thumbW + 46, height: nil, child: DecoratedBox(
@@ -1700,6 +1721,54 @@ final class SlidesShellState: State<StatefulWidget> {
             child: SingleChildScrollView(controller: _thumbScroll, child: Padding(
                 padding: EdgeInsets(left: 0, top: 6, right: 0, bottom: 12),
                 child: Column(crossAxisAlignment: .start, children: items))))))
+    }
+
+    /// The header row of a section in the thumbnail rail and the Slide Sorter: a fold arrow, the name and the slide count. Right-click for the section's commands.
+    private func _sectionHeader(_ fluent: FluentThemeData, _ si: Int, count: Int, width: Double) -> Widget {
+        let sec = deck.sections[si]
+        return Listener(
+            key: ValueKey("section.header.\(si)"),
+            onPointerDown: { [weak self] e in
+                guard let self, let context = self.context else { return }
+                if e.buttons == 2 { self._showSectionMenu(si, at: e.position, context: context) }
+            },
+            behavior: .opaque,
+            child: Padding(padding: EdgeInsets(left: 6, top: 4, right: 6, bottom: 2), child: SizedBox(width: width, height: 26, child: Row(
+                crossAxisAlignment: .center, children: [
+                    FlatButton(child: Icon(sec.collapsed ? FluentSystemIcons.chevronRight : FluentSystemIcons.chevronDown, size: 12,
+                                           color: fluent.resources.textFillColorPrimary),
+                               tip: sec.collapsed ? "Expand section" : "Collapse section", width: 22, height: 22) { [weak self] in
+                        self?.deck.setSectionCollapsed(si, !sec.collapsed)
+                    },
+                    Expanded(child: Text("\(sec.name) (\(count))", style: fluent.typography.bodyStrong, overflow: .ellipsis, maxLines: 1)),
+                ]))))
+    }
+
+    private func _showSectionMenu(_ si: Int, at point: Offset, context: any BuildContext) {
+        let m = ContextMenuBuilder()
+        m.item("Rename Section") { [weak self] in self?._nameSection(rename: true, section: si) }
+        m.item("Remove Section") { [weak self] in self?.deck.removeSection(si) }
+        m.item("Remove Section & Slides", enabled: deck.slides(inSection: si).count < deck.slides.count) { [weak self] in self?.deck.removeSectionAndSlides(si) }
+        m.item("Remove All Sections") { [weak self] in self?.deck.removeAllSections() }
+        m.separator()
+        m.item("Move Section Up", enabled: si > 0) { [weak self] in self?.deck.moveSection(si, by: -1) }
+        m.item("Move Section Down", enabled: si < deck.sections.count - 1) { [weak self] in self?.deck.moveSection(si, by: 1) }
+        m.separator()
+        m.item("Collapse All") { [weak self] in self?.deck.setAllSectionsCollapsed(true) }
+        m.item("Expand All") { [weak self] in self?.deck.setAllSectionsCollapsed(false) }
+        m.show(_thumbMenu, in: context, at: point)
+    }
+
+    /// Open the name box for Add Section (at the current slide) or Rename Section.
+    private func _nameSection(rename: Bool, section: Int? = nil) {
+        let si = section ?? deck.sectionIndex(ofSlide: deck.current)
+        if rename {
+            guard let si, deck.sections.indices.contains(si) else { return }
+            setState { self._sectionDialog = ("Rename Section", self.deck.sections[si].name, { [weak self] n in self?.deck.renameSection(si, to: n) }) }
+        } else {
+            let at = deck.current
+            setState { self._sectionDialog = ("Add Section", "Untitled Section", { [weak self] n in self?.deck.addSection(at: at, name: n.isEmpty ? "Untitled Section" : n) }) }
+        }
     }
 
     /// A hidden slide's thumbnail, faded: the slide as it is with a wash of
@@ -1731,7 +1800,7 @@ final class SlidesShellState: State<StatefulWidget> {
             // identity counts as well as the slide's index.
             let mounted = ObjectIdentifier(pos)
             guard current != self._thumbShown || mounted != self._thumbPosition else { return }
-            let top = 6 + Double(current) * itemHeight
+            let top = 6 + self._railOffset(of: current, itemHeight: itemHeight)
             let bottom = top + itemHeight
             var target = pos.pixels
             if top < target { target = top - 6 }
@@ -1739,7 +1808,7 @@ final class SlidesShellState: State<StatefulWidget> {
             // Should a pane just mounted not have its extent yet, scrolling
             // would clamp to the top and count as done: look again next
             // frame rather than settle for that.
-            let content = 18 + Double(self.deck.slides.count) * itemHeight
+            let content = 18 + self._railOffset(of: self.deck.slides.count, itemHeight: itemHeight)
             if pos.maxScrollExtent <= 0, content > pos.viewportDimension, self._thumbRetries < 5 {
                 self._thumbRetries += 1
                 self.setState {}
@@ -1807,12 +1876,34 @@ final class SlidesShellState: State<StatefulWidget> {
         _thumbDrag = (index, e.position.dy, e.position.dx, index, false)
     }
 
+    /// How far down the rail slide `index` starts: the rows above it, section headers (32 each) included and the slides of a collapsed section left out. `index` = the slide count gives the whole length.
+    private func _railOffset(of index: Int, itemHeight: Double) -> Double {
+        guard !deck.sections.isEmpty else { return Double(index) * itemHeight }
+        var y = 0.0
+        for (si, sec) in deck.sections.enumerated() {
+            y += 32
+            for i in deck.slides(inSection: si) {
+                if i == index { return y }
+                if !sec.collapsed { y += itemHeight }
+            }
+        }
+        return y
+    }
+
+    /// `steps` slides down (or up) from `from` among the slides the rail shows.
+    private func _railStep(from: Int, steps: Int) -> Int {
+        guard !deck.sections.isEmpty else { return max(0, min(deck.slides.count - 1, from + steps)) }
+        let shown = deck.slides.indices.filter { i in deck.sectionIndex(ofSlide: i).map { !deck.sections[$0].collapsed } ?? true }
+        guard let at = shown.firstIndex(of: from) else { return from }
+        return shown[max(0, min(shown.count - 1, at + steps))]
+    }
+
     private func _thumbMove(_ position: Offset, itemHeight: Double) {
         guard var drag = _thumbDrag else { return }
         let dy = position.dy - drag.startY
         if !drag.moved && abs(dy) < 6 { return }
         drag.moved = true
-        drag.to = max(0, min(deck.slides.count - 1, drag.from + Int((dy / itemHeight).rounded())))
+        drag.to = _railStep(from: drag.from, steps: Int((dy / itemHeight).rounded()))
         if drag.to != _thumbDrag?.to || !(_thumbDrag?.moved ?? false) {
             _thumbDrag = drag
             setState {}
@@ -1847,6 +1938,8 @@ final class SlidesShellState: State<StatefulWidget> {
         m.item("Delete Slide", enabled: deck.slides.count > 1) { [weak self] in self?.deck.deleteSelectedSlides() }
         m.separator()
         m.item(hidden ? "Show Slide" : "Hide Slide") { [weak self] in self?.deck.toggleHiddenSelected() }
+        m.separator()
+        m.item("Add Section") { [weak self] in self?._nameSection(rename: false) }
         m.separator()
         for kind in SlideLayoutKind.allCases {
             m.item("Layout: \(kind.name)", enabled: kind != deck.currentSlide.layout) { [weak self] in
@@ -1936,7 +2029,7 @@ final class SlidesShellState: State<StatefulWidget> {
         let h = (w * deck.slideSize.height / deck.slideSize.width).rounded()
         var tiles: [Widget] = []
         let picked = Set(deck.selectedSlides)
-        for (i, slide) in deck.slides.enumerated() {
+        func makeTile(_ i: Int, _ slide: Slide) {
             let current = picked.contains(i)
             let dropHere = _sorterDrag.map { $0.moved && $0.to == i && $0.to != $0.from } ?? false
             let dropBefore = dropHere && _sorterDrag!.to < _sorterDrag!.from
@@ -1986,6 +2079,16 @@ final class SlidesShellState: State<StatefulWidget> {
                     Chrome.vgap(4),
                     Text("\(i + 1)\(slide.hidden ? "  (hidden)" : "")", style: fluent.typography.caption),
                 ])), bar])))))
+        }
+        if deck.sections.isEmpty {
+            for (i, slide) in deck.slides.enumerated() { makeTile(i, slide) }
+        } else {
+            for (si, sec) in deck.sections.enumerated() {
+                let members = deck.slides(inSection: si)
+                // A header takes a whole row of the grid.
+                tiles.append(_sectionHeader(fluent, si, count: members.count, width: 1200))
+                if !sec.collapsed { for i in members { makeTile(i, deck.slides[i]) } }
+            }
         }
         let dark = fluent.brightness == .dark
         // A tile: the thumbnail, its frame (8), the number under it (4 and

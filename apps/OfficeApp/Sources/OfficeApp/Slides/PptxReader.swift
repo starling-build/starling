@@ -1159,7 +1159,36 @@ struct PptxReader {
         }
         var state = DeckState(slides: slides, current: 0, slideSize: size, firstSlideNum: presentation["firstSlideNum"].flatMap(Int.init) ?? 1)
         (state.show, state.customShows) = Self._showSettings(presentation, rels: rels, slides: slides, package: package)
+        (state.sections, state.slides) = Self._sections(presentation, rels: rels, slides: slides)
         return (state, deckTheme, package)
+    }
+
+    /// The deck's sections (`p14:sectionLst`): each slide gets the guid of the section that lists its slide id. A slide no section lists joins the one before it; a file whose list names no slide has no sections.
+    static func _sections(_ presentation: XNode, rels: [PptxRel], slides: [SlideState]) -> ([SlideSection], [SlideState]) {
+        guard let list = presentation.descendant("p14:sectionLst") else { return ([], slides) }
+        var byFileId: [Int: Int] = [:]
+        for e in presentation.descendant("p:sldIdLst")?.all("p:sldId") ?? [] {
+            guard let fid = e["id"].flatMap(Int.init), let rid = e["r:id"],
+                  let part = rels.first(where: { $0.id == rid })?.target,
+                  let at = slides.firstIndex(where: { $0.sourcePart == part }) else { continue }
+            byFileId[fid] = at
+        }
+        var out = slides
+        var sections: [SlideSection] = []
+        var tagged = Set<Int>()
+        for sec in list.all("p14:section") {
+            let guid = sec["id"] ?? DeckController.newSectionGuid()
+            sections.append(SlideSection(guid: guid, name: sec["name"] ?? "Section"))
+            for s in sec.first("p14:sldIdLst")?.all("p14:sldId") ?? [] {
+                if let fid = s["id"].flatMap(Int.init), let at = byFileId[fid] { out[at].section = guid; tagged.insert(at) }
+            }
+        }
+        guard !tagged.isEmpty else { return ([], slides) }
+        var last = out[tagged.min()!].section
+        for i in out.indices {
+            if tagged.contains(i) { last = out[i].section } else { out[i].section = last }
+        }
+        return (sections, out)
     }
 
     /// A `p:bg`: its own properties, or a reference into the theme's

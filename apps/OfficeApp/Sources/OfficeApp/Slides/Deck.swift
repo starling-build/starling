@@ -945,6 +945,8 @@ struct DeckTheme: Equatable {
 /// One slide.
 final class Slide {
     let id: Int
+    /// The `SlideSection` this slide is in (its guid); nil while the deck has no sections.
+    var section: String?
     var layout: SlideLayoutKind
     var shapes: [SlideShape]
     let notes: RichDocumentController
