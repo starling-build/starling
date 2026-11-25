@@ -269,13 +269,13 @@ enum Chrome {
 
     /// Small button: icon beside label, stacked three to a column.
     static func small(_ icon: IconData, _ label: String, _ fluent: FluentThemeData,
-                      enabled: Bool = true, action: @escaping () -> Void) -> Widget {
+                      enabled: Bool = true, checked: Bool = false, action: @escaping () -> Void) -> Widget {
         let color = enabled ? fluent.resources.textFillColorPrimary : fluent.resources.textFillColorDisabled
         return FlatButton(child: Row(mainAxisSize: .min, crossAxisAlignment: .center, children: [
             Icon(icon, size: iconSize, color: color),
             gap(6),
             Text(label, style: fluent.typography.caption?.copyWith(color: color)),
-        ]), enabled: enabled, width: nil, height: 21, alignLeft: true, action: action)
+        ]), checked: checked, enabled: enabled, width: nil, height: 21, alignLeft: true, action: action)
     }
 
     /// A menu button: optional icon, optional title, a chevron; the menu

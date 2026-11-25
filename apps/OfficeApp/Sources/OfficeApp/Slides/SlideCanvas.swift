@@ -440,7 +440,7 @@ final class SlideCanvasState: State<StatefulWidget> {
 
     private var _marqueeBase: [SlideShape] = []
     private var _pendingToggle = false
-    private var _additive: Bool { let m = _w.modifiers(); return m.contains(.shift) || m.contains(.control) || m.contains(.meta) }
+    private var _additive: Bool { let m = _w.modifiers(); return deck.selectMultiple || m.contains(.shift) || m.contains(.control) || m.contains(.meta) }
 
     private func _backdropDown(_ e: PointerDownEvent) {
         if e.kind == .touch { _touchSeen = true }
