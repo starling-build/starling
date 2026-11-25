@@ -1088,9 +1088,11 @@ final class WorkbookController: ChangeNotifier {
     private var _announcedSelection = ""
     func _notify(selectionOnly: Bool = false) {
         // Tell a screen reader where the selection went ("Selected B3", "Selected B3 to C5").
-        let spoken = selection.area > 1
-            ? "Selected \(selection.topLeft.a1) to \(selection.bottomRight.a1)" : "Selected \(active.a1)"
-        if spoken != _announcedSelection { _announcedSelection = spoken; ScreenReader.announce(spoken) }
+        if ScreenReader.isListening {
+            let spoken = selection.area > 1
+                ? "Selected \(selection.topLeft.a1) to \(selection.bottomRight.a1)" : SheetsAccessibility.spoken(active, in: self)
+            if spoken != _announcedSelection { _announcedSelection = spoken; ScreenReader.announce(spoken) }
+        }
         revision += 1
         if !selectionOnly { dataRevision += 1 }
         notifyListeners()
