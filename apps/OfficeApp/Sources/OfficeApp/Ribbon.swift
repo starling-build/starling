@@ -420,6 +420,9 @@ final class Ribbon: StatelessWidget {
             Chrome.group("Tables", fluent, [_tableMenu(fluent)]),
             Chrome.group("Illustrations", fluent, [
                 Chrome.big(FluentSystemIcons.image, "Pictures", fluent) { [session] in session.onInsertPicture?() },
+                Chrome.big(FluentSystemIcons.textT, "Text Box", fluent) { [session] in
+                    if let box = TextBoxInsert.make() { c.insertImage(box) } else { session.onStatus?("Could not insert a text box") }
+                },
             ]),
             Chrome.group("Links", fluent, [
                 Chrome.big(FluentSystemIcons.link, "Link", fluent) { [session] in session.onLink?() },

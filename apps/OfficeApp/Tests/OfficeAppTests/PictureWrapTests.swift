@@ -121,3 +121,21 @@ final class PictureWrapTests: XCTestCase {
         XCTAssertEqual(try XCTUnwrap(c.document.paragraphs[k].inlineImages[id]?.float).x, 20, accuracy: 0.01)
     }
 }
+
+/// W-OB-4: a text box made by Insert → Text Box.
+final class TextBoxInsertTests: XCTestCase {
+    func testNewTextBoxFloatsHoldsItsTextAndSurvivesASave() throws {
+        let box = try XCTUnwrap(TextBoxInsert.make(text: "Hello & <you>"))
+        XCTAssertNotNil(box.float)
+        XCTAssertEqual(box.width, 144, accuracy: 0.1)
+        XCTAssertEqual(box.textBox?.paragraphs.first?.text, "Hello & <you>")
+        let c = RichDocumentController(document: RichDocument(paragraphs: [RichParagraph(text: "body")]))
+        c.insertImage(box)
+        let back = try DocxFormat.read(try DocxFormat.write(c.document, pageSetup: .letter)).document
+        let kept = back.paragraphs.compactMap { $0.image ?? $0.inlineImages.values.first }.first { $0.textBox != nil }
+        XCTAssertEqual(kept?.textBox?.paragraphs.first?.text, "Hello & <you>")
+        XCTAssertEqual(kept?.width ?? 0, 144, accuracy: 0.1)
+        c.undo()
+        XCTAssertFalse(c.document.paragraphs.contains { $0.image?.textBox != nil })
+    }
+}
