@@ -93,6 +93,7 @@ final class OfficeShellState: State<StatefulWidget> {
     private var _listFormatOpen: Bool? = nil   // the dialog is open: true for a bullet
     private var _noteOpen: NoteReference? = nil
     private let _noteText = TextEditingController()
+    private var _newStyleOpen = false
     private let _colorText = TextEditingController()
     private var _styleOpen: String? = nil
     private var _linkHover: String? = nil
@@ -469,6 +470,11 @@ final class OfficeShellState: State<StatefulWidget> {
             guard let self else { return }
             self.controller.breakUndoCoalescing()
             self.setState { self._numberingValueOpen = true }
+        }
+        session.onNewStyleDialog = { [weak self] in
+            guard let self else { return }
+            self.controller.breakUndoCoalescing()
+            self.setState { self._newStyleOpen = true }
         }
         session.onMoreColors = { [weak self] in
             guard let self else { return }
@@ -1203,7 +1209,7 @@ final class OfficeShellState: State<StatefulWidget> {
             if _shortcutsOpen { return false }   // the dialog's own Esc closes it
             if LinkCard.link(caret: _cardLink, hover: _hoverCard, dismissed: _cardDismissed) != nil { setState { _cardDismissed = true }; return true }
             if _listSymbolPick != nil { setState { _listSymbolPick = nil }; return true }
-            if _paragraphOpen || _fontOpen || _insertTableOpen || _splitCellOpen || _bordersOpen || _pictureDialog != nil || _linkDialogOpen || _numberingValueOpen || _listFormatOpen != nil { return false }   // the dialog's own Esc closes it
+            if _paragraphOpen || _fontOpen || _insertTableOpen || _splitCellOpen || _bordersOpen || _pictureDialog != nil || _linkDialogOpen || _numberingValueOpen || _listFormatOpen != nil || _newStyleOpen { return false }   // the dialog's own Esc closes it
             if _headerFooterOpen { setState { _headerFooterOpen = false }; return true }
             if _findOpen { setState { _findOpen = false }; _editorFocus.requestFocus(); return true }
             if _backstage != nil { setState { _backstage = nil }; return true }
@@ -1561,6 +1567,25 @@ final class OfficeShellState: State<StatefulWidget> {
                     },
                     onCancel: { [weak self] in
                         self?.setState { self?._paragraphOpen = false }
+                        self?._editorFocus.requestFocus()
+                    })),
+            ])
+        }
+        if _newStyleOpen {
+            return Stack(children: [
+                window,
+                Positioned(left: 0, top: 0, right: 0, bottom: 0, child: NewStyleDialog(
+                    taken: { [weak self] n in
+                        self?.controller.document.styles.styles.contains { $0.name.lowercased() == n.lowercased() } ?? true
+                    },
+                    onOK: { [weak self] n in
+                        guard let self else { return }
+                        self.controller.createStyleFromSelection(name: n)
+                        self.setState { self._newStyleOpen = false }
+                        self._editorFocus.requestFocus()
+                    },
+                    onCancel: { [weak self] in
+                        self?.setState { self?._newStyleOpen = false }
                         self?._editorFocus.requestFocus()
                     })),
             ])

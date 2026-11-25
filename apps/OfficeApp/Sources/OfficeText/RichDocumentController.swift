@@ -87,6 +87,8 @@ public indirect enum EditOp: Equatable, Sendable {
     case setTableColumns(String, old: [Double]?, new: [Double]?)
     /// One entry of the style sheet, replaced (every paragraph re-lays out).
     case setStyleEntry(old: RichNamedStyle, new: RichNamedStyle)
+    case addStyle(RichNamedStyle)
+    case removeStyle(RichNamedStyle)
     /// A table's look (nil: the default).
     case setTableStyle(String, old: TableStyle?, new: TableStyle?)
     /// One level's format of one list (nil: the level's default).
@@ -201,6 +203,14 @@ public indirect enum EditOp: Equatable, Sendable {
             doc.styles[new.id] = new
             changes.append(.all)
             return .setStyleEntry(old: new, new: old)
+        case .addStyle(let e):
+            doc.styles[e.id] = e
+            changes.append(.all)
+            return .removeStyle(e)
+        case .removeStyle(let e):
+            doc.styles[e.id] = nil
+            changes.append(.all)
+            return .addStyle(e)
         case .setTableStyle(let table, let old, let new):
             doc.tableStyles[table] = new
             for i in doc.paragraphs.indices where doc.paragraphs[i].cell?.table == table { changes.append(.changed(i)) }
@@ -1369,7 +1379,21 @@ public final class RichDocumentController: ChangeNotifier {
     /// `breakUndoCoalescing` is called, so one dialog is one step as in Word.
     public func setStyleEntry(_ entry: RichNamedStyle, coalescing: Bool = false) {
         guard let old = document.styles[entry.id], old != entry else { return }
-        edit(kind: coalescing ? .styleEdit : .other) { perform(.setStyleEntry(old: old, new: entry)) }
+        edit(kind: coalescing ? .styleEdit : .other) {
+            perform(.setStyleEntry(old: old, new: entry))
+            // Paragraph props are stored on each paragraph: those that still
+            // hold the old entry's value follow the new one, as in Word.
+            for i in document.paragraphs.indices where document.styles.id(of: document.paragraphs[i].style) == entry.id {
+                let before = document.paragraphs[i].style
+                var after = before
+                func follow<T: Equatable>(_ k: WritableKeyPath<RichParagraphStyle, T>) {
+                    if before[keyPath: k] == old.paragraph[keyPath: k] { after[keyPath: k] = entry.paragraph[keyPath: k] }
+                }
+                follow(\.alignment); follow(\.indentLeft); follow(\.indentRight); follow(\.firstLineIndent)
+                follow(\.spaceBefore); follow(\.spaceAfter); follow(\.lineSpacing)
+                if after != before { perform(.setParagraphStyle(i, old: before, new: after)) }
+            }
+        }
     }
 
     /// Word's "Update <style> to Match Selection": the caret's character
@@ -1392,6 +1416,54 @@ public final class RichDocumentController: ChangeNotifier {
         entry.paragraph = ps
         guard entry != old else { return }
         edit { perform(.setStyleEntry(old: old, new: entry)) }
+    }
+
+    /// Create a style named `name` from the caret's formatting and apply it
+    /// to the selected paragraphs. Returns the new id, or nil for an empty
+    /// or already-used name.
+    @discardableResult
+    public func createStyleFromSelection(name: String) -> String? {
+        var name = name
+        while name.first == " " { name.removeFirst() }
+        while name.last == " " { name.removeLast() }
+        guard !name.isEmpty,
+              !document.styles.styles.contains(where: { $0.name.lowercased() == name.lowercased() }) else { return nil }
+        var id = String(name.filter { $0.isLetter || $0.isNumber })
+        if id.isEmpty { id = "Style" }
+        var unique = id, n = 2
+        while document.styles[unique] != nil { unique = "\(id)\(n)"; n += 1 }
+        var char = currentCharStyle
+        char.link = nil; char.linkTip = nil; char.highlight = nil
+        var ps = currentParagraphStyle
+        ps.list = nil; ps.listLevel = 0; ps.listId = nil; ps.pageBreakBefore = false
+        ps.named = unique; ps.heading = nil
+        let entry = RichNamedStyle(id: unique, name: name, paragraph: ps, char: char, next: unique)
+        edit {
+            perform(.addStyle(entry))
+            let sheet = document.styles
+            applyParagraphStyle { sheet.apply(unique, to: &$0) }
+            // The style now holds them: no direct copy stays on the source.
+            for i in document.paragraphIndices(in: selection) {
+                var para = document.paragraphs[i]
+                let old = para.runs
+                para.applyStyle(0 ..< para.length) { Self._clearHeld(by: char, &$0) }
+                if para.runs != old { perform(.setRuns(i, old: old, new: para.runs)) }
+            }
+        }
+        return unique
+    }
+
+    /// Reset the character properties `style` equals the style's to
+    /// their defaults, so the style, not a direct copy, supplies them.
+    static func _clearHeld(by held: CharStyle, _ style: inout CharStyle) {
+        let none = CharStyle()
+        if style.bold == held.bold { style.bold = none.bold }
+        if style.italic == held.italic { style.italic = none.italic }
+        if style.underline == held.underline { style.underline = none.underline; style.underlineKind = none.underlineKind }
+        if style.strikethrough == held.strikethrough { style.strikethrough = none.strikethrough }
+        if style.fontFamily == held.fontFamily { style.fontFamily = none.fontFamily }
+        if style.fontSize == held.fontSize { style.fontSize = none.fontSize }
+        if style.color == held.color { style.color = none.color }
     }
 
     /// Link the selection to `url`; with nothing selected, insert the URL

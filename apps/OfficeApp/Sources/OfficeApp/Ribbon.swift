@@ -226,8 +226,10 @@ final class Ribbon: StatelessWidget {
                                          size: Chrome.iconSize, color: fluent.resources.textFillColorPrimary),
                            onPressed: { c.setNamedStyle(entry.id) })
         }
+        more.append(MenuFlyoutSeparator())
+        more.append(MenuFlyoutItem(text: Text("Create a Style…"),
+                                   onPressed: { [session] in session.onNewStyleDialog?() }))
         if let current = sheet[s.styleId] {
-            more.append(MenuFlyoutSeparator())
             more.append(MenuFlyoutItem(text: Text("Update \(current.name) to Match Selection"),
                                        onPressed: { [session] in
                                            c.updateStyleToMatchSelection(current.id)
