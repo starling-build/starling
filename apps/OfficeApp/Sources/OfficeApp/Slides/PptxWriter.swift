@@ -1009,7 +1009,7 @@ private struct SlideXML {
             return PptxTemplates.blipFillXML(f, rid: rid)
         }
         if f.stops.count >= 2 {
-            let stops = f.stops.map { "<a:gs pos=\"\(Int(($0.position * 100000).rounded()))\"><a:srgbClr val=\"\(PptxText.hex($0.color))\"/></a:gs>" }.joined()
+            let stops = f.stops.map { "<a:gs pos=\"\(Int(($0.position * 100000).rounded()))\"><a:srgbClr val=\"\(PptxText.hex($0.color))\">\($0.color.alpha < 255 ? "<a:alpha val=\"\($0.color.alpha * 100000 / 255)\"/>" : "")</a:srgbClr></a:gs>" }.joined()
             return "<a:gradFill rotWithShape=\"1\"><a:gsLst>\(stops)</a:gsLst><a:lin ang=\"\(Int((f.angle * 60000).rounded()))\" scaled=\"0\"/></a:gradFill>"
         }
         return Self._fill(f.color ?? Color(0xFFFFFFFF))
