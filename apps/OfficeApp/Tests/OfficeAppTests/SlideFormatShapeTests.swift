@@ -91,4 +91,48 @@ final class SlideFormatShapeTests: XCTestCase {
         }
         try Pptx.write(deck).write(to: URL(fileURLWithPath: dir + "/flip-facing.pptx"))
     }
+
+    /// Writes the file for the PowerPoint check: a shape and a picture locked, the same two unlocked, alt text on a picture.
+    func testWritesTheFormatShapeCheckFile() throws {
+        let dir = "/data/s/amd-6/ui-check"
+        guard FileManager.default.fileExists(atPath: dir) else { return }
+        let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==")!
+        let deck = DeckController()
+        let r1 = deck.addShape(.rect), r2 = deck.addShape(.rect)
+        let p1 = deck.addPicture(ImageAttachment(data: png, width: 1, height: 1), naturalSize: Size(100, 100))
+        let p2 = deck.addPicture(ImageAttachment(data: png, width: 1, height: 1), naturalSize: Size(100, 100))
+        r1.name = "Shape locked"; r2.name = "Shape unlocked"; p1.name = "Picture locked"; p2.name = "Picture unlocked"
+        for (i, sh) in [r1, r2, p1, p2].enumerated() { sh.frame = Rect.fromLTWH(40 + Double(i) * 220, 80, 180, 120) }
+        deck.selectShapes([r1]); deck.setAspectLock(true)
+        deck.selectShapes([r2]); deck.setAspectLock(false)
+        deck.selectShapes([p1]); deck.setAspectLock(true); deck.setAltText("A one pixel picture, locked")
+        deck.selectShapes([p2]); deck.setAspectLock(false)
+        try Pptx.write(deck).write(to: URL(fileURLWithPath: dir + "/format-shape.pptx"))
+    }
+
+    /// PowerPoint (flip-facing print): a flipped arrow's text sits in the mirrored text rectangle but is not mirrored;
+    /// a shape flipped top to bottom turns its text half round.
+    func testFlippedArrowTextRectangleMirrorsAndFlipVTurnsTheText() throws {
+        func read(_ h: Bool, _ v: Bool) throws -> ShapeState {
+            let deck = DeckController()
+            let a = deck.addShape(.rightArrow)
+            deck.selectShapes([a])
+            if h { deck.flipSelection(horizontal: true) }
+            if v { deck.flipSelection(horizontal: false) }
+            let (state, _, _) = try Pptx.read(Pptx.write(deck))
+            return try XCTUnwrap(state.slides[0].shapes.first { $0.name == a.name })
+        }
+        let plain = try read(false, false), flipH = try read(true, false), flipV = try read(false, true)
+        XCTAssertGreaterThan(plain.insets.right, plain.insets.left, "the arrow's text rectangle leans to the tail")
+        XCTAssertEqual(flipH.insets.left, plain.insets.right, accuracy: 0.01)
+        XCTAssertEqual(flipH.insets.right, plain.insets.left, accuracy: 0.01)
+        XCTAssertEqual(flipH.textSpin, 0)
+        XCTAssertEqual(flipV.textSpin, 180)
+        let deck = DeckController()
+        let b = deck.addShape(.rect); deck.selectShapes([b])
+        deck.flipSelection(horizontal: false)
+        XCTAssertEqual(b.textSpin, 180, "flipping in the app turns the text as reading it back would")
+        deck.flipSelection(horizontal: false)
+        XCTAssertEqual(b.textSpin, 0)
+    }
 }

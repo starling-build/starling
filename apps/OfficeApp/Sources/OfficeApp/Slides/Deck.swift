@@ -248,6 +248,16 @@ struct LineEnd: Equatable {
 /// name any of PowerPoint's ~180 presets, and a shape keeps its name through
 /// a save whether or not this app draws it exactly (unknown ones draw as
 /// their bounding rectangle, PowerPoint redraws them properly).
+extension EdgeInsets {
+    /// These insets with the geometry's share `g` (the preset's text rectangle) mirrored: a shape flipped
+    /// across draws its text in the mirrored rectangle (PowerPoint: a flipped right arrow's text sits in
+    /// the body, not at the left edge), though the text itself is not mirrored.
+    func mirroringShare(_ g: EdgeInsets, horizontal: Bool, vertical: Bool) -> EdgeInsets {
+        EdgeInsets(left: left + (horizontal ? g.right - g.left : 0), top: top + (vertical ? g.bottom - g.top : 0),
+                   right: right + (horizontal ? g.left - g.right : 0), bottom: bottom + (vertical ? g.top - g.bottom : 0))
+    }
+}
+
 struct ShapePreset: RawRepresentable, Hashable {
     let rawValue: String
     init(rawValue: String) { self.rawValue = rawValue }

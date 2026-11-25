@@ -2280,6 +2280,10 @@ struct SlideContext {
                 }
             }
         }
+        if st.shapeInsets != .zero, st.flipH || st.flipV {
+            st.insets = st.insets.mirroringShare(st.shapeInsets, horizontal: st.flipH, vertical: st.flipV)
+            st.shapeInsets = st.shapeInsets.mirroringShare(st.shapeInsets, horizontal: st.flipH, vertical: st.flipV)
+        }
         // `bodyPr upright="1"`: the text stays level whatever the shape's
         // turn. Its frame is the text rectangle's own, set level about the
         // rectangle's turned middle — its width and height swapped when the
