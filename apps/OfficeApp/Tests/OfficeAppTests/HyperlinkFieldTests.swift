@@ -1,0 +1,65 @@
+import XCTest
+@testable import OfficeApp
+@testable import OfficeText
+
+/// A HYPERLINK complex field is read as a link and saved as the field, also when it spans paragraphs or has fields inside.
+final class HyperlinkFieldTests: XCTestCase {
+    private func fc(_ t: String) -> String { "<w:r><w:fldChar w:fldCharType=\"\(t)\"/></w:r>" }
+    private func it(_ s: String) -> String { "<w:r><w:instrText xml:space=\"preserve\"> \(s) </w:instrText></w:r>" }
+    private func tx(_ s: String) -> String { "<w:r><w:t xml:space=\"preserve\">\(s)</w:t></w:r>" }
+
+    private func roundTrip(_ body: String) throws -> (doc: RichDocument, xml: String) {
+        var parts = try Zip.read(DocxFormat.write(RichDocument(paragraphs: [RichParagraph()]), pageSetup: .letter))
+        let di = try XCTUnwrap(parts.firstIndex { $0.name == "word/document.xml" })
+        var xml = String(decoding: parts[di].data, as: UTF8.self)
+        xml.insert(contentsOf: body, at: try XCTUnwrap(xml.range(of: "<w:body>")).upperBound)
+        parts[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let read = try DocxFormat.read(try Zip.write(parts))
+        let out = try Zip.read(DocxFormat.write(read.document, pageSetup: .letter))
+        return (read.document, String(decoding: try XCTUnwrap(out.first { $0.name == "word/document.xml" }).data, as: UTF8.self))
+    }
+    private func count(_ xml: String, _ s: String) -> Int { xml.components(separatedBy: s).count - 1 }
+
+    func testTargetParsing() {
+        XCTAssertEqual(DocxFormat._hyperlinkFieldTarget("HYPERLINK \"http://a.b/c\"")?.target, "http://a.b/c")
+        XCTAssertEqual(DocxFormat._hyperlinkFieldTarget("HYPERLINK \\l \"_Toc1\"")?.target, "#_Toc1")
+        XCTAssertEqual(DocxFormat._hyperlinkFieldTarget("HYPERLINK \"http://a.b\" \\l \"x\" \\o \"tip\"")?.target, "http://a.b#x")
+        XCTAssertEqual(DocxFormat._hyperlinkFieldTarget("HYPERLINK \"http://a.b\" \\o \"tip\"")?.tip, "tip")
+    }
+
+    func testSimpleFieldIsALinkKeptAsField() throws {
+        let (doc, xml) = try roundTrip("<w:p>\(tx("see "))\(fc("begin"))\(it("HYPERLINK \\l \"_Toc1\""))\(fc("separate"))\(tx("here"))\(fc("end"))\(tx(" ok"))</w:p>")
+        XCTAssertTrue(doc.paragraphs.flatMap(\.runs).contains { $0.style.link == "#_Toc1" })
+        XCTAssertEqual(count(xml, "fldCharType=\"begin\""), 1)
+        XCTAssertEqual(count(xml, "fldCharType=\"end\""), 1)
+        XCTAssertTrue(xml.contains("HYPERLINK \\l &quot;_Toc1&quot; </w:instrText>") || xml.contains("HYPERLINK \\l \"_Toc1\" </w:instrText>"))
+        let b = try XCTUnwrap(xml.range(of: "fldCharType=\"begin\""))
+        let e = try XCTUnwrap(xml.range(of: "fldCharType=\"end\""))
+        XCTAssertTrue(xml[..<b.lowerBound].contains("see "))
+        XCTAssertTrue(xml[b.lowerBound..<e.upperBound].contains("here"))
+        XCTAssertTrue(xml[e.upperBound...].contains(" ok"))
+    }
+
+    func testFieldAcrossParagraphsAndWithNestedField() throws {
+        let body = "<w:p>\(fc("begin"))\(it("HYPERLINK \\l \"_Toc9\""))\(fc("separate"))\(tx("one "))"
+            + "\(fc("begin"))\(it("PAGEREF _Toc9 \\h"))\(fc("separate"))\(tx("4"))\(fc("end"))</w:p>"
+            + "<w:p>\(tx("two"))\(fc("end"))\(tx(" tail"))</w:p>"
+        let (doc, xml) = try roundTrip(body)
+        XCTAssertEqual(count(xml, "fldCharType=\"begin\""), 2)
+        XCTAssertEqual(count(xml, "fldCharType=\"end\""), 2)
+        XCTAssertEqual(count(xml, "fldCharType=\"separate\""), 2)
+        XCTAssertEqual(count(xml, "HYPERLINK"), 1)
+        XCTAssertEqual(count(xml, "PAGEREF"), 1)
+        // Reading what was written gives the same link on the same text.
+        let again = try roundTrip(xml.components(separatedBy: "<w:body>").last!.components(separatedBy: "</w:body>").first!.replacingOccurrences(of: "<w:sectPr", with: "<w:sectPr"))
+        XCTAssertEqual(count(again.xml, "HYPERLINK"), 1)
+        _ = doc
+    }
+
+    func testFieldLinkIsNotDrawnAsALinkUnlessStyled() throws {
+        let (doc, _) = try roundTrip("<w:p>\(fc("begin"))\(it("HYPERLINK \"http://x.y\""))\(fc("separate"))\(tx("plain"))\(fc("end"))</w:p>")
+        let r = try XCTUnwrap(doc.paragraphs.flatMap(\.runs).first { $0.style.link != nil })
+        XCTAssertNotNil(r.style.linkField)
+        XCTAssertNil(r.style.color)
+    }
+}

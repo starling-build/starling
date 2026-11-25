@@ -240,6 +240,7 @@ extension CharStyle {
         case ruby
         case fieldCodeChanged
         case fieldResult
+        case linkField, linkFieldID
     }
 
     public init(from decoder: Decoder) throws {
@@ -283,6 +284,8 @@ extension CharStyle {
         ruby = try c.decodeIfPresent(RubyText.self, forKey: .ruby) ?? d.ruby
         fieldCodeChanged = try c.decodeIfPresent(Bool.self, forKey: .fieldCodeChanged) ?? d.fieldCodeChanged
         fieldResult = try c.decodeIfPresent(Int.self, forKey: .fieldResult) ?? d.fieldResult
+        linkField = try c.decodeIfPresent(String.self, forKey: .linkField) ?? d.linkField
+        linkFieldID = try c.decodeIfPresent(Int.self, forKey: .linkFieldID) ?? d.linkFieldID
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -325,6 +328,8 @@ extension CharStyle {
         if ruby != d.ruby, let v = ruby { try c.encode(v, forKey: .ruby) }
         if fieldCodeChanged != d.fieldCodeChanged { try c.encode(fieldCodeChanged, forKey: .fieldCodeChanged) }
         if fieldResult != d.fieldResult { try c.encode(fieldResult, forKey: .fieldResult) }
+        if linkField != d.linkField, let v = linkField { try c.encode(v, forKey: .linkField) }
+        if linkFieldID != d.linkFieldID { try c.encode(linkFieldID, forKey: .linkFieldID) }
     }
 }
 

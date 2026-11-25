@@ -913,9 +913,9 @@ public final class RichTextTheme {
             if h <= 3 { bold = true }
             if style.color == nil, let hc = headingColor { color = hc }
         }
-        if style.link != nil && style.color == nil { color = linkColor }
+        if style.link != nil && style.linkField == nil && style.color == nil { color = linkColor }
         var decorations: [TextDecoration] = []
-        if style.underline || ((style.link != nil || (named?.char.underline ?? false)) && !style.off.contains(.underline)) { decorations.append(.underline) }
+        if style.underline || (((style.link != nil && style.linkField == nil) || (named?.char.underline ?? false)) && !style.off.contains(.underline)) { decorations.append(.underline) }
         if style.strikethrough || ((named?.char.strikethrough ?? false) && !style.off.contains(.strikethrough)) { decorations.append(.lineThrough) }
         if let revision = style.revision {
             // Tracked changes as Word marks them: insertions underlined,

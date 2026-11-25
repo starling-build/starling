@@ -1546,7 +1546,20 @@ extension DocxFormat {
                         openComments.append(id)
                     }
                 }
-                if let link = s.link {
+                if let lf = s.linkField, s.link != nil {
+                    // A HYPERLINK field kept as written: it opens before its first run and ends after its last, which may
+                    // sit in another paragraph.
+                    func same(_ o: Run?) -> Bool { o.map { $0.style.linkField == lf && $0.style.linkFieldID == s.linkFieldID } ?? false }
+                    let before = p.runs.prefix(runIndex).last { $0.length > 0 }
+                        ?? (index > 0 ? doc.paragraphs[index - 1].runs.last { $0.length > 0 } : nil)
+                    let after = p.runs.dropFirst(runIndex + 1).first { $0.length > 0 }
+                        ?? (index + 1 < doc.paragraphs.count ? doc.paragraphs[index + 1].runs.first { $0.length > 0 } : nil)
+                    if !same(before) {
+                        body += "<w:r>\(rPrXML)<w:fldChar w:fldCharType=\"begin\"/></w:r><w:r>\(rPrXML)<w:instrText xml:space=\"preserve\"> \(_esc(lf)) </w:instrText></w:r><w:r>\(rPrXML)<w:fldChar w:fldCharType=\"separate\"/></w:r>"
+                    }
+                    body += runXML
+                    if !same(after) { body += "<w:r>\(rPrXML)<w:fldChar w:fldCharType=\"end\"/></w:r>" }
+                } else if let link = s.link {
                     let tip = s.linkTip.map { " w:tooltip=\"\(_esc($0))\"" } ?? ""
                     if link.hasPrefix("#") {
                         body += "<w:hyperlink w:anchor=\"\(_esc(String(link.dropFirst())))\"\(tip)>\(runXML)</w:hyperlink>"
