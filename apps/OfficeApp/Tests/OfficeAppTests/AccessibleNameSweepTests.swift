@@ -85,4 +85,41 @@ final class AccessibleNameSweepTests: XCTestCase {
             XCTAssertEqual(unlabelledFields(ui), 0, "\(name): a field with no placeholder and no label beside it")
         }
     }
+
+    /// What a screen reader is told about each dialog: a header, and a name on every button.
+    func testEveryDialogHasATitleAndNamedButtons() {
+        var hooks = HyperlinkHooks(apply: { _, _, _, _ in "" })
+        hooks.places = [HyperlinkPlace(id: "h", title: "Intro", kind: "Heading")]
+        let find = FindHooks(findNext: { _, _, _ in "" }, replace: { _, _, _ in "" }, replaceAll: { _, _, _ in "" })
+        let print = PrintHooks(unit: "Pages", total: 3, current: 1, outputs: [], print: { _, _ in "" })
+        let dialogs: [(String, Widget)] = [
+            ("Hyperlink", HyperlinkDialog(hooks: hooks, onClose: {})),
+            ("Find", FindReplaceDialog(initialQuery: "", hooks: find, onClose: {})),
+            ("Paragraph", ParagraphDialog(initial: RichParagraphStyle(), onOK: { _ in }, onCancel: {})),
+            ("Font", FontDialog(initial: RichDocumentController.CharFormat(CharStyle()), onOK: { _ in }, onCancel: {})),
+            ("PageSetup", PageSetupDialog(initial: .letter, onOK: { _ in }, onCancel: {})),
+            ("Print", PrintDialog(hooks: print, onClose: {})),
+            ("Shortcuts", ShortcutListDialog(table: ShortcutTable.writer, onClose: {})),
+        ]
+        var buttons = 0
+        for (name, d) in dialogs {
+            let nodes = app(d).semantics()
+            XCTAssertTrue(nodes.contains { $0.isHeader && !$0.label.isEmpty }, "\(name): no title node")
+            for n in nodes where n.isButton {
+                buttons += 1
+                XCTAssertFalse(n.label.trimmingWhitespace().isEmpty, "\(name): a button with no name")
+            }
+        }
+        XCTAssertGreaterThan(buttons, 10, "the sweep must really see the buttons")
+    }
+
+    /// A menu item reads as one named button, and a disabled one says so.
+    func testMenuItemsAreNamedButtons() {
+        let on = MenuFlyoutItem(text: Text("Cut"), onPressed: {}), off = MenuFlyoutItem(text: Text("Paste"), onPressed: nil)
+        let ui = app(Center(child: Column(mainAxisSize: .min, children: [
+            Builder(builder: { on.buildItem($0) }), Builder(builder: { off.buildItem($0) })])))
+        let nodes = ui.semantics().filter { $0.isButton }
+        XCTAssertEqual(nodes.first { $0.label == "Cut" }?.canTap, true)
+        XCTAssertEqual(nodes.first { $0.label == "Paste" }?.isEnabled, false)
+    }
 }
