@@ -34,6 +34,14 @@ struct FieldClock: Equatable {
         return FieldClock(year: nums[0], month: nums[1], day: nums[2], hour: nums[3], minute: nums[4], second: nums[5])
     }
 
+    /// The pinned clock only: OFFICE_NOW when a test script sets it, else nil (Sheets NOW()/TODAY() read the real clock then).
+    static func pinned() -> FieldClock? {
+        #if canImport(Glibc) || canImport(Darwin)
+        if let p = getenv("OFFICE_NOW") { let s = String(cString: p); if !s.isEmpty { return parse(s) } }
+        #endif
+        return nil
+    }
+
     /// OFFICE_NOW if set, else the machine's local time; nil where there is no clock to read (the web build).
     static func current() -> FieldClock? {
         #if canImport(Glibc) || canImport(Darwin)
