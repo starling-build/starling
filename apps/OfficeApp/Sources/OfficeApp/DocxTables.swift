@@ -2150,15 +2150,31 @@ extension DocxFormat {
             tag.replaceSubrange(at.upperBound ..< end, with: value)
             xml.replaceSubrange(r, with: tag)
         }
+        // (The schema's order: a new element goes before the first element that follows it.)
+        func insert(_ xmlText: String, before later: [String]) {
+            let at = (later.compactMap { xml.rangeOfSubstring("<w:" + $0) }.map(\.lowerBound) + [xml.rangeOfSubstring("</w:settings>")?.lowerBound].compactMap { $0 }).min()
+            if let at { xml.insert(contentsOf: xmlText, at: at) }
+        }
+        let afterEven = ["bookFoldRevPrinting", "bookFoldPrinting", "bookFoldPrintingSheets", "drawingGridHorizontalSpacing", "drawingGridVerticalSpacing",
+                         "displayHorizontalDrawingGridEvery", "displayVerticalDrawingGridEvery", "doNotUseMarginsForDrawingGridOrigin",
+                         "drawingGridHorizontalOrigin", "drawingGridVerticalOrigin", "doNotShadeFormData", "noPunctuationKerning", "characterSpacingControl",
+                         "printTwoOnOne", "strictFirstAndLastChars", "noLineBreaksAfter", "noLineBreaksBefore", "savePreviewPicture", "doNotValidateAgainstSchema",
+                         "saveInvalidXml", "ignoreMixedContent", "alwaysShowPlaceholderText", "doNotDemarcateInvalidXml", "saveXmlDataOnly", "useXSLTWhenSaving",
+                         "saveThroughXslt", "showXMLTags", "alwaysMergeEmptyNamespace", "updateFields", "hdrShapeDefaults", "footnotePr", "endnotePr", "compat",
+                         "docVars", "rsids"]
         if let r = element("evenAndOddHeaders") {
             let off = ["0", "false", "off"].contains { String(xml[r]).containsSubstring("w:val=\"\($0)\"") }
             if !even { xml.removeSubrange(r) }
             else if off { xml.replaceSubrange(r, with: "<w:evenAndOddHeaders/>") }
         } else if even, evenReferenced {
-            let marker = ["<w:defaultTabStop", "<w:characterSpacingControl", "<w:compat", "</w:settings>"].first { xml.containsSubstring($0) }
-            if let marker, let at = xml.rangeOfSubstring(marker) { xml.insert(contentsOf: "<w:evenAndOddHeaders/>", at: at.lowerBound) }
+            insert("<w:evenAndOddHeaders/>", before: afterEven)
         }
-        if let tab { setValue("defaultTabStop", String(Int((tab * 20).rounded()))) }
+        if let tab {
+            let value = String(Int((tab * 20).rounded()))
+            if element("defaultTabStop") != nil { setValue("defaultTabStop", value) }
+            else { insert("<w:defaultTabStop w:val=\"\(value)\"/>", before: ["autoHyphenation", "consecutiveHyphenLimit", "hyphenationZone", "doNotHyphenateCaps",
+                                                                            "showEnvelope", "summaryLength", "clickAndTypeStyle", "defaultTableStyle", "evenAndOddHeaders"] + afterEven) }
+        }
         if let spacing { setValue("characterSpacingControl", _esc(spacing)) }
         return xml
     }

@@ -37,4 +37,11 @@ final class SettingsKeptTests: XCTestCase {
         let saved = try settings(of: try DocxFormat.write(doc, pageSetup: .letter))
         XCTAssertEqual(saved, original.replacingAll("w:defaultTabStop w:val=\"720\"", with: "w:defaultTabStop w:val=\"360\""))
     }
+
+    /// A switch or tab stop the file lacked goes in at its schema place, ahead of what must follow it.
+    func testAddedSettingsGoInSchemaOrder() {
+        let file = "<w:settings xmlns:w=\"w\"><w:zoom w:percent=\"110\"/><w:characterSpacingControl w:val=\"doNotCompress\"/><w:compat/><w:rsids/></w:settings>"
+        let out = DocxFormat._patchedSettings(file, even: true, evenReferenced: true, tab: 30, spacing: nil)
+        XCTAssertEqual(out, "<w:settings xmlns:w=\"w\"><w:zoom w:percent=\"110\"/><w:defaultTabStop w:val=\"600\"/><w:evenAndOddHeaders/><w:characterSpacingControl w:val=\"doNotCompress\"/><w:compat/><w:rsids/></w:settings>")
+    }
 }
