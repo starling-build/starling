@@ -12,28 +12,40 @@ import OfficeText
 func widthLabel(_ w: Double) -> String { w == w.rounded() ? String(Int(w)) : "\(w)" }
 
 struct BordersShadingValues: Equatable {
-    enum Shade: Equatable { case unchanged, none, rgb(UInt32) }
+    enum Shade: Equatable { case unchanged, none, rgb(UInt32), theme(rgb: UInt32, attrs: String) }
     var sides: Set<CellSide> = []
     var style = "single"
     var width = 0.5
     var lineRGB: UInt32?            // nil is automatic
+    var lineThemeAttrs: String?     // the theme link of the line colour (` w:themeColor="accent2" ...`), when it was picked from the theme
     var shade = Shade.unchanged
 
     var line: CellBorderLine {
-        CellBorderLine(style: style, width: width, color: lineRGB.map { Color(Int64(0xFF000000) | Int64($0)) })
+        CellBorderLine(style: style, width: width, color: lineRGB.map { Color(Int64(0xFF000000) | Int64($0)) }, themeAttrs: lineRGB == nil ? nil : lineThemeAttrs)
     }
     var shading: Color?? {
         switch shade {
         case .unchanged: return nil
         case .none: return .some(nil)
-        case .rgb(let c): return .some(Color(Int64(0xFF000000) | Int64(c)))
+        case .rgb(let c), .theme(let c, _): return .some(Color(Int64(0xFF000000) | Int64(c)))
         }
+    }
+    var shadingThemeAttrs: String? { if case .theme(_, let a) = shade { return a }; return nil }
+    /// A colour picked for the line: a theme pick keeps its link to the theme slot.
+    mutating func pickLine(_ choice: ColorChoice) {
+        guard let rgb = choice.resolved(theme: ColorMath.officeTheme) else { lineRGB = nil; lineThemeAttrs = nil; return }
+        lineRGB = rgb
+        if case .theme(let slot, let mod, let off) = choice { lineThemeAttrs = WordTheme.attrs(slot: slot, lumMod: mod, lumOff: off, fill: false) } else { lineThemeAttrs = nil }
+    }
+    mutating func pickShading(_ choice: ColorChoice) {
+        guard let rgb = choice.resolved(theme: ColorMath.officeTheme) else { shade = .none; return }
+        if case .theme(let slot, let mod, let off) = choice, let a = WordTheme.attrs(slot: slot, lumMod: mod, lumOff: off, fill: true) { shade = .theme(rgb: rgb, attrs: a) } else { shade = .rgb(rgb) }
     }
     /// One undoable change per OK: borders first, then shading.
     func apply(to c: RichDocumentController) {
         c.edit {
             if !sides.isEmpty { c.setCellBorders(Dictionary(uniqueKeysWithValues: sides.map { ($0, line) })) }
-            if let s = shading { c.setCellShading(s) }
+            if let s = shading { c.setCellShading(s, themeAttrs: shadingThemeAttrs) }
         }
     }
 }
@@ -58,15 +70,8 @@ final class BordersShadingDialogState: State<StatefulWidget> {
 
     private func choose(_ t: Target, _ choice: ColorChoice) {
         setState {
-            switch (t, choice) {
-            case (.line, .automatic), (.line, .none): v.lineRGB = nil
-            case (.shading, .automatic), (.shading, .none): v.shade = .none
-            default:
-                if let rgb = choice.resolved(theme: ColorMath.officeTheme) {
-                    if t == .line { v.lineRGB = rgb } else { v.shade = .rgb(rgb) }
-                    _recent.use(rgb)
-                }
-            }
+            if t == .line { v.pickLine(choice) } else { v.pickShading(choice) }
+            if let rgb = choice.resolved(theme: ColorMath.officeTheme) { _recent.use(rgb) }
             _open = nil
         }
     }
@@ -99,7 +104,7 @@ final class BordersShadingDialogState: State<StatefulWidget> {
                         onMore: { [weak self] in self?.setState { self?._more = t } })
         }
         var shadeRGB: UInt32?
-        if case .rgb(let c) = v.shade { shadeRGB = c }
+        if case .rgb(let c) = v.shade { shadeRGB = c } else if case .theme(let c, _) = v.shade { shadeRGB = c }
         let shadeNone = v.shade == .unchanged ? "Unchanged" : "No Color"
         let styles: [(String, String)] = [("single", "Single"), ("double", "Double"), ("dashed", "Dashed"), ("dotted", "Dotted"), ("none", "No line")]
         let widths = CellBorderLine.widths
