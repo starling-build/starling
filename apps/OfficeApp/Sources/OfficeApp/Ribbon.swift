@@ -216,6 +216,7 @@ final class Ribbon: StatelessWidget {
         more.append(MenuFlyoutSeparator())
         more.append(MenuFlyoutItem(text: Text("Create a Style…"),
                                    onPressed: { [session] in session.onNewStyleDialog?() }))
+        more.append(MenuFlyoutItem(text: Text("Styles Pane"), onPressed: { [session] in session.onToggleStyles?() }))
         if let current = sheet[s.styleId] {
             more.append(MenuFlyoutItem(text: Text("Update \(current.name) to Match Selection"),
                                        onPressed: { [session] in

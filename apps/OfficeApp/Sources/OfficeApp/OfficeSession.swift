@@ -138,6 +138,7 @@ final class OfficeSession {
     var viewMode = ViewMode.printLayout
     var showRuler = true
     var showNavigation = false
+    var showStyles = false
     var showMarks = false
     /// Spelling: misspelled words get Word's red underline as they are shown.
     var checkSpelling = true
@@ -186,6 +187,7 @@ final class OfficeSession {
     var onViewMode: ((ViewMode) -> Void)?
     var onToggleRuler: (() -> Void)?
     var onToggleNavigation: (() -> Void)?
+    var onToggleStyles: (() -> Void)?
     var onToggleMarks: (() -> Void)?
     var onToggleSpelling: (() -> Void)?
     var onFormatPainter: (() -> Void)?
