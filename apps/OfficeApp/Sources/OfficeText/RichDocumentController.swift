@@ -2973,7 +2973,7 @@ public final class RichDocumentController: ChangeNotifier {
         }
     }
 
-    /// Paragraph borders (W-PA-4): give each of `sides` (top, bottom, left, right; the inside sides are for cells and are ignored)
+    /// Paragraph borders (W-PA-4): give each of `sides` (top, bottom, left, right, and insideH for the line between joined paragraphs; insideV is for cells and is ignored)
     /// the line, or take the line off when it is nil or "none". One undo step for every paragraph the selection touches.
     public func setParagraphBorders(_ sides: Set<CellSide>, _ line: CellBorderLine?) {
         let edge: BorderLine? = {
@@ -2988,6 +2988,7 @@ public final class RichDocumentController: ChangeNotifier {
             if sides.contains(.bottom) { b.bottom = edge }
             if sides.contains(.left) { b.left = edge }
             if sides.contains(.right) { b.right = edge }
+            if sides.contains(.insideH) { b.between = edge }
             st.borders = b.isEmpty ? nil : b
             if b.isEmpty { st.pBdrElement = false }
         }

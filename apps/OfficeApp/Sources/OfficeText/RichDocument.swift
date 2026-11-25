@@ -629,13 +629,16 @@ public struct ParagraphBorders: Hashable, Codable, Sendable {
     public var bottom: BorderLine? = nil
     public var left: BorderLine? = nil
     public var right: BorderLine? = nil
-    public init(top: BorderLine? = nil, bottom: BorderLine? = nil, left: BorderLine? = nil, right: BorderLine? = nil) {
+    /// The line between two joined paragraphs of one box (`w:between`, Word's Inside border).
+    public var between: BorderLine? = nil
+    public init(top: BorderLine? = nil, bottom: BorderLine? = nil, left: BorderLine? = nil, right: BorderLine? = nil, between: BorderLine? = nil) {
+        self.between = between
         self.top = top
         self.bottom = bottom
         self.left = left
         self.right = right
     }
-    public var isEmpty: Bool { top == nil && bottom == nil && left == nil && right == nil }
+    public var isEmpty: Bool { top == nil && bottom == nil && left == nil && right == nil && between == nil }
 }
 
 /// Paragraph-level formatting. Lengths are in points.

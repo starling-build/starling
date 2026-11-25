@@ -53,4 +53,15 @@ final class ParagraphBordersTests: XCTestCase {
         XCTAssertEqual(st.fill, Color(0xFFFFFF00))
         XCTAssertNil(back.paragraphs[2].style.borders)
     }
+
+    func testInsideBorderIsKeptAndSaved() throws {
+        let c = controller()
+        c.setParagraphBorders([.top, .bottom, .left, .right], CellBorderLine())
+        c.setParagraphBorders([.insideH], CellBorderLine(style: "single", width: 2.25, color: Color(0xFF00AA00)))
+        XCTAssertEqual(c.document.paragraphs[1].style.borders?.between?.width, 2.25)
+        let back = try DocxFormat.read(try DocxFormat.write(c.document, pageSetup: .letter)).document
+        XCTAssertEqual(back.paragraphs[0].style.borders?.between?.color, Color(0xFF00AA00))
+        c.setParagraphBorders([.insideH], nil)
+        XCTAssertNil(c.document.paragraphs[0].style.borders?.between)
+    }
 }
