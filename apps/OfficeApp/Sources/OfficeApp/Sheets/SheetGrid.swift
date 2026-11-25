@@ -777,7 +777,11 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         guard p.dx >= headerWidth, p.dy >= headerHeight else { return nil }
         let ws = controller.sheet
         if let sel = controller.selectedDrawing, ws.drawings.indices.contains(sel) {
-            for (h, q) in _handles(drawingRect(ws.drawings[sel].anchor)).enumerated() where (q - p).distance <= 6 {
+            // (A finger's reach is wider than a pointer's: 22 pt, kept to a quarter of the drawing's short side so that
+            // neighbouring handles, half that apart, never share it.)
+            let box = drawingRect(ws.drawings[sel].anchor)
+            let reach = _touchSeen ? max(6, min(22, min(box.width, box.height) / 4)) : 6
+            for (h, q) in _handles(box).enumerated() where (q - p).distance <= reach {
                 return (sel, h)
             }
         }
@@ -803,13 +807,14 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         p.strokeWidth = 1
         p.color = accent
         canvas.drawRect(r, p)
+        let radius = _touchSeen ? 7.0 : 4.0   // (a dot a finger can see under itself)
         for q in _handles(r) {
             p.style = .fill
             p.color = Color(0xFFFFFFFF)
-            canvas.drawCircle(q, 4, p)
+            canvas.drawCircle(q, radius, p)
             p.style = .stroke
             p.color = accent
-            canvas.drawCircle(q, 4, p)
+            canvas.drawCircle(q, radius, p)
         }
     }
 
@@ -1554,6 +1559,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         case .backspace: beginEdit(replace: ""); return true
         case .escape:
             // Escape lets go of the copied cells first, as Excel's does.
+            if c.painterSource != nil { c.cancelFormatPainter(); return true }
             if marquee != nil { marquee = nil; _repaint.notifyListeners(); return true }
             return _w.onShortcut("\u{1B}", _chords)  // the shell closes its find bar
         default:
@@ -2172,6 +2178,10 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 let f = ws.frame(ws.drawings[index].anchor)
                 controller.setDrawingFrame(index, x: f.x, y: f.y, width: f.width, height: f.height, from: old)
             }
+        }
+        switch _drag {
+        case .cells?, .columns?, .rows?: if controller.painterSource != nil { controller.applyFormatPainter() }
+        default: break
         }
         if case .fill(let target)? = _drag {
             fillTarget = nil

@@ -221,7 +221,10 @@ final class SlideCanvasState: State<StatefulWidget> {
         // could only select it, never edit its text — seen in a 375 pt Split View pane.)
         let isLine = shape.preset?.isLine == true
         // (A line has no inside to protect, and its frame can be zero tall: it keeps the full 6.)
-        let band = isLine ? 6.0 : max(1.0, min(6.0, min(abs(f.width), abs(f.height)) * px / 4))
+        // (A finger takes a wider frame: 20 pt is about what the pad of a fingertip covers, and the frame is how a shape whose
+        // text is being edited is moved by one.)
+        let band = isLine ? 6.0 : max(1.0, min(_touchSeen ? 20.0 : 6.0, min(abs(f.width), abs(f.height)) * px / 4))
+        let framed = shape.editsOnFirstClick || (editing && _touchSeen)
         let gripRect = isLine
             ? Rect.fromLTRB(min(f.left, f.right) * px - band, min(f.top, f.bottom) * px - band,
                             max(f.left, f.right) * px + band, max(f.top, f.bottom) * px + band)
@@ -229,8 +232,8 @@ final class SlideCanvasState: State<StatefulWidget> {
         let grip = Positioned(left: gripRect.left, top: gripRect.top, width: gripRect.width, height: gripRect.height,
                               child: Transform(rotate: shape.rotation * .pi / 180, child: IgnorePointer(
             // (With the border pen or eraser on, a table's grip lets the press through to the table, which draws.)
-            ignoring: (editing && !shape.editsOnFirstClick) || (shape.kind == .table && deck.tableTool != .none),
-            child: _gripArea(shape, band: shape.editsOnFirstClick ? band : nil))))
+            ignoring: (editing && !framed) || (shape.kind == .table && deck.tableTool != .none),
+            child: _gripArea(shape, band: framed ? band : nil))))
         return Positioned(key: ValueKey("shape \(shape.id)"), left: ox, top: oy, width: w, height: h,
                           child: SlidesAccessibility.wrap(Stack(clipBehavior: .none, children: [body, text, grip]),
                                                           shape: shape, deck: deck))
@@ -331,6 +334,7 @@ final class SlideCanvasState: State<StatefulWidget> {
                 onShortcut: _w.onShortcut,
                 onCellEdge: shape.kind == .table && deck.tableTool != .none
                     ? { [weak deck, weak shape] _, row, column, side in if let deck, let shape { deck.penTouch(shape, row: row, column: column, side: side) } } : nil,
+                onCellEdgeStroke: shape.kind == .table && deck.tableTool != .none ? { [weak deck] on in deck?.penStroke(on) } : nil,
                 onTouchMenu: { [weak controller, scene = self.officeScene] rect in
                     if let controller { scene.showTouchMenu(rect, controller: controller) }
                 },

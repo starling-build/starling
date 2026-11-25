@@ -249,6 +249,47 @@ final class TextBoxInsertTests: XCTestCase {
         XCTAssertGreaterThan(ids.min() ?? 0, bodyIds, "box ids sit above the body's")
     }
 
+    func testAnnotationIdsNeverRepeatAcrossBodyHeaderAndBox() throws {
+        var bodyP = RichParagraph(text: "kept gone")
+        bodyP.runs = [Run(length: 5, style: .plain), Run(length: 4, style: { var s = CharStyle.plain; s.revision = RevisionMark(kind: .deleted, author: "A", date: ""); return s }())]
+        var d = RichDocument(paragraphs: [bodyP])
+        d.header = "Head"
+        var entries = try Zip.read(try DocxFormat.write(d, pageSetup: .letter))
+        let hi = try XCTUnwrap(entries.firstIndex { $0.name.hasPrefix("word/header") && $0.name.hasSuffix(".xml") })
+        var h = String(decoding: entries[hi].data, as: UTF8.self)
+        let close = try XCTUnwrap(h.rangeOfSubstring("</w:p>"))
+        h.replaceSubrange(close.lowerBound ..< close.lowerBound, with: "<w:ins w:id=\"1\" w:author=\"B\"><w:r><w:t>hi</w:t></w:r></w:ins>")
+        entries[hi] = ZipEntry(name: entries[hi].name, data: Data(h.utf8))
+        let c = RichDocumentController(document: try DocxFormat.read(try Zip.write(entries)).document)
+        c.insertImage(try XCTUnwrap(TextBoxInsert.make(text: "box")))
+        let out = try Zip.read(try DocxFormat.write(c.document, pageSetup: .letter))
+        var seen: [Int] = []
+        for e in out where e.name.hasPrefix("word/") && e.name.hasSuffix(".xml") && (e.name == "word/document.xml" || e.name.hasPrefix("word/header")) {
+            seen += RichDocumentController._annotationIds(in: String(decoding: e.data, as: UTF8.self))
+        }
+        XCTAssertTrue(seen.count >= 2, "header and body both carry a revision")
+        XCTAssertEqual(Set(seen).count, seen.count, "no id names two annotations: \(seen)")
+    }
+
+    func testLeftoverRelationshipIsDroppedButOneTheMarkupNamesStays() throws {
+        let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")!
+        var img = ImageAttachment(data: png, width: 40, height: 40)
+        img.sourceXML = "<w:drawing><wp:inline><wp:extent cx=\"508000\" cy=\"508000\"/><a:blip r:embed=\"rId7\"/><x:thing o:relid=\"rId8\"/></wp:inline></w:drawing>"
+        let img2rel = KeptRel(id: "rId7", type: "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image", target: "media/a.png", external: false)
+        let named = KeptRel(id: "rId8", type: "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image", target: "media/b.png", external: false)
+        let stale = KeptRel(id: "rId9", type: "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image", target: "media/c.png", external: false)
+        let tpl = KeptRel(id: "rId10", type: "http://schemas.openxmlformats.org/officeDocument/2006/relationships/attachedTemplate", target: "file:///C:/t.dotm", external: true)
+        let glossary = KeptRel(id: "rId11", type: "http://schemas.openxmlformats.org/officeDocument/2006/relationships/glossaryDocument", target: "glossary/document.xml", external: false)
+        img.sourceRels = [img2rel, named, stale, tpl, glossary]
+        let out = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(image: img)]), pageSetup: .letter))
+        let rels = String(decoding: try XCTUnwrap(out.first { $0.name == "word/_rels/document.xml.rels" }).data, as: UTF8.self)
+        XCTAssertTrue(rels.containsSubstring("media/a.png"))
+        XCTAssertTrue(rels.containsSubstring("media/b.png"), "named by an attribute we do not read: kept")
+        XCTAssertFalse(rels.containsSubstring("media/c.png"), "named nowhere: dropped")
+        XCTAssertTrue(rels.containsSubstring("t.dotm"), "a template rel is never dropped")
+        XCTAssertTrue(rels.containsSubstring("glossary/document.xml"), "a glossary rel is never dropped")
+    }
+
     func testBoxWithAnExternalLinkIsEditedInPlaceAndKeepsItsLink() throws {
         let c = RichDocumentController(document: RichDocument(paragraphs: [RichParagraph(text: "body")]))
         c.insertImage(try XCTUnwrap(TextBoxInsert.make(text: "one")))

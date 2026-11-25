@@ -44,6 +44,8 @@ struct ShapeState: Equatable {
     var phType: String? = nil
     var phIdx: String? = nil
     var fillScheme: String? = nil
+    /// The same for the outline (`SchemeColor`).
+    var outlineScheme: String? = nil
     /// A picture's crop, as fractions cut from each edge.
     var crop: EdgeInsets? = nil
     var flipH = false
@@ -201,6 +203,9 @@ final class DeckController: ChangeNotifier {
     private(set) var revision = 0
     /// The table pen and the drawing tool (not part of the document: no undo step, nothing saved).
     var tablePen = TablePen()
+    /// A pen stroke is down: its edits share one undo step (saved by the first edge that changes something).
+    var _penStrokeOpen = false
+    var _penStrokeSaved = false
     var tableTool: TableTool = .none { didSet { if tableTool != oldValue { notifyListeners() } } }
     enum TableTool { case none, draw, erase }
 
@@ -1576,6 +1581,9 @@ final class DeckController: ChangeNotifier {
         _changed()
     }
 
+    /// Colours picked lately in Shape Fill and Outline (not part of the document, not undone).
+    var recentShapeColors = RecentColors()
+
     func setFill(_ color: Color?, scheme: String? = nil) {
         guard !selection.isEmpty else { return }
         _checkpoint()
@@ -1619,19 +1627,20 @@ final class DeckController: ChangeNotifier {
             }
             slide.inheritedBackground = nil
             for shape in slide.shapes {
-                if shape.kind == .table, shape.fillScheme != nil, let id = shape.tableId, let text = shape.text {
+                if shape.kind == .table, shape.fillScheme?.hasPrefix("accent") == true, let id = shape.tableId, let text = shape.text {
                     var doc = text.document
                     let kept = doc.tableStyles[id]?.styleId
                     doc.tableStyles[id] = tableStyle(accent: new.accents[0])
                     doc.tableStyles[id]?.styleId = kept
                     text.load(doc)
-                } else if let scheme = shape.fillScheme, let i = Int(scheme.dropFirst(6)), (1 ... 6).contains(i) {
-                    let c = new.accents[i - 1]
+                } else if let scheme = shape.fillScheme, let c = SchemeColor.resolve(scheme, slots: new.slots) {
+                    let plainAccent = SchemeColor.parse(scheme).map { $0.slot >= 4 && $0.mod == 100 && $0.off == 0 } ?? false
                     if shape.preset?.isLine == true { shape.outline = c } else {
                         shape.fill = c
-                        shape.outline = Self.darker(c)
+                        if plainAccent { shape.outline = Self.darker(c) }
                     }
                 }
+                if let scheme = shape.outlineScheme, let c = SchemeColor.resolve(scheme, slots: new.slots) { shape.outline = c }
                 guard let tt = shape.textTheme, let text = shape.text else { continue }
                 let heading = shape.role == .title || shape.role == .ctrTitle
                 if shape.role != nil || shape.kind == .textBox {
@@ -1678,11 +1687,12 @@ final class DeckController: ChangeNotifier {
         _changed()
     }
 
-    func setOutline(_ color: Color?) {
+    func setOutline(_ color: Color?, scheme: String? = nil) {
         guard !selection.isEmpty else { return }
         _checkpoint()
         for s in selection {
             s.outline = color
+            s.outlineScheme = scheme
             s.outlineFill = nil
             s.keptLook?.lineReplaced = true
         }
@@ -1694,6 +1704,14 @@ final class DeckController: ChangeNotifier {
         guard !selection.isEmpty else { return }
         _checkpoint()
         for s in selection { s.outlineDash = dash; s.keptLook?.dashEdited = true }
+        _changed()
+    }
+
+    /// The shape shadow of the selection: nil for none. A file shape's other effects (glow, reflection...) stay.
+    func setShadow(_ shadow: CharShadow?) {
+        guard !selection.isEmpty else { return }
+        _checkpoint()
+        for s in selection { s.shadow = shadow; s.keptLook?.shadowEdited = true }
         _changed()
     }
 
@@ -2046,6 +2064,7 @@ final class DeckController: ChangeNotifier {
         st.outlineJoin = s.outlineJoin
         st.outlineCap = s.outlineCap
         st.outlineFill = s.outlineFill
+        st.outlineScheme = s.outlineScheme
         st.headEnd = s.headEnd
         st.outlineCompound = s.outlineCompound
         st.tailEnd = s.tailEnd
@@ -2160,6 +2179,7 @@ final class DeckController: ChangeNotifier {
         }
         shape.fileId = st.fileId
         shape.fillScheme = st.fillScheme
+        shape.outlineScheme = st.outlineScheme
         shape.sourceXML = st.sourceXML
         shape.sourceText = st.sourceText
         shape.sourcePart = st.sourcePart

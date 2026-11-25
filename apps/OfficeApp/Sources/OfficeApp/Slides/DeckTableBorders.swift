@@ -67,7 +67,8 @@ extension DeckController {
             }
         }
         guard changed else { return }
-        _checkpoint()
+        if !_penStrokeOpen || !_penStrokeSaved { _checkpoint() }
+        if _penStrokeOpen { _penStrokeSaved = true }
         text.load(doc)
         _changed()
     }
@@ -87,5 +88,54 @@ extension DeckController {
         default: which = .right
         }
         setTableBorders([which], line: tableTool == .draw ? tablePen.line : nil, block: block)
+    }
+
+    /// The pen stroke starts (true) or ends (false): everything drawn between is one undo step.
+    func penStroke(_ on: Bool) {
+        _penStrokeOpen = on
+        _penStrokeSaved = false
+    }
+
+    /// "Reset to table style": drops the user's own shading and border lines from the cells (the selected ones, else the
+    /// whole table), so the look comes from the table's style again. One undo step. Does nothing for a table that
+    /// has no style (its look is its own cells); a style defined in the file works like a built-in one.
+    func resetTableToStyle(block: CellBlock? = nil) {
+        guard let s = selection.first, s.kind == .table, let id = s.tableId, let text = s.text else { return }
+        var doc = text.document
+        guard let ts = doc.tableStyles[id], let styleId = ts.styleId else { return }
+        // Own shading is a fill the style did not give; borders are always the user's.
+        func isOwn(_ c: CellRef) -> Bool { (c.fill != nil && c.styleFilled != true) || !c.borders.isEmpty }
+        let touched = doc.paragraphs.contains { p in
+            guard let c = p.cell, c.table == id, isOwn(c) else { return false }
+            return block.map { $0.contains(c) } ?? true
+        }
+        guard touched else { return }
+        // What the style alone paints: a one-table copy of the deck, written and read back (the file's own
+        // tableStyles.xml travels with it, so a style defined there works as well as a built-in one).
+        var probe = doc
+        for i in probe.paragraphs.indices {
+            guard var c = probe.paragraphs[i].cell, c.table == id else { continue }
+            c.fill = nil; c.styleFilled = nil; c.borders = CellRef.CellBorders()
+            probe.paragraphs[i].cell = c
+        }
+        var shape = _state(s)
+        shape.text = probe
+        let slide = SlideState(id: 1, layout: .blank, hidden: false, notes: slides[0].notes.document, shapes: [shape])
+        let state = DeckState(slides: [slide], current: 0, slideSize: slideSize, theme: theme, ownTemplates: true, recolourTheme: false)
+        var fills: [Int: [Int: Color]] = [:]
+        if let data = try? PptxWriter.write(state, theme: theme, package: package, ownTemplates: true),
+           let (read, _, _) = try? Pptx.read(data),
+           let drawn = read.slides.first?.shapes.first(where: { $0.kind == .table })?.text {
+            for c in drawn.paragraphs.compactMap({ $0.cell }) { if let f = c.fill { fills[c.row, default: [:]][c.column] = f } }
+        }
+        _ = styleId
+        for i in doc.paragraphs.indices {
+            guard var c = doc.paragraphs[i].cell, c.table == id, block.map({ $0.contains(c) }) ?? true, isOwn(c) else { continue }
+            let f = fills[c.row]?[c.column]
+            c.fill = f; c.styleFilled = f == nil ? nil : true
+            c.borders = CellRef.CellBorders()
+            doc.paragraphs[i].cell = c
+        }
+        _checkpoint(); text.load(doc); _changed()
     }
 }

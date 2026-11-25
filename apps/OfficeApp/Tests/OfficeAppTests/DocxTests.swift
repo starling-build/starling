@@ -325,7 +325,7 @@ final class DocxTests: XCTestCase {
         XCTAssertTrue(text("word/styles.xml").contains("w:styleId=\"FootnoteText\""))
         // Word's default table style is always there: without it Word (in
         // its legacy mode) set form_footnotes' tables 5pt to the right.
-        XCTAssertTrue(text("word/styles.xml").contains("<w:style w:type=\"table\" w:default=\"1\" w:styleId=\"TableNormal\"><w:name w:val=\"Normal Table\"/><w:uiPriority w:val=\"99\"/><w:semiHidden/><w:unhideWhenUsed/><w:tblPr><w:tblInd w:w=\"0\" w:type=\"dxa\"/><w:tblCellMar><w:top w:w=\"0\" w:type=\"dxa\"/><w:left w:w=\"108\" w:type=\"dxa\"/><w:bottom w:w=\"0\" w:type=\"dxa\"/><w:right w:w=\"108\" w:type=\"dxa\"/></w:tblCellMar></w:tblPr></w:style>"), text("word/styles.xml"))
+        XCTAssertEqual(text("word/styles.xml").components(separatedBy: "w:styleId=\"TableNormal\"").count - 1, 1, "one default table style, the file's own when it has one")
         // Read again: still one mark, the same note.
         let again = try DocxFormat.read(try DocxFormat.write(back, pageSetup: .letter)).document
         XCTAssertEqual(again.paragraphs[0].text, "Body with a note1 here.")
@@ -760,7 +760,7 @@ final class DocxTests: XCTestCase {
         var entries = try Zip.read(try DocxFormat.write(doc, pageSetup: .letter))
         let si = entries.firstIndex { $0.name == "word/styles.xml" }!
         var styles = String(decoding: entries[si].data, as: UTF8.self)
-        styles = styles.replacingAll("</w:styles>", with: "<w:style w:type=\"paragraph\" w:customStyle=\"1\" w:styleId=\"EdfTitre3\"><w:name w:val=\"Edf Titre 3\"/><w:basedOn w:val=\"Heading3\"/><w:pPr><w:numPr><w:ilvl w:val=\"2\"/><w:numId w:val=\"1\"/></w:numPr></w:pPr><w:rPr><w:b/><w:color w:val=\"auto\"/></w:rPr></w:style><w:style w:type=\"paragraph\" w:styleId=\"Body\"><w:name w:val=\"Body\"/><w:basedOn w:val=\"Normal\"/><w:pPr><w:spacing w:after=\"120\"/></w:pPr></w:style><w:style w:type=\"table\" w:styleId=\"Grid4\"><w:name w:val=\"Grid 4\"/><w:pPr><w:spacing w:after=\"0\" w:line=\"240\" w:lineRule=\"auto\"/></w:pPr><w:tblPr><w:tblBorders><w:top w:val=\"single\" w:sz=\"4\" w:space=\"0\" w:color=\"666666\"/></w:tblBorders></w:tblPr><w:tblStylePr w:type=\"firstCol\"><w:rPr><w:b/></w:rPr></w:tblStylePr><w:tblStylePr w:type=\"firstRow\"><w:rPr><w:b/><w:color w:val=\"FFFFFF\"/></w:rPr><w:tcPr><w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"000000\"/></w:tcPr></w:tblStylePr><w:tblStylePr w:type=\"band1Horz\"><w:tcPr><w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"CCCCCC\"/></w:tcPr></w:tblStylePr></w:style></w:styles>")
+        styles = styles.replacingAll("</w:styles>", with: "<w:style w:type=\"paragraph\" w:customStyle=\"1\" w:styleId=\"EdfTitre3\"><w:name w:val=\"Edf Titre 3\"/><w:basedOn w:val=\"Heading3\"/><w:pPr><w:numPr><w:ilvl w:val=\"2\"/><w:numId w:val=\"1\"/></w:numPr></w:pPr><w:rPr><w:b/><w:color w:val=\"auto\"/></w:rPr></w:style><w:style w:type=\"paragraph\" w:styleId=\"Body\"><w:name w:val=\"Body\"/><w:basedOn w:val=\"Normal\"/><w:pPr><w:spacing w:after=\"120\"/></w:pPr></w:style><w:style w:type=\"table\" w:styleId=\"Grid4\"><w:name w:val=\"Grid 4\"/><w:pPr><w:spacing w:after=\"0\" w:line=\"240\" w:lineRule=\"auto\"/></w:pPr><w:tblPr><w:tblStyleRowBandSize w:val=\"1\"/><w:tblBorders><w:top w:val=\"single\" w:sz=\"4\" w:space=\"0\" w:color=\"666666\"/></w:tblBorders></w:tblPr><w:tblStylePr w:type=\"firstCol\"><w:rPr><w:b/></w:rPr></w:tblStylePr><w:tblStylePr w:type=\"firstRow\"><w:rPr><w:b/><w:color w:val=\"FFFFFF\"/></w:rPr><w:tcPr><w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"000000\"/></w:tcPr></w:tblStylePr><w:tblStylePr w:type=\"band1Horz\"><w:tcPr><w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"CCCCCC\"/></w:tcPr></w:tblStylePr></w:style></w:styles>")
         entries[si] = ZipEntry(name: "word/styles.xml", data: Data(styles.utf8))
         let di = entries.firstIndex { $0.name == "word/document.xml" }!
         var xml = String(decoding: entries[di].data, as: UTF8.self)
@@ -5425,7 +5425,7 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(b.formatChange?.oldRPrXML, "<w:rPr><w:b/></w:rPr>")
         let again = String(decoding: try Zip.read(try DocxFormat.write(back, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
         XCTAssertTrue(again.contains("<w:i/><w:iCs/><w:rPrChange w:id=\"1\" w:author=\"Ann\" w:date=\"2009-03-01T10:00:00Z\"><w:rPr><w:b/></w:rPr></w:rPrChange></w:rPr>"), again)
-        XCTAssertTrue(again.contains("<w:b/><w:bCs/>") && again.contains("<w:rtl/>"), again)
+        XCTAssertTrue(again.contains("<w:bCs/><w:szCs w:val=\"28\"/><w:rtl w:val=\"true\"/>"), again)
         let latin = try XCTUnwrap(back.paragraphs[2].runs.first?.style)
         XCTAssertTrue(latin.italic)
         XCTAssertFalse(latin.bold)
@@ -6566,7 +6566,7 @@ final class DocxTests: XCTestCase {
         XCTAssertTrue(p.runs[2].style.bold)
         let saved = String(decoding: try Zip.read(try DocxFormat.write(back, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
         XCTAssertTrue(saved.contains("<w:ins w:id=\"1\" w:author=\"Ann\" w:date=\"2020-01-02T03:04:05Z\"><w:r><w:t xml:space=\"preserve\"> new</w:t></w:r></w:ins>"), saved)
-        XCTAssertTrue(saved.contains("<w:del w:id=\"2\" w:author=\"Bob\" w:date=\"2020-01-02T03:04:06Z\"><w:r><w:rPr><w:b/><w:bCs/></w:rPr><w:delText xml:space=\"preserve\"> old</w:delText></w:r></w:del>"), saved)
+        XCTAssertTrue(saved.contains("<w:del w:id=\"2\" w:author=\"Bob\" w:date=\"2020-01-02T03:04:06Z\"><w:r><w:rPr><w:b/></w:rPr><w:delText xml:space=\"preserve\"> old</w:delText></w:r></w:del>"), saved)
         let again = try DocxFormat.read(try DocxFormat.write(back, pageSetup: .letter)).document
         XCTAssertEqual(again.paragraphs[0].runs.map { $0.style.revision }, marks)
         // A deleted paragraph mark (delins.docx: whole bullets struck out)
@@ -7561,6 +7561,76 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(c.document.paragraphs.prefix(3).map { $0.text }, ["FromXXml A", "FromXXml A", "old"])
         c.undo()
         XCTAssertEqual(c.document.paragraphs.prefix(2).map { $0.text }, ["FromXml A", "FromXml A"])
+    }
+
+    /// A saved run keeps its original properties until it is edited.
+    func testASavedRunKeepsItsPropertiesUntilItIsEdited() throws {
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .letter))
+        let di = try XCTUnwrap(entries.firstIndex { $0.name == "word/document.xml" })
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let body = try XCTUnwrap(xml.range(of: "<w:body>")).upperBound ..< (try XCTUnwrap(xml.range(of: "<w:sectPr"))).lowerBound
+        let rPr = "<w:rPr><w:rFonts w:asciiTheme=\"minorHAnsi\" w:hAnsiTheme=\"minorHAnsi\" w:cstheme=\"minorBidi\"/><w:b w:val=\"0\"/><w:bCs w:val=\"0\"/><w:color w:val=\"1F497D\" w:themeColor=\"text2\" w:themeShade=\"BF\"/><w:szCs w:val=\"30\"/></w:rPr>"
+        xml.replaceSubrange(body, with: "<w:p><w:r>\(rPr)<w:t>Theme text</w:t></w:r></w:p>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        func saved(_ doc: RichDocument) throws -> String {
+            String(decoding: try XCTUnwrap(try Zip.read(try DocxFormat.write(doc, pageSetup: .letter)).first { $0.name == "word/document.xml" }).data, as: UTF8.self)
+        }
+        let doc = try DocxFormat.read(try Zip.write(entries)).document
+        let out = try saved(doc)
+        for part in ["w:asciiTheme=\"minorHAnsi\"", "w:cstheme=\"minorBidi\"", "<w:b w:val=\"0\"/><w:bCs w:val=\"0\"/>", "w:themeColor=\"text2\" w:themeShade=\"BF\"", "<w:szCs w:val=\"30\"/>"] {
+            XCTAssertTrue(out.containsSubstring(part), part)
+        }
+        // Edited: bold on writes the new look from the fields, the old properties are not repeated.
+        let c = RichDocumentController(document: doc)
+        c.moveTo(RichPosition(paragraph: 0, offset: 0), extend: false)
+        c.moveTo(RichPosition(paragraph: 0, offset: 10), extend: true)
+        c.toggleBold()
+        let edited = try saved(c.document)
+        XCTAssertFalse(edited.containsSubstring("<w:b w:val=\"0\"/>"), edited)
+        XCTAssertTrue(edited.containsSubstring("<w:b/>"), edited)
+    }
+
+    /// Save-loss: a run that switches bold off inside a bold paragraph style stays not-bold through read, edit and save, whether its
+    /// own properties are kept (untouched) or regenerated (edited), and neighbouring runs that merge do not pick the bold back up.
+    func testBoldOffInsideABoldStyleStaysOffAfterASave() throws {
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .letter))
+        let si = try XCTUnwrap(entries.firstIndex { $0.name == "word/styles.xml" })
+        var styles = String(decoding: entries[si].data, as: UTF8.self)
+        styles = styles.replacingAll("</w:styles>", with: "<w:style w:type=\"paragraph\" w:styleId=\"Strong1\"><w:name w:val=\"Strong1\"/><w:basedOn w:val=\"Normal\"/><w:rPr><w:b/><w:bCs/></w:rPr></w:style></w:styles>")
+        entries[si] = ZipEntry(name: "word/styles.xml", data: Data(styles.utf8))
+        let di = try XCTUnwrap(entries.firstIndex { $0.name == "word/document.xml" })
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let body = try XCTUnwrap(xml.range(of: "<w:body>")).upperBound ..< (try XCTUnwrap(xml.range(of: "<w:sectPr"))).lowerBound
+        xml.replaceSubrange(body, with: "<w:p><w:pPr><w:pStyle w:val=\"Strong1\"/></w:pPr><w:r><w:t>Bold </w:t></w:r><w:r><w:rPr><w:b w:val=\"0\"/><w:bCs w:val=\"0\"/></w:rPr><w:t>plain </w:t></w:r><w:r><w:rPr><w:b w:val=\"0\"/><w:bCs w:val=\"0\"/></w:rPr><w:t>twice</w:t></w:r></w:p>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        func boldAt(_ doc: RichDocument) -> [Bool] {
+            // One flag per character, sampled at the first letter of each word.
+            var flags: [Bool] = []
+            for r in doc.paragraphs[0].runs { flags += Array(repeating: r.style.bold, count: r.length) }
+            return [flags[0], flags[5], flags[10]]
+        }
+        func saved(_ doc: RichDocument) throws -> RichDocument {
+            try DocxFormat.read(try DocxFormat.write(doc, pageSetup: .letter)).document
+        }
+        let doc = try DocxFormat.read(try Zip.write(entries)).document
+        func xmlOf(_ d: RichDocument) throws -> String {
+            String(decoding: try XCTUnwrap(try Zip.read(try DocxFormat.write(d, pageSetup: .letter)).first { $0.name == "word/document.xml" }).data, as: UTF8.self)
+        }
+        func offRuns(_ x: String) -> Int { x.components(separatedBy: "<w:b w:val=\"0\"/>").count - 1 }
+        XCTAssertEqual(boldAt(doc), [false, false, false], "the style's bold is not in the run")
+        let first = try xmlOf(doc)
+        XCTAssertGreaterThanOrEqual(offRuns(first), 1, first)
+        // Edited: italic on the second word, then typing at the end.
+        let c = RichDocumentController(document: doc)
+        c.moveTo(RichPosition(paragraph: 0, offset: 5), extend: false)
+        c.moveTo(RichPosition(paragraph: 0, offset: 10), extend: true)
+        c.toggleItalic()
+        c.moveTo(RichPosition(paragraph: 0, offset: 15), extend: false)
+        c.insertText("!")
+        let after = try xmlOf(c.document)
+        XCTAssertTrue(after.containsSubstring("<w:pStyle w:val=\"Strong1\"/>"), after)
+        XCTAssertGreaterThanOrEqual(offRuns(after), 2, "every run that turned bold off still says so: \(after)")
+        XCTAssertEqual(boldAt(try saved(c.document)), [false, false, false])
     }
 
     func testBlockLevelContentControlsSurviveASave() throws {

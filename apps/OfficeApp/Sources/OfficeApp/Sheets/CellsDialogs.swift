@@ -32,7 +32,7 @@ extension WorkbookController {
     /// Row height in points for the selection's rows (0 hides, as in Excel); one undo step.
     func setRowHeights(_ points: Double) {
         let r = selection
-        structural { for row in r.top ... r.bottom { sheet.rowHeights[row] = max(0, points); sheet.hiddenRows.remove(row) } }
+        structural { for row in r.top ... r.bottom { sheet.rowHeights[row] = max(0, points); sheet.fittedRows.remove(row); sheet.hiddenRows.remove(row) } }
     }
 
     /// Column width in points for the selection's columns; one undo step.

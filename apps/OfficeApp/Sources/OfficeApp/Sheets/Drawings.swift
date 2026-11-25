@@ -48,6 +48,11 @@ struct SheetChart: Equatable {
     /// Set when the file's own chart was turned between column and bar here:
     /// the save patches that part's direction and keeps all its formatting.
     var retype: ChartType? = nil
+    /// A title or legend changed here on the file's own chart: the save patches those two elements of its part.
+    var titleEdit: ChartPartEdit? = nil
+    var legendEdit: ChartPartEdit? = nil
+    var catTitleEdit: ChartPartEdit? = nil
+    var valTitleEdit: ChartPartEdit? = nil
     /// Every `<c:f>` in that part (series, titles, labels…): as read → as
     /// it reads now, after rows, columns or sheets moved. A save rewrites
     /// the part's references through it and keeps everything else.
@@ -69,7 +74,7 @@ struct SheetChart: Equatable {
     var pivotSeries: [String] = []
 
     static func == (a: SheetChart, b: SheetChart) -> Bool {
-        a.chart == b.chart && a.path == b.path && a.formulas == b.formulas && a.refs.count == b.refs.count
+        a.chart == b.chart && a.path == b.path && a.titleEdit == b.titleEdit && a.legendEdit == b.legendEdit && a.catTitleEdit == b.catTitleEdit && a.valTitleEdit == b.valTitleEdit && a.formulas == b.formulas && a.refs.count == b.refs.count
             && zip(a.refs, b.refs).allSatisfy { $0.name == $1.name && $0.cat == $1.cat && $0.val == $1.val }
     }
 }
@@ -105,6 +110,9 @@ struct SheetDrawing: Equatable {
     /// A picture's turn (`a:xfrm@rot`), in degrees clockwise.
     var rotation = 0.0
     var screenOnly = false
+    /// `cNvPr@descr`: the alt text a screen reader says. `rawDescr` is what the file had.
+    var descr: String? = nil
+    var rawDescr: String? = nil
 
     var isChart: Bool { if case .chart = kind { return true } else { return false } }
 }
@@ -146,6 +154,8 @@ enum SheetDrawingsXML {
             if let pic = el.child("pic"), let embed = pic.child("blipFill")?.child("blip")?["r:embed"],
                let path = rels[embed], let data = parts[path] {
                 d.name = pic.child("nvPicPr")?.child("cNvPr")?["name"] ?? "Picture"
+                d.descr = pic.child("nvPicPr")?.child("cNvPr")?["descr"]
+                d.rawDescr = d.descr
                 d.kind = .picture(path: path, data: data)
                 d.relId = embed
                 d.rotation = (Double(pic.child("spPr")?.child("xfrm")?["rot"] ?? "") ?? 0) / 60_000
@@ -554,14 +564,19 @@ extension SheetDrawingsXML {
         var shapeId = 2
         for d in ws.drawings {
             shapeId += 1
-            if case .chart(let sc) = d.kind, let path = sc.path, sc.formulasChanged || sc.retype != nil, let bytes = original[path] {
+            if case .chart(let sc) = d.kind, let path = sc.path, sc.formulasChanged || sc.retype != nil || sc.titleEdit != nil || sc.legendEdit != nil || sc.catTitleEdit != nil || sc.valTitleEdit != nil, let bytes = original[path] {
                 // The file's own chart, its references moved with the cells.
                 var xml = String(decoding: bytes, as: UTF8.self)
                 if sc.formulasChanged { xml = _rewriteFormulas(xml, sc.formulas) }
                 if let t = sc.retype { xml = _retypeBars(xml, t) }
+                if let e = sc.titleEdit { xml = ChartPartPatch.title(xml, e) }
+                if let e = sc.legendEdit { xml = ChartPartPatch.legend(xml, e) }
+                if let e = sc.catTitleEdit { xml = ChartPartPatch.axisTitle(xml, .category, e) }
+                if let e = sc.valTitleEdit { xml = ChartPartPatch.axisTitle(xml, .value, e) }
                 out.parts[path] = Data(xml.utf8)
             }
             if let raw = d.raw {
+                let raw = d.descr == d.rawDescr ? raw : _patchDescr(raw, d.descr)
                 if d.kind == .other || d.rawAnchor == d.anchor {
                     body += raw
                     continue
@@ -576,9 +591,12 @@ extension SheetDrawingsXML {
             var content: String
             switch d.kind {
             case .other, .shape: continue      // kept by their raw text above
-            case .picture(let path, _):
+            case .picture(let path, let data):
+                // A picture put in here carries its bytes: the media part is new.
+                if original[path] == nil, !path.isEmpty { out.parts[path] = data; taken.insert(path) }
                 let id = d.relId.flatMap { id in rels.contains { $0.id == id } ? id : nil } ?? relTo("image", path)
-                content = "<xdr:pic><xdr:nvPicPr><xdr:cNvPr id=\"\(shapeId)\" name=\"\(name)\"/><xdr:cNvPicPr><a:picLocks noChangeAspect=\"1\"/></xdr:cNvPicPr></xdr:nvPicPr>"
+                let alt = (d.descr ?? "").isEmpty ? "" : " descr=\"\(Xlsx._esc(d.descr!))\""
+                content = "<xdr:pic><xdr:nvPicPr><xdr:cNvPr id=\"\(shapeId)\" name=\"\(name)\"\(alt)/><xdr:cNvPicPr><a:picLocks noChangeAspect=\"1\"/></xdr:cNvPicPr></xdr:nvPicPr>"
                     + "<xdr:blipFill><a:blip r:embed=\"\(id)\"/><a:stretch><a:fillRect/></a:stretch></xdr:blipFill>"
                     + "<xdr:spPr><a:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"0\" cy=\"0\"/></a:xfrm><a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom></xdr:spPr></xdr:pic>"
             case .chart(let sc):
@@ -610,6 +628,20 @@ extension SheetDrawingsXML {
             out.element = "<drawing xmlns:r=\"\(relBase)\" r:id=\"\(id)\"/>"
         }
         return out
+    }
+
+    /// `raw` with the alt text of its first `cNvPr` set (or taken off when nil or empty).
+    static func _patchDescr(_ raw: String, _ descr: String?) -> String {
+        guard let s = raw.rangeOfSubstring("<xdr:cNvPr") ?? raw.rangeOfSubstring("<cNvPr"),
+              let e = raw.rangeOfSubstring(">", in: s.upperBound..<raw.endIndex) else { return raw }
+        var tag = String(raw[s.lowerBound..<e.lowerBound])
+        if let a = tag.rangeOfSubstring(" descr=\""), let q = tag.rangeOfSubstring("\"", in: a.upperBound..<tag.endIndex) {
+            tag.removeSubrange(a.lowerBound..<q.upperBound)
+        }
+        var selfClosing = false
+        if tag.hasSuffix("/") { tag.removeLast(); selfClosing = true }
+        if let d = descr, !d.isEmpty { tag += " descr=\"\(Xlsx._esc(d))\"" }
+        return String(raw[raw.startIndex..<s.lowerBound]) + tag + (selfClosing ? "/" : "") + String(raw[e.lowerBound...])
     }
 
     /// `raw` (a twoCellAnchor) with its from/to markers replaced; nil when
@@ -832,7 +864,39 @@ extension WorkbookController {
         sc.chart.title = live.series.count == 1 ? live.series[0].name : "Chart Title"
         // 5 × 3 inches (Excel's size), a column clear of the data, level with its top.
         let corner = ws.point(SheetMarker(col: r.right + 2, colOff: 0, row: r.top, rowOff: 0))
-        let anchor = ws.anchor(x: corner.x, y: corner.y, width: 360, height: 216)
+        // Inside the printable width when it fits there (Excel prints a chart over the page edge on 2 pages), never over the data.
+        // A sheet that states no default column width gets Excel's own, 51 pt where we assume 48 (Excel's check of a new chart: left 160.2, width 381 for our 151.2 and 360), so the fit is tested at that scale.
+        let printable = SheetPrintSetup.read(ws).printableWidth
+        let grow = ws.formatPrAttrs["defaultColWidth"] == nil ? 51.0 / 48.0 : 1.0
+        let dataEdge = ws.point(SheetMarker(col: r.right + 1, colOff: 0, row: r.top, rowOff: 0)).x
+        func place(_ x: Double, _ y: Double) -> (SheetAnchor, Bool) {
+            // (Offsets in whole EMU, as the file holds them, so it reads back as written.)
+            func emu(_ m: SheetMarker) -> SheetMarker { SheetMarker(col: m.col, colOff: (m.colOff * 12700).rounded() / 12700, row: m.row, rowOff: (m.rowOff * 12700).rounded() / 12700) }
+            var a = ws.anchor(x: x, y: y, width: 360, height: 216)
+            if case .twoCell(let from, let to) = a { a = .twoCell(from: emu(from), to: emu(to)) }
+            let f = ws.frame(a)
+            return (a, (f.x + f.width) * grow <= printable)
+        }
+        var (anchor, fits) = place(corner.x, corner.y)
+        if !fits {
+            // Beside the data when it fits there; else under it, from the data's left edge, so it never crosses the page edge.
+            var x = printable / grow - 360
+            for _ in 0 ..< 4 where x >= dataEdge {
+                let (a, ok) = place(x, corner.y)
+                if ok { anchor = a; fits = true; break }
+                x -= 1
+            }
+            if !fits {
+                let below = ws.point(SheetMarker(col: r.left, colOff: 0, row: r.bottom + 2, rowOff: 0))
+                var bx = below.x
+                for _ in 0 ..< 6 {
+                    let (a, ok) = place(bx, below.y)
+                    anchor = a
+                    if ok || bx <= 0 { break }
+                    bx = max(0, bx - 8)
+                }
+            }
+        }
         let n = ws.drawings.filter(\.isChart).count + 1
         structural {
             ws.drawings.append(SheetDrawing(name: "Chart \(n)", anchor: anchor, kind: .chart(sc)))
@@ -841,6 +905,53 @@ extension WorkbookController {
         selectedDrawing = ws.drawings.count - 1
         _notify(selectionOnly: true)
         return true
+    }
+
+    /// Insert → Picture: an image of `width` × `height` points, placed at the top-left of the
+    /// view (the active cell's corner), selected. The bytes are kept to be written as a media part.
+    @discardableResult
+    func insertPicture(name: String, data: Data, width: Double, height: Double) -> Bool {
+        let ws = sheet
+        guard let ext = Self._imageExtension(data), width > 0, height > 0 else {
+            onCommand?(.status("That file is not a picture Sheets can place"))
+            return false
+        }
+        // Down to a page-friendly size, keeping the shape (Excel fits a big picture to the window).
+        let k = min(1, 480 / width, 360 / height)
+        var n = 1
+        while ws.drawings.contains(where: { if case .picture(let p, _) = $0.kind { return p == "xl/media/starling-image\(n).\(ext)" }; return false }) { n += 1 }
+        let path = "xl/media/starling-image\(n).\(ext)"
+        let corner = ws.point(SheetMarker(col: active.col, colOff: 0, row: active.row, rowOff: 0))
+        let anchor = ws.anchor(x: corner.x, y: corner.y, width: width * k, height: height * k)
+        let count = ws.drawings.filter { if case .picture = $0.kind { return true }; return false }.count + 1
+        structural {
+            ws.drawings.append(SheetDrawing(name: "Picture \(count)", anchor: anchor, kind: .picture(path: path, data: data)))
+            ws.drawingsEdited = true
+        }
+        selectedDrawing = ws.drawings.count - 1
+        _notify(selectionOnly: true)
+        return true
+    }
+
+    /// The file extension of an image by its first bytes; nil when it is not one Excel keeps.
+    static func _imageExtension(_ d: Data) -> String? {
+        let b = [UInt8](d.prefix(12))
+        if b.count >= 8, b[0] == 0x89, b[1] == 0x50, b[2] == 0x4E, b[3] == 0x47 { return "png" }
+        if b.count >= 3, b[0] == 0xFF, b[1] == 0xD8, b[2] == 0xFF { return "jpeg" }
+        if b.count >= 4, b[0] == 0x47, b[1] == 0x49, b[2] == 0x46, b[3] == 0x38 { return "gif" }
+        if b.count >= 2, b[0] == 0x42, b[1] == 0x4D { return "bmp" }
+        return nil
+    }
+
+    /// Alt text of a picture (one undo step).
+    func setDrawingAlt(_ index: Int, _ text: String) {
+        let ws = sheet
+        guard ws.drawings.indices.contains(index), case .picture = ws.drawings[index].kind,
+              (ws.drawings[index].descr ?? "") != text else { return }
+        structural {
+            ws.drawings[index].descr = text.isEmpty ? nil : text
+            ws.drawingsEdited = true
+        }
     }
 
     /// Move or resize a drawing to a frame in points (one undo step).
@@ -875,14 +986,20 @@ extension WorkbookController {
     func editChart(_ index: Int, _ change: (inout Chart) -> Void) -> Bool {
         let ws = sheet
         guard ws.drawings.indices.contains(index), case .chart(var sc) = ws.drawings[index].kind else { return false }
-        guard sc.path == nil else {
-            chartNotice = "This chart came from the file; its titles and legend can't be changed here yet."
-            _notify()
-            return false
-        }
         var chart = sc.chart
         change(&chart)
         guard chart != sc.chart else { return false }
+        if sc.path != nil {
+            // The file's own chart: its part is patched on save, only for what changed.
+            if chart.title != sc.chart.title || chart.autoTitle != sc.chart.autoTitle {
+                sc.titleEdit = chart.title.map { .set($0) } ?? .remove
+            }
+            if chart.categoryAxisTitle != sc.chart.categoryAxisTitle { sc.catTitleEdit = chart.categoryAxisTitle.map { .set($0) } ?? .remove }
+            if chart.valueAxisTitle != sc.chart.valueAxisTitle { sc.valTitleEdit = chart.valueAxisTitle.map { .set($0) } ?? .remove }
+            if chart.legend != sc.chart.legend || chart.legendPosition != sc.chart.legendPosition {
+                sc.legendEdit = chart.legend ? .set(chart.legendPosition) : .remove
+            }
+        }
         sc.chart = chart
         structural {
             ws.drawings[index].kind = .chart(sc)
@@ -899,6 +1016,17 @@ extension WorkbookController {
     }
 
     /// Chart Design → Add Chart Element → Legend: its side ("b", "t", "r", "l"), or nil for none.
+    /// Both axis titles at once (nil takes one off); nothing on a chart without axes.
+    func setChartAxisTitles(_ index: Int, category: String?, value: String?) {
+        editChart(index) { guard $0.type.hasAxes else { return }; $0.categoryAxisTitle = category; $0.valueAxisTitle = value; $0.sizeNewAxisTitles() }
+    }
+    /// The chart title and both axis titles in one edit (one undo step); nil takes one off. An axis title is left alone on a chart without axes.
+    func setChartTitles(_ index: Int, title: String?, category: String?, value: String?) {
+        editChart(index) {
+            $0.title = title; $0.autoTitle = false
+            if $0.type.hasAxes { $0.categoryAxisTitle = category; $0.valueAxisTitle = value; $0.sizeNewAxisTitles() }
+        }
+    }
     func setChartLegend(_ index: Int, position: String?) {
         editChart(index) {
             $0.legend = position != nil
@@ -973,5 +1101,14 @@ extension SheetDrawingsXML {
             if width > 0, height > 0 { out[id] = HeaderPicture(path: path, data: data, width: width, height: height) }
         }
         return out
+    }
+}
+
+extension Chart {
+    /// Axis titles typed here are Excel's: 10 pt bold, not the unformatted 20 pt default that would squeeze the plot.
+    mutating func sizeNewAxisTitles() {
+        if categoryAxisTitle != nil, categoryAxisTitleSize == nil { categoryAxisTitleSize = 10 }
+        if valueAxisTitle != nil, valueAxisTitleSize == nil { valueAxisTitleSize = 10 }
+        if categoryAxisTitle != nil || valueAxisTitle != nil, axisTitleSize == nil { axisTitleBold = true; axisTitleBoldOut = true }
     }
 }
