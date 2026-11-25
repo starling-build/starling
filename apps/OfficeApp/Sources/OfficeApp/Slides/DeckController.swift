@@ -558,7 +558,7 @@ final class DeckController: ChangeNotifier {
     private static func _outlineEntry(_ slide: Slide) -> OutlineEntry {
         let title = slide.shapes.first { $0.role == .title || $0.role == .ctrTitle }
         let body = slide.shapes.first { $0.role == .body || $0.role == .subTitle }
-        var entry = OutlineEntry(title: (title?.text?.document.paragraphs.map(\.text) ?? []).joined(separator: " "))
+        var entry = OutlineEntry(title: (title?.text?.document.paragraphs.map(\.text) ?? []).joined(separator: " "), slideId: slide.id)
         for p in body?.text?.document.paragraphs ?? [] where !(p.text.isEmpty && p.image != nil) {
             entry.body.append(OutlineLine(level: p.style.listLevel + 1, text: p.text))
         }

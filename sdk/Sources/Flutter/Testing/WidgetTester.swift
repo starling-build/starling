@@ -203,6 +203,9 @@ public final class WidgetTester {
         return true
     }
 
+    /// Where the widget keyed `ValueKey(id)` sits (its centre), or nil.
+    public func centre(id: String) -> Offset? { centre(where: { ($0.key as? ValueKey<String>)?.value == id }) }
+
     public func has(id: String) -> Bool { centre(where: { ($0.key as? ValueKey<String>)?.value == id }) != nil }
 
     // MARK: Keys

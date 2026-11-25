@@ -98,6 +98,10 @@ final class SlidesShellState: State<StatefulWidget> {
     private var _formatBackground = false
     /// A thumbnail being dragged to a new place: where it started, the
     /// pointer's start, and where it would land.
+    /// A slide dragged in the sorter: where it started, which slot it is over, and whether it has moved.
+    private var _sorterDrag: (from: Int, startX: Double, startY: Double, to: Int, moved: Bool)? = nil
+    /// How many tiles a sorter row holds (read back from the laid-out grid).
+    private var _sorterPerRow = 1
     private var _thumbDrag: (from: Int, startY: Double, startX: Double, to: Int, moved: Bool)? = nil
     private let _thumbMenu = FlyoutController()
     /// The thumbnail pane's scroll, and the slide it was last brought to:
@@ -1665,6 +1669,41 @@ final class SlidesShellState: State<StatefulWidget> {
         }
     }
 
+    private func _sorterDown(_ index: Int, _ e: PointerDownEvent, context: any BuildContext) {
+        if e.buttons & kSecondaryMouseButton != 0 {
+            if !deck.selectedSlides.contains(index) { _select(index) }
+            _paneFocused = true
+            _showThumbMenu(at: e.position, context: context)
+            return
+        }
+        // Dragging an unpicked tile picks it first; a picked group drags together.
+        if !deck.selectedSlides.contains(index), !_deckChords.shift, !_deckChords.primary { deck.selectSlide(index) }
+        _sorterDrag = (index, e.position.dx, e.position.dy, index, false)
+    }
+
+    private func _sorterMove(_ position: Offset, tile: (w: Double, h: Double)) {
+        guard var drag = _sorterDrag else { return }
+        let dx = position.dx - drag.startX, dy = position.dy - drag.startY
+        if !drag.moved && abs(dx) < 6 && abs(dy) < 6 { return }
+        drag.moved = true
+        let steps = Int((dx / tile.w).rounded()) + _sorterPerRow * Int((dy / tile.h).rounded())
+        let to = max(0, min(deck.slides.count - 1, drag.from + steps))
+        let changed = to != drag.to || !(_sorterDrag?.moved ?? false)
+        drag.to = to
+        _sorterDrag = drag
+        if changed { setState {} }
+    }
+
+    private func _sorterUp() {
+        guard let drag = _sorterDrag else { return }
+        _sorterDrag = nil
+        if drag.moved, drag.to != drag.from {
+            let picked = deck.selectedSlides
+            if picked.count > 1 { deck.moveSelectedSlides(to: picked[0] + (drag.to - drag.from)) }
+            else { deck.moveSlide(drag.from, to: drag.to) }
+        } else { setState {} }
+    }
+
     private func _thumbDown(_ index: Int, _ e: PointerDownEvent, context: any BuildContext) {
         if e.buttons & kSecondaryMouseButton != 0 {
             // A right-click inside the picked slides keeps the pick.
@@ -1815,7 +1854,23 @@ final class SlidesShellState: State<StatefulWidget> {
         let picked = Set(deck.selectedSlides)
         for (i, slide) in deck.slides.enumerated() {
             let current = picked.contains(i)
-            tiles.append(GestureDetector(
+            let dropHere = _sorterDrag.map { $0.moved && $0.to == i && $0.to != $0.from } ?? false
+            let dropBefore = dropHere && _sorterDrag!.to < _sorterDrag!.from
+            let bar = Positioned(left: dropBefore ? 3 : nil, top: 12, right: dropBefore ? nil : 3, width: 5, height: h + 8,
+                                 child: ColoredBox(color: dropHere ? accent : Color(0x00000000), child: SizedBox(expand: ())))
+            tiles.append(Listener(
+              key: ValueKey("slide.sorter.\(i)"),
+              onPointerDown: { [weak self] e in
+                  guard let self, let context = self.context else { return }
+                  self._sorterDown(i, e, context: context)
+              },
+              onPointerMove: { [weak self] e in self?._sorterMove(e.position, tile: (w + 32, h + 52)) },
+              onPointerUp: { [weak self] e in
+                  self?._sorterMove(e.position, tile: (w + 32, h + 52))
+                  self?._sorterUp()
+              },
+              behavior: .translucent,
+              child: GestureDetector(
                 key: ValueKey("slide.tile.\(i)"),
                 onTap: { [weak self] in
                     guard let self else { return }
@@ -1833,7 +1888,7 @@ final class SlidesShellState: State<StatefulWidget> {
                     self._deckFocus.requestFocus()
                     self._paneFocused = true
                 },
-                child: Padding(padding: EdgeInsets(all: 12), child: Column(crossAxisAlignment: .start, children: [
+                child: Stack(children: [Padding(padding: EdgeInsets(all: 12), child: Column(crossAxisAlignment: .start, children: [
                     DecoratedBox(
                         decoration: BoxDecoration(border: Border.all(
                             color: current ? accent : fluent.resources.controlStrokeColorDefault,
@@ -1846,7 +1901,7 @@ final class SlidesShellState: State<StatefulWidget> {
                                 child: SizedBox(expand: ()))))))),
                     Chrome.vgap(4),
                     Text("\(i + 1)\(slide.hidden ? "  (hidden)" : "")", style: fluent.typography.caption),
-                ]))))
+                ])), bar]))))
         }
         let dark = fluent.brightness == .dark
         // A tile: the thumbnail, its frame (8), the number under it (4 and
@@ -1867,6 +1922,8 @@ final class SlidesShellState: State<StatefulWidget> {
             guard let self, self._sorterScroll.hasClients else { return }
             let pos = self._sorterScroll.position
             let mounted = ObjectIdentifier(pos)
+            let allRows = max(1, Int(((pos.maxScrollExtent + pos.viewportDimension - 32) / rowHeight).rounded()))
+            self._sorterPerRow = max(1, Int((Double(self.deck.slides.count) / Double(allRows)).rounded(.up)))
             guard current != self._sorterShown || mounted != self._sorterPosition else { return }
             self._sorterShown = current
             self._sorterPosition = mounted
@@ -1936,6 +1993,12 @@ final class SlidesShellState: State<StatefulWidget> {
         guard _outline, !_outlineSyncing else { return }
         _outlineSyncing = true
         deck.applyOutline(Outline.entries(from: _outlineCtl.document))
+        // New rows (and rows whose tag Enter copied) learn their slide's id, so the next edit finds the right slide.
+        if Outline.entries(from: _outlineCtl.document).map(\.slideId) != deck.outlineEntries.map(\.slideId) {
+            let sel = _outlineCtl.selection
+            _outlineCtl.load(Outline.document(deck.outlineEntries))
+            _outlineCtl.selection = sel
+        }
         let doc = _outlineCtl.document
         let caret = _outlineCtl.selection.caret.paragraph
         var slide = -1

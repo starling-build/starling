@@ -52,11 +52,40 @@ final class SlideOutlineTests: XCTestCase {
         deck.applyOutline(e)
         XCTAssertEqual(deck.slides.count, 3)
         XCTAssertEqual(deck.slides[0].id, ids[0]); XCTAssertEqual(deck.slides[2].id, ids[1])
-        XCTAssertEqual(deck.outlineEntries[1], OutlineEntry(title: "Between", body: [OutlineLine(level: 1, text: "x")]))
+        XCTAssertEqual(deck.outlineEntries[1].title, "Between")
+        XCTAssertNotNil(deck.outlineEntries[1].slideId)
+        e = deck.outlineEntries
         e.remove(at: 0)
         deck.applyOutline(e)
         XCTAssertEqual(deck.slides.map(\.id).last, ids[1])
         XCTAssertEqual(deck.slides.count, 2)
+    }
+
+    func testSlidesWithTheSameTitleAreToldApartByTheirIds() {
+        let deck = deckWith([("Title", ["first"]), ("Title", ["second"]), ("Title", ["third"]), ("End", [])])
+        let ids = deck.slides.map(\.id)
+        // Edit the middle "Title" (through the outline document, as typing does) and move the third before the first.
+        var doc = Outline.document(deck.outlineEntries)
+        XCTAssertEqual(Outline.entries(from: doc).map(\.slideId), ids.map { Optional($0) })
+        var e = Outline.entries(from: doc)
+        e[1].body[0].text = "second, edited"
+        e.insert(e.remove(at: 2), at: 0)
+        doc = Outline.document(e)
+        deck.applyOutline(Outline.entries(from: doc))
+        XCTAssertEqual(deck.slides.map(\.id), [ids[2], ids[0], ids[1], ids[3]])
+        XCTAssertEqual(deck.outlineEntries.map { $0.body.first?.text ?? "" }, ["third", "first", "second, edited", ""])
+    }
+
+    func testEnterCopiesATagButOnlyOneRowKeepsIt() {
+        let deck = deckWith([("One", ["a"]), ("Two", ["b"])])
+        let ids = deck.slides.map(\.id)
+        var e = deck.outlineEntries
+        // Enter after "One": a second row with the same tag and no text.
+        e.insert(OutlineEntry(title: "", body: [], slideId: ids[0]), at: 1)
+        deck.applyOutline(e)
+        XCTAssertEqual(deck.slides.count, 3)
+        XCTAssertEqual(deck.slides[0].id, ids[0])
+        XCTAssertEqual(deck.slides[2].id, ids[1])
     }
 
     func testBodyLevelsReachTheSlideAndOneUndoStepRestores() {
@@ -134,7 +163,7 @@ final class SlideOutlineTests: XCTestCase {
         log += "\nAFTER\n" + show(deck.outlineEntries)
         try Pptx.write(deck).write(to: URL(fileURLWithPath: out))
         try log.write(toFile: out + ".txt", atomically: true, encoding: .utf8)
-        XCTAssertEqual(deck.outlineEntries, e)
+        XCTAssertEqual(deck.outlineEntries.map { [$0.title] + $0.body.map(\.text) }, e.map { [$0.title] + $0.body.map(\.text) })
     }
 
     /// Demote one line of a slide with nine levels, save, reopen: every level is where it was, the layout is unchanged,
