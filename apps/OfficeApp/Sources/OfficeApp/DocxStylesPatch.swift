@@ -6,7 +6,7 @@ import Foundation
 import OfficeText
 
 extension DocxFormat {
-    static func _patchedStyles(original: String, generated: String, doc: RichDocument) -> String? {
+    static func _patchedStyles(original: String, generated: String, doc: RichDocument, usedIn: String = "") -> String? {
         guard let root = XNode.parse(Data(original.utf8)), root.name == "w:styles",
               let gen = XNode.parse(Data(generated.utf8)) else { return nil }
         let sheet = doc.styles
@@ -60,6 +60,12 @@ extension DocxFormat {
         }
         func add(_ n: XNode) {
             guard let id = n["w:styleId"], !present.contains(id) else { return }
+            // The writer says "Normal"; this file's default paragraph style may have another id (Chinese Word: "a").
+            if defaultParagraphId != "Normal" {
+                for c in n.children where (c.name == "w:basedOn" || c.name == "w:next") && c["w:val"] == "Normal" && !present.contains("Normal") {
+                    c.attrs["w:val"] = defaultParagraphId
+                }
+            }
             out.append(n); present.insert(id); names.insert(nameOf(n))
         }
         // Created styles, and our id for a style the file knows under another one.
@@ -77,6 +83,8 @@ extension DocxFormat {
         for n in gen.children where n.name == "w:style" {
             guard let id = n["w:styleId"], !present.contains(id), !names.contains(nameOf(n)) else { continue }
             if doc.styleAliases[id] != nil { continue }
+            // Only a style the saved text actually refers to; the writer's whole built-in set is not the user's.
+            guard usedIn.containsSubstring("\"\(id)\"") else { continue }
             add(n)
         }
         root.children = out

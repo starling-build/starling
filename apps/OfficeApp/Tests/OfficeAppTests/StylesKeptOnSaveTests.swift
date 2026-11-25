@@ -7,13 +7,13 @@ import XCTest
 final class StylesKeptOnSaveTests: XCTestCase {
     static let w = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 
-    static func sample() throws -> Data {
+    static func sample(normalId: String = "Normal") throws -> Data {
         let styles = """
         <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
         <w:styles xmlns:w="\(w)"><w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial"/><w:sz w:val="22"/></w:rPr></w:rPrDefault></w:docDefaults>
         <w:latentStyles w:defLockedState="0" w:count="2"><w:lsdException w:name="Normal" w:uiPriority="0"/><w:lsdException w:name="heading 1" w:uiPriority="9"/></w:latentStyles>
-        <w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/><w:qFormat/></w:style>
-        <w:style w:type="paragraph" w:customStyle="1" w:styleId="Base"><w:name w:val="Base"/><w:basedOn w:val="Normal"/><w:next w:val="Child"/><w:link w:val="BaseChar"/><w:uiPriority w:val="1"/><w:qFormat/><w:rsid w:val="00AB12CD"/><w:pPr><w:spacing w:after="120"/></w:pPr><w:rPr><w:sz w:val="24"/></w:rPr></w:style>
+        <w:style w:type="paragraph" w:default="1" w:styleId="\(normalId)"><w:name w:val="Normal"/><w:qFormat/></w:style>
+        <w:style w:type="paragraph" w:customStyle="1" w:styleId="Base"><w:name w:val="Base"/><w:basedOn w:val="\(normalId)"/><w:next w:val="Child"/><w:link w:val="BaseChar"/><w:uiPriority w:val="1"/><w:qFormat/><w:rsid w:val="00AB12CD"/><w:pPr><w:spacing w:after="120"/></w:pPr><w:rPr><w:sz w:val="24"/></w:rPr></w:style>
         <w:style w:type="paragraph" w:customStyle="1" w:styleId="Child"><w:name w:val="Child"/><w:basedOn w:val="Base"/><w:qFormat/><w:rPr><w:b/></w:rPr></w:style>
         <w:style w:type="character" w:customStyle="1" w:styleId="BaseChar"><w:name w:val="Base Char"/><w:basedOn w:val="DefaultParagraphFont"/><w:link w:val="Base"/><w:rPr><w:sz w:val="24"/></w:rPr></w:style>
         </w:styles>
@@ -43,6 +43,22 @@ final class StylesKeptOnSaveTests: XCTestCase {
         let c = RichDocumentController(document: doc)
         c.insertText("x")
         return c
+    }
+
+    func testSavedStylesNeverPointAtAMissingNormalAndSkipUnusedBuiltIns() throws {
+        var doc = try DocxFormat.read(Self.sample(normalId: "a")).document
+        doc.styles.styles.removeAll { $0.id == "Child" }
+        let c = RichDocumentController(document: doc)
+        c.insertText("x")
+        let root = XNode.parse(Data(try stylesXML(c).utf8))!
+        let ids = Set(root.children.filter { $0.name == "w:style" }.compactMap { $0["w:styleId"] })
+        for st in root.children where st.name == "w:style" {
+            for ch in st.children where ch.name == "w:basedOn" || ch.name == "w:next" || ch.name == "w:link" {
+                XCTAssertTrue(ids.contains(ch["w:val"] ?? "") || ch["w:val"] == "DefaultParagraphFont", "\(st["w:styleId"] ?? "?") \(ch.name) -> \(ch["w:val"] ?? "")")
+            }
+        }
+        XCTAssertFalse(ids.contains("Title"))
+        XCTAssertFalse(ids.contains("Heading1"))
     }
 
     func testUntouchedStylesKeepEverything() throws {
@@ -88,6 +104,32 @@ final class StylesKeptOnSaveTests: XCTestCase {
     }
 
     /// Sweep: five corpus documents with basedOn chains and linked character styles lose none of it.
+    func testGlossaryAndStylesWithEffectsStayInTheFile() throws {
+        var entries = try Zip.read(Self.sample())
+        func edit(_ name: String, _ f: (String) -> String) {
+            let k = entries.firstIndex { $0.name == name }!
+            entries[k] = ZipEntry(name: name, data: Data(f(String(decoding: entries[k].data, as: UTF8.self)).utf8))
+        }
+        edit("[Content_Types].xml") { $0.replacingAll("</Types>", with: "<Override PartName=\"/word/stylesWithEffects.xml\" ContentType=\"application/vnd.ms-word.stylesWithEffects+xml\"/><Override PartName=\"/word/glossary/document.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.document.glossary+xml\"/><Override PartName=\"/word/glossary/styles.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml\"/></Types>") }
+        edit("word/_rels/document.xml.rels") { $0.replacingAll("</Relationships>", with: "<Relationship Id=\"rId90\" Type=\"http://schemas.microsoft.com/office/2007/relationships/stylesWithEffects\" Target=\"stylesWithEffects.xml\"/><Relationship Id=\"rId91\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/glossaryDocument\" Target=\"glossary/document.xml\"/></Relationships>") }
+        let w = Self.w
+        entries.append(ZipEntry(name: "word/stylesWithEffects.xml", data: Data("<w:styles xmlns:w=\"\(w)\"><w:style w:type=\"paragraph\" w:styleId=\"Fx\"/></w:styles>".utf8)))
+        entries.append(ZipEntry(name: "word/glossary/document.xml", data: Data("<w:document xmlns:w=\"\(w)\"><w:docParts><w:docPart/></w:docParts></w:document>".utf8)))
+        entries.append(ZipEntry(name: "word/glossary/styles.xml", data: Data("<w:styles xmlns:w=\"\(w)\"/>".utf8)))
+        entries.append(ZipEntry(name: "word/glossary/_rels/document.xml.rels", data: Data("<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"><Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles\" Target=\"styles.xml\"/></Relationships>".utf8)))
+        let doc = try DocxFormat.read(try Zip.write(entries)).document
+        let out = try Zip.read(try DocxFormat.write(doc, pageSetup: .letter))
+        func text(_ n: String) -> String { out.first { $0.name == n }.map { String(decoding: $0.data, as: UTF8.self) } ?? "" }
+        XCTAssertTrue(text("word/stylesWithEffects.xml").containsSubstring("Fx"))
+        XCTAssertTrue(text("word/glossary/document.xml").containsSubstring("docPart"))
+        XCTAssertTrue(text("word/glossary/styles.xml").containsSubstring("w:styles"))
+        XCTAssertTrue(text("word/glossary/_rels/document.xml.rels").containsSubstring("styles.xml"))
+        let rels = text("word/_rels/document.xml.rels")
+        XCTAssertTrue(rels.containsSubstring("glossaryDocument") && rels.containsSubstring("stylesWithEffects"), rels)
+        let types = text("[Content_Types].xml")
+        XCTAssertTrue(types.containsSubstring("/word/glossary/document.xml") && types.containsSubstring("/word/glossary/styles.xml") && types.containsSubstring("/word/stylesWithEffects.xml"), types)
+    }
+
     func testCorpusSweepLosesNothing() throws {
         let dir = "/data/corpus-cache/test/corpus/docx"
         let names = ["docs/zh-b711dc644603ae934161a1d969cffa91f50cc823b1bf5974a8c7fa79808b0adf.docx", "lo/docs/lo-4f5353c6f157801c.docx", "docs/58067.docx",
