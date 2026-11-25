@@ -243,6 +243,12 @@ final class SheetsChartDesignTests: XCTestCase {
         XCTAssertTrue(out.containsSubstring("<c:strCache>"))
         XCTAssertEqual(out.components(separatedBy: "FF0000").count - 1, 3)
         XCTAssertFalse(out.containsSubstring("S!$C$2:$C$3"))
+        // A new series is automatic all through: none of the template's marker or line colours.
+        let fresh = ChartPartPatch.series("<c:plotArea><c:lineChart><c:ser><c:idx val=\"0\"/><c:order val=\"0\"/><c:spPr><a:ln><a:solidFill><a:srgbClr val=\"112233\"/></a:solidFill></a:ln></c:spPr><c:marker><c:symbol val=\"circle\"/><c:spPr><a:solidFill><a:srgbClr val=\"445566\"/></a:solidFill></c:spPr></c:marker><c:cat><c:strRef><c:f>S!$A$2:$A$3</c:f></c:strRef></c:cat><c:val><c:numRef><c:f>S!$B$2:$B$3</c:f></c:numRef></c:val></c:ser></c:lineChart></c:plotArea>",
+            [ChartSeriesRef(source: 0, name: nil, cat: "S!$A$2:$A$3", val: "S!$B$2:$B$3"), ChartSeriesRef(source: nil, name: nil, cat: "S!$A$2:$A$3", val: "S!$C$2:$C$3")])
+        let second = fresh.components(separatedBy: "<c:ser>")[2]
+        XCTAssertFalse(second.containsSubstring("112233")); XCTAssertFalse(second.containsSubstring("445566")); XCTAssertFalse(second.containsSubstring("<c:marker>"))
+        XCTAssertTrue(fresh.components(separatedBy: "<c:ser>")[1].containsSubstring("445566"))
         XCTAssertTrue(out.containsSubstring("<c:f>S!$G$2:$G$3</c:f>"))
         // The new series sit after the last kept series; the other group is not touched.
         XCTAssertTrue(out.components(separatedBy: "<c:lineChart>")[0].containsSubstring("S!$F$2:$F$3"))

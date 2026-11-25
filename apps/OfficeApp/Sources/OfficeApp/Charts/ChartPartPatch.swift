@@ -252,6 +252,10 @@ enum ChartPartPatch {
             while let a = s.findRange(of: "<c:dPt>", in: s.startIndex ..< s.endIndex), let b = s.findRange(of: "</c:dPt>", in: a.upperBound ..< s.endIndex) {
                 s.replaceSubrange(a.lowerBound ..< b.upperBound, with: "")
             }
+            // Its marker format goes too (own colours would otherwise sit beside an automatic line): the whole series is automatic.
+            if let a = s.findRange(of: "<c:marker>", in: s.startIndex ..< s.endIndex), let b = s.findRange(of: "</c:marker>", in: a.upperBound ..< s.endIndex) {
+                s.replaceSubrange(a.lowerBound ..< b.upperBound, with: "")
+            }
             let head = ["<c:marker>", "<c:dLbls>", "<c:cat>", "<c:xVal>", "<c:val>", "<c:yVal>"].compactMap { s.findRange(of: $0, in: s.startIndex ..< s.endIndex)?.lowerBound }.min() ?? s.endIndex
             if let a = s.findRange(of: "<c:spPr>", in: s.startIndex ..< head), let b = s.findRange(of: "</c:spPr>", in: a.upperBound ..< s.endIndex) {
                 s.replaceSubrange(a.lowerBound ..< b.upperBound, with: "")
