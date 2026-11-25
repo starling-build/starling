@@ -522,7 +522,15 @@ extension Ribbon {
     /// Table Design: the table's header row and banded rows, each one undo step.
     func _slideTableDesign(_ deck: DeckController, _ fluent: FluentThemeData) -> [Widget] {
         let o = deck.selectedTableOptions ?? DeckController.TableOptions()
-        return [Chrome.group("Table Style Options", fluent, [
+        let shading = Chrome.colorMenu(FluentSystemIcons.highlight, "Shading", fluent,
+                                       colors: OfficeColors.highlight, none: "No Shading", title: "Shading") { col in
+            // The cells the user selected; with no cell selection, the whole table.
+            let t = deck.selection.first?.text
+            let block = t.flatMap { $0.selection.block ?? ($0.selection.isCollapsed ? nil : $0.targetCellBlock) }
+            deck.setTableShading(col, block: block)
+        }
+        return [Chrome.group("Table Styles", fluent, [Chrome.rows([shading])]),
+                Chrome.group("Table Style Options", fluent, [
             Chrome.rows([
                 Chrome.textToggle("Header Row", o.headerRow, fluent) {
                     var n = o; n.headerRow.toggle(); deck.setTableOptions(n)

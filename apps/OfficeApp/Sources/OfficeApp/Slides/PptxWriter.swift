@@ -1021,6 +1021,12 @@ private struct SlideXML {
             let c: Color? = header ? style.headerFill : (body % 2 == 0 ? style.bandFill : style.bandAltFill)
             return c.map { "<a:solidFill><a:srgbClr val=\"\(PptxText.hex($0))\"/></a:solidFill>" } ?? "<a:noFill/>"
         }
+        /// A cell the user shaded keeps its own colour (alpha 0 means "no fill"); else the style's.
+        func ownFill(_ cell: CellRef, _ row: Int) -> String {
+            guard let c = cell.fill else { return fill(row) }
+            if c.alpha == 0 { return "<a:noFill/>" }
+            return "<a:solidFill><a:srgbClr val=\"\(PptxText.hex(c))\"/></a:solidFill>"
+        }
         func border(_ tag: String) -> String {
             guard style.borders else { return "<\(tag) w=\"12700\"><a:noFill/></\(tag)>" }
             let c = style.borderColor ?? Color(0xFF000000)
@@ -1066,7 +1072,7 @@ private struct SlideXML {
                 }
                 let lines = cell.borders.isEmpty ? borders
                     : own("a:lnL", cell.borders.left) + own("a:lnR", cell.borders.right) + own("a:lnT", cell.borders.top) + own("a:lnB", cell.borders.bottom)
-                xml += "<a:tc\(attrs)><a:txBody><a:bodyPr/><a:lstStyle/>\(body)</a:txBody><a:tcPr\(tcPr) anchor=\"ctr\">\(lines)\(fill(r))</a:tcPr></a:tc>"
+                xml += "<a:tc\(attrs)><a:txBody><a:bodyPr/><a:lstStyle/>\(body)</a:txBody><a:tcPr\(tcPr) anchor=\"ctr\">\(lines)\(ownFill(cell, r))</a:tcPr></a:tc>"
             }
             xml += "</a:tr>"
         }
