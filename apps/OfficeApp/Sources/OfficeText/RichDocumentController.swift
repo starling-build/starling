@@ -1893,6 +1893,27 @@ public final class RichDocumentController: ChangeNotifier {
         setTableStyle(of: t, transform)
     }
 
+    /// The table's `w:tblLook` bits as they stand: the user's, else the file's, else Word's default (04A0).
+    public func tableLook(of t: String) -> Int {
+        if let l = document.tableStyles[t]?.look { return l }
+        if let xml = document.tableLooks[t], let r = xml.rangeOfSubstring("w:val=\""),
+           let e = xml.rangeOfSubstring("\"", in: r.upperBound ..< xml.endIndex),
+           let v = Int(String(xml[r.upperBound ..< e.lowerBound]), radix: 16) { return v }
+        return 0x04A0
+    }
+
+    /// Turn one Table Style Option on or off for the caret's table (`TableLook` bits), one undo step. The header row
+    /// switch also makes the first row repeat on each page, as Word's does.
+    public func setTableLook(_ bit: Int, on: Bool) {
+        guard let t = currentCell?.table else { return }
+        let was = tableLook(of: t)
+        let now = on ? was | bit : was & ~bit
+        setTableStyle(of: t) {
+            $0.look = now
+            if bit == TableLook.firstRow { $0.headerRow = on; if on { $0.headerRowCount = max(1, $0.headerRowCount) } }
+        }
+    }
+
     /// The same for a named table (a drag on a border of a table the caret is not in).
     public func setTableStyle(of t: String, _ transform: (inout TableStyle) -> Void) {
         let old = document.tableStyles[t]

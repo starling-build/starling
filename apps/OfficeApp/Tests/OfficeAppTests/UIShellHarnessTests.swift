@@ -128,6 +128,21 @@ final class UIShellHarnessTests: XCTestCase {
         XCTAssertNotNil(state.session.onPasteMode)
     }
 
+    /// W-TB-7: the Table Design tab's Table Style Options reach the controller.
+    func testTableDesignOptionsReachTheController() {
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(1280, 800))
+        let c = ui.state(OfficeShellState.self)!.session.controller
+        c.insertTable(rows: 2, columns: 2)
+        ui.pump()
+        XCTAssertTrue(ui.tap(text: "Table Design"))
+        XCTAssertTrue(ui.has(text: "Table Style Options"))
+        let t = c.currentCell!.table
+        XCTAssertTrue(ui.tap(text: "Total Row"))
+        XCTAssertNotEqual(c.tableLook(of: t) & TableLook.lastRow, 0)
+        XCTAssertTrue(ui.tap(text: "Banded Rows"))
+        XCTAssertNotEqual(c.tableLook(of: t) & TableLook.noRowBands, 0)
+    }
+
     /// W-TB-2: the Table Layout tab's Borders and Shading menus reach the controller.
     func testTableLayoutBordersAndShadingReachTheController() {
         let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(1280, 800))

@@ -1862,6 +1862,13 @@ enum DocxFormat {
                 let tableStyleChar = node.first("w:tblPr")?.first("w:tblStyle")?["w:val"].flatMap { tableChars[$0] }
                 let look = node.first("w:tblPr")?.first("w:tblLook")
                 let lookVal = look.flatMap { Int($0["w:val"] ?? "", radix: 16) } ?? 0x04A0
+                // A table with no named style keeps a look that is not Word's default, so a save writes it back.
+                if node.first("w:tblPr")?.first("w:tblStyle") == nil, look != nil {
+                    let bit: (String, Int) -> Bool = { name, mask in look?[name].map { $0 != "0" } ?? (lookVal & mask != 0) }
+                    let v = (bit("w:firstRow", 0x20) ? 0x20 : 0) | (bit("w:lastRow", 0x40) ? 0x40 : 0) | (bit("w:firstColumn", 0x80) ? 0x80 : 0)
+                        | (bit("w:lastColumn", 0x100) ? 0x100 : 0) | (bit("w:noHBand", 0x200) ? 0x200 : 0) | (bit("w:noVBand", 0x400) ? 0x400 : 0)
+                    if v != 0x04A0 { style.look = v }
+                }
                 let firstRowOn = look?["w:firstRow"].map { $0 != "0" } ?? (lookVal & 0x0020 != 0)
                 // (A style whose first row repeats does so in every table of
                 // it that has a header row on: LibreOffice's fdo78904_fileHang,

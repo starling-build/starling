@@ -1505,6 +1505,17 @@ public struct BorderEdges: Hashable, Codable, Sendable {
     public var isEmpty: Bool { top == nil && left == nil && bottom == nil && right == nil && insideH == nil && insideV == nil }
 }
 
+/// The bits of a Word table's `w:tblLook`, the Table Style Options.
+public enum TableLook {
+    public static let firstRow = 0x20, lastRow = 0x40, firstColumn = 0x80, lastColumn = 0x100
+    /// Set when the style's row bands are OFF (Word writes the switches as "no band").
+    public static let noRowBands = 0x200, noColumnBands = 0x400
+    public static func hex(_ v: Int) -> String {
+        let h = String(v, radix: 16, uppercase: true)
+        return String(repeating: "0", count: max(0, 4 - h.count)) + h
+    }
+}
+
 public struct TableStyle: Hashable, Codable, Sendable {
     public var borders = true
     /// A section's text columns set as a one-row table (the docx reader's
@@ -1574,6 +1585,10 @@ public struct TableStyle: Hashable, Codable, Sendable {
     /// not between its cells); nil sides follow `borders`.
     public var edges: BorderEdges? = nil
     public var headerRow = false
+    /// Word's `w:tblLook` switches the user set (Table Style Options), as the bits of its `w:val`
+    /// (0x20 first row, 0x40 last row, 0x80 first column, 0x100 last column, 0x200 no row bands, 0x400 no column bands).
+    /// Nil: the file's own look stands.
+    public var look: Int? = nil
     /// Slides' other table style switches (`a:tblPr` lastRow, firstCol, lastCol, bandCol): kept so a save writes them back.
     public var totalRow = false
     public var firstColumn = false

@@ -1586,7 +1586,12 @@ extension DocxFormat {
                 for (side, v) in margins { if let v { xml += "<w:\(side) w:w=\"\(Int((v * 20).rounded()))\" w:type=\"dxa\"/>" } }
                 xml += "</w:tblCellMar>"
             }
-            xml += (namedStyle != nil ? doc.tableLooks[id] : nil) ?? "<w:tblLook w:val=\"04A0\"/>"
+            if let look = style.look {
+                func bit(_ b: Int) -> String { look & b != 0 ? "1" : "0" }
+                xml += "<w:tblLook w:val=\"" + TableLook.hex(look) + "\" w:firstRow=\"\(bit(0x20))\" w:lastRow=\"\(bit(0x40))\" w:firstColumn=\"\(bit(0x80))\" w:lastColumn=\"\(bit(0x100))\" w:noHBand=\"\(bit(0x200))\" w:noVBand=\"\(bit(0x400))\"/>"
+            } else {
+                xml += (namedStyle != nil ? doc.tableLooks[id] : nil) ?? "<w:tblLook w:val=\"04A0\"/>"
+            }
             xml += "</w:tblPr><w:tblGrid>"
             // A cell's preferred width: the grid's, or none at all when the
             // file's cells stated none and Word autofits them.

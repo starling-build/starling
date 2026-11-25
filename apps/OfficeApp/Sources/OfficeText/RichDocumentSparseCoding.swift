@@ -657,7 +657,7 @@ extension RichTextBox {
 
 extension TableStyle {
     enum CodingKeys: String, CodingKey {
-        case borders, keptPosition, floatOffsetY, floatX, floatXAnchor, floatCentredBidi, bidiVisual, pageAnchored, pageOffsetY, floatsOverText, keptCellMarginsXML, keptCellMarginsUnder, edges, headerRow, headerRowCount, widthPercent, width, fixedLayout, autoCellWidths, cellSpacing, textOutdent, textOutdentRight, headerFill, bandFill, bandAltFill, borderColor, borderWidth, borderStyle, edgeStyles, edgeWidths, bordersFromCells, alignment, indent, rowsCantSplit, rowExceptions, rowsGridBefore, rowHeights, rowsExactHeight, cellMarginTop, cellMarginLeft, cellMarginBottom, cellMarginRight
+        case borders, keptPosition, floatOffsetY, floatX, floatXAnchor, floatCentredBidi, bidiVisual, pageAnchored, pageOffsetY, floatsOverText, keptCellMarginsXML, keptCellMarginsUnder, edges, headerRow, headerRowCount, look, widthPercent, width, fixedLayout, autoCellWidths, cellSpacing, textOutdent, textOutdentRight, headerFill, bandFill, bandAltFill, borderColor, borderWidth, borderStyle, edgeStyles, edgeWidths, bordersFromCells, alignment, indent, rowsCantSplit, rowExceptions, rowsGridBefore, rowHeights, rowsExactHeight, cellMarginTop, cellMarginLeft, cellMarginBottom, cellMarginRight
     }
 
     public init(from decoder: Decoder) throws {
@@ -677,6 +677,7 @@ extension TableStyle {
         edges = try c.decodeIfPresent(BorderEdges.self, forKey: .edges)
         headerRow = try c.decodeIfPresent(Bool.self, forKey: .headerRow) ?? false
         headerRowCount = try c.decodeIfPresent(Int.self, forKey: .headerRowCount) ?? 1
+        look = try c.decodeIfPresent(Int.self, forKey: .look)
         widthPercent = try c.decodeIfPresent(Double.self, forKey: .widthPercent)
         width = try c.decodeIfPresent(Double.self, forKey: .width)
         fixedLayout = try c.decodeIfPresent(Bool.self, forKey: .fixedLayout) ?? false
@@ -723,6 +724,7 @@ extension TableStyle {
         try c.encodeIfPresent(edges, forKey: .edges)
         try c.encode(headerRow, forKey: .headerRow)
         try c.encode(headerRowCount, forKey: .headerRowCount)
+        try c.encodeIfPresent(look, forKey: .look)
         try c.encodeIfPresent(widthPercent, forKey: .widthPercent)
         try c.encodeIfPresent(width, forKey: .width)
         try c.encode(fixedLayout, forKey: .fixedLayout)
