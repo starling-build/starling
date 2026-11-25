@@ -1264,6 +1264,8 @@ extension DocxFormat {
         }
         var ruleOpen = false   // a horizontal rule was just set: the text after it starts a line
         var pendingRefChange: (said: String, author: String)? = nil   // a comment reference whose own look was changed
+        var runOriginalRPr: String? = nil   // the run being walked's own w:rPr, as written (stamped on the looks its text gets)
+        func stamped(_ c: CharStyle) -> CharStyle { var c = c; if let x = runOriginalRPr { c.stampOriginal(x) }; return c }
         func addText(_ s: String, _ cs: CharStyle) {
             guard !s.isEmpty else { return }
             // (Not a floating drawing's anchor mark, nor spaces: 401cd750's rules carry a line-shaped anchor after them
@@ -1296,7 +1298,7 @@ extension DocxFormat {
                     var c = cs
                     if cs.rightToLeft { c.csLetters = true }
                     if pieceArabic { c.rightToLeft = true; c.csLetters = true; if !cs.csFlagRun { c.plainSize = true } }
-                    runs.append(Run(length: piece.utf16.count, style: c)); piece = ""
+                    runs.append(Run(length: piece.utf16.count, style: stamped(c))); piece = ""
                 }
                 for u in s.unicodeScalars {
                     let a = isAr(u)
@@ -1340,12 +1342,12 @@ extension DocxFormat {
                     var c = cs
                     if inNumber[i] { c.csLetters = false; RuleTrace.hit("word-rtl-number-in-arabic-run-is-latin-face") }
                     var piece = String.UnicodeScalarView(); piece.append(contentsOf: u[i ..< j])
-                    runs.append(Run(length: String(piece).utf16.count, style: c))
+                    runs.append(Run(length: String(piece).utf16.count, style: stamped(c)))
                     i = j
                 }
                 return
             }
-            runs.append(Run(length: s.utf16.count, style: cs))
+            runs.append(Run(length: s.utf16.count, style: stamped(cs)))
         }
         var hyperlinkTip: String? = nil    // the enclosing w:hyperlink's w:tooltip
         var pendingCheckbox: Bool? = nil   // a FORMCHECKBOX field's state, from its begin
@@ -1444,10 +1446,12 @@ extension DocxFormat {
             runPropertiesXML = r.first("w:rPr").flatMap { $0.first("w:rStyle") == nil && !$0.children.isEmpty ? PptxXML.serialize($0) : nil }
             runFrame = r.first("w:rPr")?.first("w:bdr").flatMap(_borderLine).flatMap { $0.width > 0 ? $0 : nil }
             runRevision = revision?.kind == .deleted ? revision : nil
-            defer { runPropertiesXML = nil; runFrame = nil; runRaised = nil; runRevision = nil }
+            defer { runPropertiesXML = nil; runFrame = nil; runRaised = nil; runRevision = nil; runOriginalRPr = nil }
             // (The result run's own properties go too: bea98273's header folio, a PAGE code run with
             // no properties and a result run at sz 24, prints at the code's 10pt, baseline 45.4.)
+            runOriginalRPr = nil
             if let rPr = r.first("w:rPr"), !pageResultInCodeLook {
+                if !rPr.children.contains(where: { $0.name == "w:rPrChange" }), !rPr.children.isEmpty { runOriginalRPr = rPr.children.map { PptxXML.serialize($0) }.joined() }
                 // The run's character style first, then its own properties.
                 let runText = r.children.filter { $0.name == "w:t" }.map(\.text).joined()
                 // (A run flagged w:rtl whose text is digits and marks, no letters, is complex
