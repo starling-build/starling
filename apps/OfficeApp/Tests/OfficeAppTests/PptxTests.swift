@@ -884,6 +884,36 @@ final class DeepGroupTests: XCTestCase {
         XCTAssertNil(cell(0, 0)?.borders.top)
     }
 
+    /// S-TB-1f: "Reset to Table Style" drops the user's shading and border lines, so the style's look returns; one undo step.
+    func testResetToTableStyleDropsOwnShadingAndBorders() throws {
+        let deck = DeckController()
+        deck.slides[0].shapes.removeAll()
+        let t = deck.addTable(rows: 3, columns: 2)
+        deck.selectShapes([t])
+        deck.applyTableLook(.accent(0))
+        func cell(_ r: Int, _ c: Int) -> CellRef? { t.text!.document.paragraphs.compactMap { $0.cell }.first { $0.row == r && $0.column == c } }
+        let all = CellBlock(table: t.tableId!, rows: 0...2, columns: 0...1)
+        deck.setTableShading(Color(0xFFFFFF00), block: all)
+        deck.setTableBorders([.top, .bottom, .left, .right, .insideH, .insideV], line: CellRef.CellLine(width: 3, color: Color(0xFFFF0000), dash: nil))
+        XCTAssertNotNil(cell(1, 1)?.fill)
+        XCTAssertFalse(cell(1, 1)?.borders.isEmpty ?? true)
+        XCTAssertNotNil(t.text!.document.tableStyles[t.tableId!]?.styleId, "styled")
+        deck.resetTableToStyle(block: CellBlock(table: t.tableId!, rows: 1...1, columns: 0...1))
+        XCTAssertNil(cell(1, 1)?.fill)
+        XCTAssertTrue(cell(1, 1)?.borders.isEmpty ?? false)
+        XCTAssertNotNil(cell(0, 0)?.fill, "cells outside the block keep their own look")
+        deck.undo()
+        XCTAssertNotNil(cell(1, 1)?.fill, "one undo brings it back")
+        deck.selectShapes([deck.currentSlide.shapes.first { $0.kind == .table }!])
+        deck.resetTableToStyle()
+        XCTAssertNil(cell(0, 0)?.fill)
+        XCTAssertTrue(cell(2, 1)?.borders.isEmpty ?? false)
+        let (state, _, _) = try Pptx.read(Pptx.write(deck))
+        let again = DeckController(); again.restore(state)
+        let rt = again.slides[0].shapes.first { $0.kind == .table }
+        XCTAssertNil(rt?.text?.document.paragraphs.compactMap { $0.cell }.first { $0.row == 1 }?.fill)
+    }
+
     /// S-TB-1b: shading some cells of a table undoes and survives a save, other cells keep the style's.
     func testTableCellShadingRoundTripAndUndo() throws {
         let deck = DeckController()

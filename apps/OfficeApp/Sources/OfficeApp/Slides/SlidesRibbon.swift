@@ -609,6 +609,8 @@ extension Ribbon {
             Chrome.rows([penColor,
                          Chrome.textToggle("Draw Borders", deck.tableTool == .draw, fluent) { deck.tableTool = deck.tableTool == .draw ? .none : .draw },
                          Chrome.textToggle("Eraser", deck.tableTool == .erase, fluent) { deck.tableTool = deck.tableTool == .erase ? .none : .erase }]),
+            Chrome.gap(8),
+            Chrome.rows([Chrome.textToggle("Reset to Table Style", false, fluent) { deck.resetTableToStyle(block: block()) }]),
         ])
         return [Chrome.group("Table Styles", fluent, [Chrome.rows([styles, shading]), Chrome.rows(Array(more.prefix(2))), Chrome.rows(Array(more.suffix(2)))]),
                 Chrome.group("Table Style Options", fluent, [

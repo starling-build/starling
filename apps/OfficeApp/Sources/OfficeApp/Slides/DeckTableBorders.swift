@@ -95,4 +95,26 @@ extension DeckController {
         _penStrokeOpen = on
         _penStrokeSaved = false
     }
+
+    /// "Reset to table style": drops the user's own shading and border lines from the cells (the selected ones, else the
+    /// whole table), so the look comes from the table's style again. One undo step. Does nothing for a table that
+    /// has no built-in style (its look is its own cells).
+    func resetTableToStyle(block: CellBlock? = nil) {
+        guard let s = selection.first, s.kind == .table, let id = s.tableId, let text = s.text else { return }
+        var doc = text.document
+        guard doc.tableStyles[id]?.styleId != nil else { return }
+        var changed = false
+        for i in doc.paragraphs.indices {
+            guard var c = doc.paragraphs[i].cell, c.table == id, block.map({ $0.contains(c) }) ?? true,
+                  c.fill != nil || !c.borders.isEmpty else { continue }
+            c.fill = nil
+            c.borders = CellRef.CellBorders()
+            doc.paragraphs[i].cell = c
+            changed = true
+        }
+        guard changed else { return }
+        _checkpoint()
+        text.load(doc)
+        _changed()
+    }
 }
