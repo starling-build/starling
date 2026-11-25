@@ -27,7 +27,7 @@ final class SlideSizeDialog: StatefulWidget {
 final class SlideSizeDialogState: State<StatefulWidget> {
     /// The sizes PowerPoint lists, in inches.
     static let presets: [(name: String, width: Double, height: Double)] = [
-        ("Standard (4:3)", 10, 7.5), ("Widescreen (16:9)", 13.333, 7.5), ("Letter Paper (8.5x11 in)", 10, 7.5),
+        ("Standard (4:3)", 10, 7.5), ("Widescreen (16:9)", 40.0 / 3, 7.5), ("Letter Paper (8.5x11 in)", 10, 7.5),
         ("A4 Paper (210x297 mm)", 10.833, 7.5), ("Banner", 8, 1),
     ]
     static let range = 1.0 ... 56.0
@@ -38,7 +38,7 @@ final class SlideSizeDialogState: State<StatefulWidget> {
     private var _scaling = DeckController.SlideScaling.ensureFit
 
     static func inches(_ v: Double) -> String {
-        let r = (v * 100).rounded() / 100
+        let r = (v * 1000).rounded() / 1000
         return r == r.rounded() ? String(Int(r)) : String(r)
     }
 
@@ -58,7 +58,7 @@ final class SlideSizeDialogState: State<StatefulWidget> {
     private func _typed() -> Size? {
         guard let w = Double(String(_width.text.filter { $0 != " " })), let h = Double(String(_height.text.filter { $0 != " " })),
               Self.range.contains(w), Self.range.contains(h) else { return nil }
-        return Size(w * 72, h * 72)
+        return Size((w * 72).rounded(), (h * 72).rounded())   // whole points: 13.333 in is the 960 pt of Widescreen
     }
 
     override func build(_ context: any BuildContext) -> Widget {

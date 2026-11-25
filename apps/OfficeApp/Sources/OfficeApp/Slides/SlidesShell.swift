@@ -74,6 +74,7 @@ final class SlidesShellState: State<StatefulWidget> {
     /// The Header & Footer dialog is up.
     private var _headerFooter = false
     private var _slideSize = false
+    private var _slideSizeInitial = Size(960, 540)
     /// Font Color > More Colors is open.
     private var _colorOpen = false
     private var _altText = false
@@ -326,10 +327,10 @@ final class SlidesShellState: State<StatefulWidget> {
             self._endEditing()
             self.setState { self._headerFooter = true }
         }
-        session.onSlideSize = { [weak self] in
+        session.onSlideSize = { [weak self] size in
             guard let self else { return }
             self._endEditing()
-            self.setState { self._slideSize = true }
+            self.setState { self._slideSizeInitial = size ?? self.deck.slideSize; self._slideSize = true }
         }
         session.onLink = { [weak self] in self?._openLink() }
         session.onAltText = { [weak self] in
@@ -1470,7 +1471,7 @@ final class SlidesShellState: State<StatefulWidget> {
             return Stack(children: [
                 IgnorePointer(ignoring: true, child: window),
                 Positioned(left: 0, top: 0, right: 0, bottom: 0, child: SlideSizeDialog(
-                    size: deck.slideSize,
+                    size: _slideSizeInitial,
                     onApply: { [weak self] size, scaling in
                         self?.deck.setSlideSize(size, scaling: scaling)
                         self?.setState { self?._slideSize = false }
