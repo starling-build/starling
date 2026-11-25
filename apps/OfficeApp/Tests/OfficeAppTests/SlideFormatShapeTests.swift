@@ -140,6 +140,23 @@ final class SlideFormatShapeTests: XCTestCase {
         XCTAssertFalse(try slideXML(deck).contains("<a:scene3d>"))
     }
 
+    func testIsometricTopCamerasAreTrueIsometric() throws {
+        // PowerPoint's print of a 130x70 rect under isometricTopUp (rotation-check.pdf): corners at (-71.5,11.5), (71.5,-12.5),
+        // (21,-41.5), (-22,41.5) from the centre, i.e. rows (.707,.707) and (-.408,.408) of the turn.
+        let s = try XCTUnwrap(Extrusion.scene(camera: "isometricTopUp", from: nil))
+        func rad(_ d: Double) -> Double { -d * .pi / 180 }
+        let (la, lo, re) = (rad(s.lat), rad(s.lon), rad(s.rev))
+        // x' and y' of the unit x and y axes through Ry(lon), Rx(lat), Rz(rev), as in Extrusion.solid.
+        func project(_ x: Double, _ y: Double) -> (Double, Double) {
+            var (px, py, pz) = (x * cos(lo), y, -x * sin(lo))
+            (py, pz) = (py * cos(la) - pz * sin(la), py * sin(la) + pz * cos(la))
+            return (px * cos(re) - py * sin(re), px * sin(re) + py * cos(re))
+        }
+        let (ax, ay) = project(1, 0), (bx, by) = project(0, 1)
+        XCTAssertEqual(ax, 0.7071, accuracy: 0.01); XCTAssertEqual(bx, 0.7071, accuracy: 0.01)
+        XCTAssertEqual(ay, -0.4082, accuracy: 0.01); XCTAssertEqual(by, 0.4082, accuracy: 0.01)
+    }
+
     func testShadowFromThePaneAndOnAFileShape() throws {
         // A new shape: the check box turns a default shadow on, the rows edit it, the file holds it, undo takes it back.
         let deck = DeckController()

@@ -20,7 +20,7 @@ enum Extrusion {
     /// degrees — what `a:camera prst` stands for when it has no `a:rot`.
     private static let cameras: [String: (Double, Double, Double)] = [
         "isometricLeftDown": (35.4, 45, 0), "isometricRightUp": (35.4, 315, 0),
-        "isometricTopUp": (314.7, 315.1, 59.8), "isometricTopDown": (314.7, 44.9, 300.2),
+        "isometricTopUp": (324.6, 315, 60), "isometricTopDown": (324.6, 45, 300),
         "isometricOffAxis1Left": (18, 64, 0), "isometricOffAxis1Right": (18, 334, 0),
         "isometricOffAxis1Top": (301.3, 306.5, 57.6), "isometricOffAxis2Left": (18, 26, 0),
         "isometricOffAxis2Right": (18, 296, 0), "isometricOffAxis2Top": (301.3, 53.5, 302.4),
