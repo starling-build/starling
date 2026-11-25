@@ -202,6 +202,7 @@ final class SlideArrangeTests: XCTestCase {
         XCTAssertEqual(r.height, 120, accuracy: 0.01)
         XCTAssertEqual(r.left, 100, accuracy: 0.01)
         XCTAssertEqual(r.center.dy, f.center.dy, accuracy: 0.01)
+    }
 
     /// A shape with its aspect lock on keeps its proportions when a corner is dragged.
     func testCornerDragHonoursTheAspectLock() throws {
