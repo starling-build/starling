@@ -373,9 +373,19 @@ enum PptxWriter {
         """
 
         // Notes, when there are any and a notes master to hang them on.
-        if let notesMaster, !slide.notes.paragraphs.allSatisfy({ $0.text.isEmpty }) {
+        let hasText = !slide.notes.paragraphs.allSatisfy({ $0.text.isEmpty })
+        // A notes page the file had, holding only placeholders (date, number, slide image) and no note text, is kept as read.
+        var keptNotesXML: Data? = nil
+        if let notesMaster, !hasText, let src = slide.sourcePart, let p = source,
+           let np = p.rel(src, kind: "notesSlide")?.target, let data = p.parts[np],
+           let tree = p.xml(np)?.first("p:cSld")?.first("p:spTree"),
+           !tree.all("p:sp").contains(where: { sp in
+               sp.first("p:nvSpPr")?.first("p:nvPr")?.first("p:ph")?["type"] == "body"
+                   && sp.all("a:t").contains { !($0.text ?? "").isEmpty } }) { keptNotesXML = data }
+        if let notesMaster, hasText || keptNotesXML != nil {
             let notesPart = "ppt/notesSlides/notesSlide\(number).xml"
-            b.add(notesPart, PptxTemplates.notesSlide(PptxText.notesParagraphs(slide.notes)), type: CT.notesSlide)
+            if let kept = keptNotesXML { b.add(notesPart, String(decoding: kept, as: UTF8.self), type: CT.notesSlide) }
+            else { b.add(notesPart, PptxTemplates.notesSlide(PptxText.notesParagraphs(slide.notes)), type: CT.notesSlide) }
             b.rels(notesPart, [
                 Rel(id: "rId1", type: RT.notesMaster, target: Pptx.relative(notesMaster, from: notesPart)),
                 Rel(id: "rId2", type: RT.slide, target: Pptx.relative(part, from: notesPart)),
