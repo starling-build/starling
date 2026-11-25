@@ -69,6 +69,9 @@ final class SheetsShellState: State<StatefulWidget> {
     private var _formatOpen = false
     private var _pageSetupOpen = false
     private var _printOpen = false
+    private var _sortOpen: (range: CellRange, hasHeader: Bool)?
+    private var _validationOpen = false
+    private var _cfOpen = false
     private var _findReplace = false
     private var _findStatus = ""
     private let _findQuery = TextEditingController()
@@ -345,6 +348,13 @@ final class SheetsShellState: State<StatefulWidget> {
             _flash(m)
         case .editNote:
             _editNote(at: wb.active)
+        case .conditionalFormat:
+            setState { _cfOpen = true }
+        case .dataValidation:
+            setState { _validationOpen = true }
+        case .sortDialog:
+            if let region = wb.sortRegion() { setState { _sortOpen = region } }
+            else { _flash(SortProblem.nothingToSort.message) }
         case .nameManager:
             setState { _namesOpen = true }
         case .pageSetup:
@@ -876,6 +886,27 @@ final class SheetsShellState: State<StatefulWidget> {
                             self?.setState { self?._pageSetupOpen = false }
                             self?._grid?.focus.requestFocus()
                         })))
+        }
+        if _cfOpen {
+            return Stack(children: [window, Positioned(left: 0, top: 0, right: 0, bottom: 0, child: ConditionalFormatDialog(
+                controller: wb, onClose: { [weak self] in
+                    self?.setState { self?._cfOpen = false }
+                    self?._grid?.focus.requestFocus()
+                }))])
+        }
+        if _validationOpen {
+            return Stack(children: [window, Positioned(left: 0, top: 0, right: 0, bottom: 0, child: ValidationDialog(
+                controller: wb, onClose: { [weak self] in
+                    self?.setState { self?._validationOpen = false }
+                    self?._grid?.focus.requestFocus()
+                }))])
+        }
+        if let open = _sortOpen {
+            return Stack(children: [window, Positioned(left: 0, top: 0, right: 0, bottom: 0, child: SortDialog(
+                controller: wb, range: open.range, hasHeader: open.hasHeader, onClose: { [weak self] in
+                    self?.setState { self?._sortOpen = nil }
+                    self?._grid?.focus.requestFocus()
+                }))])
         }
         if _namesOpen {
             layers.append(Positioned(left: 0, top: 0, right: 0, bottom: 0, child: NameManagerDialog(
