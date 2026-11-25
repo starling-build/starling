@@ -22,6 +22,7 @@ enum SheetCommand {
     case status(String)
     case conditionalFormat         // Home → Conditional Formatting
     case dataValidation            // Data → Data Validation
+    case removeDuplicates          // Data → Remove Duplicates
     case sortDialog                // Data → Sort…
     case tableDialog               // Insert → Table: create one, or the options of the table at the cell
     case columnFilter(col: Int, kind: String)   // a filter dropdown's Number/Text/Date/Colour Filters…
@@ -335,6 +336,7 @@ extension Ribbon {
     private func _dataToolsGroup(_ wb: WorkbookController, _ fluent: FluentThemeData) -> Widget {
         Chrome.group("Data Tools", fluent, [
             Chrome.big(FluentSystemIcons.check, "Data Validation", fluent) { wb.onCommand?(.dataValidation) },
+            Chrome.big(FluentSystemIcons.delete, "Remove Duplicates", fluent) { wb.onCommand?(.removeDuplicates) },
         ])
     }
 

@@ -71,6 +71,7 @@ final class SheetsShellState: State<StatefulWidget> {
     private var _pageSetupOpen = false
     private var _printOpen = false
     private var _sortOpen: (range: CellRange, hasHeader: Bool)?
+    private var _dupOpen: (range: CellRange, hasHeader: Bool)?
     private var _validationOpen = false
     private var _cfOpen = false
     private var _tableOpen = false
@@ -360,6 +361,9 @@ final class SheetsShellState: State<StatefulWidget> {
             setState { _cfOpen = true }
         case .dataValidation:
             setState { _validationOpen = true }
+        case .removeDuplicates:
+            if let region = wb.sortRegion() { setState { _dupOpen = region } }
+            else { _flash(DuplicatesProblem.nothingToCheck.message) }
         case .sortDialog:
             if let region = wb.sortRegion() { setState { _sortOpen = region } }
             else { _flash(SortProblem.nothingToSort.message) }
@@ -934,6 +938,13 @@ final class SheetsShellState: State<StatefulWidget> {
             return Stack(children: [window, Positioned(left: 0, top: 0, right: 0, bottom: 0, child: ValidationDialog(
                 controller: wb, onClose: { [weak self] in
                     self?.setState { self?._validationOpen = false }
+                    self?._grid?.focus.requestFocus()
+                }))])
+        }
+        if let open = _dupOpen {
+            return Stack(children: [window, Positioned(left: 0, top: 0, right: 0, bottom: 0, child: RemoveDuplicatesDialog(
+                controller: wb, range: open.range, hasHeader: open.hasHeader, onClose: { [weak self] in
+                    self?.setState { self?._dupOpen = nil }
                     self?._grid?.focus.requestFocus()
                 }))])
         }
