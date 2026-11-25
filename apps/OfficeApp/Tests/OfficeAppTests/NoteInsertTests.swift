@@ -68,4 +68,29 @@ final class NoteInsertTests: XCTestCase {
         c.insertNote(.endnote)           // i
         try DocxFormat.write(c.document, pageSetup: .letter).write(to: URL(fileURLWithPath: out))
     }
+
+    func testNoteTextEditsSavesReopensAndUndoes() throws {
+        let c = controller(["Alpha beta gamma"])
+        c.moveTo(RichPosition(paragraph: 0, offset: 5), extend: false)
+        c.insertNote(.footnote)
+        let n = try XCTUnwrap(c.noteAtCaret())
+        XCTAssertEqual(n.id, 1)
+        XCTAssertEqual(c.editableNoteText(n), "")
+        XCTAssertTrue(c.setNoteText(n, "See <Smith> & Jones.\nSecond line"))
+        XCTAssertEqual(c.editableNoteText(n), "See <Smith> & Jones.\nSecond line")
+        XCTAssertEqual(c.document.footnotes[1]?.map(\.text), ["1 See <Smith> & Jones.", "Second line"])
+        let back = try DocxFormat.read(try DocxFormat.write(c.document, pageSetup: .letter)).document
+        XCTAssertEqual(back.footnotes[1]?.map(\.text), ["1 See <Smith> & Jones.", "Second line"])
+        c.undo()
+        XCTAssertEqual(c.editableNoteText(n), "")
+        c.undo()
+        XCTAssertNil(c.document.footnotes[1])
+        // A note with formatting the plain editor would lose is refused.
+        var d = c.document
+        d.keptParts["word/footnotes.xml"] = Data("<w:footnotes xmlns:w=\"x\"><w:footnote w:id=\"1\"><w:p><w:r><w:footnoteRef/></w:r><w:r><w:rPr><w:b/></w:rPr><w:t>x</w:t></w:r></w:p></w:footnote></w:footnotes>".utf8)
+        d.footnotes[1] = [RichParagraph(text: "1 x")]
+        c.load(d)
+        XCTAssertNil(c.editableNoteText(NoteReference(kind: .footnote, id: 1)))
+        XCTAssertFalse(c.setNoteText(NoteReference(kind: .footnote, id: 1), "y"))
+    }
 }

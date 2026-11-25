@@ -124,4 +124,142 @@ extension RichDocumentController {
             moveTo(RichPosition(paragraph: at.paragraph, offset: at.offset + first.utf16.count), extend: false)
         }
     }
+
+    // MARK: Editing a note's text
+
+    /// The note whose mark the caret stands next to (just before or just after it), or the one the selection is.
+    public func noteAtCaret() -> NoteReference? {
+        let sel = document.clamped(selection.end)
+        let p = document.paragraphs[sel.paragraph]
+        var offset = 0
+        for r in p.runs {
+            defer { offset += r.length }
+            if let n = r.style.note, sel.offset >= offset, sel.offset <= offset + r.length { return n }
+        }
+        return nil
+    }
+
+    private static func _bytes(_ s: String) -> [UInt8] { Array(s.utf8) }
+
+    private static func _find(_ hay: [UInt8], _ needle: [UInt8], from: Int = 0) -> Int? {
+        guard !needle.isEmpty, hay.count >= needle.count, from <= hay.count - needle.count else { return nil }
+        var i = from
+        while i <= hay.count - needle.count {
+            if hay[i] == needle[0], Array(hay[i ..< i + needle.count]) == needle { return i }
+            i += 1
+        }
+        return nil
+    }
+
+    /// The byte range of note `id`'s element in a notes part.
+    private static func _elementRange(_ part: [UInt8], kind: NoteReference.Kind, id: Int) -> Range<Int>? {
+        let tag = kind == .footnote ? "footnote" : "endnote"
+        guard let start = _find(part, _bytes("<w:\(tag) w:id=\"\(id)\"")),
+              let close = _find(part, _bytes("</w:\(tag)>"), from: start) else { return nil }
+        return start ..< close + _bytes("</w:\(tag)>").count
+    }
+
+    /// The tags a note may hold and still be edited as plain text without losing anything.
+    private static let _plainTags: Set<String> = ["footnote", "endnote", "p", "pPr", "pStyle", "spacing", "r", "rPr", "rStyle", "sz", "szCs",
+                                                  "vertAlign", "rFonts", "lang", "t", "footnoteRef", "endnoteRef"]
+
+    private func _noteElement(_ n: NoteReference) -> (part: [UInt8], range: Range<Int>)? {
+        guard let data = document.keptParts[n.kind == .footnote ? "word/footnotes.xml" : "word/endnotes.xml"] else { return nil }
+        let part = Array(data)
+        guard let r = Self._elementRange(part, kind: n.kind, id: n.id) else { return nil }
+        return (part, r)
+    }
+
+    /// The note's text after its mark (paragraphs on separate lines), or nil when the note holds anything the plain
+    /// editor would lose (a picture, a link, bold, a tab, a field...) or has no file element to edit.
+    public func editableNoteText(_ n: NoteReference) -> String? {
+        guard let (part, range) = _noteElement(n) else { return nil }
+        let el = Array(part[range])
+        var i = 0
+        var sawRef = false
+        while i < el.count {
+            if el[i] == UInt8(ascii: "<"), i + 1 < el.count, el[i + 1] != UInt8(ascii: "/") {
+                var j = i + 1
+                while j < el.count, el[j] != UInt8(ascii: ">"), el[j] != UInt8(ascii: " "), el[j] != UInt8(ascii: "/") { j += 1 }
+                let name = String(decoding: el[(i + 1) ..< j], as: UTF8.self)
+                guard name.hasPrefix("w:"), Self._plainTags.contains(String(name.dropFirst(2))) else { return nil }
+                if name == "w:footnoteRef" || name == "w:endnoteRef" { sawRef = true }
+                i = j
+            } else { i += 1 }
+        }
+        guard sawRef, let paras = (n.kind == .footnote ? document.footnotes : document.endnotes)[n.id], let first = paras.first,
+              let markRun = first.runs.first else { return nil }
+        var lines: [String] = []
+        for (k, p) in paras.enumerated() {
+            let units = Array(p.text.utf16)
+            let from = k == 0 ? min(markRun.length, units.count) : 0
+            var line = String(decoding: units[from...], as: UTF16.self)
+            if k == 0, line.hasPrefix(" ") { line.removeFirst() }
+            lines.append(line)
+        }
+        return lines.joined(separator: "\n")
+    }
+
+    private static func _escaped(_ s: String) -> String {
+        var out = ""
+        for c in s {
+            switch c {
+            case "&": out += "&amp;"
+            case "<": out += "&lt;"
+            case ">": out += "&gt;"
+            default: out.append(c)
+            }
+        }
+        return out
+    }
+
+    /// Replace a note's text (after its mark) by `text`, lines becoming paragraphs. One undo step; false when the note
+    /// is not plain (see `editableNoteText`).
+    @discardableResult
+    public func setNoteText(_ n: NoteReference, _ text: String) -> Bool {
+        guard !readOnly, editableNoteText(n) != nil, let (part, range) = _noteElement(n) else { return false }
+        let kind = n.kind
+        let tag = kind == .footnote ? "footnote" : "endnote"
+        let el = Array(part[range])
+        // The element up to the end of the run holding the reference mark, and the first paragraph's properties.
+        guard let refAt = Self._find(el, Self._bytes("<w:\(tag)Ref")),
+              let runEnd = Self._find(el, Self._bytes("</w:r>"), from: refAt) else { return false }
+        let head = String(decoding: el[0 ..< runEnd + 6], as: UTF8.self)
+        var pPr = ""
+        if let a = Self._find(el, Self._bytes("<w:pPr>")), let b = Self._find(el, Self._bytes("</w:pPr>"), from: a), a < refAt {
+            pPr = String(decoding: el[a ..< b + 8], as: UTF8.self)
+        }
+        let lines = text.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+        func run(_ t: String) -> String {
+            "<w:r><w:rPr><w:sz w:val=\"20\"/></w:rPr><w:t xml:space=\"preserve\">\(Self._escaped(t))</w:t></w:r></w:p>"
+        }
+        var xml = head + run(" " + lines[0])
+        for l in lines.dropFirst() { xml += "<w:p>" + pPr + run(l) }
+        xml += "</w:\(tag)>"
+        var newPart = Array(part[0 ..< range.lowerBound])
+        newPart += Array(xml.utf8)
+        newPart += Array(part[range.upperBound...])
+        // The layout's copy: the mark run as it was, then the text.
+        let notes = kind == .footnote ? document.footnotes : document.endnotes
+        guard let old = notes[n.id], let first = old.first, let markRun = first.runs.first else { return false }
+        let units = Array(first.text.utf16)
+        let mark = String(decoding: units[0 ..< min(markRun.length, units.count)], as: UTF16.self)
+        var bodyStyle = CharStyle.plain
+        bodyStyle.fontSize = 10
+        var paras: [RichParagraph] = []
+        for (k, l) in lines.enumerated() {
+            let t = k == 0 ? mark + " " + l : l
+            var runs: [Run] = []
+            if k == 0 { runs.append(Run(length: mark.utf16.count, style: markRun.style)) }
+            let rest = t.utf16.count - (k == 0 ? mark.utf16.count : 0)
+            if rest > 0 { runs.append(Run(length: rest, style: bodyStyle)) }
+            paras.append(RichParagraph(text: t, runs: runs, style: k == 0 ? first.style : old.last?.style ?? first.style))
+        }
+        let before = NotesState(document)
+        var after = before
+        if kind == .footnote { after.footnotes[n.id] = paras; after.footnotePart = Data(newPart) }
+        else { after.endnotes[n.id] = paras; after.endnotePart = Data(newPart) }
+        edit { perform(.setNotes(new: after, old: before)) }
+        return true
+    }
 }
