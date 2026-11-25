@@ -619,14 +619,21 @@ final class DeckController: ChangeNotifier {
 
     /// The current slide's transition, or every slide's.
     func setTransition(_ kind: SlideTransition.Kind? = nil, direction: SlideTransition.Direction? = nil,
-                       duration: Double? = nil, all: Bool = false) {
+                       duration: Double? = nil, vertical: Bool? = nil, inward: Bool? = nil, zoomIn: Bool? = nil,
+                       advanceOnClick: Bool? = nil, advanceAfter: Double?? = nil, all: Bool = false) {
         _checkpoint()
         for slide in all ? slides : [currentSlide] {
             var t = all ? currentSlide.transition : slide.transition
             if let kind { t.kind = kind }
             if let direction { t.direction = direction }
             if let duration { t.duration = max(0.1, min(10, duration)) }
-            t.raw = nil
+            if let vertical { t.vertical = vertical }
+            if let inward { t.inward = inward }
+            if let zoomIn { t.zoomIn = zoomIn }
+            if let advanceOnClick { t.advanceOnClick = advanceOnClick }
+            if let advanceAfter { t.advanceAfter = advanceAfter.map { max(0, min(86400, $0)) } }
+            // (Advance Slide alone leaves a transition this app cannot draw as it was read.)
+            if kind != nil || direction != nil || duration != nil || vertical != nil || inward != nil || zoomIn != nil { t.raw = nil }
             slide.transition = t
         }
         _changed()

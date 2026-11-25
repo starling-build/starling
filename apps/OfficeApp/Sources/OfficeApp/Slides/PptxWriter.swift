@@ -426,9 +426,31 @@ enum PptxWriter {
             where raw.containsSubstring("\(prefix):") && !ns.containsSubstring("xmlns:\(prefix)=") {
                 ns += " xmlns:\(prefix)=\"\(uri)\""
             }
-            return raw
+            // (Its Advance Slide settings are the ones set here: swapped into each transition tag.)
+            var out = ""
+            var rest = raw
+            while let r = rest.rangeOfSubstring("<p:transition ") ?? rest.rangeOfSubstring("<p:transition>") {
+                out += rest[..<r.lowerBound] + "<p:transition"
+                let tail = String(rest[r.upperBound...])
+                guard let close = tail.firstIndex(of: ">") else { rest = tail; break }
+                var attrs = String(tail[..<close])
+                for name in ["advClick", "advTm"] {
+                    if let a = attrs.rangeOfSubstring(" \(name)=\""),
+                       let e = attrs.rangeOfSubstring("\"", in: a.upperBound ..< attrs.endIndex) {
+                        attrs = attrs.replacingSubrange(a.lowerBound ..< e.upperBound, with: "")
+                    }
+                }
+                if !t.advanceOnClick { attrs += " advClick=\"0\"" }
+                if let after = t.advanceAfter { attrs += " advTm=\"\(Int((after * 1000).rounded()))\"" }
+                out += attrs.hasPrefix(" ") || attrs.isEmpty || attrs.hasPrefix("/") ? attrs : " " + attrs
+                rest = String(tail[close...])
+            }
+            return out + rest
         }
-        guard t.kind != .none else { return "" }
+        // Advance Slide is attributes of the transition itself; a slide that advances only on a click
+        // and has no effect writes no transition at all.
+        let plainAdvance = t.advanceOnClick && t.advanceAfter == nil
+        guard t.kind != .none || !plainAdvance else { return "" }
         let spd = t.duration <= 0.5 ? "fast" : t.duration >= 1.0 ? "slow" : "med"
         let effect: String
         switch t.kind {
@@ -436,9 +458,22 @@ enum PptxWriter {
         case .push: effect = "<p:push dir=\"\(t.direction.rawValue)\"/>"
         case .wipe: effect = "<p:wipe dir=\"\(t.direction.rawValue)\"/>"
         case .cover: effect = "<p:cover dir=\"\(t.direction.rawValue)\"/>"
+        case .pull: effect = "<p:pull dir=\"\(t.direction.rawValue)\"/>"
+        case .split: effect = "<p:split orient=\"\(t.vertical ? "vert" : "horz")\" dir=\"\(t.inward ? "in" : "out")\"/>"
+        case .zoom: effect = "<p:zoom dir=\"\(t.zoomIn ? "in" : "out")\"/>"
         case .none: effect = ""
         }
-        return "<p:transition spd=\"\(spd)\">\(effect)</p:transition>"
+        var advance = t.advanceOnClick ? "" : " advClick=\"0\""
+        if let after = t.advanceAfter { advance += " advTm=\"\(Int((after * 1000).rounded()))\"" }
+        let plain = "<p:transition spd=\"\(spd)\"\(advance)>\(effect)</p:transition>"
+        guard t.kind != .none else { return plain }
+        // PowerPoint 2010+ writes the exact duration in p14:dur inside mc:AlternateContent, the plain
+        // transition (speed word only) as the fallback.
+        for (prefix, uri) in [("mc", "http://schemas.openxmlformats.org/markup-compatibility/2006"),
+                              ("p14", "http://schemas.microsoft.com/office/powerpoint/2010/main")]
+        where !ns.containsSubstring("xmlns:\(prefix)=") { ns += " xmlns:\(prefix)=\"\(uri)\"" }
+        let ms = Int((t.duration * 1000).rounded())
+        return "<mc:AlternateContent><mc:Choice Requires=\"p14\"><p:transition spd=\"\(spd)\"\(advance) p14:dur=\"\(ms)\">\(effect)</p:transition></mc:Choice><mc:Fallback>\(plain)</mc:Fallback></mc:AlternateContent>"
     }
 
     /// `p:custShowLst` with every `<p:sld r:id="…"/>` renamed through

@@ -327,7 +327,7 @@ struct ShapePreset: RawRepresentable, Hashable {
 
 /// How a slide comes on in the show.
 struct SlideTransition: Equatable {
-    enum Kind: String, CaseIterable { case none, fade, push, wipe, cover }
+    enum Kind: String, CaseIterable { case none, fade, push, wipe, cover, pull, split, zoom }
     enum Direction: String { case left = "l", right = "r", up = "u", down = "d" }
 
     var kind: Kind = .none
@@ -335,6 +335,16 @@ struct SlideTransition: Equatable {
     /// `dir`, which names the side the motion heads to.
     var direction: Direction = .left
     var duration = 0.5
+    /// Split: the bars open from the middle ("out") or close to it, across
+    /// (`vertical` false: `orient="horz"`) or down the slide.
+    var vertical = false
+    var inward = false
+    /// Zoom: in (the new slide grows from the middle) or out.
+    var zoomIn = true
+    /// Advance Slide: on a click or key (`advClick`, default on), and by
+    /// itself after this many seconds (`advTm`), when set.
+    var advanceOnClick = true
+    var advanceAfter: Double? = nil
     /// A transition this app does not draw (morph, vortex…), as read:
     /// shown as a fade, written back as it was until the slide's
     /// transition is changed here.
@@ -347,6 +357,9 @@ struct SlideTransition: Equatable {
         case .push: return "Push"
         case .wipe: return "Wipe"
         case .cover: return "Cover"
+        case .pull: return "Uncover"
+        case .split: return "Split"
+        case .zoom: return "Zoom"
         }
     }
 }

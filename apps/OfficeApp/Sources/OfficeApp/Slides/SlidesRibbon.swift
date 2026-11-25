@@ -330,27 +330,41 @@ extension Ribbon {
         let t = deck.currentSlide.transition
         let icons: [SlideTransition.Kind: IconData] = [.none: FluentSystemIcons.close, .fade: FluentSystemIcons.brightness,
                                                        .push: FluentSystemIcons.forward, .wipe: FluentSystemIcons.textClearFormatting,
-                                                       .cover: FluentSystemIcons.onePage]
+                                                       .cover: FluentSystemIcons.onePage, .pull: FluentSystemIcons.onePage,
+                                                       .split: FluentSystemIcons.window, .zoom: FluentSystemIcons.desktop]
         let kinds: [Widget] = SlideTransition.Kind.allCases.map { kind in
             Chrome.bigToggle(icons[kind] ?? FluentSystemIcons.onePage, SlideTransition(kind: kind).name,
                              t.kind == kind && t.raw == nil, fluent) { deck.setTransition(kind) }
         }
-        let directed = t.kind == .push || t.kind == .wipe || t.kind == .cover
+        func option(_ name: String, _ on: Bool, _ act: @escaping () -> Void) -> MenuFlyoutItem {
+            MenuFlyoutItem(text: Text(name),
+                           leading: Icon(on ? FluentSystemIcons.check : FluentSystemIcons.forward, size: Chrome.iconSize,
+                                         color: fluent.resources.textFillColorPrimary),
+                           onPressed: act)
+        }
         let directions: [(String, SlideTransition.Direction)] = [
             ("From Right", .left), ("From Left", .right), ("From Bottom", .up), ("From Top", .down),
         ]
+        var options: [MenuFlyoutItemBase] = []
+        switch t.kind {
+        case .push, .wipe, .cover, .pull:
+            options = directions.map { name, dir in option(name, t.direction == dir) { deck.setTransition(direction: dir) } }
+        case .split:
+            options = [option("Vertical In", t.vertical && t.inward) { deck.setTransition(vertical: true, inward: true) },
+                       option("Vertical Out", t.vertical && !t.inward) { deck.setTransition(vertical: true, inward: false) },
+                       option("Horizontal In", !t.vertical && t.inward) { deck.setTransition(vertical: false, inward: true) },
+                       option("Horizontal Out", !t.vertical && !t.inward) { deck.setTransition(vertical: false, inward: false) }]
+        case .zoom:
+            options = [option("In", t.zoomIn) { deck.setTransition(zoomIn: true) },
+                       option("Out", !t.zoomIn) { deck.setTransition(zoomIn: false) }]
+        case .none, .fade:
+            options = [MenuFlyoutItem(text: Text("No options"), onPressed: nil)]
+        }
+        let after = t.advanceAfter
         return [
             Chrome.group("Transition to This Slide", fluent, kinds + [
                 Chrome.gap(4),
-                Chrome.rows([
-                    Chrome.menuButton(FluentSystemIcons.settings, "Effect Options", "Direction", fluent,
-                                      items: directions.map { name, dir in
-                                          MenuFlyoutItem(text: Text(name),
-                                                         leading: Icon(t.direction == dir && directed ? FluentSystemIcons.check : FluentSystemIcons.forward,
-                                                                       size: Chrome.iconSize, color: fluent.resources.textFillColorPrimary),
-                                                         onPressed: directed ? { deck.setTransition(direction: dir) } : nil)
-                                      }),
-                ]),
+                Chrome.rows([Chrome.menuButton(FluentSystemIcons.settings, "Effect Options", "Effect Options", fluent, items: options)]),
             ]),
             Chrome.group("Timing", fluent, [Chrome.rows([
                 // Stepped in hundredths of a second, shown in seconds like the
@@ -360,6 +374,18 @@ extension Ribbon {
                     deck.setTransition(duration: v / 100)
                 },
                 Chrome.small(FluentSystemIcons.copy, "Apply To All", fluent) { deck.setTransition(all: true) },
+            ])]),
+            Chrome.group("Advance Slide", fluent, [Chrome.rows([
+                Chrome.small(t.advanceOnClick ? FluentSystemIcons.check : FluentSystemIcons.close, "On Mouse Click", fluent) {
+                    deck.setTransition(advanceOnClick: !t.advanceOnClick)
+                },
+                Chrome.small(after != nil ? FluentSystemIcons.check : FluentSystemIcons.close, "After", fluent) {
+                    deck.setTransition(advanceAfter: .some(after == nil ? 5 : nil))
+                },
+                Chrome.spinner("Seconds", after ?? 0, fluent, step: 1, unit: "s", minimum: 0,
+                               shown: after == nil ? "Off" : ChartPainter.label(after!, percent: false) + " s") { v in
+                    deck.setTransition(advanceAfter: .some(v))
+                },
             ])]),
         ]
     }
