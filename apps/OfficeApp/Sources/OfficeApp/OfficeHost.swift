@@ -160,6 +160,12 @@ final class OfficeScene {
                 }
             })
         }
+        if c.hasSelection, !c.readOnly {
+            // The commands a selection is most often for: with a hardware keyboard there is no keyboard bar to hold them.
+            items.append(.init(title: "Bold", symbol: "bold") { [weak c] in c?.toggleBold() })
+            items.append(.init(title: "Italic", symbol: "italic") { [weak c] in c?.toggleItalic() })
+            items.append(.init(title: "Underline", symbol: "underline") { [weak c] in c?.toggleUnderline() })
+        }
         items.append(.init(title: "Select All", symbol: "selection.pin.in.out") { [weak c] in c?.selectAll() })
         show(r.left, r.top, r.width, r.height, items, c.hasSelection ? c.selectedText : nil)
         #endif
