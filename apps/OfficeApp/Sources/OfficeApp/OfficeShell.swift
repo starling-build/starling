@@ -1277,6 +1277,12 @@ final class OfficeShellState: State<StatefulWidget> {
             if session.viewMode == .readMode { session.onViewMode?(.printLayout); return true }
             return false
         }
+        // F9 brings the fields in the selection (or at the caret) up to date.
+        if named == .function(9), !mods.contains(.shift), !mods.contains(.alt), !mods.contains(.primary) {
+            let info = PdfExport.pageInfo(controller.document, pageSetup: session.pageSetup, theme: session.theme)
+            if controller.updateFields(pageOf: info.label, pageCount: info.count) == 0 { _flash("No field here needs updating") }
+            return true
+        }
         // Shift+F9 shows or hides the field code at the caret; Alt+F9 all of them.
         if named == .function(9), mods.contains(.shift) || mods.contains(.alt) {
             controller.toggleFieldCodes(all: mods.contains(.alt))

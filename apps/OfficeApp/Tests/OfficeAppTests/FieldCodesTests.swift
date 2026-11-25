@@ -37,4 +37,31 @@ final class FieldCodesTests: XCTestCase {
         c.undo()
         XCTAssertEqual(c.document.paragraphs[0].text, "Page 3 of")
     }
+
+    func testF9UpdatesPageAndPageCount() {
+        var f = CharStyle.plain; f.preservedField = "PAGE"
+        var n = CharStyle.plain; n.preservedField = "NUMPAGES"
+        let p = RichParagraph(text: "Page 1 of 1", runs: [Run(length: 5, style: .plain), Run(length: 1, style: f), Run(length: 4, style: .plain), Run(length: 1, style: n)])
+        let c = RichDocumentController(document: RichDocument(paragraphs: [p]))
+        c.moveTo(RichPosition(paragraph: 0, offset: 0), extend: false)
+        XCTAssertEqual(c.updateFields(pageOf: { _ in "4" }, pageCount: 9), 0)   // the caret is on no field
+        c.selectAll()
+        XCTAssertEqual(c.updateFields(pageOf: { _ in "4" }, pageCount: 9), 1)
+        XCTAssertEqual(c.document.paragraphs[0].text, "Page 4 of 9")
+        XCTAssertEqual(c.document.paragraphs[0].runs.compactMap { $0.style.preservedField }, ["PAGE", "NUMPAGES"])
+        c.undo()
+        XCTAssertEqual(c.document.paragraphs[0].text, "Page 1 of 1")
+    }
+
+    func testF9PageRefFollowsItsBookmark() {
+        var f = CharStyle.plain; f.field = "PAGEREF target"
+        var q = RichParagraph(text: "see 1", runs: [Run(length: 4, style: .plain), Run(length: 1, style: f)])
+        var t = RichParagraph(text: "here", runs: [Run(length: 4, style: .plain)])
+        t.bookmarks = ["Target"]
+        let c = RichDocumentController(document: RichDocument(paragraphs: [q, t]))
+        c.selectAll()
+        c.updateFields(pageOf: { $0 == 1 ? "7" : "2" }, pageCount: 9)
+        XCTAssertEqual(c.document.paragraphs[0].text, "see 7")
+        q.text = ""
+    }
 }
