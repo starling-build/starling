@@ -503,6 +503,17 @@ final class SheetsChartDesignTests: XCTestCase {
         XCTAssertTrue(auto.containsSubstring("<c:majorGridlines/><c:numFmt formatCode=\"General\" sourceLinked=\"1\"/>"))
     }
 
+    func testAxisFormatGoesAfterGridlinesAndTitleNotInsideThem() throws {
+        let xml = "<c:chartSpace><c:chart><c:plotArea><c:barChart><c:ser><c:idx val=\"0\"/></c:ser><c:axId val=\"1\"/><c:axId val=\"2\"/></c:barChart><c:valAx><c:axId val=\"2\"/><c:scaling><c:orientation val=\"minMax\"/></c:scaling><c:delete val=\"0\"/><c:axPos val=\"l\"/><c:majorGridlines><c:spPr><a:ln/></c:spPr></c:majorGridlines><c:title><c:tx><c:rich><a:p/></c:rich></c:tx><c:txPr><a:p/></c:txPr></c:title><c:majorTickMark val=\"none\"/><c:spPr><a:ln/></c:spPr><c:crossAx val=\"1\"/><c:crossBetween val=\"between\"/></c:valAx></c:plotArea></c:chart></c:chartSpace>"
+        let x = ChartPartPatch.valueAxis(xml, ChartAxisEdit(min: nil, max: nil, major: 5, format: "0.0"))
+        XCTAssertTrue(x.containsSubstring("</c:title><c:numFmt formatCode=\"0.0\" sourceLinked=\"0\"/><c:majorTickMark"))
+        XCTAssertTrue(x.containsSubstring("</c:majorGridlines><c:title>"))
+        XCTAssertTrue(x.containsSubstring("<c:crossBetween val=\"between\"/><c:majorUnit val=\"5\"/></c:valAx>"))
+        // No gridlines or title: still before the tick marks.
+        let bare = xml.replacingAll("<c:majorGridlines><c:spPr><a:ln/></c:spPr></c:majorGridlines>", with: "")
+        XCTAssertTrue(ChartPartPatch.valueAxis(bare, ChartAxisEdit(format: "0%")).containsSubstring("</c:title><c:numFmt formatCode=\"0%\""))
+    }
+
     func testAxisOptionsOnAChartMadeHereAndFromTheFile() throws {
         let (c, i) = chartBook()
         XCTAssertTrue(c.setChartAxis(i, ChartAxisEdit(min: 0, max: 100, major: 20, format: "0.0")))
@@ -519,6 +530,54 @@ final class SheetsChartDesignTests: XCTestCase {
         XCTAssertFalse(x2.containsSubstring("majorUnit"))
         XCTAssertTrue(back.setChartAxis(j, ChartAxisEdit()))
         XCTAssertFalse(try chartXML(back).containsSubstring("<c:max"))
+    }
+
+    /// Collects the direct children of every value axis, in the order the part has them.
+    private final class AxisChildren: NSObject, XMLParserDelegate {
+        var stack: [String] = [], axes: [[String]] = []
+        func parser(_ parser: XMLParser, didStartElement name: String, namespaceURI: String?, qualifiedName q: String?, attributes: [String: String] = [:]) {
+            if stack.last == "valAx" { axes[axes.count - 1].append(name) }
+            if name == "valAx" { axes.append([]) }
+            stack.append(name)
+        }
+        func parser(_ parser: XMLParser, didEndElement name: String, namespaceURI: String?, qualifiedName q: String?) { stack.removeLast() }
+    }
+
+    func testCorpusAxisOptionsKeepSchemaOrder() throws {
+        guard let dir = ProcessInfo.processInfo.environment["CHART_CORPUS"] else { return }
+        let order = ["axId", "scaling", "delete", "axPos", "majorGridlines", "minorGridlines", "title", "numFmt", "majorTickMark", "minorTickMark",
+                     "tickLblPos", "spPr", "txPr", "crossAx", "crosses", "crossesAt", "crossBetween", "majorUnit", "minorUnit", "dispUnits", "extLst"]
+        let fm = FileManager.default
+        var charts = 0, bad = 0
+        for n in (fm.enumerator(atPath: dir)?.allObjects as? [String] ?? []).filter({ $0.hasSuffix(".xlsx") }).sorted() {
+            guard let data = fm.contents(atPath: dir + "/" + n), let book = try? Xlsx.read(data) else { continue }
+            let c = WorkbookController(); c.load(book)
+            var any = false
+            for si in 0 ..< c.book.sheets.count {
+                c.activeSheet = si
+                for (j, d) in c.sheet.drawings.enumerated() where d.isChart && c.chartAxisOptions(j) != nil {
+                    if c.setChartAxis(j, ChartAxisEdit(min: 0, max: 1000, major: 100, format: "0.0")) { any = true; charts += 1 }
+                }
+            }
+            guard any, let out = try? Xlsx.write(c.book), let entries = try? Zip.read(out), let was = try? Zip.read(data) else { continue }
+            func axes(_ bytes: Data) -> [[String]]? {
+                let parser = XMLParser(data: bytes); parser.shouldProcessNamespaces = true
+                let d = AxisChildren(); parser.delegate = d
+                return parser.parse() ? d.axes : nil
+            }
+            func sorted(_ kids: [String]) -> Bool { let i = kids.compactMap { order.firstIndex(of: $0) }; return i == i.sorted() }
+            for e in entries where e.name.hasPrefix("xl/charts/chart") && e.name.hasSuffix(".xml") {
+                guard let now = axes(e.data) else { bad += 1; print("AXISXML \(n) \(e.name)"); continue }
+                // A part another tool wrote out of order stays as it was; one that was in order must stay in order.
+                let before = was.first(where: { $0.name == e.name }).flatMap { axes($0.data) } ?? []
+                for (k, kids) in now.enumerated() {
+                    if kids.filter({ $0 == "numFmt" }).count > 1 { bad += 1; print("AXISDUP \(n) \(e.name)") }
+                    if before.indices.contains(k), sorted(before[k]), !sorted(kids) { bad += 1; print("AXISORDER \(n) \(e.name) \(kids)") }
+                }
+            }
+        }
+        print("CORPUS axis edits: \(charts) charts, \(bad) bad")
+        XCTAssertEqual(bad, 0)
     }
 
     func testCorpusSeriesEdits() throws {
