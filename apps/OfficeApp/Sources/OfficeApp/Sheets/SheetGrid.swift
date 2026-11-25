@@ -191,6 +191,14 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         guard let e = edit, e.selection == nil, String(e.text) != _completeDismissedFor else { return nil }
         return FormulaHelp.completion(e.text, caret: e.caret)
     }
+    /// Alt+Down's list of the column's words, and the highlighted one (X-CE-1).
+    private var _pick: [String]? = nil
+    private var _pickIndex = 0
+    /// The rest of a word already in the column that the typed text begins, shown grey after the caret.
+    var columnGhost: String? {
+        guard let e = edit, e.selection == nil, e.caret == e.text.count else { return nil }
+        return controller.columnSuggestion(for: String(e.text), at: e.cell)
+    }
     /// A finger is editing the cell: the caret and selection carry handles.
     private var _touchEditing = false
     private var _editMenuUp = false
@@ -1399,6 +1407,34 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         let named = KeyChordTracker.named(k.logical)
         let c = controller
 
+        // Alt+Down: the column's words in a list; Up/Down move, Enter or Tab take one, anything else closes it.
+        if let list = _pick {
+            switch named {
+            case .up, .down:
+                _pickIndex = ((_pickIndex + (named == .down ? 1 : -1)) % list.count + list.count) % list.count
+                _repaint.notifyListeners(); return true
+            case .enter, .tab:
+                let w = list[min(_pickIndex, list.count - 1)]
+                _pick = nil
+                if var e = edit {
+                    e.text = Array(w); e.caret = e.text.count; e.anchor = nil
+                    edit = e; _w.onEditText(w)
+                } else {
+                    beginEdit(replace: w); _ = commitEdit()
+                }
+                _repaint.notifyListeners(); return true
+            case .escape:
+                _pick = nil; _repaint.notifyListeners(); return true
+            default:
+                _pick = nil
+            }
+        }
+        if named == .down, _chords.alt, !_chords.control, !_chords.shift {
+            let words = c.columnWords(at: edit?.cell ?? c.active)
+            if !words.isEmpty { _pick = words; _pickIndex = 0; _repaint.notifyListeners() }
+            return true
+        }
+
         // ⌃` shows the formulas in the cells, or their results again.
         if edit == nil, _chords.control || _chords.primary, k.logical == 0x60 { c.toggleShowFormulas(); return true }
         // ⌃; today's date, ⌃⇧; the time, typed into the cell as Excel puts
@@ -1461,6 +1497,12 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         }
 
         if var e = edit {
+            // Enter or Tab takes the grey rest of a word from the column, then goes on as usual.
+            if (named == .enter || named == .tab), completion == nil, !_chords.alt, !_chords.control, !_chords.shift,
+               let g = columnGhost {
+                e.text = Array(g); e.caret = e.text.count; e.anchor = nil
+                edit = e; _w.onEditText(g)
+            }
             switch named {
             case .tab where completion != nil && !_chords.shift:
                 if let comp = completion {
@@ -2608,6 +2650,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         if let e = edit {
             _paintEditor(canvas, e, ink: ink, paper: paper, accent: accent, size: size)
         }
+        if let list = _pick { _paintPickList(canvas, list, ink: ink, paper: paper, accent: accent, size: size) }
         canvas.restore()
 
         // Headers.
@@ -3828,6 +3871,11 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         p.color = ink
         canvas.drawRect(Rect.fromLTWH((box.left + pad + before).rounded(), ty + 1, 1.5, max(1, tp.height - 2)), p)
         canvas.restore()
+        if let g = columnGhost, g.count > e.text.count {
+            var gs = style; gs.color = 0xFF8C8C8C
+            let rest = String(g.dropFirst(e.text.count))
+            _put(texts.painter(rest, gs), Offset((box.left + pad + tp.width).rounded(), ty.rounded()), canvas)
+        }
         _paintFormulaHelp(canvas, e, refs: refs, box: box, style: style, ink: ink, paper: paper, accent: accent, size: size)
         // A finger's handles: one knob on a caret, one at each end of a selection.
         if _touchEditing {
@@ -3845,6 +3893,35 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
 }
 
 // MARK: Formula help (X-CE-1)
+
+extension SheetGridState {
+    /// Alt+Down's list, under the cell being edited or the active one.
+    fileprivate func _paintPickList(_ canvas: any Canvas, _ list: [String], ink: Color, paper: Color, accent: Color, size: Size) {
+        let cell = edit?.cell ?? controller.active
+        let r = rect(cell)
+        var plain = _textStyle(controller.style(at: cell), color: nil, ink: ink)
+        plain.color = 0xFF000000
+        let painters = list.map { texts.painter($0, plain) }
+        let rowH = (painters.first?.height ?? 14) + 4
+        let w = max(r.width, (painters.map(\.width).max() ?? 40) + 16)
+        let x = min(r.left, max(0, size.width - w - 2))
+        let shown = min(list.count, 10)
+        let list0 = Rect.fromLTWH(x, r.bottom + 1, w, rowH * Double(shown))
+        let first = max(0, min(_pickIndex - shown + 1, list.count - shown))
+        let fill = Paint(), line = Paint()
+        fill.style = .fill; fill.color = paper
+        canvas.drawRect(list0, fill)
+        line.style = .stroke; line.strokeWidth = 1; line.color = Color(0xFF9E9E9E)
+        canvas.drawRect(list0, line)
+        for i in 0 ..< shown {
+            let k = first + i
+            let row = Rect.fromLTWH(x, list0.top + rowH * Double(i), w, rowH)
+            var st = plain
+            if k == _pickIndex { fill.color = accent; canvas.drawRect(row, fill); st.color = 0xFFFFFFFF }
+            _put(texts.painter(list[k], st), Offset(x + 8, row.top + 2), canvas)
+        }
+    }
+}
 
 extension SheetGridState {
     fileprivate func _paintFormulaHelp(_ canvas: any Canvas, _ e: CellEdit, refs: [FormulaHelp.Reference], box: Rect,
