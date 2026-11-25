@@ -255,6 +255,39 @@ box). A "Slides" button in the status bar (narrow windows only) brings the rail 
 rail beside the slide; the status bar drops the language label to make room). Not done: touch targets for resize
 handles on a tiny slide.
 
+## Step 5, round 4: the "check each" lists (2026-11-24)
+
+Driven in the simulator with the in-app driver (`STARLING_SPIKE_INPUT`), no Mac input.
+
+- **A deck, a workbook and a document in a SECOND window: open, edit, type, save, close.** Done for all three
+  (view 0 = ex.docx, view 1 = the file). Slides: a tap in the notes pane starts a text client in view 1, the text
+  is in `ppt/notesSlides/notesSlide1.xml` after the window closes. Sheets: tap a cell, type, Return: in
+  `sharedStrings.xml` after close. Writer: in `word/document.xml`. The first window's file never gets the second's
+  text. `OFFICE_CLOSE_WINDOW_AFTER=<ms>:<viewId>` closes a window the way the user does.
+- **Found and fixed: closing a window dropped its last save.** `writeBack` looked the editing session up on its
+  own queue, after the closing window had already ended it (`windowClosed`), so the close-time flush logged
+  `write-back skipped ... is not the open document` and wrote nothing. Writer and Slides hid it behind AutoSave
+  (a timer saves before the user closes); Sheets has no AutoSave, so closing a Sheets window lost every edit
+  since the last explicit Save. The session is now taken by the caller. Checked with a close 200 ms after typing
+  (Writer, Slides) and a Sheets close with no save: all three write back ok and the text is in the file.
+- **Slides' slide canvas is not editable in a Split View pane (375 pt).** The slide shows at about 100 pt wide;
+  the 6 pt grip bands around a text box are not scaled, so on a box 14 pt tall they cover it and a tap selects
+  the shape instead of editing its text (hit log: only the band is hit). Not a multi-window bug (a narrow pane
+  does it), and not fixed here: the window needs a narrow layout (hide the rail, scale the bands).
+- **Two windows touched at the same time.** Taps and 60-step drags in view 0 and view 1 at the same millisecond
+  (`STARLING_HIT_LOG=1` prints each pointer-down's view, pointer, device and hit path): four pointers, four
+  different ids, each hit its own window's tree, each window ended with its own selection and its own edit
+  menu. The driver's pointer ids are unique by construction, so this does not exercise the engine's packet
+  converter with real touches: that, with two hands, stays on the real-iPad list. By code, a touch's device id is
+  the UITouch's address.
+- **implicitView audit.** `View.of` was a `fatalError` stub; `View.maybeOf(context)` / `View.of(context)` now walk
+  up to the tree's own `RenderObjectToWidgetAdapter` and return its view (self-test step: each probe tree finds
+  its own view, not view 0). Terminal (`_flutterView`, five uses), WikiShell and SiteShell take their view from
+  context. Adapter.swift's three uses are the first-view pipeline and the by-view-id routing to secondary
+  pipelines: first view only by design, now commented as such. Office's `ScriptedInput` is the macOS single-window
+  driver: marked first-view-only. Desktop apps outside the iPad (ImageViewer, VideoPlayer, TextEditor, TerminalApp,
+  FlutterDemo) still read the implicit view; they are single-window.
+
 ## Recommendation and order
 
 Option B, in the reviewed order. Multiple scenes stay OFF (`UIApplicationSupportsMultipleScenes` = NO)

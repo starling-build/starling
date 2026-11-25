@@ -1262,6 +1262,18 @@ if let specs = ProcessInfo.processInfo.environment["OFFICE_BROWSER_ACTION_AFTER"
         }
     }
 }
+// OFFICE_CLOSE_WINDOW_AFTER=<ms>:<viewId>[,...] closes that window the way the user does (the system drops the scene:
+// the document is flushed and written back first), after a delay.
+if let specs = ProcessInfo.processInfo.environment["OFFICE_CLOSE_WINDOW_AFTER"] {
+    for spec in specs.split(separator: ",") {
+        let parts = spec.split(separator: ":").map(String.init)
+        guard parts.count == 2, let ms = Int(parts[0]), let view = Int(parts[1]) else { continue }
+        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(ms)) {
+            fputs("[close] view \(view)\n", stderr)
+            UIKitHost.closeScene(view)
+        }
+    }
+}
 if let spec = ProcessInfo.processInfo.environment["OFFICE_NEW_WINDOW_AFTER"] {
     let parts = spec.split(separator: ":", maxSplits: 1).map(String.init)
     if let ms = Int(parts[0]) {

@@ -399,7 +399,7 @@ final class WikiShellState: State<StatefulWidget> {
 
     override func build(_ context: any BuildContext) -> Widget {
         let fluent = FluentTheme.of(context)
-        if let view = PlatformDispatcher.instance.implicitView {
+        if let view = View.maybeOf(context) ?? PlatformDispatcher.instance.implicitView {
             _compact = view.physicalSize.width / view.devicePixelRatio < 900
         }
         if self._needLogin { return self._loginView(fluent) }

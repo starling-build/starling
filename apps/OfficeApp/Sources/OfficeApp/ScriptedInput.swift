@@ -30,6 +30,9 @@
 //   quit                        exit(0): no window close, no termination notice
 //
 // Lines starting with # are comments.
+//
+// First view only: a macOS test driver (#if os(macOS), one window), so it reads the implicit view's scale. The
+// iPad's multi-window driver, which names a view per command, is STARLING_SPIKE_INPUT (UIKitScriptedInput).
 
 #if os(macOS)
 import AppKit

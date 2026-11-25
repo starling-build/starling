@@ -966,7 +966,7 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
         _lock.unlock()
 
         let logical = _viewLogicalSize()
-        let scale = PlatformDispatcher.instance.implicitView?.devicePixelRatio ?? 1
+        let scale = _flutterView?.devicePixelRatio ?? 1
         let atlas = _atlasForCurrentMetrics()
         let scene = TerminalReport.Scene(
             grid: grid, cols: cols, rows: rows,
@@ -1085,7 +1085,7 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
     /// 2.5% fewer columns), which is not a change to make behind the shipping
     /// path's back.
     private func _snapCellToDevicePixels() {
-        let scale = PlatformDispatcher.instance.implicitView?.devicePixelRatio ?? 1
+        let scale = _flutterView?.devicePixelRatio ?? 1
         guard scale > 0, cellW > 0 else { return }
         let snapped = (cellW * scale).rounded(.up) / scale
         guard snapped > 0, snapped != cellW else { return }
@@ -1213,9 +1213,15 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
         }
     }
 
+    /// The view this terminal is drawn in: its own tree's, so a terminal in a second window takes that window's scale
+    /// and size (the first view only before it is mounted).
+    private var _flutterView: FlutterView? {
+        (context.flatMap { View.maybeOf($0) }) ?? PlatformDispatcher.instance.implicitView
+    }
+
     private func _viewLogicalSize() -> Size {
         if let given = w.size { return given }
-        if let view = PlatformDispatcher.instance.implicitView {
+        if let view = _flutterView {
             let dpr = view.devicePixelRatio
             let phys = view.physicalSize
             if phys.width > 0 && phys.height > 0 && dpr > 0 {
@@ -1717,7 +1723,7 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
     private var _atlas: TerminalGlyphAtlas?
 
     private func _atlasForCurrentMetrics() -> TerminalGlyphAtlas {
-        let scale = PlatformDispatcher.instance.implicitView?.devicePixelRatio ?? 1
+        let scale = _flutterView?.devicePixelRatio ?? 1
         if let a = _atlas, a.matches(cellW: cellW, cellH: cellH, scale: scale,
                                      family: font.family, fontSize: _shapedFont.size) {
             return a
@@ -1737,7 +1743,7 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
     private func _gridPainterWidget(_ grid: [[TermCell]], cols: Int,
                                     generation: UInt64) -> Widget {
         if let path = Self._dumpPath {
-            let scale = PlatformDispatcher.instance.implicitView?.devicePixelRatio ?? 1
+            let scale = _flutterView?.devicePixelRatio ?? 1
             let size = Size(Double(cols) * cellW, Double(grid.count) * cellH)
             _makePainter(grid, cols: cols, generation: generation)
                 .dumpRaw(to: path, size: size, scale: scale)

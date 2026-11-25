@@ -23,6 +23,7 @@ enum UIKitSelfTest {
     nonisolated(unsafe) static var disposed: [Int: Int] = [:]
     nonisolated(unsafe) static var taps: [Int: Int] = [:]
     nonisolated(unsafe) static var sizes: [Int: Size] = [:]
+    nonisolated(unsafe) static var viewOf: [Int: Int] = [:]   // View.maybeOf(context)'s id, from each tree's own build
     nonisolated(unsafe) static var composited: Set<Int> = []
     nonisolated(unsafe) static var addAnswers: [Int: Bool] = [:]
     nonisolated(unsafe) static var removeAnswers: [Int: Bool] = [:]
@@ -110,6 +111,10 @@ enum UIKitSelfTest {
             guard near(v1.devicePixelRatio, scale) else { return done("scale \(v1.devicePixelRatio) != \(scale)") }
             guard let s1 = sizes[1], let s2 = sizes[2], near(s1.width, 260), near(s1.height, 180), near(s2.width, 300), near(s2.height, 200) else {
                 return done("the trees laid out at \(sizes), wanted 260x180 and 300x200") }
+            done(nil)
+        },
+        Step(name: "View.maybeOf(context) finds the view a tree is in, not the first view") { done in
+            guard viewOf[1] == 1, viewOf[2] == 2 else { return done("the trees found views \(viewOf), wanted [1: 1, 2: 2]") }
             done(nil)
         },
         Step(name: "a tap goes to the view it is in, and only that one") { done in
@@ -225,6 +230,7 @@ private final class ProbeState: State<StatefulWidget> {
     }
     override func build(_ context: any BuildContext) -> Widget {
         let id = self.id
+        UIKitSelfTest.viewOf[id] = View.maybeOf(context).map { Int($0.viewId) }
         return Directionality(textDirection: .ltr, child:
             GestureDetector(onTap: { UIKitSelfTest.taps[id, default: 0] += 1 }, behavior: .opaque, child:
                 ProbeLeaf(viewId: id)))

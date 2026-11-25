@@ -10,6 +10,9 @@
 import FlutterSwiftBridge
 @preconcurrency import Foundation
 
+/// STARLING_HIT_LOG=1 (a test): every pointer-down logs the view it landed in and the render objects it hit.
+private let _hitLogEnabled = getenv("STARLING_HIT_LOG") != nil
+
 // MARK: - Frame timing
 
 /// STARLING_FRAME_LOG=1: one stderr line per composited frame with the
@@ -316,6 +319,8 @@ func _setupWidgetBinding(_ app: Widget) {
     // dispatch below uses.
     let mouseTracker = MouseTracker({ position, viewId in
         let result = HitTestResult()
+        // (The implicit view is the first window, whose tree this adapter owns; every other view id is looked up in
+        // secondaryPipelines. The routing is by the event's own view id, so a second window never reaches view 0's tree.)
         if let implicitId = PlatformDispatcher.instance.implicitView?.viewId,
            viewId == implicitId {
             _ = renderView?.hitTest(result, position: position)
@@ -406,6 +411,8 @@ func _setupWidgetBinding(_ app: Widget) {
     }
 
     pd.onBeginFrame = { duration in
+        // First view only, by design: this builds the first window's pipeline (view 0, the implicit view). Every
+        // later window's pipeline is made by addSecondaryView and driven from the same frame callback below.
         guard let view = pd.implicitView else { return }
 
         if renderView == nil {
@@ -803,6 +810,7 @@ func _setupWidgetBinding(_ app: Widget) {
         for event in events {
             // Route to the render view the event targets (multi-monitor:
             // each output's view has its own tree). Unknown view → drop.
+            // (The implicit view's tree is `rv`; any other view id is a secondary pipeline's. By the event's own id.)
             let targetView: RenderView?
             if let implicitId = pd.implicitView?.viewId, event.viewId == implicitId {
                 targetView = rv
@@ -829,6 +837,10 @@ func _setupWidgetBinding(_ app: Widget) {
                 _ = eventView.hitTest(hitTestResult!, position: event.position)
                 if event is PointerDownEvent {
                     hitTests[event.pointer] = hitTestResult
+                    if _hitLogEnabled {
+                        let names = hitTestResult!.path.prefix(10).map { String(describing: type(of: $0.target.base)) }
+                        fputs("[hit] view \(event.viewId) pointer \(event.pointer) device \(event.device) at \(event.position.dx),\(event.position.dy): \(names.joined(separator: " > "))\n", stderr)
+                    }
                 }
                 if event is PointerPanZoomStartEvent {
                     hitTests[event.pointer] = hitTestResult
