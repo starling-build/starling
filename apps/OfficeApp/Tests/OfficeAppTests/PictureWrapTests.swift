@@ -510,5 +510,8 @@ final class ShapeSelectTests: XCTestCase {
         let out = String(decoding: try XCTUnwrap(try Zip.read(try DocxFormat.write(c.document, pageSetup: .letter)).first { $0.name == "word/document.xml" }).data, as: UTF8.self)
         XCTAssertTrue(out.containsSubstring("<a:schemeClr val=\"accent2\">"))
         XCTAssertFalse(out.containsSubstring("4472C4"))
+        if let path = ProcessInfo.processInfo.environment["SHAPE_LAB3"] {
+            try DocxFormat.write(c.document, pageSetup: .letter).write(to: URL(fileURLWithPath: path))
+        }
     }
 }
