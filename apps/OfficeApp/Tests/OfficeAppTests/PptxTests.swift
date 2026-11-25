@@ -899,19 +899,27 @@ final class DeepGroupTests: XCTestCase {
         XCTAssertFalse(cell(1, 1)?.borders.isEmpty ?? true)
         XCTAssertNotNil(t.text!.document.tableStyles[t.tableId!]?.styleId, "styled")
         deck.resetTableToStyle(block: CellBlock(table: t.tableId!, rows: 1...1, columns: 0...1))
-        XCTAssertNil(cell(1, 1)?.fill)
+        XCTAssertNotEqual(cell(1, 1)?.fill, Color(0xFFFFFF00), "own yellow gone")
         XCTAssertTrue(cell(1, 1)?.borders.isEmpty ?? false)
-        XCTAssertNotNil(cell(0, 0)?.fill, "cells outside the block keep their own look")
+        XCTAssertEqual(cell(0, 0)?.fill, Color(0xFFFFFF00), "cells outside the block keep their own look")
         deck.undo()
         XCTAssertNotNil(cell(1, 1)?.fill, "one undo brings it back")
         deck.selectShapes([deck.currentSlide.shapes.first { $0.kind == .table }!])
         deck.resetTableToStyle()
-        XCTAssertNil(cell(0, 0)?.fill)
+        XCTAssertNotEqual(cell(0, 0)?.fill, Color(0xFFFFFF00))
         XCTAssertTrue(cell(2, 1)?.borders.isEmpty ?? false)
         let (state, _, _) = try Pptx.read(Pptx.write(deck))
         let again = DeckController(); again.restore(state)
         let rt = again.slides[0].shapes.first { $0.kind == .table }
-        XCTAssertNil(rt?.text?.document.paragraphs.compactMap { $0.cell }.first { $0.row == 1 }?.fill)
+        XCTAssertNotEqual(rt?.text?.document.paragraphs.compactMap { $0.cell }.first { $0.row == 1 }?.fill, Color(0xFFFFFF00))
+        // A style that came from a file: shade a cell, reset, the file's fill returns.
+        let file = DeckController(); file.restore(state)
+        file.selectShapes([file.currentSlide.shapes.first { $0.kind == .table }!])
+        let ft = file.currentSlide.shapes.first { $0.kind == .table }!
+        let before = ft.text!.document.paragraphs.compactMap { $0.cell }.first { $0.row == 0 }?.fill
+        file.setTableShading(Color(0xFF00FF00), block: CellBlock(table: ft.tableId!, rows: 0...0, columns: 0...1))
+        file.resetTableToStyle()
+        XCTAssertEqual(ft.text!.document.paragraphs.compactMap { $0.cell }.first { $0.row == 0 }?.fill, before)
     }
 
     /// S-TB-1b: shading some cells of a table undoes and survives a save, other cells keep the style's.
