@@ -2304,8 +2304,23 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             onPointerPanZoomUpdate: { [weak self] e in self?._pan(e) },
             onPointerSignal: { [weak self] e in self?._signal(e) },
             behavior: .opaque,
-            child: ClipRect(child: CustomPaint(painter: _painter, child: SizedBox(expand: ())))))
+            child: AnimatedBuilder(animation: _repaint, builder: { [unowned self] _, child in
+                // The screen reader's view of the cells is rebuilt only when what it shows changed (not on every repaint).
+                let key = "\(self.controller.revision)|\(self.controller.activeSheet)|\(self.scrollX)|\(self.scrollY)|\(self.size.width)x\(self.size.height)|\(self.controller.active.a1)|\(self.controller.selection.a1)|\(self.zoom)"
+                if let c = self._a11y, c.key == key { return c.widget }
+                let w = SheetsAccessibility.wrap(child!, controller: self.controller,
+                    visible: { [unowned self] a in
+                        let r = self.rect(a)
+                        return r.width > 0 && r.height > 0 && r.right > self.headerWidth && r.bottom > self.headerHeight
+                            && r.left < self.size.width && r.top < self.size.height
+                    },
+                    frame: { [unowned self] a in self.rect(a) })
+                self._a11y = (key, w)
+                return w
+            }, child: ClipRect(child: CustomPaint(painter: _painter, child: SizedBox(expand: ()))))))
     }
+
+    private var _a11y: (key: String, widget: Widget)? = nil
 
     // MARK: Paint
 
