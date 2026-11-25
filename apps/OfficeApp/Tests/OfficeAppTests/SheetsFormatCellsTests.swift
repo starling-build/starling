@@ -139,6 +139,31 @@ final class SheetsFormatCellsDialogTests: XCTestCase {
         XCTAssertEqual(got?.numberFormat, .set("0.00%"))
     }
 
+    func testTypedCodeIsApplied() {
+        var got: CellFormatEdit?
+        let ui = dialog({ got = $0 }, {})
+        XCTAssertTrue(ui.tap(id: "fc-num-Thousands"))
+        XCTAssertTrue(ui.tap(id: "fc-num-code"))
+        ui.type(";0")
+        ui.press(.enter)
+        XCTAssertEqual(got?.numberFormat, .set("#,##0;0"))
+    }
+
+    func testBadCodeBlocksOKUntilFixed() {
+        var got: CellFormatEdit?
+        var closed = false
+        let ui = dialog({ got = $0 }, { closed = true })
+        XCTAssertTrue(ui.tap(id: "fc-num-Thousands"))
+        XCTAssertTrue(ui.tap(id: "fc-num-code"))
+        ui.type("\"")
+        XCTAssertTrue(ui.has(text: "A quote is not closed."))
+        ui.press(.enter)
+        XCTAssertNil(got); XCTAssertFalse(closed)
+        ui.press(.backspace)
+        ui.press(.enter)
+        XCTAssertEqual(got?.numberFormat, .set("#,##0"))
+    }
+
     func testControlKeysSetLayoutFields() {
         var got: CellFormatEdit?
         let ui = dialog({ got = $0 }, {})
@@ -164,5 +189,40 @@ final class SheetsFormatCellsShellTests: XCTestCase {
         ui.press(.escape)
         ui.pump()
         XCTAssertFalse(ui.has(id: "fc-num-Percentage"))
+    }
+}
+
+/// X-FM-2: custom number formats.
+final class SheetsCustomFormatTests: XCTestCase {
+    func testWhatACodeMustNotDo() {
+        XCTAssertNil(NumberFormat.problem("#,##0.00;[Red]-#,##0.00"))
+        XCTAssertNil(NumberFormat.problem("0\" kg\""))
+        XCTAssertNil(NumberFormat.problem("[>100]0.0;0"))
+        XCTAssertNotNil(NumberFormat.problem(""))
+        XCTAssertNotNil(NumberFormat.problem("0\"abc"))
+        XCTAssertNotNil(NumberFormat.problem("[Red0"))
+        XCTAssertNotNil(NumberFormat.problem("0]"))
+        XCTAssertNotNil(NumberFormat.problem("0;0;0;@;0"))
+        XCTAssertNotNil(NumberFormat.problem("0\\"))
+    }
+
+    func testCustomCodeShowsAndSurvivesASave() throws {
+        let c = WorkbookController()
+        let a = CellAddress("A1")!
+        c.setInput("-1234.5", at: a)
+        c.formatCells(CellFormatEdit(numberFormat: .set("#,##0.0;[Red](#,##0.0)")))
+        XCTAssertEqual(NumberFormat.display(.number(-1234.5), c.style(at: a).numberFormat).text, "(1,234.5)")
+        let c2 = WorkbookController(); c2.load(try Xlsx.read(try Xlsx.write(c.book)))
+        XCTAssertEqual(c2.style(at: a).numberFormat, "#,##0.0;[Red](#,##0.0)")
+        // With UI_CHECK_DIR set, also leave a workbook for the Excel check.
+        if let dir = ProcessInfo.processInfo.environment["UI_CHECK_DIR"] {
+            let w = WorkbookController()
+            for (i, code) in ["#,##0.0;[Red](#,##0.0)", "0.00\" kg\"", "yyyy-mm-dd", "[h]:mm:ss", "# ?/?"].enumerated() {
+                let at = CellAddress("A\(i + 1)")!
+                w.setInput(i == 2 ? "45000" : i == 3 ? "1.5" : i == 4 ? "0.75" : "-1234.5", at: at)
+                w.select(at); w.formatCells(CellFormatEdit(numberFormat: .set(code)))
+            }
+            try Xlsx.write(w.book).write(to: URL(fileURLWithPath: dir + "/custom-formats-xfm2.xlsx"))
+        }
     }
 }
