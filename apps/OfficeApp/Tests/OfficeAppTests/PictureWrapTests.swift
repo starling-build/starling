@@ -387,12 +387,31 @@ final class ShapeInsertTests: XCTestCase {
         }
     }
 
+    func testShapesAreNamedLikeWordAndStandWhereTheyWerePlaced() throws {
+        let c = RichDocumentController(document: RichDocument(paragraphs: [RichParagraph(text: "body")]))
+        c.pendingShape = { x, y, w, h in
+            TextBoxInsert.makeShape(preset: "ellipse", width: w, height: h, number: TextBoxInsert.nextShapeNumber(in: c.document), page: (x, y))
+        }
+        XCTAssertTrue(c.placePendingShape(x: 100, y: 200, width: 50, height: 40, at: RichPosition(paragraph: 0, offset: 4)))
+        XCTAssertNil(c.pendingShape)
+        XCTAssertNotNil(c.selectedImageIndex)
+        c.pendingShape = { x, y, w, h in
+            TextBoxInsert.makeShape(preset: "rect", width: w, height: h, number: TextBoxInsert.nextShapeNumber(in: c.document), page: (x, y))
+        }
+        XCTAssertTrue(c.placePendingShape(x: 10, y: 20, width: 96, height: 72, at: RichPosition(paragraph: 0, offset: 0)))
+        let xml = String(decoding: try XCTUnwrap(try Zip.read(try DocxFormat.write(c.document, pageSetup: .letter)).first { $0.name == "word/document.xml" }).data, as: UTF8.self)
+        XCTAssertTrue(xml.containsSubstring("name=\"Oval 1\""))
+        XCTAssertTrue(xml.containsSubstring("name=\"Rectangle 2\""))
+        XCTAssertTrue(xml.containsSubstring("<wp:posOffset>1270000</wp:posOffset>"))   // 100 pt
+        XCTAssertTrue(xml.containsSubstring("relativeFrom=\"page\""))
+    }
+
     /// Set SHAPE_LAB to a file path to get a document with every menu shape, for a Word check.
     func testWriteShapeLab() throws {
         guard let path = ProcessInfo.processInfo.environment["SHAPE_LAB"] else { return }
         let c = RichDocumentController(document: RichDocument(paragraphs: [RichParagraph(text: "Shapes inserted from the menu follow."), RichParagraph(text: "Second paragraph.")]))
         for preset in ["rect", "roundRect", "ellipse", "triangle", "rightArrow"] {
-            c.insertImage(try XCTUnwrap(TextBoxInsert.makeShape(preset: preset)))
+            c.insertImage(try XCTUnwrap(TextBoxInsert.makeShape(preset: preset, number: TextBoxInsert.nextShapeNumber(in: c.document))))
         }
         try DocxFormat.write(c.document, pageSetup: .letter).write(to: URL(fileURLWithPath: path))
     }
