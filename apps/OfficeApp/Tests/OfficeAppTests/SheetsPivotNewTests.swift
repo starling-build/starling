@@ -36,9 +36,13 @@ final class SheetsPivotNewTests: XCTestCase {
         let wc = book()
         XCTAssertNil(wc.insertPivotTable(source: src, rows: [1], cols: [], data: [PivotDataField(field: 2, function: .count), PivotDataField(field: 2, function: .average)],
                                          filters: [], origin: CellAddress("F1")!, newSheet: false))
-        XCTAssertEqual(v(wc, "G1"), .text("Count of Sales")); XCTAssertEqual(v(wc, "H1"), .text("Average of Sales"))
-        XCTAssertEqual(v(wc, "F2"), .text("Ink")); XCTAssertEqual(v(wc, "G2"), .number(2)); XCTAssertEqual(v(wc, "H2"), .number(6.5))
-        XCTAssertEqual(v(wc, "G4"), .number(6)); XCTAssertEqual(v(wc, "H4"), .number(80.0 / 6))
+        // Excel puts a "Values" caption row above the headings when there are several values.
+        XCTAssertEqual(v(wc, "G1"), .text("Values")); XCTAssertEqual(v(wc, "F1"), .empty)
+        XCTAssertEqual(v(wc, "F2"), .text("Row Labels")); XCTAssertEqual(v(wc, "G2"), .text("Count of Sales")); XCTAssertEqual(v(wc, "H2"), .text("Average of Sales"))
+        XCTAssertEqual(v(wc, "F3"), .text("Ink")); XCTAssertEqual(v(wc, "G3"), .number(2)); XCTAssertEqual(v(wc, "H3"), .number(6.5))
+        XCTAssertEqual(v(wc, "G5"), .number(6)); XCTAssertEqual(v(wc, "H5"), .number(80.0 / 6))
+        XCTAssertEqual(wc.sheet.pivots.last?.ref, CellRange("F1:H5"))
+        XCTAssertEqual(wc.sheet.pivots.last?.headerRows, 2)
     }
 
     func testColumnField() {

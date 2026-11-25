@@ -188,8 +188,11 @@ enum PivotCalc {
         let top = spec.origin.row + pageRows, left = spec.origin.col
         var grid: [[CellValue]] = []
         if spec.cols.isEmpty {
-            out.firstHeaderRow = spec.data.count > 1 ? 0 : 1
-            out.firstDataRow = 1
+            // Several values: Excel puts a "Values" caption row above the headings.
+            let several = spec.data.count > 1
+            out.firstHeaderRow = 1
+            out.firstDataRow = several ? 2 : 1
+            if several { grid.append([.empty, .text("Values")] + Array(repeating: .empty, count: spec.data.count - 1)) }
             grid.append([.text("Row Labels")] + out.dataNames.map { .text($0) })
             for l in lines { grid.append([.text(l.label)] + spec.data.map { aggregate(l.recs, $0) }) }
             grid.append([.text("Grand Total")] + spec.data.map { aggregate(recs, $0) })
