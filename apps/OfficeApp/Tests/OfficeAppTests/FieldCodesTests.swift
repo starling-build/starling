@@ -90,4 +90,17 @@ final class FieldCodesTests: XCTestCase {
         XCTAssertEqual(c.updateFields(pageOf: { (_: Int) -> String? in nil }, pageCount: 1), 1)
         XCTAssertEqual(c.document.paragraphs[0].text, "see 2")
     }
+
+    func testInsertedPageFieldIsARealFieldAndF9Updates() throws {
+        let c = RichDocumentController(plainText: "Page ")
+        c.moveTo(RichPosition(paragraph: 0, offset: 5), extend: false)
+        XCTAssertTrue(c.insertField("PAGE", result: "1"))
+        XCTAssertEqual(c.document.paragraphs[0].text, "Page 1")
+        XCTAssertEqual(c.updateFields(pageOf: { (_: Int) -> String? in "3" }, pageCount: 4), 1)
+        XCTAssertEqual(c.document.paragraphs[0].text, "Page 3")
+        let xml = String(decoding: try Zip.read(try DocxFormat.write(c.document, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
+        XCTAssertTrue(xml.contains("PAGE"))
+        c.undo(); c.undo()
+        XCTAssertEqual(c.document.paragraphs[0].text, "Page ")
+    }
 }

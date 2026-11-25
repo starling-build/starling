@@ -1316,6 +1316,11 @@ final class OfficeShellState: State<StatefulWidget> {
             if controller.updateFields(pageOf: info.label, pageCount: info.count) == 0 { _flash("No field here needs updating") }
             return true
         }
+        // Alt+Shift+P puts a page-number field at the caret.
+        if KeyChordTracker.letter(key.logical) == "p", mods.contains(.alt), mods.contains(.shift), !mods.contains(.primary) {
+            let info = PdfExport.pageInfo(controller.document, pageSetup: session.pageSetup, theme: session.theme)
+            if controller.insertField("PAGE", result: info.label(controller.document.clamped(controller.selection.focus).paragraph) ?? "1") { return true }
+        }
         // Shift+F9 shows or hides the field code at the caret; Alt+F9 all of them.
         if named == .function(9), mods.contains(.shift) || mods.contains(.alt) {
             controller.toggleFieldCodes(all: mods.contains(.alt))

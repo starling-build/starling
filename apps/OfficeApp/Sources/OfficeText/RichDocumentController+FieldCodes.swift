@@ -260,3 +260,25 @@ extension RichDocumentController {
         return changed.count
     }
 }
+
+/// Insert a field (Alt+Shift+P: PAGE) at the caret, as a real field showing `result`, so Word can update it.
+extension RichDocumentController {
+    @discardableResult
+    public func insertField(_ instruction: String, result: String) -> Bool {
+        guard !readOnly, !result.isEmpty else { return false }
+        let at = document.clamped(selection.focus)
+        guard document.paragraphs[at.paragraph].image == nil else { return false }
+        var style = document.paragraphs[at.paragraph].style(at: max(0, min(at.offset, document.paragraphs[at.paragraph].length) - 1))
+        style.field = instruction
+        edit {
+            if hasSelection { deleteSelection() }
+            let pos = selection.focus
+            var p = document.paragraphs[pos.paragraph]
+            p.insert(result, at: pos.offset, runs: [Run(length: result.utf16.count, style: style)])
+            perform(.removeParagraphs(at: pos.paragraph, [document.paragraphs[pos.paragraph]]))
+            perform(.insertParagraphs(at: pos.paragraph, [p]))
+            _setCaret(RichPosition(paragraph: pos.paragraph, offset: pos.offset + result.utf16.count))
+        }
+        return true
+    }
+}
