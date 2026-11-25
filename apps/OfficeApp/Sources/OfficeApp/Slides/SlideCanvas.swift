@@ -439,6 +439,33 @@ final class SlideCanvasState: State<StatefulWidget> {
     // MARK: Pointer
 
     private var _marqueeBase: [SlideShape] = []
+    /// A finger held still on a shape (or the empty slide) opens the same menu a right click does: bumped at every press and
+    /// release, so a stale timer finds it changed.
+    private var _pressGeneration = 0
+    private static let longPressDelay = 0.5
+
+    private func _armLongPress(_ e: PointerDownEvent, on shape: SlideShape?) {
+        _pressGeneration &+= 1
+        guard e.kind == .touch, let menu = _w.onContextMenu else { return }
+        let generation = _pressGeneration, at = e.position
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.longPressDelay) { [weak self] in
+            guard let self, generation == self._pressGeneration else { return }
+            switch self._drag {
+            case .move(_, _, _, _, let moved)? where !moved: break
+            case .marquee(let a, let b)? where shape == nil && a == b: break
+            default: return
+            }
+            self._drag = nil
+            self._pendingToggle = false
+            self._guides = []
+            if let shape {
+                if !self.deck.isSelected(shape) { self.deck.selectWholeGroup(of: shape) }
+            } else {
+                self.deck.selectShapes([])
+            }
+            menu(at, shape)
+        }
+    }
     private var _pendingToggle = false
     private var _additive: Bool { let m = _w.modifiers(); return deck.selectMultiple || m.contains(.shift) || m.contains(.control) || m.contains(.meta) }
 
@@ -458,6 +485,7 @@ final class SlideCanvasState: State<StatefulWidget> {
         deck.selectShapes(_marqueeBase)
         let p = _slidePoint(e.position)
         _drag = .marquee(start: p, now: p)
+        _armLongPress(e, on: nil)
     }
 
     private func _shapeDown(_ shape: SlideShape, _ e: PointerDownEvent) {
@@ -489,6 +517,7 @@ final class SlideCanvasState: State<StatefulWidget> {
         let frames = deck.selection.map { ($0, $0.frame) }
         _drag = .move(start: _slidePoint(e.position), frames: frames, shape: shape,
                       wasSelected: wasSelected, moved: false)
+        _armLongPress(e, on: shape)
     }
 
     private static let _debug = ProcessInfo.processInfo.environment["STARLING_SLIDES_DEBUG"] != nil
@@ -566,6 +595,7 @@ final class SlideCanvasState: State<StatefulWidget> {
 
     private func _pointerUp(_ e: PointerUpEvent) {
         Self._log("up \(e.position)")
+        _pressGeneration &+= 1
         _dragTo(e.position)
         guard let drag = _drag else { return }
         _drag = nil

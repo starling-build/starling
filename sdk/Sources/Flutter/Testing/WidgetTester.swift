@@ -119,8 +119,9 @@ public final class WidgetTester {
     /// Presses at `from`, moves to `to` in `steps` equal moves, and lifts there. The events go through
     /// hit testing, the gesture arena and the pointer router, as the shell's real pointer events do.
     /// `modifiers` are held (as key events through the focus manager) from before the press until after the lift.
+    /// `whileHeld` runs between the press and the first move: a test lets time pass there (a long press).
     public func drag(from: Offset, to: Offset, steps: Int = 8, buttons: Int = kPrimaryButton,
-                     modifiers: KeyModifiers = [], kind: PointerDeviceKind = .touch) {
+                     modifiers: KeyModifiers = [], kind: PointerDeviceKind = .touch, whileHeld: (() -> Void)? = nil) {
         let held = WidgetTester.modifierKeys.filter { modifiers.contains($0.0) }
         for (_, logical) in held { _modifier(logical, down: true) }
         let pointer = nextPointer; nextPointer += 1
@@ -138,6 +139,7 @@ public final class WidgetTester {
             else if event is PointerUpEvent { gb.gestureArena.sweep(pointer) }
         }
         send(PointerDownEvent(pointer: pointer, kind: kind, position: from, buttons: buttons))
+        whileHeld?()
         var last = from
         if steps > 0 {
             for i in 1...steps {
