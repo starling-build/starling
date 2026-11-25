@@ -226,6 +226,8 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         case rows(anchor: Int)
         case resizeColumn(col: Int, startX: Double, startWidth: Double)
         case resizeRow(row: Int, startY: Double, startHeight: Double)
+        /// Page Break Preview: a cut line dragged from `at` to `to` (a row or column index).
+        case pageBreak(isRow: Bool, at: Int, to: Int)
         /// The fill handle: the range it would fill so far.
         case fill(target: CellRange)
         /// Pointing at cells for a formula being typed: where the
@@ -1644,6 +1646,12 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             }
             return
         }
+        // Page Break Preview: a cut line is taken to be moved.
+        if c.breakPreview, p.dx >= headerWidth, p.dy >= headerHeight {
+            let lines = pageBreakLines()
+            if let r = PageBreakLines.grab(lines.rows.map(\.at), at: p.dy, edge: { rowY($0) }) { _drag = .pageBreak(isRow: true, at: r, to: r); return }
+            if let k = PageBreakLines.grab(lines.cols.map(\.at), at: p.dx, edge: { colX($0) }) { _drag = .pageBreak(isRow: false, at: k, to: k); return }
+        }
         // Column header: select columns, or resize at a border.
         if p.dy < headerHeight && p.dx >= headerWidth {
             let col = self.col(atLocal: p.dx)
@@ -1979,6 +1987,11 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             // Live, without an undo step per pixel: the model is set on release.
             c.sheet.colWidths[col] = w / scale
             _repaint.notifyListeners()
+        case .pageBreak(let isRow, let at, _):
+            let to = isRow ? PageBreakLines.nearestEdge(index: row(atLocal: p.dy), pos: p.dy, start: rowY, size: { rows.size($0) })
+                           : PageBreakLines.nearestEdge(index: col(atLocal: p.dx), pos: p.dx, start: colX, size: { cols.size($0) })
+            _drag = .pageBreak(isRow: isRow, at: at, to: to)
+            _repaint.notifyListeners()
         case .resizeRow(let row, let startY, let startHeight):
             let h = max(0, startHeight + p.dy - startY)
             c.sheet.rowHeights[row] = h / scale
@@ -2063,6 +2076,10 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         }
         if case .resizeColumn(let col, _, let startWidth)? = _drag {
             controller.setColumnWidth(col, controller.sheet.colWidth(col), from: startWidth / scale)
+        }
+        if case .pageBreak(let isRow, let at, let to)? = _drag {
+            controller.moveBreak(isRow: isRow, from: at, to: to)
+            _repaint.notifyListeners()
         }
         if case .resizeRow(let row, _, let startHeight)? = _drag {
             controller.setRowHeight(row, controller.sheet.rowHeight(row), from: startHeight / scale)
@@ -2379,7 +2396,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         freeze.color = dark ? Color(0xFF8A8A8A) : Color(0xFF9E9E9E)
         if fc > 0 { canvas.drawLine(Offset((hw + fw).rounded() - 0.5, hh), Offset((hw + fw).rounded() - 0.5, size.height), freeze) }
         if fr > 0 { canvas.drawLine(Offset(hw, (hh + fh).rounded() - 0.5), Offset(size.width, (hh + fh).rounded() - 0.5), freeze) }
-        if c.breakPreview { paintPageBreaks(canvas, size) }
+        if c.breakPreview { paintPageBreaks(canvas, size, dragging: { if case .pageBreak(let r, let a, let t)? = _drag { return (r, a, t) } else { return nil } }()) }
         // The editor.
         if let e = edit {
             _paintEditor(canvas, e, ink: ink, paper: paper, accent: accent, size: size)
