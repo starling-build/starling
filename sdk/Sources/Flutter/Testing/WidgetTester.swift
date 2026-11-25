@@ -208,7 +208,7 @@ public final class WidgetTester {
     // MARK: Keys
 
     public enum Key {
-        case enter, escape, tab, backspace, f6, space, alt
+        case enter, escape, tab, backspace, f6, space, alt, left, right, up, down
         var logical: Int64 {
             switch self {
             case .enter: return 0x1_0000_000D
@@ -218,6 +218,10 @@ public final class WidgetTester {
             case .f6: return 0xFFBD
             case .space: return 0x1_0000_0020
             case .alt: return 0xFFE9
+            case .left: return 0xFF51
+            case .up: return 0xFF52
+            case .right: return 0xFF53
+            case .down: return 0xFF54
             }
         }
     }

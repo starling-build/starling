@@ -1401,7 +1401,7 @@ final class OfficeShellState: State<StatefulWidget> {
                                style: controller.currentParagraphStyle,
                                onFormat: { [weak self] f in self?.controller.setParagraphFormat(f) }))
         }
-        pages.append(Expanded(child: _pageArea(fluent)))
+        pages.append(Expanded(child: KeyboardPage(focus: { [weak self] in self?._editorFocus.requestFocus() }, child: _pageArea(fluent))))
         var area: [Widget] = []
         var sidePanes: [Widget] = []
         if session.showNavigation {
