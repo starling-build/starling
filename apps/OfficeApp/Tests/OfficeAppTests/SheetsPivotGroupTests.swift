@@ -36,6 +36,16 @@ final class SheetsPivotGroupTests: XCTestCase {
         XCTAssertEqual(wc.sheet.cells[CellAddress("E5")!]?.value.number, 8)
     }
 
+    func testLastBucketRunsToTheEndInclusive() {
+        let g = PivotGroup.numbers(start: 0, end: 80, by: 10)
+        let labels = g.items([]).map(\.shown)
+        XCTAssertEqual(labels, ["<0", "0-9", "10-19", "20-29", "30-39", "40-49", "50-59", "60-69", "70-80", ">80"])
+        XCTAssertEqual(g.index(of: .number(80), minYear: 0), 8)
+        XCTAssertEqual(g.index(of: .number(70), minYear: 0), 8)
+        XCTAssertEqual(g.index(of: .number(81), minYear: 0), 9)
+        XCTAssertEqual(g.index(of: .number(-1), minYear: 0), 0)
+    }
+
     func testDateMonthsAndYears() {
         let wc = book(dates: true)
         XCTAssertNil(wc.setPivotGroup(sheet: wc.sheet, pivot: 0, field: 0, group: .dates(.years)))
