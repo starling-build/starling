@@ -30,6 +30,17 @@ final class SheetsNameManagerTests: XCTestCase {
         XCTAssertEqual(ui.state(NameManagerDialogState.self)?.picked, "Rates")
     }
 
+    func testArrowKeysWalkTheNameRowsAndEnterPicks() {
+        let ui = dialog(controller()) { _ in }
+        var n = 0
+        while KeyboardTraversal.shared.focused?.label() != "Local", n < 8 { ui.press(.tab); n += 1 }
+        XCTAssertEqual(KeyboardTraversal.shared.focused?.label(), "Local")
+        ui.press(.up)
+        XCTAssertEqual(KeyboardTraversal.shared.focused?.label(), "Rates")
+        ui.press(.enter)
+        XCTAssertEqual(ui.state(NameManagerDialogState.self)?.picked, "Rates")
+    }
+
     func testDeleteRemovesThePickedNameAsOneUndoStep() {
         let c = controller()
         let ui = dialog(c) { _ in }

@@ -166,23 +166,56 @@ final class KeyboardTraversalTests: XCTestCase {
         }
     }
 
+    func testContextualAndEveryOtherRibbonTabHasNamedControls() {
+        for tab in RibbonTab.allCases {
+            let session = OfficeSession()
+            let ui = app(SizedBox(width: 1400, height: 200, child: Ribbon(session: session, tab: tab, collapsed: false,
+                                                                         onTab: { _ in }, onCollapse: {})))
+            let all = KeyboardTraversal.shared.reachable().filter { $0.region == "ribbon" }
+            let top = all.map { ($0.origin()!.dy / 10).rounded() }.min() ?? 0
+            let bad = all.filter { ($0.origin()!.dy / 10).rounded() != top && $0.label() == nil }
+            XCTAssertTrue(bad.isEmpty, "\(tab.title): \(bad.count) controls without a name")
+            XCTAssertGreaterThan(all.count, 3, "\(tab.title): has controls")
+            _ = ui
+        }
+    }
+
+    func testSlideSorterTilesAreKeyboardStops() {
+        let ui = app(SlidesShell(initialPath: nil, startBlank: true, onSwitch: { _, _ in }))
+        ui.tap(text: "View"); ui.tap(text: "Slide Sorter")
+        let tiles = KeyboardTraversal.shared.reachable().filter { ($0.label() ?? "").hasPrefix("Slide ") && $0.label() != "Slide Sorter" }
+        XCTAssertFalse(tiles.isEmpty, "each sorter tile has a stop")
+    }
+
     func testEveryRibbonControlHasAName() {
-        let tabs = ["Home", "Insert", "Design", "Layout", "Transitions", "Review", "View", "Data", "Formulas",
-                    "Page Layout", "Draw", "References", "Animations", "Slide Show"]
         var nameless: [String] = []
+        var pages = 0
         func rowOf(_ s: KeyStop) -> Double { (s.origin()!.dy / 10).rounded() }
         func sweep(_ name: String, _ ui: WidgetTester) {
-            for tab in tabs where ui.has(text: tab) {
-                ui.tap(text: tab)
-                let strip = KeyboardTraversal.shared.reachable().filter { $0.region == "ribbon" }
-                let top = strip.map { rowOf($0) }.min() ?? 0
-                for s in strip where rowOf(s) != top && s.label() == nil { nameless.append("\(name)/\(tab) at \(Int(s.origin()!.dx)),\(Int(s.origin()!.dy))") }
+            // Every tab on the strip, whatever it is called: walk the strip's own stops.
+            func strip() -> [KeyStop] {
+                let all = KeyboardTraversal.shared.reachable().filter { $0.region == "ribbon" }
+                let top = all.map { rowOf($0) }.min() ?? 0
+                return all.filter { rowOf($0) == top }
+            }
+            for i in 0..<strip().count {
+                let tabs = strip()
+                guard i < tabs.count else { break }
+                let title = tabs[i].label() ?? "tab \(i)"
+                tabs[i].activate(); ui.pump()
+                pages += 1
+                let all = KeyboardTraversal.shared.reachable().filter { $0.region == "ribbon" }
+                let top = all.map { rowOf($0) }.min() ?? 0
+                for s in all where rowOf(s) != top && s.label() == nil {
+                    nameless.append("\(name)/\(title) at \(Int(s.origin()!.dx)),\(Int(s.origin()!.dy))")
+                }
             }
         }
         sweep("Writer", app(OfficeShell(initialPath: nil, startBlank: true)))
         sweep("Slides", app(SlidesShell(initialPath: nil, startBlank: true, onSwitch: { _, _ in })))
         sweep("Sheets", app(SheetsShell(initialPath: nil, onSwitch: { _, _ in })))
-        XCTAssertEqual(nameless.count, 0)
+        XCTAssertGreaterThan(pages, 20)
+        XCTAssertEqual(nameless.count, 0, "nameless: \(nameless.prefix(60))")
     }
 
     func testEveryRibbonButtonOfEveryTabIsReachable() {

@@ -1812,7 +1812,7 @@ final class SlidesShellState: State<StatefulWidget> {
         let picked = Set(deck.selectedSlides)
         for (i, slide) in deck.slides.enumerated() {
             let current = picked.contains(i)
-            tiles.append(GestureDetector(
+            tiles.append(KeyboardRow(label: "Slide \(i + 1)", activate: { [weak self] in self?.deck.selectSlide(i); self?._deckFocus.requestFocus() }, child: GestureDetector(
                 key: ValueKey("slide.tile.\(i)"),
                 onTap: { [weak self] in
                     guard let self else { return }
@@ -1843,7 +1843,7 @@ final class SlidesShellState: State<StatefulWidget> {
                                 child: SizedBox(expand: ()))))))),
                     Chrome.vgap(4),
                     Text("\(i + 1)\(slide.hidden ? "  (hidden)" : "")", style: fluent.typography.caption),
-                ]))))
+                ])))))
         }
         let dark = fluent.brightness == .dark
         // A tile: the thumbnail, its frame (8), the number under it (4 and
