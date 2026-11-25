@@ -1190,6 +1190,8 @@ final class SlidesShellState: State<StatefulWidget> {
         case "c" where shapes: deck.copyShapes(); _flash("Copied")
         case "x" where shapes: deck.cutShapes()
         case "v" where !typing && deck.canPasteShapes: deck.pasteShapes()
+        case "g" where shapes && !typing && mods.contains(.shift): deck.ungroupSelection()
+        case "g" where shapes && !typing: deck.groupSelection()
         case "d" where shapes: deck.duplicateSelection()
         case "d" where !typing: deck.duplicateSlide(deck.current)
         case "f": _openFind(replace: false)
@@ -1585,6 +1587,9 @@ final class SlidesShellState: State<StatefulWidget> {
             m.item("Bring Forward") { deck.arrange(.forward) }
             m.item("Send Backward") { deck.arrange(.backward) }
             m.item("Send to Back") { deck.arrange(.back) }
+            m.separator()
+            m.item("Group", enabled: deck.canGroup) { deck.groupSelection() }
+            m.item("Ungroup", enabled: deck.canUngroup) { deck.ungroupSelection() }
             m.separator()
             m.item("Align Left") { deck.align(.left) }
             m.item("Align Center") { deck.align(.center) }
