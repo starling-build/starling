@@ -111,6 +111,31 @@ final class KeyboardTraversalTests: XCTestCase {
         ui.dispose()
     }
 
+    /// Alt shows a letter over each tab; pressing a tab's letter opens that page and gives its commands letters.
+    func testAltKeyTipsOpenATabThenACommand() {
+        KeyboardTraversal.shared.reset()
+        let ui = app(OfficeShell(initialPath: nil, startBlank: true))
+        ui.pump()
+        XCTAssertFalse(KeyboardTraversal.shared.tipsOn)
+        ui.press(.alt)
+        XCTAssertTrue(KeyboardTraversal.shared.tipsOn, "tapping Alt turns the key tips on")
+        let tabs = KeyboardTraversal.shared.tipCodes()
+        XCTAssertGreaterThanOrEqual(tabs.count, 5, "every tab title has a tip")
+        XCTAssertEqual(Set(tabs.map { $0.code }).count, tabs.count, "tips are unique")
+        guard let insert = tabs.first(where: { $0.stop.label() == "Insert" }) else { return XCTFail("no tip for Insert") }
+        XCTAssertTrue(ui.has(text: "Clipboard"))
+        ui.type(insert.code)
+        ui.pump()
+        XCTAssertTrue(KeyboardTraversal.shared.tipsOn, "after a tab letter the commands get tips")
+        XCTAssertFalse(ui.has(text: "Clipboard"), "the Insert page is open")
+        let commands = KeyboardTraversal.shared.tipCodes()
+        XCTAssertGreaterThanOrEqual(commands.count, 3)
+        XCTAssertEqual(Set(commands.map { $0.code }).count, commands.count, "command tips are unique")
+        ui.press(.escape)
+        XCTAssertFalse(KeyboardTraversal.shared.tipsOn, "Esc turns the tips off")
+        ui.dispose()
+    }
+
     func testEveryRibbonButtonOfEveryTabIsReachable() {
         let tabs = ["Home", "Insert", "Design", "Layout", "Transitions", "Review", "View", "Data", "Formulas",
                     "Page Layout", "Draw", "References", "Animations", "Slide Show"]
