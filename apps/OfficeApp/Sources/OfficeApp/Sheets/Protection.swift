@@ -24,10 +24,7 @@ extension WorkbookController {
     /// Whether a cell's format locks it (true unless its protection says otherwise).
     func isLocked(_ a: CellAddress, sheet si: Int? = nil) -> Bool {
         let ws = book.sheets[si ?? activeSheet]
-        let style = book.style(ws.cells[a]?.style ?? ws.defaultStyle(at: a))
-        guard let b = style.baseXf, let src = book.styleSource, b < src.xfs.count,
-              let p = src.xfs[b].protection else { return true }
-        return !(p.containsSubstring("locked=\"0\"") || p.containsSubstring("locked=\"false\""))
+        return book.style(ws.cells[a]?.style ?? ws.defaultStyle(at: a)).locked
     }
 
     /// True (and the reason shown) when the sheet's protection forbids

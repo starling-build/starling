@@ -25,6 +25,8 @@ enum SheetCommand {
     case sortDialog                // Data → Sort…
     case columnFilter(col: Int, kind: String)   // a filter dropdown's Number/Text/Date/Colour Filters…
     case nameManager               // Formulas → Name Manager
+    case protectSheetDialog        // Review → Protect Sheet / Unprotect Sheet
+    case protectWorkbookDialog     // Review → Protect Workbook / Unprotect Workbook
     case pageSetup                 // Layout → Page Setup: the dialog
     case editNote                  // Review → New/Edit Note: the editor beside the active cell
 }
@@ -39,7 +41,7 @@ extension Ribbon {
         case .data: return [_sortGroup(wb, fluent), _dataToolsGroup(wb, fluent), _outlineGroup(wb, fluent)]
         case .layout: return [_pageSetupGroup(wb, fluent)]
         case .view: return [_sheetsZoomGroup(wb, fluent)]
-        case .review: return [_notesGroup(wb, fluent)]
+        case .review: return [_notesGroup(wb, fluent), _protectGroup(wb, fluent)]
         default: return nil
         }
     }
@@ -289,6 +291,13 @@ extension Ribbon {
         return Chrome.group("Charts", fluent, [
             Chrome.rows([button(.column), button(.bar), button(.line)]),
             Chrome.rows([button(.pie), button(.area), button(.scatter)]),
+        ])
+    }
+
+    private func _protectGroup(_ wb: WorkbookController, _ fluent: FluentThemeData) -> Widget {
+        Chrome.group("Protect", fluent, [
+            Chrome.big(FluentSystemIcons.lock, wb.protection() != nil ? "Unprotect Sheet" : "Protect Sheet", fluent) { wb.onCommand?(.protectSheetDialog) },
+            Chrome.big(FluentSystemIcons.lock, wb.book.structureLocked ? "Unprotect Workbook" : "Protect Workbook", fluent) { wb.onCommand?(.protectWorkbookDialog) },
         ])
     }
 

@@ -65,6 +65,7 @@ final class SheetsShellState: State<StatefulWidget> {
     private var _lastTabClick: (index: Int, at: Date)? = nil
     private var _findOpen = false
     private var _namesOpen = false
+    private var _protectOpen: Bool? = nil   // nil closed; false = sheet, true = workbook structure
     /// The Format Cells dialog is open (X-FM-1).
     private var _formatOpen = false
     private var _pageSetupOpen = false
@@ -365,6 +366,10 @@ final class SheetsShellState: State<StatefulWidget> {
             setState { _filterOpen = (col, kind) }
         case .nameManager:
             setState { _namesOpen = true }
+        case .protectSheetDialog:
+            setState { _protectOpen = false }
+        case .protectWorkbookDialog:
+            setState { _protectOpen = true }
         case .pageSetup:
             setState { _pageSetupOpen = true }
         }
@@ -946,6 +951,13 @@ final class SheetsShellState: State<StatefulWidget> {
             layers.append(Positioned(left: 0, top: 0, right: 0, bottom: 0, child: NameManagerDialog(
                 controller: wb, onClose: { [weak self] in
                     self?.setState { self?._namesOpen = false }
+                    self?._grid?.focus.requestFocus()
+                })))
+        }
+        if let workbook = _protectOpen {
+            layers.append(Positioned(left: 0, top: 0, right: 0, bottom: 0, child: ProtectDialog(
+                controller: wb, workbook: workbook, onClose: { [weak self] in
+                    self?.setState { self?._protectOpen = nil }
                     self?._grid?.focus.requestFocus()
                 })))
         }

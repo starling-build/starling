@@ -50,7 +50,7 @@ enum Xlsx {
         let wbRels = _rels(_part(parts, "xl/_rels/workbook.xml.rels"), base: "xl/")
         let book = Workbook(sheets: [])
         book.package = entries
-        if let p = wbNode.child("workbookProtection") { book.structureLocked = p["lockStructure"] == "1" || p["lockStructure"] == "true" }
+        if let p = wbNode.child("workbookProtection") { book.workbookProtection = p.attrs }
         if let pr = wbNode.child("workbookPr") { book.date1904 = pr["date1904"] == "1" || pr["date1904"] == "true" }
         if let cp = wbNode.child("calcPr") {
             book.iterate = cp["iterate"] == "1" || cp["iterate"] == "true"
@@ -768,6 +768,10 @@ enum Xlsx {
                 s.indent = max(0, min(250, Int(al["indent"] ?? "") ?? 0))
                 s.rotation = Int(al["textRotation"] ?? "") ?? 0
             }
+            if let pr = xf.child("protection") {
+                s.locked = pr["locked"] != "0" && pr["locked"] != "false"
+                s.formulaHidden = pr["hidden"] == "1" || pr["hidden"] == "true"
+            }
             out.append(s)
         }
         return out
@@ -1163,20 +1167,22 @@ enum Xlsx {
         sheets += "</sheets>"
         let calc = "<calcPr calcId=\"191029\" fullCalcOnLoad=\"1\""
             + (book.iterate ? " iterate=\"1\" iterateCount=\"\(book.iterateCount)\" iterateDelta=\"\(_num(book.iterateDelta))\"" : "") + "/>"
+        let prot = book.workbookProtection.map { a in "<workbookProtection" + a.keys.sorted().map { " \($0)=\"\(_esc(a[$0] ?? ""))\"" }.joined() + "/>" } ?? ""
         // The original's other elements (workbookPr, bookViews, definedNames,
         // pivot caches, extLst…) stay, in their places.
         if let original {
             let split = RawXML.split([UInt8](original))
             var body = ""
-            var wroteSheets = false, wroteCalc = false
+            var wroteSheets = false, wroteCalc = false, wroteProt = false
             let names = _definedNamesXML(book)
             var wroteNames = false
             for (name, text) in split.children {
                 switch name {
-                case "sheets": body += sheets + (split.children.contains { $0.name == "definedNames" } ? "" : names); wroteSheets = true
+                case "sheets": body += (wroteProt ? "" : prot) + sheets + (split.children.contains { $0.name == "definedNames" } ? "" : names); wroteSheets = true
                 case "definedNames": body += names; wroteNames = true
                 case "calcPr": body += calc; wroteCalc = true
-                case "bookViews": body += _bookViews(text, active: book.activeTab)
+                case "workbookProtection": body += prot; wroteProt = true
+                case "bookViews": body += (wroteProt ? "" : prot) + _bookViews(text, active: book.activeTab); wroteProt = true
                 default:
                     if name == "definedNames" || name == "extLst" || name == "pivotCaches" || name == "webPublishing"
                         || name == "fileRecoveryPr" || name == "webPublishObjects" || name == "oleSize" || name == "customWorkbookViews" {
@@ -1190,7 +1196,7 @@ enum Xlsx {
             return "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n" + _withRels(split.rootStart) + body + "</" + split.rootName + ">"
         }
         let names = _definedNamesXML(book)
-        return "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<workbook xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\"><bookViews><workbookView activeTab=\"\(book.activeTab)\"/></bookViews>" + sheets + names + calc + "</workbook>"
+        return "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<workbook xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\">" + prot + "<bookViews><workbookView activeTab=\"\(book.activeTab)\"/></bookViews>" + sheets + names + calc + "</workbook>"
     }
 
     /// The file's names in order — a book-wide one with its current formula,
@@ -1709,7 +1715,12 @@ enum Xlsx {
                st.indent == base.style.indent, st.rotation == base.style.rotation {
                 alignment = base.xf.alignment ?? ""
             }
-            let inner = alignment + (base?.xf.protection ?? "")
+            var protection = base?.xf.protection ?? ""
+            if st.locked != (base?.style.locked ?? true) || st.formulaHidden != (base?.style.formulaHidden ?? false) {
+                protection = st.locked && !st.formulaHidden ? "" : "<protection" + (st.locked ? "" : " locked=\"0\"") + (st.formulaHidden ? " hidden=\"1\"" : "") + "/>"
+            }
+            if !protection.isEmpty { xf += " applyProtection=\"1\"" }
+            let inner = alignment + protection
             xf += inner.isEmpty ? "/>" : (alignment.isEmpty ? "" : " applyAlignment=\"1\"") + ">" + inner + "</xf>"
             xfs.append(xf)
         }
