@@ -1,4 +1,5 @@
 import XCTest
+@testable import OfficeApp
 @testable import OfficeText
 
 /// Shift+F9 / Alt+F9: a field shows as its instruction in braces and goes back to its result.
