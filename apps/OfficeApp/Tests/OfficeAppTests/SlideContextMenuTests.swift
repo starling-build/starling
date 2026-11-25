@@ -26,7 +26,17 @@ final class SlideContextMenuTests: XCTestCase {
         let (ui, deck, canvas) = try shell()
         let a = deck.currentSlide.shapes[0]
         let before = deck.currentSlide.shapes.count
-        ui.tap(at: canvas.screenPoint(a.frame.center), buttons: kSecondaryMouseButton)
+        // A point of the shape no other shape covers: the title's height depends on the platform's font (188 pt on macOS, so
+        // its centre sat on the stack of shapes below it), and a click on a covered point selects the one on top.
+        var spot = a.frame.center
+        search: for y in stride(from: a.frame.top + 2, to: a.frame.bottom - 2, by: 2) {
+            for x in stride(from: a.frame.left + 2, to: a.frame.right - 2, by: 8)
+            where !deck.currentSlide.shapes.dropFirst().contains(where: { $0.frame.contains(Offset(x, y)) }) {
+                spot = Offset(x, y)
+                break search
+            }
+        }
+        ui.tap(at: canvas.screenPoint(spot), buttons: kSecondaryMouseButton)
         XCTAssertTrue(deck.selection.count == 1 && deck.selection[0] === a, "right-click selects the shape")
         settle(ui)
         XCTAssertTrue(ui.has(text: "Align Bottom"), "the shape menu is open")

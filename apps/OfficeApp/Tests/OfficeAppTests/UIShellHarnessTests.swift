@@ -21,6 +21,18 @@ final class UIShellHarnessTests: XCTestCase {
         WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: home, title: "Test"), size: Size(1280, 800))
     }
 
+    /// The tester's view outlives one tester: a later one that asks for another size gets it (it used to keep the first one's,
+    /// so a test that needed a wide window ran at whatever width the first test of the process had).
+    func testATesterTakesTheSizeItAsksForWhateverAnEarlierOneAsked() {
+        let narrow = WidgetTester(SizedBox(width: 10, height: 10, child: nil), size: Size(640, 480))
+        XCTAssertEqual(narrow.renderView.configuration.logicalConstraints.maxWidth, 640)
+        narrow.dispose()
+        let wide = WidgetTester(SizedBox(width: 10, height: 10, child: nil), size: Size(1500, 800))
+        XCTAssertEqual(wide.renderView.configuration.logicalConstraints.maxWidth, 1500)
+        XCTAssertEqual(wide.renderView.configuration.logicalConstraints.maxHeight, 800)
+        wide.dispose()
+    }
+
     /// W-RV-3: a click on a check box control flips it; a click beside it does not.
     func testClickingACheckBoxControlFlipsIt() {
         var p = RichParagraph(text: "Agree \u{2610} yes")
@@ -35,11 +47,17 @@ final class UIShellHarnessTests: XCTestCase {
         func state() -> Bool? { controller.document.paragraphs[0].checkBoxes.first?.checked }
         XCTAssertEqual(state(), false)
         // Far right of the line: nothing there.
-        ui.tap(at: r.localToGlobal(Offset(500, 34)))
+        // (A mouse: a touch tap on the line raises the caret's knob, and where the text ends depends on the platform's font, so on
+        // macOS the knob sat over the glyph and took the next taps.)
+        ui.click(at: r.localToGlobal(Offset(500, 34)), kind: .mouse)
         XCTAssertEqual(state(), false)
         // Walk along the line until the glyph is hit.
         var x = 24.0
-        while x < 200, state() == false { ui.tap(at: r.localToGlobal(Offset(x, 34))); x += 6 }
+        while x < 200, state() == false {
+            // (and down the line's height, which is the platform font's: 34 was the middle of it on Linux)
+            for y in stride(from: 16.0, through: 40, by: 6) where state() == false { ui.click(at: r.localToGlobal(Offset(x, y)), kind: .mouse) }
+            x += 2
+        }
         XCTAssertEqual(state(), true, "a click on the glyph flips the box")
         XCTAssertEqual(controller.document.paragraphs[0].text, "Agree \u{2612} yes")
         controller.undo()
@@ -259,7 +277,9 @@ final class UIShellHarnessTests: XCTestCase {
 
     /// W-TB-2: the Table Layout tab's Borders and Shading menus reach the controller.
     func testTableLayoutBordersAndShadingReachTheController() {
-        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(1280, 800))
+        // (2000 wide: the Table Layout ribbon is wider than the 1240 a 1280 window gives it on macOS, where the UI font is wider than
+        // on Linux, so the Borders & Shading group sat past the viewport's edge and a tap on it hit the page.)
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(2000, 800))
         let c = ui.state(OfficeShellState.self)!.session.controller
         c.insertTable(rows: 2, columns: 2)
         ui.pump()
@@ -469,7 +489,8 @@ final class SheetsTitleBarUndoHarnessTests: XCTestCase {
 
     /// W-TB-2: the Borders and Shading dialog applies sides, line and shading as one undo.
     func testBordersAndShadingDialogReachesTheController() {
-        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(1280, 800))
+        // (2000 wide: see testTableLayoutBordersAndShadingReachTheController.)
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(2000, 800))
         let c = ui.state(OfficeShellState.self)!.session.controller
         c.insertTable(rows: 2, columns: 2)
         ui.pump()
