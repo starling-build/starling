@@ -323,6 +323,8 @@ final class OfficeSession {
     var onEditNote: (() -> Void)?
     var onSymbolDialog: (() -> Void)?
     var onMoreColors: (() -> Void)?
+    /// Slides: More Colors… of Shape Fill (false) or Shape Outline (true).
+    var onMoreShapeColor: ((Bool) -> Void)?
     var onParagraphDialog: (() -> Void)?
     var onFontDialog: (() -> Void)?
     var onPageSetupDialog: (() -> Void)?
