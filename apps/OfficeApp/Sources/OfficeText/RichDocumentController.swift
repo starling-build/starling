@@ -322,7 +322,7 @@ public final class RichDocumentController: ChangeNotifier {
     public var cellDescription: String? {
         guard let c = currentCell else { return nil }
         var s = "Row \(c.row + 1), column \(c.column + 1)"
-        if c.row > 0, let h = document.paragraphs(inTable: c.table).first(where: {
+        if c.row > 0, tableLook(of: c.table) & 0x20 != 0, let h = document.paragraphs(inTable: c.table).first(where: {
             let r = document.paragraphs[$0].cell
             return r?.row == 0 && r?.column == c.column
         }) {
