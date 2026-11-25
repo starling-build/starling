@@ -53,10 +53,12 @@ final class FlatButton: StatefulWidget {
     let onAccent: Bool
     let action: (() -> Void)?
     let menu: [MenuFlyoutItemBase]?
+    /// In a folded group's popup, the popup closes once a press has run, unless the button is one that goes on editing (a stepper).
+    let keepsPopupOpen: Bool
 
     init(child: Widget, tip: String? = nil, name: String? = nil, checked: Bool = false, enabled: Bool = true,
          width: Double? = 28, height: Double = 28, alignLeft: Bool = false, onAccent: Bool = false,
-         action: (() -> Void)? = nil, menu: [MenuFlyoutItemBase]? = nil) {
+         keepsPopupOpen: Bool = false, action: (() -> Void)? = nil, menu: [MenuFlyoutItemBase]? = nil) {
         self.child = child
         self.tip = tip
         self.name = name
@@ -68,6 +70,7 @@ final class FlatButton: StatefulWidget {
         self.onAccent = onAccent
         self.action = action
         self.menu = menu
+        self.keepsPopupOpen = keepsPopupOpen
         super.init(key: nil)
     }
 
@@ -87,8 +90,8 @@ private final class _FlatButtonState: State<StatefulWidget> {
         stop.isEnabled = { [weak self] in (self?.widget as? FlatButton)?.enabled ?? false }
         stop.activate = { [weak self] in
             guard let self, let w = self.widget as? FlatButton else { return }
-            if let items = w.menu { self._flyout.showFlyout(builder: { _ in MenuFlyout(items: items) }, placement: .bottom) }
-            else { w.action?() }
+            if let items = w.menu { self._flyout.showFlyout(builder: { _ in MenuFlyout(items: self._closingPopup(items, w)) }, placement: .bottom) }
+            else { w.action?(); self._closePopup(w) }
         }
         stop.label = { [weak self] in
             guard let self, self.mounted else { return nil }
@@ -114,6 +117,22 @@ private final class _FlatButtonState: State<StatefulWidget> {
         }
         _stop = stop
         KeyboardTraversal.shared.register(stop)
+    }
+
+    /// In a folded group's popup, a command that has run closes it.
+    fileprivate func _closePopup(_ w: FlatButton) {
+        if !w.keepsPopupOpen { RibbonPopupScope.close(context) }
+    }
+
+    /// The same items, each also closing the popup this button is in once it has run.
+    fileprivate func _closingPopup(_ items: [MenuFlyoutItemBase], _ w: FlatButton) -> [MenuFlyoutItemBase] {
+        guard !w.keepsPopupOpen, context?.findAncestorWidgetOfExactType(RibbonPopupScope.self) != nil else { return items }
+        return items.map { item in
+            guard let i = item as? MenuFlyoutItem, let press = i.onPressed else { return item }
+            return MenuFlyoutItem(key: i.key, text: i.text, leading: i.leading, trailing: i.trailing,
+                                  onPressed: { [weak self] in press(); self?._closePopup(w) },
+                                  onLongPress: i.onLongPress, selected: i.selected, closeAfterClick: i.closeAfterClick)
+        }
     }
 
     override func dispose() {
@@ -146,9 +165,10 @@ private final class _FlatButtonState: State<StatefulWidget> {
         box = GestureDetector(
             onTap: w.enabled ? { [weak self] in
                 if let items {
-                    self?._flyout.showFlyout(builder: { _ in MenuFlyout(items: items) }, placement: .bottom)
+                    self?._flyout.showFlyout(builder: { _ in MenuFlyout(items: self?._closingPopup(items, w) ?? items) }, placement: .bottom)
                 } else {
                     w.action?()
+                    self?._closePopup(w)
                 }
             } : nil,
             behavior: .opaque,
@@ -213,9 +233,9 @@ enum Chrome {
 
     /// Icon-only command, 28×28.
     static func icon(_ icon: IconData, _ tip: String, _ fluent: FluentThemeData,
-                     enabled: Bool = true, action: @escaping () -> Void) -> Widget {
+                     enabled: Bool = true, keepsPopupOpen: Bool = false, action: @escaping () -> Void) -> Widget {
         let color = enabled ? fluent.resources.textFillColorPrimary : fluent.resources.textFillColorDisabled
-        return FlatButton(child: Icon(icon, size: iconSize, color: color), tip: tip, enabled: enabled, action: action)
+        return FlatButton(child: Icon(icon, size: iconSize, color: color), tip: tip, enabled: enabled, keepsPopupOpen: keepsPopupOpen, action: action)
     }
 
     /// Icon toggle: tinted while on.
@@ -348,11 +368,11 @@ enum Chrome {
                         onChanged: @escaping (Double) -> Void) -> Widget {
         row([
             SizedBox(width: 84, height: nil, child: Text(label, style: fluent.typography.caption)),
-            icon(FluentSystemIcons.chevronDown, "Less", fluent) { onChanged(max(minimum, value - step)) },
+            icon(FluentSystemIcons.chevronDown, "Less", fluent, keepsPopupOpen: true) { onChanged(max(minimum, value - step)) },
             // `shown` is the value as the caller writes it, where a whole
             // number of `unit` is not how it reads (0.75 s).
             SizedBox(width: 48, height: nil, child: Text(shown ?? "\(Int(value.rounded())) \(unit)", style: fluent.typography.caption)),
-            icon(FluentSystemIcons.chevronUp, "More", fluent) { onChanged(value + step) },
+            icon(FluentSystemIcons.chevronUp, "More", fluent, keepsPopupOpen: true) { onChanged(value + step) },
         ])
     }
 
