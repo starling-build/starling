@@ -6906,6 +6906,10 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(RichListNumbering.labels(c.document), ["1.", "2.", "7.", "8."])
         let back = try DocxFormat.read(try DocxFormat.write(c.document, pageSetup: .letter)).document
         XCTAssertEqual(RichListNumbering.labels(back), ["1.", "2.", "7.", "8."])
+        // LISTS_OUT=<path>: leave the file for a Word open check (expect 1. 2. 7. 8.).
+        if let out = ProcessInfo.processInfo.environment["LISTS_OUT"] {
+            try DocxFormat.write(c.document, pageSetup: .letter).write(to: URL(fileURLWithPath: out))
+        }
     }
 
     func testALevelOfNoneShowsNoNumber() {
