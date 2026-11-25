@@ -13,6 +13,14 @@ final class SheetsPrintTests: XCTestCase {
         _ = OfficeFonts.register()
     }
 
+    func testDotumGulimPrintAscentDescent() {
+        // Excel prints Dotum/Gulim lines on a 0.90 em ascent and 0.21 em descent (ko-d7d378fab4: 82.7 to 80.3, Excel 80.5).
+        for f in ["돋움", "굴림", "Dotum", "Gulim"] {
+            XCTAssertEqual(SheetPrintMetrics.printAscent(family: f) ?? -1, 0.90, accuracy: 1e-9, f)
+            XCTAssertEqual(SheetPrintMetrics.printDescent(family: f) ?? -1, 0.21, accuracy: 1e-9, f)
+        }
+    }
+
     func testPagesGoDownThenOver() {
         // 12 columns of 64pt (768pt) and 60 rows of 15pt (900pt) on Letter
         // with Normal margins: 511.2pt by 684pt a page.

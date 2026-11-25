@@ -325,6 +325,9 @@ struct SheetPrintMetrics {
         "century": 0.9858, "georgia": 0.917, "trebuchet ms": 0.939, "consolas": 0.9199, "comic sans ms": 1.1021,
         "arial narrow": 0.9355, "arial black": 1.1006, "franklin gothic medium": 0.9165, "gill sans mt": 0.9292,
         "candara": 0.9521, "corbel": 0.9521, "constantia": 0.9521,
+        // (Dotum and Gulim: a line of 1.11 em, as the wrapped lines of the ko-xls prints step; the baseline 0.65 em over the
+        // centre line, 0.11 em higher than the stand-in's, the offset of ko-d7d378fab4's single lines.)
+        "dotum": 0.90, "gulim": 0.90,
     ]
 
     /// A face's descent, in its size, as `ascent` is its ascent: what
@@ -344,7 +347,7 @@ struct SheetPrintMetrics {
         "garamond": 0.2632, "book antiqua": 0.2822, "palatino linotype": 0.2993, "bookman old style": 0.2319,
         "century": 0.2158, "georgia": 0.2192, "trebuchet ms": 0.2222, "consolas": 0.251, "comic sans ms": 0.2915,
         "arial narrow": 0.2119, "arial black": 0.3096, "franklin gothic medium": 0.2173, "gill sans mt": 0.2305,
-        "candara": 0.2686, "corbel": 0.2686, "constantia": 0.2686,
+        "candara": 0.2686, "corbel": 0.2686, "constantia": 0.2686, "dotum": 0.21, "gulim": 0.21,
     ]
 
     /// A measured value at `size`: between the sizes measured, and in
