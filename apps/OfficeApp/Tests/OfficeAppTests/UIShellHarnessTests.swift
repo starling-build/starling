@@ -46,6 +46,35 @@ final class UIShellHarnessTests: XCTestCase {
         XCTAssertEqual(state(), false)
     }
 
+    /// W-OB-3/4: a real pointer press on a text box selects it, a drag moves it, a click on the selected box enters its text.
+    func testPointerSelectsDragsAndEntersATextBox() throws {
+        let controller = RichDocumentController(document: RichDocument(paragraphs: [RichParagraph(text: "Some body text before the box.")]))
+        controller.insertImage(try XCTUnwrap(TextBoxInsert.make(text: "Boxed")))
+        let at = try XCTUnwrap(controller.document.paragraphs.firstIndex { $0.image?.textBox != nil }, "the box is a paragraph of its own")
+        controller.selectImage(at: at)
+        var rect: Rect?
+        var entered = 0
+        let ui = app(SizedBox(width: 800, height: 600, child: RichEditable(
+            controller: controller, onTextBoxEnter: { _, _, _ in entered += 1 }, onBoxRect: { rect = $0 })))
+        for _ in 0 ..< 3 { ui.pump(); RunLoop.main.run(until: Date().addingTimeInterval(0.05)) }
+        let editor = try XCTUnwrap(ui.elements().first { $0.widget is RichEditable })
+        let box = try XCTUnwrap(editor.findRenderObject() as? RenderBox)
+        let r = try XCTUnwrap(rect, "the inserted box is selected and drawn")
+        let centre = box.localToGlobal(r.center)
+        func floatX() -> Double? {
+            controller.document.paragraphs.compactMap { $0.image?.float?.x }.first
+                ?? controller.document.paragraphs.compactMap { $0.inlineImages.inOrder.first?.float?.x }.first
+        }
+        let x0 = floatX()
+        ui.drag(from: centre, to: Offset(centre.dx + 40, centre.dy + 20), kind: .mouse)
+        ui.pump(); RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+        if let a = x0, let b = floatX() { XCTAssertGreaterThan(b, a, "dragging the selected box moves it right") }
+        XCTAssertEqual(entered, 0, "a drag does not enter the text")
+        let r2 = try XCTUnwrap(rect)
+        ui.click(at: box.localToGlobal(r2.center), kind: .mouse)
+        XCTAssertEqual(entered, 1, "a click on the selected box enters its text")
+    }
+
     func testTheSlidesShellBuildsAndItsTabsTap() {
         let ui = app(SlidesShell(initialPath: nil, startBlank: true, onSwitch: { _, _ in }))
         XCTAssertNotNil(ui.state(SlidesShellState.self))
