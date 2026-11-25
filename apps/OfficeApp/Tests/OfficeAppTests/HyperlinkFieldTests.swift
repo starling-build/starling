@@ -100,6 +100,13 @@ extension HyperlinkFieldTests {
         let (_, xml) = try roundTrip("<w:p>\(fc("begin"))\(it("HYPERLINK \"http://x.y\""))\(fc("separate"))<w:r><w:rPr><w:rStyle w:val=\"Hyperlink\"/></w:rPr><w:t>go</w:t></w:r>\(fc("end"))</w:p>")
         XCTAssertFalse(xml.contains("<w:rPr><w:rStyle w:val=\"Hyperlink\"/></w:rPr><w:fldChar"))
         XCTAssertFalse(xml.contains("<w:rStyle w:val=\"Hyperlink\"/></w:rPr><w:instrText"))
-        XCTAssertTrue(xml.contains("<w:rStyle w:val=\"Hyperlink\"/></w:rPr><w:t>go"))
+        XCTAssertTrue(xml.contains("<w:rStyle w:val=\"Hyperlink\"/></w:rPr><w:t xml:space=\"preserve\">go"))
+    }
+}
+
+extension HyperlinkFieldTests {
+    func testNeighbouringRunsOfOneTargetShareOneHyperlink() throws {
+        let (_, xml) = try roundTrip("<w:p><w:hyperlink w:anchor=\"bm\"><w:r><w:t>a</w:t></w:r><w:r><w:tab/></w:r><w:r><w:t>b</w:t></w:r></w:hyperlink></w:p>")
+        XCTAssertEqual(xml.components(separatedBy: "<w:hyperlink ").count - 1, 1)
     }
 }

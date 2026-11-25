@@ -1426,6 +1426,8 @@ extension DocxFormat {
             var pos = 0
             let utf16 = p.text.utf16
             let boxRanges = p.checkBoxes.map(\.range)   // a content-control check box shows its glyph as text, not as a legacy form field
+            // (Runs of the same target that follow each other share one w:hyperlink, as Word writes an entry.)
+            var linkOpen = "", linkClosedAt = -1
             for (runIndex, run) in p.runs.enumerated() where run.length > 0 {
                 body += bookmarkXML(at: pos) + controlXML(at: pos)
                 let a = utf16.index(utf16.startIndex, offsetBy: pos)
@@ -1565,11 +1567,15 @@ extension DocxFormat {
                     if !same(after) { body += "<w:r><w:fldChar w:fldCharType=\"end\"/></w:r>" }
                 } else if let link = s.link {
                     let tip = s.linkTip.map { " w:tooltip=\"\(_esc($0))\"" } ?? ""
-                    if link.hasPrefix("#") {
-                        body += "<w:hyperlink w:anchor=\"\(_esc(String(link.dropFirst())))\"\(tip)>\(runXML)</w:hyperlink>"
+                    let open = link.hasPrefix("#") ? "<w:hyperlink w:anchor=\"\(_esc(String(link.dropFirst())))\"\(tip)>"
+                        : "<w:hyperlink r:id=\"\(relId(for: link))\"\(tip)>"
+                    if open == linkOpen, body.utf8.count == linkClosedAt {
+                        body.removeLast("</w:hyperlink>".count)
+                        body += runXML + "</w:hyperlink>"
                     } else {
-                        body += "<w:hyperlink r:id=\"\(relId(for: link))\"\(tip)>\(runXML)</w:hyperlink>"
+                        body += open + runXML + "</w:hyperlink>"
                     }
+                    linkOpen = open; linkClosedAt = body.utf8.count
                 } else {
                     body += runXML
                 }
