@@ -53,4 +53,25 @@ final class MoreColorsTests: XCTestCase {
         ui.tap(text: "More Colors…"); settle()
         XCTAssertTrue(ui.texts().contains("Standard Colors"))
     }
+
+    /// The web build is wasm32, where Int is 32 bits: `Color(Int(0xFF…))` (any opaque colour
+    /// computed as an unsigned number) traps there and crashed More Colors…. Native's 64-bit Int
+    /// never shows it, so this checks the source: build such colours with `Color(Int64(…))`.
+    func testNoOpaqueColourGoesThroughA32BitInt() throws {
+        let sources = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Sources")
+        let files = try XCTUnwrap(FileManager.default.enumerator(at: sources, includingPropertiesForKeys: nil))
+        var hits: [String] = []
+        for case let url as URL in files where url.pathExtension == "swift" {
+            let text = try String(contentsOf: url, encoding: .utf8)
+            for (n, line) in text.split(separator: "\n", omittingEmptySubsequences: false).enumerated()
+            where line.contains("Color(Int(0xFF") || line.contains("Color(Int(0xff") {
+                hits.append("\(url.lastPathComponent):\(n + 1)")
+            }
+        }
+        XCTAssertEqual(hits, [], "Color(Int(0xFF…)) traps on wasm32; use Color(Int64(…))")
+        XCTAssertEqual(ColorBar.theme.count, 6)
+        XCTAssertEqual(ColorBar.theme[0][4].value, 0xFF4472C4)
+    }
 }
