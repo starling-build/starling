@@ -1360,6 +1360,12 @@ final class OfficeShellState: State<StatefulWidget> {
             if controller.updateFields(pageOf: info.label, pageCount: info.count) == 0 { _flash("No field here needs updating") }
             return true
         }
+        // Alt+Shift+P puts a page-number field at the caret.
+        if KeyChordTracker.letter(key.logical) == "p", mods.contains(.alt), mods.contains(.shift), !mods.contains(.primary) {
+            let info = PdfExport.pageInfo(controller.document, pageSetup: session.pageSetup, theme: session.theme)
+            controller.insertField(" PAGE ", result: info.label(controller.document.clamped(controller.selection.focus).paragraph) ?? "1")
+            return true
+        }
         // Shift+F9 shows or hides the field code at the caret; Alt+F9 all of them.
         if named == .function(9), mods.contains(.shift) || mods.contains(.alt) {
             controller.toggleFieldCodes(all: mods.contains(.alt))
@@ -1609,7 +1615,11 @@ final class OfficeShellState: State<StatefulWidget> {
                 Positioned(left: 0, top: 0, right: 0, bottom: 0, child: Listener(
                     onPointerDown: { [weak self] _ in self?._commitNote() }, behavior: .translucent, child: SizedBox(expand: ()))),
                 Positioned(left: box.left, top: box.top, child: SizedBox(width: max(box.width, 240),
-                    child: FluentTextBox(controller: _noteText, maxLines: 8, autofocus: true))),
+                    child: FluentTextBox(controller: _noteText, maxLines: 8,
+                        style: TextStyle(color: Color(0xFF000000), fontSize: 10 * 96 / 72 * session.zoom),
+                        padding: EdgeInsets.zero,
+                        decoration: BoxDecoration(color: Color(0xFFFFFFFF)), focusedDecoration: BoxDecoration(color: Color(0xFFFFFFFF)),
+                        showFocusRing: false, autofocus: true))),
             ])
         }
         if _pageSetupOpen {

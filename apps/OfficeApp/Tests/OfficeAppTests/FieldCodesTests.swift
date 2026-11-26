@@ -1,4 +1,7 @@
 import XCTest
+import Flutter
+import FlutterSwiftBridge
+@testable import OfficeApp
 @testable import OfficeText
 
 /// Shift+F9 / Alt+F9: a field shows as its instruction in braces and goes back to its result.
@@ -89,5 +92,36 @@ final class FieldCodesTests: XCTestCase {
         c.selectAll()
         XCTAssertEqual(c.updateFields(pageOf: { (_: Int) -> String? in nil }, pageCount: 1), 1)
         XCTAssertEqual(c.document.paragraphs[0].text, "see 2")
+    }
+
+    func testInsertedPageFieldIsARealFieldAndF9Updates() throws {
+        let c = RichDocumentController(plainText: "Page ")
+        c.moveTo(RichPosition(paragraph: 0, offset: 5), extend: false)
+        c.insertField(" PAGE ", result: "1")
+        XCTAssertEqual(c.document.paragraphs[0].text, "Page 1")
+        XCTAssertEqual(c.updateFields(pageOf: { (_: Int) -> String? in "3" }, pageCount: 4), 1)
+        XCTAssertEqual(c.document.paragraphs[0].text, "Page 3")
+        let xml = String(decoding: try Zip.read(try DocxFormat.write(c.document, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
+        XCTAssertTrue(xml.contains("PAGE"))
+        c.undo(); c.undo()
+        XCTAssertEqual(c.document.paragraphs[0].text, "Page ")
+    }
+}
+
+/// Alt+Shift+P in the shell: a real PAGE field at the caret of a Writer body.
+final class PageFieldShortcutTests: XCTestCase {
+    func testAltShiftPPutsAPageFieldAtTheCaret() {
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light),
+                                        home: OfficeShell(initialPath: nil, startBlank: true), title: "T"),
+                              size: Size(1280, 800))
+        let state = ui.state(OfficeShellState.self)!
+        state.session.controller.insertText("Page ")
+        let p = KeyData(timeStamp: 0, type: .down, physical: 0, logical: 0x70, character: nil, synthesized: false)
+        XCTAssertTrue(state._shortcut(p, [.alt, .shift]))
+        ui.pump()
+        let para = state.session.controller.document.paragraphs[0]
+        XCTAssertEqual(para.text, "Page 1")
+        XCTAssertEqual(para.style(at: 6).preservedField, " PAGE ")
+        XCTAssertEqual(state.session.controller.selection.focus.offset, 6)
     }
 }
