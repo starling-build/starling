@@ -141,7 +141,7 @@ extension WorkbookController {
         }
     }
 
-    /// After an x14 rule left: drop a block with no rule, then a container with no block, then an ext with no container.
+    /// After an x14 rule left: drop a block with no rule, a container with no rule, then an ext left empty.
     private static func _tidyExt(_ text: String) -> String {
         var t = text
         func drop(_ open: String, _ close: String, unless inner: String) {
@@ -153,8 +153,8 @@ extension WorkbookController {
             }
         }
         drop("<x14:conditionalFormatting ", "</x14:conditionalFormatting>", unless: "<x14:cfRule")
-        drop("<x14:conditionalFormattings>", "</x14:conditionalFormattings>", unless: "<x14:conditionalFormatting ")
-        drop("<ext ", "</ext>", unless: "<x14:")
+        drop("<x14:conditionalFormattings>", "</x14:conditionalFormattings>", unless: "<x14:cfRule")
+        drop("<ext ", "</ext>", unless: "<")   // only an ext left empty: an x15 or sparkline ext stays
         return t
     }
 

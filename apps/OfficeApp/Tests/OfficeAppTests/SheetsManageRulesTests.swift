@@ -77,6 +77,65 @@ final class SheetsManageRulesTests: XCTestCase {
         XCTAssertNotNil(ui.state(ManageRulesDialogState.self))
     }
 
+    // X-CF-4: the 2010 icon sets live in the extension list; Manage Rules lists, orders, stops and deletes them too.
+    private func withX14(sparkline: Bool = true) -> WorkbookController {
+        let c = controller()
+        if sparkline {
+            c.sheet.keptElements.append(("extLst", "<extLst><ext uri=\"{05C60535-1F16-4fd2-B633-F4F36F0B64E0}\" xmlns:x14=\"http://schemas.microsoft.com/office/spreadsheetml/2009/9/main\"><x14:sparklineGroups/></ext><ext uri=\"{FCE2AD5D-F65C-4FA6-A056-5C36A1767C68}\" xmlns:x15=\"http://schemas.microsoft.com/office/spreadsheetml/2010/11/main\"><x15:dataModel/></ext></extLst>"))
+        }
+        XCTAssertNil(c.addConditionalFormat(CFSpec(kind: .iconSet("3Stars")), on: [CellRange("D1:D9")!]))
+        return c
+    }
+
+    func testA2010IconSetIsListedWithTheOthers() throws {
+        let c = withX14()
+        let rows = c.conditionalRuleRows()
+        XCTAssertEqual(rows.map { $0.summary }, ["Cell value > 5", "Top 3", "Data bar", "Icon set"])
+        XCTAssertEqual(rows.last?.applies, "D1:D9")
+        XCTAssertEqual(rows.last?.ext, true)
+        XCTAssertEqual(try reopen(c).conditionalRuleRows().map { $0.summary }, ["Cell value > 5", "Top 3", "Data bar", "Icon set"])
+    }
+
+    func testA2010IconSetMovesAndStopsAndASaveKeepsIt() throws {
+        let c = withX14()
+        c.moveConditionalRule(c.conditionalRuleRows()[3], up: true)
+        XCTAssertEqual(c.conditionalRuleRows().map { $0.summary }, ["Cell value > 5", "Top 3", "Icon set", "Data bar"])
+        c.setConditionalStopIfTrue(c.conditionalRuleRows()[2], true)
+        let again = try reopen(c)
+        XCTAssertEqual(again.conditionalRuleRows().map { $0.summary }, ["Cell value > 5", "Top 3", "Icon set", "Data bar"])
+        XCTAssertEqual(again.conditionalRuleRows().map { $0.stopIfTrue }, [false, false, true, false])
+        c.undo(); c.undo()
+        XCTAssertEqual(c.conditionalRuleRows().map { $0.summary }, ["Cell value > 5", "Top 3", "Data bar", "Icon set"])
+    }
+
+    func testDeletingA2010IconSetKeepsTheOtherExtensions() throws {
+        let c = withX14()
+        c.deleteConditionalRule(c.conditionalRuleRows()[3])
+        XCTAssertEqual(c.conditionalRuleRows().map { $0.summary }, ["Cell value > 5", "Top 3", "Data bar"])
+        let ext = c.sheet.keptElements.filter { $0.name == "extLst" }.map { $0.text }.joined()
+        XCTAssertFalse(ext.containsSubstring("x14:conditionalFormatting"))
+        XCTAssertTrue(ext.containsSubstring("<x14:sparklineGroups/>"))
+        XCTAssertTrue(ext.containsSubstring("<x15:dataModel/>"))
+        XCTAssertEqual(try reopen(c).conditionalRuleRows().count, 3)
+        c.undo()
+        XCTAssertEqual(c.conditionalRuleRows().last?.summary, "Icon set")
+    }
+
+    func testDeletingTheOnly2010IconSetLeavesNoEmptyExtension() {
+        let c = withX14(sparkline: false)
+        c.deleteConditionalRule(c.conditionalRuleRows()[3])
+        XCTAssertFalse(c.sheet.keptElements.contains { $0.name == "extLst" })
+    }
+
+    func testTheDialogPicksA2010IconSet() {
+        let c = withX14()
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light),
+                                        home: ManageRulesDialog(controller: c, onClose: {}), title: "T"), size: Size(1280, 800))
+        XCTAssertTrue(ui.tap(text: "Icon set"))
+        XCTAssertTrue(ui.tap(id: "cf-rule-delete"))
+        XCTAssertEqual(c.conditionalRuleRows().map { $0.summary }, ["Cell value > 5", "Top 3", "Data bar"])
+    }
+
     /// For the Excel check: set STARLING_UI_CHECK_DIR and the book is written there.
     func testSaveForExcel() throws {
         guard let dir = ProcessInfo.processInfo.environment["STARLING_UI_CHECK_DIR"] else { throw XCTSkip("no check folder") }
@@ -86,5 +145,13 @@ final class SheetsManageRulesTests: XCTestCase {
         c.setConditionalStopIfTrue(c.conditionalRuleRows()[0], true)
         c.deleteConditionalRule(c.conditionalRuleRows()[2])
         try Xlsx.write(c.book).write(to: URL(fileURLWithPath: dir + "/cf-manage-rules.xlsx"))
+        // X-CF-4: a 2010 set moved up one, stopped, and a second one deleted.
+        let x = withX14()
+        XCTAssertNil(x.addConditionalFormat(CFSpec(kind: .iconSet("5Boxes")), on: [CellRange("E1:E9")!]))
+        for r in 0 ..< 9 { for col in 0 ... 4 { x.setInput("\((r + 1) * (col + 1))", at: CellAddress(row: r, col: col)) } }
+        x.moveConditionalRule(x.conditionalRuleRows()[3], up: true)
+        x.setConditionalStopIfTrue(x.conditionalRuleRows()[2], true)
+        x.deleteConditionalRule(x.conditionalRuleRows()[4])
+        try Xlsx.write(x.book).write(to: URL(fileURLWithPath: dir + "/cf-manage-x14.xlsx"))
     }
 }
