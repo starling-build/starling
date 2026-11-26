@@ -643,16 +643,20 @@ final class ShapeSelectTests: XCTestCase {
         layout.ensureLaidOut(doc)
         let body = try XCTUnwrap(doc.paragraphs.firstIndex { $0.text.hasPrefix("Body text") })
         let px = theme.pixelsPerPoint
-        var rows: [Double: [Double]] = [:]
+        // Each caret with its own line's band (top and bottom, column points), so which lines are checked follows the
+        // line heights of the faces this host draws with, not one host's row tops.
+        var carets: [(top: Double, bottom: Double, left: Double)] = []
         for off in stride(from: 0, to: 2400, by: 3) {
             let r = layout.caretRect(RichPosition(paragraph: body, offset: off), doc)
-            rows[(r.top / px).rounded(), default: []].append(r.left / px)
+            carets.append((r.top / px, r.bottom / px, r.left / px))
         }
-        // (The ellipse stands at 128...228 across the column, rows 128...198 down; its widest rows are the middle ones.)
-        // (A caret in a left piece reports the row of the piece before it, so the rows are taken together.)
-        let lefts = rows.filter { $0.key > 120 && $0.key < 200 }.flatMap(\.value)
+        // (The ellipse stands at 128...228 across the column, rows 128...198 down, set from the page: no font moves it.
+        // Its widest rows are the middle ones, 150...176.)
+        // (A caret in a left piece reports the row of the piece before it, so the lines beside it are taken together.)
+        func beside(_ top: Double, _ bottom: Double) -> [Double] { carets.filter { $0.bottom > top && $0.top < bottom }.map(\.left) }
+        let lefts = beside(128, 198)
         XCTAssertFalse(lefts.isEmpty)
-        XCTAssertFalse(rows.filter { $0.key > 150 && $0.key < 176 }.flatMap(\.value).contains { $0 > 125 && $0 < 235 }, "no text inside the ellipse's widest rows")
+        XCTAssertFalse(beside(150, 176).contains { $0 > 125 && $0 < 235 }, "no text inside the ellipse's widest rows")
         XCTAssertTrue(lefts.contains { $0 < 119 }, "a left piece")
         XCTAssertTrue(lefts.contains { $0 > 236 }, "a right piece")
     }
