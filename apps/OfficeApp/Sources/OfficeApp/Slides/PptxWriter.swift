@@ -941,9 +941,13 @@ private struct SlideXML {
     }
 
     /// The alt text to set on a kept element's `cNvPr`: nil while it is as it was read.
-    private func _altChange(_ s: ShapeState) -> (descr: String?, title: String?)? {
-        guard let r = s.readShape, r.altText != s.altText || r.altTitle != s.altTitle else { return nil }
-        return (s.altText, s.altTitle)
+    /// A kept picture has no read shape: `pictureAlt` is the descr its kept record holds.
+    private func _altChange(_ s: ShapeState, pictureAlt: String?? = nil) -> (descr: String?, title: String?)? {
+        if let r = s.readShape {
+            return r.altText != s.altText || r.altTitle != s.altTitle ? (s.altText, s.altTitle) : nil
+        }
+        if let was = pictureAlt, was != s.altText { return (s.altText, s.altTitle) }
+        return nil
     }
 
     private mutating func _id(_ preferred: Int? = nil) -> Int {
@@ -1172,14 +1176,14 @@ private struct SlideXML {
             // shape crop, flip, fill and outline are not modelled here.
             if let xml = s.sourceXML, let k = s.keptPicture, k.imageId == image.id, k.crop == s.crop,
                k.rotation == s.rotation, let p = source, let part = s.sourcePart {
-                return kept(xml, sourcePart: part, package: p, builder: &builder, patch: s.frame, fileId: s.fileId, alt: _altChange(s))
+                return kept(xml, sourcePart: part, package: p, builder: &builder, patch: s.frame, fileId: s.fileId, alt: _altChange(s, pictureAlt: .some(k.alt)))
             }
             // The same image, turned or cropped since it was read: the picture as it was with only the turn and the crop changed, so its
             // recolouring, transparency, flip, shape and outline stay.
             if let xml = s.sourceXML, let k = s.keptPicture, k.imageId == image.id, let p = source, let part = s.sourcePart {
                 let crop = s.crop, rotation = s.rotation, flipH = s.flipH, flipV = s.flipV
                 let lock = s.aspectLock
-                return kept(xml, sourcePart: part, package: p, builder: &builder, patch: s.frame, fileId: s.fileId, alt: _altChange(s), edit: { node in
+                return kept(xml, sourcePart: part, package: p, builder: &builder, patch: s.frame, fileId: s.fileId, alt: _altChange(s, pictureAlt: .some(k.alt)), edit: { node in
                     if let lock { Self._lockEdit(lock)(node) }
                     if let x = node.first("p:spPr")?.first("a:xfrm") {
                         if rotation != 0 { x.attrs["rot"] = "\(Int((rotation * 60000).rounded()))" } else { x.attrs["rot"] = nil }
