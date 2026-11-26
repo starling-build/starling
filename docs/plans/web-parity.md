@@ -45,7 +45,19 @@ First run: Sheets crashed on select-all ("RuntimeError: unreachable"): a whole
 sheet is 2^34 cells and `rows * cols` overflowed wasm32's 32-bit Int. FIXED:
 `CellRange.area` saturates, every Sheets call site uses it (SheetsRangeAreaTests).
 After: Word 92 ok, Slides 155 ok, Sheets 106 ok (7 tabs), 0 throw.
-Not walked yet: dialog contents, the File backstage, right-click menus.
+Second walk (2026-11-26, amd-11): the walk now also opens each drop-down and
+dialog and clicks its rows, the File backstage, and the right-click menu
+(`controls` lists the overlay too). It found two bugs, both FIXED:
+- No drop-down opened after a dialog had opened under a showing tooltip (native
+  too). The tooltip's removal dirtied the Overlay during the window's rebuild;
+  `buildScope` re-sorted and skipped it, and it stayed dirty forever, so every
+  later menu insert was ignored. `buildScope` steps back after a re-sort, as
+  upstream does (TooltipDialogTests).
+- Word Font Color → More Colors… trapped on web: `Color(Int(0xFF…))` does not
+  fit wasm32's Int. Int64 now (MoreColorsTests covers the path natively).
+After: Word 385 rows, Slides 409, Sheets 250; 0 throw. The NOT-FOUND rows are
+the More Colors strip's swatches (it stays open across tabs by design) and
+menu rows that only exist with a selection.
 
 ## 3. Proposal (not wired): keep the web build from breaking silently
 

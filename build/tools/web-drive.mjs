@@ -34,7 +34,11 @@
 //                        control in OUT (app, tab, tip, ok or THREW and the
 //                        page's error); the page is reloaded and FILE
 //                        reopened after a failure. TABS (comma list)
-//                        limits the tabs. The browser's ControlSweepTests.
+//                        limits the tabs. Then every control a button
+//                        brought up (a dialog's, a menu's: SUB=0 skips),
+//                        each File backstage entry (FILE=0 skips) and each
+//                        right-click menu item (CONTEXT=0 skips), each with
+//                        its own showing. The browser's ControlSweepTests.
 //   wait MS              sleep
 //   shot FILE            screenshot to FILE (PNG)
 //   canvas FILE          save the rendered app canvas to FILE (PNG)
@@ -294,7 +298,7 @@ try {
       const escape = async () => {
         for (let i = 0; i < 2; i++) { await key('keyDown', { key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 }); await key('keyUp', { key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 }); await sleep(150); }
       };
-      const click = async (x, y) => { await mouse('mouseMoved', x, y); await mouse('mousePressed', x, y); await sleep(60); await mouse('mouseReleased', x, y); };
+      const click = async (x, y) => { await mouse('mouseMoved', x, y); await sleep(50); await mouse('mousePressed', x, y); await sleep(80); await mouse('mouseReleased', x, y); };
       // A file picker (Open, Insert Picture) is swallowed, not left open.
       await send('Page.setInterceptFileChooserDialog', { enabled: true }).catch(() => null);
       await send('Browser.setDownloadBehavior', { behavior: 'deny' }).catch(() => null);
@@ -315,6 +319,41 @@ try {
       const controls = async () => ((await debug('controls')) || '').split('\n').filter(Boolean).map((l) => {
         const [kind, x, y, label] = l.split('\t'); return { kind, x: +x, y: +y, label };
       }).filter((c) => c.x >= 0 && c.y >= 0 && c.x < W && c.y < H);
+      // A control a click brought up (a dialog's buttons, a menu's items):
+      // in `after`, not in `before`, compared by kind, label and place (a
+      // menu's Cut is not the ribbon's Cut).
+      const spot = (c) => `${c.kind}\t${c.label}\t${c.x}\t${c.y}`;
+      const appeared = (before, after) => {
+        const seen = new Set(before.map(spot));
+        return [...new Map(after.filter((c) => !seen.has(spot(c))).map((c) => [spot(c), c])).values()];
+      };
+      // The same control on a new showing: the nearest one of its kind and label.
+      const again = (list, item) => list.filter((d) => d.kind === item.kind && d.label === item.label)
+        .sort((a, b) => Math.hypot(a.x - item.x, a.y - item.y) - Math.hypot(b.x - item.x, b.y - item.y))[0];
+      // Clicks each control `show` brings up, one per showing, and records
+      // it as `where` > label. `show` resets nothing: it is called after
+      // Escape (or a reload, after a failure).
+      const probe = async (where, show) => {
+        const base = await controls();
+        await show();
+        const items = appeared(base, await controls()).slice(0, +(process.env.SUB_MAX || 40));
+        await escape();
+        for (const item of items) {
+          await show();
+          const c = again(await controls(), item);
+          if (!c) { appendFileSync(out, `${app}\t${where}\t${item.label}\tNOT-FOUND\n`); await escape(); continue; }
+          const before = thrown;
+          await click(c.x, c.y);
+          await sleep(+(process.env.STEP_MS || 1000));
+          let verdict = 'ok';
+          if (thrown > before) verdict = `THREW\t${lastThrown.slice(0, 200)}`;
+          else if ((await debug('name')) == null) verdict = 'DEAD\tthe app stopped answering';
+          appendFileSync(out, `${app}\t${where}\t${item.label}\t${verdict}\n`);
+          if (verdict !== 'ok') { console.log(`${app}\t${where}\t${item.label}\t${verdict}`); await open(true); continue; }
+          await escape();
+          if ((await debug('name')) !== name) await open(true);
+        }
+      };
       const tabNames = (process.env.TABS || 'File,Home,Insert,Draw,Design,Layout,References,Mailings,Transitions,Animations,Slide Show,Review,View,Formulas,Page Layout,Data,Help').split(',');
       await open(false);
       const app = name.replace(/^.*\./, '');
@@ -341,6 +380,47 @@ try {
           await escape();
           if ((await debug('name')) !== name) await open(true);
         }
+        // What each button opened: a dialog's or a menu's own controls.
+        if (process.env.SUB !== '0') {
+          for (const tip of tips) {
+            await showTab();
+            const base = await controls();
+            const c = base.find((d) => d.kind === 'tip' && d.label === tip);
+            if (!c) continue;
+            await click(c.x, c.y); await sleep(+(process.env.STEP_MS || 1000));
+            const opened = appeared(base, await controls()).length;
+            await escape();
+            // A menu or a dialog goes away on Escape; what stays (a new
+            // sheet's tab, AutoSave's on/off) changed the document instead.
+            const stayed = appeared(base, await controls()).length;
+            if ((await debug('name')) !== name) await open(true);
+            // One changed text (a zoom %, a font size) is not a menu.
+            if (opened < 2 || stayed > 0) continue;
+            await probe(`${tab} > ${tip}`, async () => {
+              await showTab();
+              const b = (await controls()).find((d) => d.kind === 'tip' && d.label === tip);
+              if (b) { await click(b.x, b.y); await sleep(+(process.env.STEP_MS || 1000)); }
+            });
+          }
+        }
+      }
+      // The File backstage: every entry in it, one at a time.
+      if (process.env.FILE !== '0') {
+        await probe('File', async () => {
+          const f = (await controls()).find((c) => c.kind === 'text' && c.y < 140 && c.label === 'File');
+          if (f) { await click(f.x, f.y); await sleep(+(process.env.STEP_MS || 1000)); }
+        });
+      }
+      // The right-click menu on the document (the middle of the window).
+      if (process.env.CONTEXT !== '0') {
+        await probe('Right-click', async () => {
+          const x = W / 2, y = H / 2;
+          await mouse('mouseMoved', x, y);
+          await send('Input.dispatchMouseEvent', { type: 'mousePressed', x, y, button: 'right', buttons: 2, clickCount: 1 });
+          await sleep(60);
+          await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x, y, button: 'right', buttons: 0, clickCount: 1 });
+          await sleep(+(process.env.STEP_MS || 1000));
+        });
       }
     } else if (op === 'downloads') {
       await send('Browser.setDownloadBehavior', { behavior: 'allow', downloadPath: args.shift(), eventsEnabled: true });

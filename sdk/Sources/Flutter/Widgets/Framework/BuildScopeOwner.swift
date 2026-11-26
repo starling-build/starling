@@ -146,6 +146,16 @@ public class BuildOwner {
                 // More elements were dirtied during rebuild
                 buildScope._dirtyElements.sort { $0.depth < $1.depth }
                 dirtyCount = buildScope._dirtyElements.count
+                // An element dirtied above the current one sorts in before
+                // `index`: step back so it is built this pass. Skipped, it
+                // stays `_dirty` with no list entry, and every later
+                // markNeedsBuild returns early: the element never rebuilds
+                // again (a Tooltip removed while a dialog remounted the
+                // window wedged the Overlay, so no menu could open).
+                // Upstream framework.dart buildScope does the same.
+                while index > 0 && buildScope._dirtyElements[index - 1]._dirty {
+                    index -= 1
+                }
             }
         }
 

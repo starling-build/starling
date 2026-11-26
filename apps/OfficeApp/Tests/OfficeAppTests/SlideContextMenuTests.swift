@@ -47,6 +47,18 @@ final class SlideContextMenuTests: XCTestCase {
         _ = before
     }
 
+    /// The browser's control walk lists what to click with `starling.debug('controls')`; a menu sits in the overlay
+    /// above the shell, so the list must start from the top of the tree or the menu's rows are never clicked.
+    func testTheControlListIncludesAnOpenMenusRows() throws {
+        let (ui, _, canvas) = try shell()
+        let context = try XCTUnwrap(ui.state(SlidesShellState.self)?.context)
+        func rows() -> Int { ControlList.text(context).split(separator: "\n").filter { $0.hasSuffix("\tSelect All") }.count }
+        let before = rows()
+        ui.tap(at: canvas.screenPoint(Offset(-8, -8)), buttons: kSecondaryMouseButton)
+        settle(ui)
+        XCTAssertEqual(rows(), before + 1, "the open menu's Select All is listed")
+    }
+
     func testRightClickOnTheEmptySlideOffersSelectAllAndPaste() throws {
         let (ui, deck, canvas) = try shell()
         deck.selectShapes([deck.currentSlide.shapes[0]])
