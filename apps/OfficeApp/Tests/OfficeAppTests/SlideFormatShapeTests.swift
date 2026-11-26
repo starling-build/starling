@@ -257,6 +257,28 @@ final class SlideFormatShapeTests: XCTestCase {
         XCTAssertEqual(v.y * cos(lat) - qz0 * sin(lat), 0, accuracy: 1e-9)
     }
 
+    func testObliqueAndSquareOnFacesCatchThreePtGlint() throws {
+        // Non-legacy oblique presets look at the face along their own slide, and PowerPoint's
+        // prints (rotation-check) add white the same way: Right .037, Top .009, BottomRight .107,
+        // BottomLeft .037.
+        for (camera, ppt) in [("obliqueRight", 0.037), ("obliqueTop", 0.009), ("obliqueBottomRight", 0.107),
+                              ("obliqueBottomLeft", 0.037)] {
+            let s = try XCTUnwrap(Extrusion.scene(camera: camera, from: Scene3D(depth: 10)))
+            XCTAssertEqual(Extrusion.threePtFaceWhite(toward: Extrusion.towardEye(s)), ppt, accuracy: 0.012, camera)
+        }
+        // Looking square on, the face still catches .025 (perspectiveFront prints it); an
+        // orthographicFront or legacy camera stays plain.
+        XCTAssertEqual(Extrusion.threePtFaceWhite(toward: Extrusion.P3(x: 0, y: 0, z: 1)), 0.025, accuracy: 0.005)
+        var s = Scene3D(depth: 0)
+        for (camera, glints) in [("perspectiveFront", true), ("obliqueTopLeft", true), ("orthographicFront", false),
+                                 ("legacyObliqueFront", false)] {
+            s.cameraName = camera; s.legacy = camera.hasPrefix("legacy")
+            XCTAssertEqual(Extrusion.glintsSquareOn(s), glints, camera)
+        }
+        s.cameraName = "perspectiveFront"; s.material = "matte"
+        XCTAssertFalse(Extrusion.glintsSquareOn(s))
+    }
+
     func testIsometricTopCamerasAreTrueIsometric() throws {
         // PowerPoint's print of a 130x70 rect under isometricTopUp (rotation-check.pdf): corners at (-71.5,11.5), (71.5,-12.5),
         // (21,-41.5), (-22,41.5) from the centre, i.e. rows (.707,.707) and (-.408,.408) of the turn.
