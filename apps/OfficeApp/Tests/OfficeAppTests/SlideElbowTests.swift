@@ -172,15 +172,17 @@ final class SlideElbowTests: XCTestCase {
     }
 
     func testWritesThePowerPointCheckFile() throws {
-        let dir = "/data/s/amd-6/ui-check"
-        guard FileManager.default.fileExists(atPath: dir) else { return }
+        // Written only on request (AMD6_ELBOWS_DIR), so another branch's test run never overwrites the check file.
+        guard let dir = ProcessInfo.processInfo.environment["AMD6_ELBOWS_DIR"] else { return }
         let deck = DeckController()
         // One cell per connector (4 rows x 2 columns), each with its own box and oval, so nothing overlaps.
+        var glued: [SlideShape] = []
         @discardableResult
         func pair(_ col: Int, _ row: Int, oval: Offset, _ sa: Int, _ sb: Int, curved: Bool) -> SlideShape {
             let o = Offset(Double(col) * 470 + 20, Double(row) * 130 + 20)
             let a = deck.addShape(.roundRect); a.frame = Rect.fromLTWH(o.dx, o.dy + 20, 90, 40)
             let b = deck.addShape(.ellipse); b.frame = Rect.fromLTWH(o.dx + oval.dx, o.dy + oval.dy, 90, 60)
+            glued += [a, b]
             let l = elbow(deck, curved ? "curvedConnector3" : "bentConnector3")
             deck.selectShapes([l]); deck.setOutlineWidth(2); deck.setLineEnd(start: false, kind: "triangle")
             deck.connect(l, start: true, to: a, site: sa); deck.connect(l, start: false, to: b, site: sb)
@@ -196,7 +198,11 @@ final class SlideElbowTests: XCTestCase {
         pair(0, 3, oval: Offset(250, 0), 3, 3, curved: true)
         // The ellipse in the first pair moves: the elbow follows it.
         deck.selectShapes([deck.currentSlide.shapes[1]]); deck.nudgeSelection(dx: 20, dy: 10)
-        try Pptx.write(deck).write(to: URL(fileURLWithPath: dir + "/elbows.pptx"))
+        // Every glued shape moved once (there and back), so each route is the one moving a shape gives, as PowerPoint re-routes.
+        for s in glued {
+            deck.selectShapes([s]); deck.nudgeSelection(dx: 1, dy: 0); deck.nudgeSelection(dx: -1, dy: 0)
+        }
+        try Pptx.write(deck).write(to: URL(fileURLWithPath: dir + "/elbows4.pptx"))
     }
 
     func testMiddleRunHandleSitsOnTheRunAndDragsIt() {
