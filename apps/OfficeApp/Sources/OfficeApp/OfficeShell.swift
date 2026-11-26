@@ -914,10 +914,13 @@ final class OfficeShellState: State<StatefulWidget> {
         do {
             // A PDF is a download too: the renderer writes it (PdfDocument).
             if ext == "pdf" {
-                let ok = PdfExport.write(controller.document, pageSetup: session.pageSetup, theme: session.theme,
-                                         to: target, title: session.title)
+                // (After its pictures are decoded: the browser decodes them
+                // only between turns of its event loop.)
                 setState { _backstage = nil }
-                _flash(ok ? "Exported \(target.lastPathComponent)" : "Could not write the PDF")
+                PdfExport.writeWhenDecoded(controller.document, pageSetup: session.pageSetup, theme: session.theme,
+                                           to: target, title: session.title) { [weak self] ok in
+                    self?._flash(ok ? "Exported \(target.lastPathComponent)" : "Could not write the PDF")
+                }
                 return
             }
             let data = try OfficeFormats.encode(controller.document, as: ext, pageSetup: session.pageSetup)
