@@ -235,15 +235,16 @@ extension DeckController {
             let digits = n.dropFirst("ppt/slideLayouts/slideLayout".count).dropLast(4)
             if let k = Int(digits) { nextLayout = max(nextLayout, k + 1) }
         }
-        var usedIds = Set<Int>()
+        var usedIds = Set<Int64>()
         for n in q.parts.keys where n.hasPrefix("ppt/slideMasters/") && n.hasSuffix(".xml") {
             let x = q.xml(n)
-            for id in x?.first("p:sldLayoutIdLst")?.all("p:sldLayoutId") ?? [] { if let v = id["id"].flatMap(Int.init) { usedIds.insert(v) } }
+            for id in x?.first("p:sldLayoutIdLst")?.all("p:sldLayoutId") ?? [] { if let v = id["id"].flatMap(Int64.init) { usedIds.insert(v) } }
         }
         if let pres = Self._presentationPart(q) {
-            for id in q.xml(pres)?.first("p:sldMasterIdLst")?.all("p:sldMasterId") ?? [] { if let v = id["id"].flatMap(Int.init) { usedIds.insert(v) } }
+            for id in q.xml(pres)?.first("p:sldMasterIdLst")?.all("p:sldMasterId") ?? [] { if let v = id["id"].flatMap(Int64.init) { usedIds.insert(v) } }
         }
-        var nextId = max(usedIds.max() ?? 2147483648, 2147483648) + 1
+        // Slide master and layout ids start at 2^31 (ECMA-376 sldMasterId), past a 32-bit Int: Int64 for the web build.
+        var nextId: Int64 = max(usedIds.max() ?? 2147483648, 2147483648) + 1
         var kept: [String: [String]] = [:]       // master -> layout parts, in order
         var keptNames: Set<String> = []
         var mediaCount = 0
@@ -334,7 +335,7 @@ extension DeckController {
             let finals = kept[m] ?? []
             for l in finals {
                 var rid = rels.first { Pptx.resolve($0.target, from: m) == l && $0.type == RT.layout }?.id
-                var idv: Int? = rid.flatMap { r in oldList.first { $0["r:id"] == r }?["id"].flatMap(Int.init) }
+                var idv: Int64? = rid.flatMap { r in oldList.first { $0["r:id"] == r }?["id"].flatMap(Int64.init) }
                 if rid == nil {
                     var k = 1
                     while rels.contains(where: { $0.id == "rIdMvL\(k)" }) { k += 1 }
