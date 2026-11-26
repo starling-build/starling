@@ -1552,7 +1552,12 @@ struct SlideContext {
         guard sx > 0, sy > 0, abs(sx - sy) > 1e-9 else { return }
         let r = (m.rotation.truncatingRemainder(dividingBy: 360) + 360).truncatingRemainder(dividingBy: 360)
         guard (r >= 45 && r < 135) || (r >= 225 && r < 315) else { return }
+        let read = m.frame
         m.frame = Rect.fromCenter(center: m.frame.center, width: m.frame.width * sy / sx, height: m.frame.height * sx / sy)
+        // A connector kept as read is kept at the frame it now has: otherwise a plain save sees it
+        // moved and writes it fresh, without its p:style or ids (lo-tdf149124's elbow).
+        if m.keptLine?.line == read { m.keptLine?.line = m.frame }
+        if m.keptLine?.box == read { m.keptLine?.box = m.frame }
     }
 
     /// An indent past the margin (a first-line indent, the paragraph's own)

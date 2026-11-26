@@ -477,6 +477,38 @@ final class GroupAndConnectorTests: XCTestCase {
         XCTAssertEqual(again.slides[5].shapes.filter { $0.group != nil }.map(\.frame), members.map(\.frame))
     }
 
+    /// A turned elbow in a group stretched more one way than the other (lo-tdf149124): a plain save keeps
+    /// it as the file wrote it, its p:style and creation id with it, at the frame it is drawn at.
+    func testTurnedConnectorInAStretchedGroupSurvivesAPlainSave() throws {
+        let deck = SlidesSample.make()
+        var package = PptxPackage(try Zip.read(try Pptx.write(deck)))
+        var slide = String(data: package.parts["ppt/slides/slide6.xml"]!, encoding: .utf8)!
+        let group = "<p:grpSp><p:nvGrpSpPr><p:cNvPr id=\"13\" name=\"G\"/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr><a:xfrm>"
+            + "<a:off x=\"4368553\" y=\"2747083\"/><a:ext cx=\"3454894\" cy=\"1363833\"/><a:chOff x=\"3586578\" y=\"2558566\"/>"
+            + "<a:chExt cx=\"3454894\" cy=\"1337621\"/></a:xfrm></p:grpSpPr>"
+            + "<p:cxnSp><p:nvCxnSpPr><p:cNvPr id=\"7\" name=\"Elbow\"><a:extLst><a:ext uri=\"{FF2B5EF4-FFF2-40B4-BE49-F238E27FC236}\">"
+            + "<a16:creationId xmlns:a16=\"http://schemas.microsoft.com/office/drawing/2014/main\" id=\"{5DC99BAB-369E-91CB-8615-20E1D43AFBBB}\"/>"
+            + "</a:ext></a:extLst></p:cNvPr><p:cNvCxnSpPr/><p:nvPr/></p:nvCxnSpPr><p:spPr><a:xfrm rot=\"5400000\" flipH=\"1\" flipV=\"1\">"
+            + "<a:off x=\"4645214\" y=\"2085856\"/><a:ext cx=\"1337621\" cy=\"2283041\"/></a:xfrm><a:prstGeom prst=\"bentConnector3\">"
+            + "<a:avLst/></a:prstGeom><a:ln><a:tailEnd type=\"triangle\"/></a:ln></p:spPr><p:style><a:lnRef idx=\"1\"><a:schemeClr val=\"accent1\"/>"
+            + "</a:lnRef><a:fillRef idx=\"0\"><a:schemeClr val=\"accent1\"/></a:fillRef><a:effectRef idx=\"0\"><a:schemeClr val=\"accent1\"/>"
+            + "</a:effectRef><a:fontRef idx=\"minor\"><a:schemeClr val=\"tx1\"/></a:fontRef></p:style></p:cxnSp></p:grpSp>"
+        slide = slide.replacingOccurrences(of: "</p:spTree>", with: group + "</p:spTree>")
+        package.parts["ppt/slides/slide6.xml"] = Data(slide.utf8)
+        let (state, theme, pkg) = try reread(package)
+        let read = try XCTUnwrap(state.slides[5].shapes.first { $0.fileId == 7 })
+        let saved = try PptxWriter.write(state, theme: theme, package: pkg)
+        let out = String(data: PptxPackage(try Zip.read(saved)).parts["ppt/slides/slide6.xml"]!, encoding: .utf8)!
+        XCTAssertTrue(out.contains("<a:lnRef idx=\"1\">"), "its p:style survives")
+        XCTAssertTrue(out.contains("5DC99BAB-369E-91CB-8615-20E1D43AFBBB"), "its creation id survives")
+        let (again, _, _) = try Pptx.read(saved)
+        let back = try XCTUnwrap(again.slides[5].shapes.first { $0.fileId == 7 })
+        XCTAssertEqual(back.frame.center.dx, read.frame.center.dx, accuracy: 0.01)
+        XCTAssertEqual(back.frame.center.dy, read.frame.center.dy, accuracy: 0.01)
+        XCTAssertEqual(back.frame.width, read.frame.width, accuracy: 0.01)
+        XCTAssertEqual(back.frame.height, read.frame.height, accuracy: 0.01)
+    }
+
     func testConnectorsDrawTheirRealDirectionAndKeepTheirShape() throws {
         var (state, theme, pkg) = try reread(try package())
         let i = try XCTUnwrap(state.slides[5].shapes.firstIndex { $0.name == "Arrow" })

@@ -12,21 +12,25 @@ final class PptxSweepTests: XCTestCase {
         for (k, _) in n.attrs { out.insert(n.name + "@" + k) }
         for c in n.children { names(c, &out) }
     }
-    private func shapeEl(_ n: XNode, id: String) -> XNode? {
+    /// The saved element to compare with a shape's source: when the source is an mc:AlternateContent
+    /// (a chartex frame with its picture fallback), the whole wrapper, not just the frame inside it.
+    private func shapeEl(_ n: XNode, id: String, wrapped: Bool = false) -> XNode? {
+        if wrapped, n.name == "mc:AlternateContent", shapeEl(n, id: id) != nil { return n }
         if ["p:sp", "p:pic", "p:cxnSp", "p:graphicFrame"].contains(n.name), n.descendant("p:cNvPr")?["id"] == id { return n }
-        for c in n.children { if let f = shapeEl(c, id: id) { return f } }
+        for c in n.children { if let f = shapeEl(c, id: id, wrapped: wrapped) { return f } }
         return nil
     }
 
     func testSweep() throws {
         guard let dir = ProcessInfo.processInfo.environment["STARLING_SWEEP_DIR"] else { throw XCTSkip("no STARLING_SWEEP_DIR") }
+        let plain = ProcessInfo.processInfo.environment["STARLING_SWEEP_PLAIN"] != nil
         let files = try FileManager.default.contentsOfDirectory(atPath: dir).filter { $0.hasSuffix(".pptx") }.sorted()
         var missing: [String: Int] = [:], decks: [String: Set<String>] = [:]
         var why: [String: Int] = [:]
         var shapes = 0, failed = 0, noRead = 0, field = 0, notPatchable = 0
         for f in files {
             guard let data = FileManager.default.contents(atPath: dir + "/" + f),
-                  let (state0, theme, pkg) = try? Pptx.read(data) else { failed += 1; continue }
+                  let (state0, theme, pkg) = try? Pptx.read(data) else { failed += 1; why["FAILREAD " + f, default: 0] += 1; continue }
             var state = state0
             var changed: [(Int, ShapeState)] = []
             for si in state.slides.indices {
@@ -36,28 +40,35 @@ final class PptxSweepTests: XCTestCase {
                     let k = String(describing: sh.kind).lowercased()
                     return !k.contains("line") && !k.contains("table")
                 }
+                if plain {
+                    for sh in state.slides[si].shapes where sh.sourceXML != nil && sh.fileId != nil && sh.sourcePart != nil { changed.append((si, sh)) }
+                    continue
+                }
                 guard let i = state.slides[si].shapes.firstIndex(where: pick) else { continue }
                 state.slides[si].shapes[i].fill = Color(0xFFAA0000)
                 changed.append((si, state.slides[si].shapes[i]))
             }
             guard let out = try? PptxWriter.write(state, theme: theme, package: pkg),
-                  let saved = try? PptxPackage(Zip.read(out)) else { failed += 1; continue }
+                  let saved = try? PptxPackage(Zip.read(out)) else { failed += 1; why["FAILWRITE " + f, default: 0] += 1; continue }
             for (si, s) in changed {
                 guard let orig = XNode.parse(Data(s.sourceXML!.utf8)),
                       let sx = saved.parts["ppt/slides/slide\(si + 1).xml"].flatMap({ XNode.parse($0) }),
-                      let now = shapeEl(sx, id: "\(s.fileId!)") else { continue }
+                      let now = shapeEl(sx, id: "\(s.fileId!)", wrapped: orig.name == "mc:AlternateContent") else { continue }
                 shapes += 1
                 if s.readShape == nil { noRead += 1; why[String(String(describing: s.kind).prefix(24)) + (s.customPath != nil ? " custom" : "") + (s.sourceXML!.contains("<p:sp>") ? " sp" : " other"), default: 0] += 1 } else if s.field != nil { field += 1 } else if !s.readShape!.patchable(s) { notPatchable += 1 }
                 var a = Set<String>(), b = Set<String>()
                 // (The fill the sweep itself replaced is not a loss.)
-                orig.first("p:spPr")?.children.removeAll { ["a:noFill", "a:solidFill", "a:gradFill", "a:blipFill", "a:pattFill", "a:grpFill"].contains($0.name) }
+                if !plain { orig.first("p:spPr")?.children.removeAll { ["a:noFill", "a:solidFill", "a:gradFill", "a:blipFill", "a:pattFill", "a:grpFill"].contains($0.name) } }
                 names(orig, &a); names(now, &b)
                 for n in a.subtracting(b) { missing[n, default: 0] += 1; decks[n, default: []].insert(f) }
+                if !a.subtracting(b).isEmpty, let dump = ProcessInfo.processInfo.environment["STARLING_SWEEP_DUMP"] {
+                    try? (s.sourceXML! + "\n=====\n" + String(decoding: saved.parts["ppt/slides/slide\(si + 1).xml"]!, as: UTF8.self)).write(toFile: "\(dump)/\(f)-s\(si + 1)-\(s.fileId!).txt", atomically: true, encoding: .utf8)
+                }
             }
         }
         var lines = ["decks \(files.count) unreadable-or-failed \(failed) shapes changed \(shapes) (no readShape \(noRead), field \(field), not patchable \(notPatchable))"]
         for (k, v) in why { lines.append("NOREAD \(v) \(k)") }
-        for (n, c) in missing.sorted(by: { $0.value > $1.value }) { lines.append("\(c)\t\(decks[n]!.count) decks\t\(n)") }
+        for (n, c) in missing.sorted(by: { $0.value > $1.value }) { lines.append("\(c)\t\(decks[n]!.count) decks\t\(n)\t\(decks[n]!.sorted().prefix(3).joined(separator: " "))") }
         try lines.joined(separator: "\n").write(toFile: ProcessInfo.processInfo.environment["STARLING_SWEEP_OUT"] ?? "/data/s/amd-9/sweep/result.txt", atomically: true, encoding: .utf8)
     }
 
