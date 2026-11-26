@@ -23,6 +23,21 @@ final class SheetsSaveLossTests: XCTestCase {
             + "<sheetViews>\(views)</sheetViews>" + cols + "<sheetData>\(rows)</sheetData></worksheet>"
     }
 
+    /// Excel refuses a sheet whose x14:sparklineGroups is empty (0x800A03EC, even
+    /// with repair; the print box bisected cf-manage-x14.xlsx, 2026-11-26), so the
+    /// save drops that ext and keeps the others.
+    func testAnEmptySparklineGroupsExtIsNotWritten() throws {
+        let x14 = "http://schemas.microsoft.com/office/spreadsheetml/2009/9/main"
+        let ext = "<extLst><ext uri=\"{05C60535-1F16-4fd2-B633-F4F36F0B64E0}\" xmlns:x14=\"\(x14)\"><x14:sparklineGroups xmlns:xm=\"http://schemas.microsoft.com/office/excel/2006/main\"/></ext>"
+            + "<ext uri=\"{FCE2AD5D-F65C-4FA6-A056-5C36A1767C68}\" xmlns:x15=\"http://schemas.microsoft.com/office/spreadsheetml/2010/11/main\"><x15:dataModel/></ext></extLst>"
+        let base = sheet(rows: "<row r=\"1\"><c r=\"A1\"><v>1</v></c></row>")
+        let out = try resave(base.replacingAll("</worksheet>", with: ext + "</worksheet>"))
+        XCTAssertFalse(out.containsSubstring("sparklineGroups"), out)
+        XCTAssertTrue(out.containsSubstring("<x15:dataModel/>"), out)
+        let only = try resave(base.replacingAll("</worksheet>", with: "<extLst><ext uri=\"{05C60535-1F16-4fd2-B633-F4F36F0B64E0}\" xmlns:x14=\"\(x14)\"><x14:sparklineGroups/></ext></extLst></worksheet>"))
+        XCTAssertFalse(only.containsSubstring("extLst"), "nothing left, no extLst: " + only)
+    }
+
     func testHiddenRowsHeightsAndSpansSurvive() throws {
         let out = try resave(sheet(rows: "<row r=\"1\" spans=\"1:3\"><c r=\"A1\"><v>1</v></c><c r=\"C1\"><v>3</v></c></row>"
             + "<row r=\"2\" hidden=\"1\" ht=\"30\" customHeight=\"1\"><c r=\"A2\"><v>2</v></c></row>"

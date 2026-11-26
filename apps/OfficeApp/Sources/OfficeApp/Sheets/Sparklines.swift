@@ -200,6 +200,22 @@ enum Sparklines {
         return exts.isEmpty ? nil : "<extLst>" + exts.joined() + "</extLst>"
     }
 
+    /// The extLst text less any sparkline ext that holds no group; nil when
+    /// nothing is left. Excel refuses a sheet whose x14:sparklineGroups is
+    /// empty (0x800A03EC, repair or not), so a save never writes one, even
+    /// when the file came with it.
+    static func withoutEmptySparklineExt(_ text: String) -> String? {
+        guard text.containsSubstring("sparklineGroups") else { return text }
+        var t = text, from = t.startIndex
+        while let open = t.findRange(of: "<ext ", in: from ..< t.endIndex), let close = t.findRange(of: "</ext>", in: open.upperBound ..< t.endIndex) {
+            let ext = String(t[open.lowerBound ..< close.upperBound])
+            if ext.containsSubstring("sparklineGroups"), !ext.containsSubstring("sparklineGroup "), !ext.containsSubstring("sparklineGroup>") {
+                t.removeSubrange(open.lowerBound ..< close.upperBound); from = open.lowerBound
+            } else { from = close.upperBound }
+        }
+        return t.containsSubstring("<ext ") ? t : nil
+    }
+
     // MARK: Drawing
 
     enum Shape {

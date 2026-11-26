@@ -81,7 +81,7 @@ final class SheetsManageRulesTests: XCTestCase {
     private func withX14(sparkline: Bool = true) -> WorkbookController {
         let c = controller()
         if sparkline {
-            c.sheet.keptElements.append(("extLst", "<extLst><ext uri=\"{05C60535-1F16-4fd2-B633-F4F36F0B64E0}\" xmlns:x14=\"http://schemas.microsoft.com/office/spreadsheetml/2009/9/main\"><x14:sparklineGroups/></ext><ext uri=\"{FCE2AD5D-F65C-4FA6-A056-5C36A1767C68}\" xmlns:x15=\"http://schemas.microsoft.com/office/spreadsheetml/2010/11/main\"><x15:dataModel/></ext></extLst>"))
+            c.sheet.keptElements.append(("extLst", "<extLst><ext uri=\"{05C60535-1F16-4fd2-B633-F4F36F0B64E0}\" xmlns:x14=\"http://schemas.microsoft.com/office/spreadsheetml/2009/9/main\"><x14:sparklineGroups xmlns:xm=\"http://schemas.microsoft.com/office/excel/2006/main\"><x14:sparklineGroup displayEmptyCellsAs=\"gap\"><x14:colorSeries rgb=\"FF376092\"/><x14:sparklines><x14:sparkline><xm:f>Data!A1:E1</xm:f><xm:sqref>F1</xm:sqref></x14:sparkline></x14:sparklines></x14:sparklineGroup></x14:sparklineGroups></ext><ext uri=\"{FCE2AD5D-F65C-4FA6-A056-5C36A1767C68}\" xmlns:x15=\"http://schemas.microsoft.com/office/spreadsheetml/2010/11/main\"><x15:dataModel/></ext></extLst>"))
         }
         XCTAssertNil(c.addConditionalFormat(CFSpec(kind: .iconSet("3Stars")), on: [CellRange("D1:D9")!]))
         return c
@@ -114,7 +114,7 @@ final class SheetsManageRulesTests: XCTestCase {
         XCTAssertEqual(c.conditionalRuleRows().map { $0.summary }, ["Cell value > 5", "Top 3", "Data bar"])
         let ext = c.sheet.keptElements.filter { $0.name == "extLst" }.map { $0.text }.joined()
         XCTAssertFalse(ext.containsSubstring("x14:conditionalFormatting"))
-        XCTAssertTrue(ext.containsSubstring("<x14:sparklineGroups/>"))
+        XCTAssertTrue(ext.containsSubstring("<xm:sqref>F1</xm:sqref>"))
         XCTAssertTrue(ext.containsSubstring("<x15:dataModel/>"))
         XCTAssertEqual(try reopen(c).conditionalRuleRows().count, 3)
         c.undo()

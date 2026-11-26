@@ -1556,7 +1556,10 @@ enum Xlsx {
             generated["autoFilter"] = af.raw ?? _autoFilterXML(af, book: book, cutoffs: cutoffs)
         }
         var kept: [String: [String]] = [:]
-        for (name, text) in ws.keptElements { kept[name, default: []].append(text) }
+        for (name, text) in ws.keptElements {
+            if name == "extLst" { if let t = Sparklines.withoutEmptySparklineExt(text) { kept[name, default: []].append(t) }; continue }
+            kept[name, default: []].append(text)
+        }
         if let tab = ws.tabColor, kept["sheetPr"] == nil { generated["sheetPr"] = "<sheetPr><tabColor rgb=\"\(_esc(tab))\"/></sheetPr>" }
         var body = ""
         for name in sheetOrder {
