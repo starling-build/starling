@@ -1380,6 +1380,23 @@ extension RichLayout {
                 // Word's print. Longer runs keep the stricter sum: zh-64044a1d's
                 // and zh-c34269bd's fall 28 and 44 points with either credit.)
                 let sharedNow = pgs.i > 0 && _cells[pgs.i - 1] == nil ? min(pgs.y, max(0, _tops[pgs.i - 1] + _heights[pgs.i - 1] - top)) : 0
+                // The notes of kept members `r` not yet on this page, with the separator if they are its first.
+                func keptNotes(_ r: Range<Int>) -> Double {
+                    var noteRoom = 0.0
+                    if theme.wordRules, pgs.notesOn, RichTextTheme.wordWindowsPages, !pgs.slotNotes {
+                        var seen: [Int] = []
+                        for m in r {
+                            for id in _footnotes(in: m, document) where !pgs.pageNotes.contains(id) && !seen.contains(id) {
+                                guard let note = _note(id, width: _pg_noteWidth(&pgs, document), document) else { continue }
+                                if seen.isEmpty && pgs.pageNotes.isEmpty { noteRoom += _note(-1, width: _pg_noteWidth(&pgs, document), document)?.height ?? 0 }
+                                noteRoom += note.height
+                                seen.append(id)
+                            }
+                        }
+                        if noteRoom > 0 { RuleTrace.hit("word-kept-heading-counts-its-notes") }
+                    }
+                    return noteRoom
+                }
                 func weigh(_ room: Double) -> Bool {
                 var cum = 0.0
                 var k = pgs.i
@@ -1434,24 +1451,37 @@ extension RichLayout {
                             && (start(pgs.i) > room + 0.01 || (pgs.i + 1 < count && document.paragraphs[pgs.i].style.sectionXML == nil))
                     break
                 }
+                // (A kept member that cannot stand on the page, an earlier one able to part: Word breaks inside
+                // the latest member that can, its last line(s) going on with the members after it, and the
+                // members before it and its own first lines stay. gv-3db26a1d34's "Marchioness" heading and three
+                // lines of the five-line paragraph under it end page 4 in Word's print, two two-line kept list
+                // items not fitting under them; ours sent the heading and the paragraph to page 5.)
+                // (Only in Word 2013's mode (15) on; an older mode sends the run over whole, as before: lab kncompat, the
+                // same two documents with their modes swapped. xd 780426ed's "5. Facility Improvements" run, 21 kept
+                // lines, opens page 7 in its mode 12 print and parts inside a paragraph in mode 15; gv-3db26a1d34's
+                // "Marchioness" run, part of a kept chain longer than a page, goes whole to page 5 in mode 12.)
+                if violated, theme.wordRules, RichTextTheme.wordWindowsPages, k > pgs.i, k < count, _cells[k] == nil,
+                   document.paragraphs[k].style.keepNext, let j = (pgs.i ..< k).last(where: { !whole($0) }),
+                   (document.compatibilityMode ?? 12) >= 15 {
+                    var before = 0.0
+                    for m in pgs.i ..< j { before += _heights[m] }
+                    if before + start(j) + keptNotes(pgs.i ..< j + 1) <= room + 0.01 {
+                        RuleTrace.hit("word-kept-run-parts-inside-its-latest-splittable-member")
+                        violated = false
+                        // (It gives what leaves its last line no room: the room past its next-to-last line, less half that line.)
+                        let g = geometry(j)
+                        let bt = Self._lineBottoms(g.painter)
+                        let lastLine = bt.count > 1 ? bt[bt.count - 1] - bt[bt.count - 2] : 0
+                        let keep = bt.count > 1 ? (g.textTop - g.top) + bt[bt.count - 2] + lastLine / 2 : 0
+                        pgs.tailHold = (paragraph: j, page: pgs.page, give: max(lastLine, room - before - keep))
+                    }
+                }
                 if !violated, !ended, k < count, k > pgs.i, (_cells[k] != nil || !document.paragraphs[k].style.keepNext) {
                     let single = k == pgs.i + 1 && _cells[k] == nil && !document.paragraphs[k].style.keepNext
                     // (The notes of the kept members stand at this page's foot with them: Word's print of c2104d44 sends
                     // a heading with a footnote mark, kept with its paragraph, to the next page where the note
                     // and the paragraph's first line do not both fit under it.)
-                    var noteRoom = 0.0
-                    if theme.wordRules, pgs.notesOn, RichTextTheme.wordWindowsPages, !pgs.slotNotes {
-                        var seen: [Int] = []
-                        for m in pgs.i ..< k {
-                            for id in _footnotes(in: m, document) where !pgs.pageNotes.contains(id) && !seen.contains(id) {
-                                guard let note = _note(id, width: _pg_noteWidth(&pgs, document), document) else { continue }
-                                if seen.isEmpty && pgs.pageNotes.isEmpty { noteRoom += _note(-1, width: _pg_noteWidth(&pgs, document), document)?.height ?? 0 }
-                                noteRoom += note.height
-                                seen.append(id)
-                            }
-                        }
-                        if noteRoom > 0 { RuleTrace.hit("word-kept-heading-counts-its-notes") }
-                    }
+                    let noteRoom = keptNotes(pgs.i ..< k)
                     violated = cum + start(k, trailing: single) + noteRoom > room + (single ? sharedNow : 0) + 0.01
                     // (Where the last kept member can part, the page's foot may fall inside its lines: Word keeps only its
                     // last line with the paragraph after, so the member parts and the run stands on if the members before it
