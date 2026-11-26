@@ -1028,19 +1028,19 @@ private struct SlideXML {
     /// no scene, one is added unless the camera is square on.
     static func _effectsWithCamera(_ effects: String, _ name: String) -> String {
         let camera = "<a:camera prst=\"\(PptxXML.escape(name, attribute: true))\"/>"
-        if let a = effects.range(of: "<a:scene3d"), let e = effects.range(of: "</a:scene3d>", range: a.lowerBound..<effects.endIndex),
-           let c0 = effects.range(of: "<a:camera", range: a.lowerBound..<e.lowerBound) {
+        if let a = effects.rangeOfSubstring("<a:scene3d"), let e = effects.rangeOfSubstring("</a:scene3d>", in: a.lowerBound..<effects.endIndex),
+           let c0 = effects.rangeOfSubstring("<a:camera", in: a.lowerBound..<e.lowerBound) {
             var out = effects
             let c1: Range<String.Index>
-            if let end = out.range(of: "</a:camera>", range: c0.lowerBound..<e.lowerBound) { c1 = c0.lowerBound..<end.upperBound }
-            else if let end = out.range(of: "/>", range: c0.lowerBound..<e.lowerBound) { c1 = c0.lowerBound..<end.upperBound }
+            if let end = out.rangeOfSubstring("</a:camera>", in: c0.lowerBound..<e.lowerBound) { c1 = c0.lowerBound..<end.upperBound }
+            else if let end = out.rangeOfSubstring("/>", in: c0.lowerBound..<e.lowerBound) { c1 = c0.lowerBound..<end.upperBound }
             else { return effects }
             out.replaceSubrange(c1, with: camera)
             return out
         }
         if name == "orthographicFront" { return effects }
         let scene = "<a:scene3d>\(camera)<a:lightRig rig=\"threePt\" dir=\"t\"/></a:scene3d>"
-        if let sp = effects.range(of: "<a:sp3d") { var out = effects; out.insert(contentsOf: scene, at: sp.lowerBound); return out }
+        if let sp = effects.rangeOfSubstring("<a:sp3d") { var out = effects; out.insert(contentsOf: scene, at: sp.lowerBound); return out }
         return effects + scene
     }
 
