@@ -8361,6 +8361,37 @@ extension ChartPainter {
     /// in their branch's accent, ruled in the background at 1.5 pt; a
     /// leaf's name in its foot's left corner, a top-level branch's in its
     /// box's top left, 3.8 pt in.
+    /// A single-level treemap's boxes on a slide: squarified strips (see `_treemap`), in the values' own order.
+    static func _treemapStrips(_ values: [Double], in box: Rect) -> [Rect] {
+        let order = values.indices.sorted { values[$0] != values[$1] ? values[$0] > values[$1] : $0 < $1 }
+        let vs = order.map { values[$0] }
+        var out = [Rect](repeating: .zero, count: values.count)
+        var l = box.left, t = box.top, i = 0, rem = vs.reduce(0, +)
+        while i < vs.count {
+            let w = box.right - l, h = box.bottom - t
+            let horiz = w >= h, short = min(w, h)
+            // how far the item last added to the strip is from square (not the worst in it)
+            func lastAspect(_ k: Int) -> Double {
+                let s = vs[i ..< i + k].reduce(0, +), thick = s / rem * (horiz ? w : h)
+                let len = vs[i + k - 1] / s * short
+                return horiz ? abs(thick / len - 1) : abs(len / thick - 1)
+            }
+            var k = 1
+            while i + k < vs.count, lastAspect(k + 1) <= lastAspect(k) + 1e-9 { k += 1 }
+            let s = vs[i ..< i + k].reduce(0, +), thick = s / rem * (horiz ? w : h)
+            var pos = 0.0
+            for j in 0 ..< k {
+                let len = vs[i + j] / s * short
+                out[order[i + j]] = horiz ? Rect.fromLTRB(l, t + pos, l + thick, t + pos + len)
+                                          : Rect.fromLTRB(l + pos, t, l + pos + len, t + thick)
+                pos += len
+            }
+            if horiz { l += thick } else { t += thick }
+            rem -= s; i += k
+        }
+        return out
+    }
+
     static func _treemap(_ c: Chart, _ nodes: [Chart.SunburstNode], _ canvas: any Canvas, _ area: Rect, k: Double, theme: DeckTheme,
                          text: (String, Double, Double) -> TextPainter) {
         // (A sheet's k is three quarters of a point's.)
@@ -8403,35 +8434,12 @@ extension ChartPainter {
             // the items inside a group are strips.)
             if !c.onSheet && !grouped {
                 // PowerPoint (chartex-lab2 treemap pages): items largest first, laid in strips along the shorter side,
-                // a strip growing while the aspect ratio of its last item does not get worse. Matches 11 of 13
-                // single-level lab pages (p4, p8 still differ: PowerPoint stops earlier, rule unknown).
-                let order = values.indices.sorted { values[$0] != values[$1] ? values[$0] > values[$1] : $0 < $1 }
-                let vs = order.map { values[$0] }
-                var out = [Rect](repeating: .zero, count: values.count)
-                var l = box.left, t = box.top, i = 0, rem = vs.reduce(0, +)
-                while i < vs.count {
-                    let w = box.right - l, h = box.bottom - t
-                    let horiz = w >= h, short = min(w, h)
-                    // aspect of the item last added to the strip (not the worst in it)
-                    func lastAspect(_ k: Int) -> Double {
-                        let s = vs[i ..< i + k].reduce(0, +), thick = s / rem * (horiz ? w : h)
-                        let len = vs[i + k - 1] / s * short
-                        return max(thick / len, len / thick)
-                    }
-                    var k = 1
-                    while i + k < vs.count, lastAspect(k + 1) <= lastAspect(k) + 1e-9 { k += 1 }
-                    let s = vs[i ..< i + k].reduce(0, +), thick = s / rem * (horiz ? w : h)
-                    var pos = 0.0
-                    for j in 0 ..< k {
-                        let len = vs[i + j] / s * short
-                        out[order[i + j]] = horiz ? Rect.fromLTRB(l, t + pos, l + thick, t + pos + len)
-                                                  : Rect.fromLTRB(l + pos, t, l + pos + len, t + thick)
-                        pos += len
-                    }
-                    if horiz { l += thick } else { t += thick }
-                    rem -= s; i += k
-                }
-                return out
+                // a strip growing while its last item does not get less square. PowerPoint's squareness is
+                // |width / height - 1|, not the symmetric ratio, so a wide box counts worse than an equally tall one:
+                // p4's fifth strip (9,8,6,5,4,3,2,1 in 901 by 220 pt) stops at item 4, 95 by 220 (1.32 off), rather than
+                // take item 3 at 166 by 94 (0.76 off). That measure fits all 12 single-level lab pages; the symmetric
+                // ratio missed p4 and p8.
+                return Self._treemapStrips(values, in: box)
             }
             return lay(values[...], box)
         }
@@ -9004,6 +9012,16 @@ extension ChartPainter {
                 canvas.drawLine(Offset(left, vpos(q3)), Offset(left + w, vpos(q3)), line)
                 canvas.drawLine(Offset(left, vpos(q1)), Offset(left + w, vpos(q1)), line)
                 canvas.drawLine(Offset(left, vpos(q2)), Offset(left + w, vpos(q2)), line)
+                if c.boxLabels == 2 {
+                    // (PowerPoint's print of chartex-lab2 p18, nonoutliers="1": a 3 pt dot in the series' colour, unstroked, on the
+                    // box's middle at each distinct inside value but the whisker ends' own copies (one of the least, one of the
+                    // greatest), drawn over the box and under the mean's cross.)
+                    var seen: [Double] = []
+                    for v in inside.dropFirst().dropLast() where !seen.contains(v) {
+                        seen.append(v)
+                        canvas.drawCircle(Offset(mid, vpos(v)), 1.5 * k, fill)
+                    }
+                }
                 if c.boxMeans {
                     let m = vpos(xs.reduce(0, +) / Double(xs.count))
                     canvas.drawLine(Offset(mid - cross, m - cross), Offset(mid + cross, m + cross), line)
