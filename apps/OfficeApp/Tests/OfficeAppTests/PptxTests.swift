@@ -198,6 +198,39 @@ final class TransitionTests: XCTestCase {
         XCTAssertTrue(fresh.contains("<p:fade/>") && fresh.contains("advTm=\"2453\""))
     }
 
+    func testPlainSaveKeepsTheSlideCreationId() throws {
+        let deck = SlidesSample.make()
+        var package = PptxPackage(try Zip.read(try Pptx.write(deck)))
+        var slide = String(decoding: package.parts["ppt/slides/slide1.xml"]!, as: UTF8.self)
+        XCTAssertFalse(slide.contains("<p:extLst>"), "the sample slide has no extensions of its own")
+        // As PowerPoint writes it: p14 declared on the root, used only in the extension.
+        slide = slide.replacingOccurrences(of: "<p:sld ", with: "<p:sld xmlns:p14=\"http://schemas.microsoft.com/office/powerpoint/2010/main\" ")
+        slide = slide.replacingOccurrences(of: "</p:sld>", with: "<p:extLst><p:ext uri=\"{BB962C8B-B14F-4D97-AF65-F5344CB8AC3E}\">"
+            + "<p14:creationId val=\"1729475034\"/></p:ext></p:extLst></p:sld>")
+        // Where PowerPoint itself keeps it: in the common slide data, the prefix declared on the element.
+        let common = "<p:extLst><p:ext uri=\"{BB962C8B-B14F-4D97-AF65-F5344CB8AC3E}\"><p14:creationId "
+            + "val=\"63250673\" xmlns:p14=\"http://schemas.microsoft.com/office/powerpoint/2010/main\"/></p:ext></p:extLst></p:cSld>"
+        slide = slide.replacingOccurrences(of: "</p:cSld>", with: common)
+        package.parts["ppt/slides/slide1.xml"] = Data(slide.utf8)
+        let (state, theme, pkg) = try Pptx.read(try Zip.write(package.parts.map { ZipEntry(name: $0.key, data: $0.value) }))
+        let out = PptxPackage(try Zip.read(try PptxWriter.write(state, theme: theme, package: pkg)))
+        let one = String(decoding: out.parts["ppt/slides/slide1.xml"]!, as: UTF8.self)
+        XCTAssertTrue(one.hasSuffix("<p:extLst xmlns:p14=\"http://schemas.microsoft.com/office/powerpoint/2010/main\"><p:ext uri=\"{BB962C8B-B14F-4D97-AF65-F5344CB8AC3E}\">"
+            + "<p14:creationId val=\"1729475034\"/></p:ext></p:extLst></p:sld>"), "the creation id is the slide's last element, its prefix declared: " + String(one.suffix(300)))
+        let tail = one.components(separatedBy: "</p:spTree>").last?.components(separatedBy: "</p:cSld>").first ?? ""
+        XCTAssertTrue(tail.hasPrefix("<p:extLst") && tail.contains("<p14:creationId val=\"63250673\"") && tail.contains("xmlns:p14="),
+                      "the common data's creation id too, closing the common data: " + tail)
+        XCTAssertNotNil(out.xml("ppt/slides/slide1.xml")?.first("p:extLst"), "and the slide still parses")
+        // A duplicate is a new slide to PowerPoint: it does not take the original's id.
+        let d = DeckController(); d.load(state, theme: theme, package: pkg)
+        d.duplicateSlide(0)
+        let copied = d.snapshot()
+        XCTAssertNotNil(copied.slides[0].extLstXML)
+        XCTAssertNil(copied.slides[1].extLstXML)
+        XCTAssertNotNil(copied.slides[0].cSldExtLstXML)
+        XCTAssertNil(copied.slides[1].cSldExtLstXML)
+    }
+
     func testAdvanceOnlyKeepsAnUnknownTransition() throws {
         let deck = SlidesSample.make()
         let bytes = try Pptx.write(deck)

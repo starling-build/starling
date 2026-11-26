@@ -399,7 +399,7 @@ enum PptxWriter {
             .flatMap { $0.isEmpty ? nil : $0 } ?? "<p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr>"
         let xml = """
         <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-        <p:sld \(ns)\(hidden)><p:cSld>\(bg)<p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/><a:chOff x="0" y="0"/><a:chExt cx="0" cy="0"/></a:xfrm></p:grpSpPr>\(body)</p:spTree>\(controls)</p:cSld>\(clrMapOvr)\(transition)\(timing)</p:sld>
+        <p:sld \(ns)\(hidden)><p:cSld>\(bg)<p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/><a:chOff x="0" y="0"/><a:chExt cx="0" cy="0"/></a:xfrm></p:grpSpPr>\(body)</p:spTree>\(controls)\(slide.cSldExtLstXML ?? "")</p:cSld>\(clrMapOvr)\(transition)\(timing)\(slide.extLstXML ?? "")</p:sld>
         """
 
         // Notes, when there are any and a notes master to hang them on.

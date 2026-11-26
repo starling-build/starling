@@ -159,6 +159,8 @@ struct SlideState: Equatable {
     var masterRole: MasterRole? = nil
     var hideMasterShapes = false
     var clrMapOvrXML: String? = nil
+    var extLstXML: String? = nil
+    var cSldExtLstXML: String? = nil
     var controlsXML: String? = nil
     var decorations: [ShapeState] = []
     var notes: RichDocument
@@ -2565,6 +2567,7 @@ final class DeckController: ChangeNotifier {
         DeckState(slides: slides.map { slide in
             SlideState(id: slide.id, layout: slide.layout, hidden: slide.hidden, section: slide.section, masterRole: slide.masterRole,
                        hideMasterShapes: slide.hideMasterShapes, clrMapOvrXML: slide.clrMapOvrXML,
+                       extLstXML: slide.extLstXML, cSldExtLstXML: slide.cSldExtLstXML,
                        controlsXML: slide.controlsXML, decorations: slide.decorations.map(_state),
                        notes: slide.notes.document, shapes: slide.shapes.map(_state),
                        layoutPart: slide.layoutPart, backgroundXML: slide.backgroundXML,
@@ -2615,6 +2618,8 @@ final class DeckController: ChangeNotifier {
             slide.masterRole = ss.masterRole
             slide.hideMasterShapes = ss.hideMasterShapes
             slide.clrMapOvrXML = ss.clrMapOvrXML
+            slide.extLstXML = ss.extLstXML
+            slide.cSldExtLstXML = ss.cSldExtLstXML
             slide.controlsXML = ss.controlsXML
             if slide.decorations.map(_state) != ss.decorations { slide.decorations = ss.decorations.map(_make) }
             slide.layoutPart = ss.layoutPart
