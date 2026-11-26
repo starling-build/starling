@@ -1,4 +1,6 @@
 import XCTest
+import Flutter
+import FlutterSwiftBridge
 @testable import OfficeApp
 @testable import OfficeText
 
@@ -103,5 +105,23 @@ final class FieldCodesTests: XCTestCase {
         XCTAssertTrue(xml.contains("PAGE"))
         c.undo(); c.undo()
         XCTAssertEqual(c.document.paragraphs[0].text, "Page ")
+    }
+}
+
+/// Alt+Shift+P in the shell: a real PAGE field at the caret of a Writer body.
+final class PageFieldShortcutTests: XCTestCase {
+    func testAltShiftPPutsAPageFieldAtTheCaret() {
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light),
+                                        home: OfficeShell(initialPath: nil, startBlank: true), title: "T"),
+                              size: Size(1280, 800))
+        let state = ui.state(OfficeShellState.self)!
+        state.session.controller.insertText("Page ")
+        let p = KeyData(timeStamp: 0, type: .down, physical: 0, logical: 0x70, character: nil, synthesized: false)
+        XCTAssertTrue(state._shortcut(p, [.alt, .shift]))
+        ui.pump()
+        let para = state.session.controller.document.paragraphs[0]
+        XCTAssertEqual(para.text, "Page 1")
+        XCTAssertEqual(para.style(at: 6).preservedField, " PAGE ")
+        XCTAssertEqual(state.session.controller.selection.focus.offset, 6)
     }
 }
