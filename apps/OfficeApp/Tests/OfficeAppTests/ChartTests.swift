@@ -490,6 +490,19 @@ final class ChartTests: XCTestCase {
         }
         guard let r = key(top, height: 398.4) else { return XCTFail("no 7.08 pt key at the top") }
         XCTAssertLessThan(r.bottom, 100)
+        // (In other sizes the key stays 7.08 and the row, 1.2 of the size high but never under 14.16, grows up from its foot,
+        // the key in its middle: lab cx-legsize in PowerPoint's print, key feet 14.4, 14.4, 14.52, 16.92 and 19.32 above the
+        // frame's at 7, 9, 12, 16 and 20 pt; a top row's key 2.52 lower at 16 than at 9.)
+        for (size, above) in [(7.0, 14.4), (9, 14.4), (12, 14.52), (16, 16.92), (20, 19.32)] {
+            var sized = bottom
+            sized.legendSize = size
+            guard let r = key(sized, height: 398.4) else { return XCTFail("no 7.08 pt key at \(size) pt") }
+            XCTAssertEqual(398.4 - r.bottom, above, accuracy: 0.15, "\(size) pt")
+        }
+        var top16 = top
+        top16.legendSize = 16
+        guard let r16 = key(top16, height: 398.4) else { return XCTFail("no 7.08 pt key at the top at 16 pt") }
+        XCTAssertEqual(r16.bottom - r.bottom, 2.52, accuracy: 0.1)
     }
 
     /// A `cx:` chart's category names on a slide: their baseline 14.96 pt under the plot's foot at 9 pt (PowerPoint's prints of
