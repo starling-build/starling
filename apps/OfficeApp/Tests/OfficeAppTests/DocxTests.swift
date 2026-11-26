@@ -6,7 +6,7 @@ import XCTest
 import FoundationXML   // XMLParser, off Darwin
 #endif
 import Flutter
-import OfficeText
+@testable import OfficeText
 import FlutterSwiftBridge
 @testable import OfficeApp
 
@@ -5415,6 +5415,40 @@ final class DocxTests: XCTestCase {
         let latin = spans("红河县 A B")
         XCTAssertNotEqual(latin.first { $0.text == " A B" || $0.text?.hasPrefix(" ") == true }?.style?.fontFamily, ideographs.style?.fontFamily,
                           "spaces within the line stay in the stand-in")
+    }
+
+    func testACircleInAnEastAsianRunIsTheIdeographFacesGlyphInEveryMode() throws {
+        // zh-e49d79431: "○○縣" in 16pt 標楷體, a name Linux lacks. Word draws
+        // the circles in DFKai-SB, an em across; outside Windows pages the
+        // app drew them in the Latin stand-in, 9.7pt across in a 16pt cell.
+        let cjk = try XCTUnwrap(RichLayout._cjkFaceFamily)
+        var kai = CharStyle(fontFamily: "標楷體", fontSize: 16)
+        kai.eastAsiaFontFamily = "標楷體"
+        kai.fontHint = "eastAsia"
+        let was = RichTextTheme.wordWindowsPages
+        defer { RichTextTheme.wordWindowsPages = was }
+        for windows in [false, true] {
+            RichTextTheme.wordWindowsPages = windows
+            let text = "○○縣"
+            var p = RichParagraph(text: text)
+            p.runs = [Run(length: text.utf16.count, style: kai)]
+            let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+            theme.wordRules = true
+            theme.faceResolver = OfficeFonts.face
+            let l = RichLayout(theme: theme, paragraphCount: 1)
+            l.width = 600
+            l.ensureLaidOut(RichDocument(paragraphs: [p]))
+            var out: [TextSpan] = []
+            func visit(_ s: InlineSpan) {
+                guard let t = s as? TextSpan else { return }
+                if let x = t.text, !x.isEmpty { out.append(t) }
+                for c in t.children ?? [] { visit(c) }
+            }
+            if let root = l.geometry(0).painter.text { visit(root) }
+            let circles = out.filter { $0.text?.contains("○") == true }
+            XCTAssertFalse(circles.isEmpty)
+            for c in circles { XCTAssertEqual(c.style?.fontFamily, cjk, "windows pages \(windows)") }
+        }
     }
 
     func testAFrameOfNoWidthStandsWhereItIsAligned() throws {
