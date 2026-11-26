@@ -177,4 +177,42 @@ final class ScreenReaderTests: XCTestCase {
         XCTAssertFalse(b.contains("descr")); XCTAssertFalse(b.contains("title"))
         XCTAssertTrue(b.contains("name=\"Chart 1\"/>"))
     }
+
+    /// Sheets: a picture and a chart keep their alt text and title through save and open.
+    /// With ALT_LAB_DIR set, the saved .xlsx and a .pptx are left there for Office to open.
+    func testSheetsAltTextAndTitleOnPictureAndChartSurviveSaveAndOpen() throws {
+        let c = WorkbookController()
+        let rows = [["Month", "Sales"], ["Jan", "10"], ["Feb", "20"]]
+        var items: [(CellAddress, String)] = []
+        for (r, row) in rows.enumerated() { for (col, v) in row.enumerated() { items.append((CellAddress(row: r, col: col), v)) } }
+        c.setInputs(items)
+        c.select(CellAddress("B2")!)
+        XCTAssertTrue(c.insertChart(.column))
+        c.setDrawingAlt(0, "Sales by month & year", title: "Sales")
+        let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")!
+        XCTAssertTrue(c.insertPicture(name: "dot.png", data: png, width: 40, height: 40))
+        c.setDrawingAlt(1, "A red \"dot\"", title: "Dot")
+        func reopen(_ w: WorkbookController) throws -> (WorkbookController, Data) {
+            let data = try Xlsx.write(w.book)
+            let n = WorkbookController(); n.load(try Workbook.open(data, name: "t.xlsx")); return (n, data)
+        }
+        let (once, saved) = try reopen(c)
+        let alts = { (w: WorkbookController) in w.sheet.drawings.map { [$0.descr ?? "", $0.title ?? ""] } }
+        XCTAssertEqual(alts(once), [["Sales by month & year", "Sales"], ["A red \"dot\"", "Dot"]])
+        // Kept drawings: changing the alt text again patches the read element.
+        once.setDrawingAlt(0, "Monthly sales", title: "")
+        let (twice, _) = try reopen(once)
+        XCTAssertEqual(alts(twice), [["Monthly sales", ""], ["A red \"dot\"", "Dot"]])
+        if let dir = ProcessInfo.processInfo.environment["ALT_LAB_DIR"] {
+            try saved.write(to: URL(fileURLWithPath: dir + "/sheets-alt.xlsx"))
+            let d = DeckController()
+            let box = d.addTextBox(at: Rect.fromLTWH(20, 20, 200, 60))
+            let shape = d.addShape(.rect)
+            let chart = d.addChart(.column)
+            for (s, a, t) in [(box, "Heading text box", "Top"), (shape, "A red box", "Box"), (chart, "Sales by quarter", "Sales")] {
+                d.selectShapes([s]); d.setAltText(a, title: t)
+            }
+            try Pptx.write(d).write(to: URL(fileURLWithPath: dir + "/slides-alt.pptx"))
+        }
+    }
 }
