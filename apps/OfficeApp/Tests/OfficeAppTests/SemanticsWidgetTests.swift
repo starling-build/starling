@@ -61,6 +61,24 @@ final class SemanticsWidgetTests: XCTestCase {
         plain.dispose()
     }
 
+    /// Ribbon tabs read as tabs ("Insert, tab, not selected"), not as plain text, and a reader's tap opens one.
+    func testRibbonTabsAreTabsWithTheOpenOneSelected() {
+        var opened: RibbonTab?
+        let t = ui(SizedBox(width: 1400, height: 200, child: Ribbon(session: OfficeSession(), tab: .home, collapsed: false,
+                                                                   onTab: { opened = $0 }, onCollapse: {})))
+        let nodes = t.semantics()
+        let home = nodes.first { $0.label == RibbonTab.home.title }
+        let insert = nodes.first { $0.label == RibbonTab.insert.title }
+        XCTAssertEqual(home?.role, .tab)
+        XCTAssertEqual(home?.isSelected, true)
+        XCTAssertEqual(insert?.role, .tab)
+        XCTAssertEqual(insert?.isSelected, false)
+        insert?.tap?()
+        XCTAssertEqual(opened, .insert)
+        XCTAssertTrue(nodes.contains { $0.label == "File" && $0.isButton }, "File is a button")
+        t.dispose()
+    }
+
     func testTextButtonReadsItsOwnText() {
         let t = ui(FlatButton(child: Text("Review"), width: nil, action: {}))
         XCTAssertTrue(t.semantics().contains { $0.label == "Review" && $0.isButton })
