@@ -203,6 +203,9 @@ extension flutter.swift_bridge {
 
         // Indices into the encoded paragraph style; a field is set when its
         // bit (1 << index) is in element 0.
+        /// txt's default text style (the native bridge's paragraph default).
+        static let engineDefaultFontSize: Float = 14
+        static let engineDefaultLineHeight: Float = (1901 + 483) / 2048
         private static let psTextAlign: Int32 = 1 << 1
         private static let psTextDirection: Int32 = 1 << 2
         private static let psFontWeight: Int32 = 1 << 3
@@ -304,7 +307,22 @@ extension flutter.swift_bridge {
                 strutStyle_dispose(strut)
             }
 
-            let textStyle = base.makeNative()
+            // The paragraph's own text style, which skparagraph measures an
+            // empty paragraph in (and text under no pushed style), is the
+            // native engine's: the family, size and height above never reach
+            // it, so it is txt's default, 14 px in the system's sans face
+            // (DejaVu Sans on Linux, a 16.297 px line: its 1901 + 483 units of
+            // 2048). Not `base`: an empty chart label in an 8 pt face was a
+            // 9 px line here and 16 natively, and the plot above it 7 pt
+            // taller (123233_charts). The line is pinned rather than the face
+            // named, so no font is fetched for it; the default face stands in.
+            var engineDefault = ResolvedTextStyle()
+            engineDefault.hasFontStyle = base.hasFontStyle
+            engineDefault.weight = base.weight
+            engineDefault.slant = base.slant
+            engineDefault.fontSize = Self.engineDefaultFontSize
+            engineDefault.height = Self.engineDefaultLineHeight
+            let textStyle = engineDefault.makeNative()
             paragraphStyle_setTextStyle(paragraphStyle, textStyle)
             // Flutter lays out in fractional pixels everywhere; the rounding
             // hack is Skia's legacy default.
