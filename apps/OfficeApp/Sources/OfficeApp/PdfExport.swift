@@ -11,9 +11,58 @@ import Foundation
 /// them with the fonts embedded. Layout happens at 100% in logical pixels
 /// (96/in); the canvas is scaled to PDF points (72/in) first.
 enum PdfExport {
+    /// The document laid out for print, its pages painted once to nowhere so
+    /// every picture (the body's, a header's, a text box's) has been asked for.
+    struct Prepared {
+        let layout: RichLayout, document: RichDocument, markup: PdfMarkup?
+        let theme: RichTextTheme, zoom: Double
+        /// A picture still being decoded: it would print as a grey box.
+        var pending: Bool { layout.hasPendingImages || WriterMetafiles.hasPendingImages || WriterGroups.hasPendingImages }
+    }
+
     static func write(_ document: RichDocument, pageSetup: PageSetup, theme: RichTextTheme,
                       to path: String, title: String, layoutOnly: Bool = false,
                       printPages: [Int]? = nil) -> Bool {
+        let prepared = prepare(document, pageSetup: pageSetup, theme: theme)
+        // The pictures are decoded off to the side and painted as grey
+        // boxes until they are: wait for them (the decoding runs on the
+        // main queue, which nothing is turning here), but not for ever.
+        // (The wait stays on the calling thread: it turns that thread's run loop.)
+        #if !os(WASI)
+        let deadline = Date().addingTimeInterval(8)
+        while prepared.pending, Date() < deadline {
+            RunLoop.main.run(until: Date().addingTimeInterval(0.005))
+            prepared.layout.applyDecodedPictures()
+        }
+        #endif
+        // (`--trace-rules`: laid out, and every header and text box with it,
+        // as a PDF is written from them; no page of it is.)
+        if layoutOnly { return true }
+        return finish(prepared, to: path, title: title, printPages: printPages)
+    }
+
+    /// The browser's export: no run loop to turn there, and a picture is
+    /// decoded only once the page's own event loop gets back control, so
+    /// `write` would print every picture as a grey box. Prepared, then
+    /// polled off timers until the pictures are in (eight seconds at most,
+    /// as natively), then written; `done` gets whether it was.
+    static func writeWhenDecoded(_ document: RichDocument, pageSetup: PageSetup, theme: RichTextTheme,
+                                 to path: String, title: String, done: @escaping (Bool) -> Void) {
+        let prepared = prepare(document, pageSetup: pageSetup, theme: theme)
+        var polls = 0
+        func poll() {
+            prepared.layout.applyDecodedPictures()
+            if prepared.pending, polls < 400 {
+                polls += 1
+                DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(20)) { poll() }
+                return
+            }
+            done(finish(prepared, to: path, title: title, printPages: nil))
+        }
+        poll()
+    }
+
+    static func prepare(_ document: RichDocument, pageSetup: PageSetup, theme: RichTextTheme) -> Prepared {
         // A document with comments or tracked changes prints with its
         // markup, as Word prints it by default: the page smaller, its
         // balloons beside it (`MarkupFrame`, `PdfMarkup`), its deleted
@@ -55,15 +104,10 @@ enum PdfExport {
                 layout = laidOut(document)
             }
         }
-        // The pictures are decoded off to the side and painted as grey
-        // boxes until they are: wait for them (the decoding runs on the
-        // main queue, which nothing is turning here), but not for ever.
         // (A header's or a text box's own layout is made when it is first
         // painted, and its pictures asked for then: the pages are painted
-        // once to nowhere first.)
-        #if !os(WASI)
-        // (Painting recurses as deep as layout does, in frames as big: on a 64 MB stack, like the layout itself.
-        // The wait below stays on the calling thread: it turns that thread's run loop.)
+        // once to nowhere.)
+        // (Painting recurses as deep as layout does, in frames as big: on a 64 MB stack, like the layout itself.)
         let measured = layout, measuredDocument = document
         BigStack.run {
             for p in 0 ..< measured.pageCount {
@@ -75,18 +119,14 @@ enum PdfExport {
                 _ = recorder.endRecording()
             }
         }
-        let deadline = Date().addingTimeInterval(8)
-        while layout.hasPendingImages || WriterMetafiles.hasPendingImages || WriterGroups.hasPendingImages, Date() < deadline {
-            RunLoop.main.run(until: Date().addingTimeInterval(0.005))
-            layout.applyDecodedPictures()
-        }
-        #endif
+        return Prepared(layout: layout, document: document, markup: markup, theme: theme, zoom: zoom)
+    }
 
-        // (`--trace-rules`: laid out, and every header and text box with it,
-        // as a PDF is written from them; no page of it is.)
-        if layoutOnly { return true }
-
-        let finalLayout = layout, finalDocument = document
+    static func finish(_ prepared: Prepared, to path: String, title: String, printPages: [Int]?) -> Bool {
+        RichTextTheme.shadowsAsPaths = true
+        defer { RichTextTheme.shadowsAsPaths = false }
+        let markup = prepared.markup, theme = prepared.theme, zoom = prepared.zoom
+        let finalLayout = prepared.layout, finalDocument = prepared.document
         var pages: [PdfDocument.Page] = BigStack.run {
         var pages: [PdfDocument.Page] = []
         let layout = finalLayout, document = finalDocument
