@@ -1171,13 +1171,19 @@ extension RichLayout {
                             // the line at the narrowing top or foot of an oval reaches nearer the picture's box.)
                             if polyOn, h > 0 {
                                 let poly = float.wrapPolygon, fy0 = _px(float.y), off = offset, gl = _px(float.distanceLeft ?? 9)
+                                // (The outline is met over the line's text, not its spacing: a multiple's extra goes below the text and
+                                // does not count. Word's print of lab shapes/shape-format, an oval at 1.08: the right pieces start at
+                                // 260.6 / 275.6, the outline's edge over the 13.4 pt text plus 9 pt, not over the 14.5 pt line.)
+                                let multiple = p.style.lineHeightPoints == nil && p.style.lineSpacing > 1.001 ? p.style.lineSpacing : 1
                                 _besideLeftAt[i] = { a, b in
+                                    let b = a + (b - a) / multiple
                                     let ya = (a + off - fy0) / h, yb = (b + off - fy0) / h
                                     guard let m = Self._outlineMinX(poly, ya, yb) else { return leftEdge - own }
                                     return max(x + w * m - gl - own, leftEdge - own)
                                 }
                                 let gr = _px(float.distanceRight ?? 9)
                                 _besideStartAt[i] = { a, b in
+                                    let b = a + (b - a) / multiple
                                     let ya = (a + off - fy0) / h, yb = (b + off - fy0) / h
                                     guard let m = Self._outlineMaxX(poly, ya, yb) else { return rightEdge - own }
                                     return max(x + w * m + gr - own, 0)
