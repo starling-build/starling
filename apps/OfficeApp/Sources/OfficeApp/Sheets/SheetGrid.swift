@@ -3517,8 +3517,10 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 let m = SheetPrintMetrics.of(family: book.defaultFontName ?? OfficeFonts.defaultFamily, size: book.defaultFontSize ?? 11, bold: book.defaultFontBold)
                 // The face's own printed line in dots (57523's Calibri Bold 10 header: 109 dots, 13.08 pt, where the screen
                 // pixels scaled by the book's default font made 13.37).
-                let pitch = (st.fontName == nil && st.fontSize == nil && st.bold == book.defaultFontBold ? m.defaultRow
+                let pitch0 = (st.fontName == nil && st.fontSize == nil && st.bold == book.defaultFontBold ? m.defaultRow
                     : SheetPrintMetrics.of(family: book.fontName(st), size: book.fontSize(st), bold: st.bold).defaultRow) * scale
+                let dotum = ["돋움", "굴림", "dotum", "gulim"].contains(book.fontName(st).trimmingWhitespace().lowercased())
+                let pitch = dotum ? book.fontSize(st) * scale + 1.2 * scale : pitch0
                 let one = texts.painter("X", style).height, n = Double(lines.count - 1)
                 let y0: Double
                 switch st.vAlign {
@@ -3530,6 +3532,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                         : _printTop(st, book, ws, row: a.row, texts.painter("X", style), top: top, bottom: bottom, .center) - n / 2 * pitch - lift
                 case .bottom: y0 = _footTop(st, book, ws, row: a.row, texts.painter("X", style), bottom: bottom) - n * pitch
                 }
+                let xBase = texts.painter("X", style).computeDistanceToActualBaseline(.alphabetic).rounded()
                 let hardEnds = st.justify ? texts._paragraphEnds(text, style, max(1, width - pad * 2 - wrapLess)) : []
                 for (i, line) in lines.enumerated() {
                     let lp = !richLns.isEmpty ? texts.richLine(richLns[i], align: .left, maxWidth: .infinity) : st.justify && wraps && i < lines.count - 1 && !hardEnds.contains(i) ? texts.painter(String(line), style, maxWidth: max(1, width - pad * 2 - wrapLess), align: .justify, spreadLast: true) : texts.painter(String(line), style)
@@ -3539,7 +3542,9 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                     case .center: x = left + (width - lead - lp.width) / 2 + lead + centre
                     default: x = left + margin + inset + lead
                     }
-                    lp.paint(canvas, Offset(x, y0 + Double(i) * pitch))
+                    // (A Dotum/Gulim cell's lines all stand on the baseline its first would, whatever fallback face draws one; the other CJK faces' wrapped lines, zh-1de4da4caa's, stand where their own painter puts them.)
+                    let drop = dotum ? xBase - lp.computeDistanceToActualBaseline(.alphabetic).rounded() : 0
+                    lp.paint(canvas, Offset(x, y0 + drop + Double(i) * pitch))
                     _drawRules(lp, style, at: Offset(x, y0 + Double(i) * pitch), canvas)
                 }
                 canvas.restore()

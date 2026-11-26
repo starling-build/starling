@@ -13,6 +13,17 @@ final class SheetsPrintTests: XCTestCase {
         _ = OfficeFonts.register()
     }
 
+    func testDotumGulimKeepThePaintersAscentDescent() {
+        // A single centred Dotum/Gulim line stands where the face's own
+        // ascent and descent put it: ko-946b4369d3 p2 (Dotum 16 in rows of
+        // 22) matched Excel's print to 0.0 pt that way and stood 3.6 pt high
+        // on a 0.90/0.21 em pair, which also cost six more Korean books.
+        for f in ["돋움", "굴림", "Dotum", "Gulim"] {
+            XCTAssertNil(SheetPrintMetrics.printAscent(family: f), f)
+            XCTAssertNil(SheetPrintMetrics.printDescent(family: f), f)
+        }
+    }
+
     func testPagesGoDownThenOver() {
         // 12 columns of 64pt (768pt) and 60 rows of 15pt (900pt) on Letter
         // with Normal margins: 511.2pt by 684pt a page.
