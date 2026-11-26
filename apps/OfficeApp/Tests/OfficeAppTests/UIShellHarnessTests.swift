@@ -487,6 +487,22 @@ final class SheetsTitleBarUndoHarnessTests: XCTestCase {
         XCTAssertEqual(c.document.paragraphs.compactMap { $0.cell }.filter { $0.fill != nil }.count, 2)
     }
 
+    /// W-TB-1: the Insert Table grid: a click on a square inserts that many columns and rows; the caption names the size.
+    func testInsertTableGridInsertsTheClickedSize() {
+        XCTAssertEqual(TableGridMenuItem.caption(rows: 0, columns: 0), "Insert Table")
+        XCTAssertEqual(TableGridMenuItem.caption(rows: 4, columns: 3), "3 × 4 Table")
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(1280, 800))
+        let c = ui.state(OfficeShellState.self)!.session.controller
+        XCTAssertTrue(ui.tap(text: "Insert"))
+        XCTAssertTrue(ui.tap(text: "Table"))
+        XCTAssertTrue(ui.has(id: "table-grid-8-10"), "ten columns by eight rows")
+        XCTAssertFalse(ui.has(id: "table-grid-9-1"))
+        XCTAssertTrue(ui.tap(id: "table-grid-4-3"))
+        let cells = c.document.paragraphs.compactMap { $0.cell }
+        XCTAssertEqual(cells.count, 12, "3 columns x 4 rows")
+        XCTAssertEqual(c.document.columnCount(of: cells[0].table), 3)
+    }
+
     /// W-TB-2: the Borders and Shading dialog applies sides, line and shading as one undo.
     func testBordersAndShadingDialogReachesTheController() {
         // (2000 wide: see testTableLayoutBordersAndShadingReachTheController.)

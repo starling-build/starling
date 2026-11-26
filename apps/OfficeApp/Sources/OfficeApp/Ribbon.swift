@@ -555,13 +555,10 @@ final class Ribbon: StatelessWidget {
         let c = session.controller
         let inCell = c.isInCell
         var items: [MenuFlyoutItemBase] = []
-        for (rows, cols) in [(2, 2), (3, 3), (4, 4), (3, 2), (5, 3)] {
-            items.append(MenuFlyoutItem(text: Text("Insert \(rows) × \(cols) Table"),
-                                        onPressed: { [session] in
-                                            c.insertTable(rows: rows, columns: cols)
-                                            session.onStatus?("Inserted a \(rows) × \(cols) table")
-                                        }))
-        }
+        items.append(TableGridMenuItem(onChoose: { [session] rows, cols in
+            c.insertTable(rows: rows, columns: cols)
+            session.onStatus?("Inserted a \(cols) × \(rows) table")
+        }))
         items.append(MenuFlyoutSeparator())
         items.append(MenuFlyoutItem(text: Text("Insert Table…"), onPressed: { [session] in session.onInsertTableDialog?() }))
         items.append(MenuFlyoutItem(text: Text("Convert Text to Table…"), onPressed: c.canConvertTextToTable ? { [session] in session.onConvertTextTableDialog?(true) } : nil))
