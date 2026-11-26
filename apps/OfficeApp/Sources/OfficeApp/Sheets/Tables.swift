@@ -216,12 +216,18 @@ struct SheetPivot: Equatable, Sendable {
     var fileSpec: PivotSpec? = nil
     /// Set once the cells were laid out again here: the saved cache then tells Excel to read its source again on open.
     var refreshedHere = false
+    /// Why this file pivot cannot be edited here (another pivot, a slicer, a timeline or a pivot chart uses its cache, or it has calculated
+    /// items); nil when it can. An edit would otherwise drop what hangs on it.
+    var editBlocker: String? = nil
+    /// The cache id the file gave it (kept when an edit turns it into one made here).
+    var cacheId: Int? = nil
 }
 
 enum PivotsXML {
     /// The pivot tables a sheet's relationships name.
     static func read(sheetPath: String, parts: [String: Data]) -> [SheetPivot] {
-        SheetDrawingsXML._relTargets(parts, of: sheetPath).values.sorted().compactMap { path in
+        let formats = customFormats(parts)
+        return SheetDrawingsXML._relTargets(parts, of: sheetPath).values.sorted().compactMap { path -> SheetPivot? in
             guard path.containsSubstring("pivotTables/"), let root = Xlsx._part(parts, path).flatMap({ XNode.parse($0) }),
                   let loc = root.child("location"), let ref = loc["ref"].flatMap({ CellRange($0) }) else { return nil }
             // (The grand total row is there unless turned off, where rows
@@ -235,7 +241,9 @@ enum PivotsXML {
             // above, and fewer items than fields (tabular form puts the
             // first inner item beside it).
             p.path = path; p.originalRef = ref
-            p.fileSpec = spec(root)
+            p.fileSpec = spec(root, formats: formats)
+            p.cacheId = root["cacheId"].flatMap { Int($0) }
+            p.editBlocker = blocker(root, name: root["name"] ?? "", path: path, parts: parts)
             let cacheRoot = SheetDrawingsXML._relTargets(parts, of: path).values.sorted().first(where: { $0.containsSubstring("pivotCacheDefinition") })
                 .flatMap { c in Xlsx._part(parts, c).flatMap { XNode.parse($0) }.map { (c, $0) } }
             if let (_, croot) = cacheRoot, p.fileSpec != nil {
@@ -260,7 +268,7 @@ enum PivotsXML {
 
 extension PivotsXML {
     /// The spec of a file's pivot table, or nil when it uses anything the compact layout here would not reproduce.
-    static func spec(_ root: XNode) -> PivotSpec? {
+    static func spec(_ root: XNode, formats: [Int: String] = [:]) -> PivotSpec? {
         func idx(_ n: XNode?, _ tag: String, _ attr: String) -> [Int] { (n?.kids(tag) ?? []).compactMap { Int($0[attr] ?? "") } }
         if root["compact"] == "0" || root["outline"] == "0" || root["rowGrandTotals"] == "0" || root["colGrandTotals"] == "0"
             || root["dataOnRows"] == "1" { return nil }
@@ -268,19 +276,25 @@ extension PivotsXML {
         for f in fields {
             if f["compact"] == "0" || f["outline"] == "0" || f["defaultSubtotal"] == "0" || f["sortType"] != nil && f["sortType"] != "manual"
                 || f.child("fieldGroup") != nil || f["calculatedField"] == "1" { return nil }
-            for i in f.child("items")?.kids("item") ?? [] where i["h"] == "1" || i["sd"] == "0" { return nil }
+            for i in f.child("items")?.kids("item") ?? [] where i["h"] == "1" || i["sd"] == "0" || i["f"] == "1" { return nil }
         }
         let rows = idx(root.child("rowFields"), "field", "x").filter { $0 >= 0 }
         let cols = idx(root.child("colFields"), "field", "x").filter { $0 >= 0 }
         var data: [PivotDataField] = []
         for d in root.child("dataFields")?.kids("dataField") ?? [] {
             guard let f = Int(d["fld"] ?? ""), d["showDataAs"] == nil || d["showDataAs"] == "normal", d["baseField"] == nil || d["baseField"] == "0" else { return nil }
+            var df: PivotDataField
             switch d["subtotal"] ?? "sum" {
-            case "sum": data.append(PivotDataField(field: f, function: .sum))
-            case "count": data.append(PivotDataField(field: f, function: .count))
-            case "average": data.append(PivotDataField(field: f, function: .average))
+            case "sum": df = PivotDataField(field: f, function: .sum)
+            case "count": df = PivotDataField(field: f, function: .count)
+            case "average": df = PivotDataField(field: f, function: .average)
             default: return nil
             }
+            df.name = d["name"]
+            if let id = d["numFmtId"].flatMap({ Int($0) }), id != 0, let code = Xlsx.builtinFormats[id] ?? formats[id] {
+                df.numberFormat = code; df.fileFormatId = id
+            }
+            data.append(df)
         }
         var filters: [PivotFilter] = []
         for g in root.child("pageFields")?.kids("pageField") ?? [] {
@@ -289,6 +303,48 @@ extension PivotsXML {
         }
         if rows.isEmpty || data.isEmpty { return nil }
         return PivotSpec(name: root["name"] ?? "PivotTable1", rows: rows, cols: cols, data: data, filters: filters, origin: CellAddress(row: 0, col: 0))
+    }
+
+    /// The custom number formats of the file's styles, by id.
+    static func customFormats(_ parts: [String: Data]) -> [Int: String] {
+        guard let d = parts["xl/styles.xml"], let st = XNode.parse(d) else { return [:] }
+        var out: [Int: String] = [:]
+        for nf in st.child("numFmts")?.kids("numFmt") ?? [] { if let id = Int(nf["numFmtId"] ?? ""), let c = nf["formatCode"] { out[id] = c } }
+        return out
+    }
+
+    /// Why a file pivot cannot be turned into one made here, or nil. Editing writes a fresh pivot table and cache; anything
+    /// else that hangs on the old ones would be lost, so the edit is refused instead.
+    static func blocker(_ root: XNode, name: String, path: String, parts: [String: Data]) -> String? {
+        let file = String(path[path.index(after: path.lastIndex(of: "/") ?? path.index(before: path.startIndex))...])
+        let relPath = "xl/pivotTables/_rels/" + file + ".rels"
+        let cache = parts[relPath].flatMap { d in String(decoding: d, as: UTF8.self).components(separatedBy: "Target=\"").dropFirst().first?.components(separatedBy: "\"").first }
+            .map { String($0[$0.index(after: ($0.lastIndex(of: "/") ?? $0.index(before: $0.startIndex)))...]) }
+        if let cache {
+            var users = 0
+            for (k, v) in parts where k.hasPrefix("xl/pivotTables/_rels/") && k.hasSuffix(".rels") {
+                if String(decoding: v, as: UTF8.self).containsSubstring("/" + cache + "\"") { users += 1 }
+            }
+            if users > 1 { return "This PivotTable shares its data with another PivotTable, so it cannot be changed here yet. Change it in Excel." }
+            if let c = parts["xl/pivotCache/" + cache].map({ String(decoding: $0, as: UTF8.self) }),
+               c.containsSubstring("<calculatedItems") || c.containsSubstring("databaseField=\"0\"") {
+                return "This PivotTable has calculated fields or items, so it cannot be changed here yet. Change it in Excel."
+            }
+        }
+        for (k, v) in parts where (k.hasPrefix("xl/slicerCaches/") || k.hasPrefix("xl/timelineCaches/")) && k.hasSuffix(".xml") {
+            if String(decoding: v, as: UTF8.self).containsSubstring("name=\"" + Xlsx._esc(name) + "\"") {
+                return "A slicer or timeline uses this PivotTable, so it cannot be changed here yet. Change it in Excel."
+            }
+        }
+        for (k, v) in parts where k.hasPrefix("xl/charts/chart") && k.hasSuffix(".xml") {
+            let t = String(decoding: v, as: UTF8.self)
+            if t.containsSubstring("pivotSource"), t.containsSubstring("]" ) , t.containsSubstring("!" + Xlsx._esc(name) + "<") {
+                return "A PivotChart uses this PivotTable, so it cannot be changed here yet. Change it in Excel."
+            }
+        }
+        if root.child("chartFormats") != nil { return "A PivotChart uses this PivotTable, so it cannot be changed here yet. Change it in Excel." }
+        if root.child("conditionalFormats") != nil { return "This PivotTable has conditional formatting, so it cannot be changed here yet. Change it in Excel." }
+        return nil
     }
 
     /// The groups of a cache's fields by source column, or nil when one is of a kind the pivot here cannot lay out (days, hours, groups
@@ -335,7 +391,7 @@ extension PivotsXML {
     static func patched(sheets: [Worksheet], parts: [String: Data]) -> [String: Data] {
         var out: [String: Data] = [:]
         for ws in sheets {
-            for p in ws.pivots {
+            for p in ws.pivots where p.made == nil {
                 if let path = p.path, let ref = p.ref as CellRange?, let was = p.originalRef, ref != was,
                    let d = out[path] ?? parts[path], var x = Optional(String(decoding: d, as: UTF8.self)),
                    let y = setAttr(x, tag: "location", "ref", ref.a1) { x = y; out[path] = Data(x.utf8) }

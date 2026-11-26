@@ -37,6 +37,8 @@ struct PivotDataField: Equatable, Sendable {
     /// A number format code for its cells (nil: General, or the percentage format Show Values As implies).
     var numberFormat: String? = nil
     var showAs: PivotShowAs = .normal
+    /// The id the file gave `numberFormat`, kept while the format is the one the file chose (a custom code has no other id to write).
+    var fileFormatId: Int? = nil
     /// The format its cells wear: the one chosen, else 0.00% for a share, else none.
     var cellFormat: String? { numberFormat ?? (showAs == .normal ? nil : "0.00%") }
 }
@@ -258,10 +260,13 @@ enum PivotCalc {
 
     private static func aggregate(_ recs: [[CellValue]], _ d: PivotDataField) -> CellValue {
         switch d.function {
-        case .count: return recs.isEmpty ? .empty : .number(Double(recs.filter { !$0[d.field].isEmpty }.count))
+        // Blank source cells add nothing and count as nothing; a crossing with only blanks stays empty.
+        case .count:
+            let n = recs.filter { !$0[d.field].isEmpty }.count
+            return n == 0 ? .empty : .number(Double(n))
         case .sum:
-            let n = recs.compactMap { $0[d.field].number }
-            return recs.isEmpty ? .empty : .number(n.reduce(0, +))
+            guard recs.contains(where: { !$0[d.field].isEmpty }) else { return .empty }
+            return .number(recs.compactMap { $0[d.field].number }.reduce(0, +))
         case .average:
             let n = recs.compactMap { $0[d.field].number }
             return n.isEmpty ? .empty : .number(n.reduce(0, +) / Double(n.count))
@@ -354,7 +359,11 @@ enum PivotCalc {
             grid += head
             func line(_ label: String, _ rs: [[CellValue]]) -> [CellValue] {
                 var row: [CellValue] = [.text(label)]
-                for nd in nodes { for k in 0 ..< v { row.append(aggregate(rs.filter { r in nd.path.indices.allSatisfy { key(r[spec.cols[$0]], spec.cols[$0], spec, src) == out.items[spec.cols[$0]]![nd.path[$0]] } }, spec.data[k])) } }
+                // (A row and column that no record falls in is blank in Excel, not a 0.)
+                for nd in nodes {
+                    let here = rs.filter { r in nd.path.indices.allSatisfy { key(r[spec.cols[$0]], spec.cols[$0], spec, src) == out.items[spec.cols[$0]]![nd.path[$0]] } }
+                    for k in 0 ..< v { row.append(here.isEmpty ? .empty : aggregate(here, spec.data[k])) }
+                }
                 for k in 0 ..< v { row.append(aggregate(rs, spec.data[k])) }
                 return row
             }
@@ -559,7 +568,7 @@ enum PivotWriter {
             var df = "<dataField name=\"\(esc(lay.dataNames[k]))\" fld=\"\(d.field)\""
             if d.function != .sum { df += " subtotal=\"\(d.function.rawValue)\"" }
             if d.showAs != .normal { df += " showDataAs=\"\(d.showAs.rawValue)\"" }
-            if let f = d.cellFormat, let id = Xlsx.builtinFormats.first(where: { $0.value == f })?.key { df += " numFmtId=\"\(id)\"" }
+            if let id = d.cellFormat.flatMap({ f in Xlsx.builtinFormats.first { $0.value == f }?.key ?? d.fileFormatId }) { df += " numFmtId=\"\(id)\"" }
             s += df + " baseField=\"0\" baseItem=\"0\"/>"
         }
         s += "</dataFields>"
@@ -646,7 +655,7 @@ extension WorkbookController {
     /// The pivot made here that the active cell is in (its page filters included).
     func madePivotIndex(on ws: Worksheet, at a: CellAddress) -> Int? {
         ws.pivots.indices.first { k in
-            guard let m = ws.pivots[k].made else { return false }
+            guard let m = ws.pivots[k].made ?? (ws.pivots[k].editBlocker == nil ? ws.pivots[k].fileSpec : nil) else { return false }
             let r = ws.pivots[k].ref, pr = m.filters.isEmpty ? 0 : m.filters.count + 1
             return a.row >= r.top - pr && a.row <= r.bottom && a.col >= r.left && a.col <= r.right
         }
@@ -655,23 +664,48 @@ extension WorkbookController {
     /// The PivotTable Fields pane: put the fields where the user dragged them. One undoable step; the problem when the new setup cannot be laid out.
     @discardableResult
     func setPivotFields(sheet ws: Worksheet, pivot k: Int, rows: [Int], cols: [Int], data: [PivotDataField], filters: [PivotFilter]) -> PivotProblem? {
-        guard ws.pivots.indices.contains(k), var spec = ws.pivots[k].made, let s = ws.pivots[k].source, let src = PivotSource.read(s, book: book) else { return .noSource }
+        guard ws.pivots.indices.contains(k), var spec = editableSpec(ws, k), let s = ws.pivots[k].source, let src = PivotSource.read(s, book: book) else { return .noSource }
+        // A heading still the automatic one ("Sum of Score") follows a change of function ("Count of Score");
+        // one the user typed stays.
+        var data = data
+        for i in data.indices where i < spec.data.count {
+            let old = spec.data[i]
+            guard old.field == data[i].field, old.function != data[i].function, data[i].name == old.name,
+                  let n = old.name, src.headers.indices.contains(old.field), n == old.function.caption + src.headers[old.field] else { continue }
+            data[i].name = nil
+        }
         spec.rows = rows; spec.cols = cols; spec.data = data; spec.filters = filters
         if let p = PivotCalc.problem(spec, src) { return p }
         // (A page filter added or removed moves the table down or up: the old page rows are cleared by `_relayPivot`, and the table keeps its top.)
-        structural { _relayPivot(ws, k, spec, src) }
+        structural { adoptFilePivot(ws, k); _relayPivot(ws, k, spec, src) }
         return nil
+    }
+
+    /// The spec of pivot `k` as an edit starts from: the one made here, or a file pivot's when it may be edited.
+    func editableSpec(_ ws: Worksheet, _ k: Int) -> PivotSpec? {
+        ws.pivots[k].made ?? (ws.pivots[k].editBlocker == nil ? ws.pivots[k].fileSpec : nil)
+    }
+
+    /// A file pivot's first edit: from here on it is one made here (same name, cache id, place, style and number formats), and a
+    /// save writes fresh parts for it in place of the file's.
+    func adoptFilePivot(_ ws: Worksheet, _ k: Int) {
+        if ws.pivots[k].made == nil, ws.pivots[k].editBlocker == nil, let fs = ws.pivots[k].fileSpec { ws.pivots[k].made = fs }
+    }
+
+    /// Why the pivot under `a` cannot be edited (a file pivot with something hanging on it), or nil.
+    func pivotEditBlocker(on ws: Worksheet, at a: CellAddress) -> String? {
+        ws.pivots.first { p in p.made == nil && p.editBlocker != nil && p.fileSpec != nil && a.row >= p.ref.top - (p.fileSpec!.filters.isEmpty ? 0 : p.fileSpec!.filters.count + 1) && a.row <= p.ref.bottom && a.col >= p.ref.left && a.col <= p.ref.right }?.editBlocker
     }
 
     /// Group field `f` of pivot `k` (or ungroup it with nil). Every pivot made here over the same source gets the same grouping, as
     /// Excel keeps groups in the cache the pivots share. One undoable step.
     @discardableResult
     func setPivotGroup(sheet ws: Worksheet, pivot k: Int, field f: Int, group: PivotGroup?) -> PivotProblem? {
-        guard ws.pivots.indices.contains(k), ws.pivots[k].made != nil, let s = ws.pivots[k].source, let src = PivotSource.read(s, book: book), f >= 0, f < src.headers.count else { return .noSource }
+        guard ws.pivots.indices.contains(k), editableSpec(ws, k) != nil, let s = ws.pivots[k].source, let src = PivotSource.read(s, book: book), f >= 0, f < src.headers.count else { return .noSource }
         var plans: [(Worksheet, Int, PivotSpec)] = []
         for w in book.sheets {
             for j in w.pivots.indices where w.pivots[j].source == s {
-                guard var spec = w.pivots[j].made else { continue }
+                guard var spec = editableSpec(w, j) else { continue }
                 spec.groups[f] = group
                 if let group, group.items(src.rows.map { $0[f] }).isEmpty { return .cannotGroup }
                 for i in spec.filters.indices where spec.filters[i].field == f { spec.filters[i].item = nil }
@@ -679,7 +713,7 @@ extension WorkbookController {
                 plans.append((w, j, spec))
             }
         }
-        structural { for (w, j, spec) in plans { _relayPivot(w, j, spec, src) } }
+        structural { for (w, j, spec) in plans { adoptFilePivot(w, j); _relayPivot(w, j, spec, src) } }
         return nil
     }
 

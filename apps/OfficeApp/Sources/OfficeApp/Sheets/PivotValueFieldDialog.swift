@@ -49,6 +49,7 @@ final class PivotValueFieldDialogState: State<StatefulWidget> {
         // (The name left as the one offered is not a custom one: it follows the function.)
         d.name = n.isEmpty || n == _seededName ? nil : n
         d.showAs = showAs
+        if d.numberFormat != (format.isEmpty ? nil : format) { d.fileFormatId = nil }
         d.numberFormat = format.isEmpty ? nil : format
         if let p = _w.controller.setPivotValueField(_w.index, d) { message = p.message; setState {}; return }
         _w.onClose()
