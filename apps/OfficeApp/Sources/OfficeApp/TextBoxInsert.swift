@@ -69,11 +69,33 @@ enum TextBoxInsert {
         read(drawingXML(text: nil, width: width, height: height, preset: preset, fill: "4472C4", name: shapeLabel(preset), number: number, page: page)) { _ in true }
     }
 
-    static func read(_ drawing: String, _ wanted: (ImageAttachment) -> Bool) -> ImageAttachment? {
+    /// `drawing` read as a file would read it. `rels` are the relationships it names (a picture's file), with the bytes of
+    /// their parts in `parts` (package path): the drawing is read with them, so a picture in it draws, and the attachment
+    /// carries them as its own (`sourceRels`, renamed; the parts stay the document's).
+    static func read(_ drawing: String, rels: [KeptRel] = [], parts: [String: Data] = [:], _ wanted: (ImageAttachment) -> Bool) -> ImageAttachment? {
         guard let base = try? DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "x")]), pageSetup: .letter),
               var entries = try? Zip.read(base), let di = entries.firstIndex(where: { $0.name == "word/document.xml" }) else { return nil }
         var xml = String(decoding: entries[di].data, as: UTF8.self)
         guard let r = xml.rangeOfSubstring("<w:r>"), let end = xml.rangeOfSubstring("</w:r>") else { return nil }
+        var drawing = drawing
+        if !rels.isEmpty {
+            // Each named relationship under an id the throwaway file cannot already use.
+            guard let ri = entries.firstIndex(where: { $0.name == "word/_rels/document.xml.rels" }) else { return nil }
+            var relsXML = String(decoding: entries[ri].data, as: UTF8.self)
+            guard let close = relsXML.rangeOfSubstring("</Relationships>") else { return nil }
+            var added = ""
+            var seen = Set<String>()
+            for rel in rels where seen.insert(rel.id).inserted {
+                let nid = "rIdGroupPart\(seen.count)"
+                for attr in DocxFormat._relationshipAttributes { drawing = drawing.replacingAll("\(attr)=\"\(rel.id)\"", with: "\(attr)=\"\(nid)\"") }
+                added += "<Relationship Id=\"\(nid)\" Type=\"\(DocxFormat._esc(rel.type))\" Target=\"\(DocxFormat._esc(rel.target))\"\(rel.external ? " TargetMode=\"External\"" : "")/>"
+            }
+            relsXML.insert(contentsOf: added, at: close.lowerBound)
+            entries[ri] = ZipEntry(name: entries[ri].name, data: Data(relsXML.utf8))
+            for (path, data) in parts.sorted(by: { $0.key < $1.key }) where !entries.contains(where: { $0.name == path }) {
+                entries.append(ZipEntry(name: path, data: data))
+            }
+        }
         xml.replaceSubrange(r.lowerBound ..< end.upperBound, with: "<w:r>" + drawing + "</w:r>")
         entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
         guard let data = try? Zip.write(entries), let doc = try? DocxFormat.read(data).document else { return nil }

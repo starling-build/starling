@@ -868,7 +868,7 @@ final class Ribbon: StatelessWidget {
         if picked.count >= 2, pickedImages.allSatisfy(ShapeGroups.isGroupable) {
             groupWidgets.append(Chrome.group("Group", fluent, [
                 Chrome.big(FluentSystemIcons.shapes, "Group", fluent) { [session] in
-                    if let g = ShapeGroups.group(pickedImages, number: TextBoxInsert.nextShapeNumber(in: c.document)), c.replaceImageParagraphs(picked, with: [g]) {
+                    if let g = ShapeGroups.group(pickedImages, number: TextBoxInsert.nextShapeNumber(in: c.document), parts: c.document.keptParts), c.replaceImageParagraphs(picked, with: [g]) {
                         session.onStatus?("Grouped \(picked.count) shapes")
                     }
                 },
@@ -876,7 +876,7 @@ final class Ribbon: StatelessWidget {
         } else if let image = c.document.paragraphs[i].image, ShapeGroups.isGroup(image) {
             groupWidgets.append(Chrome.group("Group", fluent, [
                 Chrome.big(FluentSystemIcons.shapes, "Ungroup", fluent) { [session] in
-                    if let parts = ShapeGroups.ungroup(image, number: TextBoxInsert.nextShapeNumber(in: c.document)), c.replaceImageParagraphs([i], with: parts) {
+                    if let parts = ShapeGroups.ungroup(image, number: TextBoxInsert.nextShapeNumber(in: c.document), parts: c.document.keptParts), c.replaceImageParagraphs([i], with: parts) {
                         session.onStatus?("Ungrouped into \(parts.count) shapes")
                     }
                 },

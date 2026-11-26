@@ -1,6 +1,7 @@
 // Copyright the Starling authors
 // SPDX-License-Identifier: Apache-2.0
 
+import Foundation
 import Flutter
 import FlutterSwiftBridge
 
@@ -545,8 +546,9 @@ extension RichDocumentController {
     }
 
     /// What the app does to one child of a group (EMU, page coordinates).
-    /// Set by the app, which knows the markup: (group, child, change) gives the changed group, or nil.
-    public nonisolated(unsafe) static var groupChildEditor: ((ImageAttachment, Int, GroupChildChange) -> ImageAttachment?)? = nil
+    /// Set by the app, which knows the markup: (group, child, change, the document's parts for its pictures' files) gives
+    /// the changed group, or nil.
+    public nonisolated(unsafe) static var groupChildEditor: ((ImageAttachment, Int, GroupChildChange, [String: Data]) -> ImageAttachment?)? = nil
 
     /// The picked child lifted out of its group as a text box of its own (a plain shape gets an empty text), or nil.
     public nonisolated(unsafe) static var groupChildProxy: ((ImageAttachment, Int) -> ImageAttachment?)? = nil
@@ -571,7 +573,7 @@ extension RichDocumentController {
     public func editGroupChild(_ change: GroupChildChange, rels: [KeptRel] = []) -> Bool {
         guard let index = selectedImageIndex, let child = groupChild, index < document.paragraphs.count,
               let image = document.paragraphs[index].image, let edit = Self.groupChildEditor,
-              let changed = edit(image, child, change) else { return false }
+              let changed = edit(image, child, change, document.keptParts) else { return false }
         var next = changed
         if !rels.isEmpty { next.sourceRels = image.sourceRels.filter { !$0.id.hasPrefix("rIdLink") && !$0.id.hasPrefix("rIdBoxKept") } + rels }
         guard replaceImageParagraphs([index], with: [next]) else { return false }

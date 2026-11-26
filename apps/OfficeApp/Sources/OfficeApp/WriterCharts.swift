@@ -254,7 +254,7 @@ enum WriterCharts {
             RichDocumentController.groupChildProxy = { image, child in ShapeGroups.textProxy(image, child: child) }
         }
         if RichDocumentController.groupChildEditor == nil {
-            RichDocumentController.groupChildEditor = { image, child, change in ShapeGroups.editChild(image, child: child, change) }
+            RichDocumentController.groupChildEditor = { image, child, change, parts in ShapeGroups.editChild(image, child: child, change, parts: parts) }
         }
     }
 }
