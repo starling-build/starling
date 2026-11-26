@@ -457,6 +457,13 @@ final class ShapeInsertTests: XCTestCase {
 }
 
 final class ShapeSelectTests: XCTestCase {
+    /// Line breaking needs ICU's data in the text engine, which a run filtered to this class would otherwise lack
+    /// (`AAATextSetupTests` loads it only when it runs first): without it a whole paragraph lays out as one line.
+    override class func setUp() {
+        super.setUp()
+        _ = TestText.icuLoaded
+    }
+
     /// Lays out with the faces this app ships, loaded here, and those only: a machine's own faces (a Mac's Times) or what
     /// an earlier test left loaded must not move the lines these tests measure. Gives back the undo.
     static func pinBundledFonts() -> () -> Void {
@@ -671,7 +678,10 @@ final class ShapeSelectTests: XCTestCase {
         func beside(_ top: Double, _ bottom: Double) -> [Double] { carets.filter { $0.bottom > top && $0.top < bottom }.map(\.left) }
         let lefts = beside(128, 198)
         XCTAssertFalse(lefts.isEmpty)
-        XCTAssertFalse(beside(150, 176).contains { $0 > 125 && $0 < 235 }, "no text inside the ellipse's widest rows")
+        // At its widest rows the ellipse reaches 228 across; Word sets the text a further 9 pt out (its wrap distance: lab
+        // shape-format's print starts the right piece 9.0 pt past the outline at the row through the centre). How far into
+        // that strip this layout's outline lets a word come differs with the host's line heights, so the bound is the outline.
+        XCTAssertFalse(beside(150, 176).contains { $0 > 125 && $0 < 228 }, "no text inside the ellipse's widest rows")
         XCTAssertTrue(lefts.contains { $0 < 119 }, "a left piece")
         XCTAssertTrue(lefts.contains { $0 > 236 }, "a right piece")
     }
