@@ -5366,12 +5366,13 @@ enum ChartPainter {
                     fontWeight: spec.bold == true ? .bold : .normal,
                     fontFamily: OfficeFonts.substitute(c.font ?? theme.bodyFont), fontFamilyFallback: Self.glyphFallback(c))), textDirection: .ltr)
                 tp.layout(minWidth: 0, maxWidth: .infinity)
-                // (A funnel label set "t" sits on the bar's top edge, its text's foot at the edge; "b" just under the
-                // bottom, a pen's 2 pt clear; both held within the first bar's top and the last bar's foot, 2 pt out:
-                // chartex-lab2 p27, p28, 9 pt text.)
+                // (A funnel label set "t" stands on the bar's top edge, its line box's foot on the edge; "b" hangs
+                // under the bar, its line box's top on the bar's foot; both held within the first bar's top and the
+                // last bar's foot, 2 pt out: chartex-lab2 p27, p28, 9 pt text, where the labels set off the edge by
+                // a share of the size stood 0.95 and 1.0 pt low.)
                 var y = cy
                 let fs = max(3, (spec.size ?? c.baseTextSize) * k)
-                if spec.pos == "t" { y = r.top - 0.5 * fs } else if spec.pos == "b" { y = r.bottom + 0.72 * fs }
+                if spec.pos == "t" { y = r.top - tp.height / 2 } else if spec.pos == "b" { y = r.bottom + tp.height / 2 }
                 if spec.pos == "t" || spec.pos == "b" {
                     let top = plot.top + (slot - bar) / 2 - 2 * k + 0.5 * fs, foot = plot.top + slot * Double(n - 1) + (slot - bar) / 2 + bar + 2 * k - 0.5 * fs
                     y = min(max(y, top), foot)
