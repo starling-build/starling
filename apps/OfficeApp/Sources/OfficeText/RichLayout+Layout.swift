@@ -1404,7 +1404,7 @@ extension RichLayout {
                 // (A stated width the grid and the cells' widths outgrow does not hold the table to it: sa2 cb623f0a, tblW
                 // 390pt over five columns of 390pt each, is the room wide in Word's print, the columns equal.)
                 if theme.wordRules, RichTextTheme.wordWindowsPages, !_nestedInFixedTable, _columnPreview[c.table] == nil,
-                   let ts = document.tableStyles[c.table], !ts.fixedLayout, ts.widthPercent == nil, (ts.cellSpacing ?? 0) > 0 || (ts.width == nil ? scale < 1 : statedBelowGrid),
+                   let ts = document.tableStyles[c.table], !ts.fixedLayout, ts.widthPercent == nil, (ts.cellSpacing ?? 0) > 0 || (ts.width == nil || statedBelowGrid),
                    // (An outdent keeps the old way, untested.)
                    ts.indent > -0.5 {
                     let ins = _cellInsets(c.table, document)
@@ -1419,21 +1419,31 @@ extension RichLayout {
                         for q in document.paragraphs { if let cc = q.cell, cc.table == c.table, cc.span == 1, !q.text.isEmpty || q.image != nil { holds.insert(cc.column) } }
                     }
                     for (k, q) in document.paragraphs.enumerated() {
-                        guard let cc = q.cell, cc.table == c.table, cc.column < pts.count else { continue }
+                        guard let cc = q.cell, cc.table == c.table, cc.column < pts.count || ragged else { continue }
+                        // (Turned text runs along the row: its words ask nothing across the column.
+                        // xa gv-9fba5bc3b0 p10's "Likelihood" headers, up their 32pt columns in Word's print.)
+                        guard cc.textDirection == .horizontal else { continue }
+                        // (A cell past the grid asks of the last column, where Word draws it: R1's "R" holds that column's 8.0pt.)
+                        let column = min(cc.column, pts.count - 1)
                         if cc.span != 1 {
                             guard ragged, !((cc.column + 1) ..< (cc.column + cc.span)).contains(where: { holds.contains($0) }) else { continue }
                         }
                         let sides = cc.padding.map { _px($0.left) + _px($0.right) } ?? ins.left + ins.right
                         var least = _minContent(k, q, document)
-                        // (Measured, lab e3fit: an empty cell asks 0.8 pt, and a drawn line 0.8 pt more than its length each side.)
-                        if ragged { least = q.image != nil ? least + _px(1.6) : (q.text.isEmpty ? _px(0.8) : least) }
-                        need[cc.column] = max(need[cc.column], sides + least)
+                        // (Measured, lab e3fit: an empty cell asks 0.8 pt; a drawn line asks its stroke past its length, as anywhere.)
+                        if ragged, q.image == nil, q.text.isEmpty { least = _px(0.8) }
+                        need[column] = max(need[column], sides + least)
                     }
                     var grid = pts.map { _px($0) }
                     if ragged, let last = grid.indices.last {
                         RuleTrace.hit("word-autofit-column-past-the-grid-is-a-fixed-6.9pt")
                         grid[last] += _px(6.9); need[last] += _px(6.9)
-                        // (A column whose narrowest beats its stated width keeps the narrowest.)
+                    }
+                    // (A column whose narrowest beats its stated width asks its narrowest: lab e3fit C10, Word for Windows, a grid of
+                    // 50 / 300 / 50pt that fits a 595pt room around a 500pt drawn line is 46.6 / 502.5 / 46.7 in Word's print, the side
+                    // columns sharing what the line leaves, not squeezed to their text.)
+                    if theme.wordRules, zip(grid, need).contains(where: { $1 > $0 }) {
+                        RuleTrace.hit("autofit-column-asks-the-larger-of-its-width-and-narrowest")
                         grid = zip(grid, need).map { max($0, $1) }
                     }
                     // (Room: the column, less the table's indent; before 2013's layout the
@@ -2620,7 +2630,7 @@ extension RichLayout {
                 if box.growsToFit, let inside = _textBox(image, document) { first = inside.layout._narrowestTables(inside.document) }
             } else {
                 let room = _pictureRoom(image)
-                first = _px(image.width) + room.left + room.right
+                first = _px(image.width + image.strokeReach) + room.left + room.right
             }
             opening = first
         }

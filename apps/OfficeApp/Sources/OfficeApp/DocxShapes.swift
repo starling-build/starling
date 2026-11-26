@@ -583,6 +583,21 @@ extension DocxFormat {
             if Self.wordOnWindows, att.float == nil, let shape = Self._vmlTop(node), let extra = Self._wordArtExtra(shape, types: notes.shapeTypes) {
                 att.effectTop += extra
             }
+            // (A VML shape's stroke, which an autofit column holds past the
+            // shape's box: lab e3fit2, Word for Windows, a 500pt line in a
+            // cell of no width widens its column by 1.5 at strokes of 0.25
+            // and 1.25pt, by 3 and 6 at 3 and 6pt, and by none unstroked; a
+            // filled rectangle by none unstroked, 2.25 at 2pt and 6 at 6pt.
+            // Not a picture (`v:imagedata`), nor a DrawingML shape.)
+            if att.float == nil, node.descendant("wp:inline") == nil, let shape = Self._vmlTop(node), shape.first("v:imagedata") == nil {
+                let id = shape["type"].map { $0.hasPrefix("#") ? String($0.dropFirst()) : $0 }
+                let type = id.flatMap { id in notes.shapeTypes.first { $0["id"] == id } }
+                let stroke = shape.first("v:stroke")
+                let off = ["f", "false", "0"]
+                if !off.contains(shape["stroked"] ?? type?["stroked"] ?? "t"), !off.contains(stroke?["on"] ?? "t") {
+                    att.strokeReach = max(Self._length(shape["strokeweight"] ?? stroke?["weight"] ?? "") ?? 0.75, 1.5)
+                }
+            }
             // (A level line — no height — takes no room in the line whatever
             // its wrapping: zh-f47b8a74's red rules under its letterhead,
             // two lines wrapped top and bottom in an empty paragraph, are

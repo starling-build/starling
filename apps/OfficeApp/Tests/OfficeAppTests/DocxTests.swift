@@ -1483,6 +1483,31 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(boxes.map(\.fitsOnce), [true, true])
     }
 
+    /// An inline VML shape keeps its stroke as the room an autofit column
+    /// holds past its box (lab e3fit2, Word for Windows): its weight, at
+    /// least 1.5pt; none for one its shape type leaves unstroked, nor a picture.
+    func testVMLShapeStrokeIsItsColumnReach() throws {
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .a4))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let body = try XCTUnwrap(xml.range(of: "<w:body>")), sect = try XCTUnwrap(xml.range(of: "<w:sectPr"))
+        let v = "xmlns:v=\"urn:schemas-microsoft-com:vml\""
+        let types = "<v:shapetype \(v) id=\"_x0000_t32\" o:spt=\"32\" path=\"m,l21600,21600e\" filled=\"f\"/>"
+            + "<v:shapetype \(v) id=\"_x0000_t75\" stroked=\"f\" filled=\"f\"/>"
+        func shape(_ attrs: String, _ inner: String = "") -> String {
+            "<w:p><w:r><w:pict>\(types)<v:shape \(v) style=\"width:500pt;height:0pt\" \(attrs)>\(inner)</v:shape></w:pict></w:r></w:p>"
+        }
+        xml.replaceSubrange(body.upperBound ..< sect.lowerBound, with:
+            shape("type=\"#_x0000_t32\"", "<v:stroke weight=\"3pt\"/>")
+            + shape("type=\"#_x0000_t32\"", "<v:stroke weight=\"0.25pt\"/>")
+            + shape("type=\"#_x0000_t32\" stroked=\"f\"")
+            + shape("type=\"#_x0000_t75\""))
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let doc = try DocxFormat.read(try Zip.write(entries)).document
+        let reach = doc.paragraphs.compactMap { p in (p.image ?? p.inlineImages.values.first)?.strokeReach }
+        XCTAssertEqual(reach, [3, 1.5, 0, 0])
+    }
+
     /// A DrawingML box of wrap none and no autofit keeps its size and its
     /// text does not wrap at its edge (ja-6ccbf5e032's 72pt boxes hold a
     /// whole sentence on one line in Word's print); an autofit box is
@@ -4010,6 +4035,42 @@ final class DocxTests: XCTestCase {
             return try XCTUnwrap(l.columnWidths(of: "T")?.first)
         }
         XCTAssertLessThan(try first(ragged: true), try first(ragged: false) - 0.5)
+    }
+
+    func testAutofitColumnWhoseNarrowestBeatsItsWidthAsksItsNarrowest() throws {
+        try requireFitterWidths()
+        RichTextTheme.wordWindowsPages = true
+        defer { RichTextTheme.wordWindowsPages = false }
+        // Word's lab e3fit C10: a 50 / 300 / 50pt grid whose middle cell holds
+        // a piece wider than 300pt asks that piece, and the side columns share
+        // what is left of a room it overfills (46.6 / 502.5 / 46.7 in Word's print), not
+        // squeezed down to their one letter.
+        var style = CharStyle()
+        style.fontSize = 10
+        func cell(_ text: String, _ column: Int) -> RichParagraph {
+            var p = RichParagraph(text: text, runs: [Run(length: text.utf16.count, style: style)])
+            p.cell = CellRef(table: "T", row: 0, column: column)
+            return p
+        }
+        let wide = String(repeating: "W", count: 40)
+        var doc = RichDocument(paragraphs: [cell("A", 0), cell(wide, 1), cell("B", 2), RichParagraph(text: "")])
+        doc.tableColumns["T"] = [50, 300, 50]
+        doc.tableStyles["T"] = TableStyle()
+        doc.compatibilityMode = 15
+        let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
+        theme.fontFamilyResolver = OfficeFonts.substitute
+        theme.faceResolver = OfficeFonts.face
+        theme.averageCharWidth = OfficeFonts.averageCharWidth
+        theme.wordRules = true
+        let l = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+        l.width = 420 * theme.pixelsPerPoint
+        l.ensureLaidOut(doc)
+        let w = try XCTUnwrap(l.columnWidths(of: "T"))
+        XCTAssertEqual(w.count, 3)
+        XCTAssertGreaterThan(w[1], 330, "the middle column asks its narrowest piece")
+        XCTAssertLessThanOrEqual(w.reduce(0, +), 421, "the table keeps to the room")
+        XCTAssertEqual(w[0], w[2], accuracy: 1, "the side columns share what is left alike")
+        XCTAssertGreaterThan(w[0], 20, "… not squeezed to their one letter")
     }
 
     func testAutofitNoCompatPercentTableBreaksAtEmDash() throws {
