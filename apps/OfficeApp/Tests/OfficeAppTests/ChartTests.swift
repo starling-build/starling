@@ -469,6 +469,18 @@ final class ChartTests: XCTestCase {
         XCTAssertEqual(c.categoryLabelSize, 16)
     }
 
+    /// A waterfall's two axis titles keep their own sizes: lab fn-names p12, a 14 pt "Cumulative change" over a 9 pt
+    /// "Entry", both as PowerPoint prints them.
+    func testAWaterfallsAxisTitlesKeepTheirOwnSizes() {
+        let xml = """
+        <cx:chartSpace xmlns:cx="http://schemas.microsoft.com/office/drawing/2014/chartex" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><cx:chartData><cx:data id="0"><cx:numDim type="val"><cx:lvl ptCount="2"><cx:pt idx="0">5</cx:pt><cx:pt idx="1">-3</cx:pt></cx:lvl></cx:numDim></cx:data></cx:chartData><cx:chart><cx:plotArea><cx:plotAreaRegion><cx:series layoutId="waterfall"><cx:dataId val="0"/></cx:series></cx:plotAreaRegion><cx:axis id="0"><cx:catScaling gapWidth="0.5"/><cx:title><cx:tx><cx:txData><cx:v>Entry</cx:v></cx:txData></cx:tx><cx:txPr><a:p><a:r><a:rPr sz="900"/><a:t>Entry</a:t></a:r></a:p></cx:txPr></cx:title></cx:axis><cx:axis id="1"><cx:valScaling/><cx:title><cx:tx><cx:txData><cx:v>Cumulative change</cx:v></cx:txData></cx:tx><cx:txPr><a:p><a:r><a:rPr sz="1400"/><a:t>Cumulative change</a:t></a:r></a:p></cx:txPr></cx:title></cx:axis></cx:plotArea></cx:chart></cx:chartSpace>
+        """
+        guard let c = ChartXML.readWaterfall(XNode.parse(Data(xml.utf8))!) else { return XCTFail("not read") }
+        XCTAssertEqual(c.categoryAxisTitle, "Entry")
+        XCTAssertEqual(c.cxCategoryTitleSize, 9)
+        XCTAssertEqual(c.axisTitleSize, 14)
+    }
+
     /// A funnel's data labels: the series' own (category and value, ", " between), a point's own format, and a hidden one.
     func testAFunnelReadsItsPointLabels() {
         let xml = """
