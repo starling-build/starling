@@ -199,4 +199,166 @@ final class SlideMasterViewTests: XCTestCase {
         try d.closeMasterView()
         try Pptx.write(d).write(to: URL(fileURLWithPath: out))
     }
+
+    // A deck whose slide titles and layouts 2-7 say nothing about the title's size or italic
+    // (layout 1, Title Slide, keeps its 60 pt, as PowerPoint's own default template does).
+    private func _cleanTitleDeck() throws -> Data {
+        var pkg = PptxPackage(try Zip.read(try Pptx.write(SlidesSample.make())))
+        func titles(_ x: String, _ f: (String) -> String) -> String {
+            let re = try! NSRegularExpression(pattern: "<p:sp>.*?</p:sp>", options: [.dotMatchesLineSeparators])
+            var out = x
+            for m in re.matches(in: x, range: NSRange(x.startIndex..., in: x)).reversed() {
+                let r = Range(m.range, in: x)!
+                let sp = String(x[r])
+                guard sp.range(of: "type=\"title\"") != nil || sp.range(of: "type=\"ctrTitle\"") != nil else { continue }
+                out.replaceSubrange(Range(m.range, in: out)!, with: f(sp))
+            }
+            return out
+        }
+        func strip(_ sp: String, tags: String, attrs: String) -> String {
+            let tag = try! NSRegularExpression(pattern: "<a:(\(tags))\\b[^>]*>")
+            let attr = try! NSRegularExpression(pattern: " (\(attrs))=\"[^\"]*\"")
+            var out = sp
+            for m in tag.matches(in: sp, range: NSRange(sp.startIndex..., in: sp)).reversed() {
+                let t = String(sp[Range(m.range, in: sp)!])
+                let c = attr.stringByReplacingMatches(in: t, range: NSRange(t.startIndex..., in: t), withTemplate: "")
+                out.replaceSubrange(Range(m.range, in: out)!, with: c)
+            }
+            return out
+        }
+        for name in pkg.parts.keys.sorted() {
+            let x = String(decoding: pkg.parts[name]!, as: UTF8.self)
+            if name.hasPrefix("ppt/slides/slide"), name.hasSuffix(".xml") {
+                pkg.parts[name] = Data(titles(x) { strip($0, tags: "rPr|endParaRPr", attrs: "sz|b|i|u|strike") }.utf8)
+            } else if name.hasPrefix("ppt/slideLayouts/slideLayout"), name.hasSuffix(".xml"), name != "ppt/slideLayouts/slideLayout1.xml" {
+                pkg.parts[name] = Data(titles(x) { strip($0, tags: "defRPr", attrs: "sz|b|i") }.utf8)
+            }
+        }
+        return try Zip.write(pkg.parts.sorted { $0.key < $1.key }.map { ZipEntry(name: $0.key, data: $0.value) })
+    }
+
+    private func _open(_ data: Data) throws -> DeckController {
+        let (state, theme, pkg) = try Pptx.read(data)
+        let d = DeckController()
+        d.load(state, theme: theme, package: pkg)
+        return d
+    }
+
+    /// The run properties written on each slide's title (rPr and endParaRPr tags).
+    private func _slideTitleRuns(_ data: Data) throws -> [String: [String]] {
+        let p = PptxPackage(try Zip.read(data))
+        var out: [String: [String]] = [:]
+        let re = try NSRegularExpression(pattern: "<a:(rPr|endParaRPr)\\b[^>]*>")
+        let sps = try NSRegularExpression(pattern: "<p:sp>.*?</p:sp>", options: [.dotMatchesLineSeparators])
+        for (name, bytes) in p.parts where name.hasPrefix("ppt/slides/slide") && name.hasSuffix(".xml") {
+            let x = String(decoding: bytes, as: UTF8.self)
+            for m in sps.matches(in: x, range: NSRange(x.startIndex..., in: x)) {
+                let t = String(x[Range(m.range, in: x)!])
+                guard t.range(of: "type=\"title\"") != nil || t.range(of: "type=\"ctrTitle\"") != nil else { continue }
+                out[name, default: []] += re.matches(in: t, range: NSRange(t.startIndex..., in: t)).map { String(t[Range($0.range, in: t)!]) }
+            }
+        }
+        return out
+    }
+
+    private func _assertUnpinned(_ data: Data, _ what: String, file: StaticString = #filePath, line: UInt = #line) throws {
+        let runs = try _slideTitleRuns(data)
+        XCTAssertFalse(runs.isEmpty, what, file: file, line: line)
+        for (name, tags) in runs {
+            for t in tags {
+                XCTAssertNil(t.range(of: " sz=\""), "\(what): \(name) \(t)", file: file, line: line)
+                XCTAssertNil(t.range(of: " i=\""), "\(what): \(name) \(t)", file: file, line: line)
+            }
+        }
+    }
+
+    /// Opening and saving a deck does not write the title's size or italic onto slides that never had them:
+    /// a run that pins them stops following the master and layout in PowerPoint.
+    func testPlainSaveKeepsSlideTitlesInheriting() throws {
+        let clean = try _cleanTitleDeck()
+        try _assertUnpinned(clean, "input")
+        try _assertUnpinned(try Pptx.write(try _open(clean)), "plain save")
+    }
+
+    /// A master title change through the view's font controls reaches the master's title style, and the
+    /// slides and unpinned layouts keep inheriting it.
+    func testMasterTitleChangeReachesSlides() throws {
+        let d = try _open(try _cleanTitleDeck())
+        try d.enterMasterView()
+        d.select(d.slides.firstIndex { $0.masterRole?.kind == .master }!)
+        let t = d.currentSlide.shapes.first { $0.phType == "title" }!
+        _selectFirstParagraph(t)
+        t.text?.setFontSize(40)
+        t.text?.toggleItalic()
+        try d.closeMasterView()
+        let out = try Pptx.write(d)
+        try _assertUnpinned(out, "after the master edit")
+        let p = PptxPackage(try Zip.read(out))
+        let m = XNode.parse(p.parts["ppt/slideMasters/slideMaster1.xml"]!)!
+        let tl = m.first("p:txStyles")!.first("p:titleStyle")!.first("a:lvl1pPr")!.first("a:defRPr")!
+        XCTAssertEqual(tl["sz"], "4000")
+        XCTAssertEqual(tl["i"], "1")
+        let l2 = String(decoding: p.parts["ppt/slideLayouts/slideLayout2.xml"]!, as: UTF8.self)
+        XCTAssertNil(l2.range(of: "sz=\"4400\""))
+    }
+
+    /// Typing in a slide title writes the new text with the run's own properties, not the resolved ones.
+    func testTypingInTitleKeepsItInheriting() throws {
+        let d = try _open(try _cleanTitleDeck())
+        let i = d.slides.firstIndex { $0.shapes.contains { $0.phType == "title" } }!
+        d.select(i)
+        let t = d.currentSlide.shapes.first { $0.phType == "title" }!
+        t.text?.moveTo(RichPosition(paragraph: 0, offset: 0), extend: false)
+        t.text?.insertText("New ")
+        try _assertUnpinned(try Pptx.write(d), "after typing")
+    }
+
+    // PowerPoint check: STARLING_MASTER_IN_OUT writes the clean deck (and STARLING_MASTER_CLEAN the deck
+    // before the edit) after the master title is set to 40 pt italic through the view's controls.
+    func testWriteMasterTitleCheckDeck() throws {
+        let env = ProcessInfo.processInfo.environment
+        guard let out = env["STARLING_MASTER_IN_OUT"] else { return }
+        let clean = try _cleanTitleDeck()
+        if let c = env["STARLING_MASTER_CLEAN"] { try clean.write(to: URL(fileURLWithPath: c)) }
+        let d = try _open(clean)
+        try d.enterMasterView()
+        d.select(d.slides.firstIndex { $0.masterRole?.kind == .master }!)
+        let t = d.currentSlide.shapes.first { $0.phType == "title" }!
+        _selectFirstParagraph(t)
+        t.text?.setFontSize(40)
+        t.text?.toggleItalic()
+        try d.closeMasterView()
+        try Pptx.write(d).write(to: URL(fileURLWithPath: out))
+    }
+
+    // Corpus count: STARLING_PIN_DIR (decks) to STARLING_PIN_OUT, one row per deck: the run tags on its slides
+    // that state sz, b or i, in the file and after a plain open and save.
+    func testCountPinnedRunsAfterPlainSave() throws {
+        let env = ProcessInfo.processInfo.environment
+        guard let dir = env["STARLING_PIN_DIR"], let outPath = env["STARLING_PIN_OUT"] else { return }
+        let re = try NSRegularExpression(pattern: "<a:(rPr|endParaRPr)\\b[^>]*>")
+        func count(_ data: Data) throws -> (Int, Int) {
+            let p = PptxPackage(try Zip.read(data))
+            var tags = 0, pinned = 0
+            for name in p.parts.keys.sorted() where name.hasPrefix("ppt/slides/slide") && name.hasSuffix(".xml") {
+                let x = String(decoding: p.parts[name]!, as: UTF8.self)
+                for m in re.matches(in: x, range: NSRange(x.startIndex..., in: x)) {
+                    let t = String(x[Range(m.range, in: x)!])
+                    tags += 1
+                    if t.range(of: " sz=\"") != nil || t.range(of: " b=\"") != nil || t.range(of: " i=\"") != nil { pinned += 1 }
+                }
+            }
+            return (tags, pinned)
+        }
+        var rows = ["deck\ttags_in\tpinned_in\ttags_out\tpinned_out"]
+        for f in try FileManager.default.contentsOfDirectory(atPath: dir).sorted() where f.hasSuffix(".pptx") {
+            let data = try Data(contentsOf: URL(fileURLWithPath: dir + "/" + f))
+            guard let a = try? count(data), let (state, theme, pkg) = try? Pptx.read(data) else { continue }
+            let d = DeckController()
+            d.load(state, theme: theme, package: pkg)
+            guard let out = try? Pptx.write(d), let b = try? count(out) else { rows.append("\(f)\t\(a.0)\t\(a.1)\tERR\tERR"); continue }
+            rows.append("\(f)\t\(a.0)\t\(a.1)\t\(b.0)\t\(b.1)")
+        }
+        try (rows.joined(separator: "\n") + "\n").write(toFile: outPath, atomically: true, encoding: .utf8)
+    }
 }

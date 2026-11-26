@@ -2598,8 +2598,10 @@ final class DeckController: ChangeNotifier {
                    sourceChart: s.sourceChart, field: s.field, group: s.group, keptLine: s.keptLine,
                    altText: s.altText, link: s.link, linkTip: s.linkTip, keptPicture: s.keptPicture, autofit: s.autofit, fontScale: s.fontScale,
                    insetsFollowFont: s.insetsFollowFont, keptLook: s.keptLook)
-        // Only a master page patches its edited shapes into their own XML (a layout's list styles are not modelled); slides regenerate.
-        st.readShape = inMasterView ? s.readShape : nil
+        // A read shape keeps its own XML and an edit patches only what changed, so a run says only what it
+        // said in the file or what the user set: regenerating it would pin every resolved size, bold and
+        // italic onto the run and stop it following its layout and master.
+        st.readShape = s.readShape
         st.lineReduction = s.lineReduction
         st.pictureLevels = s.pictureLevels
         st.sizeGroup = s.sizeGroup
@@ -2644,6 +2646,10 @@ final class DeckController: ChangeNotifier {
         st.runLooks = s.runLooks
         st.scene3d = s.scene3d
         if case .chart = s.kind { st.chartDrawing = s.rendered.map(_state) }
+        // ...but only while nothing beyond its place, name, link and text has changed since the read: a fill,
+        // line, shadow or other look edit regenerates the shape, which merges the look it kept (`keptLook`).
+        // (A master page patches every edit into its own XML: a layout's list styles are not modelled.)
+        if !inMasterView, st.readShape != nil, let base = s.readState, !Self._onlyPatchableEdits(st, since: base) { st.readShape = nil }
         return st
     }
 
@@ -2789,6 +2795,17 @@ final class DeckController: ChangeNotifier {
         shape.textTheme?.lineSpacingReduction = st.lineReduction
         shape.keptLook = st.keptLook
         if let doc = st.text, let c = shape.text, c.document != doc { c.load(doc) }
+        shape.readState = nil
+        if st.readShape != nil { shape.readState = _state(shape) }
+    }
+
+    /// `now` differs from `base` only in its place, name, link or text.
+    static func _onlyPatchableEdits(_ now: ShapeState, since base: ShapeState) -> Bool {
+        var b = base
+        b.frame = now.frame; b.rotation = now.rotation; b.flipH = now.flipH; b.flipV = now.flipV
+        b.invisible = now.invisible; b.aspectLock = now.aspectLock
+        b.name = now.name; b.link = now.link; b.linkTip = now.linkTip; b.text = now.text; b.readShape = now.readShape
+        return b == now
     }
 
     private func _make(_ st: ShapeState) -> SlideShape {
