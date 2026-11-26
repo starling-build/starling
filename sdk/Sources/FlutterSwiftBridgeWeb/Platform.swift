@@ -8,6 +8,7 @@
 // Re-exported so that SwiftRuntime finds it through FlutterSwiftBridge as it
 // does on every other platform.
 @_exported import CSkwasm
+import Foundation
 
 /// What the host provides. Set before the first frame; read on the one
 /// thread a tab has.
@@ -97,7 +98,7 @@ extension flutter.swift_bridge {
     public static func WritePdf(
         _ path: String, _ displayLists: UnsafePointer<UnsafeRawPointer?>?,
         _ count: Int32, _ widths: UnsafePointer<Double>?, _ heights: UnsafePointer<Double>?,
-        _ title: String?, _ author: String?
+        _ title: String?, _ author: String?, rewrite: ((Data) -> Data?)? = nil
     ) -> Bool {
         guard let displayLists, let widths, let heights, count > 0 else { return false }
         let n = Int(count)
@@ -118,8 +119,9 @@ extension flutter.swift_bridge {
         }
         guard data != 0 else { return false }
         defer { skData_dispose(data) }
-        let bytes: [UInt8] = skRead(skData_getConstPointer(data), count: Int(skData_getSize(data)))
+        var bytes: [UInt8] = skRead(skData_getConstPointer(data), count: Int(skData_getSize(data)))
         guard !bytes.isEmpty else { return false }
+        if let rewrite, let changed = rewrite(Data(bytes)) { bytes = [UInt8](changed) }
         var name = String(path.split(separator: "/").last ?? "document.pdf")
         name.withUTF8 { nameBytes in
             bytes.withUnsafeBufferPointer { b in

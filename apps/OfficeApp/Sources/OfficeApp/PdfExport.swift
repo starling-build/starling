@@ -205,12 +205,10 @@ enum PdfExport {
             if chosen.isEmpty { return false }
             pages = chosen
         }
-        guard PdfDocument.write(to: path, pages: pages, title: title, author: PdfExport.authorName()) else { return false }
-        if theme.wordRules, !RichLayout.jpegSizes.isEmpty, let data = FileManager.default.contents(atPath: path),
-           let smooth = SlidesPdf.smoothPictures(data, jpeg: RichLayout.jpegSizes, otherSizes: RichLayout.otherPictureSizes) {
-            try? smooth.write(to: URL(fileURLWithPath: path))
+        let smooth = theme.wordRules && !RichLayout.jpegSizes.isEmpty
+        return PdfDocument.write(to: path, pages: pages, title: title, author: PdfExport.authorName()) { data in
+            smooth ? SlidesPdf.smoothPictures(data, jpeg: RichLayout.jpegSizes, otherSizes: RichLayout.otherPictureSizes) : nil
         }
-        return true
     }
 }
 

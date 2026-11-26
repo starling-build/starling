@@ -99,14 +99,11 @@ enum SlidesPdf {
                 pages.append(PdfDocument.Page(picture: recorder.endRecording(), width: pw, height: ph))
             }
         }
-        guard PdfDocument.write(to: path, pages: pages, title: title, author: PdfExport.authorName()) else { return false }
-        if let data = FileManager.default.contents(atPath: path), let smooth = smoothPictures(data) {
-            try? smooth.write(to: URL(fileURLWithPath: path))
+        return PdfDocument.write(to: path, pages: pages, title: title, author: PdfExport.authorName()) { data in
+            let smooth = smoothPictures(data)
+            let exact = exactPageSize(smooth ?? data, width: size.width, height: size.height)
+            return exact ?? smooth
         }
-        if let data = FileManager.default.contents(atPath: path), let exact = exactPageSize(data, width: size.width, height: size.height) {
-            try? exact.write(to: URL(fileURLWithPath: path))
-        }
-        return true
     }
 
     /// The PDF with every picture that came from a JPEG marked

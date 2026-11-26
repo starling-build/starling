@@ -88,4 +88,23 @@ final class SlidesHooksTests: XCTestCase {
         XCTAssertEqual(notes, 3)
         XCTAssertEqual(handouts, 2)     // eight slides, six to a page
     }
+
+    /// The page is the slide's own size, as PowerPoint writes it (8640763 by
+    /// 5759450 EMU is 680.4 by 453.48 pt), not Skia's whole points. Done as
+    /// the PDF is written (PdfDocument's rewrite), so a browser download gets
+    /// it too: the web wrote 680 by 454 (oox-tdf125085 0.16% off native).
+    func testExportedPageIsTheSlidesExactSize() async throws {
+        let (_, state) = await MainActor.run { shell() }
+        let deck = await MainActor.run { () -> DeckController in
+            let d = state.session.deck!
+            d.setSlideSize(Size(8640763 / 12700.0, 5759450 / 12700.0))
+            return d
+        }
+        let path = NSTemporaryDirectory() + "slides-hooks-exact-size.pdf"
+        let ok = await SlidesPdf.write(deck, cache: SlideTextCache(), to: path, title: "T", slides: nil, output: .slides,
+                                       notesTheme: RichTextTheme(fontFamily: "Calibri", fontSize: 12, headingColor: nil))
+        XCTAssertTrue(ok)
+        let text = String(decoding: FileManager.default.contents(atPath: path) ?? Data(), as: UTF8.self)
+        XCTAssertTrue(text.contains("/MediaBox [0 0.52 680.4 454]"), "page box as written: \(text.components(separatedBy: "/MediaBox").dropFirst().first?.prefix(30) ?? "none")")
+    }
 }
