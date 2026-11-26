@@ -234,6 +234,29 @@ final class SlideFormatShapeTests: XCTestCase {
         XCTAssertNil(Extrusion.frontTransform(legacy, center: c, pxPerPt: 1))
     }
 
+    func testTurnedFaceCatchesThreePtGlintTowardTheEye() throws {
+        // PowerPoint's prints of flat 2B6CB0 rects under threePt (rotation-check, rotation2-check):
+        // the face is 1.04 x the fill plus this white. It follows where the eye stands, not just
+        // how far the face is turned: the four isometric presets turn it equally and print .209,
+        // .064, .002 and .009.
+        func white(_ camera: String) throws -> Double {
+            let s = try XCTUnwrap(Extrusion.scene(camera: camera, from: nil))
+            return Extrusion.threePtFaceWhite(toward: Extrusion.towardEye(s))
+        }
+        for (camera, ppt) in [("isometricLeftUp", 0.209), ("isometricTopDown", 0.209), ("isometricRightUp", 0.064),
+                              ("isometricLeftDown", 0.002), ("isometricRightDown", 0.009), ("isometricOffAxis4Left", 0.174),
+                              ("perspectiveRelaxedModerately", 0.237), ("perspectiveHeroicLeftFacing", 0.111)] {
+            XCTAssertEqual(try white(camera), ppt, accuracy: 0.012, camera)
+        }
+        // The eye's direction: what the camera turn takes to the line of sight.
+        let s = try XCTUnwrap(Extrusion.scene(camera: "perspectiveRelaxed", from: nil))
+        let v = Extrusion.towardEye(s)
+        let lat = -s.lat * .pi / 180, lon = -s.lon * .pi / 180
+        let qz0 = -v.x * sin(lon) + v.z * cos(lon)
+        XCTAssertEqual(v.x * cos(lon) + v.z * sin(lon), 0, accuracy: 1e-9)
+        XCTAssertEqual(v.y * cos(lat) - qz0 * sin(lat), 0, accuracy: 1e-9)
+    }
+
     func testIsometricTopCamerasAreTrueIsometric() throws {
         // PowerPoint's print of a 130x70 rect under isometricTopUp (rotation-check.pdf): corners at (-71.5,11.5), (71.5,-12.5),
         // (21,-41.5), (-22,41.5) from the centre, i.e. rows (.707,.707) and (-.408,.408) of the turn.
