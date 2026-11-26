@@ -1457,7 +1457,7 @@ extension DocxFormat {
                     let st = doc.keptCharacterStyleIds[note.kind == .footnote ? "footnote reference" : "endnote reference"]
                         ?? (note.kind == .footnote ? "FootnoteReference" : "EndnoteReference")
                     // (A custom mark is the one the reader tagged with U+200B; a roman or letter label is Word's own numbering.)
-                    let custom = piece.contains("\u{200B}") ? piece.filter { $0 != "\u{200B}" } : ""
+                    let custom = piece.contains("\u{200B}" as Character) ? piece.filter { $0 != "\u{200B}" } : ""
                     // (A mark the file set on the baseline keeps it, under
                     // the reference style's superscript.)
                     if s.script != .superscript { rPr += "<w:vertAlign w:val=\"baseline\"/>" }

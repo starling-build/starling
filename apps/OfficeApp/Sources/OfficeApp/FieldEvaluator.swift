@@ -40,7 +40,7 @@ extension RichDocumentController {
     func insertDateTime(picture: String, automatic: Bool, clock: FieldClock?) {
         let shown = clock?.format(picture: picture, english: true) ?? picture
         guard automatic else { insertText(shown); return }
-        let isTime = picture.contains("h") || picture.contains("H")
+        let isTime = picture.contains("h" as Character) || picture.contains("H" as Character)
         insertField(" \(isTime ? "TIME" : "DATE") \\@ \"\(picture)\" ", result: shown)
     }
 }

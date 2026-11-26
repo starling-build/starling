@@ -167,10 +167,10 @@ enum ChartPartType {
     /// Column <-> bar in a chart part: the bars' direction and where each axis sits.
     static func swapBars(_ xml: String, _ type: ChartType) -> String {
         let col = type == .column
-        var x = xml.replacingOccurrences(of: "<c:barDir val=\"\(col ? "bar" : "col")\"/>", with: "<c:barDir val=\"\(col ? "col" : "bar")\"/>")
+        var x = xml.replacingAll("<c:barDir val=\"\(col ? "bar" : "col")\"/>", with: "<c:barDir val=\"\(col ? "col" : "bar")\"/>")
         func swap(_ tag: String, _ from: String, _ to: String) {
-            guard let r = x.range(of: "<c:\(tag)>"), let e = x.range(of: "</c:\(tag)>", range: r.upperBound..<x.endIndex) else { return }
-            let body = x[r.upperBound..<e.lowerBound].replacingOccurrences(of: "<c:axPos val=\"\(from)\"/>", with: "<c:axPos val=\"\(to)\"/>")
+            guard let r = x.rangeOfSubstring("<c:\(tag)>"), let e = x.rangeOfSubstring("</c:\(tag)>", in: r.upperBound..<x.endIndex) else { return }
+            let body = x[r.upperBound..<e.lowerBound].replacingAll("<c:axPos val=\"\(from)\"/>", with: "<c:axPos val=\"\(to)\"/>")
             x.replaceSubrange(r.upperBound..<e.lowerBound, with: body)
         }
         swap("catAx", col ? "l" : "b", col ? "b" : "l")

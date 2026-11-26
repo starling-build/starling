@@ -18,7 +18,7 @@ public struct TableFormula {
         var started = false
         for ch in text {
             if ch.isASCII && ch.isNumber { s.append(ch); started = true }
-            else if ch == "." && started && !s.contains(".") { s.append(ch) }
+            else if ch == "." && started && !s.contains("." as Character) { s.append(ch) }
             else if ch == "," && started { continue }
             else if ch == "-" && !started && s.isEmpty { s = "-" }
             else if started { break }
@@ -149,7 +149,7 @@ public struct TableFormula {
             while i < chars.count, chars[i].isLetter || chars[i].isNumber || chars[i] == ":" { word.append(chars[i]); i += 1 }
             let u = word.uppercased()
             if ["ABOVE", "BELOW", "LEFT", "RIGHT"].contains(u) { return f.direction(u) }
-            if u.contains(":") {
+            if u.contains(":" as Character) {
                 let ends = u.split(separator: ":").map(String.init)
                 guard ends.count == 2, let a = TableFormula.reference(ends[0]), let b = TableFormula.reference(ends[1]) else { throw Failure.reference }
                 var out: [Double] = []
@@ -220,11 +220,11 @@ public struct TableFormula {
         let prefix = String(chars[..<first].filter { $0 != "'" })
         let suffix = String(chars[(last + 1)...].filter { $0 != "'" })
         let body = String(chars[first ... last])
-        let percent = suffix.contains("%") || prefix.contains("%")
+        let percent = suffix.contains("%" as Character) || prefix.contains("%" as Character)
         if percent { v *= 100 }
         let parts = body.split(separator: ".", omittingEmptySubsequences: false).map(String.init)
         let decimals = parts.count > 1 ? parts[1].count : 0
-        let grouped = parts[0].contains(",")
+        let grouped = parts[0].contains("," as Character)
         let minInt = parts[0].filter { $0 == "0" }.count
         var text = fixed(abs(v), decimals)
         var intPart = text, frac = ""

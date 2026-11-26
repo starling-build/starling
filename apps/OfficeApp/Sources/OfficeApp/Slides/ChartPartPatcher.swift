@@ -109,7 +109,7 @@ enum ChartPartPatcher {
             sheetText = String(f[..<bang])
             var name = sheetText
             if name.hasPrefix("'"), name.hasSuffix("'"), name.count >= 2 {
-                name = String(name.dropFirst().dropLast()).replacingOccurrences(of: "''", with: "'")
+                name = String(name.dropFirst().dropLast()).replacingAll("''", with: "'")
             }
             sheet = name
             let cells = f[f.index(after: bang)...].split(separator: ":", omittingEmptySubsequences: false).map(String.init)

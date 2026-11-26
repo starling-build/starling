@@ -122,7 +122,7 @@ extension Worksheet {
     /// `<pageSetUpPr fitToPage=…/>` inside a sheetPr, which also holds the tab colour and outline settings.
     static func _withFitToPage(_ sheetPr: String, _ fit: Bool) -> String {
         var s = sheetPr
-        if let r = s.range(of: "<pageSetUpPr") , let e = s.range(of: "/>", range: r.upperBound..<s.endIndex) {
+        if let r = s.rangeOfSubstring("<pageSetUpPr") , let e = s.rangeOfSubstring("/>", in: r.upperBound..<s.endIndex) {
             let tag = String(s[r.lowerBound..<e.upperBound])
             s.replaceSubrange(r.lowerBound..<e.upperBound, with: PageSetupEdit.setAttributes(tag, name: "pageSetUpPr", [("fitToPage", fit ? "1" : nil)]))
             return s
@@ -130,7 +130,7 @@ extension Worksheet {
         guard fit else { return s }
         if s.hasSuffix("/>") { return String(s.dropLast(2)) + "><pageSetUpPr fitToPage=\"1\"/></sheetPr>" }
         // Schema order inside sheetPr: tabColor, outlinePr, pageSetUpPr.
-        if let e = s.range(of: "</sheetPr>") { s.replaceSubrange(e, with: "<pageSetUpPr fitToPage=\"1\"/></sheetPr>") }
+        if let e = s.rangeOfSubstring("</sheetPr>") { s.replaceSubrange(e, with: "<pageSetUpPr fitToPage=\"1\"/></sheetPr>") }
         return s
     }
 }

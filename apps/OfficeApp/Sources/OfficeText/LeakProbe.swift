@@ -14,7 +14,7 @@ import Foundation
 /// parallel renders on Linux. With the probe on, every change is under a lock.
 public final class LeakProbe {
     public static let enabled = getenv("STARLING_LEAK_PROBE") != nil || getenv("OFFICE_WINDOW_CYCLES") != nil
-    private static let lock = NSLock()
+    private static let lock = OfficeLock()
     public nonisolated(unsafe) static var live: [String: Int] = [:]
     /// Address of every live RichDocumentController, by creation order: what a retainer scan looks for.
     public nonisolated(unsafe) static var controllers: [(seq: Int, address: UInt)] = []

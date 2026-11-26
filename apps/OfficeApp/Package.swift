@@ -228,6 +228,7 @@ let webAppTarget: Target = .executableTarget(
         .product(name: "FlutterSwiftBridge", package: "FlutterSwift"),
         .product(name: "SwiftRuntime", package: "FlutterSwift"),
         .product(name: "FluentSystemIcons", package: "FlutterSwift"),
+        .product(name: "CupertinoIcons", package: "FlutterSwift"),
         .product(name: "FlutterWeb", package: "FlutterSwift"),
         "OfficeText",
         "CZlib",
