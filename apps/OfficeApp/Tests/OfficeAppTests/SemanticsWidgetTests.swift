@@ -51,6 +51,16 @@ final class SemanticsWidgetTests: XCTestCase {
         t.dispose()
     }
 
+    /// An off toggle is still a toggle ("Bold, switch, off"), not a plain button; a plain button has no state.
+    func testAnOffToggleIsStillAToggleAndAPlainButtonIsNot() {
+        let off = ui(Chrome.toggle(FluentSystemIcons.textBold, "Bold", false, OfficeAppearance.theme(.light)) {})
+        XCTAssertEqual(off.semantics().first { $0.label == "Bold" }?.isToggled, false)
+        off.dispose()
+        let plain = ui(Chrome.icon(FluentSystemIcons.textBold, "Bold", OfficeAppearance.theme(.light)) {})
+        XCTAssertNil(plain.semantics().first { $0.label == "Bold" }?.isToggled)
+        plain.dispose()
+    }
+
     func testTextButtonReadsItsOwnText() {
         let t = ui(FlatButton(child: Text("Review"), width: nil, action: {}))
         XCTAssertTrue(t.semantics().contains { $0.label == "Review" && $0.isButton })

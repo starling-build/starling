@@ -46,6 +46,8 @@ final class FlatButton: StatefulWidget {
     /// menu keeps its caption as its name while its tooltip says what it does.
     let name: String?
     let checked: Bool
+    /// A toggle reports its state on or off; a plain button has none (it may still be drawn checked).
+    let isToggle: Bool
     let enabled: Bool
     let width: Double?
     let height: Double
@@ -56,13 +58,14 @@ final class FlatButton: StatefulWidget {
     /// In a folded group's popup, the popup closes once a press has run, unless the button is one that goes on editing (a stepper).
     let keepsPopupOpen: Bool
 
-    init(child: Widget, tip: String? = nil, name: String? = nil, checked: Bool = false, enabled: Bool = true,
+    init(child: Widget, tip: String? = nil, name: String? = nil, checked: Bool = false, isToggle: Bool = false, enabled: Bool = true,
          width: Double? = 28, height: Double = 28, alignLeft: Bool = false, onAccent: Bool = false,
          keepsPopupOpen: Bool = false, action: (() -> Void)? = nil, menu: [MenuFlyoutItemBase]? = nil) {
         self.child = child
         self.tip = tip
         self.name = name
         self.checked = checked
+        self.isToggle = isToggle
         self.enabled = enabled
         self.width = width
         self.height = height
@@ -179,7 +182,7 @@ private final class _FlatButtonState: State<StatefulWidget> {
         if items != nil { box = FlyoutTarget(controller: _flyout, child: box) }
         if let tip = w.tip { box = Tooltip(message: tip, child: box) }
         // Told to assistive technology: the tip is the name of an icon-only button; a text button reads its own text.
-        let say = Semantics(label: w.name ?? w.tip, button: true, toggled: w.checked ? true : nil, enabled: w.enabled,
+        let say = Semantics(label: w.name ?? w.tip, button: true, toggled: w.isToggle ? w.checked : (w.checked ? true : nil), enabled: w.enabled,
                             onTap: w.enabled ? w.action : nil, excludeSemantics: w.tip != nil, child: box)
         return w.tip == nil ? MergeSemantics(child: say) : say
     }
@@ -244,7 +247,7 @@ enum Chrome {
         FlatButton(child: Icon(icon, size: iconSize, color: on
                               ? fluent.accentColor.defaultBrushFor(fluent.brightness)
                               : OfficeAppearance.ink(fluent)),
-                   tip: tip, checked: on, action: {
+                   tip: tip, checked: on, isToggle: true, action: {
                        action()
                        // "Bold (Ctrl+B)" is said "Bold on": the shortcut is not part of the name.
                        let name = tip.firstIndex(of: "(").map { String(tip[..<$0]) } ?? tip
@@ -256,7 +259,7 @@ enum Chrome {
     static func textToggle(_ label: String, _ on: Bool, _ fluent: FluentThemeData,
                            style: Flutter.TextStyle? = nil, action: @escaping () -> Void) -> Widget {
         FlatButton(child: Padding(padding: EdgeInsets(left: 8, top: 0, right: 8, bottom: 0), child: Text(label, style: style)),
-                   checked: on, width: nil, action: action)
+                   checked: on, isToggle: true, width: nil, action: action)
     }
 
     /// Big button: icon over label, the Paste-shaped one, both rows tall.
@@ -284,9 +287,9 @@ enum Chrome {
                     Icon(icon, size: bigIconSize, color: color),
                     vgap(4),
                     Text(label, style: fluent.typography.caption?.copyWith(color: color)),
-                ])), checked: on, width: nil, height: rowHeight * 2 + 6, action: action),
+                ])), checked: on, isToggle: true, width: nil, height: rowHeight * 2 + 6, action: action),
             iconsOnly: FlatButton(child: Icon(icon, size: bigIconSize, color: color),
-                tip: label, checked: on, width: 36, height: rowHeight * 2 + 6, action: action))
+                tip: label, checked: on, isToggle: true, width: 36, height: rowHeight * 2 + 6, action: action))
     }
 
     /// Small button: icon beside label, stacked three to a column.

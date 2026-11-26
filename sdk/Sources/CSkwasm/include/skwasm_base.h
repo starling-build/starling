@@ -163,4 +163,11 @@ HOST(open_url) void starling_host_open_url(const void* utf8, uint32_t length);
 // The tab's own address onto the clipboard (a link to what is open).
 HOST(copy_location) void starling_host_copy_location(void);
 
+// Screen readers (FlutterWeb/WebAccessibility.swift): the semantics snapshot as a
+// JSON array of [flags, x, y, width, height, label, value, hint], which the page
+// mirrors as ARIA elements over the canvas; and an announcement for its aria-live
+// regions (priority 0 polite, 1 assertive).
+HOST(a11y_tree) void starling_host_a11y_tree(const void* utf8, uint32_t length);
+HOST(announce) void starling_host_announce(const void* utf8, uint32_t length, uint32_t priority);
+
 #endif  // STARLING_SKWASM_BASE_H

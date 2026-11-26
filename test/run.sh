@@ -301,9 +301,10 @@ fi
 # must not pull in the legacy Foundation module or ICU, and app.wasm must be
 # under the budget in build/web-app.sh. Needs the wasm Swift SDK, which the
 # Linux boxes do not have yet; skipped, not failed, without it.
-step "web: on-demand fonts"
+step "web: on-demand fonts, screen-reader roles"
 if command -v node >/dev/null; then
     node --test "$REPO/test/web/font-loader-test.mjs" || fails=$((fails + 1))
+    node --test "$REPO/test/web/a11y-test.mjs" || fails=$((fails + 1))
 else
     echo "  SKIPPED — no Node.js (22+ required)"
 fi
