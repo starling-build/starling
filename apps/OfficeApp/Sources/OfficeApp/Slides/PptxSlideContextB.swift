@@ -54,14 +54,8 @@ extension SlideContext {
             if chart.pareto { chart.hiddenLegendEntries.insert(chart.series.count) }
             // (PowerPoint joins a waterfall's columns unless the file turns the lines off: lo-forum-mso-de-138303's.)
             if chart.waterfallTotals != nil, space.descendant("cx:layoutPr")?.first("cx:visibility")?["connectorLines"] != "0" { chart.waterfallConnectors = true }
-            // (The legend's text size is its own text's end-of-paragraph size, else the chart style part's legend entry; a size
-            // for the whole chart (`cx:chartSpace/cx:txPr`) leaves it at 9: lab cx-legsize in PowerPoint's print, 7 to 20 pt. A
-            // size on the paragraph's default run alone is not used: lab cx-legend's 12 to 20 pt legends printed at 9.)
             let style = package.rels(rel.target).first(where: { $0.kind == "chartStyle" && !$0.external }).flatMap { package.xml($0.target) }
-            if let sz = (space.descendant("cx:legend")?.first("cx:txPr")?.descendant("a:endParaRPr")?["sz"]
-                ?? style?.descendant("cs:legend")?.first("cs:defRPr")?["sz"]).flatMap(Double.init), sz > 0 {
-                chart.legendSize = sz / 100
-            }
+            ChartXML.applyCxTextSizes(&chart, space: space, style: style)
         }
         // A chart that names no face is in its own slide's theme font — a
         // deck of several masters (aascu 5864's census charts, Calibri;
