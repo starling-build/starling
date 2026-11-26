@@ -806,9 +806,15 @@ final class Ribbon: StatelessWidget {
                         _shapeColorMenu(FluentSystemIcons.textColor, "Shape Outline", c, i, fluent, outline: true, inline: id),
                     ]))
                 }
+                if c.isInLine(at: i, inline: id) || c.pictureWrap(at: i, inline: id) != nil {
+                    more.append(_wrapGroup(c, i, id, c.pictureWrap(at: i, inline: id), fluent))
+                }
                 return [size, turn] + more + [alt, Chrome.group("Shape", fluent, [
                     Chrome.big(FluentSystemIcons.delete, "Delete", fluent) { c.deleteForward() },
                 ])]
+            }
+            if c.isInLine(at: i, inline: id) || c.pictureWrap(at: i, inline: id) != nil {
+                return [size, turn, _wrapGroup(c, i, id, c.pictureWrap(at: i, inline: id), fluent), tools, remove]
             }
             return [size, turn, tools, remove]
         }
@@ -911,23 +917,7 @@ final class Ribbon: StatelessWidget {
         }
         var floating: [Widget] = []
         if let wrap = c.pictureWrap(at: i) {
-            func pick(_ w: PictureWrap) -> Widget {
-                let glyph: IconData
-                switch w {
-                case .square: glyph = CupertinoIcons.rectangle_split_3x1
-                case .tight: glyph = CupertinoIcons.square_grid_2x2
-                case .through: glyph = CupertinoIcons.layers
-                case .topAndBottom: glyph = CupertinoIcons.arrow_up_down
-                case .behindText: glyph = CupertinoIcons.square_stack
-                default: glyph = CupertinoIcons.rectangle_on_rectangle
-                }
-                return Chrome.small(glyph, w.title, fluent, enabled: w != wrap) { _ = c.setPictureWrap(at: i, w) }
-            }
-            floating.append(Chrome.group("Wrap Text", fluent, [
-                Chrome.rows([pick(.square), pick(.tight), pick(.through)]),
-                Chrome.gap(8),
-                Chrome.rows([pick(.topAndBottom), pick(.behindText), pick(.inFrontOfText)]),
-            ]))
+            floating.append(_wrapGroup(c, i, nil, wrap, fluent))
             floating.append(Chrome.group("Position", fluent, [
                 Chrome.rows([
                     Chrome.small(CupertinoIcons.arrow_left, "Nudge Left", fluent) { _ = c.movePicture(at: i, dx: -6, dy: 0) },
@@ -945,6 +935,31 @@ final class Ribbon: StatelessWidget {
     }
 
     /// Shape Fill / Shape Outline: the shared colour picker; a theme pick is written as a theme colour.
+    /// Layout Options' wraps for the drawing at `i` (or its inline picture `id`): In Line with Text and the six wraps, the
+    /// one it has now greyed. `wrap` is nil for one In Line with Text.
+    private func _wrapGroup(_ c: RichDocumentController, _ i: Int, _ id: String?, _ wrap: PictureWrap?, _ fluent: FluentThemeData) -> Widget {
+        func pick(_ w: PictureWrap) -> Widget {
+            let glyph: IconData
+            switch w {
+            case .square: glyph = CupertinoIcons.rectangle_split_3x1
+            case .tight: glyph = CupertinoIcons.square_grid_2x2
+            case .through: glyph = CupertinoIcons.layers
+            case .topAndBottom: glyph = CupertinoIcons.arrow_up_down
+            case .behindText: glyph = CupertinoIcons.square_stack
+            default: glyph = CupertinoIcons.rectangle_on_rectangle
+            }
+            return Chrome.small(glyph, w.title, fluent, enabled: w != wrap) { _ = c.setPictureWrap(at: i, inline: id, w) }
+        }
+        let inLine = Chrome.small(CupertinoIcons.text_alignleft, "In Line with Text", fluent, enabled: wrap != nil) { _ = c.setInLine(at: i, inline: id) }
+        return Chrome.group("Wrap Text", fluent, [
+            Chrome.rows([inLine, pick(.square), pick(.tight)]),
+            Chrome.gap(8),
+            Chrome.rows([pick(.through), pick(.topAndBottom), pick(.behindText)]),
+            Chrome.gap(8),
+            Chrome.rows([pick(.inFrontOfText)]),
+        ])
+    }
+
     private func _shapeColorMenu(_ icon: IconData, _ tip: String, _ c: RichDocumentController, _ i: Int,
                                  _ fluent: FluentThemeData, outline: Bool, inline id: String? = nil) -> Widget {
         Chrome.menuButton(icon, nil, tip, fluent, items: [

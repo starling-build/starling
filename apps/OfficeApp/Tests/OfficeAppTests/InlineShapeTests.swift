@@ -99,4 +99,46 @@ final class InlineShapeTests: XCTestCase {
         let id = try XCTUnwrap(session.controller.document.paragraphs[i].inlineImages.keys.sorted().first)
         XCTAssertEqual(session.imageTab(at: i, inline: id), .shapeFormat)
     }
+
+    /// Layout Options from In Line with Text to Square: the shape floats where it stood (from its own character and line),
+    /// wraps square and keeps its name and look; undo puts it back in the line.
+    func testAShapeInLineTakesAWrapAndFloatsWhereItStood() throws {
+        WriterCharts.installHooks()
+        let c = RichDocumentController(document: try inlineShapeDocument())
+        let (i, id) = try shape(c)
+        XCTAssertTrue(c.isInLine(at: i, inline: id))
+        XCTAssertTrue(c.setPictureWrap(at: i, inline: id, .square))
+        let f = try XCTUnwrap(c.document.paragraphs[i].inlineImages[id]?.float, "it floats")
+        XCTAssertEqual(f.horizontalFrom, "character")
+        XCTAssertEqual(f.verticalFrom, "line")
+        XCTAssertTrue(f.wraps)
+        XCTAssertEqual(c.pictureWrap(at: i, inline: id), .square)
+        XCTAssertFalse(c.isInLine(at: i, inline: id))
+        let xml = try savedBody(c.document)
+        XCTAssertTrue(xml.containsSubstring("<wp:anchor") && !xml.containsSubstring("<wp:inline"), "it is written floating")
+        XCTAssertTrue(xml.containsSubstring("<wp:wrapSquare"), "wrapped square")
+        XCTAssertTrue(xml.containsSubstring("name=\"Rectangle 3\""), "its name goes with it")
+        XCTAssertTrue(xml.containsSubstring("<a:srgbClr val=\"4472C4\"/>"), "and its fill")
+        let back = try DocxFormat.read(try DocxFormat.write(c.document, pageSetup: .letter)).document
+        XCTAssertNotNil(back.paragraphs.flatMap { [$0.image] + $0.inlineImages.values.map { Optional($0) } }.compactMap { $0 }.first?.float, "it reads back floating")
+        c.undo()
+        XCTAssertTrue(c.isInLine(at: i, inline: id), "one undo step puts it back in its line")
+    }
+
+    /// And back: In Line with Text drops its place and wrap, and it stands in its line again.
+    func testAFloatingShapeGoesBackInLine() throws {
+        WriterCharts.installHooks()
+        let c = RichDocumentController(document: try inlineShapeDocument())
+        let (i, id) = try shape(c)
+        XCTAssertTrue(c.setPictureWrap(at: i, inline: id, .tight))
+        XCTAssertTrue(c.setInLine(at: i, inline: id))
+        XCTAssertNil(c.document.paragraphs[i].inlineImages[id]?.float)
+        XCTAssertTrue(c.isInLineShape(at: i, inline: id))
+        XCTAssertFalse(c.setInLine(at: i, inline: id), "already in its line")
+        let xml = try savedBody(c.document)
+        XCTAssertTrue(xml.containsSubstring("<wp:inline") && !xml.containsSubstring("<wp:anchor") && !xml.containsSubstring("<wp:wrapTight"), "written in its line")
+        XCTAssertTrue(xml.containsSubstring("<wp:extent cx=\"914400\" cy=\"457200\"/>"), "the same size")
+        let back = try DocxFormat.read(try DocxFormat.write(c.document, pageSetup: .letter)).document
+        XCTAssertTrue(back.paragraphs.contains { $0.inlineImages.values.contains { $0.float == nil && $0.sourceXML?.containsSubstring("<wps:wsp") == true } }, "it reads back in its line")
+    }
 }
