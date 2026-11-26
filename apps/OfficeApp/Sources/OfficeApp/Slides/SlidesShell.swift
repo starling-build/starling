@@ -1123,9 +1123,25 @@ final class SlidesShellState: State<StatefulWidget> {
         clip.isVideo = MediaClip.isVideo(extension: ext)
         let (poster, size) = MediaPoster.attachment(video: clip.isVideo, name: "poster.png")
         _endEditing()
-        deck.addMedia(clip, poster: poster, size: size)
+        let shape = deck.addMedia(clip, poster: poster, size: size)
         _deckFocus.requestFocus()
         _flash("Inserted \(name)")
+        if clip.isVideo { _takePoster(for: shape, clip: clip) }
+    }
+
+    /// Swaps the generic poster for the clip's first frame once it is decoded, keeping the width and the frame's centre.
+    private func _takePoster(for shape: SlideShape, clip: MediaClip) {
+        DispatchQueue.global(qos: .userInitiated).async {
+            guard let f = MediaPoster.firstFrame(of: clip) else { return }
+            DispatchQueue.main.async { [weak self] in
+                guard let self, case .picture = shape.kind else { return }
+                let w = shape.frame.width, h = w * Double(f.height) / Double(f.width)
+                let cx = shape.frame.left + w / 2, cy = shape.frame.top + shape.frame.height / 2
+                self.deck.replacePoster(shape, png: f.png, width: f.width, height: f.height,
+                                        frame: Rect.fromLTWH(cx - w / 2, cy - h / 2, w, h))
+                self.setState {}
+            }
+        }
     }
 
     private func _insertPicture(_ path: String) {

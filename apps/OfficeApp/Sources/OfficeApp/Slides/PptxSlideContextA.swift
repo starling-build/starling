@@ -192,6 +192,17 @@ extension SlideContext {
                 }
                 obj.rendering = [poster]
                 o.kind = .opaque(obj)
+                // The clip itself, so the show can play it: the embedded copy
+                // (`p14:media r:embed`), else the one the pic links to.
+                let embed = nv.descendants("p14:media").first?["r:embed"]
+                let link = nv.children.first { ["a:audioFile", "a:videoFile", "a:quickTimeFile", "a:wavAudioFile"].contains($0.name) }?["r:link"]
+                let isVideo = !nv.children.contains { $0.name == "a:audioFile" || $0.name == "a:wavAudioFile" }
+                for rid in [embed, link].compactMap({ $0 }) {
+                    guard let rel = package.rels(part).first(where: { $0.id == rid }), !rel.external,
+                          let data = package.parts[rel.target] else { continue }
+                    o.media = MediaClip(data: data, name: rel.target.lastPathComponent, isVideo: isVideo, existing: true)
+                    break
+                }
             }
             return o
         }

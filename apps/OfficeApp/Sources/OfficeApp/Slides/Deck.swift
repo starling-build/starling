@@ -265,6 +265,8 @@ struct MediaClip: Equatable {
     /// The file's name ("clip.mp4"); its extension picks the part's type.
     var name: String
     var isVideo: Bool
+    /// Read from a file: plays in the show, but its own XML and timing are kept as they were.
+    var existing = false
     var fileExtension: String {
         guard let dot = name.lastIndex(of: "."), dot != name.startIndex else { return isVideo ? "mp4" : "mp3" }
         return String(name[name.index(after: dot)...]).lowercased()

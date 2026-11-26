@@ -384,14 +384,13 @@ enum PptxWriter {
             }
         }
         // A sound or movie put here plays when clicked: PowerPoint's own media
-        // timing, where the slide has no other animation to merge it with.
-        if timing.isEmpty {
-            let written = w.written
-            timing = MediaTiming.write(slide.shapes.compactMap { sh in
-                guard let m = sh.media, let id = written[sh.id] else { return nil }
-                return (id, m.isVideo)
-            })
+        // timing, added to the slide's own animations when it has any.
+        let writtenIds = w.written
+        let clips: [(spid: Int, isVideo: Bool)] = slide.shapes.compactMap { sh in
+            guard let m = sh.media, !m.existing, let id = writtenIds[sh.id] else { return nil }
+            return (id, m.isVideo)
         }
+        timing = timing.isEmpty ? MediaTiming.write(clips) : MediaTiming.merge(clips, into: timing)
         rels += w.rels
         rels += links.rels
         // The colour map as read when the slide was; a slide of ours maps

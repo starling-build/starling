@@ -82,6 +82,13 @@ final class SlideShowState: State<StatefulWidget>, TickerProvider {
     private var _slideBanked = 0.0
     private var _slideSince: Date? = Date()
     private(set) var _asking = false
+    /// Clips playing or paused on the current slide, by shape id, and the
+    /// video frame last decoded for each. Poster drawing never depends on these.
+    private var _players: [Int: MediaPlayer] = [:]
+    private var _videoFrames: [Int: Image] = [:]
+    private var _mediaGeneration = 0
+    private var _decoding: Set<Int> = []
+    private var _frameSerial = 0
 
     private var _w: SlideShowView { widget as! SlideShowView }
 
@@ -131,6 +138,7 @@ final class SlideShowState: State<StatefulWidget>, TickerProvider {
     }
 
     override func dispose() {
+        _stopMedia()
         SystemFontsNotifier.shared.removeListeners(owner: self)
         _controller.removeListeners(owner: self)
         _controller.dispose()
@@ -187,6 +195,7 @@ final class SlideShowState: State<StatefulWidget>, TickerProvider {
     /// `back`: stepping back a slide, which arrives with its animations
     /// all played; any other move starts the slide from the beginning.
     private func _go(to target: Int, animate: Bool, back: Bool = false) {
+        _stopMedia()
         // Loop continuously until Esc: past the last slide is the first again (kiosk always loops).
         let loops = !_w.landing && !_w.rehearse && (_w.deck.show.loop || _w.deck.show.kind == .kiosk) && !_order.isEmpty
         let t = _w.landing ? max(0, min(_order.count - 1, target))
@@ -244,6 +253,70 @@ final class SlideShowState: State<StatefulWidget>, TickerProvider {
             return
         }
         _go(to: _at - 1, animate: false, back: true)
+    }
+
+    // MARK: Media
+
+    /// The clip under a click, if any (clips inserted in this editor: a file's own are kept opaque).
+    private func _clip(at p: Offset, size: Size) -> SlideShape? {
+        guard _at < _order.count else { return nil }
+        let deck = _w.deck, slide = deck.slides[_order[_at]]
+        let k = min(size.width / deck.slideSize.width, size.height / deck.slideSize.height)
+        let w = (deck.slideSize.width * k).rounded(), h = (deck.slideSize.height * k).rounded()
+        let pt = Offset((p.dx - ((size.width - w) / 2).rounded()) / k, (p.dy - ((size.height - h) / 2).rounded()) / k)
+        return slide.shapes.reversed().first { $0.media != nil && !$0.invisible && $0.frame.contains(pt) }
+    }
+
+    /// A click on a clip: first click plays it, the next pauses, then resumes.
+    private func _toggleMedia(_ shape: SlideShape) {
+        guard let clip = shape.media else { return }
+        if let player = _players[shape.id] {
+            if player.status == .playing || player.status == .loading { player.pause() } else { player.play() }
+            setState {}
+            return
+        }
+        #if !os(WASI)
+        guard let player = makeMediaPlayer() else { return }
+        let dir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".cache/starling-office/media")
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let file = dir.appendingPathComponent("clip-\(shape.id).\(clip.fileExtension)")
+        guard (try? clip.data.write(to: file)) != nil else { return }
+        _players[shape.id] = player
+        player.open(url: file.absoluteString)
+        _pollMedia()
+        #endif
+    }
+
+    private func _stopMedia() {
+        _mediaGeneration += 1
+        for (_, p) in _players { p.stop() }
+        _players = [:]
+        _videoFrames = [:]
+        _decoding = []
+    }
+
+    /// Pulls due frames about thirty times a second while a clip is open.
+    private func _pollMedia() {
+        _mediaGeneration += 1
+        let gen = _mediaGeneration
+        func tick() {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.033) { [weak self] in
+                guard let self, self.mounted, self._mediaGeneration == gen, !self._players.isEmpty else { return }
+                for (id, player) in self._players {
+                    guard let f = player.pollFrame(), !self._decoding.contains(id) else { continue }
+                    self._decoding.insert(id)
+                    decodeImageFromPixels(f.pixels, width: f.width, height: f.height, format: .rgba8888, callback: { [weak self] image in
+                        DispatchQueue.main.async {
+                            guard let self, self.mounted, self._mediaGeneration == gen else { return }
+                            self._decoding.remove(id)
+                            self.setState { self._videoFrames[id] = image; self._frameSerial &+= 1 }
+                        }
+                    })
+                }
+                tick()
+            }
+        }
+        tick()
     }
 
     // MARK: Links
@@ -571,6 +644,8 @@ final class SlideShowState: State<StatefulWidget>, TickerProvider {
                 self._focus.requestFocus()
                 if e.buttons & kSecondaryMouseButton == 0, let box = context.findRenderObject() as? RenderBox,
                    let l = self._link(at: box.globalToLocal(e.position), size: box.size), self._follow(l) { return }
+                if e.buttons & kSecondaryMouseButton == 0, let box = context.findRenderObject() as? RenderBox,
+                   let clip = self._clip(at: box.globalToLocal(e.position), size: box.size) { self._toggleMedia(clip); return }
                 if self._w.landing { self._pointerStart = e.position }
                 else if e.buttons & kSecondaryMouseButton != 0 { self._previous() } else { self._next(click: true) }
             },
@@ -591,11 +666,11 @@ final class SlideShowState: State<StatefulWidget>, TickerProvider {
             child: CustomPaint(
                 painter: _ShowPainter(current: current, previous: progress < 1 ? previous : nil,
                                       progress: progress, theme: deck.theme, slideSize: deck.slideSize,
-                                      cache: _cache, blank: _blank, reveals: reveals,
+                                      cache: _cache, blank: _blank, reveals: reveals, videoFrames: _videoFrames,
                                       letterbox: _w.landing ? (current?.background?.color ?? deck.theme.background) : nil,
                                       assetRevision: _assetRevision,
                                       revision: deck.revision &+ Int(progress * 1000) &+ (_blank == nil ? 0 : 7) &+ _at * 10007
-                                          &+ _played * 131 &+ Int((elapsed ?? -1) * 1000) * 7919),
+                                          &+ _played * 131 &+ _frameSerial &* 977 &+ _videoFrames.keys.reduce(0, &+) &+ Int((elapsed ?? -1) * 1000) * 7919),
                 child: SizedBox(expand: ())))
         let body: Widget = _w.presenter ? _presenterView(context, show: show) : show
         guard _w.rehearse else { return body }
@@ -623,12 +698,13 @@ private final class _ShowPainter: CustomPainter {
     let cache: SlideTextCache
     let blank: Color?
     let reveals: ShapeReveals
+    let videoFrames: [Int: Image]
     let letterbox: Color?
     let assetRevision: Int
     let revision: Int
 
     init(current: Slide?, previous: Slide?, progress: Double, theme: DeckTheme, slideSize: Size,
-         cache: SlideTextCache, blank: Color?, reveals: ShapeReveals, letterbox: Color? = nil, assetRevision: Int = 0, revision: Int) {
+         cache: SlideTextCache, blank: Color?, reveals: ShapeReveals, videoFrames: [Int: Image] = [:], letterbox: Color? = nil, assetRevision: Int = 0, revision: Int) {
         self.current = current
         self.previous = previous
         self.progress = progress
@@ -637,6 +713,7 @@ private final class _ShowPainter: CustomPainter {
         self.cache = cache
         self.blank = blank
         self.reveals = reveals
+        self.videoFrames = videoFrames
         self.letterbox = letterbox
         self.assetRevision = assetRevision
         self.revision = revision
@@ -667,6 +744,19 @@ private final class _ShowPainter: CustomPainter {
             SlidePainter(slide: slide, theme: theme, slideSize: slideSize, revision: 0, cache: cache,
                          reveals: slide === current ? reveals : ShapeReveals(), placeholders: false)
                 .paint(canvas, Size(w, h))
+            if slide === current {
+                // The playing clip's frame over its poster, fitted to the frame.
+                let k = w / slideSize.width
+                for shape in slide.shapes where shape.media != nil {
+                    guard let img = videoFrames[shape.id] else { continue }
+                    let f = shape.frame
+                    let iw = Double(img.width), ih = Double(img.height)
+                    let fit = min(f.width / iw, f.height / ih)
+                    let dw = iw * fit, dh = ih * fit
+                    let dst = Rect.fromLTWH((f.left + (f.width - dw) / 2) * k, (f.top + (f.height - dh) / 2) * k, dw * k, dh * k)
+                    canvas.drawImageRect(img, Rect.fromLTWH(0, 0, iw, ih), dst, Paint())
+                }
+            }
             canvas.restore()
         }
         canvas.save()

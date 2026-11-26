@@ -37,6 +37,11 @@ enum MediaPoster {
                 set(x, y, on ? 235 : 38)
             }
         }
+        return encode(px, width: w, height: h)
+    }
+
+    /// RGBA pixels as a PNG.
+    static func encode(_ px: [UInt8], width w: Int, height h: Int) -> Data {
         var raw = Data()
         for y in 0 ..< h { raw.append(0); raw.append(contentsOf: px[(y * w * 4) ..< ((y + 1) * w * 4)]) }
         let packed = (try? Zip.deflate(raw)) ?? Data()
@@ -59,5 +64,20 @@ enum MediaPoster {
         let size = video ? Size(480, 270) : Size(72, 72)
         return (ImageAttachment(data: png(video: video), width: size.width, height: size.height, name: name,
                                 naturalWidth: size.width, naturalHeight: size.height), size)
+    }
+
+    /// A real first frame from a movie file: opens it, plays until a frame arrives (about three seconds at most),
+    /// stops. Blocks while it waits, so call it off the UI thread. Nil where nothing can decode the clip.
+    static func firstFrame(of clip: MediaClip) -> (png: Data, width: Int, height: Int)? {
+        #if os(WASI)
+        return nil
+        #else
+        guard clip.isVideo else { return nil }
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent("poster-\(UUID().uuidString).\(clip.fileExtension)")
+        guard (try? clip.data.write(to: file)) != nil else { return nil }
+        defer { try? FileManager.default.removeItem(at: file) }
+        guard let f = mediaFirstFrame(url: file.absoluteString), f.width > 0, f.pixels.count >= f.width * f.height * 4 else { return nil }
+        return (encode(Array(f.pixels.prefix(f.width * f.height * 4)), width: f.width, height: f.height), f.width, f.height)
+        #endif
     }
 }
