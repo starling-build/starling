@@ -25,9 +25,13 @@ public enum PdfDocument {
     /// point, so a caller that painted in logical pixels (96/in) scales its
     /// canvas by 72/96 before painting. Returns false when a page is not an
     /// engine picture or the file could not be written.
+    ///
+    /// `rewrite`, when given, is handed the finished file's bytes before they
+    /// are kept (nil leaves them as written): on the web the file is a
+    /// download, never on a disk to be read back and changed there.
     @discardableResult
     public static func write(to path: String, pages: [Page], title: String? = nil,
-                             author: String? = nil) -> Bool {
+                             author: String? = nil, rewrite: ((Data) -> Data?)? = nil) -> Bool {
         guard !pages.isEmpty else { return false }
         var lists: [UnsafeRawPointer?] = []
         for page in pages {
@@ -36,13 +40,24 @@ public enum PdfDocument {
         }
         let widths = pages.map(\.width)
         let heights = pages.map(\.height)
-        return lists.withUnsafeBufferPointer { b in
+        let written = lists.withUnsafeBufferPointer { b in
             widths.withUnsafeBufferPointer { w in
                 heights.withUnsafeBufferPointer { h in
+                    #if os(WASI)
+                    flutter.swift_bridge.WritePdf(path, b.baseAddress, Int32(pages.count),
+                                                  w.baseAddress, h.baseAddress, title, author, rewrite: rewrite)
+                    #else
                     flutter.swift_bridge.WritePdf(path, b.baseAddress, Int32(pages.count),
                                                   w.baseAddress, h.baseAddress, title, author)
+                    #endif
                 }
             }
         }
+        #if !os(WASI)
+        if written, let rewrite, let data = FileManager.default.contents(atPath: path), let changed = rewrite(data) {
+            return (try? changed.write(to: URL(fileURLWithPath: path))) != nil
+        }
+        #endif
+        return written
     }
 }
