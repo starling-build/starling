@@ -570,7 +570,7 @@ final class ShapeSelectTests: XCTestCase {
         XCTAssertFalse(spPr[1].components(separatedBy: "</wps:spPr>")[0].contains("FF0000"), "the first child keeps its fill")
         XCTAssertTrue(spPr[2].components(separatedBy: "</wps:spPr>")[0].contains("FF0000"))
         // The picked child moves (one undo step); the group keeps both children and the pick.
-        RichDocumentController.groupChildEditor = { ShapeGroups.editChild($0, child: $1, $2) }
+        RichDocumentController.groupChildEditor = { ShapeGroups.editChild($0, child: $1, $2, parts: $3) }
         XCTAssertTrue(c.editGroupChild(.move(dx: 12700 * 10, dy: 12700 * 5)))
         XCTAssertEqual(c.groupChild, 1)
         var moved = try XCTUnwrap(c.groupChildBoxes(at: gi))
