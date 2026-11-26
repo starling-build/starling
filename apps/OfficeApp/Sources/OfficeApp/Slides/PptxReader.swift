@@ -1143,6 +1143,8 @@ struct PptxReader {
                 id: id(), layout: Self._layoutKind(layoutType), hidden: slide["show"] == "0",
                 hideMasterShapes: slide["showMasterSp"] == "0",
                 clrMapOvrXML: slide.first("p:clrMapOvr").map(PptxXML.serialize),
+                extLstXML: slide.first("p:extLst").map { PptxXML.serialize($0, declaringFrom: slide, except: ["p", "a", "r"]) },
+                cSldExtLstXML: slide.first("p:cSld")?.first("p:extLst").map { PptxXML.serialize($0, declaringFrom: slide, except: ["p", "a", "r"]) },
                 controlsXML: slide.first("p:cSld")?.first("p:controls").map(PptxXML.serialize),
                 decorations: decorations,
                 notes: ctx.notes(), shapes: shapes, layoutPart: layoutPart,
@@ -2459,6 +2461,23 @@ final class PptxImages {
 enum PptxXML {
     /// An element back to text, prefixes and all. Attribute order is not
     /// kept (the parser does not keep it), which XML does not care about.
+    /// The element with the root's namespace declarations it uses put on
+    /// it, so it can be written back under a root that lacks them.
+    static func serialize(_ node: XNode, declaringFrom root: XNode, except known: Set<String> = []) -> String {
+        var text = serialize(node)
+        var decl = ""
+        for (k, v) in root.attrs.sorted(by: { $0.key < $1.key }) where k.hasPrefix("xmlns:") && node.attrs[k] == nil {
+            let prefix = String(k.dropFirst(6))
+            if !known.contains(prefix), text.containsSubstring("<\(prefix):") || text.containsSubstring(" \(prefix):") {
+                var one: [UInt8] = []
+                _attribute(k, v, into: &one)
+                decl += String(decoding: one, as: UTF8.self)
+            }
+        }
+        if !decl.isEmpty { text.insert(contentsOf: decl, at: text.index(text.startIndex, offsetBy: node.name.count + 1)) }
+        return text
+    }
+
     static func serialize(_ node: XNode) -> String {
         var out: [UInt8] = []
         out.reserveCapacity(1024)
