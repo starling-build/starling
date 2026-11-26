@@ -1268,7 +1268,17 @@ extension DocxFormat {
         var ruleOpen = false   // a horizontal rule was just set: the text after it starts a line
         var pendingRefChange: (said: String, author: String)? = nil   // a comment reference whose own look was changed
         var runOriginalRPr: String? = nil   // the run being walked's own w:rPr, as written (stamped on the looks its text gets)
-        func stamped(_ c: CharStyle) -> CharStyle { var c = c; if let x = runOriginalRPr { c.stampOriginal(x) }; return c }
+        var runOriginalChildren: [(name: String, xml: String)] = []
+        func stamped(_ c: CharStyle) -> CharStyle {
+            var c = c
+            if let x = runOriginalRPr {
+                // (What the fields would write for this look; the file's elements of any other name are ones they cannot say.)
+                let said = Set(_rPrElementNames(_rPrXML(c, fileFonts: [])))
+                let extras = runOriginalChildren.filter { !said.contains($0.name) }.map(\.xml).joined()
+                c.stampOriginal(x, extras: extras.isEmpty ? nil : extras)
+            }
+            return c
+        }
         func addText(_ s: String, _ cs: CharStyle) {
             guard !s.isEmpty else { return }
             // (Not a floating drawing's anchor mark, nor spaces: 401cd750's rules carry a line-shaped anchor after them
@@ -1464,7 +1474,10 @@ extension DocxFormat {
             // no properties and a result run at sz 24, prints at the code's 10pt, baseline 45.4.)
             runOriginalRPr = nil
             if let rPr = r.first("w:rPr"), !pageResultInCodeLook {
-                if !rPr.children.contains(where: { $0.name == "w:rPrChange" }), !rPr.children.isEmpty { runOriginalRPr = rPr.children.map { PptxXML.serialize($0) }.joined() }
+                if !rPr.children.contains(where: { $0.name == "w:rPrChange" }), !rPr.children.isEmpty {
+                    runOriginalChildren = rPr.children.map { ($0.name, PptxXML.serialize($0)) }
+                    runOriginalRPr = runOriginalChildren.map(\.xml).joined()
+                }
                 // The run's character style first, then its own properties.
                 let runText = r.children.filter { $0.name == "w:t" }.map(\.text).joined()
                 // (A run flagged w:rtl whose text is digits and marks, no letters, is complex
