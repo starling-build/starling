@@ -55,6 +55,41 @@ public enum WebFiles {
         }
     }
 
+    /// A recovery copy a closed tab left: offered by the page before the app starts.
+    public struct RecoveryRow {
+        public let id: String
+        public let kind: String
+        public let name: String
+        public let data: Data
+    }
+
+    /// The rows offered at start-up, newest first, not yet taken.
+    public nonisolated(unsafe) static var recoveryOffers: [RecoveryRow] = []
+
+    /// Writes this tab's recovery copy (replacing the last one).
+    public static func keepRecovery(kind: String, name: String, data: Data) {
+        var meta = kind + "\n" + name
+        meta.withUTF8 { metaBytes in
+            data.withUnsafeBytes { bytes in
+                starling_host_recovery_keep(
+                    metaBytes.baseAddress, UInt32(metaBytes.count),
+                    bytes.baseAddress, UInt32(bytes.count))
+            }
+        }
+    }
+
+    /// Deletes this tab's recovery copy.
+    public static func discardRecovery() { starling_host_recovery_discard() }
+
+    /// The newest offered copy of this kind, made this tab's own.
+    public static func takeRecovery(kind: String) -> RecoveryRow? {
+        guard let i = recoveryOffers.firstIndex(where: { $0.kind == kind }) else { return nil }
+        let row = recoveryOffers.remove(at: i)
+        var id = row.id
+        id.withUTF8 { starling_host_recovery_adopt($0.baseAddress, UInt32($0.count)) }
+        return row
+    }
+
     static func opened(_ picked: Picked?) {
         let completion = pending
         pending = nil

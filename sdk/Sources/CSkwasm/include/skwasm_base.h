@@ -93,6 +93,16 @@ void starling_host_download(const void* name, uint32_t nameLength, const void* b
 HOST(print_pdf)
 void starling_host_print_pdf(const void* name, uint32_t nameLength, const void* bytes,
                              uint32_t byteCount);
+// AutoSave's recovery copy (the page keeps one row per tab in IndexedDB).
+// keep writes this tab's row: "kind\nname" and the bytes, in OUR memory,
+// copied before the call returns. discard deletes it. adopt makes a row a
+// closed tab left (offered through our exported starling_recovery_offer
+// before the app starts) this tab's own.
+HOST(recovery_keep)
+void starling_host_recovery_keep(const void* meta, uint32_t metaLength, const void* bytes,
+                                 uint32_t byteCount);
+HOST(recovery_discard) void starling_host_recovery_discard(void);
+HOST(recovery_adopt) void starling_host_recovery_adopt(const void* id, uint32_t idLength);
 
 // The network, the browser's way (docs/plans/wiki.md W0). http_request
 // starts a fetch: method, URL, headers ("Name: value" lines joined by \n)

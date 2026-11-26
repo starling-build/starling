@@ -1287,6 +1287,11 @@ if let spec = ProcessInfo.processInfo.environment["OFFICE_NEW_WINDOW_AFTER"] {
 // File > Print in a tab: the PDF goes to the page, which opens the browser's
 // print dialog on it.
 hostPrintPDFBytes = { data, name in WebFiles.print(data, as: name) }
+// AutoSave's recovery copy: a row in the page's storage, not a file.
+OfficeHost.browserRecovery = .init(
+    keep: { kind, name, data in WebFiles.keepRecovery(kind: kind, name: name, data: data) },
+    discard: { WebFiles.discardRecovery() },
+    take: { kind in WebFiles.takeRecovery(kind: kind).map { ($0.name, $0.data) } })
 #endif
 
 runStarlingApp(title: siteArg != nil ? "Site" : wikiBase != nil ? "Wiki" : initialKind.appName,

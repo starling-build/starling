@@ -231,6 +231,7 @@ final class OfficeSession {
     func discardRecoveryCopy() {
         // Hosted documents never create the untitled file's recovery copy.
         guard hostName == nil else { return }
+        if let browser = OfficeHost.browserRecovery { browser.discard(); return }
         #if !os(WASI)
         let ext: String
         switch kind {

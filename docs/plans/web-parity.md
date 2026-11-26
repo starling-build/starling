@@ -96,6 +96,12 @@ CDP) checks the page side: the print frame, IndexedDB rows, recovery after a rel
    deletes the row. On start, a row whose tab is gone (Web Locks: each tab holds a
    lock named after its row) is offered as natively: "Recovered unsaved changes", with
    Keep / Discard. Rows are capped (the newest 10, and 200 MB in total).
+   DONE 2026-11-26 (Word), as natively rather than with Keep / Discard: the restored
+   document opens unsaved with "Restored an unsaved document — Save to keep it", and
+   Close's Don't Save drops the row. BrowserRecoveryTests (native, a stand-in page);
+   test/office-recovery-web.sh in Chromium: type, close, a new browser on the same
+   profile gets the text back, Save downloads it and deletes the row. Not yet: a
+   flush on page close (the 2-second timer is the only writer), and Slides.
 3. **Recent files.** Each open and save puts a row in IndexedDB store `recent` (name,
    kind, time, a copy of the bytes, and the file handle where the browser has the
    File System Access API). Backstage Home and Open list them as natively; reopening
