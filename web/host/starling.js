@@ -14,6 +14,7 @@
 // The query versions the new helper export for cached standalone deployments.
 import { createFontLoader, fetchFontBytes, fetchAssetResponse } from './font-loader.js?v=asset-cache-1';
 import { PHYSICAL, LOGICAL, LOGICAL_BY_LOCATION } from './keymap.js';
+import { createA11y } from './a11y.js';
 
 // Packaging tools use this capability when reusing an existing web stage.
 export const supportsPreloadedAssets = true;
@@ -494,6 +495,15 @@ export async function startStarling({ canvas, app, appBrotli, preloaded, immutab
   // once the app runs (below, with the input handlers).
   let softKeyboard = () => {};
   host.soft_keyboard = (show) => softKeyboard(show);
+  // Screen readers (a11y.js): the app sends its semantics tree and announcements; the layer is made once the
+  // app runs, with the input handlers, and anything sent before that is kept until then.
+  let a11y = null;
+  let a11yEarly = null;
+  host.a11y_tree = (pointer, length) => {
+    const payload = textIn(pointer, length);
+    if (a11y) a11y.tree(payload); else a11yEarly = payload;
+  };
+  host.announce = (pointer, length, priority) => { if (a11y) a11y.announce(textIn(pointer, length), priority); };
   // The system clipboard. Writing needs a user gesture, which ⌘C is;
   // reading asks the browser's permission (Chrome prompts once, Safari
   // allows it from a gesture) and answers empty when refused.
@@ -971,6 +981,8 @@ export async function startStarling({ canvas, app, appBrotli, preloaded, immutab
   canvas.addEventListener('pointerdown', focusInput);
   canvas.addEventListener('pointerup', focusInput);
   canvas.focus();
+  a11y = createA11y({ canvas, ime, swift });
+  if (a11yEarly !== null) { a11y.tree(a11yEarly); a11yEarly = null; }
   // Keys held while the tab loses focus never send an up; release them.
   window.addEventListener('blur', () => {
     for (const code of [...pressed]) key({ type: 'keyup', code, key: 'Unidentified', location: 0, timeStamp: performance.now() });
@@ -1006,5 +1018,5 @@ export async function startStarling({ canvas, app, appBrotli, preloaded, immutab
     return text;
   };
 
-  return { skwasm, swift, debug, fontsPending: () => fontsPending, loadFonts: families => Promise.all(families.map(fontLoader.load)), retryFonts: fontLoader.retry };
+  return { skwasm, swift, debug, a11y, fontsPending: () => fontsPending, loadFonts: families => Promise.all(families.map(fontLoader.load)), retryFonts: fontLoader.retry };
 }

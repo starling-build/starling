@@ -56,7 +56,7 @@ def build(runtime, out):
     renderer = Path(match[1].rstrip('/'))
     if renderer.is_absolute() or '..' in renderer.parts or ':' in str(renderer):
         raise ValueError('Renderer must be a directory inside the runtime')
-    required = [app, 'starling.js', 'font-loader.js', 'keymap.js', 'fonts/manifest.json',
+    required = [app, 'starling.js', 'font-loader.js', 'keymap.js', 'a11y.js', 'fonts/manifest.json',
                 str(renderer / 'skwasm.js'), str(renderer / 'skwasm.wasm')]
     for name in required:
         if not (runtime / name).is_file():
@@ -87,7 +87,7 @@ def build(runtime, out):
                 shutil.copy2(source, target / name)
         return prefix, target
 
-    host_prefix, _ = package_group('host', ['starling.js', 'font-loader.js', 'keymap.js'])
+    host_prefix, _ = package_group('host', ['starling.js', 'font-loader.js', 'keymap.js', 'a11y.js'])
     app_files = [app]
     if shared_responses and (runtime / 'app.wasm.br').is_file():
         app_files.append('app.wasm.br')

@@ -133,7 +133,7 @@ WASM="$SCRATCH/$CONFIG/$TARGET.wasm"
 [ -f "$WASM" ] || { echo "error: $WASM was not built" >&2; exit 1; }
 
 mkdir -p "$STAGE/skwasm" "$STAGE/fonts"
-install -m 644 "$REPO/web/host/index.html" "$REPO/web/host/starling.js" "$REPO/web/host/keymap.js" "$REPO/web/host/font-loader.js" "$STAGE/"
+install -m 644 "$REPO/web/host/index.html" "$REPO/web/host/starling.js" "$REPO/web/host/keymap.js" "$REPO/web/host/font-loader.js" "$REPO/web/host/a11y.js" "$STAGE/"
 # binaryen's optimizer takes a third off Swift's output (15 MB of code to
 # 9 MB in the first measurement), in ten seconds. Optional: without it the
 # page is the same page, larger. `brew install binaryen` / `apt install
