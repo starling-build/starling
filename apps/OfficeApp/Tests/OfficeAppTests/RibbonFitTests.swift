@@ -206,7 +206,7 @@ final class RibbonFitTests: XCTestCase {
 
     // MARK: The popup
 
-    private func foldedHome(_ width: Double = 800) -> WidgetTester {
+    private func foldedHome(_ width: Double = 520) -> WidgetTester {
         let ui = writer(width)
         XCTAssertTrue(ui.tap(text: "Home"))
         settle(ui)
