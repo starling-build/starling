@@ -789,6 +789,27 @@ final class Ribbon: StatelessWidget {
             let remove = Chrome.group("Picture", fluent, [
                 Chrome.big(FluentSystemIcons.delete, "Delete", fluent) { c.deleteForward() },
             ])
+            // A shape In Line with Text gets the shape's tools (its fill, outline and words), not a picture's crop and file.
+            if shape || image.outline != nil || image.textBox != nil {
+                let alt = Chrome.group("Adjust", fluent, [
+                    Chrome.small(CupertinoIcons.chat_bubble_text, "Alt Text", fluent) { [session] in session.onPictureDialog?(.altText) },
+                ])
+                var more: [Widget] = []
+                if c.textBoxText(at: i, inline: id) != nil {
+                    more.append(Chrome.group("Text Box", fluent, [
+                        Chrome.big(FluentSystemIcons.textT, "Edit Text", fluent) { [session] in session.onPictureDialog?(.boxText) },
+                    ]))
+                }
+                if image.outline != nil, image.sourceXML?.containsSubstring("<wps:wsp") == true {
+                    more.append(Chrome.group("Shape Styles", fluent, [
+                        _shapeColorMenu(FluentSystemIcons.highlight, "Shape Fill", c, i, fluent, outline: false, inline: id),
+                        _shapeColorMenu(FluentSystemIcons.textColor, "Shape Outline", c, i, fluent, outline: true, inline: id),
+                    ]))
+                }
+                return [size, turn] + more + [alt, Chrome.group("Shape", fluent, [
+                    Chrome.big(FluentSystemIcons.delete, "Delete", fluent) { c.deleteForward() },
+                ])]
+            }
             return [size, turn, tools, remove]
         }
         guard let i = s.imageIndex, let image = c.document.paragraphs[i].image else { return [] }
@@ -925,15 +946,15 @@ final class Ribbon: StatelessWidget {
 
     /// Shape Fill / Shape Outline: the shared colour picker; a theme pick is written as a theme colour.
     private func _shapeColorMenu(_ icon: IconData, _ tip: String, _ c: RichDocumentController, _ i: Int,
-                                 _ fluent: FluentThemeData, outline: Bool) -> Widget {
+                                 _ fluent: FluentThemeData, outline: Bool, inline id: String? = nil) -> Widget {
         Chrome.menuButton(icon, nil, tip, fluent, items: [
             ColorGridMenuItem(theme: ColorMath.officeTheme, recent: [], noneLabel: outline ? "No Outline" : "No Fill",
                               onChoose: { choice in
-                guard let rgb = choice.resolved(theme: ColorMath.officeTheme) else { _ = outline ? c.setShapeOutline(at: i, nil) : c.setShapeFill(at: i, nil); return }
+                guard let rgb = choice.resolved(theme: ColorMath.officeTheme) else { _ = outline ? c.setShapeOutline(at: i, inline: id, nil) : c.setShapeFill(at: i, inline: id, nil); return }
                 let color = Color(0xFF00_0000 | Int64(rgb))
                 var theme: (slot: Int, lumMod: Int, lumOff: Int)?
                 if case .theme(let slot, let mod, let off) = choice { theme = (slot, mod, off) }
-                _ = outline ? c.setShapeOutline(at: i, color, theme: theme) : c.setShapeFill(at: i, color, theme: theme)
+                _ = outline ? c.setShapeOutline(at: i, inline: id, color, theme: theme) : c.setShapeFill(at: i, inline: id, color, theme: theme)
             }, onMore: { [session] in session.onMoreColors?() }),
         ])
     }

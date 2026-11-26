@@ -166,6 +166,22 @@ extension RichDocumentController {
         return image
     }
 
+    /// The drawing at paragraph `index` (its own, or inline picture `id`) with its kept markup, floating (`wp:anchor`) or
+    /// In Line with Text (`wp:inline`): what the shape and text-box tools edit, which do not care where it stands.
+    private func _drawn(_ index: Int, _ id: String?) -> ImageAttachment? {
+        guard index < document.paragraphs.count else { return nil }
+        let image = id.map { document.paragraphs[index].inlineImages[$0] } ?? document.paragraphs[index].image
+        guard let image, let xml = image.sourceXML, xml.containsSubstring("<wp:anchor") || xml.containsSubstring("<wp:inline") else { return nil }
+        return image
+    }
+
+    /// Whether the drawing at `index` (or its inline picture `id`) is a shape (`wps:wsp`) In Line with Text: a click on it,
+    /// selected, types into it as into a floating one.
+    public func isInLineShape(at index: Int, inline id: String? = nil) -> Bool {
+        guard let xml = _drawn(index, id)?.sourceXML else { return false }
+        return xml.containsSubstring("<wp:inline") && xml.containsSubstring("<wps:wsp") && !xml.containsSubstring("<wpg:")
+    }
+
     private func _store(_ index: Int, _ id: String?, old: ImageAttachment, new: ImageAttachment) {
         if let id { edit { perform(.setInlineImage(index, id: id, old: old, new: new)) } }
         else { edit { perform(.setImage(index, old: old, new: new)) } }
@@ -238,7 +254,7 @@ extension RichDocumentController {
     /// shape, or already has text.
     @discardableResult
     public func giveShapeText(at index: Int, inline id: String? = nil) -> Bool {
-        guard let old = _floating(index, id), old.textBox == nil, let xml = old.sourceXML,
+        guard let old = _drawn(index, id), old.textBox == nil, let xml = old.sourceXML,
               xml.containsSubstring("<wps:wsp"), !xml.containsSubstring("<wps:txbx"), !xml.containsSubstring("<mc:"),
               let end = xml.rangeOfSubstring("</wps:spPr>") else { return false }
         let part = "<wps:txbx><w:txbxContent><w:p><w:pPr><w:jc w:val=\"center\"/></w:pPr></w:p></w:txbxContent></wps:txbx>"
@@ -272,7 +288,7 @@ extension RichDocumentController {
     }
 
     private func _setShapePaint(_ index: Int, _ id: String?, line: Bool, _ color: Color?, _ theme: (slot: Int, lumMod: Int, lumOff: Int)? = nil) -> Bool {
-        guard let old = _floating(index, id), let xml = old.sourceXML, xml.containsSubstring("<wps:wsp") else { return false }
+        guard let old = _drawn(index, id), let xml = old.sourceXML, xml.containsSubstring("<wps:wsp") else { return false }
         var hex = ""
         if let color { let v = String(color.value & 0xFFFFFF, radix: 16, uppercase: true); hex = String(repeating: "0", count: 6 - v.count) + v }
         // A theme pick stays linked to its slot (`a:schemeClr` with lumMod / lumOff), so a theme change recolours it.
@@ -333,7 +349,7 @@ extension RichDocumentController {
     /// The words in the text box at `index` (its paragraphs, one per line) when they are plain enough to edit as words
     /// (no character or paragraph formatting, no table); nil for anything else.
     public func textBoxText(at index: Int, inline id: String? = nil) -> String? {
-        guard let image = _floating(index, id), let box = image.textBox, let xml = image.sourceXML,
+        guard let image = _drawn(index, id), let box = image.textBox, let xml = image.sourceXML,
               let open = xml.rangeOfSubstring("<w:txbxContent>"),
               let close = xml.rangeOfSubstring("</w:txbxContent>", in: open.upperBound ..< xml.endIndex) else { return nil }
         let inner = xml[open.upperBound ..< close.lowerBound]
@@ -347,7 +363,7 @@ extension RichDocumentController {
     @discardableResult
     public func setTextBoxText(at index: Int, inline id: String? = nil, _ text: String) -> Bool {
         guard let current = textBoxText(at: index, inline: id), current != text,
-              let old = _floating(index, id), var box = old.textBox, let xml = old.sourceXML,
+              let old = _drawn(index, id), var box = old.textBox, let xml = old.sourceXML,
               let open = xml.rangeOfSubstring("<w:txbxContent>"),
               let close = xml.rangeOfSubstring("</w:txbxContent>", in: open.upperBound ..< xml.endIndex) else { return false }
         func esc(_ line: Substring) -> String {
@@ -367,13 +383,13 @@ extension RichDocumentController {
 
     /// Whether the text box at `index` resizes to fit its text (`spAutoFit`).
     public func textBoxAutoHeight(at index: Int, inline id: String? = nil) -> Bool {
-        _floating(index, id)?.textBox?.autoHeight == true
+        _drawn(index, id)?.textBox?.autoHeight == true
     }
 
     /// The text box at `index` as paragraphs to edit in place, when it holds nothing the in-place editor would lose
     /// (no table, picture, field or markup it cannot write back); nil for anything else.
     public func textBoxParagraphs(at index: Int, inline id: String? = nil) -> [RichParagraph]? {
-        guard let image = _floating(index, id), let box = image.textBox, let xml = image.sourceXML,
+        guard let image = _drawn(index, id), let box = image.textBox, let xml = image.sourceXML,
               let open = xml.rangeOfSubstring("<w:txbxContent>"),
               let close = xml.rangeOfSubstring("</w:txbxContent>", in: open.upperBound ..< xml.endIndex) else { return nil }
         let inner = String(xml[open.upperBound ..< close.lowerBound])
@@ -389,7 +405,7 @@ extension RichDocumentController {
     /// box's table looks and grids. nil when the box holds what the editor would lose (the same list as
     /// `textBoxParagraphs`) or a table inside a table's cell.
     public func textBoxDocument(at index: Int, inline id: String? = nil) -> RichDocument? {
-        guard let image = _floating(index, id) else { return nil }
+        guard let image = _drawn(index, id) else { return nil }
         return Self._textBoxDocument(of: image)
     }
 
@@ -424,7 +440,7 @@ extension RichDocumentController {
     @discardableResult
     public func setTextBoxContent(at index: Int, inline id: String? = nil, document: RichDocument, contentXML: String, rels: [KeptRel] = [], height: Double? = nil) -> Bool {
         guard textBoxDocument(at: index, inline: id) != nil,
-              let old = _floating(index, id), var box = old.textBox, let xml = old.sourceXML,
+              let old = _drawn(index, id), var box = old.textBox, let xml = old.sourceXML,
               let open = xml.rangeOfSubstring("<w:txbxContent>"),
               let close = xml.rangeOfSubstring("</w:txbxContent>", in: open.upperBound ..< xml.endIndex) else { return false }
         // Revision and bookmark ids are one space for the whole file. The writer numbers a box's from 1 like the body's, so move
