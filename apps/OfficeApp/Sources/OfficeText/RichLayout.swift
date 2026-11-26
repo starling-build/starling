@@ -478,11 +478,24 @@ public final class RichTextTheme {
         self.headingColor = headingColor
         self.listIndent = listIndent
         // A face that arrives later (the browser fetches fonts on demand)
-        // has its own height: measure again.
-        SystemFontsNotifier.shared.addListener({ [weak self] in self?._naturalHeights.removeAll() }, owner: self)
+        // has its own height, ascent and descent: measure again. (Only the
+        // height was forgotten, so the first deck the browser opened kept
+        // the stand-in's baseline: its Times New Roman lines sat 0.0082 em
+        // higher than native, the same deck opened second did not.)
+        SystemFontsNotifier.shared.addListener({ [weak self] in self?.forgetFaceMetrics() }, owner: self)
     }
 
     deinit { SystemFontsNotifier.shared.removeListeners(owner: self) }
+
+    /// Forgets every face measurement, for a font collection that changed.
+    func forgetFaceMetrics() {
+        _naturalHeights.removeAll()
+        _faceAscDesc.removeAll()
+        _descentShares.removeAll()
+    }
+
+    /// How many face measurements are held (tests).
+    var faceMetricsHeld: Int { _naturalHeights.count + _faceAscDesc.count + _descentShares.count }
 
     /// A line's height in points, and where its baseline sits below its
     /// top, for text of `size` in a face whose single line is `natural`

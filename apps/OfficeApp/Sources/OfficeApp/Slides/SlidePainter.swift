@@ -23,8 +23,19 @@ final class SlideTextCache {
         let fontScale: Double
         /// The text theme laid out with: a new one (a theme applied) is a miss.
         let theme: ObjectIdentifier
+        /// `fontGeneration` when laid out: a font that arrived since (the
+        /// browser loads some faces on first use) is a miss.
+        let fonts: Int
         let layout: RichLayout
     }
+    /// Bumped each time the host's fonts change. A body laid out before a
+    /// face arrived was measured with a stand-in's metrics, and the PDF
+    /// export (which waits for the fonts) drew those stale lines: the first
+    /// deck the browser opened sat 0.8% of the size higher than native.
+    nonisolated(unsafe) static var fontGeneration = 0
+    private static let _watchFonts: Void = {
+        SystemFontsNotifier.shared.addListener { SlideTextCache.fontGeneration &+= 1 }
+    }()
     private var _entries: [ObjectIdentifier: Entry] = [:]
     /// The same bodies laid out in clear ink (`layout(_:pxPerPt:clear:)`).
     private var _clearEntries: [ObjectIdentifier: Entry] = [:]
@@ -350,8 +361,9 @@ final class SlideTextCache {
         // stay the file's.
         let scale = pxPerPt / theme.pixelsPerPoint
         let key = ObjectIdentifier(text)
+        _ = Self._watchFonts
         if let e = (clear ? _clearEntries : _entries)[key], e.revision == text.revision, e.width == width, e.scale == scale, e.fontScale == shape.fontScale,
-           e.theme == ObjectIdentifier(theme) {
+           e.theme == ObjectIdentifier(theme), e.fonts == Self.fontGeneration {
             return e.layout
         }
         func laidOut(_ w: Double) -> RichLayout {
@@ -397,7 +409,7 @@ final class SlideTextCache {
             }
         }
         let entry = Entry(revision: text.revision, width: width, scale: scale, fontScale: shape.fontScale, theme: ObjectIdentifier(theme),
-                          layout: layout)
+                          fonts: Self.fontGeneration, layout: layout)
         if clear { _clearEntries[key] = entry } else { _entries[key] = entry }
         return layout
     }
