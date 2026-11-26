@@ -179,7 +179,7 @@ final class WorkbookController: ChangeNotifier {
             structural { sheet.merges.removeAll { $0 == m } }
             return
         }
-        guard !r.isSingle, r.rows * r.cols <= 1_000_000 else { return }
+        guard !r.isSingle, r.area <= 1_000_000 else { return }
         let others = sheet.cells.keys.filter { r.contains($0) && $0 != r.topLeft && !(sheet.cells[$0]?.value.isEmpty ?? true) }
         structural {
             // Excel keeps only the top-left value.
@@ -600,7 +600,7 @@ final class WorkbookController: ChangeNotifier {
         // Formatting a huge range (a whole column) touches only cells that exist
         // plus the visible block the user selected; Excel stores column styles,
         // which arrive with .xlsx in X2.
-        let area = r.rows * r.cols
+        let area = r.area
         let targets: [CellAddress] = area <= 20_000
             ? (r.top ... r.bottom).flatMap { row in (r.left ... r.right).map { CellAddress(row: row, col: $0) } }
             : ws.cells.keys.filter { r.contains($0) }
@@ -1088,7 +1088,7 @@ final class WorkbookController: ChangeNotifier {
     private var _announcedSelection = ""
     func _notify(selectionOnly: Bool = false) {
         // Tell a screen reader where the selection went ("Selected B3", "Selected B3 to C5").
-        let spoken = selection.rows * selection.cols > 1
+        let spoken = selection.area > 1
             ? "Selected \(selection.topLeft.a1) to \(selection.bottomRight.a1)" : "Selected \(active.a1)"
         if spoken != _announcedSelection { _announcedSelection = spoken; ScreenReader.announce(spoken) }
         revision += 1
@@ -1100,7 +1100,7 @@ final class WorkbookController: ChangeNotifier {
     var selectionStats: (sum: Double, average: Double?, count: Int, numbers: Int) {
         var sum = 0.0, count = 0, numbers = 0
         let r = selection
-        let keys: [CellAddress] = r.rows * r.cols <= sheet.cells.count
+        let keys: [CellAddress] = r.area <= sheet.cells.count
             ? (r.top ... r.bottom).flatMap { row in (r.left ... r.right).map { CellAddress(row: row, col: $0) } }
             : sheet.cells.keys.filter { r.contains($0) }
         // Rows a filter hid are not counted, as Excel's status bar does not.

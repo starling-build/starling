@@ -166,6 +166,7 @@ final class SheetsShellState: State<StatefulWidget> {
             // document's name, and the status bar's message.
             #if os(WASI)
             if kind == "pdf" { self?._export("pdf"); return "exporting" }
+            if kind == "controls", let self { return ControlList.text(self.context) }
             // 'book-pdf': the entire workbook, cut off where the rendering
             // gate cuts Excel's (test/xlsx-app-render.sh) — what
             // `--sheet-pdf` writes natively.
@@ -761,7 +762,7 @@ final class SheetsShellState: State<StatefulWidget> {
             guard let self, let grid = self._grid else { return }
             let sel = self.wb.selection
             var kinds: [PrintWhat] = [.activeSheet, .entireWorkbook]
-            if sel.rows * sel.cols > 1 { kinds.append(.selection) }
+            if sel.area > 1 { kinds.append(.selection) }
             var counts: [Int] = []
             for k in kinds {
                 let n = SheetJobBox(0)

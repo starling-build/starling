@@ -259,7 +259,7 @@ final class CalcEngine {
         if let v = _rangeCache[key] { return v }
         let ws = book.sheets[sheet]
         var out: [CellValue] = []
-        out.reserveCapacity(r.rows * r.cols)
+        out.reserveCapacity(r.area)
         for row in r.top ... r.bottom {
             for col in r.left ... r.right {
                 let a = CellAddress(row: row, col: col)
@@ -932,7 +932,7 @@ final class CalcEngine {
     func values(_ sheet: Int, _ r: CellRange, includeEmpty: Bool = false) -> [CellValue] {
         guard sheet >= 0, sheet < book.sheets.count else { return [] }
         let ws = book.sheets[sheet]
-        let area = r.rows * r.cols
+        let area = r.area
         if !includeEmpty && area > ws.cells.count * 2 {
             // A big range over a sparse sheet: walk the cells that exist,
             // and those a formula spills into (left out, SUM(A1:C11) over
@@ -974,7 +974,7 @@ final class CalcEngine {
     func gridFull(_ v: EvalValue, _ ctx: EvalContext) -> [[CellValue]] {
         guard case .range(let sheet, let r) = v else { return grid(v, ctx) }
         guard sheet >= 0, sheet < book.sheets.count else { return [[.error(.ref)]] }
-        if r.rows * r.cols > 100_000 { return grid(v, ctx) }
+        if r.area > 100_000 { return grid(v, ctx) }
         return (r.top ... r.bottom).map { row in (r.left ... r.right).map { col in value(sheet, CellAddress(row: row, col: col)) } }
     }
 

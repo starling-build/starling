@@ -497,7 +497,7 @@ extension WorkbookController {
     /// Pick up the selection's formats: the next selection made takes them (one use).
     func armFormatPainter() {
         let r = selection
-        guard r.rows * r.cols <= Self.painterLimit else {
+        guard r.area <= Self.painterLimit else {
             onCommand?(.status("Select fewer cells to copy their format"))
             return
         }
@@ -531,7 +531,7 @@ extension WorkbookController {
                         bottom: min(CellAddress.maxRows - 1, target.top + src.rows - 1),
                         right: min(CellAddress.maxCols - 1, target.left + src.cols - 1))
             : target
-        guard dst.rows * dst.cols <= Self.painterLimit * 4 else { return }
+        guard dst.area <= Self.painterLimit * 4 else { return }
         if refusesEdit(dst.cells) { return }
         structural {
             for row in dst.top ... dst.bottom {

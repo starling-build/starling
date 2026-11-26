@@ -16,6 +16,9 @@ unset LD_LIBRARY_PATH
 APP="${OFFICE_APP:-$ROOT/.build-shared/x86_64-unknown-linux-gnu/release/OfficeApp}"
 STAGE="$ROOT/.stage-web-OfficeApp"
 case $KIND in pptx) FLAG=--deck-pdf;; xlsx) FLAG=--sheet-pdf; export PDF_QUERY=${PDF_QUERY:-book-pdf};; *) echo "kind?" >&2; exit 2;; esac
+# Without the pair env (source ~/bin/office-env.sh) the native side loses its
+# line breaks silently and every wrapped deck "differs".
+[ -n "${STARLING_ICU:-}" ] || { echo "source ~/bin/office-env.sh first (STARLING_ICU unset)" >&2; exit 2; }
 [ -x "$APP" ] && [ -s "$STAGE/app.wasm" ] || { echo "need native OfficeApp and staged web build" >&2; exit 2; }
 mkdir -p "$WORK/native" "$WORK/web" "$WORK/pairs"; touch "$WORK/render.tsv"
 : > "$WORK/web-list.txt"

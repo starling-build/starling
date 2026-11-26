@@ -38,8 +38,14 @@ Fenced out or reduced in the browser (grep `os(WASI)`):
 - Debug env dumps (Diagram) are native-only by design.
 Platform gaps (wasm.md): IME and touch keyboards; fonts by request; Firefox/Safari
 CJK line breaking; accessibility tree; animated images; an Image widget.
-Still to do: walk every ribbon command in the browser and list runtime failures
-(not yet done; step 3 starts there).
+Ribbon walk (2026-11-26, amd-11): `node build/tools/web-drive.mjs walk FILE OUT`
+opens FILE in the browser, selects all (Ctrl+A), and clicks every ribbon button
+on every tab (listed by `starling.debug('controls')`), recording any that throws.
+First run: Sheets crashed on select-all ("RuntimeError: unreachable"): a whole
+sheet is 2^34 cells and `rows * cols` overflowed wasm32's 32-bit Int. FIXED:
+`CellRange.area` saturates, every Sheets call site uses it (SheetsRangeAreaTests).
+After: Word 92 ok, Slides 155 ok, Sheets 106 ok (7 tabs), 0 throw.
+Not walked yet: dialog contents, the File backstage, right-click menus.
 
 ## 3. Proposal (not wired): keep the web build from breaking silently
 

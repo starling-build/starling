@@ -404,7 +404,7 @@ extension SheetChart {
             let formula = book.names[formula.uppercased()] ?? formula
             guard let expr = try? Formula.parse("=" + formula), case .ref(let r) = expr, let name = r.sheet,
                   let si = book.sheet(named: name) else { return nil }
-            guard r.range.rows * r.range.cols <= 10_000 else { return nil }
+            guard r.range.area <= 10_000 else { return nil }
             return (si, r.range)
         }
         func values(_ formula: String) -> [CellValue]? {
@@ -1342,7 +1342,7 @@ extension WorkbookController {
         if t.hasPrefix("=") { t.removeFirst() }
         if !t.containsSubstring("!") { t = "'" + sheet.name.replacingAll("'", with: "''") + "'!" + t }
         guard let expr = try? Formula.parse("=" + t), case .ref(let r) = expr, let name = r.sheet, let si = book.sheet(named: name),
-              r.range.rows * r.range.cols <= 10_000 else { return nil }
+              r.range.area <= 10_000 else { return nil }
         return (t, engine.values(si, r.range, includeEmpty: true).map { $0.number })
     }
 

@@ -28,6 +28,13 @@
 //                        the status bar's words). One page for all of
 //                        them, reloaded after a failure; a file whose PDF
 //                        is already there is skipped, so a sweep resumes.
+//   walk FILE OUT        Office: open FILE (absolute), then click every
+//                        ribbon tab and every control with a tooltip on it,
+//                        one at a time, Escape after each; a line per
+//                        control in OUT (app, tab, tip, ok or THREW and the
+//                        page's error); the page is reloaded and FILE
+//                        reopened after a failure. TABS (comma list)
+//                        limits the tabs. The browser's ControlSweepTests.
 //   wait MS              sleep
 //   shot FILE            screenshot to FILE (PNG)
 //   canvas FILE          save the rendered app canvas to FILE (PNG)
@@ -81,6 +88,7 @@ const ws = new WebSocket(targets.find((t) => t.type === 'page').webSocketDebugge
 await new Promise((r) => ws.addEventListener('open', r));
 let id = 0; const pending = new Map();
 let thrown = 0;   // exceptions the page has thrown: a trap ends the app
+let lastThrown = '';
 ws.addEventListener('message', ({ data }) => {
   const m = JSON.parse(data);
   if (m.id && pending.has(m.id)) { pending.get(m.id)(m); pending.delete(m.id); }
@@ -88,7 +96,8 @@ ws.addEventListener('message', ({ data }) => {
     console.log(m.params.type + ':', m.params.args.map((a) => a.value ?? a.description).join(' ').slice(0, 30000));
   } else if (m.method === 'Runtime.exceptionThrown') {
     thrown++;
-    console.log('exception:', (m.params.exceptionDetails.exception?.description || m.params.exceptionDetails.text).slice(0, 20000));
+    lastThrown = (m.params.exceptionDetails.exception?.description || m.params.exceptionDetails.text || '').split('\n')[0];
+    if (process.env.QUIET_EXCEPTIONS !== '1') console.log('exception:', (m.params.exceptionDetails.exception?.description || m.params.exceptionDetails.text).slice(0, 20000));
   }
 });
 const send = (method, params = {}) => new Promise((resolve, reject) => {
@@ -272,6 +281,66 @@ try {
         appendFileSync(join(out, 'web.tsv'), `${name}\t${verdict}\n`);
         console.log(`${name}\t${verdict}`);
         if (verdict !== 'ok') await reload();
+      }
+    } else if (op === 'walk') {
+      const path = resolve(args.shift()), out = args.shift(), name = basename(path);
+      const debug = (kind) => evaluate(`window.starling && window.starling.debug ? window.starling.debug(${JSON.stringify(kind)}) : null`).catch(() => null);
+      const key = (type, extra) => send('Input.dispatchKeyEvent', { type, ...extra });
+      const chord = async (k, code) => {
+        await key('keyDown', { key: 'Control', code: 'ControlLeft', modifiers: 2 });
+        await key('keyDown', { key: k, code, modifiers: 2 }); await key('keyUp', { key: k, code, modifiers: 2 });
+        await key('keyUp', { key: 'Control', code: 'ControlLeft' }); await sleep(300);
+      };
+      const escape = async () => {
+        for (let i = 0; i < 2; i++) { await key('keyDown', { key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 }); await key('keyUp', { key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 }); await sleep(150); }
+      };
+      const click = async (x, y) => { await mouse('mouseMoved', x, y); await mouse('mousePressed', x, y); await sleep(60); await mouse('mouseReleased', x, y); };
+      // A file picker (Open, Insert Picture) is swallowed, not left open.
+      await send('Page.setInterceptFileChooserDialog', { enabled: true }).catch(() => null);
+      await send('Browser.setDownloadBehavior', { behavior: 'deny' }).catch(() => null);
+      const open = async (reload) => {
+        if (reload) await send('Page.navigate', { url: process.env.URL || 'http://127.0.0.1:8137/' });
+        if (!await until(60000, async () => (await debug('name')) != null)) throw new Error('the app did not start');
+        await sleep(500);
+        await send('Page.setInterceptFileChooserDialog', { enabled: false }).catch(() => null);
+        await chord('o', 'KeyO');
+        const { root } = await send('DOM.getDocument');
+        const { nodeId } = await send('DOM.querySelector', { nodeId: root.nodeId, selector: '#starling-file' });
+        await send('DOM.setFileInputFiles', { files: [path], nodeId });
+        if (!await until(+(process.env.OPEN_MS || 30000), async () => (await debug('name')) === name)) throw new Error(`${name} did not open`);
+        await sleep(1500);
+        await send('Page.setInterceptFileChooserDialog', { enabled: true }).catch(() => null);
+        if (process.env.NOSELECT !== '1') await chord('a', 'KeyA');   // a selection, so formatting commands act
+      };
+      const controls = async () => ((await debug('controls')) || '').split('\n').filter(Boolean).map((l) => {
+        const [kind, x, y, label] = l.split('\t'); return { kind, x: +x, y: +y, label };
+      }).filter((c) => c.x >= 0 && c.y >= 0 && c.x < W && c.y < H);
+      const tabNames = (process.env.TABS || 'File,Home,Insert,Draw,Design,Layout,References,Mailings,Transitions,Animations,Slide Show,Review,View,Formulas,Page Layout,Data,Help').split(',');
+      await open(false);
+      const app = name.replace(/^.*\./, '');
+      const tabsOnScreen = (await controls()).filter((c) => c.kind === 'text' && c.y < 140 && tabNames.includes(c.label));
+      const tabs = [...new Set(tabsOnScreen.map((c) => c.label))].filter((t) => t !== 'File');
+      for (const tab of tabs) {
+        const find = async (kind, label) => (await controls()).find((c) => c.kind === kind && c.label === label);
+        const showTab = async () => { const t = await find('text', tab); if (t) { await click(t.x, t.y); await sleep(300); } return !!t; };
+        await showTab();
+        const tips = [...new Set((await controls()).filter((c) => c.kind === 'tip').map((c) => c.label))];
+        for (const tip of tips) {
+          await showTab();
+          const c = await find('tip', tip);
+          if (!c) { appendFileSync(out, `${app}\t${tab}\t${tip}\tNOT-FOUND\n`); continue; }
+          const before = thrown;
+          await click(c.x, c.y);
+          await sleep(+(process.env.STEP_MS || 1000));
+          const alive = (await debug('name')) != null;
+          let verdict = 'ok';
+          if (thrown > before) verdict = `THREW\t${lastThrown.slice(0, 200)}`;
+          else if (!alive) verdict = 'DEAD\tthe app stopped answering';
+          appendFileSync(out, `${app}\t${tab}\t${tip}\t${verdict}\n`);
+          if (verdict !== 'ok') { console.log(`${app}\t${tab}\t${tip}\t${verdict}`); await open(true); await showTab(); continue; }
+          await escape();
+          if ((await debug('name')) !== name) await open(true);
+        }
       }
     } else if (op === 'downloads') {
       await send('Browser.setDownloadBehavior', { behavior: 'allow', downloadPath: args.shift(), eventsEnabled: true });

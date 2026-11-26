@@ -103,7 +103,7 @@ extension WorkbookController {
     func addSparklines(kind: SparklineGroup.Kind, data: String, location: String) -> SparklineProblem? {
         guard let (dsi, dr) = _sparkRange(data) else { return .badData }
         guard let lr = CellRange(location.trimmingSparkSpaces.replacingAll("$", with: "")) else { return .badLocation }
-        let n = lr.rows * lr.cols
+        let n = lr.area
         // One sparkline for each row of data when the location is a column of that many cells,
         // each column when it is a row (the location's own shape decides when both fit).
         let byRows: Bool
