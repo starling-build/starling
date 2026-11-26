@@ -155,4 +155,37 @@ final class TypingFrameTests: XCTestCase {
         c.undo()
         XCTAssertFalse(try XCTUnwrap(c.document.paragraphs[gi].image).sourceXML!.containsSubstring("hello child"), "one undo takes the whole edit out")
     }
+
+    /// mac-ipad (macOS, main 523f1a82e): a text box that came from an opened file is selected by a click on it, the same
+    /// as one made with Insert > Text Box.
+    func testAClickSelectsATextBoxFromAnOpenedFile() throws {
+        var doc = RichDocument(paragraphs: [RichParagraph(text: "before")])
+        var box = try XCTUnwrap(TextBoxInsert.make(text: "one"))
+        box.outline = ShapeOutline(kind: .box, color: Color(0xFFCC0000), width: 3)
+        var p = RichParagraph(text: "")
+        p.image = box
+        doc.paragraphs.append(p)
+        doc.paragraphs.append(RichParagraph(text: "after"))
+        let path = NSTemporaryDirectory() + "typing-frame-\(ProcessInfo.processInfo.processIdentifier).docx"
+        defer { try? FileManager.default.removeItem(atPath: path) }
+        try OfficeFormats.write(doc, to: path, pageSetup: .letter)
+        let (w, h) = (900, 600)
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: path), title: "Test"), size: Size(Double(w), Double(h)))
+        for _ in 0 ..< 3 { ui.pump(); RunLoop.main.run(until: Date().addingTimeInterval(0.05)) }
+        let shell = try XCTUnwrap(ui.state(OfficeShellState.self))
+        let c = shell.session.controller
+        let i = try XCTUnwrap(c.document.paragraphs.firstIndex { $0.image != nil }, "the opened file holds the box")
+        let px = try pixels(ui, w, h)
+        // The frame: the rows with a long dark run, below the title bar and ribbon (the page starts under y 240).
+        var (x0, y0, x1, y1) = (w, h, -1, -1)
+        for y in 240 ..< h - 50 {
+            let dark = (0 ..< w).filter { let o = (y * w + $0) * 4; return px[o] < 80 && px[o + 1] < 80 && px[o + 2] < 80 }
+            if dark.count > 120, let l = dark.first, let r = dark.last { x0 = min(x0, l); x1 = max(x1, r); y0 = min(y0, y); y1 = max(y1, y) }
+        }
+        XCTAssertGreaterThan(x1, x0, "the page draws the box's frame")
+        // Just inside the frame, on the box, clear of its words.
+        ui.click(at: Offset(Double(x1) - 6, Double(y1) - 6), kind: .mouse)
+        for _ in 0 ..< 3 { ui.pump(); RunLoop.main.run(until: Date().addingTimeInterval(0.05)) }
+        XCTAssertEqual(shell.session.controller.selectedImageIndex, i, "a click on the opened box selects it")
+    }
 }
