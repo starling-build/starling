@@ -494,9 +494,15 @@ extension flutter.swift_bridge {
             }
         }
 
-        // WEB-TODO: a synchronous picture-to-image needs a CPU raster, which
-        // skwasm does not export. nil takes the caller's failure path.
-        public func ToImage(_ width: Int32, _ height: Int32) -> ImageBridge? { nil }
+        /// A picture-backed image (skwasm's image_createFromPicture: the
+        /// DisplayList replayed into an SkPicture, rasterized lazily when it
+        /// is drawn). Text glow and Word's blurred shadows draw through this;
+        /// returning nil dropped them from every web render and PDF.
+        public func ToImage(_ width: Int32, _ height: Int32) -> ImageBridge? {
+            guard skHandle != 0, width > 0, height > 0 else { return nil }
+            let image = image_createFromPicture(skHandle, width, height)
+            return image != 0 ? ImageBridge(adopting: image) : nil
+        }
 
         public func IsDisposed() -> Bool { skHandle == 0 }
     }
