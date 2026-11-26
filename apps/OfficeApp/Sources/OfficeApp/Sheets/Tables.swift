@@ -236,8 +236,14 @@ enum PivotsXML {
             // first inner item beside it).
             p.path = path; p.originalRef = ref
             p.fileSpec = spec(root)
-            if let cache = SheetDrawingsXML._relTargets(parts, of: path).values.sorted().first(where: { $0.containsSubstring("pivotCacheDefinition") }),
-               let src = Xlsx._part(parts, cache).flatMap({ XNode.parse($0) })?.child("cacheSource"), src["type"] == "worksheet",
+            let cacheRoot = SheetDrawingsXML._relTargets(parts, of: path).values.sorted().first(where: { $0.containsSubstring("pivotCacheDefinition") })
+                .flatMap { c in Xlsx._part(parts, c).flatMap { XNode.parse($0) }.map { (c, $0) } }
+            if let (_, croot) = cacheRoot, p.fileSpec != nil {
+                // (Groups live in the cache, where Excel keeps them for every pivot over it; a kind we cannot group the same way leaves the pivot to Excel.)
+                if let g = groups(cache: croot) { p.fileSpec?.groups = g } else { p.fileSpec = nil }
+            }
+            if let cache = cacheRoot?.0,
+               let src = cacheRoot?.1.child("cacheSource"), src["type"] == "worksheet",
                let ws = src.child("worksheetSource"), let sheet = ws["sheet"], let r = ws["ref"], ws["r:id"] == nil {
                 p.cachePath = cache
                 p.source = Formula.quoteSheet(sheet) + "!" + r
@@ -283,6 +289,27 @@ extension PivotsXML {
         }
         if rows.isEmpty || data.isEmpty { return nil }
         return PivotSpec(name: root["name"] ?? "PivotTable1", rows: rows, cols: cols, data: data, filters: filters, origin: CellAddress(row: 0, col: 0))
+    }
+
+    /// The groups of a cache's fields by source column, or nil when one is of a kind the pivot here cannot lay out (days, hours, groups
+    /// stacked on one another, items grouped by hand).
+    static func groups(cache: XNode) -> [Int: PivotGroup]? {
+        var out: [Int: PivotGroup] = [:]
+        let fields = cache.child("cacheFields")?.kids("cacheField") ?? []
+        for (f, cf) in fields.enumerated() {
+            guard let g = cf.child("fieldGroup") else { continue }
+            if g["par"] != nil || g["base"].flatMap({ Int($0) }) != f || g.child("discretePr") != nil { return nil }
+            guard let r = g.child("rangePr") else { return nil }
+            switch r["groupBy"] ?? "range" {
+            case "range":
+                guard let a = Double(r["startNum"] ?? ""), let b = Double(r["endNum"] ?? ""), let by = Double(r["groupInterval"] ?? "1"), by > 0, b >= a else { return nil }
+                out[f] = .numbers(start: a, end: b, by: by)
+            case let u:
+                guard let unit = PivotDateUnit(rawValue: u) else { return nil }
+                out[f] = .dates(unit)
+            }
+        }
+        return out
     }
 
     /// `'Sheet 1'!$A$1:$D$20` as the two attributes of a worksheetSource.
