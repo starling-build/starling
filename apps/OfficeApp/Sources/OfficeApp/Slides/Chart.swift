@@ -708,6 +708,9 @@ struct Chart: Equatable {
     /// The box-whisker's data labels (a series' `cx:dataLabels` showing the value): 1 = the five-number summary and the mean,
     /// 2 = where the chart shows its non-outlier points, each distinct sample value instead of the whiskers' ends.
     var boxLabels = 0
+    /// Whether a box-and-whisker draws its samples inside the whiskers (`nonoutliers`) and joins its means across categories (`meanLine`).
+    var boxPoints = false
+    var boxMeanLine = false
     /// The chart's own text size (`c:chartSpace/c:txPr`) where it is not
     /// the usual 12: what its labels and legend are set in when they say
     /// nothing, and an unsized title 1.2 times it.
@@ -1123,6 +1126,8 @@ enum ChartXML {
         c.boxInclusive = layout?.first("cx:statistics")?["quartileMethod"] == "inclusive"
         c.boxMeans = layout?.first("cx:visibility")?["meanMarker"] != "0"
         c.boxOutliers = layout?.first("cx:visibility")?["outliers"] != "0"
+        c.boxPoints = layout?.first("cx:visibility")?["nonoutliers"] == "1"
+        c.boxMeanLine = layout?.first("cx:visibility")?["meanLine"] == "1"
         if all.contains(where: { $0.first("cx:dataLabels")?.first("cx:visibility")?["value"] == "1" }) {
             c.boxLabels = layout?.first("cx:visibility")?["nonoutliers"] == "1" ? 2 : 1
         }
@@ -8967,8 +8972,8 @@ extension ChartPainter {
 
     /// A colour's channels times `f`.
     /// A box-and-whisker chart's boxes, as Word's print of chartex's draws
-    /// them: a category's boxes take its slot over 1 + the gap, 1.12 of a
-    /// box apart (20.2 pt boxes at 22.6 in its 132.3 pt slots); each in
+    /// them: a category's boxes take its slot over 1 + the gap, one box
+    /// filling it, more group / (s - 0.05) apart and 0.905 of that wide; each in
     /// its series' colour, outlined in 0.8 of it, from the lower quartile
     /// to the upper with the median across; whiskers to the furthest
     /// samples within 1.5 of the box's height of it, capped 6 pt wide;
@@ -8979,7 +8984,10 @@ extension ChartPainter {
         let n = max(1, c.categories.count), s = Double(max(1, boxes.count))
         let slot = plot.width / Double(n)
         let group = slot / (1 + c.boxGap)
-        let w = group / (s + (s - 1) * 0.12), pitch = w * 1.12
+        // (PowerPoint's print of bw-spacing, 1-5 series at gaps 0-5: the group starts its slot's gap / 2 in; one series' box
+        // fills it; more stand group / (s - 0.05) apart, each 0.905 of that wide (2 series in a 281.3 pt group: 130.44 at
+        // 144.00; 3 in 562.5: 172.4 at 190.56; 5 in 281.3: 51.2 at 56.8), so the last ends short of the group's right.)
+        let pitch = s > 1 ? group / (s - 0.05) : group, w = s > 1 ? pitch * 0.905 : group
         let fill = Paint()
         fill.style = .fill
         fill.isAntiAlias = true
@@ -8993,6 +9001,7 @@ extension ChartPainter {
             let colour = c.color(series: j, accents: theme.accents)
             fill.color = colour
             line.color = colour
+            var means: [Offset] = []
             for (i, xs) in cats.enumerated() where !xs.isEmpty {
                 let q1 = ChartXML.quartile(xs, 0.25, inclusive: c.boxInclusive)
                 let q2 = ChartXML.quartile(xs, 0.5, inclusive: c.boxInclusive)
@@ -9000,6 +9009,7 @@ extension ChartPainter {
                 let reach = 1.5 * (q3 - q1)
                 let inside = xs.filter { $0 >= q1 - reach && $0 <= q3 + reach }
                 let left = plot.left + (Double(i) + 0.5) * slot - group / 2 + Double(j) * pitch
+                means.append(Offset(left + w / 2, vpos(xs.reduce(0, +) / Double(xs.count))))
                 let mid = left + w / 2, cap = 0.15 * w, cross = 3 * k
                 if let lo = inside.first, let hi = inside.last {
                     canvas.drawLine(Offset(mid, vpos(q1)), Offset(mid, vpos(lo)), line)
@@ -9012,7 +9022,7 @@ extension ChartPainter {
                 canvas.drawLine(Offset(left, vpos(q3)), Offset(left + w, vpos(q3)), line)
                 canvas.drawLine(Offset(left, vpos(q1)), Offset(left + w, vpos(q1)), line)
                 canvas.drawLine(Offset(left, vpos(q2)), Offset(left + w, vpos(q2)), line)
-                if c.boxLabels == 2 {
+                if c.boxPoints {
                     // (PowerPoint's print of chartex-lab2 p18, nonoutliers="1": a 3 pt dot in the series' colour, unstroked, on the
                     // box's middle at each distinct inside value but the whisker ends' own copies (one of the least, one of the
                     // greatest), drawn over the box and under the mean's cross.)
@@ -9029,8 +9039,7 @@ extension ChartPainter {
                 }
                 if c.boxOutliers {
                     for v in xs where v < q1 - reach || v > q3 + reach {
-                        canvas.drawCircle(Offset(mid, vpos(v)), 1.5 * k, fill)
-                        canvas.drawCircle(Offset(mid, vpos(v)), 1.5 * k, line)
+                        canvas.drawCircle(Offset(mid, vpos(v)), 1.5 * k, fill)  // (bw-spacing p18-20: unstroked, as the inside points)
                     }
                 }
                 if c.boxLabels > 0 {
@@ -9052,6 +9061,9 @@ extension ChartPainter {
                     }
                 }
             }
+            // (bw-spacing p15-17, meanLine="1": a 2.25 pt line in the series' colour from each category's mean to the next's,
+            // box middle to box middle, over the series' own boxes and under the next series'.)
+            if c.boxMeanLine { for (a, b) in zip(means, means.dropFirst()) { canvas.drawLine(a, b, line) } }
         }
     }
 

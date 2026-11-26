@@ -386,6 +386,39 @@ final class ChartTests: XCTestCase {
         XCTAssertEqual(c.boxes?[0][0], [1, 2, 9])
     }
 
+    /// Two series' boxes in one category, as PowerPoint's print of bw-spacing p2 has them: the group (slot over 1 + gap)
+    /// starts gap / 2 in, the boxes group / 1.95 apart and 0.905 of that wide; the means joined across categories,
+    /// the non-outlier points dotted without data labels, the outliers unstroked.
+    func testABoxWhiskerSpacesItsSeriesAsPowerPointDoes() {
+        func ser(_ id: Int) -> String {
+            "<cx:series layoutId=\"boxWhisker\"><cx:dataId val=\"\(id)\"/><cx:layoutPr><cx:visibility meanLine=\"1\" meanMarker=\"0\" nonoutliers=\"1\" outliers=\"1\"/></cx:layoutPr></cx:series>"
+        }
+        func data(_ id: Int) -> String {
+            let vals = [1, 4, 5, 6, 9, 2, 3, 4, 5, 6]
+            let cats = (0..<10).map { "<cx:pt idx=\"\($0)\">\($0 < 5 ? "A" : "B")</cx:pt>" }.joined()
+            let pts = vals.enumerated().map { "<cx:pt idx=\"\($0.offset)\">\($0.element)</cx:pt>" }.joined()
+            return "<cx:data id=\"\(id)\"><cx:strDim type=\"cat\"><cx:lvl ptCount=\"10\">\(cats)</cx:lvl></cx:strDim><cx:numDim type=\"val\"><cx:lvl ptCount=\"10\">\(pts)</cx:lvl></cx:numDim></cx:data>"
+        }
+        let xml = """
+        <cx:chartSpace xmlns:cx="http://schemas.microsoft.com/office/drawing/2014/chartex"><cx:chartData>\(data(0))\(data(1))</cx:chartData><cx:chart><cx:plotArea><cx:plotAreaRegion>\(ser(0))\(ser(1))</cx:plotAreaRegion><cx:axis id="0"><cx:catScaling gapWidth="1"/></cx:axis></cx:plotArea></cx:chart></cx:chartSpace>
+        """
+        guard let c = ChartXML.readBoxWhisker(XNode.parse(Data(xml.utf8))!) else { return XCTFail("not read") }
+        XCTAssertTrue(c.boxPoints && c.boxMeanLine)
+        XCTAssertEqual(c.boxLabels, 0)
+        let canvas = BoxDotCanvas()
+        ChartPainter._boxes(c, canvas, Rect.fromLTWH(0, 0, 1125, 100), k: 1, theme: DeckTheme(), vpos: { 100 - $0 })
+        // Slots of 562.5, groups of 281.25 from 140.625: boxes 144.23 apart, 130.53 wide.
+        let first = canvas.rects.map { ($0.left * 100).rounded() / 100 }
+        XCTAssertEqual(first, [140.63, 703.13, 284.86, 847.36])
+        XCTAssertEqual(canvas.rects[0].width, 281.25 / 1.95 * 0.905, accuracy: 1e-9)
+        // Each series' two means joined: A's 5 to B's 4.
+        let joins = canvas.lines.filter { $0.0.dx != $0.1.dx && $0.0.dy != $0.1.dy }
+        XCTAssertEqual(joins.count, 2)
+        XCTAssertEqual(joins[0].0.dy, 95, accuracy: 1e-9)
+        XCTAssertEqual(joins[0].1.dy, 96, accuracy: 1e-9)
+        XCTAssertFalse(canvas.dots.isEmpty)
+    }
+
     /// With its non-outlier points shown, a box-whisker dots each distinct value inside the whiskers but their ends' own copies,
     /// unstroked, on the box's middle (PowerPoint's print of chartex-lab2 p18: 6 4 7 5 6 8 9 3 4 dotted at 4 to 8).
     func testABoxWhiskerDotsItsNonOutlierPoints() {
@@ -530,6 +563,9 @@ final class ChartTests: XCTestCase {
 
 private final class BoxDotCanvas: Canvas {
     var dots: [Offset] = []
+    var rects: [Rect] = []
+    var lines: [(Offset, Offset)] = []
+    var stroked = 0
     func save() {}
     func saveLayer(_ bounds: Rect?, _ paint: Paint) {}
     func restore() {}
@@ -548,9 +584,9 @@ private final class BoxDotCanvas: Canvas {
     func getLocalClipBounds() -> Rect { Rect.fromLTWH(-1e6, -1e6, 2e6, 2e6) }
     func getDestinationClipBounds() -> Rect { Rect.fromLTWH(-1e6, -1e6, 2e6, 2e6) }
     func drawColor(_ color: Color, _ blendMode: BlendMode) {}
-    func drawLine(_ p1: Offset, _ p2: Offset, _ paint: Paint) {}
+    func drawLine(_ p1: Offset, _ p2: Offset, _ paint: Paint) { lines.append((p1, p2)) }
     func drawPaint(_ paint: Paint) {}
-    func drawRect(_ rect: Rect, _ paint: Paint) {}
+    func drawRect(_ rect: Rect, _ paint: Paint) { rects.append(rect) }
     func drawRRect(_ rrect: RRect, _ paint: Paint) {}
     func drawDRRect(_ outer: RRect, _ inner: RRect, _ paint: Paint) {}
     func drawRSuperellipse(_ rsuperellipse: RSuperellipse, _ paint: Paint) {}
