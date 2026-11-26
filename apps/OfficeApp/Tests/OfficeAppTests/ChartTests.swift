@@ -383,6 +383,27 @@ final class ChartTests: XCTestCase {
         XCTAssertEqual(r1, 393.34, accuracy: 0.05)
     }
 
+    /// A funnel point's label keeps its own box (fill and 1.5 pt edge, drawn around the text's line) and its own size and
+    /// weight, as PowerPoint prints chartex-lab2 page 29.
+    func testAFunnelPointLabelKeepsItsBoxSizeAndWeight() {
+        let xml = """
+        <cx:chartSpace xmlns:cx="http://schemas.microsoft.com/office/drawing/2014/chartex" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><cx:chartData><cx:data id="0"><cx:numDim type="val"><cx:lvl ptCount="2"><cx:pt idx="0">9</cx:pt><cx:pt idx="1">5</cx:pt></cx:lvl></cx:numDim></cx:data></cx:chartData><cx:chart><cx:plotArea><cx:plotAreaRegion><cx:series layoutId="funnel"><cx:dataLabels pos="ctr"><cx:visibility seriesName="0" categoryName="0" value="1"/><cx:dataLabel idx="0"><cx:spPr><a:solidFill><a:srgbClr val="FFFF00"/></a:solidFill><a:ln w="19050"><a:solidFill><a:srgbClr val="FF0000"/></a:solidFill></a:ln></cx:spPr><cx:visibility seriesName="0" categoryName="0" value="1"/></cx:dataLabel><cx:dataLabel idx="1"><cx:txPr><a:bodyPr/><a:p><a:pPr><a:defRPr sz="1800" b="1"/></a:pPr></a:p></cx:txPr><cx:visibility seriesName="0" categoryName="0" value="1"/></cx:dataLabel></cx:dataLabels><cx:dataId val="0"/></cx:series></cx:plotAreaRegion></cx:plotArea></cx:chart></cx:chartSpace>
+        """
+        let rgb: (XNode) -> Color? = { $0.first("a:srgbClr")?["val"].flatMap(PptxTheme.hex) }
+        guard let c = ChartXML.readChartex(XNode.parse(Data(xml.utf8))!, color: rgb) else { return XCTFail("not read") }
+        let boxed = c.cxLabelPoints[0], big = c.cxLabelPoints[1]
+        XCTAssertEqual(boxed?.fill, PptxTheme.hex("FFFF00"))
+        XCTAssertEqual(boxed?.line, PptxTheme.hex("FF0000"))
+        XCTAssertEqual(boxed?.lineWidth ?? 0, 1.5, accuracy: 1e-9)
+        XCTAssertEqual(big?.size, 18)
+        XCTAssertEqual(big?.bold, true)
+        XCTAssertNil(big?.fill)
+        // Painted: one yellow box behind the boxed label, no wider than its text's line.
+        let canvas = BoxDotCanvas()
+        ChartPainter.paint(c, canvas, Rect.fromLTWH(0, 0, 400, 300), pxPerPt: 1, theme: DeckTheme())
+        XCTAssertTrue(canvas.rects.contains { $0.width > 2 && $0.width < 20 && $0.height < 20 })
+    }
+
     /// A funnel's data labels: the series' own (category and value, ", " between), a point's own format, and a hidden one.
     func testAFunnelReadsItsPointLabels() {
         let xml = """

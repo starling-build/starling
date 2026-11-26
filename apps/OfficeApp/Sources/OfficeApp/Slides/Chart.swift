@@ -620,7 +620,11 @@ struct Chart: Equatable {
     /// A funnel's category axis ticks (`majorTickMarks` not none): a short mark inward at each slot's edge.
     var funnelTicks = false
     /// A funnel's data labels as the file sets them: the series' own, and each point's where it differs.
-    struct CxLabel: Equatable { var series = false, category = false, value = true; var separator = ", "; var format: String? = nil; var hidden = false; var pos: String? = nil }
+    struct CxLabel: Equatable {
+        var series = false, category = false, value = true; var separator = ", "; var format: String? = nil; var hidden = false; var pos: String? = nil
+        /// Its own text size and weight, and its box's fill and edge (the box is the text's line, no margin): chartex-lab2 p29.
+        var size: Double? = nil, bold: Bool? = nil, fill: Color? = nil, line: Color? = nil, lineWidth = 0.0
+    }
     var cxLabel = CxLabel()
     var cxLabelPoints: [Int: CxLabel] = [:]
     /// An Excel 2016 sunburst (`layoutId="sunburst"`): its points as a
@@ -1316,6 +1320,11 @@ enum ChartXML {
                 }
                 if let sep = n.first("cx:separator") { l.separator = sep.text }
                 if let p = n["pos"] { l.pos = p }
+                // (Its size and weight are drawn; its colour is not: chartex-lab2 p29's C00000 18 pt bold label prints white.)
+                if let r = n.first("cx:txPr")?.descendant("a:defRPr") {
+                    if let sz = r["sz"].flatMap(Double.init), sz > 0 { l.size = sz / 100 }
+                    if let b = r["b"] { l.bold = b == "1" || b == "true" }
+                }
             }
             apply(dl, to: &c.cxLabel)
             for p in dl.all("cx:dataLabel") {
@@ -1349,6 +1358,24 @@ enum ChartXML {
             if let ln = sp.first("a:ln"), let f = ln.first("a:solidFill") {
                 c.series[j].outline = color(f)
                 c.series[j].outlineWidth = ln["w"].flatMap(Double.init).map { $0 / 12700 } ?? 0.75
+            }
+        }
+        // (A funnel label's own box, filled and edged: chartex-lab2 p29's yellow box edged in 1.5 pt red.)
+        if c.funnel, let dl = sers.first?.first("cx:dataLabels") {
+            func box(_ n: XNode, _ l: inout Chart.CxLabel) {
+                guard let sp = n.first("cx:spPr") else { return }
+                if let f = sp.first("a:solidFill") { l.fill = color(f) }
+                if let ln = sp.first("a:ln"), let f = ln.first("a:solidFill") {
+                    l.line = color(f)
+                    l.lineWidth = ln["w"].flatMap(Double.init).map { $0 / 12700 } ?? 0.75
+                }
+            }
+            box(dl, &c.cxLabel)
+            for p in dl.all("cx:dataLabel") {
+                guard let i = p["idx"].flatMap(Int.init), var l = c.cxLabelPoints[i] else { continue }
+                if dl.first("cx:spPr") != nil && p.first("cx:spPr") == nil { l.fill = c.cxLabel.fill; l.line = c.cxLabel.line; l.lineWidth = c.cxLabel.lineWidth }
+                box(p, &l)
+                c.cxLabelPoints[i] = l
             }
         }
         // (A chartex title's own box, filled and edged as a c: title's is: chartex-lab2 waterfall.)
@@ -5316,20 +5343,28 @@ enum ChartPainter {
             let parts = [spec.series ? s.name : nil, spec.category ? c.categories[safe: i] : nil, spec.value ? shown : nil].compactMap { $0 }
             if c.dataLabels, !spec.hidden, !parts.isEmpty {
                 let tp = TextPainter(text: TextSpan(text: parts.joined(separator: spec.separator), style: Flutter.TextStyle(
-                    color: Color(0xFFFFFFFF), fontSize: max(3, c.baseTextSize * k),
+                    color: Color(0xFFFFFFFF), fontSize: max(3, (spec.size ?? c.baseTextSize) * k),
+                    fontWeight: spec.bold == true ? .bold : .normal,
                     fontFamily: OfficeFonts.substitute(c.font ?? theme.bodyFont), fontFamilyFallback: Self.glyphFallback(c))), textDirection: .ltr)
                 tp.layout(minWidth: 0, maxWidth: .infinity)
                 // (A funnel label set "t" sits on the bar's top edge, its text's foot at the edge; "b" just under the
                 // bottom, a pen's 2 pt clear; both held within the first bar's top and the last bar's foot, 2 pt out:
                 // chartex-lab2 p27, p28, 9 pt text.)
                 var y = cy
-                let fs = max(3, c.baseTextSize * k)
+                let fs = max(3, (spec.size ?? c.baseTextSize) * k)
                 if spec.pos == "t" { y = r.top - 0.5 * fs } else if spec.pos == "b" { y = r.bottom + 0.72 * fs }
                 if spec.pos == "t" || spec.pos == "b" {
                     let top = plot.top + (slot - bar) / 2 - 2 * k + 0.5 * fs, foot = plot.top + slot * Double(n - 1) + (slot - bar) / 2 + bar + 2 * k - 0.5 * fs
                     y = min(max(y, top), foot)
                 }
-                tp.paint(canvas, Offset(r.center.dx - tp.width / 2, y - tp.height / 2))
+                let at = Offset(r.center.dx - tp.width / 2, y - tp.height / 2)
+                let lineBox = Rect.fromLTWH(at.dx, at.dy, tp.width, tp.height)
+                if let f = spec.fill { let p = Paint(); p.style = .fill; p.color = f; canvas.drawRect(lineBox, p) }
+                if let l = spec.line, spec.lineWidth > 0 {
+                    let p = Paint(); p.style = .stroke; p.strokeWidth = spec.lineWidth * k; p.color = l
+                    canvas.drawRect(lineBox, p)
+                }
+                tp.paint(canvas, at)
                 tp.dispose()
             }
         }
