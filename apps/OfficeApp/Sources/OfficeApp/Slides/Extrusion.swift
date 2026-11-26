@@ -305,13 +305,16 @@ enum Extrusion {
     }
 
     /// Toward the eye in the shape's own axes (the camera's (0,0,1) turned back; rev does
-    /// not move it). An oblique preset looks along its own slant, (dx, dy, 1) with the slide
-    /// the projection uses, whatever the depth (rotation2-check: Right .037 and Top .009 print
-    /// as the model's .037 and .007, Bottom .107 against .081).
+    /// not move it). An oblique preset's eye leans toward its slide by the same amount
+    /// whichever way it slides, as far as a diagonal preset's slide (rotation-check prints:
+    /// Bottom .107, BottomRight .107, BottomLeft .037, Right .037, Top .009, Left .005, against
+    /// the model's .114, .113, .040, .040, .008, .008; leaning by the slide itself put the
+    /// straight presets at half the lean and Bottom at .081).
     static func towardEye(_ scene: Scene3D) -> P3 {
         if !scene.legacy, scene.cameraName.hasPrefix("oblique"), let o = oblique(scene.cameraName) {
-            let n = (o.dx * o.dx + o.dy * o.dy + 1).squareRoot()
-            return P3(x: o.dx / n, y: o.dy / n, z: 1 / n)
+            let m = (o.dx * o.dx + o.dy * o.dy).squareRoot(), lean = max(abs(o.dx), abs(o.dy)) * 2.0.squareRoot()
+            let x = o.dx / m * lean, y = o.dy / m * lean, n = (x * x + y * y + 1).squareRoot()
+            return P3(x: x / n, y: y / n, z: 1 / n)
         }
         let a = -scene.lat * .pi / 180, o = -scene.lon * .pi / 180
         return P3(x: -cos(a) * sin(o), y: sin(a), z: cos(a) * cos(o))

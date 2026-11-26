@@ -258,11 +258,10 @@ final class SlideFormatShapeTests: XCTestCase {
     }
 
     func testObliqueAndSquareOnFacesCatchThreePtGlint() throws {
-        // Non-legacy oblique presets look at the face along their own slide, and PowerPoint's
-        // prints (rotation-check) add white the same way: Right .037, Top .009, BottomRight .107,
-        // BottomLeft .037.
+        // A non-legacy oblique preset's eye leans toward its slide, the same amount every way,
+        // and PowerPoint's prints (rotation-check) add white to match.
         for (camera, ppt) in [("obliqueRight", 0.037), ("obliqueTop", 0.009), ("obliqueBottomRight", 0.107),
-                              ("obliqueBottomLeft", 0.037)] {
+                              ("obliqueBottomLeft", 0.037), ("obliqueBottom", 0.107), ("obliqueLeft", 0.005)] {
             let s = try XCTUnwrap(Extrusion.scene(camera: camera, from: Scene3D(depth: 10)))
             XCTAssertEqual(Extrusion.threePtFaceWhite(toward: Extrusion.towardEye(s)), ppt, accuracy: 0.012, camera)
         }
