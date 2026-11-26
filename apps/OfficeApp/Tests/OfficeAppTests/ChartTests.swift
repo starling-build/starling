@@ -279,6 +279,24 @@ final class ChartTests: XCTestCase {
         XCTAssertEqual(shape.chart, before)
     }
 
+    /// A chart's relationships part written with Windows line endings comes
+    /// back from an unedited save byte for byte.
+    func testAChartRelsPartSurvivesASaveByteForByte() throws {
+        var package = PptxPackage(try Zip.read(try Pptx.write(SlidesSample.make())))
+        let part = try XCTUnwrap(package.parts.keys.first { $0.hasPrefix("ppt/charts/") && $0.hasSuffix(".xml") })
+        let rels = Pptx.relsPath(part)
+        let crlf = Data(("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\r\n"
+            + "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">"
+            + "<Relationship Id=\"rId9\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/oleObject\""
+            + " Target=\"file:///C:\\book.xlsx\" TargetMode=\"External\"/></Relationships>").utf8)
+        package.parts[rels] = crlf
+        var entries: [ZipEntry] = []
+        for (k, v) in package.parts.sorted(by: { $0.key < $1.key }) { entries.append(ZipEntry(name: k, data: v)) }
+        let (state, theme, pkg) = try Pptx.read(try Zip.write(entries))
+        let out = PptxPackage(try Zip.read(try PptxWriter.write(state, theme: theme, package: pkg)))
+        XCTAssertEqual(out.parts[rels], crlf)
+    }
+
     func testDeckRoundTripAndKeepingUnlessEdited() throws {
         let deck = SlidesSample.make()
         let data = try Pptx.write(deck)
