@@ -6,7 +6,7 @@ import XCTest
 import FoundationXML   // XMLParser, off Darwin
 #endif
 import Flutter
-import OfficeText
+@testable import OfficeText
 import FlutterSwiftBridge
 @testable import OfficeApp
 
@@ -1686,6 +1686,84 @@ final class DocxTests: XCTestCase {
         let doc = try DocxFormat.read(try Zip.write(entries)).document
         XCTAssertEqual(doc.paragraphs[0].style.alignment, .center)
         XCTAssertNotEqual(doc.paragraphs[1].style.alignment, .center)
+    }
+
+    /// A 24pt Cambria Math "x" set inline in an 11pt line grows the line as a 24pt base run does: Word's print of lab
+    /// mathline (case C06) puts the next line 25.8pt down and the one after 15.7pt, where a plain line is 13.4. It used to
+    /// keep the plain pitch, as if the equation had no height.
+    func testALargeMathRunGrowsItsLine() throws {
+        let was = RichTextTheme.wordWindowsPages, onWin = DocxFormat.wordOnWindows, onFonts = OfficeFonts.wordOnWindows
+        RichTextTheme.wordWindowsPages = true; DocxFormat.wordOnWindows = true; OfficeFonts.wordOnWindows = true
+        defer { RichTextTheme.wordWindowsPages = was; DocxFormat.wordOnWindows = onWin; OfficeFonts.wordOnWindows = onFonts }
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .a4))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let body = try XCTUnwrap(xml.range(of: "<w:body>")), sect = try XCTUnwrap(xml.range(of: "<w:sectPr"))
+        let m = "xmlns:m=\"http://schemas.openxmlformats.org/officeDocument/2006/math\""
+        func text(_ s: String) -> String {
+            "<w:r><w:rPr><w:rFonts w:ascii=\"Calibri\" w:hAnsi=\"Calibri\"/><w:sz w:val=\"22\"/><w:szCs w:val=\"22\"/></w:rPr><w:t xml:space=\"preserve\">\(s)</w:t></w:r>"
+        }
+        let eq = "<m:oMath \(m)><m:r><w:rPr><w:rFonts w:ascii=\"Cambria Math\" w:hAnsi=\"Cambria Math\"/><w:sz w:val=\"48\"/>"
+            + "<w:szCs w:val=\"48\"/></w:rPr><m:t>x</m:t></m:r></m:oMath>"
+        let br = "<w:r><w:br/></w:r>"
+        xml.replaceSubrange(body.upperBound ..< sect.lowerBound, with:
+            "<w:p><w:pPr><w:spacing w:before=\"0\" w:after=\"0\" w:line=\"240\" w:lineRule=\"auto\"/></w:pPr>"
+            + text("L1 alpha beta") + br + text("L2 alpha ") + eq + text(" delta") + br + text("L3 delta") + br + text("L4 delta")
+            + "</w:p>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let opened = try DocxFormat.read(try Zip.write(entries))
+        let setup = opened.pageSetup ?? .a4
+        let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+        theme.wordRules = true
+        theme.faceResolver = OfficeFonts.face
+        let l = RichLayout(theme: theme, paragraphCount: opened.document.paragraphs.count)
+        l.pageSetup = setup
+        l.width = setup.columnWidth * theme.pixelsPerPoint
+        l.ensureLaidOut(opened.document)
+        let painter = l.geometry(0).painter, lines = painter.computeLineMetrics()
+        XCTAssertEqual(lines.count, 4)
+        guard lines.count == 4 else { return }
+        // (The lines an equation grows are moved by the shifts the layout pairs with the painter's own.)
+        let shifts = RichLayout._paired(painter)?.shifts ?? [0, 0, 0, 0]
+        let base = (0 ..< 4).map { (lines[$0].baseline + (shifts.indices.contains($0) ? shifts[$0] : 0)) / theme.pixelsPerPoint }
+        let pitch = (0 ..< 3).map { base[$0 + 1] - base[$0] }
+        // (Word's print, to its 0.1pt: 25.8, 15.72 and 13.44.)
+        XCTAssertEqual(pitch[0], 25.8, accuracy: 0.15, "the equation's line reaches up for the 24pt x")
+        XCTAssertEqual(pitch[1], 15.72, accuracy: 0.15, "and down past the plain descent")
+        XCTAssertEqual(pitch[2], 13.44, accuracy: 0.15, "the lines after it are plain again")
+    }
+
+    /// A paragraph that is one 12pt equation and a space, at 1.5 lines: the line is the equation's own height plus half
+    /// the text's line, about 21pt, as in Word's print of dx2 e6a6cc58 (its "Davlat qarzi = β0 + ..." line, 0.4pt over the
+    /// 20.7pt text step). With no visible text run to read the face from, the 1.5 used to be added to a line that already held it: 31pt.
+    func testALoneEquationAtOneAndAHalfLinesTakesTheMultipleOnce() throws {
+        let was = RichTextTheme.wordWindowsPages, onWin = DocxFormat.wordOnWindows, onFonts = OfficeFonts.wordOnWindows
+        RichTextTheme.wordWindowsPages = true; DocxFormat.wordOnWindows = true; OfficeFonts.wordOnWindows = true
+        defer { RichTextTheme.wordWindowsPages = was; DocxFormat.wordOnWindows = onWin; OfficeFonts.wordOnWindows = onFonts }
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .a4))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let body = try XCTUnwrap(xml.range(of: "<w:body>")), sect = try XCTUnwrap(xml.range(of: "<w:sectPr"))
+        let m = "xmlns:m=\"http://schemas.openxmlformats.org/officeDocument/2006/math\""
+        let tnr = "<w:rPr><w:rFonts w:ascii=\"Times New Roman\" w:hAnsi=\"Times New Roman\"/><w:sz w:val=\"24\"/><w:szCs w:val=\"24\"/></w:rPr>"
+        let cm = "<w:rPr><w:rFonts w:ascii=\"Cambria Math\" w:hAnsi=\"Cambria Math\"/><w:sz w:val=\"24\"/><w:szCs w:val=\"24\"/></w:rPr>"
+        let pPr = "<w:pPr><w:spacing w:before=\"0\" w:after=\"0\" w:line=\"360\" w:lineRule=\"auto\"/><w:jc w:val=\"both\"/>\(tnr)</w:pPr>"
+        let eq = "<m:oMath \(m)><m:sSub><m:e><m:r>\(cm)<m:t>D</m:t></m:r></m:e><m:sub><m:r>\(cm)<m:t>it</m:t></m:r></m:sub></m:sSub>"
+            + "<m:r>\(cm)<m:t>=a+b</m:t></m:r></m:oMath>"
+        xml.replaceSubrange(body.upperBound ..< sect.lowerBound, with:
+            "<w:p>\(pPr)<w:r>\(tnr)<w:t>model:</w:t></w:r></w:p><w:p>\(pPr)\(eq)<w:r>\(tnr)<w:t xml:space=\"preserve\"> </w:t></w:r></w:p><w:p>\(pPr)<w:r>\(tnr)<w:t>after</w:t></w:r></w:p>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let opened = try DocxFormat.read(try Zip.write(entries))
+        let setup = opened.pageSetup ?? .a4
+        let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+        theme.wordRules = true
+        theme.faceResolver = OfficeFonts.face
+        let l = RichLayout(theme: theme, paragraphCount: opened.document.paragraphs.count)
+        l.pageSetup = setup
+        l.width = setup.columnWidth * theme.pixelsPerPoint
+        l.ensureLaidOut(opened.document)
+        let height = (l.geometry(2).top - l.geometry(1).top) / theme.pixelsPerPoint
+        XCTAssertEqual(height, 21.0, accuracy: 0.5, "the equation's line takes the 1.5 once")
     }
 
     /// A line separator typed into a `w:t` is no break to Word: it prints a

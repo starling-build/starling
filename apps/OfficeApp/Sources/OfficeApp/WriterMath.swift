@@ -712,7 +712,10 @@ enum WriterMath {
                     let markBottom: Double = (chr == "\u{0303}" || chr == "~") ? 0.28 : (chr == "\u{0302}" || chr == "^") ? 0.45 : 0.50
                     let gap: Double = markBottom < 0.5 ? 0.15 : 0.03
                     let lift = max(0, (tall ? 0.70 : 0.46) + gap - markBottom) * size
-                    return Box(width: w, ascent: mark.ascent + lift, descent: base.descent) { canvas, at in
+                    // (Its ink is the mark's, where it stands, or the letter's: not the mark's line box, which took the arrows of
+                    // xb fra-g255-612f49 p21 1.6pt over the line Word draws.)
+                    return Box(width: w, ascent: mark.ascent + lift, descent: base.descent,
+                               inkUp: max(base.iu, mark.iu + lift), inkDown: base.idn) { canvas, at in
                         base.draw(canvas, Offset(at.dx + (w - base.width) / 2, at.dy))
                         mark.draw(canvas, Offset(at.dx + (w - mark.width) / 2, at.dy - lift))
                     }
