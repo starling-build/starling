@@ -10,7 +10,10 @@ import FlutterSwiftBridge
 /// ControlSweepTests, which taps the same controls natively.
 enum ControlList {
     static func text(_ context: (any BuildContext)?) -> String {
-        guard let root = context as? Element else { return "" }
+        guard var root = context as? Element else { return "" }
+        // From the top of the tree: a menu or a dialog sits in the overlay
+        // above the shell, outside the shell's own subtree.
+        root.visitAncestorElements { root = $0; return true }
         var lines: [String] = []
         func centre(_ e: Element) -> Offset? {
             guard let box = e.findRenderObject() as? RenderBox, box.hasSize, box.attached else { return nil }

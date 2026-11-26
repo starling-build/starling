@@ -36,7 +36,7 @@ final class ColorBar: StatelessWidget {
                 let v = Double((c >> shift) & 0xFF)
                 return UInt32((v + (t - v) * f).rounded()) & 0xFF
             }
-            return Color(Int(0xFF000000 | ch(16) << 16 | ch(8) << 8 | ch(0)))
+            return Color(Int64(0xFF000000 | ch(16) << 16 | ch(8) << 8 | ch(0)))
         }
         var rows = Array(repeating: [Color](), count: 6)
         for (k, b) in bases.enumerated() {
@@ -47,7 +47,7 @@ final class ColorBar: StatelessWidget {
             default: steps = [mix(b, toward: 255, by: 0.8), mix(b, toward: 255, by: 0.6), mix(b, toward: 255, by: 0.4),
                               mix(b, toward: 0, by: 0.25), mix(b, toward: 0, by: 0.5)]
             }
-            rows[0].append(Color(Int(0xFF000000 | b)))
+            rows[0].append(Color(Int64(0xFF000000 | b)))
             for (i, s) in steps.enumerated() { rows[i + 1].append(s) }
         }
         return rows
