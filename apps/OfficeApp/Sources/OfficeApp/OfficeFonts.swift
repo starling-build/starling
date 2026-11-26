@@ -82,15 +82,23 @@ enum OfficeFonts {
 
     /// The shipped face for a family name, by Word's names first and by
     /// the look of the name after that. Case-insensitive.
+    /// The browser's face for a Chinese name: Noto Sans CJK SC, the face
+    /// native's bundled CJK fallback draws (`cjkFallback`), in its regular
+    /// and bold files. Not the UI's glyph fallback Noto Sans SC: a variable
+    /// font, which the browser's renderer draws at its default, thinnest
+    /// weight (zh-875759ff's 楷体_GB2312 lines came out hairline).
+    static let webChineseSans = "Noto Sans CJK SC"
+
     static func substitute(_ family: String) -> String {
         let n = family.trimmingWhitespace().lowercased()
         #if os(WASI)
         // The browser has no system faces: a Chinese face by any name is
-        // the one shipped (Noto Sans SC, fetched when first asked for) —
-        // except a Song, Ming or Mincho name, which takes the face native
-        // gives it, with its ideographs in the serif `serifIdeographs` names.
+        // the one native's bundled fallback draws its ideographs in
+        // (`webChineseSans`, fetched when first asked for) — except a Song,
+        // Ming or Mincho name, which takes the face native gives it, with
+        // its ideographs in the serif `serifIdeographs` names.
         if wordsOwn.contains(n) || family.unicodeScalars.contains(where: { $0.value >= 0x2E80 }),
-           serifIdeographs(family, eastAsianFace(family)) == nil { return "Noto Sans SC" }
+           serifIdeographs(family, eastAsianFace(family)) == nil { return webChineseSans }
         #endif
         if let alt = macTableAlternate(family) { return substitute(alt) }
         // (A Helvetica-named face Windows lacks (Helvetica LT Std) in a document with no font table: Word for Windows prints it
@@ -4303,11 +4311,9 @@ enum OfficeFonts {
     /// print draws PMingLiU's ideographs and marks that much lower than the stand-in's outlines on the
     /// same baseline, 0.062-0.076 em at 9 to 32 pt in seven documents. Advances, metrics and the PDF's
     /// text layer are the stand-in's own. An engine without the prefix draws the face unmoved.
-    #if os(WASI)
-    static let pmingliuInkFamily = "Noto Serif CJK TC"  // (the browser renderer has no "Ink+" faces: the same outlines, ink not lowered)
-    #else
+    /// (In the browser the page registers it with the font file: build/tools/office_web_fonts.py
+    /// FACE_ALIASES, and skwasm's fontCollection_registerTypeface reads the prefix.)
     static let pmingliuInkFamily = "Ink+0.07 Noto Serif CJK TC"
-    #endif
     /// LXGW WenKai TC (OFL): the brush hand a Kai name (標楷體, DFKai-SB, 楷体, KaiTi) draws its ideographs in
     /// (Resources/fonts/README.md). Its widths are not used: the name's measured metrics are.
     static let kaiFamily = "LXGW WenKai TC"
@@ -6396,6 +6402,10 @@ enum OfficeFonts {
         // once registered (build/web-app.sh writes fonts/manifest.json,
         // with `wordSans` and `wordSerif` among them, made as below).
         _gapAboveLoaded = true
+        // (Starling FangSong too, fetched when first drawn: the manifest
+        // lists it, build/tools/office_web_fonts.py DEFERRED_FAMILIES. Left
+        // false, a 仿宋 name drew in the sans: zh-875759ff's body.)
+        _fangSongLoaded = true
         _registrationSucceeded = true
         return true
         #else

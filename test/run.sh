@@ -77,6 +77,7 @@ python3 "$REPO/test/lint.py" || fails=$((fails + 1))
 step "unit tests: Word line comparison"
 python3 "$REPO/test/docx-line-match-test.py" || fails=$((fails + 1))
 python3 "$REPO/test/sheets-sweep-test.py" || fails=$((fails + 1))
+python3 "$REPO/test/office-web-fonts-test.py" || fails=$((fails + 1))
 
 # The emulator core is plain C with no dependencies, so its conformance
 # suite (widths, grapheme clusters, joining rules, identity queries —
