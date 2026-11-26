@@ -91,8 +91,9 @@ extension flutter.swift_bridge {
     /// engine, not Google's published one; build/web-app.sh says which it
     /// staged). A tab has no file to write: the document is handed to the
     /// browser as a download named by `path`'s last component.
-    // WEB-TODO: a picture is a texture here, which skwasm copies back for
-    // the PDF — except one inside a shader (a tiled fill), which is left out.
+    // A picture is a texture here, which skwasm copies back for the PDF,
+    // including one inside an image shader (a tiled fill; engine
+    // skwasm/pdf.cpp, 2026-11-26 — an older skwasm writes it black).
     public static func WritePdf(
         _ path: String, _ displayLists: UnsafePointer<UnsafeRawPointer?>?,
         _ count: Int32, _ widths: UnsafePointer<Double>?, _ heights: UnsafePointer<Double>?,
