@@ -159,13 +159,16 @@ struct SheetPrintMetrics {
             screenDigit: [12, 13, 15, 16, 16, 18, 21, 24, 27]),
         "malgun gothic": Face(digit: [37, 41, 46, 48, 51, 55, 64, 73, 83], row: [102, 114, 124, 130, 139, 149, 172, 192, 219], screenRow: [35, 35, 42, 42, 45, 51, 55, 66, 72],
             screenDigit: [12, 13, 15, 15, 16, 18, 20, 24, 26], offTable: [6: 23], hinted: [10: 41.75]),
-        // Dotum, Gulim, Batang and Gungsuh are not on the print box, so Excel prints them as a stand-in,
-        // with Malgun's rows (lab cjkrows3 read Gulim's own, 9.25 pt at 8, but the corpus prints do not use them: ko-3ca2381bbc's 9 pt rows are 11.8 pt in Excel's print, Malgun's, and 7 Korean books drop with the own rows) and a column's unit their own digit (font file advances of 597, 588, 610 and 597 per 1024 em) in whole dots of the
+        // Dotum and Gulim print in their own faces (the corpus prints embed them) with their own rows: the em in dots at 600 dpi
+        // plus about ten (lab cjkrows3, Gulim 8-18: 77 ... 160 dots; lab xls-rowkeep, 돋움 11 rows at 12.24 pt), and on the screen
+        // the em in whole pixels at 192 dpi plus five (11 pt: 34 px, so 24 pt set rows print 23.05 as in ko-6756e229a1; 10 pt: 32 px,
+        // ko-3ca2381bbc's set rows of 굴림 10 at 0.93). Batang still has Malgun's rows (no lab yet). A column's unit is the face's own
+        // digit (font file advances of 597, 588, 610 and 597 per 1024 em) in whole dots of the
         // 600 dpi em (11 pt: 92 dots, Dotum's digit 54 where Malgun's is 51: 0453e2c911's two columns, 509.8 pt, 36.0 + 473.8).
-        "dotum": Face(digit: [39, 44, 49, 51, 54, 58, 68, 78, 88], row: [102, 114, 124, 130, 139, 149, 172, 192, 219], screenRow: [35, 35, 42, 42, 45, 51, 55, 66, 72],
-            screenDigit: [12, 13, 15, 15, 16, 18, 20, 24, 26], gridSet: [11], offTable: [6: 23], hinted: [10: 41.75]),
-        "gulim": Face(digit: [38, 43, 48, 50, 53, 57, 67, 76, 86], row: [102, 114, 124, 130, 139, 149, 172, 192, 219], screenRow: [35, 35, 42, 42, 45, 51, 55, 66, 72],
-            screenDigit: [12, 13, 15, 15, 16, 18, 20, 24, 26], offTable: [6: 23], hinted: [10: 41.75]),
+        "dotum": Face(digit: [39, 44, 49, 51, 54, 58, 68, 78, 88], row: [77, 85, 93, 98, 102, 110, 127, 143, 160], screenRow: [26, 29, 32, 33, 34, 37, 42, 48, 53],
+            screenDigit: [12, 13, 15, 15, 16, 18, 20, 24, 26], gridSet: [11]),
+        "gulim": Face(digit: [38, 43, 48, 50, 53, 57, 67, 76, 86], row: [77, 85, 93, 98, 102, 110, 127, 143, 160], screenRow: [26, 29, 32, 33, 34, 37, 42, 48, 53],
+            screenDigit: [12, 13, 15, 15, 16, 18, 20, 24, 26]),
         "batang": Face(digit: [39, 45, 50, 52, 55, 60, 70, 79, 89], row: [102, 114, 124, 130, 139, 149, 172, 192, 219], screenRow: [35, 35, 42, 42, 45, 51, 55, 66, 72],
             screenDigit: [12, 13, 15, 15, 16, 18, 20, 24, 26], offTable: [6: 23], hinted: [10: 41.75]),
         // Nirmala UI: a wrapped line is the face's GDI height plus its descent at 600 dpi (12 pt: 133 + 26 = 159 dots, 50 screen

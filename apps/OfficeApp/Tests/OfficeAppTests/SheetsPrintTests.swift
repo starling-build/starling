@@ -223,6 +223,15 @@ extension SheetsPrintTests {
         }
     }
 
+    /// Dotum and Gulim rows are their own, not Malgun's: Excel prints a 돋움 11 row nobody sized at 12.24 pt
+    /// (lab xls-rowkeep) and Gulim's at 77 ... 160 dots for 8 ... 18 pt (lab cjkrows3); 굴림 10's set rows print at 93/600 over 32/192.
+    func testDotumAndGulimRowsAreTheirOwn() {
+        XCTAssertEqual(SheetPrintMetrics.of(family: "돋움", size: 11).defaultRow, 102.0 * 72 / 600, accuracy: 1e-9)
+        XCTAssertEqual(SheetPrintMetrics.of(family: "굴림", size: 8).defaultRow, 77.0 * 72 / 600, accuracy: 1e-9)
+        XCTAssertEqual(SheetPrintMetrics.of(family: "굴림", size: 10).rowScale, (93.0 / 600) / (32.0 / 192), accuracy: 1e-9)
+        XCTAssertEqual(SheetPrintMetrics.of(family: "맑은 고딕", size: 11).defaultRow, 139.0 * 72 / 600, accuracy: 1e-9)
+    }
+
     /// Excel's set rows of faces the print box lacks (planner spec, from two Excel labs): 돋움 11 prints 8 dots a
     /// point (6 dots a screen pixel); 新細明體 12 prints at the table's 130/43 dots per 192-dpi pixel. A set height is held
     /// in quarter screen pixels; a scaled print takes the 100 % dot count times the scale, rounded half up.
