@@ -7531,6 +7531,28 @@ final class DocxTests: XCTestCase {
         XCTAssertFalse(doc.paragraphs[1].runs.contains { $0.style.bold })
     }
 
+    /// A date picker bound to a stored date shows it in its own w:dateFormat, as Word prints it (52449: PublishDate
+    /// "2012-01-11T00:00:00" with dd-MM-yyyy is "11-01-2012"; f7888b70: MMMM d, yyyy en-US is "February 1, 2025").
+    /// A month name in another language keeps the cached text.
+    func testBoundDatePickerShowsItsDateFormat() throws {
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .letter))
+        let di = try XCTUnwrap(entries.firstIndex { $0.name == "word/document.xml" })
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let body = try XCTUnwrap(xml.range(of: "<w:body>")).upperBound ..< (try XCTUnwrap(xml.range(of: "<w:sectPr"))).lowerBound
+        func date(_ format: String, _ lid: String, _ cached: String) -> String {
+            "<w:p><w:sdt><w:sdtPr><w:dataBinding w:prefixMappings=\"xmlns:ns0='urn:lab'\" w:xpath=\"/ns0:root[1]/ns0:d[1]\" w:storeItemID=\"{11111111-2222-3333-4444-555555555555}\"/><w:date w:fullDate=\"2012-01-11T00:00:00Z\"><w:dateFormat w:val=\"\(format)\"/><w:lid w:val=\"\(lid)\"/><w:storeMappedDataAs w:val=\"dateTime\"/><w:calendar w:val=\"gregorian\"/></w:date></w:sdtPr><w:sdtContent><w:r><w:t>\(cached)</w:t></w:r></w:sdtContent></w:sdt></w:p>"
+        }
+        xml.replaceSubrange(body, with: date("dd-MM-yyyy", "da-DK", "x") + date("MMMM d, yyyy", "en-US", "x") + date("d. MMMM yyyy", "da-DK", "11. januar 2012"))
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        entries.append(ZipEntry(name: "customXml/item1.xml", data: Data("<root xmlns=\"urn:lab\"><d>2012-01-11T00:00:00</d></root>".utf8)))
+        entries.append(ZipEntry(name: "customXml/itemProps1.xml", data: Data("<ds:datastoreItem ds:itemID=\"{11111111-2222-3333-4444-555555555555}\" xmlns:ds=\"http://schemas.openxmlformats.org/officeDocument/2006/customXml\"/>".utf8)))
+        let saved = try DocxFormat.write(try DocxFormat.read(try Zip.write(entries)).document, pageSetup: .letter)
+        let doc = try DocxFormat.read(saved).document
+        XCTAssertEqual(doc.paragraphs.prefix(3).map { String($0.text) }, ["11-01-2012", "January 11, 2012", "11. januar 2012"])
+        let item = String(decoding: try XCTUnwrap(try Zip.read(saved).first { $0.name == "customXml/item1.xml" }).data, as: UTF8.self)
+        XCTAssertTrue(item.contains("<d>2012-01-11T00:00:00</d>"), "an untouched save keeps the stored date: \(item)")
+    }
+
     func testTypingIntoABoundControlIsSavedToTheCustomXml() throws {
         var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .letter))
         let di = try XCTUnwrap(entries.firstIndex { $0.name == "word/document.xml" })
