@@ -1507,6 +1507,10 @@ struct PptxReader {
         if t.kind == .zoom { t.zoomIn = effect?["dir"] != "out" }
         t.advanceOnClick = node["advClick"] != "0"
         t.advanceAfter = node["advTm"].flatMap(Double.init).map { $0 / 1000 }
+        if t.raw == nil {
+            t.source = PptxXML.serialize(slide.first("p:transition") != nil ? node : ac ?? node)
+            t.sourceSettings = t.settings
+        }
         return t
     }
 

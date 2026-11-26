@@ -166,6 +166,38 @@ final class TransitionTests: XCTestCase {
         XCTAssertTrue(xml.contains("<mc:Fallback>"))
     }
 
+    /// A plain save keeps every slide's transition as the file wrote it: an auto-advance with no effect
+    /// inside mc:AlternateContent (lo-narration), and a bare transition naming only a speed (bug60715).
+    func testPlainSaveKeepsEffectlessTransitions() throws {
+        let deck = SlidesSample.make()
+        var package = PptxPackage(try Zip.read(try Pptx.write(deck)))
+        let timed = "<mc:AlternateContent xmlns:mc=\"http://schemas.openxmlformats.org/markup-compatibility/2006\"><mc:Choice "
+            + "xmlns:p14=\"http://schemas.microsoft.com/office/powerpoint/2010/main\" Requires=\"p14\"><p:transition spd=\"slow\" "
+            + "p14:dur=\"2000\" advTm=\"2453\"/></mc:Choice><mc:Fallback><p:transition spd=\"slow\" advTm=\"2453\"/></mc:Fallback></mc:AlternateContent>"
+        for (n, t) in [(1, timed), (2, "<p:transition spd=\"slow\"/>")] {
+            var slide = String(decoding: package.parts["ppt/slides/slide\(n).xml"]!, as: UTF8.self)
+            if let r = slide.range(of: "<p:transition") ?? slide.range(of: "<mc:AlternateContent><mc:Choice Requires=\"p14\"><p:transition") {
+                XCTFail("sample slide \(n) already has a transition at \(r)")
+            }
+            slide = slide.replacingOccurrences(of: "</p:sld>", with: t + "</p:sld>")
+            package.parts["ppt/slides/slide\(n).xml"] = Data(slide.utf8)
+        }
+        let (state, theme, pkg) = try Pptx.read(try Zip.write(package.parts.map { ZipEntry(name: $0.key, data: $0.value) }))
+        XCTAssertEqual(state.slides[0].transition.advanceAfter ?? 0, 2.453, accuracy: 1e-9)
+        let out = PptxPackage(try Zip.read(try PptxWriter.write(state, theme: theme, package: pkg)))
+        let one = String(decoding: out.parts["ppt/slides/slide1.xml"]!, as: UTF8.self)
+        let two = String(decoding: out.parts["ppt/slides/slide2.xml"]!, as: UTF8.self)
+        XCTAssertTrue(one.contains("<mc:Choice") && one.contains("p14:dur=\"2000\" spd=\"slow\" advTm=\"2453\"/>"), "the timed advance survives with its duration: " + String(one.suffix(700)))
+        XCTAssertTrue(one.contains("<mc:Fallback><p:transition spd=\"slow\" advTm=\"2453\"/>"), "and its fallback")
+        XCTAssertTrue(two.contains("<p:transition spd=\"slow\"/>"), "the bare transition survives")
+        // Changed here, the transition is written fresh.
+        var edited = state
+        edited.slides[0].transition.kind = .fade
+        let again = PptxPackage(try Zip.read(try PptxWriter.write(edited, theme: theme, package: pkg)))
+        let fresh = String(decoding: again.parts["ppt/slides/slide1.xml"]!, as: UTF8.self)
+        XCTAssertTrue(fresh.contains("<p:fade/>") && fresh.contains("advTm=\"2453\""))
+    }
+
     func testAdvanceOnlyKeepsAnUnknownTransition() throws {
         let deck = SlidesSample.make()
         let bytes = try Pptx.write(deck)
