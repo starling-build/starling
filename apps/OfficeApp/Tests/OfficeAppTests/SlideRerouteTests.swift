@@ -53,7 +53,7 @@ final class SlideRerouteTests: XCTestCase {
     func testTheArrangeMenuHasRerouteConnectors() throws {
         let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light),
                                         home: SlidesShell(initialPath: nil, onSwitch: { _, _ in }), title: "Test"),
-                              size: Size(1280, 800))
+                              size: Size(2000, 800))   // (wide enough that the Arrange menu is not folded into the Drawing group)
         let deck = try XCTUnwrap(ui.state(SlidesShellState.self)?.session.deck)
         let a = deck.addShape(.rect); a.frame = Rect.fromLTWH(60, 100, 100, 60)
         let b = deck.addShape(.rect); b.frame = Rect.fromLTWH(400, 200, 100, 60)

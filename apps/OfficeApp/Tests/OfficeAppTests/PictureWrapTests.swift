@@ -95,7 +95,8 @@ final class PictureWrapTests: XCTestCase {
 
     /// The Picture Format tab of a floating shape has Select Multiple, which a finger needs for picking shapes to group.
     func testPictureFormatTabHasSelectMultiple() throws {
-        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(1280, 800))
+        // (2000 wide: the Picture Format ribbon is 1615 pt on macOS, over the 1240 a 1280 window gives it, so it would be folded.)
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(2000, 800))
         let c = try XCTUnwrap(ui.state(OfficeShellState.self)).session.controller
         c.load(try DocxFormat.read(try floatingDocument()).document)
         c.selectImage(at: try floatIndex(c))
