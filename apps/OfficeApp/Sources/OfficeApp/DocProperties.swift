@@ -36,9 +36,30 @@ enum DocProperties {
             } else if let end = out.rangeOfSubstring("/>", in: r.upperBound ..< out.endIndex) {
                 out.replaceSubrange(r.lowerBound ..< end.upperBound, with: body)
             } else { continue }
-            return out
+            return declaring(out)
         }
         if let end = out.rangeOfSubstring("</cp:coreProperties>") { out.replaceSubrange(end.lowerBound ..< end.lowerBound, with: body) }
+        return declaring(out)
+    }
+
+    /// The part with every prefix its elements use declared on the root: a file whose root names only cp, dc and
+    /// dcterms (docx4j's) took a stamped date's `xsi:type` with xsi unbound, which is not XML at all.
+    static func declaring(_ xml: String) -> String {
+        let spaces = [("cp", "http://schemas.openxmlformats.org/package/2006/metadata/core-properties"),
+                      ("dc", "http://purl.org/dc/elements/1.1/"), ("dcterms", "http://purl.org/dc/terms/"),
+                      ("xsi", "http://www.w3.org/2001/XMLSchema-instance")]
+        guard let root = xml.rangeOfSubstring("<cp:coreProperties"),
+              let close = xml.rangeOfSubstring(">", in: root.upperBound ..< xml.endIndex) else { return xml }
+        let tag = String(xml[root.lowerBound ..< close.lowerBound])
+        var add = ""
+        for (prefix, uri) in spaces where !tag.containsSubstring("xmlns:\(prefix)=")
+            && (xml.containsSubstring("<\(prefix):") || xml.containsSubstring(" \(prefix):")) {
+            add += " xmlns:\(prefix)=\"\(uri)\""
+        }
+        guard !add.isEmpty else { return xml }
+        var out = xml
+        let at = tag.hasSuffix("/") ? out.index(before: close.lowerBound) : close.lowerBound
+        out.replaceSubrange(at ..< at, with: add)
         return out
     }
 
