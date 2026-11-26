@@ -403,13 +403,16 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             // (A sheet the file gives no view prints its set heights halved:
             // `Worksheet.hasView`.)
             // (A face whose set rows stand on another screen row (`Face.setScreenRow`) takes it only in a print at a set scale below 100 %: Excel's 50.1 pt rows print at 28.1 at 58 % in a 新細明體 12 book where the 100 % print's follow the fitted row.)
-            let setOwnNow = m.setOwn && (printSetScaled || (printNoFit && m.setOwnAt100))
+            // (The 8-dots-a-point grid faces (`setOwnAt100`) take their own set rows in a fitted print too: 돋움 11's 28.5 pt rows
+            // print 20.52 pt in ko-b5a9f60a80, fitted at 75 % (its columns 40.5 dots a character, 54's 75 %), 28.5 x 0.96 x 0.75, where
+            // the fitted row's 0.988 made 21.12; all 18 fitted 돋움 11 books in the Korean set stood that 3 % tall.)
+            let setOwnNow = m.setOwn && (printSetScaled || (printing && m.setOwnAt100))
             let setBase = setOwnNow ? m.setRowScale : m.rowScale
             let setScale = ws.hasView ? setBase : setBase / 2
             var heights = Dictionary(uniqueKeysWithValues: ws.rowHeights.compactMap { (r, h) -> (Int, Double)? in
                 let fit = ws.fittedRows.contains(r)
                 if fit, h > 0 { return (r, ws.scriptRows.contains(r) ? h * fitted : m.defaultRow) }
-                return (r, fit ? h * fitted : (setOwnNow ? SheetPrintMetrics.setRowOwn(h, scale: setScale, printPct: printPct) : SheetPrintMetrics.setRow(h, scale: setScale)))
+                return (r, fit ? h * fitted : (setOwnNow ? SheetPrintMetrics.setRowOwn(h, scale: setScale, printPct: printNoFit ? printPct : 100) : SheetPrintMetrics.setRow(h, scale: setScale)))
             })
             // A row fitted afresh is as tall as its tallest font's line —
             // fitted on the screen, then printed (`fittedRow`) — its empty

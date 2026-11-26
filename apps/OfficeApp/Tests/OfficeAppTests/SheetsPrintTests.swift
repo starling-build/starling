@@ -240,6 +240,22 @@ extension SheetsPrintTests {
         XCTAssertFalse(SheetPrintMetrics.of(family: "新細明體", size: 12).setOwnAt100)
         XCTAssertFalse(SheetPrintMetrics.of(family: "Calibri", size: 11).setOwnAt100)
     }
+
+    /// ko-b5a9f60a80, a 돋움 11 book fitted to its page: Excel prints at 75 % (its columns 40.5 dots a character, 54's 75 %) and
+    /// its 28.5 pt set rows 20.52 pt, 28.5 x 0.96 x 0.75: a fitted print takes the face's own grid as a 100 % one does.
+    func testDotum11SetRowsStandOnTheirOwnGridInAFittedPrint() {
+        let c = WorkbookController()
+        c.book.defaultFontName = "돋움"
+        c.book.defaultFontSize = 11
+        c.sheet.rowHeights[1] = 28.5
+        let g = SheetGridState(headless: c)
+        g.printing = true
+        g.printNoFit = false
+        XCTAssertEqual(g.rows.size(1), 27.36, accuracy: 0.001)
+        // On screen the row keeps its height.
+        g.printing = false
+        XCTAssertEqual(g.rows.size(1) / g.scale, 28.5, accuracy: 0.5)
+    }
 }
 
 final class MeiryoUiBigRowsTests: XCTestCase {
