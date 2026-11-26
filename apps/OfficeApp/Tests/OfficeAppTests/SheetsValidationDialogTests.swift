@@ -98,7 +98,7 @@ final class SheetsValidationDialogTests: XCTestCase {
 
     func testTheDataTabOpensTheDialogInTheSheetsShell() {
         let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light),
-                                        home: SheetsShell(initialPath: nil, onSwitch: { _, _ in }), title: "T"), size: Size(1280, 800))
+                                        home: SheetsShell(initialPath: nil, onSwitch: { _, _ in }), title: "T"), size: Size(2000, 800))
         XCTAssertTrue(ui.tap(text: "Data"))
         XCTAssertTrue(ui.tap(text: "Data Validation"))
         XCTAssertTrue(ui.has(text: "Input Message"))

@@ -257,7 +257,8 @@ final class UIShellHarnessTests: XCTestCase {
         XCTAssertTrue(c.currentTableStyle?.rowsCantSplit.contains(c.currentCell?.row ?? 0) == true)
     }
 
-    /// Draw Table, Eraser and Split Table sit on the Table Layout tab at 1280 wide: the groups they live in stay on screen (the later groups were already past 1280 before them: Delete Table at 1509 with and without).
+    /// Every control of the Table Layout tab is within reach in a 1280 window: on the tab, or in the popup of a group that
+    /// gave way (the tab is wider than the 1240 pt the ribbon has there, so RibbonFit folds its right-hand groups).
     func testTableLayoutTabFitsAt1280WithDrawAndEraser() {
         let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(1280, 800))
         let c = ui.state(OfficeShellState.self)!.session.controller
@@ -267,9 +268,16 @@ final class UIShellHarnessTests: XCTestCase {
         for label in ["Select", "Merge", "Cell Alignment", "Table Alignment", "Table Width", "Cell Margins", "AutoFit", "Row May Break",
                       "Repeat Header: Off", "Delete Table", "Row Height", "Indent", "Distribute Columns", "Borders", "Line Style", "Line Width",
                       "Header Row", "Insert Above", "Delete Column"] {
-            guard let at = ui.centre(ofText: label) else { XCTFail("\(label) missing"); continue }
-            XCTAssertTrue(at.dx > 0 && at.dx < 1270, "\(label) at x=\(at.dx) is off the tab")
+            XCTAssertTrue(ui.ribbonReaches(label, width: 1280), "\(label) is out of reach on the Table Layout tab")
         }
+    }
+
+    /// Draw Table, Eraser and Split Table: the Eraser sets the table tool (2000 wide, so the Draw group is on screen).
+    func testTableLayoutEraserSetsTheTableTool() {
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(2000, 800))
+        ui.state(OfficeShellState.self)!.session.controller.insertTable(rows: 2, columns: 2)
+        ui.pump()
+        XCTAssertTrue(ui.tap(text: "Table Layout"))
         XCTAssertTrue(ui.tap(text: "Select"))
         XCTAssertTrue(ui.tap(text: "Eraser"))
         XCTAssertEqual(ui.state(OfficeShellState.self)!.session.tableTool, "erase")
@@ -292,7 +300,7 @@ final class UIShellHarnessTests: XCTestCase {
 
     /// W-TB-3: the Table Layout tab's property controls reach the controller.
     func testTableLayoutPropertyControlsReachTheController() {
-        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(1280, 800))
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(2000, 800))
         let c = ui.state(OfficeShellState.self)!.session.controller
         c.insertTable(rows: 2, columns: 2)
         ui.pump()
@@ -335,7 +343,7 @@ final class UIShellHarnessTests: XCTestCase {
     }
 
     func testTextOptionsButtonOpensTheDialogAndAppliesOrCancels() throws {
-        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: SlidesShell(initialPath: nil, startBlank: true, onSwitch: { _, _ in }), title: "Test"), size: Size(1280, 800))
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: SlidesShell(initialPath: nil, startBlank: true, onSwitch: { _, _ in }), title: "Test"), size: Size(2000, 800))
         let shell = try XCTUnwrap(ui.state(SlidesShellState.self))
         let deck = try XCTUnwrap(shell.session.deck)
         let box = deck.addTextBox(at: Rect.fromLTWH(100, 100, 300, 120))

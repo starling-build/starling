@@ -75,7 +75,7 @@ final class SlideShapeEffectsTests: XCTestCase {
     func testTheRibbonMenuAppliesAShadowGlowAndBevel() throws {
         let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light),
                                         home: SlidesShell(initialPath: nil, onSwitch: { _, _ in }), title: "Test"),
-                              size: Size(1400, 800))
+                              size: Size(2000, 800))   // (wide enough that the Shape Effects menu is not folded into the Drawing group)
         let deck = try XCTUnwrap(ui.state(SlidesShellState.self)?.session.deck)
         let s = deck.addShape(.rect); deck.selectShapes([s]); ui.pump()
         XCTAssertTrue(ui.tap(text: "Shape Effects"))
@@ -109,14 +109,15 @@ final class SlideShapeEffectsTests: XCTestCase {
         }
     }
 
+    /// The Home tab is wider than a 1280 window, so its right-hand groups give way (RibbonFit); what these tests guard is
+    /// that the controls added for shapes stay within reach: on the tab, or in the popup of the group that gave way.
     func testHomeTabStillFitsAt1280() throws {
         let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light),
                                         home: SlidesShell(initialPath: nil, onSwitch: { _, _ in }), title: "Test"),
                               size: Size(1280, 800))
         ui.pump()
         for label in ["Shape Effects", "Text Options", "Arrange", "Drawing"] {
-            let c = try XCTUnwrap(ui.centre(ofText: label), label)
-            XCTAssertLessThan(c.dx + 30, 1280, "\(label) is pushed off the tab")
+            XCTAssertTrue(ui.ribbonReaches(label, width: 1280), "\(label) is out of reach on the tab")
         }
     }
 

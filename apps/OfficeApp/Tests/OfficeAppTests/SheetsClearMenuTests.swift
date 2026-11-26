@@ -12,7 +12,7 @@ final class SheetsClearMenuTests: XCTestCase {
     private func shell() -> (WidgetTester, SheetsShellState) {
         let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light),
                                         home: SheetsShell(initialPath: nil, onSwitch: { _, _ in }), title: "t"),
-                              size: Size(1280, 800))
+                              size: Size(2000, 800))   // (wide enough that the Home tab's Clear button is not folded into its group)
         ui.pump()
         return (ui, ui.state(SheetsShellState.self)!)
     }
