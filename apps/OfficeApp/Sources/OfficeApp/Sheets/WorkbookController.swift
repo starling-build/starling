@@ -718,29 +718,61 @@ final class WorkbookController: ChangeNotifier {
         sortRows(r, keys: [SortKey(col: key, ascending: ascending)])
     }
 
-    /// The same by several columns: the first decides, the next break its ties.
+    /// The same by several columns: the first decides, the next break its ties. `byColumns` reorders
+    /// columns by the values of rows instead (a key's `col` is then a row number).
     @discardableResult
-    func sortRows(_ r: CellRange, keys: [SortKey]) -> [CellAddress: Cell?] {
-        let rowsIdx = Array(r.top ... r.bottom)
-        let sorted = rowsIdx.sorted { a, b in
+    func sortRows(_ r: CellRange, keys: [SortKey], byColumns: Bool = false, caseSensitive: Bool = false) -> [CellAddress: Cell?] {
+        // `line` runs along the sorted axis, `other` across it.
+        func addr(_ line: Int, _ other: Int) -> CellAddress { byColumns ? CellAddress(row: other, col: line) : CellAddress(row: line, col: other) }
+        let lines = byColumns ? Array(r.left ... r.right) : Array(r.top ... r.bottom)
+        let across = byColumns ? Array(r.top ... r.bottom) : Array(r.left ... r.right)
+        func matches(_ a: CellAddress, _ k: SortKey) -> Bool {
+            let st = book.style(sheet.cells[a]?.style ?? sheet.defaultStyle(at: a))
+            let have = (k.on == .cellColor ? st.fill : st.color).map { $0 & 0xFFFFFF }
+            return have == k.color.map { $0 & 0xFFFFFF }
+        }
+        func rank(_ v: CellValue, _ list: [String]) -> Int? {
+            guard case .text(let t) = v else { return nil }
+            return list.firstIndex { $0.lowercased() == t.lowercased() }
+        }
+        let sorted = lines.sorted { a, b in
             for k in keys {
-                let va = sheet.value(CellAddress(row: a, col: k.col)), vb = sheet.value(CellAddress(row: b, col: k.col))
+                let aa = addr(a, k.col), ab = addr(b, k.col)
+                if k.on != .values {
+                    let ma = matches(aa, k), mb = matches(ab, k)
+                    if ma != mb { return ma == k.colorOnTop }
+                    continue
+                }
+                let va = sheet.value(aa), vb = sheet.value(ab)
                 if va.isEmpty != vb.isEmpty { return vb.isEmpty }
-                let c = CalcEngine.compare(va, vb)
+                if let list = k.custom {
+                    let ra = rank(va, list), rb = rank(vb, list)
+                    if ra != rb {
+                        // In the list before out of it, whatever the direction; in the list by its order.
+                        guard let x = ra else { return false }
+                        guard let y = rb else { return true }
+                        return k.ascending ? x < y : x > y
+                    }
+                    if ra != nil { continue }
+                }
+                var c = CalcEngine.compare(va, vb)
+                if c == 0, caseSensitive, case .text(let x) = va, case .text(let y) = vb, x != y {
+                    c = x.lowercased() == y.lowercased() ? (x > y ? -1 : 1) : 0   // lower case first
+                }
                 if c != 0 { return k.ascending ? c < 0 : c > 0 }
             }
             return a < b   // stable
         }
-        guard sorted != rowsIdx else { return [:] }
+        guard sorted != lines else { return [:] }
         var before: [CellAddress: Cell?] = [:]
         var moved: [CellAddress: Cell] = [:]
-        for (newRow, oldRow) in zip(rowsIdx, sorted) {
-            for col in r.left ... r.right {
-                let from = CellAddress(row: oldRow, col: col), to = CellAddress(row: newRow, col: col)
+        for (newLine, oldLine) in zip(lines, sorted) {
+            for o in across {
+                let from = addr(oldLine, o), to = addr(newLine, o)
                 before[to] = .some(sheet.cells[to])
                 if var cell = sheet.cells[from] {
-                    if let f = cell.formula, newRow != oldRow {
-                        let g = Formula.shifted(f, rows: newRow - oldRow, cols: 0)
+                    if let f = cell.formula, newLine != oldLine {
+                        let g = byColumns ? Formula.shifted(f, rows: 0, cols: newLine - oldLine) : Formula.shifted(f, rows: newLine - oldLine, cols: 0)
                         cell.formula = g
                         cell.input = Formula.text(g)
                     }
