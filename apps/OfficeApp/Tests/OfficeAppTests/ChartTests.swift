@@ -360,6 +360,29 @@ final class ChartTests: XCTestCase {
         XCTAssertTrue(c.dataLabels)
     }
 
+    /// On a slide a funnel stands where PowerPoint prints chartex-lab2's: its axis 1.56 pt below the room's top and 2.44 above
+    /// its foot, its widest bar 2.66 pt in from the right.
+    func testAFunnelOnASlideStandsWherePowerPointPrintsIt() {
+        let xml = """
+        <cx:chartSpace xmlns:cx="http://schemas.microsoft.com/office/drawing/2014/chartex"><cx:chartData><cx:data id="0"><cx:strDim type="cat"><cx:lvl ptCount="2"><cx:pt idx="0">one</cx:pt><cx:pt idx="1">two</cx:pt></cx:lvl></cx:strDim><cx:numDim type="val"><cx:lvl ptCount="2"><cx:pt idx="0">9</cx:pt><cx:pt idx="1">5</cx:pt></cx:lvl></cx:numDim></cx:data></cx:chartData><cx:chart><cx:plotArea><cx:plotAreaRegion><cx:series layoutId="funnel"><cx:dataId val="0"/></cx:series></cx:plotAreaRegion></cx:plotArea></cx:chart></cx:chartSpace>
+        """
+        guard var c = ChartXML.readChartex(XNode.parse(Data(xml.utf8))!) else { return XCTFail("not read") }
+        func paint(_ c: Chart) -> (axis: (Offset, Offset)?, right: Double?) {
+            let canvas = BoxDotCanvas()
+            ChartPainter.paint(c, canvas, Rect.fromLTWH(0, 0, 400, 300), pxPerPt: 1, theme: DeckTheme())
+            return (canvas.lines.first { $0.0.dx == $0.1.dx && $0.1.dy - $0.0.dy > 100 }, canvas.rects.map(\.right).max())
+        }
+        let off = paint(c)
+        c.onSlide = true
+        let on = paint(c)
+        guard let a = off.axis, let b = on.axis, let r0 = off.right, let r1 = on.right else { return XCTFail("no axis or bars") }
+        // (In a 400 by 300 frame with no title: the room 6.8 to 295.9 and to 396.0, so the axis 8.36 to 293.46, the bar to 393.34.)
+        _ = (a, r0)
+        XCTAssertEqual(b.0.dy, 8.36, accuracy: 0.05)
+        XCTAssertEqual(b.1.dy, 293.46, accuracy: 0.05)
+        XCTAssertEqual(r1, 393.34, accuracy: 0.05)
+    }
+
     /// A funnel's data labels: the series' own (category and value, ", " between), a point's own format, and a hidden one.
     func testAFunnelReadsItsPointLabels() {
         let xml = """

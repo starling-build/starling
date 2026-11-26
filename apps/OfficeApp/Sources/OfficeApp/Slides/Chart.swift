@@ -5272,7 +5272,12 @@ enum ChartPainter {
         let n = c.categories.count
         let labels = c.categories.map { categoryText($0, c.categoryLabelSize ?? c.baseTextSize, .infinity) }
         defer { labels.forEach { $0.dispose() } }
-        let left = area.left + (labels.map(\.width).max() ?? 0) + 6 * k
+        // (On a slide the funnel stands 3.25 pt left of the room, 1.56 below its top, 2.44 above its foot and 2.66 in from its
+        // right, its names 6.5 pt off the axis: PowerPoint's print of chartex-lab2's funnels, axis 192.18 by 87.66 to 452.46 and
+        // widest bar to 744.24, where ours stood at 194.92 by 86.1 to 454.9 and to 746.86, names 6.0 off it.)
+        let area = c.onSlide ? Rect.fromLTRB(area.left - 3.25 * k, area.top + 1.56 * k, area.right - 2.66 * k, area.bottom - 2.44 * k) : area
+        let nameGap = (c.onSlide ? 6.5 : 6) * k
+        let left = area.left + (labels.map(\.width).max() ?? 0) + nameGap
         let plot = Rect.fromLTRB(left, area.top, area.right, area.bottom)
         let slot = plot.height / Double(n)
         let bar = slot / (1 + c.gap)
@@ -5293,7 +5298,7 @@ enum ChartPainter {
         if c.funnelTicks { for i in 0 ... n { let y = plot.top + Double(i) * slot; canvas.drawLine(Offset(plot.left, y), Offset(plot.left + 3 * k, y), axis) } }
         for i in 0 ..< n {
             let cy = plot.top + (Double(i) + 0.5) * slot
-            labels[i].paint(canvas, Offset(left - 6 * k - labels[i].width, cy - labels[i].height / 2))
+            labels[i].paint(canvas, Offset(left - nameGap - labels[i].width, cy - labels[i].height / 2))
             guard widest > 0, let v = s.values[safe: i] ?? nil else { continue }
             let w = abs(v) / widest * plot.width
             let r = Rect.fromLTWH(plot.center.dx - w / 2, cy - bar / 2, w, bar)
@@ -8636,12 +8641,14 @@ extension ChartPainter {
         guard c.dataLabels else { return }
         // (Their glyphs 1.35 pt lower than a line's box 3.8 pt in would
         // put them: B's and Best's in Excel's print.)
-        let inset = 3.8 * pt, drop = 1.35 * pt
+        // (On a slide the line's box stands 3.6 pt inside the box's top or foot, with no drop: PowerPoint's print of chartex-lab2,
+        // a parent's name 12.17 below its box's top and a leaf's 6.0 above its foot, where ours stood 1.53 and 1.1 lower.)
+        let inset = 3.8 * pt, drop = c.onSlide ? 0 : 1.35 * pt, insetY = c.onSlide ? 3.6 * pt : inset
         for l in labels {
             let tp = text(l.name, c.textSize ?? 9, max(1, l.box.width - 2 * inset))
             defer { tp.dispose() }
             guard tp.width <= l.box.width - 2 * inset + 0.5, tp.height <= l.box.height - 2 * inset else { continue }
-            tp.paint(canvas, Offset(l.box.left + inset, (l.top ? l.box.top + inset : l.box.bottom - inset - tp.height) + drop))
+            tp.paint(canvas, Offset(l.box.left + inset, (l.top ? l.box.top + insetY : l.box.bottom - insetY - tp.height) + drop))
         }
     }
 }
