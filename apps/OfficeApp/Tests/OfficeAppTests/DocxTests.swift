@@ -351,8 +351,8 @@ final class DocxTests: XCTestCase {
         var xml = String(decoding: entries[i].data, as: UTF8.self)
         XCTAssertTrue(xml.contains("<w:tblInd w:w=\"720\" w:type=\"dxa\"/>"), xml)
         XCTAssertTrue(xml.contains("<w:tr><w:trPr><w:trHeight w:val=\"960\"/></w:trPr>"), xml)
-        xml = xml.replacingAll("<w:t xml:space=\"preserve\">Body</w:t>",
-                               with: "<w:rPr><w:rFonts w:asciiTheme=\"minorHAnsi\" w:hAnsiTheme=\"minorHAnsi\"/></w:rPr><w:t xml:space=\"preserve\">Body</w:t>")
+        xml = xml.replacingAll("<w:t>Body</w:t>",
+                               with: "<w:rPr><w:rFonts w:asciiTheme=\"minorHAnsi\" w:hAnsiTheme=\"minorHAnsi\"/></w:rPr><w:t>Body</w:t>")
         entries[i] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
         let back = try DocxFormat.read(try Zip.write(entries)).document
         XCTAssertEqual(back.paragraphs[0].runs.first?.style.fontFamily, "Cambria")
@@ -389,8 +389,8 @@ final class DocxTests: XCTestCase {
             entries[i] = ZipEntry(name: name, data: Data(f(String(decoding: entries[i].data, as: UTF8.self)).utf8))
         }
         let drawing = "<w:drawing><wp:inline><wp:extent cx=\"2540000\" cy=\"1270000\"/><wp:docPr id=\"7\" name=\"Chart 1\"/><a:graphic xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\"><a:graphicData uri=\"http://schemas.openxmlformats.org/drawingml/2006/chart\"><c:chart xmlns:c=\"http://schemas.openxmlformats.org/drawingml/2006/chart\" r:id=\"rId77\"/></a:graphicData></a:graphic></wp:inline></w:drawing>"
-        replace("word/document.xml") { $0.replacingAll("<w:t xml:space=\"preserve\">Before</w:t></w:r>",
-                                                       with: "<w:t xml:space=\"preserve\">Before</w:t></w:r><w:r>\(drawing)</w:r>") }
+        replace("word/document.xml") { $0.replacingAll("<w:t>Before</w:t></w:r>",
+                                                       with: "<w:t>Before</w:t></w:r><w:r>\(drawing)</w:r>") }
         replace("word/_rels/document.xml.rels") { $0.replacingAll("</Relationships>",
             with: "<Relationship Id=\"rId77\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart\" Target=\"charts/chart1.xml\"/></Relationships>") }
         replace("[Content_Types].xml") { $0.replacingAll("</Types>",
@@ -427,7 +427,7 @@ final class DocxTests: XCTestCase {
         // And the same again from the copy.
         let again = try DocxFormat.read(try Zip.write(saved)).document
         XCTAssertEqual(again.paragraphs[0].inlineImages.values.first?.sourceRels.map(\.id), ["rIdKept1"])
-        XCTAssertTrue(body.contains("<w:t xml:space=\"preserve\">Before</w:t></w:r><w:r><w:drawing"), body)
+        XCTAssertTrue(body.contains("<w:t>Before</w:t></w:r><w:r><w:drawing"), body)
     }
 
     /// A picture inline with text takes its place in the line: the
@@ -911,7 +911,7 @@ final class DocxTests: XCTestCase {
         var xml = String(decoding: entries[di].data, as: UTF8.self)
         XCTAssertTrue(xml.contains("<w:tabs><w:tab w:val=\"left\" w:pos=\"450\"/><w:tab w:val=\"right\" w:pos=\"6000\"/></w:tabs>"), xml)
         // The "x" becomes a checked form checkbox field with no result.
-        xml = xml.replacingAll("<w:t xml:space=\"preserve\">x no diploma</w:t></w:r>",
+        xml = xml.replacingAll("<w:t>x no diploma</w:t></w:r>",
                                with: "</w:r><w:r><w:fldChar w:fldCharType=\"begin\"><w:ffData><w:name w:val=\"Check21\"/><w:checkBox><w:sizeAuto/><w:default w:val=\"1\"/></w:checkBox></w:ffData></w:fldChar></w:r><w:r><w:instrText xml:space=\"preserve\"> FORMCHECKBOX </w:instrText></w:r><w:r><w:fldChar w:fldCharType=\"end\"/></w:r><w:r><w:t xml:space=\"preserve\"> no diploma</w:t></w:r>")
         entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
         // And a styles part that states no size anywhere: Word's 10pt.
@@ -1364,7 +1364,7 @@ final class DocxTests: XCTestCase {
         var entries = try Zip.read(try DocxFormat.write(doc, pageSetup: .letter))
         let di = entries.firstIndex { $0.name == "word/document.xml" }!
         var xml = String(decoding: entries[di].data, as: UTF8.self)
-        xml = xml.replacingAll("<w:t xml:space=\"preserve\">BREAK</w:t>", with: "<w:br w:type=\"page\"/>")
+        xml = xml.replacingAll("<w:t>BREAK</w:t>", with: "<w:br w:type=\"page\"/>")
         entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
         let back = try DocxFormat.read(try Zip.write(entries)).document
         XCTAssertEqual(back.paragraphs.map(\.text), ["one", "", "two"])
@@ -2048,7 +2048,7 @@ final class DocxTests: XCTestCase {
         var doc = RichDocument(paragraphs: [RichParagraph(text: "shown hidden")])
         doc.paragraphs[0].runs = [Run(length: 6), Run(length: 6, style: { var c = CharStyle(); c.hidden = true; return c }())]
         let xml = String(decoding: try Zip.read(try DocxFormat.write(doc, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
-        XCTAssertTrue(xml.contains("<w:rPr><w:vanish/></w:rPr><w:t xml:space=\"preserve\">hidden</w:t>"), xml)
+        XCTAssertTrue(xml.contains("<w:rPr><w:vanish/></w:rPr><w:t>hidden</w:t>"), xml)
         let back = try DocxFormat.read(try DocxFormat.write(doc, pageSetup: .letter)).document
         XCTAssertEqual(back.paragraphs[0].runs.map { $0.style.hidden }, [false, true])
         let layout = RichLayout(theme: RichTextTheme(fontFamily: OfficeFonts.sans), paragraphCount: 1)
@@ -2073,8 +2073,8 @@ final class DocxTests: XCTestCase {
         doc.keptPartTypes["word/comments.xml"] = "application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml"
         let entries = try Zip.read(try DocxFormat.write(doc, pageSetup: .letter))
         let xml = String(decoding: entries.first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
-        XCTAssertTrue(xml.contains("<w:t xml:space=\"preserve\">a </w:t></w:r><w:commentRangeStart w:id=\"0\"/><w:r><w:t xml:space=\"preserve\">b c</w:t></w:r></w:p>"), xml)
-        XCTAssertTrue(xml.contains("<w:t xml:space=\"preserve\">d</w:t></w:r><w:commentRangeEnd w:id=\"0\"/><w:r><w:rPr><w:rStyle w:val=\"CommentReference\"/></w:rPr><w:commentReference w:id=\"0\"/></w:r><w:r><w:t xml:space=\"preserve\"> e</w:t>"), xml)
+        XCTAssertTrue(xml.contains("<w:t xml:space=\"preserve\">a </w:t></w:r><w:commentRangeStart w:id=\"0\"/><w:r><w:t>b c</w:t></w:r></w:p>"), xml)
+        XCTAssertTrue(xml.contains("<w:t>d</w:t></w:r><w:commentRangeEnd w:id=\"0\"/><w:r><w:rPr><w:rStyle w:val=\"CommentReference\"/></w:rPr><w:commentReference w:id=\"0\"/></w:r><w:r><w:t xml:space=\"preserve\"> e</w:t>"), xml)
         XCTAssertEqual(xml.components(separatedBy: "commentRangeStart").count - 1, 1, xml)
         XCTAssertEqual(xml.components(separatedBy: "commentRangeEnd").count - 1, 1, xml)
         // A range whose last run is a picture paragraph (written another
@@ -2098,7 +2098,7 @@ final class DocxTests: XCTestCase {
         point.keptParts = doc.keptParts; point.keptPartTypes = doc.keptPartTypes
         var pentries = try Zip.read(try DocxFormat.write(point, pageSetup: .letter))
         let pdi = pentries.firstIndex { $0.name == "word/document.xml" }!
-        let pxml0 = String(decoding: pentries[pdi].data, as: UTF8.self).replacingAll("<w:t xml:space=\"preserve\">x</w:t></w:r>", with: "<w:t xml:space=\"preserve\">x</w:t></w:r><w:r><w:commentReference w:id=\"0\"/></w:r>")
+        let pxml0 = String(decoding: pentries[pdi].data, as: UTF8.self).replacingAll("<w:t>x</w:t></w:r>", with: "<w:t>x</w:t></w:r><w:r><w:commentReference w:id=\"0\"/></w:r>")
         pentries[pdi] = ZipEntry(name: "word/document.xml", data: Data(pxml0.utf8))
         let pback = try DocxFormat.read(try Zip.write(pentries)).document
         XCTAssertEqual(pback.paragraphs[0].runs.map { $0.style.comments }, [[], ["0"]])
@@ -2312,7 +2312,7 @@ final class DocxTests: XCTestCase {
         var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "12.04.2006")]), pageSetup: .letter))
         let di = entries.firstIndex { $0.name == "word/document.xml" }!
         var xml = String(decoding: entries[di].data, as: UTF8.self)
-        xml = xml.replacingAll("<w:r><w:t xml:space=\"preserve\">12.04.2006</w:t>", with: "<w:r><w:rPr><w:rStyle w:val=\"date1\"/></w:rPr><w:t xml:space=\"preserve\">12.04.2006</w:t>")
+        xml = xml.replacingAll("<w:r><w:t>12.04.2006</w:t>", with: "<w:r><w:rPr><w:rStyle w:val=\"date1\"/></w:rPr><w:t>12.04.2006</w:t>")
         XCTAssertTrue(xml.contains("date1"), xml)
         entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
         let si = entries.firstIndex { $0.name == "word/styles.xml" }!
@@ -2333,7 +2333,7 @@ final class DocxTests: XCTestCase {
         var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "h"), RichParagraph(text: "b")]), pageSetup: .letter))
         let di = entries.firstIndex { $0.name == "word/document.xml" }!
         var xml = String(decoding: entries[di].data, as: UTF8.self)
-        xml = xml.replacingAll("<w:p><w:pPr><w:spacing w:after=\"160\" w:line=\"259\" w:lineRule=\"auto\"/></w:pPr><w:r><w:t xml:space=\"preserve\">h</w:t>", with: "<w:p><w:pPr><w:pStyle w:val=\"1\"/></w:pPr><w:r><w:t xml:space=\"preserve\">h</w:t>")
+        xml = xml.replacingAll("<w:p><w:pPr><w:spacing w:after=\"160\" w:line=\"259\" w:lineRule=\"auto\"/></w:pPr><w:r><w:t>h</w:t>", with: "<w:p><w:pPr><w:pStyle w:val=\"1\"/></w:pPr><w:r><w:t>h</w:t>")
         XCTAssertTrue(xml.contains("<w:pStyle w:val=\"1\"/>"), xml)
         entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
         let si = entries.firstIndex { $0.name == "word/styles.xml" }!
@@ -2658,8 +2658,8 @@ final class DocxTests: XCTestCase {
         entries.append(ZipEntry(name: "word/endnotes.xml", data: Data(endnotes.utf8)))
         let i = entries.firstIndex { $0.name == "word/document.xml" }!
         var xml = String(decoding: entries[i].data, as: UTF8.self)
-        xml = xml.replacingAll("<w:t xml:space=\"preserve\">Body with a note here.</w:t></w:r>",
-                               with: "<w:t xml:space=\"preserve\">Body with a note</w:t></w:r><w:r><w:rPr><w:vertAlign w:val=\"superscript\"/></w:rPr><w:endnoteReference w:id=\"2\"/></w:r><w:r><w:t xml:space=\"preserve\"> here.</w:t></w:r>")
+        xml = xml.replacingAll("<w:t>Body with a note here.</w:t></w:r>",
+                               with: "<w:t>Body with a note</w:t></w:r><w:r><w:rPr><w:vertAlign w:val=\"superscript\"/></w:rPr><w:endnoteReference w:id=\"2\"/></w:r><w:r><w:t xml:space=\"preserve\"> here.</w:t></w:r>")
         XCTAssertTrue(xml.contains("w:endnoteReference"), "the fixture's run text must match: \(xml)")
         entries[i] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
         let back = try DocxFormat.read(try Zip.write(entries)).document
@@ -3215,7 +3215,7 @@ final class DocxTests: XCTestCase {
         // set the table 187pt low.
         var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "x")]), pageSetup: .letter))
         let di = entries.firstIndex { $0.name == "word/document.xml" }!
-        let xml = String(decoding: entries[di].data, as: UTF8.self).replacingAll("<w:t xml:space=\"preserve\">x</w:t>", with: "<w:pict/>")
+        let xml = String(decoding: entries[di].data, as: UTF8.self).replacingAll("<w:t>x</w:t>", with: "<w:pict/>")
         XCTAssertTrue(xml.contains("<w:pict/>"), xml)
         entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
         let p = try DocxFormat.read(try Zip.write(entries)).document.paragraphs[0]
@@ -5515,11 +5515,11 @@ final class DocxTests: XCTestCase {
         var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "\u{0625}\u{0633}"), RichParagraph(text: "b"), RichParagraph(text: "Reino")]), pageSetup: .letter))
         let di = entries.firstIndex { $0.name == "word/document.xml" }!
         var xml = String(decoding: entries[di].data, as: UTF8.self)
-        xml = xml.replacingAll("<w:r><w:t xml:space=\"preserve\">\u{0625}\u{0633}</w:t>", with: "<w:r><w:rPr><w:bCs/><w:szCs w:val=\"28\"/><w:rtl w:val=\"true\"/></w:rPr><w:t xml:space=\"preserve\">\u{0625}\u{0633}</w:t>")
+        xml = xml.replacingAll("<w:r><w:t>\u{0625}\u{0633}</w:t>", with: "<w:r><w:rPr><w:bCs/><w:szCs w:val=\"28\"/><w:rtl w:val=\"true\"/></w:rPr><w:t xml:space=\"preserve\">\u{0625}\u{0633}</w:t>")
         // Latin text in the same kind of run: the complex-script bold does
         // not apply to it.
-        xml = xml.replacingAll("<w:r><w:t xml:space=\"preserve\">Reino</w:t>", with: "<w:r><w:rPr><w:i/><w:bCs/><w:rtl w:val=\"true\"/></w:rPr><w:t xml:space=\"preserve\">Reino</w:t>")
-        xml = xml.replacingAll("<w:r><w:t xml:space=\"preserve\">b</w:t>", with: "<w:r><w:rPr><w:i/><w:rPrChange w:id=\"7\" w:author=\"Ann\" w:date=\"2009-03-01T10:00:00Z\"><w:rPr><w:b/></w:rPr></w:rPrChange></w:rPr><w:t xml:space=\"preserve\">b</w:t>")
+        xml = xml.replacingAll("<w:r><w:t>Reino</w:t>", with: "<w:r><w:rPr><w:i/><w:bCs/><w:rtl w:val=\"true\"/></w:rPr><w:t>Reino</w:t>")
+        xml = xml.replacingAll("<w:r><w:t>b</w:t>", with: "<w:r><w:rPr><w:i/><w:rPrChange w:id=\"7\" w:author=\"Ann\" w:date=\"2009-03-01T10:00:00Z\"><w:rPr><w:b/></w:rPr></w:rPrChange></w:rPr><w:t>b</w:t>")
         entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
         let back = try DocxFormat.read(try Zip.write(entries)).document
         let a = try XCTUnwrap(back.paragraphs[0].runs.first?.style)
@@ -5543,8 +5543,8 @@ final class DocxTests: XCTestCase {
         var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "\u{0E2A}\u{0E27}"), RichParagraph(text: "\u{0625}\u{0633}")]), pageSetup: .letter))
         let di = entries.firstIndex { $0.name == "word/document.xml" }!
         var xml = String(decoding: entries[di].data, as: UTF8.self)
-        xml = xml.replacingAll("<w:r><w:t xml:space=\"preserve\">\u{0E2A}\u{0E27}</w:t>", with: "<w:r><w:rPr><w:cs/></w:rPr><w:t xml:space=\"preserve\">\u{0E2A}\u{0E27}</w:t>")
-        xml = xml.replacingAll("<w:r><w:t xml:space=\"preserve\">\u{0625}\u{0633}</w:t>", with: "<w:r><w:rPr><w:cs/></w:rPr><w:t xml:space=\"preserve\">\u{0625}\u{0633}</w:t>")
+        xml = xml.replacingAll("<w:r><w:t>\u{0E2A}\u{0E27}</w:t>", with: "<w:r><w:rPr><w:cs/></w:rPr><w:t xml:space=\"preserve\">\u{0E2A}\u{0E27}</w:t>")
+        xml = xml.replacingAll("<w:r><w:t>\u{0625}\u{0633}</w:t>", with: "<w:r><w:rPr><w:cs/></w:rPr><w:t xml:space=\"preserve\">\u{0625}\u{0633}</w:t>")
         entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
         let back = try DocxFormat.read(try Zip.write(entries)).document
         XCTAssertTrue(try XCTUnwrap(back.paragraphs[0].runs.first?.style).sizeFromStyleSzCs)
@@ -5557,10 +5557,10 @@ final class DocxTests: XCTestCase {
         var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "\u{0928}\u{092E}"), RichParagraph(text: "\u{0928}\u{0915}"), RichParagraph(text: "\u{0928}\u{0924}")]), pageSetup: .letter))
         let di = entries.firstIndex { $0.name == "word/document.xml" }!
         var xml = String(decoding: entries[di].data, as: UTF8.self)
-        xml = xml.replacingAll("<w:r><w:t xml:space=\"preserve\">\u{0928}\u{092E}</w:t>", with: "<w:r><w:rPr><w:b/><w:cs/></w:rPr><w:t xml:space=\"preserve\">\u{0928}\u{092E}</w:t>")
-        xml = xml.replacingAll("<w:r><w:t xml:space=\"preserve\">\u{0928}\u{0915}</w:t>", with: "<w:r><w:rPr><w:b w:val=\"0\"/><w:bCs/><w:cs/></w:rPr><w:t xml:space=\"preserve\">\u{0928}\u{0915}</w:t>")
+        xml = xml.replacingAll("<w:r><w:t>\u{0928}\u{092E}</w:t>", with: "<w:r><w:rPr><w:b/><w:cs/></w:rPr><w:t xml:space=\"preserve\">\u{0928}\u{092E}</w:t>")
+        xml = xml.replacingAll("<w:r><w:t>\u{0928}\u{0915}</w:t>", with: "<w:r><w:rPr><w:b w:val=\"0\"/><w:bCs/><w:cs/></w:rPr><w:t xml:space=\"preserve\">\u{0928}\u{0915}</w:t>")
         // The same b alone WITHOUT the w:cs flag stays bold (xd 77d6ca49's Nirmala UI runs).
-        xml = xml.replacingAll("<w:r><w:t xml:space=\"preserve\">\u{0928}\u{0924}</w:t>", with: "<w:r><w:rPr><w:b/></w:rPr><w:t xml:space=\"preserve\">\u{0928}\u{0924}</w:t>")
+        xml = xml.replacingAll("<w:r><w:t>\u{0928}\u{0924}</w:t>", with: "<w:r><w:rPr><w:b/></w:rPr><w:t xml:space=\"preserve\">\u{0928}\u{0924}</w:t>")
         entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
         let back = try DocxFormat.read(try Zip.write(entries)).document
         XCTAssertTrue(try XCTUnwrap(back.paragraphs[2].runs.first?.style).bold)
@@ -5905,7 +5905,7 @@ final class DocxTests: XCTestCase {
         var entries = try Zip.read(try DocxFormat.write(doc, pageSetup: .letter))
         let di = entries.firstIndex { $0.name == "word/document.xml" }!
         var xml = String(decoding: entries[di].data, as: UTF8.self)
-        xml = xml.replacingAll("<w:r><w:t xml:space=\"preserve\">OF X TEL</w:t></w:r>", with: "<w:r><w:t xml:space=\"preserve\">OF </w:t></w:r><w:r><w:sym w:font=\"Symbol\" w:char=\"F094\"/></w:r><w:r><w:t xml:space=\"preserve\"> TEL</w:t></w:r>")
+        xml = xml.replacingAll("<w:r><w:t>OF X TEL</w:t></w:r>", with: "<w:r><w:t xml:space=\"preserve\">OF </w:t></w:r><w:r><w:sym w:font=\"Symbol\" w:char=\"F094\"/></w:r><w:r><w:t xml:space=\"preserve\"> TEL</w:t></w:r>")
         XCTAssertTrue(xml.contains("w:sym"), xml)
         entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
         let ni = entries.firstIndex { $0.name == "word/numbering.xml" }!
@@ -5969,7 +5969,7 @@ final class DocxTests: XCTestCase {
         let back = try DocxFormat.read(try DocxFormat.write(doc, pageSetup: .letter)).document
         XCTAssertEqual(back.tableColumns.values.first ?? [], [20, 30, 40, 400])
         XCTAssertEqual(back.paragraphs.count, doc.paragraphs.count)
-        XCTAssertTrue(xml.contains("<w:tr><w:tc><w:tcPr><w:tcW w:w=\"400\" w:type=\"dxa\"/></w:tcPr><w:p><w:pPr><w:spacing w:after=\"160\" w:line=\"259\" w:lineRule=\"auto\"/></w:pPr><w:r><w:t xml:space=\"preserve\">d</w:t></w:r></w:p></w:tc></w:tr></w:tbl>"), xml)
+        XCTAssertTrue(xml.contains("<w:tr><w:tc><w:tcPr><w:tcW w:w=\"400\" w:type=\"dxa\"/></w:tcPr><w:p><w:pPr><w:spacing w:after=\"160\" w:line=\"259\" w:lineRule=\"auto\"/></w:pPr><w:r><w:t>d</w:t></w:r></w:p></w:tc></w:tr></w:tbl>"), xml)
     }
 
     func testSectionsAndCompatModeKeptVerbatim() throws {
@@ -6660,8 +6660,8 @@ final class DocxTests: XCTestCase {
         var entries = try Zip.read(try DocxFormat.write(doc, pageSetup: .letter))
         let i = entries.firstIndex { $0.name == "word/document.xml" }!
         var xml = String(decoding: entries[i].data, as: UTF8.self)
-        xml = xml.replacingAll("<w:t xml:space=\"preserve\">Keep this</w:t></w:r>",
-                               with: "<w:t xml:space=\"preserve\">Keep this</w:t></w:r><w:ins w:id=\"7\" w:author=\"Ann\" w:date=\"2020-01-02T03:04:05Z\"><w:r><w:t xml:space=\"preserve\"> new</w:t></w:r></w:ins><w:del w:id=\"8\" w:author=\"Bob\" w:date=\"2020-01-02T03:04:06Z\"><w:r><w:rPr><w:b/></w:rPr><w:delText xml:space=\"preserve\"> old</w:delText></w:r></w:del>")
+        xml = xml.replacingAll("<w:t>Keep this</w:t></w:r>",
+                               with: "<w:t>Keep this</w:t></w:r><w:ins w:id=\"7\" w:author=\"Ann\" w:date=\"2020-01-02T03:04:05Z\"><w:r><w:t xml:space=\"preserve\"> new</w:t></w:r></w:ins><w:del w:id=\"8\" w:author=\"Bob\" w:date=\"2020-01-02T03:04:06Z\"><w:r><w:rPr><w:b/></w:rPr><w:delText xml:space=\"preserve\"> old</w:delText></w:r></w:del>")
         entries[i] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
         let back = try DocxFormat.read(try Zip.write(entries)).document
         let p = back.paragraphs[0]
@@ -7052,7 +7052,7 @@ final class DocxTests: XCTestCase {
         var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a"), RichParagraph(text: "b")]), pageSetup: .letter))
         let di = entries.firstIndex { $0.name == "word/document.xml" }!
         var xml = String(decoding: entries[di].data, as: UTF8.self)
-        xml = xml.replacingAll("<w:p><w:pPr><w:spacing w:after=\"160\" w:line=\"259\" w:lineRule=\"auto\"/></w:pPr><w:r><w:t xml:space=\"preserve\">b</w:t>", with: "<w:p><w:pPr><w:pStyle w:val=\"EmptyCellLayoutStyle\"/></w:pPr><w:r><w:t xml:space=\"preserve\">b</w:t>")
+        xml = xml.replacingAll("<w:p><w:pPr><w:spacing w:after=\"160\" w:line=\"259\" w:lineRule=\"auto\"/></w:pPr><w:r><w:t>b</w:t>", with: "<w:p><w:pPr><w:pStyle w:val=\"EmptyCellLayoutStyle\"/></w:pPr><w:r><w:t>b</w:t>")
         XCTAssertTrue(xml.contains("EmptyCellLayoutStyle"), xml)
         entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
         let si = entries.firstIndex { $0.name == "word/styles.xml" }!
@@ -7262,7 +7262,7 @@ final class DocxTests: XCTestCase {
         // autofit column.
         let doc = RichDocument(paragraphs: [RichParagraph(text: "Техни\u{00AD}ческому a\u{2011}b")])
         let xml = try part("word/document.xml", of: doc)
-        XCTAssertTrue(xml.contains("Техни</w:t><w:softHyphen/><w:t xml:space=\"preserve\">ческому a</w:t><w:noBreakHyphen/><w:t xml:space=\"preserve\">b</w:t>"), xml)
+        XCTAssertTrue(xml.contains("Техни</w:t><w:softHyphen/><w:t>ческому a</w:t><w:noBreakHyphen/><w:t>b</w:t>"), xml)
         let back = try DocxFormat.read(try DocxFormat.write(doc, pageSetup: .letter)).document
         XCTAssertEqual(back.paragraphs[0].text, "Техни\u{00AD}ческому a\u{2011}b")
     }
@@ -7475,7 +7475,7 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(back.paragraphs[3].bookmarks, ["_Toc1"])
         XCTAssertTrue(back.paragraphs[4].style.pageBreakBefore && back.paragraphs[4].style.columnBreak)
         let again = try part("word/document.xml", of: back)
-        XCTAssertTrue(again.contains("<w:fldChar w:fldCharType=\"begin\"/></w:r><w:r><w:instrText xml:space=\"preserve\"> PAGEREF _Toc1 \\h </w:instrText></w:r><w:r><w:fldChar w:fldCharType=\"separate\"/></w:r><w:r><w:t xml:space=\"preserve\">6</w:t></w:r><w:r><w:fldChar w:fldCharType=\"end\"/></w:r>"), again)
+        XCTAssertTrue(again.contains("<w:fldChar w:fldCharType=\"begin\"/></w:r><w:r><w:instrText xml:space=\"preserve\"> PAGEREF _Toc1 \\h </w:instrText></w:r><w:r><w:fldChar w:fldCharType=\"separate\"/></w:r><w:r><w:t>6</w:t></w:r><w:r><w:fldChar w:fldCharType=\"end\"/></w:r>"), again)
         XCTAssertTrue(again.contains("w:name=\"_Toc1\"/>"), again)
         XCTAssertTrue(again.contains("<w:r><w:rPr><w:sz w:val=\"32\"/></w:rPr><w:br w:type=\"column\"/></w:r>"), again)
         XCTAssertFalse(again.contains("<w:pageBreakBefore/>"), again)
@@ -7487,7 +7487,7 @@ final class DocxTests: XCTestCase {
             let at = try XCTUnwrap(stylesAgain.range(of: "w:styleId=\"\(id)\""))
             return String(stylesAgain[at.upperBound...]).components(separatedBy: "</w:style>")[0]
         }
-        XCTAssertFalse(try style("Heading5").contains("<w:keepNext/>"), stylesAgain)
+        XCTAssertFalse(try style("5").contains("<w:keepNext/>"), stylesAgain)
         XCTAssertTrue(try style("Kept").contains("<w:keepNext/>"), stylesAgain)
         XCTAssertTrue(try style("Own").contains("<w:sz w:val=\"24\"/>"), stylesAgain)  // kept as the file wrote it
         XCTAssertFalse(try style("Kept").contains("<w:kern w:val=\"0\"/>"), stylesAgain)
