@@ -100,6 +100,16 @@ extension DocxFormat {
                     value = found
                     custom = true
                 }
+                // A date picker shows its bound value in its own w:dateFormat, not as stored: 52449's PublishDate
+                // "2012-01-11T00:00:00" is "11-01-2012" (dd-MM-yyyy) in Word's print, f7888b70's "February 1, 2025"
+                // (MMMM d, yyyy, en-US). A month or day name outside English keeps the cached text.
+                if let date = pr.first("w:date"), let picture = date.first("w:dateFormat")?["w:val"], !picture.isEmpty,
+                   let clock = FieldClock.parse(value) {
+                    let english = (date.first("w:lid")?["w:val"] ?? "en-US").lowercased().hasPrefix("en")
+                    guard let shown = clock.format(picture: picture, english: english) else { continue }
+                    RuleTrace.hit("bound-date-control-shows-its-date-format")
+                    value = shown
+                }
                 var placeholderRun: XNode?
                 if value.isEmpty {
                     guard let name = pr.first("w:placeholder")?.first("w:docPart")?["w:val"], !name.isEmpty else { continue }
