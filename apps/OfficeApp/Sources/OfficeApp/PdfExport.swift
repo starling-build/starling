@@ -5,6 +5,9 @@ import Flutter
 import OfficeText
 import FlutterSwiftBridge
 import Foundation
+#if os(WASI)
+import FlutterWeb
+#endif
 
 /// PDF export: the same RichLayout that paints pages on screen paints each
 /// page into a recorded Picture, and the engine's Skia PDF backend writes
@@ -46,16 +49,47 @@ enum PdfExport {
     /// `write` would print every picture as a grey box. Prepared, then
     /// polled off timers until the pictures are in (eight seconds at most,
     /// as natively), then written; `done` gets whether it was.
+    #if os(WASI)
+    /// Waits while the page is still fetching a face that layout asked for
+    /// (up to `cap` seconds); true when it waited, so the caller lays its
+    /// text out again in the faces that arrived.
+    @MainActor
+    static func fontsArrived(cap: Double = 15) async -> Bool {
+        guard ScriptFonts.anyPending else { return false }
+        let deadline = Date().addingTimeInterval(cap)
+        await withCheckedContinuation { (done: CheckedContinuation<Void, Never>) in
+            func poll() {
+                if !ScriptFonts.anyPending || Date() > deadline { done.resume(); return }
+                DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(20)) { poll() }
+            }
+            poll()
+        }
+        return true
+    }
+    #endif
+
     static func writeWhenDecoded(_ document: RichDocument, pageSetup: PageSetup, theme: RichTextTheme,
                                  to path: String, title: String, done: @escaping (Bool) -> Void) {
-        let prepared = prepare(document, pageSetup: pageSetup, theme: theme)
+        var prepared = prepare(document, pageSetup: pageSetup, theme: theme)
         var polls = 0
+        var fontsWaited = false
         func poll() {
             prepared.layout.applyDecodedPictures()
-            if prepared.pending, polls < 400 {
+            var fontsPending = false
+            #if os(WASI)
+            // (A face the export's own layout asked for: laid out again below.)
+            fontsPending = ScriptFonts.anyPending
+            fontsWaited = fontsWaited || fontsPending
+            #endif
+            if prepared.pending || fontsPending, polls < 400 {
                 polls += 1
                 DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(20)) { poll() }
                 return
+            }
+            if fontsWaited {
+                fontsWaited = false
+                prepared = prepare(document, pageSetup: pageSetup, theme: theme)
+                prepared.layout.applyDecodedPictures()
             }
             done(finish(prepared, to: path, title: title, printPages: nil))
         }

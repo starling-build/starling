@@ -671,6 +671,10 @@ export async function startStarling({ canvas, app, appBrotli, preloaded, immutab
   host.script_pending = (pointer, length) =>
     fontLoader.scriptPending(utf8.decode(appBytes().subarray(pointer, pointer + length))) ? 1 : 0;
 
+  // (Counted from the request, synchronously: an export that has just laid
+  // its text out asks this before it writes.)
+  host.fonts_pending = () => fontsPending;
+
   // Starling's additions to skwasm (lib/web_ui/skwasm/pdf.cpp, and
   // text/paragraph_style.cpp's fractional line heights, text_style.cpp's
   // horizontal scale) exist only in a

@@ -489,13 +489,24 @@ extension SheetGridState {
         let pageCount = parts.reduce(0) { $0 + $1.jobs.reduce(0) { $0 + $1.pages.count } }
         guard pageCount > 0 else { return false }
         if let countOnly { countOnly.value = pageCount; return true }
-        var out: [PdfDocument.Page] = []
-        for part in parts {
-            if let maxPages, out.count >= maxPages { break }
-            if c.activeSheet != part.sheet { c.activeSheet = part.sheet }
-            _paintPart(sheet: part.sheet, setup: part.setup, names: part.names, jobs: part.jobs, pageCount: pageCount,
-                       title: title, filePath: filePath, maxPages: maxPages, into: &out)
+        func paint() -> [PdfDocument.Page] {
+            var out: [PdfDocument.Page] = []
+            for part in parts {
+                if let maxPages, out.count >= maxPages { break }
+                if c.activeSheet != part.sheet { c.activeSheet = part.sheet }
+                _paintPart(sheet: part.sheet, setup: part.setup, names: part.names, jobs: part.jobs, pageCount: pageCount,
+                           title: title, filePath: filePath, maxPages: maxPages, into: &out)
+            }
+            return out
         }
+        var out = paint()
+        #if os(WASI)
+        // In the browser a face is fetched when text first asks for it, and
+        // a header or footer is laid out only here: chart-bartest-stroke's
+        // "Times New Roman" footer went out in the fallback sans. Painted
+        // again once the faces it asked for are in.
+        if await PdfExport.fontsArrived() { out = paint() }
+        #endif
         // Chosen pages (1-based, in the order asked, a page twice when copies are wanted).
         if let only { out = only.compactMap { out.indices.contains($0 - 1) ? out[$0 - 1] : nil } }
         return PdfDocument.write(to: path, pages: out, title: title, author: PdfExport.authorName())
