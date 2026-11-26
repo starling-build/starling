@@ -379,6 +379,7 @@ enum Extrusion {
             let name = camera["prst"] ?? ""
             s.perspective = name.hasPrefix("legacyPerspective")
             s.cameraName = name
+            s.fov = camera["fov"].flatMap(Double.init).map { $0 / 60000 }
             s.oblique = s.depth > 0 ? oblique(name) : nil
             if let c = cameras[name] { (s.lat, s.lon, s.rev) = c }
             s.legacy = name.hasPrefix("legacy")
@@ -430,6 +431,18 @@ enum Extrusion {
         return solid(scene: scene, fill: fill, line: shape.outline, lineWidth: shape.outlineWidth, outline: outline, r, canvas, pxPerPt: px, onFront: onFront, spin: shape.rotation)
     }
 
+    /// How far PowerPoint's eye stands from the shape under a perspective
+    /// camera, in points: 440 / tan(fov / 2), whatever the shape's size, the lens
+    /// 45 deg unless the file gives one (80 for the heroic extreme presets).
+    /// Fitted to corners on PowerPoint's prints: flat 120x70 rects at 45 and 80 deg
+    /// (within 0.6 pt), cropped_image's 248x80 arrow at the file's 120 deg (1.1 pt);
+    /// at 45 deg it is the 1060 pt that the deep perspectiveContrastingLeft and
+    /// shape_rotation solids print from.
+    static func eye(_ scene: Scene3D) -> Double {
+        let lens = (scene.fov ?? (scene.cameraName.hasPrefix("perspectiveHeroicExtreme") ? 80 : 45)) * .pi / 360
+        return 440 / tan(min(max(lens, 0.01), 1.55))
+    }
+
     /// `paint` for anything with an outline: the scene, the face's colour,
     /// and the line (colour, width in points) round it.
     static func solid(scene: Scene3D, fill: Color, line: Color?, lineWidth: Double, outline: Path, _ r: Rect, _ canvas: any Canvas, pxPerPt px: Double, onFront: (() -> Void)? = nil, rim: Bool = false, spin: Double = 0, wallEdge: Color? = nil, clipFront: Bool = true) -> Bool {
@@ -463,9 +476,9 @@ enum Extrusion {
             // An oblique camera: what lies behind slides aside as it recedes
             // — and, in perspective, draws in toward a point as it goes.
             if scene.oblique == nil, scene.cameraName.hasPrefix("perspective") {
-                // The eye ~1100 pt away (swept on perspectiveContrastingLeft,
-                // shape_rotation and cropped_image).
-                let f = 1100 * px / (1100 * px - q.z)
+                // The eye: nearer as the lens widens (Extrusion.eye).
+                let eye = Extrusion.eye(scene) * px
+                let f = eye / (eye - q.z)
                 q.x *= f; q.y *= f
             }
             if let o = scene.oblique {
