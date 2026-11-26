@@ -11,6 +11,13 @@ DEFERRED_FAMILIES = {
     'StarlingFangSong-Regular.ttf': 'Starling FangSong',
 }
 
+# Faces registered a second time under another family (OfficeFonts.swift
+# `pmingliuInkFamily`): the engine draws an "Ink+<em> " family's ink <em> of
+# its em lower, Word's print of PMingLiU on the same baseline.
+FACE_ALIASES = {
+    'Noto Serif CJK TC': ['Ink+0.07 Noto Serif CJK TC'],
+}
+
 
 def prepare_manifest(entries):
     """Keep UI/default faces eager; give optional faces names for lazy lookup.
@@ -25,6 +32,15 @@ def prepare_manifest(entries):
         if family:
             entry['families'] = entry.get('families') or [family]
             entry['lazy'] = True
+        if entry.get('faces'):
+            faces = list(entry['faces'])
+            have = {face['family'] for face in faces}
+            for face in entry['faces']:
+                for alias in FACE_ALIASES.get(face['family'], []):
+                    if alias not in have:
+                        faces.append({'index': face['index'], 'family': alias})
+                        have.add(alias)
+            entry['faces'] = faces
         result.append(entry)
     return result
 
