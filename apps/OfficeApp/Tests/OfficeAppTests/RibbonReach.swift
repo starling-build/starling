@@ -11,7 +11,14 @@ extension WidgetTester {
     func ribbonReaches(_ label: String, width: Double) -> Bool {
         func here() -> Bool {
             if let c = centre(ofText: label), c.dx > 0, c.dx < width - 10 { return true }
-            return tips().contains(label)
+            // An icon-only button is named by its caption (or, with none, by its tooltip).
+            for e in elements() {
+                guard let b = e.widget as? FlatButton, (b.name ?? b.tip) == label,
+                      let box = e.findRenderObject() as? RenderBox, box.attached, box.hasSize else { continue }
+                let c = box.localToGlobal(Offset(box.size.width / 2, box.size.height / 2))
+                if c.dx > 0, c.dx < width - 10 { return true }
+            }
+            return false
         }
         pump(); pump()
         if here() { return true }

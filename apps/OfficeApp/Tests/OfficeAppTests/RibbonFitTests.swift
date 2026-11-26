@@ -1,6 +1,7 @@
 import XCTest
 import Flutter
 import FlutterSwiftBridge
+import FluentSystemIcons
 @testable import OfficeApp
 
 /// A ribbon tab wider than its window gives way from the right: a group's buttons lose their captions, then the group
@@ -73,6 +74,21 @@ final class RibbonFitTests: XCTestCase {
         }
         // Were the window wide enough for the whole of a tab, nothing would give way.
         XCTAssertEqual(RibbonFit.levels(widths: tabs[0].widths, collapsible: [Bool](repeating: true, count: 6), available: 1416), [0, 0, 0, 0, 0, 0])
+    }
+
+    /// A titled menu that gives up its caption (Arrange, Shape Effects) is still named for it: its tooltip says what it does
+    /// ("Order and align"), and the caption is its name for assistive technology, the keyboard ring and `ribbonReaches`.
+    func testAnIconOnlyMenuKeepsItsCaptionAsItsName() throws {
+        let fluent = OfficeAppearance.theme(.light)
+        let menu = Chrome.menuButton(FluentSystemIcons.grid, "Arrange", "Order and align", fluent, items: [])
+        let ui = WidgetTester(FluentApp(theme: fluent, home: Row(children: [RibbonDensity(iconsOnly: true, child: menu)]), title: "Test"), size: Size(400, 200))
+        ui.pump()
+        let button = try XCTUnwrap(ui.elements().compactMap { $0.widget as? FlatButton }.first)
+        XCTAssertEqual(button.name, "Arrange")
+        XCTAssertEqual(button.tip, "Order and align", "the tooltip still says what it does")
+        XCTAssertFalse(ui.has(text: "Arrange"), "and it shows no caption")
+        XCTAssertTrue(ui.ribbonReaches("Arrange", width: 400), "found by its caption")
+        XCTAssertFalse(ui.ribbonReaches("Rearrange", width: 400))
     }
 
     // MARK: Every control is reachable

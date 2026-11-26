@@ -42,6 +42,9 @@ final class Icon: StatelessWidget {
 final class FlatButton: StatefulWidget {
     let child: Widget
     let tip: String?
+    /// What assistive technology and the keyboard ring call it, where that is not the tooltip: an icon-only form of a titled
+    /// menu keeps its caption as its name while its tooltip says what it does.
+    let name: String?
     let checked: Bool
     let enabled: Bool
     let width: Double?
@@ -51,11 +54,12 @@ final class FlatButton: StatefulWidget {
     let action: (() -> Void)?
     let menu: [MenuFlyoutItemBase]?
 
-    init(child: Widget, tip: String? = nil, checked: Bool = false, enabled: Bool = true,
+    init(child: Widget, tip: String? = nil, name: String? = nil, checked: Bool = false, enabled: Bool = true,
          width: Double? = 28, height: Double = 28, alignLeft: Bool = false, onAccent: Bool = false,
          action: (() -> Void)? = nil, menu: [MenuFlyoutItemBase]? = nil) {
         self.child = child
         self.tip = tip
+        self.name = name
         self.checked = checked
         self.enabled = enabled
         self.width = width
@@ -88,7 +92,7 @@ private final class _FlatButtonState: State<StatefulWidget> {
         }
         stop.label = { [weak self] in
             guard let self, self.mounted else { return nil }
-            if let t = (self.widget as? FlatButton)?.tip, !t.isEmpty { return t }
+            if let b = self.widget as? FlatButton, let t = b.name ?? b.tip, !t.isEmpty { return t }
             // else the first words it shows (a big button's caption)
             var found: String?
             func walk(_ e: Element) {
@@ -155,7 +159,7 @@ private final class _FlatButtonState: State<StatefulWidget> {
         if items != nil { box = FlyoutTarget(controller: _flyout, child: box) }
         if let tip = w.tip { box = Tooltip(message: tip, child: box) }
         // Told to assistive technology: the tip is the name of an icon-only button; a text button reads its own text.
-        let say = Semantics(label: w.tip, button: true, toggled: w.checked ? true : nil, enabled: w.enabled,
+        let say = Semantics(label: w.name ?? w.tip, button: true, toggled: w.checked ? true : nil, enabled: w.enabled,
                             onTap: w.enabled ? w.action : nil, excludeSemantics: w.tip != nil, child: box)
         return w.tip == nil ? MergeSemantics(child: say) : say
     }
@@ -298,7 +302,7 @@ enum Chrome {
         guard let icon, let title else { return full }
         let compact = FlatButton(child: Padding(padding: EdgeInsets(left: 6, top: 0, right: 5, bottom: 0), child: Row(mainAxisSize: .min, crossAxisAlignment: .center, children: [
                                      Icon(icon, size: iconSize, color: fluent.resources.textFillColorPrimary), gap(4), chevron(fluent)])),
-                                 tip: tip ?? title, width: nil, menu: items)
+                                 tip: tip ?? title, name: title, width: nil, menu: items)
         return RibbonDensityButton(full: full, iconsOnly: compact)
     }
 
