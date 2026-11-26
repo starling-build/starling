@@ -618,9 +618,10 @@ final class WorkbookController: ChangeNotifier {
     /// Bold, italic, wrap… on a selection: every cell gets the opposite of
     /// the active cell's, as Excel does — not each cell flipped on its own,
     /// which turned a half-bold selection inside out.
-    func toggleStyle(_ key: WritableKeyPath<CellStyle, Bool>) {
+    @discardableResult func toggleStyle(_ key: WritableKeyPath<CellStyle, Bool>) -> Bool {
         let on = !style(at: active)[keyPath: key]
         setStyle { $0[keyPath: key] = on }
+        return on
     }
 
     /// Left, centre, right: on, or back to General when the active cell

@@ -1738,19 +1738,25 @@ public final class RichDocumentController: ChangeNotifier {
         applyCharStyle { $0.link = (url?.isEmpty ?? true) ? nil : url }
     }
 
-    public func toggleBold() {
+    /// Returns the state it set, for the keyboard's announcement.
+    @discardableResult public func toggleBold() -> Bool {
         let on = !selectionAll { $0.bold }
         applyCharStyle { $0.bold = on }
+        return on
     }
 
-    public func toggleItalic() {
+    /// Returns the state it set, for the keyboard's announcement.
+    @discardableResult public func toggleItalic() -> Bool {
         let on = !selectionAll { $0.italic }
         applyCharStyle { $0.italic = on }
+        return on
     }
 
-    public func toggleUnderline() {
+    /// Returns the state it set, for the keyboard's announcement.
+    @discardableResult public func toggleUnderline() -> Bool {
         let on = !selectionAll { $0.underline }
         applyCharStyle { $0.underline = on }
+        return on
     }
 
     public func toggleStrikethrough() {

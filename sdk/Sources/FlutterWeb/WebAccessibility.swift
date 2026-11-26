@@ -73,6 +73,7 @@ extension WebAccessibility {
     enum Flag {
         static let button = 1, textField = 2, header = 4, hasChecked = 8, checked = 16, hasToggled = 32, toggled = 64
         static let hasSelected = 128, selected = 256, disabled = 512, focused = 1024, canTap = 2048
+        static let tab = 4096
     }
 
     static func flags(_ n: SemanticsSnapshotNode) -> Int {
@@ -86,6 +87,7 @@ extension WebAccessibility {
         if n.isEnabled == false { f |= Flag.disabled }
         if n.isFocused == true { f |= Flag.focused }
         if n.canTap { f |= Flag.canTap }
+        if n.role == .tab { f |= Flag.tab }
         return f
     }
 

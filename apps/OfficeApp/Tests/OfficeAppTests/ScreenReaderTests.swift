@@ -40,6 +40,35 @@ final class ScreenReaderTests: XCTestCase {
         XCTAssertEqual(ScreenReader.recorded?.last, "Bold off")
     }
 
+    /// Ctrl+B (⌘B) says the new state too, not only the ribbon button: in Writer's text and on a Sheets cell.
+    private func chordB(_ ui: WidgetTester) {
+        func send(_ logical: Int64, _ type: KeyEventType) {
+            _ = FocusManager.instance.dispatchKeyData(KeyData(timeStamp: 0, type: type, physical: 0, logical: logical,
+                                                              character: nil, synthesized: false))
+        }
+        let main: Int64 = KeyModifiers.primary == .meta ? 0xFFE7 : 0xFFE3
+        send(main, .down); send(0x62, .down); send(0x62, .up); send(main, .up)
+        ui.pump()
+    }
+
+    func testTheBoldShortcutSaysOnThenOffInWriterAndSheets() {
+        let writer = app(OfficeShell(initialPath: nil, startBlank: true))
+        writer.pump()
+        chordB(writer)
+        XCTAssertEqual(ScreenReader.recorded?.last, "Bold on")
+        Thread.sleep(forTimeInterval: 0.3)
+        chordB(writer)
+        XCTAssertEqual(ScreenReader.recorded?.last, "Bold off")
+        writer.dispose()
+        KeyboardTraversal.shared.reset()
+        ScreenReader.recorded = []
+        let sheets = app(SheetsShell(initialPath: nil, onSwitch: { _, _ in }))
+        sheets.pump()
+        chordB(sheets)
+        XCTAssertEqual(ScreenReader.recorded?.last, "Bold on")
+        sheets.dispose()
+    }
+
     func testMovingTheSelectionInSheetsSaysTheCell() {
         let c = WorkbookController()
         c.select(CellAddress(row: 2, col: 1))
@@ -214,5 +243,23 @@ final class ScreenReaderTests: XCTestCase {
             }
             try Pptx.write(d).write(to: URL(fileURLWithPath: dir + "/slides-alt.pptx"))
         }
+    }
+
+    func testTheSheetsNameBoxAndFormulaBarHaveNames() {
+        let ui = app(SheetsShell(initialPath: nil, onSwitch: { _, _ in }))
+        ui.pump()
+        let fields = ui.semantics().filter { $0.isTextField }
+        XCTAssertTrue(fields.contains { $0.label == "Name Box" && $0.value == "A1" }, "\(fields.map { ($0.label, $0.value) })")
+        XCTAssertTrue(fields.contains { $0.label == "Formula Bar" }, "\(fields.map { ($0.label, $0.value) })")
+        ui.dispose()
+    }
+
+    func testASlideThumbnailIsReadAsSlideOneNotABareNumber() {
+        let ui = app(SlidesShell(initialPath: nil, startBlank: true, onSwitch: { _, _ in }))
+        ui.pump()
+        let nodes = ui.semantics()
+        XCTAssertTrue(nodes.contains { $0.label == "Slide 1" }, "\(nodes.prefix(40).map { $0.label })")
+        XCTAssertFalse(nodes.contains { $0.label == "1" && $0.value.isEmpty })
+        ui.dispose()
     }
 }

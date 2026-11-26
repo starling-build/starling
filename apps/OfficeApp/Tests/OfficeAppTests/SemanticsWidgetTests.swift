@@ -61,6 +61,24 @@ final class SemanticsWidgetTests: XCTestCase {
         plain.dispose()
     }
 
+    /// Ribbon tabs read as tabs ("Insert, tab, not selected"), not as plain text, and a reader's tap opens one.
+    func testRibbonTabsAreTabsWithTheOpenOneSelected() {
+        var opened: RibbonTab?
+        let t = ui(SizedBox(width: 1400, height: 200, child: Ribbon(session: OfficeSession(), tab: .home, collapsed: false,
+                                                                   onTab: { opened = $0 }, onCollapse: {})))
+        let nodes = t.semantics()
+        let home = nodes.first { $0.label == RibbonTab.home.title }
+        let insert = nodes.first { $0.label == RibbonTab.insert.title }
+        XCTAssertEqual(home?.role, .tab)
+        XCTAssertEqual(home?.isSelected, true)
+        XCTAssertEqual(insert?.role, .tab)
+        XCTAssertEqual(insert?.isSelected, false)
+        insert?.tap?()
+        XCTAssertEqual(opened, .insert)
+        XCTAssertTrue(nodes.contains { $0.label == "File" && $0.isButton }, "File is a button")
+        t.dispose()
+    }
+
     func testTextButtonReadsItsOwnText() {
         let t = ui(FlatButton(child: Text("Review"), width: nil, action: {}))
         XCTAssertTrue(t.semantics().contains { $0.label == "Review" && $0.isButton })
@@ -79,6 +97,27 @@ final class SemanticsWidgetTests: XCTestCase {
         let n = t.semantics().first { $0.isTextField }
         XCTAssertEqual(n?.label, "Address")
         XCTAssertEqual(n?.value, "abc")
+        t.dispose()
+    }
+
+    func testTextBoxTextIsReadOnceAsTheFieldNotAgainAsPlainText() {
+        for text in ["abc", ""] {
+            let c = TextEditingController(text: text)
+            let t = ui(SizedBox(width: 200, height: 32, child: FluentTextBox(controller: c, placeholderText: "Address")))
+            let spoken = t.semantics().filter { $0.label == "Address" || $0.label == "abc" || $0.value == "abc" }
+            XCTAssertEqual(spoken.count, 1, "text \"\(text)\": \(spoken.map { ($0.label, $0.value, $0.isTextField) })")
+            XCTAssertEqual(spoken.first?.isTextField, true)
+            t.dispose()
+        }
+    }
+
+    func testAComboBoxIsReadByItsNameWithTheChoiceAsItsValue() {
+        let t = ui(SizedBox(width: 140, height: 32, child: ComboBox<String>(
+            value: "Calibri", items: ["Arial", "Calibri"].map { ComboBoxItem<String>(value: $0, child: Text($0)) },
+            onChanged: { _ in }, semanticLabel: "Font")))
+        let nodes = t.semantics()
+        XCTAssertTrue(nodes.contains { $0.label == "Font" && $0.value == "Calibri" && $0.isButton }, "\(nodes.map { ($0.label, $0.value) })")
+        XCTAssertFalse(nodes.contains { $0.label == "Calibri" })
         t.dispose()
     }
 }

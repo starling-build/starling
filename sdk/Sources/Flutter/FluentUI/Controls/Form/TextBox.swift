@@ -31,6 +31,8 @@ public class FluentTextBox: StatefulWidget {
     /// The placeholder text displayed when the text field is empty and no
     /// placeholder widget is provided.
     public let placeholderText: String?
+    /// What a screen reader calls the field when it has no placeholder text to read ("Name Box").
+    public let semanticLabel: String?
 
     /// Called when the text changes.
     public let onChanged: ((String) -> Void)?
@@ -115,6 +117,7 @@ public class FluentTextBox: StatefulWidget {
         controller: TextEditingController? = nil,
         placeholder: Widget? = nil,
         placeholderText: String? = nil,
+        semanticLabel: String? = nil,
         onChanged: ((String) -> Void)? = nil,
         onSubmitted: ((String) -> Void)? = nil,
         maxLines: Int = 1,
@@ -137,6 +140,7 @@ public class FluentTextBox: StatefulWidget {
         self.controller = controller
         self.placeholder = placeholder
         self.placeholderText = placeholderText
+        self.semanticLabel = semanticLabel
         self.onChanged = onChanged
         self.onSubmitted = onSubmitted
         self.maxLines = maxLines
@@ -550,7 +554,7 @@ class _TextBoxState: State<StatefulWidget>, TextInputClient {
 
     override func build(_ context: any BuildContext) -> Widget {
         Semantics(
-            label: textBox.placeholderText, value: textBox.obscureText ? nil : _effectiveController.text,
+            label: textBox.semanticLabel ?? textBox.placeholderText, value: textBox.obscureText ? nil : _effectiveController.text,
             textField: true, enabled: textBox.enabled, focused: _isFocused,
             textSelection: textBox.obscureText ? nil : _effectiveController.selection,
             // A screen reader types and moves the caret through the same controller the keyboard does.
@@ -722,7 +726,10 @@ class _TextBoxState: State<StatefulWidget>, TextInputClient {
             rowChildren.append(prefix)
             rowChildren.append(SizedBox(width: 8))
         }
-        rowChildren.append(Expanded(child: textContent))
+        // The field's own node already speaks its value and placeholder text; the drawn copy would be read a second
+        // time as plain text. A custom placeholder widget stays readable: the field has no words of its own for it.
+        let spokenByField = !(showPlaceholder && textBox.placeholder != nil)
+        rowChildren.append(Expanded(child: ExcludeSemantics(excluding: spokenByField, child: textContent)))
         if let suffix = textBox.suffix {
             rowChildren.append(SizedBox(width: 8))
             rowChildren.append(suffix)

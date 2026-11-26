@@ -10,6 +10,8 @@ public struct SemanticsSnapshotNode {
     public var isButton: Bool
     public var isTextField: Bool
     public var isHeader: Bool
+    /// The node's role when it says one (`.tab` for a tab).
+    public var role: SemanticsRole = .none
     public var isChecked: Bool?
     public var isToggled: Bool?
     public var isSelected: Bool?
@@ -72,6 +74,7 @@ public enum SemanticsSnapshot {
                 if tap == nil { tap = cfg.onTap }
                 if cfg.isButton { merged.isButton = true }
                 if cfg.isTextField { merged.isTextField = true }
+                if merged.role == .none { merged.role = cfg.role }
                 if merged.isFocused == nil { merged.isFocused = cfg.isFocused }
                 if merged.isEnabled == nil { merged.isEnabled = cfg.isEnabled }
                 if merged.isSelected == nil { merged.isSelected = cfg.isSelected }
@@ -95,7 +98,7 @@ public enum SemanticsSnapshot {
         }
         return SemanticsSnapshotNode(
             label: label, hint: c.hint, value: c.value, isButton: c.isButton, isTextField: c.isTextField,
-            isHeader: c.isHeader, isChecked: c.isChecked, isToggled: c.isToggled, isSelected: c.isSelected,
+            isHeader: c.isHeader, role: c.role, isChecked: c.isChecked, isToggled: c.isToggled, isSelected: c.isSelected,
             isEnabled: c.isEnabled, isFocused: c.isFocused, selection: c.textSelection.map { (Int($0.baseOffset), Int($0.extentOffset)) },
             canTap: t != nil, tap: t, frame: frame,
             setSelection: c.onSetSelection, replaceRange: c.onReplaceRange)

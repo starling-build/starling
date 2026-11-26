@@ -249,16 +249,24 @@ class _ComboBoxState<T: Equatable>: State<StatefulWidget> {
             )
         )
 
-        return FlyoutTarget(
-            controller: _flyoutController,
-            child: HoverButton(
-                builder: { context, states in
-                    buttonContent
-                },
-                onPressed: isDisabled ? nil : { [self] in _openPopup() },
-                semanticLabel: comboBox.semanticLabel
-            )
+        let button = HoverButton(
+            builder: { context, states in
+                buttonContent
+            },
+            onPressed: isDisabled ? nil : { [self] in _openPopup() },
+            semanticLabel: comboBox.semanticLabel
         )
+        // A named box reads as its name with the shown choice as its value ("Font, Calibri"), not as the bare
+        // choice. Only when the shown choice is plain text: anything else stays readable in place.
+        let shown = ((selectedChild ?? comboBox.placeholder) as? Text)?.data
+        let named: Widget
+        if let label = comboBox.semanticLabel, let shown {
+            named = Semantics(label: label, value: shown, button: true, enabled: !isDisabled,
+                              onTap: isDisabled ? nil : { [self] in _openPopup() }, excludeSemantics: true, child: button)
+        } else {
+            named = button
+        }
+        return FlyoutTarget(controller: _flyoutController, child: named)
     }
 }
 

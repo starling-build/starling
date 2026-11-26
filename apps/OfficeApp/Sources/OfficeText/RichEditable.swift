@@ -573,9 +573,10 @@ public final class RichEditableState: State<StatefulWidget> {
                 case "v": if shift { return false } else { _paste() }   // (⇧⌘V is the Format Painter's paste, handled by the shell; plain paste is ⌥⌘V: W-P0-5)
                 case "z": if shift { c.redo() } else { c.undo() }
                 case "y": c.redo()
-                case "b": c.toggleBold()
-                case "i": c.toggleItalic()
-                case "u": c.toggleUnderline()
+                // A button click announces through its own action; a shortcut says the new state here.
+                case "b": ScreenReader.announce("Bold \(c.toggleBold() ? "on" : "off")")
+                case "i": ScreenReader.announce("Italic \(c.toggleItalic() ? "on" : "off")")
+                case "u": ScreenReader.announce("Underline \(c.toggleUnderline() ? "on" : "off")")
                 default: return false
                 }
             } else if let text = _chords.typedText(keyData) {

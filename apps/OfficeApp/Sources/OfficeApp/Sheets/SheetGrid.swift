@@ -1489,9 +1489,9 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 c.select(range: CellRange(top: 0, left: 0, bottom: CellAddress.maxRows - 1, right: CellAddress.maxCols - 1),
                          active: c.active)
                 return true
-            case "b" where edit == nil: c.toggleStyle(\.bold); return true
-            case "i" where edit == nil: c.toggleStyle(\.italic); return true
-            case "u" where edit == nil: c.toggleStyle(\.underline); return true
+            case "b" where edit == nil: ScreenReader.announce("Bold \(c.toggleStyle(\.bold) ? "on" : "off")"); return true
+            case "i" where edit == nil: ScreenReader.announce("Italic \(c.toggleStyle(\.italic) ? "on" : "off")"); return true
+            case "u" where edit == nil: ScreenReader.announce("Underline \(c.toggleStyle(\.underline) ? "on" : "off")"); return true
             case "c" where edit == nil: copySelection(cut: false); return true
             case "x" where edit == nil: copySelection(cut: true); return true
             case "d" where edit == nil: c.fillDown(); return true

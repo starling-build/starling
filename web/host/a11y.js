@@ -11,7 +11,7 @@
 
 // The same bits as WebAccessibility.Flag.
 const BUTTON = 1, TEXT_FIELD = 2, HEADER = 4, HAS_CHECKED = 8, CHECKED = 16, HAS_TOGGLED = 32, TOGGLED = 64;
-const HAS_SELECTED = 128, SELECTED = 256, DISABLED = 512, FOCUSED = 1024, CAN_TAP = 2048;
+const HAS_SELECTED = 128, SELECTED = 256, DISABLED = 512, FOCUSED = 1024, CAN_TAP = 2048, TAB = 4096;
 
 const KEY = 'starling-a11y';
 const HIDDEN = 'position:absolute;width:1px;height:1px;margin:-1px;padding:0;border:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;';
@@ -20,6 +20,7 @@ const HIDDEN = 'position:absolute;width:1px;height:1px;margin:-1px;padding:0;bor
 export function describe(flags) {
   const a = {};
   if (flags & TEXT_FIELD) { a.role = 'textbox'; a['aria-multiline'] = 'true'; }
+  else if (flags & TAB) { a.role = 'tab'; a['aria-selected'] = String(!!(flags & SELECTED)); }
   else if (flags & HAS_TOGGLED) { a.role = 'switch'; a['aria-checked'] = String(!!(flags & TOGGLED)); }
   else if (flags & HAS_CHECKED) { a.role = 'checkbox'; a['aria-checked'] = String(!!(flags & CHECKED)); }
   else if (flags & (BUTTON | CAN_TAP)) {
@@ -32,7 +33,14 @@ export function describe(flags) {
   return a;
 }
 
-const ATTRS = ['role', 'aria-multiline', 'aria-checked', 'aria-pressed', 'aria-level', 'aria-disabled'];
+/// The accessible name of one node (exported for tests). A reader speaks only the name of a named button, so a
+/// control's value joins it ("Font, Calibri"); a text field's value is its content and stays out of the name.
+export function spokenName(flags, name, value) {
+  if (!name || !value || value === name || (flags & TEXT_FIELD)) return name;
+  return `${name}, ${value}`;
+}
+
+const ATTRS = ['role', 'aria-multiline', 'aria-checked', 'aria-pressed', 'aria-selected', 'aria-level', 'aria-disabled'];
 
 export function createA11y({ canvas, ime, swift }) {
   const layer = document.createElement('div');
@@ -100,7 +108,8 @@ export function createA11y({ canvas, ime, swift }) {
         if (a[attr] === undefined) { if (el.hasAttribute(attr)) el.removeAttribute(attr); }
         else if (el.getAttribute(attr) !== a[attr]) el.setAttribute(attr, a[attr]);
       }
-      if (name) { if (el.getAttribute('aria-label') !== name) el.setAttribute('aria-label', name); }
+      const spoken = spokenName(flags, name, value);
+      if (spoken) { if (el.getAttribute('aria-label') !== spoken) el.setAttribute('aria-label', spoken); }
       else if (el.hasAttribute('aria-label')) el.removeAttribute('aria-label');
       if (hint) { if (el.getAttribute('aria-description') !== hint) el.setAttribute('aria-description', hint); }
       else if (el.hasAttribute('aria-description')) el.removeAttribute('aria-description');
