@@ -457,6 +457,19 @@ final class ShapeInsertTests: XCTestCase {
 }
 
 final class ShapeSelectTests: XCTestCase {
+    /// Lays out with the faces this app ships, loaded here, and those only: a machine's own faces (a Mac's Times) or what
+    /// an earlier test left loaded must not move the lines these tests measure. Gives back the undo.
+    static func pinBundledFonts() -> () -> Void {
+        _ = OfficeFonts.register()
+        let env = ProcessInfo.processInfo.environment["OFFICE_FONT_SOURCE"]
+        setenv("OFFICE_FONT_SOURCE", "bundled", 1)
+        OfficeFonts.fontSourceChanged()
+        return {
+            if let env { setenv("OFFICE_FONT_SOURCE", env, 1) } else { unsetenv("OFFICE_FONT_SOURCE") }
+            OfficeFonts.fontSourceChanged()
+        }
+    }
+
     func testSelectedShapeMovesAndDeletes() throws {
         let c = RichDocumentController(document: RichDocument(paragraphs: [RichParagraph(text: "before"), RichParagraph(text: "after")]))
         c.pendingShape = { x, y, w, h in TextBoxInsert.makeShape(preset: "rect", width: w, height: h, number: 1, page: (x, y)) }
@@ -627,6 +640,8 @@ final class ShapeSelectTests: XCTestCase {
         let was = RichTextTheme.wordWindowsPages
         RichTextTheme.wordWindowsPages = true
         defer { RichTextTheme.wordWindowsPages = was }
+        let unpin = Self.pinBundledFonts()
+        defer { unpin() }
         let c = RichDocumentController(document: RichDocument(paragraphs: [RichParagraph(text: String(repeating: "Body text of the page, long enough to flow past the shape. ", count: 60))]))
         c.pendingShape = { x, y, w, h in TextBoxInsert.makeShape(preset: "ellipse", width: w, height: h, number: 1, page: (x, y)) }
         XCTAssertTrue(c.placePendingShape(x: 200, y: 200, width: 100, height: 70, at: RichPosition(paragraph: 0, offset: 0)))
@@ -667,6 +682,8 @@ final class ShapeSelectTests: XCTestCase {
         let was = RichTextTheme.wordWindowsPages
         RichTextTheme.wordWindowsPages = true
         defer { RichTextTheme.wordWindowsPages = was }
+        let unpin = Self.pinBundledFonts()
+        defer { unpin() }
         /// Lays the page out with the fourth shape wrapped `last`; the caret rows by row top (column points) and the foot of the text.
         func lay(_ last: PictureWrap) throws -> (rows: [Double: [Double]], foot: Double) {
             let c = RichDocumentController(document: RichDocument(paragraphs: [RichParagraph(text: String(repeating: "Body text of the page, long enough to flow past every one of the four shapes so the wrap of each can be seen acting on it. ", count: 14))]))
