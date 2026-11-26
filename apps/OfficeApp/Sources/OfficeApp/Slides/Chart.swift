@@ -3621,10 +3621,13 @@ enum ChartPainter {
             // (A `cx:` chart's row on a slide: keys 7.08 pt square at 9 pt, 3.7 before the name and 7.2 from a name to the next key,
             // centred on the line: lab cx-legend and bw-spacing in PowerPoint's print, every legend page.)
             let cxRow = printed && c.chartex && !c.onSheet && box == nil && (c.legendPosition == "b" || c.legendPosition == "t")
-            let key = cxRow ? 9.44 * k * m : pieKeyLine > 0 ? 0.449 * pieKeyLine : wideKeys ? 19.2 * k : libreLegend ? 6.12 * k * m : bareLegend ? 3.7 * k * m : wordRowKeys ? 6.53 * k * m : sheetRow ? 6 * k * m : (c.onSlide ? 6.57 : 7) * k * m, gap = cxRow ? 4.93 * k * m : pieKeyLine > 0 ? 0.2 * pieKeyLine : libreLegend ? 2.64 * k * m : bareLegend ? 4.5 * k * m : wordRowKeys ? 2.93 * k * m : sheetRow ? 2.67 * k * m : (c.onSlide ? 2.92 : 4) * k * m
+            let cxm = c.onSlide ? 0.75 : m
+            let key = cxRow ? 9.44 * k * cxm : pieKeyLine > 0 ? 0.449 * pieKeyLine : wideKeys ? 19.2 * k : libreLegend ? 6.12 * k * m : bareLegend ? 3.7 * k * m : wordRowKeys ? 6.53 * k * m : sheetRow ? 6 * k * m : (c.onSlide ? 6.57 : 7) * k * m, gap = cxRow ? 4.93 * k * cxm : pieKeyLine > 0 ? 0.2 * pieKeyLine : libreLegend ? 2.64 * k * m : bareLegend ? 4.5 * k * m : wordRowKeys ? 2.93 * k * m : sheetRow ? 2.67 * k * m : (c.onSlide ? 2.92 : 4) * k * m
             var spacing = (printed ? (c.styled2013 ? 11.2 : bareLegend ? 11.8 : 13.9) : c.styled2013 ? 9.5 : 12) * k * m + (wideKeys ? (c.onSheet ? 5.1 : 1.3) * k : 0)
             if sheetRow { spacing = 4.93 * k * m }
-            if cxRow { spacing = 9.6 * k * m }
+            // (On a slide a cx: row's key, its gap and the space between entries keep their 9 pt size whatever the text's: lab
+            // cx-legsize, 7 to 20 pt in PowerPoint's print, key 7.08, name 3.7 after it, next key 7.27 after the name.)
+            if cxRow { spacing = 9.6 * k * cxm }
             // (Names in Latin letters only stand 1.4 pt further apart at 9 pt than CJK ones do: chartex's and 61745's "Series 1" pitch 44.05 against 42.65.)
             if wordRowKeys, names.allSatisfy({ $0.unicodeScalars.allSatisfy { $0.isASCII } }) { spacing += 1.87 * k * m }
             let keyDrop = printed && c.styled2013 && !cxRow ? 1.3 * k * m : 0
@@ -3796,7 +3799,10 @@ enum ChartPainter {
             // 5.3 pt closer than a row's of one: lo-f9b9a8fc's "datalabel1…8", four to a row.)
             var wordPieRows = pie && !beside && box == nil && !c.onSlide && !c.onSheet && lines.count > 1
             if wordPieRows { RuleTrace.hit("word-pie-foot-legend-rows-of-two-are-spaced-wider-apart-than-the-line"); spacing -= 5.3 * k }
-            let lineH = slideGridW != nil ? textH + 6 * k : beside ? (c.onSheet && box == nil ? 1.2213 * size * k + 5.88 : textH + (libreLegend && box == nil ? 5.57 : 6) * k) : textH
+            // (A cx: row on a slide is 1.2 of its size high, never under 14.16 pt, its key and names centred in it: lab cx-legsize
+            // in PowerPoint's print, the plot's foot the same at 7 and 9 pt, 0.24 higher at 12, 4.8 more for each 4 pt above.)
+            let cxRowH = cxRow && c.onSlide ? max(1.2 * size, 14.16) * k : nil
+            let lineH = cxRowH ?? (slideGridW != nil ? textH + 6 * k : beside ? (c.onSheet && box == nil ? 1.2213 * size * k + 5.88 : textH + (libreLegend && box == nil ? 5.57 : 6) * k) : textH)
             // (Each line as tall as its tallest name, a wrapped one too.)
             var droppedLegend: [(i: Int, tp: TextPainter)] = []
             // (A column too tall for the chart drops its last entries: the lab legend's 12 and 20 entries
@@ -3833,6 +3839,7 @@ enum ChartPainter {
             let slotH = slideSidePie ? (entries.map { $0.tp.height }.max() ?? 0) : 0
             var lineHs = lines.map { line in
                 let tall = line.map { $0.tp.height }.max() ?? 0
+                if let h = cxRowH { return h }
                 if slideSidePie, slotH > 1.5 * textH { return slotH + 5.8 * k }
                 return wordSidePie && tall > 1.5 * textH ? tall + 5.8 * k : max(lineH, tall)
             }
@@ -4008,8 +4015,10 @@ enum ChartPainter {
                 // (On a slide the row 1.71 pt higher than on a sheet, 23 under the title's baseline, and the plot 2.25 further off it:
                 // lab cx-legend's two top legends and chartex-lab2's waterfall in PowerPoint's print, baseline 102.19, plot 120.8.)
                 let slideCx = c.onSlide && !c.onSheet ? sheetCx : 0
-                y = area.top + (titled ? 4.3 * k : 0) + 3.71 * sheetCx - 1.28 * slideCx
-                area = Rect.fromLTRB(area.left, y + lineH * Double(lines.count) + 6 * k + (c.onSlide ? 0.67 : 6.37) * sheetCx + 1.69 * slideCx, area.right, area.bottom)
+                // (A cx: row 14.16 high rather than its 9 pt line's 10.99 starts half the difference higher, its middle where it was.)
+                let rowLift = cxRowH != nil ? 1.587 * k : 0
+                y = area.top + (titled ? 4.3 * k : 0) + 3.71 * sheetCx - 1.28 * slideCx - rowLift
+                area = Rect.fromLTRB(area.left, y + lineH * Double(lines.count) + 6 * k + (c.onSlide ? 0.67 : 6.37) * sheetCx + 1.69 * slideCx - rowLift, area.right, area.bottom)
             } else {
                 // (A 2007-style chart's on a slide 8.2 pt off the frame's
                 // foot, not 6.5, and its plot 9.55 above it: cooper's two
@@ -4023,12 +4032,12 @@ enum ChartPainter {
                 // ends 9.45 above it, the row taking 28.8 pt from the plot: lab cx-legend in PowerPoint's print, frames 200 to 450 pt
                 // high alike; bw-spacing's and chartex-lab2's waterfall legends.)
                 let cxFoot = c.chartex && c.onSlide && !c.onSheet
-                if cxFoot { y -= 7.15 * k }
+                if cxFoot { y -= (cxRowH != nil ? 5.563 : 7.15) * k }
                 // (A Word pie's legend takes no more room from it past seven rows: lab piesize3's eight
                 // 40-character entries leave it as seven do, R 16.80 and centre 128.71 in both.)
                 let roomRows = c.type == .pie && box == nil && !c.onSlide && !c.onSheet ? min(lines.count, 7) : lines.count
                 let yRoom = y + lineH * Double(lines.count - roomRows) + (textH - latinH) * Double(lines.count)
-                area = Rect.fromLTRB(area.left, area.top, area.right, yRoom - (printed && old ? 9.55 : cxFoot ? 9.45 : 8.4) * k - 2.23 * pt)
+                area = Rect.fromLTRB(area.left, area.top, area.right, yRoom - (printed && old ? 9.55 : cxFoot ? (cxRowH != nil ? 7.863 : 9.45) : 8.4) * k - 2.23 * pt)
                 if bareLegend { y += 1.2 * k }
                 // (A grid's last row has no 6 pt gap under it: 0338b5a8 p5's rows stand 6 pt lower in PowerPoint's print.)
                 if slideGridW != nil { y += 6 * k }
@@ -4039,7 +4048,7 @@ enum ChartPainter {
             // (The plot keeps the room it had; only the rows are drawn further apart, the first 5.9 higher.)
             if wordPieRows { lineHs = lineHs.map { $0 + 5.9 * k }; y -= 5.9 * k * Double(lines.count - 1) }
             // (Word's row of 2007-style keys stands 1.9 pt right of the middle at 9 pt, as a slide's does 2.28 m: zh-b8de3ae2 p9/12/15/18, chartex, 61745.)
-            let middle = printed ? r.center.dx + 2.28 * k * m : wordRowKeys ? area.center.dx + 2.5 * k * m : area.center.dx
+            let middle = cxRow ? r.center.dx + 2.28 * k * cxm : printed ? r.center.dx + 2.28 * k * m : wordRowKeys ? area.center.dx + 2.5 * k * m : area.center.dx
             // (A column of entries in a box of the legend's own on a slide stands left-aligned, the widest entry's width centred on
             // the box's middle and 0.19 of the size to its right: 5864 slide 16's five 16 pt entries in PowerPoint's print, all
             // text at 282.6 pt where ours centred each entry on its own.)
