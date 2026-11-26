@@ -86,8 +86,11 @@ enum OfficeFonts {
         let n = family.trimmingWhitespace().lowercased()
         #if os(WASI)
         // The browser has no system faces: a Chinese face by any name is
-        // the one shipped (Noto Sans SC, fetched when first asked for).
-        if wordsOwn.contains(n) || family.unicodeScalars.contains(where: { $0.value >= 0x2E80 }) { return "Noto Sans SC" }
+        // the one shipped (Noto Sans SC, fetched when first asked for) —
+        // except a Song, Ming or Mincho name, which takes the face native
+        // gives it, with its ideographs in the serif `serifIdeographs` names.
+        if wordsOwn.contains(n) || family.unicodeScalars.contains(where: { $0.value >= 0x2E80 }),
+           serifIdeographs(family, eastAsianFace(family)) == nil { return "Noto Sans SC" }
         #endif
         if let alt = macTableAlternate(family) { return substitute(alt) }
         // (A Helvetica-named face Windows lacks (Helvetica LT Std) in a document with no font table: Word for Windows prints it
@@ -4300,7 +4303,11 @@ enum OfficeFonts {
     /// print draws PMingLiU's ideographs and marks that much lower than the stand-in's outlines on the
     /// same baseline, 0.062-0.076 em at 9 to 32 pt in seven documents. Advances, metrics and the PDF's
     /// text layer are the stand-in's own. An engine without the prefix draws the face unmoved.
+    #if os(WASI)
+    static let pmingliuInkFamily = "Noto Serif CJK TC"  // (the browser renderer has no "Ink+" faces: the same outlines, ink not lowered)
+    #else
     static let pmingliuInkFamily = "Ink+0.07 Noto Serif CJK TC"
+    #endif
     /// LXGW WenKai TC (OFL): the brush hand a Kai name (標楷體, DFKai-SB, 楷体, KaiTi) draws its ideographs in
     /// (Resources/fonts/README.md). Its widths are not used: the name's measured metrics are.
     static let kaiFamily = "LXGW WenKai TC"
@@ -4319,7 +4326,7 @@ enum OfficeFonts {
     private static func serifIdeographs(_ family: String, _ ea: EastAsianFace) -> String? {
         #if os(macOS)
         return wordMacIdeographs(family, ea)
-        #elseif os(Linux)
+        #elseif os(Linux) || os(WASI)
         guard abs(ea.height - square.height) < 0.01 else { return nil }
         let n = family.trimmingWhitespace().lowercased()
         func has(_ keys: String...) -> Bool { keys.contains { faceHas(n, $0) } }
