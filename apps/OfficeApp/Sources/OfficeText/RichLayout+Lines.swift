@@ -1110,6 +1110,18 @@ extension RichLayout {
                     candidates[n] = (moved, c.size)
                 }
             }
+            // (A square or tight float placed from its character: from the column, at that character's place; one from its line, from the
+            // paragraph, that line's top down. See `_charAnchor`.)
+            if theme.wordRules, p.cell == nil, q.cell == nil {
+                for (n, c) in candidates.enumerated() {
+                    guard let f = c.image.float, Self._wrapsFromCharacter(f), let at = _charAnchor(k, q, c.image, document, textWidth: _flowWidth(k)) else { continue }
+                    var moved = c.image
+                    moved.float?.horizontalFrom = "column"; moved.float?.x += at.x / _px(1)
+                    if f.verticalFrom == "line" { moved.float?.verticalFrom = "paragraph"; moved.float?.y += at.y / _px(1) }
+                    candidates[n] = (moved, c.size)
+                    RuleTrace.hit("word-square-float-from-its-character-wraps-the-text")
+                }
+            }
             for (image, laid) in candidates {
                     // (A header's square picture placed from the margin does not narrow the lines of the header paragraphs beside it, its own or the next: Word's
                 // print of lab hdrsq sets the centred first line over the full text width beside it, even where it would fit clear of
@@ -2517,5 +2529,55 @@ extension RichLayout {
             }
         }
         return nil
+    }
+}
+
+extension RichLayout {
+    /// Where the character a square or tight float is placed from stands (`wp:positionH relativeFrom="character"`), from the left of the
+    /// paragraph's text column, and the top of its line (`relativeFrom="line"`) from the paragraph's top: the paragraph set at the
+    /// column's width with no float beside it, as Word places the shape before it wraps the text round it. Lab inline/inline-switch: a
+    /// rectangle switched from In Line to Square after "before " stands at x 101.7, its line's top, and the line "before after" goes on
+    /// at its right (182.8) in Word's print; ours set it at the paragraph's left with the text across it.
+    static func _wrapsFromCharacter(_ f: ImageFloat) -> Bool {
+        f.horizontalFrom == "character" && f.horizontalAlign == nil && f.wraps && !f.takesRoom && f.verticalAlign == nil
+            && (f.verticalFrom == "line" || f.verticalFrom == "paragraph")
+    }
+
+    func _charAnchor(_ k: Int, _ q: RichParagraph, _ image: ImageAttachment, _ document: RichDocument, textWidth: Double) -> (x: Double, y: Double)? {
+        let key = "\(k)|\(image.id)|\(q.text.hashValue)|\(textWidth)"
+        if let hit = _charAnchors[key] { return hit }
+        let indent = _px(q.style.indentLeft), first = _px(firstLineIndent(q, at: k, document))
+        let width = textWidth - indent - _px(q.style.indentRight)
+        guard width > 0 else { return nil }
+        let (span, inline, _) = _span(for: q, at: nil, document, textWidth: width)
+        guard let n = inline.firstIndex(where: { $0.image?.id == image.id }) else { return nil }
+        let painter = TextPainter(text: span, textAlign: .left, textDirection: .ltr, strutStyle: _strut(span))
+        painter.fractionalLineHeights = theme.wordRules
+        painter.layout(maxWidth: width)
+        defer { painter.dispose() }
+        guard let boxes = painter.inlinePlaceholderBoxes, n < boxes.count else { return nil }
+        let box = boxes[n]
+        let mid = (box.top + box.bottom) / 2
+        let lines = painter.computeLineMetrics()
+        func lineAt(_ y: Double) -> LineMetrics? { lines.last(where: { $0.baseline - $0.ascent <= y + 0.01 }) }
+        let line = lineAt(mid)
+        let top = line.map { $0.baseline - $0.ascent } ?? 0
+        // (From the left of the character before the anchor, where that stands on the anchor's line: lab charanchor, Word's rectangle
+        // after "before " stands at the end of "before" (101.7), after "before" with no space at the end of "befor" (96.25), at the
+        // paragraph's start with nothing before it (72).)
+        var left = box.left
+        let units = Array(painter.plainText.utf16)
+        var seen = -1, at: Int? = nil
+        for (u, c) in units.enumerated() where c == 0xFFFC { seen += 1; if seen == n { at = u; break } }
+        if let at, at > 0 {
+            let from = at - ((0xDC00 ... 0xDFFF).contains(units[at - 1]) && at >= 2 ? 2 : 1)
+            if let before = painter.getBoxesForSelection(TextSelection(baseOffset: from, extentOffset: at)).first,
+               lineAt((before.top + before.bottom) / 2)?.lineNumber == line?.lineNumber {
+                left = before.left
+            }
+        }
+        let hit = (x: indent + ((line?.lineNumber ?? 0) == 0 ? first : 0) + left, y: top)
+        _charAnchors[key] = hit
+        return hit
     }
 }

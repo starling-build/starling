@@ -254,6 +254,8 @@ extension _ParaFrame {
     func _indicFirstLineAscent(_ a0: RichParagraph, painter a1: TextPainter, lead a2: Int, named a3: RichNamedStyle?, document a4: RichDocument, target a5: Double, style a6: RichParagraphStyle, pitch a7: Double?, lift a8: inout Double) -> Double? { rl._indicFirstLineAscent(a0, painter: a1, lead: a2, named: a3, document: a4, target: a5, style: a6, pitch: a7, lift: &a8) }
     var _inkShift: [Double] { get { rl._inkShift } set { rl._inkShift = newValue } _modify { yield &rl._inkShift } }
     var _inline: [[ImageAttachment]] { get { rl._inline } set { rl._inline = newValue } _modify { yield &rl._inline } }
+    var _charAnchorAt: [String: (x: Double, y: Double)] { get { rl._charAnchorAt } set { rl._charAnchorAt = newValue } _modify { yield &rl._charAnchorAt } }
+    func _charAnchor(_ a0: Int, _ a1: RichParagraph, _ a2: ImageAttachment, _ a3: RichDocument, textWidth: Double) -> (x: Double, y: Double)? { rl._charAnchor(a0, a1, a2, a3, textWidth: textWidth) }
     var _inlineBoxes: [[Int]] { get { rl._inlineBoxes } set { rl._inlineBoxes = newValue } _modify { yield &rl._inlineBoxes } }
     func _inlinePictureOnly(_ a0: Int, _ a1: RichDocument) -> Bool { rl._inlinePictureOnly(a0, a1) }
     var _inserts: [[Int]] { get { rl._inserts } set { rl._inserts = newValue } _modify { yield &rl._inserts } }

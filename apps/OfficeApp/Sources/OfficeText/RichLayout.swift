@@ -2245,6 +2245,8 @@ public final class RichLayout {
     var _spaceWidths: [String: Double] = [:]
     var _glyphCounts: [String: Int] = [:]
     var _wordWidths: [String: Double] = [:]
+    var _charAnchors: [String: (x: Double, y: Double)] = [:]
+    var _charAnchorAt: [String: (x: Double, y: Double)] = [:]
     var _clearedPainters: [ObjectIdentifier: [Int: (source: TextPainter, cleared: TextPainter)]] = [:]
     var _widePainters: [ObjectIdentifier: (source: TextPainter, wide: TextPainter)] = [:]
 
