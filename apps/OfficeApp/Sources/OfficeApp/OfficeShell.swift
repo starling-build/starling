@@ -1804,8 +1804,8 @@ final class OfficeShellState: State<StatefulWidget> {
                                        onOK: { [weak self] t in self?.controller.setTextBoxText(at: i, inline: inline, t); close() },
                                        onCancel: close)
                 : kind == .altText
-                ? PictureAltTextDialog(initial: image?.altText ?? "",
-                                onOK: { [weak self] t in self?.controller.setImageAltText(at: i, inline: inline, t); close() },
+                ? AltTextDialog(initial: image?.altText ?? "", title: image?.altTitle ?? "",
+                                onApply: { [weak self] t, head in self?.controller.setImageAltText(at: i, inline: inline, t, title: head); close() },
                                 onCancel: close)
                 : CropDialog(initial: image?.crop,
                              onOK: { [weak self] c in _ = self?.controller.setImageCrop(at: i, inline: inline, c); close() },

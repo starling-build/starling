@@ -524,6 +524,49 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(cleared.paragraphs[0].inlineImages.values.first?.altText, "")
     }
 
+    /// The alt text's title (`wp:docPr title`) is read, kept untouched when unchanged, rewritten on a kept drawing when
+    /// set or cleared (descr kept), undoes, and is written on a new picture.
+    func testAltTextTitleOfAPictureRoundTripsOnKeptAndNewPictures() throws {
+        let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")!
+        var p = RichParagraph(text: "x" + RichParagraph.inlineImageCharacter + "y")
+        var image = ImageAttachment(data: png, width: 120, height: 90)
+        image.altText = "Desc"
+        image.altTitle = "New & title"
+        p.inlineImages[image.id] = image
+        p.applyStyle(1 ..< 2) { $0.inlineImage = image.id }
+        // A new picture writes the title.
+        let fresh = try DocxFormat.read(try DocxFormat.write(RichDocument(paragraphs: [p]), pageSetup: .letter)).document
+        XCTAssertEqual(fresh.paragraphs[0].inlineImages.values.first?.altTitle, "New & title")
+        XCTAssertEqual(fresh.paragraphs[0].inlineImages.values.first?.altText, "Desc")
+        // A file's drawing with descr and title.
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [p]), pageSetup: .letter))
+        let di = try XCTUnwrap(entries.firstIndex { $0.name == "word/document.xml" })
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        xml = xml.replacingAll(" title=\"New &amp; title\"", with: " title=\"Old\"")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let c = RichDocumentController(document: try DocxFormat.read(try Zip.write(entries)).document)
+        let id = try XCTUnwrap(c.inlineImageOffsets(in: 0).first?.id)
+        XCTAssertEqual(c.document.paragraphs[0].inlineImages[id]?.altTitle, "Old")
+        // Changing only the title rewrites it and keeps descr.
+        c.setImageAltText(at: 0, inline: id, "Desc", title: "Map \"A\"")
+        let saved = try DocxFormat.write(c.document, pageSetup: .letter)
+        if let dir = ProcessInfo.processInfo.environment["ALT_LAB_DIR"] {
+            try saved.write(to: URL(fileURLWithPath: dir + "/writer-alt.docx"))
+        }
+        let back = try DocxFormat.read(saved).document
+        XCTAssertEqual(back.paragraphs[0].inlineImages.values.first?.altTitle, "Map \"A\"")
+        XCTAssertEqual(back.paragraphs[0].inlineImages.values.first?.altText, "Desc")
+        c.undo()
+        XCTAssertEqual(c.document.paragraphs[0].inlineImages[id]?.altTitle, "Old")
+        // A nil title leaves it as it was; an empty one clears it.
+        c.setImageAltText(at: 0, inline: id, "Other")
+        XCTAssertEqual(c.document.paragraphs[0].inlineImages[id]?.altTitle, "Old")
+        c.setImageAltText(at: 0, inline: id, "Other", title: "")
+        let cleared = try DocxFormat.read(try DocxFormat.write(c.document, pageSetup: .letter)).document
+        XCTAssertEqual(cleared.paragraphs[0].inlineImages.values.first?.altTitle, "")
+        XCTAssertEqual(cleared.paragraphs[0].inlineImages.values.first?.altText, "Other")
+    }
+
     /// W-OB-1: Change Picture swaps the pixels of a picture in its own paragraph, keeps its width and alt text, follows the new
     /// picture's shape, undoes in one step, and the saved file holds the new pixels and the paragraphs around it.
     func testChangingAPictureKeepsItsWidthAndAltTextAndSavesTheNewPixels() throws {

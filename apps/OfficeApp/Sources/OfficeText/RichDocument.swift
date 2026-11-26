@@ -1250,6 +1250,9 @@ public struct ImageAttachment: Hashable, Codable, Sendable {
     public var sourceRotation: Double = 0
     public var altText: String = ""
     public var sourceAltText: String = ""
+    /// The alt text's short title (`wp:docPr title`); `sourceAltTitle` is what the file held.
+    public var altTitle: String = ""
+    public var sourceAltTitle: String = ""
     /// The properties of the run the picture sat in (`w:rPr`), as the
     /// file wrote them: a character border round a thumbnail, the size
     /// that sets the line it stands on. Written back with `sourceXML`.

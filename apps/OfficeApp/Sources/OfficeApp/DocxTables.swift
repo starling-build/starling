@@ -475,7 +475,7 @@ extension DocxFormat {
     }
 
     /// `xml` with the `descr` (alternative text) of its first `wp:docPr` set to `text`, the rest as it was.
-    static func _drawingWithAltText(_ xml: String, _ text: String) -> String {
+    static func _drawingWithAltText(_ xml: String, _ text: String, title: String = "") -> String {
         guard let open = xml.rangeOfSubstring("<wp:docPr", in: xml.startIndex ..< xml.endIndex),
               let close = xml.rangeOfSubstring(">", in: open.upperBound ..< xml.endIndex) else { return xml }
         var tag = String(xml[open.lowerBound ..< close.lowerBound])
@@ -486,7 +486,12 @@ extension DocxFormat {
            let e = tag.rangeOfSubstring("\"", in: d.upperBound ..< tag.endIndex) {
             tag.removeSubrange(d.lowerBound ..< e.upperBound)
         }
+        if let d = tag.rangeOfSubstring(" title=\"", in: tag.startIndex ..< tag.endIndex),
+           let e = tag.rangeOfSubstring("\"", in: d.upperBound ..< tag.endIndex) {
+            tag.removeSubrange(d.lowerBound ..< e.upperBound)
+        }
         if !text.isEmpty { tag += " descr=\"\(_esc(text))\"" }
+        if !title.isEmpty { tag += " title=\"\(_esc(title))\"" }
         if selfClosing { tag += "/" }
         return String(xml[xml.startIndex ..< open.lowerBound]) + tag + String(xml[close.lowerBound...])
     }
@@ -1420,9 +1425,11 @@ extension DocxFormat {
             /// A picture or kept object as a run's content.
             func drawingXML(_ image: ImageAttachment) -> String {
                 var image = image
-                if image.altText != image.sourceAltText, let xml = image.sourceXML, image.name != "m:oMath", image.name != "m:oMathPara" {
-                    image.sourceXML = Self._drawingWithAltText(xml, image.altText)
+                if image.altText != image.sourceAltText || image.altTitle != image.sourceAltTitle, let xml = image.sourceXML,
+                   image.name != "m:oMath", image.name != "m:oMathPara" {
+                    image.sourceXML = Self._drawingWithAltText(xml, image.altText, title: image.altTitle)
                     image.sourceAltText = image.altText
+                    image.sourceAltTitle = image.altTitle
                 }
                 var turnedNow: Bool? = nil
                 if image.rotation != image.sourceRotation, let xml = image.sourceXML, image.name != "m:oMath", image.name != "m:oMathPara" {
@@ -1471,7 +1478,7 @@ extension DocxFormat {
                     let d = (image.rotation.truncatingRemainder(dividingBy: 360) + 360).truncatingRemainder(dividingBy: 360)
                     return d == 0 ? "" : " rot=\"\(Int((d * 60000).rounded()))\""
                 }()
-                return "<w:r><w:drawing><wp:inline distT=\"0\" distB=\"0\" distL=\"0\" distR=\"0\"><wp:extent cx=\"\(cx)\" cy=\"\(cy)\"/><wp:docPr id=\"\(n)\" name=\"Picture \(n)\"\(image.altText.isEmpty ? "" : " descr=\"\(Self._esc(image.altText))\"")/><a:graphic xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\"><a:graphicData uri=\"http://schemas.openxmlformats.org/drawingml/2006/picture\"><pic:pic xmlns:pic=\"http://schemas.openxmlformats.org/drawingml/2006/picture\"><pic:nvPicPr><pic:cNvPr id=\"0\" name=\"\(name)\"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed=\"\(rid)\"/>\(Self._srcRectXML(image.crop))<a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm\(turn)><a:off x=\"0\" y=\"0\"/><a:ext cx=\"\(cx)\" cy=\"\(cy)\"/></a:xfrm><a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>"
+                return "<w:r><w:drawing><wp:inline distT=\"0\" distB=\"0\" distL=\"0\" distR=\"0\"><wp:extent cx=\"\(cx)\" cy=\"\(cy)\"/><wp:docPr id=\"\(n)\" name=\"Picture \(n)\"\(image.altText.isEmpty ? "" : " descr=\"\(Self._esc(image.altText))\"")\(image.altTitle.isEmpty ? "" : " title=\"\(Self._esc(image.altTitle))\"")/><a:graphic xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\"><a:graphicData uri=\"http://schemas.openxmlformats.org/drawingml/2006/picture\"><pic:pic xmlns:pic=\"http://schemas.openxmlformats.org/drawingml/2006/picture\"><pic:nvPicPr><pic:cNvPr id=\"0\" name=\"\(name)\"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed=\"\(rid)\"/>\(Self._srcRectXML(image.crop))<a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm\(turn)><a:off x=\"0\" y=\"0\"/><a:ext cx=\"\(cx)\" cy=\"\(cy)\"/></a:xfrm><a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>"
             }
             if let image = p.image {
                 body += drawingXML(image) + "</w:p>"
