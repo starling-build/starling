@@ -96,6 +96,43 @@ final class SlideFormatShapeTests: XCTestCase {
         XCTAssertNotNil(a.fill, "unticking No fill gives a solid fill again")
     }
 
+    func testGlowAndSoftEdgeFromThePane() throws {
+        // The check box turns a glow on in the first accent, the rows size the glow and the soft edge, the file holds both, undo steps back.
+        let deck = DeckController()
+        let a = deck.addShape(.rect); deck.selectShapes([a])
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light),
+                                        home: SizedBox(width: 400, height: 780, child: FormatShapePane(deck: deck, onClose: {})), title: "Test"), size: Size(1280, 800))
+        settle(ui)
+        func control<W>(_ id: String, _ type: W.Type) -> W? {
+            var found: W?
+            for e in ui.elements() where (e.widget.key as? ValueKey<String>)?.value == id {
+                if let w = e.widget as? W { return w }
+                e.visitChildElements { c in
+                    func walk(_ x: Element) { if found == nil, let w = x.widget as? W { found = w }; x.visitChildElements(walk) }
+                    walk(c)
+                }
+            }
+            return found
+        }
+        func enter(_ id: String, _ text: String) { control(id, FluentTextBox.self)?.onSubmitted?(text); settle(ui) }
+        XCTAssertNotNil(control("fmt.glow.on", Checkbox.self))
+        control("fmt.glow.on", Checkbox.self)?.onChanged?(true); settle(ui)
+        XCTAssertEqual(a.glowRadius, 10)
+        XCTAssertEqual(a.glowColor, ShapeEffectPresets.glowColor(deck.theme.accents[0]))
+        enter("fmt.glow.size", "8"); enter("fmt.softedge.size", "5")
+        XCTAssertEqual(a.glowRadius, 8); XCTAssertEqual(a.softEdge, 5)
+        let xml = try slideXML(deck)
+        XCTAssertTrue(xml.contains("<a:glow rad=\"101600\">"))
+        XCTAssertTrue(xml.contains("<a:softEdge rad=\"63500\"/>"))
+        deck.undo()
+        XCTAssertNil(a.softEdge); XCTAssertEqual(a.glowRadius, 8)
+        deck.selectShapes([a]); settle(ui)  // undo drops the selection
+        enter("fmt.softedge.size", "0"); XCTAssertNil(a.softEdge)
+        control("fmt.glow.on", Checkbox.self)?.onChanged?(false); settle(ui)
+        XCTAssertNil(a.glowRadius)
+        XCTAssertFalse(try slideXML(deck).contains("<a:glow"))
+    }
+
     func testShadowFromThePaneAndOnAFileShape() throws {
         // A new shape: the check box turns a default shadow on, the rows edit it, the file holds it, undo takes it back.
         let deck = DeckController()
