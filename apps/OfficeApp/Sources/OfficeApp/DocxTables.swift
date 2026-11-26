@@ -108,8 +108,50 @@ extension DocxFormat {
     /// alone means "inherit" (drawing.docx's "b w:val=0" runs under a
     /// bold heading 3 came back bold; 52288's plain runs under a bold
     /// style must not come back un-bold).
+    /// CT_RPr's element order (w14 and other extensions after it).
+    static let _rPrOrder: [String: Int] = Dictionary(uniqueKeysWithValues: ["w:rStyle", "w:rFonts", "w:b", "w:bCs", "w:i", "w:iCs", "w:caps", "w:smallCaps",
+        "w:strike", "w:dstrike", "w:outline", "w:shadow", "w:emboss", "w:imprint", "w:noProof", "w:snapToGrid", "w:vanish", "w:webHidden",
+        "w:color", "w:spacing", "w:w", "w:kern", "w:position", "w:sz", "w:szCs", "w:highlight", "w:u", "w:effect", "w:bdr", "w:shd",
+        "w:fitText", "w:vertAlign", "w:rtl", "w:cs", "w:em", "w:lang", "w:eastAsianLayout", "w:specVanish", "w:oMath"].enumerated().map { ($1, $0) })
+    /// The top-level elements of a run of sibling XML elements: (name, start, end) as UTF-8 offsets.
+    static func _rPrElements(_ xml: String) -> [(name: String, range: Range<Int>)] {
+        let b = Array(xml.utf8); var out: [(String, Range<Int>)] = []
+        var i = 0, depth = 0, start = 0, name = ""
+        while i < b.count {
+            guard b[i] == UInt8(ascii: "<") else { i += 1; continue }
+            var j = i + 1; while j < b.count, b[j] != UInt8(ascii: ">") { j += 1 }
+            let closing = i + 1 < b.count && b[i + 1] == UInt8(ascii: "/"), selfClosing = j > 0 && b[j - 1] == UInt8(ascii: "/")
+            if closing { depth -= 1; if depth == 0 { out.append((name, start ..< j + 1)) } }
+            else {
+                if depth == 0 {
+                    start = i; var k = i + 1
+                    while k < j, b[k] != UInt8(ascii: " "), b[k] != UInt8(ascii: "/"), b[k] != UInt8(ascii: "\t"), b[k] != UInt8(ascii: "\n") { k += 1 }
+                    name = String(decoding: b[(i + 1) ..< k], as: UTF8.self)
+                }
+                if selfClosing { if depth == 0 { out.append((name, start ..< j + 1)) } } else { depth += 1 }
+            }
+            i = j + 1
+        }
+        return out
+    }
+    static func _rPrElementNames(_ xml: String) -> [String] { _rPrElements(xml).map(\.name) }
+    /// The fields' run properties with the file's extra elements put back in schema order (a name the fields now write wins).
+    static func _mergeRPr(_ fresh: String, _ extras: String) -> String {
+        let fb = Array(fresh.utf8), eb = Array(extras.utf8)
+        let have = Set(_rPrElementNames(fresh))
+        var parts: [(rank: Int, seq: Int, xml: String)] = []
+        var seq = 0
+        func rank(_ n: String) -> Int { n == "w:rPrChange" ? 10_000 : (_rPrOrder[n] ?? 1_000) }
+        for e in _rPrElements(fresh) { parts.append((rank(e.name), seq, String(decoding: fb[e.range], as: UTF8.self))); seq += 1 }
+        for e in _rPrElements(extras) where !have.contains(e.name) { parts.append((rank(e.name), seq, String(decoding: eb[e.range], as: UTF8.self))); seq += 1 }
+        return parts.sorted { ($0.rank, $0.seq) < ($1.rank, $1.seq) }.map(\.xml).joined()
+    }
     static func _rPrXML(_ s: CharStyle, fileFonts: Set<String> = [], changeId: Int? = nil) -> String {
         if changeId == nil, let original = s.originalRPr { return original }
+        if let extras = s.origExtras {
+            var plain = s; plain.origExtras = nil
+            return _mergeRPr(_rPrXML(plain, fileFonts: fileFonts, changeId: changeId), extras)
+        }
         var rPr = s.styleId.map { "<w:rStyle w:val=\"\(_esc($0))\"/>" } ?? ""
         func off(_ tag: String, _ sw: CharSwitches) -> String { s.off.contains(sw) ? "<w:\(tag) w:val=\"0\"/>" : "" }
     rPr += _rFontsXML(s, fileFonts: fileFonts)
@@ -1340,12 +1382,12 @@ extension DocxFormat {
             }
             let anchorOnly = p.image?.sourceXML?.containsSubstring("<wp:anchor") ?? false
             if p.text.isEmpty, p.image == nil || anchorOnly, let first = p.runs.first {
-                markRPr += _rPrXML({ var m = first.style; m.origRPr = nil; return m }(), fileFonts: doc.fileFonts)
+                markRPr += _rPrXML({ var m = first.style; m.origRPr = nil; m.origExtras = nil; return m }(), fileFonts: doc.fileFonts)
             } else if let mark = p.style.mark {
                 // The mark's own look on a paragraph with text: a list
                 // number is formatted with it, and a hidden mark over
                 // hidden text makes Word show no line and no border.
-                markRPr += _rPrXML({ var m = mark; m.origRPr = nil; return m }(), fileFonts: doc.fileFonts)
+                markRPr += _rPrXML({ var m = mark; m.origRPr = nil; m.origExtras = nil; return m }(), fileFonts: doc.fileFonts)
             } else if p.style.markHidden {
                 markRPr += "<w:vanish/>"
             }

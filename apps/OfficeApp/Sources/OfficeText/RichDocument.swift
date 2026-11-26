@@ -155,16 +155,19 @@ public struct CharStyle: Hashable, Codable, Sendable {
     /// complex-script twins); any edit to the look makes the check fail and the properties are written from the fields as before.
     public var origRPr: String? = nil
     public var origCheck: Int = 0
-    public mutating func stampOriginal(_ xml: String) {
-        origRPr = nil; origCheck = 0
+    /// The file's run properties the fields cannot say (elements the writer would not produce for this look: `w:bCs`, `w:szCs`,
+    /// effects, an auto colour...), in the file's form. After an edit the look is written from the fields and these go back beside them.
+    public var origExtras: String? = nil
+    public mutating func stampOriginal(_ xml: String, extras: String? = nil) {
+        origRPr = nil; origCheck = 0; origExtras = nil
         let h = hashValue
-        origRPr = xml; origCheck = h
+        origRPr = xml; origCheck = h; origExtras = extras
     }
     /// The file's own run properties, when the look has not changed since the file was read.
     public var originalRPr: String? {
         guard let o = origRPr else { return nil }
         var c = self
-        c.origRPr = nil; c.origCheck = 0
+        c.origRPr = nil; c.origCheck = 0; c.origExtras = nil
         return c.hashValue == origCheck ? o : nil
     }
     public var highlight: Color? = nil
