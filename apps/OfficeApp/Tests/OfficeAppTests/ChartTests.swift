@@ -464,6 +464,34 @@ final class ChartTests: XCTestCase {
         XCTAssertEqual(Set(canvas.dots.map(\.dx)).count, 1, "all on the box's middle")
     }
 
+    /// A `cx:` chart's legend row on a slide: 7.08 pt keys whose foot stands 14.4 above the frame's at any height, the row taking
+    /// 28.8 pt from the plot; at the top where the file puts it (PowerPoint's print of lab cx-legend: baselines 14.9 above the
+    /// foot of frames 200 to 450 pt high, plot feet 51.54 above it; a top legend's baseline 102.19, plot 120.78, on a titled 398.4).
+    func testACxLegendRowOnASlideStandsWherePowerPointPrintsIt() {
+        func chart(_ pos: String) -> Chart? {
+            let pts = [1, 4, 5, 6, 9].enumerated().map { "<cx:pt idx=\"\($0.offset)\">\($0.element)</cx:pt>" }.joined()
+            let xml = """
+            <cx:chartSpace xmlns:cx="http://schemas.microsoft.com/office/drawing/2014/chartex"><cx:chartData><cx:data id="0"><cx:numDim type="val"><cx:lvl ptCount="5">\(pts)</cx:lvl></cx:numDim></cx:data></cx:chartData><cx:chart><cx:plotArea><cx:plotAreaRegion><cx:series layoutId="boxWhisker"><cx:tx><cx:txData><cx:v>S</cx:v></cx:txData></cx:tx><cx:dataId val="0"/></cx:series></cx:plotAreaRegion></cx:plotArea><cx:legend pos="\(pos)"/></cx:chart></cx:chartSpace>
+            """
+            guard var c = ChartXML.readBoxWhisker(XNode.parse(Data(xml.utf8))!) else { return nil }
+            c.onSlide = true
+            return c
+        }
+        guard let bottom = chart("b"), let top = chart("t") else { return XCTFail("not read") }
+        XCTAssertEqual(top.legendPosition, "t")
+        func key(_ c: Chart, height h: Double) -> Rect? {
+            let canvas = BoxDotCanvas()
+            ChartPainter.paint(c, canvas, Rect.fromLTWH(0, 0, 400, h), pxPerPt: 1, theme: DeckTheme())
+            return canvas.rects.first { abs($0.width - 7.08) < 0.01 && abs($0.height - 7.08) < 0.01 }
+        }
+        for h in [200.0, 398.4] {
+            guard let r = key(bottom, height: h) else { return XCTFail("no 7.08 pt key at \(h)") }
+            XCTAssertEqual(r.bottom, h - 14.4, accuracy: 0.3)
+        }
+        guard let r = key(top, height: 398.4) else { return XCTFail("no 7.08 pt key at the top") }
+        XCTAssertLessThan(r.bottom, 100)
+    }
+
     /// A single-level treemap on a slide lays strips along the shorter side, a strip growing while its last item gets less
     /// far from square as width / height - 1: PowerPoint's print of chartex-lab2 p4 sets 9,8,6,5,4,3,2,1 in 901 by 220 pt
     /// side by side, one to a strip (taking 3 into 4's strip would make 3 wider than tall).

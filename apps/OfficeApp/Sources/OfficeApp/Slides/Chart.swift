@@ -1122,6 +1122,7 @@ enum ChartXML {
         c.boxes = boxes
         c.chartex = true
         c.legend = chart.first("cx:legend") != nil
+        if let pos = chart.first("cx:legend")?["pos"] { c.legendPosition = pos }
         c.textSize = 9
         c.titleSize = 14
         if let gap = chart.first("cx:plotArea")?.all("cx:axis").compactMap({ $0.first("cx:catScaling")?["gapWidth"] }).first,
@@ -1214,6 +1215,7 @@ enum ChartXML {
         c.treemap = ser["layoutId"] == "treemap"
         c.chartex = true
         c.legend = chart.first("cx:legend") != nil
+        if let pos = chart.first("cx:legend")?["pos"] { c.legendPosition = pos }
         c.dataLabels = ser.first("cx:dataLabels").map { $0.first("cx:visibility")?["categoryName"] != "0" } ?? false
         c.treemapValues = ser.first("cx:dataLabels")?.first("cx:visibility")?["value"] == "1"
         c.textSize = 9
@@ -1272,6 +1274,7 @@ enum ChartXML {
         c.histogram = spec
         if let xs = c.series.first?.values.compactMap({ $0 }), !xs.isEmpty { c.applyHistogram(xs) }
         c.legend = pareto && space.first("cx:chart")?.first("cx:legend") != nil
+        if let pos = space.first("cx:chart")?.first("cx:legend")?["pos"] { c.legendPosition = pos }
         return c
     }
 
@@ -1376,6 +1379,7 @@ enum ChartXML {
         c.waterfallTotals = Set((layout?.first("cx:subtotals")?.all("cx:idx") ?? []).compactMap { $0["val"].flatMap(Int.init) })
         c.waterfallConnectors = layout?.first("cx:visibility")?["connectorLines"] == "1"
         c.legend = chart.first("cx:legend") != nil
+        if let pos = chart.first("cx:legend")?["pos"] { c.legendPosition = pos }
         return c
     }
 
@@ -3614,12 +3618,16 @@ enum ChartPainter {
                       ["맑은 고딕", "malgun gothic"].contains((c.font ?? c.axisFont ?? theme.bodyFont ?? "").lowercased()) ? 1.3301 * size * k : 0) : 0
             // (An Excel legend row under a chart: key 0.5 of the size square, 0.22 to its name, 0.41 between entries — chart-tdf140489's print at 9 pt: 4.5, 2.0, 3.7.)
             let sheetRow = c.onSheet && !beside && !printed && !c.styled2013 && !wideKeys
-            let key = pieKeyLine > 0 ? 0.449 * pieKeyLine : wideKeys ? 19.2 * k : libreLegend ? 6.12 * k * m : bareLegend ? 3.7 * k * m : wordRowKeys ? 6.53 * k * m : sheetRow ? 6 * k * m : (c.onSlide ? 6.57 : 7) * k * m, gap = pieKeyLine > 0 ? 0.2 * pieKeyLine : libreLegend ? 2.64 * k * m : bareLegend ? 4.5 * k * m : wordRowKeys ? 2.93 * k * m : sheetRow ? 2.67 * k * m : (c.onSlide ? 2.92 : 4) * k * m
+            // (A `cx:` chart's row on a slide: keys 7.08 pt square at 9 pt, 3.7 before the name and 7.2 from a name to the next key,
+            // centred on the line: lab cx-legend and bw-spacing in PowerPoint's print, every legend page.)
+            let cxRow = printed && c.chartex && !c.onSheet && box == nil && (c.legendPosition == "b" || c.legendPosition == "t")
+            let key = cxRow ? 9.44 * k * m : pieKeyLine > 0 ? 0.449 * pieKeyLine : wideKeys ? 19.2 * k : libreLegend ? 6.12 * k * m : bareLegend ? 3.7 * k * m : wordRowKeys ? 6.53 * k * m : sheetRow ? 6 * k * m : (c.onSlide ? 6.57 : 7) * k * m, gap = cxRow ? 4.93 * k * m : pieKeyLine > 0 ? 0.2 * pieKeyLine : libreLegend ? 2.64 * k * m : bareLegend ? 4.5 * k * m : wordRowKeys ? 2.93 * k * m : sheetRow ? 2.67 * k * m : (c.onSlide ? 2.92 : 4) * k * m
             var spacing = (printed ? (c.styled2013 ? 11.2 : bareLegend ? 11.8 : 13.9) : c.styled2013 ? 9.5 : 12) * k * m + (wideKeys ? (c.onSheet ? 5.1 : 1.3) * k : 0)
             if sheetRow { spacing = 4.93 * k * m }
+            if cxRow { spacing = 9.6 * k * m }
             // (Names in Latin letters only stand 1.4 pt further apart at 9 pt than CJK ones do: chartex's and 61745's "Series 1" pitch 44.05 against 42.65.)
             if wordRowKeys, names.allSatisfy({ $0.unicodeScalars.allSatisfy { $0.isASCII } }) { spacing += 1.87 * k * m }
-            let keyDrop = printed && c.styled2013 ? 1.3 * k * m : 0
+            let keyDrop = printed && c.styled2013 && !cxRow ? 1.3 * k * m : 0
             // A line's key is a stroke 19.2 pt long whatever the text's
             // size, ending 2 pt before its name; in a row, 3.6 more before
             // it (chartex's line and radar charts in Word's print: their
@@ -3997,8 +4005,11 @@ enum ChartPainter {
                 // the legend's baseline 23.06 under the title's, the plot's
                 // top 60.6 under the frame's.)
                 let sheetCx = titled && (c.onSheet || c.onSlide) && c.chartex ? k / 0.75 : 0
-                y = area.top + (titled ? 4.3 * k : 0) + 3.71 * sheetCx
-                area = Rect.fromLTRB(area.left, y + lineH * Double(lines.count) + 6 * k + (c.onSlide ? 0.67 : 6.37) * sheetCx, area.right, area.bottom)
+                // (On a slide the row 1.71 pt higher than on a sheet, 23 under the title's baseline, and the plot 2.25 further off it:
+                // lab cx-legend's two top legends and chartex-lab2's waterfall in PowerPoint's print, baseline 102.19, plot 120.8.)
+                let slideCx = c.onSlide && !c.onSheet ? sheetCx : 0
+                y = area.top + (titled ? 4.3 * k : 0) + 3.71 * sheetCx - 1.28 * slideCx
+                area = Rect.fromLTRB(area.left, y + lineH * Double(lines.count) + 6 * k + (c.onSlide ? 0.67 : 6.37) * sheetCx + 1.69 * slideCx, area.right, area.bottom)
             } else {
                 // (A 2007-style chart's on a slide 8.2 pt off the frame's
                 // foot, not 6.5, and its plot 9.55 above it: cooper's two
@@ -4008,11 +4019,16 @@ enum ChartPainter {
                 // Excel's prints of nine charts with the legend below.)
                 let pt = c.onSheet ? k / 0.75 : 0
                 y = area.bottom - 1.2 * k - lineH * Double(lines.count) - 2.2 * pt
+                // (A `cx:` chart's row on a slide stands 7.15 pt higher, its baseline 14.9 above the frame's foot, and the plot's room
+                // ends 9.45 above it, the row taking 28.8 pt from the plot: lab cx-legend in PowerPoint's print, frames 200 to 450 pt
+                // high alike; bw-spacing's and chartex-lab2's waterfall legends.)
+                let cxFoot = c.chartex && c.onSlide && !c.onSheet
+                if cxFoot { y -= 7.15 * k }
                 // (A Word pie's legend takes no more room from it past seven rows: lab piesize3's eight
                 // 40-character entries leave it as seven do, R 16.80 and centre 128.71 in both.)
                 let roomRows = c.type == .pie && box == nil && !c.onSlide && !c.onSheet ? min(lines.count, 7) : lines.count
                 let yRoom = y + lineH * Double(lines.count - roomRows) + (textH - latinH) * Double(lines.count)
-                area = Rect.fromLTRB(area.left, area.top, area.right, yRoom - (printed && old ? 9.55 : 8.4) * k - 2.23 * pt)
+                area = Rect.fromLTRB(area.left, area.top, area.right, yRoom - (printed && old ? 9.55 : cxFoot ? 9.45 : 8.4) * k - 2.23 * pt)
                 if bareLegend { y += 1.2 * k }
                 // (A grid's last row has no 6 pt gap under it: 0338b5a8 p5's rows stand 6 pt lower in PowerPoint's print.)
                 if slideGridW != nil { y += 6 * k }
@@ -6256,7 +6272,8 @@ enum ChartPainter {
             // gridline 10.5 pt under the frame's top, ours 14.5.)
             let bare2007 = c.onSlide && c.plainText && !c.styled2013 && c.officeStyled && c.title == nil
             // (A box-and-whisker chart on a slide: PowerPoint's plot top stands 1.3 pt higher than the shared column rule: lab-2's value axis top at 88.3, ours 89.6.)
-            let lower = c.onSlide ? ((c.styled2013 ? 1.5 : c.title != nil ? 1.0 : bare2007 ? -4.0 : 0) - (c.boxes != nil ? 1.3 : 0)) * k
+            // (Under a legend at the top it stands where a waterfall's does: lab cx-legend's two and chartex-lab2's waterfall, all at 120.8.)
+            let lower = c.onSlide ? ((c.styled2013 ? 1.5 : c.title != nil ? 1.0 : bare2007 ? -4.0 : 0) - (c.boxes != nil && !(c.legend && c.legendPosition == "t") ? 1.3 : 0)) * k
                 : c.onSheet ? (titled ? (c.chartex ? 0.45 : c.styled2013 ? 2.57 : 2.05) : (c.styled2013 ? -1.25 : -1.62)) * pt
                 : (word && c.barView == nil && (c.title ?? "").isEmpty && c.titleAt == nil ? (deleted2013Column ? 1.6 : untitledWordRise) * k : plainUntitledWord ? (c.valueAxisDeleted ? 1.5 : libre ? -3.75 : -3) * k
                    // (A titled 3-D column chart: its front plane starts 5.4 pt lower than ours at any title size —
