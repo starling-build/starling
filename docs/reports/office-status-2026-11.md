@@ -201,29 +201,41 @@ editor's model and saves it twice: once with no edit, and once after one
 small edit. It then lists the XML element and attribute names that the
 original has and the saved file lacks.
 
-Latest full run on main: 2026-11-25, about 12:00 UTC
-(`/data/s/amd-8/sweep/base/docx-main.txt`, `xlsx-main.txt`).
+Full run at `d10a5afda`, 2026-11-26.
 
 | | Writer (.docx) | Sheets (.xlsx) |
 |---|---|---|
 | Files | 775 | 810 |
 | Could not be read or saved | 8 | 13 |
 | Names lost by a save with no edit | 400 or more (the list is cut at 400) | 400 or more |
-| Most common loss with no edit | latent style table (745 files) | calculation chain (178 files) |
-| Extra names lost by an edit | body text: 1 (39 files); table cell: 1 (8 files); header: 0 | cell value: 33; cell fill: 0 |
+| Most common loss with no edit | bookmarks (554 files) | calculation chain (178 files) |
+| Extra names lost by an edit | body text: 22 (most common in 39 files); table cell: 19 (most common in 22 files); header: 0 | cell value: 33; cell fill: 0 |
+
+Before, in the full run on main of 2026-11-25: the most common Writer loss
+was the latent style table (745 files), and an edit lost one extra name
+(body text 39 files, table cell 8 files). The Sheets figures were the same
+as now, within one file.
 
 Reading it:
 
-- An edit loses almost nothing beyond what the plain save already loses.
-  The plain save is where the loss is.
-- The two most common losses are parts Office rebuilds by itself (Word's
-  latent style table, Excel's calculation chain). The sweep does not
-  separate those from losses a reader would see, so the count of names
-  overstates the visible loss.
-- Fixes merged after that run, as their authors measured them: font names
-  on runs lost in 509 files, then none; colour lost in 349 files, then 27
-  (`docs/plans/board/20261125-093954-amd-5.md`); style names lost 130, then
-  0; numbering 16, then 0 (`20261125-132728-amd-2.md`).
+- The styles part and the numbering part no longer lose anything in the
+  list. On 2026-11-25 they held 181 and 18 of the 400 listed names; now
+  they hold none. The latent style table is kept.
+- The plain save is still where most of the loss is. In the document body
+  it still drops bookmarks (554 files; dropping `_GoBack` and duplicate
+  names is intended, `docs/plans/board/20261125-093954-amd-5.md`), and it
+  still counts fewer run font elements in 494 files (508 before) and fewer
+  colour elements in 346 files (349 before). The same save writes fewer
+  runs in 522 files, so part of that is runs being merged, not formatting
+  being dropped. The sweep does not separate the two.
+- An edit now loses more beyond the plain save than it did: in a body edit,
+  bold-off marks (39 files), complex-script bold (30), colour (27),
+  character spacing (14) and highlight (10); in a table cell edit, colour
+  (22), complex-script size (13) and highlight (8). The edited run is
+  rewritten from the model, and the run around it is now kept as it was, so
+  the difference shows up here.
+- Excel's calculation chain is a part Excel rebuilds by itself. The count
+  of names overstates the loss a reader would see.
 
 The sweep does not cover `.pptx`. There is no total yet of files that lose
 something a reader would see.
@@ -516,9 +528,6 @@ with a chart, 79.1 on the 25 with a pie chart.
   prompt. Workers check single files (231 check files are on disk); no
   total is recorded.
 - Save loss for Slides: the sweep covers `.docx` and `.xlsx` only.
-- Save loss at `d10a5afda`. The numbers in 3.4 are the full run on main of
-  2026-11-25; a run at this commit takes about three hours and was not
-  finished when this was written.
 - LibreOffice with Microsoft fonts (section 4.6).
 - The legacy `.doc`, `.ppt` and `.xls` sets and the further language
   folders, for either suite.
