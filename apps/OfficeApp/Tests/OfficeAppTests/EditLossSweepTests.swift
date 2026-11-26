@@ -1,16 +1,18 @@
 import XCTest
 import OfficeText
+import FlutterSwiftBridge
 @testable import OfficeApp
 
 /// Not a pass/fail test (amd-8, 2026-11-25): with STARLING_SWEEP_DIR set, opens each document of that folder, makes one kind of
 /// edit, saves, and counts by NAME (element, element@attribute, per part kind) what the original package had more of than the
 /// saved one. Variants: base (no edit), then Word body / cell / header edits, or Sheets value / fill edits. Output: STARLING_SWEEP_OUT.
-/// STARLING_SWEEP_KIND = docx | xlsx; STARLING_SWEEP_MAX caps the number of files.
+/// Slides (2026-11-26): base, a bold word in up to 5 text shapes, a shape moved 1 pt.
+/// STARLING_SWEEP_KIND = docx | xlsx | pptx; STARLING_SWEEP_MAX caps the number of files.
 final class EditLossSweepTests: XCTestCase {
     private func kind(_ part: String) -> String {
         let n = part.split(separator: "/").last.map(String.init) ?? part
         for k in ["document", "header", "footer", "styles", "numbering", "settings", "theme", "footnotes", "endnotes", "comments",
-                  "workbook", "sharedStrings", "drawing", "chart", "table", "pivot", "calcChain", "vmlDrawing"] where n.hasPrefix(k) { return k }
+                  "workbook", "sharedStrings", "slideMaster", "slideLayout", "notesSlide", "notesMaster", "slide", "presentation", "presProps", "viewProps", "tableStyles", "drawing", "chart", "table", "pivot", "calcChain", "vmlDrawing"] where n.hasPrefix(k) { return k }
         if part.contains("worksheets/") { return "sheet" }
         return n.hasSuffix(".rels") ? "rels" : n
     }
@@ -63,10 +65,10 @@ final class EditLossSweepTests: XCTestCase {
     func testSweep() throws {
         let env = ProcessInfo.processInfo.environment
         guard let dir = env["STARLING_SWEEP_DIR"], let kindName = env["STARLING_SWEEP_KIND"] else { throw XCTSkip("no STARLING_SWEEP_DIR") }
-        let isWord = kindName == "docx"
+        let isWord = kindName == "docx", isSlides = kindName == "pptx"
         var files = try FileManager.default.contentsOfDirectory(atPath: dir).filter { $0.hasSuffix("." + kindName) }.sorted()
         if let m = env["STARLING_SWEEP_MAX"].flatMap({ Int($0) }) { files = Array(files.prefix(m)) }
-        let variants = isWord ? ["base", "body", "cell", "header"] : ["base", "value", "fill"]
+        let variants = isWord ? ["base", "body", "cell", "header"] : isSlides ? ["base", "text", "move"] : ["base", "value", "fill"]
         // per variant: name -> (docs, instances); delta = loss beyond the base loss of the same doc
         var docsLost: [String: [String: Int]] = [:], inst: [String: [String: Int]] = [:]
         var docsDelta: [String: [String: Int]] = [:], instDelta: [String: [String: Int]] = [:]
@@ -81,7 +83,37 @@ final class EditLossSweepTests: XCTestCase {
             for v in variants {
                 var out: Data?
                 var did = v == "base"
-                if isWord {
+                if isSlides {
+                    guard let r = try? Pptx.read(data) else { failed += 1; break }
+                    var state = r.0
+                    let theme = r.1, pkg = r.2
+                    func firstWord(_ t: String) -> Range<Int>? {
+                        guard let w = t.range(of: #"\p{L}+"#, options: String.CompareOptions.regularExpression) else { return nil }
+                        return t.utf16.distance(from: t.startIndex, to: w.lowerBound) ..< t.utf16.distance(from: t.startIndex, to: w.upperBound)
+                    }
+                    switch v {
+                    case "text":
+                        var n = 0
+                        for si in state.slides.indices where n < 5 {
+                            for hi in state.slides[si].shapes.indices {
+                                guard var doc = state.slides[si].shapes[hi].text else { continue }
+                                guard let pi = doc.paragraphs.indices.first(where: { firstWord(doc.paragraphs[$0].text) != nil }),
+                                      let w = firstWord(doc.paragraphs[pi].text) else { continue }
+                                doc.paragraphs[pi].applyStyle(w) { $0.bold = true }
+                                state.slides[si].shapes[hi].text = doc; n += 1; did = true
+                                break
+                            }
+                        }
+                    case "move":
+                        if let si = state.slides.indices.first(where: { !state.slides[$0].shapes.isEmpty }) {
+                            let f = state.slides[si].shapes[0].frame
+                            state.slides[si].shapes[0].frame = Rect.fromLTWH(f.left + 1, f.top, f.width, f.height); did = true
+                        }
+                    default: break
+                    }
+                    out = did ? try? PptxWriter.write(state, theme: theme, package: pkg, ownTemplates: state.ownTemplates ?? false,
+                                                      recolourTheme: state.recolourTheme ?? false) : nil
+                } else if isWord {
                     guard let d = try? DocxFormat.read(data) else { failed += 1; break }
                     var doc = d.document
                     func boldWord(_ i: Int) -> Bool {

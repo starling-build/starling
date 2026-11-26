@@ -1,18 +1,18 @@
 #!/bin/bash
 # One-command edit-and-save loss sweep.
-#   edit-loss-sweep.sh docx|xlsx [--max N] [--base FILE] [--save-base FILE]
+#   edit-loss-sweep.sh docx|xlsx|pptx [--max N] [--base FILE] [--save-base FILE]
 # Saves every corpus doc with and without a small edit, then prints what the
 # save lost, by element/attribute name with doc counts (top 40 per section),
 # and (with --base) the names whose doc count changed against an earlier run
 # (run it once on main with --save-base, then on your branch with --base).
 set -u
 KIND=${1:-}; shift || true
-case "$KIND" in docx|xlsx) ;; *) echo "usage: $0 docx|xlsx [--max N] [--base FILE] [--save-base FILE]"; exit 2;; esac
+case "$KIND" in docx|xlsx|pptx) ;; *) echo "usage: $0 docx|xlsx|pptx [--max N] [--base FILE] [--save-base FILE]"; exit 2;; esac
 MAX=; BASE=; SAVE=
 while [ $# -gt 0 ]; do case "$1" in
   --max) MAX=$2; shift 2;; --base) BASE=$2; shift 2;; --save-base) SAVE=$2; shift 2;; *) echo "bad arg $1"; exit 2;; esac; done
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
-DIR=/data/corpus-cache/test/corpus/$KIND/$([ $KIND = docx ] && echo docs || echo books)
+DIR=/data/corpus-cache/test/corpus/$KIND/$(case $KIND in docx) echo docs;; pptx) echo decks;; *) echo books;; esac)
 SD=${SWEEP_OUT_DIR:-$(dirname "$ROOT")/sweep}; mkdir -p "$SD"
 OUT=$SD/run-$KIND-$$.txt
 cd "$ROOT" || exit 1
