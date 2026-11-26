@@ -386,6 +386,31 @@ final class ChartTests: XCTestCase {
         XCTAssertEqual(c.boxes?[0][0], [1, 2, 9])
     }
 
+    /// With its non-outlier points shown, a box-whisker dots each distinct value inside the whiskers but their ends' own copies,
+    /// unstroked, on the box's middle (PowerPoint's print of chartex-lab2 p18: 6 4 7 5 6 8 9 3 4 dotted at 4 to 8).
+    func testABoxWhiskerDotsItsNonOutlierPoints() {
+        let pts = [6, 4, 7, 5, 6, 8, 9, 3, 4].enumerated().map { "<cx:pt idx=\"\($0.offset)\">\($0.element)</cx:pt>" }.joined()
+        let xml = """
+        <cx:chartSpace xmlns:cx="http://schemas.microsoft.com/office/drawing/2014/chartex"><cx:chartData><cx:data id="0"><cx:numDim type="val"><cx:lvl ptCount="9">\(pts)</cx:lvl></cx:numDim></cx:data></cx:chartData><cx:chart><cx:plotArea><cx:plotAreaRegion><cx:series layoutId="boxWhisker"><cx:dataLabels><cx:visibility value="1"/></cx:dataLabels><cx:dataId val="0"/><cx:layoutPr><cx:visibility meanLine="0" meanMarker="0" nonoutliers="1" outliers="1"/><cx:statistics quartileMethod="exclusive"/></cx:layoutPr></cx:series></cx:plotAreaRegion></cx:plotArea></cx:chart></cx:chartSpace>
+        """
+        guard let c = ChartXML.readBoxWhisker(XNode.parse(Data(xml.utf8))!) else { return XCTFail("not read") }
+        XCTAssertEqual(c.boxLabels, 2)
+        let canvas = BoxDotCanvas()
+        ChartPainter._boxes(c, canvas, Rect.fromLTWH(0, 0, 300, 100), k: 1, theme: DeckTheme(), vpos: { 100 - $0 })
+        XCTAssertEqual(canvas.dots.map { 100 - $0.dy }, [4, 5, 6, 7, 8])
+        XCTAssertEqual(Set(canvas.dots.map(\.dx)).count, 1, "all on the box's middle")
+    }
+
+    /// A single-level treemap on a slide lays strips along the shorter side, a strip growing while its last item gets less
+    /// far from square as width / height - 1: PowerPoint's print of chartex-lab2 p4 sets 9,8,6,5,4,3,2,1 in 901 by 220 pt
+    /// side by side, one to a strip (taking 3 into 4's strip would make 3 wider than tall).
+    func testATreemapStripGrowsWhileItsLastItemGetsSquarer() {
+        let r = ChartPainter._treemapStrips([9, 8, 6, 5, 4, 3, 2, 1], in: Rect.fromLTWH(0, 0, 901, 220))
+        XCTAssertEqual(r.prefix(5).map { $0.height }, [220, 220, 220, 220, 220])
+        XCTAssertEqual(r[4].width, 4.0 / 38 * 901, accuracy: 1e-6)
+        XCTAssertEqual(r.reduce(0) { $0 + $1.width * $1.height }, 901 * 220, accuracy: 1e-6)
+    }
+
     /// A group's name stands once, on its first row, and covers the rows below it; a sunburst runs equal sizes later row first.
     func testASunburstGroupNameCoversItsRows() {
         func xml(_ kind: String) -> String {
@@ -501,4 +526,47 @@ final class ChartTests: XCTestCase {
         XCTAssertEqual(stated.statedTextScaled(by: 0.75).valueLabelSize ?? 0, 9, accuracy: 0.001)
         XCTAssertNil(try read("").statedTextScaled(by: 0.75).valueLabelSize)
     }
+}
+
+private final class BoxDotCanvas: Canvas {
+    var dots: [Offset] = []
+    func save() {}
+    func saveLayer(_ bounds: Rect?, _ paint: Paint) {}
+    func restore() {}
+    func restoreToCount(_ count: Int) {}
+    func getSaveCount() -> Int { 1 }
+    func translate(_ dx: Double, _ dy: Double) {}
+    func scale(_ sx: Double, _ sy: Double?) {}
+    func rotate(_ radians: Double) {}
+    func skew(_ sx: Double, _ sy: Double) {}
+    func transform(_ matrix4: [Double]) {}
+    func getTransform() -> [Double] { [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1] }
+    func clipRect(_ rect: Rect, clipOp: ClipOp, doAntiAlias: Bool) {}
+    func clipRRect(_ rrect: RRect, doAntiAlias: Bool) {}
+    func clipRSuperellipse(_ rsuperellipse: RSuperellipse, doAntiAlias: Bool) {}
+    func clipPath(_ path: Path, doAntiAlias: Bool) {}
+    func getLocalClipBounds() -> Rect { Rect.fromLTWH(-1e6, -1e6, 2e6, 2e6) }
+    func getDestinationClipBounds() -> Rect { Rect.fromLTWH(-1e6, -1e6, 2e6, 2e6) }
+    func drawColor(_ color: Color, _ blendMode: BlendMode) {}
+    func drawLine(_ p1: Offset, _ p2: Offset, _ paint: Paint) {}
+    func drawPaint(_ paint: Paint) {}
+    func drawRect(_ rect: Rect, _ paint: Paint) {}
+    func drawRRect(_ rrect: RRect, _ paint: Paint) {}
+    func drawDRRect(_ outer: RRect, _ inner: RRect, _ paint: Paint) {}
+    func drawRSuperellipse(_ rsuperellipse: RSuperellipse, _ paint: Paint) {}
+    func drawOval(_ rect: Rect, _ paint: Paint) {}
+    func drawCircle(_ c: Offset, _ radius: Double, _ paint: Paint) { if paint.style == .fill { dots.append(c) } }
+    func drawArc(_ rect: Rect, _ startAngle: Double, _ sweepAngle: Double, _ useCenter: Bool, _ paint: Paint) {}
+    func drawPath(_ path: Path, _ paint: Paint) {}
+    func drawImage(_ image: Image, _ offset: Offset, _ paint: Paint) {}
+    func drawImageRect(_ image: Image, _ src: Rect, _ dst: Rect, _ paint: Paint) {}
+    func drawImageNine(_ image: Image, _ center: Rect, _ dst: Rect, _ paint: Paint) {}
+    func drawPicture(_ picture: any FlutterSwiftBridge.Picture) {}
+    func drawParagraph(_ paragraph: any Paragraph, _ offset: Offset) {}
+    func drawPoints(_ pointMode: PointMode, _ points: [Offset], _ paint: Paint) {}
+    func drawRawPoints(_ pointMode: PointMode, _ points: [Float], _ paint: Paint) {}
+    func drawVertices(_ vertices: Vertices, _ blendMode: BlendMode, _ paint: Paint) {}
+    func drawAtlas(_ atlas: Image, _ transforms: [RSTransform], _ rects: [Rect], _ colors: [Color]?, _ blendMode: BlendMode?, _ cullRect: Rect?, _ paint: Paint) {}
+    func drawRawAtlas(_ atlas: Image, _ rstTransforms: [Float], _ rects: [Float], _ colors: [Int32]?, _ blendMode: BlendMode?, _ cullRect: Rect?, _ paint: Paint) {}
+    func drawShadow(_ path: Path, _ color: Color, _ elevation: Double, _ transparentOccluder: Bool) {}
 }
