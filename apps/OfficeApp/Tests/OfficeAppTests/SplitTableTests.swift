@@ -373,4 +373,14 @@ final class TurnedCellPitchTests: XCTestCase {
         let word = linesHeight(.down, text: text)
         XCTAssertLessThan(word, plain * 0.75)
     }
+
+    /// Lab textpitch5: a turned cell's Mongolian lines step by the same 1.026 of the single line as Latin ones (Word 14.04 apart at 12 pt, 10.4 to 13.8 before).
+    func testTurnedMongolianLinesAreOnePointZeroTwoSixOfTheSingleLine() {
+        let saved = RichTextTheme.wordWindowsPages
+        defer { RichTextTheme.wordWindowsPages = saved }
+        RichTextTheme.wordWindowsPages = false
+        let plain = linesHeight(.down, text: "ᠮᠣᠩ")
+        RichTextTheme.wordWindowsPages = true
+        XCTAssertEqual(linesHeight(.down, text: "ᠮᠣᠩ") / plain, 1.026, accuracy: 0.005)
+    }
 }
