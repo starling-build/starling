@@ -1222,10 +1222,7 @@ extension DocxFormat {
         default: break
         }
         let sz = Double(e["w:sz"] ?? "4") ?? 4
-        var color: Color? = nil
-        if let hex = e["w:color"], hex.lowercased() != "auto", hex.count == 6, let v = Int(hex, radix: 16) {
-            color = Color(argb: 0xFF, (v >> 16) & 0xFF, (v >> 8) & 0xFF, v & 0xFF)
-        }
+        let color = _borderColor(e["w:color"])
         var l = BorderLine(width: max(0.25, sz / 8), color: color, space: Double(e["w:space"] ?? "0") ?? 0)
         if let v = e["w:val"], v != "single" { l.style = v }
         return l
@@ -1846,13 +1843,9 @@ extension DocxFormat {
         guard let b = pr?.first(tag), !b.children.isEmpty else { return nil }
         let drawn = b.children.filter { !["nil", "none"].contains($0["w:val"] ?? "nil") }
         guard let first = drawn.first else { return _Borders(on: false, color: nil) }
-        var color: Color? = nil
         // An edge the neighbour's edge beats names no colour for the cell.
         let kept = drawn.filter { !lost.contains($0.name) }
-        if let hex = kept.first(where: { ($0["w:color"] ?? "auto").lowercased() != "auto" })?["w:color"] ?? kept.first?["w:color"],
-           hex.lowercased() != "auto", hex.count == 6, let v = Int(hex, radix: 16) {
-            color = Color(argb: 0xFF, (v >> 16) & 0xFF, (v >> 8) & 0xFF, v & 0xFF)
-        }
+        let color = _borderColor(kept.first(where: { ($0["w:color"] ?? "auto").lowercased() != "auto" })?["w:color"] ?? kept.first?["w:color"])
         let width = Double(first["w:sz"] ?? "").map { max(0.25, $0 / 8) }
         let style = first["w:val"].flatMap { $0 == "single" ? nil : $0 }
         return _Borders(on: true, color: color, width: width, style: style)
@@ -1869,9 +1862,9 @@ extension DocxFormat {
         func rank(_ e: XNode) -> (Double, Double)? {
             guard !["nil", "none"].contains(e["w:val"] ?? "nil") else { return nil }
             let w = Double(e["w:sz"] ?? "") ?? 0
-            let c = (e["w:color"] ?? "auto").lowercased()
             var lum = 0.0
-            if c.count == 6, let v = Int(c, radix: 16) {
+            if let k = _borderColor(e["w:color"]) {
+                let v = Int(k.value)
                 lum = 0.299 * Double((v >> 16) & 255) + 0.587 * Double((v >> 8) & 255) + 0.114 * Double(v & 255)
             }
             return (w, -lum)   // larger wins: heavier, then darker
