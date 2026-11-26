@@ -54,6 +54,50 @@ extension SlideShape {
         return Offset(c.dx + x * cos(a) - y * sin(a), c.dy + x * sin(a) + y * cos(a))
     }
 
+    /// The yellow handles of an elbow's middle runs: the adjust value each sets, whether it moves along the box's width, and
+    /// where it sits on the slide (the middle of the run it moves).
+    var elbowAdjustHandles: [(key: String, alongWidth: Bool, at: Offset)] {
+        guard isElbow, let name = preset?.rawValue else { return [] }
+        let w = frame.width, h = frame.height
+        func v(_ k: String, _ d: Double) -> Double { (adjusts[k] ?? d) / 100000 }
+        var out: [(String, Bool, Double, Double)] = []
+        if name.hasSuffix("Connector3") {
+            out = [("adj1", true, w * v("adj1", 50000), h / 2)]
+        } else if name.hasSuffix("Connector4") {
+            let x1 = w * v("adj1", 50000), y2 = h * v("adj2", 50000)
+            out = [("adj1", true, x1, y2 / 2), ("adj2", false, (x1 + w) / 2, y2)]
+        } else if name.hasSuffix("Connector5") {
+            let x1 = w * v("adj1", 50000), y2 = h * v("adj2", 50000), x3 = w * v("adj3", 50000)
+            out = [("adj1", true, x1, y2 / 2), ("adj2", false, (x1 + x3) / 2, y2), ("adj3", true, x3, (y2 + h) / 2)]
+        }
+        return out.map { ($0.0, $0.1, toSlide(localX: $0.2, localY: $0.3)) }
+    }
+
+    /// A point of the connector's own box (origin at its top left, before mirroring and turning) on the slide.
+    func toSlide(localX: Double, localY: Double) -> Offset {
+        var x = localX - frame.width / 2, y = localY - frame.height / 2
+        if flipH { x = -x }
+        if flipV { y = -y }
+        let a = rotation * .pi / 180
+        let c = frame.center
+        return Offset(c.dx + x * cos(a) - y * sin(a), c.dy + x * sin(a) + y * cos(a))
+    }
+
+    /// Drags the middle run `key` to the slide point `p`: the adjust value follows, the path is drawn again.
+    func setElbowAdjust(_ key: String, alongWidth: Bool, to p: Offset) {
+        let c = frame.center
+        let dx = p.dx - c.dx, dy = p.dy - c.dy
+        let a = -rotation * .pi / 180
+        var x = dx * cos(a) - dy * sin(a), y = dx * sin(a) + dy * cos(a)
+        if flipH { x = -x }
+        if flipV { y = -y }
+        let value = alongWidth ? (x + frame.width / 2) / max(frame.width, 1) : (y + frame.height / 2) / max(frame.height, 1)
+        adjusts[key] = (value * 100000).rounded()
+        if let name = preset?.rawValue {
+            customPath = PresetGeometry.geometry(name, width: frame.width * Pptx.emu, height: frame.height * Pptx.emu, adjustments: adjusts)
+        }
+    }
+
     var lineStart: Offset { isElbow ? elbowPoint(start: true) : Offset(frame.left, frame.top) }
     var lineEndPoint: Offset { isElbow ? elbowPoint(start: false) : Offset(frame.right, frame.bottom) }
 
@@ -84,6 +128,21 @@ extension SlideShape {
         adjusts = adj
         customPath = PresetGeometry.geometry(r.preset, width: r.frame.width * Pptx.emu, height: r.frame.height * Pptx.emu,
                                              adjustments: adj)
+    }
+
+    /// The way a path should leave site `i` to reach `target`: a site on a corner of a round shape (neither axis clearly its
+    /// facing) takes the axis that heads towards the target, so the path goes round the shape rather than across it.
+    func connectionSiteDirection(_ i: Int, towards target: Offset) -> (Double, Double)? {
+        guard let d = connectionSiteDirection(i), let p = connectionSite(i), connectionSiteCount != 4 else { return connectionSiteDirection(i) }
+        let c = frame.center
+        let dx = p.dx - c.dx, dy = p.dy - c.dy
+        let ax = abs(dx), ay = abs(dy)
+        guard ax > 1e-6, ay > 1e-6, min(ax, ay) / max(ax, ay) > 0.5 else { return d }
+        let sx = dx >= 0 ? 1.0 : -1.0, sy = dy >= 0 ? 1.0 : -1.0
+        let gx = (target.dx - p.dx) * sx, gy = (target.dy - p.dy) * sy
+        // Heading along an axis is only useful if the target lies that way; otherwise keep the default facing.
+        if abs(d.0) == 1 { return gx > 0 || gy <= 0 ? d : (0, sy) }
+        return gy > 0 || gx <= 0 ? d : (sx, 0)
     }
 
     /// Which way site `i` faces, on the slide, as a unit step along an axis: up, left, down or right.
@@ -289,7 +348,10 @@ extension DeckController {
                 for start in [true, false] {
                     guard let c = start ? s.connStart : s.connEnd else { continue }
                     if let t = slide.shapes.first(where: { $0.id == c.shape }), s.isGluableLine, let q = t.connectionSite(c.site) {
-                        if s.isElbow, let d = t.connectionSiteDirection(c.site) {
+                        let other = start ? s.connEnd : s.connStart
+                        var goal = start ? s.lineEndPoint : s.lineStart
+                        if let o = other, let ot = slide.shapes.first(where: { $0.id == o.shape }), let oq = ot.connectionSite(o.site) { goal = oq }
+                        if s.isElbow, let d = t.connectionSiteDirection(c.site, towards: goal) {
                             ends[start] = (q, start ? d : (-d.0, -d.1))
                         } else { s.moveLineEnd(start: start, to: q) }
                     } else if start { s.connStart = nil } else { s.connEnd = nil }

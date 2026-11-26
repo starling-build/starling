@@ -96,6 +96,128 @@ final class SlideFormatShapeTests: XCTestCase {
         XCTAssertNotNil(a.fill, "unticking No fill gives a solid fill again")
     }
 
+    func testRotationPresetIsWrittenReplacedAndUndone() throws {
+        let deck = DeckController()
+        let a = deck.addShape(.rect); deck.selectShapes([a])
+        deck.setCamera("isometricOffAxis1Right")
+        XCTAssertEqual(a.scene3d?.cameraName, "isometricOffAxis1Right")
+        var xml = try slideXML(deck)
+        XCTAssertTrue(xml.contains("<a:scene3d><a:camera prst=\"isometricOffAxis1Right\"/><a:lightRig rig=\"threePt\" dir=\"t\"/></a:scene3d>"))
+        let (back, _, _) = try Pptx.read(Pptx.write(deck))
+        XCTAssertEqual(back.slides[0].shapes.first { $0.name == a.name }?.scene3d?.cameraName, "isometricOffAxis1Right")
+        // Another preset replaces the camera, never adds a second scene.
+        deck.setCamera("perspectiveLeft")
+        xml = try slideXML(deck)
+        XCTAssertEqual(xml.components(separatedBy: "<a:scene3d>").count, 2)
+        XCTAssertTrue(xml.contains("prst=\"perspectiveLeft\""))
+        if let dir = ProcessInfo.processInfo.environment["AMD6_UI_CHECK_DIR"], ProcessInfo.processInfo.environment["AMD6_CHECK_DECK2"] != nil {
+            // The presets the first check deck did not print: all other isometric, oblique (with depth) and perspective ones.
+            let iso = ["isometricBottomDown", "isometricBottomUp", "isometricLeftUp", "isometricRightDown", "isometricTopDown",
+                       "isometricOffAxis1Left", "isometricOffAxis1Top", "isometricOffAxis2Left", "isometricOffAxis2Right",
+                       "isometricOffAxis3Left", "isometricOffAxis3Right", "isometricOffAxis3Bottom", "isometricOffAxis4Left",
+                       "isometricOffAxis4Right", "isometricOffAxis4Bottom"]
+            let obl = ["obliqueBottom", "obliqueBottomLeft", "obliqueBottomRight", "obliqueLeft", "obliqueRight", "obliqueTop",
+                       "obliqueTopLeft", "obliqueTopRight"]
+            let per = ["perspectiveFront", "perspectiveRight", "perspectiveBelow", "perspectiveAboveLeftFacing", "perspectiveAboveRightFacing",
+                       "perspectiveContrastingLeftFacing", "perspectiveContrastingRightFacing", "perspectiveHeroicLeftFacing",
+                       "perspectiveHeroicRightFacing", "perspectiveHeroicExtremeRightFacing", "perspectiveRelaxedModerately", "orthographicFront"]
+            let d = DeckController()
+            _ = d.addSlide(.blank); _ = d.addSlide(.blank); _ = d.addSlide(.blank)
+            d.deleteSlide(0)
+            var s1: [String] = Array(iso.suffix(3))
+            s1.append(contentsOf: obl)
+            var s0: [String] = []
+            s0.append(contentsOf: iso.prefix(12))
+            let sets: [[String]] = [s0, s1, per]
+            for (si, names) in sets.enumerated() {
+                d.selectSlide(si)
+                for (i, p) in names.enumerated() {
+                    let s = d.addShape(.rect); d.selectShapes([s])
+                    let x: Double = 40 + Double(i % 4) * 225
+                    let y: Double = 30 + Double(i / 4) * 165
+                    d.setFramesLive([(s, Rect.fromLTWH(x, y, 120, 70))])
+                    d.setCamera(p)
+                    s.name = "chk\(si)_\(i)_\(p)"
+                }
+            }
+            try Pptx.write(d).write(to: URL(fileURLWithPath: dir + "/rotation2-base.pptx"))
+        }
+        if let dir = ProcessInfo.processInfo.environment["AMD6_UI_CHECK_DIR"], ProcessInfo.processInfo.environment["AMD6_CHECK_DECK"] != nil {
+            // A PowerPoint check deck: one shape per preset, patched afterwards (depth, bevel, labels) by a script.
+            let d = DeckController()
+            let presets = ["isometricLeftDown", "isometricRightUp", "isometricTopUp", "isometricOffAxis1Right", "isometricOffAxis2Top",
+                           "obliqueTopLeft", "obliqueBottomRight", "perspectiveLeft", "perspectiveAbove", "perspectiveRelaxed",
+                           "perspectiveHeroicExtremeLeftFacing", "isometricOffAxis1Right", "obliqueTopRight", "isometricLeftDown"]
+            for (i, p) in presets.enumerated() {
+                let s = d.addShape(.rect); d.selectShapes([s])
+                d.setFramesLive([(s, Rect.fromLTWH(30 + Double(i % 4) * 230, 40 + Double(i / 4) * 125, 130, 70))])
+                d.setCamera(p)
+                s.name = "chk\(i)_\(p)"
+            }
+            try Pptx.write(d).write(to: URL(fileURLWithPath: dir + "/rotation-base.pptx"))
+        }
+        if let dir = ProcessInfo.processInfo.environment["AMD6_UI_CHECK_DIR"] {
+            let d = DeckController()
+            for (i, p) in ["isometricOffAxis1Right", "perspectiveLeft", "obliqueTopRight", "perspectiveAbove"].enumerated() {
+                let s = d.addShape(.rect); d.selectShapes([s])
+                d.setFramesLive([(s, Rect.fromLTWH(40 + Double(i % 2) * 300, 40 + Double(i / 2) * 200, 200, 120))])
+                d.setCamera(p)
+            }
+            try Pptx.write(d).write(to: URL(fileURLWithPath: dir + "/rotation.pptx"))
+        }
+        deck.setCamera("orthographicFront")
+        XCTAssertNil(a.scene3d)
+        deck.undo(); deck.undo(); deck.undo()
+        XCTAssertNil(try XCTUnwrap(deck.slides[0].shapes.first { $0.name == a.name }).camera)
+        XCTAssertFalse(try slideXML(deck).contains("<a:scene3d>"))
+    }
+
+    /// PowerPoint's own RotX/RotY/RotZ for presets (rotation2-angles.txt): lat = RotY, lon = -RotX, rev = -RotZ.
+    func testCameraTableHoldsPowerPointsAngles() throws {
+        let want: [(String, Double, Double, Double)] = [
+            ("isometricBottomDown", 35.396, 314.719, 299.838), ("isometricOffAxis3Bottom", 58.738, 306.546, 302.357),
+            ("isometricOffAxis4Left", 342, 26, 0), ("perspectiveAboveLeftFacing", 39.306, 14.338, 341.124),
+            ("perspectiveHeroicRightFacing", 348.984, 345.707, 357.373)]
+        for (n, la, lo, re) in want {
+            let s = try XCTUnwrap(Extrusion.scene(camera: n, from: nil), n)
+            XCTAssertEqual(s.lat, la, accuracy: 0.01, n); XCTAssertEqual(s.lon, lo, accuracy: 0.01, n)
+            XCTAssertEqual(s.rev, re, accuracy: 0.01, n)
+        }
+        XCTAssertNil(Extrusion.scene(camera: "orthographicFront", from: nil))
+    }
+
+    func testTextLiesOnTheTiltedFace() throws {
+        XCTAssertNil(Extrusion.frontMap(Scene3D(depth: 0)))
+        let s = try XCTUnwrap(Extrusion.scene(camera: "isometricLeftDown", from: nil))
+        let m = try XCTUnwrap(Extrusion.frontMap(s))
+        // The shape's x step shortens to .707 across and slides down by .408; its y step stays upright and keeps .816 of its length.
+        XCTAssertEqual(m.a, 0.707, accuracy: 0.01); XCTAssertEqual(abs(m.b), 0.408, accuracy: 0.01)
+        XCTAssertEqual(m.c, 0, accuracy: 0.01); XCTAssertEqual(m.d, 0.816, accuracy: 0.01)
+        // A legacy camera's turn leaves the text flat, as PowerPoint prints fr-f0244d46aa slide 26.
+        var legacy = try XCTUnwrap(Extrusion.read(XNode.parse(Data("<p:spPr xmlns:p=\"p\" xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\"><a:scene3d><a:camera prst=\"legacyPerspectiveFront\"><a:rot lat=\"1500000\" lon=\"20099999\" rev=\"0\"/></a:camera></a:scene3d><a:sp3d extrusionH=\"887400\"/></p:spPr>".utf8)), colors: ColorContext(theme: PptxTheme(nil))))
+        XCTAssertTrue(legacy.legacy)
+        XCTAssertNil(Extrusion.frontMap(legacy))
+        legacy.legacy = false
+        XCTAssertNotNil(Extrusion.frontMap(legacy))
+    }
+
+    func testIsometricTopCamerasAreTrueIsometric() throws {
+        // PowerPoint's print of a 130x70 rect under isometricTopUp (rotation-check.pdf): corners at (-71.5,11.5), (71.5,-12.5),
+        // (21,-41.5), (-22,41.5) from the centre, i.e. rows (.707,.707) and (-.408,.408) of the turn.
+        let s = try XCTUnwrap(Extrusion.scene(camera: "isometricTopUp", from: nil))
+        func rad(_ d: Double) -> Double { -d * .pi / 180 }
+        let (la, lo, re) = (rad(s.lat), rad(s.lon), rad(s.rev))
+        // x' and y' of the unit x and y axes through Ry(lon), Rx(lat), Rz(rev), as in Extrusion.solid.
+        func project(_ x: Double, _ y: Double) -> (Double, Double) {
+            var (px, py, pz) = (x * cos(lo), y, -x * sin(lo))
+            (py, pz) = (py * cos(la) - pz * sin(la), py * sin(la) + pz * cos(la))
+            return (px * cos(re) - py * sin(re), px * sin(re) + py * cos(re))
+        }
+        let (ax, ay) = project(1, 0), (bx, by) = project(0, 1)
+        XCTAssertEqual(ax, 0.7071, accuracy: 0.01); XCTAssertEqual(bx, 0.7071, accuracy: 0.01)
+        XCTAssertEqual(ay, -0.4082, accuracy: 0.01); XCTAssertEqual(by, 0.4082, accuracy: 0.01)
+    }
+
     func testShadowFromThePaneAndOnAFileShape() throws {
         // A new shape: the check box turns a default shadow on, the rows edit it, the file holds it, undo takes it back.
         let deck = DeckController()

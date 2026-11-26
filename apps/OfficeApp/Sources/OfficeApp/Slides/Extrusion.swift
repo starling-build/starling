@@ -19,19 +19,58 @@ enum Extrusion {
     /// The cameras by name, as latitude, longitude and revolution in
     /// degrees — what `a:camera prst` stands for when it has no `a:rot`.
     private static let cameras: [String: (Double, Double, Double)] = [
-        "isometricLeftDown": (35.4, 45, 0), "isometricRightUp": (35.4, 315, 0),
-        "isometricTopUp": (314.7, 315.1, 59.8), "isometricTopDown": (314.7, 44.9, 300.2),
-        "isometricOffAxis1Left": (18, 64, 0), "isometricOffAxis1Right": (18, 334, 0),
-        "isometricOffAxis1Top": (301.3, 306.5, 57.6), "isometricOffAxis2Left": (18, 26, 0),
-        "isometricOffAxis2Right": (18, 296, 0), "isometricOffAxis2Top": (301.3, 53.5, 302.4),
-        "perspectiveLeft": (0, 20, 0), "perspectiveRight": (0, 340, 0),
-        "perspectiveAbove": (340, 0, 0), "perspectiveBelow": (20, 0, 0),
-        "perspectiveRelaxed": (309.6, 0, 0), "perspectiveRelaxedModerately": (324.8, 0, 0),
-        "perspectiveContrastingLeftFacing": (10.4, 43.5, 358.8),
-        "perspectiveContrastingRightFacing": (10.4, 316.5, 1.2),
+        "isometricBottomDown": (35.396, 314.719, 299.838),
+        "isometricBottomUp": (35.396, 45.281, 60.162),
+        "isometricLeftDown": (35.4, 45, 0),
+        "isometricLeftUp": (325, 45, 0),
+        "isometricOffAxis1Left": (18, 64, 0),
+        "isometricOffAxis1Right": (18, 334, 0),
+        "isometricOffAxis1Top": (301.262, 306.546, 57.643),
+        "isometricOffAxis2Left": (18, 26, 0),
+        "isometricOffAxis2Right": (18, 296, 0),
+        "isometricOffAxis2Top": (301.3, 53.5, 302.4),
+        "isometricOffAxis3Bottom": (58.738, 306.546, 302.357),
+        "isometricOffAxis3Left": (342, 64, 0),
+        "isometricOffAxis3Right": (342, 334, 0),
+        "isometricOffAxis4Bottom": (58.738, 53.454, 57.643),
+        "isometricOffAxis4Left": (342, 26, 0),
+        "isometricOffAxis4Right": (342, 296, 0),
+        "isometricRightDown": (325, 315, 0),
+        "isometricRightUp": (35.4, 315, 0),
+        "isometricTopDown": (324.604, 45.281, 299.838),
+        "isometricTopUp": (324.6, 315, 60),
+        "perspectiveAbove": (340, 0, 0),
+        "perspectiveAboveLeftFacing": (39.306, 14.338, 341.124),
+        "perspectiveAboveRightFacing": (39.306, 345.662, 18.876),
+        "perspectiveBelow": (20, 0, 0),
+        "perspectiveContrastingLeftFacing": (10.396, 43.939, 356.446),
+        "perspectiveContrastingRightFacing": (10.396, 316.061, 3.554),
+        "perspectiveFront": (0, 0, 0),
         "perspectiveHeroicExtremeLeftFacing": (8.1, 34.5, 357.1),
-        "perspectiveHeroicExtremeRightFacing": (8.1, 325.5, 2.9),
+        "perspectiveHeroicExtremeRightFacing": (8.122, 325.539, 2.909),
+        "perspectiveHeroicLeftFacing": (348.984, 14.293, 2.627),
+        "perspectiveHeroicRightFacing": (348.984, 345.707, 357.373),
+        "perspectiveLeft": (0, 20, 0),
+        "perspectiveRelaxed": (309.6, 0, 0),
+        "perspectiveRelaxedModerately": (324.844, 0, 0),
+        "perspectiveRight": (0, 340, 0),
     ]
+
+    /// Where the camera puts the shape's own x and y unit steps on its front face (columns of a 2x2 map: x -> (a, b),
+    /// y -> (c, d)); nil when square-on. Text lies on the face and is drawn through it.
+    static func frontMap(_ scene: Scene3D) -> (a: Double, b: Double, c: Double, d: Double)? {
+        // Under a legacy camera (Office 2003's 3-D settings) PowerPoint keeps the text flat on
+        // the page, however the solid turns: fr-f0244d46aa slide 26, legacyPerspectiveFront at lat 25 lon 335.
+        if scene.legacy || (scene.lat == 0 && scene.lon == 0 && scene.rev == 0) { return nil }
+        let lat = -scene.lat * .pi / 180, lon = -scene.lon * .pi / 180, rev = -scene.rev * .pi / 180
+        func turn(_ x: Double, _ y: Double) -> (Double, Double) {
+            let qx = x * cos(lon), qz = -x * sin(lon)
+            let qy = y * cos(lat) - qz * sin(lat)
+            return (qx * cos(rev) - qy * sin(rev), qx * sin(rev) + qy * cos(rev))
+        }
+        let u = turn(1, 0), v = turn(0, 1)
+        return (u.0, u.1, v.0, v.1)
+    }
 
     /// The slide of an oblique camera per unit of depth: the back of the
     /// solid shows on the side the camera is named for.
@@ -286,6 +325,41 @@ enum Extrusion {
         return at(bin(azimuth))
     }
 
+    /// The 3-D Rotation gallery, as (camera preset, label): the ones the drawing knows.
+    static let rotationPresets: [(String, String)] = [
+        ("orthographicFront", "No rotation"),
+        ("isometricLeftDown", "Isometric left down"), ("isometricRightUp", "Isometric right up"),
+        ("isometricTopUp", "Isometric top up"), ("isometricTopDown", "Isometric top down"),
+        ("isometricOffAxis1Left", "Off axis 1 left"), ("isometricOffAxis1Right", "Off axis 1 right"),
+        ("isometricOffAxis1Top", "Off axis 1 top"), ("isometricOffAxis2Left", "Off axis 2 left"),
+        ("isometricOffAxis2Right", "Off axis 2 right"), ("isometricOffAxis2Top", "Off axis 2 top"),
+        ("obliqueTopLeft", "Oblique top left"), ("obliqueTop", "Oblique top"), ("obliqueTopRight", "Oblique top right"),
+        ("obliqueLeft", "Oblique left"), ("obliqueRight", "Oblique right"),
+        ("obliqueBottomLeft", "Oblique bottom left"), ("obliqueBottom", "Oblique bottom"),
+        ("obliqueBottomRight", "Oblique bottom right"),
+        ("perspectiveLeft", "Perspective left"), ("perspectiveRight", "Perspective right"),
+        ("perspectiveAbove", "Perspective above"), ("perspectiveBelow", "Perspective below"),
+        ("perspectiveRelaxed", "Perspective relaxed"), ("perspectiveRelaxedModerately", "Perspective relaxed moderately"),
+        ("perspectiveContrastingLeftFacing", "Perspective contrasting left"),
+        ("perspectiveContrastingRightFacing", "Perspective contrasting right"),
+        ("perspectiveHeroicExtremeLeftFacing", "Perspective heroic extreme left"),
+        ("perspectiveHeroicExtremeRightFacing", "Perspective heroic extreme right"),
+    ]
+
+    /// `old` looked at through the camera `name`: its depth, bevel and lights kept, the turn replaced.
+    /// Nil when the result is square on and has nothing to draw.
+    static func scene(camera name: String, from old: Scene3D?) -> Scene3D? {
+        var s = old ?? Scene3D(depth: 0)
+        s.lat = 0; s.lon = 0; s.rev = 0
+        s.perspective = name.hasPrefix("legacyPerspective")
+        s.cameraName = name
+        s.oblique = s.depth > 0 ? oblique(name) : nil
+        if let c = cameras[name] { (s.lat, s.lon, s.rev) = c }
+        s.legacy = name.hasPrefix("legacy")
+        if s.oblique == nil, s.lat == 0, s.lon == 0, s.rev == 0 { return nil }
+        return s
+    }
+
     static func read(_ spPr: XNode?, colors: ColorContext, text: Bool = false) -> Scene3D? {
         let sp3d = spPr?.first("a:sp3d")
         var s = Scene3D(depth: max(0, sp3d?["extrusionH"].flatMap(Double.init) ?? 0) / Pptx.emu)
@@ -366,7 +440,7 @@ enum Extrusion {
         // bevel's height more, or three quarters of the bottom bevel's if that is more: amd-4's lab p3u (a 9x3 or 9x9 top bevel
         // and a 12 pt bottom one: 9 pt more, bounding boxes and cell scores) and lab p3pv (a 9x3 top bevel and no bottom one:
         // 3.2 pt more at depths 36 and 72, left edges of the solids).
-        let depth = (scene.depth + (rim && scene.rig != "morning" && scene.depth > 0 && scene.bevelW > 0 && scene.bevelH > 0 ? max(scene.bevelH, 0.75 * scene.bevelBH) : 0)) * px
+        let depth = (scene.depth + (scene.rig != "morning" && scene.depth > 0 && scene.bevelW > 0 && scene.bevelH > 0 ? max(scene.bevelH, 0.75 * scene.bevelBH) : 0)) * px
         // The camera turns one way; what is seen turns the other.
         let lat = -scene.lat * .pi / 180, lon = -scene.lon * .pi / 180, rev = -scene.rev * .pi / 180
         func turn(_ p: P3) -> P3 {
