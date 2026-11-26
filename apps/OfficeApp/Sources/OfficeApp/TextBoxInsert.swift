@@ -50,9 +50,9 @@ enum TextBoxInsert {
         func scan(_ xml: String?) {
             guard let xml else { return }
             var rest = Substring(xml)
-            while let r = rest.range(of: "<wp:docPr ") {
+            while let r = rest.rangeOfSubstring("<wp:docPr ") {
                 rest = rest[r.upperBound...]
-                guard let n = rest.range(of: "name=\""), let e = rest[n.upperBound...].firstIndex(of: "\"") else { continue }
+                guard let n = rest.rangeOfSubstring("name=\""), let e = rest[n.upperBound...].firstIndex(of: "\"") else { continue }
                 if let v = Int(rest[n.upperBound ..< e].split(separator: " ").last ?? "") { highest = max(highest, v) }
             }
         }

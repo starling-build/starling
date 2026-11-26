@@ -1611,7 +1611,7 @@ public struct ParagraphGeometry {
 /// thread takes. Images nobody took are released with it.
 final class DecodeMailbox: @unchecked Sendable {
     struct Result { let id: String; let image: Image?; let jpeg: Bool }
-    private let lock = NSLock()
+    private let lock = OfficeLock()
     private var results: [Result] = []
     func put(id: String, image: Image?, jpeg: Bool) {
         lock.lock(); results.append(Result(id: id, image: image, jpeg: jpeg)); lock.unlock()

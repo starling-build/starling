@@ -1743,7 +1743,7 @@ enum Xlsx {
     /// The inside of a shared string item as the file wrote it, or nil where it cannot be written back faithfully.
     static func _siXML(_ si: XNode) -> String? {
         func out(_ n: XNode) -> String? {
-            if n.name.contains(":") { return nil }
+            if n.name.contains(":" as Character) { return nil }
             var a = n.attrs.keys.sorted().map { " \($0)=\"\(_esc(n.attrs[$0]!))\"" }.joined()
             if n.name == "t", n.attrs["xml:space"] == nil, n.text.first == " " || n.text.last == " " || n.text.containsSubstring("\n") { a += " xml:space=\"preserve\"" }
             var inner = ""

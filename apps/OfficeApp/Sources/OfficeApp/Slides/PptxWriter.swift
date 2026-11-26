@@ -922,12 +922,12 @@ private struct SlideXML {
         for (i, part) in parts.enumerated() {
             var piece = part
             if i > 0 {
-                if (piece.hasPrefix("stCxn ") || piece.hasPrefix("endCxn ")), let a = piece.range(of: "@@CXN"),
-                   let b = piece.range(of: "@@\"", range: a.upperBound..<piece.endIndex) {
+                if (piece.hasPrefix("stCxn ") || piece.hasPrefix("endCxn ")), let a = piece.rangeOfSubstring("@@CXN"),
+                   let b = piece.rangeOfSubstring("@@\"", in: a.upperBound..<piece.endIndex) {
                     let n = Int(piece[a.upperBound..<b.lowerBound])
                     if let n, let id = written[n] {
                         piece.replaceSubrange(a.lowerBound..<b.upperBound, with: "\(id)\"")
-                    } else if let close = piece.range(of: "/>") {
+                    } else if let close = piece.rangeOfSubstring("/>") {
                         piece.removeSubrange(piece.startIndex..<close.upperBound)
                         out += piece
                         continue
@@ -1045,7 +1045,7 @@ private struct SlideXML {
         let selfClosing = head.hasSuffix("/>")
         if selfClosing { head = String(head.dropLast(2)) + ">"; rest = "</a:ln>" }
         if let w = widthEMU {
-            if let r = head.range(of: " w=\"") , let e = head[r.upperBound...].firstIndex(of: "\"") {
+            if let r = head.rangeOfSubstring(" w=\"") , let e = head[r.upperBound...].firstIndex(of: "\"") {
                 head.replaceSubrange(r.upperBound ..< e, with: String(w))
             } else {
                 head = String(head.dropLast()) + " w=\"\(w)\">"
@@ -1055,24 +1055,24 @@ private struct SlideXML {
         for tag in ["<a:noFill/>", "<a:solidFill>", "<a:gradFill", "<a:pattFill"] where rest.hasPrefix(tag) {
             if tag == "<a:noFill/>" { start = rest.index(rest.startIndex, offsetBy: tag.count); break }
             let close = tag == "<a:solidFill>" ? "</a:solidFill>" : (tag == "<a:gradFill" ? "</a:gradFill>" : "</a:pattFill>")
-            if let r = rest.range(of: close) { start = r.upperBound }
+            if let r = rest.rangeOfSubstring(close) { start = r.upperBound }
             break
         }
         var tail = String(rest[start...])
         var fillPart = String(rest[..<start])
         if let fill { fillPart = fill }
         if let dash {
-            if tail.hasPrefix("<a:prstDash"), let e = tail.range(of: "/>") { tail = String(tail[e.upperBound...]) }
-            else if tail.hasPrefix("<a:custDash>"), let e = tail.range(of: "</a:custDash>") { tail = String(tail[e.upperBound...]) }
+            if tail.hasPrefix("<a:prstDash"), let e = tail.rangeOfSubstring("/>") { tail = String(tail[e.upperBound...]) }
+            else if tail.hasPrefix("<a:custDash>"), let e = tail.rangeOfSubstring("</a:custDash>") { tail = String(tail[e.upperBound...]) }
             tail = _dashXML(dash) + tail
         }
         if let ends {
             // The file's own arrowheads give way to the chosen ones; they sit last, before any extension list.
             for tag in ["<a:headEnd", "<a:tailEnd"] {
-                if let r = tail.range(of: tag), let e = tail[r.lowerBound...].range(of: "/>") { tail.removeSubrange(r.lowerBound ..< e.upperBound) }
+                if let r = tail.rangeOfSubstring(tag), let e = tail[r.lowerBound...].rangeOfSubstring("/>") { tail.removeSubrange(r.lowerBound ..< e.upperBound) }
             }
-            if let x = tail.range(of: "<a:extLst") { tail.insert(contentsOf: ends, at: x.lowerBound) }
-            else if let c = tail.range(of: "</a:ln>") { tail.insert(contentsOf: ends, at: c.lowerBound) }
+            if let x = tail.rangeOfSubstring("<a:extLst") { tail.insert(contentsOf: ends, at: x.lowerBound) }
+            else if let c = tail.rangeOfSubstring("</a:ln>") { tail.insert(contentsOf: ends, at: c.lowerBound) }
             else { tail += ends }
         }
         rest = fillPart + tail
@@ -1660,7 +1660,7 @@ private struct SlideXML {
                 guard let r = sourceRels.first(where: { $0.id == v }) else { continue }
                 if r.external {
                     n.attrs[k] = _rel(r.type, r.target, external: true, preferred: v)
-                } else if r.type.hasSuffix("/hyperlink"), p.parts[r.target] == nil, r.target.contains("#") {
+                } else if r.type.hasSuffix("/hyperlink"), p.parts[r.target] == nil, r.target.contains("#" as Character) {
                     // A jump to a bookmark in the same file (Word's footnote links, `#_ftn1`): no part, and the link stays.
                     n.attrs[k] = _rel(r.type, Pptx.relative(r.target, from: part), external: false, preferred: v)
                 } else if p.parts[r.target] == nil {
@@ -1939,14 +1939,14 @@ extension SlideXML {
     private static func _elementEnd(_ s: String, _ start: String.Index, _ tag: String) -> String.Index? {
         guard let gt = s[start...].firstIndex(of: ">") else { return nil }
         if s[s.index(before: gt)] == "/" { return s.index(after: gt) }
-        guard let close = s.range(of: "</\(tag)>", range: gt..<s.endIndex) else { return nil }
+        guard let close = s.rangeOfSubstring("</\(tag)>", in: gt..<s.endIndex) else { return nil }
         return close.upperBound
     }
 
     /// The first element `<tag ...>` in `s` (not a longer name sharing the prefix).
     private static func _element(_ s: String, _ tag: String) -> Range<String.Index>? {
         var from = s.startIndex
-        while let r = s.range(of: "<\(tag)", range: from..<s.endIndex) {
+        while let r = s.rangeOfSubstring("<\(tag)", in: from..<s.endIndex) {
             let after = r.upperBound
             if after < s.endIndex, " />".contains(s[after]), let end = _elementEnd(s, r.lowerBound, tag) {
                 return r.lowerBound..<end
@@ -2008,7 +2008,7 @@ extension SlideXML {
                 attrs = String(l[l.index(l.startIndex, offsetBy: "<a:effectLst".count)..<gt])
                 if attrs.hasSuffix("/") { attrs.removeLast() }
                 if !l[..<gt].hasSuffix("/") {
-                    let body = String(l[l.index(after: gt)..<(l.range(of: "</a:effectLst>")?.lowerBound ?? l.endIndex)])
+                    let body = String(l[l.index(after: gt)..<(l.rangeOfSubstring("</a:effectLst>")?.lowerBound ?? l.endIndex)])
                     let rank = ["a:blur": 0, "a:fillOverlay": 1, "a:glow": 2, "a:innerShdw": 3, "a:outerShdw": 4,
                                 "a:prstShdw": 5, "a:reflection": 6, "a:softEdge": 7]
                     for c in _children(body) {
@@ -2034,12 +2034,12 @@ extension SlideXML {
                 attrs = String(sp3d[sp3d.index(sp3d.startIndex, offsetBy: "<a:sp3d".count)..<gt])
                 if attrs.hasSuffix("/") { attrs.removeLast() }
                 if !sp3d[..<gt].hasSuffix("/") {
-                    let body = String(sp3d[sp3d.index(after: gt)..<(sp3d.range(of: "</a:sp3d>")?.lowerBound ?? sp3d.endIndex)])
+                    let body = String(sp3d[sp3d.index(after: gt)..<(sp3d.rangeOfSubstring("</a:sp3d>")?.lowerBound ?? sp3d.endIndex)])
                     rest = _children(body).filter { $0.tag != "a:bevelT" }.map(\.xml).joined()
                 }
             }
             if let b = bevel {
-                if let m = attrs.range(of: " prstMaterial=\"[^\"]*\"", options: .regularExpression) { attrs.removeSubrange(m) }
+                if let m = attrs.rangeOfSubstring(" prstMaterial=\""), let q = attrs[m.upperBound...].firstIndex(of: "\"") { attrs.removeSubrange(m.lowerBound...q) }
                 if b.material != "warmMatte" { attrs += " prstMaterial=\"\(b.material)\"" }
                 sp3d = "<a:sp3d\(attrs)>\(_bevelXML(b))\(rest)</a:sp3d>"
                 if scene.isEmpty {

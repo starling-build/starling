@@ -16,7 +16,7 @@ import Foundation
 struct PptCurrentUser: Equatable {
     static let recordType = 0x0FF6
     /// headerToken of a file that is not encrypted / of one that is.
-    static let plainToken = 0xE391_C05F, encryptedToken = 0xF3D1_C4DF
+    static let plainToken: UInt32 = 0xE391_C05F, encryptedToken: UInt32 = 0xF3D1_C4DF
 
     var offsetToCurrentEdit = 0
     var encrypted = false
@@ -27,7 +27,7 @@ struct PptCurrentUser: Equatable {
         guard b.count >= 28, OfficeArt.u16(b, 2) == Self.recordType else { return nil }
         let size = OfficeArt.u32(b, 4)
         guard size >= 20, 8 + size <= b.count else { return nil }
-        let token = OfficeArt.u32(b, 12)
+        let token = UInt32(truncatingIfNeeded: OfficeArt.u32(b, 12))
         guard token == Self.plainToken || token == Self.encryptedToken else { return nil }
         encrypted = token == Self.encryptedToken
         offsetToCurrentEdit = OfficeArt.u32(b, 16)

@@ -124,6 +124,13 @@ extension String {
 }
 
 extension Substring {
+    /// `range(of:)` on a slice, in the slice's own indices (the browser
+    /// build cannot link Foundation's).
+    public func rangeOfSubstring(_ target: String, in range: Range<Index>? = nil) -> Range<Index>? {
+        guard let range else { return firstRange(ofSubstring: target) }
+        return self[range].firstRange(ofSubstring: target)
+    }
+
     /// The first occurrence of `target`, by character comparison. Its own
     /// name, on `Substring` specifically: `range(of:)` on a `StringProtocol`
     /// (which `self[...]` is, in a generic context) resolves to the NS layer.

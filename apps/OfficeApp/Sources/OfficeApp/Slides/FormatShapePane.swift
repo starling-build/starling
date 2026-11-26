@@ -126,7 +126,7 @@ final class FormatShapePaneState: State<StatefulWidget> {
                 SizedBox(key: ValueKey(id), width: 90, height: 30, child: FluentTextBox(
                     controller: c,
                     onSubmitted: { [weak self] text in
-                        if let v = Self.parseHex(text) { apply(Color((colour.map { $0.value & 0xFF000000 } ?? 0xFF000000) | v)) }
+                        if let v = Self.parseHex(text) { apply(Color((colour.map { Int64($0.value) & 0xFF00_0000 } ?? Int64(0xFF00_0000)) | Int64(v))) }
                         else { c.text = shown; self?._shown[id] = shown }
                     }, enabled: enabled)),
             ])
@@ -201,7 +201,7 @@ final class FormatShapePaneState: State<StatefulWidget> {
                             if let v = Self.parseHex(text) {
                                 deck.editGradient { gg in
                                     guard gg.stops.indices.contains(i) else { return }
-                                    gg.stops[i].color = Color(Int64(gg.stops[i].color.value & 0xFF000000) | Int64(v))
+                                    gg.stops[i].color = Color((Int64(gg.stops[i].color.value) & 0xFF00_0000) | Int64(v))
                                 }
                             } else { hc.text = hexShown; self?._shown[hexId] = hexShown }
                         })),
@@ -242,7 +242,7 @@ final class FormatShapePaneState: State<StatefulWidget> {
             Text("Line", style: caption), gap(4),
             Checkbox(key: ValueKey("fmt.line.none"), checked: some && !lineOn, onChanged: { v in
                 guard some else { return }
-                if v ?? false { deck.setOutline(nil) } else { deck.setOutline(first?.fill.map { Color(0xFF000000 | ($0.value & 0xFFFFFF)) } ?? deck.theme.accents[0]) }
+                if v ?? false { deck.setOutline(nil) } else { deck.setOutline(first?.fill.map { Color(Int64(0xFF00_0000) | Int64($0.value & 0xFFFFFF)) } ?? deck.theme.accents[0]) }
             }, content: Text("No line")), gap(6),
             hexRow("fmt.line.color", "Colour (hex)", first?.outline, enabled: lineOn) { deck.setOutline($0) }, gap(6),
             row("fmt.line.width", "Width", _common { $0.outlineWidth }, min: 0) { deck.setOutlineWidth($0) }, gap(6),

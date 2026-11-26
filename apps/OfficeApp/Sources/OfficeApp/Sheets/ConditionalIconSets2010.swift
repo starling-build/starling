@@ -67,7 +67,7 @@ enum IconSets2010 {
               let e = t.findRange(of: "</x14:conditionalFormatting>", in: a.upperBound ..< t.endIndex) {
             let blockRange = a.lowerBound ..< e.upperBound
             let block = String(t[blockRange])
-            guard block.contains("type=\"iconSet\""), IconSets2010.names.contains(where: { block.contains("iconSet=\"\($0)\"") }),
+            guard block.containsSubstring("type=\"iconSet\""), IconSets2010.names.contains(where: { block.containsSubstring("iconSet=\"\($0)\"") }),
                   let s1 = block.findRange(of: "<xm:sqref>"), let s2 = block.findRange(of: "</xm:sqref>") else { from = e.upperBound; continue }
             let old = block[s1.upperBound ..< s2.lowerBound].split(separator: " ").compactMap { CellRange(String($0)) }
             let left = old.flatMap { r in cut.reduce([r]) { ps, c in ps.flatMap { WorkbookController._subtract($0, c) } } }

@@ -59,7 +59,7 @@ extension PptFile {
                     guard let art = OfficeArt.shapes(drawing: data, in: (sp.body.lowerBound - 8) ..< sp.body.upperBound).first,
                           art.props[0x180] != nil else { continue }
                     let fill = Self.fillXML(art, placeholder: false, picture: picture)
-                    guard fill.contains("<a:gradFill") || fill.contains("<a:blipFill") else { return nil }
+                    guard fill.containsSubstring("<a:gradFill") || fill.containsSubstring("<a:blipFill") else { return nil }
                     return "<p:bg><p:bgPr>\(fill)<a:effectLst/></p:bgPr></p:bg>"
                 }
             }
@@ -95,7 +95,7 @@ extension PptFile {
         guard let c = record(persistId: slide.persistId), c.isContainer else { return "" }
         var n = 1
         func s16(_ k: Int) -> Int { let v = OfficeArt.u16(data, k); return v >= 0x8000 ? v - 0x10000 : v }
-        func s32(_ k: Int) -> Int { let v = OfficeArt.u32(data, k); return v >= 0x8000_0000 ? v - 0x1_0000_0000 : v }
+        func s32(_ k: Int) -> Int { Int(Int32(truncatingIfNeeded: OfficeArt.u32(data, k))) }
         /// Reads one shape container: its OfficeArt properties plus PowerPoint's own children.
         func read(_ sp: ArtRecord) -> (art: ArtShape, anchor: [Int]?, placeholder: Int?, block: PptTextBlock?) {
             let art = OfficeArt.shapes(drawing: data, in: (sp.body.lowerBound - 8) ..< sp.body.upperBound).first ?? ArtShape()
@@ -144,7 +144,7 @@ extension PptFile {
         func rotation(_ s: ArtShape) -> Int {
             // 16.16 fixed degrees -> 60000ths of a degree
             var v = s.props[0x4] ?? 0
-            if v >= 0x8000_0000 { v -= 0x1_0000_0000 }
+            v = Int(Int32(truncatingIfNeeded: v))
             let r = Int((Double(v) / 65536.0 * 60000.0).rounded()) % 21_600_000
             return r < 0 ? r + 21_600_000 : r
         }

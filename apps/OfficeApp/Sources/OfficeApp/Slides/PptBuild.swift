@@ -77,7 +77,7 @@ enum PptBuild {
         var masterIds = ""
         for k in 1 ... nm {
             presRels.append(("rIdM\(k)", "slideMaster", "slideMasters/slideMaster\(k).xml"))
-            masterIds += "<p:sldMasterId id=\"\(2147483648 + 2 * (k - 1))\" r:id=\"rIdM\(k)\"/>"
+            masterIds += "<p:sldMasterId id=\"\(Int64(2147483648) + Int64(2 * (k - 1)))\" r:id=\"rIdM\(k)\"/>"
         }
         var ids = ""
         for k in 1 ... max(n, 1) where k <= n {
@@ -125,7 +125,7 @@ enum PptBuild {
             let masterShapes = m.map { f.shapeXML(of: $0, master: true, picture: mp.rid) } ?? ""
             add("ppt/slideMasters/slideMaster\(k).xml", "<p:sldMaster \(ns)><p:cSld>\(m.flatMap { f.backgroundXML(of: $0, picture: mp.rid) } ?? background(m?.background))\(slideTree(masterShapes))</p:cSld>"
                 + "<p:clrMap bg1=\"lt1\" tx1=\"dk1\" bg2=\"lt2\" tx2=\"dk2\" accent1=\"accent1\" accent2=\"accent2\" accent3=\"accent3\" accent4=\"accent4\" accent5=\"accent5\" accent6=\"accent6\" hlink=\"hlink\" folHlink=\"folHlink\"/>"
-                + "<p:sldLayoutIdLst><p:sldLayoutId id=\"\(2147483649 + 2 * i)\" r:id=\"rId1\"/></p:sldLayoutIdLst>\(m.map { f.textStylesXML(of: $0) } ?? "")</p:sldMaster>")
+                + "<p:sldLayoutIdLst><p:sldLayoutId id=\"\(Int64(2147483649) + Int64(2 * i))\" r:id=\"rId1\"/></p:sldLayoutIdLst>\(m.map { f.textStylesXML(of: $0) } ?? "")</p:sldMaster>")
             add("ppt/slideMasters/_rels/slideMaster\(k).xml.rels", rels([("rId1", "slideLayout", "../slideLayouts/slideLayout\(k).xml"), ("rId2", "theme", "../theme/theme\(k).xml")] + mp.rels()))
             let layoutShapes = m.map { f.shapeXML(of: $0, master: true, placeholdersOnly: true) } ?? ""
             add("ppt/slideLayouts/slideLayout\(k).xml", "<p:sldLayout \(ns) type=\"blank\"><p:cSld>\(slideTree(layoutShapes))</p:cSld></p:sldLayout>")

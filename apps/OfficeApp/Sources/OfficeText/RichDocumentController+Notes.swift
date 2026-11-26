@@ -19,7 +19,7 @@ extension RichDocumentController {
                 defer { offset += r.length }
                 guard let n = r.style.note, n.kind == kind else { continue }
                 let text = String(decoding: units[offset ..< min(offset + r.length, units.count)], as: UTF16.self)
-                if text.contains("\u{200B}") { continue }
+                if text.contains("\u{200B}" as Character) { continue }
                 out.append(_Mark(paragraph: pi, offset: offset, length: r.length, id: n.id, text: text, style: r.style))
             }
         }

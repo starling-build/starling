@@ -70,7 +70,7 @@ extension RichDocumentController {
             }
             var heading = CharStyle.plain
             if options.hyperlinks { heading.link = "#" + name! }
-            var text = p.text.replacingOccurrences(of: "\t", with: " ")
+            var text = p.text.replacingAll("\t", with: " ")
             var runs = [Run(length: text.utf16.count, style: heading)]
             if options.showPageNumbers {
                 var tabStyle = CharStyle.plain

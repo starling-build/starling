@@ -321,6 +321,7 @@ final class SheetsShellState: State<StatefulWidget> {
     }
 
     private func _autosaveNow() {
+        #if !os(WASI)  // (never scheduled there: the browser has no file to rewrite, and no atomic writes)
         guard session.autoSave, session.dirty, let path = session.path,
               ["xlsx", "csv", "tsv"].contains(path.pathExtension.lowercased()) else { return }
         // A cell being typed in is not ours to commit: try again after the next pause.
@@ -339,6 +340,7 @@ final class SheetsShellState: State<StatefulWidget> {
         } catch {
             _flash("AutoSave could not write \(path.lastPathComponent): \(plainFailure(error))")
         }
+        #endif
     }
 
     /// The keyboard's toolbar while a cell is being typed in: undo and redo,

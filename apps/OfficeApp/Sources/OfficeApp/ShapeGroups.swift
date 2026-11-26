@@ -127,7 +127,7 @@ enum ShapeGroups {
         let sx = Double(ex) / Double(qx), sy = Double(ey) / Double(qy)
         var out: [Piece] = []
         var rest = Substring(body)
-        while let s = rest.range(of: "<wps:wsp"), let e = rest.range(of: "</wps:wsp>", range: s.upperBound ..< rest.endIndex) {
+        while let s = rest.rangeOfSubstring("<wps:wsp"), let e = rest.rangeOfSubstring("</wps:wsp>", in: s.upperBound ..< rest.endIndex) {
             let wsp = String(rest[s.lowerBound ..< e.upperBound])
             rest = rest[e.upperBound...]
             guard let cx = intAttr(wsp, "a:ext", "cx"), let cy = intAttr(wsp, "a:ext", "cy"),

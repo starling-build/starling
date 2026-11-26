@@ -2122,7 +2122,7 @@ public final class RichDocumentController: ChangeNotifier {
         var digits = ""
         var seen = false
         for ch in text {
-            if ch.isNumber || (ch == "." && !digits.contains(".")) || (ch == "-" && digits.isEmpty) { digits.append(ch); seen = seen || ch.isNumber }
+            if ch.isNumber || (ch == "." && !digits.contains("." as Character)) || (ch == "-" && digits.isEmpty) { digits.append(ch); seen = seen || ch.isNumber }
             else if ch == "," && seen { continue }
             else if seen { break }
             else if ch == " " || ch == "$" || ch == "€" || ch == "£" || ch == "¥" || ch == "(" { continue }
@@ -3145,7 +3145,7 @@ public final class RichDocumentController: ChangeNotifier {
         while !rest.isEmpty {
             var hit: (Range<Substring.Index>, String, String)? = nil
             for (token, instr, shown) in [(RichDocument.pageField, "PAGE", "1"), (RichDocument.pageCountField, "NUMPAGES", "1")] {
-                if let r = rest.range(of: token), hit == nil || r.lowerBound < hit!.0.lowerBound { hit = (r, instr, shown) }
+                if let r = rest.rangeOfSubstring(token), hit == nil || r.lowerBound < hit!.0.lowerBound { hit = (r, instr, shown) }
             }
             guard let h = hit else { emit(String(rest), plain); break }
             emit(String(rest[rest.startIndex..<h.0.lowerBound]), plain)
