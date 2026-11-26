@@ -189,6 +189,24 @@ final class FormatShapePaneState: State<StatefulWidget> {
             } : nil, child: Text(Extrusion.rotationPresets.first { $0.0 == camera }?.1 ?? camera))),
         ]))
         fx.append(gap(14))
+        // Glow and soft edges: what the ribbon's Shape Effects presets set, with the size typed.
+        let glowOn = some && first?.glowRadius != nil
+        fx.append(Text("Glow", style: caption)); fx.append(gap(4))
+        fx.append(Checkbox(key: ValueKey("fmt.glow.on"), checked: glowOn, onChanged: { (v: Bool?) in
+            guard some else { return }
+            deck.setGlow(radius: (v ?? false) ? 10 : nil, color: ShapeEffectPresets.glowColor(deck.theme.accents[0]))
+        }, content: Text("Glow")))
+        fx.append(gap(6))
+        fx.append(row("fmt.glow.size", "Size", first?.glowRadius.map { Self.text($0) } ?? "", min: 0) { (v: Double) in
+            guard let f = deck.selection.first else { return }
+            deck.setGlow(radius: v > 0 ? v : nil, color: f.glowColor ?? ShapeEffectPresets.glowColor(deck.theme.accents[0]))
+        })
+        fx.append(gap(14))
+        fx.append(Text("Soft edges", style: caption)); fx.append(gap(4))
+        fx.append(row("fmt.softedge.size", "Size", first?.softEdge.map { Self.text($0) } ?? "", min: 0) { (v: Double) in
+            deck.setSoftEdge(v > 0 ? v : nil)
+        })
+        fx.append(gap(14))
         let effects = Column(crossAxisAlignment: .start, children: fx)
         // Gradient fill: one row per stop, add/remove, reverse and the angle.
         var gr: [Widget] = [
