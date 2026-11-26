@@ -467,6 +467,21 @@ final class ChartTests: XCTestCase {
     /// A `cx:` chart's legend row on a slide: 7.08 pt keys whose foot stands 14.4 above the frame's at any height, the row taking
     /// 28.8 pt from the plot; at the top where the file puts it (PowerPoint's print of lab cx-legend: baselines 14.9 above the
     /// foot of frames 200 to 450 pt high, plot feet 51.54 above it; a top legend's baseline 102.19, plot 120.78, on a titled 398.4).
+    func testACxStylePartsCategoryAxisSizeSizesBothAxesButNotTheLegend() {
+        // (lab cx-legsize p15: a 16 pt category axis in the style part prints both axes at 16, the legend at 9.)
+        let space = XNode.parse(Data(#"<cx:chartSpace xmlns:cx="http://schemas.microsoft.com/office/drawing/2014/chartex"><cx:chart><cx:legend pos="b"/></cx:chart></cx:chartSpace>"#.utf8))!
+        let style = XNode.parse(Data(#"<cs:chartStyle xmlns:cs="http://schemas.microsoft.com/office/drawing/2012/chartStyle" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><cs:categoryAxis><cs:lnRef idx="0"/><cs:defRPr sz="1600"/></cs:categoryAxis></cs:chartStyle>"#.utf8))!
+        var c = Chart(type: .bar, categories: [], series: [])
+        ChartXML.applyCxTextSizes(&c, space: space, style: style)
+        XCTAssertEqual(c.categoryLabelSize, 16)
+        XCTAssertEqual(c.valueLabelSize, 16)
+        XCTAssertNil(c.legendSize)
+        var plain = Chart(type: .bar, categories: [], series: [])
+        ChartXML.applyCxTextSizes(&plain, space: space, style: nil)
+        XCTAssertNil(plain.categoryLabelSize)
+        XCTAssertNil(plain.valueLabelSize)
+    }
+
     func testACxLegendRowOnASlideStandsWherePowerPointPrintsIt() {
         func chart(_ pos: String) -> Chart? {
             let pts = [1, 4, 5, 6, 9].enumerated().map { "<cx:pt idx=\"\($0.offset)\">\($0.element)</cx:pt>" }.joined()

@@ -1060,6 +1060,23 @@ enum ChartXML {
     /// chartex part): its series' samples grouped by category, on a column
     /// chart's axes, in a 2013-style chart's text (14 pt title, 9 pt labels,
     /// grey). nil for any other `cx:` chart — its Fallback picture stands.
+    /// A slide chartEx's legend and axis label sizes, from its own text and its chart style part.
+    static func applyCxTextSizes(_ chart: inout Chart, space: XNode, style: XNode?) {
+        // (The legend's text size is its own text's end-of-paragraph size, else the chart style part's legend entry; a size
+        // for the whole chart (`cx:chartSpace/cx:txPr`) leaves it at 9: lab cx-legsize in PowerPoint's print, 7 to 20 pt. A
+        // size on the paragraph's default run alone is not used: lab cx-legend's 12 to 20 pt legends printed at 9.)
+        if let sz = (space.descendant("cx:legend")?.first("cx:txPr")?.descendant("a:endParaRPr")?["sz"]
+            ?? style?.descendant("cs:legend")?.first("cs:defRPr")?["sz"]).flatMap(Double.init), sz > 0 {
+            chart.legendSize = sz / 100
+        }
+        // (The style part's category-axis size sizes the labels of both axes, the value axis too; the legend and the
+        // title keep theirs: lab cx-legsize p15 in PowerPoint's print, 16 pt.)
+        if let sz = style?.descendant("cs:categoryAxis")?.first("cs:defRPr")?["sz"].flatMap(Double.init), sz > 0 {
+            chart.categoryLabelSize = sz / 100
+            chart.valueLabelSize = sz / 100
+        }
+    }
+
     static func readBoxWhisker(_ space: XNode) -> Chart? {
         guard let chart = space.first("cx:chart"),
               let region = chart.first("cx:plotArea")?.first("cx:plotAreaRegion") else { return nil }
