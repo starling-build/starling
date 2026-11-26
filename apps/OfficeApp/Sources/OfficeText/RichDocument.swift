@@ -1419,6 +1419,8 @@ public struct CellRef: Hashable, Codable, Sendable {
     public var keptPropertiesXML: String? = nil
     public var widthKeptUnder: Int? = nil
     public var continuationBordersXML: [String?] = []
+    /// The shading (`w:shd`) of each continuation cell of a merged-down cell, as the file wrote it, kept for the save.
+    public var continuationShdXML: [String?] = []
     /// A merged first-row cell's foot line the file draws nowhere, yet Word gives room for where the span ends (lab sa1f9).
     public var spanFootStyle: String? = nil
     public var spanFootWidth: Double = 0
@@ -1615,6 +1617,8 @@ public struct TableStyle: Hashable, Codable, Sendable {
     /// w:tblpPr, and w:tblOverlap after it): the editor lays the table
     /// out in the text's flow, and a save puts it back where it floated.
     public var keptPosition: String? = nil
+    /// The table's own `w:tblPr/w:shd`, kept as the file wrote it.
+    public var keptShdXML: String? = nil
     /// How far below the text's place a floating table anchored to the
     /// text stands (its w:tblpY under w:vertAnchor="text"), in points:
     /// laid out in the flow, it starts that much lower.
