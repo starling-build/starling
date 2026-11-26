@@ -59,7 +59,9 @@ enum Extrusion {
     /// Where the camera puts the shape's own x and y unit steps on its front face (columns of a 2x2 map: x -> (a, b),
     /// y -> (c, d)); nil when square-on. Text lies on the face and is drawn through it.
     static func frontMap(_ scene: Scene3D) -> (a: Double, b: Double, c: Double, d: Double)? {
-        if scene.lat == 0, scene.lon == 0, scene.rev == 0 { return nil }
+        // Under a legacy camera (Office 2003's 3-D settings) PowerPoint keeps the text flat on
+        // the page, however the solid turns: fr-f0244d46aa slide 26, legacyPerspectiveFront at lat 25 lon 335.
+        if scene.legacy || (scene.lat == 0 && scene.lon == 0 && scene.rev == 0) { return nil }
         let lat = -scene.lat * .pi / 180, lon = -scene.lon * .pi / 180, rev = -scene.rev * .pi / 180
         func turn(_ x: Double, _ y: Double) -> (Double, Double) {
             let qx = x * cos(lon), qz = -x * sin(lon)

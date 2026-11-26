@@ -193,6 +193,12 @@ final class SlideFormatShapeTests: XCTestCase {
         // The shape's x step shortens to .707 across and slides down by .408; its y step stays upright and keeps .816 of its length.
         XCTAssertEqual(m.a, 0.707, accuracy: 0.01); XCTAssertEqual(abs(m.b), 0.408, accuracy: 0.01)
         XCTAssertEqual(m.c, 0, accuracy: 0.01); XCTAssertEqual(m.d, 0.816, accuracy: 0.01)
+        // A legacy camera's turn leaves the text flat, as PowerPoint prints fr-f0244d46aa slide 26.
+        var legacy = try XCTUnwrap(Extrusion.read(XNode.parse(Data("<p:spPr xmlns:p=\"p\" xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\"><a:scene3d><a:camera prst=\"legacyPerspectiveFront\"><a:rot lat=\"1500000\" lon=\"20099999\" rev=\"0\"/></a:camera></a:scene3d><a:sp3d extrusionH=\"887400\"/></p:spPr>".utf8)), colors: ColorContext(theme: PptxTheme(nil))))
+        XCTAssertTrue(legacy.legacy)
+        XCTAssertNil(Extrusion.frontMap(legacy))
+        legacy.legacy = false
+        XCTAssertNotNil(Extrusion.frontMap(legacy))
     }
 
     func testIsometricTopCamerasAreTrueIsometric() throws {
