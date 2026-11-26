@@ -309,10 +309,36 @@ public final class RichDocumentController: ChangeNotifier {
                 if !_inEdit {
                     _breakCoalescing()
                     typingStyle = nil
+                    _announceCellIfChanged()
                 }
                 notifyListeners()
             }
         }
+    }
+
+    private var _announcedCell: String?
+    /// What a screen reader hears when the caret enters a table cell: "Row 2, column 3, Price" (the header row's
+    /// text for that column), then nothing more until the caret leaves for another cell.
+    public var cellDescription: String? {
+        guard let c = currentCell else { return nil }
+        var s = "Row \(c.row + 1), column \(c.column + 1)"
+        if c.row > 0, tableLook(of: c.table) & 0x20 != 0, let h = document.paragraphs(inTable: c.table).first(where: {
+            let r = document.paragraphs[$0].cell
+            return r?.row == 0 && r?.column == c.column
+        }) {
+            let t = document.paragraphs[h].text
+            if !t.isEmpty { s += ", " + t }
+        }
+        return s
+    }
+
+    private func _announceCellIfChanged() {
+        guard ScreenReader.isListening, selection.focus.paragraph < document.paragraphs.count else { return }
+        let cell = currentCell
+        let key = cell.map { "\($0.table)/\($0.row)/\($0.column)" }
+        if key == _announcedCell { return }
+        _announcedCell = key
+        if let d = cellDescription { ScreenReader.announce(d) }
     }
 
     /// The style the next typed character takes at a collapsed caret after

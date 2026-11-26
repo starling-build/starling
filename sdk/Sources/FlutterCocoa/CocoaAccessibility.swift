@@ -34,9 +34,16 @@ public enum CocoaAccessibility {
             NSAccessibility.post(element: NSApp as Any, notification: .announcementRequested,
                                  userInfo: [.announcement: text, .priority: level.rawValue])
         }
-        let t = Timer(timeInterval: 0.4, repeats: true) { _ in refresh() }
+        pollDisplaySettings()
+        let t = Timer(timeInterval: 0.4, repeats: true) { _ in refresh(); pollDisplaySettings() }
         RunLoop.main.add(t, forMode: .common)
         timer = t
+    }
+
+    /// Increase Contrast. macOS has no system-wide text size or bold-text setting, so those stay at their defaults.
+    static func pollDisplaySettings() {
+        SystemDisplay.update(DisplaySettings(textScale: 1, increasedContrast: NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast,
+                                             boldText: false))
     }
 
     static func refresh() {

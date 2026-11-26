@@ -388,7 +388,7 @@ extension Ribbon {
     /// Insert → Pictures; Alt Text once a picture is selected.
     private func _illustrationsGroup(_ wb: WorkbookController, _ fluent: FluentThemeData) -> Widget {
         var items: [Widget] = [Chrome.big(FluentSystemIcons.image, "Pictures", fluent) { wb.onCommand?(.insertPicture) }]
-        if let i = wb.selectedDrawing, wb.sheet.drawings.indices.contains(i), case .picture = wb.sheet.drawings[i].kind {
+        if let i = wb.selectedDrawing, wb.sheet.drawings.indices.contains(i), wb.sheet.drawings[i].kind != .other {
             items.append(Chrome.big(FluentSystemIcons.image, "Alt Text", fluent) { wb.onCommand?(.altText) })
         }
         if wb.selectedDrawing != nil {

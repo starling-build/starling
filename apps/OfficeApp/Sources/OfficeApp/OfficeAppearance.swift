@@ -24,27 +24,41 @@ enum OfficeAppearance {
         theme.brightness == .dark ? Color(0xFF151E2E) : Color(0xFFEDF1F7)
     }
 
+    /// Increase Contrast: a control edge must reach 3:1 against its surface, and the text 7:1.
+    private static var contrast: Bool { SystemDisplay.current.increasedContrast }
+
     static func border(_ theme: FluentThemeData) -> Color {
-        theme.brightness == .dark ? Color(0xFF364359) : Color(0xFFDDE4EF)
+        if contrast { return theme.brightness == .dark ? Color(0xFF8FA0BB) : Color(0xFF6B7A93) }
+        return theme.brightness == .dark ? Color(0xFF364359) : Color(0xFFDDE4EF)
     }
 
     static func ink(_ theme: FluentThemeData) -> Color {
-        theme.brightness == .dark ? Color(0xFFF1F5FF) : Color(0xFF1B2943)
+        if contrast { return theme.brightness == .dark ? white : Color(0xFF000000) }
+        return theme.brightness == .dark ? Color(0xFFF1F5FF) : Color(0xFF1B2943)
     }
 
     static func secondary(_ theme: FluentThemeData) -> Color {
-        theme.brightness == .dark ? Color(0xFFB0BED6) : Color(0xFF596981)
+        if contrast { return theme.brightness == .dark ? Color(0xFFE3EAF7) : Color(0xFF2B3850) }
+        return theme.brightness == .dark ? Color(0xFFB0BED6) : Color(0xFF596981)
     }
 
-    static func theme(_ brightness: Brightness) -> FluentThemeData {
+    /// A fixed chrome row's height at the system text size: the row grows with the text instead of clipping it.
+    static func rowHeight(_ h: Double, display: DisplaySettings = SystemDisplay.current) -> Double { h * display.chromeTextScale }
+
+    /// `display` is the system's text size, contrast and bold settings (see SystemDisplay); the chrome's text
+    /// follows them, up to what its fixed rows can hold.
+    static func theme(_ brightness: Brightness, display: DisplaySettings = SystemDisplay.current) -> FluentThemeData {
         let dark = brightness == .dark
-        let ink = dark ? Color(0xFFF1F5FF) : Color(0xFF1B2943)
+        var ink = dark ? Color(0xFFF1F5FF) : Color(0xFF1B2943)
+        if display.increasedContrast { ink = dark ? white : Color(0xFF000000) }
+        let k = display.chromeTextScale
+        let w: FontWeight = display.boldText ? .w700 : .w400
         return FluentThemeData(
             brightness: brightness,
             typography: Typography(
-                bodyStrong: Flutter.TextStyle(color: ink, fontSize: 13, fontWeight: .w600),
-                body: Flutter.TextStyle(color: ink, fontSize: 13),
-                caption: Flutter.TextStyle(color: ink, fontSize: 11)),
+                bodyStrong: Flutter.TextStyle(color: ink, fontSize: 13 * k, fontWeight: display.boldText ? .w800 : .w600),
+                body: Flutter.TextStyle(color: ink, fontSize: 13 * k, fontWeight: w),
+                caption: Flutter.TextStyle(color: ink, fontSize: 11 * k, fontWeight: w)),
             accentColor: accent,
             scaffoldBackgroundColor: dark ? Color(0xFF202B40) : white,
             menuColor: dark ? Color(0xFF202B40) : white,

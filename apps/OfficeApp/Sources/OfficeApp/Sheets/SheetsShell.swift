@@ -511,7 +511,7 @@ final class SheetsShellState: State<StatefulWidget> {
             else { _flash(SortProblem.nothingToSort.message) }
         case .insertPicture: _pickPicture()
         case .altText:
-            if let i = wb.selectedDrawing, wb.sheet.drawings.indices.contains(i), case .picture = wb.sheet.drawings[i].kind {
+            if let i = wb.selectedDrawing, wb.sheet.drawings.indices.contains(i), wb.sheet.drawings[i].kind != .other {
                 setState { _altOpen = true }
             }
         case .insertPivotTable:
@@ -1403,8 +1403,9 @@ final class SheetsShellState: State<StatefulWidget> {
         if _altOpen, let i = wb.selectedDrawing, wb.sheet.drawings.indices.contains(i) {
             layers.append(Positioned(left: 0, top: 0, right: 0, bottom: 0, child: AltTextDialog(
                 initial: wb.sheet.drawings[i].descr ?? "",
-                onApply: { [weak self] text in
-                    self?.wb.setDrawingAlt(i, text)
+                title: wb.sheet.drawings[i].title ?? "",
+                onApply: { [weak self] text, title in
+                    self?.wb.setDrawingAlt(i, text, title: title)
                     self?.setState { self?._altOpen = false }
                     self?._grid?.focus.requestFocus()
                 },

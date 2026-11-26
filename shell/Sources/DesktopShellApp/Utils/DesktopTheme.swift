@@ -220,7 +220,7 @@ struct ShellTheme {
         isDark: true,
         fgPrimary: Color(0xFFFFFFFF),
         fgSecondary: Color(0xFFCCCCCC),
-        fgTertiary: Color(0xFF8E8E93),
+        fgTertiary: Color(0xFFA8A8AE),
         barTint: Color(0x2E101014),
         barHairline: Color(0x14FFFFFF),
         hoverFill: Color(0x40FFFFFF),
@@ -265,7 +265,7 @@ struct ShellTheme {
         controlFill: Color(0xFF3A3A3C),
         controlStroke: Color(0x1FFFFFFF),
         controlHover: Color(0xFF48484A),
-        accentInk: Color(0xFFFFFFFF),
+        accentInk: Color(0xFF000000),
         trackRest: Color(0x4DFFFFFF),
         fontFamily: nil,
         fontFamilyStrong: nil,
@@ -280,7 +280,7 @@ struct ShellTheme {
         isDark: false,
         fgPrimary: Color(0xD9000000),
         fgSecondary: Color(0x8C000000),
-        fgTertiary: Color(0x59000000),
+        fgTertiary: Color(0x99000000),
         // Menu bar: strong white frost (macOS light bar is nearly solid
         // white with just a hint of wallpaper through the blur).
         barTint: Color(0xCCF6F6F6),
@@ -316,7 +316,7 @@ struct ShellTheme {
         overlayTextDim: Color(0x99FFFFFF),
         // Deeper blue than the dark theme's — the pale cyan washes out on
         // light frost panels.
-        accent: Color(0xFF007AFF),
+        accent: Color(0xFF0070EB),
         barFill: Color(0xFFF6F6F6),
         barHover: Color(0x14000000),
         runningIndicator: Color(0x99000000),

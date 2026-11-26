@@ -79,6 +79,8 @@ struct ShapeState: Equatable {
     var group: ShapeGroup? = nil
     var keptLine: KeptLine? = nil
     var altText: String? = nil
+    /// The alt text's title (`cNvPr title`): a short name for the object.
+    var altTitle: String? = nil
     var link: String? = nil
     var linkTip: String? = nil
     var keptPicture: KeptPicture? = nil
@@ -1026,7 +1028,37 @@ final class DeckController: ChangeNotifier {
         let mine = shapes.filter { s in currentSlide.shapes.contains { $0 === s } }
         guard mine.count != selection.count || zip(mine, selection).contains(where: { $0 !== $1 }) else { return }
         selection = mine
+        if mine.count == 1, let one = mine.first { ScreenReader.announce(spokenShape(one)) }
         _notify()
+    }
+
+    /// What a screen reader says when a shape is selected: its name, what it is, the start of its text (or its alt
+    /// text), where it sits on the slide, and its place in the Tab order: "Title 1, title, Quarterly review,
+    /// top centre, 1 of 3".
+    func spokenShape(_ s: SlideShape) -> String {
+        var kind: String
+        switch s.kind {
+        case .placeholder(let r): kind = r == .body ? "content placeholder" : r == .subTitle ? "subtitle" : "title"
+        case .textBox: kind = "text box"
+        case .geometry: kind = "shape"
+        case .picture: kind = "picture"
+        case .table: kind = "table"
+        case .chart: kind = "chart"
+        case .opaque: kind = "object"
+        }
+        var parts = [s.name.isEmpty ? kind : s.name, kind]
+        if let alt = s.altText, !alt.isEmpty { parts.append(alt) }
+        else if let t = s.text, s.kind != .table {
+            let words = t.document.paragraphs.map { $0.text }.joined(separator: " ").split(separator: " ", omittingEmptySubsequences: true)
+            if !words.isEmpty { parts.append(words.prefix(8).joined(separator: " ") + (words.count > 8 ? "…" : "")) }
+        }
+        let cx = (s.frame.left + s.frame.width / 2) / max(slideSize.width, 1)
+        let cy = (s.frame.top + s.frame.height / 2) / max(slideSize.height, 1)
+        let v = cy < 1.0 / 3 ? "top" : cy > 2.0 / 3 ? "bottom" : "middle"
+        let h = cx < 1.0 / 3 ? "left" : cx > 2.0 / 3 ? "right" : "centre"
+        parts.append(v == "middle" && h == "centre" ? "centre" : v == "middle" ? h : h == "centre" ? v : v + " " + h)
+        if let i = currentSlide.shapes.firstIndex(where: { $0 === s }) { parts.append("\(i + 1) of \(currentSlide.shapes.count)") }
+        return parts.joined(separator: ", ")
     }
 
     /// Shift/Ctrl+click: `shape` joins the selection, or leaves it when it is
@@ -1439,14 +1471,13 @@ final class DeckController: ChangeNotifier {
         _changed()
     }
 
-    /// Set the alt text of the selected pictures (empty clears it). One undo step.
-    func setAltText(_ text: String) {
-        let pics = selection.filter { $0.picture != nil }
-        guard !pics.isEmpty else { return }
-        let value = text.isEmpty ? nil : text
-        guard pics.contains(where: { $0.altText != value }) else { return }
+    /// Set the alt text and its title on the selected shapes, whatever their kind (empty clears). One undo step.
+    func setAltText(_ text: String, title: String = "") {
+        guard !selection.isEmpty else { return }
+        let value = text.isEmpty ? nil : text, head = title.isEmpty ? nil : title
+        guard selection.contains(where: { $0.altText != value || $0.altTitle != head }) else { return }
         _checkpoint()
-        for s in pics { s.altText = value }
+        for s in selection { s.altText = value; s.altTitle = head }
         _changed()
     }
 
@@ -1480,7 +1511,8 @@ final class DeckController: ChangeNotifier {
     }
 
     /// The alt text of the first selected picture, for the dialog to start from.
-    var selectedAltText: String? { selection.first { $0.picture != nil }?.altText }
+    var selectedAltText: String? { selection.first?.altText }
+    var selectedAltTitle: String? { selection.first?.altTitle }
 
     // MARK: Text box options (S-TX-2)
 
@@ -2591,7 +2623,7 @@ final class DeckController: ChangeNotifier {
                    customPath: s.customPath, fillStyle: s.fillStyle, invisible: s.invisible, fileId: s.fileId,
                    sourceXML: s.sourceXML, sourceText: s.sourceText, sourcePart: s.sourcePart,
                    sourceChart: s.sourceChart, field: s.field, group: s.group, keptLine: s.keptLine,
-                   altText: s.altText, link: s.link, linkTip: s.linkTip, keptPicture: s.keptPicture, autofit: s.autofit, fontScale: s.fontScale,
+                   altText: s.altText, altTitle: s.altTitle, link: s.link, linkTip: s.linkTip, keptPicture: s.keptPicture, autofit: s.autofit, fontScale: s.fontScale,
                    insetsFollowFont: s.insetsFollowFont, keptLook: s.keptLook)
         st.lineReduction = s.lineReduction
         st.pictureLevels = s.pictureLevels
@@ -2732,6 +2764,7 @@ final class DeckController: ChangeNotifier {
         shape.keptLine = st.keptLine
         shape.keptPicture = st.keptPicture
         shape.altText = st.altText
+        shape.altTitle = st.altTitle
         shape.link = st.link
         shape.linkTip = st.linkTip
         shape.autofit = st.autofit

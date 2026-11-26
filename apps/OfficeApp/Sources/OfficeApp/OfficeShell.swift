@@ -1286,6 +1286,7 @@ final class OfficeShellState: State<StatefulWidget> {
             return true
         }
         setState { _noteOpen = n; _noteBox = box ?? Rect.fromLTWH(120, 200, 480, 60) }
+        ScreenReader.announce("Editing note. Escape to finish.", priority: .assertive)
     }
 
     private func _commitNote() {
@@ -1297,6 +1298,7 @@ final class OfficeShellState: State<StatefulWidget> {
         if let k = _noteKeys { FocusManager.instance.removeKeyInterceptor(k) }
         _noteKeys = nil
         setState { _noteOpen = nil }
+        ScreenReader.announce("Note saved")
         _editorFocus.requestFocus()
     }
 
@@ -1615,11 +1617,11 @@ final class OfficeShellState: State<StatefulWidget> {
                 Positioned(left: 0, top: 0, right: 0, bottom: 0, child: Listener(
                     onPointerDown: { [weak self] _ in self?._commitNote() }, behavior: .translucent, child: SizedBox(expand: ()))),
                 Positioned(left: box.left, top: box.top, child: SizedBox(width: max(box.width, 240),
-                    child: FluentTextBox(controller: _noteText, maxLines: 8,
+                    child: KeyboardRegion(name: "Note", modal: true, child: FluentTextBox(controller: _noteText, maxLines: 8,
                         style: TextStyle(color: Color(0xFF000000), fontSize: 10 * 96 / 72 * session.zoom),
                         padding: EdgeInsets.zero,
                         decoration: BoxDecoration(color: Color(0xFFFFFFFF)), focusedDecoration: BoxDecoration(color: Color(0xFFFFFFFF)),
-                        showFocusRing: false, autofocus: true))),
+                        showFocusRing: false, autofocus: true)))),
             ])
         }
         if _pageSetupOpen {
@@ -2065,6 +2067,7 @@ final class OfficeShellState: State<StatefulWidget> {
             session.controller = box
             session.summary = session.summarize()
         }
+        ScreenReader.announce("Editing text box. Escape to finish.", priority: .assertive)
         _boxFocus.requestFocus()
     }
 
@@ -2085,6 +2088,7 @@ final class OfficeShellState: State<StatefulWidget> {
             }
         }
         setState { session.summary = session.summarize() }
+        ScreenReader.announce("Text box saved")
         _editorFocus.requestFocus()
     }
 }
