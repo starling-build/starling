@@ -122,7 +122,8 @@ enum MetafileGDIMetrics {
     }()
     private static func fileMetrics(face: String, bold: Bool, height: Int) -> (ascent: Int, descent: Int)? {
         guard let f = files["\(face.lowercased())|\(bold ? 700 : 400)"], height != 0, abs(height) >= 6, abs(height) <= 72 else { return nil }
-        let em = height < 0 ? Double(-height) : Double(height) * Double(f.0) / Double(f.1 + f.2)
+        // A positive height's em is a whole pixel too: Word draws Yu Mincho at +24 with a 19 px (14.25 pt) em, not 18.65 px (lab mincho-emf2).
+        let em = height < 0 ? Double(-height) : (Double(height) * Double(f.0) / Double(f.1 + f.2) + 0.5).rounded(.down)
         func up(_ v: Int) -> Int { Int((Double(v) * em / Double(f.0) + 0.5).rounded(.down)) }
         return (up(f.1), up(f.2))
     }
