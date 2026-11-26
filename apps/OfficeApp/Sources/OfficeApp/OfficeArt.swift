@@ -129,8 +129,8 @@ enum OfficeArt {
                     for c in records(b, in: rec.body) {
                         switch c.type {
                         case 0xF00A: s.type = c.inst; s.id = u32(b, c.body.lowerBound); s.flags = u32(b, c.body.lowerBound + 4)
-                        case 0xF00B:
-                            // Properties: id (14 bits) + flags, value; complex ones keep their data after the table.
+                        case 0xF00B, 0xF122:
+                            // Properties (the primary and the tertiary table): id (14 bits) + flags, value; complex ones keep their data after the table.
                             let n = c.inst
                             for k in 0 ..< n {
                                 let o = c.body.lowerBound + 6 * k

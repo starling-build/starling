@@ -91,7 +91,8 @@ extension PptFile {
     /// `p:sp` / `p:grpSp` elements for the shapes of a slide, in drawing order.
     /// `picture` turns a picture-store index into the relationship id a part holds it under (nil: the picture cannot be used).
     /// `master`: a master's own drawing; with `placeholdersOnly` only its placeholders (what a layout repeats).
-    func shapeXML(of slide: Page, master: Bool = false, placeholdersOnly: Bool = false, picture: (Int) -> String? = { _ in nil }) -> String {
+    func shapeXML(of slide: Page, master: Bool = false, placeholdersOnly: Bool = false, picture: (Int) -> String? = { _ in nil },
+                  embed: (_ blob: [UInt8], _ id: Int, _ xfrm: String?) -> String? = { _, _, _ in nil }) -> String {
         guard let c = record(persistId: slide.persistId), c.isContainer else { return "" }
         var n = 1
         func s16(_ k: Int) -> Int { let v = OfficeArt.u16(data, k); return v >= 0x8000 ? v - 0x10000 : v }
@@ -151,6 +152,12 @@ extension PptFile {
         func shape(_ sp: ArtRecord) -> String {
             let (art, anchor, placeholder, block) = read(sp)
             if placeholdersOnly && placeholder == nil { return "" }
+            // PowerPoint 2007 and later keep a chart's or diagram's own frame beside the picture older versions show.
+            if !placeholdersOnly, let blob = art.complex[0x3A9] {
+                let place = xfrm("xfrm", anchor, rot: rotation(art), flipH: art.flags & 0x40 != 0, flipV: art.flags & 0x80 != 0)
+                let p = place.isEmpty ? nil : "<p:xfrm" + place.dropFirst("<a:xfrm".count).dropLast("</a:xfrm>".count) + "</p:xfrm>"
+                if let x = embed(blob, n + 1, p) { n += 1; return x }
+            }
             if art.type == 75, art.pib > 0, let rid = picture(art.pib) {
                 n += 1
                 var x = "<p:pic><p:nvPicPr><p:cNvPr id=\"\(n)\" name=\"Picture \(n)\"/><p:cNvPicPr/><p:nvPr/></p:nvPicPr>"
