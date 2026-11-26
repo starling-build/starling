@@ -177,6 +177,25 @@ final class WordArtTests: XCTestCase {
         }
     }
 
+    func testAPerspectiveCameraStandsWherePowerPointPrintsItFrom() throws {
+        func scene(_ camera: String) throws -> Scene3D {
+            try XCTUnwrap(Extrusion.read(XNode.parse(Data("<p:spPr xmlns:p=\"p\" \(ns)><a:scene3d>\(camera)</a:scene3d></p:spPr>".utf8)), colors: colors))
+        }
+        // Eye distances (pt) that fit the corners of PowerPoint's prints to within
+        // 0.15 pt of the best fit: a flat 120x70 rect under
+        // perspectiveHeroicExtremeRightFacing (80 deg) 440 to 560,
+        let heroic = try scene("<a:camera prst=\"perspectiveHeroicExtremeRightFacing\"/>")
+        XCTAssertNil(heroic.fov)
+        XCTAssertEqual(Extrusion.eye(heroic), 500, accuracy: 60)
+        // cropped_image's 248.7x80.3 arrow under the file's own lens of 120 deg 240 to 265,
+        let wide = try scene("<a:camera prst=\"perspectiveContrastingRightFacing\" fov=\"7200000\"/>")
+        XCTAssertEqual(try XCTUnwrap(wide.fov), 120, accuracy: 1e-9)
+        XCTAssertEqual(Extrusion.eye(wide), 252, accuracy: 13)
+        // and a 45 deg preset 700 to 1100 (the flat rect and the deep perspectiveContrastingLeft solid).
+        let plain = try scene("<a:camera prst=\"perspectiveContrastingLeftFacing\"/>")
+        XCTAssertEqual(Extrusion.eye(plain), 900, accuracy: 200)
+    }
+
     func testADepthAndACameraAreRead() throws {
         func scene(_ inner: String) -> Scene3D? {
             Extrusion.read(XNode.parse(Data("<p:spPr xmlns:p=\"p\" \(ns)>\(inner)</p:spPr>".utf8)), colors: colors)
