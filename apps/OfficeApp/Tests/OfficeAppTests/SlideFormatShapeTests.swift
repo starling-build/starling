@@ -201,6 +201,39 @@ final class SlideFormatShapeTests: XCTestCase {
         XCTAssertNotNil(Extrusion.frontMap(legacy))
     }
 
+    func testTextTapersWithAPerspectiveFace() throws {
+        func at(_ m: [Double], _ x: Double, _ y: Double) -> Offset {
+            let w = m[3] * x + m[7] * y + m[15]
+            return Offset((m[0] * x + m[4] * y + m[12]) / w, (m[1] * x + m[5] * y + m[13]) / w)
+        }
+        let c = Offset(300, 200)
+        // An orthographic turn keeps parallel lines parallel: no divide.
+        let iso = try XCTUnwrap(Extrusion.frontTransform(XCTUnwrap(Extrusion.scene(camera: "isometricLeftDown", from: nil)), center: c, pxPerPt: 1))
+        XCTAssertEqual(iso[3], 0); XCTAssertEqual(iso[7], 0); XCTAssertEqual(iso[15], 1)
+        // Under perspectiveHeroicExtremeLeftFacing (80 deg lens) the face's middle stays put and its
+        // two upright edges print at different heights, as the face's own corners do:
+        // rotation-check's text spans 510.8-604.2 pt on PowerPoint's print (a flat-tilt map gave 508.0-601.8).
+        let s = try XCTUnwrap(Extrusion.scene(camera: "perspectiveHeroicExtremeLeftFacing", from: nil))
+        let m = try XCTUnwrap(Extrusion.frontTransform(s, center: c, pxPerPt: 1))
+        let o = at(m, c.dx, c.dy)
+        XCTAssertEqual(o.dx, c.dx, accuracy: 1e-9); XCTAssertEqual(o.dy, c.dy, accuracy: 1e-9)
+        let left = at(m, c.dx - 60, c.dy + 35).dy - at(m, c.dx - 60, c.dy - 35).dy
+        let right = at(m, c.dx + 60, c.dy + 35).dy - at(m, c.dx + 60, c.dy - 35).dy
+        XCTAssertGreaterThan(abs(left - right), 3)
+        // The same corner through the solid's own projection: q = R p, drawn at q * eye / (eye - q.z).
+        let f = try XCTUnwrap(Extrusion.frontMap(s))
+        let eye = Extrusion.eye(s)
+        let lat = -s.lat * .pi / 180, lon = -s.lon * .pi / 180
+        let qz = { (x: Double, y: Double) in y * sin(lat) + (-x * sin(lon)) * cos(lat) }(60, 35)
+        let k = eye / (eye - qz)
+        let p = at(m, c.dx + 60, c.dy + 35)
+        XCTAssertEqual(p.dx, c.dx + (f.a * 60 + f.c * 35) * k, accuracy: 1e-6)
+        XCTAssertEqual(p.dy, c.dy + (f.b * 60 + f.d * 35) * k, accuracy: 1e-6)
+        // A legacy camera leaves the text flat.
+        var legacy = s; legacy.legacy = true
+        XCTAssertNil(Extrusion.frontTransform(legacy, center: c, pxPerPt: 1))
+    }
+
     func testIsometricTopCamerasAreTrueIsometric() throws {
         // PowerPoint's print of a 130x70 rect under isometricTopUp (rotation-check.pdf): corners at (-71.5,11.5), (71.5,-12.5),
         // (21,-41.5), (-22,41.5) from the centre, i.e. rows (.707,.707) and (-.408,.408) of the turn.

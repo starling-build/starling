@@ -72,6 +72,37 @@ enum Extrusion {
         return (u.0, u.1, v.0, v.1)
     }
 
+    /// The canvas matrix (column-major 4x4) that lays text on the shape's front face about `c`, the
+    /// shape's middle in pixels: `frontMap`'s turn and, under a perspective camera, the face's own
+    /// taper, its far side drawn smaller as `solid` draws the face's corners (the face at the
+    /// shape's `z` lift). PowerPoint prints the letters on a perspective-turned face shrinking with
+    /// it (rotation2-check: perspectiveContrastingLeftFacing, perspectiveRelaxedModerately).
+    /// Nil when the text stays flat (square-on, or a legacy camera).
+    static func frontTransform(_ scene: Scene3D, center c: Offset, pxPerPt px: Double) -> [Double]? {
+        let perspective = scene.oblique == nil && scene.cameraName.hasPrefix("perspective") && !scene.legacy
+        guard let m = frontMap(scene) ?? (perspective && scene.lift != 0 ? (1, 0, 0, 1) : nil) else { return nil }
+        var a = m.a, b = m.b, cc = m.c, d = m.d, tx = 0.0, ty = 0.0, wx = 0.0, wy = 0.0, w0 = 1.0
+        if perspective {
+            // The face's points before the eye's divide: q = R (x, y, lift), drawn at q.xy * eye / (eye - q.z).
+            let lat = -scene.lat * .pi / 180, lon = -scene.lon * .pi / 180, rev = -scene.rev * .pi / 180
+            func turn(_ x: Double, _ y: Double, _ z: Double) -> (Double, Double, Double) {
+                let qx = x * cos(lon) + z * sin(lon), qz0 = -x * sin(lon) + z * cos(lon)
+                let qy = y * cos(lat) - qz0 * sin(lat), qz = y * sin(lat) + qz0 * cos(lat)
+                return (qx * cos(rev) - qy * sin(rev), qx * sin(rev) + qy * cos(rev), qz)
+            }
+            let eye = Extrusion.eye(scene) * px
+            let u = turn(1, 0, 0), v = turn(0, 1, 0), w = turn(0, 0, scene.lift * px)
+            a = u.0; b = u.1; cc = v.0; d = v.1; tx = w.0; ty = w.1
+            wx = -u.2 / eye; wy = -v.2 / eye; w0 = 1 - w.2 / eye
+        }
+        // About c: X = (a x + c y + tx) / W + cx, Y likewise, x and y from c, W = wx x + wy y + w0.
+        let ox = c.dx, oy = c.dy, k = w0 - wx * ox - wy * oy
+        return [a + ox * wx, b + oy * wx, 0, wx,
+                cc + ox * wy, d + oy * wy, 0, wy,
+                0, 0, 1, 0,
+                tx + ox * k - (a * ox + cc * oy), ty + oy * k - (b * ox + d * oy), 0, k]
+    }
+
     /// The slide of an oblique camera per unit of depth: the back of the
     /// solid shows on the side the camera is named for.
     private static func oblique(_ name: String) -> Offset? {
