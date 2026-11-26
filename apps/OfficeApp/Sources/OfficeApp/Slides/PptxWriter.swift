@@ -1727,12 +1727,15 @@ enum PptxWriterCopy {
         }
         if p.parts[Pptx.relsPath(part)] != nil {
             var out: [Rel] = []
+            var renamed = name != part
             for r in p.rels(part) {
                 if r.external { out.append(Rel(id: r.id, type: r.type, target: r.target, external: true)); continue }
                 let child = copy(r.target, from: p, into: &b, done: &done)
+                if child != r.target { renamed = true }
                 out.append(Rel(id: r.id, type: r.type, target: Pptx.relative(child, from: name)))
             }
-            b.rels(name, out)
+            // Where nothing it names was renamed the file's own relationships part is kept as it was, byte for byte.
+            if renamed { b.rels(name, out) } else { b.parts[Pptx.relsPath(name)] = p.parts[Pptx.relsPath(part)] }
         }
         return name
     }
