@@ -222,3 +222,20 @@ test('holdForScripts waits for a script download, bounded by the cap', async () 
   assert.equal(loader.scriptPending('cjk-sc'), false);
   assert.equal(loader.holdForScripts(), null);
 });
+
+test('a request counts as pending at once, before its download starts', async t => {
+  // The app's PDF export lays its text out, then asks (fonts_pending) whether
+  // that layout sent for a face; the count must already include it.
+  let release;
+  t.mock.method(globalThis, 'fetch', () => new Promise(resolve => { release = () => resolve(new Response(new Uint8Array([1]))); }));
+  const counts = [];
+  const loader = createFontLoader(entries, {
+    register() {}, changed() {}, status: state => counts.push(state.pending.length),
+  });
+  loader.request('Mono');
+  assert.equal(counts.at(-1), 1);
+  await new Promise(resolve => setTimeout(resolve, 0));
+  release();
+  await loader.load('Mono');
+  assert.equal(counts.at(-1), 0);
+});

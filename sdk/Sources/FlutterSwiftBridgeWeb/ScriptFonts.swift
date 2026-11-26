@@ -49,6 +49,12 @@ public enum ScriptFonts {
         return bytes.withUnsafeBytes { starling_host_script_pending($0.baseAddress, UInt32($0.count)) } != 0
     }
 
+    /// Whether any font the page was asked for (a family by name, or a
+    /// script's fallback) is still downloading. A request counts from the
+    /// moment layout makes it, so an export that has just laid its text out
+    /// can ask this, wait, and lay out again in the faces that arrived.
+    public static var anyPending: Bool { starling_host_fonts_pending() != 0 }
+
     /// `text` cut into (substring, hidden) pieces: hidden pieces are the runs
     /// whose script is still downloading, drawn transparent rather than as
     /// boxes. Nil when nothing needs hiding (the usual case).
