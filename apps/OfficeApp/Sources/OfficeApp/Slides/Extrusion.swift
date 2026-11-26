@@ -305,8 +305,14 @@ enum Extrusion {
     }
 
     /// Toward the eye in the shape's own axes (the camera's (0,0,1) turned back; rev does
-    /// not move it).
+    /// not move it). An oblique preset looks along its own slant, (dx, dy, 1) with the slide
+    /// the projection uses, whatever the depth (rotation2-check: Right .037 and Top .009 print
+    /// as the model's .037 and .007, Bottom .107 against .081).
     static func towardEye(_ scene: Scene3D) -> P3 {
+        if !scene.legacy, scene.cameraName.hasPrefix("oblique"), let o = oblique(scene.cameraName) {
+            let n = (o.dx * o.dx + o.dy * o.dy + 1).squareRoot()
+            return P3(x: o.dx / n, y: o.dy / n, z: 1 / n)
+        }
         let a = -scene.lat * .pi / 180, o = -scene.lon * .pi / 180
         return P3(x: -cos(a) * sin(o), y: sin(a), z: cos(a) * cos(o))
     }
@@ -460,8 +466,17 @@ enum Extrusion {
         }
         // Looked at square on, a solid is its own front — but text with a top
         // bevel still wears it (lab p3u: PowerPoint bevels face-on letters).
-        if s.oblique == nil, s.lat == 0, s.lon == 0, s.rev == 0, !(text && s.bevelW > 0 && s.bevelH > 0) { return nil }
+        if s.oblique == nil, s.lat == 0, s.lon == 0, s.rev == 0, !(text && s.bevelW > 0 && s.bevelH > 0), !glintsSquareOn(s) { return nil }
         return s
+    }
+
+    /// A face looked at square on that PowerPoint still lights (rotation-check, rotation2-check: flat
+    /// and deep rects under the oblique presets and perspectiveFront print 1.04 x the fill plus
+    /// threePtFaceWhite, obliqueTopLeft with no depth at all 46,113,184 for 2B6CB0). orthographicFront,
+    /// the default, has no print and is left plain.
+    static func glintsSquareOn(_ s: Scene3D) -> Bool {
+        !s.legacy && s.rig == "threePt" && s.material.isEmpty && s.rigRot == nil
+            && (s.cameraName.hasPrefix("oblique") || s.cameraName == "perspectiveFront")
     }
 
     struct P3 { var x, y, z: Double }
@@ -484,7 +499,10 @@ enum Extrusion {
     /// canvas's space (`r` its frame). False when there is nothing to
     /// draw this way, and the shape is then drawn flat.
     static func paint(_ shape: SlideShape, outline: Path, _ r: Rect, _ canvas: any Canvas, pxPerPt px: Double, onFront: (() -> Void)? = nil) -> Bool {
-        guard let scene = shape.scene3d, !scene.isFlatTurn, let fill = shape.fill ?? shape.fillStyle?.stops.first?.color ?? shape.fillStyle?.color ?? (onFront != nil ? Color(0xFFFFFFFF) : nil) else { return false }
+        // A flat face looked at square on is drawn this way only for its glint (glintsSquareOn), and
+        // only when a plain fill and line are all it has: the flat path keeps gradients and dashes.
+        guard let scene = shape.scene3d, !scene.isFlatTurn || (scene.rev == 0 && glintsSquareOn(scene) && shape.fill != nil && shape.fillStyle == nil
+                                                                  && onFront == nil && shape.outlineFill == nil && (shape.outlineDash ?? "solid") == "solid"), let fill = shape.fill ?? shape.fillStyle?.stops.first?.color ?? shape.fillStyle?.color ?? (onFront != nil ? Color(0xFFFFFFFF) : nil) else { return false }
         return solid(scene: scene, fill: fill, line: shape.outline, lineWidth: shape.outlineWidth, outline: outline, r, canvas, pxPerPt: px, onFront: onFront, spin: shape.rotation)
     }
 
@@ -795,10 +813,10 @@ enum Extrusion {
         // glint toward the eye (threePtFaceWhite, lab rotfit). In perspective the eye's direction moves
         // across the face, so the white shades across it (perspectiveRelaxed .25 at the left to .21 at
         // the right): a linear ramp fitted to it at the box's centre and corners. A camera that is not
-        // turned is left plain (no print of one); a rotated rig keeps lab p3fit's 0.23 x (1 - z)^1.5.
+        // turned is left plain unless glintsSquareOn; a rotated rig keeps lab p3fit's 0.23 x (1 - z)^1.5.
         let perspectiveFace = scene.cameraName.hasPrefix("perspective")
         var ramp: (Offset, Offset, Double, Double)? = nil
-        if !scene.legacy, scene.oblique == nil, scene.rig == "threePt", scene.material.isEmpty, frontShows, n0.z > 0 {
+        if !scene.legacy, scene.oblique == nil || scene.cameraName.hasPrefix("oblique"), scene.rig == "threePt", scene.material.isEmpty, frontShows, n0.z > 0 {
             if scene.rigRot != nil {
                 if !perspectiveFace { sheen = 0.23 * pow(max(0, 1 - n0.z), 1.5) }
             } else if perspectiveFace {
@@ -821,7 +839,7 @@ enum Extrusion {
                     ramp = (Offset(mx + ux * t0, my + uy * t0), Offset(mx + ux * t1, my + uy * t1), max(0, mw + g * t0), max(0, mw + g * t1))
                     sheen = max(0, mw)
                 }
-            } else {
+            } else if n0.z < 1 - 1e-9 || Extrusion.glintsSquareOn(scene) {
                 sheen = Extrusion.threePtFaceWhite(toward: Extrusion.towardEye(scene))
             }
         }
