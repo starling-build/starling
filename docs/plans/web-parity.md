@@ -21,8 +21,10 @@ Findings:
 1. **zh docs (all 14): same line breaks, different glyph face.** Native draws a
    Ming/Song-style serif, the browser a sans-like face, so every page differs.
    The lazy script-font path picks another CJK face than native. Fix first.
-2. **Slides picture background (chart-slide-bg): the browser draws black** where
-   native draws the texture fill. Picture fill of a slide background is lost.
+2. FIXED 2026-11-26 (engine skwasm/pdf.cpp): **Slides picture background
+   (chart-slide-bg): the browser drew black** where native draws the texture
+   fill. The PDF writer copied drawn pictures out of the GPU but not one inside
+   a tiled image shader. Sweep: 16 of 20 decks identical (was 15).
 3. Smaller: 45541_Footer (footer text), shape-text glow, chart strokes: to be
    looked at one by one after 1 and 2.
 
