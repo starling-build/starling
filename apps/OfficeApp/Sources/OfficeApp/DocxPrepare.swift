@@ -24,6 +24,68 @@ import FoundationXML
 extension DocxFormat {
     // MARK: Reading
 
+    /// Word keeps paragraph indents and spacing, line and row heights in
+    /// 16 bits, a border's width in 8 and its gap in 5, and a run's text
+    /// scale in 16, and a file's value past that range is read wrapped
+    /// (xa dx4j's probe, in Word's print: indent 66256 is 720, space
+    /// before 65537 is 1, a 65535 first line is a 1-twip hanging, an
+    /// exact 65535 line is at least 1 twip, an exact 65537 row is 1 twip
+    /// tall and hides its text, a border of sz 256 and space 32 is a
+    /// hairline on the text, a 65636% scale is 100%). An exact height is
+    /// held negated before it wraps, so it can come back as "at least".
+    /// The values are rewritten in the markup before it is read, so every
+    /// reader of them agrees; values in range are left alone.
+    static func _wrapWordWidths(_ node: XNode, parent: String = "") {
+        func wrap16(_ v: Int) -> Int { ((v + 32768) & 0xFFFF) - 32768 }
+        func big(_ key: String) -> Int? {
+            guard let s = node.attrs[key], let v = Int(s), v > 32767 || v < -32768 else { return nil }
+            return v
+        }
+        let before = node.attrs
+        defer { if node.attrs != before { RuleTrace.hit("word-wraps-values-past-16-bits") } }
+        switch node.name {
+        case "w:ind":
+            for key in ["w:left", "w:right", "w:start", "w:end"] { if let v = big(key) { node.attrs[key] = String(wrap16(v)) } }
+            if let v = big("w:firstLine") {
+                let w = wrap16(v)
+                if w < 0 { node.attrs["w:firstLine"] = nil; node.attrs["w:hanging"] = String(-w) } else { node.attrs["w:firstLine"] = String(w) }
+            } else if let v = big("w:hanging") {
+                let w = wrap16(v)
+                if w < 0 { node.attrs["w:hanging"] = nil; node.attrs["w:firstLine"] = String(-w) } else { node.attrs["w:hanging"] = String(w) }
+            }
+        case "w:spacing" where parent == "w:pPr":
+            for key in ["w:before", "w:after"] { if let v = big(key) { node.attrs[key] = String(max(0, wrap16(v))) } }
+            if let v = big("w:line") {
+                switch node.attrs["w:lineRule"] ?? "auto" {
+                case "exact":
+                    let w = wrap16(-v)
+                    node.attrs["w:line"] = String(abs(w))
+                    if w > 0 { node.attrs["w:lineRule"] = "atLeast" }
+                case "atLeast": node.attrs["w:line"] = String(max(0, wrap16(v)))
+                default: break
+                }
+            }
+        case "w:trHeight":
+            if let v = big("w:val") {
+                if node.attrs["w:hRule"] == "exact" {
+                    let w = wrap16(-v)
+                    node.attrs["w:val"] = String(abs(w))
+                    if w > 0 { node.attrs["w:hRule"] = "atLeast" }
+                } else {
+                    node.attrs["w:val"] = String(max(0, wrap16(v)))
+                }
+            }
+        case "w:w" where parent == "w:rPr":
+            if let s = node.attrs["w:val"], let v = Int(s), v > 0xFFFF { node.attrs["w:val"] = String(v & 0xFFFF) }
+        default:
+            if node.name == "w:bdr" || ["w:pBdr", "w:tblBorders", "w:tcBorders", "w:pgBorders"].contains(parent) {
+                if let s = node.attrs["w:sz"], let v = Int(s), v > 0xFF { node.attrs["w:sz"] = String(v & 0xFF) }
+                if let s = node.attrs["w:space"], let v = Int(s), v > 31 { node.attrs["w:space"] = String(v & 31) }
+            }
+        }
+        for child in node.children { _wrapWordWidths(child, parent: node.name) }
+    }
+
     /// A width that is a share of the page's or margins' (`wp14:sizeRelH`,
     /// `pctWidth` in thousandths of a percent) is that share of the section's
     /// page or text area in Word, whatever extent the file also states:

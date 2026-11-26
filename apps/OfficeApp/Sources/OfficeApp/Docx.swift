@@ -49,10 +49,12 @@ enum DocxFormat {
                 && !(target.count > 1 && target.dropFirst().hasPrefix(":") && target.dropFirst(2).first.map { $0 == "\\" || $0 == "/" } == true) {
                 _applyBuiltinStyles(styles)
             }
+            _wrapWordWidths(styles)
             return styles
         }
         guard let docData = part("word/document.xml") else { throw DocxError.noDocumentPart }
         guard let root = XNode.parse(docData) else { throw DocxError.badXML("word/document.xml") }
+        _wrapWordWidths(root)
         _hoistTablesOutOfParagraphs(root)
         _dropSectionBreaksInsideFields(root)
         _hideEmptyIfFields(root)
@@ -626,6 +628,7 @@ enum DocxFormat {
             // w:pStyle): a style that names a list and no level is that one.
             var linkedLevel: [String: Int] = [:]
             if let numbering = part("word/numbering.xml").flatMap(XNode.parse) {
+                _wrapWordWidths(numbering)
                 for a in numbering.all("w:abstractNum") {
                     for lvl in a.all("w:lvl") {
                         if let sid = lvl.first("w:pStyle")?["w:val"], let n = Int(lvl["w:ilvl"] ?? "") { linkedLevel[sid] = n }
@@ -819,6 +822,7 @@ enum DocxFormat {
         var listCounterOf: [String: String] = [:]
         var listRestarts: [String: [Int: Int]] = [:]
         if let numData = part("word/numbering.xml"), let numbering = XNode.parse(numData) {
+            _wrapWordWidths(numbering)
             _resolveThemeFonts(numbering, theme)
             _followThaiAlternates(numbering, thaiAlternates)
             var abstract: [String: [Int: ListKind]] = [:]
@@ -2865,6 +2869,7 @@ enum DocxFormat {
                     + (path.hasSuffix("header") ? "<w:p/>" : "")
                     + "</w:\(path.hasSuffix("header") ? "hdr" : "ftr")>").utf8) : nil
                 guard let data = phantom ?? part(path), let node = XNode.parse(data) else { return [] }
+                _wrapWordWidths(node)
                 _inheritSpace(node)
                 _followThaiAlternates(node, thaiAlternates)
                 _bindCoreProperties(node, part: part)
@@ -2944,6 +2949,7 @@ enum DocxFormat {
         var footnoteParagraphs: [Int: [RichParagraph]] = [:]
         var footnoteSeparator: [RichParagraph] = []
         if notes.footnotes, let data = part("word/footnotes.xml"), let root = XNode.parse(data) {
+            _wrapWordWidths(root)
             _resolveThemeFonts(root, theme)
             let bodyParagraphs = paragraphs, bodyRels = rels, bodyInfo = notes.rels
             rels = [:]
@@ -2984,6 +2990,7 @@ enum DocxFormat {
         var endnoteSeparator: [RichParagraph] = []
         var endnoteContinuation: [RichParagraph] = []
         if notes.endnotes, let data = part("word/endnotes.xml"), let root = XNode.parse(data) {
+            _wrapWordWidths(root)
             _resolveThemeFonts(root, theme)
             let bodyParagraphs = paragraphs, bodyRels = rels, bodyInfo = notes.rels
             rels = [:]

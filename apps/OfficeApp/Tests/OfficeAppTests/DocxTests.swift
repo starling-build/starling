@@ -128,6 +128,36 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(DocxFormat._htmlParagraphs(html), ["HTML & AltChunk", "two", "lines"])
     }
 
+    /// Values past Word's 16 bits (8 for a border's width, 5 for its gap)
+    /// read wrapped, as Word's print of xa dx4j's probe shows them: indent
+    /// 66256 is 36pt, space before 65537 a twip, a 65535 first line a
+    /// 1-twip hanging, an exact 65535 line at least a twip, a border of sz
+    /// 256 and space 32 a hairline on the text, a 65636% scale 100%.
+    func testValuesPastSixteenBitsWrapAsWordReadsThem() throws {
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph()]), pageSetup: .letter))
+        let i = entries.firstIndex { $0.name == "word/document.xml" }!
+        entries[i] = ZipEntry(name: "word/document.xml", data: Data(("<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:body>"
+            + "<w:p><w:pPr><w:spacing w:before=\"65537\"/><w:ind w:left=\"66256\"/></w:pPr><w:r><w:t>a</w:t></w:r></w:p>"
+            + "<w:p><w:pPr><w:spacing w:line=\"65535\" w:lineRule=\"exact\"/><w:ind w:firstLine=\"65535\"/></w:pPr><w:r><w:t>b</w:t></w:r></w:p>"
+            + "<w:p><w:pPr><w:pBdr><w:top w:val=\"single\" w:sz=\"256\" w:space=\"32\" w:color=\"auto\"/></w:pBdr></w:pPr><w:r><w:t>c</w:t></w:r></w:p>"
+            + "<w:p><w:r><w:rPr><w:w w:val=\"65636\"/></w:rPr><w:t>d</w:t></w:r></w:p>"
+            + "<w:p><w:pPr><w:spacing w:line=\"65537\" w:lineRule=\"exact\"/><w:ind w:left=\"720\"/></w:pPr><w:r><w:t>e</w:t></w:r></w:p>"
+            + "</w:body></w:document>").utf8))
+        let doc = try DocxFormat.read(Zip.write(entries)).document
+        let p = doc.paragraphs
+        XCTAssertEqual(p[0].style.indentLeft, 36, accuracy: 0.001)
+        XCTAssertEqual(p[0].style.spaceBefore, 0.05, accuracy: 0.001)
+        XCTAssertEqual(p[1].style.firstLineIndent, -0.05, accuracy: 0.001)
+        XCTAssertEqual(p[1].style.lineHeightPoints ?? -1, 0.05, accuracy: 0.001)
+        XCTAssertEqual(p[1].style.lineHeightIsMinimum, true)
+        XCTAssertEqual(p[2].style.borders?.top?.width ?? -1, 0.25, accuracy: 0.001)
+        XCTAssertEqual(p[2].style.borders?.top?.space ?? -1, 0, accuracy: 0.001)
+        XCTAssertEqual(p[3].runs.first?.style.horizontalScale ?? 1, 1, accuracy: 0.001)
+        XCTAssertEqual(p[4].style.lineHeightPoints ?? -1, 0.05, accuracy: 0.001, "an exact 65537 stays exact, one twip")
+        XCTAssertEqual(p[4].style.lineHeightIsMinimum, false)
+        XCTAssertEqual(p[4].style.indentLeft, 36, accuracy: 0.001, "a value in range is left alone")
+    }
+
     func testNamedInlinePlaceholders() throws {
         func control(_ text: String, name: String = "Shared", showing: String = "<w:showingPlcHdr/>", block: Bool = false) -> String {
             let runs = "<w:r><w:t>\(text)</w:t></w:r>"
