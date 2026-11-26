@@ -1190,10 +1190,28 @@ final class DeckController: ChangeNotifier {
     @discardableResult
     func addMedia(_ clip: MediaClip, poster: ImageAttachment, size: Size) -> SlideShape {
         let shape = addPicture(poster, naturalSize: size)
+        // A second clip does not land on the first: step down and right, as a duplicate does, until the centre is free.
+        let others = currentSlide.shapes.filter { $0 !== shape }
+        var step = 0.0
+        let cx = shape.frame.left + shape.frame.width / 2, cy = shape.frame.top + shape.frame.height / 2
+        while step < 18 * 20, others.contains(where: {
+            abs($0.frame.left + $0.frame.width / 2 - cx - step) < 1 && abs($0.frame.top + $0.frame.height / 2 - cy - step) < 1 }) { step += 18 }
+        if step > 0 { shape.frame = shape.frame.shift(Offset(step, step)) }
         shape.name = (clip.isVideo ? "Video " : "Audio ") + "\(_nextId)"
         shape.media = clip
         shape.altText = clip.name
         return shape
+    }
+
+    /// A clip's real first frame takes the place of its generic poster (one undo step is not spent on it).
+    func replacePoster(_ shape: SlideShape, png: Data, width: Int, height: Int, frame: Rect) {
+        guard case .picture(let old) = shape.kind else { return }
+        // A new attachment, so a new id: the painter caches decoded pictures by id and would keep the old poster.
+        let image = ImageAttachment(data: png, width: Double(width), height: Double(height), name: old.name,
+                                    naturalWidth: Double(width), naturalHeight: Double(height))
+        shape.kind = .picture(image)
+        shape.frame = frame
+        _changed()
     }
 
     // MARK: Animations

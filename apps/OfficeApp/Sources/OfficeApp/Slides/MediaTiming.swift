@@ -9,7 +9,36 @@ import Foundation
 enum MediaTiming {
     static func write(_ clips: [(spid: Int, isVideo: Bool)]) -> String {
         guard !clips.isEmpty else { return "" }
-        var id = 1
+        let (seqs, nodes) = fragments(clips, after: 1)
+        return "<p:timing><p:tnLst><p:par><p:cTn id=\"1\" dur=\"indefinite\" restart=\"never\" nodeType=\"tmRoot\"><p:childTnLst>"
+            + seqs + nodes + "</p:childTnLst></p:cTn></p:par></p:tnLst></p:timing>"
+    }
+
+    /// The clips' timing added to a slide's existing tree (its animations),
+    /// as PowerPoint does: the interactive sequences and media nodes join
+    /// the root's children, numbered after the tree's own nodes.
+    static func merge(_ clips: [(spid: Int, isVideo: Bool)], into timing: String) -> String {
+        guard !clips.isEmpty else { return timing }
+        let tail = "</p:childTnLst></p:cTn></p:par></p:tnLst>"
+        // The last occurrence (the root's own close), found with the wasm-safe helper.
+        var found: Range<String.Index>?
+        var from = timing.startIndex
+        while let r = timing.rangeOfSubstring(tail, in: from..<timing.endIndex) { found = r; from = r.upperBound }
+        guard let end = found else { return timing }
+        // Every node's id, wherever it sits in the tag: a tree read from a file need not list it first.
+        let top = timing.components(separatedBy: "<p:cTn ").dropFirst().compactMap { tag -> Int? in
+            let head = " " + String(tag.prefix { $0 != ">" })
+            guard let r = head.rangeOfSubstring(" id=\"") else { return nil }
+            return Int(head[r.upperBound...].prefix { $0.isNumber })
+        }.max() ?? 1
+        let (seqs, nodes) = fragments(clips, after: top)
+        var out = timing
+        out.insert(contentsOf: seqs + nodes, at: end.lowerBound)
+        return out
+    }
+
+    private static func fragments(_ clips: [(spid: Int, isVideo: Bool)], after top: Int) -> (String, String) {
+        var id = top
         func next() -> Int { id += 1; return id }
         var seqs = "", nodes = ""
         for c in clips {
@@ -31,7 +60,6 @@ enum MediaTiming {
                 + "<p:endCondLst><p:cond evt=\"onStopAudio\" delay=\"0\"><p:tgtEl><p:sldTgt/></p:tgtEl></p:cond></p:endCondLst></p:cTn>"
                 + "\(target)</p:cMediaNode></\(tag)>"
         }
-        return "<p:timing><p:tnLst><p:par><p:cTn id=\"1\" dur=\"indefinite\" restart=\"never\" nodeType=\"tmRoot\"><p:childTnLst>"
-            + seqs + nodes + "</p:childTnLst></p:cTn></p:par></p:tnLst></p:timing>"
+        return (seqs, nodes)
     }
 }
