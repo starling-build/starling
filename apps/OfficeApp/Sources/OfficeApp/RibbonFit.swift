@@ -8,6 +8,7 @@
 // plain function of the window's width and nothing flickers while it settles; a window too narrow even for
 // that scrolls, as the ribbon always has.
 
+import Foundation // TEMP
 import Flutter
 import FlutterSwiftBridge
 
@@ -197,6 +198,9 @@ private final class _RibbonFitState: State<StatefulWidget> {
         // A widget that is not a group has the one width at every level.
         let widths = _groups.indices.map { i in _isGroup(_groups[i]) ? _widths[i] : [Double](repeating: _widths[i][0], count: RibbonFit.levelCount) }
         let next = RibbonFit.levels(widths: widths, collapsible: _groups.map(_isGroup), available: available)
+        if ProcessInfo.processInfo.environment["RIBBON_FIT_DEBUG"] != nil { // TEMP
+            fputs("[fit] avail=\(available) total0=\(widths.reduce(0) { $0 + $1[0] }) levels=\(next) groups=\(_groups.indices.map { i in "\((_groups[i] as? RibbonGroup)?.label ?? "·"):\(widths[i].map { Int($0) })" })\n", stderr)
+        }
         if next != _levels || !_ready { setState { _levels = next; _ready = true } }
     }
 
