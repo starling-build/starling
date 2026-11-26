@@ -127,6 +127,8 @@ extension PptFile {
                 }
                 k = e
             }
+            // The paragraph mark's own run: the size of an empty paragraph's line.
+            if let run = charRun(at: pe) { out += runProps(run.0, tag: "a:endParaRPr") }
             out += "</a:p>"
             ps = pe + 1
         }
@@ -135,17 +137,35 @@ extension PptFile {
 
     /// A master's `p:txStyles`: title, body and other text styles from its TextMasterStyleAtoms.
     func textStylesXML(of master: Page) -> String {
-        func style(_ tag: String, _ type: Int) -> String {
-            guard let levels = master.textStyles[type], !levels.isEmpty else { return "" }
-            var out = "<p:\(tag)>"
-            for (k, l) in levels.enumerated() {
-                var para = l.para
-                para.level = 0
-                out += paragraphProps(para, tag: "a:lvl\(k + 1)pPr", defaults: runProps(l.char, tag: "a:defRPr"))
-            }
-            return out + "</p:\(tag)>"
-        }
-        let body = style("titleStyle", 0) + style("bodyStyle", 1) + style("otherStyle", 4)
+        let body = levelsXML("p:titleStyle", master.textStyles[0]) + levelsXML("p:bodyStyle", master.textStyles[1])
+            + levelsXML("p:otherStyle", master.textStyles[4])
         return body.isEmpty ? "" : "<p:txStyles>\(body)</p:txStyles>"
+    }
+
+    /// The presentation's `p:defaultTextStyle`: the document's own style for other text (its Environment's
+    /// TextMasterStyleAtom), which PowerPoint gives a text box on a slide.
+    func defaultTextStyleXML() -> String {
+        levelsXML("p:defaultTextStyle", defaultStyles[4] ?? defaultStyles.sorted { $0.key < $1.key }.first?.value)
+    }
+
+    /// `<p:tag>` with one `a:lvlNpPr` per level; a level that names no font gets the document's default one.
+    /// `ruler`: a shape's TextRuler, whose left margins and indents replace the style's at the levels it names.
+    func levelsXML(_ tag: String, _ levels: [PptStyle.Level]?, ruler: [Int: (left: Int?, indent: Int?)] = [:]) -> String {
+        guard let levels, !levels.isEmpty else { return "" }
+        var out = "<\(tag)>"
+        var font = defaultChar.font ?? 0
+        for (k, l) in levels.enumerated() {
+            var para = l.para
+            para.level = 0
+            if let r = ruler[k] {
+                if let v = r.left { para.leftMargin = v }
+                if let v = r.indent { para.indent = v }
+            }
+            var char = l.char
+            // A level that names no font keeps the one of the level above it.
+            if let f = char.font { font = f } else { char.font = font }
+            out += paragraphProps(para, tag: "a:lvl\(k + 1)pPr", defaults: runProps(char, tag: "a:defRPr"))
+        }
+        return out + "</\(tag)>"
     }
 }
