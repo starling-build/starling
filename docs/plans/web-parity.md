@@ -27,6 +27,16 @@ Findings:
    a tiled image shader. Sweep: 16 of 20 decks identical (was 15).
 3. Smaller: 45541_Footer (footer text), shape-text glow, chart strokes: to be
    looked at one by one after 1 and 2.
+4. Word, 2026-11-26 (amd-11): 14 of 30 identical; none of the 16 that differ
+   is a web bug. On each, the web matches Word and native does not:
+   - zh (14 docs): native draws "○" small, in a Latin face, where Word and web draw it
+     full width. It also shares justify space differently next to 》《 and 、
+     (under 1%, except zh-e49d79431 page 18 at 11%, a page full of ○).
+   - lo-d1e88d777 (0.03%): native also paints the highlight of a line that moved
+     to the next page. It is clipped, so only one pixel row shows.
+   - zh-266603368 (0.04%): 0.08 pt of justify after 、. Word spaces the line evenly,
+     as the web does.
+   These are native fixes (Word lane), not web ones.
 
 ## 2. Features (from fences and the wasm.md "Not done" list)
 
