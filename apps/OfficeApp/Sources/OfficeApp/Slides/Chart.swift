@@ -6979,7 +6979,11 @@ enum ChartPainter {
                 // (A walled 3-D column chart laid on a slide: the scale's names 1.3 pt lower than a flat chart's, as the
                 // same chart's ticks: es 3df36ff6 p4 and p10 print them at 429.2 and 429.0 where ours stood 428.0 and 427.8.)
                 let slide3DLaid = c.onSlide && c.barView?.walled == true && c.plotLayoutInner
-                let lift = libreLaid ? (0.15 - 1.24) * k : libre ? 0.15 * k : c.chartex && c.onSlide ? -2.05 * k : slide3DLaid ? 0.15 * k : c.styled2013 ? (c.onSlide ? 1.25 * k : 0) : wordClassicLaid ? 0.55 * k : plainWordFoot ? 0.45 * k : 1.45 * k
+                // (A `cx:` chart's on a slide stand their line's middle on their value, their baseline 0.34 of their size below
+                // it: PowerPoint's prints of lo-forum-mso-de-138303's waterfall, chartex-lab2's box-whiskers and waterfalls and
+                // cx-legsize's 9 and 16 pt, 3.04 and 5.46 pt below the gridline, where 2.05 pt lower stood them all 2 pt low.
+                // A sheet's keep that 2.05 for want of Excel's print.)
+                let lift = libreLaid ? (0.15 - 1.24) * k : libre ? 0.15 * k : c.chartex && c.onSlide ? (c.onSheet ? -2.05 * k : 0) : slide3DLaid ? 0.15 * k : c.styled2013 ? (c.onSlide ? 1.25 * k : 0) : wordClassicLaid ? 0.55 * k : plainWordFoot ? 0.45 * k : 1.45 * k
                 // (Word's walled 3-D columns: 8 pt nearer the plot, lo-1bd2003e's labels ending at 142.)
                 let wall3D = (inWord || c.onSlide) && c.barView?.walled == true && c.plotLayoutInner ? (inWord ? 8 : 10) * k : 0
                 // (A 3-D column chart on a slide with no plot placed by the file and ticks out: the labels end 9.2 pt left of the axis line, not 16.8:
@@ -9257,7 +9261,7 @@ extension ChartPainter {
                             color: c.textColor ?? Color(0xFF595959), fontSize: max(3, c.baseTextSize * k),
                             fontFamily: OfficeFonts.substitute(c.font ?? theme.bodyFont), fontFamilyFallback: Self.glyphFallback(c))), textDirection: .ltr)
                         tp.layout(minWidth: 0, maxWidth: .infinity)
-                        tp.paint(canvas, Offset(mid - tp.width / 2, vpos(v) - tp.height / 2 + (c.onSlide ? 2.05 * k : 0)))  // (the axis labels' own 2.05 pt)
+                        tp.paint(canvas, Offset(mid - tp.width / 2, vpos(v) - tp.height / 2 + (c.onSlide && c.onSheet ? 2.05 * k : 0)))  // (as the axis labels: a sheet's keep 2.05)
                         tp.dispose()
                     }
                 }
