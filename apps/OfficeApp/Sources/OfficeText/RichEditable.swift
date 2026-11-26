@@ -1183,6 +1183,11 @@ public final class RichEditableState: State<StatefulWidget> {
             if !_chords.shift, let hit = _inlineImage(at: event.localPosition) {
                 _controller.selectInlineImage(in: hit.paragraph, id: hit.id)
                 _dragging = false
+            } else if !_chords.shift, let i = _floatingImage(at: event.localPosition), _controller.pictureWrap(at: i)?.behind != true {
+                // A box or picture floating over the text (as boxes from an opened file do) is hit where it is drawn,
+                // not through to the line under it, as a tap does. One behind the text leaves the click to the words.
+                _controller.selectImage(at: i)
+                _dragging = false
             }
         case 2:
             if !_controller.readOnly, let activate = _w.onNoteActivate, let n = _noteMark(at: pos) {
