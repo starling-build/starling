@@ -49,7 +49,7 @@ extension CellRange {
     /// Its cells, row by row (a huge range: its corners and edges' first
     /// cells — enough for the protection check, which needs any locked one).
     var cells: [CellAddress] {
-        if rows * cols <= 10_000 {
+        if area <= 10_000 {
             return (top ... bottom).flatMap { r in (left ... right).map { CellAddress(row: r, col: $0) } }
         }
         return [topLeft, bottomRight, CellAddress(row: top, col: right), CellAddress(row: bottom, col: left)]

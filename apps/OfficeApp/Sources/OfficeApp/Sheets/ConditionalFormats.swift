@@ -148,7 +148,7 @@ final class CFEvaluator {
     /// visits the sheet's cells, not a million rows.
     private func _cells(_ rule: CFRule) -> [CellAddress] {
         let ws = _ws
-        let area = rule.ranges.reduce(0) { $0 + $1.rows * $1.cols }
+        let area = rule.ranges.reduce(0) { $0.addingReportingOverflow($1.area).overflow ? Int.max : $0 + $1.area }
         if area <= ws.cells.count { return rule.ranges.flatMap { r in (r.top ... r.bottom).flatMap { row in (r.left ... r.right).map { CellAddress(row: row, col: $0) } } } }
         return ws.cells.keys.filter { rule.covers($0) }
     }

@@ -305,6 +305,7 @@ final class SlidesShellState: State<StatefulWidget> {
             // document's name, and the status bar's message.
             #if os(WASI)
             if kind == "pdf" { self?._export("pdf"); return "exporting" }
+            if kind == "controls", let self { return ControlList.text(self.context) }
             if kind == "name" { return self?.session.title }
             if kind == "status" { return self?._status ?? "" }
             #endif

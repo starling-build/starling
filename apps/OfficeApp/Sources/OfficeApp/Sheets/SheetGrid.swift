@@ -2558,7 +2558,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         var merges: [CellRange] = []
         if let r0 = allR.first, let r1 = allR.max(), let c0 = allC.first, let c1 = allC.max() {
             let view = CellRange(top: r0, left: c0, bottom: r1, right: c1)
-            for m in ws.merges where m.intersects(view) && m.rows * m.cols <= 100_000 {
+            for m in ws.merges where m.intersects(view) && m.area <= 100_000 {
                 merges.append(m)
                 for rr in m.top ... m.bottom { for cc in m.left ... m.right where !(rr == m.top && cc == m.left) {
                     covered.insert(CellAddress(row: rr, col: cc))
@@ -2976,7 +2976,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             let r = rect(m)
             let st = book.style(ws.cells[m.topLeft]?.style ?? 0)
             // (Paper over paper hides nothing where no gridline runs and no cell inside has a fill or a border of its own, nor its row or column: Excel's print draws no such rectangle.)
-            if printing, !colors.showGrid, (mono || st.fill == nil), m.rows * m.cols <= 400,
+            if printing, !colors.showGrid, (mono || st.fill == nil), m.area <= 400,
                !(m.left ... m.right).contains(where: { c in ws.colStyle(c).map { book.style($0).fill != nil } ?? false }),
                !(m.top ... m.bottom).contains(where: { r in ws.rowStyle(r).map { book.style($0).fill != nil } ?? false }),
                !(m.top ... m.bottom).contains(where: { row in (m.left ... m.right).contains { col in

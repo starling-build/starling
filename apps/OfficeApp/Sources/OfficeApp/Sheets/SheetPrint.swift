@@ -161,7 +161,7 @@ enum SheetPrintLayout {
                (m.left ... m.right).contains(where: { !ws.isColHidden($0) }) {
                 take(m.top, m.left); take(m.top, m.right); continue
             }
-            guard m.rows * m.cols <= 100_000 else { continue }
+            guard m.area <= 100_000 else { continue }
             // (Not one that is wholly in hidden rows or columns.)
             guard (m.top ... m.bottom).contains(where: { !ws.isRowHidden($0) }),
                   (m.left ... m.right).contains(where: { !ws.isColHidden($0) }) else { continue }
@@ -552,7 +552,7 @@ extension SheetGridState {
             }
         }
         for m in ws.merges {
-            if m.rows * m.cols <= 100_000 { fill(m); continue }
+            if m.area <= 100_000 { fill(m); continue }
             // (A whole-column merge is on the pages of the rows in use, over its columns.)
             if m.bottom == CellAddress.maxRows - 1, m.cols <= 1000, let lastRow = rowBand.keys.max() { fill(CellRange(top: m.top, left: m.left, bottom: max(m.top, lastRow), right: m.right)) }
         }
@@ -701,7 +701,7 @@ extension SheetGridState {
                     let view = CellRange(top: br0, left: bc0, bottom: br1, right: bc1)
                     var covered: Set<CellAddress> = []
                     var merges: [CellRange] = []
-                    for m in ws.merges where m.intersects(view) && m.rows * m.cols <= 100_000 {
+                    for m in ws.merges where m.intersects(view) && m.area <= 100_000 {
                         merges.append(m)
                         for rr in m.top ... m.bottom { for cc in m.left ... m.right where !(rr == m.top && cc == m.left) {
                             covered.insert(CellAddress(row: rr, col: cc))

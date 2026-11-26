@@ -46,7 +46,7 @@ enum SheetFunctions {
         t["COUNTBLANK"] = { a, c in
             guard let first = a.first, case .range(let s, let r) = c.engine.evaluate(first, c) else { return .error(.value) }
             let filled = c.engine.values(s, r).filter { if case .text("") = $0 { return false }; return true }.count
-            return .number(Double(r.rows * r.cols - filled))
+            return .number(Double(r.area - filled))
         }
         // Rounding and arithmetic.
         t["ROUND"] = { a, c in _num2(a, c) { x, d in _round(x, Int(d), .toNearestOrAwayFromZero) } }
@@ -1285,7 +1285,7 @@ enum SheetFunctions {
         // Cells past the used area are blank: they count when every
         // criterion accepts a blank (COUNTIF(D:D,"") counts the column).
         if target == nil, crits.allSatisfy({ $0.matches(.empty) }) {
-            count += first.1.rows * first.1.cols - max(rows, 0) * max(cols, 0)
+            count += first.1.area - max(rows, 0) * max(cols, 0)
         }
         if target == nil { return .number(Double(count)) }
         guard let r = f(xs) else { return .error(.div0) }

@@ -84,6 +84,12 @@ struct CellRange: Hashable, Sendable {
     var bottomRight: CellAddress { CellAddress(row: bottom, col: right) }
     var rows: Int { bottom - top + 1 }
     var cols: Int { right - left + 1 }
+    /// rows × cols, saturating at Int.max: a whole sheet is 2^34 cells, past
+    /// a 32-bit Int (the browser build is wasm32, where the plain product traps).
+    var area: Int {
+        let (p, o) = rows.multipliedReportingOverflow(by: cols)
+        return o ? Int.max : p
+    }
     var isSingle: Bool { top == bottom && left == right }
 
     func contains(_ a: CellAddress) -> Bool {
