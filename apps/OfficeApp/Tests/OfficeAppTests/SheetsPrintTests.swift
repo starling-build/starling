@@ -24,6 +24,14 @@ final class SheetsPrintTests: XCTestCase {
         }
     }
 
+    func testDotumWrappedLinesArePlacedByTheirFirstLine() {
+        // A centred two-line Dotum cell stands about its first line alone
+        // (ko-fb58b17f97: Excel 162.4/169.6 about 166.0; placed by "X", ours stood 1.45 pt higher).
+        XCTAssertEqual(SheetGridState._wrapPlacer(["질소", "농도"], family: "돋움"), "질소")
+        XCTAssertEqual(SheetGridState._wrapPlacer(["Ab", "Cd"], family: "Gulim"), "Ab")
+        XCTAssertEqual(SheetGridState._wrapPlacer(["Ab", "Cd"], family: "Calibri"), "X")
+    }
+
     func testPagesGoDownThenOver() {
         // 12 columns of 64pt (768pt) and 60 rows of 15pt (900pt) on Letter
         // with Normal margins: 511.2pt by 684pt a page.
