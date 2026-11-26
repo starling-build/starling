@@ -134,4 +134,53 @@ final class SplitCellLayoutTests: XCTestCase {
         let plain = try secondPageTop(spacing: nil), stated = try secondPageTop(spacing: 0)
         XCTAssertEqual(stated - plain, 0.5, accuracy: 0.05)
     }
+
+    /// A row split at a page's foot, in a table ruled at the table level only (no cell spacing, no cell top line):
+    /// its part on the page closes on the table's bottom line, so the page keeps a line of it only if the line fits
+    /// too. zh-89385c94 (Table Grid) kept one 22 pt line more than Word's print and ran a line late on every later
+    /// page; gv-30930cbf (lines between rows only) prints its part's last line on the foot with no line there.
+    func testASplitRowLeavesRoomAtTheFootForTheTablesBottomLine() throws {
+        RichTextTheme.wordWindowsPages = true
+        defer { RichTextTheme.wordWindowsPages = false }
+        func linesOnFirstPage(bottomLine: Bool, pageHeight: Double) -> Int {
+            var line = RichParagraphStyle(spaceAfter: 0, lineSpacing: 1)
+            line.lineHeightPoints = 20
+            var paragraphs: [RichParagraph] = []
+            for r in 0 ..< 2 {
+                for k in 0 ..< 6 {
+                    var p = RichParagraph(text: "Row \(r) line \(k)", style: line)
+                    p.cell = CellRef(table: "T", row: r, column: 0)
+                    paragraphs.append(p)
+                }
+            }
+            var document = RichDocument(paragraphs: paragraphs)
+            document.compatibilityMode = 14
+            document.tableColumns["T"] = [200]
+            var table = TableStyle(borders: true)
+            if !bottomLine { table.edges = BorderEdges(bottom: false) }
+            table.cellMarginTop = 0
+            table.cellMarginBottom = 0
+            document.tableStyles["T"] = table
+            var page = PageSetup.letter
+            page.height = pageHeight
+            page.marginTop = 10
+            page.marginBottom = 10
+            let theme = RichTextTheme(fontFamily: OfficeFonts.serif)
+            theme.wordRules = true
+            let layout = RichLayout(theme: theme, paragraphCount: paragraphs.count)
+            layout.pageSetup = page
+            layout.width = page.columnWidth * theme.pixelsPerPoint
+            layout.ensureLaidOut(document)
+            return layout.pieces.flatMap { $0 }.filter { $0.page == 0 && $0.part != .rules }.count
+        }
+        // The smallest page that holds four lines of the first row: with a bottom line it is that line taller.
+        func fitsFour(_ bottomLine: Bool) -> Double {
+            var h = 95.0
+            while h < 110, linesOnFirstPage(bottomLine: bottomLine, pageHeight: h) < 4 { h += 0.05 }
+            return h
+        }
+        let ruled = fitsFour(true), open = fitsFour(false)
+        XCTAssertLessThan(open, 110)
+        XCTAssertEqual(ruled - open, 0.5, accuracy: 0.1, "ruled \(ruled) open \(open)")
+    }
 }
