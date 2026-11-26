@@ -56,7 +56,7 @@ final class SheetsIconSetRuleTests: XCTestCase {
 
     func testA2010SetIsWrittenOnlyInTheExtensionAndKeepsWhatWasThere() throws {
         let c = controller()
-        c.sheet.keptElements.append(("extLst", "<extLst><ext uri=\"{05C60535-1F16-4fd2-B633-F4F36F0B64E0}\" xmlns:x14=\"http://schemas.microsoft.com/office/spreadsheetml/2009/9/main\"><x14:sparklineGroups/></ext></extLst>"))
+        c.sheet.keptElements.append(("extLst", "<extLst><ext uri=\"{05C60535-1F16-4fd2-B633-F4F36F0B64E0}\" xmlns:x14=\"http://schemas.microsoft.com/office/spreadsheetml/2009/9/main\"><x14:sparklineGroups xmlns:xm=\"http://schemas.microsoft.com/office/excel/2006/main\"><x14:sparklineGroup displayEmptyCellsAs=\"gap\"><x14:colorSeries rgb=\"FF376092\"/><x14:sparklines><x14:sparkline><xm:f>Sheet1!A1:E1</xm:f><xm:sqref>F1</xm:sqref></x14:sparkline></x14:sparklines></x14:sparklineGroup></x14:sparklineGroups></ext></extLst>"))
         XCTAssertNil(c.addConditionalFormat(CFSpec(kind: .iconSet("3Stars")), on: [CellRange("B1:B10")!]))
         XCTAssertNil(c.addConditionalFormat(CFSpec(kind: .iconSet("5Boxes")), on: [CellRange("C1:C10")!]))
         XCTAssertFalse(c.sheet.keptElements.contains { $0.name == "conditionalFormatting" })
