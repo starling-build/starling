@@ -87,6 +87,9 @@ CDP) checks the page side: the print frame, IndexedDB rows, recovery after a rel
    the browser's own print dialog opens (printer, pages, copies). The page range
    picked in our Print pane is applied before (printPages). Fallback where an iframe
    cannot print (some mobile browsers): open the PDF in a new tab.
+   DONE 2026-11-26 (Word): BrowserPrintTests (native, a stand-in host); in Chrome,
+   Ctrl+P then Print gave the page a 78 KB PDF in the print frame. Slides and Sheets
+   still offer Export in the browser: they print through their own paths, next.
 2. **AutoSave and recovery.** Two seconds after the last edit (OfficeHost.autosaveDelay,
    as natively) the document's bytes go to IndexedDB (database `starling-office`,
    store `recovery`, one row per tab: name, kind, time, bytes). A save or download

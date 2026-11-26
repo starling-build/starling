@@ -624,8 +624,24 @@ final class OfficeShellState: State<StatefulWidget> {
     }
 
     private func _print(pages: [Int]) -> String {
+        // A host that prints bytes (the browser): the same PDF as Export,
+        // waiting for pictures and fonts, handed over instead of downloaded.
+        if let printBytes = hostPrintPDFBytes {
+            #if os(WASI)
+            let path = "/print/" + session.title + ".pdf"
+            #else
+            let path = NSTemporaryDirectory() + "office-print-\(ProcessInfo.processInfo.processIdentifier).pdf"
+            #endif
+            let name = session.title + ".pdf"
+            PdfExport.writeWhenDecoded(controller.document, pageSetup: session.pageSetup, theme: session.theme,
+                                       to: path, title: session.title, printPages: pages,
+                                       deliver: { data in printBytes(data, name) }) { [weak self] ok in
+                if !ok { self?._flash("Could not render the document for printing") }
+            }
+            return ""
+        }
         #if os(WASI)
-        return "Printing is not available in the browser yet"
+        return "No print dialog on this host"
         #else
         let path = NSTemporaryDirectory() + "office-print-\(ProcessInfo.processInfo.processIdentifier).pdf"
         guard PdfExport.write(controller.document, pageSetup: session.pageSetup, theme: session.theme,
@@ -639,7 +655,7 @@ final class OfficeShellState: State<StatefulWidget> {
 
     private var _printHooks: PrintHooks {
         PrintHooks(unit: "Pages", total: max(1, session.pageInfo.count), current: session.pageInfo.page,
-                   hostCanPrint: hostPrintPDF != nil, print: { [weak self] pages, _ in
+                   hostCanPrint: hostCanPrintPDF, print: { [weak self] pages, _ in
                        // Off iOS the work runs at once and its message comes back to the dialog.
                        var result = ""
                        self?._outOfThisBlock { result = self?._print(pages: pages) ?? "" }

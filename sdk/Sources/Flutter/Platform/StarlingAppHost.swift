@@ -80,6 +80,14 @@ public nonisolated(unsafe) var hostOpenURL: ((String) -> Void)? = nil
 /// falls back to handing the PDF over.
 public nonisolated(unsafe) var hostPrintPDF: ((String) -> Void)? = nil
 
+/// Prints a PDF given as bytes (and the document's name): the browser,
+/// which has no files, prints this way. Apps render the same PDF as for
+/// `hostPrintPDF` and hand it over without writing a file.
+public nonisolated(unsafe) var hostPrintPDFBytes: ((Data, String) -> Void)? = nil
+
+/// Whether this host can print at all, by file or by bytes.
+public var hostCanPrintPDF: Bool { hostPrintPDF != nil || hostPrintPDFBytes != nil }
+
 /// The main entry point for an app that should run under whichever host is
 /// available:
 /// - `FLUTTER_DMABUF_SOCKET` set (spawned by the Starling shell) — the GPU

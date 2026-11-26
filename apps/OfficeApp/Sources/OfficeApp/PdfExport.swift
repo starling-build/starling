@@ -69,7 +69,8 @@ enum PdfExport {
     #endif
 
     static func writeWhenDecoded(_ document: RichDocument, pageSetup: PageSetup, theme: RichTextTheme,
-                                 to path: String, title: String, done: @escaping (Bool) -> Void) {
+                                 to path: String, title: String, printPages: [Int]? = nil,
+                                 deliver: ((Data) -> Void)? = nil, done: @escaping (Bool) -> Void) {
         var prepared = prepare(document, pageSetup: pageSetup, theme: theme)
         var polls = 0
         var fontsWaited = false
@@ -91,7 +92,7 @@ enum PdfExport {
                 prepared = prepare(document, pageSetup: pageSetup, theme: theme)
                 prepared.layout.applyDecodedPictures()
             }
-            done(finish(prepared, to: path, title: title, printPages: nil))
+            done(finish(prepared, to: path, title: title, printPages: printPages, deliver: deliver))
         }
         poll()
     }
@@ -156,7 +157,8 @@ enum PdfExport {
         return Prepared(layout: layout, document: document, markup: markup, theme: theme, zoom: zoom)
     }
 
-    static func finish(_ prepared: Prepared, to path: String, title: String, printPages: [Int]?) -> Bool {
+    static func finish(_ prepared: Prepared, to path: String, title: String, printPages: [Int]?,
+                       deliver: ((Data) -> Void)? = nil) -> Bool {
         RichTextTheme.shadowsAsPaths = true
         defer { RichTextTheme.shadowsAsPaths = false }
         let markup = prepared.markup, theme = prepared.theme, zoom = prepared.zoom
@@ -206,9 +208,9 @@ enum PdfExport {
             pages = chosen
         }
         let smooth = theme.wordRules && !RichLayout.jpegSizes.isEmpty
-        return PdfDocument.write(to: path, pages: pages, title: title, author: PdfExport.authorName()) { data in
+        return PdfDocument.write(to: path, pages: pages, title: title, author: PdfExport.authorName(), rewrite: { data in
             smooth ? SlidesPdf.smoothPictures(data, jpeg: RichLayout.jpegSizes, otherSizes: RichLayout.otherPictureSizes) : nil
-        }
+        }, deliver: deliver)
     }
 }
 

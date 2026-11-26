@@ -1283,6 +1283,12 @@ if let spec = ProcessInfo.processInfo.environment["OFFICE_NEW_WINDOW_AFTER"] {
 }
 #endif
 
+#if os(WASI)
+// File > Print in a tab: the PDF goes to the page, which opens the browser's
+// print dialog on it.
+hostPrintPDFBytes = { data, name in WebFiles.print(data, as: name) }
+#endif
+
 runStarlingApp(title: siteArg != nil ? "Site" : wikiBase != nil ? "Wiki" : initialKind.appName,
                width: windowMetric("STARLING_WINDOW_W", 1440),
                height: windowMetric("STARLING_WINDOW_H", 900)) {

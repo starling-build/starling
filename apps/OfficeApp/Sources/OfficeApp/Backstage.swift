@@ -143,10 +143,10 @@ final class Backstage: StatelessWidget {
         case .info: return _info(fluent)
         case .export: return _export(fluent)
         case .share: return _export(fluent, share: true)
-        case .print: return _simple("Print", hostPrintPDF != nil
+        case .print: return _simple("Print", hostCanPrintPDF
                                     ? "Prints the document as laid out on screen, through the system print dialog."
                                     : "This host has no print dialog; Export makes a PDF to print elsewhere.",
-                                    fluent, action: hostPrintPDF != nil
+                                    fluent, action: hostCanPrintPDF
                                     ? ("Print…", { [session] in session.onPrint?() })
                                     : ("Export PDF", { [session] in session.onExport?("pdf") }))
         case .options: return _options(fluent)

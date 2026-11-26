@@ -354,6 +354,34 @@ export async function startStarling({ canvas, app, appBrotli, preloaded, immutab
       a.click();
       setTimeout(() => URL.revokeObjectURL(url), 10000);
     },
+    // File > Print: our PDF in a hidden frame, whose print() opens the
+    // browser's print dialog on it (printer, pages, copies). Where a frame
+    // cannot print (some mobile browsers) the PDF opens in a new tab instead.
+    // window.starlingPrinted (name, size, how) is what the Chrome test reads.
+    print_pdf(namePointer, nameLength, bytesPointer, byteCount) {
+      const name = utf8.decode(appBytes().subarray(namePointer, namePointer + nameLength));
+      const bytes = appBytes().slice(bytesPointer, bytesPointer + byteCount);
+      const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
+      const fallback = () => {
+        window.starlingPrinted = { name, size: byteCount, how: 'tab' };
+        window.open(url, '_blank');
+      };
+      document.getElementById('starling-print')?.remove();
+      const frame = Object.assign(document.createElement('iframe'), { id: 'starling-print', src: url });
+      frame.title = name;
+      frame.style.cssText = 'position:fixed;right:0;bottom:0;width:1px;height:1px;border:0;opacity:0';
+      frame.onload = () => {
+        try {
+          frame.contentWindow.focus();
+          frame.contentWindow.print();
+          window.starlingPrinted = { name, size: byteCount, how: 'frame' };
+        } catch (e) {
+          fallback();
+        }
+      };
+      document.body.appendChild(frame);
+      setTimeout(() => URL.revokeObjectURL(url), 600000);
+    },
     set_title(pointer, length) {
       document.title = utf8.decode(appBytes().subarray(pointer, pointer + length));
       // Office marks unsaved work in its title ("Name • — Writer", "… — Slides")

@@ -43,6 +43,18 @@ public enum WebFiles {
         }
     }
 
+    /// Hands the browser a PDF to print: its print dialog opens on it.
+    public static func print(_ data: Data, as name: String) {
+        var name = name
+        name.withUTF8 { nameBytes in
+            data.withUnsafeBytes { bytes in
+                starling_host_print_pdf(
+                    nameBytes.baseAddress, UInt32(nameBytes.count),
+                    bytes.baseAddress, UInt32(bytes.count))
+            }
+        }
+    }
+
     static func opened(_ picked: Picked?) {
         let completion = pending
         pending = nil
