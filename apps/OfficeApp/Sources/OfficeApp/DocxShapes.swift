@@ -1212,6 +1212,8 @@ extension DocxFormat {
                 att.crop = Self._pictureCrop(drawing)
                 att.sourceCrop = att.crop
                 att.altText = drawing.descendant("wp:docPr")?["descr"] ?? ""
+                att.altTitle = drawing.descendant("wp:docPr")?["title"] ?? ""
+                att.sourceAltTitle = att.altTitle
                 att.sourceAltText = att.altText
                 if Metafile.isMetafile(data) { WriterMetafiles.register(data, for: att.id) }
                 // (Turned, a photo taken sideways: a quarter turn makes
@@ -1244,6 +1246,8 @@ extension DocxFormat {
             att.crop = Self._pictureCrop(drawing)
             att.sourceCrop = att.crop
             att.altText = drawing.descendant("wp:docPr")?["descr"] ?? ""
+                att.altTitle = drawing.descendant("wp:docPr")?["title"] ?? ""
+                att.sourceAltTitle = att.altTitle
             att.sourceAltText = att.altText
             att.inset = Self._canvasInset(drawing)
             if let effect = drawing.descendant("wp:effectExtent") {

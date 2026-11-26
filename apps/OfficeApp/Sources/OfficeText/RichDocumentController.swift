@@ -962,17 +962,22 @@ public final class RichDocumentController: ChangeNotifier {
 
     /// Set the alternative text of the picture at `index` (a picture in its own paragraph), or of the inline picture
     /// `inline` of that paragraph, one undo step.
-    public func setImageAltText(at index: Int, inline id: String? = nil, _ text: String) {
+    /// `title` (the alt text's short title) is left as it was when nil.
+    public func setImageAltText(at index: Int, inline id: String? = nil, _ text: String, title: String? = nil) {
         guard index < document.paragraphs.count else { return }
         if let id {
-            guard var new = document.paragraphs[index].inlineImages[id], new.altText != text else { return }
+            guard var new = document.paragraphs[index].inlineImages[id],
+                  new.altText != text || (title != nil && new.altTitle != title!) else { return }
             let old = new
             new.altText = text
+            if let title { new.altTitle = title }
             edit { perform(.setInlineImage(index, id: id, old: old, new: new)) }
         } else {
-            guard var new = document.paragraphs[index].image, new.altText != text else { return }
+            guard var new = document.paragraphs[index].image,
+                  new.altText != text || (title != nil && new.altTitle != title!) else { return }
             let old = new
             new.altText = text
+            if let title { new.altTitle = title }
             edit { perform(.setImage(index, old: old, new: new)) }
         }
     }

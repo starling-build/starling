@@ -48,11 +48,11 @@ final class AltTextDialogState: State<StatefulWidget> {
         let page = Column(mainAxisSize: .min, crossAxisAlignment: .start, children: [
             Text("Title (a short name)", style: caption),
             SizedBox(width: nil, height: 4, child: nil),
-            SizedBox(width: nil, height: 32, child: FluentTextBox(controller: _title)),
+            PKeyed("alt-title", SizedBox(width: nil, height: 32, child: FluentTextBox(controller: _title))),
             SizedBox(width: nil, height: 12, child: nil),
             Text("How would you describe this object and its context to someone who is blind?", style: caption),
             SizedBox(width: nil, height: 4, child: nil),
-            SizedBox(width: nil, height: 96, child: FluentTextBox(controller: _text, maxLines: 4)),
+            PKeyed("alt-text", SizedBox(width: nil, height: 96, child: FluentTextBox(controller: _text, maxLines: 4))),
         ])
         return DialogShell(title: "Alt Text", page: page, width: 400,
                            onOK: { [weak self] in guard let self else { return }; self._w.onApply(self._text.text, self._title.text) },
