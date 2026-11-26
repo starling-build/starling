@@ -2443,7 +2443,7 @@ enum DocxFormat {
                         let vAlign = tcPr?.first("w:vAlign")?["w:val"].flatMap { ["center", "bottom"].contains($0) ? $0 : nil } ?? (tcPr?.first("w:vAlign") == nil ? ((r == 0 && firstRowOn ? cond.headerVAlign : nil) ?? cond.cellVAlign) : nil)
                         currentCell = CellRef(table: id, row: r, column: column, span: span, fill: fill, edges: ownEdges, verticalAlign: vAlign)
                         if fromStyle { currentCell?.styleFilled = true }
-                        if let shd = tcPr?.first("w:shd"), shd["w:fill"]?.lowercased() == "auto", fill == nil { currentCell?.fillAuto = true }
+                        if let shd = tcPr?.first("w:shd"), shd["w:fill"] == nil || shd["w:fill"]?.lowercased() == "auto", fill == nil { currentCell?.fillNoneXML = PptxXML.serialize(shd) }
                         if let shd = tcPr?.first("w:shd"), shd["w:fill"]?.count == 6, shd["w:themeFill"] != nil {
                             currentCell?.fillThemeAttrs = ["w:themeFill", "w:themeFillTint", "w:themeFillShade"].compactMap { k in shd[k].map { " \(k)=\"\(_esc($0))\"" } }.joined()
                         }

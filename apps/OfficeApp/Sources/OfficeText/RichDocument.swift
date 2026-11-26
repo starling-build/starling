@@ -171,6 +171,8 @@ public struct CharStyle: Hashable, Codable, Sendable {
         return c.hashValue == origCheck ? o : nil
     }
     public var highlight: Color? = nil
+    /// A `w:shd` the file wrote beside a `w:highlight` (the highlight draws over it), as written; saved after the highlight.
+    public var shdUnderHighlight: String? = nil
     /// The highlight came from a `w:shd` (not `w:highlight`): its hex, `#`, then the element's other attributes as written (pattern, theme link).
     /// Written back as that `w:shd` while the highlight is still that colour.
     public var shdSource: String? = nil
@@ -1368,8 +1370,9 @@ public struct CellRef: Hashable, Codable, Sendable {
     /// The theme link of that shading as the file wrote it (` w:themeFill="accent1" w:themeFillTint="99"`): the fill
     /// above is the colour it resolved to. Cleared when the shading is set to a plain colour.
     public var fillThemeAttrs: String? = nil
-    /// The file shaded this cell `auto` (an explicit no fill, over its table style's): written back as it was while the cell has no colour.
-    public var fillAuto = false
+    /// The cell's own `w:shd` when it gives no colour (fill `auto` or none: an explicit no fill over its table style's, or a bare pattern),
+    /// as the file wrote it: written back while the cell has no colour.
+    public var fillNoneXML: String? = nil
     /// `fill` is the table style's colour (drawn, but not the user's own): a save leaves it to the style.
     public var styleFilled: Bool? = nil
     /// This cell's own borders, by side (Word's `w:tcBorders`), where

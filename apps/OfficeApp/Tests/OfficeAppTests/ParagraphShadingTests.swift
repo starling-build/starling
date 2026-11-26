@@ -85,4 +85,21 @@ final class ParagraphShadingTests: XCTestCase {
         XCTAssertTrue(out.contains("w:fill=\"DDEEFF\""), out)
         XCTAssertTrue(out.contains("<w:tblPrEx><w:shd"), out)
     }
+
+    func testCellPatternWithNoFillIsKept() throws {
+        let out = try resave("""
+        <w:tbl><w:tblPr><w:tblW w:w="0" w:type="auto"/></w:tblPr><w:tblGrid><w:gridCol w:w="2000"/></w:tblGrid><w:tr><w:tc><w:tcPr><w:tcW w:w="2000" w:type="dxa"/><w:shd w:val="clear"/></w:tcPr><w:p><w:r><w:t>a</w:t></w:r></w:p></w:tc></w:tr></w:tbl><w:p/>
+        """)
+        XCTAssertTrue(out.contains("<w:shd w:val=\"clear\"/>"), out)
+    }
+
+    func testMarkShadingBesideAHighlightIsKept() throws {
+        let out = try resave("""
+        <w:p><w:pPr><w:rPr><w:highlight w:val="red"/><w:shd w:val="clear" w:color="auto" w:fill="FFFFFF"/></w:rPr></w:pPr><w:r><w:t>x</w:t></w:r></w:p>
+        """)
+        let mark = try XCTUnwrap(out.range(of: "<w:pPr>")).upperBound
+        let pPr = String(out[mark...].prefix(400)).components(separatedBy: "</w:pPr>")[0]
+        XCTAssertTrue(pPr.contains("<w:highlight w:val=\"red\"/>"), pPr)
+        XCTAssertTrue(pPr.contains("w:fill=\"FFFFFF\""), pPr)
+    }
 }
