@@ -188,6 +188,15 @@ final class OfficeShellState: State<StatefulWidget> {
             var blank = RichDocument()
             blank.styles = OfficeStyles.sheet
             controller.load(blank)
+        } else if let row = OfficeHost.browserRecovery?.take("docx"),
+                  let opened = try? OfficeFormats.read(row.data, named: row.name) {
+            // A tab closed with unsaved changes: its copy, under the name it would have saved as.
+            controller.load(opened.document)
+            if let setup = opened.pageSetup { session.pageSetup = setup }
+            session.path = row.name
+            _recovered = true
+            session.dirty = true
+            _flash("Restored an unsaved document — Save to keep it")
         } else if FileManager.default.fileExists(atPath: _recoveryPath(for: nil)),
                   let opened = try? OfficeFormats.read(_recoveryPath(for: nil)) {
             // Last time ended with an unsaved untitled document.
@@ -202,7 +211,8 @@ final class OfficeShellState: State<StatefulWidget> {
         if ProcessInfo.processInfo.environment["OFFICE_PROBE_PLATFORM"] != nil {
             _probePlatformMessages()
         }
-        _savedRevision = controller.revision
+        // A restored document is unsaved until the user saves it.
+        _savedRevision = _recovered ? controller.revision - 1 : controller.revision
         if (widget as! OfficeShell).startHome { _backstage = .home }
         session.summary = session.summarize()
         controller.addListener { [weak self] in
@@ -681,28 +691,35 @@ final class OfficeShellState: State<StatefulWidget> {
     /// when it is on and the document has one; either way the recovery
     /// copy is refreshed.
     private func _scheduleAutosave() {
-        #if os(WASI)
-        // The browser has no files of ours to write: the document lives in
-        // the page until the user downloads it. No recovery copy either.
-        return
-        #else
         // A hosted document has no file and wants no recovery copy of its
         // own: its owner holds it.
         guard (widget as! OfficeShell).hosted == nil else { return }
+        #if os(WASI)
+        // The browser has no files of ours: only the page's recovery copy.
+        guard OfficeHost.browserRecovery != nil else { return }
+        #endif
         _autosaveGeneration += 1
         let gen = _autosaveGeneration
         DispatchQueue.main.asyncAfter(deadline: .now() + OfficeHost.autosaveDelay) { [weak self] in
             guard let self, self._autosaveGeneration == gen else { return }
             self._autosaveNow()
         }
-        #endif
     }
 
     /// The write itself: the file when AutoSave is on and the document has one, else the recovery copy.
     /// Also what the window's host asks for before it closes the window (OfficeScene.flushPendingSaves).
     private func _autosaveNow() {
-        #if !os(WASI)
         guard session.dirty else { return }
+        // In a browser tab: the page keeps the copy (there is no file to save in place).
+        if let browser = OfficeHost.browserRecovery {
+            guard (widget as! OfficeShell).hosted == nil else { return }
+            let name = session.path ?? session.title + ".docx"
+            if let data = try? DocxFormat.write(controller.document, pageSetup: session.pageSetup) {
+                browser.keep("docx", name.pathExtension == "docx" ? name : name.deletingPathExtension + ".docx", data)
+            }
+            return
+        }
+        #if !os(WASI)
         // AutoSave writes the file itself — never a recovered document,
         // whose on-disk file the user has not yet chosen to replace.
         if session.autoSave, !_recovered, let path = session.path {
@@ -874,6 +891,9 @@ final class OfficeShellState: State<StatefulWidget> {
             let data = try OfficeFormats.encode(controller.document, as: name.pathExtension,
                                                 pageSetup: session.pageSetup)
             WebFiles.download(data, as: name)
+            OfficeHost.browserRecovery?.discard()
+            _recovered = false
+            _autosaveGeneration += 1
             session.path = name
             _savedRevision = controller.revision
             setState {
@@ -904,6 +924,7 @@ final class OfficeShellState: State<StatefulWidget> {
             try? fm.removeItem(atPath: _recoveryPath(for: path))
             if let old = session.path, old != path { try? fm.removeItem(atPath: _recoveryPath(for: old)) }
             if session.path == nil { try? fm.removeItem(atPath: _recoveryPath(for: nil)) }
+            OfficeHost.browserRecovery?.discard()
             _recovered = false
             _autosaveGeneration += 1
             session.path = path

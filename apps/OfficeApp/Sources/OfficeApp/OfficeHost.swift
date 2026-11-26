@@ -318,6 +318,21 @@ enum OfficeHost {
         return .seconds(2)
     }()
 
+    /// Where a browser tab keeps its recovery copy: it has no files, so the page keeps one row per tab in its
+    /// storage (IndexedDB), and offers a row whose tab has closed to the next tab that starts. nil natively, where
+    /// the copy is a file beside the document; the web build sets it at start-up, a test sets an in-memory one.
+    nonisolated(unsafe) static var browserRecovery: BrowserRecovery?
+
+    struct BrowserRecovery {
+        /// Writes (or replaces) this tab's copy: its kind ("docx", "pptx"), the name it would save under, the bytes.
+        var keep: (_ kind: String, _ name: String, _ data: Data) -> Void
+        /// Drops this tab's copy: the document was saved, or its changes were let go.
+        var discard: () -> Void
+        /// A copy of this kind left by a tab that closed with unsaved changes, newest first; taking it makes it
+        /// this tab's own copy, so a later keep or discard acts on it.
+        var take: (_ kind: String) -> (name: String, data: Data)?
+    }
+
     /// One button of the native toolbar over the on-screen keyboard. `symbol`
     /// is an SF Symbol name; state is a snapshot, re-published when it changes.
     struct ToolbarButton {
