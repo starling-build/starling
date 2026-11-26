@@ -184,6 +184,7 @@ extension DocxFormat {
             rPr += "<w:shd\(t[t.index(after: h)...]) w:fill=\"\(_hex(hl))\"/>"
         } else if let name = highlightNames.first(where: { $0.1 == hl })?.0 {
             rPr += "<w:highlight w:val=\"\(name)\"/>"
+            if let x = s.shdUnderHighlight { rPr += x }
         } else {
             rPr += "<w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"\(_hex(hl))\"/>"
         }
@@ -920,7 +921,10 @@ extension DocxFormat {
             case "w:highlight":
                 cs.highlight = _highlight(child["w:val"] ?? "none")
                 cs.shdSource = nil
+                cs.shdUnderHighlight = nil
             case "w:shd":
+                // (Beside a w:highlight, which draws over it: kept as written for the save.)
+                cs.shdUnderHighlight = cs.highlight != nil && cs.shdSource == nil ? PptxXML.serialize(child) : nil
                 if cs.highlight == nil, child["w:fill"] == nil || child["w:fill"]?.lowercased() == "auto", child["w:val"] != "nil" {
                     // An explicit no fill (or a pattern over none): kept for the save, drawn as nothing.
                     cs.shdSource = "auto#" + ["w:val", "w:color", "w:themeFill", "w:themeFillTint", "w:themeFillShade", "w:themeColor", "w:themeTint", "w:themeShade"]
@@ -1794,7 +1798,7 @@ extension DocxFormat {
                     if span > 1 { xml += "<w:gridSpan w:val=\"\(span)\"/>" }
                     if (ref?.rowSpan ?? 1) > 1 { xml += "<w:vMerge w:val=\"restart\"/>" }
                     xml += cellBordersXML(ref?.edges, width: ref?.borderWidth, kept: ref?.bordersXML ?? (ref?.rowBordersXML != nil ? "" : nil), under: ref?.bordersKeptUnder)   // schema order: borders, then shading
-                    if ref?.fill == nil, ref?.fillAuto == true { xml += "<w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"auto\"/>" }
+                    if ref?.fill == nil, let none = ref?.fillNoneXML { xml += none }
                     else if let fill = ref?.fill, !(ref?.styleFilled == true && doc.tableStyleIds[ref?.table ?? ""] != nil) { xml += "<w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"\(_hex(fill))\"\(ref?.fillThemeAttrs ?? "")/>" }
                     if let mar = ref?.marginsXML { xml += mar }
                     // Schema order: the text direction before the alignment.
