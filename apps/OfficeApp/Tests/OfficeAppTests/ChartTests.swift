@@ -407,6 +407,18 @@ final class ChartTests: XCTestCase {
     /// Two series' boxes in one category, as PowerPoint's print of bw-spacing p2 has them: the group (slot over 1 + gap)
     /// starts gap / 2 in, the boxes group / 1.95 apart and 0.905 of that wide; the means joined across categories,
     /// the non-outlier points dotted without data labels, the outliers unstroked.
+    func testATreemapOrdersItsTiesAsPowerPointDoes() {
+        // chartex-lab2 p8: PowerPoint prints item21 before item20 (both 12) and every other tie in file order,
+        // which is Microsoft's std::sort (introsort, insertion sort at 32 or fewer) with "larger first".
+        let v: [Double] = [20, 21, 21, 19, 19, 20, 17, 18, 18, 16, 16, 17, 14, 15, 15, 13, 13, 14, 11, 12, 12, 10, 10, 11,
+                           8, 9, 9, 7, 7, 8, 5, 6, 6, 4, 4, 5, 2, 3, 3, 1]
+        XCTAssertEqual(ChartPainter.msvcSorted(Array(v.indices)) { v[$0] > v[$1] },
+                       [1, 2, 0, 5, 3, 4, 7, 8, 6, 11, 9, 10, 13, 14, 12, 17, 15, 16, 20, 19, 18, 23, 21, 22, 25, 26, 24,
+                        29, 27, 28, 31, 32, 30, 35, 33, 34, 37, 38, 36, 39])
+        // Short lists keep ties in file order.
+        XCTAssertEqual(ChartPainter.msvcSorted([3, 5, 3, 5, 1]) { $0 > $1 }, [5, 5, 3, 3, 1])
+    }
+
     func testABoxWhiskerSpacesItsSeriesAsPowerPointDoes() {
         func ser(_ id: Int) -> String {
             "<cx:series layoutId=\"boxWhisker\"><cx:dataId val=\"\(id)\"/><cx:layoutPr><cx:visibility meanLine=\"1\" meanMarker=\"0\" nonoutliers=\"1\" outliers=\"1\"/></cx:layoutPr></cx:series>"
