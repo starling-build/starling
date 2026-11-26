@@ -811,7 +811,9 @@ extension _StyledFrame {
                 // — an em wide, 0.86 across — not the Latin stand-in's small one: kind -4.)
                 if hyphenFace != nil, ch == "-" { kind = -1000 }
                 if ea, eastDash, ch == "\u{2014}" { kind = -5; RuleTrace.hit("word-em-dash-drawn-in-east-asian-hansi-face") }
-                if ea, theme.wordRules, RichTextTheme.wordWindowsPages, RichLayout._cjkFaceFamily != nil, let u = ch.unicodeScalars.first?.value,
+                // (In every mode, not only Windows pages: Word draws them so on any machine, and the app's own view drew
+                // zh-e49d79431's 標楷體 "○○縣" in Liberation Sans, 9.7 pt across at 16 pt, where Word's print has DFKai-SB's 16.)
+                if ea, theme.wordRules, RichLayout._cjkFaceFamily != nil, let u = ch.unicodeScalars.first?.value,
                    (0x25A0 ... 0x25EF).contains(u) || u == 0x2605 || u == 0x2606 { kind = -4 }
                 // (A card suit in a run (East Asian by its hint) whose Latin face is Malgun Gothic itself (a theme's; Nanum Barun's suits are not an em: b60ada18) is that face's glyph, an em wide, not
                 // the stand-in's 0.66 em: xd 89a3482a's "♣♣♣" are Malgun 12 pt wide each in the print, ours 7.9, and "수" after them stayed on the line.)
