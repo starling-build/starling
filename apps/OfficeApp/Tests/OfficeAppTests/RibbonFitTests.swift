@@ -24,15 +24,55 @@ final class RibbonFitTests: XCTestCase {
 
     func testAGroupGoesAllTheWayBeforeTheNextOneStarts() {
         let w: [[Double]] = [[100, 80, 40], [200, 150, 40], [100, 80, 40]]
-        // The right-hand group is a button (40) before the middle one loses a caption.
-        XCTAssertEqual(RibbonFit.levels(widths: w, collapsible: [true, true, true], available: 335), [0, 1, 2])
-        XCTAssertEqual(RibbonFit.levels(widths: w, collapsible: [true, true, true], available: 250), [0, 2, 2])
+        // The right-hand group goes first, and the middle one when that was not enough; what was folded more than the room
+        // needed comes back (at 335 the right-hand group is icons only, not a button; at 250 it is whole again).
+        XCTAssertEqual(RibbonFit.levels(widths: w, collapsible: [true, true, true], available: 335), [0, 1, 1])
+        XCTAssertEqual(RibbonFit.levels(widths: w, collapsible: [true, true, true], available: 250), [0, 2, 0])
         XCTAssertEqual(RibbonFit.levels(widths: w, collapsible: [true, true, true], available: 120), [2, 2, 2])
+    }
+
+    func testAGroupWhoseButtonIsWiderThanItsIconsStopsAtTheIcons() {
+        // Editing: icons only 54, one button 73. Folding it to the button would grow the row.
+        let w: [[Double]] = [[300, 200, 90], [101, 54, 73]]
+        XCTAssertEqual(RibbonFit.levels(widths: w, collapsible: [true, true], available: 300), [1, 1])
+        XCTAssertEqual(RibbonFit.levels(widths: w, collapsible: [true, true], available: 260), [1, 1])
+    }
+
+    func testAFoldTheRoomDidNotNeedIsUndone() {
+        // The right-hand group went first, but the middle one's fold alone makes room: only that one stays folded.
+        let w: [[Double]] = [[100, 80, 40], [300, 200, 40], [60, 55, 50]]
+        XCTAssertEqual(RibbonFit.levels(widths: w, collapsible: [true, true, true], available: 200), [0, 2, 0])
     }
 
     func testWhatIsNotAGroupIsLeftAlone() {
         let w: [[Double]] = [[100, 80, 40], [300, 300, 300], [100, 80, 40]]
         XCTAssertEqual(RibbonFit.levels(widths: w, collapsible: [true, false, true], available: 100), [2, 0, 2])
+    }
+
+    /// The widths Linux's fonts measured (amd-8's run, a 1240 pt ribbon): three tabs wider than the window. The fit gives
+    /// way only as far as it must: the rightmost groups, no more than needed, and the left ones stay whole.
+    func testWhatLinuxMeasuredFoldsOnlyAsFarAsItMust() {
+        let tabs: [(name: String, widths: [[Double]], levels: [Int])] = [
+            ("Slides Home", [[138, 97, 87], [223, 155, 68], [379, 379, 61], [305, 255, 89], [241, 101, 80], [128, 54, 73]], [0, 0, 0, 0, 1, 1]),
+            ("Writer Home", [[184, 97, 87], [407, 407, 61], [317, 255, 89], [339, 339, 67], [101, 54, 73]], [0, 0, 0, 2, 0]),
+            ("Writer Table Layout", [[117, 61, 68], [234, 103, 122], [337, 233, 80], [269, 242, 90], [159, 154, 131], [149, 115, 92]], [0, 0, 0, 0, 0, 1]),
+        ]
+        for tab in tabs {
+            let collapsible = [Bool](repeating: true, count: tab.widths.count)
+            let got = RibbonFit.levels(widths: tab.widths, collapsible: collapsible, available: 1240)
+            XCTAssertEqual(got, tab.levels, tab.name)
+            func total(_ l: [Int]) -> Double { l.indices.reduce(0) { $0 + tab.widths[$1][l[$1]] } }
+            XCTAssertLessThanOrEqual(total(got), 1240, "\(tab.name): the row fits")
+            // Minimal: undoing the last step (the rightmost group that gave way, one level back) would overflow.
+            if let last = got.indices.last(where: { got[$0] > 0 }) {
+                var back = got; back[last] -= 1
+                XCTAssertGreaterThan(total(back), 1240, "\(tab.name): nothing folded that did not have to")
+            }
+            // And the tab's full width is what makes it fold at all.
+            XCTAssertGreaterThan(tab.widths.reduce(0) { $0 + $1[0] }, 1240, tab.name)
+        }
+        // Were the window wide enough for the whole of a tab, nothing would give way.
+        XCTAssertEqual(RibbonFit.levels(widths: tabs[0].widths, collapsible: [Bool](repeating: true, count: 6), available: 1416), [0, 0, 0, 0, 0, 0])
     }
 
     // MARK: Every control is reachable

@@ -143,13 +143,28 @@ final class RibbonFit: StatefulWidget {
     static let levelCount = 3
 
     /// How far each group gives way for `available` points, given every group's width at each of its levels
-    /// (`widths[i][level]`; a widget that is not a group has one level): the rightmost group that still can goes
-    /// one level further until the row fits, or nothing can give any more.
+    /// (`widths[i][level]`; a widget that is not a group has one level). The rightmost group that still can goes one
+    /// level further until the row fits, or nothing can give any more; a step only counts if it makes the group
+    /// narrower (a group's one button can be wider than its icons, as a short group's is). Then the groups that
+    /// gave way more than the room required come back, leftmost first, as far as the row still fits: a group that
+    /// fits is never folded.
     static func levels(widths: [[Double]], collapsible: [Bool], available: Double) -> [Int] {
         var levels = [Int](repeating: 0, count: widths.count)
         func total() -> Double { levels.indices.reduce(0) { $0 + widths[$1][levels[$1]] } }
-        while total() > available, let i = levels.indices.last(where: { collapsible[$0] && levels[$0] < levelCount - 1 }) {
-            levels[i] += 1
+        func next(_ i: Int) -> Int? {
+            guard collapsible[i] else { return nil }
+            return (levels[i] + 1 ..< levelCount).first { widths[i][$0] < widths[i][levels[i]] }
+        }
+        while total() > available, let i = levels.indices.last(where: { next($0) != nil }) {
+            levels[i] = next(i)!
+        }
+        for i in levels.indices where levels[i] > 0 {
+            let folded = levels[i]
+            for level in 0 ..< folded {
+                levels[i] = level
+                if total() <= available { break }
+                levels[i] = folded
+            }
         }
         return levels
     }
