@@ -1535,7 +1535,7 @@ extension DocxFormat {
                     body += "</w:r>"
                     continue
                 }
-                if s.link != nil, s.linkField == nil, !s.linkKeepsLook, !rPr.hasPrefix("<w:rStyle "), !doc.readFromFile || doc.keptCharacterStyleIds["hyperlink"] != nil { rPr = "<w:rStyle w:val=\"\(_esc(doc.keptCharacterStyleIds["hyperlink"] ?? "Hyperlink"))\"/>" + rPr }
+                if s.link != nil, s.linkField == nil, !s.linkKeepsLook, !rPr.hasPrefix("<w:rStyle ") { rPr = "<w:rStyle w:val=\"\(_esc(doc.keptCharacterStyleIds["hyperlink"] ?? "Hyperlink"))\"/>" + rPr }
                 let rPrXML = rPr.isEmpty ? "" : "<w:rPr>\(rPr)</w:rPr>"
                 var runXML = ""
                 let isBox: (Character) -> Bool = { $0 == "\u{2610}" || $0 == "\u{2612}" }
