@@ -340,8 +340,8 @@ final class Ribbon: StatelessWidget {
             Chrome.gap(),
             FontSizeBox(size: currentSize, sizes: sizes, onSize: { n in c.setFontSize(n) }),
             Chrome.gap(6),
-            FlatButton(child: Chrome.sizeArrowIcon(up: true, fluent), tip: "Grow Font (⌘])".keys) { [session] in c.stepFontSize(1, base: session.effectiveFontSize) },
-            FlatButton(child: Chrome.sizeArrowIcon(up: false, fluent), tip: "Shrink Font (⌘[)".keys) { [session] in c.stepFontSize(-1, base: session.effectiveFontSize) },
+            FlatButton(child: Chrome.sizeArrowIcon(up: true, fluent), tip: "Grow Font (⌘])".keys, keepsPopupOpen: true) { [session] in c.stepFontSize(1, base: session.effectiveFontSize) },
+            FlatButton(child: Chrome.sizeArrowIcon(up: false, fluent), tip: "Shrink Font (⌘[)".keys, keepsPopupOpen: true) { [session] in c.stepFontSize(-1, base: session.effectiveFontSize) },
             Chrome.gap(2),
             Chrome.menu(nil, Icon(FluentSystemIcons.textChangeCase, size: Chrome.iconSize,
                                   color: fluent.resources.textFillColorPrimary), fluent, [

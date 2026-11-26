@@ -285,6 +285,9 @@ public final class KeyboardTraversal {
         stop?.onFocus(true)
     }
 
+    /// Puts the ring on `stop` (or takes it away with nil): a popup closing hands it back to the button that opened it.
+    public func focus(_ stop: KeyStop?) { _focus(stop) }
+
     /// Moves the ring one control on, or back.
     public func move(reverse: Bool) {
         let list = reachable(inRegion: _modalOpen ? nil : (focused?.region ?? _currentRegion ?? regions().first))

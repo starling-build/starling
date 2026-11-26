@@ -211,8 +211,13 @@ public class FlyoutController {
 
     // MARK: - Close Flyout
 
+    /// Called after an open flyout closes, whether by Escape, the barrier, `closeFlyout` or a `FlyoutScope`.
+    public var onClose: (() -> Void)?
+
     /// Closes the currently open flyout.
     public func closeFlyout() {
+        let wasOpen = isOpen
+        defer { if wasOpen { onClose?() } }
         if let token = _escapeToken {
             FocusManager.instance.removeKeyInterceptor(token)
             _escapeToken = nil

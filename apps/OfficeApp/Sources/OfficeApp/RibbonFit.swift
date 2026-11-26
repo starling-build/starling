@@ -29,6 +29,23 @@ final class RibbonDensity: InheritedWidget {
     }
 }
 
+/// Around the controls of a folded group's popup: what closes it. A command's button calls it once the command has run, unless
+/// the button keeps editing (a stepper, Grow Font), so the popup stays for the next press.
+final class RibbonPopupScope: InheritedWidget {
+    let close: () -> Void
+
+    init(close: @escaping () -> Void, child: Widget) {
+        self.close = close
+        super.init(key: nil, child: child)
+    }
+
+    static func close(_ context: (any BuildContext)?) {
+        (context?.findAncestorWidgetOfExactType(RibbonPopupScope.self))?.close()
+    }
+
+    override func updateShouldNotify(_ oldWidget: InheritedWidget) -> Bool { false }
+}
+
 /// A ribbon button in its two forms: with its caption, and (in a group that has given up its captions) as an icon
 /// whose caption is its tooltip.
 final class RibbonDensityButton: StatelessWidget {
@@ -100,16 +117,61 @@ private final class RibbonGroupButton: StatefulWidget {
 
 private final class _RibbonGroupButtonState: State<StatefulWidget> {
     private let _flyout = FlyoutController()
+    /// Opened with the keyboard (Enter on the button): the ring goes into the popup, and back to the button when it closes.
+    private var _viaKeyboard = false
+
+    override func initState() {
+        super.initState()
+        _flyout.onClose = { [weak self] in self?._closed() }
+    }
 
     override func dispose() {
+        _flyout.onClose = nil
         if _flyout.isOpen { _flyout.closeFlyout() }
         super.dispose()
+    }
+
+    private var _name: String { "\((widget as! RibbonGroupButton).group.label) group" }
+
+    /// After a frame, when the popup's stops are gone (or in): the ring goes where the keyboard was.
+    private func _afterFrame(_ f: @escaping () -> Void) {
+        FrameCallbackScheduler.shared.addPostFrameCallback { _ in f() }
+        PlatformDispatcher.instance.scheduleFrame()
+    }
+
+    private func _open() {
+        _viaKeyboard = KeyboardTraversal.shared.focused != nil
+        let group = (widget as! RibbonGroupButton).group
+        let content = group.content
+        _flyout.showFlyout(builder: { [weak self] _ in
+            KeyboardRegion(name: "ribbon-group", modal: true, child: FlyoutContent(
+                // (As tall as a group's buttons: a Column in a group that fills its height would fill the popup's.)
+                child: SizedBox(width: nil, height: Chrome.rowHeight * 3 + 4, child: RibbonPopupScope(
+                    close: { self?._flyout.closeFlyout() },
+                    child: RibbonDensity(iconsOnly: false, child: Row(mainAxisSize: .min, crossAxisAlignment: .start, children: content)))),
+                padding: EdgeInsets(all: 6), constraints: BoxConstraints()))
+        }, placement: .bottom)
+        if _viaKeyboard {
+            _afterFrame {
+                if let first = KeyboardTraversal.shared.reachable().first(where: { $0.modal }) { KeyboardTraversal.shared.focus(first) }
+            }
+        }
+    }
+
+    private func _closed() {
+        guard _viaKeyboard else { return }
+        _viaKeyboard = false
+        let name = _name
+        _afterFrame {
+            if let me = KeyboardTraversal.shared.reachable(inRegion: "ribbon").first(where: { $0.label() == name }) {
+                KeyboardTraversal.shared.focus(me)
+            }
+        }
     }
 
     override func build(_ context: any BuildContext) -> Widget {
         let group = (widget as! RibbonGroupButton).group
         let fluent = group.fluent
-        let content = group.content
         let button = FlatButton(
             child: Padding(padding: EdgeInsets(left: 8, top: 0, right: 6, bottom: 0), child: Row(mainAxisSize: .min, crossAxisAlignment: .center, children: [
                 Text(group.label, style: fluent.typography.caption?.copyWith(color: fluent.resources.textFillColorPrimary)),
@@ -117,15 +179,8 @@ private final class _RibbonGroupButtonState: State<StatefulWidget> {
                 Chrome.chevron(fluent),
             ])),
             tip: "\(group.label) group", width: nil, height: 28,
-            action: { [weak self] in
-                guard let self else { return }
-                self._flyout.showFlyout(builder: { _ in
-                    KeyboardRegion(name: "ribbon-group", modal: true, child: FlyoutContent(
-                        // (As tall as a group's buttons: a Column in a group that fills its height would fill the popup's.)
-                        child: SizedBox(width: nil, height: Chrome.rowHeight * 3 + 4, child: RibbonDensity(iconsOnly: false, child: Row(mainAxisSize: .min, crossAxisAlignment: .start, children: content))),
-                        padding: EdgeInsets(all: 6), constraints: BoxConstraints()))
-                }, placement: .bottom)
-            })
+            keepsPopupOpen: true,
+            action: { [weak self] in self?._open() })
         return FlyoutTarget(controller: _flyout, child: button)
     }
 }

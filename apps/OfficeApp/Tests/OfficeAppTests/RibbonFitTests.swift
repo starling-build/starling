@@ -203,4 +203,77 @@ final class RibbonFitTests: XCTestCase {
         settle(ui)
         XCTAssertFalse(ui.tips().filter { $0.hasSuffix(" group") }.isEmpty)
     }
+
+    // MARK: The popup
+
+    private func foldedHome(_ width: Double = 520) -> WidgetTester {
+        let ui = writer(width)
+        XCTAssertTrue(ui.tap(text: "Home"))
+        settle(ui)
+        return ui
+    }
+
+    func testACommandInAFoldedGroupClosesItsPopup() throws {
+        let ui = foldedHome()
+        let c = try XCTUnwrap(ui.state(OfficeShellState.self)).session.controller
+        XCTAssertTrue(ui.tap(tip: "Paragraph group"))
+        ui.pump()
+        XCTAssertTrue(ui.has(tip: "Center"), "the popup holds the Paragraph controls")
+        XCTAssertTrue(ui.tap(tip: "Center"))
+        ui.pump(); ui.pump()
+        XCTAssertFalse(ui.has(tip: "Center"), "a command that has run closes the popup")
+        XCTAssertEqual(c.document.paragraphs.first?.style.alignment, .center, "and it ran")
+    }
+
+    func testAControlThatKeepsEditingLeavesItsPopupOpen() {
+        let ui = foldedHome(640)
+        XCTAssertTrue(ui.tap(tip: "Font group"))
+        ui.pump()
+        let grow = "Grow Font (⌘])".keys, shrink = "Shrink Font (⌘[)".keys
+        XCTAssertTrue(ui.tap(tip: grow))
+        ui.pump()
+        XCTAssertTrue(ui.has(tip: shrink), "Grow Font steps and the popup stays for the next press")
+        XCTAssertTrue(ui.tap(tip: grow), "and takes the next press")
+        ui.pump()
+        XCTAssertTrue(ui.has(tip: shrink))
+        XCTAssertTrue(ui.tap(tip: "Bold (⌘B)".keys))
+        ui.pump(); ui.pump()
+        XCTAssertFalse(ui.has(tip: shrink), "Bold is a command: the popup closes")
+    }
+
+    func testAMenuChoiceInAFoldedGroupClosesItsPopup() {
+        let ui = foldedHome()
+        XCTAssertTrue(ui.tap(tip: "Paragraph group"))
+        ui.pump()
+        XCTAssertTrue(ui.tap(text: "Borders"))
+        ui.pump()
+        XCTAssertTrue(ui.tap(text: "Bottom Border"))
+        ui.pump(); ui.pump()
+        XCTAssertFalse(ui.has(tip: "Center"), "choosing from a menu in the popup closes the popup too")
+    }
+
+    func testEscapeClosesAPopupAndTheRingReturnsToItsButton() throws {
+        let ui = foldedHome()
+        let kt = KeyboardTraversal.shared
+        let button = try XCTUnwrap(kt.reachable(inRegion: "ribbon").first { $0.label() == "Paragraph group" })
+        kt.focus(button)
+        ui.press(.enter)
+        ui.pump(); ui.pump()
+        XCTAssertTrue(ui.has(tip: "Center"), "Enter opens it")
+        XCTAssertEqual(kt.focused?.region, "ribbon-group", "the ring goes in, to the first control")
+        ui.press(.escape)
+        ui.pump(); ui.pump()
+        XCTAssertFalse(ui.has(tip: "Center"), "Escape closes it")
+        XCTAssertEqual(kt.focused?.label(), "Paragraph group", "and the ring is back on the button")
+    }
+
+    func testClosingWithThePointerLeavesTheKeyboardAlone() {
+        let ui = foldedHome()
+        XCTAssertTrue(ui.tap(tip: "Paragraph group"))
+        ui.pump()
+        ui.tap(at: Offset(4, 790))
+        ui.pump(); ui.pump()
+        XCTAssertFalse(ui.has(tip: "Center"))
+        XCTAssertNil(KeyboardTraversal.shared.focused, "a click is not the keyboard: no ring appears")
+    }
 }
