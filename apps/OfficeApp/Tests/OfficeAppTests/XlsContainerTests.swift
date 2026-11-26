@@ -289,3 +289,17 @@ final class XlsContainerTests: XCTestCase {
         XCTAssertNil(XlsFormula.decompile(u, row: 0, col: 0, relative: false, ctx: ctx))
     }
 }
+
+extension XlsContainerTests {
+    func testAWideBuiltInNameKeepsItsArea() {
+        // ko-e0c4deb6ff's Print_Area NAME record: the option byte says wide, so the built-in's one character is 16 bits.
+        let hex = "200000010b0000000100000000000106003b00000000540001000e00"
+        var body: [UInt8] = []
+        var i = hex.startIndex
+        while i < hex.endIndex { let j = hex.index(i, offsetBy: 2); body.append(UInt8(hex[i ..< j], radix: 16)!); i = j }
+        let r = BiffRecord(type: 0x18, body: body, segments: [0], offset: 0)
+        XCTAssertEqual(XlsBuild.definedNamesXML([r], xtis: [(0, 0)], sheetNames: ["S"], kept: [0]),
+                       "<definedNames><definedName name=\"_xlnm.Print_Area\" localSheetId=\"0\">S!$B$1:$O$85</definedName></definedNames>")
+        XCTAssertTrue(XlsBuild.nameText(r).contains("Print_Area"), XlsBuild.nameText(r))
+    }
+}
