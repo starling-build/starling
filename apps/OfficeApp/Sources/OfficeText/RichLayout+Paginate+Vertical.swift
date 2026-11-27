@@ -75,8 +75,9 @@ extension RichLayout {
                     let across0 = y0 - setup.marginLeft - f.distanceTop
                     let across1 = y0 + h - setup.marginLeft + f.distanceBottom
                     seeds.append((image.id, _px(across0), _px(across1), _px(flowTop), _px(flowBottom)))
-                    // (A float whose room on this page pushes its own anchor off it goes on with the anchor to the next page.)
-                    if filled + anchorOf(image) >= roomLeft() {
+                    // (A float whose room on this page pushes its own anchor off it goes on with the anchor to the next page; one
+                    // anchored at the page's very start has nowhere else to go and stays.)
+                    if filled + anchorOf(image) > 0, filled + anchorOf(image) >= roomLeft() {
                         RuleTrace.hit("word-vertical-float-follows-its-anchor-to-the-next-page")
                         seeds.removeLast()
                     }
