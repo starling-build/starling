@@ -1820,7 +1820,9 @@ struct SlideContext {
                             var m = m
                             var c = m.frame.center
                             if flipH { c = Offset(2 * centre.dx - c.dx, c.dy); m.flipH.toggle(); m.rotation = -m.rotation }
-                            if flipV { c = Offset(c.dx, 2 * centre.dy - c.dy); m.flipV.toggle(); m.rotation = -m.rotation }
+                            // (A group mirrored top to bottom turns its members' text half round, as a mirrored shape does its own:
+                            // vi-f6ecddd221's ruler, a group turned 180 and flipped both ways, prints its numbers upright.)
+                            if flipV { c = Offset(c.dx, 2 * centre.dy - c.dy); m.flipV.toggle(); m.rotation = -m.rotation; m.textSpin = (m.textSpin + 180).truncatingRemainder(dividingBy: 360) }
                             let dx = c.dx - centre.dx, dy = c.dy - centre.dy
                             c = Offset(centre.dx + dx * cos(rad) - dy * sin(rad), centre.dy + dx * sin(rad) + dy * cos(rad))
                             m.frame = Rect.fromCenter(center: c, width: m.frame.width, height: m.frame.height)
