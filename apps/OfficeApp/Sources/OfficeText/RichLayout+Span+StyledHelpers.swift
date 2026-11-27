@@ -362,8 +362,12 @@ extension _StyledFrame {
         // (Thai in Browallia New or Angsana New: every run, Latin and Thai, carries its face's own split of the line (hhea ascent and
         // descent, by weight), so a line is its tallest ascent over its deepest descent, as Word's: a bold run raises only the lines it is
         // on (xd b96afb37 20.8 pt, e93587db 19.0 beside 20.6), with no stacking of the 0.82-size Thai stand-in on the Latin one.)
-        if theme.wordRules, RichTextTheme.wordWindowsPages, p.style.lineHeightPoints == nil, s.ascentOverride == nil,
-           let size = s.fontSize, size > 0.5, let h = s.height, let split = RichLayout._thaiLineSplit(s.debugLabel, bold: s.fontWeight == .bold), thaiParagraph {
+        // (An "at least" line no taller than the run's own is a single line, so it too: dx2 a3710694's bold names on "at least 0"
+        // lines, the stand-in's bold split 22.5 pt under the line above where Word's print has 20.0.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, s.ascentOverride == nil,
+           let size = s.fontSize, size > 0.5, let h = s.height, let split = RichLayout._thaiLineSplit(s.debugLabel, bold: s.fontWeight == .bold), thaiParagraph,
+           p.style.lineHeightPoints == nil || p.style.lineHeightIsMinimum && (p.style.lineHeightPoints ?? 0) * theme.pixelsPerPoint * scale <= size * h {
+            if p.style.lineHeightPoints != nil { RuleTrace.hit("word-thai-at-least-line-under-its-own-takes-the-face-split") }
             s = s.copyWith(ascentOverride: size * h * split, descentOverride: size * h * (1 - split), leadingDistribution: .even)
         }
         // (A TH SarabunPSK run among runs Word draws in Browallia: the real PSK face is ascent 0.85 over descent 0.46, so the run deepens the line
