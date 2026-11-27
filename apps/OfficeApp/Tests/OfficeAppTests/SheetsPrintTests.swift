@@ -41,6 +41,44 @@ final class SheetsPrintTests: XCTestCase {
         XCTAssertTrue(SheetGridState._linesOnTheirOwnBaseline("돋움"))
     }
 
+    func testAMissingKoreanFaceFitsItsRowsToItsOwnBox() {
+        // Lab missingko (Excel 16): HY신명조, HY견고딕, 함초롬돋움 and 함초롬바탕, all `family` 1 (Roman), regular and bold, fit the same rows,
+        // 35 37 37 39 40 43 51 61 67 px at 192 dpi for 8 to 18 pt, printed at the book's ratio: in dots at 600 dpi,
+        // 124 127 137 162 194 213 from 10.5 pt in a Calibri 11 book (8 to 10 under its 121) and 105 111 111 117 120 129
+        // 153 183 201 in a 돋움 11 book. (They were MS PGothic's, 34 px at 11 pt: the tables of ko-e15b091bc8 sat high.)
+        let sizes = [8.0, 9, 10, 10.5, 11, 12, 14, 16, 18]
+        for (dname, dots) in [("Calibri", [111.0, 118, 118, 124, 127, 137, 162, 194, 213]), ("돋움", [105.0, 111, 111, 117, 120, 129, 153, 183, 201])] {
+            let book = Workbook()
+            book.defaultFontName = dname
+            book.defaultFontSize = 11
+            let m = SheetPrintMetrics.of(family: dname, size: 11)
+            for face in ["HY신명조", "HY견고딕", "함초롬돋움", "함초롬바탕"] {
+                for bold in [false, true] {
+                    for (size, d) in zip(sizes, dots) {
+                        var st = CellStyle()
+                        st.fontName = face
+                        st.fontSize = size
+                        st.bold = bold
+                        st.fontRoman = true
+                        XCTAssertEqual(SheetGridState._fittedLine(st, m, book) * 600 / 72, d, accuracy: 0.6, "\(dname) \(face) \(size) \(bold)")
+                    }
+                }
+            }
+            // Asked for as Modern (`family` 3) it keeps MS Gothic's rows (ko-5afe706664's 기아 Medium: its print embeds MS Gothic).
+            var st = CellStyle(), ms = CellStyle()
+            st.fontName = "기아 Medium"; st.fontSize = 11
+            ms.fontName = "MS PGothic"; ms.fontSize = 11
+            XCTAssertEqual(SheetGridState._fittedLine(st, m, book), SheetGridState._fittedLine(ms, m, book), accuracy: 0.01, dname)
+            // An empty cell in a Roman missing face fits the face's own box, not the stand-in's (ko-7137deba70's empty HY울릉도M 10
+            // rows print at the sheet's 10.5 pt, its text rows at the stand-in's 37 px).
+            var empty = CellStyle()
+            empty.fontName = "HY울릉도M"; empty.fontSize = 11; empty.fontRoman = true
+            st.fontName = "HY울릉도M"; st.fontRoman = false
+            XCTAssertEqual(SheetGridState._emptyCellLine(empty, m, book), SheetGridState._fittedLine(st, m, book), accuracy: 0.01, dname)
+            XCTAssertLessThan(SheetGridState._emptyCellLine(empty, m, book), SheetGridState._fittedLine(empty, m, book) - 0.5, dname)
+        }
+    }
+
     func testDotumWrappedLinesArePlacedByTheirFirstLine() {
         // A centred two-line Dotum cell stands about its first line alone
         // (ko-fb58b17f97: Excel 162.4/169.6 about 166.0; placed by "X", ours stood 1.45 pt higher).

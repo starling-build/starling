@@ -383,7 +383,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             // column is its characters in the printer's digits, a row the
             // printer's line or a set height scaled by it (SheetPrintMetrics).
             let book = controller.book
-            let m = SheetPrintMetrics.of(family: book.defaultFontName ?? OfficeFonts.defaultFamily, size: book.defaultFontSize ?? 11, bold: book.defaultFontBold,
+            let m = SheetPrintMetrics.of(family: book.defaultFontName ?? OfficeFonts.defaultFamily, size: book.defaultFontSize ?? 11, bold: book.defaultFontBold, roman: book.defaultFontRoman,
                                          baseColWidth: Double(ws.formatPrAttrs["baseColWidth"] ?? "") ?? 8)
             let widths = Dictionary(uniqueKeysWithValues: ws.colWidths.map { ($0.key, $0.value == 0 ? 0 : m.column(Xlsx._widthChars(ws, $0.key, $0.value))) })
             // (Korean workbooks, whose Normal 맑은 고딕 is a theme font: rows nobody sized print at the stored default plus a quarter point when that is above the Calibri fit, in a sheet where no row stores a height (one that does is refitted whole to the Calibri fit: lab L4; ko-dfeb2506a1 and 25 more) — labs korow3, 17 prints 17.25 and 15 prints 15.25.)
@@ -428,6 +428,14 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 lines[style] = l
                 return l
             }
+            // (An empty cell in a Roman Korean face the print box lacks fits the face's own box, not the stand-in's: that box is
+            // its Hangul's, drawn in Malgun Gothic. ko-7137deba70's empty rows of HY울릉도M 10 print at the sheet's 10.5 pt, 28 px,
+            // where its text rows take the stand-in's 37.)
+            func emptyLine(_ style: Int) -> Double {
+                let st = book.style(style)
+                guard style != 0, book.fontRoman(st) else { return line(style) }
+                return Self._emptyCellLine(st, m, book, hinted: !ws.customDefaultRowHeight && calibri11, otherBook: !ws.customDefaultRowHeight && !calibri11)
+            }
             // The cells it has no record of count too, in the font they
             // would take: the row's style, else their column's — and the
             // default font's where some column has none. 57523's columns
@@ -438,7 +446,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             do {
                 var covered = 0, next = 0
                 for run in ws.colAttrRuns.filter({ $0.attrs["style"] != nil }).sorted(by: { $0.lo < $1.lo }) {
-                    blank = max(blank, line(Int(run.attrs["style"] ?? "") ?? 0))
+                    blank = max(blank, emptyLine(Int(run.attrs["style"] ?? "") ?? 0))
                     let lo = max(run.lo, next)
                     if run.hi >= lo { covered += run.hi - lo + 1; next = run.hi + 1 }
                 }
@@ -477,7 +485,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 // default, as its L8:R8 headers do.)
                 if let g = merged[a.row]?.first(where: { $0.contains(a) }),
                    g.top != g.bottom || (a == g.topLeft && book.style(cell.style).wrap) { continue }
-                var l = cell.style == 0 && cell.value.isEmpty ? m.defaultRow : line(cell.style)
+                var l = cell.style == 0 && cell.value.isEmpty ? m.defaultRow : cell.value.isEmpty ? emptyLine(cell.style) : line(cell.style)
                 // Turned text stands as tall as the text is long, along its angle: Excel fits the row to it (X-AF-1). A row the file
                 // fitted (`scriptRows`) keeps that fit, where it is taller.
                 let rot = book.style(cell.style).rotation
@@ -512,7 +520,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 fit[r] = base + extra
             }
             for r in Set(fit.keys).union(ws.fittedRows) {
-                let floor = ws.rowStyle(r).map(line) ?? blank
+                let floor = ws.rowStyle(r).map(emptyLine) ?? blank
                 // A row with a medium or thick border at its foot or head
                 // (`thickBot`, `thickTop`) is a screen pixel taller for each:
                 // Excel_file_with_trash_item's rows of medium borders, written
@@ -868,7 +876,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         var across = 1.0, down = 1.0
         if printing {
             let book = controller.book
-            let m = SheetPrintMetrics.of(family: book.defaultFontName ?? OfficeFonts.defaultFamily, size: book.defaultFontSize ?? 11, bold: book.defaultFontBold)
+            let m = SheetPrintMetrics.of(family: book.defaultFontName ?? OfficeFonts.defaultFamily, size: book.defaultFontSize ?? 11, bold: book.defaultFontBold, roman: book.defaultFontRoman)
             across = m.digit / (m.screenDigit * 72 / 192)
             down = m.rowScale
         }
@@ -3324,7 +3332,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         // characters, where the screen's 7 px a digit made room for nine).
         let chars: Int
         if printing {
-            let m = SheetPrintMetrics.of(family: book.defaultFontName ?? OfficeFonts.defaultFamily, size: book.defaultFontSize ?? 11, bold: book.defaultFontBold)
+            let m = SheetPrintMetrics.of(family: book.defaultFontName ?? OfficeFonts.defaultFamily, size: book.defaultFontSize ?? 11, bold: book.defaultFontBold, roman: book.defaultFontRoman)
             let padding = (2 * (m.screenDigit / 4).rounded(.up) + 1) / m.screenDigit
             chars = max(1, Int(width / m.digit - padding + 1e-6))
         } else {
@@ -3452,7 +3460,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         // (Four printer dots more at the left, whatever the scale: the cells' first rule now stands where Excel's does, not four dots right of it — the column lab's text starts 20 18 17 14 12 10 dots in at six scales, 4 + 16 x scale.)
         let fixed4 = printing && printTextScale > 0 ? 4 * 72 / 600 * scale / printTextScale : 0
         let rightMargin0 = printing
-            ? 0.48 + SheetPrintMetrics.of(family: book.fontName(st), size: book.fontSize(st), bold: st.bold).digit / 4
+            ? 0.48 + SheetPrintMetrics.of(family: book.fontName(st), size: book.fontSize(st), bold: st.bold, roman: book.fontRoman(st)).digit / 4
             : pad
         let margin = rightMargin0 + fixed4
         // (Right-aligned text stands 12 12 11 10 8 7 dots in at the six scales: 4 + 8 x scale, 8 x scale dots under the left's.)
@@ -3517,11 +3525,12 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             let lines = richLns.isEmpty ? texts._breakLines(NumberFormat.unpad(text), style, wrapRoom(width, pad * 2 + wrapLess, indent: inset))
                 .split(separator: "\n", omittingEmptySubsequences: false) : richLns.map { Substring($0.map(\.0).joined()) }
             if lines.count > 1 {
-                let m = SheetPrintMetrics.of(family: book.defaultFontName ?? OfficeFonts.defaultFamily, size: book.defaultFontSize ?? 11, bold: book.defaultFontBold)
+                let m = SheetPrintMetrics.of(family: book.defaultFontName ?? OfficeFonts.defaultFamily, size: book.defaultFontSize ?? 11, bold: book.defaultFontBold, roman: book.defaultFontRoman)
                 // The face's own printed line in dots (57523's Calibri Bold 10 header: 109 dots, 13.08 pt, where the screen
                 // pixels scaled by the book's default font made 13.37).
                 let pitch0 = (st.fontName == nil && st.fontSize == nil && st.bold == book.defaultFontBold ? m.defaultRow
                     : SheetPrintMetrics.of(family: book.fontName(st), size: book.fontSize(st), bold: st.bold).defaultRow) * scale
+                // (Not the Roman stand-in's box: ko-3ec5d45765's 한컴돋움 9 wraps at 11.5 pt in Excel's print, nearer the old pitch than the box's 14.2.)
                 let dotum = Self._dotumLike(book.fontName(st))
                 let ownLines = Self._linesOnTheirOwnBaseline(book.fontName(st))
                 let pitch = dotum ? book.fontSize(st) * scale + 1.2 * scale : pitch0
@@ -3618,9 +3627,16 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
     /// (Bold counts where the face's bold has a line of its own, though the
     /// style names neither face nor size: FormulaSheetRange's bold Arial 10
     /// labels fit its rows at 35 screen pixels, 12.72 pt, not Arial's 12.36.)
+    /// An empty cell's fitted line: a Roman face's own box, never the stand-in's (ko-7137deba70, see `emptyLine`).
+    static func _emptyCellLine(_ style: CellStyle, _ m: SheetPrintMetrics, _ book: Workbook, hinted: Bool = false, otherBook: Bool = false) -> Double {
+        var st = style
+        st.fontName = book.fontName(st); st.fontRoman = false
+        return _fittedLine(st, m, book, hinted: hinted, otherBook: otherBook)
+    }
+
     static func _fittedLine(_ st: CellStyle, _ m: SheetPrintMetrics, _ book: Workbook, hinted: Bool = false, otherBook: Bool = false) -> Double {
         st.fontName == nil && st.fontSize == nil && st.bold == book.defaultFontBold ? m.defaultRow
-            : m.fittedRow(SheetPrintMetrics.of(family: book.fontName(st), size: book.fontSize(st), bold: st.bold, hinted: hinted, otherBook: otherBook))
+            : m.fittedRow(SheetPrintMetrics.of(family: book.fontName(st), size: book.fontSize(st), bold: st.bold, roman: book.fontRoman(st), hinted: hinted, otherBook: otherBook))
     }
 
     /// On paper, where a line of text set at a cell's foot has its top:
@@ -3673,7 +3689,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
     /// stood a point and the rounded ascent down, up to 1 pt low.
     func _printTop(_ st: CellStyle, _ book: Workbook, _ ws: Worksheet, row: Int, _ tp: TextPainter,
                    top: Double, bottom: Double, _ align: CellStyle.VAlign) -> Double {
-        let m = SheetPrintMetrics.of(family: book.defaultFontName ?? OfficeFonts.defaultFamily, size: book.defaultFontSize ?? 11, bold: book.defaultFontBold)
+        let m = SheetPrintMetrics.of(family: book.defaultFontName ?? OfficeFonts.defaultFamily, size: book.defaultFontSize ?? 11, bold: book.defaultFontBold, roman: book.defaultFontRoman)
         // A style's fitted line less its face's ascent, the ascent taken up
         // to whole dots of the printer's 600 dpi: the face's own ascent
         // where it is known, the painter's where not. (Uncut, the corpus's
@@ -3686,7 +3702,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             let up = (a * 600 / 72).rounded(.up) * 72 / 600
             // (A face the print box lacks stands in the box of the face Excel draws it in, as it stands on that face's ascent.)
             let fam = book.fontName(s), alt = SheetPrintMetrics.printStandIn(fam)
-            let line = alt == fam ? Self._fittedLine(s, m, book) : m.fittedRow(SheetPrintMetrics.of(family: alt, size: book.fontSize(s), bold: s.bold))
+            let line = alt == fam ? Self._fittedLine(s, m, book) : m.fittedRow(SheetPrintMetrics.of(family: alt, size: book.fontSize(s), bold: s.bold, roman: book.fontRoman(s)))
             return ((line - up) * scale, up * scale)
         }
         func box(_ style: Int) -> (below: Double, above: Double) {
@@ -3775,13 +3791,13 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         let pitch: Double
         if printing {
             let book = controller.book
-            let m = SheetPrintMetrics.of(family: book.defaultFontName ?? OfficeFonts.defaultFamily, size: book.defaultFontSize ?? 11, bold: book.defaultFontBold)
-            pitch = max(one, m.fittedRow(SheetPrintMetrics.of(family: book.fontName(st), size: book.fontSize(st), bold: st.bold)) * scale)
+            let m = SheetPrintMetrics.of(family: book.defaultFontName ?? OfficeFonts.defaultFamily, size: book.defaultFontSize ?? 11, bold: book.defaultFontBold, roman: book.defaultFontRoman)
+            pitch = max(one, m.fittedRow(SheetPrintMetrics.of(family: book.fontName(st), size: book.fontSize(st), bold: st.bold, roman: book.fontRoman(st))) * scale)
         } else {
             pitch = one
         }
         let margin = printing
-            ? 0.48 + SheetPrintMetrics.of(family: book.fontName(st), size: book.fontSize(st), bold: st.bold).digit / 4
+            ? 0.48 + SheetPrintMetrics.of(family: book.fontName(st), size: book.fontSize(st), bold: st.bold, roman: book.fontRoman(st)).digit / 4
             : pad
         // Across: the side the glyphs' tops face (the left going up, the
         // right going down) is the turned cell's head.

@@ -50,6 +50,8 @@ struct CellStyle: Hashable, Sendable {
     /// The font's `vertAlign`: 1 superscript, -1 subscript.
     var script = 0
     var fontName: String? = nil
+    /// The font's `family` is 1 (Roman): what Windows maps a face it lacks by (see `SheetPrintMetrics.of`).
+    var fontRoman = false
     var fontSize: Double? = nil
     var color: UInt32? = nil       // 0xRRGGBB
     var fill: UInt32? = nil        // 0xRRGGBB
@@ -484,6 +486,9 @@ final class Workbook {
     /// The Normal font's own face where it is a theme (scheme) font of another name.
     var defaultFontOwnName: String? = nil
     func fontName(_ st: CellStyle) -> String { st.fontName ?? defaultFontName ?? OfficeFonts.defaultFamily }
+    /// The Normal font's `family` is 1 (Roman).
+    var defaultFontRoman = false
+    func fontRoman(_ st: CellStyle) -> Bool { st.fontName == nil ? defaultFontRoman : st.fontRoman }
     func fontSize(_ st: CellStyle) -> Double { st.fontSize ?? defaultFontSize ?? 11 }
     /// The widest digit of the default font, in pixels at 96 dpi — the
     /// unit of a stored column width (7 for Calibri 11).
