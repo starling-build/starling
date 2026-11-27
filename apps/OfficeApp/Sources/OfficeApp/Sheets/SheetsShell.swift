@@ -76,6 +76,8 @@ final class SheetsShellState: State<StatefulWidget> {
     /// The Format Cells dialog is open (X-FM-1).
     private var _formatOpen = false
     private var _formatTab = 0
+    /// Home → Fill Color (true) or Font Color (false) → More Colors… is open.
+    private var _moreColorsFill: Bool?
     private var _cellsDialog: Bool? = nil          // Insert (true) or Delete (false) cells
     private var _sizeDialog: SizeKind? = nil
     private var _pageSetupOpen = false
@@ -578,6 +580,8 @@ final class SheetsShellState: State<StatefulWidget> {
             setState { _namesOpen = true }
         case .formatCells(let tab):
             _openFormatCells(tab: tab)
+        case .moreColors(let fill):
+            setState { _moreColorsFill = fill }
         case .useName(let name):
             grid.focus.requestFocus()
             if grid.isEditing { grid.typeText(name) } else { grid.beginEdit(replace: "=" + name) }
@@ -1486,6 +1490,16 @@ final class SheetsShellState: State<StatefulWidget> {
             layers.append(Positioned(left: 0, top: 0, right: 0, bottom: 0, child: HyperlinkDialog(
                 hooks: wb.hyperlinkHooks(flash: { [weak self] in self?._flash($0) }),
                 onClose: { [weak self] in self?.setState { self?._linkOpen = false }; self?._grid?.focus.requestFocus() })))
+        }
+        if let fill = _moreColorsFill {
+            let st = wb.style(at: wb.selection.topLeft)
+            layers.append(Positioned(left: 0, top: 0, right: 0, bottom: 0, child: CustomColorDialog(
+                initial: (fill ? st.fill : st.color) ?? (fill ? 0xFFFFFF : 0),
+                onOK: { [weak self] rgb in
+                    self?.wb.setStyle { if fill { $0.fill = rgb } else { $0.color = rgb } }
+                    self?.setState { self?._moreColorsFill = nil }; self?._grid?.focus.requestFocus()
+                },
+                onCancel: { [weak self] in self?.setState { self?._moreColorsFill = nil }; self?._grid?.focus.requestFocus() })))
         }
         if layers.count > 1, _backstage == nil { return Stack(children: layers) }
         if _formatOpen, _backstage == nil {

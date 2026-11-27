@@ -210,20 +210,27 @@ final class CustomColorDialogState: State<StatefulWidget> {
         sync(except: nil)
     }
 
+    /// True while `sync` writes the fields: a field reports the new text as if
+    /// typed, and acting on it would write over the field being typed in (a
+    /// six-digit hex stopped at its third digit, read as the short form).
+    private var _syncing = false
+
     /// Writes `rgb` into every field but the one being typed in.
     private func sync(except: TextEditingController?) {
         let fields: [(TextEditingController, String)] = [
             (_hex, ColorMath.hex(rgb)), (_r, String((rgb >> 16) & 255)), (_g, String((rgb >> 8) & 255)), (_b, String(rgb & 255))]
+        _syncing = true
+        defer { _syncing = false }
         for (c, s) in fields where c !== except { c.text = s }
     }
 
     private func typedHex(_ s: String) {
-        guard let v = ColorMath.parseHex(s) else { return }
+        guard !_syncing, let v = ColorMath.parseHex(s) else { return }
         setState { self.rgb = v; self.sync(except: self._hex) }
     }
 
     private func typedChannel(_ shift: UInt32, _ s: String) {
-        guard let n = Int(s.trimmingWhitespace()), n >= 0, n <= 255 else { return }
+        guard !_syncing, let n = Int(s.trimmingWhitespace()), n >= 0, n <= 255 else { return }
         setState {
             self.rgb = (self.rgb & ~(255 << shift)) | UInt32(n) << shift
             self.sync(except: shift == 16 ? self._r : shift == 8 ? self._g : self._b)
