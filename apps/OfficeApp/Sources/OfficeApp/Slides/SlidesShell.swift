@@ -68,6 +68,9 @@ final class SlidesShellState: State<StatefulWidget> {
     private var _recovered = false
     private var _autosaveGeneration = 0
     private var _lastAutosaveEdits = -1
+    /// The edit count whose copy the browser page already holds: a page hide asks again, and an unchanged
+    /// deck is not rewritten.
+    private var _keptEdits: Int?
     /// Shapes copied with ⌘C/⌘X while no text was being edited.
     /// Normal (canvas and notes) or Slide Sorter (a grid of every slide).
     private var _sorter = false
@@ -186,7 +189,12 @@ final class SlidesShellState: State<StatefulWidget> {
         if let path = _w.initialPath {
             // Bytes from the browser's picker that crossed the kind switch
             // (a .pptx picked in Writer) arrive by name, not on disk.
-            if let data = PickedFile.take(path) { _open(path, data: data) } else { _open(path) }
+            // A browser tab's recovery copy that Writer found at start and handed on opens unsaved.
+            if let data = PickedFile.takeRecovered(path) { _open(path, data: data, recovered: true) }
+            else if let data = PickedFile.take(path) { _open(path, data: data) } else { _open(path) }
+        } else if !_w.startBlank, let browser = OfficeHost.browserRecovery {
+            // A tab closed with unsaved changes: its copy, under the name it would have saved as.
+            if let row = browser.take("pptx") { _open(row.name, data: row.data, recovered: true) }
         } else if !_w.startBlank, let data = FileManager.default.contents(atPath: _recoveryPath(for: nil)),
                   let (state, theme, package) = try? Pptx.read(data) {
             // Last time ended with an unsaved untitled deck.
@@ -804,21 +812,31 @@ final class SlidesShellState: State<StatefulWidget> {
     /// when it is on and the deck has one; otherwise the recovery copy is
     /// refreshed — as Writer does.
     private func _scheduleAutosave() {
-        #if !os(WASI)
+        #if os(WASI)
+        // The browser has no files of ours: only the page's recovery copy.
+        guard OfficeHost.browserRecovery != nil else { return }
+        #endif
         _autosaveGeneration += 1
         let gen = _autosaveGeneration
         DispatchQueue.main.asyncAfter(deadline: .now() + OfficeHost.autosaveDelay) { [weak self] in
             guard let self, self.mounted, self._autosaveGeneration == gen else { return }
             self._autosaveNow()
         }
-        #endif
     }
 
     /// The write itself (also what the window's host asks for before it closes the window,
     /// OfficeScene.flushPendingSaves).
     private func _autosaveNow() {
-        #if !os(WASI)
         guard session.dirty, _show == nil else { return }
+        // In a browser tab: the page keeps the copy (there is no file to save in place).
+        if let browser = OfficeHost.browserRecovery {
+            guard _keptEdits != deck.edits, let data = try? Pptx.write(deck) else { return }
+            let name = session.path?.lastPathComponent ?? session.title.deletingPathExtension + ".pptx"
+            browser.keep("pptx", name.pathExtension.lowercased() == "pptx" ? name : name.deletingPathExtension + ".pptx", data)
+            _keptEdits = deck.edits
+            return
+        }
+        #if !os(WASI)
         guard let data = try? Pptx.write(deck) else { return }
         if session.autoSave, !_recovered, let path = session.path,
            path.pathExtension.lowercased() == "pptx" {
@@ -849,6 +867,12 @@ final class SlidesShellState: State<StatefulWidget> {
 
     /// Saved, or deliberately discarded: no copy to come back to.
     private func _dropRecovery() {
+        _keptEdits = nil
+        if let browser = OfficeHost.browserRecovery {
+            browser.discard()
+            _recovered = false
+            return
+        }
         try? FileManager.default.removeItem(atPath: _recoveryPath(for: session.path))
         _recovered = false
     }
@@ -859,6 +883,7 @@ final class SlidesShellState: State<StatefulWidget> {
         _active = nil
         _point(at: nil)
         _autosaveGeneration += 1
+        _keptEdits = nil
         _recovered = false
         deck.newDeck()
         _savedEdits = deck.edits
@@ -909,7 +934,7 @@ final class SlidesShellState: State<StatefulWidget> {
 
     /// A file as bytes, from the browser's picker: no recovery copy to
     /// weigh against it, and a .docx goes to Writer with the same bytes.
-    private func _open(_ name: String, data: Data) {
+    private func _open(_ name: String, data: Data, recovered: Bool = false) {
         let kind = DocumentKind.kind(forPath: name)
         if kind != .presentation {
             PickedFile.hand(name, data)
@@ -918,7 +943,7 @@ final class SlidesShellState: State<StatefulWidget> {
         }
         do {
             _autosaveGeneration += 1
-            try _load(Pptx.read(data), as: name, recovered: false)
+            try _load(Pptx.read(data), as: name, recovered: recovered)
         } catch {
             _flash("Could not open \(name): \(error)")
             setState { _backstage = nil }
@@ -935,10 +960,13 @@ final class SlidesShellState: State<StatefulWidget> {
         _fitSeen.removeAll()
         deck.load(state, theme: theme, package: package)
         session.path = path
+        // A browser recovery copy is the page's row already.
+        _keptEdits = recovered && OfficeHost.browserRecovery != nil ? deck.edits : nil
         _recovered = recovered
         _savedEdits = recovered ? deck.edits - 1 : deck.edits
         _lastAutosaveEdits = deck.edits
-        _recent = OfficeRecent.remember(path, in: _recent)
+        // A browser tab's recovery copy is no file the user opened: Recent is left alone.
+        if !(recovered && OfficeHost.browserRecovery != nil) { _recent = OfficeRecent.remember(path, in: _recent) }
         setState {
             session.dirty = recovered
             _backstage = nil

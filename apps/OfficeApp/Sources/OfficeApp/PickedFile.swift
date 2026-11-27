@@ -13,9 +13,17 @@ import FlutterWeb
 #endif
 
 enum PickedFile {
-    nonisolated(unsafe) private static var pending: (name: String, data: Data)?
+    nonisolated(unsafe) private static var pending: (name: String, data: Data, recovered: Bool)?
 
-    static func hand(_ name: String, _ data: Data) { pending = (name, data) }
+    /// `recovered`: a browser tab's recovery copy of an unsaved document, which the next app opens unsaved.
+    static func hand(_ name: String, _ data: Data, recovered: Bool = false) { pending = (name, data, recovered) }
+
+    /// The bytes handed over under `name` as a recovery copy, once; nil for an ordinary hand-over.
+    static func takeRecovered(_ name: String) -> Data? {
+        guard let p = pending, p.name == name, p.recovered else { return nil }
+        pending = nil
+        return p.data
+    }
 
     /// The bytes handed over under `name`, once.
     static func take(_ name: String) -> Data? {
