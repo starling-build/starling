@@ -3427,6 +3427,17 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             richLns = ls
             tp = texts.richLine(ls.enumerated().flatMap { i, l in (i > 0 ? [("\n", parts[0].style)] : []) + l }, align: lineAlign, maxWidth: room)
         }
+        // Shrink to fit: text or a number too wide for its cell is drawn in a
+        // smaller size that fits it on one line (a wrapped cell wraps instead).
+        if st.shrink, !st.wrap, richLns.isEmpty {
+            let room = width - pad * 2 - inset
+            if room > 0, lead + tp.width > room {
+                let k = room / (lead + tp.width)
+                style.size = max(1, style.size * k)
+                lead *= k
+                tp = texts.painter(text, style)
+            }
+        }
         // A number too wide for its cell is ####, never cut.
         if case .number = cell.value, lead + tp.width > width - pad * 2 {
             let hashes = max(1, Int((width - pad * 2) / max(1, texts.painter("#", style).width)))

@@ -56,6 +56,8 @@ struct CellStyle: Hashable, Sendable {
     var hAlign: HAlign = .general
     var vAlign: VAlign = .bottom
     var wrap = false
+    /// `alignment@shrinkToFit`: text too wide for its cell is drawn small enough to fit on one line (wrapping wins over it, as in Excel).
+    var shrink = false
     /// `alignment@horizontal="justify"`: wrapped lines but the last spread to the cell's width (the alignment itself stays left).
     var justify = false
     /// `alignment@readingOrder`: 0 context (the first strong letter of the text sets the direction), 1 left to right, 2 right to left.
