@@ -253,6 +253,9 @@ enum WriterCharts {
         if RichDocumentController.groupChildProxy == nil {
             RichDocumentController.groupChildProxy = { image, child in ShapeGroups.textProxy(image, child: child) }
         }
+        if RichDocumentController.floatReader == nil {
+            RichDocumentController.floatReader = { xml in XNode.parse(Data(xml.utf8)).flatMap { DocxFormat._float($0) } }
+        }
         if RichDocumentController.groupChildEditor == nil {
             RichDocumentController.groupChildEditor = { image, child, change, parts in ShapeGroups.editChild(image, child: child, change, parts: parts) }
         }

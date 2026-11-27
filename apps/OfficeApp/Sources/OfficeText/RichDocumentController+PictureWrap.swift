@@ -112,6 +112,67 @@ extension String {
 
     /// This `wp:anchor` markup with its horizontal and vertical offsets (`wp:posOffset`, EMU) set; nil when a position is held in
     /// a way this does not rewrite (a share of the page, `wp14:pctPos…`) or the markup holds no anchor.
+    /// The range of the first `<name …/>` or `<name …>…</name>` in `xml` from `from` (not one nested in itself).
+    static func _element(_ xml: String, _ name: String, from: String.Index? = nil) -> Range<String.Index>? {
+        var at = from ?? xml.startIndex
+        while let open = xml.rangeOfSubstring("<" + name, in: at ..< xml.endIndex) {
+            at = open.upperBound
+            guard open.upperBound < xml.endIndex, " />".contains(xml[open.upperBound]),
+                  let gt = xml.rangeOfSubstring(">", in: open.upperBound ..< xml.endIndex) else { continue }
+            if xml[xml.index(before: gt.lowerBound)] == "/" { return open.lowerBound ..< gt.upperBound }
+            guard let close = xml.rangeOfSubstring("</\(name)>", in: gt.upperBound ..< xml.endIndex) else { return nil }
+            return open.lowerBound ..< close.upperBound
+        }
+        return nil
+    }
+
+    /// The attributes of `tag` (its text from the name to `>`) that are not plain `name="…"` ones of the list: an id Word
+    /// keeps on the drawing (`wp14:anchorId`, `wp14:editId`) goes across when it changes kind.
+    private static func _keptAttributes(_ tag: Substring, dropping: [String]) -> String {
+        var out = ""
+        var rest = tag
+        while let eq = rest.rangeOfSubstring("=\"") {
+            let name = rest[rest.startIndex ..< eq.lowerBound].split(separator: " ").last.map(String.init) ?? ""
+            guard let q = rest.rangeOfSubstring("\"", in: eq.upperBound ..< rest.endIndex) else { break }
+            if name.containsSubstring(":"), !dropping.contains(name) { out += " " + name + "=\"" + rest[eq.upperBound ..< q.lowerBound] + "\"" }
+            rest = rest[q.upperBound...]
+        }
+        return out
+    }
+
+    /// This `wp:inline` markup as a `wp:anchor` wrapped `wrap`, standing where it stood: at its own character, from the top
+    /// of its line (Word's In Line with Text to a wrap leaves it in place). nil when the markup holds no inline drawing.
+    static func _inlineToAnchor(_ xml: String, _ wrap: PictureWrap, points: [(Int, Int)] = PictureWrap.rectangle) -> String? {
+        guard let inline = _element(xml, "wp:inline"), let gt = xml.rangeOfSubstring(">", in: inline),
+              let extent = _element(xml, "wp:extent", from: gt.upperBound), extent.upperBound <= inline.upperBound else { return nil }
+        let tag = xml[inline.lowerBound ..< gt.lowerBound]
+        let effect = _element(xml, "wp:effectExtent", from: extent.upperBound).flatMap { $0.upperBound <= inline.upperBound ? $0 : nil }
+        let afterSize = effect?.upperBound ?? extent.upperBound
+        let close = xml.index(inline.upperBound, offsetBy: -"</wp:inline>".count)
+        let open = "<wp:anchor distT=\"0\" distB=\"0\" distL=\"114300\" distR=\"114300\" simplePos=\"0\" relativeHeight=\"251659264\" behindDoc=\"\(wrap.behind ? 1 : 0)\""
+            + " locked=\"0\" layoutInCell=\"1\" allowOverlap=\"1\"" + _keptAttributes(tag, dropping: []) + ">"
+            + "<wp:simplePos x=\"0\" y=\"0\"/><wp:positionH relativeFrom=\"character\"><wp:posOffset>0</wp:posOffset></wp:positionH>"
+            + "<wp:positionV relativeFrom=\"line\"><wp:posOffset>0</wp:posOffset></wp:positionV>"
+        return String(xml[xml.startIndex ..< inline.lowerBound]) + open + String(xml[extent.lowerBound ..< afterSize]) + wrap.element(points: points)
+            + String(xml[afterSize ..< close]) + "</wp:anchor>" + String(xml[inline.upperBound...])
+    }
+
+    /// This `wp:anchor` markup as a `wp:inline` one: its size, effects, name and graphic, without a place or a wrap. nil when
+    /// the markup holds no anchor or not the parts an inline drawing needs.
+    static func _anchorToInline(_ xml: String) -> String? {
+        guard let anchor = _element(xml, "wp:anchor"), let gt = xml.rangeOfSubstring(">", in: anchor),
+              let extent = _element(xml, "wp:extent", from: gt.upperBound), let docPr = _element(xml, "wp:docPr", from: gt.upperBound),
+              let graphic = _element(xml, "a:graphic", from: gt.upperBound), graphic.upperBound <= anchor.upperBound else { return nil }
+        let tag = xml[anchor.lowerBound ..< gt.lowerBound]
+        var body = String(xml[extent])
+        if let e = _element(xml, "wp:effectExtent", from: gt.upperBound), e.upperBound <= anchor.upperBound { body += xml[e] }
+        body += xml[docPr]
+        if let c = _element(xml, "wp:cNvGraphicFramePr", from: gt.upperBound), c.upperBound <= anchor.upperBound { body += xml[c] }
+        body += xml[graphic]
+        let open = "<wp:inline distT=\"0\" distB=\"0\" distL=\"0\" distR=\"0\"" + _keptAttributes(tag, dropping: []) + ">"
+        return String(xml[xml.startIndex ..< anchor.lowerBound]) + open + body + "</wp:inline>" + String(xml[anchor.upperBound...])
+    }
+
     static func _anchorMoved(_ xml: String, x: Int, y: Int) -> String? {
         guard !xml.containsSubstring("pctPos") else { return nil }
         func set(_ xml: String, _ element: String, _ value: Int) -> String? {
@@ -166,6 +227,48 @@ extension RichDocumentController {
         return image
     }
 
+    /// The drawing at paragraph `index` (its own, or inline picture `id`) with its kept markup, floating (`wp:anchor`) or
+    /// In Line with Text (`wp:inline`): what the shape and text-box tools edit, which do not care where it stands.
+    private func _drawn(_ index: Int, _ id: String?) -> ImageAttachment? {
+        guard index < document.paragraphs.count else { return nil }
+        let image = id.map { document.paragraphs[index].inlineImages[$0] } ?? document.paragraphs[index].image
+        guard let image, let xml = image.sourceXML, xml.containsSubstring("<wp:anchor") || xml.containsSubstring("<wp:inline") else { return nil }
+        return image
+    }
+
+    /// Whether the drawing at `index` (or its inline picture `id`) is a shape (`wps:wsp`) In Line with Text: a click on it,
+    /// selected, types into it as into a floating one.
+    public func isInLineShape(at index: Int, inline id: String? = nil) -> Bool {
+        guard let xml = _drawn(index, id)?.sourceXML else { return false }
+        return xml.containsSubstring("<wp:inline") && xml.containsSubstring("<wps:wsp") && !xml.containsSubstring("<wpg:")
+    }
+
+    /// A shape's preset outline (`prst`), which it wraps round; nil for a picture.
+    static func _preset(_ xml: String) -> String? {
+        guard xml.containsSubstring("<wps:wsp"), let g = xml.rangeOfSubstring("prstGeom prst=\""),
+              let q = xml.rangeOfSubstring("\"", in: g.upperBound ..< xml.endIndex) else { return nil }
+        return String(xml[g.upperBound ..< q.lowerBound])
+    }
+
+    /// Whether the drawing at `index` (or its inline picture `id`) stands In Line with Text (`wp:inline`).
+    public func isInLine(at index: Int, inline id: String? = nil) -> Bool {
+        guard let image = _drawn(index, id) else { return false }
+        return image.float == nil && image.sourceXML?.containsSubstring("<wp:inline") == true
+    }
+
+    /// Layout Options > In Line with Text for the floating drawing at `index` (or its inline picture `id`): it stands in the
+    /// line at its anchor, its place and wrap dropped, one undo step. False when it does not float or its markup is not one
+    /// this rewrites.
+    @discardableResult
+    public func setInLine(at index: Int, inline id: String? = nil) -> Bool {
+        guard let old = _floating(index, id), let xml = old.sourceXML, let patched = String._anchorToInline(xml) else { return false }
+        var new = old
+        new.sourceXML = patched
+        new.float = nil
+        _store(index, id, old: old, new: new)
+        return true
+    }
+
     private func _store(_ index: Int, _ id: String?, old: ImageAttachment, new: ImageAttachment) {
         if let id { edit { perform(.setInlineImage(index, id: id, old: old, new: new)) } }
         else { edit { perform(.setImage(index, old: old, new: new)) } }
@@ -186,13 +289,20 @@ extension RichDocumentController {
     /// does not float, its markup has no wrapping element, or it already wraps so.
     @discardableResult
     public func setPictureWrap(at index: Int, inline id: String? = nil, _ wrap: PictureWrap) -> Bool {
+        if _floating(index, id) == nil, let old = _drawn(index, id), let xml = old.sourceXML, isInLine(at: index, inline: id) {
+            // In Line with Text to a wrap: it floats where it stood, read as the file's reader reads a floating one.
+            let points = PictureWrap.outline(preset: Self._preset(xml), width: old.width, height: old.height)
+            guard let patched = String._inlineToAnchor(xml, wrap, points: points), let f = Self.floatReader?(patched) else { return false }
+            var new = old
+            new.sourceXML = patched
+            new.float = f
+            _store(index, id, old: old, new: new)
+            return true
+        }
         guard let old = _floating(index, id), let xml = old.sourceXML, pictureWrap(at: index, inline: id) != wrap,
               var f = old.float else { return false }
         // A shape wraps round its own outline, not its box.
-        var preset: String?
-        if xml.containsSubstring("<wps:wsp"), let g = xml.rangeOfSubstring("prstGeom prst=\""),
-           let q = xml.rangeOfSubstring("\"", in: g.upperBound ..< xml.endIndex) { preset = String(xml[g.upperBound ..< q.lowerBound]) }
-        let points = PictureWrap.outline(preset: preset, width: old.width, height: old.height)
+        let points = PictureWrap.outline(preset: Self._preset(xml), width: old.width, height: old.height)
         guard let patched = String._anchorWrapped(xml, wrap, points: points) else { return false }
         var new = old
         new.sourceXML = patched
@@ -238,7 +348,7 @@ extension RichDocumentController {
     /// shape, or already has text.
     @discardableResult
     public func giveShapeText(at index: Int, inline id: String? = nil) -> Bool {
-        guard let old = _floating(index, id), old.textBox == nil, let xml = old.sourceXML,
+        guard let old = _drawn(index, id), old.textBox == nil, let xml = old.sourceXML,
               xml.containsSubstring("<wps:wsp"), !xml.containsSubstring("<wps:txbx"), !xml.containsSubstring("<mc:"),
               let end = xml.rangeOfSubstring("</wps:spPr>") else { return false }
         let part = "<wps:txbx><w:txbxContent><w:p><w:pPr><w:jc w:val=\"center\"/></w:pPr></w:p></w:txbxContent></wps:txbx>"
@@ -272,7 +382,7 @@ extension RichDocumentController {
     }
 
     private func _setShapePaint(_ index: Int, _ id: String?, line: Bool, _ color: Color?, _ theme: (slot: Int, lumMod: Int, lumOff: Int)? = nil) -> Bool {
-        guard let old = _floating(index, id), let xml = old.sourceXML, xml.containsSubstring("<wps:wsp") else { return false }
+        guard let old = _drawn(index, id), let xml = old.sourceXML, xml.containsSubstring("<wps:wsp") else { return false }
         var hex = ""
         if let color { let v = String(color.value & 0xFFFFFF, radix: 16, uppercase: true); hex = String(repeating: "0", count: 6 - v.count) + v }
         // A theme pick stays linked to its slot (`a:schemeClr` with lumMod / lumOff), so a theme change recolours it.
@@ -333,7 +443,7 @@ extension RichDocumentController {
     /// The words in the text box at `index` (its paragraphs, one per line) when they are plain enough to edit as words
     /// (no character or paragraph formatting, no table); nil for anything else.
     public func textBoxText(at index: Int, inline id: String? = nil) -> String? {
-        guard let image = _floating(index, id), let box = image.textBox, let xml = image.sourceXML,
+        guard let image = _drawn(index, id), let box = image.textBox, let xml = image.sourceXML,
               let open = xml.rangeOfSubstring("<w:txbxContent>"),
               let close = xml.rangeOfSubstring("</w:txbxContent>", in: open.upperBound ..< xml.endIndex) else { return nil }
         let inner = xml[open.upperBound ..< close.lowerBound]
@@ -347,7 +457,7 @@ extension RichDocumentController {
     @discardableResult
     public func setTextBoxText(at index: Int, inline id: String? = nil, _ text: String) -> Bool {
         guard let current = textBoxText(at: index, inline: id), current != text,
-              let old = _floating(index, id), var box = old.textBox, let xml = old.sourceXML,
+              let old = _drawn(index, id), var box = old.textBox, let xml = old.sourceXML,
               let open = xml.rangeOfSubstring("<w:txbxContent>"),
               let close = xml.rangeOfSubstring("</w:txbxContent>", in: open.upperBound ..< xml.endIndex) else { return false }
         func esc(_ line: Substring) -> String {
@@ -367,13 +477,13 @@ extension RichDocumentController {
 
     /// Whether the text box at `index` resizes to fit its text (`spAutoFit`).
     public func textBoxAutoHeight(at index: Int, inline id: String? = nil) -> Bool {
-        _floating(index, id)?.textBox?.autoHeight == true
+        _drawn(index, id)?.textBox?.autoHeight == true
     }
 
     /// The text box at `index` as paragraphs to edit in place, when it holds nothing the in-place editor would lose
     /// (no table, picture, field or markup it cannot write back); nil for anything else.
     public func textBoxParagraphs(at index: Int, inline id: String? = nil) -> [RichParagraph]? {
-        guard let image = _floating(index, id), let box = image.textBox, let xml = image.sourceXML,
+        guard let image = _drawn(index, id), let box = image.textBox, let xml = image.sourceXML,
               let open = xml.rangeOfSubstring("<w:txbxContent>"),
               let close = xml.rangeOfSubstring("</w:txbxContent>", in: open.upperBound ..< xml.endIndex) else { return nil }
         let inner = String(xml[open.upperBound ..< close.lowerBound])
@@ -389,7 +499,7 @@ extension RichDocumentController {
     /// box's table looks and grids. nil when the box holds what the editor would lose (the same list as
     /// `textBoxParagraphs`) or a table inside a table's cell.
     public func textBoxDocument(at index: Int, inline id: String? = nil) -> RichDocument? {
-        guard let image = _floating(index, id) else { return nil }
+        guard let image = _drawn(index, id) else { return nil }
         return Self._textBoxDocument(of: image)
     }
 
@@ -424,7 +534,7 @@ extension RichDocumentController {
     @discardableResult
     public func setTextBoxContent(at index: Int, inline id: String? = nil, document: RichDocument, contentXML: String, rels: [KeptRel] = [], height: Double? = nil) -> Bool {
         guard textBoxDocument(at: index, inline: id) != nil,
-              let old = _floating(index, id), var box = old.textBox, let xml = old.sourceXML,
+              let old = _drawn(index, id), var box = old.textBox, let xml = old.sourceXML,
               let open = xml.rangeOfSubstring("<w:txbxContent>"),
               let close = xml.rangeOfSubstring("</w:txbxContent>", in: open.upperBound ..< xml.endIndex) else { return false }
         // Revision and bookmark ids are one space for the whole file. The writer numbers a box's from 1 like the body's, so move
@@ -549,6 +659,10 @@ extension RichDocumentController {
     /// Set by the app, which knows the markup: (group, child, change, the document's parts for its pictures' files) gives
     /// the changed group, or nil.
     public nonisolated(unsafe) static var groupChildEditor: ((ImageAttachment, Int, GroupChildChange, [String: Data]) -> ImageAttachment?)? = nil
+
+    /// How a file's reader takes a `wp:anchor` (the markup of one drawing): where it floats and how text wraps it. Set by the
+    /// app (the reader lives there); without it, a drawing In Line with Text cannot be made to float.
+    public nonisolated(unsafe) static var floatReader: ((String) -> ImageFloat?)? = nil
 
     /// The picked child lifted out of its group as a text box of its own (a plain shape gets an empty text), or nil.
     public nonisolated(unsafe) static var groupChildProxy: ((ImageAttachment, Int) -> ImageAttachment?)? = nil

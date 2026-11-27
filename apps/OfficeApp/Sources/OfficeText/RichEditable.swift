@@ -1061,7 +1061,7 @@ public final class RichEditableState: State<StatefulWidget> {
                 return
             }
             if let box = _selectedImageBox(group: true), box.rect.contains(event.localPosition),
-               _controller.pictureWrap(at: box.index, inline: box.inline) != nil {
+               (_controller.pictureWrap(at: box.index, inline: box.inline) != nil || _controller.isInLineShape(at: box.index, inline: box.inline)) {
                 // The body of a selected floating picture: the finger moves it, as a mouse does (a tap that does not travel
                 // is still a tap: a text box opens for editing).
                 _moveDrag = (box.index, box.inline, event.localPosition)
@@ -1121,7 +1121,7 @@ public final class RichEditableState: State<StatefulWidget> {
         }
 
         if let box = _selectedImageBox(group: true), _handleHit(event.localPosition, _selectedImageBox()?.rect ?? box.rect) == nil, box.rect.contains(event.localPosition),
-           _controller.pictureWrap(at: box.index, inline: box.inline) != nil {
+           (_controller.pictureWrap(at: box.index, inline: box.inline) != nil || _controller.isInLineShape(at: box.index, inline: box.inline)) {
             // The body of a selected floating picture: pressed and dragged, it moves.
             _moveDrag = (box.index, box.inline, event.localPosition)
             _moveDelta = Offset(0, 0)
@@ -1305,6 +1305,8 @@ public final class RichEditableState: State<StatefulWidget> {
             return
         }
         if let drag = _moveDrag {
+            // (A shape In Line with Text stands in its line: pressed, it is only clicked into, not moved.)
+            if _controller.isInLineShape(at: drag.index, inline: drag.inline) { return }
             _moveDelta = Offset(event.localPosition.dx - drag.start.dx, event.localPosition.dy - drag.start.dy)
             _repaint.notifyListeners()
             return
