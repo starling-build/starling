@@ -185,7 +185,10 @@ final class PictureWrapTests: XCTestCase {
         xml.replaceSubrange(r, with: "before </w:t></w:r><w:r>" + drawing + "</w:r><w:r><w:t xml:space=\"preserve\"> after")
         entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
         let (doc, layout) = try laid(try Zip.write(entries))
-        XCTAssertNotNil(doc.paragraphs[0].inlineImages.values.first { $0.float?.horizontalFrom == "character" })
+        let shape = try XCTUnwrap(doc.paragraphs[0].inlineImages.values.first { $0.float?.horizontalFrom == "character" })
+        // Its top is its line's, the column's top here (lab charanchor: Word's rectangle tops are 72.0 at the margin, 71.7 when
+        // the line's top was taken as its baseline less the strut's ascent).
+        XCTAssertEqual(try XCTUnwrap(layout.inlineFloatRect(0, id: shape.id)).top / px, 0, accuracy: 0.05)
         // The anchor's line: "before" starts past the rectangle (its left, 72 wide, the 9pt gap), none of it left of it.
         let first = layout.caretRect(RichPosition(paragraph: 0, offset: 0), doc)
         XCTAssertEqual(first.left / px, end + 72 + 9, accuracy: 0.6)
