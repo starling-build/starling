@@ -71,8 +71,13 @@ final class SortDialogState: State<StatefulWidget> {
 
     func colors(_ level: Int) -> [UInt32] {
         let k = levels[level]
-        guard k.on != .values else { return [] }
+        guard k.on != .values, k.on != .cellIcon else { return [] }
         return _w.controller.sortColors(_w.range, line: k.col, hasHeader: hasHeader, byColumns: byColumns, fill: k.on == .cellColor)
+    }
+
+    func icons(_ level: Int) -> [SortIcon] {
+        guard levels[level].on == .cellIcon else { return [] }
+        return _w.controller.sortIcons(_w.range, line: levels[level].col, hasHeader: hasHeader, byColumns: byColumns)
     }
 
     /// The Order combo's value for a values level.
@@ -119,6 +124,7 @@ final class SortDialogState: State<StatefulWidget> {
     }
 
     func setColor(_ level: Int, _ rgb: UInt32?) { levels[level].color = rgb; setState {} }
+    func setIcon(_ level: Int, _ icon: SortIcon) { levels[level].icon = icon; setState {} }
     func setColorOnTop(_ level: Int, _ top: Bool) { levels[level].colorOnTop = top; setState {} }
 
     func setByColumns(_ on: Bool) {
@@ -149,7 +155,11 @@ final class SortDialogState: State<StatefulWidget> {
     }
 
     private func _refreshColor(_ level: Int) {
-        guard levels[level].on != .values else { levels[level].color = nil; return }
+        if levels[level].on == .cellIcon {
+            let have = icons(level)
+            if levels[level].icon.map({ have.contains($0) }) != true { levels[level].icon = have.first }
+        } else { levels[level].icon = nil }
+        guard levels[level].on != .values, levels[level].on != .cellIcon else { levels[level].color = nil; return }
         let have = colors(level)
         if levels[level].color.map({ have.contains($0) }) != true { levels[level].color = have.first }
     }
@@ -197,6 +207,24 @@ final class SortDialogState: State<StatefulWidget> {
                 key: ValueKey("sort-order-\(i)"), value: orderCode(i), items: items,
                 onChanged: { [weak self] v in if let v { self?.setOrder(i, v) } }))]
         }
+        let place = SizedBox(width: 112, height: nil, child: ComboBox<Bool>(
+            key: ValueKey("sort-place-\(i)"), value: level.colorOnTop,
+            items: [ComboBoxItem<Bool>(value: true, child: Text("On Top")), ComboBoxItem<Bool>(value: false, child: Text("On Bottom"))],
+            onChanged: { [weak self] v in if let v { self?.setColorOnTop(i, v) } }))
+        if level.on == .cellIcon {
+            let have = icons(i)
+            guard !have.isEmpty else {
+                return [SizedBox(width: 260, height: nil, child: Text("No conditional-format icons here.", style: fluent.typography.caption))]
+            }
+            return [
+                SizedBox(width: 140, height: nil, child: ComboBox<SortIcon>(
+                    key: ValueKey("sort-icon-\(i)"), value: level.icon,
+                    items: have.map { ic in ComboBoxItem<SortIcon>(value: ic, child: SizedBox(width: 16, height: 16, child: CustomPaint(
+                        painter: SortIconPainter(ic), child: SizedBox(expand: ())))) },
+                    onChanged: { [weak self] v in if let v { self?.setIcon(i, v) } })),
+                SizedBox(width: 8, height: nil, child: nil), place,
+            ]
+        }
         let have = colors(i)
         guard !have.isEmpty else {
             return [SizedBox(width: 260, height: nil, child: Text(level.on == .cellColor ? "No cell colours here." : "No font colours here.",
@@ -207,11 +235,7 @@ final class SortDialogState: State<StatefulWidget> {
                 key: ValueKey("sort-color-\(i)"), value: level.color,
                 items: have.map { ComboBoxItem<UInt32>(value: $0, child: _swatch($0, fluent)) },
                 onChanged: { [weak self] v in if let v { self?.setColor(i, v) } })),
-            SizedBox(width: 8, height: nil, child: nil),
-            SizedBox(width: 112, height: nil, child: ComboBox<Bool>(
-                key: ValueKey("sort-place-\(i)"), value: level.colorOnTop,
-                items: [ComboBoxItem<Bool>(value: true, child: Text("On Top")), ComboBoxItem<Bool>(value: false, child: Text("On Bottom"))],
-                onChanged: { [weak self] v in if let v { self?.setColorOnTop(i, v) } })),
+            SizedBox(width: 8, height: nil, child: nil), place,
         ]
     }
 
@@ -235,7 +259,8 @@ final class SortDialogState: State<StatefulWidget> {
                     key: ValueKey("sort-on-\(i)"), value: level.on,
                     items: [ComboBoxItem<SortOn>(value: .values, child: Text("Cell Values")),
                             ComboBoxItem<SortOn>(value: .cellColor, child: Text("Cell Color")),
-                            ComboBoxItem<SortOn>(value: .fontColor, child: Text("Font Color"))],
+                            ComboBoxItem<SortOn>(value: .fontColor, child: Text("Font Color")),
+                            ComboBoxItem<SortOn>(value: .cellIcon, child: Text("Cell Icon"))],
                     onChanged: { [weak self] v in if let v { self?.setSortOn(i, v) } })),
                 SizedBox(width: 8, height: nil, child: nil),
             ] + _orderControls(i, level, fluent) + [
@@ -270,4 +295,14 @@ final class SortDialogState: State<StatefulWidget> {
         return DialogShell(title: "Sort", page: page, okLabel: "OK", cancelLabel: "Cancel", width: 760,
                            onOK: { [weak self] in self?.apply() }, onCancel: _w.onClose)
     }
+}
+
+/// One conditional-format icon, as the grid draws it, for the Sort dialog's icon list.
+final class SortIconPainter: CustomPainter {
+    let icon: SortIcon
+    init(_ icon: SortIcon) { self.icon = icon; super.init() }
+    override func paint(_ canvas: any Canvas, _ size: Size) {
+        IconSets.paint(icon.set, icon.index, canvas, in: Rect.fromLTWH(0, 0, size.width, size.height))
+    }
+    override func shouldRepaint(_ oldDelegate: CustomPainter) -> Bool { (oldDelegate as? SortIconPainter)?.icon != icon }
 }

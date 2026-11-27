@@ -27,6 +27,12 @@ extension WorkbookController {
                 if k.on == .cellColor { d.fill = rgb | 0xFF000000 } else { d.color = rgb | 0xFF000000 }
                 if !k.colorOnTop { c += " descending=\"1\"" }
                 c += " sortBy=\"\(k.on == .cellColor ? "cellColor" : "fontColor")\" ref=\"\(line.a1)\" dxfId=\"\(_appendDxf(d))\""
+            case .cellIcon:
+                // Excel names an icon by its set and place; the 2010 sets (stars, triangles, boxes) and
+                // "No Cell Icon" have no name here.
+                guard let ic = k.icon, !IconSets2010.names.contains(ic.set) else { return nil }
+                if !k.colorOnTop { c += " descending=\"1\"" }
+                c += " sortBy=\"icon\" ref=\"\(line.a1)\" iconSet=\"\(ic.set)\" iconId=\"\(ic.index)\""
             }
             conds += c + "/>"
         }
