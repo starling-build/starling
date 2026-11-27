@@ -1686,8 +1686,19 @@ final class OfficeShellState: State<StatefulWidget> {
         } else {
             if session.showNavigation, let nav = sidePanes.first { area.append(nav) }
             area.append(Expanded(child: Column(crossAxisAlignment: .stretch, children: pages)))
-            if session.showStyles, let styles = sidePanes.last { area.append(styles) }
-            column.append(Expanded(child: Row(crossAxisAlignment: .stretch, children: area)))
+            if session.showStyles, let styles = sidePanes.last {
+                // On a touch device the Styles pane floats over the page's right edge (the Navigation pane stays docked on the left).
+                if PaneArrangement.isTouchDevice {
+                    column.append(Expanded(child: PaneArrangement.arrange(
+                        style: .slideOver, fluent: fluent,
+                        document: Expanded(child: Row(crossAxisAlignment: .stretch, children: area)), docked: [], newest: styles)))
+                } else {
+                    area.append(styles)
+                    column.append(Expanded(child: Row(crossAxisAlignment: .stretch, children: area)))
+                }
+            } else {
+                column.append(Expanded(child: Row(crossAxisAlignment: .stretch, children: area)))
+            }
         }
         column.append(StatusBar(session: session, message: _status ?? _linkHover.map { "⌘-click to open \($0)".keys }))
 

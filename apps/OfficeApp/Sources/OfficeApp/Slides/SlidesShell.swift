@@ -1530,19 +1530,10 @@ final class SlidesShellState: State<StatefulWidget> {
                 panes.append(ChartDataPane(key: ValueKey("chart data \(chart.id)"), deck: deck, shape: chart,
                                            onClose: { [weak self] in self?.setState { self?._chartData = false } }))
             }
-            if _narrow, let pane = panes.last {
-                // A 300 pt pane beside the slide would leave a narrow window (Split View) no slide: the newest pane is a
-                // sheet along the bottom instead, full width, with the slide above it. (A pane fills the width it is given.)
-                column.append(Expanded(child: Column(crossAxisAlignment: .stretch, children: [
-                    Expanded(flex: 5, child: Row(crossAxisAlignment: .stretch, children: row)),
-                    Expanded(flex: 4, child: DecoratedBox(
-                        decoration: BoxDecoration(border: Border(top: BorderSide(color: fluent.resources.controlStrokeColorDefault, width: 1))),
-                        child: pane)),
-                ])))
-            } else {
-                row.append(contentsOf: panes)
-                column.append(Expanded(child: Row(crossAxisAlignment: .stretch, children: row)))
-            }
+            // The newest pane is a bottom sheet in a narrow window, a slide-over on a touch device, else docked beside the slide.
+            column.append(Expanded(child: PaneArrangement.arrange(
+                style: PaneArrangement.style(narrow: _narrow, touch: PaneArrangement.isTouchDevice), fluent: fluent,
+                document: Expanded(child: Row(crossAxisAlignment: .stretch, children: row)), docked: Array(panes.dropLast()), newest: panes.last)))
         }
         column.append(_statusBar(fluent))
 
