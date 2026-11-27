@@ -349,6 +349,7 @@ public final class RichEditableState: State<StatefulWidget> {
         }
         _layout = RichLayout(theme: _w.theme, paragraphCount: _controller.document.paragraphs.count)
         _controller.rowHeightProbe = { [weak self] i in self?._layout?.rowRect(i)?.height }
+        _controller.pictureSpotProbe = { [weak self] i, id in self?._pictureSpot(i, id) }
         _layout.scale = _w.zoom
         _layout.pageSetup = _w.pageSetup
         _layout.onNeedsRepaint = { [weak self] in self?._repaint.notifyListeners() }
@@ -381,6 +382,8 @@ public final class RichEditableState: State<StatefulWidget> {
             old.controller.removeListeners(owner: self)
             _controller = _w.controller
             _controller.addListener({ [weak self] in self?._onControllerChanged() }, owner: self)
+            _controller.rowHeightProbe = { [weak self] i in self?._layout?.rowRect(i)?.height }
+            _controller.pictureSpotProbe = { [weak self] i, id in self?._pictureSpot(i, id) }
             _layout = RichLayout(theme: _w.theme, paragraphCount: _controller.document.paragraphs.count)
             _layout.onNeedsRepaint = { [weak self] in self?._repaint.notifyListeners() }
         } else if old.theme !== _w.theme {
@@ -805,6 +808,19 @@ public final class RichEditableState: State<StatefulWidget> {
 
     /// The selected picture's box in the editable's own coordinates, with
     /// the live drag size when one is under way.
+    /// The floating picture at paragraph `i` (or its inline picture `id`) as drawn: its top and its paragraph's top, in points
+    /// from the top of the page it is on (`RichDocumentController.setPictureMovesWithText`).
+    private func _pictureSpot(_ i: Int, _ id: String?) -> (Double, Double)? {
+        if _layout.width > 0 { _syncLayoutIfNeeded() }
+        guard _layout.width > 0, i < _layout.count,
+              let flow = id.map({ _layout.inlineFloatRect(i, id: $0) }) ?? _layout.imageRect(i),
+              let picture = _layout.canvasRects(flow).first,
+              let paragraph = _layout.canvasRects(Rect.fromLTWH(0, _layout.geometry(i).textTop, 1, 0)).first else { return nil }
+        let pt = _layout.theme.pixelsPerPoint * _layout.scale
+        let page = _layout.pageRect(_layout.page(atCanvasY: picture.top)).top
+        return ((picture.top - page) / pt, (paragraph.top - page) / pt)
+    }
+
     private func _selectedImageBox(group: Bool = false) -> (index: Int, rect: Rect, inline: String?)? {
         if _layout.width > 0 { _syncLayoutIfNeeded() }
         guard _layout.width > 0 else { return nil }
