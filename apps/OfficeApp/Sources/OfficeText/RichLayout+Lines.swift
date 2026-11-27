@@ -2565,9 +2565,15 @@ extension RichLayout {
         let box = boxes[n]
         let mid = (box.top + box.bottom) / 2
         let lines = painter.computeLineMetrics()
-        func lineAt(_ y: Double) -> LineMetrics? { lines.last(where: { $0.baseline - $0.ascent <= y + 0.01 }) }
+        // (A line's top is the heights of the lines above it added up: its baseline less its ascent stands above that where
+        // the strut's ascent is not the face's, 0.3 pt on lab charanchor's Calibri lines, where Word's rectangle tops are the
+        // line tops, 72.0 at the margin.)
+        var tops: [Double] = []
+        var y = 0.0
+        for l in lines { tops.append(y); y += l.height }
+        func lineAt(_ y: Double) -> LineMetrics? { lines.indices.last(where: { tops[$0] <= y + 0.01 }).map { lines[$0] } }
         let line = lineAt(mid)
-        let top = line.map { $0.baseline - $0.ascent } ?? 0
+        let top = line.flatMap { l in lines.firstIndex { $0.lineNumber == l.lineNumber }.map { tops[$0] } } ?? 0
         // (From the left of the character before the anchor, where that stands on the anchor's line: lab charanchor, Word's rectangle
         // after "before " stands at the end of "before" (101.7), after "before" with no space at the end of "befor" (96.25), at the
         // paragraph's start with nothing before it (72).)
