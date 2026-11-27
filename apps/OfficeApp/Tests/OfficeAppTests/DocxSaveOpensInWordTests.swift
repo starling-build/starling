@@ -172,4 +172,40 @@ final class DocxSaveOpensInWordTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(ids.count, 3, xml)
         XCTAssertEqual(ids.count, Set(ids).count, "tracked-change ids repeat: \(ids)")
     }
+
+    /// A tracked change to a paragraph's properties (w:pPrChange, with the properties it had before) goes back
+    /// with the paragraph: the save dropped all 96 of lo-9f27's.
+    func testParagraphPropertyChangeIsKept() throws {
+        let saved = try resave("<w:p><w:pPr><w:jc w:val=\"center\"/><w:pPrChange w:id=\"7\" w:author=\"Ann\" w:date=\"2020-01-02T03:04:00Z\"><w:pPr><w:jc w:val=\"right\"/></w:pPr></w:pPrChange></w:pPr><w:r><w:t>x</w:t></w:r></w:p>")
+        let doc = try XCTUnwrap(text(saved, "word/document.xml"))
+        let change = grab(doc, #"(<w:pPrChange [^>]*>.*?</w:pPrChange>)"#)
+        XCTAssertEqual(change.count, 1, doc)
+        XCTAssertTrue(change.first?.contains("w:author=\"Ann\"") ?? false, doc)
+        XCTAssertTrue(change.first?.contains("<w:pPr><w:jc w:val=\"right\"/></w:pPr>") ?? false, doc)
+        XCTAssertTrue(doc.contains("<w:jc w:val=\"center\"/><w:pPrChange"), "the change sits last in w:pPr: \(doc)")
+    }
+
+    /// A SmartArt diagram's drawing part is named only from its data part (dsp:dataModelExt relId): the save
+    /// dropped the part and its relationship, and the data named an id that no longer existed (xa gv-3db26).
+    func testDiagramDrawingPartIsKeptAndItsIdFollows() throws {
+        let dgm = "http://schemas.openxmlformats.org/drawingml/2006/diagram"
+        let body = "<w:p><w:r><w:drawing><wp:inline><wp:extent cx=\"1270000\" cy=\"635000\"/><wp:docPr id=\"1\" name=\"D\"/><a:graphic xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\"><a:graphicData uri=\"\(dgm)\"><dgm:relIds xmlns:dgm=\"\(dgm)\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\" r:dm=\"rIdD1\" r:lo=\"rIdD2\" r:qs=\"rIdD3\" r:cs=\"rIdD4\"/></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>"
+        let data = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><dgm:dataModel xmlns:dgm=\"\(dgm)\" xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\"><dgm:ptLst/><dgm:extLst><a:ext uri=\"http://schemas.microsoft.com/office/drawing/2008/diagram\"><dsp:dataModelExt xmlns:dsp=\"http://schemas.microsoft.com/office/drawing/2008/diagram\" relId=\"rIdD5\" minVer=\"http://schemas.openxmlformats.org/drawingml/2006/diagram\"/></a:ext></dgm:extLst></dgm:dataModel>"
+        let drawing = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><dsp:drawing xmlns:dsp=\"http://schemas.microsoft.com/office/drawing/2008/diagram\"><dsp:spTree><dsp:nvGrpSpPr><dsp:cNvPr id=\"0\" name=\"\"/><dsp:cNvGrpSpPr/></dsp:nvGrpSpPr><dsp:grpSpPr/></dsp:spTree></dsp:drawing>"
+        func plain(_ root: String) -> String { "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><dgm:\(root) xmlns:dgm=\"\(dgm)\"/>" }
+        let od = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/"
+        let rels = "<Relationship Id=\"rIdD1\" Type=\"\(od)diagramData\" Target=\"diagrams/data1.xml\"/><Relationship Id=\"rIdD2\" Type=\"\(od)diagramLayout\" Target=\"diagrams/layout1.xml\"/><Relationship Id=\"rIdD3\" Type=\"\(od)diagramQuickStyle\" Target=\"diagrams/quickStyle1.xml\"/><Relationship Id=\"rIdD4\" Type=\"\(od)diagramColors\" Target=\"diagrams/colors1.xml\"/><Relationship Id=\"rIdD5\" Type=\"http://schemas.microsoft.com/office/2007/relationships/diagramDrawing\" Target=\"diagrams/drawing1.xml\"/>"
+        let ct = "application/vnd.openxmlformats-officedocument.drawingml.diagram"
+        let types = "<Override PartName=\"/word/diagrams/data1.xml\" ContentType=\"\(ct)Data+xml\"/><Override PartName=\"/word/diagrams/layout1.xml\" ContentType=\"\(ct)Layout+xml\"/><Override PartName=\"/word/diagrams/quickStyle1.xml\" ContentType=\"\(ct)Style+xml\"/><Override PartName=\"/word/diagrams/colors1.xml\" ContentType=\"\(ct)Colors+xml\"/><Override PartName=\"/word/diagrams/drawing1.xml\" ContentType=\"application/vnd.ms-office.drawingml.diagramDrawing+xml\"/>"
+        let saved = try resave(body, extra: [("word/diagrams/data1.xml", data), ("word/diagrams/layout1.xml", plain("layoutDef")),
+                                             ("word/diagrams/quickStyle1.xml", plain("styleDef")), ("word/diagrams/colors1.xml", plain("colorsDef")),
+                                             ("word/diagrams/drawing1.xml", drawing)], rels: rels, types: types)
+        XCTAssertNotNil(text(saved, "word/diagrams/drawing1.xml"), "drawing part dropped")
+        let docRels = try XCTUnwrap(text(saved, "word/_rels/document.xml.rels"))
+        let drawingID = try XCTUnwrap(grab(docRels, #"Id="([^"]+)"[^>]*diagramDrawing"#).first, docRels)
+        let savedData = try XCTUnwrap(text(saved, "word/diagrams/data1.xml"))
+        XCTAssertTrue(savedData.contains("relId=\"\(drawingID)\""), savedData)
+        let savedTypes = try XCTUnwrap(text(saved, "[Content_Types].xml"))
+        XCTAssertTrue(savedTypes.contains("PartName=\"/word/diagrams/drawing1.xml\" ContentType=\"application/vnd.ms-office.drawingml.diagramDrawing+xml\""), savedTypes)
+    }
 }

@@ -461,6 +461,16 @@ extension DocxFormat {
             }
             stack.append(contentsOf: n.children)
         }
+        // A SmartArt diagram's drawing (the shapes Word drew it as) is named by no attribute of the drawing:
+        // its data part names it, by `relId` on `dsp:dataModelExt`. Left out, the save dropped the part and the
+        // data named an id the document's rels no longer had.
+        for rel in found where !rel.external && rel.type.hasSuffix("/diagramData") {
+            guard let model = notes.part(_resolvePath("word", rel.target)).flatMap(XNode.parse),
+                  let rid = model.descendant("dsp:dataModelExt")?["relId"], let drawing = notes.rels[rid], !drawing.external,
+                  !found.contains(where: { $0.id == rid }) else { continue }
+            found.append(drawing)
+            notes.keep(_resolvePath("word", drawing.target))
+        }
         if found.contains(where: { !$0.external && notes.part(_resolvePath("word", $0.target)) == nil }) { return nil }
         for prefix in prefixes where prefix != "xml" && node.attrs["xmlns:" + prefix] == nil {
             if let uri = notes.rootNS["xmlns:" + prefix] { node.attrs["xmlns:" + prefix] = uri }
@@ -1239,6 +1249,8 @@ extension DocxFormat {
         }
 
         var body = ""
+        /// Per kept diagram data part, the id its `relId` names its drawing by and the id the save gives that drawing.
+        var diagramDrawingIDs: [String: (old: String, new: String)] = [:]
         /// A kept fragment with its relationships under fresh ids and its
         /// drawings' docPr ids made unique.
         func keptFragmentXML(_ xml: String, _ rels: [KeptRel]) -> String {
@@ -1251,9 +1263,15 @@ extension DocxFormat {
                 // other kinds are found by type or from other parts (template, glossary, settings...) and stay.
                 let kind = String(rel.type.split(separator: "/").last ?? "")
                 let droppable = ["image", "hyperlink", "oleObject", "chart", "diagramData", "diagramLayout", "diagramQuickStyle", "diagramColors", "diagramDrawing"].contains(kind)
-                if droppable, !xml.containsSubstring("\"\(rel.id)\"") { continue }
+                // (A diagram's drawing is named from its data part, by relId: kept while the fragment names that data part.)
+                let dataPath: String? = kind != "diagramDrawing" ? nil : rels.first(where: {
+                    $0.type.hasSuffix("/diagramData") && !$0.external && xml.containsSubstring("\"\($0.id)\"")
+                        && (doc.keptParts[_resolvePath("word", $0.target)].map { String(decoding: $0, as: UTF8.self).containsSubstring("relId=\"\(rel.id)\"") } ?? false)
+                }).map { _resolvePath("word", $0.target) }
+                if droppable, dataPath == nil, !xml.containsSubstring("\"\(rel.id)\"") { continue }
                 keptRelCount += 1
                 let nid = "rIdKept\(keptRelCount)"
+                if let dataPath, diagramDrawingIDs[dataPath] == nil { diagramDrawingIDs[dataPath] = (rel.id, nid) }
                 for attr in _relationshipAttributes {
                     frag = frag.replacingAll("\(attr)=\"\(rel.id)\"", with: "\(attr)=\"\(nid)\"")
                 }
@@ -1493,6 +1511,11 @@ extension DocxFormat {
             }
             if !markRPr.isEmpty { pPr += "<w:rPr>\(markRPr)</w:rPr>" }
             if let sect = p.style.sectionXML, p.cell == nil, index < doc.paragraphs.count - 1 { pPr += keptFragmentXML(Self._sectionXML(sect, patchedTo: p.style.sectionPage), p.style.sectionRels) }
+            // A tracked change to the paragraph's properties, last in w:pPr, with the properties it had before as read.
+            if let pc = p.style.propertyChange {
+                let id = nextRevisionID()
+                pPr += "<w:pPrChange w:id=\"\(id)\" w:author=\"\(_esc(pc.author.isEmpty ? "Author" : pc.author))\"\(pc.date.isEmpty ? "" : " w:date=\"\(_esc(pc.date))\"")>\(pc.oldRPrXML.isEmpty ? "<w:pPr/>" : pc.oldRPrXML)</w:pPrChange>"
+            }
             body += "<w:p\(p.id != 0 ? " w14:paraId=\"\(_paraIdHex(p.id))\"" : "")><w:pPr>\(pPr)</w:pPr>"
             // W-FD-2: the table of contents field opens in this paragraph; its entries are the paragraphs that follow.
             if let toc = p.style.contentsStart {
@@ -2087,6 +2110,10 @@ extension DocxFormat {
         // A theme-linked table colour in a document with no theme part: Word would fall back on ITS default
         // palette and draw other colours than the app did. Write the palette the app drew with.
         var keptAll = doc.keptParts
+        for (path, ids) in diagramDrawingIDs {
+            guard let data = keptAll[path] else { continue }
+            keptAll[path] = Data(String(decoding: data, as: UTF8.self).replacingAll("relId=\"\(ids.old)\"", with: "relId=\"\(ids.new)\"").utf8)
+        }
         if !keptAll.keys.contains(where: { $0.hasPrefix("word/theme/") }),
            doc.paragraphs.contains(where: { $0.cell?.fillThemeAttrs != nil || $0.cell?.bordersXML?.containsSubstring("w:themeColor=") == true }) {
             keptAll["word/theme/theme1.xml"] = Data(_defaultThemePart().utf8)
