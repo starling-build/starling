@@ -5182,7 +5182,10 @@ enum OfficeFonts {
                     tabledName = alt
                 }
                 let lineBefore = face.naturalHeight
-                Self.applyTabled(tabledName, to: &face); Self.applyTabledMore(tabledName, to: &face)
+                // (Dotum and Gulim tables are Excel's: Word already sets Korean text at the right widths, and a Word A/B lost dx2 0b3859a7 100 to 50.)
+                if !["dotum", "gulim", "돋움", "굴림"].contains(tabledName.trimmingWhitespace().lowercased()) {
+                    Self.applyTabled(tabledName, to: &face); Self.applyTabledMore(tabledName, to: &face)
+                }
                 tableSetLine = face.naturalHeight != lineBefore
             }
             // (Arial Narrow, drawn as the sans clone, at its own widths and line.)
