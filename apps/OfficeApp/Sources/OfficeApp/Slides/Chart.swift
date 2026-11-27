@@ -1711,10 +1711,11 @@ enum ChartXML {
             if series.isEmpty { named = ser.first("c:tx") != nil }
             let cat = ser.first("c:cat") ?? ser.first("c:xVal")
             // (A bubble series with no y values or no sizes has no bubbles: Excel's print of lab bubble1 draws five discs for y + size
-            // (x or not), none for x, y, size alone, x + y, or x + size, only the frame and the axes.)
+            // (x or not), none for x, y, size alone, x + y, or x + size, only the frame and the axes. The axes still take its values:
+            // y alone prints 0 to 6 for 1 to 5, 0 to 600 for 100 to 500.)
             let bubbleless = el.name == "c:bubbleChart" && (ser.first("c:yVal") == nil || ser.first("c:bubbleSize") == nil)
             if bubbleless { RuleTrace.hit("bubble-series-without-y-values-or-sizes-has-no-bubbles") }
-            let val = bubbleless ? nil : (ser.first("c:val") ?? ser.first("c:yVal"))
+            let val = ser.first("c:val") ?? ser.first("c:yVal")
             var names = cat.map(_points) ?? []
             if levels.isEmpty, let cache = cat?.descendant("c:multiLvlStrCache") {
                 levels = cache.all("c:lvl").dropFirst().map { lvl in
@@ -1754,7 +1755,12 @@ enum ChartXML {
             if categories.count < names.count {
                 categories = names.enumerated().map { $0.element ?? (categories.indices.contains($0.offset) ? categories[$0.offset] : "") }
             }
-            let values = (val.map(_points) ?? []).map { $0.flatMap { Double($0.trimmingWhitespace()) } }
+            var values = (val.map(_points) ?? []).map { $0.flatMap { Double($0.trimmingWhitespace()) } }
+            // (A bubble series with no y values still has its points, one to each x or size: Excel's print of lab bubble1's
+            // size-only series stands x = 1 to 5 on 0 to 6 and draws the frame, the axes and the gridlines.)
+            if el.name == "c:bubbleChart", val == nil {
+                values = Array(repeating: nil, count: max(ser.first("c:xVal").map { _points($0).count } ?? 0, ser.first("c:bubbleSize").map { _points($0).count } ?? 0))
+            }
             var s = ChartSeries(name: name, values: values)
             s.format = Self._format(val)
             if let k = ser.first("c:idx")?["val"].flatMap(Int.init), k != series.count { s.autoIndex = k }
@@ -1771,7 +1777,7 @@ enum ChartXML {
                 let style = el.first("c:scatterStyle")?["val"] ?? "marker"
                 let ln = pr?.first("a:ln")
                 s.joined = ln.map { $0.first("a:noFill") == nil } ?? (style != "marker" && style != "none")
-                if !bubbleless, let bz = ser.first("c:bubbleSize") { s.bubbleSizes = _points(bz).map { $0.flatMap { Double($0.trimmingWhitespace()) } } }
+                if bubbleless { s.bubbleSizes = [] } else if let bz = ser.first("c:bubbleSize") { s.bubbleSizes = _points(bz).map { $0.flatMap { Double($0.trimmingWhitespace()) } } }
                 if let xv = ser.first("c:xVal") {
                     let pts = _points(xv).map { $0.flatMap { Double($0.trimmingWhitespace()) } }
                     // (The first series' list is the shared one; a later one that repeats it needs none.)
@@ -5426,28 +5432,21 @@ enum ChartPainter {
             lo = 0; hi = 0
             for s in c.waterfallSpans { lo = min(lo, s.from, s.to); hi = max(hi, s.from, s.to) }
         }
-        // (A bubble chart's axis takes in the discs, not only their centres: chart-bubble_chart_simple's y values 0, 2 and 4 with discs
-        // of up to 35 pt print on -1 to 5, ours 0 to 4.5. The largest disc is a quarter of the plot's shorter side; a disc's radius in
-        // value units follows from the span it stands on, so it is settled by a few passes.)
-        if c.onSheet, c.type == .scatter, c.series.contains(where: { $0.bubbleSizes != nil }) {
-            let plotH = max(40, area0.height / k * 0.968 - 36.1), plotW = max(40, area0.width / k - 40)
-            let top = c.series.compactMap { $0.bubbleSizes?.compactMap { $0 }.max() }.max() ?? 1
-            let full = 0.25 * min(plotW, plotH) * c.bubbleScale / 100
-            var lo2 = lo, hi2 = hi
-            for _ in 0 ..< 4 {
-                var nlo = lo, nhi = hi
-                for ser in c.series {
-                    guard let zs = ser.bubbleSizes else { continue }
-                    for (i, v) in ser.values.enumerated() {
-                        guard let v, let z = zs[safe: i] ?? nil, z > 0, top > 0 else { continue }
-                        let d = c.bubbleByWidth ? full * z / top : full * (z / top).squareRoot()
-                        let r = d / 2 * (hi2 - lo2) / plotH
-                        nlo = min(nlo, v - r); nhi = max(nhi, v + r)
-                    }
-                }
-                lo2 = nlo; hi2 = nhi
+        // (A bubble chart's axes reach a fifth of their data's spread past each end, discs drawn or not, whatever their sizes, in
+        // place of the 5% headroom: Excel's prints of lab bubble1 put y = -3 to 4 on -5 to 6 with sizes or none, and x = -3 to 4 on
+        // -5 to 6 though the plot is twice as wide as it is tall; chart-bubble_chart_simple's 0 to 4 on -1 to 5.)
+        let bubbleAxes = c.onSheet && c.type == .scatter && c.series.contains(where: { $0.bubbleSizes != nil })
+        if bubbleAxes {
+            RuleTrace.hit("sheet-bubble-axes-reach-a-fifth-of-the-spread-past-the-data")
+            // (One value has no spread: chart-bubble_chart_simple's x = 1 alone stands 0 to 1.2, a fifth of the value past it.)
+            let pad = hi > lo ? 0.2 * (hi - lo) : 0.2 * abs(hi)
+            lo -= pad; hi += pad
+            // (With no y values at all the axis stands -0.2 to 1.4: every one of lab bubble1's seven series without y values,
+            // x or none, sizes or none.)
+            if !c.series.contains(where: { $0.values.contains { $0 != nil } }) {
+                RuleTrace.hit("sheet-bubble-chart-without-y-values-stands-minus-0.2-to-1.4")
+                lo = -0.2; hi = 1.4
             }
-            lo = lo2; hi = hi2
         }
         let labelSize = c.valueLabelSize ?? c.baseTextSize
         // (Settled here and captured as constants: the Windows
@@ -5525,7 +5524,7 @@ enum ChartPainter {
             return max(2, min(10, Int(span / 13)))
         }()
         var valueScale = c.percent ? (lo: 0.0, hi: 1.0, step: 0.1) : scale(lo, max(hi, c.valueMax ?? hi), intervals: tableSteps ?? acrossSteps ?? writerSteps ?? sheetSteps ?? hiddenSlideSteps ?? 10,
-                                                                          headroom: (c.barView != nil || c.line3D) && !(c.onSheet && c.series.allSatisfy { $0.values.allSatisfy { ($0 ?? 0) == 0 } }) ? 0 : c.secondValueAxis?.sameScale == true ? 0.10 : 0.05)
+                                                                          headroom: bubbleAxes ? 0 : (c.barView != nil || c.line3D) && !(c.onSheet && c.series.allSatisfy { $0.values.allSatisfy { ($0 ?? 0) == 0 } }) ? 0 : c.secondValueAxis?.sameScale == true ? 0.10 : 0.05)
         // (Excel's axis for a hidden scatter's visible $ axis with the area and line on the group left without one runs a tenth past
         // its data, not a twentieth: chart-tdf140489's 75,887 reaches $90,000, where the 5% rule stops at 80,000; the same file
         // without the scatter, or with it on the other group, stops at 80,000 too — the Windows lab wip/lab-tdf140489.
@@ -5652,19 +5651,28 @@ enum ChartPainter {
                         xAll.append(v + ((eb.plus[safe: i] ?? nil) ?? 0)); xAll.append(v - ((eb.minus[safe: i] ?? nil) ?? 0))
                     }
                 }
-                xScale = scale(xAll.min() ?? 0, xAll.max() ?? 1, intervals: 8)
+                let xHead = bubbleAxes ? 0 : 0.05
+                xScale = scale(xAll.min() ?? 0, xAll.max() ?? 1, intervals: 8, headroom: xHead)
                 if c.onSheet, c.xMin == nil, c.xMax == nil {
                     // (On a sheet Excel takes the finest step that keeps its ticks 36.4 pt apart or more (between the 34.4 pt that
                     // chart-tdf135184RoundLineCap's 0.5 steps would stand, which it refuses, and the 38.4 of chart-trendline's, which it keeps).)
                     let room = area0.width - 20
                     for n in [16, 12, 8, 6, 4, 3, 2] {
-                        let t = scale(xAll.min() ?? 0, xAll.max() ?? 1, intervals: n)
+                        let t = scale(xAll.min() ?? 0, xAll.max() ?? 1, intervals: n, headroom: xHead)
                         // (Never more than ten steps along the axis: lab textx1's x = 1 to 5 stand 0 to 6 by 1 in Excel's print, not 0 to 5.5
                         // by 0.5 (eleven, 40.9 pt apart), 1 to 10 stand 0 to 12 by 2, not by 1 (twelve), and 1 to 9 stand by 1 (ten);
                         // chart-tdf126033's 0 to 2.5 keeps its 0.5, not 0.2 (thirteen).)
                         if (t.hi - t.lo) / t.step > 10 + 1e-9 { continue }
                         if (t.hi - t.lo) / t.step * 36.4 <= room || n == 2 { xScale = t; break }
                     }
+                }
+                if bubbleAxes, c.xMin == nil, c.xMax == nil, let a = xAll.min(), let b = xAll.max() {
+                    // (A bubble chart's x axis takes its step from the data, then reaches a fifth of the data's spread past each
+                    // end, out to the next tick: lab bubble1's x = -3 to 4 stands -5 to 6 by 1 in Excel's print (eleven steps, 30.7 pt
+                    // apart, finer than the 36.4 and the ten a scatter chart's x axis keeps), and x = 1 to 5 stands 0 to 6.)
+                    RuleTrace.hit("sheet-bubble-x-axis-steps-by-the-data-and-reaches-a-fifth-past-it")
+                    let pad = b > a ? 0.2 * (b - a) : 0.2 * abs(b), st = xScale.step
+                    xScale = (min(xScale.lo, (((a - pad) / st) + 1e-9).rounded(.down) * st), max(xScale.hi, (((b + pad) / st) - 1e-9).rounded(.up) * st), st)
                 }
                 if c.xMin != nil || c.xMax != nil { xScale = fixedScale(auto: xScale, min: c.xMin, max: c.xMax, step: nil) }
             }
