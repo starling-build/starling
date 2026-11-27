@@ -267,6 +267,8 @@ final class OfficeShellState: State<StatefulWidget> {
                     let w = session.pageSetup.columnWidth
                     c.setImageSize(at: i, width: w, height: w * image.height / max(1, image.width))
                 },
+                .init(id: "ctx-pic-lock", title: c.pictureAspectLock ? "Unlock Aspect Ratio" : "Lock Aspect Ratio",
+                      symbol: c.pictureAspectLock ? "lock" : "lock.open") { [weak session] in session?.onToggleAspectLock?() },
                 .init(id: "ctx-pic-del", title: "Delete Picture", symbol: "trash") { [weak c] in c?.deleteForward() },
             ]
         }
@@ -321,6 +323,11 @@ final class OfficeShellState: State<StatefulWidget> {
         session.onToggleRuler = { [weak self] in
             guard let self else { return }
             self.setState { self.session.showRuler.toggle() }
+        }
+        session.onToggleAspectLock = { [weak self] in
+            guard let self else { return }
+            self.session.controller.pictureAspectLock.toggle()
+            self.setState { self.session.summary = self.session.summarize() }
         }
         session.onToggleNavigation = { [weak self] in
             guard let self else { return }
@@ -1362,6 +1369,7 @@ final class OfficeShellState: State<StatefulWidget> {
             item("Original Size", enabled: image.naturalWidth != nil) {
                 if let nw = image.naturalWidth, let nh = image.naturalHeight { c.setImageSize(at: i, width: nw, height: nh) }
             }
+            item(c.pictureAspectLock ? "Unlock Aspect Ratio" : "Lock Aspect Ratio") { [weak self] in self?.session.onToggleAspectLock?() }
             item("Delete Picture") { c.deleteForward() }
         }
         if c.isInCell {
