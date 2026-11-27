@@ -1693,6 +1693,23 @@ extension _ParaFrame {
                 }
             }
             painter.layout(minWidth: lineWidth + slack, maxWidth: lineWidth + slack)
+            // (A Thai line that the strut skips, its height held by its runs: a line of nothing but tabs and spaces sets only the zero-width
+            // break marks, at their sliver of a height, though its tabs and spaces stand in the line's face. Word's print keeps it a full
+            // line of that face: dx2 ba75c926's tabs after "กลุ่มงานควบคุมโรคติดต่อ" and 8pt spaces stand 18.12 above the next line, ours
+            // 9.16. Where a line steps less than the descent before it and its own ascent, the marks take their runs' height. Lab bamini m1.)
+            if strut == nil, !pil, thaiNear, case let m = painter.computeLineMetrics(), m.count > 1,
+               case let ranges = RichLayout._lineRanges(painter), ranges.count == m.count,
+               case let tallest = m.map({ $0.ascent + $0.descent }).max() ?? 0, case let plain = Array(span.toPlainText().utf16),
+               case let short = (1 ..< m.count).filter({ m[$0].baseline - m[$0 - 1].baseline < m[$0 - 1].descent + m[$0].ascent - 0.5 }),
+               case let blank = (0 ..< m.count).filter({ m[$0].ascent + m[$0].descent < tallest / 2 && ranges[$0].upperBound <= plain.count
+                   && RichLayout._blankMark(String(decoding: plain[ranges[$0]], as: UTF16.self)) }),
+               !short.isEmpty || !blank.isEmpty,
+               let full = RichLayout._marksAtTheirRunsHeight(span, within: short.map { ranges[$0] }, blank: blank.map { ranges[$0] }) {
+                RuleTrace.hit("th-a-line-of-tabs-and-spaces-steps-its-face")
+                painter.text = nil // (not compared: a span here may be a kind that has no compareTo)
+                painter.text = full
+                painter.layout(minWidth: lineWidth + slack, maxWidth: lineWidth + slack)
+            }
             // (A paragraph of spaces alone is one line, its spaces hung
             // past the edge as a line's last ones are: zh-cfb32050's form
             // opens with a 14pt cell holding fifteen spaces under a

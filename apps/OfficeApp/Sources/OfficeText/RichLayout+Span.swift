@@ -54,9 +54,14 @@ extension RichLayout {
     /// The share of a Thai line above the baseline in Word's own faces (hhea ascent over ascent + descent): Browallia New (and the TH Sarabun
     /// faces Word prints in it) 1770 / (1770 + 789), bold 1786 / (1786 + 885); Angsana New 0.941 / 1.351, bold 3949 / 5673. Nil for other faces.
     static func _thaiLineSplit(_ label: String?, bold: Bool) -> Double? {
+        // (Each copy wraps the label once more, "((face).copyWith).copyWith": unwrap every layer, or a run copied twice
+        // loses its face here, and the line's strut, skipped for these faces, came back and held fd71440c's Wingdings lines short.)
         guard var name = label?.trimmingWhitespace().lowercased() else { return nil }
-        while name.hasSuffix(".copywith") { name = String(name.dropLast(9)) }
-        if name.hasPrefix("(") && name.hasSuffix(")") { name = String(name.dropFirst().dropLast()) }
+        while true {
+            while name.hasSuffix(".copywith") { name = String(name.dropLast(9)) }
+            guard name.hasPrefix("(") && name.hasSuffix(")") else { break }
+            name = String(name.dropFirst().dropLast())
+        }
         switch name {
         case "browallia new", "th sarabun new", "th sarabunit๙": return bold ? 1786.0 / 2671 : 1770.0 / 2559
         case "angsana new": return bold ? 3949.0 / 5673 : 0.941 / 1.351
@@ -838,6 +843,8 @@ extension RichLayout {
                 painter.dispose()
             }
         }
+        // (A first word too long for its indented first line, parted where that line ends: see `_partedFirstWord`.)
+        if let index, let end = _partedFirstWord[index], end <= p.text.utf16.count { loose.formUnion(1 ..< end) }
         // (In a turned text box a first line indented past the line's
         // length holds its first character alone, the rest from the next
         // line: zh-b24b396a's "30" dimension labels — vert270 boxes 7.8pt
