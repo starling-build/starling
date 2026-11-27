@@ -6240,11 +6240,49 @@ enum OfficeFonts {
     }
 
     nonisolated(unsafe) private static var _standInWin: [String: Double?] = [:]
+    nonisolated(unsafe) private static var _standInCap: [String: Double?] = [:]
     /// (usWinAscent + usWinDescent) / unitsPerEm of the bundled stand-in of `family` (Regular): the box of ink Word's lines
     /// are measured from beside lowered text. nil where the file or table cannot be read.
     /// Win ascent + win descent over units per em, of faces Word draws with their own file while the stand-in's differs.
     /// Arial Narrow: 1888 + 431 of 2048 (lab pos14).
     private static let faceWinBox: [String: Double] = ["arial narrow": 2319.0 / 2048.0]
+
+    /// The stand-in file's capital height over its Windows ascent (OS/2 sCapHeight / usWinAscent), for the faces
+    /// `standInWinBox` reads; nil for others or a file without the version-2 OS/2 fields.
+    static func standInCapOverWinAscent(_ family: String?) -> Double? {
+        #if os(WASI)
+        return nil
+        #else
+        guard let family else { return nil }
+        let key = substitute(family)
+        declaredLock.lock()
+        defer { declaredLock.unlock() }
+        if let known = _standInCap[key] { return known }
+        var result: Double? = nil
+        let files = [sans: "LiberationSans", serif: "LiberationSerif", mono: "LiberationMono",
+                     calibri: "Carlito", cambria: "Caladea"]
+        if let file = files[key], let bundle = _bundle("OfficeApp_OfficeApp") {
+            let resources = bundle.resourceURL ?? bundle.bundleURL
+            if let data = FileManager.default.contents(atPath: resources.appendingPathComponent("fonts/\(file)-Regular.ttf").path) {
+                let b = [UInt8](data)
+                func u16(_ o: Int) -> Int { o + 1 < b.count ? Int(b[o]) << 8 | Int(b[o + 1]) : 0 }
+                func u32(_ o: Int) -> Int { u16(o) << 16 | u16(o + 2) }
+                var os2 = -1
+                if b.count > 12 {
+                    for t in 0 ..< u16(4) where 12 + 16 * t + 16 <= b.count {
+                        let at = 12 + 16 * t
+                        if String(decoding: b[at ..< at + 4], as: UTF8.self) == "OS/2" { os2 = u32(at + 8) }
+                    }
+                }
+                if os2 >= 0, os2 + 90 <= b.count, u16(os2) >= 2, case let asc = u16(os2 + 74), asc > 0, case let cap = u16(os2 + 88), cap > 0 {
+                    result = Double(cap) / Double(asc)
+                }
+            }
+        }
+        _standInCap[key] = result
+        return result
+        #endif
+    }
 
     static func standInWinBox(_ family: String?) -> Double? {
         #if os(WASI)

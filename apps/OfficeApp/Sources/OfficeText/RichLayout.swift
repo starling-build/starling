@@ -91,6 +91,8 @@ public final class RichTextTheme {
     public var averageCharWidth: ((String?) -> Double)? = nil
     /// A face's usWinAscent + usWinDescent over its em, by the name the document uses (nil: unknown).
     public var winLineBox: ((String?) -> Double?)? = nil
+    /// A face's capital height over its Windows ascent (OS/2 sCapHeight / usWinAscent), by the name the document uses (nil: unknown).
+    public var capOverWinAscent: ((String?) -> Double?)? = nil
     /// A face's usWinDescent as a share of its win line (ascent + descent), by the name the document uses (nil: unknown).
     public var winDescent: ((String?) -> Double?)? = nil
     /// A symbol face's characters as the Unicode glyphs they show, for
