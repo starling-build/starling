@@ -157,6 +157,14 @@ struct SheetPrintMetrics {
             screenDigit: [11, 13, 14, 15, 15, 17, 19, 23, 25], offTable: [15: 51, 17: 58, 19: 66, 20: 68, 21: 73, 22: 75, 24: 82, 26: 89]),
         "century gothic": Face(digit: [37, 42, 46, 49, 51, 55, 65, 74, 83], row: [91, 99, 108, 116, 119, 128, 151, 169, 193], screenRow: [26, 32, 35, 36, 38, 41, 46, 54, 61],
             screenDigit: [12, 13, 15, 16, 16, 18, 21, 24, 27]),
+        // A Korean-named face the print box lacks (HY신명조, HY견고딕, 함초롬돋움, 함초롬바탕: see printStandIn): Excel draws it in
+        // Malgun Gothic but fits its rows to a box of its own, the same for all four faces and for bold, and prints them at the
+        // book's ratio (lab missingko, Excel 16, 2026-11-27: COM heights 8-18 pt 35, 37, 37, 39, 40, 43, 51, 61, 67 px at
+        // 192 dpi; printed 124, 127, 137, 162, 194, 213 dots from 10.5 pt in a Calibri 11 book, 105, 111, 111, 117, 120, 129,
+        // 153, 183, 201 in a 돋움 11 book). `row` is that box at Calibri's ratio (no lab of a book with such a default font);
+        // the column digit stays the East Asian stand-in's.
+        "hangul stand-in": Face(digit: [34, 38, 42, 44, 46, 50, 59, 67, 75], row: [111, 118, 118, 124, 127, 137, 162, 194, 213], screenRow: [35, 37, 37, 39, 40, 43, 51, 61, 67],
+            screenDigit: [11, 12, 14, 14, 15, 16, 19, 22, 24]),
         "malgun gothic": Face(digit: [37, 41, 46, 48, 51, 55, 64, 73, 83], row: [102, 114, 124, 130, 139, 149, 172, 192, 219], screenRow: [35, 35, 42, 42, 45, 51, 55, 66, 72],
             screenDigit: [12, 13, 15, 15, 16, 18, 20, 24, 26], offTable: [6: 23], hinted: [10: 41.75]),
         // Dotum and Gulim print in their own faces (the corpus prints embed them) with their own rows: the em in dots at 600 dpi
@@ -391,8 +399,13 @@ struct SheetPrintMetrics {
     }
     static func fitsRowsInOwnFace(_ name: String) -> Bool { name == "맑은 고딕" || name.lowercased() == "malgun gothic" }
 
-    static func of(family: String, size: Double, bold: Bool = false, baseColWidth: Double = 8, hinted: Bool = false, otherBook: Bool = false) -> SheetPrintMetrics {
-        let f = (bold ? faces[faceKey(family) + " bold"] : nil) ?? face(family)
+    /// `roman`: the font's `family` is 1. A Korean-named face the print box lacks, asked for as Roman, fits its rows to the box
+    /// of the face Windows maps it to (lab missingko: four such faces, all Roman, print the same rows, and Excel's PDF embeds
+    /// MingLiU-ExtB beside the Malgun Gothic it draws them in); one asked for as Modern prints MS Gothic's (ko-5afe706664's
+    /// 기아 Medium, ko-ec08c4dea0's 한양신명조: their prints embed MS Gothic), the "ms pgothic" rows.
+    static func of(family: String, size: Double, bold: Bool = false, roman: Bool = false, baseColWidth: Double = 8, hinted: Bool = false, otherBook: Bool = false) -> SheetPrintMetrics {
+        let f = roman && printStandIn(family) != family ? faces["hangul stand-in"]!
+            : (bold ? faces[faceKey(family) + " bold"] : nil) ?? face(family)
         // (A printer's line between the sizes measured is the next whole
         // dot up: 49609's Microsoft Sans Serif 8.25 is 87 of 84 and 93,
         // its set 15 pt rows 124 dots in Excel's print where 86 made 122.)

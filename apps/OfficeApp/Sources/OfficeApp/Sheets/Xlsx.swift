@@ -93,6 +93,7 @@ enum Xlsx {
                 if let n = _fontName(f, themeFonts, themeless: themeless), !n.isEmpty, n != OfficeFonts.defaultFamily { book.defaultFontName = n }
                 // (A Normal font named for a face of its own but set in the theme's: its name is the face Excel fitted the rows in.)
                 if f.child("scheme")?["val"] != nil, let named = f.child("name")?["val"], !named.isEmpty, named != book.defaultFontName ?? OfficeFonts.defaultFamily, SheetPrintMetrics.fitsRowsInOwnFace(named) { book.defaultFontOwnName = named }
+                book.defaultFontRoman = f.child("family")?["val"] == "1"
                 book.defaultFontBold = f.child("b").map { $0["val"] != "0" && $0["val"] != "false" } ?? false
                 if let z = f.child("sz").flatMap({ Double($0["val"] ?? "") }), z > 0, z != 11 { book.defaultFontSize = z }
             }
@@ -677,7 +678,7 @@ enum Xlsx {
     ]
 
     private struct _Font { var bold = false, italic = false, underline = false, accounting = 0, strike = false, script = 0
-        var size: Double? = nil, name: String? = nil, color: UInt32? = nil }
+        var size: Double? = nil, name: String? = nil, color: UInt32? = nil, roman = false }
 
     /// A font's face. One of the theme's (`scheme` minor or major) is the
     /// theme's Latin face, whatever its `name` says: Excel sets 51519's
@@ -737,6 +738,7 @@ enum Xlsx {
             font.script = ["superscript": 1, "subscript": -1][f.child("vertAlign")?["val"] ?? ""] ?? 0
             font.size = f.child("sz").flatMap { Double($0["val"] ?? "") }
             font.name = _fontName(f, themeFonts, themeless: themeless)
+            font.roman = f.child("family")?["val"] == "1"
             font.color = f.child("color").flatMap { _color($0, theme: theme) }
             fonts.append(font)
         }
@@ -786,6 +788,7 @@ enum Xlsx {
                 s.bold = f.bold; s.italic = f.italic; s.underline = f.underline; s.accounting = f.accounting; s.strike = f.strike; s.script = f.script
                 // The default font is the theme's: left nil, so a new face follows it.
                 if f.name != base.name { s.fontName = f.name }
+                s.fontRoman = f.roman
                 if f.size != base.size { s.fontSize = f.size }
                 if let c = f.color, c != 0x000000 { s.color = c }
             }
