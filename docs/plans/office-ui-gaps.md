@@ -263,22 +263,38 @@ Rules for each implementation PR (Sonnet workers):
 
 ## 6. What the iPad needs differently
 
-The mac-ipad audit will replace this table; these are the constraints to design for now.
+Audited 2026-11-27 on the iPad Pro 13-inch (M4) simulator, iOS 18.4, main 7b451668e, engine c4d419b6580, with the in-app touch driver (`STARLING_SPIKE_INPUT`, sdk/Sources/FlutterUIKit/UIKitScriptedInput.swift: events enter at the framework's pointer packet, so the Mac's mouse never moves). Screenshots are in `docs/plans/ipad-audit-20261127/`, 900 px wide. Docs used: lk.docx (Writer), em.pptx (Slides), em.xlsx (Sheets).
 
-| Topic | Desktop | iPad |
-| --- | --- | --- |
-| Right-click menus | Secondary click | Long press or two-finger tap opens the same menu; the touch edit menu (Cut, Copy, Paste...) gains the top 3 commands for the selection. |
-| Dialogs | Centred modal | A sheet or popover from the button; fields at least 44 pt tall; the software keyboard must not cover OK. |
-| Format panes (Format Shape, Format Cells) | Pane at the right | Same pane as a slide-over on wide screens; a bottom sheet in a narrow or split window. |
-| Ribbon | Full tabs | Collapses to a one-line tab with overflow; the keyboard bar (Undo, Redo, B, I, U, lists) grows per context: table, picture, shape, cell. |
-| Modifier keys (Shift+click multi-select, Shift keeps aspect, Ctrl+drag copies) | Keyboard | Need touch equivalents: a "Select Multiple" mode or tap-while-holding; aspect lock as a toggle in the pane; Duplicate in the menu. Hardware keyboards and trackpads keep the desktop keys. |
-| Handles | 8 small handles, rotate handle, yellow adjust handles | Larger hit areas (44 pt), handles outside small objects, two-finger rotate. |
-| Hover (link target, note preview, tooltips) | Hover | Tap shows the note or link card with Open / Edit / Remove. |
-| Ruler and tab stops | Drag on the ruler | Same with larger markers, plus the Tabs dialog as the keyboardless path. |
-| Drag and drop, pictures | File panel | Photos picker, Files, drag from another app; Apple Pencil for ink later. |
-| Sheets cell entry | Keyboard | A numeric and formula key row; the fill handle as a menu command (Fill) besides the drag. |
-| Printing, fonts, spelling | Host dialog; AppKit spelling | iOS print sheet; spelling needs a UIKit checker (today macOS only). |
-| Driver | `OFFICE_SCRIPT` on macOS | Only `OFFICE_DRIVE_EXPORT` exists; the harness from Q1 must cover touch events. |
+Status: **works** = seen working on the simulator; **partly** = seen, with the gap named; **missing** = absent (seen or read from code, said which); **not seen** = could not be exercised here, with why.
+
+| Topic | Status | What the audit found | Screenshot |
+| --- | --- | --- | --- |
+| Context menu, Writer text | **works** | A 900 ms hold selects the word and opens the full menu (B/I/U, Cut, Copy, Paste and its three variants, Link, Select All). A two-finger tap opens the same menu at the caret. | `w-hold.png`, `w-twotap.png` |
+| Context menu, Writer picture | **works** | The hold on a picture selects it (8 handles) and the menu gains Fit Picture to Width, Original Size, Delete Picture; the Picture Format tab opens. | `w-pichold.png` |
+| Context menu, Writer table | **not seen** | lk.docx has no table; the code path is the same `onContextMenu`. Check in the first PR with tb4.docx. | |
+| Context menu, Slides | **partly** | A hold inside a text box selects the word and shows the *system* edit menu (Cut, Copy, Paste, Bold, Italic, Underline, Select All, Share), not the desktop menu with Format Shape, Arrange, Duplicate. A two-finger tap only places the caret: no menu. A hold on a slide thumbnail does nothing (no Duplicate / Delete / New Slide menu). A hold on a shape that is not a text box was not exercised. | `s-hold.png`, `s-twotap.png`, `s-thumbhold.png` |
+| Context menu, Sheets | **works** | A hold on a cell and a two-finger tap both open the full cell menu (Cut, Copy, Paste, Paste Special, Insert, Delete, Fill Down/Right, Clear, Format Cells, New Note, Hyperlink, Sort). A hold on a row header selects the row but opens no menu (Insert/Delete/Hide/Height live only on the desktop right-click). | `x-hold.png`, `x-twotap.png`, `x-rowhold.png` |
+| Dialogs | **partly** | Insert Hyperlink is a centred modal, not a sheet or popover. The text fields are about 30 pt tall (below 44); OK and Cancel are about 43 pt. The keyboard-inset handling exists (`DialogShell`) but could not be seen: the simulator has the Mac keyboard attached, so no on-screen keyboard appears. | `w-linkdlg.png` |
+| Format panes | **not seen** | Not exercised (Format Shape and Format Cells need a shape/cell selection flow the driver does not yet script). Code review: the pane is a fixed right-hand panel, with no slide-over or bottom-sheet variant. Treat as missing until seen. | |
+| Ribbon collapse | **works** | A narrow window folds groups to icons then to one button each (`RibbonFit`, read from code and its tests; the simulator window is wide). At the 13-inch width the Slides Home tab clips its Drawing group's caption at the bottom edge (cosmetic). | `s-hold.png` |
+| Keyboard bar per context | **partly** | With the bar forced on (`OFFICE_TOOLBAR_FORCE_WIDTH`), the Sheets bar shows undo/redo, B/I/U and the formula keys; per-context buttons for table, picture and shape exist in `EditorToolbar` (`ctx-`) but were not seen on the simulator because the hardware keyboard hides the bar. | `x-keyrow.png` |
+| Shift / Ctrl touch equivalents | **missing** | Read from code: Shift-click range, Shift-aspect and Ctrl-drag copy have no touch path (no Select Multiple mode, no aspect-lock toggle, Duplicate only in the ribbon). | |
+| Handles (44 pt) | **partly** | Seen: the picture's handles are drawn as 8 pt squares. Read from code: text handles reach 8–22 pt in touch mode (`_handleHit`, knob radius 7). Both are below 44 pt. No two-finger rotate. | `w-pichold.png` |
+| Link and note cards | **works** (link) | A tap on a link shows a card with the address and Open / Edit / Remove. A cell note card was not seen. | `w-linktap.png` |
+| Ruler and tab stops | **partly** | The ruler shows with small markers (seen); dragging them by touch was not exercised. The Tabs dialog exists as the keyboardless path (not opened). | `w-linktap.png` |
+| Pictures, drag and drop | **partly** | The Photos / Files picker exists (`PicturePicker`); not exercised (no simulator photos). Drag from another app is missing. | |
+| Sheets cell entry | **works** | A numeric and formula key row (= + − * / ( ) : , $ F4) shows while editing a cell; two taps 400 ms apart on a cell did not enter edit mode (typing into the selected cell does, and shows the formula tip); how a touch user enters edit mode needs a look. The fill handle as a menu command: Fill Down / Fill Right are in the cell menu. | `x-keyrow.png` |
+| Printing | **works** by code | `OfficeNativeShell.printPDF` hands the PDF to `UIPrintInteractionController`; not opened on the simulator. | |
+| Spelling | **works** | Slides shows the red wavy line under "okrege" and the system suggestion strip; `TextChecker` is UIKit. | `s-hold.png` |
+| Driver | **works** | `STARLING_SPIKE_INPUT` covers tap, hold, two-finger tap, drag, type and key inside the app, with logs through `simctl launch --console`. `OFFICE_DRIVE_EXPORT` remains the only export path. | |
+
+**Order of fixes (each its own PR, with screenshots):**
+
+1. Slides: a context menu for a hold and a two-finger tap on text, a shape and a slide thumbnail (Sheets row/column header menu in the same area).
+2. Dialogs as sheets, fields at 44 pt.
+3. 44 pt handles for pictures, shapes and the ruler.
+4. The Shift/Ctrl touch equivalents (a Select Multiple mode, an aspect-lock toggle).
+5. Format panes as a slide-over or bottom sheet.
 
 ## 7. Not in this plan
 
