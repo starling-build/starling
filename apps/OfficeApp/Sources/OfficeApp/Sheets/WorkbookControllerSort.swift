@@ -81,6 +81,7 @@ extension WorkbookController {
         if sheet.merges.contains(where: { $0.intersects(data) }) { return .mergedCells }
         structural {
             sortRows(data, keys: keys, byColumns: byColumns, caseSensitive: caseSensitive)
+            _noteSortState(data, keys: keys, byColumns: byColumns, caseSensitive: caseSensitive)
             if sheet.autoFilter != nil { reapplyFilter() }
         }
         return nil

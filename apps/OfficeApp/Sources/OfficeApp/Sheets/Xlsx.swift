@@ -233,11 +233,15 @@ enum Xlsx {
 
     /// `<autoFilter ref><filterColumn colId><filters blank><filter val/>…`.
     /// Value lists are modelled; any other kind of column filter (custom,
-    /// top 10, dynamic, colour, date groups) or a sort state keeps the
-    /// whole element as written, until the filter is changed here.
+    /// top 10, dynamic, colour, date groups) keeps the whole element as
+    /// written, until the filter is changed here. A sort state is kept as written.
     private static func _readAutoFilter(_ node: XNode, range: CellRange, raw: String?, book: Workbook) -> AutoFilter {
         var af = AutoFilter(range: range)
-        var modelled = node.kids("sortState").isEmpty
+        var modelled = true
+        if !node.kids("sortState").isEmpty {
+            // The last sort (X-DA-1) rides along as written; it names cells, not filter choices.
+            if let raw, let r = AutoFilter.sortStateRange(raw) { af.sortState = String(raw[r]) } else { modelled = false }
+        }
         for fc in node.kids("filterColumn") {
             guard let id = Int(fc["colId"] ?? ""), fc.children.count == 1, let body = fc.children.first else { modelled = false; continue }
             let col = range.left + id
@@ -1596,7 +1600,7 @@ enum Xlsx {
     }
 
     private static func _autoFilterXML(_ af: AutoFilter, book: Workbook, cutoffs: [Int: Double] = [:]) -> String {
-        guard af.isActive else { return "<autoFilter ref=\"\(af.range.a1)\"/>" }
+        guard af.isActive else { return "<autoFilter ref=\"\(af.range.a1)\"" + (af.sortState.map { ">" + $0 + "</autoFilter>" } ?? "/>") }
         var s = "<autoFilter ref=\"\(af.range.a1)\">"
         for col in Set(af.columns.keys).union(af.rules.keys).sorted() {
             s += "<filterColumn colId=\"\(col - af.range.left)\">"
@@ -1623,7 +1627,7 @@ enum Xlsx {
             }
             s += "</filterColumn>"
         }
-        return s + "</autoFilter>"
+        return s + (af.sortState ?? "") + "</autoFilter>"
     }
 
     /// The metadata part Excel 365 writes for dynamic arrays: one XLDAPR

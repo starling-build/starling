@@ -687,8 +687,11 @@ final class WorkbookController: ChangeNotifier {
         let key = min(max(active.col, g.range.left), g.range.right)
         let top = g.hasHeader ? g.range.top + 1 : g.range.top
         guard g.range.bottom > top else { return }
-        let before = sortRows(CellRange(top: top, left: g.range.left, bottom: g.range.bottom, right: g.range.right), key: key, ascending: ascending)
-        if !before.isEmpty { _record(sheet: activeSheet, before: before) }
+        let data = CellRange(top: top, left: g.range.left, bottom: g.range.bottom, right: g.range.right)
+        structural {
+            sortRows(data, key: key, ascending: ascending)
+            _noteSortState(data, keys: [SortKey(col: key, ascending: ascending)], byColumns: false, caseSensitive: false)
+        }
     }
 
     /// The cells a sort would cover (the selection, or the data around the active cell, cut to
