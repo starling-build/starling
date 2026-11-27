@@ -412,7 +412,8 @@ extension RichLayout {
             }
             return
         }
-        _paintBoxText(inside, canvas)
+        _paintBoxText(inside, canvas, cutsBeside: clips && theme.wordRules && RichTextTheme.wordWindowsPages && text.textDirection == .horizontal
+                        && !inside.beside.isEmpty && !text.fitsText && !text.fitsHeight && !text.growsToFit)
         canvas.restore()
         if cutsAtFoot { _paintTextPastFoot(inside, text, rect, canvas) }
     }
@@ -470,11 +471,23 @@ extension RichLayout {
 
     /// A text box's text, at the canvas's origin: its flow, and any
     /// boxes of its group laid out beside it.
-    func _paintBoxText(_ inside: _HeaderFooter, _ canvas: any Canvas, band: (top: Double, bottom: Double)? = nil) {
+    func _paintBoxText(_ inside: _HeaderFooter, _ canvas: any Canvas, band: (top: Double, bottom: Double)? = nil, cutsBeside: Bool = false) {
         let all = Rect.fromLTWH(-100_000, -100_000, 200_000, 200_000)
+        // (Boxes of a group that stand beside one another are each cut at their own foot, and what is cut is not in Word's
+        // text layer either, as for stacked ones: lo-f5a68fc90b's 16pt "Rectangle 5238 txbxContent" box, 67pt wide, shows
+        // "Rectangle 5238" in Word's print and its text layer holds no "txbxContent"; ours drew the wrapped line under it.)
+        func cut(_ foot: Double?) {
+            guard cutsBeside, let foot else { return }
+            RuleTrace.hit("group-box-beside-another-cut-at-its-foot")
+            canvas.clipRect(Rect.fromLTRB(-1_000_000, -1_000_000, 1_000_000, foot), clipOp: .intersect, doAntiAlias: false)
+        }
+        canvas.save()
+        cut(inside.flowFoot)
         inside.layout.paint(canvas, visible: band.map { Rect.fromLTRB(-100_000, $0.top, 100_000, $0.bottom) } ?? all, document: inside.document, selection: nil, caret: nil)
-        for other in inside.beside {
+        canvas.restore()
+        for (n, other) in inside.beside.enumerated() {
             canvas.save()
+            if other.turn == nil, n < inside.besideFeet.count { cut(inside.besideFeet[n]) }
             // (A box turned in its group, about its middle: zh-b24b396a's
             // "（全宗名称）", 8pt glyphs 58° up in Word's print.)
             if let turn = other.turn {
@@ -856,6 +869,11 @@ extension RichLayout {
             }
         }
         var beside: [(layout: RichLayout, document: RichDocument, dy: Double, turn: (degrees: Double, x: Double, y: Double)?)] = []
+        var besideFeet: [Double?] = []
+        var flowFoot: Double? = nil
+        func foot(_ part: RichTextBox.Part) -> Double? {
+            part.rotation != 0 || part.growsToText == true ? nil : _px(part.top - box.insetTop + part.height)
+        }
         if parts.count > 1, (1 ..< parts.count).contains(where: { parts[$0].rotation != 0 || parts[$0].top < parts[$0 - 1].top + parts[$0 - 1].height - 0.5 }) {
             let all = sub.paragraphs
             for n in (parts[0].rotation != 0 ? 0 : 1) ..< parts.count where parts[n].first < all.count {
@@ -871,7 +889,9 @@ extension RichLayout {
                 if parts[n].atFoot { dy += _px(parts[n].height) - alone.totalHeight }
                 if parts[n].inMiddle { dy += max(0, _px(parts[n].height) - alone.totalHeight) / 2 }
                 beside.append((alone, own, dy, parts[n].rotation == 0 ? nil : (parts[n].rotation, _px(parts[n].pivotX), _px(parts[n].pivotY))))
+                besideFeet.append(foot(parts[n]))
             }
+            if parts[0].rotation == 0 { flowFoot = foot(parts[0]) }
             sub.paragraphs = parts[0].rotation != 0 ? [] : Array(all[0 ..< min(all.count, parts[1].first)])
             parts = [parts[0]]
         }
@@ -1132,6 +1152,8 @@ extension RichLayout {
         }
         var made = _HeaderFooter(layout: layout, document: sub)
         made.beside = beside
+        made.besideFeet = besideFeet
+        made.flowFoot = flowFoot
         if _textBoxCache.count > 256 { _textBoxCache.removeAll() }
         _textBoxCache[key] = made
         return made

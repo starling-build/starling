@@ -1188,6 +1188,13 @@ extension RichLayout {
                     pgs.tableBands.append((top: top, bottom: bottom, owner: mine ? pgs.i : -1))
                     if mine, abs(f.y) < 0.01, f.distanceTop < 0.01 { pgs.topPinnedOwners.insert(pgs.i) }
                     pgs.pictureBands.append((top: top, bottom: bottom, owner: mine ? pgs.i : -1))
+                    // (Kept with the next paragraph, which finds no room under the picture, the anchor stays: going on would
+                    // take the picture with it. Word's print of lab tallwrap d, a Heading 1 over a picture from 100 to 580pt
+                    // of an A5 page, keeps the heading at page 2's top and sets the next paragraph on page 3.)
+                    if theme.wordRules, RichTextTheme.wordWindowsPages, !mine, _columns <= 1, _cells[pgs.i] == nil, bottom >= pgs.contentH - 0.01,
+                       !document.paragraphs[pgs.i].text.isEmpty {
+                        pgs.bandToFootOwner = pgs.i
+                    }
                     var moved: [PagePiece] = []
                     // (A hair above its own line, -0.9pt as in lo-eb12e7d4's 137pt picture: the
                     // line before it is not under the picture — Word sets it where it stood and
@@ -1210,6 +1217,20 @@ extension RichLayout {
                         // top and bottom at offset 0, stands at the margin in Word's print, not
                         // under its own height.)
                         pgs.y = bottom
+                        // (The one line of the paragraph that anchors a picture placed on the page, pushed under it, stays on
+                        // that page whatever room is left, at the text's foot where the picture ends lower: going on would
+                        // take the picture with it. Word's prints, lab tallwrap (A5, foot 523.3): pictures ending at 502.8,
+                        // 542.8 and 585.3 set the heading's line at 506.8, 527.4 and 527.4, the text after it on the next
+                        // page. lo-f5a68fc90b's "Page 2" under its 542pt group; ours took both to a page of their own.)
+                        if theme.wordRules, RichTextTheme.wordWindowsPages, _columns <= 1, pgs.resumeCursor == nil, _cells[pgs.i] == nil,
+                           !document.paragraphs[pgs.i].text.isEmpty, Self._lineBottoms(geometry(pgs.i).painter).count == 1,
+                           pgs.y + _heights[pgs.i] > pgs.contentH + 0.01 {
+                            RuleTrace.hit("word-line-under-its-own-page-picture-stays-past-the-foot")
+                            pgs.y = min(pgs.y, pgs.contentH)
+                            pgs.parkedUnderBand = pgs.i
+                            if let k = pgs.tableBands.indices.last { pgs.tableBands[k].bottom = min(pgs.tableBands[k].bottom, pgs.contentH) }
+                            if let k = pgs.pictureBands.indices.last { pgs.pictureBands[k].bottom = min(pgs.pictureBands[k].bottom, pgs.contentH) }
+                        }
                     }
                 }
             }
@@ -1500,7 +1521,8 @@ extension RichLayout {
                 }
                 pgs.tailHold = nil
                 var violated = weigh(pgs.contentH - pgs.y)
-                if violated {
+                if violated, pgs.parkedUnderBand == pgs.i || pgs.bandToFootOwner == pgs.i { RuleTrace.hit("word-anchor-of-a-page-picture-to-the-foot-is-not-kept-with-the-next") }
+                if violated, pgs.parkedUnderBand != pgs.i, pgs.bandToFootOwner != pgs.i {
                     pgs.tailHold = nil
                     _pg_newPage(&pgs, document)
                     // (The run weighed again where it landed: sent into a
@@ -1773,7 +1795,9 @@ extension RichLayout {
                        style.lineHeightPoints == nil, let first = lineBottoms.first, !document.paragraphs[pgs.i].text.isEmpty {
                         textOnlyCut = first * (1 - 1 / style.lineSpacing)
                     }
-                    let line = lineFull0
+                    // (The space before that a page's first line drops is not above the line: a heading at the top of
+                    // page 2 whose before is skipped stands over a picture 28pt down (lab tallwrap d, Word's line at 75.29pt).)
+                    let line = lineFull0 - (ownsBand ? 0 : headSkip)
                     let yBeforeBands = pgs.y
                     let blankBeside = !pgs.stripBandTops.isEmpty && document.paragraphs[pgs.i].image == nil && _cells[pgs.i] == nil
                         && !document.paragraphs[pgs.i].text.contains { $0 != " " }
@@ -1829,7 +1853,7 @@ extension RichLayout {
                 // frame y 693pt, text foot 720pt, stays on page 1 in Word's print; xd 8948a622.)
                 let inPlacedFrame = theme.wordRules && document.paragraphs[pgs.i].style.frameXML != nil && pgs.frameReturn?.page == pgs.page
                 if inPlacedFrame, pgs.y > pgs.contentH - 0.01 { RuleTrace.hit("word-frame-continuation-stays-on-its-page-past-the-foot") }
-                if pgs.y > pgs.contentH - 0.01, !ender, !inPlacedFrame {
+                if pgs.y > pgs.contentH - 0.01, !ender, !inPlacedFrame, pgs.parkedUnderBand != pgs.i {
                     _pg_newPage(&pgs, document)
                     // (A page whose body area is gone (a header's page-high box takes it all) has none in its
                     // second column either: what runs past its foot opens the next PAGE. Word's print of
@@ -2373,6 +2397,16 @@ extension RichLayout {
                 // space before there: lo/dx2 99cfc555's Abstract, and "2. Nguyên liệu", 3pt.)
                 // (Not in a legacy-mode document, no compatibilityMode: there a paragraph after a table at a page's top keeps its space before;
                 // xb jpn-z21601833's heading, 1104 of 1143 lines to 417 under this rule. dx2 fb068d84's empty marks after a table in mode 15 drop it; 99cfc555 is mode 14: 503 to 1712 of 2523.)
+                // (A page's first paragraph pushed under a picture placed on the page keeps its space before less the
+                // space after of the paragraph that ended the page before, as at the page's top: Word's prints, lab
+                // tallwrap — a Heading 1 of 12pt before after Normal's 8 stands 4.09pt under the picture's foot in
+                // a, b, c, e and h; Normal text, no space before, at the foot in g. It is not a column's top.)
+                else if theme.wordRules, RichTextTheme.wordWindowsPages, pgs.pageFresh, pgs.page > 0, pgs.resumeCursor == nil, lead > 0.01, cursor <= top + 0.01,
+                        pgs.y >= 0.01, _cells[pgs.i] == nil, pgs.i > 0, _cells[pgs.i - 1] == nil,
+                        pgs.pictureBands.contains(where: { abs($0.bottom - pgs.y) < 0.01 }) {
+                    RuleTrace.hit("word-first-paragraph-under-a-page-picture-keeps-its-before-less-the-last-after")
+                    cursor = min(bottom, top + min(lead, _spacing(pgs.i - 1, document).after))
+                }
                 else if theme.wordRules, RichTextTheme.wordWindowsPages, document.compatibilityMode != nil, pgs.pageFresh, pgs.page > 0, pgs.resumeCursor == nil, lead > 0.01, cursor <= top + 0.01,
                         pgs.y >= 0.01, _cells[pgs.i] == nil, pgs.i == 0 || _cells[pgs.i - 1] == nil || _pages[pgs.page].isEmpty,
                         // (A heading with text under a table that stands on the page keeps its space before: xb jpn-z22306877's Heading1 under
@@ -2480,7 +2514,7 @@ extension RichLayout {
                 // frame 751pt under a margin of -338 twips, ends 6.6pt under
                 // the text's foot and stays on the cover in Word's print;
                 // ours took it, and a page of its own, to page 2.)
-                let placedFrame = theme.wordRules && ownFrame != nil && pgs.frameReturn?.page == pgs.page
+                let placedFrame = theme.wordRules && ((ownFrame != nil && pgs.frameReturn?.page == pgs.page) || pgs.parkedUnderBand == pgs.i)
                 // (Not into the footnotes: over a page's notes the line ends
                 // above them. zh-c15af02e's page 6, 45.7pt lines on a grid
                 // over a one-line note, holds thirteen in Word's print; the

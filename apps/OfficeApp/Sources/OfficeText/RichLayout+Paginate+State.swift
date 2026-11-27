@@ -25,6 +25,10 @@ struct _PState {
     var pinnedAnew: Bool = false
     var pushedAnew: Bool = false
     var bandPushLast: Int = -1
+    /// A one-line paragraph pushed under the band of its own page-placed picture that stays on the page past the foot.
+    var parkedUnderBand: Int = -1
+    /// A paragraph whose own page-placed picture bands the page down to its foot: keeping it with the next moves nothing.
+    var bandToFootOwner: Int = -1
     var bandPushDelta: Double = 0.0
     var bandPushPage: Int = -1
     var bandPushTop: Double = 0.0
