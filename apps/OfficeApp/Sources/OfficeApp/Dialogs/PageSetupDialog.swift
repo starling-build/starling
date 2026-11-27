@@ -45,6 +45,11 @@ struct PageSetupValues: Equatable {
     var width: Double, height: Double
     var top: Double, bottom: Double, left: Double, right: Double
     var header: Double, footer: Double
+    /// The binding gutter beside the left (inside) margin, and the section's vertical alignment of its text
+    /// (`w:vAlign`: nil top, "center", "both" justified, "bottom").
+    var gutter: Double, verticalAlign: String?
+    /// Multiple pages: Mirror margins (the document's `w:mirrorMargins`).
+    var mirror = false
     var allSections = false
     var options = RichDocumentController.PageOptions(titlePage: false, evenAndOdd: false, pageNumberStart: nil)
 
@@ -52,7 +57,10 @@ struct PageSetupValues: Equatable {
         width = p.width; height = p.height
         top = p.marginTop; bottom = p.marginBottom; left = p.marginLeft; right = p.marginRight
         header = p.headerDistance; footer = p.footerDistance
+        gutter = p.gutter; verticalAlign = p.verticalAlign
     }
+    /// The vertical alignments the Layout tab offers, as `w:vAlign` names them (nil: top).
+    static let verticalAlignments: [(id: String?, label: String)] = [(nil, "Top"), ("center", "Center"), ("both", "Justified"), ("bottom", "Bottom")]
     /// The separators between the chapter number and the page number, as `w:chapSep` names them.
     static let chapterSeparators: [(id: String, label: String)] = [
         ("hyphen", "- (hyphen)"), ("period", ". (period)"), ("colon", ": (colon)"), ("emDash", "\u{2014} (em dash)"), ("enDash", "\u{2013} (en dash)"),
@@ -73,12 +81,13 @@ struct PageSetupValues: Equatable {
         swap(&width, &height)
     }
     /// The text area must stay a usable size.
-    var valid: Bool { width - left - right >= 36 && height - top - bottom >= 36 && width >= 72 && height >= 72 }
+    var valid: Bool { width - left - right - gutter >= 36 && height - top - bottom >= 36 && width >= 72 && height >= 72 }
     func apply(to p: inout PageSetup) {
         let rotated = (p.width > p.height) != landscape
         p.width = width; p.height = height
         p.marginTop = top; p.marginBottom = bottom; p.marginLeft = left; p.marginRight = right
         p.headerDistance = header; p.footerDistance = footer
+        p.gutter = gutter; p.verticalAlign = verticalAlign
         if rotated { p.orientStated = true }
     }
 }
@@ -88,12 +97,13 @@ final class PageSetupDialog: StatefulWidget {
     let sectionCount: Int
     let unit: LengthUnit
     let options: RichDocumentController.PageOptions?
+    let mirrorMargins: Bool
     let onOK: (PageSetupValues) -> Void
     let onCancel: () -> Void
     init(initial: PageSetup, sectionCount: Int = 1, unit: LengthUnit = .inch, options: RichDocumentController.PageOptions? = nil,
-         onOK: @escaping (PageSetupValues) -> Void, onCancel: @escaping () -> Void) {
+         mirrorMargins: Bool = false, onOK: @escaping (PageSetupValues) -> Void, onCancel: @escaping () -> Void) {
         self.initial = initial; self.sectionCount = sectionCount; self.unit = unit; self.options = options
-        self.onOK = onOK; self.onCancel = onCancel
+        self.mirrorMargins = mirrorMargins; self.onOK = onOK; self.onCancel = onCancel
         super.init()
     }
     override func createState() -> State<StatefulWidget> { PageSetupDialogState() }
@@ -107,6 +117,7 @@ final class PageSetupDialogState: State<StatefulWidget> {
     override func initState() {
         super.initState()
         v = PageSetupValues(_w.initial)
+        v.mirror = _w.mirrorMargins
         if let o = _w.options { v.options = o; _startText.text = o.pageNumberStart.map(String.init) ?? "1" }
     }
 
@@ -150,15 +161,22 @@ final class PageSetupDialogState: State<StatefulWidget> {
                 spin("ps-top", "Top", v.top) { [weak self] n in self?.v.top = n },
                 spin("ps-bottom", "Bottom", v.bottom) { [weak self] n in self?.v.bottom = n },
             ]),
+            // (Facing pages name the left and right margins Inside and Outside, as Word's dialog does.)
             Row(children: [
-                spin("ps-left", "Left", v.left) { [weak self] n in self?.v.left = n },
-                spin("ps-right", "Right", v.right) { [weak self] n in self?.v.right = n },
+                spin("ps-left", v.mirror ? "Inside" : "Left", v.left) { [weak self] n in self?.v.left = n },
+                spin("ps-right", v.mirror ? "Outside" : "Right", v.right) { [weak self] n in self?.v.right = n },
             ]),
+            Row(children: [spin("ps-gutter", "Gutter", v.gutter) { [weak self] n in self?.v.gutter = n }]),
             Row(children: [
                 spin("ps-header", "Header from top", v.header) { [weak self] n in self?.v.header = n },
                 spin("ps-footer", "Footer from bottom", v.footer) { [weak self] n in self?.v.footer = n },
             ]),
-            orientation, applyTo, warning,
+            orientation,
+            row("Multiple pages", [
+                choice("ps-normal", "Normal", !v.mirror) { [weak self] in self?.setState { self?.v.mirror = false } },
+                choice("ps-mirror", "Mirror margins", v.mirror) { [weak self] in self?.setState { self?.v.mirror = true } },
+            ]),
+            applyTo, warning,
         ])
         let paper = Column(crossAxisAlignment: .start, children: [
             row("Paper size", PaperSize.allCases.prefix(3).map { s in
@@ -211,6 +229,9 @@ final class PageSetupDialogState: State<StatefulWidget> {
                             // Hyphen on a file that names none stays unnamed.
                             self?.setState { self?.v.options.chapterSeparator = sep == "hyphen" && self?.v.options.chapterSeparator == nil ? nil : sep } }))),
                 ]),
+            row("Vertical", PageSetupValues.verticalAlignments.map { a in
+                choice("ps-valign-\(a.id ?? "top")", a.label, v.verticalAlign == a.id) { [weak self] in
+                    self?.setState { self?.v.verticalAlign = a.id } } }),
             applyTo,
         ])
         var tabs = [DialogTab(title: "Margins", page: margins), DialogTab(title: "Paper", page: paper)]

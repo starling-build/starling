@@ -74,6 +74,30 @@ final class PageSetupDialogTests: XCTestCase {
         XCTAssertEqual(s.pageSetup, before)
     }
 
+    /// W-PG-1: Mirror margins on the Margins tab (Left and Right become Inside and Outside) and the vertical
+    /// alignment on the Layout tab, applied by OK as one undo step.
+    func testMirrorMarginsAndVerticalAlignmentAreOneStep() throws {
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(1280, 800))
+        let s = ui.state(OfficeShellState.self)!.session
+        s.onPageSetupDialog?(); ui.pump()
+        XCTAssertTrue(ui.has(id: "ps-gutter"))
+        XCTAssertFalse(ui.has(text: "Inside"))
+        XCTAssertTrue(ui.tap(id: "ps-mirror"))
+        XCTAssertTrue(ui.has(text: "Inside") && ui.has(text: "Outside"), "facing pages name the margins inside and outside")
+        let tab = ui.elements().last { ($0.widget as? Text)?.data == "Layout" }?.findRenderObject() as? RenderBox
+        let box = try XCTUnwrap(tab)
+        ui.tap(at: box.localToGlobal(Offset(box.size.width / 2, box.size.height / 2))); ui.pump()
+        XCTAssertTrue(ui.tap(id: "ps-valign-center"))
+        ui.press(.enter); ui.pump()
+        XCTAssertFalse(ui.has(id: "ps-valign-center"), "the dialog closed")
+        XCTAssertTrue(s.controller.mirrorMargins)
+        XCTAssertEqual(s.pageSetup.verticalAlign, "center")
+        s.controller.undo(); s.syncPageSetup()
+        XCTAssertFalse(s.controller.mirrorMargins)
+        XCTAssertNil(s.pageSetup.verticalAlign)
+        XCTAssertFalse(s.controller.canUndo, "one step")
+    }
+
     /// W-HF-2: the Layout tab's page number format.
     func testTheLayoutTabSetsThePageNumberFormat() throws {
         let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(1280, 800))
