@@ -14,6 +14,8 @@ public final class AtspiAccessibility: @unchecked Sendable {
     /// The window's top-left on the screen, when the app knows it (a Wayland client does not; the shell can say).
     public nonisolated(unsafe) static var windowOrigin: (() -> (x: Int, y: Int)?)? = nil
     private nonisolated(unsafe) static var started = false
+    /// Set while `stop` waits: a snapshot asked for then answers empty without a hop to the main thread.
+    private nonisolated(unsafe) static var stopping = false
     /// The last snapshot's nodes, so a press by index runs the handler it described. Main thread only.
     private nonisolated(unsafe) static var last: [SemanticsSnapshotNode] = []
 
@@ -56,6 +58,23 @@ public final class AtspiAccessibility: @unchecked Sendable {
         return rc
     }
 
+    /// Leaves the accessibility bus: no more snapshots, events or announcements. `start` may be called again.
+    public static func stop() {
+        guard started else { return }
+        ScreenReader.sink = nil
+        stopping = true
+        atspi_bridge_stop()
+        // The serving thread may be waiting on this thread for a snapshot: keep the main queue turning until it is gone.
+        let end = Date().addingTimeInterval(5)
+        while atspi_bridge_running() != 0 && Date() < end {
+            if Thread.isMainThread { RunLoop.current.run(until: Date().addingTimeInterval(0.02)) } else { usleep(20_000) }
+        }
+        stopping = false
+        started = false
+        rootElementProvider = nil
+        last = []
+    }
+
     public static func busName() -> String? {
         atspi_bridge_bus_name().map { String(cString: $0) }
     }
@@ -65,6 +84,7 @@ public final class AtspiAccessibility: @unchecked Sendable {
     }
 
     private static func snapshotForBridge(_ out: UnsafeMutablePointer<UnsafeMutablePointer<atspi_bridge_node>?>?) -> Int32 {
+        if stopping { return 0 }
         let nodes: [SemanticsSnapshotNode] = onMain {
             guard let root = rootElementProvider?() else { last = []; return [] }
             last = SemanticsSnapshot.build(from: root).filter { !$0.label.isEmpty || $0.isTextField }
