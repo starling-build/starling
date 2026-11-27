@@ -820,6 +820,10 @@ public struct RichParagraphStyle: Hashable, Codable, Sendable {
     /// sheet, under any direct formatting.
     public var named: String? = nil
     public var pageBreakBefore = false
+    /// W-FD-2: the paragraph opens a table of contents field (the instruction, `TOC \o "1-3" \h`); its entries are the
+    /// paragraphs up to the one that `contentsEnd` closes. Written back as the field so Word can update it.
+    public var contentsStart: String? = nil
+    public var contentsEnd = false
     /// The page break is a break character at the paragraph's start
     /// (Word's `w:br w:type="page"` in its first run), not the paragraph
     /// property: laid out the same here, written back as it was — Word

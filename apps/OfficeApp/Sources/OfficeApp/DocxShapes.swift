@@ -366,6 +366,9 @@ extension DocxFormat {
                 }
                 para.inlineImages = inlineImages
             }
+            para.style.contentsStart = notes.contentsStart
+            para.style.contentsEnd = notes.contentsEnd
+            notes.contentsStart = nil; notes.contentsEnd = false
             para.style.positionalTabs = positionalTabs
             para.style.clearsFirstLine = clearsFirstLine
             clearsFirstLine = false
@@ -1600,6 +1603,7 @@ extension DocxFormat {
                                              properties: child.attrs.filter { $0.key == "w:fldLock" || $0.key == "w:dirty" })); notes.fieldShown = false
                     case "separate": if !notes.fields.isEmpty { notes.fields[notes.fields.count - 1].result = true }
                     case "end":
+                        if notes.fields.count == 1, let f = notes.fields.last, f.instr.uppercased().trimmingWhitespace(newlines: true).hasPrefix("TOC") { notes.contentsEnd = true }
                         if notes.fields.count >= 2, let f = notes.fields.last {
                             let word = f.instr.trimmingWhitespace(newlines: true).uppercased().split(separator: " ").first.map(String.init) ?? ""
                             if word == "PAGE" || word == "NUMPAGES" { notes.nestedPageFields.insert(word) }
@@ -1695,6 +1699,9 @@ extension DocxFormat {
                         addText(child.text, cs)
                     } else if let f = notes.fields.last, !f.result {
                         notes.fields[notes.fields.count - 1].instr += child.text
+                        if notes.fields.count == 1, notes.fields[0].instr.uppercased().trimmingWhitespace(newlines: true).hasPrefix("TOC") {
+                            notes.contentsStart = notes.fields[0].instr.trimmingWhitespace(newlines: true)
+                        }
                         if notes.fieldCodeStyle[f.id] == nil, !child.text.trimmingWhitespace(newlines: true).isEmpty { notes.fieldCodeStyle[f.id] = cs }
                         if !child.text.trimmingWhitespace(newlines: true).isEmpty { notes.fieldLastCodeStyle[f.id] = cs }
                     }

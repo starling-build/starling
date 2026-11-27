@@ -1682,6 +1682,8 @@ extension DocxFormat {
         var nestedPageFields: Set<String> = []
         var lastTextFamily: String? = nil   // the face of the last plain (non-field) text run, for an eq ring that names none
         var fieldCount = 0
+        var contentsStart: String? = nil   // W-FD-2: the TOC instruction opened in the paragraph being read
+        var contentsEnd = false
         /// Every style's name, lowercased, and the fields whose STYLEREF
         /// error has been written: a STYLEREF naming no style prints Word's
         /// error, not the result it was saved with.

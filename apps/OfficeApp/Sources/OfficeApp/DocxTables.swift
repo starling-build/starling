@@ -1336,6 +1336,10 @@ extension DocxFormat {
             if !markRPr.isEmpty { pPr += "<w:rPr>\(markRPr)</w:rPr>" }
             if let sect = p.style.sectionXML, p.cell == nil, index < doc.paragraphs.count - 1 { pPr += keptFragmentXML(Self._sectionXML(sect, patchedTo: p.style.sectionPage), p.style.sectionRels) }
             body += "<w:p\(p.id != 0 ? " w14:paraId=\"\(_paraIdHex(p.id))\"" : "")><w:pPr>\(pPr)</w:pPr>"
+            // W-FD-2: the table of contents field opens in this paragraph; its entries are the paragraphs that follow.
+            if let toc = p.style.contentsStart {
+                body += "<w:r><w:fldChar w:fldCharType=\"begin\"/></w:r><w:r><w:instrText xml:space=\"preserve\"> \(_esc(toc)) </w:instrText></w:r><w:r><w:fldChar w:fldCharType=\"separate\"/></w:r>"
+            }
             for name in p.bookmarks where !rangedBookmarkNames.contains(name) && writtenBookmarks.insert(name).inserted {
                 // (Numbered clear of any a kept table's own XML carries.)
                 repeat { nextPointBookmarkID += 1 } while rangedBookmarkIDs.contains(String(nextPointBookmarkID)) || takenAnnotationIDs.contains(nextPointBookmarkID)
@@ -1554,6 +1558,7 @@ extension DocxFormat {
                 body += "<w:r>\(next.breakRunPropertiesXML ?? "")<w:br w:type=\"\(next.columnBreak ? "column" : "page")\"/></w:r>"
             }
             if commentsKept, index == doc.paragraphs.count - 1 { body += closeComments(except: []) }
+            if p.style.contentsEnd { body += "<w:r><w:fldChar w:fldCharType=\"end\"/></w:r>" }
             body += "</w:p>"
             return body
         }
@@ -1900,6 +1905,20 @@ extension DocxFormat {
            doc.paragraphs.contains(where: { $0.cell?.fillThemeAttrs != nil || $0.cell?.bordersXML?.containsSubstring("w:themeColor=") == true }) {
             keptAll["word/theme/theme1.xml"] = Data(_defaultThemePart().utf8)
         }
+        // A document made here has no properties part: write the core and extended properties Word expects, so the
+        // author, title and subject fields have somewhere to read from and the file says when it was saved.
+        var rootRelsExtra = doc.keptRootRels
+        if keptAll["docProps/core.xml"] == nil, !doc.keptRootRels.contains(where: { $0.target == "docProps/core.xml" }) {
+            let c = FieldClock.current()
+            func two(_ n: Int) -> String { n < 10 ? "0\(n)" : String(n) }
+            let stamp = c.map { "\($0.year)-\(two($0.month))-\(two($0.day))T\(two($0.hour)):\(two($0.minute)):\(two($0.second))Z" } ?? "2000-01-01T00:00:00Z"
+            keptAll["docProps/core.xml"] = Data(("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<cp:coreProperties xmlns:cp=\"http://schemas.openxmlformats.org/package/2006/metadata/core-properties\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:dcterms=\"http://purl.org/dc/terms/\" xmlns:dcmitype=\"http://purl.org/dc/dcmitype/\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"><dc:creator></dc:creator><cp:lastModifiedBy></cp:lastModifiedBy>"
+                + "<dcterms:created xsi:type=\"dcterms:W3CDTF\">\(stamp)</dcterms:created><dcterms:modified xsi:type=\"dcterms:W3CDTF\">\(stamp)</dcterms:modified></cp:coreProperties>").utf8)
+            keptAll["docProps/app.xml"] = Data("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<Properties xmlns=\"http://schemas.openxmlformats.org/officeDocument/2006/extended-properties\"><Application>Starling Office</Application></Properties>".utf8)
+            extraOverrides += "<Override PartName=\"/docProps/core.xml\" ContentType=\"application/vnd.openxmlformats-package.core-properties+xml\"/><Override PartName=\"/docProps/app.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.extended-properties+xml\"/>"
+            rootRelsExtra.append(KeptRel(id: "", type: "http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties", target: "docProps/core.xml", external: false))
+            rootRelsExtra.append(KeptRel(id: "", type: "http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties", target: "docProps/app.xml", external: false))
+        }
         for (name, data) in keptAll.sorted(by: { $0.key < $1.key }) where !written.contains(name) && !orphanMedia(name) && name != "word/settings.xml" {
             extraParts.append(ZipEntry(name: name, data: data))
             switch name {
@@ -2000,7 +2019,7 @@ extension DocxFormat {
 
         let entries: [ZipEntry] = [
             ZipEntry(name: "[Content_Types].xml", data: Data(contentTypes.utf8)),
-            ZipEntry(name: "_rels/.rels", data: Data(_rootRels.replacingAll("</Relationships>", with: doc.keptRootRels.enumerated().map { i, r in
+            ZipEntry(name: "_rels/.rels", data: Data(_rootRels.replacingAll("</Relationships>", with: rootRelsExtra.enumerated().map { i, r in
                 "<Relationship Id=\"rIdPkg\(i + 1)\" Type=\"\(_esc(r.type))\" Target=\"\(_esc(r.target))\"\(r.external ? " TargetMode=\"External\"" : "")/>"
             }.joined() + "</Relationships>").utf8)),
             ZipEntry(name: "word/document.xml", data: Data(document.utf8)),
