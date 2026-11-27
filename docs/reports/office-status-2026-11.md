@@ -253,9 +253,14 @@ Writer, from the scores of section 3.2 grouped by document property
 | Right-to-left paragraphs | 256 | 73.0 |
 | Equations | 48 | 86.7 |
 | Endnotes | 156 | 87.1 |
+| WordArt | 55 | 89.1 |
 | Footnotes | 327 | 89.2 |
-| WordArt | 300 | 89.5 |
 | Content controls | 201 | 89.8 |
+
+The WordArt row first read 300 documents at 89.5: the tool counted every
+text box as WordArt (the plain `textNoShape` warp each one carries). Corrected
+2026-11-27; no other row changed. The 55 are nearly all text watermarks,
+which Starling draws as Word does; their low scores come from other causes.
 
 Every other property measured sits at 90 or above. Open items on the board
 (`docs/plans/board/`), each with a measured cause or lab data:
@@ -422,7 +427,7 @@ Where the data shows **no** extra difference, or LibreOffice is closer:
 
 - Cyrillic documents (295): gap 26.6, well under the average 45.
 - In the font-controlled group, nested tables (27 documents, LibreOffice
-  87.5), floating tables (82, 85.7), WordArt (47, 81.3) and documents in
+  87.5), floating tables (82, 85.7) and documents in
   an older compatibility mode (112, 86.8) show a smaller gap than average.
 - LibreOffice scores higher than Starling on 95 documents, 70 of them in
   `dx2`, by a median of 13 points. 11 of the 95 are right-to-left.

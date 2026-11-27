@@ -1199,7 +1199,7 @@ extension RichLayout {
     /// widths; ours stood the line's middle on the indent.
     func _edgeShift(_ table: String, _ document: RichDocument) -> Double {
         guard theme.wordRules, let ts = document.tableStyles[table], ts.cellSpacing == nil, ts.floatX == nil,
-              (document.compatibilityMode ?? 12) >= 15 || (RichTextTheme.wordWindowsPages && ts.inWrapperCell) else { return 0 }
+              (document.compatibilityMode ?? 12) >= 15 || (RichTextTheme.wordWindowsPages && (ts.inWrapperCell || _nestedBlock)) else { return 0 }
         let ruled = ts.edges?.left ?? (ts.borders && !ts.bordersFromCells)
         // (A first column whose cells state a wider line of their own
         // stands by that: zh-e329b438's "Table Grid" (0.5pt) with 1.5pt
@@ -1503,7 +1503,17 @@ extension RichLayout {
                     // 1444 + 5159 twips whose cells say 727 and 4273 of 5000:
                     // its first column is 48.0pt in Word's print, not 72.2.)
                     if theme.wordRules, RichTextTheme.wordWindowsPages, _nestedBlock, ts.widthPercent != nil, ts.columnPercents.count == base.count, base.count > 1 {
-                        widths[c.table] = _pctColumns(c.table, widths[c.table] ?? base, ts, document)
+                        // (Its left rule's middle half the rule in from the cell's text, as `_edgeShift` sets it, and its right
+                        // where it was: the columns share the room right of that middle. lo-5c5eb1f7's 99.94% form in a floating
+                        // table's cell, 0.5pt rules, no compat mode: lines at 103.82 and 433.66 in Word's print, its first
+                        // column's 48.0; ours stood at 103.52 and 433.67, and its second cell kept an "Above" Word wraps.)
+                        var from = widths[c.table] ?? base
+                        let shift = _edgeShift(c.table, document)
+                        if shift > 0, (document.compatibilityMode ?? 0) < 15, let last = from.indices.last, from[last] > shift {
+                            RuleTrace.hit("nested-share-table-columns-from-its-left-rules-middle")
+                            from[last] -= shift
+                        }
+                        widths[c.table] = _pctColumns(c.table, from, ts, document)
                     }
                     if let out = _pctOverHundred(c.table, count: base.count, ts: ts, width: width, document: document) { widths[c.table] = out }
                 } else if theme.wordRules, _columnPreview[c.table] == nil, let ts = document.tableStyles[c.table],
@@ -2742,7 +2752,7 @@ extension RichLayout {
                 if box.growsToFit, let inside = _textBox(image, document) { first = inside.layout._narrowestTables(inside.document) }
             } else {
                 let room = _pictureRoom(image)
-                first = _px(image.width + image.strokeReach) + room.left + room.right
+                first = _px(image.width) + room.left + room.right
             }
             opening = first
         }
@@ -3873,6 +3883,24 @@ extension RichLayout {
     /// The grid's half of the room under a paragraph's first line's text,
     /// px: by the face of its first characters (not a box's place, nor
     /// the smallest on the line, `_overhang`). 0 off the grid.
+    /// The grid height of the paragraph's first text, or of its mark when it has no text (its anchors' line), in px.
+    func _firstLineGridHeight(_ i: Int, _ document: RichDocument) -> Double {
+        let p = document.paragraphs[i]
+        guard theme.wordRules, p.image == nil, p.cell == nil, p.style.eastAsian["w:snapToGrid"] != "0",
+              let pitch = _grid(i, document).pitch else { return 0 }
+        var at = p.text.startIndex
+        for run in p.runs {
+            let end = p.text.utf16.index(at, offsetBy: run.length, limitedBy: p.text.endIndex) ?? p.text.endIndex
+            let text = p.text[at ..< end]
+            at = end
+            guard text.contains(where: { !$0.isWhitespace && $0 != "\u{FFFC}" }) else { continue }
+            let ea = text.contains { Self.isEastAsian($0, hinted: false) }
+            return _px(theme.gridLineHeight(for: run.style, in: p.style, named: _named(p, document), eastAsian: ea, gridPitch: pitch))
+        }
+        guard let style = p.style.mark ?? p.runs.first?.style else { return 0 }
+        return _px(theme.gridLineHeight(for: style, in: p.style, named: _named(p, document), eastAsian: true, gridPitch: pitch))
+    }
+
     func _firstLineGridHalf(_ i: Int, _ document: RichDocument) -> Double {
         let p = document.paragraphs[i]
         guard theme.wordRules, p.image == nil, p.cell == nil, p.style.eastAsian["w:snapToGrid"] != "0",

@@ -1383,6 +1383,25 @@ extension RichLayout {
                     probe.layout(minWidth: 0, maxWidth: .infinity)
                     rise = probe.computeDistanceToActualBaseline(.alphabetic)
                     probe.dispose()
+                    // (In the level's own face where it names one Word knows: a hyphen bullet in bold 12pt Calibri over Arial 11 stands the first
+                    // line on Calibri's ascent, 13.80 to the next item in Word's print (lab blift), where Arial's at 12pt made 13.59; Times 14 15.41,
+                    // Arial 14 15.48. The probe above measures the text's face at the bullet's size. The text's own raise stays on top:
+                    // dx2 c96f6a72's text is raised 0.5pt (w:position 1), and its 10.5pt Arial numbers stand that much higher in Word's print.
+                    // Lines set closer than single keep the probe's rise, which shrinks with them: c96f6a72's "a)" items at 0.69 lines.)
+                    if theme.wordRules, RichTextTheme.wordWindowsPages, p.style.lineHeightPoints == nil, p.style.lineSpacing > 0.999,
+                       let rise0 = rise, let family = _levelNumberFonts(p, document).latin,
+                       !p.text.unicodeScalars.contains(where: { Self.isEastAsian(Character($0), hinted: false) }),
+                       let above = _wordFaceAscent(family, leadChar, p, named, document, scale, fontScale) {
+                        var flat = leadChar
+                        flat.raised = nil
+                        let bare = TextPainter(text: TextSpan(text: "\u{200B}", style: theme.textStyle(for: flat, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale, gridPitch: pitch)),
+                                               textDirection: .ltr)
+                        bare.layout(minWidth: 0, maxWidth: .infinity)
+                        let lift = rise0 - bare.computeDistanceToActualBaseline(.alphabetic)
+                        bare.dispose()
+                        RuleTrace.hit("word-larger-number-stands-on-its-own-faces-ascent")
+                        rise = above + lift
+                    }
                 }
             }
             // (A number in a face of its own, at the text's size and taller above its baseline
@@ -1414,7 +1433,21 @@ extension RichLayout {
                     // (The number's ascent over the text's is measured at the number's OWN size when it sets one, smaller or not: lab lblcal1 G,
                     // a 9pt Calibri number over 11pt Times stands level with a plain item in Word's print.)
                     let numberSize = _levelNumberSize(p, document).map { _px($0) * fontScale } ?? size
-                    if let numberBase = theme.faceResolver?(family, false)?.baseline, let textBase = theme.faceResolver?(textFace, false)?.baseline,
+                    // (Where Word's table knows both faces, their Windows ascents with external leading: a Calibri 11 hyphen over Arial 11
+                    // stands 12.80 to the next item in Word's print (lab blift cal11), 0.15 over Arial's 12.65, where the resolver's
+                    // Calibri baseline 0.9625 made 12.95.)
+                    var numberChar = firstLook
+                    numberChar.fontSize = _levelNumberSize(p, document) ?? firstLook.fontSize
+                    // (A right-to-left paragraph draws its number in its complex-script face, not the w:ascii one read here: it keeps the
+                    // resolver's baselines — dx2 332dea9a's Arial dashes in Persian items over B Nazanin.)
+                    if let textFace, RichTextTheme.wordWindowsPages, !p.style.rightToLeft,
+                       let numberUp = _wordFaceAscent(family, numberChar, p, named, document, scale, fontScale, natural: true),
+                       let textUp = _wordFaceAscent(textFace, firstLook, p, named, document, scale, fontScale, natural: true) {
+                        if numberUp - textUp > 0.5 {
+                            RuleTrace.hit("word-number-face-taller-above-the-baseline-lifts-the-first-line")
+                            rise = numberUp
+                        }
+                    } else if let numberBase = theme.faceResolver?(family, false)?.baseline, let textBase = theme.faceResolver?(textFace, false)?.baseline,
                        numberBase * numberSize - textBase * size > 0.5 {
                         RuleTrace.hit("word-number-face-taller-above-the-baseline-lifts-the-first-line")
                         rise = numberBase * numberSize
@@ -3258,5 +3291,36 @@ extension RichLayout {
             frac = fracs[i] + (fracs[i + 1] - fracs[i]) * (pt - sizes[i]) / (sizes[i + 1] - sizes[i])
         }
         return (max(0, sh.blur - sh.dy) * frac, max(0, sh.blur + sh.dy) * frac)
+    }
+}
+
+extension RichLayout {
+    /// How far above its baseline Word stands a line of `family` at `char`'s size, in layout units: the face's Windows ascent and,
+    /// above it, what its `hhea` line holds beyond the Windows ascent and descent (Arial's 67 units, Times's 87, Calibri's none):
+    /// Arial 0.938 em, Times 0.9335, Calibri 0.952 (lab blift: hyphen bullets in each face over Arial 11). nil where the face's
+    /// Windows metrics are not known.
+    func _wordFaceAscent(_ family: String, _ char: CharStyle, _ p: RichParagraph, _ named: RichNamedStyle?, _ document: RichDocument,
+                         _ scale: Double, _ fontScale: Double, natural: Bool = false) -> Double? {
+        guard let box = theme.winLineBox?(family), let share = theme.winDescent?(family), box > 0 else { return nil }
+        var look = char
+        look.fontFamily = family
+        let style = theme.textStyle(for: look, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale)
+        guard let size = style.fontSize, size > 0.5 else { return nil }
+        // (The probe's line keeps the paragraph's spacing, as the caller's text probe does: a multiple over single adds above.)
+        // (`natural`: the face's own line, no spacing.)
+        let probe = TextPainter(text: TextSpan(text: "x", style: natural ? TextStyle(fontSize: size, fontWeight: style.fontWeight, fontStyle: style.fontStyle,
+                                                                                    fontFamily: style.fontFamily) : style), textDirection: .ltr)
+        probe.layout(minWidth: 0, maxWidth: .infinity)
+        let line = probe.computeLineMetrics().first?.height
+        probe.dispose()
+        guard let line else { return nil }
+        // (The ascent is the face's own Windows ascent where known: the box may be the stand-in file's, and its split by the
+        // descent share then misplaces it — Tahoma's 1.0005 came out 0.959, Segoe UI's 1.079 as 0.939.)
+        // (The leading above it is what the line holds beyond the face's own win box, the same table's ascent and descent: sa1
+        // 508b647e's Tahoma dashes over Times 12 stand 0.8 over a plain line in Word's print, the stand-in's box made 1.6.)
+        let ascent = theme.winAscent?(family) ?? box * (1 - share)
+        let ownBox = theme.winAscent?(family).map { share < 1 ? $0 / (1 - share) : box } ?? box
+        let above = (ascent + max(0, line / size - ownBox)) * size
+        return above
     }
 }

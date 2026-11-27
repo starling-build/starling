@@ -20,6 +20,7 @@ enum OfficeLayoutDump {
         theme.averageCharWidth = OfficeFonts.averageCharWidth
         theme.winLineBox = OfficeFonts.standInWinBox
         theme.winDescent = { name in name.flatMap { n in SheetPrintMetrics.descent(family: n).flatMap { d in SheetPrintMetrics.ascent(family: n).map { d / ($0 + d) } } } }
+        theme.winAscent = { name in name.flatMap { SheetPrintMetrics.ascent(family: $0) } }
         theme.symbolGlyphs = { face, text in face.map { Metafile.symbols(text, face: $0) } ?? text }
         theme.isSymbolFace = { Metafile.isSymbolFace($0) }
         theme.symbolAdvance = Metafile.symbolAdvance

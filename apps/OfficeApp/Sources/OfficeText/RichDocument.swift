@@ -1296,10 +1296,6 @@ public struct ImageAttachment: Hashable, Codable, Sendable {
     /// An inline equation's base size in points (the 1.1733 em line the multiple spacing takes under it).
     public var mathSize = 0.0
     public var effectBottom = 0.0
-    /// How far past its box an autofit table column holds an inline VML
-    /// shape, in points: its stroke, at least 1.5 (0 unstroked). Read with
-    /// the file, not saved.
-    public var strokeReach = 0.0
     /// For an object anchored to its paragraph rather than standing in
     /// the line (Word's `wp:anchor`): where it floats. The text makes no
     /// room for it in the line, and none above and below unless it

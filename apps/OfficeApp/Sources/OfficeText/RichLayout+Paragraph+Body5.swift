@@ -265,7 +265,10 @@ extension _ParaFrame {
                 RuleTrace.hit("word-line-of-spaces-steps-clear-of-its-float-by-the-single-line")
                 return max(0, first.top + k * step - self.before)
             }
+            // (Only a line taller than one grid pitch steps: lab anchpush, 10.5 pt Yu Mincho on an 18 pt grid under a picture of
+            // any height from 200 to 519 pt, stands its line at the foot in Word's prints, baseline 12.8 under it.)
             guard RichTextTheme.wordWindowsPages, self.style.lineHeightPoints == nil, case let half = self._firstLineGridHalf(self.i, self.document), half > 0.01,
+                  let pitch = self._grid(self.i, self.document).pitch, self._firstLineGridHeight(self.i, self.document) > self._px(pitch) + 0.5,
                   case let step = first.line - half + self.before, step > 1 else { return foot }
             let k = max(0, ((foot - half - first.top) / step - 0.001).rounded(.up))
             return max(0, first.top + k * step - self.before)

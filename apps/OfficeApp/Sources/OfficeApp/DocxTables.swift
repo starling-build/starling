@@ -491,7 +491,11 @@ extension DocxFormat {
                 let g = XNode(name: child.name, attrs: child.attrs)
                 g.children = child.children.filter { $0.name != "w:gridCol" } + child.children.filter { $0.name == "w:gridCol" }.reversed()
                 copy.children.append(g)
-            } else if child.name == "w:tr", child.children.allSatisfy({ ["w:tc", "w:trPr", "w:tblPrEx"].contains($0.name) }) {
+            // (Range marks between cells hold no content and do not stop the mirror: xs d8ed42027c09's "Child's Name" row has a
+            // w:bookmarkStart before its fourth cell, and its cells ran left to right while the rest of the table ran right to left.)
+            } else if child.name == "w:tr", child.children.allSatisfy({ ["w:tc", "w:trPr", "w:tblPrEx", "w:bookmarkStart", "w:bookmarkEnd",
+                                                                         "w:proofErr", "w:permStart", "w:permEnd", "w:commentRangeStart",
+                                                                         "w:commentRangeEnd"].contains($0.name) }) {
                 let r = XNode(name: child.name, attrs: child.attrs)
                 r.children = child.children.filter { $0.name != "w:tc" && $0.name != "w:trPr" } + child.children.filter { $0.name == "w:tc" }.reversed()
                 // The cells run the other way, so the unused grid columns before and after them trade places.
