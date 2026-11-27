@@ -3428,8 +3428,9 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             tp = texts.richLine(ls.enumerated().flatMap { i, l in (i > 0 ? [("\n", parts[0].style)] : []) + l }, align: lineAlign, maxWidth: room)
         }
         // Shrink to fit: text or a number too wide for its cell is drawn in a
-        // smaller size that fits it on one line (a wrapped cell wraps instead).
-        if st.shrink, !st.wrap, richLns.isEmpty {
+        // smaller size that fits it on one line (a wrapped cell wraps instead; stacked
+        // text, rotation 255, keeps its size: Excel's print of ja-d1991e42bf).
+        if st.shrink, !st.wrap, st.rotation == 0, richLns.isEmpty {
             let room = width - pad * 2 - inset
             if room > 0, lead + tp.width > room {
                 let k = room / (lead + tp.width)

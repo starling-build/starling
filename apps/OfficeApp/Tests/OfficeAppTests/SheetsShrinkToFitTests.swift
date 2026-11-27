@@ -49,6 +49,15 @@ final class SheetsShrinkToFitTests: XCTestCase {
         XCTAssertEqual(drawn(c), wrapped)
     }
 
+    func testStackedTextKeepsItsSize() throws {
+        let c = WorkbookController()
+        c.setInputs([(CellAddress("A1")!, "届出を行う事業所の状況")])
+        c.setStyle({ $0.rotation = 255 }, range: CellRange("A1")!)
+        let full = drawnHeights(c)
+        c.setStyle({ $0.shrink = true }, range: CellRange("A1")!)
+        XCTAssertEqual(drawnHeights(c), full)
+    }
+
     func testShrinkSurvivesAnXlsxRoundTrip() throws {
         let c = WorkbookController()
         c.setInputs([(CellAddress("A1")!, "long text here"), (CellAddress("B1")!, "plain")])
