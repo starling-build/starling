@@ -2116,6 +2116,7 @@ final class SlidesShellState: State<StatefulWidget> {
         let picked = Set(deck.selectedSlides)
         func makeTile(_ i: Int, _ slide: Slide) {
             let current = picked.contains(i)
+            let activate: () -> Void = { [weak self] in self?.deck.selectSlide(i); self?._deckFocus.requestFocus() }
             let dropHere = _sorterDrag.map { $0.moved && $0.to == i && $0.to != $0.from } ?? false
             let dropBefore = dropHere && _sorterDrag!.to < _sorterDrag!.from
             let bar = Positioned(left: dropBefore ? 3 : nil, top: 12, right: dropBefore ? nil : 3, width: 5, height: h + 8,
@@ -2132,7 +2133,10 @@ final class SlidesShellState: State<StatefulWidget> {
                   self?._sorterUp()
               },
               behavior: .translucent,
-            child: KeyboardRow(label: "Slide \(i + 1)", activate: { [weak self] in self?.deck.selectSlide(i); self?._deckFocus.requestFocus() }, child: GestureDetector(
+            // A reader hears "Slide 3, hidden, selected", not the bare number under the picture.
+            child: KeyboardRow(label: "Slide \(i + 1)", activate: activate, child: Semantics(
+                label: "Slide \(i + 1)" + (slide.hidden ? ", hidden" : ""), selected: current, onTap: activate,
+                excludeSemantics: true, child: GestureDetector(
                 key: ValueKey("slide.tile.\(i)"),
                 onTap: { [weak self] in
                     guard let self else { return }
@@ -2163,7 +2167,7 @@ final class SlidesShellState: State<StatefulWidget> {
                                 child: SizedBox(expand: ()))))))),
                     Chrome.vgap(4),
                     Text("\(i + 1)\(slide.hidden ? "  (hidden)" : "")", style: fluent.typography.caption),
-                ])), bar])))))
+                ])), bar]))))))
         }
         if deck.sections.isEmpty {
             for (i, slide) in deck.slides.enumerated() { makeTile(i, slide) }
