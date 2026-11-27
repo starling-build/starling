@@ -39,8 +39,8 @@ def find_doc(arg):
     stem = arg[:-5] if arg.endswith(".docx") else arg
     hits = []
     for d in glob.glob("/data/corpus-cache/staging/*/docs") + ["/data/corpus-cache/test/corpus/docx",
-                                                                os.path.join(os.getcwd(), "test/corpus/docx"),
-                                                                os.path.join(os.getcwd(), "lab")]:
+                                                                os.path.join(repo_top(), "test/corpus/docx"),
+                                                                os.path.join(repo_top(), "lab")]:
         hits += glob.glob(os.path.join(d, "**", stem + "*.docx"), recursive=True)
     hits = sorted(set(hits))
     if not hits:
@@ -80,12 +80,34 @@ def repo_top():
     return os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 
 
-def engine_out():
-    for c in [os.path.join(os.getcwd(), "engine/src/out/host_release"), os.path.join(repo_top(), "engine/src/out/host_release"),
-              "/data/s/amd-10/starling/engine/src/out/host_release"]:
+def roots(binpath):
+    """The checkouts a render takes its engine and clock from: the one the
+    binary was built in, then this script's. Never the working folder: run
+    from another session's clone, wordcmp rendered with that clone's engine
+    and scored the same binary differently (amd-4, 2026-11-26)."""
+    out, d = [], os.path.dirname(os.path.realpath(binpath))
+    while d != "/":
+        if os.path.isdir(os.path.join(d, "engine/src/out/host_release")):
+            out.append(d)
+            break
+        d = os.path.dirname(d)
+    return out + [repo_top(), "/data/s/amd-10/starling"]
+
+
+def engine_out(binpath):
+    for r in roots(binpath):
+        c = os.path.join(r, "engine/src/out/host_release")
         if os.path.isdir(c):
             return os.path.realpath(c)
     die("no engine out dir for the render env")
+
+
+def clock_table(binpath):
+    for r in roots(binpath):
+        c = os.path.join(r, "test/corpus/docx/clock.tsv")
+        if os.path.isfile(c):
+            return c
+    return None
 
 
 def file_key(p):
@@ -108,17 +130,17 @@ def doc_key(p):
 
 def render(binpath, doc):
     os.makedirs(CACHE, exist_ok=True)
-    out = os.path.join(CACHE, "%s-%s.pdf" % (file_key(binpath), doc_key(doc)))
+    eo, clock = engine_out(binpath), clock_table(binpath)
+    # (The engine and the clock are in the key too: a render made with
+    # another engine is another render.)
+    env_key = hashlib.sha1((eo + "\0" + (open(clock, "rb").read().decode(errors="replace") if clock else "")).encode()).hexdigest()[:8]
+    out = os.path.join(CACHE, "%s-%s-%s.pdf" % (file_key(binpath), env_key, doc_key(doc)))
     if os.path.isfile(out) and os.path.getsize(out) > 0:
         return out
-    eo = engine_out()
     env = dict(os.environ, OFFICE_FONT_SOURCE="bundled", OFFICE_WORD_FONTS="windows", STARLING_ICU=eo + "/icudtl.dat",
                STARLING_ENGINE_OUT=eo, FLUTTER_SWIFT_ENGINE_OUT=eo, LD_LIBRARY_PATH=eo)
-    for clock in [os.path.join(os.getcwd(), "test/corpus/docx/clock.tsv"), os.path.join(repo_top(), "test/corpus/docx/clock.tsv"),
-                  "/data/s/amd-10/starling/test/corpus/docx/clock.tsv"]:
-        if os.path.isfile(clock):
-            env["OFFICE_NOW_TABLE"] = clock
-            break
+    if clock:
+        env["OFFICE_NOW_TABLE"] = clock
     tmp = out[:-4] + ".%d.tmp.pdf" % os.getpid()
     r = subprocess.run([binpath, "--convert", os.path.basename(doc), tmp], cwd=os.path.dirname(doc), env=env,
                        stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, timeout=600)
@@ -148,6 +170,51 @@ class Line:
         self.text = t
 
 
+# A glyph the PDF's text names as a space counts as ink (WORDCMP_EDGE_INK=0: not)
+# where its box is drawn. Word's print of a kashida-justified Arabic line
+# (jc lowKashida) draws the stretched joins with glyphs its text calls
+# spaces: poi-59fdcfe90b p3 sets 15 of them left of the last word, ink from
+# 119.5pt where the letters end at 178pt, and the line read by its letters
+# alone stood 59pt right of ours (ink from 119.05pt). (amd-8, 2026-11-26.)
+EDGE_INK = os.environ.get("WORDCMP_EDGE_INK") != "0"
+# Only in a span of a joining script that stretches by kashida: elsewhere a
+# space's box holds a table's border or a cell's shading (dx2 acbaa214,
+# zh-604e21e5: 255 and 44 lines read wider than Word's that way).
+JOINS = re.compile("[\u0600-\u06ff\u0750-\u077f\u08a0-\u08ff\ufb50-\ufdff\ufe70-\ufeff]")
+_pix = {}
+
+
+def inked(page, bbox, base, color):
+    """Whether `bbox`, above the baseline `base`, is drawn through its
+    middle in the text's `color` (0xRRGGBB) on `page`: a pixel within 64 of
+    it in each channel in the column halfway along. (Above the baseline:
+    an underlined space's ink is its underline, which is not a line's start
+    or end. In the text's colour: a space over a dark cell's shading is not
+    ink, dx2 1f8a492a. Halfway: a bold letter's ink reaches past its box
+    into the side of a space, xb ara-z3803947 p3; Word's kashida glyphs are
+    shapes, not bars, and poi-59fdcfe90b's first one is inked from a
+    quarter along only.)"""
+    key = (id(page.parent), page.number)
+    if key not in _pix:
+        pm = page.get_pixmap(dpi=144, colorspace=fitz.csRGB, alpha=False)
+        _pix[key] = (pm.samples, pm.width, pm.height)
+    sm, w, h = _pix[key]
+    x0, y0, x1, y1 = bbox
+    want = ((color >> 16) & 255, (color >> 8) & 255, color & 255)
+    iy0, iy1 = max(int(y0 * 2), 0), min(int(base * 2) + 1, h)
+
+    def hit(x):
+        ix = int(x * 2)
+        if not 0 <= ix < w:
+            return False
+        for y in range(iy0, iy1):
+            o = (y * w + ix) * 3
+            if all(abs(sm[o + k] - want[k]) <= 64 for k in range(3)):
+                return True
+        return False
+    return hit((x0 + x1) / 2)
+
+
 def extract(path, pages):
     doc = fitz.open(path)
     lines, skipped = [], 0
@@ -163,6 +230,14 @@ def extract(path, pages):
                     continue
                 for s in l["spans"]:
                     cs = [(c["c"], c["origin"][0], c["bbox"][2]) for c in s.get("chars", []) if c["c"].strip() and unicodedata.category(c["c"][0]) != "Cf"]
+                    if EDGE_INK and JOINS.search(s.get("text") or "".join(c["c"] for c in s.get("chars", []))):
+                        # (And not one whose box a letter's overlaps: an Arabic
+                        # letter's tail reaches into the space beside it, and
+                        # the line read 0.12pt wider: xb ara-z4399437 p9.)
+                        boxes = [(c["bbox"][0], c["bbox"][2]) for c in s.get("chars", []) if c["c"].strip()]
+                        cs += [("", c["bbox"][0], c["bbox"][2]) for c in s.get("chars", []) if not c["c"].strip()
+                               and not any(a < c["bbox"][2] and c["bbox"][0] < b for a, b in boxes)
+                               and inked(page, c["bbox"], c["origin"][1], s.get("color", 0))]
                     if cs:
                         spans.append((s["origin"][1], cs))
         spans.sort(key=lambda t: t[0])
@@ -183,6 +258,9 @@ def extract(path, pages):
                     piece = []
                 piece.append(c)
             lines.append(Line(pn, y, piece))
+            # (A piece of inked spaces alone is no line: see EDGE_INK.)
+            if EDGE_INK:
+                lines[:] = [l for l in lines if any(c[0] for c in l.chars)]
     return lines, skipped, len(doc)
 
 
