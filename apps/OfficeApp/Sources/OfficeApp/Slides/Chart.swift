@@ -4632,6 +4632,21 @@ enum ChartPainter {
     /// 1,600 in 200s, 0 to 600 in 100s, 0 to 6 in ones, 0 to 9 in ones
     /// (line-chart's 8.2, where eight made it 0 to 10 in twos) — and no
     /// deck's axis tells nine from ten. Across the page, eight.
+    /// How many steps at most a sheet chart's automatic value axis takes (sizes in points).
+    /// (Excel's step takes the plot it would lay out itself, whatever the file places: the chart's height less the larger of 22 pt
+    /// and the value labels' line plus 10, less the category labels' row. The plot holds the steps and two label lines more, a
+    /// label line here being 0.917 of the row Excel's print gives the face at that size (SheetPrintMetrics): lab xl-step2, Excel's
+    /// prints of 120 charts 145 pt wide and 60 to 200 tall in eight faces, all 120 steps, 5M, 2M, 1M and 0.5M by turns as the plot
+    /// grows, Calibri 10 reaching 1M at 100 pt and Yu Gothic 10 at 120; lab xl-step, a manual inner plot keeps the automatic one's step.)
+    static func sheetValueSteps(frameHeight: Double, face: String, labelSize: Double, categorySize: Double?, categoryTitleSize: Double?) -> Int {
+        let line = 0.917 * SheetPrintMetrics.textRowDots(family: face, size: labelSize) * 72 / 600
+        let em = SheetPrintMetrics.lineEm(family: face) ?? 1.2207
+        var plot = frameHeight - max(22, em * labelSize + 10)
+        if let cat = categorySize { plot -= em * cat + 3.2 }
+        if let t = categoryTitleSize { plot -= 1.22 * t + 4 }
+        return max(1, min(10, Int(plot / line) - 2))
+    }
+
     static func scale(_ lo0: Double, _ hi0: Double, intervals: Int = 10, headroom: Double = 0.05) -> (lo: Double, hi: Double, step: Double) {
         if let s = _offZero(lo0, hi0, intervals: intervals) { return s }
         // (All zero: PowerPoint's empty chart runs 0 to 1 in tenths, e365f9b4 p17.)
@@ -5519,10 +5534,15 @@ enum ChartPainter {
         }()
         let sheetSteps: Int? = {
             guard c.onSheet, !c.chartex, !horizontal, c.type != .scatter || c.series.contains(where: { $0.bubbleSizes != nil }), !c.type.isPie else { return nil }
-            // (The axis spans 0.968 of the chart's height less 36pt flat, 0.455 of it less 21pt in a 3-D chart: the labels' own rows.)
             let h = area0.height / k
-            let span = (c.barView != nil || c.line3D) && c.barView?.rightAngles != true ? 0.455 * h - 20.8 : 0.968 * h - 36.1
-            return max(2, min(10, Int(span / 13)))
+            if (c.barView != nil || c.line3D) && c.barView?.rightAngles != true {
+                // (The axis spans 0.455 of a 3-D chart's height less 21: the labels' own rows.)
+                return max(2, min(10, Int((0.455 * h - 20.8) / 13)))
+            }
+            RuleTrace.hit("sheet-value-axis-steps-from-the-label-line")
+            return sheetValueSteps(frameHeight: frame.height / k * 0.75, face: c.font ?? c.axisFont ?? theme.bodyFont ?? "Calibri", labelSize: labelSize * 0.75,
+                                   categorySize: c.categoryAxisDeleted ? nil : (c.categoryLabelSize ?? c.baseTextSize) * 0.75,
+                                   categoryTitleSize: c.categoryAxisTitle == nil ? nil : (c.axisTitleSize ?? 13.3) * 0.75)
         }()
         var valueScale = c.percent ? (lo: 0.0, hi: 1.0, step: 0.1) : scale(lo, max(hi, c.valueMax ?? hi), intervals: tableSteps ?? acrossSteps ?? writerSteps ?? sheetSteps ?? hiddenSlideSteps ?? 10,
                                                                           headroom: (c.barView != nil || c.line3D) && !(c.onSheet && c.series.allSatisfy { $0.values.allSatisfy { ($0 ?? 0) == 0 } }) ? 0 : c.secondValueAxis?.sameScale == true ? 0.10 : 0.05)
