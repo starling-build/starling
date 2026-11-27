@@ -418,7 +418,7 @@ func starlingFontFallback(_ family: UnsafePointer<UInt8>?, _ familyLength: Int32
 @_cdecl("starling_file_opened")
 func starlingFileOpened(
     _ name: UnsafePointer<UInt8>?, _ nameLength: Int32,
-    _ bytes: UnsafeMutableRawPointer?, _ byteCount: Int32
+    _ bytes: UnsafeMutableRawPointer?, _ byteCount: Int32, _ handle: UInt32
 ) {
     defer { bytes?.deallocate() }
     guard let name, nameLength > 0, let bytes, byteCount > 0 else {
@@ -428,7 +428,24 @@ func starlingFileOpened(
     WebFiles.opened(
         WebFiles.Picked(
             name: String(decoding: UnsafeBufferPointer(start: name, count: Int(nameLength)), as: UTF8.self),
-            data: Data(bytes: bytes, count: Int(byteCount))))
+            data: Data(bytes: bytes, count: Int(byteCount)),
+            handle: handle == 0 ? nil : Int(handle)))
+}
+
+/// The page's answer to starling_host_pick_place: the handle (0 when the
+/// user cancelled) and the name given, in memory the page frees.
+@_expose(wasm, "starling_place_picked")
+@_cdecl("starling_place_picked")
+func starlingPlacePicked(_ request: UInt32, _ handle: UInt32, _ name: UnsafePointer<UInt8>?, _ nameLength: Int32) {
+    let text = name.map { String(decoding: UnsafeBufferPointer(start: $0, count: Int(nameLength)), as: UTF8.self) } ?? ""
+    WebFiles.placePicked(request, handle: Int(handle), name: text)
+}
+
+/// The page's answer to starling_host_write_file: 1 written, 0 not.
+@_expose(wasm, "starling_file_written")
+@_cdecl("starling_file_written")
+func starlingFileWritten(_ request: UInt32, _ ok: UInt32) {
+    WebFiles.fileWritten(request, ok != 0)
 }
 
 /// Recent files: the names the page keeps, newest first, one per line (before the app starts).

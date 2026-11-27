@@ -135,6 +135,12 @@ CDP) checks the page side: the print frame, IndexedDB rows, recovery after a rel
    file opened through `showOpenFilePicker` saves back to itself. Elsewhere (Firefox,
    Safari) Save As shows our own name-and-format dialog and downloads, and Save
    downloads.
+   DONE 2026-11-27 (Word): BrowserSaveAsTests (native, stand-in pickers: Save As asks
+   once, Save writes back, an opened file saves to itself, a refused write stays unsaved,
+   no pickers means a download and a name-and-format box). test/office-saveas-web.sh in
+   Chromium with stand-in pickers over the origin private file system. web-drive hides
+   the real pickers unless PICKERS=1 (they open dialogs a script cannot answer).
+   Not yet: Slides and Sheets still download; Recent should keep the handles.
 5. **Publishing.** Natively a publication is a folder with site.json that Publish
    builds and pushes with git. A tab has neither, so in the browser it needs a server
    that takes the built pages. That is a product decision (where pages go, who may

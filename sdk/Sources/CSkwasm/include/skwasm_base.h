@@ -88,6 +88,24 @@ HOST(open_file) void starling_host_open_file(const void* extensions, uint32_t le
 HOST(download)
 void starling_host_download(const void* name, uint32_t nameLength, const void* bytes,
                             uint32_t byteCount);
+// Save As and Save where the browser has the File System Access API
+// (docs/plans/web-parity.md item 4). can_pick_place: 1 when it has
+// showSaveFilePicker. pick_place shows it, suggesting `name` and offering the
+// comma-joined extensions (the first is the default type), both in OUR
+// memory; the page keeps the picked file's handle under a number and answers
+// through our exported starling_place_picked(request, handle, name,
+// nameLength), handle 0 when cancelled. write_file writes the whole file
+// behind a handle (from pick_place, or from open_file where the page used
+// showOpenFilePicker: its starling_file_opened then carries the handle as a
+// fifth argument, 0 for none), bytes copied before the call returns; the
+// answer is starling_file_written(request, 1 or 0).
+HOST(can_pick_place) uint32_t starling_host_can_pick_place(void);
+HOST(pick_place)
+void starling_host_pick_place(uint32_t request, const void* name, uint32_t nameLength,
+                              const void* extensions, uint32_t extensionsLength);
+HOST(write_file)
+void starling_host_write_file(uint32_t request, uint32_t handle, const void* bytes,
+                              uint32_t byteCount);
 // Print a PDF: name and bytes in OUR memory, copied before the call returns.
 // The page loads it into a frame and opens the browser's print dialog on it.
 HOST(print_pdf)
