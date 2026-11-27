@@ -2186,6 +2186,18 @@ final class DocxTests: XCTestCase {
         XCTAssertTrue(xml.contains("<w:commentRangeStart w:id=\"1\"/><w:commentRangeEnd w:id=\"1\"/>"), xml)
     }
 
+    func testARubyReadFromAnEQFieldIsSavedWithItsRubyTextAndSettings() throws {
+        // xa lo-ae4f3e8e64: `eq \o(arrow,\s\up7(催化剂),\s\do7(△))` is read as a ruby with no XML of its own;
+        // saved as a bare w:ruby round its base, with no w:rubyPr or w:rt, Word would not open the file.
+        var doc = RichDocument(paragraphs: [RichParagraph(text: "a→b")])
+        var look = CharStyle(); look.fontSize = 12
+        look.ruby = RubyText(text: "催化剂", size: -1, raise: 7, align: "center", group: 1, xml: "")
+        doc.paragraphs[0].runs = [Run(length: 1), Run(length: 1, style: look), Run(length: 1)]
+        let xml = String(decoding: try Zip.read(try DocxFormat.write(doc, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
+        XCTAssertTrue(xml.contains("<w:ruby><w:rubyPr><w:rubyAlign w:val=\"center\"/><w:hps w:val=\"24\"/><w:hpsRaise w:val=\"14\"/><w:hpsBaseText w:val=\"24\"/>"), xml)
+        XCTAssertTrue(xml.contains("<w:t>催化剂</w:t></w:r></w:rt><w:rubyBase>"), xml)
+    }
+
     func testTablePreferredWidthRoundTrip() throws {
         var a = RichParagraph(text: "a"), b = RichParagraph(text: "b")
         a.cell = CellRef(table: "T", row: 0, column: 0); b.cell = CellRef(table: "T", row: 0, column: 1)

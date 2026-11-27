@@ -1742,7 +1742,7 @@ extension DocxFormat {
                     let lengths = p.runs.map(\.length)
                     let prior = p.runs.indices.prefix(runIndex).last { lengths[$0] > 0 }.map { p.runs[$0].style.ruby }
                     let later = p.runs.indices.dropFirst(runIndex + 1).first { lengths[$0] > 0 }.map { p.runs[$0].style.ruby }
-                    if prior != ruby { runXML += "<w:r>\(rPrXML)<w:ruby>\(ruby.xml)<w:rubyBase>" }
+                    if prior != ruby { runXML += "<w:r>\(rPrXML)<w:ruby>\(ruby.xml.isEmpty ? Self._rubyXML(ruby, baseSize: s.fontSize ?? 10.5) : ruby.xml)<w:rubyBase>" }
                     runXML += "<w:r>\(rPrXML)\(_text(piece))</w:r>"
                     if later != ruby { runXML += "</w:rubyBase></w:ruby></w:r>" }
                 } else {
@@ -2461,6 +2461,19 @@ extension DocxFormat {
             ? "<w:pPr><w:tabs><w:tab w:val=\"center\" w:pos=\"\(Int((width * 10).rounded()))\"/><w:tab w:val=\"right\" w:pos=\"\(Int((width * 20).rounded()))\"/></w:tabs></w:pPr>"
             : (center ? "<w:pPr><w:jc w:val=\"center\"/></w:pPr>" : "")
         return "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<\(tag) xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\"><w:p>\(jc)\(runs)</w:p></\(tag)>"
+    }
+
+    /// w:rubyPr and w:rt for a ruby read from an EQ field, which has no XML of its own to give back: Word
+    /// requires both before w:rubyBase (xa lo-ae4f3e8e64's overstrike stack, saved with neither, would not open).
+    static func _rubyXML(_ ruby: RubyText, baseSize: Double) -> String {
+        let aligns: Set<String> = ["center", "distributeLetter", "distributeSpace", "left", "right", "rightVertical"]
+        let align = ruby.align.flatMap { aligns.contains($0) ? $0 : nil } ?? "center"
+        let hps = Int(((ruby.size > 0 ? ruby.size : baseSize) * 2).rounded())
+        let raise = max(0, Int((ruby.raise * 2).rounded()))
+        let base = Int((baseSize * 2).rounded())
+        return "<w:rubyPr><w:rubyAlign w:val=\"\(align)\"/><w:hps w:val=\"\(hps)\"/><w:hpsRaise w:val=\"\(raise)\"/>"
+            + "<w:hpsBaseText w:val=\"\(base)\"/><w:lid w:val=\"ja-JP\"/></w:rubyPr>"
+            + "<w:rt><w:r><w:rPr><w:sz w:val=\"\(hps)\"/><w:szCs w:val=\"\(hps)\"/></w:rPr>\(_text(ruby.text))</w:r></w:rt>"
     }
 
     static func _text(_ s: String) -> String {
