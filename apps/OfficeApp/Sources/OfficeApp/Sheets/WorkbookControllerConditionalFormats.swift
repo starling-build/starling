@@ -23,7 +23,7 @@ struct CFSpec {
 }
 
 enum CFProblem: Equatable {
-    case noCells, needsValue, badFormula, noLook, badColors, relativeFormula
+    case noCells, needsValue, badFormula, noLook, badColors, relativeFormula, notEditable, badRange
     var message: String {
         switch self {
         case .noCells: return "Select the cells first."
@@ -32,6 +32,8 @@ enum CFProblem: Equatable {
         case .noLook: return "Choose how matching cells should look."
         case .badColors: return "A colour scale needs two or three colours."
         case .relativeFormula: return "Clearing part of this range would change what its formula refers to. Clear the whole range."
+        case .notEditable: return "This rule has settings this editor does not cover, so it is kept as it is. Delete it and add a new one to change it."
+        case .badRange: return "Applies to must be cell ranges such as A1:B10, separated by spaces or commas."
         }
     }
 }
@@ -45,75 +47,9 @@ extension WorkbookController {
     /// Add a rule over `ranges`, below every existing rule. One undo step.
     func addConditionalFormat(_ spec: CFSpec, on ranges: [CellRange]) -> CFProblem? {
         guard !ranges.isEmpty else { return .noCells }
-        var highlight = true
-        var body = ""
-        func formula(_ s: String) -> String? {
-            let t = s.hasPrefix("=") ? String(s.dropFirst()) : s
-            guard !t.isEmpty, (try? Formula.parse("=" + t)) != nil else { return nil }
-            return "<formula>\(Xlsx._esc(t))</formula>"
-        }
-        switch spec.kind {
-        case .cellIs(let op, let a, let b):
-            guard !a.isEmpty else { return .needsValue }
-            guard let f1 = formula(a) else { return .badFormula }
-            var f2 = ""
-            if op == "between" || op == "notBetween" {
-                guard let bb = b, !bb.isEmpty else { return .needsValue }
-                guard let f = formula(bb) else { return .badFormula }
-                f2 = f
-            }
-            body = "type=\"cellIs\" operator=\"\(Xlsx._esc(op))\"" + "|" + f1 + f2
-        case .expression(let e):
-            guard !e.isEmpty else { return .needsValue }
-            guard let f = formula(e) else { return .badFormula }
-            body = "type=\"expression\"|" + f
-        case .text(let op, let t):
-            guard !t.isEmpty else { return .needsValue }
-            let first = ranges[0].topLeft.a1
-            let q = "\"" + t.replacingAll("\"", with: "\"\"") + "\""
-            let f: String
-            switch op {
-            case "beginsWith": f = "LEFT(\(first),LEN(\(q)))=\(q)"
-            case "endsWith": f = "RIGHT(\(first),LEN(\(q)))=\(q)"
-            case "notContainsText": f = "ISERROR(SEARCH(\(q),\(first)))"
-            default: f = "NOT(ISERROR(SEARCH(\(q),\(first))))"
-            }
-            let o = op == "beginsWith" ? "beginsWith" : op == "endsWith" ? "endsWith" : op == "notContainsText" ? "notContains" : "containsText"
-            body = "type=\"\(op == "containsText" || op == "notContainsText" || op == "beginsWith" || op == "endsWith" ? op : "containsText")\" operator=\"\(o)\" text=\"\(Xlsx._esc(t))\"|<formula>\(Xlsx._esc(f))</formula>"
-        case .blanks(let yes):
-            let first = ranges[0].topLeft.a1
-            body = yes ? "type=\"containsBlanks\"|<formula>LEN(TRIM(\(first)))=0</formula>"
-                       : "type=\"notContainsBlanks\"|<formula>LEN(TRIM(\(first)))&gt;0</formula>"
-        case .errors(let yes):
-            let first = ranges[0].topLeft.a1
-            body = yes ? "type=\"containsErrors\"|<formula>ISERROR(\(first))</formula>"
-                       : "type=\"notContainsErrors\"|<formula>NOT(ISERROR(\(first)))</formula>"
-        case .top(let rank, let percent, let bottom):
-            guard rank >= 1 else { return .needsValue }
-            body = "type=\"top10\" rank=\"\(rank)\"" + (percent ? " percent=\"1\"" : "") + (bottom ? " bottom=\"1\"" : "") + "|"
-        case .average(let above, let equal):
-            body = "type=\"aboveAverage\"" + (above ? "" : " aboveAverage=\"0\"") + (equal ? " equalAverage=\"1\"" : "") + "|"
-        case .duplicates(let unique):
-            body = "type=\"\(unique ? "uniqueValues" : "duplicateValues")\"|"
-        case .timePeriod(let p):
-            let first = ranges[0].topLeft.a1
-            body = "type=\"timePeriod\" timePeriod=\"\(Xlsx._esc(p))\"|<formula>\(Self._timePeriodFormula(p, first))</formula>"
-        case .colorScale(let colors):
-            guard colors.count == 2 || colors.count == 3 else { return .badColors }
-            highlight = false
-            let cfvo = colors.count == 2 ? "<cfvo type=\"min\"/><cfvo type=\"max\"/>"
-                                         : "<cfvo type=\"min\"/><cfvo type=\"percentile\" val=\"50\"/><cfvo type=\"max\"/>"
-            body = "type=\"colorScale\"|<colorScale>" + cfvo + colors.map { "<color rgb=\"FF\(Self._hex6($0))\"/>" }.joined() + "</colorScale>"
-        case .dataBar(let c):
-            highlight = false
-            body = "type=\"dataBar\"|<dataBar><cfvo type=\"min\"/><cfvo type=\"max\"/><color rgb=\"FF\(Self._hex6(c))\"/></dataBar>"
-        case .iconSet(let name):
-            highlight = false
-            let n = Int(name.prefix(1)) ?? 3
-            var cfvo = "<cfvo type=\"percent\" val=\"0\"/>"
-            for i in 1 ..< n { cfvo += "<cfvo type=\"percent\" val=\"\((100 * i + n / 2) / n)\"/>" }   // Excel's own 33/67, 25/50/75
-            body = "type=\"iconSet\"|<iconSet iconSet=\"\(Xlsx._esc(name))\">" + cfvo + "</iconSet>"
-        }
+        let built = _cfBody(spec, first: ranges[0].topLeft.a1)
+        if let p = built.problem { return p }
+        let highlight = built.highlight, body = built.body
         var dxfAttr = ""
         if highlight {
             guard spec.look != DxfStyle() else { return .noLook }
@@ -140,6 +76,81 @@ extension WorkbookController {
             sheet.keptElements.append(("conditionalFormatting", "<conditionalFormatting sqref=\"\(sqref)\">\(rule)</conditionalFormatting>"))
         }
         return nil
+    }
+
+    /// A rule's text for `spec` ("attributes|children"), whether it takes a look (dxf), or what is wrong with it.
+    /// `first` is the top-left cell its formulas are written for.
+    func _cfBody(_ spec: CFSpec, first: String) -> (body: String, highlight: Bool, problem: CFProblem?) {
+        var highlight = true
+        var body = ""
+        func formula(_ s: String) -> String? {
+            let t = s.hasPrefix("=") ? String(s.dropFirst()) : s
+            guard !t.isEmpty, (try? Formula.parse("=" + t)) != nil else { return nil }
+            return "<formula>\(Xlsx._esc(t))</formula>"
+        }
+        switch spec.kind {
+        case .cellIs(let op, let a, let b):
+            guard !a.isEmpty else { return ("", false, .needsValue) }
+            guard let f1 = formula(a) else { return ("", false, .badFormula) }
+            var f2 = ""
+            if op == "between" || op == "notBetween" {
+                guard let bb = b, !bb.isEmpty else { return ("", false, .needsValue) }
+                guard let f = formula(bb) else { return ("", false, .badFormula) }
+                f2 = f
+            }
+            body = "type=\"cellIs\" operator=\"\(Xlsx._esc(op))\"" + "|" + f1 + f2
+        case .expression(let e):
+            guard !e.isEmpty else { return ("", false, .needsValue) }
+            guard let f = formula(e) else { return ("", false, .badFormula) }
+            body = "type=\"expression\"|" + f
+        case .text(let op, let t):
+            guard !t.isEmpty else { return ("", false, .needsValue) }
+            let first = first
+            let q = "\"" + t.replacingAll("\"", with: "\"\"") + "\""
+            let f: String
+            switch op {
+            case "beginsWith": f = "LEFT(\(first),LEN(\(q)))=\(q)"
+            case "endsWith": f = "RIGHT(\(first),LEN(\(q)))=\(q)"
+            case "notContainsText": f = "ISERROR(SEARCH(\(q),\(first)))"
+            default: f = "NOT(ISERROR(SEARCH(\(q),\(first))))"
+            }
+            let o = op == "beginsWith" ? "beginsWith" : op == "endsWith" ? "endsWith" : op == "notContainsText" ? "notContains" : "containsText"
+            body = "type=\"\(op == "containsText" || op == "notContainsText" || op == "beginsWith" || op == "endsWith" ? op : "containsText")\" operator=\"\(o)\" text=\"\(Xlsx._esc(t))\"|<formula>\(Xlsx._esc(f))</formula>"
+        case .blanks(let yes):
+            let first = first
+            body = yes ? "type=\"containsBlanks\"|<formula>LEN(TRIM(\(first)))=0</formula>"
+                       : "type=\"notContainsBlanks\"|<formula>LEN(TRIM(\(first)))&gt;0</formula>"
+        case .errors(let yes):
+            let first = first
+            body = yes ? "type=\"containsErrors\"|<formula>ISERROR(\(first))</formula>"
+                       : "type=\"notContainsErrors\"|<formula>NOT(ISERROR(\(first)))</formula>"
+        case .top(let rank, let percent, let bottom):
+            guard rank >= 1 else { return ("", false, .needsValue) }
+            body = "type=\"top10\" rank=\"\(rank)\"" + (percent ? " percent=\"1\"" : "") + (bottom ? " bottom=\"1\"" : "") + "|"
+        case .average(let above, let equal):
+            body = "type=\"aboveAverage\"" + (above ? "" : " aboveAverage=\"0\"") + (equal ? " equalAverage=\"1\"" : "") + "|"
+        case .duplicates(let unique):
+            body = "type=\"\(unique ? "uniqueValues" : "duplicateValues")\"|"
+        case .timePeriod(let p):
+            let first = first
+            body = "type=\"timePeriod\" timePeriod=\"\(Xlsx._esc(p))\"|<formula>\(Self._timePeriodFormula(p, first))</formula>"
+        case .colorScale(let colors):
+            guard colors.count == 2 || colors.count == 3 else { return ("", false, .badColors) }
+            highlight = false
+            let cfvo = colors.count == 2 ? "<cfvo type=\"min\"/><cfvo type=\"max\"/>"
+                                         : "<cfvo type=\"min\"/><cfvo type=\"percentile\" val=\"50\"/><cfvo type=\"max\"/>"
+            body = "type=\"colorScale\"|<colorScale>" + cfvo + colors.map { "<color rgb=\"FF\(Self._hex6($0))\"/>" }.joined() + "</colorScale>"
+        case .dataBar(let c):
+            highlight = false
+            body = "type=\"dataBar\"|<dataBar><cfvo type=\"min\"/><cfvo type=\"max\"/><color rgb=\"FF\(Self._hex6(c))\"/></dataBar>"
+        case .iconSet(let name):
+            highlight = false
+            let n = Int(name.prefix(1)) ?? 3
+            var cfvo = "<cfvo type=\"percent\" val=\"0\"/>"
+            for i in 1 ..< n { cfvo += "<cfvo type=\"percent\" val=\"\((100 * i + n / 2) / n)\"/>" }   // Excel's own 33/67, 25/50/75
+            body = "type=\"iconSet\"|<iconSet iconSet=\"\(Xlsx._esc(name))\">" + cfvo + "</iconSet>"
+        }
+        return (body, highlight, nil)
     }
 
     /// Take conditional formats off `ranges`. Rules over other cells stay as they were.
