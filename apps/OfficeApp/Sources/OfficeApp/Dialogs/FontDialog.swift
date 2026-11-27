@@ -33,11 +33,17 @@ final class FontDialogState: State<StatefulWidget> {
     private(set) var v = RichDocumentController.CharFormat()
     private let _family = TextEditingController()
     private let _scale = TextEditingController()
+    private let _eastAsia = TextEditingController()
+
+    /// Word's underline styles, by their `w:u` names; nil is single.
+    static let underlineKinds: [(String?, String)] = [(nil, "Single"), ("words", "Words only"), ("double", "Double"), ("thick", "Thick"),
+                                                      ("dotted", "Dotted"), ("dash", "Dashed"), ("dotDash", "Dot dash"), ("wave", "Wave")]
 
     override func initState() {
         super.initState()
         v = _w.initial
         _family.text = v.family ?? ""
+        _eastAsia.text = v.eastAsiaFamily ?? ""
         _scale.text = String(Int(((v.scale ?? 1) * 100).rounded()))
     }
 
@@ -46,8 +52,27 @@ final class FontDialogState: State<StatefulWidget> {
         var f = v
         let face = _family.text.trimmingWhitespace()
         f.family = face.isEmpty ? nil : face
+        let asian = _eastAsia.text.trimmingWhitespace()
+        f.eastAsiaFamily = asian.isEmpty ? nil : asian
         if let p = Double(_scale.text.trimmingWhitespace()), p >= 1, p <= 600 { f.scale = p / 100 }
         return f
+    }
+
+    /// The underline's style and colour, shown while Underline is on.
+    private func underlinePage(_ toggle: (String, String, Bool, @escaping (inout RichDocumentController.CharFormat) -> Void) -> Widget,
+                               _ row: (String, [Widget]) -> Widget, _ fluent: FluentThemeData) -> Widget {
+        let kinds = Self.underlineKinds.map { k in
+            toggle("ft-ul-\(k.0 ?? "single")", k.1, v.underlineKind == k.0) { $0.underlineKind = k.0 }
+        }
+        var colors: [Widget] = [toggle("ft-ulc-auto", "Automatic", v.underlineColor == nil) { $0.underlineColor = nil }]
+        for c in ColorBar.standard {
+            let hex = String(printf: "%06X", UInt32(truncatingIfNeeded: c.value & 0xFFFFFF))
+            colors.append(FKeyed("ft-ulc-\(hex)", FlatButton(child: Chrome.swatch(c, fluent), tip: "#\(hex)", checked: v.underlineColor == hex,
+                                                             width: 22) { [weak self] in self?.setState { self?.v.underlineColor = hex } }))
+        }
+        return Column(crossAxisAlignment: .start, children: [
+            row("Underline style", Array(kinds[..<4])), row("", Array(kinds[4...])), row("Underline colour", colors),
+        ])
     }
 
     override func build(_ context: any BuildContext) -> Widget {
@@ -66,12 +91,14 @@ final class FontDialogState: State<StatefulWidget> {
         }
         let fontPage = Column(crossAxisAlignment: .start, children: [
             row("Font", [SizedBox(width: 200, height: Chrome.fieldHeight, child: FKeyed("ft-family", FluentTextBox(controller: _family)))]),
+            row("Asian text font", [SizedBox(width: 200, height: Chrome.fieldHeight, child: FKeyed("ft-eastasia", FluentTextBox(controller: _eastAsia)))]),
             spin("ft-size", "Size (pt)", v.size ?? 11, 1, 1638) { [weak self] n in self?.v.size = n },
             row("Style", [
                 toggle("ft-bold", "Bold", v.bold) { $0.bold.toggle() },
                 toggle("ft-italic", "Italic", v.italic) { $0.italic.toggle() },
                 toggle("ft-underline", "Underline", v.underline) { $0.underline.toggle() },
             ]),
+            v.underline ? underlinePage(toggle, row, fluent) : Chrome.gap(0),
             row("Effects", [
                 toggle("ft-strike", "Strikethrough", v.strikethrough) { $0.strikethrough.toggle(); if $0.strikethrough { $0.doubleStrike = false } },
                 toggle("ft-double", "Double strike", v.doubleStrike) { $0.doubleStrike.toggle(); if $0.doubleStrike { $0.strikethrough = false } },
@@ -96,7 +123,7 @@ final class FontDialogState: State<StatefulWidget> {
             v.kerningFrom == nil ? Chrome.gap(0) : spin("ft-kern-size", "Points and above", v.kerningFrom ?? 11, 1, 1638) { [weak self] n in self?.v.kerningFrom = n },
         ])
         return DialogShell(title: "Font", tabs: [DialogTab(title: "Font", page: fontPage), DialogTab(title: "Advanced", page: advancedPage)],
-                           width: 480,
+                           width: 540,
                            onOK: { [weak self] in guard let self else { return }; self._w.onOK(self.result) },
                            onCancel: { [weak self] in self?._w.onCancel() })
     }

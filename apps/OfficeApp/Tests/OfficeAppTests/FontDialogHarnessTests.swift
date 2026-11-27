@@ -44,4 +44,35 @@ final class FontDialogHarnessTests: XCTestCase {
         XCTAssertFalse(ui.has(id: "ft-italic"))
         XCTAssertFalse(session.controller.currentCharStyle.italic)
     }
+
+    /// The underline's style and colour and the Asian text font reach the run in one undo step and survive a save.
+    func testUnderlineStyleColourAndAsianFont() throws {
+        let (ui, session) = shell()
+        let c = session.controller
+        c.insertText("hello"); c.selectAll()
+        session.onFontDialog?(); ui.pump()
+        XCTAssertFalse(ui.has(id: "ft-ul-double"), "the underline style shows only while Underline is on")
+        XCTAssertTrue(ui.tap(id: "ft-underline")); ui.pump()
+        XCTAssertTrue(ui.tap(id: "ft-ul-double")); ui.pump()
+        XCTAssertTrue(ui.tap(id: "ft-ulc-FF0000")); ui.pump()
+        XCTAssertTrue(ui.tap(id: "ft-eastasia")); ui.type("MS Mincho"); ui.pump()
+        ui.press(.enter); ui.pump()
+        var s = c.document.paragraphs[0].runs[0].style
+        XCTAssertTrue(s.underline); XCTAssertEqual(s.underlineKind, "double"); XCTAssertEqual(s.underlineColor, "FF0000")
+        XCTAssertEqual(s.eastAsiaFontFamily, "MS Mincho")
+        let back = try DocxFormat.read(DocxFormat.write(c.document, pageSetup: .letter)).document.paragraphs[0].runs[0].style
+        XCTAssertEqual(back.underlineKind, "double"); XCTAssertEqual(back.underlineColor, "FF0000")
+        XCTAssertEqual(back.eastAsiaFontFamily, "MS Mincho")
+        // The dialog opens on what the run holds; turning Underline off drops the kind and colour with it.
+        session.onFontDialog?(); ui.pump()
+        XCTAssertTrue(ui.has(id: "ft-ul-double"))
+        XCTAssertTrue(ui.tap(id: "ft-underline")); ui.pump()
+        ui.press(.enter); ui.pump()
+        s = c.document.paragraphs[0].runs[0].style
+        XCTAssertFalse(s.underline); XCTAssertNil(s.underlineKind); XCTAssertNil(s.underlineColor)
+        XCTAssertEqual(s.eastAsiaFontFamily, "MS Mincho", "an untouched Asian font box keeps the face")
+        c.undo(); c.undo()
+        s = c.document.paragraphs[0].runs[0].style
+        XCTAssertFalse(s.underline); XCTAssertNil(s.eastAsiaFontFamily, "one undo step per dialog")
+    }
 }

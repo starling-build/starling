@@ -1985,6 +1985,12 @@ public final class RichDocumentController: ChangeNotifier {
         public var scale: Double?         // horizontal scale, 1 = 100%
         public var raised: Double?        // points up (negative: down)
         public var kerningFrom: Double?   // kern from this size, points
+        /// The underline's kind as Word names it (`w:u w:val`: "words", "double", "thick", "dotted", "dash", "wave"...); nil is single.
+        public var underlineKind: String?
+        /// The underline's own colour, "RRGGBB"; nil follows the text.
+        public var underlineColor: String?
+        /// The face for Asian text (`w:rFonts w:eastAsia`); nil leaves it to the style.
+        public var eastAsiaFamily: String?
         public init() {}
         public init(_ s: CharStyle) {
             family = s.fontFamily; size = s.fontSize
@@ -1993,6 +1999,9 @@ public final class RichDocumentController: ChangeNotifier {
             script = s.script; smallCaps = s.smallCaps; caps = s.caps; hidden = s.hidden
             spacing = s.letterSpacing; scale = s.horizontalScale
             raised = s.raised; kerningFrom = s.kerningFrom
+            underlineKind = s.underline ? s.underlineKind : nil
+            underlineColor = s.underline ? s.underlineColor : nil
+            eastAsiaFamily = s.eastAsiaFontFamily
         }
     }
 
@@ -2006,6 +2015,13 @@ public final class RichDocumentController: ChangeNotifier {
             s.horizontalScale = (f.scale ?? 1) == 1 ? nil : f.scale
             s.raised = (f.raised ?? 0) == 0 ? nil : f.raised
             s.kerningFrom = f.kerningFrom
+            // A kind or colour the dialog left as it found them keeps the run's theme colour attributes.
+            if s.underlineKind != f.underlineKind || s.underlineColor != f.underlineColor || !f.underline {
+                s.underlineKind = f.underline ? f.underlineKind : nil
+                s.underlineColor = f.underline ? f.underlineColor : nil
+                s.underlineThemeAttrs = nil
+            }
+            s.eastAsiaFontFamily = f.eastAsiaFamily
         }
     }
 
