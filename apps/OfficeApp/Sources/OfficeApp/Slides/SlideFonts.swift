@@ -369,6 +369,18 @@ enum SlideFonts {
             face.boldOtherAdvances = OfficeFonts.thSarabunPSKBoldThai
             face.classScales = [1, 1, 1, 1, 0.82]
             return face
+        case "dilleniaupc":
+            // (DilleniaUPC, on PowerPoint's machine and not ours: its bold's advances as PowerPoint prints them, where the stand-in set
+            // th-64b2b9cce4's Thai a third wider and wrapped its lines early. The decks print only spaces in its regular, so the
+            // regular takes the bold's widths.)
+            var face = RichResolvedFace(family: resolve(family))
+            var bold = OfficeFonts.cordiaNewBoldAdvances
+            for (cp, w) in OfficeFonts.dilleniaUPCBoldLatin where Int(cp) - 0x20 < bold.count { bold[Int(cp) - 0x20] = w }
+            face.advances = bold
+            face.boldAdvances = bold
+            face.otherAdvances = OfficeFonts.dilleniaUPCBoldThai
+            face.boldOtherAdvances = OfficeFonts.dilleniaUPCBoldThai
+            return face
         case "lucida sans unicode":
             var face = RichResolvedFace(family: resolve(family))
             face.advances = OfficeFonts.lucidaSansUnicodeAdvances
@@ -601,6 +613,7 @@ enum SlideFonts {
         case "browallia new", "browalliaupc", "th sarabun new", "th sarabunit๙": return (1770.0 / 2048, 789.0 / 2048)
         case "cordia new", "cordiaupc": return (0.892, 0.496)
         case "angsana new", "angsanaupc": return (0.941, 0.41)
+        case "dilleniaupc": return (3625.0 / 4096, 1720.0 / 4096)
         case "pmingliu", "新細明體", "dfkai-sb", "標楷體": return (0.803, 0.231)
         default: return nil
         }
@@ -717,6 +730,7 @@ enum SlideFonts {
         case "browallia new", "browalliaupc", "th sarabun new", "th sarabunit๙": return 789.0 / 2559
         case "cordia new", "cordiaupc": return 0.496 / 1.388
         case "angsana new", "angsanaupc": return 0.41 / 1.351
+        case "dilleniaupc": return 1720.0 / 5345
         case "th sarabunpsk": return 460.0 / 1310   // (win ascent 850, descent 460 of 1000; th-cb034815ae: titles 8 pt and the cover's first line 15 pt low in Noto Sans Thai's)
         case "candara": return 550.0 / 2500   // (win ascent 1950, descent 550)
         case "malgun gothic", "맑은 고딕": return 495.0 / 2724

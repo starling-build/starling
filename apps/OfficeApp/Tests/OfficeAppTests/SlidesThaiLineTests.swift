@@ -24,4 +24,14 @@ final class SlidesThaiLineTests: XCTestCase {
         XCTAssertEqual(SlideFonts.ownDescentShare("Angsana New") ?? 0, 0.41 / 1.351, accuracy: 0.0001)
         XCTAssertEqual(SlideFonts.windowsAscentDescent("Cordia New")?.descent ?? 0, 0.496, accuracy: 0.0001)
     }
+
+    /// DilleniaUPC (th-64b2b9cce4's theme Thai face) sets its Thai at its own advances, as PowerPoint prints them, not the stand-in's
+    /// (which wrapped the deck's lines early: 37.9 -> 83.5% of lines), and stands on its own Windows ascent and descent (3625 and 1720 of 4096).
+    func testDilleniaUPCSetsItsOwnWidthsAndLine() {
+        let face = SlideFonts.face("DilleniaUPC", false)
+        XCTAssertEqual(face?.boldOtherAdvances?[0x0E19] ?? 0, 0.418, accuracy: 0.0001)
+        XCTAssertEqual(face?.otherAdvances?[0x0E32] ?? 0, 0.268, accuracy: 0.0001)
+        XCTAssertEqual(face?.boldAdvances?[0] ?? 0, 0.222, accuracy: 0.0001)
+        XCTAssertEqual(SlideFonts.ownDescentShare("DilleniaUPC") ?? 0, 1720.0 / 5345, accuracy: 0.0001)
+    }
 }
