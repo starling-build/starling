@@ -423,6 +423,52 @@ final class ChartTests: XCTestCase {
         }
     }
 
+    /// A funnel on a slide gives its names a third of the plot: a longer name keeps the words that fit and ends
+    /// in " …", centred in that room (lab fn-names p6, p9). Off a slide the name stays whole.
+    func testAFunnelOnASlideCutsANameWiderThanAThirdOfThePlot() {
+        let long = Array(repeating: "Overlong", count: 12).joined(separator: " ")
+        let xml = """
+        <cx:chartSpace xmlns:cx="http://schemas.microsoft.com/office/drawing/2014/chartex" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><cx:chartData><cx:data id="0"><cx:strDim type="cat"><cx:lvl ptCount="2"><cx:pt idx="0">\(long)</cx:pt><cx:pt idx="1">B</cx:pt></cx:lvl></cx:strDim><cx:numDim type="val"><cx:lvl ptCount="2"><cx:pt idx="0">9</cx:pt><cx:pt idx="1">5</cx:pt></cx:lvl></cx:numDim></cx:data></cx:chartData><cx:chart><cx:plotArea><cx:plotAreaRegion><cx:series layoutId="funnel"><cx:dataId val="0"/></cx:series></cx:plotAreaRegion><cx:axis id="0"><cx:catScaling gapWidth="0.06"/><cx:tickLabels/></cx:axis></cx:plotArea></cx:chart></cx:chartSpace>
+        """
+        var widths: [Bool: Double] = [:]
+        for onSlide in [false, true] {
+            guard var c = ChartXML.readChartex(XNode.parse(Data(xml.utf8))!) else { return XCTFail("not read") }
+            c.onSlide = onSlide
+            let canvas = BoxDotCanvas()
+            ChartPainter.paint(c, canvas, Rect.fromLTWH(0, 0, 400, 300), pxPerPt: 1, theme: DeckTheme())
+            widths[onSlide] = canvas.texts.map(\.width).max() ?? 0
+        }
+        XCTAssertGreaterThan(widths[false]!, 400 / 2)
+        XCTAssertLessThan(widths[true]!, 400 / 3)
+    }
+
+    /// A funnel on a slide leaves out a centred label wider than its bar (lab fn-names p8, p9; chartex-lab2 p23, p24).
+    func testAFunnelOnASlideDropsALabelWiderThanItsBar() {
+        let xml = """
+        <cx:chartSpace xmlns:cx="http://schemas.microsoft.com/office/drawing/2014/chartex" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><cx:chartData><cx:data id="0"><cx:numDim type="val"><cx:lvl ptCount="2"><cx:pt idx="0">100000</cx:pt><cx:pt idx="1">1000</cx:pt></cx:lvl></cx:numDim></cx:data></cx:chartData><cx:chart><cx:plotArea><cx:plotAreaRegion><cx:series layoutId="funnel"><cx:dataLabels pos="ctr"><cx:visibility seriesName="0" categoryName="0" value="1"/></cx:dataLabels><cx:dataId val="0"/></cx:series></cx:plotAreaRegion></cx:plotArea></cx:chart></cx:chartSpace>
+        """
+        var drawn: [Bool: Int] = [:]
+        for onSlide in [false, true] {
+            guard var c = ChartXML.readChartex(XNode.parse(Data(xml.utf8))!) else { return XCTFail("not read") }
+            c.onSlide = onSlide
+            let canvas = BoxDotCanvas()
+            ChartPainter.paint(c, canvas, Rect.fromLTWH(0, 0, 400, 300), pxPerPt: 1, theme: DeckTheme())
+            drawn[onSlide] = canvas.texts.count
+        }
+        XCTAssertEqual(drawn[false]! - drawn[true]!, 1, "only the narrow bar's label goes")
+    }
+
+    /// A cx: category axis's own text size (its txPr) sizes the funnel's names (lab fn-names p7, 16 pt).
+    func testACxCategoryAxisTextSizeSizesTheNames() {
+        let xml = """
+        <cx:chartSpace xmlns:cx="http://schemas.microsoft.com/office/drawing/2014/chartex" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><cx:chartData><cx:data id="0"><cx:numDim type="val"><cx:lvl ptCount="1"><cx:pt idx="0">9</cx:pt></cx:lvl></cx:numDim></cx:data></cx:chartData><cx:chart><cx:plotArea><cx:plotAreaRegion><cx:series layoutId="funnel"><cx:dataId val="0"/></cx:series></cx:plotAreaRegion><cx:axis id="0"><cx:catScaling gapWidth="0.06"/><cx:tickLabels/><cx:txPr><a:bodyPr/><a:p><a:pPr><a:defRPr/></a:pPr><a:endParaRPr lang="en-US" sz="1600"/></a:p></cx:txPr></cx:axis></cx:plotArea></cx:chart></cx:chartSpace>
+        """
+        let space = XNode.parse(Data(xml.utf8))!
+        guard var c = ChartXML.readChartex(space) else { return XCTFail("not read") }
+        ChartXML.applyCxTextSizes(&c, space: space, style: nil)
+        XCTAssertEqual(c.categoryLabelSize, 16)
+    }
+
     /// A funnel's data labels: the series' own (category and value, ", " between), a point's own format, and a hidden one.
     func testAFunnelReadsItsPointLabels() {
         let xml = """
@@ -765,7 +811,11 @@ private final class BoxDotCanvas: Canvas {
     func drawImageNine(_ image: Image, _ center: Rect, _ dst: Rect, _ paint: Paint) {}
     func drawPicture(_ picture: any FlutterSwiftBridge.Picture) {}
     var baselines: [Double] = []
-    func drawParagraph(_ paragraph: any Paragraph, _ offset: Offset) { baselines.append(offset.dy + paragraph.alphabeticBaseline) }
+    func drawParagraph(_ paragraph: any Paragraph, _ offset: Offset) {
+        baselines.append(offset.dy + paragraph.alphabeticBaseline)
+        texts.append((offset.dx, paragraph.longestLine))
+    }
+    var texts: [(x: Double, width: Double)] = []
     func drawPoints(_ pointMode: PointMode, _ points: [Offset], _ paint: Paint) {}
     func drawRawPoints(_ pointMode: PointMode, _ points: [Float], _ paint: Paint) {}
     func drawVertices(_ vertices: Vertices, _ blendMode: BlendMode, _ paint: Paint) {}

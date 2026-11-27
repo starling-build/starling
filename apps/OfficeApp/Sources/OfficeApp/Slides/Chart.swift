@@ -1079,6 +1079,12 @@ enum ChartXML {
             chart.categoryLabelSize = sz / 100
             chart.valueLabelSize = sz / 100
         }
+        // (A category axis's own text size, read as the legend's is, sizes its names: lab fn-names p7, a funnel's
+        // names at 16 pt in PowerPoint's print where ours stood at 9.)
+        if let ax = space.descendants("cx:axis").first(where: { $0.first("cx:catScaling") != nil }),
+           let sz = ax.first("cx:txPr")?.descendant("a:endParaRPr")?["sz"].flatMap(Double.init), sz > 0 {
+            chart.categoryLabelSize = sz / 100
+        }
     }
 
     static func readBoxWhisker(_ space: XNode) -> Chart? {
@@ -5316,14 +5322,33 @@ enum ChartPainter {
                                 categoryText: (String, Double, Double) -> TextPainter) {
         guard let s = c.series.first else { return }
         let n = c.categories.count
-        let labels = c.categories.map { categoryText($0, c.categoryLabelSize ?? c.baseTextSize, .infinity) }
+        let nameSize = c.categoryLabelSize ?? c.baseTextSize
+        var labels = c.categories.map { categoryText($0, nameSize, .infinity) }
         defer { labels.forEach { $0.dispose() } }
         // (On a slide the funnel stands 3.25 pt left of the room, 1.56 below its top, 2.44 above its foot and 2.66 in from its
         // right, its names 6.5 pt off the axis: PowerPoint's print of chartex-lab2's funnels, axis 192.18 by 87.66 to 452.46 and
         // widest bar to 744.24, where ours stood at 194.92 by 86.1 to 454.9 and to 746.86, names 6.0 off it.)
         let area = c.onSlide ? Rect.fromLTRB(area.left - 3.25 * k, area.top + 1.56 * k, area.right - 2.66 * k, area.bottom - 2.44 * k) : area
         let nameGap = (c.onSlide ? 6.5 : 6) * k
-        let left = area.left + (labels.map(\.width).max() ?? 0) + nameGap
+        // (On a slide the names take at most a third of the room. A longer name keeps the words that fit in that
+        // third less the gap, then " …", centred there: lab fn-names p6 and p9 in PowerPoint's print, frames 590.7 and
+        // 295.3 pt wide, axis at 365.3 and 266.9 where a third gives 365.2 and 266.7, cut names centred within 0.2.)
+        let room = c.onSlide ? area.width / 3 : .infinity
+        var cut = Set<Int>()
+        for i in labels.indices where labels[i].width > room {
+            let words = c.categories[i].split(separator: " ", omittingEmptySubsequences: false).map(String.init)
+            var kept = words[0]
+            for w in words.dropFirst() {
+                let probe = categoryText(kept + " " + w, nameSize, .infinity)
+                defer { probe.dispose() }
+                if probe.width > room - nameGap { break }
+                kept += " " + w
+            }
+            labels[i].dispose()
+            labels[i] = categoryText(kept + " …", nameSize, .infinity)
+            cut.insert(i)
+        }
+        let left = area.left + (cut.isEmpty ? labels.map(\.width).max() ?? 0 : room) + nameGap
         let plot = Rect.fromLTRB(left, area.top, area.right, area.bottom)
         let slot = plot.height / Double(n)
         let bar = slot / (1 + c.gap)
@@ -5344,7 +5369,8 @@ enum ChartPainter {
         if c.funnelTicks { for i in 0 ... n { let y = plot.top + Double(i) * slot; canvas.drawLine(Offset(plot.left, y), Offset(plot.left + 3 * k, y), axis) } }
         for i in 0 ..< n {
             let cy = plot.top + (Double(i) + 0.5) * slot
-            labels[i].paint(canvas, Offset(left - nameGap - labels[i].width, cy - labels[i].height / 2))
+            let nameX = cut.contains(i) ? area.left + (room + nameGap - labels[i].width) / 2 : left - nameGap - labels[i].width
+            labels[i].paint(canvas, Offset(nameX, cy - labels[i].height / 2))
             guard widest > 0, let v = s.values[safe: i] ?? nil else { continue }
             let w = abs(v) / widest * plot.width
             let r = Rect.fromLTWH(plot.center.dx - w / 2, cy - bar / 2, w, bar)
@@ -5366,6 +5392,9 @@ enum ChartPainter {
                     fontWeight: spec.bold == true ? .bold : .normal,
                     fontFamily: OfficeFonts.substitute(c.font ?? theme.bodyFont), fontFamilyFallback: Self.glyphFallback(c))), textDirection: .ltr)
                 tp.layout(minWidth: 0, maxWidth: .infinity)
+                // (A label inside its bar that is wider than the bar is not drawn: lab fn-names p8 and p9 in PowerPoint's
+                // print, a 43.4 pt label left off a 23 pt bar, where p6 keeps one on a 45.4 pt bar.)
+                if c.onSlide, spec.pos != "t", spec.pos != "b", tp.width > r.width { tp.dispose(); continue }
                 // (A funnel label set "t" stands on the bar's top edge, its line box's foot on the edge; "b" hangs
                 // under the bar, its line box's top on the bar's foot; both held within the first bar's top and the
                 // last bar's foot, 2 pt out: chartex-lab2 p27, p28, 9 pt text, where the labels set off the edge by
