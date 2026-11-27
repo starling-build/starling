@@ -246,7 +246,15 @@ enum PptxWriter {
         presOut = _setSections(presOut, state, slideIds: slideIds)
         presOut = _setCustomShows(presOut, state)
         let cx = Int((state.slideSize.width * Pptx.emu).rounded()), cy = Int((state.slideSize.height * Pptx.emu).rounded())
-        presOut = _replaceElement("p:sldSz", in: presOut, with: "<p:sldSz cx=\"\(cx)\" cy=\"\(cy)\"/>",
+        // The size as the file wrote it, its kind (`type`, a paper or screen
+        // name PowerPoint's size menu shows) included, while it is unchanged.
+        var size = "<p:sldSz cx=\"\(cx)\" cy=\"\(cy)\"/>"
+        if let r = presOut.rangeOfSubstring("<p:sldSz "), let e = presOut.rangeOfSubstring("/>", in: r.upperBound ..< presOut.endIndex) {
+            let old = String(presOut[r.lowerBound ..< e.upperBound])
+            if old.containsSubstring(" cx=\"\(cx)\""), old.containsSubstring(" cy=\"\(cy)\""),
+               !String(old.dropLast(2)).containsSubstring(">") { size = old }
+        }
+        presOut = _replaceElement("p:sldSz", in: presOut, with: size,
                                   after: "</p:sldIdLst>", orAfter: nil)
         // Always a presentation: a macro-enabled deck, a template or a show
         // read in becomes a plain .pptx, which is what this writes.

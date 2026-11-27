@@ -231,6 +231,26 @@ final class TransitionTests: XCTestCase {
         XCTAssertNil(copied.slides[1].cSldExtLstXML)
     }
 
+    /// A save keeps the slide size's kind (`type`, the name PowerPoint's size menu shows) while the size is unchanged.
+    func testPlainSaveKeepsTheSlideSizeKind() throws {
+        let deck = SlidesSample.make()
+        var package = PptxPackage(try Zip.read(try Pptx.write(deck)))
+        var pres = String(decoding: package.parts["ppt/presentation.xml"]!, as: UTF8.self)
+        guard let r = pres.range(of: "<p:sldSz cx=\"12192000\" cy=\"6858000\"/>") else { return XCTFail("sample size: " + pres) }
+        pres.replaceSubrange(r, with: "<p:sldSz cx=\"12192000\" cy=\"6858000\" type=\"custom\"/>")
+        package.parts["ppt/presentation.xml"] = Data(pres.utf8)
+        let (state, theme, pkg) = try Pptx.read(try Zip.write(package.parts.map { ZipEntry(name: $0.key, data: $0.value) }))
+        func saved(_ s: DeckState) throws -> String {
+            let out = PptxPackage(try Zip.read(try PptxWriter.write(s, theme: theme, package: pkg)))
+            return String(decoding: out.parts["ppt/presentation.xml"]!, as: UTF8.self)
+        }
+        XCTAssertTrue(try saved(state).contains("<p:sldSz cx=\"12192000\" cy=\"6858000\" type=\"custom\"/>"))
+        // Resized here, the old kind no longer names it.
+        var resized = state
+        resized.slideSize = Size(720, 540)
+        XCTAssertTrue(try saved(resized).contains("<p:sldSz cx=\"9144000\" cy=\"6858000\"/>"))
+    }
+
     func testAdvanceOnlyKeepsAnUnknownTransition() throws {
         let deck = SlidesSample.make()
         let bytes = try Pptx.write(deck)
