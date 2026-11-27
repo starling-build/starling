@@ -9,6 +9,15 @@ import FlutterSwiftBridge
 
 /// W-OB-3: the wrap choice and the nudge of a floating picture, read from a file, changed, undone and saved.
 final class PictureWrapTests: XCTestCase {
+    /// Line breaking needs ICU's data in the text engine; without it a whole paragraph lays out as one line. Loaded before
+    /// every test (once per process; later calls are free), since a run filtered to these classes may not start with
+    /// `AAATextSetupTests`, and a text engine first used without it keeps breaking
+    /// nothing (a filtered run on macOS: PictureWrapTests then ShapeSelectTests).
+    override func setUp() {
+        super.setUp()
+        _ = TestText.icuLoaded
+    }
+
     private let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")!
 
     /// A document whose second paragraph holds a picture floating square, 20pt in and 30pt down.
@@ -140,6 +149,15 @@ final class PictureWrapTests: XCTestCase {
 
 /// W-OB-4: a text box made by Insert → Text Box.
 final class TextBoxInsertTests: XCTestCase {
+    /// Line breaking needs ICU's data in the text engine; without it a whole paragraph lays out as one line. Loaded before
+    /// every test (once per process; later calls are free), since a run filtered to these classes may not start with
+    /// `AAATextSetupTests`, and a text engine first used without it keeps breaking
+    /// nothing (a filtered run on macOS: PictureWrapTests then ShapeSelectTests).
+    override func setUp() {
+        super.setUp()
+        _ = TestText.icuLoaded
+    }
+
     func testNewTextBoxFloatsHoldsItsTextAndSurvivesASave() throws {
         let box = try XCTUnwrap(TextBoxInsert.make(text: "Hello & <you>"))
         XCTAssertNotNil(box.float)
@@ -391,6 +409,15 @@ final class TextBoxInsertTests: XCTestCase {
 }
 
 final class ShapeInsertTests: XCTestCase {
+    /// Line breaking needs ICU's data in the text engine; without it a whole paragraph lays out as one line. Loaded before
+    /// every test (once per process; later calls are free), since a run filtered to these classes may not start with
+    /// `AAATextSetupTests`, and a text engine first used without it keeps breaking
+    /// nothing (a filtered run on macOS: PictureWrapTests then ShapeSelectTests).
+    override func setUp() {
+        super.setUp()
+        _ = TestText.icuLoaded
+    }
+
     func testNewShapeReadsBackAndSaves() throws {
         for preset in ["rect", "roundRect", "ellipse", "triangle", "rightArrow"] {
             let shape = try XCTUnwrap(TextBoxInsert.makeShape(preset: preset), preset)
@@ -460,6 +487,15 @@ final class ShapeInsertTests: XCTestCase {
 }
 
 final class ShapeSelectTests: XCTestCase {
+    /// Line breaking needs ICU's data in the text engine; without it a whole paragraph lays out as one line. Loaded before
+    /// every test (once per process; later calls are free), since a run filtered to these classes may not start with
+    /// `AAATextSetupTests`, and a text engine first used without it keeps breaking
+    /// nothing (a filtered run on macOS: PictureWrapTests then ShapeSelectTests).
+    override func setUp() {
+        super.setUp()
+        _ = TestText.icuLoaded
+    }
+
     func testSelectedShapeMovesAndDeletes() throws {
         let c = RichDocumentController(document: RichDocument(paragraphs: [RichParagraph(text: "before"), RichParagraph(text: "after")]))
         c.pendingShape = { x, y, w, h in TextBoxInsert.makeShape(preset: "rect", width: w, height: h, number: 1, page: (x, y)) }
@@ -655,17 +691,35 @@ final class ShapeSelectTests: XCTestCase {
         // (A caret in a left piece reports the row of the piece before it, so the rows are taken together.)
         let lefts = rows.filter { $0.key > 120 && $0.key < 200 }.flatMap(\.value)
         XCTAssertFalse(lefts.isEmpty)
-        XCTAssertFalse(rows.filter { $0.key > 150 && $0.key < 176 }.flatMap(\.value).contains { $0 > 125 && $0 < 235 }, "no text inside the ellipse's widest rows")
+        // At its widest rows the ellipse reaches 228 across; Word sets the text a further 9 pt out (its wrap distance: lab
+        // shape-format's print starts the right piece 9.0 pt past the outline at the row through the centre). How far into
+        // that strip this layout's outline lets a word come differs with the host's line heights, so the bound is the outline.
+        XCTAssertFalse(rows.filter { $0.key > 150 && $0.key < 176 }.flatMap(\.value).contains { $0 > 125 && $0 < 228 }, "no text inside the ellipse's widest rows")
         XCTAssertTrue(lefts.contains { $0 < 119 }, "a left piece")
         XCTAssertTrue(lefts.contains { $0 > 236 }, "a right piece")
     }
 
     /// Word's print of lab shape-format: a square at the margin, a tight ellipse 9pt from it on the same rows, and a top-and-bottom
     /// box lower down, all set from the page, in one long paragraph.
+    /// Lays out with the faces this app ships, loaded here, and those only: a machine's own faces (a Mac's Times) or what
+    /// an earlier test left loaded must not move the lines these tests measure. Gives back the undo.
+    static func pinBundledFonts() -> () -> Void {
+        _ = OfficeFonts.register()
+        let env = ProcessInfo.processInfo.environment["OFFICE_FONT_SOURCE"]
+        setenv("OFFICE_FONT_SOURCE", "bundled", 1)
+        OfficeFonts.fontSourceChanged()
+        return {
+            if let env { setenv("OFFICE_FONT_SOURCE", env, 1) } else { unsetenv("OFFICE_FONT_SOURCE") }
+            OfficeFonts.fontSourceChanged()
+        }
+    }
+
     func testSquareBesideATightEllipseFromThePageAsWordSetsThem() throws {
         let was = RichTextTheme.wordWindowsPages
         RichTextTheme.wordWindowsPages = true
         defer { RichTextTheme.wordWindowsPages = was }
+        let unpin = Self.pinBundledFonts()
+        defer { unpin() }
         /// Lays the page out with the fourth shape wrapped `last`; the caret rows by row top (column points) and the foot of the text.
         func lay(_ last: PictureWrap) throws -> (rows: [Double: [Double]], foot: Double) {
             let c = RichDocumentController(document: RichDocument(paragraphs: [RichParagraph(text: String(repeating: "Body text of the page, long enough to flow past every one of the four shapes so the wrap of each can be seen acting on it. ", count: 14))]))
@@ -688,7 +742,7 @@ final class ShapeSelectTests: XCTestCase {
             var rows: [Double: [Double]] = [:]
             for off in stride(from: 0, to: 3600, by: 2) {
                 let r = layout.caretRect(RichPosition(paragraph: body, offset: off), doc)
-                rows[(r.top / px).rounded(), default: []].append(r.left / px)
+                rows[(r.top / px * 100).rounded() / 100, default: []].append(r.left / px)
             }
             return (rows, layout.totalHeight / px)
         }
@@ -701,6 +755,20 @@ final class ShapeSelectTests: XCTestCase {
         XCTAssertFalse(beside.isEmpty)
         XCTAssertFalse(beside.contains { $0 > 30 && $0 < 196 }, "no text in the strip or the ellipse: \(rows.keys.sorted())")
         XCTAssertTrue(beside.contains { $0 > 196 && $0 < 216 }, "the first line beside the ellipse starts at its outline")
+        // Each line meets the outline over its TEXT, not its spacing: the 1.08 multiple's extra goes below the text and does not count
+        // (Word's print: 260.6 / 275.6 are the oval's edge plus 9pt over the 13.4pt Calibri text, not over the 14.5pt line). Here the
+        // rows are 13pt, the text 13 / 1.08 = 12.04pt: the row at 120 meets the oval (centre 148, 153; half axes 50, 35) at 132.04,
+        // where its edge is 188.1 across, so the text starts at 197.1 (198.2 before, over the whole line); the row at 133 meets it at 145.04: 196.7, text at 205.7.
+        // The first two lines whose top is at or below the ellipse's (118) and that have a piece right of it, by their measured
+        // tops: the row height is the spacing between them, the text height that over 1.08 (the host's faces set both).
+        let near = rows.filter { $0.key >= 118 && $0.key < 148 && $0.value.contains { $0 > 150 } }.sorted { $0.key < $1.key }
+        XCTAssertGreaterThanOrEqual(near.count, 2, "lines beside the ellipse: \(rows.keys.sorted())")
+        guard near.count >= 2 else { return }
+        let text = (near[1].key - near[0].key) / 1.0791666
+        for line in near.prefix(2) {
+            let edge = 148 + 50 * (1 - pow((153 - (line.key + text)) / 35, 2)).squareRoot()
+            XCTAssertEqual(try XCTUnwrap(line.value.filter { $0 > 150 }.min()), edge + 9, accuracy: 0.4, "the line at \(line.key)")
+        }
         // Below the square the left piece is back at the margin.
         XCTAssertTrue(rows.filter { $0.key > 150 && $0.key < 188 }.flatMap(\.value).contains { $0 < 8 })
         // The top-and-bottom box takes its rows out of the text: the lines that would stand in them go under it, so the page is
