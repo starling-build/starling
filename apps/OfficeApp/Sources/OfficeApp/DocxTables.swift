@@ -1620,6 +1620,8 @@ extension DocxFormat {
             let boxRanges = p.checkBoxes.map(\.range)   // a content-control check box shows its glyph as text, not as a legacy form field
             // (Runs of the same target that follow each other share one w:hyperlink, as Word writes an entry.)
             var linkOpen = "", linkClosedAt = -1
+            // The last tracked insertion or deletion written (its kind, author and date) and where it closed.
+            var revisionKey = "", revisionClosedAt = -1
             for (runIndex, run) in p.runs.enumerated() where run.length > 0 {
                 body += markersXML(at: pos)
                 let a = utf16.index(utf16.startIndex, offsetBy: pos)
@@ -1731,10 +1733,20 @@ extension DocxFormat {
                         runXML += "<w:r>\(rPrXML)<w:fldChar w:fldCharType=\"end\"/></w:r>"
                     }
                 }
+                var joinsRevision = false, revisionInner = ""
                 if let rev = s.revision {
-                    _ = nextRevisionID()
                     let tag = rev.kind == .inserted ? "w:ins" : "w:del"
-                    runXML = "<\(tag) w:id=\"\(revisionCount)\" w:author=\"\(_esc(rev.author.isEmpty ? "Author" : rev.author))\"\(rev.date.isEmpty ? "" : " w:date=\"\(_esc(rev.date))\"")>\(runXML)</\(tag)>"
+                    let who = " w:author=\"\(_esc(rev.author.isEmpty ? "Author" : rev.author))\"\(rev.date.isEmpty ? "" : " w:date=\"\(_esc(rev.date))\"")"
+                    // Runs one deletion (or insertion) covered stay in one when nothing sits between them: Word counts
+                    // each w:del as a revision of its own, so a deletion split per run counted 88 where the file had 19
+                    // (lo-9f27). Joined at the append below.
+                    joinsRevision = s.link == nil && s.linkField == nil && revisionKey == tag + who
+                    revisionInner = runXML + "</\(tag)>"
+                    _ = nextRevisionID()
+                    runXML = "<\(tag) w:id=\"\(revisionCount)\"\(who)>\(runXML)</\(tag)>"
+                    revisionKey = tag + who
+                } else {
+                    revisionKey = ""
                 }
                 if commentsKept {
                     // A range still open that this run is not in (its last
@@ -1773,7 +1785,13 @@ extension DocxFormat {
                     }
                     linkOpen = open; linkClosedAt = body.utf8.count
                 } else {
-                    body += runXML
+                    if joinsRevision, body.utf8.count == revisionClosedAt {
+                        body.removeLast(revisionKey.hasPrefix("w:ins") ? "</w:ins>".count : "</w:del>".count)
+                        body += revisionInner
+                    } else {
+                        body += runXML
+                    }
+                    revisionClosedAt = body.utf8.count
                 }
                 if commentsKept { body += closeComments(except: commentsAfter(index, runIndex, in: p)) }
             }

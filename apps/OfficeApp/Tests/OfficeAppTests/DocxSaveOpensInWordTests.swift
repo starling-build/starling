@@ -237,6 +237,8 @@ final class DocxSaveOpensInWordTests: XCTestCase {
         }
         let body = "<w:p>\(mark(10, deleted: true))\(run(20, "gone", deleted: true))</w:p><w:p>\(mark(30, deleted: true))\(run(40, "also", deleted: true))</w:p>"
             + "<w:p>\(mark(50, deleted: false))\(run(60, "kept", deleted: false))</w:p>"
+            // One deletion over two runs that differ (they stay two runs): still one w:del.
+            + "<w:p><w:del w:id=\"70\" \(a) w:date=\"2013-07-17T12:32:00Z\"><w:r><w:rPr><w:b/></w:rPr><w:delText>one</w:delText></w:r><w:r><w:delText>two</w:delText></w:r></w:del><w:r><w:t>end</w:t></w:r></w:p>"
         func counts(_ x: String) -> [String: Int] {
             var c: [String: Int] = [:]
             for tag in ["w:del", "w:ins", "w:rPrChange", "w:pPrChange"] { c[tag] = grab(x, "(<\(tag)[ >])").count }
@@ -245,7 +247,7 @@ final class DocxSaveOpensInWordTests: XCTestCase {
         }
         let doc = try XCTUnwrap(text(try resave(body), "word/document.xml"))
         // A deleted mark's old properties repeat its w:del (Word writes it so): 2 more w:del, and every id unique.
-        XCTAssertEqual(counts(doc), ["w:del": 6, "w:ins": 0, "w:rPrChange": 6, "w:pPrChange": 3, "mark rPrChange": 3], doc)
+        XCTAssertEqual(counts(doc), ["w:del": 7, "w:ins": 0, "w:rPrChange": 6, "w:pPrChange": 3, "mark rPrChange": 3], doc)
         let ids = grab(doc, "<w:(?:del|ins|rPrChange|pPrChange) w:id=\"(\\d+)\"")
         XCTAssertEqual(Set(ids).count, ids.count, "tracked-change ids repeat: \(ids)")
     }
