@@ -1688,6 +1688,165 @@ final class DocxTests: XCTestCase {
         XCTAssertNotEqual(doc.paragraphs[1].style.alignment, .center)
     }
 
+    /// A 24pt Cambria Math "x" set inline in an 11pt line grows the line as a 24pt base run does: Word's print of lab
+    /// mathline (case C06) puts the next line 25.8pt down and the one after 15.7pt, where a plain line is 13.4. It used to
+    /// keep the plain pitch, as if the equation had no height.
+    func testALargeMathRunGrowsItsLine() throws {
+        let was = RichTextTheme.wordWindowsPages, onWin = DocxFormat.wordOnWindows, onFonts = OfficeFonts.wordOnWindows
+        RichTextTheme.wordWindowsPages = true; DocxFormat.wordOnWindows = true; OfficeFonts.wordOnWindows = true
+        defer { RichTextTheme.wordWindowsPages = was; DocxFormat.wordOnWindows = onWin; OfficeFonts.wordOnWindows = onFonts }
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .a4))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let body = try XCTUnwrap(xml.range(of: "<w:body>")), sect = try XCTUnwrap(xml.range(of: "<w:sectPr"))
+        let m = "xmlns:m=\"http://schemas.openxmlformats.org/officeDocument/2006/math\""
+        func text(_ s: String) -> String {
+            "<w:r><w:rPr><w:rFonts w:ascii=\"Calibri\" w:hAnsi=\"Calibri\"/><w:sz w:val=\"22\"/><w:szCs w:val=\"22\"/></w:rPr><w:t xml:space=\"preserve\">\(s)</w:t></w:r>"
+        }
+        let eq = "<m:oMath \(m)><m:r><w:rPr><w:rFonts w:ascii=\"Cambria Math\" w:hAnsi=\"Cambria Math\"/><w:sz w:val=\"48\"/>"
+            + "<w:szCs w:val=\"48\"/></w:rPr><m:t>x</m:t></m:r></m:oMath>"
+        let br = "<w:r><w:br/></w:r>"
+        xml.replaceSubrange(body.upperBound ..< sect.lowerBound, with:
+            "<w:p><w:pPr><w:spacing w:before=\"0\" w:after=\"0\" w:line=\"240\" w:lineRule=\"auto\"/></w:pPr>"
+            + text("L1 alpha beta") + br + text("L2 alpha ") + eq + text(" delta") + br + text("L3 delta") + br + text("L4 delta")
+            + "</w:p>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let opened = try DocxFormat.read(try Zip.write(entries))
+        let setup = opened.pageSetup ?? .a4
+        let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+        theme.wordRules = true
+        theme.faceResolver = OfficeFonts.face
+        let l = RichLayout(theme: theme, paragraphCount: opened.document.paragraphs.count)
+        l.pageSetup = setup
+        l.width = setup.columnWidth * theme.pixelsPerPoint
+        l.ensureLaidOut(opened.document)
+        let painter = l.geometry(0).painter, lines = painter.computeLineMetrics()
+        XCTAssertEqual(lines.count, 4)
+        guard lines.count == 4 else { return }
+        // (The lines an equation grows are moved by the shifts the layout pairs with the painter's own.)
+        let shifts = RichLayout._paired(painter)?.shifts ?? [0, 0, 0, 0]
+        let base = (0 ..< 4).map { (lines[$0].baseline + (shifts.indices.contains($0) ? shifts[$0] : 0)) / theme.pixelsPerPoint }
+        let pitch = (0 ..< 3).map { base[$0 + 1] - base[$0] }
+        // (Word's print, to its 0.1pt: 25.8, 15.72 and 13.44.)
+        XCTAssertEqual(pitch[0], 25.8, accuracy: 0.15, "the equation's line reaches up for the 24pt x")
+        XCTAssertEqual(pitch[1], 15.72, accuracy: 0.15, "and down past the plain descent")
+        XCTAssertEqual(pitch[2], 13.44, accuracy: 0.15, "the lines after it are plain again")
+    }
+
+    /// An inline fraction between lines of Sylfaen (a face with no split of its own, so the engine's strut holds the multiple and
+    /// puts half its extra over the baseline) at 1.08 lines: Word's print of lab fraclab (cases D and E) steps 0.94pt further into
+    /// the fraction's line than at single spacing and 1.20pt further out of it. The half the line before held back used to stand
+    /// all under the equation: 0.55 in and 1.75 out.
+    func testAnEquationLineAtAMultipleTakesTheStrutHalfOverIt() throws {
+        let was = RichTextTheme.wordWindowsPages, onWin = DocxFormat.wordOnWindows, onFonts = OfficeFonts.wordOnWindows
+        RichTextTheme.wordWindowsPages = true; DocxFormat.wordOnWindows = true; OfficeFonts.wordOnWindows = true
+        defer { RichTextTheme.wordWindowsPages = was; DocxFormat.wordOnWindows = onWin; OfficeFonts.wordOnWindows = onFonts }
+        func steps(_ line: Int) throws -> (into: Double, out: Double) {
+            var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .a4))
+            let di = entries.firstIndex { $0.name == "word/document.xml" }!
+            var xml = String(decoding: entries[di].data, as: UTF8.self)
+            let body = try XCTUnwrap(xml.range(of: "<w:body>")), sect = try XCTUnwrap(xml.range(of: "<w:sectPr"))
+            let m = "xmlns:m=\"http://schemas.openxmlformats.org/officeDocument/2006/math\""
+            let syl = "<w:rPr><w:rFonts w:ascii=\"Sylfaen\" w:hAnsi=\"Sylfaen\"/><w:sz w:val=\"22\"/><w:szCs w:val=\"22\"/></w:rPr>"
+            let cm = "<w:rPr><w:rFonts w:ascii=\"Cambria Math\" w:hAnsi=\"Cambria Math\"/><w:sz w:val=\"22\"/><w:szCs w:val=\"22\"/></w:rPr>"
+            let pPr = "<w:pPr><w:spacing w:after=\"160\" w:line=\"\(line)\" w:lineRule=\"auto\"/>\(syl)</w:pPr>"
+            func r(_ s: String) -> String { "<m:r>\(cm)<m:t>\(s)</m:t></m:r>" }
+            let eq = "<m:oMath \(m)>" + r("x=") + "<m:f><m:num>" + r("0,81") + "</m:num><m:den>" + r("0,57") + "</m:den></m:f>" + r("=1,42") + "</m:oMath>"
+            xml.replaceSubrange(body.upperBound ..< sect.lowerBound, with:
+                "<w:p>\(pPr)<w:r>\(syl)<w:t>before</w:t></w:r></w:p><w:p>\(pPr)<w:r>\(syl)<w:t xml:space=\"preserve\">eq </w:t></w:r>\(eq)</w:p>"
+                + "<w:p>\(pPr)<w:r>\(syl)<w:t>after</w:t></w:r></w:p>")
+            entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+            let opened = try DocxFormat.read(try Zip.write(entries))
+            let setup = opened.pageSetup ?? .a4
+            let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+            theme.wordRules = true
+            theme.faceResolver = OfficeFonts.face
+            let l = RichLayout(theme: theme, paragraphCount: opened.document.paragraphs.count)
+            l.pageSetup = setup
+            l.width = setup.columnWidth * theme.pixelsPerPoint
+            l.ensureLaidOut(opened.document)
+            let base = (0 ..< 3).map { i -> Double in
+                let g = l.geometry(i), first = g.painter.computeLineMetrics().first?.baseline ?? 0
+                return (g.top + first + (RichLayout._paired(g.painter)?.shifts.first ?? 0)) / theme.pixelsPerPoint
+            }
+            return (base[1] - base[0], base[2] - base[1])
+        }
+        let single = try steps(240), multiple = try steps(259)
+        XCTAssertEqual(multiple.into - single.into, 0.94, accuracy: 0.25, "the step into the equation's line grows by the text line's extra")
+        XCTAssertEqual(multiple.out - single.out, 1.20, accuracy: 0.25, "and the step out of it by the equation's own")
+    }
+
+    /// An equation in a line of text, from Cambria Math's MATH table as Word's print of lab fraclab has it at 11pt:
+    /// a fraction nested in the denominator is pushed down until its ink is a rule's thickness (133/2048 em) under
+    /// the rule, so x = v/(1−∑A/A) has its inner A's baseline 11.5pt under the line (ours 9.6: the plain 1030/2048
+    /// em shift, through the rule); and a numerator holding a sum stands clear of the inner rule (4.92 over the
+    /// denominator's baseline at 8pt, not 4.69).
+    func testANestedFractionInADenominatorClearsTheRule() throws {
+        _ = OfficeFonts.register()
+        let was = RichTextTheme.wordWindowsPages
+        RichTextTheme.wordWindowsPages = true
+        defer { RichTextTheme.wordWindowsPages = was }
+        let m = "xmlns:m=\"http://schemas.openxmlformats.org/officeDocument/2006/math\""
+        func r(_ s: String) -> String { "<m:r><m:t>\(s)</m:t></m:r>" }
+        func f(_ a: String, _ b: String) -> String { "<m:f><m:num>\(a)</m:num><m:den>\(b)</m:den></m:f>" }
+        let sum = "<m:nary><m:naryPr><m:chr m:val=\"\u{2211}\"/><m:limLoc m:val=\"subSup\"/><m:subHide m:val=\"1\"/><m:supHide m:val=\"1\"/></m:naryPr><m:sub/><m:sup/><m:e>" + r("A") + "</m:e></m:nary>"
+        let xml = "<m:oMath \(m)>" + r("x=") + f(r("v"), r("1\u{2212}") + f(sum, r("A"))) + "</m:oMath>"
+        let node = try XCTUnwrap(XNode.parse(Data(xml.utf8)))
+        let box = try XCTUnwrap(WriterMath.box(node, size: 11))
+        XCTAssertEqual(box.idn, 11.52, accuracy: 0.3, "the inner denominator's foot, as in Word's print")
+    }
+
+    /// An equation's text stands on the face's own baseline. Its painters laid the text out at the equation's own size,
+    /// where the engine rounds the line to whole points (and, when it paints, the baseline to a whole unit): an 8pt
+    /// numerator's baseline came out 7.22pt under its top, where Caladea's is 7.6, and it was drawn 0.4pt low (an 11pt
+    /// "=" 0.45 high) against Word's print of lab fraclab. The body's text, laid out at the export's 15x, never was.
+    func testAnEquationsTextStandsOnTheFacesOwnBaseline() throws {
+        _ = OfficeFonts.register()
+        for size in [8.0, 11.0] {
+            let p = WriterMath.Painter("0", size: size, italic: false, color: Color(0xFF000000))
+            let k = 40.0
+            let tp = TextPainter(text: TextSpan(text: "0", style: TextStyle(color: Color(0xFF000000), fontSize: size * k,
+                fontFamily: WriterMath.family, fontFamilyFallback: WriterMath.fallback + RichTextTheme.glyphFallback)), textDirection: .ltr)
+            tp.fractionalLineHeights = true
+            tp.layout(minWidth: 0, maxWidth: .infinity)
+            let face = try XCTUnwrap(tp.computeLineMetrics().first?.baseline) / k
+            XCTAssertEqual(p.baseline, face, accuracy: 0.05, "at \(size)pt")
+        }
+    }
+
+    /// A paragraph that is one 12pt equation and a space, at 1.5 lines: the line is the equation's own height plus half
+    /// the text's line, about 21pt, as in Word's print of dx2 e6a6cc58 (its "Davlat qarzi = β0 + ..." line, 0.4pt over the
+    /// 20.7pt text step). With no visible text run to read the face from, the 1.5 used to be added to a line that already held it: 31pt.
+    func testALoneEquationAtOneAndAHalfLinesTakesTheMultipleOnce() throws {
+        let was = RichTextTheme.wordWindowsPages, onWin = DocxFormat.wordOnWindows, onFonts = OfficeFonts.wordOnWindows
+        RichTextTheme.wordWindowsPages = true; DocxFormat.wordOnWindows = true; OfficeFonts.wordOnWindows = true
+        defer { RichTextTheme.wordWindowsPages = was; DocxFormat.wordOnWindows = onWin; OfficeFonts.wordOnWindows = onFonts }
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .a4))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let body = try XCTUnwrap(xml.range(of: "<w:body>")), sect = try XCTUnwrap(xml.range(of: "<w:sectPr"))
+        let m = "xmlns:m=\"http://schemas.openxmlformats.org/officeDocument/2006/math\""
+        let tnr = "<w:rPr><w:rFonts w:ascii=\"Times New Roman\" w:hAnsi=\"Times New Roman\"/><w:sz w:val=\"24\"/><w:szCs w:val=\"24\"/></w:rPr>"
+        let cm = "<w:rPr><w:rFonts w:ascii=\"Cambria Math\" w:hAnsi=\"Cambria Math\"/><w:sz w:val=\"24\"/><w:szCs w:val=\"24\"/></w:rPr>"
+        let pPr = "<w:pPr><w:spacing w:before=\"0\" w:after=\"0\" w:line=\"360\" w:lineRule=\"auto\"/><w:jc w:val=\"both\"/>\(tnr)</w:pPr>"
+        let eq = "<m:oMath \(m)><m:sSub><m:e><m:r>\(cm)<m:t>D</m:t></m:r></m:e><m:sub><m:r>\(cm)<m:t>it</m:t></m:r></m:sub></m:sSub>"
+            + "<m:r>\(cm)<m:t>=a+b</m:t></m:r></m:oMath>"
+        xml.replaceSubrange(body.upperBound ..< sect.lowerBound, with:
+            "<w:p>\(pPr)<w:r>\(tnr)<w:t>model:</w:t></w:r></w:p><w:p>\(pPr)\(eq)<w:r>\(tnr)<w:t xml:space=\"preserve\"> </w:t></w:r></w:p><w:p>\(pPr)<w:r>\(tnr)<w:t>after</w:t></w:r></w:p>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let opened = try DocxFormat.read(try Zip.write(entries))
+        let setup = opened.pageSetup ?? .a4
+        let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+        theme.wordRules = true
+        theme.faceResolver = OfficeFonts.face
+        let l = RichLayout(theme: theme, paragraphCount: opened.document.paragraphs.count)
+        l.pageSetup = setup
+        l.width = setup.columnWidth * theme.pixelsPerPoint
+        l.ensureLaidOut(opened.document)
+        let height = (l.geometry(2).top - l.geometry(1).top) / theme.pixelsPerPoint
+        XCTAssertEqual(height, 21.0, accuracy: 0.5, "the equation's line takes the 1.5 once")
+    }
+
     /// A line separator typed into a `w:t` is no break to Word: it prints a
     /// blank half an em wide and the line runs on (tdf152983-1-min).
     func testALineSeparatorInTextIsNotABreak() throws {
@@ -8235,5 +8394,26 @@ private final class TurnedTextCanvas: Canvas {
         }
         XCTAssertEqual(width(hint: "cs"), 4 * 0.278 * 16, accuracy: 0.3, "four brackets at the face's 0.278 em")
         XCTAssertGreaterThan(width(hint: nil), 4 * 0.35 * 16, "no hint: the Latin face's width")
+    }
+}
+
+extension DocxTests {
+    /// An arrow over a letter in a slide's equation keeps the arrow's whole line box over the letter: PowerPoint's print
+    /// of ru-4402254ccc slide 2 stands "Векторы a⃗ и b⃗" (22 pt) and the paragraph after it where that box puts them
+    /// (0.7 pt off), where the arrow's ink alone stood them 3.9 pt high. Word's own line takes the ink (xb fra-g255).
+    func testSlideAccentArrowKeepsItsLineBox() throws {
+        let xml = """
+        <m:oMath xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math"><m:acc><m:accPr><m:chr m:val="\u{20D7}"/></m:accPr>\
+        <m:e><m:r><m:t>\u{1D44E}</m:t></m:r></m:e></m:acc></m:oMath>
+        """
+        let node = try XCTUnwrap(XNode.parse(Data(xml.utf8)))
+        let was = RichTextTheme.wordWindowsPages
+        RichTextTheme.wordWindowsPages = true
+        let word = try XCTUnwrap(WriterMath.register(node, for: "acc-word", size: 22))
+        RichTextTheme.wordWindowsPages = was
+        WriterMath.slideScope = true
+        defer { WriterMath.slideScope = false }
+        let slide = try XCTUnwrap(WriterMath.register(node, for: "acc-slide", size: 22))
+        XCTAssertGreaterThan(slide.baseline - word.baseline, 2, "the slide's arrow stands on its line box, not its ink")
     }
 }
