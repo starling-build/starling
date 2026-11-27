@@ -100,6 +100,8 @@ public indirect enum EditOp: Equatable, Sendable {
     case setNotes(new: NotesState, old: NotesState)
     /// A section's page (size, margins, columns): the paragraph that ends it, or -1 for the last section.
     case setSectionPage(Int, old: PageSetup?, new: PageSetup?)
+    /// The document-level page options (the last section's different first page and first page number, odd/even headers).
+    case setPageOptions(old: RichDocumentController.PageOptions, new: RichDocumentController.PageOptions)
     /// A picture's shown size (its attachment replaced; the id survives).
     case setImage(Int, old: ImageAttachment, new: ImageAttachment)
     /// An inline picture in a paragraph's text, replaced (its id survives).
@@ -211,6 +213,10 @@ public indirect enum EditOp: Equatable, Sendable {
             if index < 0 { doc.lastSectionPage = new } else { doc.paragraphs[index].style.sectionPage = new }
             changes.append(.all)
             return .setSectionPage(index, old: new, new: old)
+        case .setPageOptions(let old, let new):
+            doc.titlePage = new.titlePage; doc.evenAndOddHeaders = new.evenAndOdd; doc.pageNumberStart = new.pageNumberStart
+            changes.append(.all)
+            return .setPageOptions(old: new, new: old)
         case .setImage(let index, let old, let new):
             doc.paragraphs[index].image = new
             changes.append(.changed(index))
@@ -3136,6 +3142,42 @@ public final class RichDocumentController: ChangeNotifier {
 
     /// W-PG-1: change the page of the caret's section, or of every section, by editing a copy of each one's own
     /// setup (so a section keeps its columns, title page and the rest). One undo step.
+    public struct PageOptions: Equatable, Sendable {
+        public var titlePage: Bool, evenAndOdd: Bool, pageNumberStart: Int?
+        public init(titlePage: Bool, evenAndOdd: Bool, pageNumberStart: Int?) { self.titlePage = titlePage; self.evenAndOdd = evenAndOdd; self.pageNumberStart = pageNumberStart }
+    }
+    /// The page options of the section holding the caret (`allSections: false`) as the Layout tab shows them.
+    public func pageOptions(sectionMark mark: Int) -> PageOptions {
+        if mark < 0 { return PageOptions(titlePage: document.titlePage, evenAndOdd: document.evenAndOddHeaders, pageNumberStart: document.pageNumberStart) }
+        let s = document.paragraphs[mark].style.sectionPage
+        return PageOptions(titlePage: s?.titlePage ?? false, evenAndOdd: document.evenAndOddHeaders, pageNumberStart: s?.pageNumberStart)
+    }
+    /// W-HF-2: different first page and first page number for the caret's section (every section with
+    /// `allSections`), and different odd and even pages for the document. One undo step.
+    public func changePageOptions(allSections: Bool, _ new: PageOptions, lastSetup: PageSetup) {
+        var marks: [Int] = []
+        if allSections {
+            for i in 0..<document.paragraphs.count where document.paragraphs[i].cell == nil && document.paragraphs[i].style.sectionPage != nil { marks.append(i) }
+            marks.append(-1)
+        } else { marks = [sectionMark(containing: selection.focus.paragraph)] }
+        edit {
+            for mark in marks {
+                if mark < 0 {
+                    let old = pageOptions(sectionMark: -1)
+                    let next = PageOptions(titlePage: new.titlePage, evenAndOdd: new.evenAndOdd, pageNumberStart: new.pageNumberStart)
+                    if next != old { perform(.setPageOptions(old: old, new: next)) }
+                } else if let old = document.paragraphs[mark].style.sectionPage {
+                    var s = old; s.titlePage = new.titlePage; s.pageNumberStart = new.pageNumberStart
+                    if s != old { perform(.setSectionPage(mark, old: old, new: s)) }
+                }
+            }
+            if document.evenAndOddHeaders != new.evenAndOdd {
+                perform(.setPageOptions(old: pageOptions(sectionMark: -1),
+                                        new: PageOptions(titlePage: document.titlePage, evenAndOdd: new.evenAndOdd, pageNumberStart: document.pageNumberStart)))
+            }
+        }
+    }
+
     public func changePageSetup(allSections: Bool, lastSetup: PageSetup, _ change: (inout PageSetup) -> Void) {
         var marks: [Int] = []
         if allSections {
