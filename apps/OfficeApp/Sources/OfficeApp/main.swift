@@ -1305,6 +1305,10 @@ OfficeHost.browserRecovery = .init(
     discard: { WebFiles.discardRecovery() },
     take: { kind in WebFiles.takeRecovery(kind: kind).map { ($0.name, $0.data) } })
 
+// A tab hidden or closing writes the recovery copy at once, not two seconds
+// later: a closed tab gets no two seconds.
+hostPageHidden = { OfficeScene.flushAll() }
+
 // Recent files: the page keeps each document opened or saved (web-parity item 3).
 OfficeHost.browserRecent = .init(names: { WebFiles.recentNames },
                                  remember: { name, data in WebFiles.keepRecent(name, data) },

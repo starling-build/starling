@@ -2,6 +2,7 @@
 # Web parity 2 (docs/plans/web-parity.md section 4): AutoSave's recovery copy in a browser tab.
 # Types into Word, waits for AutoSave to copy the document into the page's storage (IndexedDB),
 # closes the browser, starts a new one on the same profile: the text must be back and unsaved.
+# Last, a tab hidden within AutoSave's 2-second pause writes its row at once (the page-hide flush).
 # Then Save (a download) must delete the copy.
 #
 #   test/office-recovery-web.sh [STAGE]   (default .stage-web-OfficeApp, from
@@ -50,4 +51,11 @@ three=$(drive downloads "$WORK/downloads" wait 9000 chord ctrl s wait 1500 eval 
 echo "$three" | sed 's/^/  tab 3: /'
 check "Save downloads the document" 'ls "$WORK/downloads" | grep -q "Document1.docx"'
 check "Save deletes the row" '[[ "$three" == *"eval: []"* ]]'
+
+# 4. A tab closed within the 2-second pause: hiding the page writes the copy at once.
+# (pagehide is what a closing tab fires; the row must be there 300 ms later, long before AutoSave.)
+four=$(drive settle Document1 click 700 450 type "Hidden at once" wait 300 \
+       eval 'window.dispatchEvent(new PageTransitionEvent("pagehide")), 1' wait 300 eval "$ROWS")
+echo "$four" | sed 's/^/  tab 4: /'
+check "hiding the page writes the row before the pause" '[[ "$four" == *"docx Document1.docx"* ]]'
 exit $fail

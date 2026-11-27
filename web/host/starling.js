@@ -1021,6 +1021,13 @@ export async function startStarling({ canvas, app, appBrotli, preloaded, immutab
   if (recent.length && swift.starling_recent_names) {
     transfer(encoder.encode(recent.join('\n')), (pointer, length) => swift.starling_recent_names(pointer, length));
   }
+  // The page going out of sight (tab switch, close, phone app switch) writes the
+  // recovery copy now instead of on the 2-second timer, which a close cuts short.
+  const pageHidden = () => swift.starling_page_hidden?.();
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') pageHidden();
+  });
+  window.addEventListener('pagehide', pageHidden);
 
   // --- size, before the app mounts, so its first layout is the real one.
   const resize = () => {

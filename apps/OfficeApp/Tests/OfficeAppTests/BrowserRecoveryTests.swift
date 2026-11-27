@@ -16,6 +16,7 @@ final class BrowserRecoveryTests: XCTestCase {
         var mine: (kind: String, name: String, data: Data)?
         var orphans: [(kind: String, name: String, data: Data)] = []
         var discards = 0
+        var keeps = 0
     }
     private var page = Page()
     private var saved: OfficeHost.BrowserRecovery?
@@ -25,7 +26,7 @@ final class BrowserRecoveryTests: XCTestCase {
         page = Page()
         let page = self.page
         OfficeHost.browserRecovery = .init(
-            keep: { kind, name, data in page.mine = (kind, name, data) },
+            keep: { kind, name, data in page.mine = (kind, name, data); page.keeps += 1 },
             discard: { page.mine = nil; page.discards += 1 },
             take: { kind in
                 guard let i = page.orphans.firstIndex(where: { $0.kind == kind }) else { return nil }
@@ -61,6 +62,27 @@ final class BrowserRecoveryTests: XCTestCase {
         XCTAssertEqual(row.kind, "docx")
         XCTAssertTrue(row.name.hasSuffix(".docx"), row.name)
         XCTAssertTrue(text(row.data).contains("Kept by the tab"), text(row.data))
+    }
+
+    /// The tab going out of sight (or closing) writes the copy at once, before the pause is over, and a second
+    /// hide with no edit since does not write it again (a tab switch must not rewrite the copy each time).
+    func testHidingThePageCopiesAtOnceAndOnlyOnce() {
+        let (ui, _) = shell(blank: true)
+        ui.type("Kept on close")
+        ui.pump()
+        XCTAssertNil(page.mine, "the copy was written before the pause")
+        OfficeScene.flushAll()
+        guard let row = page.mine else { return XCTFail("hiding the page wrote no copy") }
+        XCTAssertTrue(text(row.data).contains("Kept on close"), text(row.data))
+        XCTAssertEqual(page.keeps, 1)
+        OfficeScene.flushAll()
+        XCTAssertEqual(page.keeps, 1, "a hide with no edit since wrote the copy again")
+        RunLoop.main.run(until: Date().addingTimeInterval(2.5)); ui.pump()
+        XCTAssertEqual(page.keeps, 1, "the pause wrote a copy the page already had")
+        ui.type("!")
+        ui.pump()
+        OfficeScene.flushAll()
+        XCTAssertEqual(page.keeps, 2, "an edit after the copy was not written on the next hide")
     }
 
     func testACopyLeftByAClosedTabIsRestored() throws {

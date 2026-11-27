@@ -58,6 +58,9 @@ final class OfficeShellState: State<StatefulWidget> {
     private var _status: String? = nil
     private var _statusGeneration = 0
     private var _savedRevision = 0
+    /// The revision the page's recovery copy holds (a browser tab): a flush
+    /// when the tab is hidden writes only a copy that is behind.
+    private var _keptRevision: Int?
     private var _recent: [String] = []
     private let _search = TextEditingController()
     private var _ribbonBeforeReading = false
@@ -775,9 +778,11 @@ final class OfficeShellState: State<StatefulWidget> {
         // In a browser tab: the page keeps the copy (there is no file to save in place).
         if let browser = OfficeHost.browserRecovery {
             guard (widget as! OfficeShell).hosted == nil else { return }
+            guard _keptRevision != controller.revision else { return }
             let name = session.path ?? session.title + ".docx"
             if let data = try? DocxFormat.write(controller.document, pageSetup: session.pageSetup) {
                 browser.keep("docx", name.pathExtension == "docx" ? name : name.deletingPathExtension + ".docx", data)
+                _keptRevision = controller.revision
             }
             return
         }
@@ -1032,6 +1037,7 @@ final class OfficeShellState: State<StatefulWidget> {
 
     private func _browserSaved(_ name: String, _ data: Data, handle: Int?, revision: Int, afterSaving: (() -> Void)?) {
         OfficeHost.browserRecovery?.discard()
+        _keptRevision = nil
         _rememberInBrowser(name, data)
         _recovered = false
         _autosaveGeneration += 1
@@ -1065,6 +1071,7 @@ final class OfficeShellState: State<StatefulWidget> {
             if let old = session.path, old != path { try? fm.removeItem(atPath: _recoveryPath(for: old)) }
             if session.path == nil { try? fm.removeItem(atPath: _recoveryPath(for: nil)) }
             OfficeHost.browserRecovery?.discard()
+            _keptRevision = nil
             _recovered = false
             _autosaveGeneration += 1
             session.path = path
