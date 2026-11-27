@@ -225,6 +225,13 @@ extension _ParaFrame {
         for item in inline { if let image = item.image { _ensureDecoded(image) } }
         _inline[i] = inline.compactMap(\.image)
         _inlineBoxes[i] = inline.indices.filter { inline[$0].image != nil }
+        // (Where a square float placed from its character stands, for its drawing: see `_charAnchor`.)
+        if theme.wordRules, p.cell == nil {
+            for image in p.inlineImages.values {
+                guard let f = image.float, RichLayout._wrapsFromCharacter(f) else { continue }
+                _charAnchorAt["\(i)|\(image.id)"] = _charAnchor(i, p, image, document, textWidth: _flowWidth(i))
+            }
+        }
         _floats[i] = p.image?.float
         _floatImages[i] = p.image?.float != nil ? p.image : nil
         _mixedFace[i] = nil

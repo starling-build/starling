@@ -1260,6 +1260,8 @@ extension RichLayout {
             x = max(d.colLeft, d.colLeft + d.colWidth - w)
         }
         if float.horizontalAlign == nil, float.horizontalFrom == "character" { x = g.textLeft + _px(float.x) }
+        let fromCharacter = theme.wordRules ? _charAnchorAt["\(i)|\(image.id)"] : nil
+        if let at = fromCharacter { x = g.textLeft - _textLeftInColumn(i) + at.x + _px(float.x) }
         // (From the character's own place: in a line set centred or right the
         // line's first box, not the paragraph's edge — zh-f47b8a74 p58's
         // canvas, 111pt left of the "重大行政执法…" title's first character,
@@ -1322,6 +1324,7 @@ extension RichLayout {
         }
         let pushed = i < _floatPush.count ? _floatPush[i] : 0
         var y = g.textTop - pushed + (float.verticalAlign == nil && ["paragraph", "line"].contains(float.verticalFrom) ? _px(float.y) : 0)
+        if let at = fromCharacter, float.verticalFrom == "line" { y += at.y }
         // (From the paragraph's top, its space before and all: Word's
         // print of zh-799c91cd sets its "【附件一之9】" boxes, 18pt above
         // pages' first paragraphs with 14pt of space before them, 18pt

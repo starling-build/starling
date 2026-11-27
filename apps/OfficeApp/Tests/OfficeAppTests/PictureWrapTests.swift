@@ -145,6 +145,63 @@ final class PictureWrapTests: XCTestCase {
         c.undo()
         XCTAssertEqual(try XCTUnwrap(c.document.paragraphs[k].inlineImages[id]?.float).x, 20, accuracy: 0.01)
     }
+
+    /// A shape set square from its character and its line (what In Line with Text turns into when it is switched to Square) stands
+    /// where the character before its anchor starts, at its line's top, and the text goes round it: the line it is anchored in and
+    /// the next paragraph goes on at its right edge and gap (a short word may keep the room at its left), the lines under it at the margin. Lab charanchor, Word for
+    /// Windows: after "before " the rectangle stands at the end of "before" (the space is not counted) and "before after" goes on at
+    /// its right; ours set it at the paragraph's left with the text across it.
+    func testSquareShapeFromItsCharacterStandsAfterTheTextBeforeItAndIsWrapped() throws {
+        let was = RichTextTheme.wordWindowsPages
+        RichTextTheme.wordWindowsPages = true
+        defer { RichTextTheme.wordWindowsPages = was }
+        let theme = RichTextTheme(fontFamily: OfficeFonts.serif)
+        theme.wordRules = true
+        let px = theme.pixelsPerPoint
+        func laid(_ data: Data) throws -> (RichDocument, RichLayout) {
+            let parsed = try DocxFormat.read(data)
+            let layout = RichLayout(theme: theme, paragraphCount: parsed.document.paragraphs.count)
+            layout.pageSetup = parsed.pageSetup ?? .letter
+            layout.width = layout.pageSetup!.columnWidth * px
+            layout.ensureLaidOut(parsed.document)
+            return (parsed.document, layout)
+        }
+        let long = String(repeating: "Text after the switched shape, enough to wrap round it on a few lines. ", count: 8)
+        let plain = try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "before after"), RichParagraph(text: long)]), pageSetup: .letter)
+        // Where "before" ends with no shape: the rectangle's left.
+        let (pdoc, playout) = try laid(plain)
+        let end = playout.caretRect(RichPosition(paragraph: 0, offset: 6), pdoc).left / px
+        // The same text with a 72 x 36 rectangle between "before " and " after", placed from its character and line, offsets 0.
+        let drawing = TextBoxInsert.drawingXML(text: nil, width: 72, height: 36, preset: "rect", fill: "4472C4", name: "Rectangle", number: 3)
+            .replacingAll("relativeFrom=\"column\"><wp:posOffset>228600", with: "relativeFrom=\"character\"><wp:posOffset>0")
+            .replacingAll("relativeFrom=\"paragraph\"><wp:posOffset>228600", with: "relativeFrom=\"line\"><wp:posOffset>0")
+        XCTAssertTrue(drawing.containsSubstring("\"character\"") && drawing.containsSubstring("\"line\""))
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "before  after"), RichParagraph(text: long)]), pageSetup: .letter))
+        let di = try XCTUnwrap(entries.firstIndex { $0.name == "word/document.xml" })
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let r = try XCTUnwrap(xml.rangeOfSubstring("before  after"))
+        xml.replaceSubrange(r, with: "before </w:t></w:r><w:r>" + drawing + "</w:r><w:r><w:t xml:space=\"preserve\"> after")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let (doc, layout) = try laid(try Zip.write(entries))
+        XCTAssertNotNil(doc.paragraphs[0].inlineImages.values.first { $0.float?.horizontalFrom == "character" })
+        // The anchor's line: "before" starts past the rectangle (its left, 72 wide, the 9pt gap), none of it left of it.
+        let first = layout.caretRect(RichPosition(paragraph: 0, offset: 0), doc)
+        XCTAssertEqual(first.left / px, end + 72 + 9, accuracy: 0.6)
+        // The next paragraph's first line, still beside it, has nothing over the rectangle or its gaps (a short word may stand in
+        // the room at its left, Word's "Text" at the margin), and goes on at its right; lines under it are back at the margin.
+        var rows: [Double: [Double]] = [:]
+        for off in stride(from: 0, to: long.utf16.count, by: 1) {
+            let c = layout.caretRect(RichPosition(paragraph: 1, offset: off), doc)
+            rows[(c.top / px).rounded(), default: []].append(c.left / px)
+        }
+        let top = first.top / px
+        // (The caret reports a line's right-hand piece a row lower than its left: the rows taken are all those the rectangle's 36pt reach.)
+        let beside = rows.filter { $0.key < top + 36 }.flatMap(\.value)
+        XCTAssertFalse(beside.isEmpty)
+        XCTAssertFalse(beside.contains { $0 > end - 8 && $0 < end + 72 + 8 }, "no text over the rectangle: \(rows.keys.sorted())")
+        XCTAssertTrue(beside.contains { abs($0 - (end + 72 + 9)) < 1 }, "the line beside it goes on at its right")
+        XCTAssertTrue(rows.contains { $0.key > top + 40 && $0.value.contains { $0 < 2 } }, "a line under the rectangle starts at the margin")
+    }
 }
 
 /// W-OB-4: a text box made by Insert → Text Box.
