@@ -1721,6 +1721,30 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(boxes.map(\.textDirection), [.up, .down, .horizontal])
     }
 
+    /// A turned text box in a VML group in a group, with no `top`, sets its
+    /// text in its own rectangle, not across the outer group (lo-83c47ec6).
+    func testATurnedVmlTextboxInANestedGroupStandsInItsOwnRectangle() throws {
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .a4))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let body = try XCTUnwrap(xml.range(of: "<w:body>")), sect = try XCTUnwrap(xml.range(of: "<w:sectPr"))
+        let v = "xmlns:v=\"urn:schemas-microsoft-com:vml\""
+        xml.replaceSubrange(body.upperBound ..< sect.lowerBound, with:
+            "<w:p><w:r><w:pict><v:group \(v) style=\"position:absolute;margin-left:400pt;margin-top:0;width:150pt;height:800pt\" coordsize=\"3000,16000\">"
+            + "<v:group style=\"position:absolute;left:0;top:0;width:3000;height:16000\" coordsize=\"3000,16000\">"
+            + "<v:rect style=\"position:absolute;left:1200;width:1800;height:16000\" stroked=\"f\">"
+            + "<v:textbox style=\"layout-flow:vertical\" inset=\"3.6pt,54pt,3.6pt,180pt\"><w:txbxContent><w:p><w:r><w:t>Side</w:t></w:r></w:p></w:txbxContent></v:textbox>"
+            + "</v:rect></v:group></v:group></w:pict></w:r></w:p>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let doc = try DocxFormat.read(try Zip.write(entries)).document
+        let box = try XCTUnwrap(doc.paragraphs.compactMap { p in (p.image ?? p.inlineImages.values.first)?.textBox }.first)
+        XCTAssertEqual(box.textDirection, .down)
+        XCTAssertEqual(box.insetLeft, 63.6, accuracy: 0.01, "the rectangle starts 60pt into the group")
+        XCTAssertEqual(box.insetRight, 3.6, accuracy: 0.01)
+        XCTAssertEqual(box.insetTop, 54, accuracy: 0.01)
+        XCTAssertEqual(box.insetBottom, 180, accuracy: 0.01)
+    }
+
     /// A section's line numbers (`w:lnNumType`) and vertical page alignment
     /// (`w:vAlign`) are read into its page setup.
     func testLineNumbersAndPageAlignmentAreReadFromTheSection() throws {

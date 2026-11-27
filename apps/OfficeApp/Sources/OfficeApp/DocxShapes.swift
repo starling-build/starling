@@ -983,12 +983,22 @@ extension DocxFormat {
                     } else if let group = Self._vmlTop(node), group.name == "v:group", let place = Self._vmlTextPlace(group) {
                         // (A text box in a VML group: its text at the box's
                         // own place in the group, inside its insets.)
+                        if (node.descendant("v:textbox")?["style"] ?? "").containsSubstring("layout-flow:vertical") {
+                            // (Turned text takes the place as the box's
+                            // insets, which stay on the page's sides as the
+                            // text turns; a paragraph's indents turn with it.
+                            // lo-83c47ec6's sidebar, a turned text box in a
+                            // group in a group, reads down at 579pt in Word's print.)
+                            box.insetLeft = place.left; box.insetTop = place.top
+                            box.insetRight = max(0, att.width - place.right); box.insetBottom = max(0, att.height - place.bottom)
+                        } else {
                         for q in box.paragraphs.indices {
                             box.paragraphs[q].style.indentLeft += place.left
                             box.paragraphs[q].style.indentRight += max(0, att.width - place.right)
                         }
                         box.parts = [RichTextBox.Part(first: 0, top: place.top, height: max(0, place.bottom - place.top), atFoot: false)]
                         box.insetLeft = 0; box.insetTop = 0; box.insetRight = 0; box.insetBottom = 0
+                        }
                     } else if let textbox = node.descendant("v:textbox"), let inset = textbox["inset"] {
                         // (A `v:rect` as well as a `v:shape`: zh-e02b0479's footer page
                         // number is a 144pt rect, centred, wrap none and fitted to its

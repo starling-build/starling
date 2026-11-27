@@ -604,8 +604,16 @@ extension DocxFormat {
     /// coordinates (`coordorigin`, `coordsize`) inside the textbox's
     /// insets (VML's 7.2pt and 3.6pt where it states none).
     static func _vmlTextPlace(_ group: XNode) -> Rect? {
-        guard let shape = group.all("v:shape").first(where: { $0.first("v:textbox") != nil }) ?? group.all("v:rect").first(where: { $0.first("v:textbox") != nil }),
+        func boxed(_ n: XNode) -> Bool { n.first("v:textbox") != nil }
+        guard let shape = group.all("v:shape").first(where: boxed) ?? group.all("v:rect").first(where: boxed)
+                ?? group.descendants("v:shape").first(where: boxed) ?? group.descendants("v:rect").first(where: boxed),
               let textbox = shape.first("v:textbox") else { return nil }
+        // (Through nested groups, each with its own coordinates, and with a
+        // missing `left` or `top` at 0: lo-83c47ec6's sidebar rectangle stands
+        // in a group in a group and gives no `top`.)
+        if let content = textbox.descendant("w:txbxContent"),
+           !group.children.contains(where: { $0 === shape }) || !(shape["style"] ?? "").containsSubstring("top:") || !(shape["style"] ?? "").containsSubstring("left:"),
+           let hit = _vmlTextPlaces(group).first(where: { $0.content === content }) { return hit.place }
         func style(_ n: XNode) -> [String: String] {
             var out: [String: String] = [:]
             for pair in (n["style"] ?? "").split(separator: ";") {
@@ -761,8 +769,11 @@ extension DocxFormat {
             guard size.0 > 0, size.1 > 0 else { return }
             for child in group.children {
                 let sh = style(child)
-                guard let x = sh["left"].flatMap({ Double($0) }), let y = sh["top"].flatMap({ Double($0) }),
-                      let w = sh["width"].flatMap({ Double($0) }), let h = sh["height"].flatMap({ Double($0) }) else { continue }
+                // (A missing `left` or `top` is 0, CSS's default: lo-83c47ec6's
+                // sidebar rectangle gives only `left`, and Word sets its text
+                // in it, not across the whole group.)
+                guard let w = sh["width"].flatMap({ Double($0) }), let h = sh["height"].flatMap({ Double($0) }) else { continue }
+                let x = sh["left"].flatMap { Double($0) } ?? 0, y = sh["top"].flatMap { Double($0) } ?? 0
                 var r = map(Rect.fromLTWH(x - origin.0, y - origin.1, w, h))
                 // (A child with `mso-width-percent` is that share of its
                 // group's width, in the group's middle where it centres:
