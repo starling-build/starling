@@ -71,6 +71,9 @@ extension PptFile {
         if let col = c.color { kids += Self.fill(col) }
         if let f = face(c.font) { kids += "<a:latin typeface=\"\(f)\"/>" }
         if let f = face(c.eastAsianFont) { kids += "<a:ea typeface=\"\(f)\"/>" }
+        // (A .ppt run has no complex-script face of its own: PowerPoint sets its Thai in the run's font, not the theme's `cs`
+        // face (th-e7813af3d5 prints its Thai in Tahoma, where its theme names Angsana New).)
+        if let f = face(c.font) { kids += "<a:cs typeface=\"\(f)\"/>" }
         if let f = face(c.symbolFont) { kids += "<a:sym typeface=\"\(f)\"/>" }
         return attrs.isEmpty && kids.isEmpty ? "" : (kids.isEmpty ? "<\(tag)\(attrs)/>" : "<\(tag)\(attrs)>\(kids)</\(tag)>")
     }

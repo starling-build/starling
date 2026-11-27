@@ -34,4 +34,13 @@ final class SlidesThaiLineTests: XCTestCase {
         XCTAssertEqual(face?.boldAdvances?[0] ?? 0, 0.222, accuracy: 0.0001)
         XCTAssertEqual(SlideFonts.ownDescentShare("DilleniaUPC") ?? 0, 1720.0 / 5345, accuracy: 0.0001)
     }
+
+    /// Angsana New sets its own advances (Word for Windows draws the real face), not Browallia's, which set th-e7813af3d5's
+    /// Angsana runs about a fifth wide; Tahoma sets its Thai at Tahoma's own advances (0.595 em for U+0E01), as the Word path does.
+    func testAngsanaAndTahomaSetTheirOwnThai() {
+        let angsana = SlideFonts.face("Angsana New", false)
+        XCTAssertEqual(angsana?.otherAdvances?[0x0E01] ?? 0, OfficeFonts.angsanaNewThai[0x0E01] ?? -1, accuracy: 0.0001)
+        XCTAssertEqual(SlideFonts.face("Tahoma", false)?.otherAdvances?[0x0E01] ?? 0, 0.5952, accuracy: 0.0001)
+        XCTAssertEqual(SlideFonts.face("Tahoma", false)?.boldOtherAdvances?[0x0E01] ?? 0, 0.6802, accuracy: 0.0001)
+    }
 }

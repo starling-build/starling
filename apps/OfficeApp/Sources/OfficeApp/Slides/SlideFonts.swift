@@ -381,7 +381,19 @@ enum SlideFonts {
             face.otherAdvances = OfficeFonts.dilleniaUPCBoldThai
             face.boldOtherAdvances = OfficeFonts.dilleniaUPCBoldThai
             return face
-        case "th sarabun new", "th sarabunit๙", "browallia new", "browalliaupc", "cordia new", "cordiaupc", "angsana new", "angsanaupc":
+        case "angsana new", "angsanaupc":
+            // (Angsana New: its own advances, as Word for Windows draws the real face (OfficeFonts.angsanaNew*, read from the prints'
+            // subsets). Browallia's widths set it about a fifth wide and wrapped th-e7813af3d5's lines early.)
+            var face = RichResolvedFace(family: resolve(family))
+            var regular = OfficeFonts.cordiaNewAdvances, bold = OfficeFonts.cordiaNewBoldAdvances
+            for (cp, w) in OfficeFonts.angsanaNewLatin where Int(cp) - 0x20 < regular.count { regular[Int(cp) - 0x20] = w }
+            for (cp, w) in OfficeFonts.angsanaNewBoldLatin where Int(cp) - 0x20 < bold.count { bold[Int(cp) - 0x20] = w }
+            face.advances = regular
+            face.boldAdvances = bold
+            face.otherAdvances = OfficeFonts.angsanaNewThai
+            face.boldOtherAdvances = OfficeFonts.angsanaNewBoldThai
+            return face
+        case "th sarabun new", "th sarabunit๙", "browallia new", "browalliaupc", "cordia new", "cordiaupc":
             // (The other narrow Thai faces PowerPoint's machine has and ours lacks, set as Word sets them (OfficeFonts' thaiWordFaces):
             // Cordia's Latin, Browallia's for the Sarabuns and Browallia, Browallia's Thai widths. Without them the Noto Sans Thai
             // stand-in drew their Thai a third wide.)
@@ -473,9 +485,12 @@ enum SlideFonts {
                 face.boldItalicOtherAdvances = OfficeFonts.trebuchet_msBoldItalicOther.merging(OfficeFonts.trebuchetBoldItalicCyrillic) { a, _ in a }
             }
             if n == "tahoma" {
-                // (Tahoma's own Arabic, as the Word path sets it.)
+                // (Tahoma's own Arabic and Thai, as the Word path sets them: PowerPoint draws Thai in Tahoma in Tahoma itself,
+                // 0.595 em for U+0E01 where the Noto stand-in sets 0.7 and wrapped th-e7813af3d5's lines early.)
                 face.joinedAdvances = WindowsArabicAdvances.tahoma
                 face.boldJoinedAdvances = WindowsArabicAdvances.tahomaBold
+                face.otherAdvances = (face.otherAdvances ?? [:]).merging(OfficeFonts.tahomaThaiAdvances) { $1 }
+                face.boldOtherAdvances = (face.boldOtherAdvances ?? [:]).merging(OfficeFonts.tahomaThaiBoldAdvances) { $1 }
             }
             return face
         case "open sans":
