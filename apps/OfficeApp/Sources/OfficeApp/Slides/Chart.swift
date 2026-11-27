@@ -4638,12 +4638,26 @@ enum ChartPainter {
     /// label line here being 0.917 of the row Excel's print gives the face at that size (SheetPrintMetrics): lab xl-step2, Excel's
     /// prints of 120 charts 145 pt wide and 60 to 200 tall in eight faces, all 120 steps, 5M, 2M, 1M and 0.5M by turns as the plot
     /// grows, Calibri 10 reaching 1M at 100 pt and Yu Gothic 10 at 120; lab xl-step, a manual inner plot keeps the automatic one's step.)
-    static func sheetValueSteps(frameHeight: Double, face: String, labelSize: Double, categorySize: Double?, categoryTitleSize: Double?) -> Int {
+    /// A title beside the plot (not overlaid) takes its box, one line of its face per line plus 3, and 6 more: lab xl-step3, 210
+    /// charts in Calibri and 新細明體 with titles of 7 to 18 pt, Excel's automatic plot exactly title box + 6 shorter than the
+    /// untitled one's in all 14 kinds, and the step following that plot even where the title or the inner plot is placed by hand.
+    static func sheetValueSteps(frameHeight: Double, face: String, labelSize: Double, categorySize: Double?, categoryTitleSize: Double?,
+                                titleSize: Double? = nil, titleFace: String? = nil, titleLines: Int = 1, categoryTitleFace: String? = nil) -> Int {
         let line = 0.917 * SheetPrintMetrics.textRowDots(family: face, size: labelSize) * 72 / 600
         let em = SheetPrintMetrics.lineEm(family: face) ?? 1.2207
         var plot = frameHeight - max(22, em * labelSize + 10)
+        if let t = titleSize {
+            // (An East Asian face's line is its own East Asian line: 新細明體's title box 1.3 em + 3, Calibri's 1.2207 em + 3.)
+            let tf = titleFace ?? face
+            let eaEm: Double? = OfficeFonts.isEastAsianFace(tf) ? OfficeFonts.eastAsianLine(tf)?.height : nil
+            let titleEm: Double = eaEm ?? SheetPrintMetrics.lineEm(family: tf) ?? em
+            let box: Double = Double(titleLines) * titleEm * t + 3
+            plot -= box + 6
+        }
         if let cat = categorySize { plot -= em * cat + 3.2 }
-        if let t = categoryTitleSize { plot -= 1.22 * t + 4 }
+        // (A category title in a face of its own takes that face's line: a bare one (no text properties) is Arial, 18 pt where the
+        // chart's are 20, in Excel's print of chart-tdf119138-missing-autotitledeleted, and its 0-80 axis keeps eight steps.)
+        if let t = categoryTitleSize { plot -= (categoryTitleFace.flatMap { SheetPrintMetrics.lineEm(family: $0) } ?? 1.22) * t + 4 }
         return max(1, min(10, Int(plot / line) - 2))
     }
 
@@ -5542,7 +5556,10 @@ enum ChartPainter {
             RuleTrace.hit("sheet-value-axis-steps-from-the-label-line")
             return sheetValueSteps(frameHeight: frame.height / k * 0.75, face: c.font ?? c.axisFont ?? theme.bodyFont ?? "Calibri", labelSize: labelSize * 0.75,
                                    categorySize: c.categoryAxisDeleted ? nil : (c.categoryLabelSize ?? c.baseTextSize) * 0.75,
-                                   categoryTitleSize: c.categoryAxisTitle == nil ? nil : (c.axisTitleSize ?? 13.3) * 0.75)
+                                   categoryTitleSize: c.categoryAxisTitle == nil ? nil : (c.axisTitleSize ?? 13.3) * 0.75 * (c.bareAxisTitle ? 0.9 : 1),
+                                   titleSize: (c.title ?? "").isEmpty || c.titleOverlay ? nil : (c.titleSize ?? c.textSize.map { ($0 * 1.2).rounded() } ?? 18.6) * 0.75,
+                                   titleFace: c.titleFont ?? c.font ?? theme.bodyFont, titleLines: (c.title ?? "").split(separator: "\n", omittingEmptySubsequences: false).count,
+                                   categoryTitleFace: c.bareAxisTitle ? "Arial" : nil)
         }()
         var valueScale = c.percent ? (lo: 0.0, hi: 1.0, step: 0.1) : scale(lo, max(hi, c.valueMax ?? hi), intervals: tableSteps ?? acrossSteps ?? writerSteps ?? sheetSteps ?? hiddenSlideSteps ?? 10,
                                                                           headroom: (c.barView != nil || c.line3D) && !(c.onSheet && c.series.allSatisfy { $0.values.allSatisfy { ($0 ?? 0) == 0 } }) ? 0 : c.secondValueAxis?.sameScale == true ? 0.10 : 0.05)
