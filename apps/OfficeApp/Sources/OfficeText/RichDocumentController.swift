@@ -215,6 +215,7 @@ public indirect enum EditOp: Equatable, Sendable {
             return .setSectionPage(index, old: new, new: old)
         case .setPageOptions(let old, let new):
             doc.titlePage = new.titlePage; doc.evenAndOddHeaders = new.evenAndOdd; doc.pageNumberStart = new.pageNumberStart
+            doc.pageNumberFormat = new.pageNumberFormat
             changes.append(.all)
             return .setPageOptions(old: new, new: old)
         case .setImage(let index, let old, let new):
@@ -3158,13 +3159,18 @@ public final class RichDocumentController: ChangeNotifier {
     /// setup (so a section keeps its columns, title page and the rest). One undo step.
     public struct PageOptions: Equatable, Sendable {
         public var titlePage: Bool, evenAndOdd: Bool, pageNumberStart: Int?
-        public init(titlePage: Bool, evenAndOdd: Bool, pageNumberStart: Int?) { self.titlePage = titlePage; self.evenAndOdd = evenAndOdd; self.pageNumberStart = pageNumberStart }
+        /// The page numbers' `w:fmt` (nil: the file names none, so decimal).
+        public var pageNumberFormat: String?
+        public init(titlePage: Bool, evenAndOdd: Bool, pageNumberStart: Int?, pageNumberFormat: String? = nil) {
+            self.titlePage = titlePage; self.evenAndOdd = evenAndOdd; self.pageNumberStart = pageNumberStart; self.pageNumberFormat = pageNumberFormat
+        }
     }
     /// The page options of the section holding the caret (`allSections: false`) as the Layout tab shows them.
     public func pageOptions(sectionMark mark: Int) -> PageOptions {
-        if mark < 0 { return PageOptions(titlePage: document.titlePage, evenAndOdd: document.evenAndOddHeaders, pageNumberStart: document.pageNumberStart) }
+        if mark < 0 { return PageOptions(titlePage: document.titlePage, evenAndOdd: document.evenAndOddHeaders, pageNumberStart: document.pageNumberStart,
+                                      pageNumberFormat: document.pageNumberFormat) }
         let s = document.paragraphs[mark].style.sectionPage
-        return PageOptions(titlePage: s?.titlePage ?? false, evenAndOdd: document.evenAndOddHeaders, pageNumberStart: s?.pageNumberStart)
+        return PageOptions(titlePage: s?.titlePage ?? false, evenAndOdd: document.evenAndOddHeaders, pageNumberStart: s?.pageNumberStart, pageNumberFormat: s?.pageNumberFormat)
     }
     /// W-HF-2: different first page and first page number for the caret's section (every section with
     /// `allSections`), and different odd and even pages for the document. One undo step.
@@ -3178,16 +3184,18 @@ public final class RichDocumentController: ChangeNotifier {
             for mark in marks {
                 if mark < 0 {
                     let old = pageOptions(sectionMark: -1)
-                    let next = PageOptions(titlePage: new.titlePage, evenAndOdd: new.evenAndOdd, pageNumberStart: new.pageNumberStart)
+                    let next = PageOptions(titlePage: new.titlePage, evenAndOdd: new.evenAndOdd, pageNumberStart: new.pageNumberStart,
+                                           pageNumberFormat: new.pageNumberFormat)
                     if next != old { perform(.setPageOptions(old: old, new: next)) }
                 } else if let old = document.paragraphs[mark].style.sectionPage {
-                    var s = old; s.titlePage = new.titlePage; s.pageNumberStart = new.pageNumberStart
+                    var s = old; s.titlePage = new.titlePage; s.pageNumberStart = new.pageNumberStart; s.pageNumberFormat = new.pageNumberFormat
                     if s != old { perform(.setSectionPage(mark, old: old, new: s)) }
                 }
             }
             if document.evenAndOddHeaders != new.evenAndOdd {
                 perform(.setPageOptions(old: pageOptions(sectionMark: -1),
-                                        new: PageOptions(titlePage: document.titlePage, evenAndOdd: new.evenAndOdd, pageNumberStart: document.pageNumberStart)))
+                                        new: PageOptions(titlePage: document.titlePage, evenAndOdd: new.evenAndOdd, pageNumberStart: document.pageNumberStart,
+                                                         pageNumberFormat: document.pageNumberFormat)))
             }
         }
     }

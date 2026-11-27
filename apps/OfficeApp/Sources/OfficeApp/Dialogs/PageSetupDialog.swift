@@ -53,6 +53,11 @@ struct PageSetupValues: Equatable {
         top = p.marginTop; bottom = p.marginBottom; left = p.marginLeft; right = p.marginRight
         header = p.headerDistance; footer = p.footerDistance
     }
+    /// The page number formats the Layout tab offers, as `w:fmt` names them.
+    static let numberFormats: [(id: String, label: String)] = [
+        ("decimal", "1, 2, 3"), ("lowerRoman", "i, ii, iii"), ("upperRoman", "I, II, III"),
+        ("lowerLetter", "a, b, c"), ("upperLetter", "A, B, C"),
+    ]
     var landscape: Bool { width > height }
     var paper: PaperSize { PaperSize(width: width, height: height) }
     mutating func setPaper(_ s: PaperSize) {
@@ -115,6 +120,13 @@ final class PageSetupDialogState: State<StatefulWidget> {
                     self?.setState { set(n) } }),
             ]))
         }
+        func format(_ f: (id: String, label: String)) -> Widget {
+            choice("ps-fmt-\(f.id)", f.label, (v.options.pageNumberFormat ?? "decimal") == f.id) { [weak self] in
+                guard let self else { return }
+                // Decimal on a file that names no format stays unnamed, so an untouched file saves as it was.
+                self.setState { self.v.options.pageNumberFormat = f.id == "decimal" && self.v.options.pageNumberFormat == nil ? nil : f.id }
+            }
+        }
         func row(_ label: String, _ items: [Widget]) -> Widget {
             Padding(padding: EdgeInsets(left: 0, top: 0, right: 0, bottom: 8), child: Row(crossAxisAlignment: .center, children:
                 [SizedBox(width: 90, height: nil, child: Text(label))] + items))
@@ -171,6 +183,10 @@ final class PageSetupDialogState: State<StatefulWidget> {
                     self.v.options.pageNumberStart = n
                 }))),
             ]),
+            // The page numbers' format (Format Page Numbers). A file's other format (East Asian, numberInDash)
+            // shows no choice and stays until one is picked.
+            row("Format", PageSetupValues.numberFormats.prefix(3).map(format)),
+            row("", PageSetupValues.numberFormats.suffix(2).map(format)),
             applyTo,
         ])
         var tabs = [DialogTab(title: "Margins", page: margins), DialogTab(title: "Paper", page: paper)]

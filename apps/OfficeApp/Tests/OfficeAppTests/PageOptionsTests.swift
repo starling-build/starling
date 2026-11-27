@@ -32,10 +32,10 @@ final class PageOptionsTests: XCTestCase {
 
     func testTheFirstPageNumberKeepsTheFilesOtherNumbering() {
         let lead = "<w:pgNumType w:fmt=\"lowerRoman\" w:start=\"3\"/>"
-        XCTAssertEqual(DocxFormat._leadPatched(lead, start: 7), "<w:pgNumType w:fmt=\"lowerRoman\" w:start=\"7\"/>")
-        XCTAssertEqual(DocxFormat._leadPatched(lead, start: nil), "<w:pgNumType w:fmt=\"lowerRoman\"/>")
-        XCTAssertEqual(DocxFormat._leadPatched(lead, start: 3), lead)
-        XCTAssertNil(DocxFormat._leadPatched(nil, start: nil))
+        XCTAssertEqual(DocxFormat._leadPatched(lead, start: 7, format: "lowerRoman"), "<w:pgNumType w:fmt=\"lowerRoman\" w:start=\"7\"/>")
+        XCTAssertEqual(DocxFormat._leadPatched(lead, start: nil, format: "lowerRoman"), "<w:pgNumType w:fmt=\"lowerRoman\"/>")
+        XCTAssertEqual(DocxFormat._leadPatched(lead, start: 3, format: "lowerRoman"), lead)
+        XCTAssertNil(DocxFormat._leadPatched(nil, start: nil, format: nil))
     }
 
     func testAKeptSectionTakesItsFirstPageAndNumberInSchemaOrder() {
@@ -52,5 +52,34 @@ final class PageOptionsTests: XCTestCase {
         page.titlePage = false; page.pageNumberStart = nil
         let back = DocxFormat._sectionXML(out, patchedTo: page)
         XCTAssertFalse(back.containsSubstring("titlePg") || back.containsSubstring("pgNumType"), back)
+    }
+
+    func testThePageNumberFormatIsOneUndoStepAndSaved() throws {
+        let c = RichDocumentController(document: RichDocument(paragraphs: [RichParagraph()]))
+        var new = c.pageOptions(sectionMark: -1); new.pageNumberFormat = "lowerRoman"
+        c.changePageOptions(allSections: false, new, lastSetup: .letter)
+        XCTAssertEqual(c.document.pageNumberFormat, "lowerRoman")
+        let body = try text(try Zip.read(DocxFormat.write(c.document, pageSetup: .letter)), "word/document.xml")
+        XCTAssertTrue(body.containsSubstring("<w:pgNumType w:fmt=\"lowerRoman\"/>"), "the number format")
+        c.undo()
+        XCTAssertNil(c.document.pageNumberFormat)
+    }
+
+    func testTheNumberFormatPatchesTheFilesNumbering() {
+        let lead = "<w:pgNumType w:fmt=\"lowerRoman\" w:start=\"3\" w:chapStyle=\"1\"/>"
+        XCTAssertEqual(DocxFormat._leadPatched(lead, start: 3, format: "upperLetter"),
+                       "<w:pgNumType w:fmt=\"upperLetter\" w:start=\"3\" w:chapStyle=\"1\"/>")
+        XCTAssertEqual(DocxFormat._leadPatched(lead, start: 3, format: "lowerRoman"), lead)
+        XCTAssertEqual(DocxFormat._leadPatched("<w:pgNumType w:fmt=\"lowerRoman\"/>", start: nil, format: nil), nil)
+        XCTAssertEqual(DocxFormat._leadPatched(nil, start: 2, format: "upperRoman"), "<w:pgNumType w:fmt=\"upperRoman\" w:start=\"2\"/>")
+        let w = "xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\""
+        let sect = "<w:sectPr \(w)><w:pgSz w:w=\"12240\" w:h=\"15840\"/><w:pgNumType w:fmt=\"lowerRoman\"/><w:cols w:space=\"720\"/></w:sectPr>"
+        var page = PageSetup.letter
+        page.pageNumberFormat = "lowerRoman"
+        XCTAssertEqual(DocxFormat._sectionXML(sect, patchedTo: page), sect, "an untouched format writes back as it was")
+        page.pageNumberFormat = "upperRoman"
+        XCTAssertTrue(DocxFormat._sectionXML(sect, patchedTo: page).containsSubstring("<w:pgNumType w:fmt=\"upperRoman\"/>"))
+        page.pageNumberFormat = nil
+        XCTAssertFalse(DocxFormat._sectionXML(sect, patchedTo: page).containsSubstring("pgNumType"))
     }
 }

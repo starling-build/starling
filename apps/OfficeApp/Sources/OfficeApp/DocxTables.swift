@@ -216,28 +216,36 @@ extension DocxFormat {
     /// A kept section mark with the page the user set: only the size,
     /// margins and column count that differ from the XML are rewritten, so a
     /// section nobody touched is written back byte for byte.
-    /// The last section's lead elements with its first page number as the document says (the file's other
-    /// numbering attributes stay; a file that had none gets a bare `w:pgNumType`).
-    static func _leadPatched(_ lead: String?, start: Int?) -> String? {
+    /// The last section's lead elements with its first page number and number format as the document says (the
+    /// file's other numbering attributes stay; a file that had none gets a bare `w:pgNumType`).
+    static func _leadPatched(_ lead: String?, start: Int?, format: String?) -> String? {
         var xml = lead ?? ""
+        let want: [(String, String?)] = [("w:fmt", format), ("w:start", start.map(String.init))]
         if let r = xml.rangeOfSubstring("<w:pgNumType"), let end = xml[r.lowerBound...].firstIndex(of: ">") {
             var el = String(xml[r.lowerBound ... end])
-            let had = el.rangeOfSubstring("w:start=\"")
-            var current: Int? = nil
-            if let h = had, let q = el[h.upperBound...].firstIndex(of: "\"") { current = Int(el[h.upperBound ..< q]) }
-            if current != start {
-                if let h = had, let q = el[h.upperBound...].firstIndex(of: "\"") {
-                    var from = h.lowerBound
-                    if let sp = el[..<from].lastIndex(of: " ") , el[sp..<from].allSatisfy({ $0 == " " }) { from = sp }
-                    if let v = start { el.replaceSubrange(h.upperBound ..< q, with: String(v)) } else { el.removeSubrange(from ... q) }
-                } else if let v = start {
-                    let close = el.hasSuffix("/>") ? el.index(el.endIndex, offsetBy: -2) : el.index(before: el.endIndex)
-                    el.insert(contentsOf: " w:start=\"\(v)\"", at: close)
-                }
-                xml.replaceSubrange(r.lowerBound ... end, with: el)
-            }
-        } else if let v = start { xml += "<w:pgNumType w:start=\"\(v)\"/>" }
+            for (key, value) in want { el = _attrPatched(el, key, value) }
+            if el == "<w:pgNumType/>" { el = "" }
+            xml.replaceSubrange(r.lowerBound ... end, with: el)
+        } else if want.contains(where: { $0.1 != nil }) {
+            xml += "<w:pgNumType" + want.compactMap { k, v in v.map { " \(k)=\"\($0)\"" } }.joined() + "/>"
+        }
         return xml.isEmpty ? nil : xml
+    }
+
+    /// One start tag with `key` set to `value` (removed when nil); unchanged when it already says so.
+    static func _attrPatched(_ tag: String, _ key: String, _ value: String?) -> String {
+        var el = tag
+        let had = el.rangeOfSubstring(" \(key)=\"")
+        var current: String? = nil
+        if let h = had, let q = el[h.upperBound...].firstIndex(of: "\"") { current = String(el[h.upperBound ..< q]) }
+        guard current != value else { return el }
+        if let h = had, let q = el[h.upperBound...].firstIndex(of: "\"") {
+            if let v = value { el.replaceSubrange(h.upperBound ..< q, with: v) } else { el.removeSubrange(h.lowerBound ... q) }
+        } else if let v = value {
+            let close = el.hasSuffix("/>") ? el.index(el.endIndex, offsetBy: -2) : el.index(before: el.endIndex)
+            el.insert(contentsOf: " \(key)=\"\(v)\"", at: close)
+        }
+        return el
     }
 
     static func _sectionXML(_ xml: String, patchedTo page: PageSetup?) -> String {
@@ -272,13 +280,17 @@ extension DocxFormat {
             changed = true
         }
         let haveStart = sect.first("w:pgNumType").flatMap { Int($0.attrs["w:start"] ?? "") }
-        if page.pageNumberStart != haveStart {
+        let haveFormat = sect.first("w:pgNumType")?.attrs["w:fmt"]
+        if page.pageNumberStart != haveStart || page.pageNumberFormat != haveFormat {
             if let n = sect.first("w:pgNumType") {
-                if let v = page.pageNumberStart { n.attrs["w:start"] = String(v) } else { n.attrs["w:start"] = nil }
-                if n.attrs.isEmpty { sect.children.removeAll { $0.name == "w:pgNumType" } }
-            } else if let v = page.pageNumberStart {
+                n.attrs["w:start"] = page.pageNumberStart.map(String.init)
+                n.attrs["w:fmt"] = page.pageNumberFormat
+                if n.attrs.isEmpty && n.children.isEmpty { sect.children.removeAll { $0.name == "w:pgNumType" } }
+            } else {
+                var attrs: [String: String] = [:]
+                attrs["w:fmt"] = page.pageNumberFormat; attrs["w:start"] = page.pageNumberStart.map(String.init)
                 let after = sect.children.lastIndex { ["w:pgSz", "w:pgMar", "w:paperSrc", "w:pgBorders", "w:lnNumType"].contains($0.name) }
-                sect.children.insert(XNode(name: "w:pgNumType", attrs: ["w:start": String(v)]), at: after.map { $0 + 1 } ?? 0)
+                sect.children.insert(XNode(name: "w:pgNumType", attrs: attrs), at: after.map { $0 + 1 } ?? 0)
             }
             changed = true
         }
@@ -2175,7 +2187,7 @@ extension DocxFormat {
         body += "<w:pgSz w:w=\"\(pw)\" w:h=\"\(ph)\"\(pageSetup.isLandscape && pageSetup.orientStated ? " w:orient=\"landscape\"" : "")/>"
         body += "<w:pgMar w:top=\"\(Int(pageSetup.marginTop * 20))\" w:right=\"\(Int(pageSetup.marginRight * 20))\" w:bottom=\"\(Int(pageSetup.marginBottom * 20))\" w:left=\"\(Int(pageSetup.marginLeft * 20))\" w:header=\"\(Int((pageSetup.headerDistance * 20).rounded()))\" w:footer=\"\(Int((pageSetup.footerDistance * 20).rounded()))\" w:gutter=\"\(doc.gutterTwips ?? 0)\"/>"
         if let pb = doc.pageBordersXML { body += pb }
-        if let lead = Self._leadPatched(doc.sectionLeadXML, start: doc.pageNumberStart) { body += lead }
+        if let lead = Self._leadPatched(doc.sectionLeadXML, start: doc.pageNumberStart, format: doc.pageNumberFormat) { body += lead }
         if let cols = doc.columnsXML, doc.columnsKeptUnder == max(1, pageSetup.columns) {
             // The file's own columns (an exam paper's two unequal ones, 0.3in
             // apart: at our half inch every line of it broke 7pt early).
