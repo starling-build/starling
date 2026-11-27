@@ -98,11 +98,33 @@ enum MetafileGDIMetrics {
     ]
     /// (ascent, descent) in pixels for `face` at `lfHeight`, nil when not measured.
     static func metrics(face: String, bold: Bool, height: Int) -> (ascent: Int, descent: Int)? {
-        guard let s = table["\(face.lowercased())|\(bold ? 700 : 400)"] else { return nil }
+        guard let s = table["\(face.lowercased())|\(bold ? 700 : 400)"] else { return fileMetrics(face: face, bold: bold, height: height) }
         let at = height < 0 ? height + 72 : 67 + height - 6
         guard height >= -72, height <= 72, height != 0, abs(height) >= 6 else { return nil }
         let u = Array(s.utf8); let i = at * 2
         guard i + 1 < u.count, u[i] != 32 else { return nil }
         return (Int(u[i]) - 33, Int(u[i + 1]) - 33)
+    }
+    /// Faces GDI cannot select on the print box (it falls back to Arial there), so there is no measured table: Windows' whole-pixel
+    /// ascent and descent are the font file's winAscent and winDescent scaled to the em in pixels and rounded half up (checked
+    /// against every measured row of MS Gothic, MS PGothic and Yu Gothic, both weights, 6...72 and negative). A positive lfHeight
+    /// is the whole cell, so the em is the height less the file's own lead, i.e. height * upem / (winAscent + winDescent).
+    /// (face, bold) -> (upem, winAscent, winDescent), from the fonts' OS/2 tables (cjk-line-20261122/file-metrics-*.tsv).
+    private static let files: [String: (Int, Int, Int)] = {
+        var t: [String: (Int, Int, Int)] = [:]
+        for n in ["ms mincho", "ｍｓ 明朝", "ms pmincho", "ｍｓ ｐ明朝", "ｍｓ明朝", "ｍｓ ｐ明朝"] { t[n + "|400"] = (256, 220, 36); t[n + "|700"] = (256, 220, 36) }
+        for n in ["yu mincho", "游明朝"] { t[n + "|400"] = (2048, 2038, 598); t[n + "|700"] = (2048, 2005, 631) }
+        for n in ["meiryo", "メイリオ"] { t[n + "|400"] = (2048, 2171, 901); t[n + "|700"] = (2048, 2171, 901) }
+        for n in ["meiryo ui"] { t[n + "|400"] = (2048, 2171, 430); t[n + "|700"] = (2048, 2171, 430) }
+        for n in ["gulim", "굴림", "gulimche", "굴림체", "batang", "바탕", "batangche", "바탕체", "dotum", "돋움", "dotumche", "돋움체",
+                  "gungsuh", "궁서", "gungsuhche", "궁서체"] { t[n + "|400"] = (1024, 879, 145); t[n + "|700"] = (1024, 879, 145) }
+        return t
+    }()
+    private static func fileMetrics(face: String, bold: Bool, height: Int) -> (ascent: Int, descent: Int)? {
+        guard let f = files["\(face.lowercased())|\(bold ? 700 : 400)"], height != 0, abs(height) >= 6, abs(height) <= 72 else { return nil }
+        // A positive height's em is a whole pixel too: Word draws Yu Mincho at +24 with a 19 px (14.25 pt) em, not 18.65 px (lab mincho-emf2).
+        let em = height < 0 ? Double(-height) : (Double(height) * Double(f.0) / Double(f.1 + f.2) + 0.5).rounded(.down)
+        func up(_ v: Int) -> Int { Int((Double(v) * em / Double(f.0) + 0.5).rounded(.down)) }
+        return (up(f.1), up(f.2))
     }
 }
