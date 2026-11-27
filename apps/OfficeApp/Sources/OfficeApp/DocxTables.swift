@@ -2218,6 +2218,10 @@ extension DocxFormat {
             case "word/webSettings.xml":
                 relsXML += "<Relationship Id=\"rIdWebSettings\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/webSettings\" Target=\"webSettings.xml\"/>"
                 extraOverrides += "<Override PartName=\"/word/webSettings.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.webSettings+xml\"/>"
+            case _ where name.hasSuffix(".rels"):
+                // A kept part's own rels (word/theme/_rels/theme1.xml.rels) take the package's rels type; it sorts
+                // before its theme, and taken for the theme it was linked from the document as one: Word refused it.
+                break
             case _ where name.hasPrefix("word/theme/") && String(decoding: data.prefix(600), as: UTF8.self).containsSubstring(":themeOverride"):
                 extraOverrides += "<Override PartName=\"/\(_esc(name))\" ContentType=\"application/vnd.openxmlformats-officedocument.themeOverride+xml\"/>"
             case _ where name.hasPrefix("word/theme/"):
