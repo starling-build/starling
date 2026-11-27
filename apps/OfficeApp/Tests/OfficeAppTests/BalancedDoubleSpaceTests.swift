@@ -44,6 +44,7 @@ final class BalancedDoubleSpaceTests: XCTestCase {
         if let lang { doc.defaultLangXML = "<w:lang w:val=\"en-US\" w:eastAsia=\"\(lang)\"/>" }
         let theme = RichTextTheme(fontFamily: OfficeFonts.serif)
         theme.wordRules = true
+        theme.faceResolver = OfficeFonts.face
         theme.averageCharWidth = OfficeFonts.averageCharWidth
         let layout = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
         layout.pageSetup = .letter
@@ -67,5 +68,11 @@ final class BalancedDoubleSpaceTests: XCTestCase {
     func testALatinEastAsianFaceOrAnEastAsianLanguageLeavesItOut() throws {
         XCTAssertNotEqual(try gap("a  b", spaces: 2, eastAsia: "Calibri"), 2 * 0.400879 * 12, accuracy: 0.05)
         XCTAssertNotEqual(try gap("a  b", spaces: 2, lang: "ja-JP"), 2 * 0.400879 * 12, accuracy: 0.05)
+    }
+
+    /// An East Asian face in the slot sets each space at half an em, as beside an ideograph (dx2 e9bc88f9 "Ref. No:  770").
+    func testAnEastAsianFaceSetsEachSpaceAtHalfAnEm() throws {
+        XCTAssertEqual(try gap("a  b", spaces: 2, eastAsia: "MS Mincho"), 2 * 6, accuracy: 0.05)
+        XCTAssertEqual(try gap("a   b", spaces: 3, eastAsia: "MS Mincho", lang: "ja-JP"), 3 * 6, accuracy: 0.05)
     }
 }

@@ -2680,6 +2680,9 @@ extension RichLayout {
         if word(a) && word(b) { return true }
         // (A Latin word is whole but after its hyphens: see `joinsLatin`.)
         if a > 0x20, a < 0x7F, b > 0x20, b < 0x7F, a != 0x2D { return true }
+        // (… and a slash between letters of any of those words, as between Latin ones: dx2 f524a62c's header "Д/д", Arial bold 12,
+        // is one 19.5 pt piece in Word's print, its column 606 twips = 19.5 pt + the margins; ours parted it "Д/" | "д" and narrowed it.)
+        if a == 0x2F && word(b) || word(a) && b == 0x2F { return true }
         // (A run of hyphens is kept together: dx2 zh 4cac8c37's "大都会----东方" ends its line with all four; ours parted it "--" | "--东方".)
         if a == 0x2D, b == 0x2D { return true }
         // (1.5, 1,000, 10:30, 2024-10, -5)
