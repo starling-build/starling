@@ -250,7 +250,9 @@ extension DocxFormat {
     }
 
     static func _sectionXML(_ xml: String, patchedTo page: PageSetup?) -> String {
-        guard let page, !page.vertical, let sect = XNode.parse(Data(xml.utf8)) else { return xml }
+        guard let flow = page, let sect = XNode.parse(Data(xml.utf8)) else { return xml }
+        // (A vertical section's setup is the turned page; the file holds the paper's.)
+        let page = flow.physical
         var changed = false
         func twips(_ v: Double) -> String { String(Int((v * 20).rounded())) }
         func put(_ node: XNode, _ key: String, _ v: Double) {
@@ -300,14 +302,37 @@ extension DocxFormat {
             changed = true
         }
         let cols = sect.first("w:cols")
-        let have = Int(cols?.attrs["w:num"] ?? "") ?? 1
-        if have != max(1, page.columns) {
-            let n = cols ?? { let n = XNode(name: "w:cols", attrs: [:]); sect.children.append(n); return n }()
-            n.children = []
-            n.attrs = ["w:num": String(max(1, page.columns)), "w:space": twips(page.columnGap)]
+        if !(cols.map { _sameColumns($0, page) } ?? (page.columns <= 1 && !page.columnLine)), let fresh = XNode.parse(Data(_colsXML(page).utf8)) {
+            if let at = sect.children.firstIndex(where: { $0 === cols }) { sect.children[at] = fresh } else {
+                // (w:cols stands after the margins and page numbering, before the vertical alignment, title page and grid.)
+                let after = ["w:formProt", "w:vAlign", "w:noEndnote", "w:titlePg", "w:textDirection", "w:bidi", "w:rtlGutter", "w:docGrid", "w:printerSettings", "w:sectPrChange"]
+                sect.children.insert(fresh, at: sect.children.firstIndex { after.contains($0.name) } ?? sect.children.count)
+            }
             changed = true
         }
         return changed ? PptxXML.serialize(sect) : xml
+    }
+
+    /// Whether a file's `w:cols` already says what `page` holds: its count, gap, unequal widths and line between.
+    static func _sameColumns(_ cols: XNode, _ page: PageSetup) -> Bool {
+        var had = PageSetup.letter
+        _readColumns(cols, into: &had)
+        guard max(1, had.columns) == max(1, page.columns), had.columnLine == page.columnLine else { return false }
+        guard page.columns > 1 else { return true }
+        func tw(_ v: Double) -> Int { Int((v * 20).rounded()) }
+        let spans = { (p: PageSetup) in p.columnSpec.flatMap { $0.count == p.columns ? $0 : nil }.map { $0.map { [tw($0.width), tw($0.gap)] } } }
+        return spans(had) == spans(page) && (page.columnSpec != nil || tw(had.columnGap) == tw(page.columnGap))
+    }
+
+    /// A section's `w:cols` for `page`: Word's own form, `w:equalWidth` 0 and a `w:col` each for unequal columns.
+    static func _colsXML(_ page: PageSetup) -> String {
+        func tw(_ v: Double) -> Int { Int((v * 20).rounded()) }
+        let n = max(1, page.columns)
+        var x = "<w:cols" + (n > 1 ? " w:num=\"\(n)\"" : "") + (page.columnLine ? " w:sep=\"1\"" : "") + " w:space=\"\(tw(page.columnGap))\""
+        guard n > 1, let spec = page.columnSpec, spec.count == n else { return x + "/>" }
+        x += " w:equalWidth=\"0\">"
+        for (k, c) in spec.enumerated() { x += "<w:col w:w=\"\(tw(c.width))\"" + (k < n - 1 ? " w:space=\"\(tw(c.gap))\"" : "") + "/>" }
+        return x + "</w:cols>"
     }
 
     static func _sectionColumns(_ sectionXML: String, _ page: PageSetup?) -> [(width: Double, space: Double)]? {
@@ -2207,7 +2232,7 @@ extension DocxFormat {
         // The last section's sectPr; a section break made in it (`sectionAsLast`) is written the same, with its own page and start.
         func sectPr(_ page: PageSetup, type: String?) -> String {
         var body = "<w:sectPr>"
-        let pageSetup = page.vertical ? page.transposed() : page
+        let pageSetup = page.physical
         let pw = Int(pageSetup.width * 20), ph = Int(pageSetup.height * 20)
         if writeHeader { body += "<w:headerReference w:type=\"default\" r:id=\"rIdHeader\"/>" }
         if writeFooter { body += "<w:footerReference w:type=\"default\" r:id=\"rIdFooter\"/>" }
@@ -2220,12 +2245,12 @@ extension DocxFormat {
         if let pb = doc.pageBordersXML { body += pb }
         if let lead = Self._leadPatched(doc.sectionLeadXML, start: doc.pageNumberStart, format: doc.pageNumberFormat,
                                           chapterStyle: doc.chapterStyle, chapterSeparator: doc.chapterSeparator) { body += lead }
-        if let cols = doc.columnsXML, doc.columnsKeptUnder == max(1, pageSetup.columns) {
+        if let cols = doc.columnsXML, let node = XNode.parse(Data(cols.utf8)), _sameColumns(node, pageSetup) {
             // The file's own columns (an exam paper's two unequal ones, 0.3in
             // apart: at our half inch every line of it broke 7pt early).
             body += cols
         } else
-        if pageSetup.columns > 1 { body += "<w:cols w:num=\"\(pageSetup.columns)\" w:space=\"\(Int(pageSetup.columnGap * 20))\"/>" }
+        if pageSetup.columns > 1 || pageSetup.columnLine { body += _colsXML(pageSetup) }
         // A title page with no first-page part referenced is a page with
         // an EMPTY header and footer (Bug51170's cover shows no logo).
         if let tail = doc.sectionTailXML, tail.containsSubstring("<w:vAlign") { body += tail } // (vAlign precedes titlePg… and the rest follow it)
@@ -2242,7 +2267,7 @@ extension DocxFormat {
                 sect[open.lowerBound...].rangeOfSubstring("/>").map { String(sect[open.lowerBound ..< $0.upperBound]) } }
             body = body.replacingAll("<!--\(RichDocumentController.sectionAsLast)-\(index)-->", with: sectPr(p.style.sectionPage ?? lastPage, type: type))
         }
-        let pageSetup = lastPage.vertical ? lastPage.transposed() : lastPage
+        let pageSetup = lastPage.physical
 
         let ns = "xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\" xmlns:wp=\"http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing\" xmlns:mc=\"http://schemas.openxmlformats.org/markup-compatibility/2006\" xmlns:wp14=\"http://schemas.microsoft.com/office/word/2010/wordprocessingDrawing\" xmlns:w14=\"http://schemas.microsoft.com/office/word/2010/wordml\" xmlns:w15=\"http://schemas.microsoft.com/office/word/2012/wordml\" mc:Ignorable=\"w14 w15 wp14\""
         let background = doc.backgroundXML.map { keptFragmentXML($0, doc.backgroundRels) } ?? ""

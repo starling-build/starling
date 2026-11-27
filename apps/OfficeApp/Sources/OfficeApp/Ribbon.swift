@@ -1036,10 +1036,11 @@ final class Ribbon: StatelessWidget {
         ]
         func paper(_ name: String, _ base: PageSetup) -> (String, () -> Void) {
             (name, { [session] in
-                var p = base
-                p.marginTop = session.sectionSetup().marginTop; p.marginBottom = session.sectionSetup().marginBottom
-                p.marginLeft = session.sectionSetup().marginLeft; p.marginRight = session.sectionSetup().marginRight
-                session.onPageSetup?(session.sectionSetup().isLandscape ? p.rotated() : p)
+                // Only the sheet changes: the section's margins, columns and text direction stay.
+                var p = session.sectionSetup()
+                let landscape = p.isLandscape
+                p.width = landscape ? base.height : base.width; p.height = landscape ? base.width : base.height
+                session.onPageSetup?(p)
             })
         }
         let sizes: [(String, () -> Void)] = [paper("Letter (8.5 × 11 in)", .letter), paper("A4 (210 × 297 mm)", .a4),
@@ -1063,9 +1064,12 @@ final class Ribbon: StatelessWidget {
                 Chrome.menu(Text(setup.columns > 1 ? "\(setup.columns) Columns" : "Columns"),
                             Icon(FluentSystemIcons.columns, size: Chrome.iconSize,
                                  color: fluent.resources.textFillColorPrimary), fluent,
-                            [("One", { [session] in var p = session.sectionSetup(); p.columns = 1; session.onPageSetup?(p) }),
-                             ("Two", { [session] in var p = session.sectionSetup(); p.columns = 2; session.onPageSetup?(p) }),
-                             ("Three", { [session] in var p = session.sectionSetup(); p.columns = 3; session.onPageSetup?(p) })]),
+                            [("One", { [session] in session.applyColumns(.one) }),
+                             ("Two", { [session] in session.applyColumns(.two) }),
+                             ("Three", { [session] in session.applyColumns(.three) }),
+                             ("Left", { [session] in session.applyColumns(.left) }),
+                             ("Right", { [session] in session.applyColumns(.right) }),
+                             ("More Columns…", { [session] in session.onColumnsDialog?() })]),
             ]),
             Chrome.gap(),
             Chrome.rows([

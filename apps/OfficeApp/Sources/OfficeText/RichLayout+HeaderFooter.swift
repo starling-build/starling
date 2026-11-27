@@ -2752,6 +2752,51 @@ extension RichLayout {
         }
     }
 
+    /// Columns > Line between (`w:sep`): a rule 0.72pt wide down the middle of each gap, from the top of the section's text
+    /// on the page to the foot of its longest column's text (the last line's, not the space after it) or, where the next
+    /// section starts on the page, to its start, for each section of columns on the page (Word's lab colsep: 2 equal, 3 unequal, and 2 between one-column sections).
+    func _paintColumnLines(_ p: Int, _ canvas: any Canvas) {
+        guard _columns > 1 else { return }
+        // (Sections in page order: never drawn by walking a dictionary.)
+        var runs: [(section: Int, setup: PageSetup, first: Int, top: Double, foot: Double)] = []
+        var starts: [(section: Int, y: Double)] = []
+        for c in 0 ..< _columns where p * _columns + c < _pages.count {
+            for piece in _pages[p * _columns + c] where !piece.repeated {
+                let k = piece.paragraph
+                let section = _perSection && k < _sectionOf.count ? _sectionOf[k] : -1
+                let setup = _perSection ? _setup(ofParagraph: k) : pageSetup(forPage: p)
+                starts.append((section, piece.pageY))
+                guard setup.columnLine, setup.columns > 1 else { continue }
+                var shown = piece.height
+                if k < _tops.count, k < _painters.count, let painter = _painters[k] {
+                    let textEnd = _tops[k] + (k < _spaceBefore.count ? _spaceBefore[k] : 0) + painter.height
+                    shown = min(shown, max(0, textEnd - piece.flowTop))
+                }
+                if let i = runs.firstIndex(where: { $0.section == section }) {
+                    runs[i].top = min(runs[i].top, piece.pageY); runs[i].foot = max(runs[i].foot, piece.pageY + shown)
+                } else {
+                    runs.append((section, setup, k, piece.pageY, piece.pageY + shown))
+                }
+            }
+        }
+        let rect = pageRect(p), y = rect.top + _pxMarginTop(p)
+        let line = Paint()
+        line.color = theme.textColor
+        for var run in runs.sorted(by: { $0.top < $1.top }) {
+            // (A section that ends on the page, a continuous one after it: the rule runs down to where that one starts,
+            // past the space after the last line: colsepmid, 145.94 where "After" starts, its last line's text ends at 137.9.)
+            if let next = starts.filter({ $0.section > run.section }).map(\.y).min(), next > run.foot { run.foot = next }
+            guard run.foot > run.top else { continue }
+            let setup = run.setup
+            func width(_ c: Int) -> Double { _px(setup.columnSpec.flatMap { $0.count == setup.columns ? $0[c].width : nil } ?? setup.columnWidth) }
+            for c in 1 ..< setup.columns {
+                let a = _pxColumnLeft(p, column: c - 1, paragraph: run.first), b = _pxColumnLeft(p, column: c, paragraph: run.first)
+                let x = a < b ? (a + width(c - 1) + b) / 2 : (b + width(c) + a) / 2
+                canvas.drawRect(Rect.fromLTWH(rect.left + x - _px(0.36), y + run.top, _px(0.72), run.foot - run.top), line)
+            }
+        }
+    }
+
     /// The notes of a page of columns set with its text (`slotNotes`): each
     /// column's own, bottom-aligned at the page's foot under a rule of its
     /// own — 144pt, the column's whole width where a note goes on from the
@@ -2981,6 +3026,7 @@ extension RichLayout {
                 _paintHeaderFooter(p, canvas, document)
                 _paintVerticalPictures(p, canvas, document)
                 _paintFootnotes(p, canvas, document)
+                _paintColumnLines(p, canvas)
             }
             _paintEndnotes(canvas, document, pages: firstPage ... lastPage)
         }
