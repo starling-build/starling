@@ -226,24 +226,30 @@ final class Ribbon: StatelessWidget {
 
     // MARK: Review
 
-    /// Spelling and Word Count are real; the rest of Word's Review tab
-    /// (track changes, comments) and the Draw and References tabs are one
-    /// honest note rather than five rows of greyed buttons.
+    /// Word's Review tab as far as this build edits it: spelling and the word count (a deck counts every
+    /// slide's text, not the text box being edited). Track changes and comments have no commands yet, so
+    /// they are not shown at all.
     func _review(_ fluent: FluentThemeData) -> [Widget] {
         let c = session.controller
         let proofing = Chrome.group("Proofing", fluent, [
             Chrome.bigToggle(FluentSystemIcons.textGrammarWand, "Spelling", session.checkSpelling, fluent) { [session] in session.onToggleSpelling?() },
             Chrome.big(FluentSystemIcons.textT, "Word Count", fluent) { [session] in
+                if let deck = session.deck {
+                    var words = 0, chars = 0, paragraphs = 0
+                    for i in deck.slides.indices {
+                        for stop in deck.textStops(i) where stop.shape != nil {
+                            let d = stop.controller.document
+                            words += d.wordCount; chars += d.characterCount; paragraphs += d.paragraphs.count
+                        }
+                    }
+                    session.onStatus?("\(deck.slides.count) slide\(deck.slides.count == 1 ? "" : "s"): \(words) words, \(chars) characters, \(paragraphs) paragraphs")
+                    return
+                }
                 let d = c.document
                 session.onStatus?("\(d.wordCount) words, \(d.characterCount) characters, \(d.paragraphs.count) paragraphs")
             },
         ])
-        let later = Chrome.group("Coming later", fluent, [
-            Padding(padding: EdgeInsets(left: 4, top: 6, right: 4, bottom: 0), child: SizedBox(width: 300, height: nil, child: Text(
-                "Track changes, comments, footnotes, a table of contents, shapes, text boxes and drawing are not in this build.",
-                style: fluent.typography.caption?.copyWith(color: fluent.resources.textFillColorSecondary)))),
-        ])
-        return [proofing, later]
+        return [proofing]
     }
 
     // MARK: Home
@@ -302,6 +308,22 @@ final class Ribbon: StatelessWidget {
         return [clipboard, font, paragraph, styles, editing]
     }
 
+    /// The Paste chevron: only the choices this app's shell carries out (a shared group must not offer a
+    /// command its app never wired; Slides pastes by its own rules and has no Paste Special yet).
+    private func _pasteOptions(_ fluent: FluentThemeData) -> [Widget] {
+        var items: [MenuFlyoutItemBase] = []
+        if session.onPasteMode != nil {
+            items += [("Keep Source Formatting", RichDocumentController.PasteMode.keepSource), ("Merge Formatting", .mergeFormatting),
+                      ("Picture", .picture), ("Keep Text Only", .textOnly)].map { label, mode in
+                MenuFlyoutItem(text: Text(label), onPressed: { [session] in session.onPasteMode?(mode) }) }
+        }
+        if session.onPasteSpecial != nil {
+            if !items.isEmpty { items.append(MenuFlyoutSeparator()) }
+            items.append(MenuFlyoutItem(text: Text("Paste Special..."), onPressed: { [session] in session.onPasteSpecial?() }))
+        }
+        return items.isEmpty ? [] : [Chrome.splitChevron("Paste Options", fluent, items: items)]
+    }
+
     /// Paste, Cut, Copy and Format Painter, acting on the session's text.
     func clipboardGroup(_ fluent: FluentThemeData) -> Widget {
         let c = session.controller
@@ -311,14 +333,7 @@ final class Ribbon: StatelessWidget {
                 if session.onShapePaste?() == true { return }
                 session.onPaste?(false)
             },
-            Chrome.splitChevron("Paste Options", fluent, items: [
-                MenuFlyoutItem(text: Text("Keep Source Formatting"), onPressed: { [session] in session.onPasteMode?(.keepSource) }),
-                MenuFlyoutItem(text: Text("Merge Formatting"), onPressed: { [session] in session.onPasteMode?(.mergeFormatting) }),
-                MenuFlyoutItem(text: Text("Picture"), onPressed: { [session] in session.onPasteMode?(.picture) }),
-                MenuFlyoutItem(text: Text("Keep Text Only"), onPressed: { [session] in session.onPasteMode?(.textOnly) }),
-                MenuFlyoutSeparator(),
-                MenuFlyoutItem(text: Text("Paste Special..."), onPressed: { [session] in session.onPasteSpecial?() }),
-            ]),
+        ] + _pasteOptions(fluent) + [
             Chrome.gap(2),
             Chrome.rows([
                 Chrome.small(FluentSystemIcons.cut, "Cut", fluent, enabled: s.hasSelection || session.deck?.selection.isEmpty == false) { [session] in
@@ -389,7 +404,7 @@ final class Ribbon: StatelessWidget {
 
         let spacingChoices: [(String, () -> Void)] = [1.0, 1.15, 1.5, 2.0, 2.5, 3.0].map { m in
             (String(printf: "%.2f", m), { c.setLineSpacing(m) })
-        } + [("Paragraph Options…", { [session] in session.onParagraphDialog?() })]
+        } + (session.onParagraphDialog == nil ? [] : [("Paragraph Options…", { [session] in session.onParagraphDialog?() })])
 
         let paraRow1 = Chrome.row([
             Chrome.toggle(FluentSystemIcons.bulletList, "Bullets", s.list == .bullet, fluent) { c.toggleList(.bullet) },
@@ -416,13 +431,14 @@ final class Ribbon: StatelessWidget {
             MenuFlyoutItem(text: Text("Left Border"), onPressed: paraBorder([.left])),
             MenuFlyoutItem(text: Text("Right Border"), onPressed: paraBorder([.right])),
             MenuFlyoutSeparator(),
-            MenuFlyoutItem(text: Text("All Borders"), onPressed: paraBorder([.top, .bottom, .left, .right])),
+            MenuFlyoutItem(text: Text("All Borders"), onPressed: paraBorder([.top, .bottom, .left, .right, .insideH])),
             MenuFlyoutItem(text: Text("Outside Borders"), onPressed: paraBorder([.top, .bottom, .left, .right])),
             MenuFlyoutItem(text: Text("Inside Border"), onPressed: paraBorder([.insideH])),
             MenuFlyoutItem(text: Text("No Border"), onPressed: paraBorder([.top, .bottom, .left, .right, .insideH], remove: true)),
+        ] + (session.onBordersShadingDialog == nil ? [] : [
             MenuFlyoutSeparator(),
             MenuFlyoutItem(text: Text("Borders and Shading…"), onPressed: { [session] in session.onBordersShadingDialog?() }),
-        ]
+        ])
         let paraRow2 = Chrome.row([
             Chrome.toggle(FluentSystemIcons.alignLeft, "Align Left", s.alignment == .left, fluent) { c.setAlignment(.left) },
             Chrome.toggle(FluentSystemIcons.alignCenter, "Center", s.alignment == .center, fluent) { c.setAlignment(.center) },
@@ -559,17 +575,50 @@ final class Ribbon: StatelessWidget {
             return MenuFlyoutItem(text: Text(preview), onPressed: { c.setListFormat(f) }, selected: f == current)
         }
         var all = items
-        all.append(MenuFlyoutSeparator())
         let isBullet = library.allSatisfy { $0.format == .bullet }
-        all.append(MenuFlyoutItem(text: Text(isBullet ? "Define New Bullet…" : "Define New Number Format…"),
-                                  onPressed: { [session] in session.onListFormatDialog?(isBullet) }))
+        if session.onListFormatDialog != nil {
+            all.append(MenuFlyoutSeparator())
+            all.append(MenuFlyoutItem(text: Text(isBullet ? "Define New Bullet…" : "Define New Number Format…"),
+                                      onPressed: { [session] in session.onListFormatDialog?(isBullet) }))
+        }
         if library.contains(where: { $0.format != .bullet }) {
             all.append(MenuFlyoutSeparator())
             all.append(MenuFlyoutItem(text: Text("Restart at 1"), onPressed: c.isNumberedItem ? { c.restartNumbering() } : nil))
             all.append(MenuFlyoutItem(text: Text("Continue Numbering"), onPressed: c.canContinueNumbering ? { c.continueNumbering() } : nil))
-            all.append(MenuFlyoutItem(text: Text("Set Numbering Value…"), onPressed: c.isNumberedItem ? { [session] in session.onNumberingValueDialog?() } : nil))
+            if session.onNumberingValueDialog != nil {
+                all.append(MenuFlyoutItem(text: Text("Set Numbering Value…"), onPressed: c.isNumberedItem ? { [session] in session.onNumberingValueDialog?() } : nil))
+            }
         }
         return Chrome.splitChevron(tip, fluent, items: all)
+    }
+
+    /// The Select menu's tools and dialogs, each only when this app's shell carries it out (Slides tables
+    /// share this tab but draw with the deck's pen and have no table dialogs yet).
+    private func _tableTools() -> [MenuFlyoutItemBase] {
+        let c = session.controller
+        var out: [MenuFlyoutItemBase] = []
+        if session.onTableTool != nil {
+            var tool = session.tableTool
+            if let deck = session.deck { tool = deck.tableTool == .draw ? "draw" : deck.tableTool == .erase ? "erase" : nil }
+            out += [MenuFlyoutSeparator(),
+                    MenuFlyoutItem(text: Text(tool == "draw" ? "Draw Table ✓" : "Draw Table"), onPressed: { [session] in session.onTableTool?("draw") }),
+                    MenuFlyoutItem(text: Text(tool == "erase" ? "Eraser ✓" : "Eraser"), onPressed: { [session] in session.onTableTool?("erase") })]
+        }
+        var dialogs: [MenuFlyoutItemBase] = []
+        if session.onTablePropertiesDialog != nil {
+            dialogs.append(MenuFlyoutItem(text: Text("Table Properties…"), onPressed: { [session] in session.onTablePropertiesDialog?() }))
+        }
+        if session.onFormulaDialog != nil {
+            dialogs.append(MenuFlyoutItem(text: Text("Formula…"), onPressed: c.canInsertFormula ? { [session] in session.onFormulaDialog?() } : nil))
+        }
+        if session.onSortTableDialog != nil {
+            dialogs.append(MenuFlyoutItem(text: Text("Sort…"), onPressed: c.canSortTable ? { [session] in session.onSortTableDialog?() } : nil))
+        }
+        if session.onConvertTextTableDialog != nil {
+            dialogs.append(MenuFlyoutItem(text: Text("Convert Table to Text…"), onPressed: { [session] in session.onConvertTextTableDialog?(false) }))
+        }
+        if !dialogs.isEmpty { out += [MenuFlyoutSeparator()] + dialogs }
+        return out
     }
 
     private func _tableMenu(_ fluent: FluentThemeData) -> Widget {
@@ -635,20 +684,14 @@ final class Ribbon: StatelessWidget {
                 MenuFlyoutItem(text: Text("Select Row"), onPressed: { c.selectRow() }),
                 MenuFlyoutItem(text: Text("Select Column"), onPressed: { c.selectColumn() }),
                 MenuFlyoutItem(text: Text("Select Table"), onPressed: { c.selectTable() }),
-                MenuFlyoutSeparator(),
-                MenuFlyoutItem(text: Text(session.tableTool == "draw" ? "Draw Table ✓" : "Draw Table"), onPressed: { [session] in session.onTableTool?("draw") }),
-                MenuFlyoutItem(text: Text(session.tableTool == "erase" ? "Eraser ✓" : "Eraser"), onPressed: { [session] in session.onTableTool?("erase") }),
-                MenuFlyoutSeparator(),
-                MenuFlyoutItem(text: Text("Table Properties…"), onPressed: { [session] in session.onTablePropertiesDialog?() }),
-                MenuFlyoutItem(text: Text("Formula…"), onPressed: c.canInsertFormula ? { [session] in session.onFormulaDialog?() } : nil),
-                MenuFlyoutItem(text: Text("Sort…"), onPressed: c.canSortTable ? { [session] in session.onSortTableDialog?() } : nil),
-                MenuFlyoutItem(text: Text("Convert Table to Text…"), onPressed: { self.session.onConvertTextTableDialog?(false) }),
-            ]),
+            ] + _tableTools()),
             Chrome.small(FluentSystemIcons.delete, "Delete Table", fluent) { c.deleteTable() },
             Chrome.menuButton(FluentSystemIcons.table, "Merge", "Merge cells, split cells, split the table", fluent, items: [
                 MenuFlyoutItem(text: Text("Merge Cells"), onPressed: {
                     if c.selection.block != nil || c.selectedCellsInRow.count > 1 || c.selectedCellsInColumn.count > 1 { c.mergeCells() } }),
+            ] + (session.onSplitCellDialog == nil ? [] : [
                 MenuFlyoutItem(text: Text("Split Cell…"), onPressed: { if c.currentCell != nil { self.session.onSplitCellDialog?() } }),
+            ]) + [
                 MenuFlyoutItem(text: Text("Split Table"), onPressed: { if c.canSplitTable { c.splitTable() } }),
             ]),
         ])])
@@ -931,7 +974,11 @@ final class Ribbon: StatelessWidget {
             ]))
         } else if picked.count < 2, let image = c.document.paragraphs[i].image, ShapeGroups.isGroupable(image) {
             groupWidgets.append(Chrome.group("Group", fluent, [
-                Chrome.big(FluentSystemIcons.shapes, "Group", fluent, enabled: false) {},
+                // One shape picked: Group starts picking the others (a finger has no Shift), as Select Multiple does.
+                Chrome.big(FluentSystemIcons.shapes, "Group", fluent) { [session] in
+                    if !c.selectMultiple { c.setSelectMultiple(true) }
+                    session.onStatus?("Tap the other shapes to group with this one")
+                },
             ]))
         }
         if c.pictureWrap(at: i) != nil {

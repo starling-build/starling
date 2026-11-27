@@ -341,6 +341,16 @@ final class SlidesShellState: State<StatefulWidget> {
             guard let self, self._active == nil, !self._notesActive else { return false }
             self._pasteOnSlide(); return true
         }
+        session.onShapeSelectAll = { [weak self] in
+            guard let self, self._active == nil, !self._notesActive else { return false }
+            self.deck.selectShapes(self.deck.currentSlide.shapes); return true
+        }
+        // Table Layout > Select > Draw Table / Eraser: the deck's own table pen (Table Design > Draw Borders).
+        session.onTableTool = { [weak self] tool in
+            guard let self else { return }
+            let want: DeckController.TableTool = tool == "draw" ? .draw : tool == "erase" ? .erase : .none
+            self.deck.tableTool = self.deck.tableTool == want ? .none : want
+        }
         session.onPaste = { [weak self] plain in
             guard let self else { return }
             let c = self.session.controller
