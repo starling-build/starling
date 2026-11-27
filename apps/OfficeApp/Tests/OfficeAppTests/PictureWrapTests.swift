@@ -155,6 +155,8 @@ final class PictureWrapTests: XCTestCase {
         let was = RichTextTheme.wordWindowsPages
         RichTextTheme.wordWindowsPages = true
         defer { RichTextTheme.wordWindowsPages = was }
+        let unpin = ShapeSelectTests.pinBundledFonts()
+        defer { unpin() }
         let theme = RichTextTheme(fontFamily: OfficeFonts.serif)
         theme.wordRules = true
         let px = theme.pixelsPerPoint
@@ -192,14 +194,20 @@ final class PictureWrapTests: XCTestCase {
         var rows: [Double: [Double]] = [:]
         for off in stride(from: 0, to: long.utf16.count, by: 1) {
             let c = layout.caretRect(RichPosition(paragraph: 1, offset: off), doc)
-            rows[(c.top / px).rounded(), default: []].append(c.left / px)
+            rows[(c.top / px * 100).rounded() / 100, default: []].append(c.left / px)
         }
         let top = first.top / px
-        // (The caret reports a line's right-hand piece a row lower than its left: the rows taken are all those the rectangle's 36pt reach.)
-        let beside = rows.filter { $0.key < top + 36 }.flatMap(\.value)
+        // Lines are taken by their measured tops, so the host's line heights pick them: those the rectangle's 36pt reach.
+        let tops = rows.keys.sorted()
+        let reached = tops.filter { $0 < top + 36 }
+        let beside = reached.flatMap { rows[$0] ?? [] }
+        // (The caret reports a line's right-hand piece a row lower than its left: the right piece of the last line it reaches
+        // is found on the row after it.)
+        let next = tops.first { $0 > (reached.last ?? top) }
+        let right = beside + (next.flatMap { rows[$0] } ?? [])
         XCTAssertFalse(beside.isEmpty)
         XCTAssertFalse(beside.contains { $0 > end - 8 && $0 < end + 72 + 8 }, "no text over the rectangle: \(rows.keys.sorted())")
-        XCTAssertTrue(beside.contains { abs($0 - (end + 72 + 9)) < 1 }, "the line beside it goes on at its right")
+        XCTAssertTrue(right.contains { abs($0 - (end + 72 + 9)) < 1 }, "the line beside it goes on at its right: \(right.filter { $0 > end + 72 }.sorted())")
         XCTAssertTrue(rows.contains { $0.key > top + 40 && $0.value.contains { $0 < 2 } }, "a line under the rectangle starts at the margin")
     }
 }
