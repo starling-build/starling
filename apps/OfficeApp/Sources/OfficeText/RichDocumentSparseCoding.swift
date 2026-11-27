@@ -45,6 +45,8 @@ extension RichParagraphStyle {
         case listId
         case listIndentLeft
         case markHidden
+        case collapsed
+        case foldedAway
         case divId
         case eastAsian
         case mark
@@ -108,6 +110,8 @@ extension RichParagraphStyle {
         listId = try c.decodeIfPresent(String.self, forKey: .listId) ?? d.listId
         listIndentLeft = try c.decodeIfPresent(Double.self, forKey: .listIndentLeft) ?? d.listIndentLeft
         markHidden = try c.decodeIfPresent(Bool.self, forKey: .markHidden) ?? d.markHidden
+        collapsed = try c.decodeIfPresent(Bool.self, forKey: .collapsed) ?? d.collapsed
+        foldedAway = try c.decodeIfPresent(Bool.self, forKey: .foldedAway) ?? d.foldedAway
         divId = try c.decodeIfPresent(String.self, forKey: .divId) ?? d.divId
         eastAsian = try c.decodeIfPresent([String: String].self, forKey: .eastAsian) ?? d.eastAsian
         mark = try c.decodeIfPresent(CharStyle.self, forKey: .mark) ?? d.mark
@@ -172,6 +176,8 @@ extension RichParagraphStyle {
         if listId != d.listId, let v = listId { try c.encode(v, forKey: .listId) }
         if listIndentLeft != d.listIndentLeft, let v = listIndentLeft { try c.encode(v, forKey: .listIndentLeft) }
         if markHidden != d.markHidden { try c.encode(markHidden, forKey: .markHidden) }
+        if collapsed != d.collapsed { try c.encode(collapsed, forKey: .collapsed) }
+        if foldedAway != d.foldedAway { try c.encode(foldedAway, forKey: .foldedAway) }
         if divId != d.divId, let v = divId { try c.encode(v, forKey: .divId) }
         if eastAsian != d.eastAsian { try c.encode(eastAsian, forKey: .eastAsian) }
         if mark != d.mark, let v = mark { try c.encode(v, forKey: .mark) }

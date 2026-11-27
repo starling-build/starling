@@ -1604,6 +1604,7 @@ extension DocxFormat {
             } else if p.style.markHidden {
                 markRPr += "<w:vanish/>"
             }
+            if p.style.collapsed { pPr += "<w15:collapsed/>" }
             if !markRPr.isEmpty { pPr += "<w:rPr>\(markRPr)</w:rPr>" }
             if let sect = p.style.sectionXML, p.cell == nil, index < doc.paragraphs.count - 1 { pPr += keptFragmentXML(Self._sectionXML(sect, patchedTo: p.style.sectionPage), p.style.sectionRels) }
             // A tracked change to the paragraph's properties, last in w:pPr, with the properties it had before as read.
