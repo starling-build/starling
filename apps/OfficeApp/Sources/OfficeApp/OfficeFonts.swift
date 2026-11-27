@@ -4500,8 +4500,11 @@ enum OfficeFonts {
         // (A complex-script name Word's Windows lacks whose font table names Courier New as its alternate and
         // an Arabic charset: Word draws it in Courier New, 0.6 em a character, spaces too. dx2 c2c3a2f3's
         // "2  Titr" table headers are CourierNewPSMT 10pt in its print, a 6-letter word 36pt wide.)
+        // (Whatever its Unicode signature: dx2 d2019349's "Zar" claims no Arabic Presentation Forms (usb1 0) and prints in
+        // CourierNewPS-BoldMT 9pt too. The faces once kept out for usb1 0 — Mehr, BadrCourier New, Lotus, Nazanin — are
+        // overridden on every line that names them in dx2, so no print ever showed them in Arial.)
         var viaCourier = false
-        if missing, wordOnWindows, !viaRoman, let entry = fontEntry(name), entry.charset == "B2", (entry.usb1 ?? 0) & 0x8000_0000 != 0,
+        if missing, wordOnWindows, !viaRoman, let entry = fontEntry(name), entry.charset == "B2",
            entry.alt?.trimmingWhitespace().lowercased() == "courier new" {
             viaCourier = true
             RuleTrace.hit("missing-arabic-face-with-courier-alternate-is-courier")
