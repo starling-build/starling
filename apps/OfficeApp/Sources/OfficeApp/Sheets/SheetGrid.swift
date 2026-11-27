@@ -3523,6 +3523,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 let pitch0 = (st.fontName == nil && st.fontSize == nil && st.bold == book.defaultFontBold ? m.defaultRow
                     : SheetPrintMetrics.of(family: book.fontName(st), size: book.fontSize(st), bold: st.bold).defaultRow) * scale
                 let dotum = Self._dotumLike(book.fontName(st))
+                let ownLines = Self._linesOnTheirOwnBaseline(book.fontName(st))
                 let pitch = dotum ? book.fontSize(st) * scale + 1.2 * scale : pitch0
                 let ref = texts.painter(Self._wrapPlacer(lines, family: book.fontName(st)), style)
                 let one = ref.height, n = Double(lines.count - 1)
@@ -3547,7 +3548,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                     default: x = left + margin + inset + lead
                     }
                     // (A Dotum/Gulim cell's lines all stand on the baseline its first does, whatever fallback face draws a later one; the other CJK faces' wrapped lines, zh-1de4da4caa's, stand where their own painter puts them.)
-                    let drop = dotum ? xBase - lp.computeDistanceToActualBaseline(.alphabetic).rounded() : 0
+                    let drop = ownLines ? xBase - lp.computeDistanceToActualBaseline(.alphabetic).rounded() : 0
                     lp.paint(canvas, Offset(x, y0 + drop + Double(i) * pitch))
                     _drawRules(lp, style, at: Offset(x, y0 + Double(i) * pitch), canvas)
                 }
@@ -3650,6 +3651,13 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
     /// Dotum/Gulim cell's first line, so a centred pair stands about where
     /// that line would alone (ko-fb58b17f97: 162.4 and 169.6 about 166.0 in
     /// Excel's print); other faces' "X".
+    /// Whether each wrapped line stands on the placed baseline as itself rather than as the placer: Dotum's and Gulim's,
+    /// and a face the print box lacks, whose baseline comes from the face Excel draws it in (ko-c639ef8015's two-line
+    /// 휴먼명조 16 cells: Excel's first line 6.78 over the one-line baseline, half the pitch; placed on "X", 3.61).
+    static func _linesOnTheirOwnBaseline(_ family: String) -> Bool {
+        _dotumLike(family) || SheetPrintMetrics.printStandIn(family) != family
+    }
+
     static func _wrapPlacer(_ lines: [Substring], family: String) -> String {
         _dotumLike(family) && !lines.isEmpty ? String(lines[0]) : "X"
     }
@@ -3676,7 +3684,10 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             let a = SheetPrintMetrics.printAscent(family: book.fontName(s)).map { $0 * book.fontSize(s) }
                 ?? p().computeDistanceToActualBaseline(.alphabetic) / scale
             let up = (a * 600 / 72).rounded(.up) * 72 / 600
-            return ((Self._fittedLine(s, m, book) - up) * scale, up * scale)
+            // (A face the print box lacks stands in the box of the face Excel draws it in, as it stands on that face's ascent.)
+            let fam = book.fontName(s), alt = SheetPrintMetrics.printStandIn(fam)
+            let line = alt == fam ? Self._fittedLine(s, m, book) : m.fittedRow(SheetPrintMetrics.of(family: alt, size: book.fontSize(s), bold: s.bold))
+            return ((line - up) * scale, up * scale)
         }
         func box(_ style: Int) -> (below: Double, above: Double) {
             let s = book.style(style)

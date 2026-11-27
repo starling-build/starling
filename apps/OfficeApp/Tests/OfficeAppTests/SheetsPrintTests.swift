@@ -24,6 +24,23 @@ final class SheetsPrintTests: XCTestCase {
         }
     }
 
+    func testAMissingKoreanFaceCentresOnMalgunGothic() {
+        // Excel draws the Hangul of a Korean face the print box lacks in Malgun Gothic and centres it on Malgun's
+        // ascent and descent (xls-0453e2c911's HY신명조 titles stood 3-6 pt low; ko-449ad52b15's 경기천년제목 headers
+        // 9.5 under the row line, Excel 9.14, where the fallback put them 11.1). Faces Windows has keep their own:
+        // BatangChe and GulimChe are embedded in ko-3279b32b44's and ko-1fcf4c81b6's prints.
+        for f in ["HY신명조", "경기천년제목 Bold", "휴먼명조"] {
+            XCTAssertEqual(SheetPrintMetrics.printAscent(family: f) ?? 0, 1.0884, accuracy: 0.0001, f)
+            XCTAssertEqual(SheetPrintMetrics.printDescent(family: f) ?? 0, 0.2417, accuracy: 0.0001, f)
+            XCTAssertTrue(SheetGridState._linesOnTheirOwnBaseline(f), f)
+        }
+        for f in ["바탕체", "굴림체", "돋움체", "궁서체", "맑은 고딕", "Calibri", "ＭＳ Ｐゴシック"] {
+            XCTAssertEqual(SheetPrintMetrics.printStandIn(f), f, f)
+        }
+        XCTAssertFalse(SheetGridState._linesOnTheirOwnBaseline("Calibri"))
+        XCTAssertTrue(SheetGridState._linesOnTheirOwnBaseline("돋움"))
+    }
+
     func testDotumWrappedLinesArePlacedByTheirFirstLine() {
         // A centred two-line Dotum cell stands about its first line alone
         // (ko-fb58b17f97: Excel 162.4/169.6 about 166.0; placed by "X", ours stood 1.45 pt higher).

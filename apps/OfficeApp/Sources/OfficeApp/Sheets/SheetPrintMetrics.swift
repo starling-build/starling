@@ -317,8 +317,19 @@ struct SheetPrintMetrics {
     /// an em higher in Excel's print than its Windows line gives, and no
     /// rule over the measured metric fields fits it with the other faces
     /// (OPEN, baseline lab round 2).
-    static func printAscent(family: String) -> Double? { ascent(family: family) }
-    static func printDescent(family: String) -> Double? { descent(family: family) }
+    static func printAscent(family: String) -> Double? { ascent(family: printStandIn(family)) }
+    static func printDescent(family: String) -> Double? { descent(family: printStandIn(family)) }
+    /// A Korean-named face the print box does not have stands where Malgun Gothic does: Excel draws its Hangul in Malgun Gothic
+    /// (xls-0453e2c911's HY신명조 titles and heads: 13 pt bold centred in a 24 pt row stands 5.4 over the middle, Malgun's 5.5;
+    /// the face's own row heights are a separate matter, see ko-35e3bf6d41 on the board).
+    static func printStandIn(_ family: String) -> String {
+        let n = family.trimmingWhitespace().lowercased(), en = windowsHangulNames[n] ?? aliases[n] ?? n
+        guard ascents[en] == nil, !SheetInstalledFonts.names.contains(en),
+              n.unicodeScalars.contains(where: { (0xAC00 ... 0xD7A3).contains($0.value) }) else { return family }
+        return "malgun gothic"
+    }
+    /// The Hangul names of the faces Windows ships under English ones (the Che faces print as themselves: ko-3279b32b44 embeds BatangChe).
+    private static let windowsHangulNames: [String: String] = ["바탕체": "batangche", "굴림체": "gulimche", "돋움체": "dotumche", "궁서체": "gungsuhche"]
     private static let ascents: [String: Double] = [
         "calibri": 0.9521, "arial": 0.9053, "verdana": 1.0054, "times new roman": 0.8911, "courier new": 0.8325,
         "tahoma": 1.0005, "cambria": 0.9502, "microsoft sans serif": 0.9219, "segoe ui": 1.0791, "century gothic": 1.0059,
