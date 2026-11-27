@@ -1562,9 +1562,15 @@ public final class RichDocumentController: ChangeNotifier {
 
     // MARK: Character formatting
 
+    /// Where formatting goes instead of this document (S-TX-1): set on a stand-in that shows shapes selected with no caret in them, so
+    /// the ribbon's Font and Paragraph commands (and Clear Formatting) reach all of their text. Each command calls the relay once
+    /// with what it would do to a controller.
+    public var formatRelay: ((_ apply: (RichDocumentController) -> Void) -> Void)?
+
     /// Apply `transform` to the selection's runs, or to the typing style at
     /// a collapsed caret.
     public func applyCharStyle(_ transform: @escaping (inout CharStyle) -> Void) {
+        if let relay = formatRelay { relay { $0.applyCharStyle(transform) }; return }
         if selection.isCollapsed {
             var style = currentCharStyle
             transform(&style)
@@ -2034,6 +2040,7 @@ public final class RichDocumentController: ChangeNotifier {
 
     /// Word's Clear All Formatting: plain runs and a body paragraph.
     public func clearFormatting() {
+        if let relay = formatRelay { relay { $0.clearFormatting() }; return }
         // Plain, but the hyperlink, a footnote mark, an inline picture and
         // tracked-change marks are content, not formatting: they stay.
         let keep: (inout CharStyle) -> Void = { s in
@@ -3955,6 +3962,7 @@ public final class RichDocumentController: ChangeNotifier {
 
     /// Apply `transform` to every paragraph the selection touches.
     public func applyParagraphStyle(_ transform: (inout RichParagraphStyle) -> Void) {
+        if let relay = formatRelay { relay { $0.applyParagraphStyle(transform) }; return }
         edit {
             for i in document.paragraphIndices(in: selection) {
                 let old = document.paragraphs[i].style

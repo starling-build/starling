@@ -1609,6 +1609,22 @@ final class DeckController: ChangeNotifier {
         _changed()
     }
 
+    /// Format the selected shapes' text as PowerPoint does with the shapes selected and no caret in them (S-TX-1): `body`
+    /// runs on all of each shape's text, and the whole change is one undo step. Shapes whose text it leaves as it was are untouched.
+    func formatSelectedText(_ body: (RichDocumentController) -> Void) {
+        var changed: [(RichDocumentController, RichDocument)] = []
+        for text in selection.compactMap(\.text) {
+            let work = RichDocumentController(document: text.document)
+            work.selectAll()
+            body(work)
+            if work.document != text.document { changed.append((text, work.document)) }
+        }
+        guard !changed.isEmpty else { return }
+        _checkpoint()
+        for (text, doc) in changed { text.load(doc) }
+        _changed()
+    }
+
     /// Set the selected table's header row and banded rows: one undo step.
     /// Turning one back on restores the theme-accent look.
     /// A table style from the gallery: a colour for the emphasised cells and

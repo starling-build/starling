@@ -38,6 +38,8 @@ final class SlidesShellState: State<StatefulWidget> {
     /// The text the ribbon acts on when no body is being edited: nothing
     /// typed here ever shows.
     private let _scratch = RichDocumentController()
+    /// What `_scratch` last showed of the selected shapes (deck revision, shape ids), so it is loaded again only when they change.
+    private var _scratchShows: (revision: Int, ids: [Int])? = nil
     private var _active: SlideShape? = nil
     private var _notesActive = false
     // Outline view: the left rail becomes one editable list of titles and bodies.
@@ -519,6 +521,7 @@ final class SlidesShellState: State<StatefulWidget> {
     /// text body, or at nothing.
     private func _point(at controller: RichDocumentController?, theme: RichTextTheme? = nil) {
         let next = controller ?? _scratch
+        if controller == nil { _showSelection() }
         if next !== session.controller {
             session.controller.removeListeners(owner: self)
             session.controller = next
@@ -527,6 +530,25 @@ final class SlidesShellState: State<StatefulWidget> {
         if let theme { session.theme = theme }
         session.summary = _summarize()
         _publishToolbar()
+    }
+
+    /// With shapes selected and no caret in them, the ribbon shows and formats all of their text, as PowerPoint's does with a
+    /// shape's border solid (S-TX-1): `_scratch` holds their paragraphs, all selected, and hands each Font or Paragraph command
+    /// to the deck (one undo step). With nothing selected it is empty and keeps what it is given.
+    private func _showSelection() {
+        let shapes = deck.selection.filter { $0.text != nil }
+        let key = (revision: deck.revision, ids: shapes.map(\.id))
+        if let seen = _scratchShows, seen.revision == key.revision, seen.ids == key.ids { return }
+        _scratchShows = key
+        guard !shapes.isEmpty else {
+            _scratch.formatRelay = nil
+            if _scratch.document != RichDocument() { _scratch.load(RichDocument()) }
+            return
+        }
+        _scratch.load(RichDocument(paragraphs: shapes.flatMap { $0.text!.document.paragraphs }))
+        _scratch.selectAll()
+        _scratch.formatRelay = { [weak self] apply in self?.deck.formatSelectedText(apply) }
+        if let theme = shapes.first?.textTheme { session.theme = theme }
     }
 
     /// The keyboard's toolbar: the text being typed in, with undo and redo
@@ -789,6 +811,7 @@ final class SlidesShellState: State<StatefulWidget> {
             _notesActive = false
             _point(at: nil)
         }
+        if _active == nil && !_notesActive && session.controller === _scratch { _showSelection() }
         session.dirty = deck.edits != _savedEdits
         session.summary = _summarize()
         _publishToolbar()
@@ -1459,6 +1482,10 @@ final class SlidesShellState: State<StatefulWidget> {
         case "k" where !mods.contains(.shift): _openLink()
         case "f": _openFind(replace: false)
         case "h": _openFind(replace: true)
+        // A shape selected with no caret in it: all of its text (S-TX-1; while typing the editor takes these keys).
+        case "b" where shapes: c.toggleBold()
+        case "i" where shapes: c.toggleItalic()
+        case "u" where shapes: c.toggleUnderline()
         case "e": c.setAlignment(.center)
         case "l": c.setAlignment(.left)
         case "r": c.setAlignment(.right)

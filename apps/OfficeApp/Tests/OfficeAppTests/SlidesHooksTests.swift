@@ -24,8 +24,10 @@ final class SlidesHooksTests: XCTestCase {
         var keys: [UInt32] = Array(0x61...0x7A) + Array(0x30...0x39)
         keys += "=-+[]/\\,.;'`*".unicodeScalars.map { $0.value }
         var handled = Set<String>(), handledKeys = Set<UInt32>()
+        var before: () -> Void = {}
         func sweep() {
             for k in keys {
+                before()
                 for m in [[], [.shift], [.alt], [.shift, .alt]] as [KeyModifiers] {
                     let mods = m.union(.primary)
                     if state._shortcut(key(k), mods) { handled.insert("\(k)/\(mods.rawValue)"); handledKeys.insert(k) }
@@ -34,8 +36,14 @@ final class SlidesHooksTests: XCTestCase {
         }
         sweep()
         // Again with a shape selected and copied (Group and Paste need one).
-        _ = state.session.deck!.addTextBox(at: Rect.fromLTWH(10, 10, 100, 40))
-        state.session.deck!.copyShapes()
+        // (Each key gets its own, since an earlier chord (Cmd+N, Cmd+X) can take the selection away.)
+        before = {
+            let deck = state.session.deck!
+            if deck.selection.isEmpty {
+                _ = deck.addTextBox(at: Rect.fromLTWH(10, 10, 100, 40))
+                deck.copyShapes()
+            }
+        }
         sweep()
         XCTAssertEqual(handledKeys.subtracting(listedKeys), [], "keys work that the list does not show")
         XCTAssertEqual(exact.subtracting(handled), [], "the list shows chords that do nothing")
