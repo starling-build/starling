@@ -171,6 +171,9 @@ public struct CharStyle: Hashable, Codable, Sendable {
         return c.hashValue == origCheck ? o : nil
     }
     public var highlight: Color? = nil
+    /// The text came from a `w:sym` in this font (its code points are the font's own, `00A3` as well as `F0A3`):
+    /// saved back as `w:sym`, since as plain text it would print in the run's text font.
+    public var symbolFont: String? = nil
     /// A `w:shd` the file wrote beside a `w:highlight` (the highlight draws over it), as written; saved after the highlight.
     public var shdUnderHighlight: String? = nil
     /// The highlight came from a `w:shd` (not `w:highlight`): its hex, `#`, then the element's other attributes as written (pattern, theme link).
@@ -1805,6 +1808,9 @@ public struct TableStyle: Hashable, Codable, Sendable {
     /// form_footnotes rules twenty of its form rows this way, and without
     /// the last one's 2.25pt box that row fitted a page Word breaks before.
     public var rowExceptions: [Int: String] = [:]
+    /// A row's tracked insertion or deletion (`w:trPr/w:ins|w:del`), as read, by row index: the row itself was
+    /// inserted or deleted. Without it Word counts each cell's deleted text as a deletion of its own (lo-9f27).
+    public var rowRevisionXML: [Int: String] = [:]
     /// Grid columns a row leaves empty before its first cell (Word's
     /// `w:gridBefore`), by row index: its cells start that far in.
     public var rowsGridBefore: [Int: Int] = [:]

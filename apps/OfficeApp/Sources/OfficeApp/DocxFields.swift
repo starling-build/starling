@@ -2021,6 +2021,16 @@ extension DocxFormat {
         // saved file as unopenable as the original.
         for e in entries where e.name.hasPrefix("word/theme/") && e.name.hasSuffix(".xml") && _wellFormed(e.data) {
             kept[e.name] = e.data
+            // (With its rels and the pictures they name: a theme's picture fill names one by r:embed, and saved
+            // without them the theme named an id with no relationship.)
+            let file = String(e.name.dropFirst("word/theme/".count))
+            guard let rels = part("word/theme/_rels/\(file).rels"), let node = XNode.parse(rels) else { continue }
+            kept["word/theme/_rels/\(file).rels"] = rels
+            for r in node.relationships() where r["TargetMode"] != "External" {
+                guard let target = r["Target"] else { continue }
+                let path = _resolvePath("word/theme", target)
+                if let d = part(path), !_ownParts.contains(path) { kept[path] = d }
+            }
         }
         // The legacy copy of the styles (Word 2010's stylesWithEffects) and the glossary document
         // (the user's Quick Parts and building blocks, with its own styles, settings, fonts and rels):

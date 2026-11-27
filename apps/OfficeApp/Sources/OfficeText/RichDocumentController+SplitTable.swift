@@ -43,6 +43,7 @@ extension RichDocumentController {
                 func cutSet(_ s: Set<Int>) -> (Set<Int>, Set<Int>) { (s.filter { $0 < line }, Set(s.filter { $0 >= line }.map { $0 - line })) }
                 (first.rowHeights, second.rowHeights) = cut(style.rowHeights)
                 (first.rowExceptions, second.rowExceptions) = cut(style.rowExceptions)
+                (first.rowRevisionXML, second.rowRevisionXML) = cut(style.rowRevisionXML)
                 (first.rowsGridBefore, second.rowsGridBefore) = cut(style.rowsGridBefore)
                 (first.rowsExactHeight, second.rowsExactHeight) = cutSet(style.rowsExactHeight)
                 (first.rowsCantSplit, second.rowsCantSplit) = cutSet(style.rowsCantSplit)
