@@ -544,7 +544,7 @@ public final class RichDocumentController: ChangeNotifier {
 
     /// Whether an edit at the selection touches a locked content control: its contents (a group control's, or a
     /// `contentLocked` one's) typed into or deleted, or a `sdtLocked` control deleted whole. Edits then do nothing, as in Word.
-    private func _selectionLocked() -> Bool {
+    func _selectionLocked() -> Bool {
         let a = document.clamped(selection.start), b = document.clamped(selection.end)
         let collapsed = selection.isCollapsed
         // Block-level controls: the paragraphs from the one that starts the control to the one that ends it.

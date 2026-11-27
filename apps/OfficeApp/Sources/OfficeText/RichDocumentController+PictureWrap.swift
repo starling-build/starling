@@ -243,6 +243,29 @@ extension RichDocumentController {
         return xml.containsSubstring("<wp:inline") && xml.containsSubstring("<wps:wsp") && !xml.containsSubstring("<wpg:")
     }
 
+    /// Drag the drawing `id` set In Line with Text in paragraph `index` to `drop` in the text, one undo step, as Word moves it:
+    /// its character leaves its place and stands at the drop, selected, with no space added or taken round it. False when it
+    /// is not there or the drop is its own place.
+    @discardableResult
+    public func moveInlinePicture(in index: Int, id: String, to drop: RichPosition) -> Bool {
+        guard !_selectionLocked(), let at = inlineImageOffsets(in: index).first(where: { $0.id == id })?.offset else { return false }
+        let from = RichPosition(paragraph: index, offset: at), past = RichPosition(paragraph: index, offset: at + 1)
+        let drop = document.clamped(drop)
+        guard drop != from, drop != past else { return false }
+        let picked = RichSelection(anchor: from, focus: past)
+        let fragment = document.fragment(picked)
+        edit {
+            selection = picked
+            _deleteSelectionOps()
+            // (What followed it in its own paragraph moved one back.)
+            _setCaret(drop.paragraph == index && drop.offset > at ? RichPosition(paragraph: index, offset: drop.offset - 1) : drop)
+            _ = insertFragment(fragment)
+            let end = selection.focus
+            selection = RichSelection(anchor: RichPosition(paragraph: end.paragraph, offset: end.offset - 1), focus: end)
+        }
+        return true
+    }
+
     /// A shape's preset outline (`prst`), which it wraps round; nil for a picture.
     static func _preset(_ xml: String) -> String? {
         guard xml.containsSubstring("<wps:wsp"), let g = xml.rangeOfSubstring("prstGeom prst=\""),
