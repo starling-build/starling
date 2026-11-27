@@ -1252,7 +1252,8 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
 
     /// A frame of dashes two pixels wide on a light underlay, drawn only
     /// where it is in view (a whole column's frame is a million rows long).
-    private func _dashedFrame(_ canvas: any Canvas, _ r: Rect, view: Rect, ink: Color, under: Color) {
+    private func _dashedFrame(_ canvas: any Canvas, _ r: Rect, view: Rect, ink: Color, under: Color?,
+                              half: Double = 1, dash: Double = 4, period: Double = 8) {
         let p = Paint()
         p.style = .fill
         func line(_ fixed: Double, _ from: Double, _ to: Double, horizontal: Bool) {
@@ -1262,13 +1263,12 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             let a = max(from, lo), b = min(to, hi)
             guard b > a else { return }
             func bar(_ s: Double, _ e: Double) {
-                canvas.drawRect(horizontal ? Rect.fromLTRB(s, fixed - 1, e, fixed + 1) : Rect.fromLTRB(fixed - 1, s, fixed + 1, e), p)
+                canvas.drawRect(horizontal ? Rect.fromLTRB(s, fixed - half, e, fixed + half) : Rect.fromLTRB(fixed - half, s, fixed + half, e), p)
             }
-            p.color = under
-            bar(a, b)
+            if let under { p.color = under; bar(a, b) }
             p.color = ink
-            var x = from + ((a - from) / 8).rounded(.down) * 8
-            while x < b { bar(max(x, a), min(x + 4, b)); x += 8 }
+            var x = from + ((a - from) / period).rounded(.down) * period
+            while x < b { bar(max(x, a), min(x + dash, b)); x += period }
         }
         line(r.top, r.left, r.right, horizontal: true)
         line(r.bottom, r.left, r.right, horizontal: true)
@@ -2645,6 +2645,15 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             outline.color = dark ? Color(0xFFBDBDBD) : Color(0xFF616161)
             let r = rect(t)
             canvas.drawRect(Rect.fromLTRB(r.left.rounded() + 0.5, r.top.rounded() + 0.5, r.right.rounded() - 0.5, r.bottom.rounded() - 0.5), outline)
+        }
+        // The print area's frame: Excel's thin grey dashes round each area in Normal view.
+        if !printing, !controller.breakPreview {
+            let pen = dark ? Color(0xFFA0A0A0) : Color(0xFF7F7F7F)
+            for a in SheetPrintLayout.printNames(controller.book, sheet: controller.activeSheet).areas {
+                let r = rect(a)
+                _dashedFrame(canvas, Rect.fromLTRB(r.left.rounded(), r.top.rounded(), r.right.rounded() - 1, r.bottom.rounded() - 1),
+                             view: Rect.fromLTRB(hw, hh, size.width, size.height), ink: pen, under: nil, half: 0.5, dash: 3, period: 6)
+            }
         }
         // The copied cells' dashed frame.
         if let m = marquee, m.sheet == controller.activeSheet {

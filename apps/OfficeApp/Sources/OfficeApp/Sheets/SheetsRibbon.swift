@@ -486,8 +486,11 @@ extension Ribbon {
         let setup = SheetPrintSetup.read(wb.sheet)
         let landscape = setup.landscape
         // Excel's three margin presets, in inches: top/bottom, left/right, header/footer.
+        // The preset the sheet's margins match is ticked, as Excel highlights it.
         func margins(_ name: String, _ tb: Double, _ lr: Double, _ hf: Double) -> MenuFlyoutItem {
-            MenuFlyoutItem(text: Text(name), onPressed: {
+            let pt = [setup.top, setup.bottom, setup.left, setup.right, setup.headerMargin, setup.footerMargin]
+            let on = zip(pt, [tb, tb, lr, lr, hf, hf]).allSatisfy { abs($0 - $1 * 72) < 0.01 }
+            return MenuFlyoutItem(text: Text(on ? "\u{2713} " + name : name), onPressed: {
                 wb.setPageSetup(PageSetupChange(left: lr, right: lr, top: tb, bottom: tb, header: hf, footer: hf))
             })
         }
@@ -502,8 +505,8 @@ extension Ribbon {
                 MenuFlyoutItem(text: Text("Custom Margins…"), onPressed: { wb.onCommand?(.pageSetup) }),
             ]),
             Chrome.menuButton(FluentSystemIcons.grid, "Orientation", landscape ? "Landscape" : "Portrait", fluent, items: [
-                MenuFlyoutItem(text: Text("Portrait"), onPressed: { wb.setPageSetup(PageSetupChange(landscape: false)) }),
-                MenuFlyoutItem(text: Text("Landscape"), onPressed: { wb.setPageSetup(PageSetupChange(landscape: true)) }),
+                MenuFlyoutItem(text: Text(landscape ? "Portrait" : "\u{2713} Portrait"), onPressed: { wb.setPageSetup(PageSetupChange(landscape: false)) }),
+                MenuFlyoutItem(text: Text(landscape ? "\u{2713} Landscape" : "Landscape"), onPressed: { wb.setPageSetup(PageSetupChange(landscape: true)) }),
             ]),
             Chrome.menuButton(FluentSystemIcons.grid, "Size", "Paper size", fluent, items: sizes),
             Chrome.menuButton(FluentSystemIcons.grid, "Print Area", "What part of the sheet prints", fluent, items: [
@@ -534,13 +537,15 @@ extension Ribbon {
                 })
             } + [MenuFlyoutItem(text: Text("More Pages…"), onPressed: { wb.onCommand?(.pageSetup) })]
         }
+        // Three rows share the group's 80 pt, so each is 26 tall (a button's own 28 would overflow by 4).
+        func row(_ w: Widget) -> Widget { SizedBox(width: nil, height: 26, child: w) }
         return Chrome.group("Scale to Fit", fluent, [Chrome.rows([
-            Chrome.menuButton(nil, "Width: " + pages(wide), "Pages wide", fluent, items: items(true)),
-            Chrome.menuButton(nil, "Height: " + pages(tall), "Pages tall", fluent, items: items(false)),
-            Chrome.spinner("Scale", setup.scale, fluent, step: 5, unit: "%", minimum: 10) { v in
+            row(Chrome.menuButton(nil, "Width: " + pages(wide), "Pages wide", fluent, items: items(true))),
+            row(Chrome.menuButton(nil, "Height: " + pages(tall), "Pages tall", fluent, items: items(false))),
+            row(Chrome.spinner("Scale", setup.scale, fluent, step: 5, unit: "%", minimum: 10) { v in
                 // Excel greys the scale while a fit is set.
                 if !fitting { wb.setPageSetup(PageSetupChange(scale: Int(min(400, v).rounded()))) }
-            },
+            }),
         ])])
     }
 

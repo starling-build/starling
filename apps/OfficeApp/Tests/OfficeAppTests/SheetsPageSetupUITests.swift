@@ -86,6 +86,34 @@ final class SheetsPageLayoutRibbonTests: XCTestCase {
         XCTAssertEqual(SheetPrintSetup.read(wb.sheet).left, 50.4, accuracy: 0.01)
     }
 
+    func testMarginsMenuTicksTheMatchingPreset() throws {
+        let (ui, wb) = try shell()
+        XCTAssertTrue(ui.tap(text: "Margins")); ui.pump()
+        XCTAssertTrue(ui.has(text: "\u{2713} Normal"), "a new sheet has Excel's Normal margins")
+        XCTAssertTrue(ui.tap(text: "Narrow")); ui.pump()
+        XCTAssertTrue(ui.tap(text: "Margins")); ui.pump()
+        XCTAssertTrue(ui.has(text: "\u{2713} Narrow"))
+        XCTAssertFalse(ui.has(text: "\u{2713} Normal"))
+        _ = wb
+    }
+
+    /// The Layout tab and the Page Setup dialog fit a 1440 x 932 window (the Mac driver's) without overflowing.
+    func testLayoutTabAndPageSetupDialogDoNotOverflow() throws {
+        let path = NSTemporaryDirectory() + "pagesetup-ovf-\(getpid()).xlsx"
+        try Xlsx.write(Workbook()).write(to: URL(fileURLWithPath: path))
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light),
+                                        home: SheetsShell(initialPath: path, onSwitch: { _, _ in }), title: "Test"),
+                              size: Size(1440, 932))
+        ui.pump()
+        var overflows: [String] = []
+        let old = FlutterError.onError
+        FlutterError.onError = { d in overflows.append((d.exception as? FlutterError)?.toString() ?? "\(d.exception)") }
+        defer { FlutterError.onError = old }
+        XCTAssertTrue(ui.tap(text: "Layout")); ui.pump()
+        XCTAssertTrue(ui.tap(text: "Page Setup")); ui.pump()
+        XCTAssertEqual(overflows, [])
+    }
+
     func testPrintAreaSetsTheSelectionAndClears() throws {
         let (ui, wb) = try shell()
         wb.select(range: CellRange(top: 1, left: 1, bottom: 4, right: 2))
