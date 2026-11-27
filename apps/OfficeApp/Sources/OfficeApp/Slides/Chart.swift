@@ -281,6 +281,8 @@ struct Chart: Equatable {
     /// Each axis title's own size as its text states it (slides only).
     var valueAxisTitleSize: Double? = nil
     var categoryAxisTitleSize: Double? = nil
+    /// A `cx:` chart's category-axis title's own size, kept apart from the value axis's (lab fn-names p12, p13).
+    var cxCategoryTitleSize: Double? = nil
     /// The axis titles say nothing of their look (openpyxl's): Excel sets them 20 pt.
     var bareAxisTitle = false
     var axisTitleDefaultBold = false
@@ -859,6 +861,7 @@ struct Chart: Equatable {
         c.axisTitleSize = axisTitleSize.map { $0 * f }
         c.valueAxisTitleSize = valueAxisTitleSize.map { $0 * f }
         c.categoryAxisTitleSize = categoryAxisTitleSize.map { $0 * f }
+        c.cxCategoryTitleSize = cxCategoryTitleSize.map { $0 * f }
         // (And the title's box's line, which is as stated too:
         // chart-tdf135184's 3 pt.)
         c.titleLineWidth = titleLineWidth * f
@@ -1529,8 +1532,14 @@ enum ChartXML {
         for ax in chart.first("cx:plotArea")?.all("cx:axis") ?? [] {
             guard let t = ax.first("cx:title"), let txt = t.descendant("cx:v")?.text, !txt.isEmpty else { continue }
             if ax.first("cx:catScaling") != nil { c.categoryAxisTitle = txt } else if ax.first("cx:valScaling") != nil { c.valueAxisTitle = txt }
-            if let sz = t.descendant("a:rPr")?["sz"].flatMap(Double.init) { c.axisTitleSize = sz / 100 }
+            // (Each title keeps its own size: lab fn-names p12, p13, a 14 and a 20 pt "Cumulative change" over a 9 pt
+            // "Entry" that PowerPoint prints at 9.)
+            if let sz = t.descendant("a:rPr")?["sz"].flatMap(Double.init) {
+                if ax.first("cx:catScaling") != nil { c.cxCategoryTitleSize = sz / 100 } else { c.axisTitleSize = sz / 100 }
+            }
         }
+        // (A value-axis title stating no size takes the category title's, as before.)
+        if c.axisTitleSize == nil { c.axisTitleSize = c.cxCategoryTitleSize }
         if let gap = chart.first("cx:plotArea")?.all("cx:axis").compactMap({ $0.first("cx:catScaling")?["gapWidth"] }).first,
            let g = Double(gap), g >= 0 { c.gapWidth = Int(g * 100) }
         return c
@@ -6090,9 +6099,11 @@ enum ChartPainter {
                 // area's, its foot the category names, their gap and the category title over it. tdf119138's "Test number"
                 // stands 17 px over where ours was, its middle at the plot's.)
                 var lift = 0.0
-                if (c.onSheet && c.bareAxisTitle && c.type != .scatter) || (c.onSlide && c.categoryAxisTitleSize != nil) {
+                // (A `cx:` chart's on a slide too: lab fn-names p11-p14, the title's middle on the plot's at 9, 14 and 20 pt,
+                // where ours stood 15 pt low over the plot, its names and its category title.)
+                if (c.onSheet && c.bareAxisTitle && c.type != .scatter) || (c.onSlide && c.categoryAxisTitleSize != nil) || (c.chartex && c.onSlide && !c.onSheet) {
                     let names = 1.22 * (c.categoryLabelSize ?? c.baseTextSize) * k + 3.3
-                    let below = c.categoryAxisTitle != nil ? axisText(c.categoryAxisTitle!, c.onSlide ? (c.categoryAxisTitleSize ?? titleSize) : c.onSheet ? (c.categoryAxisTitleSize.map { $0 } ?? titleSize) : titleSize, .infinity) : nil
+                    let below = c.categoryAxisTitle != nil ? axisText(c.categoryAxisTitle!, c.cxCategoryTitleSize ?? (c.onSlide ? (c.categoryAxisTitleSize ?? titleSize) : c.onSheet ? (c.categoryAxisTitleSize.map { $0 } ?? titleSize) : titleSize), .infinity) : nil
                     let titleRoom = (below?.height ?? 0) + (below == nil ? 0 : 4 * k + 6 * k)
                     below?.dispose()
                     lift = (names + titleRoom - 0.61 * labelSize * k) / 2
@@ -6122,7 +6133,7 @@ enum ChartPainter {
         }
         if let t = c.categoryAxisTitle, c.categoryAxisTitleAt == nil {
             // (Excel's bare titles stand as long as four fifths of the chart: tdf119138's 162 pt "Sample length (mm)" beside a 150 pt plot.)
-            let tp = axisText(t, c.onSlide ? (c.categoryAxisTitleSize ?? titleSize) : c.onSheet ? (c.categoryAxisTitleSize.map { $0 } ?? titleSize) : titleSize, !c.onSlide && !c.onSheet || (c.onSheet && horizontal) ? min(horizontal && c.onSheet ? .infinity : horizontal ? area.height : area.width, 0.8 * (horizontal ? frame.height : frame.width)) : min(horizontal ? area.height : area.width, .infinity))
+            let tp = axisText(t, c.cxCategoryTitleSize ?? (c.onSlide ? (c.categoryAxisTitleSize ?? titleSize) : c.onSheet ? (c.categoryAxisTitleSize.map { $0 } ?? titleSize) : titleSize), !c.onSlide && !c.onSheet || (c.onSheet && horizontal) ? min(horizontal && c.onSheet ? .infinity : horizontal ? area.height : area.width, 0.8 * (horizontal ? frame.height : frame.width)) : min(horizontal ? area.height : area.width, .infinity))
             if horizontal {
                 canvas.save()
                 canvas.translate(area.left, area.center.dy + tp.width / 2)
