@@ -303,6 +303,58 @@ final class PptContainerTests: XCTestCase {
         XCTAssertEqual(state.slides[0].shapes[0].kind, .geometry(ShapePreset(rawValue: "ellipse")))
     }
 
+    func testOlderShapeTypesKeepTheirOutlineAndANewerCopyWins() throws {
+        func persist(_ id: Int, _ slideId: Int) -> [UInt8] {
+            var b: [UInt8] = le32(id)
+            b += le32(0) + le32(1) + le32(slideId) + le32(0)
+            return rec(0x03F3, b)
+        }
+        var atom: [UInt8] = le32(5760)
+        atom += le32(4320)
+        atom += [UInt8](repeating: 0, count: 22)
+        atom += le16(1)
+        atom += [UInt8](repeating: 0, count: 6)
+        var kids = rec(0x03E9, atom)
+        kids += rec(0x0FF0, ver: 15, inst: 1, persist(2, 0x8000_0000))
+        kids += rec(0x0FF0, ver: 15, inst: 0, persist(3, 256))
+        var d = rec(0x03E8, ver: 15, kids)
+        func shape(type: Int, id: Int, complex: [(Int, [UInt8])] = [], anchor: [Int], turn: Int = 0) -> [UInt8] {
+            var k = rec(0xF00A, ver: 2, inst: type, le32(id) + le32(0xA00))
+            let props: [(Int, Int)] = (turn != 0 ? [(0x4, turn << 16)] : []) + [(0x181, 0x339933), (0x1BF, 0x10_0010)] + complex.map { (0x8000 | $0.0, $0.1.count) }
+            var b: [UInt8] = []
+            for (pid, v) in props { b += le16(pid) + le32(v) }
+            for (_, data) in complex { b += data }
+            k += rec(0xF00B, ver: 3, inst: props.count, b)
+            var a: [UInt8] = []
+            for v in anchor { a += le16(v) }
+            k += rec(0xF010, a)
+            return rec(0xF004, ver: 15, k)
+        }
+        // A chevron (type 55), and a thick arrow (14, no preset of its own) whose newer copy is a home plate with its point moved.
+        let modern = "<p:sp xmlns:p=\"http://schemas.openxmlformats.org/presentationml/2006/main\"><p:spPr><a:prstGeom xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\" prst=\"homePlate\"><a:avLst><a:gd name=\"adj\" fmla=\"val 30000\"/></a:avLst></a:prstGeom></p:spPr></p:sp>"
+        let blob = [UInt8](try Zip.write([ZipEntry(name: "drs/shapexml.xml", data: Data(modern.utf8))]))
+        let head = rec(0xF004, ver: 15, rec(0xF00A, ver: 2, inst: 0, le32(1) + le32(5)))
+        let top = rec(0xF003, ver: 15, head + shape(type: 55, id: 2, anchor: [100, 200, 1100, 700], turn: 90)
+            + shape(type: 14, id: 3, complex: [(0x3A9, blob)], anchor: [100, 800, 1100, 1300]))
+        let pageKids = rec(0x03EF, [UInt8](repeating: 0, count: 12) + le32(0x8000_0000) + le32(0) + le16(7) + le16(0))
+            + rec(0x040C, ver: 15, rec(0xF002, ver: 15, top))
+        let master = rec(0x03F8, ver: 15, rec(0x03EF, [UInt8](repeating: 0, count: 24)))
+        var offs: [Int] = []
+        for p in [master, rec(0x03EE, ver: 15, pageKids)] { offs.append(d.count); d += p }
+        let dir = d.count
+        d += directory([(1, [0]), (2, [offs[0]]), (3, [offs[1]])])
+        let edit = d.count
+        d += userEdit(lastEdit: 0, directory: dir, document: 1)
+        let f = try PptFile(currentUser: currentUser(offset: edit), document: d)
+        let xml = f.shapeXML(of: f.slides[0])
+        XCTAssertTrue(xml.contains("<a:prstGeom prst=\"chevron\"><a:avLst/></a:prstGeom>"))
+        // Turned a quarter, its anchor is the box it fills turned: the shape is 600 x 900 about the same centre.
+        XCTAssertTrue(xml.contains("<a:xfrm rot=\"5400000\"><a:off x=\"555625\" y=\"-79375\"/><a:ext cx=\"952500\" cy=\"1428750\"/>"), xml)
+        XCTAssertTrue(xml.contains("<a:prstGeom prst=\"homePlate\"><a:avLst><a:gd name=\"adj\" fmla=\"val 30000\"/></a:avLst></a:prstGeom>"))
+        let (state, _, _) = try PptxReader(PptxPackage(PptBuild.parts(f))).read()
+        XCTAssertEqual(state.slides[0].shapes.map(\.kind), [.geometry(ShapePreset(rawValue: "chevron")), .geometry(ShapePreset(rawValue: "homePlate"))])
+    }
+
     func testShadedAndPictureFillsBecomeGradientAndBlipFills() {
         var s = ArtShape()
         s.type = 1
@@ -442,6 +494,20 @@ final class PptContainerTests: XCTestCase {
         XCTAssertEqual(shapes.first?.props[0x181], 0x123456)
     }
 
+    /// An array property's size may count its 6-byte header (a table's row heights, 0x3A0) or leave it out
+    /// (vertices): either way the complex data after it is read from the right place.
+    func testAnArraysSizeWithOrWithoutItsHeaderKeepsTheNextComplexPropertyInPlace() {
+        let array: [UInt8] = le16(2) + le16(2) + le16(4) + le32(100) + le32(200)
+        for counted in [true, false] {
+            let table = le16(0x3A0 | 0xC000) + le32(counted ? array.count : array.count - 6) + le16(0x3A9 | 0x8000) + le32(3)
+            let opt = rec(0xF122, ver: 3, inst: 2, table + array + [0x50, 0x4B, 0x03])
+            let sp = rec(0xF004, ver: 15, rec(0xF00A, ver: 2, inst: 1, le32(7) + le32(0)) + opt)
+            let art = OfficeArt.shapes(drawing: sp).first
+            XCTAssertEqual(art?.complex[0x3A0], array, "counted \(counted)")
+            XCTAssertEqual(art?.complex[0x3A9], [0x50, 0x4B, 0x03], "counted \(counted)")
+        }
+    }
+
     func testSlideNumberAndDateMarksBecomeFields() throws {
         // text "Page *": a slide-number mark at position 5, then a date mark at position 6.
         let text: [UInt8] = "Page **".utf16.flatMap { [UInt8($0 & 0xFF), UInt8($0 >> 8)] }
@@ -542,8 +608,8 @@ final class PptContainerTests: XCTestCase {
         let xml = f.textStylesXML(of: f.masters[0])
         XCTAssertTrue(xml.contains("<a:lvl1pPr marL=\"\(PptBuild.emu(300))\">"), xml)
         XCTAssertTrue(xml.contains("<a:buChar char=\"\u{2022}\"/>"), xml)
-        XCTAssertTrue(xml.contains("<a:defRPr sz=\"2800\"/>"), xml)
-        XCTAssertTrue(xml.contains("<a:lvl2pPr><a:defRPr sz=\"2400\"/></a:lvl2pPr>"), xml)
+        XCTAssertTrue(xml.contains("<a:defRPr sz=\"2800\" kern=\"1200\"/>"), xml)
+        XCTAssertTrue(xml.contains("<a:lvl2pPr><a:defRPr sz=\"2400\" kern=\"1200\"/></a:lvl2pPr>"), xml)
         let (state, _, _) = try PptxReader(PptxPackage(PptBuild.parts(f))).read()
         XCTAssertEqual(state.slides[0].shapes.first?.text?.paragraphs.first?.runs.first?.style.fontSize, 28)
     }
@@ -594,5 +660,91 @@ extension PptContainerTests {
         XCTAssertTrue(x.contains("<a:ln w=\"12700\"><a:solidFill><a:srgbClr val=\"000000\"/></a:solidFill><a:prstDash val=\"dash\"/><a:tailEnd type=\"triangle\" w=\"lg\" len=\"sm\"/></a:ln>"), x)
         s.props[0x1CE] = 0
         XCTAssertFalse(PptFile.fillLineXML(s, placeholder: false).contains("prstDash"))
+    }
+}
+
+extension PptContainerTests {
+    /// A deck whose Environment (0x03F2) names two fonts, sets font 1 as the default and gives "other" text 20 pt.
+    func deckWithEnvironment() -> (doc: [UInt8], user: [UInt8]) {
+        func font(_ name: String) -> [UInt8] {
+            var b: [UInt8] = []
+            for u in name.utf16 { b += le16(Int(u)) }
+            return rec(0x0FB7, b + [UInt8](repeating: 0, count: 68 - b.count))
+        }
+        var atom: [UInt8] = le32(5760) + le32(4320)
+        atom += [UInt8](repeating: 0, count: 22)
+        atom += le16(1)
+        atom += [UInt8](repeating: 0, count: 6)
+        var env = rec(0x07D5, ver: 15, font("Arial") + font("Calibri"))
+        env += rec(0x0FA4, le32(0x1_0000) + le16(1))
+        env += rec(0x0FA3, inst: 4, le16(1) + le32(0) + le32(0x2_0000) + le16(20))
+        var kids = rec(0x03E9, atom)
+        kids += rec(0x03F2, ver: 15, env)
+        var d = rec(0x03E8, ver: 15, kids)
+        let dir = d.count
+        d += directory([(1, [0])])
+        let edit = d.count
+        d += userEdit(lastEdit: 0, directory: dir, document: 1)
+        return (d, currentUser(offset: edit))
+    }
+
+    func testTheEnvironmentGivesTheFontsAndTheDefaultTextStyle() throws {
+        let deck = deckWithEnvironment()
+        let f = try PptFile(currentUser: deck.user, document: deck.doc)
+        XCTAssertEqual(f.fonts, ["Arial", "Calibri"])
+        XCTAssertEqual(f.defaultChar.font, 1)
+        let xml = f.defaultTextStyleXML()
+        XCTAssertTrue(xml.hasPrefix("<p:defaultTextStyle><a:lvl1pPr"), xml)
+        XCTAssertTrue(xml.contains("sz=\"2000\""), xml)
+        // The style names no font: it takes the document's default one.
+        XCTAssertTrue(xml.contains("<a:latin typeface=\"Calibri\"/>"), xml)
+        // A .ppt kerns from 12 pt; the style says so, or its text would be unkerned.
+        XCTAssertTrue(xml.contains("<a:defRPr sz=\"2000\" kern=\"1200\""), xml)
+    }
+
+    func testAStyleLevelWithoutAFontKeepsTheLevelAboveAndARulerSetsTheMargins() throws {
+        let deck = deckWithEnvironment()
+        let f = try PptFile(currentUser: deck.user, document: deck.doc)
+        var one = PptStyle.Level(), two = PptStyle.Level()
+        one.char.font = 0
+        one.para.leftMargin = 216
+        one.para.indent = 0
+        two.para.leftMargin = 468
+        two.para.indent = 288
+        let xml = f.levelsXML("a:lstStyle", [one, two], ruler: [0: (left: 0, indent: nil)])
+        XCTAssertTrue(xml.contains("<a:lvl1pPr marL=\"0\" indent=\"0\""), xml)
+        XCTAssertTrue(xml.contains("<a:lvl2pPr marL=\"\(PptBuild.emu(468))\" indent=\"\(PptBuild.emu(-180))\""), xml)
+        // Level 2 names no font: Arial from level 1, not the document's Calibri.
+        XCTAssertEqual(xml.components(separatedBy: "<a:latin typeface=\"Arial\"/>").count, 3, xml)
+        XCTAssertFalse(xml.contains("Calibri"), xml)
+    }
+
+    func testAnEmptyParagraphKeepsTheSizeOfItsMark() throws {
+        var block = PptTextBlock()
+        block.text = "\rb"
+        var run = PptCharRun()
+        run.size = 20
+        run.count = 3
+        block.charRuns = [run]
+        let deck = deckWithEnvironment()
+        let f = try PptFile(currentUser: deck.user, document: deck.doc)
+        let xml = f.paragraphsXML(block)
+        XCTAssertTrue(xml.hasPrefix("<a:p><a:endParaRPr sz=\"2000\"/></a:p>"), xml)
+    }
+
+    func testTheRoundTripThemeIsKeptWithTheDecksColours() throws {
+        let theme = "<?xml version=\"1.0\"?><a:theme xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\" name=\"Kept\"><a:themeElements>"
+            + "<a:clrScheme name=\"K\"><a:dk1><a:sysClr val=\"windowText\"/></a:dk1><a:lt1><a:sysClr val=\"window\"/></a:lt1>"
+            + "<a:accent3><a:srgbClr val=\"123456\"/></a:accent3></a:clrScheme>"
+            + "<a:fontScheme name=\"K\"><a:majorFont><a:latin typeface=\"Calibri Light\"/></a:majorFont></a:fontScheme></a:themeElements></a:theme>"
+        let zip = try Zip.write([ZipEntry(name: "theme/theme/themeManager.xml", data: Data("<x/>".utf8)),
+                                 ZipEntry(name: "theme/theme/theme1.xml", data: Data(theme.utf8))])
+        let xml = PptBuild.theme([0xFFFFFF, 0x000000], kept: [UInt8](zip))
+        XCTAssertTrue(xml.hasPrefix("<a:theme"), xml)
+        XCTAssertTrue(xml.contains("name=\"Kept\""), xml)
+        XCTAssertTrue(xml.contains("<a:dk1><a:srgbClr val=\"000000\"/></a:dk1>"), xml)
+        XCTAssertTrue(xml.contains("<a:lt1><a:srgbClr val=\"FFFFFF\"/></a:lt1>"), xml)
+        XCTAssertTrue(xml.contains("<a:srgbClr val=\"123456\"/>"), xml)
+        XCTAssertTrue(xml.contains("Calibri Light"), xml)
     }
 }

@@ -150,6 +150,14 @@ enum PptStyle {
         var char = PptCharRun()
     }
 
+    /// A TextCFExceptionAtom body: character properties on their own (the document's defaults).
+    static func parseChar(_ b: [UInt8], in range: Range<Int>) -> PptCharRun {
+        var r = Reader(b: b, k: range.lowerBound, end: min(range.upperBound, b.count))
+        var c = PptCharRun()
+        readChar(&r, into: &c)
+        return c
+    }
+
     /// A TextMasterStyleAtom body: the levels it holds (`type` is the atom's instance; 5 and up name the level first).
     static func parseMaster(_ b: [UInt8], in range: Range<Int>, type: Int) -> [Level] {
         var r = Reader(b: b, k: range.lowerBound, end: min(range.upperBound, b.count))

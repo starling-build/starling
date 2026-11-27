@@ -87,7 +87,7 @@ enum PptBuild {
         let first = f.firstSlideNumber == 1 ? "" : " firstSlideNum=\"\(f.firstSlideNumber)\""
         add("ppt/presentation.xml", "<p:presentation \(ns)\(first)><p:sldMasterIdLst>\(masterIds)</p:sldMasterIdLst>"
             + "<p:sldIdLst>\(ids)</p:sldIdLst><p:sldSz cx=\"\(emu(f.slideWidth))\" cy=\"\(emu(f.slideHeight))\"/>"
-            + "<p:notesSz cx=\"6858000\" cy=\"9144000\"/></p:presentation>")
+            + "<p:notesSz cx=\"6858000\" cy=\"9144000\"/>\(f.defaultTextStyleXML())</p:presentation>")
         add("ppt/_rels/presentation.xml.rels", rels(presRels))
 
         let treeHead = "<p:spTree><p:nvGrpSpPr><p:cNvPr id=\"1\" name=\"\"/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>"
@@ -136,7 +136,7 @@ enum PptBuild {
             let layoutShapes = m.map { f.shapeXML(of: $0, master: true, placeholdersOnly: true) } ?? ""
             add("ppt/slideLayouts/slideLayout\(k).xml", "<p:sldLayout \(ns) type=\"blank\"><p:cSld>\(slideTree(layoutShapes))</p:cSld></p:sldLayout>")
             add("ppt/slideLayouts/_rels/slideLayout\(k).xml.rels", rels([("rId1", "slideMaster", "../slideMasters/slideMaster\(k).xml")]))
-            add("ppt/theme/theme\(k).xml", theme(v.scheme))
+            add("ppt/theme/theme\(k).xml", theme(v.scheme, kept: m?.theme))
         }
         for (i, s) in f.slides.enumerated() {
             let k = i + 1
@@ -159,20 +159,49 @@ enum PptBuild {
     /// A theme whose twelve colours come from a .ppt colour scheme (background, text, shadow, title text,
     /// fill, accent, accent and hyperlink, accent and followed hyperlink): PowerPoint's own conversion puts
     /// them in lt1, dk1, lt2, dk2, accent1, accent2, hlink, folHlink, and repeats background and text in accent3 and 4.
-    private static func theme(_ s: [Int]) -> String {
+    ///
+    /// A master that keeps its 2007 theme (`kept`, the RoundTripTheme12Atom's package) is written with that theme,
+    /// as PowerPoint opens it: its fonts, effects and other accents, the scheme's eight colours set over it. A
+    /// theme that names parts of its own (a picture fill) gives only its fonts.
+    static func theme(_ s: [Int], kept: [UInt8]? = nil) -> String {
         func c(_ i: Int) -> String { hex(i < s.count ? s[i] : 0) }
         func clr(_ n: String, _ v: String) -> String { "<a:\(n)><a:srgbClr val=\"\(v)\"/></a:\(n)>" }
+        let slots = [("dk1", 1), ("lt1", 0), ("dk2", 3), ("lt2", 2), ("accent1", 4), ("accent2", 5), ("hlink", 6), ("folHlink", 7)]
+        var fonts = "<a:fontScheme name=\"Ppt\"><a:majorFont><a:latin typeface=\"Arial\"/><a:ea typeface=\"\"/><a:cs typeface=\"\"/></a:majorFont>"
+            + "<a:minorFont><a:latin typeface=\"Arial\"/><a:ea typeface=\"\"/><a:cs typeface=\"\"/></a:minorFont></a:fontScheme>"
+        if let kept, let entries = try? Zip.read(Data(kept)),
+           let part = entries.first(where: { $0.name.hasPrefix("theme/theme/theme") && $0.name.hasSuffix(".xml")
+               && $0.name.dropFirst("theme/theme/theme".count).dropLast(4).allSatisfy(\.isNumber) }) {
+            var xml = String(decoding: part.data, as: UTF8.self)
+            let file = String(part.name.dropFirst("theme/theme/".count))
+            let ownParts = entries.contains { $0.name == "theme/theme/_rels/" + file + ".rels" }
+            if !ownParts, xml.containsSubstring("<a:clrScheme"), xml.containsSubstring("<a:theme") {
+                for (n, i) in slots { xml = replaceElement(xml, "a:" + n, with: clr(n, c(i))) }
+                if let r = xml.rangeOfSubstring("<?xml"), let e = xml[r.upperBound...].rangeOfSubstring("?>") { xml.removeSubrange(r.lowerBound ..< e.upperBound) }
+                return xml
+            }
+            if let a = xml.rangeOfSubstring("<a:fontScheme"), let b = xml.rangeOfSubstring("</a:fontScheme>"), a.lowerBound < b.lowerBound {
+                fonts = String(xml[a.lowerBound ..< b.upperBound])
+            }
+        }
         let solid = "<a:solidFill><a:schemeClr val=\"phClr\"/></a:solidFill>"
         let ln = "<a:ln w=\"12700\"><a:solidFill><a:schemeClr val=\"phClr\"/></a:solidFill></a:ln>"
         return "<a:theme xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\" name=\"Ppt\"><a:themeElements>"
             + "<a:clrScheme name=\"Ppt\">" + clr("dk1", c(1)) + clr("lt1", c(0)) + clr("dk2", c(3)) + clr("lt2", c(2))
             + clr("accent1", c(4)) + clr("accent2", c(5)) + clr("accent3", c(0)) + clr("accent4", c(1))
             + clr("accent5", c(4)) + clr("accent6", c(5)) + clr("hlink", c(6)) + clr("folHlink", c(7)) + "</a:clrScheme>"
-            + "<a:fontScheme name=\"Ppt\"><a:majorFont><a:latin typeface=\"Arial\"/><a:ea typeface=\"\"/><a:cs typeface=\"\"/></a:majorFont>"
-            + "<a:minorFont><a:latin typeface=\"Arial\"/><a:ea typeface=\"\"/><a:cs typeface=\"\"/></a:minorFont></a:fontScheme>"
+            + fonts
             + "<a:fmtScheme name=\"Ppt\"><a:fillStyleLst>\(solid)\(solid)\(solid)</a:fillStyleLst>"
             + "<a:lnStyleLst>\(ln)\(ln)\(ln)</a:lnStyleLst>"
             + "<a:effectStyleLst><a:effectStyle><a:effectLst/></a:effectStyle><a:effectStyle><a:effectLst/></a:effectStyle><a:effectStyle><a:effectLst/></a:effectStyle></a:effectStyleLst>"
             + "<a:bgFillStyleLst>\(solid)\(solid)\(solid)</a:bgFillStyleLst></a:fmtScheme></a:themeElements></a:theme>"
+    }
+
+    /// `xml` with its first `<name>...</name>` element replaced by `element` (unchanged when it has none).
+    static func replaceElement(_ xml: String, _ name: String, with element: String) -> String {
+        guard let a = xml.rangeOfSubstring("<" + name + ">"), let b = xml[a.upperBound...].rangeOfSubstring("</" + name + ">") else { return xml }
+        var out = xml
+        out.replaceSubrange(a.lowerBound ..< b.upperBound, with: element)
+        return out
     }
 }

@@ -241,7 +241,7 @@ done
 # re-print every mover with FIXBIN once more; a different score the second time is noise
 echo "== nondeterminism check"
 for S in $SETS; do
-  C=$(corpus "$S"); names=$(grep -hE '^\s+(UP|DOWN|CHANGED)' "$STAGE/cmp-$S-v2.txt" "$STAGE/cmp-$S-v1.txt" | awk '{ if ($0 ~ /CHANGED\(same ratio\)/) { match($0, /CHANGED\(same ratio\) [^: ]+/); split(substr($0,RSTART,RLENGTH),a," "); print a[2] } else print $NF }' | sort -u)
+  C=$(corpus "$S"); names=$(grep -hE '^\s+(UP|DOWN|CHANGED)' "$STAGE/cmp-$S-v2.txt" "$STAGE/cmp-$S-v1.txt" | awk '{ if ($0 ~ /CHANGED\(same ratio\)/) { match($0, /CHANGED\(same ratio\) [^: ]+/); n=split(substr($0,RSTART,RLENGTH),a," "); print a[n] } else print $NF }' | sort -u)
   [ -n "$names" ] || continue
   W=$STAGE/work/again-$S; mkdir -p "$W/pdf"
   printf '%s\n' "$names" | tr '\n' '\0' | xargs -0 -P "$JOBS" -I{} sh -c 'f=$(ls "$1/docs/$2"*.docx 2>/dev/null | head -1); [ -n "$f" ] && timeout -k 10 $(( ${DOC_ALARM:-300} + 30 )) perl -e "alarm ${DOC_ALARM:-300}; exec @ARGV" "$3" --convert "$f" "$4/pdf/$(basename "${f%.docx}").pdf" >/dev/null 2>&1' _ "$C" {} "$FIXBIN" "$W"

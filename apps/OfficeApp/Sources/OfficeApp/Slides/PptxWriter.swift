@@ -147,7 +147,7 @@ enum PptxWriter {
         if let m = state.masterBackground { _setMasterBackground(m, in: &b) }
         if let pp = presRelsAll.first(where: { $0.kind == "presProps" })?.target,
            let d = b.parts[pp], let x = String(data: d, encoding: .utf8) {
-            b.parts[pp] = Data(_applyShowPr(x, state.show).utf8)
+            if state.show != state.sourceShow { b.parts[pp] = Data(_applyShowPr(x, state.show).utf8) }
         }
         if let scaling = state.slideScaling, let old = _slideSize(presXML), old != state.slideSize {
             _scaleMasters(from: old, to: state.slideSize, scaling, in: &b)
@@ -246,7 +246,15 @@ enum PptxWriter {
         presOut = _setSections(presOut, state, slideIds: slideIds)
         presOut = _setCustomShows(presOut, state)
         let cx = Int((state.slideSize.width * Pptx.emu).rounded()), cy = Int((state.slideSize.height * Pptx.emu).rounded())
-        presOut = _replaceElement("p:sldSz", in: presOut, with: "<p:sldSz cx=\"\(cx)\" cy=\"\(cy)\"/>",
+        // The size as the file wrote it, its kind (`type`, a paper or screen
+        // name PowerPoint's size menu shows) included, while it is unchanged.
+        var size = "<p:sldSz cx=\"\(cx)\" cy=\"\(cy)\"/>"
+        if let r = presOut.rangeOfSubstring("<p:sldSz "), let e = presOut.rangeOfSubstring("/>", in: r.upperBound ..< presOut.endIndex) {
+            let old = String(presOut[r.lowerBound ..< e.upperBound])
+            if old.containsSubstring(" cx=\"\(cx)\""), old.containsSubstring(" cy=\"\(cy)\""),
+               !String(old.dropLast(2)).containsSubstring(">") { size = old }
+        }
+        presOut = _replaceElement("p:sldSz", in: presOut, with: size,
                                   after: "</p:sldIdLst>", orAfter: nil)
         // Always a presentation: a macro-enabled deck, a template or a show
         // read in becomes a plain .pptx, which is what this writes.
@@ -311,6 +319,11 @@ enum PptxWriter {
         if let c = slide.controlsXML, let src = slide.carryPart, let p = source {
             controls = w.kept(c, sourcePart: src, package: p, builder: &b, patch: nil)
         }
+        // The slide's tags (`p:custDataLst`): kept with the tag parts they name.
+        var custData = ""
+        if let c = slide.custDataXML, let src = slide.carryPart, let p = source {
+            custData = w.kept(c, sourcePart: src, package: p, builder: &b, patch: nil)
+        }
         if body.containsSubstring("<p:oleObj") || !controls.isEmpty, let src = slide.carryPart, let p = source,
            let vml = p.rels(src).first(where: { ["vmlDrawing", "legacyDrawing"].contains($0.kind) && !$0.external && p.parts[$0.target] != nil }) {
             var done = [String: String]()
@@ -337,6 +350,12 @@ enum PptxWriter {
                 var done = [String: String]()
                 let target = PptxWriterCopy.copy(c.target, from: p, into: &b, done: &done)
                 rels.append(Rel(id: "rIdCmt\(n + 1)", type: c.type, target: Pptx.relative(target, from: part)))
+            }
+            // So does a theme override (60810's slide 18): carried as the file had it.
+            if let o = p.rels(src).first(where: { $0.kind == "themeOverride" && !$0.external && p.parts[$0.target] != nil }) {
+                var done = [String: String]()
+                let target = PptxWriterCopy.copy(o.target, from: p, into: &b, done: &done)
+                rels.append(Rel(id: "rIdThmOvr", type: o.type, target: Pptx.relative(target, from: part)))
             }
         }
         let hidden = (slide.hidden ? " show=\"0\"" : "") + (slide.hideMasterShapes ? " showMasterSp=\"0\"" : "")
@@ -399,17 +418,21 @@ enum PptxWriter {
             .flatMap { $0.isEmpty ? nil : $0 } ?? "<p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr>"
         let xml = """
         <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-        <p:sld \(ns)\(hidden)><p:cSld>\(bg)<p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/><a:chOff x="0" y="0"/><a:chExt cx="0" cy="0"/></a:xfrm></p:grpSpPr>\(body)</p:spTree>\(controls)</p:cSld>\(clrMapOvr)\(transition)\(timing)</p:sld>
+        <p:sld \(ns)\(hidden)><p:cSld>\(bg)<p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/><a:chOff x="0" y="0"/><a:chExt cx="0" cy="0"/></a:xfrm></p:grpSpPr>\(body)</p:spTree>\(custData)\(controls)\(slide.cSldExtLstXML ?? "")</p:cSld>\(clrMapOvr)\(transition)\(timing)\(slide.extLstXML ?? "")</p:sld>
         """
 
         // Notes, when there are any and a notes master to hang them on.
         let hasText = !slide.notes.paragraphs.allSatisfy({ $0.text.isEmpty })
-        // A notes page the file had, holding only placeholders (date, number, slide image) and no note text, is kept as read.
+        // A notes page the file had is kept as read while its text is unchanged (or it holds only placeholders: date, number,
+        // slide image), so its own shapes, ids, locks and run properties survive; the rewrite keeps only the note text.
+        // Its rels are rewritten (master and slide), so a page that points at anything else by r:id is rebuilt instead.
         var keptNotesXML: Data? = nil
-        if let notesMaster, !hasText, let src = slide.carryPart, let p = source,
+        if let notesMaster, let src = slide.carryPart, let p = source,
            let np = p.rel(src, kind: "notesSlide")?.target, let data = p.parts[np],
            let tree = p.xml(np)?.first("p:cSld")?.first("p:spTree"),
-           !tree.all("p:sp").contains(where: { sp in
+           slide.sourceNotes == slide.notes
+               && !["r:id=\"", "r:embed=\"", "r:link=\"", "r:pict=\""].contains(where: { String(decoding: data, as: UTF8.self).containsSubstring($0) })
+               || !hasText && !tree.all("p:sp").contains(where: { sp in
                sp.first("p:nvSpPr")?.first("p:nvPr")?.first("p:ph")?["type"] == "body"
                    && sp.all("a:t").contains { !($0.text ?? "").isEmpty } }) { keptNotesXML = data }
         if let notesMaster, hasText || keptNotesXML != nil {
@@ -1264,12 +1287,19 @@ private struct SlideXML {
         case .geometry(let preset) where (preset.isLine || preset.rawValue.hasPrefix("bentConnector")
                                           || preset.rawValue.hasPrefix("curvedConnector")) && s.text == nil:
             // A connector as read, while its line and outline are: the
-            // original, at its frame on the slide.
-            if let xml = s.sourceXML, let k = s.keptLine, k.line == s.frame, k.outline == s.outline,
+            // original, at its frame on the slide. One only slid (the same
+            // length and direction) is the original too, its box slid as far,
+            // so it keeps its p:style and ids.
+            let slid = s.keptLine.flatMap { k -> Rect? in
+                guard abs(k.line.width - s.frame.width) < 1e-6, abs(k.line.height - s.frame.height) < 1e-6 else { return nil }
+                let dx = s.frame.left - k.line.left, dy = s.frame.top - k.line.top
+                return Rect.fromLTWH(k.box.left + dx, k.box.top + dy, k.box.width, k.box.height)
+            }
+            if let xml = s.sourceXML, let k = s.keptLine, let box = k.line == s.frame ? k.box : slid, k.outline == s.outline,
                k.width == s.outlineWidth, k.dash == s.outlineDash, k.head == s.headEnd, k.tail == s.tailEnd, k.connStart == s.connStart, k.connEnd == s.connEnd,
                !preset.isElbow || (k.rotation == s.rotation && k.flipH == s.flipH && k.flipV == s.flipV && k.adjusts == s.adjusts),
                let p = source, let part = s.sourcePart {
-                return kept(xml, sourcePart: part, package: p, builder: &builder, patch: k.box, fileId: s.fileId, alt: _altChange(s))
+                return kept(xml, sourcePart: part, package: p, builder: &builder, patch: box, fileId: s.fileId, alt: _altChange(s))
             }
             let id = _id(s.fileId)
             let f = s.frame
@@ -1296,7 +1326,10 @@ private struct SlideXML {
             // shape as it was, with only what the edit touched patched into its own XML, so the theme
             // colours, East Asian faces, adjust handles, effects and paragraph settings the model does not
             // hold stay (S-P0-1b, and the sweep that found a fill change stripped them).
-            if let xml = s.sourceXML, let read = s.readShape, read.patchable(s), s.field == nil || s.text == s.sourceText,
+            // A field (date, slide number) is patched only while it shows the characters it was read with: a field that
+            // now shows other text is written anew; one only restyled (a bold date) keeps its own a:fld and runs.
+            if let xml = s.sourceXML, let read = s.readShape, read.patchable(s),
+               s.field == nil || s.text?.paragraphs.map(\.text) == s.sourceText?.paragraphs.map(\.text),
                let p = source, let part = s.sourcePart {
                 var base: String? = xml
                 if s.text != s.sourceText {

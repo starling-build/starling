@@ -198,6 +198,59 @@ final class TransitionTests: XCTestCase {
         XCTAssertTrue(fresh.contains("<p:fade/>") && fresh.contains("advTm=\"2453\""))
     }
 
+    func testPlainSaveKeepsTheSlideCreationId() throws {
+        let deck = SlidesSample.make()
+        var package = PptxPackage(try Zip.read(try Pptx.write(deck)))
+        var slide = String(decoding: package.parts["ppt/slides/slide1.xml"]!, as: UTF8.self)
+        XCTAssertFalse(slide.contains("<p:extLst>"), "the sample slide has no extensions of its own")
+        // As PowerPoint writes it: p14 declared on the root, used only in the extension.
+        slide = slide.replacingOccurrences(of: "<p:sld ", with: "<p:sld xmlns:p14=\"http://schemas.microsoft.com/office/powerpoint/2010/main\" ")
+        slide = slide.replacingOccurrences(of: "</p:sld>", with: "<p:extLst><p:ext uri=\"{BB962C8B-B14F-4D97-AF65-F5344CB8AC3E}\">"
+            + "<p14:creationId val=\"1729475034\"/></p:ext></p:extLst></p:sld>")
+        // Where PowerPoint itself keeps it: in the common slide data, the prefix declared on the element.
+        let common = "<p:extLst><p:ext uri=\"{BB962C8B-B14F-4D97-AF65-F5344CB8AC3E}\"><p14:creationId "
+            + "val=\"63250673\" xmlns:p14=\"http://schemas.microsoft.com/office/powerpoint/2010/main\"/></p:ext></p:extLst></p:cSld>"
+        slide = slide.replacingOccurrences(of: "</p:cSld>", with: common)
+        package.parts["ppt/slides/slide1.xml"] = Data(slide.utf8)
+        let (state, theme, pkg) = try Pptx.read(try Zip.write(package.parts.map { ZipEntry(name: $0.key, data: $0.value) }))
+        let out = PptxPackage(try Zip.read(try PptxWriter.write(state, theme: theme, package: pkg)))
+        let one = String(decoding: out.parts["ppt/slides/slide1.xml"]!, as: UTF8.self)
+        XCTAssertTrue(one.hasSuffix("<p:extLst xmlns:p14=\"http://schemas.microsoft.com/office/powerpoint/2010/main\"><p:ext uri=\"{BB962C8B-B14F-4D97-AF65-F5344CB8AC3E}\">"
+            + "<p14:creationId val=\"1729475034\"/></p:ext></p:extLst></p:sld>"), "the creation id is the slide's last element, its prefix declared: " + String(one.suffix(300)))
+        let tail = one.components(separatedBy: "</p:spTree>").last?.components(separatedBy: "</p:cSld>").first ?? ""
+        XCTAssertTrue(tail.hasPrefix("<p:extLst") && tail.contains("<p14:creationId val=\"63250673\"") && tail.contains("xmlns:p14="),
+                      "the common data's creation id too, closing the common data: " + tail)
+        XCTAssertNotNil(out.xml("ppt/slides/slide1.xml")?.first("p:extLst"), "and the slide still parses")
+        // A duplicate is a new slide to PowerPoint: it does not take the original's id.
+        let d = DeckController(); d.load(state, theme: theme, package: pkg)
+        d.duplicateSlide(0)
+        let copied = d.snapshot()
+        XCTAssertNotNil(copied.slides[0].extLstXML)
+        XCTAssertNil(copied.slides[1].extLstXML)
+        XCTAssertNotNil(copied.slides[0].cSldExtLstXML)
+        XCTAssertNil(copied.slides[1].cSldExtLstXML)
+    }
+
+    /// A save keeps the slide size's kind (`type`, the name PowerPoint's size menu shows) while the size is unchanged.
+    func testPlainSaveKeepsTheSlideSizeKind() throws {
+        let deck = SlidesSample.make()
+        var package = PptxPackage(try Zip.read(try Pptx.write(deck)))
+        var pres = String(decoding: package.parts["ppt/presentation.xml"]!, as: UTF8.self)
+        guard let r = pres.range(of: "<p:sldSz cx=\"12192000\" cy=\"6858000\"/>") else { return XCTFail("sample size: " + pres) }
+        pres.replaceSubrange(r, with: "<p:sldSz cx=\"12192000\" cy=\"6858000\" type=\"custom\"/>")
+        package.parts["ppt/presentation.xml"] = Data(pres.utf8)
+        let (state, theme, pkg) = try Pptx.read(try Zip.write(package.parts.map { ZipEntry(name: $0.key, data: $0.value) }))
+        func saved(_ s: DeckState) throws -> String {
+            let out = PptxPackage(try Zip.read(try PptxWriter.write(s, theme: theme, package: pkg)))
+            return String(decoding: out.parts["ppt/presentation.xml"]!, as: UTF8.self)
+        }
+        XCTAssertTrue(try saved(state).contains("<p:sldSz cx=\"12192000\" cy=\"6858000\" type=\"custom\"/>"))
+        // Resized here, the old kind no longer names it.
+        var resized = state
+        resized.slideSize = Size(720, 540)
+        XCTAssertTrue(try saved(resized).contains("<p:sldSz cx=\"9144000\" cy=\"6858000\"/>"))
+    }
+
     func testAdvanceOnlyKeepsAnUnknownTransition() throws {
         let deck = SlidesSample.make()
         let bytes = try Pptx.write(deck)
@@ -539,6 +592,46 @@ final class GroupAndConnectorTests: XCTestCase {
         XCTAssertEqual(back.frame.center.dy, read.frame.center.dy, accuracy: 0.01)
         XCTAssertEqual(back.frame.width, read.frame.width, accuracy: 0.01)
         XCTAssertEqual(back.frame.height, read.frame.height, accuracy: 0.01)
+    }
+
+    /// A connector only slid keeps its own XML, p:style and all, at the place it was slid to: a
+    /// flipped straight line on the slide and the turned elbow in a stretched group alike.
+    func testSlidConnectorKeepsItsStyle() throws {
+        let deck = SlidesSample.make()
+        var package = PptxPackage(try Zip.read(try Pptx.write(deck)))
+        var slide = String(data: package.parts["ppt/slides/slide6.xml"]!, encoding: .utf8)!
+        let style = "<p:style><a:lnRef idx=\"1\"><a:schemeClr val=\"accent1\"/></a:lnRef><a:fillRef idx=\"0\"><a:schemeClr val=\"accent1\"/></a:fillRef>"
+            + "<a:effectRef idx=\"0\"><a:schemeClr val=\"accent1\"/></a:effectRef><a:fontRef idx=\"minor\"><a:schemeClr val=\"tx1\"/></a:fontRef></p:style>"
+        let line = "<p:cxnSp><p:nvCxnSpPr><p:cNvPr id=\"8\" name=\"Line\"/><p:cNvCxnSpPr/><p:nvPr/></p:nvCxnSpPr><p:spPr><a:xfrm flipV=\"1\">"
+            + "<a:off x=\"1270000\" y=\"1270000\"/><a:ext cx=\"2540000\" cy=\"635000\"/></a:xfrm><a:prstGeom prst=\"line\"><a:avLst/></a:prstGeom>"
+            + "<a:ln w=\"19050\"/></p:spPr>" + style + "</p:cxnSp>"
+        let group = "<p:grpSp><p:nvGrpSpPr><p:cNvPr id=\"13\" name=\"G\"/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr><a:xfrm>"
+            + "<a:off x=\"4368553\" y=\"2747083\"/><a:ext cx=\"3454894\" cy=\"1363833\"/><a:chOff x=\"3586578\" y=\"2558566\"/>"
+            + "<a:chExt cx=\"3454894\" cy=\"1337621\"/></a:xfrm></p:grpSpPr>"
+            + "<p:cxnSp><p:nvCxnSpPr><p:cNvPr id=\"7\" name=\"Elbow\"/><p:cNvCxnSpPr/><p:nvPr/></p:nvCxnSpPr><p:spPr><a:xfrm rot=\"5400000\" flipH=\"1\" flipV=\"1\">"
+            + "<a:off x=\"4645214\" y=\"2085856\"/><a:ext cx=\"1337621\" cy=\"2283041\"/></a:xfrm><a:prstGeom prst=\"bentConnector3\">"
+            + "<a:avLst/></a:prstGeom><a:ln><a:tailEnd type=\"triangle\"/></a:ln></p:spPr>" + style + "</p:cxnSp></p:grpSp>"
+        slide = slide.replacingOccurrences(of: "</p:spTree>", with: line + group + "</p:spTree>")
+        package.parts["ppt/slides/slide6.xml"] = Data(slide.utf8)
+        var (state, theme, pkg) = try reread(package)
+        var read: [Int: Rect] = [:]
+        for i in state.slides[5].shapes.indices where [7, 8].contains(state.slides[5].shapes[i].fileId ?? 0) {
+            let f = state.slides[5].shapes[i].frame
+            read[state.slides[5].shapes[i].fileId!] = f
+            state.slides[5].shapes[i].frame = Rect.fromLTRB(f.left + 10, f.top + 5, f.right + 10, f.bottom + 5)
+        }
+        XCTAssertEqual(read.count, 2)
+        let saved = try PptxWriter.write(state, theme: theme, package: pkg)
+        let out = String(data: PptxPackage(try Zip.read(saved)).parts["ppt/slides/slide6.xml"]!, encoding: .utf8)!
+        XCTAssertEqual(out.components(separatedBy: "<a:lnRef idx=\"1\">").count - 1, 2, "both keep their p:style")
+        let (again, _, _) = try Pptx.read(saved)
+        for (id, f) in read {
+            let back = try XCTUnwrap(again.slides[5].shapes.first { $0.fileId == id })
+            XCTAssertEqual(back.frame.left, f.left + 10, accuracy: 0.01, "\(id)")
+            XCTAssertEqual(back.frame.top, f.top + 5, accuracy: 0.01, "\(id)")
+            XCTAssertEqual(back.frame.right, f.right + 10, accuracy: 0.01, "\(id)")
+            XCTAssertEqual(back.frame.bottom, f.bottom + 5, accuracy: 0.01, "\(id)")
+        }
     }
 
     func testConnectorsDrawTheirRealDirectionAndKeepTheirShape() throws {

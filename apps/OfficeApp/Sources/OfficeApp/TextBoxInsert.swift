@@ -10,7 +10,7 @@ import OfficeText
 enum TextBoxInsert {
     /// The `w:drawing` of a text box `width` × `height` points, holding `text` as one paragraph, 18 pt in and 18 pt below its
     /// paragraph; `id` numbers its `wp:docPr`.
-    static func drawingXML(text: String?, width: Double, height: Double, id: Int = 100, preset: String = "rect", fill: String = "FFFFFF", name: String = "Text Box", number: Int? = nil, page: (x: Double, y: Double)? = nil) -> String {
+    static func drawingXML(text: String?, width: Double, height: Double, id: Int = 100, preset: String = "rect", fill: String = "FFFFFF", name: String = "Text Box", number: Int? = nil, page: (x: Double, y: Double)? = nil, wordArt: String? = nil) -> String {
         let cx = Int(width * 12700), cy = Int(height * 12700)
         let esc = DocxFormat._esc(text ?? "")
         return "<w:drawing><wp:anchor distT=\"0\" distB=\"0\" distL=\"114300\" distR=\"114300\" simplePos=\"0\" relativeHeight=\"251659264\" behindDoc=\"0\" locked=\"0\" layoutInCell=\"1\" allowOverlap=\"1\">"
@@ -21,15 +21,45 @@ enum TextBoxInsert {
             + "<a:graphic xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\"><a:graphicData uri=\"http://schemas.microsoft.com/office/word/2010/wordprocessingShape\">"
             + "<wps:wsp xmlns:wps=\"http://schemas.microsoft.com/office/word/2010/wordprocessingShape\"><wps:cNvSpPr\(text == nil ? "" : " txBox=\"1\"")/>"
             + "<wps:spPr><a:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"\(cx)\" cy=\"\(cy)\"/></a:xfrm><a:prstGeom prst=\"\(preset)\"><a:avLst/></a:prstGeom>"
-            + "<a:solidFill><a:srgbClr val=\"\(fill)\"/></a:solidFill><a:ln w=\"9525\"><a:solidFill><a:srgbClr val=\"000000\"/></a:solidFill></a:ln></wps:spPr>"
-            + (text == nil ? "" : "<wps:txbx><w:txbxContent><w:p><w:r><w:t xml:space=\"preserve\">\(esc)</w:t></w:r></w:p></w:txbxContent></wps:txbx>")
-            + "<wps:bodyPr rot=\"0\" vert=\"horz\" wrap=\"square\" lIns=\"91440\" tIns=\"45720\" rIns=\"91440\" bIns=\"45720\" anchor=\"\(text == nil ? "ctr" : "t")\" anchorCtr=\"0\">" + (text != nil ? "<a:spAutoFit/>" : "<a:noAutofit/>") + "</wps:bodyPr>"
+            + (wordArt != nil ? "<a:noFill/><a:ln><a:noFill/></a:ln></wps:spPr>"
+               : "<a:solidFill><a:srgbClr val=\"\(fill)\"/></a:solidFill><a:ln w=\"9525\"><a:solidFill><a:srgbClr val=\"000000\"/></a:solidFill></a:ln></wps:spPr>")
+            + (text == nil ? "" : "<wps:txbx><w:txbxContent><w:p>" + (wordArt != nil ? "<w:pPr><w:jc w:val=\"center\"/></w:pPr>" : "")
+               + "<w:r>" + (wordArt.map { "<w:rPr>\($0)</w:rPr>" } ?? "") + "<w:t xml:space=\"preserve\">\(esc)</w:t></w:r></w:p></w:txbxContent></wps:txbx>")
+            + "<wps:bodyPr rot=\"0\" vert=\"horz\" wrap=\"\(wordArt != nil ? "none" : "square")\" lIns=\"91440\" tIns=\"45720\" rIns=\"91440\" bIns=\"45720\" anchor=\"\(text == nil ? "ctr" : "t")\" anchorCtr=\"0\">"
+            + (wordArt != nil ? "<a:prstTxWarp prst=\"textNoShape\"><a:avLst/></a:prstTxWarp>" : "") + (text != nil ? "<a:spAutoFit/>" : "<a:noAutofit/>") + "</wps:bodyPr>"
             + "</wps:wsp></a:graphicData></a:graphic></wp:anchor></w:drawing>"
     }
 
     /// A new text box as the picture-like object the document holds, or nil if the reader does not take it as one.
     static func make(text: String = "Text box", width: Double = 144, height: Double = 30.4) -> ImageAttachment? {
         read(drawingXML(text: text, width: width, height: height)) { $0.textBox != nil }
+    }
+
+    /// Insert → WordArt: Word's first styles, as the run properties of the box's text (36 pt, with the letters' own fill,
+    /// outline and shadow, which the reader takes from `w14:` run properties and the writer keeps as written).
+    static let wordArtStyles: [(name: String, runProperties: String)] = {
+        let shadow = "<w14:shadow w14:blurRad=\"38100\" w14:dist=\"19050\" w14:dir=\"2700000\" w14:sx=\"100000\" w14:sy=\"100000\" w14:kx=\"0\" w14:ky=\"0\" w14:algn=\"tl\">"
+            + "<w14:srgbClr w14:val=\"000000\"><w14:alpha w14:val=\"60000\"/></w14:srgbClr></w14:shadow>"
+        func line(_ rgb: String, _ emu: Int) -> String {
+            "<w14:textOutline w14:w=\"\(emu)\" w14:cap=\"flat\" w14:cmpd=\"sng\" w14:algn=\"ctr\"><w14:solidFill><w14:srgbClr w14:val=\"\(rgb)\"/></w14:solidFill><w14:prstDash w14:val=\"solid\"/><w14:round/></w14:textOutline>"
+        }
+        func fill(_ rgb: String) -> String { "<w14:textFill><w14:solidFill><w14:srgbClr w14:val=\"\(rgb)\"/></w14:solidFill></w14:textFill>" }
+        let size = "<w:sz w:val=\"72\"/><w:szCs w:val=\"72\"/>"
+        return [
+            ("Fill: Black; Shadow", "<w:color w:val=\"000000\"/>" + size + shadow),
+            ("Fill: Blue; Shadow", "<w:color w:val=\"4472C4\"/>" + size + shadow),
+            ("Fill: Orange; Shadow", "<w:color w:val=\"ED7D31\"/>" + size + shadow),
+            ("Fill: White; Outline: Blue", "<w:color w:val=\"FFFFFF\"/>" + size + line("4472C4", 9525) + fill("FFFFFF")),
+            ("Outline: Black; No fill", "<w:color w:val=\"000000\"/>" + size + line("000000", 9525) + "<w14:textFill><w14:noFill/></w14:textFill>"),
+        ]
+    }()
+
+    /// A new WordArt box in style `style` of `wordArtStyles`: a text box with no line or fill that takes its text's size.
+    static func makeWordArt(style: Int, text: String = "Your text here", number: Int = 1) -> ImageAttachment? {
+        guard wordArtStyles.indices.contains(style) else { return nil }
+        // (The box is fitted to its text when laid out; the extent is only a starting size.)
+        let width = Double(text.count) * 20 + 14.4, height = 36 * 1.22 + 7.2
+        return read(drawingXML(text: text, width: width, height: height, name: "Text Box", number: number, wordArt: wordArtStyles[style].runProperties)) { $0.textBox != nil }
     }
 
     /// The words Word names a shape of this preset by ("Rectangle 1", "Oval 2"…).
@@ -119,6 +149,14 @@ enum TextBoxInsert {
     static func content(_ paragraphs: [RichParagraph]) -> (xml: String, rels: [KeptRel])? { content(RichDocument(paragraphs: paragraphs)) }
 
     static func content(_ document: RichDocument) -> (xml: String, rels: [KeptRel])? {
+        guard let c = contentAndMedia(document) else { return nil }
+        // (Without the picture files beside them, a new picture's relationships would name parts the real file lacks.)
+        return (c.xml, c.rels.filter { !$0.id.hasPrefix("rIdBoxImage") })
+    }
+
+    /// The same, with the files of the pictures put into the box here (relationship target, bytes): the throwaway file holds
+    /// them, so the caller must carry them into the real one (`RichDocumentController.keepBoxMedia`).
+    static func contentAndMedia(_ document: RichDocument) -> (xml: String, rels: [KeptRel], media: [(target: String, data: Data)])? {
         var document = document
         if document.paragraphs.isEmpty { document.paragraphs = [RichParagraph(text: "")] }
         guard let data = try? DocxFormat.write(document, pageSetup: .letter),
@@ -128,6 +166,7 @@ enum TextBoxInsert {
               let end = xml.rangeOfSubstring("<w:sectPr", in: body.upperBound ..< xml.endIndex) ?? xml.rangeOfSubstring("</w:body>") else { return nil }
         var inner = String(xml[body.upperBound ..< end.lowerBound])
         var rels: [KeptRel] = []
+        var media: [(target: String, data: Data)] = []
         if let r = entries.first(where: { $0.name == "word/_rels/document.xml.rels" }) {
             let text = String(decoding: r.data, as: UTF8.self)
             var from = text.startIndex
@@ -139,7 +178,14 @@ enum TextBoxInsert {
                     guard let s = tag.rangeOfSubstring(" \(n)=\""), let q = tag.rangeOfSubstring("\"", in: s.upperBound ..< tag.endIndex) else { return nil }
                     return String(tag[s.upperBound ..< q.lowerBound])
                 }
-                if let id = attr("Id"), (id.hasPrefix("rIdLink") || id.hasPrefix("rIdKept")), inner.containsSubstring("\"\(id)\""), let target = attr("Target") {
+                if let id = attr("Id"), id.hasPrefix("rIdImage"), inner.containsSubstring("\"\(id)\""), let target = attr("Target"),
+                   let file = entries.first(where: { $0.name == "word/" + target }) {
+                    // A picture put in here: its file rides along under a box-own id.
+                    let own = "rIdBox" + id.dropFirst(3)
+                    inner = inner.replacingAll("\"\(id)\"", with: "\"\(own)\"")
+                    rels.append(KeptRel(id: own, type: attr("Type") ?? "", target: target, external: false))
+                    media.append((target, file.data))
+                } else if let id = attr("Id"), (id.hasPrefix("rIdLink") || id.hasPrefix("rIdKept")), inner.containsSubstring("\"\(id)\""), let target = attr("Target") {
                     // (The file's text is escaped; the writer escapes it again when it keeps the relationship.)
                     let plain = target.replacingAll("&quot;", with: "\"").replacingAll("&lt;", with: "<").replacingAll("&gt;", with: ">").replacingAll("&amp;", with: "&")
                     var id = id
@@ -152,6 +198,6 @@ enum TextBoxInsert {
                 }
             }
         }
-        return (inner, rels)
+        return (inner, rels, media)
     }
 }

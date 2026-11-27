@@ -360,6 +360,115 @@ final class ChartTests: XCTestCase {
         XCTAssertTrue(c.dataLabels)
     }
 
+    /// On a slide a funnel stands where PowerPoint prints chartex-lab2's: its axis 1.56 pt below the room's top and 2.44 above
+    /// its foot, its widest bar 2.66 pt in from the right.
+    func testAFunnelOnASlideStandsWherePowerPointPrintsIt() {
+        let xml = """
+        <cx:chartSpace xmlns:cx="http://schemas.microsoft.com/office/drawing/2014/chartex"><cx:chartData><cx:data id="0"><cx:strDim type="cat"><cx:lvl ptCount="2"><cx:pt idx="0">one</cx:pt><cx:pt idx="1">two</cx:pt></cx:lvl></cx:strDim><cx:numDim type="val"><cx:lvl ptCount="2"><cx:pt idx="0">9</cx:pt><cx:pt idx="1">5</cx:pt></cx:lvl></cx:numDim></cx:data></cx:chartData><cx:chart><cx:plotArea><cx:plotAreaRegion><cx:series layoutId="funnel"><cx:dataId val="0"/></cx:series></cx:plotAreaRegion></cx:plotArea></cx:chart></cx:chartSpace>
+        """
+        guard var c = ChartXML.readChartex(XNode.parse(Data(xml.utf8))!) else { return XCTFail("not read") }
+        func paint(_ c: Chart) -> (axis: (Offset, Offset)?, right: Double?) {
+            let canvas = BoxDotCanvas()
+            ChartPainter.paint(c, canvas, Rect.fromLTWH(0, 0, 400, 300), pxPerPt: 1, theme: DeckTheme())
+            return (canvas.lines.first { $0.0.dx == $0.1.dx && $0.1.dy - $0.0.dy > 100 }, canvas.rects.map(\.right).max())
+        }
+        let off = paint(c)
+        c.onSlide = true
+        let on = paint(c)
+        guard let a = off.axis, let b = on.axis, let r0 = off.right, let r1 = on.right else { return XCTFail("no axis or bars") }
+        // (In a 400 by 300 frame with no title: the room 6.8 to 295.9 and to 396.0, so the axis 8.36 to 293.46, the bar to 393.34.)
+        _ = (a, r0)
+        XCTAssertEqual(b.0.dy, 8.36, accuracy: 0.05)
+        XCTAssertEqual(b.1.dy, 293.46, accuracy: 0.05)
+        XCTAssertEqual(r1, 393.34, accuracy: 0.05)
+    }
+
+    /// A funnel point's label keeps its own box (fill and 1.5 pt edge, drawn around the text's line) and its own size and
+    /// weight, as PowerPoint prints chartex-lab2 page 29.
+    func testAFunnelPointLabelKeepsItsBoxSizeAndWeight() {
+        let xml = """
+        <cx:chartSpace xmlns:cx="http://schemas.microsoft.com/office/drawing/2014/chartex" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><cx:chartData><cx:data id="0"><cx:numDim type="val"><cx:lvl ptCount="2"><cx:pt idx="0">9</cx:pt><cx:pt idx="1">5</cx:pt></cx:lvl></cx:numDim></cx:data></cx:chartData><cx:chart><cx:plotArea><cx:plotAreaRegion><cx:series layoutId="funnel"><cx:dataLabels pos="ctr"><cx:visibility seriesName="0" categoryName="0" value="1"/><cx:dataLabel idx="0"><cx:spPr><a:solidFill><a:srgbClr val="FFFF00"/></a:solidFill><a:ln w="19050"><a:solidFill><a:srgbClr val="FF0000"/></a:solidFill></a:ln></cx:spPr><cx:visibility seriesName="0" categoryName="0" value="1"/></cx:dataLabel><cx:dataLabel idx="1"><cx:txPr><a:bodyPr/><a:p><a:pPr><a:defRPr sz="1800" b="1"/></a:pPr></a:p></cx:txPr><cx:visibility seriesName="0" categoryName="0" value="1"/></cx:dataLabel></cx:dataLabels><cx:dataId val="0"/></cx:series></cx:plotAreaRegion></cx:plotArea></cx:chart></cx:chartSpace>
+        """
+        let rgb: (XNode) -> Color? = { $0.first("a:srgbClr")?["val"].flatMap(PptxTheme.hex) }
+        guard let c = ChartXML.readChartex(XNode.parse(Data(xml.utf8))!, color: rgb) else { return XCTFail("not read") }
+        let boxed = c.cxLabelPoints[0], big = c.cxLabelPoints[1]
+        XCTAssertEqual(boxed?.fill, PptxTheme.hex("FFFF00"))
+        XCTAssertEqual(boxed?.line, PptxTheme.hex("FF0000"))
+        XCTAssertEqual(boxed?.lineWidth ?? 0, 1.5, accuracy: 1e-9)
+        XCTAssertEqual(big?.size, 18)
+        XCTAssertEqual(big?.bold, true)
+        XCTAssertNil(big?.fill)
+        // Painted: one yellow box behind the boxed label, no wider than its text's line.
+        let canvas = BoxDotCanvas()
+        ChartPainter.paint(c, canvas, Rect.fromLTWH(0, 0, 400, 300), pxPerPt: 1, theme: DeckTheme())
+        XCTAssertTrue(canvas.rects.contains { $0.width > 2 && $0.width < 20 && $0.height < 20 })
+    }
+
+    /// A funnel label set "t" stands on its bar, its line box's foot on the bar's top edge; set "b" it hangs under
+    /// the bar, its line box's top on the bar's foot (chartex-lab2 p27, p28). The second point's label is boxed so
+    /// its line box is drawn; the first point keeps the labels off the plot's edges.
+    func testAFunnelLabelAboveOrBelowItsBarTouchesTheBarEdge() {
+        for (pos, above) in [("t", true), ("b", false)] {
+            let xml = """
+            <cx:chartSpace xmlns:cx="http://schemas.microsoft.com/office/drawing/2014/chartex" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><cx:chartData><cx:data id="0"><cx:numDim type="val"><cx:lvl ptCount="3"><cx:pt idx="0">9</cx:pt><cx:pt idx="1">5</cx:pt><cx:pt idx="2">3</cx:pt></cx:lvl></cx:numDim></cx:data></cx:chartData><cx:chart><cx:plotArea><cx:plotAreaRegion><cx:series layoutId="funnel"><cx:dataLabels pos="\(pos)"><cx:visibility seriesName="0" categoryName="0" value="1"/><cx:dataLabel idx="1"><cx:spPr><a:solidFill><a:srgbClr val="FFFF00"/></a:solidFill></cx:spPr><cx:visibility seriesName="0" categoryName="0" value="1"/></cx:dataLabel></cx:dataLabels><cx:dataId val="0"/></cx:series></cx:plotAreaRegion></cx:plotArea></cx:chart></cx:chartSpace>
+            """
+            let rgb: (XNode) -> Color? = { $0.first("a:srgbClr")?["val"].flatMap(PptxTheme.hex) }
+            guard var c = ChartXML.readChartex(XNode.parse(Data(xml.utf8))!, color: rgb) else { return XCTFail("not read") }
+            c.onSlide = true
+            let canvas = BoxDotCanvas()
+            ChartPainter.paint(c, canvas, Rect.fromLTWH(0, 0, 400, 300), pxPerPt: 1, theme: DeckTheme())
+            let bars = canvas.rects.filter { $0.height > 20 }.sorted { $0.top < $1.top }
+            guard bars.count == 3, let box = canvas.rects.first(where: { $0.height < 20 }) else { return XCTFail("\(pos): \(canvas.rects)") }
+            if above { XCTAssertEqual(box.bottom, bars[1].top, accuracy: 0.01) } else { XCTAssertEqual(box.top, bars[1].bottom, accuracy: 0.01) }
+        }
+    }
+
+    /// A funnel on a slide gives its names a third of the plot: a longer name keeps the words that fit and ends
+    /// in " …", centred in that room (lab fn-names p6, p9). Off a slide the name stays whole.
+    func testAFunnelOnASlideCutsANameWiderThanAThirdOfThePlot() {
+        let long = Array(repeating: "Overlong", count: 12).joined(separator: " ")
+        let xml = """
+        <cx:chartSpace xmlns:cx="http://schemas.microsoft.com/office/drawing/2014/chartex" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><cx:chartData><cx:data id="0"><cx:strDim type="cat"><cx:lvl ptCount="2"><cx:pt idx="0">\(long)</cx:pt><cx:pt idx="1">B</cx:pt></cx:lvl></cx:strDim><cx:numDim type="val"><cx:lvl ptCount="2"><cx:pt idx="0">9</cx:pt><cx:pt idx="1">5</cx:pt></cx:lvl></cx:numDim></cx:data></cx:chartData><cx:chart><cx:plotArea><cx:plotAreaRegion><cx:series layoutId="funnel"><cx:dataId val="0"/></cx:series></cx:plotAreaRegion><cx:axis id="0"><cx:catScaling gapWidth="0.06"/><cx:tickLabels/></cx:axis></cx:plotArea></cx:chart></cx:chartSpace>
+        """
+        var widths: [Bool: Double] = [:]
+        for onSlide in [false, true] {
+            guard var c = ChartXML.readChartex(XNode.parse(Data(xml.utf8))!) else { return XCTFail("not read") }
+            c.onSlide = onSlide
+            let canvas = BoxDotCanvas()
+            ChartPainter.paint(c, canvas, Rect.fromLTWH(0, 0, 400, 300), pxPerPt: 1, theme: DeckTheme())
+            widths[onSlide] = canvas.texts.map(\.width).max() ?? 0
+        }
+        XCTAssertGreaterThan(widths[false]!, 400 / 2)
+        XCTAssertLessThan(widths[true]!, 400 / 3)
+    }
+
+    /// A funnel on a slide leaves out a centred label wider than its bar (lab fn-names p8, p9; chartex-lab2 p23, p24).
+    func testAFunnelOnASlideDropsALabelWiderThanItsBar() {
+        let xml = """
+        <cx:chartSpace xmlns:cx="http://schemas.microsoft.com/office/drawing/2014/chartex" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><cx:chartData><cx:data id="0"><cx:numDim type="val"><cx:lvl ptCount="2"><cx:pt idx="0">100000</cx:pt><cx:pt idx="1">1000</cx:pt></cx:lvl></cx:numDim></cx:data></cx:chartData><cx:chart><cx:plotArea><cx:plotAreaRegion><cx:series layoutId="funnel"><cx:dataLabels pos="ctr"><cx:visibility seriesName="0" categoryName="0" value="1"/></cx:dataLabels><cx:dataId val="0"/></cx:series></cx:plotAreaRegion></cx:plotArea></cx:chart></cx:chartSpace>
+        """
+        var drawn: [Bool: Int] = [:]
+        for onSlide in [false, true] {
+            guard var c = ChartXML.readChartex(XNode.parse(Data(xml.utf8))!) else { return XCTFail("not read") }
+            c.onSlide = onSlide
+            let canvas = BoxDotCanvas()
+            ChartPainter.paint(c, canvas, Rect.fromLTWH(0, 0, 400, 300), pxPerPt: 1, theme: DeckTheme())
+            drawn[onSlide] = canvas.texts.count
+        }
+        XCTAssertEqual(drawn[false]! - drawn[true]!, 1, "only the narrow bar's label goes")
+    }
+
+    /// A cx: category axis's own text size (its txPr) sizes the funnel's names (lab fn-names p7, 16 pt).
+    func testACxCategoryAxisTextSizeSizesTheNames() {
+        let xml = """
+        <cx:chartSpace xmlns:cx="http://schemas.microsoft.com/office/drawing/2014/chartex" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><cx:chartData><cx:data id="0"><cx:numDim type="val"><cx:lvl ptCount="1"><cx:pt idx="0">9</cx:pt></cx:lvl></cx:numDim></cx:data></cx:chartData><cx:chart><cx:plotArea><cx:plotAreaRegion><cx:series layoutId="funnel"><cx:dataId val="0"/></cx:series></cx:plotAreaRegion><cx:axis id="0"><cx:catScaling gapWidth="0.06"/><cx:tickLabels/><cx:txPr><a:bodyPr/><a:p><a:pPr><a:defRPr/></a:pPr><a:endParaRPr lang="en-US" sz="1600"/></a:p></cx:txPr></cx:axis></cx:plotArea></cx:chart></cx:chartSpace>
+        """
+        let space = XNode.parse(Data(xml.utf8))!
+        guard var c = ChartXML.readChartex(space) else { return XCTFail("not read") }
+        ChartXML.applyCxTextSizes(&c, space: space, style: nil)
+        XCTAssertEqual(c.categoryLabelSize, 16)
+    }
+
     /// A funnel's data labels: the series' own (category and value, ", " between), a point's own format, and a hidden one.
     func testAFunnelReadsItsPointLabels() {
         let xml = """
@@ -467,6 +576,21 @@ final class ChartTests: XCTestCase {
     /// A `cx:` chart's legend row on a slide: 7.08 pt keys whose foot stands 14.4 above the frame's at any height, the row taking
     /// 28.8 pt from the plot; at the top where the file puts it (PowerPoint's print of lab cx-legend: baselines 14.9 above the
     /// foot of frames 200 to 450 pt high, plot feet 51.54 above it; a top legend's baseline 102.19, plot 120.78, on a titled 398.4).
+    func testACxStylePartsCategoryAxisSizeSizesBothAxesButNotTheLegend() {
+        // (lab cx-legsize p15: a 16 pt category axis in the style part prints both axes at 16, the legend at 9.)
+        let space = XNode.parse(Data(#"<cx:chartSpace xmlns:cx="http://schemas.microsoft.com/office/drawing/2014/chartex"><cx:chart><cx:legend pos="b"/></cx:chart></cx:chartSpace>"#.utf8))!
+        let style = XNode.parse(Data(#"<cs:chartStyle xmlns:cs="http://schemas.microsoft.com/office/drawing/2012/chartStyle" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><cs:categoryAxis><cs:lnRef idx="0"/><cs:defRPr sz="1600"/></cs:categoryAxis></cs:chartStyle>"#.utf8))!
+        var c = Chart(type: .bar, categories: [], series: [])
+        ChartXML.applyCxTextSizes(&c, space: space, style: style)
+        XCTAssertEqual(c.categoryLabelSize, 16)
+        XCTAssertEqual(c.valueLabelSize, 16)
+        XCTAssertNil(c.legendSize)
+        var plain = Chart(type: .bar, categories: [], series: [])
+        ChartXML.applyCxTextSizes(&plain, space: space, style: nil)
+        XCTAssertNil(plain.categoryLabelSize)
+        XCTAssertNil(plain.valueLabelSize)
+    }
+
     func testACxLegendRowOnASlideStandsWherePowerPointPrintsIt() {
         func chart(_ pos: String) -> Chart? {
             let pts = [1, 4, 5, 6, 9].enumerated().map { "<cx:pt idx=\"\($0.offset)\">\($0.element)</cx:pt>" }.joined()
@@ -490,6 +614,36 @@ final class ChartTests: XCTestCase {
         }
         guard let r = key(top, height: 398.4) else { return XCTFail("no 7.08 pt key at the top") }
         XCTAssertLessThan(r.bottom, 100)
+        // (In other sizes the key stays 7.08 and the row, 1.2 of the size high but never under 14.16, grows up from its foot,
+        // the key in its middle: lab cx-legsize in PowerPoint's print, key feet 14.4, 14.4, 14.52, 16.92 and 19.32 above the
+        // frame's at 7, 9, 12, 16 and 20 pt; a top row's key 2.52 lower at 16 than at 9.)
+        for (size, above) in [(7.0, 14.4), (9, 14.4), (12, 14.52), (16, 16.92), (20, 19.32)] {
+            var sized = bottom
+            sized.legendSize = size
+            guard let r = key(sized, height: 398.4) else { return XCTFail("no 7.08 pt key at \(size) pt") }
+            XCTAssertEqual(398.4 - r.bottom, above, accuracy: 0.15, "\(size) pt")
+        }
+        var top16 = top
+        top16.legendSize = 16
+        guard let r16 = key(top16, height: 398.4) else { return XCTFail("no 7.08 pt key at the top at 16 pt") }
+        XCTAssertEqual(r16.bottom - r.bottom, 2.52, accuracy: 0.1)
+    }
+
+    /// A `cx:` chart's category names on a slide: their baseline 14.96 pt under the plot's foot at 9 pt (PowerPoint's prints of
+    /// lo-forum-mso-de-138303's waterfall, chartex-lab2's waterfall and box-whiskers, lab cx-legend's twelve; ours were 16.65).
+    func testACxChartsCategoryNamesStandWherePowerPointPrintsThem() {
+        let pts = [1, 4, 5, 6, 9].enumerated().map { "<cx:pt idx=\"\($0.offset)\">\($0.element)</cx:pt>" }.joined()
+        let xml = """
+        <cx:chartSpace xmlns:cx="http://schemas.microsoft.com/office/drawing/2014/chartex"><cx:chartData><cx:data id="0"><cx:strDim type="cat"><cx:lvl ptCount="5"><cx:pt idx="0">A</cx:pt><cx:pt idx="1">A</cx:pt><cx:pt idx="2">A</cx:pt><cx:pt idx="3">A</cx:pt><cx:pt idx="4">A</cx:pt></cx:lvl></cx:strDim><cx:numDim type="val"><cx:lvl ptCount="5">\(pts)</cx:lvl></cx:numDim></cx:data></cx:chartData><cx:chart><cx:plotArea><cx:plotAreaRegion><cx:series layoutId="boxWhisker"><cx:dataId val="0"/></cx:series></cx:plotAreaRegion><cx:axis id="0"><cx:catScaling/><cx:tickLabels/></cx:axis><cx:axis id="1"><cx:valScaling/><cx:majorGridlines/><cx:tickLabels/></cx:axis></cx:plotArea></cx:chart></cx:chartSpace>
+        """
+        guard var c = ChartXML.readBoxWhisker(XNode.parse(Data(xml.utf8))!) else { return XCTFail("not read") }
+        c.onSlide = true
+        let canvas = BoxDotCanvas()
+        ChartPainter.paint(c, canvas, Rect.fromLTWH(0, 0, 400, 300), pxPerPt: 1, theme: DeckTheme())
+        // The plot's foot: the lowest gridline across it.
+        guard let foot = canvas.lines.filter({ $0.0.dy == $0.1.dy && abs($0.0.dx - $0.1.dx) > 100 }).map(\.0.dy).max(),
+              let name = canvas.baselines.max() else { return XCTFail("no plot or names") }
+        XCTAssertEqual(name - foot, 14.96, accuracy: 0.1)
     }
 
     /// A single-level treemap on a slide lays strips along the shorter side, a strip growing while its last item gets less
@@ -656,7 +810,12 @@ private final class BoxDotCanvas: Canvas {
     func drawImageRect(_ image: Image, _ src: Rect, _ dst: Rect, _ paint: Paint) {}
     func drawImageNine(_ image: Image, _ center: Rect, _ dst: Rect, _ paint: Paint) {}
     func drawPicture(_ picture: any FlutterSwiftBridge.Picture) {}
-    func drawParagraph(_ paragraph: any Paragraph, _ offset: Offset) {}
+    var baselines: [Double] = []
+    func drawParagraph(_ paragraph: any Paragraph, _ offset: Offset) {
+        baselines.append(offset.dy + paragraph.alphabeticBaseline)
+        texts.append((offset.dx, paragraph.longestLine))
+    }
+    var texts: [(x: Double, width: Double)] = []
     func drawPoints(_ pointMode: PointMode, _ points: [Offset], _ paint: Paint) {}
     func drawRawPoints(_ pointMode: PointMode, _ points: [Float], _ paint: Paint) {}
     func drawVertices(_ vertices: Vertices, _ blendMode: BlendMode, _ paint: Paint) {}

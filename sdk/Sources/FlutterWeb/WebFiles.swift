@@ -16,6 +16,9 @@ public enum WebFiles {
     public struct Picked {
         public let name: String
         public let data: Data
+        /// The page's handle on the file, to write it back (`write`); nil where the browser has no
+        /// File System Access API and the pick came through an `<input type=file>`.
+        public let handle: Int?
     }
 
     nonisolated(unsafe) private static var pending: ((Picked?) -> Void)?
@@ -41,6 +44,48 @@ public enum WebFiles {
                     bytes.baseAddress, UInt32(bytes.count))
             }
         }
+    }
+
+    /// Whether the browser lets the page pick a place to save (`showSaveFilePicker`: Chrome, Edge).
+    public static var canPickPlace: Bool { starling_host_can_pick_place() != 0 }
+
+    nonisolated(unsafe) private static var nextRequest: UInt32 = 0
+    nonisolated(unsafe) private static var placeRequests: [UInt32: ((handle: Int, name: String)?) -> Void] = [:]
+    nonisolated(unsafe) private static var writeRequests: [UInt32: (Bool) -> Void] = [:]
+
+    /// The browser's save picker, suggesting `suggested` and offering `extensions` (the first is the default
+    /// type): the handle and the name the user gave, or nil when cancelled.
+    public static func pickPlace(suggested: String, extensions: [String],
+                                 _ done: @escaping ((handle: Int, name: String)?) -> Void) {
+        nextRequest &+= 1
+        let request = nextRequest
+        placeRequests[request] = done
+        var name = suggested
+        var types = extensions.joined(separator: ",")
+        name.withUTF8 { nameBytes in
+            types.withUTF8 { typeBytes in
+                starling_host_pick_place(request, nameBytes.baseAddress, UInt32(nameBytes.count),
+                                         typeBytes.baseAddress, UInt32(typeBytes.count))
+            }
+        }
+    }
+
+    /// Writes the whole file behind `handle` (from `pickPlace` or `open`); answers whether it was written.
+    public static func write(_ data: Data, to handle: Int, _ done: @escaping (Bool) -> Void) {
+        nextRequest &+= 1
+        let request = nextRequest
+        writeRequests[request] = done
+        data.withUnsafeBytes { bytes in
+            starling_host_write_file(request, UInt32(handle), bytes.baseAddress, UInt32(bytes.count))
+        }
+    }
+
+    static func placePicked(_ request: UInt32, handle: Int, name: String) {
+        placeRequests.removeValue(forKey: request)?(handle == 0 ? nil : (handle, name))
+    }
+
+    static func fileWritten(_ request: UInt32, _ ok: Bool) {
+        writeRequests.removeValue(forKey: request)?(ok)
     }
 
     /// Hands the browser a PDF to print: its print dialog opens on it.

@@ -522,11 +522,22 @@ extension _StyledFrame {
         }
         // (A vertical page's column of East Asian text steps by the single line and 0.0425 of the size more: lab vpitch, Word's print of
         // Meiryo 1.990 em (ours 1.950), MS Mincho and Gothic 1.344 (1.297), Yu Mincho 1.7145 (1.673), at 8 to 24 pt.)
-        if vertical, kind < 0, theme.wordRules, RichTextTheme.wordWindowsPages, p.style.lineHeightPoints == nil, pitch == nil,
+        // (A turned cell's (plain tbRl) line of turned ideographs does the same, the extra split evenly: lab kaipad2, Word's print of
+        // three-line KaiTi and DFKai-SB 11 pt cells, columns 14.76 apart (1.342 em; ours 14.30), and their 24 pt lines' baselines
+        // 1.031 em (KaiTi) and 0.973 (DFKai-SB) in from the cell's top margin: each face's ascent, half of Word's 0.3 em and 0.021 more.)
+        let turned = !vertical && kind < 0 && p.cell?.uprightIdeographs != true && index.map { rl._cells[$0]?.vertical == true } == true
+        if vertical || turned, kind < 0, theme.wordRules, RichTextTheme.wordWindowsPages, p.style.lineHeightPoints == nil, pitch == nil,
            abs(p.style.lineSpacing - 1) < 0.005, let h = s.height, s.fontSize ?? 0 > 0.5 {
             RuleTrace.hit("vertical-plain-column-pitch-adds-0.0425-em")
             if let asc = s.ascentOverride, let desc = s.descentOverride, let size = s.fontSize {
                 s = s.copyWith(ascentOverride: asc + 0.02125 * size, descentOverride: desc + 0.02125 * size, height: h + 0.0425)
+            } else if turned, let size = s.fontSize,
+                      let fam = (run.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily)?.trimmingWhitespace().lowercased(),
+                      let face = theme.faceResolver?(fam, true), case let bold = run.bold || ((named?.char.bold ?? false) && !run.off.contains(.bold)),
+                      let t = (bold ? face.boldBaseline : nil) ?? face.baseline, let nat = (bold ? face.boldHeight : nil) ?? face.naturalHeight, nat > t {
+                // (On the face's own split, not the stand-in's: DFKai-SB's 0.951 em baseline, where Noto's ascent stood it at 1.018.)
+                RuleTrace.hit("turned-ideograph-line-stands-on-the-face-split")
+                s = s.copyWith(ascentOverride: (t + 0.02125) * size, descentOverride: (nat - t + 0.02125) * size, height: nat + 0.0425, leadingDistribution: .even, debugLabel: (s.debugLabel ?? "") + " turned-split")
             } else { s = s.copyWith(height: h + 0.0425) }
         }
         // (A turned cell's line of Latin text steps by 1.026 of the face's single line: lab textpitch3 (Word for Windows' print,

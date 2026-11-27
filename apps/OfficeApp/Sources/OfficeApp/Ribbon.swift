@@ -508,6 +508,12 @@ final class Ribbon: StatelessWidget {
                 },
                 Chrome.menu(Text("Shapes"), Icon(FluentSystemIcons.shapes, size: Chrome.iconSize,
                                                  color: fluent.resources.textFillColorPrimary), fluent, shapeChoices),
+                Chrome.menu(Text("WordArt"), Icon(FluentSystemIcons.textT, size: Chrome.iconSize,
+                                                  color: fluent.resources.textFillColorPrimary), fluent,
+                            TextBoxInsert.wordArtStyles.indices.map { k in (TextBoxInsert.wordArtStyles[k].name, { [session] in
+                                if let art = TextBoxInsert.makeWordArt(style: k, number: TextBoxInsert.nextShapeNumber(in: c.document)) { c.insertImage(art) }
+                                else { session.onStatus?("Could not insert WordArt") }
+                            }) }),
             ]),
             Chrome.group("Links", fluent, [
                 Chrome.big(FluentSystemIcons.link, "Link", fluent) { [session] in session.onLink?() },

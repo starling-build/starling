@@ -315,6 +315,9 @@ public final class RichDocumentController: ChangeNotifier {
     private let _leakProbe = LeakProbe("RichDocumentController")
     public private(set) var document: RichDocument
 
+    /// Add a part the file carries as is (a picture file a box names). Outside undo: a part nothing names is not saved.
+    func _keepPart(_ name: String, _ data: Data) { document.keptParts[name] = data }
+
     /// Set directly to move the caret without an edit (clicks, arrows).
     public var selection: RichSelection {
         didSet {

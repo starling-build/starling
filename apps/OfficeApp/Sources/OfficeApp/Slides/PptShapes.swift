@@ -150,7 +150,13 @@ extension PptFile {
             if rot != 0 { x += " rot=\"\(rot)\"" }
             if flipH { x += " flipH=\"1\"" }
             if flipV { x += " flipV=\"1\"" }
-            x += "><a:off x=\"\(PptBuild.emu(a[1]))\" y=\"\(PptBuild.emu(a[0]))\"/><a:ext cx=\"\(PptBuild.emu(a[2] - a[1]))\" cy=\"\(PptBuild.emu(a[3] - a[0]))\"/>"
+            var l = PptBuild.emu(a[1]), t = PptBuild.emu(a[0]), w = PptBuild.emu(a[2] - a[1]), h = PptBuild.emu(a[3] - a[0])
+            // A shape turned nearer a quarter turn than not keeps the box it fills when turned: the shape itself is
+            // that box's width and height swapped about the same centre.
+            if child == nil, (2_700_000 ..< 8_100_000).contains(rot) || (13_500_000 ..< 18_900_000).contains(rot) {
+                (l, t, w, h) = (l + (w - h) / 2, t + (h - w) / 2, h, w)
+            }
+            x += "><a:off x=\"\(l)\" y=\"\(t)\"/><a:ext cx=\"\(w)\" cy=\"\(h)\"/>"
             if let ch = child, ch.count == 4, ch[2] >= ch[0], ch[3] >= ch[1] {
                 x += "<a:chOff x=\"\(PptBuild.emu(ch[0]))\" y=\"\(PptBuild.emu(ch[1]))\"/><a:chExt cx=\"\(PptBuild.emu(ch[2] - ch[0]))\" cy=\"\(PptBuild.emu(ch[3] - ch[1]))\"/>"
             }
@@ -163,20 +169,25 @@ extension PptFile {
             let r = Int((Double(v) / 65536.0 * 60000.0).rounded()) % 21_600_000
             return r < 0 ? r + 21_600_000 : r
         }
+        /// PowerPoint 2007 and later keep a chart's, diagram's or table's own frame beside the picture or shapes
+        /// older versions show (the metroBlob); nil when the shape has none.
+        /// Its place is the frame's own (PowerPoint's EMU, not the anchor rounded to master units), except in a
+        /// group: the frame's place is in PowerPoint's group space, which ours (master units) does not share.
+        func frame(_ art: ArtShape, _ anchor: [Int]?, _ sp: ArtRecord) -> String? {
+            guard let blob = art.complex[0x3A9] else { return nil }
+            var p: String? = nil
+            if OfficeArt.records(data, in: sp.body).contains(where: { $0.type == 0xF00F }) {
+                let place = xfrm("xfrm", anchor, rot: rotation(art), flipH: art.flags & 0x40 != 0, flipV: art.flags & 0x80 != 0)
+                p = place.isEmpty ? nil : "<p:xfrm" + place.dropFirst("<a:xfrm".count).dropLast("</a:xfrm>".count) + "</p:xfrm>"
+            }
+            guard let x = embed(blob, n + 1, p) else { return nil }
+            n += 1
+            return x
+        }
         func shape(_ sp: ArtRecord) -> String {
             let (art, anchor, placeholder, block) = read(sp)
             if placeholdersOnly && placeholder == nil { return "" }
-            // PowerPoint 2007 and later keep a chart's or diagram's own frame beside the picture older versions show.
-            // Its place is the frame's own (PowerPoint's EMU, not the anchor rounded to master units), except in
-            // a group: the frame's place is in PowerPoint's group space, which ours (master units) does not share.
-            if !placeholdersOnly, let blob = art.complex[0x3A9] {
-                var p: String? = nil
-                if OfficeArt.records(data, in: sp.body).contains(where: { $0.type == 0xF00F }) {
-                    let place = xfrm("xfrm", anchor, rot: rotation(art), flipH: art.flags & 0x40 != 0, flipV: art.flags & 0x80 != 0)
-                    p = place.isEmpty ? nil : "<p:xfrm" + place.dropFirst("<a:xfrm".count).dropLast("</a:xfrm>".count) + "</p:xfrm>"
-                }
-                if let x = embed(blob, n + 1, p) { n += 1; return x }
-            }
+            if !placeholdersOnly, let x = frame(art, anchor, sp) { return x }
             if art.type == 75, art.pib > 0, let rid = picture(art.pib) {
                 n += 1
                 var x = "<p:pic><p:nvPicPr><p:cNvPr id=\"\(n)\" name=\"Picture \(n)\"/><p:cNvPicPr/><p:nvPr/></p:nvPicPr>"
@@ -185,7 +196,9 @@ extension PptFile {
                 return x + "<a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom></p:spPr></p:pic>"
             }
             var geom: String? = nil
-            if let g = DocArt.geometry(art.type) { geom = "<a:prstGeom prst=\"\(g)\"><a:avLst/></a:prstGeom>" }
+            // (A shape a newer PowerPoint saved keeps its own outline beside the old type: PowerPoint opens it with that.)
+            if art.type != 0, let blob = art.complex[0x3A9], let g = Self.modernGeometry(blob) { geom = g }
+            else if let g = DocArt.geometry(art.type) { geom = "<a:prstGeom prst=\"\(g)\"><a:avLst/></a:prstGeom>" }
             else if art.type == 0, let f = DocArt.freeform(art) { geom = f }
             if geom == nil, block != nil || placeholder != nil || art.type == 202 { geom = "<a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom>" }
             guard let geometry = geom else { return "" }
@@ -197,7 +210,15 @@ extension PptFile {
             xml += xfrm("xfrm", anchor, rot: rotation(art), flipH: art.flags & 0x40 != 0, flipV: art.flags & 0x80 != 0)
             xml += geometry + Self.fillLineXML(art, placeholder: placeholder != nil, picture: picture) + "</p:spPr>"
             if block != nil || placeholder != nil {
-                xml += "<p:txBody>" + Self.bodyPrXML(art) + "<a:lstStyle/>" + paragraphsXML(block) + "</p:txBody>"
+                // A text box whose text is not "other" text keeps its master's style for that text type, as
+                // PowerPoint's own conversion writes it (a text box otherwise takes the deck's default style), with the
+                // margins of the shape's own ruler.
+                var list = "<a:lstStyle/>"
+                if (placeholder ?? 0) == 0, !master, let b = block, b.type != 4, let m = self.master(for: slide),
+                   let levels = m.textStyles[b.type], !levels.isEmpty {
+                    list = levelsXML("a:lstStyle", levels, ruler: b.ruler)
+                }
+                xml += "<p:txBody>" + Self.bodyPrXML(art) + list + paragraphsXML(block) + "</p:txBody>"
             }
             return xml + "</p:sp>"
         }
@@ -212,6 +233,8 @@ extension PptFile {
                     // The group's own anchor and coordinate space sit in its first shape.
                     guard let head = OfficeArt.records(data, in: rec.body).first(where: { $0.type == 0xF004 }) else { continue }
                     let (art, anchor, _, _) = read(head)
+                    // A table (and any group PowerPoint 2007+ saved whole) keeps its own frame on the group's shape.
+                    if !placeholdersOnly, let x = frame(art, anchor, head) { out += x; continue }
                     let inner = walk(rec.body, depth: depth + 1, skipFirst: true)
                     guard !inner.isEmpty, !placeholdersOnly else { continue }
                     n += 1
@@ -236,6 +259,21 @@ extension PptFile {
     }
 
     /// PlaceholderAtom type -> `p:ph` type (nil: an object placeholder or none).
+    /// The preset outline (`a:prstGeom`, with its adjustments) of the shape a metroBlob (property 0x3A9, a small package)
+    /// holds in drs/shapexml.xml or connectorxml.xml; nil when it holds none, or a custom outline.
+    static func modernGeometry(_ blob: [UInt8]) -> String? {
+        guard let entries = try? Zip.read(Data(blob)) else { return nil }
+        for e in entries where e.name == "drs/shapexml.xml" || e.name == "drs/connectorxml.xml" {
+            let x = String(decoding: e.data, as: UTF8.self)
+            guard let a = x.rangeOfSubstring("<a:prstGeom "), let b = x.rangeOfSubstring("</a:prstGeom>"), a.lowerBound < b.lowerBound
+            else { return nil }
+            var g = String(x[a.lowerBound ..< b.upperBound])
+            if let ns = g.rangeOfSubstring(" xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\"") { g.removeSubrange(ns) }
+            return g
+        }
+        return nil
+    }
+
     static func placeholderType(_ t: Int) -> String? {
         switch t {
         case 1, 13, 17: return "title"

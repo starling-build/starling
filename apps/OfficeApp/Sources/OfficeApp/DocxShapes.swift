@@ -868,6 +868,7 @@ extension DocxFormat {
                             // one-line "工作" over "服務組" in Word's print.)
                             var part = RichTextBox.Part(first: first, top: y + t, height: max(0, h - t - bottom), atFoot: body?["anchor"] == "b",
                                                         inMiddle: body?["anchor"] == "ctr")
+                            if body?.first("a:spAutoFit") != nil { part.growsToText = true }
                             // (A box turned in its group: about its middle, in the
                             // frame's place.)
                             if Self.wordOnWindows, let rot = b.first("wps:spPr")?.first("a:xfrm")?["rot"].flatMap({ Double($0) }), rot != 0 {
@@ -1514,8 +1515,8 @@ extension DocxFormat {
                 // script too: Word sets heb-z5059159's "1" in the szCs 12, not the sz 11.)
                 let rtlRun = _on(rPr.first("w:rtl")) && !runText.isEmpty && (rPr.first("w:szCs") != nil || !runText.unicodeScalars.contains { ($0.value | 0x20) >= 0x61 && ($0.value | 0x20) <= 0x7A })
                     // (A run of marks and spaces only, no digit, takes the complex size too: xd 564a33e9's Narkisim sz 14 "(" and ": \"" runs, no szCs, print at the szCs 12 in Word.)
-                    // (Only when the run itself names a complex-script size: a PAGEREF result with just webHidden and rtl, 47480880's contents list, prints in the ascii face at sz, Calibri 11 / David 12.)
-                    && (!DocxFormat._bidiLangHebrew || rPr.first("w:szCs") != nil || !runText.unicodeScalars.contains { (0x30...0x39).contains($0.value) } || rPr.first("w:rFonts")?["w:cs"] != nil || rPr.first("w:rFonts")?["w:cstheme"] != nil || rPr.first("w:rFonts")?["w:hint"] == "cs" || (rPr.first("w:webHidden") == nil && notes.inHeaderFooter))
+                    // (Only when the run itself names a complex-script size: a PAGEREF result with just webHidden and rtl, 47480880's contents list, prints in the ascii face at sz, Calibri 11 / David 12; plain body digits stay complex, lab rtldigits.)
+                    && (!DocxFormat._bidiLangHebrew || rPr.first("w:szCs") != nil || !runText.unicodeScalars.contains { (0x30...0x39).contains($0.value) } || rPr.first("w:rFonts")?["w:cs"] != nil || rPr.first("w:rFonts")?["w:cstheme"] != nil || rPr.first("w:rFonts")?["w:hint"] == "cs" || (rPr.first("w:webHidden") == nil && (notes.inHeaderFooter || notes.fields.last?.result != true)))
                 let csFlag = _on(rPr.first("w:cs"))
                 let complexSize = runText.unicodeScalars.contains {
                     // (Hebrew letters in a run with neither w:rtl nor w:cs keep the sz, Latin pieces too: xb 5dc87fc7's Arial R5 paragraph, sz 22 / szCs 44, prints at 11.)
@@ -1566,8 +1567,9 @@ extension DocxFormat {
                     cs.fontFamily = thaiFace; cs.hAnsiFontFamily = nil
                     RuleTrace.hit("word-cs-flagged-thai-run-is-wholly-its-complex-face")
                 }
-                // (Only a webHidden run in a header or footer, or any body run, as in a contents list: the PAGE results of the footers of 7d58f74e, b9164bf3 and fcd0d58c, with just rtl, stay complex and print in Arial.)
-                // (A run of ASCII digits flagged w:rtl with no szCs or cs font of its own is a plain Latin run to Word: 47480880's PAGEREF results.)
+                // (Only a webHidden run in a header or footer, or a body field's result, as in a contents list: the PAGE results of the footers of 7d58f74e, b9164bf3 and fcd0d58c, with just rtl, stay complex and print in Arial.)
+                // (A field result of ASCII digits flagged w:rtl with no szCs or cs font of its own is a plain Latin run to Word: 47480880's PAGEREF results.
+                // Plain body text is not: lab rtldigits prints "2468" with rtl, with or without lang he-IL, in Arial, body and footer alike, and a body PAGE result in Calibri.)
                 // (Arabic: the same for a PAGE result in a footer, whose face is the style's ascii one at the szCs: xb ara-z5177238's "2" under cs Simplified Arabic, an installed face, is Times New Roman 14.04 in two Word prints, sz 12 / szCs 14.)
                 if cs.rightToLeft, _on(rPr.first("w:rtl")), rPr.first("w:szCs") == nil, rPr.first("w:rFonts")?["w:cs"] == nil, rPr.first("w:rFonts")?["w:cstheme"] == nil, rPr.first("w:rFonts")?["w:hint"] != "cs",
                    !DocxFormat._bidiLangHebrew, !notes.normalAsciiIsCs, notes.inHeaderFooter, !runText.isEmpty, runText.unicodeScalars.allSatisfy({ (0x30...0x39).contains($0.value) }) {
@@ -1580,7 +1582,7 @@ extension DocxFormat {
                    runText.unicodeScalars.contains(where: { (0x0600...0x06FF).contains($0.value) }) {
                     cs.fontHint = nil; RuleTrace.hit("word-rtl-arabic-run-ignores-east-asian-hint")
                 }
-                if DocxFormat._bidiLangHebrew, cs.rightToLeft, _on(rPr.first("w:rtl")), rPr.first("w:szCs") == nil, rPr.first("w:rFonts")?["w:cs"] == nil, rPr.first("w:rFonts")?["w:cstheme"] == nil, (rPr.first("w:webHidden") != nil || !notes.inHeaderFooter), rPr.first("w:rFonts")?["w:hint"] != "cs",
+                if DocxFormat._bidiLangHebrew, cs.rightToLeft, _on(rPr.first("w:rtl")), rPr.first("w:szCs") == nil, rPr.first("w:rFonts")?["w:cs"] == nil, rPr.first("w:rFonts")?["w:cstheme"] == nil, (rPr.first("w:webHidden") != nil || (!notes.inHeaderFooter && notes.fields.last?.result == true)), rPr.first("w:rFonts")?["w:hint"] != "cs",
                    !runText.isEmpty, runText.unicodeScalars.allSatisfy({ (0x30...0x39).contains($0.value) }) {
                     cs.rightToLeft = false; RuleTrace.hit("rtl-digits-no-cs-props")
                 }

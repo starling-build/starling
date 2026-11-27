@@ -54,6 +54,8 @@ extension SlideContext {
             if chart.pareto { chart.hiddenLegendEntries.insert(chart.series.count) }
             // (PowerPoint joins a waterfall's columns unless the file turns the lines off: lo-forum-mso-de-138303's.)
             if chart.waterfallTotals != nil, space.descendant("cx:layoutPr")?.first("cx:visibility")?["connectorLines"] != "0" { chart.waterfallConnectors = true }
+            let style = package.rels(rel.target).first(where: { $0.kind == "chartStyle" && !$0.external }).flatMap { package.xml($0.target) }
+            ChartXML.applyCxTextSizes(&chart, space: space, style: style)
         }
         // A chart that names no face is in its own slide's theme font — a
         // deck of several masters (aascu 5864's census charts, Calibri;

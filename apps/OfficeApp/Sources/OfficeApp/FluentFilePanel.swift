@@ -22,14 +22,18 @@ final class FluentFilePanel: StatefulWidget {
     let initialDirectory: String
     let suggestedName: String
     let extensions: [String]
+    /// A browser tab's Save As, where the browser picks the folder (a download): only a name, a format and a
+    /// Download button, no folders. The name handed back is a bare file name.
+    let namesOnly: Bool
     let onDone: (String?) -> Void
 
     init(mode: FilePanelMode, initialDirectory: String, suggestedName: String = "",
-         extensions: [String], onDone: @escaping (String?) -> Void) {
+         extensions: [String], namesOnly: Bool = false, onDone: @escaping (String?) -> Void) {
         self.mode = mode
         self.initialDirectory = initialDirectory
         self.suggestedName = suggestedName
         self.extensions = extensions
+        self.namesOnly = namesOnly
         self.onDone = onDone
         super.init()
     }
@@ -50,6 +54,8 @@ final class FluentFilePanelState: State<StatefulWidget> {
     private let _name = TextEditingController()
     private var _lastClickAt = 0.0
     private var _lastClickPath = ""
+    /// The format picked in a names-only panel (an extension of `extensions`).
+    private var _format = ""
 
     private var _w: FluentFilePanel { widget as! FluentFilePanel }
 
@@ -63,6 +69,9 @@ final class FluentFilePanelState: State<StatefulWidget> {
         let name = _w.suggestedName
         let stem = name.lastIndex(of: ".").map { name[..<$0].utf16.count } ?? name.utf16.count
         _name.selection = TextSelection(baseOffset: 0, extentOffset: stem > 0 ? stem : name.utf16.count)
+        let ext = name.pathExtension.lowercased()
+        _format = _w.extensions.contains(ext) ? ext : _w.extensions.first ?? ""
+        if _w.namesOnly { return }
         _load(_w.initialDirectory)
     }
 
@@ -117,6 +126,13 @@ final class FluentFilePanelState: State<StatefulWidget> {
                 name = name.deletingPathExtension
             }
             guard !name.isEmpty else { return }
+            if _w.namesOnly {
+                // A name, never a path; its extension, when it is one of the formats, wins over the picked one.
+                name = name.lastPathComponent
+                if !_w.extensions.contains(name.pathExtension.lowercased()) { name += ".\(_format)" }
+                _w.onDone(name)
+                return
+            }
             // A whole path typed in the box is taken as one, not as a name
             // inside the listed folder; a folder typed there is gone to.
             var target = name.isAbsolutePath ? name : _dir.appendingPathComponent(name)
@@ -147,8 +163,50 @@ final class FluentFilePanelState: State<StatefulWidget> {
         }
     }
 
+    private static let formatNames = ["docx": "Word Document", "rtf": "Rich Text", "md": "Markdown",
+                                      "txt": "Plain Text", "pptx": "PowerPoint", "xlsx": "Excel Workbook",
+                                      "csv": "CSV", "tsv": "Tab-separated text"]
+
+    /// The format buttons: a pick sets the extension of the name in the box too.
+    private func _pickFormat(_ ext: String) {
+        var name = _name.text
+        if _w.extensions.contains(name.pathExtension.lowercased()) { name = name.deletingPathExtension }
+        _name.text = name + "." + ext
+        setState { _format = ext }
+    }
+
+    private func _namesOnly(_ fluent: FluentThemeData) -> Widget {
+        var formats: [Widget] = [SizedBox(width: 140, height: nil, child: Text("Format:", style: fluent.typography.body))]
+        for ext in _w.extensions {
+            let label = Text("\(Self.formatNames[ext] ?? ext.uppercased()) (.\(ext))")
+            formats.append(ext == _format
+                           ? FilledButton(onPressed: {}, child: label)
+                           : Button(onPressed: { [weak self] in self?._pickFormat(ext) }, child: label))
+            formats.append(Chrome.gap(8))
+        }
+        return Column(crossAxisAlignment: .stretch, children: [
+            Row(crossAxisAlignment: .center, children: [
+                SizedBox(width: 140, height: nil, child: Text("File name:", style: fluent.typography.body)),
+                Expanded(child: FluentTextBox(controller: _name, onSubmitted: { [weak self] _ in self?._confirm() },
+                                              autofocus: true)),
+            ]),
+            Chrome.vgap(12),
+            Row(crossAxisAlignment: .center, children: formats),
+            Chrome.vgap(12),
+            Text("Your browser saves the copy where it keeps downloads.", style: fluent.typography.caption),
+            Chrome.vgap(12),
+            Row(crossAxisAlignment: .center, children: [
+                Expanded(child: SizedBox(width: 0, height: 0, child: nil)),
+                Button(onPressed: { [weak self] in self?._w.onDone(nil) }, child: Text("Cancel")),
+                Chrome.gap(8),
+                FilledButton(onPressed: { [weak self] in self?._confirm() }, child: Text("Download")),
+            ]),
+        ])
+    }
+
     override func build(_ context: any BuildContext) -> Widget {
         let fluent = FluentTheme.of(context)
+        if _w.namesOnly { return _namesOnly(fluent) }
         let places: [(String, String)] = [
             ("Home", homeDirectory()),
             ("Desktop", homeDirectory() + "/Desktop"),
