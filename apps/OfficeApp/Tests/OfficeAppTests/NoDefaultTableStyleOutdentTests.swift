@@ -11,7 +11,7 @@ import FlutterSwiftBridge
 /// A styles part naming Normal Table sets it out, rule 5.4 pt left of the margin. Lab nosetb (no settings part, or one
 /// without a mode): rules at 71.78 / 71.78 / 71.78 against 66.38 with Normal Table.
 final class NoDefaultTableStyleOutdentTests: XCTestCase {
-    private func outdent(styles: String?) throws -> Double {
+    private func outdent(styles: String?, ind: String = "") throws -> Double {
         let was = DocxFormat.wordOnWindows
         DocxFormat.wordOnWindows = true
         defer { DocxFormat.wordOnWindows = was }
@@ -20,7 +20,7 @@ final class NoDefaultTableStyleOutdentTests: XCTestCase {
         var xml = String(decoding: entries[di].data, as: UTF8.self)
         let body = try XCTUnwrap(xml.range(of: "<w:body>")).upperBound ..< (try XCTUnwrap(xml.range(of: "<w:sectPr"))).lowerBound
         xml.replaceSubrange(body, with: """
-        <w:tbl><w:tblPr><w:tblW w:w="0" w:type="auto"/><w:tblBorders><w:left w:val="single" w:sz="4" w:space="0" w:color="000000"/></w:tblBorders>\
+        <w:tbl><w:tblPr><w:tblW w:w="0" w:type="auto"/>\(ind)<w:tblBorders><w:left w:val="single" w:sz="4" w:space="0" w:color="000000"/></w:tblBorders>\
         <w:tblLayout w:type="fixed"/><w:tblCellMar><w:left w:w="108" w:type="dxa"/><w:right w:w="108" w:type="dxa"/></w:tblCellMar></w:tblPr>\
         <w:tblGrid><w:gridCol w:w="2000"/></w:tblGrid><w:tr><w:tc><w:tcPr><w:tcW w:w="2000" w:type="dxa"/></w:tcPr><w:p><w:r><w:t>cell</w:t></w:r></w:p></w:tc></w:tr></w:tbl><w:p/>
         """)
@@ -39,6 +39,11 @@ final class NoDefaultTableStyleOutdentTests: XCTestCase {
     func testNoDefaultTableStyleLeavesTheTableOnTheMargin() throws {
         XCTAssertEqual(try outdent(styles: nil), 0, accuracy: 0.01)
         XCTAssertEqual(try outdent(styles: "<w:styles \(ns)><w:docDefaults><w:rPrDefault><w:rPr><w:sz w:val=\"22\"/></w:rPr></w:rPrDefault></w:docDefaults></w:styles>"), 0, accuracy: 0.01)
+    }
+
+    /// A table stating its own indent is measured to its text as ever: lo-b7c1b8df's tblInd 124 table, text at Word's 89.1.
+    func testOwnIndentIsStillSetOut() throws {
+        XCTAssertEqual(try outdent(styles: nil, ind: "<w:tblInd w:w=\"124\" w:type=\"dxa\"/>"), 5.4, accuracy: 0.01)
     }
 
     func testNormalTableSetsItOutByItsMargin() throws {

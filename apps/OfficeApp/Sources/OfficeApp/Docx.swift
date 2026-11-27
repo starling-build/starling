@@ -1951,8 +1951,9 @@ enum DocxFormat {
                     style.textOutdent = 0
                     style.notSetOut = true
                 }
-                // (… and so is one stating its own margin and no spacing: lab nosetb, 108-twip margins, rule on the margin, text 5.4pt in.)
-                else if Self.wordOnWindows, noDefaultTableStyle, own.left != nil, styled.left == nil {
+                // (… and so is one stating its own margin and no spacing: lab nosetb, 108-twip margins, rule on the margin, text 5.4pt in.
+                // Not one stating its own indent, which is measured to its text as ever: lo-b7c1b8df's tblInd 124 table, text at Word's 89.1.)
+                else if Self.wordOnWindows, noDefaultTableStyle, own.left != nil, styled.left == nil, node.first("w:tblPr")?.first("w:tblInd") == nil {
                     RuleTrace.hit("no-default-table-style-own-margin-not-set-out")
                     style.textOutdent = 0
                 }
