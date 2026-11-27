@@ -169,8 +169,9 @@ struct SheetPrintMetrics {
             screenDigit: [12, 13, 15, 15, 16, 18, 20, 24, 26], gridSet: [11]),
         "gulim": Face(digit: [38, 43, 48, 50, 53, 57, 67, 76, 86], row: [77, 85, 93, 98, 102, 110, 127, 143, 160], screenRow: [26, 29, 32, 33, 34, 37, 42, 48, 53],
             screenDigit: [12, 13, 15, 15, 16, 18, 20, 24, 26]),
-        "batang": Face(digit: [39, 45, 50, 52, 55, 60, 70, 79, 89], row: [102, 114, 124, 130, 139, 149, 172, 192, 219], screenRow: [35, 35, 42, 42, 45, 51, 55, 66, 72],
-            screenDigit: [12, 13, 15, 15, 16, 18, 20, 24, 26], offTable: [6: 23], hinted: [10: 41.75]),
+        // Batang has Dotum's em (879 + 145 of 1024), so its rows are Dotum's too (21 Batang books: 13 of 744 ko books up, none down).
+        "batang": Face(digit: [39, 45, 50, 52, 55, 60, 70, 79, 89], row: [77, 85, 93, 98, 102, 110, 127, 143, 160], screenRow: [26, 29, 32, 33, 34, 37, 42, 48, 53],
+            screenDigit: [12, 13, 15, 15, 16, 18, 20, 24, 26]),
         // Nirmala UI: a wrapped line is the face's GDI height plus its descent at 600 dpi (12 pt: 133 + 26 = 159 dots, 50 screen
         // pixels; zwsp2 lab, Excel 16: one line of Nirmala UI 12 is 19.07 pt, two 38.1, three 57.2, where Calibri 12 is 15.3).
         // The other sizes follow from the face's GDI heights (gdi-textmetrics-600dpi-indic); the digits stand in as Calibri's.

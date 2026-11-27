@@ -232,6 +232,15 @@ extension SheetsPrintTests {
         XCTAssertEqual(SheetPrintMetrics.of(family: "맑은 고딕", size: 11).defaultRow, 139.0 * 72 / 600, accuracy: 1e-9)
     }
 
+    /// Batang's em is Dotum's (879 + 145 of 1024), and so are its rows; it had Malgun's (ko-ec08c4dea0 29.3 -> 99.7,
+    /// ko-b44d02a2fb 0.5 -> 40.3 with Excel's 8 pages, not 11).
+    func testBatangRowsAreDotums() {
+        for z in [8.0, 10, 11, 14, 18] {
+            XCTAssertEqual(SheetPrintMetrics.of(family: "바탕", size: z).defaultRow, SheetPrintMetrics.of(family: "돋움", size: z).defaultRow, accuracy: 1e-9, "\(z)")
+            XCTAssertEqual(SheetPrintMetrics.of(family: "Batang", size: z).rowScale, SheetPrintMetrics.of(family: "Dotum", size: z).rowScale, accuracy: 1e-9, "\(z)")
+        }
+    }
+
     /// Excel's set rows of faces the print box lacks (planner spec, from two Excel labs): 돋움 11 prints 8 dots a
     /// point (6 dots a screen pixel); 新細明體 12 prints at the table's 130/43 dots per 192-dpi pixel. A set height is held
     /// in quarter screen pixels; a scaled print takes the 100 % dot count times the scale, rounded half up.
