@@ -369,6 +369,9 @@ struct Chart: Equatable {
     /// (a combination's second value axis, at the right); nil: they share
     /// the columns'.
     var secondValueAxis: SecondValueAxis? = nil
+    /// A second column group on a value axis of its own at the right: the index of its first series (they follow the first
+    /// group's). Excel lays each group across the whole slot, the second over the first, on its own scale.
+    var secondColumnsFrom: Int? = nil
     /// A table of the numbers under the plot (`c:dTable`): the
     /// categories over its columns, a row for each series (columns,
     /// then lines) with its key and name before it. nil: none.
@@ -1563,6 +1566,7 @@ enum ChartXML {
         var merged: [XNode] = []
         var secondScatterRanges: [Range<Int>] = []
         var columnsOnRight = false
+        var secondColumnsAt: Int? = nil
         var mainLines: [XNode] = []
         if kinds.count == 3, let bar = kinds.first(where: { $0.name == "c:barChart" }), kinds.filter({ $0.name == "c:lineChart" }).count == 2,
            bar.first("c:barDir")?["val"] != "bar" {
@@ -1668,6 +1672,21 @@ enum ChartXML {
                     plot.children.insert(node, at: at)
                 }
             }
+        } else if kinds.count == 2, kinds.allSatisfy({ $0.name == "c:barChart" && $0.first("c:barDir")?["val"] == "col" }),
+                  let own = { () -> XNode? in
+                      let firstAxes = Set(kinds[0].all("c:axId").compactMap { $0["val"] }), ids = Set(kinds[1].all("c:axId").compactMap { $0["val"] })
+                      return plot.all("c:valAx").first { ax in
+                          let id = ax.first("c:axId")?["val"] ?? ""
+                          return ids.contains(id) && !firstAxes.contains(id) && (ax.first("c:axPos")?["val"] == "r" || ax.first("c:crosses")?["val"] == "max")
+                      }
+                  }() {
+            // Two column groups, the second on a value axis of its own at the right (chart-testSecondaryAxis): one list of series,
+            // the second group's marked to stand on that axis.
+            secondAxis = own
+            merged = [kinds[1]]
+            let first = kinds[0].all("c:ser").count
+            secondColumnsAt = first
+            secondScatterRanges = [first ..< first + kinds[1].all("c:ser").count]
         } else if kinds.count > 1, Set(kinds.map(\.name)).count == 1, kinds[0].name != "c:pieChart" {
             // Groups of one kind on axes of their own, in any layout not read above: their series are drawn on the first group's axes.
             merged = Array(kinds.dropFirst())
@@ -2160,6 +2179,7 @@ enum ChartXML {
         let spaceRun = space.first("c:txPr")?.descendant("a:defRPr")
         var c = Chart(type: type, title: title, categories: categories, series: series)
         for r in secondScatterRanges { for i in r where i < c.series.count { c.series[i].onSecondAxis = true } }
+        c.secondColumnsFrom = secondColumnsAt
         c.categoryLevels = levels
         c.lineSeries = lines.map { l in
             var l = l
@@ -3360,7 +3380,14 @@ enum ChartPainter {
         return [face] + RichTextTheme.glyphFallback
     }
 
-    static func paint(_ c: Chart, _ canvas: any Canvas, _ r: Rect, pxPerPt k: Double, theme: DeckTheme) {
+    static func paint(_ chart: Chart, _ canvas: any Canvas, _ r: Rect, pxPerPt k: Double, theme: DeckTheme) {
+        var c = chart
+        if !c.onSheet, c.secondColumnsFrom != nil {
+            // (Only Excel's prints show the second column group on its own axis: elsewhere it stays one group on the first.)
+            c.secondColumnsFrom = nil
+            c.secondValueAxis = nil
+            for j in c.series.indices { c.series[j].onSecondAxis = false }
+        }
         guard r.width > 4, r.height > 4, !c.series.isEmpty else { return }
         // The text in the file's colour, else the theme's text colour:
         // a chart that says nothing (POI's radar-chart, a 2007 style) is
@@ -7566,6 +7593,10 @@ enum ChartPainter {
             let bar = slot / (1 + (lanes - 1) * pitch + c.gap)
             let step = bar * pitch
             let group = bar + (lanes - 1) * step
+            // (A second group on the right-hand axis lays out across the whole slot as the first does, standing over it: Excel's
+            // print of chart-testSecondaryAxis, a series a group, each column the full width of a one-series group's.)
+            let splitAt = !horizontal && !c.stacked && !rowsDeep && secondScale != nil ? c.secondColumnsFrom.flatMap { $0 > 0 && $0 < s ? $0 : nil } : nil
+            if splitAt != nil { RuleTrace.hit("excel-second-column-group-on-its-own-axis") }
             for i in 0 ..< n {
                 var pos = 0.0, neg = 0.0
                 // Series 1 nearest the origin: leftmost in a column group,
@@ -7583,7 +7614,13 @@ enum ChartPainter {
                     // as chart-DataTable-Multiple…'s six bars are.
                     fill.color = c.variedPoints ? c.pointColor(i, accents: theme.accents)
                         : (j == 0 ? c.pointColors[i] : nil) ?? c.color(series: j, accents: theme.accents)
-                    let p0 = vpos(a), p1 = vpos(b)
+                    let onSecond = splitAt.map { j >= $0 } ?? false
+                    if onSecond, let s2 = secondScale { a = min(max(0, s2.lo), s2.hi) }
+                    let p0 = onSecond ? vpos2(a) : vpos(a), p1 = onSecond ? vpos2(b) : vpos(b)
+                    let groupLanes = splitAt.map { Double(j < $0 ? $0 : s - $0) } ?? lanes, lane = Double(splitAt.map { j < $0 ? j : j - $0 } ?? j)
+                    let bar = slot / (1 + (groupLanes - 1) * pitch + c.gap)
+                    let step = bar * pitch
+                    let group = bar + (groupLanes - 1) * step
                     var rect: Rect
                     if horizontal {
                         // (A reversed category axis stands series 1 topmost in its group, as the categories run down from the top: 81d28d42 p29.)
@@ -7600,7 +7637,7 @@ enum ChartPainter {
                         if c.onSlide, c.series[safe: j]?.labelDeleted.contains(i) == true { deletedLabels.insert(labels.count) }
                         labels.append((dataLabel(c, raw, series: j), Offset(c.stacked ? rect.center.dx : reversedValues ? min(p0, p1) - 3 * k : max(p0, p1) + 3 * k, rect.center.dy) + nudge(j, i), j))
                     } else {
-                        let left = centre - group / 2 + Double(j) * step
+                        let left = centre - group / 2 + lane * step
                         rect = Rect.fromLTRB(left, min(p0, p1), left + bar, max(p0, p1))
                         // Past the bar's end, as far off as the label is
                         // large: under a bar that runs down from the axis.
