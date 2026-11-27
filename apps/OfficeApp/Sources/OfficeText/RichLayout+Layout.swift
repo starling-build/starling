@@ -2704,7 +2704,7 @@ extension RichLayout {
                 if box.growsToFit, let inside = _textBox(image, document) { first = inside.layout._narrowestTables(inside.document) }
             } else {
                 let room = _pictureRoom(image)
-                first = _px(image.width + image.strokeReach) + room.left + room.right
+                first = _px(image.width) + room.left + room.right
             }
             opening = first
         }

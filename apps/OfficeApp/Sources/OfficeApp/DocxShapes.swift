@@ -595,8 +595,12 @@ extension DocxFormat {
                 let type = id.flatMap { id in notes.shapeTypes.first { $0["id"] == id } }
                 let stroke = shape.first("v:stroke")
                 let off = ["f", "false", "0"]
-                if !off.contains(shape["stroked"] ?? type?["stroked"] ?? "t"), !off.contains(stroke?["on"] ?? "t") {
-                    att.strokeReach = max(Self._length(shape["strokeweight"] ?? stroke?["weight"] ?? "") ?? 0.75, 1.5)
+                // (The text after it in the line stands as far past it: lab vmlinl, Word for Windows, an 18pt
+                // rectangle advances 19.58 at the default stroke, 21.02 at 3pt and 18.02 unstroked.)
+                if shape.name == "v:group" {
+                    if shape["editas"] == "canvas", let pad = Self._vmlCanvasOutlinePad(shape) { (att.effectLeft, att.effectRight) = pad }
+                } else if !off.contains(shape["stroked"] ?? type?["stroked"] ?? "t"), !off.contains(stroke?["on"] ?? "t") {
+                    att.effectRight = max(Self._length(shape["strokeweight"] ?? stroke?["weight"] ?? "") ?? 0.75, 1.5)
                 }
             }
             // (A level line — no height — takes no room in the line whatever
@@ -2236,5 +2240,37 @@ extension DocxFormat {
         if sectionMarginsChange, !built.isEmpty { built[built.count - 1].sectionMarginsChange = true }
         if built.count > 1 { for k in 0 ..< built.count - 1 { Self._sectionMarkStaysOnTheLastPiece(&built[k].paragraph) } }
         return built
+    }
+
+    /// How far past an inline drawing canvas's left and right edges Word makes room for the outlines of the shapes in it:
+    /// half each shape's line (0.75pt unless set, stroked or not), out past the edge, in whole 0.75pt pixels. The
+    /// canvas is drawn that far right. Lab vmlinl (Word for Windows, lo-5c5eb1f7's 18pt canvas): an oval at the left
+    /// edge puts the canvas 0.75 right and the text after it 0.72 further, stroked or not; 4.4pt in from it, neither.
+    /// The canvas's own background shape (`_x0000_t75`) is not counted.
+    static func _vmlCanvasOutlinePad(_ group: XNode) -> (Double, Double)? {
+        func style(_ n: XNode) -> [String: String] {
+            var out: [String: String] = [:]
+            for item in (n["style"] ?? "").split(separator: ";") {
+                let kv = item.split(separator: ":", maxSplits: 1)
+                if kv.count == 2 { out[kv[0].trimmingWhitespace()] = String(kv[1]).trimmingWhitespace() }
+            }
+            return out
+        }
+        let numbers = (group["coordorigin"] ?? "0,0").split(separator: ",", omittingEmptySubsequences: false).map { Double($0.trimmingWhitespace()) ?? 0 }
+        let sizes = (group["coordsize"] ?? "1000,1000").split(separator: ",", omittingEmptySubsequences: false).map { Double($0.trimmingWhitespace()) ?? 0 }
+        guard let gw = style(group)["width"].flatMap(_length), gw > 0, let originX = numbers.first, let across = sizes.first, across > 0 else { return nil }
+        let k = gw / across
+        var left = 0.0, right = 0.0
+        for child in group.children where _vmlShapes.contains(child.name) {
+            if child.name == "v:shape", (child["type"] ?? "").hasSuffix("_x0000_t75") { continue }
+            let sh = style(child)
+            guard let x = sh["left"].flatMap({ Double($0) }), let w = sh["width"].flatMap({ Double($0) }) else { continue }
+            let half = (_length(child["strokeweight"] ?? "") ?? 0.75) / 2
+            left = max(left, half - (x - originX) * k)
+            right = max(right, (x + w - originX - across) * k + half)
+        }
+        func pixels(_ v: Double) -> Double { v > 0.001 ? (v / 0.75).rounded(.up) * 0.75 : 0 }
+        let pad = (pixels(left), pixels(right))
+        return pad.0 > 0 || pad.1 > 0 ? pad : nil
     }
 }

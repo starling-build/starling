@@ -1558,7 +1558,7 @@ final class DocxTests: XCTestCase {
 
     /// An inline VML shape keeps its stroke as the room an autofit column
     /// holds past its box (lab e3fit2, Word for Windows): its weight, at
-    /// least 1.5pt; none for one its shape type leaves unstroked, nor a picture.
+    /// least 1.5pt; none for one its shape type leaves unstroked, nor a picture. The line makes the same room after it.
     func testVMLShapeStrokeIsItsColumnReach() throws {
         var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .a4))
         let di = entries.firstIndex { $0.name == "word/document.xml" }!
@@ -1567,6 +1567,11 @@ final class DocxTests: XCTestCase {
         let v = "xmlns:v=\"urn:schemas-microsoft-com:vml\""
         let types = "<v:shapetype \(v) id=\"_x0000_t32\" o:spt=\"32\" path=\"m,l21600,21600e\" filled=\"f\"/>"
             + "<v:shapetype \(v) id=\"_x0000_t75\" stroked=\"f\" filled=\"f\"/>"
+        func canvas(_ left: Int) -> String {
+            "<w:p><w:r><w:pict>\(types)<v:group \(v) editas=\"canvas\" style=\"width:18pt;height:18pt\" coordorigin=\"2465,10556\" coordsize=\"554,576\">"
+                + "<v:shape type=\"#_x0000_t75\" style=\"position:absolute;left:2465;top:10556;width:554;height:576\"/>"
+                + "<v:oval style=\"position:absolute;left:\(left);top:10844;width:277;height:288\" stroked=\"f\"/></v:group></w:pict></w:r></w:p>"
+        }
         func shape(_ attrs: String, _ inner: String = "") -> String {
             "<w:p><w:r><w:pict>\(types)<v:shape \(v) style=\"width:500pt;height:0pt\" \(attrs)>\(inner)</v:shape></w:pict></w:r></w:p>"
         }
@@ -1574,11 +1579,15 @@ final class DocxTests: XCTestCase {
             shape("type=\"#_x0000_t32\"", "<v:stroke weight=\"3pt\"/>")
             + shape("type=\"#_x0000_t32\"", "<v:stroke weight=\"0.25pt\"/>")
             + shape("type=\"#_x0000_t32\" stroked=\"f\"")
-            + shape("type=\"#_x0000_t75\""))
+            + shape("type=\"#_x0000_t75\"")
+            + canvas(2465) + canvas(2600))
         entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
         let doc = try DocxFormat.read(try Zip.write(entries)).document
-        let reach = doc.paragraphs.compactMap { p in (p.image ?? p.inlineImages.values.first)?.strokeReach }
-        XCTAssertEqual(reach, [3, 1.5, 0, 0])
+        let images = doc.paragraphs.compactMap { p in p.image ?? p.inlineImages.values.first }
+        XCTAssertEqual(images.map(\.effectRight), [3, 1.5, 0, 0, 0, 0])
+        // (A drawing canvas: room for the outline of a shape at its left edge, stroked or not, in a whole 0.75pt pixel; lab
+        // vmlinl. Its background shape does not count.)
+        XCTAssertEqual(images.map(\.effectLeft), [0, 0, 0, 0, 0.75, 0])
     }
 
     /// A DrawingML box of wrap none and no autofit keeps its size and its
