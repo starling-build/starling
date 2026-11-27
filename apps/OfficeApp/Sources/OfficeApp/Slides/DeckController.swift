@@ -2573,7 +2573,7 @@ final class DeckController: ChangeNotifier {
         guard let state = _undo.popLast() else { ScreenReader.announce("Nothing to undo"); return }
         ScreenReader.announce("Undo")
         _redo.append(snapshot())
-        restore(state)
+        restore(state, keepSelection: true)
     }
 
     func redo() {
@@ -2581,7 +2581,7 @@ final class DeckController: ChangeNotifier {
         guard let state = _redo.popLast() else { ScreenReader.announce("Nothing to redo"); return }
         ScreenReader.announce("Redo")
         _undo.append(snapshot())
-        restore(state)
+        restore(state, keepSelection: true)
     }
 
     private var _sessionChanged: Bool {
@@ -2625,8 +2625,10 @@ final class DeckController: ChangeNotifier {
 
     /// Put the deck back as `state` was. Objects that still exist are kept
     /// (and their text reloaded only when it differs), so an editor bound to
-    /// a body stays bound.
-    func restore(_ state: DeckState) {
+    /// a body stays bound. `keepSelection`: the selected shapes that are still on the current slide stay selected,
+    /// as PowerPoint keeps them after an undo or redo (the ribbon then still shows their formatting).
+    func restore(_ state: DeckState, keepSelection: Bool = false) {
+        let selectedIds = keepSelection ? Set(selection.map(\.id)) : []
         var oldSlides: [Int: Slide] = [:]
         var oldShapes: [Int: SlideShape] = [:]
         for slide in slides {
@@ -2697,7 +2699,7 @@ final class DeckController: ChangeNotifier {
         if let o = state.ownTemplates { ownTemplates = o }
         if let r = state.recolourTheme { recolourTheme = r }
         current = max(0, min(state.current, slides.count - 1))
-        selection = []
+        selection = selectedIds.isEmpty || slides.isEmpty ? [] : slides[current].shapes.filter { selectedIds.contains($0.id) }
         _nextId = max(_nextId, (state.slides.flatMap { [$0.id] + $0.shapes.map(\.id) }.max() ?? 0) + 1)
         _changed()
     }
