@@ -3801,6 +3801,26 @@ public final class RichDocumentController: ChangeNotifier {
         }
     }
 
+    /// Word's Ctrl+M / Ctrl+Shift+M (`hanging` false) and Ctrl+T / Ctrl+Shift+T (`hanging` true): the left indent moves to
+    /// the next (or, `forward` false, the previous) default tab stop. Ctrl+M carries the first line along; Ctrl+T leaves
+    /// the first line where it stands, so the rest of the paragraph hangs under it (and Ctrl+Shift+T stops where the
+    /// hang runs out). One undo step.
+    public func stepIndent(forward: Bool, hanging: Bool) {
+        let step = (document.defaultTabStop ?? 36) > 0.01 ? (document.defaultTabStop ?? 36) : 36
+        applyParagraphStyle { s in
+            let left = s.indentLeft
+            let next = forward ? (floor(left / step + 1e-6) + 1) * step : max(0, (ceil(left / step - 1e-6) - 1) * step)
+            if hanging {
+                let first = left + s.firstLineIndent
+                let to = forward ? next : min(left, max(next, first))
+                s.indentLeft = to
+                s.firstLineIndent = first - to
+            } else {
+                s.indentLeft = next
+            }
+        }
+    }
+
     public func indent(_ delta: Int) {
         applyParagraphStyle { style in
             if style.list != nil {

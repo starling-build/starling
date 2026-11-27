@@ -1452,6 +1452,11 @@ final class OfficeShellState: State<StatefulWidget> {
             if key.logical == 0x2F { session.onShortcuts?(); return true }   // ⌘/ the shortcut list
             if key.logical == 0x2D { session.onZoom?(session.zoom - 0.1); return true }
             if key.logical == 0x30 { session.onZoom?(1.0); return true }
+            // ⌘1 / ⌘2 / ⌘5: single, double and 1.5 line spacing, as Word's Ctrl+1/2/5.
+            if !mods.contains(.shift), key.logical == 0x31 || key.logical == 0x32 || key.logical == 0x35 {
+                c.setLineSpacing(key.logical == 0x31 ? 1 : key.logical == 0x32 ? 2 : 1.5)
+                return true
+            }
             if key.logical == 0x5D { c.stepFontSize(1, base: session.effectiveFontSize); return true }
             if key.logical == 0x5B { c.stepFontSize(-1, base: session.effectiveFontSize); return true }
             return false
@@ -1483,6 +1488,9 @@ final class OfficeShellState: State<StatefulWidget> {
         case "l": c.setAlignment(.left)
         case "r": c.setAlignment(.right)
         case "j": c.setAlignment(.justify)
+        // Word's indent keys: ⌘M / ⌘⇧M move the left indent a default tab stop in or out, ⌘T / ⌘⇧T hang the paragraph.
+        case "m": c.stepIndent(forward: !mods.contains(.shift), hanging: false)
+        case "t": c.stepIndent(forward: !mods.contains(.shift), hanging: true)
         default: return false
         }
         return true
