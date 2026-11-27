@@ -224,12 +224,14 @@ final class OfficeShellState: State<StatefulWidget> {
             session.dirty = true
             _flash("Restored an unsaved document — Save to keep it")
         } else if let onSwitch = (widget as! OfficeShell).onSwitch,
-                  let row = OfficeHost.browserRecovery?.take("pptx") {
-            // A tab always starts in Writer: a deck left unsaved by a closed tab goes on to Slides, which opens it
-            // unsaved. (Switched after this frame: the window is mid-build now.)
+                  let (kind, row) = OfficeHost.browserRecovery.flatMap({ browser in
+                      browser.take("pptx").map { (DocumentKind.presentation, $0) }
+                          ?? browser.take("xlsx").map { (DocumentKind.workbook, $0) } }) {
+            // A tab always starts in Writer: a deck or workbook left unsaved by a closed tab goes on to Slides or
+            // Sheets, which opens it unsaved. (Switched after this frame: the window is mid-build now.)
             controller.load(WelcomeDocument.make())
             PickedFile.hand(row.name, row.data, recovered: true)
-            FrameCallbackScheduler.shared.addPostFrameCallback { _ in onSwitch(.presentation, row.name) }
+            FrameCallbackScheduler.shared.addPostFrameCallback { _ in onSwitch(kind, row.name) }
             PlatformDispatcher.instance.scheduleFrame()
         } else if FileManager.default.fileExists(atPath: _recoveryPath(for: nil)),
                   let opened = try? OfficeFormats.read(_recoveryPath(for: nil)) {

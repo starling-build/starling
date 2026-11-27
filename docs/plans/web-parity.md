@@ -124,7 +124,11 @@ CDP) checks the page side: the print frame, IndexedDB rows, recovery after a rel
    Slides DONE 2026-11-27 (amd-11): a deck keeps its copy as a `pptx` row (the page-close flush
    covers it too); a tab always starts in Writer, which hands a deck's row to Slides, where it
    opens unsaved. BrowserSlidesRecoveryTests (fail before), test/office-recovery-slides-web.sh
-   (Chromium, 6/6). Sheets next.
+   (Chromium, 6/6).
+   Sheets DONE 2026-11-27 (amd-11): a workbook keeps its copy as an `xlsx` row (never while a
+   cell is mid-typing; a page hide writes it at once), Writer hands it on to Sheets, where it
+   opens unsaved. BrowserSheetsRecoveryTests (5, fail before), test/office-recovery-sheets-web.sh
+   (Chromium, 7/7: the typed cell comes back).
 3. **Recent files.** Each open and save puts a row in IndexedDB store `recent` (name,
    kind, time, a copy of the bytes, and the file handle where the browser has the
    File System Access API). Backstage Home and Open list them as natively; reopening
