@@ -311,6 +311,12 @@ struct Chart: Equatable {
     var dateAxis = false
     /// The date axis counts months with no unit of its own (`c:baseTimeUnit` months): its names stand at each month's first date.
     var monthBaseDates = false
+    /// Slots of a month date axis that no row's date falls in: a line runs on over them (a row whose value is blank is
+    /// still a gap). Excel's print of lo-tdf165503: Apr 2021 to Dec 2021 to Oct 2022, one line.
+    var openSlots: Set<Int> = []
+    /// Values whose date is blank: no place on a month date axis, but Excel's value axis still reaches them
+    /// (lo-tdf165503's 15 under dates of at most 9: its axis runs to 16).
+    var undatedValues: [Double] = []
     /// The date axis counts in months, so its names are blank but at each period's first date (every one that is shown is shown).
     var monthNamesSparse = false
     /// The turn the file gives the category labels (`c:txPr/a:bodyPr rot`),
@@ -5547,7 +5553,7 @@ enum ChartPainter {
                 hi = max(hi, pos); lo = min(lo, neg)
             }
         } else {
-            var all = c.series.filter { !$0.onSecondAxis }.flatMap { $0.values.compactMap { $0 } }
+            var all = c.series.filter { !$0.onSecondAxis }.flatMap { $0.values.compactMap { $0 } } + c.undatedValues
             // (Error bars reach the axis' range: bab9be95 p15's values 0.65 to 0.81 with bars of up to 0.018 print 60% to 85%.)
             for ser in c.series where !ser.onSecondAxis {
                 guard let eb = ser.errBars else { continue }
@@ -7958,7 +7964,7 @@ enum ChartPainter {
                     let path = Path()
                     var pen = false
                     for i in 0 ..< n {
-                        guard let v = tops[j][i] else { pen = false; continue }
+                        guard let v = tops[j][i] else { if !c.openSlots.contains(i) { pen = false }; continue }
                         if pen, c.type == .line, c.onSlide, c.series[j].segmentDash[i] != nil, let before = tops[j][safe: i - 1] ?? nil {
                             // (3f8a480a-style dashed first stretch: 5f748a0e p8's segment into the second point, sysDash 3 pt in PowerPoint's print.)
                             let seg = Paint()
