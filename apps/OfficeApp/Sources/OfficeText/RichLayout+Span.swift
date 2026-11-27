@@ -1358,6 +1358,25 @@ extension RichLayout {
                     probe.layout(minWidth: 0, maxWidth: .infinity)
                     rise = probe.computeDistanceToActualBaseline(.alphabetic)
                     probe.dispose()
+                    // (In the level's own face where it names one Word knows: a hyphen bullet in bold 12pt Calibri over Arial 11 stands the first
+                    // line on Calibri's ascent, 13.80 to the next item in Word's print (lab blift), where Arial's at 12pt made 13.59; Times 14 15.41,
+                    // Arial 14 15.48. The probe above measures the text's face at the bullet's size. The text's own raise stays on top:
+                    // dx2 c96f6a72's text is raised 0.5pt (w:position 1), and its 10.5pt Arial numbers stand that much higher in Word's print.
+                    // Lines set closer than single keep the probe's rise, which shrinks with them: c96f6a72's "a)" items at 0.69 lines.)
+                    if theme.wordRules, RichTextTheme.wordWindowsPages, p.style.lineHeightPoints == nil, p.style.lineSpacing > 0.999,
+                       let rise0 = rise, let family = _levelNumberFonts(p, document).latin,
+                       !p.text.unicodeScalars.contains(where: { Self.isEastAsian(Character($0), hinted: false) }),
+                       let above = _wordFaceAscent(family, leadChar, p, named, document, scale, fontScale) {
+                        var flat = leadChar
+                        flat.raised = nil
+                        let bare = TextPainter(text: TextSpan(text: "\u{200B}", style: theme.textStyle(for: flat, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale, gridPitch: pitch)),
+                                               textDirection: .ltr)
+                        bare.layout(minWidth: 0, maxWidth: .infinity)
+                        let lift = rise0 - bare.computeDistanceToActualBaseline(.alphabetic)
+                        bare.dispose()
+                        RuleTrace.hit("word-larger-number-stands-on-its-own-faces-ascent")
+                        rise = above + lift
+                    }
                 }
             }
             // (A number in a face of its own, at the text's size and taller above its baseline
@@ -3235,5 +3254,28 @@ extension RichLayout {
             frac = fracs[i] + (fracs[i + 1] - fracs[i]) * (pt - sizes[i]) / (sizes[i + 1] - sizes[i])
         }
         return (max(0, sh.blur - sh.dy) * frac, max(0, sh.blur + sh.dy) * frac)
+    }
+}
+
+extension RichLayout {
+    /// How far above its baseline Word stands a line of `family` at `char`'s size, in layout units: the face's Windows ascent and,
+    /// above it, what its `hhea` line holds beyond the Windows ascent and descent (Arial's 67 units, Times's 87, Calibri's none):
+    /// Arial 0.938 em, Times 0.9335, Calibri 0.952 (lab blift: hyphen bullets in each face over Arial 11). nil where the face's
+    /// Windows metrics are not known.
+    func _wordFaceAscent(_ family: String, _ char: CharStyle, _ p: RichParagraph, _ named: RichNamedStyle?, _ document: RichDocument,
+                         _ scale: Double, _ fontScale: Double) -> Double? {
+        guard let box = theme.winLineBox?(family), let share = theme.winDescent?(family), box > 0 else { return nil }
+        var look = char
+        look.fontFamily = family
+        let style = theme.textStyle(for: look, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale)
+        guard let size = style.fontSize, size > 0.5 else { return nil }
+        // (The probe's line keeps the paragraph's spacing, as the caller's text probe does: a multiple over single adds above.)
+        let probe = TextPainter(text: TextSpan(text: "x", style: style), textDirection: .ltr)
+        probe.layout(minWidth: 0, maxWidth: .infinity)
+        let line = probe.computeLineMetrics().first?.height
+        probe.dispose()
+        guard let line else { return nil }
+        let above = (box * (1 - share) + max(0, line / size - box)) * size
+        return above
     }
 }
