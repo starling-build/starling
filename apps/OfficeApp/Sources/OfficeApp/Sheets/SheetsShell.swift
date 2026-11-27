@@ -368,7 +368,8 @@ final class SheetsShellState: State<StatefulWidget> {
             ]), owner: self)
     }
 
-    /// The formula keys: each types its text at the caret, F4 cycles the reference at the caret absolute and relative.
+    /// The formula keys: each types its text at the caret (the arithmetic, comparison and text operators, brackets, the range
+    /// and list separators and the absolute-reference `$`), F4 cycles the reference at the caret absolute and relative.
     private static func _formulaKeys(_ grid: @escaping () -> SheetGridState?) -> [OfficeScene.ToolbarButton] {
         func key(_ shown: String, _ typed: String, _ name: String) -> OfficeScene.ToolbarButton {
             .init(id: "ctx-key-\(name)", title: shown, symbol: "") { grid()?.typeText(typed) }
@@ -377,6 +378,10 @@ final class SheetsShellState: State<StatefulWidget> {
             key("=", "=", "equals"), key("+", "+", "plus"), key("−", "-", "minus"), key("*", "*", "times"), key("/", "/", "divide"),
             key("(", "(", "open"), key(")", ")", "close"), key(":", ":", "colon"), key(",", ",", "comma"), key("$", "$", "dollar"),
             .init(id: "ctx-key-f4", title: "F4", symbol: "") { grid()?.cycleAbsoluteReference() },
+            // The rest of a formula's operators, which sit two pages deep on the soft keyboard. After F4, so a narrow bar
+            // folds these into More first.
+            key("^", "^", "power"), key("%", "%", "percent"), key("&", "&", "concat"),
+            key("<", "<", "less"), key(">", ">", "greater"), key("\"", "\"", "quote"),
         ]
     }
 
