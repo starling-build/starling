@@ -4019,6 +4019,42 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(try nazaninLineHeight(text: " 1333 "), try nazaninLineHeight(text: " 1333 ", face: "Arial"), accuracy: 0.05)
     }
 
+    /// A cell of an exact row too short to show any of its line's capitals draws no text (Word leaves the line out of its
+    /// print; ours kept it, clipped and unseen, in the PDF's text). dx4j-d5b6ee0cfa's 1-twip row; lab row1, 20pt Calibri:
+    /// Word's print has no line for rows of 1-100 twips and the line for 140 (0.5pt of the capitals shows).
+    func testAnExactRowTooShortForItsCapitalsDrawsNoText() throws {
+        _ = OfficeFonts.register()
+        func drawn(_ twips: Int) throws -> Int {
+            var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "AFTER")]), pageSetup: .a4))
+            let di = try XCTUnwrap(entries.firstIndex { $0.name == "word/document.xml" })
+            var xml = String(decoding: entries[di].data, as: UTF8.self)
+            let table = "<w:tbl><w:tblPr><w:tblW w:w=\"0\" w:type=\"auto\"/><w:tblCellMar><w:top w:w=\"0\" w:type=\"dxa\"/><w:bottom w:w=\"0\" w:type=\"dxa\"/></w:tblCellMar></w:tblPr>"
+                + "<w:tblGrid><w:gridCol w:w=\"4000\"/></w:tblGrid><w:tr><w:trPr><w:trHeight w:val=\"\(twips)\" w:hRule=\"exact\"/></w:trPr>"
+                + "<w:tc><w:tcPr><w:tcW w:w=\"4000\" w:type=\"dxa\"/></w:tcPr><w:p><w:pPr><w:spacing w:after=\"0\" w:line=\"240\" w:lineRule=\"auto\"/></w:pPr>"
+                + "<w:r><w:rPr><w:rFonts w:ascii=\"Calibri\" w:hAnsi=\"Calibri\"/><w:sz w:val=\"40\"/></w:rPr><w:t>ROW</w:t></w:r></w:p></w:tc></w:tr></w:tbl>"
+            xml = xml.replacingAll("<w:body>", with: "<w:body>" + table)
+            entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+            let opened = try DocxFormat.read(try Zip.write(entries))
+            let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+            theme.fontFamilyResolver = OfficeFonts.drawn
+            theme.winLineBox = OfficeFonts.standInWinBox
+            theme.capOverWinAscent = OfficeFonts.standInCapOverWinAscent
+            theme.wordRules = true
+            let l = RichLayout(theme: theme, paragraphCount: opened.document.paragraphs.count)
+            let setup = opened.pageSetup ?? .a4
+            l.pageSetup = setup
+            l.width = setup.columnWidth * theme.pixelsPerPoint
+            l.ensureLaidOut(opened.document)
+            let canvas = ParagraphHeightCanvas()
+            l.paint(canvas, visible: l.pageRect(0), document: opened.document, selection: nil, caret: nil)
+            return canvas.heights.count
+        }
+        let shown = try drawn(140)
+        XCTAssertEqual(try drawn(1), shown - 1)
+        XCTAssertEqual(try drawn(100), shown - 1)
+        XCTAssertEqual(try drawn(260), shown)
+    }
+
     /// Heights (pt) of the paragraphs of a body written as raw WordprocessingML, B Nazanin (Arabic charset, no alternate) as the faces.
     private func nazaninBodyHeights(_ body: String) throws -> [Double] {
         guard TestText.icuLoaded else { throw XCTSkip("no icudtl.dat (STARLING_ICU)") }
