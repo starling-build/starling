@@ -29,6 +29,7 @@ line set apart in pieces is matched piece by piece (`found`) — so that a
 print's trailing space, a few tenths of a point between cells, or two
 labels sharing a baseline no longer score as misses.
 """
+import math
 import os
 import statistics
 import subprocess
@@ -496,6 +497,9 @@ def mupdf_glyphs(pdf, drop=None):
             # along it: zh-b24b396a's p13 sets each "30" turned 270°, its
             # glyphs where Word's are to 0.2pt, and the reader took one
             # print's "3" and "0" for a line and the other's for two.)
+            if ROT:
+                out += _turned_rows([g for g in turned if _axis(g[0])], i)
+                turned = [g for g in turned if not _axis(g[0])]
             turned.sort(key=lambda g: (g[0], round(g[1] / 0.6), g[2]))
             run = []
             for g in turned + [None]:
@@ -511,6 +515,52 @@ def mupdf_glyphs(pdf, drop=None):
     if os.environ.get("PPT_RTL_NORM"):
         out = _fold_strays(out)
     return out
+
+
+# DOCX_LINE_ROT=1 (v2): turned text read in its own frame (amd-8, 2026-11-26; amd-1: a fix to rotated cells moved no score).
+# Without it a turned run is a row keyed by its box's lower end, so its height is where the column ENDS, and across it
+# (the height that matters for a turned line) nothing is judged. With it the run is turned back to read left to right:
+# along = the origin on the run direction, height = minus the origin across it, a fifth of the size below the baseline as
+# for a line set across; and it lands on a page of its own per direction (ROT_PAGE * k + page), so a turned line pairs
+# only with a turned line of the same direction. Only text turned a quarter or half turn is read so: text set along a
+# curve or a slant (WordArt; lo-677416be draws each glyph at its own angle) stays as before, since no line holds there.
+ROT = V2 and os.environ.get("DOCX_LINE_ROT") == "1"
+ROT_PAGE = 100000
+_ROT_DIRS = [(0, -1), (0, 1), (-1, 0)]
+
+
+def _axis(d):
+    n = math.hypot(*d) or 1
+    return (round(d[0] / n, 2), round(d[1] / n, 2)) in _ROT_DIRS
+
+
+def _turned_rows(turned, i):
+    rows = []
+    by = {}
+    for d, ox, oy, bb, ch, size in turned:
+        n = math.hypot(*d) or 1
+        u, v = d[0] / n, d[1] / n
+        d = (round(u, 2) + 0.0, round(v, 2) + 0.0)
+        along = ox * u + oy * v
+        across = -ox * v + oy * u
+        ends = [x * u + y * v for x in (bb[0], bb[2]) for y in (bb[1], bb[3])]
+        by.setdefault(d, []).append((across, along, min(ends), max(ends), ch, size))
+    for d in sorted(by):
+        n = math.hypot(*d) or 1
+        page = ROT_PAGE * (1 + _ROT_DIRS.index((round(d[0] / n, 2) + 0.0, round(d[1] / n, 2) + 0.0))) + i + 1
+        gl = sorted(by[d], key=lambda g: (round(g[0] / 0.6), g[1]))
+        run = []
+        for g in gl + [None]:
+            if g is not None and run and abs(g[0] - run[-1][0]) <= 0.6 and g[2] - run[-1][3] <= max(g[5], run[-1][5]):
+                run.append(g)
+                continue
+            if run:
+                top = max(r[5] for r in run)
+                base = statistics.median(r[0] for r in run if r[5] == top) + 0.2 * top
+                rows.append(f"p{page}\t{round(-base)}\t{round(min(r[2] for r in run))}\t{''.join(r[4] for r in run)}"
+                            f"\t\t{round(max(r[3] for r in run))}")
+            run = [g] if g is not None else []
+    return rows
 
 
 def _fold_strays(out):
@@ -745,7 +795,7 @@ def score_document(tool, work, key, count, f):
     missed_rows = [r for page in sorted(by_word) for r in unmatched(by_word[page], by_page.get(page, []))]
     missed_set = set(map(id, missed_rows))
     missed = [r for r in a if id(r) in missed_set]
-    pages = (max((r[0] for r in a), default=0), max((r[0] for r in b), default=0))
+    pages = (max((r[0] % ROT_PAGE for r in a), default=0), max((r[0] % ROT_PAGE for r in b), default=0))
     result = ((len(a) - len(missed)) / max(1, len(a)), f[:-4], len(a), len(b), pages)
     if key:
         print(f"{f[:-4]}: Word {len(a)} lines on {pages[0]} pages, ours {len(b)} on {pages[1]}, matched {len(a) - len(missed)}")
