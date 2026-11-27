@@ -226,6 +226,13 @@ enum SheetPrintLayout {
 
     /// The sheet's print areas and repeated titles, from the file's
     /// built-in names (`_xlnm.Print_Area`, `_xlnm.Print_Titles`).
+    /// An area that starts inside the repeated title rows prints from their first: ko-c8b9b7d29d's A2:L16 under titles
+    /// $1:$3 has Excel's row 1 above row 2 on its one page, once.
+    static func areaTop(_ top: Int, titleRows: ClosedRange<Int>?) -> Int {
+        guard let t = titleRows, t.lowerBound < top, top <= t.upperBound else { return top }
+        return t.lowerBound
+    }
+
     static func printNames(_ book: Workbook, sheet: Int) -> (areas: [CellRange], titleRows: ClosedRange<Int>?, titleCols: ClosedRange<Int>?) {
         var areas: [CellRange] = []
         var rows: ClosedRange<Int>? = nil, cols: ClosedRange<Int>? = nil
@@ -447,7 +454,7 @@ extension SheetGridState {
             let fitsTall = (setup.fitHeight ?? 0) > 0
             // "Print selection": the chosen cells, in place of the print area and the used area.
             var areas = (selection != nil && !wholeBook && si == savedSheet) ? [selection!] : names.areas.isEmpty ? [used] : names.areas.map { a in
-                CellRange(top: a.top, left: a.left, bottom: fitsTall || a.bottom < CellAddress.maxRows - 1 ? a.bottom : min(a.bottom, max(a.top, used.bottom)),
+                CellRange(top: SheetPrintLayout.areaTop(a.top, titleRows: names.titleRows), left: a.left, bottom: fitsTall || a.bottom < CellAddress.maxRows - 1 ? a.bottom : min(a.bottom, max(a.top, used.bottom)),
                           right: a.right == CellAddress.maxCols - 1 ? max(a.left, used.right) : a.right)
             }
             await _preloadPictures(ws)

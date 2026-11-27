@@ -293,3 +293,17 @@ final class MeiryoUiBigRowsTests: XCTestCase {
         }
     }
 }
+
+extension SheetsPrintTests {
+    func testAnAreaStartingInsideTheTitleRowsPrintsFromTheirFirst() {
+        // ko-c8b9b7d29d: A2:L16 under titles $1:$3 prints Excel's row 1 above row 2, once.
+        XCTAssertEqual(SheetPrintLayout.areaTop(1, titleRows: 0 ... 2), 0)
+        XCTAssertEqual(SheetPrintLayout.areaTop(2, titleRows: 0 ... 2), 0)
+        // At or below the titles' first row, or with no titles, the area keeps its own top.
+        XCTAssertEqual(SheetPrintLayout.areaTop(0, titleRows: 0 ... 2), 0)
+        XCTAssertEqual(SheetPrintLayout.areaTop(4, titleRows: 0 ... 2), 4)
+        XCTAssertEqual(SheetPrintLayout.areaTop(3, titleRows: 2 ... 3), 2)
+        XCTAssertEqual(SheetPrintLayout.areaTop(2, titleRows: 2 ... 3), 2)
+        XCTAssertEqual(SheetPrintLayout.areaTop(1, titleRows: nil), 1)
+    }
+}

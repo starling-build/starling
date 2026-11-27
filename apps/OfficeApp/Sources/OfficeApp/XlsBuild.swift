@@ -863,8 +863,9 @@ enum XlsBuild {
         let cch = c.u8()
         c.skip(10)
         if flags & 0x20 != 0 {
-            c.skip(1)
-            switch c.u8() { case 6: return "_xlnm.Print_Area"; case 7: return "_xlnm.Print_Titles"; case 0xD: return "_xlnm._FilterDatabase"; default: return "" }
+            // (The built-in's one character is a 16-bit one when the string's flag says so: ko-e0c4deb6ff's names.)
+            let wide = c.u8() & 1 == 1
+            switch wide ? c.u16() : c.u8() { case 6: return "_xlnm.Print_Area"; case 7: return "_xlnm.Print_Titles"; case 0xD: return "_xlnm._FilterDatabase"; default: return "" }
         }
         let f = c.u8()
         return c.chars(cch, wide: f & 1 == 1)
@@ -887,7 +888,10 @@ enum XlsBuild {
             var name = ""
             var builtin = -1
             if flags & 0x20 != 0 {
-                c.skip(1); builtin = c.u8()
+                // (A wide string: the one character is 16 bits, as ko-e0c4deb6ff writes its print area, titles and filter, which
+                // read a byte short lost all three: its B1:O85 printed from A, fitted at 61 % where Excel's is 63 %.)
+                let wide = c.u8() & 1 == 1
+                builtin = wide ? c.u16() : c.u8()
                 switch builtin { case 6: name = "_xlnm.Print_Area"; case 7: name = "_xlnm.Print_Titles"; case 0xD: name = "_xlnm._FilterDatabase"; default: continue }
             } else {
                 let f = c.u8(); name = c.chars(cch, wide: f & 1 == 1)
