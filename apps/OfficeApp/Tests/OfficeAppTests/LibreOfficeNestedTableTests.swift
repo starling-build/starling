@@ -86,12 +86,11 @@ final class LibreOfficeNestedTableTests: XCTestCase {
         layout.pageSetup = setup
         layout.width = setup.width * 96.0 / 72.0
         layout.ensureLaidOut(doc)
-        func left(_ text: String) throws -> Double {
-            let k = try XCTUnwrap(doc.paragraphs.firstIndex { $0.text.hasPrefix(text) })
-            return layout.caretRect(RichPosition(paragraph: k, offset: 0), doc).left / theme.pixelsPerPoint
-        }
-        // (The caret at the paragraph's start stands at its left indent, 18pt, on the table's 18pt.)
-        XCTAssertEqual(try left("."), 36.0, accuracy: 1.5)
+        let k = try XCTUnwrap(doc.paragraphs.firstIndex { $0.text.hasPrefix(".") })
+        // The paragraph's left indent, 18pt, stands on the table's 18pt; its first line hangs 18pt, so its "." (and the
+        // caret before it) is at 18, where Word prints the mark. (The caret was held at the left indent before #3254.)
+        XCTAssertEqual(layout.geometry(k).textLeft / theme.pixelsPerPoint, 36.0, accuracy: 1.5)
+        XCTAssertEqual(layout.caretRect(RichPosition(paragraph: k, offset: 0), doc).left / theme.pixelsPerPoint, 18.0, accuracy: 1.5)
     }
 
     /// A table with no grid takes its first row's cell widths: LibreOffice's floattable-nested-3tables
