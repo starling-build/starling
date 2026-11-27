@@ -902,7 +902,9 @@ public final class RichTextTheme {
         if style.plainSize {}
         else if wordRules, style.rightToLeft || style.csMark, !eastAsian, style.fontSize == nil, let z = style.complexFontSize ?? named?.char.complexFontSize ?? normal?.complexFontSize { size = z }
         // (A run that gives `w:sz` and no `w:szCs` is set at the szCs its style or the defaults give: xd 72ea457a's Hebrew, sz 14 over Normal's szCs 12, prints at 12 in David.)
-        else if wordRules, style.rightToLeft, !eastAsian, style.sizeFromStyleSzCs, style.complexFontSize == nil, let z = named?.char.complexFontSize ?? normal?.complexFontSize { size = z }
+        // (With no szCs in the style or the defaults either, Word's own default, 10 pt: dx2 c717b3b2's Urdu labels, sz 16 and no szCs
+        // anywhere, print in ArialMT 9.96 and each label row is 1.2 pt taller than at 8.)
+        else if wordRules, style.rightToLeft, !eastAsian, style.sizeFromStyleSzCs, style.complexFontSize == nil { size = named?.char.complexFontSize ?? normal?.complexFontSize ?? 10 }
         else if wordRules, !style.rightToLeft, !eastAsian, style.sizeFromStyleSzCs, style.fontSize == nil, style.complexFontSize == nil, let z = named?.char.complexFontSize ?? normal?.complexFontSize { size = z }
         // (A style that sets `w:sz` and no `w:szCs` anywhere in the chain leaves complex-script text at Word's 10 pt default, not at `w:sz`:
         // ara-z4399437's keyword lines step 11.5 in Word's print, not 10.4.)
