@@ -215,4 +215,16 @@ final class ScreenReaderTests: XCTestCase {
             try Pptx.write(d).write(to: URL(fileURLWithPath: dir + "/slides-alt.pptx"))
         }
     }
+
+    func testASlideSorterTileIsReadAsSlideOneNotABareNumber() {
+        let ui = app(SlidesShell(initialPath: nil, startBlank: true, onSwitch: { _, _ in }))
+        ui.pump()
+        guard let sorter = ui.semantics().first(where: { $0.label == "Slide Sorter" })?.tap else { return XCTFail("no Slide Sorter button") }
+        sorter()
+        ui.pump()
+        let nodes = ui.semantics()
+        XCTAssertTrue(nodes.contains { $0.label == "Slide 1" && $0.isSelected == true && $0.tap != nil }, "\(nodes.map { $0.label })")
+        XCTAssertFalse(nodes.contains { $0.label == "1" })
+        ui.dispose()
+    }
 }
