@@ -44,6 +44,7 @@ static int load_sdbus(void) {
 #define NULL_PATH "/org/a11y/atspi/null"
 
 static volatile int g_listening;
+static volatile int g_stop;
 static atspi_bridge_host g_host;
 static char *g_app_name;
 static sd_bus *g_bus;
@@ -608,14 +609,27 @@ int atspi_bridge_announce(const char *text, int assertive) {
 
 static void *serve(void *arg) {
     (void)arg;
-    for (;;) {
+    while (!g_stop) {
         int r;
         while ((r = p_sd_bus_process(g_bus, NULL)) > 0) {}
         if (r < 0) break;
         p_sd_bus_wait(g_bus, 400000);
+        if (g_stop) break;
         if (g_listening) poll_events();
         flush_announcements();
     }
+    // Stopped (or the bus failed): leave the bus here, on the thread that owns it.
+    pthread_mutex_lock(&g_lock);
+    sd_bus *bus = g_bus;
+    g_bus = NULL;
+    g_listening = 0;
+    for (int i = 0; i < g_ann_n; i++) free(g_ann_text[i]);
+    g_ann_n = 0;
+    free_nodes();
+    free(g_app_name); g_app_name = NULL;
+    pthread_mutex_unlock(&g_lock);
+    p_sd_bus_flush_close_unref(bus);
+    g_stop = 0;
     return NULL;
 }
 
@@ -658,10 +672,15 @@ int atspi_bridge_start(const atspi_bridge_host *host, const char *app_name) {
         p_sd_bus_message_unref(er);
     } else p_sd_bus_error_free(&err);
 
+    g_stop = 0;
     pthread_t t;
     if (pthread_create(&t, NULL, serve, NULL) != 0) return -6;
     pthread_detach(t);
     return 0;
 }
+
+void atspi_bridge_stop(void) { if (g_bus) g_stop = 1; }
+
+int atspi_bridge_running(void) { return g_bus != NULL; }
 
 const char *atspi_bridge_bus_name(void) { return g_bus ? uname(g_bus) : NULL; }

@@ -73,6 +73,10 @@ typedef struct {
 // Connects to the accessibility bus, registers the app under `app_name` and serves requests on a
 // background thread. Returns 0 on success; negative when there is no bus or sd-bus is missing.
 int atspi_bridge_start(const atspi_bridge_host *host, const char *app_name);
+// Asks the serving thread to leave the bus and end; it does within 0.4 s (a snapshot it is taking may need the
+// host's main thread to turn first). atspi_bridge_running() is 0 once it has. start() may be called again after.
+void atspi_bridge_stop(void);
+int atspi_bridge_running(void);
 
 // Turns the change signals (name, state, nodes added or removed) on or off. Off by default; they cost a
 // look at the whole app a few times a second.

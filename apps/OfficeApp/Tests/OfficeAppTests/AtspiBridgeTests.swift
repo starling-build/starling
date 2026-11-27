@@ -7,6 +7,14 @@ import Flutter
 /// "press" from it runs the widget's tap. Needs dbus-daemon, at-spi-bus-launcher and python3-gi
 /// (Atspi 2.0); the test is skipped where they are missing.
 final class AtspiBridgeTests: XCTestCase {
+    // The bridge is process-wide: leave it off for the tests that follow (a screen reader listening makes every
+    // Sheets edit describe the active cell, and that once cost a 50,000-row test 150 s).
+    override func tearDown() {
+        AtspiAccessibility.stop()
+        ScreenReader.resetForTesting()
+        super.tearDown()
+    }
+
     private func which(_ tool: String) -> String? {
         for dir in ["/usr/bin", "/usr/libexec", "/usr/local/bin"] {
             if FileManager.default.isExecutableFile(atPath: dir + "/" + tool) { return dir + "/" + tool }
