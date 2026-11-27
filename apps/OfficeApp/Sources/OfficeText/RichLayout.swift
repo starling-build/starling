@@ -555,6 +555,11 @@ public final class RichTextTheme {
         // (A right-to-left run is set at the size the file gives complex script, as
         // `textStyle` does: lo-7ec36a70's Persian, 12pt in a style of sz 10, stood 1pt high.)
         if wordRules, style.rightToLeft, !eastAsian, style.fontSize == nil, let z = named?.char.complexFontSize { size = z }
+        // (And a w:cs Thai run with no size of its own is set at the style's szCs, as `textStyle` sets it: dx2 27dc's TH SarabunPSK
+        // lines, sz 22 / szCs 28 from the defaults, stood on an 11 pt baseline under 14 pt letters, so their tone marks rose above
+        // the text area and the PDF dropped them.)
+        else if wordRules, !style.rightToLeft, !eastAsian, style.sizeFromStyleSzCs, style.fontSize == nil, style.complexFontSize == nil,
+                let z = named?.char.complexFontSize { size = z }
         let latinName = style.fontFamily ?? named?.char.fontFamily ?? fontFamily
         let familyName = eastAsian ? (style.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? latinName) : latinName
         let scaled = (style.horizontalScale ?? named?.char.horizontalScale ?? 1) != 1
