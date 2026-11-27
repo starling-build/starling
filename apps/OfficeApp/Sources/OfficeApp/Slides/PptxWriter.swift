@@ -412,12 +412,16 @@ enum PptxWriter {
 
         // Notes, when there are any and a notes master to hang them on.
         let hasText = !slide.notes.paragraphs.allSatisfy({ $0.text.isEmpty })
-        // A notes page the file had, holding only placeholders (date, number, slide image) and no note text, is kept as read.
+        // A notes page the file had is kept as read while its text is unchanged (or it holds only placeholders: date, number,
+        // slide image), so its own shapes, ids, locks and run properties survive; the rewrite keeps only the note text.
+        // Its rels are rewritten (master and slide), so a page that points at anything else by r:id is rebuilt instead.
         var keptNotesXML: Data? = nil
-        if let notesMaster, !hasText, let src = slide.carryPart, let p = source,
+        if let notesMaster, let src = slide.carryPart, let p = source,
            let np = p.rel(src, kind: "notesSlide")?.target, let data = p.parts[np],
            let tree = p.xml(np)?.first("p:cSld")?.first("p:spTree"),
-           !tree.all("p:sp").contains(where: { sp in
+           slide.sourceNotes == slide.notes
+               && !["r:id=\"", "r:embed=\"", "r:link=\"", "r:pict=\""].contains(where: { String(decoding: data, as: UTF8.self).containsSubstring($0) })
+               || !hasText && !tree.all("p:sp").contains(where: { sp in
                sp.first("p:nvSpPr")?.first("p:nvPr")?.first("p:ph")?["type"] == "body"
                    && sp.all("a:t").contains { !($0.text ?? "").isEmpty } }) { keptNotesXML = data }
         if let notesMaster, hasText || keptNotesXML != nil {

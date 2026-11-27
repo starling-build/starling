@@ -1139,6 +1139,7 @@ struct PptxReader {
                     sourceAnimations = mapped
                 }
             }
+            let notes = ctx.notes()
             slides.append(SlideState(
                 id: id(), layout: Self._layoutKind(layoutType), hidden: slide["show"] == "0",
                 hideMasterShapes: slide["showMasterSp"] == "0",
@@ -1147,12 +1148,12 @@ struct PptxReader {
                 cSldExtLstXML: slide.first("p:cSld")?.first("p:extLst").map { PptxXML.serialize($0, declaringFrom: slide, except: ["p", "a", "r"]) },
                 controlsXML: slide.first("p:cSld")?.first("p:controls").map(PptxXML.serialize),
                 decorations: decorations,
-                notes: ctx.notes(), shapes: shapes, layoutPart: layoutPart,
+                notes: notes, shapes: shapes, layoutPart: layoutPart,
                 backgroundXML: bg.map(PptxXML.serialize), background: bgFill, inheritedBackground: inherited,
                 sourcePart: part,
                 transition: Self._transition(slide),
                 timingXML: slide.first("p:timing").map(PptxXML.serialize),
-                footerFrames: footerFrames, animations: animations, sourceAnimations: sourceAnimations))
+                footerFrames: footerFrames, animations: animations, sourceAnimations: sourceAnimations, sourceNotes: notes))
         }
         if slides.isEmpty {
             // An empty deck is still a deck: one blank slide to type on.

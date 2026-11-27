@@ -179,6 +179,8 @@ struct SlideState: Equatable {
     var commentsFrom: String? = nil
     /// The source part slide-level kept things are carried from.
     var carryPart: String? { commentsFrom ?? sourcePart }
+    /// The notes as read; while `notes` still equals them the save keeps the file's own notes page.
+    var sourceNotes: RichDocument? = nil
 }
 
 struct DeckState: Equatable {
