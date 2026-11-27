@@ -1840,6 +1840,14 @@ public final class RichEditableState: State<StatefulWidget> {
                 canvas.drawLine(tip, Offset(tip.dx - dx * h + dy * h, tip.dy - dy * h + dx * h), ink)
             }
         }
+        // Tracked changes: a change bar beside each changed line, as Word draws it.
+        let bars = _layout.canvasChangeBars(_controller.document, visible: visible)
+        if !bars.isEmpty {
+            let bar = Paint()
+            bar.style = .fill
+            bar.color = _layout.theme.textColor
+            for r in bars { canvas.drawRect(r, bar) }
+        }
         // An IME's uncommitted text: a line under the composing range.
         if let composing = _controller.composingRange, _layout.count > composing.paragraph {
             let sel = RichSelection(anchor: RichPosition(paragraph: composing.paragraph, offset: composing.range.lowerBound),

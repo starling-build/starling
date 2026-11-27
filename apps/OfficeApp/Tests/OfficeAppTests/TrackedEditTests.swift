@@ -3,6 +3,7 @@
 
 import XCTest
 import OfficeText
+import FlutterSwiftBridge
 @testable import OfficeApp
 
 /// With track changes on (`w:trackRevisions` in the settings), the editor's own edits are recorded as Word
@@ -175,6 +176,30 @@ final class TrackedEditTests: XCTestCase {
         let out = try saved(c).body
         XCTAssertEqual(count(out, "<w:rPrChange "), 1, out)
         XCTAssertTrue(out.containsSubstring("w:author=\"Tester\" w:date=\"2026-11-27T10:00:00Z\"><w:rPr>"), out)
+    }
+
+    /// The editor shows a tracked change: a change bar in the margin beside the changed line only, as Word does,
+    /// for a formatting change as much as for typed text.
+    func testATrackedChangeShowsAChangeBar() throws {
+        let c = try open(["Hello world", "Untouched line"], tracking: true)
+        let layout = RichLayout(theme: RichTextTheme(fontFamily: OfficeFonts.serif, fontSize: 12), paragraphCount: 2)
+        layout.width = 400
+        layout.pageSetup = .letter
+        let all = Rect.fromLTWH(-1e6, -1e6, 2e6, 2e6)
+        layout.ensureLaidOut(c.document)
+        XCTAssertEqual(layout.canvasChangeBars(c.document, visible: all), [])
+        c.moveTo(RichPosition(paragraph: 0, offset: 0), extend: false)
+        c.moveTo(RichPosition(paragraph: 0, offset: 5), extend: true)
+        c.toggleBold()
+        layout.invalidateAll()
+        layout.ensureLaidOut(c.document)
+        let bars = layout.canvasChangeBars(c.document, visible: all)
+        XCTAssertEqual(bars.count, 1)
+        let first = layout.canvasCaretRect(RichPosition(paragraph: 0, offset: 0), c.document)
+        let second = layout.canvasCaretRect(RichPosition(paragraph: 1, offset: 0), c.document)
+        XCTAssertLessThan(bars[0].right, first.left)
+        XCTAssertLessThan(bars[0].top, second.top)
+        XCTAssertGreaterThan(bars[0].bottom, first.top)
     }
 
     /// Formatting what the reviewer just typed records nothing more: it is an insertion either way.
