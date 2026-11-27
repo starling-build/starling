@@ -2986,6 +2986,9 @@ final class DeckController: ChangeNotifier {
         theme.uprightColumn = { SlideFonts.uprightColumn($0, bold: $1) }
         theme.uprightDigitAscent = { SlideFonts.uprightDigitAscent($0, bold: $1) }
         theme.faceResolver = SlideFonts.face                 // and sets Lucida Sans Unicode at its own widths
+        // (A Japanese or Korean face PowerPoint has draws its kana, ideographs and Hangul in the bundled face of its own language,
+        // not the glyph fallback's Simplified Chinese one: ja-9ce6e01e5f's MS PGothic 直 and 骨 printed in the Chinese forms.)
+        theme.ideographFace = SlideFonts.ownIdeographFace
         theme.setsFaceAdvances = true
         theme.symbolAdvance = Metafile.symbolAdvance   // and sets a Symbol run's glyphs at the face's own advances
         theme.scriptSizeWholeUp = true      // and sets a raised run at two thirds of its size
