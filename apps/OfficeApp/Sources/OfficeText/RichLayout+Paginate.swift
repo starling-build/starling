@@ -234,6 +234,7 @@ extension RichLayout {
                         || left + (_columnWidths[back.table] ?? []).reduce(0, +) <= 0.01)
                     if !beside {
                         pgs.tableBands.append((top: back.top, bottom: pgs.y, owner: -1))
+                        if document.tableStyles[back.table]?.pageAnchored == true { pgs.pageTableBands.append((top: back.top, bottom: pgs.y, table: back.table)) }
                         if RichTextTheme.wordWindowsPages, document.tableStyles[back.table]?.pageAnchored == true,
                            _tableLeftRoom(back.table, document) >= _px(18) || (_tableFlowWidth[back.table] ?? width) - (left + (_columnWidths[back.table] ?? []).reduce(0, +)) >= _px(12) {
                             // (A strip at the table's right, or the room at its left: blank lines stand beside it, dx2 f22ada3a's

@@ -150,6 +150,7 @@ extension RichLayout {
         pgs.fixedBands.removeAll()
         pgs.tightBandBottoms.removeAll()
         pgs.tableBands.removeAll()
+        pgs.pageTableBands.removeAll()
         pgs.pictureBands.removeAll()
         pgs.narrowBands.removeAll()
         pgs.anchorRun.removeAll()
