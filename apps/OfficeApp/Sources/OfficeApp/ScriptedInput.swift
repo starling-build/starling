@@ -52,6 +52,11 @@ enum ScriptedInput {
 
     private static var _pointerId: Int64 = 1
     private static var _added = false
+    /// The driver's pointer is its own device. The window's real mouse is device 0 and adds itself on its first move
+    /// over the window; a second `.add` for the same device broke the mouse tracker's Added/Removed pairing (the debug
+    /// assert `MouseTracker.swift:721`) in any run with the real pointer over the window (a run without
+    /// STARLING_WINDOW_BACKGROUND=1), and so stopped it.
+    private static let _device: Int64 = 1000
     private static var _time = 0.0
 
     private static func _run(_ lines: ArraySlice<String>) {
@@ -73,10 +78,10 @@ enum ScriptedInput {
             var packet: [PointerData] = []
             let t = Duration.microseconds(Int64(_time * 1_000_000))
             if !_added {
-                packet.append(PointerData(timeStamp: t, change: .add, kind: .mouse, device: 0, physicalX: 0, physicalY: 0))
+                packet.append(PointerData(timeStamp: t, change: .add, kind: .mouse, device: _device, physicalX: 0, physicalY: 0))
                 _added = true
             }
-            packet.append(PointerData(timeStamp: t, change: .hover, kind: .mouse, device: 0,
+            packet.append(PointerData(timeStamp: t, change: .hover, kind: .mouse, device: _device,
                                       physicalX: Double(parts[1])! * dpr, physicalY: Double(parts[2])! * dpr))
             PlatformDispatcher.instance.onPointerDataPacket?(PointerDataPacket(data: packet))
         case "rclick":
@@ -118,7 +123,7 @@ enum ScriptedInput {
             let x = Double(parts[1])! * dpr, y = Double(parts[2])! * dpr
             let t = Duration.microseconds(Int64(_time * 1_000_000))
             PlatformDispatcher.instance.onPointerDataPacket?(PointerDataPacket(data: [
-                PointerData(timeStamp: t, change: .hover, kind: .mouse, signalKind: .scroll, device: 0, physicalX: x, physicalY: y,
+                PointerData(timeStamp: t, change: .hover, kind: .mouse, signalKind: .scroll, device: _device, physicalX: x, physicalY: y,
                             scrollDeltaX: Double(parts[3])! * dpr, scrollDeltaY: Double(parts[4])! * dpr),
             ]))
         case "shot":
@@ -163,20 +168,20 @@ enum ScriptedInput {
         let px = x * dpr, py = y * dpr
         let t = Duration.microseconds(Int64(_time * 1_000_000))
         if !_added {
-            packet.append(PointerData(timeStamp: t, change: .add, kind: .mouse, device: 0, physicalX: px, physicalY: py))
+            packet.append(PointerData(timeStamp: t, change: .add, kind: .mouse, device: _device, physicalX: px, physicalY: py))
             _added = true
         }
         switch change {
         case .down:
-            packet.append(PointerData(timeStamp: t, change: .hover, kind: .mouse, device: 0, physicalX: px, physicalY: py))
+            packet.append(PointerData(timeStamp: t, change: .hover, kind: .mouse, device: _device, physicalX: px, physicalY: py))
             _pointerId += 1
-            packet.append(PointerData(timeStamp: t, change: .down, kind: .mouse, device: 0, pointerIdentifier: _pointerId,
+            packet.append(PointerData(timeStamp: t, change: .down, kind: .mouse, device: _device, pointerIdentifier: _pointerId,
                                       physicalX: px, physicalY: py, buttons: buttons, pressure: 1, pressureMax: 1))
         case .move:
-            packet.append(PointerData(timeStamp: t, change: .move, kind: .mouse, device: 0, pointerIdentifier: _pointerId,
+            packet.append(PointerData(timeStamp: t, change: .move, kind: .mouse, device: _device, pointerIdentifier: _pointerId,
                                       physicalX: px, physicalY: py, buttons: 1, pressure: 1, pressureMax: 1))
         case .up:
-            packet.append(PointerData(timeStamp: t, change: .up, kind: .mouse, device: 0, pointerIdentifier: _pointerId,
+            packet.append(PointerData(timeStamp: t, change: .up, kind: .mouse, device: _device, pointerIdentifier: _pointerId,
                                       physicalX: px, physicalY: py, buttons: 0, pressure: 0, pressureMax: 1))
         }
         PlatformDispatcher.instance.onPointerDataPacket?(PointerDataPacket(data: packet))
