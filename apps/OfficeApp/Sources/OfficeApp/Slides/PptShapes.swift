@@ -153,9 +153,14 @@ extension PptFile {
             let (art, anchor, placeholder, block) = read(sp)
             if placeholdersOnly && placeholder == nil { return "" }
             // PowerPoint 2007 and later keep a chart's or diagram's own frame beside the picture older versions show.
+            // Its place is the frame's own (PowerPoint's EMU, not the anchor rounded to master units), except in
+            // a group: the frame's place is in PowerPoint's group space, which ours (master units) does not share.
             if !placeholdersOnly, let blob = art.complex[0x3A9] {
-                let place = xfrm("xfrm", anchor, rot: rotation(art), flipH: art.flags & 0x40 != 0, flipV: art.flags & 0x80 != 0)
-                let p = place.isEmpty ? nil : "<p:xfrm" + place.dropFirst("<a:xfrm".count).dropLast("</a:xfrm>".count) + "</p:xfrm>"
+                var p: String? = nil
+                if OfficeArt.records(data, in: sp.body).contains(where: { $0.type == 0xF00F }) {
+                    let place = xfrm("xfrm", anchor, rot: rotation(art), flipH: art.flags & 0x40 != 0, flipV: art.flags & 0x80 != 0)
+                    p = place.isEmpty ? nil : "<p:xfrm" + place.dropFirst("<a:xfrm".count).dropLast("</a:xfrm>".count) + "</p:xfrm>"
+                }
                 if let x = embed(blob, n + 1, p) { n += 1; return x }
             }
             if art.type == 75, art.pib > 0, let rid = picture(art.pib) {

@@ -136,7 +136,14 @@ enum OfficeArt {
                                 let o = c.body.lowerBound + 6 * k
                                 guard o + 6 <= c.body.upperBound else { break }
                                 let pid = u16(b, o), v = u32(b, o + 2)
-                                s.props[pid & 0x3FFF] = v
+                                // A boolean set (id ending 0x3F) names the flags it sets in its high half, so a second
+                                // table's set changes only those flags, not the ones the first table set.
+                                if pid & 0x3F == 0x3F, pid & 0xC000 == 0, let old = s.props[pid & 0x3FFF] {
+                                    let use = (v >> 16) & 0xFFFF, mask = use | (use << 16)
+                                    s.props[pid & 0x3FFF] = (old & ~mask) | (v & mask)
+                                } else {
+                                    s.props[pid & 0x3FFF] = v
+                                }
                                 if pid & 0x3FFF == 0x104 { s.pib = v }
                             }
                             var q = c.body.lowerBound + 6 * n

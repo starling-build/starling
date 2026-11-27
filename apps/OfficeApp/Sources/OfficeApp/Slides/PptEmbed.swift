@@ -14,8 +14,8 @@ struct PptEmbeds {
     var defaults: [String: String] = [:]        // extension -> content type
     private var counters: [String: Int] = [:]
 
-    /// The graphic frame a metroBlob holds, as a `p:graphicFrame` with cNvPr id `id` and the place `xfrm`
-    /// (a `p:xfrm`), its parts added; `relate(type, target)` adds a relationship to the part that shows it
+    /// The graphic frame a metroBlob holds, as a `p:graphicFrame` with cNvPr id `id` at its own place or at
+    /// `xfrm` (a `p:xfrm`) when given, its parts added; `relate(type, target)` adds a relationship to the part that shows it
     /// and returns the id. Nil when the blob holds no frame or names a part it does not carry.
     mutating func frame(_ blob: [UInt8], id: Int, xfrm: String?, relate: (String, String) -> String) -> String? {
         guard let entries = try? Zip.read(Data(blob)) else { return nil }

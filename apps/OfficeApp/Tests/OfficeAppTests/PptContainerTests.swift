@@ -417,8 +417,8 @@ final class PptContainerTests: XCTestCase {
         XCTAssertTrue(slide.contains("<p:graphicFrame xmlns:p="), slide)
         XCTAssertTrue(slide.contains("<c:chart r:id=\"rIdE1\"/>"))
         XCTAssertTrue(slide.contains("<p:cNvPr id=\"2\" name=\"Chart 5\"/>"))
-        // The shape's own anchor (master units to EMU), not the blob's.
-        XCTAssertTrue(slide.contains("<p:xfrm><a:off x=\"317500\" y=\"158750\"/><a:ext cx=\"1428750\" cy=\"1746250\"/></p:xfrm>"), slide)
+        // The frame's own place (PowerPoint keeps it, not the shape's anchor rounded to master units).
+        XCTAssertTrue(slide.contains("<p:xfrm><a:off x=\"1\" y=\"1\"/><a:ext cx=\"1\" cy=\"1\"/></p:xfrm>"), slide)
         XCTAssertFalse(slide.contains("E2oFrame"))
         XCTAssertTrue(text("ppt/slides/_rels/slide1.xml.rels").contains("Id=\"rIdE1\" Type=\"\(officeRel)chart\" Target=\"../charts/chartm1.xml\""))
         XCTAssertEqual(text("ppt/charts/chartm1.xml"), "<c:chartSpace/>")
@@ -428,6 +428,18 @@ final class PptContainerTests: XCTestCase {
         XCTAssertTrue(types.contains("<Override PartName=\"/ppt/charts/chartm1.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.drawingml.chart+xml\"/>"))
         XCTAssertTrue(types.contains("<Default Extension=\"bin\""))
         XCTAssertFalse(parts.contains { $0.name.contains("downrev") || $0.name.contains("e2oDoc") })
+    }
+
+    func testATertiaryBooleanSetChangesOnlyTheFlagsItNames() {
+        // Primary fill booleans: fFilled set (use bit 20, value bit 4). The tertiary table's set names only
+        // fUseShapeAnchor and fRecolorFillAsPicture (use bits 21, 22, both false): fFilled must stay.
+        let primary = rec(0xF00B, ver: 3, inst: 1, le16(0x1BF) + le32(0x0010_0010))
+        let tertiary = rec(0xF122, ver: 3, inst: 2, le16(0x1BF) + le32(0x0060_0000) + le16(0x0181) + le32(0x123456))
+        let sp = rec(0xF004, ver: 15, rec(0xF00A, ver: 2, inst: 1, le32(2) + le32(0xA00)) + primary + tertiary)
+        let b = rec(0xF003, ver: 15, sp)
+        let shapes = OfficeArt.shapes(drawing: b)
+        XCTAssertEqual(shapes.first?.props[0x1BF], 0x0070_0010)   // fFilled kept; the two named flags set (false)
+        XCTAssertEqual(shapes.first?.props[0x181], 0x123456)
     }
 
     func testSlideNumberAndDateMarksBecomeFields() throws {
