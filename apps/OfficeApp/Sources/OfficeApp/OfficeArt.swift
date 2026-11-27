@@ -152,8 +152,13 @@ enum OfficeArt {
                                 guard o + 6 <= c.body.upperBound else { break }
                                 let pid = u16(b, o), v = u32(b, o + 2)
                                 guard pid & 0x8000 != 0 else { continue }
-                                // (An array's size leaves out its 6-byte header: those properties carry both flag bits.)
-                                let size = v + (pid & 0x4000 != 0 ? 6 : 0)
+                                // An array (both flag bits) starts with a 6-byte header: count, allocated, element size
+                                // (0xFFF0: 4 bytes). Some writers count that header in the size and some leave it out.
+                                var size = v
+                                if pid & 0x4000 != 0 {
+                                    let cb = u16(b, q + 4) == 0xFFF0 ? 4 : u16(b, q + 4)
+                                    if v != 6 + u16(b, q) * cb { size = v + 6 }
+                                }
                                 let e = min(q + size, c.body.upperBound)
                                 if q <= e { s.complex[pid & 0x3FFF] = Array(b[q ..< e]) }
                                 q += size

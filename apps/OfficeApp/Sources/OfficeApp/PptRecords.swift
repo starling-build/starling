@@ -31,6 +31,8 @@ struct PptFile {
         var textStyles: [Int: [PptStyle.Level]] = [:]
         /// SlideShowSlideInfoAtom flags bit 2 (value 4): the slide is hidden in the show.
         var hidden = false
+        /// A master's RoundTripTheme12Atom: the theme package PowerPoint 2007 and later keep beside the scheme.
+        var theme: [UInt8]? = nil
         var followsMasterObjects: Bool { flags & 1 != 0 }
         var followsMasterScheme: Bool { flags & 2 != 0 }
         var followsMasterBackground: Bool { flags & 4 != 0 }
@@ -53,6 +55,12 @@ struct PptFile {
     private(set) var firstSlideNumber = 1
     /// The deck's font names, by the index a text run's font reference holds (FontCollection).
     private(set) var fonts: [String] = []
+    /// The document's default character properties (the Environment's TextCFExceptionAtom): what text that
+    /// names no font of its own, at any level of the master styles, is drawn with.
+    private(set) var defaultChar = PptCharRun()
+    /// The document's own TextMasterStyleAtoms by text type (the Environment's): what a text box on a slide
+    /// is drawn with, where the master's styles are for its placeholders.
+    private(set) var defaultStyles: [Int: [PptStyle.Level]] = [:]
 
     init(currentUser: [UInt8], document: [UInt8]) throws {
         guard let user = PptCurrentUser(currentUser) else {
@@ -83,7 +91,11 @@ struct PptFile {
             if w > 0, h > 0, w < 0x10000, h < 0x10000 { slideWidth = w; slideHeight = h }
             firstSlideNumber = OfficeArt.u16(document, b + 32)
         }
-        for env in OfficeArt.records(document, in: doc.body) where env.type == 0x03FF {
+        for env in OfficeArt.records(document, in: doc.body) where env.type == 0x03F2 {
+            for r in OfficeArt.records(document, in: env.body) {
+                if r.type == 0x0FA4 { defaultChar = PptStyle.parseChar(document, in: r.body) }
+                if r.type == 0x0FA3 { defaultStyles[r.inst] = PptStyle.parseMaster(document, in: r.body, type: r.inst) }
+            }
             for coll in OfficeArt.records(document, in: env.body) where coll.type == 0x07D5 {
                 for e in OfficeArt.records(document, in: coll.body) where e.type == 0x0FB7 {
                     var units: [UInt16] = []
@@ -140,6 +152,8 @@ struct PptFile {
                 p.flags = OfficeArt.u16(data, r.body.lowerBound + 20)
             case 0x03F9 where r.body.count >= 16:
                 p.hidden = OfficeArt.u16(data, r.body.lowerBound + 10) & 4 != 0
+            case 0x040E where p.theme == nil:
+                p.theme = Array(data[r.body])
             case 0x0FA3:
                 p.textStyles[r.inst] = PptStyle.parseMaster(data, in: r.body, type: r.inst)
             case 0x07F0 where r.body.count >= 32:
