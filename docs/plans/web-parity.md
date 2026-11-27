@@ -115,12 +115,16 @@ CDP) checks the page side: the print frame, IndexedDB rows, recovery after a rel
    document opens unsaved with "Restored an unsaved document — Save to keep it", and
    Close's Don't Save drops the row. BrowserRecoveryTests (native, a stand-in page);
    test/office-recovery-web.sh in Chromium: type, close, a new browser on the same
-   profile gets the text back, Save downloads it and deletes the row. Not yet: Slides.
+   profile gets the text back, Save downloads it and deletes the row. 
    DONE 2026-11-27 (amd-11): a flush on page close. The page calls `starling_page_hidden`
    on visibilitychange (hidden) and pagehide, and Word writes its copy at once instead of
    after the 2-second pause, which a closing tab never gets; a hide with no edit since the
    last copy writes nothing. BrowserRecoveryTests (fails before), office-recovery-web.sh
    step 4 (row there 300 ms after pagehide; fails on the old build).
+   Slides DONE 2026-11-27 (amd-11): a deck keeps its copy as a `pptx` row (the page-close flush
+   covers it too); a tab always starts in Writer, which hands a deck's row to Slides, where it
+   opens unsaved. BrowserSlidesRecoveryTests (fail before), test/office-recovery-slides-web.sh
+   (Chromium, 6/6). Sheets next.
 3. **Recent files.** Each open and save puts a row in IndexedDB store `recent` (name,
    kind, time, a copy of the bytes, and the file handle where the browser has the
    File System Access API). Backstage Home and Open list them as natively; reopening
