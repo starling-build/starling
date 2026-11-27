@@ -585,6 +585,9 @@ struct Scene3D: Equatable {
     /// `a:sp3d prstMaterial` ("" when omitted).
     var material = ""
     var cameraName = ""
+    /// `a:camera fov`, in degrees, when given (PowerPoint's lens for a
+    /// perspective preset is 45, or 80 for the heroic extreme ones).
+    var fov: Double? = nil
     /// `a:lightRig`: the rig's name, and how far `dir` turns it about the
     /// line of sight, in degrees clockwise ("t" 0, "r" 90).
     var rig = "threePt"

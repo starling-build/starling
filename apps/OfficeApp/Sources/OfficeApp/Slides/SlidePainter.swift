@@ -1463,9 +1463,8 @@ final class SlidePainter: CustomPainter {
         defer { shape.frame = keptFrame; shape.insets = keptInsets }
         // Text lies on the shape's front face: under a turned camera it is drawn through the face's own map (at the shape's middle).
         if text, shape.warp == nil, shape.chart == nil, shape.kind != .table, let scene = shape.scene3d, !scene.isFlatTurn,
-           let m = Extrusion.frontMap(scene) {
-            let c = r.center
-            canvas.transform([m.a, m.b, 0, 0, m.c, m.d, 0, 0, 0, 0, 1, 0, c.dx - m.a * c.dx - m.c * c.dy, c.dy - m.b * c.dx - m.d * c.dy, 0, 1])
+           let m = Extrusion.frontTransform(scene, center: r.center, pxPerPt: px) {
+            canvas.transform(m)
         }
         // (An empty table still has its rows' fills and borders to draw.)
         if text, shape.textStacked != 0, !shape.isEmptyText, SlideTextCache.paintStacked(shape, r, px, canvas, cache) {
