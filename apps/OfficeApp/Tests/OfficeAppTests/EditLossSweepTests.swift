@@ -162,6 +162,7 @@ final class EditLossSweepTests: XCTestCase {
                 }
                 for (k, n) in l {
                     docsLost[v, default: [:]][k, default: 0] += 1; inst[v, default: [:]][k, default: 0] += n
+                    if v == "base", deltaDocs[v, default: [:]][k, default: []].count < 3 { deltaDocs[v, default: [:]][k, default: []].append(f) }
                     if v != "base", n > (baseLoss[k] ?? 0) { docsDelta[v, default: [:]][k, default: 0] += 1
                         if deltaDocs[v, default: [:]][k, default: []].count < 3 { deltaDocs[v, default: [:]][k, default: []].append(f) }
                         instDelta[v, default: [:]][k, default: 0] += n - (baseLoss[k] ?? 0) }
@@ -173,7 +174,7 @@ final class EditLossSweepTests: XCTestCase {
             lines.append("== \(v) \(v == "base" ? "(save with no edit)" : "(loss beyond the no-edit save)"): docs\tinstances\tname")
             let d = v == "base" ? docsLost[v] ?? [:] : docsDelta[v] ?? [:], n = v == "base" ? inst[v] ?? [:] : instDelta[v] ?? [:]
             for (k, c) in d.sorted(by: { $0.value != $1.value ? $0.value > $1.value : $0.key < $1.key }).prefix(400) {
-                let who = v == "base" ? "" : "\t" + (deltaDocs[v]?[k] ?? []).joined(separator: " ")
+                let who = "\t" + (deltaDocs[v]?[k] ?? []).joined(separator: " ")
                 lines.append("\(c)\t\(n[k] ?? 0)\t\(k)\(who)")
             }
         }
