@@ -22,6 +22,7 @@ for _v in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS"):
     os.environ.setdefault(_v, "1")
 
 os.environ["DOCX_LINE_MATCH"] = "v2"
+os.environ["DOCX_LINE_ROT"] = "0"   # Slides/Sheets keep turned text as before; only Word reads it in its own frame (2026-11-27)
 os.environ.setdefault("PPT_RTL_NORM", "1"); os.environ.setdefault("PPT_MIN_PT", "3")
 HERE = os.path.dirname(os.path.abspath(__file__))
 spec = importlib.util.spec_from_file_location("docx_line_match", os.path.join(HERE, "docx-line-match.py"))

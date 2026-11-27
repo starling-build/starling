@@ -7,7 +7,7 @@ OUT starts with "# main SHA <date>" then: deck, page, matched, pp_lines, ours_li
 import importlib.util, os, sys, time
 from multiprocessing import Pool
 work, refs, out, sha = sys.argv[1:5]
-os.environ["DOCX_LINE_MATCH"] = "v2"; os.environ.setdefault("PPT_RTL_NORM", "1"); os.environ.setdefault("PPT_MIN_PT", "3")
+os.environ["DOCX_LINE_MATCH"] = "v2"; os.environ["DOCX_LINE_ROT"] = "0"; os.environ.setdefault("PPT_RTL_NORM", "1"); os.environ.setdefault("PPT_MIN_PT", "3")
 here = os.path.dirname(os.path.abspath(__file__))
 spec = importlib.util.spec_from_file_location("d", os.path.join(here, "..", "docx-line-match.py"))
 M = importlib.util.module_from_spec(spec); spec.loader.exec_module(M)
