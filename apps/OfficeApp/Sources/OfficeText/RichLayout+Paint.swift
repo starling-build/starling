@@ -2168,9 +2168,23 @@ extension RichLayout {
         var leadersPainted = false
         _paintScripts(lines?.paragraph ?? document.paragraphs[i], lines?.painter ?? g.painter, at: textAt, canvas, document,
                       map: lines == nil ? _map(i) : nil, leading: true)
+        // (A cell of an exact row too short to show any of its first line's capitals draws no text: Word leaves
+        // the line out of its print, where the clip alone kept it in ours, unseen. dx4j-d5b6ee0cfa's 1-twip row;
+        // lab row1, 20pt Calibri: rows of 0.05-5pt carry no line in Word's print, 7pt (0.5pt of capitals) its first.)
+        let hiddenByExactRow: Bool = {
+            guard theme.wordRules, lines == nil, let c = _cells[i], c.rowSpan == 1,
+                  document.tableStyles[c.table]?.rowsExactHeight.contains(c.row) == true,
+                  let first = g.painter.computeLineMetrics().first else { return false }
+            let p = document.paragraphs[i]
+            let family = p.runs.first(where: { $0.length > 0 })?.style.fontFamily ?? _named(p, document)?.char.fontFamily ?? theme.fontFamily
+            guard let cap = theme.capOverWinAscent?(family) else { return false }
+            return textAt.dy + first.baseline - first.ascent * cap >= c.rowTop + c.ownRowHeight
+        }()
         if _paintMode == 2 {
             // (The pictures-only pass of a parted paragraph draws no text: its window is the pictures', and a vertical
             // column's lines under one were drawn a second time over the first — ja-b852b9029c page 1.)
+        } else if hiddenByExactRow {
+            RuleTrace.hit("word-exact-row-too-short-for-capitals-draws-no-text")
         } else if let lines {
             lines.painter.paint(canvas, textAt)
         } else if !_paintScaled(i, g, canvas, document) {

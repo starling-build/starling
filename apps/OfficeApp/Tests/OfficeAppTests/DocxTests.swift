@@ -125,7 +125,34 @@ final class DocxTests: XCTestCase {
     /// own content (Word's 55966 and independently printed variants).
     func testHtmlAltChunkIsItsParagraphs() {
         let html = "<html><head><title>t</title><style>p{}</style></head><body><p>HTML &amp; AltChunk</p><div>two<br>lines</div></body></html>"
-        XCTAssertEqual(DocxFormat._htmlParagraphs(html), ["HTML & AltChunk", "two", "lines"])
+        XCTAssertEqual(DocxFormat._htmlParagraphs(html).map(\.text), ["HTML & AltChunk", "two", "lines"])
+    }
+
+    /// A picture in an HTML chunk that Word cannot load (its src on the web)
+    /// stands as Word's box in the line: 24pt square, or the size the img
+    /// gives in px; a picture of inline data is not one (dx4j-d5b6ee0cfa chunk63).
+    func testHtmlChunkPictureNotLoadedIsAStandInBox() throws {
+        let html = "<html><body><p>CHK</p><p><img src=\"http://x.invalid/a.png\" alt=\"\"></p>"
+            + "<p>a <img src='b.png' width=\"48\" height=\"20\"> b</p><p><img src=\"data:image/png;base64,AA==\"></p></body></html>"
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph()]), pageSetup: .letter))
+        let d = entries.firstIndex { $0.name == "word/document.xml" }!
+        entries[d] = ZipEntry(name: "word/document.xml", data: Data(("<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" "
+            + "xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\"><w:body>"
+            + "<w:altChunk r:id=\"rIdChunk\"/><w:p><w:r><w:t>After</w:t></w:r></w:p></w:body></w:document>").utf8))
+        let r = entries.firstIndex { $0.name == "word/_rels/document.xml.rels" }!
+        let rels = String(decoding: entries[r].data, as: UTF8.self).replacingOccurrences(of: "</Relationships>",
+            with: "<Relationship Id=\"rIdChunk\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/aFChunk\" Target=\"chunk.htm\"/></Relationships>")
+        entries[r] = ZipEntry(name: "word/_rels/document.xml.rels", data: Data(rels.utf8))
+        entries.append(ZipEntry(name: "word/chunk.htm", data: Data(html.utf8)))
+        let p = try DocxFormat.read(Zip.write(entries)).document.paragraphs
+        let mark = RichParagraph.inlineImageCharacter
+        XCTAssertEqual(p.map(\.text), ["CHK", "", "a \(mark) b", "After"])
+        let box = p[1].image
+        XCTAssertEqual(box?.width ?? 0, 24, accuracy: 0.001)
+        XCTAssertEqual(box?.height ?? 0, 24, accuracy: 0.001)
+        let sized = p[2].inlineImages.values.first
+        XCTAssertEqual(sized?.width ?? 0, 36, accuracy: 0.001)
+        XCTAssertEqual(sized?.height ?? 0, 15, accuracy: 0.001)
     }
 
     /// Values past Word's 16 bits (8 for a border's width, 5 for its gap)
@@ -4017,6 +4044,42 @@ final class DocxTests: XCTestCase {
     func testDigitsInAnRtlB_NazaninRunKeepArialsLine() throws {
         // dx2 fc332781: " 1333 " in an rtl run is ArialMT, a 1.149 em line, not Carlito's 1.22.
         XCTAssertEqual(try nazaninLineHeight(text: " 1333 "), try nazaninLineHeight(text: " 1333 ", face: "Arial"), accuracy: 0.05)
+    }
+
+    /// A cell of an exact row too short to show any of its line's capitals draws no text (Word leaves the line out of its
+    /// print; ours kept it, clipped and unseen, in the PDF's text). dx4j-d5b6ee0cfa's 1-twip row; lab row1, 20pt Calibri:
+    /// Word's print has no line for rows of 1-100 twips and the line for 140 (0.5pt of the capitals shows).
+    func testAnExactRowTooShortForItsCapitalsDrawsNoText() throws {
+        _ = OfficeFonts.register()
+        func drawn(_ twips: Int) throws -> Int {
+            var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "AFTER")]), pageSetup: .a4))
+            let di = try XCTUnwrap(entries.firstIndex { $0.name == "word/document.xml" })
+            var xml = String(decoding: entries[di].data, as: UTF8.self)
+            let table = "<w:tbl><w:tblPr><w:tblW w:w=\"0\" w:type=\"auto\"/><w:tblCellMar><w:top w:w=\"0\" w:type=\"dxa\"/><w:bottom w:w=\"0\" w:type=\"dxa\"/></w:tblCellMar></w:tblPr>"
+                + "<w:tblGrid><w:gridCol w:w=\"4000\"/></w:tblGrid><w:tr><w:trPr><w:trHeight w:val=\"\(twips)\" w:hRule=\"exact\"/></w:trPr>"
+                + "<w:tc><w:tcPr><w:tcW w:w=\"4000\" w:type=\"dxa\"/></w:tcPr><w:p><w:pPr><w:spacing w:after=\"0\" w:line=\"240\" w:lineRule=\"auto\"/></w:pPr>"
+                + "<w:r><w:rPr><w:rFonts w:ascii=\"Calibri\" w:hAnsi=\"Calibri\"/><w:sz w:val=\"40\"/></w:rPr><w:t>ROW</w:t></w:r></w:p></w:tc></w:tr></w:tbl>"
+            xml = xml.replacingAll("<w:body>", with: "<w:body>" + table)
+            entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+            let opened = try DocxFormat.read(try Zip.write(entries))
+            let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+            theme.fontFamilyResolver = OfficeFonts.drawn
+            theme.winLineBox = OfficeFonts.standInWinBox
+            theme.capOverWinAscent = OfficeFonts.standInCapOverWinAscent
+            theme.wordRules = true
+            let l = RichLayout(theme: theme, paragraphCount: opened.document.paragraphs.count)
+            let setup = opened.pageSetup ?? .a4
+            l.pageSetup = setup
+            l.width = setup.columnWidth * theme.pixelsPerPoint
+            l.ensureLaidOut(opened.document)
+            let canvas = ParagraphHeightCanvas()
+            l.paint(canvas, visible: l.pageRect(0), document: opened.document, selection: nil, caret: nil)
+            return canvas.heights.count
+        }
+        let shown = try drawn(140)
+        XCTAssertEqual(try drawn(1), shown - 1)
+        XCTAssertEqual(try drawn(100), shown - 1)
+        XCTAssertEqual(try drawn(260), shown)
     }
 
     /// Heights (pt) of the paragraphs of a body written as raw WordprocessingML, B Nazanin (Arabic charset, no alternate) as the faces.

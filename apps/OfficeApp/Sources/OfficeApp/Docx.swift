@@ -2656,18 +2656,34 @@ enum DocxFormat {
                    ["html", "htm", "xhtml"].contains(rel.target.split(separator: ".").last.map { $0.lowercased() } ?? ""),
                    let data = part(_resolvePath("word", rel.target)) {
                     RuleTrace.hit("html-alt-chunk-is-paragraphs")
-                    for text in Self._htmlParagraphs(String(decoding: data, as: UTF8.self)) {
-                        let run = XNode(name: "w:r", attrs: [:])
-                        let rPr = XNode(name: "w:rPr", attrs: [:])
-                        rPr.children = [XNode(name: "w:rFonts", attrs: ["w:ascii": "Times New Roman", "w:hAnsi": "Times New Roman", "w:cs": "Times New Roman"]),
-                                        XNode(name: "w:sz", attrs: ["w:val": "24"])]
-                        let t = XNode(name: "w:t", attrs: ["xml:space": "preserve"])
-                        t.text = text
-                        run.children = [rPr, t]
+                    for (text, pictures) in Self._htmlParagraphs(String(decoding: data, as: UTF8.self)) {
+                        func rPr() -> XNode {
+                            let rPr = XNode(name: "w:rPr", attrs: [:])
+                            rPr.children = [XNode(name: "w:rFonts", attrs: ["w:ascii": "Times New Roman", "w:hAnsi": "Times New Roman", "w:cs": "Times New Roman"]),
+                                            XNode(name: "w:sz", attrs: ["w:val": "24"])]
+                            return rPr
+                        }
                         let pPr = XNode(name: "w:pPr", attrs: [:])
                         pPr.children = [XNode(name: "w:spacing", attrs: ["w:before": "280", "w:after": "280"])]
                         let para = XNode(name: "w:p", attrs: [:])
-                        para.children = [pPr, run]
+                        para.children = [pPr]
+                        // Text and pictures it cannot load (`HtmlMissingPicture.mark`), a run each, in order.
+                        for (k, piece) in text.split(separator: HtmlMissingPicture.mark, omittingEmptySubsequences: false).enumerated() {
+                            if k > 0 {
+                                let box = XNode(name: HtmlMissingPicture.element, attrs: [:])
+                                if let w = pictures[k - 1].w { box.attrs["w"] = "\(w)" }
+                                if let h = pictures[k - 1].h { box.attrs["h"] = "\(h)" }
+                                let run = XNode(name: "w:r", attrs: [:])
+                                run.children = [rPr(), box]
+                                para.children.append(run)
+                            }
+                            guard !piece.isEmpty else { continue }
+                            let run = XNode(name: "w:r", attrs: [:])
+                            let t = XNode(name: "w:t", attrs: ["xml:space": "preserve"])
+                            t.text = String(piece)
+                            run.children = [rPr(), t]
+                            para.children.append(run)
+                        }
                         walkBlock(para, indent: indent, depth: depth)
                     }
                 }
