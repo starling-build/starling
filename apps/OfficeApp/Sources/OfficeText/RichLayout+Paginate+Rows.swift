@@ -61,7 +61,15 @@ extension RichLayout {
         // nor zh-d68ac84a's p36 row with 0.53 left, mode 14.)
         if parted {
             let own = max(0, c.rules - c.ruleBelow)
-            if own > 0, _pg_partedOpensUnderNoLine(document, c) {
+            // (A part of such a row that ends at a page's foot closes on
+            // the TABLE's bottom line, and needs room for it only when the
+            // table has one: zh-89385c94 (Table Grid, 0.5 pt bottom line)
+            // kept one 22 pt line more than Word, whose text ends on the
+            // foot with the line under it, and every later page ran a line
+            // late; gv-30930cbf (lines between rows only) prints its part's
+            // last line on the foot with no line drawn there.)
+            if own > 0, _pg_partedOpensUnderNoLine(document, c), c.borders.bottom == nil,
+               document.tableStyles[c.table]?.edges?.bottom == false {
                 RuleTrace.hit("word-parted-row-goes-on-under-table-lines-in-the-rule-it-has")
                 return 0
             }
