@@ -135,6 +135,8 @@ final class SheetsShellState: State<StatefulWidget> {
         // next open offers, and the file itself is left as the user last saved it.
         officeScene.setPictureDrop({ [weak self] path in self?._insertPicture(path) }, owner: self)
         officeScene.registerFlush(owner: self) { [weak self] in
+            // In a browser tab (hidden or closing): the page's copy, now rather than after the pause.
+            if let self, OfficeHost.browserRecovery != nil { self._keepInBrowser(); return }
             guard let self, self.session.dirty, let path = self.session.path,
                   ["xlsx", "csv", "tsv"].contains(path.pathExtension.lowercased()) else { return }
             #if os(macOS)
@@ -192,7 +194,12 @@ final class SheetsShellState: State<StatefulWidget> {
         if let path = _w.initialPath {
             // Bytes from the browser's picker that crossed the kind switch
             // (an .xlsx picked in Writer or Slides) arrive by name, not on disk.
-            if let data = PickedFile.take(path) { _open(path, data: data) } else { _open(path) }
+            // A browser tab's recovery copy that Writer found at start and handed on opens unsaved.
+            if let data = PickedFile.takeRecovered(path) { _open(path, data: data, recovered: true) }
+            else if let data = PickedFile.take(path) { _open(path, data: data) } else { _open(path) }
+        } else if let row = OfficeHost.browserRecovery?.take("xlsx") {
+            // A tab closed with unsaved changes: its copy, under the name it would have saved as.
+            _open(row.name, data: row.data, recovered: true)
         }
         _syncBars()
         #if os(macOS)
@@ -311,21 +318,52 @@ final class SheetsShellState: State<StatefulWidget> {
     /// the file is rewritten after every pause in editing, quietly: no "Saved" flash, no closing the backstage, and
     /// never while a cell is mid-typing (the pause that follows commits it, and `_changed` runs again).
     private var _autosaveGeneration = 0
+    /// The data revision (`wb.edits` goes back to 0 on a save, and down on undo) whose copy the browser page already holds: a page hide asks again, and an unchanged
+    /// workbook is not rewritten.
+    private var _keptChanges: Int?
     private func _scheduleAutosave() {
-        #if os(WASI)
-        return
-        #else
-        guard session.autoSave, session.dirty else { return }
+        if OfficeHost.browserRecovery != nil {
+            // The browser has no files of ours: only the page's recovery copy, kept whatever AutoSave says.
+            guard session.dirty else { return }
+        } else {
+            #if os(WASI)
+            return
+            #else
+            guard session.autoSave, session.dirty else { return }
+            #endif
+        }
         _autosaveGeneration += 1
         let gen = _autosaveGeneration
         DispatchQueue.main.asyncAfter(deadline: .now() + OfficeHost.autosaveDelay) { [weak self] in
             guard let self, self.mounted, self._autosaveGeneration == gen else { return }
             self._autosaveNow()
         }
-        #endif
+    }
+
+    /// In a browser tab: the unsaved workbook goes to the page's storage as an xlsx row, under the name it would
+    /// save as. A cell mid-typing is left alone (as AutoSave leaves it): the pause after it commits comes back here.
+    private func _keepInBrowser() {
+        guard let browser = OfficeHost.browserRecovery, session.dirty, _keptChanges != wb.dataRevision,
+              _grid?.edit == nil else { return }
+        wb.stashViewState()
+        guard let data = try? Xlsx.write(wb.book) else { return }
+        let name = session.path?.lastPathComponent ?? session.title
+        browser.keep("xlsx", name.deletingPathExtension + ".xlsx", data)
+        _keptChanges = wb.dataRevision
+    }
+
+    /// Saved, or a new workbook: no copy to come back to.
+    private func _dropBrowserCopy() {
+        _keptChanges = nil
+        OfficeHost.browserRecovery?.discard()
     }
 
     private func _autosaveNow() {
+        if OfficeHost.browserRecovery != nil {
+            if _grid?.edit != nil { _scheduleAutosave(); return }
+            _keepInBrowser()
+            return
+        }
         #if !os(WASI)  // (never scheduled there: the browser has no file to rewrite, and no atomic writes)
         guard session.autoSave, session.dirty, let path = session.path,
               ["xlsx", "csv", "tsv"].contains(path.pathExtension.lowercased()) else { return }
@@ -557,6 +595,7 @@ final class SheetsShellState: State<StatefulWidget> {
     // MARK: Files
 
     private func _newWorkbook() {
+        _dropBrowserCopy()
         wb.load(Workbook())
         session.path = nil
         session.dirty = false
@@ -630,14 +669,26 @@ final class SheetsShellState: State<StatefulWidget> {
 
     /// A file as bytes, from the browser's picker: a .docx or .pptx goes to
     /// its own shell with the same bytes.
-    private func _open(_ name: String, data: Data) {
+    /// `recovered`: a browser tab's recovery copy, opened unsaved and already the page's row.
+    private func _open(_ name: String, data: Data, recovered: Bool = false) {
         let kind = DocumentKind.kind(forPath: name)
         if kind != .workbook {
             PickedFile.hand(name, data)
             _w.onSwitch(kind, name)
             return
         }
-        _load(data, from: name)
+        guard recovered else { _load(data, from: name); return }
+        do { wb.load(try Workbook.open(data, name: name.lastPathComponent)) } catch {
+            // A copy that does not read never blocks the next start.
+            _dropBrowserCopy()
+            return
+        }
+        session.path = name
+        wb.markUnsaved()
+        session.dirty = true
+        _keptChanges = wb.dataRevision
+        setState { _backstage = nil }
+        _flash("Restored unsaved changes to \(name.lastPathComponent) — Save to keep them")
     }
 
     /// `path` is a file on disk natively, the picked file's name in a tab:
@@ -693,6 +744,7 @@ final class SheetsShellState: State<StatefulWidget> {
             if let old = session.path, old != path { try? FileManager.default.removeItem(atPath: _recoveryPath(for: old)) }
             #endif
             session.path = path
+            _dropBrowserCopy()
             wb.markSaved()
             _recent = OfficeRecent.remember(path, in: _recent)
             setState {
@@ -772,9 +824,6 @@ final class SheetsShellState: State<StatefulWidget> {
     /// File → Print: the shared Print dialog. Its page counts come first (a layout pass for each
     /// thing it can print), then it opens.
     private func _print() {
-        #if os(WASI)
-        _flash("Printing is not available in the browser yet")
-        #else
         _ = _grid?.commitEdit()
         setState { _backstage = nil }
         Task { @MainActor [weak self] in
@@ -791,7 +840,6 @@ final class SheetsShellState: State<StatefulWidget> {
             }
             self.setState { self._printKinds = kinds; self._printCounts = counts; self._printOpen = true }
         }
-        #endif
     }
 
     /// The shared dialog's hooks for this workbook: Active sheet, Entire workbook and (when
@@ -800,7 +848,7 @@ final class SheetsShellState: State<StatefulWidget> {
         let kinds = _printKinds, counts = _printCounts
         return PrintHooks(unit: "Pages", total: max(1, counts.first ?? 1), current: 1,
                           totals: counts.map { max(1, $0) },
-                          outputs: kinds.map(\.label), hostCanPrint: hostPrintPDF != nil,
+                          outputs: kinds.map(\.label), hostCanPrint: hostCanPrintPDF,
                           print: { [weak self] pages, output in
             guard let self, kinds.indices.contains(output) else { return "Nothing to print" }
             return self._print(kinds[output], pages: pages)
@@ -808,22 +856,27 @@ final class SheetsShellState: State<StatefulWidget> {
     }
 
     private func _print(_ what: PrintWhat, pages: [Int]) -> String {
+        // A host that prints bytes (the browser) gets the PDF itself; one
+        // that prints files gets a file in the temporary folder.
+        let bytes = hostPrintPDFBytes
         #if os(WASI)
-        return "Printing is not available in the browser yet"
+        let path = "/print/" + session.title.deletingPathExtension + ".pdf"
         #else
         let path = NSTemporaryDirectory() + "sheets-print-\(ProcessInfo.processInfo.processIdentifier).pdf"
+        #endif
+        let name = session.title.deletingPathExtension + ".pdf"
         Task { @MainActor [weak self] in
             guard let self, let grid = self._grid else { return }
             guard await grid.writePdf(to: path, title: self.session.title, filePath: self.session.path,
                                       wholeBook: what == .entireWorkbook, selection: what == .selection ? self.wb.selection : nil,
-                                      pages: pages) else {
+                                      pages: pages, deliver: bytes.map { send in { data in send(data, name) } }) else {
                 self._flash("Nothing to print on this sheet")
                 return
             }
+            if bytes != nil { return }
             if let print = hostPrintPDF { print(path) } else { self._flash("No print dialog on this host") }
         }
         return ""
-        #endif
     }
 
     // MARK: Formula bar

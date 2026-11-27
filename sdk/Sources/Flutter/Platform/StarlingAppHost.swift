@@ -71,6 +71,11 @@ public nonisolated(unsafe) var hostSetFullscreen: ((Bool) -> Void)? = nil
 /// does not know. The app installs it; hosts with no such door leave it.
 public nonisolated(unsafe) var hostDebugQuery: ((String) -> String?)? = nil
 
+/// The page is going out of sight (its tab hidden, or the tab closing): what
+/// an app would write a moment later it writes now, since a closing page may
+/// never get that moment. Only the browser calls it.
+public nonisolated(unsafe) var hostPageHidden: (() -> Void)? = nil
+
 /// Opens a URL in whatever the platform uses for it — the browser, the
 /// mail client. Installed by the windowed hosts; nil where nothing can.
 public nonisolated(unsafe) var hostOpenURL: ((String) -> Void)? = nil
