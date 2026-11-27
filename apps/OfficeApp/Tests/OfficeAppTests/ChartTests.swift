@@ -492,6 +492,23 @@ final class ChartTests: XCTestCase {
         XCTAssertLessThan(r.bottom, 100)
     }
 
+    /// A `cx:` chart's category names on a slide: their baseline 14.96 pt under the plot's foot at 9 pt (PowerPoint's prints of
+    /// lo-forum-mso-de-138303's waterfall, chartex-lab2's waterfall and box-whiskers, lab cx-legend's twelve; ours were 16.65).
+    func testACxChartsCategoryNamesStandWherePowerPointPrintsThem() {
+        let pts = [1, 4, 5, 6, 9].enumerated().map { "<cx:pt idx=\"\($0.offset)\">\($0.element)</cx:pt>" }.joined()
+        let xml = """
+        <cx:chartSpace xmlns:cx="http://schemas.microsoft.com/office/drawing/2014/chartex"><cx:chartData><cx:data id="0"><cx:strDim type="cat"><cx:lvl ptCount="5"><cx:pt idx="0">A</cx:pt><cx:pt idx="1">A</cx:pt><cx:pt idx="2">A</cx:pt><cx:pt idx="3">A</cx:pt><cx:pt idx="4">A</cx:pt></cx:lvl></cx:strDim><cx:numDim type="val"><cx:lvl ptCount="5">\(pts)</cx:lvl></cx:numDim></cx:data></cx:chartData><cx:chart><cx:plotArea><cx:plotAreaRegion><cx:series layoutId="boxWhisker"><cx:dataId val="0"/></cx:series></cx:plotAreaRegion><cx:axis id="0"><cx:catScaling/><cx:tickLabels/></cx:axis><cx:axis id="1"><cx:valScaling/><cx:majorGridlines/><cx:tickLabels/></cx:axis></cx:plotArea></cx:chart></cx:chartSpace>
+        """
+        guard var c = ChartXML.readBoxWhisker(XNode.parse(Data(xml.utf8))!) else { return XCTFail("not read") }
+        c.onSlide = true
+        let canvas = BoxDotCanvas()
+        ChartPainter.paint(c, canvas, Rect.fromLTWH(0, 0, 400, 300), pxPerPt: 1, theme: DeckTheme())
+        // The plot's foot: the lowest gridline across it.
+        guard let foot = canvas.lines.filter({ $0.0.dy == $0.1.dy && abs($0.0.dx - $0.1.dx) > 100 }).map(\.0.dy).max(),
+              let name = canvas.baselines.max() else { return XCTFail("no plot or names") }
+        XCTAssertEqual(name - foot, 14.96, accuracy: 0.1)
+    }
+
     /// A single-level treemap on a slide lays strips along the shorter side, a strip growing while its last item gets less
     /// far from square as width / height - 1: PowerPoint's print of chartex-lab2 p4 sets 9,8,6,5,4,3,2,1 in 901 by 220 pt
     /// side by side, one to a strip (taking 3 into 4's strip would make 3 wider than tall).
@@ -656,7 +673,8 @@ private final class BoxDotCanvas: Canvas {
     func drawImageRect(_ image: Image, _ src: Rect, _ dst: Rect, _ paint: Paint) {}
     func drawImageNine(_ image: Image, _ center: Rect, _ dst: Rect, _ paint: Paint) {}
     func drawPicture(_ picture: any FlutterSwiftBridge.Picture) {}
-    func drawParagraph(_ paragraph: any Paragraph, _ offset: Offset) {}
+    var baselines: [Double] = []
+    func drawParagraph(_ paragraph: any Paragraph, _ offset: Offset) { baselines.append(offset.dy + paragraph.alphabeticBaseline) }
     func drawPoints(_ pointMode: PointMode, _ points: [Offset], _ paint: Paint) {}
     func drawRawPoints(_ pointMode: PointMode, _ points: [Float], _ paint: Paint) {}
     func drawVertices(_ vertices: Vertices, _ blendMode: BlendMode, _ paint: Paint) {}

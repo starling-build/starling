@@ -7184,8 +7184,11 @@ enum ChartPainter {
                     // (A 2007-style slide chart with no tick marks stands its names lower by 0.62 pt a point of their size over
                     // 11.8: Windows' prints of 5864 slide 8 in 15 variants, 1.4 pt at 14 pt and 5.1 at 20, at the foot or the zero
                     // line alike; 10 pt names stay where they are (cooper's charts match).)
+                    // (A `cx:` chart's on a slide stand 1.73 pt higher than 8.1 put them, their baseline 14.96 under the plot's foot at
+                    // 9 pt: PowerPoint's prints of lo-forum-mso-de-138303's waterfall, chartex-lab2's waterfall and box-whiskers, and
+                    // bw-spacing's and cx-legend's, every plot foot where ours is.)
                     let slideNames = c.onSlide && !c.styled2013 && !c.categoryTicksOut ? max(0, 0.62 * (catSize - 11.8)) * k : 0
-                    tp.paint(canvas, Offset(cx - tp.width / 2, foot + (wordFoot ? 5.7 : plainWordFoot ? 6.4 : c.chartex && c.onSlide ? 8.1 : 7.6) * k - placedOverAutoFoot + (widenedPlain ? 0 : belowOut) - (libre ? 1.3 * k : 0) - Self._wordLabelRise(c, catSize) * k - legendFootRise + slideNames - malgunCatLift))
+                    tp.paint(canvas, Offset(cx - tp.width / 2, foot + (wordFoot ? 5.7 : plainWordFoot ? 6.4 : c.chartex && c.onSlide ? (c.onSheet ? 8.1 : 6.37) : 7.6) * k - placedOverAutoFoot + (widenedPlain ? 0 : belowOut) - (libre ? 1.3 * k : 0) - Self._wordLabelRise(c, catSize) * k - legendFootRise + slideNames - malgunCatLift))
                 }
             }
             // The outer levels of a multi-level axis: each group's name under the names it
