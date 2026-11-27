@@ -625,7 +625,9 @@ extension RichLayout {
                case let cs = mark.complexFontFamily ?? markNamed?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily,
                let f = theme.complexFace(cs, latin: mark.fontFamily ?? markNamed?.char.fontFamily ?? _normalChar(document)?.fontFamily, letters: true), f.arialStandIn {
                 RuleTrace.hit("word-empty-mark-arial-stand-in-keeps-arials-line")
-                let multiple = p.style.lineSpacing > 0.5 ? p.style.lineSpacing : 1
+                // (Below single too: dx2 d2019349's empty mark (cs Nazanin, drawn in Arial, 11 pt) under a top border at line 120 auto is half
+                // Arial's line in Word's print, body baseline 139.22; at a full line ours stood at 145.8.)
+                let multiple = p.style.lineSpacing > 0.01 ? p.style.lineSpacing : 1
                 let sp = Self._multipleSplit(ascent: 0.905, descent: 1.149 - 0.905, multiple: multiple)
                 look = look.copyWith(ascentOverride: px * sp.0, descentOverride: px * sp.1, height: 1.149 * multiple, leadingDistribution: .even)
             }
@@ -639,7 +641,7 @@ extension RichLayout {
                case let latinFace = (mark.fontFamily ?? markNamed?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased(),
                latinFace != cs {
                 RuleTrace.hit("word-empty-rtl-mark-in-arial-or-times-complex-face-is-its-own-line")
-                let multiple = p.style.lineSpacing > 0.5 ? p.style.lineSpacing : 1
+                let multiple = p.style.lineSpacing > 0.01 ? p.style.lineSpacing : 1
                 let asc = cs == "arial" ? 0.905 : 0.891, tall = cs == "arial" ? 1.149 : 1.1499
                 let sp = Self._multipleSplit(ascent: asc, descent: tall - asc, multiple: multiple)
                 look = look.copyWith(ascentOverride: px * sp.0, descentOverride: px * sp.1, height: tall * multiple, leadingDistribution: .even)
