@@ -347,6 +347,9 @@ final class OfficeSession {
     var pickingMedia = false
     var onChangePicture: (() -> Void)?
     var onHeaderFooter: (() -> Void)?
+    /// True while the header and footer strip is open (the Header & Footer tab shows); closing it as its Close button.
+    var headerFooterOpen = false
+    var onCloseHeaderFooter: (() -> Void)?
     /// Opens the Slide Size dialog, with this size typed in (nil: the deck's own).
     var onSlideSize: ((Size?) -> Void)?
     /// Slides Picture Format > Alt Text: open the dialog for the selected picture.

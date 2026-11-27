@@ -98,4 +98,21 @@ final class PageSetupDialogTests: XCTestCase {
         s.controller.undo()
         XCTAssertNil(s.controller.document.pageNumberFormat)
     }
+
+    func testTheHeaderAndFooterTabShowsWhileTheStripIsOpen() {
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(1280, 800))
+        let s = ui.state(OfficeShellState.self)!.session
+        XCTAssertFalse(ui.has(text: "Header & Footer"))
+        s.onHeaderFooter?(); ui.pump()
+        XCTAssertTrue(ui.has(text: "Header & Footer") && ui.has(text: "Different First Page"), "the tab opens with the strip, selected")
+        XCTAssertTrue(ui.has(text: "Link Header to Previous"), "shown, though the one section has nothing to link to")
+        XCTAssertTrue(ui.tap(text: "Different First Page")); ui.pump()
+        XCTAssertTrue(s.controller.document.titlePage)
+        XCTAssertTrue(ui.tap(text: "Different Odd & Even Pages")); ui.pump()
+        XCTAssertTrue(s.controller.document.evenAndOddHeaders)
+        XCTAssertTrue(ui.tap(text: "Close Header and Footer")); ui.pump()
+        XCTAssertFalse(s.headerFooterOpen)
+        XCTAssertFalse(ui.has(text: "Different First Page"), "the tab goes with the strip")
+        XCTAssertTrue(s.controller.document.titlePage, "closing keeps what was set")
+    }
 }

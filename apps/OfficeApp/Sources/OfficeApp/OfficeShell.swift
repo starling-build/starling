@@ -65,7 +65,25 @@ final class OfficeShellState: State<StatefulWidget> {
     /// The document's own focus, so closing a bar can hand the keyboard back.
     private let _editorFocus = FocusNode(debugLabel: "Writer document")
     private let _findReplacement = TextEditingController()
-    private var _headerFooterOpen = false
+    private var _headerFooterStripOpen = false
+    /// The header and footer strip, with Word's Header & Footer tab beside it while it is open.
+    private var _headerFooterOpen: Bool {
+        get { _headerFooterStripOpen }
+        set {
+            _headerFooterStripOpen = newValue
+            session.headerFooterOpen = newValue
+            if newValue { _tab = .headerFooter } else if _tab == .headerFooter { _tab = .home }
+        }
+    }
+    /// The strip's text and look into the document, and the strip closed (its tick, and the tab's Close button).
+    private func _applyHeaderFooterStrip() {
+        controller.applyHeaderFooterStrip(
+            header: _headerText.text, footer: _footerText.text,
+            headerLook: _headerLook, footerLook: _footerLook,
+            headerLocked: controller.document.hasRichHeaderFooter(.header),
+            footerLocked: controller.document.hasRichHeaderFooter(.footer))
+        setState { _headerFooterOpen = false }
+    }
     private var _shortcutsOpen = false
     private var _cardLink: String? = nil      // the link under the caret, shown on the link card
     private var _cardDismissed = false
@@ -437,6 +455,7 @@ final class OfficeShellState: State<StatefulWidget> {
             self._footerLook = self.controller.headerFooterLook(.footer)
             self.setState { self._headerFooterOpen = true }
         }
+        session.onCloseHeaderFooter = { [weak self] in self?._applyHeaderFooterStrip() }
         session.onLink = { [weak self] in self?._openLink() }
         session.onInsertNote = { [weak self] kind in
             guard let self else { return }
@@ -1572,15 +1591,7 @@ final class OfficeShellState: State<StatefulWidget> {
                                           onLook: { [weak self] isHeader, look in
                                               self?.setState { if isHeader { self?._headerLook = look } else { self?._footerLook = look } }
                                           },
-                                          onApply: { [weak self] in
-                                              guard let self else { return }
-                                              self.controller.applyHeaderFooterStrip(
-                                                  header: self._headerText.text, footer: self._footerText.text,
-                                                  headerLook: self._headerLook, footerLook: self._footerLook,
-                                                  headerLocked: self.controller.document.hasRichHeaderFooter(.header),
-                                                  footerLocked: self.controller.document.hasRichHeaderFooter(.footer))
-                                              self.setState { self._headerFooterOpen = false }
-                                          },
+                                          onApply: { [weak self] in self?._applyHeaderFooterStrip() },
                                           onClose: { [weak self] in self?.setState { self?._headerFooterOpen = false } }))
         }
         // The document column: ruler over the pages, beside the navigation
