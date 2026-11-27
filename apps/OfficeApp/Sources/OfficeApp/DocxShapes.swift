@@ -1881,7 +1881,7 @@ extension DocxFormat {
                     // named font (Symbol F094 is a box), so the run takes it.
                     if let code = child["w:char"], let v = UInt32(code, radix: 16), let sc = UnicodeScalar(v) {
                         var sym = cs
-                        if let font = child["w:font"], !font.isEmpty { sym.fontFamily = font }
+                        if let font = child["w:font"], !font.isEmpty { sym.fontFamily = font; sym.symbolFont = font }
                         addText(String(Character(sc)), sym)
                     }
                 case "w:drawing", "w:pict":

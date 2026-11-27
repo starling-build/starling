@@ -171,6 +171,9 @@ public struct CharStyle: Hashable, Codable, Sendable {
         return c.hashValue == origCheck ? o : nil
     }
     public var highlight: Color? = nil
+    /// The text came from a `w:sym` in this font (its code points are the font's own, `00A3` as well as `F0A3`):
+    /// saved back as `w:sym`, since as plain text it would print in the run's text font.
+    public var symbolFont: String? = nil
     /// A `w:shd` the file wrote beside a `w:highlight` (the highlight draws over it), as written; saved after the highlight.
     public var shdUnderHighlight: String? = nil
     /// The highlight came from a `w:shd` (not `w:highlight`): its hex, `#`, then the element's other attributes as written (pattern, theme link).

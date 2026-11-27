@@ -267,4 +267,16 @@ final class DocxSaveOpensInWordTests: XCTestCase {
         XCTAssertEqual(ids.count, 4, doc)
         XCTAssertEqual(Set(ids).count, ids.count, "tracked-change ids repeat: \(ids)")
     }
+
+    /// A symbol written with its low code (`00A3` in Wingdings 2, a box) stays a w:sym:
+    /// saved as plain text it printed "£" in the run's text font (zh-16e0a12a's 49 check boxes).
+    func testLowCodeSymbolStaysASymbol() throws {
+        let rPr = "<w:rPr><w:rFonts w:ascii=\"SimSun\" w:hAnsi=\"SimSun\"/></w:rPr>"
+        let body = "<w:p><w:r>\(rPr)<w:sym w:font=\"Wingdings 2\" w:char=\"00A3\"/></w:r><w:r>\(rPr)<w:t>yes</w:t></w:r>"
+            + "<w:r>\(rPr)<w:sym w:font=\"Wingdings 2\" w:char=\"F052\"/></w:r></w:p>"
+        let doc = try XCTUnwrap(text(try resave(body), "word/document.xml"))
+        XCTAssertEqual(grab(doc, "<w:sym w:font=\"Wingdings 2\" w:char=\"([0-9A-F]{4})\"/>"), ["00A3", "F052"], doc)
+        XCTAssertFalse(doc.contains("£"), doc)
+        XCTAssertTrue(doc.contains(">yes<"), doc)
+    }
 }

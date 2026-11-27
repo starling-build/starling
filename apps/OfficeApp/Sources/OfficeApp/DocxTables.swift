@@ -1679,16 +1679,19 @@ extension DocxFormat {
                         }
                     }
                     flush()
-                } else if s.revision?.kind != .deleted, let font = s.fontFamily,
-                          piece.unicodeScalars.contains(where: { (0xF000...0xF0FF).contains($0.value) }) {
+                } else if s.revision?.kind != .deleted, let font = s.symbolFont ?? s.fontFamily,
+                          s.symbolFont != nil || piece.unicodeScalars.contains(where: { (0xF000...0xF0FF).contains($0.value) }) {
                     // Private-use characters in a named font go back as
-                    // w:sym, the font with them.
+                    // w:sym, the font with them; so does all text that came
+                    // from a w:sym (a `00A3` in Wingdings 2 is its box; as
+                    // plain text it printed "£" in the run's text font).
                     var text = ""
                     func flush() { if !text.isEmpty { runXML += "<w:r>\(rPrXML)\(_text(text))</w:r>"; text = "" } }
                     for sc in piece.unicodeScalars {
-                        if (0xF000...0xF0FF).contains(sc.value) {
+                        if s.symbolFont != nil || (0xF000...0xF0FF).contains(sc.value) {
                             flush()
-                            runXML += "<w:r>\(rPrXML)<w:sym w:font=\"\(_esc(font))\" w:char=\"\(String(sc.value, radix: 16, uppercase: true))\"/></w:r>"
+                            let hex = String(sc.value, radix: 16, uppercase: true)
+                            runXML += "<w:r>\(rPrXML)<w:sym w:font=\"\(_esc(font))\" w:char=\"\(String(repeating: "0", count: max(0, 4 - hex.count)) + hex)\"/></w:r>"
                         } else { text.unicodeScalars.append(sc) }
                     }
                     flush()
