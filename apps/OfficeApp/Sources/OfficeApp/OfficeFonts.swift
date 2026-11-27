@@ -5993,7 +5993,7 @@ enum OfficeFonts {
     /// The faces this platform draws Chinese in where the named one is
     /// missing, after the symbol fallback (`RichTextTheme.glyphFallback`):
     /// what the Latin side of an East Asian family falls back to first.
-    nonisolated(unsafe) static var cjkFallback: [String] = [] { didSet { faceGen &+= 1 } }
+    nonisolated(unsafe) static var cjkFallback: [String] = [] { didSet { faceGen &+= 1; RichTextTheme.ideographFallback = cjkFallback } }
     /// The bundled face a Word font name stands for (Resources/fonts/fonts-aliases.tsv, read with
     /// fonts.tsv at registration): its ideographs are drawn in that face before the glyph fallback's
     /// general chain. Empty where the faces are not bundled (macOS, Windows, the web).

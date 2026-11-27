@@ -25,8 +25,10 @@ final class SlideFaceWidthsTests: XCTestCase {
     /// A Japanese or Korean face draws its kana, ideographs and Hangul in the bundled face of its own language, ahead of
     /// the glyph fallback's Simplified Chinese one: ja-9ce6e01e5f's MS PGothic 直 printed in the Chinese form.
     func testAJapaneseFaceDrawsItsIdeographsInTheJapaneseFace() {
-        let saved = OfficeFonts.bundledAliases
-        defer { OfficeFonts.bundledAliases = saved }
+        let saved = OfficeFonts.bundledAliases, savedGlyphs = RichTextTheme.glyphFallback, savedIdeo = RichTextTheme.ideographFallback
+        defer { OfficeFonts.bundledAliases = saved; RichTextTheme.glyphFallback = savedGlyphs; RichTextTheme.ideographFallback = savedIdeo }
+        RichTextTheme.glyphFallback = ["DejaVu Sans", "Noto Sans CJK SC"]
+        RichTextTheme.ideographFallback = ["Noto Sans CJK SC"]
         OfficeFonts.bundledAliases = ["ms pgothic": "Noto Sans CJK JP", "malgun gothic": "Noto Sans CJK KR"]
         let theme = DeckController()._textTheme(font: "MS PGothic", size: 18, color: Color(0xFF000000))
         for (face, own) in [("MS PGothic", "Noto Sans CJK JP"), ("Malgun Gothic", "Noto Sans CJK KR")] {
@@ -37,6 +39,8 @@ final class SlideFaceWidthsTests: XCTestCase {
             let mine = list.firstIndex(of: own)
             XCTAssertNotNil(mine, face)
             if let mine, let sc = list.firstIndex(of: "Noto Sans CJK SC") { XCTAssertLessThan(mine, sc, face) }
+            // (Not ahead of the symbol face: ko-901bcad538's ➀ and ko-8cff45ca05's ◦ are no full-em Hangul-face glyphs.)
+            if let mine, let symbols = list.firstIndex(of: "DejaVu Sans") { XCTAssertLessThan(symbols, mine, face) }
         }
         // (A face PowerPoint's machine lacks prints in a face of the run's language: 楷体_GB2312 in Microsoft YaHei, not a Kai hand.)
         OfficeFonts.bundledAliases["楷体_gb2312"] = "LXGW WenKai TC"
