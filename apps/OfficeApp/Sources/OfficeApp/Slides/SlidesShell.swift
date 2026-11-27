@@ -327,7 +327,7 @@ final class SlidesShellState: State<StatefulWidget> {
         }
         session.onShapePaste = { [weak self] in
             guard let self, self._active == nil, !self._notesActive else { return false }
-            return self.deck.pasteShapes()
+            self._pasteOnSlide(); return true
         }
         session.onPaste = { [weak self] plain in
             guard let self else { return }
@@ -1216,6 +1216,14 @@ final class SlidesShellState: State<StatefulWidget> {
         }
     }
 
+    /// A paste with nothing being edited: this deck's shapes, a picture, or nothing (S-ED-1; see SlidesClipboard.swift).
+    private func _pasteOnSlide() {
+        if !Clipboard.readFormats.contains(DeckController.shapesMime) { Clipboard.readFormats.append(DeckController.shapesMime) }
+        Clipboard.getData(Clipboard.kAll) { [weak self] data in
+            DispatchQueue.main.async { self?.deck.pasteOnSlide(data) }
+        }
+    }
+
     private func _insertTextBox() {
         _endEditing()
         let size = deck.slideSize
@@ -1409,7 +1417,7 @@ final class SlidesShellState: State<StatefulWidget> {
         case "v" where !typing && !shapes && (_paneFocused || _sorter) && deck.canPasteSlides: deck.pasteSlides()
         case "c" where shapes: deck.copyShapes(); _flash("Copied")
         case "x" where shapes: deck.cutShapes()
-        case "v" where !typing && deck.canPasteShapes: deck.pasteShapes()
+        case "v" where !typing: _pasteOnSlide()
         case "g" where shapes && !typing && mods.contains(.shift): deck.ungroupSelection()
         case "g" where shapes && !typing:
             if let why = deck.groupRefusal { _flash(why) } else { deck.groupSelection() }
@@ -2076,7 +2084,7 @@ final class SlidesShellState: State<StatefulWidget> {
         } else if shape != nil, !deck.selection.isEmpty {
             m.item("Cut") { deck.cutShapes() }
             m.item("Copy") { deck.copyShapes() }
-            m.item("Paste", enabled: deck.canPasteShapes) { deck.pasteShapes() }
+            m.item("Paste") { [weak self] in self?._pasteOnSlide() }
             m.item("Duplicate") { deck.duplicateSelection() }
             m.item("Delete") { deck.deleteSelection() }
             m.separator()
@@ -2106,7 +2114,7 @@ final class SlidesShellState: State<StatefulWidget> {
                 m.item("Reset Picture") { deck.resetPictures() }
             }
         } else {
-            m.item("Paste", enabled: deck.canPasteShapes) { deck.pasteShapes() }
+            m.item("Paste") { [weak self] in self?._pasteOnSlide() }
             m.item("Select All") { deck.selectShapes(deck.currentSlide.shapes) }
             m.separator()
             m.item("New Slide") { deck.addSlide() }

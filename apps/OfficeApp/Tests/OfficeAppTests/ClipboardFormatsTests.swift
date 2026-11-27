@@ -60,6 +60,32 @@ final class ClipboardFormatsTests: XCTestCase {
         XCTAssertEqual(formats, ["text/plain"])
     }
 
+    /// A provider that carries text and pictures but not private types (Cocoa, Win32, GTK, web): reading back what
+    /// this process put there brings its private types back; anything copied since comes back as it is.
+    func testPrivateTypesSurviveAProviderThatDropsThem() {
+        final class NoPrivate: ClipboardProvider {
+            var data: ClipboardData?
+            func setText(_ t: String) { data = ClipboardData(text: t) }
+            func getText(_ c: @escaping (String?) -> Void) { c(data?.text) }
+            func setData(_ d: ClipboardData) { data = ClipboardData(text: d.text, png: d.png) }
+            func getData(_ c: @escaping (ClipboardData?) -> Void) { c(data) }
+        }
+        let p = NoPrivate()
+        Clipboard.provider = p
+        let mime = "application/x-starling-test", png = Data([0x89, 0x50, 0x4E, 0x47, 9])
+        Clipboard.setData(ClipboardData(text: "two shapes", png: png, custom: [mime: Data([7])]))
+        XCTAssertEqual(read(Clipboard.kAll)?.custom[mime], Data([7]))
+        p.data = ClipboardData(text: "copied in another app")        // a copy elsewhere since
+        XCTAssertEqual(read(Clipboard.kAll)?.custom, [:])
+        p.data = ClipboardData(text: "two shapes", png: Data([1]))   // same words, another picture
+        XCTAssertEqual(read(Clipboard.kAll)?.custom, [:])
+        p.data = nil                                                 // emptied
+        XCTAssertNil(read(Clipboard.kAll)?.custom[mime])
+        Clipboard.setData(ClipboardData(text: "plain"))              // a copy with no private types forgets the last
+        p.data = ClipboardData(text: "two shapes", png: png)
+        XCTAssertEqual(read(Clipboard.kAll)?.custom, [:])
+    }
+
     func testBytesAndMimeTypesAgree() {
         let d = ClipboardData(text: nil, rtf: "{\\rtf1}", custom: ["b/x": Data([2]), "a/x": Data([1])])
         XCTAssertEqual(d.mimeTypes, ["a/x", "b/x", "text/rtf"], "private types sorted, then standard")

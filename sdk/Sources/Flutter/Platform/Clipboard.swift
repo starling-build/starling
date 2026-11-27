@@ -108,6 +108,9 @@ public enum Clipboard {
 
     public static func setData(_ data: ClipboardData) {
         if let provider = provider {
+            _fallbackLock.lock()
+            _lastSet = data.custom.isEmpty ? nil : data
+            _fallbackLock.unlock()
             provider.setData(data)
         } else {
             _fallbackLock.lock()
@@ -126,7 +129,7 @@ public enum Clipboard {
                                completion: @escaping (ClipboardData?) -> Void) {
         if let provider = provider {
             if format == kAll {
-                provider.getData { data in completion(data) }
+                provider.getData { data in completion(_restoringPrivate(data)) }
             } else if format == kTextPlain {
                 provider.getText { text in
                     completion(text.map { ClipboardData(text: $0) })
@@ -144,6 +147,22 @@ public enum Clipboard {
         if format == kAll { completion(data); return }
         if format == kTextPlain { completion(data?.text.map { ClipboardData(text: $0) }); return }
         completion(data?.bytes(for: format).map { _single(format, $0) })
+    }
+
+    /// The last data set with private types, for a provider that cannot carry them (Cocoa, Win32, GTK, web).
+    private nonisolated(unsafe) static var _lastSet: ClipboardData? = nil
+
+    /// `data` read back through a provider that dropped the private types: when the clipboard still holds the
+    /// text and picture this process last put there, it is still that copy, so its private types come back with it.
+    /// Anything copied since differs in text or picture and comes back as it is.
+    static func _restoringPrivate(_ data: ClipboardData?) -> ClipboardData? {
+        guard let data, data.custom.isEmpty else { return data }
+        _fallbackLock.lock()
+        let last = _lastSet
+        _fallbackLock.unlock()
+        guard let last, (data.text ?? "") == (last.text ?? ""), data.png == nil || data.png == last.png,
+              data.png != nil || last.png == nil || !(data.text ?? "").isEmpty else { return data }
+        return ClipboardData(text: data.text, rtf: data.rtf, html: data.html, png: data.png, custom: last.custom)
     }
 
     /// The MIME types on offer right now, best first as the owner listed them
