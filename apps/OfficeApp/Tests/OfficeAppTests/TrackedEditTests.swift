@@ -12,6 +12,7 @@ final class TrackedEditTests: XCTestCase {
     override func setUp() {
         savedReviewer = RichDocumentController.reviewer
         RichDocumentController.reviewer = { ("Tester", "2026-11-27T10:00:00Z") }
+        RichDocumentController.runPropertiesXML = { DocxFormat._rPrXML($0) }
     }
     override func tearDown() { RichDocumentController.reviewer = savedReviewer }
 
@@ -141,5 +142,56 @@ final class TrackedEditTests: XCTestCase {
         c.deleteBackward(); c.deleteBackward()
         XCTAssertEqual(c.document.paragraphs.map(\.text), ["OnTwo"])
         XCTAssertFalse(try saved(c).body.containsSubstring("<w:del "))
+    }
+
+    // MARK: Formatting (w:rPrChange, w:pPrChange)
+
+    /// Bold on the file's text: the run keeps the properties it had before, by the reviewer; a second change
+    /// keeps the first one's "before".
+    func testFormattingIsATrackedFormatChange() throws {
+        let c = try open("Hello world", tracking: true)
+        c.moveTo(RichPosition(paragraph: 0, offset: 0), extend: false)
+        c.moveTo(RichPosition(paragraph: 0, offset: 5), extend: true)
+        c.toggleBold()
+        c.applyCharStyle { $0.italic = true }
+        let run = c.document.paragraphs[0].runs[0]
+        XCTAssertTrue(run.style.bold && run.style.italic)
+        XCTAssertEqual(run.style.formatChange?.author, "Tester")
+        XCTAssertEqual(run.style.formatChange?.oldRPrXML.containsSubstring("<w:b/>"), false)
+        XCTAssertNil(c.document.paragraphs[0].runs.last?.style.formatChange)
+        let out = try saved(c).body
+        XCTAssertEqual(count(out, "<w:rPrChange "), 1, out)
+        XCTAssertTrue(out.containsSubstring("w:author=\"Tester\" w:date=\"2026-11-27T10:00:00Z\"><w:rPr>"), out)
+    }
+
+    /// Formatting what the reviewer just typed records nothing more: it is an insertion either way.
+    func testFormattingOwnInsertionIsNotAChange() throws {
+        let c = try open("Hello", tracking: true)
+        c.moveTo(RichPosition(paragraph: 0, offset: 5), extend: false)
+        c.insertText(" new")
+        c.moveTo(RichPosition(paragraph: 0, offset: 5), extend: false)
+        c.moveTo(RichPosition(paragraph: 0, offset: 9), extend: true)
+        c.toggleBold()
+        XCTAssertFalse(try saved(c).body.containsSubstring("<w:rPrChange "))
+    }
+
+    /// A paragraph's alignment: w:pPrChange with the paragraph's earlier properties.
+    func testParagraphFormatIsATrackedChange() throws {
+        let c = try open("Hello", tracking: true)
+        c.setAlignment(.center)
+        XCTAssertNotNil(c.document.paragraphs[0].style.propertyChange)
+        let out = try saved(c).body
+        XCTAssertEqual(count(out, "<w:pPrChange "), 1, out)
+        XCTAssertTrue(out.containsSubstring("<w:jc w:val=\"center\"/>"), out)
+        XCTAssertFalse(out.components(separatedBy: "<w:pPrChange ")[1].containsSubstring("center"), out)
+    }
+
+    func testWithoutTrackingFormattingIsPlain() throws {
+        let c = try open("Hello", tracking: false)
+        c.moveTo(RichPosition(paragraph: 0, offset: 0), extend: false)
+        c.moveTo(RichPosition(paragraph: 0, offset: 5), extend: true)
+        c.toggleBold(); c.setAlignment(.center)
+        let out = try saved(c).body
+        XCTAssertFalse(out.containsSubstring("Change "))
     }
 }

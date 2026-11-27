@@ -54,9 +54,13 @@ public struct FormatChange: Hashable, Codable, Sendable {
     /// Word's "Formatted:" balloon words (style, line spacing, borders, shading) are read from.
     public var newPPrXML: String = ""
     public var styleName: String = ""
-    public init(author: String, date: String, oldRPrXML: String, newPPrXML: String = "", styleName: String = "") {
+    /// A change made in the editor: the paragraph style before it, which the save writes as the old `w:pPr`
+    /// (a file's change has `oldRPrXML` instead).
+    public var previous: Previous? = nil
+    public indirect enum Previous: Hashable, Codable, Sendable { case paragraph(RichParagraphStyle) }
+    public init(author: String, date: String, oldRPrXML: String, newPPrXML: String = "", styleName: String = "", previous: Previous? = nil) {
         self.author = author; self.date = date; self.oldRPrXML = oldRPrXML
-        self.newPPrXML = newPPrXML; self.styleName = styleName
+        self.newPPrXML = newPPrXML; self.styleName = styleName; self.previous = previous
     }
 }
 

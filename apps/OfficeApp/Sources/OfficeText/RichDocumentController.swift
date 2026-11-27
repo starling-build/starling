@@ -616,6 +616,7 @@ public final class RichDocumentController: ChangeNotifier {
     /// Apply one op inside an `edit` block.
     public func perform(_ op: EditOp) {
         precondition(_inEdit, "perform(_:) must run inside edit { }")
+        let op = document.trackRevisions ? _trackingFormat(op) : op
         let inverse = op.apply(to: &document, changes: &_pendingChanges)
         _undo[_undo.count - 1].inverses.append(inverse)
     }
@@ -1300,6 +1301,60 @@ public final class RichDocumentController: ChangeNotifier {
         let text = String(para.text[a ..< b])
         perform(.deleteText(RichPosition(paragraph: paragraph, offset: range.lowerBound),
                             text, para.runs(in: range)))
+    }
+
+    /// The run properties the save writes for a style (inside `w:rPr`); the app sets it. With track changes
+    /// on, a run whose properties change keeps the ones it had before (`w:rPrChange`).
+    public nonisolated(unsafe) static var runPropertiesXML: ((CharStyle) -> String)? = nil
+
+    /// With track changes on, formatting is recorded as Word records it: a run or paragraph whose properties
+    /// change takes a format change by the reviewer holding the properties it had before. A second change
+    /// keeps the first one's "before", as Word's does. The reviewer's own new text is just formatted.
+    func _trackingFormat(_ op: EditOp) -> EditOp {
+        switch op {
+        case .setRuns(let i, let old, let new):
+            guard let xml = Self.runPropertiesXML else { return op }
+            return .setRuns(i, old: old, new: _trackedRuns(old, new, xml))
+        case .setParagraphStyle(let i, let old, var new):
+            guard new.propertyChange == old.propertyChange, Self._formatOnly(old) != Self._formatOnly(new) else { return op }
+            let who = Self.reviewer()
+            new.propertyChange = old.propertyChange ?? FormatChange(author: who.author, date: who.date, oldRPrXML: "",
+                                                                    previous: .paragraph(Self._formatOnly(old)))
+            return .setParagraphStyle(i, old: old, new: new)
+        default: return op
+        }
+    }
+
+    /// A paragraph style without its tracked changes and mark: what a paragraph format change compares.
+    static func _formatOnly(_ s: RichParagraphStyle) -> RichParagraphStyle {
+        var out = s; out.markRevision = nil; out.propertyChange = nil; out.mark = nil
+        return out
+    }
+
+    private func _trackedRuns(_ old: [Run], _ new: [Run], _ xml: (CharStyle) -> String) -> [Run] {
+        func plain(_ s: CharStyle) -> CharStyle { var p = s; p.revision = nil; p.formatChange = nil; return p }
+        let who = Self.reviewer()
+        var out: [Run] = []
+        var oi = 0, ni = 0, oUsed = 0, nUsed = 0
+        while oi < old.count, ni < new.count {
+            let n = min(old[oi].length - oUsed, new[ni].length - nUsed)
+            let o = old[oi].style
+            var s = new[ni].style
+            let own = o.revision?.kind == .inserted && !(o.revision?.moved ?? false) && o.revision?.author == who.author
+            if n > 0, !own, s.formatChange == o.formatChange, xml(plain(o)) != xml(plain(s)) {
+                s.formatChange = o.formatChange ?? FormatChange(author: who.author, date: who.date,
+                                                                oldRPrXML: "<w:rPr>" + xml(plain(o)) + "</w:rPr>")
+            }
+            if n > 0 {
+                if let last = out.last, last.style == s { out[out.count - 1].length += n } else { out.append(Run(length: n, style: s)) }
+            }
+            oUsed += n; nUsed += n
+            if oUsed >= old[oi].length { oi += 1; oUsed = 0 }
+            if nUsed >= new[ni].length { ni += 1; nUsed = 0 }
+        }
+        // (Lengths differ only if the op is not a restyle; keep whatever is left as given.)
+        if ni < new.count { out.append(contentsOf: new[ni...].enumerated().map { k, r in k == 0 ? Run(length: r.length - nUsed, style: r.style) : r }) }
+        return out
     }
 
     /// A deletion by the reviewer, now; nil with track changes off.
