@@ -1697,7 +1697,7 @@ final class SheetsShellState: State<StatefulWidget> {
             item("Unhide") { c.setHidden(.rows, false) }
         case .cells:
             if sel.rows > 1 || sel.cols > 1 || c.sheet.merges.contains(where: { $0.intersects(sel) }) {
-                item(c.sheet.merges.contains(where: { $0.intersects(sel) }) ? "Unmerge Cells" : "Merge & Center") { c.toggleMerge() }
+                if c.sheet.merges.contains(where: { $0.intersects(sel) }) { item("Unmerge Cells") { c.unmerge() } } else { item("Merge & Center") { c.merge(.center) } }
             }
             item("Sort A to Z") { c.sortSelection(ascending: true) }
             item("Sort Z to A") { c.sortSelection(ascending: false) }
