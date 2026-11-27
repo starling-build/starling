@@ -419,9 +419,41 @@ final class SlideCanvasState: State<StatefulWidget> {
                                                                     startRotation: shape.rotation)
                                                self.deck.beginFrameEdit()
                                            }))
+                // What a finger reaches for with a shape selected, beside its handles: no keyboard to Cmd+D with.
+                if _touchSeen, _drag == nil, _twist == nil, _w.active !== shape {
+                    children.append(_touchActions(shape, ox: ox, oy: oy, px: px, fluent: fluent))
+                }
             }
         }
         return Stack(children: children)
+    }
+
+    /// The bar of 44 pt buttons over a selected shape on touch: Duplicate, Delete, and More (the shape's whole menu). It sits
+    /// above the rotate handle, or below the shape when there is no room above.
+    private func _touchActions(_ shape: SlideShape, ox: Double, oy: Double, px: Double, fluent: FluentThemeData) -> Widget {
+        let buttonW = 96.0, h = 44.0, w = buttonW * 2 + 56
+        let top = Self._framePoint(shape, 0.5, 0), bottom = Self._framePoint(shape, 0.5, 1)
+        let cx = ox + top.dx * px
+        var y = oy + top.dy * px - Self.touchLift - h - 28
+        if y < 4 { y = oy + bottom.dy * px + 16 }
+        let x = max(4, min(max(4, _area.width - w - 4), cx - w / 2))
+        func button(_ key: String, _ label: String, _ width: Double, _ action: @escaping () -> Void) -> Widget {
+            SizedBox(width: width, height: h, child: Button(key: ValueKey(key), onPressed: action, child: Text(label)))
+        }
+        return Positioned(key: ValueKey("touch-actions"), left: x, top: y, width: w, height: h, child: DecoratedBox(
+            decoration: BoxDecoration(color: OfficeAppearance.surface(fluent),
+                                      border: Border.all(color: fluent.resources.controlStrokeColorDefault, width: 1),
+                                      borderRadius: BorderRadius.circular(10),
+                                      boxShadow: [BoxShadow(color: Color(0x40000000), offset: Offset(0, 3), blurRadius: 10)]),
+            child: Row(children: [
+                button("touch-duplicate", "Duplicate", buttonW) { [weak self] in self?.deck.duplicateSelection() },
+                button("touch-delete", "Delete", buttonW) { [weak self] in self?.deck.deleteSelection() },
+                button("touch-more", "…", 56) { [weak self] in
+                    guard let self else { return }
+                    let at = self.screenPoint(Offset((cx - ox) / px, (y + h - oy) / px))
+                    self._w.onContextMenu?(at, shape)
+                },
+            ])))
     }
 
     private static func _cursor(_ handle: Int, _ rotation: Double) -> MouseCursor {
@@ -528,10 +560,60 @@ final class SlideCanvasState: State<StatefulWidget> {
         return true
     }
 
+    // MARK: Two-finger twist
+
+    /// Where each finger on the canvas is (touch only), for the twist that turns the selected shape.
+    private var _fingers: [Int: Offset] = [:]
+    private var _twist: (shape: SlideShape, startAngle: Double, startRotation: Double, last: Double, total: Double, began: Bool)? = nil
+    /// How far the fingers must turn before it is a twist and not a two-finger tap that wobbled.
+    private static let twistStart = 5.0
+
+    private func _trackFinger(_ e: PointerDownEvent) {
+        if e.kind == .touch { _fingers[e.pointer] = e.position }
+    }
+
+    private func _fingerAngle() -> Double? {
+        guard _fingers.count == 2 else { return nil }
+        let two = _fingers.sorted { $0.key < $1.key }.map(\.value)
+        return atan2(two[1].dy - two[0].dy, two[1].dx - two[0].dx) * 180 / .pi
+    }
+
+    /// A second finger landed: with one shape selected (not a line), the two fingers turning is a rotation of it.
+    private func _beginTwist() {
+        guard _twist == nil, let angle = _fingerAngle(), deck.selection.count == 1, let shape = deck.selection.first,
+              shape.preset?.isLine != true, !shape.isElbow else { return }
+        // The first finger may have begun a move: it ends where it is.
+        if case .move(_, _, _, _, let moved)? = _drag, moved { deck.endFrameEdit() }
+        _drag = nil
+        _pressGeneration &+= 1
+        _twist = (shape, angle, shape.rotation, angle, 0, false)
+    }
+
+    /// The fingers moved: turn the shape by the angle between them. True while a twist is on, so the move drags nothing.
+    private func _updateTwist() -> Bool {
+        guard var t = _twist, let angle = _fingerAngle() else { return _twist != nil }
+        var step = angle - t.last
+        if step > 180 { step -= 360 } else if step < -180 { step += 360 }
+        t.last = angle
+        t.total += step
+        if !t.began {
+            guard abs(t.total) > Self.twistStart else { _twist = t; return true }
+            t.began = true
+            _twoFinger.cancel()
+            deck.beginFrameEdit()
+        }
+        var r = t.startRotation + t.total
+        for target in stride(from: -360.0, through: 360, by: 90) where abs(r - target) < 3 { r = target }
+        deck.setRotationLive(t.shape, r)
+        _twist = t
+        return true
+    }
+
     private func _backdropDown(_ e: PointerDownEvent) {
         if _eyedrop(e) { return }
         if e.kind == .touch { _touchSeen = true }
-        if _twoFinger.down(e, hold: false, fire: { [weak self] p in self?._twoFingerMenu(p, on: nil) }) { return }
+        _trackFinger(e)
+        if _twoFinger.down(e, hold: false, fire: { [weak self] p in self?._twoFingerMenu(p, on: nil) }) { _beginTwist(); return }
         if _beginDraw(e) { return }
         if e.buttons & kSecondaryMouseButton != 0, let menu = _w.onContextMenu {
             FocusManager.instance.focusedNode?.unfocus()
@@ -553,7 +635,8 @@ final class SlideCanvasState: State<StatefulWidget> {
     private func _shapeDown(_ shape: SlideShape, _ e: PointerDownEvent) {
         if _eyedrop(e) { return }
         if e.kind == .touch { _touchSeen = true }
-        if _twoFinger.down(e, hold: false, fire: { [weak self] p in self?._twoFingerMenu(p, on: shape) }) { return }
+        _trackFinger(e)
+        if _twoFinger.down(e, hold: false, fire: { [weak self] p in self?._twoFingerMenu(p, on: shape) }) { _beginTwist(); return }
         if _beginDraw(e) { return }
         Self._log("down on shape \(shape.id) at \(e.position)")
         if e.buttons & kSecondaryMouseButton != 0, let menu = _w.onContextMenu {
@@ -598,6 +681,10 @@ final class SlideCanvasState: State<StatefulWidget> {
 
     private func _pointerMove(_ e: PointerMoveEvent) {
         _twoFinger.moved(e.pointer, e.position)
+        if _fingers[e.pointer] != nil {
+            _fingers[e.pointer] = e.position
+            if _updateTwist() { return }
+        }
         Self._log("move \(e.position) drag=\(_drag.map { "\($0)".prefix(12) } ?? "nil")")
         _dragTo(e.position)
     }
@@ -675,6 +762,12 @@ final class SlideCanvasState: State<StatefulWidget> {
     private func _pointerUp(_ e: PointerUpEvent) {
         Self._log("up \(e.position)")
         _twoFinger.up(e.pointer)
+        _fingers[e.pointer] = nil
+        if let twist = _twist {
+            _twist = nil
+            if twist.began { deck.endFrameEdit() }
+            return
+        }
         _pressGeneration &+= 1
         _dragTo(e.position)
         guard let drag = _drag else { return }

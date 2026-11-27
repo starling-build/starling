@@ -53,6 +53,13 @@ final class TouchMenuTrigger {
         return false
     }
 
+    /// Forget every finger: the gesture is something else now (a twist), so neither a hold nor a tap should follow.
+    func cancel() {
+        _touches = [:]
+        _twoFinger = nil
+        _generation &+= 1
+    }
+
     /// A pointer moved: past the slop it is a drag, not a hold or a tap.
     func moved(_ pointer: Int, _ position: Offset) {
         guard let t = _touches[pointer] else { return }
