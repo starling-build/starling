@@ -2117,6 +2117,8 @@ enum DocxFormat {
                         style.rowsUnspaced.insert(r)
                     }
                     if let v = Int(tr.first("w:trPr")?.first("w:gridBefore")?["w:val"] ?? ""), v > 0 { style.rowsGridBefore[r] = v }
+                    let rowRevision = ["w:ins", "w:del"].compactMap { tr.first("w:trPr")?.first($0) }.map { PptxXML.serialize($0) }.joined()
+                    if !rowRevision.isEmpty { style.rowRevisionXML[r] = rowRevision }
                     // Its cell spacing, borders and cell margins (the table's own
                     // and each cell's go back beside them).
                     if let ex = tr.first("w:tblPrEx") {

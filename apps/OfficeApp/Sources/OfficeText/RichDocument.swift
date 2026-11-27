@@ -1805,6 +1805,9 @@ public struct TableStyle: Hashable, Codable, Sendable {
     /// form_footnotes rules twenty of its form rows this way, and without
     /// the last one's 2.25pt box that row fitted a page Word breaks before.
     public var rowExceptions: [Int: String] = [:]
+    /// A row's tracked insertion or deletion (`w:trPr/w:ins|w:del`), as read, by row index: the row itself was
+    /// inserted or deleted. Without it Word counts each cell's deleted text as a deletion of its own (lo-9f27).
+    public var rowRevisionXML: [Int: String] = [:]
     /// Grid columns a row leaves empty before its first cell (Word's
     /// `w:gridBefore`), by row index: its cells start that far in.
     public var rowsGridBefore: [Int: Int] = [:]

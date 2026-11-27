@@ -251,4 +251,20 @@ final class DocxSaveOpensInWordTests: XCTestCase {
         let ids = grab(doc, "<w:(?:del|ins|rPrChange|pPrChange) w:id=\"(\\d+)\"")
         XCTAssertEqual(Set(ids).count, ids.count, "tracked-change ids repeat: \(ids)")
     }
+    /// A table row's own tracked deletion (w:trPr/w:del) is kept: dropped, Word counted each cell's deleted text
+    /// as a deletion of its own (lo-9f27: 22 deleted rows, 88 deletions where the file had 19).
+    func testDeletedTableRowKeepsItsMark() throws {
+        let a = "w:author=\"Jo\" w:date=\"2013-07-17T12:32:00Z\""
+        func row(_ t: String, deleted: Bool) -> String {
+            let run = deleted ? "<w:del w:id=\"9\(t.count)\" \(a)><w:r><w:delText>\(t)</w:delText></w:r></w:del>" : "<w:r><w:t>\(t)</w:t></w:r>"
+            return "<w:tr>\(deleted ? "<w:trPr><w:del w:id=\"8\(t.count)\" \(a)/></w:trPr>" : "")<w:tc><w:tcPr><w:tcW w:w=\"2000\" w:type=\"dxa\"/></w:tcPr><w:p>\(run)</w:p></w:tc></w:tr>"
+        }
+        let body = "<w:tbl><w:tblPr><w:tblW w:w=\"2000\" w:type=\"dxa\"/></w:tblPr><w:tblGrid><w:gridCol w:w=\"2000\"/></w:tblGrid>"
+            + row("gone", deleted: true) + row("stay", deleted: false) + row("also gone", deleted: true) + "</w:tbl><w:p/>"
+        let doc = try XCTUnwrap(text(try resave(body), "word/document.xml"))
+        XCTAssertEqual(grab(doc, "(<w:trPr>(?:(?!</w:trPr>).)*?<w:del )").count, 2, doc)
+        let ids = grab(doc, "<w:(?:del|ins) [^>]*?w:id=\"(\\d+)\"")
+        XCTAssertEqual(ids.count, 4, doc)
+        XCTAssertEqual(Set(ids).count, ids.count, "tracked-change ids repeat: \(ids)")
+    }
 }

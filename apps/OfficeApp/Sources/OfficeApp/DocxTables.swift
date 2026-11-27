@@ -1911,6 +1911,8 @@ extension DocxFormat {
                 if style.rowsCantSplit.contains(r) { trPr += "<w:cantSplit/>" }
                 if let h = style.rowHeights[r] { trPr += "<w:trHeight w:val=\"\(Int((h * 20).rounded()))\"\(style.rowsExactHeight.contains(r) ? " w:hRule=\"exact\"" : "")/>" }
                 if style.headerRow && r < style.headerRowCount { trPr += "<w:tblHeader/>" }
+                // (Schema order: a row's own insertion or deletion after its properties.)
+                if let rev = style.rowRevisionXML[r] { trPr += freshRevisionIDs(rev) }
                 xml += "<w:tr>" + (style.rowExceptions[r] ?? "") + (trPr.isEmpty ? "" : "<w:trPr>\(trPr)</w:trPr>")
                 // A row ends where its last cell does: Word allows a row
                 // shorter than the grid (145 of bug65649's 480 rows are,

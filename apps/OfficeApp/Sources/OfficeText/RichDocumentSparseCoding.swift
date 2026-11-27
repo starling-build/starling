@@ -690,7 +690,7 @@ extension RichTextBox {
 
 extension TableStyle {
     enum CodingKeys: String, CodingKey {
-        case borders, keptPosition, floatOffsetY, floatX, floatXAnchor, floatCentredBidi, bidiVisual, pageAnchored, pageOffsetY, floatsOverText, keptCellMarginsXML, keptCellMarginsUnder, edges, headerRow, headerRowCount, look, widthPercent, width, fixedLayout, autoCellWidths, cellSpacing, textOutdent, textOutdentRight, headerFill, bandFill, bandAltFill, borderColor, borderWidth, borderStyle, edgeStyles, edgeWidths, bordersFromCells, alignment, indent, rowsCantSplit, rowExceptions, rowsGridBefore, rowHeights, rowsExactHeight, cellMarginTop, cellMarginLeft, cellMarginBottom, cellMarginRight
+        case borders, keptPosition, floatOffsetY, floatX, floatXAnchor, floatCentredBidi, bidiVisual, pageAnchored, pageOffsetY, floatsOverText, keptCellMarginsXML, keptCellMarginsUnder, edges, headerRow, headerRowCount, look, widthPercent, width, fixedLayout, autoCellWidths, cellSpacing, textOutdent, textOutdentRight, headerFill, bandFill, bandAltFill, borderColor, borderWidth, borderStyle, edgeStyles, edgeWidths, bordersFromCells, alignment, indent, rowsCantSplit, rowExceptions, rowRevisionXML, rowsGridBefore, rowHeights, rowsExactHeight, cellMarginTop, cellMarginLeft, cellMarginBottom, cellMarginRight
     }
 
     public init(from decoder: Decoder) throws {
@@ -731,6 +731,7 @@ extension TableStyle {
         indent = try c.decodeIfPresent(Double.self, forKey: .indent) ?? 0
         rowsCantSplit = try c.decodeIfPresent(Set<Int>.self, forKey: .rowsCantSplit) ?? []
         rowExceptions = try c.decodeIfPresent([Int: String].self, forKey: .rowExceptions) ?? [:]
+        rowRevisionXML = try c.decodeIfPresent([Int: String].self, forKey: .rowRevisionXML) ?? [:]
         rowsGridBefore = try c.decodeIfPresent([Int: Int].self, forKey: .rowsGridBefore) ?? [:]
         rowHeights = try c.decodeIfPresent([Int: Double].self, forKey: .rowHeights) ?? [:]
         rowsExactHeight = try c.decodeIfPresent(Set<Int>.self, forKey: .rowsExactHeight) ?? []
@@ -778,6 +779,7 @@ extension TableStyle {
         try c.encode(indent, forKey: .indent)
         try c.encode(rowsCantSplit, forKey: .rowsCantSplit)
         try c.encode(rowExceptions, forKey: .rowExceptions)
+        try c.encode(rowRevisionXML, forKey: .rowRevisionXML)
         try c.encode(rowsGridBefore, forKey: .rowsGridBefore)
         try c.encode(rowHeights, forKey: .rowHeights)
         try c.encode(rowsExactHeight, forKey: .rowsExactHeight)
