@@ -509,6 +509,36 @@ extension SheetChart {
             if let f = ref.name, let cells = shownCells(f), let first = cells.first { c.series[i].name = first }
             if i == 0, let f = ref.cat, let cells = shownCells(f, own: categoryFormat, monthStarts: c.monthBaseDates) { c.categories = cells }
         }
+        // A date axis on a month base unit has a slot for each month from the first date to the last, and each point
+        // stands in its own date's month: Excel's print of chart-tdf134118 (dates 10 May to 16 Aug over 14 rows, the
+        // last 10 blank) has 4 slots, May to Aug, each named at its first day; we had a slot for each row. A row with
+        // no date has no place on the axis. (Only where no two dates share a month: those points share one slot.)
+        if c.monthBaseDates, c.type != .scatter, let f = refs.first?.cat, let (si, range) = resolve(f) {
+            let cells = engine.values(si, range, includeEmpty: true)
+            func month(_ s: Double) -> Int { (Int(chartNumberText(s, "yyyy")) ?? 0) * 12 + (Int(chartNumberText(s, "m")) ?? 1) - 1 }
+            let dated = cells.indices.compactMap { k in cells[k].number.map { (k, $0, month($0)) } }
+            if let first = dated.min(by: { $0.1 < $1.1 }), let last = dated.max(by: { $0.1 < $1.1 }),
+               Set(dated.map(\.2)).count == dated.count, last.2 - first.2 < 1000 {
+                let a = CellAddress(row: range.top + first.0 / range.cols, col: range.left + first.0 % range.cols)
+                let code = categoryFormat ?? book.style(book.sheets[si].cells[a]?.style ?? book.sheets[si].defaultStyle(at: a)).numberFormat
+                var start = first.1 - ((Double(chartNumberText(first.1, "d")) ?? 1) - 1)
+                var names: [String] = []
+                for _ in first.2 ... last.2 {
+                    names.append(NumberFormat.display(.number(start), code, width: 255).text.trimmingWhitespace())
+                    start += Double((28 ... 31).first { chartNumberText(start + Double($0), "d") == "1" } ?? 31)
+                }
+                for j in c.series.indices {
+                    let old = c.series[j].values
+                    var vals: [Double?] = Array(repeating: nil, count: names.count)
+                    for (k, _, m) in dated where k < old.count { vals[m - first.2] = old[k] }
+                    c.series[j].values = vals
+                    let placed = Set(dated.map(\.0))
+                    c.undatedValues += old.indices.filter { !placed.contains($0) }.compactMap { old[$0] }
+                }
+                c.categories = names
+                c.openSlots = Set(names.indices).subtracting(dated.map { $0.2 - first.2 })
+            }
+        }
         let n = max(c.categories.count, c.series.map(\.values.count).max() ?? 0)
         if c.categories.count < n { c.categories += (c.categories.count ..< n).map { "\($0 + 1)" } }
         for i in c.series.indices where c.series[i].values.count < n {

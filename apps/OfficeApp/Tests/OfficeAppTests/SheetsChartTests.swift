@@ -19,6 +19,28 @@ final class SheetsChartTests: XCTestCase {
         ws.drawings.compactMap { if case .chart(let sc) = $0.kind { return sc } else { return nil } }
     }
 
+    /// A date axis counted in months has a slot for each month from the first date to the last, each point in its own
+    /// date's month and a blank row in none: Excel's print of chart-tdf134118 (10 May to 16 Aug over 14 rows) has 4
+    /// slots named 1-May to 1-Aug, not one for each row.
+    func testAMonthDateAxisHasASlotForEachMonth() throws {
+        let c = WorkbookController()
+        let rows = [["Day", "Value"], ["5/10/2020", "10"], ["6/12/2020", "12"], ["8/16/2020", "16"], ["", "20"], ["", ""]]
+        var items: [(CellAddress, String)] = []
+        for (r, row) in rows.enumerated() { for (col, v) in row.enumerated() where !v.isEmpty { items.append((CellAddress(row: r, col: col), v)) } }
+        c.setInputs(items)
+        c.select(CellAddress("B2")!)
+        XCTAssertTrue(c.insertChart(.line))
+        var sc = try XCTUnwrap(charts(c.sheet).first)
+        sc.refs = [(name: "Sheet1!$B$1", cat: "Sheet1!$A$2:$A$6", val: "Sheet1!$B$2:$B$6")]
+        sc.categoryFormat = "d-mmm"
+        sc.chart.monthBaseDates = true
+        let live = c.liveChart(sc)
+        XCTAssertEqual(live.categories, ["1-May", "1-Jun", "1-Jul", "1-Aug"])
+        XCTAssertEqual(live.series[0].values, [10, 12, nil, 16])
+        XCTAssertEqual(live.openSlots, [2], "no row's date in July: the line runs on over it")
+        XCTAssertEqual(live.undatedValues, [20], "a value with no date still counts on the value axis")
+    }
+
     func testInsertChartFromTheTable() throws {
         let c = table()
         XCTAssertTrue(c.insertChart(.column))
