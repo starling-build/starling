@@ -125,7 +125,34 @@ final class DocxTests: XCTestCase {
     /// own content (Word's 55966 and independently printed variants).
     func testHtmlAltChunkIsItsParagraphs() {
         let html = "<html><head><title>t</title><style>p{}</style></head><body><p>HTML &amp; AltChunk</p><div>two<br>lines</div></body></html>"
-        XCTAssertEqual(DocxFormat._htmlParagraphs(html), ["HTML & AltChunk", "two", "lines"])
+        XCTAssertEqual(DocxFormat._htmlParagraphs(html).map(\.text), ["HTML & AltChunk", "two", "lines"])
+    }
+
+    /// A picture in an HTML chunk that Word cannot load (its src on the web)
+    /// stands as Word's box in the line: 24pt square, or the size the img
+    /// gives in px; a picture of inline data is not one (dx4j-d5b6ee0cfa chunk63).
+    func testHtmlChunkPictureNotLoadedIsAStandInBox() throws {
+        let html = "<html><body><p>CHK</p><p><img src=\"http://x.invalid/a.png\" alt=\"\"></p>"
+            + "<p>a <img src='b.png' width=\"48\" height=\"20\"> b</p><p><img src=\"data:image/png;base64,AA==\"></p></body></html>"
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph()]), pageSetup: .letter))
+        let d = entries.firstIndex { $0.name == "word/document.xml" }!
+        entries[d] = ZipEntry(name: "word/document.xml", data: Data(("<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" "
+            + "xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\"><w:body>"
+            + "<w:altChunk r:id=\"rIdChunk\"/><w:p><w:r><w:t>After</w:t></w:r></w:p></w:body></w:document>").utf8))
+        let r = entries.firstIndex { $0.name == "word/_rels/document.xml.rels" }!
+        let rels = String(decoding: entries[r].data, as: UTF8.self).replacingOccurrences(of: "</Relationships>",
+            with: "<Relationship Id=\"rIdChunk\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/aFChunk\" Target=\"chunk.htm\"/></Relationships>")
+        entries[r] = ZipEntry(name: "word/_rels/document.xml.rels", data: Data(rels.utf8))
+        entries.append(ZipEntry(name: "word/chunk.htm", data: Data(html.utf8)))
+        let p = try DocxFormat.read(Zip.write(entries)).document.paragraphs
+        let mark = RichParagraph.inlineImageCharacter
+        XCTAssertEqual(p.map(\.text), ["CHK", "", "a \(mark) b", "After"])
+        let box = p[1].image
+        XCTAssertEqual(box?.width ?? 0, 24, accuracy: 0.001)
+        XCTAssertEqual(box?.height ?? 0, 24, accuracy: 0.001)
+        let sized = p[2].inlineImages.values.first
+        XCTAssertEqual(sized?.width ?? 0, 36, accuracy: 0.001)
+        XCTAssertEqual(sized?.height ?? 0, 15, accuracy: 0.001)
     }
 
     /// Values past Word's 16 bits (8 for a border's width, 5 for its gap)

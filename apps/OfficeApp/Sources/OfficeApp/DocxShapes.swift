@@ -1915,6 +1915,12 @@ extension DocxFormat {
                         if let font = child["w:font"], !font.isEmpty { sym.fontFamily = font; sym.symbolFont = font }
                         addText(String(Character(sc)), sym)
                     }
+                case HtmlMissingPicture.element:
+                    // An HTML chunk's picture Word cannot load (see `_htmlParagraphs`): its stand-in box, in the line.
+                    let w = Double(child["w"] ?? "") ?? HtmlMissingPicture.side, h = Double(child["h"] ?? "") ?? HtmlMissingPicture.side
+                    RuleTrace.hit("html-chunk-picture-not-loaded-is-a-stand-in-box")
+                    addInline(ImageAttachment(data: HtmlMissingPicture.png, width: w, height: h, name: "missing-picture.png",
+                                              naturalWidth: w, naturalHeight: h), run: cs)
                 case "w:drawing", "w:pict":
                     // (An empty one is nothing: bug59058's `<w:pict/>`
                     // before a table is no mark on Word's print and takes
