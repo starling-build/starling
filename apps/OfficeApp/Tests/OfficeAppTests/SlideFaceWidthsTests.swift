@@ -1,5 +1,7 @@
 import XCTest
 import OfficeText
+import Flutter
+import FlutterSwiftBridge
 @testable import OfficeApp
 
 /// Faces PowerPoint's machine has and ours lacks set their Cyrillic at the Windows face's own widths, not the stand-in's.
@@ -18,6 +20,27 @@ final class SlideFaceWidthsTests: XCTestCase {
         XCTAssertEqual(try XCTUnwrap(f.boldOtherAdvances?[0x0410]), 0.6372, accuracy: 1e-4)
         XCTAssertNotNil(f.italicOtherAdvances?[0x0410])
         XCTAssertNotNil(f.boldItalicOtherAdvances?[0x0410])
+    }
+
+    /// A Japanese or Korean face draws its kana, ideographs and Hangul in the bundled face of its own language, ahead of
+    /// the glyph fallback's Simplified Chinese one: ja-9ce6e01e5f's MS PGothic 直 printed in the Chinese form.
+    func testAJapaneseFaceDrawsItsIdeographsInTheJapaneseFace() {
+        let saved = OfficeFonts.bundledAliases
+        defer { OfficeFonts.bundledAliases = saved }
+        OfficeFonts.bundledAliases = ["ms pgothic": "Noto Sans CJK JP", "malgun gothic": "Noto Sans CJK KR"]
+        let theme = DeckController()._textTheme(font: "MS PGothic", size: 18, color: Color(0xFF000000))
+        for (face, own) in [("MS PGothic", "Noto Sans CJK JP"), ("Malgun Gothic", "Noto Sans CJK KR")] {
+            var run = CharStyle()
+            run.fontFamily = face
+            run.eastAsiaFontFamily = face
+            let list = theme.textStyle(for: run, in: RichParagraphStyle(), scale: 1, eastAsian: true).fontFamilyFallback ?? []
+            let mine = list.firstIndex(of: own)
+            XCTAssertNotNil(mine, face)
+            if let mine, let sc = list.firstIndex(of: "Noto Sans CJK SC") { XCTAssertLessThan(mine, sc, face) }
+        }
+        // (A face PowerPoint's machine lacks prints in a face of the run's language: 楷体_GB2312 in Microsoft YaHei, not a Kai hand.)
+        OfficeFonts.bundledAliases["楷体_gb2312"] = "LXGW WenKai TC"
+        XCTAssertNil(SlideFonts.ownIdeographFace("楷体_GB2312"))
     }
 
     private func runFont(_ latin: String, _ charset: String) throws -> String? {

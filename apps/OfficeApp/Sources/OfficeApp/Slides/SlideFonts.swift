@@ -146,6 +146,14 @@ enum SlideFonts {
         SlideEastAsianWidths.lookup(n) != nil || windowsIdeographFaces.contains(n)
     }
 
+    /// The bundled face of a family's own language its ideographs, kana and Hangul are drawn in (MS PGothic's the Japanese
+    /// Noto, Malgun Gothic's the Korean), for a face PowerPoint's machine has: one it lacks prints in a face of the run's
+    /// language instead (zh-7bc21d5249's 楷体_GB2312 in Microsoft YaHei, not a Kai hand).
+    static func ownIdeographFace(_ family: String) -> String? {
+        guard let own = OfficeFonts.bundledAlias(family), !missingOnPrintBox(family) else { return nil }
+        return own
+    }
+
     /// A face PowerPoint's print machine lacks under that name: not a Windows face, not in the measured table of installed names, not embedded in the deck.
     static func missingOnPrintBox(_ family: String) -> Bool {
         // (A weight named after an installed family is that family: ko-fd75347c5b's 나눔고딕 ExtraBold prints as NanumGothic Bold.)
