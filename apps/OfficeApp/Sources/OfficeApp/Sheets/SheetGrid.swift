@@ -1872,6 +1872,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             c.select(range: CellRange(top: 0, left: min(anchorCol, col), bottom: CellAddress.maxRows - 1, right: max(anchorCol, col)),
                      active: _chords.shift ? c.active : CellAddress(row: scrollY > 0 ? rows.index(at: scrollY) : 0, col: col))
             _drag = .columns(anchor: anchorCol)
+            if e.kind == .touch { _armHeaderHold(e.position, p, selection: c.selection) }
             return
         }
         if p.dx < headerWidth && p.dy >= headerHeight {
@@ -1888,6 +1889,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             c.select(range: CellRange(top: min(anchorRow, row), left: 0, bottom: max(anchorRow, row), right: CellAddress.maxCols - 1),
                      active: _chords.shift ? c.active : CellAddress(row: row, col: scrollX > 0 ? cols.index(at: scrollX) : 0))
             _drag = .rows(anchor: anchorRow)
+            if e.kind == .touch { _armHeaderHold(e.position, p, selection: c.selection) }
             return
         }
         if p.dx < headerWidth && p.dy < headerHeight {
@@ -2009,6 +2011,21 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         }
         _cellPress(a)
         _drag = .cells
+    }
+
+    /// A finger held in place on a row or column header opens the header's menu, as a right click on it does. A finger that
+    /// has dragged (the selection moved on) or lifted (`_longGen` changed) is not holding.
+    private func _armHeaderHold(_ global: Offset, _ p: Offset, selection: CellRange) {
+        let generation = _longGen
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            guard let self, generation == self._longGen, self.controller.selection == selection else { return }
+            switch self._drag {
+            case .columns?, .rows?: break
+            default: return
+            }
+            self._drag = nil
+            self._secondaryDown(global: global, at: p)
+        }
     }
 
     /// A press on cell `a`: a second one within 0.4 s edits it, else it selects.

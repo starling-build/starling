@@ -257,6 +257,8 @@ public final class RichEditableState: State<StatefulWidget> {
     /// and whether the units are paragraphs (else words).
     private var _unitDrag: (origin: RichSelection, paragraphs: Bool)? = nil
     static let handleSize = 8.0
+    /// The handle's drawn size once a finger has touched the editor.
+    static let touchHandleSize = 14.0
     private var _clickStreak = 0
     private var _lastClickAt = 0.0
     private var _lastClickPos = Offset.zero
@@ -1330,23 +1332,12 @@ public final class RichEditableState: State<StatefulWidget> {
             return
         }
         if let drag = _handleDrag {
-            // Corners keep the aspect; edges are free. Never below 8px,
-            // never wider than the column.
+            // Never below 8px, never wider than the column.
             let dx = event.localPosition.dx - drag.start.dx
             let dy = event.localPosition.dy - drag.start.dy
-            let sx: Double = [2, 3, 4].contains(drag.handle) ? 1 : [0, 6, 7].contains(drag.handle) ? -1 : 0
-            let sy: Double = [4, 5, 6].contains(drag.handle) ? 1 : [0, 1, 2].contains(drag.handle) ? -1 : 0
-            var w = drag.size.width + sx * dx
-            var h = drag.size.height + sy * dy
-            let corner = drag.handle % 2 == 0
-            if corner {
-                let scale = max(w / drag.size.width, h / drag.size.height)
-                w = drag.size.width * scale
-                h = drag.size.height * scale
-            }
-            let maxW = _layout.width
-            if w > maxW { if corner { h *= maxW / w }; w = maxW }
-            w = max(8, w); h = max(8, h)
+            let resized = PictureResize.size(from: drag.size, handle: drag.handle, dx: dx, dy: dy,
+                                             keepAspect: _controller.pictureAspectLock, maxWidth: _layout.width)
+            let (w, h) = (resized.width, resized.height)
             _dragSize = Size(w.rounded(), h.rounded())
             _repaint.notifyListeners()
             return
@@ -1755,9 +1746,11 @@ public final class RichEditableState: State<StatefulWidget> {
             let fill = Paint()
             fill.style = .fill
             fill.color = Color(0xFFFFFFFF)
-            let half = Self.handleSize / 2
+            // A finger's handles are drawn bigger too (the hit area is already up to 44 pt wide, see _handleHit).
+            let size = _touchMode ? Self.touchHandleSize : Self.handleSize
+            let half = size / 2
             for c in Self._handles(r) {
-                let h = Rect.fromLTWH(c.dx - half, c.dy - half, Self.handleSize, Self.handleSize)
+                let h = Rect.fromLTWH(c.dx - half, c.dy - half, size, size)
                 canvas.drawRect(h, fill)
                 canvas.drawRect(h, line)
             }

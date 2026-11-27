@@ -65,7 +65,7 @@ final class FontDialogState: State<StatefulWidget> {
                 self?.setState { set(n) } })])
         }
         let fontPage = Column(crossAxisAlignment: .start, children: [
-            row("Font", [SizedBox(width: 200, height: 30, child: FKeyed("ft-family", FluentTextBox(controller: _family)))]),
+            row("Font", [SizedBox(width: 200, height: Chrome.fieldHeight, child: FKeyed("ft-family", FluentTextBox(controller: _family)))]),
             spin("ft-size", "Size (pt)", v.size ?? 11, 1, 1638) { [weak self] n in self?.v.size = n },
             row("Style", [
                 toggle("ft-bold", "Bold", v.bold) { $0.bold.toggle() },
@@ -88,7 +88,7 @@ final class FontDialogState: State<StatefulWidget> {
         ])
         let advancedPage = Column(crossAxisAlignment: .start, children: [
             spin("ft-spacing", "Spacing (pt)", v.spacing ?? 0, -100, 100) { [weak self] n in self?.v.spacing = n == 0 ? nil : n },
-            row("Scale (%)", [SizedBox(width: 90, height: 30, child: FKeyed("ft-scale", FluentTextBox(controller: _scale)))]),
+            row("Scale (%)", [SizedBox(width: 90, height: Chrome.fieldHeight, child: FKeyed("ft-scale", FluentTextBox(controller: _scale)))]),
             spin("ft-raised", "Position (pt)", v.raised ?? 0, -1584, 1584) { [weak self] n in self?.v.raised = n == 0 ? nil : n },
             row("Kerning", [
                 toggle("ft-kern", "Kern from size", v.kerningFrom != nil) { $0.kerningFrom = $0.kerningFrom == nil ? ($0.size ?? 11) : nil },

@@ -311,6 +311,12 @@ struct Chart: Equatable {
     var dateAxis = false
     /// The date axis counts months with no unit of its own (`c:baseTimeUnit` months): its names stand at each month's first date.
     var monthBaseDates = false
+    /// Slots of a month date axis that no row's date falls in: a line runs on over them (a row whose value is blank is
+    /// still a gap). Excel's print of lo-tdf165503: Apr 2021 to Dec 2021 to Oct 2022, one line.
+    var openSlots: Set<Int> = []
+    /// Values whose date is blank: no place on a month date axis, but Excel's value axis still reaches them
+    /// (lo-tdf165503's 15 under dates of at most 9: its axis runs to 16).
+    var undatedValues: [Double] = []
     /// The date axis counts in months, so its names are blank but at each period's first date (every one that is shown is shown).
     var monthNamesSparse = false
     /// The turn the file gives the category labels (`c:txPr/a:bodyPr rot`),
@@ -363,6 +369,9 @@ struct Chart: Equatable {
     /// (a combination's second value axis, at the right); nil: they share
     /// the columns'.
     var secondValueAxis: SecondValueAxis? = nil
+    /// A second column group on a value axis of its own at the right: the index of its first series (they follow the first
+    /// group's). Excel lays each group across the whole slot, the second over the first, on its own scale.
+    var secondColumnsFrom: Int? = nil
     /// A table of the numbers under the plot (`c:dTable`): the
     /// categories over its columns, a row for each series (columns,
     /// then lines) with its key and name before it. nil: none.
@@ -1607,6 +1616,7 @@ enum ChartXML {
         var merged: [XNode] = []
         var secondScatterRanges: [Range<Int>] = []
         var columnsOnRight = false
+        var secondColumnsAt: Int? = nil
         var mainLines: [XNode] = []
         if kinds.count == 3, let bar = kinds.first(where: { $0.name == "c:barChart" }), kinds.filter({ $0.name == "c:lineChart" }).count == 2,
            bar.first("c:barDir")?["val"] != "bar" {
@@ -1712,6 +1722,21 @@ enum ChartXML {
                     plot.children.insert(node, at: at)
                 }
             }
+        } else if kinds.count == 2, kinds.allSatisfy({ $0.name == "c:barChart" && $0.first("c:barDir")?["val"] == "col" }),
+                  let own = { () -> XNode? in
+                      let firstAxes = Set(kinds[0].all("c:axId").compactMap { $0["val"] }), ids = Set(kinds[1].all("c:axId").compactMap { $0["val"] })
+                      return plot.all("c:valAx").first { ax in
+                          let id = ax.first("c:axId")?["val"] ?? ""
+                          return ids.contains(id) && !firstAxes.contains(id) && (ax.first("c:axPos")?["val"] == "r" || ax.first("c:crosses")?["val"] == "max")
+                      }
+                  }() {
+            // Two column groups, the second on a value axis of its own at the right (chart-testSecondaryAxis): one list of series,
+            // the second group's marked to stand on that axis.
+            secondAxis = own
+            merged = [kinds[1]]
+            let first = kinds[0].all("c:ser").count
+            secondColumnsAt = first
+            secondScatterRanges = [first ..< first + kinds[1].all("c:ser").count]
         } else if kinds.count > 1, Set(kinds.map(\.name)).count == 1, kinds[0].name != "c:pieChart" {
             // Groups of one kind on axes of their own, in any layout not read above: their series are drawn on the first group's axes.
             merged = Array(kinds.dropFirst())
@@ -1761,10 +1786,11 @@ enum ChartXML {
             if series.isEmpty { named = ser.first("c:tx") != nil }
             let cat = ser.first("c:cat") ?? ser.first("c:xVal")
             // (A bubble series with no y values or no sizes has no bubbles: Excel's print of lab bubble1 draws five discs for y + size
-            // (x or not), none for x, y, size alone, x + y, or x + size, only the frame and the axes.)
+            // (x or not), none for x, y, size alone, x + y, or x + size, only the frame and the axes. The axes still take its values:
+            // y alone prints 0 to 6 for 1 to 5, 0 to 600 for 100 to 500.)
             let bubbleless = el.name == "c:bubbleChart" && (ser.first("c:yVal") == nil || ser.first("c:bubbleSize") == nil)
             if bubbleless { RuleTrace.hit("bubble-series-without-y-values-or-sizes-has-no-bubbles") }
-            let val = bubbleless ? nil : (ser.first("c:val") ?? ser.first("c:yVal"))
+            let val = ser.first("c:val") ?? ser.first("c:yVal")
             var names = cat.map(_points) ?? []
             if levels.isEmpty, let cache = cat?.descendant("c:multiLvlStrCache") {
                 levels = cache.all("c:lvl").dropFirst().map { lvl in
@@ -1804,7 +1830,12 @@ enum ChartXML {
             if categories.count < names.count {
                 categories = names.enumerated().map { $0.element ?? (categories.indices.contains($0.offset) ? categories[$0.offset] : "") }
             }
-            let values = (val.map(_points) ?? []).map { $0.flatMap { Double($0.trimmingWhitespace()) } }
+            var values = (val.map(_points) ?? []).map { $0.flatMap { Double($0.trimmingWhitespace()) } }
+            // (A bubble series with no y values still has its points, one to each x or size: Excel's print of lab bubble1's
+            // size-only series stands x = 1 to 5 on 0 to 6 and draws the frame, the axes and the gridlines.)
+            if el.name == "c:bubbleChart", val == nil {
+                values = Array(repeating: nil, count: max(ser.first("c:xVal").map { _points($0).count } ?? 0, ser.first("c:bubbleSize").map { _points($0).count } ?? 0))
+            }
             var s = ChartSeries(name: name, values: values)
             s.format = Self._format(val)
             if let k = ser.first("c:idx")?["val"].flatMap(Int.init), k != series.count { s.autoIndex = k }
@@ -1821,7 +1852,7 @@ enum ChartXML {
                 let style = el.first("c:scatterStyle")?["val"] ?? "marker"
                 let ln = pr?.first("a:ln")
                 s.joined = ln.map { $0.first("a:noFill") == nil } ?? (style != "marker" && style != "none")
-                if !bubbleless, let bz = ser.first("c:bubbleSize") { s.bubbleSizes = _points(bz).map { $0.flatMap { Double($0.trimmingWhitespace()) } } }
+                if bubbleless { s.bubbleSizes = [] } else if let bz = ser.first("c:bubbleSize") { s.bubbleSizes = _points(bz).map { $0.flatMap { Double($0.trimmingWhitespace()) } } }
                 if let xv = ser.first("c:xVal") {
                     let pts = _points(xv).map { $0.flatMap { Double($0.trimmingWhitespace()) } }
                     // (The first series' list is the shared one; a later one that repeats it needs none.)
@@ -2198,6 +2229,7 @@ enum ChartXML {
         let spaceRun = space.first("c:txPr")?.descendant("a:defRPr")
         var c = Chart(type: type, title: title, categories: categories, series: series)
         for r in secondScatterRanges { for i in r where i < c.series.count { c.series[i].onSecondAxis = true } }
+        c.secondColumnsFrom = secondColumnsAt
         c.categoryLevels = levels
         c.lineSeries = lines.map { l in
             var l = l
@@ -3398,7 +3430,14 @@ enum ChartPainter {
         return [face] + RichTextTheme.glyphFallback
     }
 
-    static func paint(_ c: Chart, _ canvas: any Canvas, _ r: Rect, pxPerPt k: Double, theme: DeckTheme) {
+    static func paint(_ chart: Chart, _ canvas: any Canvas, _ r: Rect, pxPerPt k: Double, theme: DeckTheme) {
+        var c = chart
+        if !c.onSheet, c.secondColumnsFrom != nil {
+            // (Only Excel's prints show the second column group on its own axis: elsewhere it stays one group on the first.)
+            c.secondColumnsFrom = nil
+            c.secondValueAxis = nil
+            for j in c.series.indices { c.series[j].onSecondAxis = false }
+        }
         guard r.width > 4, r.height > 4, !c.series.isEmpty else { return }
         // The text in the file's colour, else the theme's text colour:
         // a chart that says nothing (POI's radar-chart, a 2007 style) is
@@ -3708,8 +3747,23 @@ enum ChartPainter {
             // legend in PowerPoint's print, its plot where ours was.
             let lineKeys = c.type == .line || (c.type == .radar && !c.radarFilled)
                 || (c.type == .scatter && !c.onSlide && !c.onSheet && !c.series.isEmpty && c.series.allSatisfy(\.joined))
+            // (A sheet's line key is Excel's 19.2 pt with its 2.25 pt stroke, 2 pt before the name: the sheet's units are points, its
+            // text sizes pixels (k 0.75). ja-7d50affe6a's keys in Excel's print 10.94 long and 1.28 wide at the 2.25 pt series' scale.)
+            let lk = c.onSheet ? 1.0 : k
             // Room before an entry's name.
-            let lead = lineKeys && !beside ? 24.8 * k : key + gap
+            // (Beside a sheet's plot the column starts at the key, 2.1 pt before the name: chart-auto_marker_excel10's keys in
+            // Excel's print 429.1 to 448.4, the names at 450.5, the plot ending 413.5.)
+            // (In a row the file places in a box of its own the sheet's key takes 21.2 as at the side, no 3.6 before it: de-418ab5a23d's
+            // lineChart legend in Excel's print, keys 19.2 long 67.6 apart, names 2.1 after them, three to a row of the 202.5 pt box.)
+            let lead = lineKeys && c.onSheet && box != nil && !beside ? 21.2
+                : lineKeys && !beside ? 24.8 * lk : lineKeys && c.onSheet && box == nil ? 21.2 : key + gap
+            // (A sheet's row of line keys under the plot: 33.5 pt from one name's end to the next name at 9 pt, the key's 24.8 and
+            // 8.7 between the entries: lab xl-legb's one-row legends in Excel's print, "Sales" ending 98.0, "North region" at 131.5.)
+            if sheetRow, lineKeys, box == nil { spacing = 11.6 * k * m }
+            // A sheet legend at the foot, automatic: one row while the keys and names, without the room between them, fit 0.9 of the
+            // frame's width; else a grid of equal columns as wide as the widest key and name, as many as fit that width, the rows
+            // balanced, a name wider than the whole width wrapped within it.
+            let sheetFoot = c.onSheet && !beside && box == nil && !pie && c.legendPosition == "b" && c.legendAt == nil && !c.legendOverlay
             // (In a place of its own a name wider than the place wraps
             // within it, set left: zh-61aaad09's pie legend, 26% of the
             // chart's width, sets "实体投诉举报" as "实体投诉" / "举报" in Word's
@@ -3730,6 +3784,37 @@ enum ChartPainter {
                     RuleTrace.hit("word-pie-side-legend-name-wraps-at-a-third-of-the-frame")
                     e.tp.dispose()
                     return (i: e.i, tp: styled(names[e.i], size, wrapW, bold: c.legendBold, color: c.legendColor, part: "legend", align: .left, windowsLines: true))
+                }
+            }
+            // (An Excel legend at a side where Excel places it: a name wraps at a space at a third of the chart less 12 pt, and
+            // where the chart is too short for all its lines the last one shown ends in an ellipsis. Lab xl-legw, 12 column
+            // charts 180, 384 and 588 pt wide: Excel's lines wrap within 47.8-51.2, 106.3-118.4 and 181.5-186.8 pt, and the
+            // 180 x 213.75 chart shows 17 lines of 11 pt, "aliquam…" last, in a legend 22.9 pt shorter than the chart.)
+            let sheetSide = c.onSheet && beside && box == nil && !pie && ["r", "l"].contains(c.legendPosition)
+            if sheetSide {
+                let wrapW = r.width / 3 - 12
+                entries = entries.map { e in
+                    guard e.tp.width > wrapW + 0.01 else { return e }
+                    RuleTrace.hit("sheet-side-legend-name-wraps-at-a-third-of-the-chart")
+                    e.tp.dispose()
+                    let wrapped = styled(names[e.i], size, wrapW, bold: c.legendBold, color: c.legendColor, part: "legend", align: .left, windowsLines: true)
+                    let lines = wrapped.computeLineMetrics()
+                    let each = wrapped.height / Double(max(1, lines.count))
+                    let room = max(1, Int(((r.height - 26) / each).rounded(.down)))
+                    guard lines.count > room else { return (i: e.i, tp: wrapped) }
+                    wrapped.dispose()
+                    RuleTrace.hit("sheet-side-legend-name-ends-in-an-ellipsis-where-the-chart-is-full")
+                    // (The words that fit, then "…": Excel's 17th line is "aliquam…" where the whole name's is "aliquam".)
+                    let words = names[e.i].split(separator: " ", omittingEmptySubsequences: false)
+                    var keep = words.count - 1
+                    while keep > 1 {
+                        let t = styled(words[..<keep].joined(separator: " ") + "\u{2026}", size, wrapW, bold: c.legendBold, color: c.legendColor, part: "legend", align: .left, windowsLines: true)
+                        let fits = t.computeLineMetrics().count <= room
+                        t.dispose()
+                        if fits { break }
+                        keep -= 1
+                    }
+                    return (i: e.i, tp: styled(words[..<max(1, keep)].joined(separator: " ") + "\u{2026}", size, wrapW, bold: c.legendBold, color: c.legendColor, part: "legend", align: .left, maxLines: room, windowsLines: true))
                 }
             }
             // (A Word pie's legend in a box of its own: the names wrap in the box less the key's room and 0.65 of the size,
@@ -3779,6 +3864,38 @@ enum ChartPainter {
             // the bottom, listed last (LIBRE_OFFICE-100610-0's five).
             // (Not when the category axis runs from the top: series 1 is then the top bar, and listed first, 81d28d42 p29.)
             if c.type == .bar, !c.stacked, !(c.onSlide && c.categoryReversed) { entries.reverse() }
+            // (Lab xl-legb in Excel's print and COM readback, Calibri and Yu Gothic 9 pt, frames 180 to 420 pt: "Sales", "North region",
+            // "North region 2" stand in one row at 240 (keys and names 192 of 216) and in two columns at 180, 77.5 pt apart, the block
+            // centred; "Operating income before tax and interest" wraps after "and" in a 180 frame, within 162 less the key's room.)
+            var sheetGridW: Double? = nil
+            var sheetGridCols = 0
+            if sheetFoot, !entries.isEmpty {
+                let limit = 0.9 * r.width
+                entries = entries.map { e in
+                    guard lead + e.tp.width > limit + 0.01 else { return e }
+                    RuleTrace.hit("sheet-foot-legend-name-wraps-within-the-frame")
+                    e.tp.dispose()
+                    return (i: e.i, tp: styled(names[e.i], size, max(size * k, limit - lead), bold: c.legendBold, color: c.legendColor, part: "legend", align: .left, windowsLines: true))
+                }
+                // (A wrapped name takes the room of its longest line, not of the box it wrapped in: "Operating income before tax and"
+                // 121.5 pt, its column centred at 41.8 in a 180 frame, not 33.6.)
+                let shownW: (TextPainter) -> Double = { tp in tp.computeLineMetrics().map { $0.width }.max() ?? tp.width }
+                let keysAndNames = entries.reduce(0.0) { $0 + lead + shownW($1.tp) }
+                if keysAndNames > limit + 0.01 {
+                    RuleTrace.hit("sheet-foot-legend-too-wide-for-a-row-stands-as-a-grid")
+                    let colW = lead + (entries.map { shownW($0.tp) }.max() ?? 0)
+                    let fit = max(1, min(entries.count, Int((limit + 0.01) / max(1, colW))))
+                    let rows = (entries.count + fit - 1) / fit
+                    sheetGridCols = (entries.count + rows - 1) / rows
+                    sheetGridW = colW
+                    spacing = 0
+                } else {
+                    // (A row that fits so but not with the room between entries and at its ends closes that room up evenly: "Sales" to
+                    // "North region" 30.4 pt in a 240 frame where 33.5 in a 320.)
+                    let natural = keysAndNames + spacing * Double(entries.count + 1)
+                    if natural > limit { spacing = max(0, spacing - (natural - limit) / Double(entries.count + 1)) }
+                }
+            }
             var lines: [[(i: Int, tp: TextPainter)]] = [[]]
             var lineW = 0.0
             var wasWide = false
@@ -3799,6 +3916,11 @@ enum ChartPainter {
                 if lineW > 0, beside || boxColumn || ownRow || lineW + (wordSpread ? 0 : spacing) + w > (box?.width ?? area.width) { lines.append([]); lineW = 0 }
                 lineW += (lineW > 0 && !wordSpread ? spacing : 0) + w
                 lines[lines.count - 1].append(e)
+            }
+            if sheetGridW != nil, sheetGridCols > 0 {
+                lines = stride(from: 0, to: entries.count, by: sheetGridCols).map { Array(entries[$0 ..< min($0 + sheetGridCols, entries.count)]) }
+            } else if sheetFoot, !entries.isEmpty {
+                lines = [entries]
             }
             // (Word spreads the entries of a legend in a box of its own across the box, the
             // free width in equal parts before, between and after them, and wraps a row only
@@ -3910,6 +4032,8 @@ enum ChartPainter {
                 let tall = line.map { $0.tp.height }.max() ?? 0
                 if let h = cxRowH { return h }
                 if slideSidePie, slotH > 1.5 * textH { return slotH + 5.8 * k }
+                // (A name Excel wraps at a side keeps the room a line has round it: 3.1 pt over its lines in lab xl-legw's 8- and 25-line legends.)
+                if sheetSide, tall > 1.5 * textH { return tall + 5.88 }
                 return wordSidePie && tall > 1.5 * textH ? tall + 5.8 * k : max(lineH, tall)
             }
             // (A Word pie's side legend too tall for the chart drops its last entries: lab piesize4's 60-character names, three lines
@@ -3947,10 +4071,19 @@ enum ChartPainter {
             if let box, lineHs.reduce(0, +) < box.height || boxHoldsRows, !lines.isEmpty {
                 lineHs = lines.map { _ in box.height / Double(lines.count) }
             }
+            // (A sheet's legend grid sets every row as tall as its tallest entry and 5.88 pt more, the entries hung from the row's
+            // top: lab xl-legb's rows 16.9 pt apart at Calibri 9 pt, 27.75 where a name wraps to two lines, 17.5 and 28.9 in Yu Gothic.)
+            var sheetGridSlot: Double? = nil
+            if sheetGridW != nil, !lines.isEmpty {
+                // (Each line counts 1.2213 x the size, as beside the plot: Excel's 27.75 for two Calibri lines; Yu Gothic's 28.9 is near.)
+                let slot = 1.2213 * size * k * Double(entries.map { max(1, $0.tp.computeLineMetrics().count) }.max() ?? 1) + 5.88
+                sheetGridSlot = slot
+                lineHs = lines.map { _ in slot }
+            }
             let linesH = lineHs.reduce(0, +)
             // (A name wrapped on a slide takes the width of its longest line, not of the room it wrapped in.)
             let tightW: (TextPainter) -> Double = { tp in
-                slideSidePie ? (tp.computeLineMetrics().map(\.width).max() ?? tp.width) : tp.width
+                slideSidePie || sheetSide ? (tp.computeLineMetrics().map(\.width).max() ?? tp.width) : tp.width
             }
             let columnW = (entries.map { tightW($0.tp) }.max() ?? 0) + lead
             var y: Double, columnX = 0.0
@@ -4019,7 +4152,7 @@ enum ChartPainter {
                 RuleTrace.hit("word-legend-placed-by-its-corner-keeps-its-size-over-the-plot")
                 y = r.top + at.dy * r.height + 2.5 * k
             } else if beside {
-                y = c.legendPosition == "tr" ? area.top : area.center.dy - titleDrop / 2 - (wrappedSide ? linesH - 5.8 * k : lineH * Double(lines.count)) / 2 + (wrappedSide ? (slideSidePie ? -4.1 : 1.3) * k : 0)
+                y = c.legendPosition == "tr" ? area.top : area.center.dy - titleDrop / 2 - (wrappedSide ? linesH - 5.8 * k : sheetSide ? linesH : lineH * Double(lines.count)) / 2 + (wrappedSide ? (slideSidePie ? -4.1 : 1.3) * k : 0)
                 // (A Word chart with a title, its plot left where the file puts it (manual layout) and
                 // the legend at the right: the legend's middle stands 4.1 pt lower than the middle of
                 // the room under the title — lo-c4c60fcb's two entries, 14 pt title, in Word's print.)
@@ -4060,12 +4193,27 @@ enum ChartPainter {
                     // PowerPoint's, the column's keys moved within it.)
                     // (On a sheet a scatter whose series draw lines has a line with its mark for a key, 21.2 pt wide, not a 7 pt square and 4 pt gap: Excel's print of chart-axis_title_default_rotation ends the plot 15.4 pt further in.)
                     let sheetScatterKeys = c.onSheet && c.type == .scatter && c.series.contains { !$0.lineHidden } ? 10.2 * k : 0
-                    let measured = (entries.map { tightW($0.tp) }.max() ?? 0) + 11 * k * m + sheetScatterKeys
+                    // (A sheet line chart's column takes its 19.2 pt key and 2 pt gap the same way: chart-auto_marker_excel10's plot ends
+                    // 413.5 in Excel's print, its keys from 429.1.)
+                    // (Not with a second value axis at the right: its labels and title already stand off the legend, chart-axis_title_rotated's
+                    // and chart-secondary_axis_title_default_rotation's plots end where the 7 pt keys left them in Excel's print, 180.9.)
+                    let sheetLineKeys = c.onSheet && lineKeys && c.secondValueAxis == nil ? 21.2 - 11 * k * m : 0
+                    let measured = (entries.map { tightW($0.tp) }.max() ?? 0) + 11 * k * m + sheetScatterKeys + sheetLineKeys
                     // (A Word pie's legend at the right takes at most a third of the frame and 9 pt (129 pt of 360,
                     // 169 of 480): names past 28 characters move the pie no further, lab piesize4's legr docs.)
                     let word = c.type == .pie && box == nil && !c.onSlide && !c.onSheet
                     let taken = word ? min(measured + (apart + 1.64) * k, r.width / 3 + 9 * k) : measured + apart * k
                     area = Rect.fromLTRB(area.left, area.top, area.right - taken, area.bottom)
+                    // (Excel's legend at the right with a wrapped name: as wide as its longest line and 16 pt, at most a third of the chart
+                    // and 3, ending 10.8 pt inside the chart, the names 16.4 into it and the plot 22.8 before them. Lab xl-legw's COM
+                    // positions: boxes 63, 131 and 199 (the cap) and 118.9 and 164.4 (lines of 102.9 and 148.4) at 107/243/379, 255.1, 413.6.)
+                    if sheetSide, entries.contains(where: { $0.tp.computeLineMetrics().count > 1 }) {
+                        RuleTrace.hit("sheet-right-legend-with-a-wrapped-name-is-its-longest-line-wide")
+                        let boxW = min((entries.map { tightW($0.tp) }.max() ?? 0) + 15.98, r.width / 3 + 3)
+                        let x = r.right - 10.84 - boxW + 16.4 - lead
+                        area = Rect.fromLTRB(area.left, area.top, area.right - (columnX - x) - 3.0, area.bottom)
+                        columnX = x
+                    }
                     if let sb = seriesButtons { area = Rect.fromLTRB(area.left, area.top, sb.x - 7.4, area.bottom) }
                 }
             } else if c.legendPosition == "t" {
@@ -4097,6 +4245,9 @@ enum ChartPainter {
                 // Excel's prints of nine charts with the legend below.)
                 let pt = c.onSheet ? k / 0.75 : 0
                 y = area.bottom - 1.2 * k - lineH * Double(lines.count) - 2.2 * pt
+                // (Its first row stands where a one-row legend's does less the rows over it, 1.5 pt short of a row each:
+                // lab xl-legb's legends of two rows 15.4 pt taller than of one, the last row's names 1.5 lower.)
+                if let slot = sheetGridSlot { y = area.bottom - 1.2 * k - lineH - 2.2 * pt - (slot * Double(lines.count - 1) - 1.5) }
                 // (A `cx:` chart's row on a slide stands 7.15 pt higher, its baseline 14.9 above the frame's foot, and the plot's room
                 // ends 9.45 above it, the row taking 28.8 pt from the plot: lab cx-legend in PowerPoint's print, frames 200 to 450 pt
                 // high alike; bw-spacing's and chartex-lab2's waterfall legends.)
@@ -4137,8 +4288,19 @@ enum ChartPainter {
                     slideRowStart = b.left + spacing + 0.19 * (c.legendSize ?? c.baseTextSize) * k
                 }
             }
+            // (A sheet's legend in a box of its own, one entry to a row, stands as one column set left, its keys at one x: the key and
+            // the widest line (a wrapped name's widest) centred 2.8 pt right of the box's middle, as one block. ja-7d50affe6a's three
+            // placed legends in Excel's print, 8 and 9 pt, keys 1.55 to 1.65 pdf (0.569 a point) right of centred, each line its own. Line keys only: xls-25b85219f5's bar legend in Excel's print stands as ours did before.)
+            let sheetBoxColumnW: Double? = c.onSheet && box != nil && !pie && lineKeys && lines.count > 1 && lines.allSatisfy { $0.count == 1 }
+                ? lines.map { $0.reduce(0.0) { $0 + lead + ($1.tp.computeLineMetrics().map { $0.width }.max() ?? $1.tp.width) } }.max() : nil
+            let sheetKeyLead = lineKeys ? 21.2 * lk : lead
             func startX(_ w: Double) -> Double {
                 if let x = slideRowStart { return x }
+                if let cw = sheetBoxColumnW, let b = box {
+                    RuleTrace.hit("sheet-box-legend-column-stands-set-left-its-block-centred")
+                    let keyStart = b.center.dx + 2.8 - (cw - lead + sheetKeyLead) / 2
+                    return keyStart - (lead - sheetKeyLead)
+                }
                 if let cw = wordColumnW, let b = box { return b.center.dx + 0.13 * (c.legendSize ?? c.baseTextSize) * k - cw / 2 }
                 if let cw = slideColumnW, let b = box { return b.center.dx + 0.19 * (c.legendSize ?? c.baseTextSize) * k - cw / 2 }
                 return beside ? columnX : (box == nil && c.legendAt != nil && !c.onSlide && !c.onSheet && !pie) ? r.left + c.legendAt!.dx * r.width + 15.8 * k : (box?.center.dx ?? middle) - w / 2
@@ -4187,6 +4349,8 @@ enum ChartPainter {
                     w = g * maxPerRow
                 } else if let pitch = wordGridPitch {
                     w = pitch * maxPerRow - spacing
+                } else if let g = sheetGridW {
+                    w = g * maxPerRow
                 } else {
                     var entriesW: Double = 0
                     for e in line { entriesW += lead + e.tp.width }
@@ -4201,12 +4365,31 @@ enum ChartPainter {
                     let p = Paint()
                     p.style = .fill
                     p.isAntiAlias = true
+                    // (A sheet's box column: each entry's first line at the top of its even slot, its key on that line, a wrapped
+                    // name hanging below: ja-7d50affe6a's keys 3.3 and 3.8 pdf under the slot's top in Excel's print, 12 and 13.7 apart.)
+                    let firstH = e.tp.computeLineMetrics().first.map { $0.height } ?? textH
+                    // (Excel's key by a wrapped side name stands at its first line's middle: lab xl-legw, every legend.)
+                    let keyY = sheetBoxColumnW != nil || sheetGridSlot != nil ? y + firstH / 2
+                        : sheetSide ? y + (lineH - e.tp.height) / 2 + e.tp.height / Double(max(1, e.tp.computeLineMetrics().count)) / 2 : y + lineH / 2
                     if !byPoint, e.i >= c.series.count {
                         // A combination's line: its mark, on its line unless
                         // that is hidden.
                         let l = c.lineSeries[e.i - c.series.count]
                         let colour = l.color ?? c.color(series: e.i, accents: theme.accents)
-                        let mid = Offset(x + key / 2, y + lineH / 2)
+                        let mid = Offset(x + key / 2, sheetGridSlot != nil ? y + (e.tp.computeLineMetrics().first.map { $0.height } ?? textH) / 2 : y + lineH / 2)
+                        // (A sheet line chart's combination line has the series' own key, 19.2 pt and 2.25 wide ending 2 before its name:
+                        // chart-axis_title_rotated's col1 in Excel's print, its key 235.2 to 254.4 under col2's and col3's.)
+                        if c.onSheet, lineKeys, !l.lineHidden {
+                            RuleTrace.hit("sheet-combination-line-entry-takes-the-line-key")
+                            p.style = .stroke
+                            p.strokeWidth = 2.25 * lk
+                            p.color = colour
+                            canvas.drawLine(Offset(x + lead - 21.2 * lk, keyY), Offset(x + lead - 2 * lk, keyY), p)
+                            Self._mark(l, at: Offset(x + lead - 11.6 * lk, keyY), k: lk, colour: colour, canvas)
+                            e.tp.paint(canvas, Offset(x + lead, sheetGridSlot != nil ? y : y + (lineH - e.tp.height) / 2))
+                            x += sheetGridW ?? wordGridPitch ?? (lead + e.tp.width + spacing)
+                            continue
+                        }
                         if !l.lineHidden {
                             p.style = .stroke
                             p.strokeWidth = 2.25 * k
@@ -4219,9 +4402,9 @@ enum ChartPainter {
                             }
                         }
                         Self._mark(l, at: mid, k: k, colour: colour, canvas)
-                        e.tp.paint(canvas, Offset(x + key + gap, y + (lineH - e.tp.height) / 2))
+                        e.tp.paint(canvas, Offset(x + key + gap, sheetGridSlot != nil ? y : y + (lineH - e.tp.height) / 2))
                         let lineAdvance: Double = key + gap + e.tp.width + spacing
-                        x += wordGridPitch ?? lineAdvance
+                        x += sheetGridW ?? wordGridPitch ?? lineAdvance
                         continue
                     }
                     p.color = waterfall != nil ? c.color(series: e.i, accents: theme.accents)
@@ -4229,22 +4412,22 @@ enum ChartPainter {
                         : lineKeys ? c.lineColor(series: e.i, accents: theme.accents) : c.color(series: e.i, accents: theme.accents)
                     if lineKeys, !pie, e.i < c.series.count, c.series[e.i].lineHidden {
                         // (A series with no line: its mark alone, if any.)
-                        Self._mark(c.series[e.i], at: Offset(x + lead - 11.6 * k, y + lineH / 2), k: k, colour: p.color, canvas)
+                        Self._mark(c.series[e.i], at: Offset(x + lead - 11.6 * lk, keyY), k: lk, colour: p.color, canvas)
                     } else if lineKeys {
                         p.style = .stroke
-                        p.strokeWidth = 2.25 * k
-                        canvas.drawLine(Offset(x + lead - 21.2 * k, y + lineH / 2), Offset(x + lead - 2 * k, y + lineH / 2), p)
+                        p.strokeWidth = 2.25 * lk
+                        canvas.drawLine(Offset(x + lead - 21.2 * lk, keyY), Offset(x + lead - 2 * lk, keyY), p)
                         // (A scatter's key has its dot on the line: lo-c4c60fcb's in Word's print.)
                         if c.type == .scatter {
                             p.style = .fill
-                            canvas.drawCircle(Offset(x + lead - 11.6 * k, y + lineH / 2), 2.5 * k, p)
+                            canvas.drawCircle(Offset(x + lead - 11.6 * lk, keyY), 2.5 * lk, p)
                         }
                     } else if c.type == .scatter {
                         canvas.drawCircle(Offset(x + key / 2, y + lineH / 2), 2.5 * k, p)
                     } else {
                         let high = wideKeys ? 4.9 * k : key
                         // (A slide pie's wrapped column: the key and the name's first line at the top of the slot, as in PowerPoint's print.)
-                        let keyMid = slideSidePie && wrappedSide ? y + (lineH - slotH) / 2 + textH / 2 : y + lineH / 2
+                        let keyMid = slideSidePie && wrappedSide ? y + (lineH - slotH) / 2 + textH / 2 : keyY
                         // (A pattern-filled series' key is hatched as its columns are: dx2 99cfc5554d6e p3's "sphere" and "openDmnd" keys.)
                         let keyRect = Rect.fromLTWH(x, keyMid - high / 2 + keyDrop, key, high)
                         var hatchedKey = false
@@ -4269,7 +4452,7 @@ enum ChartPainter {
                             q.isAntiAlias = true
                             q.strokeWidth = min(c.series[e.i].outlineWidth, 0.75)
                             q.color = o
-                            canvas.drawRect(hatchedKey ? keyRect : Rect.fromLTWH(x, y + (lineH - high) / 2 + keyDrop, key, high), q)
+                            canvas.drawRect(hatchedKey ? keyRect : Rect.fromLTWH(x, keyY - high / 2 + keyDrop, key, high), q)
                         }
                     }
                     // (A Word pie's legend in a box of its own: an entry that wraps stands its first line where a one-line entry's
@@ -4286,9 +4469,10 @@ enum ChartPainter {
                         textDrop = (lineH - tall) / 2 + 1.5 * k
                     }
                     if slideSidePie, wrappedSide { textDrop = (lineH - slotH) / 2 }
+                    if sheetBoxColumnW != nil || sheetGridSlot != nil { textDrop = 0 }
                     e.tp.paint(canvas, Offset(x + lead, y + textDrop))
                     let ownAdvance: Double = lead + e.tp.width + spacing
-                    let advance: Double = slideGridW ?? wordGridPitch ?? ownAdvance
+                    let advance: Double = slideGridW ?? wordGridPitch ?? sheetGridW ?? ownAdvance
                     x += advance
                 }
                 y += lineH
@@ -4691,6 +4875,35 @@ enum ChartPainter {
     /// 1,600 in 200s, 0 to 600 in 100s, 0 to 6 in ones, 0 to 9 in ones
     /// (line-chart's 8.2, where eight made it 0 to 10 in twos) — and no
     /// deck's axis tells nine from ten. Across the page, eight.
+    /// How many steps at most a sheet chart's automatic value axis takes (sizes in points).
+    /// (Excel's step takes the plot it would lay out itself, whatever the file places: the chart's height less the larger of 22 pt
+    /// and the value labels' line plus 10, less the category labels' row. The plot holds the steps and two label lines more, a
+    /// label line here being 0.917 of the row Excel's print gives the face at that size (SheetPrintMetrics): lab xl-step2, Excel's
+    /// prints of 120 charts 145 pt wide and 60 to 200 tall in eight faces, all 120 steps, 5M, 2M, 1M and 0.5M by turns as the plot
+    /// grows, Calibri 10 reaching 1M at 100 pt and Yu Gothic 10 at 120; lab xl-step, a manual inner plot keeps the automatic one's step.)
+    /// A title beside the plot (not overlaid) takes its box, one line of its face per line plus 3, and 6 more: lab xl-step3, 210
+    /// charts in Calibri and 新細明體 with titles of 7 to 18 pt, Excel's automatic plot exactly title box + 6 shorter than the
+    /// untitled one's in all 14 kinds, and the step following that plot even where the title or the inner plot is placed by hand.
+    static func sheetValueSteps(frameHeight: Double, face: String, labelSize: Double, categorySize: Double?, categoryTitleSize: Double?,
+                                titleSize: Double? = nil, titleFace: String? = nil, titleLines: Int = 1, categoryTitleFace: String? = nil) -> Int {
+        let line = 0.917 * SheetPrintMetrics.textRowDots(family: face, size: labelSize) * 72 / 600
+        let em = SheetPrintMetrics.lineEm(family: face) ?? 1.2207
+        var plot = frameHeight - max(22, em * labelSize + 10)
+        if let t = titleSize {
+            // (An East Asian face's line is its own East Asian line: 新細明體's title box 1.3 em + 3, Calibri's 1.2207 em + 3.)
+            let tf = titleFace ?? face
+            let eaEm: Double? = OfficeFonts.isEastAsianFace(tf) ? OfficeFonts.eastAsianLine(tf)?.height : nil
+            let titleEm: Double = eaEm ?? SheetPrintMetrics.lineEm(family: tf) ?? em
+            let box: Double = Double(titleLines) * titleEm * t + 3
+            plot -= box + 6
+        }
+        if let cat = categorySize { plot -= em * cat + 3.2 }
+        // (A category title in a face of its own takes that face's line: a bare one (no text properties) is Arial, 18 pt where the
+        // chart's are 20, in Excel's print of chart-tdf119138-missing-autotitledeleted, and its 0-80 axis keeps eight steps.)
+        if let t = categoryTitleSize { plot -= (categoryTitleFace.flatMap { SheetPrintMetrics.lineEm(family: $0) } ?? 1.22) * t + 4 }
+        return max(1, min(10, Int(plot / line) - 2))
+    }
+
     static func scale(_ lo0: Double, _ hi0: Double, intervals: Int = 10, headroom: Double = 0.05) -> (lo: Double, hi: Double, step: Double) {
         if let s = _offZero(lo0, hi0, intervals: intervals) { return s }
         // (All zero: PowerPoint's empty chart runs 0 to 1 in tenths, e365f9b4 p17.)
@@ -5487,7 +5700,7 @@ enum ChartPainter {
                 hi = max(hi, pos); lo = min(lo, neg)
             }
         } else {
-            var all = c.series.filter { !$0.onSecondAxis }.flatMap { $0.values.compactMap { $0 } }
+            var all = c.series.filter { !$0.onSecondAxis }.flatMap { $0.values.compactMap { $0 } } + c.undatedValues
             // (Error bars reach the axis' range: bab9be95 p15's values 0.65 to 0.81 with bars of up to 0.018 print 60% to 85%.)
             for ser in c.series where !ser.onSecondAxis {
                 guard let eb = ser.errBars else { continue }
@@ -5522,28 +5735,23 @@ enum ChartPainter {
             lo = 0; hi = 0
             for s in c.waterfallSpans { lo = min(lo, s.from, s.to); hi = max(hi, s.from, s.to) }
         }
-        // (A bubble chart's axis takes in the discs, not only their centres: chart-bubble_chart_simple's y values 0, 2 and 4 with discs
-        // of up to 35 pt print on -1 to 5, ours 0 to 4.5. The largest disc is a quarter of the plot's shorter side; a disc's radius in
-        // value units follows from the span it stands on, so it is settled by a few passes.)
-        if c.onSheet, c.type == .scatter, c.series.contains(where: { $0.bubbleSizes != nil }) {
-            let plotH = max(40, area0.height / k * 0.968 - 36.1), plotW = max(40, area0.width / k - 40)
-            let top = c.series.compactMap { $0.bubbleSizes?.compactMap { $0 }.max() }.max() ?? 1
-            let full = 0.25 * min(plotW, plotH) * c.bubbleScale / 100
-            var lo2 = lo, hi2 = hi
-            for _ in 0 ..< 4 {
-                var nlo = lo, nhi = hi
-                for ser in c.series {
-                    guard let zs = ser.bubbleSizes else { continue }
-                    for (i, v) in ser.values.enumerated() {
-                        guard let v, let z = zs[safe: i] ?? nil, z > 0, top > 0 else { continue }
-                        let d = c.bubbleByWidth ? full * z / top : full * (z / top).squareRoot()
-                        let r = d / 2 * (hi2 - lo2) / plotH
-                        nlo = min(nlo, v - r); nhi = max(nhi, v + r)
-                    }
-                }
-                lo2 = nlo; hi2 = nhi
+        // (A bubble chart's axes reach a sixth of their data's spread past each end, times the bubble scale, discs drawn or not,
+        // whatever their sizes, in place of the 5% headroom: Excel's prints of lab bubble1 put y = -3 to 4 on -5 to 6 with sizes or
+        // none, and x = -3 to 4 on -5 to 6 though the plot is twice as wide as it is tall; chart-bubble_chart_simple's 0 to 4 on -1
+        // to 5. Lab xl-bub2 (Excel COM): y = -1 to 4.1 stops at 5 where a fifth would reach 6; at a 300% scale y = -1 to 4 stands
+        // -4 to 7 and x = 1 to 5 stands -2 to 8.)
+        let bubbleAxes = c.onSheet && c.type == .scatter && c.series.contains(where: { $0.bubbleSizes != nil })
+        if bubbleAxes {
+            RuleTrace.hit("sheet-bubble-axes-reach-a-sixth-of-the-spread-past-the-data")
+            // (One value has no spread: chart-bubble_chart_simple's x = 1 alone stands 0 to 1.2, a fifth of the value past it.)
+            let pad = hi > lo ? (hi - lo) / 6 * c.bubbleScale / 100 : 0.2 * abs(hi)
+            lo -= pad; hi += pad
+            // (With no y values at all the axis stands -0.2 to 1.4: every one of lab bubble1's seven series without y values,
+            // x or none, sizes or none.)
+            if !c.series.contains(where: { $0.values.contains { $0 != nil } }) {
+                RuleTrace.hit("sheet-bubble-chart-without-y-values-stands-minus-0.2-to-1.4")
+                lo = -0.2; hi = 1.4
             }
-            lo = lo2; hi = hi2
         }
         let labelSize = c.valueLabelSize ?? c.baseTextSize
         // (Settled here and captured as constants: the Windows
@@ -5563,7 +5771,9 @@ enum ChartPainter {
         // 200000s and 0 to 80% in 20s in Word's print, where ten steps
         // stood ours a third of a label apart.)
         let tableSteps: Int? = {
-            guard let dt = c.dataTable, !horizontal, c.type != .scatter, !c.type.isPie else { return nil }
+            // (Not on a sheet: Excel picks the step as though the table were not there. Its print of chart-ChartDataTable, a 175.5 pt
+            // frame with a three-row table under an 80 pt axis, runs 1-4 data 0 to 4.5 by halves, the step the frame takes untabled.)
+            guard !c.onSheet, let dt = c.dataTable, !horizontal, c.type != .scatter, !c.type.isPie else { return nil }
             // (On rows of 1.64 em whatever their faces: the steps were read
             // off Word for Mac's prints, and Word for Windows' zh-61aaad09
             // keeps the same four over its taller table.)
@@ -5615,13 +5825,21 @@ enum ChartPainter {
         }()
         let sheetSteps: Int? = {
             guard c.onSheet, !c.chartex, !horizontal, c.type != .scatter || c.series.contains(where: { $0.bubbleSizes != nil }), !c.type.isPie else { return nil }
-            // (The axis spans 0.968 of the chart's height less 36pt flat, 0.455 of it less 21pt in a 3-D chart: the labels' own rows.)
             let h = area0.height / k
-            let span = (c.barView != nil || c.line3D) && c.barView?.rightAngles != true ? 0.455 * h - 20.8 : 0.968 * h - 36.1
-            return max(2, min(10, Int(span / 13)))
+            if (c.barView != nil || c.line3D) && c.barView?.rightAngles != true {
+                // (The axis spans 0.455 of a 3-D chart's height less 21: the labels' own rows.)
+                return max(2, min(10, Int((0.455 * h - 20.8) / 13)))
+            }
+            RuleTrace.hit("sheet-value-axis-steps-from-the-label-line")
+            return sheetValueSteps(frameHeight: frame.height / k * 0.75, face: c.font ?? c.axisFont ?? theme.bodyFont ?? "Calibri", labelSize: labelSize * 0.75,
+                                   categorySize: c.categoryAxisDeleted ? nil : (c.categoryLabelSize ?? c.baseTextSize) * 0.75,
+                                   categoryTitleSize: c.categoryAxisTitle == nil ? nil : (c.axisTitleSize ?? 13.3) * 0.75 * (c.bareAxisTitle ? 0.9 : 1),
+                                   titleSize: (c.title ?? "").isEmpty || c.titleOverlay ? nil : (c.titleSize ?? c.textSize.map { ($0 * 1.2).rounded() } ?? 18.6) * 0.75,
+                                   titleFace: c.titleFont ?? c.font ?? theme.bodyFont, titleLines: (c.title ?? "").split(separator: "\n", omittingEmptySubsequences: false).count,
+                                   categoryTitleFace: c.bareAxisTitle ? "Arial" : nil)
         }()
         var valueScale = c.percent ? (lo: 0.0, hi: 1.0, step: 0.1) : scale(lo, max(hi, c.valueMax ?? hi), intervals: tableSteps ?? acrossSteps ?? writerSteps ?? sheetSteps ?? hiddenSlideSteps ?? 10,
-                                                                          headroom: (c.barView != nil || c.line3D) && !(c.onSheet && c.series.allSatisfy { $0.values.allSatisfy { ($0 ?? 0) == 0 } }) ? 0 : c.secondValueAxis?.sameScale == true ? 0.10 : 0.05)
+                                                                          headroom: bubbleAxes ? 0 : (c.barView != nil || c.line3D) && !(c.onSheet && c.series.allSatisfy { $0.values.allSatisfy { ($0 ?? 0) == 0 } }) ? 0 : c.secondValueAxis?.sameScale == true ? 0.10 : 0.05)
         // (Excel's axis for a hidden scatter's visible $ axis with the area and line on the group left without one runs a tenth past
         // its data, not a twentieth: chart-tdf140489's 75,887 reaches $90,000, where the 5% rule stops at 80,000; the same file
         // without the scatter, or with it on the other group, stops at 80,000 too — the Windows lab wip/lab-tdf140489.
@@ -5748,19 +5966,31 @@ enum ChartPainter {
                         xAll.append(v + ((eb.plus[safe: i] ?? nil) ?? 0)); xAll.append(v - ((eb.minus[safe: i] ?? nil) ?? 0))
                     }
                 }
-                xScale = scale(xAll.min() ?? 0, xAll.max() ?? 1, intervals: 8)
+                let xHead = bubbleAxes ? 0 : 0.05
+                xScale = scale(xAll.min() ?? 0, xAll.max() ?? 1, intervals: 8, headroom: xHead)
                 if c.onSheet, c.xMin == nil, c.xMax == nil {
                     // (On a sheet Excel takes the finest step that keeps its ticks 36.4 pt apart or more (between the 34.4 pt that
                     // chart-tdf135184RoundLineCap's 0.5 steps would stand, which it refuses, and the 38.4 of chart-trendline's, which it keeps).)
                     let room = area0.width - 20
                     for n in [16, 12, 8, 6, 4, 3, 2] {
-                        let t = scale(xAll.min() ?? 0, xAll.max() ?? 1, intervals: n)
+                        let t = scale(xAll.min() ?? 0, xAll.max() ?? 1, intervals: n, headroom: xHead)
                         // (Never more than ten steps along the axis: lab textx1's x = 1 to 5 stand 0 to 6 by 1 in Excel's print, not 0 to 5.5
                         // by 0.5 (eleven, 40.9 pt apart), 1 to 10 stand 0 to 12 by 2, not by 1 (twelve), and 1 to 9 stand by 1 (ten);
                         // chart-tdf126033's 0 to 2.5 keeps its 0.5, not 0.2 (thirteen).)
                         if (t.hi - t.lo) / t.step > 10 + 1e-9 { continue }
                         if (t.hi - t.lo) / t.step * 36.4 <= room || n == 2 { xScale = t; break }
                     }
+                }
+                if bubbleAxes, c.xMin == nil, c.xMax == nil, let a = xAll.min(), let b = xAll.max() {
+                    // (A bubble chart's x axis takes its step from the data, then reaches a sixth of the data's spread (times the
+                    // bubble scale) past each end, out to the next tick: lab bubble1's x = -3 to 4 stands -5 to 6 by 1 in Excel's print
+                    // (eleven steps, 30.7 pt apart, finer than the 36.4 and the ten a scatter chart's x axis keeps), and x = 1 to 5
+                    // stands 0 to 6. An end that falls on a tick goes one step on: lab xl-bub2's x = 1 to 5 at a 300% scale reaches
+                    // -1 and 7 exactly and stands -2 to 8 in Excel.)
+                    RuleTrace.hit("sheet-bubble-x-axis-steps-by-the-data-and-reaches-a-sixth-past-it")
+                    // (A single value is padded to its tick, not past it: x = 1 alone stands 0 to 1.2.)
+                    let pad = b > a ? (b - a) / 6 * c.bubbleScale / 100 : 0.2 * abs(b), st = xScale.step, out = b > a ? 1e-9 : -1e-9
+                    xScale = (min(xScale.lo, (((a - pad) / st) - out).rounded(.down) * st), max(xScale.hi, (((b + pad) / st) + out).rounded(.up) * st), st)
                 }
                 if c.xMin != nil || c.xMax != nil { xScale = fixedScale(auto: xScale, min: c.xMin, max: c.xMax, step: nil) }
             }
@@ -7493,6 +7723,10 @@ enum ChartPainter {
             let bar = slot / (1 + (lanes - 1) * pitch + c.gap)
             let step = bar * pitch
             let group = bar + (lanes - 1) * step
+            // (A second group on the right-hand axis lays out across the whole slot as the first does, standing over it: Excel's
+            // print of chart-testSecondaryAxis, a series a group, each column the full width of a one-series group's.)
+            let splitAt = !horizontal && !c.stacked && !rowsDeep && secondScale != nil ? c.secondColumnsFrom.flatMap { $0 > 0 && $0 < s ? $0 : nil } : nil
+            if splitAt != nil { RuleTrace.hit("excel-second-column-group-on-its-own-axis") }
             for i in 0 ..< n {
                 var pos = 0.0, neg = 0.0
                 // Series 1 nearest the origin: leftmost in a column group,
@@ -7510,7 +7744,13 @@ enum ChartPainter {
                     // as chart-DataTable-Multiple…'s six bars are.
                     fill.color = c.variedPoints ? c.pointColor(i, accents: theme.accents)
                         : (j == 0 ? c.pointColors[i] : nil) ?? c.color(series: j, accents: theme.accents)
-                    let p0 = vpos(a), p1 = vpos(b)
+                    let onSecond = splitAt.map { j >= $0 } ?? false
+                    if onSecond, let s2 = secondScale { a = min(max(0, s2.lo), s2.hi) }
+                    let p0 = onSecond ? vpos2(a) : vpos(a), p1 = onSecond ? vpos2(b) : vpos(b)
+                    let groupLanes = splitAt.map { Double(j < $0 ? $0 : s - $0) } ?? lanes, lane = Double(splitAt.map { j < $0 ? j : j - $0 } ?? j)
+                    let bar = slot / (1 + (groupLanes - 1) * pitch + c.gap)
+                    let step = bar * pitch
+                    let group = bar + (groupLanes - 1) * step
                     var rect: Rect
                     if horizontal {
                         // (A reversed category axis stands series 1 topmost in its group, as the categories run down from the top: 81d28d42 p29.)
@@ -7527,7 +7767,7 @@ enum ChartPainter {
                         if c.onSlide, c.series[safe: j]?.labelDeleted.contains(i) == true { deletedLabels.insert(labels.count) }
                         labels.append((dataLabel(c, raw, series: j), Offset(c.stacked ? rect.center.dx : reversedValues ? min(p0, p1) - 3 * k : max(p0, p1) + 3 * k, rect.center.dy) + nudge(j, i), j))
                     } else {
-                        let left = centre - group / 2 + Double(j) * step
+                        let left = centre - group / 2 + lane * step
                         rect = Rect.fromLTRB(left, min(p0, p1), left + bar, max(p0, p1))
                         // Past the bar's end, as far off as the label is
                         // large: under a bar that runs down from the axis.
@@ -7904,7 +8144,7 @@ enum ChartPainter {
                     let path = Path()
                     var pen = false
                     for i in 0 ..< n {
-                        guard let v = tops[j][i] else { pen = false; continue }
+                        guard let v = tops[j][i] else { if !c.openSlots.contains(i) { pen = false }; continue }
                         if pen, c.type == .line, c.onSlide, c.series[j].segmentDash[i] != nil, let before = tops[j][safe: i - 1] ?? nil {
                             // (3f8a480a-style dashed first stretch: 5f748a0e p8's segment into the second point, sysDash 3 pt in PowerPoint's print.)
                             let seg = Paint()

@@ -190,6 +190,16 @@ enum Chrome {
     static let iconSize = 16.0
     static let bigIconSize = 28.0
     static let rowHeight = 28.0
+    /// The same, for a field that is otherwise as tall as its text: nil under a pointer.
+    static var touchFieldHeight: Double? { fieldHeight > 30 ? fieldHeight : nil }
+    /// A dialog's text field: 44 pt where it is touched (Apple's minimum target), 30 under a pointer.
+    static var fieldHeight: Double {
+        #if os(iOS)
+        44
+        #else
+        30
+        #endif
+    }
 
     // MARK: Groups
 

@@ -73,7 +73,7 @@ final class TextOptionsDialogState: State<StatefulWidget> {
         func field(_ id: String, _ label: String, _ c: TextEditingController) -> Widget {
             Row(children: [
                 SizedBox(width: 60, height: nil, child: Text(label, style: caption)),
-                SizedBox(key: ValueKey(id), width: 64, height: 30, child: FluentTextBox(controller: c)),
+                SizedBox(key: ValueKey(id), width: 64, height: Chrome.fieldHeight, child: FluentTextBox(controller: c)),
                 SizedBox(width: 12, height: nil, child: nil),
             ])
         }

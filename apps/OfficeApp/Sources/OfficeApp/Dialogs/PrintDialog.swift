@@ -153,13 +153,13 @@ final class PrintDialogState: State<StatefulWidget> {
         if let s = h.selection, !s.isEmpty { page.append(radio(.selection, "Selection")) }
         page.append(Row(crossAxisAlignment: .center, children: [radio(.custom, "Range"),
             SizedBox(width: 8, height: nil, child: nil),
-            SizedBox(width: 180, height: 30, child: PKeyed("print-pages", FluentTextBox(
+            SizedBox(width: 180, height: Chrome.fieldHeight, child: PKeyed("print-pages", FluentTextBox(
                 controller: _pages, onChanged: { [weak self] _ in
                     if self?.range != .custom { self?.setState { self?.range = .custom } }
                 }, onSubmitted: { [weak self] _ in self?.printNow() })))]))
         page.append(gap)
         page.append(Row(crossAxisAlignment: .center, children: [label("Copies"),
-            SizedBox(width: 70, height: 30, child: PKeyed("print-copies", FluentTextBox(
+            SizedBox(width: 70, height: Chrome.fieldHeight, child: PKeyed("print-copies", FluentTextBox(
                 controller: _copies, onSubmitted: { [weak self] _ in self?.printNow() })))]))
         page.append(SizedBox(width: nil, height: 10, child: nil))
         page.append(Text(status, style: fluent.typography.caption?.copyWith(color: fluent.resources.textFillColorSecondary)))

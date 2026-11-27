@@ -113,6 +113,8 @@ final class SlidesShellState: State<StatefulWidget> {
     private var _sorterPerRow = 1
     private var _thumbDrag: (from: Int, startY: Double, startX: Double, to: Int, moved: Bool)? = nil
     private let _thumbMenu = FlyoutController()
+    /// A finger held on a thumbnail, or two fingers tapped on it, open its menu as a right click does.
+    private let _thumbTouch = TouchMenuTrigger()
     /// The thumbnail pane's scroll, and the slide it was last brought to:
     /// the pane follows the current slide when that changes (arrow keys, a
     /// show that ended elsewhere, Find), and is left alone otherwise so the
@@ -165,6 +167,7 @@ final class SlidesShellState: State<StatefulWidget> {
         _recent = OfficeRecent.load()
         _wire()
         officeScene.registerFlush(owner: self) { [weak self] in self?._autosaveNow() }
+        officeScene.setPictureDrop({ [weak self] path in self?._insertPicture(path) }, owner: self)
         deck.addListener({ [weak self] in self?._deckChanged() }, owner: self)
         _publishToolbar()
         _cache.onImageDecoded = { [weak self] in
@@ -200,6 +203,7 @@ final class SlidesShellState: State<StatefulWidget> {
     override func dispose() {
         officeScene.publishToolbar(nil, owner: self)
         officeScene.unregisterFlush(owner: self)
+        officeScene.setPictureDrop(nil, owner: self)
         officeScene.setDocumentPath(nil, owner: self)
         deck.removeListeners(owner: self)
         session.controller.removeListeners(owner: self)
@@ -526,6 +530,8 @@ final class SlidesShellState: State<StatefulWidget> {
             toggleList: { [weak self] in self?.session.controller.toggleList($0) },
             // A selected shape (typing in one counts): copy it, remove it, move it in the stack.
             context: deck.selection.isEmpty ? [] : [
+                OfficeHost.colorButton(id: "ctx-shape-fill", title: "Shape Fill", symbol: "paintpalette", none: "No Fill") { [weak self] in self?.deck.setFill($0) },
+                OfficeHost.colorButton(id: "ctx-shape-outline", title: "Shape Outline", symbol: "square.dashed", none: "No Outline") { [weak self] in self?.deck.setOutline($0) },
                 .init(id: "ctx-shape-dup", title: "Duplicate", symbol: "plus.square.on.square") { [weak self] in self?.deck.duplicateSelection() },
                 .init(id: "ctx-shape-del", title: "Delete", symbol: "trash") { [weak self] in self?.deck.deleteSelection() },
                 .init(id: "ctx-shape-fwd", title: "Bring Forward", symbol: "square.2.layers.3d.top.filled") { [weak self] in self?.deck.arrange(.forward) },
@@ -1518,8 +1524,8 @@ final class SlidesShellState: State<StatefulWidget> {
                                            onClose: { [weak self] in self?.setState { self?._selectionPane = false } }))
             }
             if _formatBackground {
-                row.append(FormatBackgroundPane(deck: deck, onPicture: { [weak self] in self?.session.onBackgroundPicture?() },
-                                                onClose: { [weak self] in self?.setState { self?._formatBackground = false } }))
+                panes.append(FormatBackgroundPane(deck: deck, onPicture: { [weak self] in self?.session.onBackgroundPicture?() },
+                                                  onClose: { [weak self] in self?.setState { self?._formatBackground = false } }))
             }
             if _formatShape {
                 panes.append(FormatShapePane(deck: deck, onClose: { [weak self] in self?.setState { self?._formatShape = false } }))
@@ -1528,19 +1534,10 @@ final class SlidesShellState: State<StatefulWidget> {
                 panes.append(ChartDataPane(key: ValueKey("chart data \(chart.id)"), deck: deck, shape: chart,
                                            onClose: { [weak self] in self?.setState { self?._chartData = false } }))
             }
-            if _narrow, let pane = panes.last {
-                // A 300 pt pane beside the slide would leave a narrow window (Split View) no slide: the newest pane is a
-                // sheet along the bottom instead, full width, with the slide above it. (A pane fills the width it is given.)
-                column.append(Expanded(child: Column(crossAxisAlignment: .stretch, children: [
-                    Expanded(flex: 5, child: Row(crossAxisAlignment: .stretch, children: row)),
-                    Expanded(flex: 4, child: DecoratedBox(
-                        decoration: BoxDecoration(border: Border(top: BorderSide(color: fluent.resources.controlStrokeColorDefault, width: 1))),
-                        child: pane)),
-                ])))
-            } else {
-                row.append(contentsOf: panes)
-                column.append(Expanded(child: Row(crossAxisAlignment: .stretch, children: row)))
-            }
+            // The newest pane is a bottom sheet in a narrow window, a slide-over on a touch device, else docked beside the slide.
+            column.append(Expanded(child: PaneArrangement.arrange(
+                style: PaneArrangement.style(narrow: _narrow, touch: PaneArrangement.isTouchDevice), fluent: fluent,
+                document: Expanded(child: Row(crossAxisAlignment: .stretch, children: row)), docked: Array(panes.dropLast()), newest: panes.last)))
         }
         column.append(_statusBar(fluent))
 
@@ -1770,8 +1767,12 @@ final class SlidesShellState: State<StatefulWidget> {
                     guard let self, let context = self.context else { return }
                     self._thumbDown(i, e, context: context)
                 },
-                onPointerMove: { [weak self] e in self?._thumbMove(e.position, itemHeight: thumbH + 18) },
+                onPointerMove: { [weak self] e in
+                    self?._thumbTouch.moved(e.pointer, e.position)
+                    self?._thumbMove(e.position, itemHeight: thumbH + 18)
+                },
                 onPointerUp: { [weak self] e in
+                    self?._thumbTouch.up(e.pointer)
                     self?._thumbMove(e.position, itemHeight: thumbH + 18)
                     self?._thumbUp()
                 },
@@ -1908,6 +1909,7 @@ final class SlidesShellState: State<StatefulWidget> {
     }
 
     private func _sorterDown(_ index: Int, _ e: PointerDownEvent, context: any BuildContext) {
+        if _thumbTouch.down(e, fire: { [weak self] p in self?._thumbMenuFromTouch(index, at: p) }) { return }
         if e.buttons & kSecondaryMouseButton != 0 {
             if !deck.selectedSlides.contains(index) { _select(index) }
             _paneFocused = true
@@ -1943,6 +1945,7 @@ final class SlidesShellState: State<StatefulWidget> {
     }
 
     private func _thumbDown(_ index: Int, _ e: PointerDownEvent, context: any BuildContext) {
+        if _thumbTouch.down(e, fire: { [weak self] p in self?._thumbMenuFromTouch(index, at: p) }) { return }
         if e.buttons & kSecondaryMouseButton != 0 {
             // A right-click inside the picked slides keeps the pick.
             if !deck.selectedSlides.contains(index) { _select(index) }
@@ -2007,6 +2010,16 @@ final class SlidesShellState: State<StatefulWidget> {
         } else {
             if !drag.moved, deck.selectedSlides.count > 1 { deck.selectSlide(drag.from) } else { setState {} }
         }
+    }
+
+    /// A long press or two-finger tap on a thumbnail: the menu a right click on it opens.
+    private func _thumbMenuFromTouch(_ index: Int, at point: Offset) {
+        guard let context else { return }
+        _thumbDrag = nil
+        _sorterDrag = nil
+        if !deck.selectedSlides.contains(index) { _select(index) }
+        _paneFocused = true
+        _showThumbMenu(at: point, context: context)
     }
 
     /// The thumbnail pane's right-click menu.
@@ -2127,8 +2140,12 @@ final class SlidesShellState: State<StatefulWidget> {
                   guard let self, let context = self.context else { return }
                   self._sorterDown(i, e, context: context)
               },
-              onPointerMove: { [weak self] e in self?._sorterMove(e.position, tile: (w + 32, h + 52)) },
+              onPointerMove: { [weak self] e in
+                  self?._thumbTouch.moved(e.pointer, e.position)
+                  self?._sorterMove(e.position, tile: (w + 32, h + 52))
+              },
               onPointerUp: { [weak self] e in
+                  self?._thumbTouch.up(e.pointer)
                   self?._sorterMove(e.position, tile: (w + 32, h + 52))
                   self?._sorterUp()
               },

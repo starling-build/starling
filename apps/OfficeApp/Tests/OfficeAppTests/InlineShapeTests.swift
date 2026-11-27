@@ -125,6 +125,17 @@ final class InlineShapeTests: XCTestCase {
         XCTAssertTrue(c.isInLine(at: i, inline: id), "one undo step puts it back in its line")
     }
 
+    /// The hooks In Line -> Wrap needs are there for a Writer session that has read no chart, equation or group (the file
+    /// opened on the iPad with a plain inline picture could not take a wrap).
+    func testASessionInstallsTheFloatReaderBeforeAnyDrawingIsRead() throws {
+        RichDocumentController.floatReader = nil
+        let session = OfficeSession()
+        session.controller.load(try inlineShapeDocument())
+        let (i, id) = try shape(session.controller)
+        XCTAssertNotNil(RichDocumentController.floatReader)
+        XCTAssertTrue(session.controller.setPictureWrap(at: i, inline: id, .square), "an inline picture takes a wrap")
+    }
+
     /// And back: In Line with Text drops its place and wrap, and it stands in its line again.
     func testAFloatingShapeGoesBackInLine() throws {
         WriterCharts.installHooks()

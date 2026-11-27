@@ -378,6 +378,9 @@ public final class RichDocumentController: ChangeNotifier {
     public private(set) var copiedFragment: [RichParagraph]?
 
     /// Editing is refused when set (a viewer, a locked document).
+    /// Whether dragging a picture's handles, and its Width and Height boxes, keep the picture's proportions. On by
+    /// default (Word's); off, a corner or an edge stretches it freely. A view setting: it is not saved in the file.
+    public var pictureAspectLock = true
     public var readOnly = false
 
     /// A shape picked from Insert > Shapes that waits for the user to click or drag on the page: given the corner

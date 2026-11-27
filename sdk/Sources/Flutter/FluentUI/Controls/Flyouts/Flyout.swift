@@ -184,10 +184,12 @@ public class FlyoutController {
     }
 
     /// A flyout at a point in `context`'s overlay — a context menu at the
-    /// pointer. Needs no target: the point is the target.
+    /// pointer. Needs no target: the point is the target. `bottomInset` is the
+    /// height of what covers the overlay's bottom edge (an on-screen keyboard):
+    /// the menu stays above it.
     public func showFlyout(in context: any BuildContext, at point: Offset,
                            builder: @escaping WidgetBuilder,
-                           barrierDismissible: Bool = true, margin: Double = 8.0) {
+                           barrierDismissible: Bool = true, margin: Double = 8.0, bottomInset: Double = 0) {
         if isOpen { closeFlyout() }
         let overlayState = Overlay.of(context)
         let barrierEntry = OverlayEntry(builder: { [weak self] _ in
@@ -198,7 +200,7 @@ public class FlyoutController {
         let flyoutEntry = OverlayEntry(builder: { [weak self] ctx in
             guard let self else { return SizedBox(width: 0, height: 0) }
             return FlyoutScope(close: { [weak self] in self?.closeFlyout() }, child: _FlyoutPositioner(
-                link: link, placement: .corner, additionalOffset: 0, margin: margin,
+                link: link, placement: .corner, additionalOffset: 0, margin: margin, bottomInset: bottomInset,
                 targetContext: nil, targetRect: { Rect.fromLTWH(point.dx, point.dy, 0, 0) },
                 builder: builder))
         })
@@ -328,6 +330,8 @@ private class _FlyoutPositioner: StatelessWidget {
     let placement: FlyoutPlacement
     let additionalOffset: Double
     let margin: Double
+    /// What covers the overlay's bottom edge; the popup is placed and sized above it.
+    let bottomInset: Double
     let targetContext: (any BuildContext)?
     /// An explicit target in overlay coordinates, instead of a widget's box.
     let targetRect: (() -> Rect)?
@@ -339,6 +343,7 @@ private class _FlyoutPositioner: StatelessWidget {
         placement: FlyoutPlacement,
         additionalOffset: Double,
         margin: Double,
+        bottomInset: Double = 0,
         targetContext: (any BuildContext)?,
         targetRect: (() -> Rect)? = nil,
         builder: @escaping WidgetBuilder
@@ -347,6 +352,7 @@ private class _FlyoutPositioner: StatelessWidget {
         self.placement = placement
         self.additionalOffset = additionalOffset
         self.margin = margin
+        self.bottomInset = bottomInset
         self.targetContext = targetContext
         self.targetRect = targetRect
         self.builder = builder
@@ -370,7 +376,7 @@ private class _FlyoutPositioner: StatelessWidget {
                 },
                 placement: placement,
                 additionalOffset: additionalOffset,
-                margin: margin),
+                margin: margin, bottomInset: bottomInset),
             child: builder(context))
     }
 }
@@ -383,22 +389,25 @@ private final class _FlyoutLayoutDelegate: SingleChildLayoutDelegate {
     let placement: FlyoutPlacement
     let additionalOffset: Double
     let margin: Double
+    let bottomInset: Double
 
-    init(target: @escaping () -> Rect, placement: FlyoutPlacement, additionalOffset: Double, margin: Double) {
+    init(target: @escaping () -> Rect, placement: FlyoutPlacement, additionalOffset: Double, margin: Double, bottomInset: Double = 0) {
         self.target = target
         self.placement = placement
         self.additionalOffset = additionalOffset
         self.margin = margin
+        self.bottomInset = bottomInset
         super.init()
     }
 
     override func getConstraintsForChild(_ constraints: BoxConstraints) -> BoxConstraints {
         BoxConstraints(
             maxWidth: max(0, constraints.maxWidth - 2 * margin),
-            maxHeight: max(0, constraints.maxHeight - 2 * margin))
+            maxHeight: max(0, constraints.maxHeight - bottomInset - 2 * margin))
     }
 
-    override func getPositionForChild(_ size: Size, _ childSize: Size) -> Offset {
+    override func getPositionForChild(_ fullSize: Size, _ childSize: Size) -> Offset {
+        let size = Size(fullSize.width, max(0, fullSize.height - bottomInset))
         let target = self.target()
         var resolved = placement
         if resolved == .auto {
@@ -434,7 +443,7 @@ private final class _FlyoutLayoutDelegate: SingleChildLayoutDelegate {
 
     override func shouldRelayout(_ oldDelegate: SingleChildLayoutDelegate) -> Bool {
         guard let old = oldDelegate as? _FlyoutLayoutDelegate else { return true }
-        return old.placement != placement || old.additionalOffset != additionalOffset || old.margin != margin
+        return old.placement != placement || old.additionalOffset != additionalOffset || old.margin != margin || old.bottomInset != bottomInset
     }
 }
 

@@ -51,7 +51,7 @@ final class InsertTableDialogState: State<StatefulWidget> {
         func box(_ id: String, _ label: String, _ c: TextEditingController) -> Widget {
             Padding(padding: EdgeInsets(left: 0, top: 0, right: 0, bottom: 8), child: Row(crossAxisAlignment: .center, children: [
                 SizedBox(width: 130, height: nil, child: Text(label)),
-                SizedBox(width: 70, height: 30, child: FluentTextBox(
+                SizedBox(width: 70, height: Chrome.fieldHeight, child: FluentTextBox(
                     controller: c, onSubmitted: { [weak self] _ in self?.commit() },
                     onFocusChanged: { [weak self] f in if !f { self?.commit() } })),
             ]))

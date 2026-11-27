@@ -767,11 +767,11 @@ final class Ribbon: StatelessWidget {
             let size = Chrome.group("Size", fluent, [
                 Chrome.rows([
                     Chrome.spinner("Width", image.width, fluent, step: 6) { v in
-                        c.setInlineImageSize(in: i, id: id, width: v, height: v * aspect)
+                        c.setInlineImageSize(in: i, id: id, width: v, height: c.pictureAspectLock ? v * aspect : image.height)
                     },
                     Chrome.vgap(2),
                     Chrome.spinner("Height", image.height, fluent, step: 6) { v in
-                        c.setInlineImageSize(in: i, id: id, width: v / max(0.01, aspect), height: v)
+                        c.setInlineImageSize(in: i, id: id, width: c.pictureAspectLock ? v / max(0.01, aspect) : image.width, height: v)
                     },
                 ]),
                 Chrome.gap(8),
@@ -784,6 +784,8 @@ final class Ribbon: StatelessWidget {
                     Chrome.small(FluentSystemIcons.zoomOut, "Half Size", fluent) {
                         c.setInlineImageSize(in: i, id: id, width: image.width / 2, height: image.height / 2)
                     },
+                    // A row of the same column (a small button folds to its icon when the tab is tight), not a column of its own.
+                    Chrome.small(FluentSystemIcons.lock, "Lock Aspect Ratio", fluent, checked: s.imageAspectLock) { [session] in session.onToggleAspectLock?() },
                 ]),
             ])
             let turn = Chrome.group("Rotate", fluent, [
@@ -838,11 +840,11 @@ final class Ribbon: StatelessWidget {
         let size = Chrome.group("Size", fluent, [
             Chrome.rows([
                 Chrome.spinner("Width", image.width, fluent, step: 6) { v in
-                    c.setImageSize(at: i, width: v, height: v * aspect)
+                    c.setImageSize(at: i, width: v, height: c.pictureAspectLock ? v * aspect : image.height)
                 },
                 Chrome.vgap(2),
                 Chrome.spinner("Height", image.height, fluent, step: 6) { v in
-                    c.setImageSize(at: i, width: v / max(0.01, aspect), height: v)
+                    c.setImageSize(at: i, width: c.pictureAspectLock ? v / max(0.01, aspect) : image.width, height: v)
                 },
             ]),
             Chrome.gap(8),
@@ -859,6 +861,7 @@ final class Ribbon: StatelessWidget {
                 Chrome.small(FluentSystemIcons.zoomOut, "Half Size", fluent) {
                     c.setImageSize(at: i, width: image.width / 2, height: image.height / 2)
                 },
+                Chrome.small(FluentSystemIcons.lock, "Lock Aspect Ratio", fluent, checked: s.imageAspectLock) { [session] in session.onToggleAspectLock?() },
             ]),
         ])
         let arrange = Chrome.group("Arrange", fluent, [

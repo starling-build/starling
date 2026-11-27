@@ -105,6 +105,23 @@ final class SheetsEditingTests: XCTestCase {
         XCTAssertNil(c.sheet.cells[a("C2")])
     }
 
+    func testFillUpAndLeftCopyTheLastRowAndColumn() {
+        let c = book(["A1": "1", "A2": "2", "A3": "3", "B3": "=A3*2", "D1": "7", "E1": "8"])
+        c.select(range: CellRange("B1:B3")!)
+        c.fillUp()
+        XCTAssertEqual(c.input(a("B1")), "=A1*2")
+        XCTAssertEqual(c.sheet.value(a("B1")), .number(2))
+        c.select(range: CellRange("A1:A1")!)
+        c.fillUp()                                              // one row: the row below it
+        XCTAssertEqual(c.sheet.value(a("A1")), .number(2))
+        c.select(range: CellRange("C1:E1")!)
+        c.fillLeft()
+        XCTAssertEqual(c.sheet.value(a("C1")), .number(8))
+        XCTAssertEqual(c.sheet.value(a("D1")), .number(8))
+        c.undo()
+        XCTAssertEqual(c.sheet.value(a("D1")), .number(7))
+    }
+
     func testSeriesFill() {
         let c = book(["A1": "1", "A2": "3", "B1": "Jan", "C1": "Item 7", "D1": "1/30/2026", "E1": "5", "F1": "=A1"])
         c.select(range: CellRange("A1:A2")!)

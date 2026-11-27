@@ -208,6 +208,8 @@ extension Ribbon {
                         color: fluent.resources.textFillColorPrimary), fluent, [
                 ("Down (⌘D)".keys, { wb.fillDown() }),
                 ("Right (⌘R)".keys, { wb.fillRight() }),
+                ("Up", { wb.fillUp() }),
+                ("Left", { wb.fillLeft() }),
                 ("Series…", { wb.onCommand?(.fillSeries) }),
             ]),
             Chrome.menu(Text("Clear", style: fluent.typography.caption), Icon(FluentSystemIcons.textClearFormatting, size: Chrome.iconSize,

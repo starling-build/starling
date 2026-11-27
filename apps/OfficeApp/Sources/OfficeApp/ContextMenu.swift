@@ -40,10 +40,25 @@ final class ContextMenuBuilder {
         return (mini.isEmpty ? [] : [MiniToolbarRow(buttons: mini), MenuFlyoutSeparator()]) + out
     }
 
+    /// What the on-screen keyboard (and the bar of buttons over it, 44 pt, a UIKit view the inset does not count) covers of
+    /// the window's bottom, in points: a long menu must end above it. Nothing with a hardware keyboard or on the desktop.
+    static func keyboardCover(_ context: BuildContext) -> Double {
+        var node: RenderObject? = context.findRenderObject()
+        var view: FlutterView?
+        while let n = node { if let root = n as? RenderView { view = root.flutterView; break }; node = n.parent }
+        guard let view = view ?? PlatformDispatcher.instance.views.first, view.devicePixelRatio > 0 else { return 0 }
+        let keyboard = view.viewInsets.bottom / view.devicePixelRatio
+        #if os(iOS)
+        return keyboard > 150 ? keyboard + 44 : keyboard
+        #else
+        return keyboard
+        #endif
+    }
+
     func show(_ flyout: FlyoutController, in context: BuildContext, at point: Offset) {
         let all = rows
         guard !all.isEmpty else { return }
-        flyout.showFlyout(in: context, at: point) { _ in MenuFlyout(items: all) }
+        flyout.showFlyout(in: context, at: point, builder: { _ in MenuFlyout(items: all) }, bottomInset: Self.keyboardCover(context))
     }
 }
 

@@ -171,7 +171,7 @@ final class SymbolPickerState: State<StatefulWidget> {
             SizedBox(width: nil, height: 10, child: nil),
             Row(crossAxisAlignment: .center, children: [
                 SizedBox(width: 90, height: nil, child: Text("Character code", style: fluent.typography.body)),
-                SizedBox(width: 110, height: 30, child: PKeyed("sym-code", FluentTextBox(
+                SizedBox(width: 110, height: Chrome.fieldHeight, child: PKeyed("sym-code", FluentTextBox(
                     controller: _code, onSubmitted: { [weak self] _ in self?.insertSelected() }))),
             ]),
             SizedBox(width: nil, height: 8, child: nil),

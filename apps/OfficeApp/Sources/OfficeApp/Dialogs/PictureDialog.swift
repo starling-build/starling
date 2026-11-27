@@ -100,7 +100,7 @@ final class CropDialogState: State<StatefulWidget> {
         func row(_ side: String) -> Widget {
             Padding(padding: EdgeInsets(left: 0, top: 0, right: 0, bottom: 8), child: Row(crossAxisAlignment: .center, children: [
                 SizedBox(width: 90, height: nil, child: Text(side.prefix(1).uppercased() + side.dropFirst() + " (%)")),
-                PicKeyed("crop-\(side)", SizedBox(width: 90, height: 30, child: FluentTextBox(
+                PicKeyed("crop-\(side)", SizedBox(width: 90, height: Chrome.fieldHeight, child: FluentTextBox(
                     controller: _fields[side]!, onChanged: { [weak self] _ in self?.setState {} }))),
             ]))
         }

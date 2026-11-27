@@ -56,7 +56,7 @@ final class TextToColumnsDialogState: State<StatefulWidget> {
             Row(children: [
                 Text("Other:"),
                 SizedBox(width: 8, height: nil, child: nil),
-                SizedBox(width: 60, height: nil, child: FluentTextBox(key: ValueKey("ttc-other"), controller: _other, placeholderText: "")),
+                SizedBox(width: 60, height: Chrome.touchFieldHeight, child: FluentTextBox(key: ValueKey("ttc-other"), controller: _other, placeholderText: "")),
             ]),
             gap(6),
             box("ttc-consecutive", "Treat consecutive separators as one", options.consecutiveAsOne) { $0.consecutiveAsOne = $1 },
