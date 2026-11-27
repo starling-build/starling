@@ -8308,3 +8308,24 @@ private final class TurnedTextCanvas: Canvas {
         XCTAssertGreaterThan(width(hint: nil), 4 * 0.35 * 16, "no hint: the Latin face's width")
     }
 }
+
+extension DocxTests {
+    /// An arrow over a letter in a slide's equation keeps the arrow's whole line box over the letter: PowerPoint's print
+    /// of ru-4402254ccc slide 2 stands "Векторы a⃗ и b⃗" (22 pt) and the paragraph after it where that box puts them
+    /// (0.7 pt off), where the arrow's ink alone stood them 3.9 pt high. Word's own line takes the ink (xb fra-g255).
+    func testSlideAccentArrowKeepsItsLineBox() throws {
+        let xml = """
+        <m:oMath xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math"><m:acc><m:accPr><m:chr m:val="\u{20D7}"/></m:accPr>\
+        <m:e><m:r><m:t>\u{1D44E}</m:t></m:r></m:e></m:acc></m:oMath>
+        """
+        let node = try XCTUnwrap(XNode.parse(Data(xml.utf8)))
+        let was = RichTextTheme.wordWindowsPages
+        RichTextTheme.wordWindowsPages = true
+        let word = try XCTUnwrap(WriterMath.register(node, for: "acc-word", size: 22))
+        RichTextTheme.wordWindowsPages = was
+        WriterMath.slideScope = true
+        defer { WriterMath.slideScope = false }
+        let slide = try XCTUnwrap(WriterMath.register(node, for: "acc-slide", size: 22))
+        XCTAssertGreaterThan(slide.baseline - word.baseline, 2, "the slide's arrow stands on its line box, not its ink")
+    }
+}
