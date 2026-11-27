@@ -83,9 +83,28 @@ final class SheetsPrintTests: XCTestCase {
             var empty = CellStyle()
             empty.fontName = "HY울릉도M"; empty.fontSize = 11; empty.fontRoman = true
             st.fontName = "HY울릉도M"; st.fontRoman = false
-            XCTAssertEqual(SheetGridState._emptyCellLine(empty, m, book), SheetGridState._fittedLine(st, m, book), accuracy: 0.01, dname)
-            XCTAssertLessThan(SheetGridState._emptyCellLine(empty, m, book), SheetGridState._fittedLine(empty, m, book) - 0.5, dname)
+            XCTAssertEqual(SheetGridState._ownBoxLine(empty, m, book), SheetGridState._fittedLine(st, m, book), accuracy: 0.01, dname)
+            XCTAssertLessThan(SheetGridState._ownBoxLine(empty, m, book), SheetGridState._fittedLine(empty, m, book) - 0.5, dname)
         }
+    }
+
+    /// A wrapped cell in a Roman Korean face the print box lacks fits each line to the face's own box, as its lines are drawn,
+    /// not the stand-in's: ko-3eeec4b4ea's wrapped 한컴 rows took a line too many and pushed a row onto the next page.
+    func testAWrappedRomanMissingFaceFitsItsLinesToItsOwnBox() {
+        func row(roman: Bool) -> (Double, Double) {
+            let c = WorkbookController()
+            c.book.defaultFontName = "돋움"
+            c.book.defaultFontSize = 11
+            c.setInputs([(CellAddress("A1")!, "노동조합은 교육감이 다음 각 호에 대한 자료를 요청할 경우 이에 응하여야 한다"), (CellAddress("A2")!, "한 줄")])
+            c.setStyle({ $0.wrap = true; $0.fontName = "HY울릉도M"; $0.fontSize = 10; $0.fontRoman = roman }, range: CellRange("A1:A2")!)
+            let g = SheetGridState(headless: c)
+            g.printing = true
+            return (g.rows.size(0), g.rows.size(1))
+        }
+        let (own, ownOne) = row(roman: false), (standIn, standInOne) = row(roman: true)
+        XCTAssertGreaterThan(own, ownOne * 2.5)                // it wraps
+        XCTAssertGreaterThan(standInOne, ownOne + 0.5)         // a one-line row keeps the stand-in's taller line
+        XCTAssertEqual(standIn, own, accuracy: 0.01)           // the wrapped lines are the face's own
     }
 
     func testDotumWrappedLinesArePlacedByTheirFirstLine() {

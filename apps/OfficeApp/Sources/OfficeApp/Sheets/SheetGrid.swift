@@ -434,7 +434,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             func emptyLine(_ style: Int) -> Double {
                 let st = book.style(style)
                 guard style != 0, book.fontRoman(st) else { return line(style) }
-                return Self._emptyCellLine(st, m, book, hinted: !ws.customDefaultRowHeight && calibri11, otherBook: !ws.customDefaultRowHeight && !calibri11)
+                return Self._ownBoxLine(st, m, book, hinted: !ws.customDefaultRowHeight && calibri11, otherBook: !ws.customDefaultRowHeight && !calibri11)
             }
             // The cells it has no record of count too, in the font they
             // would take: the row's style, else their column's — and the
@@ -599,21 +599,23 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                     // (Counted by its lines, not its height: a line that holds a
                     // full-width bracket stands taller in a fallback face, and
                     // 3.69 lines' height is three lines, not four.)
+                    // (Each wrapped line is the face's own box, not a Roman stand-in's, as its lines are drawn (see the paint's pitch0):
+                    // ko-3eeec4b4ea's 제14조 row, wrapped 한컴 text, took a line too many at the stand-in's and pushed a row to page 2.)
                     // (Excel's rows stop at 409.5 pt: CVLKRA-KYC's 38-line Remark cell is a row of 409.5 on its page, its text cut there.)
-                    var tall = min(409.5, Double(wrapped.computeLineMetrics().count + Int(trailing)) * Self._fittedLine(st, m, book))
+                    var tall = min(409.5, Double(wrapped.computeLineMetrics().count + Int(trailing)) * Self._ownBoxLine(st, m, book))
                     // (A rich string's lines are each as tall as the tallest run on them: Excel's Tablero row of "% Avance" in
                     // Candara 36 and "(Respecto a meta…)" in 24 is two lines of their own sizes, not three of the cell's.)
                     if let runs = ws.richText[a], case .text(let raw) = cell.value, raw == text,
                        runs.map(\.text).joined() == text, runs.contains(where: { $0.size != nil || $0.fontName != nil }) {
-                        var segs: [(String, CellStyle, Double)] = [("", st, Self._fittedLine(st, m, book))]
+                        var segs: [(String, CellStyle, Double)] = [("", st, Self._ownBoxLine(st, m, book))]
                         for run in runs {
                             var rs = st
                             if run.bold != nil { rs.bold = run.bold ?? false }
                             if let f = run.fontName { rs.fontName = f }
                             if let z = run.size { rs.fontSize = z }
-                            let line = Self._fittedLine(rs, m, book)
+                            let line = Self._ownBoxLine(rs, m, book)
                             for (i, part) in run.text.split(separator: "\n", omittingEmptySubsequences: false).enumerated() {
-                                if i > 0 { segs.append(("", st, Self._fittedLine(st, m, book))) }
+                                if i > 0 { segs.append(("", st, Self._ownBoxLine(st, m, book))) }
                                 segs[segs.count - 1].0 += part
                                 if line > segs[segs.count - 1].2 || segs[segs.count - 1].0.count == part.count { segs[segs.count - 1].1 = rs; segs[segs.count - 1].2 = max(line, segs[segs.count - 1].0.count == part.count ? line : segs[segs.count - 1].2) }
                             }
@@ -3627,8 +3629,8 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
     /// (Bold counts where the face's bold has a line of its own, though the
     /// style names neither face nor size: FormulaSheetRange's bold Arial 10
     /// labels fit its rows at 35 screen pixels, 12.72 pt, not Arial's 12.36.)
-    /// An empty cell's fitted line: a Roman face's own box, never the stand-in's (ko-7137deba70, see `emptyLine`).
-    static func _emptyCellLine(_ style: CellStyle, _ m: SheetPrintMetrics, _ book: Workbook, hinted: Bool = false, otherBook: Bool = false) -> Double {
+    /// A line in a Roman face's own box, never the stand-in's: an empty cell's (ko-7137deba70, see `emptyLine`) and each wrapped line's (ko-3eeec4b4ea).
+    static func _ownBoxLine(_ style: CellStyle, _ m: SheetPrintMetrics, _ book: Workbook, hinted: Bool = false, otherBook: Bool = false) -> Double {
         var st = style
         st.fontName = book.fontName(st); st.fontRoman = false
         return _fittedLine(st, m, book, hinted: hinted, otherBook: otherBook)
