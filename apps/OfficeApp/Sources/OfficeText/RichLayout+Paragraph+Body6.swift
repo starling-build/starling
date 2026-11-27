@@ -66,7 +66,12 @@ extension _ParaFrame {
                 // (Under its drawn effects too: lab t8e, zh-8e8d4c40's title
                 // under its 【附件五】 box, b 11430 EMU, 0.9pt below the
                 // frame's foot in Word for Windows.)
-                if em > 0 ? (leftRoom < em && rightRoom < em) : (leftRoom <= 0 && rightRoom <= 0),
+                // (A square-wrapped one leaves a line room only in a strip of about 20 pt (or one character, if wider), as an earlier
+                // paragraph's pictures do (lab ebe-ls; lab capwrap: under at a 16 pt gap, beside at 24): lab anchpush's 725 pt picture,
+                // 17 pt from the column's left and 9.9 from its right, has the empty line and a line of text under it in Word's prints.)
+                let square = RichTextTheme.wordWindowsPages && !float.wrapsTight && !float.takesRoom
+                let strip = square ? max(em, _px(20)) : em
+                if strip > 0 ? (leftRoom < strip && rightRoom < strip) : (leftRoom <= 0 && rightRoom <= 0),
                    !lineEndsAbove(_px(float.y)) { push = max(push, pushUnder(_px(float.y) + _px(image.height + float.effectBottom + float.distanceBottom))) }
             }
         }

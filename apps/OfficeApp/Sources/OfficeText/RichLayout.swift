@@ -93,6 +93,8 @@ public final class RichTextTheme {
     public var winLineBox: ((String?) -> Double?)? = nil
     /// A face's usWinDescent as a share of its win line (ascent + descent), by the name the document uses (nil: unknown).
     public var winDescent: ((String?) -> Double?)? = nil
+    /// A face's Windows ascent in ems (usWinAscent, or hhea's where Windows takes that), by the name the document uses (nil: unknown).
+    public var winAscent: ((String?) -> Double?)? = nil
     /// A symbol face's characters as the Unicode glyphs they show, for
     /// drawing: a run in Wingdings 2 says "£" (`w:sym w:char="00A3"`) for
     /// a box. Character for character, so offsets hold; the document keeps
@@ -854,6 +856,21 @@ public final class RichTextTheme {
         return max(0, (h - natural * size) / 2)
     }
 
+    /// The height a line of this text takes on the line grid, in points, whole pitches (0 off the grid, or with a height the
+    /// paragraph states).
+    public func gridLineHeight(for style: CharStyle, in paragraph: RichParagraphStyle, named: RichNamedStyle?,
+                               eastAsian: Bool, gridPitch: Double?) -> Double {
+        guard let pitch = gridPitch, pitch > 0, paragraph.lineHeightPoints == nil else { return 0 }
+        let size = style.fontSize ?? named?.char.fontSize ?? fontSize
+        let latinName = style.fontFamily ?? named?.char.fontFamily ?? fontFamily
+        let familyName = eastAsian ? (style.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? latinName) : latinName
+        guard size > 0, let face = faceResolver?(familyName, eastAsian) else { return 0 }
+        let bold = style.bold || ((named?.char.bold ?? false) && !style.off.contains(.bold))
+        let italic = style.italic || ((named?.char.italic ?? false) && !style.off.contains(.italic))
+        let natural = (bold ? face.boldHeight : nil) ?? face.naturalHeight ?? naturalLineHeight(family: face.family, bold: bold, italic: italic)
+        return lineBox(size: size, natural: natural, baseline: nil, in: paragraph, gridPitch: pitch).height
+    }
+
     /// Resolve a run's style inside a paragraph to an engine TextStyle, at
     /// `scale` (zoom, 1.0 = 100%).
     ///
@@ -885,7 +902,9 @@ public final class RichTextTheme {
         if style.plainSize {}
         else if wordRules, style.rightToLeft || style.csMark, !eastAsian, style.fontSize == nil, let z = style.complexFontSize ?? named?.char.complexFontSize ?? normal?.complexFontSize { size = z }
         // (A run that gives `w:sz` and no `w:szCs` is set at the szCs its style or the defaults give: xd 72ea457a's Hebrew, sz 14 over Normal's szCs 12, prints at 12 in David.)
-        else if wordRules, style.rightToLeft, !eastAsian, style.sizeFromStyleSzCs, style.complexFontSize == nil, let z = named?.char.complexFontSize ?? normal?.complexFontSize { size = z }
+        // (With no szCs in the style or the defaults either, Word's own default, 10 pt: dx2 c717b3b2's Urdu labels, sz 16 and no szCs
+        // anywhere, print in ArialMT 9.96 and each label row is 1.2 pt taller than at 8.)
+        else if wordRules, style.rightToLeft, !eastAsian, style.sizeFromStyleSzCs, style.complexFontSize == nil { size = named?.char.complexFontSize ?? normal?.complexFontSize ?? 10 }
         else if wordRules, !style.rightToLeft, !eastAsian, style.sizeFromStyleSzCs, style.fontSize == nil, style.complexFontSize == nil, let z = named?.char.complexFontSize ?? normal?.complexFontSize { size = z }
         // (A style that sets `w:sz` and no `w:szCs` anywhere in the chain leaves complex-script text at Word's 10 pt default, not at `w:sz`:
         // ara-z4399437's keyword lines step 11.5 in Word's print, not 10.4.)
@@ -2084,6 +2103,9 @@ public final class RichLayout {
     /// not: the paragraph offsets a zero-width space stands before (see
     /// `_OffsetMap`).
     var _inserts: [[Int]] = []
+    /// Paragraphs whose first word Word parts at the end of their indented first line (index to the word's end, a
+    /// paragraph offset): see the rule "first-word-too-long-for-indented-line-parts-at-its-end".
+    var _partedFirstWord: [Int: Int] = [:]
     /// Korean wordWrap-off spaces that open a line (paragraph index to offsets), set by the fit.
     var _wwSpaceStarts: [Int: Set<Int>] = [:]
     /// Soft hyphens (U+00AD) a paragraph's lines end at, drawn as a visible

@@ -230,6 +230,7 @@ extension _ParaFrame {
     func _equationsAfterFirstLine(_ a0: TextSpan, _ a1: [PlaceholderDimensions], align a2: TextAlign, rtl a3: Bool, width a4: Double, indents a5: [LineIndent]) -> Bool { rl._equationsAfterFirstLine(a0, a1, align: a2, rtl: a3, width: a4, indents: a5) }
     func _equationsWithinStrut(_ a0: TextSpan, _ a1: [PlaceholderDimensions], whole a2: [Double], near a3: Bool, wide a4: Bool, multiple a5: Double) -> Bool { rl._equationsWithinStrut(a0, a1, whole: a2, near: a3, wide: a4, multiple: a5) }
     func _firstLineGridHalf(_ a0: Int, _ a1: RichDocument) -> Double { rl._firstLineGridHalf(a0, a1) }
+    func _firstLineGridHeight(_ a0: Int, _ a1: RichDocument) -> Double { rl._firstLineGridHeight(a0, a1) }
     func _firstLineHoldsMangalMark(_ a0: RichParagraph, painter a1: TextPainter, lead a2: Int, named a3: RichNamedStyle?, document a4: RichDocument) -> Bool { rl._firstLineHoldsMangalMark(a0, painter: a1, lead: a2, named: a3, document: a4) }
     var _firstLineLift: [Double] { get { rl._firstLineLift } set { rl._firstLineLift = newValue } _modify { yield &rl._firstLineLift } }
     func _firstTextRun(_ a0: RichParagraph) -> Run? { rl._firstTextRun(a0) }
@@ -259,6 +260,7 @@ extension _ParaFrame {
     var _inlineBoxes: [[Int]] { get { rl._inlineBoxes } set { rl._inlineBoxes = newValue } _modify { yield &rl._inlineBoxes } }
     func _inlinePictureOnly(_ a0: Int, _ a1: RichDocument) -> Bool { rl._inlinePictureOnly(a0, a1) }
     var _inserts: [[Int]] { get { rl._inserts } set { rl._inserts = newValue } _modify { yield &rl._inserts } }
+    var _partedFirstWord: [Int: Int] { get { rl._partedFirstWord } set { rl._partedFirstWord = newValue } _modify { yield &rl._partedFirstWord } }
     func _koreanSymbolFirstLineRaise(_ a0: RichParagraph, painter a1: TextPainter, lead a2: Int, named a3: RichNamedStyle?, document a4: RichDocument) -> Double? { rl._koreanSymbolFirstLineRaise(a0, painter: a1, lead: a2, named: a3, document: a4) }
     func _koreanSymbolLineFlags(_ a0: RichParagraph, painter a1: TextPainter, lead a2: Int, named a3: RichNamedStyle?, document a4: RichDocument) -> [Bool] { rl._koreanSymbolLineFlags(a0, painter: a1, lead: a2, named: a3, document: a4) }
     func _labelFaceGrowth(_ a0: RichParagraph, named a1: RichNamedStyle?, document a2: RichDocument, style a3: RichParagraphStyle) -> (target: Double, growth: Double)? { rl._labelFaceGrowth(a0, named: a1, document: a2, style: a3) }

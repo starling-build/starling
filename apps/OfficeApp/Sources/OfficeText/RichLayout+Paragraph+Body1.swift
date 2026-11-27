@@ -157,6 +157,7 @@ extension _ParaFrame {
             _blk3()
             _blk4()
         }
+        _partedFirstWord[i] = nil
         (span, inline, inserts) = _span(for: p, at: i, document, textWidth: textWidth, lead: lead,
 
                                             adjust: hangs.isEmpty ? tabs : tabs.merging(hangs) { $0 + $1 }, held: tabsHeld)
@@ -236,6 +237,30 @@ extension _ParaFrame {
         _floatImages[i] = p.image?.float != nil ? p.image : nil
         _mixedFace[i] = nil
         painter = laidOut(span)
+        // (A first line indented so far that its first word no longer fits beside the indent, while the word fits a whole line:
+        // Word keeps the word on the first line and parts it where the line ends, as wide a piece as fits. The engine takes the
+        // indent's box for a place to break, leaves it alone on the first line and sets the word whole on the next. xd
+        // 540fe10e's signature "ลงชื่อ……….ผู้จดรายงานการประชุม", left 180pt and first line 36pt: Word's print ends line one
+        // at "…การป", the rest at the left indent; ours stood all of it a line down, from the left indent. A word wider than a
+        // whole line stays whole; and a first-line indent that only undoes a negative left one narrows nothing: xs 2263e221's
+        // number cells "১৯।", left -108 and first line 108 twips, keep the number whole in Word's print.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, !rl._boxText, p.style.list == nil,
+           _wordList(p, document) == nil, !style.rightToLeft, style.indentLeft >= 0, inline.allSatisfy({ $0.image == nil }),
+           _lead(i) == 1, let end = RichLayout._firstWordEnd(p.text), end > 1,
+           painter.computeLineMetrics().count > 1,
+           case let word = painter.getBoxesForSelection(TextSelection(baseOffset: _map(i).painter(0), extentOffset: _map(i).painter(end - 1) + 1)),
+           let wordWidth = word.map({ $0.right }).max().map({ $0 - word.map { $0.left }.min()! }),
+           wordWidth <= textWidth, lead + wordWidth > textWidth,
+           painter.getLineBoundary(TextPosition(offset: _map(i).painter(0))).start > 0 {
+            RuleTrace.hit("first-word-too-long-for-indented-line-parts-at-its-end")
+            _partedFirstWord[i] = end
+            (span, inline, inserts) = _span(for: p, at: i, document, textWidth: textWidth, lead: lead,
+                                            adjust: hangs.isEmpty ? tabs : tabs.merging(hangs) { $0 + $1 }, held: tabsHeld)
+            _partedFirstWord[i] = nil
+            _inserts[i] = inserts
+            painter.dispose()
+            painter = laidOut(span)
+        }
         // East Asian line ends, as Word sets them: a closing mark that
         // would start a line hangs past the margin instead, and a line
         // half an em too long for its last character takes it anyway,
