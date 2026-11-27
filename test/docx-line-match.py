@@ -246,6 +246,8 @@ def _columns(singles, total, mixed=False):
 
 
 OFFPAGE = False
+_REF_INK = None   # Slides: the reference page's inked glyph boxes, set while scoring ours (turned text, below)
+_COLLECT = None   # ... gathered while reading the reference
 
 
 def _image_infos(page):
@@ -404,7 +406,18 @@ def mupdf_glyphs(pdf, drop=None):
                                             ghost.add((round(ch[2][0], 1), round(ch[2][1], 1)))
                         inked = [(c, z) for c, z in inked if (round(c["origin"][0], 1), round(c["origin"][1], 1)) not in ghost]
                     if OFFPAGE and abs(l["dir"][0]) > 0.02 and abs(l["dir"][1]) > 0.02:
-                        continue   # Slides: text turned off the axes (a 45-degree chart label) counts on neither side: PowerPoint's print keeps no text layer for it (es ce626c34, amd-10)
+                        # Slides: text turned off the axes counts only where the reference print has text at that place
+                        # (amd-10, 2026-11-27). A 45-degree chart label PowerPoint keeps no text layer for (es ce626c34) counts
+                        # on neither side; curved WordArt, every glyph a line at its own angle, PowerPoint does keep
+                        # (lo-tdf116350-texteffects, ~300 glyphs), so it counts on both. The reference's own turned text always stays.
+                        if _REF_INK is None:
+                            pass
+                        else:
+                            lb = pymupdf.Rect(l["bbox"])
+                            if not any(lb.intersects(r) for r in _REF_INK.get(i, ())):
+                                continue
+                    if OFFPAGE and _REF_INK is None and _COLLECT is not None:
+                        _COLLECT.setdefault(i, []).extend(pymupdf.Rect(c["bbox"]) for c, _ in inked)
                     if not inked:
                         continue
                     if across:
@@ -786,7 +799,14 @@ def score_document(tool, work, key, count, f):
         return None
     ours_pdf = os.path.join(work, "pdf", f)
     dw, do = _unseen_pairs(ref, ours_pdf) if V2 else ({}, {})
-    a, b = lines(tool, ref, dw), lines(tool, ours_pdf, do)
+    global _REF_INK, _COLLECT
+    _REF_INK, _COLLECT = None, ({} if OFFPAGE else None)
+    try:
+        a = lines(tool, ref, dw)
+        _REF_INK, _COLLECT = _COLLECT, None
+        b = lines(tool, ours_pdf, do)
+    finally:
+        _REF_INK, _COLLECT = None, None
     by_page = {}
     for r in b:
         by_page.setdefault(r[0], []).append(r)
