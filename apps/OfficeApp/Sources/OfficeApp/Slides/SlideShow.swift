@@ -53,6 +53,13 @@ final class SlideShowState: State<StatefulWidget>, TickerProvider {
     private var _blank: Color? = nil
     private var _digits = ""
     private var _pointerStart: Offset?
+    /// A finger on the show (iPad): where it landed, the press-and-hold that raises the controls, and whether they are up.
+    /// A finger has no Escape, no right button and no arrow keys, so the controls are how it goes back and ends the show.
+    private let _touch = TouchMenuTrigger()
+    private var _touchStart: Offset?
+    private(set) var _controlsShown = false
+    private var _controlsOpenedByThisTouch = false
+    private var _controlsGeneration = 0
     private var _assetRevision = 0
     private let _focus = FocusNode(debugLabel: "slide show")
     private let _chords = KeyChordTracker()
@@ -219,6 +226,63 @@ final class SlideShowState: State<StatefulWidget>, TickerProvider {
             _enterSlide(forward: !back)
         }
         _w.onSlideChanged?(t)
+    }
+
+    /// What a finger's travel from `start` to `end` does in the show: a tap goes on as a click does, a swipe to the left goes
+    /// on, a swipe to the right goes back, and anything between (a slow drift) does nothing.
+    enum TouchStep: Equatable { case tap, next, previous, none }
+    static func touchStep(from start: Offset, to end: Offset) -> TouchStep {
+        let dx = end.dx - start.dx, dy = end.dy - start.dy
+        if abs(dx) > 40 && abs(dx) > abs(dy) { return dx > 0 ? .previous : .next }
+        return abs(dx) < 12 && abs(dy) < 12 ? .tap : .none
+    }
+
+    /// The controls a finger raises by holding (Back, End Show, Next), put away again after a few seconds or by a touch elsewhere.
+    /// `fromHold`: raised by the finger that is still down, whose lifting must not also count as a tap.
+    private func _showControls(fromHold: Bool) {
+        guard !_w.landing, !_w.presenter else { return }
+        if fromHold { _controlsOpenedByThisTouch = true }
+        setState { _controlsShown = true }
+        _controlsGeneration += 1
+        let gen = _controlsGeneration
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak self] in
+            guard let self, self.mounted, self._controlsGeneration == gen else { return }
+            self.setState { self._controlsShown = false }
+        }
+    }
+
+    private func _hideControls() {
+        _controlsGeneration += 1
+        setState { _controlsShown = false }
+    }
+
+    private func _touchControls(_ context: any BuildContext) -> Widget {
+        let fluent = FluentTheme.of(context)
+        func gap() -> Widget { SizedBox(width: 8, height: nil, child: nil) }
+        func pill(_ text: String, _ action: @escaping () -> Void) -> Widget {
+            SizedBox(width: nil, height: 44, child: Button(onPressed: action, child: Text(text)))
+        }
+        return Positioned(left: 0, top: nil, right: 0, bottom: 28, child: Center(child: DecoratedBox(
+            decoration: BoxDecoration(color: OfficeAppearance.surface(fluent),
+                                      border: Border.all(color: fluent.resources.controlStrokeColorDefault, width: 1),
+                                      borderRadius: BorderRadius.circular(10)),
+            child: Padding(padding: EdgeInsets(left: 10, top: 8, right: 10, bottom: 8), child: Row(mainAxisSize: .min, children: [
+                pill("Back") { [weak self] in self?._previous(); self?._showControls(fromHold: false) },
+                gap(),
+                pill("End Show") { [weak self] in self?._w.onEnd() },
+                gap(),
+                pill("Next") { [weak self] in self?._next(); self?._showControls(fromHold: false) },
+            ])))))
+    }
+
+    /// A press that is not a swipe: a link or a clip under it takes it, otherwise it goes on a step (a right button goes back).
+    private func _press(at position: Offset, secondary: Bool, context: any BuildContext) {
+        if !secondary, let box = context.findRenderObject() as? RenderBox,
+           let l = _link(at: box.globalToLocal(position), size: box.size), _follow(l) { return }
+        if !secondary, let box = context.findRenderObject() as? RenderBox,
+           let clip = _clip(at: box.globalToLocal(position), size: box.size) { _toggleMedia(clip); return }
+        if _w.landing { _pointerStart = position }
+        else if secondary { _previous() } else { _next(click: true) }
     }
 
     /// `click`: a mouse click, which a slide set not to advance on a click ignores (keys still move on).
@@ -647,15 +711,34 @@ final class SlideShowState: State<StatefulWidget>, TickerProvider {
             onPointerDown: { [weak self] e in
                 guard let self else { return }
                 self._focus.requestFocus()
-                if e.buttons & kSecondaryMouseButton == 0, let box = context.findRenderObject() as? RenderBox,
-                   let l = self._link(at: box.globalToLocal(e.position), size: box.size), self._follow(l) { return }
-                if e.buttons & kSecondaryMouseButton == 0, let box = context.findRenderObject() as? RenderBox,
-                   let clip = self._clip(at: box.globalToLocal(e.position), size: box.size) { self._toggleMedia(clip); return }
-                if self._w.landing { self._pointerStart = e.position }
-                else if e.buttons & kSecondaryMouseButton != 0 { self._previous() } else { self._next(click: true) }
+                if e.kind == .touch, !self._w.landing {
+                    // A finger decides on lifting: a tap, a swipe, or a hold that raises the controls. A second finger
+                    // landing (a two-finger tap) raises them too and is no tap for either finger.
+                    let second = self._touch.down(e) { [weak self] _ in self?._showControls(fromHold: true) }
+                    self._touchStart = second ? nil : e.position
+                    if self._touchStart != nil { self._controlsOpenedByThisTouch = false }
+                    return
+                }
+                self._press(at: e.position, secondary: e.buttons & kSecondaryMouseButton != 0, context: context)
             },
+            onPointerMove: { [weak self] e in self?._touch.moved(e.pointer, e.position) },
             onPointerUp: { [weak self] e in
-                guard let self, self._w.landing, let start = self._pointerStart else { return }
+                guard let self else { return }
+                if e.kind == .touch, !self._w.landing {
+                    self._touch.up(e.pointer)
+                    guard let start = self._touchStart else { return }
+                    self._touchStart = nil
+                    if self._controlsOpenedByThisTouch { self._controlsOpenedByThisTouch = false; return }
+                    if self._controlsShown { self._hideControls(); return }   // a touch elsewhere puts the controls away
+                    switch Self.touchStep(from: start, to: e.position) {
+                    case .tap: self._press(at: e.position, secondary: false, context: context)
+                    case .next: self._next()
+                    case .previous: self._previous()
+                    case .none: break
+                    }
+                    return
+                }
+                guard self._w.landing, let start = self._pointerStart else { return }
                 self._pointerStart = nil
                 let dx = e.position.dx - start.dx, dy = e.position.dy - start.dy
                 if abs(dx) > 40 && abs(dx) > abs(dy) {
@@ -666,7 +749,11 @@ final class SlideShowState: State<StatefulWidget>, TickerProvider {
                 guard let self, !self._w.presenter else { return }
                 self._hideCursorSoon()
             },
-            onPointerCancel: { [weak self] _ in self?._pointerStart = nil },
+            onPointerCancel: { [weak self] e in
+                self?._pointerStart = nil
+                self?._touchStart = nil
+                self?._touch.up(e.pointer)
+            },
             behavior: .opaque,
             child: CustomPaint(
                 painter: _ShowPainter(current: current, previous: progress < 1 ? previous : nil,
@@ -678,8 +765,11 @@ final class SlideShowState: State<StatefulWidget>, TickerProvider {
                                           &+ _played * 131 &+ _frameSerial &* 977 &+ _videoFrames.keys.reduce(0, &+) &+ Int((elapsed ?? -1) * 1000) * 7919),
                 child: SizedBox(expand: ())))
         let body: Widget = _w.presenter ? _presenterView(context, show: show) : show
-        guard _w.rehearse else { return body }
-        return Stack(children: [body, _rehearseBar(context)])
+        var layers: [Widget] = [body]
+        if _controlsShown, !_w.presenter { layers.append(_touchControls(context)) }
+        if _w.rehearse { layers.append(_rehearseBar(context)) }
+        guard layers.count > 1 else { return body }
+        return Stack(children: layers)
     }
 }
 
