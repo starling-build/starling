@@ -198,6 +198,9 @@ struct DeckState: Equatable {
     var show = ShowSettings()
     var customShows: [CustomShow] = []
     var sections: [SlideSection] = []
+    /// The show settings as read: while `show` still equals them, the file's
+    /// own `p:showPr` is saved as it was, spellings of the defaults included.
+    var sourceShow: ShowSettings? = nil
 }
 
 /// Every change to a deck goes through here. Listeners hear about slide
@@ -225,6 +228,7 @@ final class DeckController: ChangeNotifier {
     private(set) var firstSlideNum = 1
     /// Set Up Slide Show, and the custom shows; both saved with the deck.
     private(set) var show = ShowSettings()
+    private(set) var sourceShow: ShowSettings? = nil
     private(set) var customShows: [CustomShow] = []
     /// The deck's sections, in order; empty when it has none.
     private(set) var sections: [SlideSection] = []
@@ -2576,7 +2580,7 @@ final class DeckController: ChangeNotifier {
                        transition: slide.transition, timingXML: slide.timingXML,
                        footerFrames: slide.footerFrames, animations: slide.animations,
                        sourceAnimations: slide.sourceAnimations, commentsFrom: slide.commentsFrom ?? slide.sourcePart)
-        }, current: current, slideSize: slideSize, theme: theme, ownTemplates: ownTemplates, recolourTheme: recolourTheme, firstSlideNum: firstSlideNum, masterBackground: masterBackground, slideScaling: slideScaling, show: show, customShows: customShows, sections: sections)
+        }, current: current, slideSize: slideSize, theme: theme, ownTemplates: ownTemplates, recolourTheme: recolourTheme, firstSlideNum: firstSlideNum, masterBackground: masterBackground, slideScaling: slideScaling, show: show, customShows: customShows, sections: sections, sourceShow: sourceShow)
     }
 
     /// Put the deck back as `state` was. Objects that still exist are kept
@@ -2645,6 +2649,7 @@ final class DeckController: ChangeNotifier {
         masterBackground = state.masterBackground
         slideScaling = state.slideScaling
         show = state.show
+        sourceShow = state.sourceShow
         customShows = state.customShows
         sections = state.sections
         if let t = state.theme { theme = t }

@@ -37,6 +37,28 @@ final class SlideShowSetupTests: XCTestCase {
         XCTAssertEqual(again.show.range, .custom(7))
     }
 
+    /// A save keeps the file's show settings as it wrote them, PowerPoint's
+    /// spelled-out defaults (showNarration="1") included, until they are changed here.
+    func testPlainSaveKeepsTheShowSettingsAsWritten() throws {
+        var package = PptxPackage(try Zip.read(try Pptx.write(_deck())))
+        let pr = "<p:showPr showNarration=\"1\"><p:present/><p:sldAll/><p:penClr><a:prstClr val=\"red\"/></p:penClr></p:showPr>"
+        var props = String(decoding: package.parts["ppt/presProps.xml"]!, as: UTF8.self)
+        guard let r = props.range(of: "/>", options: .backwards) else { return XCTFail(props) }
+        props.replaceSubrange(r, with: ">" + pr + "</p:presentationPr>")
+        package.parts["ppt/presProps.xml"] = Data(props.utf8)
+        let (state, theme, pkg) = try Pptx.read(try Zip.write(package.parts.map { ZipEntry(name: $0.key, data: $0.value) }))
+        func saved(_ s: DeckState) throws -> String {
+            let out = PptxPackage(try Zip.read(try PptxWriter.write(s, theme: theme, package: pkg)))
+            return String(decoding: out.parts["ppt/presProps.xml"]!, as: UTF8.self)
+        }
+        let plain = try saved(state)
+        XCTAssertTrue(plain.contains(pr), "kept as written: " + plain)
+        var looped = state
+        looped.show.loop = true
+        let again = try saved(looped)
+        XCTAssertTrue(again.contains("<p:showPr loop=\"1\"><p:present/><p:sldAll/><p:penClr>"), "changed, written fresh: " + again)
+    }
+
     func testRangeKioskAndDefaults() throws {
         let deck = _deck()
         let plain = try Pptx.read(Pptx.write(deck)).0

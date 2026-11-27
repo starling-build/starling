@@ -147,7 +147,7 @@ enum PptxWriter {
         if let m = state.masterBackground { _setMasterBackground(m, in: &b) }
         if let pp = presRelsAll.first(where: { $0.kind == "presProps" })?.target,
            let d = b.parts[pp], let x = String(data: d, encoding: .utf8) {
-            b.parts[pp] = Data(_applyShowPr(x, state.show).utf8)
+            if state.show != state.sourceShow { b.parts[pp] = Data(_applyShowPr(x, state.show).utf8) }
         }
         if let scaling = state.slideScaling, let old = _slideSize(presXML), old != state.slideSize {
             _scaleMasters(from: old, to: state.slideSize, scaling, in: &b)
