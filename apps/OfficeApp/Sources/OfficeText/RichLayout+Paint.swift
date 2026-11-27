@@ -612,7 +612,7 @@ extension RichLayout {
         if _shadingFloats, part != .rules {
             let g = geometry(i)
             for image in _behindPictures(i) {
-                guard let float = image.float, let decoded = _decoded[image.id] else { continue }
+                guard let float = image.float, let decoded = _decoded[image.id], !_behindDrawn.contains("\(image.id)") else { continue }
                 if _verticalPagePicture(i, float, image) {
                     _drawPictureOnVerticalPage(decoded, image, _floatRect(float, image, g, i), canvas)
                 } else {
@@ -1161,7 +1161,7 @@ extension RichLayout {
     /// floating object kept back (`_deferredFloats`) to be drawn under them again.
     enum _PieceClip { case rect(Rect), path(Path) }
     struct _DeferredFloat {
-        let page: Int, z: Int64, seq: Int, i: Int, k: Int
+        let page: Int, z: Int64, seq: Int, i: Int, k: Int, behind: Bool
         let clip: _PieceClip, dx: Double, dy: Double, columnShift: Double
     }
 
@@ -1189,11 +1189,19 @@ extension RichLayout {
     /// above the story's text (a later paragraph's text never covers an earlier one's object).
     /// True when the caller is not to draw it now.
     func _recordFloat(_ i: Int, _ k: Int, _ image: ImageAttachment) -> Bool {
+        let behind = image.sourceXML?.containsSubstring("behindDoc=\"1\"") == true || Self._stackHeight(image) < 0
+        // (The pass before the text keeps the objects behind it, and draws nothing.)
+        if _behindPass {
+            guard _deferredFloats != nil, image.float != nil, behind, let frame = _pieceFrame else { return true }
+            _deferredFloats!.append(_DeferredFloat(page: frame.page, z: Self._stackHeight(image), seq: _deferredFloats!.count, i: i, k: k, behind: true,
+                                                   clip: frame.clip, dx: frame.dx, dy: frame.dy, columnShift: _floatColumnShift))
+            return true
+        }
         guard _deferredFloats != nil, theme.wordRules, image.float != nil, let frame = _pieceFrame else { return false }
-        // (An object behind the text stays where its paragraph draws it, under the text that follows.)
-        if image.sourceXML?.containsSubstring("behindDoc=\"1\"") == true || Self._stackHeight(image) < 0 { return false }
+        // (One behind the text that the pass before it missed is drawn where its paragraph draws it.)
+        if behind { return false }
         if _dropCapPass == 1, image.isDropCap { return true }
-        _deferredFloats!.append(_DeferredFloat(page: frame.page, z: Self._stackHeight(image), seq: _deferredFloats!.count, i: i, k: k,
+        _deferredFloats!.append(_DeferredFloat(page: frame.page, z: Self._stackHeight(image), seq: _deferredFloats!.count, i: i, k: k, behind: false,
                                                clip: frame.clip, dx: frame.dx, dy: frame.dy, columnShift: _floatColumnShift))
         return true
     }
@@ -1211,12 +1219,15 @@ extension RichLayout {
             canvas.translate(f.dx, f.dy)
             _floatColumnShift = f.columnShift
             let g = geometry(f.i)
+            let image = f.k < 0 ? document.paragraphs[f.i].image : f.k < _inline[f.i].count ? _inline[f.i][f.k] : nil
+            if let image, f.behind, _behindDrawn.contains("\(image.id)") { canvas.restore(); continue }
             if f.k < 0 {
-                if let image = document.paragraphs[f.i].image, let box = imageRect(f.i) { _paintOwnPicture(f.i, image, box, canvas, document) }
+                if let image, let box = imageRect(f.i) { _paintOwnPicture(f.i, image, box, canvas, document) }
             } else if let all = g.painter.inlinePlaceholderBoxes {
                 _paintInlineItem(f.i, f.k, g, all, canvas, document)
             }
             _floatColumnShift = 0
+            if f.behind, let image { _behindDrawn.insert("\(image.id)") }
             canvas.restore()
         }
     }
@@ -1357,6 +1368,15 @@ extension RichLayout {
     func _paintParagraph(_ i: Int, _ canvas: any Canvas, _ document: RichDocument, part: PagePiece.Part = .all,
                                  lines: (painter: TextPainter, top: Double, first: Bool, paragraph: RichParagraph)? = nil) {
         let g = geometry(i)
+        if _behindPass {
+            // (The pass before the text: only the objects behind it, kept by `_recordFloat`.)
+            guard lines?.first ?? true, part != .rules else { return }
+            if let image = document.paragraphs[i].image, imageRect(i) != nil { _ = _recordFloat(i, -1, image) }
+            if i < _inline.count, !_inline[i].isEmpty, let all = g.painter.inlinePlaceholderBoxes {
+                for k in _inline[i].indices { _paintInlineItem(i, k, g, all, canvas, document) }
+            }
+            return
+        }
         if let lines, !lines.first {
             // Lines from inside the paragraph: no marker, no rules — the text alone.
             let at = Offset(g.textLeft, g.textTop + lines.top + _baselineShift(i, document))
@@ -1684,7 +1704,7 @@ extension RichLayout {
         if _markUnderNestedTable(i, document) { return }
         if let image = document.paragraphs[i].image, let box = imageRect(i) {
             if _recordFloat(i, -1, image) { return }
-            _paintOwnPicture(i, image, box, canvas, document)
+            if !_behindDrawn.contains("\(image.id)") { _paintOwnPicture(i, image, box, canvas, document) }
             // A list item that is a picture alone has its number too, on
             // the picture's line, at its foot: chartex's third bullet
             // stands beside its chart's lower edge in Word's print, where

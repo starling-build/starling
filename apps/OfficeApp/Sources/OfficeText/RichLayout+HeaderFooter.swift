@@ -2976,6 +2976,14 @@ extension RichLayout {
         // Three layers: table shading, the selection over it, then the text
         // and rules. (Shading painted with its paragraph covered a selected
         // cell's highlight.)
+        // (The objects behind the text first, under everything of the flow, in stacking order across paragraphs.)
+        if theme.wordRules, isPaged {
+            _deferredFloats = []
+            _behindPass = true
+            _paintFlow(canvas, visible: visible, document: document, shading: false)
+            _behindPass = false
+            _flushFloats(canvas, document)
+        }
         _paintFlow(canvas, visible: visible, document: document, shading: true)
         if let selection, !selection.isCollapsed {
             let paint = Paint()
@@ -3465,7 +3473,7 @@ extension RichLayout {
                                 }
                             }
                             _floatColumnShift = 0
-                            if _dropCapPass != 2 { _paintPartedRules(piece, canvas, document) }
+                            if _dropCapPass != 2, !_behindPass { _paintPartedRules(piece, canvas, document) }
                             // (Word's print keeps the text an exact-height row
                             // cuts off, clipped and unseen, and a reader of the
                             // page finds it there: lo-c6cd222f's "BAR BBB" and
@@ -3515,7 +3523,7 @@ extension RichLayout {
                                 }
                             }
                         }
-                        if _dropCapPass != 2, numbered, let ordinal = ordinals[slot * 1_000_000 + pieceIndex] {
+                        if _dropCapPass != 2, !_behindPass, numbered, let ordinal = ordinals[slot * 1_000_000 + pieceIndex] {
                             _paintLineNumbers(piece, ordinal: ordinal, origin: Offset(left, top - piece.flowTop), canvas, document)
                         }
                     }

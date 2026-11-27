@@ -2270,6 +2270,8 @@ public final class RichLayout {
     /// ours drew it after the shading, over them.
     var _behindDrawn: Set<String> = []
     var _shadingFloats = false
+    /// The pass before the shading that only keeps the objects behind the text (`_recordFloat`).
+    var _behindPass = false
 
     // MARK: Headers and footers
     //
