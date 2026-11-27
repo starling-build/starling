@@ -23,3 +23,15 @@ final class ShadowLineShiftTests: XCTestCase {
         XCTAssertEqual(RichLayout._shadowLineShift(tree, at: 5), 0)
     }
 }
+
+/// A placeholder (a Slides picture run) is a leaf the walk visits: it used to trap in the base class.
+final class PlaceholderSpanWalkTests: XCTestCase {
+    func testWalkingATreeWithAPlaceholderVisitsItAndDoesNotTrap() {
+        let tree = TextSpan(text: "a", children: [RichImageSpan(), TextSpan(text: "b")])
+        var seen = 0
+        XCTAssertTrue(tree.visitChildren { _ in seen += 1; return true })
+        XCTAssertEqual(seen, 3)
+        XCTAssertTrue(tree.visitDirectChildren { _ in true })
+        XCTAssertTrue(RichImageSpan().visitDirectChildren { _ in false })
+    }
+}

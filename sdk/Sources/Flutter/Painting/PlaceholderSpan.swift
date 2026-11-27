@@ -64,6 +64,15 @@ open class PlaceholderSpan: InlineSpan {
 
     // MARK: - Override Methods
 
+    /// A placeholder is a leaf: the walk visits it and goes on. (Without this the base class traps with "Subclasses must
+    /// override visitChildren", so a `TextSpan` tree holding any placeholder could not be walked.)
+    ///
+    /// **Dart Source:** `widget_span.dart` (`visitChildren`)
+    open override func visitChildren(_ visitor: InlineSpanVisitor) -> Bool { visitor(self) }
+
+    /// A placeholder has no children.
+    open override func visitDirectChildren(_ visitor: InlineSpanVisitor) -> Bool { true }
+
     /// `PlaceholderSpan`s are flattened to a `0xFFFC` object replacement character in the
     /// plain text representation when `includePlaceholders` is true.
     ///
