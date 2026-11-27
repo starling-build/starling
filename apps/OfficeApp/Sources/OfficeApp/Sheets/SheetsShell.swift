@@ -769,9 +769,6 @@ final class SheetsShellState: State<StatefulWidget> {
     /// File → Print: the shared Print dialog. Its page counts come first (a layout pass for each
     /// thing it can print), then it opens.
     private func _print() {
-        #if os(WASI)
-        _flash("Printing is not available in the browser yet")
-        #else
         _ = _grid?.commitEdit()
         setState { _backstage = nil }
         Task { @MainActor [weak self] in
@@ -788,7 +785,6 @@ final class SheetsShellState: State<StatefulWidget> {
             }
             self.setState { self._printKinds = kinds; self._printCounts = counts; self._printOpen = true }
         }
-        #endif
     }
 
     /// The shared dialog's hooks for this workbook: Active sheet, Entire workbook and (when
@@ -797,7 +793,7 @@ final class SheetsShellState: State<StatefulWidget> {
         let kinds = _printKinds, counts = _printCounts
         return PrintHooks(unit: "Pages", total: max(1, counts.first ?? 1), current: 1,
                           totals: counts.map { max(1, $0) },
-                          outputs: kinds.map(\.label), hostCanPrint: hostPrintPDF != nil,
+                          outputs: kinds.map(\.label), hostCanPrint: hostCanPrintPDF,
                           print: { [weak self] pages, output in
             guard let self, kinds.indices.contains(output) else { return "Nothing to print" }
             return self._print(kinds[output], pages: pages)
@@ -805,22 +801,27 @@ final class SheetsShellState: State<StatefulWidget> {
     }
 
     private func _print(_ what: PrintWhat, pages: [Int]) -> String {
+        // A host that prints bytes (the browser) gets the PDF itself; one
+        // that prints files gets a file in the temporary folder.
+        let bytes = hostPrintPDFBytes
         #if os(WASI)
-        return "Printing is not available in the browser yet"
+        let path = "/print/" + session.title.deletingPathExtension + ".pdf"
         #else
         let path = NSTemporaryDirectory() + "sheets-print-\(ProcessInfo.processInfo.processIdentifier).pdf"
+        #endif
+        let name = session.title.deletingPathExtension + ".pdf"
         Task { @MainActor [weak self] in
             guard let self, let grid = self._grid else { return }
             guard await grid.writePdf(to: path, title: self.session.title, filePath: self.session.path,
                                       wholeBook: what == .entireWorkbook, selection: what == .selection ? self.wb.selection : nil,
-                                      pages: pages) else {
+                                      pages: pages, deliver: bytes.map { send in { data in send(data, name) } }) else {
                 self._flash("Nothing to print on this sheet")
                 return
             }
+            if bytes != nil { return }
             if let print = hostPrintPDF { print(path) } else { self._flash("No print dialog on this host") }
         }
         return ""
-        #endif
     }
 
     // MARK: Formula bar

@@ -1059,10 +1059,10 @@ final class SlidesShellState: State<StatefulWidget> {
 
     /// What the Print dialog asks of the deck: Slides, Notes Pages or
     /// Handouts, for a page range, with the selected slides as a choice.
-    private var _printHooks: PrintHooks {
+    var _printHooks: PrintHooks {
         PrintHooks(unit: "Slides", total: max(1, deck.slides.count), current: deck.current + 1,
                    selection: _selectedSlideNumbers(), outputs: ["Slides", "Notes Pages", "Handouts"],
-                   hostCanPrint: hostPrintPDF != nil, print: { [weak self] pages, output in
+                   hostCanPrint: hostCanPrintPDF, print: { [weak self] pages, output in
                        self?._print(slides: pages, output: output) ?? ""
                    })
     }
@@ -1077,23 +1077,28 @@ final class SlidesShellState: State<StatefulWidget> {
     /// File → Print: the chosen slides (or their notes pages, or handouts)
     /// as a PDF, handed to the host's print dialog. Returns the status line.
     private func _print(slides: [Int], output: Int) -> String {
+        // A host that prints bytes (the browser) gets the PDF itself; one
+        // that prints files gets a file in the temporary folder.
+        let bytes = hostPrintPDFBytes
+        guard bytes != nil || hostPrintPDF != nil else { return "No print dialog on this host" }
         #if os(WASI)
-        return "Printing is not available in the browser yet"
+        let path = "/print/" + session.title.deletingPathExtension + ".pdf"
         #else
-        guard hostPrintPDF != nil else { return "No print dialog on this host" }
         let path = NSTemporaryDirectory() + "slides-print-\(ProcessInfo.processInfo.processIdentifier).pdf"
+        #endif
+        let name = session.title.deletingPathExtension + ".pdf"
         let kind = SlidesPdf.Output(rawValue: output) ?? .slides
         Task { @MainActor [weak self] in
             guard let self else { return }
             guard await SlidesPdf.write(self.deck, cache: self._cache, to: path, title: self.session.title,
-                                        slides: slides, output: kind, notesTheme: self._notesTheme) else {
+                                        slides: slides, output: kind, notesTheme: self._notesTheme,
+                                        deliver: bytes.map { send in { data in send(data, name) } }) else {
                 self._flash("Could not render the deck for printing")
                 return
             }
-            if let print = hostPrintPDF { print(path) }
+            if bytes == nil, let print = hostPrintPDF { print(path) }
         }
         return "Sent to the print dialog"
-        #endif
     }
 
     /// Where a picture comes from: Backstage's file list, or in a tab the
