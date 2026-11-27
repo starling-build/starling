@@ -88,6 +88,11 @@ HOST(open_file) void starling_host_open_file(const void* extensions, uint32_t le
 HOST(download)
 void starling_host_download(const void* name, uint32_t nameLength, const void* bytes,
                             uint32_t byteCount);
+// Print a PDF: name and bytes in OUR memory, copied before the call returns.
+// The page loads it into a frame and opens the browser's print dialog on it.
+HOST(print_pdf)
+void starling_host_print_pdf(const void* name, uint32_t nameLength, const void* bytes,
+                             uint32_t byteCount);
 
 // The network, the browser's way (docs/plans/wiki.md W0). http_request
 // starts a fetch: method, URL, headers ("Name: value" lines joined by \n)

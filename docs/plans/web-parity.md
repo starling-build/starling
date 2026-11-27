@@ -78,3 +78,52 @@ The build broke unnoticed (Int overflows, Foundation string search, a dlsym).
   file worsens against the baseline in this document.
 - Rule for authors: in shared code never use `.contains("x")`, `.range(of:)`,
   `replacingOccurrences`, `dlsym`, or Int literals above 2^31 (use sdk helpers).
+
+## 4. Plan: the browser's file features (2026-11-26, amd-11)
+
+Missing in the browser today: Print, a real Save As, AutoSave and recovery copies,
+recent files, and publishing. Word first, then Slides and Sheets on the same pieces.
+Nothing here is deployed to the live sites without the coordinator's OK.
+
+**One seam, testable natively.** The shell's browser paths stop being `#if os(WASI)`
+dead ends and go through one object, `OfficeHost.browser` (a `BrowserFiles` value):
+print a PDF, keep a recovery copy, list and reopen recent documents, save through a
+file handle. The web build sets it at start-up from host calls; unit tests set an
+in-memory one and drive the real OfficeShell with WidgetTester, so every feature has
+a native failing-before test. A Chrome test (test/office-files-web.mjs, web-drive's
+CDP) checks the page side: the print frame, IndexedDB rows, recovery after a reload.
+
+1. **Print.** File > Print renders the same PDF as Export (PdfExport, waiting for
+   pictures and fonts), but hands the bytes to a new host call `print_pdf` instead of
+   a download: the page loads them into a hidden iframe and calls its `print()`, so
+   the browser's own print dialog opens (printer, pages, copies). The page range
+   picked in our Print pane is applied before (printPages). Fallback where an iframe
+   cannot print (some mobile browsers): open the PDF in a new tab.
+   DONE 2026-11-26 (Word): BrowserPrintTests (native, a stand-in host); in Chrome,
+   Ctrl+P then Print gave the page a 78 KB PDF in the print frame. Slides and Sheets
+   still offer Export in the browser: they print through their own paths, next.
+2. **AutoSave and recovery.** Two seconds after the last edit (OfficeHost.autosaveDelay,
+   as natively) the document's bytes go to IndexedDB (database `starling-office`,
+   store `recovery`, one row per tab: name, kind, time, bytes). A save or download
+   deletes the row. On start, a row whose tab is gone (Web Locks: each tab holds a
+   lock named after its row) is offered as natively: "Recovered unsaved changes", with
+   Keep / Discard. Rows are capped (the newest 10, and 200 MB in total).
+3. **Recent files.** Each open and save puts a row in IndexedDB store `recent` (name,
+   kind, time, a copy of the bytes, and the file handle where the browser has the
+   File System Access API). Backstage Home and Open list them as natively; reopening
+   uses the handle (asking for permission again if the browser wants) or the copy.
+   20 rows, oldest dropped first, the same cap on bytes as recovery.
+4. **Save As and Save.** Where `showSaveFilePicker` exists (Chrome, Edge), Save As
+   asks the browser for a place and a name (Word, OpenDocument, PDF, plain text) and
+   keeps the handle; Save then writes the same file in place, as natively, and a
+   file opened through `showOpenFilePicker` saves back to itself. Elsewhere (Firefox,
+   Safari) Save As shows our own name-and-format dialog and downloads, and Save
+   downloads.
+5. **Publishing.** Natively a publication is a folder with site.json that Publish
+   builds and pushes with git. A tab has neither, so in the browser it needs a server
+   that takes the built pages. That is a product decision (where pages go, who may
+   publish): planned last, after asking the coordinator; until then the Backstage
+   entry stays hidden in the browser, as now.
+
+Order: 1, 2, 3 (2 and 3 share the IndexedDB layer), 4, then 5. One PR each, Word
+first; Slides and Sheets follow in the same PR where the shell code is shared.

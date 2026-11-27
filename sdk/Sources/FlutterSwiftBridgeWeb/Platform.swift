@@ -98,7 +98,8 @@ extension flutter.swift_bridge {
     public static func WritePdf(
         _ path: String, _ displayLists: UnsafePointer<UnsafeRawPointer?>?,
         _ count: Int32, _ widths: UnsafePointer<Double>?, _ heights: UnsafePointer<Double>?,
-        _ title: String?, _ author: String?, rewrite: ((Data) -> Data?)? = nil
+        _ title: String?, _ author: String?, rewrite: ((Data) -> Data?)? = nil,
+        deliver: ((Data) -> Void)? = nil
     ) -> Bool {
         guard let displayLists, let widths, let heights, count > 0 else { return false }
         let n = Int(count)
@@ -122,6 +123,8 @@ extension flutter.swift_bridge {
         var bytes: [UInt8] = skRead(skData_getConstPointer(data), count: Int(skData_getSize(data)))
         guard !bytes.isEmpty else { return false }
         if let rewrite, let changed = rewrite(Data(bytes)) { bytes = [UInt8](changed) }
+        // (Bytes the caller takes itself, the browser's print: no download.)
+        if let deliver { deliver(Data(bytes)); return true }
         var name = String(path.split(separator: "/").last ?? "document.pdf")
         name.withUTF8 { nameBytes in
             bytes.withUnsafeBufferPointer { b in

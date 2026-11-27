@@ -29,9 +29,14 @@ public enum PdfDocument {
     /// `rewrite`, when given, is handed the finished file's bytes before they
     /// are kept (nil leaves them as written): on the web the file is a
     /// download, never on a disk to be read back and changed there.
+    ///
+    /// `deliver`, when given, gets the finished bytes: on the web they then
+    /// go there instead of to a download (the browser's print), natively the
+    /// file is written as usual and read back for it.
     @discardableResult
     public static func write(to path: String, pages: [Page], title: String? = nil,
-                             author: String? = nil, rewrite: ((Data) -> Data?)? = nil) -> Bool {
+                             author: String? = nil, rewrite: ((Data) -> Data?)? = nil,
+                             deliver: ((Data) -> Void)? = nil) -> Bool {
         guard !pages.isEmpty else { return false }
         var lists: [UnsafeRawPointer?] = []
         for page in pages {
@@ -45,7 +50,8 @@ public enum PdfDocument {
                 heights.withUnsafeBufferPointer { h in
                     #if os(WASI)
                     flutter.swift_bridge.WritePdf(path, b.baseAddress, Int32(pages.count),
-                                                  w.baseAddress, h.baseAddress, title, author, rewrite: rewrite)
+                                                  w.baseAddress, h.baseAddress, title, author, rewrite: rewrite,
+                                                  deliver: deliver)
                     #else
                     flutter.swift_bridge.WritePdf(path, b.baseAddress, Int32(pages.count),
                                                   w.baseAddress, h.baseAddress, title, author)
@@ -55,7 +61,11 @@ public enum PdfDocument {
         }
         #if !os(WASI)
         if written, let rewrite, let data = FileManager.default.contents(atPath: path), let changed = rewrite(data) {
-            return (try? changed.write(to: URL(fileURLWithPath: path))) != nil
+            guard (try? changed.write(to: URL(fileURLWithPath: path))) != nil else { return false }
+        }
+        if written, let deliver {
+            guard let data = FileManager.default.contents(atPath: path) else { return false }
+            deliver(data)
         }
         #endif
         return written
