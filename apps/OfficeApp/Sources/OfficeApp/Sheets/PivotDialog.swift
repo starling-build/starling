@@ -88,7 +88,7 @@ final class PivotDialogState: State<StatefulWidget> {
         let gap: (Double) -> Widget = { SizedBox(width: nil, height: $0, child: nil) }
         var list: [Widget] = [
             Text("Range", style: fluent.typography.caption), gap(4),
-            SizedBox(width: nil, height: 30, child: FluentTextBox(
+            SizedBox(width: nil, height: Chrome.fieldHeight, child: FluentTextBox(
                 key: ValueKey("pivot-source"), controller: _source, placeholderText: "Sheet1!A1:C20",
                 onChanged: { [weak self] _ in self?.setState { self?.readFields() } })),
             gap(8), Text("Use each heading as:", style: fluent.typography.bodyStrong), gap(4),
@@ -121,7 +121,7 @@ final class PivotDialogState: State<StatefulWidget> {
                  Checkbox(key: ValueKey("pivot-new"), checked: newSheet, onChanged: { [weak self] v in self?.setState { self?.newSheet = v ?? true } }, content: Text("A new worksheet"))]
         if !newSheet {
             list += [gap(4), Text("Starting at cell", style: fluent.typography.caption), gap(4),
-                     SizedBox(width: nil, height: 30, child: FluentTextBox(key: ValueKey("pivot-dest"), controller: _dest, placeholderText: "F2"))]
+                     SizedBox(width: nil, height: Chrome.fieldHeight, child: FluentTextBox(key: ValueKey("pivot-dest"), controller: _dest, placeholderText: "F2"))]
         }
         list += [gap(6), Text(message, style: fluent.typography.caption?.copyWith(color: Color(0xFFC42B1C)))]
         return DialogShell(

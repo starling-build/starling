@@ -130,7 +130,7 @@ final class ValidationDialogState: State<StatefulWidget> {
 
     private func _label(_ s: String, _ fluent: FluentThemeData) -> Widget { Text(s, style: fluent.typography.caption) }
     private func _gap(_ h: Double = 8) -> Widget { SizedBox(width: nil, height: h, child: nil) }
-    private func _field(_ id: String, _ c: TextEditingController, placeholder: String = "", height: Double = 30) -> Widget {
+    private func _field(_ id: String, _ c: TextEditingController, placeholder: String = "", height: Double = Chrome.fieldHeight) -> Widget {
         SizedBox(width: nil, height: height, child: FluentTextBox(
             key: ValueKey(id), controller: c, placeholderText: placeholder, onSubmitted: { [weak self] _ in self?.apply() }))
     }

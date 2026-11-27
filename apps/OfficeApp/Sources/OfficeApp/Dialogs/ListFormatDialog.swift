@@ -81,7 +81,7 @@ final class ListFormatDialogState: State<StatefulWidget> {
                 LKeyed("lf-style-\(s.id)", Chrome.textToggle(s.title, style == s.format && rawFormat == s.raw, fluent) { [weak self] in self?.setState { self?.style = s.format; self?.rawFormat = s.raw } })
             }))]))
         }
-        rows.append(row(_w.bullet ? "Bullet" : "Number format", [SizedBox(width: 160, height: 30, child: LKeyed("lf-text", FluentTextBox(
+        rows.append(row(_w.bullet ? "Bullet" : "Number format", [SizedBox(width: 160, height: Chrome.fieldHeight, child: LKeyed("lf-text", FluentTextBox(
             controller: _text, onChanged: { [weak self] _ in self?.setState {} },
             onSubmitted: { [weak self] _ in if let r = self?.result { self?._w.onOK(r) } })))]))
         if _w.bullet, let pick = _w.pickSymbol {

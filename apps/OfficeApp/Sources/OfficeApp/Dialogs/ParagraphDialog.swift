@@ -213,7 +213,7 @@ final class ParagraphDialogState: State<StatefulWidget> {
             row("", lines.suffix(3).map { id, t, k in choice(id, t, v.line == k) { [weak self] in self?.setState { self?.v.line = k } } }),
         ]
         if v.line == .multiple {
-            lineRows.append(row("Multiple of", [SizedBox(width: 90, height: 30, child: PKeyed("pa-multiple", FluentTextBox(
+            lineRows.append(row("Multiple of", [SizedBox(width: 90, height: Chrome.fieldHeight, child: PKeyed("pa-multiple", FluentTextBox(
                 controller: _multiple, onSubmitted: { [weak self] _ in self?.commitMultiple() },
                 onFocusChanged: { [weak self] f in if !f { self?.commitMultiple() } })))]))
         } else if v.line == .atLeast || v.line == .exactly {

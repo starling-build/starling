@@ -76,7 +76,7 @@ final class SlideSizeDialogState: State<StatefulWidget> {
         func field(_ id: String, _ label: String, _ c: TextEditingController) -> Widget {
             Row(children: [
                 SizedBox(width: 70, height: nil, child: Text(label, style: caption)),
-                SizedBox(key: ValueKey(id), width: 90, height: 30, child: FluentTextBox(controller: c, onChanged: { [weak self] _ in self?.setState {} })),
+                SizedBox(key: ValueKey(id), width: 90, height: Chrome.fieldHeight, child: FluentTextBox(controller: c, onChanged: { [weak self] _ in self?.setState {} })),
                 SizedBox(width: 6, height: nil, child: Text("in", style: caption)),
             ])
         }

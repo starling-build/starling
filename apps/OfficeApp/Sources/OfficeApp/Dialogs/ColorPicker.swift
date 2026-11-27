@@ -234,7 +234,7 @@ final class CustomColorDialogState: State<StatefulWidget> {
         func field(_ label: String, _ c: TextEditingController, _ width: Double, _ on: @escaping (String) -> Void) -> Widget {
             Padding(padding: EdgeInsets(left: 0, top: 0, right: 10, bottom: 0), child: Column(crossAxisAlignment: .start, children: [
                 Text(label), Chrome.vgap(2),
-                SizedBox(width: width, height: 30, child: FluentTextBox(controller: c, onChanged: on)),
+                SizedBox(width: width, height: Chrome.fieldHeight, child: FluentTextBox(controller: c, onChanged: on)),
             ]))
         }
         let page = Column(crossAxisAlignment: .start, children: [

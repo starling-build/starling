@@ -187,9 +187,9 @@ final class SeriesDialogState: State<StatefulWidget> {
         }
         if options.type != .autoFill {
             rows += [gap(8), Text("Step value:", style: fluent.typography.body), gap(4),
-                SizedBox(width: 200, height: nil, child: FluentTextBox(key: ValueKey("series-step"), controller: stepText, placeholderText: "1")),
+                SizedBox(width: 200, height: Chrome.touchFieldHeight, child: FluentTextBox(key: ValueKey("series-step"), controller: stepText, placeholderText: "1")),
                 gap(8), Text("Stop value:", style: fluent.typography.body), gap(4),
-                SizedBox(width: 200, height: nil, child: FluentTextBox(key: ValueKey("series-stop"), controller: stopText, placeholderText: ""))]
+                SizedBox(width: 200, height: Chrome.touchFieldHeight, child: FluentTextBox(key: ValueKey("series-stop"), controller: stopText, placeholderText: ""))]
         }
         rows += [gap(6), Text(message, style: fluent.typography.caption?.copyWith(color: Color(0xFFC42B1C)))]
         return DialogShell(title: "Series", page: Column(mainAxisSize: .min, crossAxisAlignment: .stretch, children: rows),

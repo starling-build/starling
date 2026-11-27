@@ -155,14 +155,14 @@ final class PageSetupPanelState: State<StatefulWidget> {
         func box(_ k: String, _ label: String) -> Widget {
             Padding(padding: EdgeInsets(left: 0, top: 3, right: 12, bottom: 3), child: Row(children: [
                 SizedBox(width: 70, height: nil, child: Text(label, style: fluent.typography.body)),
-                SizedBox(width: 70, height: 30, child: FluentTextBox(key: ValueKey("pagesetup-\(k)"), controller: boxes[k]!,
+                SizedBox(width: 70, height: Chrome.fieldHeight, child: FluentTextBox(key: ValueKey("pagesetup-\(k)"), controller: boxes[k]!,
                                                                     onSubmitted: { [weak self] _ in self?.apply() })),
             ]))
         }
         func wideBox(_ k: String, _ label: String) -> Widget {
             Padding(padding: EdgeInsets(left: 0, top: 3, right: 0, bottom: 3), child: Row(children: [
                 SizedBox(width: 90, height: nil, child: Text(label, style: fluent.typography.body)),
-                SizedBox(width: 150, height: 30, child: FluentTextBox(key: ValueKey("pagesetup-\(k)"), controller: boxes[k]!,
+                SizedBox(width: 150, height: Chrome.fieldHeight, child: FluentTextBox(key: ValueKey("pagesetup-\(k)"), controller: boxes[k]!,
                                                                     onSubmitted: { [weak self] _ in self?.apply() })),
             ]))
         }
@@ -174,7 +174,7 @@ final class PageSetupPanelState: State<StatefulWidget> {
         func hfBox(_ k: String, _ label: String) -> Widget {
             Padding(padding: EdgeInsets(left: 0, top: 3, right: 0, bottom: 3), child: Row(children: [
                 SizedBox(width: 90, height: nil, child: Text(label, style: fluent.typography.body)),
-                SizedBox(width: 300, height: 30, child: FluentTextBox(key: ValueKey("pagesetup-\(k)"), controller: boxes[k]!,
+                SizedBox(width: 300, height: Chrome.fieldHeight, child: FluentTextBox(key: ValueKey("pagesetup-\(k)"), controller: boxes[k]!,
                                                                      onChanged: { [weak self] _ in self?.hfTarget = k },
                                                                      onSubmitted: { [weak self] _ in self?.apply() })),
             ]))

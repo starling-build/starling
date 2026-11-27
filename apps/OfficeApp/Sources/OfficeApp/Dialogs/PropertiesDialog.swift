@@ -53,7 +53,7 @@ final class PropertiesDialogState: State<StatefulWidget> {
             if i > 0 { rows.append(SizedBox(width: nil, height: 10, child: nil)) }
             rows.append(Row(crossAxisAlignment: .center, children: [
                 SizedBox(width: 90, height: nil, child: Text(f.label, style: fluent.typography.body)),
-                Expanded(child: SizedBox(width: nil, height: 30, child: PKeyed("prop-\(f.key)", FluentTextBox(
+                Expanded(child: SizedBox(width: nil, height: Chrome.fieldHeight, child: PKeyed("prop-\(f.key)", FluentTextBox(
                     controller: _controllers[f.key]!, onSubmitted: { [weak self] _ in self?._ok() }, autofocus: i == 0)))),
             ]))
         }

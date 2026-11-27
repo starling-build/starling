@@ -70,7 +70,7 @@ final class PivotValueFieldDialogState: State<StatefulWidget> {
             Text("Source Name: " + source, style: fluent.typography.body),
             gap(8),
             Text("Custom Name:", style: fluent.typography.body), gap(4),
-            SizedBox(width: 300, height: nil, child: FluentTextBox(key: ValueKey("pvv-name"), controller: nameBox, placeholderText: "")),
+            SizedBox(width: 300, height: Chrome.touchFieldHeight, child: FluentTextBox(key: ValueKey("pvv-name"), controller: nameBox, placeholderText: "")),
             gap(8),
             Text("Summarize value field by:", style: fluent.typography.body), gap(4),
             SizedBox(width: 300, height: nil, child: ComboBox<String>(

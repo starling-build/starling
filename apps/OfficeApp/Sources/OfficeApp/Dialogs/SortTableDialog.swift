@@ -65,7 +65,7 @@ final class SortTableDialogState: State<StatefulWidget> {
             Padding(padding: EdgeInsets(left: 0, top: 0, right: 0, bottom: 10), child: Column(crossAxisAlignment: .start, children: [
                 Row(crossAxisAlignment: .center, children: [
                     SizedBox(width: 110, height: nil, child: Text(i == 0 ? "Sort by column" : "Then by column")),
-                    PKeyed("sort-col-\(i)", SizedBox(width: 60, height: 30, child: FluentTextBox(
+                    PKeyed("sort-col-\(i)", SizedBox(width: 60, height: Chrome.fieldHeight, child: FluentTextBox(
                         controller: _cols[i], onSubmitted: { [weak self] _ in self?.commit() },
                         onFocusChanged: { [weak self] f in if !f { self?.commit() } }))),
                 ]),

@@ -165,7 +165,7 @@ final class UnitSpinnerState: State<StatefulWidget> {
                 child: SizedBox(width: 22, height: 15, child: Center(child: Text(glyph)))))
         }
         return Row(mainAxisSize: .min, children: [
-            SizedBox(width: _w.width, height: 30, child: FluentTextBox(
+            SizedBox(width: _w.width, height: Chrome.fieldHeight, child: FluentTextBox(
                 controller: _text,
                 onSubmitted: { [weak self] _ in self?.commit() },
                 onFocusChanged: { [weak self] focused in if !focused { self?.commit() } })),
