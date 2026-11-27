@@ -598,6 +598,9 @@ enum SlideFonts {
         // (Lab mixrun, 35 pt lines of fontAlgn t, ctr and b: Book Antiqua 0.96 and 0.277, PMingLiU and DFKai-SB 0.803 and 0.231.)
         case "book antiqua": return (0.96, 0.277)
         case "th sarabunpsk": return (0.85, 0.46)
+        case "browallia new", "browalliaupc", "th sarabun new", "th sarabunit๙": return (1770.0 / 2048, 789.0 / 2048)
+        case "cordia new", "cordiaupc": return (0.892, 0.496)
+        case "angsana new", "angsanaupc": return (0.941, 0.41)
         case "pmingliu", "新細明體", "dfkai-sb", "標楷體": return (0.803, 0.231)
         default: return nil
         }
@@ -709,6 +712,11 @@ enum SlideFonts {
         // MS Mincho/Gothic 220+36 of 256; Meiryo and Yu Gothic from their first baselines, .847 and .921 em at 18 pt.)
         switch n {
         case "microsoft yahei": return 536.0 / 2703
+        // (Thai faces by their own hhea ascent and descent, as Word sets them: Browallia New (and the TH Sarabun faces printed in it)
+        // 1770 + 789 of 2048, Cordia New 0.892 + 0.496 em, Angsana New 0.941 + 0.41 em.)
+        case "browallia new", "browalliaupc", "th sarabun new", "th sarabunit๙": return 789.0 / 2559
+        case "cordia new", "cordiaupc": return 0.496 / 1.388
+        case "angsana new", "angsanaupc": return 0.41 / 1.351
         case "th sarabunpsk": return 460.0 / 1310   // (win ascent 850, descent 460 of 1000; th-cb034815ae: titles 8 pt and the cover's first line 15 pt low in Noto Sans Thai's)
         case "candara": return 550.0 / 2500   // (win ascent 1950, descent 550)
         case "malgun gothic", "맑은 고딕": return 495.0 / 2724
