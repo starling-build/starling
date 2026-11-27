@@ -78,6 +78,25 @@ extension RichLayout {
         // is the document's first page in Word's print; ours began
         // with a blank one.)
         let rowOpensThePage = pgs.y < 0.01 && _pages[pgs.page].isEmpty && !(theme.wordRules && pgs.markOnPage)
+        // (A row of a table in the flow that would run into a table placed against the page,
+        // across the same width, starts under it: Word's print of dx2 c2c3a2f3 p10, a 701pt
+        // table whose first row ends at 308.3 above a centred 602pt table placed at 319.6 to
+        // 453.2: its rows 2 and 3 stand at 453.7 to 521.3, under it. Ours drew them over it.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, c.firstInRow, !pgs.pageTableBands.isEmpty,
+           document.tableStyles[c.table]?.floatsOverText != true, document.tableStyles[c.table]?.pageAnchored != true {
+            let myLeft = _tableLeft(c.table, document)
+            let myRight = myLeft + (_columnWidths[c.table] ?? []).reduce(0, +)
+            var steps = 0
+            while steps < 8, let band = pgs.pageTableBands.first(where: { b in
+                guard b.table != c.table, b.top < pgs.y + c.ownRowHeight - 0.01, b.bottom > pgs.y + 0.01 else { return false }
+                let l = _tableLeft(b.table, document)
+                return l < myRight - 0.01 && myLeft < l + (_columnWidths[b.table] ?? []).reduce(0, +) - 0.01
+            }) {
+                RuleTrace.hit("word-row-starts-under-a-page-placed-table")
+                pgs.y = band.bottom
+                steps += 1
+            }
+        }
         // A table every row of which is marked a header (see
         // `headerRows`) starts on a page of its own where it does
         // not fit the rest of this one: zh-8628cfbe's annex 3, 28
