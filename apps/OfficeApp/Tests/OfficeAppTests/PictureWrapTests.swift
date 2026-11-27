@@ -178,6 +178,41 @@ final class PictureWrapTests: XCTestCase {
         XCTAssertFalse(c.arrangePicture(at: b, .front), "alone behind the text")
     }
 
+    /// Paint order follows the stack across paragraphs: two filled shapes, each anchored in its own paragraph, overlap; the one
+    /// brought to front is drawn last whatever paragraph holds it, and both after every paragraph's text.
+    func testFloatsPaintInStackOrderAcrossParagraphs() throws {
+        let c = RichDocumentController(document: RichDocument(paragraphs: [RichParagraph(text: "First paragraph."),
+                                                                           RichParagraph(text: "Second paragraph."),
+                                                                           RichParagraph(text: "Third paragraph.")]))
+        for (n, (paragraph, fill)) in [(2, Color(0xFF0000FF)), (0, Color(0xFFFF0000))].enumerated() {
+            c.pendingShape = { x, y, w, h in TextBoxInsert.makeShape(preset: "rect", width: w, height: h, number: n + 1, page: (x, y)) }
+            XCTAssertTrue(c.placePendingShape(x: 100 + Double(n) * 20, y: 100 + Double(n) * 20, width: 120, height: 90,
+                                              at: RichPosition(paragraph: paragraph, offset: 0)))
+            XCTAssertTrue(c.setShapeFill(at: try XCTUnwrap(c.selectedImageIndex), fill))
+        }
+        let shapes = c.document.paragraphs.indices.filter { c.document.paragraphs[$0].image?.float != nil }
+        XCTAssertEqual(shapes.count, 2)
+        func order() throws -> [Int] {
+            let parsed = try DocxFormat.read(try DocxFormat.write(c.document, pageSetup: .letter))
+            let doc = parsed.document, setup = parsed.pageSetup ?? .letter
+            let theme = RichTextTheme(fontFamily: OfficeFonts.serif)
+            theme.wordRules = true
+            let layout = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+            layout.pageSetup = setup
+            layout.width = setup.columnWidth * theme.pixelsPerPoint
+            layout.ensureLaidOut(doc)
+            let canvas = FillOrderCanvas()
+            layout.paint(canvas, visible: Rect.fromLTWH(-10_000, -10_000, 100_000, 100_000), document: doc, selection: nil, caret: nil)
+            return canvas.fills.filter { $0 == 1 || $0 == 0xFF0000FF || $0 == 0xFFFF0000 }
+                .reduce(into: [Int]()) { if $0.last != $1 { $0.append($1) } }
+        }
+        XCTAssertTrue(c.arrangePicture(at: shapes[0], .front))   // the red one, first in the text, to the top
+        XCTAssertEqual(try order().suffix(2), [0xFF0000FF, 0xFFFF0000], "red over blue")
+        XCTAssertTrue(c.arrangePicture(at: shapes[1], .front))
+        XCTAssertEqual(try order().suffix(2), [0xFFFF0000, 0xFF0000FF], "blue over red")
+        XCTAssertFalse(try order().dropLast(2).contains { $0 != 1 }, "both after the text")
+    }
+
     /// The Picture Format tab shows the wrap choices and nudges of a selected floating picture, each one undo step.
     func testPictureFormatTabChoosesWrapAndNudges() throws {
         let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(1280, 800))
@@ -1103,4 +1138,48 @@ final class ShapeSelectTests: XCTestCase {
         let parts = try XCTUnwrap(ShapeGroups.ungroup(g, number: 9))
         XCTAssertTrue(parts.contains { $0.sourceXML!.containsSubstring("rot=\"5400000\"") })
     }
+}
+
+/// Records the colour of each fill drawn, and 1 for each paragraph of text.
+private final class FillOrderCanvas: Canvas {
+    var fills: [Int] = []   // 1 for text
+    func save() {}
+    func saveLayer(_ bounds: Rect?, _ paint: Paint) {}
+    func restore() {}
+    func restoreToCount(_ count: Int) {}
+    func getSaveCount() -> Int { 1 }
+    func translate(_ dx: Double, _ dy: Double) {}
+    func scale(_ sx: Double, _ sy: Double?) {}
+    func rotate(_ radians: Double) {}
+    func skew(_ sx: Double, _ sy: Double) {}
+    func transform(_ matrix4: [Double]) {}
+    func getTransform() -> [Double] { [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1] }
+    func clipRect(_ rect: Rect, clipOp: ClipOp, doAntiAlias: Bool) {}
+    func clipRRect(_ rrect: RRect, doAntiAlias: Bool) {}
+    func clipRSuperellipse(_ rsuperellipse: RSuperellipse, doAntiAlias: Bool) {}
+    func clipPath(_ path: Path, doAntiAlias: Bool) {}
+    func getLocalClipBounds() -> Rect { Rect.fromLTWH(-1e6, -1e6, 2e6, 2e6) }
+    func getDestinationClipBounds() -> Rect { Rect.fromLTWH(-1e6, -1e6, 2e6, 2e6) }
+    func drawColor(_ color: Color, _ blendMode: BlendMode) {}
+    func drawLine(_ p1: Offset, _ p2: Offset, _ paint: Paint) {}
+    func drawPaint(_ paint: Paint) {}
+    func drawRect(_ rect: Rect, _ paint: Paint) { if paint.style == .fill { fills.append(paint.color.value) } }
+    func drawRRect(_ rrect: RRect, _ paint: Paint) { if paint.style == .fill { fills.append(paint.color.value) } }
+    func drawDRRect(_ outer: RRect, _ inner: RRect, _ paint: Paint) {}
+    func drawRSuperellipse(_ rsuperellipse: RSuperellipse, _ paint: Paint) {}
+    func drawOval(_ rect: Rect, _ paint: Paint) {}
+    func drawCircle(_ c: Offset, _ radius: Double, _ paint: Paint) {}
+    func drawArc(_ rect: Rect, _ startAngle: Double, _ sweepAngle: Double, _ useCenter: Bool, _ paint: Paint) {}
+    func drawPath(_ path: Path, _ paint: Paint) { if paint.style == .fill { fills.append(paint.color.value) } }
+    func drawImage(_ image: Image, _ offset: Offset, _ paint: Paint) {}
+    func drawImageRect(_ image: Image, _ src: Rect, _ dst: Rect, _ paint: Paint) {}
+    func drawImageNine(_ image: Image, _ center: Rect, _ dst: Rect, _ paint: Paint) {}
+    func drawPicture(_ picture: any FlutterSwiftBridge.Picture) {}
+    func drawParagraph(_ paragraph: any Paragraph, _ offset: Offset) { fills.append(1) }
+    func drawPoints(_ pointMode: PointMode, _ points: [Offset], _ paint: Paint) {}
+    func drawRawPoints(_ pointMode: PointMode, _ points: [Float], _ paint: Paint) {}
+    func drawVertices(_ vertices: Vertices, _ blendMode: BlendMode, _ paint: Paint) {}
+    func drawAtlas(_ atlas: Image, _ transforms: [RSTransform], _ rects: [Rect], _ colors: [Color]?, _ blendMode: BlendMode?, _ cullRect: Rect?, _ paint: Paint) {}
+    func drawRawAtlas(_ atlas: Image, _ rstTransforms: [Float], _ rects: [Float], _ colors: [Int32]?, _ blendMode: BlendMode?, _ cullRect: Rect?, _ paint: Paint) {}
+    func drawShadow(_ path: Path, _ color: Color, _ elevation: Double, _ transparentOccluder: Bool) {}
 }
