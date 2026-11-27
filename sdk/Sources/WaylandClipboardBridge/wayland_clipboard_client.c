@@ -61,18 +61,105 @@ static const char* const kOfferedMimes[] = {
 };
 #define kOfferedMimeCount ((int)(sizeof(kOfferedMimes) / sizeof(kOfferedMimes[0])))
 
+/* Most MIME types one offer is remembered with. Real owners advertise a
+ * dozen or so (LibreOffice about 20); past this the extras are ignored, which
+ * only means they cannot be asked for by name. */
+#define WLCLIP_MAX_OFFER_MIMES 64
+
 struct OfferState {
-    char mime[128];
-    int  rank;
+    char  mime[128];     /* the best text type, for wlclip_read_text */
+    int   rank;
+    char* mimes[WLCLIP_MAX_OFFER_MIMES];   /* every type, in offer order */
+    int   n_mimes;
 };
+
+/* One copy: the text plus any number of other flavours (text/html, image/png,
+ * an app's private format). The text is served for every kOfferedMimes
+ * spelling; a flavour only for its own exact type. */
+struct ClipSet {
+    char*   text;        /* NULL: this copy has no plain text */
+    size_t  text_len;
+    int     n;
+    char**  mimes;
+    char**  datas;
+    size_t* lens;
+};
+
+static void clipset_free(struct ClipSet* s) {
+    free(s->text);
+    for (int i = 0; i < s->n; i++) { free(s->mimes[i]); free(s->datas[i]); }
+    free(s->mimes); free(s->datas); free(s->lens);
+    memset(s, 0, sizeof(*s));
+}
+
+static int is_text_mime(const char* m) {
+    for (int i = 0; i < kOfferedMimeCount; i++)
+        if (!strcmp(m, kOfferedMimes[i])) return 1;
+    return 0;
+}
+
+/* The bytes this copy holds for `mime` (NULL: the text). An exact flavour
+ * wins over the text, so a copy that carries its own "text/plain" keeps it. */
+static int clipset_lookup(const struct ClipSet* s, const char* mime,
+                          const char** data, size_t* len) {
+    if (mime) {
+        for (int i = 0; i < s->n; i++)
+            if (!strcmp(s->mimes[i], mime)) {
+                *data = s->datas[i]; *len = s->lens[i]; return 1;
+            }
+    }
+    if (s->text && (!mime || is_text_mime(mime))) {
+        *data = s->text; *len = s->text_len; return 1;
+    }
+    return 0;
+}
+
+static int clipset_has_flavour(const struct ClipSet* s, const char* mime) {
+    for (int i = 0; i < s->n; i++)
+        if (!strcmp(s->mimes[i], mime)) return 1;
+    return 0;
+}
+
+/* Every type this copy is offered as, in offer order: the flavours first (they
+ * are the richer ones), then the text spellings no flavour already covers. */
+static int clipset_offer_list(const struct ClipSet* s, const char** out, int cap) {
+    int n = 0;
+    for (int i = 0; i < s->n && n < cap; i++) out[n++] = s->mimes[i];
+    if (s->text)
+        for (int i = 0; i < kOfferedMimeCount && n < cap; i++)
+            if (!clipset_has_flavour(s, kOfferedMimes[i])) out[n++] = kOfferedMimes[i];
+    return n;
+}
+
+/* A list of types as one '\n'-terminated string per type. Caller frees. */
+static char* join_mimes(const char* const* mimes, int n, size_t* out_len) {
+    size_t cap = 1;
+    for (int i = 0; i < n; i++) cap += strlen(mimes[i]) + 1;
+    char* out = malloc(cap);
+    if (!out) { *out_len = 0; return NULL; }
+    size_t at = 0;
+    for (int i = 0; i < n; i++) {
+        size_t l = strlen(mimes[i]);
+        memcpy(out + at, mimes[i], l);
+        at += l;
+        out[at++] = '\n';
+    }
+    out[at] = '\0';
+    *out_len = at;
+    return out;
+}
 
 /* Reads are queued rather than kept in a single slot: Clipboard.getData
  * promises its completion runs exactly once, and two pastes in quick
  * succession would otherwise drop the first callback (and leak the closure the
  * Swift side retained for it). */
+enum { READ_TEXT, READ_MIME, READ_LIST };
+
 struct ReadReq {
     WlClipTextCallback cb;
     void*              ctx;
+    int                kind;
+    char*              mime;     /* READ_MIME only */
     struct ReadReq*    next;
 };
 
@@ -88,8 +175,7 @@ struct WlClipboard {
 
     /* Our own selection, when we are the owner. */
     struct zwlr_data_control_source_v1* src;
-    char*  own_text;
-    size_t own_len;
+    struct ClipSet own;
     int    owns_selection;
 
     pthread_t       thread;
@@ -99,8 +185,7 @@ struct WlClipboard {
     int             started;
 
     /* Pending commands, guarded by lock. */
-    char*  pending_text;
-    size_t pending_text_len;
+    struct ClipSet pending;
     int    pending_set;
     struct ReadReq* reads_head;
     struct ReadReq* reads_tail;
@@ -182,11 +267,14 @@ static void write_all_bounded(int fd, const char* data, size_t len) {
 
 static void src_send(void* data, struct zwlr_data_control_source_v1* src,
                      const char* mime, int32_t fd) {
-    (void)src; (void)mime;
+    (void)src;
     WlClipboard* c = data;
-    /* Runs on the bridge thread, so own_text is stable here. */
-    if (c->own_text) write_all_bounded(fd, c->own_text, c->own_len);
-    else             close(fd);
+    /* Runs on the bridge thread, so `own` is stable here. */
+    const char* bytes; size_t len;
+    if (mime && clipset_lookup(&c->own, mime, &bytes, &len))
+        write_all_bounded(fd, bytes, len);
+    else
+        close(fd);
 }
 
 static void src_cancelled(void* data, struct zwlr_data_control_source_v1* src) {
@@ -214,6 +302,10 @@ static void offer_mime(void* data, struct zwlr_data_control_offer_v1* offer,
     (void)offer;
     struct OfferState* st = data;
     if (!st || !mime) return;
+    if (st->n_mimes < WLCLIP_MAX_OFFER_MIMES) {
+        char* copy = strdup(mime);
+        if (copy) st->mimes[st->n_mimes++] = copy;
+    }
     int r = mime_rank(mime);
     if (r > st->rank) {
         st->rank = r;
@@ -228,6 +320,7 @@ static const struct zwlr_data_control_offer_v1_listener offer_listener = {
 static void offer_drop(struct zwlr_data_control_offer_v1* offer) {
     if (!offer) return;
     struct OfferState* st = zwlr_data_control_offer_v1_get_user_data(offer);
+    if (st) for (int i = 0; i < st->n_mimes; i++) free(st->mimes[i]);
     free(st);
     zwlr_data_control_offer_v1_destroy(offer);
 }
@@ -305,10 +398,10 @@ static const struct wl_registry_listener reg_listener = {
 /* Commands, executed on the bridge thread                                    */
 /* ========================================================================= */
 
-static void do_set_text(WlClipboard* c, char* text, size_t len) {
-    free(c->own_text);
-    c->own_text = text;          /* takes ownership */
-    c->own_len = len;
+static void do_set(WlClipboard* c, struct ClipSet* set) {
+    clipset_free(&c->own);
+    c->own = *set;               /* takes ownership */
+    memset(set, 0, sizeof(*set));
 
     if (c->src) {
         /* Replacing our own selection. Destroying the proxy stops libwayland
@@ -322,55 +415,88 @@ static void do_set_text(WlClipboard* c, char* text, size_t len) {
     c->src = zwlr_data_control_manager_v1_create_data_source(c->mgr);
     if (!c->src) return;
     zwlr_data_control_source_v1_add_listener(c->src, &src_listener, c);
-    for (int i = 0; i < kOfferedMimeCount; i++)
-        zwlr_data_control_source_v1_offer(c->src, kOfferedMimes[i]);
+    const char* types[WLCLIP_MAX_OFFER_MIMES];
+    int n = clipset_offer_list(&c->own, types, WLCLIP_MAX_OFFER_MIMES);
+    for (int i = 0; i < n; i++)
+        zwlr_data_control_source_v1_offer(c->src, types[i]);
     zwlr_data_control_device_v1_set_selection(c->dev, c->src);
     c->owns_selection = 1;
     wl_display_flush(c->dpy);
 }
 
-static void do_read_text(WlClipboard* c, WlClipTextCallback cb, void* ctx) {
+/* The best text type of an offer, or the exact `mime` if it is on offer. */
+static const char* offer_pick(const struct OfferState* st, const char* mime) {
+    if (!st) return NULL;
+    if (!mime) return st->rank ? st->mime : NULL;
+    for (int i = 0; i < st->n_mimes; i++)
+        if (!strcmp(st->mimes[i], mime)) return st->mimes[i];
+    return NULL;
+}
+
+static void do_read(WlClipboard* c, const struct ReadReq* r) {
+    const char* mime = r->kind == READ_MIME ? r->mime : NULL;
+
     /* We own it: answer locally. Round-tripping would ask US to write while
      * this thread is blocked reading — a self-deadlock. */
     if (c->owns_selection) {
-        cb(ctx, c->own_text ? c->own_text : "", c->own_text ? c->own_len : 0);
+        if (r->kind == READ_LIST) {
+            const char* types[WLCLIP_MAX_OFFER_MIMES];
+            int n = clipset_offer_list(&c->own, types, WLCLIP_MAX_OFFER_MIMES);
+            size_t len; char* list = join_mimes(types, n, &len);
+            r->cb(r->ctx, list, list ? len : 0);
+            free(list);
+            return;
+        }
+        const char* bytes; size_t len;
+        if (clipset_lookup(&c->own, mime, &bytes, &len)) r->cb(r->ctx, bytes, len);
+        else if (r->kind == READ_TEXT) r->cb(r->ctx, "", 0);
+        else r->cb(r->ctx, NULL, 0);
         return;
     }
-    if (!c->offer) { cb(ctx, NULL, 0); return; }
+    if (!c->offer) { r->cb(r->ctx, NULL, 0); return; }
 
     struct OfferState* st = zwlr_data_control_offer_v1_get_user_data(c->offer);
-    if (!st || st->rank == 0) { cb(ctx, NULL, 0); return; }
+    if (r->kind == READ_LIST) {
+        size_t len = 0;
+        char* list = st ? join_mimes((const char* const*)st->mimes, st->n_mimes, &len) : NULL;
+        r->cb(r->ctx, list, list ? len : 0);
+        free(list);
+        return;
+    }
+    const char* want = offer_pick(st, mime);
+    if (!want) { r->cb(r->ctx, NULL, 0); return; }
 
     int fds[2];
-    if (pipe2(fds, O_CLOEXEC) != 0) { cb(ctx, NULL, 0); return; }
+    if (pipe2(fds, O_CLOEXEC) != 0) { r->cb(r->ctx, NULL, 0); return; }
 
-    zwlr_data_control_offer_v1_receive(c->offer, st->mime, fds[1]);
+    zwlr_data_control_offer_v1_receive(c->offer, want, fds[1]);
     wl_display_flush(c->dpy);   /* must reach the compositor before we block */
     close(fds[1]);              /* the owner holds the only write end now */
 
     size_t len = 0;
-    char* text = read_all_bounded(fds[0], &len);
-    cb(ctx, text, len);
-    free(text);
+    char* bytes = read_all_bounded(fds[0], &len);
+    r->cb(r->ctx, bytes, len);
+    free(bytes);
 }
 
 static void run_pending(WlClipboard* c) {
     for (;;) {
         pthread_mutex_lock(&c->lock);
-        int do_set = c->pending_set;
-        char* text = c->pending_text; size_t tlen = c->pending_text_len;
+        int do_set_now = c->pending_set;
+        struct ClipSet set = c->pending;
         struct ReadReq* reads = c->reads_head;
         c->pending_set = 0;
-        c->pending_text = NULL; c->pending_text_len = 0;
+        memset(&c->pending, 0, sizeof(c->pending));
         c->reads_head = NULL; c->reads_tail = NULL;
         pthread_mutex_unlock(&c->lock);
 
-        if (!do_set && !reads) return;
+        if (!do_set_now && !reads) return;
         /* Set first: a copy queued before a paste must be visible to it. */
-        if (do_set) do_set_text(c, text, tlen);
+        if (do_set_now) do_set(c, &set);
         while (reads) {
             struct ReadReq* next = reads->next;
-            do_read_text(c, reads->cb, reads->ctx);
+            do_read(c, reads);
+            free(reads->mime);
             free(reads);
             reads = next;
         }
@@ -480,6 +606,7 @@ void wlclip_destroy(WlClipboard* c) {
     while (reads) {
         struct ReadReq* next = reads->next;
         reads->cb(reads->ctx, NULL, 0);
+        free(reads->mime);
         free(reads);
         reads = next;
     }
@@ -494,33 +621,66 @@ void wlclip_destroy(WlClipboard* c) {
 
     close(c->cmd_fd);
     pthread_mutex_destroy(&c->lock);
-    free(c->own_text);
-    free(c->pending_text);
+    clipset_free(&c->own);
+    clipset_free(&c->pending);
     free(c);
 }
 
-void wlclip_set_text(WlClipboard* c, const char* text, size_t len) {
-    if (!c || !text) return;
+static char* dup_bytes(const char* p, size_t len) {
     char* copy = malloc(len + 1);
-    if (!copy) return;
-    memcpy(copy, text, len);
+    if (!copy) return NULL;
+    if (len) memcpy(copy, p, len);
     copy[len] = '\0';
+    return copy;
+}
+
+int wlclip_set_data(WlClipboard* c, const char* text, size_t text_len,
+                    const char* const* mimes, const char* const* datas,
+                    const size_t* lens, int count) {
+    if (!c || count < 0 || (!text && count == 0)) return -1;
+    if (count > WLCLIP_MAX_OFFER_MIMES) count = WLCLIP_MAX_OFFER_MIMES;
+    struct ClipSet set = {0};
+    if (text && !(set.text = dup_bytes(text, text_len))) return -1;
+    set.text_len = text ? text_len : 0;
+    if (count) {
+        set.mimes = calloc((size_t)count, sizeof(char*));
+        set.datas = calloc((size_t)count, sizeof(char*));
+        set.lens  = calloc((size_t)count, sizeof(size_t));
+        if (!set.mimes || !set.datas || !set.lens) { clipset_free(&set); return -1; }
+        for (int i = 0; i < count; i++) {
+            if (!mimes[i] || !mimes[i][0] || (!datas[i] && lens[i])) continue;
+            if (clipset_has_flavour(&set, mimes[i])) continue;   /* first one wins */
+            char* m = strdup(mimes[i]);
+            char* d = dup_bytes(datas[i] ? datas[i] : "", lens[i]);
+            if (!m || !d) { free(m); free(d); clipset_free(&set); return -1; }
+            set.mimes[set.n] = m; set.datas[set.n] = d; set.lens[set.n] = lens[i];
+            set.n++;
+        }
+    }
 
     pthread_mutex_lock(&c->lock);
-    free(c->pending_text);          /* a newer copy supersedes an unsent one */
-    c->pending_text = copy;
-    c->pending_text_len = len;
+    clipset_free(&c->pending);      /* a newer copy supersedes an unsent one */
+    c->pending = set;
     c->pending_set = 1;
     pthread_mutex_unlock(&c->lock);
     wake(c);
+    return 0;
 }
 
-int wlclip_read_text(WlClipboard* c, WlClipTextCallback cb, void* ctx) {
+void wlclip_set_text(WlClipboard* c, const char* text, size_t len) {
+    if (!text) return;
+    wlclip_set_data(c, text, len, NULL, NULL, NULL, 0);
+}
+
+static int queue_read(WlClipboard* c, int kind, const char* mime,
+                      WlClipTextCallback cb, void* ctx) {
     if (!c || !cb) return -1;
     struct ReadReq* req = calloc(1, sizeof(*req));
     if (!req) return -1;
     req->cb = cb;
     req->ctx = ctx;
+    req->kind = kind;
+    if (mime && !(req->mime = strdup(mime))) { free(req); return -1; }
 
     pthread_mutex_lock(&c->lock);
     if (c->reads_tail) c->reads_tail->next = req;
@@ -529,6 +689,20 @@ int wlclip_read_text(WlClipboard* c, WlClipTextCallback cb, void* ctx) {
     pthread_mutex_unlock(&c->lock);
     wake(c);
     return 0;
+}
+
+int wlclip_read_text(WlClipboard* c, WlClipTextCallback cb, void* ctx) {
+    return queue_read(c, READ_TEXT, NULL, cb, ctx);
+}
+
+int wlclip_read_mime(WlClipboard* c, const char* mime,
+                     WlClipTextCallback cb, void* ctx) {
+    if (!mime || !mime[0]) return -1;
+    return queue_read(c, READ_MIME, mime, cb, ctx);
+}
+
+int wlclip_read_mimes(WlClipboard* c, WlClipTextCallback cb, void* ctx) {
+    return queue_read(c, READ_LIST, NULL, cb, ctx);
 }
 
 int wlclip_owns_selection(WlClipboard* c) {

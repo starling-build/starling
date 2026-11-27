@@ -221,6 +221,136 @@ static void test_mime_preference_order(void) {
     CHECK(mime_rank("application/octet-stream") == 0, "binary is not text");
 }
 
+/* ------------------------------------------------------- several formats -- */
+
+static struct ClipSet make_set(const char* text, int n, const char** mimes,
+                               const char** datas) {
+    struct ClipSet set = {0};
+    if (text) { set.text = strdup(text); set.text_len = strlen(text); }
+    set.mimes = calloc((size_t)n + 1, sizeof(char*));
+    set.datas = calloc((size_t)n + 1, sizeof(char*));
+    set.lens  = calloc((size_t)n + 1, sizeof(size_t));
+    for (int i = 0; i < n; i++) {
+        set.mimes[i] = strdup(mimes[i]);
+        set.datas[i] = strdup(datas[i]);
+        set.lens[i]  = strlen(datas[i]);
+    }
+    set.n = n;
+    return set;
+}
+
+static void test_lookup_serves_each_flavour_and_the_text(void) {
+    const char* mimes[] = { "text/html", "application/x-starling-test" };
+    const char* datas[] = { "<b>hi</b>", "PRIVATE" };
+    struct ClipSet set = make_set("hi", 2, mimes, datas);
+    const char* d; size_t l;
+    CHECK(clipset_lookup(&set, "text/html", &d, &l) && l == 9 && !memcmp(d, "<b>hi</b>", 9),
+          "text/html should serve the html flavour");
+    CHECK(clipset_lookup(&set, "application/x-starling-test", &d, &l) && l == 7,
+          "a private type should serve its own bytes");
+    CHECK(clipset_lookup(&set, "UTF8_STRING", &d, &l) && l == 2 && !memcmp(d, "hi", 2),
+          "every text spelling should serve the text");
+    CHECK(clipset_lookup(&set, NULL, &d, &l) && l == 2, "NULL means the text");
+    CHECK(!clipset_lookup(&set, "image/png", &d, &l), "a type we never offered is absent");
+    clipset_free(&set);
+
+    struct ClipSet bare = make_set(NULL, 1, (const char*[]){ "image/png" },
+                                   (const char*[]){ "PNG" });
+    CHECK(!clipset_lookup(&bare, "text/plain", &d, &l),
+          "a copy with no text must not answer a text type");
+    clipset_free(&bare);
+}
+
+static void test_offer_list_puts_flavours_first_without_duplicates(void) {
+    const char* mimes[] = { "image/png", "text/plain" };
+    const char* datas[] = { "PNG", "own plain" };
+    struct ClipSet set = make_set("text", 2, mimes, datas);
+    const char* types[WLCLIP_MAX_OFFER_MIMES];
+    int n = clipset_offer_list(&set, types, WLCLIP_MAX_OFFER_MIMES);
+    CHECK(n == 2 + kOfferedMimeCount - 1, "expected %d types, got %d",
+          2 + kOfferedMimeCount - 1, n);
+    CHECK(n > 1 && !strcmp(types[0], "image/png") && !strcmp(types[1], "text/plain"),
+          "flavours come first, in the caller's order");
+    int plain = 0;
+    for (int i = 0; i < n; i++) plain += !strcmp(types[i], "text/plain");
+    CHECK(plain == 1, "text/plain offered %d times", plain);
+    const char* d; size_t l;
+    CHECK(clipset_lookup(&set, "text/plain", &d, &l) && l == 9,
+          "an explicit text/plain flavour wins over the text");
+    size_t jl; char* joined = join_mimes(types, 2, &jl);
+    CHECK(joined && !strcmp(joined, "image/png\ntext/plain\n") && jl == 21,
+          "join_mimes ends every type in a newline");
+    free(joined);
+    clipset_free(&set);
+}
+
+static void test_offer_records_every_type(void) {
+    struct OfferState st = {0};
+    offer_mime(&st, NULL, "image/png");
+    offer_mime(&st, NULL, "text/html");
+    offer_mime(&st, NULL, "text/plain;charset=utf-8");
+    CHECK(st.n_mimes == 3, "expected 3 types, got %d", st.n_mimes);
+    CHECK(!strcmp(st.mime, "text/plain;charset=utf-8"), "best text is %s", st.mime);
+    CHECK(offer_pick(&st, "image/png") && !strcmp(offer_pick(&st, "image/png"), "image/png"),
+          "an offered type can be asked for by name");
+    CHECK(offer_pick(&st, "application/pdf") == NULL, "an absent type is NULL");
+    CHECK(!strcmp(offer_pick(&st, NULL), "text/plain;charset=utf-8"), "NULL picks the text");
+    for (int i = 0; i < st.n_mimes; i++) free(st.mimes[i]);
+
+    struct OfferState many = {0};
+    char m[32];
+    for (int i = 0; i < WLCLIP_MAX_OFFER_MIMES + 5; i++) {
+        snprintf(m, sizeof(m), "x/t%d", i);
+        offer_mime(&many, NULL, m);
+    }
+    CHECK(many.n_mimes == WLCLIP_MAX_OFFER_MIMES, "the list is capped");
+    for (int i = 0; i < many.n_mimes; i++) free(many.mimes[i]);
+}
+
+struct Got { int calls; char* bytes; size_t len; };
+static void got_cb(void* ctx, const char* p, size_t len) {
+    struct Got* g = ctx;
+    g->calls++;
+    free(g->bytes);
+    g->bytes = p ? memcpy(malloc(len + 1), p, len) : NULL;
+    if (g->bytes) g->bytes[len] = 0;
+    g->len = len;
+}
+
+/* The owner path answers from its own copy (no compositor round trip), so it
+ * can be driven without a display. */
+static void test_owner_reads_answer_by_type(void) {
+    WlClipboard c;
+    memset(&c, 0, sizeof(c));
+    const char* mimes[] = { "application/x-starling-test" };
+    const char* datas[] = { "BIN\0ARY" };
+    c.own = make_set("plain", 1, mimes, datas);
+    free(c.own.datas[0]);                    /* binary: the NUL is data */
+    c.own.datas[0] = memcpy(malloc(7), "BIN\0ARY", 7);
+    c.own.lens[0] = 7;
+    c.owns_selection = 1;
+
+    struct Got g = {0};
+    struct ReadReq r = { .cb = got_cb, .ctx = &g, .kind = READ_MIME,
+                         .mime = "application/x-starling-test" };
+    do_read(&c, &r);
+    CHECK(g.calls == 1 && g.len == 7 && !memcmp(g.bytes, "BIN\0ARY", 7),
+          "the private type comes back byte for byte");
+    r.mime = "image/png";
+    do_read(&c, &r);
+    CHECK(g.calls == 2 && g.bytes == NULL, "an absent type answers NULL");
+    r.kind = READ_TEXT; r.mime = NULL;
+    do_read(&c, &r);
+    CHECK(g.calls == 3 && g.bytes && !strcmp(g.bytes, "plain"), "text read gets the text");
+    r.kind = READ_LIST;
+    do_read(&c, &r);
+    CHECK(g.calls == 4 && g.bytes &&
+          !strncmp(g.bytes, "application/x-starling-test\ntext/plain;charset=utf-8\n", 53),
+          "the type list starts with the flavour then the text: %s", g.bytes ? g.bytes : "(null)");
+    free(g.bytes);
+    clipset_free(&c.own);
+}
+
 int main(void) {
     /* The helper threads deliberately keep writing after the reader has gone,
      * which is the situation these bounds exist for. Without this the test
@@ -235,11 +365,15 @@ int main(void) {
     test_write_delivers_everything();
     test_write_is_bounded_when_peer_never_reads();
     test_mime_preference_order();
+    test_lookup_serves_each_flavour_and_the_text();
+    test_offer_list_puts_flavours_first_without_duplicates();
+    test_offer_records_every_type();
+    test_owner_reads_answer_by_type();
 
     if (failures) {
         printf("FAILED — %d check(s)\n", failures);
         return 1;
     }
-    printf("  7 tests passed\n");
+    printf("  11 tests passed\n");
     return 0;
 }
