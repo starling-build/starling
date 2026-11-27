@@ -3,10 +3,10 @@ import Flutter
 import FlutterSwiftBridge
 @testable import OfficeApp
 
-/// A sheet bubble chart's axes reach a fifth of their data's spread past each end, out to the next tick, with no headroom:
-/// Excel's prints of lab bubble1 (338 by 149 pt plots) and chart-bubble_chart_simple.
+/// A sheet bubble chart's axes reach a sixth of their data's spread (times the bubble scale) past each end, out to the next
+/// tick, with no headroom: Excel's prints of lab bubble1 (338 by 149 pt plots), chart-bubble_chart_simple and lab xl-bub2 (COM).
 final class SheetBubbleAxisTests: XCTestCase {
-    private func chart(x: [Double]?, y: [Double]?, sizes: [Double]?) throws -> Chart {
+    private func chart(x: [Double]?, y: [Double]?, sizes: [Double]?, scale: Int? = nil) throws -> Chart {
         let ns = "xmlns:c=\"http://schemas.openxmlformats.org/drawingml/2006/chart\" xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\""
         func list(_ tag: String, _ v: [Double]?) -> String {
             guard let v else { return "" }
@@ -15,7 +15,7 @@ final class SheetBubbleAxisTests: XCTestCase {
         }
         let xml = """
         <c:chartSpace \(ns)><c:chart><c:autoTitleDeleted val="1"/><c:plotArea><c:bubbleChart><c:varyColors val="0"/>
-        <c:ser><c:idx val="0"/><c:order val="0"/>\(list("xVal", x))\(list("yVal", y))\(list("bubbleSize", sizes))</c:ser>
+        <c:ser><c:idx val="0"/><c:order val="0"/>\(list("xVal", x))\(list("yVal", y))\(list("bubbleSize", sizes))</c:ser>\(scale.map { "<c:bubbleScale val=\"\($0)\"/>" } ?? "")
         <c:axId val="1"/><c:axId val="2"/></c:bubbleChart>
         <c:valAx><c:axId val="1"/><c:axPos val="b"/><c:majorGridlines/><c:crossAx val="2"/></c:valAx>
         <c:valAx><c:axId val="2"/><c:axPos val="l"/><c:majorGridlines/><c:crossAx val="1"/></c:valAx></c:plotArea>
@@ -34,7 +34,7 @@ final class SheetBubbleAxisTests: XCTestCase {
 
     /// x and y = -3 to 4 both stand -5 to 6 by 1: twelve lines each way (the 5% headroom gave -4 to 5 on y, the scatter x
     /// axis' ten-step cap -6 to 6 by 2 on x).
-    func testTheAxesReachAFifthOfTheSpreadPastTheData() throws {
+    func testTheAxesReachASixthOfTheSpreadPastTheData() throws {
         let v: [Double] = [-3, -1, 0, 2, 4]
         let g = grid(try chart(x: v, y: v, sizes: [10, 20, 30, 40, 50]))
         XCTAssertEqual(g.across, 12, "y -5 to 6 by 1")
@@ -51,6 +51,16 @@ final class SheetBubbleAxisTests: XCTestCase {
         let g = grid(try chart(x: nil, y: nil, sizes: [10, 20, 30, 40, 50]))
         XCTAssertEqual(g.across, 9, "y -0.2 to 1.4 by 0.2")
         XCTAssertEqual(g.down, 7, "x 0 to 6 by 1")
+    }
+
+    /// Lab xl-bub2 in Excel: y = -1 to 4.1 stands -2 to 5 (a sixth of the spread stops short of 5; a fifth reached 6), and at a 300%
+    /// bubble scale y = -1 to 4 stands -4 to 7 and x = 1 to 5 stands -2 to 8, its ends landing on -1 and 7 and going one step on.
+    func testTheReachIsASixthOfTheSpreadTimesTheBubbleScale() throws {
+        let x: [Double] = [1, 2, 3, 4, 5], sizes: [Double] = [10, 20, 30, 40, 50]
+        XCTAssertEqual(grid(try chart(x: x, y: [-1, 0, 2, 3, 4.1], sizes: sizes)).across, 8, "y -2 to 5 by 1")
+        let big = grid(try chart(x: x, y: [-1, 0, 2, 3, 4], sizes: sizes, scale: 300))
+        XCTAssertEqual(big.across, 12, "y -4 to 7 by 1")
+        XCTAssertEqual(big.down, 11, "x -2 to 8 by 1")
     }
 }
 

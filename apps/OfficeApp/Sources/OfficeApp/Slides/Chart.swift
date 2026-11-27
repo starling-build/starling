@@ -5594,14 +5594,16 @@ enum ChartPainter {
             lo = 0; hi = 0
             for s in c.waterfallSpans { lo = min(lo, s.from, s.to); hi = max(hi, s.from, s.to) }
         }
-        // (A bubble chart's axes reach a fifth of their data's spread past each end, discs drawn or not, whatever their sizes, in
-        // place of the 5% headroom: Excel's prints of lab bubble1 put y = -3 to 4 on -5 to 6 with sizes or none, and x = -3 to 4 on
-        // -5 to 6 though the plot is twice as wide as it is tall; chart-bubble_chart_simple's 0 to 4 on -1 to 5.)
+        // (A bubble chart's axes reach a sixth of their data's spread past each end, times the bubble scale, discs drawn or not,
+        // whatever their sizes, in place of the 5% headroom: Excel's prints of lab bubble1 put y = -3 to 4 on -5 to 6 with sizes or
+        // none, and x = -3 to 4 on -5 to 6 though the plot is twice as wide as it is tall; chart-bubble_chart_simple's 0 to 4 on -1
+        // to 5. Lab xl-bub2 (Excel COM): y = -1 to 4.1 stops at 5 where a fifth would reach 6; at a 300% scale y = -1 to 4 stands
+        // -4 to 7 and x = 1 to 5 stands -2 to 8.)
         let bubbleAxes = c.onSheet && c.type == .scatter && c.series.contains(where: { $0.bubbleSizes != nil })
         if bubbleAxes {
-            RuleTrace.hit("sheet-bubble-axes-reach-a-fifth-of-the-spread-past-the-data")
+            RuleTrace.hit("sheet-bubble-axes-reach-a-sixth-of-the-spread-past-the-data")
             // (One value has no spread: chart-bubble_chart_simple's x = 1 alone stands 0 to 1.2, a fifth of the value past it.)
-            let pad = hi > lo ? 0.2 * (hi - lo) : 0.2 * abs(hi)
+            let pad = hi > lo ? (hi - lo) / 6 * c.bubbleScale / 100 : 0.2 * abs(hi)
             lo -= pad; hi += pad
             // (With no y values at all the axis stands -0.2 to 1.4: every one of lab bubble1's seven series without y values,
             // x or none, sizes or none.)
@@ -5839,12 +5841,15 @@ enum ChartPainter {
                     }
                 }
                 if bubbleAxes, c.xMin == nil, c.xMax == nil, let a = xAll.min(), let b = xAll.max() {
-                    // (A bubble chart's x axis takes its step from the data, then reaches a fifth of the data's spread past each
-                    // end, out to the next tick: lab bubble1's x = -3 to 4 stands -5 to 6 by 1 in Excel's print (eleven steps, 30.7 pt
-                    // apart, finer than the 36.4 and the ten a scatter chart's x axis keeps), and x = 1 to 5 stands 0 to 6.)
-                    RuleTrace.hit("sheet-bubble-x-axis-steps-by-the-data-and-reaches-a-fifth-past-it")
-                    let pad = b > a ? 0.2 * (b - a) : 0.2 * abs(b), st = xScale.step
-                    xScale = (min(xScale.lo, (((a - pad) / st) + 1e-9).rounded(.down) * st), max(xScale.hi, (((b + pad) / st) - 1e-9).rounded(.up) * st), st)
+                    // (A bubble chart's x axis takes its step from the data, then reaches a sixth of the data's spread (times the
+                    // bubble scale) past each end, out to the next tick: lab bubble1's x = -3 to 4 stands -5 to 6 by 1 in Excel's print
+                    // (eleven steps, 30.7 pt apart, finer than the 36.4 and the ten a scatter chart's x axis keeps), and x = 1 to 5
+                    // stands 0 to 6. An end that falls on a tick goes one step on: lab xl-bub2's x = 1 to 5 at a 300% scale reaches
+                    // -1 and 7 exactly and stands -2 to 8 in Excel.)
+                    RuleTrace.hit("sheet-bubble-x-axis-steps-by-the-data-and-reaches-a-sixth-past-it")
+                    // (A single value is padded to its tick, not past it: x = 1 alone stands 0 to 1.2.)
+                    let pad = b > a ? (b - a) / 6 * c.bubbleScale / 100 : 0.2 * abs(b), st = xScale.step, out = b > a ? 1e-9 : -1e-9
+                    xScale = (min(xScale.lo, (((a - pad) / st) - out).rounded(.down) * st), max(xScale.hi, (((b + pad) / st) + out).rounded(.up) * st), st)
                 }
                 if c.xMin != nil || c.xMax != nil { xScale = fixedScale(auto: xScale, min: c.xMin, max: c.xMax, step: nil) }
             }
