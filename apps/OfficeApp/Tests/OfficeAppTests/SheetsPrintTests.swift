@@ -13,6 +13,25 @@ final class SheetsPrintTests: XCTestCase {
         _ = OfficeFonts.register()
     }
 
+    func testDotumGulimKeepThePaintersAscentDescent() {
+        // A single centred Dotum/Gulim line stands where the face's own
+        // ascent and descent put it: ko-946b4369d3 p2 (Dotum 16 in rows of
+        // 22) matched Excel's print to 0.0 pt that way and stood 3.6 pt high
+        // on a 0.90/0.21 em pair, which also cost six more Korean books.
+        for f in ["돋움", "굴림", "Dotum", "Gulim"] {
+            XCTAssertNil(SheetPrintMetrics.printAscent(family: f), f)
+            XCTAssertNil(SheetPrintMetrics.printDescent(family: f), f)
+        }
+    }
+
+    func testDotumWrappedLinesArePlacedByTheirFirstLine() {
+        // A centred two-line Dotum cell stands about its first line alone
+        // (ko-fb58b17f97: Excel 162.4/169.6 about 166.0; placed by "X", ours stood 1.45 pt higher).
+        XCTAssertEqual(SheetGridState._wrapPlacer(["질소", "농도"], family: "돋움"), "질소")
+        XCTAssertEqual(SheetGridState._wrapPlacer(["Ab", "Cd"], family: "Gulim"), "Ab")
+        XCTAssertEqual(SheetGridState._wrapPlacer(["Ab", "Cd"], family: "Calibri"), "X")
+    }
+
     func testPagesGoDownThenOver() {
         // 12 columns of 64pt (768pt) and 60 rows of 15pt (900pt) on Letter
         // with Normal margins: 511.2pt by 684pt a page.

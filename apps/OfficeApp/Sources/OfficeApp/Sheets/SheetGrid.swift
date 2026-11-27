@@ -3517,19 +3517,23 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 let m = SheetPrintMetrics.of(family: book.defaultFontName ?? OfficeFonts.defaultFamily, size: book.defaultFontSize ?? 11, bold: book.defaultFontBold)
                 // The face's own printed line in dots (57523's Calibri Bold 10 header: 109 dots, 13.08 pt, where the screen
                 // pixels scaled by the book's default font made 13.37).
-                let pitch = (st.fontName == nil && st.fontSize == nil && st.bold == book.defaultFontBold ? m.defaultRow
+                let pitch0 = (st.fontName == nil && st.fontSize == nil && st.bold == book.defaultFontBold ? m.defaultRow
                     : SheetPrintMetrics.of(family: book.fontName(st), size: book.fontSize(st), bold: st.bold).defaultRow) * scale
-                let one = texts.painter("X", style).height, n = Double(lines.count - 1)
+                let dotum = Self._dotumLike(book.fontName(st))
+                let pitch = dotum ? book.fontSize(st) * scale + 1.2 * scale : pitch0
+                let ref = texts.painter(Self._wrapPlacer(lines, family: book.fontName(st)), style)
+                let one = ref.height, n = Double(lines.count - 1)
                 let y0: Double
                 switch st.vAlign {
-                case .top: y0 = _printTop(st, book, ws, row: a.row, texts.painter("X", style), top: top, bottom: bottom, .top)
+                case .top: y0 = _printTop(st, book, ws, row: a.row, ref, top: top, bottom: bottom, .top)
                 case .center:
                     // (Text taller than the longest row Excel has (409.5 pt) starts at the row's head, not centred past it; a text only a little over its row stays centred, 49273: CVLKRA-KYC's 38 lines in a row of 409.5 pt, Excel's first at the row's top + 0.8 pt.)
                     let over = n * pitch + one > 409.5 * scale
-                    y0 = over ? _printTop(st, book, ws, row: a.row, texts.painter("X", style), top: top, bottom: bottom, .top)
-                        : _printTop(st, book, ws, row: a.row, texts.painter("X", style), top: top, bottom: bottom, .center) - n / 2 * pitch - lift
-                case .bottom: y0 = _footTop(st, book, ws, row: a.row, texts.painter("X", style), bottom: bottom) - n * pitch
+                    y0 = over ? _printTop(st, book, ws, row: a.row, ref, top: top, bottom: bottom, .top)
+                        : _printTop(st, book, ws, row: a.row, ref, top: top, bottom: bottom, .center) - n / 2 * pitch - lift
+                case .bottom: y0 = _footTop(st, book, ws, row: a.row, ref, bottom: bottom) - n * pitch
                 }
+                let xBase = ref.computeDistanceToActualBaseline(.alphabetic).rounded()
                 let hardEnds = st.justify ? texts._paragraphEnds(text, style, max(1, width - pad * 2 - wrapLess)) : []
                 for (i, line) in lines.enumerated() {
                     let lp = !richLns.isEmpty ? texts.richLine(richLns[i], align: .left, maxWidth: .infinity) : st.justify && wraps && i < lines.count - 1 && !hardEnds.contains(i) ? texts.painter(String(line), style, maxWidth: max(1, width - pad * 2 - wrapLess), align: .justify, spreadLast: true) : texts.painter(String(line), style)
@@ -3539,7 +3543,9 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                     case .center: x = left + (width - lead - lp.width) / 2 + lead + centre
                     default: x = left + margin + inset + lead
                     }
-                    lp.paint(canvas, Offset(x, y0 + Double(i) * pitch))
+                    // (A Dotum/Gulim cell's lines all stand on the baseline its first does, whatever fallback face draws a later one; the other CJK faces' wrapped lines, zh-1de4da4caa's, stand where their own painter puts them.)
+                    let drop = dotum ? xBase - lp.computeDistanceToActualBaseline(.alphabetic).rounded() : 0
+                    lp.paint(canvas, Offset(x, y0 + drop + Double(i) * pitch))
                     _drawRules(lp, style, at: Offset(x, y0 + Double(i) * pitch), canvas)
                 }
                 canvas.restore()
@@ -3630,6 +3636,19 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
     /// Arial 9 in an Arial 10 book, stand at Arial 9's 3.1, not 3.31.
     func _footTop(_ st: CellStyle, _ book: Workbook, _ ws: Worksheet, row: Int, _ tp: TextPainter, bottom: Double) -> Double {
         _printTop(st, book, ws, row: row, tp, top: bottom, bottom: bottom, .bottom)
+    }
+
+    /// 돋움/굴림 (Dotum/Gulim): wrapped lines step size + 1.2 pt on paper and stand on one baseline.
+    static func _dotumLike(_ family: String) -> Bool {
+        ["돋움", "굴림", "dotum", "gulim"].contains(family.trimmingWhitespace().lowercased())
+    }
+
+    /// The text whose painter places a printed wrapped cell's lines: a
+    /// Dotum/Gulim cell's first line, so a centred pair stands about where
+    /// that line would alone (ko-fb58b17f97: 162.4 and 169.6 about 166.0 in
+    /// Excel's print); other faces' "X".
+    static func _wrapPlacer(_ lines: [Substring], family: String) -> String {
+        _dotumLike(family) && !lines.isEmpty ? String(lines[0]) : "X"
     }
 
     /// Where a line of text has its top on paper, by the vertical
