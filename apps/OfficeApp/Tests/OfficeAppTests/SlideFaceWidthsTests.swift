@@ -19,4 +19,19 @@ final class SlideFaceWidthsTests: XCTestCase {
         XCTAssertNotNil(f.italicOtherAdvances?[0x0410])
         XCTAssertNotNil(f.boldItalicOtherAdvances?[0x0410])
     }
+
+    private func runFont(_ latin: String, _ charset: String) throws -> String? {
+        let xml = "<a:rPr xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\" lang=\"ko-KR\"><a:latin typeface=\"\(latin)\" charset=\"\(charset)\"/><a:ea typeface=\"\(latin)\" charset=\"\(charset)\"/></a:rPr>"
+        let node = try XCTUnwrap(XNode.parse(Data(xml.utf8)))
+        return LevelStyle.run(node, ColorContext(theme: PptxTheme(nil))).font
+    }
+
+    /// A Latin face PowerPoint's machine lacks, declared Shift-JIS (-128), prints its Latin in Yu Gothic (ko-00b895c634's 함초롬돋움);
+    /// declared Hangul (-127) it stays (Malgun's Latin), and an installed family's weight (나눔고딕 ExtraBold, NanumGothic Bold) stays too.
+    func testAMissingShiftJisFaceSetsItsLatinInYuGothic() throws {
+        XCTAssertEqual(try runFont("함초롬돋움", "-128"), "Yu Gothic")
+        XCTAssertEqual(try runFont("함초롬돋움", "-127"), "함초롬돋움")
+        XCTAssertEqual(try runFont("나눔고딕 ExtraBold", "-128"), "나눔고딕 ExtraBold")
+        XCTAssertEqual(try runFont("Arial", "-128"), "Arial")
+    }
 }

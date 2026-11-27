@@ -146,6 +146,18 @@ enum SlideFonts {
         SlideEastAsianWidths.lookup(n) != nil || windowsIdeographFaces.contains(n)
     }
 
+    /// A face PowerPoint's print machine lacks under that name: not a Windows face, not in the measured table of installed names, not embedded in the deck.
+    static func missingOnPrintBox(_ family: String) -> Bool {
+        // (A weight named after an installed family is that family: ko-fd75347c5b's 나눔고딕 ExtraBold prints as NanumGothic Bold.)
+        var n = family.trimmingWhitespace().lowercased()
+        guard !n.isEmpty, !isEmbedded(family) else { return false }
+        while true {
+            if WordWindowsFaces.names.contains(n) || printBoxHasIdeographName(n) { return false }
+            guard let space = n.lastIndex(of: " ") else { return true }
+            n = String(n[..<space])
+        }
+    }
+
     static func isMissingJapaneseName(_ n: String) -> Bool {
         guard !n.containsSubstring("本文"), !n.containsSubstring("見出し") else { return false }
         // (HGS明朝E is on the print machine: lab num2 prints HGSMinchoE, its line standing at the MS Mincho cut 1.03 em down, not Yu Gothic's .92.)

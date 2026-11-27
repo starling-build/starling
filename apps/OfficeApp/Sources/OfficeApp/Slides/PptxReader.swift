@@ -671,6 +671,12 @@ struct LevelStyle {
             if s.font == ea { s.font = "Microsoft JhengHei" }
             s.eaFont = "Microsoft JhengHei"
         }
+        // (A Latin face PowerPoint does not have, declared with the Shift-JIS charset (-128): its Latin letters, digits, spaces and
+        // punctuation print in Yu Gothic, the Hangul in Malgun Gothic as before (ko-00b895c634 함초롬돋움, ko-57837702cd 한컴 소망 M,
+        // ko-5f820d08fd 새굴림: the print's Latin is YuGothic; every missing face declared Hangul (-127) prints its Latin in Malgun).)
+        if r.first("a:latin")?["charset"] == "-128", let f = s.font, !f.hasPrefix("+"), SlideFonts.missingOnPrintBox(f) {
+            s.font = "Yu Gothic"
+        }
         if let fill = r.first("a:solidFill") { s.color = colors.color(in: fill) }
         // Text filled with a gradient is drawn as such in WordArt (its run
         // looks); elsewhere in the gradient's middle colour, not the black
