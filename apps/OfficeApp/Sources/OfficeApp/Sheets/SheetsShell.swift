@@ -132,6 +132,7 @@ final class SheetsShellState: State<StatefulWidget> {
         // Whatever AutoSave has not yet written: a window's host closing (or the app quitting) must not drop what is unsaved. On iPad
         // the workbook is written to its own file; on the Mac, to a recovery copy beside it (as Writer does) that the
         // next open offers, and the file itself is left as the user last saved it.
+        officeScene.setPictureDrop({ [weak self] path in self?._insertPicture(path) }, owner: self)
         officeScene.registerFlush(owner: self) { [weak self] in
             guard let self, self.session.dirty, let path = self.session.path,
                   ["xlsx", "csv", "tsv"].contains(path.pathExtension.lowercased()) else { return }
@@ -205,6 +206,7 @@ final class SheetsShellState: State<StatefulWidget> {
     override func dispose() {
         officeScene.publishToolbar(nil, owner: self)
         officeScene.unregisterFlush(owner: self)
+        officeScene.setPictureDrop(nil, owner: self)
         officeScene.setDocumentPath(nil, owner: self)
         wb.removeListeners(owner: self)
         _formula.dispose()

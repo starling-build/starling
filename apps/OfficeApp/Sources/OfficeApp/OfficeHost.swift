@@ -68,6 +68,15 @@ final class OfficeScene {
     /// picture panel stays.
     var pictureRequested: ((_ done: @escaping (String?) -> Void) -> Void)?
 
+    /// A picture was dragged onto the window: the open editor puts it in the document as Insert > Picture would.
+    /// Set by the editor while it is mounted, withdrawn on dispose.
+    private(set) var pictureDropped: ((String) -> Void)?
+    private var dropOwner: ObjectIdentifier?
+    func setPictureDrop(_ handler: ((String) -> Void)?, owner: AnyObject) {
+        if let handler { pictureDropped = handler; dropOwner = ObjectIdentifier(owner) }
+        else if dropOwner == ObjectIdentifier(owner) { pictureDropped = nil; dropOwner = nil }
+    }
+
     /// The user asked for Open (or Close). Returns true if the host took it
     /// over, so the editor does not show its own file panel.
     var openRequested: (() -> Bool)?

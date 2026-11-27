@@ -13,7 +13,7 @@ import PhotosUI
 import UniformTypeIdentifiers
 
 /// One pick in flight: it is the delegate of whichever picker the user chose, and keeps itself alive until done.
-private final class PicturePick: NSObject, PHPickerViewControllerDelegate, UIDocumentPickerDelegate {
+final class PicturePick: NSObject, PHPickerViewControllerDelegate, UIDocumentPickerDelegate {
     private let dir: URL
     private var finish: ((String?) -> Void)?
     private var keep: PicturePick?
@@ -63,6 +63,14 @@ private final class PicturePick: NSObject, PHPickerViewControllerDelegate, UIDoc
         }
     }
 
+    /// A picture dragged in from another app: the same copy-and-convert as a pick.
+    func receive(_ provider: NSItemProvider) {
+        provider.loadFileRepresentation(forTypeIdentifier: UTType.image.identifier) { [weak self] url, _ in
+            guard let self, let url else { self?.end(nil); return }
+            self.end(self.take(url, name: url.lastPathComponent))
+        }
+    }
+
     func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
         guard let url = urls.first else { end(nil); return }
         let scoped = url.startAccessingSecurityScopedResource()
@@ -86,6 +94,26 @@ private final class PicturePick: NSObject, PHPickerViewControllerDelegate, UIDoc
         let picker = UIDocumentPickerViewController(forOpeningContentTypes: [.image], asCopy: true)
         picker.delegate = self
         presenter.present(picker, animated: true)
+    }
+}
+
+/// A picture dropped on the editor (from Photos, Files, Safari, any app that drags an image, in Split View or
+/// Slide Over beside this one): copied to a temporary file and handed to `onPicture`.
+final class PictureDropDelegate: NSObject, UIDropInteractionDelegate {
+    private let onPicture: (String) -> Void
+    init(onPicture: @escaping (String) -> Void) { self.onPicture = onPicture }
+
+    func dropInteraction(_ interaction: UIDropInteraction, canHandle session: UIDropSession) -> Bool {
+        session.hasItemsConforming(toTypeIdentifiers: [UTType.image.identifier])
+    }
+
+    func dropInteraction(_ interaction: UIDropInteraction, sessionDidUpdate session: UIDropSession) -> UIDropProposal {
+        UIDropProposal(operation: .copy)
+    }
+
+    func dropInteraction(_ interaction: UIDropInteraction, performDrop session: UIDropSession) {
+        guard let item = session.items.first(where: { $0.itemProvider.hasItemConformingToTypeIdentifier(UTType.image.identifier) }) else { return }
+        PicturePick(finish: { [onPicture] path in if let path { onPicture(path) } }).receive(item.itemProvider)
     }
 }
 

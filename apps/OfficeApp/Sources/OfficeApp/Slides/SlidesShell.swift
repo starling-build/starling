@@ -167,6 +167,7 @@ final class SlidesShellState: State<StatefulWidget> {
         _recent = OfficeRecent.load()
         _wire()
         officeScene.registerFlush(owner: self) { [weak self] in self?._autosaveNow() }
+        officeScene.setPictureDrop({ [weak self] path in self?._insertPicture(path) }, owner: self)
         deck.addListener({ [weak self] in self?._deckChanged() }, owner: self)
         _publishToolbar()
         _cache.onImageDecoded = { [weak self] in
@@ -202,6 +203,7 @@ final class SlidesShellState: State<StatefulWidget> {
     override func dispose() {
         officeScene.publishToolbar(nil, owner: self)
         officeScene.unregisterFlush(owner: self)
+        officeScene.setPictureDrop(nil, owner: self)
         officeScene.setDocumentPath(nil, owner: self)
         deck.removeListeners(owner: self)
         session.controller.removeListeners(owner: self)

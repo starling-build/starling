@@ -139,6 +139,7 @@ final class OfficeShellState: State<StatefulWidget> {
         _recent = _loadRecent()
         _wireSession()
         officeScene.registerFlush(owner: self) { [weak self] in self?._autosaveNow() }
+        officeScene.setPictureDrop({ [weak self] path in self?._insertPicture(path) }, owner: self)
         controller.addListener({ [weak self] in self?._publishToolbar() }, owner: self)
         _publishToolbar()
         // `starling.debug('layout')` from the browser's console or a script:
@@ -287,6 +288,7 @@ final class OfficeShellState: State<StatefulWidget> {
     override func dispose() {
         officeScene.publishToolbar(nil, owner: self)
         officeScene.unregisterFlush(owner: self)
+        officeScene.setPictureDrop(nil, owner: self)
         officeScene.setDocumentPath(nil, owner: self)
         _search.dispose()
         _findQuery.dispose()

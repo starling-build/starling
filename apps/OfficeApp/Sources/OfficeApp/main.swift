@@ -1007,6 +1007,7 @@ func connectNativeHooks(_ scene: OfficeScene, viewId: Int) {
         OfficeNativeShell.showBrowser(viewId: viewId)
         return true
     }
+    OfficeNativeShell.onPictureDrop = { path, id in OfficeScene.byView[id]?.pictureDropped?(path) }
     scene.pictureRequested = { done in
         // OFFICE_PICK_PICTURE=path: a script's stand-in for the system pickers, which no in-app driver can tap.
         if let stub = ProcessInfo.processInfo.environment["OFFICE_PICK_PICTURE"], !stub.isEmpty { done(stub); return }
