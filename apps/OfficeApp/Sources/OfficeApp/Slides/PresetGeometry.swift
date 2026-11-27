@@ -32,6 +32,13 @@ enum PresetGeometry {
         return FreeformGeometry.parse(def, width: width, height: height, adjustments: adjustments)
     }
 
+    /// The preset's guides for a shape `width` by `height` EMU at `adjustments`; nil when undefined.
+    static func guides(_ name: String, width: Double, height: Double,
+                       adjustments: [String: Double] = [:]) -> FreeformGeometry.Guides? {
+        guard let def = definitions[name], width > 0, height > 0 else { return nil }
+        return FreeformGeometry.guides(def, width: width, height: height, adjustments: adjustments)
+    }
+
     /// The adjust values a shape sets (`a:prstGeom/a:avLst`), by name.
     static func adjustments(_ prstGeom: XNode?) -> [String: Double] {
         var out: [String: Double] = [:]

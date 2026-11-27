@@ -1957,6 +1957,20 @@ final class DeckController: ChangeNotifier {
         _changed(keepSession: true)
     }
 
+    /// A drag of a preset's yellow handle (`beginFrameEdit` gives the drag its history entry).
+    func setAdjustHandleLive(_ shape: SlideShape, _ index: Int, to p: Offset) {
+        shape.setAdjustHandle(index, to: p)
+        _changed(keepSession: true)
+    }
+
+    /// Sets a preset shape's adjust values (corner radius, arrow head...) as one step of history.
+    func setAdjusts(_ shape: SlideShape, _ values: [String: Double]) {
+        guard shape.preset != nil, values != shape.adjusts else { return }
+        _checkpoint()
+        shape.setAdjusts(values)
+        _changed()
+    }
+
     func setRotationLive(_ shape: SlideShape, _ degrees: Double) {
         var d = degrees.truncatingRemainder(dividingBy: 360)
         if d < 0 { d += 360 }
@@ -2898,6 +2912,12 @@ final class DeckController: ChangeNotifier {
         b.frame = now.frame; b.rotation = now.rotation; b.flipH = now.flipH; b.flipV = now.flipV
         b.invisible = now.invisible; b.aspectLock = now.aspectLock
         b.name = now.name; b.link = now.link; b.linkTip = now.linkTip; b.text = now.text; b.readShape = now.readShape
+        // A yellow handle's drag: the adjust values are patched into the shape's own `a:prstGeom`, and the outline
+        // and text rectangle drawn from them follow (the text frame's own margins unchanged).
+        b.adjusts = now.adjusts; b.customPath = now.customPath
+        if now.insets.minusShare(now.shapeInsets) == base.insets.minusShare(base.shapeInsets) {
+            b.insets = now.insets; b.shapeInsets = now.shapeInsets
+        }
         return b == now
     }
 

@@ -2329,6 +2329,8 @@ struct SlideContext {
             if let g = PresetGeometry.geometry(preset.rawValue, width: frame.width * Pptx.emu, height: frame.height * Pptx.emu,
                                                adjustments: PresetGeometry.adjustments(spPr?.first("a:prstGeom"))) {
                 st.customPath = g
+                // Kept so a drag of a yellow handle starts from the file's values and a save writes them back.
+                st.adjusts = PresetGeometry.adjustments(spPr?.first("a:prstGeom"))
                 if txBox == nil, let box = g.textRect {
                     st.shapeInsets = EdgeInsets(left: box.left * frame.width, top: box.top * frame.height,
                                                 right: (1 - box.right) * frame.width, bottom: (1 - box.bottom) * frame.height)
@@ -2347,6 +2349,8 @@ struct SlideContext {
             if let g = PresetGeometry.geometry(p, width: frame.width * Pptx.emu, height: frame.height * Pptx.emu,
                                                adjustments: PresetGeometry.adjustments(spPr?.first("a:prstGeom"))) {
                 st.customPath = g
+                // Kept so a drag of a yellow handle starts from the file's values and a save writes them back.
+                st.adjusts = PresetGeometry.adjustments(spPr?.first("a:prstGeom"))
                 if txBox == nil, let box = g.textRect {
                     st.shapeInsets = EdgeInsets(left: box.left * frame.width, top: box.top * frame.height,
                                                 right: (1 - box.right) * frame.width, bottom: (1 - box.bottom) * frame.height)

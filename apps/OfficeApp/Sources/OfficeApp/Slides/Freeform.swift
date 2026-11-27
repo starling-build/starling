@@ -74,8 +74,10 @@ struct FreeformGeometry: Equatable {
     /// definition declares (a shape's own `avLst` over a preset's defaults).
     /// Nil when a guide cannot be evaluated (the shape is then shown as a
     /// box).
-    static func parse(_ geom: XNode, width w: Double, height h: Double,
-                      adjustments: [String: Double] = [:]) -> FreeformGeometry? {
+    /// The guides of `geom` evaluated for a shape `w` by `h` EMU, `adjustments` over its own adjust values;
+    /// nil when a formula cannot be read.
+    static func guides(_ geom: XNode, width w: Double, height h: Double,
+                       adjustments: [String: Double] = [:]) -> Guides? {
         var guides = Guides(width: w, height: h)
         for list in ["a:avLst", "a:gdLst"] {
             for gd in geom.first(list)?.all("a:gd") ?? [] {
@@ -84,6 +86,12 @@ struct FreeformGeometry: Equatable {
             }
             if list == "a:avLst" { for (k, v) in adjustments { guides.values[k] = v } }
         }
+        return guides
+    }
+
+    static func parse(_ geom: XNode, width w: Double, height h: Double,
+                      adjustments: [String: Double] = [:]) -> FreeformGeometry? {
+        guard let guides = guides(geom, width: w, height: h, adjustments: adjustments) else { return nil }
         var textRect: Rect? = nil
         if let rect = geom.first("a:rect"), w > 0, h > 0,
            let l = rect["l"].flatMap(guides.value), let t = rect["t"].flatMap(guides.value),

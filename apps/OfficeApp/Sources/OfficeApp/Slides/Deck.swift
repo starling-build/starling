@@ -219,13 +219,17 @@ struct ReadShape: Equatable {
     var invisible: Bool
     var link: String?
     var linkTip: String?
+    /// A preset's adjust values (`a:avLst`): its yellow handles. A change is patched into the shape's own `a:prstGeom`.
+    var adjusts: [String: Double]
 
     init(_ s: ShapeState) {
-        link = s.link; linkTip = s.linkTip
+        link = s.link; linkTip = s.linkTip; adjusts = s.adjusts
         altText = s.altText; altTitle = s.altTitle
         name = s.name; kind = s.kind; frame = s.frame; rotation = s.rotation; flipH = s.flipH; flipV = s.flipV; aspectLock = s.aspectLock
         fill = s.fill; fillScheme = s.fillScheme; outlineScheme = s.outlineScheme; outline = s.outline; outlineWidth = s.outlineWidth
-        anchor = s.anchor; insets = s.insets; autofit = s.autofit; fontScale = s.fontScale; field = s.field
+        // The text frame's own margins: the geometry's share (`shapeInsets`) follows the adjust values, and moving a
+        // handle does not set margins in the file.
+        anchor = s.anchor; insets = s.insets.minusShare(s.shapeInsets); autofit = s.autofit; fontScale = s.fontScale; field = s.field
         invisible = s.invisible
     }
 
@@ -248,6 +252,7 @@ struct ReadShape: Equatable {
         a.fill = b.fill; a.fillScheme = b.fillScheme; a.outlineScheme = b.outlineScheme; a.outline = b.outline; a.outlineWidth = b.outlineWidth
         a.anchor = b.anchor; a.insets = b.insets; a.autofit = b.autofit; a.fontScale = b.fontScale
         a.name = b.name; a.link = b.link; a.linkTip = b.linkTip; a.altText = b.altText; a.altTitle = b.altTitle
+        a.adjusts = b.adjusts
         return a == b
     }
 
@@ -319,6 +324,18 @@ extension EdgeInsets {
     func mirroringShare(_ g: EdgeInsets, horizontal: Bool, vertical: Bool) -> EdgeInsets {
         EdgeInsets(left: left + (horizontal ? g.right - g.left : 0), top: top + (vertical ? g.bottom - g.top : 0),
                    right: right + (horizontal ? g.left - g.right : 0), bottom: bottom + (vertical ? g.top - g.bottom : 0))
+    }
+
+    /// These insets less the geometry's share `g`: the text frame's own margins (to a thousandth of a point, so the
+    /// same margins compare equal however the share was added and taken away).
+    func minusShare(_ g: EdgeInsets) -> EdgeInsets {
+        func r(_ v: Double) -> Double { (v * 1000).rounded() / 1000 }
+        return EdgeInsets(left: r(left - g.left), top: r(top - g.top), right: r(right - g.right), bottom: r(bottom - g.bottom))
+    }
+
+    /// These insets with the geometry's share `g` added.
+    func plusShare(_ g: EdgeInsets) -> EdgeInsets {
+        EdgeInsets(left: left + g.left, top: top + g.top, right: right + g.right, bottom: bottom + g.bottom)
     }
 }
 
