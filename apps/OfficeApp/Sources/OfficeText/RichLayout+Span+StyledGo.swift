@@ -137,7 +137,9 @@ extension _StyledFrame {
             // w:lang w:bidi="fa-IR" Word draws 15-13 as written, in any table, face or alignment; without it, 13-15.)
             bidiLanguage = [run.keptXML, named?.char.keptXML].compactMap({ RichLayout._attribute($0, "w:bidi") }).first ?? RichLayout._attribute(document.defaultLangXML, "w:bidi") ?? ""
             wasRightToLeft = run.rightToLeft && !bidiLanguage.hasPrefix("fa")
-            if theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile, run.rightToLeft, !ctx.splittingVariation,
+            // (Not under a Hebrew complex-script language: lab rtldigits (Word, Normal ascii Calibri, cs Arial, w:bidi he-IL) prints a w:rtl
+            // "2468", with or without lang he-IL, in Arial, body and footer alike. The prints above are all ar-SA or fa-IR.)
+            if theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile, run.rightToLeft, !ctx.splittingVariation, !bidiLanguage.hasPrefix("he"),
                rawText.contains(where: { $0.isASCII && $0.isNumber }), rawText.allSatisfy({ ($0.isASCII && $0.isNumber) || "/-:.,% ".contains($0) }),
                let latin = run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily, !latin.isEmpty,
                document.fontCharsets[(run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased()] != "B1",
