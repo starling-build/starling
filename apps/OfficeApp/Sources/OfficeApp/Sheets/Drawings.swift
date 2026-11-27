@@ -319,10 +319,6 @@ enum SheetDrawingsXML {
                 }
                 return nil
             }
-            // (A bubble series with no y values or no sizes has no bubbles, so no values: see Chart.swift.)
-            if kind.name.hasSuffix("bubbleChart"), ser.child("yVal") == nil || ser.child("bubbleSize") == nil {
-                return (f(ser.child("tx")), f(ser.child("cat") ?? ser.child("xVal")), nil)
-            }
             return (f(ser.child("tx")), f(ser.child("cat") ?? ser.child("xVal")), f(ser.child("val") ?? ser.child("yVal")))
         }
     }
