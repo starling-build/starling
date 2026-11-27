@@ -3,7 +3,14 @@ import Foundation
 /// One level of a sort: a column (a sheet column number) and a direction.
 /// What a level sorts on (Excel's "Sort On").
 enum SortOn: Equatable {
-    case values, cellColor, fontColor
+    case values, cellColor, fontColor, cellIcon
+}
+
+/// One icon of a conditional-format icon set: the set's name (3Arrows, …) and the icon's place in it
+/// (0 is the set's first icon, the lowest band).
+struct SortIcon: Hashable {
+    var set: String
+    var index: Int
 }
 
 /// With `byColumns` (Left to right) `col` is a sheet row number.
@@ -14,6 +21,8 @@ struct SortKey: Equatable {
     /// For a colour level: the colour (nil is "no fill" / "automatic"), and whether its cells go first.
     var color: UInt32? = nil
     var colorOnTop = true
+    /// For an icon level: the icon whose cells go first (or last with `colorOnTop` false); nil is "No Cell Icon".
+    var icon: SortIcon? = nil
     /// A custom list as the order (Sun, Mon, …); values not in it follow, in the usual order.
     /// Descending reverses the list.
     var custom: [String]? = nil
@@ -63,6 +72,21 @@ extension WorkbookController {
         return counts.sorted { $0.value != $1.value ? $0.value > $1.value : $0.key < $1.key }.map(\.key)
     }
 
+    /// The conditional-format icons on one line of a sort's data, most used first: the Sort dialog's
+    /// icon list for a "Cell Icon" level.
+    func sortIcons(_ range: CellRange, line: Int, hasHeader: Bool, byColumns: Bool) -> [SortIcon] {
+        let first = byColumns ? (hasHeader ? range.left + 1 : range.left) : (hasHeader ? range.top + 1 : range.top)
+        let last = byColumns ? range.right : range.bottom
+        guard first <= last, let cf = conditionalFormats() else { return [] }
+        var counts: [SortIcon: Int] = [:]
+        for i in first ... last {
+            let a = byColumns ? CellAddress(row: line, col: i) : CellAddress(row: i, col: line)
+            if let ic = cf.look(a)?.icon { counts[SortIcon(set: ic.set, index: ic.index), default: 0] += 1 }
+        }
+        return counts.sorted { $0.value != $1.value ? $0.value > $1.value
+                               : ($0.key.set != $1.key.set ? $0.key.set < $1.key.set : $0.key.index > $1.key.index) }.map(\.key)
+    }
+
     func sortRange(_ range: CellRange, keys: [SortKey], hasHeader: Bool, byColumns: Bool = false, caseSensitive: Bool = false) -> SortProblem? {
         if refuses("sort") { return nil }
         guard !keys.isEmpty else { return .noKeys }
@@ -81,6 +105,7 @@ extension WorkbookController {
         if sheet.merges.contains(where: { $0.intersects(data) }) { return .mergedCells }
         structural {
             sortRows(data, keys: keys, byColumns: byColumns, caseSensitive: caseSensitive)
+            _noteSortState(data, keys: keys, byColumns: byColumns, caseSensitive: caseSensitive)
             if sheet.autoFilter != nil { reapplyFilter() }
         }
         return nil

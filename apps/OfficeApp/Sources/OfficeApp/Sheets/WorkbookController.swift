@@ -751,8 +751,11 @@ final class WorkbookController: ChangeNotifier {
         let key = min(max(active.col, g.range.left), g.range.right)
         let top = g.hasHeader ? g.range.top + 1 : g.range.top
         guard g.range.bottom > top else { return }
-        let before = sortRows(CellRange(top: top, left: g.range.left, bottom: g.range.bottom, right: g.range.right), key: key, ascending: ascending)
-        if !before.isEmpty { _record(sheet: activeSheet, before: before) }
+        let data = CellRange(top: top, left: g.range.left, bottom: g.range.bottom, right: g.range.right)
+        structural {
+            sortRows(data, key: key, ascending: ascending)
+            _noteSortState(data, keys: [SortKey(col: key, ascending: ascending)], byColumns: false, caseSensitive: false)
+        }
     }
 
     /// The cells a sort would cover (the selection, or the data around the active cell, cut to
@@ -794,7 +797,15 @@ final class WorkbookController: ChangeNotifier {
         func addr(_ line: Int, _ other: Int) -> CellAddress { byColumns ? CellAddress(row: other, col: line) : CellAddress(row: line, col: other) }
         let lines = byColumns ? Array(r.left ... r.right) : Array(r.top ... r.bottom)
         let across = byColumns ? Array(r.top ... r.bottom) : Array(r.left ... r.right)
+        // Icons are what the rules make of the data before it moves.
+        var icons: [CellAddress: SortIcon] = [:]
+        if keys.contains(where: { $0.on == .cellIcon }), let cf = conditionalFormats() {
+            for k in keys where k.on == .cellIcon {
+                for l in lines { let a = addr(l, k.col); if let ic = cf.look(a)?.icon { icons[a] = SortIcon(set: ic.set, index: ic.index) } }
+            }
+        }
         func matches(_ a: CellAddress, _ k: SortKey) -> Bool {
+            if k.on == .cellIcon { return icons[a] == k.icon }
             let st = book.style(sheet.cells[a]?.style ?? sheet.defaultStyle(at: a))
             let have = (k.on == .cellColor ? st.fill : st.color).map { $0 & 0xFFFFFF }
             return have == k.color.map { $0 & 0xFFFFFF }

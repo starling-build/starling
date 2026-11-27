@@ -26,6 +26,8 @@ struct AutoFilter: Sendable {
     /// the filter has changed: it may carry custom, top-10, colour or date
     /// filters and a sort state, none of which are modelled.
     var raw: String? = nil
+    /// The last sort of the filter's data, as `<sortState>` (X-DA-1), written inside the element.
+    var sortState: String? = nil
 }
 
 extension WorkbookController {
@@ -123,6 +125,7 @@ extension WorkbookController {
         let data = CellRange(top: af.range.top + 1, left: af.range.left, bottom: _filterBottom(af), right: af.range.right)
         structural {
             sortRows(data, key: col, ascending: ascending)
+            _noteSortState(data, keys: [SortKey(col: col, ascending: ascending)], byColumns: false, caseSensitive: false)
             reapplyFilter()
         }
     }
