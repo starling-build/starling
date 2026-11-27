@@ -315,6 +315,7 @@ final class SlideCanvasState: State<StatefulWidget> {
                 if e.kind == .touch { self._touchSeen = true }
                 if e.buttons & kSecondaryMouseButton != 0, let menu = self._w.onContextMenu {
                     if self._w.active !== shape, !self.deck.isSelected(shape) { self.deck.selectWholeGroup(of: shape) }
+                    self._rightClickAt = Date().timeIntervalSince1970
                     menu(e.position, shape)
                     return
                 }
@@ -340,6 +341,11 @@ final class SlideCanvasState: State<StatefulWidget> {
                 onCellEdge: shape.kind == .table && deck.tableTool != .none
                     ? { [weak deck, weak shape] _, row, column, side in if let deck, let shape { deck.penTouch(shape, row: row, column: column, side: side) } } : nil,
                 onCellEdgeStroke: shape.kind == .table && deck.tableTool != .none ? { [weak deck] on in deck?.penStroke(on) } : nil,
+                onContextMenu: { [weak self] at in
+                    // (A right click already opened the menu from the layer above: the editor's own would be a second.)
+                    guard let self, Date().timeIntervalSince1970 - self._rightClickAt > 0.3 else { return }
+                    self._w.onContextMenu?(at, shape)
+                },
                 onTouchMenu: { [weak controller, scene = self.officeScene] rect in
                     if let controller { scene.showTouchMenu(rect, controller: controller) }
                 },
@@ -483,6 +489,25 @@ final class SlideCanvasState: State<StatefulWidget> {
         }
     }
     private var _pendingToggle = false
+    /// Two fingers tapped together open the same menu a right click does (a finger held still is `_armLongPress`).
+    private let _twoFinger = TouchMenuTrigger()
+    private var _rightClickAt = 0.0
+    private func _twoFingerMenu(_ at: Offset, on shape: SlideShape?) {
+        guard let menu = _w.onContextMenu else { return }
+        _pressGeneration &+= 1
+        _drag = nil
+        _pendingToggle = false
+        _guides = []
+        if let shape {
+            if _w.active !== shape { FocusManager.instance.focusedNode?.unfocus(); _w.onEdit(nil) }
+            if !deck.isSelected(shape) { deck.selectWholeGroup(of: shape) }
+        } else {
+            FocusManager.instance.focusedNode?.unfocus()
+            _w.onEdit(nil)
+            deck.selectShapes([])
+        }
+        menu(at, shape)
+    }
     private var _additive: Bool { let m = _w.modifiers(); return deck.selectMultiple || m.contains(.shift) || m.contains(.control) || m.contains(.meta) }
 
     /// While the eyedropper is on, a click takes the colour under it for the fill or outline and does nothing else.
@@ -506,6 +531,7 @@ final class SlideCanvasState: State<StatefulWidget> {
     private func _backdropDown(_ e: PointerDownEvent) {
         if _eyedrop(e) { return }
         if e.kind == .touch { _touchSeen = true }
+        if _twoFinger.down(e, hold: false, fire: { [weak self] p in self?._twoFingerMenu(p, on: nil) }) { return }
         if _beginDraw(e) { return }
         if e.buttons & kSecondaryMouseButton != 0, let menu = _w.onContextMenu {
             FocusManager.instance.focusedNode?.unfocus()
@@ -527,6 +553,7 @@ final class SlideCanvasState: State<StatefulWidget> {
     private func _shapeDown(_ shape: SlideShape, _ e: PointerDownEvent) {
         if _eyedrop(e) { return }
         if e.kind == .touch { _touchSeen = true }
+        if _twoFinger.down(e, hold: false, fire: { [weak self] p in self?._twoFingerMenu(p, on: shape) }) { return }
         if _beginDraw(e) { return }
         Self._log("down on shape \(shape.id) at \(e.position)")
         if e.buttons & kSecondaryMouseButton != 0, let menu = _w.onContextMenu {
@@ -570,6 +597,7 @@ final class SlideCanvasState: State<StatefulWidget> {
     }
 
     private func _pointerMove(_ e: PointerMoveEvent) {
+        _twoFinger.moved(e.pointer, e.position)
         Self._log("move \(e.position) drag=\(_drag.map { "\($0)".prefix(12) } ?? "nil")")
         _dragTo(e.position)
     }
@@ -646,6 +674,7 @@ final class SlideCanvasState: State<StatefulWidget> {
 
     private func _pointerUp(_ e: PointerUpEvent) {
         Self._log("up \(e.position)")
+        _twoFinger.up(e.pointer)
         _pressGeneration &+= 1
         _dragTo(e.position)
         guard let drag = _drag else { return }
