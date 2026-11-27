@@ -67,6 +67,31 @@ final class AutofitNestedRoomTests: XCTestCase {
         XCTAssertGreaterThan(w.reduce(0, +), 470 + 5, "the first column cannot give it all, so the table widens")
     }
 
+    func testNestedTableColumnTakesTheMarginOrHalfTheCellsRuleOnEachSide() throws {
+        // Lab nestroom2 (Word 16, compat 15, outer cells [100, 300], a 300 pt nested table of 0.5 pt rules and no
+        // margins in the second): Word's print gives that column, between rule middles, 300.92 / 301.64 / 303.56 under
+        // 0.25 / 1 / 3 pt outer rules over 0 margins, 301.04 under 0.5 over 0.2, 301.76 / 301.88 / 303.56 under
+        // 0.5 / 1 / 3 over 0.6 — the nested table and half of each of its rules (300.5), and on each side the margin
+        // or half the cell's rule, whichever is more. (Word's print stands 0.06-0.18 wider throughout.)
+        for (rule, margin, want) in [(0.25, 0.0, 300.75), (1.0, 0.0, 301.5), (3.0, 0.0, 303.5), (0.5, 0.2, 301.0),
+                                     (0.5, 0.6, 301.7), (1.0, 0.6, 301.7), (3.0, 0.6, 303.5)] {
+            var doc = document(first: "x", nested: 300, columns: [100, 300])
+            doc.tableStyles["outer"]?.cellMarginLeft = margin
+            doc.tableStyles["outer"]?.cellMarginRight = margin
+            doc.tableStyles["outer"]?.borderWidth = rule
+            if case .some(var block) = doc.paragraphs[1].image, var box = block.textBox {
+                var inner = TableStyle()
+                inner.cellMarginLeft = 0; inner.cellMarginRight = 0
+                box.tableStyles["inner"] = inner
+                block.textBox = box
+                doc.paragraphs[1].image = block
+            }
+            let w = try widths(doc)
+            XCTAssertEqual(w[1], want, accuracy: 0.05, "outer rule \(rule), margin \(margin)")
+            XCTAssertEqual(w.reduce(0, +), 400, accuracy: 0.5, "the first column gives it (Word's print: 400.16 in each case)")
+        }
+    }
+
     func testSlashBetweenCyrillicLettersIsOnePiece() throws {
         // dx2 f524a62c's header "Д/д" is one piece in Word's print; a space after the slash parts it.
         let whole = try widths(document(first: "Д/д", nested: 450, columns: [40, 430]))

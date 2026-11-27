@@ -2517,10 +2517,28 @@ extension RichLayout {
     func _nestedTableRoom(_ table: String, _ widths: [Double], _ document: RichDocument) -> [Double] {
         guard theme.wordRules, RichTextTheme.wordWindowsPages, widths.count > 1 else { return widths }
         let ins = _cellInsets(table, document)
+        let ts = document.tableStyles[table] ?? TableStyle()
+        // (From compat 15 a cell's text and what it holds stand off each side line's middle by the margin or half the
+        // line, whichever is more, as the text padding sets them. Lab nestroom2 (Word 16, outer cells [100, 300] round a
+        // 300 pt nested table): its column is 300.92 / 301.64 / 303.56 under 0.25 / 1 / 3 pt rules over 0 margins, 301.04
+        // under 0.5 over 0.2, 301.76 / 301.88 / 303.56 under 0.5 / 1 / 3 over 0.6 — the nested table, half of each of
+        // its side rules, and each side's larger of the two; ours counted the margins alone and took 300.)
+        let modern = theme.wordRules && (document.compatibilityMode ?? 12) >= 15 && ts.cellSpacing == nil
+        func line(_ d: CellRef, _ side: String) -> Double {
+            guard modern else { return 0 }
+            let said = RichLayout._cellSide(d.bordersXML, side) ?? RichLayout._cellSide(d.rowBordersXML, side)
+            let atEdge = side == "left" ? d.column == 0 : d.column + d.span >= widths.count
+            let tables = atEdge ? (side == "left" ? ts.edges?.left : ts.edges?.right) : ts.edges?.insideV
+            guard (side == "left" ? d.edges?.left : d.edges?.right) ?? tables ?? (ts.borders && !ts.bordersFromCells) else { return 0 }
+            let tableSide = atEdge ? side : "insideV"
+            let table = ts.edgeWidths[tableSide] ?? ts.borderWidth ?? 0.5
+            return _px(RichLayout._ruleRoom(said?.style ?? ts.edgeStyles[tableSide] ?? ts.borderStyle, said?.width ?? max(d.borderWidth ?? table, table)))
+        }
         var need = Array(repeating: 0.0, count: widths.count), narrowest = need
         for (i, p) in document.paragraphs.enumerated() {
             guard let c = p.cell, c.table == table, c.span == 1, c.column < widths.count, c.textDirection == .horizontal else { continue }
-            let sides = (c.padding.map { _px($0.left) } ?? ins.left) + (c.padding.map { _px($0.right) } ?? ins.right)
+            let sides = max(c.padding.map { _px($0.left) } ?? ins.left, line(c, "left") / 2)
+                + max(c.padding.map { _px($0.right) } ?? ins.right, line(c, "right") / 2)
             narrowest[c.column] = max(narrowest[c.column], sides + _minContent(i, p, document))
             if let image = p.image, image.float == nil, let box = image.textBox, box.growsToFit, let inside = _textBox(image, document) {
                 need[c.column] = max(need[c.column], sides + inside.layout._setTables(inside.document))
@@ -2541,9 +2559,12 @@ extension RichLayout {
             if need[k] - out[k] - d > _px(0.05) { RuleTrace.hit("nested-table-grows-its-table-past-what-the-others-give") }
             out[k] = need[k]
         }
-        // (A grid within a point of it in every column is the saving program's own fit, as in `_autofit`.)
+        // (A grid within a point of it in every column is the saving program's own fit, as in `_autofit` — where it gives
+        // each nested table its room: nestroom2's grid of 300 is under the 300.75 its 0.25 pt rules ask, and Word's print
+        // widens the column to 300.92.)
         if out != widths, let grid = document.tableColumns[table]?.map({ _px($0) }), grid.count == out.count,
-           zip(grid, out).allSatisfy({ abs($0 - $1) <= _px(1) }), abs(grid.reduce(0, +) - out.reduce(0, +)) <= _px(0.5) { return grid }
+           zip(grid, out).allSatisfy({ abs($0 - $1) <= _px(1) }), abs(grid.reduce(0, +) - out.reduce(0, +)) <= _px(0.5),
+           zip(grid, need).allSatisfy({ $0 + _px(0.05) >= $1 }) { return grid }
         return out
     }
 
