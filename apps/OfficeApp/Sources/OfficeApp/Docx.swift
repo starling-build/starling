@@ -160,7 +160,8 @@ enum DocxFormat {
         _reuseInlinePlaceholders(body)
         _bindCoreProperties(body, part: part)
         let notes = _Shared(kept: kept, rels: relInfo, rootNS: rootNS, part: part, contentType: contentType)
-        notes.footnoteRestarts = Self._footnoteRestartIDs(body)
+        notes.footnoteRestarts = Self._footnoteRestartIDs(body, settingsRestart: part("word/settings.xml").flatMap(XNode.parse)?
+            .first("w:footnotePr")?.first("w:numRestart")?["w:val"])
         notes.bookmarkNames = Set(body.descendants("w:bookmarkStart").compactMap { $0["w:name"]?.lowercased() })
         // (Those of the other parts too, by their text: a reference into a
         // note or a header finds its name there.)
@@ -181,6 +182,8 @@ enum DocxFormat {
             _exactAtAscent = settings.first("w:compat")?.first("w:noExtraLineSpacing").map { !_isOff($0) } ?? false
             if let f = settings.first("w:endnotePr")?.first("w:numFmt")?["w:val"] { notes.endnoteFormat = f }
             if let f = settings.first("w:footnotePr")?.first("w:numFmt")?["w:val"] { notes.footnoteFormat = f }
+            if let n = settings.first("w:endnotePr")?.first("w:numStart")?["w:val"].flatMap({ Int($0) }), n > 0 { notes.endnoteStart = n }
+            if let n = settings.first("w:footnotePr")?.first("w:numStart")?["w:val"].flatMap({ Int($0) }), n > 0 { notes.footnoteStart = n }
         }
         notes.hasColumns = body.descendants("w:cols").contains { (Int($0["w:num"] ?? "") ?? 1) > 1 }
         if let compat = part("word/settings.xml").flatMap(XNode.parse)?.first("w:compat") {
@@ -3087,7 +3090,10 @@ enum DocxFormat {
         document.endnotes = endnoteParagraphs
         document.endnoteSeparator = endnoteSeparator
         document.endnoteContinuation = endnoteContinuation
-        document.endnotesAtSectionEnd = part("word/settings.xml").flatMap(XNode.parse)?.first("w:endnotePr")?.first("w:pos")?["w:val"] == "sectEnd"
+        let noteSettings = part("word/settings.xml").flatMap(XNode.parse)
+        document.endnotesAtSectionEnd = noteSettings?.first("w:endnotePr")?.first("w:pos")?["w:val"] == "sectEnd"
+        document.footnotePropertiesXML = noteSettings?.first("w:footnotePr").map { PptxXML.serialize($0) }
+        document.endnotePropertiesXML = noteSettings?.first("w:endnotePr").map { PptxXML.serialize($0) }
         // (Endnotes too long to stand under the last paragraph run on over the pages after it, as Word's do — urd-z8387389's
         // 58 notes are three pages of its 12 — so they are flowed as paragraphs of their own, in the order of their marks,
         // after a separator line's height. The painter that sets short ones under the last paragraph drops any that do not

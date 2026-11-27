@@ -330,3 +330,160 @@ extension RichDocumentController {
         return Data(Array(part[0 ..< r.lowerBound]) + Array(part[r.upperBound...]))
     }
 }
+
+// MARK: Footnote and Endnote options (W-FN-1)
+
+/// The Footnote and Endnote dialog's settings for one kind of note, as the file's `w:footnotePr` / `w:endnotePr` holds them.
+public struct NoteOptions: Equatable, Sendable {
+    /// Footnotes: "pageBottom" or "beneathText"; endnotes: "docEnd" or "sectEnd".
+    public var position: String
+    public var format: ListNumberFormat
+    public var start: Int
+    /// "continuous", "eachSect" or "eachPage".
+    public var restart: String
+
+    public init(position: String, format: ListNumberFormat, start: Int, restart: String) {
+        self.position = position; self.format = format; self.start = start; self.restart = restart
+    }
+
+    public static func defaults(_ kind: NoteReference.Kind) -> NoteOptions {
+        NoteOptions(position: kind == .footnote ? "pageBottom" : "docEnd", format: kind == .footnote ? .decimal : .lowerRoman,
+                    start: 1, restart: "continuous")
+    }
+
+    static func formatName(_ f: ListNumberFormat) -> String {
+        switch f {
+        case .lowerLetter: return "lowerLetter"
+        case .upperLetter: return "upperLetter"
+        case .lowerRoman: return "lowerRoman"
+        case .upperRoman: return "upperRoman"
+        default: return "decimal"
+        }
+    }
+
+    static func format(named name: String) -> ListNumberFormat? {
+        ["decimal": .decimal, "lowerLetter": .lowerLetter, "upperLetter": .upperLetter,
+         "lowerRoman": .lowerRoman, "upperRoman": .upperRoman][name]
+    }
+}
+
+extension RichDocumentController {
+    /// The `w:val` of the first `<w:name …>` in `xml`.
+    private static func _value(_ xml: String, _ name: String) -> String? {
+        let bytes = Array(xml.utf8)
+        var from = 0
+        while let at = _find(bytes, _bytes("<w:\(name)"), from: from) {
+            let next = at + name.utf8.count + 3
+            from = next
+            guard next < bytes.count, bytes[next] == 0x20 || bytes[next] == 0x2F || bytes[next] == 0x3E else { continue }
+            guard let close = _find(bytes, _bytes(">"), from: at), let v = _find(bytes, _bytes("w:val=\""), from: at), v < close else { return nil }
+            let start = v + 7
+            guard let end = _find(bytes, _bytes("\""), from: start) else { return nil }
+            return String(decoding: bytes[start ..< end], as: UTF8.self)
+        }
+        return nil
+    }
+
+    /// The document's options for the kind, Word's defaults where the file states none.
+    public func noteOptions(_ kind: NoteReference.Kind) -> NoteOptions {
+        var o = NoteOptions.defaults(kind)
+        guard let xml = kind == .footnote ? document.footnotePropertiesXML : document.endnotePropertiesXML else {
+            if kind == .endnote, document.endnotesAtSectionEnd { o.position = "sectEnd" }
+            return o
+        }
+        if let v = Self._value(xml, "pos") { o.position = v }
+        if let v = Self._value(xml, "numFmt"), let f = NoteOptions.format(named: v) { o.format = f }
+        if let v = Self._value(xml, "numStart"), let n = Int(v) { o.start = n }
+        if let v = Self._value(xml, "numRestart") { o.restart = v }
+        return o
+    }
+
+    /// The properties element for `options`, keeping the old element's separator ids; only what differs from
+    /// Word's defaults is written, and nil when nothing is left.
+    static func _notePropertiesXML(_ kind: NoteReference.Kind, _ options: NoteOptions, keeping old: String?) -> String? {
+        let tag = kind == .footnote ? "footnote" : "endnote"
+        let d = NoteOptions.defaults(kind)
+        var inner = ""
+        if options.position != d.position { inner += "<w:pos w:val=\"\(options.position)\"/>" }
+        if options.format != d.format { inner += "<w:numFmt w:val=\"\(NoteOptions.formatName(options.format))\"/>" }
+        if options.start != d.start { inner += "<w:numStart w:val=\"\(options.start)\"/>" }
+        if options.restart != d.restart { inner += "<w:numRestart w:val=\"\(options.restart)\"/>" }
+        // (The separator notes' ids, which close CT_FtnDocProps / CT_EdnDocProps.)
+        if let old {
+            let bytes = Array(old.utf8)
+            var from = 0
+            let open = _bytes("<w:\(tag) ")
+            while let at = _find(bytes, open, from: from), let end = _find(bytes, _bytes("/>"), from: at) {
+                inner += String(decoding: bytes[at ..< end + 2], as: UTF8.self)
+                from = end + 2
+            }
+        }
+        return inner.isEmpty ? nil : "<w:\(tag)Pr>\(inner)</w:\(tag)Pr>"
+    }
+
+    /// Set the kind's numbering and placement: the marks in the body and the notes renumbered to match. One undo step.
+    /// (Restart each page is saved; the marks keep counting through, as there are no pages yet at edit time.)
+    public func setNoteOptions(_ kind: NoteReference.Kind, _ options: NoteOptions) {
+        guard !readOnly else { return }
+        var state = NotesState(document)
+        let oldXML = kind == .footnote ? state.footnoteProperties : state.endnoteProperties
+        let xml = Self._notePropertiesXML(kind, options, keeping: oldXML)
+        if kind == .footnote { state.footnoteProperties = xml } else {
+            state.endnoteProperties = xml
+            state.endnotesAtSectionEnd = options.position == "sectEnd"
+        }
+        let marks = _marks(kind)
+        func label(_ n: Int) -> String { options.format.string(n) }
+        var numbered: [Int: Int] = [:]
+        var labels: [String] = []
+        var n = options.start - 1
+        var sectionOf: [Int] = []   // paragraph -> its section
+        var s = 0
+        for p in document.paragraphs { sectionOf.append(s); if p.style.sectionXML != nil { s += 1 } }
+        var lastSection = 0
+        for m in marks {
+            let section = sectionOf[m.paragraph]
+            if options.restart == "eachSect", section != lastSection { n = options.start - 1 }
+            lastSection = section
+            n += 1
+            numbered[m.id] = n
+            labels.append(label(n))
+        }
+        func relabeled(_ all: [Int: [RichParagraph]]) -> [Int: [RichParagraph]] {
+            var out = all
+            for (nid, paras) in all {
+                guard let num = numbered[nid], var p = paras.first, let r = p.runs.first, r.length > 0 else { continue }
+                let units = Array(p.text.utf16)
+                guard units.count >= r.length else { continue }
+                let old = String(decoding: units[0 ..< r.length], as: UTF16.self)
+                guard !old.isEmpty, old.allSatisfy({ $0.isLetter || $0.isNumber }) else { continue }
+                let new = label(num)
+                if old == new { continue }
+                p = RichParagraph(text: new + String(decoding: units[r.length...], as: UTF16.self),
+                                  runs: [Run(length: new.utf16.count, style: r.style)] + p.runs.dropFirst(), style: p.style)
+                var list = paras; list[0] = p; out[nid] = list
+            }
+            return out
+        }
+        if kind == .footnote { state.footnotes = relabeled(state.footnotes) } else { state.endnotes = relabeled(state.endnotes) }
+        let old = NotesState(document)
+        guard state != old else { return }
+        edit {
+            perform(.setNotes(new: state, old: old))
+            for (i, m) in marks.enumerated().reversed() where labels[i] != m.text {
+                let pos = RichPosition(paragraph: m.paragraph, offset: m.offset)
+                perform(.deleteText(pos, m.text, [Run(length: m.length, style: m.style)]))
+                perform(.insertText(pos, labels[i], [Run(length: labels[i].utf16.count, style: m.style)]))
+            }
+        }
+    }
+
+    /// Move the caret just past the next note mark of the kind after it (Next Footnote); wraps to the first.
+    public func goToNextNote(_ kind: NoteReference.Kind) {
+        let marks = _marks(kind)
+        guard !marks.isEmpty else { return }
+        let at = document.clamped(selection.end)
+        let next = marks.first { ($0.paragraph, $0.offset) > (at.paragraph, at.offset) } ?? marks[0]
+        moveTo(RichPosition(paragraph: next.paragraph, offset: next.offset), extend: false)
+    }
+}

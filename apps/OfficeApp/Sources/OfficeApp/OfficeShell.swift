@@ -106,6 +106,7 @@ final class OfficeShellState: State<StatefulWidget> {
     private var _pasteSpecialData: ClipboardData?
     private var _formulaOpen = false
     private var _contentsOpen = false
+    private var _noteOptionsOpen = false
     private var _tableTool: String? = nil
     private var _sortTable: SortTableValues? = nil   // the open Sort dialog
     private var _convertTextTable: Bool? = nil   // the open Convert dialog: true to a table, false to text
@@ -587,6 +588,15 @@ final class OfficeShellState: State<StatefulWidget> {
             self.setState { self._convertTextTable = toTable }
         }
         session.onInsertContents = { [weak self] options in self?._insertContents(options) }
+        session.onNoteOptions = { [weak self] in
+            guard let self else { return }
+            self.controller.breakUndoCoalescing()
+            self.setState { self._noteOptionsOpen = true }
+        }
+        session.onNextNote = { [weak self] kind in
+            self?.controller.goToNextNote(kind)
+            self?._editorFocus.requestFocus()
+        }
         session.onContentsDialog = { [weak self] in
             guard let self else { return }
             self.controller.breakUndoCoalescing()
@@ -1606,7 +1616,7 @@ final class OfficeShellState: State<StatefulWidget> {
             if _shortcutsOpen { return false }   // the dialog's own Esc closes it
             if LinkCard.link(caret: _cardLink, hover: _hoverCard, dismissed: _cardDismissed) != nil { setState { _cardDismissed = true }; return true }
             if _listSymbolPick != nil { setState { _listSymbolPick = nil }; return true }
-            if _paragraphOpen || _tablePropsOpen || _fontOpen || _insertTableOpen || _splitCellOpen || _contentsOpen || _convertTextTable != nil || _formulaOpen || _sortTable != nil || _bordersOpen || _pictureDialog != nil || _linkDialogOpen || _numberingValueOpen || _dateTimeOpen || _propertiesOpen || _listFormatOpen != nil || _newStyleOpen || _pasteSpecialData != nil { return false }   // the dialog's own Esc closes it
+            if _paragraphOpen || _tablePropsOpen || _fontOpen || _insertTableOpen || _splitCellOpen || _contentsOpen || _noteOptionsOpen || _convertTextTable != nil || _formulaOpen || _sortTable != nil || _bordersOpen || _pictureDialog != nil || _linkDialogOpen || _numberingValueOpen || _dateTimeOpen || _propertiesOpen || _listFormatOpen != nil || _newStyleOpen || _pasteSpecialData != nil { return false }   // the dialog's own Esc closes it
             if _headerFooterOpen { setState { _headerFooterOpen = false }; return true }
             if _findOpen { setState { _findOpen = false }; _editorFocus.requestFocus(); return true }
             if _backstage != nil { setState { _backstage = nil }; return true }
@@ -2040,6 +2050,23 @@ final class OfficeShellState: State<StatefulWidget> {
                     },
                     onCancel: { [weak self] in
                         self?.setState { self?._tablePropsOpen = false }
+                        self?._editorFocus.requestFocus()
+                    })),
+            ])
+        }
+        if _noteOptionsOpen {
+            return Stack(children: [
+                window,
+                Positioned(left: 0, top: 0, right: 0, bottom: 0, child: FootnoteDialog(
+                    current: { [weak self] kind in self?.controller.noteOptions(kind) ?? NoteOptions.defaults(kind) },
+                    onApply: { [weak self] kind, options in
+                        guard let self else { return }
+                        self.setState { self._noteOptionsOpen = false }
+                        self.controller.setNoteOptions(kind, options)
+                        self._editorFocus.requestFocus()
+                    },
+                    onCancel: { [weak self] in
+                        self?.setState { self?._noteOptionsOpen = false }
                         self?._editorFocus.requestFocus()
                     })),
             ])

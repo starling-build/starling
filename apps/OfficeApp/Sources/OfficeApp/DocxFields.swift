@@ -1662,6 +1662,8 @@ extension DocxFormat {
         /// The document's theme faces, for text the reader builds after the parts were read (a SmartArt's).
         var themeFonts: ThemeFonts? = nil
         var seenFootnotes = 0, seenEndnotes = 0
+        /// The number the first note takes (`w:numStart`), and the first after each restart.
+        var footnoteStart = 1, endnoteStart = 1
         /// Footnote ids that open a section whose footnotePr restarts the numbering (numRestart eachSect).
         var footnoteRestarts: Set<Int> = []
         /// The number each footnote's mark was given in the body, by id;
@@ -1795,8 +1797,8 @@ extension DocxFormat {
             for name in kept.keys { if let t = contentType(name) { keptTypes[name] = t } }
         }
         func next(footnote: Bool, id: Int = -1) -> Int {
-            if footnote { if footnoteRestarts.contains(id) { seenFootnotes = 0 }; seenFootnotes += 1; return seenFootnotes }
-            seenEndnotes += 1; return seenEndnotes
+            if footnote { if footnoteRestarts.contains(id) { seenFootnotes = 0 }; seenFootnotes += 1; return seenFootnotes + footnoteStart - 1 }
+            seenEndnotes += 1; return seenEndnotes + endnoteStart - 1
         }
         /// Keeps the part at `path` and, through its rels, every part it reaches.
         func keep(_ path: String) {
