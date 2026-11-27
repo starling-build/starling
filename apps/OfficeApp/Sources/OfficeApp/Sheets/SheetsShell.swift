@@ -1040,6 +1040,8 @@ final class SheetsShellState: State<StatefulWidget> {
     /// What can be done to sheet `i`: the tab's right-click menu and the
     /// "…" beside the tabs.
     func _tabMenuTitles(_ i: Int) -> [String] { _sheetMenu(i).map(\.0) }
+    /// Runs the tab menu item titled `title` for sheet `i` (tests).
+    func _runTabMenu(_ i: Int, _ title: String) { _sheetMenu(i).first { $0.0 == title }?.1() }
 
     private func _sheetMenu(_ i: Int) -> [(String, () -> Void)] {
         var menu: [(String, () -> Void)] = [
@@ -1048,6 +1050,12 @@ final class SheetsShellState: State<StatefulWidget> {
             ("Delete Sheet", { [weak self] in self?.wb.requestDeleteSheet(i) }),
             ("Move or Copy…", { [weak self] in self?.setState { self?._moveCopyFor = i } }),
             ("Tab Color…", { [weak self] in self?.setState { self?._tabColorFor = i } }),
+            // Excel's tab menu protects the tab it was opened on.
+            (wb.protection(i) != nil ? "Unprotect Sheet…" : "Protect Sheet…", { [weak self] in
+                guard let self else { return }
+                if self.wb.activeSheet != i { self.wb.activeSheet = i }
+                self._command(.protectSheetDialog)
+            }),
             ("Hide Sheet", { [weak self] in self?.wb.hideSheet(i) }),
             ("Select All Sheets", { [weak self] in self?.wb.selectAllSheets() }),
         ]

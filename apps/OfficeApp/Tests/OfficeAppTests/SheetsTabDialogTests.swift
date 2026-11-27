@@ -58,5 +58,19 @@ final class SheetsTabDialogTests: XCTestCase {
         let shell = try XCTUnwrap(ui.state(SheetsShellState.self))
         XCTAssertTrue(shell._tabMenuTitles(0).contains("Move or Copy…"))
         XCTAssertTrue(shell._tabMenuTitles(0).contains("Tab Color…"))
+        XCTAssertTrue(shell._tabMenuTitles(1).contains("Protect Sheet…"))
+    }
+
+    func testTabMenuProtectSheetOpensTheDialogOnThatSheet() throws {
+        let tmp = NSTemporaryDirectory() + "tabs-protect-\(ProcessInfo.processInfo.processIdentifier).xlsx"
+        let c = WorkbookController(); c.addSheet()
+        try Xlsx.write(c.book).write(to: URL(fileURLWithPath: tmp))
+        let ui = WidgetTester(theme(SheetsShell(initialPath: tmp, onSwitch: { _, _ in })), size: Size(1280, 800))
+        ui.pump()
+        let shell = try XCTUnwrap(ui.state(SheetsShellState.self))
+        shell.wb.activeSheet = 0
+        shell._runTabMenu(1, "Protect Sheet…"); ui.pump()
+        XCTAssertEqual(shell.wb.activeSheet, 1)
+        XCTAssertNotNil(ui.state(ProtectDialogState.self), "the Protect Sheet dialog did not open")
     }
 }
