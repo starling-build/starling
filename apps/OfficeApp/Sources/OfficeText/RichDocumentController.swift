@@ -318,6 +318,9 @@ public final class RichDocumentController: ChangeNotifier {
         return true
     }
 
+    /// The results of the fields whose code is shown (see `toggleFieldCodes`), by field-code id.
+    var _codeStash: [Int: [(text: String, style: CharStyle)]] = [:]
+    var _codeNext = 1
     private var _undo: [UndoEntry] = []
     private var _redo: [UndoEntry] = []
     private var _pendingChanges: [RichChange] = []
