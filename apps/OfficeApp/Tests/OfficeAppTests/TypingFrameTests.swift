@@ -188,4 +188,40 @@ final class TypingFrameTests: XCTestCase {
         for _ in 0 ..< 3 { ui.pump(); RunLoop.main.run(until: Date().addingTimeInterval(0.05)) }
         XCTAssertEqual(shell.session.controller.selectedImageIndex, i, "a click on the opened box selects it")
     }
+
+    /// A picture inside a text box that is open for typing is picked by a click on it, as one on the page is, so the
+    /// Picture Format tab and the handles act on it.
+    func testAClickPicksAPictureInsideAnOpenTextBox() throws {
+        let (w, h) = (900, 600)
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(Double(w), Double(h)))
+        let shell = try XCTUnwrap(ui.state(OfficeShellState.self))
+        let c = shell.session.controller
+        var box = try XCTUnwrap(TextBoxInsert.make(text: "one"))
+        box.width = 200; box.height = 120
+        c.insertImage(box)
+        let i = try XCTUnwrap(c.document.paragraphs.firstIndex { $0.image?.textBox != nil })
+        for _ in 0 ..< 3 { ui.pump(); RunLoop.main.run(until: Date().addingTimeInterval(0.05)) }
+        shell._enterBox(i, nil, Rect.fromLTWH(200, 250, 200, 120))
+        for _ in 0 ..< 3 { ui.pump(); RunLoop.main.run(until: Date().addingTimeInterval(0.05)) }
+        let editor = shell.session.controller
+        XCTAssertFalse(editor === c)
+        let green = png(Array(repeating: [0, 200, 0, 255], count: 16).flatMap { $0 }, 4, 4)
+        editor.selection = RichSelection(caret: RichPosition(paragraph: 0, offset: editor.document.paragraphs[0].length))
+        editor.insertImage(ImageAttachment(data: green, width: 40, height: 40))
+        let pi = try XCTUnwrap(editor.document.paragraphs.firstIndex { $0.image != nil } ?? editor.document.paragraphs.firstIndex { !$0.inlineImages.isEmpty })
+        editor.selection = RichSelection(caret: RichPosition(paragraph: 0, offset: 0))
+        for _ in 0 ..< 4 { ui.pump(); RunLoop.main.run(until: Date().addingTimeInterval(0.05)) }
+        let px = try pixels(ui, w, h)
+        var (x0, y0, x1, y1) = (w, h, -1, -1)
+        for y in 0 ..< h { for x in 0 ..< w {
+            let o = (y * w + x) * 4
+            if px[o] < 60, px[o + 1] > 150, px[o + 2] < 60 { x0 = min(x0, x); x1 = max(x1, x); y0 = min(y0, y); y1 = max(y1, y) }
+        } }
+        XCTAssertGreaterThan(x1, x0, "the open box draws the picture")
+        ui.click(at: Offset(Double(x0 + x1) / 2, Double(y0 + y1) / 2), kind: .mouse)
+        for _ in 0 ..< 3 { ui.pump(); RunLoop.main.run(until: Date().addingTimeInterval(0.05)) }
+        XCTAssertNotNil(shell._boxEdit, "the click stays in the box")
+        XCTAssertTrue(shell.session.controller === editor)
+        XCTAssertTrue(editor.selectedImageIndex == pi || editor.selectedInlineImage != nil, "the click picks the picture")
+    }
 }

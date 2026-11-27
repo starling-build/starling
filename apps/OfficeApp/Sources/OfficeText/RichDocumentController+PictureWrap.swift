@@ -580,13 +580,34 @@ extension RichDocumentController {
         guard patched != xml || new.height != old.height else { return false }
         new.sourceXML = patched
         // (The links the new words name replace the ones the writer made last time; the file's own relationships stay.)
-        new.sourceRels = old.sourceRels.filter { !$0.id.hasPrefix("rIdLink") && !$0.id.hasPrefix("rIdBoxKept") } + rels
+        new.sourceRels = old.sourceRels.filter { !$0.id.hasPrefix("rIdLink") && !$0.id.hasPrefix("rIdBoxKept") && !$0.id.hasPrefix("rIdBoxImage") } + rels
         box.paragraphs = document.paragraphs
         box.tableStyles = document.tableStyles.filter { ids.contains($0.key) }
         box.tableColumns = document.tableColumns.filter { ids.contains($0.key) }
         new.textBox = box
         _store(index, id, old: old, new: new)
         return true
+    }
+
+    /// Keep the files of pictures put into a box (`target` as the box's relationships name them) as parts of the document,
+    /// each under a name no other part has, and return the relationships pointing at those names.
+    public func keepBoxMedia(_ media: [(target: String, data: Data)], rels: [KeptRel]) -> [KeptRel] {
+        var rels = rels
+        for m in media {
+            let ext = m.target.split(separator: ".").last.map(String.init) ?? "png"
+            var n = 1
+            while document.keptParts.keys.contains(where: { $0.hasPrefix("word/media/image\(n).") })
+                || document.paragraphs.contains(where: { _boxNames($0, "media/image\(n).") }) { n += 1 }
+            let name = "media/image\(n).\(ext)"
+            _keepPart("word/" + name, m.data)
+            for k in rels.indices where rels[k].target == m.target && rels[k].id.hasPrefix("rIdBoxImage") { rels[k].target = name }
+        }
+        return rels
+    }
+
+    /// Whether a picture of this paragraph already names a part starting `prefix` in its relationships.
+    private func _boxNames(_ p: RichParagraph, _ prefix: String) -> Bool {
+        ([p.image].compactMap { $0 } + Array(p.inlineImages.values)).contains { $0.sourceRels.contains { $0.target.hasPrefix(prefix) } }
     }
 
     /// The same for a box of plain paragraphs (no table looks).
@@ -714,7 +735,7 @@ extension RichDocumentController {
               let image = document.paragraphs[index].image, let edit = Self.groupChildEditor,
               let changed = edit(image, child, change, document.keptParts) else { return false }
         var next = changed
-        if !rels.isEmpty { next.sourceRels = image.sourceRels.filter { !$0.id.hasPrefix("rIdLink") && !$0.id.hasPrefix("rIdBoxKept") } + rels }
+        if !rels.isEmpty { next.sourceRels = image.sourceRels.filter { !$0.id.hasPrefix("rIdLink") && !$0.id.hasPrefix("rIdBoxKept") && !$0.id.hasPrefix("rIdBoxImage") } + rels }
         guard replaceImageParagraphs([index], with: [next]) else { return false }
         if case .delete = change {} else { groupChild = child; notifyListeners() }
         return true

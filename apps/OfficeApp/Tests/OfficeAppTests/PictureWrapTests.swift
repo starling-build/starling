@@ -441,6 +441,53 @@ final class TextBoxInsertTests: XCTestCase {
         XCTAssertTrue(boxBack.paragraphs.map(\.text).joined().contains("captionX"))
     }
 
+    /// A picture put into a text box while its words are edited (Insert > Picture with the box open) is saved with its own
+    /// file, and comes back inside the box.
+    func testAPictureInsertedIntoATextBoxIsSavedWithItsFile() throws {
+        let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")!
+        let c = RichDocumentController(document: RichDocument(paragraphs: [RichParagraph(text: "body")]))
+        c.insertImage(try XCTUnwrap(TextBoxInsert.make(text: "one")))
+        let i = try XCTUnwrap(c.document.paragraphs.firstIndex { $0.image?.textBox != nil })
+        let box = RichDocumentController(document: try XCTUnwrap(c.textBoxDocument(at: i)))
+        box.selection = RichSelection(caret: RichPosition(paragraph: 0, offset: box.document.paragraphs[0].length))
+        box.insertImage(ImageAttachment(data: png, width: 30, height: 30))
+        let (xml, boxRels, media) = try XCTUnwrap(TextBoxInsert.contentAndMedia(box.document))
+        let rels = c.keepBoxMedia(media, rels: boxRels)
+        XCTAssertTrue(c.setTextBoxContent(at: i, document: box.document, contentXML: xml, rels: rels))
+        let back = try DocxFormat.read(try DocxFormat.write(c.document, pageSetup: .letter)).document
+        let boxBack = try XCTUnwrap(back.paragraphs.first { $0.image?.textBox != nil }?.image?.textBox)
+        let images = boxBack.paragraphs.flatMap { [$0.image].compactMap { $0 } + Array($0.inlineImages.values) }
+        XCTAssertEqual(images.count, 1, "the new picture is in the box")
+        XCTAssertEqual(images.first?.data, png, "and has its file")
+    }
+
+    /// Insert > WordArt: a box with no line or fill that takes its text's size, holding 36 pt letters with the style's own
+    /// fill, outline and shadow, all of which a save and reopen keeps.
+    func testWordArtIsABoxOfStyledLettersThatFitsItsText() throws {
+        XCTAssertEqual(TextBoxInsert.wordArtStyles.count, 5)
+        for k in TextBoxInsert.wordArtStyles.indices {
+            let art = try XCTUnwrap(TextBoxInsert.makeWordArt(style: k), "style \(k) reads back as a box")
+            let box = try XCTUnwrap(art.textBox)
+            XCTAssertTrue(box.fitsText, "style \(k): the box takes its text's size")
+            XCTAssertNil(art.outline?.color, "style \(k): no line round the box")
+            let doc = RichDocument(paragraphs: [RichParagraph(text: "body"), RichParagraph(image: art)])
+            let back = try DocxFormat.read(try DocxFormat.write(doc, pageSetup: .letter)).document
+            for (label, d) in [("made", box.paragraphs), ("reopened", try XCTUnwrap(back.paragraphs.compactMap { $0.image?.textBox }.first).paragraphs)] {
+                XCTAssertEqual(d.map(\.text), ["Your text here"], "style \(k) \(label)")
+                let st = try XCTUnwrap(d.first?.runs.first?.style)
+                XCTAssertEqual(st.fontSize, 36, "style \(k) \(label): 36 pt")
+                XCTAssertEqual(d.first?.style.alignment, .center, "style \(k) \(label)")
+                switch k {
+                case 0, 1, 2: XCTAssertNotNil(st.shadow, "style \(k) \(label): a shadow")
+                case 3: XCTAssertEqual(st.textLine?.color, Color(0xFF4472C4), "style \(k) \(label): a blue outline")
+                default:
+                    XCTAssertTrue(st.noFill, "style \(k) \(label): hollow letters")
+                    XCTAssertEqual(st.textLine?.color, Color(0xFF000000), "style \(k) \(label)")
+                }
+            }
+        }
+    }
+
     func testNewTextBoxFitsItsTextAndGrowsWithTyping() throws {
         let c = RichDocumentController(document: RichDocument(paragraphs: [RichParagraph(text: "body")]))
         c.insertImage(try XCTUnwrap(TextBoxInsert.make(text: "one")))
