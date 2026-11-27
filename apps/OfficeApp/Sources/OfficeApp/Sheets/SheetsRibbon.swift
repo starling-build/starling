@@ -140,11 +140,19 @@ extension Ribbon {
                 Chrome.toggle(FluentSystemIcons.alignRight, "Align Right", st.hAlign == .right, fluent) {
                     wb.toggleAlign(.right)
                 },
+                Chrome.toggle(FluentSystemIcons.indentDecrease, "Decrease Indent", false, fluent) { wb.indent(by: -1) },
+                Chrome.toggle(FluentSystemIcons.indentIncrease, "Increase Indent", false, fluent) { wb.indent(by: 1) },
             ]),
             Chrome.vgap(4),
             Chrome.row([
                 Chrome.textToggle("Wrap Text", st.wrap, fluent, style: fluent.typography.caption) { wb.toggleStyle(\.wrap) },
-                Chrome.textToggle("Merge & Center", wb.sheet.merges.contains(wb.selection), fluent, style: fluent.typography.caption) { wb.toggleMerge() },
+                Chrome.textToggle("Merge & Center", wb.sheet.merges.contains(where: { $0.contains(wb.selection.topLeft) }), fluent, style: fluent.typography.caption) { wb.toggleMerge() },
+                Chrome.menu(nil, nil, fluent, [
+                    ("Merge & Center", { wb.merge(.center) }),
+                    ("Merge Across", { wb.merge(.across) }),
+                    ("Merge Cells", { wb.merge(.cells) }),
+                    ("Unmerge Cells", { wb.unmerge() }),
+                ], keyPrefix: "merge", tip: "Merge options"),
                 Chrome.menu(Text("Vertical", style: fluent.typography.caption), nil, fluent, [
                     ("Top", { wb.setStyle { $0.vAlign = .top } }),
                     ("Middle", { wb.setStyle { $0.vAlign = .center } }),
