@@ -293,8 +293,8 @@ Status: **works** = seen working on the simulator; **partly** = seen, with the g
 1. ~~Slides: a context menu for a hold and a two-finger tap on text, a shape and a slide thumbnail (Sheets row/column header menu in the same area).~~ Done 2026-11-27, same PR as this audit.
 2. ~~Dialogs as sheets, fields at 44 pt.~~ Done 2026-11-27: `DialogShell` rises from the bottom edge on touch devices, text fields are `Chrome.fieldHeight` (44 pt on iOS, 30 on desktop); `after-dialog-sheet.png`.
 3. ~~44 pt handles for pictures, shapes and the ruler.~~ Done 2026-11-27: the hit areas were already up to 44 pt (picture, shape, ruler); the drawn handles are now 14 pt (rotate 18 pt) once a finger has touched; `after-handles-picture.png`, `after-handles-shape.png`.
-4. The remaining Shift/Ctrl touch equivalents (an aspect-lock toggle, Duplicate beside the handles); check first that Select Multiple covers what the audit lists.
-5. Format panes as a slide-over or bottom sheet.
+4. ~~The remaining Shift/Ctrl touch equivalents~~ Done for Slides 2026-11-27: the lock-aspect-ratio checkbox was already in Format Shape (and the canvas honours it); Duplicate / Delete / More now sit over a selected shape (`after-touch-actions.png`, `after-touch-duplicate.png`); two fingers twisting turn a shape (`after-twist-rotate.png`). Still open: an aspect-lock toggle for Writer pictures (corner handles keep the ratio, edges do not), Duplicate beside Writer's and Sheets' selected objects, Shift-click ranges in Sheets cells.
+5. ~~Format panes as a slide-over or bottom sheet.~~ Done 2026-11-27 (`PaneArrangement`): slide-over on a wide touch window, bottom sheet below 600 pt, docked under a pointer; `after-pane-slideover.png`, `after-pane-bottomsheet.png`. Not seen: Writer's Styles pane as a slide-over, a real Split View window.
 
 ## 7. Not in this plan
 
