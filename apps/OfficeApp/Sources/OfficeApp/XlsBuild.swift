@@ -149,6 +149,19 @@ enum XlsBuild {
         return rgb.map { x -> String in let n = Int((x * 255).rounded()); let d = Array("0123456789ABCDEF"); return String(d[n / 16]) + String(d[n % 16]) }.joined()
     }
 
+    /// The body (minor) Latin face of a THEME record's zipped theme.
+    static func themeBodyFont(_ zip: Data) -> String? {
+        guard let entries = try? Zip.read(zip) else { return nil }
+        for t in entries where t.name.hasPrefix("theme/theme/") {
+            guard let xml = String(data: t.data, encoding: .utf8), let m = xml.rangeOfSubstring("minorFont>") else { continue }
+            let rest = String(xml[m.upperBound...])
+            guard let l = rest.rangeOfSubstring("<a:latin typeface=\"") else { return nil }
+            let name = rest[l.upperBound...].prefix { $0 != "\"" }
+            return name.isEmpty ? nil : String(name)
+        }
+        return nil
+    }
+
     static func parts(_ recs: [BiffRecord]) -> [ZipEntry]? {
         guard let first = recs.first, first.type == 0x809, first.body.count >= 2,
               Int(first.body[0]) | Int(first.body[1]) << 8 == 0x600 else { return nil }
@@ -160,6 +173,8 @@ enum XlsBuild {
         var xfRecs: [XlsXF] = []
         var palette = defaultPalette
         var xfExt: [Int: (fg: String?, bg: String?)] = [:]
+        var themeBodyXfs: Set<Int> = []   // XFExt font scheme 2: the theme's body (minor) font
+        var themeZip: Data?   // a THEME record's own theme; none, or a bare version, is the built-in Office theme
         var sheets: [Xls.SheetInfo] = []
         var xtis: [(Int, Int)] = []
         var nameRecs: [BiffRecord] = []
@@ -189,6 +204,11 @@ enum XlsBuild {
                 x.font = c.u16(); x.format = c.u16(); x.flags = c.u16(); x.align = c.u16(); x.indent = c.u16()
                 x.border = c.u16(); x.borderColor = c.u16(); x.borderColor2 = UInt32(truncatingIfNeeded: c.u32()); x.fill = UInt16(truncatingIfNeeded: c.u16())
                 xfRecs.append(x)
+            case 0x896 where r.body.count > 16:
+                // THEME: FrtHeader(12), dwThemeVersion, then the theme's zip, continued in CONTINUE records.
+                var z = Array(r.body[16...])
+                while i + 1 < recs.count, recs[i + 1].type == 0x3C { i += 1; z += recs[i].body }
+                themeZip = Data(z)
             case 0x87D where r.body.count >= 20:
                 // XFExt: FrtHeader(12), reserved(2), ixfe, reserved(2), cexts, then ExtProps.
                 c.skip(12); c.skip(2); let ixfe = c.u16(); c.skip(2); let n = c.u16()
@@ -196,6 +216,7 @@ enum XlsBuild {
                 for _ in 0 ..< n where c.pos + 4 <= r.body.count {
                     let t = c.u16(), cb = c.u16()
                     let end = c.pos + cb - 4
+                    if t == 14, cb >= 5, c.pos < r.body.count, r.body[c.pos] == 2 { themeBodyXfs.insert(ixfe) }
                     if (t == 4 || t == 5), cb == 20, c.pos + 16 <= r.body.count {
                         let kind = c.u16(); let tintRaw = Int(Int16(truncatingIfNeeded: c.u16()))
                         if kind == 3, c.pos + 4 <= r.body.count {
@@ -240,8 +261,27 @@ enum XlsBuild {
         // Excel 2007 and later writes its default theme-body font as black (colour index 8, theme colour 1);
         // a copy saved with a localized body face (Malgun Gothic, SimSun) is reloaded by an English Excel as
         // the theme's body font (Calibri): same face as font 0, 11 pt, colour index 8, East Asian charset.
-        if let f0 = fonts.first, f0.name != "Calibri", f0.height == 220, f0.color == 8, f0.charset >= 128, f0.charset != 255 {
-            for k in fonts.indices where fonts[k].name == f0.name && fonts[k].height == 220 && fonts[k].color == 8 { fonts[k].name = "Calibri" }
+        // A file that marks its styles' fonts as the theme's (XFExt's font scheme, 2 for the body font) says so outright, whatever
+        // their size: ko-c0a971dab2.xls's title of 맑은 고딕 20, marked so, prints its Latin text in Calibri and its row at Calibri 20's.
+        // The theme's body face: the file's own theme, else the built-in Office theme's Calibri (xls-f3401fc06b's is Aptos Narrow).
+        let body = themeZip.flatMap(themeBodyFont) ?? "Calibri"
+        if let f0 = fonts.first, f0.name != body, f0.height == 220, f0.color == 8, f0.charset >= 128, f0.charset != 255 {
+            for k in fonts.indices where fonts[k].name == f0.name && fonts[k].height == 220 && fonts[k].color == 8 { fonts[k].name = body }
+        }
+        if !themeBodyXfs.isEmpty {
+            var used: [Int: (body: Int, other: Int)] = [:]
+            for (i, x) in xfRecs.enumerated() {
+                let k = x.font
+                if themeBodyXfs.contains(i) { used[k, default: (0, 0)].body += 1 } else { used[k, default: (0, 0)].other += 1 }
+            }
+            var copies: [Int: Int] = [:]
+            for (i, x) in xfRecs.enumerated() where themeBodyXfs.contains(i) {
+                let k = x.font
+                guard k < fonts.count, k != 4, fonts[k].name != body, let u = used[k] else { continue }
+                if u.other == 0 { fonts[k].name = body; continue }
+                if copies[k] == nil { var c = fonts[k]; c.name = body; copies[k] = fonts.count; fonts.append(c) }
+                xfRecs[i].font = copies[k]!
+            }
         }
         var ctx = XlsFormulaContext(xtis: xtis, internalBooks: internalBooks, sheetNames: sheets.map { $0.name }, names: [])
         ctx.names = nameRecs.map { nameText($0) }

@@ -302,4 +302,79 @@ extension XlsContainerTests {
                        "<definedNames><definedName name=\"_xlnm.Print_Area\" localSheetId=\"0\">S!$B$1:$O$85</definedName></definedNames>")
         XCTAssertTrue(XlsBuild.nameText(r).contains("Print_Area"), XlsBuild.nameText(r))
     }
+
+    /// A style Excel marks as set in the theme's body font (XFExt font scheme 2) is Calibri on reload whatever its font's
+    /// size: ko-c0a971dab2.xls's 맑은 고딕 20 title, marked so, prints its Latin text in Calibri and its row at Calibri 20's.
+    /// A font an unmarked style also uses keeps its name there.
+    func testAStyleMarkedWithTheThemesBodyFontIsCalibriAtAnySize() throws {
+        let bof = rec(0x809, cat(u16(0x600), [UInt8](repeating: 0, count: 14)))
+        func font(_ name: String, _ twips: Int) -> [UInt8] {
+            let units = Array(name.utf16)
+            return rec(0x31, cat(u16(twips), u16(0), u16(8), u16(400), u16(0), [0, 0, 129, 0, UInt8(units.count), 1], units.flatMap { u16(Int($0)) }))
+        }
+        func xf(_ font: Int, style: Bool) -> [UInt8] {
+            rec(0xE0, cat(u16(font), u16(0), u16(style ? 0xFFF4 : 0x0001), u16(0x20), u16(style ? 0 : 0x0800), u16(0), u16(0), le32(0), u16(0x20C0)))
+        }
+        func bodyMark(_ ixfe: Int) -> [UInt8] {
+            rec(0x87D, cat(u16(0x87D), [UInt8](repeating: 0, count: 10), u16(0), u16(ixfe), u16(0), u16(1), u16(14), u16(5), [2]))
+        }
+        let fonts = cat(font("맑은 고딕", 220), font("맑은 고딕", 220), font("맑은 고딕", 220), font("맑은 고딕", 220), font("맑은 고딕", 400), font("Arial", 220))
+        // xf 0: the Normal style, font 0; xf 1: the title, font 5 (맑은 고딕 20), marked; xf 2: font 5 unmarked; xf 3: Arial, marked.
+        let xfs = cat(xf(0, style: true), xf(5, style: false), xf(5, style: false), xf(6, style: false))
+        let marks = cat(bodyMark(0), bodyMark(1), bodyMark(3))
+        let head = cat(bof, fonts, xfs, marks)
+        let at = cat(head, rec(0x85, cat(le32(0), [0, 0, 1, 0, 0x53])), rec(0x0A, [])).count
+        let g = cat(head, rec(0x85, cat(le32(UInt32(at)), [0, 0, 1, 0, 0x53])), rec(0x0A, []))
+        let parts = try XCTUnwrap(XlsBuild.parts(BiffReader.records(g + cat(bof, rec(0x0A, [])))))
+        let st = String(decoding: parts.first { $0.name == "xl/styles.xml" }!.data, as: UTF8.self)
+        func between(_ s: String, _ a: String, _ b: String) -> [String] {
+            s.components(separatedBy: a).dropFirst().map { $0.components(separatedBy: b)[0] }
+        }
+        let fontXML = between(between(st, "<fonts", "</fonts>")[0], "<font>", "</font>")
+        let ids = between(between(st, "<cellXfs", "</cellXfs>")[0], "fontId=\"", "\"").compactMap { Int($0) }
+        func face(_ xf: Int) -> String { between(fontXML[ids[xf]], "<name val=\"", "\"")[0] }
+        func size(_ xf: Int) -> String { between(fontXML[ids[xf]], "<sz val=\"", "\"")[0] }
+        XCTAssertEqual(face(0), "Calibri")
+        XCTAssertEqual(face(1), "Calibri"); XCTAssertEqual(size(1), "20.0")
+        XCTAssertEqual(face(2), "맑은 고딕"); XCTAssertEqual(size(2), "20.0")
+        XCTAssertEqual(face(3), "Calibri")
+    }
+
+    /// A file that saved its own theme names its body face there: xls-f3401fc06b.xls's is Aptos Narrow, and its styles marked
+    /// with the theme's body font keep it rather than turning Calibri.
+    func testAStyleMarkedWithTheThemesBodyFontTakesTheFilesOwnTheme() throws {
+        let bof = rec(0x809, cat(u16(0x600), [UInt8](repeating: 0, count: 14)))
+        func font(_ name: String, _ twips: Int, _ charset: UInt8) -> [UInt8] {
+            let units = Array(name.utf16)
+            return rec(0x31, cat(u16(twips), u16(0), u16(8), u16(400), u16(0), [0, 0, charset, 0, UInt8(units.count), 1], units.flatMap { u16(Int($0)) }))
+        }
+        func xf(_ font: Int, style: Bool) -> [UInt8] {
+            rec(0xE0, cat(u16(font), u16(0), u16(style ? 0xFFF4 : 0x0001), u16(0x20), u16(style ? 0 : 0x0800), u16(0), u16(0), le32(0), u16(0x20C0)))
+        }
+        func bodyMark(_ ixfe: Int) -> [UInt8] {
+            rec(0x87D, cat(u16(0x87D), [UInt8](repeating: 0, count: 10), u16(0), u16(ixfe), u16(0), u16(1), u16(14), u16(5), [2]))
+        }
+        let xml = "<a:theme xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\"><a:themeElements><a:fontScheme name=\"x\">"
+            + "<a:majorFont><a:latin typeface=\"Aptos Display\"/></a:majorFont><a:minorFont><a:latin typeface=\"Aptos Narrow\"/>"
+            + "<a:ea typeface=\"\"/></a:minorFont></a:fontScheme></a:themeElements></a:theme>"
+        let zip = try Zip.write([ZipEntry(name: "theme/theme/themeManager.xml", data: Data("<a:themeManager/>".utf8)),
+                                 ZipEntry(name: "theme/theme/theme1.xml", data: Data(xml.utf8))])
+        let theme = rec(0x896, cat(u16(0x896), [UInt8](repeating: 0, count: 10), le32(0), [UInt8](zip)))
+        let fonts = cat(font("Aptos Narrow", 220, 0), font("Aptos Narrow", 220, 0), font("Aptos Narrow", 220, 0), font("Aptos Narrow", 220, 0),
+                        font("맑은 고딕", 400, 129))
+        // xf 0: the Normal style, Aptos Narrow, marked; xf 1: 맑은 고딕 20, marked.
+        let head = cat(bof, theme, fonts, xf(0, style: true), xf(5, style: false), bodyMark(0), bodyMark(1))
+        let at = cat(head, rec(0x85, cat(le32(0), [0, 0, 1, 0, 0x53])), rec(0x0A, [])).count
+        let g = cat(head, rec(0x85, cat(le32(UInt32(at)), [0, 0, 1, 0, 0x53])), rec(0x0A, []))
+        let parts = try XCTUnwrap(XlsBuild.parts(BiffReader.records(g + cat(bof, rec(0x0A, [])))))
+        let st = String(decoding: parts.first { $0.name == "xl/styles.xml" }!.data, as: UTF8.self)
+        func between(_ s: String, _ a: String, _ b: String) -> [String] {
+            s.components(separatedBy: a).dropFirst().map { $0.components(separatedBy: b)[0] }
+        }
+        let fontXML = between(between(st, "<fonts", "</fonts>")[0], "<font>", "</font>")
+        let ids = between(between(st, "<cellXfs", "</cellXfs>")[0], "fontId=\"", "\"").compactMap { Int($0) }
+        func face(_ xf: Int) -> String { between(fontXML[ids[xf]], "<name val=\"", "\"")[0] }
+        XCTAssertEqual(face(0), "Aptos Narrow")
+        XCTAssertEqual(face(1), "Aptos Narrow")
+    }
 }
