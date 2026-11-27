@@ -319,6 +319,11 @@ enum PptxWriter {
         if let c = slide.controlsXML, let src = slide.carryPart, let p = source {
             controls = w.kept(c, sourcePart: src, package: p, builder: &b, patch: nil)
         }
+        // The slide's tags (`p:custDataLst`): kept with the tag parts they name.
+        var custData = ""
+        if let c = slide.custDataXML, let src = slide.carryPart, let p = source {
+            custData = w.kept(c, sourcePart: src, package: p, builder: &b, patch: nil)
+        }
         if body.containsSubstring("<p:oleObj") || !controls.isEmpty, let src = slide.carryPart, let p = source,
            let vml = p.rels(src).first(where: { ["vmlDrawing", "legacyDrawing"].contains($0.kind) && !$0.external && p.parts[$0.target] != nil }) {
             var done = [String: String]()
@@ -345,6 +350,12 @@ enum PptxWriter {
                 var done = [String: String]()
                 let target = PptxWriterCopy.copy(c.target, from: p, into: &b, done: &done)
                 rels.append(Rel(id: "rIdCmt\(n + 1)", type: c.type, target: Pptx.relative(target, from: part)))
+            }
+            // So does a theme override (60810's slide 18): carried as the file had it.
+            if let o = p.rels(src).first(where: { $0.kind == "themeOverride" && !$0.external && p.parts[$0.target] != nil }) {
+                var done = [String: String]()
+                let target = PptxWriterCopy.copy(o.target, from: p, into: &b, done: &done)
+                rels.append(Rel(id: "rIdThmOvr", type: o.type, target: Pptx.relative(target, from: part)))
             }
         }
         let hidden = (slide.hidden ? " show=\"0\"" : "") + (slide.hideMasterShapes ? " showMasterSp=\"0\"" : "")
@@ -407,7 +418,7 @@ enum PptxWriter {
             .flatMap { $0.isEmpty ? nil : $0 } ?? "<p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr>"
         let xml = """
         <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-        <p:sld \(ns)\(hidden)><p:cSld>\(bg)<p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/><a:chOff x="0" y="0"/><a:chExt cx="0" cy="0"/></a:xfrm></p:grpSpPr>\(body)</p:spTree>\(controls)\(slide.cSldExtLstXML ?? "")</p:cSld>\(clrMapOvr)\(transition)\(timing)\(slide.extLstXML ?? "")</p:sld>
+        <p:sld \(ns)\(hidden)><p:cSld>\(bg)<p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/><a:chOff x="0" y="0"/><a:chExt cx="0" cy="0"/></a:xfrm></p:grpSpPr>\(body)</p:spTree>\(custData)\(controls)\(slide.cSldExtLstXML ?? "")</p:cSld>\(clrMapOvr)\(transition)\(timing)\(slide.extLstXML ?? "")</p:sld>
         """
 
         // Notes, when there are any and a notes master to hang them on.

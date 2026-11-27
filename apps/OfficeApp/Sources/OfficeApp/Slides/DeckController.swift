@@ -162,6 +162,7 @@ struct SlideState: Equatable {
     var extLstXML: String? = nil
     var cSldExtLstXML: String? = nil
     var controlsXML: String? = nil
+    var custDataXML: String? = nil
     var decorations: [ShapeState] = []
     var notes: RichDocument
     var shapes: [ShapeState]
@@ -498,6 +499,7 @@ final class DeckController: ChangeNotifier {
         copy.hideMasterShapes = source.hideMasterShapes
         copy.clrMapOvrXML = source.clrMapOvrXML
         copy.controlsXML = source.controlsXML
+        copy.custDataXML = source.custDataXML
         copy.decorations = source.decorations.map { _make(_state($0)) }
         var map: [Int: Int] = [:]
         for (a, b) in zip(source.shapes, shapes) { map[a.id] = b.id }
@@ -2574,7 +2576,7 @@ final class DeckController: ChangeNotifier {
             SlideState(id: slide.id, layout: slide.layout, hidden: slide.hidden, section: slide.section, masterRole: slide.masterRole,
                        hideMasterShapes: slide.hideMasterShapes, clrMapOvrXML: slide.clrMapOvrXML,
                        extLstXML: slide.extLstXML, cSldExtLstXML: slide.cSldExtLstXML,
-                       controlsXML: slide.controlsXML, decorations: slide.decorations.map(_state),
+                       controlsXML: slide.controlsXML, custDataXML: slide.custDataXML, decorations: slide.decorations.map(_state),
                        notes: slide.notes.document, shapes: slide.shapes.map(_state),
                        layoutPart: slide.layoutPart, backgroundXML: slide.backgroundXML,
                        background: slide.background, inheritedBackground: slide.inheritedBackground,
@@ -2627,6 +2629,7 @@ final class DeckController: ChangeNotifier {
             slide.extLstXML = ss.extLstXML
             slide.cSldExtLstXML = ss.cSldExtLstXML
             slide.controlsXML = ss.controlsXML
+            slide.custDataXML = ss.custDataXML
             if slide.decorations.map(_state) != ss.decorations { slide.decorations = ss.decorations.map(_make) }
             slide.layoutPart = ss.layoutPart
             slide.backgroundXML = ss.backgroundXML

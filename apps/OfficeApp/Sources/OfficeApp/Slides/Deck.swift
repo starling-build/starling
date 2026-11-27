@@ -1029,6 +1029,8 @@ final class Slide {
     /// written back with their parts and VML drawing, so PowerPoint still
     /// has them (and draws each one's fallback picture).
     var controlsXML: String? = nil
+    /// The slide's tags (`p:custDataLst`, add-ins' own data in ppt/tags parts) as read, written back with their parts.
+    var custDataXML: String? = nil
     /// The layout's and master's own shapes, drawn behind this slide's
     /// (from the file it came from); never written, never editable.
     var decorations: [SlideShape] = []

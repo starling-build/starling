@@ -1147,6 +1147,7 @@ struct PptxReader {
                 extLstXML: slide.first("p:extLst").map { PptxXML.serialize($0, declaringFrom: slide, except: ["p", "a", "r"]) },
                 cSldExtLstXML: slide.first("p:cSld")?.first("p:extLst").map { PptxXML.serialize($0, declaringFrom: slide, except: ["p", "a", "r"]) },
                 controlsXML: slide.first("p:cSld")?.first("p:controls").map(PptxXML.serialize),
+                custDataXML: slide.first("p:cSld")?.first("p:custDataLst").map(PptxXML.serialize),
                 decorations: decorations,
                 notes: notes, shapes: shapes, layoutPart: layoutPart,
                 backgroundXML: bg.map(PptxXML.serialize), background: bgFill, inheritedBackground: inherited,
