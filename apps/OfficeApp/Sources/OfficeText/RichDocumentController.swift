@@ -3224,6 +3224,8 @@ public final class RichDocumentController: ChangeNotifier {
     public func setPageSetup(_ new: PageSetup, lastSetup: PageSetup, paragraph: Int? = nil) {
         let mark = sectionMark(containing: paragraph ?? selection.focus.paragraph)
         let old = mark < 0 ? (document.lastSectionPage ?? lastSetup) : document.paragraphs[mark].style.sectionPage
+        // (`new` is the paper's page; a vertical section keeps the turned one.)
+        let new = new.vertical ? new.transposed() : new
         guard old != new else { return }
         edit { perform(.setSectionPage(mark, old: old, new: new)) }
     }
@@ -3277,8 +3279,9 @@ public final class RichDocumentController: ChangeNotifier {
         var steps: [(Int, PageSetup, PageSetup)] = []
         for mark in marks {
             let old = mark < 0 ? (document.lastSectionPage ?? lastSetup) : document.paragraphs[mark].style.sectionPage!
-            var new = old
+            var new = old.physical
             change(&new)
+            if new.vertical { new = new.transposed() }
             if new != old { steps.append((mark, old, new)) }
         }
         guard !steps.isEmpty else { return }

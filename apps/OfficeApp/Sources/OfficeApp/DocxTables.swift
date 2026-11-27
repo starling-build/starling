@@ -241,7 +241,9 @@ extension DocxFormat {
     }
 
     static func _sectionXML(_ xml: String, patchedTo page: PageSetup?) -> String {
-        guard let page, !page.vertical, let sect = XNode.parse(Data(xml.utf8)) else { return xml }
+        guard let flow = page, let sect = XNode.parse(Data(xml.utf8)) else { return xml }
+        // (A vertical section's setup is the turned page; the file holds the paper's.)
+        let page = flow.physical
         var changed = false
         func twips(_ v: Double) -> String { String(Int((v * 20).rounded())) }
         func put(_ node: XNode, _ key: String, _ v: Double) {
@@ -2171,7 +2173,7 @@ extension DocxFormat {
         // The last section's sectPr; a section break made in it (`sectionAsLast`) is written the same, with its own page and start.
         func sectPr(_ page: PageSetup, type: String?) -> String {
         var body = "<w:sectPr>"
-        let pageSetup = page.vertical ? page.transposed() : page
+        let pageSetup = page.physical
         let pw = Int(pageSetup.width * 20), ph = Int(pageSetup.height * 20)
         if writeHeader { body += "<w:headerReference w:type=\"default\" r:id=\"rIdHeader\"/>" }
         if writeFooter { body += "<w:footerReference w:type=\"default\" r:id=\"rIdFooter\"/>" }
@@ -2205,7 +2207,7 @@ extension DocxFormat {
                 sect[open.lowerBound...].rangeOfSubstring("/>").map { String(sect[open.lowerBound ..< $0.upperBound]) } }
             body = body.replacingAll("<!--\(RichDocumentController.sectionAsLast)-\(index)-->", with: sectPr(p.style.sectionPage ?? lastPage, type: type))
         }
-        let pageSetup = lastPage.vertical ? lastPage.transposed() : lastPage
+        let pageSetup = lastPage.physical
 
         let ns = "xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\" xmlns:wp=\"http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing\" xmlns:mc=\"http://schemas.openxmlformats.org/markup-compatibility/2006\" xmlns:wp14=\"http://schemas.microsoft.com/office/word/2010/wordprocessingDrawing\" xmlns:w14=\"http://schemas.microsoft.com/office/word/2010/wordml\" xmlns:w15=\"http://schemas.microsoft.com/office/word/2012/wordml\" mc:Ignorable=\"w14 w15 wp14\""
         let background = doc.backgroundXML.map { keptFragmentXML($0, doc.backgroundRels) } ?? ""
