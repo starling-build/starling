@@ -424,6 +424,10 @@ public final class RichDocumentController: ChangeNotifier {
     /// the last save to know whether the document is dirty.
     public private(set) var revision = 0
 
+    /// The last paste, while nothing else has changed the document since: what the Paste Options button
+    /// offers to redo another way (see RichDocumentController+PasteOptions.swift).
+    var _lastPaste: PasteRecord?
+
     deinit { LeakProbe.unregister(controller: self) }
 
     public init(document: RichDocument = RichDocument()) {
@@ -4469,8 +4473,14 @@ public final class RichDocumentController: ChangeNotifier {
         }
     }
 
-    /// Paste in one undoable step by Paste Options choice.
+    /// Paste in one undoable step by Paste Options choice. The Paste Options button then offers the other ways.
     public func paste(data: ClipboardData, mode: PasteMode) {
+        let before = revision
+        _paste(data: data, mode: mode)
+        notePaste(data, mode: mode, revisionBefore: before)
+    }
+
+    private func _paste(data: ClipboardData, mode: PasteMode) {
         guard !_selectionLocked() else { return }
         switch mode {
         case .keepSource:

@@ -70,6 +70,9 @@ public final class RichEditable: StatefulWidget {
     /// A finger's selection or caret wants the system edit menu: the rect to
     /// point at in global coordinates, or nil to take the menu away.
     public let onTouchMenu: ((Rect?) -> Void)?
+    /// The Paste Options button after a paste was clicked, or Ctrl was tapped alone while it shows: the host
+    /// opens its menu at this global point (the button's bottom left). Nil draws no button.
+    public let onPasteOptions: ((Offset) -> Void)?
     /// False pins the text at the top and draws no scroll thumb: a slide's
     /// text box, whose text overflows its frame rather than scrolling.
     public let scrolls: Bool
@@ -101,6 +104,7 @@ public final class RichEditable: StatefulWidget {
                 onHeaderFooterEdit: ((KeptHeaderFooter.Kind) -> Void)? = nil,
                 onContextMenu: ((Offset) -> Void)? = nil,
                 onTouchMenu: ((Rect?) -> Void)? = nil,
+                onPasteOptions: ((Offset) -> Void)? = nil,
                 spellChecker: RichSpellChecker? = nil,
                 scrolls: Bool = true,
                 onTextBoxEnter: ((Int, String?, Rect) -> Void)? = nil,
@@ -132,6 +136,7 @@ public final class RichEditable: StatefulWidget {
         self.onHeaderFooterEdit = onHeaderFooterEdit
         self.onContextMenu = onContextMenu
         self.onTouchMenu = onTouchMenu
+        self.onPasteOptions = onPasteOptions
         self.spellChecker = spellChecker
         self.scrolls = scrolls
         super.init(key: key)
@@ -154,6 +159,8 @@ public final class RichEditableState: State<StatefulWidget> {
 
     // Viewport state.
     private var _scrollY = 0.0
+    /// Ctrl is down with no other key since: a tap opens Paste Options.
+    private var _ctrlTap = false
     private var _viewport = Size.zero
     /// Where the canvas's left edge sits in the widget (pages are centred).
     private var _originX = 0.0
@@ -487,6 +494,13 @@ public final class RichEditableState: State<StatefulWidget> {
     private func _handleKey(_ keyData: KeyData) -> Bool {
         _caretHandleShown = false
         let shiftWas = _chords.shift
+        // Ctrl pressed and let go alone while the Paste Options button shows opens its menu, as in Word.
+        if KeyChordTracker.named(keyData.logical) == .control {
+            if keyData.type == .down { _ctrlTap = _chords.modifiers.isEmpty }
+            else if keyData.type == .up, _ctrlTap { _ctrlTap = false; _openPasteOptions() }
+        } else if keyData.type == .down {
+            _ctrlTap = false
+        }
         if _chords.track(keyData) {
             // Shift let go after a keyboard selection: that selection has
             // ended, which is when the Format Painter applies.
@@ -693,18 +707,37 @@ public final class RichEditableState: State<StatefulWidget> {
     private func _paste() {
         Clipboard.getData(Clipboard.kAll) { [weak self] data in
             guard let self, let data, !data.isEmpty else { return }
+            let c = self._controller!, before = c.revision
             if data.rtf != nil || data.html != nil || data.png != nil {
-                self._controller.paste(data: data)
+                c.paste(data: data)
+                c.notePaste(data, mode: .keepSource, revisionBefore: before)
                 return
             }
             guard let text = data.text, !text.isEmpty else { return }
             DispatchQueue.main.async {
-                self._controller.paste(text: text.replacingAll("\r\n", with: "\n"))
+                let before = c.revision
+                c.paste(text: text.replacingAll("\r\n", with: "\n"))
+                c.notePaste(data, mode: .keepSource, revisionBefore: before)
             }
         }
     }
 
     // MARK: Pointer
+
+    /// The Paste Options button in canvas coordinates: just below and after the end of the last paste, as Word
+    /// puts it; nil while there is none to show.
+    private func _pasteButtonRect() -> Rect? {
+        guard _w.onPasteOptions != nil, let p = _controller.pasteOptions, _layout.count > p.end.paragraph,
+              p.end.paragraph < _controller.document.paragraphs.count else { return nil }
+        let r = _layout.canvasCaretRect(p.end, _controller.document)
+        return Rect.fromLTWH(r.right + 4, r.bottom + 2, 30, 20)
+    }
+
+    /// Opens the Paste Options menu under the button.
+    private func _openPasteOptions() {
+        guard let open = _w.onPasteOptions, let b = _pasteButtonRect(), let box = context?.findRenderObject() as? RenderBox else { return }
+        open(box.localToGlobal(Offset(b.left + _originX, b.bottom + _w.padding.top - _scrollY)))
+    }
 
     private func _canvasPoint(_ local: Offset) -> Offset {
         Offset(local.dx - _originX, local.dy + _scrollY - _w.padding.top)
@@ -1039,6 +1072,10 @@ public final class RichEditableState: State<StatefulWidget> {
     }
 
     private func _pointerDown(_ event: PointerEvent) {
+        if let b = _pasteButtonRect(), b.contains(_canvasPoint(event.localPosition)) {
+            _openPasteOptions()
+            return
+        }
         _textDrag = nil
         _dropPosition = nil
         _touchMode = event.kind == .touch
@@ -1758,6 +1795,20 @@ public final class RichEditableState: State<StatefulWidget> {
             for r in _layout.canvasSelectionRects(sel, _controller.document) {
                 canvas.drawLine(Offset(r.left, r.bottom - 1.5), Offset(r.right, r.bottom - 1.5), line)
             }
+        }
+        // The Paste Options button after a paste: a clipboard and a chevron in a small framed box.
+        if let b = _pasteButtonRect() {
+            let fill = Paint(); fill.style = .fill; fill.color = Color(0xFFFFFFFF)
+            let edge = Paint(); edge.style = .stroke; edge.strokeWidth = 1; edge.color = Color(0xFF8A8886)
+            canvas.drawRRect(RRect(fromRectAndRadius: b, Radius(circular: 2)), fill)
+            canvas.drawRRect(RRect(fromRectAndRadius: b, Radius(circular: 2)), edge)
+            let ink = Paint(); ink.style = .stroke; ink.strokeWidth = 1.2; ink.color = Color(0xFF323130)
+            let board = Rect.fromLTWH(b.left + 5, b.top + 4, 11, 13)
+            canvas.drawRRect(RRect(fromRectAndRadius: board, Radius(circular: 1.5)), ink)
+            let clip = Paint(); clip.style = .fill; clip.color = Color(0xFF323130)
+            canvas.drawRect(Rect.fromLTWH(board.left + 3, board.top - 1.5, 5, 3), clip)
+            canvas.drawLine(Offset(b.right - 10, b.top + 9), Offset(b.right - 7, b.top + 12), ink)
+            canvas.drawLine(Offset(b.right - 7, b.top + 12), Offset(b.right - 4, b.top + 9), ink)
         }
         canvas.restore()
         // The input method's candidate window follows the caret: the

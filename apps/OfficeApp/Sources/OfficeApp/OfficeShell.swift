@@ -102,6 +102,8 @@ final class OfficeShellState: State<StatefulWidget> {
     private var _columnsOpen = false
     private var _insertTableOpen = false
     private var _splitCellOpen = false
+    /// The clipboard while Paste Special is open.
+    private var _pasteSpecialData: ClipboardData?
     private var _formulaOpen = false
     private var _contentsOpen = false
     private var _tableTool: String? = nil
@@ -136,6 +138,8 @@ final class OfficeShellState: State<StatefulWidget> {
     private static let narrowBelow = 600.0
     private var _autosaveGeneration = 0
     private let _contextMenu = FlyoutController()
+    /// While the Paste Options menu is open: its K, M, U, T keys.
+    private var _pasteKeys: Int?
     private let _spelling: RichSpellChecker? = makeSpellChecker()
     /// Set when the open document came from a recovery copy: AutoSave then
     /// refreshes only the copy until the user saves for real.
@@ -343,6 +347,7 @@ final class OfficeShellState: State<StatefulWidget> {
     }
 
     override func dispose() {
+        _endPasteKeys()
         officeScene.publishToolbar(nil, owner: self)
         officeScene.unregisterFlush(owner: self)
         officeScene.setPictureDrop(nil, owner: self)
@@ -645,6 +650,7 @@ final class OfficeShellState: State<StatefulWidget> {
         }
         session.onPaste = { [weak self] plain in self?._paste(plain: plain) }
         session.onPasteMode = { [weak self] mode in self?._paste(mode: mode) }
+        session.onPasteSpecial = { [weak self] in self?._openPasteSpecial() }
         session.onInsertPicture = { [weak self] in
             guard let self else { return }
             if let ask = self.officeScene.pictureRequested {
@@ -1375,6 +1381,51 @@ final class OfficeShellState: State<StatefulWidget> {
         }
     }
 
+    /// The Paste Options button's menu (W-ED-1): the last paste made again another way, in one undo step. While it
+    /// is open K, M, U and T pick, as Word's underlined letters do.
+    private func _showPasteOptions(at point: Offset) {
+        let c = controller
+        guard c.pasteOptions != nil, let context else { return }
+        let choices: [(String, Character, RichDocumentController.PasteMode)] = [
+            ("Keep Source Formatting (K)", "k", .keepSource), ("Merge Formatting (M)", "m", .mergeFormatting),
+            ("Picture (U)", "u", .picture), ("Keep Text Only (T)", "t", .textOnly)]
+        let menu = ContextMenuBuilder()
+        for (label, _, mode) in choices {
+            menu.item(label, enabled: c.canRepaste(mode)) { [weak self] in self?._repaste(mode) }
+        }
+        menu.show(_contextMenu, in: context, at: point)
+        if let k = _pasteKeys { FocusManager.instance.removeKeyInterceptor(k) }
+        _pasteKeys = FocusManager.instance.addKeyInterceptor { [weak self] key in
+            guard let self else { return false }
+            guard self._contextMenu.isOpen, self.controller.pasteOptions != nil else { self._endPasteKeys(); return false }
+            guard let letter = KeyChordTracker.letter(key.logical),
+                  let pick = choices.first(where: { $0.1 == letter }) else { return false }
+            if key.type == .down, self.controller.canRepaste(pick.2) { self._repaste(pick.2) }
+            return true
+        }
+    }
+
+    private func _repaste(_ mode: RichDocumentController.PasteMode) {
+        _endPasteKeys()
+        if _contextMenu.isOpen { _contextMenu.closeFlyout() }
+        controller.repaste(mode)
+    }
+
+    /// Paste Special: reads the whole clipboard, then asks which format to paste.
+    private func _openPasteSpecial() {
+        Clipboard.getData(Clipboard.kAll) { [weak self] data in
+            DispatchQueue.main.async {
+                guard let self, self.mounted else { return }
+                let data = data ?? ClipboardData(text: nil)
+                self.setState { self._pasteSpecialData = data }
+            }
+        }
+    }
+
+    private func _endPasteKeys() {
+        if let k = _pasteKeys { FocusManager.instance.removeKeyInterceptor(k); _pasteKeys = nil }
+    }
+
     /// Word's right-click menu: what the caret is on, then the clipboard,
     /// then formatting, then the table or picture it sits in.
     private func _showContextMenu(at point: Offset) {
@@ -1555,7 +1606,7 @@ final class OfficeShellState: State<StatefulWidget> {
             if _shortcutsOpen { return false }   // the dialog's own Esc closes it
             if LinkCard.link(caret: _cardLink, hover: _hoverCard, dismissed: _cardDismissed) != nil { setState { _cardDismissed = true }; return true }
             if _listSymbolPick != nil { setState { _listSymbolPick = nil }; return true }
-            if _paragraphOpen || _tablePropsOpen || _fontOpen || _insertTableOpen || _splitCellOpen || _contentsOpen || _convertTextTable != nil || _formulaOpen || _sortTable != nil || _bordersOpen || _pictureDialog != nil || _linkDialogOpen || _numberingValueOpen || _dateTimeOpen || _propertiesOpen || _listFormatOpen != nil || _newStyleOpen { return false }   // the dialog's own Esc closes it
+            if _paragraphOpen || _tablePropsOpen || _fontOpen || _insertTableOpen || _splitCellOpen || _contentsOpen || _convertTextTable != nil || _formulaOpen || _sortTable != nil || _bordersOpen || _pictureDialog != nil || _linkDialogOpen || _numberingValueOpen || _dateTimeOpen || _propertiesOpen || _listFormatOpen != nil || _newStyleOpen || _pasteSpecialData != nil { return false }   // the dialog's own Esc closes it
             if _headerFooterOpen { setState { _headerFooterOpen = false }; return true }
             if _findOpen { setState { _findOpen = false }; _editorFocus.requestFocus(); return true }
             if _backstage != nil { setState { _backstage = nil }; return true }
@@ -1609,8 +1660,8 @@ final class OfficeShellState: State<StatefulWidget> {
             if key.logical == 0x5B { c.stepFontSize(-1, base: session.effectiveFontSize); return true }
             return false
         }
-        // ⌥⌘V (Ctrl+Alt+V in Word) is Paste Special; with no dialog yet it pastes the clipboard's text alone, since ⇧⌘V is the Format Painter's paste (W-P0-5).
-        if letter == "v", PasteChord.of(shift: mods.contains(.shift), alt: mods.contains(.alt)) == .pastePlainText { _paste(plain: true); return true }
+        // ⌥⌘V (Ctrl+Alt+V in Word) is Paste Special (W-ED-1); ⇧⌘V is the Format Painter's paste (W-P0-5).
+        if letter == "v", PasteChord.of(shift: mods.contains(.shift), alt: mods.contains(.alt)) == .pasteSpecial { _openPasteSpecial(); return true }
         // Alt+Ctrl+F inserts a footnote and Alt+Ctrl+D an endnote, as in Word.
         if mods.contains(.alt), !mods.contains(.shift), letter == "f" || letter == "d" {
             session.onInsertNote?(letter == "f" ? .footnote : .endnote)
@@ -2004,6 +2055,23 @@ final class OfficeShellState: State<StatefulWidget> {
                     })),
             ])
         }
+        if let data = _pasteSpecialData {
+            return Stack(children: [
+                window,
+                Positioned(left: 0, top: 0, right: 0, bottom: 0, child: WriterPasteSpecialDialog(
+                    source: WriterPasteSpecialDialog.sourceLine(data.text), formats: PasteSpecialFormat.offered(by: data),
+                    onOK: { [weak self] format in
+                        guard let self else { return }
+                        self.setState { self._pasteSpecialData = nil }
+                        self.controller.pasteSpecial(data, as: format)
+                        self._editorFocus.requestFocus()
+                    },
+                    onCancel: { [weak self] in
+                        self?.setState { self?._pasteSpecialData = nil }
+                        self?._editorFocus.requestFocus()
+                    })),
+            ])
+        }
         if _splitCellOpen {
             let cell = controller.currentCell
             return Stack(children: [
@@ -2248,6 +2316,7 @@ final class OfficeShellState: State<StatefulWidget> {
             onHeaderFooterEdit: { [weak self] _ in self?.session.onHeaderFooter?() },
             onContextMenu: { [weak self] point in self?._showContextMenu(at: point) },
             onTouchMenu: { [weak self] rect in self?._showTouchMenu(rect) },
+            onPasteOptions: { [weak self] point in self?._showPasteOptions(at: point) },
             spellChecker: session.checkSpelling ? _spelling : nil,
             onTextBoxEnter: { [weak self] index, inline, rect in self?._enterBox(index, inline, rect) },
             onBoxRect: _boxEdit == nil ? nil : { [weak self] r in

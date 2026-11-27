@@ -311,6 +311,8 @@ final class Ribbon: StatelessWidget {
                 MenuFlyoutItem(text: Text("Merge Formatting"), onPressed: { [session] in session.onPasteMode?(.mergeFormatting) }),
                 MenuFlyoutItem(text: Text("Picture"), onPressed: { [session] in session.onPasteMode?(.picture) }),
                 MenuFlyoutItem(text: Text("Keep Text Only"), onPressed: { [session] in session.onPasteMode?(.textOnly) }),
+                MenuFlyoutSeparator(),
+                MenuFlyoutItem(text: Text("Paste Special..."), onPressed: { [session] in session.onPasteSpecial?() }),
             ]),
             Chrome.gap(2),
             Chrome.rows([

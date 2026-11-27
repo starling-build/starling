@@ -418,6 +418,8 @@ final class OfficeSession {
     var onPaste: ((Bool) -> Void)?
     /// Paste Options (W-ED-1): paste the clipboard in the chosen way.
     var onPasteMode: ((RichDocumentController.PasteMode) -> Void)?
+    /// Paste Special (W-ED-1): the dialog of the clipboard's formats.
+    var onPasteSpecial: (() -> Void)?
     var onStatus: ((String) -> Void)?   // transient status-bar message
 
     func summarize() -> ToolbarSummary {

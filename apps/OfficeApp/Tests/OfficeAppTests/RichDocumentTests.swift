@@ -1044,7 +1044,7 @@ final class PasteChordTests: XCTestCase {
     func testPlainPasteHasAKeyAndTheFormatPainterKeepsItsOwn() {
         XCTAssertEqual(PasteChord.of(shift: false, alt: false), .paste)
         XCTAssertEqual(PasteChord.of(shift: true, alt: false), .pasteFormat)   // Ctrl+Shift+V paints
-        XCTAssertEqual(PasteChord.of(shift: false, alt: true), .pastePlainText) // Ctrl+Alt+V
+        XCTAssertEqual(PasteChord.of(shift: false, alt: true), .pasteSpecial) // Ctrl+Alt+V
     }
 }
 
