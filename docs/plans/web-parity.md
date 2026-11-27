@@ -114,6 +114,9 @@ CDP) checks the page side: the print frame, IndexedDB rows, recovery after a rel
    test/office-recovery-web.sh in Chromium: type, close, a new browser on the same
    profile gets the text back, Save downloads it and deletes the row. Not yet: a
    flush on page close (the 2-second timer is the only writer), and Slides.
+   Slides DONE 2026-11-27 (amd-11): a deck keeps its copy as a `pptx` row; a tab always starts in Writer,
+   which hands a deck's row to Slides, where it opens unsaved. BrowserSlidesRecoveryTests (fail before),
+   test/office-recovery-slides-web.sh (Chromium, 6/6). Sheets next.
 3. **Recent files.** Each open and save puts a row in IndexedDB store `recent` (name,
    kind, time, a copy of the bytes, and the file handle where the browser has the
    File System Access API). Backstage Home and Open list them as natively; reopening
