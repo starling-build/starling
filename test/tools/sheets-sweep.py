@@ -17,6 +17,7 @@ TEST = os.path.dirname(HERE)
 CC = os.environ.get("CORPUS_CACHE", "/data/corpus-cache") + "/test/corpus/xlsx"
 BOOKS, XL = CC + "/books", CC + "/" + os.environ.get("SHEETS_EXCEL", "excel-20261122")   # SHEETS_EXCEL names the prints folder under xlsx/
 os.environ["DOCX_LINE_MATCH"] = "v2"
+os.environ["DOCX_LINE_ROT"] = "0"   # Slides/Sheets keep turned text as before; only Word reads it in its own frame (2026-11-27)
 spec = importlib.util.spec_from_file_location("d", os.path.join(TEST, "docx-line-match.py"))
 M = importlib.util.module_from_spec(spec); spec.loader.exec_module(M)
 M.WORD = XL; M.ignored = lambda: set(); M.OFFPAGE = True

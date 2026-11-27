@@ -524,7 +524,8 @@ def mupdf_glyphs(pdf, drop=None):
 # for a line set across; and it lands on a page of its own per direction (ROT_PAGE * k + page), so a turned line pairs
 # only with a turned line of the same direction. Only text turned a quarter or half turn is read so: text set along a
 # curve or a slant (WordArt; lo-677416be draws each glyph at its own angle) stays as before, since no line holds there.
-ROT = V2 and os.environ.get("DOCX_LINE_ROT") == "1"
+# ON by default for Word since 2026-11-27 (starling-bd); DOCX_LINE_ROT=0 turns it off. Slides and Sheets pin it off in their own callers.
+ROT = V2 and os.environ.get("DOCX_LINE_ROT", "1") == "1"
 ROT_PAGE = 100000
 _ROT_DIRS = [(0, -1), (0, 1), (-1, 0)]
 
