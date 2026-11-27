@@ -5623,7 +5623,9 @@ enum ChartPainter {
         // 200000s and 0 to 80% in 20s in Word's print, where ten steps
         // stood ours a third of a label apart.)
         let tableSteps: Int? = {
-            guard let dt = c.dataTable, !horizontal, c.type != .scatter, !c.type.isPie else { return nil }
+            // (Not on a sheet: Excel picks the step as though the table were not there. Its print of chart-ChartDataTable, a 175.5 pt
+            // frame with a three-row table under an 80 pt axis, runs 1-4 data 0 to 4.5 by halves, the step the frame takes untabled.)
+            guard !c.onSheet, let dt = c.dataTable, !horizontal, c.type != .scatter, !c.type.isPie else { return nil }
             // (On rows of 1.64 em whatever their faces: the steps were read
             // off Word for Mac's prints, and Word for Windows' zh-61aaad09
             // keeps the same four over its taller table.)
