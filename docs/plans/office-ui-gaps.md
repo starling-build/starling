@@ -283,7 +283,7 @@ Status: **works** = seen working on the simulator; **partly** = seen, with the g
 | Link and note cards | **works** (link) | A tap on a link shows a card with the address and Open / Edit / Remove. A cell note card was not seen. | `w-linktap.png` |
 | Ruler and tab stops | **partly** | The ruler shows with small markers (seen); dragging them by touch was not exercised. The Tabs dialog exists as the keyboardless path (not opened). | `w-linktap.png` |
 | Pictures, drag and drop | **partly** | The Photos / Files picker exists (`PicturePicker`); not exercised (no simulator photos). Drag from another app is missing. | |
-| Sheets cell entry | **works** | A numeric and formula key row (= + − * / ( ) : , $ F4) shows while editing a cell; a double tap on a cell enters edit mode (`after-sheets-doubletap-edit.png`); the first audit's miss was the driver, whose two `tap` commands could overlap on the slow debug simulator and read as a two-finger tap, so it now has `dtap`. The fill handle as a menu command: Fill Down / Fill Right are in the cell menu. | `x-keyrow.png` |
+| Sheets cell entry | **works** (key row gained ^ % & < > " 2026-11-27, `after-sheets-keyrow.png`) | A numeric and formula key row (= + − * / ( ) : , $ F4) shows while editing a cell; a double tap on a cell enters edit mode (`after-sheets-doubletap-edit.png`); the first audit's miss was the driver, whose two `tap` commands could overlap on the slow debug simulator and read as a two-finger tap, so it now has `dtap`. The fill handle as a menu command: Fill Down / Fill Right are in the cell menu. | `x-keyrow.png` |
 | Printing | **works** by code | `OfficeNativeShell.printPDF` hands the PDF to `UIPrintInteractionController`; not opened on the simulator. | |
 | Spelling | **works** | Slides shows the red wavy line under "okrege" and the system suggestion strip; `TextChecker` is UIKit. | `s-hold.png` |
 | Driver | **works** | `STARLING_SPIKE_INPUT` covers tap, hold, two-finger tap, drag, type and key inside the app, with logs through `simctl launch --console`. `OFFICE_DRIVE_EXPORT` remains the only export path. | |
@@ -291,8 +291,8 @@ Status: **works** = seen working on the simulator; **partly** = seen, with the g
 **Order of fixes (each its own PR, with screenshots):**
 
 1. ~~Slides: a context menu for a hold and a two-finger tap on text, a shape and a slide thumbnail (Sheets row/column header menu in the same area).~~ Done 2026-11-27, same PR as this audit.
-2. Dialogs as sheets, fields at 44 pt.
-3. 44 pt handles for pictures, shapes and the ruler.
+2. ~~Dialogs as sheets, fields at 44 pt.~~ Done 2026-11-27: `DialogShell` rises from the bottom edge on touch devices, text fields are `Chrome.fieldHeight` (44 pt on iOS, 30 on desktop); `after-dialog-sheet.png`.
+3. ~~44 pt handles for pictures, shapes and the ruler.~~ Done 2026-11-27: the hit areas were already up to 44 pt (picture, shape, ruler); the drawn handles are now 14 pt (rotate 18 pt) once a finger has touched; `after-handles-picture.png`, `after-handles-shape.png`.
 4. The Shift/Ctrl touch equivalents (a Select Multiple mode, an aspect-lock toggle).
 5. Format panes as a slide-over or bottom sheet.
 
