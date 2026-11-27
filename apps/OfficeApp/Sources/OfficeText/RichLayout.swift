@@ -2283,6 +2283,10 @@ public final class RichLayout {
         /// than under it: each laid out alone, painted `dy` below the box's
         /// top (pixels).
         var beside: [(layout: RichLayout, document: RichDocument, dy: Double, turn: (degrees: Double, x: Double, y: Double)?)] = []
+        /// Where such a group's boxes end, pixels below the box's text origin: `besideFeet[n]` for `beside[n]`, `flowFoot` for
+        /// the first box, set in the flow. nil where that box grows to its text or is turned.
+        var besideFeet: [Double?] = []
+        var flowFoot: Double? = nil
         var height: Double { layout.totalHeight }
         /// Where a table placed against the PAGE opens the header stands below the paper's
         /// top (points), if it does: Word sets it there, not at the header distance

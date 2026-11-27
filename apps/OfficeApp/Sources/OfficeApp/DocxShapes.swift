@@ -868,6 +868,7 @@ extension DocxFormat {
                             // one-line "工作" over "服務組" in Word's print.)
                             var part = RichTextBox.Part(first: first, top: y + t, height: max(0, h - t - bottom), atFoot: body?["anchor"] == "b",
                                                         inMiddle: body?["anchor"] == "ctr")
+                            if body?.first("a:spAutoFit") != nil { part.growsToText = true }
                             // (A box turned in its group: about its middle, in the
                             // frame's place.)
                             if Self.wordOnWindows, let rot = b.first("wps:spPr")?.first("a:xfrm")?["rot"].flatMap({ Double($0) }), rot != 0 {
