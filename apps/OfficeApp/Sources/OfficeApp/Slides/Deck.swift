@@ -394,6 +394,16 @@ struct SlideTransition: Equatable {
     /// shown as a fade, written back as it was until the slide's
     /// transition is changed here.
     var raw: String? = nil
+    /// Any other transition as the file wrote it (an empty one naming only a speed, an auto-advance
+    /// with no effect, PowerPoint's p14 timing wrapper), with the settings it was read as: written
+    /// back as it was while those settings are unchanged here.
+    var source: String? = nil
+    var sourceSettings: String? = nil
+
+    /// The settings a change here can touch (Advance Slide aside: written into a kept transition).
+    var settings: String { "\(kind)|\(direction)|\(duration)|\(vertical)|\(inward)|\(zoomIn)" }
+    /// What to write back as read, if anything: an undrawn transition always, any other while unchanged.
+    var kept: String? { raw ?? (sourceSettings == settings ? source : nil) }
 
     var name: String {
         switch kind {

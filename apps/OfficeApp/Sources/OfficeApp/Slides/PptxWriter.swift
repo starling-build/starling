@@ -352,7 +352,7 @@ enum PptxWriter {
         var transition = _transition(slide.transition, namespaces: &ns)
         // Kept as read, a transition's sound (`p:snd r:embed`) still names
         // the source slide's relationship: remap it, carrying the .wav.
-        if slide.transition.raw != nil, transition.containsSubstring("r:embed"), let src = slide.carryPart, let p = source {
+        if slide.transition.kept != nil, transition.containsSubstring("r:embed"), let src = slide.carryPart, let p = source {
             transition = w.kept(transition, sourcePart: src, package: p, builder: &b, patch: nil)
         }
         // Animations: as read while unchanged (or, for timing this app does
@@ -427,7 +427,7 @@ enum PptxWriter {
     }
 
     private static func _transition(_ t: SlideTransition, namespaces ns: inout String) -> String {
-        if let raw = t.raw {
+        if let raw = t.kept {
             for (prefix, uri) in [("mc", "http://schemas.openxmlformats.org/markup-compatibility/2006"),
                                   ("p14", "http://schemas.microsoft.com/office/powerpoint/2010/main")]
             where raw.containsSubstring("\(prefix):") && !ns.containsSubstring("xmlns:\(prefix)=") {
@@ -436,11 +436,15 @@ enum PptxWriter {
             // (Its Advance Slide settings are the ones set here: swapped into each transition tag.)
             var out = ""
             var rest = raw
-            while let r = rest.rangeOfSubstring("<p:transition ") ?? rest.rangeOfSubstring("<p:transition>") {
+            while let r = rest.rangeOfSubstring("<p:transition ") ?? rest.rangeOfSubstring("<p:transition>")
+                    ?? rest.rangeOfSubstring("<p:transition/>") {
                 out += rest[..<r.lowerBound] + "<p:transition"
-                let tail = String(rest[r.upperBound...])
+                let tail = String(rest[rest.index(r.lowerBound, offsetBy: "<p:transition".count)...])
                 guard let close = tail.firstIndex(of: ">") else { rest = tail; break }
+                // Its attributes (each with its leading space), the self-closing slash set aside.
                 var attrs = String(tail[..<close])
+                let selfClosing = attrs.hasSuffix("/")
+                if selfClosing { attrs.removeLast() }
                 for name in ["advClick", "advTm"] {
                     if let a = attrs.rangeOfSubstring(" \(name)=\""),
                        let e = attrs.rangeOfSubstring("\"", in: a.upperBound ..< attrs.endIndex) {
@@ -449,7 +453,7 @@ enum PptxWriter {
                 }
                 if !t.advanceOnClick { attrs += " advClick=\"0\"" }
                 if let after = t.advanceAfter { attrs += " advTm=\"\(Int((after * 1000).rounded()))\"" }
-                out += attrs.hasPrefix(" ") || attrs.isEmpty || attrs.hasPrefix("/") ? attrs : " " + attrs
+                out += attrs + (selfClosing ? "/" : "")
                 rest = String(tail[close...])
             }
             return out + rest
