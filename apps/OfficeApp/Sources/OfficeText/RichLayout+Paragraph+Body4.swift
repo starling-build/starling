@@ -91,7 +91,14 @@ extension _ParaFrame {
                         // (Without the face's own split the engine's line already holds the multiple: the text's line is that, the equation's its own
                         // ascent and descent plus the multiple's share of 1.1733 em or the plain text line. A lone 11 pt equation at 1.5 lines in dx2
                         // e6a6cc58 keeps the text's 20.7 pt step in Word's print; adding the multiple again made it 31.)
-                        else { height = max(advance, eqA[line] + eqD[line] + (style.lineSpacing - 1) * max(advance / style.lineSpacing, 1.1733 * eqS[line])) }
+                        // (Word's text line of a multiple holds its extra under the baseline, but the engine's strut line puts half of it over, so the text
+                        // line before the equation stands that half short of Word's and the one after it half lower: the equation's baseline goes down the half
+                        // and its line gives it back below. Lab fraclab, Sylfaen text at 1.08 lines: Word's step into a fraction's line grows 1.10 pt over single
+                        // spacing and the step out 1.20; the half stood all under the equation, 0.55 and 1.75.)
+                        else {
+                            height = max(advance, eqA[line] + eqD[line] + (style.lineSpacing - 1) * max(advance / style.lineSpacing, 1.1733 * eqS[line]))
+                            top = max(top, min(eqA[line] + (advance - advance / style.lineSpacing) / 2, height - d))
+                        }
                         // (On a lines grid the equation's line is whole pitches, the spare shared evenly over and under it, as at single spacing: Word's print of
                         // jpn-z22855378-6fca0f steps 32.28 into and 30.72 out of a 22.6 pt equation line at 1.5 spacing on an 18 pt grid, 36.0 = two pitches
                         // against the plain lines' 27.)

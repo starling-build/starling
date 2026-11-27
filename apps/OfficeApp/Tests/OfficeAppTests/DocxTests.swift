@@ -1733,6 +1733,49 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(pitch[2], 13.44, accuracy: 0.15, "the lines after it are plain again")
     }
 
+    /// An inline fraction between lines of Sylfaen (a face with no split of its own, so the engine's strut holds the multiple and
+    /// puts half its extra over the baseline) at 1.08 lines: Word's print of lab fraclab (cases D and E) steps 0.94pt further into
+    /// the fraction's line than at single spacing and 1.20pt further out of it. The half the line before held back used to stand
+    /// all under the equation: 0.55 in and 1.75 out.
+    func testAnEquationLineAtAMultipleTakesTheStrutHalfOverIt() throws {
+        let was = RichTextTheme.wordWindowsPages, onWin = DocxFormat.wordOnWindows, onFonts = OfficeFonts.wordOnWindows
+        RichTextTheme.wordWindowsPages = true; DocxFormat.wordOnWindows = true; OfficeFonts.wordOnWindows = true
+        defer { RichTextTheme.wordWindowsPages = was; DocxFormat.wordOnWindows = onWin; OfficeFonts.wordOnWindows = onFonts }
+        func steps(_ line: Int) throws -> (into: Double, out: Double) {
+            var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .a4))
+            let di = entries.firstIndex { $0.name == "word/document.xml" }!
+            var xml = String(decoding: entries[di].data, as: UTF8.self)
+            let body = try XCTUnwrap(xml.range(of: "<w:body>")), sect = try XCTUnwrap(xml.range(of: "<w:sectPr"))
+            let m = "xmlns:m=\"http://schemas.openxmlformats.org/officeDocument/2006/math\""
+            let syl = "<w:rPr><w:rFonts w:ascii=\"Sylfaen\" w:hAnsi=\"Sylfaen\"/><w:sz w:val=\"22\"/><w:szCs w:val=\"22\"/></w:rPr>"
+            let cm = "<w:rPr><w:rFonts w:ascii=\"Cambria Math\" w:hAnsi=\"Cambria Math\"/><w:sz w:val=\"22\"/><w:szCs w:val=\"22\"/></w:rPr>"
+            let pPr = "<w:pPr><w:spacing w:after=\"160\" w:line=\"\(line)\" w:lineRule=\"auto\"/>\(syl)</w:pPr>"
+            func r(_ s: String) -> String { "<m:r>\(cm)<m:t>\(s)</m:t></m:r>" }
+            let eq = "<m:oMath \(m)>" + r("x=") + "<m:f><m:num>" + r("0,81") + "</m:num><m:den>" + r("0,57") + "</m:den></m:f>" + r("=1,42") + "</m:oMath>"
+            xml.replaceSubrange(body.upperBound ..< sect.lowerBound, with:
+                "<w:p>\(pPr)<w:r>\(syl)<w:t>before</w:t></w:r></w:p><w:p>\(pPr)<w:r>\(syl)<w:t xml:space=\"preserve\">eq </w:t></w:r>\(eq)</w:p>"
+                + "<w:p>\(pPr)<w:r>\(syl)<w:t>after</w:t></w:r></w:p>")
+            entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+            let opened = try DocxFormat.read(try Zip.write(entries))
+            let setup = opened.pageSetup ?? .a4
+            let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+            theme.wordRules = true
+            theme.faceResolver = OfficeFonts.face
+            let l = RichLayout(theme: theme, paragraphCount: opened.document.paragraphs.count)
+            l.pageSetup = setup
+            l.width = setup.columnWidth * theme.pixelsPerPoint
+            l.ensureLaidOut(opened.document)
+            let base = (0 ..< 3).map { i -> Double in
+                let g = l.geometry(i), first = g.painter.computeLineMetrics().first?.baseline ?? 0
+                return (g.top + first + (RichLayout._paired(g.painter)?.shifts.first ?? 0)) / theme.pixelsPerPoint
+            }
+            return (base[1] - base[0], base[2] - base[1])
+        }
+        let single = try steps(240), multiple = try steps(259)
+        XCTAssertEqual(multiple.into - single.into, 0.94, accuracy: 0.25, "the step into the equation's line grows by the text line's extra")
+        XCTAssertEqual(multiple.out - single.out, 1.20, accuracy: 0.25, "and the step out of it by the equation's own")
+    }
+
     /// A paragraph that is one 12pt equation and a space, at 1.5 lines: the line is the equation's own height plus half
     /// the text's line, about 21pt, as in Word's print of dx2 e6a6cc58 (its "Davlat qarzi = β0 + ..." line, 0.4pt over the
     /// 20.7pt text step). With no visible text run to read the face from, the 1.5 used to be added to a line that already held it: 31pt.
