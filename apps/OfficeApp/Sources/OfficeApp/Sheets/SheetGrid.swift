@@ -1868,9 +1868,10 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             }
             commitEdit()
             // Shift extends from the selection's anchor column, as Excel's does.
-            let anchorCol = _chords.shift ? c.anchor.col : col
+            let extend = c.extendsSelection(shift: _chords.shift)
+            let anchorCol = extend ? c.anchor.col : col
             c.select(range: CellRange(top: 0, left: min(anchorCol, col), bottom: CellAddress.maxRows - 1, right: max(anchorCol, col)),
-                     active: _chords.shift ? c.active : CellAddress(row: scrollY > 0 ? rows.index(at: scrollY) : 0, col: col))
+                     active: extend ? c.active : CellAddress(row: scrollY > 0 ? rows.index(at: scrollY) : 0, col: col))
             _drag = .columns(anchor: anchorCol)
             if e.kind == .touch { _armHeaderHold(e.position, p, selection: c.selection) }
             return
@@ -1885,9 +1886,10 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 return
             }
             commitEdit()
-            let anchorRow = _chords.shift ? c.anchor.row : row
+            let extendRows = c.extendsSelection(shift: _chords.shift)
+            let anchorRow = extendRows ? c.anchor.row : row
             c.select(range: CellRange(top: min(anchorRow, row), left: 0, bottom: max(anchorRow, row), right: CellAddress.maxCols - 1),
-                     active: _chords.shift ? c.active : CellAddress(row: row, col: scrollX > 0 ? cols.index(at: scrollX) : 0))
+                     active: extendRows ? c.active : CellAddress(row: row, col: scrollX > 0 ? cols.index(at: scrollX) : 0))
             _drag = .rows(anchor: anchorRow)
             if e.kind == .touch { _armHeaderHold(e.position, p, selection: c.selection) }
             return
@@ -2040,7 +2042,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             return
         }
         _lastClick = (a, now)
-        c.select(a, extend: _chords.shift)
+        c.select(a, extend: c.extendsSelection(shift: _chords.shift))
     }
 
     private func _isBorderDoubleClick(_ axis: WorkbookController.Axis, _ index: Int) -> Bool {

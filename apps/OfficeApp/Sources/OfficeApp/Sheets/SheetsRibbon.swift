@@ -223,6 +223,11 @@ extension Ribbon {
         ]), Chrome.rows([
             Chrome.small(FluentSystemIcons.search, "Find", fluent) { [session] in session.onFind?(false) },
             Chrome.small(FluentSystemIcons.textGrammarWand, "Replace", fluent) { [session] in session.onFind?(true) },
+            // A finger has no Shift: while this is on, a tap on a cell, row or column heading extends the selection from its anchor.
+            Chrome.small(FluentSystemIcons.check, "Select Multiple", fluent, checked: wb.selectMultiple) {
+                wb.selectMultiple.toggle()
+                wb._notify(selectionOnly: true)
+            },
         ])])
         return [clipboard, font, alignment, number, styles, cells, editing]
     }
