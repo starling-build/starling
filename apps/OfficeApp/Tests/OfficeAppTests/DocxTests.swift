@@ -5437,6 +5437,39 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(before(inCell: true), 0, accuracy: 0.01, "in the same cell: alike, dropped")
     }
 
+    func testAContextualCellKeepsItsSpaceAfterBeforeTheNextCellOfItsRowAtCompat15() throws {
+        // gv-6ed2720360 (compat 15): a List Paragraph heading cell of 6pt
+        // after, contextual, beside an empty cell, fills its row by the 6pt
+        // in Word's print. Below compat 15 (zh-1a3c7aa0, mode 12) the space
+        // goes before the next cell of the same row.
+        let was = RichTextTheme.wordWindowsPages
+        RichTextTheme.wordWindowsPages = true
+        defer { RichTextTheme.wordWindowsPages = was }
+        func height(compat: Int) -> Double {
+            var a = RichParagraph(text: "one")
+            a.style.named = "ListParagraph"
+            a.style.contextualSpacing = true
+            a.style.spaceAfter = 6
+            a.cell = CellRef(table: "t", row: 0, column: 0)
+            a.style.spaceBefore = 0
+            var b = RichParagraph(text: "")
+            b.style.spaceBefore = 0
+            b.style.spaceAfter = 0
+            b.cell = CellRef(table: "t", row: 0, column: 1)
+            var doc = RichDocument(paragraphs: [a, b, RichParagraph(text: "")])
+            doc.tableColumns["t"] = [150, 150]
+            doc.readFromFile = true
+            doc.compatibilityMode = compat
+            let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+            theme.wordRules = true
+            let l = RichLayout(theme: theme, paragraphCount: 3)
+            l.width = 400
+            l.ensureLaidOut(doc)
+            return (l.geometry(2).top - l.geometry(0).top) / theme.pixelsPerPoint
+        }
+        XCTAssertEqual(height(compat: 15) - height(compat: 12), 6, accuracy: 0.6, "compat 15 keeps the 6pt in the row")
+    }
+
     func testAFirstLineCountReplacesTheStylesHangingCount() throws {
         // zh-06c46ba9 p70: style "一" hangs its first lines two characters
         // (hangingChars 200); the table's paragraphs say firstLineChars 0

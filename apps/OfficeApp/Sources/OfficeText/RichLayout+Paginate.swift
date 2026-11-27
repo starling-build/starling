@@ -3255,7 +3255,13 @@ extension RichLayout {
             // zh-1a3c7aa0's header row, three cells of one contextual
             // exact 12pt line over Normal's 8pt after, is 12.0pt in
             // Word's print, ours 20: only its last cell gave the space up.)
-            return a.table == b.table && (b.row >= a.row + a.rowSpan || b.row == a.row && a != b)
+            // (Only below compat 15: there a cell's last paragraph keeps its space after before the next cell of its row.
+            // gv-6ed2720360 (mode 15): a List Paragraph heading cell, 6 pt after, over an empty Normal cell fills its 19.3 pt
+            // row in Word's print, its text at the row's top though the cell centres; ours took the space away and set the
+            // line 2.94 pt down. xd 7d58f74e (mode 15) keeps it the same way; zh-1a3c7aa0 is mode 12.)
+            let sameRow = b.row == a.row && a != b && (document.compatibilityMode ?? 12) < 15
+            if b.row == a.row && a != b && !sameRow { RuleTrace.hit("word-contextual-spacing-stays-before-the-next-cell-at-compat-15") }
+            return a.table == b.table && (b.row >= a.row + a.rowSpan || sameRow)
         }
         // (Word for Windows, mode 14, xd 80c852b0 p2: a contextual list item over a table whose first cell's paragraph
         // is the same style gives its space after up too, 8pt, though the cell paragraph is no list item.)
