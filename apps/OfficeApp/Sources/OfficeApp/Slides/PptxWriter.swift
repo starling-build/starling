@@ -1371,7 +1371,7 @@ private struct SlideXML {
                 default: return "rect"
                 }
             }()
-            spPr += "<a:prstGeom prst=\"\(prst)\"><a:avLst/></a:prstGeom>"
+            spPr += "<a:prstGeom prst=\"\(prst)\">\(Self._avLst(s.adjusts))</a:prstGeom>"
             var fillXML: String, lineXML: String
             switch s.kind {
             case .placeholder:
@@ -1422,7 +1422,7 @@ private struct SlideXML {
             var xml = "<p:sp><p:nvSpPr>\(nv)<p:nvPr>\(ph)</p:nvPr></p:nvSpPr><p:spPr>\(spPr)</p:spPr>\(look?.style ?? "")"
             if let doc = s.text {
                 let anchor = s.anchor.rawValue
-                let ins = s.insets
+                let ins = s.insets.minusShare(s.shapeInsets)   // the frame's own margins, not the preset's text rectangle
                 let fit: String
                 if s.autofit {
                     // Shrink to fit — a text box can say so too.
@@ -1545,6 +1545,10 @@ private struct SlideXML {
             }
             if let spPr = node.first("p:spPr") {
                 func after(_ names: Set<String>) -> Int { (spPr.children.lastIndex { names.contains($0.name) } ?? -1) + 1 }
+                if read.adjusts != s.adjusts, let geom = spPr.first("a:prstGeom") {
+                    geom.children.removeAll { $0.name == "a:avLst" }
+                    geom.children.insert(contentsOf: _fragment(_avLst(s.adjusts)), at: 0)
+                }
                 if fillChanged {
                     spPr.children.removeAll { fills.contains($0.name) }
                     spPr.children.insert(contentsOf: _fragment(fillXML), at: after(["a:xfrm", "a:custGeom", "a:prstGeom"]))
@@ -1556,9 +1560,11 @@ private struct SlideXML {
             }
             if let body = node.first("p:txBody")?.first("a:bodyPr") {
                 if read.anchor != s.anchor { body.attrs["anchor"] = s.anchor.rawValue }
-                if read.insets != s.insets {
-                    body.attrs["lIns"] = "\(_emu(s.insets.left))"; body.attrs["tIns"] = "\(_emu(s.insets.top))"
-                    body.attrs["rIns"] = "\(_emu(s.insets.right))"; body.attrs["bIns"] = "\(_emu(s.insets.bottom))"
+                // The text frame's own margins: the geometry's share (an oval's inscribed box) is the preset's, not the file's.
+                let own = s.insets.minusShare(s.shapeInsets)
+                if read.insets != own {
+                    body.attrs["lIns"] = "\(_emu(own.left))"; body.attrs["tIns"] = "\(_emu(own.top))"
+                    body.attrs["rIns"] = "\(_emu(own.right))"; body.attrs["bIns"] = "\(_emu(own.bottom))"
                 }
                 if let fit {
                     body.children.removeAll { ["a:normAutofit", "a:noAutofit", "a:spAutoFit"].contains($0.name) }
