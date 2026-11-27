@@ -122,7 +122,7 @@ final class SizeDialogState: State<StatefulWidget> {
     override func build(_ context: BuildContext) -> Widget {
         let page = Padding(padding: EdgeInsets(all: 8), child: Column(crossAxisAlignment: .stretch, children: [
             Text("\(_w.title) (\(_w.unit))"),
-            SizedBox(key: ValueKey("size-input"), width: 120, height: 30, child: FluentTextBox(controller: _field)),
+            SizedBox(key: ValueKey("size-input"), width: 120, height: Chrome.fieldHeight, child: FluentTextBox(controller: _field)),
         ]))
         return DialogShell(
             title: _w.title, page: page, width: 300,

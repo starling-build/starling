@@ -12,8 +12,10 @@
 // simulator screenshot (2 px per pt) is the view's y plus 24, and a UIKit touch arrives in the same view coordinates.
 //   <ms> tap  <view> <x> <y>
 //   <ms> drag <view> <x0> <y0> <x1> <y1> [steps]
+//   <ms> dtap <view> <x> <y>          (two taps back to back: a double tap)
 //   <ms> hold <view> <x> <y> [ms]     (one finger held still, default 700 ms: a long press)
 //   <ms> twotap <view> <x1> <y1> <x2> <y2>   (two fingers down and up together, in place)
+//   <ms> twist <view> <x> <y> <radius> <degrees>   (two fingers either side of x y, turned together)
 //   <ms> type <view> <text...>        (text up to end of line; \n is Return)
 //   <ms> key  <view> <keysym>         (decimal or 0x..; 0xFF08 Backspace, 0xFF0D Enter)
 //   <ms> log  <message...>            (a marker in the output)
@@ -69,6 +71,16 @@ enum UIKitScriptedInput {
                 post(v, [(.up, nums[1], nums[2], id), (.remove, nums[1], nums[2], id)])
                 report("after tap")
             }
+        case "dtap" where nums.count >= 3:
+            // Two taps back to back, posted in one go: a slow frame between two `tap` commands can run the second
+            // one's press before the first one's release, which the app reads as a two-finger tap.
+            let v = Int(nums[0])
+            report("dtap view \(v) at \(nums[1]),\(nums[2])")
+            for _ in 0 ..< 2 {
+                let id = pointerId()
+                post(v, [(.add, nums[1], nums[2], id), (.down, nums[1], nums[2], id)])
+                post(v, [(.up, nums[1], nums[2], id), (.remove, nums[1], nums[2], id)])
+            }
         case "hold" where nums.count >= 3:
             // A finger held still: down, then up after `nums[3]` ms (default 700), for long-press paths.
             let v = Int(nums[0]), ms = nums.count > 3 ? Int(nums[3]) : 700
@@ -90,6 +102,32 @@ enum UIKitScriptedInput {
                 post(v, [(.up, nums[1], nums[2], a), (.remove, nums[1], nums[2], a)])
                 post(v, [(.up, nums[3], nums[4], b), (.remove, nums[3], nums[4], b)])
                 report("after twotap")
+            }
+        case "twist" where nums.count >= 5:
+            // Two fingers down on either side of x y, `r` points from it, then turned together by `degrees`: view x y r degrees.
+            let v = Int(nums[0]), cx = nums[1], cy = nums[2], r = nums[3], deg = nums[4]
+            let steps = 12
+            report("twist view \(v) at \(cx),\(cy) radius \(r) by \(deg) degrees")
+            let a = pointerId(), b = pointerId()
+            func at(_ f: Double) -> ((Double, Double), (Double, Double)) {
+                let t = deg * f * .pi / 180
+                return ((cx - r * cos(t), cy - r * sin(t)), (cx + r * cos(t), cy + r * sin(t)))
+            }
+            let s = at(0)
+            post(v, [(.add, s.0.0, s.0.1, a), (.down, s.0.0, s.0.1, a)])
+            post(v, [(.add, s.1.0, s.1.1, b), (.down, s.1.0, s.1.1, b)])
+            for i in 1...steps {
+                let p = at(Double(i) / Double(steps))
+                DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(30 * i)) {
+                    post(v, [(.move, p.0.0, p.0.1, a)])
+                    post(v, [(.move, p.1.0, p.1.1, b)])
+                }
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(30 * steps + 30)) {
+                let e = at(1)
+                post(v, [(.up, e.0.0, e.0.1, a), (.remove, e.0.0, e.0.1, a)])
+                post(v, [(.up, e.1.0, e.1.1, b), (.remove, e.1.0, e.1.1, b)])
+                report("after twist")
             }
         case "drag" where nums.count >= 5:
             let v = Int(nums[0]), steps = nums.count > 5 ? max(1, Int(nums[5])) : 12

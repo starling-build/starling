@@ -113,12 +113,12 @@ final class NameManagerDialogState: State<StatefulWidget> {
             list,
             SizedBox(width: nil, height: 10, child: nil),
             Text("Name", style: fluent.typography.caption),
-            SizedBox(width: nil, height: 30, child: FluentTextBox(
+            SizedBox(width: nil, height: Chrome.fieldHeight, child: FluentTextBox(
                 key: ValueKey("name-manager-name"), controller: _nameField,
                 onSubmitted: { [weak self] _ in self?.apply() }, autofocus: true)),
             SizedBox(width: nil, height: 8, child: nil),
             Text("Refers to", style: fluent.typography.caption),
-            SizedBox(width: nil, height: 30, child: FluentTextBox(
+            SizedBox(width: nil, height: Chrome.fieldHeight, child: FluentTextBox(
                 key: ValueKey("name-manager-refers"), controller: _refersField,
                 placeholderText: "=Sheet1!$A$1:$B$4",
                 onSubmitted: { [weak self] _ in self?.apply() })),

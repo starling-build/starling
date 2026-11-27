@@ -77,7 +77,7 @@ final class ChartFormDialogState: State<StatefulWidget> {
         for (k, role) in roles.enumerated() {
             rows.append(Row(children: [
                 SizedBox(width: 130, height: nil, child: Text(role + ":")),
-                SizedBox(width: 260, height: nil, child: FluentTextBox(key: ValueKey("chartform-\(k)"), controller: _fields[k], placeholderText: "Sheet1!$D$2:$D$6")),
+                SizedBox(width: 260, height: Chrome.touchFieldHeight, child: FluentTextBox(key: ValueKey("chartform-\(k)"), controller: _fields[k], placeholderText: "Sheet1!$D$2:$D$6")),
             ]))
             rows.append(gap(6))
         }

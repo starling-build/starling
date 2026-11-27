@@ -39,7 +39,7 @@ final class NewStyleDialogState: State<StatefulWidget> {
         DialogShell(title: "Create New Style from Formatting", page:
             Row(crossAxisAlignment: .center, children: [
                 SizedBox(width: 70, height: nil, child: Text("Name:")),
-                SizedBox(width: 200, height: 30, child: NSKeyed("ns-name", FluentTextBox(
+                SizedBox(width: 200, height: Chrome.fieldHeight, child: NSKeyed("ns-name", FluentTextBox(
                     controller: _text, onChanged: { [weak self] _ in self?.setState {} },
                     onSubmitted: { [weak self] _ in if let n = self?.name { self?._w.onOK(n) } }))),
             ]),

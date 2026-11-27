@@ -68,6 +68,15 @@ final class OfficeScene {
     /// picture panel stays.
     var pictureRequested: ((_ done: @escaping (String?) -> Void) -> Void)?
 
+    /// A picture was dragged onto the window: the open editor puts it in the document as Insert > Picture would.
+    /// Set by the editor while it is mounted, withdrawn on dispose.
+    private(set) var pictureDropped: ((String) -> Void)?
+    private var dropOwner: ObjectIdentifier?
+    func setPictureDrop(_ handler: ((String) -> Void)?, owner: AnyObject) {
+        if let handler { pictureDropped = handler; dropOwner = ObjectIdentifier(owner) }
+        else if dropOwner == ObjectIdentifier(owner) { pictureDropped = nil; dropOwner = nil }
+    }
+
     /// The user asked for Open (or Close). Returns true if the host took it
     /// over, so the editor does not show its own file panel.
     var openRequested: (() -> Bool)?
@@ -379,7 +388,22 @@ enum OfficeHost {
         let symbol: String
         var isOn = false
         var isEnabled = true
+        /// Choices under the button: it opens a menu of them (Wrap, Fill, Sort); `action` is unused then.
+        var children: [ToolbarButton] = []
         let action: () -> Void
+    }
+
+    /// The few colours a touch toolbar offers under Fill and Outline (the ribbon's full grid is for a pointer).
+    static let quickColors: [(name: String, color: Color)] = [
+        ("Black", Color(0xFF00_0000)), ("White", Color(0xFFFF_FFFF)), ("Red", Color(0xFFE8_2C2C)), ("Orange", Color(0xFFF5_8220)),
+        ("Yellow", Color(0xFFFF_E600)), ("Green", Color(0xFF3F_A34D)), ("Blue", Color(0xFF2B_6CD8)), ("Purple", Color(0xFF7B_3FBF)),
+    ]
+
+    /// A Fill or Outline button: a menu of `quickColors` and a "No …" entry; `apply` gets the colour, nil for none.
+    static func colorButton(id: String, title: String, symbol: String, none: String, apply: @escaping (Color?) -> Void) -> ToolbarButton {
+        var choices: [ToolbarButton] = quickColors.map { q in .init(id: "\(id)-\(q.name.lowercased())", title: q.name, symbol: "") { apply(q.color) } }
+        choices.append(.init(id: "\(id)-none", title: none, symbol: "") { apply(nil) })
+        return .init(id: id, title: title, symbol: symbol, children: choices) {}
     }
 
     /// One entry of the host's edit menu over a selection (Cut, Copy, ...).

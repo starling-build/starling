@@ -96,7 +96,7 @@ final class TableDialogState: State<StatefulWidget> {
 
     private func _gap(_ h: Double = 8) -> Widget { SizedBox(width: nil, height: h, child: nil) }
     private func _field(_ id: String, _ c: TextEditingController, _ submit: @escaping () -> Void) -> Widget {
-        SizedBox(width: nil, height: 30, child: FluentTextBox(
+        SizedBox(width: nil, height: Chrome.fieldHeight, child: FluentTextBox(
             key: ValueKey(id), controller: c, placeholderText: "", onSubmitted: { _ in submit() }))
     }
     private func _styleCombo() -> Widget {

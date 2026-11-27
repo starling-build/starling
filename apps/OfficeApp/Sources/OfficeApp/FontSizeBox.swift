@@ -50,7 +50,7 @@ final class FontSizeBoxState: State<StatefulWidget> {
     override func build(_ context: any BuildContext) -> Widget {
         let fluent = FluentTheme.of(context)
         return Row(crossAxisAlignment: .center, children: [
-            SizedBox(width: 46, height: 30, child: FluentTextBox(
+            SizedBox(width: 46, height: Chrome.fieldHeight, child: FluentTextBox(
                 controller: _text, placeholderText: "Font Size",
                 onSubmitted: { [weak self] _ in self?.commit() },
                 onFocusChanged: { [weak self] f in self?._focused = f; if !f { self?.commit() } })),

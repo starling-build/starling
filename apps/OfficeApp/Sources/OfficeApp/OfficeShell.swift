@@ -139,6 +139,7 @@ final class OfficeShellState: State<StatefulWidget> {
         _recent = _loadRecent()
         _wireSession()
         officeScene.registerFlush(owner: self) { [weak self] in self?._autosaveNow() }
+        officeScene.setPictureDrop({ [weak self] path in self?._insertPicture(path) }, owner: self)
         controller.addListener({ [weak self] in self?._publishToolbar() }, owner: self)
         _publishToolbar()
         // `starling.debug('layout')` from the browser's console or a script:
@@ -258,16 +259,43 @@ final class OfficeShellState: State<StatefulWidget> {
                 .init(id: "ctx-row-del", title: "Delete Row", symbol: "minus.rectangle") { [weak c] in c?.deleteRow() },
                 .init(id: "ctx-col-add", title: "Insert Column Right", symbol: "plus.rectangle.portrait") { [weak c] in c?.insertColumn(after: true) },
                 .init(id: "ctx-col-del", title: "Delete Column", symbol: "minus.rectangle.portrait") { [weak c] in c?.deleteColumn() },
+                .init(id: "ctx-cell-merge", title: "Merge Cells", symbol: "rectangle.split.2x1") { [weak c] in c?.mergeCells() },
+                .init(id: "ctx-table-del", title: "Delete Table", symbol: "trash.slash") { [weak c] in c?.deleteTable() },
             ]
         }
-        if let i = c.selectedImageIndex, i < c.document.paragraphs.count, let image = c.document.paragraphs[i].image {
+        // A picture or shape, whole-paragraph or inline in a line of text: its size, wrap, crop and aspect, and for a shape its colours.
+        let hit = c.selectedInlineImage
+        let pic: (index: Int, inline: String?)? = c.selectedImageIndex.map { ($0, nil) } ?? hit.map { ($0.paragraph, $0.id) }
+        if let (i, inline) = pic, i < c.document.paragraphs.count,
+           let image = inline.map({ c.document.paragraphs[i].inlineImages[$0] }) ?? c.document.paragraphs[i].image {
+            let isShape = session.imageTab(at: i, inline: inline) == .shapeFormat
+            let wrap = c.pictureWrap(at: i, inline: inline)
+            var wraps: [OfficeScene.ToolbarButton] = [
+                .init(id: "ctx-wrap-inline", title: "In Line with Text", symbol: "", isOn: wrap == nil, isEnabled: wrap != nil) { [weak c] in _ = c?.setInLine(at: i, inline: inline) },
+            ]
+            wraps += PictureWrap.allCases.map { w in
+                .init(id: "ctx-wrap-\(w.rawValue)", title: w.title, symbol: "", isOn: wrap == w, isEnabled: wrap != w) { [weak c] in _ = c?.setPictureWrap(at: i, inline: inline, w) }
+            }
+            // As the ribbon: only a picture in a line of text, or one that already floats, has a wrap to choose.
+            if c.isInLine(at: i, inline: inline) || wrap != nil {
+                context.append(.init(id: "ctx-pic-wrap", title: "Wrap Text", symbol: "text.below.photo", children: wraps) {})
+            }
+            if isShape {
+                context.append(OfficeHost.colorButton(id: "ctx-shape-fill", title: "Shape Fill", symbol: "paintpalette", none: "No Fill") { [weak c] color in _ = c?.setShapeFill(at: i, inline: inline, color) })
+                context.append(OfficeHost.colorButton(id: "ctx-shape-outline", title: "Shape Outline", symbol: "square.dashed", none: "No Outline") { [weak c] color in _ = c?.setShapeOutline(at: i, inline: inline, color) })
+            } else {
+                context.append(.init(id: "ctx-pic-crop", title: "Crop", symbol: "crop") { [weak session] in session?.onPictureDialog?(.crop) })
+            }
             context += [
                 .init(id: "ctx-pic-fit", title: "Fit Picture to Width", symbol: "arrow.left.and.right") { [weak c, weak session] in
                     guard let c, let session else { return }
                     let w = session.pageSetup.columnWidth
-                    c.setImageSize(at: i, width: w, height: w * image.height / max(1, image.width))
+                    if let inline { c.setInlineImageSize(in: i, id: inline, width: w, height: w * image.height / max(1, image.width)) }
+                    else { c.setImageSize(at: i, width: w, height: w * image.height / max(1, image.width)) }
                 },
-                .init(id: "ctx-pic-del", title: "Delete Picture", symbol: "trash") { [weak c] in c?.deleteForward() },
+                .init(id: "ctx-pic-lock", title: c.pictureAspectLock ? "Unlock Aspect Ratio" : "Lock Aspect Ratio",
+                      symbol: c.pictureAspectLock ? "lock" : "lock.open") { [weak session] in session?.onToggleAspectLock?() },
+                .init(id: "ctx-pic-del", title: isShape ? "Delete Shape" : "Delete Picture", symbol: "trash") { [weak c] in c?.deleteForward() },
             ]
         }
         officeScene.publishToolbar(.init(
@@ -285,6 +313,7 @@ final class OfficeShellState: State<StatefulWidget> {
     override func dispose() {
         officeScene.publishToolbar(nil, owner: self)
         officeScene.unregisterFlush(owner: self)
+        officeScene.setPictureDrop(nil, owner: self)
         officeScene.setDocumentPath(nil, owner: self)
         _search.dispose()
         _findQuery.dispose()
@@ -321,6 +350,11 @@ final class OfficeShellState: State<StatefulWidget> {
         session.onToggleRuler = { [weak self] in
             guard let self else { return }
             self.setState { self.session.showRuler.toggle() }
+        }
+        session.onToggleAspectLock = { [weak self] in
+            guard let self else { return }
+            self.session.controller.pictureAspectLock.toggle()
+            self.setState { self.session.summary = self.session.summarize() }
         }
         session.onToggleNavigation = { [weak self] in
             guard let self else { return }
@@ -1362,6 +1396,7 @@ final class OfficeShellState: State<StatefulWidget> {
             item("Original Size", enabled: image.naturalWidth != nil) {
                 if let nw = image.naturalWidth, let nh = image.naturalHeight { c.setImageSize(at: i, width: nw, height: nh) }
             }
+            item(c.pictureAspectLock ? "Unlock Aspect Ratio" : "Lock Aspect Ratio") { [weak self] in self?.session.onToggleAspectLock?() }
             item("Delete Picture") { c.deleteForward() }
         }
         if c.isInCell {
@@ -1686,8 +1721,19 @@ final class OfficeShellState: State<StatefulWidget> {
         } else {
             if session.showNavigation, let nav = sidePanes.first { area.append(nav) }
             area.append(Expanded(child: Column(crossAxisAlignment: .stretch, children: pages)))
-            if session.showStyles, let styles = sidePanes.last { area.append(styles) }
-            column.append(Expanded(child: Row(crossAxisAlignment: .stretch, children: area)))
+            if session.showStyles, let styles = sidePanes.last {
+                // On a touch device the Styles pane floats over the page's right edge (the Navigation pane stays docked on the left).
+                if PaneArrangement.isTouchDevice {
+                    column.append(Expanded(child: PaneArrangement.arrange(
+                        style: .slideOver, fluent: fluent,
+                        document: Expanded(child: Row(crossAxisAlignment: .stretch, children: area)), docked: [], newest: styles)))
+                } else {
+                    area.append(styles)
+                    column.append(Expanded(child: Row(crossAxisAlignment: .stretch, children: area)))
+                }
+            } else {
+                column.append(Expanded(child: Row(crossAxisAlignment: .stretch, children: area)))
+            }
         }
         column.append(StatusBar(session: session, message: _status ?? _linkHover.map { "⌘-click to open \($0)".keys }))
 

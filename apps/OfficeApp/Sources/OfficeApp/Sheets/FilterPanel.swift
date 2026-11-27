@@ -124,7 +124,7 @@ final class FilterPanelState: State<StatefulWidget> {
                 action(FluentSystemIcons.grid, "Date Filters…") { c.onCommand?(.columnFilter(col: col, kind: "Date")) },
                 action(FluentSystemIcons.paintBrush, "Filter by Colour…") { c.onCommand?(.columnFilter(col: col, kind: "Colour")) },
                 Chrome.gap(6),
-                SizedBox(width: nil, height: 30, child: FluentTextBox(
+                SizedBox(width: nil, height: Chrome.fieldHeight, child: FluentTextBox(
                     controller: _search, placeholderText: "Search",
                     onChanged: { [weak self] q in self?.setState { self?._query = q } },
                     // (The box takes the keyboard as the panel opens: a

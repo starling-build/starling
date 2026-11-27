@@ -108,6 +108,9 @@ final class DialogShellState: State<StatefulWidget> {
 
     func select(_ index: Int) { setState { self.selectedTab = index } }
 
+    /// EditorToolbar.height, which this module cannot see.
+    private static let softKeyboardBar = 44.0
+
     override func build(_ context: any BuildContext) -> Widget {
         let fluent = FluentTheme.of(context)
         let tabs = _w.tabs
@@ -116,6 +119,11 @@ final class DialogShellState: State<StatefulWidget> {
         var keyboard = 0.0, viewWidth = Double.infinity
         if let view = _hostView(context), view.devicePixelRatio > 0 {
             keyboard = view.viewInsets.bottom / view.devicePixelRatio
+            #if os(iOS)
+            // The bar of buttons over the soft keyboard (EditorToolbar, 44 pt) is a UIKit view the keyboard's inset
+            // does not count: without this it covers the sheet's OK and Cancel.
+            if keyboard > 150 { keyboard += Self.softKeyboardBar }   // (EditorToolbar shows only for a docked keyboard: over 150 pt)
+            #endif
             viewWidth = view.physicalSize.width / view.devicePixelRatio
         }
         #if os(iOS)
@@ -145,19 +153,24 @@ final class DialogShellState: State<StatefulWidget> {
             button(Button(onPressed: { [weak self] in self?._w.onCancel() }, child: Text(_w.cancelLabel))),
         ]))
         let card = Column(mainAxisSize: .min, crossAxisAlignment: .start, children: children)
+        // On a touch device the dialog is a sheet: it rises from the bottom edge, flush with the soft keyboard (or the
+        // screen), with rounded top corners and no margin below; elsewhere it is a card in the middle of the window.
+        let radius = touch ? BorderRadius.vertical(top: Radius(circular: 14), bottom: Radius.zero) : BorderRadius.circular(8)
+        let panel = SizedBox(width: min(_w.width, viewWidth - 32), height: nil, child: DecoratedBox(
+            decoration: BoxDecoration(color: OfficeAppearance.surface(fluent),
+                                      border: Border.all(color: fluent.resources.controlStrokeColorDefault, width: 1),
+                                      borderRadius: radius,
+                                      boxShadow: [BoxShadow(color: Color(0x40000000), offset: Offset(0, touch ? -4 : 8), blurRadius: 24)]),
+            child: Padding(padding: EdgeInsets(all: 24), child: KeyboardRegion(name: "dialog", modal: true, child: card))))
         // A modal sheet: the dimmed window behind it takes no clicks.
         return Stack(children: [
             Positioned(left: 0, top: 0, right: 0, bottom: 0, child: Listener(
                 behavior: .opaque,
                 child: ColoredBox(color: Color(0x33000000), child: SizedBox(expand: ())))),
             Positioned(left: 0, top: 0, right: 0, bottom: 0, child: Padding(
-                padding: EdgeInsets(left: 16, top: 24, right: 16, bottom: 24 + keyboard),
-                child: Center(child: SizedBox(width: min(_w.width, viewWidth - 32), height: nil, child: DecoratedBox(
-                decoration: BoxDecoration(color: OfficeAppearance.surface(fluent),
-                                          border: Border.all(color: fluent.resources.controlStrokeColorDefault, width: 1),
-                                          borderRadius: BorderRadius.circular(8),
-                                          boxShadow: [BoxShadow(color: Color(0x40000000), offset: Offset(0, 8), blurRadius: 24)]),
-                child: Padding(padding: EdgeInsets(all: 24), child: KeyboardRegion(name: "dialog", modal: true, child: card))))))),
+                padding: touch ? EdgeInsets(left: 16, top: 24, right: 16, bottom: keyboard)
+                               : EdgeInsets(left: 16, top: 24, right: 16, bottom: 24 + keyboard),
+                child: touch ? Align(alignment: Alignment.bottomCenter, child: panel) : Center(child: panel))),
         ])
     }
 }

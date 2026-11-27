@@ -107,7 +107,7 @@ final class FormatShapePaneState: State<StatefulWidget> {
             let c = _field(id, shown)
             return Row(children: [
                 SizedBox(width: 110, height: nil, child: Text(label, style: caption)),
-                SizedBox(key: ValueKey(id), width: 90, height: 30, child: FluentTextBox(
+                SizedBox(key: ValueKey(id), width: 90, height: Chrome.fieldHeight, child: FluentTextBox(
                     controller: c,
                     onSubmitted: { [weak self] text in
                         let t = FormatShapePaneState.digits(text)
@@ -123,7 +123,7 @@ final class FormatShapePaneState: State<StatefulWidget> {
             let c = _field(id, shown)
             return Row(children: [
                 SizedBox(width: 110, height: nil, child: Text(label, style: caption)),
-                SizedBox(key: ValueKey(id), width: 90, height: 30, child: FluentTextBox(
+                SizedBox(key: ValueKey(id), width: 90, height: Chrome.fieldHeight, child: FluentTextBox(
                     controller: c,
                     onSubmitted: { [weak self] text in
                         if let v = Self.parseHex(text) { apply(Color((colour.map { Int64($0.value) & 0xFF00_0000 } ?? Int64(0xFF00_0000)) | Int64(v))) }
@@ -224,7 +224,7 @@ final class FormatShapePaneState: State<StatefulWidget> {
                 let hc = _field(hexId, hexShown), pc = _field(posId, posShown)
                 gr.append(Row(children: [
                     SizedBox(width: 44, height: nil, child: Text("Stop \(i + 1)", style: caption)),
-                    SizedBox(key: ValueKey(hexId), width: 82, height: 30, child: FluentTextBox(
+                    SizedBox(key: ValueKey(hexId), width: 82, height: Chrome.fieldHeight, child: FluentTextBox(
                         controller: hc,
                         onSubmitted: { [weak self] text in
                             if let v = Self.parseHex(text) {
@@ -235,7 +235,7 @@ final class FormatShapePaneState: State<StatefulWidget> {
                             } else { hc.text = hexShown; self?._shown[hexId] = hexShown }
                         })),
                     SizedBox(width: 6, height: nil, child: nil),
-                    SizedBox(key: ValueKey(posId), width: 50, height: 30, child: FluentTextBox(
+                    SizedBox(key: ValueKey(posId), width: 50, height: Chrome.fieldHeight, child: FluentTextBox(
                         controller: pc,
                         onSubmitted: { [weak self] text in
                             if let v = Double(Self.digits(text)), v >= 0, v <= 100 {
@@ -311,7 +311,7 @@ final class FormatShapePaneState: State<StatefulWidget> {
             row("fmt.left", "Horizontal", box.map { Self.text($0.left) } ?? "", min: -100000) { deck.setPosition(left: $0) }, gap(6),
             row("fmt.top", "Vertical", box.map { Self.text($0.top) } ?? "", min: -100000) { deck.setPosition(top: $0) }, gap(14),
             Text("Alt text", style: caption), gap(4),
-            SizedBox(key: ValueKey("fmt.alt"), width: 240, height: 30, child: FluentTextBox(
+            SizedBox(key: ValueKey("fmt.alt"), width: 240, height: Chrome.fieldHeight, child: FluentTextBox(
                 controller: alt, placeholderText: hasPicture ? "Describe the picture" : "Pictures only",
                 onSubmitted: { text in deck.setAltText(text) }, enabled: hasPicture)), gap(14),
             effects,

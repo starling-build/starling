@@ -132,6 +132,7 @@ final class SheetsShellState: State<StatefulWidget> {
         // Whatever AutoSave has not yet written: a window's host closing (or the app quitting) must not drop what is unsaved. On iPad
         // the workbook is written to its own file; on the Mac, to a recovery copy beside it (as Writer does) that the
         // next open offers, and the file itself is left as the user last saved it.
+        officeScene.setPictureDrop({ [weak self] path in self?._insertPicture(path) }, owner: self)
         officeScene.registerFlush(owner: self) { [weak self] in
             guard let self, self.session.dirty, let path = self.session.path,
                   ["xlsx", "csv", "tsv"].contains(path.pathExtension.lowercased()) else { return }
@@ -205,6 +206,7 @@ final class SheetsShellState: State<StatefulWidget> {
     override func dispose() {
         officeScene.publishToolbar(nil, owner: self)
         officeScene.unregisterFlush(owner: self)
+        officeScene.setPictureDrop(nil, owner: self)
         officeScene.setDocumentPath(nil, owner: self)
         wb.removeListeners(owner: self)
         _formula.dispose()
@@ -364,11 +366,20 @@ final class SheetsShellState: State<StatefulWidget> {
                 .init(id: "ctx-cell-sum", title: "AutoSum", symbol: "sum") { [weak wb] in if let wb { Ribbon._autoSum(wb) } },
                 .init(id: "ctx-cell-currency", title: "Currency", symbol: "dollarsign") { [weak wb] in wb?.setStyle { $0.numberFormat = "$#,##0.00" } },
                 .init(id: "ctx-cell-percent", title: "Percent Style", symbol: "percent") { [weak wb] in wb?.setStyle { $0.numberFormat = "0%" } },
+                OfficeHost.colorButton(id: "ctx-cell-fill", title: "Fill Color", symbol: "paintpalette", none: "No Fill") { [weak wb] color in
+                    wb?.setStyle { $0.fill = color.map { UInt32(truncatingIfNeeded: $0.value) & 0xFFFFFF } }
+                },
+                .init(id: "ctx-cell-sort", title: "Sort", symbol: "arrow.up.arrow.down", children: [
+                    .init(id: "ctx-sort-az", title: "Sort A to Z", symbol: "") { [weak wb] in wb?.sortSelection(ascending: true) },
+                    .init(id: "ctx-sort-za", title: "Sort Z to A", symbol: "") { [weak wb] in wb?.sortSelection(ascending: false) },
+                ]) {},
                 .init(id: "ctx-cell-clear", title: "Clear Contents", symbol: "eraser") { [weak wb] in wb?.clearContents() },
+                .init(id: "ctx-cell-format", title: "Format Cells", symbol: "number") { [weak self] in self?._openFormatCells() },
             ]), owner: self)
     }
 
-    /// The formula keys: each types its text at the caret, F4 cycles the reference at the caret absolute and relative.
+    /// The formula keys: each types its text at the caret (the arithmetic, comparison and text operators, brackets, the range
+    /// and list separators and the absolute-reference `$`), F4 cycles the reference at the caret absolute and relative.
     private static func _formulaKeys(_ grid: @escaping () -> SheetGridState?) -> [OfficeScene.ToolbarButton] {
         func key(_ shown: String, _ typed: String, _ name: String) -> OfficeScene.ToolbarButton {
             .init(id: "ctx-key-\(name)", title: shown, symbol: "") { grid()?.typeText(typed) }
@@ -377,6 +388,10 @@ final class SheetsShellState: State<StatefulWidget> {
             key("=", "=", "equals"), key("+", "+", "plus"), key("−", "-", "minus"), key("*", "*", "times"), key("/", "/", "divide"),
             key("(", "(", "open"), key(")", ")", "close"), key(":", ":", "colon"), key(",", ",", "comma"), key("$", "$", "dollar"),
             .init(id: "ctx-key-f4", title: "F4", symbol: "") { grid()?.cycleAbsoluteReference() },
+            // The rest of a formula's operators, which sit two pages deep on the soft keyboard. After F4, so a narrow bar
+            // folds these into More first.
+            key("^", "^", "power"), key("%", "%", "percent"), key("&", "&", "concat"),
+            key("<", "<", "less"), key(">", ">", "greater"), key("\"", "\"", "quote"),
         ]
     }
 
@@ -1653,6 +1668,7 @@ final class SheetsShellState: State<StatefulWidget> {
         if case .cells = area {
             item("Fill Down") { c.fillDown() }
             item("Fill Right") { c.fillRight() }
+            item("Fill Series…") { [weak self] in self?.setState { self?._seriesOpen = true } }
         }
         item("Clear Contents") { c.clearContents() }
         item("Clear Formats") { c.setStyle { $0 = .plain } }

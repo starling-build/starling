@@ -60,7 +60,7 @@ final class SparklineDialogState: State<StatefulWidget> {
             func line(_ label: String, _ id: String, _ c: TextEditingController, _ hint: String) -> Widget {
                 Row(children: [
                     SizedBox(width: 130, height: nil, child: Text(label)),
-                    SizedBox(width: 240, height: nil, child: FluentTextBox(key: ValueKey(id), controller: c, placeholderText: hint)),
+                    SizedBox(width: 240, height: Chrome.touchFieldHeight, child: FluentTextBox(key: ValueKey(id), controller: c, placeholderText: hint)),
                 ])
             }
             var rows: [Widget] = [Text("Choose the data you want"), gap(6), line("Data Range:", "spark-data", data, "A1:D3"), gap(10),

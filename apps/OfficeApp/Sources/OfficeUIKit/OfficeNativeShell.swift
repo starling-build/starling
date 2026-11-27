@@ -112,6 +112,10 @@ public enum OfficeNativeShell {
         shell.presentShare(name: name, prepare: prepare, done: done)
     }
 
+    /// A picture dropped on window `viewId`'s editor: its temporary copy's path. Set by the app, which hands it to the
+    /// editor that is open.
+    nonisolated(unsafe) public static var onPictureDrop: ((String, Int) -> Void)?
+
     /// Insert > Picture: the Photo Library or Files, then `done` with a temporary copy's path (nil: cancelled).
     public static func pickPicture(viewId: Int = 0, done: @escaping (String?) -> Void) {
         guard let shell = shells[viewId] else { done(nil); return }
@@ -258,6 +262,17 @@ final class OfficeBrowserController: UIDocumentBrowserViewController, UIDocument
     /// The last buttons published, kept for an editor that mounted before the browser had the bar in its view.
     fileprivate var latestToolbar: [OfficeToolbarButton]?
 
+    private var pictureDrop: PictureDropDelegate?
+    /// Lets the editor's view take a picture dragged in from another app (once: the editor is presented again by
+    /// every document opened in this window).
+    fileprivate func attachPictureDrop() {
+        guard pictureDrop == nil else { return }
+        let viewId = viewId
+        let delegate = PictureDropDelegate { path in DispatchQueue.main.async { OfficeNativeShell.onPictureDrop?(path, viewId) } }
+        pictureDrop = delegate
+        editor.view.addInteraction(UIDropInteraction(delegate: delegate))
+    }
+
     /// Live browser controllers (a leak hunt: OFFICE_WINDOW_CYCLES prints it).
     nonisolated(unsafe) static var live = 0
     deinit { Self.live -= 1 }
@@ -361,6 +376,7 @@ final class OfficeBrowserController: UIDocumentBrowserViewController, UIDocument
             present(editor, animated: true) {
                 self.toolbar.attach()
                 self.editMenu.attach()
+                self.attachPictureDrop()
                 self.toolbar.update(self.latestToolbar)
                 OfficeNativeShell.onOpenDocument?(path, self.viewId)
             }

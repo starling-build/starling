@@ -109,7 +109,7 @@ final class ScenarioDialogState: State<StatefulWidget> {
         let gap: (Double) -> Widget = { SizedBox(width: nil, height: $0, child: nil) }
         func line(_ label: String, _ id: String, _ c: TextEditingController) -> Widget {
             Row(children: [SizedBox(width: 130, height: nil, child: Text(label)),
-                           SizedBox(width: 230, height: nil, child: FluentTextBox(key: ValueKey(id), controller: c, placeholderText: ""))])
+                           SizedBox(width: 230, height: Chrome.touchFieldHeight, child: FluentTextBox(key: ValueKey(id), controller: c, placeholderText: ""))])
         }
         let err = Text(message, style: fluent.typography.caption?.copyWith(color: Color(0xFFC42B1C)))
         switch page {

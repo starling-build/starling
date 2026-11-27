@@ -74,7 +74,7 @@ final class ConsolidateDialogState: State<StatefulWidget> {
             gap(8),
             Text("Reference:", style: fluent.typography.body), gap(4),
             Row(children: [
-                SizedBox(width: 280, height: nil, child: FluentTextBox(key: ValueKey("cons-ref"), controller: reference, placeholderText: "Sheet2!A1:C10")),
+                SizedBox(width: 280, height: Chrome.touchFieldHeight, child: FluentTextBox(key: ValueKey("cons-ref"), controller: reference, placeholderText: "Sheet2!A1:C10")),
                 SizedBox(width: 8, height: nil, child: nil),
                 Button(key: ValueKey("cons-add"), onPressed: { [weak self] in self?.add() }, child: Text("Add")),
             ]),

@@ -36,7 +36,7 @@ final class FormulaDialogState: State<StatefulWidget> {
         func box(_ id: String, _ label: String, _ c: TextEditingController, width: Double) -> Widget {
             Padding(padding: EdgeInsets(left: 0, top: 0, right: 0, bottom: 8), child: Row(crossAxisAlignment: .center, children: [
                 SizedBox(width: 110, height: nil, child: Text(label)),
-                PKeyed(id, SizedBox(width: width, height: 30, child: FluentTextBox(
+                PKeyed(id, SizedBox(width: width, height: Chrome.fieldHeight, child: FluentTextBox(
                     controller: c, onChanged: { [weak self] _ in self?.setState {} }))),
             ]))
         }

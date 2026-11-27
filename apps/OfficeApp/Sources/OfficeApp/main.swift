@@ -991,10 +991,11 @@ func connectNativeHooks(_ scene: OfficeScene, viewId: Int) {
     scene.editMenuDismissed = { OfficeNativeShell.showEditMenu(nil, items: [], text: nil, viewId: viewId) }
     scene.toolbarChanged = { buttons in
         if log { fputs("[office] view \(viewId) toolbar: \(buttons.map { "\($0.count) buttons" } ?? "withdrawn")\n", stderr) }
-        OfficeNativeShell.setToolbar(buttons?.map {
-            OfficeToolbarButton(id: $0.id, title: $0.title, symbol: $0.symbol,
-                                isOn: $0.isOn, isEnabled: $0.isEnabled, action: $0.action)
-        }, viewId: viewId)
+        func native(_ b: OfficeHost.ToolbarButton) -> OfficeToolbarButton {
+            OfficeToolbarButton(id: b.id, title: b.title, symbol: b.symbol, isOn: b.isOn, isEnabled: b.isEnabled,
+                                children: b.children.map(native), action: b.action)
+        }
+        OfficeNativeShell.setToolbar(buttons?.map(native), viewId: viewId)
     }
     // Bringing this window forward: the system's scene if it is one, else (a test host) its view in the window.
     scene.raise = {
@@ -1007,6 +1008,7 @@ func connectNativeHooks(_ scene: OfficeScene, viewId: Int) {
         OfficeNativeShell.showBrowser(viewId: viewId)
         return true
     }
+    OfficeNativeShell.onPictureDrop = { path, id in OfficeScene.byView[id]?.pictureDropped?(path) }
     scene.pictureRequested = { done in
         // OFFICE_PICK_PICTURE=path: a script's stand-in for the system pickers, which no in-app driver can tap.
         if let stub = ProcessInfo.processInfo.environment["OFFICE_PICK_PICTURE"], !stub.isEmpty { done(stub); return }

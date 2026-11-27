@@ -26,6 +26,8 @@ struct ToolbarSummary: Equatable {
     var imageWidth = 0.0
     var imageHeight = 0.0
     var imageHasNatural = false
+    /// The picture's proportions are kept when it is resized (RichDocumentController.pictureAspectLock).
+    var imageAspectLock = true
     var inCell = false
     /// The document revision: every edit changes it, so chrome that shows
     /// a value the rest of the summary does not carry (a spinner) rebuilds.
@@ -118,6 +120,9 @@ final class OfficeSession {
     }()
 
     init(kind: DocumentKind = .document) {
+        // The drawing hooks (floating-picture reader, object painters) were set only once a chart, equation or group was
+        // read: until then In Line with Text -> Square (ribbon, menu, keyboard bar) silently did nothing.
+        WriterCharts.installHooks()
         self.kind = kind
         self.deck = kind == .presentation ? DeckController() : nil
         self.workbook = kind == .workbook ? WorkbookController() : nil
@@ -200,6 +205,7 @@ final class OfficeSession {
     var onZoom: ((Double) -> Void)?
     var onViewMode: ((ViewMode) -> Void)?
     var onToggleRuler: (() -> Void)?
+    var onToggleAspectLock: (() -> Void)?
     var onToggleNavigation: (() -> Void)?
     var onToggleStyles: (() -> Void)?
     var onToggleMarks: (() -> Void)?
@@ -423,12 +429,14 @@ final class OfficeSession {
             s.imageWidth = image.width
             s.imageHeight = image.height
             s.imageHasNatural = image.naturalWidth != nil
+            s.imageAspectLock = c.pictureAspectLock
         } else if let hit = c.selectedInlineImage, let image = c.document.paragraphs[hit.paragraph].inlineImages[hit.id] {
             s.imageIndex = hit.paragraph
             s.inlineImageID = hit.id
             s.imageWidth = image.width
             s.imageHeight = image.height
             s.imageHasNatural = image.naturalWidth != nil
+            s.imageAspectLock = c.pictureAspectLock
         }
         s.list = ps.list
         s.alignment = ps.alignment

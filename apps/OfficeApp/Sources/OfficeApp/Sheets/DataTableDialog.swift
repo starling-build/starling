@@ -54,7 +54,7 @@ final class DataTableDialogState: State<StatefulWidget> {
         func line(_ label: String, _ id: String, _ c: TextEditingController) -> Widget {
             Row(children: [
                 SizedBox(width: 130, height: nil, child: Text(label)),
-                SizedBox(width: 160, height: nil, child: FluentTextBox(key: ValueKey(id), controller: c, placeholderText: "")),
+                SizedBox(width: 160, height: Chrome.touchFieldHeight, child: FluentTextBox(key: ValueKey(id), controller: c, placeholderText: "")),
             ])
         }
         let rows: [Widget] = [

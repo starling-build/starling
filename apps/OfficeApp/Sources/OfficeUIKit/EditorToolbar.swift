@@ -21,9 +21,12 @@ public struct OfficeToolbarButton {
     public var isOn: Bool
     public var isEnabled: Bool
     public var action: () -> Void
-    public init(id: String, title: String, symbol: String, isOn: Bool, isEnabled: Bool, action: @escaping () -> Void) {
+    /// Choices under this button: it opens a menu of them instead of acting (Wrap, Fill, Sort...). `action` is unused then.
+    public var children: [OfficeToolbarButton]
+    public init(id: String, title: String, symbol: String, isOn: Bool, isEnabled: Bool, children: [OfficeToolbarButton] = [],
+                action: @escaping () -> Void) {
         self.id = id; self.title = title; self.symbol = symbol
-        self.isOn = isOn; self.isEnabled = isEnabled; self.action = action
+        self.isOn = isOn; self.isEnabled = isEnabled; self.children = children; self.action = action
     }
 }
 
@@ -79,7 +82,7 @@ final class EditorToolbar: UIView {
     /// arrive at every caret move, so an unchanged snapshot does nothing.
     func update(_ new: [OfficeToolbarButton]?) {
         buttons = new ?? []
-        let snapshot = buttons.map { ($0.id, $0.isOn, $0.isEnabled) }
+        let snapshot = buttons.map { ($0.id + $0.children.map { $0.id + ($0.isOn ? "+" : "-") + ($0.isEnabled ? "+" : "-") }.joined(), $0.isOn, $0.isEnabled) }
         if snapshot.elementsEqual(shown, by: { $0 == $1 }) && builtWidth == availableWidth { relayout(); return }
         shown = snapshot
         rebuild()
@@ -110,14 +113,30 @@ final class EditorToolbar: UIView {
         return keep
     }
 
+    /// A button as a menu entry: an action, or a submenu when it has choices.
+    private static func action(_ b: OfficeToolbarButton) -> UIMenuElement {
+        if !b.children.isEmpty {
+            return UIMenu(title: b.title, image: b.symbol.isEmpty ? nil : UIImage(systemName: b.symbol), children: b.children.map(action))
+        }
+        return UIAction(title: b.title, image: b.symbol.isEmpty ? nil : UIImage(systemName: b.symbol),
+                        attributes: b.isEnabled ? [] : .disabled, state: b.isOn ? .on : .off) { _ in b.action() }
+    }
+
     private func rebuild() {
         builtWidth = availableWidth
         let keep = Self.fitting(ids: buttons.map(\.id), width: builtWidth)
         func item(_ b: OfficeToolbarButton) -> UIBarButtonItem {
-            // No symbol: the button is its title, a key that types that text.
-            let item = b.symbol.isEmpty
-                ? UIBarButtonItem(title: b.title, primaryAction: UIAction(title: b.title) { _ in b.action() })
-                : UIBarButtonItem(image: UIImage(systemName: b.symbol), primaryAction: UIAction(title: b.title) { _ in b.action() })
+            // No symbol: the button is its title, a key that types that text. A button with choices opens a menu of them.
+            let item: UIBarButtonItem
+            if !b.children.isEmpty {
+                let menu = UIMenu(title: b.title, children: b.children.map(Self.action))
+                item = b.symbol.isEmpty ? UIBarButtonItem(title: b.title, menu: menu)
+                                        : UIBarButtonItem(image: UIImage(systemName: b.symbol), menu: menu)
+            } else {
+                item = b.symbol.isEmpty
+                    ? UIBarButtonItem(title: b.title, primaryAction: UIAction(title: b.title) { _ in b.action() })
+                    : UIBarButtonItem(image: UIImage(systemName: b.symbol), primaryAction: UIAction(title: b.title) { _ in b.action() })
+            }
             item.isEnabled = b.isEnabled
             item.isSelected = b.isOn
             item.accessibilityLabel = b.title
@@ -131,10 +150,7 @@ final class EditorToolbar: UIView {
         }
         // The buttons that did not fit, in a menu: a window narrower than the bar (Split View, a small iPad) loses none.
         if keep < buttons.count {
-            let rest = buttons[keep...].map { b in
-                UIAction(title: b.title, image: b.symbol.isEmpty ? nil : UIImage(systemName: b.symbol),
-                         attributes: b.isEnabled ? [] : .disabled, state: b.isOn ? .on : .off) { _ in b.action() }
-            }
+            let rest = buttons[keep...].map(Self.action)
             let more = UIBarButtonItem(image: UIImage(systemName: "ellipsis.circle"), menu: UIMenu(children: rest))
             more.accessibilityLabel = "More"
             items.append(more)
@@ -183,7 +199,10 @@ final class EditorToolbar: UIView {
             // The system gives the keyboard's frame in the SCREEN's space, which is the window's
             // only when the window fills the screen: a Slide Over or Split View window is offset.
             let local = view.convert(end, from: window.screen.coordinateSpace)
-            if local.height > 150, local.minY < view.bounds.height { keyboardTop = local.minY }
+            // Only a DOCKED keyboard (its bottom edge is the screen's) gets the bar: a floating or undocked one hovers
+            // mid-screen, and the bar full width above it would sit over the page with nothing under it.
+            let docked = end.maxY >= window.screen.bounds.height - 0.5
+            if docked, local.height > 150, local.minY < view.bounds.height { keyboardTop = local.minY }
         }
         let holdsKeys = view.window?.isKeyWindow ?? true
         isHidden = keyboardTop == nil || buttons.isEmpty || !holdsKeys
