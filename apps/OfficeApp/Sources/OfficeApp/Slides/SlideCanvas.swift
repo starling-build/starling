@@ -165,10 +165,6 @@ final class SlideCanvasState: State<StatefulWidget> {
                 onPointerDown: { [weak self] e in self?._backdropDown(e) },
                 onPointerMove: { [weak self] e in self?._pointerMove(e) },
                 onPointerUp: { [weak self] e in self?._pointerUp(e) },
-                onPointerSignal: { [weak self] e in
-                    // The wheel pans a slide that is zoomed past the window.
-                    if let s = e as? PointerScrollEvent { self?.deck.panView(dx: -s.scrollDelta.dx, dy: -s.scrollDelta.dy) }
-                },
                 behavior: .opaque,
                 child: ColoredBox(color: backdrop, child: SizedBox(expand: ())))),
         ]
@@ -199,7 +195,16 @@ final class SlideCanvasState: State<StatefulWidget> {
             self.setState { self._area = size }
         // (Clipped to the stage: a shape dragged past the slide's top
         // edge was painted over the ribbon — seen on screen 2026-10-13.)
-        }, onBox: { [weak self] box in self?._box = box }, child: SlidesAccessibility.wrap(ClipRect(child: Stack(children: layers)), deck: deck))
+        }, onBox: { [weak self] box in self?._box = box }, child: SlidesAccessibility.wrap(Listener(
+            // The wheel over the slide or anything on it: with Ctrl (Cmd) held it zooms a step,
+            // as PowerPoint's does; without, it pans a slide zoomed past the window.
+            onPointerSignal: { [weak self] e in
+                guard let self, let s = e as? PointerScrollEvent else { return }
+                let m = self._w.modifiers()
+                if m.contains(.control) || m.contains(.meta) { self.deck.wheelZoom(s.scrollDelta.dy) }
+                else { self.deck.panView(dx: -s.scrollDelta.dx, dy: -s.scrollDelta.dy) }
+            },
+            child: ClipRect(child: Stack(children: layers))), deck: deck))
     }
 
     /// One shape: its painted body, its text editor if it has text, and the

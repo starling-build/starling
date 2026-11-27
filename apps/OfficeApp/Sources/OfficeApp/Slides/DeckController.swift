@@ -300,6 +300,12 @@ final class DeckController: ChangeNotifier {
         setViewZoom(percent: next)
     }
 
+    /// Ctrl (Cmd) and the wheel: rolled away from the user (a negative delta) zooms in a step, towards the user out. View state: no undo.
+    func wheelZoom(_ dy: Double) {
+        guard dy != 0 else { return }
+        stepViewZoom(dy < 0 ? 1 : -1)
+    }
+
     func panView(dx: Double, dy: Double) {
         guard viewScale != nil else { return }
         viewPan = Offset(viewPan.dx + dx, viewPan.dy + dy)
