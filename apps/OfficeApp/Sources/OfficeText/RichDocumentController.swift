@@ -2100,11 +2100,13 @@ public final class RichDocumentController: ChangeNotifier {
         public var lineRule: LineRule?
         /// The paragraph's whole list of tab stops (nil leaves them as they are).
         public var tabStops: [TabStop]?
+        /// Word's "Don't add space between paragraphs of the same style" (w:contextualSpacing); nil leaves it.
+        public var contextualSpacing: Bool?
         public init(alignment: ParagraphAlignment? = nil, indentLeft: Double? = nil,
                     indentRight: Double? = nil, firstLineIndent: Double? = nil,
                     spaceBefore: Double? = nil, spaceAfter: Double? = nil,
-                    lineRule: LineRule? = nil, tabStops: [TabStop]? = nil) {
-            self.tabStops = tabStops
+                    lineRule: LineRule? = nil, tabStops: [TabStop]? = nil, contextualSpacing: Bool? = nil) {
+            self.tabStops = tabStops; self.contextualSpacing = contextualSpacing
             self.alignment = alignment; self.indentLeft = indentLeft
             self.indentRight = indentRight; self.firstLineIndent = firstLineIndent
             self.spaceBefore = spaceBefore; self.spaceAfter = spaceAfter
@@ -2120,6 +2122,7 @@ public final class RichDocumentController: ChangeNotifier {
             if let v = f.firstLineIndent { s.firstLineIndent = v }
             if let v = f.spaceBefore { s.spaceBefore = max(0, v); s.spaceBeforeAuto = false }
             if let v = f.spaceAfter { s.spaceAfter = max(0, v); s.spaceAfterAuto = false }
+            if let c = f.contextualSpacing { s.contextualSpacing = c }
             if let t = f.tabStops { s.tabStops = t.filter { $0.position >= 0 }.sorted { $0.position < $1.position } }
             switch f.lineRule {
             case .multiple(let m)?:

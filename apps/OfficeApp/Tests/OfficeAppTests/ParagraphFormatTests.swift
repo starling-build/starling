@@ -87,3 +87,54 @@ final class CharFormatTests: XCTestCase {
         XCTAssertFalse(c.document.paragraphs[0].runs[0].style.bold)
     }
 }
+
+/// W-PA-1e: the Paragraph dialog's "Don't add space between paragraphs of the same style" (w:contextualSpacing).
+final class ContextualSpacingTests: XCTestCase {
+    func testDialogBoxAppliesUndoesAndSurvivesSave() throws {
+        let c = RichDocumentController(plainText: "one\ntwo")
+        c.selectAll()
+        var v = ParagraphDialogValues(c.document.paragraphs[0].style)
+        XCTAssertFalse(v.contextual)
+        v.contextual = true
+        c.setParagraphFormat(v.format)
+        XCTAssertTrue(c.document.paragraphs[0].style.contextualSpacing)
+        XCTAssertTrue(c.document.paragraphs[1].style.contextualSpacing)
+        XCTAssertTrue(ParagraphDialogValues(c.document.paragraphs[1].style).contextual, "the dialog shows the box ticked")
+        let back = try DocxFormat.read(DocxFormat.write(c.document, pageSetup: .letter)).document
+        XCTAssertTrue(back.paragraphs[1].style.contextualSpacing)
+        c.undo()
+        XCTAssertFalse(c.document.paragraphs[0].style.contextualSpacing, "one undo step")
+        // A format that does not name the box leaves it alone.
+        c.setParagraphFormat(.init(contextualSpacing: true))
+        c.setParagraphFormat(.init(alignment: .center))
+        XCTAssertTrue(c.document.paragraphs[0].style.contextualSpacing)
+    }
+
+    /// A paragraph whose style turns the spacing rule on, with the box cleared, keeps it off after a save.
+    func testClearedUnderAStyleThatSetsItStaysOff() throws {
+        var parts = try Zip.read(DocxFormat.write(RichDocument(paragraphs: [RichParagraph()]), pageSetup: .letter))
+        func replace(_ n: String, _ f: (String) -> String) throws {
+            let i = try XCTUnwrap(parts.firstIndex { $0.name == n })
+            parts[i] = ZipEntry(name: n, data: Data(f(String(decoding: parts[i].data, as: UTF8.self)).utf8))
+        }
+        try replace("word/styles.xml") {
+            $0.replacingOccurrences(of: "</w:styles>", with: "<w:style w:type=\"paragraph\" w:styleId=\"Tight\"><w:name w:val=\"Tight\"/>"
+                + "<w:basedOn w:val=\"Normal\"/><w:pPr><w:contextualSpacing/></w:pPr></w:style></w:styles>")
+        }
+        try replace("word/document.xml") { s in
+            var x = s
+            x.insert(contentsOf: "<w:p><w:pPr><w:pStyle w:val=\"Tight\"/></w:pPr><w:r><w:t>one</w:t></w:r></w:p>",
+                     at: x.range(of: "<w:body>")!.upperBound)
+            return x
+        }
+        let read = try DocxFormat.read(try Zip.write(parts))
+        let c = RichDocumentController(document: read.document)
+        XCTAssertTrue(c.document.paragraphs[0].style.contextualSpacing, "the style's rule reaches the paragraph")
+        var v = ParagraphDialogValues(c.document.paragraphs[0].style)
+        XCTAssertTrue(v.contextual)
+        v.contextual = false
+        c.setParagraphFormat(v.format)
+        let back = try DocxFormat.read(DocxFormat.write(c.document, pageSetup: .letter)).document
+        XCTAssertFalse(back.paragraphs[0].style.contextualSpacing)
+    }
+}
