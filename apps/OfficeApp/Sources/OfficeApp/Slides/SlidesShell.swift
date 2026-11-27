@@ -1455,7 +1455,8 @@ final class SlidesShellState: State<StatefulWidget> {
         case "g" where shapes && !typing:
             if let why = deck.groupRefusal { _flash(why) } else { deck.groupSelection() }
         case "d" where shapes: deck.duplicateSelection()
-        case "d" where !typing: deck.duplicateSlide(deck.current)
+        case "d" where !typing: deck.duplicateSelectedSlides()
+        case "m" where !mods.contains(.shift) && !mods.contains(.alt): _endEditing(); deck.addSlide()
         case "k" where !mods.contains(.shift): _openLink()
         case "f": _openFind(replace: false)
         case "h": _openFind(replace: true)
@@ -2085,7 +2086,7 @@ final class SlidesShellState: State<StatefulWidget> {
         m.item("Copy") { [weak self] in self?.deck.copySlides() }
         m.item("Paste", enabled: deck.canPasteSlides) { [weak self] in self?.deck.pasteSlides() }
         m.separator()
-        m.item("Duplicate Slide") { [weak self] in self?.deck.duplicateSlide(i) }
+        m.item("Duplicate Slide") { [weak self] in self?.deck.duplicateSelectedSlides() }
         m.item("Delete Slide", enabled: deck.slides.count > 1) { [weak self] in self?.deck.deleteSelectedSlides() }
         m.separator()
         m.item(hidden ? "Show Slide" : "Hide Slide") { [weak self] in self?.deck.toggleHiddenSelected() }
