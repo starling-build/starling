@@ -32,6 +32,7 @@ enum SheetCommand {
     case dataTable                 // Data → What-If Analysis → Data Table
     case chartSeries(Int)          // Chart Design → Select Data
     case chartColors(Int)          // Chart Design → Format Data Series
+    case sparklineDialog(SparklineGroup.Kind?)   // Insert → Sparklines: make them, or (nil) change the ones under the active cell
     case chartAxis(Int)            // Chart Design → Axis Options
     case chartLabels(Int)          // Chart Design → Add Chart Element → Data Labels
     case goalSeek                  // Data → What-If Analysis → Goal Seek
@@ -56,7 +57,7 @@ extension Ribbon {
         guard let wb = session.workbook else { return nil }
         switch tab {
         case .home: return _sheetsHome(wb, fluent)
-        case .insert: return [_tablesGroup(wb, fluent), _illustrationsGroup(wb, fluent), _chartsGroup(wb, fluent), _functionsGroup(wb, fluent), _symbolsGroup(wb, fluent)]
+        case .insert: return [_tablesGroup(wb, fluent), _illustrationsGroup(wb, fluent), _chartsGroup(wb, fluent), _sparklinesGroup(wb, fluent), _functionsGroup(wb, fluent), _symbolsGroup(wb, fluent)]
         case .formulas: return [_autoSumGroup(wb, fluent), _functionsGroup(wb, fluent), _namesGroup(wb, fluent)]
         case .data: return [_sortGroup(wb, fluent), _dataToolsGroup(wb, fluent), _outlineGroup(wb, fluent)]
         case .layout: return [_pageSetupGroup(wb, fluent)]
@@ -368,6 +369,16 @@ extension Ribbon {
             items.append(Chrome.big(FluentSystemIcons.image, "Alt Text", fluent) { wb.onCommand?(.altText) })
         }
         return Chrome.group("Illustrations", fluent, items)
+    }
+
+    private func _sparklinesGroup(_ wb: WorkbookController, _ fluent: FluentThemeData) -> Widget {
+        var items: [Widget] = [
+            Chrome.big(ChartType.line.icon, "Line", fluent) { wb.onCommand?(.sparklineDialog(.line)) },
+            Chrome.big(ChartType.column.icon, "Column", fluent) { wb.onCommand?(.sparklineDialog(.column)) },
+            Chrome.big(ChartType.bar.icon, "Win/Loss", fluent) { wb.onCommand?(.sparklineDialog(.winLoss)) },
+        ]
+        if wb.sparklineAt(wb.active) != nil { items.append(Chrome.big(ChartType.line.icon, "Edit Sparklines", fluent) { wb.onCommand?(.sparklineDialog(nil)) }) }
+        return Chrome.group("Sparklines", fluent, items)
     }
 
     private func _tablesGroup(_ wb: WorkbookController, _ fluent: FluentThemeData) -> Widget {

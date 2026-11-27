@@ -2930,6 +2930,14 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             guard side > 3 else { continue }
             IconSets.paint(icon.set, icon.index, canvas, in: Rect.fromLTWH(r.left + 3 * zoom, r.center.dy - side / 2, side, side))
         }
+        // Sparklines, in the cells that have one.
+        if controller.sheet.keptElements.contains(where: { $0.name == "extLst" }), !controller.sparklineGroups().isEmpty {
+            for row in rs { for col in cs {
+                let a = CellAddress(row: row, col: col)
+                guard !covered.contains(a), let look = controller.sparklineLook(a) else { continue }
+                Sparklines.paint(look, canvas, in: rect(a), zoom: zoom)
+            } }
+        }
         // Values.
         for row in rs { for col in cs {
             let a = CellAddress(row: row, col: col)
