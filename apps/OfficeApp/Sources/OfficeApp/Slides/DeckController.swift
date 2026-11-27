@@ -156,6 +156,7 @@ struct SlideState: Equatable {
     var layout: SlideLayoutKind
     var hidden: Bool
     var section: String? = nil
+    var masterRole: MasterRole? = nil
     var hideMasterShapes = false
     var clrMapOvrXML: String? = nil
     var controlsXML: String? = nil
@@ -208,8 +209,8 @@ struct DeckState: Equatable {
 /// typing back as PowerPoint does.
 final class DeckController: ChangeNotifier {
     private let _leakProbe = LeakProbe("DeckController")
-    private(set) var slides: [Slide] = []
-    private(set) var current = 0 {
+    var slides: [Slide] = []
+    var current = 0 {
         didSet {
             if current != oldValue, slides.indices.contains(current) {
                 ScreenReader.announce("Slide \(current + 1) of \(slides.count)")
@@ -297,10 +298,12 @@ final class DeckController: ChangeNotifier {
     }
     /// Moves on every change to the content (not on selection or moving
     /// between slides): what "unsaved" compares against.
-    private(set) var edits = 0
+    var edits = 0
     /// The file the deck was read from, kept whole so a save can write its
     /// masters, layouts, theme and anything not modelled back untouched.
     private(set) var package: PptxPackage? = nil
+    /// Set while Slide Master view is open (see MasterView.swift).
+    var masterView: MasterViewState? = nil
     /// Write with our own master, layouts and theme even though the deck
     /// came from a file — set once a theme of ours is applied. The package
     /// still supplies kept objects' parts.
@@ -310,7 +313,7 @@ final class DeckController: ChangeNotifier {
     /// colours and fonts on save.
     private(set) var recolourTheme = false
     /// Shapes selected on the current slide, in selection order.
-    private(set) var selection: [SlideShape] = []
+    var selection: [SlideShape] = []
     private var _nextId = 1
 
     private var _undo: [DeckState] = []
@@ -483,6 +486,7 @@ final class DeckController: ChangeNotifier {
                          notes: _textController(source.notes.document))
         copy.hidden = source.hidden
         copy.section = source.section
+        copy.masterRole = source.masterRole
         copy.hideMasterShapes = source.hideMasterShapes
         copy.clrMapOvrXML = source.clrMapOvrXML
         copy.controlsXML = source.controlsXML
@@ -517,7 +521,7 @@ final class DeckController: ChangeNotifier {
     /// The slides picked in the thumbnail pane or the sorter, by id (empty
     /// means just the current one). Ids, so a move or an undo cannot leave it
     /// pointing at the wrong slide.
-    private(set) var slideSelectionIds: Set<Int> = []
+    var slideSelectionIds: Set<Int> = []
     private var _slideAnchor = 0
 
     /// The picked slides' positions, in order; the current slide is always one.
@@ -2559,7 +2563,7 @@ final class DeckController: ChangeNotifier {
 
     func snapshot() -> DeckState {
         DeckState(slides: slides.map { slide in
-            SlideState(id: slide.id, layout: slide.layout, hidden: slide.hidden, section: slide.section,
+            SlideState(id: slide.id, layout: slide.layout, hidden: slide.hidden, section: slide.section, masterRole: slide.masterRole,
                        hideMasterShapes: slide.hideMasterShapes, clrMapOvrXML: slide.clrMapOvrXML,
                        controlsXML: slide.controlsXML, decorations: slide.decorations.map(_state),
                        notes: slide.notes.document, shapes: slide.shapes.map(_state),
@@ -2608,6 +2612,7 @@ final class DeckController: ChangeNotifier {
             }
             slide.hidden = ss.hidden
             slide.section = ss.section
+            slide.masterRole = ss.masterRole
             slide.hideMasterShapes = ss.hideMasterShapes
             slide.clrMapOvrXML = ss.clrMapOvrXML
             slide.controlsXML = ss.controlsXML
@@ -2662,6 +2667,10 @@ final class DeckController: ChangeNotifier {
                    sourceChart: s.sourceChart, field: s.field, group: s.group, keptLine: s.keptLine,
                    altText: s.altText, altTitle: s.altTitle, link: s.link, linkTip: s.linkTip, keptPicture: s.keptPicture, autofit: s.autofit, fontScale: s.fontScale,
                    insetsFollowFont: s.insetsFollowFont, keptLook: s.keptLook)
+        // A read shape keeps its own XML and an edit patches only what changed, so a run says only what it
+        // said in the file or what the user set: regenerating it would pin every resolved size, bold and
+        // italic onto the run and stop it following its layout and master.
+        st.readShape = s.readShape
         st.lineReduction = s.lineReduction
         st.pictureLevels = s.pictureLevels
         st.sizeGroup = s.sizeGroup
@@ -2707,6 +2716,10 @@ final class DeckController: ChangeNotifier {
         st.scene3d = s.scene3d
         st.camera = s.camera
         if case .chart = s.kind { st.chartDrawing = s.rendered.map(_state) }
+        // ...but only while nothing beyond its place, name, link and text has changed since the read: a fill,
+        // line, shadow or other look edit regenerates the shape, which merges the look it kept (`keptLook`).
+        // (A master page patches every edit into its own XML: a layout's list styles are not modelled.)
+        if !inMasterView, st.readShape != nil, let base = s.readState, !Self._onlyPatchableEdits(st, since: base) { st.readShape = nil }
         return st
     }
 
@@ -2795,6 +2808,7 @@ final class DeckController: ChangeNotifier {
         shape.sourceXML = st.sourceXML
         shape.sourceText = st.sourceText
         shape.sourcePart = st.sourcePart
+        shape.readShape = st.readShape
         shape.sourceChart = st.sourceChart
         shape.field = st.field
         shape.fieldShown = nil
@@ -2853,6 +2867,17 @@ final class DeckController: ChangeNotifier {
         shape.textTheme?.lineSpacingReduction = st.lineReduction
         shape.keptLook = st.keptLook
         if let doc = st.text, let c = shape.text, c.document != doc { c.load(doc) }
+        shape.readState = nil
+        if st.readShape != nil { shape.readState = _state(shape) }
+    }
+
+    /// `now` differs from `base` only in its place, name, link or text.
+    static func _onlyPatchableEdits(_ now: ShapeState, since base: ShapeState) -> Bool {
+        var b = base
+        b.frame = now.frame; b.rotation = now.rotation; b.flipH = now.flipH; b.flipV = now.flipV
+        b.invisible = now.invisible; b.aspectLock = now.aspectLock
+        b.name = now.name; b.link = now.link; b.linkTip = now.linkTip; b.text = now.text; b.readShape = now.readShape
+        return b == now
     }
 
     private func _make(_ st: ShapeState) -> SlideShape {
@@ -2871,7 +2896,7 @@ final class DeckController: ChangeNotifier {
 
     // MARK: Building
 
-    private func _id() -> Int {
+    func _id() -> Int {
         defer { _nextId += 1 }
         return _nextId
     }
@@ -2951,7 +2976,7 @@ final class DeckController: ChangeNotifier {
         theme.singleLineHeight = (named ?? font).flatMap { SlideFonts.diagramEastAsianLine($0)?.height } ?? SlideFonts.ownNaturalHeight(font) ?? theme.naturalLineHeight(family: family, bold: false, italic: false)
     }
 
-    private func _textTheme(font: String, size: Double, color: Color) -> RichTextTheme {
+    func _textTheme(font: String, size: Double, color: Color) -> RichTextTheme {
         let theme = RichTextTheme(fontFamily: font, fontSize: size, textColor: color, caretColor: color,
                                   headingColor: nil, listIndent: 18)
         theme.fontFamilyResolver = SlideFonts.resolve
@@ -2989,7 +3014,7 @@ final class DeckController: ChangeNotifier {
         return theme
     }
 
-    private func _textController(_ doc: RichDocument) -> RichDocumentController {
+    func _textController(_ doc: RichDocument) -> RichDocumentController {
         let c = RichDocumentController()
         c.clipboardCodec = OfficeClipboardCodec()
         c.load(doc)
@@ -3008,12 +3033,12 @@ final class DeckController: ChangeNotifier {
 
     // MARK: Change tracking
 
-    private func _watch(_ slide: Slide) {
+    func _watch(_ slide: Slide) {
         slide.notes.addListener({ [weak self] in self?._textChanged() }, owner: self)
         for shape in slide.shapes { _watch(shape) }
     }
 
-    private func _watch(_ shape: SlideShape) {
+    func _watch(_ shape: SlideShape) {
         shape.text?.addListener({ [weak self] in self?._textChanged() }, owner: self)
     }
 

@@ -828,6 +828,11 @@ final class SlideShape {
     var sourceXML: String? = nil
     var sourceText: RichDocument? = nil
     var sourcePart: String? = nil
+    /// A text shape as read, besides its text (see `ReadShape`): what lets a save patch an edited shape's own XML.
+    var readShape: ReadShape? = nil
+    /// The shape as it stood when read (or last restored with `readShape`): a save keeps its own XML only
+    /// while it differs from this in what that XML can be patched with.
+    var readState: ShapeState? = nil
     /// A chart as read: written back through its own part while unchanged.
     var sourceChart: Chart? = nil
     /// The field this shape's text is, if it is one (slide number, date).
@@ -989,6 +994,8 @@ final class Slide {
     let id: Int
     /// The `SlideSection` this slide is in (its guid); nil while the deck has no sections.
     var section: String?
+    /// While Slide Master view is open: which master or layout this page stands for.
+    var masterRole: MasterRole?
     var layout: SlideLayoutKind
     var shapes: [SlideShape]
     let notes: RichDocumentController
