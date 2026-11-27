@@ -1621,7 +1621,11 @@ extension DocxFormat {
             } else if p.style.markHidden {
                 markRPr += "<w:vanish/>"
             }
+            if p.style.collapsed { pPr += "<w15:collapsed/>" }
             if !markRPr.isEmpty { pPr += "<w:rPr>\(markRPr)</w:rPr>" }
+            if let sect = p.style.sectionXML, p.cell == nil, index < doc.paragraphs.count - 1, sect.containsSubstring(RichDocumentController.sectionAsLast) {
+                pPr += "<!--\(RichDocumentController.sectionAsLast)-\(index)-->"   // (written as the last section is, below)
+            } else
             if let sect = p.style.sectionXML, p.cell == nil, index < doc.paragraphs.count - 1 { pPr += keptFragmentXML(Self._sectionXML(sect, patchedTo: p.style.sectionPage), p.style.sectionRels) }
             // A tracked change to the paragraph's properties, last in w:pPr, with the properties it had before as read.
             if let pc = p.style.propertyChange {
@@ -2161,9 +2165,7 @@ extension DocxFormat {
         }
         // WordprocessingML wants a paragraph between a table and the section end.
         if doc.paragraphs.last?.cell != nil { body += "<w:p/>" }
-        let pageSetup = pageSetup.vertical ? pageSetup.transposed() : pageSetup
-        let pw = Int(pageSetup.width * 20), ph = Int(pageSetup.height * 20)
-        body += "<w:sectPr>"
+        let lastPage = pageSetup
         // Kept header/footer parts: the default ones only while their text
         // is what the editor still shows; the generated ones take a name
         // no kept part uses.
@@ -2183,12 +2185,17 @@ extension DocxFormat {
         let headerName = freeName("header"), footerName = freeName("footer")
         let writeHeader = !doc.header.isEmpty && !keptDefaultHeader
         let writeFooter = !doc.footer.isEmpty && !keptDefaultFooter
+        // The last section's sectPr; a section break made in it (`sectionAsLast`) is written the same, with its own page and start.
+        func sectPr(_ page: PageSetup, type: String?) -> String {
+        var body = "<w:sectPr>"
+        let pageSetup = page.vertical ? page.transposed() : page
+        let pw = Int(pageSetup.width * 20), ph = Int(pageSetup.height * 20)
         if writeHeader { body += "<w:headerReference w:type=\"default\" r:id=\"rIdHeader\"/>" }
         if writeFooter { body += "<w:footerReference w:type=\"default\" r:id=\"rIdFooter\"/>" }
         for (i, k) in keptHF {
             body += "<w:\(k.kind == .header ? "headerReference" : "footerReference") w:type=\"\(k.type)\" r:id=\"rIdKeptHF\(i)\"/>"
         }
-        if let type = doc.sectionTypeXML { body += type }
+        if let type { body += type }
         body += "<w:pgSz w:w=\"\(pw)\" w:h=\"\(ph)\"\(pageSetup.isLandscape && pageSetup.orientStated ? " w:orient=\"landscape\"" : "")/>"
         body += "<w:pgMar w:top=\"\(Int(pageSetup.marginTop * 20))\" w:right=\"\(Int(pageSetup.marginRight * 20))\" w:bottom=\"\(Int(pageSetup.marginBottom * 20))\" w:left=\"\(Int(pageSetup.marginLeft * 20))\" w:header=\"\(Int((pageSetup.headerDistance * 20).rounded()))\" w:footer=\"\(Int((pageSetup.footerDistance * 20).rounded()))\" w:gutter=\"\(doc.gutterTwips ?? 0)\"/>"
         if let pb = doc.pageBordersXML { body += pb }
@@ -2207,6 +2214,16 @@ extension DocxFormat {
         if let tail = doc.sectionTailXML, !tail.containsSubstring("<w:vAlign") { body += tail }
         if let grid = doc.docGridXML { body += grid }
         body += "</w:sectPr>"
+        return body
+        }
+        body += sectPr(lastPage, type: doc.sectionTypeXML)
+        for (index, p) in doc.paragraphs.enumerated() where p.cell == nil && index < doc.paragraphs.count - 1 {
+            guard let sect = p.style.sectionXML, sect.containsSubstring(RichDocumentController.sectionAsLast) else { continue }
+            let type = sect.rangeOfSubstring("<w:type ").flatMap { open in
+                sect[open.lowerBound...].rangeOfSubstring("/>").map { String(sect[open.lowerBound ..< $0.upperBound]) } }
+            body = body.replacingAll("<!--\(RichDocumentController.sectionAsLast)-\(index)-->", with: sectPr(p.style.sectionPage ?? lastPage, type: type))
+        }
+        let pageSetup = lastPage.vertical ? lastPage.transposed() : lastPage
 
         let ns = "xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\" xmlns:wp=\"http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing\" xmlns:mc=\"http://schemas.openxmlformats.org/markup-compatibility/2006\" xmlns:wp14=\"http://schemas.microsoft.com/office/word/2010/wordprocessingDrawing\" xmlns:w14=\"http://schemas.microsoft.com/office/word/2010/wordml\" xmlns:w15=\"http://schemas.microsoft.com/office/word/2012/wordml\" mc:Ignorable=\"w14 w15 wp14\""
         let background = doc.backgroundXML.map { keptFragmentXML($0, doc.backgroundRels) } ?? ""

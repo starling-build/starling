@@ -1040,7 +1040,11 @@ final class Ribbon: StatelessWidget {
                 Chrome.menu(Text("Breaks"), Icon(FluentSystemIcons.pageBreak, size: Chrome.iconSize,
                                                  color: fluent.resources.textFillColorPrimary), fluent,
                             [("Page", { c.insertPageBreak() }),
-                             ("Column", { c.insertColumnBreak() })]),
+                             ("Column", { c.insertColumnBreak() }),
+                             ("Section: Next Page", { [session] in c.insertSectionBreak(.nextPage, lastSetup: session.pageSetup) }),
+                             ("Section: Continuous", { [session] in c.insertSectionBreak(.continuous, lastSetup: session.pageSetup) }),
+                             ("Section: Even Page", { [session] in c.insertSectionBreak(.evenPage, lastSetup: session.pageSetup) }),
+                             ("Section: Odd Page", { [session] in c.insertSectionBreak(.oddPage, lastSetup: session.pageSetup) })]),
             ]),
         ])
         let paragraph = Chrome.group("Paragraph", fluent, [
