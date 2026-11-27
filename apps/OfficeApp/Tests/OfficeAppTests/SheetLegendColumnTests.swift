@@ -7,14 +7,14 @@ import FlutterSwiftBridge
 /// legends, 8 and 9 pt) sets the entries as one column, keys at one x, each entry's first line at the top of its even slot,
 /// and draws Excel's 19.2 pt line key.
 final class SheetLegendColumnTests: XCTestCase {
-    private func chart(legend: String? = nil) throws -> Chart {
+    private func chart(legend: String? = nil, names: [String]? = nil) throws -> Chart {
         let ns = "xmlns:c=\"http://schemas.openxmlformats.org/drawingml/2006/chart\" xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\""
         func ser(_ i: Int, _ name: String) -> String {
             "<c:ser><c:idx val=\"\(i)\"/><c:order val=\"\(i)\"/><c:tx><c:v>\(name)</c:v></c:tx><c:val><c:numRef><c:numCache><c:ptCount val=\"2\"/><c:pt idx=\"0\"><c:v>1</c:v></c:pt><c:pt idx=\"1\"><c:v>\(i + 2)</c:v></c:pt></c:numCache></c:numRef></c:val></c:ser>"
         }
         let xml = """
         <c:chartSpace \(ns)><c:chart><c:autoTitleDeleted val="1"/><c:plotArea><c:lineChart><c:grouping val="standard"/>
-        \(ser(0, "The shorter name of the three, on its own"))\(ser(1, "A much longer name than the first, wider than half the box"))\(ser(2, "A middling name, still too wide to share"))
+        \((names ?? ["The shorter name of the three, on its own", "A much longer name than the first, wider than half the box", "A middling name, still too wide to share"]).enumerated().map { ser($0.offset, $0.element) }.joined())
         <c:axId val="1"/><c:axId val="2"/></c:lineChart><c:catAx><c:axId val="1"/><c:axPos val="b"/><c:crossAx val="2"/></c:catAx><c:valAx><c:axId val="2"/><c:axPos val="l"/><c:crossAx val="1"/></c:valAx></c:plotArea>
         \(legend ?? "<c:legend><c:legendPos val=\"b\"/><c:layout><c:manualLayout><c:xMode val=\"edge\"/><c:yMode val=\"edge\"/><c:x val=\"0.0157\"/><c:y val=\"0.6885\"/><c:w val=\"0.96\"/><c:h val=\"0.307\"/></c:manualLayout></c:layout><c:overlay val=\"0\"/></c:legend>")
         </c:chart></c:chartSpace>
@@ -51,10 +51,30 @@ final class SheetLegendColumnTests: XCTestCase {
     }
 }
 
+extension SheetLegendColumnTests {
+    /// An automatic legend at the bottom too wide for one row stands as a grid, not as centred rows: lab xl-legb, Excel's print of
+    /// "Sales", "North region", "North region 2" in a 180 x 200 pt frame sets two columns 77.5 pt apart and the rows 16.9 apart
+    /// (1.2213 x the size + 5.88), where ours centred each row of the flow and set them one text line apart.
+    func testAnAutomaticBottomLegendTooWideForARowStandsAsAGrid() throws {
+        let canvas = KeySpyCanvas()
+        canvas.minY = 0.6 * 200; canvas.minLength = 10
+        let legend = "<c:legend><c:legendPos val=\"b\"/><c:overlay val=\"0\"/></c:legend>"
+        ChartPainter.paint(try chart(legend: legend, names: ["Sales", "North region", "North region 2"]), canvas, Rect.fromLTWH(0, 0, 180, 200), pxPerPt: 0.75, theme: DeckTheme())
+        let keys = canvas.keys.sorted { ($0.y, $0.x) < ($1.y, $1.x) }
+        XCTAssertEqual(keys.count, 3)
+        guard keys.count == 3 else { return }
+        XCTAssertEqual(keys[0].y, keys[1].y, accuracy: 0.01, "two entries in the first row")
+        XCTAssertEqual(keys[2].x, keys[0].x, accuracy: 0.01, "the third under the first, in a column")
+        XCTAssertGreaterThan(keys[1].x - keys[0].x, 40, "a second column")
+        XCTAssertEqual(keys[2].y - keys[0].y, 1.2213 * 7.5 + 5.88, accuracy: 0.05, "Excel's row pitch: the line and 5.88 pt (16.9 at 9 pt; 10 pt here, at 0.75)")
+    }
+}
+
 /// Records the short horizontal strokes (legend keys).
 private final class KeySpyCanvas: Canvas {
     var keys: [(x: Double, y: Double, length: Double)] = []
     var gridRight = 0.0
+    var minY = 0.6 * 207, minLength = 0.0
     func save() {}
     func saveLayer(_ bounds: Rect?, _ paint: Paint) {}
     func restore() {}
@@ -76,7 +96,7 @@ private final class KeySpyCanvas: Canvas {
     func drawLine(_ p1: Offset, _ p2: Offset, _ paint: Paint) {
         guard p1.dy == p2.dy else { return }
         let w = abs(p2.dx - p1.dx)
-        if w < 30, p1.dy > 0.6 * 207 || p1.dx > 400 { keys.append((min(p1.dx, p2.dx), p1.dy, w)) }
+        if w < 30, w >= minLength, p1.dy > minY || p1.dx > 400 { keys.append((min(p1.dx, p2.dx), p1.dy, w)) }
         if w > 100 { gridRight = max(gridRight, p1.dx, p2.dx) }
     }
     func drawPaint(_ paint: Paint) {}

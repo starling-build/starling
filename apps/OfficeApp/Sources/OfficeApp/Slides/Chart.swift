@@ -3662,6 +3662,13 @@ enum ChartPainter {
             // (Beside a sheet's plot the column starts at the key, 2.1 pt before the name: chart-auto_marker_excel10's keys in
             // Excel's print 429.1 to 448.4, the names at 450.5, the plot ending 413.5.)
             let lead = lineKeys && !beside ? 24.8 * lk : lineKeys && c.onSheet && box == nil ? 21.2 : key + gap
+            // (A sheet's row of line keys under the plot: 33.5 pt from one name's end to the next name at 9 pt, the key's 24.8 and
+            // 8.7 between the entries: lab xl-legb's one-row legends in Excel's print, "Sales" ending 98.0, "North region" at 131.5.)
+            if sheetRow, lineKeys, box == nil { spacing = 11.6 * k * m }
+            // A sheet legend at the foot, automatic: one row while the keys and names, without the room between them, fit 0.9 of the
+            // frame's width; else a grid of equal columns as wide as the widest key and name, as many as fit that width, the rows
+            // balanced, a name wider than the whole width wrapped within it.
+            let sheetFoot = c.onSheet && !beside && box == nil && !pie && c.legendPosition == "b" && c.legendAt == nil && !c.legendOverlay
             // (In a place of its own a name wider than the place wraps
             // within it, set left: zh-61aaad09's pie legend, 26% of the
             // chart's width, sets "实体投诉举报" as "实体投诉" / "举报" in Word's
@@ -3731,6 +3738,38 @@ enum ChartPainter {
             // the bottom, listed last (LIBRE_OFFICE-100610-0's five).
             // (Not when the category axis runs from the top: series 1 is then the top bar, and listed first, 81d28d42 p29.)
             if c.type == .bar, !c.stacked, !(c.onSlide && c.categoryReversed) { entries.reverse() }
+            // (Lab xl-legb in Excel's print and COM readback, Calibri and Yu Gothic 9 pt, frames 180 to 420 pt: "Sales", "North region",
+            // "North region 2" stand in one row at 240 (keys and names 192 of 216) and in two columns at 180, 77.5 pt apart, the block
+            // centred; "Operating income before tax and interest" wraps after "and" in a 180 frame, within 162 less the key's room.)
+            var sheetGridW: Double? = nil
+            var sheetGridCols = 0
+            if sheetFoot, !entries.isEmpty {
+                let limit = 0.9 * r.width
+                entries = entries.map { e in
+                    guard lead + e.tp.width > limit + 0.01 else { return e }
+                    RuleTrace.hit("sheet-foot-legend-name-wraps-within-the-frame")
+                    e.tp.dispose()
+                    return (i: e.i, tp: styled(names[e.i], size, max(size * k, limit - lead), bold: c.legendBold, color: c.legendColor, part: "legend", align: .left, windowsLines: true))
+                }
+                // (A wrapped name takes the room of its longest line, not of the box it wrapped in: "Operating income before tax and"
+                // 121.5 pt, its column centred at 41.8 in a 180 frame, not 33.6.)
+                let shownW: (TextPainter) -> Double = { tp in tp.computeLineMetrics().map { $0.width }.max() ?? tp.width }
+                let keysAndNames = entries.reduce(0.0) { $0 + lead + shownW($1.tp) }
+                if keysAndNames > limit + 0.01 {
+                    RuleTrace.hit("sheet-foot-legend-too-wide-for-a-row-stands-as-a-grid")
+                    let colW = lead + (entries.map { shownW($0.tp) }.max() ?? 0)
+                    let fit = max(1, min(entries.count, Int((limit + 0.01) / max(1, colW))))
+                    let rows = (entries.count + fit - 1) / fit
+                    sheetGridCols = (entries.count + rows - 1) / rows
+                    sheetGridW = colW
+                    spacing = 0
+                } else {
+                    // (A row that fits so but not with the room between entries and at its ends closes that room up evenly: "Sales" to
+                    // "North region" 30.4 pt in a 240 frame where 33.5 in a 320.)
+                    let natural = keysAndNames + spacing * Double(entries.count + 1)
+                    if natural > limit { spacing = max(0, spacing - (natural - limit) / Double(entries.count + 1)) }
+                }
+            }
             var lines: [[(i: Int, tp: TextPainter)]] = [[]]
             var lineW = 0.0
             var wasWide = false
@@ -3751,6 +3790,11 @@ enum ChartPainter {
                 if lineW > 0, beside || boxColumn || ownRow || lineW + (wordSpread ? 0 : spacing) + w > (box?.width ?? area.width) { lines.append([]); lineW = 0 }
                 lineW += (lineW > 0 && !wordSpread ? spacing : 0) + w
                 lines[lines.count - 1].append(e)
+            }
+            if sheetGridW != nil, sheetGridCols > 0 {
+                lines = stride(from: 0, to: entries.count, by: sheetGridCols).map { Array(entries[$0 ..< min($0 + sheetGridCols, entries.count)]) }
+            } else if sheetFoot, !entries.isEmpty {
+                lines = [entries]
             }
             // (Word spreads the entries of a legend in a box of its own across the box, the
             // free width in equal parts before, between and after them, and wraps a row only
@@ -3894,6 +3938,15 @@ enum ChartPainter {
             }
             if let box, lineHs.reduce(0, +) < box.height || boxHoldsRows, !lines.isEmpty {
                 lineHs = lines.map { _ in box.height / Double(lines.count) }
+            }
+            // (A sheet's legend grid sets every row as tall as its tallest entry and 5.88 pt more, the entries hung from the row's
+            // top: lab xl-legb's rows 16.9 pt apart at Calibri 9 pt, 27.75 where a name wraps to two lines, 17.5 and 28.9 in Yu Gothic.)
+            var sheetGridSlot: Double? = nil
+            if sheetGridW != nil, !lines.isEmpty {
+                // (Each line counts 1.2213 x the size, as beside the plot: Excel's 27.75 for two Calibri lines; Yu Gothic's 28.9 is near.)
+                let slot = 1.2213 * size * k * Double(entries.map { max(1, $0.tp.computeLineMetrics().count) }.max() ?? 1) + 5.88
+                sheetGridSlot = slot
+                lineHs = lines.map { _ in slot }
             }
             let linesH = lineHs.reduce(0, +)
             // (A name wrapped on a slide takes the width of its longest line, not of the room it wrapped in.)
@@ -4046,6 +4099,9 @@ enum ChartPainter {
                 // Excel's prints of nine charts with the legend below.)
                 let pt = c.onSheet ? k / 0.75 : 0
                 y = area.bottom - 1.2 * k - lineH * Double(lines.count) - 2.2 * pt
+                // (Its first row stands where a one-row legend's does less the rows over it, 1.5 pt short of a row each:
+                // lab xl-legb's legends of two rows 15.4 pt taller than of one, the last row's names 1.5 lower.)
+                if let slot = sheetGridSlot { y = area.bottom - 1.2 * k - lineH - 2.2 * pt - (slot * Double(lines.count - 1) - 1.5) }
                 // (A `cx:` chart's row on a slide stands 7.15 pt higher, its baseline 14.9 above the frame's foot, and the plot's room
                 // ends 9.45 above it, the row taking 28.8 pt from the plot: lab cx-legend in PowerPoint's print, frames 200 to 450 pt
                 // high alike; bw-spacing's and chartex-lab2's waterfall legends.)
@@ -4147,6 +4203,8 @@ enum ChartPainter {
                     w = g * maxPerRow
                 } else if let pitch = wordGridPitch {
                     w = pitch * maxPerRow - spacing
+                } else if let g = sheetGridW {
+                    w = g * maxPerRow
                 } else {
                     var entriesW: Double = 0
                     for e in line { entriesW += lead + e.tp.width }
@@ -4164,13 +4222,13 @@ enum ChartPainter {
                     // (A sheet's box column: each entry's first line at the top of its even slot, its key on that line, a wrapped
                     // name hanging below: ja-7d50affe6a's keys 3.3 and 3.8 pdf under the slot's top in Excel's print, 12 and 13.7 apart.)
                     let firstH = e.tp.computeLineMetrics().first.map { $0.height } ?? textH
-                    let keyY = sheetBoxColumnW != nil ? y + firstH / 2 : y + lineH / 2
+                    let keyY = sheetBoxColumnW != nil || sheetGridSlot != nil ? y + firstH / 2 : y + lineH / 2
                     if !byPoint, e.i >= c.series.count {
                         // A combination's line: its mark, on its line unless
                         // that is hidden.
                         let l = c.lineSeries[e.i - c.series.count]
                         let colour = l.color ?? c.color(series: e.i, accents: theme.accents)
-                        let mid = Offset(x + key / 2, y + lineH / 2)
+                        let mid = Offset(x + key / 2, sheetGridSlot != nil ? y + (e.tp.computeLineMetrics().first.map { $0.height } ?? textH) / 2 : y + lineH / 2)
                         if !l.lineHidden {
                             p.style = .stroke
                             p.strokeWidth = 2.25 * k
@@ -4183,9 +4241,9 @@ enum ChartPainter {
                             }
                         }
                         Self._mark(l, at: mid, k: k, colour: colour, canvas)
-                        e.tp.paint(canvas, Offset(x + key + gap, y + (lineH - e.tp.height) / 2))
+                        e.tp.paint(canvas, Offset(x + key + gap, sheetGridSlot != nil ? y : y + (lineH - e.tp.height) / 2))
                         let lineAdvance: Double = key + gap + e.tp.width + spacing
-                        x += wordGridPitch ?? lineAdvance
+                        x += sheetGridW ?? wordGridPitch ?? lineAdvance
                         continue
                     }
                     p.color = waterfall != nil ? c.color(series: e.i, accents: theme.accents)
@@ -4250,10 +4308,10 @@ enum ChartPainter {
                         textDrop = (lineH - tall) / 2 + 1.5 * k
                     }
                     if slideSidePie, wrappedSide { textDrop = (lineH - slotH) / 2 }
-                    if sheetBoxColumnW != nil { textDrop = 0 }
+                    if sheetBoxColumnW != nil || sheetGridSlot != nil { textDrop = 0 }
                     e.tp.paint(canvas, Offset(x + lead, y + textDrop))
                     let ownAdvance: Double = lead + e.tp.width + spacing
-                    let advance: Double = slideGridW ?? wordGridPitch ?? ownAdvance
+                    let advance: Double = slideGridW ?? wordGridPitch ?? sheetGridW ?? ownAdvance
                     x += advance
                 }
                 y += lineH
