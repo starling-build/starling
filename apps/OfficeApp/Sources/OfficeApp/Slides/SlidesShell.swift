@@ -530,6 +530,8 @@ final class SlidesShellState: State<StatefulWidget> {
             toggleList: { [weak self] in self?.session.controller.toggleList($0) },
             // A selected shape (typing in one counts): copy it, remove it, move it in the stack.
             context: deck.selection.isEmpty ? [] : [
+                OfficeHost.colorButton(id: "ctx-shape-fill", title: "Shape Fill", symbol: "paintpalette", none: "No Fill") { [weak self] in self?.deck.setFill($0) },
+                OfficeHost.colorButton(id: "ctx-shape-outline", title: "Shape Outline", symbol: "square.dashed", none: "No Outline") { [weak self] in self?.deck.setOutline($0) },
                 .init(id: "ctx-shape-dup", title: "Duplicate", symbol: "plus.square.on.square") { [weak self] in self?.deck.duplicateSelection() },
                 .init(id: "ctx-shape-del", title: "Delete", symbol: "trash") { [weak self] in self?.deck.deleteSelection() },
                 .init(id: "ctx-shape-fwd", title: "Bring Forward", symbol: "square.2.layers.3d.top.filled") { [weak self] in self?.deck.arrange(.forward) },

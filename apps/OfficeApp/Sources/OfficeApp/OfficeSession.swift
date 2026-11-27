@@ -120,6 +120,9 @@ final class OfficeSession {
     }()
 
     init(kind: DocumentKind = .document) {
+        // The drawing hooks (floating-picture reader, object painters) were set only once a chart, equation or group was
+        // read: until then In Line with Text -> Square (ribbon, menu, keyboard bar) silently did nothing.
+        WriterCharts.installHooks()
         self.kind = kind
         self.deck = kind == .presentation ? DeckController() : nil
         self.workbook = kind == .workbook ? WorkbookController() : nil

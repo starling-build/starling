@@ -366,7 +366,15 @@ final class SheetsShellState: State<StatefulWidget> {
                 .init(id: "ctx-cell-sum", title: "AutoSum", symbol: "sum") { [weak wb] in if let wb { Ribbon._autoSum(wb) } },
                 .init(id: "ctx-cell-currency", title: "Currency", symbol: "dollarsign") { [weak wb] in wb?.setStyle { $0.numberFormat = "$#,##0.00" } },
                 .init(id: "ctx-cell-percent", title: "Percent Style", symbol: "percent") { [weak wb] in wb?.setStyle { $0.numberFormat = "0%" } },
+                OfficeHost.colorButton(id: "ctx-cell-fill", title: "Fill Color", symbol: "paintpalette", none: "No Fill") { [weak wb] color in
+                    wb?.setStyle { $0.fill = color.map { UInt32(truncatingIfNeeded: $0.value) & 0xFFFFFF } }
+                },
+                .init(id: "ctx-cell-sort", title: "Sort", symbol: "arrow.up.arrow.down", children: [
+                    .init(id: "ctx-sort-az", title: "Sort A to Z", symbol: "") { [weak wb] in wb?.sortSelection(ascending: true) },
+                    .init(id: "ctx-sort-za", title: "Sort Z to A", symbol: "") { [weak wb] in wb?.sortSelection(ascending: false) },
+                ]) {},
                 .init(id: "ctx-cell-clear", title: "Clear Contents", symbol: "eraser") { [weak wb] in wb?.clearContents() },
+                .init(id: "ctx-cell-format", title: "Format Cells", symbol: "number") { [weak self] in self?._openFormatCells() },
             ]), owner: self)
     }
 
