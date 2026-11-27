@@ -471,6 +471,20 @@ func starlingInitialRoute(_ bytes: UnsafePointer<UInt8>?, _ count: Int32) {
     WebPlatform.defaultRouteName = String(decoding: UnsafeBufferPointer(start: bytes, count: Int(count)), as: UTF8.self)
 }
 
+/// A recovery copy a closed tab left ("id\nkind\nname" and the bytes), offered
+/// before main, newest first; the page frees its transfer buffers.
+@_expose(wasm, "starling_recovery_offer")
+@_cdecl("starling_recovery_offer")
+func starlingRecoveryOffer(_ meta: UnsafePointer<UInt8>?, _ metaCount: Int32,
+                           _ bytes: UnsafeRawPointer?, _ count: Int32) {
+    guard let meta, metaCount > 0, let bytes, count > 0 else { return }
+    let fields = String(decoding: UnsafeBufferPointer(start: meta, count: Int(metaCount)), as: UTF8.self)
+        .split(separator: "\n", maxSplits: 2, omittingEmptySubsequences: false).map(String.init)
+    guard fields.count == 3 else { return }
+    WebFiles.recoveryOffers.append(.init(id: fields[0], kind: fields[1], name: fields[2],
+                                         data: Data(bytes: bytes, count: Int(count))))
+}
+
 /// Copy a named startup document; the page retains/frees its transfer buffers.
 @_expose(wasm, "starling_startup_file")
 @_cdecl("starling_startup_file")

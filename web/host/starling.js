@@ -166,6 +166,110 @@ const SKWASM_FALLBACK_FAMILY = 'Roboto';
 const SOFT_LINE_BREAK = 0;
 const HARD_LINE_BREAK = 100;
 
+// --- AutoSave's recovery copies. A tab has no files, so the page keeps one
+// row per tab in IndexedDB (database starling-office, store recovery: id,
+// kind, name, time, bytes). Each tab holds a Web Lock named after its row
+// for as long as it lives, so a row whose lock is free was left by a tab
+// that closed with unsaved changes; such rows are offered to the next app
+// that starts (newest first), which adopts the one it restores. Without
+// IndexedDB or Web Locks nothing is kept or offered.
+const recoveryTab = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
+const recoveryLockName = id => `starling-recovery:${id}`;
+const recoveryKeepRows = 10;
+const recoveryKeepBytes = 200 * 1024 * 1024;
+let recoveryDatabase = null;
+const recoveryClaims = new Map();   // offered row id -> release of its lock
+
+function recoveryDb() {
+  recoveryDatabase ??= new Promise((resolve, reject) => {
+    if (!globalThis.indexedDB || !navigator.locks) return reject(new Error('no IndexedDB or Web Locks'));
+    const request = indexedDB.open('starling-office', 1);
+    request.onupgradeneeded = () => {
+      if (!request.result.objectStoreNames.contains('recovery')) {
+        request.result.createObjectStore('recovery', { keyPath: 'id' });
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+  return recoveryDatabase;
+}
+
+function recoveryRequest(mode, work) {
+  return recoveryDb().then(db => new Promise((resolve, reject) => {
+    const transaction = db.transaction('recovery', mode);
+    const result = work(transaction.objectStore('recovery'));
+    transaction.oncomplete = () => resolve(result?.result);
+    transaction.onerror = () => reject(transaction.error);
+  }));
+}
+
+// Takes a row's lock if nobody holds it: resolves to its release, or null.
+function claimRecoveryLock(id) {
+  return new Promise(granted => {
+    navigator.locks.request(recoveryLockName(id), { ifAvailable: true }, lock => {
+      if (!lock) { granted(null); return undefined; }
+      return new Promise(release => granted(release));
+    }).catch(() => granted(null));
+  });
+}
+
+// This tab's lock (held until the tab goes), then the rows closed tabs left.
+// Rows the app does not adopt within a minute are let go for the next tab.
+async function loadRecoveryOffers() {
+  await recoveryDb();
+  navigator.locks.request(recoveryLockName(recoveryTab), () => new Promise(() => {}));
+  const rows = (await recoveryRequest('readonly', store => store.getAll())) ?? [];
+  rows.sort((a, b) => b.time - a.time);
+  const offers = [];
+  for (const row of rows) {
+    if (row.id === recoveryTab) continue;
+    const release = await claimRecoveryLock(row.id);
+    if (!release) continue;
+    recoveryClaims.set(row.id, release);
+    offers.push(row);
+  }
+  setTimeout(() => {
+    for (const release of recoveryClaims.values()) release();
+    recoveryClaims.clear();
+  }, 60000);
+  return offers;
+}
+
+function keepRecovery(kind, name, bytes) {
+  recoveryRequest('readwrite', store => {
+    store.put({ id: recoveryTab, kind, name, time: Date.now(), bytes });
+    // The caps: the newest rows only, and a total size. This tab's row stays.
+    const all = store.getAll();
+    all.onsuccess = () => {
+      let rows = 0, total = 0;
+      for (const row of all.result.sort((a, b) => b.time - a.time)) {
+        rows += 1; total += row.bytes.byteLength;
+        if (row.id !== recoveryTab && (rows > recoveryKeepRows || total > recoveryKeepBytes)) store.delete(row.id);
+      }
+    };
+  }).catch(() => {});
+}
+
+function discardRecovery() {
+  recoveryRequest('readwrite', store => store.delete(recoveryTab)).catch(() => {});
+}
+
+// The app restored a closed tab's row: it becomes this tab's own.
+function adoptRecovery(id) {
+  recoveryRequest('readwrite', store => {
+    const get = store.get(id);
+    get.onsuccess = () => {
+      if (!get.result) return;
+      store.delete(id);
+      store.put({ ...get.result, id: recoveryTab, time: Date.now() });
+    };
+  }).finally(() => {
+    recoveryClaims.get(id)?.();
+    recoveryClaims.delete(id);
+  }).catch(() => {});
+}
+
 // Wraps a fetch so that `onProgress(loaded, total)` sees the bytes go by,
 // without giving up streaming compilation: the body is re-wrapped, the
 // headers (application/wasm among them) kept. `total` is unknown when HTTP
@@ -223,6 +327,11 @@ export async function startStarling({ canvas, app, appBrotli, preloaded, immutab
     return { name: file.name, bytes: new Uint8Array(await response.arrayBuffer()) };
   }));
   startupFiles.catch(() => {});
+  // (Never holds up the start: storage that does not answer in time offers nothing.)
+  const recoveryOffers = Promise.race([
+    loadRecoveryOffers(),
+    new Promise(resolve => setTimeout(() => resolve([]), 2000)),
+  ]).catch(() => []);
   onPhase?.('Loading editor and fonts…');
   // --- skwasm, single-threaded. Threads need a cross-origin-isolated page
   // (COOP/COEP headers); without them skwasm renders on the main thread,
@@ -353,6 +462,14 @@ export async function startStarling({ canvas, app, appBrotli, preloaded, immutab
       const a = Object.assign(document.createElement('a'), { href: url, download: name });
       a.click();
       setTimeout(() => URL.revokeObjectURL(url), 10000);
+    },
+    recovery_keep(metaPointer, metaLength, bytesPointer, byteCount) {
+      const [kind, name] = utf8.decode(appBytes().subarray(metaPointer, metaPointer + metaLength)).split('\n');
+      keepRecovery(kind, name, appBytes().slice(bytesPointer, bytesPointer + byteCount));
+    },
+    recovery_discard() { discardRecovery(); },
+    recovery_adopt(idPointer, idLength) {
+      adoptRecovery(utf8.decode(appBytes().subarray(idPointer, idPointer + idLength)));
     },
     // File > Print: our PDF in a hidden frame, whose print() opens the
     // browser's print dialog on it (printer, pages, copies). Where a frame
@@ -811,6 +928,11 @@ export async function startStarling({ canvas, app, appBrotli, preloaded, immutab
   for (const file of await startupFiles) {
     transfer(encoder.encode(file.name), (name, nameLength) =>
       transfer(file.bytes, (pointer, length) => swift.starling_startup_file(name, nameLength, pointer, length)));
+  }
+  for (const row of await recoveryOffers) {
+    if (!swift.starling_recovery_offer || !row.bytes?.byteLength) continue;
+    transfer(encoder.encode(`${row.id}\n${row.kind}\n${row.name}`), (meta, metaLength) =>
+      transfer(row.bytes, (pointer, length) => swift.starling_recovery_offer(meta, metaLength, pointer, length)));
   }
 
   // --- size, before the app mounts, so its first layout is the real one.
