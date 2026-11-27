@@ -412,7 +412,8 @@ extension RichLayout {
             }
             return
         }
-        _paintBoxText(inside, canvas)
+        _paintBoxText(inside, canvas, cutsBeside: clips && theme.wordRules && RichTextTheme.wordWindowsPages && text.textDirection == .horizontal
+                          && !text.fitsText && !text.fitsHeight && !text.growsToFit)
         canvas.restore()
         if cutsAtFoot { _paintTextPastFoot(inside, text, rect, canvas) }
     }
@@ -470,7 +471,7 @@ extension RichLayout {
 
     /// A text box's text, at the canvas's origin: its flow, and any
     /// boxes of its group laid out beside it.
-    func _paintBoxText(_ inside: _HeaderFooter, _ canvas: any Canvas, band: (top: Double, bottom: Double)? = nil) {
+    func _paintBoxText(_ inside: _HeaderFooter, _ canvas: any Canvas, band: (top: Double, bottom: Double)? = nil, cutsBeside: Bool = false) {
         let all = Rect.fromLTWH(-100_000, -100_000, 200_000, 200_000)
         inside.layout.paint(canvas, visible: band.map { Rect.fromLTRB(-100_000, $0.top, 100_000, $0.bottom) } ?? all, document: inside.document, selection: nil, caret: nil)
         for other in inside.beside {
@@ -482,8 +483,16 @@ extension RichLayout {
                 canvas.rotate(turn.degrees * Double.pi / 180)
                 canvas.translate(-turn.x, -turn.y)
             }
+            // (A box of the group beside the others that keeps its size cuts its text at its own foot, as a stacked one does:
+            // lo-f5a68fc90b's 19.7pt "Rectangle 5250 txbxContent" box shows its first line only in Word's print, the wrapped
+            // "txbxContent" cut through under it; ours drew every line of each narrow box down over the boxes below.)
+            if cutsBeside, other.turn == nil {
+                RuleTrace.hit("group-box-beside-the-others-cut-at-its-foot")
+                canvas.clipRect(Rect.fromLTRB(-1_000_000, -1_000_000, 1_000_000, other.foot), clipOp: .intersect, doAntiAlias: false)
+            }
             canvas.translate(0, other.dy)
-            other.layout.paint(canvas, visible: all, document: other.document, selection: nil, caret: nil)
+            let shown = cutsBeside && other.turn == nil ? Rect.fromLTRB(-100_000, -100_000, 100_000, other.foot - other.dy) : all
+            other.layout.paint(canvas, visible: shown, document: other.document, selection: nil, caret: nil)
             canvas.restore()
         }
     }
@@ -855,7 +864,7 @@ extension RichLayout {
                 for n in parts.indices { parts[n].top *= ratio; parts[n].height *= ratio }
             }
         }
-        var beside: [(layout: RichLayout, document: RichDocument, dy: Double, turn: (degrees: Double, x: Double, y: Double)?)] = []
+        var beside: [(layout: RichLayout, document: RichDocument, dy: Double, turn: (degrees: Double, x: Double, y: Double)?, foot: Double)] = []
         if parts.count > 1, (1 ..< parts.count).contains(where: { parts[$0].rotation != 0 || parts[$0].top < parts[$0 - 1].top + parts[$0 - 1].height - 0.5 }) {
             let all = sub.paragraphs
             for n in (parts[0].rotation != 0 ? 0 : 1) ..< parts.count where parts[n].first < all.count {
@@ -870,7 +879,8 @@ extension RichLayout {
                 var dy = _px(parts[n].top - box.insetTop)
                 if parts[n].atFoot { dy += _px(parts[n].height) - alone.totalHeight }
                 if parts[n].inMiddle { dy += max(0, _px(parts[n].height) - alone.totalHeight) / 2 }
-                beside.append((alone, own, dy, parts[n].rotation == 0 ? nil : (parts[n].rotation, _px(parts[n].pivotX), _px(parts[n].pivotY))))
+                beside.append((alone, own, dy, parts[n].rotation == 0 ? nil : (parts[n].rotation, _px(parts[n].pivotX), _px(parts[n].pivotY)),
+                               _px(parts[n].top - box.insetTop + parts[n].height)))
             }
             sub.paragraphs = parts[0].rotation != 0 ? [] : Array(all[0 ..< min(all.count, parts[1].first)])
             parts = [parts[0]]
