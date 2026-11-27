@@ -999,10 +999,11 @@ final class Ribbon: StatelessWidget {
         ]
         func paper(_ name: String, _ base: PageSetup) -> (String, () -> Void) {
             (name, { [session] in
-                var p = base
-                p.marginTop = session.sectionSetup().marginTop; p.marginBottom = session.sectionSetup().marginBottom
-                p.marginLeft = session.sectionSetup().marginLeft; p.marginRight = session.sectionSetup().marginRight
-                session.onPageSetup?(session.sectionSetup().isLandscape ? p.rotated() : p)
+                // Only the sheet changes: the section's margins, columns and text direction stay.
+                var p = session.sectionSetup()
+                let landscape = p.isLandscape
+                p.width = landscape ? base.height : base.width; p.height = landscape ? base.width : base.height
+                session.onPageSetup?(p)
             })
         }
         let sizes: [(String, () -> Void)] = [paper("Letter (8.5 × 11 in)", .letter), paper("A4 (210 × 297 mm)", .a4),
