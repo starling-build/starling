@@ -104,6 +104,12 @@ extension Worksheet {
             setup.append(("fitToHeight", c.fitTall.map { String(max(0, $0)) } ?? "1"))
             fit = true
         }
+        // Excel names the orientation whenever it writes a pageSetup (Excel's COM reads a missing one as 0, neither
+        // portrait nor landscape). A fit it no longer uses stays written, as Excel keeps it for the dialog.
+        if !setup.isEmpty, c.landscape == nil,
+           !(keptElements.first { $0.name == "pageSetup" }?.text.containsSubstring(" orientation=") ?? false) {
+            setup.append(("orientation", "portrait"))
+        }
         edit("pageSetup", setup)
         if let fit {
             let i = keptElements.firstIndex { $0.name == "sheetPr" }
@@ -157,6 +163,14 @@ extension WorkbookController {
         guard let t = el?.text, let r = t.rangeOfSubstring("paperSize=\"") else { return 1 }
         let digits = t[r.upperBound...].prefix { $0.isNumber }
         return Int(digits) ?? 1
+    }
+}
+
+extension SheetPrintLayout {
+    /// The ribbon's Scale to Fit choice as one change: pages wide and tall (0 =
+    /// Automatic); both Automatic turns fitting off and keeps `scale`.
+    static func fitChange(wide: Int, tall: Int, scale: Int) -> PageSetupChange {
+        wide == 0 && tall == 0 ? PageSetupChange(scale: scale) : PageSetupChange(fitWide: wide, fitTall: tall)
     }
 }
 

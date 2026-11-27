@@ -1541,6 +1541,9 @@ public struct PageSetup: Hashable, Codable, Sendable {
     public var columnGap: Double = 36
     /// A right-to-left section (`w:bidi`): its first column is the rightmost.
     public var rtlColumns = false
+    /// A rule down the middle of each gap between columns (`w:sep`, Word's
+    /// Columns > Line between).
+    public var columnLine = false
     /// Unequal columns (`w:equalWidth` 0): each one's width and the gap
     /// after it, as the file states them. Nil for equal columns.
     public var columnSpec: [ColumnSpan]?
@@ -1572,13 +1575,14 @@ public struct PageSetup: Hashable, Codable, Sendable {
     /// The section writes its text top to bottom, columns from the right
     /// (`w:textDirection` tbRl/tbRlV). Everything in this setup is then the
     /// TRANSPOSED page the layout works in (a line runs along the physical
-    /// height, the lines stack across the physical width); `transposed()`
+    /// height, the lines stack across the physical width); `physical`
     /// gives the paper back.
     public var vertical = false
 
     /// The page turned a quarter: width and height swap, and the margins go
     /// round with it (physical top becomes the line's start, physical right
-    /// the first column's edge). Its own inverse.
+    /// the first column's edge). Not its own inverse: `untransposed()`
+    /// turns it back.
     public func transposed() -> PageSetup {
         var p = self
         p.width = height
@@ -1589,6 +1593,22 @@ public struct PageSetup: Hashable, Codable, Sendable {
         p.marginBottom = marginLeft
         return p
     }
+
+    /// The paper page of a turned (vertical) setup: undoes `transposed()`.
+    public func untransposed() -> PageSetup {
+        var p = self
+        p.width = height
+        p.height = width
+        p.marginTop = marginLeft
+        p.marginRight = marginTop
+        p.marginBottom = marginRight
+        p.marginLeft = marginBottom
+        return p
+    }
+
+    /// The page as printed on the paper: a vertical section's setup turned
+    /// back, any other as it is. Page Setup shows and edits this one.
+    public var physical: PageSetup { vertical ? untransposed() : self }
 
     public func rotated() -> PageSetup {
         var p = self
@@ -1964,6 +1984,10 @@ public final class RichLayout {
     /// 1: a paragraph's text without its floating pictures; 2: only the pictures (a parted paragraph's first piece draws its text
     /// in the piece's range and its pictures whole, in a pass of their own).
     var _paintMode = 0
+    /// Floating objects the flow keeps back to draw in stacking order (`_recordFloat`); nil when it draws them in place.
+    var _deferredFloats: [_DeferredFloat]? = nil
+    /// The flow piece now painting: its page, its clip and the shift its paragraph is drawn under.
+    var _pieceFrame: (page: Int, clip: _PieceClip, dx: Double, dy: Double)? = nil
     /// The first paragraph of a page whose header holds a box the body may not run under
     /// (`_headerBoxFloor`): how far its line goes down to clear it (pixels), by paragraph.
     var _headPushUse: [Int: Double] = [:]
@@ -2288,6 +2312,8 @@ public final class RichLayout {
     /// ours drew it after the shading, over them.
     var _behindDrawn: Set<String> = []
     var _shadingFloats = false
+    /// The pass before the shading that only keeps the objects behind the text (`_recordFloat`).
+    var _behindPass = false
 
     // MARK: Headers and footers
     //

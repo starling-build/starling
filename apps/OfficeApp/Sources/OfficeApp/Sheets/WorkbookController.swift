@@ -73,6 +73,22 @@ final class WorkbookController: ChangeNotifier {
         _notify(selectionOnly: true)
     }
 
+    /// Run several edits as ONE undo step (a Borders preset touches the
+    /// range's edges and its inside with separate style changes).
+    func asOneStep(_ edits: () -> Void) {
+        let before = _bookState()
+        let sel = selection, act = active
+        let mark = _undo.count
+        let count0 = self.edits
+        edits()
+        guard _undo.count > mark else { return }
+        _undo.removeSubrange(mark...)
+        self.edits = count0
+        _push(.structure(before: before, after: _bookState(), selection: sel, active: act))
+        engine.recalculate()
+        _notify()
+    }
+
     /// Run `edit` on the active sheet and on every grouped one, as ONE undo step.
     private func _groupEdit(_ edit: () -> Void) -> Bool {
         guard isGrouped, _sheetOverride == nil else { return false }
@@ -170,29 +186,69 @@ final class WorkbookController: ChangeNotifier {
 
     // MARK: Merge and freeze
 
-    /// Merge & Center: the selection becomes one cell showing its
-    /// top-left value, centred; selecting a merged area unmerges it.
+    /// The Merge menu's ways to merge (Home > Merge & Center ▾).
+    enum MergeKind {
+        /// One merged cell, its value centred (Merge & Center).
+        case center
+        /// Each row of the selection merged on its own (Merge Across).
+        case across
+        /// One merged cell, alignment left alone (Merge Cells).
+        case cells
+    }
+
+    /// Merge & Center as a toggle: a selection starting in a merged
+    /// area unmerges, as Excel's checked button does; otherwise it merges
+    /// and centres.
     func toggleMerge() {
+        if sheet.merges.contains(where: { $0.contains(selection.topLeft) }) { unmerge() } else { merge(.center) }
+    }
+
+    /// Merge the selection (see `MergeKind`). One undo step. Excel keeps
+    /// only each merged area's top-left value and drops older merges the
+    /// new areas overlap.
+    func merge(_ kind: MergeKind) {
         if refuses("formatCells") { return }
         let r = selection
-        if let m = sheet.merges.first(where: { $0 == r }) {
-            structural { sheet.merges.removeAll { $0 == m } }
-            return
+        guard r.area <= 1_000_000 else { return }
+        let areas: [CellRange] = kind == .across
+            ? (r.cols > 1 ? (r.top...r.bottom).map { CellRange(top: $0, left: r.left, bottom: $0, right: r.right) } : [])
+            : (r.isSingle ? [] : [r])
+        guard !areas.isEmpty else { return }
+        let others = sheet.cells.keys.filter { a in
+            areas.contains { $0.contains(a) && a != $0.topLeft } && !(sheet.cells[a]?.value.isEmpty ?? true)
         }
-        guard !r.isSingle, r.area <= 1_000_000 else { return }
-        let others = sheet.cells.keys.filter { r.contains($0) && $0 != r.topLeft && !(sheet.cells[$0]?.value.isEmpty ?? true) }
         structural {
-            // Excel keeps only the top-left value.
             for a in others { sheet.cells[a] = nil }
-            sheet.merges.removeAll { $0.intersects(r) }
-            sheet.merges.append(r)
-            var c = sheet.cells[r.topLeft] ?? Cell(input: "")
-            var st = book.style(c.style)
-            st.hAlign = .center
-            c.style = book.styleIndex(st)
-            sheet.cells[r.topLeft] = c
+            sheet.merges.removeAll { m in areas.contains { $0.intersects(m) } }
+            sheet.merges.append(contentsOf: areas)
+            if kind == .center {
+                var c = sheet.cells[r.topLeft] ?? Cell(input: "")
+                var st = book.style(c.style)
+                st.hAlign = .center
+                c.style = book.styleIndex(st)
+                sheet.cells[r.topLeft] = c
+            }
         }
         if !others.isEmpty { onCommand?(.status("Merging keeps only the upper-left value")) }
+    }
+
+    /// Unmerge Cells: every merged area the selection touches. One undo step.
+    func unmerge() {
+        if refuses("formatCells") { return }
+        let r = selection
+        guard sheet.merges.contains(where: { $0.intersects(r) }) else { return }
+        structural { sheet.merges.removeAll { $0.intersects(r) } }
+    }
+
+    /// Home > Increase / Decrease Indent: one level more or less on every
+    /// selected cell (0 to 15, as the Format Cells box). An indented
+    /// general or centred cell turns left-aligned, as in Excel; a right-
+    /// aligned one stays right and indents from the right edge.
+    func indent(by step: Int) {
+        setStyle { st in
+            st.indent = max(0, min(15, st.indent + step))
+            if st.indent > 0, st.hAlign == .general || st.hAlign == .center { st.hAlign = .left }
+        }
     }
 
     /// Freeze the rows above and the columns left of `at` (A1 unfreezes).
@@ -249,6 +305,9 @@ final class WorkbookController: ChangeNotifier {
     private(set) var alsoSelectedDrawings: Set<Int> = []
     /// A finger has no Shift: while this is on, a tap on a chart or picture adds it to the selection or takes it out.
     var selectMultiple = false
+    /// Whether a press on a cell or header extends the selection from its anchor: Shift held, or (a finger has no Shift) the
+    /// Select Multiple toggle on. Chords and pointer code ask here rather than reading Shift alone.
+    func extendsSelection(shift: Bool) -> Bool { shift || selectMultiple }
     /// Every selected chart and picture, in sheet order.
     var selectedDrawingIndexes: [Int] { (selectedDrawing.map { [$0] } ?? []) + alsoSelectedDrawings.sorted() }
 

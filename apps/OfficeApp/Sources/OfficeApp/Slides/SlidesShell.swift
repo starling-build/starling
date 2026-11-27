@@ -97,6 +97,8 @@ final class SlidesShellState: State<StatefulWidget> {
     /// More Colors… from Shape Fill (false) or Shape Outline (true), while its dialog is up.
     private var _shapeColorFor: Bool?
     private var _altText = false
+    /// View > Zoom (or the status bar's percent) opened the Zoom dialog.
+    private var _zoomDialog = false
     /// The Insert Hyperlink dialog is up (text being edited, or the selected shapes).
     private var _linkOpen = false
     private var _textOptions = false
@@ -376,6 +378,11 @@ final class SlidesShellState: State<StatefulWidget> {
             self.setState { self._slideSizeInitial = size ?? self.deck.slideSize; self._slideSize = true }
         }
         session.onLink = { [weak self] in self?._openLink() }
+        session.onZoomDialog = { [weak self] in
+            guard let self else { return }
+            self._endEditing()
+            self.setState { self._zoomDialog = true }
+        }
         session.onAltText = { [weak self] in
             guard let self, !self.deck.selection.isEmpty else { return }
             self._endEditing()
@@ -1374,6 +1381,7 @@ final class SlidesShellState: State<StatefulWidget> {
             if _headerFooter { setState { _headerFooter = false }; return true }
             if _slideSize { setState { _slideSize = false }; return true }
             if _altText { setState { _altText = false }; return true }
+            if _zoomDialog { setState { _zoomDialog = false }; return true }
             if _linkOpen { setState { _linkOpen = false }; return true }
             if _textOptions { setState { _textOptions = false }; return true }
             if _backstage != nil { setState { _backstage = nil }; return true }
@@ -1605,6 +1613,18 @@ final class SlidesShellState: State<StatefulWidget> {
                 Positioned(left: 0, top: 0, right: 0, bottom: 0, child: HyperlinkDialog(
                     hooks: _linkHooks,
                     onClose: { [weak self] in self?.setState { self?._linkOpen = false } })),
+            ])
+        }
+        if _zoomDialog {
+            return Stack(children: [
+                IgnorePointer(ignoring: true, child: window),
+                Positioned(left: 0, top: 0, right: 0, bottom: 0, child: ZoomDialog(
+                    percent: deck.viewPercent, fit: deck.viewIsFit,
+                    onApply: { [weak self] percent in
+                        if let percent { self?.deck.setViewZoom(percent: Double(percent)) } else { self?.deck.fitView() }
+                        self?.setState { self?._zoomDialog = false }
+                    },
+                    onCancel: { [weak self] in self?.setState { self?._zoomDialog = false } })),
             ])
         }
         if _altText {
@@ -2402,8 +2422,10 @@ final class SlidesShellState: State<StatefulWidget> {
             Padding(key: ValueKey("zoom.out"), padding: EdgeInsets(left: 0, top: 0, right: 0, bottom: 0), child: Chrome.icon(FluentSystemIcons.zoomOut, "Zoom Out", fluent) { [weak self] in
                 self?.deck.stepViewZoom(-1)
             }),
+            // Clicking the percent opens the Zoom dialog, as in PowerPoint.
             SizedBox(key: ValueKey("zoom.percent"), width: 44, height: nil,
-                     child: Text("\(deck.viewPercent)%", style: caption)),
+                     child: GestureDetector(onTap: { [weak self] in self?.session.onZoomDialog?() },
+                                            child: Text("\(deck.viewPercent)%", style: caption))),
             Padding(key: ValueKey("zoom.in"), padding: EdgeInsets(left: 0, top: 0, right: 0, bottom: 0), child: Chrome.icon(FluentSystemIcons.zoomIn, "Zoom In", fluent) { [weak self] in
                 self?.deck.stepViewZoom(1)
             }),

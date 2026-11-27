@@ -174,9 +174,10 @@ final class PageSetupPanelState: State<StatefulWidget> {
         func hfBox(_ k: String, _ label: String) -> Widget {
             Padding(padding: EdgeInsets(left: 0, top: 3, right: 0, bottom: 3), child: Row(children: [
                 SizedBox(width: 90, height: nil, child: Text(label, style: fluent.typography.body)),
-                SizedBox(width: 300, height: Chrome.fieldHeight, child: FluentTextBox(key: ValueKey("pagesetup-\(k)"), controller: boxes[k]!,
+                // The rest of the dialog's width: a fixed 300 overflowed it by 10.
+                Expanded(child: SizedBox(width: nil, height: Chrome.fieldHeight, child: FluentTextBox(key: ValueKey("pagesetup-\(k)"), controller: boxes[k]!,
                                                                      onChanged: { [weak self] _ in self?.hfTarget = k },
-                                                                     onSubmitted: { [weak self] _ in self?.apply() })),
+                                                                     onSubmitted: { [weak self] _ in self?.apply() }))),
             ]))
         }
         func field(_ id: String, _ label: String, _ code: String) -> Widget {

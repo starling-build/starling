@@ -140,15 +140,22 @@ final class OfficeSession {
     var imageTab: RibbonTab { imageTab(at: summary.imageIndex, inline: summary.inlineImageID) }
     var zoom = 1.0
     var pageSetup = PageSetup.letter
-    /// The page of the section the caret is in (the last section's is `pageSetup`).
+    /// The paper page of the section the caret is in (the last section's is `pageSetup`).
     func sectionSetup() -> PageSetup {
         let mark = controller.sectionMark(containing: controller.selection.focus.paragraph)
-        return mark < 0 ? pageSetup : (controller.document.paragraphs[mark].style.sectionPage ?? pageSetup)
+        return (mark < 0 ? pageSetup : (controller.document.paragraphs[mark].style.sectionPage ?? pageSetup)).physical
     }
     /// Page Setup from the ribbon: one undoable step on the caret's section.
     func applyPageSetup(_ p: PageSetup) {
         controller.setPageSetup(p, lastSetup: pageSetup)
         syncPageSetup()
+    }
+    /// A Columns preset on the caret's section (unequal widths and the line between as Word's menu leaves them).
+    func applyColumns(_ preset: ColumnsValues.Preset) {
+        var p = sectionSetup(), v = ColumnsValues(p)
+        v.apply(preset)
+        v.apply(to: &p)
+        onPageSetup?(p)
     }
     /// The last section's page follows the document (undo and redo change it).
     func syncPageSetup() {
@@ -358,6 +365,8 @@ final class OfficeSession {
     var onCloseHeaderFooter: (() -> Void)?
     /// Opens the Slide Size dialog, with this size typed in (nil: the deck's own).
     var onSlideSize: ((Size?) -> Void)?
+    /// Slides View > Zoom: open the Zoom dialog.
+    var onZoomDialog: (() -> Void)?
     /// Slides Picture Format > Alt Text: open the dialog for the selected picture.
     var onAltText: (() -> Void)?
     var onTextOptions: (() -> Void)?
@@ -377,6 +386,8 @@ final class OfficeSession {
     var onParagraphDialog: (() -> Void)?
     var onFontDialog: (() -> Void)?
     var onPageSetupDialog: (() -> Void)?
+    /// Layout > Columns > More Columns.
+    var onColumnsDialog: (() -> Void)?
     var onInsertTableDialog: (() -> Void)?
     var onSplitCellDialog: (() -> Void)?
     /// Writer's Draw Table / Eraser: the active table tool ("draw", "erase" or nil) and the ribbon's way to switch it.

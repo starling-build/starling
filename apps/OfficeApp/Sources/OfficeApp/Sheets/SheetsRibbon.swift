@@ -46,6 +46,7 @@ enum SheetCommand {
     case tableDialog               // Insert → Table: create one, or the options of the table at the cell
     case columnFilter(col: Int, kind: String)   // a filter dropdown's Number/Text/Date/Colour Filters…
     case nameManager               // Formulas → Name Manager
+    case formatCells(tab: Int)     // Home → Borders → More Borders… (the Format Cells dialog on a tab)
     case createNames               // Formulas → Create from Selection
     case useName(String)           // Formulas → Use in Formula: the name into the formula being typed
     case protectSheetDialog        // Review → Protect Sheet / Unprotect Sheet
@@ -64,7 +65,7 @@ extension Ribbon {
         case .insert: return [_tablesGroup(wb, fluent), _illustrationsGroup(wb, fluent), _chartsGroup(wb, fluent), _sparklinesGroup(wb, fluent), _functionsGroup(wb, fluent), _symbolsGroup(wb, fluent)]
         case .formulas: return [_autoSumGroup(wb, fluent), _functionsGroup(wb, fluent), _namesGroup(wb, fluent)]
         case .data: return [_sortGroup(wb, fluent), _dataToolsGroup(wb, fluent), _outlineGroup(wb, fluent)]
-        case .layout: return [_pageSetupGroup(wb, fluent)]
+        case .layout: return [_pageSetupGroup(wb, fluent), _scaleToFitGroup(wb, fluent), _sheetOptionsGroup(wb, fluent)]
         case .view: return [_sheetsZoomGroup(wb, fluent)]
         case .review: return [_notesGroup(wb, fluent), _protectGroup(wb, fluent)]
         default: return nil
@@ -115,12 +116,10 @@ extension Ribbon {
                 Chrome.toggle(FluentSystemIcons.textUnderline, "Underline (⌘U)".keys, st.underline, fluent) { wb.toggleStyle(\.underline) },
                 Chrome.toggle(FluentSystemIcons.textStrikethrough, "Strikethrough", st.strike, fluent) { wb.toggleStyle(\.strike) },
                 Chrome.gap(4),
-                Chrome.menu(nil, Icon(FluentSystemIcons.grid, size: Chrome.iconSize, color: fluent.resources.textFillColorPrimary), fluent, [
-                    ("All Borders", { wb.setStyle { $0.borders = .init(top: true, left: true, bottom: true, right: true) } }),
-                    ("Bottom Border", { wb.setStyle { $0.borders.bottom = true } }),
-                    ("Top Border", { wb.setStyle { $0.borders.top = true } }),
-                    ("No Border", { wb.setStyle { $0.borders = .init() } }),
-                ], tip: "Borders"),
+                Chrome.menu(nil, Icon(FluentSystemIcons.grid, size: Chrome.iconSize, color: fluent.resources.textFillColorPrimary), fluent,
+                            WorkbookController.BorderPreset.allCases.map { p in (p.title, { wb.applyBorders(p) }) }
+                            + [("More Borders…", { wb.onCommand?(.formatCells(tab: 3)) })],
+                            keyPrefix: "borders", tip: "Borders"),
                 Chrome.colorMenu(FluentSystemIcons.paintBrush, "Fill Color", fluent, colors: colors, none: "No Fill") { c in
                     wb.setStyle { $0.fill = rgb(c) }
                 },
@@ -140,11 +139,19 @@ extension Ribbon {
                 Chrome.toggle(FluentSystemIcons.alignRight, "Align Right", st.hAlign == .right, fluent) {
                     wb.toggleAlign(.right)
                 },
+                Chrome.toggle(FluentSystemIcons.indentDecrease, "Decrease Indent", false, fluent) { wb.indent(by: -1) },
+                Chrome.toggle(FluentSystemIcons.indentIncrease, "Increase Indent", false, fluent) { wb.indent(by: 1) },
             ]),
             Chrome.vgap(4),
             Chrome.row([
                 Chrome.textToggle("Wrap Text", st.wrap, fluent, style: fluent.typography.caption) { wb.toggleStyle(\.wrap) },
-                Chrome.textToggle("Merge & Center", wb.sheet.merges.contains(wb.selection), fluent, style: fluent.typography.caption) { wb.toggleMerge() },
+                Chrome.textToggle("Merge & Center", wb.sheet.merges.contains(where: { $0.contains(wb.selection.topLeft) }), fluent, style: fluent.typography.caption) { wb.toggleMerge() },
+                Chrome.menu(nil, nil, fluent, [
+                    ("Merge & Center", { wb.merge(.center) }),
+                    ("Merge Across", { wb.merge(.across) }),
+                    ("Merge Cells", { wb.merge(.cells) }),
+                    ("Unmerge Cells", { wb.unmerge() }),
+                ], keyPrefix: "merge", tip: "Merge options"),
                 Chrome.menu(Text("Vertical", style: fluent.typography.caption), nil, fluent, [
                     ("Top", { wb.setStyle { $0.vAlign = .top } }),
                     ("Middle", { wb.setStyle { $0.vAlign = .center } }),
@@ -223,6 +230,11 @@ extension Ribbon {
         ]), Chrome.rows([
             Chrome.small(FluentSystemIcons.search, "Find", fluent) { [session] in session.onFind?(false) },
             Chrome.small(FluentSystemIcons.textGrammarWand, "Replace", fluent) { [session] in session.onFind?(true) },
+            // A finger has no Shift: while this is on, a tap on a cell, row or column heading extends the selection from its anchor.
+            Chrome.small(FluentSystemIcons.check, "Select Multiple", fluent, checked: wb.selectMultiple) {
+                wb.selectMultiple.toggle()
+                wb._notify(selectionOnly: true)
+            },
         ])])
         return [clipboard, font, alignment, number, styles, cells, editing]
     }
@@ -483,19 +495,87 @@ extension Ribbon {
     }
 
     private func _pageSetupGroup(_ wb: WorkbookController, _ fluent: FluentThemeData) -> Widget {
-        let landscape = SheetPrintSetup.read(wb.sheet).landscape
+        let setup = SheetPrintSetup.read(wb.sheet)
+        let landscape = setup.landscape
+        // Excel's three margin presets, in inches: top/bottom, left/right, header/footer.
+        // The preset the sheet's margins match is ticked, as Excel highlights it.
+        func margins(_ name: String, _ tb: Double, _ lr: Double, _ hf: Double) -> MenuFlyoutItem {
+            let pt = [setup.top, setup.bottom, setup.left, setup.right, setup.headerMargin, setup.footerMargin]
+            let on = zip(pt, [tb, tb, lr, lr, hf, hf]).allSatisfy { abs($0 - $1 * 72) < 0.01 }
+            return MenuFlyoutItem(text: Text(on ? "\u{2713} " + name : name), onPressed: {
+                wb.setPageSetup(PageSetupChange(left: lr, right: lr, top: tb, bottom: tb, header: hf, footer: hf))
+            })
+        }
+        let paper = wb.paperNumber
+        let sizes: [MenuFlyoutItemBase] = PageSetupForm.papers.map { n, name in
+            MenuFlyoutItem(text: Text(n == paper ? "\u{2713} " + name : name), onPressed: { wb.setPageSetup(PageSetupChange(paperSize: n)) })
+        } + [MenuFlyoutItem(text: Text("More Paper Sizes…"), onPressed: { wb.onCommand?(.pageSetup) })]
+        let hasArea = !SheetPrintLayout.printNames(wb.book, sheet: wb.activeSheet).areas.isEmpty
         return Chrome.group("Page Setup", fluent, [
-            Chrome.big(FluentSystemIcons.grid, "Page Setup", fluent) { wb.onCommand?(.pageSetup) },
-            Chrome.menuButton(FluentSystemIcons.grid, "Orientation", landscape ? "Landscape" : "Portrait", fluent, items: [
-                MenuFlyoutItem(text: Text("Portrait"), onPressed: { wb.setPageSetup(PageSetupChange(landscape: false)) }),
-                MenuFlyoutItem(text: Text("Landscape"), onPressed: { wb.setPageSetup(PageSetupChange(landscape: true)) }),
+            Chrome.menuButton(FluentSystemIcons.grid, "Margins", "Page margins", fluent, items: [
+                margins("Normal", 0.75, 0.7, 0.3), margins("Wide", 1, 1, 0.5), margins("Narrow", 0.75, 0.25, 0.3),
+                MenuFlyoutItem(text: Text("Custom Margins…"), onPressed: { wb.onCommand?(.pageSetup) }),
             ]),
+            Chrome.menuButton(FluentSystemIcons.grid, "Orientation", landscape ? "Landscape" : "Portrait", fluent, items: [
+                MenuFlyoutItem(text: Text(landscape ? "Portrait" : "\u{2713} Portrait"), onPressed: { wb.setPageSetup(PageSetupChange(landscape: false)) }),
+                MenuFlyoutItem(text: Text(landscape ? "\u{2713} Landscape" : "Landscape"), onPressed: { wb.setPageSetup(PageSetupChange(landscape: true)) }),
+            ]),
+            Chrome.menuButton(FluentSystemIcons.grid, "Size", "Paper size", fluent, items: sizes),
+            Chrome.menuButton(FluentSystemIcons.grid, "Print Area", "What part of the sheet prints", fluent, items: [
+                MenuFlyoutItem(text: Text("Set Print Area"), onPressed: { wb.setPrintArea(wb.selection) }),
+            ] + (hasArea ? [MenuFlyoutItem(text: Text("Clear Print Area"), onPressed: { wb.setPrintArea(nil) })] : [])),
             Chrome.menuButton(FluentSystemIcons.grid, "Breaks", "Page breaks", fluent, items: [
                 MenuFlyoutItem(text: Text("Insert Page Break"), onPressed: { wb.insertPageBreak(row: wb.active.row, col: wb.active.col) }),
                 MenuFlyoutItem(text: Text("Remove Page Break"), onPressed: { wb.removePageBreak(row: wb.active.row, col: wb.active.col) }),
                 MenuFlyoutItem(text: Text("Reset All Page Breaks"), onPressed: { wb.resetPageBreaks() }),
             ]),
+            Chrome.big(FluentSystemIcons.grid, "Print Titles", fluent) { wb.onCommand?(.pageSetup) },
+            Chrome.big(FluentSystemIcons.grid, "Page Setup", fluent) { wb.onCommand?(.pageSetup) },
         ])
+    }
+
+    /// Scale to Fit: pages wide, pages tall (Automatic = as many as it takes) and the
+    /// scale, which applies only while both are Automatic, as in Excel.
+    private func _scaleToFitGroup(_ wb: WorkbookController, _ fluent: FluentThemeData) -> Widget {
+        let setup = SheetPrintSetup.read(wb.sheet)
+        let fitting = setup.fitWidth != nil || setup.fitHeight != nil
+        let wide = fitting ? setup.fitWidth ?? 1 : 0, tall = fitting ? setup.fitHeight ?? 1 : 0
+        func pages(_ n: Int) -> String { n == 0 ? "Automatic" : n == 1 ? "1 page" : "\(n) pages" }
+        func items(_ width: Bool) -> [MenuFlyoutItemBase] {
+            (0...9).map { n in
+                MenuFlyoutItem(text: Text(pages(n)), onPressed: {
+                    wb.setPageSetup(SheetPrintLayout.fitChange(wide: width ? n : wide, tall: width ? tall : n,
+                                                               scale: Int(setup.scale.rounded())))
+                })
+            } + [MenuFlyoutItem(text: Text("More Pages…"), onPressed: { wb.onCommand?(.pageSetup) })]
+        }
+        // Three rows share the group's 80 pt, so each is 26 tall (a button's own 28 would overflow by 4).
+        func row(_ w: Widget) -> Widget { SizedBox(width: nil, height: 26, child: w) }
+        return Chrome.group("Scale to Fit", fluent, [Chrome.rows([
+            row(Chrome.menuButton(nil, "Width: " + pages(wide), "Pages wide", fluent, items: items(true))),
+            row(Chrome.menuButton(nil, "Height: " + pages(tall), "Pages tall", fluent, items: items(false))),
+            row(Chrome.spinner("Scale", setup.scale, fluent, step: 5, unit: "%", minimum: 10) { v in
+                // Excel greys the scale while a fit is set.
+                if !fitting { wb.setPageSetup(PageSetupChange(scale: Int(min(400, v).rounded()))) }
+            }),
+        ])])
+    }
+
+    /// Sheet Options: gridlines and headings, on screen (View) and on paper (Print).
+    private func _sheetOptionsGroup(_ wb: WorkbookController, _ fluent: FluentThemeData) -> Widget {
+        let setup = SheetPrintSetup.read(wb.sheet)
+        let cap = fluent.typography.caption
+        return Chrome.group("Sheet Options", fluent, [Chrome.rows([
+            Chrome.textToggle("View Gridlines", wb.sheet.showGridlines, fluent, style: cap) { wb.toggleGridlines() },
+            Chrome.textToggle("Print Gridlines", setup.gridlines, fluent, style: cap) {
+                wb.setPageSetup(PageSetupChange(gridlines: !setup.gridlines))
+            },
+        ]), Chrome.rows([
+            Chrome.textToggle("View Headings", wb.sheet.showHeadings, fluent, style: cap) { wb.toggleHeadings() },
+            Chrome.textToggle("Print Headings", setup.headings, fluent, style: cap) {
+                wb.setPageSetup(PageSetupChange(headings: !setup.headings))
+            },
+        ])])
     }
 
     private func _sheetsZoomGroup(_ wb: WorkbookController, _ fluent: FluentThemeData) -> Widget {

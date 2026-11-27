@@ -351,6 +351,7 @@ public final class RichEditableState: State<StatefulWidget> {
         }
         _layout = RichLayout(theme: _w.theme, paragraphCount: _controller.document.paragraphs.count)
         _controller.rowHeightProbe = { [weak self] i in self?._layout?.rowRect(i)?.height }
+        _controller.pictureSpotProbe = { [weak self] i, id in self?._pictureSpot(i, id) }
         _layout.scale = _w.zoom
         _layout.pageSetup = _w.pageSetup
         _layout.onNeedsRepaint = { [weak self] in self?._repaint.notifyListeners() }
@@ -383,6 +384,8 @@ public final class RichEditableState: State<StatefulWidget> {
             old.controller.removeListeners(owner: self)
             _controller = _w.controller
             _controller.addListener({ [weak self] in self?._onControllerChanged() }, owner: self)
+            _controller.rowHeightProbe = { [weak self] i in self?._layout?.rowRect(i)?.height }
+            _controller.pictureSpotProbe = { [weak self] i, id in self?._pictureSpot(i, id) }
             _layout = RichLayout(theme: _w.theme, paragraphCount: _controller.document.paragraphs.count)
             _layout.onNeedsRepaint = { [weak self] in self?._repaint.notifyListeners() }
         } else if old.theme !== _w.theme {
@@ -807,6 +810,19 @@ public final class RichEditableState: State<StatefulWidget> {
 
     /// The selected picture's box in the editable's own coordinates, with
     /// the live drag size when one is under way.
+    /// The floating picture at paragraph `i` (or its inline picture `id`) as drawn: its top and its paragraph's top, in points
+    /// from the top of the page it is on (`RichDocumentController.setPictureMovesWithText`).
+    private func _pictureSpot(_ i: Int, _ id: String?) -> (Double, Double)? {
+        if _layout.width > 0 { _syncLayoutIfNeeded() }
+        guard _layout.width > 0, i < _layout.count,
+              let flow = id.map({ _layout.inlineFloatRect(i, id: $0) }) ?? _layout.imageRect(i),
+              let picture = _layout.canvasRects(flow).first,
+              let paragraph = _layout.canvasRects(Rect.fromLTWH(0, _layout.geometry(i).textTop, 1, 0)).first else { return nil }
+        let pt = _layout.theme.pixelsPerPoint * _layout.scale
+        let page = _layout.pageRect(_layout.page(atCanvasY: picture.top)).top
+        return ((picture.top - page) / pt, (paragraph.top - page) / pt)
+    }
+
     private func _selectedImageBox(group: Bool = false) -> (index: Int, rect: Rect, inline: String?)? {
         if _layout.width > 0 { _syncLayoutIfNeeded() }
         guard _layout.width > 0 else { return nil }
@@ -840,10 +856,22 @@ public final class RichEditableState: State<StatefulWidget> {
         _syncLayoutIfNeeded()
         let canvasPoint = _canvasPoint(local)
         let doc = _controller.document
-        for i in doc.paragraphs.indices.reversed() where doc.paragraphs[i].isImage && _controller.pictureWrap(at: i) != nil {
-            if let flow = _layout.imageRect(i), _layout.canvasRects(flow).contains(where: { $0.contains(canvasPoint) }) { return i }
+        // (The one on top where they overlap: the highest in the stack, then the latest in the text — the paint's order.)
+        var best: (z: Int64, i: Int)? = nil
+        for i in doc.paragraphs.indices where doc.paragraphs[i].isImage && _controller.pictureWrap(at: i) != nil {
+            guard let image = doc.paragraphs[i].image, let flow = _layout.imageRect(i),
+                  _layout.canvasRects(flow).contains(where: { $0.contains(canvasPoint) }) else { continue }
+            let z = Self._stackKey(image)
+            if best.map({ (z, i) > ($0.z, $0.i) }) ?? true { best = (z, i) }
         }
-        return nil
+        return best?.i
+    }
+
+    /// Where a floating object stands in the paint's stack: behind-text ones under all others, then by height.
+    static func _stackKey(_ image: ImageAttachment) -> Int64 {
+        let z = RichLayout._stackHeight(image)
+        let behind = image.sourceXML?.containsSubstring("behindDoc=\"1\"") == true || z < 0
+        return behind ? z - (1 << 40) : z
     }
 
     /// The picture set in a line of text under the point (editable coordinates), if any.
@@ -853,10 +881,19 @@ public final class RichEditableState: State<StatefulWidget> {
         let pos = _layout.canvasPosition(at: _canvasPoint(local), doc)
         let canvasPoint = _canvasPoint(local)
         // A picture that floats clear of the text is hit where it is drawn, not at its anchor mark.
+        // (The one on top where they overlap, as `_floatingImage` picks; one of those over it wins.)
+        var best: (z: Int64, k: Int, n: Int, id: String)? = nil, n = 0
         for (k, p) in doc.paragraphs.enumerated() where !p.inlineImages.isEmpty {
             for (_, id) in _controller.inlineImageOffsets(in: k) where p.inlineImages[id]?.float != nil {
-                if let r = _layout.inlineFloatRect(k, id: id), r.contains(canvasPoint) { return (k, id) }
+                n += 1
+                guard let image = p.inlineImages[id], let r = _layout.inlineFloatRect(k, id: id), r.contains(canvasPoint) else { continue }
+                let z = Self._stackKey(image)
+                if best.map({ (z, k, n) > ($0.z, $0.k, $0.n) }) ?? true { best = (z, k, n, id) }
             }
+        }
+        if let best {
+            if let own = _floatingImage(at: local), let image = doc.paragraphs[own].image, (Self._stackKey(image), own) > (best.z, best.k) { return nil }
+            return (best.k, best.id)
         }
         for (offset, id) in _controller.inlineImageOffsets(in: pos.paragraph) where abs(offset - pos.offset) <= 1 {
             let sel = RichSelection(anchor: RichPosition(paragraph: pos.paragraph, offset: offset),

@@ -1252,7 +1252,8 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
 
     /// A frame of dashes two pixels wide on a light underlay, drawn only
     /// where it is in view (a whole column's frame is a million rows long).
-    private func _dashedFrame(_ canvas: any Canvas, _ r: Rect, view: Rect, ink: Color, under: Color) {
+    private func _dashedFrame(_ canvas: any Canvas, _ r: Rect, view: Rect, ink: Color, under: Color?,
+                              half: Double = 1, dash: Double = 4, period: Double = 8) {
         let p = Paint()
         p.style = .fill
         func line(_ fixed: Double, _ from: Double, _ to: Double, horizontal: Bool) {
@@ -1262,13 +1263,12 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             let a = max(from, lo), b = min(to, hi)
             guard b > a else { return }
             func bar(_ s: Double, _ e: Double) {
-                canvas.drawRect(horizontal ? Rect.fromLTRB(s, fixed - 1, e, fixed + 1) : Rect.fromLTRB(fixed - 1, s, fixed + 1, e), p)
+                canvas.drawRect(horizontal ? Rect.fromLTRB(s, fixed - half, e, fixed + half) : Rect.fromLTRB(fixed - half, s, fixed + half, e), p)
             }
-            p.color = under
-            bar(a, b)
+            if let under { p.color = under; bar(a, b) }
             p.color = ink
-            var x = from + ((a - from) / 8).rounded(.down) * 8
-            while x < b { bar(max(x, a), min(x + 4, b)); x += 8 }
+            var x = from + ((a - from) / period).rounded(.down) * period
+            while x < b { bar(max(x, a), min(x + dash, b)); x += period }
         }
         line(r.top, r.left, r.right, horizontal: true)
         line(r.bottom, r.left, r.right, horizontal: true)
@@ -1868,9 +1868,10 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             }
             commitEdit()
             // Shift extends from the selection's anchor column, as Excel's does.
-            let anchorCol = _chords.shift ? c.anchor.col : col
+            let extend = c.extendsSelection(shift: _chords.shift)
+            let anchorCol = extend ? c.anchor.col : col
             c.select(range: CellRange(top: 0, left: min(anchorCol, col), bottom: CellAddress.maxRows - 1, right: max(anchorCol, col)),
-                     active: _chords.shift ? c.active : CellAddress(row: scrollY > 0 ? rows.index(at: scrollY) : 0, col: col))
+                     active: extend ? c.active : CellAddress(row: scrollY > 0 ? rows.index(at: scrollY) : 0, col: col))
             _drag = .columns(anchor: anchorCol)
             if e.kind == .touch { _armHeaderHold(e.position, p, selection: c.selection) }
             return
@@ -1885,9 +1886,10 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 return
             }
             commitEdit()
-            let anchorRow = _chords.shift ? c.anchor.row : row
+            let extendRows = c.extendsSelection(shift: _chords.shift)
+            let anchorRow = extendRows ? c.anchor.row : row
             c.select(range: CellRange(top: min(anchorRow, row), left: 0, bottom: max(anchorRow, row), right: CellAddress.maxCols - 1),
-                     active: _chords.shift ? c.active : CellAddress(row: row, col: scrollX > 0 ? cols.index(at: scrollX) : 0))
+                     active: extendRows ? c.active : CellAddress(row: row, col: scrollX > 0 ? cols.index(at: scrollX) : 0))
             _drag = .rows(anchor: anchorRow)
             if e.kind == .touch { _armHeaderHold(e.position, p, selection: c.selection) }
             return
@@ -2040,7 +2042,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             return
         }
         _lastClick = (a, now)
-        c.select(a, extend: _chords.shift)
+        c.select(a, extend: c.extendsSelection(shift: _chords.shift))
     }
 
     private func _isBorderDoubleClick(_ axis: WorkbookController.Axis, _ index: Int) -> Bool {
@@ -2645,6 +2647,15 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             outline.color = dark ? Color(0xFFBDBDBD) : Color(0xFF616161)
             let r = rect(t)
             canvas.drawRect(Rect.fromLTRB(r.left.rounded() + 0.5, r.top.rounded() + 0.5, r.right.rounded() - 0.5, r.bottom.rounded() - 0.5), outline)
+        }
+        // The print area's frame: Excel's thin grey dashes round each area in Normal view.
+        if !printing, !controller.breakPreview {
+            let pen = dark ? Color(0xFFA0A0A0) : Color(0xFF7F7F7F)
+            for a in SheetPrintLayout.printNames(controller.book, sheet: controller.activeSheet).areas {
+                let r = rect(a)
+                _dashedFrame(canvas, Rect.fromLTRB(r.left.rounded(), r.top.rounded(), r.right.rounded() - 1, r.bottom.rounded() - 1),
+                             view: Rect.fromLTRB(hw, hh, size.width, size.height), ink: pen, under: nil, half: 0.5, dash: 3, period: 6)
+            }
         }
         // The copied cells' dashed frame.
         if let m = marquee, m.sheet == controller.activeSheet {

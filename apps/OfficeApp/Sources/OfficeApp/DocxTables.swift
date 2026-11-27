@@ -257,7 +257,9 @@ extension DocxFormat {
     }
 
     static func _sectionXML(_ xml: String, patchedTo page: PageSetup?) -> String {
-        guard let page, !page.vertical, let sect = XNode.parse(Data(xml.utf8)) else { return xml }
+        guard let flow = page, let sect = XNode.parse(Data(xml.utf8)) else { return xml }
+        // (A vertical section's setup is the turned page; the file holds the paper's.)
+        let page = flow.physical
         var changed = false
         func twips(_ v: Double) -> String { String(Int((v * 20).rounded())) }
         func put(_ node: XNode, _ key: String, _ v: Double) {
@@ -320,14 +322,37 @@ extension DocxFormat {
             changed = true
         }
         let cols = sect.first("w:cols")
-        let have = Int(cols?.attrs["w:num"] ?? "") ?? 1
-        if have != max(1, page.columns) {
-            let n = cols ?? { let n = XNode(name: "w:cols", attrs: [:]); sect.children.append(n); return n }()
-            n.children = []
-            n.attrs = ["w:num": String(max(1, page.columns)), "w:space": twips(page.columnGap)]
+        if !(cols.map { _sameColumns($0, page) } ?? (page.columns <= 1 && !page.columnLine)), let fresh = XNode.parse(Data(_colsXML(page).utf8)) {
+            if let at = sect.children.firstIndex(where: { $0 === cols }) { sect.children[at] = fresh } else {
+                // (w:cols stands after the margins and page numbering, before the vertical alignment, title page and grid.)
+                let after = ["w:formProt", "w:vAlign", "w:noEndnote", "w:titlePg", "w:textDirection", "w:bidi", "w:rtlGutter", "w:docGrid", "w:printerSettings", "w:sectPrChange"]
+                sect.children.insert(fresh, at: sect.children.firstIndex { after.contains($0.name) } ?? sect.children.count)
+            }
             changed = true
         }
         return changed ? PptxXML.serialize(sect) : xml
+    }
+
+    /// Whether a file's `w:cols` already says what `page` holds: its count, gap, unequal widths and line between.
+    static func _sameColumns(_ cols: XNode, _ page: PageSetup) -> Bool {
+        var had = PageSetup.letter
+        _readColumns(cols, into: &had)
+        guard max(1, had.columns) == max(1, page.columns), had.columnLine == page.columnLine else { return false }
+        guard page.columns > 1 else { return true }
+        func tw(_ v: Double) -> Int { Int((v * 20).rounded()) }
+        let spans = { (p: PageSetup) in p.columnSpec.flatMap { $0.count == p.columns ? $0 : nil }.map { $0.map { [tw($0.width), tw($0.gap)] } } }
+        return spans(had) == spans(page) && (page.columnSpec != nil || tw(had.columnGap) == tw(page.columnGap))
+    }
+
+    /// A section's `w:cols` for `page`: Word's own form, `w:equalWidth` 0 and a `w:col` each for unequal columns.
+    static func _colsXML(_ page: PageSetup) -> String {
+        func tw(_ v: Double) -> Int { Int((v * 20).rounded()) }
+        let n = max(1, page.columns)
+        var x = "<w:cols" + (n > 1 ? " w:num=\"\(n)\"" : "") + (page.columnLine ? " w:sep=\"1\"" : "") + " w:space=\"\(tw(page.columnGap))\""
+        guard n > 1, let spec = page.columnSpec, spec.count == n else { return x + "/>" }
+        x += " w:equalWidth=\"0\">"
+        for (k, c) in spec.enumerated() { x += "<w:col w:w=\"\(tw(c.width))\"" + (k < n - 1 ? " w:space=\"\(tw(c.gap))\"" : "") + "/>" }
+        return x + "</w:cols>"
     }
 
     static func _sectionColumns(_ sectionXML: String, _ page: PageSetup?) -> [(width: Double, space: Double)]? {
@@ -1517,105 +1542,117 @@ extension DocxFormat {
                 return insideXML + closingXML + outsideXML + openingXML
             }
             var body = ""
-            var pPr = ""
-            // A paragraph of a file keeps the id its style has in that file (Heading 1 is "2" there, "HTML Preformatted"
-            // is "HTML"): the file defines it, and the save must not add a second definition under our id.
-            func fileId(_ ours: String) -> String { doc.readFromFile ? (doc.styleSource[ours] ?? ours) : ours }
-            if let h = p.style.heading { pPr += "<w:pStyle w:val=\"\(_esc(fileId("Heading\(min(h, 6))")))\"/>" }
-            else if let n = p.style.named, doc.styles[n] != nil { pPr += "<w:pStyle w:val=\"\(_esc(fileId(n)))\"/>" }
-            else if p.style.list != nil, !doc.readFromFile { pPr += "<w:pStyle w:val=\"ListParagraph\"/>" }
-            // (Said as off where the file's style keeps and this one does not.)
-            let styled = doc.readFromFile ? (p.style.heading.map { "Heading\(min($0, 6))" } ?? p.style.named).flatMap { doc.styles[$0]?.paragraph } : nil
-            if p.style.keepNext { pPr += "<w:keepNext/>" } else if styled?.keepNext == true { pPr += "<w:keepNext w:val=\"0\"/>" }
-            if p.style.keepLines { pPr += "<w:keepLines/>" } else if styled?.keepLines == true { pPr += "<w:keepLines w:val=\"0\"/>" }
-            // A section break written on the paragraph before already
-            // starts this one on a new page; saying it again here, with the
-            // paragraph first in a table, gave Word an empty page per
-            // section (bug65649: 15 sections, five pages of nothing).
+            // (A function, so a tracked change can write the properties the paragraph had before: w:pPrChange.)
+            func paragraphProps(_ p: RichParagraph) -> String {
+                var pPr = ""
+                // A paragraph of a file keeps the id its style has in that file (Heading 1 is "2" there, "HTML Preformatted"
+                // is "HTML"): the file defines it, and the save must not add a second definition under our id.
+                func fileId(_ ours: String) -> String { doc.readFromFile ? (doc.styleSource[ours] ?? ours) : ours }
+                if let h = p.style.heading { pPr += "<w:pStyle w:val=\"\(_esc(fileId("Heading\(min(h, 6))")))\"/>" }
+                else if let n = p.style.named, doc.styles[n] != nil { pPr += "<w:pStyle w:val=\"\(_esc(fileId(n)))\"/>" }
+                else if p.style.list != nil, !doc.readFromFile { pPr += "<w:pStyle w:val=\"ListParagraph\"/>" }
+                // (Said as off where the file's style keeps and this one does not.)
+                let styled = doc.readFromFile ? (p.style.heading.map { "Heading\(min($0, 6))" } ?? p.style.named).flatMap { doc.styles[$0]?.paragraph } : nil
+                if p.style.keepNext { pPr += "<w:keepNext/>" } else if styled?.keepNext == true { pPr += "<w:keepNext w:val=\"0\"/>" }
+                if p.style.keepLines { pPr += "<w:keepLines/>" } else if styled?.keepLines == true { pPr += "<w:keepLines w:val=\"0\"/>" }
+                // A section break written on the paragraph before already
+                // starts this one on a new page; saying it again here, with the
+                // paragraph first in a table, gave Word an empty page per
+                // section (bug65649: 15 sections, five pages of nothing).
+                let afterSectionBreak: Bool = {
+                    guard index > 0, let prev = Optional(doc.paragraphs[index - 1]), prev.cell == nil,
+                          let sect = prev.style.sectionXML else { return false }
+                    return prev.style.sectionBreaksPage ?? !sect.containsSubstring("w:val=\"continuous\"")
+                }()
+                let columnBreak = p.style.pageBreakBefore && p.style.pageBreakInline && p.style.columnBreak
+                // (In a table cell too: Word ignores a break character there,
+                // and honours "page break before" by moving the row — a
+                // handbook's last table row went to the next page.)
+                let inlineBreak = p.style.pageBreakBefore && p.style.pageBreakInline && (!afterSectionBreak || columnBreak)
+                if p.style.pageBreakBefore && !afterSectionBreak && !inlineBreak && !breakRidesOnPrevious(index) { pPr += "<w:pageBreakBefore/>" }
+                if let frame = p.style.frameXML { pPr += frame }
+                if !p.style.widowControl { pPr += "<w:widowControl w:val=\"0\"/>" }
+                if p.style.list != nil {
+                    pPr += "<w:numPr><w:ilvl w:val=\"\(p.style.listLevel)\"/><w:numId w:val=\"\(numIdOf[index])\"/></w:numPr>"
+                }
+                // (A paragraph that has neither under a style that has one says
+                // so: its style writes its own now.)
+                let ownStyle = (p.style.heading.flatMap { doc.styles["Heading\(min($0, 6))"] } ?? p.style.named.flatMap { doc.styles[$0] })?.paragraph
+                if let b = p.style.borders { pPr += _bordersXML(b) }
+                else if ownStyle?.borders != nil { pPr += "<w:pBdr><w:top w:val=\"nil\"/><w:left w:val=\"nil\"/><w:bottom w:val=\"nil\"/><w:right w:val=\"nil\"/></w:pBdr>" }
+                if p.style.fill == nil, let t = p.style.fillAttrs, t.hasPrefix("auto#") { pPr += "<w:shd\(t.dropFirst(5)) w:fill=\"auto\"/>" }
+                else if p.style.fill == nil, ownStyle?.fill != nil { pPr += "<w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"auto\"/>" }
+                if let fill = p.style.fill { pPr += _paraShdXML(fill, p.style.fillAttrs) }
+                if p.style.rightToLeft { pPr += "<w:bidi/>" }
+                else if p.style.named.flatMap({ doc.styles[$0] })?.paragraph.rightToLeft ?? false { pPr += "<w:bidi w:val=\"0\"/>" }
+                pPr += _tabsXML(p.style.tabStops, under: ownStyle?.tabStops ?? [])
+                // Spacing spelled out on every paragraph, so that Word and we
+                // lay the file out alike whatever its defaults say.
+                pPr += _eastAsianSwitchesXML(p.style)
+                // A paragraph of a style made in the app that still holds the style's
+                // own spacing, indents and alignment says none of it: the style
+                // does, so a later Modify Style in Word reaches it.
+                let ownSheet = !doc.readFromFile && p.style.heading == nil && p.style.list == nil
+                    ? p.style.named.flatMap { doc.styles[$0] }?.paragraph : nil
+                // A paragraph of a file whose spacing is just what its style (or
+                // Normal) gives it says none: the file never wrote it, and writing
+                // it bakes the style's numbers into the body, where a later style
+                // change in Word no longer reaches it.
+                let fileSheet: RichParagraphStyle? = doc.readFromFile
+                    ? (p.style.heading.flatMap { doc.styles["Heading\(min($0, 6))"] } ?? p.style.named.flatMap { doc.styles[$0] } ?? doc.styles["Normal"])?.paragraph : nil
+                func holds(_ k: KeyPath<RichParagraphStyle, Double>) -> Bool { ownSheet.map { $0[keyPath: k] == p.style[keyPath: k] } ?? false }
+                let inheritsSpacing = ownSheet != nil && holds(\.spaceBefore) && holds(\.spaceAfter) && holds(\.lineSpacing)
+                    && ownSheet!.lineHeightPoints == p.style.lineHeightPoints && !p.style.spaceBeforeAuto && !p.style.spaceAfterAuto
+                    && !ownSheet!.spaceBeforeAuto && !ownSheet!.spaceAfterAuto
+                let inheritsInd = ownSheet != nil && holds(\.indentLeft) && holds(\.indentRight) && holds(\.firstLineIndent)
+                if !inheritsSpacing {
+                    let under = (p.style.heading.flatMap { doc.styles["Heading\(min($0, 6))"] } ?? p.style.named.flatMap { doc.styles[$0] })?.paragraph
+                    let plain = _spacingXML(p.style, under: under)
+                    let withEA = _withEastAsian(plain, "w:spacing", _eastAsianSpacing, p.style)
+                    pPr += withEA == plain ? _spacingXML(p.style, under: under, omittingWhatItsStyleSays: fileSheet) : withEA
+                }
+                // Indents the style sets and the paragraph unsets are written
+                // as zero: IllustrativeCases' Body Text Indent hangs 0.75in
+                // into the margin and every paragraph of it says left 0.
+                let sheetEntry = p.style.heading.flatMap { doc.styles["Heading\(min($0, 6))"] } ?? p.style.named.flatMap { doc.styles[$0] }
+                let sp = sheetEntry?.paragraph
+                var ind = ""
+                if p.style.list != nil {
+                    if let own = p.style.listIndentLeft { ind += " w:left=\"\(Int((own * 20).rounded()))\"" }
+                } else if p.style.indentLeft != 0 || (sp?.indentLeft ?? 0) != 0 {
+                    ind += " w:left=\"\(Int(p.style.indentLeft * 20))\""
+                }
+                if p.style.indentRight != 0 || (sp?.indentRight ?? 0) != 0 { ind += " w:right=\"\(Int(p.style.indentRight * 20))\"" }
+                if p.style.list != nil, let own = p.style.listFirstLine {
+                    // A list paragraph's own first line, zero included, over
+                    // its level's hanging (bug65649's centred numbered headings
+                    // say left 0, firstLine 0 under a level hanging 375).
+                    ind += own < 0 ? " w:hanging=\"\(Int((-own * 20).rounded()))\"" : " w:firstLine=\"\(Int((own * 20).rounded()))\""
+                } else if p.style.firstLineIndent > 0 { ind += " w:firstLine=\"\(Int(p.style.firstLineIndent * 20))\"" }
+                else if p.style.firstLineIndent < 0 { ind += " w:hanging=\"\(Int(-p.style.firstLineIndent * 20))\"" }
+                else if (sp?.firstLineIndent ?? 0) != 0 { ind += " w:firstLine=\"0\" w:hanging=\"0\"" }
+                if !inheritsInd { pPr += _withEastAsian(ind.isEmpty ? "" : "<w:ind\(ind)/>", "w:ind", _eastAsianIndents, p.style) }
+                if p.style.contextualSpacing { pPr += "<w:contextualSpacing/>" }
+                switch p.style.alignment {
+                case .left:
+                    // Left under a style that centres has to say so.
+                    if let a = sheetEntry?.paragraph.alignment, a != .left { pPr += "<w:jc w:val=\"left\"/>" }
+                case .center: if ownSheet?.alignment != .center { pPr += "<w:jc w:val=\"center\"/>" }
+                case .right: if ownSheet?.alignment != .right { pPr += "<w:jc w:val=\"right\"/>" }
+                case .justify: pPr += "<w:jc w:val=\"\(_esc(p.style.eastAsian["w:jc"] ?? "both"))\"/>"
+                }
+                if let v = p.style.eastAsian["w:textAlignment"] { pPr += "<w:textAlignment w:val=\"\(_esc(v))\"/>" }
+                if let div = p.style.divId, doc.keptParts["word/webSettings.xml"] != nil { pPr += "<w:divId w:val=\"\(_esc(div))\"/>" }
+                return pPr
+            }
+            var pPr = paragraphProps(p)
             let afterSectionBreak: Bool = {
                 guard index > 0, let prev = Optional(doc.paragraphs[index - 1]), prev.cell == nil,
                       let sect = prev.style.sectionXML else { return false }
                 return prev.style.sectionBreaksPage ?? !sect.containsSubstring("w:val=\"continuous\"")
             }()
             let columnBreak = p.style.pageBreakBefore && p.style.pageBreakInline && p.style.columnBreak
-            // (In a table cell too: Word ignores a break character there,
-            // and honours "page break before" by moving the row — a
-            // handbook's last table row went to the next page.)
             let inlineBreak = p.style.pageBreakBefore && p.style.pageBreakInline && (!afterSectionBreak || columnBreak)
-            if p.style.pageBreakBefore && !afterSectionBreak && !inlineBreak && !breakRidesOnPrevious(index) { pPr += "<w:pageBreakBefore/>" }
-            if let frame = p.style.frameXML { pPr += frame }
-            if !p.style.widowControl { pPr += "<w:widowControl w:val=\"0\"/>" }
-            if p.style.list != nil {
-                pPr += "<w:numPr><w:ilvl w:val=\"\(p.style.listLevel)\"/><w:numId w:val=\"\(numIdOf[index])\"/></w:numPr>"
-            }
-            // (A paragraph that has neither under a style that has one says
-            // so: its style writes its own now.)
-            let ownStyle = (p.style.heading.flatMap { doc.styles["Heading\(min($0, 6))"] } ?? p.style.named.flatMap { doc.styles[$0] })?.paragraph
-            if let b = p.style.borders { pPr += _bordersXML(b) }
-            else if ownStyle?.borders != nil { pPr += "<w:pBdr><w:top w:val=\"nil\"/><w:left w:val=\"nil\"/><w:bottom w:val=\"nil\"/><w:right w:val=\"nil\"/></w:pBdr>" }
-            if p.style.fill == nil, let t = p.style.fillAttrs, t.hasPrefix("auto#") { pPr += "<w:shd\(t.dropFirst(5)) w:fill=\"auto\"/>" }
-            else if p.style.fill == nil, ownStyle?.fill != nil { pPr += "<w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"auto\"/>" }
-            if let fill = p.style.fill { pPr += _paraShdXML(fill, p.style.fillAttrs) }
-            if p.style.rightToLeft { pPr += "<w:bidi/>" }
-            else if p.style.named.flatMap({ doc.styles[$0] })?.paragraph.rightToLeft ?? false { pPr += "<w:bidi w:val=\"0\"/>" }
-            pPr += _tabsXML(p.style.tabStops, under: ownStyle?.tabStops ?? [])
-            // Spacing spelled out on every paragraph, so that Word and we
-            // lay the file out alike whatever its defaults say.
-            pPr += _eastAsianSwitchesXML(p.style)
-            // A paragraph of a style made in the app that still holds the style's
-            // own spacing, indents and alignment says none of it: the style
-            // does, so a later Modify Style in Word reaches it.
-            let ownSheet = !doc.readFromFile && p.style.heading == nil && p.style.list == nil
-                ? p.style.named.flatMap { doc.styles[$0] }?.paragraph : nil
-            // A paragraph of a file whose spacing is just what its style (or
-            // Normal) gives it says none: the file never wrote it, and writing
-            // it bakes the style's numbers into the body, where a later style
-            // change in Word no longer reaches it.
-            let fileSheet: RichParagraphStyle? = doc.readFromFile
-                ? (p.style.heading.flatMap { doc.styles["Heading\(min($0, 6))"] } ?? p.style.named.flatMap { doc.styles[$0] } ?? doc.styles["Normal"])?.paragraph : nil
-            func holds(_ k: KeyPath<RichParagraphStyle, Double>) -> Bool { ownSheet.map { $0[keyPath: k] == p.style[keyPath: k] } ?? false }
-            let inheritsSpacing = ownSheet != nil && holds(\.spaceBefore) && holds(\.spaceAfter) && holds(\.lineSpacing)
-                && ownSheet!.lineHeightPoints == p.style.lineHeightPoints && !p.style.spaceBeforeAuto && !p.style.spaceAfterAuto
-                && !ownSheet!.spaceBeforeAuto && !ownSheet!.spaceAfterAuto
-            let inheritsInd = ownSheet != nil && holds(\.indentLeft) && holds(\.indentRight) && holds(\.firstLineIndent)
-            if !inheritsSpacing {
-                let under = (p.style.heading.flatMap { doc.styles["Heading\(min($0, 6))"] } ?? p.style.named.flatMap { doc.styles[$0] })?.paragraph
-                let plain = _spacingXML(p.style, under: under)
-                let withEA = _withEastAsian(plain, "w:spacing", _eastAsianSpacing, p.style)
-                pPr += withEA == plain ? _spacingXML(p.style, under: under, omittingWhatItsStyleSays: fileSheet) : withEA
-            }
-            // Indents the style sets and the paragraph unsets are written
-            // as zero: IllustrativeCases' Body Text Indent hangs 0.75in
-            // into the margin and every paragraph of it says left 0.
-            let sheetEntry = p.style.heading.flatMap { doc.styles["Heading\(min($0, 6))"] } ?? p.style.named.flatMap { doc.styles[$0] }
-            let sp = sheetEntry?.paragraph
-            var ind = ""
-            if p.style.list != nil {
-                if let own = p.style.listIndentLeft { ind += " w:left=\"\(Int((own * 20).rounded()))\"" }
-            } else if p.style.indentLeft != 0 || (sp?.indentLeft ?? 0) != 0 {
-                ind += " w:left=\"\(Int(p.style.indentLeft * 20))\""
-            }
-            if p.style.indentRight != 0 || (sp?.indentRight ?? 0) != 0 { ind += " w:right=\"\(Int(p.style.indentRight * 20))\"" }
-            if p.style.list != nil, let own = p.style.listFirstLine {
-                // A list paragraph's own first line, zero included, over
-                // its level's hanging (bug65649's centred numbered headings
-                // say left 0, firstLine 0 under a level hanging 375).
-                ind += own < 0 ? " w:hanging=\"\(Int((-own * 20).rounded()))\"" : " w:firstLine=\"\(Int((own * 20).rounded()))\""
-            } else if p.style.firstLineIndent > 0 { ind += " w:firstLine=\"\(Int(p.style.firstLineIndent * 20))\"" }
-            else if p.style.firstLineIndent < 0 { ind += " w:hanging=\"\(Int(-p.style.firstLineIndent * 20))\"" }
-            else if (sp?.firstLineIndent ?? 0) != 0 { ind += " w:firstLine=\"0\" w:hanging=\"0\"" }
-            if !inheritsInd { pPr += _withEastAsian(ind.isEmpty ? "" : "<w:ind\(ind)/>", "w:ind", _eastAsianIndents, p.style) }
-            if p.style.contextualSpacing { pPr += "<w:contextualSpacing/>" }
-            switch p.style.alignment {
-            case .left:
-                // Left under a style that centres has to say so.
-                if let a = sheetEntry?.paragraph.alignment, a != .left { pPr += "<w:jc w:val=\"left\"/>" }
-            case .center: if ownSheet?.alignment != .center { pPr += "<w:jc w:val=\"center\"/>" }
-            case .right: if ownSheet?.alignment != .right { pPr += "<w:jc w:val=\"right\"/>" }
-            case .justify: pPr += "<w:jc w:val=\"\(_esc(p.style.eastAsian["w:jc"] ?? "both"))\"/>"
-            }
-            if let v = p.style.eastAsian["w:textAlignment"] { pPr += "<w:textAlignment w:val=\"\(_esc(v))\"/>" }
-            if let div = p.style.divId, doc.keptParts["word/webSettings.xml"] != nil { pPr += "<w:divId w:val=\"\(_esc(div))\"/>" }
             // The paragraph mark's own run properties: a tracked change to
             // the mark, and — for an empty paragraph — its look, which is
             // what gives the empty line its height (Word honours it in
@@ -1651,10 +1688,13 @@ extension DocxFormat {
                 pPr += "<!--\(RichDocumentController.sectionAsLast)-\(index)-->"   // (written as the last section is, below)
             } else
             if let sect = p.style.sectionXML, p.cell == nil, index < doc.paragraphs.count - 1 { pPr += keptFragmentXML(Self._sectionXML(sect, patchedTo: p.style.sectionPage), p.style.sectionRels) }
-            // A tracked change to the paragraph's properties, last in w:pPr, with the properties it had before as read.
+            // A tracked change to the paragraph's properties, last in w:pPr: the properties it had before, as the
+            // file wrote them or, for a change made here, as this writer writes that earlier style.
             if let pc = p.style.propertyChange {
                 let id = nextRevisionID()
-                pPr += "<w:pPrChange w:id=\"\(id)\" w:author=\"\(_esc(pc.author.isEmpty ? "Author" : pc.author))\"\(pc.date.isEmpty ? "" : " w:date=\"\(_esc(pc.date))\"")>\(pc.oldRPrXML.isEmpty ? "<w:pPr/>" : freshRevisionIDs(pc.oldRPrXML))</w:pPrChange>"
+                var old = pc.oldRPrXML.isEmpty ? "" : freshRevisionIDs(pc.oldRPrXML)
+                if case .paragraph(let was)? = pc.previous { var q = p; q.style = was; old = "<w:pPr>\(paragraphProps(q))</w:pPr>" }
+                pPr += "<w:pPrChange w:id=\"\(id)\" w:author=\"\(_esc(pc.author.isEmpty ? "Author" : pc.author))\"\(pc.date.isEmpty ? "" : " w:date=\"\(_esc(pc.date))\"")>\(old.isEmpty ? "<w:pPr/>" : old)</w:pPrChange>"
             }
             body += "<w:p\(p.id != 0 ? " w14:paraId=\"\(_paraIdHex(p.id))\"" : "")><w:pPr>\(pPr)</w:pPr>"
             // W-FD-2: the table of contents field opens in this paragraph; its entries are the paragraphs that follow.
@@ -2212,7 +2252,7 @@ extension DocxFormat {
         // The last section's sectPr; a section break made in it (`sectionAsLast`) is written the same, with its own page and start.
         func sectPr(_ page: PageSetup, type: String?) -> String {
         var body = "<w:sectPr>"
-        let pageSetup = page.vertical ? page.transposed() : page
+        let pageSetup = page.physical
         let pw = Int(pageSetup.width * 20), ph = Int(pageSetup.height * 20)
         if writeHeader { body += "<w:headerReference w:type=\"default\" r:id=\"rIdHeader\"/>" }
         if writeFooter { body += "<w:footerReference w:type=\"default\" r:id=\"rIdFooter\"/>" }
@@ -2225,12 +2265,12 @@ extension DocxFormat {
         if let pb = doc.pageBordersXML { body += pb }
         if let lead = Self._leadPatched(doc.sectionLeadXML, start: doc.pageNumberStart, format: doc.pageNumberFormat,
                                           chapterStyle: doc.chapterStyle, chapterSeparator: doc.chapterSeparator) { body += lead }
-        if let cols = doc.columnsXML, doc.columnsKeptUnder == max(1, pageSetup.columns) {
+        if let cols = doc.columnsXML, let node = XNode.parse(Data(cols.utf8)), _sameColumns(node, pageSetup) {
             // The file's own columns (an exam paper's two unequal ones, 0.3in
             // apart: at our half inch every line of it broke 7pt early).
             body += cols
         } else
-        if pageSetup.columns > 1 { body += "<w:cols w:num=\"\(pageSetup.columns)\" w:space=\"\(Int(pageSetup.columnGap * 20))\"/>" }
+        if pageSetup.columns > 1 || pageSetup.columnLine { body += _colsXML(pageSetup) }
         // A title page with no first-page part referenced is a page with
         // an EMPTY header and footer (Bug51170's cover shows no logo).
         // (The section's vertical alignment, W-PG-1, precedes titlePg; the rest of the kept tail follows it.)
@@ -2248,7 +2288,7 @@ extension DocxFormat {
                 sect[open.lowerBound...].rangeOfSubstring("/>").map { String(sect[open.lowerBound ..< $0.upperBound]) } }
             body = body.replacingAll("<!--\(RichDocumentController.sectionAsLast)-\(index)-->", with: sectPr(p.style.sectionPage ?? lastPage, type: type))
         }
-        let pageSetup = lastPage.vertical ? lastPage.transposed() : lastPage
+        let pageSetup = lastPage.physical
 
         let ns = "xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\" xmlns:wp=\"http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing\" xmlns:mc=\"http://schemas.openxmlformats.org/markup-compatibility/2006\" xmlns:wp14=\"http://schemas.microsoft.com/office/word/2010/wordprocessingDrawing\" xmlns:w14=\"http://schemas.microsoft.com/office/word/2010/wordml\" xmlns:w15=\"http://schemas.microsoft.com/office/word/2012/wordml\" mc:Ignorable=\"w14 w15 wp14\""
         let background = doc.backgroundXML.map { keptFragmentXML($0, doc.backgroundRels) } ?? ""
