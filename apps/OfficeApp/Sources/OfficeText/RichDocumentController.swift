@@ -215,7 +215,7 @@ public indirect enum EditOp: Equatable, Sendable {
             return .setSectionPage(index, old: new, new: old)
         case .setPageOptions(let old, let new):
             doc.titlePage = new.titlePage; doc.evenAndOddHeaders = new.evenAndOdd; doc.pageNumberStart = new.pageNumberStart
-            doc.pageNumberFormat = new.pageNumberFormat
+            doc.pageNumberFormat = new.pageNumberFormat; doc.chapterStyle = new.chapterStyle; doc.chapterSeparator = new.chapterSeparator
             changes.append(.all)
             return .setPageOptions(old: new, new: old)
         case .setImage(let index, let old, let new):
@@ -3161,16 +3161,32 @@ public final class RichDocumentController: ChangeNotifier {
         public var titlePage: Bool, evenAndOdd: Bool, pageNumberStart: Int?
         /// The page numbers' `w:fmt` (nil: the file names none, so decimal).
         public var pageNumberFormat: String?
-        public init(titlePage: Bool, evenAndOdd: Bool, pageNumberStart: Int?, pageNumberFormat: String? = nil) {
+        /// The chapter number before the page number: the heading level whose number it is (`w:chapStyle`; nil: none)
+        /// and the character between them (`w:chapSep`; nil: hyphen).
+        public var chapterStyle: Int?, chapterSeparator: String?
+        public init(titlePage: Bool, evenAndOdd: Bool, pageNumberStart: Int?, pageNumberFormat: String? = nil,
+                    chapterStyle: Int? = nil, chapterSeparator: String? = nil) {
             self.titlePage = titlePage; self.evenAndOdd = evenAndOdd; self.pageNumberStart = pageNumberStart; self.pageNumberFormat = pageNumberFormat
+            self.chapterStyle = chapterStyle; self.chapterSeparator = chapterSeparator
+        }
+        /// These options with the document-wide odd and even setting replaced.
+        func with(evenAndOdd: Bool) -> PageOptions { var o = self; o.evenAndOdd = evenAndOdd; return o }
+        /// A section's page with these section options.
+        func applied(to page: PageSetup) -> PageSetup {
+            var s = page
+            s.titlePage = titlePage; s.pageNumberStart = pageNumberStart; s.pageNumberFormat = pageNumberFormat
+            s.chapterStyle = chapterStyle; s.chapterSeparator = chapterSeparator
+            return s
         }
     }
     /// The page options of the section holding the caret (`allSections: false`) as the Layout tab shows them.
     public func pageOptions(sectionMark mark: Int) -> PageOptions {
         if mark < 0 { return PageOptions(titlePage: document.titlePage, evenAndOdd: document.evenAndOddHeaders, pageNumberStart: document.pageNumberStart,
-                                      pageNumberFormat: document.pageNumberFormat) }
+                                      pageNumberFormat: document.pageNumberFormat, chapterStyle: document.chapterStyle,
+                                      chapterSeparator: document.chapterSeparator) }
         let s = document.paragraphs[mark].style.sectionPage
-        return PageOptions(titlePage: s?.titlePage ?? false, evenAndOdd: document.evenAndOddHeaders, pageNumberStart: s?.pageNumberStart, pageNumberFormat: s?.pageNumberFormat)
+        return PageOptions(titlePage: s?.titlePage ?? false, evenAndOdd: document.evenAndOddHeaders, pageNumberStart: s?.pageNumberStart,
+                           pageNumberFormat: s?.pageNumberFormat, chapterStyle: s?.chapterStyle, chapterSeparator: s?.chapterSeparator)
     }
     /// W-HF-2: different first page and first page number for the caret's section (every section with
     /// `allSections`), and different odd and even pages for the document. One undo step.
@@ -3184,18 +3200,16 @@ public final class RichDocumentController: ChangeNotifier {
             for mark in marks {
                 if mark < 0 {
                     let old = pageOptions(sectionMark: -1)
-                    let next = PageOptions(titlePage: new.titlePage, evenAndOdd: new.evenAndOdd, pageNumberStart: new.pageNumberStart,
-                                           pageNumberFormat: new.pageNumberFormat)
+                    let next = new
                     if next != old { perform(.setPageOptions(old: old, new: next)) }
                 } else if let old = document.paragraphs[mark].style.sectionPage {
-                    var s = old; s.titlePage = new.titlePage; s.pageNumberStart = new.pageNumberStart; s.pageNumberFormat = new.pageNumberFormat
+                    let s = new.applied(to: old)
                     if s != old { perform(.setSectionPage(mark, old: old, new: s)) }
                 }
             }
             if document.evenAndOddHeaders != new.evenAndOdd {
-                perform(.setPageOptions(old: pageOptions(sectionMark: -1),
-                                        new: PageOptions(titlePage: document.titlePage, evenAndOdd: new.evenAndOdd, pageNumberStart: document.pageNumberStart,
-                                                         pageNumberFormat: document.pageNumberFormat)))
+                let old = pageOptions(sectionMark: -1)
+                perform(.setPageOptions(old: old, new: old.with(evenAndOdd: new.evenAndOdd)))
             }
         }
     }

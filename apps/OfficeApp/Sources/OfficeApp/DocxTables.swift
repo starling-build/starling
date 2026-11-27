@@ -218,9 +218,10 @@ extension DocxFormat {
     /// section nobody touched is written back byte for byte.
     /// The last section's lead elements with its first page number and number format as the document says (the
     /// file's other numbering attributes stay; a file that had none gets a bare `w:pgNumType`).
-    static func _leadPatched(_ lead: String?, start: Int?, format: String?) -> String? {
+    static func _leadPatched(_ lead: String?, start: Int?, format: String?, chapterStyle: Int?, chapterSeparator: String?) -> String? {
         var xml = lead ?? ""
-        let want: [(String, String?)] = [("w:fmt", format), ("w:start", start.map(String.init))]
+        let want: [(String, String?)] = [("w:fmt", format), ("w:start", start.map(String.init)),
+                                         ("w:chapStyle", chapterStyle.map(String.init)), ("w:chapSep", chapterSeparator)]
         if let r = xml.rangeOfSubstring("<w:pgNumType"), let end = xml[r.lowerBound...].firstIndex(of: ">") {
             var el = String(xml[r.lowerBound ... end])
             for (key, value) in want { el = _attrPatched(el, key, value) }
@@ -280,15 +281,19 @@ extension DocxFormat {
             changed = true
         }
         let haveStart = sect.first("w:pgNumType").flatMap { Int($0.attrs["w:start"] ?? "") }
-        let haveFormat = sect.first("w:pgNumType")?.attrs["w:fmt"]
-        if page.pageNumberStart != haveStart || page.pageNumberFormat != haveFormat {
+        let numType = sect.first("w:pgNumType")
+        let chapSep = page.chapterSeparator
+        if page.pageNumberStart != haveStart || page.pageNumberFormat != numType?.attrs["w:fmt"]
+            || page.chapterStyle != numType.flatMap({ Int($0.attrs["w:chapStyle"] ?? "") }) || chapSep != numType?.attrs["w:chapSep"] {
             if let n = sect.first("w:pgNumType") {
                 n.attrs["w:start"] = page.pageNumberStart.map(String.init)
                 n.attrs["w:fmt"] = page.pageNumberFormat
+                n.attrs["w:chapStyle"] = page.chapterStyle.map(String.init); n.attrs["w:chapSep"] = chapSep
                 if n.attrs.isEmpty && n.children.isEmpty { sect.children.removeAll { $0.name == "w:pgNumType" } }
             } else {
                 var attrs: [String: String] = [:]
                 attrs["w:fmt"] = page.pageNumberFormat; attrs["w:start"] = page.pageNumberStart.map(String.init)
+                attrs["w:chapStyle"] = page.chapterStyle.map(String.init); attrs["w:chapSep"] = chapSep
                 let after = sect.children.lastIndex { ["w:pgSz", "w:pgMar", "w:paperSrc", "w:pgBorders", "w:lnNumType"].contains($0.name) }
                 sect.children.insert(XNode(name: "w:pgNumType", attrs: attrs), at: after.map { $0 + 1 } ?? 0)
             }
@@ -2187,7 +2192,8 @@ extension DocxFormat {
         body += "<w:pgSz w:w=\"\(pw)\" w:h=\"\(ph)\"\(pageSetup.isLandscape && pageSetup.orientStated ? " w:orient=\"landscape\"" : "")/>"
         body += "<w:pgMar w:top=\"\(Int(pageSetup.marginTop * 20))\" w:right=\"\(Int(pageSetup.marginRight * 20))\" w:bottom=\"\(Int(pageSetup.marginBottom * 20))\" w:left=\"\(Int(pageSetup.marginLeft * 20))\" w:header=\"\(Int((pageSetup.headerDistance * 20).rounded()))\" w:footer=\"\(Int((pageSetup.footerDistance * 20).rounded()))\" w:gutter=\"\(doc.gutterTwips ?? 0)\"/>"
         if let pb = doc.pageBordersXML { body += pb }
-        if let lead = Self._leadPatched(doc.sectionLeadXML, start: doc.pageNumberStart, format: doc.pageNumberFormat) { body += lead }
+        if let lead = Self._leadPatched(doc.sectionLeadXML, start: doc.pageNumberStart, format: doc.pageNumberFormat,
+                                          chapterStyle: doc.chapterStyle, chapterSeparator: doc.chapterSeparator) { body += lead }
         if let cols = doc.columnsXML, doc.columnsKeptUnder == max(1, pageSetup.columns) {
             // The file's own columns (an exam paper's two unequal ones, 0.3in
             // apart: at our half inch every line of it broke 7pt early).

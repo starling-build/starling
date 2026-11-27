@@ -53,6 +53,10 @@ struct PageSetupValues: Equatable {
         top = p.marginTop; bottom = p.marginBottom; left = p.marginLeft; right = p.marginRight
         header = p.headerDistance; footer = p.footerDistance
     }
+    /// The separators between the chapter number and the page number, as `w:chapSep` names them.
+    static let chapterSeparators: [(id: String, label: String)] = [
+        ("hyphen", "- (hyphen)"), ("period", ". (period)"), ("colon", ": (colon)"), ("emDash", "\u{2014} (em dash)"), ("enDash", "\u{2013} (en dash)"),
+    ]
     /// The page number formats the Layout tab offers, as `w:fmt` names them.
     static let numberFormats: [(id: String, label: String)] = [
         ("decimal", "1, 2, 3"), ("lowerRoman", "i, ii, iii"), ("upperRoman", "I, II, III"),
@@ -187,6 +191,26 @@ final class PageSetupDialogState: State<StatefulWidget> {
             // shows no choice and stays until one is picked.
             row("Format", PageSetupValues.numberFormats.prefix(3).map(format)),
             row("", PageSetupValues.numberFormats.suffix(2).map(format)),
+            // Include chapter number: the number of the chapter's heading, then a separator, before the page number.
+            row("Chapter", [choice("ps-chapter", "Include chapter number", v.options.chapterStyle != nil) { [weak self] in
+                self?.setState {
+                    guard let self else { return }
+                    if self.v.options.chapterStyle == nil { self.v.options.chapterStyle = 1 }
+                    else { self.v.options.chapterStyle = nil; self.v.options.chapterSeparator = nil }
+                } }]),
+            v.options.chapterStyle == nil ? SizedBox(width: 0, height: 0) : row("", [
+                    PSKeyed("ps-chapstyle", SizedBox(width: 120, height: nil, child: ComboBox<Int>(
+                        value: v.options.chapterStyle,
+                        items: (1...9).map { ComboBoxItem<Int>(value: $0, child: Text("Heading \($0)", style: fluent.typography.body)) },
+                        onChanged: { [weak self] n in self?.setState { self?.v.options.chapterStyle = n ?? 1 } }))),
+                    SizedBox(width: 12, height: nil),
+                    PSKeyed("ps-chapsep", SizedBox(width: 150, height: nil, child: ComboBox<String>(
+                        value: v.options.chapterSeparator ?? "hyphen",
+                        items: PageSetupValues.chapterSeparators.map { ComboBoxItem<String>(value: $0.id, child: Text($0.label, style: fluent.typography.body)) },
+                        onChanged: { [weak self] sep in
+                            // Hyphen on a file that names none stays unnamed.
+                            self?.setState { self?.v.options.chapterSeparator = sep == "hyphen" && self?.v.options.chapterSeparator == nil ? nil : sep } }))),
+                ]),
             applyTo,
         ])
         var tabs = [DialogTab(title: "Margins", page: margins), DialogTab(title: "Paper", page: paper)]

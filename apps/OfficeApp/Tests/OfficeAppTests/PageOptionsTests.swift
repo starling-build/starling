@@ -32,10 +32,10 @@ final class PageOptionsTests: XCTestCase {
 
     func testTheFirstPageNumberKeepsTheFilesOtherNumbering() {
         let lead = "<w:pgNumType w:fmt=\"lowerRoman\" w:start=\"3\"/>"
-        XCTAssertEqual(DocxFormat._leadPatched(lead, start: 7, format: "lowerRoman"), "<w:pgNumType w:fmt=\"lowerRoman\" w:start=\"7\"/>")
-        XCTAssertEqual(DocxFormat._leadPatched(lead, start: nil, format: "lowerRoman"), "<w:pgNumType w:fmt=\"lowerRoman\"/>")
-        XCTAssertEqual(DocxFormat._leadPatched(lead, start: 3, format: "lowerRoman"), lead)
-        XCTAssertNil(DocxFormat._leadPatched(nil, start: nil, format: nil))
+        XCTAssertEqual(DocxFormat._leadPatched(lead, start: 7, format: "lowerRoman", chapterStyle: nil, chapterSeparator: nil), "<w:pgNumType w:fmt=\"lowerRoman\" w:start=\"7\"/>")
+        XCTAssertEqual(DocxFormat._leadPatched(lead, start: nil, format: "lowerRoman", chapterStyle: nil, chapterSeparator: nil), "<w:pgNumType w:fmt=\"lowerRoman\"/>")
+        XCTAssertEqual(DocxFormat._leadPatched(lead, start: 3, format: "lowerRoman", chapterStyle: nil, chapterSeparator: nil), lead)
+        XCTAssertNil(DocxFormat._leadPatched(nil, start: nil, format: nil, chapterStyle: nil, chapterSeparator: nil))
     }
 
     func testAKeptSectionTakesItsFirstPageAndNumberInSchemaOrder() {
@@ -67,11 +67,11 @@ final class PageOptionsTests: XCTestCase {
 
     func testTheNumberFormatPatchesTheFilesNumbering() {
         let lead = "<w:pgNumType w:fmt=\"lowerRoman\" w:start=\"3\" w:chapStyle=\"1\"/>"
-        XCTAssertEqual(DocxFormat._leadPatched(lead, start: 3, format: "upperLetter"),
+        XCTAssertEqual(DocxFormat._leadPatched(lead, start: 3, format: "upperLetter", chapterStyle: 1, chapterSeparator: nil),
                        "<w:pgNumType w:fmt=\"upperLetter\" w:start=\"3\" w:chapStyle=\"1\"/>")
-        XCTAssertEqual(DocxFormat._leadPatched(lead, start: 3, format: "lowerRoman"), lead)
-        XCTAssertEqual(DocxFormat._leadPatched("<w:pgNumType w:fmt=\"lowerRoman\"/>", start: nil, format: nil), nil)
-        XCTAssertEqual(DocxFormat._leadPatched(nil, start: 2, format: "upperRoman"), "<w:pgNumType w:fmt=\"upperRoman\" w:start=\"2\"/>")
+        XCTAssertEqual(DocxFormat._leadPatched(lead, start: 3, format: "lowerRoman", chapterStyle: 1, chapterSeparator: nil), lead)
+        XCTAssertEqual(DocxFormat._leadPatched("<w:pgNumType w:fmt=\"lowerRoman\"/>", start: nil, format: nil, chapterStyle: nil, chapterSeparator: nil), nil)
+        XCTAssertEqual(DocxFormat._leadPatched(nil, start: 2, format: "upperRoman", chapterStyle: nil, chapterSeparator: nil), "<w:pgNumType w:fmt=\"upperRoman\" w:start=\"2\"/>")
         let w = "xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\""
         let sect = "<w:sectPr \(w)><w:pgSz w:w=\"12240\" w:h=\"15840\"/><w:pgNumType w:fmt=\"lowerRoman\"/><w:cols w:space=\"720\"/></w:sectPr>"
         var page = PageSetup.letter
@@ -81,5 +81,22 @@ final class PageOptionsTests: XCTestCase {
         XCTAssertTrue(DocxFormat._sectionXML(sect, patchedTo: page).containsSubstring("<w:pgNumType w:fmt=\"upperRoman\"/>"))
         page.pageNumberFormat = nil
         XCTAssertFalse(DocxFormat._sectionXML(sect, patchedTo: page).containsSubstring("pgNumType"))
+    }
+
+    func testTheChapterNumberIsSavedAndUndone() throws {
+        let c = RichDocumentController(document: RichDocument(paragraphs: [RichParagraph()]))
+        var new = c.pageOptions(sectionMark: -1); new.chapterStyle = 2; new.chapterSeparator = "emDash"
+        c.changePageOptions(allSections: false, new, lastSetup: .letter)
+        let body = try text(try Zip.read(DocxFormat.write(c.document, pageSetup: .letter)), "word/document.xml")
+        XCTAssertTrue(body.containsSubstring("<w:pgNumType w:chapStyle=\"2\" w:chapSep=\"emDash\"/>"), body)
+        let back = try DocxFormat.read(DocxFormat.write(c.document, pageSetup: .letter))
+        XCTAssertEqual(back.document.chapterStyle, 2); XCTAssertEqual(back.document.chapterSeparator, "emDash")
+        c.undo()
+        XCTAssertNil(c.document.chapterStyle)
+        let w = "xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\""
+        let sect = "<w:sectPr \(w)><w:pgSz w:w=\"12240\" w:h=\"15840\"/><w:pgNumType w:start=\"1\"/></w:sectPr>"
+        var page = PageSetup.letter; page.pageNumberStart = 1; page.chapterStyle = 1; page.chapterSeparator = "period"
+        let out = DocxFormat._sectionXML(sect, patchedTo: page)
+        XCTAssertTrue(out.containsSubstring("w:chapStyle=\"1\"") && out.containsSubstring("w:chapSep=\"period\"") && out.containsSubstring("w:start=\"1\""), out)
     }
 }
