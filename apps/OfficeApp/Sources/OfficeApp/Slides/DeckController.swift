@@ -658,6 +658,24 @@ final class DeckController: ChangeNotifier {
         _changed()
     }
 
+    /// Duplicate Slide with several picked: copies of all of them, in order, after the last picked one, and the
+    /// copies become the pick (as PowerPoint does). One undo step. One picked slide is `duplicateSlide`.
+    func duplicateSelectedSlides() {
+        let picked = selectedSlides
+        guard picked.count > 1 else { return duplicateSlide(current) }
+        _checkpoint()
+        var at = picked.last! + 1
+        let first = at
+        let copies = picked.map { _cloneSlide(slides[$0]) }
+        for copy in copies { _watch(copy); slides.insert(copy, at: at); at += 1 }
+        _adoptSection(first ..< at)
+        current = at - 1
+        slideSelectionIds = Set(copies.map(\.id))
+        _slideAnchor = first
+        selection = []
+        _changed()
+    }
+
     func deleteSlide(_ index: Int) {
         guard slides.indices.contains(index), slides.count > 1 else { return }
         _checkpoint()
