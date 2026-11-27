@@ -939,6 +939,7 @@ extension RichLayout {
         // `RichDocument.balancesSpaceWidth`.
         var wideSpaces: Set<Int> = []
         var ordinaryBalancedSpaces: Set<Int> = []
+        var averageSpaces: Set<Int> = []
         // The spaces to set as no-break ones (`held`, by the layout: see
         // `_spacesToHold`), with a zero-width space after each run of
         // them for the break a space allows.
@@ -1004,6 +1005,7 @@ extension RichLayout {
                        p.runs[i + 1].style.eastAsiaFontFamily == nil || circledOnly(st, p.runs[i + 1].length) { eaRunEnds.insert(st) }
                 }
             }
+            let eastAsianDefaultLanguage = ["ja", "zh", "ko"].contains { document.defaultLangXML?.containsSubstring("w:eastAsia=\"\($0)") ?? false }
             var runStarts: [Int] = []
             do { var st = 0; for r in p.runs { runStarts.append(st); st += r.length } }
             var at = 0
@@ -1038,6 +1040,17 @@ extension RichLayout {
                         let balanced = run.filter { !complexSpaces.contains($0) }
                         wideSpaces.formUnion(balanced)
                         ordinaryBalancedSpaces.formUnion(balanced)
+                    } else if RichTextTheme.wordWindowsPages, document.usesEastAsianLayout, run.count >= 2, !eastAsianDefaultLanguage,
+                              let o = run.first, let ri = runStarts.lastIndex(where: { $0 <= o }),
+                              (p.runs[ri].style.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily ?? "").isEmpty {
+                        // (Two or more spaces between Latin words, where the run's East Asian slot names no face (a theme whose
+                        // `a:ea` is empty) and the document's East Asian language is not one: Word for Windows sets each at the
+                        // Latin face's OS/2 average width. xs 715d0d06's Sylfaen footer "2015␣␣საქართველოს" 3.35 apiece at 8pt
+                        // (0.42 em), so "468" takes a second line; 0658123d, 5f1404e7, ad2710ae's Times New Roman "Coram:␣␣McLachlin"
+                        // 0.40 em. A single space stays plain (0.25 em in 715d0d06), and so does a run whose East Asian slot is a
+                        // Latin face (xb 7e68ac6f's Calibri, 0.23 em).)
+                        RuleTrace.hit("word-balanced-double-space-between-latin-is-face-average-width")
+                        averageSpaces.formUnion(run.filter { !complexSpaces.contains($0) })
                     }
                 } else if let first = run.first(where: { !nbsp.contains($0) }) {
                     wideSpaces.formUnion(run.filter { $0 >= first && !complexSpaces.contains($0) })
@@ -1251,7 +1264,7 @@ extension RichLayout {
         var splittingMark = false
         var splittingGeorgian = false
         var splittingDigits = false
-        var ctx = _SpanCtx(p: p, index: index, document: document, textWidth: textWidth, lead: lead, adjust: adjust, held: held, fitProbe: fitProbe, autoSpaces: autoSpaces, capped: capped, eaFaceOffset: eaFaceOffset, eastAsianFaceIsLatin: eastAsianFaceIsLatin, runHinted: runHinted, paragraphLatinOwnerFn: { paragraphLatinOwner }, afterHeld: afterHeld, afterIdeograph: afterIdeograph, before: before, beforeBefore: beforeBefore, breaksAtQuotes: breaksAtQuotes, complexSpaces: complexSpaces, dotsAttached: dotsAttached, fullQuotes: fullQuotes, hanJoins: hanJoins, heldSpaces: heldSpaces, inserts: inserts, kinsokuOff: kinsokuOff, koreanSpaces: koreanSpaces, koreanTokenJoins: koreanTokenJoins, latinAfterEastAsian: latinAfterEastAsian, latinRunBracket: latinRunBracket, lineSize: lineSize, loose: loose, mixedRubyRaise: mixedRubyRaise, named: named, openerBeforeLatin: openerBeforeLatin, ordinaryBalancedSpaces: ordinaryBalancedSpaces, pausesOpenLines: pausesOpenLines, percentStarts: percentStarts, pitch: pitch, plainNoLineRules: plainNoLineRules, raised: raised, rubyHeld: rubyHeld, rubyKeep: rubyKeep, rubyTails: rubyTails, spacesAfterNbsp: spacesAfterNbsp, splittingMark: splittingMark, splittingGeorgian: splittingGeorgian, splittingSpaces: splittingSpaces, splittingVariation: splittingVariation, spread: spread, thaiJoins: thaiJoins, thaiParagraph: thaiParagraph, traditionalLists: traditionalLists, vertical: vertical, wholeRaised: wholeRaised, wideIndicWords: wideIndicWords, widen: widen, wideSpaces: wideSpaces, wideStarts: wideStarts, windowsCounted: windowsCounted, windowsShare: windowsShare, wordHasLetter: wordHasLetter, mixedLatinFaces: mixedLatinFaces, heldKind: heldKind, splittingDigits: splittingDigits, trailingSpaces: trailingSpaces)
+        var ctx = _SpanCtx(p: p, index: index, document: document, textWidth: textWidth, lead: lead, adjust: adjust, held: held, fitProbe: fitProbe, autoSpaces: autoSpaces, capped: capped, eaFaceOffset: eaFaceOffset, eastAsianFaceIsLatin: eastAsianFaceIsLatin, runHinted: runHinted, paragraphLatinOwnerFn: { paragraphLatinOwner }, afterHeld: afterHeld, afterIdeograph: afterIdeograph, before: before, beforeBefore: beforeBefore, breaksAtQuotes: breaksAtQuotes, complexSpaces: complexSpaces, dotsAttached: dotsAttached, fullQuotes: fullQuotes, hanJoins: hanJoins, heldSpaces: heldSpaces, inserts: inserts, kinsokuOff: kinsokuOff, koreanSpaces: koreanSpaces, koreanTokenJoins: koreanTokenJoins, latinAfterEastAsian: latinAfterEastAsian, latinRunBracket: latinRunBracket, lineSize: lineSize, loose: loose, mixedRubyRaise: mixedRubyRaise, named: named, openerBeforeLatin: openerBeforeLatin, ordinaryBalancedSpaces: ordinaryBalancedSpaces, pausesOpenLines: pausesOpenLines, percentStarts: percentStarts, pitch: pitch, plainNoLineRules: plainNoLineRules, raised: raised, rubyHeld: rubyHeld, rubyKeep: rubyKeep, rubyTails: rubyTails, spacesAfterNbsp: spacesAfterNbsp, splittingMark: splittingMark, splittingGeorgian: splittingGeorgian, splittingSpaces: splittingSpaces, splittingVariation: splittingVariation, spread: spread, thaiJoins: thaiJoins, thaiParagraph: thaiParagraph, traditionalLists: traditionalLists, vertical: vertical, wholeRaised: wholeRaised, wideIndicWords: wideIndicWords, widen: widen, wideSpaces: wideSpaces, wideStarts: wideStarts, windowsCounted: windowsCounted, windowsShare: windowsShare, wordHasLetter: wordHasLetter, mixedLatinFaces: mixedLatinFaces, heldKind: heldKind, splittingDigits: splittingDigits, trailingSpaces: trailingSpaces, averageSpaces: averageSpaces)
         // (A right-aligned paragraph's trailing spaces take room, as
         // Word's do: a word joiner after them, so the engine does not let
         // them hang past the margin. zh-c5b5087b's footer, "…人民政府发布"
