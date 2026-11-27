@@ -683,9 +683,9 @@ final class Ribbon: StatelessWidget {
                                                   marginItems("Cell Margins: Normal (5.4 pt)", 5.4), marginItems("Cell Margins: Wide (10.8 pt)", 10.8)]
         let tableWidthItems: [MenuFlyoutItemBase] = [
             MenuFlyoutItem(text: Text("Table Width: Auto"), onPressed: { c.setTableWidth() }),
-            MenuFlyoutItem(text: Text("Table Width: 100%"), onPressed: { c.setTableWidth(percent: 100) }),
-            MenuFlyoutItem(text: Text("Table Width: 75%"), onPressed: { c.setTableWidth(percent: 75) }),
-            MenuFlyoutItem(text: Text("Table Width: 50%"), onPressed: { c.setTableWidth(percent: 50) }),
+            MenuFlyoutItem(text: Text("Table Width: 100%"), onPressed: { c.setTableWidth(percent: 100, textWidth: self.session.pageSetup.contentWidth) }),
+            MenuFlyoutItem(text: Text("Table Width: 75%"), onPressed: { c.setTableWidth(percent: 75, textWidth: self.session.pageSetup.contentWidth) }),
+            MenuFlyoutItem(text: Text("Table Width: 50%"), onPressed: { c.setTableWidth(percent: 50, textWidth: self.session.pageSetup.contentWidth) }),
         ]
         let autoFitItems: [MenuFlyoutItemBase] = [
             MenuFlyoutItem(text: Text("AutoFit to Contents"), onPressed: { c.autoFitTable(.contents) }),
