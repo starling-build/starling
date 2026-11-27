@@ -33,4 +33,39 @@ final class SheetChartStepTests: XCTestCase {
             for (h, want) in steps { XCTAssertEqual(step(face, size, height: h), want, "\(face) \(size) at \(h) pt") }
         }
     }
+
+    /// A title beside the plot: lab xl-step3, Excel's steps for 150 charts 60 to 200 pt tall (one letter a chart, 10 pt
+    /// apart: 5, 2, 1 million or h a half), labels at 10 pt, titles one line of 7 to 18 pt. A title placed by hand, or a plot
+    /// placed by hand under it, keeps the same steps (the other 60 charts).
+    func testATitleTakesItsBoxAndSixMore() {
+        let cases: [(String, Double, String)] = [
+            ("Calibri", 7, "555222111hhhhhh"),
+            ("Calibri", 10, "5555221111hhhhh"),
+            ("Calibri", 12.5, "5555221111hhhhh"),
+            ("Calibri", 14, "5555222111hhhhh"),
+            ("Calibri", 18, "55555221111hhhh"),
+            ("新細明體", 7, "555222111hhhhhh"),
+            ("新細明體", 10, "5555221111hhhhh"),
+            ("新細明體", 12.5, "5555221111hhhhh"),
+            ("新細明體", 14, "5555222111hhhhh"),
+            ("新細明體", 18, "55555221111hhhh"),
+        ]
+        let value: [Character: Double] = ["5": 5e6, "2": 2e6, "1": 1e6, "h": 5e5]
+        for (face, t, steps) in cases {
+            for (i, ch) in steps.enumerated() {
+                let h = 60 + 10 * Double(i)
+                let n = ChartPainter.sheetValueSteps(frameHeight: h, face: face, labelSize: 10, categorySize: nil, categoryTitleSize: nil, titleSize: t, titleFace: face)
+                XCTAssertEqual(ChartPainter.scale(0, 2_917_735, intervals: n).step, value[ch], "\(face) title \(t) at \(h) pt")
+            }
+        }
+    }
+
+    /// A bare category title (no text properties) prints in Arial, and takes Arial's line: Excel's print of
+    /// chart-tdf119138-missing-autotitledeleted (212.6 pt frame, Arial 18 pt title and category title, Calibri 10 pt labels)
+    /// steps its 10-70 data by 10, not 20.
+    func testABareCategoryTitleTakesArialsLine() {
+        let n = ChartPainter.sheetValueSteps(frameHeight: 212.6, face: "Calibri", labelSize: 10, categorySize: 10, categoryTitleSize: 18,
+                                             titleSize: 18, titleFace: "Arial", categoryTitleFace: "Arial")
+        XCTAssertEqual(ChartPainter.scale(10, 70, intervals: n).step, 10, "\(n) steps")
+    }
 }
