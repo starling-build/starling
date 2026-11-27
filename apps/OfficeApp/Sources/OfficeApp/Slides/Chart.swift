@@ -3691,6 +3691,37 @@ enum ChartPainter {
                     return (i: e.i, tp: styled(names[e.i], size, wrapW, bold: c.legendBold, color: c.legendColor, part: "legend", align: .left, windowsLines: true))
                 }
             }
+            // (An Excel legend at a side where Excel places it: a name wraps at a space at a third of the chart less 12 pt, and
+            // where the chart is too short for all its lines the last one shown ends in an ellipsis. Lab xl-legw, 12 column
+            // charts 180, 384 and 588 pt wide: Excel's lines wrap within 47.8-51.2, 106.3-118.4 and 181.5-186.8 pt, and the
+            // 180 x 213.75 chart shows 17 lines of 11 pt, "aliquam…" last, in a legend 22.9 pt shorter than the chart.)
+            let sheetSide = c.onSheet && beside && box == nil && !pie && ["r", "l"].contains(c.legendPosition)
+            if sheetSide {
+                let wrapW = r.width / 3 - 12
+                entries = entries.map { e in
+                    guard e.tp.width > wrapW + 0.01 else { return e }
+                    RuleTrace.hit("sheet-side-legend-name-wraps-at-a-third-of-the-chart")
+                    e.tp.dispose()
+                    let wrapped = styled(names[e.i], size, wrapW, bold: c.legendBold, color: c.legendColor, part: "legend", align: .left, windowsLines: true)
+                    let lines = wrapped.computeLineMetrics()
+                    let each = wrapped.height / Double(max(1, lines.count))
+                    let room = max(1, Int(((r.height - 26) / each).rounded(.down)))
+                    guard lines.count > room else { return (i: e.i, tp: wrapped) }
+                    wrapped.dispose()
+                    RuleTrace.hit("sheet-side-legend-name-ends-in-an-ellipsis-where-the-chart-is-full")
+                    // (The words that fit, then "…": Excel's 17th line is "aliquam…" where the whole name's is "aliquam".)
+                    let words = names[e.i].split(separator: " ", omittingEmptySubsequences: false)
+                    var keep = words.count - 1
+                    while keep > 1 {
+                        let t = styled(words[..<keep].joined(separator: " ") + "\u{2026}", size, wrapW, bold: c.legendBold, color: c.legendColor, part: "legend", align: .left, windowsLines: true)
+                        let fits = t.computeLineMetrics().count <= room
+                        t.dispose()
+                        if fits { break }
+                        keep -= 1
+                    }
+                    return (i: e.i, tp: styled(words[..<max(1, keep)].joined(separator: " ") + "\u{2026}", size, wrapW, bold: c.legendBold, color: c.legendColor, part: "legend", align: .left, maxLines: room, windowsLines: true))
+                }
+            }
             // (A Word pie's legend in a box of its own: the names wrap in the box less the key's room and 0.65 of the size,
             // set left, and the column stands as one, its widest entry centred 0.13 of the size right of the box's middle:
             // f15415f0's three pie legends in Word's print, "Não especificado" wrapped in a 99 pt box, keys all at one x.)
@@ -3902,6 +3933,8 @@ enum ChartPainter {
             var lineHs = lines.map { line in
                 let tall = line.map { $0.tp.height }.max() ?? 0
                 if slideSidePie, slotH > 1.5 * textH { return slotH + 5.8 * k }
+                // (A name Excel wraps at a side keeps the room a line has round it: 3.1 pt over its lines in lab xl-legw's 8- and 25-line legends.)
+                if sheetSide, tall > 1.5 * textH { return tall + 5.88 }
                 return wordSidePie && tall > 1.5 * textH ? tall + 5.8 * k : max(lineH, tall)
             }
             // (A Word pie's side legend too tall for the chart drops its last entries: lab piesize4's 60-character names, three lines
@@ -3951,7 +3984,7 @@ enum ChartPainter {
             let linesH = lineHs.reduce(0, +)
             // (A name wrapped on a slide takes the width of its longest line, not of the room it wrapped in.)
             let tightW: (TextPainter) -> Double = { tp in
-                slideSidePie ? (tp.computeLineMetrics().map(\.width).max() ?? tp.width) : tp.width
+                slideSidePie || sheetSide ? (tp.computeLineMetrics().map(\.width).max() ?? tp.width) : tp.width
             }
             let columnW = (entries.map { tightW($0.tp) }.max() ?? 0) + lead
             var y: Double, columnX = 0.0
@@ -4020,7 +4053,7 @@ enum ChartPainter {
                 RuleTrace.hit("word-legend-placed-by-its-corner-keeps-its-size-over-the-plot")
                 y = r.top + at.dy * r.height + 2.5 * k
             } else if beside {
-                y = c.legendPosition == "tr" ? area.top : area.center.dy - titleDrop / 2 - (wrappedSide ? linesH - 5.8 * k : lineH * Double(lines.count)) / 2 + (wrappedSide ? (slideSidePie ? -4.1 : 1.3) * k : 0)
+                y = c.legendPosition == "tr" ? area.top : area.center.dy - titleDrop / 2 - (wrappedSide ? linesH - 5.8 * k : sheetSide ? linesH : lineH * Double(lines.count)) / 2 + (wrappedSide ? (slideSidePie ? -4.1 : 1.3) * k : 0)
                 // (A Word chart with a title, its plot left where the file puts it (manual layout) and
                 // the legend at the right: the legend's middle stands 4.1 pt lower than the middle of
                 // the room under the title — lo-c4c60fcb's two entries, 14 pt title, in Word's print.)
@@ -4070,6 +4103,16 @@ enum ChartPainter {
                     let word = c.type == .pie && box == nil && !c.onSlide && !c.onSheet
                     let taken = word ? min(measured + (apart + 1.64) * k, r.width / 3 + 9 * k) : measured + apart * k
                     area = Rect.fromLTRB(area.left, area.top, area.right - taken, area.bottom)
+                    // (Excel's legend at the right with a wrapped name: as wide as its longest line and 16 pt, at most a third of the chart
+                    // and 3, ending 10.8 pt inside the chart, the names 16.4 into it and the plot 22.8 before them. Lab xl-legw's COM
+                    // positions: boxes 63, 131 and 199 (the cap) and 118.9 and 164.4 (lines of 102.9 and 148.4) at 107/243/379, 255.1, 413.6.)
+                    if sheetSide, entries.contains(where: { $0.tp.computeLineMetrics().count > 1 }) {
+                        RuleTrace.hit("sheet-right-legend-with-a-wrapped-name-is-its-longest-line-wide")
+                        let boxW = min((entries.map { tightW($0.tp) }.max() ?? 0) + 15.98, r.width / 3 + 3)
+                        let x = r.right - 10.84 - boxW + 16.4 - lead
+                        area = Rect.fromLTRB(area.left, area.top, area.right - (columnX - x) - 3.0, area.bottom)
+                        columnX = x
+                    }
                     if let sb = seriesButtons { area = Rect.fromLTRB(area.left, area.top, sb.x - 7.4, area.bottom) }
                 }
             } else if c.legendPosition == "t" {
@@ -4222,7 +4265,9 @@ enum ChartPainter {
                     // (A sheet's box column: each entry's first line at the top of its even slot, its key on that line, a wrapped
                     // name hanging below: ja-7d50affe6a's keys 3.3 and 3.8 pdf under the slot's top in Excel's print, 12 and 13.7 apart.)
                     let firstH = e.tp.computeLineMetrics().first.map { $0.height } ?? textH
-                    let keyY = sheetBoxColumnW != nil || sheetGridSlot != nil ? y + firstH / 2 : y + lineH / 2
+                    // (Excel's key by a wrapped side name stands at its first line's middle: lab xl-legw, every legend.)
+                    let keyY = sheetBoxColumnW != nil || sheetGridSlot != nil ? y + firstH / 2
+                        : sheetSide ? y + (lineH - e.tp.height) / 2 + e.tp.height / Double(max(1, e.tp.computeLineMetrics().count)) / 2 : y + lineH / 2
                     if !byPoint, e.i >= c.series.count {
                         // A combination's line: its mark, on its line unless
                         // that is hidden.
