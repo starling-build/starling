@@ -381,6 +381,23 @@ enum SlideFonts {
             face.otherAdvances = OfficeFonts.dilleniaUPCBoldThai
             face.boldOtherAdvances = OfficeFonts.dilleniaUPCBoldThai
             return face
+        case "th sarabun new", "th sarabunit๙", "browallia new", "browalliaupc", "cordia new", "cordiaupc", "angsana new", "angsanaupc":
+            // (The other narrow Thai faces PowerPoint's machine has and ours lacks, set as Word sets them (OfficeFonts' thaiWordFaces):
+            // Cordia's Latin, Browallia's for the Sarabuns and Browallia, Browallia's Thai widths. Without them the Noto Sans Thai
+            // stand-in drew their Thai a third wide.)
+            var face = RichResolvedFace(family: resolve(family))
+            var regular = OfficeFonts.cordiaNewAdvances, bold = OfficeFonts.cordiaNewBoldAdvances
+            regular[0] = 0.222
+            bold[0] = 0.181
+            if ["browallia new", "browalliaupc", "th sarabun new", "th sarabunit๙"].contains(windowsName(family)) {
+                for (j, w) in OfficeFonts.browalliaLatinAdvances.enumerated() { regular[j + 1] = w }
+            }
+            face.advances = regular
+            face.boldAdvances = bold
+            face.otherAdvances = OfficeFonts.browalliaAdvances
+            face.boldOtherAdvances = OfficeFonts.browalliaBoldAdvances
+            face.classScales = [1, 1, 1, 1, 0.82]
+            return face
         case "lucida sans unicode":
             var face = RichResolvedFace(family: resolve(family))
             face.advances = OfficeFonts.lucidaSansUnicodeAdvances
