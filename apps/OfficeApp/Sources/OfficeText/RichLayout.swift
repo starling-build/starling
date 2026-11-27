@@ -1553,13 +1553,14 @@ public struct PageSetup: Hashable, Codable, Sendable {
     /// The section writes its text top to bottom, columns from the right
     /// (`w:textDirection` tbRl/tbRlV). Everything in this setup is then the
     /// TRANSPOSED page the layout works in (a line runs along the physical
-    /// height, the lines stack across the physical width); `transposed()`
+    /// height, the lines stack across the physical width); `physical`
     /// gives the paper back.
     public var vertical = false
 
     /// The page turned a quarter: width and height swap, and the margins go
     /// round with it (physical top becomes the line's start, physical right
-    /// the first column's edge). Its own inverse.
+    /// the first column's edge). Not its own inverse: `untransposed()`
+    /// turns it back.
     public func transposed() -> PageSetup {
         var p = self
         p.width = height
@@ -1570,6 +1571,22 @@ public struct PageSetup: Hashable, Codable, Sendable {
         p.marginBottom = marginLeft
         return p
     }
+
+    /// The paper page of a turned (vertical) setup: undoes `transposed()`.
+    public func untransposed() -> PageSetup {
+        var p = self
+        p.width = height
+        p.height = width
+        p.marginTop = marginLeft
+        p.marginRight = marginTop
+        p.marginBottom = marginRight
+        p.marginLeft = marginBottom
+        return p
+    }
+
+    /// The page as printed on the paper: a vertical section's setup turned
+    /// back, any other as it is. Page Setup shows and edits this one.
+    public var physical: PageSetup { vertical ? untransposed() : self }
 
     public func rotated() -> PageSetup {
         var p = self

@@ -217,7 +217,9 @@ extension DocxFormat {
     /// margins and column count that differ from the XML are rewritten, so a
     /// section nobody touched is written back byte for byte.
     static func _sectionXML(_ xml: String, patchedTo page: PageSetup?) -> String {
-        guard let page, !page.vertical, let sect = XNode.parse(Data(xml.utf8)) else { return xml }
+        guard let flow = page, let sect = XNode.parse(Data(xml.utf8)) else { return xml }
+        // (A vertical section's setup is the turned page; the file holds the paper's.)
+        let page = flow.physical
         var changed = false
         func twips(_ v: Double) -> String { String(Int((v * 20).rounded())) }
         func put(_ node: XNode, _ key: String, _ v: Double) {
@@ -2057,7 +2059,7 @@ extension DocxFormat {
         }
         // WordprocessingML wants a paragraph between a table and the section end.
         if doc.paragraphs.last?.cell != nil { body += "<w:p/>" }
-        let pageSetup = pageSetup.vertical ? pageSetup.transposed() : pageSetup
+        let pageSetup = pageSetup.physical
         let pw = Int(pageSetup.width * 20), ph = Int(pageSetup.height * 20)
         body += "<w:sectPr>"
         // Kept header/footer parts: the default ones only while their text
