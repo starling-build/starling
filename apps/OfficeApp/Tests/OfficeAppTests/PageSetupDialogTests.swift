@@ -73,4 +73,46 @@ final class PageSetupDialogTests: XCTestCase {
         XCTAssertFalse(ui.has(id: "ps-landscape"))
         XCTAssertEqual(s.pageSetup, before)
     }
+
+    /// W-HF-2: the Layout tab's page number format.
+    func testTheLayoutTabSetsThePageNumberFormat() throws {
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(1280, 800))
+        let s = ui.state(OfficeShellState.self)!.session
+        s.onPageSetupDialog?(); ui.pump()
+        // The dialog's Layout tab, not the ribbon's: the last "Layout" in the tree.
+        let tab = ui.elements().last { ($0.widget as? Text)?.data == "Layout" }?.findRenderObject() as? RenderBox
+        let box = try XCTUnwrap(tab)
+        ui.tap(at: box.localToGlobal(Offset(box.size.width / 2, box.size.height / 2))); ui.pump()
+        XCTAssertTrue(ui.has(id: "ps-fmt-decimal"))
+        XCTAssertTrue(ui.tap(id: "ps-fmt-upperRoman"))
+        XCTAssertFalse(ui.has(id: "ps-chapstyle"), "no chapter boxes until the chapter number is on")
+        XCTAssertTrue(ui.tap(id: "ps-chapter"))
+        XCTAssertTrue(ui.has(id: "ps-chapstyle") && ui.has(id: "ps-chapsep"))
+        ui.press(.enter); ui.pump()
+        XCTAssertFalse(ui.has(id: "ps-fmt-upperRoman"), "the dialog closed")
+        XCTAssertEqual(s.controller.document.pageNumberFormat, "upperRoman")
+        XCTAssertEqual(s.controller.document.chapterStyle, 1, "Heading 1 by default")
+        XCTAssertNil(s.controller.document.chapterSeparator, "a hyphen, unnamed")
+        let back = try DocxFormat.read(DocxFormat.write(s.controller.document, pageSetup: s.pageSetup))
+        XCTAssertEqual(back.document.pageNumberFormat, "upperRoman")
+        s.controller.undo()
+        XCTAssertNil(s.controller.document.pageNumberFormat)
+    }
+
+    func testTheHeaderAndFooterTabShowsWhileTheStripIsOpen() {
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(1280, 800))
+        let s = ui.state(OfficeShellState.self)!.session
+        XCTAssertFalse(ui.has(text: "Header & Footer"))
+        s.onHeaderFooter?(); ui.pump()
+        XCTAssertTrue(ui.has(text: "Header & Footer") && ui.has(text: "Different First Page"), "the tab opens with the strip, selected")
+        XCTAssertTrue(ui.has(text: "Link Header to Previous"), "shown, though the one section has nothing to link to")
+        XCTAssertTrue(ui.tap(text: "Different First Page")); ui.pump()
+        XCTAssertTrue(s.controller.document.titlePage)
+        XCTAssertTrue(ui.tap(text: "Different Odd & Even Pages")); ui.pump()
+        XCTAssertTrue(s.controller.document.evenAndOddHeaders)
+        XCTAssertTrue(ui.tap(text: "Close Header and Footer")); ui.pump()
+        XCTAssertFalse(s.headerFooterOpen)
+        XCTAssertFalse(ui.has(text: "Different First Page"), "the tab goes with the strip")
+        XCTAssertTrue(s.controller.document.titlePage, "closing keeps what was set")
+    }
 }

@@ -19,6 +19,8 @@ enum RibbonTab: Int, CaseIterable {
     /// Contextual: shown while a picture is selected or the caret is in a
     /// table, as Word does.
     case pictureFormat, shapeFormat, tableLayout, tableDesign
+    /// Word only; contextual while the header and footer are being edited.
+    case headerFooter
     /// Slides only; contextual while a chart is selected.
     case chartDesign
     /// Slides only; shown while Slide Master view is open.
@@ -49,6 +51,7 @@ enum RibbonTab: Int, CaseIterable {
         case .shapeFormat: return "Shape Format"
         case .tableLayout: return "Table Layout"
         case .tableDesign: return "Table Design"
+        case .headerFooter: return "Header & Footer"
         case .chartDesign: return "Chart Design"
         case .slideMaster: return "Slide Master"
         case .design: return "Design"
@@ -60,7 +63,7 @@ enum RibbonTab: Int, CaseIterable {
         }
     }
 
-    var isContextual: Bool { self == .pictureFormat || self == .shapeFormat || self == .tableLayout || self == .tableDesign || self == .chartDesign || self == .slideMaster }
+    var isContextual: Bool { self == .pictureFormat || self == .shapeFormat || self == .tableLayout || self == .tableDesign || self == .chartDesign || self == .slideMaster || self == .headerFooter }
 }
 
 final class Ribbon: StatelessWidget {
@@ -112,6 +115,7 @@ final class Ribbon: StatelessWidget {
         if session.deck?.selectedTableOptions != nil { items.append(_tab(.tableDesign, fluent)) }
         if session.summary.inCell { items.append(_tab(.tableDesign, fluent)); items.append(_tab(.tableLayout, fluent)) }
         if session.deck?.selectedChart != nil { items.append(_tab(.chartDesign, fluent)) }
+        if session.headerFooterOpen, session.kind == .document { items.append(_tab(.headerFooter, fluent)) }
         if session.deck?.inMasterView ?? false { items.insert(_tab(.slideMaster, fluent), at: 1) }
         return ColoredBox(color: OfficeAppearance.surface(fluent),
             child: SizedBox(width: nil, height: OfficeAppearance.rowHeight(44), child: SingleChildScrollView(scrollDirection: .horizontal,
@@ -187,6 +191,7 @@ final class Ribbon: StatelessWidget {
         case .references: return _references(fluent)
         case .review: return _review(fluent)
         case .tableDesign: return session.summary.inCell ? _tableDesign(fluent) : []
+        case .headerFooter: return session.headerFooterOpen ? _headerFooter(fluent) : []
         case .design, .transitions, .slideShow, .chartDesign, .slideMaster, .animations, .formulas, .data: return []
         }
     }
@@ -1065,6 +1070,66 @@ final class Ribbon: StatelessWidget {
             ]),
         ])
         return [pageSetup, paragraph]
+    }
+
+    // MARK: Header & Footer
+
+    /// W-HF-2: Word's Header & Footer tab, shown while the header and footer are open: the page numbers' format,
+    /// the caret's section's different first page, the document's odd and even pages, Link to Previous for the
+    /// section's header and footer, and how far they stand from the page's edges.
+    func _headerFooter(_ fluent: FluentThemeData) -> [Widget] {
+        let c = session.controller
+        let options = c.pageOptions(sectionMark: c.sectionMark(containing: c.selection.focus.paragraph))
+        func setOptions(_ change: @escaping (inout RichDocumentController.PageOptions) -> Void) -> () -> Void {
+            { [session] in
+                let c = session.controller
+                var o = c.pageOptions(sectionMark: c.sectionMark(containing: c.selection.focus.paragraph))
+                change(&o)
+                c.changePageOptions(allSections: false, o, lastSetup: session.pageSetup)
+            }
+        }
+        let formats: [(String, () -> Void)] = PageSetupValues.numberFormats.map { f in
+            (f.label, setOptions { $0.pageNumberFormat = f.id == "decimal" && $0.pageNumberFormat == nil ? nil : f.id })
+        }
+        let numbers = Chrome.group("Header & Footer", fluent, [
+            Chrome.menu(Text("Page Number"), Icon(FluentSystemIcons.numberList, size: Chrome.iconSize,
+                                                  color: fluent.resources.textFillColorPrimary), fluent, formats, keyPrefix: "hf-fmt"),
+        ])
+        var navigation: [Widget] = []
+        for (kind, label) in [(KeptHeaderFooter.Kind.header, "Link Header to Previous"), (.footer, "Link Footer to Previous")] {
+            let linked = c.linkedToPrevious(kind: kind)
+            navigation.append(linked == nil
+                ? Text(label, style: fluent.typography.body?.copyWith(color: fluent.resources.textFillColorDisabled))
+                : Chrome.textToggle(label, linked == true, fluent) { [session] in
+                    let c = session.controller
+                    if let now = c.linkedToPrevious(kind: kind) { c.setLinkToPrevious(!now, kind: kind) }
+                })
+            navigation.append(Chrome.vgap(2))
+        }
+        navigation.removeLast()
+        let optionsGroup = Chrome.group("Options", fluent, [
+            Chrome.rows([
+                Chrome.textToggle("Different First Page", options.titlePage, fluent, action: setOptions { $0.titlePage.toggle() }),
+                Chrome.vgap(2),
+                Chrome.textToggle("Different Odd & Even Pages", options.evenAndOdd, fluent, action: setOptions { $0.evenAndOdd.toggle() }),
+            ]),
+        ])
+        let setup = session.sectionSetup()
+        let position = Chrome.group("Position", fluent, [
+            Chrome.rows([
+                Chrome.spinner("Header from Top", setup.headerDistance, fluent, step: 3) { [session] v in
+                    var p = session.sectionSetup(); p.headerDistance = v; session.onPageSetup?(p)
+                },
+                Chrome.vgap(2),
+                Chrome.spinner("Footer from Bottom", setup.footerDistance, fluent, step: 3) { [session] v in
+                    var p = session.sectionSetup(); p.footerDistance = v; session.onPageSetup?(p)
+                },
+            ]),
+        ])
+        let close = Chrome.group("Close", fluent, [
+            Chrome.big(FluentSystemIcons.close, "Close Header and Footer", fluent) { [session] in session.onCloseHeaderFooter?() },
+        ])
+        return [numbers, Chrome.group("Navigation", fluent, [Chrome.rows(navigation)]), optionsGroup, position, close]
     }
 
     // MARK: View

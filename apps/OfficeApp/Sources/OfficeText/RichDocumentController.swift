@@ -102,6 +102,8 @@ public indirect enum EditOp: Equatable, Sendable {
     case setSectionPage(Int, old: PageSetup?, new: PageSetup?)
     /// The document-level page options (the last section's different first page and first page number, odd/even headers).
     case setPageOptions(old: RichDocumentController.PageOptions, new: RichDocumentController.PageOptions)
+    /// The last section's own header and footer references (W-HF-2 Link to Previous).
+    case setKeptHeaderFooters(old: [KeptHeaderFooter], new: [KeptHeaderFooter])
     /// The last section's `w:type` (how it starts), as the file writes it.
     case setLastSectionType(old: String?, new: String?)
     /// A picture's shown size (its attachment replaced; the id survives).
@@ -217,8 +219,13 @@ public indirect enum EditOp: Equatable, Sendable {
             return .setSectionPage(index, old: new, new: old)
         case .setPageOptions(let old, let new):
             doc.titlePage = new.titlePage; doc.evenAndOddHeaders = new.evenAndOdd; doc.pageNumberStart = new.pageNumberStart
+            doc.pageNumberFormat = new.pageNumberFormat; doc.chapterStyle = new.chapterStyle; doc.chapterSeparator = new.chapterSeparator
             changes.append(.all)
             return .setPageOptions(old: new, new: old)
+        case .setKeptHeaderFooters(let old, let new):
+            doc.keptHeaderFooters = new
+            changes.append(.all)
+            return .setKeptHeaderFooters(old: new, new: old)
         case .setLastSectionType(let old, let new):
             doc.sectionTypeXML = new
             changes.append(.all)
@@ -3238,13 +3245,34 @@ public final class RichDocumentController: ChangeNotifier {
     /// setup (so a section keeps its columns, title page and the rest). One undo step.
     public struct PageOptions: Equatable, Sendable {
         public var titlePage: Bool, evenAndOdd: Bool, pageNumberStart: Int?
-        public init(titlePage: Bool, evenAndOdd: Bool, pageNumberStart: Int?) { self.titlePage = titlePage; self.evenAndOdd = evenAndOdd; self.pageNumberStart = pageNumberStart }
+        /// The page numbers' `w:fmt` (nil: the file names none, so decimal).
+        public var pageNumberFormat: String?
+        /// The chapter number before the page number: the heading level whose number it is (`w:chapStyle`; nil: none)
+        /// and the character between them (`w:chapSep`; nil: hyphen).
+        public var chapterStyle: Int?, chapterSeparator: String?
+        public init(titlePage: Bool, evenAndOdd: Bool, pageNumberStart: Int?, pageNumberFormat: String? = nil,
+                    chapterStyle: Int? = nil, chapterSeparator: String? = nil) {
+            self.titlePage = titlePage; self.evenAndOdd = evenAndOdd; self.pageNumberStart = pageNumberStart; self.pageNumberFormat = pageNumberFormat
+            self.chapterStyle = chapterStyle; self.chapterSeparator = chapterSeparator
+        }
+        /// These options with the document-wide odd and even setting replaced.
+        func with(evenAndOdd: Bool) -> PageOptions { var o = self; o.evenAndOdd = evenAndOdd; return o }
+        /// A section's page with these section options.
+        func applied(to page: PageSetup) -> PageSetup {
+            var s = page
+            s.titlePage = titlePage; s.pageNumberStart = pageNumberStart; s.pageNumberFormat = pageNumberFormat
+            s.chapterStyle = chapterStyle; s.chapterSeparator = chapterSeparator
+            return s
+        }
     }
     /// The page options of the section holding the caret (`allSections: false`) as the Layout tab shows them.
     public func pageOptions(sectionMark mark: Int) -> PageOptions {
-        if mark < 0 { return PageOptions(titlePage: document.titlePage, evenAndOdd: document.evenAndOddHeaders, pageNumberStart: document.pageNumberStart) }
+        if mark < 0 { return PageOptions(titlePage: document.titlePage, evenAndOdd: document.evenAndOddHeaders, pageNumberStart: document.pageNumberStart,
+                                      pageNumberFormat: document.pageNumberFormat, chapterStyle: document.chapterStyle,
+                                      chapterSeparator: document.chapterSeparator) }
         let s = document.paragraphs[mark].style.sectionPage
-        return PageOptions(titlePage: s?.titlePage ?? false, evenAndOdd: document.evenAndOddHeaders, pageNumberStart: s?.pageNumberStart)
+        return PageOptions(titlePage: s?.titlePage ?? false, evenAndOdd: document.evenAndOddHeaders, pageNumberStart: s?.pageNumberStart,
+                           pageNumberFormat: s?.pageNumberFormat, chapterStyle: s?.chapterStyle, chapterSeparator: s?.chapterSeparator)
     }
     /// W-HF-2: different first page and first page number for the caret's section (every section with
     /// `allSections`), and different odd and even pages for the document. One undo step.
@@ -3258,18 +3286,158 @@ public final class RichDocumentController: ChangeNotifier {
             for mark in marks {
                 if mark < 0 {
                     let old = pageOptions(sectionMark: -1)
-                    let next = PageOptions(titlePage: new.titlePage, evenAndOdd: new.evenAndOdd, pageNumberStart: new.pageNumberStart)
+                    let next = new
                     if next != old { perform(.setPageOptions(old: old, new: next)) }
                 } else if let old = document.paragraphs[mark].style.sectionPage {
-                    var s = old; s.titlePage = new.titlePage; s.pageNumberStart = new.pageNumberStart
+                    let s = new.applied(to: old)
                     if s != old { perform(.setSectionPage(mark, old: old, new: s)) }
                 }
             }
             if document.evenAndOddHeaders != new.evenAndOdd {
-                perform(.setPageOptions(old: pageOptions(sectionMark: -1),
-                                        new: PageOptions(titlePage: document.titlePage, evenAndOdd: new.evenAndOdd, pageNumberStart: document.pageNumberStart)))
+                let old = pageOptions(sectionMark: -1)
+                perform(.setPageOptions(old: old, new: old.with(evenAndOdd: new.evenAndOdd)))
             }
         }
+    }
+
+    /// The section marks in order (the paragraphs that end a section, as the layout counts them), then -1 for the last.
+    func sectionMarks() -> [Int] {
+        var marks: [Int] = []
+        for i in 0..<max(0, document.paragraphs.count - 1) where document.paragraphs[i].cell == nil && document.paragraphs[i].style.sectionPage != nil { marks.append(i) }
+        return marks + [-1]
+    }
+    /// The `w:headerReference`/`w:footerReference` elements of `kind` and `type` in a kept `w:sectPr`, as ranges,
+    /// with the `r:id` each names. (A reference with no `w:type` is the default one, as the reader takes it.)
+    static func _references(in xml: String, kind: KeptHeaderFooter.Kind, type: String) -> [(range: Range<String.Index>, id: String?)] {
+        let tag = kind == .header ? "<w:headerReference" : "<w:footerReference"
+        var found: [(Range<String.Index>, String?)] = []
+        var from = xml.startIndex
+        while let r = xml.rangeOfSubstring(tag, in: from..<xml.endIndex) {
+            guard let close = xml.rangeOfSubstring(">", in: r.upperBound..<xml.endIndex) else { break }
+            from = close.upperBound
+            let next = xml[r.upperBound...].first
+            guard next == " " || next == "/" || next == ">" else { continue }
+            var end = close.upperBound
+            if xml[xml.index(before: close.lowerBound)] != "/", let shut = xml.rangeOfSubstring("</" + tag.dropFirst() + ">", in: end..<xml.endIndex) {
+                end = shut.upperBound
+            }
+            let element = String(xml[r.lowerBound..<close.upperBound])
+            func attr(_ name: String) -> String? {
+                guard let a = element.rangeOfSubstring(" \(name)=\""), let q = element.rangeOfSubstring("\"", in: a.upperBound..<element.endIndex) else { return nil }
+                return String(element[a.upperBound..<q.lowerBound])
+            }
+            let t = attr("w:type").map { $0 == "odd" ? "default" : $0 } ?? "default"
+            if t == type { found.append((r.lowerBound..<end, attr("r:id"))) }
+            from = end
+        }
+        return found
+    }
+    /// Whether a section names its own header (or footer) of `type`: the last section by its kept parts and,
+    /// for the default one, by the text the editor writes as a part of its own.
+    func ownsHeaderFooter(sectionMark mark: Int, kind: KeptHeaderFooter.Kind, type: String) -> Bool {
+        if mark >= 0 { return !Self._references(in: document.paragraphs[mark].style.sectionXML ?? "", kind: kind, type: type).isEmpty }
+        if document.keptHeaderFooters.contains(where: { $0.kind == kind && $0.type == type }) { return true }
+        return type == "default" && !(kind == .header ? document.header : document.footer).isEmpty
+    }
+    /// W-HF-2 Link to Previous: true when the section holding `paragraph` shows the header (or footer) of `type` of the
+    /// section before it, having none of its own; nil for the first section, which has nothing to link to.
+    public func linkedToPrevious(paragraph: Int? = nil, kind: KeptHeaderFooter.Kind, type: String = "default") -> Bool? {
+        let mark = sectionMark(containing: paragraph ?? selection.focus.paragraph)
+        let marks = sectionMarks()
+        guard let s = marks.firstIndex(of: mark), s > 0 else { return nil }
+        return !ownsHeaderFooter(sectionMark: mark, kind: kind, type: type)
+    }
+    /// The part the section before `marks[s]` shows for `kind` and `type`: its own reference's relationship, or the
+    /// one it has from the section before it.
+    func previousReference(_ marks: [Int], _ s: Int, kind: KeptHeaderFooter.Kind, type: String) -> KeptRel? {
+        var t = s - 1
+        while t >= 0 {
+            let style = document.paragraphs[marks[t]].style
+            if let id = Self._references(in: style.sectionXML ?? "", kind: kind, type: type).first?.id,
+               let rel = style.sectionRels.first(where: { $0.id == id && !$0.external }) { return rel }
+            t -= 1
+        }
+        return nil
+    }
+    /// A relationship target as a package path ("header2.xml" from word/document.xml is "word/header2.xml").
+    static func _packagePath(_ target: String) -> String {
+        if target.hasPrefix("/") { return String(target.dropFirst()) }
+        var comps = ["word"]
+        for c in target.split(separator: "/") {
+            if c == ".." { if !comps.isEmpty { comps.removeLast() } } else if c != "." { comps.append(String(c)) }
+        }
+        return comps.joined(separator: "/")
+    }
+    /// W-HF-2 Link to Previous, as Word's button: linking drops the section's own reference, so its pages show the
+    /// section before's header (or footer), and so do the following sections that had theirs from it; unlinking
+    /// gives it a reference of its own to the part it showed, so its pages look the same until it is edited. One undo step.
+    /// Returns false where there is nothing to do (the first section, already so, or no part to name).
+    @discardableResult
+    public func setLinkToPrevious(_ linked: Bool, paragraph: Int? = nil, kind: KeptHeaderFooter.Kind, type: String = "default") -> Bool {
+        let mark = sectionMark(containing: paragraph ?? selection.focus.paragraph)
+        let marks = sectionMarks()
+        guard let s = marks.firstIndex(of: mark), s > 0, ownsHeaderFooter(sectionMark: mark, kind: kind, type: type) == linked else { return false }
+        if !linked {
+            guard let rel = previousReference(marks, s, kind: kind, type: type) else { return false }
+            let element = "<w:\(kind == .header ? "headerReference" : "footerReference") w:type=\"\(type)\" r:id=\"\(rel.id)\"/>"
+            if mark >= 0 {
+                var style = document.paragraphs[mark].style
+                guard var xml = style.sectionXML, let open = xml.rangeOfSubstring("<w:sectPr"),
+                      let close = xml.rangeOfSubstring(">", in: open.upperBound..<xml.endIndex) else { return false }
+                if xml[xml.index(before: close.lowerBound)] == "/" {
+                    xml.replaceSubrange(xml.index(before: close.lowerBound)..<close.upperBound, with: ">" + element + "</w:sectPr>")
+                } else {
+                    xml.insert(contentsOf: element, at: close.upperBound)
+                }
+                style.sectionXML = xml
+                if !style.sectionRels.contains(where: { $0.id == rel.id }) { style.sectionRels.append(rel) }
+                let old = document.paragraphs[mark].style
+                edit { perform(.setParagraphStyle(mark, old: old, new: style)) }
+            } else {
+                let path = Self._packagePath(rel.target)
+                guard document.keptParts[path] != nil else { return false }
+                let text = type == "default" ? (kind == .header ? document.header : document.footer) : ""
+                let old = document.keptHeaderFooters
+                edit { perform(.setKeptHeaderFooters(old: old, new: old + [KeptHeaderFooter(kind: kind, type: type, part: path, text: text)])) }
+            }
+            return true
+        }
+        // Linking: the following sections that had theirs from this one show the previous one's from now on.
+        var follow = [s]
+        var t = s + 1
+        while t < marks.count, !ownsHeaderFooter(sectionMark: marks[t], kind: kind, type: type) { follow.append(t); t += 1 }
+        let oldHF = document.headerFooters
+        var newHF = oldHF
+        if oldHF.contains(where: { $0.section != nil }) {
+            let shown = oldHF.first { $0.kind == kind && $0.type == type && $0.section == s - 1 }
+            newHF.removeAll { $0.kind == kind && $0.type == type && $0.section.map(follow.contains) == true }
+            if let shown { for t in follow { var e = shown; e.section = t; e.edited = nil; newHF.append(e) } }
+        }
+        var header = document.header, footer = document.footer
+        if mark < 0, type == "default" {
+            if kind == .header { header = "" } else { footer = "" }
+            newHF.removeAll { $0.kind == kind && $0.type == "default" && $0.section == nil && $0.edited == true }
+        }
+        edit {
+            if mark >= 0 {
+                let old = document.paragraphs[mark].style
+                var style = old
+                var xml = style.sectionXML ?? ""
+                let refs = Self._references(in: xml, kind: kind, type: type)
+                for r in refs.reversed() { xml.removeSubrange(r.range) }
+                style.sectionXML = xml
+                style.sectionRels.removeAll { rel in refs.contains { $0.id == rel.id } && !xml.containsSubstring("\"\(rel.id)\"") }
+                perform(.setParagraphStyle(mark, old: old, new: style))
+            } else {
+                let old = document.keptHeaderFooters
+                let new = old.filter { !($0.kind == kind && $0.type == type) }
+                if new != old { perform(.setKeptHeaderFooters(old: old, new: new)) }
+            }
+            if newHF != oldHF || header != document.header || footer != document.footer {
+                perform(.setRichHeaderFooter(new: newHF, old: oldHF, header: header, footer: footer, oldHeader: document.header, oldFooter: document.footer))
+            }
+        }
+        return true
     }
 
     public func changePageSetup(allSections: Bool, lastSetup: PageSetup, _ change: (inout PageSetup) -> Void) {
