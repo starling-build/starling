@@ -49,6 +49,9 @@
 // CHROME_PROFILE (a user-data dir; the default is under the OS temp dir),
 // BLOCK_URLS (JSON array of CDP URL patterns to fail before navigation),
 // DISABLE_SCRIPTS=1 (disable page scripts before navigation),
+// PICKERS=1 (keep the browser's file pickers; by default they are hidden, so
+// Open is the file input and Save a download), PRELOAD (a .js file run in every
+// page before its own scripts, e.g. stand-in pickers),
 // OPEN_MS (document-open timeout, default 30000), FONT_WAIT_MS (settle
 // timeout, default 60000), SETTLE_MS (font-quiet interval, default 800),
 // PORT (the DevTools port, default 9333 — a crashed run leaves its Chrome
@@ -115,6 +118,15 @@ if (process.env.BLOCK_URLS) {
   await send('Network.setBlockedURLs', { urls: JSON.parse(process.env.BLOCK_URLS) });
 }
 if (process.env.DISABLE_SCRIPTS === '1') await send('Emulation.setScriptExecutionDisabled', { value:true });
+// The browser's own file pickers open native dialogs no script can answer, so a driven page goes
+// without them (Save is then a download, as in Firefox) unless PICKERS=1. PRELOAD=file.js runs in
+// every page before its scripts: a test's stand-in pickers, for one.
+{
+  let early = process.env.PICKERS === '1' ? '' :
+    "for (const k of ['showSaveFilePicker','showOpenFilePicker']) Object.defineProperty(window, k, { value: undefined, configurable: true, writable: true });\n";
+  if (process.env.PRELOAD) early += readFileSync(process.env.PRELOAD, 'utf8');
+  if (early) { await send('Page.enable'); await send('Page.addScriptToEvaluateOnNewDocument', { source: early }); }
+}
 await send('Page.navigate', { url: process.env.URL || 'http://127.0.0.1:8137/' });
 await sleep(3000);
 const mouse = async (type, x, y, button = 'left') =>

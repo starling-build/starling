@@ -347,6 +347,30 @@ enum OfficeHost {
         var open: (_ name: String, _ done: @escaping (Data?) -> Void) -> Void
     }
 
+    /// Open, Save and Save As in a browser tab, which has no paths (web-parity item 4). Where the browser lets the
+    /// page pick a place (`showSaveFilePicker`: Chrome, Edge) Save As asks it for one and Save writes that file
+    /// again, as natively; a file opened through the browser's own picker saves back to itself. Elsewhere Save
+    /// downloads, and Save As asks for a name in Backstage, then downloads. Nil natively; the web build sets it
+    /// from `WebFiles`, tests from a stand-in.
+    nonisolated(unsafe) static var browserFiles: BrowserFiles?
+
+    struct BrowserFiles {
+        /// A file the user picked: its name, its bytes, and the page's handle on it when it can be written back.
+        typealias Picked = (name: String, data: Data, handle: Int?)
+        /// Whether `pickPlace` is there (else Save downloads).
+        var canPickPlace: Bool
+        /// The browser's open picker; answers only when a file is picked.
+        var open: (_ extensions: [String], _ done: @escaping (Picked) -> Void) -> Void
+        /// The browser's save picker, offering `extensions` (the first is the default type): the handle and the
+        /// name the user gave, or nil when cancelled.
+        var pickPlace: (_ suggested: String, _ extensions: [String],
+                        _ done: @escaping ((handle: Int, name: String)?) -> Void) -> Void
+        /// Writes the whole file behind `handle`; answers whether it was written.
+        var write: (_ handle: Int, _ data: Data, _ done: @escaping (Bool) -> Void) -> Void
+        /// Hands the browser a download.
+        var download: (_ name: String, _ data: Data) -> Void
+    }
+
     /// One button of the native toolbar over the on-screen keyboard. `symbol`
     /// is an SF Symbol name; state is a snapshot, re-published when it changes.
     struct ToolbarButton {

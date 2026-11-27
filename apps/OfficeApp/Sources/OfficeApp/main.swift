@@ -1305,6 +1305,18 @@ OfficeHost.browserRecovery = .init(
 OfficeHost.browserRecent = .init(names: { WebFiles.recentNames },
                                  remember: { name, data in WebFiles.keepRecent(name, data) },
                                  open: { name, done in WebFiles.openRecent(name, done) })
+
+// Open, Save and Save As: the browser's pickers, with file handles where it has them.
+OfficeHost.browserFiles = .init(
+    canPickPlace: WebFiles.canPickPlace,
+    open: { extensions, done in
+        WebFiles.open(extensions: extensions) { picked in
+            if let picked { done((picked.name, picked.data, picked.handle)) }
+        }
+    },
+    pickPlace: { suggested, extensions, done in WebFiles.pickPlace(suggested: suggested, extensions: extensions, done) },
+    write: { handle, data, done in WebFiles.write(data, to: handle, done) },
+    download: { name, data in WebFiles.download(data, as: name) })
 #endif
 
 runStarlingApp(title: siteArg != nil ? "Site" : wikiBase != nil ? "Wiki" : initialKind.appName,

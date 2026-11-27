@@ -301,14 +301,19 @@ final class Backstage: StatelessWidget {
     /// would list directories the page cannot see: they hand over to the
     /// browser's picker and download instead, and Backstage closes.
     private func _go(_ p: BackstagePage) {
-        #if os(WASI)
-        switch p {
-        case .open: onClose(); session.onOpen?(); return
-        case .save: onClose(); session.onSave?(); return
-        case .saveAs: onClose(); session.onSaveAs?(); return
-        default: break
+        if let files = OfficeHost.browserFiles {
+            // A browser tab: the browser's pickers, or a download. Writer's
+            // Save As page stays, as a name-and-format box, where the browser
+            // has no save picker.
+            switch p {
+            case .open: onClose(); session.onOpen?(); return
+            case .save: onClose(); session.onSave?(); return
+            case .saveAs where files.canPickPlace || session.kind != .document:
+                onClose(); session.onSaveAs?(); return
+            default: break
+            }
         }
-        #else
+        #if !os(WASI)
         // A host with its own panels (the iPad's document browser and export
         // picker) takes these over; the in-app file lists stay for the rest.
         if p == .open, scene.openRequested != nil { onClose(); session.onOpen?(); return }
@@ -351,6 +356,7 @@ final class Backstage: StatelessWidget {
                 mode: mode, initialDirectory: start, suggestedName: suggested,
                 extensions: mode == .open ? OfficeFormats.readable + ["pptx", "xls", "xlsx", "csv", "tsv"]
                     : session.kind == .presentation ? ["pptx"] : session.kind == .workbook ? ["xlsx", "csv", "tsv"] : OfficeFormats.writable,
+                namesOnly: mode == .save && OfficeHost.browserFiles != nil,
                 onDone: { [session, onClose, onOpenPath, onSavePath] path in
                     guard let path else { onClose(); return }
                     if mode == .open { session.replacing { onOpenPath(path) } } else { onSavePath(path) }

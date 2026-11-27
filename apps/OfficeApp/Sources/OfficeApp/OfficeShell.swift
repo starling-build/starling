@@ -118,6 +118,10 @@ final class OfficeShellState: State<StatefulWidget> {
     /// Set when the open document came from a recovery copy: AutoSave then
     /// refreshes only the copy until the user saves for real.
     private var _recovered = false
+    /// In a browser tab: the page's number for the file this document was
+    /// opened from or saved to through the browser's file pickers. Save
+    /// writes back to it; nil means Save asks for a place (or downloads).
+    private var _browserHandle: Int?
     private let _headerText = TextEditingController()
     private let _footerText = TextEditingController()
     private var _headerLook = RichDocumentController.HeaderFooterLook()
@@ -376,14 +380,16 @@ final class OfficeShellState: State<StatefulWidget> {
         }
         session.onOpen = { [weak self] in
             guard let self else { return }
-            #if os(WASI)
             // The browser's picker, not Backstage's directory list: a tab
-            // has no directories, only files the user hands over.
-            WebFiles.open(extensions: OfficeFormats.pickable) { [weak self] picked in
-                guard let self, let picked else { return }
-                self._open(picked.name, data: picked.data)
+            // has no directories, only files the user hands over. Where the
+            // browser gives a file handle, Save writes back through it.
+            if let files = OfficeHost.browserFiles {
+                files.open(OfficeFormats.pickable) { [weak self] picked in
+                    self?._open(picked.name, data: picked.data, handle: picked.handle)
+                }
+                return
             }
-            #else
+            #if !os(WASI)
             // A host with its own document browser (the iPad's) takes Open;
             // unsaved edits still get Backstage's prompt first.
             if officeScene.openRequested != nil {
@@ -396,10 +402,13 @@ final class OfficeShellState: State<StatefulWidget> {
         session.onSave = { [weak self] in self?._save() }
         session.onSaveAs = { [weak self] in
             guard let self else { return }
-            #if os(WASI)
-            // The browser names and places a download; "save as" is save.
-            self._save()
-            #else
+            // The browser's own save picker where it has one (Chrome, Edge);
+            // elsewhere our name-and-format box, and a download.
+            if let files = OfficeHost.browserFiles {
+                if files.canPickPlace { self._saveAsInBrowser(files) } else { self.setState { self._backstage = .saveAs } }
+                return
+            }
+            #if !os(WASI)
             // A host with its own picker (the iPad's) names and places the
             // copy, and the editor carries on in it.
             if let ask = officeScene.exportRequested {
@@ -759,6 +768,7 @@ final class OfficeShellState: State<StatefulWidget> {
         blank.styles = OfficeStyles.sheet
         _autosaveGeneration += 1
         _recovered = false
+        _browserHandle = nil
         controller.load(blank)
         session.path = nil
         _savedRevision = controller.revision
@@ -838,7 +848,7 @@ final class OfficeShellState: State<StatefulWidget> {
     /// A file the browser handed over: `name` is what the user will see and
     /// what a save is called; there is no path, and no recovery copy to
     /// look for either.
-    private func _open(_ name: String, data: Data) {
+    private func _open(_ name: String, data: Data, handle: Int? = nil) {
         _rememberInBrowser(name, data)
         // A deck or a workbook: its own shell opens it, from the same bytes.
         let kind = DocumentKind.kind(forPath: name)
@@ -849,6 +859,7 @@ final class OfficeShellState: State<StatefulWidget> {
         }
         do {
             try _open(name, opened: OfficeFormats.read(data, named: name))
+            _browserHandle = handle
         } catch {
             _flash("Could not open \(name): \(error)")
         }
@@ -862,6 +873,7 @@ final class OfficeShellState: State<StatefulWidget> {
         #endif
         controller.load(opened.document)
         session.path = path
+        _browserHandle = nil
         _savedRevision = controller.revision
         _remember(path)
         setState {
@@ -898,39 +910,98 @@ final class OfficeShellState: State<StatefulWidget> {
             }
             return
         }
-        #if os(WASI)
-        // A download, named after the document; the browser decides where
-        // it goes, and asks the user if it is set to.
-        let name = session.path ?? session.title + ".docx"
-        do {
-            let data = try OfficeFormats.encode(controller.document, as: name.pathExtension,
-                                                pageSetup: session.pageSetup)
-            WebFiles.download(data, as: name)
-            OfficeHost.browserRecovery?.discard()
-            _recovered = false
-            _autosaveGeneration += 1
-            _rememberInBrowser(name, data)
-            session.path = name
-            _savedRevision = controller.revision
-            setState {
-                session.dirty = false
-                _backstage = nil
+        if let files = OfficeHost.browserFiles {
+            // Back into the file it came from, where the browser gave us its
+            // handle; else the browser's save picker; else a download, named
+            // after the document (the browser decides where it goes).
+            if let handle = _browserHandle, let name = session.path {
+                _writeInBrowser(files, handle: handle, name: name, afterSaving: afterSaving)
+            } else if files.canPickPlace {
+                _saveAsInBrowser(files, afterSaving: afterSaving)
+            } else {
+                _downloadInBrowser(files, name: session.path ?? session.title + ".docx", afterSaving: afterSaving)
             }
-            _flash("Saved \(name)")
-        } catch {
-            _flash("Could not save: \(plainFailure(error))")
+            return
         }
-        #else
         guard let path = session.path else {
             setState { _backstage = .saveAs }
             return
         }
         _saveTo(path)
-        #endif
+    }
+
+    // MARK: Saving in a browser tab
+
+    /// The bytes of the document in the format its name asks for.
+    private func _encoded(for name: String) -> Data? {
+        do {
+            return try OfficeFormats.encode(controller.document, as: name.pathExtension, pageSetup: session.pageSetup)
+        } catch {
+            _flash("Could not save: \(plainFailure(error))")
+            return nil
+        }
+    }
+
+    /// Save As through the browser's own picker: a place and a name, in one
+    /// of the formats Word writes (the document's own first).
+    private func _saveAsInBrowser(_ files: OfficeHost.BrowserFiles, afterSaving: (() -> Void)? = nil) {
+        _leaveBox()
+        let suggested = session.path.map { $0.lastPathComponent } ?? session.title.deletingPathExtension + ".docx"
+        let own = suggested.pathExtension.lowercased()
+        let kinds = (OfficeFormats.writable.contains(own) ? [own] : []) + OfficeFormats.writable.filter { $0 != own }
+        files.pickPlace(suggested, kinds) { [weak self] place in
+            guard let self, self.mounted, let place else { return }
+            self._writeInBrowser(files, handle: place.handle, name: place.name, afterSaving: afterSaving)
+        }
+    }
+
+    private func _writeInBrowser(_ files: OfficeHost.BrowserFiles, handle: Int, name: String,
+                                 afterSaving: (() -> Void)?) {
+        let revision = controller.revision
+        guard let data = _encoded(for: name) else { return }
+        files.write(handle, data) { [weak self] ok in
+            guard let self, self.mounted else { return }
+            if ok {
+                self._browserSaved(name, data, handle: handle, revision: revision, afterSaving: afterSaving)
+            } else {
+                self._flash("Could not save \(name): the browser did not allow writing to it")
+            }
+        }
+    }
+
+    private func _downloadInBrowser(_ files: OfficeHost.BrowserFiles, name: String, afterSaving: (() -> Void)? = nil) {
+        _leaveBox()
+        let revision = controller.revision
+        guard let data = _encoded(for: name) else { return }
+        files.download(name, data)
+        _browserSaved(name, data, handle: nil, revision: revision, afterSaving: afterSaving)
+    }
+
+    private func _browserSaved(_ name: String, _ data: Data, handle: Int?, revision: Int, afterSaving: (() -> Void)?) {
+        OfficeHost.browserRecovery?.discard()
+        _rememberInBrowser(name, data)
+        _recovered = false
+        _autosaveGeneration += 1
+        session.path = name
+        _browserHandle = handle
+        _savedRevision = revision
+        setState {
+            session.dirty = controller.revision != revision
+            _backstage = nil
+        }
+        _flash(OfficeFormats.losesFormatting(name)
+               ? "Saved as plain text — formatting is not kept in .txt"
+               : "Saved \(name)")
+        if !session.dirty { afterSaving?() }
     }
 
     private func _saveTo(_ path: String) {
         _leaveBox()
+        if let files = OfficeHost.browserFiles {
+            // Our own Save As box in a browser without a save picker: a name, then a download.
+            _downloadInBrowser(files, name: path.lastPathComponent)
+            return
+        }
         do {
             try OfficeFormats.write(controller.document, to: path, pageSetup: session.pageSetup)
             officeScene.documentSaved?(path)
@@ -1466,7 +1537,7 @@ final class OfficeShellState: State<StatefulWidget> {
         if mods.contains(.alt) { return false }
         switch letter {
         case "s":
-            if mods.contains(.shift) { setState { _backstage = .saveAs } } else { _save() }
+            if mods.contains(.shift) { session.onSaveAs?() } else { _save() }
         case "o": session.onOpen?()
         case "n": session.replacing { [weak self] in self?._new() }
         case "f": _openFind(replace: false)

@@ -166,6 +166,36 @@ const SKWASM_FALLBACK_FAMILY = 'Roboto';
 const SOFT_LINE_BREAK = 0;
 const HARD_LINE_BREAK = 100;
 
+// --- Files with the File System Access API (docs/plans/web-parity.md item 4) ---
+// Handles the app holds by number: a file opened through showOpenFilePicker
+// or placed through showSaveFilePicker, written back on Save.
+const fileHandles = new Map();
+let nextFileHandle = 0;
+function keepFileHandle(handle) {
+  for (const [id, kept] of fileHandles) if (kept === handle) return id;
+  fileHandles.set(++nextFileHandle, handle);
+  return nextFileHandle;
+}
+async function writeFileHandle(handle, bytes) {
+  if (!handle) throw new Error('no such file handle');
+  // A file opened for reading needs the user's yes before it is written.
+  if (handle.queryPermission && await handle.queryPermission({ mode: 'readwrite' }) !== 'granted'
+      && await handle.requestPermission({ mode: 'readwrite' }) !== 'granted') throw new Error('permission refused');
+  const out = await handle.createWritable();
+  await out.write(bytes);
+  await out.close();
+}
+const fileKinds = {
+  docx: 'Word Document', rtf: 'Rich Text Format', md: 'Markdown', txt: 'Plain Text',
+  pptx: 'PowerPoint Presentation', xlsx: 'Excel Workbook', csv: 'CSV (Comma delimited)', tsv: 'Text (Tab delimited)',
+};
+const fileMimes = {
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', rtf: 'application/rtf',
+  md: 'text/markdown', txt: 'text/plain', csv: 'text/csv', tsv: 'text/tab-separated-values',
+  pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+};
+
 // --- AutoSave's recovery copies. A tab has no files, so the page keeps one
 // row per tab in IndexedDB (database starling-office, store recovery: id,
 // kind, name, time, bytes). Each tab holds a Web Lock named after its row
@@ -441,15 +471,27 @@ export async function startStarling({ canvas, app, appBrotli, preloaded, immutab
       }
       input.accept = accept;
       input.value = '';
-      const answer = (name, bytes) => {
+      const answer = (name, bytes, handle = 0) => {
         const nameBytes = encoder.encode(name);
         const namePointer = nameBytes.length ? swift.starling_alloc(nameBytes.length) : 0;
         if (namePointer) appBytes().set(nameBytes, namePointer);
         const dataPointer = bytes.length ? swift.starling_alloc(bytes.length) : 0;
         if (dataPointer) appBytes().set(bytes, dataPointer);
-        swift.starling_file_opened(namePointer, nameBytes.length, dataPointer, bytes.length);
+        swift.starling_file_opened(namePointer, nameBytes.length, dataPointer, bytes.length, handle);
         if (namePointer) swift.starling_free(namePointer);
       };
+      // Where the browser has its own file picker (Chrome, Edge) the file
+      // comes with a handle, so Save writes it back in place. (A cancel
+      // answers nothing, as with the input below.)
+      if (typeof window.showOpenFilePicker === 'function') {
+        const extensions = accept.split(',').filter(Boolean);
+        window.showOpenFilePicker({ types: [{ description: 'Files', accept: { 'application/octet-stream': extensions } }] })
+          .then(async ([handle]) => {
+            const file = await handle.getFile();
+            answer(file.name, new Uint8Array(await file.arrayBuffer()), keepFileHandle(handle));
+          }, () => {});
+        return;
+      }
       // No cancel handler: the browser's `cancel` is not to be trusted (a
       // headless one fires it as the dialog opens), and a pick that never
       // comes costs the app nothing — the next open supersedes it.
@@ -459,6 +501,28 @@ export async function startStarling({ canvas, app, appBrotli, preloaded, immutab
         answer(file.name, new Uint8Array(await file.arrayBuffer()));
       };
       input.click();
+    },
+    // Save As and Save with the File System Access API: the picked file's
+    // handle is kept here under a number the app holds.
+    can_pick_place() { return typeof window.showSaveFilePicker === 'function' ? 1 : 0; },
+    pick_place(request, namePointer, nameLength, typesPointer, typesLength) {
+      const suggestedName = utf8.decode(appBytes().subarray(namePointer, namePointer + nameLength));
+      const types = utf8.decode(appBytes().subarray(typesPointer, typesPointer + typesLength)).split(',').filter(Boolean)
+        .map((ext) => ({ description: fileKinds[ext] ?? ext.toUpperCase() + ' file',
+                         accept: { [fileMimes[ext] ?? 'application/octet-stream']: ['.' + ext] } }));
+      window.showSaveFilePicker({ suggestedName, types }).then(
+        (handle) => transfer(encoder.encode(handle.name), (pointer, length) =>
+          swift.starling_place_picked(request, keepFileHandle(handle), pointer, length)),
+        (error) => {
+          if (error?.name !== 'AbortError') console.warn('starling: save picker:', error);
+          swift.starling_place_picked(request, 0, 0, 0);
+        });
+    },
+    write_file(request, handle, bytesPointer, byteCount) {
+      const bytes = appBytes().slice(bytesPointer, bytesPointer + byteCount);
+      writeFileHandle(fileHandles.get(handle), bytes).then(
+        () => swift.starling_file_written(request, 1),
+        (error) => { console.warn('starling: save:', error); swift.starling_file_written(request, 0); });
     },
     download(namePointer, nameLength, bytesPointer, byteCount) {
       const name = utf8.decode(appBytes().subarray(namePointer, namePointer + nameLength));
