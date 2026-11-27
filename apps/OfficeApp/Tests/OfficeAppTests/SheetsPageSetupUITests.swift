@@ -112,6 +112,8 @@ final class SheetsPageLayoutRibbonTests: XCTestCase {
         pick(ui, "Height: 2 pages", "Automatic")
         s = SheetPrintSetup.read(wb.sheet)
         XCTAssertNil(s.fitWidth, "both Automatic turns fitting off")
+        let ps = try XCTUnwrap(wb.sheet.keptElements.first { $0.name == "pageSetup" }?.text)
+        XCTAssertTrue(ps.containsSubstring("orientation=\"portrait\""), ps)
         XCTAssertEqual(s.scale, 100)
         wb.undo()
         XCTAssertEqual(SheetPrintSetup.read(wb.sheet).fitHeight, 2)

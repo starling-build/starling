@@ -104,6 +104,12 @@ extension Worksheet {
             setup.append(("fitToHeight", c.fitTall.map { String(max(0, $0)) } ?? "1"))
             fit = true
         }
+        // Excel names the orientation whenever it writes a pageSetup (Excel's COM reads a missing one as 0, neither
+        // portrait nor landscape). A fit it no longer uses stays written, as Excel keeps it for the dialog.
+        if !setup.isEmpty, c.landscape == nil,
+           !(keptElements.first { $0.name == "pageSetup" }?.text.containsSubstring(" orientation=") ?? false) {
+            setup.append(("orientation", "portrait"))
+        }
         edit("pageSetup", setup)
         if let fit {
             let i = keptElements.firstIndex { $0.name == "sheetPr" }
