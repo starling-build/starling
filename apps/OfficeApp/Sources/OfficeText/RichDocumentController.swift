@@ -2539,13 +2539,14 @@ public final class RichDocumentController: ChangeNotifier {
 
     /// Apply `change` to every cell of the target block, one undo step,
     /// keeping the selection. Nothing is recorded when no cell changed.
-    private func _formatCells(_ change: (inout CellRef, CellBlock) -> Void) {
+    /// `outside`, when given, also sees every other cell of the table.
+    private func _formatCells(_ change: (inout CellRef, CellBlock) -> Void, outside: ((inout CellRef, CellBlock) -> Void)? = nil) {
         guard let block = targetCellBlock, let range = currentTableRange else { return }
         let old = Array(document.paragraphs[range])
         var paras = old
         for i in paras.indices {
-            guard var c = paras[i].cell, block.contains(c) else { continue }
-            change(&c, block)
+            guard var c = paras[i].cell, c.table == block.table else { continue }
+            if block.contains(c) { change(&c, block) } else if let outside { outside(&c, block) } else { continue }
             paras[i].cell = c
         }
         guard paras != old else { return }
@@ -2682,7 +2683,7 @@ public final class RichDocumentController: ChangeNotifier {
     public func setCellBorders(_ lines: [CellSide: CellBorderLine]) {
         guard !lines.isEmpty else { return }
         let borders = currentCell.flatMap { document.tableStyles[$0.table]?.borders } ?? true
-        _formatCells { c, block in
+        _formatCells({ c, block in
             let lastRow = c.row + c.rowSpan - 1, lastCol = c.column + c.span - 1
             var apply: [String: CellBorderLine] = [:]
             for (side, line) in lines {
@@ -2699,27 +2700,44 @@ public final class RichDocumentController: ChangeNotifier {
                     if c.column > block.columns.lowerBound { apply["left"] = line }
                 }
             }
-            guard !apply.isEmpty else { return }
-            c.bordersXML = Self._mergeCellSides(c.bordersXML ?? c.rowBordersXML, apply)
-            c.bordersKeptUnder = borders
-            var e = c.edges ?? BorderEdges()
-            for (name, line) in apply {
-                let on: Bool? = line.style == "none" ? false : true
-                switch name {
-                case "top": e.top = on
-                case "left": e.left = on
-                case "bottom": e.bottom = on
-                default: e.right = on
-                }
+            Self._applyCellSides(&c, apply, borders)
+        }, outside: { c, block in
+            // Word sets the facing side of a cell across the block's edge
+            // too, so a cleared edge is not drawn by the neighbour.
+            let lastRow = c.row + c.rowSpan - 1, lastCol = c.column + c.span - 1
+            let rows = c.row <= block.rows.upperBound && lastRow >= block.rows.lowerBound
+            let cols = c.column <= block.columns.upperBound && lastCol >= block.columns.lowerBound
+            var apply: [String: CellBorderLine] = [:]
+            if cols, c.row == block.rows.upperBound + 1, let l = lines[.bottom] { apply["top"] = l }
+            if cols, lastRow == block.rows.lowerBound - 1, let l = lines[.top] { apply["bottom"] = l }
+            if rows, c.column == block.columns.upperBound + 1, let l = lines[.right] { apply["left"] = l }
+            if rows, lastCol == block.columns.lowerBound - 1, let l = lines[.left] { apply["right"] = l }
+            Self._applyCellSides(&c, apply, borders)
+        })
+    }
+
+    /// Set the named sides of one cell's borders and its drawn edges.
+    static func _applyCellSides(_ c: inout CellRef, _ apply: [String: CellBorderLine], _ borders: Bool) {
+        guard !apply.isEmpty else { return }
+        c.bordersXML = _mergeCellSides(c.bordersXML ?? c.rowBordersXML, apply)
+        c.bordersKeptUnder = borders
+        var e = c.edges ?? BorderEdges()
+        for (name, line) in apply {
+            let on: Bool? = line.style == "none" ? false : true
+            switch name {
+            case "top": e.top = on
+            case "left": e.left = on
+            case "bottom": e.bottom = on
+            default: e.right = on
             }
-            c.edges = e
-            // A cell merged downward draws its bottom from its last row's cell.
-            if c.rowSpan > 1, let b = apply["bottom"] {
-                var cont = c.continuationBordersXML
-                while cont.count < c.rowSpan - 1 { cont.append(nil) }
-                cont[c.rowSpan - 2] = Self._mergeCellSides(cont[c.rowSpan - 2], ["bottom": b])
-                c.continuationBordersXML = cont
-            }
+        }
+        c.edges = e
+        // A cell merged downward draws its bottom from its last row's cell.
+        if c.rowSpan > 1, let b = apply["bottom"] {
+            var cont = c.continuationBordersXML
+            while cont.count < c.rowSpan - 1 { cont.append(nil) }
+            cont[c.rowSpan - 2] = _mergeCellSides(cont[c.rowSpan - 2], ["bottom": b])
+            c.continuationBordersXML = cont
         }
     }
 
