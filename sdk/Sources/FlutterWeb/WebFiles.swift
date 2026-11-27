@@ -78,6 +78,25 @@ public enum WebFiles {
         }
     }
 
+    /// Recent files: the names the page keeps, newest first (handed over before the app starts, then kept in
+    /// step with `keepRecent`, so the list is there without a round trip).
+    public nonisolated(unsafe) static var recentNames: [String] = []
+    nonisolated(unsafe) static var recentPending: [String: [(Data?) -> Void]] = [:]
+
+    /// The page keeps `data` under `name`, at the top of Recent (newest 20).
+    public static func keepRecent(_ name: String, _ data: Data) {
+        recentNames.removeAll { $0 == name }
+        recentNames.insert(name, at: 0)
+        if recentNames.count > 20 { recentNames.removeLast(recentNames.count - 20) }
+        var name = name
+        name.withUTF8 { nameBytes in
+            data.withUnsafeBytes { bytes in
+                starling_host_recent_keep(nameBytes.baseAddress, UInt32(nameBytes.count),
+                                          bytes.baseAddress, UInt32(bytes.count))
+            }
+        }
+    }
+
     /// Deletes this tab's recovery copy.
     public static func discardRecovery() { starling_host_recovery_discard() }
 
@@ -88,6 +107,20 @@ public enum WebFiles {
         var id = row.id
         id.withUTF8 { starling_host_recovery_adopt($0.baseAddress, UInt32($0.count)) }
         return row
+    }
+
+    /// The kept copy of `name`, read back from the page's storage; nil (and gone from the list) when it is not
+    /// there any more.
+    public static func openRecent(_ name: String, _ done: @escaping (Data?) -> Void) {
+        recentPending[name, default: []].append(done)
+        var name = name
+        name.withUTF8 { starling_host_recent_open($0.baseAddress, UInt32($0.count)) }
+    }
+
+    static func recentOpened(_ name: String, _ data: Data?) {
+        if data == nil { recentNames.removeAll { $0 == name } }
+        let waiting = recentPending.removeValue(forKey: name) ?? []
+        for done in waiting { done(data) }
     }
 
     static func opened(_ picked: Picked?) {

@@ -103,6 +103,17 @@ void starling_host_recovery_keep(const void* meta, uint32_t metaLength, const vo
                                  uint32_t byteCount);
 HOST(recovery_discard) void starling_host_recovery_discard(void);
 HOST(recovery_adopt) void starling_host_recovery_adopt(const void* id, uint32_t idLength);
+// Recent files (docs/plans/web-parity.md item 3). recent_keep: the page keeps
+// a document opened or saved, name and bytes in OUR memory, copied before the
+// call returns; newest 20, oldest dropped first. recent_open asks for a kept
+// copy back: the page answers through our exported starling_recent_bytes(name,
+// nameLength, bytes, byteCount), both in memory from starling_alloc that the
+// page frees after the call, byteCount 0 when the copy is gone. The names are
+// handed over before the app starts (starling_recent_names, one per line).
+HOST(recent_keep)
+void starling_host_recent_keep(const void* name, uint32_t nameLength, const void* bytes,
+                               uint32_t byteCount);
+HOST(recent_open) void starling_host_recent_open(const void* name, uint32_t nameLength);
 
 // The network, the browser's way (docs/plans/wiki.md W0). http_request
 // starts a fetch: method, URL, headers ("Name: value" lines joined by \n)
