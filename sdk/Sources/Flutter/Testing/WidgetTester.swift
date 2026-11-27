@@ -158,6 +158,21 @@ public final class WidgetTester {
         pump()
     }
 
+    /// Turns a mouse wheel over `position` by `delta` (negative dy rolls it away from the user), with `modifiers`
+    /// held as key events from before until after. It goes through hit testing to every target under the pointer
+    /// and then the signal resolver, as the shell's real wheel events do.
+    public func scroll(at position: Offset, delta: Offset, modifiers: KeyModifiers = []) {
+        let held = WidgetTester.modifierKeys.filter { modifiers.contains($0.0) }
+        for (_, logical) in held { _modifier(logical, down: true) }
+        let event = PointerScrollEvent(kind: .mouse, position: position, scrollDelta: delta)
+        let hit = HitTestResult()
+        _ = renderView.hitTest(hit, position: position)
+        for entry in hit.path { entry.target.handleEvent(event.transformed(entry.transform), entry: entry) }
+        WidgetTester.gestures!.pointerSignalResolver.resolve(event: event)
+        for (_, logical) in held.reversed() { _modifier(logical, down: false) }
+        pump()
+    }
+
     private static let modifierKeys: [(KeyModifiers, Int64)] =
         [(.shift, 0xFFE1), (.control, 0xFFE3), (.alt, 0xFFE9), (.meta, 0xFFE7)]
 

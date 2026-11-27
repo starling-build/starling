@@ -719,6 +719,7 @@ extension Ribbon {
                 }),
             ]),
             Chrome.group("Zoom", fluent, [
+                Padding(key: ValueKey("view.zoom"), padding: EdgeInsets(left: 0, top: 0, right: 0, bottom: 0), child: Chrome.big(FluentSystemIcons.zoomIn, "Zoom", fluent) { [session] in session.onZoomDialog?() }),
                 Padding(key: ValueKey("view.zoomIn"), padding: EdgeInsets(left: 0, top: 0, right: 0, bottom: 0), child: Chrome.big(FluentSystemIcons.zoomIn, "Zoom In", fluent) { [session] in session.deck?.stepViewZoom(1) }),
                 Padding(key: ValueKey("view.zoomOut"), padding: EdgeInsets(left: 0, top: 0, right: 0, bottom: 0), child: Chrome.big(FluentSystemIcons.zoomOut, "Zoom Out", fluent) { [session] in session.deck?.stepViewZoom(-1) }),
                 Padding(key: ValueKey("view.fit"), padding: EdgeInsets(left: 0, top: 0, right: 0, bottom: 0), child: Chrome.big(FluentSystemIcons.pageFit, "Fit to Window", fluent) { [session] in session.deck?.fitView() }),
