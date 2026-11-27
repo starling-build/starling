@@ -249,6 +249,9 @@ final class WorkbookController: ChangeNotifier {
     private(set) var alsoSelectedDrawings: Set<Int> = []
     /// A finger has no Shift: while this is on, a tap on a chart or picture adds it to the selection or takes it out.
     var selectMultiple = false
+    /// Whether a press on a cell or header extends the selection from its anchor: Shift held, or (a finger has no Shift) the
+    /// Select Multiple toggle on. Chords and pointer code ask here rather than reading Shift alone.
+    func extendsSelection(shift: Bool) -> Bool { shift || selectMultiple }
     /// Every selected chart and picture, in sheet order.
     var selectedDrawingIndexes: [Int] { (selectedDrawing.map { [$0] } ?? []) + alsoSelectedDrawings.sorted() }
 
