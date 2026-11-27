@@ -5846,13 +5846,17 @@ enum ChartPainter {
                 // for title and label sizes 8 to 18, ticks, axis line and bold alike. A CJK title (aeba94bd0446 p5, p7, 12 pt
                 // DFKai-SB) prints 4.7; the 1.4 pt extra is OPEN, one deck, the line box does not explain it.)
                 // A sheet chart's turned value-axis title stands 1.5 pt (of the sheet scale) further in than the 5.8 first used: Excel's prints of 8, 10, 12, 14 and 18 pt labels with a title all sit that much to the right of ours (labs axgap1, axgap2).
-                let inset = c.onSheet ? 7.3 * k : c.onSlide && c.type == .scatter ? 5.4 * k : c.onSlide && c.valueAxisTitleSize != nil ? 3.6 * k : 0
+                // (A `cx:` chart's on a slide: its middle 11.62 pt inside the frame and its value axis' numbers 11.25 pt past that
+                // middle, PowerPoint's print of chartex-lab2's waterfalls p19-p22, 9 pt title and numbers, ours 2.86 pt right and
+                // 5.4 pt nearer. One size only so far.)
+                let cxTitle = c.chartex && c.onSlide && !c.onSheet
+                let inset = (c.onSheet ? 7.3 * k : c.onSlide && c.type == .scatter ? 5.4 * k : c.onSlide && c.valueAxisTitleSize != nil ? 3.6 * k : 0) - (cxTitle ? 2.86 * k : 0)
                 canvas.save()
                 canvas.translate(area.left + inset, area.center.dy - lift + tp.width / 2)
                 canvas.rotate(-.pi / 2)
                 tp.paint(canvas, .zero)
                 canvas.restore()
-                area = Rect.fromLTRB(area.left + inset + tp.height + (c.onSlide && c.type != .scatter && c.valueAxisTitleSize != nil ? 3.3 : 4) * k, area.top, area.right, area.bottom)
+                area = Rect.fromLTRB(area.left + inset + tp.height + ((c.onSlide && c.type != .scatter && c.valueAxisTitleSize != nil ? 3.3 : 4) + (cxTitle ? 5.41 : 0)) * k, area.top, area.right, area.bottom)
             }
             if deferredValueTitle !== tp { tp.dispose() }
         }
@@ -6195,7 +6199,7 @@ enum ChartPainter {
             let barePlainL = c.onSlide && (!c.legend || c.legendPosition == "r") && !c.styled2013 && c.valueAxisTitle == nil && c.categoryAxisTitle == nil && !word && !libre && !c.chartex && c.barView == nil && !horizontal
             let barePlain = barePlainL && !c.legend
             let bareGap = 0.927 * labelSize * k
-            var left = (valueLabels.map(\.width).max() ?? 0) - padTail + (barePlainL ? bareGap - (area.left - frame.left - 6.5 * k) : valGap * k + besideOut) - (c.chartex && c.onSlide ? 4.5 * k : 0) - (wordPlainCol ? 2.5 * k : word ? 2.5 * k : libre ? 2.4 * k : 0)
+            var left = (valueLabels.map(\.width).max() ?? 0) - padTail + (barePlainL ? bareGap - (area.left - frame.left - 6.5 * k) : valGap * k + besideOut) - (c.chartex && c.onSlide ? (c.onSheet ? 4.5 : 5.68) * k : 0) - (wordPlainCol ? 2.5 * k : word ? 2.5 * k : libre ? 2.4 * k : 0)
             // (A 2007-style slide chart with no tick marks: its labels stand off the plot by their size, not a
             // fixed gap, and the category labels' gap grows with theirs. Windows' prints of 5864 slide 8
             // in 15 variants, bare of ticks: value labels 8.97 pt off at 10 pt, 14.56 at 16, 21.73 at 24;
@@ -6254,6 +6258,11 @@ enum ChartPainter {
             // beside it: tdf149985's, +0.11 so.)
             let legendBeside = c.legend && !c.legendPlaced && ["r", "l", "tr"].contains(c.legendPosition)
             var right = edges ? (catLabels.last?.width ?? 0) / 2 : ((c.onSlide || word) && c.styled2013 && !legendBeside ? 2.1 : wordPlainCol ? 2 : c.onSlide && c.plainText && !c.styled2013 && c.officeStyled && c.title == nil ? 2 : 4) * k
+            // (A `cx:` chart's plot on a slide: its gridlines from 181.14 to 744.3 in a frame from 160.2 to 750.86, 1.18 pt
+            // left of and 0.46 pt in from where 4.5 and 4 pt put them, its value axis' numbers' left edge at 165.67 and 6.35
+            // pt before the plot, a box-whisker's and a waterfall's alike: PowerPoint's prints of cx-legsize, bw-spacing,
+            // cx-legend, chartex-lab2 p17/p18 and lo-forum-mso-de-138303. A sheet's keeps the old measures.)
+            if c.chartex, c.onSlide, !c.onSheet, !edges { right += 0.46 * k }
             if edges { left = max(left, (catLabels.first?.width ?? 0) / 2); right = max(right, 4 * k) }
             // (A bar chart on a slide whose value axis is deleted and whose plot is left to PowerPoint: with no value
             // labels the plot starts 11.0 pt inside the frame, not 24.2, and ends 10.6 in, not 12.7: PowerPoint's
@@ -7011,7 +7020,7 @@ enum ChartPainter {
                 // (On a slide 10 pt: es/3df36ff6 p4's labels at 24 in PowerPoint's print, ours at 14.)
                 // (Where the rule above pushed the plot off the chart's left edge, the labels stay at the edge 1.5 pt in, and the plot stands their
                 // size-scaled clearance past them: lab p12-lab3, 8 pt labels' left at 37.5 and 18 pt's at 37.5, where ours followed the plot.)
-                let labelRight = pushedLabelGap != nil ? frame.left + 1.5 * k + tp.width : (c.onSlide && (!c.legend || c.legendPosition == "r") && !c.styled2013 && c.valueAxisTitle == nil && c.categoryAxisTitle == nil && !word && !libre && !c.chartex && c.barView == nil && !horizontal) || (c.onSlide && !horizontal && c.plotLayout == nil && !c.styled2013 && !c.legend && c.barView?.walled == true && c.barView?.rightAngles == true) ? plot.left - 0.927 * labelSize * k : slideLaidColumnAxis && c.valueTicksOut ? plot.left - max(9.0 * k, 0.773 * (valueLabels.first?.height ?? 0) - 0.1 * k) : plot.left - (c.chartex && c.onSlide ? (c.waterfallTotals != nil ? 5 : 4) : 8.5) * k - besideOut - further + wall3D + wall3DAuto + valueLabelsBack
+                let labelRight = pushedLabelGap != nil ? frame.left + 1.5 * k + tp.width : (c.onSlide && (!c.legend || c.legendPosition == "r") && !c.styled2013 && c.valueAxisTitle == nil && c.categoryAxisTitle == nil && !word && !libre && !c.chartex && c.barView == nil && !horizontal) || (c.onSlide && !horizontal && c.plotLayout == nil && !c.styled2013 && !c.legend && c.barView?.walled == true && c.barView?.rightAngles == true) ? plot.left - 0.927 * labelSize * k : slideLaidColumnAxis && c.valueTicksOut ? plot.left - max(9.0 * k, 0.773 * (valueLabels.first?.height ?? 0) - 0.1 * k) : plot.left - (c.chartex && c.onSlide ? (c.waterfallTotals != nil && c.onSheet ? 5 : 4) : 8.5) * k - besideOut - further + wall3D + wall3DAuto + valueLabelsBack
                 if pushedLabelGap != nil { RuleTrace.hit("slide-laid-plot-pushed-keeps-value-labels-at-the-edge") }
                 // (On a sheet the label's baseline stands its face's measured drop below the line: sheetValueLabelDrop. Painted, our
                 // baseline is the line's ascent rounded, not the ascent itself: Arial 10's 9.216 paints at 9.)
