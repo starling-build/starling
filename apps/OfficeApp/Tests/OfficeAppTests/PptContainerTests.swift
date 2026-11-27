@@ -584,4 +584,15 @@ extension PptContainerTests {
         XCTAssertEqual(ruler[0]?.left, 569)
         XCTAssertEqual(ruler[0]?.indent, 216)
     }
+
+    /// A .ppt outline keeps its dash pattern and its arrowheads (vi-f6ecddd221's dashed braces).
+    func testAnOutlineKeepsItsDashesAndArrowheads() {
+        var s = ArtShape()
+        s.type = 1
+        s.props = [0x1FF: 0x80008, 0x1CB: 12700, 0x1CE: 6, 0x1D1: 1, 0x1D4: 2, 0x1D5: 0]
+        let x = PptFile.fillLineXML(s, placeholder: false)
+        XCTAssertTrue(x.contains("<a:ln w=\"12700\"><a:solidFill><a:srgbClr val=\"000000\"/></a:solidFill><a:prstDash val=\"dash\"/><a:tailEnd type=\"triangle\" w=\"lg\" len=\"sm\"/></a:ln>"), x)
+        s.props[0x1CE] = 0
+        XCTAssertFalse(PptFile.fillLineXML(s, placeholder: false).contains("prstDash"))
+    }
 }
