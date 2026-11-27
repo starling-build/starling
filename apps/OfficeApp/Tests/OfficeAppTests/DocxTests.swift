@@ -1776,6 +1776,44 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(multiple.out - single.out, 1.20, accuracy: 0.25, "and the step out of it by the equation's own")
     }
 
+    /// An equation in a line of text, from Cambria Math's MATH table as Word's print of lab fraclab has it at 11pt:
+    /// a fraction nested in the denominator is pushed down until its ink is a rule's thickness (133/2048 em) under
+    /// the rule, so x = v/(1−∑A/A) has its inner A's baseline 11.5pt under the line (ours 9.6: the plain 1030/2048
+    /// em shift, through the rule); and a numerator holding a sum stands clear of the inner rule (4.92 over the
+    /// denominator's baseline at 8pt, not 4.69).
+    func testANestedFractionInADenominatorClearsTheRule() throws {
+        _ = OfficeFonts.register()
+        let was = RichTextTheme.wordWindowsPages
+        RichTextTheme.wordWindowsPages = true
+        defer { RichTextTheme.wordWindowsPages = was }
+        let m = "xmlns:m=\"http://schemas.openxmlformats.org/officeDocument/2006/math\""
+        func r(_ s: String) -> String { "<m:r><m:t>\(s)</m:t></m:r>" }
+        func f(_ a: String, _ b: String) -> String { "<m:f><m:num>\(a)</m:num><m:den>\(b)</m:den></m:f>" }
+        let sum = "<m:nary><m:naryPr><m:chr m:val=\"\u{2211}\"/><m:limLoc m:val=\"subSup\"/><m:subHide m:val=\"1\"/><m:supHide m:val=\"1\"/></m:naryPr><m:sub/><m:sup/><m:e>" + r("A") + "</m:e></m:nary>"
+        let xml = "<m:oMath \(m)>" + r("x=") + f(r("v"), r("1\u{2212}") + f(sum, r("A"))) + "</m:oMath>"
+        let node = try XCTUnwrap(XNode.parse(Data(xml.utf8)))
+        let box = try XCTUnwrap(WriterMath.box(node, size: 11))
+        XCTAssertEqual(box.idn, 11.52, accuracy: 0.3, "the inner denominator's foot, as in Word's print")
+    }
+
+    /// An equation's text stands on the face's own baseline. Its painters laid the text out at the equation's own size,
+    /// where the engine rounds the line to whole points (and, when it paints, the baseline to a whole unit): an 8pt
+    /// numerator's baseline came out 7.22pt under its top, where Caladea's is 7.6, and it was drawn 0.4pt low (an 11pt
+    /// "=" 0.45 high) against Word's print of lab fraclab. The body's text, laid out at the export's 15x, never was.
+    func testAnEquationsTextStandsOnTheFacesOwnBaseline() throws {
+        _ = OfficeFonts.register()
+        for size in [8.0, 11.0] {
+            let p = WriterMath.Painter("0", size: size, italic: false, color: Color(0xFF000000))
+            let k = 40.0
+            let tp = TextPainter(text: TextSpan(text: "0", style: TextStyle(color: Color(0xFF000000), fontSize: size * k,
+                fontFamily: WriterMath.family, fontFamilyFallback: WriterMath.fallback + RichTextTheme.glyphFallback)), textDirection: .ltr)
+            tp.fractionalLineHeights = true
+            tp.layout(minWidth: 0, maxWidth: .infinity)
+            let face = try XCTUnwrap(tp.computeLineMetrics().first?.baseline) / k
+            XCTAssertEqual(p.baseline, face, accuracy: 0.05, "at \(size)pt")
+        }
+    }
+
     /// A paragraph that is one 12pt equation and a space, at 1.5 lines: the line is the equation's own height plus half
     /// the text's line, about 21pt, as in Word's print of dx2 e6a6cc58 (its "Davlat qarzi = β0 + ..." line, 0.4pt over the
     /// 20.7pt text step). With no visible text run to read the face from, the 1.5 used to be added to a line that already held it: 31pt.

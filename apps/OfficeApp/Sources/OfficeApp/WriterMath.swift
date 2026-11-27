@@ -274,25 +274,33 @@ enum WriterMath {
     static let fallback = ["STIX Two Math", "DejaVu Math TeX Gyre", "Noto Sans Math"]
 
     /// Keeps the painters a drawing needs alive as long as the drawing.
-    private final class Painter {
+    final class Painter {
+        /// The text is laid out at this many times its size and drawn scaled back: the engine rounds a line's
+        /// baseline to a whole unit when it paints (and its height when it measures), so at the equation's own
+        /// size an 11pt Caladea "=" stood 0.45pt over the baseline it was given and an 8pt numerator 0.4pt under
+        /// it (lab fraclab against Word's print; the body's text is laid out at the export's 15x and never showed it).
+        static let scale = 16.0
         let tp: TextPainter
         let ascent: Double
         let descent: Double
         let baseline: Double
+        var width: Double { tp.width / Self.scale }
         init(_ text: String, size: Double, italic: Bool, color: Color, family: String? = nil, height: Double? = nil) {
-            tp = TextPainter(text: TextSpan(text: text, style: TextStyle(color: color, fontSize: size, fontStyle: italic ? .italic : .normal,
+            let k = Self.scale
+            tp = TextPainter(text: TextSpan(text: text, style: TextStyle(color: color, fontSize: size * k, fontStyle: italic ? .italic : .normal,
                                                                           height: height,
                                                                           fontFamily: family ?? WriterMath.family,
                                                                           fontFamilyFallback: WriterMath.fallback + RichTextTheme.glyphFallback)),
                              textDirection: .ltr)
+            tp.fractionalLineHeights = true
             tp.layout(minWidth: 0, maxWidth: .infinity)
             let m = tp.computeLineMetrics().first
-            baseline = m?.baseline ?? size * 0.8
+            baseline = m.map { $0.baseline / k } ?? size * 0.8
             // (The box is the face's own height, not the height a fallback face's glyph makes
             // of the line: Word's math boxes stand on the math font's metrics. A Greek σ in
             // Caladea's run took DejaVu's taller ascent and descent, and lo-4aa628bd's row
             // was 2pt taller than Word's, its σ 1.7pt low.)
-            var fa = m?.ascent ?? size * 0.8, fd = m?.descent ?? size * 0.2
+            var fa = m.map { $0.ascent / k } ?? size * 0.8, fd = m.map { $0.descent / k } ?? size * 0.2
             // A mathematical-bold letter or digit (m:sty b/bi) is the same letter set bold: Word's print of
             // lab bold-math-lab puts its fraction, scripts and baseline exactly where the regular letters'
             // are. Its box takes the height of the plain ASCII text, not of the fallback face holding the glyph.
@@ -321,6 +329,14 @@ enum WriterMath {
             }
             ascent = fa
             descent = fd
+        }
+        /// Draws the text with its line's top-left at `at`.
+        func paint(_ canvas: Canvas, _ at: Offset) {
+            canvas.save()
+            canvas.translate(at.dx, at.dy)
+            canvas.scale(1 / Self.scale, 1 / Self.scale)
+            tp.paint(canvas, .zero)
+            canvas.restore()
         }
     }
 
@@ -416,8 +432,8 @@ enum WriterMath {
                             // (A sign or symbol stands centred in Cambria Math's advance, as the fallback face's is narrower.)
                             let u = us[i]
                             let adv = Double(script ? tab[u.value]!.1 : tab[u.value]!.0) * size
-                            let off = u.properties.isAlphabetic || u.properties.numericType != nil || u.value == 0x2C ? 0 : (adv - q.tp.width) / 2
-                            q.tp.paint(canvas, Offset(at.dx + xs[i] + off, at.dy - q.baseline))
+                            let off = u.properties.isAlphabetic || u.properties.numericType != nil || u.value == 0x2C ? 0 : (adv - q.width) / 2
+                            q.paint(canvas, Offset(at.dx + xs[i] + off, at.dy - q.baseline))
                         }
                     }
                     box.ic = Double(script ? lg.3 : lg.2) * size
@@ -435,13 +451,13 @@ enum WriterMath {
                     for u in s.unicodeScalars { xs.append(x); x += adv[u.value]! * size }
                     let total = x
                     return Box(width: total, ascent: cam(ps.map(\.ascent).max() ?? 0, size, 0.95), descent: cam(ps.map(\.descent).max() ?? 0, size, 0.22), inkUp: glyphInk(s, size, script).0, inkDown: glyphInk(s, size, script).1, baseA: size * 0.95, baseD: size * 0.222) { canvas, at in
-                        for (i, q) in ps.enumerated() { q.tp.paint(canvas, Offset(at.dx + xs[i], at.dy - q.baseline)) }
+                        for (i, q) in ps.enumerated() { q.paint(canvas, Offset(at.dx + xs[i], at.dy - q.baseline)) }
                     }
                 }
             }
             let p = Painter(s, size: size, italic: italic, color: ink, family: family?.family, height: family?.naturalHeight)
-            return Box(width: p.tp.width, ascent: cam(p.ascent, size, 0.95), descent: cam(p.descent, size, 0.22), inkUp: glyphInk(s, size, script).0, inkDown: glyphInk(s, size, script).1, baseA: size * 0.95, baseD: size * 0.222) { canvas, at in
-                p.tp.paint(canvas, Offset(at.dx, at.dy - p.baseline))
+            return Box(width: p.width, ascent: cam(p.ascent, size, 0.95), descent: cam(p.descent, size, 0.22), inkUp: glyphInk(s, size, script).0, inkDown: glyphInk(s, size, script).1, baseA: size * 0.95, baseD: size * 0.222) { canvas, at in
+                p.paint(canvas, Offset(at.dx, at.dy - p.baseline))
             }
         }
 
@@ -901,14 +917,21 @@ enum WriterMath {
             // (Close about its rule: zh-c2c92639's "∑…/A", 10.5pt, stands
             // 28pt from its numerator's top to its denominator's foot in
             // Word's print.)
-            let axis = size * 0.27, rule = max(0.4, size * 0.05), gap = size * 0.06, pad = WriterMath.slideScope ? 0 : size * 0.08
+            let axis = size * 0.27, rule = inlineText && WriterMath.windows ? size * 133 / 2048 : max(0.4, size * 0.05), gap = size * 0.06, pad = WriterMath.slideScope ? 0 : size * 0.08
             let w = max(num.width, den.width) + 2 * pad
             // (A fraction in a line of text — no display equation: Word's print of jpn-z22855378-6fca0f's
             // exp[-(Δx+d0)²/4σ²] at 12pt has the rule 3.45pt over the baseline, the numerator's
             // baseline 7.1 over it and the denominator's 6.0 under it, so the equation is 21.5pt tall
             // and the 18pt-grid line takes two pitches.)
             let text = inlineText && WriterMath.windows
-            let numUp = text ? size * 1200 / 2048 : 0, denDown = text ? size * 1030 / 2048 : 0
+            // (Cambria Math's MATH table: the numerator's baseline 1200/2048 em over the baseline and the denominator's
+            // 1030/2048 under it, the rule 133/2048 em thick with its middle 585/2048 em up. Lab fraclab, Word's print at
+            // 11pt: a nested fraction's ink in the denominator stands 0.75pt (133/2048 em) under the rule, 1.03pt deeper
+            // than the plain shift; at 8pt a numerator holding a sum stands 0.23 higher, its ink 1.05pt (the font's
+            // display-style 260/2048 em) over the rule; and the rule is 0.72pt thick at 11pt.)
+            let tGap = size * 133 / 2048, tAxis = size * 585 / 2048
+            let numUp = text ? max(size * 1200 / 2048, tAxis + tGap / 2 + size * 260 / 2048 + num.idn) : 0
+            let denDown = text ? max(size * 1030 / 2048, den.iu + tGap + tGap / 2 - tAxis) : 0
             // (A display fraction in Word's print, jpn-z22855378-6fca0f p8 at 12pt: the rule 3.8pt over the
             // baseline, the numerator's baseline 9.1 over it and the denominator's 8.1 under it, whatever
             // they hold; a taller numerator or denominator is pushed clear of the rule.)
