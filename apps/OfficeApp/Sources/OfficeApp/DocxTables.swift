@@ -1194,6 +1194,17 @@ extension DocxFormat {
             repeat { revisionCount += 1 } while takenAnnotationIDs.contains(revisionCount)
             return revisionCount
         }
+        /// `xml` (a tracked change's properties-before, kept as read) with each `w:id` given a fresh revision id:
+        /// a deleted mark's old properties hold its w:del with the file's id, which our numbering hands out again.
+        func freshRevisionIDs(_ xml: String) -> String {
+            guard xml.containsSubstring(" w:id=\"") else { return xml }
+            var out = "", rest = Substring(xml)
+            while let r = rest.rangeOfSubstring(" w:id=\""), let e = rest[r.upperBound...].firstIndex(of: "\"") {
+                out += rest[..<r.upperBound] + "\(nextRevisionID())"
+                rest = rest[e...]
+            }
+            return out + rest
+        }
         var usedExtensions: Set<String> = []
         func relId(for link: String) -> String {
             if let r = rels.first(where: { $0.target == link }) { return r.id }
@@ -1500,12 +1511,20 @@ extension DocxFormat {
             }
             let anchorOnly = p.image?.sourceXML?.containsSubstring("<wp:anchor") ?? false
             if p.text.isEmpty, p.image == nil || anchorOnly, let first = p.runs.first {
-                markRPr += _rPrXML({ var m = first.style; m.origRPr = nil; m.origExtras = nil; return m }(), fileFonts: doc.fileFonts)
+                // (The mark's own tracked format change rides along, as in the branch below.)
+                let markChange = p.style.mark?.formatChange.map { var c = $0; c.oldRPrXML = freshRevisionIDs(c.oldRPrXML); return c }
+                markRPr += _rPrXML({ var m = first.style; m.origRPr = nil; m.origExtras = nil; m.formatChange = markChange; return m }(), fileFonts: doc.fileFonts,
+                                   changeId: markChange != nil ? nextRevisionID() : nil)
             } else if let mark = p.style.mark {
                 // The mark's own look on a paragraph with text: a list
                 // number is formatted with it, and a hidden mark over
                 // hidden text makes Word show no line and no border.
-                markRPr += _rPrXML({ var m = mark; m.origRPr = nil; m.origExtras = nil; return m }(), fileFonts: doc.fileFonts)
+                // With its tracked format change (w:rPrChange): dropped, Word split lo-9f27's tracked deletions and
+                // format changes at every paragraph mark (88 deletions where the file had 19).
+                markRPr += _rPrXML({ var m = mark; m.origRPr = nil; m.origExtras = nil
+                                     m.formatChange = m.formatChange.map { var c = $0; c.oldRPrXML = freshRevisionIDs(c.oldRPrXML); return c }
+                                     return m }(), fileFonts: doc.fileFonts,
+                                   changeId: mark.formatChange != nil ? nextRevisionID() : nil)
             } else if p.style.markHidden {
                 markRPr += "<w:vanish/>"
             }
@@ -1514,7 +1533,7 @@ extension DocxFormat {
             // A tracked change to the paragraph's properties, last in w:pPr, with the properties it had before as read.
             if let pc = p.style.propertyChange {
                 let id = nextRevisionID()
-                pPr += "<w:pPrChange w:id=\"\(id)\" w:author=\"\(_esc(pc.author.isEmpty ? "Author" : pc.author))\"\(pc.date.isEmpty ? "" : " w:date=\"\(_esc(pc.date))\"")>\(pc.oldRPrXML.isEmpty ? "<w:pPr/>" : pc.oldRPrXML)</w:pPrChange>"
+                pPr += "<w:pPrChange w:id=\"\(id)\" w:author=\"\(_esc(pc.author.isEmpty ? "Author" : pc.author))\"\(pc.date.isEmpty ? "" : " w:date=\"\(_esc(pc.date))\"")>\(pc.oldRPrXML.isEmpty ? "<w:pPr/>" : freshRevisionIDs(pc.oldRPrXML))</w:pPrChange>"
             }
             body += "<w:p\(p.id != 0 ? " w14:paraId=\"\(_paraIdHex(p.id))\"" : "")><w:pPr>\(pPr)</w:pPr>"
             // W-FD-2: the table of contents field opens in this paragraph; its entries are the paragraphs that follow.
@@ -1614,7 +1633,9 @@ extension DocxFormat {
                 }
                 var changeId: Int? = nil
                 if s.formatChange != nil { changeId = nextRevisionID() }
-                var rPr = _rPrXML(s, fileFonts: doc.fileFonts, changeId: changeId)
+                var rPr = _rPrXML({ var c = s
+                                    c.formatChange = c.formatChange.map { var c = $0; c.oldRPrXML = freshRevisionIDs(c.oldRPrXML); return c }
+                                    return c }(), fileFonts: doc.fileFonts, changeId: changeId)
                 if let note = s.note, doc.keptParts[note.kind == .footnote ? "word/footnotes.xml" : "word/endnotes.xml"] != nil {
                     // The mark's number is Word's to show; the run carries
                     // only the reference (and its custom mark text, if any),

@@ -208,4 +208,45 @@ final class DocxSaveOpensInWordTests: XCTestCase {
         let savedTypes = try XCTUnwrap(text(saved, "[Content_Types].xml"))
         XCTAssertTrue(savedTypes.contains("PartName=\"/word/diagrams/drawing1.xml\" ContentType=\"application/vnd.ms-office.drawingml.diagramDrawing+xml\""), savedTypes)
     }
+
+    /// A theme with a picture fill names the picture through its own rels: the save kept the theme alone, and it
+    /// named an id with no relationship (dx2 16de187a).
+    func testThemeKeepsItsRelsAndPicture() throws {
+        let theme = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><a:theme xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\" xmlns:r=\"\(rt)\" name=\"T\"><a:themeElements><a:fmtScheme name=\"F\"><a:bgFillStyleLst><a:blipFill><a:blip r:embed=\"rId1\"/></a:blipFill></a:bgFillStyleLst></a:fmtScheme></a:themeElements></a:theme>"
+        let rels = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"><Relationship Id=\"rId1\" Type=\"\(rt)/image\" Target=\"../media/image9.jpeg\"/></Relationships>"
+        let saved = try resave("<w:p><w:r><w:t>x</w:t></w:r></w:p>",
+                               extra: [("word/theme/theme1.xml", theme), ("word/theme/_rels/theme1.xml.rels", rels), ("word/media/image9.jpeg", "JPEG")])
+        let savedRels = try XCTUnwrap(text(saved, "word/theme/_rels/theme1.xml.rels"), "theme rels dropped")
+        XCTAssertTrue(savedRels.contains("Id=\"rId1\""), savedRels)
+        XCTAssertNotNil(text(saved, "word/media/image9.jpeg"), "theme picture dropped")
+        let types = try XCTUnwrap(text(saved, "[Content_Types].xml"))
+        XCTAssertTrue(types.contains("Extension=\"jpeg\""), types)
+    }
+
+    /// Every kind of tracked change goes back as many times as the file had it, the paragraph mark's own format
+    /// change included: without it Word split lo-9f27's deletions and format changes at each mark (211 revisions
+    /// where the file had 129: deletions 88 against 19, format changes 104 against 44).
+    func testTrackedChangesKeepTheirCountsByKind() throws {
+        let a = "w:author=\"Jo\""
+        func mark(_ id: Int, deleted: Bool) -> String {
+            "<w:pPr><w:jc w:val=\"center\"/><w:rPr>\(deleted ? "<w:del w:id=\"\(id)\" \(a) w:date=\"2013-07-17T12:32:00Z\"/>" : "")<w:sz w:val=\"18\"/><w:rPrChange w:id=\"\(id + 1)\" \(a) w:date=\"2013-07-17T12:26:00Z\"><w:rPr>\(deleted ? "<w:del w:id=\"\(id)\" \(a) w:date=\"2013-07-17T12:32:00Z\"/>" : "")</w:rPr></w:rPrChange></w:rPr><w:pPrChange w:id=\"\(id + 2)\" \(a) w:date=\"2013-07-17T12:32:00Z\"><w:pPr/></w:pPrChange></w:pPr>"
+        }
+        func run(_ id: Int, _ t: String, deleted: Bool) -> String {
+            let r = "<w:r><w:rPr><w:sz w:val=\"18\"/><w:rPrChange w:id=\"\(id)\" \(a) w:date=\"2013-07-17T12:26:00Z\"><w:rPr/></w:rPrChange></w:rPr><w:\(deleted ? "delText" : "t")>\(t)</w:\(deleted ? "delText" : "t")></w:r>"
+            return deleted ? "<w:del w:id=\"\(id + 1)\" \(a) w:date=\"2013-07-17T12:32:00Z\">\(r)</w:del>" : r
+        }
+        let body = "<w:p>\(mark(10, deleted: true))\(run(20, "gone", deleted: true))</w:p><w:p>\(mark(30, deleted: true))\(run(40, "also", deleted: true))</w:p>"
+            + "<w:p>\(mark(50, deleted: false))\(run(60, "kept", deleted: false))</w:p>"
+        func counts(_ x: String) -> [String: Int] {
+            var c: [String: Int] = [:]
+            for tag in ["w:del", "w:ins", "w:rPrChange", "w:pPrChange"] { c[tag] = grab(x, "(<\(tag)[ >])").count }
+            c["mark rPrChange"] = grab(x, "(<w:pPr>(?:(?!</w:pPr>).)*?<w:rPrChange)").count
+            return c
+        }
+        let doc = try XCTUnwrap(text(try resave(body), "word/document.xml"))
+        // A deleted mark's old properties repeat its w:del (Word writes it so): 2 more w:del, and every id unique.
+        XCTAssertEqual(counts(doc), ["w:del": 6, "w:ins": 0, "w:rPrChange": 6, "w:pPrChange": 3, "mark rPrChange": 3], doc)
+        let ids = grab(doc, "<w:(?:del|ins|rPrChange|pPrChange) w:id=\"(\\d+)\"")
+        XCTAssertEqual(Set(ids).count, ids.count, "tracked-change ids repeat: \(ids)")
+    }
 }
