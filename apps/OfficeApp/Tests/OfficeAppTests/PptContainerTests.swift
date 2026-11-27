@@ -303,6 +303,58 @@ final class PptContainerTests: XCTestCase {
         XCTAssertEqual(state.slides[0].shapes[0].kind, .geometry(ShapePreset(rawValue: "ellipse")))
     }
 
+    func testOlderShapeTypesKeepTheirOutlineAndANewerCopyWins() throws {
+        func persist(_ id: Int, _ slideId: Int) -> [UInt8] {
+            var b: [UInt8] = le32(id)
+            b += le32(0) + le32(1) + le32(slideId) + le32(0)
+            return rec(0x03F3, b)
+        }
+        var atom: [UInt8] = le32(5760)
+        atom += le32(4320)
+        atom += [UInt8](repeating: 0, count: 22)
+        atom += le16(1)
+        atom += [UInt8](repeating: 0, count: 6)
+        var kids = rec(0x03E9, atom)
+        kids += rec(0x0FF0, ver: 15, inst: 1, persist(2, 0x8000_0000))
+        kids += rec(0x0FF0, ver: 15, inst: 0, persist(3, 256))
+        var d = rec(0x03E8, ver: 15, kids)
+        func shape(type: Int, id: Int, complex: [(Int, [UInt8])] = [], anchor: [Int], turn: Int = 0) -> [UInt8] {
+            var k = rec(0xF00A, ver: 2, inst: type, le32(id) + le32(0xA00))
+            let props: [(Int, Int)] = (turn != 0 ? [(0x4, turn << 16)] : []) + [(0x181, 0x339933), (0x1BF, 0x10_0010)] + complex.map { (0x8000 | $0.0, $0.1.count) }
+            var b: [UInt8] = []
+            for (pid, v) in props { b += le16(pid) + le32(v) }
+            for (_, data) in complex { b += data }
+            k += rec(0xF00B, ver: 3, inst: props.count, b)
+            var a: [UInt8] = []
+            for v in anchor { a += le16(v) }
+            k += rec(0xF010, a)
+            return rec(0xF004, ver: 15, k)
+        }
+        // A chevron (type 55), and a thick arrow (14, no preset of its own) whose newer copy is a home plate with its point moved.
+        let modern = "<p:sp xmlns:p=\"http://schemas.openxmlformats.org/presentationml/2006/main\"><p:spPr><a:prstGeom xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\" prst=\"homePlate\"><a:avLst><a:gd name=\"adj\" fmla=\"val 30000\"/></a:avLst></a:prstGeom></p:spPr></p:sp>"
+        let blob = [UInt8](try Zip.write([ZipEntry(name: "drs/shapexml.xml", data: Data(modern.utf8))]))
+        let head = rec(0xF004, ver: 15, rec(0xF00A, ver: 2, inst: 0, le32(1) + le32(5)))
+        let top = rec(0xF003, ver: 15, head + shape(type: 55, id: 2, anchor: [100, 200, 1100, 700], turn: 90)
+            + shape(type: 14, id: 3, complex: [(0x3A9, blob)], anchor: [100, 800, 1100, 1300]))
+        let pageKids = rec(0x03EF, [UInt8](repeating: 0, count: 12) + le32(0x8000_0000) + le32(0) + le16(7) + le16(0))
+            + rec(0x040C, ver: 15, rec(0xF002, ver: 15, top))
+        let master = rec(0x03F8, ver: 15, rec(0x03EF, [UInt8](repeating: 0, count: 24)))
+        var offs: [Int] = []
+        for p in [master, rec(0x03EE, ver: 15, pageKids)] { offs.append(d.count); d += p }
+        let dir = d.count
+        d += directory([(1, [0]), (2, [offs[0]]), (3, [offs[1]])])
+        let edit = d.count
+        d += userEdit(lastEdit: 0, directory: dir, document: 1)
+        let f = try PptFile(currentUser: currentUser(offset: edit), document: d)
+        let xml = f.shapeXML(of: f.slides[0])
+        XCTAssertTrue(xml.contains("<a:prstGeom prst=\"chevron\"><a:avLst/></a:prstGeom>"))
+        // Turned a quarter, its anchor is the box it fills turned: the shape is 600 x 900 about the same centre.
+        XCTAssertTrue(xml.contains("<a:xfrm rot=\"5400000\"><a:off x=\"555625\" y=\"-79375\"/><a:ext cx=\"952500\" cy=\"1428750\"/>"), xml)
+        XCTAssertTrue(xml.contains("<a:prstGeom prst=\"homePlate\"><a:avLst><a:gd name=\"adj\" fmla=\"val 30000\"/></a:avLst></a:prstGeom>"))
+        let (state, _, _) = try PptxReader(PptxPackage(PptBuild.parts(f))).read()
+        XCTAssertEqual(state.slides[0].shapes.map(\.kind), [.geometry(ShapePreset(rawValue: "chevron")), .geometry(ShapePreset(rawValue: "homePlate"))])
+    }
+
     func testShadedAndPictureFillsBecomeGradientAndBlipFills() {
         var s = ArtShape()
         s.type = 1

@@ -136,7 +136,13 @@ extension PptFile {
             if rot != 0 { x += " rot=\"\(rot)\"" }
             if flipH { x += " flipH=\"1\"" }
             if flipV { x += " flipV=\"1\"" }
-            x += "><a:off x=\"\(PptBuild.emu(a[1]))\" y=\"\(PptBuild.emu(a[0]))\"/><a:ext cx=\"\(PptBuild.emu(a[2] - a[1]))\" cy=\"\(PptBuild.emu(a[3] - a[0]))\"/>"
+            var l = PptBuild.emu(a[1]), t = PptBuild.emu(a[0]), w = PptBuild.emu(a[2] - a[1]), h = PptBuild.emu(a[3] - a[0])
+            // A shape turned nearer a quarter turn than not keeps the box it fills when turned: the shape itself is
+            // that box's width and height swapped about the same centre.
+            if child == nil, (2_700_000 ..< 8_100_000).contains(rot) || (13_500_000 ..< 18_900_000).contains(rot) {
+                (l, t, w, h) = (l + (w - h) / 2, t + (h - w) / 2, h, w)
+            }
+            x += "><a:off x=\"\(l)\" y=\"\(t)\"/><a:ext cx=\"\(w)\" cy=\"\(h)\"/>"
             if let ch = child, ch.count == 4, ch[2] >= ch[0], ch[3] >= ch[1] {
                 x += "<a:chOff x=\"\(PptBuild.emu(ch[0]))\" y=\"\(PptBuild.emu(ch[1]))\"/><a:chExt cx=\"\(PptBuild.emu(ch[2] - ch[0]))\" cy=\"\(PptBuild.emu(ch[3] - ch[1]))\"/>"
             }
@@ -171,7 +177,9 @@ extension PptFile {
                 return x + "<a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom></p:spPr></p:pic>"
             }
             var geom: String? = nil
-            if let g = DocArt.geometry(art.type) { geom = "<a:prstGeom prst=\"\(g)\"><a:avLst/></a:prstGeom>" }
+            // (A shape a newer PowerPoint saved keeps its own outline beside the old type: PowerPoint opens it with that.)
+            if art.type != 0, let blob = art.complex[0x3A9], let g = Self.modernGeometry(blob) { geom = g }
+            else if let g = DocArt.geometry(art.type) { geom = "<a:prstGeom prst=\"\(g)\"><a:avLst/></a:prstGeom>" }
             else if art.type == 0, let f = DocArt.freeform(art) { geom = f }
             if geom == nil, block != nil || placeholder != nil || art.type == 202 { geom = "<a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom>" }
             guard let geometry = geom else { return "" }
@@ -222,6 +230,21 @@ extension PptFile {
     }
 
     /// PlaceholderAtom type -> `p:ph` type (nil: an object placeholder or none).
+    /// The preset outline (`a:prstGeom`, with its adjustments) of the shape a metroBlob (property 0x3A9, a small package)
+    /// holds in drs/shapexml.xml or connectorxml.xml; nil when it holds none, or a custom outline.
+    static func modernGeometry(_ blob: [UInt8]) -> String? {
+        guard let entries = try? Zip.read(Data(blob)) else { return nil }
+        for e in entries where e.name == "drs/shapexml.xml" || e.name == "drs/connectorxml.xml" {
+            let x = String(decoding: e.data, as: UTF8.self)
+            guard let a = x.rangeOfSubstring("<a:prstGeom "), let b = x.rangeOfSubstring("</a:prstGeom>"), a.lowerBound < b.lowerBound
+            else { return nil }
+            var g = String(x[a.lowerBound ..< b.upperBound])
+            if let ns = g.rangeOfSubstring(" xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\"") { g.removeSubrange(ns) }
+            return g
+        }
+        return nil
+    }
+
     static func placeholderType(_ t: Int) -> String? {
         switch t {
         case 1, 13, 17: return "title"
