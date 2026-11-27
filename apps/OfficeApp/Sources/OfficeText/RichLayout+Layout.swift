@@ -3667,6 +3667,8 @@ extension RichLayout {
         guard _perSection else {
             let p = pageSetup(forPage: page)
             let at = p.rtlColumns ? max(0, p.columns - 1 - column) : column
+            // (Unequal columns stand at their own widths and spacings: lab colsep3u, 100/200/114pt columns 18 and 36 apart.)
+            if !p.rtlColumns, let spec = p.columnSpec, spec.count == p.columns { return _pxMarginLeft(page) + _px(p.columnOffset(at)) }
             return _pxMarginLeft(page) + Double(at) * _pxColumnStride(page)
         }
         let s = _setup(ofParagraph: i)

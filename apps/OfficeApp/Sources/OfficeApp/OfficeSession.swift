@@ -145,6 +145,13 @@ final class OfficeSession {
         controller.setPageSetup(p, lastSetup: pageSetup)
         syncPageSetup()
     }
+    /// A Columns preset on the caret's section (unequal widths and the line between as Word's menu leaves them).
+    func applyColumns(_ preset: ColumnsValues.Preset) {
+        var p = sectionSetup(), v = ColumnsValues(p)
+        v.apply(preset)
+        v.apply(to: &p)
+        onPageSetup?(p)
+    }
     /// The last section's page follows the document (undo and redo change it).
     func syncPageSetup() {
         if let last = controller.document.lastSectionPage, last != pageSetup { pageSetup = last }
@@ -368,6 +375,8 @@ final class OfficeSession {
     var onParagraphDialog: (() -> Void)?
     var onFontDialog: (() -> Void)?
     var onPageSetupDialog: (() -> Void)?
+    /// Layout > Columns > More Columns.
+    var onColumnsDialog: (() -> Void)?
     var onInsertTableDialog: (() -> Void)?
     var onSplitCellDialog: (() -> Void)?
     /// Writer's Draw Table / Eraser: the active table tool ("draw", "erase" or nil) and the ribbon's way to switch it.

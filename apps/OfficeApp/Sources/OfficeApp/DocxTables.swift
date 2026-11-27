@@ -285,14 +285,37 @@ extension DocxFormat {
             changed = true
         }
         let cols = sect.first("w:cols")
-        let have = Int(cols?.attrs["w:num"] ?? "") ?? 1
-        if have != max(1, page.columns) {
-            let n = cols ?? { let n = XNode(name: "w:cols", attrs: [:]); sect.children.append(n); return n }()
-            n.children = []
-            n.attrs = ["w:num": String(max(1, page.columns)), "w:space": twips(page.columnGap)]
+        if !(cols.map { _sameColumns($0, page) } ?? (page.columns <= 1 && !page.columnLine)), let fresh = XNode.parse(Data(_colsXML(page).utf8)) {
+            if let at = sect.children.firstIndex(where: { $0 === cols }) { sect.children[at] = fresh } else {
+                // (w:cols stands after the margins and page numbering, before the vertical alignment, title page and grid.)
+                let after = ["w:formProt", "w:vAlign", "w:noEndnote", "w:titlePg", "w:textDirection", "w:bidi", "w:rtlGutter", "w:docGrid", "w:printerSettings", "w:sectPrChange"]
+                sect.children.insert(fresh, at: sect.children.firstIndex { after.contains($0.name) } ?? sect.children.count)
+            }
             changed = true
         }
         return changed ? PptxXML.serialize(sect) : xml
+    }
+
+    /// Whether a file's `w:cols` already says what `page` holds: its count, gap, unequal widths and line between.
+    static func _sameColumns(_ cols: XNode, _ page: PageSetup) -> Bool {
+        var had = PageSetup.letter
+        _readColumns(cols, into: &had)
+        guard max(1, had.columns) == max(1, page.columns), had.columnLine == page.columnLine else { return false }
+        guard page.columns > 1 else { return true }
+        func tw(_ v: Double) -> Int { Int((v * 20).rounded()) }
+        let spans = { (p: PageSetup) in p.columnSpec.flatMap { $0.count == p.columns ? $0 : nil }.map { $0.map { [tw($0.width), tw($0.gap)] } } }
+        return spans(had) == spans(page) && (page.columnSpec != nil || tw(had.columnGap) == tw(page.columnGap))
+    }
+
+    /// A section's `w:cols` for `page`: Word's own form, `w:equalWidth` 0 and a `w:col` each for unequal columns.
+    static func _colsXML(_ page: PageSetup) -> String {
+        func tw(_ v: Double) -> Int { Int((v * 20).rounded()) }
+        let n = max(1, page.columns)
+        var x = "<w:cols" + (n > 1 ? " w:num=\"\(n)\"" : "") + (page.columnLine ? " w:sep=\"1\"" : "") + " w:space=\"\(tw(page.columnGap))\""
+        guard n > 1, let spec = page.columnSpec, spec.count == n else { return x + "/>" }
+        x += " w:equalWidth=\"0\">"
+        for (k, c) in spec.enumerated() { x += "<w:col w:w=\"\(tw(c.width))\"" + (k < n - 1 ? " w:space=\"\(tw(c.gap))\"" : "") + "/>" }
+        return x + "</w:cols>"
     }
 
     static func _sectionColumns(_ sectionXML: String, _ page: PageSetup?) -> [(width: Double, space: Double)]? {
@@ -2185,12 +2208,12 @@ extension DocxFormat {
         body += "<w:pgMar w:top=\"\(Int(pageSetup.marginTop * 20))\" w:right=\"\(Int(pageSetup.marginRight * 20))\" w:bottom=\"\(Int(pageSetup.marginBottom * 20))\" w:left=\"\(Int(pageSetup.marginLeft * 20))\" w:header=\"\(Int((pageSetup.headerDistance * 20).rounded()))\" w:footer=\"\(Int((pageSetup.footerDistance * 20).rounded()))\" w:gutter=\"\(doc.gutterTwips ?? 0)\"/>"
         if let pb = doc.pageBordersXML { body += pb }
         if let lead = Self._leadPatched(doc.sectionLeadXML, start: doc.pageNumberStart) { body += lead }
-        if let cols = doc.columnsXML, doc.columnsKeptUnder == max(1, pageSetup.columns) {
+        if let cols = doc.columnsXML, let node = XNode.parse(Data(cols.utf8)), _sameColumns(node, pageSetup) {
             // The file's own columns (an exam paper's two unequal ones, 0.3in
             // apart: at our half inch every line of it broke 7pt early).
             body += cols
         } else
-        if pageSetup.columns > 1 { body += "<w:cols w:num=\"\(pageSetup.columns)\" w:space=\"\(Int(pageSetup.columnGap * 20))\"/>" }
+        if pageSetup.columns > 1 || pageSetup.columnLine { body += _colsXML(pageSetup) }
         // A title page with no first-page part referenced is a page with
         // an EMPTY header and footer (Bug51170's cover shows no logo).
         if let tail = doc.sectionTailXML, tail.containsSubstring("<w:vAlign") { body += tail } // (vAlign precedes titlePg… and the rest follow it)

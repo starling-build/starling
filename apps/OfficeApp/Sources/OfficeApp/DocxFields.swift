@@ -1491,6 +1491,25 @@ extension DocxFormat {
         return parts.joined(separator: ", ")
     }
 
+    /// A section's `w:cols`: the count, the gap, each unequal column's own width and gap, and the line between.
+    static func _readColumns(_ cols: XNode, into setup: inout PageSetup) {
+        if let n = Int(cols["w:num"] ?? ""), n > 1 { setup.columns = n }
+        // (Unequal columns state their gaps on each w:col: zh-25c4de17's
+        // two say 425 there and nothing on w:cols, and Word sets them
+        // 21.25pt apart — Word's 36pt default made each 7.4pt narrower
+        // and its questions wrap a line early.)
+        if let space = Double(cols["w:space"] ?? cols.first("w:col")?["w:space"] ?? "") { setup.columnGap = space / 20 }
+        // (Unequal columns keep each one's own width and gap: Word sets
+        // 28abf02c's two at 288 and 225pt, from the section's own margin.)
+        if setup.columns > 1, ["0", "false", "off"].contains(cols["w:equalWidth"] ?? "") {
+            let own = cols.all("w:col")
+            if own.count == setup.columns {
+                setup.columnSpec = own.map { ColumnSpan(width: (Double($0["w:w"] ?? "") ?? 0) / 20, gap: (Double($0["w:space"] ?? "") ?? 0) / 20) }
+            }
+        }
+        if let sep = cols["w:sep"] { setup.columnLine = !["0", "false", "off"].contains(sep) }
+    }
+
     static func _pageSetup(_ sect: XNode, _ notes: _Shared? = nil, normalSize: Double? = nil) -> PageSetup? {
         guard let sz = sect.first("w:pgSz"), let w = Double(sz["w:w"] ?? ""), let h = Double(sz["w:h"] ?? "") else {
             return nil
@@ -1537,22 +1556,7 @@ extension DocxFormat {
             if let v = Double(mar["w:header"] ?? "") { setup.headerDistance = max(0, v) / 20 }
             if let v = Double(mar["w:footer"] ?? "") { setup.footerDistance = max(0, v) / 20 }
         }
-        if let cols = sect.first("w:cols") {
-            if let n = Int(cols["w:num"] ?? ""), n > 1 { setup.columns = n }
-            // (Unequal columns state their gaps on each w:col: zh-25c4de17's
-            // two say 425 there and nothing on w:cols, and Word sets them
-            // 21.25pt apart — Word's 36pt default made each 7.4pt narrower
-            // and its questions wrap a line early.)
-            if let space = Double(cols["w:space"] ?? cols.first("w:col")?["w:space"] ?? "") { setup.columnGap = space / 20 }
-            // (Unequal columns keep each one's own width and gap: Word sets
-            // 28abf02c's two at 288 and 225pt, from the section's own margin.)
-            if setup.columns > 1, ["0", "false", "off"].contains(cols["w:equalWidth"] ?? "") {
-                let own = cols.all("w:col")
-                if own.count == setup.columns {
-                    setup.columnSpec = own.map { ColumnSpan(width: (Double($0["w:w"] ?? "") ?? 0) / 20, gap: (Double($0["w:space"] ?? "") ?? 0) / 20) }
-                }
-            }
-        }
+        if let cols = sect.first("w:cols") { _readColumns(cols, into: &setup) }
         // (A right-to-left section sets its columns from the right: its first
         // column is the rightmost, lo-998868b6's "RTL 1".)
         if let bidi = sect.first("w:bidi"), bidi["w:val"] != "0", bidi["w:val"] != "false" {
