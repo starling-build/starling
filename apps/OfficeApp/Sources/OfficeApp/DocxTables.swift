@@ -1139,6 +1139,22 @@ extension DocxFormat {
         return String(repeating: "0", count: max(0, 8 - hex.count)) + hex
     }
 
+    /// The ids of the comment references in a piece of kept XML.
+    static func _commentReferenceIDs(_ xml: String) -> [String] {
+        var ids: [String] = []
+        var from = xml.startIndex
+        while let tag = xml.rangeOfSubstring("<w:commentReference ", in: from ..< xml.endIndex) {
+            guard let close = xml.rangeOfSubstring(">", in: tag.upperBound ..< xml.endIndex) else { break }
+            let attrs = xml[tag.upperBound ..< close.lowerBound]
+            if let key = attrs.rangeOfSubstring("w:id=\"") {
+                let rest = attrs[key.upperBound...]
+                if let end = rest.firstIndex(of: "\"") { ids.append(String(rest[..<end])) }
+            }
+            from = close.upperBound
+        }
+        return ids
+    }
+
     static func write(_ source: RichDocument, pageSetup: PageSetup) throws -> Data {
         var doc = source
         doc.paragraphs.removeAll { $0.flowedEndnote != nil }
@@ -1152,12 +1168,23 @@ extension DocxFormat {
         let commentsKept = doc.keptParts["word/comments.xml"] != nil
         var openComments: [String] = []
         var closedComments = Set<String>()   // a range id is started once; Word rejects a second start
+        /// Comments whose reference run stands inside a kept equation: the
+        /// equation writes it, so the range's end adds none (lo-d04a7466: a
+        /// second reference to the same comment, and Word refused the file).
+        let referencedInEquation: Set<String> = commentsKept ? Set(doc.paragraphs.flatMap { p in
+            ([p.image].compactMap { $0 } + Array(p.inlineImages.values))
+                .filter { $0.name == "m:oMath" || $0.name == "m:oMathPara" }
+                .flatMap { Self._commentReferenceIDs($0.sourceXML ?? "") }
+        }) : []
         /// The end markers (and reference runs) of every open range not in
         /// `keep`, which are then closed for good.
         func closeComments(except keep: [String]) -> String {
             var out = ""
             for id in openComments where !keep.contains(id) {
-                out += "<w:commentRangeEnd w:id=\"\(_esc(id))\"/><w:r><w:rPr><w:rStyle w:val=\"CommentReference\"/></w:rPr><w:commentReference w:id=\"\(_esc(id))\"/></w:r>"
+                out += "<w:commentRangeEnd w:id=\"\(_esc(id))\"/>"
+                if !referencedInEquation.contains(id) {
+                    out += "<w:r><w:rPr><w:rStyle w:val=\"CommentReference\"/></w:rPr><w:commentReference w:id=\"\(_esc(id))\"/></w:r>"
+                }
                 closedComments.insert(id)
             }
             openComments.removeAll { !keep.contains($0) }
@@ -1631,6 +1658,17 @@ extension DocxFormat {
                 let s = run.style
                 if let id = s.inlineImage, let image = p.inlineImages[id] {
                     body += drawingXML(image)
+                    continue
+                }
+                if commentsKept, piece == "\u{200B}", !s.comments.isEmpty, s.comments.allSatisfy({ referencedInEquation.contains($0) }) {
+                    // The stand-in the reader put where an equation holds the comment's reference: its
+                    // range is written, empty as the file had it, and no character.
+                    body += closeComments(except: s.comments)
+                    for id in s.comments where !openComments.contains(id) && !closedComments.contains(id) {
+                        body += "<w:commentRangeStart w:id=\"\(_esc(id))\"/>"
+                        openComments.append(id)
+                    }
+                    body += closeComments(except: commentsAfter(index, runIndex, in: p))
                     continue
                 }
                 var changeId: Int? = nil

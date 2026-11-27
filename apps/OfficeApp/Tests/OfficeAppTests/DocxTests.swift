@@ -2168,6 +2168,24 @@ final class DocxTests: XCTestCase {
         XCTAssertNotNil(back.keptParts["word/comments.xml"])
     }
 
+    func testACommentReferencedInsideAnEquationIsReferencedOnceOnSave() throws {
+        // lo-d04a7466: the comment's reference run stands inside the equation, its range empty before it.
+        // Saved, the range wrote its own reference too, and Word refused the file.
+        var doc = RichDocument(paragraphs: [RichParagraph(text: "x")])
+        doc.keptParts["word/comments.xml"] = Data("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><w:comments xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:comment w:id=\"1\" w:author=\"a\" w:date=\"2021-05-20T10:57:00Z\" w:initials=\"a\"><w:p><w:r><w:annotationRef/></w:r><w:r><w:t>note</w:t></w:r></w:p></w:comment></w:comments>".utf8)
+        doc.keptPartTypes["word/comments.xml"] = "application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml"
+        var entries = try Zip.read(try DocxFormat.write(doc, pageSetup: .letter))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml0 = String(decoding: entries[di].data, as: UTF8.self)
+        xml0 = xml0.replacingAll("<w:t>x</w:t></w:r>", with: "<w:t>x</w:t></w:r><w:commentRangeStart w:id=\"1\"/><w:commentRangeEnd w:id=\"1\"/><m:oMath><m:r><w:rPr><w:rStyle w:val=\"CommentReference\"/></w:rPr><w:commentReference w:id=\"1\"/></m:r><m:r><m:t>abc</m:t></m:r></m:oMath>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml0.utf8))
+        let back = try DocxFormat.read(try Zip.write(entries)).document
+        let xml = String(decoding: try Zip.read(try DocxFormat.write(back, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
+        XCTAssertEqual(xml.components(separatedBy: "<w:commentReference ").count - 1, 1, xml)
+        XCTAssertFalse(xml.contains("\u{200B}"), "the reader's stand-in is not written")
+        XCTAssertTrue(xml.contains("<w:commentRangeStart w:id=\"1\"/><w:commentRangeEnd w:id=\"1\"/>"), xml)
+    }
+
     func testTablePreferredWidthRoundTrip() throws {
         var a = RichParagraph(text: "a"), b = RichParagraph(text: "b")
         a.cell = CellRef(table: "T", row: 0, column: 0); b.cell = CellRef(table: "T", row: 0, column: 1)
