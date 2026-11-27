@@ -507,8 +507,7 @@ enum DocxFormat {
                     if cond.colBandSize == nil, let v = node.first("w:tblPr")?.first("w:tblStyleColBandSize")?["w:val"].flatMap({ Int($0) }) { cond.colBandSize = v }
                     for part in node.all("w:tblStylePr") {
                         let fill = part.first("w:tcPr")?.first("w:shd")?["w:fill"].flatMap { hex -> Color? in
-                            guard hex.count == 6, let v = Int64(hex, radix: 16) else { return nil }
-                            return Color(0xFF00_0000 | Int64(v))
+                            RichLayout.wordColor(hex, names: false)
                         }
                         switch part["w:type"] {
                         case "firstRow":
@@ -2342,10 +2341,8 @@ enum DocxFormat {
                         }
                         // The cell's own shading: a fill colour, not "auto".
                         var fill: Color? = nil
-                        if let shd = tcPr?.first("w:shd"), let hex = shd["w:fill"], hex.count == 6,
-                           let v = UInt32(hex, radix: 16) {
-                            fill = Color(0xFF00_0000 | Int64(v))
-                        }
+                        // ("#013785", with the hash, is that blue in Word's print: es-e3d5fed41c's header row.)
+                        if let shd = tcPr?.first("w:shd"), let c = RichLayout.wordColor(shd["w:fill"], names: false) { fill = c }
                         var fromStyle = false
                         if fill == nil {
                             fill = TableCondFills(byType: cond.fills, rowBandSize: cond.rowBandSize ?? 0, colBandSize: cond.colBandSize ?? 0).fill(look: lookBits, row: r, column: column, lastRow: r == rowCount - 1, lastColumn: column + span >= gridCount)
@@ -2475,10 +2472,7 @@ enum DocxFormat {
                                     // lo-c657ba7d's rows say 4.5pt navy on some sides and 1pt on others, the table's width the
                                     // 4.5 they mostly name, so those sides were left to the table's edges and drew nothing;
                                     // Word's print has the heavy rules between the rows.)
-                                    var color = Color(0xFF000000)
-                                    if let hex = e["w:color"], hex.lowercased() != "auto", hex.count == 6, let v = Int(hex, radix: 16) {
-                                        color = Color(argb: 0xFF, (v >> 16) & 0xFF, (v >> 8) & 0xFF, v & 0xFF)
-                                    }
+                                    let color = _borderColor(e["w:color"]) ?? Color(0xFF000000)
                                     // (A side at the table's own width but in a colour of its own, white over the table's black, is drawn in that colour:
                                     // xd e86e26f7's cell rules are FFFFFF at the table's width, drawn white in Word's print, black here.)
                                     let recoloured = color != (style.borderColor ?? Color(0xFF000000))

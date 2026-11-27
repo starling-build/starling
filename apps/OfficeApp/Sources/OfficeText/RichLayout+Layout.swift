@@ -1048,8 +1048,29 @@ extension RichLayout {
         guard let xml, let a = xml.firstRange(of: "<w:\(side) "), let b = xml[a.upperBound...].firstRange(of: ">") else { return nil }
         let element = xml[a.upperBound ..< b.lowerBound]
         guard let s = element.firstRange(of: "w:color=\""), let e = element[s.upperBound...].firstRange(of: "\"") else { return nil }
-        let hex = String(element[s.upperBound ..< e.lowerBound])
-        guard hex.count == 6, let v = Int(hex, radix: 16) else { return nil }
+        return wordColor(String(element[s.upperBound ..< e.lowerBound]))
+    }
+
+    /// A colour as a .docx writes it: six hex digits, with or without a
+    /// leading "#", or (when `names`) one of Word's colour names. Word's print
+    /// takes all of these: es-e3d5fed41c says color="white" on its table
+    /// style's borders and its header text, "#013785" on its titles and its
+    /// header fill, and Word draws them white and blue; read as bare hex they
+    /// fell to auto and drew black. "auto", absent or unreadable is nil.
+    public static func wordColor(_ raw: String?, names: Bool = true) -> Color? {
+        guard let raw else { return nil }
+        let s = raw.hasPrefix("#") ? String(raw.dropFirst()) : raw
+        if s.count == 6, let v = Int(s, radix: 16) {
+            return Color(argb: 0xFF, (v >> 16) & 0xFF, (v >> 8) & 0xFF, v & 0xFF)
+        }
+        guard names else { return nil }
+        let named: [String: Int] = [
+            "black": 0x000000, "white": 0xFFFFFF, "yellow": 0xFFFF00, "green": 0x00FF00, "cyan": 0x00FFFF,
+            "magenta": 0xFF00FF, "blue": 0x0000FF, "red": 0xFF0000, "darkblue": 0x000080, "darkcyan": 0x008080,
+            "darkgreen": 0x008000, "darkmagenta": 0x800080, "darkred": 0x800000, "darkyellow": 0x808000,
+            "darkgray": 0x808080, "lightgray": 0xC0C0C0,
+        ]
+        guard let v = named[s.lowercased()] else { return nil }
         return Color(argb: 0xFF, (v >> 16) & 0xFF, (v >> 8) & 0xFF, v & 0xFF)
     }
 

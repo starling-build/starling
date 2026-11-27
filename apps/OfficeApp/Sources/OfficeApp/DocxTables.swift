@@ -951,8 +951,9 @@ extension DocxFormat {
             case "w:sz": sawSz = true; if let v = Double(child["w:val"] ?? "") { cs.fontSize = v / 2 }
             case "w:color":
                 cs.colorTheme = nil
-                if let hex = child["w:val"], hex.lowercased() != "auto", let v = Int(hex, radix: 16) {
-                    cs.color = Color(argb: 0xFF, (v >> 16) & 0xFF, (v >> 8) & 0xFF, v & 0xFF)
+                if let hex = child["w:val"], hex.lowercased() != "auto",
+                   let c = Int(hex, radix: 16).map({ v in Color(argb: 0xFF, (v >> 16) & 0xFF, (v >> 8) & 0xFF, v & 0xFF) }) ?? RichLayout.wordColor(hex) {
+                    cs.color = c
                     let theme = ["w:themeColor", "w:themeTint", "w:themeShade"].compactMap { k in child[k].map { " \(k)=\"\(_esc($0))\"" } }.joined()
                     if !theme.isEmpty { cs.colorTheme = _hex(cs.color!) + theme }
                 } else if child["w:val"]?.lowercased() == "auto" {
@@ -1064,6 +1065,9 @@ extension DocxFormat {
     static func _highlight(_ name: String) -> Color? {
         highlightNames.first { $0.0 == name }?.1
     }
+
+    /// A border's `w:color`, hex or one of Word's colour names; nil for auto.
+    static func _borderColor(_ raw: String?) -> Color? { RichLayout.wordColor(raw) }
 
     /// The font name as the file has it. Kept, not mapped: the face it
     /// draws with is `OfficeFonts.substitute`'s choice at render time, and
