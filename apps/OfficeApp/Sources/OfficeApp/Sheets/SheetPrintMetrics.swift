@@ -370,6 +370,26 @@ struct SheetPrintMetrics {
     }
     static func fitsRowsInOwnFace(_ name: String) -> Bool { name == "맑은 고딕" || name.lowercased() == "malgun gothic" }
 
+    /// The metrics of `book`'s default font as `ws` prints them. A worksheet with no pageSetup in a book that has a chart
+    /// sheet that has no pageSetup of its own either prints at Calibri 11's printer-to-screen ratio, whatever the book's font (lab b47r7, Excel 16, 2026-11-22):
+    /// its screen pixels stay the face's, so Verdana 10's 33 px default row is 105 dots (12.60 pt, 47813) where its own
+    /// ratio makes 108, Verdana 8's 26 px 82 not 88, Arial 10's 34 px 108 not 103, a stored 30 pt row 254 dots in every
+    /// face, and a column character the face's screen digit at Calibri's 47 dots a 15 px digit (Verdana 10: 53.27, not
+    /// 53). Any pageSetup, even a bare portrait one, on the worksheet or on the chart sheet (ru-8f208e0982: a landscape chart
+    /// sheet, and Excel prints the Arial 10 book's 15.75 pt rows 14.88 apart, its own ratio), keeps the face's own ratio.
+    static func of(_ book: Workbook, _ ws: Worksheet, baseColWidth: Double = 8) -> SheetPrintMetrics {
+        var m = of(family: book.defaultFontName ?? OfficeFonts.defaultFamily, size: book.defaultFontSize ?? 11, bold: book.defaultFontBold, baseColWidth: baseColWidth)
+        guard !ws.isChartSheet, !ws.keptElements.contains(where: { $0.name == "pageSetup" }), book.sheets.contains(where: { $0.isChartSheet && !$0.keptElements.contains(where: { $0.name == "pageSetup" }) }) else { return m }
+        let c = of(family: "Calibri", size: 11)
+        m.rowScale = c.rowScale
+        m.setRowScale = c.rowScale
+        m.setOwn = false
+        m.setOwnAt100 = false
+        m.defaultRow = (m.screenRow / 192 * c.rowScale * 600).rounded(.down) * 72 / 600
+        m.digit = m.screenDigit * c.digit / c.screenDigit
+        return m
+    }
+
     static func of(family: String, size: Double, bold: Bool = false, baseColWidth: Double = 8, hinted: Bool = false, otherBook: Bool = false) -> SheetPrintMetrics {
         let f = (bold ? faces[faceKey(family) + " bold"] : nil) ?? face(family)
         // (A printer's line between the sizes measured is the next whole

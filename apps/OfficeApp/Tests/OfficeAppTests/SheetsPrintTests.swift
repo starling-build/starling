@@ -307,3 +307,43 @@ extension SheetsPrintTests {
         XCTAssertEqual(SheetPrintLayout.areaTop(1, titleRows: nil), 1)
     }
 }
+
+/// Lab b47r7 (amd-5, Excel 16, 2026-11-22) and 47813: a worksheet with no pageSetup in a book with a chart sheet prints at
+/// Calibri 11's printer-to-screen ratio whatever the book's font: Verdana 10's default row 105 dots (12.60 pt, not its
+/// own 108), Verdana 8's 82, Arial 10's 108; a stored 30 pt row 254 dots (30.5) in every face; a column character
+/// the face's screen digit at Calibri's 47 dots a 15 px digit (Verdana 10: 53.27 dots, not 53).
+final class ChartSheetBookScaleTests: XCTestCase {
+    private func grid(_ face: String, _ size: Double, chartSheet: Bool, pageSetup: Bool, chartSetup: Bool = false) -> SheetGridState {
+        let c = WorkbookController()
+        c.book.defaultFontName = face
+        c.book.defaultFontSize = size
+        c.sheet.rowHeights[4] = 30
+        c.sheet.colWidths[1] = 20
+        if pageSetup { c.sheet.keptElements.append((name: "pageSetup", text: "<pageSetup orientation=\"portrait\"/>")) }
+        if chartSheet { let ch = Worksheet(name: "Chart1"); ch.origin = "xl/chartsheets/sheet1.xml"
+            if chartSetup { ch.keptElements.append((name: "pageSetup", text: "<pageSetup paperSize=\"9\" orientation=\"landscape\"/>")) }
+            c.book.sheets.append(ch) }
+        let g = SheetGridState(headless: c)
+        g.printing = true
+        return g
+    }
+
+    func testAWorksheetWithoutPageSetupInABookWithAChartSheetPrintsAtCalibrisRatio() {
+        for (face, size, plain, shifted) in [("Verdana", 10.0, 108.0, 105.0), ("Verdana", 8, 88, 82), ("Arial", 10, 103, 108), ("Calibri", 11, 121, 121)] {
+            let p = grid(face, size, chartSheet: false, pageSetup: false), s = grid(face, size, chartSheet: true, pageSetup: false)
+            XCTAssertEqual(p.rows.size(0) / p.scale, plain * 72 / 600, accuracy: 0.001, "\(face) \(size) plain")
+            XCTAssertEqual(s.rows.size(0) / s.scale, shifted * 72 / 600, accuracy: 0.001, "\(face) \(size) chart")
+            XCTAssertEqual(s.rows.size(4) / s.scale, 254 * 72 / 600, accuracy: 0.001, "\(face) \(size) set row")
+        }
+        // Verdana 10's column: a character 53.27 dots with the chart sheet (17 px at 47/15), 53 without.
+        let cs = grid("Verdana", 10, chartSheet: true, pageSetup: false), cp = grid("Verdana", 10, chartSheet: false, pageSetup: false)
+        XCTAssertEqual((cs.cols.size(1) / cs.scale) / (cp.cols.size(1) / cp.scale), 17 * 47.0 / 15 / 53, accuracy: 1e-6)
+        // Any pageSetup element keeps the book's own ratio (b47r7 book 1, portrait).
+        let kept = grid("Verdana", 10, chartSheet: true, pageSetup: true)
+        XCTAssertEqual(kept.rows.size(0) / kept.scale, 108.0 * 72 / 600, accuracy: 0.001)
+        // So does a pageSetup on the chart sheet (ru-8f208e0982: Arial 10 book, landscape chart sheet; Excel's 15.75 pt rows
+        // print 14.88 pt apart, Arial's own ratio).
+        let chartKept = grid("Arial", 10, chartSheet: true, pageSetup: false, chartSetup: true)
+        XCTAssertEqual(chartKept.rows.size(0) / chartKept.scale, 103.0 * 72 / 600, accuracy: 0.001)
+    }
+}
