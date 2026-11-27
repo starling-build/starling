@@ -106,6 +106,8 @@ public indirect enum EditOp: Equatable, Sendable {
     case setKeptHeaderFooters(old: [KeptHeaderFooter], new: [KeptHeaderFooter])
     /// The last section's `w:type` (how it starts), as the file writes it.
     case setLastSectionType(old: String?, new: String?)
+    /// The settings' margin options (`w:mirrorMargins`, `w:gutterAtTop`) as the file writes them (W-PG-1).
+    case setMarginSettings(old: String?, new: String?)
     /// A picture's shown size (its attachment replaced; the id survives).
     case setImage(Int, old: ImageAttachment, new: ImageAttachment)
     /// An inline picture in a paragraph's text, replaced (its id survives).
@@ -230,6 +232,10 @@ public indirect enum EditOp: Equatable, Sendable {
             doc.sectionTypeXML = new
             changes.append(.all)
             return .setLastSectionType(old: new, new: old)
+        case .setMarginSettings(let old, let new):
+            doc.marginSettingsXML = new
+            changes.append(.all)
+            return .setMarginSettings(old: new, new: old)
         case .setImage(let index, let old, let new):
             doc.paragraphs[index].image = new
             changes.append(.changed(index))
@@ -3451,6 +3457,26 @@ public final class RichDocumentController: ChangeNotifier {
         }
         guard !steps.isEmpty else { return }
         edit { for (mark, old, new) in steps { perform(.setSectionPage(mark, old: old, new: new)) } }
+    }
+
+    /// Whether the pages face each other (`w:mirrorMargins`): the left margin and the gutter are then the inside ones.
+    public var mirrorMargins: Bool { Self._mirrorMargins(document.marginSettingsXML) }
+    static func _mirrorMargins(_ xml: String?) -> Bool {
+        guard let xml, let r = xml.rangeOfSubstring("<w:mirrorMargins") else { return false }
+        let rest = xml[r.upperBound...]
+        let end = rest.rangeOfSubstring(">").map { rest[..<$0.lowerBound] } ?? rest
+        return !(end.containsSubstring("\"0\"") || end.containsSubstring("\"false\"") || end.containsSubstring("\"off\""))
+    }
+    /// W-PG-1: Multiple pages Normal or Mirror margins, one undo step; the gutter position the file names stays.
+    public func setMirrorMargins(_ on: Bool) {
+        guard on != mirrorMargins else { return }
+        let old = document.marginSettingsXML
+        var rest = old ?? ""
+        if let r = rest.rangeOfSubstring("<w:mirrorMargins"), let close = rest[r.lowerBound...].rangeOfSubstring(">") {
+            rest.removeSubrange(r.lowerBound ..< close.upperBound)
+        }
+        let new = (on ? "<w:mirrorMargins/>" : "") + rest
+        edit { perform(.setMarginSettings(old: old, new: new.isEmpty ? nil : new)) }
     }
 
     // MARK: Header and footer

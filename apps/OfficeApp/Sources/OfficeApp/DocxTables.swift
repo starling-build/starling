@@ -249,6 +249,13 @@ extension DocxFormat {
         return el
     }
 
+    /// The kept section tail without its `w:vAlign` (the page's own `verticalAlign` writes that).
+    static func _withoutVAlign(_ tail: String) -> String {
+        var t = tail
+        while let r = t.rangeOfSubstring("<w:vAlign"), let close = t[r.lowerBound...].rangeOfSubstring("/>") { t.removeSubrange(r.lowerBound ..< close.upperBound) }
+        return t
+    }
+
     static func _sectionXML(_ xml: String, patchedTo page: PageSetup?) -> String {
         guard let page, !page.vertical, let sect = XNode.parse(Data(xml.utf8)) else { return xml }
         var changed = false
@@ -268,6 +275,19 @@ extension DocxFormat {
         }
         if let mar = sect.first("w:pgMar") {
             put(mar, "w:header", page.headerDistance); put(mar, "w:footer", page.footerDistance)
+            // W-PG-1: the gutter (a file that names none and still has none stays so).
+            if page.gutter > 0 || mar.attrs["w:gutter"] != nil { put(mar, "w:gutter", page.gutter) }
+        }
+        // W-PG-1: the vertical alignment of the section's text; top is the default and is written as none.
+        let haveAlign = sect.first("w:vAlign")?.attrs["w:val"].flatMap { $0 == "top" ? nil : $0 }
+        if page.verticalAlign != haveAlign {
+            sect.children.removeAll { $0.name == "w:vAlign" }
+            if let v = page.verticalAlign {
+                let later: Set<String> = ["w:noEndnote", "w:titlePg", "w:textDirection", "w:bidi", "w:rtlGutter", "w:docGrid", "w:printerSettings", "w:sectPrChange"]
+                let at = sect.children.firstIndex { later.contains($0.name) } ?? sect.children.count
+                sect.children.insert(XNode(name: "w:vAlign", attrs: ["w:val": v]), at: at)
+            }
+            changed = true
         }
         // W-HF-2: the section's own different first page and first page number.
         let hasTitle = sect.first("w:titlePg").map { n in (n.attrs["w:val"] ?? "1") != "0" && n.attrs["w:val"] != "false" && n.attrs["w:val"] != "off" } ?? false
@@ -2197,7 +2217,7 @@ extension DocxFormat {
         }
         if let type { body += type }
         body += "<w:pgSz w:w=\"\(pw)\" w:h=\"\(ph)\"\(pageSetup.isLandscape && pageSetup.orientStated ? " w:orient=\"landscape\"" : "")/>"
-        body += "<w:pgMar w:top=\"\(Int(pageSetup.marginTop * 20))\" w:right=\"\(Int(pageSetup.marginRight * 20))\" w:bottom=\"\(Int(pageSetup.marginBottom * 20))\" w:left=\"\(Int(pageSetup.marginLeft * 20))\" w:header=\"\(Int((pageSetup.headerDistance * 20).rounded()))\" w:footer=\"\(Int((pageSetup.footerDistance * 20).rounded()))\" w:gutter=\"\(doc.gutterTwips ?? 0)\"/>"
+        body += "<w:pgMar w:top=\"\(Int(pageSetup.marginTop * 20))\" w:right=\"\(Int(pageSetup.marginRight * 20))\" w:bottom=\"\(Int(pageSetup.marginBottom * 20))\" w:left=\"\(Int(pageSetup.marginLeft * 20))\" w:header=\"\(Int((pageSetup.headerDistance * 20).rounded()))\" w:footer=\"\(Int((pageSetup.footerDistance * 20).rounded()))\" w:gutter=\"\(Int((pageSetup.gutter * 20).rounded()))\"/>"
         if let pb = doc.pageBordersXML { body += pb }
         if let lead = Self._leadPatched(doc.sectionLeadXML, start: doc.pageNumberStart, format: doc.pageNumberFormat,
                                           chapterStyle: doc.chapterStyle, chapterSeparator: doc.chapterSeparator) { body += lead }
@@ -2209,9 +2229,10 @@ extension DocxFormat {
         if pageSetup.columns > 1 { body += "<w:cols w:num=\"\(pageSetup.columns)\" w:space=\"\(Int(pageSetup.columnGap * 20))\"/>" }
         // A title page with no first-page part referenced is a page with
         // an EMPTY header and footer (Bug51170's cover shows no logo).
-        if let tail = doc.sectionTailXML, tail.containsSubstring("<w:vAlign") { body += tail } // (vAlign precedes titlePg… and the rest follow it)
+        // (The section's vertical alignment, W-PG-1, precedes titlePg; the rest of the kept tail follows it.)
+        if let v = pageSetup.verticalAlign { body += "<w:vAlign w:val=\"\(v)\"/>" }
         if doc.titlePage { body += "<w:titlePg/>" }
-        if let tail = doc.sectionTailXML, !tail.containsSubstring("<w:vAlign") { body += tail }
+        if let tail = doc.sectionTailXML.map(Self._withoutVAlign), !tail.isEmpty { body += tail }
         if let grid = doc.docGridXML { body += grid }
         body += "</w:sectPr>"
         return body
