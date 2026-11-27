@@ -17,7 +17,7 @@ SD=${SWEEP_OUT_DIR:-$(dirname "$ROOT")/sweep}; mkdir -p "$SD"
 OUT=$SD/run-$KIND-$$.txt
 cd "$ROOT" || exit 1
 env STARLING_SWEEP_DIR=$DIR STARLING_SWEEP_KIND=$KIND STARLING_SWEEP_OUT=$OUT ${MAX:+STARLING_SWEEP_MAX=$MAX} \
-  ~/bin/unit-tests.sh --filter EditLossSweepTests >"$OUT.log" 2>&1
+  nice -n 19 ~/bin/unit-tests.sh -j 8 --filter EditLossSweepTests >"$OUT.log" 2>&1
 [ -s "$OUT" ] || { echo "sweep produced no result; see $OUT.log"; tail -5 "$OUT.log"; exit 1; }
 awk -F'\t' '/^==/{print; n=0; next} n<40 {print; n++}' "$OUT" | cut -c1-110
 if [ -n "$BASE" ]; then

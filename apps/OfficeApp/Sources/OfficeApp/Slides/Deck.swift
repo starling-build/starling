@@ -1020,10 +1020,20 @@ final class Slide {
     /// The slide's colour-map override (`p:clrMapOvr`) as read — a slide
     /// can swap the master's light and dark roles — written back as is.
     var clrMapOvrXML: String? = nil
+    /// The slide's own extensions (`p:extLst`, PowerPoint's slide creation
+    /// id among them) as read, with the namespaces they use declared on
+    /// it, written back as is. A duplicated slide does not carry them: its
+    /// creation id would no longer be unique.
+    var extLstXML: String? = nil
+    /// The same for the extensions of the slide's common data (`p:cSld`'s
+    /// `p:extLst`), where PowerPoint keeps the creation id.
+    var cSldExtLstXML: String? = nil
     /// The slide's ActiveX controls (`p:controls`) as read: not drawn here,
     /// written back with their parts and VML drawing, so PowerPoint still
     /// has them (and draws each one's fallback picture).
     var controlsXML: String? = nil
+    /// The slide's tags (`p:custDataLst`, add-ins' own data in ppt/tags parts) as read, written back with their parts.
+    var custDataXML: String? = nil
     /// The layout's and master's own shapes, drawn behind this slide's
     /// (from the file it came from); never written, never editable.
     var decorations: [SlideShape] = []

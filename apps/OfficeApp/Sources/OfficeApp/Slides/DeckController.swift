@@ -159,7 +159,10 @@ struct SlideState: Equatable {
     var masterRole: MasterRole? = nil
     var hideMasterShapes = false
     var clrMapOvrXML: String? = nil
+    var extLstXML: String? = nil
+    var cSldExtLstXML: String? = nil
     var controlsXML: String? = nil
+    var custDataXML: String? = nil
     var decorations: [ShapeState] = []
     var notes: RichDocument
     var shapes: [ShapeState]
@@ -177,6 +180,8 @@ struct SlideState: Equatable {
     var commentsFrom: String? = nil
     /// The source part slide-level kept things are carried from.
     var carryPart: String? { commentsFrom ?? sourcePart }
+    /// The notes as read; while `notes` still equals them the save keeps the file's own notes page.
+    var sourceNotes: RichDocument? = nil
 }
 
 struct DeckState: Equatable {
@@ -196,6 +201,9 @@ struct DeckState: Equatable {
     var show = ShowSettings()
     var customShows: [CustomShow] = []
     var sections: [SlideSection] = []
+    /// The show settings as read: while `show` still equals them, the file's
+    /// own `p:showPr` is saved as it was, spellings of the defaults included.
+    var sourceShow: ShowSettings? = nil
 }
 
 /// Every change to a deck goes through here. Listeners hear about slide
@@ -223,6 +231,7 @@ final class DeckController: ChangeNotifier {
     private(set) var firstSlideNum = 1
     /// Set Up Slide Show, and the custom shows; both saved with the deck.
     private(set) var show = ShowSettings()
+    private(set) var sourceShow: ShowSettings? = nil
     private(set) var customShows: [CustomShow] = []
     /// The deck's sections, in order; empty when it has none.
     private(set) var sections: [SlideSection] = []
@@ -490,6 +499,7 @@ final class DeckController: ChangeNotifier {
         copy.hideMasterShapes = source.hideMasterShapes
         copy.clrMapOvrXML = source.clrMapOvrXML
         copy.controlsXML = source.controlsXML
+        copy.custDataXML = source.custDataXML
         copy.decorations = source.decorations.map { _make(_state($0)) }
         var map: [Int: Int] = [:]
         for (a, b) in zip(source.shapes, shapes) { map[a.id] = b.id }
@@ -2565,7 +2575,8 @@ final class DeckController: ChangeNotifier {
         DeckState(slides: slides.map { slide in
             SlideState(id: slide.id, layout: slide.layout, hidden: slide.hidden, section: slide.section, masterRole: slide.masterRole,
                        hideMasterShapes: slide.hideMasterShapes, clrMapOvrXML: slide.clrMapOvrXML,
-                       controlsXML: slide.controlsXML, decorations: slide.decorations.map(_state),
+                       extLstXML: slide.extLstXML, cSldExtLstXML: slide.cSldExtLstXML,
+                       controlsXML: slide.controlsXML, custDataXML: slide.custDataXML, decorations: slide.decorations.map(_state),
                        notes: slide.notes.document, shapes: slide.shapes.map(_state),
                        layoutPart: slide.layoutPart, backgroundXML: slide.backgroundXML,
                        background: slide.background, inheritedBackground: slide.inheritedBackground,
@@ -2573,7 +2584,7 @@ final class DeckController: ChangeNotifier {
                        transition: slide.transition, timingXML: slide.timingXML,
                        footerFrames: slide.footerFrames, animations: slide.animations,
                        sourceAnimations: slide.sourceAnimations, commentsFrom: slide.commentsFrom ?? slide.sourcePart)
-        }, current: current, slideSize: slideSize, theme: theme, ownTemplates: ownTemplates, recolourTheme: recolourTheme, firstSlideNum: firstSlideNum, masterBackground: masterBackground, slideScaling: slideScaling, show: show, customShows: customShows, sections: sections)
+        }, current: current, slideSize: slideSize, theme: theme, ownTemplates: ownTemplates, recolourTheme: recolourTheme, firstSlideNum: firstSlideNum, masterBackground: masterBackground, slideScaling: slideScaling, show: show, customShows: customShows, sections: sections, sourceShow: sourceShow)
     }
 
     /// Put the deck back as `state` was. Objects that still exist are kept
@@ -2615,7 +2626,10 @@ final class DeckController: ChangeNotifier {
             slide.masterRole = ss.masterRole
             slide.hideMasterShapes = ss.hideMasterShapes
             slide.clrMapOvrXML = ss.clrMapOvrXML
+            slide.extLstXML = ss.extLstXML
+            slide.cSldExtLstXML = ss.cSldExtLstXML
             slide.controlsXML = ss.controlsXML
+            slide.custDataXML = ss.custDataXML
             if slide.decorations.map(_state) != ss.decorations { slide.decorations = ss.decorations.map(_make) }
             slide.layoutPart = ss.layoutPart
             slide.backgroundXML = ss.backgroundXML
@@ -2640,6 +2654,7 @@ final class DeckController: ChangeNotifier {
         masterBackground = state.masterBackground
         slideScaling = state.slideScaling
         show = state.show
+        sourceShow = state.sourceShow
         customShows = state.customShows
         sections = state.sections
         if let t = state.theme { theme = t }
