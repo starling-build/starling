@@ -82,7 +82,8 @@ final class RibbonGroup: StatelessWidget {
             mainAxisAlignment: .spaceBetween,
             crossAxisAlignment: .center,
             children: [
-                Row(crossAxisAlignment: .start, children: content),
+                // (The commands get the band's room above the caption, so a stack of rows can share it: Chrome.rows.)
+                Expanded(child: Row(crossAxisAlignment: .start, children: content)),
                 Text(label, style: fluent.typography.caption?.copyWith(
                     color: OfficeAppearance.secondary(fluent))),
             ]
