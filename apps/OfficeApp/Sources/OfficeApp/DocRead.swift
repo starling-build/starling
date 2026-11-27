@@ -198,9 +198,8 @@ enum DocRead {
         var front = "", back = ""     // shapes of the paragraph: behind the text come first, in front of it last (the order they are painted in)
         var rowCells: [String] = [], cellXml = ""
         var tblRows: [(g: [UInt8], cells: [String])] = []
-        func endTable() {
-            guard !tblRows.isEmpty else { return }
-            defer { tblRows = [] }
+        func tableXML(_ tblRows: [(g: [UInt8], cells: [String])]) -> String {
+            guard !tblRows.isEmpty else { return "" }
             var recs = tblRows.compactMap { t in DocProps.row(t.g).map { (t, $0) } }
             // Rows that do not share their column edges are stated against the union of them (snapped within 3 twips), when they share the left edge.
             var union: [Int]? = nil
@@ -210,7 +209,7 @@ enum DocRead {
                 if recs.contains(where: { $0.1.edges.count != u.count }) { union = u }
             }
             if let u = union { recs = tblRows.compactMap { t in DocProps.row(t.g, union: u).map { (t, $0) } } }
-            guard let r0 = recs.first?.1 else { return }
+            guard let r0 = recs.first?.1 else { return "" }
             var tbl = "<w:tbl>" + r0.tblPr + "<w:tblGrid>" + r0.grid.map { "<w:gridCol w:w=\"\($0)\"/>" }.joined() + "</w:tblGrid>"
             for (t, r) in recs {
                 let all = t.cells.count == r.cells.count
@@ -224,7 +223,22 @@ enum DocRead {
                 }
                 tbl += "</w:tr>"
             }
-            xml += tbl + "</w:tbl>"
+            return tbl + "</w:tbl>"
+        }
+        func endTable() {
+            guard !tblRows.isEmpty else { return }
+            xml += tableXML(tblRows)
+            tblRows = []
+        }
+        // Tables nested in a cell (itap 2 and up): one open level each; their cell and row marks are 0x0D paragraphs
+        // flagged 0x244B / 0x244C. A level closes into the cell of the level below when a paragraph of that level (or lower) arrives.
+        var nest: [(cells: [String], cell: String, rows: [(g: [UInt8], cells: [String])])] = []
+        func closeNest(to depth: Int) {
+            while nest.count > depth {
+                let lv = nest.removeLast()
+                let t = tableXML(lv.rows)
+                if nest.isEmpty { cellXml += t } else { nest[nest.count - 1].cell += t }
+            }
         }
         for (k, c) in t.enumerated() {
             let cp = ctx.base + k
@@ -242,6 +256,26 @@ enum DocRead {
                 flush()
                 let pr = cover(pap, &pi, cp)
                 let tf = DocProps.tableFlags(pr?.grpprl ?? [])
+                let itap = tf.inTable ? max(1, DocProps.sprms(pr?.grpprl ?? []).last(where: { $0.op == 0x6649 }).map { Int($0.u8) } ?? 1) : 0
+                if itap >= 2 {
+                    let innerCell = DocProps.sprms(pr?.grpprl ?? []).contains { $0.op == 0x244B && $0.u8 == 1 }
+                    let innerRow = DocProps.sprms(pr?.grpprl ?? []).contains { $0.op == 0x244C && $0.u8 == 1 }
+                    closeNest(to: itap - 1)
+                    while nest.count < itap - 1 { nest.append(([], "", [])) }
+                    if innerRow, c == 0x0D {
+                        runs = ""
+                        if let g = pr?.grpprl, DocProps.row(g) != nil { nest[nest.count - 1].rows.append((g, nest[nest.count - 1].cells)) }
+                        nest[nest.count - 1].cells = []; nest[nest.count - 1].cell = ""
+                        break
+                    }
+                    var pp = DocProps.pPr(pr?.grpprl ?? [], istd: pr?.istd ?? 0)
+                    if !rpr.isEmpty { pp = pp.isEmpty ? "<w:pPr>" + rpr + "</w:pPr>" : String(pp.dropLast(8)) + rpr + "</w:pPr>" }
+                    nest[nest.count - 1].cell += DocProps.settleToggles("<w:p>" + pp + back + runs + front + "</w:p>", styles: ctx.styles, istd: pr?.istd ?? 0)
+                    runs = ""; back = ""; front = ""
+                    if innerCell { nest[nest.count - 1].cells.append(nest[nest.count - 1].cell); nest[nest.count - 1].cell = "" }
+                    break
+                }
+                closeNest(to: 0)
                 if tf.inTable, tf.rowEnd, c == 0x07 {
                     // the mark that ends a table row carries the row's table properties
                     runs = ""
@@ -303,6 +337,7 @@ enum DocRead {
             }
         }
         flush()
+        closeNest(to: 0)
         if !tblRows.isEmpty { endTable(); xml += "<w:p/>" }
         if !runs.isEmpty || !back.isEmpty || !front.isEmpty { xml += "<w:p>" + back + runs + front + "</w:p>" }
         return xml
