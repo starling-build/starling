@@ -129,14 +129,21 @@ enum OfficeArt {
                     for c in records(b, in: rec.body) {
                         switch c.type {
                         case 0xF00A: s.type = c.inst; s.id = u32(b, c.body.lowerBound); s.flags = u32(b, c.body.lowerBound + 4)
-                        case 0xF00B:
-                            // Properties: id (14 bits) + flags, value; complex ones keep their data after the table.
+                        case 0xF00B, 0xF122:
+                            // Properties (the primary and the tertiary table): id (14 bits) + flags, value; complex ones keep their data after the table.
                             let n = c.inst
                             for k in 0 ..< n {
                                 let o = c.body.lowerBound + 6 * k
                                 guard o + 6 <= c.body.upperBound else { break }
                                 let pid = u16(b, o), v = u32(b, o + 2)
-                                s.props[pid & 0x3FFF] = v
+                                // A boolean set (id ending 0x3F) names the flags it sets in its high half, so a second
+                                // table's set changes only those flags, not the ones the first table set.
+                                if pid & 0x3F == 0x3F, pid & 0xC000 == 0, let old = s.props[pid & 0x3FFF] {
+                                    let use = (v >> 16) & 0xFFFF, mask = use | (use << 16)
+                                    s.props[pid & 0x3FFF] = (old & ~mask) | (v & mask)
+                                } else {
+                                    s.props[pid & 0x3FFF] = v
+                                }
                                 if pid & 0x3FFF == 0x104 { s.pib = v }
                             }
                             var q = c.body.lowerBound + 6 * n

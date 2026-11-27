@@ -42,7 +42,7 @@ enum PptBuild {
         var out: [ZipEntry] = []
         func add(_ name: String, _ xml: String) { out.append(ZipEntry(name: name, data: Data((head + xml).utf8))) }
         func rels(_ items: [(String, String, String)]) -> String {
-            "<Relationships xmlns=\"\(relNS)\">" + items.map { "<Relationship Id=\"\($0.0)\" Type=\"\(rel)\($0.1)\" Target=\"\($0.2)\"/>" }.joined() + "</Relationships>"
+            "<Relationships xmlns=\"\(relNS)\">" + items.map { "<Relationship Id=\"\($0.0)\" Type=\"\($0.1.containsSubstring("://") ? $0.1 : rel + $0.1)\" Target=\"\($0.2)\"/>" }.joined() + "</Relationships>"
         }
         let defaultScheme = [0xFFFFFF, 0, 0x808080, 0, 0x808080, 0x808080, 0x0000FF, 0x800080]
         func masterIndex(_ s: PptFile.Page) -> Int { f.masters.firstIndex { $0.slideId == s.masterRef } ?? 0 }
@@ -96,8 +96,14 @@ enum PptBuild {
         // Pictures: one media part per store entry used, one relationship per part that shows it.
         var mediaName: [Int: String] = [:]
         var mediaExts = Set<String>()
-        func partPictures(_ firstRid: Int) -> (rid: (Int) -> String?, rels: () -> [(String, String, String)]) {
+        var embeds = PptEmbeds()
+        func partPictures(_ firstRid: Int) -> (rid: (Int) -> String?, rels: () -> [(String, String, String)], relate: (String, String) -> String) {
             var mine: [(Int, String)] = []
+            var extra: [(String, String, String)] = []
+            func relate(_ type: String, _ target: String) -> String {
+                extra.append(("rIdE\(extra.count + 1)", type, target))
+                return extra[extra.count - 1].0
+            }
             func rid(_ index: Int) -> String? {
                 if let k = mine.firstIndex(where: { $0.0 == index }) { return "rId\(firstRid + k)" }
                 if mediaName[index] == nil {
@@ -111,7 +117,7 @@ enum PptBuild {
                 mine.append((index, name))
                 return "rId\(firstRid + mine.count - 1)"
             }
-            return (rid, { mine.enumerated().map { ("rId\(firstRid + $0.offset)", "image", "../media/" + $0.element.1) } })
+            return (rid, { mine.enumerated().map { ("rId\(firstRid + $0.offset)", "image", "../media/" + $0.element.1) } + extra }, relate)
         }
         func slideTree(_ shapes: String) -> String { treeHead + shapes + "</p:spTree>" }
         func background(_ rgb: Int?) -> String {
@@ -122,7 +128,7 @@ enum PptBuild {
             let k = i + 1
             let m = v.master < f.masters.count ? f.masters[v.master] : nil
             let mp = partPictures(3)
-            let masterShapes = m.map { f.shapeXML(of: $0, master: true, picture: mp.rid) } ?? ""
+            let masterShapes = m.map { f.shapeXML(of: $0, master: true, picture: mp.rid, embed: { embeds.frame($0, id: $1, xfrm: $2, relate: mp.relate) }) } ?? ""
             add("ppt/slideMasters/slideMaster\(k).xml", "<p:sldMaster \(ns)><p:cSld>\(m.flatMap { f.backgroundXML(of: $0, picture: mp.rid) } ?? background(m?.background))\(slideTree(masterShapes))</p:cSld>"
                 + "<p:clrMap bg1=\"lt1\" tx1=\"dk1\" bg2=\"lt2\" tx2=\"dk2\" accent1=\"accent1\" accent2=\"accent2\" accent3=\"accent3\" accent4=\"accent4\" accent5=\"accent5\" accent6=\"accent6\" hlink=\"hlink\" folHlink=\"folHlink\"/>"
                 + "<p:sldLayoutIdLst><p:sldLayoutId id=\"\(Int64(2147483649) + Int64(2 * i))\" r:id=\"rId1\"/></p:sldLayoutIdLst>\(m.map { f.textStylesXML(of: $0) } ?? "")</p:sldMaster>")
@@ -138,11 +144,14 @@ enum PptBuild {
             let own = s.followsMasterBackground ? nil : s.background
             let sp = partPictures(2)
             let bg = s.followsMasterBackground ? "" : (f.backgroundXML(of: s, picture: sp.rid) ?? background(own))
-            add("ppt/slides/slide\(k).xml", "<p:sld \(ns)\(attrs)><p:cSld>\(bg)\(slideTree(f.shapeXML(of: s, picture: sp.rid)))</p:cSld></p:sld>")
+            add("ppt/slides/slide\(k).xml", "<p:sld \(ns)\(attrs)><p:cSld>\(bg)\(slideTree(f.shapeXML(of: s, picture: sp.rid, embed: { embeds.frame($0, id: $1, xfrm: $2, relate: sp.relate) })))</p:cSld></p:sld>")
             add("ppt/slides/_rels/slide\(k).xml.rels", rels([("rId1", "slideLayout", "../slideLayouts/slideLayout\(slideVariant[i] + 1).xml")] + sp.rels()))
         }
         let mimes = ["png": "image/png", "jpeg": "image/jpeg", "bmp": "image/bmp", "tiff": "image/tiff", "emf": "image/x-emf", "wmf": "image/x-wmf", "pict": "image/x-pict"]
         for e in mediaExts.sorted() { types += "<Default Extension=\"\(e)\" ContentType=\"\(mimes[e] ?? "application/octet-stream")\"/>" }
+        for (e, t) in embeds.defaults.sorted(by: { $0.key < $1.key }) where !mediaExts.contains(e) { types += "<Default Extension=\"\(e)\" ContentType=\"\(t)\"/>" }
+        for (p, t) in embeds.overrides { types += "<Override PartName=\"\(p)\" ContentType=\"\(t)\"/>" }
+        out += embeds.parts
         add("[Content_Types].xml", types + "</Types>")
         return out
     }

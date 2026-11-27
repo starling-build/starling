@@ -367,6 +367,81 @@ final class PptContainerTests: XCTestCase {
         XCTAssertTrue(slide.contains("<p:pic>"))
     }
 
+    /// PowerPoint 2007 and later store a chart's own frame and parts in the shape's metroBlob (0x3A9, in the
+    /// tertiary property table): the converted slide shows that chart, its parts renamed and relinked.
+    func testAMetroBlobChartBecomesAGraphicFrameWithItsParts() throws {
+        func persist(_ id: Int, _ slideId: Int) -> [UInt8] {
+            var b: [UInt8] = le32(id)
+            b += le32(0) + le32(1) + le32(slideId) + le32(0)
+            return rec(0x03F3, b)
+        }
+        func entry(_ name: String, _ xml: String) -> ZipEntry { ZipEntry(name: name, data: Data(xml.utf8)) }
+        let relNS = "http://schemas.openxmlformats.org/package/2006/relationships"
+        let officeRel = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/"
+        let blob = [UInt8](try Zip.write([
+            entry("[Content_Types].xml", "<Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\"><Default Extension=\"bin\" ContentType=\"application/vnd.openxmlformats-officedocument.oleObject\"/><Override PartName=\"/drs/charts/chart1.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.drawingml.chart+xml\"/></Types>"),
+            entry("drs/downrev.xml", "<a:downRevStg/>"),
+            entry("drs/e2oDoc.xml", "<?xml version=\"1.0\"?><p:E2oFrame xmlns:p=\"http://schemas.openxmlformats.org/presentationml/2006/main\"><p:nvGraphicFramePr><p:cNvPr id=\"9\" name=\"Chart 5\"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr><p:xfrm><a:off x=\"1\" y=\"1\"/><a:ext cx=\"1\" cy=\"1\"/></p:xfrm><a:graphic><a:graphicData uri=\"c\"><c:chart r:id=\"rId1\"/></a:graphicData></a:graphic></p:E2oFrame>"),
+            entry("drs/_rels/e2oDoc.xml.rels", "<Relationships xmlns=\"\(relNS)\"><Relationship Id=\"rId1\" Type=\"\(officeRel)chart\" Target=\"charts/chart1.xml\"/></Relationships>"),
+            entry("drs/charts/chart1.xml", "<c:chartSpace/>"),
+            entry("drs/charts/_rels/chart1.xml.rels", "<Relationships xmlns=\"\(relNS)\"><Relationship Id=\"rId1\" Type=\"\(officeRel)oleObject\" Target=\"../embeddings/oleObject1.bin\"/></Relationships>"),
+            entry("drs/embeddings/oleObject1.bin", "ole"),
+        ]))
+        var atom: [UInt8] = le32(5760)
+        atom += le32(4320)
+        atom += [UInt8](repeating: 0, count: 22)
+        atom += le16(1)
+        atom += [UInt8](repeating: 0, count: 6)
+        var kids = rec(0x03E9, atom)
+        kids += rec(0x0FF0, ver: 15, inst: 1, persist(2, 0x8000_0000))
+        kids += rec(0x0FF0, ver: 15, inst: 0, persist(3, 256))
+        var d = rec(0x03E8, ver: 15, kids)
+        let tertiary = rec(0xF122, ver: 3, inst: 1, le16(0x3A9 | 0x8000) + le32(blob.count) + blob)
+        var k = rec(0xF00A, ver: 2, inst: 75, le32(2) + le32(0xA00)) + tertiary
+        k += rec(0xF010, le16(100) + le16(200) + le16(1100) + le16(1200))
+        let head = rec(0xF004, ver: 15, rec(0xF00A, ver: 2, inst: 0, le32(1) + le32(5)))
+        let top = rec(0xF003, ver: 15, head + rec(0xF004, ver: 15, k))
+        let pageKids = rec(0x03EF, [UInt8](repeating: 0, count: 12) + le32(0x8000_0000) + le32(0) + le16(7) + le16(0))
+            + rec(0x040C, ver: 15, rec(0xF002, ver: 15, top))
+        let master = rec(0x03F8, ver: 15, rec(0x03EF, [UInt8](repeating: 0, count: 24)))
+        var offs: [Int] = []
+        for p in [master, rec(0x03EE, ver: 15, pageKids)] { offs.append(d.count); d += p }
+        let dir = d.count
+        d += directory([(1, [0]), (2, [offs[0]]), (3, [offs[1]])])
+        let edit = d.count
+        d += userEdit(lastEdit: 0, directory: dir, document: 1)
+        let parts = PptBuild.parts(try PptFile(currentUser: currentUser(offset: edit), document: d))
+        func text(_ name: String) -> String { parts.first { $0.name == name }.map { String(decoding: $0.data, as: UTF8.self) } ?? "" }
+
+        let slide = text("ppt/slides/slide1.xml")
+        XCTAssertTrue(slide.contains("<p:graphicFrame xmlns:p="), slide)
+        XCTAssertTrue(slide.contains("<c:chart r:id=\"rIdE1\"/>"))
+        XCTAssertTrue(slide.contains("<p:cNvPr id=\"2\" name=\"Chart 5\"/>"))
+        // The frame's own place (PowerPoint keeps it, not the shape's anchor rounded to master units).
+        XCTAssertTrue(slide.contains("<p:xfrm><a:off x=\"1\" y=\"1\"/><a:ext cx=\"1\" cy=\"1\"/></p:xfrm>"), slide)
+        XCTAssertFalse(slide.contains("E2oFrame"))
+        XCTAssertTrue(text("ppt/slides/_rels/slide1.xml.rels").contains("Id=\"rIdE1\" Type=\"\(officeRel)chart\" Target=\"../charts/chartm1.xml\""))
+        XCTAssertEqual(text("ppt/charts/chartm1.xml"), "<c:chartSpace/>")
+        XCTAssertTrue(text("ppt/charts/_rels/chartm1.xml.rels").contains("Target=\"../embeddings/oleObjectm1.bin\""))
+        XCTAssertEqual(text("ppt/embeddings/oleObjectm1.bin"), "ole")
+        let types = text("[Content_Types].xml")
+        XCTAssertTrue(types.contains("<Override PartName=\"/ppt/charts/chartm1.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.drawingml.chart+xml\"/>"))
+        XCTAssertTrue(types.contains("<Default Extension=\"bin\""))
+        XCTAssertFalse(parts.contains { $0.name.contains("downrev") || $0.name.contains("e2oDoc") })
+    }
+
+    func testATertiaryBooleanSetChangesOnlyTheFlagsItNames() {
+        // Primary fill booleans: fFilled set (use bit 20, value bit 4). The tertiary table's set names only
+        // fUseShapeAnchor and fRecolorFillAsPicture (use bits 21, 22, both false): fFilled must stay.
+        let primary = rec(0xF00B, ver: 3, inst: 1, le16(0x1BF) + le32(0x0010_0010))
+        let tertiary = rec(0xF122, ver: 3, inst: 2, le16(0x1BF) + le32(0x0060_0000) + le16(0x0181) + le32(0x123456))
+        let sp = rec(0xF004, ver: 15, rec(0xF00A, ver: 2, inst: 1, le32(2) + le32(0xA00)) + primary + tertiary)
+        let b = rec(0xF003, ver: 15, sp)
+        let shapes = OfficeArt.shapes(drawing: b)
+        XCTAssertEqual(shapes.first?.props[0x1BF], 0x0070_0010)   // fFilled kept; the two named flags set (false)
+        XCTAssertEqual(shapes.first?.props[0x181], 0x123456)
+    }
+
     func testSlideNumberAndDateMarksBecomeFields() throws {
         // text "Page *": a slide-number mark at position 5, then a date mark at position 6.
         let text: [UInt8] = "Page **".utf16.flatMap { [UInt8($0 & 0xFF), UInt8($0 >> 8)] }
