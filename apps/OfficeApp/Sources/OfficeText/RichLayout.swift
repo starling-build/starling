@@ -1517,6 +1517,9 @@ public struct PageSetup: Hashable, Codable, Sendable {
     public var columnGap: Double = 36
     /// A right-to-left section (`w:bidi`): its first column is the rightmost.
     public var rtlColumns = false
+    /// A rule down the middle of each gap between columns (`w:sep`, Word's
+    /// Columns > Line between).
+    public var columnLine = false
     /// Unequal columns (`w:equalWidth` 0): each one's width and the gap
     /// after it, as the file states them. Nil for equal columns.
     public var columnSpec: [ColumnSpan]?

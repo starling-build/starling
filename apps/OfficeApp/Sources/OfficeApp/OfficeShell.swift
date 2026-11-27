@@ -78,6 +78,7 @@ final class OfficeShellState: State<StatefulWidget> {
     private var _symbolOpen = false
     private var _fontOpen = false
     private var _pageSetupOpen = false
+    private var _columnsOpen = false
     private var _insertTableOpen = false
     private var _splitCellOpen = false
     private var _formulaOpen = false
@@ -477,6 +478,11 @@ final class OfficeShellState: State<StatefulWidget> {
             guard let self else { return }
             self.controller.breakUndoCoalescing()
             self.setState { self._pageSetupOpen = true }
+        }
+        session.onColumnsDialog = { [weak self] in
+            guard let self else { return }
+            self.controller.breakUndoCoalescing()
+            self.setState { self._columnsOpen = true }
         }
         session.onInsertTableDialog = { [weak self] in
             guard let self else { return }
@@ -1659,6 +1665,27 @@ final class OfficeShellState: State<StatefulWidget> {
                         padding: EdgeInsets.zero,
                         decoration: BoxDecoration(color: Color(0xFFFFFFFF)), focusedDecoration: BoxDecoration(color: Color(0xFFFFFFFF)),
                         showFocusRing: false, autofocus: true)))),
+            ])
+        }
+        if _columnsOpen {
+            let sections = controller.document.paragraphs.filter { $0.cell == nil && $0.style.sectionPage != nil }.count + 1
+            return Stack(children: [
+                window,
+                Positioned(left: 0, top: 0, right: 0, bottom: 0, child: ColumnsDialog(
+                    initial: session.sectionSetup(), sectionCount: sections,
+                    onOK: { [weak self] v in
+                        guard let self else { return }
+                        self.setState {
+                            self.controller.changePageSetup(allSections: v.allSections, lastSetup: self.session.pageSetup) { v.apply(to: &$0) }
+                            self.session.syncPageSetup()
+                            self._columnsOpen = false
+                        }
+                        self._editorFocus.requestFocus()
+                    },
+                    onCancel: { [weak self] in
+                        self?.setState { self?._columnsOpen = false }
+                        self?._editorFocus.requestFocus()
+                    })),
             ])
         }
         if _pageSetupOpen {
