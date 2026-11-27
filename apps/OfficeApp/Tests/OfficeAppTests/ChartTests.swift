@@ -404,6 +404,25 @@ final class ChartTests: XCTestCase {
         XCTAssertTrue(canvas.rects.contains { $0.width > 2 && $0.width < 20 && $0.height < 20 })
     }
 
+    /// A funnel label set "t" stands on its bar, its line box's foot on the bar's top edge; set "b" it hangs under
+    /// the bar, its line box's top on the bar's foot (chartex-lab2 p27, p28). The second point's label is boxed so
+    /// its line box is drawn; the first point keeps the labels off the plot's edges.
+    func testAFunnelLabelAboveOrBelowItsBarTouchesTheBarEdge() {
+        for (pos, above) in [("t", true), ("b", false)] {
+            let xml = """
+            <cx:chartSpace xmlns:cx="http://schemas.microsoft.com/office/drawing/2014/chartex" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><cx:chartData><cx:data id="0"><cx:numDim type="val"><cx:lvl ptCount="3"><cx:pt idx="0">9</cx:pt><cx:pt idx="1">5</cx:pt><cx:pt idx="2">3</cx:pt></cx:lvl></cx:numDim></cx:data></cx:chartData><cx:chart><cx:plotArea><cx:plotAreaRegion><cx:series layoutId="funnel"><cx:dataLabels pos="\(pos)"><cx:visibility seriesName="0" categoryName="0" value="1"/><cx:dataLabel idx="1"><cx:spPr><a:solidFill><a:srgbClr val="FFFF00"/></a:solidFill></cx:spPr><cx:visibility seriesName="0" categoryName="0" value="1"/></cx:dataLabel></cx:dataLabels><cx:dataId val="0"/></cx:series></cx:plotAreaRegion></cx:plotArea></cx:chart></cx:chartSpace>
+            """
+            let rgb: (XNode) -> Color? = { $0.first("a:srgbClr")?["val"].flatMap(PptxTheme.hex) }
+            guard var c = ChartXML.readChartex(XNode.parse(Data(xml.utf8))!, color: rgb) else { return XCTFail("not read") }
+            c.onSlide = true
+            let canvas = BoxDotCanvas()
+            ChartPainter.paint(c, canvas, Rect.fromLTWH(0, 0, 400, 300), pxPerPt: 1, theme: DeckTheme())
+            let bars = canvas.rects.filter { $0.height > 20 }.sorted { $0.top < $1.top }
+            guard bars.count == 3, let box = canvas.rects.first(where: { $0.height < 20 }) else { return XCTFail("\(pos): \(canvas.rects)") }
+            if above { XCTAssertEqual(box.bottom, bars[1].top, accuracy: 0.01) } else { XCTAssertEqual(box.top, bars[1].bottom, accuracy: 0.01) }
+        }
+    }
+
     /// A funnel's data labels: the series' own (category and value, ", " between), a point's own format, and a hidden one.
     func testAFunnelReadsItsPointLabels() {
         let xml = """
