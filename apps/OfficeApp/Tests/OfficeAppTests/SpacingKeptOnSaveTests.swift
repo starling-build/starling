@@ -9,7 +9,8 @@ final class SpacingKeptOnSaveTests: XCTestCase {
         let dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("test/corpus/docx/docs")
         let names = ((try? FileManager.default.contentsOfDirectory(atPath: dir.path)) ?? []).filter { $0.hasSuffix(".docx") }.sorted()
-        try XCTSkipIf(names.isEmpty, "corpus not restored")
+        // Every 12th file is checked and more than 10 checks are wanted, so a host holding only a few corpus files skips.
+        try XCTSkipIf(names.count < 130, "corpus not restored (\(names.count) files)")
         var checked = 0, mismatches: [String] = []
         for n in names.enumerated().filter({ $0.offset % 12 == 0 }).map({ $0.element }) {
             guard let data = try? Data(contentsOf: dir.appendingPathComponent(n)),
@@ -40,7 +41,8 @@ final class SpacingKeptOnSaveTests: XCTestCase {
         let dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("test/corpus/docx/docs")
         let names = ((try? FileManager.default.contentsOfDirectory(atPath: dir.path)) ?? []).filter { $0.hasSuffix(".docx") }.sorted()
-        try XCTSkipIf(names.isEmpty, "corpus not restored")
+        // Every 12th file is checked and more than 10 checks are wanted, so a host holding only a few corpus files skips.
+        try XCTSkipIf(names.count < 130, "corpus not restored (\(names.count) files)")
         func ids(_ xml: String) -> [String: String] {
             guard let root = XNode.parse(Data(xml.utf8)) else { return [:] }
             var out: [String: String] = [:]
