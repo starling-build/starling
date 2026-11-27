@@ -429,8 +429,18 @@ extension RichLayout {
         let lineH = g.painter.preferredLineHeight
         let proto = Rect.fromLTWH(0, 0, 2, lineH)
         let map = _map(i)
-        let o = g.painter.getOffsetForCaret(TextPosition(offset: map.painter(offset)), proto)
+        var o = g.painter.getOffsetForCaret(TextPosition(offset: map.painter(offset)), proto)
         let h = g.painter.getFullHeightForCaret(TextPosition(offset: map.painter(offset)), proto)
+        // A hung first line is set after a box of negative width, so its text starts left of the painter's 0 — and the
+        // engine's caret is held at 0 there, every caret of the first word standing at the left indent. Take x from
+        // the letter's own box (or the one before it, at the line's end) where the caret was held.
+        if o.dx < 0.01, i < _leadWidth.count, _leadWidth[i] < 0, !para.style.rightToLeft {
+            let at = map.painter(offset)
+            let next = g.painter.getBoxesForSelection(TextSelection(baseOffset: at, extentOffset: at + 1)).first
+            let prev = at > map.lead ? g.painter.getBoxesForSelection(TextSelection(baseOffset: at - 1, extentOffset: at)).last : nil
+            if let b = next, abs(b.top - o.dy) < lineH / 2 || prev == nil { o = Offset(b.left, o.dy) }
+            else if let b = prev { o = Offset(b.right, o.dy) }
+        }
         if let t = _turnedFrame(i, document) {
             // (A turned cell's caret is a line across its text's run.)
             return t.toPage(Rect.fromLTWH(t.origin.dx + o.dx, t.origin.dy + o.dy, 2, h > 0 ? h : lineH))
@@ -529,6 +539,19 @@ extension RichLayout {
             local = Offset(q.dx - t.origin.dx, min(max(q.dy - t.origin.dy, 0), g.painter.height - 0.01))
         }
         let tp = g.painter.getPositionForOffset(local)
+        // Left of the painter's 0 on a hung first line (its text set after a box of negative width) the engine answers
+        // the line's start: find the letter under the point from the letters' own boxes.
+        if local.dx < 0, i < _leadWidth.count, _leadWidth[i] < 0, !para.style.rightToLeft, _turnedFrame(i, document) == nil,
+           let first = g.painter.computeLineMetrics().first, local.dy < first.height {
+            let map = _map(i)
+            let end = g.painter.getLineBoundary(TextPosition(offset: map.lead)).end
+            var at = map.lead
+            while at < end, let b = g.painter.getBoxesForSelection(TextSelection(baseOffset: at, extentOffset: at + 1)).first,
+                  local.dx >= (b.left + b.right) / 2 {
+                at += 1
+            }
+            return RichPosition(paragraph: i, offset: para.alignedOffset(max(0, min(map.paragraph(at), para.length))))
+        }
         return RichPosition(paragraph: i, offset: para.alignedOffset(max(0, min(_map(i).paragraph(tp.offset), para.length))))
     }
 

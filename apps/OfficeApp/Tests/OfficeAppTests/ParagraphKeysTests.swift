@@ -88,4 +88,38 @@ final class ParagraphKeysTests: XCTestCase {
         c.undo()
         XCTAssertEqual(c.document.paragraphs[0].style.lineSpacing, 1.5, "one undo per key")
     }
+
+    /// The caret at the start of a hung paragraph stands at the first line's start (left + first-line indent), where its
+    /// first letter is drawn, not at the left indent the wrapped lines start at (the macOS driver run of #3254 showed it
+    /// mid-word at 1.0 in on a paragraph hung 0.5 in).
+    func testCaretAtTheStartOfAHungParagraphStandsAtTheFirstLine() {
+        let theme = RichTextTheme(fontFamily: OfficeFonts.serif)
+        let px = theme.pixelsPerPoint
+        var style = RichParagraphStyle()
+        style.indentLeft = 72
+        style.firstLineIndent = -36
+        let text = String(repeating: "word ", count: 40)
+        let doc = RichDocument(paragraphs: [RichParagraph(text: text, style: style)])
+        let layout = RichLayout(theme: theme, paragraphCount: 1)
+        layout.width = 400 * px
+        layout.ensureLaidOut(doc)
+        let start = layout.caretRect(RichPosition(paragraph: 0, offset: 0), doc).left / px
+        let second = layout.caretRect(RichPosition(paragraph: 0, offset: 1), doc).left / px
+        // The second line's start: the first offset whose caret is on a lower line.
+        let top0 = layout.caretRect(RichPosition(paragraph: 0, offset: 0), doc).top
+        var wrapped = 0.0
+        for o in 1 ..< text.utf16.count where layout.caretRect(RichPosition(paragraph: 0, offset: o), doc).top > top0 + 1 {
+            wrapped = layout.caretRect(RichPosition(paragraph: 0, offset: o), doc).left / px; break
+        }
+        XCTAssertEqual(wrapped - start, 36, accuracy: 0.5, "first line 36pt left of the wrapped lines")
+        XCTAssertGreaterThan(second, start, "the caret after the first letter is right of the one before it")
+        XCTAssertLessThan(second - start, 12, "the first letter's width, not a jump")
+        // A click on the first word's third letter lands there, not at the paragraph's start.
+        let third = layout.caretRect(RichPosition(paragraph: 0, offset: 2), doc)
+        let hit = layout.position(at: Offset(third.left + 1, third.top + third.height / 2), doc)
+        XCTAssertEqual(hit.offset, 2)
+        // Selecting the first word highlights it where it is drawn.
+        let sel = layout.selectionRects(RichSelection(anchor: RichPosition(paragraph: 0, offset: 0), focus: RichPosition(paragraph: 0, offset: 4)), doc)
+        XCTAssertEqual((sel.first?.left ?? -1) / px, start, accuracy: 0.5)
+    }
 }
