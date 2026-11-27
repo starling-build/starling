@@ -2246,6 +2246,29 @@ public struct RichControlMarker: Hashable, Codable, Sendable {
     }
 }
 
+/// What a content control's lock settings forbid, from its `w:sdtPr` XML. A group control locks what it holds (Word reads
+/// LockContents True with no `w:lock`); `sdtContentLocked` locks both, `contentLocked` the contents, `sdtLocked` the control.
+public struct RichControlLock: Hashable, Sendable {
+    /// The contents cannot be edited.
+    public var contents = false
+    /// The control cannot be deleted.
+    public var control = false
+    public init(properties: String?) {
+        guard let props = properties else { return }
+        if props.containsSubstring("<w:group/>") || props.containsSubstring("<w:group ") || props.containsSubstring("<w:group>") { contents = true }
+        if let t = props.rangeOfSubstring("<w:lock "), let a = props.rangeOfSubstring("w:val=\"", in: t.upperBound ..< props.endIndex),
+           let q = props[a.upperBound...].firstIndex(of: "\"") {
+            switch props[a.upperBound ..< q] {
+            case "sdtContentLocked": contents = true; control = true
+            case "contentLocked": contents = true
+            case "sdtLocked": control = true
+            default: break
+            }
+        }
+    }
+    public var isAny: Bool { contents || control }
+}
+
 /// A block-level content control (`w:sdt` around whole paragraphs or a table). The first paragraph it covers carries the
 /// start in `blockControlsBefore`, the last carries the end in `blockControlsAfter`; the start holds the control's
 /// `w:sdtPr` as the file had it. `aroundTable`: the control wraps a table, so it is written outside the table's cells.

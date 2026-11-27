@@ -7818,6 +7818,49 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(boldAt(try saved(c.document)), [false, false, false])
     }
 
+    /// W-RV-3: group and content-locked controls refuse edits.
+    func testLockedContentControlsRefuseEdits() throws {
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .letter))
+        let di = try XCTUnwrap(entries.firstIndex { $0.name == "word/document.xml" })
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let body = try XCTUnwrap(xml.range(of: "<w:body>")).upperBound ..< (try XCTUnwrap(xml.range(of: "<w:sectPr"))).lowerBound
+        func run(_ id: Int, _ props: String, _ text: String) -> String {
+            "<w:p><w:r><w:t xml:space=\"preserve\">Out </w:t></w:r><w:sdt><w:sdtPr><w:id w:val=\"\(id)\"/>\(props)</w:sdtPr><w:sdtContent><w:r><w:t>\(text)</w:t></w:r></w:sdtContent></w:sdt></w:p>"
+        }
+        xml.replaceSubrange(body, with: run(1, "<w:group/>", "Group") + run(2, "<w:lock w:val=\"sdtContentLocked\"/>", "Both") + run(3, "<w:lock w:val=\"sdtLocked\"/>", "Keep")
+            + "<w:sdt><w:sdtPr><w:id w:val=\"4\"/><w:lock w:val=\"contentLocked\"/></w:sdtPr><w:sdtContent><w:p><w:r><w:t>Block</w:t></w:r></w:p></w:sdtContent></w:sdt><w:p><w:r><w:t>Free</w:t></w:r></w:p>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let c = RichDocumentController(document: try DocxFormat.read(try Zip.write(entries)).document)
+        let before = c.document.paragraphs.map { $0.text }
+        for (p, o) in [(0, 6), (1, 6)] {
+            c.moveTo(RichPosition(paragraph: p, offset: o), extend: false)
+            c.insertText("X"); c.deleteBackward(); c.deleteForward()
+        }
+        c.moveTo(RichPosition(paragraph: 3, offset: 2), extend: false)
+        c.insertText("X"); c.insertParagraphBreak()
+        XCTAssertEqual(c.document.paragraphs.map { $0.text }, before)
+        // Whole locked control selected: contents locked, so no.
+        c.moveTo(RichPosition(paragraph: 1, offset: 4), extend: false)
+        c.moveTo(RichPosition(paragraph: 1, offset: 8), extend: true)
+        c.deleteBackward()
+        XCTAssertEqual(c.document.paragraphs.map { $0.text }, before)
+        // sdtLocked: contents editable, control not deletable.
+        c.moveTo(RichPosition(paragraph: 2, offset: 6), extend: false)
+        c.insertText("X")
+        XCTAssertEqual(c.document.paragraphs[2].text, "Out KeXep")
+        c.moveTo(RichPosition(paragraph: 2, offset: 4), extend: false)
+        c.moveTo(RichPosition(paragraph: 2, offset: 9), extend: true)
+        c.deleteBackward()
+        XCTAssertEqual(c.document.paragraphs[2].text, "Out KeXep")
+        // Outside text is free.
+        c.moveTo(RichPosition(paragraph: 0, offset: 0), extend: false)
+        c.insertText("Z")
+        XCTAssertEqual(c.document.paragraphs[0].text, "ZOut Group")
+        c.moveTo(RichPosition(paragraph: 4, offset: 0), extend: false)
+        c.insertText("Y")
+        XCTAssertEqual(c.document.paragraphs[4].text, "YFree")
+    }
+
     func testBlockLevelContentControlsSurviveASave() throws {
         var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .letter))
         let di = try XCTUnwrap(entries.firstIndex { $0.name == "word/document.xml" })
