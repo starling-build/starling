@@ -785,6 +785,8 @@ final class SlidesShellState: State<StatefulWidget> {
         if picture && !_hadPicture { _tab = .pictureFormat }
         if !picture && _tab == .pictureFormat { _tab = .home }
         _hadPicture = picture
+        // Shape Format shows while a shape, placeholder or text box is selected (PowerPoint does not switch to it).
+        if !deck.selectionHasShape && _tab == .shapeFormat { _tab = .home }
         // A selected table opens Table Design the same way.
         let table = deck.selectedTableOptions != nil
         if table && !_hadTable { _tab = .tableDesign }
