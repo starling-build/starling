@@ -194,6 +194,9 @@ extension RichLayout {
         // (The mixed Latin faces' line rule carries its own ascent and descent: a strut on the held run would throw them away. sa2 78bf1be7.)
         if base.ascentOverride != nil, base.debugLabel?.containsSubstring(" mixed-latin-line") == true { return nil }
         if base.ascentOverride != nil, base.debugLabel?.containsSubstring(" ruby-line") == true { return nil }
+        // (A turned ideograph line on its own face's split (see "turned-ideograph-line-stands-on-the-face-split"): a strut in the stand-in's face
+        // would split it evenly about Noto's ascent, DFKai-SB's baseline 0.05 em low. lab kaipad2.)
+        if base.ascentOverride != nil, base.debugLabel?.containsSubstring(" turned-split") == true { return nil }
         if wide, base.ascentOverride != nil, Self._thaiLineSplit(base.debugLabel, bold: false) != nil { return nil }
         // (Even leading: the engine's proportional strut scales the
         // face's ascent and descent by a height that counts its line gap
