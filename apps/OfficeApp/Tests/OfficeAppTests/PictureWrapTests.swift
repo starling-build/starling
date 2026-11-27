@@ -84,6 +84,54 @@ final class PictureWrapTests: XCTestCase {
         XCTAssertEqual(was.x, 20, accuracy: 0.01)
     }
 
+    /// "Fix position on page" sets the picture from the page where it stands; "Move with text" sets it from its paragraph
+    /// again. Each one undo step, each kept by a save, the horizontal placing left alone.
+    func testFixPositionOnPageAndMoveWithTextSave() throws {
+        let c = RichDocumentController(document: try DocxFormat.read(try floatingDocument()).document)
+        let i = try floatIndex(c)
+        let inline = c.document.paragraphs[i].image == nil ? c.document.paragraphs[i].inlineImages.first { $0.value.float != nil }?.key : nil
+        func float(_ c: RichDocumentController) throws -> ImageFloat {
+            try XCTUnwrap((inline.map { c.document.paragraphs[i].inlineImages[$0] } ?? c.document.paragraphs[i].image)?.float)
+        }
+        XCTAssertEqual(c.pictureMovesWithText(at: i, inline: inline), true)
+        XCTAssertFalse(c.setPictureMovesWithText(at: i, inline: inline, true, top: 120, paragraphTop: 90), "already so")
+        // Its paragraph 90pt down the page, the picture 30pt below that.
+        XCTAssertTrue(c.setPictureMovesWithText(at: i, inline: inline, false, top: 120, paragraphTop: 90))
+        var back = try reopened(c)
+        XCTAssertEqual(back.pictureMovesWithText(at: i, inline: inline), false)
+        XCTAssertEqual(try float(back).verticalFrom, "page")
+        XCTAssertEqual(try float(back).y, 120, accuracy: 0.01)
+        XCTAssertEqual(try float(back).horizontalFrom, "column")
+        XCTAssertEqual(try float(back).x, 20, accuracy: 0.01)
+        // Text above it grew: its paragraph is now 150pt down, the picture still at 120 on the page.
+        XCTAssertTrue(back.setPictureMovesWithText(at: i, inline: inline, true, top: 120, paragraphTop: 150))
+        back = try reopened(back)
+        XCTAssertEqual(try float(back).verticalFrom, "paragraph")
+        XCTAssertEqual(try float(back).y, -30, accuracy: 0.01)
+        c.undo()
+        XCTAssertEqual(try float(c).verticalFrom, "paragraph")
+        XCTAssertEqual(try float(c).y, 30, accuracy: 0.01)
+    }
+
+    /// The Picture Format tab's Fix Position on Page keeps the picture where the editor draws it.
+    func testPictureFormatTabFixesPositionOnPage() throws {
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(1280, 800))
+        let c = try XCTUnwrap(ui.state(OfficeShellState.self)).session.controller
+        c.load(try DocxFormat.read(try floatingDocument()).document)
+        let i = try floatIndex(c)
+        c.selectImage(at: i)
+        ui.pump()
+        XCTAssertTrue(ui.tap(tip: "Fix Position on Page"))
+        let f = try XCTUnwrap(c.document.paragraphs[i].image?.float)
+        XCTAssertEqual(f.verticalFrom, "page")
+        // Letter's 1in top margin, one line of "text", then 30pt down from the picture's paragraph.
+        XCTAssertGreaterThan(f.y, 72 + 30)
+        XCTAssertLessThan(f.y, 72 + 30 + 40)
+        XCTAssertTrue(ui.tap(tip: "Move with Text"))
+        XCTAssertEqual(c.document.paragraphs[i].image?.float?.verticalFrom, "paragraph")
+        XCTAssertEqual(c.document.paragraphs[i].image?.float?.y ?? 0, 30, accuracy: 0.5)
+    }
+
     /// The Picture Format tab shows the wrap choices and nudges of a selected floating picture, each one undo step.
     func testPictureFormatTabChoosesWrapAndNudges() throws {
         let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(1280, 800))

@@ -941,6 +941,16 @@ final class Ribbon: StatelessWidget {
                     Chrome.small(CupertinoIcons.arrow_up, "Nudge Up", fluent) { _ = c.movePicture(at: i, dx: 0, dy: -6) },
                     Chrome.small(CupertinoIcons.arrow_down, "Nudge Down", fluent) { _ = c.movePicture(at: i, dx: 0, dy: 6) },
                 ]),
+                Chrome.gap(8),
+                Chrome.rows([
+                    // Layout Options' pair: it rides with its paragraph, or stays put on the page as text moves.
+                    Chrome.small(CupertinoIcons.text_alignleft, "Move with Text", fluent, checked: c.pictureMovesWithText(at: i) == true) {
+                        _ = c.setPictureMovesWithText(at: i, true)
+                    },
+                    Chrome.small(CupertinoIcons.pin, "Fix Position on Page", fluent, checked: c.pictureMovesWithText(at: i) == false) {
+                        _ = c.setPictureMovesWithText(at: i, false)
+                    },
+                ]),
             ]))
         }
         if shape { return styleGroup + boxGroup + groupWidgets + floating + [size, turn, tools, remove] }

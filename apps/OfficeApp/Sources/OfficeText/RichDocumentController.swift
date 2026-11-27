@@ -2466,6 +2466,9 @@ public final class RichDocumentController: ChangeNotifier {
 
     /// Set by the editor: the laid-out height of the row a cell paragraph is in.
     public var rowHeightProbe: ((Int) -> Double?)?
+    /// Where the floating picture at paragraph `index` (or its inline picture `id`) is drawn: its top and its paragraph's
+    /// top, in points from the top of its page. Set by the editor that lays it out.
+    public var pictureSpotProbe: ((Int, String?) -> (Double, Double)?)?
 
     /// Equal heights: every target row (the whole table when one row is chosen) gets the tallest of them.
     public func distributeRows() {

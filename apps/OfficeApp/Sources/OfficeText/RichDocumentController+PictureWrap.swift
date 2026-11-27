@@ -173,6 +173,18 @@ extension String {
         return String(xml[xml.startIndex ..< anchor.lowerBound]) + open + body + "</wp:inline>" + String(xml[anchor.upperBound...])
     }
 
+    /// `xml`'s `wp:positionV` rewritten as `y` EMU from `from` (an offset, not an alignment), or nil with none.
+    static func _anchorPlacedV(_ xml: String, from: String, y: Int) -> String? {
+        guard xml.containsSubstring("<wp:anchor"), let open = xml.rangeOfSubstring("<wp:positionV"),
+              let tagEnd = xml.rangeOfSubstring(">", in: open.upperBound ..< xml.endIndex) else { return nil }
+        let end: String.Index
+        if xml[xml.index(before: tagEnd.lowerBound)] == "/" { end = tagEnd.upperBound }
+        else if let close = xml.rangeOfSubstring("</wp:positionV>", in: tagEnd.upperBound ..< xml.endIndex) { end = close.upperBound }
+        else { return nil }
+        let element = "<wp:positionV relativeFrom=\"\(from)\"><wp:posOffset>\(y)</wp:posOffset></wp:positionV>"
+        return String(xml[xml.startIndex ..< open.lowerBound]) + element + String(xml[end...])
+    }
+
     static func _anchorMoved(_ xml: String, x: Int, y: Int) -> String? {
         guard !xml.containsSubstring("pctPos") else { return nil }
         func set(_ xml: String, _ element: String, _ value: Int) -> String? {
@@ -360,6 +372,35 @@ extension RichDocumentController {
         var new = old
         new.sourceXML = patched
         f.x = x
+        f.y = y
+        new.float = f
+        _store(index, id, old: old, new: new)
+        return true
+    }
+
+    /// Layout Options' "Move with text": whether the floating picture at `index` (or its inline picture `id`) is placed from
+    /// its paragraph (or line), so it rides along as text above it grows; false when it is fixed on the page (placed from the
+    /// page, margin…); nil when it does not float.
+    public func pictureMovesWithText(at index: Int, inline id: String? = nil) -> Bool? {
+        guard let f = _floating(index, id)?.float else { return nil }
+        return f.verticalFrom == "paragraph" || f.verticalFrom == "line"
+    }
+
+    /// "Move with text" on or off for the floating picture at `index` (or its inline picture `id`), one undo step, keeping it
+    /// where it stands: on, it is placed `top - paragraphTop` points below its paragraph; off ("Fix position on page"), `top`
+    /// points below the page's top. `top` and `paragraphTop` are points from the top of the page it is drawn on (the
+    /// layout's, `pictureSpotProbe`, when not given). Only the vertical placing changes, as in Word.
+    @discardableResult
+    public func setPictureMovesWithText(at index: Int, inline id: String? = nil, _ moves: Bool, top: Double? = nil, paragraphTop: Double? = nil) -> Bool {
+        guard let old = _floating(index, id), let xml = old.sourceXML, var f = old.float, pictureMovesWithText(at: index, inline: id) != moves,
+              let spot = top.map({ ($0, paragraphTop ?? 0) }) ?? pictureSpotProbe?(index, id) else { return false }
+        let y = moves ? spot.0 - spot.1 : spot.0
+        let from = moves ? "paragraph" : "page"
+        guard let patched = String._anchorPlacedV(xml, from: from, y: Int((y * 12700).rounded())) else { return false }
+        var new = old
+        new.sourceXML = patched
+        f.verticalFrom = from
+        f.verticalAlign = nil
         f.y = y
         new.float = f
         _store(index, id, old: old, new: new)
