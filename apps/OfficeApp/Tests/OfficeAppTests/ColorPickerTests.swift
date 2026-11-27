@@ -77,4 +77,17 @@ final class ColorPickerTests: XCTestCase {
         ui.tap(text: "OK")
         XCTAssertEqual(got, 0x10FF30)
     }
+
+    func testASixDigitHexTypedInTheCustomDialogIsKeptWhole() {
+        var got: UInt32?
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: CustomColorDialog(
+            initial: 0xFFFFFF, onOK: { got = $0 }, onCancel: {}), title: "T"), size: Size(1280, 800))
+        let b = ui.elements().filter { $0.widget is FluentTextBox }[0].findRenderObject() as! RenderBox
+        ui.tap(at: b.localToGlobal(Offset(b.size.width / 2, b.size.height / 2)))
+        for _ in 0..<8 { ui.press(.backspace) }
+        ui.type("12AB34")   // "12A" alone is the short form #1122AA; the field must not be rewritten to it
+        XCTAssertEqual(ui.state(CustomColorDialogState.self)?.rgb, 0x12AB34)
+        ui.tap(text: "OK")
+        XCTAssertEqual(got, 0x12AB34)
+    }
 }

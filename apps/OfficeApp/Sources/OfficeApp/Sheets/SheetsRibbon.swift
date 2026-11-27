@@ -47,6 +47,7 @@ enum SheetCommand {
     case columnFilter(col: Int, kind: String)   // a filter dropdown's Number/Text/Date/Colour Filters…
     case nameManager               // Formulas → Name Manager
     case formatCells(tab: Int)     // Home → Borders → More Borders… (the Format Cells dialog on a tab)
+    case moreColors(fill: Bool)    // Home → Fill Color / Font Color → More Colors… (a colour by hex or RGB)
     case createNames               // Formulas → Create from Selection
     case useName(String)           // Formulas → Use in Formula: the name into the formula being typed
     case protectSheetDialog        // Review → Protect Sheet / Unprotect Sheet
@@ -120,10 +121,12 @@ extension Ribbon {
                             WorkbookController.BorderPreset.allCases.map { p in (p.title, { wb.applyBorders(p) }) }
                             + [("More Borders…", { wb.onCommand?(.formatCells(tab: 3)) })],
                             keyPrefix: "borders", tip: "Borders"),
-                Chrome.colorMenu(FluentSystemIcons.paintBrush, "Fill Color", fluent, colors: colors, none: "No Fill") { c in
+                Chrome.colorMenu(FluentSystemIcons.paintBrush, "Fill Color", fluent, colors: colors, none: "No Fill",
+                                 more: { wb.onCommand?(.moreColors(fill: true)) }) { c in
                     wb.setStyle { $0.fill = rgb(c) }
                 },
-                Chrome.colorMenu(FluentSystemIcons.textColor, "Font Color", fluent, colors: colors, none: "Automatic") { c in
+                Chrome.colorMenu(FluentSystemIcons.textColor, "Font Color", fluent, colors: colors, none: "Automatic",
+                                 more: { wb.onCommand?(.moreColors(fill: false)) }) { c in
                     wb.setStyle { $0.color = rgb(c) }
                 },
             ]),
