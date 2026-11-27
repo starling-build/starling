@@ -641,6 +641,7 @@ public final class RichDocumentController: ChangeNotifier {
     /// Apply one op inside an `edit` block.
     public func perform(_ op: EditOp) {
         precondition(_inEdit, "perform(_:) must run inside edit { }")
+        let op = document.trackRevisions ? _trackingFormat(op) : op
         let inverse = op.apply(to: &document, changes: &_pendingChanges)
         _undo[_undo.count - 1].inverses.append(inverse)
     }
@@ -721,7 +722,9 @@ public final class RichDocumentController: ChangeNotifier {
             if document.paragraphs[selection.focus.paragraph].isImage {
                 // Typing on a picture starts a paragraph below it.
                 let i = selection.focus.paragraph
-                perform(.insertParagraphs(at: i + 1, [RichParagraph()]))
+                var added = RichParagraph()
+                added.style.markRevision = _insertionMark()
+                perform(.insertParagraphs(at: i + 1, [added]))
                 _setCaret(RichPosition(paragraph: i + 1, offset: 0))
             }
             let style = typingStyle
@@ -731,15 +734,34 @@ public final class RichDocumentController: ChangeNotifier {
                 let text = String(piece)
                 if !text.isEmpty {
                     let pos = selection.focus
-                    let runs = style.map { [Run(length: text.utf16.count, style: _leavingField($0, at: pos))] }
-                    var inherited = _leavingField(document.paragraphs[pos.paragraph].style(at: pos.offset), at: pos)
-                    if inherited.revision?.kind == .deleted { inherited.revision = nil }  // typed text is new, not struck out
+                    let runs = style.map { [Run(length: text.utf16.count, style: _typed(_leavingField($0, at: pos)))] }
+                    let inherited = _typed(_leavingField(document.paragraphs[pos.paragraph].style(at: pos.offset), at: pos))
                     perform(.insertText(pos, text, runs ?? [Run(length: text.utf16.count, style: inherited)]))
                     _setCaret(RichPosition(paragraph: pos.paragraph, offset: pos.offset + text.utf16.count))
                 }
             }
             typingStyle = style  // a typed run keeps the pending style alive
         }
+    }
+
+    /// Who is editing and when, for the tracked changes the editor records: the app sets it to the user's
+    /// name and the clock (W3CDTF, as Word writes `w:date`).
+    public nonisolated(unsafe) static var reviewer: () -> (author: String, date: String) = { ("", "") }
+
+    /// The style of text the editor puts in: new text is never struck out, and with track changes on it is
+    /// an insertion by the reviewer, as Word records typing (`w:ins` with author and date).
+    func _typed(_ style: CharStyle) -> CharStyle {
+        var out = style
+        if out.revision?.kind == .deleted { out.revision = nil }
+        if let mark = _insertionMark() { out.revision = mark }
+        return out
+    }
+
+    /// An insertion by the reviewer, now; nil with track changes off.
+    func _insertionMark() -> RevisionMark? {
+        guard document.trackRevisions else { return nil }
+        let who = Self.reviewer()
+        return RevisionMark(kind: .inserted, author: who.author, date: who.date)
     }
 
     /// Text typed at the end of a field's result (or after it) is not part of the field: the field marks are dropped
@@ -779,7 +801,9 @@ public final class RichDocumentController: ChangeNotifier {
     private func _splitAtCaret() {
         let pos = selection.focus
         if document.paragraphs[pos.paragraph].isImage {
-            perform(.insertParagraphs(at: pos.paragraph + 1, [RichParagraph()]))
+            var added = RichParagraph()
+            added.style.markRevision = _insertionMark()
+            perform(.insertParagraphs(at: pos.paragraph + 1, [added]))
             _setCaret(RichPosition(paragraph: pos.paragraph + 1, offset: 0))
             return
         }
@@ -795,6 +819,13 @@ public final class RichDocumentController: ChangeNotifier {
         }
         tailStyle.pageBreakBefore = false
         perform(.splitParagraph(pos, tailStyle: tailStyle))
+        // With track changes on, the new mark is the one ending the text before the caret (Word marks that
+        // pilcrow inserted; the paragraph's own mark, and any change to it, goes on with the text after).
+        if let mark = _insertionMark() {
+            let head = document.paragraphs[pos.paragraph].style
+            var marked = head; marked.markRevision = mark
+            perform(.setParagraphStyle(pos.paragraph, old: head, new: marked))
+        }
         _setCaret(RichPosition(paragraph: pos.paragraph + 1, offset: 0))
     }
 
@@ -818,10 +849,13 @@ public final class RichDocumentController: ChangeNotifier {
             if document.paragraphs[selection.focus.paragraph].isImage {
                 // Pasting or dropping on a picture goes below it, as typing does.
                 let i = selection.focus.paragraph
-                perform(.insertParagraphs(at: i + 1, [RichParagraph()]))
+                var added = RichParagraph()
+                added.style.markRevision = _insertionMark()
+                perform(.insertParagraphs(at: i + 1, [added]))
                 _setCaret(RichPosition(paragraph: i + 1, offset: 0))
             }
             var fragment = fragment
+            let mark = _insertionMark()
             var pos = selection.focus
             if smart, fragment.count == 1, !fragment[0].isImage {
                 let pad = _smartPad(fragment[0].text, at: pos)
@@ -835,6 +869,11 @@ public final class RichDocumentController: ChangeNotifier {
             for (i, para) in fragment.enumerated() {
                 if i > 0 {
                     perform(.splitParagraph(pos, tailStyle: para.style))
+                    if let mark {  // tracked: the mark ending the text before the split is a new one
+                        let head = document.paragraphs[pos.paragraph].style
+                        var marked = head; marked.markRevision = mark
+                        perform(.setParagraphStyle(pos.paragraph, old: head, new: marked))
+                    }
                     pos = RichPosition(paragraph: pos.paragraph + 1, offset: 0)
                     // A fragment's inner paragraphs carry their own style.
                     let old = document.paragraphs[pos.paragraph].style
@@ -843,7 +882,8 @@ public final class RichDocumentController: ChangeNotifier {
                     }
                 }
                 if !para.text.isEmpty {
-                    perform(.insertText(pos, para.text, para.runs))
+                    let runs = mark == nil ? para.runs : para.runs.map { r in var r = r; r.style.revision = mark; return r }
+                    perform(.insertText(pos, para.text, runs))
                     pos.offset += para.length
                 }
             }
@@ -1226,8 +1266,7 @@ public final class RichDocumentController: ChangeNotifier {
             _setCaret(RichPosition(paragraph: pos.paragraph, offset: from))
         } else if pos.paragraph > 0 {
             let prevLen = document.paragraphs[pos.paragraph - 1].length
-            perform(.mergeParagraph(pos.paragraph - 1,
-                                    removedStyle: document.paragraphs[pos.paragraph].style))
+            _joinParagraphs(pos.paragraph - 1)
             _setCaret(RichPosition(paragraph: pos.paragraph - 1, offset: prevLen))
         }
     }
@@ -1253,10 +1292,12 @@ public final class RichDocumentController: ChangeNotifier {
         }
         if pos.offset < para.length {
             let to = word ? para.wordEnd(after: pos.offset) : para.graphemeAfter(pos.offset)
-            _deleteRange(in: pos.paragraph, pos.offset ..< to)
+            // Tracked, the caret steps past the text it marked, as Word's does.
+            let kept = _deleteRange(in: pos.paragraph, pos.offset ..< to)
+            _setCaret(RichPosition(paragraph: pos.paragraph, offset: pos.offset + kept))
+            return
         } else if pos.paragraph + 1 < document.paragraphs.count {
-            perform(.mergeParagraph(pos.paragraph,
-                                    removedStyle: document.paragraphs[pos.paragraph + 1].style))
+            if !_joinParagraphs(pos.paragraph) { _setCaret(RichPosition(paragraph: pos.paragraph + 1, offset: 0)); return }
         }
         _setCaret(pos)
     }
@@ -1267,14 +1308,138 @@ public final class RichDocumentController: ChangeNotifier {
         edit { _deleteSelectionOps() }
     }
 
-    private func _deleteRange(in paragraph: Int, _ range: Range<Int>) {
-        guard range.upperBound > range.lowerBound else { return }
+    /// Delete `range` of a paragraph. With track changes on, the text stays, marked deleted by the reviewer,
+    /// as Word records a deletion (`w:del`); only the reviewer's own insertions really go, and text already
+    /// deleted is left as it is. Returns how many units of the range are still there.
+    @discardableResult
+    private func _deleteRange(in paragraph: Int, _ range: Range<Int>) -> Int {
+        guard range.upperBound > range.lowerBound else { return 0 }
+        if let mark = _deletionMark() { return _trackDeletion(in: paragraph, range, mark) }
+        _removeRange(in: paragraph, range)
+        return 0
+    }
+
+    private func _removeRange(in paragraph: Int, _ range: Range<Int>) {
         let para = document.paragraphs[paragraph]
         let a = String.Index(utf16Offset: range.lowerBound, in: para.text)
         let b = String.Index(utf16Offset: range.upperBound, in: para.text)
         let text = String(para.text[a ..< b])
         perform(.deleteText(RichPosition(paragraph: paragraph, offset: range.lowerBound),
                             text, para.runs(in: range)))
+    }
+
+    /// The run properties the save writes for a style (inside `w:rPr`); the app sets it. With track changes
+    /// on, a run whose properties change keeps the ones it had before (`w:rPrChange`).
+    public nonisolated(unsafe) static var runPropertiesXML: ((CharStyle) -> String)? = nil
+
+    /// With track changes on, formatting is recorded as Word records it: a run or paragraph whose properties
+    /// change takes a format change by the reviewer holding the properties it had before. A second change
+    /// keeps the first one's "before", as Word's does. The reviewer's own new text is just formatted.
+    func _trackingFormat(_ op: EditOp) -> EditOp {
+        switch op {
+        case .setRuns(let i, let old, let new):
+            guard let xml = Self.runPropertiesXML else { return op }
+            return .setRuns(i, old: old, new: _trackedRuns(old, new, xml))
+        case .setParagraphStyle(let i, let old, var new):
+            guard new.propertyChange == old.propertyChange, Self._formatOnly(old) != Self._formatOnly(new) else { return op }
+            let who = Self.reviewer()
+            new.propertyChange = old.propertyChange ?? FormatChange(author: who.author, date: who.date, oldRPrXML: "",
+                                                                    previous: .paragraph(Self._formatOnly(old)))
+            return .setParagraphStyle(i, old: old, new: new)
+        default: return op
+        }
+    }
+
+    /// A paragraph style without its tracked changes and mark: what a paragraph format change compares.
+    static func _formatOnly(_ s: RichParagraphStyle) -> RichParagraphStyle {
+        var out = s; out.markRevision = nil; out.propertyChange = nil; out.mark = nil
+        return out
+    }
+
+    private func _trackedRuns(_ old: [Run], _ new: [Run], _ xml: (CharStyle) -> String) -> [Run] {
+        func plain(_ s: CharStyle) -> CharStyle { var p = s; p.revision = nil; p.formatChange = nil; return p }
+        let who = Self.reviewer()
+        var out: [Run] = []
+        var oi = 0, ni = 0, oUsed = 0, nUsed = 0
+        while oi < old.count, ni < new.count {
+            let n = min(old[oi].length - oUsed, new[ni].length - nUsed)
+            let o = old[oi].style
+            var s = new[ni].style
+            let own = o.revision?.kind == .inserted && !(o.revision?.moved ?? false) && o.revision?.author == who.author
+            if n > 0, !own, s.formatChange == o.formatChange, xml(plain(o)) != xml(plain(s)) {
+                s.formatChange = o.formatChange ?? FormatChange(author: who.author, date: who.date,
+                                                                oldRPrXML: "<w:rPr>" + xml(plain(o)) + "</w:rPr>")
+            }
+            if n > 0 {
+                if let last = out.last, last.style == s { out[out.count - 1].length += n } else { out.append(Run(length: n, style: s)) }
+            }
+            oUsed += n; nUsed += n
+            if oUsed >= old[oi].length { oi += 1; oUsed = 0 }
+            if nUsed >= new[ni].length { ni += 1; nUsed = 0 }
+        }
+        // (Lengths differ only if the op is not a restyle; keep whatever is left as given.)
+        if ni < new.count { out.append(contentsOf: new[ni...].enumerated().map { k, r in k == 0 ? Run(length: r.length - nUsed, style: r.style) : r }) }
+        return out
+    }
+
+    /// A deletion by the reviewer, now; nil with track changes off.
+    func _deletionMark() -> RevisionMark? {
+        guard document.trackRevisions else { return nil }
+        let who = Self.reviewer()
+        return RevisionMark(kind: .deleted, author: who.author, date: who.date)
+    }
+
+    /// Whether a tracked change is the reviewer's own insertion, which deleting takes away rather than
+    /// marking (Word does the same: deleting what you typed leaves no trace).
+    func _ownInsertion(_ mark: RevisionMark?, _ deletion: RevisionMark) -> Bool {
+        guard let mark, mark.kind == .inserted, !mark.moved else { return false }
+        return mark.author == deletion.author
+    }
+
+    private func _trackDeletion(in paragraph: Int, _ range: Range<Int>, _ mark: RevisionMark) -> Int {
+        var own: [Range<Int>] = []
+        var pos = 0
+        for run in document.paragraphs[paragraph].runs {
+            let lo = max(pos, range.lowerBound), hi = min(pos + run.length, range.upperBound)
+            pos += run.length
+            if hi > lo, _ownInsertion(run.style.revision, mark) {
+                if let last = own.last, last.upperBound == lo { own[own.count - 1] = last.lowerBound ..< hi } else { own.append(lo ..< hi) }
+            }
+        }
+        for r in own.reversed() { _removeRange(in: paragraph, r) }
+        let kept = range.count - own.reduce(0) { $0 + $1.count }
+        guard kept > 0 else { return 0 }
+        var para = document.paragraphs[paragraph]
+        let old = para.runs
+        para.applyStyle(range.lowerBound ..< range.lowerBound + kept) { s in
+            if s.revision?.kind != .deleted { s.revision = mark }
+        }
+        if para.runs != old { perform(.setRuns(paragraph, old: old, new: para.runs)) }
+        return kept
+    }
+
+    /// Join paragraph `index + 1` onto `index`, or with track changes on mark `index`'s paragraph mark
+    /// deleted (a mark the reviewer inserted goes, as their text does). Returns whether they joined.
+    @discardableResult
+    private func _joinParagraphs(_ index: Int) -> Bool {
+        if let mark = _deletionMark(), !_ownInsertion(document.paragraphs[index].style.markRevision, mark) {
+            let old = document.paragraphs[index].style
+            if old.markRevision?.kind != .deleted {
+                var marked = old; marked.markRevision = mark
+                perform(.setParagraphStyle(index, old: old, new: marked))
+            }
+            return false
+        }
+        let tail = document.paragraphs[index + 1].style
+        let ownMark = document.paragraphs[index].style.markRevision
+        perform(.mergeParagraph(index, removedStyle: tail))
+        // The mark that goes is the one ending `index`; what is left ends with the next paragraph's.
+        if ownMark != nil, document.paragraphs[index].style.markRevision != tail.markRevision {
+            let old = document.paragraphs[index].style
+            var joined = old; joined.markRevision = tail.markRevision
+            perform(.setParagraphStyle(index, old: old, new: joined))
+        }
+        return true
     }
 
     /// Remove the selection's contents; caret lands at its start.
@@ -1313,7 +1478,9 @@ public final class RichDocumentController: ChangeNotifier {
         let b = document.clamped(selection.end)
         guard a != b else { return }
         if a.paragraph == b.paragraph {
-            _deleteRange(in: a.paragraph, a.offset ..< b.offset)
+            let kept = _deleteRange(in: a.paragraph, a.offset ..< b.offset)
+            _setCaret(RichPosition(paragraph: a.paragraph, offset: a.offset + kept))
+            return
         } else if _crossesCellWall(a, b),
                   document.paragraphs[a.paragraph].cell != nil || document.paragraphs[b.paragraph].cell != nil {
             // A range that leaves a cell (or enters one) clears what it
@@ -1329,6 +1496,22 @@ public final class RichDocumentController: ChangeNotifier {
                 _deleteRange(in: i, lo ..< hi)
             }
         } else {
+            if _deletionMark() != nil {
+                // Tracked: every paragraph keeps its place; the text and the marks between are marked
+                // deleted, and the caret goes after them, where Word's goes (typing over a selection
+                // writes the new text after the deleted).
+                var i = a.paragraph, last = b.paragraph, lo = a.offset, endOffset = b.offset
+                while true {
+                    let hi = i == last ? endOffset : document.paragraphs[i].length
+                    let end = lo + _deleteRange(in: i, lo ..< hi)
+                    if i == last { _setCaret(RichPosition(paragraph: i, offset: end)); break }
+                    if _joinParagraphs(i) {  // the next paragraph now goes on at `end`
+                        if i + 1 == last { endOffset += end }
+                        last -= 1; lo = end
+                    } else { i += 1; lo = 0 }
+                }
+                return
+            }
             // Tail of the first, head of the last, the middle ones whole,
             // then join first and last.
             let firstLen = document.paragraphs[a.paragraph].length
@@ -1451,11 +1634,12 @@ public final class RichDocumentController: ChangeNotifier {
         let pos = selection.focus
         guard pos.offset >= units else { insertText(replacement); return }
         edit(kind: .typing) {
-            let style = typingStyle ?? document.paragraphs[pos.paragraph].style(at: pos.offset)
-            _deleteRange(in: pos.paragraph, (pos.offset - units) ..< pos.offset)
-            perform(.insertText(RichPosition(paragraph: pos.paragraph, offset: pos.offset - units), replacement,
+            let style = _typed(typingStyle ?? document.paragraphs[pos.paragraph].style(at: pos.offset))
+            // (Tracked, the replaced text stays, deleted, and the replacement follows it, as in Word.)
+            let at = pos.offset - units + _deleteRange(in: pos.paragraph, (pos.offset - units) ..< pos.offset)
+            perform(.insertText(RichPosition(paragraph: pos.paragraph, offset: at), replacement,
                                 [Run(length: replacement.utf16.count, style: style)]))
-            _setCaret(RichPosition(paragraph: pos.paragraph, offset: pos.offset - units + replacement.utf16.count))
+            _setCaret(RichPosition(paragraph: pos.paragraph, offset: at + replacement.utf16.count))
         }
     }
 
@@ -1467,7 +1651,7 @@ public final class RichDocumentController: ChangeNotifier {
             let pos = selection.focus
             let para = document.paragraphs[pos.paragraph]
             guard !para.isImage else { return }
-            let style = typingStyle ?? para.style(at: pos.offset)
+            let style = _typed(typingStyle ?? para.style(at: pos.offset))
             perform(.insertText(pos, "\n", [Run(length: 1, style: style)]))
             _setCaret(RichPosition(paragraph: pos.paragraph, offset: pos.offset + 1))
         }
@@ -1497,13 +1681,13 @@ public final class RichDocumentController: ChangeNotifier {
             // Replacing text takes the style of what it replaces — an IME's
             // commit keeps the style its marked text was typed in — and an
             // insertion the style before it, as typing does.
-            let style = typingStyle ?? para.style(at: hi > lo ? lo + 1 : lo)
-            if hi > lo { _deleteRange(in: index, lo ..< hi) }
+            let style = _typed(typingStyle ?? para.style(at: hi > lo ? lo + 1 : lo))
+            let at = hi > lo ? lo + _deleteRange(in: index, lo ..< hi) : lo
             if !text.isEmpty {
-                perform(.insertText(RichPosition(paragraph: index, offset: lo), text,
+                perform(.insertText(RichPosition(paragraph: index, offset: at), text,
                                     [Run(length: text.utf16.count, style: style)]))
             }
-            _setCaret(RichPosition(paragraph: index, offset: lo + text.utf16.count))
+            _setCaret(RichPosition(paragraph: index, offset: at + text.utf16.count))
         }
     }
 
@@ -1554,10 +1738,11 @@ public final class RichDocumentController: ChangeNotifier {
                     pos = q
                 }
                 guard newText != old else { continue }
-                _deleteRange(in: i, lo ..< hi)
-                perform(.insertText(RichPosition(paragraph: i, offset: lo), newText, newRuns))
+                let at = lo + _deleteRange(in: i, lo ..< hi)
+                perform(.insertText(RichPosition(paragraph: i, offset: at), newText,
+                                    newRuns.map { r in var r = r; r.style = _typed(r.style); return r }))
                 if block == nil, i == end.paragraph {
-                    selection = RichSelection(anchor: start, focus: RichPosition(paragraph: i, offset: lo + newText.utf16.count))
+                    selection = RichSelection(anchor: start, focus: RichPosition(paragraph: i, offset: at + newText.utf16.count))
                 } else if let block {
                     selection = RichSelection(anchor: start, focus: end, block: block)
                 }
@@ -3642,10 +3827,10 @@ public final class RichDocumentController: ChangeNotifier {
                     let hi = r.upperBound.utf16Offset(in: text)
                     let para = document.paragraphs[i]
                     let style = para.style(at: lo + 1)
-                    _deleteRange(in: i, lo ..< hi)
+                    let at = lo + _deleteRange(in: i, lo ..< hi)  // tracked: the old text stays, deleted, before the new
                     if !replacement.isEmpty {
-                        perform(.insertText(RichPosition(paragraph: i, offset: lo), replacement,
-                                            [Run(length: replacement.utf16.count, style: style)]))
+                        perform(.insertText(RichPosition(paragraph: i, offset: at), replacement,
+                                            [Run(length: replacement.utf16.count, style: _typed(style))]))
                     }
                     count += 1
                     text = document.paragraphs[i].text
@@ -3709,12 +3894,12 @@ public final class RichDocumentController: ChangeNotifier {
         let replacement = pattern.replacement(template, for: m, in: text)
         edit {
             let style = document.paragraphs[i].style(at: lo + 1)
-            _deleteRange(in: i, lo ..< hi)
+            let at = lo + _deleteRange(in: i, lo ..< hi)  // tracked: the old text stays, deleted, before the new
             if !replacement.isEmpty {
-                perform(.insertText(RichPosition(paragraph: i, offset: lo), replacement,
-                                    [Run(length: replacement.utf16.count, style: style)]))
+                perform(.insertText(RichPosition(paragraph: i, offset: at), replacement,
+                                    [Run(length: replacement.utf16.count, style: _typed(style))]))
             }
-            _setCaret(RichPosition(paragraph: i, offset: lo + replacement.utf16.count))
+            _setCaret(RichPosition(paragraph: i, offset: at + replacement.utf16.count))
         }
         return true
     }
@@ -3733,10 +3918,10 @@ public final class RichDocumentController: ChangeNotifier {
                     let hi = m.range.upperBound.utf16Offset(in: text)
                     let replacement = pattern.replacement(template, for: m, in: text)
                     let style = document.paragraphs[i].style(at: lo + 1)
-                    _deleteRange(in: i, lo ..< hi)
+                    let at = lo + _deleteRange(in: i, lo ..< hi)  // tracked: the old text stays, deleted, before the new
                     if !replacement.isEmpty {
-                        perform(.insertText(RichPosition(paragraph: i, offset: lo), replacement,
-                                            [Run(length: replacement.utf16.count, style: style)]))
+                        perform(.insertText(RichPosition(paragraph: i, offset: at), replacement,
+                                            [Run(length: replacement.utf16.count, style: _typed(style))]))
                     }
                     count += 1
                 }
