@@ -265,6 +265,64 @@ final class PictureWrapTests: XCTestCase {
         XCTAssertLessThan(images.last?.offset ?? .max, canvas.fills.firstIndex(of: 1) ?? -1, "both under the text: \(canvas.fills)")
     }
 
+    /// A click lands on a floating picture where it is drawn, also when it is drawn well away from its anchor paragraph:
+    /// the hit test mapped the picture through the paragraph under its middle, so the first picture (drawn lower down,
+    /// over other text) kept only a sliver to click and the second one took clicks above where it was drawn (wob3.docx).
+    func testClickSelectsFloatingPictureWherePainted() throws {
+        let base = try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "one"), RichParagraph(image: ImageAttachment(data: png, width: 100, height: 50))]), pageSetup: .letter)
+        var entries = try Zip.read(base)
+        let di = try XCTUnwrap(entries.firstIndex { $0.name == "word/document.xml" })
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let embed = try XCTUnwrap(xml.rangeOfSubstring("r:embed=\""))
+        let id = String(xml[embed.upperBound...].prefix { $0 != "\"" })
+        func picture(_ z: Int, x: Int, y: Int, _ n: Int) -> String {
+            "<w:p><w:r><w:drawing><wp:anchor distT=\"0\" distB=\"0\" distL=\"0\" distR=\"0\" simplePos=\"0\" relativeHeight=\"\(z)\" behindDoc=\"0\" locked=\"0\" layoutInCell=\"1\" allowOverlap=\"1\">"
+            + "<wp:simplePos x=\"0\" y=\"0\"/><wp:positionH relativeFrom=\"page\"><wp:posOffset>\(x * 12700)</wp:posOffset></wp:positionH>"
+            + "<wp:positionV relativeFrom=\"page\"><wp:posOffset>\(y * 12700)</wp:posOffset></wp:positionV><wp:extent cx=\"1828800\" cy=\"1371600\"/>"
+            + "<wp:wrapNone/><wp:docPr id=\"\(n)\" name=\"Picture \(n)\"/>"
+            + "<a:graphic xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\"><a:graphicData uri=\"http://schemas.openxmlformats.org/drawingml/2006/picture\">"
+            + "<pic:pic xmlns:pic=\"http://schemas.openxmlformats.org/drawingml/2006/picture\"><pic:nvPicPr><pic:cNvPr id=\"0\" name=\"p\"/><pic:cNvPicPr/></pic:nvPicPr>"
+            + "<pic:blipFill><a:blip r:embed=\"\(id)\"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>"
+            + "<pic:spPr><a:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"1828800\" cy=\"1371600\"/></a:xfrm><a:prstGeom prst=\"rect\"/></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:anchor></w:drawing></w:r></w:p>"
+        }
+        // Two 144 x 108 pt pictures, each alone in its paragraph, placed on the page below and right of their anchors, overlapping.
+        let body = try XCTUnwrap(xml.rangeOfSubstring("<w:body>")), sect = try XCTUnwrap(xml.rangeOfSubstring("<w:sectPr"))
+        xml.replaceSubrange(body.upperBound ..< sect.lowerBound, with: "<w:p><w:r><w:t>one</w:t></w:r></w:p>" + picture(1, x: 108, y: 180, 7)
+                            + "<w:p><w:r><w:t>two</w:t></w:r></w:p>" + picture(2, x: 180, y: 216, 8) + "<w:p><w:r><w:t>three</w:t></w:r></w:p>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(1280, 800))
+        let c = try XCTUnwrap(ui.state(OfficeShellState.self)).session.controller
+        c.load(try DocxFormat.read(try Zip.write(entries)).document)
+        let pictures = c.document.paragraphs.indices.filter { c.document.paragraphs[$0].image?.float != nil }
+        XCTAssertEqual(pictures.count, 2)
+        ui.pump()
+        let editor = try XCTUnwrap(ui.state(RichEditableState.self))
+        let box = try XCTUnwrap(ui.elements().first { $0.widget is RichEditable }?.findRenderObject() as? RenderBox)
+        // Where the editor's own layout draws the two pictures (lowest first).
+        let layout = editor.layoutForTesting
+        let deadline = Date().addingTimeInterval(10)
+        while layout._decoded.count < 2, Date() < deadline {
+            ui.pump(); RunLoop.main.run(until: Date().addingTimeInterval(0.01)); layout.applyDecodedPictures()
+        }
+        let canvas = TranslatingCanvas()
+        layout.paint(canvas, visible: Rect.fromLTWH(-10_000, -10_000, 100_000, 100_000), document: c.document, selection: nil, caret: nil)
+        XCTAssertEqual(canvas.images.count, 2, "\(canvas.images)")
+        let (red, blue) = (canvas.images[0], canvas.images[1])
+        XCTAssertLessThan(red.top, blue.top); XCTAssertTrue(red.overlaps(blue))
+        func click(_ p: Offset) -> Int? {
+            c.moveTo(RichPosition(paragraph: 0, offset: 0), extend: false); ui.pump()
+            ui.tap(at: box.localToGlobal(editor.localPointForTesting(canvas: p)), kind: .mouse); ui.pump()
+            return c.selectedImageIndex
+        }
+        // The first picture where only it is drawn: its top-left part, and low down at its left, both clear of the second.
+        XCTAssertEqual(click(Offset(red.left + 8, red.top + 8)), pictures[0], "red's top-left corner")
+        XCTAssertEqual(click(Offset(red.left + 8, red.bottom - 8)), pictures[0], "red's bottom-left corner")
+        // The second where it is drawn (over the first), and nothing just above it, over the first's text-free part.
+        XCTAssertEqual(click(Offset(blue.right - 8, blue.bottom - 8)), pictures[1], "blue's bottom-right corner")
+        XCTAssertEqual(click(Offset((red.left + red.right) / 2 + 40, (red.bottom + blue.top) / 2 + 20)), pictures[1], "where blue covers red")
+        XCTAssertNotEqual(click(Offset(blue.right - 8, blue.top - 20)), pictures[1], "above blue is not blue")
+    }
+
     /// The Picture Format tab shows the wrap choices and nudges of a selected floating picture, each one undo step.
     func testPictureFormatTabChoosesWrapAndNudges() throws {
         let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(1280, 800))
@@ -1230,6 +1288,50 @@ private final class FillOrderCanvas: Canvas {
     func drawImageNine(_ image: Image, _ center: Rect, _ dst: Rect, _ paint: Paint) {}
     func drawPicture(_ picture: any FlutterSwiftBridge.Picture) {}
     func drawParagraph(_ paragraph: any Paragraph, _ offset: Offset) { fills.append(1) }
+    func drawPoints(_ pointMode: PointMode, _ points: [Offset], _ paint: Paint) {}
+    func drawRawPoints(_ pointMode: PointMode, _ points: [Float], _ paint: Paint) {}
+    func drawVertices(_ vertices: Vertices, _ blendMode: BlendMode, _ paint: Paint) {}
+    func drawAtlas(_ atlas: Image, _ transforms: [RSTransform], _ rects: [Rect], _ colors: [Color]?, _ blendMode: BlendMode?, _ cullRect: Rect?, _ paint: Paint) {}
+    func drawRawAtlas(_ atlas: Image, _ rstTransforms: [Float], _ rects: [Float], _ colors: [Int32]?, _ blendMode: BlendMode?, _ cullRect: Rect?, _ paint: Paint) {}
+    func drawShadow(_ path: Path, _ color: Color, _ elevation: Double, _ transparentOccluder: Bool) {}
+}
+
+/// Records where pictures are drawn on the canvas, following translate, save and restore.
+private final class TranslatingCanvas: Canvas {
+    var t = Offset(0, 0); var stack: [Offset] = []; var images: [Rect] = []
+    func save() { stack.append(t) }
+    func saveLayer(_ bounds: Rect?, _ paint: Paint) { stack.append(t) }
+    func restore() { if let s = stack.popLast() { t = s } }
+    func restoreToCount(_ count: Int) {}
+    func getSaveCount() -> Int { 1 }
+    func translate(_ dx: Double, _ dy: Double) { t = Offset(t.dx + dx, t.dy + dy) }
+    func scale(_ sx: Double, _ sy: Double?) {}
+    func rotate(_ radians: Double) {}
+    func skew(_ sx: Double, _ sy: Double) {}
+    func transform(_ matrix4: [Double]) {}
+    func getTransform() -> [Double] { [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1] }
+    func clipRect(_ rect: Rect, clipOp: ClipOp, doAntiAlias: Bool) {}
+    func clipRRect(_ rrect: RRect, doAntiAlias: Bool) {}
+    func clipRSuperellipse(_ rsuperellipse: RSuperellipse, doAntiAlias: Bool) {}
+    func clipPath(_ path: Path, doAntiAlias: Bool) {}
+    func getLocalClipBounds() -> Rect { Rect.fromLTWH(-1e6, -1e6, 2e6, 2e6) }
+    func getDestinationClipBounds() -> Rect { Rect.fromLTWH(-1e6, -1e6, 2e6, 2e6) }
+    func drawColor(_ color: Color, _ blendMode: BlendMode) {}
+    func drawLine(_ p1: Offset, _ p2: Offset, _ paint: Paint) {}
+    func drawPaint(_ paint: Paint) {}
+    func drawRect(_ rect: Rect, _ paint: Paint) {}
+    func drawRRect(_ rrect: RRect, _ paint: Paint) {}
+    func drawDRRect(_ outer: RRect, _ inner: RRect, _ paint: Paint) {}
+    func drawRSuperellipse(_ rsuperellipse: RSuperellipse, _ paint: Paint) {}
+    func drawOval(_ rect: Rect, _ paint: Paint) {}
+    func drawCircle(_ c: Offset, _ radius: Double, _ paint: Paint) {}
+    func drawArc(_ rect: Rect, _ startAngle: Double, _ sweepAngle: Double, _ useCenter: Bool, _ paint: Paint) {}
+    func drawPath(_ path: Path, _ paint: Paint) {}
+    func drawImage(_ image: Image, _ offset: Offset, _ paint: Paint) {}
+    func drawImageRect(_ image: Image, _ src: Rect, _ dst: Rect, _ paint: Paint) { images.append(dst.shift(t)) }
+    func drawImageNine(_ image: Image, _ center: Rect, _ dst: Rect, _ paint: Paint) {}
+    func drawPicture(_ picture: any FlutterSwiftBridge.Picture) {}
+    func drawParagraph(_ paragraph: any Paragraph, _ offset: Offset) {}
     func drawPoints(_ pointMode: PointMode, _ points: [Offset], _ paint: Paint) {}
     func drawRawPoints(_ pointMode: PointMode, _ points: [Float], _ paint: Paint) {}
     func drawVertices(_ vertices: Vertices, _ blendMode: BlendMode, _ paint: Paint) {}

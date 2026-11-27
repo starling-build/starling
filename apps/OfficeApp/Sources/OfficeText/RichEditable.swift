@@ -747,6 +747,10 @@ public final class RichEditableState: State<StatefulWidget> {
         Offset(local.dx - _originX, local.dy + _scrollY - _w.padding.top)
     }
 
+    /// For tests: the layout it draws, and a point of that drawing back in the editable's own coordinates.
+    var layoutForTesting: RichLayout { _layout }
+    func localPointForTesting(canvas c: Offset) -> Offset { Offset(c.dx + _originX, c.dy - _scrollY + _w.padding.top) }
+
     /// The two ends of a touch selection as caret boxes in the editable's own
     /// coordinates; nil unless the last touch was a finger and text is selected.
     private func _selectionEnds() -> (start: Rect, end: Rect)? {
@@ -853,7 +857,7 @@ public final class RichEditableState: State<StatefulWidget> {
         if _layout.width > 0 { _syncLayoutIfNeeded() }
         guard _layout.width > 0, i < _layout.count,
               let flow = id.map({ _layout.inlineFloatRect(i, id: $0) }) ?? _layout.imageRect(i),
-              let picture = _layout.canvasRects(flow).first,
+              let picture = _layout.floatCanvasRect(i, flow),
               let paragraph = _layout.canvasRects(Rect.fromLTWH(0, _layout.geometry(i).textTop, 1, 0)).first else { return nil }
         let pt = _layout.theme.pixelsPerPoint * _layout.scale
         let page = _layout.pageRect(_layout.page(atCanvasY: picture.top)).top
@@ -866,12 +870,12 @@ public final class RichEditableState: State<StatefulWidget> {
         var canvas: Rect
         var index: Int
         var inline: String? = nil
-        if let i = _controller.selectedImageIndex, let flow = _layout.imageRect(i), let c = _layout.canvasRects(flow).first {
+        if let i = _controller.selectedImageIndex, let flow = _layout.imageRect(i), let c = _layout.floatCanvasRect(i, flow) {
             canvas = c; index = i
         } else if let hit = _controller.selectedInlineImage,
                   let c = _layout.canvasSelectionRects(_controller.selection, _controller.document).first {
             // (A picture set in a line of text: the box its character takes; one that floats, the box it is drawn in.)
-            canvas = _layout.inlineFloatRect(hit.paragraph, id: hit.id).flatMap { _layout.canvasRects($0).first } ?? c
+            canvas = _layout.inlineFloatRect(hit.paragraph, id: hit.id).flatMap { _layout.floatCanvasRect(hit.paragraph, $0) } ?? c
             index = hit.paragraph; inline = hit.id
         } else { return nil }
         var rect = Rect.fromLTWH(canvas.left + _originX, canvas.top + _w.padding.top - _scrollY,
@@ -897,7 +901,7 @@ public final class RichEditableState: State<StatefulWidget> {
         var best: (z: Int64, i: Int)? = nil
         for i in doc.paragraphs.indices where doc.paragraphs[i].isImage && _controller.pictureWrap(at: i) != nil {
             guard let image = doc.paragraphs[i].image, let flow = _layout.imageRect(i),
-                  _layout.canvasRects(flow).contains(where: { $0.contains(canvasPoint) }) else { continue }
+                  _layout.floatCanvasRect(i, flow)?.contains(canvasPoint) == true else { continue }
             let z = Self._stackKey(image)
             if best.map({ (z, i) > ($0.z, $0.i) }) ?? true { best = (z, i) }
         }
@@ -923,7 +927,7 @@ public final class RichEditableState: State<StatefulWidget> {
         for (k, p) in doc.paragraphs.enumerated() where !p.inlineImages.isEmpty {
             for (_, id) in _controller.inlineImageOffsets(in: k) where p.inlineImages[id]?.float != nil {
                 n += 1
-                guard let image = p.inlineImages[id], let r = _layout.inlineFloatRect(k, id: id), r.contains(canvasPoint) else { continue }
+                guard let image = p.inlineImages[id], let r = _layout.inlineFloatRect(k, id: id), _layout.floatCanvasRect(k, r)?.contains(canvasPoint) == true else { continue }
                 let z = Self._stackKey(image)
                 if best.map({ (z, k, n) > ($0.z, $0.k, $0.n) }) ?? true { best = (z, k, n, id) }
             }
@@ -1919,7 +1923,7 @@ public final class RichEditableState: State<StatefulWidget> {
             line.strokeWidth = 1
             line.color = _layout.theme.selectionColor.withOpacity(1)
             for i in _controller.pickedShapeIndexes where i != _controller.selectedImageIndex {
-                guard let flow = _layout.imageRect(i), let c = _layout.canvasRects(flow).first else { continue }
+                guard let flow = _layout.imageRect(i), let c = _layout.floatCanvasRect(i, flow) else { continue }
                 let r = Rect.fromLTWH(c.left + _originX, c.top + _w.padding.top - _scrollY, c.width, c.height)
                 canvas.drawRect(Rect.fromLTRB(r.left.rounded() + 0.5, r.top.rounded() + 0.5, r.right.rounded() - 0.5, r.bottom.rounded() - 0.5), line)
             }
