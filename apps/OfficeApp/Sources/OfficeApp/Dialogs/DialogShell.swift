@@ -37,6 +37,8 @@ final class DialogShell: StatefulWidget {
     let onCancel: () -> Void
     /// An optional third button between OK and Cancel (Yes / No / Cancel).
     var middle: (label: String, action: () -> Void)?
+    /// The tab showing when the dialog opens (Borders > More Borders… opens Format Cells on Border).
+    var startTab = 0
 
     init(title: String, tabs: [DialogTab], okLabel: String = "OK", cancelLabel: String = "Cancel",
          okEnabled: Bool = true, width: Double = 440,
@@ -81,6 +83,7 @@ final class DialogShellState: State<StatefulWidget> {
 
     override func initState() {
         super.initState()
+        selectedTab = max(0, min(_w.startTab, _w.tabs.count - 1))
         ScreenReader.announce("\(_w.title) dialog", priority: .assertive)
         // Ahead of the focused field, so Enter and Esc work wherever focus is.
         _keys = FocusManager.instance.addKeyInterceptor { [weak self] key in

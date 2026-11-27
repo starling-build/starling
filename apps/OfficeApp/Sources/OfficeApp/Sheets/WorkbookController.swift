@@ -73,6 +73,22 @@ final class WorkbookController: ChangeNotifier {
         _notify(selectionOnly: true)
     }
 
+    /// Run several edits as ONE undo step (a Borders preset touches the
+    /// range's edges and its inside with separate style changes).
+    func asOneStep(_ edits: () -> Void) {
+        let before = _bookState()
+        let sel = selection, act = active
+        let mark = _undo.count
+        let count0 = self.edits
+        edits()
+        guard _undo.count > mark else { return }
+        _undo.removeSubrange(mark...)
+        self.edits = count0
+        _push(.structure(before: before, after: _bookState(), selection: sel, active: act))
+        engine.recalculate()
+        _notify()
+    }
+
     /// Run `edit` on the active sheet and on every grouped one, as ONE undo step.
     private func _groupEdit(_ edit: () -> Void) -> Bool {
         guard isGrouped, _sheetOverride == nil else { return false }
