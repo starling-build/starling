@@ -355,6 +355,8 @@ final class OfficeSession {
     var onHeaderFooter: (() -> Void)?
     /// Opens the Slide Size dialog, with this size typed in (nil: the deck's own).
     var onSlideSize: ((Size?) -> Void)?
+    /// Slides View > Zoom: open the Zoom dialog.
+    var onZoomDialog: (() -> Void)?
     /// Slides Picture Format > Alt Text: open the dialog for the selected picture.
     var onAltText: (() -> Void)?
     var onTextOptions: (() -> Void)?
