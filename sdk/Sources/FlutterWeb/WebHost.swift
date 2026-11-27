@@ -90,6 +90,7 @@ public final class WebHost {
 
     func framePresented() {
         WebSurface.framePresented()
+        WebAccessibility.framePresented()
         if frameDeferred {
             frameDeferred = false
             scheduleFrame()

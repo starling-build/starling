@@ -890,7 +890,7 @@ final class SheetsShellState: State<StatefulWidget> {
             child: Padding(padding: EdgeInsets(left: 8, top: 4, right: 8, bottom: 4), child: Row(
                 crossAxisAlignment: .center, children: [
                     SizedBox(width: 96, height: 28, child: FluentTextBox(
-                        controller: _nameBox,
+                        controller: _nameBox, semanticLabel: "Name Box",
                         onSubmitted: { [weak self] text in self?._goTo(text) })),
                     Padding(key: ValueKey("name-box-list"), padding: EdgeInsets(left: 0, top: 0, right: 0, bottom: 0), child: Chrome.menu(nil, nil, fluent,
                         wb.definedNameEntries().prefix(60).map { e in (e.name, { [weak self] in self?._goTo(e.name) }) }
@@ -905,7 +905,7 @@ final class SheetsShellState: State<StatefulWidget> {
                     Text("fx", style: fluent.typography.bodyStrong?.copyWith(fontStyle: .italic)),
                     Chrome.gap(8),
                     Expanded(child: SizedBox(width: nil, height: 28, child: FluentTextBox(
-                        controller: _formula,
+                        controller: _formula, semanticLabel: "Formula Bar",
                         onChanged: { [weak self] text in
                             guard let self, !self._settingFormula else { return }
                             self._formulaEditing = true

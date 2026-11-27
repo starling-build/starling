@@ -25,7 +25,7 @@ class CacheBoundaries(unittest.TestCase):
         files = {
             'index.html': "skwasmBase: 'skwasm/'",
             'starling.js': 'export const supportsPreloadedAssets = true;\nexport const supportsRendererBrotli = true;',
-            'font-loader.js': 'font loader', 'keymap.js': 'keys',
+            'font-loader.js': 'font loader', 'keymap.js': 'keys', 'a11y.js': 'screen readers',
             'app.wasm.gz': 'app gzip fixture', 'app.wasm.br': 'app Brotli fixture',
             'skwasm/skwasm.js': 'renderer host', 'skwasm/skwasm.wasm': 'renderer fixture',
             'skwasm/skwasm.wasm.br': 'renderer Brotli fixture',

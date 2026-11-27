@@ -13,7 +13,7 @@ python3 - "$REPO" <<'PY'
 from pathlib import Path
 import hashlib,json,shutil,sys
 root=Path(sys.argv[1]); stage=root/'.stage-web-OfficeApp'; site=root/'ui/openoffice'
-files=[stage/name for name in ['starling.js','font-loader.js','keymap.js','app.wasm.gz']]
+files=[stage/name for name in ['starling.js','font-loader.js','keymap.js','a11y.js','app.wasm.gz']]
 files+=sorted((stage/'fonts').glob('*'))+sorted((stage/'skwasm').glob('*'))
 files=[p for p in files if p.is_file()]
 h=hashlib.sha256()

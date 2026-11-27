@@ -127,7 +127,8 @@ final class Ribbon: StatelessWidget {
     /// tab — deliberately not a saturated brand block.
     private func _fileTab(_ fluent: FluentThemeData) -> Widget {
         let accent = fluent.accentColor.defaultBrushFor(fluent.brightness)
-        return HoverButton(
+        let open = { [session] in session.unsavedPrompt = nil; session.onBackstage?(true) }
+        return Semantics(label: "File", button: true, onTap: open, excludeSemantics: true, child: HoverButton(
             builder: { _, states in
                 Padding(padding: EdgeInsets(left: 0, top: 0, right: 6, bottom: 4), child: DecoratedBox(
                     decoration: BoxDecoration(color: accent.withOpacity(0.08),
@@ -137,15 +138,21 @@ final class Ribbon: StatelessWidget {
                     child: Padding(padding: EdgeInsets(left: 14, top: 5, right: 14, bottom: 5),
                                    child: Text("File", style: fluent.typography.bodyStrong?.copyWith(color: accent)))))
             },
-            onPressed: { [session] in session.unsavedPrompt = nil; session.onBackstage?(true) },
-            semanticLabel: "File")
+            onPressed: open,
+            semanticLabel: "File"))
     }
 
     private func _tab(_ t: RibbonTab, _ fluent: FluentThemeData) -> Widget {
         let selected = t == tab && !collapsed
         let accent = fluent.accentColor.defaultBrushFor(fluent.brightness)
         let underline = selected ? accent : Color(0x00000000)
-        return HoverButton(
+        let open = { [onTab, onCollapse, collapsed] in
+            if collapsed { onCollapse() }
+            onTab(t)
+        }
+        // A reader hears "Home, tab, selected" rather than plain text: the button inside makes no node.
+        return Semantics(label: t.title, role: .tab, selected: selected, onTap: open, excludeSemantics: true,
+                         child: HoverButton(
             builder: { _, states in
                 let ring = states.contains(.focused)
                 return Padding(padding: EdgeInsets(left: 2, top: 0, right: 2, bottom: 0), child: Column(
@@ -161,11 +168,8 @@ final class Ribbon: StatelessWidget {
                             color: underline, borderRadius: BorderRadius.all(Radius(circular: 2))))),
                     ]))
             },
-            onPressed: { [onTab, onCollapse, collapsed] in
-                if collapsed { onCollapse() }
-                onTab(t)
-            },
-            semanticLabel: t.title)
+            onPressed: open,
+            semanticLabel: t.title))
     }
 
     private func _collapseButton(_ fluent: FluentThemeData) -> Widget {

@@ -10,7 +10,7 @@ public class Semantics: SingleChildRenderObjectWidget {
     public init(
         key: (any Key)? = nil,
         label: String? = nil, hint: String? = nil, value: String? = nil,
-        button: Bool = false, textField: Bool = false, header: Bool = false, link: Bool = false,
+        button: Bool = false, textField: Bool = false, header: Bool = false, link: Bool = false, role: SemanticsRole? = nil,
         checked: Bool? = nil, toggled: Bool? = nil, selected: Bool? = nil, enabled: Bool? = nil, focused: Bool? = nil, textSelection: TextSelection? = nil,
         onTap: VoidCallback? = nil,
         onSetSelection: SetSelectionHandler? = nil, onReplaceRange: ((Int, Int, String) -> Void)? = nil,
@@ -18,7 +18,7 @@ public class Semantics: SingleChildRenderObjectWidget {
         child: Widget? = nil
     ) {
         self.info = SemanticsInfo(label: label, hint: hint, value: value, isButton: button,
-                                  isTextField: textField, isHeader: header, isLink: link,
+                                  isTextField: textField, isHeader: header, isLink: link, role: role,
                                   isChecked: checked, isToggled: toggled, isSelected: selected,
                                   isEnabled: enabled, isFocused: focused, textSelection: textSelection, onTap: onTap,
                                   onSetSelection: onSetSelection, onReplaceRange: onReplaceRange)
@@ -68,7 +68,7 @@ extension Semantics {
     public convenience init(
         key: (any Key)? = nil,
         label: String? = nil, hint: String? = nil, value: String? = nil,
-        button: Bool = false, textField: Bool = false, header: Bool = false, link: Bool = false,
+        button: Bool = false, textField: Bool = false, header: Bool = false, link: Bool = false, role: SemanticsRole? = nil,
         checked: Bool? = nil, toggled: Bool? = nil, selected: Bool? = nil, enabled: Bool? = nil, focused: Bool? = nil, textSelection: TextSelection? = nil,
         onTap: VoidCallback? = nil,
         onSetSelection: SetSelectionHandler? = nil, onReplaceRange: ((Int, Int, String) -> Void)? = nil,
@@ -76,7 +76,7 @@ extension Semantics {
         @ChildBuilder child: () -> Widget
     ) {
         self.init(key: key, label: label, hint: hint, value: value, button: button, textField: textField,
-                  header: header, link: link, checked: checked, toggled: toggled, selected: selected,
+                  header: header, link: link, role: role, checked: checked, toggled: toggled, selected: selected,
                   enabled: enabled, focused: focused, textSelection: textSelection, onTap: onTap, onSetSelection: onSetSelection, onReplaceRange: onReplaceRange, container: container, excludeSemantics: excludeSemantics,
                   child: child())
     }

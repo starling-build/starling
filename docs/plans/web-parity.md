@@ -164,3 +164,33 @@ CDP) checks the page side: the print frame, IndexedDB rows, recovery after a rel
 
 Order: 1, 2, 3 (2 and 3 share the IndexedDB layer), 4, then 5. One PR each, Word
 first; Slides and Sheets follow in the same PR where the shell code is shared.
+
+## 5. Screen readers in the browser (amd-perf, 2026-11-26)
+
+Today the browser build says nothing: the web bridge drops every semantics update and
+`ScreenReader.announce` has no sink. Only the published-page text mirror
+(`set_document_text`, a hidden article) reaches a reader. Plan, Word first:
+1. **Same source as native.** Like the AT-SPI and VoiceOver bridges, read
+   `SemanticsSnapshot` (labels, values, roles, state, frame, tap) rather than the engine
+   path. Same names and roles on every platform, with nothing new in the framework.
+2. **The ARIA layer.** After a frame (at most about 4 times a second, and only when
+   something changed), Swift sends the flat node list to the page as one text payload
+   (`starling_host_a11y_tree`). The page keeps one element per node, in reading order,
+   in a layer over the canvas that never takes the pointer: `button` (with
+   aria-pressed/aria-checked, aria-disabled), `textbox` (aria-multiline, its value),
+   `heading`, `checkbox`/`switch`, plain text. Elements are reused by position, so
+   an update changes attributes, not the tree.
+3. **Focus stays with the app's keyboard.** The canvas or the IME input keeps DOM
+   focus (keys and IME are untouched). The focused node is named with
+   `aria-activedescendant` on that element, so a reader says what has focus on Tab.
+4. **Actions back.** Clicking an element in browse mode (NVDA Enter, VoiceOver VO+Space)
+   calls `starling_a11y_action(index)`, which runs the node's tap.
+5. **Announcements.** `ScreenReader.sink` writes to two aria-live regions (polite and
+   assertive) through `starling_host_announce`.
+6. **Off by default** (the snapshot walk costs time on big documents). It is turned on
+   by a visually hidden "Turn on screen reader support" button, first in the Tab order
+   (Flutter web's pattern), by `?a11y=1`, or by the setting being remembered in
+   localStorage.
+Test: `build/tools/web-drive.mjs` with `?a11y=1` reads the ARIA layer (roles and
+names of the Word ribbon, the document's text box, an announcement after Ctrl+B) and
+clicks a button through it. Owners: amd-perf (this), amd-11 (web parity).

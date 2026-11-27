@@ -1849,7 +1849,10 @@ final class SlidesShellState: State<StatefulWidget> {
             let dropAbove = dropHere && (_thumbDrag!.to < _thumbDrag!.from)
             let line = SizedBox(width: thumbW, height: 3, child: ColoredBox(
                 color: dropHere ? accent : Color(0x00000000), child: SizedBox(expand: ())))
-            items.append(KeyboardRow(label: "Slide \(i + 1)", activate: { [weak self] in self?.deck.selectSlide(i); self?._deckFocus.requestFocus() }, child: Listener(
+            // A reader hears "Slide 3, selected", not the bare number drawn beside the picture.
+            let activate: () -> Void = { [weak self] in self?.deck.selectSlide(i); self?._deckFocus.requestFocus() }
+            items.append(KeyboardRow(label: "Slide \(i + 1)", activate: activate, child: Semantics(
+                label: "Slide \(i + 1)", selected: current, onTap: activate, excludeSemantics: true, child: Listener(
                 key: ValueKey("slide.thumb.\(i)"),
                 onPointerDown: { [weak self] e in
                     guard let self, let context = self.context else { return }
@@ -1875,7 +1878,7 @@ final class SlidesShellState: State<StatefulWidget> {
                             frame,
                             !dropAbove ? line : SizedBox(width: thumbW, height: 3, child: nil),
                         ]),
-                    ])))))
+                    ]))))))
         }
         if deck.sections.isEmpty {
             for (i, slide) in deck.slides.enumerated() { makeItem(i, slide) }
