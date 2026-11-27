@@ -1292,6 +1292,11 @@ OfficeHost.browserRecovery = .init(
     keep: { kind, name, data in WebFiles.keepRecovery(kind: kind, name: name, data: data) },
     discard: { WebFiles.discardRecovery() },
     take: { kind in WebFiles.takeRecovery(kind: kind).map { ($0.name, $0.data) } })
+
+// Recent files: the page keeps each document opened or saved (web-parity item 3).
+OfficeHost.browserRecent = .init(names: { WebFiles.recentNames },
+                                 remember: { name, data in WebFiles.keepRecent(name, data) },
+                                 open: { name, done in WebFiles.openRecent(name, done) })
 #endif
 
 runStarlingApp(title: siteArg != nil ? "Site" : wikiBase != nil ? "Wiki" : initialKind.appName,
