@@ -594,6 +594,46 @@ final class GroupAndConnectorTests: XCTestCase {
         XCTAssertEqual(back.frame.height, read.frame.height, accuracy: 0.01)
     }
 
+    /// A connector only slid keeps its own XML, p:style and all, at the place it was slid to: a
+    /// flipped straight line on the slide and the turned elbow in a stretched group alike.
+    func testSlidConnectorKeepsItsStyle() throws {
+        let deck = SlidesSample.make()
+        var package = PptxPackage(try Zip.read(try Pptx.write(deck)))
+        var slide = String(data: package.parts["ppt/slides/slide6.xml"]!, encoding: .utf8)!
+        let style = "<p:style><a:lnRef idx=\"1\"><a:schemeClr val=\"accent1\"/></a:lnRef><a:fillRef idx=\"0\"><a:schemeClr val=\"accent1\"/></a:fillRef>"
+            + "<a:effectRef idx=\"0\"><a:schemeClr val=\"accent1\"/></a:effectRef><a:fontRef idx=\"minor\"><a:schemeClr val=\"tx1\"/></a:fontRef></p:style>"
+        let line = "<p:cxnSp><p:nvCxnSpPr><p:cNvPr id=\"8\" name=\"Line\"/><p:cNvCxnSpPr/><p:nvPr/></p:nvCxnSpPr><p:spPr><a:xfrm flipV=\"1\">"
+            + "<a:off x=\"1270000\" y=\"1270000\"/><a:ext cx=\"2540000\" cy=\"635000\"/></a:xfrm><a:prstGeom prst=\"line\"><a:avLst/></a:prstGeom>"
+            + "<a:ln w=\"19050\"/></p:spPr>" + style + "</p:cxnSp>"
+        let group = "<p:grpSp><p:nvGrpSpPr><p:cNvPr id=\"13\" name=\"G\"/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr><a:xfrm>"
+            + "<a:off x=\"4368553\" y=\"2747083\"/><a:ext cx=\"3454894\" cy=\"1363833\"/><a:chOff x=\"3586578\" y=\"2558566\"/>"
+            + "<a:chExt cx=\"3454894\" cy=\"1337621\"/></a:xfrm></p:grpSpPr>"
+            + "<p:cxnSp><p:nvCxnSpPr><p:cNvPr id=\"7\" name=\"Elbow\"/><p:cNvCxnSpPr/><p:nvPr/></p:nvCxnSpPr><p:spPr><a:xfrm rot=\"5400000\" flipH=\"1\" flipV=\"1\">"
+            + "<a:off x=\"4645214\" y=\"2085856\"/><a:ext cx=\"1337621\" cy=\"2283041\"/></a:xfrm><a:prstGeom prst=\"bentConnector3\">"
+            + "<a:avLst/></a:prstGeom><a:ln><a:tailEnd type=\"triangle\"/></a:ln></p:spPr>" + style + "</p:cxnSp></p:grpSp>"
+        slide = slide.replacingOccurrences(of: "</p:spTree>", with: line + group + "</p:spTree>")
+        package.parts["ppt/slides/slide6.xml"] = Data(slide.utf8)
+        var (state, theme, pkg) = try reread(package)
+        var read: [Int: Rect] = [:]
+        for i in state.slides[5].shapes.indices where [7, 8].contains(state.slides[5].shapes[i].fileId ?? 0) {
+            let f = state.slides[5].shapes[i].frame
+            read[state.slides[5].shapes[i].fileId!] = f
+            state.slides[5].shapes[i].frame = Rect.fromLTRB(f.left + 10, f.top + 5, f.right + 10, f.bottom + 5)
+        }
+        XCTAssertEqual(read.count, 2)
+        let saved = try PptxWriter.write(state, theme: theme, package: pkg)
+        let out = String(data: PptxPackage(try Zip.read(saved)).parts["ppt/slides/slide6.xml"]!, encoding: .utf8)!
+        XCTAssertEqual(out.components(separatedBy: "<a:lnRef idx=\"1\">").count - 1, 2, "both keep their p:style")
+        let (again, _, _) = try Pptx.read(saved)
+        for (id, f) in read {
+            let back = try XCTUnwrap(again.slides[5].shapes.first { $0.fileId == id })
+            XCTAssertEqual(back.frame.left, f.left + 10, accuracy: 0.01, "\(id)")
+            XCTAssertEqual(back.frame.top, f.top + 5, accuracy: 0.01, "\(id)")
+            XCTAssertEqual(back.frame.right, f.right + 10, accuracy: 0.01, "\(id)")
+            XCTAssertEqual(back.frame.bottom, f.bottom + 5, accuracy: 0.01, "\(id)")
+        }
+    }
+
     func testConnectorsDrawTheirRealDirectionAndKeepTheirShape() throws {
         var (state, theme, pkg) = try reread(try package())
         let i = try XCTUnwrap(state.slides[5].shapes.firstIndex { $0.name == "Arrow" })

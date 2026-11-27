@@ -1272,12 +1272,19 @@ private struct SlideXML {
         case .geometry(let preset) where (preset.isLine || preset.rawValue.hasPrefix("bentConnector")
                                           || preset.rawValue.hasPrefix("curvedConnector")) && s.text == nil:
             // A connector as read, while its line and outline are: the
-            // original, at its frame on the slide.
-            if let xml = s.sourceXML, let k = s.keptLine, k.line == s.frame, k.outline == s.outline,
+            // original, at its frame on the slide. One only slid (the same
+            // length and direction) is the original too, its box slid as far,
+            // so it keeps its p:style and ids.
+            let slid = s.keptLine.flatMap { k -> Rect? in
+                guard abs(k.line.width - s.frame.width) < 1e-6, abs(k.line.height - s.frame.height) < 1e-6 else { return nil }
+                let dx = s.frame.left - k.line.left, dy = s.frame.top - k.line.top
+                return Rect.fromLTWH(k.box.left + dx, k.box.top + dy, k.box.width, k.box.height)
+            }
+            if let xml = s.sourceXML, let k = s.keptLine, let box = k.line == s.frame ? k.box : slid, k.outline == s.outline,
                k.width == s.outlineWidth, k.dash == s.outlineDash, k.head == s.headEnd, k.tail == s.tailEnd, k.connStart == s.connStart, k.connEnd == s.connEnd,
                !preset.isElbow || (k.rotation == s.rotation && k.flipH == s.flipH && k.flipV == s.flipV && k.adjusts == s.adjusts),
                let p = source, let part = s.sourcePart {
-                return kept(xml, sourcePart: part, package: p, builder: &builder, patch: k.box, fileId: s.fileId, alt: _altChange(s))
+                return kept(xml, sourcePart: part, package: p, builder: &builder, patch: box, fileId: s.fileId, alt: _altChange(s))
             }
             let id = _id(s.fileId)
             let f = s.frame
