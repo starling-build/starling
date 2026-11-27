@@ -1204,6 +1204,18 @@ extension _StyledFrame {
                     spans.append(TextSpan(text: "\u{2060}", style: zeroWidth(current ?? kind)))
                     ctx.inserts.append(offset)
                 }
+                // (In a paragraph with Thai text, a no-break space after a hyphen or dash holds to it, where the
+                // engine's line breaker allows a break after the dash. dx2 1b2d135d and 2d73d9d6: Word keeps
+                // "(พ.ศ.␣2567␣–␣2569)␣ของเทศบาล" whole and splits it at the cell edge, mid-word; ours ended the line
+                // at "–". Not in a paragraph without Thai: Word breaks "Center␣2012␣–|␣Operations" in
+                // lo-a197b7a8.)
+                else if theme.wordRules, thaiParagraph, ch == "\u{00A0}", let b = ctx.before?.unicodeScalars.first?.value,
+                        [0x2D, 0x2010, 0x2013, 0x2014].contains(b) {
+                    RuleTrace.hit("word-no-break-space-holds-to-the-dash-before-it")
+                    flush(i)
+                    spans.append(TextSpan(text: "\u{2060}", style: zeroWidth(current ?? kind)))
+                    ctx.inserts.append(offset)
+                }
                 else if offset > 0, thaiJoins.contains(-offset), RichTextTheme.wordWindowsPages {
                     flush(i)
                     spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind)))
