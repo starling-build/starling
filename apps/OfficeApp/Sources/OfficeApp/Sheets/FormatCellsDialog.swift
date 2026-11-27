@@ -15,6 +15,8 @@ final class FormatCellsDialog: StatefulWidget {
     let start: CellFormatEdit.Values
     let onApply: (CellFormatEdit) -> Void
     let onClose: () -> Void
+    /// The tab to open on (3 is Border).
+    var startTab = 0
     init(start: CellFormatEdit.Values, onApply: @escaping (CellFormatEdit) -> Void, onClose: @escaping () -> Void) {
         self.start = start; self.onApply = onApply; self.onClose = onClose
         super.init()
@@ -74,7 +76,7 @@ final class FormatCellsDialogState: State<StatefulWidget> {
 
     override func build(_ context: BuildContext) -> Widget {
         let fluent = FluentTheme.of(context)
-        return DialogShell(
+        let shell = DialogShell(
             title: "Format Cells",
             tabs: [
                 DialogTab(title: "Number", page: _numberPage(fluent)),
@@ -85,6 +87,8 @@ final class FormatCellsDialogState: State<StatefulWidget> {
                 DialogTab(title: "Protection", page: _protectionPage(fluent)),
             ],
             width: 480, onOK: { [weak self] in self?._ok() }, onCancel: { [weak self] in self?._w.onClose() })
+        shell.startTab = _w.startTab
+        return shell
     }
 
     // MARK: pages

@@ -46,6 +46,7 @@ enum SheetCommand {
     case tableDialog               // Insert → Table: create one, or the options of the table at the cell
     case columnFilter(col: Int, kind: String)   // a filter dropdown's Number/Text/Date/Colour Filters…
     case nameManager               // Formulas → Name Manager
+    case formatCells(tab: Int)     // Home → Borders → More Borders… (the Format Cells dialog on a tab)
     case createNames               // Formulas → Create from Selection
     case useName(String)           // Formulas → Use in Formula: the name into the formula being typed
     case protectSheetDialog        // Review → Protect Sheet / Unprotect Sheet
@@ -115,12 +116,10 @@ extension Ribbon {
                 Chrome.toggle(FluentSystemIcons.textUnderline, "Underline (⌘U)".keys, st.underline, fluent) { wb.toggleStyle(\.underline) },
                 Chrome.toggle(FluentSystemIcons.textStrikethrough, "Strikethrough", st.strike, fluent) { wb.toggleStyle(\.strike) },
                 Chrome.gap(4),
-                Chrome.menu(nil, Icon(FluentSystemIcons.grid, size: Chrome.iconSize, color: fluent.resources.textFillColorPrimary), fluent, [
-                    ("All Borders", { wb.setStyle { $0.borders = .init(top: true, left: true, bottom: true, right: true) } }),
-                    ("Bottom Border", { wb.setStyle { $0.borders.bottom = true } }),
-                    ("Top Border", { wb.setStyle { $0.borders.top = true } }),
-                    ("No Border", { wb.setStyle { $0.borders = .init() } }),
-                ], tip: "Borders"),
+                Chrome.menu(nil, Icon(FluentSystemIcons.grid, size: Chrome.iconSize, color: fluent.resources.textFillColorPrimary), fluent,
+                            WorkbookController.BorderPreset.allCases.map { p in (p.title, { wb.applyBorders(p) }) }
+                            + [("More Borders…", { wb.onCommand?(.formatCells(tab: 3)) })],
+                            keyPrefix: "borders", tip: "Borders"),
                 Chrome.colorMenu(FluentSystemIcons.paintBrush, "Fill Color", fluent, colors: colors, none: "No Fill") { c in
                     wb.setStyle { $0.fill = rgb(c) }
                 },
@@ -140,11 +139,19 @@ extension Ribbon {
                 Chrome.toggle(FluentSystemIcons.alignRight, "Align Right", st.hAlign == .right, fluent) {
                     wb.toggleAlign(.right)
                 },
+                Chrome.toggle(FluentSystemIcons.indentDecrease, "Decrease Indent", false, fluent) { wb.indent(by: -1) },
+                Chrome.toggle(FluentSystemIcons.indentIncrease, "Increase Indent", false, fluent) { wb.indent(by: 1) },
             ]),
             Chrome.vgap(4),
             Chrome.row([
                 Chrome.textToggle("Wrap Text", st.wrap, fluent, style: fluent.typography.caption) { wb.toggleStyle(\.wrap) },
-                Chrome.textToggle("Merge & Center", wb.sheet.merges.contains(wb.selection), fluent, style: fluent.typography.caption) { wb.toggleMerge() },
+                Chrome.textToggle("Merge & Center", wb.sheet.merges.contains(where: { $0.contains(wb.selection.topLeft) }), fluent, style: fluent.typography.caption) { wb.toggleMerge() },
+                Chrome.menu(nil, nil, fluent, [
+                    ("Merge & Center", { wb.merge(.center) }),
+                    ("Merge Across", { wb.merge(.across) }),
+                    ("Merge Cells", { wb.merge(.cells) }),
+                    ("Unmerge Cells", { wb.unmerge() }),
+                ], keyPrefix: "merge", tip: "Merge options"),
                 Chrome.menu(Text("Vertical", style: fluent.typography.caption), nil, fluent, [
                     ("Top", { wb.setStyle { $0.vAlign = .top } }),
                     ("Middle", { wb.setStyle { $0.vAlign = .center } }),

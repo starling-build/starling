@@ -75,6 +75,7 @@ final class SheetsShellState: State<StatefulWidget> {
     private var _protectOpen: Bool? = nil   // nil closed; false = sheet, true = workbook structure
     /// The Format Cells dialog is open (X-FM-1).
     private var _formatOpen = false
+    private var _formatTab = 0
     private var _cellsDialog: Bool? = nil          // Insert (true) or Delete (false) cells
     private var _sizeDialog: SizeKind? = nil
     private var _pageSetupOpen = false
@@ -537,6 +538,8 @@ final class SheetsShellState: State<StatefulWidget> {
             setState { _filterOpen = (col, kind) }
         case .nameManager:
             setState { _namesOpen = true }
+        case .formatCells(let tab):
+            _openFormatCells(tab: tab)
         case .useName(let name):
             grid.focus.requestFocus()
             if grid.isEditing { grid.typeText(name) } else { grid.beginEdit(replace: "=" + name) }
@@ -1434,10 +1437,14 @@ final class SheetsShellState: State<StatefulWidget> {
         if layers.count > 1, _backstage == nil { return Stack(children: layers) }
         if _formatOpen, _backstage == nil {
             return Stack(children: layers + [
-                FormatCellsDialog(
-                    start: CellFormatEdit.Values(wb.style(at: wb.selection.topLeft)),
-                    onApply: { [weak self] edit in self?.wb.formatCells(edit) },
-                    onClose: { [weak self] in self?._closeFormatCells() }),
+                { () -> Widget in
+                    let d = FormatCellsDialog(
+                        start: CellFormatEdit.Values(wb.style(at: wb.selection.topLeft)),
+                        onApply: { [weak self] edit in self?.wb.formatCells(edit) },
+                        onClose: { [weak self] in self?._closeFormatCells() })
+                    d.startTab = _formatTab
+                    return d
+                }(),
             ])
         }
         guard let page = _backstage else { return layers.count == 1 ? window : Stack(children: layers) }
@@ -1511,9 +1518,9 @@ final class SheetsShellState: State<StatefulWidget> {
     func _openSizeDialog(_ kind: SizeKind) { setState { _sizeDialog = kind } }
 
     // MARK: Format Cells
-    func _openFormatCells() {
+    func _openFormatCells(tab: Int = 0) {
         if wb.refuses("formatCells") { return }
-        setState { _formatOpen = true }
+        setState { _formatOpen = true; _formatTab = tab }
     }
 
     private func _closeFormatCells() {
@@ -1697,7 +1704,7 @@ final class SheetsShellState: State<StatefulWidget> {
             item("Unhide") { c.setHidden(.rows, false) }
         case .cells:
             if sel.rows > 1 || sel.cols > 1 || c.sheet.merges.contains(where: { $0.intersects(sel) }) {
-                item(c.sheet.merges.contains(where: { $0.intersects(sel) }) ? "Unmerge Cells" : "Merge & Center") { c.toggleMerge() }
+                if c.sheet.merges.contains(where: { $0.intersects(sel) }) { item("Unmerge Cells") { c.unmerge() } } else { item("Merge & Center") { c.merge(.center) } }
             }
             item("Sort A to Z") { c.sortSelection(ascending: true) }
             item("Sort Z to A") { c.sortSelection(ascending: false) }
