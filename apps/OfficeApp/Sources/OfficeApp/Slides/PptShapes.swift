@@ -22,8 +22,22 @@ extension PptFile {
         var x = fillXML(s, placeholder: placeholder, picture: picture)
         let boxy = !placeholder && s.type != 202
         if DocArt.flag(s, 0x1FF, bit: 3, default: boxy) {
-            x += "<a:ln w=\"\(s.props[0x1CB] ?? 9525)\"><a:solidFill>\(artColor(s.props[0x1C0] ?? 0))</a:solidFill></a:ln>"
+            x += "<a:ln w=\"\(s.props[0x1CB] ?? 9525)\"><a:solidFill>\(artColor(s.props[0x1C0] ?? 0))</a:solidFill>\(lineStyleXML(s))</a:ln>"
         } else if !placeholder || s.props[0x1FF] != nil { x += "<a:ln><a:noFill/></a:ln>" }
+        return x
+    }
+
+    /// An outline's dash pattern (lineDashing) and arrowheads (lineStart/EndArrowhead, with their width and length),
+    /// in the order DrawingML puts them after the line's fill.
+    static func lineStyleXML(_ s: ArtShape) -> String {
+        var x = ""
+        let dashes = ["solid", "sysDash", "sysDot", "sysDashDot", "sysDashDotDot", "dot", "dash", "lgDash", "dashDot", "lgDashDot", "lgDashDotDot"]
+        if let d = s.props[0x1CE], d > 0, d < dashes.count { x += "<a:prstDash val=\"\(dashes[d])\"/>" }
+        let heads = ["none", "triangle", "stealth", "diamond", "oval", "arrow"], sizes = ["sm", "med", "lg"]
+        for (tag, head, width, length) in [("a:headEnd", 0x1D0, 0x1D2, 0x1D3), ("a:tailEnd", 0x1D1, 0x1D4, 0x1D5)] {
+            guard let h = s.props[head], h > 0, h < heads.count else { continue }
+            x += "<\(tag) type=\"\(heads[h])\" w=\"\(sizes[min(max(s.props[width] ?? 1, 0), 2)])\" len=\"\(sizes[min(max(s.props[length] ?? 1, 0), 2)])\"/>"
+        }
         return x
     }
 
