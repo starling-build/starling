@@ -3245,6 +3245,24 @@ enum ChartPainter {
     /// The measured widths of a Latin face the machine lacks and the stand-in does not match (Trebuchet MS, Tahoma, Verdana...), where a slide
     /// chart's text is set in it: es 3df36ff6's chart title "RESULTADO CUMPLIMIENTO PLAN DE ACCION II BIMESTRE" in Trebuchet bold 10 pt is
     /// 265 pt wide in PowerPoint's print, 295 in the stand-in, which broke it in two.
+    /// Where Excel stands a sheet chart's value-axis label: its baseline this many ems below its gridline, by face (lab axislbl,
+    /// Excel's print, 9, 18 and 36 pt, grey and black alike; the mean of the three sizes, which spread 0.005 em at most). No
+    /// font-file formula fits all seven, so they are measured. A face not measured takes a 1 em box centred on the line with the
+    /// baseline at its Windows ascent share, a fallback (0.02 em off on the measured seven), not a fit.
+    static func sheetValueLabelDrop(_ family: String) -> Double? {
+        switch SlideFonts.windowsName(family) {
+        case "aptos": return 0.2755
+        case "arial": return 0.3233
+        case "calibri": return 0.2889
+        case "cambria": return 0.3235
+        case "segoe ui": return 0.3341
+        case "tahoma": return 0.3472
+        case "times new roman": return 0.3148
+        default:
+            guard let m = SlideFonts.windowsAscentDescent(family) else { return nil }
+            return m.ascent / (m.ascent + m.descent) - 0.5
+        }
+    }
     static func latinChartFace(_ family: String) -> RichResolvedFace? {
         guard ["trebuchet ms", "tahoma", "verdana", "segoe ui", "franklin gothic book", "century gothic", "gill sans mt", "candara", "palatino linotype"].contains(family.trimmingWhitespace().lowercased()) else { return nil }
         return SlideFonts.face(family, false)
@@ -3342,8 +3360,9 @@ enum ChartPainter {
             // (A part's face is its own txPr's: PowerPoint sets a value axis or legend with no face of its own in the theme's, not in the face
             // the category axis names. es 3df36ff6 p5: Trebuchet on the categories and labels, Calibri on the percent axis and the legend.)
             // (A part with a face of its own beats the chart-wide default too: 99f6ddd1 p19's axes say Meiryo under a chart-wide MS PGothic, and PowerPoint sets the labels in Meiryo.)
-            // (A sheet's category labels take the face their own txPr names, set in its measured advances; the value axis and legend keep the default, which Excel's prints match better: chart-tdf130657, chart-tdf100084.)
-            let ownFace = part != nil && (c.onSlide && c.font != nil || c.onSheet && part == "cat") ? c.partFaces[part!] : nil
+            // (A sheet's category and value labels take the face their own txPr names, set in its measured advances: Excel's print of lab
+            // axislbl embeds each named value-axis face (Aptos, Arial, Cambria, Segoe UI, Tahoma, Times New Roman) as itself. The legend keeps the default.)
+            let ownFace = part != nil && (c.onSlide && c.font != nil || c.onSheet && (part == "cat" || part == "val")) ? c.partFaces[part!] : nil
             let partFont = part != nil && c.onSlide && c.font == nil && c.axisFont != nil ? OfficeFonts.substitute(c.partFaces[part!] ?? theme.bodyFont) : ownFace.map { OfficeFonts.substitute($0) } ?? font
             // (A slide label set in a Japanese face whose Windows line is measured, taller than the Latin 1.15 (Meiryo UI 1.270, Meiryo
             // 1.500, Yu Gothic 1.290): its line is the face's own, ascent + descent. 99f6ddd1 p23's 12 pt Meiryo UI percent labels are
@@ -6906,7 +6925,14 @@ enum ChartPainter {
                 // size-scaled clearance past them: lab p12-lab3, 8 pt labels' left at 37.5 and 18 pt's at 37.5, where ours followed the plot.)
                 let labelRight = pushedLabelGap != nil ? frame.left + 1.5 * k + tp.width : (c.onSlide && (!c.legend || c.legendPosition == "r") && !c.styled2013 && c.valueAxisTitle == nil && c.categoryAxisTitle == nil && !word && !libre && !c.chartex && c.barView == nil && !horizontal) || (c.onSlide && !horizontal && c.plotLayout == nil && !c.styled2013 && !c.legend && c.barView?.walled == true && c.barView?.rightAngles == true) ? plot.left - 0.927 * labelSize * k : slideLaidColumnAxis && c.valueTicksOut ? plot.left - max(9.0 * k, 0.773 * (valueLabels.first?.height ?? 0) - 0.1 * k) : plot.left - (c.chartex && c.onSlide ? (c.waterfallTotals != nil ? 5 : 4) : 8.5) * k - besideOut - further + wall3D + wall3DAuto + valueLabelsBack
                 if pushedLabelGap != nil { RuleTrace.hit("slide-laid-plot-pushed-keeps-value-labels-at-the-edge") }
-                if c.onSlide && c.valueAxisAtRight && !horizontal { tp.paint(canvas, Offset(plot.right + (plot.left - labelRight), p - tp.height / 2 - lift)) } else if !swapSides { tp.paint(canvas, Offset(labelRight - tp.width, p - tp.height / 2 - lift + (wall3DAuto > 0 ? 2.6 * k : 0))) }
+                // (On a sheet the label's baseline stands its face's measured drop below the line: sheetValueLabelDrop. Painted, our
+                // baseline is the line's ascent rounded, not the ascent itself: Arial 10's 9.216 paints at 9.)
+                let sheetDrop = c.onSheet ? Self.sheetValueLabelDrop(c.partFaces["val"] ?? c.font ?? theme.bodyFont ?? "Calibri") : nil
+                let ascentPainted = tp.computeLineMetrics().first.map { $0.ascent.rounded() }
+                if let d = sheetDrop, let a = ascentPainted, !swapSides, !c.valueAxisAtRight {
+                    RuleTrace.hit("sheet-value-labels-baseline-at-face-drop-below-the-line")
+                    tp.paint(canvas, Offset(labelRight - tp.width, p + d * labelSize * k - a))
+                } else if c.onSlide && c.valueAxisAtRight && !horizontal { tp.paint(canvas, Offset(plot.right + (plot.left - labelRight), p - tp.height / 2 - lift)) } else if !swapSides { tp.paint(canvas, Offset(labelRight - tp.width, p - tp.height / 2 - lift + (wall3DAuto > 0 ? 2.6 * k : 0))) }
             }
         }
         // The second axis' labels, beside the plot's right edge.
