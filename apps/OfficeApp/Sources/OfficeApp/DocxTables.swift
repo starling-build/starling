@@ -326,6 +326,44 @@ extension DocxFormat {
     /// The last four are a SmartArt diagram's (`dgm:relIds`: data, layout,
     /// quick style, colours) — left out, a kept diagram named ids the save
     /// never wrote and its parts stayed behind.
+    /// Word's fixed prefixes, for markup kept raw from the file (a run's `mc:AlternateContent` with `Requires="w16se"`).
+    static let _wordPrefixURIs: [(String, String)] = [
+        ("w16se", "http://schemas.microsoft.com/office/word/2015/wordml/symex"),
+        ("w16cid", "http://schemas.microsoft.com/office/word/2016/wordml/cid"),
+        ("w16cex", "http://schemas.microsoft.com/office/word/2018/wordml/cex"),
+        ("w16sdtdh", "http://schemas.microsoft.com/office/word/2020/wordml/sdtdatahash"),
+        ("w16du", "http://schemas.microsoft.com/office/word/2023/wordml/word16du"),
+        ("w16", "http://schemas.microsoft.com/office/word/2018/wordml"),
+        ("wps", "http://schemas.microsoft.com/office/word/2010/wordprocessingShape"),
+        ("wpg", "http://schemas.microsoft.com/office/word/2010/wordprocessingGroup"),
+        ("wpc", "http://schemas.microsoft.com/office/word/2010/wordprocessingCanvas"),
+        ("wpi", "http://schemas.microsoft.com/office/word/2010/wordprocessingInk"),
+        ("wne", "http://schemas.microsoft.com/office/word/2006/wordml"),
+        ("w10", "urn:schemas-microsoft-com:office:word"),
+        ("v", "urn:schemas-microsoft-com:vml"),
+        ("o", "urn:schemas-microsoft-com:office:office"),
+        ("m", "http://schemas.openxmlformats.org/officeDocument/2006/math"),
+        ("a", "http://schemas.openxmlformats.org/drawingml/2006/main"),
+        ("pic", "http://schemas.openxmlformats.org/drawingml/2006/picture"),
+    ]
+
+    /// Declarations for the Word prefixes `xml` uses (in a name or an `mc:Choice Requires`) that `declared` does not
+    /// declares (a local declaration on one element does not cover another). Word refuses the whole file over one undeclared prefix.
+    static func _undeclaredPrefixes(_ xml: String, declared: String) -> String {
+        var requires = Set<String>()
+        var at = xml.startIndex
+        while let r = xml.rangeOfSubstring("Requires=\"", in: at ..< xml.endIndex),
+              let e = xml.rangeOfSubstring("\"", in: r.upperBound ..< xml.endIndex) {
+            for t in xml[r.upperBound ..< e.lowerBound].split(separator: " ") { requires.insert(String(t)) }
+            at = e.upperBound
+        }
+        var out = ""
+        for (p, uri) in _wordPrefixURIs where !declared.containsSubstring("xmlns:\(p)=") {
+            if requires.contains(p) || xml.containsSubstring("<\(p):") || xml.containsSubstring(" \(p):") { out += " xmlns:\(p)=\"\(uri)\"" }
+        }
+        return out
+    }
+
     static let _relationshipAttributes = ["r:embed", "r:id", "r:link", "r:pict", "r:href", "r:dm", "r:lo", "r:qs", "r:cs"]
 
     /// Whether a table is a one-column frame that draws nothing round
@@ -1132,6 +1170,11 @@ extension DocxFormat {
                 if let x = img.sourceXML { takenAnnotationIDs.formUnion(RichDocumentController._annotationIds(in: x)) }
             }
             for m in p.bookmarkMarkers { if let n = Int(m.id) { takenAnnotationIDs.insert(n) } }
+            // (a section break's own sectPr, kept as read with its w:sectPrChange id)
+            if let x = p.style.sectionXML { takenAnnotationIDs.formUnion(RichDocumentController._annotationIds(in: x)) }
+        }
+        for x in [doc.sectionLeadXML, doc.sectionTailXML].compactMap({ $0 }) {
+            takenAnnotationIDs.formUnion(RichDocumentController._annotationIds(in: x))
         }
         func nextRevisionID() -> Int {
             repeat { revisionCount += 1 } while takenAnnotationIDs.contains(revisionCount)
@@ -1290,20 +1333,34 @@ extension DocxFormat {
                 }
                 p.runs = split
             }
-            func bookmarkXML(at offset: Int) -> String {
-                p.bookmarkMarkers.enumerated().filter {
-                    bookmarkMarkersToWrite[index]?.contains($0.offset) == true && max(0, min($0.element.offset, p.length)) == offset
-                }.map { _, marker in
-                    if let name = marker.name {
-                        return "<w:bookmarkStart w:id=\"\(_esc(marker.id))\" w:name=\"\(_esc(name))\"/>"
-                    }
-                    return "<w:bookmarkEnd w:id=\"\(_esc(marker.id))\"/>"
-                }.joined()
+            func bookmarkXML(_ marker: RichBookmarkMarker) -> String {
+                if let name = marker.name {
+                    return "<w:bookmarkStart w:id=\"\(_esc(marker.id))\" w:name=\"\(_esc(name))\"/>"
+                }
+                return "<w:bookmarkEnd w:id=\"\(_esc(marker.id))\"/>"
             }
-            func controlXML(at offset: Int) -> String {
-                controlsHere.filter { max(0, min($0.offset, p.length)) == offset }.map { marker in
-                    marker.properties.map { "<w:sdt>\($0)<w:sdtContent>" } ?? "</w:sdtContent></w:sdt>"
-                }.joined()
+            // The bookmark and content-control marks at `offset`. A bookmark may not cross a control's edge (Word
+            // refuses the file): one that starts outside a control closing here ends after it, and only one that
+            // started inside ends before it; marks that start here go after the closing control, before the opening one.
+            func markersXML(at offset: Int) -> String {
+                let here = p.bookmarkMarkers.enumerated().filter {
+                    bookmarkMarkersToWrite[index]?.contains($0.offset) == true && max(0, min($0.element.offset, p.length)) == offset
+                }.map(\.element)
+                let controls = controlsHere.filter { max(0, min($0.offset, p.length)) == offset }
+                // (An empty control opens and closes here: it is written whole, where it opens.)
+                let empty = Set(controls.filter(\.isStart).map(\.id)).intersection(controls.filter { !$0.isStart }.map(\.id))
+                let closing = controls.filter { !$0.isStart && !empty.contains($0.id) }
+                let closingFrom = closing.compactMap { c in controlsHere.first { $0.isStart && $0.id == c.id }.map { max(0, min($0.offset, p.length)) } }.min()
+                let inside: (RichBookmarkMarker) -> Bool = { m in
+                    guard m.name == nil, let from = closingFrom else { return false }
+                    guard let start = p.bookmarkMarkers.first(where: { $0.id == m.id && $0.name != nil }) else { return false }
+                    return max(0, min(start.offset, p.length)) > from
+                }
+                return here.filter(inside).map(bookmarkXML).joined()
+                    + closing.map { _ in "</w:sdtContent></w:sdt>" }.joined()
+                    + here.filter { !inside($0) }.map(bookmarkXML).joined()
+                    + controls.filter(\.isStart).compactMap { c in c.properties.map {
+                        "<w:sdt>\($0)<w:sdtContent>" + (empty.contains(c.id) ? "</w:sdtContent></w:sdt>" : "") } }.joined()
             }
             var body = ""
             var pPr = ""
@@ -1514,7 +1571,7 @@ extension DocxFormat {
             // (Runs of the same target that follow each other share one w:hyperlink, as Word writes an entry.)
             var linkOpen = "", linkClosedAt = -1
             for (runIndex, run) in p.runs.enumerated() where run.length > 0 {
-                body += bookmarkXML(at: pos) + controlXML(at: pos)
+                body += markersXML(at: pos)
                 let a = utf16.index(utf16.startIndex, offsetBy: pos)
                 let b = utf16.index(a, offsetBy: run.length)
                 let piece = String(utf16[a ..< b]) ?? ""
@@ -1668,7 +1725,7 @@ extension DocxFormat {
                 }
                 if commentsKept { body += closeComments(except: commentsAfter(index, runIndex, in: p)) }
             }
-            body += bookmarkXML(at: p.length) + controlXML(at: p.length)
+            body += markersXML(at: p.length)
             if breakRidesOnPrevious(index + 1) {
                 let next = doc.paragraphs[index + 1].style
                 body += "<w:r>\(next.breakRunPropertiesXML ?? "")<w:br w:type=\"\(next.columnBreak ? "column" : "page")\"/></w:r>"
@@ -1973,7 +2030,7 @@ extension DocxFormat {
 
         let ns = "xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\" xmlns:wp=\"http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing\" xmlns:mc=\"http://schemas.openxmlformats.org/markup-compatibility/2006\" xmlns:wp14=\"http://schemas.microsoft.com/office/word/2010/wordprocessingDrawing\" xmlns:w14=\"http://schemas.microsoft.com/office/word/2010/wordml\" xmlns:w15=\"http://schemas.microsoft.com/office/word/2012/wordml\" mc:Ignorable=\"w14 w15 wp14\""
         let background = doc.backgroundXML.map { keptFragmentXML($0, doc.backgroundRels) } ?? ""
-        let document = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<w:document \(ns)>\(background)<w:body>\(body)</w:body></w:document>"
+        let document = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<w:document \(ns + _undeclaredPrefixes(background + body, declared: ns))>\(background)<w:body>\(body)</w:body></w:document>"
 
         var relsXML = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">"
         relsXML += "<Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles\" Target=\"styles.xml\"/>"
@@ -2046,6 +2103,9 @@ extension DocxFormat {
             extraOverrides += "<Override PartName=\"/docProps/app.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.extended-properties+xml\"/>"
             rootRelsExtra.append(KeptRel(id: "", type: "http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties", target: "docProps/app.xml", external: false))
         }
+        // The document names ONE theme. A chart's theme override (a:themeOverride, which sits beside it in word/theme/)
+        // belongs to the chart's own rels: linked from the document too, under the same id, Word refuses the file.
+        var themeLinked = false
         for (name, data) in keptAll.sorted(by: { $0.key < $1.key }) where !written.contains(name) && !orphanMedia(name) && name != "word/settings.xml" {
             extraParts.append(ZipEntry(name: name, data: data))
             switch name {
@@ -2079,7 +2139,14 @@ extension DocxFormat {
             case "word/webSettings.xml":
                 relsXML += "<Relationship Id=\"rIdWebSettings\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/webSettings\" Target=\"webSettings.xml\"/>"
                 extraOverrides += "<Override PartName=\"/word/webSettings.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.webSettings+xml\"/>"
+            case _ where name.hasPrefix("word/theme/") && String(decoding: data.prefix(600), as: UTF8.self).containsSubstring(":themeOverride"):
+                extraOverrides += "<Override PartName=\"/\(_esc(name))\" ContentType=\"application/vnd.openxmlformats-officedocument.themeOverride+xml\"/>"
             case _ where name.hasPrefix("word/theme/"):
+                if themeLinked {
+                    extraOverrides += "<Override PartName=\"/\(_esc(name))\" ContentType=\"application/vnd.openxmlformats-officedocument.theme+xml\"/>"
+                    break
+                }
+                themeLinked = true
                 relsXML += "<Relationship Id=\"rIdTheme\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme\" Target=\"\(_esc(String(name.dropFirst(5))))\"/>"
                 extraOverrides += "<Override PartName=\"/\(_esc(name))\" ContentType=\"application/vnd.openxmlformats-officedocument.theme+xml\"/>"
             default:

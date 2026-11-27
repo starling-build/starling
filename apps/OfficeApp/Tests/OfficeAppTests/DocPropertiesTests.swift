@@ -43,4 +43,16 @@ final class DocPropertiesTests: XCTestCase {
         // and the AUTHOR field reads it
         XCTAssertEqual(FieldEvaluator.evaluate("AUTHOR", shown: "x", clock: nil, properties: FieldEvaluator.properties(keptParts: fresh.keptParts)), "bob")
     }
+
+    /// A file whose core part declares only cp, dc and dcterms (docx4j's) still saves as XML: the stamped dates' xsi:type
+    /// brings its namespace onto the root (xa dx4j-d5b6ee0cfa saved with xsi unbound).
+    func testStampedDatesDeclareTheirNamespace() throws {
+        let core = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<cp:coreProperties xmlns:cp=\"http://schemas.openxmlformats.org/package/2006/metadata/core-properties\" xmlns:dcterms=\"http://purl.org/dc/terms/\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\"><dc:creator>x</dc:creator></cp:coreProperties>"
+        var out = DocProperties.setting("created", to: "2026-01-01T00:00:00Z", in: core)
+        out = DocProperties.setting("modified", to: "2026-01-01T00:00:00Z", in: out)
+        XCTAssertEqual(out.components(separatedBy: "xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"").count - 1, 1)
+        XCTAssertNotNil(XNode.parse(Data(out.utf8)))
+        let bare = "<cp:coreProperties/>"
+        XCTAssertTrue(DocProperties.declaring(bare).hasPrefix("<cp:coreProperties xmlns:cp="))
+    }
 }

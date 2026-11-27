@@ -582,7 +582,9 @@ extension RichDocumentController {
         return images.count == drawings && images.allSatisfy { $0.sourceXML != nil && $0.float == nil && $0.textBox == nil }
     }
 
-    private static let _idTags = ["<w:ins ", "<w:del ", "<w:bookmarkStart ", "<w:bookmarkEnd ", "<w:rPrChange ", "<w:pPrChange ", "<w:moveFrom ", "<w:moveTo "]
+    private static let _idTags = ["<w:ins ", "<w:del ", "<w:bookmarkStart ", "<w:bookmarkEnd ", "<w:rPrChange ", "<w:pPrChange ", "<w:moveFrom ", "<w:moveTo ",
+                                          "<w:sectPrChange ", "<w:tblPrChange ", "<w:trPrChange ", "<w:tcPrChange ", "<w:tblGridChange ",
+                                          "<w:cellIns ", "<w:cellDel ", "<w:cellMerge ", "<w:numberingChange "]
 
     /// Visit each revision or bookmark `w:id="N"` of `xml`: (range of the digits, value).
     private static func _revisionIds(in xml: String) -> [(Range<String.Index>, Int)] {
