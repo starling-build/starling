@@ -47,8 +47,34 @@ final class CellBordersTests: XCTestCase {
         let xml = c.currentCell!.bordersXML!
         XCTAssertTrue(xml.containsSubstring("<w:bottom w:val=\"nil\"/>"))
         XCTAssertTrue(xml.firstRange(of: "<w:left ")!.lowerBound < xml.firstRange(of: "<w:bottom ")!.lowerBound, "schema order")
-        let others = c.document.paragraphs.compactMap(\.cell).filter { !$0.sameCell(as: here) }
+        let below = cell(c, here.row + 1, here.column)
+        XCTAssertTrue(below.bordersXML!.containsSubstring("<w:top w:val=\"nil\"/>"), "the cell below loses the shared line too")
+        let others = c.document.paragraphs.compactMap(\.cell).filter { !$0.sameCell(as: here) && !$0.sameCell(as: below) && !($0.row == here.row && $0.column == here.column - 1) }
         XCTAssertTrue(others.allSatisfy { $0.bordersXML == nil })
+    }
+
+    func testAnOuterSideAlsoSetsTheFacingSideOfTheNeighbourAcrossItInOneUndo() throws {
+        let c = RichDocumentController(plainText: "")
+        c.insertTable(rows: 3, columns: 3)
+        let middle = c.document.paragraphs.firstIndex { $0.cell?.row == 1 && $0.cell?.column == 1 }!
+        c.moveTo(RichPosition(paragraph: middle, offset: 0), extend: false)
+        let before = c.document.paragraphs
+        let red = CellBorderLine(style: "single", width: 1, color: Color(0xFFFF0000))
+        c.setCellBorders([.top: .none, .bottom: red, .left: .none, .right: red])
+        XCTAssertTrue(cell(c, 0, 1).bordersXML!.containsSubstring("<w:bottom w:val=\"nil\"/>"))
+        XCTAssertTrue(cell(c, 2, 1).bordersXML!.containsSubstring("<w:top w:val=\"single\""))
+        XCTAssertTrue(cell(c, 1, 0).bordersXML!.containsSubstring("<w:right w:val=\"nil\"/>"))
+        XCTAssertTrue(cell(c, 1, 2).bordersXML!.containsSubstring("<w:left w:val=\"single\""))
+        XCTAssertEqual(cell(c, 0, 1).edges?.bottom, false)
+        for (r, k) in [(0, 0), (0, 2), (2, 0), (2, 2)] {
+            XCTAssertNil(cell(c, r, k).bordersXML, "a corner cell shares no side with the block")
+        }
+        let saved = try DocxFormat.write(c.document, pageSetup: .letter)
+        let back = try DocxFormat.read(saved).document
+        let up = back.paragraphs.compactMap(\.cell).first { $0.row == 0 && $0.column == 1 }!
+        XCTAssertTrue(up.bordersXML!.containsSubstring("<w:bottom w:val=\"nil\"/>"), "kept on save")
+        c.undo()
+        XCTAssertEqual(c.document.paragraphs, before, "one undo takes the neighbours back too")
     }
 
     func testBordersAndShadingSurviveASaveWithTheirNeighbours() throws {
