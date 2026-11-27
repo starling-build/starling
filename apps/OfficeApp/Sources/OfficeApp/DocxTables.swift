@@ -1356,11 +1356,15 @@ extension DocxFormat {
                     guard let start = p.bookmarkMarkers.first(where: { $0.id == m.id && $0.name != nil }) else { return false }
                     return max(0, min(start.offset, p.length)) > from
                 }
-                return here.filter(inside).map(bookmarkXML).joined()
-                    + closing.map { _ in "</w:sdtContent></w:sdt>" }.joined()
-                    + here.filter { !inside($0) }.map(bookmarkXML).joined()
-                    + controls.filter(\.isStart).compactMap { c in c.properties.map {
-                        "<w:sdt>\($0)<w:sdtContent>" + (empty.contains(c.id) ? "</w:sdtContent></w:sdt>" : "") } }.joined()
+                // (Each part is its own statement: one `+` chain of closures is more than the type checker will take.)
+                let insideXML: String = here.filter(inside).map(bookmarkXML).joined()
+                let closingXML: String = closing.map { _ in "</w:sdtContent></w:sdt>" }.joined()
+                let outsideXML: String = here.filter { !inside($0) }.map(bookmarkXML).joined()
+                let openingXML: String = controls.filter(\.isStart).compactMap { c -> String? in
+                    guard let props = c.properties else { return nil }
+                    return "<w:sdt>\(props)<w:sdtContent>" + (empty.contains(c.id) ? "</w:sdtContent></w:sdt>" : "")
+                }.joined()
+                return insideXML + closingXML + outsideXML + openingXML
             }
             var body = ""
             var pPr = ""
