@@ -2024,6 +2024,16 @@ extension DocxFormat {
                                          properties: child.attrs.filter { $0.key == "w:fldLock" || $0.key == "w:dirty" }))
                     walkInline(child, link: link, revision: revision)
                     notes.fields.removeLast()
+                case "mc:AlternateContent":
+                    // Runs between a paragraph's runs, in alternatives: Word draws the first
+                    // Choice whose Requires it knows (w14, wps...), else the Fallback. Both
+                    // were dropped (dx4j-d5b6ee0cfa's "RNG81_CHOICE", which Word prints).
+                    let known: Set<Substring> = ["w14", "w15", "w16", "w16se", "w16cid", "w16cex", "w16du", "w16sdtdh",
+                                                 "wp14", "wps", "wpg", "wpc", "wpi", "a14", "m", "v", "o"]
+                    let pick = child.children.first { $0.name == "mc:Choice"
+                        && ($0["Requires"] ?? "").split(separator: " ").allSatisfy { known.contains($0) } }
+                        ?? child.first("mc:Fallback")
+                    if let pick { walkInline(pick, link: link, revision: revision) }
                 case "w:smartTag", "w:sdtContent", "w:sdt", "w:fldSimple", "w:customXml":
                     // (A simple field with no result, a PAGEREF a table of contents left unupdated: Word's line still holds the field's own
                     // empty result in the paragraph's default face, so a 21 half-point Vazirmatn line with Times New Roman 12 defaults is

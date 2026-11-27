@@ -279,4 +279,17 @@ final class DocxSaveOpensInWordTests: XCTestCase {
         XCTAssertFalse(doc.contains("£"), doc)
         XCTAssertTrue(doc.contains(">yes<"), doc)
     }
+
+    func testParagraphAlternateContentDrawsItsChoice() throws {
+        let body = "<w:p><w:r><w:t xml:space=\"preserve\">HERE </w:t></w:r><mc:AlternateContent>"
+            + "<mc:Choice Requires=\"w14\"><w:r><w:t>CHOICE</w:t></w:r></mc:Choice>"
+            + "<mc:Fallback><w:r><w:t>FALLBACK</w:t></w:r></mc:Fallback></mc:AlternateContent></w:p>"
+            + "<w:p><mc:AlternateContent><mc:Choice Requires=\"zz9\"><w:r><w:t>UNKNOWN</w:t></w:r></mc:Choice>"
+            + "<mc:Fallback><w:r><w:t>FALLBACK2</w:t></w:r></mc:Fallback></mc:AlternateContent></w:p>"
+        let doc = try XCTUnwrap(text(try resave(body), "word/document.xml"))
+        XCTAssertTrue(doc.contains("HERE CHOICE<"), doc)
+        XCTAssertTrue(doc.contains(">FALLBACK2<"), doc)
+        XCTAssertFalse(doc.contains(">FALLBACK<"), doc)
+        XCTAssertFalse(doc.contains(">UNKNOWN<"), doc)
+    }
 }
