@@ -380,6 +380,10 @@ struct Chart: Equatable {
     /// mode): its box's top left, as fractions of the chart's frame, the
     /// plot keeping its room. nil: centred at the top.
     var titleAt: Offset? = nil
+    /// The title's turn, clockwise, in radians (`a:bodyPr rot` of its text, a 60000th of a degree; 0 across).
+    /// Drawn turned about its middle, with the room for the turned text's box above the plot: Excel's print of
+    /// chart-title_manual_layout, its 14 pt "Title" at 20°, the plot's top 7 to 8 pt lower than under a flat one.
+    var titleTurn = 0.0
     /// A 3-D pie's tilt toward the viewer (`c:view3D/c:rotX`, degrees): drawn
     /// as a disc seen from above at that angle, its rim showing below. nil
     /// is a flat pie.
@@ -2075,6 +2079,7 @@ enum ChartXML {
         var titleSize: Double? = nil, titleBold = false, titleColor: Color? = nil, titleFace: String? = nil
         var titleLineSizes: [Int: Double] = [:]
         var titleAt: Offset? = nil
+        var titleTurn = 0.0
         var titleOverlay = false
         if let t = chart.first("c:title") {
             titleOverlay = ["1", "true"].contains(t.first("c:overlay")?["val"] ?? "0")
@@ -2091,6 +2096,10 @@ enum ChartXML {
                (m.first("c:xMode")?["val"] ?? "factor") == "edge", (m.first("c:yMode")?["val"] ?? "factor") == "edge",
                let x = m.first("c:x")?["val"].flatMap(Double.init), let y = m.first("c:y")?["val"].flatMap(Double.init) {
                 titleAt = Offset(x, y)
+            }
+            if let rot = (t.first("c:tx")?.first("c:rich")?.first("a:bodyPr") ?? t.first("c:txPr")?.first("a:bodyPr"))?["rot"].flatMap(Int.init),
+               rot != 0, abs(rot) <= 5_400_000 {
+                titleTurn = Double(rot) / 60_000 * .pi / 180
             }
             // Its look: the first run's, over the paragraph's default run
             // properties, over the title's own (`c:txPr`).
@@ -2213,6 +2222,7 @@ enum ChartXML {
         c.titleSpacing = titleSpacing
         c.titleLineSizes = titleLineSizes
         c.titleAt = titleAt
+        c.titleTurn = titleTurn
         c.titleOverlay = titleOverlay
         c.titleBold = titleBold
         c.titleColor = titleColor
@@ -3498,8 +3508,10 @@ enum ChartPainter {
             // Its box, where it has one: 3 pt beside the text and 1.5 over
             // and under it (chart-tdf161607's black box ruled in red round
             // its 40 pt title, in Excel's print).
+            // (Turned, the text's box turns with it, about its middle: what the plot makes room for, and where a placed title's corner is.)
+            let turned = c.titleTurn == 0 ? Size(tp.width, tp.height) : Size(abs(tp.width * cos(c.titleTurn)) + abs(tp.height * sin(c.titleTurn)), abs(tp.width * sin(c.titleTurn)) + abs(tp.height * cos(c.titleTurn)))
             if let at = c.titleAt {
-                placed = (tp, Offset(r.left + at.dx * r.width + 3 * k, r.top + at.dy * r.height + (c.type == .pie && !c.onSlide && !c.onSheet && !c.styled2013 && !c.chartex && c.ofPie == nil && c.pieTilt == nil ? 3.9 : 1.5) * k + (c.windowsHantTitle ? drop ?? 0 : 0)))
+                placed = (tp, Offset(r.left + at.dx * r.width + 3 * k + (turned.width - tp.width) / 2, r.top + at.dy * r.height + (turned.height - tp.height) / 2 + (c.type == .pie && !c.onSlide && !c.onSheet && !c.styled2013 && !c.chartex && c.ofPie == nil && c.pieTilt == nil ? 3.9 : 1.5) * k + (c.windowsHantTitle ? drop ?? 0 : 0)))
             } else {
                 // (On a sheet 2.5 pt lower, and the plot under it with it:
                 // Excel's prints of eight titled charts, 13 to 40 pt, stand
@@ -3512,8 +3524,7 @@ enum ChartPainter {
                 // once had it: 2.83 under Excel's, all twelve.)
                 // (A chartex title on a slide is centred in the frame, not the plot area's 9 pt / 4 pt margins: chartex-lab2's titles stand 2.5 pt left of ours.)
                 let o = Offset((c.chartex && c.onSlide ? r.center.dx : area.center.dx) - tp.width / 2, area.top - 2 * k + (drop ?? grown / 2) + (c.onSheet && c.chartex ? -0.43 * k / 0.75 : 0))
-                Self._titleBox(c, canvas, around: Rect.fromLTWH(o.dx, o.dy, tp.width, tp.height), k: k)
-                tp.paint(canvas, o)
+                Self._paintTitle(c, canvas, tp, at: Offset(o.dx, o.dy + (turned.height - tp.height) / 2), k: k)
             }
             // (Gaps from PowerPoint's own default chart, chart-slide-bg:
             // title to plot 3.6, plot to its category labels 7.6, labels to
@@ -3530,7 +3541,15 @@ enum ChartPainter {
                 // (A title Word was told where to stand, over a plot it lays out itself, leaves the plot 1.4 pt lower:
                 // sa1 67e19017's Spanish charts, titles of 10 and 12 pt alike, plots' tops 1.4 under ours.)
                 let placedOverAuto = c.titleAt != nil && c.plotLayout == nil && !c.onSlide && !c.onSheet && !c.chartex && !c.styled2013 && c.type == .column
-                area = Rect.fromLTRB(area.left, area.top + tp.height + grown + ((c.chartex ? 1.6 : pieOnSlide ? 6.95 : 3.6) + (placedOverAuto ? 1.4 : 0)) * k, area.right, area.bottom)
+                area = Rect.fromLTRB(area.left, area.top + turned.height + grown + ((c.chartex ? 1.6 : pieOnSlide ? 6.95 : 3.6) + (placedOverAuto ? 1.4 : 0)) * k, area.right, area.bottom)
+                // (On a sheet, a title placed by hand leaves the plot where an auto title would: 3.4 pt lower too, as
+                // the auto title's branch above has it. Excel lays the plot out for the title's own spot, not the one
+                // it was dragged to: chart-axis-label-rotation's 16 pt title 0.028 down and chart-tdf124817's 14 pt one
+                // 0.021 down, their value axes' top labels 4.6 and 5.4 pt lower in Excel's print than ours were, and
+                // within 1.5 of the same books drawn with the title's layout taken out.)
+                if c.onSheet, c.titleAt != nil {
+                    area = Rect.fromLTRB(area.left, area.top + 3.4 * k, area.right, area.bottom)
+                }
             }
             if c.type == .pie, c.ofPie == nil, c.pieTilt == nil, !c.onSlide, !c.onSheet, !c.chartex, !c.styled2013, c.titleAt == nil,
                c.plotLayout == nil, !c.legendPlaced, c.legend, ["r", "l"].contains(c.legendPosition),
@@ -4279,8 +4298,7 @@ enum ChartPainter {
             }
         }
         if let (tp, at) = placed {
-            Self._titleBox(c, canvas, around: Rect.fromLTWH(at.dx, at.dy, tp.width, tp.height), k: k)
-            tp.paint(canvas, at)
+            Self._paintTitle(c, canvas, tp, at: at, k: k)
             tp.dispose()
         }
         canvas.restore()
@@ -4289,6 +4307,21 @@ enum ChartPainter {
     /// The title's box, where it has one: 3 pt beside the text and 1.5
     /// over and under it (chart-tdf161607's black box ruled in red round
     /// its 40 pt title, in Excel's print).
+    /// The title's text with `at` its unturned top left, and its box: turned by `titleTurn` about the text's middle.
+    static func _paintTitle(_ c: Chart, _ canvas: any Canvas, _ tp: TextPainter, at: Offset, k: Double) {
+        guard c.titleTurn != 0 else {
+            Self._titleBox(c, canvas, around: Rect.fromLTWH(at.dx, at.dy, tp.width, tp.height), k: k)
+            tp.paint(canvas, at)
+            return
+        }
+        canvas.save()
+        canvas.translate(at.dx + tp.width / 2, at.dy + tp.height / 2)
+        canvas.rotate(c.titleTurn)
+        Self._titleBox(c, canvas, around: Rect.fromLTWH(-tp.width / 2, -tp.height / 2, tp.width, tp.height), k: k)
+        tp.paint(canvas, Offset(-tp.width / 2, -tp.height / 2))
+        canvas.restore()
+    }
+
     static func _titleBox(_ c: Chart, _ canvas: any Canvas, around text: Rect, k: Double) {
         guard c.titleFill != nil || c.titleLine != nil else { return }
         let b = Rect.fromLTRB(text.left - 4 * k, text.top - 2 * k, text.right + 4 * k, text.bottom + 2 * k)
@@ -6214,7 +6247,8 @@ enum ChartPainter {
                 RuleTrace.hit("word-column-chart-deleted-value-axis-plot-left")
             }
             let pt = k / 0.75
-            let titled = !(c.title ?? "").isEmpty && c.titleAt == nil && !(c.onSheet && c.titleOverlay)
+            // (On a sheet a title placed by hand counts too: Excel lays the plot out for the title's own spot, see `paint`.)
+            let titled = !(c.title ?? "").isEmpty && (c.titleAt == nil || c.onSheet) && !(c.onSheet && c.titleOverlay)
             // (An untitled 2007-style column chart on a slide: its plot starts
             // 4 pt higher and ends 2 pt nearer the frame's right edge than
             // the rest: both of cooper's charts in PowerPoint's print, top
