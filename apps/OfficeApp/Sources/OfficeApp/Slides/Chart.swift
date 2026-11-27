@@ -3655,8 +3655,13 @@ enum ChartPainter {
             // legend in PowerPoint's print, its plot where ours was.
             let lineKeys = c.type == .line || (c.type == .radar && !c.radarFilled)
                 || (c.type == .scatter && !c.onSlide && !c.onSheet && !c.series.isEmpty && c.series.allSatisfy(\.joined))
+            // (A sheet's line key is Excel's 19.2 pt with its 2.25 pt stroke, 2 pt before the name: the sheet's units are points, its
+            // text sizes pixels (k 0.75). ja-7d50affe6a's keys in Excel's print 10.94 long and 1.28 wide at the 2.25 pt series' scale.)
+            let lk = c.onSheet ? 1.0 : k
             // Room before an entry's name.
-            let lead = lineKeys && !beside ? 24.8 * k : key + gap
+            // (Beside a sheet's plot the column starts at the key, 2.1 pt before the name: chart-auto_marker_excel10's keys in
+            // Excel's print 429.1 to 448.4, the names at 450.5, the plot ending 413.5.)
+            let lead = lineKeys && !beside ? 24.8 * lk : lineKeys && c.onSheet && box == nil ? 21.2 : key + gap
             // (In a place of its own a name wider than the place wraps
             // within it, set left: zh-61aaad09's pie legend, 26% of the
             // chart's width, sets "实体投诉举报" as "实体投诉" / "举报" in Word's
@@ -4003,7 +4008,10 @@ enum ChartPainter {
                     // PowerPoint's, the column's keys moved within it.)
                     // (On a sheet a scatter whose series draw lines has a line with its mark for a key, 21.2 pt wide, not a 7 pt square and 4 pt gap: Excel's print of chart-axis_title_default_rotation ends the plot 15.4 pt further in.)
                     let sheetScatterKeys = c.onSheet && c.type == .scatter && c.series.contains { !$0.lineHidden } ? 10.2 * k : 0
-                    let measured = (entries.map { tightW($0.tp) }.max() ?? 0) + 11 * k * m + sheetScatterKeys
+                    // (A sheet line chart's column takes its 19.2 pt key and 2 pt gap the same way: chart-auto_marker_excel10's plot ends
+                    // 413.5 in Excel's print, its keys from 429.1.)
+                    let sheetLineKeys = c.onSheet && lineKeys ? 21.2 - 11 * k * m : 0
+                    let measured = (entries.map { tightW($0.tp) }.max() ?? 0) + 11 * k * m + sheetScatterKeys + sheetLineKeys
                     // (A Word pie's legend at the right takes at most a third of the frame and 9 pt (129 pt of 360,
                     // 169 of 480): names past 28 characters move the pie no further, lab piesize4's legr docs.)
                     let word = c.type == .pie && box == nil && !c.onSlide && !c.onSheet
@@ -4078,8 +4086,19 @@ enum ChartPainter {
                     slideRowStart = b.left + spacing + 0.19 * (c.legendSize ?? c.baseTextSize) * k
                 }
             }
+            // (A sheet's legend in a box of its own, one entry to a row, stands as one column set left, its keys at one x: the key and
+            // the widest line (a wrapped name's widest) centred 2.8 pt right of the box's middle, as one block. ja-7d50affe6a's three
+            // placed legends in Excel's print, 8 and 9 pt, keys 1.55 to 1.65 pdf (0.569 a point) right of centred, each line its own.)
+            let sheetBoxColumnW: Double? = c.onSheet && box != nil && !pie && lines.count > 1 && lines.allSatisfy { $0.count == 1 }
+                ? lines.map { $0.reduce(0.0) { $0 + lead + ($1.tp.computeLineMetrics().map { $0.width }.max() ?? $1.tp.width) } }.max() : nil
+            let sheetKeyLead = lineKeys ? 21.2 * lk : lead
             func startX(_ w: Double) -> Double {
                 if let x = slideRowStart { return x }
+                if let cw = sheetBoxColumnW, let b = box {
+                    RuleTrace.hit("sheet-box-legend-column-stands-set-left-its-block-centred")
+                    let keyStart = b.center.dx + 2.8 - (cw - lead + sheetKeyLead) / 2
+                    return keyStart - (lead - sheetKeyLead)
+                }
                 if let cw = wordColumnW, let b = box { return b.center.dx + 0.13 * (c.legendSize ?? c.baseTextSize) * k - cw / 2 }
                 if let cw = slideColumnW, let b = box { return b.center.dx + 0.19 * (c.legendSize ?? c.baseTextSize) * k - cw / 2 }
                 return beside ? columnX : (box == nil && c.legendAt != nil && !c.onSlide && !c.onSheet && !pie) ? r.left + c.legendAt!.dx * r.width + 15.8 * k : (box?.center.dx ?? middle) - w / 2
@@ -4142,6 +4161,10 @@ enum ChartPainter {
                     let p = Paint()
                     p.style = .fill
                     p.isAntiAlias = true
+                    // (A sheet's box column: each entry's first line at the top of its even slot, its key on that line, a wrapped
+                    // name hanging below: ja-7d50affe6a's keys 3.3 and 3.8 pdf under the slot's top in Excel's print, 12 and 13.7 apart.)
+                    let firstH = e.tp.computeLineMetrics().first.map { $0.height } ?? textH
+                    let keyY = sheetBoxColumnW != nil ? y + firstH / 2 : y + lineH / 2
                     if !byPoint, e.i >= c.series.count {
                         // A combination's line: its mark, on its line unless
                         // that is hidden.
@@ -4170,22 +4193,22 @@ enum ChartPainter {
                         : lineKeys ? c.lineColor(series: e.i, accents: theme.accents) : c.color(series: e.i, accents: theme.accents)
                     if lineKeys, !pie, e.i < c.series.count, c.series[e.i].lineHidden {
                         // (A series with no line: its mark alone, if any.)
-                        Self._mark(c.series[e.i], at: Offset(x + lead - 11.6 * k, y + lineH / 2), k: k, colour: p.color, canvas)
+                        Self._mark(c.series[e.i], at: Offset(x + lead - 11.6 * lk, keyY), k: lk, colour: p.color, canvas)
                     } else if lineKeys {
                         p.style = .stroke
-                        p.strokeWidth = 2.25 * k
-                        canvas.drawLine(Offset(x + lead - 21.2 * k, y + lineH / 2), Offset(x + lead - 2 * k, y + lineH / 2), p)
+                        p.strokeWidth = 2.25 * lk
+                        canvas.drawLine(Offset(x + lead - 21.2 * lk, keyY), Offset(x + lead - 2 * lk, keyY), p)
                         // (A scatter's key has its dot on the line: lo-c4c60fcb's in Word's print.)
                         if c.type == .scatter {
                             p.style = .fill
-                            canvas.drawCircle(Offset(x + lead - 11.6 * k, y + lineH / 2), 2.5 * k, p)
+                            canvas.drawCircle(Offset(x + lead - 11.6 * lk, keyY), 2.5 * lk, p)
                         }
                     } else if c.type == .scatter {
                         canvas.drawCircle(Offset(x + key / 2, y + lineH / 2), 2.5 * k, p)
                     } else {
                         let high = wideKeys ? 4.9 * k : key
                         // (A slide pie's wrapped column: the key and the name's first line at the top of the slot, as in PowerPoint's print.)
-                        let keyMid = slideSidePie && wrappedSide ? y + (lineH - slotH) / 2 + textH / 2 : y + lineH / 2
+                        let keyMid = slideSidePie && wrappedSide ? y + (lineH - slotH) / 2 + textH / 2 : keyY
                         // (A pattern-filled series' key is hatched as its columns are: dx2 99cfc5554d6e p3's "sphere" and "openDmnd" keys.)
                         let keyRect = Rect.fromLTWH(x, keyMid - high / 2 + keyDrop, key, high)
                         var hatchedKey = false
@@ -4210,7 +4233,7 @@ enum ChartPainter {
                             q.isAntiAlias = true
                             q.strokeWidth = min(c.series[e.i].outlineWidth, 0.75)
                             q.color = o
-                            canvas.drawRect(hatchedKey ? keyRect : Rect.fromLTWH(x, y + (lineH - high) / 2 + keyDrop, key, high), q)
+                            canvas.drawRect(hatchedKey ? keyRect : Rect.fromLTWH(x, keyY - high / 2 + keyDrop, key, high), q)
                         }
                     }
                     // (A Word pie's legend in a box of its own: an entry that wraps stands its first line where a one-line entry's
@@ -4227,6 +4250,7 @@ enum ChartPainter {
                         textDrop = (lineH - tall) / 2 + 1.5 * k
                     }
                     if slideSidePie, wrappedSide { textDrop = (lineH - slotH) / 2 }
+                    if sheetBoxColumnW != nil { textDrop = 0 }
                     e.tp.paint(canvas, Offset(x + lead, y + textDrop))
                     let ownAdvance: Double = lead + e.tp.width + spacing
                     let advance: Double = slideGridW ?? wordGridPitch ?? ownAdvance
