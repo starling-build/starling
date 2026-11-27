@@ -1335,25 +1335,9 @@ public final class RichEditableState: State<StatefulWidget> {
             // Never below 8px, never wider than the column.
             let dx = event.localPosition.dx - drag.start.dx
             let dy = event.localPosition.dy - drag.start.dy
-            let sx: Double = [2, 3, 4].contains(drag.handle) ? 1 : [0, 6, 7].contains(drag.handle) ? -1 : 0
-            let sy: Double = [4, 5, 6].contains(drag.handle) ? 1 : [0, 1, 2].contains(drag.handle) ? -1 : 0
-            var w = drag.size.width + sx * dx
-            var h = drag.size.height + sy * dy
-            let corner = drag.handle % 2 == 0
-            // With the aspect locked a corner scales both ways and an edge brings the other side along; unlocked, both are free.
-            let locked = _controller.pictureAspectLock
-            if locked, corner {
-                let scale = max(w / drag.size.width, h / drag.size.height)
-                w = drag.size.width * scale
-                h = drag.size.height * scale
-            } else if locked, sx == 0 {
-                w = drag.size.width * h / drag.size.height
-            } else if locked, sy == 0 {
-                h = drag.size.height * w / drag.size.width
-            }
-            let maxW = _layout.width
-            if w > maxW { if locked { h *= maxW / w }; w = maxW }
-            w = max(8, w); h = max(8, h)
+            let resized = PictureResize.size(from: drag.size, handle: drag.handle, dx: dx, dy: dy,
+                                             keepAspect: _controller.pictureAspectLock, maxWidth: _layout.width)
+            let (w, h) = (resized.width, resized.height)
             _dragSize = Size(w.rounded(), h.rounded())
             _repaint.notifyListeners()
             return
