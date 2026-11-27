@@ -2057,6 +2057,16 @@ extension DocxFormat {
                 if let d = part(path), !_ownParts.contains(path) { kept[path] = d }
             }
         }
+        // The numbering's own rels and what they name (a picture bullet's image): the numbering part is written back
+        // as read, with its r:id, and an r:id with no rel behind it makes Word refuse the whole file.
+        if let rels = part("word/_rels/numbering.xml.rels"), let node = XNode.parse(rels) {
+            kept["word/_rels/numbering.xml.rels"] = rels
+            for r in node.relationships() where r["TargetMode"] != "External" {
+                guard let target = r["Target"] else { continue }
+                let path = target.hasPrefix("/") ? String(target.dropFirst()) : "word/" + target
+                if let d = part(path), !_ownParts.contains(path) { kept[path] = d }
+            }
+        }
         return kept
     }
 
