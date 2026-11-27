@@ -113,6 +113,8 @@ final class SlidesShellState: State<StatefulWidget> {
     private var _sorterPerRow = 1
     private var _thumbDrag: (from: Int, startY: Double, startX: Double, to: Int, moved: Bool)? = nil
     private let _thumbMenu = FlyoutController()
+    /// A finger held on a thumbnail, or two fingers tapped on it, open its menu as a right click does.
+    private let _thumbTouch = TouchMenuTrigger()
     /// The thumbnail pane's scroll, and the slide it was last brought to:
     /// the pane follows the current slide when that changes (arrow keys, a
     /// show that ended elsewhere, Find), and is left alone otherwise so the
@@ -1770,8 +1772,12 @@ final class SlidesShellState: State<StatefulWidget> {
                     guard let self, let context = self.context else { return }
                     self._thumbDown(i, e, context: context)
                 },
-                onPointerMove: { [weak self] e in self?._thumbMove(e.position, itemHeight: thumbH + 18) },
+                onPointerMove: { [weak self] e in
+                    self?._thumbTouch.moved(e.pointer, e.position)
+                    self?._thumbMove(e.position, itemHeight: thumbH + 18)
+                },
                 onPointerUp: { [weak self] e in
+                    self?._thumbTouch.up(e.pointer)
                     self?._thumbMove(e.position, itemHeight: thumbH + 18)
                     self?._thumbUp()
                 },
@@ -1908,6 +1914,7 @@ final class SlidesShellState: State<StatefulWidget> {
     }
 
     private func _sorterDown(_ index: Int, _ e: PointerDownEvent, context: any BuildContext) {
+        if _thumbTouch.down(e, fire: { [weak self] p in self?._thumbMenuFromTouch(index, at: p) }) { return }
         if e.buttons & kSecondaryMouseButton != 0 {
             if !deck.selectedSlides.contains(index) { _select(index) }
             _paneFocused = true
@@ -1943,6 +1950,7 @@ final class SlidesShellState: State<StatefulWidget> {
     }
 
     private func _thumbDown(_ index: Int, _ e: PointerDownEvent, context: any BuildContext) {
+        if _thumbTouch.down(e, fire: { [weak self] p in self?._thumbMenuFromTouch(index, at: p) }) { return }
         if e.buttons & kSecondaryMouseButton != 0 {
             // A right-click inside the picked slides keeps the pick.
             if !deck.selectedSlides.contains(index) { _select(index) }
@@ -2007,6 +2015,16 @@ final class SlidesShellState: State<StatefulWidget> {
         } else {
             if !drag.moved, deck.selectedSlides.count > 1 { deck.selectSlide(drag.from) } else { setState {} }
         }
+    }
+
+    /// A long press or two-finger tap on a thumbnail: the menu a right click on it opens.
+    private func _thumbMenuFromTouch(_ index: Int, at point: Offset) {
+        guard let context else { return }
+        _thumbDrag = nil
+        _sorterDrag = nil
+        if !deck.selectedSlides.contains(index) { _select(index) }
+        _paneFocused = true
+        _showThumbMenu(at: point, context: context)
     }
 
     /// The thumbnail pane's right-click menu.
@@ -2126,8 +2144,12 @@ final class SlidesShellState: State<StatefulWidget> {
                   guard let self, let context = self.context else { return }
                   self._sorterDown(i, e, context: context)
               },
-              onPointerMove: { [weak self] e in self?._sorterMove(e.position, tile: (w + 32, h + 52)) },
+              onPointerMove: { [weak self] e in
+                  self?._thumbTouch.moved(e.pointer, e.position)
+                  self?._sorterMove(e.position, tile: (w + 32, h + 52))
+              },
               onPointerUp: { [weak self] e in
+                  self?._thumbTouch.up(e.pointer)
                   self?._sorterMove(e.position, tile: (w + 32, h + 52))
                   self?._sorterUp()
               },

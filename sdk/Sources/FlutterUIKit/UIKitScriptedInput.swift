@@ -12,6 +12,7 @@
 // simulator screenshot (2 px per pt) is the view's y plus 24, and a UIKit touch arrives in the same view coordinates.
 //   <ms> tap  <view> <x> <y>
 //   <ms> drag <view> <x0> <y0> <x1> <y1> [steps]
+//   <ms> dtap <view> <x> <y>          (two taps back to back: a double tap)
 //   <ms> hold <view> <x> <y> [ms]     (one finger held still, default 700 ms: a long press)
 //   <ms> twotap <view> <x1> <y1> <x2> <y2>   (two fingers down and up together, in place)
 //   <ms> type <view> <text...>        (text up to end of line; \n is Return)
@@ -68,6 +69,16 @@ enum UIKitScriptedInput {
             DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(60)) {
                 post(v, [(.up, nums[1], nums[2], id), (.remove, nums[1], nums[2], id)])
                 report("after tap")
+            }
+        case "dtap" where nums.count >= 3:
+            // Two taps back to back, posted in one go: a slow frame between two `tap` commands can run the second
+            // one's press before the first one's release, which the app reads as a two-finger tap.
+            let v = Int(nums[0])
+            report("dtap view \(v) at \(nums[1]),\(nums[2])")
+            for _ in 0 ..< 2 {
+                let id = pointerId()
+                post(v, [(.add, nums[1], nums[2], id), (.down, nums[1], nums[2], id)])
+                post(v, [(.up, nums[1], nums[2], id), (.remove, nums[1], nums[2], id)])
             }
         case "hold" where nums.count >= 3:
             // A finger held still: down, then up after `nums[3]` ms (default 700), for long-press paths.
