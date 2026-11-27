@@ -44,10 +44,21 @@ extension RichLayout {
                 if k < _inline.count { own += _inline[k] }
                 // (A float belongs to the page its anchor falls on: the anchor's offset in the paragraph, on top of the text before it,
                 // must fall within the room this page has.)
-                let scalars = Array(document.paragraphs[k].text.unicodeScalars)
-                let anchor = Double(scalars.firstIndex { $0.value == 0xFFFC } ?? 0)
+                // (Each float's own anchor: a paragraph that runs over the page break keeps a float anchored past it for the next
+                // page — ja-b852b9029c's 通常国会 box, anchored after "国債償還" at the end of Word's page 1, stands on page 2.)
+                let para = document.paragraphs[k]
+                let scalars = Array(para.text.unicodeScalars)
+                let first = Double(scalars.firstIndex { $0.value == 0xFFFC } ?? 0)
+                func anchorOf(_ image: ImageAttachment) -> Double {
+                    var at = 0
+                    for run in para.runs {
+                        if run.style.inlineImage == image.id { return Double(at) }
+                        at += run.length
+                    }
+                    return first
+                }
                 for image in own where !taken.contains(image.id) {
-                    if filled + anchor >= roomLeft() { continue }
+                    if filled + anchorOf(image) >= roomLeft() { continue }
                     guard let f = image.float, f.wraps, !f.takesRoom, !f.bandsPage, f.wrapSide == nil,
                           f.horizontalFrom == "margin" || f.horizontalFrom == "page", f.verticalFrom == "margin" || f.verticalFrom == "page",
                           image.width > 0, image.height > 0, image.textBox != nil || !image.data.isEmpty || image.outline != nil,
@@ -64,6 +75,11 @@ extension RichLayout {
                     let across0 = y0 - setup.marginLeft - f.distanceTop
                     let across1 = y0 + h - setup.marginLeft + f.distanceBottom
                     seeds.append((image.id, _px(across0), _px(across1), _px(flowTop), _px(flowBottom)))
+                    // (A float whose room on this page pushes its own anchor off it goes on with the anchor to the next page.)
+                    if filled + anchorOf(image) >= roomLeft() {
+                        RuleTrace.hit("word-vertical-float-follows-its-anchor-to-the-next-page")
+                        seeds.removeLast()
+                    }
                 }
                 // (The next paragraph starts on this page only while the text so far leaves room in the columns the floats leave.)
                 // (A paragraph ends its last line: it costs whole lines of the full column's length.)
