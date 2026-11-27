@@ -3102,6 +3102,20 @@ extension RichLayout {
         return max(0, min(pageCount - 1, p))
     }
 
+    /// A floating object's flow rectangle (`imageRect`, `inlineFloatRect`) → where it is drawn on the canvas: moved
+    /// whole by its own paragraph `i`'s piece, as the paint moves it (`_pieceFrame`). `canvasRects` picks the paragraph
+    /// by the rect's middle and clips to its pieces, so a picture drawn away from its anchor came out a sliver, or in
+    /// another paragraph's place: clicks missed the picture where it was drawn (wob3.docx, 2026-11-27).
+    public func floatCanvasRect(_ i: Int, _ r: Rect) -> Rect? {
+        guard isPaged else { return r }
+        guard i + 1 < _pieceStart.count,
+              let piece = _allPieces[_pieceStart[i] ..< _pieceStart[i + 1]].first(where: { $0.part != .rules }) else { return canvasRects(r).first }
+        let page = piece.page / _columns
+        let dy = pageRect(page).top + _pxMarginTop(page) + piece.pageY - piece.flowTop
+        let dx = _pxColumnLeft(page, column: piece.page % _columns, paragraph: piece.paragraph)
+        return r.shift(Offset(dx, dy))
+    }
+
     /// Flow rectangle → canvas rectangles (one, unless it straddles pieces).
     public func canvasRects(_ r: Rect) -> [Rect] {
         guard isPaged else { return [r] }
