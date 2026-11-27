@@ -15,7 +15,8 @@ enum SlidesPdf {
     enum Output: Int { case slides, notes, handouts }
 
     static func write(_ deck: DeckController, cache: SlideTextCache, to path: String, title: String,
-                      slides only: [Int]? = nil, output: Output = .slides, notesTheme: RichTextTheme? = nil) async -> Bool {
+                      slides only: [Int]? = nil, output: Output = .slides, notesTheme: RichTextTheme? = nil,
+                      deliver: ((Data) -> Void)? = nil) async -> Bool {
         // Pictures decode off the paint path; every one is waited for
         // first, or the page would record the grey placeholder.
         var images: [ImageAttachment] = []
@@ -99,11 +100,11 @@ enum SlidesPdf {
                 pages.append(PdfDocument.Page(picture: recorder.endRecording(), width: pw, height: ph))
             }
         }
-        return PdfDocument.write(to: path, pages: pages, title: title, author: PdfExport.authorName()) { data in
+        return PdfDocument.write(to: path, pages: pages, title: title, author: PdfExport.authorName(), rewrite: { data in
             let smooth = smoothPictures(data)
             let exact = exactPageSize(smooth ?? data, width: size.width, height: size.height)
             return exact ?? smooth
-        }
+        }, deliver: deliver)
     }
 
     /// The PDF with every picture that came from a JPEG marked

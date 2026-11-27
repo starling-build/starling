@@ -41,7 +41,7 @@ Findings:
 ## 2. Features (from fences and the wasm.md "Not done" list)
 
 Fenced out or reduced in the browser (grep `os(WASI)`):
-- Printing: "not available in the browser yet" (OfficeShell).
+- Printing: done for Word, Slides and Sheets (item 1 below).
 - Save as / autosave / recovery copies / recent files: a tab has no files; save is a download.
 - Publish documents and Site creation (Backstage, SiteShell): fenced, regex parts of SiteModel off.
 - Wiki shell, update check, file panel, picked-file paths: reduced.
@@ -100,8 +100,11 @@ CDP) checks the page side: the print frame, IndexedDB rows, recovery after a rel
    picked in our Print pane is applied before (printPages). Fallback where an iframe
    cannot print (some mobile browsers): open the PDF in a new tab.
    DONE 2026-11-26 (Word): BrowserPrintTests (native, a stand-in host); in Chrome,
-   Ctrl+P then Print gave the page a 78 KB PDF in the print frame. Slides and Sheets
-   still offer Export in the browser: they print through their own paths, next.
+   Ctrl+P then Print gave the page a 78 KB PDF in the print frame.
+   DONE 2026-11-27 (Slides, Sheets): their writers (SlidesPdf.write, writePdf) take the
+   same `deliver`, and their Print dialogs offer Print wherever the host prints bytes.
+   BrowserPrintTests has a test for each; test/office-print-slides-sheets-web.sh in
+   Chrome: Slides gave the print frame Presentation1.pdf, Sheets Book1.pdf.
 2. **AutoSave and recovery.** Two seconds after the last edit (OfficeHost.autosaveDelay,
    as natively) the document's bytes go to IndexedDB (database `starling-office`,
    store `recovery`, one row per tab: name, kind, time, bytes). A save or download
