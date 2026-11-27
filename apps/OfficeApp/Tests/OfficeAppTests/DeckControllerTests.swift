@@ -235,6 +235,32 @@ final class ThemeTests: XCTestCase {
         XCTAssertEqual(shape.fill, before.1)
     }
 
+    /// S-TX-1: with two shapes selected and no caret in them, Bold reaches all of both shapes' text as one undo step, and survives a
+    /// save and reopen.
+    func testFormatSelectedShapesIsOneStepAndRoundTrips() throws {
+        let deck = DeckController()
+        let title = deck.currentSlide.shapes[0], sub = deck.currentSlide.shapes[1]
+        title.text?.insertText("Quarterly plan")
+        sub.text?.insertText("Second line")
+        deck.selectShapes([title, sub])
+        let before = deck.snapshot()
+        deck.formatSelectedText { $0.toggleBold() }
+        for shape in [title, sub] {
+            XCTAssertTrue(shape.text!.document.paragraphs.flatMap { $0.runs }.allSatisfy { $0.style.bold })
+        }
+        let (state, theme, pkg) = try Pptx.read(Pptx.write(deck))
+        let opened = DeckController()
+        opened.load(state, theme: theme, package: pkg)
+        for shape in opened.currentSlide.shapes.prefix(2) {
+            let runs = shape.text!.document.paragraphs.flatMap { $0.runs }.filter { $0.length > 0 }
+            XCTAssertFalse(runs.isEmpty)
+            XCTAssertTrue(runs.allSatisfy { $0.style.bold }, "bold travels as b=\"1\"")
+        }
+        deck.undo()
+        XCTAssertEqual(deck.snapshot(), before, "one undo step takes the bold off both shapes")
+        XCTAssertFalse(title.text!.document.paragraphs.flatMap { $0.runs }.contains { $0.style.bold })
+    }
+
     func testThemedDeckWritesOurMasterWithItsColours() throws {
         let deck = SlidesSample.make()
         deck.applyTheme(DeckTheme.presets.first { $0.name == "Ocean" }!)
