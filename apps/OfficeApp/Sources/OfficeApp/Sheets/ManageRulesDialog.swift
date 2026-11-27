@@ -46,6 +46,10 @@ final class ManageRulesDialogState: State<StatefulWidget> {
         setState {}
     }
 
+    /// X-DA-3c: the rule being edited; the form stands in for the list until it closes.
+    private(set) var editing: CFRuleRow?
+    func editPicked() { editing = _row(); setState {} }
+
     func deletePicked() {
         guard let r = _row() else { return }
         _w.controller.deleteConditionalRule(r)
@@ -54,6 +58,10 @@ final class ManageRulesDialogState: State<StatefulWidget> {
     }
 
     override func build(_ context: any BuildContext) -> Widget {
+        if let e = editing {
+            return ConditionalFormatDialog(controller: _w.controller, editing: e, onClose: { [weak self] in
+                self?.editing = nil; self?.setState {} })
+        }
         let fluent = FluentTheme.of(context)
         let rows = _w.controller.conditionalRuleRows()
         let cur = _row()
@@ -76,6 +84,8 @@ final class ManageRulesDialogState: State<StatefulWidget> {
             list,
             SizedBox(width: nil, height: 10, child: nil),
             Row(children: [
+                Button(key: ValueKey("cf-rule-edit"), onPressed: cur != nil ? { [weak self] in self?.editPicked() } : nil, child: Text("Edit Rule…")),
+                SizedBox(width: 8, height: nil, child: nil),
                 Button(key: ValueKey("cf-rule-up"), onPressed: cur != nil ? { [weak self] in self?.moveUp(true) } : nil, child: Text("Move Up")),
                 SizedBox(width: 8, height: nil, child: nil),
                 Button(key: ValueKey("cf-rule-down"), onPressed: cur != nil ? { [weak self] in self?.moveUp(false) } : nil, child: Text("Move Down")),
@@ -86,7 +96,7 @@ final class ManageRulesDialogState: State<StatefulWidget> {
                 Button(key: ValueKey("cf-rule-delete"), onPressed: cur != nil ? { [weak self] in self?.deletePicked() } : nil, child: Text("Delete")),
             ]),
         ])
-        return DialogShell(title: "Manage Rules", page: page, okLabel: "OK", cancelLabel: "Close", okEnabled: true, width: 560,
+        return DialogShell(title: "Manage Rules", page: page, okLabel: "OK", cancelLabel: "Close", okEnabled: true, width: 640,
                            onOK: _w.onClose, onCancel: _w.onClose)
     }
 }
