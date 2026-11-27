@@ -2299,7 +2299,7 @@ public final class RichLayout {
         /// A text box group's later boxes that stand beside another rather
         /// than under it: each laid out alone, painted `dy` below the box's
         /// top (pixels).
-        var beside: [(layout: RichLayout, document: RichDocument, dy: Double, turn: (degrees: Double, x: Double, y: Double)?, foot: Double)] = []
+        var beside: [(layout: RichLayout, document: RichDocument, dy: Double, turn: (degrees: Double, x: Double, y: Double)?)] = []
         var height: Double { layout.totalHeight }
         /// Where a table placed against the PAGE opens the header stands below the paper's
         /// top (points), if it does: Word sets it there, not at the header distance
