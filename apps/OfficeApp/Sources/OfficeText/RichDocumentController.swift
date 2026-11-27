@@ -2840,8 +2840,31 @@ public final class RichDocumentController: ChangeNotifier {
     }
 
     /// The table's width: points, a percent of the text width, or nil for automatic.
-    public func setTableWidth(points: Double? = nil, percent: Double? = nil) {
-        setTableStyle { $0.width = points.map { max(1, $0) }; $0.widthPercent = percent.map { min(600, max(1, $0)) } }
+    /// The columns are scaled to the new width in the same undo step, so each cell's preferred width (written from them)
+    /// agrees with the table's: Word opened an 80% table whose cells still asked for the full text width (lab tb3).
+    /// `textWidth` is the page's text width, what a percent is of.
+    public func setTableWidth(points: Double? = nil, percent: Double? = nil, textWidth: Double = PageSetup.letter.contentWidth) {
+        guard let t = currentCell?.table else { return }
+        let old = document.tableStyles[t]
+        var new = old ?? TableStyle()
+        new.width = points.map { max(1, $0) }
+        new.widthPercent = percent.map { min(600, max(1, $0)) }
+        let target = new.width ?? new.widthPercent.map { textWidth * $0 / 100 }
+        let oldCols = document.tableColumns[t]
+        var cols = oldCols
+        // A table with no columns of its own is saved with equal ones across the text width: give it equal ones across
+        // the new width instead.
+        let count = document.paragraphs.compactMap { $0.cell?.table == t ? $0.cell!.column + $0.cell!.span : nil }.max() ?? 0
+        if let target, count > 0 {
+            let c = oldCols?.count == count ? oldCols! : Array(repeating: textWidth / Double(count), count: count)
+            let sum = c.reduce(0, +)
+            if sum > 0, abs(sum - target) > 0.01 || oldCols == nil { cols = c.map { $0 * target / sum } }
+        }
+        guard new != (old ?? TableStyle()) || cols != oldCols else { return }
+        edit {
+            if new != (old ?? TableStyle()) { perform(.setTableStyle(t, old: old, new: new == TableStyle() ? nil : new)) }
+            if cols != oldCols { perform(.setTableColumns(t, old: oldCols, new: cols)) }
+        }
     }
 
     /// Automatic column widths (the grid fits its text) or fixed ones.

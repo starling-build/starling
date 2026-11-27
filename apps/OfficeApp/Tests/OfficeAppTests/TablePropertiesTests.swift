@@ -42,6 +42,25 @@ final class TablePropertiesTests: XCTestCase {
         XCTAssertEqual(c.currentTableStyle?.widthPercent, 80, "one undo per change")
     }
 
+    func testANewTableWidthScalesTheColumnsSoTheCellsAskForIt() throws {
+        // Lab tb3: Word opened an 80% table whose three cells each still asked for 156 pt, the full 468 pt text width.
+        let c = grid()
+        let t = c.currentCell!.table
+        let before = c.document.tableColumns[t]
+        c.setTableWidth(percent: 80)
+        let cols = try XCTUnwrap(c.document.tableColumns[t])
+        XCTAssertEqual(cols.reduce(0, +), 468 * 0.8, accuracy: 0.01)
+        XCTAssertEqual(cols[0], cols[1], accuracy: 0.01, "the columns keep their proportions")
+        let back = try roundTrip(c)
+        XCTAssertEqual(back.tableColumns.values.first?.reduce(0, +) ?? 0, 374.4, accuracy: 0.1, "the saved cells ask for the table's width")
+        c.setTableWidth(points: 300)
+        XCTAssertEqual(c.document.tableColumns[t]?.reduce(0, +) ?? 0, 300, accuracy: 0.01)
+        c.undo()
+        c.undo()
+        XCTAssertEqual(c.document.tableColumns[t], before, "the width and the columns come back in one undo each")
+        XCTAssertNil(c.currentTableStyle?.widthPercent)
+    }
+
     func testRowPropertiesApplyToTheSelectedRowsOnly() throws {
         let c = grid()
         c.moveTo(RichPosition(paragraph: 2, offset: 0), extend: false)   // row 1, column 0
