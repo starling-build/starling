@@ -2488,11 +2488,22 @@ extension RichLayout {
         return rows.values.map { $0.reduce(0) { $0 + (cells[$1] ?? 0) } }.max() ?? 0
     }
 
-    /// The widest of this document's tables of a set width (not a share), as set (px).
+    /// The widest of this document's tables of a set width (not a share), as set (px), with the
+    /// halves of its outer side rules that stand out past its grid.
+    /// (dx2 f524a62c's nested table, 9018 twips and 0.5 pt side rules, takes its column to
+    /// 9018 + 216 margins + 10 in Word's saved grid and print, 9244; lo-65650bf1's, 2455, to 2681.)
     func _setTables(_ document: RichDocument) -> Double {
         var tables = Set<String>()
         for p in document.paragraphs { if let c = p.cell { tables.insert(c.table) } }
-        return tables.filter { document.tableStyles[$0]?.widthPercent == nil }.map { (_columnWidths[$0] ?? []).reduce(0, +) }.max() ?? 0
+        return tables.compactMap { t -> Double? in
+            guard let ts = document.tableStyles[t], ts.widthPercent == nil else { return document.tableStyles[t] == nil ? (_columnWidths[t] ?? []).reduce(0, +) : nil }
+            var w = (_columnWidths[t] ?? []).reduce(0, +)
+            if ts.cellSpacing == nil {
+                if ts.edges?.left ?? ts.borders { w += _px((ts.edgeWidths["left"] ?? ts.borderWidth ?? 0.5) / 2) }
+                if ts.edges?.right ?? ts.borders { w += _px((ts.edgeWidths["right"] ?? ts.borderWidth ?? 0.5) / 2) }
+            }
+            return w
+        }.max() ?? 0
     }
 
     /// (A table nested in an autofit table's cell asks its column for the
@@ -2520,10 +2531,15 @@ extension RichLayout {
             let givers = out.indices.filter { $0 != k && need[$0] <= out[$0] }
             let spare = givers.reduce(0.0) { $0 + max(0, out[$1] - max(narrowest[$1], need[$1])) }
             let d = min(need[k] - out[k], spare)
-            guard d > 0 else { continue }
-            RuleTrace.hit("nested-table-asks-its-set-width-of-its-column")
-            for j in givers { out[j] -= d * max(0, out[j] - max(narrowest[j], need[j])) / spare }
-            out[k] += d
+            if d > 0 {
+                RuleTrace.hit("nested-table-asks-its-set-width-of-its-column")
+                for j in givers { out[j] -= d * max(0, out[j] - max(narrowest[j], need[j])) / spare }
+            }
+            // (What the others cannot give widens the table: dx2 f524a62c's 9810-twip table, cells 709 / 9101, gives its
+            // nested table's column 103 of the 143 it asks, its first column down to "Д/д" and margins, 606, and Word's
+            // grid and print grow it by the rest to 606 / 9244.)
+            if need[k] - out[k] - d > _px(0.05) { RuleTrace.hit("nested-table-grows-its-table-past-what-the-others-give") }
+            out[k] = need[k]
         }
         // (A grid within a point of it in every column is the saving program's own fit, as in `_autofit`.)
         if out != widths, let grid = document.tableColumns[table]?.map({ _px($0) }), grid.count == out.count,
@@ -2637,10 +2653,11 @@ extension RichLayout {
                         (a >= 0x0E01 && a <= 0x0E7F) != (b >= 0x0E01 && b <= 0x0E7F), !(a == 0x2D || a == 0x2013 || a == 0x2014 || b == 0x2D || b == 0x2013 || b == 0x2014),
                         !Self._autofitDictionaryScript(a >= 0x0E01 && a <= 0x0E7F ? b : a) { parts = false }
                 else if breakBefore.contains(k) { parts = true }
-                // (A content-fitted spaced table's column parts after a hyphen between digits: lab tbauto3 h, Word for Windows, dx2 6d16b495's
-                // "201-15" in column 3: boxes 23.9 / 387.0 / 352.2 predicted, 23.9 / 386.95 / 352.1 printed.)
+                // (A column at compat 15 parts after a hyphen between digits: lab tbauto3 h, Word for Windows, dx2 6d16b495's spaced table's
+                // "201-15" in column 3: boxes 23.9 / 387.0 / 352.2 predicted, 23.9 / 386.95 / 352.1 printed; and dx2 89f7d55e's unspaced
+                // one keeps its grid's 104.9 pt last column, "02.10-" / "12.10.2024" on two lines, where ours took the date whole, 99.2 pt.)
                 else if theme.wordRules, RichTextTheme.wordWindowsPages, a == 0x2D, b >= 0x30, b <= 0x39, k > 1, units[k - 2] >= 0x30, units[k - 2] <= 0x39,
-                        let c = p.cell, (document.tableStyles[c.table]?.cellSpacing ?? 0) > 0, (document.compatibilityMode ?? 0) >= 15 { parts = true }
+                        p.cell != nil, (document.compatibilityMode ?? 0) >= 15 { parts = true }
                 // (After a hyphen before a digit in a time of day, where a
                 // word wider than its cell must part: zh-b3e887f7's schedule keeps its
                 // grid's 49.4pt time columns in Word's print, "9:00-" /
