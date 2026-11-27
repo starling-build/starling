@@ -160,6 +160,14 @@ extension WorkbookController {
     }
 }
 
+extension SheetPrintLayout {
+    /// The ribbon's Scale to Fit choice as one change: pages wide and tall (0 =
+    /// Automatic); both Automatic turns fitting off and keeps `scale`.
+    static func fitChange(wide: Int, tall: Int, scale: Int) -> PageSetupChange {
+        wide == 0 && tall == 0 ? PageSetupChange(scale: scale) : PageSetupChange(fitWide: wide, fitTall: tall)
+    }
+}
+
 // MARK: Print area and titles (the sheet's built-in defined names)
 
 extension WorkbookController {
