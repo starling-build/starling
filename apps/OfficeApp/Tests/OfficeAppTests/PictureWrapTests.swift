@@ -698,10 +698,25 @@ final class ShapeSelectTests: XCTestCase {
 
     /// Word's print of lab shape-format: a square at the margin, a tight ellipse 9pt from it on the same rows, and a top-and-bottom
     /// box lower down, all set from the page, in one long paragraph.
+    /// Lays out with the faces this app ships, loaded here, and those only: a machine's own faces (a Mac's Times) or what
+    /// an earlier test left loaded must not move the lines these tests measure. Gives back the undo.
+    static func pinBundledFonts() -> () -> Void {
+        _ = OfficeFonts.register()
+        let env = ProcessInfo.processInfo.environment["OFFICE_FONT_SOURCE"]
+        setenv("OFFICE_FONT_SOURCE", "bundled", 1)
+        OfficeFonts.fontSourceChanged()
+        return {
+            if let env { setenv("OFFICE_FONT_SOURCE", env, 1) } else { unsetenv("OFFICE_FONT_SOURCE") }
+            OfficeFonts.fontSourceChanged()
+        }
+    }
+
     func testSquareBesideATightEllipseFromThePageAsWordSetsThem() throws {
         let was = RichTextTheme.wordWindowsPages
         RichTextTheme.wordWindowsPages = true
         defer { RichTextTheme.wordWindowsPages = was }
+        let unpin = Self.pinBundledFonts()
+        defer { unpin() }
         /// Lays the page out with the fourth shape wrapped `last`; the caret rows by row top (column points) and the foot of the text.
         func lay(_ last: PictureWrap) throws -> (rows: [Double: [Double]], foot: Double) {
             let c = RichDocumentController(document: RichDocument(paragraphs: [RichParagraph(text: String(repeating: "Body text of the page, long enough to flow past every one of the four shapes so the wrap of each can be seen acting on it. ", count: 14))]))
@@ -724,7 +739,7 @@ final class ShapeSelectTests: XCTestCase {
             var rows: [Double: [Double]] = [:]
             for off in stride(from: 0, to: 3600, by: 2) {
                 let r = layout.caretRect(RichPosition(paragraph: body, offset: off), doc)
-                rows[(r.top / px).rounded(), default: []].append(r.left / px)
+                rows[(r.top / px * 100).rounded() / 100, default: []].append(r.left / px)
             }
             return (rows, layout.totalHeight / px)
         }
@@ -741,9 +756,16 @@ final class ShapeSelectTests: XCTestCase {
         // (Word's print: 260.6 / 275.6 are the oval's edge plus 9pt over the 13.4pt Calibri text, not over the 14.5pt line). Here the
         // rows are 13pt, the text 13 / 1.08 = 12.04pt: the row at 120 meets the oval (centre 148, 153; half axes 50, 35) at 132.04,
         // where its edge is 188.1 across, so the text starts at 197.1 (198.2 before, over the whole line); the row at 133 meets it at 145.04: 196.7, text at 205.7.
-        func start(_ row: Double) -> Double? { rows.first { abs($0.key - row) < 0.6 }?.value.filter { $0 > 150 }.min() }
-        XCTAssertEqual(try XCTUnwrap(start(120)), 148 + 50 * (1 - pow((153 - (120 + 13 / 1.0791666)) / 35, 2)).squareRoot() + 9, accuracy: 0.4)
-        XCTAssertEqual(try XCTUnwrap(start(133)), 148 + 50 * (1 - pow((153 - (133 + 13 / 1.0791666)) / 35, 2)).squareRoot() + 9, accuracy: 0.4)
+        // The first two lines whose top is at or below the ellipse's (118) and that have a piece right of it, by their measured
+        // tops: the row height is the spacing between them, the text height that over 1.08 (the host's faces set both).
+        let near = rows.filter { $0.key >= 118 && $0.key < 148 && $0.value.contains { $0 > 150 } }.sorted { $0.key < $1.key }
+        XCTAssertGreaterThanOrEqual(near.count, 2, "lines beside the ellipse: \(rows.keys.sorted())")
+        guard near.count >= 2 else { return }
+        let text = (near[1].key - near[0].key) / 1.0791666
+        for line in near.prefix(2) {
+            let edge = 148 + 50 * (1 - pow((153 - (line.key + text)) / 35, 2)).squareRoot()
+            XCTAssertEqual(try XCTUnwrap(line.value.filter { $0 > 150 }.min()), edge + 9, accuracy: 0.4, "the line at \(line.key)")
+        }
         // Below the square the left piece is back at the margin.
         XCTAssertTrue(rows.filter { $0.key > 150 && $0.key < 188 }.flatMap(\.value).contains { $0 < 8 })
         // The top-and-bottom box takes its rows out of the text: the lines that would stand in them go under it, so the page is
