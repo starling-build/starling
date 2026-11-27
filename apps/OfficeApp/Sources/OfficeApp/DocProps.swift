@@ -231,8 +231,10 @@ enum DocProps {
         var beforeAuto: Bool?, afterAuto: Bool?
         var left: Int?, right: Int?, first: Int?, jc: String?
         var ilfo = 0, ilvl = 0
+        var snapToGrid: Bool?
         for s in sprms(g) where s.sgc == 1 {
             switch s.op {
+            case 0x2447: snapToGrid = s.u8 == 1   // sprmPFUsePgsuSettings: the paragraph follows the page's document grid (w:snapToGrid)
             case 0x2406: keepNext = s.u8 == 1
             case 0x2405: keepLines = s.u8 == 1
             case 0x2407: pageBreak = s.u8 == 1
@@ -256,6 +258,7 @@ enum DocProps {
         if pageBreak { x += "<w:pageBreakBefore/>" }
         if let widow { x += widow ? "<w:widowControl/>" : "<w:widowControl w:val=\"0\"/>" }
         if ilfo > 0 { x += "<w:numPr><w:ilvl w:val=\"\(min(ilvl, 8))\"/><w:numId w:val=\"\(ilfo)\"/></w:numPr>" }
+        if let snapToGrid { x += snapToGrid ? "<w:snapToGrid/>" : "<w:snapToGrid w:val=\"0\"/>" }
         if before != nil || after != nil || line != nil || beforeAuto != nil || afterAuto != nil {
             x += "<w:spacing"
             if let before { x += " w:before=\"\(before)\"" }

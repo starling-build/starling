@@ -1371,7 +1371,7 @@ enum OfficeFonts {
         let n = family.trimmingWhitespace().lowercased()
         guard !n.isEmpty else { return nil }
         // (BatangChe and DotumChe are Word for Windows' own faces, drawn at their own widths further on.)
-        if ["batangche", "dotumche", "바탕체", "돋움체"].contains(n) { return nil }
+        if ["batangche", "dotumche", "gungsuhche", "바탕체", "돋움체", "궁서체"].contains(n) { return nil }
         // (NanumGothic is a face Word for Windows prints as itself (7416edcd), drawn at its own widths further on.)
         if ["nanumgothic", "나눔고딕"].contains(n) { return nil }
         // (맑은 고딕 is Word for Windows' face too: a document that names
@@ -3578,7 +3578,7 @@ enum OfficeFonts {
         }
         // (BatangChe and DotumChe: the same square line as GulimChe (hhea 879/145 of 1024, Word's 1.3) and Latin
         // fixed at half an em, read from the subsets in Word's prints of 7416edcd, 07eecf7a and dx4j-7acb626022.)
-        if wordOnWindows, has("batangche", "바탕체", "dotumche", "돋움체") {
+        if wordOnWindows, has("batangche", "바탕체", "dotumche", "돋움체", "gungsuhche", "궁서체") {
             RuleTrace.hit("che-own-latin-widths")
             var face = EastAsianFace(height: 1.3, latin: sans, latinScale: 1.0, fakeBold: true, baseline: 0.15 + 0.859375)
             face.latinAdvances = gulimCheAdvances
