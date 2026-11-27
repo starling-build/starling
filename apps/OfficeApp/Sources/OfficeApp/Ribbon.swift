@@ -112,6 +112,7 @@ final class Ribbon: StatelessWidget {
         for t in RibbonTab.strip(for: session.kind) { items.append(_tab(t, fluent)) }
         let slidePicture = session.deck?.selection.contains { $0.picture != nil } ?? false
         if session.summary.imageIndex != nil || slidePicture { items.append(_tab(session.imageTab, fluent)) }
+        if session.deck?.selectionHasShape ?? false { items.append(_tab(.shapeFormat, fluent)) }
         if session.deck?.selectedTableOptions != nil { items.append(_tab(.tableDesign, fluent)) }
         if session.summary.inCell { items.append(_tab(.tableDesign, fluent)); items.append(_tab(.tableLayout, fluent)) }
         if session.deck?.selectedChart != nil { items.append(_tab(.chartDesign, fluent)) }

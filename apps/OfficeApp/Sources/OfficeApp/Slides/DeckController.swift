@@ -1491,6 +1491,17 @@ final class DeckController: ChangeNotifier {
     }
 
     /// The one selected chart, for the Chart Design tab and the data grid.
+    /// Whether the selection holds a shape that PowerPoint's Shape Format tab acts on: a drawn shape, a
+    /// placeholder or a text box (pictures, tables and charts have their own tabs).
+    var selectionHasShape: Bool {
+        selection.contains { s in
+            switch s.kind {
+            case .placeholder, .textBox, .geometry: return true
+            default: return false
+            }
+        }
+    }
+
     var selectedChart: SlideShape? {
         selection.count == 1 && selection[0].chart != nil ? selection[0] : nil
     }

@@ -24,6 +24,7 @@ extension Ribbon {
         case .slideShow: return _slideShowTab(deck, fluent)
         case .view: return _slidesView(fluent)
         case .pictureFormat: return _slidePictureFormat(deck, fluent)
+        case .shapeFormat: return _slideShapeFormat(deck, fluent)
         case .chartDesign: return _chartDesign(deck, fluent)
         case .slideMaster: return _slideMasterTab(deck, fluent)
         case .tableDesign: return _slideTableDesign(deck, fluent)
@@ -153,8 +154,79 @@ extension Ribbon {
     /// Shapes, Arrange, Shape Fill and Shape Outline — PowerPoint's Drawing
     /// group, acting on the selected shapes.
     private func _drawingGroup(_ deck: DeckController, _ fluent: FluentThemeData) -> Widget {
+        let arrange = _arrangeItems(deck)
+        let palette = Self.shapeColors(deck.theme)
+        return Chrome.group("Drawing", fluent, [Chrome.rows([
+            Chrome.row([
+                Chrome.menuButton(FluentSystemIcons.shapes, "Shapes", "Insert a shape", fluent, items: _shapeItems(fluent)),
+                Chrome.menuButton(FluentSystemIcons.grid, "Arrange", "Order and align", fluent, items: arrange),
+            ]),
+            Chrome.vgap(4),
+            Chrome.row([
+                _shapeColorMenu(FluentSystemIcons.paintBrush, "Shape Fill", deck, fluent, outline: false),
+                _shapeColorMenu(FluentSystemIcons.edit, "Shape Outline", deck, fluent, outline: true),
+            ]),
+            Chrome.vgap(4),
+            Chrome.row([
+                Chrome.menuButton(FluentSystemIcons.textEffects, "Shape Effects", "Shadow, glow, reflection, soft edges, bevel",
+                                  fluent, items: _effectItems(deck, fluent)),
+                Chrome.small(FluentSystemIcons.textT, "Text Options", fluent) { [session] in session.onTextOptions?() },
+            ]),
+        ])])
+    }
+
+    /// Shape Format: PowerPoint's contextual tab for a selected shape, placeholder or text box (pictures get
+    /// Picture Format). Its groups reuse the Drawing group's commands: Insert Shapes, Shape Styles,
+    /// Accessibility, Arrange and Size.
+    func _slideShapeFormat(_ deck: DeckController, _ fluent: FluentThemeData) -> [Widget] {
         let some = !deck.selection.isEmpty
-        let arrange: [MenuFlyoutItemBase] = [
+        let first = deck.selection.first?.frame
+        let rotate: [MenuFlyoutItemBase] = [
+            MenuFlyoutItem(text: Text("Rotate Right 90°"), onPressed: some ? { deck.rotateSelection(by: 90) } : nil),
+            MenuFlyoutItem(text: Text("Rotate Left 90°"), onPressed: some ? { deck.rotateSelection(by: -90) } : nil),
+            MenuFlyoutItem(text: Text("Flip Vertical"), onPressed: some ? { deck.flipSelection(horizontal: false) } : nil),
+            MenuFlyoutItem(text: Text("Flip Horizontal"), onPressed: some ? { deck.flipSelection(horizontal: true) } : nil),
+        ]
+        return [
+            Chrome.group("Insert Shapes", fluent, [Chrome.rows([
+                Chrome.menuButton(FluentSystemIcons.shapes, "Shapes", "Insert a shape", fluent, items: _shapeItems(fluent)),
+            ])]),
+            Chrome.group("Shape Styles", fluent, [Chrome.rows([
+                Chrome.row([
+                    _shapeColorMenu(FluentSystemIcons.paintBrush, "Shape Fill", deck, fluent, outline: false),
+                    _shapeColorMenu(FluentSystemIcons.edit, "Shape Outline", deck, fluent, outline: true),
+                ]),
+                Chrome.vgap(4),
+                Chrome.menuButton(FluentSystemIcons.textEffects, "Shape Effects", "Shadow, glow, reflection, soft edges, bevel",
+                                  fluent, items: _effectItems(deck, fluent)),
+            ])]),
+            Chrome.group("Accessibility", fluent, [
+                Chrome.big(FluentSystemIcons.info, "Alt Text", fluent) { [session] in session.onAltText?() },
+            ]),
+            Chrome.group("Arrange", fluent, [Chrome.rows([
+                Chrome.small(FluentSystemIcons.chevronUp, "Bring Forward", fluent) { deck.arrange(.forward) },
+                Chrome.small(FluentSystemIcons.chevronDown, "Send Backward", fluent) { deck.arrange(.backward) },
+                Chrome.row([
+                    Chrome.menuButton(FluentSystemIcons.grid, "Align", "Order, align and distribute", fluent, items: _arrangeItems(deck)),
+                    Chrome.menuButton(FluentSystemIcons.refresh, "Rotate", "Rotate or flip", fluent, items: rotate),
+                ]),
+            ])]),
+            Chrome.group("Size", fluent, [Chrome.rows([
+                Padding(key: ValueKey("shapeFormat.height"), padding: EdgeInsets(left: 0, top: 0, right: 0, bottom: 0),
+                        child: Chrome.spinner("Height", first?.height ?? 0, fluent, step: 6) { v in deck.setSize(height: v) }),
+                Chrome.vgap(2),
+                Padding(key: ValueKey("shapeFormat.width"), padding: EdgeInsets(left: 0, top: 0, right: 0, bottom: 0),
+                        child: Chrome.spinner("Width", first?.width ?? 0, fluent, step: 6) { v in deck.setSize(width: v) }),
+                Chrome.vgap(2),
+                Chrome.small(FluentSystemIcons.settings, "Format Shape…", fluent) { [session] in session.onFormatShape?() },
+            ])]),
+        ]
+    }
+
+    /// The Arrange menu: order, group, rotate, align and distribute the selected shapes.
+    private func _arrangeItems(_ deck: DeckController) -> [MenuFlyoutItemBase] {
+        let some = !deck.selection.isEmpty
+        return [
             MenuFlyoutItem(text: Text("Bring to Front"), onPressed: some ? { deck.arrange(.front) } : nil),
             MenuFlyoutItem(text: Text("Send to Back"), onPressed: some ? { deck.arrange(.back) } : nil),
             MenuFlyoutItem(text: Text("Bring Forward"), onPressed: some ? { deck.arrange(.forward) } : nil),
@@ -190,24 +262,6 @@ extension Ribbon {
             MenuFlyoutSeparator(),
             MenuFlyoutItem(text: Text("Format Shape…"), onPressed: some ? { [session] in session.onFormatShape?() } : nil),
         ]
-        let palette = Self.shapeColors(deck.theme)
-        return Chrome.group("Drawing", fluent, [Chrome.rows([
-            Chrome.row([
-                Chrome.menuButton(FluentSystemIcons.shapes, "Shapes", "Insert a shape", fluent, items: _shapeItems(fluent)),
-                Chrome.menuButton(FluentSystemIcons.grid, "Arrange", "Order and align", fluent, items: arrange),
-            ]),
-            Chrome.vgap(4),
-            Chrome.row([
-                _shapeColorMenu(FluentSystemIcons.paintBrush, "Shape Fill", deck, fluent, outline: false),
-                _shapeColorMenu(FluentSystemIcons.edit, "Shape Outline", deck, fluent, outline: true),
-            ]),
-            Chrome.vgap(4),
-            Chrome.row([
-                Chrome.menuButton(FluentSystemIcons.textEffects, "Shape Effects", "Shadow, glow, reflection, soft edges, bevel",
-                                  fluent, items: _effectItems(deck, fluent)),
-                Chrome.small(FluentSystemIcons.textT, "Text Options", fluent) { [session] in session.onTextOptions?() },
-            ]),
-        ])])
     }
 
     /// Shape Effects: PowerPoint's presets for shadow, glow, reflection, soft edges and bevel.
