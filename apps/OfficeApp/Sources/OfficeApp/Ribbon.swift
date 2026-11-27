@@ -773,9 +773,9 @@ final class Ribbon: StatelessWidget {
                     Chrome.small(FluentSystemIcons.zoomOut, "Half Size", fluent) {
                         c.setInlineImageSize(in: i, id: id, width: image.width / 2, height: image.height / 2)
                     },
+                    // A row of the same column (a small button folds to its icon when the tab is tight), not a column of its own.
+                    Chrome.small(FluentSystemIcons.lock, "Lock Aspect Ratio", fluent, checked: s.imageAspectLock) { [session] in session.onToggleAspectLock?() },
                 ]),
-                Chrome.gap(8),
-                Chrome.rows([Chrome.textToggle("Lock Aspect Ratio", s.imageAspectLock, fluent) { [session] in session.onToggleAspectLock?() }]),
             ])
             let turn = Chrome.group("Rotate", fluent, [
                 Chrome.small(CupertinoIcons.rotate_right, "Rotate Right", fluent) { _ = c.rotatePicture(at: i, inline: id, quarters: 1) },
@@ -850,9 +850,8 @@ final class Ribbon: StatelessWidget {
                 Chrome.small(FluentSystemIcons.zoomOut, "Half Size", fluent) {
                     c.setImageSize(at: i, width: image.width / 2, height: image.height / 2)
                 },
+                Chrome.small(FluentSystemIcons.lock, "Lock Aspect Ratio", fluent, checked: s.imageAspectLock) { [session] in session.onToggleAspectLock?() },
             ]),
-            Chrome.gap(8),
-            Chrome.rows([Chrome.textToggle("Lock Aspect Ratio", s.imageAspectLock, fluent) { [session] in session.onToggleAspectLock?() }]),
         ])
         let arrange = Chrome.group("Arrange", fluent, [
             Chrome.big(FluentSystemIcons.alignLeft, "Left", fluent) { c.setAlignment(.left) },
