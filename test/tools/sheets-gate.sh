@@ -26,7 +26,10 @@ fi
 SWEEP "$BIN" "$W/p" || { echo "sheets-gate: no scores produced"; tail -3 "$W/p.log" | cut -c1-200; exit 1; }
 ACC=$W/accepted.txt; : > "$ACC"
 MSGS="${PR_BODY:-}"$'\n'$(git -C "$ROOT" log --format=%B "$(git -C "$ROOT" merge-base HEAD origin/main 2>/dev/null || echo HEAD)..HEAD" 2>/dev/null || true)
-for t in $(cat "${LQ:-/data/landq}/approved.txt" 2>/dev/null); do case "$MSGS" in *"$t"*) echo "$t" >> "$ACC";; esac; done
+# an id counts the same with or without its .xls/.xlsx/.docx/.pptx suffix, in approved.txt and in the message alike (starling-bd, 2026-11-27):
+# the waiver list gets every spelling, so the scorer's own key (bare or suffixed) always finds it
+for t in $(cat "${LQ:-/data/landq}/approved.txt" 2>/dev/null); do b=$t; case $t in *.xls|*.xlsx|*.docx|*.pptx) b=${t%.*};; esac
+  case "$MSGS" in *"$b"*) printf '%s\n' "$b" "$b.xls" "$b.xlsx" "$b.docx" "$b.pptx" >> "$ACC";; esac; done
 python3 -I - "$W/base.tsv" "$W/p/per-book.tsv" "$TOL" "$LTOL" "$ACC" <<'P'
 import sys
 base, new, tol, ltol, acc = sys.argv[1], sys.argv[2], float(sys.argv[3]), float(sys.argv[4]), sys.argv[5]

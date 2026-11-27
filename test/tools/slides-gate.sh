@@ -19,7 +19,10 @@ W=${SLIDES_SCRATCH:-${GATE_SCRATCH:-$HOME/scratch/gate}/slides}; rm -rf "$W"; mk
 # dropped it 100.0 to 87.6 and the gate said "0 worse" (found by the DRIFT line). No commit message naming the id, no waiver.
 ACC=$W/accepted.txt; : > "$ACC"
 MSGS="${PR_BODY:-}"$'\n'$(git -C "$ROOT" log --format=%B "$(git -C "$ROOT" merge-base HEAD origin/main 2>/dev/null || echo HEAD)..HEAD" 2>/dev/null || true)
-for t in $(cat "${LQ:-/data/landq}/approved.txt" 2>/dev/null); do case "$MSGS" in *"$t"*) echo "$t" >> "$ACC";; esac; done
+# an id counts the same with or without its .xls/.xlsx/.docx/.pptx suffix, in approved.txt and in the message alike (starling-bd, 2026-11-27):
+# the waiver list gets every spelling, so the scorer's own key (bare or suffixed) always finds it
+for t in $(cat "${LQ:-/data/landq}/approved.txt" 2>/dev/null); do b=$t; case $t in *.xls|*.xlsx|*.docx|*.pptx) b=${t%.*};; esac
+  case "$MSGS" in *"$b"*) printf '%s\n' "$b" "$b.xls" "$b.xlsx" "$b.docx" "$b.pptx" >> "$ACC";; esac; done
 T=$(date +%s)
 # The pilot decks (real decks of 20-60 slides, ja and ko; amd-8's baseline rows name them) join the SAME sweep so they share the job
 # pool; every deck is launched largest first so the longest one never starts last. Without a pilot baseline the sweep is the corpus alone.
