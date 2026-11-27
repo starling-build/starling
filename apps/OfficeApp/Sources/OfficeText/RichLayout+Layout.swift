@@ -3845,6 +3845,24 @@ extension RichLayout {
     /// The grid's half of the room under a paragraph's first line's text,
     /// px: by the face of its first characters (not a box's place, nor
     /// the smallest on the line, `_overhang`). 0 off the grid.
+    /// The grid height of the paragraph's first text, or of its mark when it has no text (its anchors' line), in px.
+    func _firstLineGridHeight(_ i: Int, _ document: RichDocument) -> Double {
+        let p = document.paragraphs[i]
+        guard theme.wordRules, p.image == nil, p.cell == nil, p.style.eastAsian["w:snapToGrid"] != "0",
+              let pitch = _grid(i, document).pitch else { return 0 }
+        var at = p.text.startIndex
+        for run in p.runs {
+            let end = p.text.utf16.index(at, offsetBy: run.length, limitedBy: p.text.endIndex) ?? p.text.endIndex
+            let text = p.text[at ..< end]
+            at = end
+            guard text.contains(where: { !$0.isWhitespace && $0 != "\u{FFFC}" }) else { continue }
+            let ea = text.contains { Self.isEastAsian($0, hinted: false) }
+            return _px(theme.gridLineHeight(for: run.style, in: p.style, named: _named(p, document), eastAsian: ea, gridPitch: pitch))
+        }
+        guard let style = p.style.mark ?? p.runs.first?.style else { return 0 }
+        return _px(theme.gridLineHeight(for: style, in: p.style, named: _named(p, document), eastAsian: true, gridPitch: pitch))
+    }
+
     func _firstLineGridHalf(_ i: Int, _ document: RichDocument) -> Double {
         let p = document.paragraphs[i]
         guard theme.wordRules, p.image == nil, p.cell == nil, p.style.eastAsian["w:snapToGrid"] != "0",

@@ -1387,6 +1387,17 @@ extension RichLayout {
         // 9.5pt under an empty line, drew 294pt too low.)
         if theme.wordRules, !float.wraps, !float.takesRoom, !float.bandsPage, float.verticalAlign == nil, float.verticalFrom == "paragraph", pushed > 0,
            i < _floatTight.count, _floatTight[i] { y += pushed }
+        // (Under a square-wrapped one too, when the paragraph opens its page and the pushed line runs past the text's foot: the line
+        // stays on the page and Word measures the paragraph's other floats from it — lab anchpush, a 515 and a 519 pt picture
+        // set their 49 pt-high box at 528.5 and 532.4 in Word's prints; under 505 pt, where the line fits, the box stays.)
+        else if theme.wordRules, RichTextTheme.wordWindowsPages, !float.wraps, !float.takesRoom, !float.bandsPage, float.verticalAlign == nil,
+                float.verticalFrom == "paragraph", pushed > 0,
+                case let mine = _allPieces.filter({ $0.paragraph == i && !$0.repeated }), mine.count == 1, let piece = mine.first, piece.pageY < 0.01,
+                case let setup = pageSetup(forPage: piece.page / max(1, _columns)),
+                piece.height > _px(setup.height - setup.marginTop - setup.marginBottom) + 0.01 {
+            RuleTrace.hit("word-anchor-floats-follow-line-pushed-past-text-foot")
+            y += pushed
+        }
         // (A table floating in a cell from the page or margin stands its offset
         // under the cell's top, not under the paragraph its anchor is in.)
         if theme.wordRules, RichTextTheme.wordWindowsPages, float.fromCellTop, float.horizontalFrom == "cell", i < _cells.count, let d = _cells[i] {

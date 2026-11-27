@@ -854,6 +854,21 @@ public final class RichTextTheme {
         return max(0, (h - natural * size) / 2)
     }
 
+    /// The height a line of this text takes on the line grid, in points, whole pitches (0 off the grid, or with a height the
+    /// paragraph states).
+    public func gridLineHeight(for style: CharStyle, in paragraph: RichParagraphStyle, named: RichNamedStyle?,
+                               eastAsian: Bool, gridPitch: Double?) -> Double {
+        guard let pitch = gridPitch, pitch > 0, paragraph.lineHeightPoints == nil else { return 0 }
+        let size = style.fontSize ?? named?.char.fontSize ?? fontSize
+        let latinName = style.fontFamily ?? named?.char.fontFamily ?? fontFamily
+        let familyName = eastAsian ? (style.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? latinName) : latinName
+        guard size > 0, let face = faceResolver?(familyName, eastAsian) else { return 0 }
+        let bold = style.bold || ((named?.char.bold ?? false) && !style.off.contains(.bold))
+        let italic = style.italic || ((named?.char.italic ?? false) && !style.off.contains(.italic))
+        let natural = (bold ? face.boldHeight : nil) ?? face.naturalHeight ?? naturalLineHeight(family: face.family, bold: bold, italic: italic)
+        return lineBox(size: size, natural: natural, baseline: nil, in: paragraph, gridPitch: pitch).height
+    }
+
     /// Resolve a run's style inside a paragraph to an engine TextStyle, at
     /// `scale` (zoom, 1.0 = 100%).
     ///
