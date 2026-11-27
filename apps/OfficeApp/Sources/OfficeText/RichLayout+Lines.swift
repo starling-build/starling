@@ -1479,6 +1479,16 @@ extension RichLayout {
         _OffsetMap(lead: _lead(i), inserts: i < _inserts.count ? _inserts[i] : [])
     }
 
+    /// The end of a paragraph's first word (UTF-16 offset): the first space, tab or break; nil where the paragraph opens
+    /// with one, or the word holds a hyphen, an object or East Asian text (those part by their own rules).
+    static func _firstWordEnd(_ text: String) -> Int? {
+        let units = Array(text.utf16)
+        guard let first = units.first, first != 0x20, first != 0x09, first != 0x0A, first != 0x0B, first != 0x2028 else { return nil }
+        let end = units.firstIndex(where: { $0 == 0x20 || $0 == 0x09 || $0 == 0x0A || $0 == 0x0B || $0 == 0x2028 || $0 == 0xA0 }) ?? units.count
+        guard !units[..<end].contains(where: { $0 == 0x2D || $0 == 0xFFFC || $0 >= 0x2E80 && $0 < 0xD800 }) else { return nil }
+        return end
+    }
+
     /// Where each of a painter's lines starts, in paragraph offsets.
     func _lineStarts(_ painter: TextPainter, _ map: _OffsetMap, count: Int) -> [Int] {
         let total = count + map.lead + map.inserts.count

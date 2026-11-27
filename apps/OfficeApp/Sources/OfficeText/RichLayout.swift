@@ -2084,6 +2084,9 @@ public final class RichLayout {
     /// not: the paragraph offsets a zero-width space stands before (see
     /// `_OffsetMap`).
     var _inserts: [[Int]] = []
+    /// Paragraphs whose first word Word parts at the end of their indented first line (index to the word's end, a
+    /// paragraph offset): see the rule "first-word-too-long-for-indented-line-parts-at-its-end".
+    var _partedFirstWord: [Int: Int] = [:]
     /// Korean wordWrap-off spaces that open a line (paragraph index to offsets), set by the fit.
     var _wwSpaceStarts: [Int: Set<Int>] = [:]
     /// Soft hyphens (U+00AD) a paragraph's lines end at, drawn as a visible
