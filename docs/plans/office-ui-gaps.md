@@ -278,7 +278,7 @@ Status: **works** = seen working on the simulator; **partly** = seen, with the g
 | Format panes | **not seen** | Not exercised (Format Shape and Format Cells need a shape/cell selection flow the driver does not yet script). Code review: the pane is a fixed right-hand panel, with no slide-over or bottom-sheet variant. Treat as missing until seen. | |
 | Ribbon collapse | **works** | A narrow window folds groups to icons then to one button each (`RibbonFit`, read from code and its tests; the simulator window is wide). At the 13-inch width the Slides Home tab clips its Drawing group's caption at the bottom edge (cosmetic). | `s-hold.png` |
 | Keyboard bar per context | **partly** | With the bar forced on (`OFFICE_TOOLBAR_FORCE_WIDTH`), the Sheets bar shows undo/redo, B/I/U and the formula keys; per-context buttons for table, picture and shape exist in `EditorToolbar` (`ctx-`) but were not seen on the simulator because the hardware keyboard hides the bar. | `x-keyrow.png` |
-| Shift / Ctrl touch equivalents | **missing** | Read from code: Shift-click range, Shift-aspect and Ctrl-drag copy have no touch path (no Select Multiple mode, no aspect-lock toggle, Duplicate only in the ribbon). | |
+| Shift / Ctrl touch equivalents | **partly** | Correction to the first pass of this audit: a Select Multiple mode exists (Slides shapes, Writer shapes, Sheets charts and pictures; commits f900a5527, 1e9fdef88), so "no Select Multiple" was wrong. Read from code and not seen on the simulator: Shift-click cell ranges, Shift-aspect and Ctrl-drag copy have no touch path found (no aspect-lock toggle; Duplicate only in the ribbon). | |
 | Handles (44 pt) | **partly** | Seen: the picture's handles are drawn as 8 pt squares. Read from code: text handles reach 8–22 pt in touch mode (`_handleHit`, knob radius 7). Both are below 44 pt. No two-finger rotate. | `w-pichold.png` |
 | Link and note cards | **works** (link) | A tap on a link shows a card with the address and Open / Edit / Remove. A cell note card was not seen. | `w-linktap.png` |
 | Ruler and tab stops | **partly** | The ruler shows with small markers (seen); dragging them by touch was not exercised. The Tabs dialog exists as the keyboardless path (not opened). | `w-linktap.png` |
@@ -293,7 +293,7 @@ Status: **works** = seen working on the simulator; **partly** = seen, with the g
 1. ~~Slides: a context menu for a hold and a two-finger tap on text, a shape and a slide thumbnail (Sheets row/column header menu in the same area).~~ Done 2026-11-27, same PR as this audit.
 2. ~~Dialogs as sheets, fields at 44 pt.~~ Done 2026-11-27: `DialogShell` rises from the bottom edge on touch devices, text fields are `Chrome.fieldHeight` (44 pt on iOS, 30 on desktop); `after-dialog-sheet.png`.
 3. ~~44 pt handles for pictures, shapes and the ruler.~~ Done 2026-11-27: the hit areas were already up to 44 pt (picture, shape, ruler); the drawn handles are now 14 pt (rotate 18 pt) once a finger has touched; `after-handles-picture.png`, `after-handles-shape.png`.
-4. The Shift/Ctrl touch equivalents (a Select Multiple mode, an aspect-lock toggle).
+4. The remaining Shift/Ctrl touch equivalents (an aspect-lock toggle, Duplicate beside the handles); check first that Select Multiple covers what the audit lists.
 5. Format panes as a slide-over or bottom sheet.
 
 ## 7. Not in this plan
