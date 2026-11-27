@@ -2192,6 +2192,8 @@ final class SlidesShellState: State<StatefulWidget> {
             m.item("Align Top") { deck.align(.top) }
             m.item("Align Middle") { deck.align(.middle) }
             m.item("Align Bottom") { deck.align(.bottom) }
+            m.item("Distribute Horizontally", enabled: deck.canDistribute) { deck.distribute(horizontal: true) }
+            m.item("Distribute Vertically", enabled: deck.canDistribute) { deck.distribute(horizontal: false) }
             if deck.selection.contains(where: { if case .picture = $0.kind { return true } else { return false } }) {
                 m.separator()
                 m.item("Reset Picture") { deck.resetPictures() }

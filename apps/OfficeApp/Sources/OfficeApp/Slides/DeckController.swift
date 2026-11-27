@@ -2538,13 +2538,65 @@ final class DeckController: ChangeNotifier {
 
     enum Align { case left, center, right, top, middle, bottom }
 
-    /// One shape aligns to the slide; several align to the box around them.
+    /// Arrange > Align > Align to Slide (true) or Align Selected Objects (false, the default): what Align and Distribute
+    /// measure against when several shapes are selected. One shape always goes by the slide. Kept for the session, as
+    /// PowerPoint keeps it.
+    private(set) var alignToSlide = false
+
+    func setAlignToSlide(_ on: Bool) {
+        guard alignToSlide != on else { return }
+        alignToSlide = on
+        notifyViewChanged()
+    }
+
+    /// Whether Align and Distribute go by the slide for the current selection.
+    var alignsBySlide: Bool { selection.count == 1 || alignToSlide }
+
+    /// The box Align and Distribute work within: the slide, or the box around the selection.
+    private var _alignBox: Rect {
+        alignsBySlide
+            ? Rect.fromLTWH(0, 0, slideSize.width, slideSize.height)
+            : selection.dropFirst().reduce(selection[0].frame) { $0.expandToInclude($1.frame) }
+    }
+
+    /// Distribute needs three shapes among themselves; by the slide, one is enough.
+    var canDistribute: Bool { alignsBySlide ? !selection.isEmpty : selection.count >= 3 }
+
+    /// Distribute Horizontally / Vertically: the shapes, in order of their centres, spaced with equal gaps from the
+    /// first edge of the box to its last: the box around the selection (so the outermost shapes stay put), or the slide,
+    /// whose edges the first and last then touch (one shape alone goes to its middle).
+    func distribute(horizontal: Bool) {
+        guard canDistribute else { return }
+        _checkpoint()
+        let box = _alignBox
+        func start(_ r: Rect) -> Double { horizontal ? r.left : r.top }
+        func size(_ r: Rect) -> Double { horizontal ? r.width : r.height }
+        let order = selection.enumerated().sorted {
+            let a = horizontal ? $0.element.frame.center.dx : $0.element.frame.center.dy
+            let b = horizontal ? $1.element.frame.center.dx : $1.element.frame.center.dy
+            return a != b ? a < b : $0.offset < $1.offset
+        }.map(\.element)
+        let lo = start(box), span = size(box)
+        let total = order.reduce(0) { $0 + size($1.frame) }
+        var at: Double, gap: Double
+        if order.count == 1 {
+            gap = 0; at = lo + (span - total) / 2
+        } else {
+            gap = (span - total) / Double(order.count - 1); at = lo
+        }
+        for s in order {
+            let f = s.frame
+            s.frame = horizontal ? Rect.fromLTWH(at, f.top, f.width, f.height) : Rect.fromLTWH(f.left, at, f.width, f.height)
+            at += size(f) + gap
+        }
+        _changed()
+    }
+
+    /// One shape aligns to the slide; several align to the box around them, or to the slide with Align to Slide on.
     func align(_ how: Align) {
         guard !selection.isEmpty else { return }
         _checkpoint()
-        let box: Rect = selection.count == 1
-            ? Rect.fromLTWH(0, 0, slideSize.width, slideSize.height)
-            : selection.dropFirst().reduce(selection[0].frame) { $0.expandToInclude($1.frame) }
+        let box = _alignBox
         for s in selection {
             let f = s.frame
             var x = f.left, y = f.top
