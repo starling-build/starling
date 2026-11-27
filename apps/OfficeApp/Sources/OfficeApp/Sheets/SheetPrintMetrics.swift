@@ -349,6 +349,12 @@ struct SheetPrintMetrics {
 
     /// A measured value at `size`: between the sizes measured, and in
     /// proportion beyond them.
+    /// The row Excel's print gives `family` at `size` points, in its 600 dpi dots, before any rounding (a face the tables lack
+    /// takes its stand-in's).
+    static func textRowDots(family: String, size: Double) -> Double {
+        at((faces[faceKey(family)] ?? faces["arial"]!).row, size)
+    }
+
     private static func at(_ values: [Double], _ size: Double) -> Double {
         if size <= sizes[0] { return values[0] * size / sizes[0] }
         if size >= sizes[sizes.count - 1] { return values[values.count - 1] * size / sizes[sizes.count - 1] }
