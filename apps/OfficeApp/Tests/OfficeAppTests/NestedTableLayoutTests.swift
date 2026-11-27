@@ -55,6 +55,52 @@ final class NestedTableLayoutTests: XCTestCase {
         return doc
     }
 
+    func testAutofitColumnMakesRoomForANestedTableOfSetWidth() throws {
+        // lo-65650bf1: an autofit table of two 126.45pt cells (252.9 in all)
+        // holds, in its second, a nested table of a 122.75pt grid whose words
+        // are short. Word's print widens that column to 134.2, room for the
+        // nested table and its 5.4pt margins, and takes it from the first
+        // (118.8), the table keeping its width.
+        let was = RichTextTheme.wordWindowsPages
+        RichTextTheme.wordWindowsPages = true
+        defer { RichTextTheme.wordWindowsPages = was }
+        var inner: [RichParagraph] = []
+        for (k, word) in ["a", "b", "c"].enumerated() {
+            var p = RichParagraph(text: word)
+            p.cell = CellRef(table: "inner", row: 0, column: k)
+            inner.append(p)
+        }
+        var box = RichTextBox(paragraphs: inner)
+        box.growsToFit = true
+        box.insetLeft = 0; box.insetRight = 0; box.insetTop = 0; box.insetBottom = 0
+        box.tableStyles = ["inner": TableStyle()]
+        box.tableColumns = ["inner": [24.9, 43.25, 54.6]]
+        var block = ImageAttachment(data: Data(), width: 122.75, height: 20, name: "table")
+        block.textBox = box
+        var left = RichParagraph(text: "x")
+        left.cell = CellRef(table: "outer", row: 0, column: 0)
+        var right = RichParagraph(image: block)
+        right.cell = CellRef(table: "outer", row: 0, column: 1)
+        var doc = RichDocument(paragraphs: [left, right, RichParagraph(text: "")])
+        var outer = TableStyle()
+        outer.width = 252.9
+        doc.tableStyles = ["outer": outer]
+        doc.tableColumns = ["outer": [126.45, 126.45]]
+        doc.compatibilityMode = 15
+        let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
+        theme.fontFamilyResolver = OfficeFonts.substitute
+        theme.faceResolver = OfficeFonts.face
+        theme.averageCharWidth = OfficeFonts.averageCharWidth
+        theme.wordRules = true
+        let l = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+        l.width = 450 * theme.pixelsPerPoint
+        l.ensureLaidOut(doc)
+        let w = try XCTUnwrap(l.columnWidths(of: "outer"))
+        XCTAssertEqual(w.count, 2)
+        XCTAssertGreaterThan(w[1], 132, "the nested table and its margins fit its column")
+        XCTAssertEqual(w.reduce(0, +), 252.9, accuracy: 1, "the table keeps its width")
+    }
+
     #if canImport(PDFKit)
     private func rightEdge(_ doc: RichDocument) throws -> Double {
         let theme = RichTextTheme(fontFamily: OfficeFonts.sans)

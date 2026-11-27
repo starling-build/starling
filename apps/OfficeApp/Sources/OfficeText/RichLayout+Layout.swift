@@ -1495,7 +1495,7 @@ extension RichLayout {
                 }
                 if theme.wordRules, !_nestedInFixedTable, _columnPreview[c.table] == nil, let ts = document.tableStyles[c.table],
                    !ts.fixedLayout, ts.columnPercents.isEmpty || (ts.cellSpacing ?? 0) == 0, let base = widths[c.table] {
-                    widths[c.table] = _autofit(c.table, base, document)
+                    widths[c.table] = _nestedTableRoom(c.table, _autofit(c.table, base, document), document)
                     // (A table of a stated share whose cells state a share of
                     // it in every column, and not the grid's: the columns are
                     // those shares of its width — LibreOffice's
@@ -2486,6 +2486,49 @@ extension RichLayout {
             cells[key] = max(cells[key] ?? 0, sides + _minContent(i, p, document))
         }
         return rows.values.map { $0.reduce(0) { $0 + (cells[$1] ?? 0) } }.max() ?? 0
+    }
+
+    /// The widest of this document's tables of a set width (not a share), as set (px).
+    func _setTables(_ document: RichDocument) -> Double {
+        var tables = Set<String>()
+        for p in document.paragraphs { if let c = p.cell { tables.insert(c.table) } }
+        return tables.filter { document.tableStyles[$0]?.widthPercent == nil }.map { (_columnWidths[$0] ?? []).reduce(0, +) }.max() ?? 0
+    }
+
+    /// (A table nested in an autofit table's cell asks its column for the
+    /// width it is set at, which the other columns give down to their own
+    /// narrowest; the table keeps its width. lo-65650bf1's outer table, cells
+    /// of 2529 + 2529 twips, holds a nested one of 2455 whose words alone
+    /// need 1804: Word's print gives the columns 118.8 / 134.2, room for it
+    /// and its margins, where ours kept 126.5 each and the nested table ran
+    /// 7.3 pt past its cell. A one-column table has none to give: lo-660753a9's
+    /// stays at its 100 pt and the nested one is set narrower inside it.)
+    func _nestedTableRoom(_ table: String, _ widths: [Double], _ document: RichDocument) -> [Double] {
+        guard theme.wordRules, RichTextTheme.wordWindowsPages, widths.count > 1 else { return widths }
+        let ins = _cellInsets(table, document)
+        var need = Array(repeating: 0.0, count: widths.count), narrowest = need
+        for (i, p) in document.paragraphs.enumerated() {
+            guard let c = p.cell, c.table == table, c.span == 1, c.column < widths.count, c.textDirection == .horizontal else { continue }
+            let sides = (c.padding.map { _px($0.left) } ?? ins.left) + (c.padding.map { _px($0.right) } ?? ins.right)
+            narrowest[c.column] = max(narrowest[c.column], sides + _minContent(i, p, document))
+            if let image = p.image, image.float == nil, let box = image.textBox, box.growsToFit, let inside = _textBox(image, document) {
+                need[c.column] = max(need[c.column], sides + inside.layout._setTables(inside.document))
+            }
+        }
+        var out = widths
+        for k in out.indices where need[k] > out[k] + _px(0.05) {
+            let givers = out.indices.filter { $0 != k && need[$0] <= out[$0] }
+            let spare = givers.reduce(0.0) { $0 + max(0, out[$1] - max(narrowest[$1], need[$1])) }
+            let d = min(need[k] - out[k], spare)
+            guard d > 0 else { continue }
+            RuleTrace.hit("nested-table-asks-its-set-width-of-its-column")
+            for j in givers { out[j] -= d * max(0, out[j] - max(narrowest[j], need[j])) / spare }
+            out[k] += d
+        }
+        // (A grid within a point of it in every column is the saving program's own fit, as in `_autofit`.)
+        if out != widths, let grid = document.tableColumns[table]?.map({ _px($0) }), grid.count == out.count,
+           zip(grid, out).allSatisfy({ abs($0 - $1) <= _px(1) }), abs(grid.reduce(0, +) - out.reduce(0, +)) <= _px(0.5) { return grid }
+        return out
     }
 
     /// The narrowest a paragraph of a cell can be set (px): its longest
