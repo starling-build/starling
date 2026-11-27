@@ -3456,8 +3456,13 @@ extension RichLayout {
                     // off the left rule whatever the left margin (18pt) or
                     // the bottom (10); centred, half the right margin left
                     // of the middle — zh-b0401810's "职业资格证书…", which
-                    // stood 3.3pt right of Word's.)
-                    let endPad = theme.wordRules && cell.direction == .down ? 0 : cell.pad.left
+                    // stood 3.3pt right of Word's.) A document in Word 2013's mode (compatibilityMode 15)
+                    // centres such a cell between both margins: dx2 b3b6b12d's 36 centred "hoogste…" lines
+                    // stand at the middle of their cells in Word's print, ours 2.7pt (half the 108-twip left
+                    // margin) left of it, lab turnpad2 the same in every variant; zh-b0401810 and lab turnpad
+                    // (mode 14 and no settings) keep the old rule. (Top and bottom in mode 15 are not measured.)
+                    let endPad = theme.wordRules && cell.direction == .down
+                        && !(cell.verticalAlign == "center" && Self._centresTurnedBetweenMargins(document)) ? 0 : cell.pad.left
                     // (A cell set in the middle or at the foot of a row takes the row's deepest margins
                     // for its room, not only its own: lab cellc2, Word for Windows — a 200-twip bottom or top
                     // margin on one cell of two, both centred in an at-least 2400 row, moves neither cell's
@@ -3523,6 +3528,12 @@ extension RichLayout {
     /// Re-wraps a turned merged cell's paragraphs `first ... last` to the rows
     /// of it that stand on the page (`turned`), or back to the whole merge's
     /// length where it stands whole, and puts its lines across the column again.
+    /// True when a centred cell that reads down sits midway between both of its side margins
+    /// (Word 2013's mode, compatibilityMode 15 on); older modes leave its left margin out.
+    static func _centresTurnedBetweenMargins(_ document: RichDocument) -> Bool {
+        (document.compatibilityMode ?? 12) >= 15
+    }
+
     func _wrapTurned(_ first: Int, _ last: Int, _ d: _CellGeo, _ turned: Double?, _ document: RichDocument) {
         var changed = false
         for m in first ... last {
@@ -3541,7 +3552,7 @@ extension RichLayout {
             changed = true
         }
         guard changed else { return }
-        let endPad = d.direction == .down ? 0 : d.pad.left
+        let endPad = d.direction == .down && !(d.verticalAlign == "center" && Self._centresTurnedBetweenMargins(document)) ? 0 : d.pad.left
         let room = d.colWidth - endPad - d.pad.right
         var content = 0.0, stack: Double? = nil
         for m in first ... last {
