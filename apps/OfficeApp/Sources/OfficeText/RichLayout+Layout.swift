@@ -1716,20 +1716,30 @@ extension RichLayout {
             let line = painter.getLineBoundary(TextPosition(offset: k))
             return rubyShifts.first(where: { $0.from < line.end && $0.to > line.start })?.shift ?? 0
         }
-        func acrossC(_ box: TextBox, _ em: Double, _ k: Int) -> Double {
-            guard let st = styles[k] else { return across(box) }
+        // (Word for Windows stands every face's upright character on that middle, Chinese ones too: lab turnpad3's tbRlV SimSun 11
+        // column stood 0.9 to 1.0 pt to the side of Word's in all six places from the box's middle, and within 0.2 pt from this
+        // (dx2 zh-b0401810 +217 lines, zh-32f4ad9f +13). The Kai faces keep their own 0.085 em past the box's middle, measured on
+        // zh-74b34f3b and zh-6e7ff836's DFKai-SB, which this set 0.45 to 0.65 pt the other side of Word's. A character beside a
+        // taller one takes the taller one's middle: zh-74b34f3b's 16pt beside a 20pt "樓".)
+        func acrossFace(_ box: TextBox, _ em: Double, _ k: Int) -> Double? {
+            guard let st = styles[k] else { return nil }
             let fam = st.debugLabel ?? st.fontFamily ?? ""
             let low = fam.lowercased()
-            guard ["meiryo", "メイリオ", "ms mincho", "ms gothic", "ＭＳ", "明朝", "yu mincho", "yu gothic", "游"].contains(where: { low.containsSubstring($0) }),
-                  let face = theme.faceResolver?(fam, true) else { return across(box) }
+            let japanese = ["meiryo", "メイリオ", "ms mincho", "ms gothic", "ＭＳ", "明朝", "yu mincho", "yu gothic", "游"].contains(where: { low.containsSubstring($0) })
+            let kai = fam.containsSubstring("楷") || low.containsSubstring("dfkai") || low.containsSubstring("kaiti")
+            guard japanese || theme.wordRules && RichTextTheme.wordWindowsPages && !kai,
+                  let face = theme.faceResolver?(fam, true) else { return nil }
             let bold = st.fontWeight.map { $0.value >= 600 } ?? false
             guard let t = (bold ? face.boldBaseline : nil) ?? face.baseline,
-                  let natural = (bold ? face.boldHeight : nil) ?? face.naturalHeight else { return across(box) }
+                  let natural = (bold ? face.boldHeight : nil) ?? face.naturalHeight else { return nil }
             let mid = (box.top + box.bottom) / 2
-            guard let line = lineMetrics.first(where: { mid >= $0.baseline - $0.ascent - 0.5 && mid <= $0.baseline + $0.descent + 0.5 }) else { return across(box) }
+            guard let line = lineMetrics.first(where: { mid >= $0.baseline - $0.ascent - 0.5 && mid <= $0.baseline + $0.descent + 0.5 }) else { return nil }
+            let tallest = tallestBox(box)
+            let size = japanese || box.bottom - box.top < 0.01 ? em : em * (tallest.bottom - tallest.top) / (box.bottom - box.top)
             // (The run's own baseline shift moves its box across the line, which `across` has; this took the line's own place without it.)
-            return line.baseline - (t - natural / 2) * em + (st.baselineShift ?? 0)
+            return line.baseline - (t - natural / 2) * size + (st.baselineShift ?? 0)
         }
+        func acrossC(_ box: TextBox, _ em: Double, _ k: Int) -> Double { acrossFace(box, em, k) ?? across(box) }
         for (n, k) in shown.enumerated() {
             guard var box = ownBoxes[n],
                   let ch = Unicode.Scalar(text[k]) else { continue }
@@ -1826,7 +1836,7 @@ extension RichLayout {
                 }
             }
             let yuAlong = column.map { $0.ascent - 0.876 } ?? 0
-            canvas.translate(origin.dx + along + (japanese ? 0 : (Self._verticalFormDrop[form] ?? 0)) * em + yuAlong * em, origin.dy + columnAcross + rubyColumnShift(k) + (plain && column == nil ? 0.085 * em : 0) + sharedShift(k))
+            canvas.translate(origin.dx + along + (japanese ? 0 : (Self._verticalFormDrop[form] ?? 0)) * em + yuAlong * em, origin.dy + columnAcross + rubyColumnShift(k) + (plain && column == nil && acrossFace(box, em, k) == nil ? 0.085 * em : 0) + sharedShift(k))
             canvas.rotate(-Double.pi / 2)
             glyph.paint(canvas, Offset(-glyph.width / 2, -middle))
             canvas.restore()
@@ -1846,7 +1856,7 @@ extension RichLayout {
             let plain = family.containsSubstring("楷") || family.lowercased().containsSubstring("dfkai") || family.lowercased().containsSubstring("kaiti")
             // (The place's start, a square's half along it, on the baseline an ideograph's square has in its own place.)
             canvas.save()
-            canvas.translate(origin.dx + box.left + em / 2 + lead(k), origin.dy + acrossC(box, em, near) + rubyColumnShift(k) + (plain ? 0.085 * em : 0) + sharedShift(k))
+            canvas.translate(origin.dx + box.left + em / 2 + lead(k), origin.dy + acrossC(box, em, near) + rubyColumnShift(k) + (plain && acrossFace(box, em, near) == nil ? 0.085 * em : 0) + sharedShift(k))
             canvas.rotate(-Double.pi / 2)
             // (Slides: the digit stands with its baseline a win ascent of ITS OWN face below the place's start, whatever the ideograph beside it:
             // print of lab vdig3, 7 faces to 0.1 pt, Segoe UI 30.1 pt, Arial 25.3, YaHei 29.7, MS Gothic 24.0 at 28 pt.)

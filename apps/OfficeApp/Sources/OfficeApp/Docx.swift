@@ -2527,10 +2527,14 @@ enum DocxFormat {
                         // The cell's own line width, over the table's.
                         if let w = _borders(tcPr, "w:tcBorders")?.width, w != (style.borderWidth ?? 0.5) { currentCell?.borderWidth = w }
                         // Text turned a quarter (Word's w:textDirection);
-                        // its vertical writing keeps ideographs upright.
+                        // its vertical writing (the V values) keeps ideographs upright.
+                        // (Plain tbRl turns them with the Latin: lab turnpad3, Word's print
+                        // of 职业资格 in SimSun, tbRl beside tbRlV, mode 15.)
                         let direction = tcPr?.first("w:textDirection")?["w:val"]
                         switch direction {
-                        case "tbRl", "tbRlV", "tbLrV":
+                        case "tbRl":
+                            currentCell?.textDirection = .down
+                        case "tbRlV", "tbLrV":
                             currentCell?.textDirection = .down
                             currentCell?.uprightIdeographs = true
                         // (The strict spelling "lr" turns the text up in Word's
