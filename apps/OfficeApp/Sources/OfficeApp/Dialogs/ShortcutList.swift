@@ -59,7 +59,7 @@ enum ShortcutTable {
         ShortcutEntry("Edit", "Undo", "z"),
         ShortcutEntry("Edit", "Redo", "y"),
         ShortcutEntry("Edit", "Redo", "z", .shift),
-        ShortcutEntry("Edit", "Paste text only", "v", .alt),
+        ShortcutEntry("Edit", "Paste Special", "v", .alt),
         ShortcutEntry("Character", "Bold", "b"),
         ShortcutEntry("Character", "Italic", "i"),
         ShortcutEntry("Character", "Underline", "u"),
