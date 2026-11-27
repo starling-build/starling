@@ -274,6 +274,12 @@ enum SlideFonts {
                 let b = lat.bold.map { SlideEastAsianWidths.parse($0) }
                 for (c, w) in r where face.otherAdvances?[c] == nil { face.otherAdvances?[c] = w; face.boldOtherAdvances?[c] = b?[c] ?? w * kk }
             }
+            // (Georgia's Cyrillic at its own widths, the Windows box's table Word sets it by: ru-a8d8851396 p4's "подчинена воле человека" is
+            // 238.8 pt at 20 pt in PowerPoint's print, 214.7 at the serif stand-in's letters, and every Russian line of the deck wrapped late.)
+            if windowsName(family) == "georgia" {
+                for (c, w) in OfficeFonts.georgiaCyrillicAdvances where face.otherAdvances?[c] == nil { face.otherAdvances?[c] = w }
+                for (c, w) in OfficeFonts.georgiaBoldCyrillicAdvances where face.boldOtherAdvances?[c] == nil { face.boldOtherAdvances?[c] = w }
+            }
             // (Gulim sets a bold Hangul syllable at 0.98 em, 18.60 to 18.65 of 19 pt over 150 syllables: lab ko-squeeze2 slide 10, the narrowest box keeps "자기계발" on the line.)
             if let k = SlideEastAsianKerns.lookup(windowsName(family)) { face.kerns = k.regular; face.boldKerns = k.bold ?? k.regular; face.kernsOutsideWord = true }
             if koreanOwnFace(family) { face.otherAdvances?[0xAC00] = 1.0; face.boldOtherAdvances?[0xAC00] = cuts.bold == nil ? 0.98 : 1.0 }
@@ -406,6 +412,16 @@ enum SlideFonts {
                 face.boldOtherAdvances = OfficeFonts.corbelBoldOtherAdvances
                 face.italicAdvances = OfficeFonts.corbelItalicAdvances
                 face.boldItalicAdvances = OfficeFonts.corbelBoldItalicAdvances
+            }
+            if n == "trebuchet ms" {
+                // (Trebuchet MS's own widths past ASCII, Cyrillic included, from the Windows fonts: ru-a8d8851396 p1's title
+                // "Соматический" wrapped mid-word at the stand-in's wider Cyrillic and fits on its line in PowerPoint's print.)
+                face.otherAdvances = OfficeFonts.trebuchet_msOther.merging(OfficeFonts.trebuchetCyrillic) { a, _ in a }
+                face.boldOtherAdvances = OfficeFonts.trebuchet_msBoldOther.merging(OfficeFonts.trebuchetBoldCyrillic) { a, _ in a }
+                face.italicAdvances = OfficeFonts.trebuchet_msItalicAdv
+                face.boldItalicAdvances = OfficeFonts.trebuchet_msBoldItalicAdv
+                face.italicOtherAdvances = OfficeFonts.trebuchet_msItalicOther.merging(OfficeFonts.trebuchetItalicCyrillic) { a, _ in a }
+                face.boldItalicOtherAdvances = OfficeFonts.trebuchet_msBoldItalicOther.merging(OfficeFonts.trebuchetBoldItalicCyrillic) { a, _ in a }
             }
             if n == "tahoma" {
                 // (Tahoma's own Arabic, as the Word path sets it.)
