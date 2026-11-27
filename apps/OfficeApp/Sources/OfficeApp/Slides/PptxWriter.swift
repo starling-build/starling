@@ -1311,7 +1311,10 @@ private struct SlideXML {
             // shape as it was, with only what the edit touched patched into its own XML, so the theme
             // colours, East Asian faces, adjust handles, effects and paragraph settings the model does not
             // hold stay (S-P0-1b, and the sweep that found a fill change stripped them).
-            if let xml = s.sourceXML, let read = s.readShape, read.patchable(s), s.field == nil || s.text == s.sourceText,
+            // A field (date, slide number) is patched only while it shows the characters it was read with: a field that
+            // now shows other text is written anew; one only restyled (a bold date) keeps its own a:fld and runs.
+            if let xml = s.sourceXML, let read = s.readShape, read.patchable(s),
+               s.field == nil || s.text?.paragraphs.map(\.text) == s.sourceText?.paragraphs.map(\.text),
                let p = source, let part = s.sourcePart {
                 var base: String? = xml
                 if s.text != s.sourceText {

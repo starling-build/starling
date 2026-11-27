@@ -7,6 +7,18 @@ import FlutterSwiftBridge
 import Foundation
 
 extension SlideContext {
+    /// A run's text as read: a symbol face's private-range codes (`a:sym`, or the run's own face) as the glyphs they show.
+    /// (Shared with `PptxTextPatch`, which must see a run's text as the model holds it.)
+    static func symbolsShown(_ t: String, _ rPr: XNode?) -> String {
+        guard t.unicodeScalars.contains(where: { (0xF020 ... 0xF0FF).contains($0.value) }),
+              let face = rPr?.first("a:sym")?["typeface"] ?? rPr?.first("a:latin")?["typeface"] else { return t }
+        return String(t.map { ch -> Character in
+            guard let v = ch.unicodeScalars.first?.value, (0xF020 ... 0xF0FF).contains(v) else { return ch }
+            let shown = Metafile.symbols(String(ch), face: face)
+            return shown == String(ch) ? ch : (shown.first ?? ch)
+        })
+    }
+
     /// The complex script a character is written in (the theme's key for
     /// it), nil for any other.
     static func complexScript(_ v: UInt32) -> String? {
@@ -341,15 +353,7 @@ extension SlideContext {
                 // A symbol face's private-range codes as the glyphs they show
                 // (`a:sym` Symbol, or the run's own face): GeomLec1's U+F0DE
                 // is Symbol's "⇒", and drew as nothing.
-                var t = t0
-                if t.unicodeScalars.contains(where: { (0xF020 ... 0xF0FF).contains($0.value) }),
-                   let face = rPr?.first("a:sym")?["typeface"] ?? rPr?.first("a:latin")?["typeface"] {
-                    t = String(t.map { ch -> Character in
-                        guard let v = ch.unicodeScalars.first?.value, (0xF020 ... 0xF0FF).contains(v) else { return ch }
-                        let shown = Metafile.symbols(String(ch), face: face)
-                        return shown == String(ch) ? ch : (shown.first ?? ch)
-                    })
-                }
+                let t = Self.symbolsShown(t0, rPr)
                 let symbolRun = t != t0 && (rPr?.first("a:sym")?["typeface"] ?? "").lowercased() == "symbol"
                 var look = _runLook(rPr) ?? RunLook()
                 look.length = t.utf16.count

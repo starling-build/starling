@@ -72,6 +72,7 @@ final class EditLossSweepTests: XCTestCase {
         // per variant: name -> (docs, instances); delta = loss beyond the base loss of the same doc
         var docsLost: [String: [String: Int]] = [:], inst: [String: [String: Int]] = [:]
         var docsDelta: [String: [String: Int]] = [:], instDelta: [String: [String: Int]] = [:]
+        var deltaDocs: [String: [String: [String]]] = [:]  // the first few docs behind each edit loss, to find them
         var applied: [String: Int] = [:], failed = 0, edited = 0
         let prog = FileHandle(forWritingAtPath: (env["STARLING_SWEEP_OUT"] ?? "/tmp/x") + ".progress") ?? { FileManager.default.createFile(atPath: (env["STARLING_SWEEP_OUT"] ?? "/tmp/x") + ".progress", contents: nil); return FileHandle(forWritingAtPath: (env["STARLING_SWEEP_OUT"] ?? "/tmp/x") + ".progress")! }()
         var docsGain: [String: Int] = [:], instGain: [String: Int] = [:]
@@ -161,7 +162,9 @@ final class EditLossSweepTests: XCTestCase {
                 }
                 for (k, n) in l {
                     docsLost[v, default: [:]][k, default: 0] += 1; inst[v, default: [:]][k, default: 0] += n
-                    if v != "base", n > (baseLoss[k] ?? 0) { docsDelta[v, default: [:]][k, default: 0] += 1; instDelta[v, default: [:]][k, default: 0] += n - (baseLoss[k] ?? 0) }
+                    if v != "base", n > (baseLoss[k] ?? 0) { docsDelta[v, default: [:]][k, default: 0] += 1
+                        if deltaDocs[v, default: [:]][k, default: []].count < 3 { deltaDocs[v, default: [:]][k, default: []].append(f) }
+                        instDelta[v, default: [:]][k, default: 0] += n - (baseLoss[k] ?? 0) }
                 }
             }
         }
@@ -169,7 +172,10 @@ final class EditLossSweepTests: XCTestCase {
         for v in variants {
             lines.append("== \(v) \(v == "base" ? "(save with no edit)" : "(loss beyond the no-edit save)"): docs\tinstances\tname")
             let d = v == "base" ? docsLost[v] ?? [:] : docsDelta[v] ?? [:], n = v == "base" ? inst[v] ?? [:] : instDelta[v] ?? [:]
-            for (k, c) in d.sorted(by: { $0.value != $1.value ? $0.value > $1.value : $0.key < $1.key }).prefix(400) { lines.append("\(c)\t\(n[k] ?? 0)\t\(k)") }
+            for (k, c) in d.sorted(by: { $0.value != $1.value ? $0.value > $1.value : $0.key < $1.key }).prefix(400) {
+                let who = v == "base" ? "" : "\t" + (deltaDocs[v]?[k] ?? []).joined(separator: " ")
+                lines.append("\(c)\t\(n[k] ?? 0)\t\(k)\(who)")
+            }
         }
         lines.append("== gain-base (added by the save with no edit): docs\tinstances\tname")
         for (k, c) in docsGain.sorted(by: { $0.value != $1.value ? $0.value > $1.value : $0.key < $1.key }).prefix(400) { lines.append("\(c)\t\(instGain[k] ?? 0)\t\(k)") }

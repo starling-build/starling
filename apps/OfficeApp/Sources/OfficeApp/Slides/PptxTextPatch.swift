@@ -91,15 +91,7 @@ enum PptxTextPatch {
         guard old.style == new.style, old.image == nil, new.image == nil,
               let oldStyles = styles(old), let newStyles = styles(new) else { return false }
         if old.text == new.text, oldStyles != newStyles { return restyle(src, old: oldStyles, new: newStyles, text: Array(old.text.utf16)) }
-        struct Slot { var node: XNode; var text: [UInt16]; var isBreak: Bool }
-        var slots: [Slot] = []
-        for c in src.children {
-            switch c.name {
-            case "a:r", "a:fld": slots.append(Slot(node: c, text: Array((c.first("a:t")?.text ?? "").utf16), isBreak: false))
-            case "a:br": slots.append(Slot(node: c, text: [10], isBreak: true))
-            default: break
-            }
-        }
+        let slots = slots(src)
         let o = Array(old.text.utf16), n = Array(new.text.utf16)
         guard slots.flatMap({ $0.text }) == o else { return false }
         var pre = 0
@@ -129,8 +121,13 @@ enum PptxTextPatch {
             let isAnchor = !inserted && anchorIndex >= start && anchorIndex < end
             let delFrom = max(pre, start), delTo = min(removedEnd, end)
             var local = max(0, min(t.count, pre - start))
+            // A run whose text reads as other characters (a symbol face's), and the marks the reader adds, are kept as they are
+            // unless the edit removes a break whole.
+            let touched = isAnchor || delTo > delFrom
+            if touched, slot.kind == .mark || (slot.kind == .run && !slot.verbatim) { return false }
+            if touched, slot.kind == .lineBreak, isAnchor || delTo - delFrom != t.count { return false }
             if isAnchor {
-                if slot.isBreak { return false }
+                if slot.kind != .run { return false }
                 t.insert(contentsOf: added, at: removing ? local : (pre - start))
                 if removing {
                     let a = local + added.count
@@ -141,14 +138,50 @@ enum PptxTextPatch {
                 local = delFrom - start
                 t.removeSubrange(local ..< local + (delTo - delFrom))
             }
-            if t.isEmpty { drop.insert(si) }
-            else if !slot.isBreak { slot.node.first("a:t")?.text = String(decoding: t, as: UTF16.self) }
+            if t.isEmpty { if slot.kind != .mark { drop.insert(si) } }
+            else if slot.kind == .run, t != slot.text { slot.node.first("a:t")?.text = String(decoding: t, as: UTF16.self) }
             start = end
         }
         guard inserted else { return false }
         let dead = Set(drop.map { ObjectIdentifier(slots[$0].node) })
         src.children = src.children.filter { !dead.contains(ObjectIdentifier($0)) }
         return true
+    }
+
+    struct Slot {
+        enum Kind { case run, lineBreak, mark }
+        var node: XNode
+        /// The slot's text as the model reads it (`SlideContext._text`).
+        var text: [UInt16]
+        var kind: Kind
+        /// A run whose text in the file is the text the model holds (not a symbol face's private codes shown as glyphs).
+        var verbatim = true
+    }
+
+    /// A paragraph's runs, breaks and fields with their text as the reader gives it to the model: a symbol face's private
+    /// codes as the glyphs they show, a zero-width mark ahead of a break that opens a line, and one after a closing break.
+    /// (A file's paragraph and the model's must read as the same text, or no edit in it can be patched: KEY02's title, a
+    /// blank line between two breaks, lost its smtClean and theme colours to a full rewrite when one word was bolded.)
+    static func slots(_ p: XNode) -> [Slot] {
+        var out: [Slot] = []
+        var acc: [UInt16] = []
+        for c in p.children {
+            switch c.name {
+            case "a:r", "a:fld":
+                let raw = c.first("a:t")?.text ?? ""
+                let shown = SlideContext.symbolsShown(raw, c.first("a:rPr"))
+                let t = Array(shown.utf16)
+                out.append(Slot(node: c, text: t, kind: .run, verbatim: shown == raw))
+                acc += t
+            case "a:br":
+                let t: [UInt16] = acc.isEmpty || acc.last == 10 ? [0x200B, 10] : [10]
+                out.append(Slot(node: c, text: t, kind: .lineBreak))
+                acc += t
+            default: break
+            }
+        }
+        if acc.last == 10 { out.append(Slot(node: p.first("a:endParaRPr") ?? XNode(name: "a:endParaRPr", attrs: [:]), text: [0x200B], kind: .mark)) }
+        return out
     }
 
     // MARK: A look changed (bold, size, colour, face...): the edited runs' own a:rPr, nothing else.
@@ -164,14 +197,7 @@ enum PptxTextPatch {
 
     private static func restyle(_ src: XNode, old: [CharStyle], new: [CharStyle], text: [UInt16]) -> Bool {
         for i in old.indices where neutral(new[i], like: old[i]) != old[i] { return false }
-        var slots: [(node: XNode, text: [UInt16])] = []
-        for c in src.children {
-            switch c.name {
-            case "a:r", "a:fld": slots.append((c, Array((c.first("a:t")?.text ?? "").utf16)))
-            case "a:br": slots.append((c, [10]))
-            default: break
-            }
-        }
+        let slots = slots(src)
         guard slots.flatMap({ $0.text }) == text else { return false }
         var start = 0
         var replaced: [(XNode, [XNode])] = []
@@ -180,6 +206,16 @@ enum PptxTextPatch {
             // Pieces of the run inside which neither the old nor the new look changes.
             var segs: [(Int, Int)] = []
             var a = 0
+            if slot.kind != .run {
+                // A break (with the mark the reader puts before it) takes the break's look; the reader's paragraph-end mark is
+                // the paragraph mark's, which this does not restyle.
+                if n > 0, old[start + n - 1] != new[start + n - 1] {
+                    guard slot.kind == .lineBreak, patchRPr(slot.node, from: old[start + n - 1], to: new[start + n - 1]) else { return false }
+                }
+                if slot.kind == .lineBreak { replaced.append((slot.node, [slot.node])) }
+                start += n
+                continue
+            }
             if n > 1 {
                 for i in 1 ..< n where old[start + i] != old[start + a] || new[start + i] != new[start + a] {
                     segs.append((a, i)); a = i
@@ -188,6 +224,7 @@ enum PptxTextPatch {
             segs.append((a, n))
             var parts: [XNode] = []
             for (x, y) in segs {
+                if segs.count > 1, !slot.verbatim { return false }
                 let node = segs.count == 1 ? slot.node : clone(slot.node)
                 if segs.count > 1 { node.first("a:t")?.text = String(decoding: slot.text[x ..< y], as: UTF16.self) }
                 if n > 0, old[start + x] != new[start + x] {
