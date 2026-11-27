@@ -84,9 +84,184 @@ final class PictureWrapTests: XCTestCase {
         XCTAssertEqual(was.x, 20, accuracy: 0.01)
     }
 
+    /// "Fix position on page" sets the picture from the page where it stands; "Move with text" sets it from its paragraph
+    /// again. Each one undo step, each kept by a save, the horizontal placing left alone.
+    func testFixPositionOnPageAndMoveWithTextSave() throws {
+        let c = RichDocumentController(document: try DocxFormat.read(try floatingDocument()).document)
+        let i = try floatIndex(c)
+        let inline = c.document.paragraphs[i].image == nil ? c.document.paragraphs[i].inlineImages.first { $0.value.float != nil }?.key : nil
+        func float(_ c: RichDocumentController) throws -> ImageFloat {
+            try XCTUnwrap((inline.map { c.document.paragraphs[i].inlineImages[$0] } ?? c.document.paragraphs[i].image)?.float)
+        }
+        XCTAssertEqual(c.pictureMovesWithText(at: i, inline: inline), true)
+        XCTAssertFalse(c.setPictureMovesWithText(at: i, inline: inline, true, top: 120, paragraphTop: 90), "already so")
+        // Its paragraph 90pt down the page, the picture 30pt below that.
+        XCTAssertTrue(c.setPictureMovesWithText(at: i, inline: inline, false, top: 120, paragraphTop: 90))
+        var back = try reopened(c)
+        XCTAssertEqual(back.pictureMovesWithText(at: i, inline: inline), false)
+        XCTAssertEqual(try float(back).verticalFrom, "page")
+        XCTAssertEqual(try float(back).y, 120, accuracy: 0.01)
+        XCTAssertEqual(try float(back).horizontalFrom, "column")
+        XCTAssertEqual(try float(back).x, 20, accuracy: 0.01)
+        // Text above it grew: its paragraph is now 150pt down, the picture still at 120 on the page.
+        XCTAssertTrue(back.setPictureMovesWithText(at: i, inline: inline, true, top: 120, paragraphTop: 150))
+        back = try reopened(back)
+        XCTAssertEqual(try float(back).verticalFrom, "paragraph")
+        XCTAssertEqual(try float(back).y, -30, accuracy: 0.01)
+        c.undo()
+        XCTAssertEqual(try float(c).verticalFrom, "paragraph")
+        XCTAssertEqual(try float(c).y, 30, accuracy: 0.01)
+    }
+
+    /// The Picture Format tab's Fix Position on Page keeps the picture where the editor draws it.
+    func testPictureFormatTabFixesPositionOnPage() throws {
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(1440, 800))
+        let c = try XCTUnwrap(ui.state(OfficeShellState.self)).session.controller
+        c.load(try DocxFormat.read(try floatingDocument()).document)
+        let i = try floatIndex(c)
+        c.selectImage(at: i)
+        ui.pump()
+        XCTAssertTrue(ui.tap(tip: "Fix Position on Page"))
+        let f = try XCTUnwrap(c.document.paragraphs[i].image?.float)
+        XCTAssertEqual(f.verticalFrom, "page")
+        // Letter's 1in top margin, one line of "text", then 30pt down from the picture's paragraph.
+        XCTAssertGreaterThan(f.y, 72 + 30)
+        XCTAssertLessThan(f.y, 72 + 30 + 40)
+        XCTAssertTrue(ui.tap(tip: "Move with Text"))
+        XCTAssertEqual(c.document.paragraphs[i].image?.float?.verticalFrom, "paragraph")
+        XCTAssertEqual(c.document.paragraphs[i].image?.float?.y ?? 0, 30, accuracy: 0.5)
+    }
+
+    /// Three floating pictures in three paragraphs, stacked 30, 20, 10 (the first on top).
+    func stackedDocument() throws -> Data {
+        var entries = try Zip.read(try floatingDocument())
+        let di = try XCTUnwrap(entries.firstIndex { $0.name == "word/document.xml" })
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let drawing = try XCTUnwrap(xml.rangeOfSubstring("<wp:anchor"))
+        let pStart = try XCTUnwrap(xml[..<drawing.lowerBound].ranges(of: "<w:p>").last ?? xml[..<drawing.lowerBound].ranges(of: "<w:p ").last)
+        let pEnd = try XCTUnwrap(xml.rangeOfSubstring("</w:p>", in: drawing.upperBound ..< xml.endIndex))
+        let para = String(xml[pStart.lowerBound ..< pEnd.upperBound])
+        func with(_ h: Int, _ id: Int) -> String {
+            para.replacingOccurrences(of: "relativeHeight=\"1\"", with: "relativeHeight=\"\(h)\"").replacingOccurrences(of: "wp:docPr id=\"5\"", with: "wp:docPr id=\"\(id)\"")
+        }
+        xml.replaceSubrange(pStart.lowerBound ..< pEnd.upperBound, with: with(30, 5) + with(20, 6) + with(10, 7))
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        return try Zip.write(entries)
+    }
+
+    /// Arrange: Bring Forward, Send Backward, to Front and to Back restack the floating pictures of different paragraphs by
+    /// relativeHeight, one undo step each, kept by a save.
+    func testArrangeRestacksAcrossParagraphsAndSaves() throws {
+        let c = RichDocumentController(document: try DocxFormat.read(try stackedDocument()).document)
+        let floats = c.document.paragraphs.indices.filter { c.document.paragraphs[$0].image?.float != nil }
+        XCTAssertEqual(floats.count, 3)
+        func stack(_ c: RichDocumentController) -> [Int] {   // paragraph indexes, bottom first
+            floats.sorted { (String._relativeHeight(c.document.paragraphs[$0].image?.sourceXML ?? "") ?? 0, $0)
+                < (String._relativeHeight(c.document.paragraphs[$1].image?.sourceXML ?? "") ?? 0, $1) }
+        }
+        let (a, b, d) = (floats[0], floats[1], floats[2])
+        XCTAssertEqual(stack(c), [d, b, a])
+        XCTAssertFalse(c.arrangePicture(at: a, .forward), "already on top")
+        XCTAssertFalse(c.arrangePicture(at: d, .back), "already at the bottom")
+        XCTAssertTrue(c.arrangePicture(at: d, .forward))
+        XCTAssertEqual(stack(c), [b, d, a])
+        XCTAssertTrue(c.arrangePicture(at: d, .front))
+        XCTAssertEqual(stack(c), [b, a, d])
+        XCTAssertTrue(c.arrangePicture(at: a, .back))
+        XCTAssertEqual(stack(c), [a, b, d])
+        XCTAssertTrue(c.arrangePicture(at: d, .backward))
+        XCTAssertEqual(stack(try reopened(c)), [a, d, b])
+        c.undo()
+        XCTAssertEqual(stack(c), [a, b, d])
+        // Behind-text pictures are a stack of their own.
+        XCTAssertTrue(c.setPictureWrap(at: b, .behindText))
+        XCTAssertFalse(c.arrangePicture(at: b, .front), "alone behind the text")
+    }
+
+    /// Paint order follows the stack across paragraphs: two filled shapes, each anchored in its own paragraph, overlap; the one
+    /// brought to front is drawn last whatever paragraph holds it, and both after every paragraph's text.
+    func testFloatsPaintInStackOrderAcrossParagraphs() throws {
+        let c = RichDocumentController(document: RichDocument(paragraphs: [RichParagraph(text: "First paragraph."),
+                                                                           RichParagraph(text: "Second paragraph."),
+                                                                           RichParagraph(text: "Third paragraph.")]))
+        for (n, (paragraph, fill)) in [(2, Color(0xFF0000FF)), (0, Color(0xFFFF0000))].enumerated() {
+            c.pendingShape = { x, y, w, h in TextBoxInsert.makeShape(preset: "rect", width: w, height: h, number: n + 1, page: (x, y)) }
+            XCTAssertTrue(c.placePendingShape(x: 100 + Double(n) * 20, y: 100 + Double(n) * 20, width: 120, height: 90,
+                                              at: RichPosition(paragraph: paragraph, offset: 0)))
+            XCTAssertTrue(c.setShapeFill(at: try XCTUnwrap(c.selectedImageIndex), fill))
+        }
+        let shapes = c.document.paragraphs.indices.filter { c.document.paragraphs[$0].image?.float != nil }
+        XCTAssertEqual(shapes.count, 2)
+        func order() throws -> [Int] {
+            let parsed = try DocxFormat.read(try DocxFormat.write(c.document, pageSetup: .letter))
+            let doc = parsed.document, setup = parsed.pageSetup ?? .letter
+            let theme = RichTextTheme(fontFamily: OfficeFonts.serif)
+            theme.wordRules = true
+            let layout = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+            layout.pageSetup = setup
+            layout.width = setup.columnWidth * theme.pixelsPerPoint
+            layout.ensureLaidOut(doc)
+            let canvas = FillOrderCanvas()
+            layout.paint(canvas, visible: Rect.fromLTWH(-10_000, -10_000, 100_000, 100_000), document: doc, selection: nil, caret: nil)
+            return canvas.fills.filter { $0 == 1 || $0 == 0xFF0000FF || $0 == 0xFFFF0000 }
+                .reduce(into: [Int]()) { if $0.last != $1 { $0.append($1) } }
+        }
+        XCTAssertTrue(c.arrangePicture(at: shapes[0], .front))   // the red one, first in the text, to the top
+        XCTAssertEqual(try order().suffix(2), [0xFF0000FF, 0xFFFF0000], "red over blue")
+        XCTAssertTrue(c.arrangePicture(at: shapes[1], .front))
+        XCTAssertEqual(try order().suffix(2), [0xFFFF0000, 0xFF0000FF], "blue over red")
+        XCTAssertFalse(try order().dropLast(2).contains { $0 != 1 }, "both after the text")
+    }
+
+    /// Pictures behind the text go down before any text, the higher relativeHeight on top whichever paragraph holds it.
+    func testPicturesBehindTextPaintInStackOrderAcrossParagraphs() throws {
+        let base = try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "one"), RichParagraph(image: ImageAttachment(data: png, width: 100, height: 50))]), pageSetup: .letter)
+        var entries = try Zip.read(base)
+        let di = try XCTUnwrap(entries.firstIndex { $0.name == "word/document.xml" })
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let embed = try XCTUnwrap(xml.rangeOfSubstring("r:embed=\""))
+        let id = String(xml[embed.upperBound...].prefix { $0 != "\"" })
+        func anchor(_ z: Int, _ emu: Int, _ n: Int) -> String {
+            "<w:r><w:drawing><wp:anchor distT=\"0\" distB=\"0\" distL=\"0\" distR=\"0\" simplePos=\"0\" relativeHeight=\"\(z)\" behindDoc=\"1\" locked=\"0\" layoutInCell=\"1\" allowOverlap=\"1\">"
+            + "<wp:simplePos x=\"0\" y=\"0\"/><wp:positionH relativeFrom=\"page\"><wp:posOffset>914400</wp:posOffset></wp:positionH>"
+            + "<wp:positionV relativeFrom=\"page\"><wp:posOffset>914400</wp:posOffset></wp:positionV><wp:extent cx=\"\(emu)\" cy=\"\(emu)\"/>"
+            + "<wp:wrapNone/><wp:docPr id=\"\(n)\" name=\"Picture \(n)\"/>"
+            + "<a:graphic xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\"><a:graphicData uri=\"http://schemas.openxmlformats.org/drawingml/2006/picture\">"
+            + "<pic:pic xmlns:pic=\"http://schemas.openxmlformats.org/drawingml/2006/picture\"><pic:nvPicPr><pic:cNvPr id=\"0\" name=\"p\"/><pic:cNvPicPr/></pic:nvPicPr>"
+            + "<pic:blipFill><a:blip r:embed=\"\(id)\"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>"
+            + "<pic:spPr><a:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"\(emu)\" cy=\"\(emu)\"/></a:xfrm><a:prstGeom prst=\"rect\"/></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:anchor></w:drawing></w:r>"
+        }
+        let body = try XCTUnwrap(xml.rangeOfSubstring("<w:body>")), sect = try XCTUnwrap(xml.rangeOfSubstring("<w:sectPr"))
+        // The first paragraph's picture (2 inches, 144 px) stands over the second's (1 inch, 96 px... at 96 dpi) by relativeHeight.
+        xml.replaceSubrange(body.upperBound ..< sect.lowerBound, with: "<w:p><w:r><w:t>one</w:t></w:r>" + anchor(9, 1_828_800, 7) + "</w:p>"
+                            + "<w:p><w:r><w:t>two</w:t></w:r>" + anchor(3, 914_400, 8) + "</w:p>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let parsed = try DocxFormat.read(try Zip.write(entries))
+        let doc = parsed.document, setup = parsed.pageSetup ?? .letter
+        let theme = RichTextTheme(fontFamily: OfficeFonts.serif)
+        theme.wordRules = true
+        let layout = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+        layout.pageSetup = setup
+        layout.width = setup.columnWidth * theme.pixelsPerPoint
+        layout.ensureLaidOut(doc)
+        // (The first paint starts the pictures' decoding; wait for them.)
+        layout.paint(FillOrderCanvas(), visible: Rect.fromLTWH(-10_000, -10_000, 100_000, 100_000), document: doc, selection: nil, caret: nil)
+        let deadline = Date().addingTimeInterval(10)
+        while layout._decoded.count < 2, Date() < deadline {
+            RunLoop.main.run(until: Date().addingTimeInterval(0.01))
+            layout.applyDecodedPictures()
+        }
+        let canvas = FillOrderCanvas()
+        layout.paint(canvas, visible: Rect.fromLTWH(-10_000, -10_000, 100_000, 100_000), document: doc, selection: nil, caret: nil)
+        let images = canvas.fills.enumerated().filter { $0.element < 0 }
+        XCTAssertEqual(images.count, 2, "\(canvas.fills)")
+        XCTAssertGreaterThan(images.first?.element ?? 0, images.last?.element ?? 0, "the small (lower) one first: \(canvas.fills)")
+        XCTAssertLessThan(images.last?.offset ?? .max, canvas.fills.firstIndex(of: 1) ?? -1, "both under the text: \(canvas.fills)")
+    }
+
     /// The Picture Format tab shows the wrap choices and nudges of a selected floating picture, each one undo step.
     func testPictureFormatTabChoosesWrapAndNudges() throws {
-        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(1280, 800))
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(1440, 800))
         let c = try XCTUnwrap(ui.state(OfficeShellState.self)).session.controller
         c.load(try DocxFormat.read(try floatingDocument()).document)
         let i = try floatIndex(c)
@@ -95,7 +270,7 @@ final class PictureWrapTests: XCTestCase {
         ui.pump()
         XCTAssertTrue(ui.tap(text: "Behind Text"))
         XCTAssertEqual(c.pictureWrap(at: i), .behindText)
-        // (At 1280 the tab is tight and the small buttons show their icons alone: the tip names the button.)
+        // (At 1440 the small buttons show their icons alone: the tip names the button. Narrower, the Position group folds into one button.)
         XCTAssertTrue(ui.tap(tip: "Nudge Right"))
         XCTAssertEqual(c.document.paragraphs[i].image?.float?.x ?? 0, 26, accuracy: 0.01)
         c.undo()
@@ -1009,4 +1184,48 @@ final class ShapeSelectTests: XCTestCase {
         let parts = try XCTUnwrap(ShapeGroups.ungroup(g, number: 9))
         XCTAssertTrue(parts.contains { $0.sourceXML!.containsSubstring("rot=\"5400000\"") })
     }
+}
+
+/// Records the colour of each fill drawn, and 1 for each paragraph of text.
+private final class FillOrderCanvas: Canvas {
+    var fills: [Int] = []   // 1 for text
+    func save() {}
+    func saveLayer(_ bounds: Rect?, _ paint: Paint) {}
+    func restore() {}
+    func restoreToCount(_ count: Int) {}
+    func getSaveCount() -> Int { 1 }
+    func translate(_ dx: Double, _ dy: Double) {}
+    func scale(_ sx: Double, _ sy: Double?) {}
+    func rotate(_ radians: Double) {}
+    func skew(_ sx: Double, _ sy: Double) {}
+    func transform(_ matrix4: [Double]) {}
+    func getTransform() -> [Double] { [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1] }
+    func clipRect(_ rect: Rect, clipOp: ClipOp, doAntiAlias: Bool) {}
+    func clipRRect(_ rrect: RRect, doAntiAlias: Bool) {}
+    func clipRSuperellipse(_ rsuperellipse: RSuperellipse, doAntiAlias: Bool) {}
+    func clipPath(_ path: Path, doAntiAlias: Bool) {}
+    func getLocalClipBounds() -> Rect { Rect.fromLTWH(-1e6, -1e6, 2e6, 2e6) }
+    func getDestinationClipBounds() -> Rect { Rect.fromLTWH(-1e6, -1e6, 2e6, 2e6) }
+    func drawColor(_ color: Color, _ blendMode: BlendMode) {}
+    func drawLine(_ p1: Offset, _ p2: Offset, _ paint: Paint) {}
+    func drawPaint(_ paint: Paint) {}
+    func drawRect(_ rect: Rect, _ paint: Paint) { if paint.style == .fill { fills.append(paint.color.value) } }
+    func drawRRect(_ rrect: RRect, _ paint: Paint) { if paint.style == .fill { fills.append(paint.color.value) } }
+    func drawDRRect(_ outer: RRect, _ inner: RRect, _ paint: Paint) {}
+    func drawRSuperellipse(_ rsuperellipse: RSuperellipse, _ paint: Paint) {}
+    func drawOval(_ rect: Rect, _ paint: Paint) {}
+    func drawCircle(_ c: Offset, _ radius: Double, _ paint: Paint) {}
+    func drawArc(_ rect: Rect, _ startAngle: Double, _ sweepAngle: Double, _ useCenter: Bool, _ paint: Paint) {}
+    func drawPath(_ path: Path, _ paint: Paint) { if paint.style == .fill { fills.append(paint.color.value) } }
+    func drawImage(_ image: Image, _ offset: Offset, _ paint: Paint) {}
+    func drawImageRect(_ image: Image, _ src: Rect, _ dst: Rect, _ paint: Paint) { fills.append(-Int(dst.width.rounded())) }
+    func drawImageNine(_ image: Image, _ center: Rect, _ dst: Rect, _ paint: Paint) {}
+    func drawPicture(_ picture: any FlutterSwiftBridge.Picture) {}
+    func drawParagraph(_ paragraph: any Paragraph, _ offset: Offset) { fills.append(1) }
+    func drawPoints(_ pointMode: PointMode, _ points: [Offset], _ paint: Paint) {}
+    func drawRawPoints(_ pointMode: PointMode, _ points: [Float], _ paint: Paint) {}
+    func drawVertices(_ vertices: Vertices, _ blendMode: BlendMode, _ paint: Paint) {}
+    func drawAtlas(_ atlas: Image, _ transforms: [RSTransform], _ rects: [Rect], _ colors: [Color]?, _ blendMode: BlendMode?, _ cullRect: Rect?, _ paint: Paint) {}
+    func drawRawAtlas(_ atlas: Image, _ rstTransforms: [Float], _ rects: [Float], _ colors: [Int32]?, _ blendMode: BlendMode?, _ cullRect: Rect?, _ paint: Paint) {}
+    func drawShadow(_ path: Path, _ color: Color, _ elevation: Double, _ transparentOccluder: Bool) {}
 }

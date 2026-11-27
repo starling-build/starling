@@ -2987,6 +2987,14 @@ extension RichLayout {
         // Three layers: table shading, the selection over it, then the text
         // and rules. (Shading painted with its paragraph covered a selected
         // cell's highlight.)
+        // (The objects behind the text first, under everything of the flow, in stacking order across paragraphs.)
+        if theme.wordRules, isPaged {
+            _deferredFloats = []
+            _behindPass = true
+            _paintFlow(canvas, visible: visible, document: document, shading: false)
+            _behindPass = false
+            _flushFloats(canvas, document)
+        }
         _paintFlow(canvas, visible: visible, document: document, shading: true)
         if let selection, !selection.isCollapsed {
             let paint = Paint()
@@ -2997,6 +3005,8 @@ extension RichLayout {
                 canvas.drawRect(r, paint)
             }
         }
+        // (Floating objects drawn after the text, in stacking order across paragraphs: `_recordFloat`.)
+        _deferredFloats = theme.wordRules ? [] : nil
         if theme.wordRules, RichTextTheme.wordWindowsPages, isPaged, _inline.contains(where: { $0.contains { $0.isDropCap } }) {
             _dropCapPass = 1
             _paintFlow(canvas, visible: visible, document: document, shading: false)
@@ -3006,6 +3016,7 @@ extension RichLayout {
         } else {
             _paintFlow(canvas, visible: visible, document: document, shading: false)
         }
+        _flushFloats(canvas, document)
         if let caret {
             let paint = Paint()
             paint.color = theme.caretColor
@@ -3392,6 +3403,7 @@ extension RichLayout {
                                 return r.top >= piece.flowTop - 0.5 && r.top < piece.flowBottom ? (float, image) : nil
                             }
                         }()
+                        var pieceClip: _PieceClip = .rect(Rect.fromLTRB(-1_000_000, -1_000_000, 1_000_000, 1_000_000))
                         if !laterFloats.isEmpty {
                             let g = geometry(i)
                             let window = Path()
@@ -3399,12 +3411,12 @@ extension RichLayout {
                             for (float, image) in laterFloats {
                                 window.addRect(_floatRect(float, image, g, i).shift(Offset(left, top - piece.flowTop)))
                             }
-                            canvas.clipPath(window, doAntiAlias: false)
+                            canvas.clipPath(window, doAntiAlias: false); pieceClip = .path(window)
                         } else if lines != nil || floats || (theme.wordRules && !shading && whole && piece.part == .all && (document.paragraphs[i].image != nil || _inlinePictureOnly(i, document))) {
                             // Its own lines and no others: nothing to cut off above or below.
-                            canvas.clipRect(Rect.fromLTRB(clipL, top - 1_000_000, clipR, bottom + 1_000_000))
+                            canvas.clipRect(Rect.fromLTRB(clipL, top - 1_000_000, clipR, bottom + 1_000_000)); pieceClip = .rect(Rect.fromLTRB(clipL, top - 1_000_000, clipR, bottom + 1_000_000))
                         } else if overflowsExactRow {
-                            canvas.clipRect(Rect.fromLTRB(clipL, top + _baselineShift(i, document), clipR, pageRect(p).bottom))
+                            canvas.clipRect(Rect.fromLTRB(clipL, top + _baselineShift(i, document), clipR, pageRect(p).bottom)); pieceClip = .rect(Rect.fromLTRB(clipL, top + _baselineShift(i, document), clipR, pageRect(p).bottom))
                         } else if opensWithFloats {
                             // (… and those floats whole below it too, its own
                             // text still cut at the piece: zh-4e5fe46f's
@@ -3423,7 +3435,7 @@ extension RichLayout {
                                 }
                                 picturesWindow = apart
                             }
-                            canvas.clipPath(window, doAntiAlias: false)
+                            canvas.clipPath(window, doAntiAlias: false); pieceClip = .path(window)
                         } else {
                             // The window moves with the text: a paragraph drawn
                             // above its line box (`baselineShift`) would
@@ -3445,7 +3457,7 @@ extension RichLayout {
                                 heavy = _px(w) / 2
                                 RuleTrace.hit("word-heavy-table-rule-paints-its-lower-half-past-the-row")
                             }
-                            canvas.clipRect(Rect.fromLTRB(clipL, top + dy + inset, clipR, bottom + dy + heavy))
+                            canvas.clipRect(Rect.fromLTRB(clipL, top + dy + inset, clipR, bottom + dy + heavy)); pieceClip = .rect(Rect.fromLTRB(clipL, top + dy + inset, clipR, bottom + dy + heavy))
                         }
                         canvas.translate(left, top - piece.flowTop)
                         if shading { _shadingFloats = floats; _paintShading(piece.paragraph, canvas, document, part: piece.part); _shadingFloats = false } else {
@@ -3453,7 +3465,9 @@ extension RichLayout {
                             if _dropCapPass == 2 { _paintDropCaps(piece.paragraph, canvas, document) } else {
                                 _paintMode = picturesWindow != nil ? 1 : 0
                                 _pieceContinuesFrom = theme.wordRules && RichTextTheme.wordWindowsPages && !shading && piece.part == .all && lines == nil && _cells[piece.paragraph] == nil && piece.flowTop > _tops[piece.paragraph] + 0.5 ? piece.flowTop : nil
+                                _pieceFrame = (p, pieceClip, left, top - piece.flowTop)
                                 _paintParagraph(piece.paragraph, canvas, document, part: piece.part, lines: lines)
+                                _pieceFrame = nil
                                 _pieceContinuesFrom = nil
                                 _paintMode = 0
                                 if let apart = picturesWindow {
@@ -3463,12 +3477,14 @@ extension RichLayout {
                                     canvas.clipPath(apart, doAntiAlias: false)
                                     canvas.translate(left, top - piece.flowTop)
                                     _paintMode = 2
+                                    _pieceFrame = (p, .path(apart), left, top - piece.flowTop)
                                     _paintParagraph(piece.paragraph, canvas, document, part: piece.part, lines: lines)
+                                    _pieceFrame = nil
                                     _paintMode = 0
                                 }
                             }
                             _floatColumnShift = 0
-                            if _dropCapPass != 2 { _paintPartedRules(piece, canvas, document) }
+                            if _dropCapPass != 2, !_behindPass { _paintPartedRules(piece, canvas, document) }
                             // (Word's print keeps the text an exact-height row
                             // cuts off, clipped and unseen, and a reader of the
                             // page finds it there: lo-c6cd222f's "BAR BBB" and
@@ -3518,7 +3534,7 @@ extension RichLayout {
                                 }
                             }
                         }
-                        if _dropCapPass != 2, numbered, let ordinal = ordinals[slot * 1_000_000 + pieceIndex] {
+                        if _dropCapPass != 2, !_behindPass, numbered, let ordinal = ordinals[slot * 1_000_000 + pieceIndex] {
                             _paintLineNumbers(piece, ordinal: ordinal, origin: Offset(left, top - piece.flowTop), canvas, document)
                         }
                     }

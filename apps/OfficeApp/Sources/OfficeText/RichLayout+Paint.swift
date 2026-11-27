@@ -612,7 +612,7 @@ extension RichLayout {
         if _shadingFloats, part != .rules {
             let g = geometry(i)
             for image in _behindPictures(i) {
-                guard let float = image.float, let decoded = _decoded[image.id] else { continue }
+                guard let float = image.float, let decoded = _decoded[image.id], !_behindDrawn.contains("\(image.id)") else { continue }
                 if _verticalPagePicture(i, float, image) {
                     _drawPictureOnVerticalPage(decoded, image, _floatRect(float, image, g, i), canvas)
                 } else {
@@ -1061,6 +1061,207 @@ extension RichLayout {
         }
     }
 
+    /// One of paragraph `i`'s inline items (`_inline[i][k]`), drawn where its paragraph's paint puts it — or, a floating
+    /// object while the flow records them (`_deferredFloats`), kept to be drawn in the page's stacking order.
+    @inline(never)
+    func _paintInlineItem(_ i: Int, _ k: Int, _ g: ParagraphGeometry, _ all: [TextBox], _ canvas: any Canvas, _ document: RichDocument) {
+        if _paintMode == 1, _inline[i][k].float.map({ !$0.takesRoom }) == true { return }
+        let slot = _inlineBoxes[i][k]
+        guard slot < all.count else { return }
+        let box = all[slot]
+        let image = _inline[i][k]
+        var rect = box.toRect().shift(Offset(g.textLeft, g.inkTop))
+        // (Word's lab tightstep J: a picture anchored in a line above this piece was drawn whole by the piece that holds
+        // that line; the piece that goes on, its range over the picture, drew it a second time, 108pt lower.)
+        if let from = _pieceContinuesFrom, image.float.map({ !$0.takesRoom }) == true, rect.bottom <= from + 0.5 {
+            RuleTrace.hit("word-a-piece-that-goes-on-does-not-draw-a-picture-anchored-above-it-again")
+            return
+        }
+        if let over = _inlineOverflow[image.id], image.float == nil { rect = Rect.fromLTRB(rect.left, rect.top, rect.right + over, rect.bottom) }
+        if let real = _pageFill[image.id], image.float == nil {
+            let down = _lineCentre[image.id] ?? 0
+            rect = Rect.fromLTRB(rect.left, rect.top + down, rect.right, rect.top + down + real)
+        }
+        if _behindDrawn.contains("\(image.id)") { return }
+        if _recordFloat(i, k, image) { return }
+        // (An equation on a line the 1.5-spacing rule moved down goes down with the line's text:
+        // jpn-z22855378-6fca0f's 'Δx≫σ' stood 9.6pt above its text's baseline.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, image.float == nil,
+           let pair = Self._paired(g.painter), image.name == "m:oMath" || pair.objects {
+            let raw = Self._rawLineBottoms(g.painter), mid = box.toRect().top + box.toRect().height / 2
+            if pair.shifts.count == raw.count, let line = raw.firstIndex(where: { mid < $0 }) {
+                rect = rect.shift(Offset(0, pair.shifts[line]))
+            }
+        }
+        if theme.wordRules, let float = image.float, !float.takesRoom {
+            // A floating object, from its paragraph by its place:
+            // a picture, or a text box's text; one that cannot
+            // be drawn is left out.
+            if image.textBox?.fitsText == true { _ = _textBox(image, document) }
+            rect = _floatRect(float, image, g, i)
+            // (Word writes a drop cap's text after the page's body text, so a reader of the page finds
+            // it as one run at the end: lo-e6dce9d6's "- – — ".)
+            if _dropCapPass == 1, image.isDropCap { return }
+            if _decoded[image.id] == nil {
+                if _verticalPagePicture(i, float, image) { return }
+                _paintOutline(image, rect, canvas)
+                if let inside = _textBox(image, document), let text = image.textBox {
+                    self._paintTurnedTextBox(inside, text, image, rect, canvas, clips: true)
+                }
+                return
+            }
+        }
+        let paint = Paint()
+        if theme.wordRules, image.float == nil {
+            let room = _pictureRoom(image)
+            // (Not its left, in a frame placed on the page: the drawing stands at
+            // the frame's x, effect extent or none — lab frame.)
+            let framedOnPage = document.paragraphs[i].style.frame.map { $0.verticalAnchor == "page" && $0.horizontalAnchor == "page" } ?? false
+            rect = Rect.fromLTRB(rect.left + (framedOnPage ? 0 : room.left), rect.top + room.top, rect.right - room.right, rect.bottom - room.bottom)
+        }
+        if _dropCapPass == 1, image.isDropCap { return }
+        if let decoded = _decoded[image.id] {
+            let clipped = _clipToCell(i, image, rect, canvas)
+            if let f = image.float, _verticalPagePicture(i, f, image) {
+                _drawPictureOnVerticalPage(decoded, image, rect, canvas)
+            } else {
+                _drawPicture(decoded, image, rect, canvas)
+            }
+            _paintFrame(image, rect, canvas)
+            if clipped { canvas.restore() }
+        } else if let inside = _textBox(image, document), let text = image.textBox {
+            // (A text box in the line keeps its fill and outline as a floating one does:
+            // lo-ffef711a's two boxes, red and blue fills, stood bare in ours.)
+            if theme.wordRules { _paintOutline(image, rect, canvas) } else { _ = _paintObject(image, rect, canvas) }
+            _paintTurnedTextBox(inside, text, image, rect, canvas)
+        } else if theme.wordRules, image.name == "checkbox" || image.name == "checkbox-on", let outline = image.outline {
+            // (A form's check box: see where it is set. Stroked
+            // inside its square, as Word's 0.72 line is; a ticked
+            // one crossed corner to corner.)
+            let stroke = Paint()
+            stroke.style = .stroke
+            stroke.strokeWidth = _px(outline.width)
+            stroke.color = outline.color ?? theme.textColor
+            canvas.drawRect(rect, stroke)
+            if image.name == "checkbox-on" {
+                canvas.drawLine(rect.topLeft, rect.bottomRight, stroke)
+                canvas.drawLine(rect.bottomLeft, rect.topRight, stroke)
+            }
+        } else if !_paintObject(image, rect, canvas) {
+            // (An object in the line that the app draws — chartex's
+            // line chart, a space after it — is drawn as one alone in
+            // its paragraph is; any other, a grey stand-in.)
+            paint.style = .fill
+            paint.color = Color(0x22808080)
+            canvas.drawRect(rect, paint)
+        }
+    }
+
+    /// Where the flow's pieces stand while they paint: the piece's clip and its shift, for a
+    /// floating object kept back (`_deferredFloats`) to be drawn under them again.
+    enum _PieceClip { case rect(Rect), path(Path) }
+    struct _DeferredFloat {
+        let page: Int, z: Int64, seq: Int, i: Int, k: Int, behind: Bool
+        let clip: _PieceClip, dx: Double, dy: Double, columnShift: Double
+    }
+
+    /// A floating object's place in its story's stack: its wp:anchor `relativeHeight`, or a VML
+    /// shape's `z-index`; 0 without either (it then keeps its place in the text).
+    static func _stackHeight(_ image: ImageAttachment) -> Int64 {
+        guard let xml = image.sourceXML else { return 0 }
+        func number(after key: String) -> Int64? {
+            guard let r = xml.rangeOfSubstring(key) else { return nil }
+            var n: Int64 = 0, any = false, sign: Int64 = 1
+            for c in xml[r.upperBound...] {
+                if c == " " && !any { continue }
+                if c == "-" && !any { sign = -1; continue }
+                guard c.isASCII, let d = c.wholeNumberValue else { break }
+                n = n * 10 + Int64(d); any = true
+            }
+            return any ? sign * n : nil
+        }
+        return number(after: "relativeHeight=\"") ?? number(after: "z-index:") ?? 0
+    }
+
+    /// While the flow records (`_deferredFloats` set), a floating object of paragraph `i` (`k` its
+    /// inline item, -1 its own picture) is kept with its piece's frame instead of drawn: Word stacks
+    /// the objects that float over the text by their height, whichever paragraph holds them, all
+    /// above the story's text (a later paragraph's text never covers an earlier one's object).
+    /// True when the caller is not to draw it now.
+    func _recordFloat(_ i: Int, _ k: Int, _ image: ImageAttachment) -> Bool {
+        let behind = image.sourceXML?.containsSubstring("behindDoc=\"1\"") == true || Self._stackHeight(image) < 0
+        // (The pass before the text keeps the objects behind it, and draws nothing.)
+        if _behindPass {
+            guard _deferredFloats != nil, image.float != nil, behind, let frame = _pieceFrame else { return true }
+            _deferredFloats!.append(_DeferredFloat(page: frame.page, z: Self._stackHeight(image), seq: _deferredFloats!.count, i: i, k: k, behind: true,
+                                                   clip: frame.clip, dx: frame.dx, dy: frame.dy, columnShift: _floatColumnShift))
+            return true
+        }
+        guard _deferredFloats != nil, theme.wordRules, image.float != nil, let frame = _pieceFrame else { return false }
+        // (One behind the text that the pass before it missed is drawn where its paragraph draws it.)
+        if behind { return false }
+        if _dropCapPass == 1, image.isDropCap { return true }
+        _deferredFloats!.append(_DeferredFloat(page: frame.page, z: Self._stackHeight(image), seq: _deferredFloats!.count, i: i, k: k, behind: false,
+                                               clip: frame.clip, dx: frame.dx, dy: frame.dy, columnShift: _floatColumnShift))
+        return true
+    }
+
+    /// The kept floating objects drawn, page by page, lowest first (ties in the text's order).
+    func _flushFloats(_ canvas: any Canvas, _ document: RichDocument) {
+        guard let kept = _deferredFloats else { return }
+        _deferredFloats = nil
+        for f in kept.sorted(by: { ($0.page, $0.z, $0.seq) < ($1.page, $1.z, $1.seq) }) {
+            canvas.save()
+            switch f.clip {
+            case .rect(let r): canvas.clipRect(r)
+            case .path(let p): canvas.clipPath(p, doAntiAlias: false)
+            }
+            canvas.translate(f.dx, f.dy)
+            _floatColumnShift = f.columnShift
+            let g = geometry(f.i)
+            let image = f.k < 0 ? document.paragraphs[f.i].image : f.k < _inline[f.i].count ? _inline[f.i][f.k] : nil
+            if let image, f.behind, _behindDrawn.contains("\(image.id)") { canvas.restore(); continue }
+            if f.k < 0 {
+                if let image, let box = imageRect(f.i) { _paintOwnPicture(f.i, image, box, canvas, document) }
+            } else if let all = g.painter.inlinePlaceholderBoxes {
+                _paintInlineItem(f.i, f.k, g, all, canvas, document)
+            }
+            _floatColumnShift = 0
+            if f.behind, let image { _behindDrawn.insert("\(image.id)") }
+            canvas.restore()
+        }
+    }
+
+    /// Paragraph `i`'s own picture (or text box) in `box`.
+    func _paintOwnPicture(_ i: Int, _ image: ImageAttachment, _ box: Rect, _ canvas: any Canvas, _ document: RichDocument) {
+        let turnedBox = _decoded[image.id] == nil && image.textBox != nil && _horizontalBoxOnVerticalPage(i, image)
+        let drawn = _decoded[image.id] == nil && !turnedBox && _paintOutline(image, box, canvas)
+        if let decoded = _decoded[image.id] {
+            let clipped = _clipToCell(i, image, box, canvas)
+            if let f = image.float, _verticalPagePicture(i, f, image) {
+                _drawPictureOnVerticalPage(decoded, image, box, canvas)
+            } else {
+                _drawPicture(decoded, image, box, canvas)
+            }
+            _paintFrame(image, box, canvas)
+            if clipped { canvas.restore() }
+        } else if let inside = _textBox(image, document), let text = image.textBox {
+            // A text box: its text, set inside it.
+            if !_paintHorizontalBoxOnVerticalPage(i, inside, text, image, box, canvas) {
+                var textBox = box
+                if image.float == nil, let line = _inlineTextClamp(image, i, document) { textBox = Rect.fromLTRB(box.right - _px(line), box.top, box.right, box.bottom) }
+                _paintTurnedTextBox(inside, text, image, textBox, canvas)
+            }
+        } else if !drawn, !(theme.wordRules && image.float.map({ !$0.takesRoom }) == true) {
+            // (No stand-in for a floating object the editor cannot
+            // draw: it would lie over the text it floats beside.)
+            let paint = Paint()
+            paint.style = .fill
+            paint.color = Color(0x22808080)
+            canvas.drawRect(box, paint)
+        }
+    }
+
     /// The order a paragraph's anchored objects are painted in: Word stacks them by
     /// wp:anchor relativeHeight, not by where they stand in the text (2263e221: a group
     /// written after a white box, but with the higher relativeHeight, stands over it).
@@ -1167,6 +1368,15 @@ extension RichLayout {
     func _paintParagraph(_ i: Int, _ canvas: any Canvas, _ document: RichDocument, part: PagePiece.Part = .all,
                                  lines: (painter: TextPainter, top: Double, first: Bool, paragraph: RichParagraph)? = nil) {
         let g = geometry(i)
+        if _behindPass {
+            // (The pass before the text: only the objects behind it, kept by `_recordFloat`.)
+            guard lines?.first ?? true, part != .rules else { return }
+            if let image = document.paragraphs[i].image, imageRect(i) != nil { _ = _recordFloat(i, -1, image) }
+            if i < _inline.count, !_inline[i].isEmpty, let all = g.painter.inlinePlaceholderBoxes {
+                for k in _inline[i].indices { _paintInlineItem(i, k, g, all, canvas, document) }
+            }
+            return
+        }
         if let lines, !lines.first {
             // Lines from inside the paragraph: no marker, no rules — the text alone.
             let at = Offset(g.textLeft, g.textTop + lines.top + _baselineShift(i, document))
@@ -1493,32 +1703,8 @@ extension RichLayout {
         if theme.wordRules, i < document.paragraphs.count, document.paragraphs[i].style.lineCollapsed, document.paragraphs[i].image == nil { return }
         if _markUnderNestedTable(i, document) { return }
         if let image = document.paragraphs[i].image, let box = imageRect(i) {
-            let turnedBox = _decoded[image.id] == nil && image.textBox != nil && _horizontalBoxOnVerticalPage(i, image)
-            let drawn = _decoded[image.id] == nil && !turnedBox && _paintOutline(image, box, canvas)
-            if let decoded = _decoded[image.id] {
-                let clipped = _clipToCell(i, image, box, canvas)
-                if let f = image.float, _verticalPagePicture(i, f, image) {
-                    _drawPictureOnVerticalPage(decoded, image, box, canvas)
-                } else {
-                    _drawPicture(decoded, image, box, canvas)
-                }
-                _paintFrame(image, box, canvas)
-                if clipped { canvas.restore() }
-            } else if let inside = _textBox(image, document), let text = image.textBox {
-                // A text box: its text, set inside it.
-                if !_paintHorizontalBoxOnVerticalPage(i, inside, text, image, box, canvas) {
-                    var textBox = box
-                    if image.float == nil, let line = _inlineTextClamp(image, i, document) { textBox = Rect.fromLTRB(box.right - _px(line), box.top, box.right, box.bottom) }
-                    _paintTurnedTextBox(inside, text, image, textBox, canvas)
-                }
-            } else if !drawn, !(theme.wordRules && image.float.map({ !$0.takesRoom }) == true) {
-                // (No stand-in for a floating object the editor cannot
-                // draw: it would lie over the text it floats beside.)
-                let paint = Paint()
-                paint.style = .fill
-                paint.color = Color(0x22808080)
-                canvas.drawRect(box, paint)
-            }
+            if _recordFloat(i, -1, image) { return }
+            if !_behindDrawn.contains("\(image.id)") { _paintOwnPicture(i, image, box, canvas, document) }
             // A list item that is a picture alone has its number too, on
             // the picture's line, at its foot: chartex's third bullet
             // stands beside its chart's lower edge in Word's print, where
@@ -2020,95 +2206,7 @@ extension RichLayout {
         }
         if i < _inline.count, !_inline[i].isEmpty, let all = g.painter.inlinePlaceholderBoxes {
             for k in _floatPaintOrder(i) {
-                if _paintMode == 1, _inline[i][k].float.map({ !$0.takesRoom }) == true { continue }
-                let slot = _inlineBoxes[i][k]
-                guard slot < all.count else { continue }
-                let box = all[slot]
-                let image = _inline[i][k]
-                var rect = box.toRect().shift(Offset(g.textLeft, g.inkTop))
-                // (Word's lab tightstep J: a picture anchored in a line above this piece was drawn whole by the piece that holds
-                // that line; the piece that goes on, its range over the picture, drew it a second time, 108pt lower.)
-                if let from = _pieceContinuesFrom, image.float.map({ !$0.takesRoom }) == true, rect.bottom <= from + 0.5 {
-                    RuleTrace.hit("word-a-piece-that-goes-on-does-not-draw-a-picture-anchored-above-it-again")
-                    continue
-                }
-                if let over = _inlineOverflow[image.id], image.float == nil { rect = Rect.fromLTRB(rect.left, rect.top, rect.right + over, rect.bottom) }
-                if let real = _pageFill[image.id], image.float == nil {
-                    let down = _lineCentre[image.id] ?? 0
-                    rect = Rect.fromLTRB(rect.left, rect.top + down, rect.right, rect.top + down + real)
-                }
-                if _behindDrawn.contains("\(image.id)") { continue }
-                // (An equation on a line the 1.5-spacing rule moved down goes down with the line's text:
-                // jpn-z22855378-6fca0f's 'Δx≫σ' stood 9.6pt above its text's baseline.)
-                if theme.wordRules, RichTextTheme.wordWindowsPages, image.float == nil,
-                   let pair = Self._paired(g.painter), image.name == "m:oMath" || pair.objects {
-                    let raw = Self._rawLineBottoms(g.painter), mid = box.toRect().top + box.toRect().height / 2
-                    if pair.shifts.count == raw.count, let line = raw.firstIndex(where: { mid < $0 }) {
-                        rect = rect.shift(Offset(0, pair.shifts[line]))
-                    }
-                }
-                if theme.wordRules, let float = image.float, !float.takesRoom {
-                    // A floating object, from its paragraph by its place:
-                    // a picture, or a text box's text; one that cannot
-                    // be drawn is left out.
-                    if image.textBox?.fitsText == true { _ = _textBox(image, document) }
-                    rect = _floatRect(float, image, g, i)
-                    // (Word writes a drop cap's text after the page's body text, so a reader of the page finds
-                    // it as one run at the end: lo-e6dce9d6's "- – — ".)
-                    if _dropCapPass == 1, image.isDropCap { continue }
-                    if _decoded[image.id] == nil {
-                        if _verticalPagePicture(i, float, image) { continue }
-                        _paintOutline(image, rect, canvas)
-                        if let inside = _textBox(image, document), let text = image.textBox {
-                            self._paintTurnedTextBox(inside, text, image, rect, canvas, clips: true)
-                        }
-                        continue
-                    }
-                }
-                let paint = Paint()
-                if theme.wordRules, image.float == nil {
-                    let room = _pictureRoom(image)
-                    // (Not its left, in a frame placed on the page: the drawing stands at
-                    // the frame's x, effect extent or none — lab frame.)
-                    let framedOnPage = document.paragraphs[i].style.frame.map { $0.verticalAnchor == "page" && $0.horizontalAnchor == "page" } ?? false
-                    rect = Rect.fromLTRB(rect.left + (framedOnPage ? 0 : room.left), rect.top + room.top, rect.right - room.right, rect.bottom - room.bottom)
-                }
-                if _dropCapPass == 1, image.isDropCap { continue }
-                if let decoded = _decoded[image.id] {
-                    let clipped = _clipToCell(i, image, rect, canvas)
-                    if let f = image.float, _verticalPagePicture(i, f, image) {
-                        _drawPictureOnVerticalPage(decoded, image, rect, canvas)
-                    } else {
-                        _drawPicture(decoded, image, rect, canvas)
-                    }
-                    _paintFrame(image, rect, canvas)
-                    if clipped { canvas.restore() }
-                } else if let inside = _textBox(image, document), let text = image.textBox {
-                    // (A text box in the line keeps its fill and outline as a floating one does:
-                    // lo-ffef711a's two boxes, red and blue fills, stood bare in ours.)
-                    if theme.wordRules { _paintOutline(image, rect, canvas) } else { _ = _paintObject(image, rect, canvas) }
-                    _paintTurnedTextBox(inside, text, image, rect, canvas)
-                } else if theme.wordRules, image.name == "checkbox" || image.name == "checkbox-on", let outline = image.outline {
-                    // (A form's check box: see where it is set. Stroked
-                    // inside its square, as Word's 0.72 line is; a ticked
-                    // one crossed corner to corner.)
-                    let stroke = Paint()
-                    stroke.style = .stroke
-                    stroke.strokeWidth = _px(outline.width)
-                    stroke.color = outline.color ?? theme.textColor
-                    canvas.drawRect(rect, stroke)
-                    if image.name == "checkbox-on" {
-                        canvas.drawLine(rect.topLeft, rect.bottomRight, stroke)
-                        canvas.drawLine(rect.bottomLeft, rect.topRight, stroke)
-                    }
-                } else if !_paintObject(image, rect, canvas) {
-                    // (An object in the line that the app draws — chartex's
-                    // line chart, a space after it — is drawn as one alone in
-                    // its paragraph is; any other, a grey stand-in.)
-                    paint.style = .fill
-                    paint.color = Color(0x22808080)
-                    canvas.drawRect(rect, paint)
-                }
+                _paintInlineItem(i, k, g, all, canvas, document)
             }
         }
         _paintSpelling(i, g, canvas, document)

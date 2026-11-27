@@ -9,6 +9,11 @@ import FlutterSwiftBridge
 /// kept `wp:anchor` markup (the one source the layout and the writer read) and the matching `ImageFloat` flags, as one undo step.
 
 /// Word's wrapping choices for a picture that floats (In Line with Text is a different kind of object, not a wrap).
+/// Picture Format > Arrange's four steps through the stack of floating objects.
+public enum PictureArrange: String, CaseIterable, Sendable {
+    case forward, backward, front, back
+}
+
 public enum PictureWrap: String, CaseIterable, Sendable {
     case square, tight, through, topAndBottom, behindText, inFrontOfText
 
@@ -171,6 +176,36 @@ extension String {
         body += xml[graphic]
         let open = "<wp:inline distT=\"0\" distB=\"0\" distL=\"0\" distR=\"0\"" + _keptAttributes(tag, dropping: []) + ">"
         return String(xml[xml.startIndex ..< anchor.lowerBound]) + open + body + "</wp:inline>" + String(xml[anchor.upperBound...])
+    }
+
+    /// The `relativeHeight` of `xml`'s `wp:anchor`, or nil without one.
+    static func _relativeHeight(_ xml: String) -> Int64? {
+        guard let open = xml.rangeOfSubstring("<wp:anchor"), let end = xml.rangeOfSubstring(">", in: open.upperBound ..< xml.endIndex),
+              let r = xml.rangeOfSubstring("relativeHeight=\"", in: open.upperBound ..< end.lowerBound) else { return nil }
+        let digits = xml[r.upperBound...].prefix { $0.isASCII && $0.isNumber }
+        return Int64(String(digits))
+    }
+
+    /// `xml` with its `wp:anchor`'s `relativeHeight` set to `height` (added when it has none).
+    static func _withRelativeHeight(_ xml: String, _ height: Int64) -> String? {
+        guard let open = xml.rangeOfSubstring("<wp:anchor"), let end = xml.rangeOfSubstring(">", in: open.upperBound ..< xml.endIndex) else { return nil }
+        if let r = xml.rangeOfSubstring("relativeHeight=\"", in: open.upperBound ..< end.lowerBound),
+           let q = xml.rangeOfSubstring("\"", in: r.upperBound ..< end.lowerBound) {
+            return String(xml[xml.startIndex ..< r.upperBound]) + "\(height)" + String(xml[q.lowerBound...])
+        }
+        return String(xml[xml.startIndex ..< open.upperBound]) + " relativeHeight=\"\(height)\"" + String(xml[open.upperBound...])
+    }
+
+    /// `xml`'s `wp:positionV` rewritten as `y` EMU from `from` (an offset, not an alignment), or nil with none.
+    static func _anchorPlacedV(_ xml: String, from: String, y: Int) -> String? {
+        guard xml.containsSubstring("<wp:anchor"), let open = xml.rangeOfSubstring("<wp:positionV"),
+              let tagEnd = xml.rangeOfSubstring(">", in: open.upperBound ..< xml.endIndex) else { return nil }
+        let end: String.Index
+        if xml[xml.index(before: tagEnd.lowerBound)] == "/" { end = tagEnd.upperBound }
+        else if let close = xml.rangeOfSubstring("</wp:positionV>", in: tagEnd.upperBound ..< xml.endIndex) { end = close.upperBound }
+        else { return nil }
+        let element = "<wp:positionV relativeFrom=\"\(from)\"><wp:posOffset>\(y)</wp:posOffset></wp:positionV>"
+        return String(xml[xml.startIndex ..< open.lowerBound]) + element + String(xml[end...])
     }
 
     static func _anchorMoved(_ xml: String, x: Int, y: Int) -> String? {
@@ -363,6 +398,92 @@ extension RichDocumentController {
         f.y = y
         new.float = f
         _store(index, id, old: old, new: new)
+        return true
+    }
+
+    /// Layout Options' "Move with text": whether the floating picture at `index` (or its inline picture `id`) is placed from
+    /// its paragraph (or line), so it rides along as text above it grows; false when it is fixed on the page (placed from the
+    /// page, margin…); nil when it does not float.
+    public func pictureMovesWithText(at index: Int, inline id: String? = nil) -> Bool? {
+        guard let f = _floating(index, id)?.float else { return nil }
+        return f.verticalFrom == "paragraph" || f.verticalFrom == "line"
+    }
+
+    /// "Move with text" on or off for the floating picture at `index` (or its inline picture `id`), one undo step, keeping it
+    /// where it stands: on, it is placed `top - paragraphTop` points below its paragraph; off ("Fix position on page"), `top`
+    /// points below the page's top. `top` and `paragraphTop` are points from the top of the page it is drawn on (the
+    /// layout's, `pictureSpotProbe`, when not given). Only the vertical placing changes, as in Word.
+    @discardableResult
+    public func setPictureMovesWithText(at index: Int, inline id: String? = nil, _ moves: Bool, top: Double? = nil, paragraphTop: Double? = nil) -> Bool {
+        guard let old = _floating(index, id), let xml = old.sourceXML, var f = old.float, pictureMovesWithText(at: index, inline: id) != moves,
+              let spot = top.map({ ($0, paragraphTop ?? 0) }) ?? pictureSpotProbe?(index, id) else { return false }
+        let y = moves ? spot.0 - spot.1 : spot.0
+        let from = moves ? "paragraph" : "page"
+        guard let patched = String._anchorPlacedV(xml, from: from, y: Int((y * 12700).rounded())) else { return false }
+        var new = old
+        new.sourceXML = patched
+        f.verticalFrom = from
+        f.verticalAlign = nil
+        f.y = y
+        new.float = f
+        _store(index, id, old: old, new: new)
+        return true
+    }
+
+    /// Picture Format > Arrange: Bring Forward / Send Backward one step, Bring to Front / Send to Back, among the floating
+    /// objects on the same side of the text (behind it, or not), by their `relativeHeight` as Word stacks them (ties go by
+    /// place in the document). One undo step; false when it is already there or does not float. Only the moved object's
+    /// height changes when there is room between its new neighbours; otherwise the layer is numbered up from below.
+    @discardableResult
+    public func arrangePicture(at index: Int, inline id: String? = nil, _ step: PictureArrange) -> Bool {
+        guard let me = _floating(index, id) else { return false }
+        let behind = me.sourceXML?.containsSubstring("behindDoc=\"1\"") == true
+        var layer: [(index: Int, id: String?, height: Int64)] = []
+        var top: Int64 = 0   // (Word keeps the heights unique through the whole document: a new top goes over both sides.)
+        for (i, p) in document.paragraphs.enumerated() {
+            let ids: [String?] = [nil] + p.inlineImages.sorted { $0.value.seq < $1.value.seq }.map { Optional($0.key) }
+            for k in ids {
+                guard let o = _floating(i, k), let xml = o.sourceXML else { continue }
+                let h = String._relativeHeight(xml) ?? 0
+                top = max(top, h)
+                if xml.containsSubstring("behindDoc=\"1\"") == behind { layer.append((i, k, h)) }
+            }
+        }
+        // (A stable sort: equal heights keep the document's order.)
+        let order = layer.enumerated().sorted { ($0.element.height, $0.offset) < ($1.element.height, $1.offset) }.map { $0.element }
+        guard let at = order.firstIndex(where: { $0.index == index && $0.id == id }) else { return false }
+        var moved = order
+        let item = moved.remove(at: at)
+        let to: Int
+        switch step {
+        case .forward: to = at + 1
+        case .backward: to = at - 1
+        case .front: to = order.count - 1
+        case .back: to = 0
+        }
+        guard to != at, to >= 0, to < order.count else { return false }
+        moved.insert(item, at: to)
+        var heights = moved.map { $0.height }
+        let prev = to > 0 ? heights[to - 1] : nil, next = to + 1 < heights.count ? heights[to + 1] : nil
+        switch (prev, next) {
+        case let (p?, n?) where n - p >= 2: heights[to] = p + (n - p) / 2
+        case (_?, nil): heights[to] = top + 1024
+        case let (nil, n?) where n >= 1: heights[to] = max(n / 2, n - 1024)
+        default:
+            // (No room between its neighbours: from the bottom up, each at least one over the one below it.)
+            for k in heights.indices {
+                let floor: Int64 = k > 0 ? heights[k - 1] + 1 : 0
+                heights[k] = k == to ? floor : max(heights[k], floor)
+            }
+        }
+        edit {
+            for (k, o) in moved.enumerated() where heights[k] != o.height {
+                guard let old = _floating(o.index, o.id), let xml = old.sourceXML, let patched = String._withRelativeHeight(xml, heights[k]) else { continue }
+                var new = old
+                new.sourceXML = patched
+                _store(o.index, o.id, old: old, new: new)
+            }
+        }
         return true
     }
 

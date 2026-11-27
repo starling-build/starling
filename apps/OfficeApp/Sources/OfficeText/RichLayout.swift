@@ -1964,6 +1964,10 @@ public final class RichLayout {
     /// 1: a paragraph's text without its floating pictures; 2: only the pictures (a parted paragraph's first piece draws its text
     /// in the piece's range and its pictures whole, in a pass of their own).
     var _paintMode = 0
+    /// Floating objects the flow keeps back to draw in stacking order (`_recordFloat`); nil when it draws them in place.
+    var _deferredFloats: [_DeferredFloat]? = nil
+    /// The flow piece now painting: its page, its clip and the shift its paragraph is drawn under.
+    var _pieceFrame: (page: Int, clip: _PieceClip, dx: Double, dy: Double)? = nil
     /// The first paragraph of a page whose header holds a box the body may not run under
     /// (`_headerBoxFloor`): how far its line goes down to clear it (pixels), by paragraph.
     var _headPushUse: [Int: Double] = [:]
@@ -2288,6 +2292,8 @@ public final class RichLayout {
     /// ours drew it after the shading, over them.
     var _behindDrawn: Set<String> = []
     var _shadingFloats = false
+    /// The pass before the shading that only keeps the objects behind the text (`_recordFloat`).
+    var _behindPass = false
 
     // MARK: Headers and footers
     //
