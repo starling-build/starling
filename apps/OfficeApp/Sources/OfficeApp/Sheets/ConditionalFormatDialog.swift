@@ -15,9 +15,12 @@ import Foundation
 final class ConditionalFormatDialog: StatefulWidget {
     let controller: WorkbookController
     let onClose: () -> Void
+    /// X-DA-3c Edit Rule: the rule to change (from Manage Rules), shown filled in; nil adds a new rule.
+    let editing: CFRuleRow?
 
-    init(controller: WorkbookController, onClose: @escaping () -> Void) {
+    init(controller: WorkbookController, editing: CFRuleRow? = nil, onClose: @escaping () -> Void) {
         self.controller = controller
+        self.editing = editing
         self.onClose = onClose
         super.init()
     }
@@ -29,7 +32,13 @@ final class ConditionalFormatDialogState: State<StatefulWidget> {
     private var _w: ConditionalFormatDialog { widget as! ConditionalFormatDialog }
 
     static let kinds = ["Cell value", "Text", "Top / bottom", "Above / below average", "Duplicate values",
-                        "Blanks", "Formula", "Color scale", "Data bar", "Icon set"]
+                        "Blanks", "Errors", "Dates occurring", "Formula", "Color scale", "Data bar", "Icon set"]
+    static let periods: [(label: String, value: String)] = [
+        ("Yesterday", "yesterday"), ("Today", "today"), ("Tomorrow", "tomorrow"), ("In the last 7 days", "last7Days"),
+        ("Last week", "lastWeek"), ("This week", "thisWeek"), ("Next week", "nextWeek"),
+        ("Last month", "lastMonth"), ("This month", "thisMonth"), ("Next month", "nextMonth")]
+    /// Edit Rule's first look choice: leave the rule's own format as it is.
+    static let keepLook = "Keep current format"
     static let iconSets: [(label: String, name: String)] = [
         ("3 arrows", "3Arrows"), ("3 grey arrows", "3ArrowsGray"), ("3 flags", "3Flags"),
         ("3 traffic lights", "3TrafficLights1"), ("3 traffic lights (rimmed)", "3TrafficLights2"),
@@ -59,9 +68,38 @@ final class ConditionalFormatDialogState: State<StatefulWidget> {
     private(set) var message = ""
     private let _v1 = TextEditingController()
     private let _v2 = TextEditingController()
+    private let _applies = TextEditingController()
+    /// The rule as read for Edit Rule: settings the form has no field for (colours, "or equal" average) come from it.
+    private(set) var original: CFRuleEdit?
+
+    override func initState() {
+        super.initState()
+        guard let row = _w.editing else { return }
+        _applies.text = row.applies
+        guard let e = _w.controller.conditionalRuleForEdit(row) else { message = CFProblem.notEditable.message; return }
+        original = e
+        if e.dxfId != nil { fill = Self.keepLook }
+        switch e.spec.kind {
+        case .cellIs(let op, let a, let b): kind = "Cell value"; variant = op; _v1.text = a; _v2.text = b ?? ""
+        case .text(let op, let t): kind = "Text"; variant = op; _v1.text = t
+        case .top(let n, let pc, let bottom): kind = "Top / bottom"; variant = bottom ? "bottom" : "top"; _v1.text = "\(n)"; percent = pc
+        case .average(let above, _): kind = "Above / below average"; variant = above ? "above" : "below"
+        case .duplicates(let unique): kind = "Duplicate values"; variant = unique ? "unique" : "duplicate"
+        case .blanks(let yes): kind = "Blanks"; variant = yes ? "blank" : "filled"
+        case .errors(let yes): kind = "Errors"; variant = yes ? "errors" : "noErrors"
+        case .timePeriod(let p): kind = "Dates occurring"; variant = p
+        case .expression(let f): kind = "Formula"; _v1.text = f
+        case .colorScale: kind = "Color scale"
+        case .dataBar: kind = "Data bar"
+        case .iconSet(let name): kind = "Icon set"; variant = name
+        }
+        if kind == "Icon set", !Self.iconSets.contains(where: { $0.name == variant }) {
+            original = nil; kind = "Cell value"; variant = "between"; message = CFProblem.notEditable.message
+        }
+    }
 
     override func dispose() {
-        _v1.dispose(); _v2.dispose()
+        _v1.dispose(); _v2.dispose(); _applies.dispose()
         super.dispose()
     }
 
@@ -74,6 +112,8 @@ final class ConditionalFormatDialogState: State<StatefulWidget> {
         case "Above / below average": return [("Above average", "above"), ("Below average", "below")]
         case "Duplicate values": return [("Duplicate", "duplicate"), ("Unique", "unique")]
         case "Blanks": return [("Blank cells", "blank"), ("Cells with a value", "filled")]
+        case "Errors": return [("Cells with errors", "errors"), ("Cells without errors", "noErrors")]
+        case "Dates occurring": return Self.periods.map { ($0.label, $0.value) }
         case "Icon set": return Self.iconSets.map { ($0.label, $0.name) }
         default: return []
         }
@@ -99,7 +139,7 @@ final class ConditionalFormatDialogState: State<StatefulWidget> {
     /// OK: build the rule from the form and add it over the selection.
     func apply() {
         let c = _w.controller
-        let k: CFSpec.Kind
+        var k: CFSpec.Kind
         switch kind {
         case "Cell value": k = .cellIs(op: variant, _v1.text, variant.hasSuffix("etween") ? _v2.text : nil)
         case "Text": k = .text(op: variant, _v1.text)
@@ -109,18 +149,33 @@ final class ConditionalFormatDialogState: State<StatefulWidget> {
         case "Above / below average": k = .average(above: variant == "above", equal: false)
         case "Duplicate values": k = .duplicates(unique: variant == "unique")
         case "Blanks": k = .blanks(variant == "blank")
+        case "Errors": k = .errors(variant == "errors")
+        case "Dates occurring": k = .timePeriod(variant)
         case "Formula": k = .expression(_v1.text)
-        case "Color scale": k = .colorScale([0xFFF8696B, 0xFFFFEB84, 0xFF63BE7B])
+        case "Color scale":
+            if case .colorScale(let cs)? = original?.spec.kind { k = .colorScale(cs) }      // an edited scale keeps its colours
+            else { k = .colorScale([0xFFF8696B, 0xFFFFEB84, 0xFF63BE7B]) }
         case "Icon set": k = .iconSet(variant)
-        default: k = .dataBar(0xFF638EC6)
+        default:
+            if case .dataBar(let bar)? = original?.spec.kind { k = .dataBar(bar) } else { k = .dataBar(0xFF638EC6) }
         }
+        if case .average(let above, true)? = original?.spec.kind, case .average(let a2, _) = k, a2 == above { k = .average(above: above, equal: true) }
         var spec = CFSpec(kind: k)
-        if highlights {
+        let keep = highlights && fill == Self.keepLook
+        if highlights && !keep {
             spec.look.fill = Self.fills.first { $0.label == fill }?.color
             spec.look.color = Self.fonts.first { $0.label == font }?.color
             if bold { spec.look.bold = true }
         }
-        if let p = c.addConditionalFormat(spec, on: [c.selection]) { message = p.message; setState {} }
+        let problem: CFProblem?
+        if let row = _w.editing {
+            guard original != nil else { message = CFProblem.notEditable.message; setState {}; return }
+            guard let ranges = WorkbookController.cfRanges(_applies.text) else { message = CFProblem.badRange.message; setState {}; return }
+            problem = c.editConditionalRule(row, spec, applies: ranges, keepLook: keep)
+        } else {
+            problem = c.addConditionalFormat(spec, on: [c.selection])
+        }
+        if let p = problem { message = p.message; setState {} }
         else { _w.onClose() }
     }
 
@@ -140,8 +195,10 @@ final class ConditionalFormatDialogState: State<StatefulWidget> {
     override func build(_ context: any BuildContext) -> Widget {
         let fluent = FluentTheme.of(context)
         let existing = _w.controller.conditionalRules(over: _w.controller.selection).count
-        var rows: [Widget] = [
-            _label(existing == 0 ? "The selection has no rules yet." : "The selection has \(existing) rule\(existing == 1 ? "" : "s") already.", fluent),
+        let editing = _w.editing != nil
+        var rows: [Widget] = editing ? [_label("Applies to", fluent), _field("cf-applies", _applies)] : [
+            _label(existing == 0 ? "The selection has no rules yet." : "The selection has \(existing) rule\(existing == 1 ? "" : "s") already.", fluent)]
+        rows += [
             _gap(), _label("Format cells based on", fluent),
             _combo("cf-kind", kind, Self.kinds.map { ($0, $0) }) { [weak self] in self?.setKind($0) },
         ]
@@ -161,19 +218,26 @@ final class ConditionalFormatDialogState: State<StatefulWidget> {
         default: break
         }
         if highlights {
+            // Edit Rule offers the rule's own look first; a look with borders or a number format can only be kept.
+            let locked = original?.lookLocked == true
+            let fills = (original?.dxfId != nil ? [(Self.keepLook, Self.keepLook)] : []) + (locked ? [] : Self.fills.map { ($0.label, $0.label) })
             rows += [_gap(), _label("Format with", fluent),
-                     _combo("cf-fill", fill, Self.fills.map { ($0.label, $0.label) }) { [weak self] in self?.setFill($0) }, _gap(6),
-                     _combo("cf-font", font, Self.fonts.map { ($0.label, $0.label) }) { [weak self] in self?.setFont($0) }, _gap(6),
-                     Checkbox(key: ValueKey("cf-bold"), checked: bold,
-                              onChanged: { [weak self] v in self?.setState { self?.bold = v ?? false } }, content: Text("Bold"))]
+                     _combo("cf-fill", fill, fills) { [weak self] in self?.setFill($0) }]
+            if fill != Self.keepLook {
+                rows += [_gap(6), _combo("cf-font", font, Self.fonts.map { ($0.label, $0.label) }) { [weak self] in self?.setFont($0) }, _gap(6),
+                         Checkbox(key: ValueKey("cf-bold"), checked: bold,
+                                  onChanged: { [weak self] v in self?.setState { self?.bold = v ?? false } }, content: Text("Bold"))]
+            }
         }
-        rows += [_gap(), Text(message, style: fluent.typography.caption?.copyWith(color: Color(0xFFC42B1C))), _gap(6),
-                 Row(children: [Button(key: ValueKey("cf-clear-rules"), onPressed: { [weak self] in self?.clearRules() },
-                                       child: Text("Clear rules"))])]
+        rows += [_gap(), Text(message, style: fluent.typography.caption?.copyWith(color: Color(0xFFC42B1C)))]
+        if !editing {
+            rows += [_gap(6), Row(children: [Button(key: ValueKey("cf-clear-rules"), onPressed: { [weak self] in self?.clearRules() },
+                                                    child: Text("Clear rules"))])]
+        }
         return DialogShell(
-            title: "Conditional Formatting",
+            title: editing ? "Edit Formatting Rule" : "Conditional Formatting",
             page: Column(mainAxisSize: .min, crossAxisAlignment: .stretch, children: rows),
-            okLabel: "OK", cancelLabel: "Cancel", okEnabled: true, width: 420,
+            okLabel: "OK", cancelLabel: "Cancel", okEnabled: !editing || original != nil, width: 420,
             onOK: { [weak self] in self?.apply() }, onCancel: _w.onClose)
     }
 }
