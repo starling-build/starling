@@ -108,6 +108,9 @@ final class DialogShellState: State<StatefulWidget> {
 
     func select(_ index: Int) { setState { self.selectedTab = index } }
 
+    /// EditorToolbar.height, which this module cannot see.
+    private static let softKeyboardBar = 44.0
+
     override func build(_ context: any BuildContext) -> Widget {
         let fluent = FluentTheme.of(context)
         let tabs = _w.tabs
@@ -116,6 +119,11 @@ final class DialogShellState: State<StatefulWidget> {
         var keyboard = 0.0, viewWidth = Double.infinity
         if let view = _hostView(context), view.devicePixelRatio > 0 {
             keyboard = view.viewInsets.bottom / view.devicePixelRatio
+            #if os(iOS)
+            // The bar of buttons over the soft keyboard (EditorToolbar, 44 pt) is a UIKit view the keyboard's inset
+            // does not count: without this it covers the sheet's OK and Cancel.
+            if keyboard > 150 { keyboard += Self.softKeyboardBar }   // (EditorToolbar shows only for a docked keyboard: over 150 pt)
+            #endif
             viewWidth = view.physicalSize.width / view.devicePixelRatio
         }
         #if os(iOS)

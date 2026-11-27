@@ -1660,6 +1660,7 @@ final class SheetsShellState: State<StatefulWidget> {
         if case .cells = area {
             item("Fill Down") { c.fillDown() }
             item("Fill Right") { c.fillRight() }
+            item("Fill Series…") { [weak self] in self?.setState { self?._seriesOpen = true } }
         }
         item("Clear Contents") { c.clearContents() }
         item("Clear Formats") { c.setStyle { $0 = .plain } }

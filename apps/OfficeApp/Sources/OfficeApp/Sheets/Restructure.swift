@@ -294,6 +294,20 @@ extension WorkbookController {
         _fillFrom(CellRange(top: r.top, left: r.left, bottom: r.bottom, right: r.left), into: r)
     }
 
+    /// Home > Fill > Up: the last row of the selection copied into the rest (with one row selected, the row below it).
+    func fillUp() {
+        let r = selection
+        guard r.rows > 1 else { _fillFrom(CellRange(top: min(CellAddress.maxRows - 1, r.bottom + 1), left: r.left, bottom: min(CellAddress.maxRows - 1, r.bottom + 1), right: r.right), into: r); return }
+        _fillFrom(CellRange(top: r.bottom, left: r.left, bottom: r.bottom, right: r.right), into: r)
+    }
+
+    /// Home > Fill > Left: the last column of the selection copied into the rest (with one column selected, the one right of it).
+    func fillLeft() {
+        let r = selection
+        guard r.cols > 1 else { _fillFrom(CellRange(top: r.top, left: min(CellAddress.maxCols - 1, r.right + 1), bottom: r.bottom, right: min(CellAddress.maxCols - 1, r.right + 1)), into: r); return }
+        _fillFrom(CellRange(top: r.top, left: r.right, bottom: r.bottom, right: r.right), into: r)
+    }
+
     private func _fillFrom(_ src: CellRange, into dst: CellRange) {
         var before: [CellAddress: Cell?] = [:]
         let ws = sheet
