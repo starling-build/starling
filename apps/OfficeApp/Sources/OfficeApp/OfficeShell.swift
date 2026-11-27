@@ -1677,6 +1677,11 @@ final class OfficeShellState: State<StatefulWidget> {
         case "h": if mods.contains(.shift) { _openFindDialog() } else { _openFind(replace: true) }
         case "g": _findNext(backwards: mods.contains(.shift))
         case "p": session.onPrint?()
+        // Word's Ctrl+Shift+K / A / D: small caps, all caps, double underline (ahead of ⌘K the link, ⌘D the Font dialog
+        // and the editor's ⌘A, which would otherwise take the shifted keys too).
+        case "k" where mods.contains(.shift): c.toggleSmallCaps()
+        case "a" where mods.contains(.shift): c.toggleAllCaps()
+        case "d" where mods.contains(.shift): c.toggleDoubleUnderline()
         case "k": _openLink()
         case "d": session.onFontDialog?()   // ⌘D: the Font dialog, as in Word
         case "c" where mods.contains(.shift): session.paintedStyle = c.copyFormat(); session.paintSticky = false; setState { session.summary = session.summarize() }

@@ -1972,6 +1972,24 @@ public final class RichDocumentController: ChangeNotifier {
         applyCharStyle { $0.strikethrough = on }
     }
 
+    /// Word's Ctrl+Shift+K: small capitals on or off for the selection (on unless every run has them), one undo step.
+    public func toggleSmallCaps() {
+        let on = !selectionAll { $0.smallCaps }
+        applyCharStyle { $0.smallCaps = on }
+    }
+
+    /// Word's Ctrl+Shift+A: all capitals on or off, one undo step. The letters stay as typed; only their look changes.
+    public func toggleAllCaps() {
+        let on = !selectionAll { $0.caps }
+        applyCharStyle { $0.caps = on }
+    }
+
+    /// Word's Ctrl+Shift+D: a double underline on, or (where every run has one already) underlining off.
+    public func toggleDoubleUnderline() {
+        let on = !selectionAll { $0.underline && $0.underlineKind == "double" }
+        applyCharStyle { $0.underline = on; $0.underlineKind = on ? "double" : nil }
+    }
+
     /// Everything the Font dialog sets, applied as one undo step. Each field
     /// replaces the run's value; nil means "none" (the style's own).
     public struct CharFormat: Equatable {
