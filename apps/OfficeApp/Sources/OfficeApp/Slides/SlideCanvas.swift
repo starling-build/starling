@@ -375,7 +375,7 @@ final class SlideCanvasState: State<StatefulWidget> {
         }
         // Handles on a single selection.
         if deck.selection.count == 1, let shape = deck.selection.first {
-            let s = 9.0
+            let s = _touchSeen ? 14.0 : 9.0
             // A finger's reach, where the shape leaves room: neighbouring handles are half the shape's short side
             // apart, so a hit area never grows past half of that and never over a neighbour's.
             let reach = _touchSeen ? max(s, min(Self.touchReach, min(shape.frame.width, shape.frame.height) * px / 2)) : s
@@ -397,7 +397,7 @@ final class SlideCanvasState: State<StatefulWidget> {
             for hd in shape.elbowAdjustHandles {
                 let p = hd.at
                 children.append(Positioned(left: ox + p.dx * px - reach / 2, top: oy + p.dy * px - reach / 2, width: reach, height: reach,
-                                           child: _handle(accent: Color(0xFFFFC000), round: true, shown: 9, cursor: SystemMouseCursors.grab) { [weak self] _ in
+                                           child: _handle(accent: Color(0xFFFFC000), round: true, shown: s, cursor: SystemMouseCursors.grab) { [weak self] _ in
                                                guard let self else { return }
                                                self._drag = .elbowRun(shape: shape, key: hd.key, alongWidth: hd.alongWidth)
                                                self.deck.beginFrameEdit()
@@ -410,7 +410,7 @@ final class SlideCanvasState: State<StatefulWidget> {
                 let p = Offset(top.dx + up.dx, top.dy + up.dy)
                 let rr = _touchSeen ? Self.touchReach - 4 : 12.0
                 children.append(Positioned(left: ox + p.dx * px - rr / 2, top: oy + p.dy * px - rr / 2, width: rr, height: rr,
-                                           child: _handle(accent: accent, round: true, shown: 12, cursor: SystemMouseCursors.grab) { [weak self] e in
+                                           child: _handle(accent: accent, round: true, shown: _touchSeen ? 18 : 12, cursor: SystemMouseCursors.grab) { [weak self] e in
                                                guard let self else { return }
                                                let c = shape.frame.center
                                                let q = self._slidePoint(e.position)
