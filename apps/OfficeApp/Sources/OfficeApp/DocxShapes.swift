@@ -185,6 +185,7 @@ extension DocxFormat {
             // an empty centred paragraph with only <w:cs/> under szCs 28 is a 14 pt line, not the 11 pt one.)
             if DocxFormat.wordOnWindows, let r = pPr.first("w:rPr"), _on(r.first("w:cs")), r.first("w:sz") == nil, r.first("w:szCs") == nil, markStyle != nil { markStyle?.csMark = true }
             if markStyle?.hidden == true { style.markHidden = true }
+            if let c = pPr.first("w15:collapsed"), !_isOff(c) { style.collapsed = true }
             if style.markHidden, _on(pPr.first("w:rPr")?.first("w:specVanish")) { style.markSpecVanish = true }
             style.mark = markStyle
             // The paragraph's own numbering, else its style's (a numbered
