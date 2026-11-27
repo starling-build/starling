@@ -3030,9 +3030,12 @@ extension RichLayout {
                     // (A picture is not nothing: LibreOffice's floattable-del-empty,
                     // a picture alone in a hideMark cell, stands 104pt tall in Word's
                     // print, where its row collapsed here and the picture was never drawn.)
+                    // (Nor is a list label: xs dc363b28's header cell, an empty bulleted paragraph under hideMark, keeps its
+                    // 11.8pt line in Word's print and the body stands under it.)
                     let hidden = theme.wordRules && document.paragraphs[k].text.isEmpty
                         && document.paragraphs[k].image == nil && document.paragraphs[k].inlineImages.isEmpty
                         && (document.paragraphs[k].cell?.keptPropertiesXML?.containsSubstring("w:hideMark") ?? false)
+                        && (document.paragraphs[k].style.list == nil || (listLabel(k, document) ?? "").isEmpty)
                     if cell.rowSpan == 1, !cell.vertical, !hidden {
                         // (PowerPoint's print, lab tbl-lnspc: a percent line spacing above 100% adds to the
                         // FIRST line of a cell's paragraph only about (m-1) x size - 0.083 x size, not the full

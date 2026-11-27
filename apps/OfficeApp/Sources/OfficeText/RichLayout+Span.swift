@@ -625,7 +625,9 @@ extension RichLayout {
                case let cs = mark.complexFontFamily ?? markNamed?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily,
                let f = theme.complexFace(cs, latin: mark.fontFamily ?? markNamed?.char.fontFamily ?? _normalChar(document)?.fontFamily, letters: true), f.arialStandIn {
                 RuleTrace.hit("word-empty-mark-arial-stand-in-keeps-arials-line")
-                let multiple = p.style.lineSpacing > 0.5 ? p.style.lineSpacing : 1
+                // (Below single too: dx2 d2019349's empty mark (cs Nazanin, drawn in Arial, 11 pt) under a top border at line 120 auto is half
+                // Arial's line in Word's print, body baseline 139.22; at a full line ours stood at 145.8.)
+                let multiple = p.style.lineSpacing > 0.01 ? p.style.lineSpacing : 1
                 let sp = Self._multipleSplit(ascent: 0.905, descent: 1.149 - 0.905, multiple: multiple)
                 look = look.copyWith(ascentOverride: px * sp.0, descentOverride: px * sp.1, height: 1.149 * multiple, leadingDistribution: .even)
             }
@@ -639,7 +641,7 @@ extension RichLayout {
                case let latinFace = (mark.fontFamily ?? markNamed?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased(),
                latinFace != cs {
                 RuleTrace.hit("word-empty-rtl-mark-in-arial-or-times-complex-face-is-its-own-line")
-                let multiple = p.style.lineSpacing > 0.5 ? p.style.lineSpacing : 1
+                let multiple = p.style.lineSpacing > 0.01 ? p.style.lineSpacing : 1
                 let asc = cs == "arial" ? 0.905 : 0.891, tall = cs == "arial" ? 1.149 : 1.1499
                 let sp = Self._multipleSplit(ascent: asc, descent: tall - asc, multiple: multiple)
                 look = look.copyWith(ascentOverride: px * sp.0, descentOverride: px * sp.1, height: tall * multiple, leadingDistribution: .even)
@@ -708,10 +710,14 @@ extension RichLayout {
                 // (An empty bullet row stands on its Wingdings bullet's ascent (1841/2048 em at the level's size) over the mark's own depth, as a
                 // row with text does: 11pt Wingdings over 9pt Century Gothic marks make table rows 12.36pt apart in Word's print, ours 11.54
                 // (sa1 5393bae9 page 4).)
+                // (A Symbol bullet's row the same, on Symbol's 1.005 em: xs dc363b28's header cell, an empty row under a 10pt Symbol bullet with an
+                // 8pt Arial mark, is 11.76pt in Word's print (10.05 over Arial's 1.70), ours 9.2.)
                 var markLook = look
+                let bulletFace = _levelNumberFonts(p, document).latin?.lowercased()
                 if RichTextTheme.wordWindowsPages, document.readFromFile, p.style.lineHeightPoints == nil, p.style.lineSpacing <= 1.001, p.style.list == .bullet,
-                   !p.style.rightToLeft, _levelNumberFonts(p, document).latin?.lowercased() == "wingdings", let bulletPt = _levelNumberSize(p, document), bulletPt > 0.5 {
-                    let up = _px(bulletPt) * fontScale * 1841.0 / 2048
+                   !p.style.rightToLeft, bulletFace == "wingdings" || bulletFace == "symbol", let bulletPt = _levelNumberSize(p, document), bulletPt > 0.5,
+                   let em = bulletFace == "symbol" ? theme.faceResolver?("symbol", false)?.baseline : 1841.0 / 2048 {
+                    let up = _px(bulletPt) * fontScale * em
                     let probe = TextPainter(text: TextSpan(text: "x", style: look), textDirection: .ltr)
                     probe.layout(minWidth: 0, maxWidth: 100000)
                     let m = probe.computeLineMetrics().first
@@ -935,6 +941,7 @@ extension RichLayout {
         // `RichDocument.balancesSpaceWidth`.
         var wideSpaces: Set<Int> = []
         var ordinaryBalancedSpaces: Set<Int> = []
+        var averageSpaces: Set<Int> = []
         // The spaces to set as no-break ones (`held`, by the layout: see
         // `_spacesToHold`), with a zero-width space after each run of
         // them for the break a space allows.
@@ -1000,6 +1007,7 @@ extension RichLayout {
                        p.runs[i + 1].style.eastAsiaFontFamily == nil || circledOnly(st, p.runs[i + 1].length) { eaRunEnds.insert(st) }
                 }
             }
+            let eastAsianDefaultLanguage = ["ja", "zh", "ko"].contains { document.defaultLangXML?.containsSubstring("w:eastAsia=\"\($0)") ?? false }
             var runStarts: [Int] = []
             do { var st = 0; for r in p.runs { runStarts.append(st); st += r.length } }
             var at = 0
@@ -1034,6 +1042,17 @@ extension RichLayout {
                         let balanced = run.filter { !complexSpaces.contains($0) }
                         wideSpaces.formUnion(balanced)
                         ordinaryBalancedSpaces.formUnion(balanced)
+                    } else if RichTextTheme.wordWindowsPages, document.usesEastAsianLayout, run.count >= 2, !eastAsianDefaultLanguage,
+                              let o = run.first, let ri = runStarts.lastIndex(where: { $0 <= o }),
+                              (p.runs[ri].style.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily ?? "").isEmpty {
+                        // (Two or more spaces between Latin words, where the run's East Asian slot names no face (a theme whose
+                        // `a:ea` is empty) and the document's East Asian language is not one: Word for Windows sets each at the
+                        // Latin face's OS/2 average width. xs 715d0d06's Sylfaen footer "2015␣␣საქართველოს" 3.35 apiece at 8pt
+                        // (0.42 em), so "468" takes a second line; 0658123d, 5f1404e7, ad2710ae's Times New Roman "Coram:␣␣McLachlin"
+                        // 0.40 em. A single space stays plain (0.25 em in 715d0d06), and so does a run whose East Asian slot is a
+                        // Latin face (xb 7e68ac6f's Calibri, 0.23 em).)
+                        RuleTrace.hit("word-balanced-double-space-between-latin-is-face-average-width")
+                        averageSpaces.formUnion(run.filter { !complexSpaces.contains($0) })
                     }
                 } else if let first = run.first(where: { !nbsp.contains($0) }) {
                     wideSpaces.formUnion(run.filter { $0 >= first && !complexSpaces.contains($0) })
@@ -1141,7 +1160,10 @@ extension RichLayout {
             // (A paragraph of tabs alone is the mark's line too, whatever its run's size: dx2 hi 87097d3e's 8pt-mark
             // paragraph holding one 11pt tab is 9.2pt in Word's print, where ours took the run's 12.65 or, with the
             // size inherited, nothing at all, and its page's boxes stood 10pt high.)
-            let tabsAlone = !p.text.isEmpty && p.text.utf16.allSatisfy { $0 == 0x09 }
+            // (Floating anchors beside the tabs change nothing, in a header too: xs dc363b28's header line of a page-set
+            // picture and one 15pt tab under a 24pt Verdana mark is the mark's 29.2pt line in Word's print, where ours
+            // took the tab's 17.3 and stood the body 12pt high.)
+            let tabsAlone = p.text.utf16.contains(0x09) && p.text.utf16.allSatisfy { $0 == 0x09 || $0 == 0xFFFC }
             guard theme.wordRules, tabsAlone || p.text.utf16.contains(where: spaceUnit) else { return nil }
             let normal = _normalChar(document)
             func size(_ c: CharStyle?) -> Double { c?.fontSize ?? named?.char.fontSize ?? normal?.fontSize ?? theme.fontSize }
@@ -1169,7 +1191,7 @@ extension RichLayout {
             // "Personal: ... Contratado" line, a wrapNone square anchored in it and 12pt spaces and tabs among 10pt text, is the
             // 10pt line in Word's print, 25.8 to the next paragraph where ours was 29.2. Not in a page header or footer: zh-4c4b1af8's
             // footer line of an anchor, 14pt text and 14pt trailing spaces under a 16pt line grid stays the normal line.)
-            if floating && (document.isHeaderFooterPart || (best != nil && (document.isPageHeaderFooterPart || !(theme.wordRules && RichTextTheme.wordWindowsPages)))) { return nil }
+            if floating && !tabsAlone && (document.isHeaderFooterPart || (best != nil && (document.isPageHeaderFooterPart || !(theme.wordRules && RichTextTheme.wordWindowsPages)))) { return nil }
             if let best { return (best, false) }
             // (With a floating anchor in the line, the larger of the mark's size and its spaces': dx2 ja 4fbb6e32's
             // 24pt under a 24pt mark is the mark's line; cs 2a42c845's header line of 11pt spaces under a mark of the
@@ -1244,7 +1266,7 @@ extension RichLayout {
         var splittingMark = false
         var splittingGeorgian = false
         var splittingDigits = false
-        var ctx = _SpanCtx(p: p, index: index, document: document, textWidth: textWidth, lead: lead, adjust: adjust, held: held, fitProbe: fitProbe, autoSpaces: autoSpaces, capped: capped, eaFaceOffset: eaFaceOffset, eastAsianFaceIsLatin: eastAsianFaceIsLatin, runHinted: runHinted, paragraphLatinOwnerFn: { paragraphLatinOwner }, afterHeld: afterHeld, afterIdeograph: afterIdeograph, before: before, beforeBefore: beforeBefore, breaksAtQuotes: breaksAtQuotes, complexSpaces: complexSpaces, dotsAttached: dotsAttached, fullQuotes: fullQuotes, hanJoins: hanJoins, heldSpaces: heldSpaces, inserts: inserts, kinsokuOff: kinsokuOff, koreanSpaces: koreanSpaces, koreanTokenJoins: koreanTokenJoins, latinAfterEastAsian: latinAfterEastAsian, latinRunBracket: latinRunBracket, lineSize: lineSize, loose: loose, mixedRubyRaise: mixedRubyRaise, named: named, openerBeforeLatin: openerBeforeLatin, ordinaryBalancedSpaces: ordinaryBalancedSpaces, pausesOpenLines: pausesOpenLines, percentStarts: percentStarts, pitch: pitch, plainNoLineRules: plainNoLineRules, raised: raised, rubyHeld: rubyHeld, rubyKeep: rubyKeep, rubyTails: rubyTails, spacesAfterNbsp: spacesAfterNbsp, splittingMark: splittingMark, splittingGeorgian: splittingGeorgian, splittingSpaces: splittingSpaces, splittingVariation: splittingVariation, spread: spread, thaiJoins: thaiJoins, thaiParagraph: thaiParagraph, traditionalLists: traditionalLists, vertical: vertical, wholeRaised: wholeRaised, wideIndicWords: wideIndicWords, widen: widen, wideSpaces: wideSpaces, wideStarts: wideStarts, windowsCounted: windowsCounted, windowsShare: windowsShare, wordHasLetter: wordHasLetter, mixedLatinFaces: mixedLatinFaces, heldKind: heldKind, splittingDigits: splittingDigits, trailingSpaces: trailingSpaces)
+        var ctx = _SpanCtx(p: p, index: index, document: document, textWidth: textWidth, lead: lead, adjust: adjust, held: held, fitProbe: fitProbe, autoSpaces: autoSpaces, capped: capped, eaFaceOffset: eaFaceOffset, eastAsianFaceIsLatin: eastAsianFaceIsLatin, runHinted: runHinted, paragraphLatinOwnerFn: { paragraphLatinOwner }, afterHeld: afterHeld, afterIdeograph: afterIdeograph, before: before, beforeBefore: beforeBefore, breaksAtQuotes: breaksAtQuotes, complexSpaces: complexSpaces, dotsAttached: dotsAttached, fullQuotes: fullQuotes, hanJoins: hanJoins, heldSpaces: heldSpaces, inserts: inserts, kinsokuOff: kinsokuOff, koreanSpaces: koreanSpaces, koreanTokenJoins: koreanTokenJoins, latinAfterEastAsian: latinAfterEastAsian, latinRunBracket: latinRunBracket, lineSize: lineSize, loose: loose, mixedRubyRaise: mixedRubyRaise, named: named, openerBeforeLatin: openerBeforeLatin, ordinaryBalancedSpaces: ordinaryBalancedSpaces, pausesOpenLines: pausesOpenLines, percentStarts: percentStarts, pitch: pitch, plainNoLineRules: plainNoLineRules, raised: raised, rubyHeld: rubyHeld, rubyKeep: rubyKeep, rubyTails: rubyTails, spacesAfterNbsp: spacesAfterNbsp, splittingMark: splittingMark, splittingGeorgian: splittingGeorgian, splittingSpaces: splittingSpaces, splittingVariation: splittingVariation, spread: spread, thaiJoins: thaiJoins, thaiParagraph: thaiParagraph, traditionalLists: traditionalLists, vertical: vertical, wholeRaised: wholeRaised, wideIndicWords: wideIndicWords, widen: widen, wideSpaces: wideSpaces, wideStarts: wideStarts, windowsCounted: windowsCounted, windowsShare: windowsShare, wordHasLetter: wordHasLetter, mixedLatinFaces: mixedLatinFaces, heldKind: heldKind, splittingDigits: splittingDigits, trailingSpaces: trailingSpaces, averageSpaces: averageSpaces)
         // (A right-aligned paragraph's trailing spaces take room, as
         // Word's do: a word joiner after them, so the engine does not let
         // them hang past the margin. zh-c5b5087b's footer, "…人民政府发布"
@@ -2947,20 +2969,18 @@ extension RichLayout {
         guard let whole = image.naturalExtent else { return nil }
         let base = _px(whole.ascent)
         // (A fraction's line follows its ink: 20d9968b's n over k and 1 over x are one 18pt pitch in Word's print, e^x-1 over x two.)
-        let full = image.naturalInk.map { _px($0.up + $0.down) } ?? _px(whole.ascent + whole.descent)
-        let probe = TextPainter(text: TextSpan(text: "\u{200B}", style: style), textDirection: .ltr)
-        probe.layout(minWidth: 0, maxWidth: .infinity)
-        let textAscent = probe.computeDistanceToActualBaseline(TextBaseline.alphabetic)
-        probe.dispose()
+        // (The text's own ascent and descent, the font's natural line; the grid's pitch is not a floor: labs mathline G2, G4, G5, G7 and
+        // 20d9968b's n over k, one pitch, against (a+b) over (c+d), two. Spec: docs/plans/board/20261121-114912-amd-opus.md.)
+        var textAscent = 0.0, textDescent = 0.0
+        if let split = _textStrutSplit(style: style) { textAscent = split.line - split.descent; textDescent = split.descent }
         let ascent = max(textAscent, base)
-        let descent = max(pitch - textAscent, full - base)
+        let descent = max(textDescent, _px(whole.descent))
+        let full = ascent + descent
         let n = (full / pitch - 0.002).rounded(.up)
-        _ = (ascent, descent)
         guard n >= 2 else { return nil }
         // (A fraction holding a radical keeps its natural height, off the grid: 20d9968b's cos θ = a/√(a²+b²) lines step 27.4 and 27.9 pt in Word's print, not 36.)
         if image.naturalInk == nil, (image.sourceXML ?? "").containsSubstring("<m:rad"), (image.sourceXML ?? "").containsSubstring("<m:f>") { return nil }
-        let extra = (n - 1) * pitch / 2
-        let offset = textAscent + extra
+        let offset = ascent + (n * pitch - full) / 2
         return (n * pitch, offset, offset - base, full)
     }
 }

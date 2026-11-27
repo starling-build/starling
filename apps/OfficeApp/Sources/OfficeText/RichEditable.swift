@@ -551,8 +551,9 @@ public final class RichEditableState: State<StatefulWidget> {
         case .delete:
             if _chords.word { c.deleteWordForward() } else { c.deleteForward() }
         case .enter:
-            // ⇧⏎ is a line break inside the paragraph.
-            if shift { c.insertLineBreak() } else { c.insertParagraphBreak() }
+            // ⇧⏎ is a line break inside the paragraph; Ctrl+⏎ a page break and Ctrl+⇧+⏎ a column break, as in Word.
+            if _chords.primary { if shift { c.insertColumnBreak() } else { c.insertPageBreak() } }
+            else if shift { c.insertLineBreak() } else { c.insertParagraphBreak() }
         case .tab:
             if c.isInCell { c.moveToAdjacentCell(forward: !shift) }
             // (At the start of a list item Tab is the item's level, as in

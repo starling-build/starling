@@ -172,4 +172,124 @@ final class DocxSaveOpensInWordTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(ids.count, 3, xml)
         XCTAssertEqual(ids.count, Set(ids).count, "tracked-change ids repeat: \(ids)")
     }
+
+    /// A tracked change to a paragraph's properties (w:pPrChange, with the properties it had before) goes back
+    /// with the paragraph: the save dropped all 96 of lo-9f27's.
+    func testParagraphPropertyChangeIsKept() throws {
+        let saved = try resave("<w:p><w:pPr><w:jc w:val=\"center\"/><w:pPrChange w:id=\"7\" w:author=\"Ann\" w:date=\"2020-01-02T03:04:00Z\"><w:pPr><w:jc w:val=\"right\"/></w:pPr></w:pPrChange></w:pPr><w:r><w:t>x</w:t></w:r></w:p>")
+        let doc = try XCTUnwrap(text(saved, "word/document.xml"))
+        let change = grab(doc, #"(<w:pPrChange [^>]*>.*?</w:pPrChange>)"#)
+        XCTAssertEqual(change.count, 1, doc)
+        XCTAssertTrue(change.first?.contains("w:author=\"Ann\"") ?? false, doc)
+        XCTAssertTrue(change.first?.contains("<w:pPr><w:jc w:val=\"right\"/></w:pPr>") ?? false, doc)
+        XCTAssertTrue(doc.contains("<w:jc w:val=\"center\"/><w:pPrChange"), "the change sits last in w:pPr: \(doc)")
+    }
+
+    /// A SmartArt diagram's drawing part is named only from its data part (dsp:dataModelExt relId): the save
+    /// dropped the part and its relationship, and the data named an id that no longer existed (xa gv-3db26).
+    func testDiagramDrawingPartIsKeptAndItsIdFollows() throws {
+        let dgm = "http://schemas.openxmlformats.org/drawingml/2006/diagram"
+        let body = "<w:p><w:r><w:drawing><wp:inline><wp:extent cx=\"1270000\" cy=\"635000\"/><wp:docPr id=\"1\" name=\"D\"/><a:graphic xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\"><a:graphicData uri=\"\(dgm)\"><dgm:relIds xmlns:dgm=\"\(dgm)\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\" r:dm=\"rIdD1\" r:lo=\"rIdD2\" r:qs=\"rIdD3\" r:cs=\"rIdD4\"/></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>"
+        let data = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><dgm:dataModel xmlns:dgm=\"\(dgm)\" xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\"><dgm:ptLst/><dgm:extLst><a:ext uri=\"http://schemas.microsoft.com/office/drawing/2008/diagram\"><dsp:dataModelExt xmlns:dsp=\"http://schemas.microsoft.com/office/drawing/2008/diagram\" relId=\"rIdD5\" minVer=\"http://schemas.openxmlformats.org/drawingml/2006/diagram\"/></a:ext></dgm:extLst></dgm:dataModel>"
+        let drawing = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><dsp:drawing xmlns:dsp=\"http://schemas.microsoft.com/office/drawing/2008/diagram\"><dsp:spTree><dsp:nvGrpSpPr><dsp:cNvPr id=\"0\" name=\"\"/><dsp:cNvGrpSpPr/></dsp:nvGrpSpPr><dsp:grpSpPr/></dsp:spTree></dsp:drawing>"
+        func plain(_ root: String) -> String { "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><dgm:\(root) xmlns:dgm=\"\(dgm)\"/>" }
+        let od = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/"
+        let rels = "<Relationship Id=\"rIdD1\" Type=\"\(od)diagramData\" Target=\"diagrams/data1.xml\"/><Relationship Id=\"rIdD2\" Type=\"\(od)diagramLayout\" Target=\"diagrams/layout1.xml\"/><Relationship Id=\"rIdD3\" Type=\"\(od)diagramQuickStyle\" Target=\"diagrams/quickStyle1.xml\"/><Relationship Id=\"rIdD4\" Type=\"\(od)diagramColors\" Target=\"diagrams/colors1.xml\"/><Relationship Id=\"rIdD5\" Type=\"http://schemas.microsoft.com/office/2007/relationships/diagramDrawing\" Target=\"diagrams/drawing1.xml\"/>"
+        let ct = "application/vnd.openxmlformats-officedocument.drawingml.diagram"
+        let types = "<Override PartName=\"/word/diagrams/data1.xml\" ContentType=\"\(ct)Data+xml\"/><Override PartName=\"/word/diagrams/layout1.xml\" ContentType=\"\(ct)Layout+xml\"/><Override PartName=\"/word/diagrams/quickStyle1.xml\" ContentType=\"\(ct)Style+xml\"/><Override PartName=\"/word/diagrams/colors1.xml\" ContentType=\"\(ct)Colors+xml\"/><Override PartName=\"/word/diagrams/drawing1.xml\" ContentType=\"application/vnd.ms-office.drawingml.diagramDrawing+xml\"/>"
+        let saved = try resave(body, extra: [("word/diagrams/data1.xml", data), ("word/diagrams/layout1.xml", plain("layoutDef")),
+                                             ("word/diagrams/quickStyle1.xml", plain("styleDef")), ("word/diagrams/colors1.xml", plain("colorsDef")),
+                                             ("word/diagrams/drawing1.xml", drawing)], rels: rels, types: types)
+        XCTAssertNotNil(text(saved, "word/diagrams/drawing1.xml"), "drawing part dropped")
+        let docRels = try XCTUnwrap(text(saved, "word/_rels/document.xml.rels"))
+        let drawingID = try XCTUnwrap(grab(docRels, #"Id="([^"]+)"[^>]*diagramDrawing"#).first, docRels)
+        let savedData = try XCTUnwrap(text(saved, "word/diagrams/data1.xml"))
+        XCTAssertTrue(savedData.contains("relId=\"\(drawingID)\""), savedData)
+        let savedTypes = try XCTUnwrap(text(saved, "[Content_Types].xml"))
+        XCTAssertTrue(savedTypes.contains("PartName=\"/word/diagrams/drawing1.xml\" ContentType=\"application/vnd.ms-office.drawingml.diagramDrawing+xml\""), savedTypes)
+    }
+
+    /// A theme with a picture fill names the picture through its own rels: the save kept the theme alone, and it
+    /// named an id with no relationship (dx2 16de187a).
+    func testThemeKeepsItsRelsAndPicture() throws {
+        let theme = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><a:theme xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\" xmlns:r=\"\(rt)\" name=\"T\"><a:themeElements><a:fmtScheme name=\"F\"><a:bgFillStyleLst><a:blipFill><a:blip r:embed=\"rId1\"/></a:blipFill></a:bgFillStyleLst></a:fmtScheme></a:themeElements></a:theme>"
+        let rels = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"><Relationship Id=\"rId1\" Type=\"\(rt)/image\" Target=\"../media/image9.jpeg\"/></Relationships>"
+        let saved = try resave("<w:p><w:r><w:t>x</w:t></w:r></w:p>",
+                               extra: [("word/theme/theme1.xml", theme), ("word/theme/_rels/theme1.xml.rels", rels), ("word/media/image9.jpeg", "JPEG")])
+        let savedRels = try XCTUnwrap(text(saved, "word/theme/_rels/theme1.xml.rels"), "theme rels dropped")
+        XCTAssertTrue(savedRels.contains("Id=\"rId1\""), savedRels)
+        XCTAssertNotNil(text(saved, "word/media/image9.jpeg"), "theme picture dropped")
+        let types = try XCTUnwrap(text(saved, "[Content_Types].xml"))
+        XCTAssertTrue(types.contains("Extension=\"jpeg\""), types)
+    }
+
+    /// Every kind of tracked change goes back as many times as the file had it, the paragraph mark's own format
+    /// change included: without it Word split lo-9f27's deletions and format changes at each mark (211 revisions
+    /// where the file had 129: deletions 88 against 19, format changes 104 against 44).
+    func testTrackedChangesKeepTheirCountsByKind() throws {
+        let a = "w:author=\"Jo\""
+        func mark(_ id: Int, deleted: Bool) -> String {
+            "<w:pPr><w:jc w:val=\"center\"/><w:rPr>\(deleted ? "<w:del w:id=\"\(id)\" \(a) w:date=\"2013-07-17T12:32:00Z\"/>" : "")<w:sz w:val=\"18\"/><w:rPrChange w:id=\"\(id + 1)\" \(a) w:date=\"2013-07-17T12:26:00Z\"><w:rPr>\(deleted ? "<w:del w:id=\"\(id)\" \(a) w:date=\"2013-07-17T12:32:00Z\"/>" : "")</w:rPr></w:rPrChange></w:rPr><w:pPrChange w:id=\"\(id + 2)\" \(a) w:date=\"2013-07-17T12:32:00Z\"><w:pPr/></w:pPrChange></w:pPr>"
+        }
+        func run(_ id: Int, _ t: String, deleted: Bool) -> String {
+            let r = "<w:r><w:rPr><w:sz w:val=\"18\"/><w:rPrChange w:id=\"\(id)\" \(a) w:date=\"2013-07-17T12:26:00Z\"><w:rPr/></w:rPrChange></w:rPr><w:\(deleted ? "delText" : "t")>\(t)</w:\(deleted ? "delText" : "t")></w:r>"
+            return deleted ? "<w:del w:id=\"\(id + 1)\" \(a) w:date=\"2013-07-17T12:32:00Z\">\(r)</w:del>" : r
+        }
+        let body = "<w:p>\(mark(10, deleted: true))\(run(20, "gone", deleted: true))</w:p><w:p>\(mark(30, deleted: true))\(run(40, "also", deleted: true))</w:p>"
+            + "<w:p>\(mark(50, deleted: false))\(run(60, "kept", deleted: false))</w:p>"
+            // One deletion over two runs that differ (they stay two runs): still one w:del.
+            + "<w:p><w:del w:id=\"70\" \(a) w:date=\"2013-07-17T12:32:00Z\"><w:r><w:rPr><w:b/></w:rPr><w:delText>one</w:delText></w:r><w:r><w:delText>two</w:delText></w:r></w:del><w:r><w:t>end</w:t></w:r></w:p>"
+        func counts(_ x: String) -> [String: Int] {
+            var c: [String: Int] = [:]
+            for tag in ["w:del", "w:ins", "w:rPrChange", "w:pPrChange"] { c[tag] = grab(x, "(<\(tag)[ >])").count }
+            c["mark rPrChange"] = grab(x, "(<w:pPr>(?:(?!</w:pPr>).)*?<w:rPrChange)").count
+            return c
+        }
+        let doc = try XCTUnwrap(text(try resave(body), "word/document.xml"))
+        // A deleted mark's old properties repeat its w:del (Word writes it so): 2 more w:del, and every id unique.
+        XCTAssertEqual(counts(doc), ["w:del": 7, "w:ins": 0, "w:rPrChange": 6, "w:pPrChange": 3, "mark rPrChange": 3], doc)
+        let ids = grab(doc, "<w:(?:del|ins|rPrChange|pPrChange) w:id=\"(\\d+)\"")
+        XCTAssertEqual(Set(ids).count, ids.count, "tracked-change ids repeat: \(ids)")
+    }
+    /// A table row's own tracked deletion (w:trPr/w:del) is kept: dropped, Word counted each cell's deleted text
+    /// as a deletion of its own (lo-9f27: 22 deleted rows, 88 deletions where the file had 19).
+    func testDeletedTableRowKeepsItsMark() throws {
+        let a = "w:author=\"Jo\" w:date=\"2013-07-17T12:32:00Z\""
+        func row(_ t: String, deleted: Bool) -> String {
+            let run = deleted ? "<w:del w:id=\"9\(t.count)\" \(a)><w:r><w:delText>\(t)</w:delText></w:r></w:del>" : "<w:r><w:t>\(t)</w:t></w:r>"
+            return "<w:tr>\(deleted ? "<w:trPr><w:del w:id=\"8\(t.count)\" \(a)/></w:trPr>" : "")<w:tc><w:tcPr><w:tcW w:w=\"2000\" w:type=\"dxa\"/></w:tcPr><w:p>\(run)</w:p></w:tc></w:tr>"
+        }
+        let body = "<w:tbl><w:tblPr><w:tblW w:w=\"2000\" w:type=\"dxa\"/></w:tblPr><w:tblGrid><w:gridCol w:w=\"2000\"/></w:tblGrid>"
+            + row("gone", deleted: true) + row("stay", deleted: false) + row("also gone", deleted: true) + "</w:tbl><w:p/>"
+        let doc = try XCTUnwrap(text(try resave(body), "word/document.xml"))
+        XCTAssertEqual(grab(doc, "(<w:trPr>(?:(?!</w:trPr>).)*?<w:del )").count, 2, doc)
+        let ids = grab(doc, "<w:(?:del|ins) [^>]*?w:id=\"(\\d+)\"")
+        XCTAssertEqual(ids.count, 4, doc)
+        XCTAssertEqual(Set(ids).count, ids.count, "tracked-change ids repeat: \(ids)")
+    }
+
+    /// A symbol written with its low code (`00A3` in Wingdings 2, a box) stays a w:sym:
+    /// saved as plain text it printed "£" in the run's text font (zh-16e0a12a's 49 check boxes).
+    func testLowCodeSymbolStaysASymbol() throws {
+        let rPr = "<w:rPr><w:rFonts w:ascii=\"SimSun\" w:hAnsi=\"SimSun\"/></w:rPr>"
+        let body = "<w:p><w:r>\(rPr)<w:sym w:font=\"Wingdings 2\" w:char=\"00A3\"/></w:r><w:r>\(rPr)<w:t>yes</w:t></w:r>"
+            + "<w:r>\(rPr)<w:sym w:font=\"Wingdings 2\" w:char=\"F052\"/></w:r></w:p>"
+        let doc = try XCTUnwrap(text(try resave(body), "word/document.xml"))
+        XCTAssertEqual(grab(doc, "<w:sym w:font=\"Wingdings 2\" w:char=\"([0-9A-F]{4})\"/>"), ["00A3", "F052"], doc)
+        XCTAssertFalse(doc.contains("£"), doc)
+        XCTAssertTrue(doc.contains(">yes<"), doc)
+    }
+
+    func testParagraphAlternateContentDrawsItsChoice() throws {
+        let body = "<w:p><w:r><w:t xml:space=\"preserve\">HERE </w:t></w:r><mc:AlternateContent>"
+            + "<mc:Choice Requires=\"w14\"><w:r><w:t>CHOICE</w:t></w:r></mc:Choice>"
+            + "<mc:Fallback><w:r><w:t>FALLBACK</w:t></w:r></mc:Fallback></mc:AlternateContent></w:p>"
+            + "<w:p><mc:AlternateContent><mc:Choice Requires=\"zz9\"><w:r><w:t>UNKNOWN</w:t></w:r></mc:Choice>"
+            + "<mc:Fallback><w:r><w:t>FALLBACK2</w:t></w:r></mc:Fallback></mc:AlternateContent></w:p>"
+        let doc = try XCTUnwrap(text(try resave(body), "word/document.xml"))
+        XCTAssertTrue(doc.contains("HERE CHOICE<"), doc)
+        XCTAssertTrue(doc.contains(">FALLBACK2<"), doc)
+        XCTAssertFalse(doc.contains(">FALLBACK<"), doc)
+        XCTAssertFalse(doc.contains(">UNKNOWN<"), doc)
+    }
 }

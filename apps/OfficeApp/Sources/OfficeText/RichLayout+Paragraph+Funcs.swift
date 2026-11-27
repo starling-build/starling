@@ -680,7 +680,18 @@ extension _ParaFrame {
         @inline(never) func _blk3() {
         if theme.wordRules || theme.markersAtHang, !style.rightToLeft || theme.wordRules, p.text.utf16.contains(0x09) {
             let (probeSpan, probeInline, probeInserts) = _span(for: p, at: i, document, textWidth: textWidth, lead: lead)
-            let probe = TextPainter(text: probeSpan, textAlign: .left, textDirection: .ltr)
+            // (A paragraph ending in spaces and tabs: the probe's one line would end in whitespace, which the engine measures
+            // trimmed, every style run of it set from where the last letter ends. A word joiner after the text keeps it all on
+            // the line. dx2 e7b500c9's date line, "พ.ศ." and six dotted spaces in three runs, then three tabs: the tabs came
+            // 10.4 pt early, the third left the line; Word's print ends the spaces at 431.0 and keeps the three tabs.)
+            var probeText = probeSpan
+            if theme.wordRules, let last = p.text.unicodeScalars.last, last == " " || last == "\t" {
+                var leaf: TextStyle? = nil
+                _ = probeSpan.visitChildren { sp in if let ts = sp as? TextSpan, ts.text != nil { leaf = ts.style }; return true }
+                probeText = TextSpan(children: [probeSpan, TextSpan(text: "\u{2060}", style: (probeSpan.style ?? TextStyle()).merge(leaf))])
+                RuleTrace.hit("word-tab-probe-ends-past-the-trailing-whitespace")
+            }
+            let probe = TextPainter(text: probeText, textAlign: .left, textDirection: .ltr)
             if !probeInline.isEmpty { probe.setPlaceholderDimensions(probeInline.map { $0.dimensions }) }
             probe.layout(minWidth: 0, maxWidth: 10_000_000)
             let probeMap = _OffsetMap(lead: lead != 0 ? 1 : 0, inserts: probeInserts)
@@ -1036,8 +1047,18 @@ extension _ParaFrame {
                     measure(wraps)
                     return
                 }
-                if theme.wordRules, RichTextTheme.wordWindowsPages, !style.rightToLeft, t > 0, x > ownLeft + textWidth + 0.5, units[t - 1] == 0x09,
-                   units[t...].allSatisfy({ $0 == 0x09 }), !wraps.contains(t), !afterTabWraps.contains(t) {
+                // (Also a tab after a space, starting inside the margin, its left stop past it: the line breaks at that space.
+                // dx2 3578a03d's "คน" and six tabs with spaces among them, the last after a space at 399 pt, its stop at 432, the
+                // margin at 415.3: Word's print sets that tab on a line of its own, the next paragraph a line lower. A tab after a
+                // tab keeps its line, cut at the margin: xb ell-z20423699-e882cd's header "\t\t\t\t\t  ", the fifth from 468 pt
+                // to a stop at 504, the margin at 500.9; dx2 5101ed6e's "날짜\t\t", a stop at 538 past 533; Word's lines stay one. Body text
+                // only: xa gv-9fba5bc3b0's cell "Site Name: \t", the tab from 57.2 pt to a stop at 72 past the cell's 58, keeps its
+                // line in Word's print.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, !style.rightToLeft, t > 0,
+                   (x > ownLeft + textWidth + 0.5 && units[t - 1] == 0x09 && units[t...].allSatisfy({ $0 == 0x09 }))
+                    || (p.cell == nil && x < ownLeft + textWidth - 0.5 && stop.alignment == .left && stop.x > ownLeft + textWidth + 0.5
+                        && units[t - 1] == 0x20 && units[t...].allSatisfy({ $0 == 0x09 || $0 == 0x20 })),
+                   !wraps.contains(t), !afterTabWraps.contains(t) {
                     afterTabWraps.insert(t)
                     RuleTrace.hit("word-tab-run-ending-the-paragraph-restarts-its-stops-past-the-margin")
                     measure(wraps)
@@ -1582,7 +1603,7 @@ extension _ParaFrame {
             var pil = picturesInLine
             // (Where the line-growing step after layout runs, the paragraph keeps its strut and that step sizes the taller equation lines.)
             equationLinesGrowAfterLayout = theme.wordRules && RichTextTheme.wordWindowsPages && p.cell == nil && !style.rightToLeft && _columns <= 1
-                && style.lineSpacing > 0.999 && style.lineHeightPoints == nil && besideLineIndents.isEmpty
+                && (style.lineSpacing > 0.999 && style.lineHeightPoints == nil || style.lineHeightIsMinimum && (style.lineHeightPoints ?? 0) > 0) && besideLineIndents.isEmpty
             if pil, theme.wordRules, RichTextTheme.wordWindowsPages, !style.rightToLeft,
                inline.allSatisfy({ $0.image.map { $0.name == "m:oMath" && $0.float == nil } ?? true }),
                (equationLinesGrowAfterLayout || _equationsAfterFirstLine(span, inline.map { $0.dimensions }, align: align, rtl: style.rightToLeft, width: textWidth + _px(tieSlack), indents: besideLineIndents)
@@ -3214,4 +3235,33 @@ extension _ParaFrame {
         // the box hanging past the margin, where ours took it a line
         // and it opened a page of its own.)
         func clear(_ image: ImageAttachment) -> Bool { image.float.map { !$0.takesRoom && !$0.wraps } ?? false }
+}
+
+extension RichLayout {
+    /// The paragraph's own text line (Word's win line of its first face) and the descent part of it, in layout units; nil where the face is unknown.
+    func _textStrutSplit(_ painter: TextPainter) -> (line: Double, descent: Double)? {
+        guard let rootSpan = painter.text as? TextSpan else { return nil }
+        func firstStyle(_ span: TextSpan, _ inherited: Flutter.TextStyle) -> Flutter.TextStyle? {
+            let own = inherited.merge(span.style)
+            if let tx = span.text, tx.contains(where: { !$0.isWhitespace && $0 != "\u{FFFC}" }) { return own }
+            for c in span.children ?? [] { if let t = c as? TextSpan, let f = firstStyle(t, own) { return f } }
+            return nil
+        }
+        guard let ts = firstStyle(rootSpan, Flutter.TextStyle()) else { return nil }
+        return _textStrutSplit(style: ts)
+    }
+
+    func _textStrutSplit(style ts: Flutter.TextStyle) -> (line: Double, descent: Double)? {
+        guard let size = ts.fontSize else { return nil }
+        let faceName = ts.debugLabel.flatMap { label -> String? in
+            label.split(separator: "(").compactMap { part -> String? in
+                guard let end = part.firstIndex(of: ")") else { return nil }
+                let n = String(part[part.startIndex ..< end])
+                return n.isEmpty || n == "unknown" ? nil : n
+            }.last
+        }
+        guard let name = faceName, let share = theme.winDescent?(name), let box = theme.winLineBox?(name) else { return nil }
+        let line = size * box
+        return (line, line * share)
+    }
 }

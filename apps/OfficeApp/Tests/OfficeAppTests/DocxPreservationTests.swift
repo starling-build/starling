@@ -170,4 +170,22 @@ final class DocxPreservationTests: XCTestCase {
             XCTAssertTrue(back.runs(in: 5 ..< 11)[0].style.bold)
         }
     }
+
+    /// A kept theme with its own rels (dx2-16de187a: the theme's picture): the rels sort before the theme, and
+    /// were linked from the document as the theme and typed as one. Word refused the save.
+    func testAKeptThemesRelsAreNotTakenForTheTheme() throws {
+        var doc = RichDocument(paragraphs: [RichParagraph(text: "x")])
+        let theme = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><a:theme xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\" name=\"T\"/>"
+        let rels = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"/>"
+        doc.keptParts["word/theme/theme1.xml"] = Data(theme.utf8)
+        doc.keptParts["word/theme/_rels/theme1.xml.rels"] = Data(rels.utf8)
+        let entries = try Zip.read(try DocxFormat.write(doc, pageSetup: .letter))
+        func part(_ n: String) -> String { String(decoding: entries.first { $0.name == n }?.data ?? Data(), as: UTF8.self) }
+        let docRels = part("word/_rels/document.xml.rels"), types = part("[Content_Types].xml")
+        XCTAssertTrue(docRels.containsSubstring("Target=\"theme/theme1.xml\""), docRels)
+        XCTAssertFalse(docRels.containsSubstring("theme1.xml.rels"), docRels)
+        XCTAssertFalse(types.containsSubstring("theme1.xml.rels"), types)
+        XCTAssertTrue(types.containsSubstring("PartName=\"/word/theme/theme1.xml\""), types)
+        XCTAssertNotNil(entries.first { $0.name == "word/theme/_rels/theme1.xml.rels" })
+    }
 }
