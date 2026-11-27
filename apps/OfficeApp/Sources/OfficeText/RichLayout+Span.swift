@@ -1053,6 +1053,16 @@ extension RichLayout {
                         // Latin face (xb 7e68ac6f's Calibri, 0.23 em).)
                         RuleTrace.hit("word-balanced-double-space-between-latin-is-face-average-width")
                         averageSpaces.formUnion(run.filter { !complexSpaces.contains($0) })
+                    } else if theme.wordRules, RichTextTheme.wordWindowsPages, document.usesEastAsianLayout, run.count >= 2,
+                              let o = run.first, let ri = runStarts.lastIndex(where: { $0 <= o }),
+                              let name = p.runs[ri].style.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily,
+                              !name.isEmpty, theme.faceResolver?(name, false)?.isEastAsian ?? false {
+                        // (Where the run's East Asian slot names an East Asian face, the same two or more spaces between Latin
+                        // words take half an em apiece, as beside an ideograph: dx2 e9bc88f9 (ja, theme minorEastAsia) "Ref.
+                        // No:␣␣770" and "Tel: ... 5005␣␣Fax", Times New Roman and Arial, 0.50 em in Word's print; ours 0.25.
+                        // kor-z1958105's Yu Gothic, zh-ef1dd71cb's and ea486e3c's Times New Roman the same.)
+                        RuleTrace.hit("word-balanced-double-space-between-latin-under-an-east-asian-face-is-half-an-em")
+                        wideSpaces.formUnion(run.filter { !complexSpaces.contains($0) })
                     }
                 } else if let first = run.first(where: { !nbsp.contains($0) }) {
                     wideSpaces.formUnion(run.filter { $0 >= first && !complexSpaces.contains($0) })
