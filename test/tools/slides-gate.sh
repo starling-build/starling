@@ -13,7 +13,10 @@ export OFFICE_NOW=${OFFICE_NOW:-2026-10-30T12:00:00}   # one fixed clock for bas
 DECKS=$ROOT/test/corpus/pptx/decks; [ -n "$(ls "$DECKS" 2>/dev/null | head -1)" ] || DECKS=$CC/decks
 PPT=$CC/powerpoint-win; BASE=$ROOT/test/corpus/pptx/baseline-win.tsv
 [ -d "$DECKS" ] && [ -d "$PPT" ] && { [ -s "$BASE" ] || [ -n "${BASE_BIN:-}" ]; } || { echo "slides-gate: no deck corpus or baseline here; skipped"; exit 2; }
-W=${SLIDES_SCRATCH:-${GATE_SCRATCH:-$HOME/scratch/gate}/slides}; rm -rf "$W"; mkdir -p "$W"
+# Every session on the box is the same Unix user, so a shared default folder is wiped by the next session's run mid-sweep ("no scores
+# produced": amd-10's b124 gate lost its run to amd-11's slides-gate at 14:27, 2026-11-27). Unnamed, the folder is this run's own and goes at exit.
+if [ -n "${SLIDES_SCRATCH:-}" ]; then W=$SLIDES_SCRATCH; else W=${GATE_SCRATCH:-$HOME/scratch/gate}/slides-$$; trap 'rm -rf "${W:?}"' EXIT; fi
+rm -rf "$W"; mkdir -p "$W"
 # A waiver in $LQ/approved.txt (starling-bd approves a drop by full doc id) holds ONLY for the PR that names the id in one of its
 # own commit messages or PR body, PR_BODY env (amd-8, 2026-11-22): the list is permanent, and espt/174ab0c2 sat on it from an old approval, so 39f4a0e5c
 # dropped it 100.0 to 87.6 and the gate said "0 worse" (found by the DRIFT line). No commit message naming the id, no waiver.

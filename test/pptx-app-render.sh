@@ -137,6 +137,7 @@ one() {
       printf '%s	ERROR	%s
 ' "$n" "$(grep "^$n	" "$WORK/pdf/web.tsv" | tail -1 | cut -f2- | cut -c1-120)"; return; }
   elif ! out=$("$APP" --deck-pdf "$IN/$n" "$WORK/pdf/$base.pdf" 2>&1); then
+    rm -f "$WORK/pdf/$base.pdf"   # a timed-out export leaves a half-written PDF; the line scorer would score its readable pages
     printf '%s	ERROR	%s
 ' "$n" "$(echo "$out" | tail -1 | cut -c1-120)"; return
   fi
@@ -154,6 +155,9 @@ one() {
 ' "$n" "$s"
 }
 export -f one
+# The app's own export limit is 120 s of wall clock; a loaded box (wide-ab beside a gate, load 380) runs big decks past it,
+# which scored ja-adafe4aa16 (83 pages) 0 in a gate and pt-f126bcdbeb 36 against 68 in a wide-ab. A sweep waits longer.
+export OFFICE_PDF_TIMEOUT=${OFFICE_PDF_TIMEOUT:-900}
 export APP IN PPT WORK OFFICE_WEB REUSE_SHAS REUSE_RENDER
 export DIFF_STR; DIFF_STR=$(printf '%q ' "${DIFF[@]}")
 todo=()
