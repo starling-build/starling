@@ -328,6 +328,8 @@ struct SheetPrintMetrics {
         "century": 0.9858, "georgia": 0.917, "trebuchet ms": 0.939, "consolas": 0.9199, "comic sans ms": 1.1021,
         "arial narrow": 0.9355, "arial black": 1.1006, "franklin gothic medium": 0.9165, "gill sans mt": 0.9292,
         "candara": 0.9521, "corbel": 0.9521, "constantia": 0.9521,
+        // (Dotum, Gulim and Batang: win ascent 879 and descent 145 of 1024, the font files on the print box.)
+        "dotum": 0.8584, "gulim": 0.8584, "batang": 0.8584,
     ]
 
     /// A face's descent, in its size, as `ascent` is its ascent: what
@@ -348,6 +350,7 @@ struct SheetPrintMetrics {
         "century": 0.2158, "georgia": 0.2192, "trebuchet ms": 0.2222, "consolas": 0.251, "comic sans ms": 0.2915,
         "arial narrow": 0.2119, "arial black": 0.3096, "franklin gothic medium": 0.2173, "gill sans mt": 0.2305,
         "candara": 0.2686, "corbel": 0.2686, "constantia": 0.2686,
+        "dotum": 0.1416, "gulim": 0.1416, "batang": 0.1416,
     ]
 
     /// A measured value at `size`: between the sizes measured, and in

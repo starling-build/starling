@@ -13,14 +13,14 @@ final class SheetsPrintTests: XCTestCase {
         _ = OfficeFonts.register()
     }
 
-    func testDotumGulimKeepThePaintersAscentDescent() {
-        // A single centred Dotum/Gulim line stands where the face's own
-        // ascent and descent put it: ko-946b4369d3 p2 (Dotum 16 in rows of
-        // 22) matched Excel's print to 0.0 pt that way and stood 3.6 pt high
-        // on a 0.90/0.21 em pair, which also cost six more Korean books.
-        for f in ["돋움", "굴림", "Dotum", "Gulim"] {
-            XCTAssertNil(SheetPrintMetrics.printAscent(family: f), f)
-            XCTAssertNil(SheetPrintMetrics.printDescent(family: f), f)
+    func testDotumGulimBatangCentreOnTheirWindowsAscentDescent() {
+        // Centred Dotum, Gulim and Batang text sits on the font files' own
+        // win ascent 879 and descent 145 of 1024. With their own (shorter)
+        // rows the painter's fallback put it about 2 pt low: ko-7fdeb278e7
+        // 32.4 -> 94.8, ko-455774eb65 32.8 -> 77.3; ko-946b4369d3 97.8 -> 99.5.
+        for f in ["돋움", "굴림", "바탕", "Dotum", "Gulim", "Batang"] {
+            XCTAssertEqual(SheetPrintMetrics.printAscent(family: f) ?? 0, 0.8584, accuracy: 0.0001, f)
+            XCTAssertEqual(SheetPrintMetrics.printDescent(family: f) ?? 0, 0.1416, accuracy: 0.0001, f)
         }
     }
 
