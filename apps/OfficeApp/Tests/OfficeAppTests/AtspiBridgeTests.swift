@@ -32,13 +32,26 @@ final class AtspiBridgeTests: XCTestCase {
         try probe.run(); probe.waitUntilExit()
         if probe.terminationStatus != 0 { throw XCTSkip("python3 gi Atspi missing") }
 
+        // Our own runtime folder: at-spi-bus-launcher puts the accessibility bus socket there, and every copy of this
+        // test on the machine (other test shards, other checkouts, one user) otherwise shares one, so one run ending
+        // took the socket from another and its clients aborted with "Couldn't connect to accessibility bus".
+        var dirTemplate = Array("\(NSTemporaryDirectory())/atspi-test-XXXXXX".utf8CString)
+        guard let made = mkdtemp(&dirTemplate) else { throw XCTSkip("no temporary folder") }
+        let runtime = String(cString: made)
+        let oldRuntime = ProcessInfo.processInfo.environment["XDG_RUNTIME_DIR"]
+        setenv("XDG_RUNTIME_DIR", runtime, 1)
+        defer {
+            if let oldRuntime { setenv("XDG_RUNTIME_DIR", oldRuntime, 1) } else { unsetenv("XDG_RUNTIME_DIR") }
+            try? FileManager.default.removeItem(atPath: runtime)
+        }
+
         // Our own session bus, so the test never touches the user's desktop.
         let bus = Process()
         bus.executableURL = URL(fileURLWithPath: dbus)
         bus.arguments = ["--session", "--nofork", "--print-address"]
         let out = Pipe(); bus.standardOutput = out
         try bus.run()
-        defer { bus.terminate() }
+        defer { bus.terminate(); bus.waitUntilExit() }
         let addr = String(decoding: out.fileHandleForReading.availableData, as: UTF8.self)
             .trimmingCharacters(in: .whitespacesAndNewlines)
         XCTAssertFalse(addr.isEmpty)
@@ -48,7 +61,7 @@ final class AtspiBridgeTests: XCTestCase {
         al.arguments = ["--launch-immediately"]
         al.standardError = FileHandle.nullDevice
         try al.run()
-        defer { al.terminate() }
+        defer { al.terminate(); al.waitUntilExit() }
 
         var pressed = 0
         let t = WidgetTester(Directionality(textDirection: .ltr, child: Semantics(label: "Save document", button: true, onTap: { pressed += 1 },
@@ -77,7 +90,7 @@ final class AtspiBridgeTests: XCTestCase {
         let client = Process()
         client.executableURL = URL(fileURLWithPath: python)
         client.arguments = ["-c", script]
-        let cout = Pipe(); client.standardOutput = cout; client.standardError = FileHandle.nullDevice
+        let cout = Pipe(); client.standardOutput = cout; client.standardError = cout
         try client.run()
         // The bridge asks the main thread for snapshots, so keep it turning while the client works.
         let deadline = Date().addingTimeInterval(30)
@@ -157,7 +170,7 @@ final class AtspiBridgeTests: XCTestCase {
         let client3 = Process()
         client3.executableURL = URL(fileURLWithPath: python)
         client3.arguments = ["-c", script3]
-        let cout3 = Pipe(); client3.standardOutput = cout3; client3.standardError = FileHandle.nullDevice
+        let cout3 = Pipe(); client3.standardOutput = cout3; client3.standardError = cout3
         try client3.run()
         let end3 = Date().addingTimeInterval(30)
         while client3.isRunning && Date() < end3 { RunLoop.current.run(until: Date().addingTimeInterval(0.05)) }
@@ -203,7 +216,7 @@ final class AtspiBridgeTests: XCTestCase {
         let client4 = Process()
         client4.executableURL = URL(fileURLWithPath: python)
         client4.arguments = ["-c", script4]
-        let cout4 = Pipe(); client4.standardOutput = cout4; client4.standardError = FileHandle.nullDevice
+        let cout4 = Pipe(); client4.standardOutput = cout4; client4.standardError = cout4
         try client4.run()
         let end4 = Date().addingTimeInterval(30)
         while client4.isRunning && Date() < end4 { RunLoop.current.run(until: Date().addingTimeInterval(0.05)) }

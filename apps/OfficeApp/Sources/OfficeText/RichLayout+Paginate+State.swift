@@ -79,6 +79,8 @@ struct _PState {
     // (A table placed against the page that was set up to the page's edge: its table and the edge, in pixels.)
     var pageEdgeClamp: (table: String, edge: Double)? = nil
     var tableBands: [(top: Double, bottom: Double, owner: Int)] = []
+    // (The bands of tables placed against the page on this page, with the table: a row of another table keeps clear of them.)
+    var pageTableBands: [(top: Double, bottom: Double, table: String)] = []
     var topPinnedOwners: Set<Int> = Set<Int>()  // owners whose own picture sits at offset 0 from the paragraph, no space above it
     var pictureBands: [(top: Double, bottom: Double, owner: Int)] = []
     // (Tops of the bands of page-anchored tables with a strip free to their right: empty paragraphs stand beside them.)
