@@ -1959,7 +1959,10 @@ extension RichLayout {
         var leadersPainted = false
         _paintScripts(lines?.paragraph ?? document.paragraphs[i], lines?.painter ?? g.painter, at: textAt, canvas, document,
                       map: lines == nil ? _map(i) : nil, leading: true)
-        if let lines {
+        if _paintMode == 2 {
+            // (The pictures-only pass of a parted paragraph draws no text: its window is the pictures', and a vertical
+            // column's lines under one were drawn a second time over the first — ja-b852b9029c page 1.)
+        } else if let lines {
             lines.painter.paint(canvas, textAt)
         } else if !_paintScaled(i, g, canvas, document) {
             if _paintFixedBoxFirstLine(i, g.painter, at: textAt, shifts, canvas) {
