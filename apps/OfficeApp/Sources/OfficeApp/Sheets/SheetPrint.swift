@@ -394,7 +394,8 @@ extension SheetGridState {
     @MainActor
     func writePdf(to path: String, title: String, filePath: String? = nil,
                   wholeBook: Bool = false, selection: CellRange? = nil, maxPages: Int? = nil,
-                  pages only: [Int]? = nil, countOnly: SheetJobBox<Int>? = nil) async -> Bool {
+                  pages only: [Int]? = nil, countOnly: SheetJobBox<Int>? = nil,
+                  deliver: ((Data) -> Void)? = nil) async -> Bool {
         let c = controller
         let book = c.book
         let savedSheet = c.activeSheet
@@ -516,7 +517,7 @@ extension SheetGridState {
         #endif
         // Chosen pages (1-based, in the order asked, a page twice when copies are wanted).
         if let only { out = only.compactMap { out.indices.contains($0 - 1) ? out[$0 - 1] : nil } }
-        return PdfDocument.write(to: path, pages: out, title: title, author: PdfExport.authorName())
+        return PdfDocument.write(to: path, pages: out, title: title, author: PdfExport.authorName(), deliver: deliver)
     }
 
     /// The pages without the blank ones Excel leaves out: those after the

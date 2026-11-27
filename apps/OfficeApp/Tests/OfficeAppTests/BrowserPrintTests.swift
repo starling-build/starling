@@ -53,4 +53,46 @@ final class BrowserPrintTests: XCTestCase {
         hostPrintPDFBytes = nil
         XCTAssertFalse(hostCanPrintPDF)
     }
+
+    private func waitForPrint(_ ui: WidgetTester) {
+        for _ in 0 ..< 150 where printed.isEmpty {
+            RunLoop.main.run(until: Date().addingTimeInterval(0.02)); ui.pump()
+        }
+    }
+
+    /// Slides: the dialog offers Print, and Print hands the host the chosen slides as a PDF.
+    func testSlidesPrintHandsTheHostAPdf() {
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light),
+                                        home: SlidesShell(initialPath: nil, onSwitch: { _, _ in }), title: "Test"),
+                              size: Size(1280, 800))
+        ui.pump()
+        let hooks = ui.state(SlidesShellState.self)!._printHooks
+        XCTAssertTrue(hooks.hostCanPrint, "Slides offers no Print where the host prints bytes")
+        _ = hooks.print([1], 0)
+        waitForPrint(ui)
+        XCTAssertEqual(printed.count, 1, "the host got no PDF of the deck")
+        guard let (data, name) = printed.first else { return }
+        XCTAssertTrue(data.starts(with: Array("%PDF".utf8)))
+        XCTAssertTrue(name.hasSuffix(".pdf"), name)
+    }
+
+    /// Sheets: the dialog offers Print, and Print hands the host the active sheet as a PDF.
+    func testSheetsPrintHandsTheHostAPdf() {
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light),
+                                        home: SheetsShell(initialPath: nil, onSwitch: { _, _ in }), title: "Test"),
+                              size: Size(1280, 800))
+        ui.pump()
+        let state = ui.state(SheetsShellState.self)!
+        state.wb.setInputs([(CellAddress(row: 0, col: 0), "Printed from a browser")])
+        state._printKinds = [.activeSheet]
+        state._printCounts = [1]
+        let hooks = state._printHooks
+        XCTAssertTrue(hooks.hostCanPrint, "Sheets offers no Print where the host prints bytes")
+        _ = hooks.print([1], 0)
+        waitForPrint(ui)
+        XCTAssertEqual(printed.count, 1, "the host got no PDF of the sheet")
+        guard let (data, name) = printed.first else { return }
+        XCTAssertTrue(data.starts(with: Array("%PDF".utf8)))
+        XCTAssertTrue(name.hasSuffix(".pdf"), name)
+    }
 }
