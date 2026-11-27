@@ -235,6 +235,64 @@ extension RichLayout {
     /// 22.2pt apart, 20.8 in Word's print, where the face is one. A paragraph with a strut is held to it;
     /// this is for the one that has none (its sizes differ) — each such stretch keeps its width and loses
     /// its height where a taller-or-equal ideograph stretch is on the same line.
+    /// Each line's stretch of the painter's text (UTF-16 offsets), as `_lineStarts` walks them.
+    static func _lineRanges(_ painter: TextPainter) -> [Range<Int>] {
+        let total = painter.plainText.utf16.count
+        var out: [Range<Int>] = [], at = 0
+        while at < total {
+            let r = painter.getLineBoundary(TextPosition(offset: at))
+            if out.last?.lowerBound != r.start { out.append(r.start ..< max(r.start + 1, r.end)) }
+            guard r.end > at || r.end > r.start else { break }
+            at = max(r.end, at + 1)
+        }
+        if painter.plainText.utf16.last == 0x0A { out.append(total ..< total) } // (the empty line after a closing break)
+        return out
+    }
+
+    /// Text of nothing but spaces, tabs and zero-width break marks: what a line that "holds no text" is made of.
+    static func _blankMark(_ text: String) -> Bool {
+        !text.isEmpty && text.unicodeScalars.allSatisfy { $0.value == 0x200B || $0.value == 0x2060 || $0.properties.isWhitespace }
+    }
+
+    /// A blank leaf that takes its runs' height on a line of nothing else: spaces and break marks, not tabs, nor the no-break spaces
+    /// tabs are held as (a run of tabs keeps the sliver it is given so as to set no line beside text, and stands in the line by its
+    /// spaces and marks).
+    static func _liftable(_ text: String) -> Bool {
+        !text.isEmpty && text.unicodeScalars.allSatisfy { $0 == " " || $0.value == 0x200B || $0.value == 0x2060 }
+    }
+
+    /// `span` with each zero-width break mark set at a sliver of a height (`zeroWidth`) within `within` (UTF-16 offsets of the
+    /// painter's text), and each such mark or space within `blank` (lines of nothing else), given the height of the run after it
+    /// (or, last, before it); nil when it has none.
+    static func _marksAtTheirRunsHeight(_ span: TextSpan, within: [Range<Int>], blank: [Range<Int>] = []) -> TextSpan? {
+        var heights: [Double?] = []
+        func collect(_ s: InlineSpan) {
+            guard let t = s as? TextSpan else { heights.append(nil); return }
+            if let x = t.text { heights.append(_liftable(x) && (t.style?.height ?? 1) < 0.05 ? -1 : t.style?.height) }
+            t.children?.forEach(collect)
+        }
+        collect(span)
+        guard heights.contains(where: { $0 == -1 }) else { return nil }
+        var changed = false, k = 0, at = 0
+        func lift(_ s: InlineSpan, _ inherited: Double?) -> InlineSpan {
+            guard let t = s as? TextSpan else { k += 1; at += 1; return s }
+            var style = t.style
+            if let text = t.text {
+                defer { at += text.utf16.count }
+                if _liftable(text), let h = style?.height ?? inherited, h < 0.05,
+                   (text.unicodeScalars.allSatisfy({ $0 != " " }) && within.contains(where: { $0.contains(at) })) || blank.contains(where: { $0.contains(at) }) {
+                    let next = heights[(k + 1)...].first(where: { ($0 ?? 0) > 0.05 }) ?? heights[..<k].last(where: { ($0 ?? 0) > 0.05 })
+                    if let n = next ?? nil { style = (style ?? TextStyle()).copyWith(height: n); changed = true }
+                }
+                k += 1
+            }
+            let own = t.style?.height ?? inherited
+            return TextSpan(text: t.text, children: t.children?.map { lift($0, own) }, style: style, recognizer: t.recognizer, locale: t.locale)
+        }
+        let out = lift(span, nil)
+        return changed ? out as? TextSpan : nil
+    }
+
     static func _unstackedFaces(_ span: TextSpan, _ painter: TextPainter) -> TextSpan? {
         var leaves: [_UnstackedLeaf] = []
         var at = 0
