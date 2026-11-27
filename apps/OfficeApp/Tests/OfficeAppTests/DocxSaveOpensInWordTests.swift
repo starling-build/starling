@@ -292,4 +292,23 @@ final class DocxSaveOpensInWordTests: XCTestCase {
         XCTAssertFalse(doc.contains(">FALLBACK<"), doc)
         XCTAssertFalse(doc.contains(">UNKNOWN<"), doc)
     }
+
+    func testFoldedHeadingHidesWhatFollowsAndStaysFolded() throws {
+        func para(_ t: String, _ style: String? = nil, folded: Bool = false) -> String {
+            "<w:p><w:pPr>" + (style.map { "<w:pStyle w:val=\"\($0)\"/>" } ?? "") + (folded ? "<w15:collapsed/>" : "")
+                + "</w:pPr><w:r><w:t>\(t)</w:t></w:r></w:p>"
+        }
+        let body = para("A", "Heading3", folded: true) + para("B") + para("C", "Heading4", folded: true) + para("D")
+            + para("E", "Heading3") + para("F")
+        let styles = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><w:styles xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\">"
+            + "<w:style w:type=\"paragraph\" w:default=\"1\" w:styleId=\"Normal\"><w:name w:val=\"Normal\"/></w:style>"
+            + "<w:style w:type=\"paragraph\" w:styleId=\"Heading3\"><w:name w:val=\"heading 3\"/><w:basedOn w:val=\"Normal\"/><w:pPr><w:outlineLvl w:val=\"2\"/></w:pPr></w:style>"
+            + "<w:style w:type=\"paragraph\" w:styleId=\"Heading4\"><w:name w:val=\"heading 4\"/><w:basedOn w:val=\"Normal\"/><w:pPr><w:outlineLvl w:val=\"3\"/></w:pPr></w:style></w:styles>"
+        let saved = try resave(body, extra: [("word/styles.xml", styles)])
+        let doc = try XCTUnwrap(text(saved, "word/document.xml"))
+        XCTAssertEqual(doc.components(separatedBy: "<w15:collapsed/>").count - 1, 2, doc)
+        let read = try DocxFormat.read(try Zip.write(saved)).document
+        let folded = read.paragraphs.filter { $0.style.foldedAway }.map(\.text)
+        XCTAssertEqual(folded, ["B", "C", "D"])
+    }
 }

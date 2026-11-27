@@ -102,6 +102,8 @@ public indirect enum EditOp: Equatable, Sendable {
     case setSectionPage(Int, old: PageSetup?, new: PageSetup?)
     /// The document-level page options (the last section's different first page and first page number, odd/even headers).
     case setPageOptions(old: RichDocumentController.PageOptions, new: RichDocumentController.PageOptions)
+    /// The last section's `w:type` (how it starts), as the file writes it.
+    case setLastSectionType(old: String?, new: String?)
     /// A picture's shown size (its attachment replaced; the id survives).
     case setImage(Int, old: ImageAttachment, new: ImageAttachment)
     /// An inline picture in a paragraph's text, replaced (its id survives).
@@ -217,6 +219,10 @@ public indirect enum EditOp: Equatable, Sendable {
             doc.titlePage = new.titlePage; doc.evenAndOddHeaders = new.evenAndOdd; doc.pageNumberStart = new.pageNumberStart
             changes.append(.all)
             return .setPageOptions(old: new, new: old)
+        case .setLastSectionType(let old, let new):
+            doc.sectionTypeXML = new
+            changes.append(.all)
+            return .setLastSectionType(old: new, new: old)
         case .setImage(let index, let old, let new):
             doc.paragraphs[index].image = new
             changes.append(.changed(index))
@@ -1954,6 +1960,74 @@ public final class RichDocumentController: ChangeNotifier {
             perform(.splitParagraph(pos, tailStyle: tailStyle))
             _setCaret(RichPosition(paragraph: pos.paragraph + 1, offset: 0))
         }
+    }
+
+    /// How the section a section break opens starts (Word's Layout > Breaks): its `w:type`.
+    public enum SectionBreakKind: String, CaseIterable, Sendable { case nextPage, continuous, evenPage, oddPage }
+
+    /// A section mark's `sectionXML` that stands for a copy of the last section as the file writes it (its header and footer
+    /// parts, page, columns and grid), with its own `w:type`: what a section break made in the last section holds.
+    public static let sectionAsLast = "x-asLast"
+
+    /// W-PA-6: end a section at the caret (Layout > Breaks > Next Page, Continuous, Even Page, Odd Page). The text before the
+    /// caret becomes a section with the caret's section's page, headers and start; the text after it starts as `kind` says.
+    /// One undo step.
+    public func insertSectionBreak(_ kind: SectionBreakKind, lastSetup: PageSetup) {
+        guard document.paragraphs[selection.focus.paragraph].cell == nil else { return }
+        edit {
+            if hasSelection { _deleteSelectionOps() }
+            let pos = selection.focus
+            let mark = sectionMark(containing: pos.paragraph)
+            let own = document.paragraphs[pos.paragraph].style
+            let markStyle = mark >= 0 ? document.paragraphs[mark].style : nil
+            let page = markStyle?.sectionPage ?? document.lastSectionPage ?? lastSetup
+            var head = own
+            head.sectionPage = page
+            head.sectionXML = markStyle?.sectionXML
+                ?? "<w:sectPr \(Self.sectionAsLast)=\"1\">\(document.sectionTypeXML ?? "")</w:sectPr>"
+            head.sectionRels = markStyle?.sectionRels ?? []
+            head.sectionBreaksPage = kind != .continuous
+            var tail = own
+            // (As the reader holds a section that starts a page: its first paragraph breaks before, unwritten.)
+            tail.pageBreakBefore = kind != .continuous
+            tail.breakEndsPrevious = false; tail.columnBreak = false; tail.pageBreakInline = false
+            if mark != pos.paragraph { tail.sectionXML = nil; tail.sectionPage = nil; tail.sectionRels = []; tail.sectionBreaksPage = nil }
+            perform(.splitParagraph(pos, tailStyle: tail))
+            perform(.setParagraphStyle(pos.paragraph, old: document.paragraphs[pos.paragraph].style, new: head))
+            // The section after the break starts as `kind` says (a section's w:type is how IT starts).
+            let type = "<w:type w:val=\"\(kind.rawValue)\"/>"
+            var next = page
+            next.sectionStartParity = kind == .evenPage ? .even : kind == .oddPage ? .odd : nil
+            if mark < 0 {
+                perform(.setLastSectionType(old: document.sectionTypeXML, new: type))
+                if next != page || document.lastSectionPage != nil {
+                    perform(.setSectionPage(-1, old: document.lastSectionPage, new: next))
+                }
+            } else {
+                let at = mark + 1
+                var style = document.paragraphs[at].style
+                style.sectionPage = next
+                style.sectionXML = style.sectionXML.map { Self._sectionXML($0, type: type) }
+                perform(.setParagraphStyle(at, old: document.paragraphs[at].style, new: style))
+            }
+            _setCaret(RichPosition(paragraph: pos.paragraph + 1, offset: 0))
+        }
+    }
+
+    /// `xml` (a `w:sectPr`) with its `w:type` replaced by `type`, in schema order (after the header, footer and note
+    /// properties, before the page size).
+    static func _sectionXML(_ xml: String, type: String) -> String {
+        var out = xml
+        if let open = out.rangeOfSubstring("<w:type "), let close = out[open.upperBound...].rangeOfSubstring("/>") {
+            out.replaceSubrange(open.lowerBound ..< close.upperBound, with: type)
+            return out
+        }
+        for tag in ["<w:pgSz", "<w:pgMar", "<w:paperSrc", "<w:pgBorders", "<w:lnNumType", "<w:pgNumType", "<w:cols", "<w:formProt",
+                    "<w:vAlign", "<w:noEndnote", "<w:titlePg", "<w:textDirection", "<w:bidi", "<w:rtlGutter", "<w:docGrid",
+                    "<w:printerSettings", "<w:sectPrChange", "</w:sectPr>"] {
+            if let at = out.rangeOfSubstring(tag) { out.insert(contentsOf: type, at: at.lowerBound); return out }
+        }
+        return out
     }
 
     // MARK: Tables

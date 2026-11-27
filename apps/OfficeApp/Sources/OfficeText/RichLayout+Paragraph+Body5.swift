@@ -18,7 +18,7 @@ extension _ParaFrame {
         lowTop = style.eastAsian["w:textAlignment"] == "top"
         lowNamed = lowTop ? _named(p, document)?.char.raised : nil
         if theme.wordRules, RichTextTheme.wordWindowsPages, !style.rightToLeft,
-           style.lineHeightPoints == nil,
+           style.lineHeightPoints == nil || (style.lineHeightIsMinimum && style.lineSpacing - theme.lineSpacingReduction <= 1.001 && p.inlineImages.isEmpty && !lowTop),
            besideLineIndents.isEmpty, keepClear == nil, RichLayout._paired(painter) == nil,
            p.runs.contains(where: { abs(raisedOf($0)) > 0.01 && $0.style.script == .normal }),
            // (A numbered line's raise (up to 2pt, lab pitch2) is taken off the number's rise instead: see the number span.)
@@ -29,6 +29,7 @@ extension _ParaFrame {
             let starts = _lineStarts(painter, _map(i), count: units)
             if metrics.count == bottoms.count, starts.count == metrics.count {
                 var above = [Double](repeating: 0, count: metrics.count), below = above
+                let least = style.lineHeightPoints != nil
                 var tallest = [Double](repeating: 0, count: metrics.count)
                 var unraised = [Bool](repeating: false, count: metrics.count)
                 var plainRun = [Bool](repeating: false, count: metrics.count)
@@ -76,6 +77,13 @@ extension _ParaFrame {
                     let line = max(0, (starts.lastIndex(where: { $0 <= at }) ?? 0))
                     let ratio = tallest[line] > 0 ? (run.style.fontSize ?? tallest[line]) / tallest[line] : 1
                     let m = metrics[line]
+                    if least {
+                        // (Under "at least", only text of the line's tallest size is measured: its top passes the plain text's by the raise.)
+                        guard abs(ratio - 1) < 0.001 else { continue }
+                        above[line] = max(above[line], pos)
+                        below[line] = max(below[line], -pos)
+                        continue
+                    }
                     // (Word's print, lab raise259, Arial 9 and 11 at 240, 259, 276 and 360 auto: a raised line grows by the raise itself, 1, 2
                     // and 6 pt giving 1.0, 2.0 and 6.0 more between the plain lines around it at every multiple, and a lowered one by the
                     // lowering; the multiple never scales it.)
@@ -141,6 +149,32 @@ extension _ParaFrame {
                     if pos < 0, !plainRun[line], style.lineSpacing - theme.lineSpacingReduction > 1.001 { continue }
                     above[line] = max(above[line], m.ascent * ratio + pos - m.ascent)
                     below[line] = max(below[line], m.descent * ratio - pos - m.descent)
+                }
+                if least {
+                    // (An "at least" line is the taller of the minimum and the text's own line with the raise: the growth is what
+                    // passes the room the minimum already leaves over the plain text, which stands at the line's foot. xs 715d0d06
+                    // (Times New Roman 12 at least 1 pt, a digit raised 3 pt): Word's line is 18.84 pt, the plain lines 15.84.)
+                    var natural = [Double](repeating: 0, count: metrics.count)
+                    var q = 0
+                    for run in p.runs where run.length > 0 {
+                        defer { q += run.length }
+                        guard q < units else { break }
+                        let e = min(units, q + run.length)
+                        guard abs(raisedOf(run)) < 0.01, run.style.script == .normal, run.style.inlineImage == nil,
+                              text[q ..< e].contains(where: { $0 > 0x20 }) else { continue }
+                        let line = max(0, (starts.lastIndex(where: { $0 <= q }) ?? 0))
+                        natural[line] = max(natural[line], _markLineHeight(i, document, single: true, using: run.style))
+                    }
+                    for k in 0 ..< metrics.count {
+                        guard natural[k] > 0 else { above[k] = 0; below[k] = 0; continue }
+                        // (The line's own height where it was set, its foot under the last: the engine's metrics count the raised run's top already.)
+                        var room = max(0, bottoms[k] - (k > 0 ? bottoms[k - 1] : 0) - natural[k])
+                        let up = min(room, max(0, above[k])); above[k] -= up; room -= up
+                        below[k] -= min(room, max(0, below[k]))
+                    }
+                    if above.contains(where: { $0 > 0.05 }) || below.contains(where: { $0 > 0.05 }) {
+                        RuleTrace.hit("word-at-least-line-with-a-raised-run-grows-past-the-minimum-by-the-raise")
+                    }
                 }
                 if above.contains(where: { $0 > 0.05 }) || below.contains(where: { $0 > 0.05 }) {
                     RuleTrace.hit("word-a-line-with-a-raised-or-lowered-run-grows-by-the-raise-above-and-the-lowering-below")

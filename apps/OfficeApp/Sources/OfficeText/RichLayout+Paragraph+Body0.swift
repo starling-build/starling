@@ -11,6 +11,12 @@ import Foundation
 extension _ParaFrame {
     func c0() -> Void {
         _heldTallerLatin.remove(i)
+        // (Under a heading saved folded shut: nothing, as a wholly hidden paragraph.)
+        if p.style.foldedAway, _vanishes(p, document) {
+            p.text = ""
+            var hidden = p.style.mark ?? CharStyle(); hidden.hidden = true
+            p.runs = [Run(length: 0, style: hidden)]
+        }
         // A paragraph of hidden text alone, its mark not hidden, is one empty
         // line in its mark's look: lab hiddenline (Word for Windows) gives it
         // a full line at 10, 12 and 16pt, as a paragraph with an ordinary

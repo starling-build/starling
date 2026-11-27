@@ -806,6 +806,12 @@ public struct RichParagraphStyle: Hashable, Codable, Sendable {
     /// included; without the mark's flag the line stays, empty, with its
     /// rules (bug59058's "Bottom of Form" paragraphs).
     public var markHidden = false
+    /// A heading saved folded shut (`w15:collapsed`): Word's print leaves out
+    /// every paragraph after it up to the next of its outline level or higher
+    /// (xd 8e81b68d's four folded Heading 4s, dx4j-d5b6ee0cfa case 58).
+    public var collapsed = false
+    /// Under such a heading: laid out as nothing. Read, not saved.
+    public var foldedAway = false
     /// That hidden mark is a style separator (`w:specVanish` too): the
     /// paragraph it runs on into keeps the first's properties; a plain
     /// hidden mark leaves the joined paragraph the second's.

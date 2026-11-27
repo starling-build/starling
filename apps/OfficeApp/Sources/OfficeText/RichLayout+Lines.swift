@@ -761,6 +761,7 @@ extension RichLayout {
     /// paragraphs, hidden by their style (z-TopofForm) with a rule under
     /// each, drew two rules and set page 24's text 3.5pt low.
     func _vanishes(_ p: RichParagraph, _ document: RichDocument) -> Bool {
+        if p.style.foldedAway, theme.wordRules, p.cell == nil { return true }
         guard theme.wordRules, p.cell == nil, p.image == nil, p.inlineImages.isEmpty else { return false }
         let named = _named(p, document)
         let styleHides = named?.char.hidden ?? false

@@ -3056,6 +3056,19 @@ enum DocxFormat {
                 for (key, image) in paragraphs[i].inlineImages { if let r = resolved(image, s) { paragraphs[i].inlineImages[key] = r } }
             }
         }
+        // A heading saved folded shut: Word's print leaves out what follows it up to the next
+        // heading of its level or higher (xd 8e81b68d: four folded Heading 4s, their body text in
+        // no line of Word's print; dx4j-d5b6ee0cfa case 58, a nested folded Heading 4 with it).
+        // Table cells under it stay, untested.
+        var foldLevel: Int? = nil
+        for i in paragraphs.indices where paragraphs[i].cell == nil {
+            if let h = paragraphs[i].style.heading, h <= (foldLevel ?? 10) {
+                foldLevel = paragraphs[i].style.collapsed ? h : nil
+            } else if foldLevel != nil, paragraphs[i].image == nil, paragraphs[i].inlineImages.isEmpty,
+                      paragraphs[i].style.sectionXML == nil {
+                paragraphs[i].style.foldedAway = true
+            }
+        }
         var document = RichDocument(paragraphs: paragraphs)
         document.headerFooters = headerFooters
         document.footnotes = footnoteParagraphs
