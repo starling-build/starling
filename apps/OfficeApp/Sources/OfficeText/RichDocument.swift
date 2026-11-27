@@ -2962,6 +2962,9 @@ public struct RichDocument: Hashable, Codable, Sendable {
     /// reach — by package path. The body refers into them (`NoteReference`);
     /// the format writer copies them back verbatim.
     public var keptParts: [String: Data] = [:]
+    /// Track changes is on (Word's `w:trackRevisions` in the settings): the
+    /// editor's own edits are recorded as tracked changes, as Word records them.
+    public var trackRevisions = false
     /// The file's character styles, as written, by id: the editor's runs
     /// carry their look themselves, but kept markup (a footnote's mark, a
     /// header's text box) names these and has nothing else to go by.

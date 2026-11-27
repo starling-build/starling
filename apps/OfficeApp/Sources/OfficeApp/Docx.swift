@@ -3131,6 +3131,7 @@ enum DocxFormat {
             } else if let c = bg["w:color"], c.count == 6, let v = UInt32(c, radix: 16), v != 0xFFFFFF { document.backgroundColor = v }
         }
         document.keptParts = notes.kept
+        document.trackRevisions = part("word/settings.xml").flatMap(XNode.parse)?.first("w:trackRevisions").map { !_isOff($0) } ?? false
         document.keptPartTypes = notes.keptTypes
         if let data = part("_rels/.rels"), let rr = XNode.parse(data) {
             document.keptRootRels = rr.relationships().compactMap { r in
