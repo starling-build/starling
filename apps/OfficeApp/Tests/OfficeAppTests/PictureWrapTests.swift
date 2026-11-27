@@ -132,6 +132,52 @@ final class PictureWrapTests: XCTestCase {
         XCTAssertEqual(c.document.paragraphs[i].image?.float?.y ?? 0, 30, accuracy: 0.5)
     }
 
+    /// Three floating pictures in three paragraphs, stacked 30, 20, 10 (the first on top).
+    func stackedDocument() throws -> Data {
+        var entries = try Zip.read(try floatingDocument())
+        let di = try XCTUnwrap(entries.firstIndex { $0.name == "word/document.xml" })
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let drawing = try XCTUnwrap(xml.rangeOfSubstring("<wp:anchor"))
+        let pStart = try XCTUnwrap(xml[..<drawing.lowerBound].ranges(of: "<w:p>").last ?? xml[..<drawing.lowerBound].ranges(of: "<w:p ").last)
+        let pEnd = try XCTUnwrap(xml.rangeOfSubstring("</w:p>", in: drawing.upperBound ..< xml.endIndex))
+        let para = String(xml[pStart.lowerBound ..< pEnd.upperBound])
+        func with(_ h: Int, _ id: Int) -> String {
+            para.replacingOccurrences(of: "relativeHeight=\"1\"", with: "relativeHeight=\"\(h)\"").replacingOccurrences(of: "wp:docPr id=\"5\"", with: "wp:docPr id=\"\(id)\"")
+        }
+        xml.replaceSubrange(pStart.lowerBound ..< pEnd.upperBound, with: with(30, 5) + with(20, 6) + with(10, 7))
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        return try Zip.write(entries)
+    }
+
+    /// Arrange: Bring Forward, Send Backward, to Front and to Back restack the floating pictures of different paragraphs by
+    /// relativeHeight, one undo step each, kept by a save.
+    func testArrangeRestacksAcrossParagraphsAndSaves() throws {
+        let c = RichDocumentController(document: try DocxFormat.read(try stackedDocument()).document)
+        let floats = c.document.paragraphs.indices.filter { c.document.paragraphs[$0].image?.float != nil }
+        XCTAssertEqual(floats.count, 3)
+        func stack(_ c: RichDocumentController) -> [Int] {   // paragraph indexes, bottom first
+            floats.sorted { (String._relativeHeight(c.document.paragraphs[$0].image?.sourceXML ?? "") ?? 0, $0)
+                < (String._relativeHeight(c.document.paragraphs[$1].image?.sourceXML ?? "") ?? 0, $1) }
+        }
+        let (a, b, d) = (floats[0], floats[1], floats[2])
+        XCTAssertEqual(stack(c), [d, b, a])
+        XCTAssertFalse(c.arrangePicture(at: a, .forward), "already on top")
+        XCTAssertFalse(c.arrangePicture(at: d, .back), "already at the bottom")
+        XCTAssertTrue(c.arrangePicture(at: d, .forward))
+        XCTAssertEqual(stack(c), [b, d, a])
+        XCTAssertTrue(c.arrangePicture(at: d, .front))
+        XCTAssertEqual(stack(c), [b, a, d])
+        XCTAssertTrue(c.arrangePicture(at: a, .back))
+        XCTAssertEqual(stack(c), [a, b, d])
+        XCTAssertTrue(c.arrangePicture(at: d, .backward))
+        XCTAssertEqual(stack(try reopened(c)), [a, d, b])
+        c.undo()
+        XCTAssertEqual(stack(c), [a, b, d])
+        // Behind-text pictures are a stack of their own.
+        XCTAssertTrue(c.setPictureWrap(at: b, .behindText))
+        XCTAssertFalse(c.arrangePicture(at: b, .front), "alone behind the text")
+    }
+
     /// The Picture Format tab shows the wrap choices and nudges of a selected floating picture, each one undo step.
     func testPictureFormatTabChoosesWrapAndNudges() throws {
         let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(1280, 800))
