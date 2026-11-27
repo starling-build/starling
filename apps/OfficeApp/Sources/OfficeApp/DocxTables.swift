@@ -1613,6 +1613,8 @@ extension DocxFormat {
                 else if (sp?.firstLineIndent ?? 0) != 0 { ind += " w:firstLine=\"0\" w:hanging=\"0\"" }
                 if !inheritsInd { pPr += _withEastAsian(ind.isEmpty ? "" : "<w:ind\(ind)/>", "w:ind", _eastAsianIndents, p.style) }
                 if p.style.contextualSpacing { pPr += "<w:contextualSpacing/>" }
+                // Turned off under a style that turns it on (the dialog's box cleared): say so, or the style brings it back.
+                else if sp?.contextualSpacing == true { pPr += "<w:contextualSpacing w:val=\"0\"/>" }
                 switch p.style.alignment {
                 case .left:
                     // Left under a style that centres has to say so.

@@ -26,16 +26,19 @@ final class ParagraphDialogHarnessTests: XCTestCase {
         XCTAssertTrue(ui.tap(id: "pa-line-multiple"))
         XCTAssertTrue(ui.has(id: "pa-multiple"))
         XCTAssertTrue(ui.tap(id: "pa-line-double"))
+        XCTAssertTrue(ui.tap(id: "pa-contextual"))
         XCTAssertEqual(session.controller.currentParagraphStyle.alignment, .left, "nothing applies before OK")
         ui.press(.enter); ui.pump()
         let s = session.controller.currentParagraphStyle
         XCTAssertEqual(s.alignment, .center)
         XCTAssertEqual(s.firstLineIndent, -36)
         XCTAssertEqual(s.lineSpacing, 2); XCTAssertNil(s.lineHeightPoints)
+        XCTAssertTrue(s.contextualSpacing, "Don't add space between paragraphs of the same style")
         XCTAssertFalse(ui.has(id: "pa-align-center"), "the dialog closed")
         session.controller.undo()
         XCTAssertEqual(session.controller.currentParagraphStyle.alignment, .left, "one undo reverts the whole dialog")
         XCTAssertEqual(session.controller.currentParagraphStyle.firstLineIndent, 0)
+        XCTAssertFalse(session.controller.currentParagraphStyle.contextualSpacing)
     }
 
     func testEscapeCancelsWithoutChange() {

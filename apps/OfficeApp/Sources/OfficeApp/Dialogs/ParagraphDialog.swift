@@ -74,8 +74,11 @@ struct ParagraphDialogValues: Equatable {
     var multiple: Double
     var points: Double
     var tabs: TabStopEditor
+    /// "Don't add space between paragraphs of the same style".
+    var contextual: Bool
 
     init(_ s: RichParagraphStyle) {
+        contextual = s.contextualSpacing
         alignment = s.alignment; left = s.indentLeft; right = s.indentRight
         special = s.firstLineIndent < 0 ? .hanging : s.firstLineIndent > 0 ? .firstLine : .none
         by = abs(s.firstLineIndent)
@@ -102,7 +105,7 @@ struct ParagraphDialogValues: Equatable {
         }
         let first = special == .none ? 0 : special == .hanging ? -by : by
         return .init(alignment: alignment, indentLeft: left, indentRight: right, firstLineIndent: first,
-                     spaceBefore: before, spaceAfter: after, lineRule: rule, tabStops: tabs.stops)
+                     spaceBefore: before, spaceAfter: after, lineRule: rule, tabStops: tabs.stops, contextualSpacing: contextual)
     }
 }
 
@@ -239,6 +242,9 @@ final class ParagraphDialogState: State<StatefulWidget> {
                 spin("pa-before", "Space before", v.before) { [weak self] n in self?.v.before = n },
                 spin("pa-after", "Space after", v.after) { [weak self] n in self?.v.after = n },
             ]),
+            Padding(padding: EdgeInsets(left: 0, top: 0, right: 0, bottom: 8), child: PKeyed("pa-contextual", Checkbox(
+                checked: v.contextual, onChanged: { [weak self] c in self?.setState { self?.v.contextual = c ?? false } },
+                content: Text("Don't add space between paragraphs of the same style", style: fluent.typography.body)))),
         ] + lineRows + [
             row("", [PKeyed("pa-tabs", Chrome.textToggle("Tabs…", false, fluent) { [weak self] in
                 guard let self else { return }
