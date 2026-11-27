@@ -50,6 +50,10 @@ public final class RichTextTheme {
     /// the stand-in the original's widths, and the original's line
     /// height.
     public var faceResolver: ((String?, Bool) -> RichResolvedFace?)? = nil
+    /// The bundled face a family name's ideographs and kana are drawn in, ahead of the glyph fallback's
+    /// general chain (whose first CJK face is the Simplified Chinese one): MS PGothic's kana in the Japanese
+    /// face, Malgun Gothic's Hangul and hanja in the Korean one. nil leaves the glyph fallback alone.
+    public var ideographFace: ((String) -> String?)? = nil
     /// A right-to-left run uses its complex-script face (`w:cs`), which
     /// may need different fallbacks from a Latin metric clone. nil keeps
     /// that face's name and metrics instead of applying the Latin resolver.
@@ -113,6 +117,8 @@ public final class RichTextTheme {
     /// where a ⌘ in a Liberation run otherwise draws as a missing glyph and
     /// lays its line out a pixel shorter than everywhere else.
     public nonisolated(unsafe) static var glyphFallback: [String] = []
+    /// The faces in `glyphFallback` that are there for ideographs, kana and Hangul (not symbols).
+    public nonisolated(unsafe) static var ideographFallback: [String] = []
     /// Whether Thai text breaks only where it has spaces, as Word for Mac
     /// sets it (see `_span`); the engine otherwise breaks it by word.
     public nonisolated(unsafe) static var thaiBreaksAtSpaces = false
@@ -1209,7 +1215,16 @@ public final class RichTextTheme {
             debugLabel: familyName,
             fontFamily: bold && face?.family == family ? face?.fakeBoldFamily ?? family : family,
             fontFamilyFallback: {
-                let list = (face?.fallback ?? []) + Self.glyphFallback
+                var list = face?.fallback ?? []
+                // (The own-language face goes ahead of the ideograph faces only, after the
+                // symbol face: ko-901bcad538's ➀ and ko-8cff45ca05's ◦ print in Segoe UI
+                // Symbol and GulimChe, 0.81 and 0.5 em, not in a square full-em Hangul face.)
+                var rest = Self.glyphFallback
+                if let own = familyName.flatMap({ ideographFace?($0) }), !list.contains(own) {
+                    let at = rest.firstIndex(where: { Self.ideographFallback.contains($0) }) ?? rest.count
+                    rest.insert(own, at: at)
+                }
+                list += rest
                 return list.isEmpty ? nil : list
             }()
         )

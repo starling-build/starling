@@ -671,6 +671,12 @@ struct LevelStyle {
             if s.font == ea { s.font = "Microsoft JhengHei" }
             s.eaFont = "Microsoft JhengHei"
         }
+        // (A Latin face PowerPoint does not have, declared with the Shift-JIS charset (-128): its Latin letters, digits, spaces and
+        // punctuation print in Yu Gothic, the Hangul in Malgun Gothic as before (ko-00b895c634 함초롬돋움, ko-57837702cd 한컴 소망 M,
+        // ko-5f820d08fd 새굴림: the print's Latin is YuGothic; every missing face declared Hangul (-127) prints its Latin in Malgun).)
+        if r.first("a:latin")?["charset"] == "-128", let f = s.font, !f.hasPrefix("+"), SlideFonts.missingOnPrintBox(f) {
+            s.font = "Yu Gothic"
+        }
         if let fill = r.first("a:solidFill") { s.color = colors.color(in: fill) }
         // Text filled with a gradient is drawn as such in WordArt (its run
         // looks); elsewhere in the gradient's middle colour, not the black
@@ -1814,7 +1820,9 @@ struct SlideContext {
                             var m = m
                             var c = m.frame.center
                             if flipH { c = Offset(2 * centre.dx - c.dx, c.dy); m.flipH.toggle(); m.rotation = -m.rotation }
-                            if flipV { c = Offset(c.dx, 2 * centre.dy - c.dy); m.flipV.toggle(); m.rotation = -m.rotation }
+                            // (A group mirrored top to bottom turns its members' text half round, as a mirrored shape does its own:
+                            // vi-f6ecddd221's ruler, a group turned 180 and flipped both ways, prints its numbers upright.)
+                            if flipV { c = Offset(c.dx, 2 * centre.dy - c.dy); m.flipV.toggle(); m.rotation = -m.rotation; m.textSpin = (m.textSpin + 180).truncatingRemainder(dividingBy: 360) }
                             let dx = c.dx - centre.dx, dy = c.dy - centre.dy
                             c = Offset(centre.dx + dx * cos(rad) - dy * sin(rad), centre.dy + dx * sin(rad) + dy * cos(rad))
                             m.frame = Rect.fromCenter(center: c, width: m.frame.width, height: m.frame.height)
