@@ -556,6 +556,8 @@ public struct RichTextBox: Hashable, Codable, Sendable {
         public var rotation = 0.0
         public var pivotX = 0.0
         public var pivotY = 0.0
+        /// The box grows to hold its text (`a:spAutoFit`): its text is not cut at its foot.
+        public var growsToText: Bool? = nil
         public init(first: Int, top: Double, height: Double, atFoot: Bool, inMiddle: Bool = false) {
             self.first = first; self.top = top; self.height = height; self.atFoot = atFoot; self.inMiddle = inMiddle
         }
