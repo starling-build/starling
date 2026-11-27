@@ -24,6 +24,15 @@ final class SheetsPrintTests: XCTestCase {
         }
     }
 
+    /// The fixed-pitch Che faces have their siblings' box, win ascent 879 and descent 145 of 1024 (metrics/ko), by either name:
+    /// ko-1fcf4c81b6 and ko-e217903206 print GulimChe, 2 pt low on MS PGothic's centring.
+    func testCheFacesCentreOnTheirSiblingsBox() {
+        for f in ["GulimChe", "굴림체", "BatangChe", "바탕체", "DotumChe", "돋움체", "GungsuhChe", "궁서체"] {
+            XCTAssertEqual(SheetPrintMetrics.printAscent(family: f) ?? 0, 0.8584, accuracy: 1e-4, f)
+            XCTAssertEqual(SheetPrintMetrics.printDescent(family: f) ?? 0, 0.1416, accuracy: 1e-4, f)
+        }
+    }
+
     func testAMissingKoreanFaceCentresOnMalgunGothic() {
         // Excel draws the Hangul of a Korean face the print box lacks in Malgun Gothic and centres it on Malgun's
         // ascent and descent (xls-0453e2c911's HY신명조 titles stood 3-6 pt low; ko-449ad52b15's 경기천년제목 headers

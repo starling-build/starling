@@ -304,7 +304,7 @@ struct SheetPrintMetrics {
     /// Nil for a face not here.
     static func ascent(family: String) -> Double? {
         let n = family.trimmingWhitespace().lowercased()
-        return ascents[aliases[n] ?? n]
+        return ascents[windowsHangulNames[n] ?? aliases[n] ?? n]
     }
     /// A face's line as Windows stands it (ascent plus descent, in ems): what a shape's
     /// text lines step by in Excel's print (Calibri 11: 13.43 pt, where the painter's whole-point 10 + 3 gives 13).
@@ -340,8 +340,10 @@ struct SheetPrintMetrics {
         "century": 0.9858, "georgia": 0.917, "trebuchet ms": 0.939, "consolas": 0.9199, "comic sans ms": 1.1021,
         "arial narrow": 0.9355, "arial black": 1.1006, "franklin gothic medium": 0.9165, "gill sans mt": 0.9292,
         "candara": 0.9521, "corbel": 0.9521, "constantia": 0.9521,
-        // (Dotum, Gulim and Batang: win ascent 879 and descent 145 of 1024, the font files on the print box.)
+        // (Dotum, Gulim and Batang: win ascent 879 and descent 145 of 1024, the font files on the print box. Their fixed-pitch
+        // Che faces have the same box (metrics/ko; ko-1fcf4c81b6 and ko-e217903206 print GulimChe).)
         "dotum": 0.8584, "gulim": 0.8584, "batang": 0.8584,
+        "dotumche": 0.8584, "gulimche": 0.8584, "batangche": 0.8584, "gungsuhche": 0.8584,
     ]
 
     /// A face's descent, in its size, as `ascent` is its ascent: what
@@ -350,7 +352,7 @@ struct SheetPrintMetrics {
     /// not known here.
     static func descent(family: String) -> Double? {
         let n = family.trimmingWhitespace().lowercased()
-        return descents[aliases[n] ?? n]
+        return descents[windowsHangulNames[n] ?? aliases[n] ?? n]
     }
     private static let descents: [String: Double] = [
         "calibri": 0.2686, "arial": 0.2119, "verdana": 0.21, "times new roman": 0.2163, "courier new": 0.3003,
@@ -363,6 +365,7 @@ struct SheetPrintMetrics {
         "arial narrow": 0.2119, "arial black": 0.3096, "franklin gothic medium": 0.2173, "gill sans mt": 0.2305,
         "candara": 0.2686, "corbel": 0.2686, "constantia": 0.2686,
         "dotum": 0.1416, "gulim": 0.1416, "batang": 0.1416,
+        "dotumche": 0.1416, "gulimche": 0.1416, "batangche": 0.1416, "gungsuhche": 0.1416,
     ]
 
     /// A measured value at `size`: between the sizes measured, and in
