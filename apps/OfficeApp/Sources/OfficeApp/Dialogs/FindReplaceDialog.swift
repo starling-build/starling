@@ -110,7 +110,7 @@ final class FindReplaceDialogState: State<StatefulWidget> {
         let h = _w.hooks
         func label(_ t: String) -> Widget { SizedBox(width: 90, height: nil, child: Text(t, style: fluent.typography.body)) }
         func field(_ c: TextEditingController, _ key: String, submit: @escaping () -> Void, autofocus: Bool = false) -> Widget {
-            Expanded(child: SizedBox(width: nil, height: 30, child: PKeyed(key, FluentTextBox(
+            Expanded(child: SizedBox(width: nil, height: Chrome.fieldHeight, child: PKeyed(key, FluentTextBox(
                 controller: c, onSubmitted: { _ in submit() }, autofocus: autofocus))))
         }
         let gap = SizedBox(width: nil, height: 10, child: nil)

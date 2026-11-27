@@ -135,7 +135,7 @@ final class FilterDialogState: State<StatefulWidget> {
     private func _label(_ s: String, _ fluent: FluentThemeData) -> Widget { Text(s, style: fluent.typography.caption) }
     private func _gap(_ h: Double = 8) -> Widget { SizedBox(width: nil, height: h, child: nil) }
     private func _field(_ id: String, _ c: TextEditingController) -> Widget {
-        SizedBox(width: nil, height: 30, child: FluentTextBox(
+        SizedBox(width: nil, height: Chrome.fieldHeight, child: FluentTextBox(
             key: ValueKey(id), controller: c, placeholderText: "", onSubmitted: { [weak self] _ in self?.apply() }))
     }
     private func _combo(_ id: String, _ value: String, _ items: [(String, String)], _ set: @escaping (String) -> Void) -> Widget {

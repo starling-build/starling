@@ -97,7 +97,7 @@ final class HyperlinkDialogState: State<StatefulWidget> {
         let h = _w.hooks
         func label(_ t: String) -> Widget { SizedBox(width: 110, height: nil, child: Text(t, style: fluent.typography.body)) }
         func field(_ c: TextEditingController, _ key: String, autofocus: Bool = false) -> Widget {
-            Expanded(child: SizedBox(width: nil, height: 30, child: PKeyed(key, FluentTextBox(
+            Expanded(child: SizedBox(width: nil, height: Chrome.fieldHeight, child: PKeyed(key, FluentTextBox(
                 controller: c, onChanged: { [weak self] _ in if !c.text.isEmpty { self?.place = nil } },
                 onSubmitted: { [weak self] _ in self?.ok() }, autofocus: autofocus))))
         }

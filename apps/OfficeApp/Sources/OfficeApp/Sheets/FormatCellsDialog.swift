@@ -127,7 +127,7 @@ final class FormatCellsDialogState: State<StatefulWidget> {
             }),
             Row(children: [
                 SizedBox(width: 90, child: Text("Format code")),
-                SizedBox(key: ValueKey("fc-num-code"), width: 300, height: 30, child: FluentTextBox(controller: _code, onChanged: { [weak self] t in self?._typeCode(t) })),
+                SizedBox(key: ValueKey("fc-num-code"), width: 300, height: Chrome.fieldHeight, child: FluentTextBox(controller: _code, onChanged: { [weak self] t in self?._typeCode(t) })),
             ]),
             Text(codeProblem ?? (named == nil ? "Custom format" : "Ready-made format: \(named!)"), style: fluent.typography.caption),
             Text("Positive: \(sample(.number(1234.5678)))    Negative: \(sample(.number(-1234.5678)))", style: fluent.typography.caption),
@@ -177,13 +177,13 @@ final class FormatCellsDialogState: State<StatefulWidget> {
         _column([
             Row(children: [
                 SizedBox(width: 60, child: Text("Font")),
-                SizedBox(key: ValueKey("fc-font-name"), width: 200, height: 30, child: FluentTextBox(controller: _fontName, onChanged: { [weak self] t in
+                SizedBox(key: ValueKey("fc-font-name"), width: 200, height: Chrome.fieldHeight, child: FluentTextBox(controller: _fontName, onChanged: { [weak self] t in
                     self?._set { $0.fontName = t.isEmpty ? nil : t }
                 })),
             ]),
             Row(children: [
                 SizedBox(width: 60, child: Text("Size")),
-                SizedBox(key: ValueKey("fc-font-size"), width: 80, height: 30, child: FluentTextBox(controller: _fontSize, onChanged: { [weak self] t in
+                SizedBox(key: ValueKey("fc-font-size"), width: 80, height: Chrome.fieldHeight, child: FluentTextBox(controller: _fontSize, onChanged: { [weak self] t in
                     // (Text that is not a size leaves the size as it was.)
                     if let z = Double(t), z > 0, z < 410 { self?._set { $0.fontSize = z } } else if t.isEmpty { self?._set { $0.fontSize = nil } }
                 })),

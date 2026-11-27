@@ -55,7 +55,7 @@ final class ProtectDialogState: State<StatefulWidget> {
     }
 
     private func _field(_ id: String, _ c: TextEditingController) -> Widget {
-        SizedBox(width: nil, height: 30, child: FluentTextBox(
+        SizedBox(width: nil, height: Chrome.fieldHeight, child: FluentTextBox(
             key: ValueKey(id), controller: c, placeholderText: "", onSubmitted: { [weak self] _ in self?.ok() }, obscureText: true))
     }
 

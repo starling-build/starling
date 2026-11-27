@@ -51,7 +51,7 @@ final class ChartAxisDialogState: State<StatefulWidget> {
         func line(_ label: String, _ id: String, _ c: TextEditingController, _ hint: String) -> Widget {
             Row(children: [
                 SizedBox(width: 150, height: nil, child: Text(label)),
-                SizedBox(width: 220, height: nil, child: FluentTextBox(key: ValueKey(id), controller: c, placeholderText: hint)),
+                SizedBox(width: 220, height: Chrome.touchFieldHeight, child: FluentTextBox(key: ValueKey(id), controller: c, placeholderText: hint)),
             ])
         }
         var rows: [Widget] = []

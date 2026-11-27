@@ -51,7 +51,7 @@ final class ChartTitlesDialogState: State<StatefulWidget> {
         func line(_ label: String, _ id: String, _ c: TextEditingController) -> Widget {
             Row(children: [
                 SizedBox(width: 150, height: nil, child: Text(label)),
-                SizedBox(width: 220, height: nil, child: FluentTextBox(key: ValueKey(id), controller: c, placeholderText: "")),
+                SizedBox(width: 220, height: Chrome.touchFieldHeight, child: FluentTextBox(key: ValueKey(id), controller: c, placeholderText: "")),
             ])
         }
         var rows: [Widget] = [line("Chart title:", "charttitles-title", title)]

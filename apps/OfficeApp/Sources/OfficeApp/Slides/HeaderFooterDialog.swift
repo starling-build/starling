@@ -74,7 +74,7 @@ final class HeaderFooterDialogState: State<StatefulWidget> {
                                       onChanged: _hf.date ? { [weak self] _ in self?.setState { self?._fixed = true } } : nil,
                                       content: Text("Fixed")),
                     SizedBox(width: 10, height: nil, child: nil),
-                    SizedBox(width: 180, height: 30, child: FluentTextBox(controller: _date, enabled: _hf.date && _fixed)),
+                    SizedBox(width: 180, height: Chrome.fieldHeight, child: FluentTextBox(controller: _date, enabled: _hf.date && _fixed)),
                 ]),
             ]))
         let card = Column(mainAxisSize: .min, crossAxisAlignment: .start, children: [
@@ -89,7 +89,7 @@ final class HeaderFooterDialogState: State<StatefulWidget> {
             gap(12),
             check("Footer", _footerOn) { [weak self] v in self?._footerOn = v },
             Padding(padding: EdgeInsets(left: 28, top: 6, right: 0, bottom: 0),
-                    child: SizedBox(width: 330, height: 30, child: FluentTextBox(controller: _footer, enabled: _footerOn))),
+                    child: SizedBox(width: 330, height: Chrome.fieldHeight, child: FluentTextBox(controller: _footer, enabled: _footerOn))),
             gap(16),
             check("Don't show on title slide", _hf.skipTitleSlides) { [weak self] v in self?._hf.skipTitleSlides = v },
             gap(20),

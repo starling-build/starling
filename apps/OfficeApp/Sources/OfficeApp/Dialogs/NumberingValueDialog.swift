@@ -44,7 +44,7 @@ final class NumberingValueDialogState: State<StatefulWidget> {
         DialogShell(title: "Set Numbering Value", page:
             Row(crossAxisAlignment: .center, children: [
                 SizedBox(width: 110, height: nil, child: Text("Set value to:")),
-                SizedBox(width: 90, height: 30, child: NVKeyed("nv-value", FluentTextBox(
+                SizedBox(width: 90, height: Chrome.fieldHeight, child: NVKeyed("nv-value", FluentTextBox(
                     controller: _text, onChanged: { [weak self] _ in self?.setState {} },
                     onSubmitted: { [weak self] _ in if let n = self?.value { self?._w.onOK(n) } }))),
             ]),

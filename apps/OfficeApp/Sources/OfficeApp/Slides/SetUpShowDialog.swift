@@ -136,11 +136,11 @@ final class SetUpShowDialogState: State<StatefulWidget> {
             Row(children: [
                 range("From:", 1),
                 SizedBox(width: 10, height: nil, child: nil),
-                SizedBox(width: 60, height: 30, child: FluentTextBox(controller: _from, enabled: _rangeKind == 1)),
+                SizedBox(width: 60, height: Chrome.fieldHeight, child: FluentTextBox(controller: _from, enabled: _rangeKind == 1)),
                 SizedBox(width: 10, height: nil, child: nil),
                 Text("To:"),
                 SizedBox(width: 10, height: nil, child: nil),
-                SizedBox(width: 60, height: 30, child: FluentTextBox(controller: _to, enabled: _rangeKind == 1)),
+                SizedBox(width: 60, height: Chrome.fieldHeight, child: FluentTextBox(controller: _to, enabled: _rangeKind == 1)),
             ]),
             _gap(4),
             range("Custom show:", 2),
@@ -310,7 +310,7 @@ final class CustomShowsDialogState: State<StatefulWidget> {
                 Row(children: [
                     Text("Slide show name:"),
                     SizedBox(width: 10, height: nil, child: nil),
-                    SizedBox(width: 280, height: 30, child: FluentTextBox(controller: _name)),
+                    SizedBox(width: 280, height: Chrome.fieldHeight, child: FluentTextBox(controller: _name)),
                 ]),
                 _gap(12),
                 Row(crossAxisAlignment: .start, children: [
@@ -405,7 +405,7 @@ final class SectionNameDialogState: State<StatefulWidget> {
             Row(children: [
                 Text("Section name:"),
                 SizedBox(width: 10, height: nil, child: nil),
-                SizedBox(width: 240, height: 30, child: FluentTextBox(controller: _name)),
+                SizedBox(width: 240, height: Chrome.fieldHeight, child: FluentTextBox(controller: _name)),
             ]),
             _gap(16),
             Row(mainAxisAlignment: .end, children: [

@@ -60,7 +60,7 @@ final class ChartSeriesDialogState: State<StatefulWidget> {
         }
         let gap: (Double) -> Widget = { SizedBox(width: nil, height: $0, child: nil) }
         func box(_ id: String, _ c: TextEditingController, _ w: Double) -> Widget {
-            SizedBox(width: w, height: nil, child: FluentTextBox(key: ValueKey(id), controller: c, placeholderText: ""))
+            SizedBox(width: w, height: Chrome.touchFieldHeight, child: FluentTextBox(key: ValueKey(id), controller: c, placeholderText: ""))
         }
         var rows: [Widget] = [
             Row(children: [SizedBox(width: 120, height: nil, child: Text("Name")), SizedBox(width: 8, height: nil, child: nil),

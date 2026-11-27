@@ -93,7 +93,7 @@ final class ColorBar: StatelessWidget {
             Column(crossAxisAlignment: .start, children: [
                 Text("Hex", style: caption), Chrome.vgap(2),
                 Row(mainAxisSize: .min, children: [
-                    SizedBox(width: 110, height: 30, child: FluentTextBox(
+                    SizedBox(width: 110, height: Chrome.fieldHeight, child: FluentTextBox(
                         controller: hex, placeholderText: "#RRGGBB", onSubmitted: { [onApplyHex] _ in onApplyHex() })),
                     Chrome.gap(6),
                     FilledButton(onPressed: onApplyHex, child: Text("Apply")),

@@ -73,7 +73,7 @@ final class FormatBackgroundPaneState: State<StatefulWidget> {
             let c = _field(id, shown)
             return Row(children: [
                 SizedBox(width: 110, height: nil, child: Text(label, style: caption)),
-                SizedBox(key: ValueKey(id), width: 90, height: 30, child: FluentTextBox(
+                SizedBox(key: ValueKey(id), width: 90, height: Chrome.fieldHeight, child: FluentTextBox(
                     controller: c,
                     onSubmitted: { [weak self] text in
                         if let v = FormatShapePaneState.parseHex(text) { apply(Color(Int64(0xFF00_0000) | Int64(v))) }
@@ -86,7 +86,7 @@ final class FormatBackgroundPaneState: State<StatefulWidget> {
             let c = _field(id, shown)
             return Row(children: [
                 SizedBox(width: 110, height: nil, child: Text(label, style: caption)),
-                SizedBox(key: ValueKey(id), width: 90, height: 30, child: FluentTextBox(
+                SizedBox(key: ValueKey(id), width: 90, height: Chrome.fieldHeight, child: FluentTextBox(
                     controller: c,
                     onSubmitted: { [weak self] text in
                         if let v = Double(FormatShapePaneState.digits(text)), range.contains(v) { apply(v) }

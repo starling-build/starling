@@ -85,7 +85,7 @@ final class PivotGroupDialogState: State<StatefulWidget> {
         }
         let fluent = FluentTheme.of(context)
         let gap: (Double) -> Widget = { SizedBox(width: nil, height: $0, child: nil) }
-        func box(_ key: String, _ c: TextEditingController) -> Widget { SizedBox(width: 300, height: nil, child: FluentTextBox(key: ValueKey(key), controller: c, placeholderText: "")) }
+        func box(_ key: String, _ c: TextEditingController) -> Widget { SizedBox(width: 300, height: Chrome.touchFieldHeight, child: FluentTextBox(key: ValueKey(key), controller: c, placeholderText: "")) }
         var rows: [Widget] = []
         if info == nil {
             rows.append(Text("This field has no numbers or dates to group.", style: fluent.typography.body))

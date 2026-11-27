@@ -52,7 +52,7 @@ final class ContentsDialogState: State<StatefulWidget> {
             check("Use hyperlinks", options.hyperlinks) { $0.hyperlinks = $1 },
             Padding(padding: EdgeInsets(left: 0, top: 4, right: 0, bottom: 8), child: Row(crossAxisAlignment: .center, children: [
                 SizedBox(width: 130, height: nil, child: Text("Show levels")),
-                SizedBox(width: 70, height: 30, child: TocKeyed("toc-levels", FluentTextBox(
+                SizedBox(width: 70, height: Chrome.fieldHeight, child: TocKeyed("toc-levels", FluentTextBox(
                     controller: _levels, onSubmitted: { [weak self] _ in self?.commit() },
                     onFocusChanged: { [weak self] f in if !f { self?.commit() } }))),
             ])),
