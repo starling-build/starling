@@ -213,7 +213,13 @@ enum Chrome {
     static func rows(_ rows: [Widget]) -> Widget {
         // The ribbon row is unbounded, so a stretching column needs its
         // own width first: the widest row's.
-        IntrinsicWidth(child: Column(mainAxisAlignment: .start, crossAxisAlignment: .stretch, children: rows))
+        // In a ribbon group the rows share the room above the caption: a row
+        // is never taller than its share (gaps keep theirs), so four small
+        // rows, or three full-height ones, fit over the caption instead of
+        // overrunning it (Sheets' Clipboard and Cells, 84 in 80).
+        IntrinsicWidth(child: Column(mainAxisAlignment: .start, crossAxisAlignment: .stretch, children: rows.map {
+            $0 is SizedBox ? $0 : Flexible(child: $0)
+        }))
     }
 
     static func row(_ items: [Widget]) -> Widget {
