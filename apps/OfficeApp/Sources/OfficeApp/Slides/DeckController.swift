@@ -1909,11 +1909,18 @@ final class DeckController: ChangeNotifier {
     private(set) var shapeClipboard: [ShapeState] = []
     private var _pasteCount = 0
     var canPasteShapes: Bool { !shapeClipboard.isEmpty }
+    /// What the last copy put under `DeckController.shapesMime` on the system clipboard: finding it there again
+    /// means the clipboard still holds this deck's shapes (see SlidesClipboard.swift).
+    private(set) var shapeClipboardToken: String? = nil
 
-    /// Copy the selected shapes. False when none are selected.
+    /// Copy the selected shapes. False when none are selected. The system clipboard gets them too: their text, a
+    /// picture of them, and a token naming this deck's copy.
     @discardableResult func copyShapes() -> Bool {
         guard !selection.isEmpty else { return false }
         shapeClipboard = copySelection(); _pasteCount = 0
+        let token = DeckController.nextShapesToken()
+        shapeClipboardToken = token
+        Clipboard.setData(shapesClipboardData(token: token))
         return true
     }
 

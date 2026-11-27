@@ -31,6 +31,8 @@ final class SlidesHooksTests: XCTestCase {
                 for m in [[], [.shift], [.alt], [.shift, .alt]] as [KeyModifiers] {
                     let mods = m.union(.primary)
                     if state._shortcut(key(k), mods) { handled.insert("\(k)/\(mods.rawValue)"); handledKeys.insert(k) }
+                    // Paste reads the system clipboard and lands on the main queue (S-ED-1 step 2).
+                    if k == 0x76 { RunLoop.main.run(until: Date().addingTimeInterval(0.02)) }
                 }
             }
         }

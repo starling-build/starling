@@ -57,6 +57,27 @@ void wlclip_set_text(WlClipboard* c, const char* text, size_t len);
  * not be queued at all. Never blocks the caller. */
 int wlclip_read_text(WlClipboard* c, WlClipTextCallback cb, void* ctx);
 
+/* Take ownership with several flavours at once: `text` (may be NULL) is served
+ * for every plain-text spelling, and each of the `count` (mime, data, len)
+ * triples for its own exact type — text/html, image/png, or an app's private
+ * format such as "application/x-starling-slides-shapes". Everything is copied;
+ * a repeated type keeps its first entry. Returns 0 when queued, -1 on bad
+ * arguments (no text and no flavours) or no memory. */
+int wlclip_set_data(WlClipboard* c, const char* text, size_t text_len,
+                    const char* const* mimes, const char* const* datas,
+                    const size_t* lens, int count);
+
+/* Ask for the current selection as exactly `mime`. The callback fires exactly
+ * once: with the bytes (binary-safe; `len` is the size), or with NULL when the
+ * selection is not on offer as that type. Never blocks the caller. */
+int wlclip_read_mime(WlClipboard* c, const char* mime,
+                     WlClipTextCallback cb, void* ctx);
+
+/* Ask which types the current selection is on offer as. The callback gets them
+ * as one string, each type ending in '\n', in the owner's order; NULL when
+ * there is no selection. Never blocks the caller. */
+int wlclip_read_mimes(WlClipboard* c, WlClipTextCallback cb, void* ctx);
+
 /* 1 while this process is the selection owner. Reading then answers from our
  * own copy instead of round-tripping through the compositor — which would
  * deadlock, since we would be asking ourselves to write while blocked reading. */
