@@ -1325,10 +1325,18 @@ public final class TextPainter {
                 return heightFromCaretMetrics
             }
         }
-        let textBox = _getOrCreateLayoutTemplate()
-            .getBoxesForRange(0, 1, boxHeightStyle: .strut)
-            .first!
-        return textBox.toRect().height
+        return TextPainter.caretHeight(
+            templateBox: _getOrCreateLayoutTemplate().getBoxesForRange(0, 1, boxHeightStyle: .strut).first?.toRect(),
+            strut: _strutStyle)
+    }
+
+    /// The caret's full height: the one-space template's box where it has one. It has none when its text style names no
+    /// face this host has (a span with no style of its own, drawn with only the faces an app ships), and a caret is still
+    /// drawn, so the strut's line stands in; with no strut, 0, which callers read as "use the preferred line height".
+    public static func caretHeight(templateBox: Rect?, strut: StrutStyle?) -> Double {
+        if let templateBox { return templateBox.height }
+        if let strut, let size = strut.fontSize { return size * (strut.height ?? 1) }
+        return 0
     }
 
     private func _isNewlineAtOffset(_ offset: Int) -> Bool {
