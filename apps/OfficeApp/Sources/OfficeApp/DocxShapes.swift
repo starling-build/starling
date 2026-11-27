@@ -1541,6 +1541,20 @@ extension DocxFormat {
                 cs = _charStyle(rPr, base: cs, complexText: complex, complexSize: complexSize, thaiStyleSize: thaiStyleSize, indicOnly: indicOnly, rtlLettersOnly: rtlLettersOnly)
                 cs.styleId = styleId
                 cs.csFlagRun = csFlag
+                // (A left-to-right run under the w:cs flag holding Thai, or only spaces: Word sets the whole run, its spaces and the line it stands on,
+                // in the complex-script face. dx2 e7b500c9's title, ascii Times New Roman and cs Angsana New from Normal, three flagged spaces then
+                // the Thai: Angsana's 22 pt line and 3.6 pt spaces in Word's print, Times' in ours; lab e7lab.)
+                if DocxFormat.wordOnWindows, csFlag, !cs.rightToLeft, !runText.isEmpty,
+                   runText.unicodeScalars.allSatisfy({ (0x0E00...0x0E7F).contains($0.value) || !$0.properties.isAlphabetic && !(0x30...0x39).contains($0.value) }),
+                   runText.unicodeScalars.contains(where: { (0x0E01...0x0E5B).contains($0.value) }) || (runText.unicodeScalars.allSatisfy({ $0.value == 0x20 || $0.value == 0xA0 })
+                        && PptxXML.serialize(p).unicodeScalars.contains(where: { (0x0E01...0x0E5B).contains($0.value) })),
+                   let thaiFace = cs.complexFontFamily
+                    ?? p.first("w:pPr")?.first("w:pStyle")?["w:val"].flatMap({ styleIds[$0] }).flatMap({ sheet[$0]?.char.complexFontFamily })
+                    ?? sheet[RichNamedStyle.normalId]?.char.complexFontFamily,
+                   (cs.fontFamily ?? "") != thaiFace || cs.hAnsiFontFamily != nil {
+                    cs.fontFamily = thaiFace; cs.hAnsiFontFamily = nil
+                    RuleTrace.hit("word-cs-flagged-thai-run-is-wholly-its-complex-face")
+                }
                 // (Only a webHidden run in a header or footer, or any body run, as in a contents list: the PAGE results of the footers of 7d58f74e, b9164bf3 and fcd0d58c, with just rtl, stay complex and print in Arial.)
                 // (A run of ASCII digits flagged w:rtl with no szCs or cs font of its own is a plain Latin run to Word: 47480880's PAGEREF results.)
                 // (Arabic: the same for a PAGE result in a footer, whose face is the style's ascii one at the szCs: xb ara-z5177238's "2" under cs Simplified Arabic, an installed face, is Times New Roman 14.04 in two Word prints, sz 12 / szCs 14.)
