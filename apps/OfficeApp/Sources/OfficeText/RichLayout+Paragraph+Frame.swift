@@ -259,6 +259,7 @@ extension _ParaFrame {
     var _inlineBoxes: [[Int]] { get { rl._inlineBoxes } set { rl._inlineBoxes = newValue } _modify { yield &rl._inlineBoxes } }
     func _inlinePictureOnly(_ a0: Int, _ a1: RichDocument) -> Bool { rl._inlinePictureOnly(a0, a1) }
     var _inserts: [[Int]] { get { rl._inserts } set { rl._inserts = newValue } _modify { yield &rl._inserts } }
+    var _partedFirstWord: [Int: Int] { get { rl._partedFirstWord } set { rl._partedFirstWord = newValue } _modify { yield &rl._partedFirstWord } }
     func _koreanSymbolFirstLineRaise(_ a0: RichParagraph, painter a1: TextPainter, lead a2: Int, named a3: RichNamedStyle?, document a4: RichDocument) -> Double? { rl._koreanSymbolFirstLineRaise(a0, painter: a1, lead: a2, named: a3, document: a4) }
     func _koreanSymbolLineFlags(_ a0: RichParagraph, painter a1: TextPainter, lead a2: Int, named a3: RichNamedStyle?, document a4: RichDocument) -> [Bool] { rl._koreanSymbolLineFlags(a0, painter: a1, lead: a2, named: a3, document: a4) }
     func _labelFaceGrowth(_ a0: RichParagraph, named a1: RichNamedStyle?, document a2: RichDocument, style a3: RichParagraphStyle) -> (target: Double, growth: Double)? { rl._labelFaceGrowth(a0, named: a1, document: a2, style: a3) }

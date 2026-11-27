@@ -843,6 +843,8 @@ extension RichLayout {
                 painter.dispose()
             }
         }
+        // (A first word too long for its indented first line, parted where that line ends: see `_partedFirstWord`.)
+        if let index, let end = _partedFirstWord[index], end <= p.text.utf16.count { loose.formUnion(1 ..< end) }
         // (In a turned text box a first line indented past the line's
         // length holds its first character alone, the rest from the next
         // line: zh-b24b396a's "30" dimension labels — vert270 boxes 7.8pt
