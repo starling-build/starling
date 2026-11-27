@@ -942,6 +942,19 @@ final class Ribbon: StatelessWidget {
                         _ = c.setPictureMovesWithText(at: i, false)
                     },
                 ]),
+                Chrome.gap(8),
+                // Arrange's stack, as Word's pair of split menus: a step up or down through the floating objects on its side
+                // of the text, or to the top or bottom.
+                Chrome.rows([
+                    Chrome.menuButton(CupertinoIcons.layers_fill, "Bring Forward", nil, fluent, items: [
+                        MenuFlyoutItem(text: Text("Bring Forward"), onPressed: { _ = c.arrangePicture(at: i, .forward) }),
+                        MenuFlyoutItem(text: Text("Bring to Front"), onPressed: { _ = c.arrangePicture(at: i, .front) }),
+                    ]),
+                    Chrome.menuButton(CupertinoIcons.layers, "Send Backward", nil, fluent, items: [
+                        MenuFlyoutItem(text: Text("Send Backward"), onPressed: { _ = c.arrangePicture(at: i, .backward) }),
+                        MenuFlyoutItem(text: Text("Send to Back"), onPressed: { _ = c.arrangePicture(at: i, .back) }),
+                    ]),
+                ]),
             ]))
         }
         if shape { return styleGroup + boxGroup + groupWidgets + floating + [size, turn, tools, remove] }
