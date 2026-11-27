@@ -1246,7 +1246,8 @@ enum ChartXML {
         var roots: [Chart.SunburstNode] = []
         for (path, v) in zip(paths, values) where v.isFinite && v > 0 { add(path[...], v, to: &roots) }
         func sorted(_ nodes: [Chart.SunburstNode]) -> [Chart.SunburstNode] {
-            nodes.enumerated().sorted { $0.element.value > $1.element.value || ($0.element.value == $1.element.value && (laterFirst ? $0.offset > $1.offset : $0.offset < $1.offset)) }
+            (laterFirst ? nodes.enumerated().sorted { $0.element.value > $1.element.value || ($0.element.value == $1.element.value && $0.offset > $1.offset) }
+                : ChartPainter.msvcSorted(Array(nodes.enumerated())) { $0.element.value > $1.element.value })  // (a treemap's order: see msvcSorted)
                 .map { var n = $0.element; n.children = sorted(n.children); return n }
         }
         return sorted(roots)
@@ -8426,9 +8427,87 @@ extension ChartPainter {
     /// in their branch's accent, ruled in the background at 1.5 pt; a
     /// leaf's name in its foot's left corner, a top-level branch's in its
     /// box's top left, 3.8 pt in.
+    /// `items` ordered as Microsoft's C++ library's std::sort orders them: an introsort that splits by a guessed median
+    /// while more than 32 remain, then sorts by insertion, so equal items keep their order in short lists only. PowerPoint
+    /// orders a treemap's boxes so: chartex-lab2 p8's 40 items, larger first, put item21 before item20 (both 12) and
+    /// keep every other tie in file order, as this does.
+    static func msvcSorted<T>(_ items: [T], by less: (T, T) -> Bool) -> [T] {
+        var a = items
+        func med3(_ f: Int, _ m: Int, _ l: Int) {
+            if less(a[m], a[f]) { a.swapAt(m, f) }
+            if less(a[l], a[m]) { a.swapAt(l, m); if less(a[m], a[f]) { a.swapAt(m, f) } }
+        }
+        func guess(_ f: Int, _ m: Int, _ l: Int) {
+            let n = l - f
+            if n > 40 {
+                let st = (n + 1) >> 3, tw = st << 1
+                med3(f, f + st, f + tw); med3(m - st, m, m + st); med3(l - tw, l - st, l); med3(f + st, m, l - st)
+            } else { med3(f, m, l) }
+        }
+        func equal(_ x: Int, _ y: Int) -> Bool { !less(a[x], a[y]) && !less(a[y], a[x]) }
+        func partition(_ first: Int, _ last: Int) -> (Int, Int) {
+            let mid = first + ((last - first) >> 1)
+            guess(first, mid, last - 1)
+            var pf = mid, pl = pf + 1
+            while first < pf && equal(pf - 1, pf) { pf -= 1 }
+            while pl < last && equal(pl, pf) { pl += 1 }
+            var gf = pl, gl = pf
+            while true {
+                while gf < last {
+                    if less(a[pf], a[gf]) {
+                    } else if less(a[gf], a[pf]) { break
+                    } else { if pl != gf { a.swapAt(pl, gf) }; pl += 1 }
+                    gf += 1
+                }
+                while first < gl {
+                    let p = gl - 1
+                    if less(a[p], a[pf]) {
+                    } else if less(a[pf], a[p]) { break
+                    } else { pf -= 1; if pf != p { a.swapAt(pf, p) } }
+                    gl -= 1
+                }
+                if gl == first && gf == last { return (pf, pl) }
+                if gl == first {
+                    if pl != gf { a.swapAt(pf, pl) }
+                    pl += 1; a.swapAt(pf, gf); pf += 1; gf += 1
+                } else if gf == last {
+                    gl -= 1; pf -= 1
+                    if gl != pf { a.swapAt(gl, pf) }
+                    pl -= 1; a.swapAt(pf, pl)
+                } else {
+                    gl -= 1; a.swapAt(gf, gl); gf += 1
+                }
+            }
+        }
+        func insertion(_ first: Int, _ last: Int) {
+            guard last - first > 1 else { return }
+            for i in (first + 1)..<last {
+                let v = a[i]
+                var j = i
+                if less(v, a[first]) {
+                    while j > first { a[j] = a[j - 1]; j -= 1 }
+                    a[first] = v
+                } else {
+                    while less(v, a[j - 1]) { a[j] = a[j - 1]; j -= 1 }
+                    a[j] = v
+                }
+            }
+        }
+        func sort(_ first: Int, _ last: Int) {
+            var first = first, last = last
+            while true {
+                if last - first <= 32 { insertion(first, last); return }
+                let (pf, pl) = partition(first, last)
+                if pf - first < last - pl { sort(first, pf); first = pl } else { sort(pl, last); last = pf }
+            }
+        }
+        sort(0, a.count)
+        return a
+    }
+
     /// A single-level treemap's boxes on a slide: squarified strips (see `_treemap`), in the values' own order.
     static func _treemapStrips(_ values: [Double], in box: Rect) -> [Rect] {
-        let order = values.indices.sorted { values[$0] != values[$1] ? values[$0] > values[$1] : $0 < $1 }
+        let order = msvcSorted(Array(values.indices)) { values[$0] > values[$1] }
         let vs = order.map { values[$0] }
         var out = [Rect](repeating: .zero, count: values.count)
         var l = box.left, t = box.top, i = 0, rem = vs.reduce(0, +)
