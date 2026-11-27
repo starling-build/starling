@@ -1139,6 +1139,22 @@ extension DocxFormat {
         return String(repeating: "0", count: max(0, 8 - hex.count)) + hex
     }
 
+    /// The ids of the comment references in a piece of kept XML.
+    static func _commentReferenceIDs(_ xml: String) -> [String] {
+        var ids: [String] = []
+        var from = xml.startIndex
+        while let tag = xml.rangeOfSubstring("<w:commentReference ", in: from ..< xml.endIndex) {
+            guard let close = xml.rangeOfSubstring(">", in: tag.upperBound ..< xml.endIndex) else { break }
+            let attrs = xml[tag.upperBound ..< close.lowerBound]
+            if let key = attrs.rangeOfSubstring("w:id=\"") {
+                let rest = attrs[key.upperBound...]
+                if let end = rest.firstIndex(of: "\"") { ids.append(String(rest[..<end])) }
+            }
+            from = close.upperBound
+        }
+        return ids
+    }
+
     static func write(_ source: RichDocument, pageSetup: PageSetup) throws -> Data {
         var doc = source
         doc.paragraphs.removeAll { $0.flowedEndnote != nil }
@@ -1152,12 +1168,23 @@ extension DocxFormat {
         let commentsKept = doc.keptParts["word/comments.xml"] != nil
         var openComments: [String] = []
         var closedComments = Set<String>()   // a range id is started once; Word rejects a second start
+        /// Comments whose reference run stands inside a kept equation: the
+        /// equation writes it, so the range's end adds none (lo-d04a7466: a
+        /// second reference to the same comment, and Word refused the file).
+        let referencedInEquation: Set<String> = commentsKept ? Set(doc.paragraphs.flatMap { p in
+            ([p.image].compactMap { $0 } + Array(p.inlineImages.values))
+                .filter { $0.name == "m:oMath" || $0.name == "m:oMathPara" }
+                .flatMap { Self._commentReferenceIDs($0.sourceXML ?? "") }
+        }) : []
         /// The end markers (and reference runs) of every open range not in
         /// `keep`, which are then closed for good.
         func closeComments(except keep: [String]) -> String {
             var out = ""
             for id in openComments where !keep.contains(id) {
-                out += "<w:commentRangeEnd w:id=\"\(_esc(id))\"/><w:r><w:rPr><w:rStyle w:val=\"CommentReference\"/></w:rPr><w:commentReference w:id=\"\(_esc(id))\"/></w:r>"
+                out += "<w:commentRangeEnd w:id=\"\(_esc(id))\"/>"
+                if !referencedInEquation.contains(id) {
+                    out += "<w:r><w:rPr><w:rStyle w:val=\"CommentReference\"/></w:rPr><w:commentReference w:id=\"\(_esc(id))\"/></w:r>"
+                }
                 closedComments.insert(id)
             }
             openComments.removeAll { !keep.contains($0) }
@@ -1633,6 +1660,17 @@ extension DocxFormat {
                     body += drawingXML(image)
                     continue
                 }
+                if commentsKept, piece == "\u{200B}", !s.comments.isEmpty, s.comments.allSatisfy({ referencedInEquation.contains($0) }) {
+                    // The stand-in the reader put where an equation holds the comment's reference: its
+                    // range is written, empty as the file had it, and no character.
+                    body += closeComments(except: s.comments)
+                    for id in s.comments where !openComments.contains(id) && !closedComments.contains(id) {
+                        body += "<w:commentRangeStart w:id=\"\(_esc(id))\"/>"
+                        openComments.append(id)
+                    }
+                    body += closeComments(except: commentsAfter(index, runIndex, in: p))
+                    continue
+                }
                 var changeId: Int? = nil
                 if s.formatChange != nil { changeId = nextRevisionID() }
                 var rPr = _rPrXML({ var c = s
@@ -1704,7 +1742,7 @@ extension DocxFormat {
                     let lengths = p.runs.map(\.length)
                     let prior = p.runs.indices.prefix(runIndex).last { lengths[$0] > 0 }.map { p.runs[$0].style.ruby }
                     let later = p.runs.indices.dropFirst(runIndex + 1).first { lengths[$0] > 0 }.map { p.runs[$0].style.ruby }
-                    if prior != ruby { runXML += "<w:r>\(rPrXML)<w:ruby>\(ruby.xml)<w:rubyBase>" }
+                    if prior != ruby { runXML += "<w:r>\(rPrXML)<w:ruby>\(ruby.xml.isEmpty ? Self._rubyXML(ruby, baseSize: s.fontSize ?? 10.5) : ruby.xml)<w:rubyBase>" }
                     runXML += "<w:r>\(rPrXML)\(_text(piece))</w:r>"
                     if later != ruby { runXML += "</w:rubyBase></w:ruby></w:r>" }
                 } else {
@@ -2218,6 +2256,10 @@ extension DocxFormat {
             case "word/webSettings.xml":
                 relsXML += "<Relationship Id=\"rIdWebSettings\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/webSettings\" Target=\"webSettings.xml\"/>"
                 extraOverrides += "<Override PartName=\"/word/webSettings.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.webSettings+xml\"/>"
+            case _ where name.hasSuffix(".rels"):
+                // A kept part's own rels (word/theme/_rels/theme1.xml.rels) take the package's rels type; it sorts
+                // before its theme, and taken for the theme it was linked from the document as one: Word refused it.
+                break
             case _ where name.hasPrefix("word/theme/") && String(decoding: data.prefix(600), as: UTF8.self).containsSubstring(":themeOverride"):
                 extraOverrides += "<Override PartName=\"/\(_esc(name))\" ContentType=\"application/vnd.openxmlformats-officedocument.themeOverride+xml\"/>"
             case _ where name.hasPrefix("word/theme/"):
@@ -2419,6 +2461,19 @@ extension DocxFormat {
             ? "<w:pPr><w:tabs><w:tab w:val=\"center\" w:pos=\"\(Int((width * 10).rounded()))\"/><w:tab w:val=\"right\" w:pos=\"\(Int((width * 20).rounded()))\"/></w:tabs></w:pPr>"
             : (center ? "<w:pPr><w:jc w:val=\"center\"/></w:pPr>" : "")
         return "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<\(tag) xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\"><w:p>\(jc)\(runs)</w:p></\(tag)>"
+    }
+
+    /// w:rubyPr and w:rt for a ruby read from an EQ field, which has no XML of its own to give back: Word
+    /// requires both before w:rubyBase (xa lo-ae4f3e8e64's overstrike stack, saved with neither, would not open).
+    static func _rubyXML(_ ruby: RubyText, baseSize: Double) -> String {
+        let aligns: Set<String> = ["center", "distributeLetter", "distributeSpace", "left", "right", "rightVertical"]
+        let align = ruby.align.flatMap { aligns.contains($0) ? $0 : nil } ?? "center"
+        let hps = Int(((ruby.size > 0 ? ruby.size : baseSize) * 2).rounded())
+        let raise = max(0, Int((ruby.raise * 2).rounded()))
+        let base = Int((baseSize * 2).rounded())
+        return "<w:rubyPr><w:rubyAlign w:val=\"\(align)\"/><w:hps w:val=\"\(hps)\"/><w:hpsRaise w:val=\"\(raise)\"/>"
+            + "<w:hpsBaseText w:val=\"\(base)\"/><w:lid w:val=\"ja-JP\"/></w:rubyPr>"
+            + "<w:rt><w:r><w:rPr><w:sz w:val=\"\(hps)\"/><w:szCs w:val=\"\(hps)\"/></w:rPr>\(_text(ruby.text))</w:r></w:rt>"
     }
 
     static func _text(_ s: String) -> String {
