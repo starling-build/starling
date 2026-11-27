@@ -1551,6 +1551,20 @@ extension DocxFormat {
                 cs = _charStyle(rPr, base: cs, complexText: complex, complexSize: complexSize, thaiStyleSize: thaiStyleSize, indicOnly: indicOnly, rtlLettersOnly: rtlLettersOnly)
                 cs.styleId = styleId
                 cs.csFlagRun = csFlag
+                // (A left-to-right run under the w:cs flag holding Thai, or only spaces: Word sets the whole run, its spaces and the line it stands on,
+                // in the complex-script face. dx2 e7b500c9's title, ascii Times New Roman and cs Angsana New from Normal, three flagged spaces then
+                // the Thai: Angsana's 22 pt line and 3.6 pt spaces in Word's print, Times' in ours; lab e7lab.)
+                if DocxFormat.wordOnWindows, csFlag, !cs.rightToLeft, !runText.isEmpty,
+                   runText.unicodeScalars.allSatisfy({ (0x0E00...0x0E7F).contains($0.value) || !$0.properties.isAlphabetic && !(0x30...0x39).contains($0.value) }),
+                   runText.unicodeScalars.contains(where: { (0x0E01...0x0E5B).contains($0.value) }) || (runText.unicodeScalars.allSatisfy({ $0.value == 0x20 || $0.value == 0xA0 })
+                        && PptxXML.serialize(p).unicodeScalars.contains(where: { (0x0E01...0x0E5B).contains($0.value) })),
+                   let thaiFace = cs.complexFontFamily
+                    ?? p.first("w:pPr")?.first("w:pStyle")?["w:val"].flatMap({ styleIds[$0] }).flatMap({ sheet[$0]?.char.complexFontFamily })
+                    ?? sheet[RichNamedStyle.normalId]?.char.complexFontFamily,
+                   (cs.fontFamily ?? "") != thaiFace || cs.hAnsiFontFamily != nil {
+                    cs.fontFamily = thaiFace; cs.hAnsiFontFamily = nil
+                    RuleTrace.hit("word-cs-flagged-thai-run-is-wholly-its-complex-face")
+                }
                 // (Only a webHidden run in a header or footer, or any body run, as in a contents list: the PAGE results of the footers of 7d58f74e, b9164bf3 and fcd0d58c, with just rtl, stay complex and print in Arial.)
                 // (A run of ASCII digits flagged w:rtl with no szCs or cs font of its own is a plain Latin run to Word: 47480880's PAGEREF results.)
                 // (Arabic: the same for a PAGE result in a footer, whose face is the style's ascii one at the szCs: xb ara-z5177238's "2" under cs Simplified Arabic, an installed face, is Times New Roman 14.04 in two Word prints, sz 12 / szCs 14.)
@@ -1891,7 +1905,7 @@ extension DocxFormat {
                     // named font (Symbol F094 is a box), so the run takes it.
                     if let code = child["w:char"], let v = UInt32(code, radix: 16), let sc = UnicodeScalar(v) {
                         var sym = cs
-                        if let font = child["w:font"], !font.isEmpty { sym.fontFamily = font }
+                        if let font = child["w:font"], !font.isEmpty { sym.fontFamily = font; sym.symbolFont = font }
                         addText(String(Character(sc)), sym)
                     }
                 case "w:drawing", "w:pict":
@@ -2034,6 +2048,16 @@ extension DocxFormat {
                                          properties: child.attrs.filter { $0.key == "w:fldLock" || $0.key == "w:dirty" }))
                     walkInline(child, link: link, revision: revision)
                     notes.fields.removeLast()
+                case "mc:AlternateContent":
+                    // Runs between a paragraph's runs, in alternatives: Word draws the first
+                    // Choice whose Requires it knows (w14, wps...), else the Fallback. Both
+                    // were dropped (dx4j-d5b6ee0cfa's "RNG81_CHOICE", which Word prints).
+                    let known: Set<Substring> = ["w14", "w15", "w16", "w16se", "w16cid", "w16cex", "w16du", "w16sdtdh",
+                                                 "wp14", "wps", "wpg", "wpc", "wpi", "a14", "m", "v", "o"]
+                    let pick = child.children.first { $0.name == "mc:Choice"
+                        && ($0["Requires"] ?? "").split(separator: " ").allSatisfy { known.contains($0) } }
+                        ?? child.first("mc:Fallback")
+                    if let pick { walkInline(pick, link: link, revision: revision) }
                 case "w:smartTag", "w:sdtContent", "w:sdt", "w:fldSimple", "w:customXml":
                     // (A simple field with no result, a PAGEREF a table of contents left unupdated: Word's line still holds the field's own
                     // empty result in the paragraph's default face, so a 21 half-point Vazirmatn line with Times New Roman 12 defaults is
@@ -2090,7 +2114,7 @@ extension DocxFormat {
                             var whole: (Double, Double)? = nil
                             var inkWhole: (Double, Double)? = nil
                             if let m = WriterMath.register(piece, for: att.id, size: mathSize, natural: { whole = $0 }, ink: { inkWhole = $0 }) {
-                                if piece.name == "m:oMath", let w = whole { att.naturalExtent = (w.0, w.1) 
+                                if piece.name == "m:oMath", let w = whole { att.naturalExtent = (w.0, w.1); att.mathSize = mathSize 
                                     if let k = inkWhole, frag.xml.containsSubstring("<m:f>"), !["<m:rad", "<m:nary", "<m:m>", "<m:eqArr>", "<m:limLow>", "<m:limUpp>"].contains(where: { frag.xml.containsSubstring($0) }) { att.naturalInk = (k.0, k.1) }
                                     att.stackedEquation = ["<m:f>", "<m:f ", "<m:rad>", "<m:rad ", "<m:nary>", "<m:nary ", "<m:m>", "<m:eqArr>", "<m:limLow>", "<m:limUpp>"].contains { frag.xml.containsSubstring($0) }
                                 }

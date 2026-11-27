@@ -70,6 +70,16 @@ elif [ "$(uname)" = Linux ] || [ -n "$PPTX_DIFF" ]; then
   # No default binary: a stale apps/OfficeApp/.build one silently ran old code in sweeps (amd-9, 2026-11-21).
   [ -n "$OFFICE_APP" ] || { echo "OFFICE_APP is not set: export OFFICE_APP=\$PWD/.build-shared/x86_64-unknown-linux-gnu/release/OfficeApp (the binary you just built)" >&2; exit 2; }
   [ -x "$OFFICE_APP" ] || { echo "OFFICE_APP=$OFFICE_APP is not executable" >&2; exit 2; }
+  # ICU data for line breaking (as docx-pair.sh exports it): without it Thai, Lao, Khmer and other dictionary-break scripts
+  # break per character and are scored on a wrong layout (th-64b2b9cce4 22.5 without, 32.8 with; lenovo-2, 2026-11-27).
+  # Default: the icudtl.dat beside the engine library the binary itself loads.
+  if [ -z "${STARLING_ICU:-}" ]; then
+    _eng=$(ldd "$OFFICE_APP" 2>/dev/null | awk '/libflutter_engine\.so/ {print $3; exit}')
+    for _d in "${_eng%/*}" "${STARLING_ENGINE_OUT:-}" "$ROOT/engine/src/out/host_release"; do
+      [ -n "$_d" ] && [ -f "$_d/icudtl.dat" ] && { export STARLING_ICU="$_d/icudtl.dat"; break; }
+    done
+  fi
+  [ -f "${STARLING_ICU:-}" ] || { echo "no ICU data (icudtl.dat) found for $OFFICE_APP: set STARLING_ICU; without it Thai and other dictionary-break scripts lay out wrong" >&2; exit 2; }
 else
   DIFF=(python "$HERE/pdf-diff.py")
   [ -n "$OFFICE_APP" ] || [ -x "$APP" ] || APP="$ROOT/apps/OfficeApp/.build/x86_64-unknown-windows-msvc/release/OfficeApp.exe"
@@ -127,6 +137,7 @@ one() {
       printf '%s	ERROR	%s
 ' "$n" "$(grep "^$n	" "$WORK/pdf/web.tsv" | tail -1 | cut -f2- | cut -c1-120)"; return; }
   elif ! out=$("$APP" --deck-pdf "$IN/$n" "$WORK/pdf/$base.pdf" 2>&1); then
+    rm -f "$WORK/pdf/$base.pdf"   # a timed-out export leaves a half-written PDF; the line scorer would score its readable pages
     printf '%s	ERROR	%s
 ' "$n" "$(echo "$out" | tail -1 | cut -c1-120)"; return
   fi
@@ -144,6 +155,9 @@ one() {
 ' "$n" "$s"
 }
 export -f one
+# The app's own export limit is 120 s of wall clock; a loaded box (wide-ab beside a gate, load 380) runs big decks past it,
+# which scored ja-adafe4aa16 (83 pages) 0 in a gate and pt-f126bcdbeb 36 against 68 in a wide-ab. A sweep waits longer.
+export OFFICE_PDF_TIMEOUT=${OFFICE_PDF_TIMEOUT:-900}
 export APP IN PPT WORK OFFICE_WEB REUSE_SHAS REUSE_RENDER
 export DIFF_STR; DIFF_STR=$(printf '%q ' "${DIFF[@]}")
 todo=()

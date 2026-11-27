@@ -119,6 +119,16 @@ CDP) checks the page side: the print frame, IndexedDB rows, recovery after a rel
    File System Access API). Backstage Home and Open list them as natively; reopening
    uses the handle (asking for permission again if the browser wants) or the copy.
    20 rows, oldest dropped first, the same cap on bytes as recovery.
+   DONE 2026-11-27 (Word, amd-11): `OfficeHost.browserRecent`; the page keeps rows in
+   its own database `starling-office-recent` (stores `recent` = name/time/size, read
+   at start, and `recentBytes` = the copy), keyed by name; 20 rows and 200 MB, the
+   newest always kept. Word remembers what its picker opens (decks and workbooks too,
+   which it hands on) and what Save downloads; Home lists the names, a click reads
+   the copy back (a copy the browser evicted says so and leaves the list).
+   BrowserRecentTests (native, a stand-in page; fail before), test/office-recent-web.sh
+   (Chromium, 6/6). Not yet: file handles (they come with item 4's pickers: today's
+   picker is an <input>, which gives none); Slides' and Sheets' own Open and Save;
+   Open in a tab goes straight to the browser's picker, so only Home lists Recent.
 4. **Save As and Save.** Where `showSaveFilePicker` exists (Chrome, Edge), Save As
    asks the browser for a place and a name (Word, OpenDocument, PDF, plain text) and
    keeps the handle; Save then writes the same file in place, as natively, and a

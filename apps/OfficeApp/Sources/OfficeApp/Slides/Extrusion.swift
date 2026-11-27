@@ -72,6 +72,37 @@ enum Extrusion {
         return (u.0, u.1, v.0, v.1)
     }
 
+    /// The canvas matrix (column-major 4x4) that lays text on the shape's front face about `c`, the
+    /// shape's middle in pixels: `frontMap`'s turn and, under a perspective camera, the face's own
+    /// taper, its far side drawn smaller as `solid` draws the face's corners (the face at the
+    /// shape's `z` lift). PowerPoint prints the letters on a perspective-turned face shrinking with
+    /// it (rotation2-check: perspectiveContrastingLeftFacing, perspectiveRelaxedModerately).
+    /// Nil when the text stays flat (square-on, or a legacy camera).
+    static func frontTransform(_ scene: Scene3D, center c: Offset, pxPerPt px: Double) -> [Double]? {
+        let perspective = scene.oblique == nil && scene.cameraName.hasPrefix("perspective") && !scene.legacy
+        guard let m = frontMap(scene) ?? (perspective && scene.lift != 0 ? (1, 0, 0, 1) : nil) else { return nil }
+        var a = m.a, b = m.b, cc = m.c, d = m.d, tx = 0.0, ty = 0.0, wx = 0.0, wy = 0.0, w0 = 1.0
+        if perspective {
+            // The face's points before the eye's divide: q = R (x, y, lift), drawn at q.xy * eye / (eye - q.z).
+            let lat = -scene.lat * .pi / 180, lon = -scene.lon * .pi / 180, rev = -scene.rev * .pi / 180
+            func turn(_ x: Double, _ y: Double, _ z: Double) -> (Double, Double, Double) {
+                let qx = x * cos(lon) + z * sin(lon), qz0 = -x * sin(lon) + z * cos(lon)
+                let qy = y * cos(lat) - qz0 * sin(lat), qz = y * sin(lat) + qz0 * cos(lat)
+                return (qx * cos(rev) - qy * sin(rev), qx * sin(rev) + qy * cos(rev), qz)
+            }
+            let eye = Extrusion.eye(scene) * px
+            let u = turn(1, 0, 0), v = turn(0, 1, 0), w = turn(0, 0, scene.lift * px)
+            a = u.0; b = u.1; cc = v.0; d = v.1; tx = w.0; ty = w.1
+            wx = -u.2 / eye; wy = -v.2 / eye; w0 = 1 - w.2 / eye
+        }
+        // About c: X = (a x + c y + tx) / W + cx, Y likewise, x and y from c, W = wx x + wy y + w0.
+        let ox = c.dx, oy = c.dy, k = w0 - wx * ox - wy * oy
+        return [a + ox * wx, b + oy * wx, 0, wx,
+                cc + ox * wy, d + oy * wy, 0, wy,
+                0, 0, 1, 0,
+                tx + ox * k - (a * ox + cc * oy), ty + oy * k - (b * ox + d * oy), 0, k]
+    }
+
     /// The slide of an oblique camera per unit of depth: the back of the
     /// solid shows on the side the camera is named for.
     private static func oblique(_ name: String) -> Offset? {
@@ -254,6 +285,41 @@ enum Extrusion {
         return (k, white)
     }
 
+    /// The white a flat front face catches from threePt under a turned camera (no material,
+    /// rig not rotated): the key and fill lights' mirror glint, `s * (r . v)^8`, r the
+    /// light reflected in the face, the lights fixed to the shape and v toward the eye.
+    /// Lab rotfit: the 35 iso and perspective presets of rotation-check/rotation2-check
+    /// (flat 2B6CB0 rects), PowerPoint's face 1.04 x fill + 255 x this, within 0.7 levels
+    /// rms (isometricLeftUp .209, RightUp .064, LeftDown .002; p3fit's 16 levels at
+    /// isometricRightUp and 4.5 at 20/330 come out 16.6 and 5.1). The bottom light adds none.
+    static let threePtFaceGlints: [(Double, Double, Double)] = [(26.9, 286.6, 0.146), (46.0, 112.3, 0.339)]
+    static func threePtFaceWhite(toward v: P3) -> Double {
+        let len = max(1e-9, (v.x * v.x + v.y * v.y + v.z * v.z).squareRoot())
+        var white = 0.0
+        for (el, az, s) in threePtFaceGlints {
+            let (e, a) = (el * .pi / 180, az * .pi / 180)
+            let l = P3(x: cos(e) * cos(a), y: -cos(e) * sin(a), z: sin(e))
+            white += s * pow(max(0, (-l.x * v.x - l.y * v.y + l.z * v.z) / len), 8)
+        }
+        return white
+    }
+
+    /// Toward the eye in the shape's own axes (the camera's (0,0,1) turned back; rev does
+    /// not move it). An oblique preset's eye leans toward its slide by the same amount
+    /// whichever way it slides, as far as a diagonal preset's slide (rotation-check prints:
+    /// Bottom .107, BottomRight .107, BottomLeft .037, Right .037, Top .009, Left .005, against
+    /// the model's .114, .113, .040, .040, .008, .008; leaning by the slide itself put the
+    /// straight presets at half the lean and Bottom at .081).
+    static func towardEye(_ scene: Scene3D) -> P3 {
+        if !scene.legacy, scene.cameraName.hasPrefix("oblique"), let o = oblique(scene.cameraName) {
+            let m = (o.dx * o.dx + o.dy * o.dy).squareRoot(), lean = max(abs(o.dx), abs(o.dy)) * 2.0.squareRoot()
+            let x = o.dx / m * lean, y = o.dy / m * lean, n = (x * x + y * y + 1).squareRoot()
+            return P3(x: x / n, y: y / n, z: 1 / n)
+        }
+        let a = -scene.lat * .pi / 180, o = -scene.lon * .pi / 180
+        return P3(x: -cos(a) * sin(o), y: sin(a), z: cos(a) * cos(o))
+    }
+
     static func lit(_ base: Color, _ n: P3, rig: Rig, turn: Double, material m: Material? = nil, threePt: Bool = false, whiteShare: Double = 0.5) -> Color {
         let len = max(1e-9, (n.x * n.x + n.y * n.y + n.z * n.z).squareRoot())
         let lean = min(1, abs(n.z) / len)
@@ -379,6 +445,7 @@ enum Extrusion {
             let name = camera["prst"] ?? ""
             s.perspective = name.hasPrefix("legacyPerspective")
             s.cameraName = name
+            s.fov = camera["fov"].flatMap(Double.init).map { $0 / 60000 }
             s.oblique = s.depth > 0 ? oblique(name) : nil
             if let c = cameras[name] { (s.lat, s.lon, s.rev) = c }
             s.legacy = name.hasPrefix("legacy")
@@ -402,8 +469,17 @@ enum Extrusion {
         }
         // Looked at square on, a solid is its own front — but text with a top
         // bevel still wears it (lab p3u: PowerPoint bevels face-on letters).
-        if s.oblique == nil, s.lat == 0, s.lon == 0, s.rev == 0, !(text && s.bevelW > 0 && s.bevelH > 0) { return nil }
+        if s.oblique == nil, s.lat == 0, s.lon == 0, s.rev == 0, !(text && s.bevelW > 0 && s.bevelH > 0), !glintsSquareOn(s) { return nil }
         return s
+    }
+
+    /// A face looked at square on that PowerPoint still lights (rotation-check, rotation2-check: flat
+    /// and deep rects under the oblique presets and perspectiveFront print 1.04 x the fill plus
+    /// threePtFaceWhite, obliqueTopLeft with no depth at all 46,113,184 for 2B6CB0). orthographicFront,
+    /// the default, has no print and is left plain.
+    static func glintsSquareOn(_ s: Scene3D) -> Bool {
+        !s.legacy && s.rig == "threePt" && s.material.isEmpty && s.rigRot == nil
+            && (s.cameraName.hasPrefix("oblique") || s.cameraName == "perspectiveFront")
     }
 
     struct P3 { var x, y, z: Double }
@@ -426,8 +502,23 @@ enum Extrusion {
     /// canvas's space (`r` its frame). False when there is nothing to
     /// draw this way, and the shape is then drawn flat.
     static func paint(_ shape: SlideShape, outline: Path, _ r: Rect, _ canvas: any Canvas, pxPerPt px: Double, onFront: (() -> Void)? = nil) -> Bool {
-        guard let scene = shape.scene3d, !scene.isFlatTurn, let fill = shape.fill ?? shape.fillStyle?.stops.first?.color ?? shape.fillStyle?.color ?? (onFront != nil ? Color(0xFFFFFFFF) : nil) else { return false }
+        // A flat face looked at square on is drawn this way only for its glint (glintsSquareOn), and
+        // only when a plain fill and line are all it has: the flat path keeps gradients and dashes.
+        guard let scene = shape.scene3d, !scene.isFlatTurn || (scene.rev == 0 && glintsSquareOn(scene) && shape.fill != nil && shape.fillStyle == nil
+                                                                  && onFront == nil && shape.outlineFill == nil && (shape.outlineDash ?? "solid") == "solid"), let fill = shape.fill ?? shape.fillStyle?.stops.first?.color ?? shape.fillStyle?.color ?? (onFront != nil ? Color(0xFFFFFFFF) : nil) else { return false }
         return solid(scene: scene, fill: fill, line: shape.outline, lineWidth: shape.outlineWidth, outline: outline, r, canvas, pxPerPt: px, onFront: onFront, spin: shape.rotation)
+    }
+
+    /// How far PowerPoint's eye stands from the shape under a perspective
+    /// camera, in points: 440 / tan(fov / 2), whatever the shape's size, the lens
+    /// 45 deg unless the file gives one (80 for the heroic extreme presets).
+    /// Fitted to corners on PowerPoint's prints: flat 120x70 rects at 45 and 80 deg
+    /// (within 0.6 pt), cropped_image's 248x80 arrow at the file's 120 deg (1.1 pt);
+    /// at 45 deg it is the 1060 pt that the deep perspectiveContrastingLeft and
+    /// shape_rotation solids print from.
+    static func eye(_ scene: Scene3D) -> Double {
+        let lens = (scene.fov ?? (scene.cameraName.hasPrefix("perspectiveHeroicExtreme") ? 80 : 45)) * .pi / 360
+        return 440 / tan(min(max(lens, 0.01), 1.55))
     }
 
     /// `paint` for anything with an outline: the scene, the face's colour,
@@ -463,9 +554,9 @@ enum Extrusion {
             // An oblique camera: what lies behind slides aside as it recedes
             // — and, in perspective, draws in toward a point as it goes.
             if scene.oblique == nil, scene.cameraName.hasPrefix("perspective") {
-                // The eye ~1100 pt away (swept on perspectiveContrastingLeft,
-                // shape_rotation and cropped_image).
-                let f = 1100 * px / (1100 * px - q.z)
+                // The eye: nearer as the lens widens (Extrusion.eye).
+                let eye = Extrusion.eye(scene) * px
+                let f = eye / (eye - q.z)
                 q.x *= f; q.y *= f
             }
             if let o = scene.oblique {
@@ -581,7 +672,7 @@ enum Extrusion {
             p.strokeWidth = 0.6
             canvas.drawPath(path, p)
         }
-        func face(_ rings3: [[P3]], _ color: Color, edge: Color?) {
+        func face(_ rings3: [[P3]], _ color: Color, edge: Color?, shader: Gradient? = nil) {
             let path = Path()
             path.fillType = .evenOdd
             for ring in rings3 { path.addPolygon(ring.map(flat), true) }
@@ -589,7 +680,9 @@ enum Extrusion {
             p.style = .fill
             p.isAntiAlias = true
             p.color = color
+            if let shader { p.shader = shader }
             canvas.drawPath(path, p)
+            p.shader = nil
             if let edge {
                 p.style = .stroke
                 p.strokeWidth = max(0.5, lineWidth * px)
@@ -719,16 +812,51 @@ enum Extrusion {
                 if let i = at.firstIndex(where: { nm.hasSuffix($0) }) { sheen = turned && i == 1 ? 0.24 : (scene.perspective ? pe[i] : ob[i]) }
             } else if scene.rig == "twoPt", nm.hasSuffix("TopRight") { sheen = scene.perspective ? 0.10 : 0.18 }
         }
-        // Lab p3fit (six fills, isometricRightUp and a 20/330 tilt, threePt, no material): PowerPoint's face
-        // is the fill's multiple plus a white that grows as the face turns from the eye, 16 levels at
-        // the isometric camera (face normal z .577), 4.5 at the tilt (.814); 0.23 x (1 - z)^1.5.
-        if !scene.legacy, !scene.cameraName.hasPrefix("perspective"), scene.rig == "threePt", scene.material.isEmpty, frontShows, n0.z > 0 { sheen = 0.23 * pow(max(0, 1 - n0.z), 1.5) }
-        var shownFace = shown
-        if sheen > 0 {
-            func lift(_ v: Int) -> Int { min(255, v + Int((255.0 * sheen).rounded())) }
-            shownFace = Color(argb: shown.alpha, lift(shown.red), lift(shown.green), lift(shown.blue))
+        // A turned or perspective camera under threePt (no material): the face catches the lights'
+        // glint toward the eye (threePtFaceWhite, lab rotfit). In perspective the eye's direction moves
+        // across the face, so the white shades across it (perspectiveRelaxed .25 at the left to .21 at
+        // the right): a linear ramp fitted to it at the box's centre and corners. A camera that is not
+        // turned is left plain unless glintsSquareOn; a rotated rig keeps lab p3fit's 0.23 x (1 - z)^1.5.
+        let perspectiveFace = scene.cameraName.hasPrefix("perspective")
+        var ramp: (Offset, Offset, Double, Double)? = nil
+        if !scene.legacy, scene.oblique == nil || scene.cameraName.hasPrefix("oblique"), scene.rig == "threePt", scene.material.isEmpty, frontShows, n0.z > 0 {
+            if scene.rigRot != nil {
+                if !perspectiveFace { sheen = 0.23 * pow(max(0, 1 - n0.z), 1.5) }
+            } else if perspectiveFace {
+                let v0 = Extrusion.towardEye(scene), eye = Extrusion.eye(scene) * px, z = scene.lift * px
+                let pts = [c, Offset(r.left, r.top), Offset(r.right, r.top), Offset(r.left, r.bottom), Offset(r.right, r.bottom)]
+                let at = pts.map { p in (flat(place(p, z)), Extrusion.threePtFaceWhite(toward: P3(x: eye * v0.x - (p.dx - c.dx), y: eye * v0.y - (p.dy - c.dy), z: eye * v0.z - z))) }
+                // w = a + b x + d y, least squares about the samples' mean.
+                let n = Double(at.count)
+                let mx = at.reduce(0) { $0 + $1.0.dx } / n, my = at.reduce(0) { $0 + $1.0.dy } / n, mw = at.reduce(0) { $0 + $1.1 } / n
+                var sxx = 0.0, sxy = 0.0, syy = 0.0, sxw = 0.0, syw = 0.0
+                for (o, w) in at { let x = o.dx - mx, y = o.dy - my; sxx += x * x; sxy += x * y; syy += y * y; sxw += x * (w - mw); syw += y * (w - mw) }
+                let det = sxx * syy - sxy * sxy
+                let b = abs(det) > 1e-9 ? (sxw * syy - syw * sxy) / det : 0, d = abs(det) > 1e-9 ? (syw * sxx - sxw * sxy) / det : 0
+                let g = (b * b + d * d).squareRoot()
+                if g * 255 * max(r.width, r.height) * px < 0.5 { sheen = mw } else {
+                    // Across the face's projected reach along the ramp.
+                    let ux = b / g, uy = d / g
+                    let ts = at.map { ($0.0.dx - mx) * ux + ($0.0.dy - my) * uy }
+                    let t0 = ts.min()!, t1 = ts.max()!
+                    ramp = (Offset(mx + ux * t0, my + uy * t0), Offset(mx + ux * t1, my + uy * t1), max(0, mw + g * t0), max(0, mw + g * t1))
+                    sheen = max(0, mw)
+                }
+            } else if n0.z < 1 - 1e-9 || Extrusion.glintsSquareOn(scene) {
+                sheen = Extrusion.threePtFaceWhite(toward: Extrusion.towardEye(scene))
+            }
         }
-        face(frontShows ? front : back, shownFace, edge: frontShows ? line : nil)
+        func lifted(_ s: Double) -> Color {
+            func lift(_ v: Int) -> Int { min(255, v + Int((255.0 * s).rounded())) }
+            return Color(argb: shown.alpha, lift(shown.red), lift(shown.green), lift(shown.blue))
+        }
+        let shownFace = sheen > 0 ? lifted(sheen) : shown
+        if let (p0, p1, w0, w1) = ramp {
+            face(frontShows ? front : back, shownFace, edge: frontShows ? line : nil,
+                 shader: Gradient(linear: p0, to: p1, colors: [lifted(w0), lifted(w1)], colorStops: [0, 1]))
+        } else {
+            face(frontShows ? front : back, shownFace, edge: frontShows ? line : nil)
+        }
         // A top bevel under a rig the shapes' bevel model lights (ShapeBevel,
         // paintBevel: Lab C) is that model's, so text and shapes share one;
         // it lights the slopes as seen face-on, so a turned camera only foreshortens them.
@@ -815,7 +943,14 @@ enum Extrusion {
             for ring in front { clip.addPolygon(ring.map(flat), true) }
             // (Text is not clipped to its own face: its glow and shadow lie outside the letters.)
             if clipFront { canvas.clipPath(clip) }
-            canvas.transform([a, b, 0, 0, cc, d, 0, 0, 0, 0, 1, 0, e, f, 0, 1])
+            // Under a perspective camera the face tapers, so three corners do not place the fourth:
+            // the picture takes the face's own perspective map, as its text does (pt-5101732f0a
+            // slide 25, a picture turned 35 deg at an 85 deg lens, fills its whole face in PowerPoint's print).
+            if let m = frontTransform(scene, center: c, pxPerPt: px), m[3] != 0 || m[7] != 0 {
+                canvas.transform(m)
+            } else {
+                canvas.transform([a, b, 0, 0, cc, d, 0, 0, 0, 0, 1, 0, e, f, 0, 1])
+            }
             onFront()
             canvas.restore()
         }

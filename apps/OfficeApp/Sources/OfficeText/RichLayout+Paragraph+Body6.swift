@@ -230,9 +230,18 @@ extension _ParaFrame {
         // (Only where a page break opens it, as there: a lone " "
         // paragraph of its own stands on its run's line in Word's prints —
         // zh-61aaad09's 14pt 楷体 one, zh-f0bd9ea8's.)
-        spacesOnly = theme.wordRules && p.style.pageBreakInline && p.image == nil && p.text.unicodeScalars.contains(" ")
+        // (Or where a floating object shares it: dx2 ba75c926's title page
+        // opens with two wrapNone pictures and a bold 20pt " " over a 16pt
+        // mark, and Word's line is the mark's 16.7, not the space's 20.9;
+        // the space alone or the pictures alone stand 0.1pt off Word.)
+        // (Floats that wrap no text, as there: a wrap-square border round
+        // a header's space, dx2 2a42c845, pushes its line another way.)
+        let floatShares = !p.inlineImages.isEmpty && p.text.unicodeScalars.contains { $0.value == 0xFFFC }
+            && p.inlineImages.values.allSatisfy({ $0.float.map { !$0.wraps } ?? false })
+        spacesOnly = theme.wordRules && (p.style.pageBreakInline || floatShares) && p.image == nil && p.text.unicodeScalars.contains(" ")
             && p.text.unicodeScalars.allSatisfy({ $0.value == 0xFFFC || $0 == " " })
             && p.inlineImages.values.allSatisfy({ $0.float.map { !$0.takesRoom } ?? false })
+        if spacesOnly, !p.style.pageBreakInline { RuleTrace.hit("word-spaces-and-floats-paragraph-stands-on-its-mark") }
         if theme.wordRules, spacesOnly ||
            p.image.map({ $0.float.map { !$0.takesRoom } ?? false }) ?? (!p.inlineImages.isEmpty && !p.text.isEmpty
                && p.text.unicodeScalars.allSatisfy({ $0.value == 0xFFFC })

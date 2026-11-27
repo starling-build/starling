@@ -85,7 +85,6 @@ lo-bnc870233_1.pptx
 lo-bnc870233_2.pptx
 lo-bnc870237.pptx
 lo-bnc880763.pptx
-lo-bnc887225.pptx
 lo-bnc887230.pptx
 lo-bnc904423.pptx
 lo-bnc910045.pptx
@@ -141,15 +140,12 @@ lo-page_transparent_bitmap.pptx
 lo-paraMarginAndIndentation.pptx
 lo-pic-placeholder-with-text.pptx
 lo-picture-placeholder-one-layout.pptx
-lo-predefined-table-style.pptx
 lo-presLeftAlign.pptx
-lo-presetDashDot.pptx
 lo-rightToLeftParagraph.pptx
 lo-shape-blur-effect.pptx
 lo-shape-soft-edges.pptx
 lo-shape-text-glow-effect.pptx
 lo-shape-text-rotate.pptx
-lo-slide-section-test.pptx
 lo-slide-sections.pptx
 lo-smartart-accent-process.pptx
 lo-smartart-autoTxRot.pptx
@@ -209,7 +205,6 @@ lo-tdf104789.pptx
 lo-tdf104792-smart-art-animation.pptx
 lo-tdf106638.pptx
 lo-tdf107608.pptx
-lo-tdf109067.pptx
 lo-tdf111786.pptx
 lo-tdf111789.pptx
 lo-tdf112089.pptx
@@ -261,7 +256,6 @@ lo-tdf132282.pptx
 lo-tdf132302_SmartArt_rightArrow.pptx
 lo-tdf132472.pptx
 lo-tdf134053_dashdot.pptx
-lo-tdf134174.pptx
 lo-tdf134862.pptx
 lo-tdf135843.pptx
 lo-tdf135843_export.pptx
@@ -269,7 +263,6 @@ lo-tdf135843_insideH.pptx
 lo-tdf135953_SmartArt_textposition.pptx
 lo-tdf136830.pptx
 lo-tdf137367.pptx
-lo-tdf137675.pptx
 lo-tdf138148.pptx
 lo-tdf140852.pptx
 lo-tdf140865Wordart3D.pptx
@@ -285,7 +278,6 @@ lo-tdf143126.pptx
 lo-tdf143129.pptx
 lo-tdf143222.pptx
 lo-tdf143624.pptx
-lo-tdf144092-emptyShapeTextProps.pptx
 lo-tdf144092-tableHeight.pptx
 lo-tdf144616.pptx
 lo-tdf144918.pptx
@@ -367,11 +359,9 @@ lo-tdf92222.pptx
 lo-tdf93097.pptx
 lo-tdf93830.pptx
 lo-tdf93868.pptx
-lo-tdf94238.pptx
 lo-tdf95932.pptx
 lo-tdf96061.pptx
 lo-tdf98603.pptx
-lo-tdf99030.pptx
 lo-tdt142291.pptx
 lo-testShapeAutofit.pptx
 lo-trailing-paragraphs.pptx
@@ -416,9 +406,6 @@ oox-tdf139618_ImportWordArtGradient.pptx
 oox-tdf139618_ThemeColorTransparency.pptx
 oox-tdf139618_WordArtBitmapFill.pptx
 oox-tdf141463_GroupTransform.pptx
-oox-tdf144742_funnel.pptx
-oox-tdf144742_mathEqual_mathNotEqual.pptx
-oox-tdf147978_enhancedPath_subpath.pptx
 oox-tdf149538_upright.pptx
 oox-tdf149551_TextRot.pptx
 oox-tdf149551_vert270AndTextRot.pptx
@@ -428,7 +415,6 @@ oox-tdf151008_eaVertAnchor.pptx
 oox-tdf154074_freeConnector.pptx
 oox-tdf155327_WordArtDefaultColor.pptx
 oox-tdf155412_typeface.pptx
-oox-tdf163803_image_with_fill.pptx
 oox-tdf164623.pptx
 oox-tdf170095.pptx
 oox-testTdf132557_footerCustomShapes.pptx
@@ -451,7 +437,6 @@ smartart-simple.pptx
 table-with-different-font-colors.pptx
 table-with-no-theme.pptx
 table-with-theme.pptx
-table_test.pptx
 table_test2.pptx
 templatePPTWithOnlyOneText.pptx
 testPPT.pptx

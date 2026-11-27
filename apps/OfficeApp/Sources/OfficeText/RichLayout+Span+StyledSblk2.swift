@@ -12,6 +12,11 @@ extension _StyledFrame {
     let extra0 = extra
     var done576 = false
     var kernTrue = 0.0, kernEngine = 0.0   // (the pair kern in px: the face's own, and the stand-in's that the engine adds)
+    if ctx.averageSpaces.contains(offset), let average = theme.averageCharWidth {
+        // (The Latin face's OS/2 average width, scaled by `w:w`; see `averageSpaces`.)
+        let latin = run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? theme.fontFamily
+        extra += average(latin) * em * wScale - _spaceWidth(style(kind))
+    }
     if ctx.wideSpaces.contains(offset) {
         // (Half an em and the run's own spacing once more,
         // as Word measures it: 8.31pt at 16pt spaced 0.15.

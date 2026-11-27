@@ -201,6 +201,83 @@ final class SlideFormatShapeTests: XCTestCase {
         XCTAssertNotNil(Extrusion.frontMap(legacy))
     }
 
+    func testTextTapersWithAPerspectiveFace() throws {
+        func at(_ m: [Double], _ x: Double, _ y: Double) -> Offset {
+            let w = m[3] * x + m[7] * y + m[15]
+            return Offset((m[0] * x + m[4] * y + m[12]) / w, (m[1] * x + m[5] * y + m[13]) / w)
+        }
+        let c = Offset(300, 200)
+        // An orthographic turn keeps parallel lines parallel: no divide.
+        let iso = try XCTUnwrap(Extrusion.frontTransform(XCTUnwrap(Extrusion.scene(camera: "isometricLeftDown", from: nil)), center: c, pxPerPt: 1))
+        XCTAssertEqual(iso[3], 0); XCTAssertEqual(iso[7], 0); XCTAssertEqual(iso[15], 1)
+        // Under perspectiveHeroicExtremeLeftFacing (80 deg lens) the face's middle stays put and its
+        // two upright edges print at different heights, as the face's own corners do:
+        // rotation-check's text spans 510.8-604.2 pt on PowerPoint's print (a flat-tilt map gave 508.0-601.8).
+        let s = try XCTUnwrap(Extrusion.scene(camera: "perspectiveHeroicExtremeLeftFacing", from: nil))
+        let m = try XCTUnwrap(Extrusion.frontTransform(s, center: c, pxPerPt: 1))
+        let o = at(m, c.dx, c.dy)
+        XCTAssertEqual(o.dx, c.dx, accuracy: 1e-9); XCTAssertEqual(o.dy, c.dy, accuracy: 1e-9)
+        let left = at(m, c.dx - 60, c.dy + 35).dy - at(m, c.dx - 60, c.dy - 35).dy
+        let right = at(m, c.dx + 60, c.dy + 35).dy - at(m, c.dx + 60, c.dy - 35).dy
+        XCTAssertGreaterThan(abs(left - right), 3)
+        // The same corner through the solid's own projection: q = R p, drawn at q * eye / (eye - q.z).
+        let f = try XCTUnwrap(Extrusion.frontMap(s))
+        let eye = Extrusion.eye(s)
+        let lat = -s.lat * .pi / 180, lon = -s.lon * .pi / 180
+        let qz = { (x: Double, y: Double) in y * sin(lat) + (-x * sin(lon)) * cos(lat) }(60, 35)
+        let k = eye / (eye - qz)
+        let p = at(m, c.dx + 60, c.dy + 35)
+        XCTAssertEqual(p.dx, c.dx + (f.a * 60 + f.c * 35) * k, accuracy: 1e-6)
+        XCTAssertEqual(p.dy, c.dy + (f.b * 60 + f.d * 35) * k, accuracy: 1e-6)
+        // A legacy camera leaves the text flat.
+        var legacy = s; legacy.legacy = true
+        XCTAssertNil(Extrusion.frontTransform(legacy, center: c, pxPerPt: 1))
+    }
+
+    func testTurnedFaceCatchesThreePtGlintTowardTheEye() throws {
+        // PowerPoint's prints of flat 2B6CB0 rects under threePt (rotation-check, rotation2-check):
+        // the face is 1.04 x the fill plus this white. It follows where the eye stands, not just
+        // how far the face is turned: the four isometric presets turn it equally and print .209,
+        // .064, .002 and .009.
+        func white(_ camera: String) throws -> Double {
+            let s = try XCTUnwrap(Extrusion.scene(camera: camera, from: nil))
+            return Extrusion.threePtFaceWhite(toward: Extrusion.towardEye(s))
+        }
+        for (camera, ppt) in [("isometricLeftUp", 0.209), ("isometricTopDown", 0.209), ("isometricRightUp", 0.064),
+                              ("isometricLeftDown", 0.002), ("isometricRightDown", 0.009), ("isometricOffAxis4Left", 0.174),
+                              ("perspectiveRelaxedModerately", 0.237), ("perspectiveHeroicLeftFacing", 0.111)] {
+            XCTAssertEqual(try white(camera), ppt, accuracy: 0.012, camera)
+        }
+        // The eye's direction: what the camera turn takes to the line of sight.
+        let s = try XCTUnwrap(Extrusion.scene(camera: "perspectiveRelaxed", from: nil))
+        let v = Extrusion.towardEye(s)
+        let lat = -s.lat * .pi / 180, lon = -s.lon * .pi / 180
+        let qz0 = -v.x * sin(lon) + v.z * cos(lon)
+        XCTAssertEqual(v.x * cos(lon) + v.z * sin(lon), 0, accuracy: 1e-9)
+        XCTAssertEqual(v.y * cos(lat) - qz0 * sin(lat), 0, accuracy: 1e-9)
+    }
+
+    func testObliqueAndSquareOnFacesCatchThreePtGlint() throws {
+        // A non-legacy oblique preset's eye leans toward its slide, the same amount every way,
+        // and PowerPoint's prints (rotation-check) add white to match.
+        for (camera, ppt) in [("obliqueRight", 0.037), ("obliqueTop", 0.009), ("obliqueBottomRight", 0.107),
+                              ("obliqueBottomLeft", 0.037), ("obliqueBottom", 0.107), ("obliqueLeft", 0.005)] {
+            let s = try XCTUnwrap(Extrusion.scene(camera: camera, from: Scene3D(depth: 10)))
+            XCTAssertEqual(Extrusion.threePtFaceWhite(toward: Extrusion.towardEye(s)), ppt, accuracy: 0.012, camera)
+        }
+        // Looking square on, the face still catches .025 (perspectiveFront prints it); an
+        // orthographicFront or legacy camera stays plain.
+        XCTAssertEqual(Extrusion.threePtFaceWhite(toward: Extrusion.P3(x: 0, y: 0, z: 1)), 0.025, accuracy: 0.005)
+        var s = Scene3D(depth: 0)
+        for (camera, glints) in [("perspectiveFront", true), ("obliqueTopLeft", true), ("orthographicFront", false),
+                                 ("legacyObliqueFront", false)] {
+            s.cameraName = camera; s.legacy = camera.hasPrefix("legacy")
+            XCTAssertEqual(Extrusion.glintsSquareOn(s), glints, camera)
+        }
+        s.cameraName = "perspectiveFront"; s.material = "matte"
+        XCTAssertFalse(Extrusion.glintsSquareOn(s))
+    }
+
     func testIsometricTopCamerasAreTrueIsometric() throws {
         // PowerPoint's print of a 130x70 rect under isometricTopUp (rotation-check.pdf): corners at (-71.5,11.5), (71.5,-12.5),
         // (21,-41.5), (-22,41.5) from the centre, i.e. rows (.707,.707) and (-.408,.408) of the turn.

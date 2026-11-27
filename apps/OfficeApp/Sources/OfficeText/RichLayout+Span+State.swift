@@ -75,4 +75,6 @@ struct _SpanCtx {
     var heldKind: Int?
     var splittingDigits: Bool
     let trailingSpaces: Int
+    /// Balanced spaces Word sets at the Latin face's OS/2 average width (two or more between Latin words, no East Asian face).
+    var averageSpaces: Set<Int> = []
 }
