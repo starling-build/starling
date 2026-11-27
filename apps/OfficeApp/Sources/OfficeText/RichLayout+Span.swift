@@ -708,10 +708,14 @@ extension RichLayout {
                 // (An empty bullet row stands on its Wingdings bullet's ascent (1841/2048 em at the level's size) over the mark's own depth, as a
                 // row with text does: 11pt Wingdings over 9pt Century Gothic marks make table rows 12.36pt apart in Word's print, ours 11.54
                 // (sa1 5393bae9 page 4).)
+                // (A Symbol bullet's row the same, on Symbol's 1.005 em: xs dc363b28's header cell, an empty row under a 10pt Symbol bullet with an
+                // 8pt Arial mark, is 11.76pt in Word's print (10.05 over Arial's 1.70), ours 9.2.)
                 var markLook = look
+                let bulletFace = _levelNumberFonts(p, document).latin?.lowercased()
                 if RichTextTheme.wordWindowsPages, document.readFromFile, p.style.lineHeightPoints == nil, p.style.lineSpacing <= 1.001, p.style.list == .bullet,
-                   !p.style.rightToLeft, _levelNumberFonts(p, document).latin?.lowercased() == "wingdings", let bulletPt = _levelNumberSize(p, document), bulletPt > 0.5 {
-                    let up = _px(bulletPt) * fontScale * 1841.0 / 2048
+                   !p.style.rightToLeft, bulletFace == "wingdings" || bulletFace == "symbol", let bulletPt = _levelNumberSize(p, document), bulletPt > 0.5,
+                   let em = bulletFace == "symbol" ? theme.faceResolver?("symbol", false)?.baseline : 1841.0 / 2048 {
+                    let up = _px(bulletPt) * fontScale * em
                     let probe = TextPainter(text: TextSpan(text: "x", style: look), textDirection: .ltr)
                     probe.layout(minWidth: 0, maxWidth: 100000)
                     let m = probe.computeLineMetrics().first
@@ -1141,7 +1145,10 @@ extension RichLayout {
             // (A paragraph of tabs alone is the mark's line too, whatever its run's size: dx2 hi 87097d3e's 8pt-mark
             // paragraph holding one 11pt tab is 9.2pt in Word's print, where ours took the run's 12.65 or, with the
             // size inherited, nothing at all, and its page's boxes stood 10pt high.)
-            let tabsAlone = !p.text.isEmpty && p.text.utf16.allSatisfy { $0 == 0x09 }
+            // (Floating anchors beside the tabs change nothing, in a header too: xs dc363b28's header line of a page-set
+            // picture and one 15pt tab under a 24pt Verdana mark is the mark's 29.2pt line in Word's print, where ours
+            // took the tab's 17.3 and stood the body 12pt high.)
+            let tabsAlone = p.text.utf16.contains(0x09) && p.text.utf16.allSatisfy { $0 == 0x09 || $0 == 0xFFFC }
             guard theme.wordRules, tabsAlone || p.text.utf16.contains(where: spaceUnit) else { return nil }
             let normal = _normalChar(document)
             func size(_ c: CharStyle?) -> Double { c?.fontSize ?? named?.char.fontSize ?? normal?.fontSize ?? theme.fontSize }
@@ -1169,7 +1176,7 @@ extension RichLayout {
             // "Personal: ... Contratado" line, a wrapNone square anchored in it and 12pt spaces and tabs among 10pt text, is the
             // 10pt line in Word's print, 25.8 to the next paragraph where ours was 29.2. Not in a page header or footer: zh-4c4b1af8's
             // footer line of an anchor, 14pt text and 14pt trailing spaces under a 16pt line grid stays the normal line.)
-            if floating && (document.isHeaderFooterPart || (best != nil && (document.isPageHeaderFooterPart || !(theme.wordRules && RichTextTheme.wordWindowsPages)))) { return nil }
+            if floating && !tabsAlone && (document.isHeaderFooterPart || (best != nil && (document.isPageHeaderFooterPart || !(theme.wordRules && RichTextTheme.wordWindowsPages)))) { return nil }
             if let best { return (best, false) }
             // (With a floating anchor in the line, the larger of the mark's size and its spaces': dx2 ja 4fbb6e32's
             // 24pt under a 24pt mark is the mark's line; cs 2a42c845's header line of 11pt spaces under a mark of the
