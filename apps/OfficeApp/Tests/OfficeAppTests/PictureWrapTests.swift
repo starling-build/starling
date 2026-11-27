@@ -115,19 +115,25 @@ final class PictureWrapTests: XCTestCase {
 
     /// The Picture Format tab's Fix Position on Page keeps the picture where the editor draws it.
     func testPictureFormatTabFixesPositionOnPage() throws {
-        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(1440, 800))
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(1280, 800))
         let c = try XCTUnwrap(ui.state(OfficeShellState.self)).session.controller
         c.load(try DocxFormat.read(try floatingDocument()).document)
         let i = try floatIndex(c)
         c.selectImage(at: i)
         ui.pump()
-        XCTAssertTrue(ui.tap(tip: "Fix Position on Page"))
+        // (At 1280, a common laptop width, the Position group is folded: its button opens the controls, labelled, in a popup.)
+        XCTAssertTrue(ui.tap(tip: "Position group"))
+        ui.pump()
+        XCTAssertTrue(ui.tap(text: "Fix Position on Page"))
+        ui.pump(); ui.pump()
         let f = try XCTUnwrap(c.document.paragraphs[i].image?.float)
         XCTAssertEqual(f.verticalFrom, "page")
         // Letter's 1in top margin, one line of "text", then 30pt down from the picture's paragraph.
         XCTAssertGreaterThan(f.y, 72 + 30)
         XCTAssertLessThan(f.y, 72 + 30 + 40)
-        XCTAssertTrue(ui.tap(tip: "Move with Text"))
+        XCTAssertTrue(ui.tap(tip: "Position group"))
+        ui.pump()
+        XCTAssertTrue(ui.tap(text: "Move with Text"))
         XCTAssertEqual(c.document.paragraphs[i].image?.float?.verticalFrom, "paragraph")
         XCTAssertEqual(c.document.paragraphs[i].image?.float?.y ?? 0, 30, accuracy: 0.5)
     }
@@ -261,7 +267,7 @@ final class PictureWrapTests: XCTestCase {
 
     /// The Picture Format tab shows the wrap choices and nudges of a selected floating picture, each one undo step.
     func testPictureFormatTabChoosesWrapAndNudges() throws {
-        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(1440, 800))
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(1280, 800))
         let c = try XCTUnwrap(ui.state(OfficeShellState.self)).session.controller
         c.load(try DocxFormat.read(try floatingDocument()).document)
         let i = try floatIndex(c)
@@ -270,8 +276,10 @@ final class PictureWrapTests: XCTestCase {
         ui.pump()
         XCTAssertTrue(ui.tap(text: "Behind Text"))
         XCTAssertEqual(c.pictureWrap(at: i), .behindText)
-        // (At 1440 the small buttons show their icons alone: the tip names the button. Narrower, the Position group folds into one button.)
-        XCTAssertTrue(ui.tap(tip: "Nudge Right"))
+        // (At 1280, a common laptop width, the Position group is folded: its button opens the controls, labelled, in a popup.)
+        XCTAssertTrue(ui.tap(tip: "Position group"))
+        ui.pump()
+        XCTAssertTrue(ui.tap(text: "Nudge Right"))
         XCTAssertEqual(c.document.paragraphs[i].image?.float?.x ?? 0, 26, accuracy: 0.01)
         c.undo()
         c.undo()
