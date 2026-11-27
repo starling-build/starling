@@ -1942,6 +1942,20 @@ public final class RichDocumentController: ChangeNotifier {
         }
     }
 
+    /// W-PA-6: start the next column at the caret (Word's Ctrl+Shift+Enter): the text after it becomes a paragraph
+    /// whose column break ends the one before, as a `w:br w:type="column"` read from a file is held. One undo step.
+    public func insertColumnBreak() {
+        edit {
+            if hasSelection { _deleteSelectionOps() }
+            let pos = selection.focus
+            var tailStyle = document.paragraphs[pos.paragraph].style
+            tailStyle.pageBreakBefore = true; tailStyle.breakEndsPrevious = true; tailStyle.columnBreak = true
+            tailStyle.pageBreakInline = false
+            perform(.splitParagraph(pos, tailStyle: tailStyle))
+            _setCaret(RichPosition(paragraph: pos.paragraph + 1, offset: 0))
+        }
+    }
+
     // MARK: Tables
 
     public var isInCell: Bool { document.paragraphs[selection.focus.paragraph].cell != nil }
