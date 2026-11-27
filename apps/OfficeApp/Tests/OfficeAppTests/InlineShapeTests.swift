@@ -141,4 +141,27 @@ final class InlineShapeTests: XCTestCase {
         let back = try DocxFormat.read(try DocxFormat.write(c.document, pageSetup: .letter)).document
         XCTAssertTrue(back.paragraphs.contains { $0.inlineImages.values.contains { $0.float == nil && $0.sourceXML?.containsSubstring("<wps:wsp") == true } }, "it reads back in its line")
     }
+    /// Dragging a shape that stands in its line moves its one character to the drop point; it stays in line and stays selected.
+    func testDraggingAShapeInLineMovesItWithinTheText() throws {
+        let c = RichDocumentController(document: try inlineShapeDocument())
+        let (i, id) = try shape(c)
+        let obj = "\u{FFFC}"
+        XCTAssertEqual(c.document.paragraphs[i].text, "before " + obj + " after")
+        XCTAssertFalse(c.moveInlinePicture(in: i, id: id, to: RichPosition(paragraph: i, offset: 7)), "dropped on its own place")
+        XCTAssertFalse(c.moveInlinePicture(in: i, id: id, to: RichPosition(paragraph: i, offset: 8)), "nor just after it")
+        XCTAssertTrue(c.moveInlinePicture(in: i, id: id, to: RichPosition(paragraph: i, offset: 14)))
+        XCTAssertEqual(c.document.paragraphs[i].text, "before  after" + obj)
+        XCTAssertEqual(c.selection, RichSelection(anchor: RichPosition(paragraph: i, offset: 13), focus: RichPosition(paragraph: i, offset: 14)), "the moved shape stays selected")
+        let (j, moved) = try shape(c)
+        XCTAssertEqual(j, i)
+        XCTAssertTrue(c.isInLineShape(at: j, inline: moved))
+        let xml = try savedBody(c.document)
+        XCTAssertTrue(xml.containsSubstring("<wp:inline") && !xml.containsSubstring("<wp:anchor"), "still in its line")
+        XCTAssertTrue(c.moveInlinePicture(in: i, id: moved, to: RichPosition(paragraph: i, offset: 0)))
+        XCTAssertEqual(c.document.paragraphs[i].text, obj + "before  after")
+        c.undo()
+        XCTAssertEqual(c.document.paragraphs[i].text, "before  after" + obj)
+        c.undo()
+        XCTAssertEqual(c.document.paragraphs[i].text, "before " + obj + " after", "one undo per move")
+    }
 }

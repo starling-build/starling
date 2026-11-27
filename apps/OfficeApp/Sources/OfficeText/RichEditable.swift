@@ -1305,8 +1305,18 @@ public final class RichEditableState: State<StatefulWidget> {
             return
         }
         if let drag = _moveDrag {
-            // (A shape In Line with Text stands in its line: pressed, it is only clicked into, not moved.)
-            if _controller.isInLineShape(at: drag.index, inline: drag.inline) { return }
+            // (A shape In Line with Text stands in its line: dragged, it moves in the text, to the caret shown where it would
+            // drop, as Word moves it; pressed without moving, it is only clicked into.)
+            if let id = drag.inline, _controller.isInLineShape(at: drag.index, inline: id) {
+                let moved = abs(event.localPosition.dx - drag.start.dx) > 4 || abs(event.localPosition.dy - drag.start.dy) > 4
+                guard moved || _dropPosition != nil, _layout.width > 0 else { return }
+                let pos = _layout.canvasPosition(at: _canvasPoint(event.localPosition), _controller.document)
+                if pos != _dropPosition {
+                    _dropPosition = pos
+                    _repaint.notifyListeners()
+                }
+                return
+            }
             _moveDelta = Offset(event.localPosition.dx - drag.start.dx, event.localPosition.dy - drag.start.dy)
             _repaint.notifyListeners()
             return
@@ -1495,6 +1505,15 @@ public final class RichEditableState: State<StatefulWidget> {
             let x = (min(a.dx, b.dx) - origin.left) / pt, y = (min(a.dy, b.dy) - origin.top) / pt
             _controller.placePendingShape(x: max(0, x.rounded()), y: max(0, y.rounded()), width: w.rounded(), height: h.rounded(),
                                           at: _layout.canvasPosition(at: a, _controller.document))
+            _repaint.notifyListeners()
+            return
+        }
+        if let drag = _moveDrag, let id = drag.inline, let drop = _dropPosition {
+            // An inline shape dragged in the text stands where it was dropped.
+            _moveDrag = nil
+            _moveDelta = nil
+            _dropPosition = nil
+            _controller.moveInlinePicture(in: drag.index, id: id, to: drop)
             _repaint.notifyListeners()
             return
         }
