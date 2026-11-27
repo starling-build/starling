@@ -46,6 +46,7 @@ struct PageSetupValues: Equatable {
     var top: Double, bottom: Double, left: Double, right: Double
     var header: Double, footer: Double
     var allSections = false
+    var options = RichDocumentController.PageOptions(titlePage: false, evenAndOdd: false, pageNumberStart: nil)
 
     init(_ p: PageSetup) {
         width = p.width; height = p.height
@@ -77,11 +78,12 @@ final class PageSetupDialog: StatefulWidget {
     let initial: PageSetup
     let sectionCount: Int
     let unit: LengthUnit
+    let options: RichDocumentController.PageOptions?
     let onOK: (PageSetupValues) -> Void
     let onCancel: () -> Void
-    init(initial: PageSetup, sectionCount: Int = 1, unit: LengthUnit = .inch,
+    init(initial: PageSetup, sectionCount: Int = 1, unit: LengthUnit = .inch, options: RichDocumentController.PageOptions? = nil,
          onOK: @escaping (PageSetupValues) -> Void, onCancel: @escaping () -> Void) {
-        self.initial = initial; self.sectionCount = sectionCount; self.unit = unit
+        self.initial = initial; self.sectionCount = sectionCount; self.unit = unit; self.options = options
         self.onOK = onOK; self.onCancel = onCancel
         super.init()
     }
@@ -91,10 +93,12 @@ final class PageSetupDialog: StatefulWidget {
 final class PageSetupDialogState: State<StatefulWidget> {
     private var _w: PageSetupDialog { widget as! PageSetupDialog }
     private(set) var v = PageSetupValues(PageSetup.letter)
+    private let _startText = TextEditingController()
 
     override func initState() {
         super.initState()
         v = PageSetupValues(_w.initial)
+        if let o = _w.options { v.options = o; _startText.text = o.pageNumberStart.map(String.init) ?? "1" }
     }
 
     override func build(_ context: any BuildContext) -> Widget {
@@ -151,8 +155,28 @@ final class PageSetupDialogState: State<StatefulWidget> {
             ]),
             orientation, applyTo, warning,
         ])
+        let layout = Column(crossAxisAlignment: .start, children: [
+            row("First page", [choice("ps-first", "Different first page", v.options.titlePage) { [weak self] in
+                self?.setState { self?.v.options.titlePage.toggle() } }]),
+            row("Odd and even", [choice("ps-evenodd", "Different odd and even pages", v.options.evenAndOdd) { [weak self] in
+                self?.setState { self?.v.options.evenAndOdd.toggle() } }]),
+            row("Numbering", [
+                choice("ps-continue", "Continue", v.options.pageNumberStart == nil) { [weak self] in
+                    self?.setState { self?.v.options.pageNumberStart = nil } },
+                choice("ps-startat", "Start at", v.options.pageNumberStart != nil) { [weak self] in
+                    guard let self else { return }
+                    self.setState { self.v.options.pageNumberStart = Int(self._startText.text) ?? 1 } },
+                SizedBox(width: 60, child: PSKeyed("ps-start", FluentTextBox(controller: _startText, onChanged: { [weak self] t in
+                    guard let self, self.v.options.pageNumberStart != nil, let n = Int(t), n >= 0 else { return }
+                    self.v.options.pageNumberStart = n
+                }))),
+            ]),
+            applyTo,
+        ])
+        var tabs = [DialogTab(title: "Margins", page: margins), DialogTab(title: "Paper", page: paper)]
+        if _w.options != nil { tabs.append(DialogTab(title: "Layout", page: layout)) }
         return DialogShell(title: "Page Setup",
-                           tabs: [DialogTab(title: "Margins", page: margins), DialogTab(title: "Paper", page: paper)],
+                           tabs: tabs,
                            okEnabled: v.valid, width: 480,
                            onOK: { [weak self] in guard let self, self.v.valid else { return }; self._w.onOK(self.v) },
                            onCancel: { [weak self] in self?._w.onCancel() })

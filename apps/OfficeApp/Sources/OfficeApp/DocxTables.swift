@@ -216,6 +216,30 @@ extension DocxFormat {
     /// A kept section mark with the page the user set: only the size,
     /// margins and column count that differ from the XML are rewritten, so a
     /// section nobody touched is written back byte for byte.
+    /// The last section's lead elements with its first page number as the document says (the file's other
+    /// numbering attributes stay; a file that had none gets a bare `w:pgNumType`).
+    static func _leadPatched(_ lead: String?, start: Int?) -> String? {
+        var xml = lead ?? ""
+        if let r = xml.rangeOfSubstring("<w:pgNumType"), let end = xml[r.lowerBound...].firstIndex(of: ">") {
+            var el = String(xml[r.lowerBound ... end])
+            let had = el.rangeOfSubstring("w:start=\"")
+            var current: Int? = nil
+            if let h = had, let q = el[h.upperBound...].firstIndex(of: "\"") { current = Int(el[h.upperBound ..< q]) }
+            if current != start {
+                if let h = had, let q = el[h.upperBound...].firstIndex(of: "\"") {
+                    var from = h.lowerBound
+                    if let sp = el[..<from].lastIndex(of: " ") , el[sp..<from].allSatisfy({ $0 == " " }) { from = sp }
+                    if let v = start { el.replaceSubrange(h.upperBound ..< q, with: String(v)) } else { el.removeSubrange(from ... q) }
+                } else if let v = start {
+                    let close = el.hasSuffix("/>") ? el.index(el.endIndex, offsetBy: -2) : el.index(before: el.endIndex)
+                    el.insert(contentsOf: " w:start=\"\(v)\"", at: close)
+                }
+                xml.replaceSubrange(r.lowerBound ... end, with: el)
+            }
+        } else if let v = start { xml += "<w:pgNumType w:start=\"\(v)\"/>" }
+        return xml.isEmpty ? nil : xml
+    }
+
     static func _sectionXML(_ xml: String, patchedTo page: PageSetup?) -> String {
         guard let page, !page.vertical, let sect = XNode.parse(Data(xml.utf8)) else { return xml }
         var changed = false
@@ -232,6 +256,31 @@ extension DocxFormat {
         if let mar = sect.first("w:pgMar") {
             put(mar, "w:top", page.marginTop); put(mar, "w:bottom", page.marginBottom)
             put(mar, "w:left", page.marginLeft); put(mar, "w:right", page.marginRight)
+        }
+        if let mar = sect.first("w:pgMar") {
+            put(mar, "w:header", page.headerDistance); put(mar, "w:footer", page.footerDistance)
+        }
+        // W-HF-2: the section's own different first page and first page number.
+        let hasTitle = sect.first("w:titlePg").map { n in (n.attrs["w:val"] ?? "1") != "0" && n.attrs["w:val"] != "false" && n.attrs["w:val"] != "off" } ?? false
+        if page.titlePage != hasTitle {
+            sect.children.removeAll { $0.name == "w:titlePg" }
+            if page.titlePage {
+                let later: Set<String> = ["w:textDirection", "w:bidi", "w:rtlGutter", "w:docGrid", "w:printerSettings", "w:sectPrChange"]
+                let at = sect.children.firstIndex { later.contains($0.name) } ?? sect.children.count
+                sect.children.insert(XNode(name: "w:titlePg", attrs: [:]), at: at)
+            }
+            changed = true
+        }
+        let haveStart = sect.first("w:pgNumType").flatMap { Int($0.attrs["w:start"] ?? "") }
+        if page.pageNumberStart != haveStart {
+            if let n = sect.first("w:pgNumType") {
+                if let v = page.pageNumberStart { n.attrs["w:start"] = String(v) } else { n.attrs["w:start"] = nil }
+                if n.attrs.isEmpty { sect.children.removeAll { $0.name == "w:pgNumType" } }
+            } else if let v = page.pageNumberStart {
+                let after = sect.children.lastIndex { ["w:pgSz", "w:pgMar", "w:paperSrc", "w:pgBorders", "w:lnNumType"].contains($0.name) }
+                sect.children.insert(XNode(name: "w:pgNumType", attrs: ["w:start": String(v)]), at: after.map { $0 + 1 } ?? 0)
+            }
+            changed = true
         }
         let cols = sect.first("w:cols")
         let have = Int(cols?.attrs["w:num"] ?? "") ?? 1
@@ -2126,7 +2175,7 @@ extension DocxFormat {
         body += "<w:pgSz w:w=\"\(pw)\" w:h=\"\(ph)\"\(pageSetup.isLandscape && pageSetup.orientStated ? " w:orient=\"landscape\"" : "")/>"
         body += "<w:pgMar w:top=\"\(Int(pageSetup.marginTop * 20))\" w:right=\"\(Int(pageSetup.marginRight * 20))\" w:bottom=\"\(Int(pageSetup.marginBottom * 20))\" w:left=\"\(Int(pageSetup.marginLeft * 20))\" w:header=\"\(Int((pageSetup.headerDistance * 20).rounded()))\" w:footer=\"\(Int((pageSetup.footerDistance * 20).rounded()))\" w:gutter=\"\(doc.gutterTwips ?? 0)\"/>"
         if let pb = doc.pageBordersXML { body += pb }
-        if let lead = doc.sectionLeadXML { body += lead }
+        if let lead = Self._leadPatched(doc.sectionLeadXML, start: doc.pageNumberStart) { body += lead }
         if let cols = doc.columnsXML, doc.columnsKeptUnder == max(1, pageSetup.columns) {
             // The file's own columns (an exam paper's two unequal ones, 0.3in
             // apart: at our half inch every line of it broke 7pt early).
@@ -2281,25 +2330,9 @@ extension DocxFormat {
             }
         }
         relsXML += "<Relationship Id=\"rIdSettings\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings\" Target=\"settings.xml\"/>"
-        // (An even-page part may belong to an earlier section only, kept
-        // with that section's own XML: a chemicals list of three sections
-        // lost the setting and showed its odd footer on every page.)
-        let evenReferenced = keptHF.contains(where: { $0.element.type == "even" })
-            || document.containsSubstring("Reference r:id=") && {
-                // A header or footer reference of type "even", found by hand:
-                // a regular expression is the legacy Foundation layer, which
-                // the web build does not link.
-                for tag in ["<w:headerReference ", "<w:footerReference "] {
-                    var rest = Substring(document)
-                    while let at = rest.firstRange(of: tag) {
-                        rest = rest[at.upperBound...]
-                        let end = rest.firstIndex(of: ">") ?? rest.endIndex
-                        if String(rest[..<end]).containsSubstring("w:type=\"even\"") { return true }
-                    }
-                }
-                return false
-            }()
-        var settings = doc.evenAndOddHeaders && evenReferenced
+        // (Different odd and even pages is kept even when no section has an even
+        // part: Word then leaves the even pages bare, as the layout draws them.)
+        var settings = doc.evenAndOddHeaders
             ? _settingsPart.replacingAll("<w:defaultTabStop", with: "<w:evenAndOddHeaders/><w:defaultTabStop") : _settingsPart
         // The rest of what Word lays out by, each group at its place in the
         // schema: before the tab stop, after it, and round the character
@@ -2325,7 +2358,7 @@ extension DocxFormat {
             settings.replaceSubrange(start.lowerBound ..< end.upperBound, with: compat)
         }
         if let original = doc.keptParts["word/settings.xml"] {
-            settings = Self._patchedSettings(String(decoding: original, as: UTF8.self), even: doc.evenAndOddHeaders, evenReferenced: evenReferenced,
+            settings = Self._patchedSettings(String(decoding: original, as: UTF8.self), even: doc.evenAndOddHeaders,
                                              tab: doc.defaultTabStop, spacing: doc.characterSpacingControl)
         }
         extraParts.append(ZipEntry(name: "word/settings.xml", data: Data(settings.utf8)))
@@ -2540,7 +2573,7 @@ extension DocxFormat {
     /// The file's own settings with only what the app sets changed: the even/odd headers switch, the default tab stop and the
     /// character spacing control. Everything else (zoom, colour map, revision ids, math and shape defaults, note settings...)
     /// stays as the file had it.
-    static func _patchedSettings(_ original: String, even: Bool, evenReferenced: Bool, tab: Double?, spacing: String?) -> String {
+    static func _patchedSettings(_ original: String, even: Bool, tab: Double?, spacing: String?) -> String {
         var xml = original
         /// The range of the first `<w:name .../>` (or `<w:name ...>...</w:name>`) element.
         func element(_ name: String) -> Range<String.Index>? {
@@ -2564,7 +2597,7 @@ extension DocxFormat {
             let off = ["0", "false", "off"].contains { String(xml[r]).containsSubstring("w:val=\"\($0)\"") }
             if !even { xml.removeSubrange(r) }
             else if off { xml.replaceSubrange(r, with: "<w:evenAndOddHeaders/>") }
-        } else if even, evenReferenced {
+        } else if even {
             let marker = ["<w:defaultTabStop", "<w:characterSpacingControl", "<w:compat", "</w:settings>"].first { xml.containsSubstring($0) }
             if let marker, let at = xml.rangeOfSubstring(marker) { xml.insert(contentsOf: "<w:evenAndOddHeaders/>", at: at.lowerBound) }
         }
