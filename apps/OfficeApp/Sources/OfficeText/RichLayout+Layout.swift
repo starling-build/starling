@@ -2865,6 +2865,32 @@ extension RichLayout {
         return (c.table, c.row, c.rowHeight / (theme.pixelsPerPoint * scale), left - point.dx, right - point.dx)
     }
 
+    /// The table whose cells lie under a flow point, if any.
+    public func table(at point: Offset) -> String? {
+        guard !_rowTops.isEmpty else { return nil }
+        let i = paragraphIndex(atY: point.dy)
+        guard i >= 0, i < _cells.count, let c = _cells[i], point.dy >= c.rowTop, point.dy <= c.rowTop + c.rowHeight,
+              let widths = _columnWidths[c.table] else { return nil }
+        let left = c.colLeft - widths.prefix(c.column).reduce(0, +)
+        guard point.dx >= left, point.dx <= left + widths.reduce(0, +) else { return nil }
+        return c.table
+    }
+
+    /// A table's top-left corner in flow coordinates: its left edge and its first row's top.
+    public func tableOrigin(of table: String) -> Offset? {
+        guard let i = _cells.firstIndex(where: { $0?.table == table }), let c = _cells[i],
+              let widths = _columnWidths[table] else { return nil }
+        return Offset(c.colLeft - widths.prefix(c.column).reduce(0, +), c.rowTop)
+    }
+
+    /// Where a table's move handle sits on the canvas: a small square just outside its top-left corner, as Word draws it.
+    public func tableHandleRect(of table: String) -> Rect? {
+        guard let o = tableOrigin(of: table), let corner = canvasRects(Rect.fromLTWH(o.dx, o.dy, 1, 1)).first else { return nil }
+        let pt = theme.pixelsPerPoint * scale
+        let size = 8 * pt, gap = 2 * pt
+        return Rect.fromLTWH(corner.left - gap - size, corner.top - gap - size, size, size)
+    }
+
     /// A table's column widths as laid out, in points.
     public func columnWidths(of table: String) -> [Double]? {
         _columnWidths[table].map { $0.map { $0 / (theme.pixelsPerPoint * scale) } }

@@ -219,6 +219,9 @@ public final class RichEditableState: State<StatefulWidget> {
     private var _rowDrag: (table: String, row: Int, startY: Double, height: Double, canvasY: Double, left: Double, right: Double, canvasX: Double)? = nil
     private var _rowDragHeight: Double? = nil
     private var _hoverRowBorder = false
+    /// The table the pointer is over (its move handle shows), and whether it is on that handle.
+    private var _hoverTable: String? = nil
+    private var _hoverTableHandle = false
     /// A press inside the selection: a drag of the selected text once the
     /// pointer moves, a click that collapses the selection if it does not.
     private var _textDrag: (start: Offset, active: Bool)? = nil
@@ -947,7 +950,33 @@ public final class RichEditableState: State<StatefulWidget> {
         return para.style(at: pos.offset + 1).link
     }
 
+    /// The table whose move handle is under a point of the editable, if any.
+    private func _tableHandle(at local: Offset) -> String? {
+        guard _layout.width > 0, _layout.count > 0 else { return nil }
+        let canvas = _canvasPoint(local)
+        if let t = _hoverTable, _layout.tableHandleRect(of: t)?.contains(canvas) == true { return t }
+        // The handle stands above and left of the table's corner: look for the table just below and right of the point.
+        let pt = _layout.theme.pixelsPerPoint * _layout.scale
+        guard let t = _layout.table(at: _layout.flowPoint(Offset(canvas.dx + 11 * pt, canvas.dy + 11 * pt))) else { return nil }
+        return _layout.tableHandleRect(of: t)?.contains(canvas) == true ? t : nil
+    }
+
+    /// A table's move handle in the editable's own coordinates (tests drive a click on it).
+    func tableHandleRect(of table: String) -> Rect? {
+        _syncLayoutIfNeeded()
+        return _layout.tableHandleRect(of: table).map { $0.shift(Offset(_originX, _w.padding.top - _scrollY)) }
+    }
+
     private func _pointerHover(_ event: PointerEvent) {
+        if _layout.width > 0, _layout.count > 0 {
+            let onHandle = _tableHandle(at: event.localPosition)
+            let table = onHandle ?? _layout.table(at: _layout.flowPoint(_canvasPoint(event.localPosition)))
+            if table != _hoverTable || (onHandle != nil) != _hoverTableHandle {
+                let repaint = table != _hoverTable
+                setState { _hoverTable = table; _hoverTableHandle = onHandle != nil }
+                if repaint { _repaint.notifyListeners() }
+            }
+        }
         var handle: Int? = nil
         var overImage = false
         if let box = _selectedImageBox() {
@@ -1135,6 +1164,12 @@ public final class RichEditableState: State<StatefulWidget> {
             _handleDrag = (box.index, k, event.localPosition, box.rect.size, box.inline)
             _dragSize = box.rect.size
             _dragging = false
+            return
+        }
+        if event.buttons & 1 != 0, let table = _tableHandle(at: event.localPosition) {
+            // Word's table move handle: a click selects the whole table.
+            _focus.requestFocus()
+            _controller.selectTable(table)
             return
         }
         if _layout.width > 0, let border = _layout.columnBorder(at: _layout.flowPoint(_canvasPoint(event.localPosition))),
@@ -1710,6 +1745,26 @@ public final class RichEditableState: State<StatefulWidget> {
             guide.color = _layout.theme.caretColor
             canvas.drawLine(Offset(drag.canvasX + drag.left, y), Offset(drag.canvasX + drag.right, y), guide)
         }
+        // The move handle of the table under the pointer: a box with a four-way arrow outside its top-left corner.
+        if let t = _hoverTable, let r = _layout.tableHandleRect(of: t) {
+            let fill = Paint()
+            fill.style = .fill
+            fill.color = Color(0xFFFFFFFF)
+            canvas.drawRect(r, fill)
+            let ink = Paint()
+            ink.style = .stroke
+            ink.strokeWidth = 1
+            ink.color = Color(0xFF606060)
+            canvas.drawRect(r, ink)
+            let c = r.center, a = r.width * 0.34, h = r.width * 0.12
+            canvas.drawLine(Offset(c.dx - a, c.dy), Offset(c.dx + a, c.dy), ink)
+            canvas.drawLine(Offset(c.dx, c.dy - a), Offset(c.dx, c.dy + a), ink)
+            for (dx, dy) in [(1.0, 0.0), (-1.0, 0.0), (0.0, 1.0), (0.0, -1.0)] {
+                let tip = Offset(c.dx + dx * a, c.dy + dy * a)
+                canvas.drawLine(tip, Offset(tip.dx - dx * h - dy * h, tip.dy - dy * h - dx * h), ink)
+                canvas.drawLine(tip, Offset(tip.dx - dx * h + dy * h, tip.dy - dy * h + dx * h), ink)
+            }
+        }
         // An IME's uncommitted text: a line under the composing range.
         if let composing = _controller.composingRange, _layout.count > composing.paragraph {
             let sel = RichSelection(anchor: RichPosition(paragraph: composing.paragraph, offset: composing.range.lowerBound),
@@ -1907,14 +1962,17 @@ public final class RichEditableState: State<StatefulWidget> {
         else if let k = _hoverHandle ?? _handleDrag?.handle { cursor = Self._cursor(forHandle: k) }
         else if _hoverColumnBorder || _columnDrag != nil { cursor = SystemMouseCursors.resizeColumn }
         else if _hoverRowBorder || _rowDrag != nil { cursor = SystemMouseCursors.resizeRow }
+        else if _hoverTableHandle { cursor = SystemMouseCursors.move }
         else if _hoverOverImage { cursor = SystemMouseCursors.basic }
         else if _hoverLink != nil && _chords.primary { cursor = SystemMouseCursors.click }
         else { cursor = SystemMouseCursors.text }
         return MouseRegion(onExit: { [weak self] _ in
-            guard let self, self._hoverLink != nil || self._hoverHandle != nil || self._hoverOverImage || self._hoverColumnBorder || self._hoverRowBorder else { return }
+            guard let self, self._hoverLink != nil || self._hoverHandle != nil || self._hoverOverImage || self._hoverColumnBorder || self._hoverRowBorder || self._hoverTable != nil else { return }
             self._hoverLink = nil
             self._w.onLinkHover?(nil)
-            self.setState { self._hoverHandle = nil; self._hoverOverImage = false; self._hoverColumnBorder = false; self._hoverRowBorder = false }
+            let repaint = self._hoverTable != nil
+            self.setState { self._hoverHandle = nil; self._hoverOverImage = false; self._hoverColumnBorder = false; self._hoverRowBorder = false; self._hoverTable = nil; self._hoverTableHandle = false }
+            if repaint { self._repaint.notifyListeners() }
         }, cursor: cursor, child: Listener(
             onPointerDown: { [weak self] e in self?._pointerDown(e) },
             onPointerMove: { [weak self] e in self?._pointerMove(e) },
