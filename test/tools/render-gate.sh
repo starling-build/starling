@@ -182,7 +182,7 @@ fi
 # base cached: render+score the uncached base documents WHILE the PR builds (the base pass needs only the base binary; the
 # build is mostly one thread, so the two overlap). Measured 2026-11-20: the base pass ran after the build and took ~3-4 min.
 FPID=
-if [ -z "${BPID:-}" ] && [ "${GATE_LIGHT:-0}" != 1 ]; then BASEBIN=$BC/$BSHA/release/OfficeApp; ( fill_rows ) > "$W/fillrows.out" 2>&1 & FPID=$!; fi
+if [ -z "${BPID:-}" ] && [ "${GATE_LIGHT:-0}" != 1 ] && [ "${GATE_WORD:-1}" = 1 ]; then BASEBIN=$BC/$BSHA/release/OfficeApp; ( fill_rows ) > "$W/fillrows.out" 2>&1 & FPID=$!; fi
 PREV=$(cat "$W/build.rev" 2>/dev/null); TB=$(date +%s)
 $( [ -x "$HOME/bin/build-slot.sh" ] && echo "$HOME/bin/build-slot.sh" ) test/tools/build-office-fast.sh "$W/build" > "$W/build.log" 2>&1 || { echo "render-gate: BUILD FAILED"; tail -15 "$W/build.log" | cut -c1-200; exit 1; }
 echo "render-gate: PR build $(( $(date +%s)-TB )) s, load $(cut -d" " -f1-3 /proc/loadavg), -j ${BUILD_JOBS:-default}; compiled: $(grep -aoE "[A-Za-z0-9+_]+\.swift" "$W/build.log" | sort -u | head -12 | tr "\n" " ")"   # the build alone; "build step" below also waits for the base rows/base build
@@ -208,7 +208,7 @@ if [ "$MODE" = full ] && [ "${GATE_DETERMINISM:-1}" = 1 ] && [ "${GATE_PREBUILD:
 fi
 [ "${GATE_PREBUILD:-0}" = 1 ] && { echo "render-gate: PR build alone $(( $(date +%s)-TB )) s; changed since this scratch's last build: $( [ -n "$PREV" ] && git diff --name-only "$PREV" HEAD 2>/dev/null | wc -l || echo unknown) files (prev ${PREV:0:9})"; git rev-parse HEAD > "$W/build.rev"; [ "${GATE_WARM:-0}" = 1 ] && { echo "render-gate: scratch warm on $(git rev-parse --short HEAD)"; exit 0; }
 [ -z "${BPID:-}" ] || [ "${BRC:-0}" = 0 ] || { echo "render-gate: BASE BUILD FAILED"; exit 1; }
-  BASEBIN=$BC/$BSHA/release/OfficeApp; fill_rows; chmod -R g+rwX,o+rX "$BC/$BSHA" 2>/dev/null; echo "render-gate: base $BSHA cached"
+  BASEBIN=$BC/$BSHA/release/OfficeApp; [ "${GATE_WORD:-1}" != 1 ] || fill_rows; chmod -R g+rwX,o+rX "$BC/$BSHA" 2>/dev/null; echo "render-gate: base $BSHA cached"
   # the Slides BASE render too (amd-8, 2026-11-22): the same sweep the PR gate would otherwise draw for its base, cached per main sha + engine, so the PR gate draws only its own side
   if [ "${GATE_SLIDES:-1}" = 1 ] && [ "${GATE_WARM:-0}" != 1 ] && [ -x "$BASEBIN" ]; then
     S0=$(date +%s); BASE_ONLY=1 LQ=$LQ BASE_BIN=$BASEBIN BASE_CACHE=$BC/$BSHA/slides test/tools/slides-gate.sh "$BASEBIN" "${JOBS:-32}" > "$W/slides-base.out" 2>&1; echo "render-gate: slides base $BSHA rendered in $(( $(date +%s)-S0 )) s ($(tail -1 "$W/slides-base.out" | cut -c1-120))"
@@ -228,7 +228,10 @@ echo "render-gate: files compiled: PR $(grep -o "[A-Za-z0-9+_]*\.swift" "$W/buil
 echo "render-gate: $(wc -l < "$ids") documents (named + sample); build step $(( $(date +%s)-T0 )) s ($([ -n "${BPID:-}" ] && echo base built here || echo base cached))"; T1=$(date +%s)
 # both binaries render the same subset (SWEEP_ONLY), so the base needs no stored scores
 [ "${GATE_FULL:-0}" = 1 ] || export SWEEP_ONLY=$ids
-BSD=
+# GATE_WORD=0 (amd-8, 2026-11-27, LANDING-RULES "Faster pre-land checks"): the Word step is skipped; ~/bin/gate-scope sets it only for a batch whose
+# changed files the Word path cannot reach (Slides-only or Sheets-only files, the web build); the Slides and Sheets steps below still run.
+BSD=; DN=0; DROPS=""; NCMP=0
+if [ "${GATE_WORD:-1}" != 1 ]; then echo "render-gate: Word step skipped (GATE_WORD=0)"; : > "$W/down.txt"; else
 if [ "${GATE_FULL:-0}" != 1 ]; then
   [ -n "$FPID" ] || fill_rows
   flock -s 8; if [ -s "$RC/REFS" ]; then BSD=$W/bs; rm -rf "$BSD"; mkdir -p "$BSD"; cp "$RC/REFS" "$BSD/REFS"
@@ -274,6 +277,7 @@ if [ -n "$DROPS" ]; then
   fi
   echo "render-gate: BLOCKED, v2 drops not approved:$DROPS"; exit 1; fi
 [ "$DN" = 0 ] || [ -s "$W/down.txt" ] || { echo "render-gate: drops reported but not parsed"; exit 1; }
+fi   # GATE_WORD
 # Slides step result (started before the Word pair, see SLPID): block on decks worse than the BASE render (same runner and engine; the fixed baselines are the drift report only)
 if [ -n "${SLPID:-}" ]; then
   wait "$SLPID"; src=$?; tail -20 "$W/slides.out"
@@ -300,5 +304,5 @@ if [ "$MODE" = full ] && [ "${GATE_SEED:-1}" != 0 ] && [ "${GATE_PREBUILD:-0}" !
   fi
 fi
 echo "render-gate: $NCMP sets compared; clean ($(wc -l < "$W/down.txt") approved drops)"
-[ "$MODE" = full ] && [ "${GATE_BLAME:-1}" = 1 ] && { W=$W LQ=$LQ BC=$BC BASE_SHA=$BSHA EO=$EO JOBS=$JOBS timeout 1500 test/tools/render-gate-blame.sh 2>&1 | tail -5 | cut -c1-250 || true; }
+[ "$MODE" = full ] && [ "${GATE_BLAME:-1}" = 1 ] && [ "${GATE_WORD:-1}" = 1 ] && { W=$W LQ=$LQ BC=$BC BASE_SHA=$BSHA EO=$EO JOBS=$JOBS timeout 1500 test/tools/render-gate-blame.sh 2>&1 | tail -5 | cut -c1-250 || true; }
 exit 0
