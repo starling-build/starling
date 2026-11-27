@@ -2216,7 +2216,8 @@ final class OfficeShellState: State<StatefulWidget> {
             _boxEdit = nil
             session.controller = b.main
         }
-        if let (xml, rels) = TextBoxInsert.content(box.document) {
+        if let (xml, boxRels, media) = TextBoxInsert.contentAndMedia(box.document) {
+            let rels = b.main.keepBoxMedia(media, rels: boxRels)
             if b.child != nil {
                 b.main.setGroupChildText(document: box.document, contentXML: xml, rels: rels)
             } else {
