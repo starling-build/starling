@@ -772,6 +772,20 @@ final class OfficeShellState: State<StatefulWidget> {
     /// Open from the in-app file panel: a file another window has open is shown by bringing that window forward
     /// (one document, one window: two windows on one file would race on its AutoSave and recovery copy).
     private func _openFromPanel(_ path: String) {
+        if let browser = OfficeHost.browserRecent {
+            // A tab's Recent holds names; the page reads the kept copy back.
+            browser.open(path) { [weak self] data in
+                guard let self, self.mounted else { return }
+                guard let data else {
+                    self._recent = browser.names()
+                    self.setState { self._backstage = nil }
+                    self._flash("\(path) is no longer kept in this browser")
+                    return
+                }
+                self._open(path, data: data)
+            }
+            return
+        }
         if let other = OfficeScene.holding(path, besides: officeScene) {
             other.focusWindow()
             _flash("\(path.lastPathComponent) is open in another window")
@@ -825,6 +839,7 @@ final class OfficeShellState: State<StatefulWidget> {
     /// what a save is called; there is no path, and no recovery copy to
     /// look for either.
     private func _open(_ name: String, data: Data) {
+        _rememberInBrowser(name, data)
         // A deck or a workbook: its own shell opens it, from the same bytes.
         let kind = DocumentKind.kind(forPath: name)
         if kind != .document, let onSwitch = (widget as! OfficeShell).onSwitch {
@@ -894,6 +909,7 @@ final class OfficeShellState: State<StatefulWidget> {
             OfficeHost.browserRecovery?.discard()
             _recovered = false
             _autosaveGeneration += 1
+            _rememberInBrowser(name, data)
             session.path = name
             _savedRevision = controller.revision
             setState {
@@ -1023,9 +1039,20 @@ final class OfficeShellState: State<StatefulWidget> {
         }
     }
 
-    private func _loadRecent() -> [String] { OfficeRecent.load() }
+    private func _loadRecent() -> [String] { OfficeHost.browserRecent?.names() ?? OfficeRecent.load() }
 
-    private func _remember(_ path: String) { _recent = OfficeRecent.remember(path, in: _recent) }
+    private func _remember(_ path: String) {
+        // A tab's list is the page's (its bytes went there with `_rememberInBrowser`).
+        if let browser = OfficeHost.browserRecent { _recent = browser.names(); return }
+        _recent = OfficeRecent.remember(path, in: _recent)
+    }
+
+    /// A document opened or saved in a tab: the page keeps its bytes under its name, so Recent can reopen it.
+    private func _rememberInBrowser(_ name: String, _ data: Data) {
+        guard let browser = OfficeHost.browserRecent else { return }
+        browser.remember(name, data)
+        _recent = browser.names()
+    }
 
     // MARK: Pictures
 
@@ -1667,10 +1694,12 @@ final class OfficeShellState: State<StatefulWidget> {
                 window,
                 Positioned(left: 0, top: 0, right: 0, bottom: 0, child: PageSetupDialog(
                     initial: session.sectionSetup(), sectionCount: sections,
+                    options: controller.pageOptions(sectionMark: controller.sectionMark(containing: controller.selection.focus.paragraph)),
                     onOK: { [weak self] v in
                         guard let self else { return }
                         self.setState {
                             self.controller.changePageSetup(allSections: v.allSections, lastSetup: self.session.pageSetup) { v.apply(to: &$0) }
+                            self.controller.changePageOptions(allSections: v.allSections, v.options, lastSetup: self.session.pageSetup)
                             self.session.syncPageSetup()
                             self._pageSetupOpen = false
                         }

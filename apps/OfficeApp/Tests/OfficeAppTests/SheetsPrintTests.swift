@@ -107,6 +107,25 @@ final class SheetsPrintTests: XCTestCase {
         XCTAssertEqual(standIn, own, accuracy: 0.01)           // the wrapped lines are the face's own
     }
 
+    /// A set row height prints the same whether the book's Normal face is Roman or not: the Roman stand-in fits only the rows
+    /// nobody sized (ko-a7dce1c506.xls, a 새굴림 book whose rows all store heights, printed them 1 % tall and its text 7 pt low).
+    func testASetRowInARomanMissingFaceBookIsNotTheStandIns() {
+        func rows(roman: Bool) -> (Double, Double) {
+            let c = WorkbookController()
+            c.book.defaultFontName = "새굴림"
+            c.book.defaultFontSize = 11
+            c.book.defaultFontRoman = roman
+            c.setInputs([(CellAddress("A1")!, "구분"), (CellAddress("A2")!, "구분")])
+            c.sheet.rowHeights[0] = 50.1
+            let g = SheetGridState(headless: c)
+            g.printing = true
+            return (g.rows.size(0), g.rows.size(1))
+        }
+        let (own, ownAuto) = rows(roman: false), (standIn, standInAuto) = rows(roman: true)
+        XCTAssertGreaterThan(standInAuto, ownAuto + 0.5)       // the unsized row takes the stand-in's taller line
+        XCTAssertEqual(standIn, own, accuracy: 0.01)           // the set row is the face's own
+    }
+
     func testDotumWrappedLinesArePlacedByTheirFirstLine() {
         // A centred two-line Dotum cell stands about its first line alone
         // (ko-fb58b17f97: Excel 162.4/169.6 about 166.0; placed by "X", ours stood 1.45 pt higher).

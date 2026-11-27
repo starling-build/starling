@@ -216,6 +216,30 @@ extension DocxFormat {
     /// A kept section mark with the page the user set: only the size,
     /// margins and column count that differ from the XML are rewritten, so a
     /// section nobody touched is written back byte for byte.
+    /// The last section's lead elements with its first page number as the document says (the file's other
+    /// numbering attributes stay; a file that had none gets a bare `w:pgNumType`).
+    static func _leadPatched(_ lead: String?, start: Int?) -> String? {
+        var xml = lead ?? ""
+        if let r = xml.rangeOfSubstring("<w:pgNumType"), let end = xml[r.lowerBound...].firstIndex(of: ">") {
+            var el = String(xml[r.lowerBound ... end])
+            let had = el.rangeOfSubstring("w:start=\"")
+            var current: Int? = nil
+            if let h = had, let q = el[h.upperBound...].firstIndex(of: "\"") { current = Int(el[h.upperBound ..< q]) }
+            if current != start {
+                if let h = had, let q = el[h.upperBound...].firstIndex(of: "\"") {
+                    var from = h.lowerBound
+                    if let sp = el[..<from].lastIndex(of: " ") , el[sp..<from].allSatisfy({ $0 == " " }) { from = sp }
+                    if let v = start { el.replaceSubrange(h.upperBound ..< q, with: String(v)) } else { el.removeSubrange(from ... q) }
+                } else if let v = start {
+                    let close = el.hasSuffix("/>") ? el.index(el.endIndex, offsetBy: -2) : el.index(before: el.endIndex)
+                    el.insert(contentsOf: " w:start=\"\(v)\"", at: close)
+                }
+                xml.replaceSubrange(r.lowerBound ... end, with: el)
+            }
+        } else if let v = start { xml += "<w:pgNumType w:start=\"\(v)\"/>" }
+        return xml.isEmpty ? nil : xml
+    }
+
     static func _sectionXML(_ xml: String, patchedTo page: PageSetup?) -> String {
         guard let page, !page.vertical, let sect = XNode.parse(Data(xml.utf8)) else { return xml }
         var changed = false
@@ -232,6 +256,31 @@ extension DocxFormat {
         if let mar = sect.first("w:pgMar") {
             put(mar, "w:top", page.marginTop); put(mar, "w:bottom", page.marginBottom)
             put(mar, "w:left", page.marginLeft); put(mar, "w:right", page.marginRight)
+        }
+        if let mar = sect.first("w:pgMar") {
+            put(mar, "w:header", page.headerDistance); put(mar, "w:footer", page.footerDistance)
+        }
+        // W-HF-2: the section's own different first page and first page number.
+        let hasTitle = sect.first("w:titlePg").map { n in (n.attrs["w:val"] ?? "1") != "0" && n.attrs["w:val"] != "false" && n.attrs["w:val"] != "off" } ?? false
+        if page.titlePage != hasTitle {
+            sect.children.removeAll { $0.name == "w:titlePg" }
+            if page.titlePage {
+                let later: Set<String> = ["w:textDirection", "w:bidi", "w:rtlGutter", "w:docGrid", "w:printerSettings", "w:sectPrChange"]
+                let at = sect.children.firstIndex { later.contains($0.name) } ?? sect.children.count
+                sect.children.insert(XNode(name: "w:titlePg", attrs: [:]), at: at)
+            }
+            changed = true
+        }
+        let haveStart = sect.first("w:pgNumType").flatMap { Int($0.attrs["w:start"] ?? "") }
+        if page.pageNumberStart != haveStart {
+            if let n = sect.first("w:pgNumType") {
+                if let v = page.pageNumberStart { n.attrs["w:start"] = String(v) } else { n.attrs["w:start"] = nil }
+                if n.attrs.isEmpty { sect.children.removeAll { $0.name == "w:pgNumType" } }
+            } else if let v = page.pageNumberStart {
+                let after = sect.children.lastIndex { ["w:pgSz", "w:pgMar", "w:paperSrc", "w:pgBorders", "w:lnNumType"].contains($0.name) }
+                sect.children.insert(XNode(name: "w:pgNumType", attrs: ["w:start": String(v)]), at: after.map { $0 + 1 } ?? 0)
+            }
+            changed = true
         }
         let cols = sect.first("w:cols")
         let have = Int(cols?.attrs["w:num"] ?? "") ?? 1
@@ -460,6 +509,16 @@ extension DocxFormat {
                 if !rel.external { notes.keep(_resolvePath("word", rel.target)) }
             }
             stack.append(contentsOf: n.children)
+        }
+        // A SmartArt diagram's drawing (the shapes Word drew it as) is named by no attribute of the drawing:
+        // its data part names it, by `relId` on `dsp:dataModelExt`. Left out, the save dropped the part and the
+        // data named an id the document's rels no longer had.
+        for rel in found where !rel.external && rel.type.hasSuffix("/diagramData") {
+            guard let model = notes.part(_resolvePath("word", rel.target)).flatMap(XNode.parse),
+                  let rid = model.descendant("dsp:dataModelExt")?["relId"], let drawing = notes.rels[rid], !drawing.external,
+                  !found.contains(where: { $0.id == rid }) else { continue }
+            found.append(drawing)
+            notes.keep(_resolvePath("word", drawing.target))
         }
         if found.contains(where: { !$0.external && notes.part(_resolvePath("word", $0.target)) == nil }) { return nil }
         for prefix in prefixes where prefix != "xml" && node.attrs["xmlns:" + prefix] == nil {
@@ -1129,6 +1188,22 @@ extension DocxFormat {
         return String(repeating: "0", count: max(0, 8 - hex.count)) + hex
     }
 
+    /// The ids of the comment references in a piece of kept XML.
+    static func _commentReferenceIDs(_ xml: String) -> [String] {
+        var ids: [String] = []
+        var from = xml.startIndex
+        while let tag = xml.rangeOfSubstring("<w:commentReference ", in: from ..< xml.endIndex) {
+            guard let close = xml.rangeOfSubstring(">", in: tag.upperBound ..< xml.endIndex) else { break }
+            let attrs = xml[tag.upperBound ..< close.lowerBound]
+            if let key = attrs.rangeOfSubstring("w:id=\"") {
+                let rest = attrs[key.upperBound...]
+                if let end = rest.firstIndex(of: "\"") { ids.append(String(rest[..<end])) }
+            }
+            from = close.upperBound
+        }
+        return ids
+    }
+
     static func write(_ source: RichDocument, pageSetup: PageSetup) throws -> Data {
         var doc = source
         doc.paragraphs.removeAll { $0.flowedEndnote != nil }
@@ -1142,12 +1217,23 @@ extension DocxFormat {
         let commentsKept = doc.keptParts["word/comments.xml"] != nil
         var openComments: [String] = []
         var closedComments = Set<String>()   // a range id is started once; Word rejects a second start
+        /// Comments whose reference run stands inside a kept equation: the
+        /// equation writes it, so the range's end adds none (lo-d04a7466: a
+        /// second reference to the same comment, and Word refused the file).
+        let referencedInEquation: Set<String> = commentsKept ? Set(doc.paragraphs.flatMap { p in
+            ([p.image].compactMap { $0 } + Array(p.inlineImages.values))
+                .filter { $0.name == "m:oMath" || $0.name == "m:oMathPara" }
+                .flatMap { Self._commentReferenceIDs($0.sourceXML ?? "") }
+        }) : []
         /// The end markers (and reference runs) of every open range not in
         /// `keep`, which are then closed for good.
         func closeComments(except keep: [String]) -> String {
             var out = ""
             for id in openComments where !keep.contains(id) {
-                out += "<w:commentRangeEnd w:id=\"\(_esc(id))\"/><w:r><w:rPr><w:rStyle w:val=\"CommentReference\"/></w:rPr><w:commentReference w:id=\"\(_esc(id))\"/></w:r>"
+                out += "<w:commentRangeEnd w:id=\"\(_esc(id))\"/>"
+                if !referencedInEquation.contains(id) {
+                    out += "<w:r><w:rPr><w:rStyle w:val=\"CommentReference\"/></w:rPr><w:commentReference w:id=\"\(_esc(id))\"/></w:r>"
+                }
                 closedComments.insert(id)
             }
             openComments.removeAll { !keep.contains($0) }
@@ -1183,6 +1269,17 @@ extension DocxFormat {
         func nextRevisionID() -> Int {
             repeat { revisionCount += 1 } while takenAnnotationIDs.contains(revisionCount)
             return revisionCount
+        }
+        /// `xml` (a tracked change's properties-before, kept as read) with each `w:id` given a fresh revision id:
+        /// a deleted mark's old properties hold its w:del with the file's id, which our numbering hands out again.
+        func freshRevisionIDs(_ xml: String) -> String {
+            guard xml.containsSubstring(" w:id=\"") else { return xml }
+            var out = "", rest = Substring(xml)
+            while let r = rest.rangeOfSubstring(" w:id=\""), let e = rest[r.upperBound...].firstIndex(of: "\"") {
+                out += rest[..<r.upperBound] + "\(nextRevisionID())"
+                rest = rest[e...]
+            }
+            return out + rest
         }
         var usedExtensions: Set<String> = []
         func relId(for link: String) -> String {
@@ -1239,6 +1336,8 @@ extension DocxFormat {
         }
 
         var body = ""
+        /// Per kept diagram data part, the id its `relId` names its drawing by and the id the save gives that drawing.
+        var diagramDrawingIDs: [String: (old: String, new: String)] = [:]
         /// A kept fragment with its relationships under fresh ids and its
         /// drawings' docPr ids made unique.
         func keptFragmentXML(_ xml: String, _ rels: [KeptRel]) -> String {
@@ -1251,9 +1350,15 @@ extension DocxFormat {
                 // other kinds are found by type or from other parts (template, glossary, settings...) and stay.
                 let kind = String(rel.type.split(separator: "/").last ?? "")
                 let droppable = ["image", "hyperlink", "oleObject", "chart", "diagramData", "diagramLayout", "diagramQuickStyle", "diagramColors", "diagramDrawing"].contains(kind)
-                if droppable, !xml.containsSubstring("\"\(rel.id)\"") { continue }
+                // (A diagram's drawing is named from its data part, by relId: kept while the fragment names that data part.)
+                let dataPath: String? = kind != "diagramDrawing" ? nil : rels.first(where: {
+                    $0.type.hasSuffix("/diagramData") && !$0.external && xml.containsSubstring("\"\($0.id)\"")
+                        && (doc.keptParts[_resolvePath("word", $0.target)].map { String(decoding: $0, as: UTF8.self).containsSubstring("relId=\"\(rel.id)\"") } ?? false)
+                }).map { _resolvePath("word", $0.target) }
+                if droppable, dataPath == nil, !xml.containsSubstring("\"\(rel.id)\"") { continue }
                 keptRelCount += 1
                 let nid = "rIdKept\(keptRelCount)"
+                if let dataPath, diagramDrawingIDs[dataPath] == nil { diagramDrawingIDs[dataPath] = (rel.id, nid) }
                 for attr in _relationshipAttributes {
                     frag = frag.replacingAll("\(attr)=\"\(rel.id)\"", with: "\(attr)=\"\(nid)\"")
                 }
@@ -1482,17 +1587,30 @@ extension DocxFormat {
             }
             let anchorOnly = p.image?.sourceXML?.containsSubstring("<wp:anchor") ?? false
             if p.text.isEmpty, p.image == nil || anchorOnly, let first = p.runs.first {
-                markRPr += _rPrXML({ var m = first.style; m.origRPr = nil; m.origExtras = nil; return m }(), fileFonts: doc.fileFonts)
+                // (The mark's own tracked format change rides along, as in the branch below.)
+                let markChange = p.style.mark?.formatChange.map { var c = $0; c.oldRPrXML = freshRevisionIDs(c.oldRPrXML); return c }
+                markRPr += _rPrXML({ var m = first.style; m.origRPr = nil; m.origExtras = nil; m.formatChange = markChange; return m }(), fileFonts: doc.fileFonts,
+                                   changeId: markChange != nil ? nextRevisionID() : nil)
             } else if let mark = p.style.mark {
                 // The mark's own look on a paragraph with text: a list
                 // number is formatted with it, and a hidden mark over
                 // hidden text makes Word show no line and no border.
-                markRPr += _rPrXML({ var m = mark; m.origRPr = nil; m.origExtras = nil; return m }(), fileFonts: doc.fileFonts)
+                // With its tracked format change (w:rPrChange): dropped, Word split lo-9f27's tracked deletions and
+                // format changes at every paragraph mark (88 deletions where the file had 19).
+                markRPr += _rPrXML({ var m = mark; m.origRPr = nil; m.origExtras = nil
+                                     m.formatChange = m.formatChange.map { var c = $0; c.oldRPrXML = freshRevisionIDs(c.oldRPrXML); return c }
+                                     return m }(), fileFonts: doc.fileFonts,
+                                   changeId: mark.formatChange != nil ? nextRevisionID() : nil)
             } else if p.style.markHidden {
                 markRPr += "<w:vanish/>"
             }
             if !markRPr.isEmpty { pPr += "<w:rPr>\(markRPr)</w:rPr>" }
             if let sect = p.style.sectionXML, p.cell == nil, index < doc.paragraphs.count - 1 { pPr += keptFragmentXML(Self._sectionXML(sect, patchedTo: p.style.sectionPage), p.style.sectionRels) }
+            // A tracked change to the paragraph's properties, last in w:pPr, with the properties it had before as read.
+            if let pc = p.style.propertyChange {
+                let id = nextRevisionID()
+                pPr += "<w:pPrChange w:id=\"\(id)\" w:author=\"\(_esc(pc.author.isEmpty ? "Author" : pc.author))\"\(pc.date.isEmpty ? "" : " w:date=\"\(_esc(pc.date))\"")>\(pc.oldRPrXML.isEmpty ? "<w:pPr/>" : freshRevisionIDs(pc.oldRPrXML))</w:pPrChange>"
+            }
             body += "<w:p\(p.id != 0 ? " w14:paraId=\"\(_paraIdHex(p.id))\"" : "")><w:pPr>\(pPr)</w:pPr>"
             // W-FD-2: the table of contents field opens in this paragraph; its entries are the paragraphs that follow.
             if let toc = p.style.contentsStart {
@@ -1578,6 +1696,8 @@ extension DocxFormat {
             let boxRanges = p.checkBoxes.map(\.range)   // a content-control check box shows its glyph as text, not as a legacy form field
             // (Runs of the same target that follow each other share one w:hyperlink, as Word writes an entry.)
             var linkOpen = "", linkClosedAt = -1
+            // The last tracked insertion or deletion written (its kind, author and date) and where it closed.
+            var revisionKey = "", revisionClosedAt = -1
             for (runIndex, run) in p.runs.enumerated() where run.length > 0 {
                 body += markersXML(at: pos)
                 let a = utf16.index(utf16.startIndex, offsetBy: pos)
@@ -1589,9 +1709,22 @@ extension DocxFormat {
                     body += drawingXML(image)
                     continue
                 }
+                if commentsKept, piece == "\u{200B}", !s.comments.isEmpty, s.comments.allSatisfy({ referencedInEquation.contains($0) }) {
+                    // The stand-in the reader put where an equation holds the comment's reference: its
+                    // range is written, empty as the file had it, and no character.
+                    body += closeComments(except: s.comments)
+                    for id in s.comments where !openComments.contains(id) && !closedComments.contains(id) {
+                        body += "<w:commentRangeStart w:id=\"\(_esc(id))\"/>"
+                        openComments.append(id)
+                    }
+                    body += closeComments(except: commentsAfter(index, runIndex, in: p))
+                    continue
+                }
                 var changeId: Int? = nil
                 if s.formatChange != nil { changeId = nextRevisionID() }
-                var rPr = _rPrXML(s, fileFonts: doc.fileFonts, changeId: changeId)
+                var rPr = _rPrXML({ var c = s
+                                    c.formatChange = c.formatChange.map { var c = $0; c.oldRPrXML = freshRevisionIDs(c.oldRPrXML); return c }
+                                    return c }(), fileFonts: doc.fileFonts, changeId: changeId)
                 if let note = s.note, doc.keptParts[note.kind == .footnote ? "word/footnotes.xml" : "word/endnotes.xml"] != nil {
                     // The mark's number is Word's to show; the run carries
                     // only the reference (and its custom mark text, if any),
@@ -1633,16 +1766,19 @@ extension DocxFormat {
                         }
                     }
                     flush()
-                } else if s.revision?.kind != .deleted, let font = s.fontFamily,
-                          piece.unicodeScalars.contains(where: { (0xF000...0xF0FF).contains($0.value) }) {
+                } else if s.revision?.kind != .deleted, let font = s.symbolFont ?? s.fontFamily,
+                          s.symbolFont != nil || piece.unicodeScalars.contains(where: { (0xF000...0xF0FF).contains($0.value) }) {
                     // Private-use characters in a named font go back as
-                    // w:sym, the font with them.
+                    // w:sym, the font with them; so does all text that came
+                    // from a w:sym (a `00A3` in Wingdings 2 is its box; as
+                    // plain text it printed "£" in the run's text font).
                     var text = ""
                     func flush() { if !text.isEmpty { runXML += "<w:r>\(rPrXML)\(_text(text))</w:r>"; text = "" } }
                     for sc in piece.unicodeScalars {
-                        if (0xF000...0xF0FF).contains(sc.value) {
+                        if s.symbolFont != nil || (0xF000...0xF0FF).contains(sc.value) {
                             flush()
-                            runXML += "<w:r>\(rPrXML)<w:sym w:font=\"\(_esc(font))\" w:char=\"\(String(sc.value, radix: 16, uppercase: true))\"/></w:r>"
+                            let hex = String(sc.value, radix: 16, uppercase: true)
+                            runXML += "<w:r>\(rPrXML)<w:sym w:font=\"\(_esc(font))\" w:char=\"\(String(repeating: "0", count: max(0, 4 - hex.count)) + hex)\"/></w:r>"
                         } else { text.unicodeScalars.append(sc) }
                     }
                     flush()
@@ -1655,7 +1791,7 @@ extension DocxFormat {
                     let lengths = p.runs.map(\.length)
                     let prior = p.runs.indices.prefix(runIndex).last { lengths[$0] > 0 }.map { p.runs[$0].style.ruby }
                     let later = p.runs.indices.dropFirst(runIndex + 1).first { lengths[$0] > 0 }.map { p.runs[$0].style.ruby }
-                    if prior != ruby { runXML += "<w:r>\(rPrXML)<w:ruby>\(ruby.xml)<w:rubyBase>" }
+                    if prior != ruby { runXML += "<w:r>\(rPrXML)<w:ruby>\(ruby.xml.isEmpty ? Self._rubyXML(ruby, baseSize: s.fontSize ?? 10.5) : ruby.xml)<w:rubyBase>" }
                     runXML += "<w:r>\(rPrXML)\(_text(piece))</w:r>"
                     if later != ruby { runXML += "</w:rubyBase></w:ruby></w:r>" }
                 } else {
@@ -1687,10 +1823,20 @@ extension DocxFormat {
                         runXML += "<w:r>\(rPrXML)<w:fldChar w:fldCharType=\"end\"/></w:r>"
                     }
                 }
+                var joinsRevision = false, revisionInner = ""
                 if let rev = s.revision {
-                    _ = nextRevisionID()
                     let tag = rev.kind == .inserted ? "w:ins" : "w:del"
-                    runXML = "<\(tag) w:id=\"\(revisionCount)\" w:author=\"\(_esc(rev.author.isEmpty ? "Author" : rev.author))\"\(rev.date.isEmpty ? "" : " w:date=\"\(_esc(rev.date))\"")>\(runXML)</\(tag)>"
+                    let who = " w:author=\"\(_esc(rev.author.isEmpty ? "Author" : rev.author))\"\(rev.date.isEmpty ? "" : " w:date=\"\(_esc(rev.date))\"")"
+                    // Runs one deletion (or insertion) covered stay in one when nothing sits between them: Word counts
+                    // each w:del as a revision of its own, so a deletion split per run counted 88 where the file had 19
+                    // (lo-9f27). Joined at the append below.
+                    joinsRevision = s.link == nil && s.linkField == nil && revisionKey == tag + who
+                    revisionInner = runXML + "</\(tag)>"
+                    _ = nextRevisionID()
+                    runXML = "<\(tag) w:id=\"\(revisionCount)\"\(who)>\(runXML)</\(tag)>"
+                    revisionKey = tag + who
+                } else {
+                    revisionKey = ""
                 }
                 if commentsKept {
                     // A range still open that this run is not in (its last
@@ -1729,7 +1875,13 @@ extension DocxFormat {
                     }
                     linkOpen = open; linkClosedAt = body.utf8.count
                 } else {
-                    body += runXML
+                    if joinsRevision, body.utf8.count == revisionClosedAt {
+                        body.removeLast(revisionKey.hasPrefix("w:ins") ? "</w:ins>".count : "</w:del>".count)
+                        body += revisionInner
+                    } else {
+                        body += runXML
+                    }
+                    revisionClosedAt = body.utf8.count
                 }
                 if commentsKept { body += closeComments(except: commentsAfter(index, runIndex, in: p)) }
             }
@@ -1849,6 +2001,8 @@ extension DocxFormat {
                 if style.rowsCantSplit.contains(r) { trPr += "<w:cantSplit/>" }
                 if let h = style.rowHeights[r] { trPr += "<w:trHeight w:val=\"\(Int((h * 20).rounded()))\"\(style.rowsExactHeight.contains(r) ? " w:hRule=\"exact\"" : "")/>" }
                 if style.headerRow && r < style.headerRowCount { trPr += "<w:tblHeader/>" }
+                // (Schema order: a row's own insertion or deletion after its properties.)
+                if let rev = style.rowRevisionXML[r] { trPr += freshRevisionIDs(rev) }
                 xml += "<w:tr>" + (style.rowExceptions[r] ?? "") + (trPr.isEmpty ? "" : "<w:trPr>\(trPr)</w:trPr>")
                 // A row ends where its last cell does: Word allows a row
                 // shorter than the grid (145 of bug65649's 480 rows are,
@@ -2021,7 +2175,7 @@ extension DocxFormat {
         body += "<w:pgSz w:w=\"\(pw)\" w:h=\"\(ph)\"\(pageSetup.isLandscape && pageSetup.orientStated ? " w:orient=\"landscape\"" : "")/>"
         body += "<w:pgMar w:top=\"\(Int(pageSetup.marginTop * 20))\" w:right=\"\(Int(pageSetup.marginRight * 20))\" w:bottom=\"\(Int(pageSetup.marginBottom * 20))\" w:left=\"\(Int(pageSetup.marginLeft * 20))\" w:header=\"\(Int((pageSetup.headerDistance * 20).rounded()))\" w:footer=\"\(Int((pageSetup.footerDistance * 20).rounded()))\" w:gutter=\"\(doc.gutterTwips ?? 0)\"/>"
         if let pb = doc.pageBordersXML { body += pb }
-        if let lead = doc.sectionLeadXML { body += lead }
+        if let lead = Self._leadPatched(doc.sectionLeadXML, start: doc.pageNumberStart) { body += lead }
         if let cols = doc.columnsXML, doc.columnsKeptUnder == max(1, pageSetup.columns) {
             // The file's own columns (an exam paper's two unequal ones, 0.3in
             // apart: at our half inch every line of it broke 7pt early).
@@ -2087,6 +2241,10 @@ extension DocxFormat {
         // A theme-linked table colour in a document with no theme part: Word would fall back on ITS default
         // palette and draw other colours than the app did. Write the palette the app drew with.
         var keptAll = doc.keptParts
+        for (path, ids) in diagramDrawingIDs {
+            guard let data = keptAll[path] else { continue }
+            keptAll[path] = Data(String(decoding: data, as: UTF8.self).replacingAll("relId=\"\(ids.old)\"", with: "relId=\"\(ids.new)\"").utf8)
+        }
         if !keptAll.keys.contains(where: { $0.hasPrefix("word/theme/") }),
            doc.paragraphs.contains(where: { $0.cell?.fillThemeAttrs != nil || $0.cell?.bordersXML?.containsSubstring("w:themeColor=") == true }) {
             keptAll["word/theme/theme1.xml"] = Data(_defaultThemePart().utf8)
@@ -2147,6 +2305,10 @@ extension DocxFormat {
             case "word/webSettings.xml":
                 relsXML += "<Relationship Id=\"rIdWebSettings\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/webSettings\" Target=\"webSettings.xml\"/>"
                 extraOverrides += "<Override PartName=\"/word/webSettings.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.webSettings+xml\"/>"
+            case _ where name.hasSuffix(".rels"):
+                // A kept part's own rels (word/theme/_rels/theme1.xml.rels) take the package's rels type; it sorts
+                // before its theme, and taken for the theme it was linked from the document as one: Word refused it.
+                break
             case _ where name.hasPrefix("word/theme/") && String(decoding: data.prefix(600), as: UTF8.self).containsSubstring(":themeOverride"):
                 extraOverrides += "<Override PartName=\"/\(_esc(name))\" ContentType=\"application/vnd.openxmlformats-officedocument.themeOverride+xml\"/>"
             case _ where name.hasPrefix("word/theme/"):
@@ -2168,25 +2330,9 @@ extension DocxFormat {
             }
         }
         relsXML += "<Relationship Id=\"rIdSettings\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings\" Target=\"settings.xml\"/>"
-        // (An even-page part may belong to an earlier section only, kept
-        // with that section's own XML: a chemicals list of three sections
-        // lost the setting and showed its odd footer on every page.)
-        let evenReferenced = keptHF.contains(where: { $0.element.type == "even" })
-            || document.containsSubstring("Reference r:id=") && {
-                // A header or footer reference of type "even", found by hand:
-                // a regular expression is the legacy Foundation layer, which
-                // the web build does not link.
-                for tag in ["<w:headerReference ", "<w:footerReference "] {
-                    var rest = Substring(document)
-                    while let at = rest.firstRange(of: tag) {
-                        rest = rest[at.upperBound...]
-                        let end = rest.firstIndex(of: ">") ?? rest.endIndex
-                        if String(rest[..<end]).containsSubstring("w:type=\"even\"") { return true }
-                    }
-                }
-                return false
-            }()
-        var settings = doc.evenAndOddHeaders && evenReferenced
+        // (Different odd and even pages is kept even when no section has an even
+        // part: Word then leaves the even pages bare, as the layout draws them.)
+        var settings = doc.evenAndOddHeaders
             ? _settingsPart.replacingAll("<w:defaultTabStop", with: "<w:evenAndOddHeaders/><w:defaultTabStop") : _settingsPart
         // The rest of what Word lays out by, each group at its place in the
         // schema: before the tab stop, after it, and round the character
@@ -2212,7 +2358,7 @@ extension DocxFormat {
             settings.replaceSubrange(start.lowerBound ..< end.upperBound, with: compat)
         }
         if let original = doc.keptParts["word/settings.xml"] {
-            settings = Self._patchedSettings(String(decoding: original, as: UTF8.self), even: doc.evenAndOddHeaders, evenReferenced: evenReferenced,
+            settings = Self._patchedSettings(String(decoding: original, as: UTF8.self), even: doc.evenAndOddHeaders,
                                              tab: doc.defaultTabStop, spacing: doc.characterSpacingControl)
         }
         extraParts.append(ZipEntry(name: "word/settings.xml", data: Data(settings.utf8)))
@@ -2350,6 +2496,19 @@ extension DocxFormat {
         return "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<\(tag) xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\"><w:p>\(jc)\(runs)</w:p></\(tag)>"
     }
 
+    /// w:rubyPr and w:rt for a ruby read from an EQ field, which has no XML of its own to give back: Word
+    /// requires both before w:rubyBase (xa lo-ae4f3e8e64's overstrike stack, saved with neither, would not open).
+    static func _rubyXML(_ ruby: RubyText, baseSize: Double) -> String {
+        let aligns: Set<String> = ["center", "distributeLetter", "distributeSpace", "left", "right", "rightVertical"]
+        let align = ruby.align.flatMap { aligns.contains($0) ? $0 : nil } ?? "center"
+        let hps = Int(((ruby.size > 0 ? ruby.size : baseSize) * 2).rounded())
+        let raise = max(0, Int((ruby.raise * 2).rounded()))
+        let base = Int((baseSize * 2).rounded())
+        return "<w:rubyPr><w:rubyAlign w:val=\"\(align)\"/><w:hps w:val=\"\(hps)\"/><w:hpsRaise w:val=\"\(raise)\"/>"
+            + "<w:hpsBaseText w:val=\"\(base)\"/><w:lid w:val=\"ja-JP\"/></w:rubyPr>"
+            + "<w:rt><w:r><w:rPr><w:sz w:val=\"\(hps)\"/><w:szCs w:val=\"\(hps)\"/></w:rPr>\(_text(ruby.text))</w:r></w:rt>"
+    }
+
     static func _text(_ s: String) -> String {
         // Tabs and line breaks are elements, not characters — and so are
         // the optional and the non-breaking hyphen: the character U+00AD
@@ -2414,7 +2573,7 @@ extension DocxFormat {
     /// The file's own settings with only what the app sets changed: the even/odd headers switch, the default tab stop and the
     /// character spacing control. Everything else (zoom, colour map, revision ids, math and shape defaults, note settings...)
     /// stays as the file had it.
-    static func _patchedSettings(_ original: String, even: Bool, evenReferenced: Bool, tab: Double?, spacing: String?) -> String {
+    static func _patchedSettings(_ original: String, even: Bool, tab: Double?, spacing: String?) -> String {
         var xml = original
         /// The range of the first `<w:name .../>` (or `<w:name ...>...</w:name>`) element.
         func element(_ name: String) -> Range<String.Index>? {
@@ -2438,7 +2597,7 @@ extension DocxFormat {
             let off = ["0", "false", "off"].contains { String(xml[r]).containsSubstring("w:val=\"\($0)\"") }
             if !even { xml.removeSubrange(r) }
             else if off { xml.replaceSubrange(r, with: "<w:evenAndOddHeaders/>") }
-        } else if even, evenReferenced {
+        } else if even {
             let marker = ["<w:defaultTabStop", "<w:characterSpacingControl", "<w:compat", "</w:settings>"].first { xml.containsSubstring($0) }
             if let marker, let at = xml.rangeOfSubstring(marker) { xml.insert(contentsOf: "<w:evenAndOddHeaders/>", at: at.lowerBound) }
         }

@@ -118,6 +118,14 @@ def main():
     args = sys.argv[1:]; jobs = 32
     if "-j" in args: i = args.index("-j"); jobs = int(args[i + 1]); del args[i:i + 2]
     BIN, OUT = os.path.realpath(args[0]), args[1]; names = args[2:]
+    if not os.environ.get("STARLING_ICU"):   # the ICU data of the engine the binary loads, as docx-pair.sh and pptx-app-render.sh set it: without it Thai and other dictionary-break text loses its line breaks
+        ldd = subprocess.run(["ldd", BIN], capture_output=True, text=True).stdout
+        eng = next((l.split("=>")[1].split()[0] for l in ldd.splitlines() if "libflutter_engine.so" in l and "=>" in l), "")
+        for d in (os.path.dirname(eng), os.environ.get("STARLING_ENGINE_OUT", "")):
+            if d and os.path.isfile(d + "/icudtl.dat"):
+                os.environ["STARLING_ICU"] = d + "/icudtl.dat"; break
+    if not os.path.isfile(os.environ.get("STARLING_ICU", "")):
+        sys.exit(f"sheets-sweep: no ICU data (icudtl.dat) found for {BIN}: set STARLING_ICU")
     os.makedirs(OUT + "/pdf", exist_ok=True); os.makedirs(OUT + "/pairs", exist_ok=True)
     items = []
     for n in names:

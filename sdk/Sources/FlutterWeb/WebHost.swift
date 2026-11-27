@@ -431,6 +431,27 @@ func starlingFileOpened(
             data: Data(bytes: bytes, count: Int(byteCount))))
 }
 
+/// Recent files: the names the page keeps, newest first, one per line (before the app starts).
+@_expose(wasm, "starling_recent_names")
+@_cdecl("starling_recent_names")
+func starlingRecentNames(_ names: UnsafePointer<UInt8>?, _ length: Int32) {
+    guard let names, length > 0 else { return }
+    WebFiles.recentNames = String(decoding: UnsafeBufferPointer(start: names, count: Int(length)), as: UTF8.self)
+        .split(separator: "\n").map(String.init)
+}
+
+/// The page's answer to starling_host_recent_open; both buffers are the page's to free. A byteCount of 0: gone.
+@_expose(wasm, "starling_recent_bytes")
+@_cdecl("starling_recent_bytes")
+func starlingRecentBytes(
+    _ name: UnsafePointer<UInt8>?, _ nameLength: Int32,
+    _ bytes: UnsafeRawPointer?, _ byteCount: Int32
+) {
+    guard let name, nameLength > 0 else { return }
+    let text = String(decoding: UnsafeBufferPointer(start: name, count: Int(nameLength)), as: UTF8.self)
+    WebFiles.recentOpened(text, bytes.flatMap { byteCount > 0 ? Data(bytes: $0, count: Int(byteCount)) : nil })
+}
+
 /// Scratch memory in our heap for the page to write arguments into.
 /// `starling.debug(kind)`: the app's answer to a debugging query, as
 /// UTF-8 in OUR memory (`starling_alloc`ed; the page frees it) with the

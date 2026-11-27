@@ -8,6 +8,9 @@ root, scratch, n = sys.argv[1], sys.argv[2], int(sys.argv[3])
 binp = os.path.join(scratch, "debug", "OfficeAppPackageTests.xctest")
 cwd = os.path.join(root, "apps", "OfficeApp")
 SETUP = "AAATextSetupTests"
+# A class that leaves process-wide state switched on runs in a shard of its own, so no test after it pays for that state:
+# AtspiBridgeTests leaves the AT-SPI bridge on, and the 50,000-row SheetsEngineTests chain then took 2964 s instead of 4 (b123, 2026-11-27).
+ALONE = set(os.environ.get("UNIT_ALONE", "AtspiBridgeTests").split(","))
 lst = subprocess.run([binp, "--list-tests"], cwd=cwd, capture_output=True, text=True).stdout
 tests = [m.group(1) + "." + m.group(2) for m in (re.match(r"OfficeAppTests\.(\w+)/(\w+)", l) for l in lst.splitlines()) if m]
 if not tests:
@@ -30,7 +33,7 @@ if ttf:
         if len(p) == 2: ttimes[p[1]] = float(p[0])
 items = []   # (seconds, spec after "OfficeAppTests.")
 for c in classes:
-    if c == SETUP: continue
+    if c == SETUP or c in ALONE: continue
     if times.get(c, 1.0) > SPLIT:
         items += [(ttimes.get(t, 0.5), c + "/" + t.split(".")[1]) for t in tests if t.startswith(c + ".")]
     else:
@@ -39,7 +42,7 @@ items.sort(key=lambda x: -x[0])
 shards = [[0.0, []] for _ in range(n)]
 for w, spec in items:
     s = min(shards, key=lambda x: x[0]); s[0] += w; s[1].append(spec)
-shards = [s for s in shards if s[1]]
+shards = [s for s in shards if s[1]] + [[times.get(c, 1.0), [c]] for c in classes if c in ALONE and c != SETUP]
 log = os.environ.get("UNIT_LOG_DIR") or os.path.join(scratch, "shard-logs"); os.makedirs(log, exist_ok=True)
 t0 = time.time(); procs = []
 for i, (w, cs) in enumerate(shards):

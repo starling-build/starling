@@ -332,6 +332,11 @@ export async function startStarling({ canvas, app, appBrotli, preloaded, immutab
     loadRecoveryOffers(),
     new Promise(resolve => setTimeout(() => resolve([]), 2000)),
   ]).catch(() => []);
+  // (Never holds up the start: storage that does not answer in time lists nothing.)
+  const recentNames = Promise.race([
+    loadRecentNames(),
+    new Promise(resolve => setTimeout(() => resolve([]), 2000)),
+  ]).catch(() => []);
   onPhase?.('Loading editor and fonts…');
   // --- skwasm, single-threaded. Threads need a cross-origin-isolated page
   // (COOP/COEP headers); without them skwasm renders on the main thread,
@@ -470,6 +475,20 @@ export async function startStarling({ canvas, app, appBrotli, preloaded, immutab
     recovery_discard() { discardRecovery(); },
     recovery_adopt(idPointer, idLength) {
       adoptRecovery(utf8.decode(appBytes().subarray(idPointer, idPointer + idLength)));
+    },
+    // Recent files: keep a document opened or saved; read a kept one back.
+    recent_keep(namePointer, nameLength, bytesPointer, byteCount) {
+      const name = utf8.decode(appBytes().subarray(namePointer, namePointer + nameLength));
+      const bytes = appBytes().slice(bytesPointer, bytesPointer + byteCount);
+      keepRecent(name, bytes).catch(error => console.warn('starling: recent files:', error));
+    },
+    recent_open(namePointer, nameLength) {
+      const name = utf8.decode(appBytes().subarray(namePointer, namePointer + nameLength));
+      openRecent(name).catch(() => null).then(bytes => {
+        transfer(encoder.encode(name), (namePointer, nameLength) => bytes
+          ? transfer(bytes, (pointer, length) => swift.starling_recent_bytes(namePointer, nameLength, pointer, length))
+          : swift.starling_recent_bytes(namePointer, nameLength, 0, 0));
+      });
     },
     // File > Print: our PDF in a hidden frame, whose print() opens the
     // browser's print dialog on it (printer, pages, copies). Where a frame
@@ -934,6 +953,10 @@ export async function startStarling({ canvas, app, appBrotli, preloaded, immutab
     transfer(encoder.encode(`${row.id}\n${row.kind}\n${row.name}`), (meta, metaLength) =>
       transfer(row.bytes, (pointer, length) => swift.starling_recovery_offer(meta, metaLength, pointer, length)));
   }
+  const recent = await recentNames;
+  if (recent.length && swift.starling_recent_names) {
+    transfer(encoder.encode(recent.join('\n')), (pointer, length) => swift.starling_recent_names(pointer, length));
+  }
 
   // --- size, before the app mounts, so its first layout is the real one.
   const resize = () => {
@@ -1157,4 +1180,67 @@ export async function startStarling({ canvas, app, appBrotli, preloaded, immutab
   };
 
   return { skwasm, swift, debug, fontsPending: () => fontsPending, loadFonts: families => Promise.all(families.map(fontLoader.load)), retryFonts: fontLoader.retry };
+}
+
+// Recent files (docs/plans/web-parity.md item 3): a tab has no paths, so the
+// page keeps each document opened or saved, by name, in IndexedDB: `recent`
+// holds {name, time, size} (read at start, cheap), `recentBytes` the copy.
+// Newest 20 and 200 MB at most; the oldest go first, the newest always stays.
+// (Its own database: the recovery copies' has its own versioning.)
+const RECENT_ROWS = 20;
+const RECENT_BYTES = 200 * 1024 * 1024;
+let recentDatabase;
+function recentDb() {
+  recentDatabase ??= new Promise((resolve, reject) => {
+    if (!globalThis.indexedDB) return reject(new Error('no IndexedDB'));
+    const request = indexedDB.open('starling-office-recent', 1);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains('recent')) db.createObjectStore('recent', { keyPath: 'name' });
+      if (!db.objectStoreNames.contains('recentBytes')) db.createObjectStore('recentBytes', { keyPath: 'name' });
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+  return recentDatabase;
+}
+
+function recentRequest(mode, work) {
+  return recentDb().then(db => new Promise((resolve, reject) => {
+    const transaction = db.transaction(['recent', 'recentBytes'], mode);
+    const result = work(transaction.objectStore('recent'), transaction.objectStore('recentBytes'));
+    transaction.oncomplete = () => resolve(result?.result);
+    transaction.onerror = () => reject(transaction.error);
+  }));
+}
+
+async function loadRecentNames() {
+  const rows = await recentRequest('readonly', meta => meta.getAll());
+  return (rows ?? []).sort((a, b) => b.time - a.time).map(row => row.name);
+}
+
+async function keepRecent(name, bytes) {
+  await recentRequest('readwrite', (meta, copies) => {
+    meta.put({ name, time: Date.now(), size: bytes.byteLength });
+    copies.put({ name, bytes });
+    const all = meta.getAll();
+    all.onsuccess = () => {
+      let total = 0;
+      all.result.sort((a, b) => b.time - a.time).forEach((row, index) => {
+        total += row.size;
+        if (index > 0 && (index >= RECENT_ROWS || total > RECENT_BYTES)) {
+          meta.delete(row.name);
+          copies.delete(row.name);
+        }
+      });
+    };
+  });
+}
+
+async function openRecent(name) {
+  const row = await recentRequest('readonly', (meta, copies) => copies.get(name));
+  if (row?.bytes?.byteLength) return row.bytes;
+  // A list row whose copy is gone (storage evicted it): drop it.
+  await recentRequest('readwrite', (meta, copies) => { meta.delete(name); copies.delete(name); });
+  return null;
 }

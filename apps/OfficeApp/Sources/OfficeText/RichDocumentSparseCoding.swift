@@ -219,6 +219,7 @@ extension CharStyle {
         case highlight
         case link
         case linkTip
+        case symbolFont
         case script
         case note
         case inlineImage
@@ -261,6 +262,7 @@ extension CharStyle {
         highlight = try c.decodeIfPresent(Color.self, forKey: .highlight) ?? d.highlight
         link = try c.decodeIfPresent(String.self, forKey: .link) ?? d.link
         linkTip = try c.decodeIfPresent(String.self, forKey: .linkTip) ?? d.linkTip
+        symbolFont = try c.decodeIfPresent(String.self, forKey: .symbolFont) ?? d.symbolFont
         script = try c.decodeIfPresent(ScriptPosition.self, forKey: .script) ?? d.script
         note = try c.decodeIfPresent(NoteReference.self, forKey: .note) ?? d.note
         inlineImage = try c.decodeIfPresent(String.self, forKey: .inlineImage) ?? d.inlineImage
@@ -308,6 +310,7 @@ extension CharStyle {
         if highlight != d.highlight, let v = highlight { try c.encode(v, forKey: .highlight) }
         if link != d.link, let v = link { try c.encode(v, forKey: .link) }
         if linkTip != d.linkTip, let v = linkTip { try c.encode(v, forKey: .linkTip) }
+        if symbolFont != d.symbolFont, let v = symbolFont { try c.encode(v, forKey: .symbolFont) }
         if script != d.script { try c.encode(script, forKey: .script) }
         if note != d.note, let v = note { try c.encode(v, forKey: .note) }
         if inlineImage != d.inlineImage, let v = inlineImage { try c.encode(v, forKey: .inlineImage) }
@@ -535,7 +538,7 @@ extension RichDocument {
 
 extension ImageAttachment {
     enum CodingKeys: String, CodingKey {
-        case id, data, width, height, name, naturalWidth, naturalHeight, sourceXML, sourceRels, outline, sourceWidth, sourceHeight, sourceRunPropertiesXML, frame, effectLeft, effectRight, effectTop, baseline, effectBottom, float, rotation, textBox, isDropCap, lastPageOnly, stackedEquation, crop, inset
+        case id, data, width, height, name, naturalWidth, naturalHeight, sourceXML, sourceRels, outline, sourceWidth, sourceHeight, sourceRunPropertiesXML, frame, effectLeft, effectRight, effectTop, baseline, effectBottom, float, rotation, textBox, isDropCap, lastPageOnly, stackedEquation, mathSize, crop, inset
     }
 
     public init(from decoder: Decoder) throws {
@@ -566,6 +569,7 @@ extension ImageAttachment {
         isDropCap = try c.decodeIfPresent(Bool.self, forKey: .isDropCap) ?? false
         lastPageOnly = try c.decodeIfPresent(Bool.self, forKey: .lastPageOnly) ?? false
         stackedEquation = try c.decodeIfPresent(Bool.self, forKey: .stackedEquation) ?? false
+        mathSize = try c.decodeIfPresent(Double.self, forKey: .mathSize) ?? 0
         crop = try c.decodeIfPresent(PictureCrop.self, forKey: .crop)
         inset = try c.decodeIfPresent(PictureCrop.self, forKey: .inset)
     }
@@ -597,6 +601,7 @@ extension ImageAttachment {
         try c.encode(isDropCap, forKey: .isDropCap)
         try c.encode(lastPageOnly, forKey: .lastPageOnly)
         try c.encode(stackedEquation, forKey: .stackedEquation)
+        try c.encode(mathSize, forKey: .mathSize)
         try c.encodeIfPresent(crop, forKey: .crop)
         try c.encodeIfPresent(inset, forKey: .inset)
     }
@@ -690,7 +695,7 @@ extension RichTextBox {
 
 extension TableStyle {
     enum CodingKeys: String, CodingKey {
-        case borders, keptPosition, floatOffsetY, floatX, floatXAnchor, floatCentredBidi, bidiVisual, pageAnchored, pageOffsetY, floatsOverText, keptCellMarginsXML, keptCellMarginsUnder, edges, headerRow, headerRowCount, look, widthPercent, width, fixedLayout, autoCellWidths, cellSpacing, textOutdent, textOutdentRight, headerFill, bandFill, bandAltFill, borderColor, borderWidth, borderStyle, edgeStyles, edgeWidths, bordersFromCells, alignment, indent, rowsCantSplit, rowExceptions, rowsGridBefore, rowHeights, rowsExactHeight, cellMarginTop, cellMarginLeft, cellMarginBottom, cellMarginRight
+        case borders, keptPosition, floatOffsetY, floatX, floatXAnchor, floatCentredBidi, bidiVisual, pageAnchored, pageOffsetY, floatsOverText, keptCellMarginsXML, keptCellMarginsUnder, edges, headerRow, headerRowCount, look, widthPercent, width, fixedLayout, autoCellWidths, cellSpacing, textOutdent, textOutdentRight, headerFill, bandFill, bandAltFill, borderColor, borderWidth, borderStyle, edgeStyles, edgeWidths, bordersFromCells, alignment, indent, rowsCantSplit, rowExceptions, rowRevisionXML, rowsGridBefore, rowHeights, rowsExactHeight, cellMarginTop, cellMarginLeft, cellMarginBottom, cellMarginRight
     }
 
     public init(from decoder: Decoder) throws {
@@ -731,6 +736,7 @@ extension TableStyle {
         indent = try c.decodeIfPresent(Double.self, forKey: .indent) ?? 0
         rowsCantSplit = try c.decodeIfPresent(Set<Int>.self, forKey: .rowsCantSplit) ?? []
         rowExceptions = try c.decodeIfPresent([Int: String].self, forKey: .rowExceptions) ?? [:]
+        rowRevisionXML = try c.decodeIfPresent([Int: String].self, forKey: .rowRevisionXML) ?? [:]
         rowsGridBefore = try c.decodeIfPresent([Int: Int].self, forKey: .rowsGridBefore) ?? [:]
         rowHeights = try c.decodeIfPresent([Int: Double].self, forKey: .rowHeights) ?? [:]
         rowsExactHeight = try c.decodeIfPresent(Set<Int>.self, forKey: .rowsExactHeight) ?? []
@@ -778,6 +784,7 @@ extension TableStyle {
         try c.encode(indent, forKey: .indent)
         try c.encode(rowsCantSplit, forKey: .rowsCantSplit)
         try c.encode(rowExceptions, forKey: .rowExceptions)
+        try c.encode(rowRevisionXML, forKey: .rowRevisionXML)
         try c.encode(rowsGridBefore, forKey: .rowsGridBefore)
         try c.encode(rowHeights, forKey: .rowHeights)
         try c.encode(rowsExactHeight, forKey: .rowsExactHeight)

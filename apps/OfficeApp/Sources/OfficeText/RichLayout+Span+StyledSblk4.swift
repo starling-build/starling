@@ -296,7 +296,9 @@ extension _StyledFrame {
             // Cambria Greek sets "ή", "ό" as a letter and an
             // accent, and each took Cambria's width correction
             // twice — its lines 1.7% short, a word more each.)
-            if theme.wordRules, extra != 0, let u = ch.unicodeScalars.first?.value,
+            // (In Slides as in Word: TH SarabunPSK's "ดำ" is three glyphs, and its -3.1 pt table correction taken on each set
+            // every "ดำ" 10.8 pt where PowerPoint's print has 17, th-cb034815ae's table rows a third of a line short.)
+            if extra != 0, let u = ch.unicodeScalars.first?.value,
                (u >= 0x0E00 && u < 0x0E80 && ch.unicodeScalars.count > 1) || (u >= 0x80 && !(0x0E00 ..< 0x0E80).contains(u)) {
                 spacing /= Double(_glyphCount(s, ch))
             }

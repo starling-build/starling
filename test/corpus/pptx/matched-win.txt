@@ -12,6 +12,7 @@ lo-animation-sound-embedded.pptx
 lo-animation-sound-external.pptx
 lo-arc-validiert.pptx
 lo-bnc591147.pptx
+lo-bnc887225.pptx
 lo-connector-shape-animations.pptx
 lo-connectors.pptx
 lo-crop-to-shape.pptx
@@ -29,8 +30,11 @@ lo-narration-non-media-shape.pptx
 lo-narration.pptx
 lo-onemaster-twolayouts.pptx
 lo-picture-placeholder-custom-prompt.pptx
+lo-predefined-table-style.pptx
 lo-pres-with-notes.pptx
+lo-presetDashDot.pptx
 lo-shape-glow-effect.pptx
+lo-slide-section-test.pptx
 lo-slidenum_field.pptx
 lo-tdf103473.pptx
 lo-tdf103792.pptx
@@ -40,6 +44,7 @@ lo-tdf104445.pptx
 lo-tdf105150.pptx
 lo-tdf105739.pptx
 lo-tdf106867.pptx
+lo-tdf109067.pptx
 lo-tdf109187.pptx
 lo-tdf111518.pptx
 lo-tdf111863.pptx
@@ -59,8 +64,11 @@ lo-tdf126741.pptx
 lo-tdf127964.pptx
 lo-tdf128952.pptx
 lo-tdf130058.pptx
+lo-tdf134174.pptx
 lo-tdf134210.pptx
+lo-tdf137675.pptx
 lo-tdf140714.pptx
+lo-tdf144092-emptyShapeTextProps.pptx
 lo-tdf144917.pptx
 lo-tdf147459.pptx
 lo-tdf148478_transitionMusic.pptx
@@ -86,7 +94,9 @@ lo-tdf89064.pptx
 lo-tdf89449.pptx
 lo-tdf91060.pptx
 lo-tdf91999_rotateShape.pptx
+lo-tdf94238.pptx
 lo-tdf98477grow.pptx
+lo-tdf99030.pptx
 lo-tdfpictureplaceholder.pptx
 lo-trigger.pptx
 oox-connectorConnection.pptx
@@ -94,5 +104,10 @@ oox-curvedConnectors.pptx
 oox-elbowConnectors.pptx
 oox-endParaRPr-newline-textsize.pptx
 oox-gradient-multistep-transparency.pptx
+oox-tdf144742_funnel.pptx
+oox-tdf144742_mathEqual_mathNotEqual.pptx
+oox-tdf147978_enhancedPath_subpath.pptx
+oox-tdf163803_image_with_fill.pptx
 picture-transparency.pptx
 sample_pptx_grouping_issues.pptx
+table_test.pptx

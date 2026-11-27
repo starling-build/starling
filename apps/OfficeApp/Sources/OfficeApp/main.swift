@@ -562,6 +562,12 @@ if getenv("OFFICE_NOW") == nil, let table = getenv("OFFICE_NOW_TABLE"),
     }
 }
 
+// How long a headless --deck-pdf / --sheet-pdf export may take, in wall-clock seconds: OFFICE_PDF_TIMEOUT, else 120.
+// Sweeps raise it (pptx-app-render.sh): on a box at load 380 an 83-page deck needs more than 120 s of wall clock.
+func pdfExportSeconds() -> TimeInterval {
+    Double(ProcessInfo.processInfo.environment["OFFICE_PDF_TIMEOUT"] ?? "") ?? 120
+}
+
 // `--deck-pdf <in.pptx> <out.pdf>`: what File → Export → PDF would write,
 // without a window — this app's own drawing of every slide, for comparing
 // against PowerPoint's (test/pptx-app-render.sh).
@@ -578,11 +584,12 @@ if let i = CommandLine.arguments.firstIndex(of: "--deck-pdf"), i + 2 < CommandLi
         Task { @MainActor in
             done = await SlidesPdf.write(deck, cache: cache, to: dst, title: src.lastPathComponent)
         }
-        let deadline = Date().addingTimeInterval(120)
+        let deadline = Date().addingTimeInterval(pdfExportSeconds())
         while done == nil && Date() < deadline {
             RunLoop.main.run(mode: .default, before: Date().addingTimeInterval(0.02))
         }
         guard done == true else {
+            try? FileManager.default.removeItem(atPath: dst)   // a half-written PDF must not be scored as a render
             FileHandle.standardError.write("deck pdf failed: \(done == nil ? "timed out" : "could not write")\n".data(using: .utf8)!)
             exit(1)
         }
@@ -721,11 +728,12 @@ if let i = CommandLine.arguments.firstIndex(of: "--sheet-pdf"), i + 2 < CommandL
             done = await grid.writePdf(to: dst, title: src.lastPathComponent.deletingPathExtension, filePath: src,
                                        wholeBook: true, maxPages: cap)
         }
-        let deadline = Date().addingTimeInterval(120)
+        let deadline = Date().addingTimeInterval(pdfExportSeconds())
         while done == nil && Date() < deadline {
             RunLoop.main.run(mode: .default, before: Date().addingTimeInterval(0.02))
         }
         guard done == true else {
+            try? FileManager.default.removeItem(atPath: dst)   // a half-written PDF must not be scored as a render
             FileHandle.standardError.write("sheet pdf failed: \(done == nil ? "timed out" : "nothing to print, or could not write")\n".data(using: .utf8)!)
             exit(1)
         }
@@ -1292,6 +1300,11 @@ OfficeHost.browserRecovery = .init(
     keep: { kind, name, data in WebFiles.keepRecovery(kind: kind, name: name, data: data) },
     discard: { WebFiles.discardRecovery() },
     take: { kind in WebFiles.takeRecovery(kind: kind).map { ($0.name, $0.data) } })
+
+// Recent files: the page keeps each document opened or saved (web-parity item 3).
+OfficeHost.browserRecent = .init(names: { WebFiles.recentNames },
+                                 remember: { name, data in WebFiles.keepRecent(name, data) },
+                                 open: { name, done in WebFiles.openRecent(name, done) })
 #endif
 
 runStarlingApp(title: siteArg != nil ? "Site" : wikiBase != nil ? "Wiki" : initialKind.appName,

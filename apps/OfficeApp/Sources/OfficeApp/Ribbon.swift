@@ -1030,6 +1030,13 @@ final class Ribbon: StatelessWidget {
                              ("Two", { [session] in var p = session.sectionSetup(); p.columns = 2; session.onPageSetup?(p) }),
                              ("Three", { [session] in var p = session.sectionSetup(); p.columns = 3; session.onPageSetup?(p) })]),
             ]),
+            Chrome.gap(),
+            Chrome.rows([
+                Chrome.menu(Text("Breaks"), Icon(FluentSystemIcons.pageBreak, size: Chrome.iconSize,
+                                                 color: fluent.resources.textFillColorPrimary), fluent,
+                            [("Page", { c.insertPageBreak() }),
+                             ("Column", { c.insertColumnBreak() })]),
+            ]),
         ])
         let paragraph = Chrome.group("Paragraph", fluent, [
             Chrome.rows([

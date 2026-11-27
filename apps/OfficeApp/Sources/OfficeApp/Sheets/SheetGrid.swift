@@ -385,6 +385,12 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             let book = controller.book
             let m = SheetPrintMetrics.of(family: book.defaultFontName ?? OfficeFonts.defaultFamily, size: book.defaultFontSize ?? 11, bold: book.defaultFontBold, roman: book.defaultFontRoman,
                                          baseColWidth: Double(ws.formatPrAttrs["baseColWidth"] ?? "") ?? 8)
+            // (A set height is the face's own, never the Roman stand-in's: the stand-in fits only the rows nobody sized. ko-a7dce1c506.xls,
+            // a 새굴림 11 book whose rows all store heights, printed every row 1 % tall at the stand-in's scale and its text 7 pt low.)
+            let mSet = book.defaultFontRoman
+                ? SheetPrintMetrics.of(family: book.defaultFontName ?? OfficeFonts.defaultFamily, size: book.defaultFontSize ?? 11, bold: book.defaultFontBold,
+                                       baseColWidth: Double(ws.formatPrAttrs["baseColWidth"] ?? "") ?? 8)
+                : m
             let widths = Dictionary(uniqueKeysWithValues: ws.colWidths.map { ($0.key, $0.value == 0 ? 0 : m.column(Xlsx._widthChars(ws, $0.key, $0.value))) })
             // (Korean workbooks, whose Normal 맑은 고딕 is a theme font: rows nobody sized print at the stored default plus a quarter point when that is above the Calibri fit, in a sheet where no row stores a height (one that does is refitted whole to the Calibri fit: lab L4; ko-dfeb2506a1 and 25 more) — labs korow3, 17 prints 17.25 and 15 prints 15.25.)
             let ownFace = book.defaultFontOwnName != nil && !ws.customDefaultRowHeight && ws.defaultRowHeightPt > 0 && ws.rowHeights.isEmpty
@@ -406,8 +412,8 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             // (The 8-dots-a-point grid faces (`setOwnAt100`) take their own set rows in a fitted print too: 돋움 11's 28.5 pt rows
             // print 20.52 pt in ko-b5a9f60a80, fitted at 75 % (its columns 40.5 dots a character, 54's 75 %), 28.5 x 0.96 x 0.75, where
             // the fitted row's 0.988 made 21.12; all 18 fitted 돋움 11 books in the Korean set stood that 3 % tall.)
-            let setOwnNow = m.setOwn && (printSetScaled || (printing && m.setOwnAt100))
-            let setBase = setOwnNow ? m.setRowScale : m.rowScale
+            let setOwnNow = mSet.setOwn && (printSetScaled || (printing && mSet.setOwnAt100))
+            let setBase = setOwnNow ? mSet.setRowScale : mSet.rowScale
             let setScale = ws.hasView ? setBase : setBase / 2
             var heights = Dictionary(uniqueKeysWithValues: ws.rowHeights.compactMap { (r, h) -> (Int, Double)? in
                 let fit = ws.fittedRows.contains(r)
@@ -462,7 +468,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             // rows at the stored height in the printer's dots: 16.8 and 12.95 in Excel.)
             let installed = !ws.customDefaultRowHeight && ws.defaultRowHeightPt > 0 && SheetPrintMetrics.isInstalledUnmeasured(book.defaultFontName ?? OfficeFonts.defaultFamily)
             let unsized = installed ? SheetPrintMetrics.screenPixelRow(ws.defaultRowHeightPt)
-            : ws.customDefaultRowHeight ? SheetPrintMetrics.setRow(ws.defaultRowHeightPt, scale: m.rowScale)
+            : ws.customDefaultRowHeight ? SheetPrintMetrics.setRow(ws.defaultRowHeightPt, scale: mSet.rowScale)
                 : (ownFace ? max(blank, ownRow) : blank)
             // A merged cell that wraps is no part of its rows' fit:
             // bug66675's dates of Arial 12, merged across A:D, sit in rows

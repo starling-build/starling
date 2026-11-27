@@ -333,6 +333,20 @@ enum OfficeHost {
         var take: (_ kind: String) -> (name: String, data: Data)?
     }
 
+    /// The recent-files list of a browser tab, which has no paths: the page keeps each document opened or saved
+    /// (name and a copy of its bytes, newest 20) in its storage, and reopens it from there. Nil natively, where
+    /// the list is of paths on disk (`OfficeRecent`); the web build sets it from `WebFiles`, tests from a stand-in.
+    nonisolated(unsafe) static var browserRecent: BrowserRecent?
+
+    struct BrowserRecent {
+        /// The names, newest first.
+        var names: () -> [String]
+        /// A document opened or saved under `name`: it moves to the top with these bytes.
+        var remember: (_ name: String, _ data: Data) -> Void
+        /// The kept bytes of `name`, or nil when the page no longer has them; may answer later.
+        var open: (_ name: String, _ done: @escaping (Data?) -> Void) -> Void
+    }
+
     /// One button of the native toolbar over the on-screen keyboard. `symbol`
     /// is an SF Symbol name; state is a snapshot, re-published when it changes.
     struct ToolbarButton {

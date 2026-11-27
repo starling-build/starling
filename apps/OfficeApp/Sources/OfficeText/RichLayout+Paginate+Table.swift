@@ -119,6 +119,7 @@ extension RichLayout {
                 _pg_newPage(&pgs, document)
             }
         }
+        _pg_inFlowTableUnderFloat(&pgs, document, c)
         // A table floating by the text straight after another that does,
         // at an offset no higher than the first's, avoids it: it stands
         // 21.5pt lower than the first's foot puts it — lab fs1 (Word for
@@ -1526,6 +1527,41 @@ extension RichLayout {
         if (p.image.map { !wrapped($0) } ?? false) || p.inlineImages.inOrder.contains(where: { !wrapped($0) }) { return true }
         if p.image != nil || !p.inlineImages.isEmpty { return false }
         return pageY <= tableTop + 0.01
+    }
+
+
+    /// (An ordinary table cannot wrap round a table floating by the text: where its first row would stand
+    /// over a float's rows on the page, across the same stretch of the width, it starts under the float's
+    /// foot (and its bottomFromText), where the float is wholly on the page. dx2 e5b69263: the score table after the centred 491pt legend table
+    /// stands at 174.0 in Word's print, the float's foot; ours set it over the legend, at 96.6.)
+    func _pg_inFlowTableUnderFloat(_ pgs: inout _PState, _ document: RichDocument, _ c: _CellGeo) {
+        guard theme.wordRules, RichTextTheme.wordWindowsPages, c.row == 0, c.firstInRow, _tableFirstParagraph[c.table] == pgs.i,
+              pgs.besideTable == nil, let own = document.tableStyles[c.table], !own.floatsOverText, own.floatX == nil else { return }
+        let ownLeft = _tableLeft(c.table, document), ownRight = ownLeft + (_columnWidths[c.table] ?? []).reduce(0, +)
+        var rowBottom = c.rowTop + c.ownRowHeight
+        var k = pgs.i
+        while k < count, let d = _cells[k], d.table == c.table, d.row == 0 { rowBottom = max(rowBottom, d.rowTop + d.ownRowHeight); k += 1 }
+        let ownHeight = rowBottom - c.rowTop
+        var boxes: [String: (top: Double, bottom: Double)] = [:]
+        for piece in _pages[pgs.page] where !piece.repeated && piece.part != .text {
+            guard let d = _cells[piece.paragraph], d.table != c.table, let ts = document.tableStyles[d.table], ts.floatsOverText,
+                  piece.paragraph < _tops.count else { continue }
+            let top = piece.pageY - (_tops[piece.paragraph] - d.rowTop)
+            let bottom = top + d.ownRowHeight
+            let box = boxes[d.table] ?? (top, bottom)
+            boxes[d.table] = (min(box.top, top), max(box.bottom, bottom))
+        }
+        for table in boxes.keys.sorted() {
+            guard let box = boxes[table], let ts = document.tableStyles[table], let first = _tableFirstParagraph[table] else { continue }
+            // (Only a float wholly on this page: a row parted over two has no one box here.)
+            var members = 0, k = first
+            while k < count, _cells[k]?.table == table { members += 1; k += 1 }
+            guard _pages[pgs.page].filter({ _cells[$0.paragraph]?.table == table && !$0.repeated && $0.part == .all }).count == members else { continue }
+            let left = _tableLeft(table, document), right = left + (_columnWidths[table] ?? []).reduce(0, +)
+            guard left < ownRight - 0.01, right > ownLeft + 0.01, pgs.y < box.bottom - 0.01, pgs.y + ownHeight > box.top + 0.01 else { continue }
+            RuleTrace.hit("word-ordinary-table-over-a-floating-table-starts-under-it")
+            pgs.y = box.bottom + _px(ts.floatBottomGap ?? 0)
+        }
     }
 
 }

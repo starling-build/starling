@@ -197,7 +197,7 @@ if [ "$MODE" = full ] && [ "${GATE_SLIDES:-1}" = 1 ] && [ "${GATE_PREBUILD:-0}" 
   if [ -n "${CH:-}" ] && ! echo "$CH" | grep -vE '^(docs/|test/(tools|corpus)/|apps/[A-Za-z]+/Tests/|apps/OfficeApp/Sources/OfficeApp/Docx\.swift$|apps/OfficeApp/Sources/(OfficeApp|OfficeText)/WordWindowsFaces\.swift$)' | grep -vxF "$SHO" | grep -q .; then
     echo "render-gate: Slides step skipped (change touches only Word-reader, Sheets-only, docs or test-tool files)"
   else
-    SLIDES_ONLY=${GATE_RECHECK_DECKS:-} LQ=$LQ BASE_BIN=$BC/$BSHA/release/OfficeApp BASE_CACHE=$BC/$BSHA/slides test/tools/slides-gate.sh "$(ls "$W"/build/*/release/OfficeApp | head -1)" "${JOBS:-32}" > "$W/slides.out" 2>&1 & SLPID=$!
+    SLIDES_SCRATCH=$W/slides SLIDES_ONLY=${GATE_RECHECK_DECKS:-} LQ=$LQ BASE_BIN=$BC/$BSHA/release/OfficeApp BASE_CACHE=$BC/$BSHA/slides test/tools/slides-gate.sh "$(ls "$W"/build/*/release/OfficeApp | head -1)" "${JOBS:-32}" > "$W/slides.out" 2>&1 & SLPID=$!
   fi
 fi
 # Sheets PDF determinism (2026-11-24, amd-8): three books printed three times each in fresh processes must give the same bytes (a paint loop over a
@@ -211,7 +211,7 @@ fi
   BASEBIN=$BC/$BSHA/release/OfficeApp; [ "${GATE_WORD:-1}" != 1 ] || fill_rows; chmod -R g+rwX,o+rX "$BC/$BSHA" 2>/dev/null; echo "render-gate: base $BSHA cached"
   # the Slides BASE render too (amd-8, 2026-11-22): the same sweep the PR gate would otherwise draw for its base, cached per main sha + engine, so the PR gate draws only its own side
   if [ "${GATE_SLIDES:-1}" = 1 ] && [ "${GATE_WARM:-0}" != 1 ] && [ -x "$BASEBIN" ]; then
-    S0=$(date +%s); BASE_ONLY=1 LQ=$LQ BASE_BIN=$BASEBIN BASE_CACHE=$BC/$BSHA/slides test/tools/slides-gate.sh "$BASEBIN" "${JOBS:-32}" > "$W/slides-base.out" 2>&1; echo "render-gate: slides base $BSHA rendered in $(( $(date +%s)-S0 )) s ($(tail -1 "$W/slides-base.out" | cut -c1-120))"
+    S0=$(date +%s); SLIDES_SCRATCH=$W/slides BASE_ONLY=1 LQ=$LQ BASE_BIN=$BASEBIN BASE_CACHE=$BC/$BSHA/slides test/tools/slides-gate.sh "$BASEBIN" "${JOBS:-32}" > "$W/slides-base.out" 2>&1; echo "render-gate: slides base $BSHA rendered in $(( $(date +%s)-S0 )) s ($(tail -1 "$W/slides-base.out" | cut -c1-120))"
     chmod -R g+rwX,o+rX "$BC/$BSHA" 2>/dev/null
   fi
   # the Sheets BASE too (amd-8, 2026-11-23, coordinator): sheets-gate.sh BASE_ONLY writes $BC/$BSHA/sheets/per-book.tsv, so a PR gate never draws it (only 9 of 14 cached shas had it)

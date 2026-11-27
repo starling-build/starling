@@ -201,7 +201,8 @@ final class Backstage: StatelessWidget {
                 text: Text(path.lastPathComponent),
                 // The path as a trailing label took the row's whole width on a narrow screen and left the name a
                 // letter per line; the name is what a host with a browser shows.
-                trailing: _hasHostBrowser ? nil : Text(path.deletingLastPathComponent.displayPath,
+                // (A tab's entries are bare names, with no folder to show.)
+                trailing: _hasHostBrowser || path.lastPathComponent == path ? nil : Text(path.deletingLastPathComponent.displayPath,
                                style: fluent.typography.caption?.copyWith(color: fluent.resources.textFillColorSecondary))))
         }
         let templates: [Widget] = [

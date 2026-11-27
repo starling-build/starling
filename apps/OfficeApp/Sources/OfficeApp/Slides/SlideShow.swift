@@ -277,7 +277,12 @@ final class SlideShowState: State<StatefulWidget>, TickerProvider {
         }
         #if !os(WASI)
         guard let player = makeMediaPlayer() else { return }
+        #if os(iOS)
+        // (An app has no home directory to cache in: the sandbox's temporary folder holds the clip while it plays.)
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("starling-office-media")
+        #else
         let dir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".cache/starling-office/media")
+        #endif
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let file = dir.appendingPathComponent("clip-\(shape.id).\(clip.fileExtension)")
         guard (try? clip.data.write(to: file)) != nil else { return }
