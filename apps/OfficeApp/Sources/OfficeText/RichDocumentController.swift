@@ -3362,6 +3362,13 @@ public final class RichDocumentController: ChangeNotifier {
         _selectCells(rows: { 0 ... $0 }, columns: { 0 ... $0 })
     }
 
+    /// Select every cell of `table` wherever the caret is (its move handle was clicked).
+    public func selectTable(_ table: String) {
+        guard let i = document.paragraphs.firstIndex(where: { $0.cell?.table == table }) else { return }
+        moveTo(RichPosition(paragraph: i, offset: 0), extend: false)
+        selectTable()
+    }
+
     /// Insert an empty row above or below the caret's row.
     public func insertRow(below: Bool) {
         guard let here = document.paragraphs[selection.focus.paragraph].cell else { return }
