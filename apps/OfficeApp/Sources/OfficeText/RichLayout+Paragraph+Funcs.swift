@@ -680,7 +680,18 @@ extension _ParaFrame {
         @inline(never) func _blk3() {
         if theme.wordRules || theme.markersAtHang, !style.rightToLeft || theme.wordRules, p.text.utf16.contains(0x09) {
             let (probeSpan, probeInline, probeInserts) = _span(for: p, at: i, document, textWidth: textWidth, lead: lead)
-            let probe = TextPainter(text: probeSpan, textAlign: .left, textDirection: .ltr)
+            // (A paragraph ending in spaces and tabs: the probe's one line would end in whitespace, which the engine measures
+            // trimmed, every style run of it set from where the last letter ends. A word joiner after the text keeps it all on
+            // the line. dx2 e7b500c9's date line, "พ.ศ." and six dotted spaces in three runs, then three tabs: the tabs came
+            // 10.4 pt early, the third left the line; Word's print ends the spaces at 431.0 and keeps the three tabs.)
+            var probeText = probeSpan
+            if theme.wordRules, let last = p.text.unicodeScalars.last, last == " " || last == "\t" {
+                var leaf: TextStyle? = nil
+                _ = probeSpan.visitChildren { sp in if let ts = sp as? TextSpan, ts.text != nil { leaf = ts.style }; return true }
+                probeText = TextSpan(children: [probeSpan, TextSpan(text: "\u{2060}", style: (probeSpan.style ?? TextStyle()).merge(leaf))])
+                RuleTrace.hit("word-tab-probe-ends-past-the-trailing-whitespace")
+            }
+            let probe = TextPainter(text: probeText, textAlign: .left, textDirection: .ltr)
             if !probeInline.isEmpty { probe.setPlaceholderDimensions(probeInline.map { $0.dimensions }) }
             probe.layout(minWidth: 0, maxWidth: 10_000_000)
             let probeMap = _OffsetMap(lead: lead != 0 ? 1 : 0, inserts: probeInserts)
@@ -1036,8 +1047,18 @@ extension _ParaFrame {
                     measure(wraps)
                     return
                 }
-                if theme.wordRules, RichTextTheme.wordWindowsPages, !style.rightToLeft, t > 0, x > ownLeft + textWidth + 0.5, units[t - 1] == 0x09,
-                   units[t...].allSatisfy({ $0 == 0x09 }), !wraps.contains(t), !afterTabWraps.contains(t) {
+                // (Also a tab after a space, starting inside the margin, its left stop past it: the line breaks at that space.
+                // dx2 3578a03d's "คน" and six tabs with spaces among them, the last after a space at 399 pt, its stop at 432, the
+                // margin at 415.3: Word's print sets that tab on a line of its own, the next paragraph a line lower. A tab after a
+                // tab keeps its line, cut at the margin: xb ell-z20423699-e882cd's header "\t\t\t\t\t  ", the fifth from 468 pt
+                // to a stop at 504, the margin at 500.9; dx2 5101ed6e's "날짜\t\t", a stop at 538 past 533; Word's lines stay one. Body text
+                // only: xa gv-9fba5bc3b0's cell "Site Name: \t", the tab from 57.2 pt to a stop at 72 past the cell's 58, keeps its
+                // line in Word's print.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, !style.rightToLeft, t > 0,
+                   (x > ownLeft + textWidth + 0.5 && units[t - 1] == 0x09 && units[t...].allSatisfy({ $0 == 0x09 }))
+                    || (p.cell == nil && x < ownLeft + textWidth - 0.5 && stop.alignment == .left && stop.x > ownLeft + textWidth + 0.5
+                        && units[t - 1] == 0x20 && units[t...].allSatisfy({ $0 == 0x09 || $0 == 0x20 })),
+                   !wraps.contains(t), !afterTabWraps.contains(t) {
                     afterTabWraps.insert(t)
                     RuleTrace.hit("word-tab-run-ending-the-paragraph-restarts-its-stops-past-the-margin")
                     measure(wraps)

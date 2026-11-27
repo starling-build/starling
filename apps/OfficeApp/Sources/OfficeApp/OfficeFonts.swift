@@ -5579,9 +5579,10 @@ enum OfficeFonts {
                 #endif
             }
             if wordOnWindows, ["browallia new", "th sarabun new", "th sarabunit๙"].contains(family.trimmingWhitespace().lowercased()) || (wordOnWindows && laoMissingDeclared(family)) {
-            // Word for Windows prints these in Browallia New: hhea 1770/789 of 2048 (1.249 em).
-            face.naturalHeight = 1.249
-            face.baseline = 0.864
+            // Word for Windows prints these in Browallia New: hhea 1770/789 of 2048, exactly (1.249 em rounded lost 0.008 pt a 16 pt line,
+            // and dx2 4d5131ed's page 1 then held one empty line more than Word's: its foot at 769.74 under the 769.92 margin, Word's at 770.2).
+            face.naturalHeight = 2559.0 / 2048
+            face.baseline = 1770.0 / 2048
             // (Its bold has its own line: hhea 1786 + 885 of 2048 = 1.3042 em, ascent 0.872; Word steps 16pt bold lines 20.7 apart, ours 20.0.)
             face.boldHeight = 1.3042
             face.boldBaseline = 0.872
