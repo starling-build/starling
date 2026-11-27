@@ -256,6 +256,8 @@ enum WriterCharts {
         if RichDocumentController.floatReader == nil {
             RichDocumentController.floatReader = { xml in XNode.parse(Data(xml.utf8)).flatMap { DocxFormat._float($0) } }
         }
+        RichDocumentController.reviewer = { (DocProperties.userName(), DocProperties.stamp()) }
+        RichDocumentController.runPropertiesXML = { DocxFormat._rPrXML($0) }
         if RichDocumentController.groupChildEditor == nil {
             RichDocumentController.groupChildEditor = { image, child, change, parts in ShapeGroups.editChild(image, child: child, change, parts: parts) }
         }
