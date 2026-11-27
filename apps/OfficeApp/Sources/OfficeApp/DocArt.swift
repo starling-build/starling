@@ -94,24 +94,45 @@ enum DocArt {
     }
 
     /// The preset outline of a shape type, nil for the ones with no preset (WordArt, freeforms): drawing those as a box would be wrong.
+    /// (The OfficeArt shape types by number; a type was dropped unless it was one of the first dozen, so a .ppt's chevrons, braces,
+    /// callouts and flowchart boxes went missing. Types whose old outline has no preset of the same shape stay nil: the thick
+    /// arrow, balloon and seal, the arc, the leader callouts and the 90-degree callouts, and 100, which newer writers give their
+    /// own outlines too.)
     static func geometry(_ type: Int) -> String? {
         switch type {
         case 1, 75, 202: return "rect"
-        case 2: return "roundRect"
-        case 3: return "ellipse"
-        case 4: return "diamond"
-        case 5: return "triangle"
-        case 6: return "rtTriangle"
-        case 7: return "parallelogram"
-        case 8: return "trapezoid"
-        case 9: return "hexagon"
-        case 10: return "octagon"
-        case 11: return "plus"
-        case 13: return "rightArrow"
         case 20, 32: return "line"
-        default: return nil
+        case 109 ... 135:
+            return "flowChart" + ["Process", "Decision", "InputOutput", "PredefinedProcess", "InternalStorage", "Document",
+                                  "MultiDocument", "Terminator", "Preparation", "ManualInput", "ManualOperation", "Connector",
+                                  "PunchedCard", "PunchedTape", "SummingJunction", "Or", "Collate", "Sort", "Extract", "Merge",
+                                  "OfflineStorage", "OnlineStorage", "MagneticTape", "MagneticDisk", "MagneticDrum", "Display",
+                                  "Delay"][type - 109]
+        case 189 ... 200:
+            return "actionButton" + ["Blank", "Home", "Help", "Information", "ForwardNext", "BackPrevious", "End", "Beginning",
+                                     "Return", "Document", "Sound", "Movie"][type - 189]
+        default: return presets[type]
         }
     }
+
+    private static let presets: [Int: String] = [
+        2: "roundRect", 3: "ellipse", 4: "diamond", 5: "triangle", 6: "rtTriangle", 7: "parallelogram", 8: "trapezoid",
+        9: "hexagon", 10: "octagon", 11: "plus", 12: "star5", 13: "rightArrow", 15: "homePlate", 16: "cube", 21: "plaque",
+        22: "can", 23: "donut", 33: "bentConnector2", 34: "bentConnector3", 35: "bentConnector4", 36: "bentConnector5",
+        37: "curvedConnector2", 38: "curvedConnector3", 39: "curvedConnector4", 40: "curvedConnector5", 53: "ribbon",
+        54: "ribbon2", 55: "chevron", 56: "pentagon", 57: "noSmoking", 58: "star8", 59: "star16", 60: "star32",
+        61: "wedgeRectCallout", 62: "wedgeRoundRectCallout", 63: "wedgeEllipseCallout", 64: "wave", 65: "foldedCorner",
+        66: "leftArrow", 67: "downArrow", 68: "upArrow", 69: "leftRightArrow", 70: "upDownArrow", 71: "irregularSeal1",
+        72: "irregularSeal2", 73: "lightningBolt", 74: "heart", 76: "quadArrow", 77: "leftArrowCallout",
+        78: "rightArrowCallout", 79: "upArrowCallout", 80: "downArrowCallout", 81: "leftRightArrowCallout",
+        82: "upDownArrowCallout", 83: "quadArrowCallout", 84: "bevel", 85: "leftBracket", 86: "rightBracket",
+        87: "leftBrace", 88: "rightBrace", 89: "leftUpArrow", 90: "bentUpArrow", 91: "bentArrow", 92: "star24",
+        93: "stripedRightArrow", 94: "notchedRightArrow", 95: "blockArc", 96: "smileyFace", 97: "verticalScroll",
+        98: "horizontalScroll", 99: "circularArrow", 101: "uturnArrow", 102: "curvedRightArrow", 103: "curvedLeftArrow",
+        104: "curvedUpArrow", 105: "curvedDownArrow", 106: "cloudCallout", 107: "ellipseRibbon", 108: "ellipseRibbon2",
+        176: "flowChartAlternateProcess", 177: "flowChartOffpageConnector", 182: "leftRightUpArrow", 183: "sun",
+        184: "moon", 185: "bracketPair", 186: "bracePair", 187: "star4", 188: "doubleWave",
+    ]
 
     /// Whether a shape has something to draw: a preset outline, a freeform's own path, or WordArt text.
     static func drawable(_ s: ArtShape) -> Bool {
