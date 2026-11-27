@@ -354,7 +354,12 @@ enum DocxFormat {
         var keptCharacterStyles: [String: String] = [:]
         var keptTableStyles: [String: String] = [:]
         var keptCharacterStyleIds: [String: String] = [:]
-        if let styles = styleTree() {
+        // (A file with no styles part has no default table style either: lab nosetb, Word for Windows, no settings part or one
+        // without a mode, its stated 108-twip margin table's left rule on the page's margin and its text 5.4pt in, as with a
+        // styles part that names none; one naming Normal Table sets it out.)
+        let stylesPart = styleTree()
+        if stylesPart == nil { noDefaultTableStyle = true }
+        if let styles = stylesPart {
             _resolveThemeFonts(styles, theme)
             _followThaiAlternates(styles, thaiAlternates)
             _normaliseStyleIds(styles)
@@ -1945,6 +1950,12 @@ enum DocxFormat {
                     RuleTrace.hit("no-default-table-style-own-margin-not-set-out")
                     style.textOutdent = 0
                     style.notSetOut = true
+                }
+                // (… and so is one stating its own margin and no spacing: lab nosetb, 108-twip margins, rule on the margin, text 5.4pt in.
+                // Not one stating its own indent, which is measured to its text as ever: lo-b7c1b8df's tblInd 124 table, text at Word's 89.1.)
+                else if Self.wordOnWindows, noDefaultTableStyle, own.left != nil, styled.left == nil, node.first("w:tblPr")?.first("w:tblInd") == nil {
+                    RuleTrace.hit("no-default-table-style-own-margin-not-set-out")
+                    style.textOutdent = 0
                 }
                 // (… unless its first cell states its own: the table is set
                 // out by the margin of the cell whose text it lines up.
