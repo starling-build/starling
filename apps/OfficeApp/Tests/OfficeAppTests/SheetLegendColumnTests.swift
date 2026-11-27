@@ -70,6 +70,65 @@ extension SheetLegendColumnTests {
     }
 }
 
+extension SheetLegendColumnTests {
+    /// A row in a box the file places takes the side column's 21.2 pt key room, not the automatic row's 24.8: Excel's print of
+    /// de-418ab5a23d's line chart (367 pt wide) sets "Section 1" to "Section 6" three to a row of its 0.55-wide box, keys 67.6 apart.
+    /// (The box here is narrowed to 0.42 for the test face's narrower names: three entries fit it with 21.2 each, not with 24.8.)
+    func testAPlacedSheetRowOfLineKeysKeepsThreeEntriesToARow() throws {
+        let canvas = KeySpyCanvas()
+        canvas.minY = 0.8 * 355; canvas.minLength = 10
+        let legend = "<c:legend><c:legendPos val=\"b\"/><c:layout><c:manualLayout><c:xMode val=\"edge\"/><c:yMode val=\"edge\"/><c:x val=\"0.0309\"/><c:y val=\"0.8399\"/><c:w val=\"0.42\"/><c:h val=\"0.0922\"/></c:manualLayout></c:layout><c:overlay val=\"0\"/></c:legend>"
+        ChartPainter.paint(try chart(legend: legend, names: (1...6).map { "Section \($0)" }), canvas, Rect.fromLTWH(0, 0, 367.2, 355.3), pxPerPt: 0.75, theme: DeckTheme())
+        XCTAssertEqual(canvas.keys.count, 6)
+        XCTAssertEqual(Set(canvas.keys.map { ($0.y * 10).rounded() }).count, 2, "two rows of three")
+        for key in canvas.keys { XCTAssertEqual(key.length, 19.2, accuracy: 0.05) }
+    }
+
+    /// A line chart with a second line group on a value axis at the right: Excel's print of chart-axis_title_rotated draws the
+    /// group's entry with the same 19.2 pt key at the same x as the others, and ends the plot where the 7 pt keys left ours
+    /// (180.9): the axis's labels and title already stand off the legend, so the line key takes no more of the plot.
+    func testASecondAxisLineEntryTakesTheLineKeyAndThePlotKeepsItsRoom() throws {
+        let ns = "xmlns:c=\"http://schemas.openxmlformats.org/drawingml/2006/chart\" xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\""
+        func ser(_ i: Int) -> String {
+            "<c:ser><c:idx val=\"\(i)\"/><c:order val=\"\(i)\"/><c:tx><c:v>col\(i + 1)</c:v></c:tx><c:marker><c:symbol val=\"none\"/></c:marker><c:val><c:numRef><c:numCache><c:ptCount val=\"2\"/><c:pt idx=\"0\"><c:v>1</c:v></c:pt><c:pt idx=\"1\"><c:v>\(i + 2)</c:v></c:pt></c:numCache></c:numRef></c:val></c:ser>"
+        }
+        func xml(second: Bool) -> String {
+            let group2 = second
+                ? "<c:lineChart><c:grouping val=\"standard\"/>\(ser(2))<c:axId val=\"3\"/><c:axId val=\"4\"/></c:lineChart>"
+                : ""
+            let axes2 = second
+                ? "<c:catAx><c:axId val=\"3\"/><c:delete val=\"1\"/><c:axPos val=\"b\"/><c:crossAx val=\"4\"/></c:catAx><c:valAx><c:axId val=\"4\"/><c:axPos val=\"r\"/><c:crossAx val=\"3\"/><c:crosses val=\"max\"/></c:valAx>"
+                : ""
+            return """
+            <c:chartSpace \(ns)><c:chart><c:autoTitleDeleted val="1"/><c:plotArea><c:lineChart><c:grouping val="standard"/>\(ser(0))\(ser(1))\(second ? "" : ser(2))
+            <c:axId val="1"/><c:axId val="2"/></c:lineChart>\(group2)<c:catAx><c:axId val="1"/><c:axPos val="b"/><c:crossAx val="2"/></c:catAx><c:valAx><c:axId val="2"/><c:axPos val="l"/><c:crossAx val="1"/></c:valAx>\(axes2)</c:plotArea>
+            <c:legend><c:legendPos val="r"/><c:overlay val="0"/></c:legend></c:chart></c:chartSpace>
+            """
+        }
+        func paint(second: Bool) throws -> KeySpyCanvas {
+            var c = try XCTUnwrap(ChartXML.read(XCTUnwrap(XNode.parse(Data(xml(second: second).utf8))), color: { _ in nil }))
+            c.onSheet = true
+            if second { XCTAssertNotNil(c.secondValueAxis) }
+            let canvas = KeySpyCanvas()
+            canvas.minY = 0; canvas.minLength = 5
+            ChartPainter.paint(c, canvas, Rect.fromLTWH(0, 0, 382, 208.5), pxPerPt: 0.75, theme: DeckTheme())
+            canvas.keys = canvas.keys.filter { $0.x > 250 }
+            return canvas
+        }
+        let two = try paint(second: true), one = try paint(second: false)
+        XCTAssertEqual(two.keys.count, 3)
+        for key in two.keys {
+            XCTAssertEqual(key.length, 19.2, accuracy: 0.05, "the second group's entry has the line key too")
+            XCTAssertEqual(key.x, two.keys[0].x, accuracy: 0.01)
+        }
+        // Without the second axis the column takes the line key's 21.2 pt where the 7 pt key and 4 pt gap stood (10.2 more);
+        // with it the plot gives up only the axis's own room: the plot ends further from the keys by that room, not by it and 10.2.
+        let oneGap = try XCTUnwrap(one.keys.map(\.x).min()) - one.gridRight
+        let twoGap = try XCTUnwrap(two.keys.map(\.x).min()) - two.gridRight
+        XCTAssertLessThan(twoGap - oneGap, 10.2 - 1, "the line key's extra room is not taken twice")
+    }
+}
+
 /// Records the short horizontal strokes (legend keys).
 private final class KeySpyCanvas: Canvas {
     var keys: [(x: Double, y: Double, length: Double)] = []

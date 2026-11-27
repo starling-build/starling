@@ -3700,7 +3700,10 @@ enum ChartPainter {
             // Room before an entry's name.
             // (Beside a sheet's plot the column starts at the key, 2.1 pt before the name: chart-auto_marker_excel10's keys in
             // Excel's print 429.1 to 448.4, the names at 450.5, the plot ending 413.5.)
-            let lead = lineKeys && !beside ? 24.8 * lk : lineKeys && c.onSheet && box == nil ? 21.2 : key + gap
+            // (In a row the file places in a box of its own the sheet's key takes 21.2 as at the side, no 3.6 before it: de-418ab5a23d's
+            // lineChart legend in Excel's print, keys 19.2 long 67.6 apart, names 2.1 after them, three to a row of the 202.5 pt box.)
+            let lead = lineKeys && c.onSheet && box != nil && !beside ? 21.2
+                : lineKeys && !beside ? 24.8 * lk : lineKeys && c.onSheet && box == nil ? 21.2 : key + gap
             // (A sheet's row of line keys under the plot: 33.5 pt from one name's end to the next name at 9 pt, the key's 24.8 and
             // 8.7 between the entries: lab xl-legb's one-row legends in Excel's print, "Sales" ending 98.0, "North region" at 131.5.)
             if sheetRow, lineKeys, box == nil { spacing = 11.6 * k * m }
@@ -4135,7 +4138,9 @@ enum ChartPainter {
                     let sheetScatterKeys = c.onSheet && c.type == .scatter && c.series.contains { !$0.lineHidden } ? 10.2 * k : 0
                     // (A sheet line chart's column takes its 19.2 pt key and 2 pt gap the same way: chart-auto_marker_excel10's plot ends
                     // 413.5 in Excel's print, its keys from 429.1.)
-                    let sheetLineKeys = c.onSheet && lineKeys ? 21.2 - 11 * k * m : 0
+                    // (Not with a second value axis at the right: its labels and title already stand off the legend, chart-axis_title_rotated's
+                    // and chart-secondary_axis_title_default_rotation's plots end where the 7 pt keys left them in Excel's print, 180.9.)
+                    let sheetLineKeys = c.onSheet && lineKeys && c.secondValueAxis == nil ? 21.2 - 11 * k * m : 0
                     let measured = (entries.map { tightW($0.tp) }.max() ?? 0) + 11 * k * m + sheetScatterKeys + sheetLineKeys
                     // (A Word pie's legend at the right takes at most a third of the frame and 9 pt (129 pt of 360,
                     // 169 of 480): names past 28 characters move the pie no further, lab piesize4's legr docs.)
@@ -4226,8 +4231,8 @@ enum ChartPainter {
             }
             // (A sheet's legend in a box of its own, one entry to a row, stands as one column set left, its keys at one x: the key and
             // the widest line (a wrapped name's widest) centred 2.8 pt right of the box's middle, as one block. ja-7d50affe6a's three
-            // placed legends in Excel's print, 8 and 9 pt, keys 1.55 to 1.65 pdf (0.569 a point) right of centred, each line its own.)
-            let sheetBoxColumnW: Double? = c.onSheet && box != nil && !pie && lines.count > 1 && lines.allSatisfy { $0.count == 1 }
+            // placed legends in Excel's print, 8 and 9 pt, keys 1.55 to 1.65 pdf (0.569 a point) right of centred, each line its own. Line keys only: xls-25b85219f5's bar legend in Excel's print stands as ours did before.)
+            let sheetBoxColumnW: Double? = c.onSheet && box != nil && !pie && lineKeys && lines.count > 1 && lines.allSatisfy { $0.count == 1 }
                 ? lines.map { $0.reduce(0.0) { $0 + lead + ($1.tp.computeLineMetrics().map { $0.width }.max() ?? $1.tp.width) } }.max() : nil
             let sheetKeyLead = lineKeys ? 21.2 * lk : lead
             func startX(_ w: Double) -> Double {
@@ -4313,6 +4318,19 @@ enum ChartPainter {
                         let l = c.lineSeries[e.i - c.series.count]
                         let colour = l.color ?? c.color(series: e.i, accents: theme.accents)
                         let mid = Offset(x + key / 2, sheetGridSlot != nil ? y + (e.tp.computeLineMetrics().first.map { $0.height } ?? textH) / 2 : y + lineH / 2)
+                        // (A sheet line chart's combination line has the series' own key, 19.2 pt and 2.25 wide ending 2 before its name:
+                        // chart-axis_title_rotated's col1 in Excel's print, its key 235.2 to 254.4 under col2's and col3's.)
+                        if c.onSheet, lineKeys, !l.lineHidden {
+                            RuleTrace.hit("sheet-combination-line-entry-takes-the-line-key")
+                            p.style = .stroke
+                            p.strokeWidth = 2.25 * lk
+                            p.color = colour
+                            canvas.drawLine(Offset(x + lead - 21.2 * lk, keyY), Offset(x + lead - 2 * lk, keyY), p)
+                            Self._mark(l, at: Offset(x + lead - 11.6 * lk, keyY), k: lk, colour: colour, canvas)
+                            e.tp.paint(canvas, Offset(x + lead, sheetGridSlot != nil ? y : y + (lineH - e.tp.height) / 2))
+                            x += sheetGridW ?? wordGridPitch ?? (lead + e.tp.width + spacing)
+                            continue
+                        }
                         if !l.lineHidden {
                             p.style = .stroke
                             p.strokeWidth = 2.25 * k
