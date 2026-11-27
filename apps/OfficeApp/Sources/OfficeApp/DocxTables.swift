@@ -22,9 +22,6 @@ import FoundationXML
 // Part of the .docx reader/writer (split from Docx.swift, members unchanged).
 
 extension DocxFormat {
-    /// The paragraphs of an HTML chunk: its text, split where a block
-    /// element (p, div, h1-h6, li, tr, br) starts, tags and head dropped,
-    /// the common entities read, runs of white space one space.
     /// The body of a Word document that stands as an alt-chunk.
     static func _innerBody(_ archive: Data) -> XNode? {
         guard let entries = try? Zip.read(archive),
@@ -33,14 +30,31 @@ extension DocxFormat {
         return root.first("w:body")
     }
 
-    static func _htmlParagraphs(_ html: String) -> [String] {
-        var out: [String] = []
+    /// The paragraphs of an HTML chunk: its text, split where a block
+    /// element (p, div, h1-h6, li, tr, br) starts, tags and head dropped,
+    /// the common entities read, runs of white space one space. A picture
+    /// Word cannot load (an `img` whose `src` is not inline data: on the web
+    /// or beside the file) stands as `HtmlMissingPicture.mark` in the text,
+    /// its size (pt, from its width/height in px) in `pictures`, in order.
+    static func _htmlParagraphs(_ html: String) -> [(text: String, pictures: [(w: Double?, h: Double?)])] {
+        var out: [(text: String, pictures: [(w: Double?, h: Double?)])] = []
         var cur = ""
+        var pictures: [(w: Double?, h: Double?)] = []
         var skip = false
         func end() {
             let t = cur.split(whereSeparator: { $0 == " " || $0 == "\n" || $0 == "\r" || $0 == "\t" }).joined(separator: " ")
-            if !t.isEmpty { out.append(t) }
+            if !t.isEmpty { out.append((t, pictures)) }
             cur = ""
+            pictures = []
+        }
+        func attr(_ tag: Substring, _ name: String) -> String? {
+            guard let r = tag.rangeOfSubstring(" " + name + "=") else { return nil }
+            var v = tag[r.upperBound...]
+            if let q = v.first, q == "\"" || q == "'" {
+                v = v.dropFirst()
+                return String(v.prefix(while: { $0 != q }))
+            }
+            return String(v.prefix(while: { $0 != " " && $0 != "/" }))
         }
         var i = html.startIndex
         while i < html.endIndex {
@@ -48,6 +62,11 @@ extension DocxFormat {
                 let tag = html[html.index(after: i) ..< close].lowercased()
                 let name = tag.drop(while: { $0 == "/" || $0 == " " }).prefix(while: { $0 != " " && $0 != "/" }).description
                 if ["head", "style", "script", "title"].contains(name) { skip = !tag.hasPrefix("/") }
+                else if name == "img", !skip, let src = attr(Substring(tag), "src"), !src.lowercased().hasPrefix("data:") {
+                    func pt(_ a: String) -> Double? { attr(Substring(tag), a).flatMap { Double($0) }.map { $0 * 0.75 } }
+                    cur.append(HtmlMissingPicture.mark)
+                    pictures.append((pt("width"), pt("height")))
+                }
                 else if ["p", "div", "br", "li", "tr", "h1", "h2", "h3", "h4", "h5", "h6", "table", "ul", "ol", "pre"].contains(name) { end() }
                 i = html.index(after: close)
                 continue
@@ -2675,4 +2694,35 @@ extension DocxFormat {
         }
         return "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<w:numbering xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" xmlns:mc=\"http://schemas.openxmlformats.org/markup-compatibility/2006\" xmlns:w14=\"http://schemas.microsoft.com/office/word/2010/wordml\" xmlns:w15=\"http://schemas.microsoft.com/office/word/2012/wordml\" mc:Ignorable=\"w14 w15\"><w:abstractNum w:abstractNumId=\"0\"><w:multiLevelType w:val=\"hybridMultilevel\"/>\(bulletLevels)</w:abstractNum><w:abstractNum w:abstractNumId=\"1\"><w:multiLevelType w:val=\"hybridMultilevel\"/>\(decimalLevels)</w:abstractNum>\(extraAbstract)<w:num w:numId=\"\(bulletId)\"><w:abstractNumId w:val=\"0\"/></w:num><w:num w:numId=\"\(decimalId)\"><w:abstractNumId w:val=\"1\"/></w:num>\(extraNums)</w:numbering>"
     }
+}
+
+/// The box Word stands in an HTML chunk's line for a picture it cannot load:
+/// 24 pt (32 px) square unless the `img` gives its size, white, edged in a
+/// hairline, a small broken-picture mark (grey corner, red dot) at its top
+/// left (dx4j-d5b6ee0cfa's chunk63, src on an unreachable host: Word prints
+/// the page at 75%, the box 18 by 18 pt there, on page 3).
+/// Word also prints a few words in that box, small, as outlines; they are
+/// not drawn here.
+enum HtmlMissingPicture {
+    /// The element a chunk's run holds in its place (attributes w, h in pt).
+    static let element = "starling:missingPicture"
+    /// Where it stands in a chunk paragraph's text.
+    static let mark: Character = "\u{FFFC}"
+    static let side = 24.0
+    static let png: Data = {
+        let n = 96, scale = Double(n) / side
+        var px = [UInt8](repeating: 255, count: n * n * 4)
+        func set(_ x: Int, _ y: Int, _ r: UInt8, _ g: UInt8, _ b: UInt8) {
+            guard x >= 0, y >= 0, x < n, y < n else { return }
+            let o = (y * n + x) * 4
+            px[o] = r; px[o + 1] = g; px[o + 2] = b; px[o + 3] = 255
+        }
+        for i in 0 ..< n { set(i, 0, 0, 0, 0); set(i, n - 1, 0, 0, 0); set(0, i, 0, 0, 0); set(n - 1, i, 0, 0, 0) }
+        // The mark: a grey corner 2.3 pt wide from (1.1, 1.2) pt, a red dot inside it.
+        let x0 = Int(1.1 * scale), y0 = Int(1.2 * scale), s = Int(2.3 * scale), t = max(2, Int(0.6 * scale))
+        for a in 0 ..< s { for b in 0 ..< t { set(x0 + a, y0 + b, 128, 128, 128); set(x0 + b, y0 + a, 128, 128, 128) } }
+        let d = x0 + t + (s - t) / 2
+        for a in -1 ... 1 { for b in -1 ... 1 { set(d + a, d + b, 220, 0, 0) } }
+        return MediaPoster.encode(px, width: n, height: n)
+    }()
 }
