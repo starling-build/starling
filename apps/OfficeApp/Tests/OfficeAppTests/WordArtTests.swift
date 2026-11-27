@@ -219,4 +219,74 @@ final class WordArtTests: XCTestCase {
         XCTAssertEqual(scene("<a:scene3d><a:camera prst=\"orthographicFront\"><a:rot lat=\"0\" lon=\"0\" rev=\"5400000\"/></a:camera></a:scene3d>")?.isFlatTurn, true)
         XCTAssertNil(scene("<a:solidFill><a:srgbClr val=\"FF0000\"/></a:solidFill>"))
     }
+
+    /// A picture on a face turned in perspective fills the whole face: pt-5101732f0a slide 25
+    /// (perspectiveFront at an 85 deg lens, turned 35 deg) prints the photo to all four corners,
+    /// where a map fitted to three corners left the near one bare.
+    func testAPictureFillsItsPerspectiveTurnedFace() throws {
+        var scene = try XCTUnwrap(Extrusion.read(XNode.parse(Data(("<p:spPr xmlns:p=\"p\" \(ns)><a:scene3d><a:camera prst=\"perspectiveFront\" fov=\"5100000\">"
+            + "<a:rot lat=\"0\" lon=\"2100000\" rev=\"0\"/></a:camera><a:lightRig rig=\"flood\" dir=\"t\"/></a:scene3d><a:sp3d extrusionH=\"107950\"/></p:spPr>").utf8)), colors: colors))
+        scene.material = ""  // (a material grows the printed box by under a point; not what this checks)
+        let r = Rect.fromLTWH(110, 100, 422, 283)
+        let outline = Path(); outline.addRect(r)
+        let spy = FaceSpyCanvas()
+        var placed: [Double]?, faceClip: Rect?
+        XCTAssertTrue(Extrusion.solid(scene: scene, fill: Color(0xFFFFFFFF), line: nil, lineWidth: 0, outline: outline, r, spy, pxPerPt: 1, onFront: { placed = spy.last; faceClip = spy.clip }))
+        let m = try XCTUnwrap(placed), face = try XCTUnwrap(faceClip)
+        // Each corner of the frame, through the canvas matrix, lands on a corner of the face's outline
+        // (to a point: the outline is walked in steps of about 2 pt, which can cut a corner short).
+        var lo = Offset(.infinity, .infinity), hi = Offset(-.infinity, -.infinity)
+        for p in [Offset(r.left, r.top), Offset(r.right, r.top), Offset(r.left, r.bottom), Offset(r.right, r.bottom)] {
+            let w = m[3] * p.dx + m[7] * p.dy + m[15]
+            let x = (m[0] * p.dx + m[4] * p.dy + m[12]) / w, y = (m[1] * p.dx + m[5] * p.dy + m[13]) / w
+            lo = Offset(min(lo.dx, x), min(lo.dy, y)); hi = Offset(max(hi.dx, x), max(hi.dy, y))
+        }
+        XCTAssertEqual(lo.dx, face.left, accuracy: 1); XCTAssertEqual(lo.dy, face.top, accuracy: 1)
+        XCTAssertEqual(hi.dx, face.right, accuracy: 1); XCTAssertEqual(hi.dy, face.bottom, accuracy: 1)
+    }
+}
+
+/// Keeps the last canvas matrix and the last clip, for a face's picture.
+private final class FaceSpyCanvas: Canvas {
+    var last: [Double]?
+    var clip: Rect?
+    func save() {}
+    func saveLayer(_ bounds: Rect?, _ paint: Paint) {}
+    func restore() {}
+    func restoreToCount(_ count: Int) {}
+    func getSaveCount() -> Int { 1 }
+    func translate(_ dx: Double, _ dy: Double) {}
+    func scale(_ sx: Double, _ sy: Double?) {}
+    func rotate(_ radians: Double) {}
+    func skew(_ sx: Double, _ sy: Double) {}
+    func transform(_ matrix4: [Double]) { last = matrix4 }
+    func getTransform() -> [Double] { [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1] }
+    func clipRect(_ rect: Rect, clipOp: ClipOp, doAntiAlias: Bool) {}
+    func clipRRect(_ rrect: RRect, doAntiAlias: Bool) {}
+    func clipRSuperellipse(_ rsuperellipse: RSuperellipse, doAntiAlias: Bool) {}
+    func clipPath(_ path: Path, doAntiAlias: Bool) { clip = path.getBounds() }
+    func getLocalClipBounds() -> Rect { Rect.fromLTWH(-1e6, -1e6, 2e6, 2e6) }
+    func getDestinationClipBounds() -> Rect { Rect.fromLTWH(-1e6, -1e6, 2e6, 2e6) }
+    func drawColor(_ color: Color, _ blendMode: BlendMode) {}
+    func drawLine(_ p1: Offset, _ p2: Offset, _ paint: Paint) {}
+    func drawPaint(_ paint: Paint) {}
+    func drawRect(_ rect: Rect, _ paint: Paint) {}
+    func drawRRect(_ rrect: RRect, _ paint: Paint) {}
+    func drawDRRect(_ outer: RRect, _ inner: RRect, _ paint: Paint) {}
+    func drawRSuperellipse(_ rsuperellipse: RSuperellipse, _ paint: Paint) {}
+    func drawOval(_ rect: Rect, _ paint: Paint) {}
+    func drawCircle(_ c: Offset, _ radius: Double, _ paint: Paint) {}
+    func drawArc(_ rect: Rect, _ startAngle: Double, _ sweepAngle: Double, _ useCenter: Bool, _ paint: Paint) {}
+    func drawPath(_ path: Path, _ paint: Paint) {}
+    func drawImage(_ image: Image, _ offset: Offset, _ paint: Paint) {}
+    func drawImageRect(_ image: Image, _ src: Rect, _ dst: Rect, _ paint: Paint) {}
+    func drawImageNine(_ image: Image, _ center: Rect, _ dst: Rect, _ paint: Paint) {}
+    func drawPicture(_ picture: any FlutterSwiftBridge.Picture) {}
+    func drawParagraph(_ paragraph: any Paragraph, _ offset: Offset) {}
+    func drawPoints(_ pointMode: PointMode, _ points: [Offset], _ paint: Paint) {}
+    func drawRawPoints(_ pointMode: PointMode, _ points: [Float], _ paint: Paint) {}
+    func drawVertices(_ vertices: Vertices, _ blendMode: BlendMode, _ paint: Paint) {}
+    func drawAtlas(_ atlas: Image, _ transforms: [RSTransform], _ rects: [Rect], _ colors: [Color]?, _ blendMode: BlendMode?, _ cullRect: Rect?, _ paint: Paint) {}
+    func drawRawAtlas(_ atlas: Image, _ rstTransforms: [Float], _ rects: [Float], _ colors: [Int32]?, _ blendMode: BlendMode?, _ cullRect: Rect?, _ paint: Paint) {}
+    func drawShadow(_ path: Path, _ color: Color, _ elevation: Double, _ transparentOccluder: Bool) {}
 }

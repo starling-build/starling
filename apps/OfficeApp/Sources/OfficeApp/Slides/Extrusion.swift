@@ -943,7 +943,14 @@ enum Extrusion {
             for ring in front { clip.addPolygon(ring.map(flat), true) }
             // (Text is not clipped to its own face: its glow and shadow lie outside the letters.)
             if clipFront { canvas.clipPath(clip) }
-            canvas.transform([a, b, 0, 0, cc, d, 0, 0, 0, 0, 1, 0, e, f, 0, 1])
+            // Under a perspective camera the face tapers, so three corners do not place the fourth:
+            // the picture takes the face's own perspective map, as its text does (pt-5101732f0a
+            // slide 25, a picture turned 35 deg at an 85 deg lens, fills its whole face in PowerPoint's print).
+            if let m = frontTransform(scene, center: c, pxPerPt: px), m[3] != 0 || m[7] != 0 {
+                canvas.transform(m)
+            } else {
+                canvas.transform([a, b, 0, 0, cc, d, 0, 0, 0, 0, 1, 0, e, f, 0, 1])
+            }
             onFront()
             canvas.restore()
         }
