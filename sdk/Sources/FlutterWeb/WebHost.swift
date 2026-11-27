@@ -472,6 +472,13 @@ func starlingDebug(
     return out
 }
 
+/// The page's tab was hidden or is closing (`visibilitychange`, `pagehide`).
+@_expose(wasm, "starling_page_hidden")
+@_cdecl("starling_page_hidden")
+func starlingPageHidden() {
+    hostPageHidden?()
+}
+
 @_expose(wasm, "starling_alloc")
 @_cdecl("starling_alloc")
 func starlingAlloc(_ byteCount: Int32) -> UnsafeMutableRawPointer? {
