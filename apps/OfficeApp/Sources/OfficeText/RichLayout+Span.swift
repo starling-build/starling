@@ -1423,7 +1423,21 @@ extension RichLayout {
                     // (The number's ascent over the text's is measured at the number's OWN size when it sets one, smaller or not: lab lblcal1 G,
                     // a 9pt Calibri number over 11pt Times stands level with a plain item in Word's print.)
                     let numberSize = _levelNumberSize(p, document).map { _px($0) * fontScale } ?? size
-                    if let numberBase = theme.faceResolver?(family, false)?.baseline, let textBase = theme.faceResolver?(textFace, false)?.baseline,
+                    // (Where Word's table knows both faces, their Windows ascents with external leading: a Calibri 11 hyphen over Arial 11
+                    // stands 12.80 to the next item in Word's print (lab blift cal11), 0.15 over Arial's 12.65, where the resolver's
+                    // Calibri baseline 0.9625 made 12.95.)
+                    var numberChar = firstLook
+                    numberChar.fontSize = _levelNumberSize(p, document) ?? firstLook.fontSize
+                    // (A right-to-left paragraph draws its number in its complex-script face, not the w:ascii one read here: it keeps the
+                    // resolver's baselines — dx2 332dea9a's Arial dashes in Persian items over B Nazanin.)
+                    if let textFace, RichTextTheme.wordWindowsPages, !p.style.rightToLeft,
+                       let numberUp = _wordFaceAscent(family, numberChar, p, named, document, scale, fontScale, natural: true),
+                       let textUp = _wordFaceAscent(textFace, firstLook, p, named, document, scale, fontScale, natural: true) {
+                        if numberUp - textUp > 0.5 {
+                            RuleTrace.hit("word-number-face-taller-above-the-baseline-lifts-the-first-line")
+                            rise = numberUp
+                        }
+                    } else if let numberBase = theme.faceResolver?(family, false)?.baseline, let textBase = theme.faceResolver?(textFace, false)?.baseline,
                        numberBase * numberSize - textBase * size > 0.5 {
                         RuleTrace.hit("word-number-face-taller-above-the-baseline-lifts-the-first-line")
                         rise = numberBase * numberSize
@@ -3276,19 +3290,27 @@ extension RichLayout {
     /// Arial 0.938 em, Times 0.9335, Calibri 0.952 (lab blift: hyphen bullets in each face over Arial 11). nil where the face's
     /// Windows metrics are not known.
     func _wordFaceAscent(_ family: String, _ char: CharStyle, _ p: RichParagraph, _ named: RichNamedStyle?, _ document: RichDocument,
-                         _ scale: Double, _ fontScale: Double) -> Double? {
+                         _ scale: Double, _ fontScale: Double, natural: Bool = false) -> Double? {
         guard let box = theme.winLineBox?(family), let share = theme.winDescent?(family), box > 0 else { return nil }
         var look = char
         look.fontFamily = family
         let style = theme.textStyle(for: look, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale)
         guard let size = style.fontSize, size > 0.5 else { return nil }
         // (The probe's line keeps the paragraph's spacing, as the caller's text probe does: a multiple over single adds above.)
-        let probe = TextPainter(text: TextSpan(text: "x", style: style), textDirection: .ltr)
+        // (`natural`: the face's own line, no spacing.)
+        let probe = TextPainter(text: TextSpan(text: "x", style: natural ? TextStyle(fontSize: size, fontWeight: style.fontWeight, fontStyle: style.fontStyle,
+                                                                                    fontFamily: style.fontFamily) : style), textDirection: .ltr)
         probe.layout(minWidth: 0, maxWidth: .infinity)
         let line = probe.computeLineMetrics().first?.height
         probe.dispose()
         guard let line else { return nil }
-        let above = (box * (1 - share) + max(0, line / size - box)) * size
+        // (The ascent is the face's own Windows ascent where known: the box may be the stand-in file's, and its split by the
+        // descent share then misplaces it — Tahoma's 1.0005 came out 0.959, Segoe UI's 1.079 as 0.939.)
+        // (The leading above it is what the line holds beyond the face's own win box, the same table's ascent and descent: sa1
+        // 508b647e's Tahoma dashes over Times 12 stand 0.8 over a plain line in Word's print, the stand-in's box made 1.6.)
+        let ascent = theme.winAscent?(family) ?? box * (1 - share)
+        let ownBox = theme.winAscent?(family).map { share < 1 ? $0 / (1 - share) : box } ?? box
+        let above = (ascent + max(0, line / size - ownBox)) * size
         return above
     }
 }
