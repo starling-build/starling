@@ -2,16 +2,16 @@
 # Run with OFFICE_FILE=lab/forms1/start.docx (amd-5's checkout; "Legacy off:" box, "Legacy on:" box ticked by default,
 # "Control:" a check box control), window 1440x932. Delete any start.docx~ first.
 # Harness points at 1440x932, from DocxTests.testFormCheckBoxesClickedOnceEach (FORMS1_OUT writes them):
-# Legacy off box 484,356; Legacy on box 483,386; Control box 466,411.
+# Legacy off box 484,353; Legacy on box 483,383; Control box 466,411 (the middles of the drawn boxes).
 # Every click is followed by a picture, so a miss shows at once.
 wait 1500
 shot ${OUT}/fm-00-start.png
 # The first legacy box gets its X; the caret does not land inside the field.
-click 484 356
+click 484 353
 wait 300
 shot ${OUT}/fm-01-legacy-ticked.png
 # The second (ticked by default) is cleared.
-click 483 386
+click 483 383
 wait 300
 shot ${OUT}/fm-02-legacy-cleared.png
 # The content control's ballot box becomes the checked one.
