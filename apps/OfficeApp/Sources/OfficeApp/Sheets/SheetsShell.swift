@@ -544,6 +544,9 @@ final class SheetsShellState: State<StatefulWidget> {
             setState { _consOpen = true }
         case .fillSeries:
             setState { _seriesOpen = true }
+        case .flashFill:
+            if let m = wb.flashFill() { _flash(m) }
+            _grid?.focus.requestFocus()
         case .goToSpecial:
             setState { _goToSpecialOpen = true }
         case .scenarioManager:
@@ -1917,6 +1920,7 @@ final class SheetsShellState: State<StatefulWidget> {
     ]
 
     private func _showPasteOptions(at point: Offset) {
+        if wb.pasteOptions == nil, wb.fillOptions != nil { _showFillOptions(at: point); return }
         guard let context, let last = wb.pasteOptions else { return }
         let items: [MenuFlyoutItemBase] = Self.pasteOptionChoices.map { label, how in
             ToggleMenuFlyoutItem(text: Text(label, key: ValueKey("paste-options.\(label)")), isChecked: last.how == how,
@@ -1924,6 +1928,37 @@ final class SheetsShellState: State<StatefulWidget> {
                                      self?.wb.repaste(how)
                                      self?._grid?.focus.requestFocus()
                                  })
+        }
+        _contextMenu.showFlyout(in: context, at: point) { _ in MenuFlyout(items: items) }
+    }
+
+    /// Excel's Auto Fill Options button menu (X-FI-1): the last fill made again another way, in one undo step;
+    /// after a Flash Fill, Undo Flash Fill, Accept Suggestions and Select all N changed cells.
+    private func _showFillOptions(at point: Offset) {
+        guard let context, let last = wb.fillOptions else { return }
+        var items: [MenuFlyoutItemBase] = []
+        if last.how == .flash {
+            items.append(MenuFlyoutItem(text: Text("Undo Flash Fill", key: ValueKey("fill-options.undo")), onPressed: { [weak self] in
+                self?.wb.undoFlashFill(); self?._grid?.focus.requestFocus()
+            }))
+            items.append(MenuFlyoutItem(text: Text("Accept Suggestions", key: ValueKey("fill-options.accept")), onPressed: { [weak self] in
+                self?.wb.lastFill = nil; self?.setState {}; self?._grid?.focus.requestFocus()
+            }))
+            let n = last.changed.count
+            items.append(MenuFlyoutItem(text: Text("Select all \(n) changed cells", key: ValueKey("fill-options.select")), onPressed: { [weak self] in
+                guard let self else { return }
+                self.wb.select(ranges: WorkbookController.rectangles(Set(last.changed)), active: last.changed[0])
+                self._grid?.focus.requestFocus()
+            }))
+        } else {
+            let ticked = wb.fillTicked(last)
+            items = WorkbookController.fillChoices(last).map { label, how in
+                ToggleMenuFlyoutItem(text: Text(label, key: ValueKey("fill-options.\(label)")), isChecked: ticked == how,
+                                     onChanged: { [weak self] _ in
+                                         self?.wb.refill(how)
+                                         self?._grid?.focus.requestFocus()
+                                     })
+            }
         }
         _contextMenu.showFlyout(in: context, at: point) { _ in MenuFlyout(items: items) }
     }

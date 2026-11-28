@@ -1273,10 +1273,21 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
     }
 
     /// Excel's Paste Options button: just below and right of what the last paste filled, until the cells change.
+    /// After a fill-handle fill it is the Auto Fill Options button there instead, and after a Flash Fill it sits
+    /// beside the first cell filled (X-FI-1).
     func pasteButton() -> Rect? {
         let c = controller
-        guard !printing, edit == nil, c.selectedDrawing == nil, let l = c.pasteOptions else { return nil }
-        let r = rect(l.range.bottomRight)
+        guard !printing, edit == nil, c.selectedDrawing == nil else { return nil }
+        if let l = c.pasteOptions {
+            let r = rect(l.range.bottomRight)
+            return Rect.fromLTWH(r.right + 2, r.bottom + 2, 24, 20)
+        }
+        guard let f = c.fillOptions else { return nil }
+        if f.how == .flash, let first = f.changed.first {
+            let r = rect(first)
+            return Rect.fromLTWH(r.right + 2, r.top, 24, 20)
+        }
+        let r = rect(f.source.union(f.target).bottomRight)
         return Rect.fromLTWH(r.right + 2, r.bottom + 2, 24, 20)
     }
 
@@ -1295,8 +1306,17 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         line.strokeWidth = 1
         line.color = ink
         let x = b.left.rounded() + 4.5, y = b.top.rounded() + 4.5
-        canvas.drawRect(Rect.fromLTWH(x, y, 10, 12), line)
-        canvas.drawRect(Rect.fromLTWH(x + 3, y - 1, 4, 2), line)
+        if controller.pasteOptions == nil {
+            // Auto Fill Options: a small grid of cells, the lower ones filled.
+            canvas.drawRect(Rect.fromLTWH(x, y, 10, 11), line)
+            canvas.drawLine(Offset(x, y + 5.5), Offset(x + 10, y + 5.5), line)
+            canvas.drawLine(Offset(x + 5, y), Offset(x + 5, y + 11), line)
+            fill.color = ink
+            canvas.drawRect(Rect.fromLTWH(x, y + 5.5, 10, 5.5), fill)
+        } else {
+            canvas.drawRect(Rect.fromLTWH(x, y, 10, 12), line)
+            canvas.drawRect(Rect.fromLTWH(x + 3, y - 1, 4, 2), line)
+        }
         let tri = Path()
         let cx = b.right - 5, cy = b.center.dy
         tri.moveTo(cx - 2.5, cy - 1.5); tri.lineTo(cx + 2.5, cy - 1.5); tri.lineTo(cx, cy + 1.5); tri.close()
@@ -1688,6 +1708,9 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             case "c" where edit == nil: copySelection(cut: false); return true
             case "x" where edit == nil: copySelection(cut: true); return true
             case "d" where edit == nil: c.fillDown(); return true
+            case "e" where edit == nil:
+                if let m = c.flashFill() { _w.onStatus(m) }
+                return true
             case "r" where edit == nil: c.fillRight(); return true
             case "v" where isPasteSpecialChord(control: _chords.control, alt: _chords.alt, meta: _chords.meta) && edit == nil:
                 _ = _w.onShortcut("v", _chords)   // the shell opens Paste Special

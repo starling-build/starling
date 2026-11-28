@@ -371,7 +371,8 @@ extension WorkbookController {
     /// The fill handle dragged from the selection to `target`: a series
     /// where the selection holds one (1, 2 → 3, 4; Jan → Feb; Item 1 →
     /// Item 2; dates by day), copies otherwise, formulas shifted.
-    func fillSeries(to target: CellRange) {
+    /// `how` is the Auto Fill Options choice (X-FI-1): .auto is the drag's own guess.
+    func fillSeries(to target: CellRange, how: FillHow = .auto) {
         if refusesEdit(target.cells) { return }
         let src = selection
         guard target != src, target.top == src.top || target.left == src.left || target.bottom == src.bottom || target.right == src.right
@@ -389,9 +390,32 @@ extension WorkbookController {
             let span: [CellAddress] = vertical
                 ? (forward ? Array(src.bottom + 1 ... target.bottom) : Array((target.top ..< src.top).reversed())).map { CellAddress(row: $0, col: line) }
                 : (forward ? Array(src.right + 1 ... target.right) : Array((target.left ..< src.left).reversed())).map { CellAddress(row: line, col: $0) }
-            let series = _series(seed.map { ws.cells[$0] }, count: span.count, forward: forward)
+            let seedCells = seed.map { ws.cells[$0] }
+            let series: [String]?
+            switch how {
+            case .auto, .withoutFormatting: series = _series(seedCells, count: span.count, forward: forward)
+            case .copy, .formatsOnly, .flash: series = nil
+            case .series: series = _series(seedCells, count: span.count, forward: forward, stepOne: true)
+            case .days, .weekdays, .months, .years: series = _dateSeries(seedCells, how, count: span.count, forward: forward)
+            }
             for (k, a) in span.enumerated() {
-                before[a] = .some(ws.cells[a])
+                let old = ws.cells[a]
+                before[a] = .some(old)
+                let cyc = seed[(forward ? k : seed.count - 1 - (k % seed.count)) % seed.count]
+                if how == .formatsOnly {
+                    // The seed's formats over what the cells hold.
+                    var c = old ?? Cell(input: "")
+                    c.style = ws.cells[cyc]?.style ?? 0
+                    ws.cells[a] = c.style == 0 && old == nil ? nil : c
+                    continue
+                }
+                defer {
+                    // Without formatting: the cells keep their own formats.
+                    if how == .withoutFormatting {
+                        if ws.cells[a] != nil { ws.cells[a]!.style = old?.style ?? 0 }
+                        else if let o = old, o.style != 0 { var c = Cell(input: ""); c.style = o.style; ws.cells[a] = c }
+                    }
+                }
                 if let v = series?[k] {
                     var c = ws.cells[seed[forward ? seed.count - 1 : 0]] ?? Cell(input: "")
                     c.formula = nil; c.cached = nil
@@ -400,13 +424,14 @@ extension WorkbookController {
                     ws.cells[a] = c
                 } else {
                     // Copies cycle through the seed.
-                    let from = seed[(forward ? k : seed.count - 1 - (k % seed.count)) % seed.count]
-                    ws.cells[a] = _copied(ws.cells[from], from: from, to: a)
+                    ws.cells[a] = _copied(ws.cells[cyc], from: cyc, to: a)
                 }
             }
         }
         _record(sheet: activeSheet, before: before)
         select(range: CellRange(src.topLeft, src.bottomRight).union(target), active: active)
+        lastFill = LastFill(source: src, target: target, how: how, sheet: activeSheet, dataRevision: dataRevision,
+                            dates: lastFillSeedIsDates(src))
     }
 
     private static let _months = ["January", "February", "March", "April", "May", "June", "July", "August",
@@ -414,7 +439,8 @@ extension WorkbookController {
     private static let _days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
 
     /// The inputs a series continues with, or nil to copy the seed instead.
-    func _series(_ seed: [Cell?], count: Int, forward: Bool) -> [String]? {
+    /// `stepOne`: Fill Series, where a single number counts up by 1 and a formula's seed still copies.
+    func _series(_ seed: [Cell?], count: Int, forward: Bool, stepOne: Bool = false) -> [String]? {
         guard let first = seed.first, let c0 = first, c0.formula == nil else { return nil }
         // Numbers (and dates, which are numbers): the seed's last step, 1 day
         // for a single date, none (a copy) for a single plain number.
@@ -423,7 +449,7 @@ extension WorkbookController {
             let isDate = book.style(c0.style).numberFormat.lowercased().containsSubstring("d")
             let step: Double
             if numbers.count >= 2 { step = numbers[numbers.count - 1] - numbers[numbers.count - 2] }
-            else if isDate { step = 1 }
+            else if isDate || stepOne { step = 1 }
             else { return nil }
             return (0 ..< count).map { k in
                 NumberFormat.full(forward ? numbers.last! + step * Double(k + 1) : numbers.first! - step * Double(k + 1))
