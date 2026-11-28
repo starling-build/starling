@@ -1455,6 +1455,10 @@ enum Xlsx {
         } else if let split = ws.splitPane {
             view += "<pane" + split.sorted { $0.key < $1.key }.map { " \($0.key)=\"\(_esc($0.value))\"" }.joined() + "/>"
             let activePane = split["activePane"] ?? "topLeft"
+            // A split made here has no selection of its own yet: the active pane's is the active cell.
+            if ws.splitSelections.isEmpty {
+                view += "<selection" + (activePane == "topLeft" ? "" : " pane=\"\(activePane)\"") + " activeCell=\"\(active.a1)\" sqref=\"\(active.a1)\"/>"
+            }
             for var sel in ws.splitSelections {
                 if (sel["pane"] ?? "topLeft") == activePane { sel["activeCell"] = active.a1; sel["sqref"] = active.a1 }
                 view += "<selection" + sel.sorted { $0.key < $1.key }.map { " \($0.key)=\"\(_esc($0.value))\"" }.joined() + "/>"

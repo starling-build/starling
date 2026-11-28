@@ -273,6 +273,8 @@ final class WorkbookController: ChangeNotifier {
         structural {
             sheet.freezeRows = a.row
             sheet.freezeCols = a.col
+            // A freeze takes the place of a split (Excel turns one into the other).
+            if a.row > 0 || a.col > 0 { sheet.splitPane = nil }
         }
     }
 

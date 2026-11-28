@@ -525,6 +525,8 @@ final class SheetsShellState: State<StatefulWidget> {
             grid.beginEdit(replace: text)
         case .zoom(let factor):
             setState { _zoom = factor == 0 ? 1 : max(0.25, min(4, _zoom * factor)) }
+        case .toggleSplit:
+            grid.toggleSplit()
         case .toggleGridlines:
             wb.toggleGridlines()
         case .status(let m):

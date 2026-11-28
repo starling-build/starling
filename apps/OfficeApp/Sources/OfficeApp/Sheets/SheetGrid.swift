@@ -246,6 +246,8 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
 
     private enum _Drag {
         case cells
+        /// A split bar (1 vertical, 2 horizontal, 3 both where they cross) being moved.
+        case splitBar(which: Int)
         /// A finger in the open cell editor: where it landed (a character index),
         /// whether it has moved (a drag then selects), and where the caret was.
         case editTouch(index: Int, moved: Bool, caretBefore: Int)
@@ -761,11 +763,161 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
     var frozenWidth: Double { cols.start(frozenCols) }
     var frozenHeight: Double { rows.start(frozenRows) }
 
+    // MARK: Split (View > Split)
+
+    /// A split bar's thickness.
+    static let splitBar = 5.0
+    /// The split bars, from the grid's top-left corner (headers included), in pixels; nil when the window is not split that
+    /// way. The file keeps them in twentieths of a point (15 to a pixel), as Excel writes them; a freeze wins over a split.
+    var splitX: Double? { _split(controller.sheet.splitPane?["xSplit"]) }
+    var splitY: Double? { _split(controller.sheet.splitPane?["ySplit"]) }
+    private func _split(_ v: String?) -> Double? {
+        guard !printing, frozenRows == 0, frozenCols == 0, let v, let t = Double(v), t > 0 else { return nil }
+        return (t / 15).rounded()
+    }
+    var isSplit: Bool { splitX != nil || splitY != nil }
+
+    /// The pane the keyboard, the selection and `scrollX`/`scrollY` work in: x 1 is right of the vertical bar, y 1 below
+    /// the horizontal one. Panes side by side share their rows' scroll, panes one above the other their columns'.
+    private(set) var pane = (x: 0, y: 0)
+    private var _bandX = [0.0, 0.0], _bandY = [0.0, 0.0]
+    private var _splitKey = ""
+    /// Painting a pane other than the active one: no editor, no pick list there.
+    private var _inactivePane = false
+
+    /// How far the active pane's cells sit right of (and below) the headers.
+    var paneOX: Double { pane.x == 1 ? max(0, (splitX ?? 0) + Self.splitBar - headerWidth) : 0 }
+    var paneOY: Double { pane.y == 1 ? max(0, (splitY ?? 0) + Self.splitBar - headerHeight) : 0 }
+    /// The active pane's right and bottom edges.
+    var paneRight: Double { pane.x == 0 ? min(size.width, splitX ?? size.width) : size.width }
+    var paneBottom: Double { pane.y == 0 ? min(size.height, splitY ?? size.height) : size.height }
+
+    /// Make pane (x, y) the active one, keeping the scroll of the one left.
+    func enterPane(_ x: Int, _ y: Int) {
+        _bandX[pane.x] = scrollX; _bandY[pane.y] = scrollY
+        pane = (splitX == nil ? 0 : x, splitY == nil ? 0 : y)
+        scrollX = _bandX[pane.x]; scrollY = _bandY[pane.y]
+    }
+
+    /// The pane under a local point.
+    func pane(at p: Offset) -> (x: Int, y: Int) {
+        (splitX.map { p.dx >= $0 + Self.splitBar / 2 ? 1 : 0 } ?? 0, splitY.map { p.dy >= $0 + Self.splitBar / 2 ? 1 : 0 } ?? 0)
+    }
+
+    /// The split bar under a local point: 0 none, 1 the vertical one, 2 the horizontal one, 3 their crossing.
+    func splitBar(at p: Offset) -> Int {
+        let v = splitX.map { p.dx >= $0 - 1 && p.dx <= $0 + Self.splitBar + 1 } ?? false
+        let h = splitY.map { p.dy >= $0 - 1 && p.dy <= $0 + Self.splitBar + 1 } ?? false
+        return (v ? 1 : 0) + (h ? 2 : 0)
+    }
+
+    /// The split as the sheet has it now: a sheet opened with one shows each pane where the file left it.
+    private func _syncSplit() {
+        let ws = controller.sheet
+        let key = "\(controller.activeSheet)|" + (ws.splitPane ?? [:]).sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value)" }.joined(separator: ",")
+        guard key != _splitKey else { return }
+        _splitKey = key
+        guard isSplit, let attrs = ws.splitPane else { pane = (0, 0); _bandX = [scrollX, 0]; _bandY = [scrollY, 0]; return }
+        // The top-left pane starts at the view's own top-left cell, the others at the pane's.
+        let first = ws.viewAttrs["topLeftCell"].flatMap { CellAddress($0) } ?? CellAddress(row: 0, col: 0)
+        let second = attrs["topLeftCell"].flatMap { CellAddress($0) } ?? first
+        _bandX = [cols.start(first.col), cols.start(second.col)]
+        _bandY = [rows.start(first.row), rows.start(second.row)]
+        let active = attrs["activePane"] ?? "topLeft"
+        pane = (splitX != nil && active.hasSuffix("Right") ? 1 : 0, splitY != nil && active.hasPrefix("bottom") ? 1 : 0)
+        scrollX = _bandX[pane.x]; scrollY = _bandY[pane.y]
+    }
+
+    /// View > Split: split the window above and left of the active cell (at the middle of the view when that is the
+    /// top-left cell), or take the split away.
+    func toggleSplit() {
+        let c = controller
+        if isSplit { setSplit(x: nil, y: nil); return }
+        let a = c.active
+        enterPane(0, 0)
+        var x: Double? = a.col > 0 ? colX(a.col) : nil
+        var y: Double? = a.row > 0 ? rowY(a.row) : nil
+        // Above or left of the view: split at its middle.
+        if let v = x, v <= headerWidth || v >= size.width - Self.splitBar { x = nil }
+        if let v = y, v <= headerHeight || v >= size.height - Self.splitBar { y = nil }
+        if x == nil && y == nil {
+            x = ((headerWidth + size.width) / 2).rounded(); y = ((headerHeight + size.height) / 2).rounded()
+        }
+        // Both sides of a bar show what was there: the far pane starts with the cell that was just past the bar.
+        let sx = scrollX, sy = scrollY
+        _bandX = [sx, sx + (x.map { $0 - headerWidth } ?? 0)]
+        _bandY = [sy, sy + (y.map { $0 - headerHeight } ?? 0)]
+        pane = (x != nil && a.col > 0 ? 1 : 0, y != nil && a.row > 0 ? 1 : 0)
+        scrollX = _bandX[pane.x]; scrollY = _bandY[pane.y]
+        setSplit(x: x, y: y)
+    }
+
+    /// Put the bars at these positions (nil takes that bar away), keeping each pane's scroll.
+    func setSplit(x: Double?, y: Double?) {
+        let c = controller
+        let x = x.flatMap { $0 > headerWidth && $0 < size.width - Self.splitBar ? $0.rounded() : nil }
+        let y = y.flatMap { $0 > headerHeight && $0 < size.height - Self.splitBar ? $0.rounded() : nil }
+        // Leaving the far pane of a bar that goes: its scroll becomes the one that stays.
+        _bandX[pane.x] = scrollX; _bandY[pane.y] = scrollY
+        if x == nil { _bandX[0] = _bandX[pane.x] }
+        if y == nil { _bandY[0] = _bandY[pane.y] }
+        let px = x == nil ? 0 : pane.x, py = y == nil ? 0 : pane.y
+        c.viewChange {
+            if x == nil && y == nil { c.sheet.splitPane = nil; c.sheet.splitSelections = [] }
+            else {
+                var attrs: [String: String] = [:]
+                if let x { attrs["xSplit"] = String(Int(x * 15)) }
+                if let y { attrs["ySplit"] = String(Int(y * 15)) }
+                let tl = CellAddress(row: y == nil ? 0 : rows.index(at: _bandY[1]), col: x == nil ? 0 : cols.index(at: _bandX[1]))
+                attrs["topLeftCell"] = tl.a1
+                attrs["activePane"] = (py == 1 ? "bottom" : "top") + (px == 1 ? "Right" : "Left")
+                c.sheet.splitPane = attrs
+                c.sheet.splitSelections = []
+            }
+            if x != nil || y != nil { c.sheet.freezeRows = 0; c.sheet.freezeCols = 0 }
+        }
+        pane = (px, py)
+        scrollX = _bandX[px]; scrollY = _bandY[py]
+        _splitKey = "\(c.activeSheet)|" + (c.sheet.splitPane ?? [:]).sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value)" }.joined(separator: ",")
+        _repaint.notifyListeners()
+    }
+
+    /// Every pane, each clipped to its own part of the window, then the bars.
+    private func _paintPanes(_ canvas: any Canvas, _ size: Size, fluent: FluentThemeData?) {
+        _syncSplit()
+        guard isSplit else { _paintBody(canvas, size, fluent: fluent); return }
+        let sx = splitX, sy = splitY, bar = Self.splitBar
+        let saved = pane, lastRow = _lastVisibleRow
+        var widest = 0
+        for y in (sy == nil ? [0] : [0, 1]) { for x in (sx == nil ? [0] : [0, 1]) {
+            enterPane(x, y)
+            _inactivePane = (x, y) != saved
+            let left = x == 1 ? sx! + bar : 0, top = y == 1 ? sy! + bar : 0
+            let right = paneRight, bottom = paneBottom
+            guard right > left, bottom > top else { continue }
+            canvas.save()
+            canvas.clipRect(Rect.fromLTRB(left, top, right, bottom))
+            _lastVisibleRow = lastRow
+            _paintBody(canvas, Size(right, bottom), fluent: fluent)
+            widest = max(widest, _lastVisibleRow)
+            canvas.restore()
+        } }
+        _inactivePane = false
+        enterPane(saved.x, saved.y)
+        _lastVisibleRow = widest
+        let dark = fluent?.brightness == .dark
+        let p = Paint()
+        p.style = .fill
+        p.color = dark ? Color(0xFF4A4A4A) : Color(0xFFD6D6D6)
+        if let sx { canvas.drawRect(Rect.fromLTWH(sx, 0, bar, size.height), p) }
+        if let sy { canvas.drawRect(Rect.fromLTWH(0, sy, size.width, bar), p) }
+    }
+
     /// The column under a local x (right of the row headers).
     func col(atLocal x: Double) -> Int {
         let ca = cols
         let fw = ca.start(frozenCols)
-        let dx = max(0, x - headerWidth)
+        let dx = max(0, x - headerWidth - paneOX)
         let c = dx < fw ? ca.index(at: dx) : ca.index(at: fw + scrollX + (dx - fw))
         return min(c, CellAddress.maxCols - 1)
     }
@@ -773,7 +925,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
     func row(atLocal y: Double) -> Int {
         let ra = rows
         let fh = ra.start(frozenRows)
-        let dy = max(0, y - headerHeight)
+        let dy = max(0, y - headerHeight - paneOY)
         let r = dy < fh ? ra.index(at: dy) : ra.index(at: fh + scrollY + (dy - fh))
         return min(r, CellAddress.maxRows - 1)
     }
@@ -782,12 +934,12 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
     func colX(_ c: Int) -> Double {
         let ca = cols
         if let m = printMirror { return m.x + m.w - (ca.start(c) - ca.start(m.c0)) - ca.size(c) }
-        return headerWidth + ca.start(c) - (c >= frozenCols ? scrollX : 0)
+        return headerWidth + paneOX + ca.start(c) - (c >= frozenCols ? scrollX : 0)
     }
 
     func rowY(_ r: Int) -> Double {
         let ra = rows
-        return headerHeight + ra.start(r) - (r >= frozenRows ? scrollY : 0)
+        return headerHeight + paneOY + ra.start(r) - (r >= frozenRows ? scrollY : 0)
     }
 
     /// A position inside this view (local) as a cell.
@@ -1099,6 +1251,9 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         if _images[key] == nil { _images[key] = decoded } else { decoded.dispose() }
     }
 
+    /// A local point in global coordinates.
+    func global(_ local: Offset) -> Offset { _box?.localToGlobal(_screen(local)) ?? local }
+
     /// A cell's top-right corner in global coordinates (where a note opens).
     func globalTopRight(of a: CellAddress) -> Offset {
         let r = rect(a)
@@ -1158,7 +1313,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
     func reveal(_ a: CellAddress) {
         let ca = cols, ra = rows
         let fw = ca.start(frozenCols), fh = ra.start(frozenRows)
-        let viewW = size.width - headerWidth - fw, viewH = size.height - headerHeight - fh
+        let viewW = paneRight - headerWidth - paneOX - fw, viewH = paneBottom - headerHeight - paneOY - fh
         guard viewW > 0, viewH > 0 else { return }
         if a.col >= frozenCols {
             let x0 = ca.start(a.col) - fw, x1 = x0 + ca.size(a.col)
@@ -1175,8 +1330,8 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         let ca = cols, ra = rows
         scrollX = max(0, scrollX + dx)
         scrollY = max(0, scrollY + dy)
-        let maxX = ca.start(CellAddress.maxCols) - ca.start(frozenCols) - (size.width - headerWidth - ca.start(frozenCols))
-        let maxY = ra.start(CellAddress.maxRows) - ra.start(frozenRows) - (size.height - headerHeight - ra.start(frozenRows))
+        let maxX = ca.start(CellAddress.maxCols) - ca.start(frozenCols) - (paneRight - headerWidth - paneOX - ca.start(frozenCols))
+        let maxY = ra.start(CellAddress.maxRows) - ra.start(frozenRows) - (paneBottom - headerHeight - paneOY - ra.start(frozenRows))
         scrollX = min(scrollX, max(0, maxX))
         scrollY = min(scrollY, max(0, maxY))
         _repaint.notifyListeners()
@@ -1864,6 +2019,13 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             _firstDown = (p, e.position)
             _twoTap = nil
         }
+        if isSplit {
+            // A split bar is taken to be moved; anywhere else, the pane under the pointer becomes the active one.
+            let bar = splitBar(at: p)
+            if bar != 0, e.buttons & kSecondaryMouseButton == 0 { commitEdit(); _drag = .splitBar(which: bar); return }
+            let at = pane(at: p)
+            if at != pane { commitEdit(); enterPane(at.x, at.y) }
+        }
         if e.kind == .touch, e.buttons & kSecondaryMouseButton == 0, _touchEditDown(p) { return }
         if e.buttons & kSecondaryMouseButton != 0 {
             _secondaryDown(global: e.position, at: p)
@@ -2210,8 +2372,13 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         }
         guard let d = _drag else { return }
         let p = _local(e)
+        if case .splitBar(let which) = d {
+            setSplit(x: which & 1 != 0 ? p.dx - Self.splitBar / 2 : splitX, y: which & 2 != 0 ? p.dy - Self.splitBar / 2 : splitY)
+            return
+        }
         let c = controller
         switch d {
+        case .splitBar: return
         case .editTouch(let index, let moved, let before):
             guard var ed = edit else { return }
             let m = _editorMetrics(ed)
@@ -2404,10 +2571,10 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
 
     private func _autoScroll(_ p: Offset) {
         var dx = 0.0, dy = 0.0
-        if p.dx > size.width - 8 { dx = cols.def }
-        if p.dx < headerWidth + 8, scrollX > 0 { dx = -cols.def }
-        if p.dy > size.height - 8 { dy = rows.def }
-        if p.dy < headerHeight + 8, scrollY > 0 { dy = -rows.def }
+        if p.dx > paneRight - 8 { dx = cols.def }
+        if p.dx < headerWidth + paneOX + 8, scrollX > 0 { dx = -cols.def }
+        if p.dy > paneBottom - 8 { dy = rows.def }
+        if p.dy < headerHeight + paneOY + 8, scrollY > 0 { dy = -rows.def }
         if dx != 0 || dy != 0 { _scroll(by: dx, dy) }
     }
 
@@ -2517,6 +2684,17 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
 
     private func _signal(_ e: PointerSignalEvent) {
         guard let s = e as? PointerScrollEvent else { return }
+        // The wheel scrolls the pane under the pointer; the active pane stays the active one.
+        if isSplit {
+            let at = pane(at: _local(s)), was = pane
+            if at != was {
+                enterPane(at.x, at.y)
+                defer { enterPane(was.x, was.y) }
+                if _chords.shift && s.scrollDelta.dx == 0 { _scroll(by: s.scrollDelta.dy, 0) }
+                else { _scroll(by: s.scrollDelta.dx, s.scrollDelta.dy) }
+                return
+            }
+        }
         // Shift turns the wheel sideways, as everywhere on the desktop.
         if _chords.shift && s.scrollDelta.dx == 0 { _scroll(by: s.scrollDelta.dy, 0) }
         else { _scroll(by: s.scrollDelta.dx, s.scrollDelta.dy) }
@@ -2575,11 +2753,11 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
     }
 
     fileprivate func paint(_ canvas: any Canvas, _ size: Size, fluent: FluentThemeData?) {
-        guard rtl else { _paintBody(canvas, size, fluent: fluent); return }
+        guard rtl else { _paintPanes(canvas, size, fluent: fluent); return }
         canvas.save()
         canvas.translate(size.width, 0)
         canvas.scale(-1, 1)
-        _paintBody(canvas, size, fluent: fluent)
+        _paintPanes(canvas, size, fluent: fluent)
         canvas.restore()
     }
 
@@ -2765,11 +2943,11 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         if fc > 0 { canvas.drawLine(Offset((hw + fw).rounded() - 0.5, hh), Offset((hw + fw).rounded() - 0.5, size.height), freeze) }
         if fr > 0 { canvas.drawLine(Offset(hw, (hh + fh).rounded() - 0.5), Offset(size.width, (hh + fh).rounded() - 0.5), freeze) }
         if c.breakPreview { paintPageBreaks(canvas, size, dragging: { if case .pageBreak(let r, let a, let t)? = _drag { return (r, a, t) } else { return nil } }()) }
-        // The editor.
-        if let e = edit {
+        // The editor (in the active pane only, when the window is split).
+        if let e = edit, !_inactivePane {
             _paintEditor(canvas, e, ink: ink, paper: paper, accent: accent, size: size)
         }
-        if let list = _pick { _paintPickList(canvas, list, ink: ink, paper: paper, accent: accent, size: size) }
+        if let list = _pick, !_inactivePane { _paintPickList(canvas, list, ink: ink, paper: paper, accent: accent, size: size) }
         canvas.restore()
 
         // Headers.

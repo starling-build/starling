@@ -19,6 +19,7 @@ enum SheetCommand {
     case symbol                    // Insert → Symbol: the shared picker
     case startFormula(String)      // "=SUM(" into the editor, the selection's range filled in
     case zoom(Double)
+    case toggleSplit               // View → Split: four panes at the active cell, or none
     case toggleGridlines
     case status(String)
     case cellsDialog(insert: Bool)   // Insert / Delete Cells…
@@ -605,6 +606,9 @@ extension Ribbon {
                 MenuFlyoutItem(text: Text("Freeze Top Row"), onPressed: { wb.freeze(at: CellAddress(row: 1, col: 0)) }),
                 MenuFlyoutItem(text: Text("Freeze First Column"), onPressed: { wb.freeze(at: CellAddress(row: 0, col: 1)) }),
             ]),
+            Chrome.textToggle("Split", wb.sheet.splitPane != nil && !frozen, fluent, style: fluent.typography.caption) {
+                wb.onCommand?(.toggleSplit)
+            },
             Chrome.textToggle("Gridlines", wb.sheet.showGridlines, fluent, style: fluent.typography.caption) {
                 wb.toggleGridlines()
             },
