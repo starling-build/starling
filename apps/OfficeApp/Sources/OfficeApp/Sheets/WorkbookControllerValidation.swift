@@ -72,7 +72,7 @@ extension WorkbookController {
         structural { _takeCellsOutOfValidations(ranges) }
     }
 
-    private func _takeCellsOutOfValidations(_ cut: [CellRange]) {
+    func _takeCellsOutOfValidations(_ cut: [CellRange]) {
         guard let i = sheet.keptElements.firstIndex(where: { $0.name == "dataValidations" }) else { return }
         let split = RawXML.split([UInt8](sheet.keptElements[i].text.utf8))
         var kids: [String] = []
@@ -90,7 +90,7 @@ extension WorkbookController {
         _setValidationKids(kids, root: split.rootStart, name: split.rootName, at: i)
     }
 
-    private func _appendValidation(_ xml: String) {
+    func _appendValidation(_ xml: String) {
         if let i = sheet.keptElements.firstIndex(where: { $0.name == "dataValidations" }) {
             let split = RawXML.split([UInt8](sheet.keptElements[i].text.utf8))
             _setValidationKids(split.children.map { $0.text } + [xml], root: split.rootStart, name: split.rootName, at: i)

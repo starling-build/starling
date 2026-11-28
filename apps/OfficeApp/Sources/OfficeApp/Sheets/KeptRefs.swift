@@ -40,6 +40,11 @@ enum KeptRefs {
         }
     }
 
+    /// One element (a `<conditionalFormatting>`, a `<dataValidation>`...) with its range attribute and formulas mapped.
+    static func element(_ text: String, range: (CellRange) -> CellRange?, ref: (FormulaRef) -> FormulaRef?) -> String? {
+        _element(text, range: range, ref: ref)
+    }
+
     /// One element: its own range attribute, then its formulas.
     private static func _element(_ text: String, range: (CellRange) -> CellRange?, ref: (FormulaRef) -> FormulaRef?) -> String? {
         var s = text

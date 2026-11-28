@@ -82,9 +82,9 @@ final class SheetsPasteOptionsMoreTests: XCTestCase {
         XCTAssertEqual(at(c, "B1")?.value, .number(20))
     }
 
-    func testTheMenuOffersAllTen() {
+    func testTheMenuOffersAllEleven() {
         XCTAssertEqual(SheetsShellState.pasteOptionChoices.map(\.0), [
-            "Paste", "Formulas", "Keep Source Column Widths", "No Borders", "Transpose",
+            "Paste", "Formulas", "Formulas & Number Formatting", "Keep Source Column Widths", "No Borders", "Transpose",
             "Values", "Values & Number Formatting", "Values & Source Formatting", "Formatting", "Paste Link",
         ])
     }
