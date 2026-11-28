@@ -1,6 +1,7 @@
 import XCTest
 import Flutter
 import OfficeText
+import FlutterSwiftBridge
 @testable import OfficeApp
 
 /// S-P0-3: a saved deck keeps its slide ids, sections, comments and rich notes.
@@ -148,6 +149,52 @@ final class SlideIdentityTests: XCTestCase {
         XCTAssertNil(read.crop)
         XCTAssertEqual(read.altText, "Bands")
         XCTAssertEqual(read.frame.width / read.frame.height, 2, accuracy: 0.01)
+    }
+
+    func testCropHandlesCutThePictureWhereItStandsAndSave() throws {
+        // The left handle moved 20 pt in on a 200 pt frame with no crop: a tenth cut off the left, the picture unmoved.
+        let c = DeckController.cropAfterHandle(nil, old: Rect.fromLTWH(100, 50, 200, 100), new: Rect.fromLTWH(120, 50, 180, 100), handle: 7)
+        XCTAssertEqual(c.left, 0.1, accuracy: 1e-9)
+        XCTAssertEqual(c.right, 0)
+        // Already cropped by half across: a frame 100 pt wide shows a picture 200 pt wide, so 10 pt more is 5 percent.
+        let c2 = DeckController.cropAfterHandle(EdgeInsets(left: 0.25, top: 0, right: 0.25, bottom: 0), old: Rect.fromLTWH(0, 0, 100, 50),
+                                                new: Rect.fromLTWH(0, 0, 90, 40), handle: 4)
+        XCTAssertEqual(c2.right, 0.30, accuracy: 1e-9)
+        XCTAssertEqual(c2.bottom, 0.20, accuracy: 1e-9)
+        XCTAssertEqual(c2.left, 0.25, accuracy: 1e-9)
+        // Outward past the picture pads (a negative share), as PowerPoint's crop does.
+        XCTAssertEqual(DeckController.cropAfterHandle(nil, old: Rect.fromLTWH(0, 0, 100, 50), new: Rect.fromLTWH(0, -10, 100, 60), handle: 1).top, -0.2, accuracy: 1e-9)
+
+        let d = try load(try Pptx.write(SlidesSample.make()))
+        let pic = try XCTUnwrap(d.slides.flatMap(\.shapes).first { $0.picture != nil })
+        d.select(try XCTUnwrap(d.slides.firstIndex { $0.shapes.contains { $0 === pic } }))
+        d.selectShapes([pic])
+        d.beginCrop()
+        XCTAssertTrue(d.cropping === pic)
+        let f0 = pic.frame, crop0 = pic.crop
+        d.beginFrameEdit()
+        let mid = Rect.fromLTRB(f0.left + f0.width / 8, f0.top, f0.right, f0.bottom)
+        d.setCropLive(pic, crop0: crop0, frame0: f0, frame: mid, handle: 7)
+        let f1 = Rect.fromLTRB(f0.left + f0.width / 4, f0.top, f0.right, f0.bottom)
+        d.setCropLive(pic, crop0: crop0, frame0: f0, frame: f1, handle: 7)
+        d.endFrameEdit()
+        XCTAssertEqual(pic.crop?.left ?? 0, (crop0?.left ?? 0) + 0.25 * (1 - (crop0?.left ?? 0) - (crop0?.right ?? 0)), accuracy: 1e-6)
+        XCTAssertEqual(pic.frame, f1)
+        d.undo()
+        let back = try XCTUnwrap(d.currentSlide.shapes.first { $0.picture != nil })
+        XCTAssertEqual(back.frame, f0, "the whole drag is one undo step")
+        XCTAssertEqual(back.crop, crop0)
+        d.redo()
+        let again = try load(try Pptx.write(d))
+        let read = try XCTUnwrap(again.slides.flatMap(\.shapes).first { $0.picture != nil })
+        XCTAssertEqual(read.crop?.left ?? 0, pic.crop?.left ?? -1, accuracy: 1e-4)
+        XCTAssertEqual(read.frame.width, f1.width, accuracy: 0.01)
+        // Crop mode ends when the selection moves on.
+        let now = try XCTUnwrap(d.currentSlide.shapes.first { $0.picture != nil })
+        d.selectShapes([now]); d.beginCrop()
+        XCTAssertNotNil(d.cropping)
+        d.selectShapes([])
+        XCTAssertNil(d.cropping)
     }
 
     func testACroppedAndTurnedPictureKeepsItsRecolouring() throws {

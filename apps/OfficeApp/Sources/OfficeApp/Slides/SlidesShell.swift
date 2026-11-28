@@ -1398,6 +1398,8 @@ final class SlidesShellState: State<StatefulWidget> {
             case .up: deck.nudgeSelection(dx: 0, dy: -step)
             case .down: deck.nudgeSelection(dx: 0, dy: step)
             case .delete, .backspace: deck.deleteSelection()
+            // Crop mode ends on Esc or Enter, the crop kept, the picture still selected.
+            case .escape where deck.cropping != nil, .enter where deck.cropping != nil: deck.endCrop()
             case .escape: deck.selectShapes([])
             case .tab: _cycleSelection(back: _deckChords.shift)
             case .enter:
