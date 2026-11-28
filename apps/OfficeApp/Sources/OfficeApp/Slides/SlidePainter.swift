@@ -1134,8 +1134,10 @@ final class SlidePainter: CustomPainter {
         }
         // A freeform's path, or a preset's as evaluated from its definition
         // (`customPath`): drawn contour by contour, each filled and stroked
-        // as the definition says.
-        let freeform = shape.opaque?.freeform ?? (shape.picture == nil && shape.chart == nil ? shape.customPath : nil)
+        // as the definition says. A shape drawn in the app has no evaluated
+        // path of its own: its preset's, at the frame it has now, so a part
+        // that is only stroked (a smiley's mouth) is drawn as well.
+        let freeform = shape.opaque?.freeform ?? (shape.picture == nil && shape.chart == nil ? shape.customPath ?? Self.presetContours(shape, r) : nil)
         // A shape with depth: its solid, in place of the flat outline.
         var solid = false
         if shape.scene3d != nil, shape.chart == nil, shape.opaque == nil {
@@ -2239,6 +2241,13 @@ final class SlidePainter: CustomPainter {
         let a = degrees * .pi / 180, c = cos(a), sn = sin(a), cx = r.center.dx, cy = r.center.dy
         let turned = outline.transform([c, sn, 0, 0, -sn, c, 0, 0, 0, 0, 1, 0, cx - c * cx + sn * cy, cy - sn * cx - c * cy, 0, 1])
         return turned.getBounds()
+    }
+
+    /// A preset shape's contours, each with its own fill and stroke flags, evaluated at `r` with the shape's adjust values.
+    static func presetContours(_ shape: SlideShape, _ r: Rect) -> FreeformGeometry? {
+        guard let p = shape.preset, !p.isLine, !p.isElbow else { return nil }
+        return PresetGeometry.geometry(p.rawValue, width: max(1, r.width) * Pptx.emu, height: max(1, r.height) * Pptx.emu,
+                                       adjustments: shape.adjusts)
     }
 
     static func combinedPath(_ g: FreeformGeometry, _ r: Rect) -> Path {
