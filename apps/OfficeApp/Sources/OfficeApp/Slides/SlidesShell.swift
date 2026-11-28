@@ -152,6 +152,9 @@ final class SlidesShellState: State<StatefulWidget> {
     private var _narrowRail = false
     private static let narrowBelow = 600.0
     private var _recent: [String] = []
+    /// In a browser tab: the page's handle on the file the deck came from or was saved to, so Save writes back
+    /// into it (web-parity 4); nil when Save must ask for a place or download.
+    private var _browserHandle: Int?
     private let _search = TextEditingController()
     /// Find and Replace across the deck.
     private var _findOpen = false
@@ -173,7 +176,7 @@ final class SlidesShellState: State<StatefulWidget> {
         bind(_notesFocus)
         bind(_outlineFocus)
         _outlineCtl.addListener({ [weak self] in self?._outlineEdited() }, owner: self)
-        _recent = OfficeRecent.load()
+        _recent = OfficeHost.browserRecent?.names() ?? OfficeRecent.load()
         _wire()
         officeScene.registerFlush(owner: self) { [weak self] in self?._autosaveNow() }
         officeScene.setPictureDrop({ [weak self] path in self?._insertPicture(path) }, owner: self)
@@ -197,7 +200,8 @@ final class SlidesShellState: State<StatefulWidget> {
             // (a .pptx picked in Writer) arrive by name, not on disk.
             // A browser tab's recovery copy that Writer found at start and handed on opens unsaved.
             if let data = PickedFile.takeRecovered(path) { _open(path, data: data, recovered: true) }
-            else if let data = PickedFile.take(path) { _open(path, data: data) } else { _open(path) }
+            else if let data = PickedFile.take(path) { _open(path, data: data, handle: PickedFile.takenHandle) }
+            else { _open(path) }
         } else if !_w.startBlank, let browser = OfficeHost.browserRecovery {
             // A tab closed with unsaved changes: its copy, under the name it would have saved as.
             if let row = browser.take("pptx") { _open(row.name, data: row.data, recovered: true) }
@@ -265,14 +269,16 @@ final class SlidesShellState: State<StatefulWidget> {
         }
         session.onOpen = { [weak self] in
             guard let self else { return }
-            #if os(WASI)
             // The browser's picker, not Backstage's directory list: a tab
-            // has no directories, only files the user hands over.
-            WebFiles.open(extensions: OfficeFormats.pickable) { [weak self] picked in
-                guard let self, let picked else { return }
-                self._open(picked.name, data: picked.data)
+            // has no directories, only files the user hands over. Where the
+            // browser gives a file handle, Save writes back through it.
+            if let files = OfficeHost.browserFiles {
+                files.open(OfficeFormats.pickable) { [weak self] picked in
+                    self?._open(picked.name, data: picked.data, handle: picked.handle)
+                }
+                return
             }
-            #else
+            #if !os(WASI)
             // A host with its own document browser (the iPad's) takes Open;
             // unsaved edits still get Backstage's prompt first.
             if officeScene.openRequested != nil {
@@ -285,10 +291,13 @@ final class SlidesShellState: State<StatefulWidget> {
         session.onSave = { [weak self] in self?._save() }
         session.onSaveAs = { [weak self] in
             guard let self else { return }
-            #if os(WASI)
-            // The browser names and places a download; "save as" is save.
-            self._save()
-            #else
+            // The browser's own save picker where it has one (Chrome, Edge);
+            // elsewhere Backstage's name box, and a download.
+            if let files = OfficeHost.browserFiles {
+                if files.canPickPlace { self._saveAsInBrowser(files) } else { self.setState { self._backstage = .saveAs } }
+                return
+            }
+            #if !os(WASI)
             if let ask = officeScene.exportRequested {
                 self._endEditing()
                 let name = self.session.path.map { $0.lastPathComponent }
@@ -934,6 +943,7 @@ final class SlidesShellState: State<StatefulWidget> {
     // MARK: Deck commands
 
     private func _newDeck() {
+        _browserHandle = nil
         _active = nil
         _point(at: nil)
         _autosaveGeneration += 1
@@ -951,6 +961,20 @@ final class SlidesShellState: State<StatefulWidget> {
     /// Open from the in-app file panel: a file another window has open is shown by bringing that window forward
     /// (one document, one window: two windows on one file would race on its AutoSave and recovery copy).
     private func _openFromPanel(_ path: String) {
+        if let browser = OfficeHost.browserRecent {
+            // A tab's Recent holds names; the page reads the kept copy back.
+            browser.open(path) { [weak self] data in
+                guard let self, self.mounted else { return }
+                guard let data else {
+                    self._recent = browser.names()
+                    self.setState { self._backstage = nil }
+                    self._flash("\(path) is no longer kept in this browser")
+                    return
+                }
+                self._open(path, data: data)
+            }
+            return
+        }
         if let other = OfficeScene.holding(path, besides: officeScene) {
             other.focusWindow()
             _flash("\(path.lastPathComponent) is open in another window")
@@ -988,16 +1012,20 @@ final class SlidesShellState: State<StatefulWidget> {
 
     /// A file as bytes, from the browser's picker: no recovery copy to
     /// weigh against it, and a .docx goes to Writer with the same bytes.
-    private func _open(_ name: String, data: Data, recovered: Bool = false) {
+    /// `handle`: the page's handle on the picked file, which Save then writes back into.
+    private func _open(_ name: String, data: Data, recovered: Bool = false, handle: Int? = nil) {
+        // What the tab opens goes to the top of Recent (not a recovery copy: the page holds that already).
+        if !recovered { _rememberInBrowser(name, data) }
         let kind = DocumentKind.kind(forPath: name)
         if kind != .presentation {
-            PickedFile.hand(name, data)
+            PickedFile.hand(name, data, handle: handle)
             _w.onSwitch(kind, name)
             return
         }
         do {
             _autosaveGeneration += 1
             try _load(Pptx.read(data), as: name, recovered: recovered)
+            _browserHandle = handle
         } catch {
             _flash("Could not open \(name): \(error)")
             setState { _backstage = nil }
@@ -1014,13 +1042,14 @@ final class SlidesShellState: State<StatefulWidget> {
         _fitSeen.removeAll()
         deck.load(state, theme: theme, package: package)
         session.path = path
+        _browserHandle = nil
         // A browser recovery copy is the page's row already.
         _keptEdits = recovered && OfficeHost.browserRecovery != nil ? deck.edits : nil
         _recovered = recovered
         _savedEdits = recovered ? deck.edits - 1 : deck.edits
         _lastAutosaveEdits = deck.edits
         // A browser tab's recovery copy is no file the user opened: Recent is left alone.
-        if !(recovered && OfficeHost.browserRecovery != nil) { _recent = OfficeRecent.remember(path, in: _recent) }
+        _remember(path, recovered: recovered)
         setState {
             session.dirty = recovered
             _backstage = nil
@@ -1051,14 +1080,21 @@ final class SlidesShellState: State<StatefulWidget> {
     // MARK: Saving
 
     private func _save() {
+        if let files = OfficeHost.browserFiles {
+            // Back into the file it came from, where the browser gave us its
+            // handle; else the browser's save picker; else a download, named
+            // after the deck (the browser decides where it goes).
+            if let handle = _browserHandle, let path = session.path, path.pathExtension.lowercased() == "pptx" {
+                _writeInBrowser(files, handle: handle, name: path.lastPathComponent)
+            } else if files.canPickPlace {
+                _saveAsInBrowser(files)
+            } else {
+                _saveTo(session.title.deletingPathExtension + ".pptx")
+            }
+            return
+        }
         guard let path = session.path, path.pathExtension.lowercased() == "pptx" else {
-            #if os(WASI)
-            // A download, named after the deck; the browser decides where
-            // it goes, and asks the user if it is set to.
-            _saveTo(session.title.deletingPathExtension + ".pptx")
-            #else
             setState { _backstage = .saveAs }
-            #endif
             return
         }
         _saveTo(path)
@@ -1069,18 +1105,25 @@ final class SlidesShellState: State<StatefulWidget> {
         _endEditing()
         do {
             let data = try Pptx.write(deck)
+            if let files = OfficeHost.browserFiles {
+                // A tab: a download (Save without a save picker, or Backstage's name box).
+                files.download(path.lastPathComponent, data)
+                _browserSaved(path.lastPathComponent, data, handle: nil, edits: deck.edits)
+                return
+            }
+            // (WASI has no atomic write; a tab always has browserFiles and returned above.)
             #if os(WASI)
-            WebFiles.download(data, as: path.lastPathComponent)
+            try data.write(to: URL(fileURLWithPath: path))
             #else
             try data.write(to: URL(fileURLWithPath: path), options: .atomic)
-            officeScene.documentSaved?(path)
             #endif
+            officeScene.documentSaved?(path)
             // Saved: the copy beside the old name (or the untitled one) goes.
             _dropRecovery()
             session.path = path
             _dropRecovery()
             _savedEdits = deck.edits
-            _recent = OfficeRecent.remember(path, in: _recent)
+            _remember(path, recovered: false)
             setState {
                 session.dirty = false
                 _backstage = nil
@@ -1089,6 +1132,66 @@ final class SlidesShellState: State<StatefulWidget> {
         } catch {
             _flash("Could not save \(path.lastPathComponent): \(plainFailure(error))")
         }
+    }
+
+    // MARK: Saving in a browser tab (web-parity 4, as Writer)
+
+    /// Save As through the browser's own picker: a place and a name for the .pptx.
+    private func _saveAsInBrowser(_ files: OfficeHost.BrowserFiles) {
+        _endEditing()
+        let suggested = session.path.map { $0.lastPathComponent.deletingPathExtension + ".pptx" }
+            ?? session.title.deletingPathExtension + ".pptx"
+        files.pickPlace(suggested, ["pptx"]) { [weak self] place in
+            guard let self, self.mounted, let place else { return }
+            self._writeInBrowser(files, handle: place.handle, name: place.name)
+        }
+    }
+
+    private func _writeInBrowser(_ files: OfficeHost.BrowserFiles, handle: Int, name: String) {
+        _endEditing()
+        let edits = deck.edits
+        let data: Data
+        do { data = try Pptx.write(deck) } catch {
+            _flash("Could not save \(name): \(plainFailure(error))")
+            return
+        }
+        files.write(handle, data) { [weak self] ok in
+            guard let self, self.mounted else { return }
+            if ok {
+                self._browserSaved(name, data, handle: handle, edits: edits)
+            } else {
+                self._flash("Could not save \(name): the browser did not allow writing to it")
+            }
+        }
+    }
+
+    /// Written or downloaded: the recovery copy goes, Recent gets the bytes, and Save writes back to `handle`.
+    /// Edits made while the browser wrote keep the deck unsaved.
+    private func _browserSaved(_ name: String, _ data: Data, handle: Int?, edits: Int) {
+        _dropRecovery()
+        session.path = name
+        _browserHandle = handle
+        _savedEdits = edits
+        _rememberInBrowser(name, data)
+        setState {
+            session.dirty = deck.edits != edits
+            _backstage = nil
+        }
+        _flash("Saved \(name)")
+    }
+
+    /// A deck opened or saved: natively its path goes to the top of Recent; in a tab the list is the page's.
+    /// A browser tab's recovery copy is no file the user opened: Recent is left alone.
+    private func _remember(_ path: String, recovered: Bool) {
+        if let browser = OfficeHost.browserRecent { _recent = browser.names(); return }
+        if !(recovered && OfficeHost.browserRecovery != nil) { _recent = OfficeRecent.remember(path, in: _recent) }
+    }
+
+    /// A deck opened or saved in a tab: the page keeps its bytes under its name, so Recent can reopen it.
+    private func _rememberInBrowser(_ name: String, _ data: Data) {
+        guard let browser = OfficeHost.browserRecent else { return }
+        browser.remember(name, data)
+        _recent = browser.names()
     }
 
     /// PDF or a .pptx copy, beside the deck (or in Documents), named after it.

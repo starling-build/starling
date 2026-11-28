@@ -97,7 +97,7 @@ Fix these before adding commands. Each is one PR with a round-trip unit test.
 | W-ED-2 | Find and replace | every session | complete basics | - | No match case, whole word, wildcards, format, special; no Go To | Navigation pane search (Ctrl+F); Find and Replace dialog (Ctrl+H) > More; Go To (Ctrl+G, F5). | P2 |
 | W-ED-3 | Symbols | 2.5% | I (12 fixed) | yes | No symbol picker | Insert > Symbol > More Symbols: font, subset, recent, character code, Special Characters tab. | P3 |
 | W-ED-4 | Selection of objects | - | text and picture paragraphs only | - | Shapes, floats, text boxes and inline pictures select with a click (W-OB-2/3/4). Left: Select Objects, Selection Pane | Home > Select > Select Objects, Selection Pane. | with W-OB |
-| W-ED-5 | Spelling, word count, zoom, views, navigation pane, undo, print, export | every session | complete | - | Spelling is macOS only; no print in the browser; ruler is display only (see W-PA-1, W-PA-3) | - | P3 |
+| W-ED-5 | Spelling, word count, zoom, views, navigation pane, undo, print, export | every session | complete | - | Spelling is macOS only; ruler is display only. Print in the browser done (Word 2e3cb6f71, Slides and Sheets 0e6504e86); Open, Save, Save As and Recent through the browser in all three apps (Word 2026-11, Slides and Sheets this PR) (see W-PA-1, W-PA-3) | - | P3 |
 
 ### 2.2 Writer ranked (build order within Writer)
 

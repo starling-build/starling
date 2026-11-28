@@ -13,10 +13,16 @@ import FlutterWeb
 #endif
 
 enum PickedFile {
-    nonisolated(unsafe) private static var pending: (name: String, data: Data, recovered: Bool)?
+    nonisolated(unsafe) private static var pending: (name: String, data: Data, recovered: Bool, handle: Int?)?
 
     /// `recovered`: a browser tab's recovery copy of an unsaved document, which the next app opens unsaved.
-    static func hand(_ name: String, _ data: Data, recovered: Bool = false) { pending = (name, data, recovered) }
+    /// `handle`: the page's handle on the picked file, so the next app saves back into it.
+    static func hand(_ name: String, _ data: Data, recovered: Bool = false, handle: Int? = nil) {
+        pending = (name, data, recovered, handle)
+    }
+
+    /// The handle that came with the bytes `take` last gave out (nil when none came).
+    nonisolated(unsafe) private(set) static var takenHandle: Int?
 
     /// The bytes handed over under `name` as a recovery copy, once; nil for an ordinary hand-over.
     static func takeRecovered(_ name: String) -> Data? {
@@ -27,8 +33,10 @@ enum PickedFile {
 
     /// The bytes handed over under `name`, once.
     static func take(_ name: String) -> Data? {
+        takenHandle = nil
         if let p = pending, p.name == name {
             pending = nil
+            takenHandle = p.handle
             return p.data
         }
         #if os(WASI)
