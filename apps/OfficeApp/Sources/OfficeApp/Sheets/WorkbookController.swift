@@ -339,6 +339,16 @@ final class WorkbookController: ChangeNotifier {
     }
     /// Format Painter, armed: the cells whose formats the next selection takes.
     var painterSource: (sheet: Int, range: CellRange)? = nil
+
+    /// What Format Cells opens with for the selection: the top-left cell's style, with the font and size
+    /// it actually draws in (the book's defaults fill what the cell leaves unset), as Excel shows them.
+    var formatCellsStart: CellFormatEdit.Values {
+        let st = style(at: selection.topLeft)
+        var v = CellFormatEdit.Values(st)
+        v.fontName = book.fontName(st)
+        v.fontSize = book.fontSize(st)
+        return v
+    }
     /// The last paste of the app's own copy (X-CL-1): what the Paste Options button offers to make again another way.
     var lastPaste: LastPaste? = nil
     private var _cf: (sheet: ObjectIdentifier, revision: Int, evaluator: CFEvaluator)? = nil
