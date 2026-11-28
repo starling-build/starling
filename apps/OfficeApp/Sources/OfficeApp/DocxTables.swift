@@ -1004,8 +1004,11 @@ extension DocxFormat {
             case "w:iCs": iCs = !_isOff(child)
             case "w:szCs": szCs = Double(child["w:val"] ?? "").map { $0 / 2 }
             case "w:rPrChange":
+                // (What Reject puts back: the old properties over the same base.)
+                let was = child.first("w:rPr").map { _charStyle($0, base: base, complexText: complexText, complexSize: complexSize, thaiStyleSize: thaiStyleSize,
+                                                                indicOnly: indicOnly, rtlLettersOnly: rtlLettersOnly) } ?? base
                 cs.formatChange = FormatChange(author: child["w:author"] ?? "", date: child["w:date"] ?? "",
-                                               oldRPrXML: child.first("w:rPr").map { PptxXML.serialize($0) } ?? "<w:rPr/>")
+                                               oldRPrXML: child.first("w:rPr").map { PptxXML.serialize($0) } ?? "<w:rPr/>", restore: .run(was))
             case "w:b": sawB = true; cs.bold = !_isOff(child); if cs.bold { cs.off.remove(.bold) } else { cs.off.insert(.bold) }
             case "w:i": sawI = true; cs.italic = !_isOff(child); if cs.italic { cs.off.remove(.italic) } else { cs.off.insert(.italic) }
             case "w:u":
@@ -2485,6 +2488,7 @@ extension DocxFormat {
         }
         settings = Self._withNoteProperties(settings, footnote: doc.footnotePropertiesXML, endnote: doc.endnotePropertiesXML,
                                             original: doc.keptParts["word/settings.xml"].flatMap(XNode.parse))
+        settings = Self._trackRevisionsSetting(settings, on: doc.trackRevisions)
         extraParts.append(ZipEntry(name: "word/settings.xml", data: Data(settings.utf8)))
         extraOverrides += "<Override PartName=\"/word/settings.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml\"/>"
         relsXML += "</Relationships>"
@@ -2751,6 +2755,42 @@ extension DocxFormat {
         }
         if let tab { setValue("defaultTabStop", String(Int((tab * 20).rounded()))) }
         if let spacing { setValue("characterSpacingControl", _esc(spacing)) }
+        return xml
+    }
+
+    /// Review > Track Changes: `w:trackRevisions` in the settings, in its schema place (after `w:revisionView`, before
+    /// `w:doNotTrackMoves` and the rest). A file that already says what the document says is left byte for byte.
+    static func _trackRevisionsSetting(_ original: String, on: Bool) -> String {
+        var xml = original
+        var present: Range<String.Index>? = nil
+        var said = false
+        if let start = xml.rangeOfSubstring("<w:trackRevisions"), let close = xml[start.upperBound...].firstIndex(of: ">") {
+            let tag = String(xml[start.lowerBound ... close])
+            present = start.lowerBound ..< xml.index(after: close)
+            if !tag.hasSuffix("/>"), let end = xml.rangeOfSubstring("</w:trackRevisions>") { present = start.lowerBound ..< end.upperBound }
+            said = !["0", "false", "off"].contains { tag.containsSubstring("w:val=\"\($0)\"") }
+        }
+        if said == on { return xml }
+        if let present { xml.removeSubrange(present) }
+        guard on else { return xml }
+        let after = ["doNotTrackMoves", "doNotTrackFormatting", "documentProtection", "autoFormatOverride", "styleLockTheme", "styleLockQFSet",
+                     "defaultTabStop", "autoHyphenation", "consecutiveHyphenLimit", "hyphenationZone", "doNotHyphenateCaps", "showEnvelope",
+                     "summaryLength", "clickAndTypeStyle", "defaultTableStyle", "evenAndOddHeaders", "bookFoldRevPrinting", "bookFoldPrinting",
+                     "bookFoldPrintingSheets", "drawingGridHorizontalSpacing", "drawingGridVerticalSpacing", "displayHorizontalDrawingGridEvery",
+                     "displayVerticalDrawingGridEvery", "doNotUseMarginsForDrawingGridOrigin", "drawingGridHorizontalOrigin",
+                     "drawingGridVerticalOrigin", "doNotShadeFormData", "noPunctuationKerning", "characterSpacingControl"]
+        var at: String.Index? = nil
+        for name in after {
+            var from = xml.startIndex
+            while let r = xml[from...].rangeOfSubstring("<w:\(name)") {
+                if let c = xml[r.upperBound...].first, c == " " || c == "/" || c == ">" { at = r.lowerBound; break }
+                from = r.upperBound
+            }
+            if at != nil { break }
+        }
+        if at == nil, let r = xml.rangeOfSubstring("<w:compat") { at = r.lowerBound }
+        if at == nil, let r = xml.rangeOfSubstring("</w:settings>") { at = r.lowerBound }
+        if let at { xml.insert(contentsOf: "<w:trackRevisions/>", at: at) }
         return xml
     }
 

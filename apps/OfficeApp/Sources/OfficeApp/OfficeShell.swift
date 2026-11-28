@@ -415,6 +415,17 @@ final class OfficeShellState: State<StatefulWidget> {
             }
             self.controller.invalidateLayout()
         }
+        session.onToggleTrackChanges = { [weak self] in
+            guard let self else { return }
+            let on = !self.controller.document.trackRevisions
+            self.setState { self.controller.setTrackRevisions(on) }
+            self.session.onStatus?(on ? "Track Changes on" : "Track Changes off")
+        }
+        session.onMarkup = { [weak self] mode in
+            guard let self else { return }
+            self.setState { self.session.theme.markup = mode }
+            self.controller.invalidateLayout()
+        }
         session.onFormatPainter = { [weak self] in
             guard let self else { return }
             let now = ProcessInfo.processInfo.systemUptime
@@ -1733,6 +1744,7 @@ final class OfficeShellState: State<StatefulWidget> {
         case "c" where mods.contains(.shift): session.paintedStyle = c.copyFormat(); session.paintSticky = false; setState { session.summary = session.summarize() }
         case "v" where mods.contains(.shift): c.pasteFormat(session.paintedStyle ?? c.copyFormat()); setState { session.summary = session.summarize() }
         // Word's alignment keys; Export lives in Backstage.
+        case "e" where mods.contains(.shift): session.onToggleTrackChanges?()   // ⌘⇧E: Track Changes, as Word's Ctrl+Shift+E
         case "e": c.setAlignment(.center)
         case "l" where mods.contains(.shift): c.toggleList(.bullet)   // ⌘⇧L: bullets, as in Word
         case "l": c.setAlignment(.left)

@@ -232,4 +232,126 @@ final class TrackedEditTests: XCTestCase {
         let out = try saved(c).body
         XCTAssertFalse(out.containsSubstring("Change "))
     }
+
+    // MARK: The Review tab (Track Changes, Accept, Reject, Previous / Next, Show Markup)
+
+    /// One of each kind: an insertion, a deletion, bold, centring, a new paragraph mark. Returns the controller
+    /// and the original text.
+    private func everyKind() throws -> RichDocumentController {
+        let c = try open(["Hello world", "Second line"], tracking: true)
+        c.moveTo(RichPosition(paragraph: 0, offset: 5), extend: false)
+        c.insertText(" big")                                               // "Hello big world"
+        c.moveTo(RichPosition(paragraph: 0, offset: 10), extend: false)
+        c.moveTo(RichPosition(paragraph: 0, offset: 15), extend: true)
+        c.deleteBackward()                                                 // "world" marked deleted
+        c.moveTo(RichPosition(paragraph: 1, offset: 0), extend: false)
+        c.moveTo(RichPosition(paragraph: 1, offset: 6), extend: true)
+        c.toggleBold()                                                     // "Second" bold
+        c.setAlignment(.center)                                            // paragraph 2 centred
+        c.moveTo(RichPosition(paragraph: 1, offset: 11), extend: false)
+        c.insertParagraphBreak()                                           // a new (inserted) mark
+        return c
+    }
+
+    func testAcceptAllKeepsEveryChangeAndClearsTheMarks() throws {
+        let c = try everyKind()
+        XCTAssertGreaterThan(c.resolveAllChanges(accept: true), 0)
+        XCTAssertEqual(c.document.paragraphs.map(\.text), ["Hello big ", "Second line", ""])
+        XCTAssertTrue(c.document.paragraphs[1].runs[0].style.bold)
+        XCTAssertEqual(c.document.paragraphs[1].style.alignment, .center)
+        XCTAssertEqual(c.trackedChanges(), [])
+        let out = try saved(c).body
+        for tag in ["<w:ins ", "<w:del ", "<w:rPrChange ", "<w:pPrChange "] { XCTAssertFalse(out.containsSubstring(tag), tag) }
+        c.undo()
+        XCTAssertEqual(c.document.paragraphs.map(\.text), ["Hello big world", "Second line", ""])
+        XCTAssertFalse(c.trackedChanges().isEmpty)
+    }
+
+    func testRejectAllPutsTheOriginalBack() throws {
+        let c = try everyKind()
+        XCTAssertGreaterThan(c.resolveAllChanges(accept: false), 0)
+        XCTAssertEqual(c.document.paragraphs.map(\.text), ["Hello world", "Second line"])
+        XCTAssertFalse(c.document.paragraphs[1].runs.contains { $0.style.bold })
+        XCTAssertNotEqual(c.document.paragraphs[1].style.alignment, .center)
+        XCTAssertEqual(c.trackedChanges(), [])
+        let out = try saved(c).body
+        for tag in ["<w:ins ", "<w:del ", "<w:rPrChange ", "<w:pPrChange "] { XCTAssertFalse(out.containsSubstring(tag), tag) }
+    }
+
+    /// Next steps through the changes in order and wraps; Reject This Change with the caret inside one
+    /// resolves that one alone.
+    func testNextSelectsEachChangeAndRejectThisOneLeavesTheRest() throws {
+        let c = try everyKind()
+        let all = c.trackedChanges()
+        XCTAssertGreaterThanOrEqual(all.count, 5)
+        c.moveTo(RichPosition(paragraph: 0, offset: 0), extend: false)
+        for want in all {
+            XCTAssertTrue(c.selectAdjacentChange(forward: true))
+            XCTAssertEqual(c.selection.start, want.start); XCTAssertEqual(c.selection.end, want.end)
+        }
+        XCTAssertTrue(c.selectAdjacentChange(forward: true))
+        XCTAssertEqual(c.selection.start, all[0].start)                    // wrapped
+        XCTAssertTrue(c.selectAdjacentChange(forward: false))
+        XCTAssertEqual(c.selection.start, all.last!.start)
+        // The caret in " big": rejecting removes it, the deletion after it stays.
+        c.moveTo(RichPosition(paragraph: 0, offset: 7), extend: false)
+        XCTAssertEqual(c.resolveChanges(accept: false), 1)
+        XCTAssertEqual(c.document.paragraphs[0].text, "Hello world")
+        XCTAssertEqual(c.document.paragraphs[0].runs.last?.style.revision?.kind, .deleted)
+        XCTAssertEqual(c.trackedChanges().count, all.count - 1)
+    }
+
+    /// A file's own format change: Reject puts back the look its old w:rPr / w:pPr describes.
+    func testRejectingAFilesFormatChangeRestoresTheOldLook() throws {
+        let body = "<w:p><w:pPr><w:jc w:val=\"center\"/><w:pPrChange w:id=\"1\" w:author=\"A\" w:date=\"2026-01-01T00:00:00Z\"><w:pPr/></w:pPrChange></w:pPr>"
+            + "<w:r><w:rPr><w:b/><w:rPrChange w:id=\"2\" w:author=\"A\" w:date=\"2026-01-01T00:00:00Z\"><w:rPr><w:i/></w:rPr></w:rPrChange></w:rPr><w:t>Hi</w:t></w:r></w:p>"
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "x")]), pageSetup: .letter))
+        let i = entries.firstIndex { $0.name == "word/document.xml" }!
+        let xml = String(decoding: entries[i].data, as: UTF8.self)
+        let a = xml.rangeOfSubstring("<w:body>")!.upperBound, b = xml.rangeOfSubstring("<w:sectPr")!.lowerBound
+        entries[i] = ZipEntry(name: entries[i].name, data: Data((String(xml[..<a]) + body + String(xml[b...])).utf8))
+        let c = RichDocumentController(document: try DocxFormat.read(try Zip.write(entries)).document)
+        XCTAssertTrue(c.document.paragraphs[0].runs[0].style.bold)
+        XCTAssertEqual(c.document.paragraphs[0].style.alignment, .center)
+        c.resolveAllChanges(accept: false)
+        let s = c.document.paragraphs[0].runs[0].style
+        XCTAssertFalse(s.bold); XCTAssertTrue(s.italic); XCTAssertNil(s.formatChange)
+        XCTAssertNotEqual(c.document.paragraphs[0].style.alignment, .center)
+        XCTAssertNil(c.document.paragraphs[0].style.propertyChange)
+    }
+
+    /// Track Changes on and off: the save writes w:trackRevisions in the settings, or takes it out.
+    func testTrackChangesSwitchIsSaved() throws {
+        let c = try open("Hello", tracking: false)
+        c.setTrackRevisions(true)
+        XCTAssertTrue(try saved(c).settings.containsSubstring("<w:trackRevisions/>"))
+        c.insertText("x")
+        XCTAssertEqual(c.trackedChanges().count, 1)
+        c.setTrackRevisions(false)
+        XCTAssertFalse(try saved(c).settings.containsSubstring("trackRevisions"))
+        let fresh = DocxFormat._trackRevisionsSetting("<w:settings><w:zoom w:percent=\"100\"/><w:defaultTabStop w:val=\"720\"/><w:characterSpacingControl w:val=\"doNotCompress\"/></w:settings>", on: true)
+        XCTAssertTrue(fresh.containsSubstring("<w:trackRevisions/><w:defaultTabStop"), fresh)
+    }
+
+    /// Show Markup: No Markup hides deleted text and shows no bars; Original hides the inserted text instead.
+    func testMarkupModesHideTheRightText() throws {
+        let c = try everyKind()
+        let theme = RichTextTheme(fontFamily: OfficeFonts.serif, fontSize: 12)
+        let layout = RichLayout(theme: theme, paragraphCount: c.document.paragraphs.count)
+        layout.width = 400
+        layout.pageSetup = .letter
+        let all = Rect.fromLTWH(-1e6, -1e6, 2e6, 2e6)
+        func width(_ m: RichTextTheme.Markup) -> Double {
+            theme.markup = m
+            layout.invalidateAll(); layout.ensureLaidOut(c.document)
+            return layout.canvasCaretRect(RichPosition(paragraph: 0, offset: 15), c.document).left
+                - layout.canvasCaretRect(RichPosition(paragraph: 0, offset: 0), c.document).left
+        }
+        let full = width(.all)
+        XCTAssertFalse(layout.canvasChangeBars(c.document, visible: all).isEmpty)
+        XCTAssertLessThan(width(.none), full)                              // "world" hidden
+        XCTAssertEqual(layout.canvasChangeBars(c.document, visible: all), [])
+        XCTAssertLessThan(width(.original), full)                          // " big" hidden
+        XCTAssertFalse(width(.simple) < width(.none) - 0.01)
+    }
 }

@@ -231,9 +231,8 @@ final class Ribbon: StatelessWidget {
 
     // MARK: Review
 
-    /// Word's Review tab as far as this build edits it: spelling and the word count (a deck counts every
-    /// slide's text, not the text box being edited). Track changes and comments have no commands yet, so
-    /// they are not shown at all.
+    /// Word's Review tab: Proofing (spelling, the word count; a deck counts every slide's text), and for a
+    /// document Tracking (Track Changes, Show Markup) and Changes (Accept, Reject, Previous, Next).
     func _review(_ fluent: FluentThemeData) -> [Widget] {
         let c = session.controller
         let proofing = Chrome.group("Proofing", fluent, [
@@ -254,7 +253,53 @@ final class Ribbon: StatelessWidget {
                 session.onStatus?("\(d.wordCount) words, \(d.characterCount) characters, \(d.paragraphs.count) paragraphs")
             },
         ])
-        return [proofing]
+        guard session.kind == .document, session.deck == nil else { return [proofing] }
+        let markup = session.theme.markup
+        func mode(_ m: RichTextTheme.Markup, _ name: String) -> MenuFlyoutItem {
+            MenuFlyoutItem(text: Text(name), leading: Icon(markup == m ? FluentSystemIcons.check : FluentSystemIcons.textT, size: Chrome.iconSize,
+                                                         color: markup == m ? fluent.resources.textFillColorPrimary : Color(0x00000000)),
+                           onPressed: { [session] in session.onMarkup?(m) })
+        }
+        let markupName = switch markup { case .all: "All Markup"; case .simple: "Simple Markup"; case .none: "No Markup"; case .original: "Original" }
+        let tracking = Chrome.group("Tracking", fluent, [
+            Chrome.bigToggle(FluentSystemIcons.edit, "Track Changes", c.document.trackRevisions, fluent) { [session] in session.onToggleTrackChanges?() },
+            Chrome.rows([Chrome.menuButton(FluentSystemIcons.document, markupName, "Display for Review", fluent, items: [
+                mode(.simple, "Simple Markup"), mode(.all, "All Markup"), mode(.none, "No Markup"), mode(.original, "Original"),
+            ])]),
+        ])
+        func said(_ n: Int, _ accept: Bool) {
+            session.onStatus?(n == 0 ? "No tracked change here" : "\(n) change\(n == 1 ? "" : "s") \(accept ? "accepted" : "rejected")")
+        }
+        let changes = Chrome.group("Changes", fluent, [Chrome.rows([
+            Chrome.menuButton(FluentSystemIcons.check, "Accept", "Accept this change and move to the next", fluent, items: [
+                MenuFlyoutItem(text: Text("Accept and Move to Next"), onPressed: { said(c.resolveChanges(accept: true), true); c.selectAdjacentChange(forward: true) }),
+                MenuFlyoutItem(text: Text("Accept This Change"), onPressed: { said(c.resolveChanges(accept: true), true) }),
+                MenuFlyoutItem(text: Text("Accept All Changes"), onPressed: { said(c.resolveAllChanges(accept: true), true) }),
+                MenuFlyoutItem(text: Text("Accept All Changes and Stop Tracking"), onPressed: { [session] in
+                    said(c.resolveAllChanges(accept: true), true)
+                    if c.document.trackRevisions { session.onToggleTrackChanges?() }
+                }),
+            ]),
+            Chrome.menuButton(FluentSystemIcons.close, "Reject", "Reject this change and move to the next", fluent, items: [
+                MenuFlyoutItem(text: Text("Reject and Move to Next"), onPressed: { said(c.resolveChanges(accept: false), false); c.selectAdjacentChange(forward: true) }),
+                MenuFlyoutItem(text: Text("Reject This Change"), onPressed: { said(c.resolveChanges(accept: false), false) }),
+                MenuFlyoutItem(text: Text("Reject All Changes"), onPressed: { said(c.resolveAllChanges(accept: false), false) }),
+                MenuFlyoutItem(text: Text("Reject All Changes and Stop Tracking"), onPressed: { [session] in
+                    said(c.resolveAllChanges(accept: false), false)
+                    if c.document.trackRevisions { session.onToggleTrackChanges?() }
+                }),
+            ]),
+        ]),
+            Chrome.rows([
+                Chrome.small(FluentSystemIcons.chevronUp, "Previous", fluent) { [session] in
+                    if !c.selectAdjacentChange(forward: false) { session.onStatus?("The document has no tracked changes") }
+                },
+                Chrome.small(FluentSystemIcons.chevronDown, "Next", fluent) { [session] in
+                    if !c.selectAdjacentChange(forward: true) { session.onStatus?("The document has no tracked changes") }
+                },
+            ]),
+        ])
+        return [proofing, tracking, changes]
     }
 
     // MARK: Home

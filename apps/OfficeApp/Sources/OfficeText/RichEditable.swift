@@ -1849,7 +1849,8 @@ public final class RichEditableState: State<StatefulWidget> {
         if !bars.isEmpty {
             let bar = Paint()
             bar.style = .fill
-            bar.color = _layout.theme.textColor
+            // (Simple Markup's bars are red, as Word's: the only sign of a change left on the page.)
+            bar.color = _layout.theme.markup == .simple ? Color(0xFFC00000) : _layout.theme.textColor
             for r in bars { canvas.drawRect(r, bar) }
         }
         // An IME's uncommitted text: a line under the composing range.

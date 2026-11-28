@@ -132,6 +132,7 @@ extension DocxFormat {
                 style.firstLineIndent = 0
                 for key in ["w:leftChars", "w:startChars", "w:hangingChars", "w:firstLineChars"] { style.eastAsian[key] = nil }
             }
+            let styledOnly = style
             _paragraphProps(pPr, into: &style, direct: true)
             // (A paragraph whose first run only opens a field and has no size of
             // its own: Word counts its first-line characters in the style's
@@ -167,7 +168,13 @@ extension DocxFormat {
                                                         if let a = x.rangeOfSubstring("<w:pPrChange"), let b = x.rangeOfSubstring("</w:pPrChange>") { x.removeSubrange(a.lowerBound ..< b.upperBound) }
                                                         return x
                                                     }(),
-                                                    styleName: pPr.first("w:pStyle")?["w:val"].flatMap { notes.styleDisplayNames[$0] } ?? "")
+                                                    styleName: pPr.first("w:pStyle")?["w:val"].flatMap { notes.styleDisplayNames[$0] } ?? "",
+                                                    // (What Reject puts back: the old properties over the paragraph's style.)
+                                                    restore: change.first("w:pPr").map { old in
+                                                        var was = styledOnly
+                                                        _paragraphProps(old, into: &was, direct: true)
+                                                        return .paragraph(was)
+                                                    })
             }
             if let rPr = pPr.first("w:rPr") {
                 // (The mark's character style first, then its own properties, as a run's:

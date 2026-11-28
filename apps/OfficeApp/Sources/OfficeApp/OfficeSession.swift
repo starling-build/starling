@@ -218,6 +218,9 @@ final class OfficeSession {
     var onToggleNavigation: (() -> Void)?
     var onToggleStyles: (() -> Void)?
     var onToggleMarks: (() -> Void)?
+    /// Review > Track Changes (⌘⇧E / Ctrl+Shift+E) and Show Markup.
+    var onToggleTrackChanges: (() -> Void)?
+    var onMarkup: ((RichTextTheme.Markup) -> Void)?
     var onToggleSpelling: (() -> Void)?
     var onFormatPainter: (() -> Void)?
     var onToggleAutoSave: (() -> Void)?
