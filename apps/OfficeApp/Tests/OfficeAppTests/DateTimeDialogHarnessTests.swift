@@ -26,6 +26,36 @@ final class DateTimeDialogHarnessTests: XCTestCase {
         XCTAssertEqual(session.controller.document.paragraphs[0].text, "")
     }
 
+    /// The eleven formats scroll inside a fixed box (they used to run past it, over the check box, at 1440x932); the last
+    /// one is reached by scrolling and picked by a click.
+    private func clock0(_ ui: WidgetTester) -> FieldClock { (ui.state(DateTimeDialogState.self)!.widget as! DateTimeDialog).clock }
+
+    func testFormatListScrollsInAFixedBoxWithNoOverflow() throws {
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(1440, 932))
+        let session = ui.state(OfficeShellState.self)!.session
+        session.onDateTimeDialog?(); ui.pump()
+        XCTAssertEqual(ui.overflowingFlexes(), 0)
+        let label = try XCTUnwrap(ui.centre(ofText: "Available formats:"))
+        let check = try XCTUnwrap(ui.centre(ofText: "Update automatically"))
+        XCTAssertGreaterThan(check.dy - label.dy, DateTimeDialog.listHeight)
+        XCTAssertLessThan(check.dy - label.dy, DateTimeDialog.listHeight + 60)
+        let firstRow = clock0(ui).format(picture: "M/d/yyyy", english: true) ?? ""
+        let before = try XCTUnwrap(ui.centre(ofText: firstRow))
+        ui.scroll(at: Offset(before.dx, before.dy + 60), delta: Offset(0, 400)); ui.pump(); ui.pump()
+        let clock = clock0(ui)
+        let last = clock.format(picture: "HH:mm:ss", english: true) ?? ""
+        // (The tester reports a text's unscrolled place, so take the scroll off it.)
+        let moved = ui.state(DateTimeDialogState.self)!.listScroll.offset
+        XCTAssertGreaterThan(moved, 0)
+        let unscrolled = try XCTUnwrap(ui.centre(ofText: last))
+        let at = Offset(unscrolled.dx, unscrolled.dy - moved)
+        XCTAssertLessThan(at.dy, check.dy)
+        XCTAssertGreaterThan(at.dy, label.dy)
+        ui.tap(at: at); ui.pump()
+        ui.press(.enter); ui.pump()
+        XCTAssertEqual(session.controller.document.paragraphs[0].text.filter { $0 == ":" }.count, 2)
+    }
+
     func testEscapeInsertsNothing() {
         let (ui, session) = shell()
         session.onDateTimeDialog?(); ui.pump()

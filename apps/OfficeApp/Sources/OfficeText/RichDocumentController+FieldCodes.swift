@@ -314,3 +314,18 @@ extension RichDocumentController {
         return count
     }
 }
+
+extension RichParagraph {
+    /// `ranges` less those touching a field code shown as text (Alt+F9): Word does not check a code's spelling, so
+    /// "{ DATE \@ "M/d/yyyy" }" is never underlined.
+    public func outsideFieldCodes(_ ranges: [Range<Int>]) -> [Range<Int>] {
+        guard !ranges.isEmpty, runs.contains(where: { $0.style.fieldCodeID != 0 }) else { return ranges }
+        var codes: [Range<Int>] = []
+        var offset = 0
+        for r in runs {
+            if r.style.fieldCodeID != 0 { codes.append(offset ..< offset + r.length) }
+            offset += r.length
+        }
+        return ranges.filter { m in !codes.contains { $0.overlaps(m) } }
+    }
+}

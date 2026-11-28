@@ -17,6 +17,9 @@ final class DateTimeDialog: StatefulWidget {
     static let pictures = ["M/d/yyyy", "dddd, MMMM d, yyyy", "MMMM d, yyyy", "d MMMM yyyy", "yyyy-MM-dd", "d-MMM-yy",
                            "MMMM yy", "h:mm AM/PM", "h:mm:ss AM/PM", "HH:mm", "HH:mm:ss"]
 
+    /// The format list's box, in pixels.
+    static let listHeight: Double = 210
+
     init(clock: FieldClock, onOK: @escaping (String, Bool) -> Void, onCancel: @escaping () -> Void) {
         self.clock = clock; self.onOK = onOK; self.onCancel = onCancel
         super.init()
@@ -27,6 +30,8 @@ final class DateTimeDialog: StatefulWidget {
 final class DateTimeDialogState: State<StatefulWidget> {
     private var _w: DateTimeDialog { widget as! DateTimeDialog }
     private var _picked = 1
+    /// The format list's scroll (a test reads how far it moved).
+    let listScroll = ScrollController()
     private var _automatic = false
 
     override func build(_ context: any BuildContext) -> Widget {
@@ -43,7 +48,11 @@ final class DateTimeDialogState: State<StatefulWidget> {
         let page: Widget = Column(crossAxisAlignment: .start, children: [
             Text("Available formats:", style: fluent.typography.body),
             SizedBox(width: nil, height: 6),
-            SizedBox(width: nil, height: 210, child: Column(crossAxisAlignment: .stretch, children: rows)),
+            // A fixed box that scrolls, as Word's list does: the eleven formats are taller than the dialog may grow.
+            SizedBox(width: nil, height: DateTimeDialog.listHeight, child: DecoratedBox(decoration: BoxDecoration(
+                border: Border.all(color: fluent.resources.controlStrokeColorDefault, width: 1)), child:
+                Padding(padding: EdgeInsets(left: 1, top: 1, right: 1, bottom: 1), child:
+                    SingleChildScrollView(controller: listScroll, child: Column(crossAxisAlignment: .stretch, children: rows))))),
             SizedBox(width: nil, height: 8),
             Checkbox(checked: _automatic, onChanged: { [weak self] v in self?.setState { self?._automatic = v ?? false } },
                      content: Text("Update automatically", style: fluent.typography.body)),

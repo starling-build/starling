@@ -36,11 +36,11 @@ extension RichLayout {
         return checked
     }
 
-    /// The misspelled range at `pos`, if that paragraph has been checked.
+    /// The misspelled range at `pos`, if that paragraph has been checked (a field code shown by Alt+F9 is never one).
     public func misspelling(at pos: RichPosition, _ document: RichDocument) -> Range<Int>? {
         guard pos.paragraph < document.paragraphs.count,
               let ranges = _spellCache[document.paragraphs[pos.paragraph].text] else { return nil }
-        return ranges.first { $0.lowerBound <= pos.offset && pos.offset <= $0.upperBound }
+        return document.paragraphs[pos.paragraph].outsideFieldCodes(ranges).first { $0.lowerBound <= pos.offset && pos.offset <= $0.upperBound }
     }
 
     func _paintSpelling(_ i: Int, _ g: ParagraphGeometry, _ canvas: any Canvas, _ document: RichDocument) {
@@ -52,13 +52,14 @@ extension RichLayout {
             if !pendingSpellChecks.contains(i) { pendingSpellChecks.append(i) }
             return
         }
-        guard !ranges.isEmpty else { return }
+        let shown = para.outsideFieldCodes(ranges)
+        guard !shown.isEmpty else { return }
         let map = _map(i)
         let paint = Paint()
         paint.style = .stroke
         paint.strokeWidth = 1
         paint.color = theme.spellingColor
-        for r in ranges {
+        for r in shown {
             if let c = _paintCaret, c.paragraph == i, r.lowerBound <= c.offset, c.offset <= r.upperBound { continue }
             for box in g.painter.getBoxesForSelection(TextSelection(baseOffset: map.painter(r.lowerBound), extentOffset: map.painter(r.upperBound)),
                                                       boxHeightStyle: .max) {
