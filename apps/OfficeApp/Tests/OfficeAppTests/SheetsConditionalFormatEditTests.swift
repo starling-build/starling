@@ -70,11 +70,14 @@ final class SheetsConditionalFormatEditTests: XCTestCase {
         XCTAssertEqual(c.conditionalRules(over: range("A1:A5")).count, 1)
     }
 
-    func testClearRefusesWhenARelativeFormulaWouldMove() {
+    func testClearingTheFirstCellsMovesARelativeFormulaWithThem() {
+        // Excel's lab (xcl-plainpaste, 2026-11-28): the formula is re-read from the rule's new first cell.
         let c = controller()
         XCTAssertNil(c.addConditionalFormat(CFSpec(kind: .expression("A1>5"), look: red), on: [range("A1:A10")]))
-        XCTAssertEqual(c.clearConditionalFormats(on: [range("A1:A3")]), .relativeFormula)
-        XCTAssertEqual(c.conditionalRules(over: range("A1")).count, 1)
+        XCTAssertNil(c.clearConditionalFormats(on: [range("A1:A3")]))
+        XCTAssertTrue(c.conditionalRules(over: range("A1")).isEmpty)
+        let e = c.sheet.keptElements.first { $0.name == "conditionalFormatting" }?.text ?? ""
+        XCTAssertTrue(e.containsSubstring("sqref=\"A4:A10\"") && e.containsSubstring("<formula>A4&gt;5</formula>"), e)
         XCTAssertNil(c.clearConditionalFormats(on: [range("A8:A10")]))
     }
 

@@ -134,6 +134,62 @@ final class SheetsPasteSpecialMoreTests: XCTestCase {
         XCTAssertNil(c.sheet.cells[a("E1")])
     }
 
+    func testPlainPasteBringsNotesValidationConditionalFormatsAndMerges() throws {
+        let c = book()
+        c.setNote("check this", at: a("A1"))
+        let v = ValidationRule(ranges: [CellRange("A1:A3")!], type: "custom", op: "between", formula1: nil, formula2: nil,
+                               allowBlank: true, refuses: true, arrow: true, errorTitle: nil, error: nil)
+        XCTAssertNil(c.setValidation(v, formula1: "A1<B1"))
+        XCTAssertNil(c.addConditionalFormat(CFSpec(kind: .expression("A1>1"), look: DxfStyle(fill: 0xFFFFC7CE)), on: [CellRange("A1:A2")!]))
+        c.select(range: CellRange("A3:B3")!, active: a("A3")); c.merge(.cells)
+        // The target's own: a note, a rule and validation where the paste goes (Excel's lab xcl-plainpaste, 2026-11-28).
+        c.setNote("old", at: a("E2"))
+        XCTAssertNil(c.addConditionalFormat(CFSpec(kind: .expression("D1<10"), look: DxfStyle(fill: 0xFFC6EFCE)), on: [CellRange("D1:D9")!]))
+        XCTAssertNil(c.setValidation(ValidationRule(ranges: [CellRange("E1")!], type: "whole", op: "between", formula1: nil, formula2: nil,
+                                                    allowBlank: true, refuses: true, arrow: true, errorTitle: nil, error: nil),
+                                     formula1: "1", formula2: "9"))
+        c.select(range: CellRange("A1:B3")!, active: a("A1"))
+        let clip = c.clip(cut: false, text: "")
+        go(c, clip, to: "D1", PasteSpecial())
+        func check(_ c: WorkbookController) {
+            XCTAssertEqual(c.sheet.cells[a("E1")]?.formula.map(Formula.text), "=D1*10")
+            XCTAssertEqual(c.note(at: a("D1"))?.body, "check this")
+            XCTAssertNil(c.note(at: a("E2")), "the pasted cells' own notes go")
+            XCTAssertEqual(c.validationRules(over: CellRange("D1")!).first?.ranges, [CellRange("D1:D3")!])
+            XCTAssertEqual(c.validationRules(over: CellRange("D1")!).first?.formula1.map(Formula.print), "D1<E1")
+            XCTAssertTrue(c.validationRules(over: CellRange("E1")!).isEmpty, "E1's own rule goes")
+            XCTAssertEqual(c.conditionalRules(over: CellRange("D1")!).map(\.ranges), [[CellRange("D1:D2")!]], "the copied rule only")
+            XCTAssertEqual(c.conditionalRules(over: CellRange("D5")!).first?.ranges, [CellRange("D4:D9")!], "the sheet's own keeps the rest")
+            let own = c.sheet.keptElements.first { $0.name == "conditionalFormatting" && $0.text.containsSubstring("D4:D9") }?.text ?? ""
+            XCTAssertTrue(own.containsSubstring("<formula>D4&lt;10</formula>"), "re-read from its new first cell: " + own)
+            XCTAssertTrue(c.sheet.merges.contains(CellRange("D3:E3")!))
+        }
+        check(c)
+        check(try roundTrip(c))
+        c.undo()
+        XCTAssertEqual(c.note(at: a("E2"))?.body, "old")
+        XCTAssertNil(c.note(at: a("D1")))
+        XCTAssertFalse(c.sheet.merges.contains(CellRange("D3:E3")!))
+        XCTAssertEqual(c.conditionalRules(over: CellRange("D1")!).first?.ranges, [CellRange("D1:D9")!])
+        XCTAssertNil(c.sheet.cells[a("E1")])
+    }
+
+    func testAPasteOverPartOfAMergedCellIsRefused() {
+        let c = book()
+        c.select(range: CellRange("E2:F2")!, active: a("E2")); c.merge(.cells)
+        var said: [String] = []
+        c.onCommand = { if case .status(let m) = $0 { said.append(m) } }
+        let clip = copyA1B2(c)
+        let was = c.dataRevision
+        go(c, clip, to: "D1", PasteSpecial())              // D1:E2 takes half of E2:F2
+        go(c, clip, to: "D1", PasteSpecial(what: .values))
+        XCTAssertEqual(said, [WorkbookController.partOfAMergeMessage, WorkbookController.partOfAMergeMessage])
+        XCTAssertEqual(c.dataRevision, was, "nothing changes")
+        XCTAssertNil(c.sheet.cells[a("D1")])
+        go(c, clip, to: "E2", PasteSpecial())              // E2:F3 covers it whole: allowed
+        XCTAssertEqual(c.sheet.cells[a("E2")]?.value, .number(2))
+    }
+
     func testPasteLinkFromTheDialog() {
         let c = book()
         let clip = copyA1B2(c)

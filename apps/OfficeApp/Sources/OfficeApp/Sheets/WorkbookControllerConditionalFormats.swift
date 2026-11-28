@@ -157,6 +157,14 @@ extension WorkbookController {
     /// Refuses when cutting a range would move the cell a relative formula is written for.
     func clearConditionalFormats(on ranges: [CellRange]) -> CFProblem? {
         guard !ranges.isEmpty else { return .noCells }
+        let (problem, apply) = _conditionalFormatsClearing(ranges)
+        if let problem { return problem }
+        if let apply { structural { apply() } }
+        return nil
+    }
+
+    /// What taking conditional formats off `ranges` would do: a problem, or the change (nil when none).
+    func _conditionalFormatsClearing(_ ranges: [CellRange]) -> (CFProblem?, (() -> Void)?) {
         var plan: [(Int, String?)] = []
         for (i, e) in sheet.keptElements.enumerated() where e.name == "conditionalFormatting" {
             guard let node = XNode.parse(Data(e.text.utf8)), let s = node["sqref"] else { continue }
@@ -164,13 +172,18 @@ extension WorkbookController {
             let left = old.flatMap { r in ranges.reduce([r]) { ps, c in ps.flatMap { Self._subtract($0, c) } } }
             if left == old { continue }
             if left.isEmpty { plan.append((i, nil)); continue }
-            if left.first?.topLeft != old.first?.topLeft,
-               node.kids("cfRule").contains(where: { $0.kids("formula").contains { Self._hasCellRef($0.text) } }) {
-                return .relativeFormula
-            }
             guard let a = e.text.findRange(of: " sqref=\""), let b = e.text.findRange(of: "\"", in: a.upperBound ..< e.text.endIndex) else { continue }
             var t = e.text
             t.replaceSubrange(a.upperBound ..< b.lowerBound, with: left.map { $0.isSingle ? $0.topLeft.a1 : $0.a1 }.joined(separator: " "))
+            // The rule's formulas are written for its first cell: where that moves, they move with it, so every
+            // cell left tests what it tested (Excel's lab, 2026-11-28: D1:D9 =D1<10 less D1:E3 is D4:D9 =D4<10).
+            if let from = old.first?.topLeft, let to = left.first?.topLeft, from != to {
+                let dr = to.row - from.row, dc = to.col - from.col
+                t = KeptRefs.element(t, range: { $0 }, ref: { r in
+                    if case .ref(let s) = Formula.shifted(.ref(r), rows: dr, cols: dc) { return s }
+                    return nil
+                }) ?? t
+            }
             plan.append((i, t))
         }
         var extPlan: (Int, String)?
@@ -178,18 +191,13 @@ extension WorkbookController {
             let t = IconSets2010.clearing(sheet.keptElements[i].text, ranges)
             if t != sheet.keptElements[i].text { extPlan = (i, t) }
         }
-        guard !plan.isEmpty || extPlan != nil else { return nil }
-        structural {
+        guard !plan.isEmpty || extPlan != nil else { return (nil, nil) }
+        return (nil, { [self] in
             if let (i, t) = extPlan { sheet.keptElements[i].text = t }
             for (i, t) in plan.reversed() {
                 if let t = t { sheet.keptElements[i].text = t } else { sheet.keptElements.remove(at: i) }
             }
-        }
-        return nil
-    }
-
-    private static func _hasCellRef(_ f: String) -> Bool {
-        f.contains { $0.isLetter } && f.contains { $0.isNumber }
+        })
     }
 
     private static func _hex6(_ c: UInt32) -> String {
