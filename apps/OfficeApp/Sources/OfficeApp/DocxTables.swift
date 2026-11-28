@@ -873,9 +873,10 @@ extension DocxFormat {
     }
 
     /// A theme slot's colour for a page background, with `w:themeTint` / `w:themeShade` (hex bytes) applied to its HSL lightness.
-    static func _themeBackground(_ slot: String, tint: String?, shade: String?) -> UInt32? {
+    /// `palette`: a theme's colours (`_themePalette`); the last read document's when nil.
+    static func _themeBackground(_ slot: String, tint: String?, shade: String?, palette: [String: (Int, Int, Int)]? = nil) -> UInt32? {
         let name = ["text1": "tx1", "background1": "bg1", "text2": "tx2", "background2": "bg2"][slot] ?? slot
-        guard let c = _themeColors[name] else { return nil }
+        guard let c = (palette ?? _themeColors)[name] else { return nil }
         let r = Double(c.0) / 255, g = Double(c.1) / 255, b = Double(c.2) / 255
         let mx = max(r, g, b), mn = min(r, g, b)
         var l = (mx + mn) / 2, h = 0.0, sat = 0.0

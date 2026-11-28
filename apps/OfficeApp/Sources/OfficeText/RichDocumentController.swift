@@ -86,6 +86,18 @@ public struct PropertyParts: Equatable, Sendable {
     }
 }
 
+/// The parts of a document a table style change touches (EditOp.setNamedTableStyle).
+public struct NamedTableState: Equatable, Sendable {
+    public static let themePath = "word/theme/theme1.xml"
+    public var id: String?
+    public var fills: TableCondFills?
+    public var kept: [String: String]
+    public var theme: Data?
+    public init(id: String?, fills: TableCondFills?, kept: [String: String], theme: Data?) {
+        self.id = id; self.fills = fills; self.kept = kept; self.theme = theme
+    }
+}
+
 public indirect enum EditOp: Equatable, Sendable {
     case setProperties(new: PropertyParts, old: PropertyParts)
     case insertText(RichPosition, String, [Run])
@@ -128,6 +140,9 @@ public indirect enum EditOp: Equatable, Sendable {
     case removeStyle(RichNamedStyle)
     /// A table's look (nil: the default).
     case setTableStyle(String, old: TableStyle?, new: TableStyle?)
+    /// A table's named Word style (Table Design > Table Styles): the style it names, that style's fills, and the
+    /// document's kept style definitions and theme part (a style from the gallery is added to them).
+    case setNamedTableStyle(String, old: NamedTableState, new: NamedTableState)
     /// One level's format of one list (nil: the level's default).
     case setListFormat(String, level: Int, old: ListLevelFormat?, new: ListLevelFormat?)
     /// The number a list's level restarts at, the first time it is used (nil: none).
@@ -272,6 +287,13 @@ public indirect enum EditOp: Equatable, Sendable {
             doc.tableStyles[table] = new
             for i in doc.paragraphs.indices where doc.paragraphs[i].cell?.table == table { changes.append(.changed(i)) }
             return .setTableStyle(table, old: new, new: old)
+        case .setNamedTableStyle(let table, let old, let new):
+            doc.tableStyleIds[table] = new.id
+            doc.tableCondFills[table] = new.fills
+            doc.keptTableStyles = new.kept
+            doc.keptParts[NamedTableState.themePath] = new.theme
+            for i in doc.paragraphs.indices where doc.paragraphs[i].cell?.table == table { changes.append(.changed(i)) }
+            return .setNamedTableStyle(table, old: new, new: old)
         case .setListFormat(let id, let level, let old, let new):
             var formats = doc.listFormats[id] ?? [:]
             formats[level] = new
@@ -2668,19 +2690,16 @@ public final class RichDocumentController: ChangeNotifier {
         var new = document.tableStyles[t] ?? TableStyle()
         let oldStyle = document.tableStyles[t]
         new.look = now
-        let fills = document.tableCondFills[t]
+        // The style's text look (a header row's bold and colour) follows the switches too, when the app can work it out.
+        let id = document.tableStyleIds[t]
+        let lookBefore = id == nil ? nil : tableStyleResolver?(document, t, id, was)
+        let lookAfter = id == nil ? nil : tableStyleResolver?(document, t, id, now)
+        let fills = lookAfter?.fills ?? document.tableCondFills[t]
         let range = currentTableRange
         let oldParas = range.map { Array(document.paragraphs[$0]) }
         var paras = oldParas
-        if let fills, paras != nil {
-            let rows = (paras!.compactMap { $0.cell?.row }.max() ?? 0) + 1
-            let cols = paras!.compactMap { $0.cell.map { $0.column + $0.span } }.max() ?? 1
-            for i in paras!.indices {
-                guard var c = paras![i].cell, c.table == t, c.fill == nil || c.styleFilled == true else { continue }
-                c.fill = fills.fill(look: now, row: c.row, column: c.column, lastRow: c.row + c.rowSpan >= rows, lastColumn: c.column + c.span >= cols)
-                c.styleFilled = c.fill == nil ? nil : true
-                paras![i].cell = c
-            }
+        if paras != nil, fills != nil || lookAfter != nil {
+            paras = Self.restyled(paras!, table: t, look: now, fills: fills, old: lookBefore, new: lookAfter)
         }
         let sel = selection
         edit {
@@ -2691,6 +2710,83 @@ public final class RichDocumentController: ChangeNotifier {
                 selection = sel
             }
         }
+    }
+
+    /// Set by the app: what the named style `id` (nil: none) gives table `t` of a document under the Table Style Options
+    /// bits `look`. The app works it out by running the style through its file reader, so the editor shows a style
+    /// exactly as an opened file shows it.
+    public var tableStyleLookResolver: ((RichDocument, String, String?, Int) -> TableStyleLook?)?
+    /// The one every controller uses when it has none of its own (the app sets it at start).
+    nonisolated(unsafe) public static var sharedTableStyleLookResolver: ((RichDocument, String, String?, Int) -> TableStyleLook?)?
+    var tableStyleResolver: ((RichDocument, String, String?, Int) -> TableStyleLook?)? { tableStyleLookResolver ?? Self.sharedTableStyleLookResolver }
+
+    /// Table Design > Table Styles: give the caret's table the named Word style `id`, whose definition `xml` is added to
+    /// the document when it has none of that id (the theme part too, when it has none: the style's colours are theme
+    /// colours). The borders, the style fills and the style's text look are redrawn; the user's own cell shading and
+    /// text formatting stay. One undo step.
+    public func applyTableStyle(_ id: String, xml: String, theme: Data?) {
+        guard let t = currentCell?.table, let resolve = tableStyleResolver else { return }
+        let look = tableLook(of: t)
+        let before = NamedTableState(id: document.tableStyleIds[t], fills: document.tableCondFills[t], kept: document.keptTableStyles,
+                                     theme: document.keptParts[NamedTableState.themePath])
+        var after = before
+        after.id = id
+        if after.kept[id] == nil { after.kept[id] = xml }
+        if !document.keptParts.keys.contains(where: { $0.hasPrefix("word/theme/") }), let theme { after.theme = theme }
+        var probe = document
+        probe.keptTableStyles = after.kept
+        probe.keptParts[NamedTableState.themePath] = after.theme
+        guard let newLook = resolve(probe, t, id, look) else { return }
+        let oldLook = resolve(document, t, before.id, look)
+        after.fills = newLook.fills
+        let oldStyle = document.tableStyles[t]
+        var style = oldStyle ?? TableStyle()
+        TableStyleLook.copyBorders(newLook.borders, into: &style)
+        // The table states no borders of its own: a save names the style and lets it draw them, as Word does.
+        style.inheritedBordersKey = style.bordersKey
+        let range = currentTableRange
+        let oldParas = range.map { Array(document.paragraphs[$0]) }
+        let paras = oldParas.map { Self.restyled($0, table: t, look: look, fills: newLook.fills, old: oldLook, new: newLook) }
+        let sel = selection
+        edit {
+            perform(.setNamedTableStyle(t, old: before, new: after))
+            if style != (oldStyle ?? TableStyle()) { perform(.setTableStyle(t, old: oldStyle, new: style)) }
+            if let range, let oldParas, let paras, paras != oldParas {
+                perform(.removeParagraphs(at: range.lowerBound, oldParas))
+                perform(.insertParagraphs(at: range.lowerBound, paras))
+                selection = sel
+            }
+        }
+    }
+
+    /// A table's paragraphs with the style's fills redrawn (cells the user shaded keep their shading) and, when both looks
+    /// are known, each run's bold, italic and colour moved from the old style's look to the new one's where the run
+    /// still shows the old style's (a run the user formatted otherwise keeps it).
+    static func restyled(_ paras: [RichParagraph], table t: String, look: Int, fills: TableCondFills?,
+                         old: TableStyleLook?, new: TableStyleLook?) -> [RichParagraph] {
+        var paras = paras
+        let rows = (paras.compactMap { $0.cell.map { $0.row + $0.rowSpan } }.max() ?? 1)
+        let cols = paras.compactMap { $0.cell.map { $0.column + $0.span } }.max() ?? 1
+        for i in paras.indices {
+            guard var c = paras[i].cell, c.table == t else { continue }
+            if c.fill == nil || c.styleFilled == true {
+                c.fill = fills?.fill(look: look, row: c.row, column: c.column, lastRow: c.row + c.rowSpan >= rows, lastColumn: c.column + c.span >= cols)
+                c.styleFilled = c.fill == nil ? nil : true
+                paras[i].cell = c
+            }
+            guard let new else { continue }
+            let was = old?.char(row: c.row, column: c.column, span: c.span, rowSpan: c.rowSpan) ?? CellCharLook()
+            let now = new.char(row: c.row, column: c.column, span: c.span, rowSpan: c.rowSpan)
+            guard was != now else { continue }
+            for j in paras[i].runs.indices {
+                var st = paras[i].runs[j].style
+                if st.bold == was.bold, was.bold != now.bold { st.bold = now.bold; st.boldWithoutBCs = false }
+                if st.italic == was.italic { st.italic = now.italic }
+                if st.color == was.color, st.colorTheme == was.colorTheme { st.color = now.color; st.colorTheme = now.colorTheme }
+                paras[i].runs[j].style = st
+            }
+        }
+        return paras
     }
 
     /// The same for a named table (a drag on a border of a table the caret is not in).

@@ -89,6 +89,7 @@ final class OfficeSession {
         didSet { controller.onHistory = { ScreenReader.announce($0) } }
     }
     private static func makeController() -> RichDocumentController {
+        TableStyleGallery.install()
         let c = RichDocumentController()
         c.onHistory = { ScreenReader.announce($0) }
         return c

@@ -1603,6 +1603,8 @@ public struct TableCondFills: Hashable, Codable, Sendable {
         let isFirstCol = firstColOn && c == 0, isLastCol = lastColOn && lastColumn
         var f: Color? = nil
         func over(_ key: String) { if let v = byType[key] { f = v } }
+        // The style's own cell shading (its root w:tcPr), under every part: Grid Table 5 Dark's light body.
+        over("wholeTable")
         if look & TableLook.noRowBands == 0, rowBandSize > 0, !isFirstRow, !isLastRow {
             over((r - (firstRowOn ? 1 : 0)) / rowBandSize % 2 == 0 ? "band1Horz" : "band2Horz")
         }
@@ -1618,6 +1620,46 @@ public struct TableCondFills: Hashable, Codable, Sendable {
         if isLastRow && isFirstCol { over("swCell") }
         if isLastRow && isLastCol { over("seCell") }
         return f
+    }
+}
+
+/// The character look a table style gives one cell's text (its conditional parts' w:rPr, as the reader applies them).
+public struct CellCharLook: Hashable, Sendable {
+    public var bold = false, italic = false
+    public var color: Color? = nil
+    public var colorTheme: String? = nil
+    public init(bold: Bool = false, italic: Bool = false, color: Color? = nil, colorTheme: String? = nil) {
+        self.bold = bold; self.italic = italic; self.color = color; self.colorTheme = colorTheme
+    }
+    public init(_ c: CharStyle) { self.init(bold: c.bold, italic: c.italic, color: c.color, colorTheme: c.colorTheme) }
+}
+
+/// What a named table style gives a table under one set of Table Style Options: its borders, its fills and the look of
+/// each cell's text. Worked out by the app (it runs the style through the file reader); the controller applies it.
+public struct TableStyleLook: Sendable {
+    /// Only the border fields are used (`TableStyleLook.copyBorders`).
+    public var borders: TableStyle
+    public var fills: TableCondFills?
+    /// By row, then by grid column.
+    public var chars: [[CellCharLook]]
+    public init(borders: TableStyle, fills: TableCondFills?, chars: [[CellCharLook]]) {
+        self.borders = borders; self.fills = fills; self.chars = chars
+    }
+
+    public func char(row: Int, column: Int, span: Int, rowSpan: Int) -> CellCharLook {
+        guard !chars.isEmpty else { return CellCharLook() }
+        let rows = chars.count
+        let r = row + rowSpan >= rows ? rows - 1 : min(row, rows - 1)
+        let line = chars[r]
+        guard !line.isEmpty else { return CellCharLook() }
+        let c = column == 0 ? 0 : (column + span >= line.count ? line.count - 1 : min(column, line.count - 1))
+        return line[c]
+    }
+
+    public static func copyBorders(_ from: TableStyle, into s: inout TableStyle) {
+        s.borders = from.borders; s.edges = from.edges; s.borderColor = from.borderColor; s.borderWidth = from.borderWidth
+        s.borderStyle = from.borderStyle; s.edgeStyles = from.edgeStyles; s.edgeWidths = from.edgeWidths
+        s.bordersFromCells = from.bordersFromCells
     }
 }
 
