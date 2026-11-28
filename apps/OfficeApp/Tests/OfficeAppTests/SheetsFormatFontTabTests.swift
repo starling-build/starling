@@ -35,13 +35,14 @@ final class SheetsFormatFontTabTests: XCTestCase {
         XCTAssertEqual(c.formatCellsStart.fontSize, 14)
     }
 
-    func testEachCheckBoxHasItsOwnColumn() throws {
+    func testEachCheckBoxHasItsOwnColumnAndNothingOverflows() throws {
         let ui = dialog(CellFormatEdit.Values(.plain))
         XCTAssertTrue(ui.tap(text: "Font"))
-        for (a, b) in [("Bold", "Italic"), ("Italic", "Underline"), ("Underline", "Strikethrough"), ("Superscript", "Subscript")] {
-            let x0 = try XCTUnwrap(ui.centre(id: "fc-" + (a == "Strikethrough" ? "strike" : a.lowercased())))
-            let x1 = try XCTUnwrap(ui.centre(id: "fc-" + (b == "Strikethrough" ? "strike" : b.lowercased())))
-            XCTAssertEqual(x1.dx - x0.dx, 112, accuracy: 0.5, "\(a) -> \(b)")
+        for (a, b) in [("fc-bold", "fc-italic"), ("fc-italic", "fc-underline"), ("fc-strike", "fc-superscript"), ("fc-superscript", "fc-subscript")] {
+            let x0 = try XCTUnwrap(ui.centre(id: a)), x1 = try XCTUnwrap(ui.centre(id: b))
+            XCTAssertEqual(x1.dx - x0.dx, 130, accuracy: 0.5, "\(a) -> \(b)")
         }
+        // Laid out at the dialog's real width: no row runs past it.
+        XCTAssertEqual(ui.overflowingFlexes(), 0)
     }
 }

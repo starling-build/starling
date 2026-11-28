@@ -91,6 +91,11 @@ public final class WidgetTester {
     }
 
     /// Every non-empty text on screen, in tree order.
+    /// How many rows and columns overflow their space (the ones that paint the yellow-and-black stripe).
+    public func overflowingFlexes() -> Int {
+        elements().filter { (($0 as? RenderObjectElement)?.renderObject as? RenderFlex)?._hasOverflow == true }.count
+    }
+
     public func texts() -> [String] { elements().compactMap { ($0.widget as? Text)?.data }.filter { !$0.isEmpty } }
 
     /// The state object of the first stateful widget of type `W`: how a test reads the model.
