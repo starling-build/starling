@@ -5,12 +5,24 @@
 import Foundation
 
 struct PasteSpecial: Equatable, Sendable {
-    enum What: String, CaseIterable, Sendable { case all, values, formulas, formats, columnWidths }
+    enum What: String, CaseIterable, Sendable {
+        case all, values, formulas, formats, columnWidths
+        /// Excel's All except borders (Paste Options: No Borders).
+        case allExceptBorders
+        /// All, and the copied columns' widths (Keep Source Column Widths).
+        case allWithColumnWidths
+        /// Values and number formats (Values & Number Formatting).
+        case valuesAndNumberFormats
+        /// Values with the copied cells' whole format (Values & Source Formatting).
+        case valuesAndFormats
+    }
     enum Operation: String, CaseIterable, Sendable { case none, add, subtract, multiply, divide }
     var what: What = .all
     var operation: Operation = .none
     var skipBlanks = false
     var transpose = false
+    /// Paste Link: each cell becomes a reference to the copied one.
+    var link = false
     /// Plain Paste.
     var isPlain: Bool { self == PasteSpecial() }
 }
@@ -81,6 +93,29 @@ extension WorkbookController {
                 }
                 return
             }
+            if how.link {
+                let prefix = clip.sheet == activeSheet || source == nil ? "" : Formula.quoteSheet(source!.name) + "!"
+                for r in 0 ..< rows {
+                    for c in 0 ..< cols {
+                        let rel = how.transpose ? CellAddress(row: c, col: r) : CellAddress(row: r, col: c)
+                        let from = CellAddress(row: clip.range.top + rel.row, col: clip.range.left + rel.col)
+                        let to = CellAddress(row: dst.top + r, col: dst.left + c)
+                        let text = "=" + prefix + from.a1
+                        guard let f = try? Formula.parse(text) else { continue }
+                        var cell = ws.cells[to] ?? Cell(input: "")
+                        cell.rawFormula = nil; cell.keptAttrs = [:]; cell.cached = nil
+                        cell.input = text; cell.formula = f; cell.value = .empty
+                        ws.cells[to] = cell
+                    }
+                }
+                return
+            }
+            if how.what == .allWithColumnWidths, let source, !how.transpose {
+                for k in 0 ..< cols {
+                    ws.colWidths[at.col + k] = source.colWidth(clip.range.left + k)
+                    ws.widenedCols.remove(at.col + k)
+                }
+            }
             for r in 0 ..< rows {
                 for c in 0 ..< cols {
                     let rel = how.transpose ? CellAddress(row: c, col: r) : CellAddress(row: r, col: c)
@@ -117,6 +152,17 @@ extension WorkbookController {
             return c
         case .values:
             result = constant(existing, src?.value ?? .empty)
+        case .valuesAndNumberFormats:
+            var c = constant(existing, src?.value ?? .empty)
+            var st = book.style(existing?.style ?? 0)
+            st.numberFormat = book.style(src?.style ?? 0).numberFormat
+            c.style = book.styleIndex(st)
+            result = c
+        case .valuesAndFormats:
+            guard let s = src else { return nil }
+            var c = constant(s, s.value)
+            c.style = s.style
+            result = c
         case .formulas:
             if var s = src {
                 if !keepFormula, s.formula != nil || s.rawFormula != nil { s = constant(s, s.value) }
@@ -127,9 +173,14 @@ extension WorkbookController {
                 c.formula = nil; c.rawFormula = nil; c.cached = nil; c.value = .empty; c.input = ""
                 result = c
             }
-        case .all, .columnWidths:
+        case .all, .columnWidths, .allWithColumnWidths, .allExceptBorders:
             if var s = src {
                 if !keepFormula, s.formula != nil || s.rawFormula != nil { let st = s.style; s = constant(s, s.value); s.style = st }
+                if how.what == .allExceptBorders {
+                    var st = book.style(s.style)
+                    st.borders = CellStyle.Borders()
+                    s.style = book.styleIndex(st)
+                }
                 result = s
             } else { result = nil }
         }
@@ -150,7 +201,7 @@ extension WorkbookController {
             case .none: v = b
             }
             var out = constant(existing ?? r, .number(v))
-            if how.what == .all { out.style = r.style } else { out.style = existing?.style ?? 0 }
+            if [.all, .allWithColumnWidths, .allExceptBorders, .valuesAndFormats].contains(how.what) { out.style = r.style } else { out.style = existing?.style ?? 0 }
             return out
         }
         return result
