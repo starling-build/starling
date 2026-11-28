@@ -158,6 +158,8 @@ struct KeptPicture: Equatable {
     var alt: String? = nil
     var crop: EdgeInsets?
     var rotation: Double
+    /// The blip's opacity (`a:alphaModFix`) as read: a changed one is patched into the kept element.
+    var alpha: Double = 1
 }
 
 /// A shape's look as its file spelled it: the fill, line and effects in its

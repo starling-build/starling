@@ -1869,6 +1869,17 @@ final class DeckController: ChangeNotifier {
     }
 
     /// Crop the selected pictures to a shape: width over height, centred.
+    /// The selected pictures' transparency, 0-100 % (Picture Format > Transparency): one undo step.
+    func setPictureTransparency(_ percent: Double) {
+        let pics = selection.filter { $0.picture != nil }
+        guard !pics.isEmpty else { return }
+        let alpha = 1 - max(0, min(100, percent)) / 100
+        guard pics.contains(where: { $0.pictureAlpha != alpha }) else { return }
+        _checkpoint()
+        for s in pics { s.pictureAlpha = alpha }
+        _changed()
+    }
+
     func cropPictures(aspect: Double) {
         let pics = selection.filter { $0.picture != nil }
         guard !pics.isEmpty, aspect > 0 else { return }

@@ -1222,14 +1222,14 @@ private struct SlideXML {
             // picture as it was, at its frame — its recolouring, transparency,
             // shape crop, flip, fill and outline are not modelled here.
             if let xml = s.sourceXML, let k = s.keptPicture, k.imageId == image.id, k.crop == s.crop,
-               k.rotation == s.rotation, let p = source, let part = s.sourcePart {
+               k.rotation == s.rotation, k.alpha == s.pictureAlpha, let p = source, let part = s.sourcePart {
                 return kept(xml, sourcePart: part, package: p, builder: &builder, patch: s.frame, fileId: s.fileId, alt: _altChange(s, pictureAlt: .some(k.alt)))
             }
             // The same image, turned or cropped since it was read: the picture as it was with only the turn and the crop changed, so its
             // recolouring, transparency, flip, shape and outline stay.
             if let xml = s.sourceXML, let k = s.keptPicture, k.imageId == image.id, let p = source, let part = s.sourcePart {
                 let crop = s.crop, rotation = s.rotation, flipH = s.flipH, flipV = s.flipV
-                let lock = s.aspectLock
+                let lock = s.aspectLock, alpha = s.pictureAlpha, alphaChanged = k.alpha != s.pictureAlpha
                 return kept(xml, sourcePart: part, package: p, builder: &builder, patch: s.frame, fileId: s.fileId, alt: _altChange(s, pictureAlt: .some(k.alt)), edit: { node in
                     if let lock { Self._lockEdit(lock)(node) }
                     if let x = node.first("p:spPr")?.first("a:xfrm") {
@@ -1238,6 +1238,10 @@ private struct SlideXML {
                         x.attrs["flipV"] = flipV ? "1" : nil
                     }
                     guard let fill = node.first("p:blipFill") else { return }
+                    if alphaChanged, let blip = fill.first("a:blip") {
+                        blip.children.removeAll { $0.name == "a:alphaModFix" }
+                        if alpha < 1 { blip.children.insert(XNode(name: "a:alphaModFix", attrs: ["amt": "\(Int((alpha * 100000).rounded()))"]), at: 0) }
+                    }
                     fill.children.removeAll { $0.name == "a:srcRect" }
                     if let crop, crop != .zero {
                         func v(_ x: Double) -> String { "\(Int((x * 100000).rounded()))" }
@@ -1250,7 +1254,7 @@ private struct SlideXML {
             let id = _id(s.fileId)
             let rid = _media(image, media: &media, builder: &builder)
             return "<p:pic><p:nvPicPr><p:cNvPr id=\"\(id)\" name=\"\(name)\"\(PptxText.altAttrs(s))\(hid)\(PptxText.cNvPrEnd(s))<p:cNvPicPr>\(s.aspectLocked ? "<a:picLocks noChangeAspect=\"1\"/>" : "<a:picLocks/>")</p:cNvPicPr><p:nvPr/></p:nvPicPr>"
-                + "<p:blipFill><a:blip r:embed=\"\(rid)\"/>\(Self._crop(s.crop))<a:stretch><a:fillRect/></a:stretch></p:blipFill>"
+                + "<p:blipFill><a:blip r:embed=\"\(rid)\"\(s.pictureAlpha < 1 ? "><a:alphaModFix amt=\"\(Int((s.pictureAlpha * 100000).rounded()))\"/></a:blip>" : "/>")\(Self._crop(s.crop))<a:stretch><a:fillRect/></a:stretch></p:blipFill>"
                 + "<p:spPr>\(Self._xfrm(s.frame, rotation: s.rotation, flipH: s.flipH, flipV: s.flipV))"
                 + "<a:prstGeom prst=\"\(s.pictureGeometry?.rawValue ?? "rect")\"><a:avLst/></a:prstGeom></p:spPr></p:pic>"
         case .table:

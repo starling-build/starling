@@ -743,6 +743,20 @@ extension Ribbon {
         ]
     }
 
+    /// Picture Format > Transparency: PowerPoint's presets, the current one ticked.
+    private func _pictureTransparencyMenu(_ deck: DeckController, _ fluent: FluentThemeData) -> Widget {
+        let current: Double? = deck.selection.first { $0.picture != nil }.map { (1 - $0.pictureAlpha) * 100 }
+        let presets: [Double] = [0, 15, 30, 50, 65, 80, 95]
+        let items: [MenuFlyoutItem] = presets.map { (pct: Double) -> MenuFlyoutItem in
+            let on = current.map { abs($0 - pct) < 0.5 } ?? false
+            let icon = Icon(on ? FluentSystemIcons.check : FluentSystemIcons.brightness,
+                            size: Chrome.iconSize, color: fluent.resources.textFillColorPrimary)
+            return MenuFlyoutItem(text: Text("Transparency: \(Int(pct))%"), leading: icon,
+                                  onPressed: { deck.setPictureTransparency(pct) })
+        }
+        return Chrome.menuButton(FluentSystemIcons.brightness, "Transparency", "How much of the slide shows through the picture", fluent, items: items)
+    }
+
     private func _slidePictureFormat(_ deck: DeckController, _ fluent: FluentThemeData) -> [Widget] {
         let crops: [(String, Double)] = [("Square", 1), ("4:3", 4.0 / 3), ("3:2", 1.5), ("16:9", 16.0 / 9), ("3:4 Portrait", 0.75)]
         return [
@@ -750,6 +764,7 @@ extension Ribbon {
                 Chrome.big(FluentSystemIcons.image, "Change Picture", fluent) { [session] in session.onChangePicture?() },
                 Chrome.big(FluentSystemIcons.refresh, "Reset Picture", fluent) { deck.resetPictures() },
                 Chrome.big(FluentSystemIcons.info, "Alt Text", fluent) { [session] in session.onAltText?() },
+                _pictureTransparencyMenu(deck, fluent),
             ]),
             Chrome.group("Size", fluent, [
                 Chrome.bigToggle(FluentSystemIcons.cut, "Crop", deck.cropping != nil, fluent) {
