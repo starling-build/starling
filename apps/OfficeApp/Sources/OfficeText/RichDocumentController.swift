@@ -2837,6 +2837,18 @@ public final class RichDocumentController: ChangeNotifier {
         edit { perform(.setTableStyle(t, old: old, new: new == TableStyle() ? nil : new)) }
     }
 
+    /// Set by the app: puts a floating table's place (its kept `w:tblpPr` XML, nil: in the text) into the fields the
+    /// layout reads, as the file reader does, so a table placed here lays out as the saved file opened would.
+    nonisolated(unsafe) public static var sharedFloatPositionReader: ((String?, inout TableStyle) -> Void)?
+
+    /// W-TB-5: place table `t` (Positioning dialog, the move handle): `xml` is its `w:tblpPr` and `w:tblOverlap` as Word
+    /// writes them, nil to put it back in the text. One undo step.
+    public func setTablePosition(of t: String, _ xml: String?) {
+        setTableStyle(of: t) { s in
+            if let read = Self.sharedFloatPositionReader { read(xml, &s) } else { s.keptPosition = xml }
+        }
+    }
+
     public func setTableColumnWidths(_ table: String, _ widths: [Double]?) {
         let old = document.tableColumns[table]
         guard old != widths else { return }

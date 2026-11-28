@@ -193,6 +193,9 @@ public final class RichEditableState: State<StatefulWidget> {
     private var _lastContentHeight = -1.0
     private var _moveDrag: (index: Int, inline: String?, start: Offset)? = nil
     private var _moveDelta: Offset? = nil
+    /// A table dragged by its move handle: which one, where the press was, and the live offset (nil until it moves).
+    private var _tableDrag: (table: String, start: Offset)? = nil
+    private var _tableDragDelta: Offset? = nil
     /// A shape waiting from Insert > Shapes, pressed on the page: where the press was and where the mouse is now.
     private var _shapeDraw: (start: Offset, now: Offset)? = nil
     // Touch selection: a long press selects the word under the finger, a double
@@ -1116,6 +1119,8 @@ public final class RichEditableState: State<StatefulWidget> {
         _dragSize = nil
         _moveDrag = nil
         _moveDelta = nil
+        _tableDrag = nil
+        _tableDragDelta = nil
         if let drag = _columnDrag {
             _columnDrag = nil
             _columnDragWidths = nil
@@ -1266,9 +1271,10 @@ public final class RichEditableState: State<StatefulWidget> {
             return
         }
         if event.buttons & 1 != 0, let table = _tableHandle(at: event.localPosition) {
-            // Word's table move handle: a click selects the whole table.
+            // Word's table move handle: a click selects the whole table, a drag moves it (an inline table floats).
             _focus.requestFocus()
-            _controller.selectTable(table)
+            _tableDrag = (table, event.localPosition)
+            _tableDragDelta = nil
             return
         }
         if _layout.width > 0, let border = _layout.columnBorder(at: _layout.flowPoint(_canvasPoint(event.localPosition))),
@@ -1441,6 +1447,14 @@ public final class RichEditableState: State<StatefulWidget> {
             _shapeDraw?.now = event.localPosition
             return
         }
+        if let drag = _tableDrag {
+            let d = Offset(event.localPosition.dx - drag.start.dx, event.localPosition.dy - drag.start.dy)
+            if _tableDragDelta != nil || abs(d.dx) > 4 || abs(d.dy) > 4 {
+                _tableDragDelta = d
+                _repaint.notifyListeners()
+            }
+            return
+        }
         if let drag = _moveDrag {
             // (A drawing In Line with Text, or a picture alone in its paragraph, stands in the text: dragged, it moves in the
             // text, to the caret shown where it would drop, as Word moves it; pressed without moving, it is only clicked.)
@@ -1487,6 +1501,29 @@ public final class RichEditableState: State<StatefulWidget> {
         } else {
             _controller.moveTo(pos, extend: true)
         }
+    }
+
+    /// Where a table dragged by its move handle by `d` (canvas pixels) stands, as Word sets it: measured from the
+    /// column and its paragraph, keeping the rest of the old position (distances from text, overlap).
+    func tablePositionAfterDrag(_ table: String, by d: Offset) -> String {
+        let style = _controller.document.tableStyles[table]
+        let pt = _layout.theme.pixelsPerPoint * _layout.scale
+        var p = TablePosition(xml: style?.keptPosition) ?? TablePosition()
+        // A place given as a distance keeps what it is measured from and moves by the drag; one given by an align
+        // (or an inline table) becomes a distance from the column and the paragraph.
+        if p.horizontalAlign != nil || style?.keptPosition == nil {
+            p.horizontalAlign = nil
+            p.horizontalFrom = .column
+            p.x = style?.floatX != nil && (style?.floatXAnchor ?? "text") == "text" ? style!.floatX! : (_layout.tableOrigin(of: table)?.dx ?? 0) / pt
+        }
+        if p.verticalAlign != nil || style?.keptPosition == nil {
+            p.verticalAlign = nil
+            p.verticalFrom = .paragraph
+            p.y = 0
+        }
+        p.x = ((p.x + d.dx / pt) * 20).rounded() / 20
+        p.y = ((p.y + d.dy / pt) * 20).rounded() / 20
+        return p.xml
     }
 
     private func _pointerUp(_ event: PointerEvent) {
@@ -1644,6 +1681,15 @@ public final class RichEditableState: State<StatefulWidget> {
             } else {
                 _controller.movePictureParagraph(at: drag.index, to: drop)
             }
+            _repaint.notifyListeners()
+            return
+        }
+        if let drag = _tableDrag {
+            let d = _tableDragDelta
+            _tableDrag = nil
+            _tableDragDelta = nil
+            if let d { _controller.setTablePosition(of: drag.table, tablePositionAfterDrag(drag.table, by: d)) }
+            else { _controller.selectTable(drag.table) }
             _repaint.notifyListeners()
             return
         }
@@ -1847,6 +1893,20 @@ public final class RichEditableState: State<StatefulWidget> {
             guide.strokeWidth = 1
             guide.color = _layout.theme.caretColor
             canvas.drawLine(Offset(drag.canvasX + drag.left, y), Offset(drag.canvasX + drag.right, y), guide)
+        }
+        // A table on the move: its outline where it would drop.
+        if let drag = _tableDrag, let d = _tableDragDelta, let o = _layout.tableOrigin(of: drag.table),
+           let widths = _layout.columnWidths(of: drag.table) {
+            let pt = _layout.theme.pixelsPerPoint * _layout.scale
+            let rows = _layout.canvasRects(Rect.fromLTWH(o.dx, o.dy, widths.reduce(0, +) * pt, 1))
+            if let r = rows.first {
+                let h = _layout.tableHeight(of: drag.table) ?? 20 * pt
+                let ink = Paint()
+                ink.style = .stroke
+                ink.strokeWidth = 1
+                ink.color = Color(0xFF606060)
+                canvas.drawRect(Rect.fromLTWH(r.left + d.dx, r.top + d.dy, r.width, h), ink)
+            }
         }
         // The move handle of the table under the pointer: a box with a four-way arrow outside its top-left corner.
         if let t = _hoverTable, let r = _layout.tableHandleRect(of: t) {

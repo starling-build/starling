@@ -16,6 +16,9 @@ struct TablePropertiesValues: Equatable {
     var alignment: ParagraphAlignment = .left
     var indent: Double = 0
     var wrap: Wrap = .none
+    /// Where the table floats (Positioning…); what the file says until the dialog changes it.
+    var position = TablePosition(xml: Self.aroundPosition)!
+    private var startPosition: TablePosition?
     var heightRule: HeightRule = .auto
     var height: Double = 0
     var mayBreak = true
@@ -38,6 +41,8 @@ struct TablePropertiesValues: Equatable {
         alignment = t.alignment
         indent = t.indent
         wrap = t.keptPosition == nil ? .none : .around
+        if let p = TablePosition(xml: t.keptPosition) { position = p }
+        startPosition = position
         let row = cell.row
         if let h = t.rowHeights[row] { height = h; heightRule = t.rowsExactHeight.contains(row) ? .exactly : .atLeast }
         mayBreak = !t.rowsCantSplit.contains(row)
@@ -61,7 +66,12 @@ struct TablePropertiesValues: Equatable {
         c.setTableStyle { t in
             t.alignment = new.alignment
             t.indent = new.indent
-            if new.wrap == .around { if t.keptPosition == nil { t.keptPosition = Self.aroundPosition } } else { t.keptPosition = nil }
+            // Around keeps the file's own position XML unless Positioning changed it; the float fields follow it.
+            let xml = new.wrap == .none ? nil
+                : new.position != new.startPosition || t.keptPosition == nil ? new.position.xml : t.keptPosition
+            if xml != t.keptPosition {
+                if let read = RichDocumentController.sharedFloatPositionReader { read(xml, &t) } else { t.keptPosition = xml }
+            }
             for r in rows {
                 switch new.heightRule {
                 case .auto: t.rowHeights[r] = nil; t.rowsExactHeight.remove(r)
@@ -113,6 +123,7 @@ final class TablePropertiesDialog: StatefulWidget {
 final class TablePropertiesDialogState: State<StatefulWidget> {
     private var _w: TablePropertiesDialog { widget as! TablePropertiesDialog }
     private(set) var v = TablePropertiesValues()
+    private var _positioning = false
 
     override func initState() {
         super.initState()
@@ -139,7 +150,8 @@ final class TablePropertiesDialogState: State<StatefulWidget> {
             row("Text wrapping", [
                 choice("tp-wrap-none", "None", v.wrap == .none) { [weak self] in self?.setState { self?.v.wrap = .none } },
                 choice("tp-wrap-around", "Around", v.wrap == .around) { [weak self] in self?.setState { self?.v.wrap = .around } },
-            ]),
+            ] + (v.wrap == .around ? [Chrome.gap(), PKeyed("tp-positioning", Button(onPressed: { [weak self] in self?.setState { self?._positioning = true } },
+                                                                                child: Text("Positioning...")))] : [])),
             row("Default margin top", [spin("tp-tm-top", v.tableMarginTop) { [weak self] n in self?.v.tableMarginTop = n }]),
             row("Default margin bottom", [spin("tp-tm-bottom", v.tableMarginBottom) { [weak self] n in self?.v.tableMarginBottom = n }]),
             row("Default margin left", [spin("tp-tm-left", v.tableMarginLeft) { [weak self] n in self?.v.tableMarginLeft = n }]),
@@ -164,11 +176,19 @@ final class TablePropertiesDialogState: State<StatefulWidget> {
             row("Margin left", [spin("tp-m-left", v.marginLeft) { [weak self] n in self?.v.marginLeft = n }]),
             row("Margin right", [spin("tp-m-right", v.marginRight) { [weak self] n in self?.v.marginRight = n }]),
         ])
-        return DialogShell(title: "Table Properties",
+        let shell = DialogShell(title: "Table Properties",
                            tabs: [DialogTab(title: "Table", page: table), DialogTab(title: "Row", page: rowPage),
                                   DialogTab(title: "Column", page: columnPage), DialogTab(title: "Cell", page: cellPage)],
                            width: 520,
                            onOK: { [weak self] in guard let self else { return }; self._w.onOK(self.v) },
                            onCancel: { [weak self] in self?._w.onCancel() })
+        guard _positioning else { return shell }
+        return Stack(children: [
+            shell,
+            Positioned(left: 0, top: 0, right: 0, bottom: 0, child: TablePositioningDialog(
+                initial: v.position, unit: unit,
+                onOK: { [weak self] p in self?.setState { self?.v.position = p; self?._positioning = false } },
+                onCancel: { [weak self] in self?.setState { self?._positioning = false } })),
+        ])
     }
 }
