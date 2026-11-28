@@ -988,7 +988,9 @@ struct PptxReader {
             // unless the slide (or, for the master's, the layout) says
             // `showMasterSp="0"`. Drawn, never written.
             var decorations: [ShapeState] = []
-            if slide["showMasterSp"] != "0", !noIds {
+            // (Read even where the slide hides them, so unticking Hide background graphics brings them back;
+            // the painter leaves them off while `hideMasterShapes` holds.)
+            if !noIds {
                 var owners: [(String, XNode)] = []
                 if let masterPart, let master, layout?["showMasterSp"] != "0" { owners.append((masterPart, master)) }
                 if let layoutPart, let layout { owners.append((layoutPart, layout)) }
