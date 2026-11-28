@@ -1140,12 +1140,15 @@ export async function startStarling({ canvas, app, appBrotli, preloaded, immutab
     const bytes = encoder.encode(character);
     const pointer = bytes.length ? swift.starling_alloc(bytes.length) : 0;
     if (pointer) appBytes().set(bytes, pointer);
-    swift.starling_key(type, physical, logical, pointer, bytes.length, dom.timeStamp);
+    const used = swift.starling_key(type, physical, logical, pointer, bytes.length, dom.timeStamp);
     if (pointer) swift.starling_free(pointer);
-    // The browser's own shortcuts (reload, new tab, find) stay the
-    // browser's; everything else is the app's, so Tab and Space do not
-    // scroll or move focus out of the canvas.
-    if (!dom.metaKey && !dom.ctrlKey) dom.preventDefault();
+    // A key without Ctrl or Cmd is always the app's, so Tab and Space do not
+    // scroll or move focus out of the canvas. A shortcut is the app's when
+    // the app used it (Ctrl+S saves the document, not the page; Ctrl+P, O, F,
+    // H, D, L, K, E, J, U likewise); one it did not use stays the browser's
+    // (Ctrl+T, reload with Ctrl+Shift+R, zoom). Chrome never lets a page take
+    // Ctrl+N, Ctrl+T or Ctrl+W outside an installed app's window.
+    if (used || (!dom.metaKey && !dom.ctrlKey)) dom.preventDefault();
   };
   canvas.tabIndex = 0;
   canvas.addEventListener('keydown', key);
