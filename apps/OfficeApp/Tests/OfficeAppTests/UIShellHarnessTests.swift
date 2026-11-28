@@ -378,6 +378,66 @@ final class UIShellHarnessTests: XCTestCase {
         XCTAssertEqual(deck.currentSlide.shapes.first { $0.picture != nil }?.pictureAlpha ?? 0, 1, accuracy: 1e-9)
     }
 
+    func testSlidesChangePictureTakesTheScriptStandInPicker() throws {
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: SlidesShell(initialPath: nil, startBlank: true, onSwitch: { _, _ in }), title: "Test"), size: Size(1280, 800))
+        let shell = try XCTUnwrap(ui.state(SlidesShellState.self))
+        let deck = try XCTUnwrap(shell.session.deck)
+        let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==")!
+        let pic = deck.addPicture(ImageAttachment(data: png, width: 1, height: 1), naturalSize: Size(100, 100))
+        let before = try XCTUnwrap(pic.picture?.id)
+        deck.selectShapes([pic])
+        let path = FileManager.default.temporaryDirectory.appendingPathComponent("office-pick-\(getpid()).png").path
+        XCTAssertTrue(FileManager.default.createFile(atPath: path, contents: png))
+        setenv("OFFICE_PICK_PICTURE", path, 1)
+        defer { unsetenv("OFFICE_PICK_PICTURE"); try? FileManager.default.removeItem(atPath: path) }
+        ui.pump()
+        XCTAssertTrue(ui.tap(text: "Picture Format"))
+        XCTAssertTrue(ui.tap(text: "Change Picture"))
+        // The picture decodes on a task: run the main loop until it lands.
+        let end = Date().addingTimeInterval(5)
+        while deck.currentSlide.shapes.first(where: { $0.picture != nil })?.picture?.id == before, Date() < end {
+            RunLoop.main.run(until: Date().addingTimeInterval(0.05)); ui.pump()
+        }
+        let now = try XCTUnwrap(deck.currentSlide.shapes.first { $0.picture != nil })
+        XCTAssertNotEqual(now.picture?.id, before, "the stand-in picture replaced the old one")
+        XCTAssertEqual(deck.currentSlide.shapes.filter { $0.picture != nil }.count, 1, "replaced, not inserted")
+    }
+
+    func testSlidesCropHandleOverAnotherShapeCropsOnlyThePicture() throws {
+        // A text box lying across the picture's top edge, once below the picture and once above it: the top crop
+        // handle drawn over it takes the press, so only the crop changes and crop mode stays on.
+        for boxOnTop in [false, true] {
+            let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: SlidesShell(initialPath: nil, startBlank: true, onSwitch: { _, _ in }), title: "Test"), size: Size(1440, 932))
+            let shell = try XCTUnwrap(ui.state(SlidesShellState.self))
+            let deck = try XCTUnwrap(shell.session.deck)
+            let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==")!
+            var box: SlideShape? = nil
+            if !boxOnTop { box = deck.addTextBox(at: Rect.fromLTWH(0, 0, 10, 10)) }
+            let pic = deck.addPicture(ImageAttachment(data: png, width: 1, height: 1), naturalSize: Size(100, 100))
+            if boxOnTop { box = deck.addTextBox(at: Rect.fromLTWH(0, 0, 10, 10)) }
+            let tb = try XCTUnwrap(box)
+            let f0 = pic.frame
+            tb.frame = Rect.fromLTWH(f0.left - 20, f0.top - 15, f0.width + 40, 30)
+            let tb0 = tb.frame
+            deck.selectShapes([pic])
+            ui.pump()
+            XCTAssertTrue(ui.tap(text: "Picture Format"))
+            XCTAssertTrue(ui.tap(text: "Crop"))
+            ui.pump()
+            XCTAssertTrue(deck.cropping === pic)
+            let canvas = try XCTUnwrap(ui.state(SlideCanvasState.self))
+            let from = try XCTUnwrap(canvas.globalPoint(ofSlide: Offset(f0.center.dx, f0.top)))
+            let to = try XCTUnwrap(canvas.globalPoint(ofSlide: Offset(f0.center.dx, f0.top + f0.height / 4)))
+            ui.drag(from: from, to: to)
+            ui.pump()
+            XCTAssertEqual(tb.frame, tb0, "the text box under the handle stays put (box on top: \(boxOnTop))")
+            XCTAssertEqual(pic.crop?.top ?? 0, 0.25, accuracy: 0.02, "box on top: \(boxOnTop)")
+            XCTAssertTrue(deck.cropping === pic, "crop mode stays on (box on top: \(boxOnTop))")
+            XCTAssertEqual(deck.selection.count, 1)
+            XCTAssertTrue(deck.selection.first === pic)
+        }
+    }
+
     func testSlidesCropButtonTurnsCropModeOnAndEnterEndsIt() throws {
         let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: SlidesShell(initialPath: nil, startBlank: true, onSwitch: { _, _ in }), title: "Test"), size: Size(1280, 800))
         let shell = try XCTUnwrap(ui.state(SlidesShellState.self))

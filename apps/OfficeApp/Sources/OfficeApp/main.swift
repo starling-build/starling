@@ -1014,7 +1014,8 @@ func connectNativeHooks(_ scene: OfficeScene, viewId: Int) {
     }
     OfficeNativeShell.onPictureDrop = { path, id in OfficeScene.byView[id]?.pictureDropped?(path) }
     scene.pictureRequested = { done in
-        // OFFICE_PICK_PICTURE=path: a script's stand-in for the system pickers, which no in-app driver can tap.
+        // OFFICE_PICK_PICTURE=path: a script's stand-in for the system pickers, which no in-app driver can tap
+        // (Slides reads it itself, on every platform; this one serves the other apps on iOS).
         if let stub = ProcessInfo.processInfo.environment["OFFICE_PICK_PICTURE"], !stub.isEmpty { done(stub); return }
         OfficeNativeShell.pickPicture(viewId: viewId, done: done)
     }
