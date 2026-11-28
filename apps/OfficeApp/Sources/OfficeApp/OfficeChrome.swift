@@ -345,6 +345,20 @@ enum Chrome {
         return RibbonDensityButton(full: full, iconsOnly: compact)
     }
 
+    /// A titled split button, as Word's Accept and Reject: the icon and title run `action` at once, and only the
+    /// chevron beside them (tip `menuTip`) opens `items`.
+    static func splitMenuButton(_ icon: IconData, _ title: String, _ tip: String, menuTip: String, _ fluent: FluentThemeData,
+                                action: @escaping () -> Void, items: [MenuFlyoutItemBase]) -> Widget {
+        let ink = fluent.resources.textFillColorPrimary
+        let full = FlatButton(child: Padding(padding: EdgeInsets(left: 6, top: 0, right: 2, bottom: 0),
+                                             child: Row(mainAxisSize: .min, crossAxisAlignment: .center, children: [
+                                                 Icon(icon, size: iconSize, color: ink), gap(6), Text(title, style: fluent.typography.body)])),
+                              tip: tip, name: title, width: nil, action: action)
+        let compact = FlatButton(child: Icon(icon, size: iconSize, color: ink), tip: tip, name: title, width: 24, action: action)
+        return Row(mainAxisSize: .min, crossAxisAlignment: .center, children: [
+            RibbonDensityButton(full: full, iconsOnly: compact), splitChevron(menuTip, fluent, items: items)])
+    }
+
     /// The narrow half of a split button: a chevron that opens `items`,
     /// beside a command that acts on its own.
     static func splitChevron(_ tip: String, _ fluent: FluentThemeData, items: [MenuFlyoutItemBase]) -> Widget {
