@@ -259,6 +259,21 @@ final class ThemeTests: XCTestCase {
         deck.undo()
         XCTAssertEqual(deck.snapshot(), before, "one undo step takes the bold off both shapes")
         XCTAssertFalse(title.text!.document.paragraphs.flatMap { $0.runs }.contains { $0.style.bold })
+        XCTAssertEqual(deck.selection.map(\.id), [title.id, sub.id], "undo keeps the shapes selected, as PowerPoint does")
+        deck.redo()
+        XCTAssertEqual(deck.selection.map(\.id), [title.id, sub.id], "and so does redo")
+        XCTAssertTrue(title.text!.document.paragraphs.flatMap { $0.runs }.allSatisfy { $0.style.bold })
+    }
+
+    /// Undoing the shape's own insertion leaves nothing of it selected.
+    func testUndoDropsASelectedShapeItTakesAway() {
+        let deck = DeckController()
+        let count = deck.currentSlide.shapes.count
+        let box = deck.addTextBox(at: Rect.fromLTWH(100, 100, 200, 50))
+        deck.selectShapes([box])
+        deck.undo()
+        XCTAssertEqual(deck.currentSlide.shapes.count, count)
+        XCTAssertTrue(deck.selection.isEmpty)
     }
 
     func testThemedDeckWritesOurMasterWithItsColours() throws {

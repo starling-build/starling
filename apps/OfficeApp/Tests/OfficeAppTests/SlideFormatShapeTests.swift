@@ -91,8 +91,11 @@ final class SlideFormatShapeTests: XCTestCase {
         XCTAssertNil(a.outline)
         ui.tap(id: "fmt.fill.none"); settle(ui)
         XCTAssertNil(a.fill)
-        deck.undo(); XCTAssertNotNil(a.fill, "one undo brings the fill back")
-        ui.tap(id: "fmt.fill.none"); ui.tap(id: "fmt.fill.none"); settle(ui)
+        deck.undo(); settle(ui); XCTAssertNotNil(a.fill, "one undo brings the fill back")
+        XCTAssertEqual(deck.selection.map(\.id), [a.id], "and keeps the shape selected")
+        ui.tap(id: "fmt.fill.none"); settle(ui)
+        XCTAssertNil(a.fill)
+        ui.tap(id: "fmt.fill.none"); settle(ui)
         XCTAssertNotNil(a.fill, "unticking No fill gives a solid fill again")
     }
 
