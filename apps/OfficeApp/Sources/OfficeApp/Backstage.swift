@@ -302,13 +302,13 @@ final class Backstage: StatelessWidget {
     /// browser's picker and download instead, and Backstage closes.
     private func _go(_ p: BackstagePage) {
         if let files = OfficeHost.browserFiles {
-            // A browser tab: the browser's pickers, or a download. Writer's
-            // Save As page stays, as a name-and-format box, where the browser
-            // has no save picker.
+            // A browser tab: the browser's pickers, or a download. The Save
+            // As page stays, as a name-and-format box, where the browser has
+            // no save picker.
             switch p {
             case .open: onClose(); session.onOpen?(); return
             case .save: onClose(); session.onSave?(); return
-            case .saveAs where files.canPickPlace || session.kind != .document:
+            case .saveAs where files.canPickPlace:
                 onClose(); session.onSaveAs?(); return
             default: break
             }

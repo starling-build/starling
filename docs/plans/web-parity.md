@@ -142,8 +142,10 @@ CDP) checks the page side: the print frame, IndexedDB rows, recovery after a rel
    the copy back (a copy the browser evicted says so and leaves the list).
    BrowserRecentTests (native, a stand-in page; fail before), test/office-recent-web.sh
    (Chromium, 6/6). Not yet: file handles (they come with item 4's pickers: today's
-   picker is an <input>, which gives none); Slides' and Sheets' own Open and Save;
-   Open in a tab goes straight to the browser's picker, so only Home lists Recent.
+   picker is an <input>, which gives none); Open in a tab goes straight to the
+   browser's picker, so only Home lists Recent.
+   DONE 2026-11-28 (Slides and Sheets, amd-11): both remember what they open or save
+   in the page's Recent, Backstage lists it and a click reopens the copy, as Word.
 4. **Save As and Save.** Where `showSaveFilePicker` exists (Chrome, Edge), Save As
    asks the browser for a place and a name (Word, OpenDocument, PDF, plain text) and
    keeps the handle; Save then writes the same file in place, as natively, and a
@@ -155,7 +157,15 @@ CDP) checks the page side: the print frame, IndexedDB rows, recovery after a rel
    no pickers means a download and a name-and-format box). test/office-saveas-web.sh in
    Chromium with stand-in pickers over the origin private file system. web-drive hides
    the real pickers unless PICKERS=1 (they open dialogs a script cannot answer).
-   Not yet: Slides and Sheets still download; Recent should keep the handles.
+   DONE 2026-11-28 (Slides and Sheets, amd-11): Open is the browser's picker and keeps
+   the handle; Save writes back through it; Save As asks for a place (pptx; xlsx, csv
+   or tsv with the workbook's own format first) and writes there; no pickers means a
+   download, and Save As shows the name-and-format box. A deck or workbook picked in
+   Word keeps its handle when Word hands it on (PickedFile). Sheets marks a workbook
+   saved only if it did not change while the write was out.
+   BrowserDeckWorkbookFilesTests (native, stand-in page, 9 tests).
+   Not yet: Recent keeps the bytes, not the handle, so a file reopened from Recent
+   asks for a place on its first Save.
 5. **Publishing.** Natively a publication is a folder with site.json that Publish
    builds and pushes with git. A tab has neither, so in the browser it needs a server
    that takes the built pages. That is a product decision (where pages go, who may

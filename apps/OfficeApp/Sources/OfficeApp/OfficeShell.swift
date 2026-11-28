@@ -216,7 +216,7 @@ final class OfficeShellState: State<StatefulWidget> {
         } else if let path = (widget as! OfficeShell).initialPath {
             // Bytes from the browser's picker that crossed a kind switch
             // (a .docx picked in Slides) arrive by name, not on disk.
-            if let data = PickedFile.take(path) { _open(path, data: data) } else { _open(path) }
+            if let data = PickedFile.take(path) { _open(path, data: data, handle: PickedFile.takenHandle) } else { _open(path) }
         } else if (widget as! OfficeShell).startBlank {
             var blank = RichDocument()
             blank.styles = OfficeStyles.sheet
@@ -949,7 +949,7 @@ final class OfficeShellState: State<StatefulWidget> {
         // A deck or a workbook: its own shell opens it, from the same bytes.
         let kind = DocumentKind.kind(forPath: name)
         if kind != .document, let onSwitch = (widget as! OfficeShell).onSwitch {
-            PickedFile.hand(name, data)
+            PickedFile.hand(name, data, handle: handle)
             onSwitch(kind, name)
             return
         }

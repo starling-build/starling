@@ -59,6 +59,9 @@ final class SheetsShellState: State<StatefulWidget> {
     private var _status: String? = nil
     private var _statusGeneration = 0
     private var _recent: [String] = []
+    /// In a browser tab: the page's handle on the file the workbook came from or was saved to, so Save writes
+    /// back into it (web-parity 4); nil when Save must ask for a place or download.
+    private var _browserHandle: Int?
     /// The active sheet's zoom (saved with it), as a factor.
     private var _zoom: Double {
         get { Double(wb.sheet.zoomPercent) / 100 }
@@ -149,7 +152,7 @@ final class SheetsShellState: State<StatefulWidget> {
             #endif
         }
         OfficeFonts.register()
-        _recent = OfficeRecent.load()
+        _recent = OfficeHost.browserRecent?.names() ?? OfficeRecent.load()
         _wire()
         wb.addListener({ [weak self] in self?._changed() }, owner: self)
         _publishToolbar()
@@ -199,7 +202,8 @@ final class SheetsShellState: State<StatefulWidget> {
             // (an .xlsx picked in Writer or Slides) arrive by name, not on disk.
             // A browser tab's recovery copy that Writer found at start and handed on opens unsaved.
             if let data = PickedFile.takeRecovered(path) { _open(path, data: data, recovered: true) }
-            else if let data = PickedFile.take(path) { _open(path, data: data) } else { _open(path) }
+            else if let data = PickedFile.take(path) { _open(path, data: data, handle: PickedFile.takenHandle) }
+            else { _open(path) }
         } else if let row = OfficeHost.browserRecovery?.take("xlsx") {
             // A tab closed with unsaved changes: its copy, under the name it would have saved as.
             _open(row.name, data: row.data, recovered: true)
@@ -239,14 +243,16 @@ final class SheetsShellState: State<StatefulWidget> {
         }
         session.onOpen = { [weak self] in
             guard let self else { return }
-            #if os(WASI)
             // The browser's picker, not Backstage's directory list: a tab
-            // has no directories, only files the user hands over.
-            WebFiles.open(extensions: OfficeFormats.pickable) { [weak self] picked in
-                guard let self, let picked else { return }
-                self._open(picked.name, data: picked.data)
+            // has no directories, only files the user hands over. Where the
+            // browser gives a file handle, Save writes back through it.
+            if let files = OfficeHost.browserFiles {
+                files.open(OfficeFormats.pickable) { [weak self] picked in
+                    self?._open(picked.name, data: picked.data, handle: picked.handle)
+                }
+                return
             }
-            #else
+            #if !os(WASI)
             // A host with its own document browser (the iPad's) takes Open;
             // unsaved edits still get Backstage's prompt first.
             if officeScene.openRequested != nil {
@@ -259,10 +265,13 @@ final class SheetsShellState: State<StatefulWidget> {
         session.onSave = { [weak self] in self?._save() }
         session.onSaveAs = { [weak self] in
             guard let self else { return }
-            #if os(WASI)
-            // The browser names and places a download; "save as" is save.
-            self._save()
-            #else
+            // The browser's own save picker where it has one (Chrome, Edge);
+            // elsewhere Backstage's name box, and a download.
+            if let files = OfficeHost.browserFiles {
+                if files.canPickPlace { self._saveAsInBrowser(files) } else { self.setState { self._backstage = .saveAs } }
+                return
+            }
+            #if !os(WASI)
             if let ask = officeScene.exportRequested {
                 _ = self._grid?.commitEdit()
                 self.wb.stashViewState()
@@ -603,6 +612,7 @@ final class SheetsShellState: State<StatefulWidget> {
 
     private func _newWorkbook() {
         _dropBrowserCopy()
+        _browserHandle = nil
         wb.load(Workbook())
         session.path = nil
         session.dirty = false
@@ -612,6 +622,20 @@ final class SheetsShellState: State<StatefulWidget> {
     /// Open from the in-app file panel: a file another window has open is shown by bringing that window forward
     /// (one document, one window: two windows on one file would race on its AutoSave and recovery copy).
     private func _openFromPanel(_ path: String) {
+        if let browser = OfficeHost.browserRecent {
+            // A tab's Recent holds names; the page reads the kept copy back.
+            browser.open(path) { [weak self] data in
+                guard let self, self.mounted else { return }
+                guard let data else {
+                    self._recent = browser.names()
+                    self.setState { self._backstage = nil }
+                    self._flash("\(path) is no longer kept in this browser")
+                    return
+                }
+                self._open(path, data: data)
+            }
+            return
+        }
         if let other = OfficeScene.holding(path, besides: officeScene) {
             other.focusWindow()
             _flash("\(path.lastPathComponent) is open in another window")
@@ -677,14 +701,20 @@ final class SheetsShellState: State<StatefulWidget> {
     /// A file as bytes, from the browser's picker: a .docx or .pptx goes to
     /// its own shell with the same bytes.
     /// `recovered`: a browser tab's recovery copy, opened unsaved and already the page's row.
-    private func _open(_ name: String, data: Data, recovered: Bool = false) {
+    /// `handle`: the page's handle on the picked file, which Save then writes back into.
+    private func _open(_ name: String, data: Data, recovered: Bool = false, handle: Int? = nil) {
+        // What the tab opens goes to the top of Recent (not a recovery copy: the page holds that already).
+        if !recovered { _rememberInBrowser(name, data) }
         let kind = DocumentKind.kind(forPath: name)
         if kind != .workbook {
-            PickedFile.hand(name, data)
+            PickedFile.hand(name, data, handle: handle)
             _w.onSwitch(kind, name)
             return
         }
-        guard recovered else { _load(data, from: name); return }
+        guard recovered else {
+            if _load(data, from: name) { _browserHandle = handle }
+            return
+        }
         do { wb.load(try Workbook.open(data, name: name.lastPathComponent)) } catch {
             // A copy that does not read never blocks the next start.
             _dropBrowserCopy()
@@ -700,27 +730,38 @@ final class SheetsShellState: State<StatefulWidget> {
 
     /// `path` is a file on disk natively, the picked file's name in a tab:
     /// what the window is called and what a save is named after.
-    private func _load(_ data: Data, from path: String) {
+    @discardableResult
+    private func _load(_ data: Data, from path: String) -> Bool {
         do { wb.load(try Workbook.open(data, name: path.lastPathComponent)) } catch {
             _flash("Could not open \(path.lastPathComponent): it isn't a workbook Sheets can read")
-            return
+            return false
         }
         session.path = path
+        _browserHandle = nil
         session.dirty = false
-        _recent = OfficeRecent.remember(path, in: _recent)
+        _remember(path)
         setState { _backstage = nil }
         _flash("Opened \(path.lastPathComponent)")
+        return true
     }
 
     private func _save() {
-        guard let path = session.path, ["xlsx", "csv", "tsv"].contains(path.pathExtension.lowercased()) else {
-            #if os(WASI)
-            // A download, named after the workbook; the browser decides
-            // where it goes, and asks the user if it is set to.
-            _saveTo(session.title.deletingPathExtension + ".xlsx")
-            #else
+        let own = session.path.map { ["xlsx", "csv", "tsv"].contains($0.pathExtension.lowercased()) } ?? false
+        if let files = OfficeHost.browserFiles {
+            // Back into the file it came from, where the browser gave us its
+            // handle; else the browser's save picker; else a download, named
+            // after the workbook (the browser decides where it goes).
+            if let handle = _browserHandle, let path = session.path, own {
+                _writeInBrowser(files, handle: handle, name: path.lastPathComponent)
+            } else if files.canPickPlace {
+                _saveAsInBrowser(files)
+            } else {
+                _saveTo(session.title.deletingPathExtension + ".xlsx")
+            }
+            return
+        }
+        guard let path = session.path, own else {
             setState { _backstage = .saveAs }
-            #endif
             return
         }
         _saveTo(path)
@@ -730,21 +771,21 @@ final class SheetsShellState: State<StatefulWidget> {
         let ext = chosen.pathExtension.lowercased()
         let path = ["xlsx", "csv", "tsv"].contains(ext) ? chosen : chosen + ".xlsx"
         let format = path.pathExtension.lowercased()
-        _ = _grid?.commitEdit()
-        wb.stashViewState()
         do {
-            let data: Data
-            if format == "xlsx" {
-                data = try Xlsx.write(wb.book)
-            } else {
-                data = Data(Csv.write(wb.sheet, book: wb.book, separator: format == "tsv" ? "\t" : ",").utf8)
+            guard let data = try _encoded(as: format) else { return }
+            if let files = OfficeHost.browserFiles {
+                // A tab: a download (Save without a save picker, or Backstage's name box).
+                files.download(path.lastPathComponent, data)
+                _browserSaved(path.lastPathComponent, data, handle: nil, revision: wb.dataRevision)
+                return
             }
+            // (WASI has no atomic write; a tab always has browserFiles and returned above.)
             #if os(WASI)
-            WebFiles.download(data, as: path.lastPathComponent)
+            try data.write(to: URL(fileURLWithPath: path))
             #else
             try data.write(to: URL(fileURLWithPath: path), options: .atomic)
-            officeScene.documentSaved?(path)
             #endif
+            officeScene.documentSaved?(path)
             #if os(macOS)
             // What was kept for a crash is stale now: under the new name and the old one.
             try? FileManager.default.removeItem(atPath: _recoveryPath(for: path))
@@ -753,7 +794,7 @@ final class SheetsShellState: State<StatefulWidget> {
             session.path = path
             _dropBrowserCopy()
             wb.markSaved()
-            _recent = OfficeRecent.remember(path, in: _recent)
+            _remember(path)
             setState {
                 session.dirty = false
                 _backstage = nil
@@ -764,6 +805,81 @@ final class SheetsShellState: State<StatefulWidget> {
         } catch {
             _flash("Could not save \(path.lastPathComponent): \(plainFailure(error))")
         }
+    }
+
+    /// The workbook's bytes as `format` (xlsx, or the active sheet as csv/tsv), the cell being typed in first.
+    private func _encoded(as format: String) throws -> Data? {
+        _ = _grid?.commitEdit()
+        wb.stashViewState()
+        if format == "xlsx" { return try Xlsx.write(wb.book) }
+        return Data(Csv.write(wb.sheet, book: wb.book, separator: format == "tsv" ? "\t" : ",").utf8)
+    }
+
+    // MARK: Saving in a browser tab (web-parity 4, as Writer)
+
+    /// Save As through the browser's own picker: a place and a name, in a format Sheets writes (the workbook's
+    /// own first).
+    private func _saveAsInBrowser(_ files: OfficeHost.BrowserFiles) {
+        _ = _grid?.commitEdit()
+        let writable = ["xlsx", "csv", "tsv"]
+        let ownExt = (session.path?.pathExtension.lowercased()).flatMap { writable.contains($0) ? $0 : nil } ?? "xlsx"
+        let base = session.path.map { $0.lastPathComponent.deletingPathExtension } ?? session.title.deletingPathExtension
+        files.pickPlace(base + "." + ownExt, [ownExt] + writable.filter { $0 != ownExt }) { [weak self] place in
+            guard let self, self.mounted, let place else { return }
+            self._writeInBrowser(files, handle: place.handle, name: place.name)
+        }
+    }
+
+    private func _writeInBrowser(_ files: OfficeHost.BrowserFiles, handle: Int, name: String) {
+        let ext = name.pathExtension.lowercased()
+        let format = ["csv", "tsv"].contains(ext) ? ext : "xlsx"
+        let data: Data
+        do {
+            guard let d = try _encoded(as: format) else { return }
+            data = d
+        } catch {
+            _flash("Could not save \(name): \(plainFailure(error))")
+            return
+        }
+        let revision = wb.dataRevision
+        files.write(handle, data) { [weak self] ok in
+            guard let self, self.mounted else { return }
+            if ok {
+                self._browserSaved(name, data, handle: handle, revision: revision)
+            } else {
+                self._flash("Could not save \(name): the browser did not allow writing to it")
+            }
+        }
+    }
+
+    /// Written or downloaded: the recovery copy goes, Recent gets the bytes, and Save writes back to `handle`.
+    /// Changes made while the browser wrote keep the workbook unsaved.
+    private func _browserSaved(_ name: String, _ data: Data, handle: Int?, revision: Int) {
+        session.path = name
+        _browserHandle = handle
+        _dropBrowserCopy()
+        let current = wb.dataRevision == revision
+        if current { wb.markSaved() }
+        _rememberInBrowser(name, data)
+        setState {
+            session.dirty = !current
+            _backstage = nil
+        }
+        let csv = ["csv", "tsv"].contains(name.pathExtension.lowercased())
+        _flash(wb.book.sheets.count > 1 && csv ? "Saved \(name) — CSV keeps only the active sheet" : "Saved \(name)")
+    }
+
+    /// A workbook opened or saved: natively its path goes to the top of Recent; in a tab the list is the page's.
+    private func _remember(_ path: String) {
+        if let browser = OfficeHost.browserRecent { _recent = browser.names(); return }
+        _recent = OfficeRecent.remember(path, in: _recent)
+    }
+
+    /// A workbook opened or saved in a tab: the page keeps its bytes under its name, so Recent can reopen it.
+    private func _rememberInBrowser(_ name: String, _ data: Data) {
+        guard let browser = OfficeHost.browserRecent else { return }
+        browser.remember(name, data)
+        _recent = browser.names()
     }
 
     /// PDF or CSV of the active sheet (Excel's own default for both),
