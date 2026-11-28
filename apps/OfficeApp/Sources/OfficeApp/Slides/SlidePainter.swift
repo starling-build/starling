@@ -650,6 +650,11 @@ final class SlidePainter: CustomPainter {
 
     override func paint(_ canvas: any Canvas, _ size: Size) {
         let px = size.width / slideSize.width
+        // The background sits on white, as PowerPoint and its slide show draw it: a see-through background (a stop or
+        // a picture with transparency) shows white through it, not the editor's canvas behind the slide.
+        let paper = Paint()
+        paper.color = Color(0xFFFFFFFF)
+        canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), paper)
         Self.paintFill(slide.background ?? slide.inheritedBackground ?? theme.backgroundFill,
                        Rect.fromLTWH(0, 0, size.width, size.height), canvas, cache: cache, pxPerPt: px)
         canvas.save()
