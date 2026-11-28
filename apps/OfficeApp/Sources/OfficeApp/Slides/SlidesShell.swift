@@ -2742,8 +2742,10 @@ final class SlidesShellState: State<StatefulWidget> {
             }),
             // Clicking the percent opens the Zoom dialog, as in PowerPoint.
             SizedBox(key: ValueKey("zoom.percent"), width: 44, height: nil,
-                     child: GestureDetector(onTap: { [weak self] in self?.session.onZoomDialog?() },
-                                            child: Text("\(deck.viewPercent)%", style: caption))),
+                     child: Semantics(label: "Zoom", value: "\(deck.viewPercent)%", button: true,
+                                      onTap: { [weak self] in self?.session.onZoomDialog?() }, excludeSemantics: true,
+                                      child: GestureDetector(onTap: { [weak self] in self?.session.onZoomDialog?() },
+                                                             child: Text("\(deck.viewPercent)%", style: caption)))),
             Padding(key: ValueKey("zoom.in"), padding: EdgeInsets(left: 0, top: 0, right: 0, bottom: 0), child: Chrome.icon(FluentSystemIcons.zoomIn, "Zoom In", fluent) { [weak self] in
                 self?.deck.stepViewZoom(1)
             }),

@@ -107,7 +107,11 @@ final class _KeyboardRowState: State<StatefulWidget> {
         super.dispose()
     }
     override func build(_ context: any BuildContext) -> Widget {
-        let child = (widget as! KeyboardRow).child
+        let row = widget as! KeyboardRow
+        // A screen reader hears the row by the name the keyboard uses, and can press it the same way; a row whose
+        // child already describes itself (a slide thumbnail with its selected state) keeps that description.
+        let child: Widget = row.child is Semantics ? row.child
+            : Semantics(label: row.label, button: true, onTap: row.activate, excludeSemantics: true, child: row.child)
         guard _ring else { return child }
         return Stack(clipBehavior: .none, children: [child, Positioned(left: 0, top: 0, right: 0, bottom: 0, child: IgnorePointer(child: DecoratedBox(
             decoration: BoxDecoration(border: Border.all(color: Color(0xFF0F6CBD), width: 2)))))])
