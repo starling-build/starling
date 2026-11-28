@@ -311,7 +311,9 @@ final class Ribbon: StatelessWidget {
             session.onStatus?(n == 0 ? "No tracked change here" : "\(n) change\(n == 1 ? "" : "s") \(accept ? "accepted" : "rejected")")
         }
         let changes = Chrome.group("Changes", fluent, [Chrome.rows([
-            Chrome.menuButton(FluentSystemIcons.check, "Accept", "Accept this change and move to the next", fluent, items: [
+            // A split button, as in Word: the button itself is Accept and Move to Next; the arrow holds the rest.
+            Chrome.splitMenuButton(FluentSystemIcons.check, "Accept", "Accept this change and move to the next", menuTip: "Accept options", fluent,
+                                   action: { said(c.resolveChanges(accept: true), true); c.selectAdjacentChange(forward: true) }, items: [
                 MenuFlyoutItem(text: Text("Accept and Move to Next"), onPressed: { said(c.resolveChanges(accept: true), true); c.selectAdjacentChange(forward: true) }),
                 MenuFlyoutItem(text: Text("Accept This Change"), onPressed: { said(c.resolveChanges(accept: true), true) }),
                 MenuFlyoutItem(text: Text("Accept All Changes"), onPressed: { said(c.resolveAllChanges(accept: true), true) }),
@@ -320,7 +322,9 @@ final class Ribbon: StatelessWidget {
                     if c.document.trackRevisions { session.onToggleTrackChanges?() }
                 }),
             ]),
-            Chrome.menuButton(FluentSystemIcons.close, "Reject", "Reject this change and move to the next", fluent, items: [
+            // A split button, as in Word: the button itself is Reject and Move to Next; the arrow holds the rest.
+            Chrome.splitMenuButton(FluentSystemIcons.close, "Reject", "Reject this change and move to the next", menuTip: "Reject options", fluent,
+                                   action: { said(c.resolveChanges(accept: false), false); c.selectAdjacentChange(forward: true) }, items: [
                 MenuFlyoutItem(text: Text("Reject and Move to Next"), onPressed: { said(c.resolveChanges(accept: false), false); c.selectAdjacentChange(forward: true) }),
                 MenuFlyoutItem(text: Text("Reject This Change"), onPressed: { said(c.resolveChanges(accept: false), false) }),
                 MenuFlyoutItem(text: Text("Reject All Changes"), onPressed: { said(c.resolveAllChanges(accept: false), false) }),
