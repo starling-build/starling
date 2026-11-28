@@ -479,14 +479,39 @@ extension DeckController {
         _changed()
     }
 
+    /// A placeholder new on a page of Master view: on a layout it inherits its master's matching placeholder
+    /// (title, body, date, footer or number), as PowerPoint's Insert Layout and Insert Placeholder do, so it
+    /// shows the master's current look and saves without one of its own.
     private func _masterPlaceholder(_ type: String?, _ name: String, _ frame: Rect, size: Double, prompt: String,
                                     heading: Bool = false, idx: String? = nil) -> SlideShape {
+        var size = size
+        var inherits = InheritedText()
+        if let role = masterPage,
+           let master = slides.first(where: { $0.masterRole?.kind == .master && $0.masterRole?.master == role.master }) {
+            let want = type == "title" ? "title" : (type == "dt" || type == "ftr" || type == "sldNum") ? type! : "body"
+            if let from = master.shapes.first(where: { $0.phType == want }) {
+                // An empty prompt paragraph holds its look in the typing style, as MasterTextLook reads it.
+                let first = from.text?.document.paragraphs.first
+                let run = ((first?.text.isEmpty ?? true) ? from.text?.typingStyle : nil) ?? first?.runs.first?.style ?? CharStyle()
+                size = run.fontSize ?? from.textTheme?.fontSize ?? size
+                inherits = InheritedText(bold: run.bold, italic: run.italic)
+            }
+        }
         let theme = _textTheme(font: heading ? self.theme.headingFont : self.theme.bodyFont, size: size, color: self.theme.text)
         let doc = RichDocument(paragraphs: [RichParagraph(text: prompt, style: RichParagraphStyle(spaceAfter: 0, lineSpacing: 0.9))])
         let shape = SlideShape(id: _id(), name: name, kind: .placeholder(type == "title" ? .title : .body), frame: frame,
                                text: _textController(doc), textTheme: theme, anchor: .top, prompt: prompt)
         shape.phType = type
         shape.phIdx = idx
+        shape.inherits = inherits
+        if inherits != InheritedText(), let t = shape.text {
+            let n = t.document.paragraphs[0].text.utf16.count
+            t.moveTo(RichPosition(paragraph: 0, offset: 0), extend: false)
+            t.moveTo(RichPosition(paragraph: 0, offset: n), extend: true)
+            if inherits.bold { t.toggleBold() }
+            if inherits.italic { t.toggleItalic() }
+            t.moveTo(RichPosition(paragraph: 0, offset: 0), extend: false)
+        }
         return shape
     }
 }

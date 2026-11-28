@@ -24,6 +24,12 @@ struct Boxed<Value: Equatable>: Equatable {
 }
 
 /// Everything a shape is, as a value: what undo stores and restores.
+/// What a placeholder's runs inherit from its layout and master (see `SlideShape.inherits`).
+struct InheritedText: Equatable {
+    var bold = false
+    var italic = false
+}
+
 struct ShapeState: Equatable {
     var id: Int
     var name: String
@@ -43,6 +49,7 @@ struct ShapeState: Equatable {
     var listIndent: Double
     var phType: String? = nil
     var phIdx: String? = nil
+    var inherits: InheritedText? = nil
     var fillScheme: String? = nil
     /// The same for the outline (`SchemeColor`).
     var outlineScheme: String? = nil
@@ -529,8 +536,11 @@ final class DeckController: ChangeNotifier {
 
     /// A copy of a slide with new ids, its animations aimed at the copies of
     /// its shapes. Not yet in the deck.
-    func _cloneSlide(_ source: Slide) -> Slide {
-        let shapes = source.shapes.map { _copy($0) }
+    /// `keepSource`: a copy inside this deck (Duplicate Slide, Duplicate Layout) keeps each ungrouped shape's
+    /// original XML, as PowerPoint's duplicate does, so an untouched title still inherits from its layout and
+    /// master instead of being written out with every size and style spelled.
+    func _cloneSlide(_ source: Slide, keepSource: Bool = false) -> Slide {
+        let shapes = source.shapes.map { keepSource && $0.group == nil ? _copy($0, keepSource: true) : _copy($0) }
         let copy = Slide(id: _id(), layout: source.layout, shapes: shapes,
                          notes: _textController(source.notes.document))
         copy.hidden = source.hidden
@@ -556,7 +566,7 @@ final class DeckController: ChangeNotifier {
     func duplicateSlide(_ index: Int) {
         guard slides.indices.contains(index) else { return }
         _checkpoint()
-        let copy = _cloneSlide(slides[index])
+        let copy = _cloneSlide(slides[index], keepSource: true)
         _watch(copy)
         slides.insert(copy, at: index + 1)
         _adoptSection(index + 1 ..< index + 2)
@@ -748,7 +758,7 @@ final class DeckController: ChangeNotifier {
         _checkpoint()
         var at = picked.last! + 1
         let first = at
-        let copies = picked.map { _cloneSlide(slides[$0]) }
+        let copies = picked.map { _cloneSlide(slides[$0], keepSource: true) }
         for copy in copies { _watch(copy); slides.insert(copy, at: at); at += 1 }
         _adoptSection(first ..< at)
         current = at - 1
@@ -3256,7 +3266,7 @@ final class DeckController: ChangeNotifier {
                    insets: s.insets, prompt: s.prompt, text: s.text?.document,
                    font: s.textTheme?.fontFamily, size: s.textTheme?.fontSize ?? 18,
                    color: s.textTheme?.textColor ?? theme.text, listIndent: s.textTheme?.listIndent ?? 18,
-                   phType: s.phType, phIdx: s.phIdx, fillScheme: s.fillScheme, crop: s.crop,
+                   phType: s.phType, phIdx: s.phIdx, inherits: s.inherits, fillScheme: s.fillScheme, crop: s.crop,
                    flipH: s.flipH, flipV: s.flipV, aspectLock: s.aspectLock, pictureGeometry: s.pictureGeometry,
                    pictureAlpha: s.pictureAlpha, pictureDuotone: s.pictureDuotone, pictureColorChange: s.pictureColorChange,
                    pictureInset: s.pictureInset,
@@ -3347,6 +3357,7 @@ final class DeckController: ChangeNotifier {
         shape.prompt = st.prompt
         shape.phType = st.phType
         shape.phIdx = st.phIdx
+        shape.inherits = st.inherits
         // The text's look: a new theme object when it differs (undoing a
         // theme), never an edit in place.
         if st.text != nil, let tt = shape.textTheme,
@@ -3570,15 +3581,17 @@ final class DeckController: ChangeNotifier {
         notifyListeners()
     }
 
-    private func _copy(_ shape: SlideShape, offset: Double = 0, keepGroup: Bool = false) -> SlideShape {
+    private func _copy(_ shape: SlideShape, offset: Double = 0, keepGroup: Bool = false, keepSource: Bool = false) -> SlideShape {
         var st = _state(shape)
         st.id = _id()
         st.fileId = nil
-        st.sourceXML = nil
+        if !keepSource {
+            st.sourceXML = nil
+            st.keptLine = nil
+            st.keptPicture = nil
+        }
         if !keepGroup { st.group = nil }
         st.formerGroup = nil
-        st.keptLine = nil
-        st.keptPicture = nil
         st.frame = st.frame.shift(Offset(offset, offset))
         return _make(st)
     }
