@@ -318,6 +318,13 @@ public final class KeyboardTraversal {
     }
 
     /// Takes the ring away (the keyboard is back with the editor).
+    /// Drops the ring without moving the keyboard: for a view that takes the keyboard itself (a slide show), so
+    /// its Esc reaches it instead of sending the focus back to what the ring left.
+    public func release() {
+        _focus(nil)
+        _saved = nil
+    }
+
     public func leave() {
         _focus(nil)
         _saved?.requestFocus()
