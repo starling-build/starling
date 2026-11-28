@@ -292,6 +292,16 @@ extension Ribbon {
         let bevels: [MenuFlyoutItemBase] = [item("fx.bevel.none", "No Bevel") { deck.setBevel(nil) }]
             + ShapeEffectPresets.bevels.map { b in
                 item("fx.bevel.\(b.preset)", b.name) { deck.setBevel(ShapeBevel(width: 6, height: 6, preset: b.preset)) } }
+        // 3-D Rotation, grouped as PowerPoint's gallery is: no rotation, then parallel, perspective and oblique.
+        let groups: [(String, (String) -> Bool)] = [
+            ("Parallel", { $0.hasPrefix("isometric") }), ("Perspective", { $0.hasPrefix("perspective") }),
+            ("Oblique", { $0.hasPrefix("oblique") }),
+        ]
+        let rotations: [MenuFlyoutItemBase] = [item("fx.rotation.orthographicFront", "No Rotation") { deck.setCamera("orthographicFront") }]
+            + groups.map { name, test in
+                MenuFlyoutSubItem(text: Text(name), items: Extrusion.rotationPresets.filter { test($0.0) }.map { prst, label in
+                    item("fx.rotation.\(prst)", label) { deck.setCamera(prst) } })
+            }
         return [
             item("fx.clear", "No Effects") { deck.clearEffects() },
             MenuFlyoutSeparator(),
@@ -300,6 +310,7 @@ extension Ribbon {
             MenuFlyoutSubItem(text: Text("Glow"), items: glows),
             MenuFlyoutSubItem(text: Text("Soft Edges"), items: soft),
             MenuFlyoutSubItem(text: Text("Bevel"), items: bevels),
+            MenuFlyoutSubItem(text: Text("3-D Rotation"), items: rotations),
         ]
     }
 
