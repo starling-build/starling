@@ -80,6 +80,11 @@ public final class RichEditable: StatefulWidget {
     public let scrolls: Bool
     /// A click (no drag) on a selected plain text box: its paragraph index, inline id and drawn rect in this widget's coordinates.
     public let onTextBoxEnter: ((Int, String?, Rect) -> Void)?
+    /// W-TB-5: a click in a table nested in a cell (Word puts the caret in the inner cell at once): the block's paragraph
+    /// index, its drawn rect and the click point, both in this widget's coordinates.
+    public let onNestedTableEnter: ((Int, Rect, Offset) -> Void)?
+    /// A point in this widget's coordinates where the caret goes once the text is laid out (the click that opened it).
+    public let caretAt: Offset?
     /// Reported after a paint whenever the selected picture's drawn rect moved (scroll, zoom, layout): lets an editor laid
     /// over a text box follow it. Nil when no picture is selected.
     public let onBoxRect: ((Rect?) -> Void)?
@@ -112,8 +117,12 @@ public final class RichEditable: StatefulWidget {
                 scrolls: Bool = true,
                 onTextBoxEnter: ((Int, String?, Rect) -> Void)? = nil,
                 onBoxRect: ((Rect?) -> Void)? = nil,
-                onContentHeight: ((Double) -> Void)? = nil) {
+                onContentHeight: ((Double) -> Void)? = nil,
+                onNestedTableEnter: ((Int, Rect, Offset) -> Void)? = nil,
+                caretAt: Offset? = nil) {
         self.onContentHeight = onContentHeight
+        self.onNestedTableEnter = onNestedTableEnter
+        self.caretAt = caretAt
         self.onTextBoxEnter = onTextBoxEnter
         self.onBoxRect = onBoxRect
         self.controller = controller
@@ -197,6 +206,7 @@ public final class RichEditableState: State<StatefulWidget> {
     /// A floating picture dragged by its body: which one, where the press was, and the live offset.
     private var _lastBoxRect: Rect?
     private var _lastContentHeight = -1.0
+    private var _caretAtPlaced = false
     private var _moveDrag: (index: Int, inline: String?, start: Offset)? = nil
     private var _moveDelta: Offset? = nil
     /// A table dragged by its move handle: which one, where the press was, and the live offset (nil until it moves).
@@ -412,6 +422,7 @@ public final class RichEditableState: State<StatefulWidget> {
     public override func didUpdateWidget(_ oldWidget: StatefulWidget) {
         super.didUpdateWidget(oldWidget)
         let old = oldWidget as! RichEditable
+        if old.caretAt != _w.caretAt || old.controller !== _w.controller { _caretAtPlaced = false }
         if old.controller !== _w.controller {
             old.controller.removeListeners(owner: self)
             _controller = _w.controller
@@ -937,6 +948,16 @@ public final class RichEditableState: State<StatefulWidget> {
         return (index, rect, inline)
     }
 
+    /// The table nested in a cell under the point (editable coordinates) that opens for typing: its paragraph and drawn rect.
+    private func _nestedTable(at local: Offset) -> (Int, Rect)? {
+        guard _layout.width > 0 else { return nil }
+        let doc = _shownDocument
+        for i in doc.paragraphs.indices where doc.paragraphs[i].keptTable != nil && doc.paragraphs[i].isImage {
+            if let r = imageRectOnScreen(i), r.contains(local), _controller.isNestedTable(at: i) { return (i, r) }
+        }
+        return nil
+    }
+
     /// The floating picture of its own paragraph under the point (editable coordinates), if any: it is drawn away from
     /// its paragraph, so a press there lands on other text; the paragraph's index.
     private func _floatingImage(at local: Offset) -> Int? {
@@ -1359,6 +1380,12 @@ public final class RichEditableState: State<StatefulWidget> {
                 _dragging = false
                 return
             }
+            if !_chords.shift, !_controller.readOnly, let enter = _w.onNestedTableEnter, let (i, r) = _nestedTable(at: event.localPosition) {
+                // W-TB-5: a click in a table nested in a cell types in the inner cell under it, as Word does.
+                _dragging = false
+                enter(i, r, event.localPosition)
+                return
+            }
             _dragging = true
             _controller.moveTo(pos, extend: _chords.shift)
             // A click on a picture set in a line of text selects it (with its handles), as on a picture of its own.
@@ -1752,6 +1779,10 @@ public final class RichEditableState: State<StatefulWidget> {
             }
             if d.dx == 0, d.dy == 0, box != nil, _w.onTextBoxEnter != nil, _controller.textBoxDocument(at: drag.index, inline: drag.inline) == nil {
                 _controller.giveShapeText(at: drag.index, inline: drag.inline)   // a plain shape takes text when entered
+            }
+            if d.dx == 0, d.dy == 0, let box, drag.inline == nil, let enter = _w.onNestedTableEnter, _controller.isNestedTable(at: drag.index) {
+                enter(drag.index, box.rect, drag.start)   // (a nested table picked as an object: the caret goes where clicked)
+                return
             }
             if d.dx == 0, d.dy == 0, let box, let enter = _w.onTextBoxEnter, _controller.textBoxDocument(at: drag.index, inline: drag.inline) != nil {
                 enter(drag.index, drag.inline, box.rect)
@@ -2155,6 +2186,16 @@ public final class RichEditableState: State<StatefulWidget> {
                                    Radius(circular: 3)), paint)
         }
 
+        if let p = _w.caretAt, !_caretAtPlaced {
+            // (After the paint: the click that opened this editor puts the caret where it landed.)
+            _caretAtPlaced = true
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self._layout.width > 0 else { return }
+                self._syncLayoutIfNeeded()
+                self._controller.moveTo(self._layout.canvasPosition(at: self._canvasPoint(p), self._shownDocument), extend: false)
+                self._repaint.notifyListeners()
+            }
+        }
         if let report = _w.onContentHeight {
             let h = _layout.totalHeight
             if h != _lastContentHeight {

@@ -90,7 +90,7 @@ final class NestedTableTests: XCTestCase {
     }
 }
 
-/// The same through the app: a click selects the nested table, a second click goes into it, typing fills a cell,
+/// The same through the app: one click in an inner cell puts the caret there (as Word), typing fills that cell,
 /// Escape puts it back as one undo step.
 final class NestedTableShellTests: XCTestCase {
     func testClickIntoTheNestedTableAndType() throws {
@@ -110,19 +110,27 @@ final class NestedTableShellTests: XCTestCase {
         let box = try XCTUnwrap(editor.findRenderObject() as? RenderBox)
         let state = try XCTUnwrap((editor as? StatefulElement)?.state as? RichEditableState)
         let r = try XCTUnwrap(state.imageRectOnScreen(i))
-        // The inner table's first cell, a little in from its corner.
-        let at = box.localToGlobal(Offset(r.left + r.width / 4, r.top + r.height / 4))
+        // Picked as an object (keys, a drag across it), it is a table: no Shape Format tab with a size of its own.
+        c.selectImage(at: i); settle()
+        XCTAssertEqual(shell.session.imageTab, .tableLayout)
+        c.moveTo(RichPosition(paragraph: i + 1, offset: 0), extend: false); settle()
+        // The inner table's second column, first row, a little in from the cell's corner.
+        let at = box.localToGlobal(Offset(r.left + r.width * 0.75, r.top + r.height / 4))
         ui.click(at: at, kind: .mouse); settle()
-        XCTAssertEqual(c.selectedImageIndex, i, "a click selects the nested table")
-        RunLoop.main.run(until: Date().addingTimeInterval(0.6))   // (not a double click)
-        ui.click(at: at, kind: .mouse); settle()
-        XCTAssertNotNil(shell._boxEdit, "a second click goes into it")
+        XCTAssertNotNil(shell._boxEdit, "one click goes into the nested table")
+        let inside = shell.session.controller
+        XCTAssertFalse(inside === c)
+        let cell = inside.document.paragraphs[inside.selection.focus.paragraph].cell
+        XCTAssertEqual(cell?.row, 0, "the caret is in the cell clicked")
+        XCTAssertEqual(cell?.column, 1, "the caret is in the cell clicked")
         shell.session.controller.insertText("typed inside")
         settle()
         shell._leaveBox(); settle()
         XCTAssertTrue(shell.session.controller === c)
+        XCTAssertEqual(c.selection.focus.paragraph, i + 1, "leaving it puts the caret in the outer cell under it")
+        XCTAssertNil(c.selectedImageIndex)
         let inner = try XCTUnwrap(c.document.paragraphs[i].image?.textBox)
-        XCTAssertTrue(inner.paragraphs.contains { $0.text == "typed inside" }, "\(inner.paragraphs.map(\.text))")
+        XCTAssertEqual(inner.paragraphs.first { $0.text == "typed inside" }?.cell?.column, 1, "\(inner.paragraphs.map(\.text))")
         let xml = String(decoding: try Zip.read(try DocxFormat.write(c.document, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
         XCTAssertTrue(xml.containsSubstring("typed inside"))
         c.undo()
