@@ -3117,6 +3117,24 @@ enum ChartXML {
         return "<c:title><c:tx><c:rich>\(body)<a:lstStyle/>\(paragraphs)</c:rich></c:tx><c:overlay val=\"0\"/></c:title>"
     }
 
+    /// A chart's data table (`c:dTable`) as Word writes one (Quick Layout 5, lab wobql): its rules and keys, the
+    /// table's lines a light grey of the text colour (the gridlines' 15%), its text 9 pt in the axes' grey. A
+    /// table that states its own line or size keeps them.
+    static func dataTable(_ t: DataTable) -> String {
+        func flag(_ name: String, _ on: Bool) -> String { "<c:\(name) val=\"\(on ? 1 : 0)\"/>" }
+        let fill = t.lineColor.map { "<a:solidFill><a:srgbClr val=\"\(PptxText.hex($0))\"/></a:solidFill>" }
+            ?? "<a:solidFill><a:schemeClr val=\"tx1\"><a:lumMod val=\"15000\"/><a:lumOff val=\"85000\"/></a:schemeClr></a:solidFill>"
+        let w = Int(((t.lineWidth ?? 0.75) * 12700).rounded()), sz = Int(((t.size ?? 9) * 100).rounded())
+        return "<c:dTable>" + flag("showHorzBorder", t.horizontalRules) + flag("showVertBorder", t.verticalRules)
+            + flag("showOutline", t.outline) + flag("showKeys", t.keys)
+            + "<c:spPr><a:noFill/><a:ln w=\"\(w)\" cap=\"flat\" cmpd=\"sng\" algn=\"ctr\">\(fill)<a:round/></a:ln><a:effectLst/></c:spPr>"
+            + "<c:txPr><a:bodyPr rot=\"0\" spcFirstLastPara=\"1\" vertOverflow=\"ellipsis\" vert=\"horz\" wrap=\"square\" anchor=\"ctr\" anchorCtr=\"1\"/>"
+            + "<a:lstStyle/><a:p><a:pPr rtl=\"0\"><a:defRPr sz=\"\(sz)\" b=\"0\" i=\"0\" u=\"none\" strike=\"noStrike\" kern=\"1200\" baseline=\"0\">"
+            + "<a:solidFill><a:schemeClr val=\"tx1\"><a:lumMod val=\"65000\"/><a:lumOff val=\"35000\"/></a:schemeClr></a:solidFill>"
+            + "<a:latin typeface=\"+mn-lt\"/><a:ea typeface=\"+mn-ea\"/><a:cs typeface=\"+mn-cs\"/></a:defRPr></a:pPr>"
+            + "<a:endParaRPr lang=\"en-US\"/></a:p></c:txPr></c:dTable>"
+    }
+
     private static let _gridLine = "<a:ln w=\"9525\" cap=\"flat\" cmpd=\"sng\" algn=\"ctr\"><a:solidFill><a:schemeClr val=\"tx1\"><a:lumMod val=\"15000\"/><a:lumOff val=\"85000\"/></a:schemeClr></a:solidFill><a:round/></a:ln>"
 
     private static func _solid(_ chart: Chart, _ i: Int) -> String {
@@ -3260,6 +3278,7 @@ enum ChartXML {
                 plot += "<c:catAx><c:axId val=\"500000001\"/><c:scaling><c:orientation val=\"minMax\"/></c:scaling><c:delete val=\"\(c.categoryAxisDeleted ? 1 : 0)\"/><c:axPos val=\"\(catPos)\"/>\(catTitle)<c:numFmt formatCode=\"General\" sourceLinked=\"1\"/>\(tail)<c:spPr><a:noFill/>\(_gridLine)</c:spPr><c:crossAx val=\"500000002\"/><c:crosses val=\"autoZero\"/><c:auto val=\"1\"/><c:lblAlgn val=\"ctr\"/><c:lblOffset val=\"100\"/><c:noMultiLvlLbl val=\"0\"/></c:catAx>"
             }
             plot += valAx
+            if let t = c.dataTable { plot += dataTable(t) }
         }
         let title = c.title.map {
             _rich($0, size: c.titleSize.map { Int(($0 * 100).rounded()) } ?? 1862, bold: c.titleBold, color: c.titleColor)
@@ -4754,7 +4773,8 @@ enum ChartPainter {
         var rows = c.series.map { ($0, c.type == .line) } + c.lineSeries.map { ($0, true) }
         // (A stacked column's table lists the series from the top of the stack down: PowerPoint's print of
         // es/3f8a480a's three stacked tables, the last series first.)
-        let stackedDown = c.onSlide && c.stacked && c.type == .column && c.lineSeries.isEmpty
+        // (A Word bar chart's table too, as its bars stand: Word's print of lab wobql2's q-bar-5, Series 3, 2, 1 down.)
+        let stackedDown = c.onSlide && c.stacked && c.type == .column && c.lineSeries.isEmpty || (!c.onSlide && !c.onSheet && c.type == .bar && c.lineSeries.isEmpty)
         let order = stackedDown ? Array(rows.indices.reversed()) : Array(rows.indices)
         if stackedDown { rows.reverse() }
         let squareKeys = dt.squareKeys || c.onSlide
@@ -6663,6 +6683,7 @@ enum ChartPainter {
         // 17pt in from its left, the key 3.2 into it, 19.2 long, the name
         // 2 after it and 2.5 clear of the plot.)
         var table: (top: Double, rows: [Double], left: Double, size: Double)? = nil
+        var tableColumns: (left: Double, right: Double)? = nil // a table whose numbers do not stand under the plot
         if let dt = c.dataTable, !horizontal, c.type != .scatter, !c.type.isPie {
             let size = dt.size ?? c.baseTextSize
             let names = (c.series + c.lineSeries).map { text($0.name, size, .infinity) }
@@ -6713,6 +6734,30 @@ enum ChartPainter {
             // print, where 11.1 px stood 2.6 pt high.)
             plot = Rect.fromLTRB(left, head, right, top)
             table = (top, rows, plot.left - column, size)
+        } else if let dt = c.dataTable, horizontal, !c.onSheet, !c.onSlide, c.type != .scatter, !c.type.isPie {
+            // A Word bar chart's table stands apart from the plot: under the value axis, 11 pt in from the chart's left, right and
+            // foot, its numbers in columns of their own, the categories' row one line of the face deep and the series listed
+            // the last first, as the bars stand. The plot and its value labels rise by the table's height and the 11 pt under it.
+            // (Word's print of lab wobql2's q-bar-5, Quick Layout 5 on Word's sample bar chart 432 x 252 pt at 9 pt: the table
+            // 83.0-493.0 x 281.4-335.5, the names' column 43.6 wide, the categories' row 11.0, the series' 14.3; the plot's foot
+            // 251.8, the value labels 259.3-274.0 between it and the table.)
+            RuleTrace.hit("word-bar-chart-data-table-under-the-value-axis")
+            let size = dt.size ?? c.baseTextSize
+            let names = (c.series + c.lineSeries).map { text($0.name, size, .infinity) }
+            let e = size / 10 * k
+            let column = (dt.keys ? (dt.squareKeys ? 11.4 * e : 24.4 * k) : 3.2 * k) + (names.map(\.width).max() ?? 0) + (dt.squareKeys ? 2.4 * e : 2.5 * k)
+            for t in names { t.dispose() }
+            let inset = 11 * k
+            let left = frame.left + inset, right = frame.right - inset
+            let probe = text("Ag", size, .infinity)
+            let line = probe.height
+            probe.dispose()
+            var rows = Self._tableRows(c, size: size, k: k, slot: (right - left - column) / Double(max(1, n)), text: text)
+            if !rows.isEmpty { rows[0] = line }
+            let top = frame.bottom - inset - rows.reduce(0, +)
+            plot = Rect.fromLTRB(plot.left, plot.top, plot.right, max(plot.top + k, plot.bottom - (frame.bottom - top)))
+            table = (top, rows, left, size)
+            tableColumns = (left + column, right)
         }
         if let placed, c.plotLayoutInner {
             // (A laid plot that runs past the chart's right edge is cut there by PowerPoint, its categories
@@ -7563,7 +7608,7 @@ enum ChartPainter {
         }
         for t in valueLabels + catLabels { t.dispose() }
         if let table, let dt = c.dataTable {
-            Self._dataTable(c, dt, canvas, plot: plot, top: table.top, rows: table.rows, left: table.left, size: table.size,
+            Self._dataTable(c, dt, canvas, plot: tableColumns.map { Rect.fromLTRB($0.left, plot.top, $0.right, plot.bottom) } ?? plot, top: table.top, rows: table.rows, left: table.left, size: table.size,
                             n: n, k: k, theme: theme, rightTrim: c.onSlide && c.plotLayout != nil && c.barView?.walled == true ? 5.7 * k : 0, text: text)
         }
 

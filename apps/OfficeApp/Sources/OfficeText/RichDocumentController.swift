@@ -1153,6 +1153,10 @@ public final class RichDocumentController: ChangeNotifier {
         return selection.anchor.paragraph == i ? i : nil
     }
 
+    /// Whether a caret is drawn: a collapsed selection that is not on a picture. A selected picture or chart shows its
+    /// frame and handles only, as Word does (no caret beside it).
+    public var showsCaret: Bool { selection.isCollapsed && selectedImageIndex == nil }
+
     /// Put the caret on picture paragraph `index`, which selects it.
     public func selectImage(at index: Int) {
         guard index < document.paragraphs.count, document.paragraphs[index].isImage else { return }

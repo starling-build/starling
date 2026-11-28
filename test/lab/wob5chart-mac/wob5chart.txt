@@ -37,15 +37,28 @@ shot ${OUT}/07-stacked.png
 # Quick Layout > Layout 4 (no title, no axis titles, legend bottom, no gridlines, 9 pt data labels on every series).
 click 278 116
 wait 400
-click 282 210
+click 282 238
 wait 400
 shot ${OUT}/08-quick-layout-4.png
 # Quick Layout > Layout 9 (title, legend right, gridlines back, labels on the last series only, inside the bar ends).
 click 278 116
 wait 400
-click 282 322
+click 282 378
 wait 400
 shot ${OUT}/08b-quick-layout-9.png
+# Quick Layout > Layout 2 (title, legend top, value axis hidden, no gridlines, data labels on every series).
+click 278 116
+wait 400
+click 282 182
+wait 400
+shot ${OUT}/08c-quick-layout-2.png
+# Quick Layout > Layout 5 (title, no legend, gridlines, value axis title, a data table with keys under the plot; the
+# bar chart below keeps it, under its value axis, the series listed 3, 2, 1).
+click 278 116
+wait 400
+click 282 266
+wait 400
+shot ${OUT}/08d-quick-layout-5.png
 # Change Chart Type > Bar.
 click 62.5 149
 wait 400

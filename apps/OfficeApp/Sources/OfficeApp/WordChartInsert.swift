@@ -50,7 +50,9 @@ enum WordChartInsert {
     /// could not be made.
     @discardableResult
     static func insert(_ type: ChartType, into c: RichDocumentController) -> Bool {
-        let chart = Chart.sample(type)
+        var chart = Chart.sample(type)
+        // Word's new chart titles itself at 14 pt (its chart style 201: sz 1400), not Slides' 18.62.
+        chart.titleSize = 14
         guard let made = make(chart, in: c.document) else { return false }
         c.edit {
             c.setKeptParts(made.parts, label: "Insert Chart", types: made.types)

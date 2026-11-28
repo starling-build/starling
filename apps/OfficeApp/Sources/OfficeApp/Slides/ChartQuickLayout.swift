@@ -6,8 +6,9 @@
 // gridlines, the gap between categories and the overlap of their bars, and the data labels. The two kinds have their
 // own lists (a column chart has a Layout 8 a bar chart lacks, so its 9 to 11 are the bar's 8 to 10). Each layout sets
 // every one of those, so applying one after another gives the same chart as applying the second alone; a title or axis
-// title the chart already has keeps its text. Layouts that hide the value axis (2) or add a data table (5) are not
-// offered, nor any layout for other chart types (Word's lists for those were not measured).
+// title the chart already has keeps its text. Layout 2 hides the value axis (Word deletes it: its scale stays, its labels
+// and their room go) and labels every bar; Layout 5 puts a data table under the plot. No layout is offered for other
+// chart types (Word's lists for those were not measured).
 
 struct ChartQuickLayout: Equatable {
     enum Labels: Equatable {
@@ -29,18 +30,30 @@ struct ChartQuickLayout: Equatable {
     let gap: Int
     let overlap: Int
     let labels: Labels
+    /// The value axis shows (`c:delete` 0); Layout 2 deletes it.
+    let valueAxis: Bool
+    /// A data table under the plot (`c:dTable`, every rule and the keys, as Word adds it).
+    let dataTable: Bool
 
     private init(_ name: String, title: Bool, legend: String?, valueTitle: Bool = false, categoryTitle: Bool = false,
-                 grid: Bool = true, gap: Int = 150, overlap: Int = 0, labels: Labels = .none) {
+                 grid: Bool = true, gap: Int = 150, overlap: Int = 0, labels: Labels = .none, valueAxis: Bool = true,
+                 dataTable: Bool = false) {
         self.name = name; self.title = title; self.legend = legend
         self.valueTitle = valueTitle; self.categoryTitle = categoryTitle
         self.valueGrid = grid; self.gap = gap; self.overlap = overlap; self.labels = labels
+        self.valueAxis = valueAxis; self.dataTable = dataTable
     }
+
+    /// Word's Layout 2: title, legend at the top, no value axis or gridlines, every series' values.
+    private static let layout2 = ChartQuickLayout("Layout 2", title: true, legend: "t", grid: false, overlap: -25, labels: .all,
+                                                  valueAxis: false)
 
     static let bar: [ChartQuickLayout] = [
         ChartQuickLayout("Layout 1", title: true, legend: "r"),
+        layout2,
         ChartQuickLayout("Layout 3", title: true, legend: "b", gap: 75, overlap: -25),
         ChartQuickLayout("Layout 4", title: false, legend: "b", grid: false, gap: 75, labels: .all),
+        ChartQuickLayout("Layout 5", title: true, legend: nil, dataTable: true),
         ChartQuickLayout("Layout 6", title: true, legend: nil, valueTitle: true),
         ChartQuickLayout("Layout 7", title: false, legend: "r", valueTitle: true, categoryTitle: true, gap: 300),
         ChartQuickLayout("Layout 8", title: true, legend: "r", valueTitle: true, categoryTitle: true),
@@ -50,8 +63,10 @@ struct ChartQuickLayout: Equatable {
 
     static let column: [ChartQuickLayout] = [
         ChartQuickLayout("Layout 1", title: true, legend: "r"),
+        layout2,
         ChartQuickLayout("Layout 3", title: true, legend: "b", gap: 75, overlap: -25),
         ChartQuickLayout("Layout 4", title: false, legend: "b", grid: false, gap: 75, labels: .all),
+        ChartQuickLayout("Layout 5", title: true, legend: nil, valueTitle: true, dataTable: true),
         ChartQuickLayout("Layout 6", title: true, legend: nil, valueTitle: true),
         ChartQuickLayout("Layout 7", title: false, legend: "r", valueTitle: true, categoryTitle: true, gap: 300),
         ChartQuickLayout("Layout 8", title: true, legend: nil, valueTitle: true, categoryTitle: true, grid: false, gap: 0),
@@ -75,12 +90,14 @@ struct ChartQuickLayout: Equatable {
         if title { parts.append("title") }
         if let legend { parts.append("legend " + (["r": "right", "t": "top", "b": "bottom", "l": "left"][legend] ?? legend)) }
         if valueTitle && categoryTitle { parts.append("axis titles") } else if valueTitle { parts.append("value axis title") }
+        if !valueAxis { parts.append("no value axis") }
         if !valueGrid { parts.append("no gridlines") }
         switch labels {
         case .none: break
         case .all: parts.append("data labels")
         case .lastInside: parts.append("labels on the last series")
         }
+        if dataTable { parts.append("data table") }
         return parts.isEmpty ? "no elements" : parts.joined(separator: ", ")
     }
 
@@ -93,6 +110,9 @@ struct ChartQuickLayout: Equatable {
         c.valueAxisTitle = valueTitle ? (c.valueAxisTitle ?? "Axis Title") : nil
         c.categoryAxisTitle = categoryTitle ? (c.categoryAxisTitle ?? "Axis Title") : nil
         c.valueGrid = valueGrid
+        c.valueAxisDeleted = !valueAxis
+        // (A table the chart already has keeps its own look.)
+        c.dataTable = dataTable ? (c.dataTable ?? DataTable(size: 9, lineWidth: 0.75, squareKeys: true)) : nil
         c.gapWidth = gap
         if !c.stacked && !c.percent { c.overlap = overlap }
         c.dataLabels = labels != .none

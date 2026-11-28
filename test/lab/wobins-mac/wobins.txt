@@ -4,7 +4,7 @@
 wait 1500
 shot ${OUT}/00-open.png
 # The caret to the empty paragraph at the end.
-chord cmd down
+key down cmd
 wait 200
 click 154.5 81
 wait 400

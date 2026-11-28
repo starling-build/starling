@@ -167,6 +167,45 @@ final class WordChartEditTests: XCTestCase {
         XCTAssertFalse(d.legend); XCTAssertEqual(d.gapWidth, 0); XCTAssertTrue(eight.matches(d))
     }
 
+    /// Layouts 2 and 5 as Word applies them (lab wobql): 2 deletes the value axis (its scale kept), drops the gridlines,
+    /// puts the legend on top and labels every bar; 5 adds a data table with every rule and the keys, and no legend.
+    /// Applying another layout takes them away again.
+    func testQuickLayoutsTwoAndFiveHideTheAxisAndAddADataTable() throws {
+        func read(_ xml: String) -> Chart? { XNode.parse(Data(xml.utf8)).flatMap { ChartXML.read(ChartXML.canonical($0), color: { _ in nil }) } }
+        func layout(_ list: [ChartQuickLayout], _ name: String) throws -> ChartQuickLayout { try XCTUnwrap(list.first { $0.name == name }) }
+        XCTAssertEqual(ChartQuickLayout.bar.count, 10); XCTAssertEqual(ChartQuickLayout.column.count, 11)
+        let two = try layout(ChartQuickLayout.column, "Layout 2"), five = try layout(ChartQuickLayout.column, "Layout 5")
+        let one = try layout(ChartQuickLayout.column, "Layout 1")
+        let old = Chart.sample(.column)
+        let start = ChartXML.chartSpace(old)
+        let r2 = try XCTUnwrap(ChartPartPatcher.patch(start, old: old, new: two.applied(to: old)))
+        XCTAssertTrue(r2.xml.containsSubstring("<c:delete val=\"1\"/><c:axPos val=\"l\"/>"), "the value axis deleted")
+        let b2 = try XCTUnwrap(read(r2.xml))
+        XCTAssertTrue(b2.valueAxisDeleted); XCTAssertFalse(b2.categoryAxisDeleted); XCTAssertFalse(b2.valueGrid)
+        XCTAssertEqual(b2.legendPosition, "t"); XCTAssertEqual(b2.overlap, -25)
+        XCTAssertEqual(b2.series.map(\.labelsShown), [true, true, true]); XCTAssertEqual(b2.series.map(\.labelSize), [9, 9, 9])
+        XCTAssertNil(b2.dataTable); XCTAssertTrue(two.matches(b2)); XCTAssertFalse(one.matches(b2))
+
+        let r5 = try XCTUnwrap(ChartPartPatcher.patch(r2.xml, old: b2, new: five.applied(to: b2)))
+        let b5 = try XCTUnwrap(read(r5.xml))
+        XCTAssertFalse(b5.valueAxisDeleted, "the axis back"); XCTAssertTrue(b5.valueGrid); XCTAssertFalse(b5.legend)
+        XCTAssertEqual(b5.valueAxisTitle, "Axis Title", "a column chart's Layout 5 titles its value axis")
+        let t = try XCTUnwrap(b5.dataTable)
+        XCTAssertTrue(t.horizontalRules && t.verticalRules && t.outline && t.keys); XCTAssertEqual(t.size, 9); XCTAssertEqual(t.lineWidth, 0.75)
+        XCTAssertTrue(five.matches(b5), "the menu checks the layout just applied")
+        // The table stands after the axes, before the plot's own shape properties (the schema's order).
+        let tableAt = try XCTUnwrap(r5.xml.rangeOfSubstring("<c:dTable>")).lowerBound
+        XCTAssertGreaterThan(tableAt, try XCTUnwrap(r5.xml.rangeOfSubstring("</c:valAx>")).lowerBound)
+        XCTAssertNil(try layout(ChartQuickLayout.bar, "Layout 5").applied(to: Chart.sample(.bar)).valueAxisTitle, "a bar chart's has none")
+
+        let r1 = try XCTUnwrap(ChartPartPatcher.patch(r5.xml, old: b5, new: one.applied(to: b5)))
+        XCTAssertFalse(r1.xml.containsSubstring("<c:dTable"))
+        XCTAssertNil(try XCTUnwrap(read(r1.xml)).dataTable)
+        // A new chart written with a table reads back with it.
+        var fresh = Chart.sample(.bar); fresh.dataTable = DataTable(keys: false, size: 9)
+        XCTAssertEqual(read(ChartXML.chartSpace(fresh))?.dataTable?.keys, false)
+    }
+
     /// A two-level category axis (names under years) keeps its outer level when a name is edited: only the inner names
     /// change, in the part and in the workbook's inner column (Word's lab wob5chart c5 had it flattened to one level).
     func testMultiLevelCategoriesKeepTheirOuterLevel() throws {
@@ -243,6 +282,21 @@ final class WordChartEditTests: XCTestCase {
 
     /// Insert > Chart: Word's sample chart in line at the caret, its part, workbook and their types written as Word writes
     /// them, read back as a chart; one undo takes it all away, and the second chart takes the next names.
+    /// Coordinator, Mac run of #3387: a full-height caret was drawn at the left edge of the selected new chart. A
+    /// selected picture or chart shows no caret; moving off it brings the caret back.
+    func testNoCaretWhileAChartIsSelected() throws {
+        WriterCharts.installHooks()
+        let c = RichDocumentController(document: RichDocument(paragraphs: [RichParagraph(text: "Before"), RichParagraph(text: "")]))
+        c.moveTo(RichPosition(paragraph: 1, offset: 0), extend: false)
+        XCTAssertTrue(c.showsCaret)
+        XCTAssertTrue(WordChartInsert.insert(.column, into: c))
+        XCTAssertNotNil(c.selectedImageIndex)
+        XCTAssertTrue(c.selection.isCollapsed, "a chart is selected by a caret on its paragraph")
+        XCTAssertFalse(c.showsCaret, "no caret while the chart is selected")
+        c.moveTo(RichPosition(paragraph: 0, offset: 2), extend: false)
+        XCTAssertTrue(c.showsCaret)
+    }
+
     func testInsertChartWritesItsPartsAndUndoes() throws {
         WriterCharts.installHooks()
         let c = RichDocumentController(document: RichDocument(paragraphs: [RichParagraph(text: "")]))
@@ -291,6 +345,21 @@ final class WordChartEditTests: XCTestCase {
                 XCTAssertTrue(WordChartInsert.insert(t, into: c), name)
             }
             try DocxFormat.write(c.document, pageSetup: .letter).write(to: URL(fileURLWithPath: out + "/" + name + ".docx"))
+        }
+        // Quick Layouts 2 and 5 applied to a new column and bar chart through Chart Design's path (lab wobql2).
+        for type in [ChartType.column, .bar] {
+            for name in ["Layout 2", "Layout 5"] {
+                let c = RichDocumentController(document: RichDocument(paragraphs: [RichParagraph(text: "Before the chart."), RichParagraph(text: "")]))
+                c.onKeptPartChange = { [unowned c] path, data in WordChartEdit.partChanged(path, data, in: c.document) }
+                c.selection = RichSelection(caret: RichPosition(paragraph: 1, offset: 0))
+                XCTAssertTrue(WordChartInsert.insert(type, into: c))
+                let image = try XCTUnwrap(c.document.paragraphs.compactMap(\.image).first)
+                let chart = try XCTUnwrap(WordChartEdit.chart(image, in: c.document))
+                let layout = try XCTUnwrap(ChartQuickLayout.layouts(for: chart).first { $0.name == name })
+                XCTAssertTrue(WordChartEdit.set(layout.applied(to: chart), of: image, in: c))
+                let file = "q-\(type == .bar ? "bar" : "col")-\(name == "Layout 2" ? 2 : 5)"
+                try DocxFormat.write(c.document, pageSetup: .letter).write(to: URL(fileURLWithPath: out + "/" + file + ".docx"))
+            }
         }
     }
 }

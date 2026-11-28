@@ -785,6 +785,27 @@ final class ChartTests: XCTestCase {
     }
 }
 
+extension ChartTests {
+    /// A Word bar chart's data table (Quick Layout 5) stands under the value axis, 11 pt in from the chart's left, right
+    /// and foot, not under the plot alone: Word's print of lab wobql2's q-bar-5 (table 83.0-493.0 x 281.4-335.5 in a
+    /// 432 x 252 chart at 72, 94.5), its categories' row one line deep.
+    func testAWordBarChartsDataTableSpansTheChart() throws {
+        var c = Chart.sample(.bar)
+        c.onSlide = false
+        c = try XCTUnwrap(ChartQuickLayout.layouts(for: c).first { $0.name == "Layout 5" }).applied(to: c)
+        XCTAssertNotNil(c.dataTable)
+        let canvas = BoxDotCanvas()
+        ChartPainter.paint(c, canvas, Rect.fromLTWH(0, 0, 432, 252), pxPerPt: 1, theme: DeckTheme())
+        let across = canvas.lines.filter { abs($0.0.dy - $0.1.dy) < 0.01 && $0.0.dy > 150 }
+        XCTAssertEqual(across.map { min($0.0.dx, $0.1.dx) }.min() ?? 0, 11, accuracy: 0.5)
+        XCTAssertEqual(across.map { max($0.0.dx, $0.1.dx) }.max() ?? 0, 421, accuracy: 0.5)
+        XCTAssertEqual(across.map(\.0.dy).max() ?? 0, 241, accuracy: 0.5)
+        let ys = Set(across.map { ($0.0.dy * 10).rounded() / 10 }).sorted()
+        XCTAssertEqual(ys.count, 5, "the outline's top, under the categories, between the three series and the foot")
+        XCTAssertEqual(ys[1] - ys[0], 11, accuracy: 0.3, "the categories' row one 9 pt line deep")
+    }
+}
+
 private final class BoxDotCanvas: Canvas {
     var dots: [Offset] = []
     var rects: [Rect] = []
