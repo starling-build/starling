@@ -790,6 +790,10 @@ extension Ribbon {
                                   items: crops.map { name, ratio in
                                       MenuFlyoutItem(text: Text(name), onPressed: { deck.cropPictures(aspect: ratio) })
                                   }),
+                Chrome.menuButton(FluentSystemIcons.shapes, "Crop to Shape", "Cut the picture to the outline of a shape", fluent,
+                                  items: [ShapeGridMenuItem(ink: fluent.resources.textFillColorPrimary,
+                                                            hover: fluent.resources.subtleFillColorSecondary,
+                                                            outlinesOnly: true) { preset in deck.setPictureGeometry(preset) }]),
                 ]),
             ]),
             Chrome.group("Arrange", fluent, [Chrome.rows([

@@ -16,11 +16,13 @@ final class ShapeGridMenuItem: MenuFlyoutItemBase {
     let hover: Color
     let recent: [ShapePreset]
     let onChoose: (ShapePreset) -> Void
+    let outlinesOnly: Bool
 
     /// `recent`: the shapes picked lately, newest first, shown as PowerPoint's Recently Used Shapes row.
-    init(ink: Color, hover: Color, recent: [ShapePreset] = [], onChoose: @escaping (ShapePreset) -> Void) {
-        self.ink = ink; self.hover = hover; self.recent = recent; self.onChoose = onChoose
-        super.init(key: ValueKey("shape-grid"))
+    /// `outlinesOnly`: leave out the Lines group, as Picture Format > Crop to Shape does (a line encloses nothing).
+    init(ink: Color, hover: Color, recent: [ShapePreset] = [], outlinesOnly: Bool = false, onChoose: @escaping (ShapePreset) -> Void) {
+        self.ink = ink; self.hover = hover; self.recent = recent; self.onChoose = onChoose; self.outlinesOnly = outlinesOnly
+        super.init(key: ValueKey(outlinesOnly ? "crop-shape-grid" : "shape-grid"))
     }
 
     override func buildItem(_ context: any BuildContext) -> Widget {
@@ -28,7 +30,8 @@ final class ShapeGridMenuItem: MenuFlyoutItemBase {
             if let scope = FlyoutScope.maybeOf(context) { scope.close() } else { Navigator.maybeOf(context)?.maybePop() }
         }
         var rows: [Widget] = []
-        let groups = (recent.isEmpty ? [] : [ShapeGallery.Group(name: "Recently Used Shapes", presets: recent)]) + ShapeGallery.groups
+        let groups = (recent.isEmpty ? [] : [ShapeGallery.Group(name: "Recently Used Shapes", presets: recent)])
+            + ShapeGallery.groups.filter { !outlinesOnly || $0.name != "Lines" }
         for (gi, group) in groups.enumerated() {
             let recentRow = gi == 0 && !recent.isEmpty
             rows.append(Padding(padding: EdgeInsets(left: 2, top: rows.isEmpty ? 0 : 8, right: 0, bottom: 4),
