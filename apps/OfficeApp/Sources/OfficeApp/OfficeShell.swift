@@ -128,6 +128,10 @@ final class OfficeShellState: State<StatefulWidget> {
     /// The page's layout of the nested table being edited (`RichLayout.boxFrame`): the editor sets it the same way.
     var _boxRules: RichLayout?
     private let _boxFocus = FocusNode(debugLabel: "Text box")
+    /// W-TB-5: while a table three deep is typed into, the nested table that holds it, kept as it was being edited: its edit,
+    /// layout, height and controller (the open box's `main`). Leaving the inner one returns to it.
+    var _boxParent: (edit: (index: Int, inline: String?, rect: Rect, main: RichDocumentController, autoFit: Bool, child: Int?), rules: RichLayout?, height: Double?, controller: RichDocumentController)?
+    private let _boxParentFocus = FocusNode(debugLabel: "Nested table")
     /// Set while the picker is open for Change Picture: the picture (paragraph, inline id) the chosen file replaces.
     private var _replaceTarget: (index: Int, inline: String?)?
     private var _numberingValueOpen = false
@@ -2900,11 +2904,11 @@ final class OfficeShellState: State<StatefulWidget> {
         let paged = session.viewMode == .printLayout
         let readMargin = session.viewMode == .readMode ? 120.0 : 24.0
         let editable = RichEditable(
-            controller: _boxEdit?.main ?? controller, theme: theme,
+            controller: (_boxParent?.edit ?? _boxEdit)?.main ?? controller, theme: theme,
             padding: EdgeInsets(left: readMargin, top: 24, right: readMargin, bottom: 24),
             focusNode: _editorFocus,
             backgroundColor: paged ? backdrop : page,
-            hiddenFrameID: _boxEdit.flatMap { b in b.child != nil ? nil : b.index < b.main.document.paragraphs.count ? b.main.document.paragraphs[b.index].image?.id : nil },
+            hiddenFrameID: (_boxParent?.edit ?? _boxEdit).flatMap { b in b.child != nil ? nil : b.index < b.main.document.paragraphs.count ? b.main.document.paragraphs[b.index].image?.id : nil },
             zoom: session.zoom,
             pageSetup: paged ? session.pageSetup : nil, pageColor: page,
             onPageInfo: { [weak self] p, n in
@@ -2935,7 +2939,9 @@ final class OfficeShellState: State<StatefulWidget> {
             spellChecker: session.checkSpelling ? _spelling : nil,
             onTextBoxEnter: { [weak self] index, inline, rect in self?._enterBox(index, inline, rect) },
             onBoxRect: _boxEdit == nil ? nil : { [weak self] r in
-                guard let self, let r, let b = self._boxEdit, b.rect != r else { return }
+                guard let self, let r else { return }
+                if let p = self._boxParent { if p.edit.rect != r { self.setState { self._boxParent?.edit.rect = r } }; return }
+                guard let b = self._boxEdit, b.rect != r else { return }
                 self.setState { self._boxEdit?.rect = r }
             },
             onNestedTableEnter: { [weak self] index, rect, at, frame in self?._enterBox(index, nil, rect, at: at, frame: frame) },
@@ -2969,17 +2975,32 @@ final class OfficeShellState: State<StatefulWidget> {
                 guard let self, self._boxEdit != nil, self._boxContentHeight != h else { return }
                 self.setState { self._boxContentHeight = h }
             },
+            onNestedTableEnter: nested && _boxParent == nil ? { [weak self] index, rect, at, frame in
+                self?._enterDeeper(index, rect, at: at, first: nil, frame: frame) } : nil,
             caretAt: _boxCaretAt,
             boxRules: _boxRules,
-            onArrowOut: nested ? { [weak self] forward in self?._arrowOutOfNested(forward) ?? false } : nil)
+            onArrowOut: nested ? { [weak self] forward in self?._arrowOutOfNested(forward) ?? false } : nil,
+            // (A table nested in this one, three deep, opens in an editor of its own over it.)
+            onNestedTableEdge: nested && _boxParent == nil ? { [weak self] index, rect, first, frame in
+                self?._enterDeeper(index, rect, at: nil, first: first, frame: frame) } : nil)
         // A box that fits its text grows as the words do.
         var boxHeight = b.rect.height
         if let h = _boxContentHeight, b.autoFit { boxHeight = h + 7.2 * z * inset }
-        return Stack(children: [
+        var layers: [Widget] = [
             Positioned(left: 0, top: 0, right: 0, bottom: 0, child: editable),
             // A press anywhere outside the box ends the edit (and still reaches the page under it).
             Positioned(left: 0, top: 0, right: 0, bottom: 0, child: Listener(
                 onPointerDown: { [weak self] _ in self?._leaveBox() }, behavior: .translucent, child: SizedBox(expand: ()))),
+        ]
+        if let p = _boxParent {
+            // The nested table holding the one typed into, as it is being edited, the inner one hidden in it (a press on it
+            // leaves the inner one, as one outside both does).
+            let hidden = b.index < b.main.document.paragraphs.count ? b.main.document.paragraphs[b.index].image?.id : nil
+            layers.append(Positioned(left: p.edit.rect.left, top: p.edit.rect.top, width: max(p.edit.rect.width, p.rules?.width ?? 0), height: p.edit.rect.height,
+                child: IgnorePointer(child: RichEditable(controller: p.controller, theme: theme, padding: EdgeInsets(left: 0, top: 0, right: 0, bottom: 0),
+                                                         focusNode: _boxParentFocus, hiddenFrameID: hidden, zoom: z, scrolls: false, boxRules: p.rules))))
+        }
+        return Stack(children: layers + [
             Positioned(left: b.rect.left, top: b.rect.top, width: max(b.rect.width, _boxRules?.width ?? 0), height: boxHeight, child: framed(boxEditor, frame, z)),
         ])
     }
@@ -3030,6 +3051,23 @@ final class OfficeShellState: State<StatefulWidget> {
         _boxFocus.requestFocus()
     }
 
+    /// W-TB-5: into a table nested in the nested table being typed in (three deep), from a click (`at`) or an arrow (`first`:
+    /// to its first position, or its last): the outer one is kept as it is (`_boxParent`) and the inner one opens over it.
+    /// `rect`, `at`: the outer editor's coordinates.
+    func _enterDeeper(_ index: Int, _ rect: Rect, at: Offset?, first: Bool?, frame: (layout: RichLayout, document: RichDocument)?) {
+        guard let b = _boxEdit, _boxParent == nil, b.child == nil, b.inline == nil else { return }
+        let parent = (edit: b, rules: _boxRules, height: _boxContentHeight, controller: controller)
+        let shift = { (o: Offset) in Offset(o.dx + b.rect.left, o.dy + b.rect.top) }
+        _boxParent = parent
+        _boxEdit = nil
+        _enterBox(index, nil, Rect.fromLTWH(rect.left + b.rect.left, rect.top + b.rect.top, rect.width, rect.height), at: at.map(shift), frame: frame)
+        guard _boxEdit != nil else {
+            setState { _boxParent = nil; _boxEdit = parent.edit; _boxRules = parent.rules; _boxContentHeight = parent.height }
+            return
+        }
+        if let first { controller.moveTo(first ? .start : controller.document.endPosition, extend: false) }
+    }
+
     /// W-TB-5: an arrow past a nested table's first or last caret position leaves it for the outer cell, as in Word:
     /// forward to the start of the paragraph under it, back to the end of the one before it.
     func _arrowOutOfNested(_ forward: Bool) -> Bool {
@@ -3067,6 +3105,21 @@ final class OfficeShellState: State<StatefulWidget> {
            b.main.document.paragraphs[b.index + 1].cell != nil {
             // W-TB-5: leaving a nested table puts the caret in the outer cell under it, not on the table as an object.
             b.main.moveTo(RichPosition(paragraph: b.index + 1, offset: 0), extend: false)
+        }
+        if let p = _boxParent {
+            // (Out of a table three deep: back to typing in the one that holds it.)
+            setState {
+                _boxParent = nil
+                _boxEdit = p.edit
+                _boxRules = p.rules
+                _boxContentHeight = p.height
+                _boxCaretAt = nil
+                session.controller = p.controller
+                session.nestedTableHost = (p.edit.main, p.edit.index)
+                session.summary = session.summarize()
+            }
+            _boxFocus.requestFocus()
+            return
         }
         setState { session.summary = session.summarize() }
         ScreenReader.announce("Text box saved")

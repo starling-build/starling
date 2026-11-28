@@ -2591,8 +2591,15 @@ public final class RichDocumentController: ChangeNotifier {
 
     /// The one table a written body holds, without the empty paragraph a body ends in; nil when it holds more.
     static func _onlyTable(_ body: String) -> String? {
-        guard let a = body.rangeOfSubstring("<w:tbl>"), body[body.startIndex ..< a.lowerBound].allSatisfy(\.isWhitespace),
-              let r = body.rangeOfSubstring("</w:tbl>", in: a.upperBound ..< body.endIndex) else { return nil }
+        guard let a = body.rangeOfSubstring("<w:tbl>"), body[body.startIndex ..< a.lowerBound].allSatisfy(\.isWhitespace) else { return nil }
+        // (Its own end, past those of the tables in its cells.)
+        var open = 1, from = a.upperBound, end: Range<String.Index>?
+        while end == nil, let c = body.rangeOfSubstring("</w:tbl>", in: from ..< body.endIndex) {
+            open += Self._tableCount(String(body[from ..< c.lowerBound])) - 1
+            if open == 0 { end = c }
+            from = c.upperBound
+        }
+        guard let r = end else { return nil }
         let rest = String(body[r.upperBound ..< body.endIndex])
         for marker in ["<w:t>", "<w:t ", "<w:tbl", "<w:drawing"] where rest.containsSubstring(marker) { return nil }
         return String(body[a.lowerBound ..< r.upperBound])
