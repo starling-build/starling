@@ -415,6 +415,10 @@ final class OfficeSession {
     var onDateTimeDialog: (() -> Void)?
     /// Opens Insert → Quick Parts → Field.
     var onFieldDialog: (() -> Void)?
+    /// W-FD-3: Insert > Bookmark, Insert > Cross-reference, References > Insert Caption.
+    var onBookmarkDialog: (() -> Void)?
+    var onCrossReferenceDialog: (() -> Void)?
+    var onCaptionDialog: (() -> Void)?
     var onPropertiesDialog: (() -> Void)?
     var onUpdateFields: (() -> Void)?
     /// Opens Define New Number Format (false) or Define New Bullet (true).

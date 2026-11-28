@@ -124,6 +124,7 @@ final class OfficeShellState: State<StatefulWidget> {
     private var _commentOpen = false
     private var _dateTimeOpen = false
     private var _fieldOpen = false
+    private var _bookmarkOpen = false, _crossReferenceOpen = false, _captionOpen = false
     private var _propertiesOpen = false
     private var _listSymbolPick: ((String, String?) -> Void)? = nil   // the Symbol picker is open for the Define Bullet dialog
     private var _listFormatOpen: Bool? = nil   // the dialog is open: true for a bullet
@@ -546,6 +547,21 @@ final class OfficeShellState: State<StatefulWidget> {
         session.onEditNote = { [weak self] in
             guard let self else { return }
             if let n = self.controller.noteAtCaret() { self._openNote(n) } else { self._flash("Put the caret next to a footnote or endnote mark") }
+        }
+        session.onBookmarkDialog = { [weak self] in
+            guard let self else { return }
+            self.controller.breakUndoCoalescing()
+            self.setState { self._bookmarkOpen = true }
+        }
+        session.onCrossReferenceDialog = { [weak self] in
+            guard let self else { return }
+            self.controller.breakUndoCoalescing()
+            self.setState { self._crossReferenceOpen = true }
+        }
+        session.onCaptionDialog = { [weak self] in
+            guard let self else { return }
+            self.controller.breakUndoCoalescing()
+            self.setState { self._captionOpen = true }
         }
         session.onFieldDialog = { [weak self] in
             guard let self else { return }
@@ -1665,7 +1681,7 @@ final class OfficeShellState: State<StatefulWidget> {
             if _shortcutsOpen { return false }   // the dialog's own Esc closes it
             if LinkCard.link(caret: _cardLink, hover: _hoverCard, dismissed: _cardDismissed) != nil { setState { _cardDismissed = true }; return true }
             if _listSymbolPick != nil { setState { _listSymbolPick = nil }; return true }
-            if _paragraphOpen || _tablePropsOpen || _fontOpen || _insertTableOpen || _splitCellOpen || _contentsOpen || _noteOptionsOpen || _convertTextTable != nil || _formulaOpen || _sortTable != nil || _bordersOpen || _pictureDialog != nil || _linkDialogOpen || _numberingValueOpen || _commentOpen || _dateTimeOpen || _fieldOpen || _propertiesOpen || _listFormatOpen != nil || _newStyleOpen || _pasteSpecialData != nil { return false }   // the dialog's own Esc closes it
+            if _paragraphOpen || _tablePropsOpen || _fontOpen || _insertTableOpen || _splitCellOpen || _contentsOpen || _noteOptionsOpen || _convertTextTable != nil || _formulaOpen || _sortTable != nil || _bordersOpen || _pictureDialog != nil || _linkDialogOpen || _numberingValueOpen || _commentOpen || _dateTimeOpen || _fieldOpen || _bookmarkOpen || _crossReferenceOpen || _captionOpen || _propertiesOpen || _listFormatOpen != nil || _newStyleOpen || _pasteSpecialData != nil { return false }   // the dialog's own Esc closes it
             if _headerFooterOpen { setState { _headerFooterOpen = false }; return true }
             if _findOpen { setState { _findOpen = false }; _editorFocus.requestFocus(); return true }
             if _backstage != nil { setState { _backstage = nil }; return true }
@@ -1687,6 +1703,11 @@ final class OfficeShellState: State<StatefulWidget> {
         if KeyChordTracker.letter(key.logical) == "p", mods.contains(.alt), mods.contains(.shift), !mods.contains(.primary) {
             let info = PdfExport.pageInfo(controller.document, pageSetup: session.pageSetup, theme: session.theme)
             controller.insertField(" PAGE ", result: info.label(controller.document.clamped(controller.selection.focus).paragraph) ?? "1")
+            return true
+        }
+        // Ctrl+Shift+F5: Insert > Bookmark.
+        if named == .function(5), mods.contains(.primary), mods.contains(.shift), !mods.contains(.alt) {
+            session.onBookmarkDialog?()
             return true
         }
         // Ctrl+Shift+F9 turns the fields in the selection (or at the caret) into plain text.
@@ -2281,6 +2302,38 @@ final class OfficeShellState: State<StatefulWidget> {
                     onCancel: { [weak self] in
                         self?.setState { self?._propertiesOpen = false }
                         self?._editorFocus.requestFocus()
+                    })),
+            ])
+        }
+        if _bookmarkOpen {
+            return Stack(children: [
+                window,
+                Positioned(left: 0, top: 0, right: 0, bottom: 0, child: BookmarkDialog(controller: controller, onClose: { [weak self] in
+                    guard let self else { return }
+                    self.setState { self._bookmarkOpen = false; self.session.summary = self.session.summarize() }
+                    self._editorFocus.requestFocus()
+                })),
+            ])
+        }
+        if _captionOpen {
+            return Stack(children: [
+                window,
+                Positioned(left: 0, top: 0, right: 0, bottom: 0, child: CaptionDialog(controller: controller, onDone: { [weak self] in
+                    guard let self else { return }
+                    self.setState { self._captionOpen = false; self.session.summary = self.session.summarize() }
+                    self._editorFocus.requestFocus()
+                })),
+            ])
+        }
+        if _crossReferenceOpen {
+            let info = PdfExport.pageInfo(controller.document, pageSetup: session.pageSetup, theme: session.theme)
+            return Stack(children: [
+                window,
+                Positioned(left: 0, top: 0, right: 0, bottom: 0, child: CrossReferenceDialog(
+                    controller: controller, pageOf: info.label, pageCount: info.count, onDone: { [weak self] _ in
+                        guard let self else { return }
+                        self.setState { self._crossReferenceOpen = false; self.session.summary = self.session.summarize() }
+                        self._editorFocus.requestFocus()
                     })),
             ])
         }

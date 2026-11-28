@@ -162,7 +162,10 @@ extension RichDocumentController {
 /// F9 (Update Field): PAGE, NUMPAGES and PAGEREF in the body brought up to date from the layout.
 extension RichDocumentController {
     /// The field's new result, or nil where this update does not know the kind.
-    private func _fieldResult(_ instr: String, paragraph: Int, pageOf: (Int) -> String?, pageCount: Int) -> String? {
+    /// `field` is the field's result id (a SEQ's number is by its place among the others) and `offset` where it sits in
+    /// `paragraph` (REF \p says whether the bookmark is above or below that).
+    func _fieldResult(_ instr: String, paragraph: Int, offset: Int = 0, field: Int = 0, pageOf: (Int) -> String?, pageCount: Int,
+                      sequence: [Int: String]? = nil) -> String? {
         let words = instr.split(separator: " ", omittingEmptySubsequences: true).map(String.init)
         guard let kind = words.first?.uppercased() else { return nil }
         if kind.hasPrefix("=") {
@@ -178,6 +181,17 @@ extension RichDocumentController {
         switch kind {
         case "PAGE": return pageOf(paragraph)
         case "NUMPAGES": return String(pageCount)
+        case "SEQ":
+            return (sequence ?? sequenceNumbers())[field]
+        case "REF" where words.contains("\\p") && !words.contains("\\n") && !words.contains("\\r") && !words.contains("\\w"),
+             "NOTEREF" where words.contains("\\p"), "PAGEREF" where words.contains("\\p"):
+            // "above" or "below": where the bookmark starts against the field (Insert > Cross-reference, Above/below).
+            guard words.count > 1, let at = bookmarkStart(words[1].filter { $0 != "\"" }) else { return nil }
+            return (at.paragraph, at.offset) < (paragraph, offset) ? "above" : "below"
+        case "NOTEREF":
+            // The note's mark: the text of the bookmark round it.
+            guard words.count > 1, !words.contains("\\f") else { return nil }
+            return bookmarkText(words[1].filter { $0 != "\"" })
         case "REF":
             // The bookmark's text, where its start and end lie in one paragraph (a paragraph-number switch is not worked out).
             guard words.count > 1, !words.contains("\\p"), !words.contains("\\f") else { return nil }
@@ -194,13 +208,7 @@ extension RichDocumentController {
                 while out.hasSuffix(".") { out.removeLast() }
                 return out
             }
-            for q in document.paragraphs {
-                guard let start = q.bookmarkMarkers.first(where: { $0.name?.lowercased() == name }),
-                      let end = q.bookmarkMarkers.first(where: { $0.name == nil && $0.id == start.id }), end.offset >= start.offset else { continue }
-                let u = Array(q.text.utf16)
-                return String(decoding: u[min(start.offset, u.count) ..< min(end.offset, u.count)], as: UTF16.self)
-            }
-            return nil
+            return bookmarkText(name)
         case "PAGEREF":
             guard words.count > 1, !words.contains("\\p") else { return nil }
             let name = words[1].filter { $0 != "\"" }.lowercased()
@@ -224,6 +232,7 @@ extension RichDocumentController {
             b = RichPosition(paragraph: document.paragraphs.count - 1, offset: Int.max)
         }
         var changed: [(Int, RichParagraph)] = []
+        let sequence = sequenceNumbers()
         for i in a.paragraph ... b.paragraph {
             let p = document.paragraphs[i]
             let lo = i == a.paragraph ? a.offset : 0, hi = i == b.paragraph ? b.offset : Int.max
@@ -243,7 +252,8 @@ extension RichDocumentController {
                 let first = p.runs[g.runs.lowerBound].style
                 let old = String(decoding: units[min(g.start, units.count) ..< min(g.end, units.count)], as: UTF16.self)
                 guard let instr = Self._instruction(first),
-                      let result = _fieldResult(instr, paragraph: i, pageOf: pageOf, pageCount: pageCount) ?? other(instr, old) else { continue }
+                      let result = _fieldResult(instr, paragraph: i, offset: g.start, field: first.fieldResult, pageOf: pageOf,
+                                                pageCount: pageCount, sequence: sequence) ?? other(instr, old) else { continue }
                 while runIndex < g.runs.upperBound { cursor += p.runs[runIndex].length; runIndex += 1 }
                 if old == result {
                     text += old

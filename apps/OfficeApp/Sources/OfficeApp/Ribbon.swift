@@ -228,6 +228,9 @@ final class Ribbon: StatelessWidget {
                 MenuFlyoutItem(text: Text("Next Endnote"), onPressed: { [session] in session.onNextNote?(.endnote) }),
             ]),
             Chrome.big(FluentSystemIcons.textT, "Footnote and Endnote…", fluent) { [session] in session.onNoteOptions?() },
+        ]), Chrome.group("Captions", fluent, [
+            Chrome.big(FluentSystemIcons.textT, "Insert Caption", fluent) { [session] in session.onCaptionDialog?() },
+            Chrome.big(FluentSystemIcons.link, "Cross-reference", fluent) { [session] in session.onCrossReferenceDialog?() },
         ])]
     }
 
@@ -618,6 +621,10 @@ final class Ribbon: StatelessWidget {
             ]),
             Chrome.group("Links", fluent, [
                 Chrome.big(FluentSystemIcons.link, "Link", fluent) { [session] in session.onLink?() },
+                Chrome.rows([
+                    Chrome.small(FluentSystemIcons.link, "Bookmark", fluent) { [session] in session.onBookmarkDialog?() },
+                    Chrome.small(FluentSystemIcons.link, "Cross-reference", fluent) { [session] in session.onCrossReferenceDialog?() },
+                ]),
             ]),
             Chrome.group("Header & Footer", fluent, [Chrome.rows([
                 Chrome.small(FluentSystemIcons.header, "Header", fluent) { [session] in session.onHeaderFooter?() },
