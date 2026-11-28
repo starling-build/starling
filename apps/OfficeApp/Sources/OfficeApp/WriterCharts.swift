@@ -183,6 +183,13 @@ enum WriterCharts {
         return entries[id]?.chart
     }
 
+    /// The theme the chart of `id` was read with (its accents, its text colour).
+    static func theme(_ id: String) -> DeckTheme? {
+        lock.lock()
+        defer { lock.unlock() }
+        return entries[id]?.theme
+    }
+
     /// The chart of `id` read again from its part's new bytes (an edit, an undo), with the theme and the rest it was
     /// first read with; false where the bytes are no chart this can draw (the old drawing stays).
     @discardableResult

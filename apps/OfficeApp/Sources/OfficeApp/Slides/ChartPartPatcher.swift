@@ -82,6 +82,15 @@ enum ChartPartPatcher {
         if old.categoryAxisTitle != new.categoryAxisTitle {
             out = ChartPartPatch.axisTitle(out, .category, new.categoryAxisTitle.map { .set($0) } ?? .remove)
         }
+        // Colours set as theme colours (Change Colors): each series' fill, or a pie's slices.
+        var colours: [ChartColorEdit] = []
+        for (i, s) in new.series.enumerated() where s.colorXML != nil && s.colorXML != old.series[safe: i]?.colorXML {
+            colours.append(ChartColorEdit(series: i, point: nil, hex: nil, raw: s.colorXML))
+        }
+        for (p, x) in new.pointColorXML.sorted(by: { $0.key < $1.key }) where old.pointColorXML[p] != x {
+            colours.append(ChartColorEdit(series: 0, point: p, hex: nil, raw: x))
+        }
+        if !colours.isEmpty { out = ChartPartPatch.colors(out, colours) }
         return Result(xml: out, writes: writes)
     }
 

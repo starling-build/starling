@@ -680,13 +680,13 @@ extension Ribbon {
     /// The selected chart's tab: its kind, its data, the parts it shows.
     private func _chartDesign(_ deck: DeckController, _ fluent: FluentThemeData) -> [Widget] {
         guard let shape = deck.selectedChart, let chart = shape.chart else { return [] }
-        return chartDesignGroups(chart, fluent, set: { deck.setChart(shape, $0) },
+        return chartDesignGroups(chart, fluent, theme: deck.theme, set: { deck.setChart(shape, $0) },
                                  altText: { [session] in session.onAltText?() }, delete: { deck.deleteSelection() })
     }
 
     /// The Chart Design tab of `chart` (Slides' and Word's): its kind, its data, the parts it shows. `set` makes a
     /// changed chart the selected one's; Edit Data opens the host's data pane (`onChartData`).
-    func chartDesignGroups(_ chart: Chart, _ fluent: FluentThemeData, set apply: @escaping (Chart) -> Void,
+    func chartDesignGroups(_ chart: Chart, _ fluent: FluentThemeData, theme: DeckTheme, set apply: @escaping (Chart) -> Void,
                            altText: @escaping () -> Void, delete: @escaping () -> Void) -> [Widget] {
         func set(_ edit: @escaping (inout Chart) -> Void) -> () -> Void {
             { var c = chart; edit(&c); apply(c) }
@@ -719,6 +719,10 @@ extension Ribbon {
                                   }),
             ])]),
         ] as [Widget]) + [
+            Chrome.group("Chart Styles", fluent, [Chrome.rows([
+                Chrome.menuButton(FluentSystemIcons.paintBrush, "Change Colors", "Colour the series from the theme", fluent,
+                                  items: _paletteItems(chart, fluent, theme: theme, apply: apply)),
+            ])]),
             Chrome.group("Chart Elements", fluent, [
                 Chrome.rows([
                     Chrome.small(chart.title != nil ? FluentSystemIcons.check : FluentSystemIcons.textT, "Chart Title", fluent,
@@ -759,6 +763,27 @@ extension Ribbon {
                 Chrome.small(FluentSystemIcons.delete, "Delete Chart", fluent, action: delete),
             ])]),
         ]
+    }
+
+    /// Change Colors: Office's colourful palettes, then its monochromatic ones, each with its first colours, the
+    /// current one ticked.
+    private func _paletteItems(_ chart: Chart, _ fluent: FluentThemeData, theme: DeckTheme,
+                               apply: @escaping (Chart) -> Void) -> [MenuFlyoutItemBase] {
+        let accents = theme.accents, dark = theme.text
+        func item(_ p: ChartPalette) -> MenuFlyoutItemBase {
+            let n = chart.type.isPie ? chart.categories.count : chart.series.count
+            let swatches = (0 ..< max(1, min(4, n))).map { i -> Widget in
+                let c = ChartPalette.resolve(p.element(i, of: max(1, n)), accents: accents, dark: dark) ?? dark
+                return Padding(padding: EdgeInsets(left: 0, top: 0, right: 2, bottom: 0),
+                               child: SizedBox(width: 10, height: 10, child: ColoredBox(color: c)))
+            }
+            let tick: Widget = p.matches(chart, accents: accents, dark: dark)
+                ? Icon(FluentSystemIcons.check, size: Chrome.iconSize, color: fluent.resources.textFillColorPrimary)
+                : SizedBox(width: Chrome.iconSize, height: Chrome.iconSize)
+            return MenuFlyoutItem(text: Text(p.name), leading: Row(mainAxisSize: .min, children: [tick, SizedBox(width: 4)] + swatches),
+                                  onPressed: { apply(p.applied(to: chart, accents: accents, dark: dark)) })
+        }
+        return ChartPalette.colorful.map(item) + [MenuFlyoutSeparator()] + ChartPalette.monochromatic.map(item)
     }
 
     /// Picture Format > Transparency: PowerPoint's presets, the current one ticked.
