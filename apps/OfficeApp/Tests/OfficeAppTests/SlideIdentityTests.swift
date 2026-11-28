@@ -246,6 +246,56 @@ final class SlideIdentityTests: XCTestCase {
         XCTAssertEqual(try picture(try load(try Pptx.write(again))).pictureAlpha, 0.35, accuracy: 1e-6)
     }
 
+    func testPictureCorrectionsAreOneUndoStepAndSave() throws {
+        func picture(_ d: DeckController) throws -> SlideShape {
+            let pic = try XCTUnwrap(d.slides.flatMap(\.shapes).first { $0.picture != nil })
+            d.select(try XCTUnwrap(d.slides.firstIndex { $0.shapes.contains { $0 === pic } }))
+            d.selectShapes([pic])
+            return pic
+        }
+        func blips(_ data: Data) throws -> [String] {
+            let package = PptxPackage(try Zip.read(data))
+            return package.parts.keys.sorted().filter { $0.hasPrefix("ppt/slides/slide") && $0.hasSuffix(".xml") }.flatMap { part -> [String] in
+                let xml = String(decoding: package.parts[part] ?? Data(), as: UTF8.self)
+                return xml.components(separatedBy: "<a:blip ").dropFirst().map { String($0.prefix(200)) }
+            }
+        }
+        let d = try load(try Pptx.write(SlidesSample.make()))
+        let pic = try picture(d)
+        XCTAssertNil(pic.pictureLevels)
+        d.setPictureCorrection(brightness: 20, contrast: -40)
+        XCTAssertEqual(pic.pictureBrightness, 0.2, accuracy: 1e-9)
+        XCTAssertEqual(pic.pictureContrast, -0.4, accuracy: 1e-9)
+        XCTAssertEqual(pic.pictureLevels ?? [], PptxReader.lumLevels(bright: 0.2, contrast: -0.4) ?? [1], "the picture is drawn with the new levels")
+        d.undo()
+        XCTAssertEqual(try picture(d).pictureBrightness, 0, "one undo step")
+        XCTAssertNil(try picture(d).pictureLevels)
+        d.redo()
+        // The kept element gets one a:lum with the pair; a re-read picture has them back.
+        let saved = try Pptx.write(d)
+        XCTAssertEqual(try blips(saved).filter { $0.containsSubstring("<a:lum bright=\"20000\" contrast=\"-40000\"/>") }.count, 1)
+        let again = try load(saved)
+        XCTAssertEqual(try picture(again).pictureBrightness, 0.2, accuracy: 1e-6)
+        XCTAssertEqual(try picture(again).pictureContrast, -0.4, accuracy: 1e-6)
+        // Only the contrast changed: the brightness stays, still one a:lum; both back to 0 removes it.
+        again.setPictureCorrection(contrast: 40)
+        let twice = try Pptx.write(again)
+        XCTAssertEqual(try blips(twice).filter { $0.containsSubstring("a:lum") }.count, 1)
+        XCTAssertEqual(try picture(try load(twice)).pictureBrightness, 0.2, accuracy: 1e-6)
+        XCTAssertEqual(try picture(try load(twice)).pictureContrast, 0.4, accuracy: 1e-6)
+        again.setPictureCorrection(brightness: 0, contrast: 0)
+        XCTAssertEqual(try blips(try Pptx.write(again)).filter { $0.containsSubstring("a:lum") }.count, 0)
+        XCTAssertNil(try picture(again).pictureLevels)
+        // A picture written fresh (no kept element) carries it too, beside its transparency.
+        let fresh = try picture(again)
+        fresh.keptPicture = nil
+        again.setPictureTransparency(30)
+        again.setPictureCorrection(brightness: -20)
+        let written = try blips(try Pptx.write(again))
+        XCTAssertEqual(written.filter { $0.containsSubstring("<a:alphaModFix amt=\"70000\"/><a:lum bright=\"-20000\"/></a:blip>") }.count, 1)
+        XCTAssertEqual(try picture(try load(try Pptx.write(again))).pictureBrightness, -0.2, accuracy: 1e-6)
+    }
+
     func testACroppedAndTurnedPictureKeepsItsRecolouring() throws {
         var package = PptxPackage(try Zip.read(try Pptx.write(SlidesSample.make())))
         let part = try XCTUnwrap(package.parts.keys.first { $0.hasPrefix("ppt/slides/slide") && !$0.contains("_rels")

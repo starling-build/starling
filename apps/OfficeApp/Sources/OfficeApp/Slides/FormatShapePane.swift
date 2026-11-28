@@ -264,7 +264,8 @@ final class FormatShapePaneState: State<StatefulWidget> {
         gr.append(gap(14))
         let gradient = Column(crossAxisAlignment: .start, children: gr)
         // Picture: its transparency, by slider or typed percent (PowerPoint's Format Picture > Picture Transparency).
-        let pictureAlpha = deck.selection.first { $0.picture != nil }?.pictureAlpha
+        let pic = deck.selection.first { $0.picture != nil }
+        let pictureAlpha = pic?.pictureAlpha
         let picture: Widget = pictureAlpha.map { a in
             let percent = ((1 - a) * 100).rounded()
             return Column(crossAxisAlignment: .start, children: [
@@ -274,6 +275,12 @@ final class FormatShapePaneState: State<StatefulWidget> {
                     value: percent, onChanged: { deck.setPictureTransparencyLive($0.rounded()) },
                     onChangeEnd: { _ in deck.endPictureTransparencyDrag() }, min: 0, max: 100)), gap(6),
                 row("fmt.pic.alpha", "Transparency", Self.text(percent), min: 0, unit: "%") { deck.setPictureTransparency(min(100, $0)) },
+                gap(10),
+                // Picture Corrections: brightness and contrast, -100...100 %.
+                Text("Picture Corrections", style: caption), gap(4),
+                row("fmt.pic.bright", "Brightness", Self.text(((pic?.pictureBrightness ?? 0) * 100).rounded()), min: -100, unit: "%") { deck.setPictureCorrection(brightness: $0) },
+                gap(6),
+                row("fmt.pic.contrast", "Contrast", Self.text(((pic?.pictureContrast ?? 0) * 100).rounded()), min: -100, unit: "%") { deck.setPictureCorrection(contrast: $0) },
                 gap(14),
             ])
         } ?? SizedBox(width: nil, height: 0, child: nil)

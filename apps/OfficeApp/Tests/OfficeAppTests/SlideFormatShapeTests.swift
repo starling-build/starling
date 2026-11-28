@@ -425,7 +425,7 @@ final class SlideFormatShapeTests: XCTestCase {
         deck.selectShapes([a])
         let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light),
                                         home: FormatShapePane(deck: deck, onClose: {}), title: "Test"),
-                              size: Size(1280, 800))
+                              size: Size(1280, 1200))
         settle(ui)
         func enter(_ id: String, _ text: String) {
             ui.tap(id: id)
