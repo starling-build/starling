@@ -87,6 +87,26 @@ final class SlideShapeEffectsTests: XCTestCase {
         XCTAssertEqual(s.bevel?.preset, "slope")
     }
 
+    /// Shape Effects > 3-D Rotation: the presets grouped as PowerPoint's gallery; one turns the shape, and survives saving.
+    func testTheRotationMenuTurnsTheShape() throws {
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light),
+                                        home: SlidesShell(initialPath: nil, onSwitch: { _, _ in }), title: "Test"),
+                              size: Size(2000, 800))
+        let deck = try XCTUnwrap(ui.state(SlidesShellState.self)?.session.deck)
+        let s = deck.addShape(.rect); deck.selectShapes([s]); ui.pump()
+        XCTAssertTrue(ui.tap(text: "Shape Effects")); ui.pump()
+        XCTAssertTrue(ui.tap(text: "3-D Rotation")); ui.pump()
+        XCTAssertTrue(ui.has(text: "No Rotation"))
+        XCTAssertTrue(ui.tap(text: "Perspective")); ui.pump()
+        XCTAssertTrue(ui.tap(text: "Perspective left"))
+        XCTAssertEqual(s.camera, "perspectiveLeft")
+        XCTAssertNotNil(s.scene3d, "the shape is turned")
+        let (state, _, _) = try Pptx.read(try Pptx.write(deck))
+        XCTAssertEqual(state.slides[0].shapes.first { $0.scene3d != nil }?.scene3d?.cameraName, "perspectiveLeft")
+        deck.setCamera("orthographicFront")
+        XCTAssertNil(s.scene3d, "No Rotation turns it back")
+    }
+
     /// What PowerPoint itself writes for presets 1-9 (start opacity, end opacity, end position, distance, all x 1000 or EMU).
     func testReflectionPresetsAreExactlyOfficesNine() throws {
         let office: [(Int, Int, Int, Int)] = [
