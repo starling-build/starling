@@ -98,6 +98,8 @@ final class OfficeShellState: State<StatefulWidget> {
     private var _paragraphOpen = false
     private var _tablePropsOpen = false
     private var _findDialogOpen = false
+    /// The tab the Find and Replace dialog opens on (Word: 0 Find, 1 Replace, 2 Go To).
+    private var _findDialogTab = 1
     private var _symbolOpen = false
     private var _fontOpen = false
     private var _pageSetupOpen = false
@@ -1433,11 +1435,11 @@ final class OfficeShellState: State<StatefulWidget> {
         _findQuery.value = TextEditingValue(text: seed, selection: TextSelection(baseOffset: 0, extentOffset: seed.utf16.count))
     }
 
-    private func _openFindDialog() {
+    func _openFindDialog(tab: Int = 1) {
         if controller.hasSelection, !controller.selectedText.contains(Character("\n")) {
             _findQuery.text = controller.selectedText
         }
-        setState { _findDialogOpen = true }
+        setState { _findDialogOpen = true; _findDialogTab = tab }
     }
 
     private func _closeFindDialog() {
@@ -1447,24 +1449,37 @@ final class OfficeShellState: State<StatefulWidget> {
 
     /// What the shared Find and Replace dialog does in Writer (U-FR-1).
     private var _findHooks: FindHooks {
-        func select(_ s: RichSelection?, _ p: TextPattern) -> String {
+        func select(_ s: RichSelection?, _ p: TextPattern, _ f: FindFormat) -> String {
             guard let s else { return "No matches" }
             controller.selection = s
-            guard let at = controller.matchPosition(p) else { return "" }
+            guard let at = controller.matchPosition(p, format: f) else { return "" }
             return "\(at.index) of \(at.total)"
         }
         var hooks = FindHooks(
-            findNext: { [unowned self] p, _, back in select(controller.find(p, backwards: back), p) },
-            replace: { [unowned self] p, template, _ in
+            findNext: { [unowned self] p, w, back in select(controller.find(p, format: w.format, backwards: back), p, w.format) },
+            replace: { [unowned self] p, template, w in
                 // Replace the match the caret is on, then move to the next one.
-                let replaced = controller.replaceSelection(p, with: template)
-                let next = select(controller.find(p), p)
+                let replaced = controller.replaceSelection(p, with: template, format: w.format, replaceFormat: w.replaceFormat)
+                let next = select(controller.find(p, format: w.format), p, w.format)
                 return replaced ? (next == "No matches" ? "Replaced. No more matches" : "Replaced") : next
             },
-            replaceAll: { [unowned self] p, template, _ in
-                let n = controller.replaceAll(p, with: template)
+            replaceAll: { [unowned self] p, template, w in
+                let n = controller.replaceAll(p, with: template, format: w.format, replaceFormat: w.replaceFormat)
                 return n == 0 ? "No matches" : "Replaced \(n)"
             })
+        // Word's tabs, options, Special, Format and Go To (W-ED-2).
+        hooks.wordTabs = true
+        hooks.fonts = OfficeFonts.families
+        hooks.styles = controller.linkableStyles
+        hooks.goToKinds = GoToWhat.allCases
+        hooks.bookmarks = { [unowned self] in controller.bookmarkEntries().map(\.name) }
+        hooks.goToWhat = { [unowned self] what, text, step in
+            let lines = what == .page || what == .line
+                ? PdfExport.lineStarts(controller.document, pageSetup: session.pageSetup, theme: session.theme) : []
+            let err = controller.goTo(what, text, step: step, lines: lines)
+            if err == nil { _editorFocus.requestFocus() }
+            return err
+        }
         hooks.goToLabel = "Go to paragraph"
         hooks.goToHint = "A paragraph number, from 1"
         hooks.goTo = { [unowned self] text in
@@ -1930,6 +1945,11 @@ final class OfficeShellState: State<StatefulWidget> {
             controller.insertField(" PAGE ", result: info.label(controller.document.clamped(controller.selection.focus).paragraph) ?? "1")
             return true
         }
+        // F5: Find and Replace > Go To, as in Word.
+        if named == .function(5), mods.isEmpty {
+            _openFindDialog(tab: 2)
+            return true
+        }
         // Ctrl+Shift+F5: Insert > Bookmark.
         if named == .function(5), mods.contains(.primary), mods.contains(.shift), !mods.contains(.alt) {
             session.onBookmarkDialog?()
@@ -2182,7 +2202,7 @@ final class OfficeShellState: State<StatefulWidget> {
             return Stack(children: [
                 window,
                 Positioned(left: 0, top: 0, right: 0, bottom: 0, child: FindReplaceDialog(
-                    initialQuery: _findQuery.text, hooks: _findHooks, onClose: { [weak self] in self?._closeFindDialog() })),
+                    initialQuery: _findQuery.text, hooks: _findHooks, initialTab: _findDialogTab, onClose: { [weak self] in self?._closeFindDialog() })),
             ])
         }
         if _symbolOpen {

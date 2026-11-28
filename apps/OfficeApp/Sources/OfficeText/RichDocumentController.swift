@@ -4363,98 +4363,203 @@ public final class RichDocumentController: ChangeNotifier {
         return count
     }
 
-    // MARK: Find with a pattern (U-FR-1: match case, whole word, wildcards, regex)
+    // MARK: Find with a pattern (U-FR-1: match case, whole word, wildcards, regex; W-ED-2: ^ codes, Format)
 
-    /// The next match of `pattern` after the caret (before it when `backwards`), wrapping; nil when none.
-    public func find(_ pattern: TextPattern, backwards: Bool = false) -> RichSelection? {
-        let start = document.clamped(backwards ? selection.start : selection.end)
-        let n = document.paragraphs.count
-        func hit(_ i: Int, from: Int?, back: Bool) -> RichSelection? {
-            let text = document.paragraphs[i].text
-            let at = from.map { String.Index(utf16Offset: min(max($0, 0), text.utf16.count), in: text) }
-                ?? (back ? text.endIndex : text.startIndex)
-            guard let m = pattern.firstMatch(in: text, from: at, backwards: back) else { return nil }
-            return RichSelection(
-                anchor: RichPosition(paragraph: i, offset: m.range.lowerBound.utf16Offset(in: text)),
-                focus: RichPosition(paragraph: i, offset: m.range.upperBound.utf16Offset(in: text)))
+    /// One match: where it is, and the match in the text it was found in (for the replacement's groups).
+    struct FindHit {
+        var range: RichSelection
+        var match: TextMatch
+        var text: String
+    }
+
+    /// Every match of `pattern` with `format`, in document order. A pattern naming a paragraph
+    /// mark searches the paragraphs joined by marks (the last paragraph's mark is not searched:
+    /// Word never removes it); any other searches each paragraph's text. With `anyText` the
+    /// matches are the stretches of each paragraph that have `format`.
+    func _hits(_ pattern: TextPattern, _ format: FindFormat) -> [FindHit] {
+        let paras = document.paragraphs
+        let family = document.defaultFontFamily, size = document.defaultFontSize
+        func fits(_ i: Int, _ lo: Int, _ hi: Int) -> Bool {
+            guard !format.isEmpty else { return true }
+            let p = paras[i]
+            if let want = format.paragraphStyle, document.styles.id(of: p.style) != want { return false }
+            guard format.hasCharacterParts else { return true }
+            if lo == hi { return true }
+            return p.runs(in: lo ..< hi).allSatisfy { $0.length == 0 || format.matches($0.style, styleId: format.paragraphStyle ?? "", defaultFamily: family, defaultSize: size) }
         }
-        if let s = hit(start.paragraph, from: start.offset, back: backwards) { return s }
-        for k in 1 ..< max(n, 1) {
-            let i = backwards ? (start.paragraph - k + n * 2) % n : (start.paragraph + k) % n
-            if let s = hit(i, from: nil, back: backwards) { return s }
+        var out: [FindHit] = []
+        if pattern.matchesAnyText {
+            guard !format.isEmpty else { return [] }
+            for (i, p) in paras.enumerated() where !p.isImage && fits(i, 0, 0) {
+                let text = p.text
+                var at = 0, start: Int? = nil
+                func close(_ end: Int) {
+                    if let s = start, end > s {
+                        let r = String.Index(utf16Offset: s, in: text) ..< String.Index(utf16Offset: end, in: text)
+                        out.append(FindHit(range: RichSelection(anchor: RichPosition(paragraph: i, offset: s), focus: RichPosition(paragraph: i, offset: end)),
+                                           match: TextMatch(range: r, groups: []), text: text))
+                    }
+                    start = nil
+                }
+                for run in p.runs where run.length > 0 {
+                    let ok = !format.hasCharacterParts || format.matches(run.style, styleId: format.paragraphStyle ?? "", defaultFamily: family, defaultSize: size)
+                    if ok { if start == nil { start = at } } else { close(at) }
+                    at += run.length
+                }
+                close(min(at, p.length))
+            }
+            return out
         }
-        return hit(start.paragraph, from: nil, back: backwards)
+        if pattern.spansParagraphs {
+            var text = "", starts: [Int] = []
+            for (k, p) in paras.enumerated() {
+                starts.append(text.utf16.count)
+                text += p.text
+                if k < paras.count - 1 { text.append(TextPattern.paragraphMark) }
+            }
+            func pos(_ off: Int) -> RichPosition {
+                var lo = 0, hi = starts.count - 1
+                while lo < hi { let m = (lo + hi + 1) / 2; if starts[m] <= off { lo = m } else { hi = m - 1 } }
+                return RichPosition(paragraph: lo, offset: off - starts[lo])
+            }
+            for m in pattern.matches(in: text) {
+                let a = pos(m.range.lowerBound.utf16Offset(in: text)), b = pos(m.range.upperBound.utf16Offset(in: text))
+                var ok = true
+                for i in a.paragraph ... b.paragraph where ok {
+                    ok = fits(i, i == a.paragraph ? a.offset : 0, i == b.paragraph ? b.offset : paras[i].length)
+                }
+                if ok { out.append(FindHit(range: RichSelection(anchor: a, focus: b), match: m, text: text)) }
+            }
+            return out
+        }
+        for (i, p) in paras.enumerated() {
+            let text = p.text
+            for m in pattern.matches(in: text) {
+                let lo = m.range.lowerBound.utf16Offset(in: text), hi = m.range.upperBound.utf16Offset(in: text)
+                guard fits(i, lo, hi) else { continue }
+                out.append(FindHit(range: RichSelection(anchor: RichPosition(paragraph: i, offset: lo), focus: RichPosition(paragraph: i, offset: hi)),
+                                   match: m, text: text))
+            }
+        }
+        return out
+    }
+
+    /// The next match of `pattern` (with `format`) after the caret (before it when `backwards`), wrapping; nil when none.
+    public func find(_ pattern: TextPattern, format: FindFormat = FindFormat(), backwards: Bool = false) -> RichSelection? {
+        let hits = _hits(pattern, format)
+        guard !hits.isEmpty else { return nil }
+        if backwards {
+            let from = document.clamped(selection.start)
+            return (hits.last { $0.range.start < from } ?? hits.last)?.range
+        }
+        let from = document.clamped(selection.end)
+        return (hits.first { $0.range.start >= from } ?? hits.first)?.range
     }
 
     /// Which match the selection is, and how many there are ("3 of 12"); nil when the selection is not a match.
-    public func matchPosition(_ pattern: TextPattern) -> (index: Int, total: Int)? {
-        var total = 0, index: Int?
+    public func matchPosition(_ pattern: TextPattern, format: FindFormat = FindFormat()) -> (index: Int, total: Int)? {
+        let hits = _hits(pattern, format)
         let sel = selection
-        for (i, p) in document.paragraphs.enumerated() {
-            let text = p.text
-            for m in pattern.matches(in: text) {
-                total += 1
-                if index == nil, i == sel.start.paragraph, sel.start.paragraph == sel.end.paragraph,
-                   m.range.lowerBound.utf16Offset(in: text) == sel.start.offset { index = total }
-            }
-        }
-        return index.map { ($0, total) }
+        guard let k = hits.firstIndex(where: { $0.range.start == sel.start }) else { return nil }
+        return (k + 1, hits.count)
     }
 
-    /// Replace the selection when it is exactly one match of `pattern`; one undo step. False when it is not.
-    @discardableResult
-    public func replaceSelection(_ pattern: TextPattern, with template: String) -> Bool {
-        let sel = selection
-        guard sel.anchor.paragraph == sel.focus.paragraph, sel.anchor != sel.focus else { return false }
-        let i = sel.start.paragraph
-        let text = document.paragraphs[i].text
-        let lo = sel.start.offset, hi = sel.end.offset
-        guard let m = pattern.matches(in: text).first(where: {
-            $0.range.lowerBound.utf16Offset(in: text) == lo && $0.range.upperBound.utf16Offset(in: text) == hi
-        }) else { return false }
-        let replacement = pattern.replacement(template, for: m, in: text)
-        edit {
-            let style = document.paragraphs[i].style(at: lo + 1)
-            let at = lo + _deleteRange(in: i, lo ..< hi)  // tracked: the old text stays, deleted, before the new
-            if !replacement.isEmpty {
-                perform(.insertText(RichPosition(paragraph: i, offset: at), replacement,
-                                    [Run(length: replacement.utf16.count, style: _typed(style))]))
-            }
-            _setCaret(RichPosition(paragraph: i, offset: at + replacement.utf16.count))
+    /// Replace one match: the template filled in (a paragraph mark in it splits the paragraph, U+000C
+    /// starts a page), then `replaceFormat` put on the new text, or, with an empty template and a
+    /// format, the found text kept and the format put on it (Word). Inside an `edit`; the caret ends after it.
+    private func _replace(_ hit: FindHit, _ pattern: TextPattern, _ template: String, _ replaceFormat: FindFormat) {
+        let a = hit.range.start
+        if template.isEmpty, !replaceFormat.isEmpty {
+            _format(hit.range.start, hit.range.end, replaceFormat)
+            _setCaret(hit.range.end)
+            return
         }
+        let replacement = pattern.matchesAnyText ? template : pattern.replacement(template, for: hit.match, in: hit.text)
+        let style = document.paragraphs[a.paragraph].style(at: a.offset + 1)
+        selection = hit.range
+        _deleteSelectionOps()   // tracked: the old text stays, deleted, and the caret goes after it
+        let from = selection.focus
+        var piece = ""
+        func flush() {
+            guard !piece.isEmpty else { return }
+            let pos = selection.focus
+            perform(.insertText(pos, piece, [Run(length: piece.utf16.count, style: _typed(style))]))
+            _setCaret(RichPosition(paragraph: pos.paragraph, offset: pos.offset + piece.utf16.count))
+            piece = ""
+        }
+        for ch in replacement {
+            guard ch == TextPattern.paragraphMark || ch == "\u{000C}" else { piece.append(ch); continue }
+            flush()
+            let pos = selection.focus
+            guard !document.paragraphs[pos.paragraph].isImage else { continue }
+            var tail = document.paragraphs[pos.paragraph].style
+            tail.pageBreakBefore = ch == "\u{000C}"
+            perform(.splitParagraph(pos, tailStyle: tail))
+            if let mark = _insertionMark() {
+                let head = document.paragraphs[pos.paragraph].style
+                var marked = head; marked.markRevision = mark
+                perform(.setParagraphStyle(pos.paragraph, old: head, new: marked))
+            }
+            _setCaret(RichPosition(paragraph: pos.paragraph + 1, offset: 0))
+        }
+        flush()
+        if !replaceFormat.isEmpty {
+            let end = selection.focus
+            _format(from, end, replaceFormat)
+            _setCaret(end)
+        }
+    }
+
+    /// Put `format` on the text from `a` to `b`: its character parts on the runs, its style on the paragraphs.
+    private func _format(_ a: RichPosition, _ b: RichPosition, _ format: FindFormat) {
+        for i in a.paragraph ... b.paragraph {
+            if format.hasCharacterParts {
+                let lo = i == a.paragraph ? a.offset : 0, hi = i == b.paragraph ? b.offset : document.paragraphs[i].length
+                if hi > lo {
+                    var para = document.paragraphs[i]
+                    let old = para.runs
+                    para.applyStyle(lo ..< hi) { format.apply(to: &$0) }
+                    if para.runs != old { perform(.setRuns(i, old: old, new: para.runs)) }
+                }
+            }
+            if let id = format.paragraphStyle {
+                let old = document.paragraphs[i].style
+                var new = old
+                document.styles.apply(id, to: &new)
+                if new != old { perform(.setParagraphStyle(i, old: old, new: new)) }
+            }
+        }
+    }
+
+    /// Replace the selection when it is exactly one match of `pattern` (with `format`); one undo step. False when it is not.
+    @discardableResult
+    public func replaceSelection(_ pattern: TextPattern, with template: String, format: FindFormat = FindFormat(),
+                                 replaceFormat: FindFormat = FindFormat()) -> Bool {
+        let sel = selection
+        guard sel.anchor != sel.focus,
+              let hit = _hits(pattern, format).first(where: { $0.range.start == sel.start && $0.range.end == sel.end }) else { return false }
+        edit { _replace(hit, pattern, template, replaceFormat) }
         return true
     }
 
-    /// Replace every match of `pattern` in the document; one undo step. Returns the count.
+    /// Replace every match of `pattern` (with `format`) in the document; one undo step. Returns the count.
     @discardableResult
-    public func replaceAll(_ pattern: TextPattern, with template: String) -> Int {
-        var count = 0
+    public func replaceAll(_ pattern: TextPattern, with template: String, format: FindFormat = FindFormat(),
+                           replaceFormat: FindFormat = FindFormat()) -> Int {
+        let hits = _hits(pattern, format)
+        guard !hits.isEmpty else { return 0 }
+        let caret = selection.focus
         edit {
-            for i in document.paragraphs.indices {
-                let text = document.paragraphs[i].text
-                let found = pattern.matches(in: text)
-                // Backwards so earlier offsets stay valid.
-                for m in found.reversed() {
-                    let lo = m.range.lowerBound.utf16Offset(in: text)
-                    let hi = m.range.upperBound.utf16Offset(in: text)
-                    let replacement = pattern.replacement(template, for: m, in: text)
-                    let style = document.paragraphs[i].style(at: lo + 1)
-                    let at = lo + _deleteRange(in: i, lo ..< hi)  // tracked: the old text stays, deleted, before the new
-                    if !replacement.isEmpty {
-                        perform(.insertText(RichPosition(paragraph: i, offset: at), replacement,
-                                            [Run(length: replacement.utf16.count, style: _typed(style))]))
-                    }
-                    count += 1
-                }
-            }
-            _setCaret(document.clamped(selection.focus))
+            // Last first, so the places of the earlier ones stay where they were found.
+            for hit in hits.reversed() { _replace(hit, pattern, template, replaceFormat) }
+            _setCaret(document.clamped(caret))
         }
-        return count
+        return hits.count
     }
 
-    /// How many matches `pattern` has in the document.
-    public func countMatches(_ pattern: TextPattern) -> Int {
-        document.paragraphs.reduce(0) { $0 + pattern.matches(in: $1.text).count }
+    /// How many matches `pattern` (with `format`) has in the document.
+    public func countMatches(_ pattern: TextPattern, format: FindFormat = FindFormat()) -> Int {
+        _hits(pattern, format).count
     }
 
     /// Apply `transform` to every paragraph the selection touches.

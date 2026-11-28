@@ -232,6 +232,15 @@ extension PdfExport {
         return ({ layout.pageLabel(ofParagraph: $0, document) }, layout.pageCount)
     }
 
+    /// Each printed line's start and page (W-ED-2: Go To a page or a line), from a laying out as it prints.
+    static func lineStarts(_ document: RichDocument, pageSetup: PageSetup, theme: RichTextTheme) -> [(page: Int, at: RichPosition)] {
+        let layout = RichLayout(theme: theme, paragraphCount: document.paragraphs.count)
+        layout.scale = 15.0
+        layout.pageSetup = pageSetup
+        layout.width = pageSetup.columnWidth * theme.pixelsPerPoint * 15.0
+        return layout.lineStarts(document)
+    }
+
     /// The page label of each paragraph, from a laying out of `document` as it prints (for a table of contents).
     static func pageLabels(_ document: RichDocument, pageSetup: PageSetup, theme: RichTextTheme) -> (Int) -> String? {
         let layout = RichLayout(theme: theme, paragraphCount: document.paragraphs.count)
