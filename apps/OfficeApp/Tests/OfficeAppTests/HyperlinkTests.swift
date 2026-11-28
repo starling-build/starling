@@ -76,6 +76,44 @@ final class HyperlinkTests: XCTestCase {
         XCTAssertEqual(back.paragraphs[1].runs.first { $0.style.link == "https://a.example" }?.style.linkTip, "Tip here")
     }
 
+    /// W-LK-1: Word's E-mail Address pane (address and subject) and editing a link to a place in the document.
+    func testEmailWithSubjectSavesAsWordWritesIt() throws {
+        let c = controller(); select(c, 4, 8)
+        let mail = HyperlinkAddress.mail("a@b.com", subject: "Grüße & more")
+        XCTAssertEqual(mail, "mailto:a@b.com?subject=Gr%C3%BC%C3%9Fe%20%26%20more")
+        XCTAssertTrue(c.applyHyperlink(address: mail))
+        let data = try DocxFormat.write(c.document, pageSetup: .letter)
+        let rels = String(decoding: try XCTUnwrap(try Zip.read(data).first { $0.name == "word/_rels/document.xml.rels" }).data, as: UTF8.self)
+        XCTAssertTrue(rels.containsSubstring("Target=\"mailto:a@b.com?subject=Gr%C3%BC%C3%9Fe%20%26%20more\" TargetMode=\"External\""), rels)
+        let back = try DocxFormat.read(data).document
+        let link = try XCTUnwrap(back.paragraphs[1].runs.compactMap { $0.style.link }.first)
+        XCTAssertEqual(link, mail)
+        let split = try XCTUnwrap(HyperlinkAddress.splitMail(link))
+        XCTAssertEqual(split.address, "a@b.com"); XCTAssertEqual(split.subject, "Grüße & more")
+    }
+
+    func testEditingALinkToAHeadingFindsTheHeading() {
+        let c = controller(); select(c, 4, 8)
+        let t = c.linkTargets().first { $0.kind == .heading }!
+        c.applyHyperlink(address: "", target: t)
+        let link = try! XCTUnwrap(c.currentLink)
+        let targets = c.linkTargets()
+        let i = RichDocumentController.linkTargetIndex(of: link, in: targets)
+        XCTAssertEqual(i.map { targets[$0].paragraph }, 0)
+        XCTAssertNil(RichDocumentController.linkTargetIndex(of: "https://a.example", in: targets))
+        XCTAssertNil(RichDocumentController.linkTargetIndex(of: "#missing", in: targets))
+    }
+
+    /// The Word lab (LKMAIL_OUT=<folder>): an e-mail link with a subject and a link to a heading, saved by us.
+    func testWriteLabFile() throws {
+        guard let out = ProcessInfo.processInfo.environment["LKMAIL_OUT"] else { return }
+        let c = controller(); select(c, 0, 3)
+        c.applyHyperlink(address: HyperlinkAddress.mail("a@b.com", subject: "Grüße & more"), tip: "Mail tip")
+        select(c, 4, 8)
+        c.applyHyperlink(address: "", target: c.linkTargets().first { $0.kind == .heading }!)
+        try DocxFormat.write(c.document, pageSetup: .letter).write(to: URL(fileURLWithPath: out + "/lkmail.docx"))
+    }
+
     func testAddressesAreNormalised() {
         XCTAssertEqual(HyperlinkAddress.normalize("example.com"), "https://example.com")
         XCTAssertEqual(HyperlinkAddress.normalize("a@b.com"), "mailto:a@b.com")

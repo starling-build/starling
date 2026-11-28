@@ -32,6 +32,13 @@ extension RichDocumentController {
         return marks + heads
     }
 
+    /// The target an in-document link ("#name") goes to, so editing the link opens on it.
+    public static func linkTargetIndex(of link: String, in targets: [LinkTarget]) -> Int? {
+        guard link.hasPrefix("#"), link.count > 1 else { return nil }
+        let name = String(link.dropFirst())
+        return targets.firstIndex { $0.bookmark == name }
+    }
+
     /// The link under the caret (or selection): address, tip, and the
     /// text of the whole linked stretch.
     public var currentLinkTip: String? { currentCharStyle.linkTip }
