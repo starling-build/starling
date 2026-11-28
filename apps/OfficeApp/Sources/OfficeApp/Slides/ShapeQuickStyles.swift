@@ -27,15 +27,20 @@ struct ShapeQuickStyle: Equatable {
     var colorName: String { Self.columns[column] }
 
     /// The style's refs: (index into the theme's list, colour, its modifiers as XML). Index 0 is none.
+    /// As current PowerPoint writes them (every corpus deck on its Aptos theme): Colored Fill's line is the accent
+    /// at a 15% shade (older versions wrote 50%, which PowerPoint no longer knows as the gallery entry), and Moderate
+    /// Effect keeps the thin accent line (ref 1), as Subtle does; only Intense has none.
     var lineRef: (idx: Int, color: String, mods: String) {
         switch row {
         case 0: return (2, colorName, "")
-        case 1: return (2, colorName, "<a:shade val=\"50000\"/>")
+        case 1: return (2, colorName, "<a:shade val=\"\(Int(Self.coloredFillShade * 100_000))\"/>")
         case 2: return (3, "lt1", "")
-        case 3: return (1, colorName, "")
+        case 3, 4: return (1, colorName, "")
         default: return (0, colorName, "")
         }
     }
+    /// Colored Fill's line shade.
+    static let coloredFillShade = 0.15
     var fillRef: (idx: Int, color: String) {
         switch row {
         case 0: return (1, "lt1")
@@ -127,7 +132,7 @@ struct ShapeQuickStyle: Equatable {
         if ln.idx > 0 {
             if ln.color == "lt1" { outline = lt1; outlineScheme = "bg1" }
             else if ln.mods.isEmpty { outline = base; outlineScheme = Self.spec(colorName) }
-            else { outline = DeckController.shadeLinear(base, 0.5) }
+            else { outline = DeckController.shadeLinear(base, Self.coloredFillShade) }
         }
         let width = ln.idx > 0 && scheme.lineWidths.indices.contains(ln.idx - 1) ? scheme.lineWidths[ln.idx - 1] : 0.75
         // Effect.

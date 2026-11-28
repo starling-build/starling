@@ -30,22 +30,25 @@ final class ShapeQuickStyleTests: XCTestCase {
         XCTAssertEqual(rgb(outline.outline), accent1)
         XCTAssertEqual(outline.outlineWidth, 1)
         XCTAssertEqual(rgb(outline.text), rgb(colors.scheme("dk1")))
-        // Colored Fill: an accent fill, its 50% shade as the line, light text.
+        // Colored Fill: an accent fill, its 15% shade as the line, light text.
         let filled = ShapeQuickStyle(row: 1, column: 1).look(colors)
         XCTAssertEqual(rgb(filled.fill), accent1)
-        XCTAssertEqual(rgb(filled.outline), rgb(DeckController.shadeLinear(colors.scheme("accent1")!, 0.5)))
+        XCTAssertEqual(rgb(filled.outline), rgb(DeckController.shadeLinear(colors.scheme("accent1")!, 0.15)))
         XCTAssertEqual(rgb(filled.text), rgb(colors.scheme("lt1")))
         // Light 1 Outline: a white line 1½ pt over the accent fill.
         let light = ShapeQuickStyle(row: 2, column: 1).look(colors)
         XCTAssertEqual(rgb(light.outline), 0xFFFFFF)
         XCTAssertEqual(light.outlineWidth, 1.5)
-        // Subtle and Moderate: gradients in the accent, no line for Moderate; Intense adds a shadow.
+        // Subtle and Moderate: gradients in the accent with its thin line; Intense drops the line and adds a shadow.
         XCTAssertNotNil(ShapeQuickStyle(row: 3, column: 1).look(colors).gradient)
         let moderate = ShapeQuickStyle(row: 4, column: 1).look(colors)
         XCTAssertNotNil(moderate.gradient)
-        XCTAssertNil(moderate.outline)
+        XCTAssertEqual(rgb(moderate.outline), accent1)
+        XCTAssertEqual(moderate.outlineWidth, 0.5)
         XCTAssertNil(moderate.shadow)
-        XCTAssertNotNil(ShapeQuickStyle(row: 5, column: 1).look(colors).shadow)
+        let intense = ShapeQuickStyle(row: 5, column: 1).look(colors)
+        XCTAssertNotNil(intense.shadow)
+        XCTAssertNil(intense.outline)
     }
 
     func testApplyingIsOneUndoStep() {
@@ -92,7 +95,7 @@ final class ShapeQuickStyleTests: XCTestCase {
         let (deck, _) = deckWithShape()
         deck.applyQuickStyle(ShapeQuickStyle(row: 1, column: 2))
         let sp = try XCTUnwrap(savedShapes(deck).first { $0.contains("<p:style>") })
-        XCTAssertTrue(sp.contains("<a:lnRef idx=\"2\"><a:schemeClr val=\"accent2\"><a:shade val=\"50000\"/></a:schemeClr></a:lnRef>"), sp)
+        XCTAssertTrue(sp.contains("<a:lnRef idx=\"2\"><a:schemeClr val=\"accent2\"><a:shade val=\"15000\"/></a:schemeClr></a:lnRef>"), sp)
         XCTAssertTrue(sp.contains("<a:fillRef idx=\"1\"><a:schemeClr val=\"accent2\"/></a:fillRef>"))
         XCTAssertTrue(sp.contains("<a:fontRef idx=\"minor\"><a:schemeClr val=\"lt1\"/></a:fontRef>"))
         let spPr = try XCTUnwrap(sp.components(separatedBy: "</a:prstGeom>").last?.components(separatedBy: "</p:spPr>").first)
@@ -142,7 +145,7 @@ final class ShapeQuickStyleTests: XCTestCase {
         deck.applyTheme(other)
         XCTAssertEqual(rgb(s.fill), 0x00AA00, "the styled shape takes the new accent")
         XCTAssertEqual(rgb(t.fill), 0x00B050, "a fill changed since keeps its colour")
-        XCTAssertEqual(rgb(t.outline), rgb(DeckController.shadeLinear(Color(0xFF00AA00), 0.5)),
+        XCTAssertEqual(rgb(t.outline), rgb(DeckController.shadeLinear(Color(0xFF00AA00), 0.15)),
                        "its line is still the style's, so it follows the new accent")
     }
 }
