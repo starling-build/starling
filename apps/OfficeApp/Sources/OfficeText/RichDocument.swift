@@ -2498,11 +2498,23 @@ public struct RichDropDown: Hashable, Sendable {
     public var entries: [(text: String, value: String)]
     /// A combo box also takes typed text.
     public var isComboBox: Bool
+    /// A date picker control (no entries: it opens a calendar).
+    public var date: RichDateControl? = nil
     public static func == (a: Self, b: Self) -> Bool {
-        a.control == b.control && a.range == b.range && a.isComboBox == b.isComboBox
+        a.control == b.control && a.range == b.range && a.isComboBox == b.isComboBox && a.date == b.date
             && a.entries.map(\.text) == b.entries.map(\.text) && a.entries.map(\.value) == b.entries.map(\.value)
     }
     public func hash(into h: inout Hasher) { h.combine(control); h.combine(range) }
+}
+
+/// A date picker content control's `w:date`: the picture it shows a date in, its language and the date it holds.
+public struct RichDateControl: Hashable, Sendable {
+    /// `w:dateFormat`, a Word date picture ("M/d/yyyy"); empty when the control names none.
+    public var picture: String
+    /// `w:lid` ("en-US"); empty when absent.
+    public var language: String
+    /// `w:fullDate` (W3C date-time), nil before a date is picked.
+    public var fullDate: String?
 }
 
 extension RichParagraph {
@@ -2549,6 +2561,17 @@ extension RichParagraph {
             }
             out.append(RichDropDown(control: m.id, range: m.offset ..< max(m.offset, end.offset), entries: entries, isComboBox: combo))
         }
+        for m in controlMarkers where m.isStart {
+            guard let props = m.properties, let d = props.rangeOfSubstring("<w:date"),
+                  let after = props[d.upperBound...].first, after == " " || after == ">" || after == "/",
+                  let end = controlMarkers.first(where: { $0.id == m.id && !$0.isStart }) else { continue }
+            let rest = String(props[d.lowerBound...])
+            let full = Self._tags("w:date", ["w:fullDate"], in: rest).first?[0] ?? nil
+            let picture = Self._tags("w:dateFormat", ["w:val"], in: rest).first?[0] ?? nil
+            let lid = Self._tags("w:lid", ["w:val"], in: rest).first?[0] ?? nil
+            out.append(RichDropDown(control: m.id, range: m.offset ..< max(m.offset, end.offset), entries: [], isComboBox: false,
+                                    date: RichDateControl(picture: picture ?? "", language: lid ?? "", fullDate: full)))
+        }
         return out.sorted { $0.range.lowerBound < $1.range.lowerBound }
     }
     /// This paragraph with the drop-down starting at `start` showing entry `index`; nil when there is no such drop-down
@@ -2561,35 +2584,63 @@ extension RichParagraph {
         let lo = min(d.range.lowerBound, units.count), hi = min(d.range.upperBound, units.count)
         var p = self
         if let id = d.control {
-            guard let si = p.controlMarkers.firstIndex(where: { $0.id == id && $0.isStart }),
-                  let ei = p.controlMarkers.firstIndex(where: { $0.id == id && !$0.isStart }),
-                  var props = p.controlMarkers[si].properties else { return nil }
-            let placeholder = props.containsSubstring("<w:showingPlcHdr")
-            if !placeholder, String(decoding: units[lo ..< hi], as: UTF16.self) == entry.text { return nil }
-            // The placeholder's grey prompt style is not the entry's: take the text's before the control.
-            let style = placeholder ? (lo > 0 ? p.style(at: lo) : CharStyle()) : p.style(at: hi > lo ? lo + 1 : lo)
-            let n = entry.text.utf16.count
-            if n > 0 { p.insert(entry.text, at: hi, runs: [Run(length: n, style: style)]) }
-            p.controlMarkers[si].offset = lo
-            p.controlMarkers[ei].offset = hi + n
-            if hi > lo { _ = p.delete(lo ..< hi) }
-            for tag in ["<w:showingPlcHdr/>", "<w:showingPlcHdr w:val=\"1\"/>", "<w:showingPlcHdr w:val=\"true\"/>"] {
-                if let r = props.rangeOfSubstring(tag) { props.removeSubrange(r) }
-            }
+            return _replacingControlText(id, d.range, with: entry.text) { props in
             if let list = props.rangeOfSubstring("<w:dropDownList ") ?? props.rangeOfSubstring("<w:comboBox "),
                let close = props[list.upperBound...].firstIndex(of: ">"),
                let a = props.rangeOfSubstring(" w:lastValue=\"", in: list.lowerBound ..< close),
                let q = props[a.upperBound...].firstIndex(of: "\"") {
                 props.replaceSubrange(a.upperBound ..< q, with: RichDocumentController._xmlEscaped(entry.value))
             }
-            p.controlMarkers[si].properties = props
-            return p
+            }
         }
         guard String(decoding: units[lo ..< hi], as: UTF16.self) != entry.text, hi > lo else { return nil }
         let style = p.style(at: lo + 1)
         let n = entry.text.utf16.count
         p.insert(entry.text, at: hi, runs: [Run(length: n, style: style)])
         _ = p.delete(lo ..< hi)
+        return p
+    }
+
+    /// This paragraph with the date picker starting at `start` showing `text` and holding `fullDate` (W3C date-time,
+    /// written as its `w:fullDate`); nil when there is no such control or it already shows that date.
+    public func choosingDate(at start: Int, text: String, fullDate: String) -> RichParagraph? {
+        guard let d = dropDowns.first(where: { $0.range.lowerBound == start && $0.date != nil }), let id = d.control else { return nil }
+        return _replacingControlText(id, d.range, with: text) { props in
+            guard let tag = props.rangeOfSubstring("<w:date"), let close = props[tag.upperBound...].firstIndex(of: ">") else { return }
+            let value = RichDocumentController._xmlEscaped(fullDate)
+            if let a = props.rangeOfSubstring(" w:fullDate=\"", in: tag.lowerBound ..< close),
+               let q = props[a.upperBound...].firstIndex(of: "\"") {
+                props.replaceSubrange(a.upperBound ..< q, with: value)
+            } else {
+                props.insert(contentsOf: " w:fullDate=\"\(value)\"", at: tag.upperBound)
+            }
+        }
+    }
+
+    /// This paragraph with content control `id` (its text at `range`) showing `text` instead, out of its placeholder,
+    /// its properties then passed through `edit`; nil when it already shows `text` and is not a placeholder.
+    fileprivate func _replacingControlText(_ id: Int, _ range: Range<Int>, with text: String,
+                                           _ edit: (inout String) -> Void) -> RichParagraph? {
+        let units = Array(self.text.utf16)
+        let lo = min(range.lowerBound, units.count), hi = min(range.upperBound, units.count)
+        var p = self
+        guard let si = p.controlMarkers.firstIndex(where: { $0.id == id && $0.isStart }),
+              let ei = p.controlMarkers.firstIndex(where: { $0.id == id && !$0.isStart }),
+              var props = p.controlMarkers[si].properties else { return nil }
+        let placeholder = props.containsSubstring("<w:showingPlcHdr")
+        if !placeholder, String(decoding: units[lo ..< hi], as: UTF16.self) == text { return nil }
+        // The placeholder's grey prompt style is not the entry's: take the text's before the control.
+        let style = placeholder ? (lo > 0 ? p.style(at: lo) : CharStyle()) : p.style(at: hi > lo ? lo + 1 : lo)
+        let n = text.utf16.count
+        if n > 0 { p.insert(text, at: hi, runs: [Run(length: n, style: style)]) }
+        p.controlMarkers[si].offset = lo
+        p.controlMarkers[ei].offset = hi + n
+        if hi > lo { _ = p.delete(lo ..< hi) }
+        for tag in ["<w:showingPlcHdr/>", "<w:showingPlcHdr w:val=\"1\"/>", "<w:showingPlcHdr w:val=\"true\"/>"] {
+            if let r = props.rangeOfSubstring(tag) { props.removeSubrange(r) }
+        }
+        edit(&props)
+        p.controlMarkers[si].properties = props
         return p
     }
 }
