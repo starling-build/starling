@@ -768,8 +768,8 @@ final class SlideShowState: State<StatefulWidget>, TickerProvider {
         var layers: [Widget] = [body]
         if _controlsShown, !_w.presenter { layers.append(_touchControls(context)) }
         if _w.rehearse { layers.append(_rehearseBar(context)) }
-        guard layers.count > 1 else { return body }
-        return Stack(children: layers)
+        // The show covers the editor: the keyboard and a screen reader stay in the show until it ends.
+        return KeyboardRegion(name: "Slide Show", modal: true, child: layers.count > 1 ? Stack(children: layers) : body)
     }
 }
 

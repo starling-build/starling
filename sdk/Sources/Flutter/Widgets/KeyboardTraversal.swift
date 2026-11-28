@@ -10,7 +10,8 @@ import FlutterSwiftBridge
 
 /// Marks a part of the window as a keyboard region (the ribbon, a pane, a
 /// dialog). F6 moves between regions; a `modal` region (a dialog) holds Tab
-/// inside itself while it is open.
+/// inside itself while it is open, and hides what was painted under it from
+/// screen readers (BlockSemantics), as the keyboard cannot reach it either.
 public final class KeyboardRegion: StatelessWidget {
     public let name: String
     public let modal: Bool
@@ -23,7 +24,7 @@ public final class KeyboardRegion: StatelessWidget {
         super.init(key: nil)
     }
 
-    public override func build(_ context: any BuildContext) -> Widget { child }
+    public override func build(_ context: any BuildContext) -> Widget { modal ? BlockSemantics(child: child) : child }
 }
 
 /// Marks a document page as a keyboard stop: F6 (or Ctrl+F6) moves typing into it. `focus` puts the

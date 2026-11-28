@@ -116,7 +116,7 @@ final class SlideSizeDialogState: State<StatefulWidget> {
                                           border: Border.all(color: fluent.resources.controlStrokeColorDefault, width: 1),
                                           borderRadius: BorderRadius.circular(8),
                                           boxShadow: [BoxShadow(color: Color(0x40000000), offset: Offset(0, 8), blurRadius: 24)]),
-                child: Padding(padding: EdgeInsets(all: 24), child: card))))),
+                child: Padding(padding: EdgeInsets(all: 24), child: KeyboardRegion(name: "dialog", modal: true, child: card)))))),
         ])
     }
 }

@@ -112,7 +112,9 @@ public class FlyoutController {
         guard _escapeToken == nil else { return }
         _escapeToken = FocusManager.instance.addKeyInterceptor { [weak self] data in
             // Escape as either embedder spells it (keysym, Flutter key).
-            guard let self, self.isOpen, data.logical == 0xFF1B || data.logical == 0x1_0000_001B else { return false }
+            // A flyout whose overlay is gone (its window was torn down without closing it) is not on screen:
+            // it must leave Escape to the live window.
+            guard let self, self.isOpen, self._barrierEntry?._overlay != nil, data.logical == 0xFF1B || data.logical == 0x1_0000_001B else { return false }
             if data.type == .down { self.closeFlyout() }
             return true
         }
@@ -224,11 +226,11 @@ public class FlyoutController {
             FocusManager.instance.removeKeyInterceptor(token)
             _escapeToken = nil
         }
-        _barrierEntry?.remove()
+        if _barrierEntry?._overlay != nil { _barrierEntry?.remove() }
         _barrierEntry?.dispose()
         _barrierEntry = nil
 
-        _flyoutEntry?.remove()
+        if _flyoutEntry?._overlay != nil { _flyoutEntry?.remove() }
         _flyoutEntry?.dispose()
         _flyoutEntry = nil
     }
