@@ -44,8 +44,11 @@ struct ChartColorEdit: Equatable {
     var series: Int; var point: Int?; var hex: String?
     /// A theme slot ("accent2") with its lumMod / lumOff in percent, written as a scheme colour so a new theme recolours it; wins over `hex`.
     var scheme: String? = nil; var lumMod: Int = 100; var lumOff: Int = 0
+    /// A whole colour element to write (a palette's `<a:schemeClr val="accent1"><a:shade val="58000"/></a:schemeClr>`); wins over the rest.
+    var raw: String? = nil
     /// The colour element to write; nil is automatic.
     var element: String? {
+        if let raw { return raw }
         if let scheme {
             var mods = ""
             if lumMod != 100 { mods += "<a:lumMod val=\"\(lumMod * 1000)\"/>" }

@@ -202,7 +202,8 @@ final class Ribbon: StatelessWidget {
         case .chartDesign:
             guard let (image, chart) = session.wordChart else { return [] }
             let c = session.controller
-            return chartDesignGroups(chart, fluent, set: { WordChartEdit.set($0, of: image, in: c) },
+            return chartDesignGroups(chart, fluent, theme: WriterCharts.theme(image.id) ?? DeckTheme(),
+                                     set: { WordChartEdit.set($0, of: image, in: c) },
                                      altText: { [session] in session.onPictureDialog?(.altText) },
                                      delete: { c.deleteForward() })
         case .headerFooter: return session.headerFooterOpen ? _headerFooter(fluent) : []
