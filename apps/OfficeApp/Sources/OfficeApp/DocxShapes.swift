@@ -2006,11 +2006,11 @@ extension DocxFormat {
                         let n = notes.next(footnote: footnote, id: id)
                         if footnote, !notes.inTextBox, notes.footnoteNumbers[id] == nil { notes.footnoteNumbers[id] = n }
                         if !footnote, !notes.inTextBox, notes.endnoteNumbers[id] == nil { notes.endnoteNumbers[id] = n }
-                        addText(notes.label(n, footnote: footnote), mark)
+                        addText(notes.label(n, footnote: footnote, id: id), mark)
                     }
                 case "w:footnoteRef":
                     // A note's own mark, in the note: its number, in the notes' form (zh-424775e4's "①").
-                    if let n = notes.currentNote { addText(notes.label(n, footnote: true), cs) }
+                    if let n = notes.currentNote { addText(notes.label(n, footnote: true, id: notes.currentNoteId), cs) }
                 case "w:endnoteRef":
                     if let label = notes.currentNoteLabel { addText(label, cs) }
                 default: break

@@ -2340,7 +2340,7 @@ extension DocxFormat {
         let writeHeader = !doc.header.isEmpty && !keptDefaultHeader
         let writeFooter = !doc.footer.isEmpty && !keptDefaultFooter
         // The last section's sectPr; a section break made in it (`sectionAsLast`) is written the same, with its own page and start.
-        func sectPr(_ page: PageSetup, type: String?, borders: String? = doc.pageBordersXML) -> String {
+        func sectPr(_ page: PageSetup, type: String?, borders: String? = doc.pageBordersXML, notes: String? = doc.sectionNotesXML) -> String {
         var body = "<w:sectPr>"
         let pageSetup = page.physical
         let pw = Int(pageSetup.width * 20), ph = Int(pageSetup.height * 20)
@@ -2349,6 +2349,8 @@ extension DocxFormat {
         for (i, k) in keptHF {
             body += "<w:\(k.kind == .header ? "headerReference" : "footerReference") w:type=\"\(k.type)\" r:id=\"rIdKeptHF\(i)\"/>"
         }
+        // (The section's own note properties: after the references, before the type — CT_SectPr's order.)
+        if let notes { body += notes }
         if let type { body += type }
         body += "<w:pgSz w:w=\"\(pw)\" w:h=\"\(ph)\"\(pageSetup.orientAcrossShape ? " w:orient=\"\(pageSetup.sheetLandscape ? "landscape" : "portrait")\"" : pageSetup.sheetLandscape && pageSetup.orientStated ? " w:orient=\"landscape\"" : "")/>"
         body += "<w:pgMar w:top=\"\(Int(pageSetup.marginTop * 20))\" w:right=\"\(Int(pageSetup.marginRight * 20))\" w:bottom=\"\(Int(pageSetup.marginBottom * 20))\" w:left=\"\(Int(pageSetup.marginLeft * 20))\" w:header=\"\(Int((pageSetup.headerDistance * 20).rounded()))\" w:footer=\"\(Int((pageSetup.footerDistance * 20).rounded()))\" w:gutter=\"\(Int((pageSetup.gutter * 20).rounded()))\"/>"
@@ -2376,7 +2378,8 @@ extension DocxFormat {
             guard let sect = p.style.sectionXML, sect.containsSubstring(RichDocumentController.sectionAsLast) else { continue }
             let type = sect.rangeOfSubstring("<w:type ").flatMap { open in
                 sect[open.lowerBound...].rangeOfSubstring("/>").map { String(sect[open.lowerBound ..< $0.upperBound]) } }
-            body = body.replacingAll("<!--\(RichDocumentController.sectionAsLast)-\(index)-->", with: sectPr(p.style.sectionPage ?? lastPage, type: type, borders: PageBorders.ofSection(sect, doc)))
+            body = body.replacingAll("<!--\(RichDocumentController.sectionAsLast)-\(index)-->", with: sectPr(p.style.sectionPage ?? lastPage, type: type, borders: PageBorders.ofSection(sect, doc),
+                                                                                                              notes: RichDocumentController._sectionNotes(sect, last: doc.sectionNotesXML)))
         }
         let pageSetup = lastPage.physical
 

@@ -160,8 +160,18 @@ enum DocxFormat {
         _reuseInlinePlaceholders(body)
         _bindCoreProperties(body, part: part)
         let notes = _Shared(kept: kept, rels: relInfo, rootNS: rootNS, part: part, contentType: contentType)
-        notes.footnoteRestarts = Self._footnoteRestartIDs(body, settingsRestart: part("word/settings.xml").flatMap(XNode.parse)?
-            .first("w:footnotePr")?.first("w:numRestart")?["w:val"])
+        let settingsRestart = part("word/settings.xml").flatMap(XNode.parse)?.first("w:footnotePr")?.first("w:numRestart")?["w:val"]
+        notes.footnoteRestarts = Self._footnoteRestartIDs(body, settingsRestart: settingsRestart)
+        // (A section's own footnotePr / endnotePr numbers its notes in its own form, and from its own first number
+        // where it restarts them. A section that runs on counts from the document's first number, not from an
+        // earlier section's own: Word prints C, D | 3, 4 for a first section from 3 restarting, the second running on.)
+        let sectionNotes = Self._noteSectionProps(body)
+        for (id, pr) in sectionNotes.footnotes {
+            if let f = pr.first("w:numFmt")?["w:val"] { notes.footnoteFormatOf[id] = f }
+            if (pr.first("w:numRestart")?["w:val"] ?? settingsRestart) == "eachSect",
+               let n = pr.first("w:numStart")?["w:val"].flatMap({ Int($0) }), n > 0 { notes.footnoteStartOf[id] = n }
+        }
+        for (id, pr) in sectionNotes.endnotes { if let f = pr.first("w:numFmt")?["w:val"] { notes.endnoteFormatOf[id] = f } }
         notes.bookmarkNames = Set(body.descendants("w:bookmarkStart").compactMap { $0["w:name"]?.lowercased() })
         // (Those of the other parts too, by their text: a reference into a
         // note or a header finds its name there.)
@@ -2998,7 +3008,7 @@ enum DocxFormat {
                 let type = note["w:type"] ?? "normal"
                 guard type == "normal" || type == "separator" else { continue }
                 guard type == "separator" || notes.footnoteNumbers[id] != nil || notes.customFootnotes.contains(id) else { continue }
-                notes.currentNote = notes.footnoteNumbers[id]
+                notes.currentNote = notes.footnoteNumbers[id]; notes.currentNoteId = id
                 paragraphs = []
                 currentCell = nil
                 pendingPageBreak = false
@@ -3039,7 +3049,7 @@ enum DocxFormat {
                 let type = note["w:type"] ?? "normal"
                 guard type == "normal" || type == "separator" || type == "continuationSeparator" else { continue }
                 guard type == "separator" || type == "continuationSeparator" || notes.endnoteNumbers[id] != nil || notes.customEndnotes.contains(id) else { continue }
-                notes.currentNoteLabel = notes.endnoteNumbers[id].map { notes.label($0, footnote: false) }
+                notes.currentNoteLabel = notes.endnoteNumbers[id].map { notes.label($0, footnote: false, id: id) }
                 paragraphs = []
                 currentCell = nil
                 pendingPageBreak = false
@@ -3204,6 +3214,8 @@ enum DocxFormat {
                 if let cell = _snapCellSpace(sect, normalSize: sheet[RichNamedStyle.normalId]?.char.fontSize ?? 11) { document.characterGridSpace = cell; document.characterGridCellBase = sheet[RichNamedStyle.normalId]?.char.fontSize ?? 11 }
             }
             document.sectionTypeXML = sect.first("w:type").map { PptxXML.serialize($0) }
+            let notesXML = ["w:footnotePr", "w:endnotePr"].compactMap { sect.first($0) }.map { PptxXML.serialize($0) }.joined()
+            document.sectionNotesXML = notesXML.isEmpty ? nil : notesXML
             if let cols = sect.first("w:cols") {
                 document.columnsXML = PptxXML.serialize(cols)
                 document.columnsKeptUnder = max(1, Int(cols["w:num"] ?? "1") ?? 1)

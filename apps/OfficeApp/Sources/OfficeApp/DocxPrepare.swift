@@ -133,6 +133,34 @@ extension DocxFormat {
         return out
     }
 
+    /// Each note mark's section's own note properties, by the note's id: its sectPr's `w:footnotePr` for a
+    /// footnote, `w:endnotePr` for an endnote, where the section states one.
+    static func _noteSectionProps(_ body: XNode) -> (footnotes: [Int: XNode], endnotes: [Int: XNode]) {
+        var fn: [Int: XNode] = [:], en: [Int: XNode] = [:]
+        var pendingF: [Int] = [], pendingE: [Int] = []
+        func close(_ sect: XNode?) {
+            guard let sect else { return }
+            if let pr = sect.first("w:footnotePr") { for id in pendingF where fn[id] == nil { fn[id] = pr } }
+            if let pr = sect.first("w:endnotePr") { for id in pendingE where en[id] == nil { en[id] = pr } }
+            pendingF = []; pendingE = []
+        }
+        func walk(_ n: XNode) {
+            if n.name == "w:footnoteReference", let id = Int(n["w:id"] ?? "") { pendingF.append(id) }
+            if n.name == "w:endnoteReference", let id = Int(n["w:id"] ?? "") { pendingE.append(id) }
+            if n.name == "w:p" {
+                for c in n.children where c.name != "w:pPr" { walk(c) }
+                close(n.first("w:pPr")?.first("w:sectPr"))
+                return
+            }
+            for c in n.children { walk(c) }
+        }
+        for c in body.children {
+            if c.name == "w:sectPr" { close(c); continue }
+            walk(c)
+        }
+        return (fn, en)
+    }
+
     /// The share widths of `anchors`, on `sect`'s page. A header's or footer's
     /// are on the last section's (lo-9c6cc479's footer rule, 100% of the margins:
     /// 446.6pt in Word's print, the 468pt extent here).

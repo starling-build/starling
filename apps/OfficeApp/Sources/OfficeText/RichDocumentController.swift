@@ -51,7 +51,10 @@ public struct NotesState: Equatable, Sendable {
     public var footnoteProperties: String?
     public var endnoteProperties: String?
     public var endnotesAtSectionEnd: Bool
+    /// The last section's own note properties (`RichDocument.sectionNotesXML`).
+    public var sectionNotes: String?
     public init(_ doc: RichDocument) {
+        sectionNotes = doc.sectionNotesXML
         footnotes = doc.footnotes; endnotes = doc.endnotes
         footnotePart = doc.keptParts["word/footnotes.xml"]; endnotePart = doc.keptParts["word/endnotes.xml"]
         footnoteProperties = doc.footnotePropertiesXML; endnoteProperties = doc.endnotePropertiesXML
@@ -61,6 +64,7 @@ public struct NotesState: Equatable, Sendable {
         doc.footnotes = footnotes; doc.endnotes = endnotes
         doc.footnotePropertiesXML = footnoteProperties; doc.endnotePropertiesXML = endnoteProperties
         doc.endnotesAtSectionEnd = endnotesAtSectionEnd
+        doc.sectionNotesXML = sectionNotes
         doc.keptParts["word/footnotes.xml"] = footnotePart
         doc.keptParts["word/endnotes.xml"] = endnotePart
     }
