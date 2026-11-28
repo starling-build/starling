@@ -87,6 +87,12 @@ final class WordFindDialogTests: XCTestCase {
         XCTAssertTrue(ui.tap(id: "fr-tab-find")); ui.pump()
         XCTAssertFalse(ui.has(id: "fr-replace"), "the Find tab has no Replace with")
         XCTAssertTrue(ui.has(id: "fr-prefix"))
+        // Word keeps the dialog one size on its three tabs: the title does not move.
+        let title = ui.centre(ofText: "Find and Replace")
+        for t in [1, 2, 0] {
+            d.setTab(t); ui.pump()
+            XCTAssertEqual(ui.centre(ofText: "Find and Replace"), title, "tab \(t)")
+        }
     }
 
     /// Special puts the code in the box last clicked; Format shows under its box and reaches the
@@ -100,8 +106,10 @@ final class WordFindDialogTests: XCTestCase {
         c.moveTo(RichPosition(paragraph: 0, offset: 0), extend: false)
         st._openFindDialog(tab: 1); ui.pump()
         let d = try XCTUnwrap(ui.state(FindReplaceDialogState.self))
+        let title = ui.centre(ofText: "Find and Replace")
         XCTAssertTrue(ui.tap(id: "fr-special")); ui.pump()
         XCTAssertTrue(ui.has(text: "Any Digit"), "Find what offers the search codes")
+        XCTAssertEqual(ui.centre(ofText: "Find and Replace"), title, "the Special menu does not move the dialog")
         XCTAssertTrue(ui.tap(id: "fr-sp-^t")); ui.pump()
         XCTAssertTrue(ui.tap(id: "fr-replace")); ui.pump()
         XCTAssertEqual(d.target, 1)
@@ -137,5 +145,23 @@ final class WordFindDialogTests: XCTestCase {
         d.replaceEvery(); ui.pump()
         XCTAssertEqual(st.session.controller.document.paragraphs[0].text, "a")
         XCTAssertFalse(d.status.isEmpty)
+    }
+
+    /// Ctrl+G is Go To on Windows and Linux (Word for Windows); Cmd+G stays Find Next on the Mac (Mac Word).
+    func testPrimaryGPerPlatform() throws {
+        XCTAssertEqual(PrimaryG.of(mac: false, shift: false), .goTo)
+        XCTAssertEqual(PrimaryG.of(mac: true, shift: false), .findNext)
+        XCTAssertEqual(PrimaryG.of(mac: true, shift: true), .findPrevious)
+        XCTAssertEqual(PrimaryG.of(mac: false, shift: true), .findPrevious)
+        // This platform's own chord, through the shell.
+        let (ui, st) = shell(["a", "b"])
+        let key = KeyData(timeStamp: 0, type: .down, physical: 0, logical: 0x67, character: nil, synthesized: false)
+        XCTAssertTrue(st._shortcut(key, [.primary])); ui.pump()
+        let d = ui.state(FindReplaceDialogState.self)
+        if PrimaryG.platformIsMac {
+            XCTAssertNil(d, "Cmd+G is Find Next")
+        } else {
+            XCTAssertEqual(d?.tab, 2, "Ctrl+G opens Go To")
+        }
     }
 }

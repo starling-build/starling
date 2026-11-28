@@ -836,13 +836,15 @@ public final class RichDocumentController: ChangeNotifier {
     public func insertSymbol(_ string: String, font: String?) {
         guard !_selectionLocked() else { return }
         let saved = typingStyle
+        let before = currentCharStyle
         if let font {
-            var st = currentCharStyle
+            var st = before
             st.fontFamily = font
             typingStyle = st
         }
         insertText(string)
-        typingStyle = font == nil ? saved : nil
+        // Typing after a symbol in its own font goes on in the font it was in before, as Word.
+        typingStyle = font == nil ? saved : before
     }
 
     public func insertText(_ string: String) {

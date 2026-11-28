@@ -2063,7 +2063,12 @@ final class OfficeShellState: State<StatefulWidget> {
         case "n": session.replacing { [weak self] in self?._new() }
         case "f": _openFind(replace: false)
         case "h": if mods.contains(.shift) { _openFindDialog() } else { _openFind(replace: true) }
-        case "g": _findNext(backwards: mods.contains(.shift))
+        case "g":
+            switch PrimaryG.of(mac: PrimaryG.platformIsMac, shift: mods.contains(.shift)) {
+            case .goTo: _openFindDialog(tab: 2)
+            case .findNext: _findNext(backwards: false)
+            case .findPrevious: _findNext(backwards: true)
+            }
         case "p": session.onPrint?()
         // Word's Ctrl+Shift+K / A / D: small caps, all caps, double underline (ahead of ⌘K the link, ⌘D the Font dialog
         // and the editor's ⌘A, which would otherwise take the shifted keys too).
