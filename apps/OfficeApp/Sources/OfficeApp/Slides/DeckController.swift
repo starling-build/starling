@@ -156,6 +156,8 @@ struct ShapeState: Equatable {
     var runLooks: [[RunLook]] = []
     var scene3d: Scene3D? = nil
     var camera: String? = nil
+    var cameraTurned = false
+    var flatText = false
     var lineReduction = 0.0
     var keptLook: KeptLook? = nil
     /// Set for a text shape read from a file: see `ReadShape`.
@@ -2802,8 +2804,41 @@ final class DeckController: ChangeNotifier {
         _checkpoint()
         for s in selection {
             s.camera = name
+            s.cameraTurned = false
             s.scene3d = Extrusion.scene(camera: name, from: s.scene3d)
         }
+        _changed()
+    }
+
+    /// Format Shape > 3-D Rotation's boxes: X turns about the upright axis (`lon`), Y about the level one (`lat`), Z in the
+    /// slide's plane (`rev`), all in degrees and kept in 0..<360; the perspective is the lens (`fov`), 0...179.9 degrees.
+    /// The preset's name stays, as PowerPoint keeps it beside the typed turn. One undo step.
+    func setRotation3D(x: Double? = nil, y: Double? = nil, z: Double? = nil, perspective: Double? = nil) {
+        guard !selection.isEmpty else { return }
+        func turn(_ v: Double) -> Double { let r = v.truncatingRemainder(dividingBy: 360); return r < 0 ? r + 360 : r }
+        _checkpoint()
+        for s in selection {
+            let name = s.camera ?? (s.scene3d?.cameraName.isEmpty == false ? s.scene3d!.cameraName : "orthographicFront")
+            var sc = s.scene3d ?? Scene3D(depth: 0)
+            if sc.cameraName.isEmpty { sc.cameraName = name }
+            if let x { sc.lon = turn(x) }
+            if let y { sc.lat = turn(y) }
+            if let z { sc.rev = turn(z) }
+            if let perspective { sc.fov = min(max(perspective, 0), 179.9) }
+            s.camera = name
+            s.cameraTurned = true
+            // Square on with nothing deep, a shape that had no scene stays without one (it draws as plain).
+            let flat = sc.depth == 0 && sc.lift == 0 && sc.oblique == nil && sc.lat == 0 && sc.lon == 0 && sc.rev == 0
+            s.scene3d = flat && s.scene3d == nil ? nil : sc
+        }
+        _changed()
+    }
+
+    /// Format Shape > 3-D Rotation > Keep Text Flat. One undo step.
+    func setFlatText(_ on: Bool) {
+        guard !selection.isEmpty else { return }
+        _checkpoint()
+        for s in selection { s.flatText = on }
         _changed()
     }
 
@@ -3320,6 +3355,8 @@ final class DeckController: ChangeNotifier {
         st.runLooks = s.runLooks
         st.scene3d = s.scene3d
         st.camera = s.camera
+        st.cameraTurned = s.cameraTurned
+        st.flatText = s.flatText
         if case .chart = s.kind { st.chartDrawing = s.rendered.map(_state) }
         // ...but only while nothing beyond its place, name, link and text has changed since the read: a fill,
         // line, shadow or other look edit regenerates the shape, which merges the look it kept (`keptLook`).
@@ -3482,6 +3519,8 @@ final class DeckController: ChangeNotifier {
         shape.runLooks = st.runLooks
         shape.scene3d = st.scene3d
         shape.camera = st.camera
+        shape.cameraTurned = st.cameraTurned
+        shape.flatText = st.flatText
         shape.lineReduction = st.lineReduction
         shape.textTheme?.lineSpacingReduction = st.lineReduction
         shape.keptLook = st.keptLook

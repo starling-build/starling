@@ -371,6 +371,8 @@ final class OfficeSession {
     /// Show or hide the Selection Pane (Slides).
     var onSelectionPane: (() -> Void)?
     var onFormatShape: (() -> Void)?
+    /// Open the Format Shape pane at its 3-D Rotation section (Slides).
+    var onFormatShape3D: (() -> Void)?
     var onFormatBackground: (() -> Void)?
     /// Show (true) or hide the selected chart's data grid.
     var onChartData: ((Bool) -> Void)?

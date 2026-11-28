@@ -567,6 +567,8 @@ extension SlideContext {
         var noWrap = false
         /// `bodyPr anchorCtr="1"`.
         var anchorCentred = false
+        /// `bodyPr/a:flatTx`: the text kept flat while the shape turns in 3-D.
+        var flatText = false
         /// The file's own `bodyPr vert` and `wrap` and its autofit element (`a:normAutofit`, `a:spAutoFit`, `a:noAutofit`), so a save states them again.
         var bodyVert: String? = nil
         var bodyWrap: String? = nil

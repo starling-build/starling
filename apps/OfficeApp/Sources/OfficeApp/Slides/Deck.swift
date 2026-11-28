@@ -833,6 +833,11 @@ final class SlideShape {
     var scene3d: Scene3D? = nil
     /// The 3-D Rotation preset the user chose (`a:camera prst`); nil while the shape's own is untouched.
     var camera: String? = nil
+    /// The X/Y/Z turn (and perspective lens) typed in Format Shape > 3-D Rotation: the camera is written with its
+    /// `a:rot` (and `fov`) from `scene3d`, not as the bare preset.
+    var cameraTurned = false
+    /// `bodyPr/a:flatTx`: Keep Text Flat, the text staying in the slide's plane while the shape turns in 3-D.
+    var flatText = false
     /// `normAutofit lnSpcReduction`: the share PowerPoint took off the
     /// line spacing to fit (0.2 = lines at 80%); the theme carries it.
     var lineReduction = 0.0
