@@ -289,6 +289,7 @@ extension RichDocumentController {
         guard drop != from, drop != past else { return false }
         let picked = RichSelection(anchor: from, focus: past)
         let fragment = document.fragment(picked)
+        let image = document.paragraphs[index].inlineImages[id]
         edit {
             selection = picked
             _deleteSelectionOps()
@@ -296,7 +297,49 @@ extension RichDocumentController {
             _setCaret(drop.paragraph == index && drop.offset > at ? RichPosition(paragraph: index, offset: drop.offset - 1) : drop)
             _ = insertFragment(fragment)
             let end = selection.focus
+            if end.paragraph != index, let image {
+                // The picture itself goes with its character to the paragraph it now stands in.
+                var target = document.paragraphs[end.paragraph], source = document.paragraphs[index]
+                target.inlineImages[id] = image
+                source.inlineImages[id] = nil
+                perform(.restoreParagraphs(end.paragraph, count: 1, [target]))
+                perform(.restoreParagraphs(index, count: 1, [source]))
+            }
             selection = RichSelection(anchor: RichPosition(paragraph: end.paragraph, offset: end.offset - 1), focus: end)
+        }
+        return true
+    }
+
+    /// Whether the drawing at `index` (or its inline picture `id`) stands in the text, not floating: In Line with Text, or a
+    /// picture or object alone in its paragraph. Dragged, it moves in the text to where it is dropped.
+    public func isInText(at index: Int, inline id: String? = nil) -> Bool {
+        guard index < document.paragraphs.count else { return false }
+        let p = document.paragraphs[index]
+        guard let image = id.map({ p.inlineImages[$0] }) ?? p.image else { return false }
+        return image.float == nil
+    }
+
+    /// Drag the picture or object that stands alone in paragraph `index` to `drop` in the text, one undo step, as Word moves
+    /// it: its paragraph stays behind empty and the picture stands at the drop as a character of that line, selected. False
+    /// when there is no such picture, the drop is its own paragraph or another picture's, or changes are tracked.
+    @discardableResult
+    public func movePictureParagraph(at index: Int, to drop: RichPosition) -> Bool {
+        guard !_selectionLocked(), _insertionMark() == nil, index < document.paragraphs.count,
+              let image = document.paragraphs[index].image, image.float == nil else { return false }
+        let drop = document.clamped(drop)
+        guard drop.paragraph != index, drop.paragraph < document.paragraphs.count, !document.paragraphs[drop.paragraph].isImage else { return false }
+        let source = document.paragraphs[index]
+        let emptied = RichParagraph(text: "", style: source.style)
+        var target = document.paragraphs[drop.paragraph]
+        var char = target.style(at: drop.offset)
+        char.inlineImage = image.id
+        char.note = nil; char.link = nil; char.revision = nil
+        target.insert(RichParagraph.inlineImageCharacter, at: drop.offset, runs: [Run(length: 1, style: char)])
+        target.inlineImages[image.id] = image
+        edit {
+            perform(.restoreParagraphs(index, count: 1, [emptied]))
+            perform(.restoreParagraphs(drop.paragraph, count: 1, [target]))
+            selection = RichSelection(anchor: drop, focus: RichPosition(paragraph: drop.paragraph, offset: drop.offset + 1))
         }
         return true
     }
