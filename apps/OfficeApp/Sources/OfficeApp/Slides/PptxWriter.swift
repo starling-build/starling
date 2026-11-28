@@ -1611,7 +1611,10 @@ private struct SlideXML {
         let widths = doc.tableColumns[tableId].flatMap { $0.count == cols ? $0 : nil }
             ?? Array(repeating: s.frame.width / Double(cols), count: cols)
         let style = doc.tableStyles[tableId] ?? TableStyle()
-        let rowH = Self._emu(s.frame.height / Double(rows))
+        // Rows keep the heights they were given (Row Height, a file's own); the rest share what is left.
+        let stated = style.rowHeights.filter { $0.key < rows && $0.value > 0 }
+        let shared = rows > stated.count ? max(0, s.frame.height - stated.values.reduce(0, +)) / Double(rows - stated.count) : 0
+        func rowH(_ r: Int) -> Int { Self._emu(stated[r] ?? shared) }
         // Which grid slots a merge covers, for the stand-ins.
         var covered: [Int: [Int: String]] = [:]   // row → column → "hMerge"/"vMerge"
         for c in cells {
@@ -1649,7 +1652,7 @@ private struct SlideXML {
             + "<a:tableStyleId>\(style.styleId ?? "{5C22544A-7EE6-4342-B048-85BDC9FD1C3A}")</a:tableStyleId></a:tblPr><a:tblGrid>"
             + widths.map { "<a:gridCol w=\"\(Self._emu($0))\"/>" }.joined() + "</a:tblGrid>"
         for r in 0 ..< rows {
-            xml += "<a:tr h=\"\(rowH)\">"
+            xml += "<a:tr h=\"\(rowH(r))\">"
             for k in 0 ..< cols {
                 if let stand = covered[r]?[k] {
                     xml += "<a:tc \(stand)=\"1\"><a:txBody><a:bodyPr/><a:lstStyle/><a:p/></a:txBody><a:tcPr/></a:tc>"
@@ -1665,6 +1668,8 @@ private struct SlideXML {
                 if cell.rowSpan > 1 { attrs += " rowSpan=\"\(cell.rowSpan)\"" }
                 let body = PptxText.paragraphs(RichDocument(paragraphs: paras.map { var p = $0; p.cell = nil; return p }), defaults: s)
                 var tcPr = cell.textDirection == .down ? " vert=\"vert\"" : cell.textDirection == .up ? " vert=\"vert270\"" : ""
+                // Where the text stands down the cell: PowerPoint's default is the top.
+                if cell.verticalAlign == "center" { tcPr += " anchor=\"ctr\"" } else if cell.verticalAlign == "bottom" { tcPr += " anchor=\"b\"" }
                 if let m = cell.padding {
                     for (name, v, dflt) in [("marL", m.left, 7.2), ("marR", m.right, 7.2), ("marT", m.top, 3.6), ("marB", m.bottom, 3.6)]
                     where abs(v - dflt) > 0.01 {
@@ -1680,7 +1685,7 @@ private struct SlideXML {
                 }
                 let lines = cell.borders.isEmpty ? borders
                     : own("a:lnL", cell.borders.left) + own("a:lnR", cell.borders.right) + own("a:lnT", cell.borders.top) + own("a:lnB", cell.borders.bottom)
-                xml += "<a:tc\(attrs)><a:txBody><a:bodyPr/><a:lstStyle/>\(body)</a:txBody><a:tcPr\(tcPr) anchor=\"ctr\">\(lines)\(ownFill(cell, r))</a:tcPr></a:tc>"
+                xml += "<a:tc\(attrs)><a:txBody><a:bodyPr/><a:lstStyle/>\(body)</a:txBody><a:tcPr\(tcPr)>\(lines)\(ownFill(cell, r))</a:tcPr></a:tc>"
             }
             xml += "</a:tr>"
         }
