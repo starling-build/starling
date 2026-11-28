@@ -542,17 +542,18 @@ export async function startStarling({ canvas, app, appBrotli, preloaded, immutab
       adoptRecovery(utf8.decode(appBytes().subarray(idPointer, idPointer + idLength)));
     },
     // Recent files: keep a document opened or saved; read a kept one back.
-    recent_keep(namePointer, nameLength, bytesPointer, byteCount) {
+    recent_keep(namePointer, nameLength, bytesPointer, byteCount, handle) {
       const name = utf8.decode(appBytes().subarray(namePointer, namePointer + nameLength));
       const bytes = appBytes().slice(bytesPointer, bytesPointer + byteCount);
-      keepRecent(name, bytes).catch(error => console.warn('starling: recent files:', error));
+      keepRecent(name, bytes, fileHandles.get(handle)).catch(error => console.warn('starling: recent files:', error));
     },
     recent_open(namePointer, nameLength) {
       const name = utf8.decode(appBytes().subarray(namePointer, namePointer + nameLength));
-      openRecent(name).catch(() => null).then(bytes => {
-        transfer(encoder.encode(name), (namePointer, nameLength) => bytes
-          ? transfer(bytes, (pointer, length) => swift.starling_recent_bytes(namePointer, nameLength, pointer, length))
-          : swift.starling_recent_bytes(namePointer, nameLength, 0, 0));
+      openRecent(name).catch(() => null).then(found => {
+        transfer(encoder.encode(name), (namePointer, nameLength) => found
+          ? transfer(found.bytes, (pointer, length) =>
+              swift.starling_recent_bytes(namePointer, nameLength, pointer, length, found.handle))
+          : swift.starling_recent_bytes(namePointer, nameLength, 0, 0, 0));
       });
     },
     // File > Print: our PDF in a hidden frame, whose print() opens the
@@ -1267,7 +1268,9 @@ export async function startStarling({ canvas, app, appBrotli, preloaded, immutab
 
 // Recent files (docs/plans/web-parity.md item 3): a tab has no paths, so the
 // page keeps each document opened or saved, by name, in IndexedDB: `recent`
-// holds {name, time, size} (read at start, cheap), `recentBytes` the copy.
+// holds {name, time, size} (read at start, cheap), `recentBytes` the copy and,
+// where the browser gave one (File System Access API), the file's handle, so
+// a file reopened from Recent saves back in place without a picker.
 // Newest 20 and 200 MB at most; the oldest go first, the newest always stays.
 // (Its own database: the recovery copies' has its own versioning.)
 const RECENT_ROWS = 20;
@@ -1302,10 +1305,10 @@ async function loadRecentNames() {
   return (rows ?? []).sort((a, b) => b.time - a.time).map(row => row.name);
 }
 
-async function keepRecent(name, bytes) {
+async function keepRecent(name, bytes, handle) {
   await recentRequest('readwrite', (meta, copies) => {
     meta.put({ name, time: Date.now(), size: bytes.byteLength });
-    copies.put({ name, bytes });
+    copies.put(handle ? { name, bytes, handle } : { name, bytes });
     const all = meta.getAll();
     all.onsuccess = () => {
       let total = 0;
@@ -1320,9 +1323,25 @@ async function keepRecent(name, bytes) {
   });
 }
 
+// {bytes, handle}: through the kept file handle when the user lets us (asked
+// once, here: Save then writes without asking), with its number for
+// write_file; else the copy, handle 0. Null when neither is there.
 async function openRecent(name) {
   const row = await recentRequest('readonly', (meta, copies) => copies.get(name));
-  if (row?.bytes?.byteLength) return row.bytes;
+  if (row?.handle) {
+    try {
+      const mode = { mode: 'readwrite' };
+      if (await row.handle.queryPermission(mode) === 'granted'
+          || await row.handle.requestPermission(mode) === 'granted') {
+        const file = await row.handle.getFile();
+        return { bytes: new Uint8Array(await file.arrayBuffer()), handle: keepFileHandle(row.handle) };
+      }
+    } catch (error) {
+      // Moved or deleted since, or no permission prompt possible: the copy.
+      console.warn('starling: recent file handle:', error);
+    }
+  }
+  if (row?.bytes?.byteLength) return { bytes: row.bytes, handle: 0 };
   // A list row whose copy is gone (storage evicted it): drop it.
   await recentRequest('readwrite', (meta, copies) => { meta.delete(name); copies.delete(name); });
   return null;
