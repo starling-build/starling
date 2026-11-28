@@ -25,34 +25,45 @@ final class ShapeQuickStyleMenuItem: MenuFlyoutItemBase {
         }
         let colors = deck.tableStyleColors()
         let current = deck.currentQuickStyle
-        let rows: [Widget] = ShapeQuickStyle.rows.indices.map { r in
-            Row(children: ShapeQuickStyle.columns.indices.map { c in
-                let style = ShapeQuickStyle(row: r, column: c)
-                return Tooltip(message: style.name, child: _QuickStyleCell(
-                    key: ValueKey("quick-style-\(r)-\(c)"), look: style.look(colors), selected: style == current,
-                    hover: hover, width: Self.cellWidth, height: Self.cellHeight,
-                    onEnter: { [deck] in deck.previewQuickStyle(style) },
-                    onExit: { [deck] in deck.endQuickStylePreview() },
-                    onTap: { [deck] in close(); deck.applyQuickStyle(style) }))
-            })
+        func grid(_ styles: [ShapeQuickStyle]) -> [Widget] {
+            stride(from: 0, to: styles.count, by: ShapeQuickStyle.columns.count).map { start in
+                Row(children: styles[start..<min(start + ShapeQuickStyle.columns.count, styles.count)].map { style in
+                    Tooltip(message: style.name, child: _QuickStyleCell(
+                        key: ValueKey("quick-style-\(style.number)"), look: style.look(colors), line: style.kind == .lines,
+                        selected: style == current, hover: hover, width: Self.cellWidth, height: Self.cellHeight,
+                        onEnter: { [deck] in deck.previewQuickStyle(style) },
+                        onExit: { [deck] in deck.endQuickStylePreview() },
+                        onTap: { [deck] in close(); deck.applyQuickStyle(style) }))
+                })
+            }
         }
-        return Column(key: ValueKey("quick-styles-panel"), crossAxisAlignment: .start, children: [
-            Padding(padding: EdgeInsets(left: 2, top: 0, right: 0, bottom: 4), child: Text("Theme Styles", style: TextStyle(fontWeight: .w600))),
-        ] + rows)
+        func heading(_ title: String, top: Double = 0) -> Widget {
+            Padding(padding: EdgeInsets(left: 2, top: top, right: 0, bottom: 4), child: Text(title, style: TextStyle(fontWeight: .w600)))
+        }
+        // Lines alone selected: the line styles, as PowerPoint shows them for a line; else the shape styles.
+        if deck.quickStyleTargets.isEmpty, !deck.lineStyleTargets.isEmpty {
+            return Column(key: ValueKey("quick-styles-panel"), crossAxisAlignment: .start,
+                          children: [heading("Theme Styles")] + grid(ShapeQuickStyle.lines))
+        }
+        return Column(key: ValueKey("quick-styles-panel"), crossAxisAlignment: .start,
+                      children: [heading("Theme Styles")] + grid(ShapeQuickStyle.all)
+                        + [heading("Presets", top: 6)] + grid(ShapeQuickStyle.presets))
     }
 }
 
 /// One gallery entry: the style's fill, line and text colour on a rounded box, shaded while the pointer is over it.
 private final class _QuickStyleCell: StatefulWidget {
     let look: ShapeQuickStyle.Look
+    /// A line style: drawn as a line across the cell, not a box.
+    let line: Bool
     let selected: Bool
     let hover: Color
     let width: Double, height: Double
     let onEnter: () -> Void, onExit: () -> Void, onTap: () -> Void
 
-    init(key: (any Key)?, look: ShapeQuickStyle.Look, selected: Bool, hover: Color, width: Double, height: Double,
+    init(key: (any Key)?, look: ShapeQuickStyle.Look, line: Bool = false, selected: Bool, hover: Color, width: Double, height: Double,
          onEnter: @escaping () -> Void, onExit: @escaping () -> Void, onTap: @escaping () -> Void) {
-        self.look = look; self.selected = selected; self.hover = hover; self.width = width; self.height = height
+        self.look = look; self.line = line; self.selected = selected; self.hover = hover; self.width = width; self.height = height
         self.onEnter = onEnter; self.onExit = onExit; self.onTap = onTap
         super.init(key: key)
     }
@@ -71,7 +82,10 @@ private final class _QuickStyleCellState: State<StatefulWidget> {
                            colors: g.stops.map(\.color), stops: g.stops.map(\.position)) as GradientBase
         }
         let shadow = look.shadow.map { [BoxShadow(color: $0.color, offset: Offset($0.dx, $0.dy), blurRadius: $0.blur)] } ?? []
-        let swatch = DecoratedBox(
+        let swatch: Widget = w.line
+            ? Center(child: SizedBox(width: w.width - 12, height: max(1, look.outlineWidth * 1.5),
+                                     child: ColoredBox(color: look.outline ?? look.text)))
+            : DecoratedBox(
             decoration: BoxDecoration(color: gradient == nil ? look.fill : nil,
                                       border: look.outline.map { Border.all(color: $0, width: max(1, look.outlineWidth)) },
                                       borderRadius: BorderRadius.circular(2), boxShadow: shadow, gradient: gradient),

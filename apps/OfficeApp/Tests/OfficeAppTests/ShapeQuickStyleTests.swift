@@ -148,4 +148,107 @@ final class ShapeQuickStyleTests: XCTestCase {
         XCTAssertEqual(rgb(t.outline), rgb(DeckController.shadeLinear(Color(0xFF00AA00), 0.15)),
                        "its line is still the style's, so it follows the new accent")
     }
+
+    // Presets and line styles (ShapeStyle 43-77 and 10001-): only the rows PowerPoint's own files were seen to hold.
+
+    func testEntriesCarryPowerPointsNumbers() {
+        XCTAssertEqual(ShapeQuickStyle(row: 1, column: 2).number, 10)
+        XCTAssertEqual(ShapeQuickStyle(row: 3, column: 2, kind: .presets).number, 66)
+        XCTAssertEqual(ShapeQuickStyle(row: 2, column: 5, kind: .presets).number, 62)
+        XCTAssertEqual(ShapeQuickStyle(row: 0, column: 1, kind: .lines).number, 10002)
+        XCTAssertEqual(ShapeQuickStyle(row: 2, column: 3, kind: .lines).number, 10018)
+        XCTAssertEqual(ShapeQuickStyle.presets.map(\.number), Array(57...70))
+        XCTAssertEqual(ShapeQuickStyle.lines.map(\.number), Array(10001...10021))
+    }
+
+    /// As in deck 16 of the read-back (66): the accent in `spPr`, no line, a new shape's default refs.
+    func testAPresetIsSavedAsItsFillAndNoLine() throws {
+        let (deck, s) = deckWithShape()
+        deck.applyQuickStyle(ShapeQuickStyle(row: 3, column: 2, kind: .presets))
+        XCTAssertEqual(rgb(s.fill), rgb(deck.tableStyleColors().scheme("accent2")))
+        XCTAssertNil(s.outline)
+        let sp = try XCTUnwrap(savedShapes(deck).first { $0.contains("<p:style>") })
+        XCTAssertTrue(sp.contains("<a:solidFill><a:schemeClr val=\"accent2\"/></a:solidFill><a:ln><a:noFill/></a:ln></p:spPr>"), sp)
+        XCTAssertTrue(sp.contains("<p:style><a:lnRef idx=\"2\"><a:schemeClr val=\"accent1\"><a:shade val=\"50000\"/></a:schemeClr></a:lnRef>"
+            + "<a:fillRef idx=\"1\"><a:schemeClr val=\"accent1\"/></a:fillRef><a:effectRef idx=\"0\"><a:schemeClr val=\"accent1\"/></a:effectRef>"
+            + "<a:fontRef idx=\"minor\"><a:schemeClr val=\"lt1\"/></a:fontRef></p:style>"), sp)
+    }
+
+    /// As in deck 09 (62): the accent at alpha 50%, written 50000 (not the byte's 50196).
+    func testASemitransparentPresetSavesHalfAlpha() throws {
+        let (deck, s) = deckWithShape()
+        deck.applyQuickStyle(ShapeQuickStyle(row: 2, column: 5, kind: .presets))
+        XCTAssertEqual(s.fill.map { Int(UInt32(truncatingIfNeeded: $0.value) >> 24) }, 128)
+        let sp = try XCTUnwrap(savedShapes(deck).first { $0.contains("<p:style>") })
+        XCTAssertTrue(sp.contains("<a:solidFill><a:schemeClr val=\"accent5\"><a:alpha val=\"50000\"/></a:schemeClr></a:solidFill><a:ln><a:noFill/></a:ln>"), sp)
+    }
+
+    /// As in deck 17 (64): the dark column's fill is `dk1`. PowerPoint read 57 and 64 written as `tx1` as no preset (lab 2026-11-28).
+    func testTheDarkPresetsFillWithDk1() throws {
+        for row in [2, 3] {
+            let (deck, _) = deckWithShape()
+            deck.applyQuickStyle(ShapeQuickStyle(row: row, column: 0, kind: .presets))
+            let sp = try XCTUnwrap(savedShapes(deck).first { $0.contains("<p:style>") })
+            XCTAssertTrue(sp.contains("<a:solidFill><a:schemeClr val=\"dk1\""), sp)
+            XCTAssertFalse(sp.contains("val=\"tx1\"/></a:solidFill>") || sp.contains("val=\"tx1\"><a:alpha"), sp)
+        }
+    }
+
+    /// As in deck 07 (10009, 10018): the refs alone, arrowheads in the line's own `a:ln`.
+    func testALineStyleIsSavedAsRefsOnTheConnector() throws {
+        let deck = DeckController()
+        let box = deck.addShape(.rect)
+        let l = deck.addShape(.line)
+        l.tailEnd = LineEnd(kind: "triangle", width: 3, length: 3)
+        deck.selectShapes([box, l])
+        deck.applyQuickStyle(ShapeQuickStyle(row: 1, column: 3, kind: .lines))
+        XCTAssertNil(box.quickStyle, "a line style is for lines")
+        XCTAssertEqual(l.quickStyle?.number, 10011)
+        XCTAssertEqual(rgb(l.outline), rgb(deck.tableStyleColors().scheme("accent3")))
+        XCTAssertEqual(l.outlineWidth, 1)
+        XCTAssertNotNil(l.tailEnd, "the arrowhead stays")
+        let slide = try XCTUnwrap(try Zip.read(try Pptx.write(deck)).first { $0.name == "ppt/slides/slide1.xml" })
+        let cxn = try XCTUnwrap(String(decoding: slide.data, as: UTF8.self).components(separatedBy: "<p:cxnSp>").dropFirst().first)
+        XCTAssertFalse(cxn.contains("<a:ln w="), cxn)
+        XCTAssertTrue(cxn.contains("<a:tailEnd"), cxn)
+        XCTAssertTrue(cxn.contains("<p:style><a:lnRef idx=\"2\"><a:schemeClr val=\"accent3\"/></a:lnRef><a:fillRef idx=\"0\"><a:schemeClr val=\"accent3\"/></a:fillRef>"
+            + "<a:effectRef idx=\"1\"><a:schemeClr val=\"accent3\"/></a:effectRef><a:fontRef idx=\"minor\"><a:schemeClr val=\"tx1\"/></a:fontRef></p:style>"), cxn)
+        let (state, _, _) = try Pptx.read(try Pptx.write(deck))
+        let line = try XCTUnwrap(state.slides[0].shapes.first { $0.tailEnd != nil })
+        XCTAssertEqual(rgb(line.outline), rgb(deck.tableStyleColors().scheme("accent3")), "the colour reads back through the refs")
+        XCTAssertEqual(line.outlineWidth, 1)
+    }
+
+    func testAShapeStyleLeavesLinesAlone() {
+        let deck = DeckController()
+        let l = deck.addShape(.line)
+        deck.selectShapes([l])
+        deck.applyQuickStyle(ShapeQuickStyle(row: 1, column: 1))
+        XCTAssertNil(l.quickStyle)
+    }
+
+    /// Writes the read-back lab when STYLE_LAB_OUT names a file (skipped otherwise): slide 1 holds the 14 Presets,
+    /// slide 2 the 21 line styles, each shape named by the ShapeStyle number PowerPoint should report for it.
+    func testWriteTheShapeStyleLab() throws {
+        guard let out = ProcessInfo.processInfo.environment["STYLE_LAB_OUT"] else { throw XCTSkip("no STYLE_LAB_OUT") }
+        let deck = DeckController()
+        for (i, style) in ShapeQuickStyle.presets.enumerated() {
+            let s = deck.addShape(.roundRect)
+            s.frame = Rect.fromLTWH(40 + Double(i % 7) * 125, 80 + Double(i / 7) * 160, 110, 110)
+            s.name = "Style \(style.number)"
+            deck.selectShapes([s])
+            deck.applyQuickStyle(style)
+        }
+        _ = deck.addSlide()
+        for (i, style) in ShapeQuickStyle.lines.enumerated() {
+            let l = deck.addShape(.line)
+            l.frame = Rect.fromLTWH(40 + Double(i % 7) * 125, 80 + Double(i / 7) * 140, 110, 60)
+            l.name = "Style \(style.number)"
+            deck.selectShapes([l])
+            deck.applyQuickStyle(style)
+        }
+        XCTAssertEqual(deck.slides.count, 2)
+        XCTAssertEqual(deck.slides.map { $0.shapes.filter { $0.quickStyle != nil }.count }, [14, 21])
+        try Pptx.write(deck).write(to: URL(fileURLWithPath: out))
+    }
 }

@@ -1365,10 +1365,15 @@ private struct SlideXML {
             let id = _id(s.fileId)
             let f = s.frame
             let box = Rect.fromLTRB(min(f.left, f.right), min(f.top, f.bottom), max(f.left, f.right), max(f.top, f.bottom))
-            let line = s.outline.map { "<a:ln w=\"\(Self._emu(s.outlineWidth))\">\(Self._fill($0, scheme: s.outlineScheme))\(Self._dashXML(s.outlineDash))\(Self._endsXML(s))</a:ln>" } ?? "<a:ln><a:noFill/></a:ln>"
+            var line = s.outline.map { "<a:ln w=\"\(Self._emu(s.outlineWidth))\">\(Self._fill($0, scheme: s.outlineScheme))\(Self._dashXML(s.outlineDash))\(Self._endsXML(s))</a:ln>" } ?? "<a:ln><a:noFill/></a:ln>"
+            // A line style still showing: its colour and width left to the refs, as PowerPoint saves it; arrowheads are the line's own.
+            if s.quickStyle?.kind == .lines, let given = s.quickStyleLook, given.strokeShown(by: s) {
+                let ends = Self._endsXML(s)
+                line = ends.isEmpty ? "" : "<a:ln>\(ends)</a:ln>"
+            }
             return "<p:cxnSp><p:nvCxnSpPr><p:cNvPr id=\"\(id)\" name=\"\(name)\"\(PptxText.altAttrs(s))\(hid)/><p:cNvCxnSpPr>\(Self._connXML(s))</p:cNvCxnSpPr><p:nvPr/></p:nvCxnSpPr>"
                 + "<p:spPr>\(Self._xfrm(box, rotation: s.rotation, flipH: s.flipH != (f.right < f.left), flipV: s.flipV != (f.bottom < f.top)))"
-                + "<a:prstGeom prst=\"\(preset.rawValue)\">\(Self._avLst(s.adjusts))</a:prstGeom>\(line)</p:spPr>\(s.themeStyle ? Self._themeStyle(line: true) : "")</p:cxnSp>"
+                + "<a:prstGeom prst=\"\(preset.rawValue)\">\(Self._avLst(s.adjusts))</a:prstGeom>\(line)</p:spPr>\(s.quickStyle?.xml ?? (s.themeStyle ? Self._themeStyle(line: true) : ""))</p:cxnSp>"
         default:
             // Unchanged since it was read, text and all: the shape as it
             // was, so what this app models loosely (the master's bullets,
@@ -1480,7 +1485,7 @@ private struct SlideXML {
             }
             // A Shape Styles entry: what still shows it is left to the refs, as PowerPoint saves it (so the entry
             // is known as its own and follows the theme); only what was changed since is the shape's own.
-            if s.quickStyle != nil, let given = s.quickStyleLook {
+            if let q = s.quickStyle, !q.explicit, let given = s.quickStyleLook {
                 if given.fillShown(by: s) { fillXML = "" }
                 if given.lineShown(by: s) { lineXML = "" }
                 if given.effectsShown(by: s) { effectsXML = "" }
@@ -1941,6 +1946,13 @@ final class PptxLinks {
 }
 
 enum PptxText {
+    /// An alpha byte as DrawingML's `a:alpha` value: the whole percent it was read from when there is one (50% is
+    /// byte 128, which is 50.196%), so a file's 50000 is saved as 50000 again; otherwise the exact share.
+    static func alphaVal(_ byte: UInt64) -> Int {
+        let pct = (Double(byte) * 100 / 255).rounded()
+        return Int((pct * 255 / 100).rounded()) == Int(byte) ? Int(pct) * 1000 : Int(byte) * 100000 / 255
+    }
+
     nonisolated(unsafe) static var links: PptxLinks? = nil
     nonisolated(unsafe) static var slideParts: [String: String] = [:]
     static func setSlideParts(_ slides: [SlideState]) {

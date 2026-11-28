@@ -13,24 +13,54 @@ import OfficeText
 /// changed since is written as the shape's own. The look comes from the deck's theme's format scheme: a file's own, or
 /// Office's (2013 and later), which our saved theme carries.
 struct ShapeQuickStyle: Equatable {
+    /// Which of PowerPoint's galleries the entry is from: Theme Styles and Presets for shapes, the line styles for lines.
+    enum Kind: Equatable { case theme, presets, lines }
+
     /// The theme colour of each column.
     static let columns = ["dk1", "accent1", "accent2", "accent3", "accent4", "accent5", "accent6"]
     static let rows = ["Colored Outline", "Colored Fill", "Light 1 Outline, Colored Fill",
                        "Subtle Effect", "Moderate Effect", "Intense Effect"]
+    /// The Presets rows whose look PowerPoint's own files show (its ShapeStyle 57-63 and 64-70, read back by COM
+    /// from corpus decks); the other three rows were never seen and stay out.
+    static let presetRows = [2: "Semitransparent, No Outline", 3: "Colored Fill, No Outline"]
+    /// The line styles (ShapeStyle 10001-10021): a line in the column's colour, ½, 1 and 1½ pt in Office's theme.
+    static let lineRows = ["Subtle Line", "Moderate Line", "Intense Line"]
 
+    let kind: Kind
     let row: Int
     let column: Int
 
-    static let all: [ShapeQuickStyle] = rows.indices.flatMap { r in columns.indices.map { ShapeQuickStyle(row: r, column: $0) } }
+    init(row: Int, column: Int, kind: Kind = .theme) {
+        self.row = row; self.column = column; self.kind = kind
+    }
 
-    var name: String { "\(Self.rows[row]) - \(column == 0 ? "Black, Dark 1" : "Accent \(column)")" }
+    static let all: [ShapeQuickStyle] = rows.indices.flatMap { r in columns.indices.map { ShapeQuickStyle(row: r, column: $0) } }
+    static let presets: [ShapeQuickStyle] = presetRows.keys.sorted().flatMap { r in columns.indices.map { ShapeQuickStyle(row: r, column: $0, kind: .presets) } }
+    static let lines: [ShapeQuickStyle] = lineRows.indices.flatMap { r in columns.indices.map { ShapeQuickStyle(row: r, column: $0, kind: .lines) } }
+
+    var rowName: String {
+        switch kind {
+        case .theme: return Self.rows[row]
+        case .presets: return Self.presetRows[row] ?? "Preset"
+        case .lines: return Self.lineRows[row]
+        }
+    }
+    var name: String { "\(rowName) - \(column == 0 ? "Black, Dark 1" : "Accent \(column)")" }
     var colorName: String { Self.columns[column] }
+    /// PowerPoint's number for the entry (its ShapeStyle property): Theme Styles from 1, Presets from 43, lines from 10001.
+    var number: Int { [Kind.theme: 1, .presets: 43, .lines: 10001][kind]! + row * 7 + column }
 
     /// The style's refs: (index into the theme's list, colour, its modifiers as XML). Index 0 is none.
     /// As current PowerPoint writes them (every corpus deck on its Aptos theme): Colored Fill's line is the accent
     /// at a 15% shade (older versions wrote 50%, which PowerPoint no longer knows as the gallery entry), and Moderate
     /// Effect keeps the thin accent line (ref 1), as Subtle does; only Intense has none.
+    /// Presets carry a new shape's default refs: PowerPoint knows them by the fill and line saved in `spPr`.
     var lineRef: (idx: Int, color: String, mods: String) {
+        switch kind {
+        case .presets: return (2, "accent1", "<a:shade val=\"50000\"/>")
+        case .lines: return (row + 1, colorName, "")
+        case .theme: break
+        }
         switch row {
         case 0: return (2, colorName, "")
         case 1: return (2, colorName, "<a:shade val=\"\(Int(Self.coloredFillShade * 100_000))\"/>")
@@ -42,6 +72,11 @@ struct ShapeQuickStyle: Equatable {
     /// Colored Fill's line shade.
     static let coloredFillShade = 0.15
     var fillRef: (idx: Int, color: String) {
+        switch kind {
+        case .presets: return (1, "accent1")
+        case .lines: return (0, colorName)
+        case .theme: break
+        }
         switch row {
         case 0: return (1, "lt1")
         case 1, 2: return (1, colorName)
@@ -49,8 +84,23 @@ struct ShapeQuickStyle: Equatable {
         default: return (3, colorName)
         }
     }
-    var effectIdx: Int { [0, 0, 1, 1, 2, 3][row] }
-    var fontColor: String { row == 0 || row == 3 ? "dk1" : "lt1" }
+    var effectIdx: Int {
+        switch kind {
+        case .theme: return [0, 0, 1, 1, 2, 3][row]
+        case .presets: return 0
+        case .lines: return row
+        }
+    }
+    var effectColor: String { kind == .presets ? "accent1" : colorName }
+    var fontColor: String {
+        switch kind {
+        case .theme: return row == 0 || row == 3 ? "dk1" : "lt1"
+        case .presets: return "lt1"
+        case .lines: return "tx1"
+        }
+    }
+    /// Whether the entry's fill and line are saved in the shape's own `spPr` (Presets), not left to the refs.
+    var explicit: Bool { kind == .presets }
 
     /// `p:style` as PowerPoint writes it for this gallery entry.
     var xml: String {
@@ -59,7 +109,7 @@ struct ShapeQuickStyle: Equatable {
         }
         let ln = lineRef, fl = fillRef
         return "<p:style><a:lnRef idx=\"\(ln.idx)\">\(clr(ln.color, ln.mods))</a:lnRef><a:fillRef idx=\"\(fl.idx)\">\(clr(fl.color))</a:fillRef>"
-            + "<a:effectRef idx=\"\(effectIdx)\">\(clr(colorName))</a:effectRef><a:fontRef idx=\"minor\">\(clr(fontColor))</a:fontRef></p:style>"
+            + "<a:effectRef idx=\"\(effectIdx)\">\(clr(effectColor))</a:effectRef><a:fontRef idx=\"minor\">\(clr(fontColor))</a:fontRef></p:style>"
     }
 
     /// What a shape in this style draws.
@@ -78,8 +128,12 @@ struct ShapeQuickStyle: Equatable {
         /// Whether `s` still shows this look's fill, line or effects; those it does are saved as the style's refs.
         func fillShown(by s: some QuickStyleShowing) -> Bool { s.fill == fill && s.fillStyle == gradient }
         func lineShown(by s: some QuickStyleShowing) -> Bool {
+            strokeShown(by: s) && (outline == nil || (s.headEnd == nil && s.tailEnd == nil))
+        }
+        /// The line's colour, width and dash, arrowheads aside (a line style leaves those to the line's own `a:ln`).
+        func strokeShown(by s: some QuickStyleShowing) -> Bool {
             s.outline == outline && (outline == nil || (s.outlineWidth == outlineWidth && s.outlineFill == nil
-                && (s.outlineDash ?? "solid") == "solid" && s.headEnd == nil && s.tailEnd == nil))
+                && (s.outlineDash ?? "solid") == "solid"))
         }
         func effectsShown(by s: some QuickStyleShowing) -> Bool {
             s.shadow == shadow && (s.glowRadius ?? 0) == 0 && s.reflection == nil && s.softEdge == nil && s.bevel == nil
@@ -113,6 +167,12 @@ struct ShapeQuickStyle: Equatable {
     func look(_ colors: ColorContext, _ scheme: FormatScheme = ShapeQuickStyle.office) -> Look {
         let base = colors.scheme(colorName) ?? Color(0xFF808080)
         let lt1 = colors.scheme("lt1") ?? Color(0xFFFFFFFF), dk1 = colors.scheme("dk1") ?? Color(0xFF000000)
+        // Presets: the column's colour (half transparent in the semitransparent row), no line, no effects.
+        // The dark column's fill is `dk1` as PowerPoint writes it (corpus ShapeStyle 64); `tx1` reads as no preset.
+        if kind == .presets {
+            return Look(fill: row == 2 ? base.withAlpha(128) : base, fillScheme: colorName, gradient: nil,
+                        outline: nil, outlineScheme: nil, outlineWidth: 0.75, shadow: nil, text: lt1)
+        }
         // Fill.
         var fill = base, fillScheme: String? = Self.spec(colorName), gradient: SlideFill? = nil
         let fl = fillRef
@@ -141,7 +201,7 @@ struct ShapeQuickStyle: Equatable {
             shadow = LevelStyle.outerShadow(node, colors)
         }
         return Look(fill: fill, fillScheme: fillScheme, gradient: gradient, outline: outline, outlineScheme: outlineScheme,
-                    outlineWidth: width, shadow: shadow, text: fontColor == "dk1" ? dk1 : lt1)
+                    outlineWidth: width, shadow: shadow, text: fontColor == "lt1" ? lt1 : dk1)
     }
 
     /// Office's format scheme (theme1.xml of PowerPoint 2013 and later): its three fill styles (solid; a light
@@ -205,13 +265,25 @@ extension DeckController {
         }
     }
 
+    /// The selected lines a line style applies to: straight lines, connectors and open paths.
+    var lineStyleTargets: [SlideShape] {
+        selection.filter { s in
+            if case .geometry(let p) = s.kind { return p.isLine || p.isOpenPath }
+            return false
+        }
+    }
+
+    func quickStyleTargets(for style: ShapeQuickStyle) -> [SlideShape] {
+        style.kind == .lines ? lineStyleTargets : quickStyleTargets
+    }
+
     /// The gallery entry the first target was given here, for the gallery's highlight.
-    var currentQuickStyle: ShapeQuickStyle? { quickStyleTargets.first?.quickStyle }
+    var currentQuickStyle: ShapeQuickStyle? { (quickStyleTargets.first ?? lineStyleTargets.first)?.quickStyle }
 
     /// Gives the selected shapes `style`: one undo step.
     func applyQuickStyle(_ style: ShapeQuickStyle) {
         endQuickStylePreview()
-        let targets = quickStyleTargets
+        let targets = quickStyleTargets(for: style)
         guard !targets.isEmpty else { return }
         _checkpoint()
         for s in targets { _giveQuickStyle(style, to: s) }
@@ -221,7 +293,7 @@ extension DeckController {
     /// Shows `style` on the selected shapes while the pointer rests on its gallery entry; nothing is recorded.
     /// `endQuickStylePreview` puts them back.
     func previewQuickStyle(_ style: ShapeQuickStyle) {
-        let targets = quickStyleTargets
+        let targets = quickStyleTargets(for: style)
         guard !targets.isEmpty else { return }
         if _quickStylePreview == nil { _quickStylePreview = targets.map { ($0, _state($0)) } }
         for s in targets { _giveQuickStyle(style, to: s) }
@@ -250,7 +322,8 @@ extension DeckController {
     /// given before, only what still shows that look is redrawn: a fill, line, effect or text colour changed since stays.
     func _giveQuickStyle(_ style: ShapeQuickStyle, to s: SlideShape, over old: ShapeQuickStyle.Look? = nil) {
         let look = style.look(tableStyleColors(), quickStyleFormat)
-        if old?.fillShown(by: s) ?? true {
+        let isLine = style.kind == .lines
+        if !isLine, old?.fillShown(by: s) ?? true {
             s.fill = look.fill
             s.fillScheme = look.fillScheme
             s.fillStyle = look.gradient
@@ -261,8 +334,10 @@ extension DeckController {
             s.outlineFill = nil
             s.outlineWidth = look.outlineWidth
             s.outlineDash = nil
-            s.headEnd = nil
-            s.tailEnd = nil
+            if !isLine {    // a line keeps its arrowheads, as in PowerPoint
+                s.headEnd = nil
+                s.tailEnd = nil
+            }
         }
         if old?.effectsShown(by: s) ?? true {
             s.shadow = look.shadow
@@ -280,7 +355,7 @@ extension DeckController {
             k.effectsEdited = true
             s.keptLook = k
         }
-        if let tt = s.textTheme, tt.textColor != look.text, old.map({ tt.textColor == $0.text }) ?? true {
+        if !isLine, let tt = s.textTheme, tt.textColor != look.text, old.map({ tt.textColor == $0.text }) ?? true {
             let fresh = _textTheme(font: tt.fontFamily ?? theme.bodyFont, size: tt.fontSize, color: look.text)
             fresh.listIndent = tt.listIndent
             fresh.faceResolver = tt.faceResolver
