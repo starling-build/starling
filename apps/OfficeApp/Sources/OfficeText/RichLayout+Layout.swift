@@ -2893,6 +2893,13 @@ extension RichLayout {
         return Offset(c.colLeft - widths.prefix(c.column).reduce(0, +), c.rowTop)
     }
 
+    /// A table's height in flow pixels: its first row's top to its last row's bottom.
+    public func tableHeight(of table: String) -> Double? {
+        let rows = _cells.compactMap { $0 }.filter { $0.table == table }
+        guard let top = rows.map(\.rowTop).min(), let bottom = rows.map({ $0.rowTop + $0.rowHeight }).max() else { return nil }
+        return bottom - top
+    }
+
     /// Where a table's move handle sits on the canvas: a small square just outside its top-left corner, as Word draws it.
     public func tableHandleRect(of table: String) -> Rect? {
         guard let o = tableOrigin(of: table), let corner = canvasRects(Rect.fromLTWH(o.dx, o.dy, 1, 1)).first else { return nil }

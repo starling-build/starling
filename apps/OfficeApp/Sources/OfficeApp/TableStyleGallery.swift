@@ -19,6 +19,9 @@ enum TableStyleGallery {
 
     /// Every controller asks this for a style's look (Table Styles, Table Style Options).
     static func install() {
+        if RichDocumentController.sharedFloatPositionReader == nil {
+            RichDocumentController.sharedFloatPositionReader = { DocxFormat.applyKeptPosition($0, to: &$1) }
+        }
         if RichDocumentController.sharedTableStyleLookResolver == nil {
             RichDocumentController.sharedTableStyleLookResolver = { resolve($0, table: $1, style: $2, look: $3) }
         }
