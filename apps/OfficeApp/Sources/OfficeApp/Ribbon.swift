@@ -1046,7 +1046,15 @@ final class Ribbon: StatelessWidget {
             ])
             return [select, rows, tableSize, slideSize, slideAlignment]
         }
-        return [select, rows, size, alignment, borders, look]
+        // Word's Data group: Sort, Convert to Text and Formula (also on Select's menu), Repeat Header Rows.
+        let data = Chrome.group("Data", fluent, [Chrome.rows([
+            Chrome.small(FluentSystemIcons.sort, "Sort", fluent, enabled: c.canSortTable) { [session] in session.onSortTableDialog?() },
+            Chrome.small(FluentSystemIcons.header, "Repeat Header Rows", fluent, checked: style.headerRow) { c.setRepeatedHeaderRows(style.headerRow ? 0 : max(1, row + 1)) },
+        ]), Chrome.gap(8), Chrome.rows([
+            Chrome.small(FluentSystemIcons.textT, "Convert to Text", fluent) { [session] in session.onConvertTextTableDialog?(false) },
+            Chrome.small(FluentSystemIcons.mathFormula, "Formula", fluent, enabled: c.canInsertFormula) { [session] in session.onFormulaDialog?() },
+        ])])
+        return [select, rows, size, alignment, borders, look, data]
     }
 
     /// PowerPoint's Cell Margins presets, in points: Normal is its default 0.05" top and bottom, 0.1" sides.

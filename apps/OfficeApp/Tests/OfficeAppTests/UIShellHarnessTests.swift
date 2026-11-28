@@ -267,9 +267,28 @@ final class UIShellHarnessTests: XCTestCase {
         XCTAssertTrue(ui.tap(text: "Table Layout"))
         for label in ["Select", "Merge", "Cell Alignment", "Table Alignment", "Table Width", "Cell Margins", "AutoFit", "Row May Break",
                       "Repeat Header: Off", "Delete Table", "Row Height", "Indent", "Distribute Columns", "Borders", "Line Style", "Line Width",
-                      "Header Row", "Insert Above", "Delete Column"] {
+                      "Header Row", "Insert Above", "Delete Column", "Sort", "Repeat Header Rows", "Convert to Text", "Formula"] {
             XCTAssertTrue(ui.ribbonReaches(label, width: 1280), "\(label) is out of reach on the Table Layout tab")
         }
+    }
+
+    /// W-TB-6: Table Layout's Data group, as in Word: Sort, Convert to Text and Formula open their dialogs.
+    func testTableLayoutDataGroupOpensSortConvertAndFormula() {
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(2000, 800))
+        let c = ui.state(OfficeShellState.self)!.session.controller
+        c.insertTable(rows: 3, columns: 2)
+        ui.pump()
+        XCTAssertTrue(ui.tap(text: "Table Layout"))
+        func opens<D: Widget>(_ label: String, _ type: D.Type) {
+            XCTAssertTrue(ui.tap(text: label), label)
+            ui.pump()
+            XCTAssertTrue(ui.elements().contains { $0.widget is D }, "\(label) opens its dialog")
+            ui.press(.escape); ui.pump()
+            XCTAssertFalse(ui.elements().contains { $0.widget is D }, "Escape closes \(label)")
+        }
+        opens("Sort", SortTableDialog.self)
+        opens("Convert to Text", ConvertTextTableDialog.self)
+        opens("Formula", FormulaDialog.self)
     }
 
     /// Draw Table, Eraser and Split Table: the Eraser sets the table tool (2000 wide, so the Draw group is on screen).
