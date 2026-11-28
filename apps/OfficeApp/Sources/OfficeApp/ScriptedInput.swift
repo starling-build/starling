@@ -20,7 +20,7 @@
 //   drag X1 Y1 X2 Y2
 //   scroll X Y DX DY            a wheel turn
 //   key NAME [mods…]            enter tab escape backspace delete left right
-//                               up down home end pageup pagedown f2 f4
+//                               up down home end pageup pagedown f1 … f12
 //   type TEXT                   the rest of the line, one key per character
 //   chord MODS LETTER           e.g. "chord cmd d", "chord cmd,shift z"
 //   shot PATH                   screencapture -l of this window; ${OUT} expands
@@ -210,7 +210,9 @@ enum ScriptedInput {
         "enter": 0x1_0000_000D, "tab": 0x1_0000_0009, "escape": 0x1_0000_001B, "backspace": 0x1_0000_0008,
         "delete": 0x1_0000_007F, "left": 0x1_0000_0302, "right": 0x1_0000_0303, "up": 0x1_0000_0304,
         "down": 0x1_0000_0301, "home": 0x1_0000_0306, "end": 0x1_0000_0305, "pageup": 0x1_0000_0308,
-        "pagedown": 0x1_0000_0307, "f2": 0x1_0000_0802, "f4": 0x1_0000_0804,
+        "pagedown": 0x1_0000_0307, "f1": 0x1_0000_0801, "f2": 0x1_0000_0802, "f3": 0x1_0000_0803, "f4": 0x1_0000_0804,
+        "f5": 0x1_0000_0805, "f6": 0x1_0000_0806, "f7": 0x1_0000_0807, "f8": 0x1_0000_0808, "f9": 0x1_0000_0809,
+        "f10": 0x1_0000_080A, "f11": 0x1_0000_080B, "f12": 0x1_0000_080C,
     ]
     private static let _modKeys: [String: Int64] = [
         "shift": 0x2_0000_0102, "ctrl": 0x2_0000_0100, "alt": 0x2_0000_0104, "cmd": 0x2_0000_0106,
