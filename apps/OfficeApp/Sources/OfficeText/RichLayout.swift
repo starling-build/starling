@@ -903,20 +903,31 @@ public final class RichTextTheme {
         0.299 * Double(fill.red) + 0.587 * Double(fill.green) + 0.114 * Double(fill.blue) < autoTextWhiteBelow
     }
 
-    /// Word's underline kinds as the engine draws them: dotted, dashed, double and wavy lines, the heavy and thick ones twice
-    /// as thick. Dot-dash kinds are drawn dashed; "words" and single are the plain line.
-    static func underlineRule(_ kind: String?) -> (style: TextDecorationStyle?, thickness: Double?) {
-        guard let kind else { return (nil, nil) }
-        let heavy = kind == "thick" || kind.hasSuffix("Heavy")
-        let base: TextDecorationStyle?
-        switch kind {
-        case "double": base = .double
-        case "dotted", "dottedHeavy": base = .dotted
-        case "dash", "dashedHeavy", "dashLong", "dashLongHeavy", "dotDash", "dashDotHeavy", "dotDotDash", "dashDotDotHeavy": base = .dashed
-        case "wave", "wavyHeavy", "wavyDouble": base = .wavy
-        default: base = nil
+    /// The underline a run draws itself, past the engine's plain line: its kind (`w:u w:val`, nil for single) and colour
+    /// (`w:color`), the run's or else its style's; nil when the run has none of its own (a plain or link underline).
+    static func ownUnderline(_ style: CharStyle, named: RichNamedStyle?) -> (kind: String?, color: String?)? {
+        let own: (String?, String?)
+        if style.underline { own = (style.underlineKind, style.underlineColor) }
+        else if named?.char.underline == true, !style.off.contains(.underline) { own = (named?.char.underlineKind, named?.char.underlineColor) }
+        else { return nil }
+        let kind = own.0 == "single" ? nil : own.0
+        let color = own.1.flatMap { ruleColor($0) == nil ? nil : $0 }
+        return kind == nil && color == nil ? nil : (kind, color)
+    }
+
+    /// PowerPoint's underline names (`a:rPr u`) as Word's (`w:u w:val`); nil for none and single.
+    public static func drawingMLUnderline(_ u: String?) -> String? {
+        switch u {
+        case "dbl": return "double"
+        case "heavy": return "thick"
+        case "dotted", "dottedHeavy", "dash", "dashLong", "dashLongHeavy", "dotDash", "dotDotDash", "wavyHeavy", "words": return u
+        case "dashHeavy": return "dashedHeavy"
+        case "dotDashHeavy": return "dashDotHeavy"
+        case "dotDotDashHeavy": return "dashDotDotHeavy"
+        case "wavy": return "wave"
+        case "wavyDbl": return "wavyDouble"
+        default: return nil
         }
-        return (base, heavy ? 2 : nil)
     }
 
     /// An underline colour as the file gives it ("RRGGBB"); "auto" and anything else follow the text.
@@ -989,12 +1000,8 @@ public final class RichTextTheme {
         var decorations: [TextDecoration] = []
         let underlined = style.underline || (((style.link != nil && style.linkField == nil) || (named?.char.underline ?? false)) && !style.off.contains(.underline))
         if underlined { decorations.append(.underline) }
-        // The underline's own kind and colour (`w:u w:val`, `w:color`), the run's or else its style's. The engine draws one
-        // style and colour for all of a run's rules, so a struck or tracked run keeps the plain line in the text's colour.
-        let ownRule = underlined && (style.underline || named?.char.underline == true)
-            ? (style.underline ? (style.underlineKind, style.underlineColor) : (named?.char.underlineKind, named?.char.underlineColor)) : (nil, nil)
-        let rule = Self.underlineRule(ownRule.0)
-        let ruleColor = ownRule.1.flatMap(Self.ruleColor)
+        // An underline of its own kind or colour is drawn by `_paintRules` at Word's sizes (a tracked change keeps the engine's line).
+        if wordRules, underlined, style.revision == nil, Self.ownUnderline(style, named: named) != nil { decorations.removeAll() }
         if style.strikethrough || ((named?.char.strikethrough ?? false) && !style.off.contains(.strikethrough)) { decorations.append(.lineThrough) }
         var markupHides = false
         if let revision = style.revision {
@@ -1254,9 +1261,7 @@ public final class RichTextTheme {
             // (Slides draws the rule of a face it has a table for itself, `_paintRules`: the engine gets none for that run.)
             decoration: decorations.isEmpty || (!wordRules && Self.ruleMetrics(latinName, bold: bold, italic: italic) != nil)
                 ? TextDecoration.none : TextDecoration.combine(decorations),
-            decorationColor: decorations.count == 1 && underlined ? ruleColor ?? color : color,
-            decorationStyle: decorations.count == 1 && underlined ? rule.style : nil,
-            decorationThickness: decorations.count == 1 && underlined ? rule.thickness : nil,
+            decorationColor: color,
             debugLabel: familyName,
             fontFamily: bold && face?.family == family ? face?.fakeBoldFamily ?? family : family,
             fontFamilyFallback: {

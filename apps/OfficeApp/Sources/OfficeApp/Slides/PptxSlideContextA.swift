@@ -586,6 +586,7 @@ extension SlideContext {
                         // test-case's green and yellow in its table's first
                         // cell, drawn plain.)
                         runs[k].style.strikethrough = s.strike ?? false
+                        if s.underline == true { runs[k].style.underlineKind = s.underlineKind }
                         if let b = s.baseline { runs[k].style.script = b > 0 ? .superscript : b < 0 ? .subscript : .normal }
                         runs[k].style.highlight = s.highlight
                         runs[k].style.shadow = s.shadow

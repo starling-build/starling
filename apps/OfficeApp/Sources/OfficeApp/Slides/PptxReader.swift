@@ -419,6 +419,8 @@ struct LevelStyle {
     var bold: Bool?
     var italic: Bool?
     var underline: Bool?
+    /// `u`'s kind as Word names it (`RichTextTheme.drawingMLUnderline`): "double", "wave"...; nil for single.
+    var underlineKind: String?
     var strike: Bool?
     var font: String?
     /// `a:cs`: the face for complex-script (Hebrew, Arabic, Thai) text.
@@ -477,7 +479,7 @@ struct LevelStyle {
         s.size = s.size ?? lower.size
         s.bold = s.bold ?? lower.bold
         s.italic = s.italic ?? lower.italic
-        s.underline = s.underline ?? lower.underline
+        if s.underline == nil { s.underline = lower.underline; s.underlineKind = lower.underlineKind }
         s.strike = s.strike ?? lower.strike
         s.font = s.font ?? lower.font
         if s.csFont == nil { s.csArabicCharset = lower.csArabicCharset }
@@ -646,6 +648,7 @@ struct LevelStyle {
         s.bold = r["b"].map { $0 == "1" || $0 == "true" }
         s.italic = r["i"].map { $0 == "1" || $0 == "true" }
         s.underline = r["u"].map { $0 != "none" }
+        s.underlineKind = RichTextTheme.drawingMLUnderline(r["u"])
         s.strike = r["strike"].map { $0 != "noStrike" }
         s.caps = r["cap"]
         s.baseline = r["baseline"].flatMap(Double.init)

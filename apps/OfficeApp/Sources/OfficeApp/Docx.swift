@@ -788,6 +788,11 @@ enum DocxFormat {
                 for style in styles.all("w:style") where style["w:type"] == "paragraph"
                     && (style["w:default"] == "1" || style["w:styleId"] == "Normal") {
                     if let rPr = style.first("w:rPr") { cs = _charStyle(rPr, base: cs) }
+                    // Normal's own next style (one the user set; Word's says Normal, its own).
+                    if let next = style.first("w:next")?["w:val"], next != style["w:styleId"] {
+                        let ours = styleByDocx[next] ?? _styleId(next.lowercased())
+                        normal.next = ours == RichNamedStyle.normalId ? nil : ours
+                    }
                 }
                 // A file that states no size anywhere is 10pt in Word (the
                 // 2003-era default), not the 11pt of a fresh document. One

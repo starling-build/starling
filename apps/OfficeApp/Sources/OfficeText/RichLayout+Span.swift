@@ -2342,43 +2342,152 @@ extension RichLayout {
     /// Word sets them as a "．" glyph; measured at 11 pt: centre 1.08 em
     /// over / 0.29 em under the baseline, 0.12 / 0.13 em across.
     /// Slides' underline and strikeout, drawn here at the place and thickness of the face the run names (the engine's
-    /// rule is the stand-in's): one rectangle a line segment, as wide as the run's characters there.
+    /// rule is the stand-in's): one rectangle a line segment, as wide as the run's characters there. Under Word's rules
+    /// only an underline of its own kind or colour is drawn here (`ownUnderline`); the engine draws the rest.
     func _paintRules(_ p: RichParagraph, _ painter: TextPainter, at origin: Offset,
                      _ canvas: any Canvas, _ document: RichDocument, map: _OffsetMap? = nil) {
-        guard !theme.wordRules, !p.runs.isEmpty else { return }
+        guard !p.runs.isEmpty else { return }
         let named = _named(p, document)
+        let word = theme.wordRules
+        if word, !p.runs.contains(where: { $0.style.revision == nil && RichTextTheme.ownUnderline($0.style, named: named) != nil }) { return }
         let normal = _normalChar(document)
         let lines = painter.computeLineMetrics()
+        let units = Array(p.text.utf16)
         var at = 0
         for run in p.runs {
             defer { at += run.length }
             guard run.length > 0 else { continue }
             let st = run.style
-            let under = st.underline || (((st.link != nil && st.linkField == nil) || (named?.char.underline ?? false)) && !st.off.contains(.underline))
-            let strike = st.strikethrough || ((named?.char.strikethrough ?? false) && !st.off.contains(.strikethrough))
+            let own = RichTextTheme.ownUnderline(st, named: named)
+            let under: Bool, strike: Bool
+            if word {
+                under = st.revision == nil && own != nil; strike = false
+            } else {
+                under = st.underline || (((st.link != nil && st.linkField == nil) || (named?.char.underline ?? false)) && !st.off.contains(.underline))
+                strike = st.strikethrough || ((named?.char.strikethrough ?? false) && !st.off.contains(.strikethrough))
+            }
             guard under || strike else { continue }
             let bold = st.bold || ((named?.char.bold ?? false) && !st.off.contains(.bold))
             let italic = st.italic || ((named?.char.italic ?? false) && !st.off.contains(.italic))
             let latin = st.fontFamily ?? named?.char.fontFamily ?? normal?.fontFamily ?? theme.fontFamily
-            guard let m = RichTextTheme.ruleMetrics(latin, bold: bold, italic: italic) else { continue }
+            let face = RichTextTheme.ruleMetrics(latin, bold: bold, italic: italic)
+            // (Under Word's rules a face without a table takes Aptos's place, 0.0488 em under the baseline.)
+            guard let m = face ?? (word ? (-0.0488, 0.0244, 0.3569, 0.0498) : nil) else { continue }
             let s = theme.textStyle(for: st, in: p.style, named: named, normal: normal, scale: scale, fontScale: fontScale)
             let size = s.fontSize ?? 10
             let paint = Paint()
             paint.style = .fill
             paint.color = s.color ?? Color(0xFF000000)
-            let a = map?.painter(at) ?? at
-            let z = (map?.painter(at + run.length - 1)).map { $0 + 1 } ?? (at + run.length)
-            for box in painter.getBoxesForSelection(TextSelection(baseOffset: a, extentOffset: max(a, z))).map({ $0.toRect() }) where box.width > 0 {
-                guard let line = lines.min(by: { abs($0.baseline - box.bottom) < abs($1.baseline - box.bottom) }) else { continue }
-                if under {
-                    let t = m.ut * size
-                    canvas.drawRect(Rect.fromLTWH(origin.dx + box.left, origin.dy + line.baseline - m.up * size, box.width, t), paint)
+            let rulePaint = Paint()
+            rulePaint.style = .fill
+            rulePaint.color = own?.color.flatMap(RichTextTheme.ruleColor) ?? paint.color
+            // The stretches the rule spans: the whole run, or for "words" each stretch of it that is not a space.
+            var stretches: [(Int, Int)] = []
+            if own?.kind == "words" {
+                var u = at, end = min(at + run.length, units.count)
+                while u < end {
+                    while u < end, Self._ruleGap(units[u]) { u += 1 }
+                    let w0 = u
+                    while u < end, !Self._ruleGap(units[u]) { u += 1 }
+                    if u > w0 { stretches.append((w0, u)) }
                 }
-                if strike {
-                    let t = m.st * size
-                    canvas.drawRect(Rect.fromLTWH(origin.dx + box.left, origin.dy + line.baseline - m.sp * size, box.width, t), paint)
+            } else {
+                stretches = [(at, at + run.length)]
+            }
+            for (u0, u1) in stretches {
+                let a = map?.painter(u0) ?? u0
+                let z = (map?.painter(u1 - 1)).map { $0 + 1 } ?? u1
+                for box in painter.getBoxesForSelection(TextSelection(baseOffset: a, extentOffset: max(a, z))).map({ $0.toRect() }) where box.width > 0 {
+                    guard let line = lines.min(by: { abs($0.baseline - box.bottom) < abs($1.baseline - box.bottom) }) else { continue }
+                    let left = box.left
+                    var right = box.right
+                    if word {
+                        // (Spaces that end a line hang past it without a rule, as the engine's.)
+                        right = min(right, line.left + line.width)
+                        guard right > left else { continue }
+                    }
+                    if under {
+                        if word || own != nil {
+                            Self._paintUnderline(own?.kind, canvas, rulePaint, left: origin.dx + left, right: origin.dx + right,
+                                                 top: origin.dy + line.baseline - m.up * size, size: size)
+                        } else {
+                            canvas.drawRect(Rect.fromLTWH(origin.dx + left, origin.dy + line.baseline - m.up * size, right - left, m.ut * size), paint)
+                        }
+                    }
+                    if strike {
+                        let t = m.st * size
+                        canvas.drawRect(Rect.fromLTWH(origin.dx + left, origin.dy + line.baseline - m.sp * size, right - left, t), paint)
+                    }
                 }
             }
+        }
+    }
+
+    static func _ruleGap(_ c: UInt16) -> Bool { c == 0x20 || c == 0x09 || c == 0x3000 || c == 0xA0 || c == 0x0A || c == 0x0B || c == 0x0D }
+
+    /// One underline of a kind (`w:u w:val`) from `left` to `right`, `top` where the face sets a plain one, in Word's sizes:
+    /// measured on Word's print of Aptos 12 pt (lab ulkinds, 2026-11-27) in units of a fiftieth of the size (0.24 pt there),
+    /// a single rule one unit thick. Dashes and waves start at the segment's left end.
+    static func _paintUnderline(_ kind: String?, _ canvas: any Canvas, _ paint: Paint, left: Double, right: Double, top: Double, size: Double) {
+        let u = size / 50
+        let k = kind ?? "single"
+        let heavy = k == "thick" || k.hasSuffix("Heavy")
+        // A heavy rule fills 4.5 units from one unit over a plain rule's top.
+        let y = heavy ? top - u : top
+        let t = heavy ? 4.5 * u : u
+        func band(_ y: Double, _ t: Double) { canvas.drawRect(Rect.fromLTRB(left, y, right, y + t), paint) }
+        // A pattern of (on, off) lengths in units, repeated from the left.
+        func pattern(_ steps: [(Double, Bool)]) {
+            var x = left, i = 0
+            let period = steps.reduce(0) { $0 + $1.0 } * u
+            guard period > 0 else { return }
+            while x < right {
+                let (len, on) = steps[i % steps.count]
+                let w = len * u
+                if on { canvas.drawRect(Rect.fromLTRB(x, y, min(right, x + w), y + t), paint) }
+                x += w; i += 1
+            }
+        }
+        // A wave swings `amplitude` each side of `centre`, five units a half wave, cut at the segment's right end.
+        func wave(_ centre: Double, _ amplitude: Double, _ stroke: Double) {
+            let path = Path()
+            let half = 5 * u
+            var x = left, up = true
+            path.moveTo(x, centre)
+            while x < right {
+                path.quadraticBezierTo(x + half / 2, centre + (up ? -2 : 2) * amplitude, x + half, centre)
+                x += half; up.toggle()
+            }
+            let line = Paint()
+            line.style = .stroke
+            line.strokeWidth = stroke
+            line.color = paint.color
+            canvas.save()
+            canvas.clipRect(Rect.fromLTRB(left, centre - amplitude - stroke, right, centre + amplitude + stroke))
+            canvas.drawPath(path, line)
+            canvas.restore()
+        }
+        switch k {
+        case "double":
+            band(top - u, u / 2); band(top + 3.5 * u, u / 2)
+        case "dotted", "dottedHeavy":
+            pattern([(6, true), (6, false)])
+        case "dash", "dashedHeavy":
+            pattern([(16.5, true), (8, false)])
+        case "dashLong", "dashLongHeavy":
+            pattern([(33, true), (16.5, false)])
+        case "dotDash", "dashDotHeavy":
+            pattern([(12.5, true), (4, false), (4, true), (4, false)])
+        case "dotDotDash", "dashDotDotHeavy":
+            pattern([(9, true), (3, false), (3, true), (3, false), (3, true), (3, false)])
+        case "wave":
+            wave(top, u, u)
+        case "wavyHeavy":
+            wave(top, u, 4 * u)
+        case "wavyDouble":
+            wave(top - 0.7 * u, 0.4 * u, u); wave(top + 0.8 * u, 0.4 * u, u)
+        default:
+            band(y, t)
         }
     }
 

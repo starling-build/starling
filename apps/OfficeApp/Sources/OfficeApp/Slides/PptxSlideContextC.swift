@@ -363,6 +363,7 @@ extension SlideContext {
                                    underline: s.underline ?? false, strikethrough: s.strike ?? false,
                                    fontFamily: _font(s.font, lang: s.lang, altLang: s.altLang), fontSize: ((s.size ?? 18) * 10).rounded() / 10,
                                    color: s.color ?? tx1)
+                if s.underline == true { cs.underlineKind = s.underlineKind }
                 if let b = s.baseline { cs.script = b > 0 ? .superscript : b < 0 ? .subscript : .normal }
                 if let spc = s.spc, spc != 0 { cs.letterSpacing = spc }
                 // Kerned from the size `kern` says up (PowerPoint's own
@@ -983,6 +984,7 @@ extension SlideContext {
                         st.bold = r["b"] == "1"
                         st.italic = r["i"] == "1"
                         st.underline = r["u"].map { $0 != "none" } ?? false
+                        st.underlineKind = RichTextTheme.drawingMLUnderline(r["u"])
                         st.strikethrough = r["strike"].map { $0 != "noStrike" } ?? false
                         st.fontSize = r["sz"].flatMap(Double.init).map { $0 / 100 }
                         if let f = r.first("a:latin")?["typeface"], !f.hasPrefix("+") { st.fontFamily = f }
