@@ -7,10 +7,10 @@ import Foundation
 /// and the note's element in the file's notes part (made, with its separators, when the file had none), and the other
 /// marks renumbered.
 extension RichDocumentController {
-    private struct _Mark { var paragraph: Int; var offset: Int; var length: Int; var id: Int; var text: String; var style: CharStyle }
+    struct _Mark { var paragraph: Int; var offset: Int; var length: Int; var id: Int; var text: String; var style: CharStyle }
 
     /// The kind's numbered marks in body order (a custom mark keeps its own text and has no number).
-    private func _marks(_ kind: NoteReference.Kind) -> [_Mark] {
+    func _marks(_ kind: NoteReference.Kind) -> [_Mark] {
         var out: [_Mark] = []
         for (pi, p) in document.paragraphs.enumerated() {
             var offset = 0
