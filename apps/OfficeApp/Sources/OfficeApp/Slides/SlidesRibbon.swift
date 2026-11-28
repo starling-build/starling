@@ -143,8 +143,12 @@ extension Ribbon {
         return [clipboardGroup(fluent), _slidesGroup(deck, fluent), fp[0], fp[1], _drawingGroup(deck, fluent), editing]
     }
 
-    private func _shapeItems(_ fluent: FluentThemeData) -> [MenuFlyoutItemBase] {
-        [ShapeGridMenuItem(ink: fluent.resources.textFillColorPrimary) { [session] preset in session.onInsertShape?(preset) }]
+    private func _shapeItems(_ deck: DeckController, _ fluent: FluentThemeData) -> [MenuFlyoutItemBase] {
+        [ShapeGridMenuItem(ink: fluent.resources.textFillColorPrimary, hover: fluent.resources.subtleFillColorSecondary,
+                           recent: deck.recentShapes) { [session] preset in
+            deck.useRecentShape(preset)
+            session.onInsertShape?(preset)
+        }]
     }
 
     /// Shapes, Arrange, Shape Fill and Shape Outline — PowerPoint's Drawing
@@ -154,7 +158,7 @@ extension Ribbon {
         let palette = Self.shapeColors(deck.theme)
         return Chrome.group("Drawing", fluent, [Chrome.rows([
             Chrome.row([
-                Chrome.menuButton(FluentSystemIcons.shapes, "Shapes", "Insert a shape", fluent, items: _shapeItems(fluent)),
+                Chrome.menuButton(FluentSystemIcons.shapes, "Shapes", "Insert a shape", fluent, items: _shapeItems(deck, fluent)),
                 Chrome.menuButton(FluentSystemIcons.grid, "Arrange", "Order and align", fluent, items: arrange),
             ]),
             Chrome.vgap(4),
@@ -185,7 +189,7 @@ extension Ribbon {
         ]
         return [
             Chrome.group("Insert Shapes", fluent, [Chrome.rows([
-                Chrome.menuButton(FluentSystemIcons.shapes, "Shapes", "Insert a shape", fluent, items: _shapeItems(fluent)),
+                Chrome.menuButton(FluentSystemIcons.shapes, "Shapes", "Insert a shape", fluent, items: _shapeItems(deck, fluent)),
             ])]),
             Chrome.group("Shape Styles", fluent, [Chrome.rows([
                 Chrome.row([
@@ -402,7 +406,7 @@ extension Ribbon {
                         Icon(FluentSystemIcons.shapes, size: Chrome.bigIconSize, color: fluent.resources.textFillColorPrimary),
                         Chrome.vgap(4),
                         Text("Shapes", style: fluent.typography.caption),
-                    ])), tip: "Insert a shape", width: nil, height: Chrome.rowHeight * 2 + 6, menu: _shapeItems(fluent)),
+                    ])), tip: "Insert a shape", width: nil, height: Chrome.rowHeight * 2 + 6, menu: _shapeItems(deck, fluent)),
             ]),
         ]
     }

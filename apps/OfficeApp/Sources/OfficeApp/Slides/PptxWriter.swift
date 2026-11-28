@@ -1158,6 +1158,16 @@ private struct SlideXML {
         return "<a:srcRect l=\"\(v(c.left))\" t=\"\(v(c.top))\" r=\"\(v(c.right))\" b=\"\(v(c.bottom))\"/>"
     }
 
+    /// PowerPoint's default style refs for a shape it draws (a line's: lnRef 1, no fill).
+    static func _themeStyle(line: Bool) -> String {
+        line
+            ? "<p:style><a:lnRef idx=\"1\"><a:schemeClr val=\"accent1\"/></a:lnRef><a:fillRef idx=\"0\"><a:schemeClr val=\"accent1\"/></a:fillRef>"
+                + "<a:effectRef idx=\"0\"><a:schemeClr val=\"accent1\"/></a:effectRef><a:fontRef idx=\"minor\"><a:schemeClr val=\"tx1\"/></a:fontRef></p:style>"
+            : "<p:style><a:lnRef idx=\"2\"><a:schemeClr val=\"accent1\"><a:shade val=\"50000\"/></a:schemeClr></a:lnRef>"
+                + "<a:fillRef idx=\"1\"><a:schemeClr val=\"accent1\"/></a:fillRef><a:effectRef idx=\"0\"><a:schemeClr val=\"accent1\"/></a:effectRef>"
+                + "<a:fontRef idx=\"minor\"><a:schemeClr val=\"lt1\"/></a:fontRef></p:style>"
+    }
+
     private static func _fill(_ c: Color?, scheme: String? = nil) -> String {
         guard let c else { return "<a:noFill/>" }
         let alpha = (c.value >> 24) & 0xFF
@@ -1311,7 +1321,7 @@ private struct SlideXML {
             let line = s.outline.map { "<a:ln w=\"\(Self._emu(s.outlineWidth))\">\(Self._fill($0, scheme: s.outlineScheme))\(Self._dashXML(s.outlineDash))\(Self._endsXML(s))</a:ln>" } ?? "<a:ln><a:noFill/></a:ln>"
             return "<p:cxnSp><p:nvCxnSpPr><p:cNvPr id=\"\(id)\" name=\"\(name)\"\(PptxText.altAttrs(s))\(hid)/><p:cNvCxnSpPr>\(Self._connXML(s))</p:cNvCxnSpPr><p:nvPr/></p:nvCxnSpPr>"
                 + "<p:spPr>\(Self._xfrm(box, rotation: s.rotation, flipH: s.flipH != (f.right < f.left), flipV: s.flipV != (f.bottom < f.top)))"
-                + "<a:prstGeom prst=\"\(preset.rawValue)\">\(Self._avLst(s.adjusts))</a:prstGeom>\(line)</p:spPr></p:cxnSp>"
+                + "<a:prstGeom prst=\"\(preset.rawValue)\">\(Self._avLst(s.adjusts))</a:prstGeom>\(line)</p:spPr>\(s.themeStyle ? Self._themeStyle(line: true) : "")</p:cxnSp>"
         default:
             // Unchanged since it was read, text and all: the shape as it
             // was, so what this app models loosely (the master's bullets,
@@ -1423,7 +1433,10 @@ private struct SlideXML {
             }
             if let cam = s.camera { effectsXML = Self._effectsWithCamera(effectsXML, cam) }
             spPr += fillXML + lineXML + effectsXML
-            var xml = "<p:sp><p:nvSpPr>\(nv)<p:nvPr>\(ph)</p:nvPr></p:nvSpPr><p:spPr>\(spPr)</p:spPr>\(look?.style ?? "")"
+            var openPath = false
+            if case .geometry(let p) = s.kind { openPath = p.isOpenPath }
+            let style: String = look?.style ?? (s.themeStyle ? Self._themeStyle(line: openPath) : "")
+            var xml = "<p:sp><p:nvSpPr>\(nv)<p:nvPr>\(ph)</p:nvPr></p:nvSpPr><p:spPr>\(spPr)</p:spPr>\(style)"
             if let doc = s.text {
                 let anchor = s.anchor.rawValue
                 let ins = s.insets.minusShare(s.shapeInsets)   // the frame's own margins, not the preset's text rectangle

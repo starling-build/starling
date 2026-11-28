@@ -12,7 +12,13 @@ enum ShapeGallery {
 
     private static func g(_ name: String, _ raw: String) -> Group {
         Group(name: name, presets: raw.split(separator: " ").map { ShapePreset(rawValue: String($0)) }
-            .filter { $0.isLine || PresetGeometry.has($0.rawValue) })
+            .filter { $0.isLine || draws($0.rawValue) })
+    }
+
+    /// Whether the preset draws anything: our definitions of the accent callouts close a path and then draw on, which
+    /// drops the whole shape (see `FreeformGeometry.parse`), and a gallery cell for them would be a blank gap.
+    static func draws(_ name: String) -> Bool {
+        PresetGeometry.geometry(name, width: 914_400, height: 914_400).map { !$0.subpaths.isEmpty } ?? false
     }
 
     static let groups: [Group] = [
