@@ -256,7 +256,8 @@ extension DocxFormat {
     /// while it already says the same.
     static func _lineNumbersXML(_ n: LineNumbering) -> String {
         var el = "<w:lnNumType w:countBy=\"\(n.countBy)\""
-        if n.start != 1 { el += " w:start=\"\(n.start)\"" }
+        // w:start counts from zero: Word's "Start at 4" is w:start="3" (lab/pg3).
+        if n.start != 1 { el += " w:start=\"\(n.start - 1)\"" }
         if let d = n.distance { el += " w:distance=\"\(Int((d * 20).rounded()))\"" }
         if n.restart != .newPage { el += " w:restart=\"\(n.restart.rawValue)\"" }
         return el + "/>"
@@ -264,7 +265,7 @@ extension DocxFormat {
     static func _readLineNumbers(_ ln: XNode) -> LineNumbering {
         var n = LineNumbering()
         n.countBy = max(1, Int(ln["w:countBy"] ?? "") ?? 1)
-        n.start = Int(ln["w:start"] ?? "") ?? 1
+        n.start = (Int(ln["w:start"] ?? "") ?? 0) + 1
         n.distance = Double(ln["w:distance"] ?? "").map { $0 / 20 }
         n.restart = LineNumbering.Restart(rawValue: ln["w:restart"] ?? "") ?? .newPage
         return n
@@ -2322,7 +2323,7 @@ extension DocxFormat {
         let writeHeader = !doc.header.isEmpty && !keptDefaultHeader
         let writeFooter = !doc.footer.isEmpty && !keptDefaultFooter
         // The last section's sectPr; a section break made in it (`sectionAsLast`) is written the same, with its own page and start.
-        func sectPr(_ page: PageSetup, type: String?) -> String {
+        func sectPr(_ page: PageSetup, type: String?, borders: String? = doc.pageBordersXML) -> String {
         var body = "<w:sectPr>"
         let pageSetup = page.physical
         let pw = Int(pageSetup.width * 20), ph = Int(pageSetup.height * 20)
@@ -2334,7 +2335,7 @@ extension DocxFormat {
         if let type { body += type }
         body += "<w:pgSz w:w=\"\(pw)\" w:h=\"\(ph)\"\(pageSetup.isLandscape && pageSetup.orientStated ? " w:orient=\"landscape\"" : "")/>"
         body += "<w:pgMar w:top=\"\(Int(pageSetup.marginTop * 20))\" w:right=\"\(Int(pageSetup.marginRight * 20))\" w:bottom=\"\(Int(pageSetup.marginBottom * 20))\" w:left=\"\(Int(pageSetup.marginLeft * 20))\" w:header=\"\(Int((pageSetup.headerDistance * 20).rounded()))\" w:footer=\"\(Int((pageSetup.footerDistance * 20).rounded()))\" w:gutter=\"\(Int((pageSetup.gutter * 20).rounded()))\"/>"
-        if let pb = doc.pageBordersXML { body += pb }
+        if let pb = borders { body += pb }
         if let lead = Self._leadPatched(Self._lineNumbersPatched(doc.sectionLeadXML, page.lineNumbers), start: doc.pageNumberStart, format: doc.pageNumberFormat,
                                           chapterStyle: doc.chapterStyle, chapterSeparator: doc.chapterSeparator) { body += lead }
         if let cols = doc.columnsXML, let node = XNode.parse(Data(cols.utf8)), _sameColumns(node, pageSetup) {
@@ -2358,7 +2359,7 @@ extension DocxFormat {
             guard let sect = p.style.sectionXML, sect.containsSubstring(RichDocumentController.sectionAsLast) else { continue }
             let type = sect.rangeOfSubstring("<w:type ").flatMap { open in
                 sect[open.lowerBound...].rangeOfSubstring("/>").map { String(sect[open.lowerBound ..< $0.upperBound]) } }
-            body = body.replacingAll("<!--\(RichDocumentController.sectionAsLast)-\(index)-->", with: sectPr(p.style.sectionPage ?? lastPage, type: type))
+            body = body.replacingAll("<!--\(RichDocumentController.sectionAsLast)-\(index)-->", with: sectPr(p.style.sectionPage ?? lastPage, type: type, borders: PageBorders.ofSection(sect, doc)))
         }
         let pageSetup = lastPage.physical
 

@@ -64,6 +64,34 @@ final class PageDesignTests: XCTestCase {
                        "<w:sectPr><w:pgSz w:w=\"1\"/><w:pgMar w:top=\"1\"/><w:pgBorders/><w:cols/></w:sectPr>")
     }
 
+    /// A section made by a break in the last one is saved as a copy of it; its own borders (or none) must still be saved.
+    func testPageBordersOnASectionMadeByABreak() throws {
+        let c = controller((1...6).map { "P\($0)" })
+        c.moveTo(RichPosition(paragraph: 3, offset: 0), extend: false)
+        c.insertSectionBreak(.nextPage, lastSetup: .letter)
+        c.moveTo(RichPosition(paragraph: 0, offset: 0), extend: false)
+        var b = PageBorders(); b.style = "double"
+        c.setPageBorders(b, scope: .thisSectionFirstPage)
+        var doc = text(try roundTrip(c.document).1, "word/document.xml")
+        var sects = doc.components(separatedBy: "<w:sectPr")
+        XCTAssertEqual(sects.count, 3)
+        XCTAssertTrue(sects[1].containsSubstring("w:display=\"firstPage\"><w:top w:val=\"double\""), sects[1])
+        XCTAssertFalse(sects[2].containsSubstring("pgBorders"))
+        XCTAssertEqual(c.sectionPageBorders()?.display, "firstPage")
+        // Borders on the last section only: the first keeps its own; then none on the first while the last has them.
+        c.moveTo(RichPosition(paragraph: c.document.paragraphs.count - 1, offset: 0), extend: false)
+        b.style = "single"
+        c.setPageBorders(b, scope: .thisSection)
+        c.moveTo(RichPosition(paragraph: 0, offset: 0), extend: false)
+        c.setPageBorders(nil, scope: .thisSection)
+        XCTAssertNil(c.sectionPageBorders())
+        doc = text(try roundTrip(c.document).1, "word/document.xml")
+        sects = doc.components(separatedBy: "<w:sectPr")
+        XCTAssertFalse(sects[1].containsSubstring("pgBorders"), sects[1])
+        XCTAssertFalse(doc.containsSubstring("x-none"))
+        XCTAssertTrue(sects[2].containsSubstring("<w:pgBorders w:offsetFrom=\"page\"><w:top w:val=\"single\""), sects[2])
+    }
+
     func testLineNumbersWriteAndSuppress() throws {
         let c = controller(["a", "b", "c"])
         var n = LineNumbering()
@@ -72,7 +100,7 @@ final class PageDesignTests: XCTestCase {
         let page = c.document.lastSectionPage ?? .letter
         XCTAssertEqual(page.lineNumbers, n)
         let (back, parts) = try roundTrip(c.document, page)
-        XCTAssertTrue(text(parts, "word/document.xml").containsSubstring("<w:lnNumType w:countBy=\"5\" w:start=\"3\" w:restart=\"continuous\"/>"))
+        XCTAssertTrue(text(parts, "word/document.xml").containsSubstring("<w:lnNumType w:countBy=\"5\" w:start=\"2\" w:restart=\"continuous\"/>"))   // zero-based: Word shows 3 first (lab/pg3)
         _ = back
         XCTAssertEqual(try DocxFormat.read(try DocxFormat.write(c.document, pageSetup: page)).pageSetup?.lineNumbers, n)
         c.moveTo(RichPosition(paragraph: 1, offset: 0), extend: false)
@@ -87,6 +115,22 @@ final class PageDesignTests: XCTestCase {
             var l = LineNumbering(); l.restart = .continuous; return l }()), "<w:lnNumType w:restart=\"continuous\" w:countBy=\"1\"/>")
         XCTAssertNil(DocxFormat._lineNumbersPatched("<w:lnNumType w:countBy=\"1\"/>", nil))
         XCTAssertEqual(DocxFormat._lineNumbersPatched("<w:pgNumType w:start=\"2\"/>", LineNumbering()), "<w:lnNumType w:countBy=\"1\"/><w:pgNumType w:start=\"2\"/>")
+    }
+
+    /// Word (lab/pg3): w:start="3" starts the count at 4; no w:start starts at 1.
+    func testLineNumberStartIsZeroBasedInTheFile() throws {
+        func read(_ el: String) throws -> LineNumbering {
+            try DocxFormat._readLineNumbers(XCTUnwrap(XNode.parse(Data(el.utf8))))
+        }
+        XCTAssertEqual(try read("<w:lnNumType w:countBy=\"5\" w:start=\"3\"/>").start, 4)
+        XCTAssertEqual(try read("<w:lnNumType w:countBy=\"1\"/>").start, 1)
+        var n = LineNumbering(); n.start = 4
+        XCTAssertEqual(DocxFormat._lineNumbersXML(n), "<w:lnNumType w:countBy=\"1\" w:start=\"3\"/>")
+        n.start = 1
+        XCTAssertEqual(DocxFormat._lineNumbersXML(n), "<w:lnNumType w:countBy=\"1\"/>")
+        // The file's element is kept byte for byte when it already says the same.
+        n.start = 4
+        XCTAssertEqual(DocxFormat._lineNumbersPatched("<w:lnNumType w:countBy=\"1\" w:start=\"3\"/>", n), "<w:lnNumType w:countBy=\"1\" w:start=\"3\"/>")
     }
 
     func testTextWatermarkInEveryHeaderAndRemoved() throws {
@@ -187,5 +231,75 @@ final class PageDesignTests: XCTestCase {
         ui.pump()
         XCTAssertEqual(WordWatermark.current(in: c.document)?.diagonal, false)
         XCTAssertEqual(WordWatermark.current(in: c.document)?.text, "SAMPLE")
+    }
+}
+
+/// Writes the W-PG-3 Word lab into the folder PG3_LAB_OUT names (skipped otherwise): line numbers (start 3, each restart,
+/// count by 5, a suppressed paragraph, two sections), page colour, page borders, text and picture watermarks.
+final class PageDesignLab: XCTestCase {
+    private func body(_ n: Int) -> [RichParagraph] {
+        (1...n).map { i in
+            RichParagraph(text: i % 10 == 4
+                ? "Paragraph \(i) is a long one that wraps onto a second and a third line, so the lab shows whether Word numbers every line of a paragraph or only its first line, and how count-by skips them."
+                : "Paragraph \(i).")
+        }
+    }
+
+    private func save(_ d: RichDocument, _ page: PageSetup, _ dir: String, _ name: String) throws {
+        try DocxFormat.write(d, pageSetup: page).write(to: URL(fileURLWithPath: dir + "/" + name + ".docx"))
+    }
+
+    private func numbered(_ n: LineNumbering, suppress: Int? = nil) -> (RichDocument, PageSetup) {
+        let c = RichDocumentController()
+        c.load(RichDocument(paragraphs: body(110)))
+        c.setLineNumbers(n, lastSetup: .letter)
+        if let s = suppress {
+            c.moveTo(RichPosition(paragraph: s, offset: 0), extend: false)
+            c.toggleSuppressLineNumbers()
+        }
+        // Section 2 starts at paragraph 71 (a next-page break), with the same numbering.
+        c.moveTo(RichPosition(paragraph: 70, offset: 0), extend: false)
+        c.insertSectionBreak(.nextPage, lastSetup: c.document.lastSectionPage ?? .letter)
+        return (c.document, c.document.lastSectionPage ?? .letter)
+    }
+
+    func testWriteLab() throws {
+        guard let dir = ProcessInfo.processInfo.environment["PG3_LAB_OUT"] else { throw XCTSkip("no PG3_LAB_OUT") }
+        var n = LineNumbering()
+        n.start = 3; n.countBy = 1; n.restart = .continuous
+        var r = numbered(n, suppress: 5); try save(r.0, r.1, dir, "pg3-lines-continuous-start3")
+        n.restart = .newPage
+        r = numbered(n); try save(r.0, r.1, dir, "pg3-lines-page-start3")
+        n.restart = .newSection; n.countBy = 5
+        r = numbered(n); try save(r.0, r.1, dir, "pg3-lines-section-by5")
+
+        // Page colour and a double blue box on the whole document.
+        var c = RichDocumentController()
+        c.load(RichDocument(paragraphs: body(80)))
+        c.setPageColor(0xFFF2CC)
+        var b = PageBorders(); b.style = "double"; b.width = 6; b.color = 0x2F5496
+        c.setPageBorders(b, scope: .wholeDocument)
+        try save(c.document, .letter, dir, "pg3-color-double-box")
+        // A single border on the first page only, measured from the text, top and bottom only.
+        c = RichDocumentController()
+        c.load(RichDocument(paragraphs: body(80)))
+        var f = PageBorders(); f.style = "single"; f.width = 12; f.color = 0xC00000
+        f.offsetFrom = "text"; f.space = PageBorders.defaultSpace(from: "text"); f.sides = [.top, .bottom, .left]
+        c.moveTo(RichPosition(paragraph: 40, offset: 0), extend: false)
+        c.insertSectionBreak(.nextPage, lastSetup: .letter)
+        c.moveTo(RichPosition(paragraph: 0, offset: 0), extend: false)
+        c.setPageBorders(f, scope: .thisSectionFirstPage)
+        try save(c.document, .letter, dir, "pg3-border-first-page-from-text")
+
+        // Watermarks.
+        let plain = RichDocument(paragraphs: body(30))
+        try save(try WordWatermark.setting(.text(WordWatermark.TextMark()), in: plain, page: .letter), .letter, dir, "pg3-wm-confidential-auto-diagonal")
+        var t = WordWatermark.TextMark(); t.text = "DRAFT"; t.size = 80; t.color = 0xFF0000; t.semitransparent = false; t.diagonal = false
+        try save(try WordWatermark.setting(.text(t), in: plain, page: .letter), .letter, dir, "pg3-wm-draft-80-horizontal")
+        var a = WordWatermark.TextMark(); a.text = "SAMPLE"; a.font = "Times New Roman"; a.diagonal = false
+        try save(try WordWatermark.setting(.text(a), in: plain, page: .letter), .letter, dir, "pg3-wm-sample-auto-horizontal-times")
+        let png = try Data(contentsOf: URL(fileURLWithPath: dir + "/checker.png"))
+        try save(try WordWatermark.setting(.picture(.init(data: png, ext: "png", name: "checker", naturalWidth: 180, naturalHeight: 90, scale: nil, washout: true)), in: plain, page: .letter), .letter, dir, "pg3-wm-picture-auto-washout")
+        try save(try WordWatermark.setting(.picture(.init(data: png, ext: "png", name: "checker", naturalWidth: 180, naturalHeight: 90, scale: 2, washout: false)), in: plain, page: .letter), .letter, dir, "pg3-wm-picture-200-plain")
     }
 }

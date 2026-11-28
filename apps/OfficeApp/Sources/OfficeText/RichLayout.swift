@@ -1506,7 +1506,7 @@ public struct RichResolvedFace: Sendable {
 /// body's paragraphs (not those of tables, frames, notes, headers or
 /// footers, nor of a paragraph that says `suppressLineNumbers`) and sets the
 /// count in the margin, `distance` points left of the text, at every
-/// `countBy`th line.
+/// `countBy`th number (the numbers that are multiples of it).
 public struct LineNumbering: Hashable, Codable, Sendable {
     public enum Restart: String, Codable, Sendable { case newPage, newSection, continuous }
     public var countBy = 1
