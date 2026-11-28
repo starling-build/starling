@@ -1022,6 +1022,19 @@ open class RenderObject: HitTestTarget {
         assert(child.parent === self)
     }
 
+    /// Asks every scrolling ancestor to scroll so that `rect` of `descendant` (all of this object when both are nil)
+    /// is visible: a viewport moves its offset, then passes the request on with the rect where it now lies.
+    ///
+    /// **Dart Source:** `object.dart:3644-3660`
+    open func showOnScreen(
+        descendant: RenderObject? = nil,
+        rect: Rect? = nil,
+        duration: Duration = .zero,
+        curve: any Curve = Curves.ease
+    ) {
+        parent?.showOnScreen(descendant: descendant ?? self, rect: rect, duration: duration, curve: curve)
+    }
+
     /// Returns the transform that maps from local coordinates of this render
     /// object to the coordinate system of `ancestor`.
     ///

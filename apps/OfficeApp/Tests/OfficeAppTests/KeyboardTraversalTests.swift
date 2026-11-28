@@ -465,4 +465,33 @@ final class KeyboardTraversalTests: XCTestCase {
         ui.tap(at: Offset(700, 400))
         XCTAssertNil(KeyboardTraversal.shared.focused)
     }
+
+    /// Tab onto a control below the fold of a scrolling list, pane or gallery: it scrolls into view (both the plain
+    /// scroll view and the lazy list), and the ring's corner is where the control is now drawn.
+    func testTheRingScrollsIntoViewBelowTheFold() {
+        let rows: () -> [Widget] = {
+            (0..<30).map { i in KeyboardRow(label: "Item \(i)", activate: {}, child: SizedBox(height: 40, child: Text("Item \(i)"))) }
+        }
+        for kind in ["scroll view", "list"] {
+            KeyboardTraversal.shared.reset()
+            let c = ScrollController()
+            let list: Widget = kind == "list" ? ListView(controller: c, children: rows())
+                : SingleChildScrollView(controller: c, child: Column(children: rows()))
+            let ui = app(Align(alignment: Alignment.topLeft, child: SizedBox(width: 300, height: 200, child: KeyboardRegion(name: "list", child: list))))
+            ui.pump()
+            ui.press(.f6)
+            XCTAssertEqual(KeyboardTraversal.shared.focused?.label(), "Item 0", kind)
+            for n in 1..<20 {
+                ui.press(.tab); ui.pump()
+                let f = KeyboardTraversal.shared.focused
+                XCTAssertEqual(f?.label(), "Item \(n)", kind)
+                guard let o = f?.origin() else { XCTFail("\(kind): Item \(n) has no place"); break }
+                XCTAssertTrue(o.dy >= -0.01 && o.dy + 40 <= 200.01, "\(kind): Item \(n) drawn at \(o.dy), outside 0...200")
+            }
+            XCTAssertEqual(c.offset, 19 * 40 + 40 - 200, accuracy: 0.5, "\(kind): scrolled just enough")
+            ui.press(.tab, shift: true); ui.pump()
+            XCTAssertEqual(c.offset, 19 * 40 + 40 - 200, accuracy: 0.5, "\(kind): a row already in view does not scroll")
+            ui.dispose()
+        }
+    }
 }

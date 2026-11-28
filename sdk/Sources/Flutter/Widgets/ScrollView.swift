@@ -718,7 +718,7 @@ private class _SingleChildViewport: SingleChildRenderObjectWidget {
 /// the scroll direction, then clips and offsets it according to `offset`.
 ///
 /// **Dart Source:** `single_child_scroll_view.dart:313-577`
-private class _RenderSingleChildViewport: RenderBox, SingleChildRenderObjectHost {
+private class _RenderSingleChildViewport: RenderBox, SingleChildRenderObjectHost, RenderAbstractViewport, ScrollShifting {
     var child: RenderBox? {
         didSet {
             // Must adopt/drop (not just set parentData): without a parent
@@ -859,6 +859,49 @@ private class _RenderSingleChildViewport: RenderBox, SingleChildRenderObjectHost
                 context.paintChild(child, adjustedOffset)
             }
         )
+    }
+
+    /// Where the child's corner is painted, for a scroll offset of `position`.
+    private func _paintOffsetForPosition(_ position: Double) -> Offset { Flutter.scrollShift(axisDirection, position) }
+
+    var scrollShift: Offset { _paintOffsetForPosition((offset as? ScrollPosition)?.pixels ?? 0) }
+
+    /// The child is painted shifted by the scroll, so a descendant's place on screen (localToGlobal, and so a focus
+    /// ring's) moves with it.
+    override func applyPaintTransform(_ child: RenderObject, _ transform: inout Matrix4) {
+        super.applyPaintTransform(child, &transform)
+        let o = scrollShift
+        transform = Matrix4.translationValues(o.dx, o.dy, 0) * transform
+    }
+
+    /// **Dart Source:** `single_child_scroll_view.dart` `_RenderSingleChildViewport.getOffsetToReveal`
+    func getOffsetToReveal(_ target: RenderObject, _ alignment: Double, rect: Rect?, axis: Axis?) -> RevealedOffset {
+        let rect = rect ?? target.paintBounds
+        guard let child, let targetBox = target as? RenderBox else {
+            return RevealedOffset(offset: offset.pixels, rect: rect)
+        }
+        let bounds = MatrixUtils.transformRect(targetBox.getTransformTo(child), rect)
+        let leading: Double, targetExtent: Double, extent: Double
+        switch axisDirection {
+        case .down: extent = size.height; leading = bounds.top; targetExtent = bounds.height
+        case .up: extent = size.height; leading = child.size.height - bounds.bottom; targetExtent = bounds.height
+        case .right: extent = size.width; leading = bounds.left; targetExtent = bounds.width
+        case .left: extent = size.width; leading = child.size.width - bounds.right; targetExtent = bounds.width
+        }
+        let to = leading - (extent - targetExtent) * alignment
+        return RevealedOffset(offset: to, rect: bounds.shift(_paintOffsetForPosition(to)))
+    }
+
+    /// **Dart Source:** `single_child_scroll_view.dart` `_RenderSingleChildViewport.showOnScreen`
+    override func showOnScreen(descendant: RenderObject? = nil, rect: Rect? = nil, duration: Duration = .zero,
+                               curve: any Curve = Curves.ease) {
+        if !offset.allowImplicitScrolling {
+            super.showOnScreen(descendant: descendant, rect: rect, duration: duration, curve: curve)
+            return
+        }
+        let newRect = RenderViewportBase.showInViewport(descendant: descendant, rect: rect, viewport: self,
+                                                        offset: offset, duration: duration, curve: curve)
+        super.showOnScreen(rect: newRect, duration: duration, curve: curve)
     }
 
     // MARK: - Hit Testing
