@@ -1732,6 +1732,8 @@ final class OfficeShellState: State<StatefulWidget> {
         }
         // Ctrl+Alt+M: New Comment, as in Word.
         if mods.contains(.alt), !mods.contains(.shift), letter == "m" { session.onNewComment?(); return true }
+        // Alt+Ctrl+Shift+S opens and closes the Styles pane, as in Word.
+        if mods.contains(.alt), mods.contains(.shift), letter == "s" { session.onToggleStyles?(); return true }
         if mods.contains(.alt) { return false }
         switch letter {
         case "s":
