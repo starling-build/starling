@@ -709,6 +709,10 @@ final class WorkbookController: ChangeNotifier {
 
     /// The ribbon's way to the grid (clipboard, a formula into the editor).
     var onCommand: ((SheetCommand) -> Void)?
+    /// Home > Borders > Line Color / Line Style: the pen the border presets draw with
+    /// (nil colour is Automatic; "thin" is the default style). Not saved with the file.
+    var borderPenColor: UInt32? { didSet { notifyListeners() } }
+    var borderPenKind = "thin" { didSet { notifyListeners() } }
     /// Asks the user about an entry its validation rule objects to; the shell answers through the
     /// callback. Unset (tests, headless): the entry is handled by the rule's style alone.
     var onValidationAlert: ((ValidationAlert, @escaping (ValidationChoice) -> Void) -> Void)?

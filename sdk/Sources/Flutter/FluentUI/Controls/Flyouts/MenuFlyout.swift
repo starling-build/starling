@@ -388,9 +388,14 @@ private class _MenuFlyoutSubItemWidgetState: State<StatefulWidget> {
     private func _openSubmenu(_ context: any BuildContext) {
         let subItem = subItemWidget.subItem
         if _flyoutController.isOpen { return }
+        // A pick in the submenu closes the whole menu, as on Windows: the submenu is its
+        // own overlay entry, outside the parent's FlyoutScope, so hand that scope down.
+        let parent = FlyoutScope.maybeOf(context)
+        let controller = _flyoutController
         _flyoutController.showFlyout(
             builder: { ctx in
-                MenuFlyout(items: subItem.items)
+                FlyoutScope(close: { [weak controller] in controller?.closeFlyout(); parent?.close() },
+                            child: MenuFlyout(items: subItem.items))
             },
             placement: .right,
             additionalOffset: 0

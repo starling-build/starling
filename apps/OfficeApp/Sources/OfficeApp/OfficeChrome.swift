@@ -397,10 +397,11 @@ enum Chrome {
 
     /// A drop-down of plain choices.
     static func menu(_ title: Widget?, _ leading: Widget?, _ fluent: FluentThemeData,
-                     _ choices: [(String, () -> Void)], keyPrefix: String? = nil, tip: String? = nil) -> Widget {
+                     _ choices: [(String, () -> Void)], keyPrefix: String? = nil, tip: String? = nil,
+                     tail: [MenuFlyoutItemBase] = []) -> Widget {
         let items = choices.map { name, action in
             MenuFlyoutItem(text: keyPrefix.map { Padding(key: ValueKey("\($0).\(name)"), padding: EdgeInsets(left: 0, top: 0, right: 0, bottom: 0), child: Text(name)) as Widget } ?? Text(name),
-                           onPressed: action) as MenuFlyoutItemBase }
+                           onPressed: action) as MenuFlyoutItemBase } + tail
         var parts: [Widget] = []
         if let leading { parts.append(leading) }
         if let title { if leading != nil { parts.append(gap(6)) }; parts.append(title) }

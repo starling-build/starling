@@ -78,6 +78,7 @@ final class SheetsShellState: State<StatefulWidget> {
     private var _formatTab = 0
     /// Home → Fill Color (true) or Font Color (false) → More Colors… is open.
     private var _moreColorsFill: Bool?
+    private var _lineColorOpen = false
     private var _cellsDialog: Bool? = nil          // Insert (true) or Delete (false) cells
     private var _sizeDialog: SizeKind? = nil
     private var _pageSetupOpen = false
@@ -582,6 +583,8 @@ final class SheetsShellState: State<StatefulWidget> {
             _openFormatCells(tab: tab)
         case .moreColors(let fill):
             setState { _moreColorsFill = fill }
+        case .moreLineColor:
+            setState { _lineColorOpen = true }
         case .useName(let name):
             grid.focus.requestFocus()
             if grid.isEditing { grid.typeText(name) } else { grid.beginEdit(replace: "=" + name) }
@@ -1500,6 +1503,15 @@ final class SheetsShellState: State<StatefulWidget> {
                     self?.setState { self?._moreColorsFill = nil }; self?._grid?.focus.requestFocus()
                 },
                 onCancel: { [weak self] in self?.setState { self?._moreColorsFill = nil }; self?._grid?.focus.requestFocus() })))
+        }
+        if _lineColorOpen {
+            layers.append(Positioned(left: 0, top: 0, right: 0, bottom: 0, child: CustomColorDialog(
+                initial: wb.borderPenColor ?? 0,
+                onOK: { [weak self] rgb in
+                    self?.wb.borderPenColor = rgb
+                    self?.setState { self?._lineColorOpen = false }; self?._grid?.focus.requestFocus()
+                },
+                onCancel: { [weak self] in self?.setState { self?._lineColorOpen = false }; self?._grid?.focus.requestFocus() })))
         }
         if layers.count > 1, _backstage == nil { return Stack(children: layers) }
         if _formatOpen, _backstage == nil {
