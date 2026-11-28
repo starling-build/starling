@@ -459,15 +459,17 @@ func starlingRecentNames(_ names: UnsafePointer<UInt8>?, _ length: Int32) {
 }
 
 /// The page's answer to starling_host_recent_open; both buffers are the page's to free. A byteCount of 0: gone.
+/// `handle`: the file's handle when the page may write it back (0: none).
 @_expose(wasm, "starling_recent_bytes")
 @_cdecl("starling_recent_bytes")
 func starlingRecentBytes(
     _ name: UnsafePointer<UInt8>?, _ nameLength: Int32,
-    _ bytes: UnsafeRawPointer?, _ byteCount: Int32
+    _ bytes: UnsafeRawPointer?, _ byteCount: Int32, _ handle: UInt32
 ) {
     guard let name, nameLength > 0 else { return }
     let text = String(decoding: UnsafeBufferPointer(start: name, count: Int(nameLength)), as: UTF8.self)
-    WebFiles.recentOpened(text, bytes.flatMap { byteCount > 0 ? Data(bytes: $0, count: Int(byteCount)) : nil })
+    WebFiles.recentOpened(text, bytes.flatMap { byteCount > 0 ? Data(bytes: $0, count: Int(byteCount)) : nil },
+                          handle: handle == 0 ? nil : Int(handle))
 }
 
 /// Scratch memory in our heap for the page to write arguments into.

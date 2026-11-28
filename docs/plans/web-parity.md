@@ -164,8 +164,14 @@ CDP) checks the page side: the print frame, IndexedDB rows, recovery after a rel
    Word keeps its handle when Word hands it on (PickedFile). Sheets marks a workbook
    saved only if it did not change while the write was out.
    BrowserDeckWorkbookFilesTests (native, stand-in page, 9 tests).
-   Not yet: Recent keeps the bytes, not the handle, so a file reopened from Recent
-   asks for a place on its first Save.
+   DONE 2026-11-28 (amd-11): Recent keeps the file handle too (IndexedDB stores the
+   FileSystemFileHandle beside the copy). Reopening from Recent asks the browser's
+   permission once (requestPermission, readwrite), reads the file through the handle
+   and Save writes back without a picker, in all three apps; refused, moved or deleted,
+   it reopens the copy and Save asks for a place. BrowserRecentTests and
+   BrowserDeckWorkbookFilesTests (fail before); test/office-recent-handle-web.sh in
+   Chromium (11/11: a saved docx, an opened pptx and csv reopened in a new browser save
+   in place).
 5. **Publishing.** Natively a publication is a folder with site.json that Publish
    builds and pushes with git. A tab has neither, so in the browser it needs a server
    that takes the built pages. That is a product decision (where pages go, who may

@@ -133,7 +133,7 @@ final class BrowserSaveAsTests: XCTestCase {
         let kept = OfficeHost.browserRecent
         defer { OfficeHost.browserRecent = kept }
         var remembered: [String] = []
-        OfficeHost.browserRecent = .init(names: { remembered }, remember: { name, _ in remembered.insert(name, at: 0) },
+        OfficeHost.browserRecent = .init(names: { remembered }, remember: { name, _, _ in remembered.insert(name, at: 0) },
                                          open: { _, done in done(nil) })
         let (ui, session) = shell()
         ui.type("Remembered")

@@ -343,17 +343,21 @@ enum OfficeHost {
     }
 
     /// The recent-files list of a browser tab, which has no paths: the page keeps each document opened or saved
-    /// (name and a copy of its bytes, newest 20) in its storage, and reopens it from there. Nil natively, where
+    /// (name, a copy of its bytes and the file's handle where the browser gave one, newest 20) in its storage,
+    /// and reopens it from there: through the handle when the user lets it (asked once), so Save writes the
+    /// file back in place, else from the copy. Nil natively, where
     /// the list is of paths on disk (`OfficeRecent`); the web build sets it from `WebFiles`, tests from a stand-in.
     nonisolated(unsafe) static var browserRecent: BrowserRecent?
 
     struct BrowserRecent {
         /// The names, newest first.
         var names: () -> [String]
-        /// A document opened or saved under `name`: it moves to the top with these bytes.
-        var remember: (_ name: String, _ data: Data) -> Void
-        /// The kept bytes of `name`, or nil when the page no longer has them; may answer later.
-        var open: (_ name: String, _ done: @escaping (Data?) -> Void) -> Void
+        /// A document opened or saved under `name`: it moves to the top with these bytes and the page's handle on
+        /// the file (`BrowserFiles`), nil when it has none (a download, a picked `<input>` file).
+        var remember: (_ name: String, _ data: Data, _ handle: Int?) -> Void
+        /// The kept file `name`: its bytes, and a handle to write back into when the page still has one and the
+        /// user allowed it; nil when the page no longer has the file. May answer later.
+        var open: (_ name: String, _ done: @escaping (BrowserFiles.Picked?) -> Void) -> Void
     }
 
     /// Open, Save and Save As in a browser tab, which has no paths (web-parity item 4). Where the browser lets the

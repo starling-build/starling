@@ -963,15 +963,15 @@ final class SlidesShellState: State<StatefulWidget> {
     private func _openFromPanel(_ path: String) {
         if let browser = OfficeHost.browserRecent {
             // A tab's Recent holds names; the page reads the kept copy back.
-            browser.open(path) { [weak self] data in
+            browser.open(path) { [weak self] kept in
                 guard let self, self.mounted else { return }
-                guard let data else {
+                guard let kept else {
                     self._recent = browser.names()
                     self.setState { self._backstage = nil }
                     self._flash("\(path) is no longer kept in this browser")
                     return
                 }
-                self._open(path, data: data)
+                self._open(path, data: kept.data, handle: kept.handle)
             }
             return
         }
@@ -1015,7 +1015,7 @@ final class SlidesShellState: State<StatefulWidget> {
     /// `handle`: the page's handle on the picked file, which Save then writes back into.
     private func _open(_ name: String, data: Data, recovered: Bool = false, handle: Int? = nil) {
         // What the tab opens goes to the top of Recent (not a recovery copy: the page holds that already).
-        if !recovered { _rememberInBrowser(name, data) }
+        if !recovered { _rememberInBrowser(name, data, handle: handle) }
         let kind = DocumentKind.kind(forPath: name)
         if kind != .presentation {
             PickedFile.hand(name, data, handle: handle)
@@ -1172,7 +1172,7 @@ final class SlidesShellState: State<StatefulWidget> {
         session.path = name
         _browserHandle = handle
         _savedEdits = edits
-        _rememberInBrowser(name, data)
+        _rememberInBrowser(name, data, handle: handle)
         setState {
             session.dirty = deck.edits != edits
             _backstage = nil
@@ -1188,9 +1188,9 @@ final class SlidesShellState: State<StatefulWidget> {
     }
 
     /// A deck opened or saved in a tab: the page keeps its bytes under its name, so Recent can reopen it.
-    private func _rememberInBrowser(_ name: String, _ data: Data) {
+    private func _rememberInBrowser(_ name: String, _ data: Data, handle: Int?) {
         guard let browser = OfficeHost.browserRecent else { return }
-        browser.remember(name, data)
+        browser.remember(name, data, handle)
         _recent = browser.names()
     }
 

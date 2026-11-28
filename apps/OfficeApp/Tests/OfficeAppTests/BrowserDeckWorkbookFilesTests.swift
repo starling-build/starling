@@ -16,7 +16,7 @@ final class BrowserDeckWorkbookFilesTests: XCTestCase {
         var picks: [(suggested: String, extensions: [String])] = []
         var writes: [(handle: Int, data: Data)] = []
         var downloads: [(name: String, data: Data)] = []
-        var recent: [(name: String, data: Data)] = []
+        var recent: [(name: String, data: Data, handle: Int?)] = []
     }
     private var page = Page()
     private var savedFiles: OfficeHost.BrowserFiles?
@@ -38,11 +38,11 @@ final class BrowserDeckWorkbookFilesTests: XCTestCase {
             download: { name, data in page.downloads.append((name, data)) })
         OfficeHost.browserRecent = .init(
             names: { page.recent.map(\.name) },
-            remember: { name, data in
+            remember: { name, data, handle in
                 page.recent.removeAll { $0.name == name }
-                page.recent.insert((name, data), at: 0)
+                page.recent.insert((name, data, handle), at: 0)
             },
-            open: { name, done in done(page.recent.first { $0.name == name }?.data) })
+            open: { name, done in done(page.recent.first { $0.name == name }.map { ($0.name, $0.data, $0.handle) }) })
     }
 
     override func tearDown() {
@@ -132,7 +132,7 @@ final class BrowserDeckWorkbookFilesTests: XCTestCase {
     }
 
     func testSlidesRecentReopensAKeptDeck() throws {
-        page.recent = [("Old.pptx", try deckBytes(slides: 3))]
+        page.recent = [("Old.pptx", try deckBytes(slides: 3), nil)]
         let (ui, session) = slides()
         session.onBackstage?(true); ui.pump()
         XCTAssertTrue(ui.tap(text: "Old.pptx"), "Backstage does not list the page's decks: \(ui.texts())")
@@ -140,6 +140,35 @@ final class BrowserDeckWorkbookFilesTests: XCTestCase {
         XCTAssertEqual(session.path, "Old.pptx")
         XCTAssertEqual(session.deck?.slides.count, 4)
         XCTAssertFalse(session.dirty, "a reopened copy is as saved")
+    }
+
+    /// Recent keeps the file's handle: a deck opened through the picker, reopened from Recent in a later tab,
+    /// saves back to the same file without asking for a place.
+    func testSlidesRecentKeepsTheHandleSoSaveWritesBack() throws {
+        page.opened = ("Talk.pptx", try deckBytes(slides: 2), 9)
+        let (ui, session) = slides()
+        session.onOpen?(); ui.pump()
+        XCTAssertEqual(page.recent.first?.handle, 9, "Recent did not keep the picked deck's handle")
+
+        let (ui2, session2) = slides()
+        session2.onBackstage?(true); ui2.pump()
+        XCTAssertTrue(ui2.tap(text: "Talk.pptx"), "\(ui2.texts())")
+        ui2.pump()
+        _ = session2.deck?.addSlide(); ui2.pump()
+        session2.onSave?(); ui2.pump()
+        XCTAssertTrue(page.picks.isEmpty, "Save from Recent asked for a place")
+        XCTAssertEqual(page.writes.map(\.handle), [9])
+        XCTAssertEqual(slideCount(page.writes[0].data), 4)
+        XCTAssertTrue(page.downloads.isEmpty)
+        _ = ui
+    }
+
+    /// A deck saved through Save As goes on Recent with the place it was written to.
+    func testSlidesSaveAsKeepsThePlaceOnRecent() throws {
+        let (ui, session) = slides()
+        session.onSaveAs?(); ui.pump()
+        XCTAssertEqual(page.recent.first?.name, "Mine.pptx")
+        XCTAssertEqual(page.recent.first?.handle, 7)
     }
 
     // MARK: Sheets
@@ -205,8 +234,32 @@ final class BrowserDeckWorkbookFilesTests: XCTestCase {
         XCTAssertFalse(state.session.dirty)
     }
 
+    /// Recent keeps the file's handle: a workbook reopened from Recent saves back without asking for a place;
+    /// a workbook kept without one (a download) asks.
+    func testSheetsRecentKeepsTheHandleSoSaveWritesBack() throws {
+        page.recent = [("Budget.xlsx", try bookBytes("kept"), 6), ("Down.xlsx", try bookBytes("down"), nil)]
+        let (ui, state) = sheets()
+        state.session.onBackstage?(true); ui.pump()
+        XCTAssertTrue(ui.tap(text: "Budget.xlsx"), "\(ui.texts())")
+        ui.pump()
+        state.wb.setInputs([(CellAddress(row: 0, col: 0), "changed")]); ui.pump()
+        state.session.onSave?(); ui.pump()
+        XCTAssertTrue(page.picks.isEmpty, "Save from Recent asked for a place")
+        XCTAssertEqual(page.writes.map(\.handle), [6])
+        XCTAssertEqual(a1(page.writes[0].data), .text("changed"))
+        XCTAssertEqual(page.recent.first?.handle, 6, "the save dropped the handle from Recent")
+
+        let (ui2, state2) = sheets()
+        state2.session.onBackstage?(true); ui2.pump()
+        XCTAssertTrue(ui2.tap(text: "Down.xlsx"))
+        ui2.pump()
+        state2.wb.setInputs([(CellAddress(row: 0, col: 0), "again")]); ui2.pump()
+        state2.session.onSave?(); ui2.pump()
+        XCTAssertEqual(page.picks.count, 1, "a Recent row without a handle must ask for a place")
+    }
+
     func testSheetsRecentReopensAKeptWorkbook() throws {
-        page.recent = [("Budget.xlsx", try bookBytes("kept"))]
+        page.recent = [("Budget.xlsx", try bookBytes("kept"), nil)]
         let (ui, state) = sheets()
         state.session.onBackstage?(true); ui.pump()
         XCTAssertTrue(ui.tap(text: "Budget.xlsx"), "Backstage does not list the page's workbooks: \(ui.texts())")

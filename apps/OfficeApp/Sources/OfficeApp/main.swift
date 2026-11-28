@@ -1314,8 +1314,10 @@ hostPageHidden = { OfficeScene.flushAll() }
 
 // Recent files: the page keeps each document opened or saved (web-parity item 3).
 OfficeHost.browserRecent = .init(names: { WebFiles.recentNames },
-                                 remember: { name, data in WebFiles.keepRecent(name, data) },
-                                 open: { name, done in WebFiles.openRecent(name, done) })
+                                 remember: { name, data, handle in WebFiles.keepRecent(name, data, handle: handle) },
+                                 open: { name, done in
+                                     WebFiles.openRecent(name) { done($0.map { ($0.name, $0.data, $0.handle) }) }
+                                 })
 
 // Open, Save and Save As: the browser's pickers, with file handles where it has them.
 OfficeHost.browserFiles = .init(

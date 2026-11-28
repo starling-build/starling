@@ -126,10 +126,11 @@ public enum WebFiles {
     /// Recent files: the names the page keeps, newest first (handed over before the app starts, then kept in
     /// step with `keepRecent`, so the list is there without a round trip).
     public nonisolated(unsafe) static var recentNames: [String] = []
-    nonisolated(unsafe) static var recentPending: [String: [(Data?) -> Void]] = [:]
+    nonisolated(unsafe) static var recentPending: [String: [(Picked?) -> Void]] = [:]
 
-    /// The page keeps `data` under `name`, at the top of Recent (newest 20).
-    public static func keepRecent(_ name: String, _ data: Data) {
+    /// The page keeps `data` under `name`, at the top of Recent (newest 20), with the file's `handle` (from `open`
+    /// or `pickPlace`) so the file reopens from Recent able to save back in place; nil keeps none.
+    public static func keepRecent(_ name: String, _ data: Data, handle: Int? = nil) {
         recentNames.removeAll { $0 == name }
         recentNames.insert(name, at: 0)
         if recentNames.count > 20 { recentNames.removeLast(recentNames.count - 20) }
@@ -137,7 +138,7 @@ public enum WebFiles {
         name.withUTF8 { nameBytes in
             data.withUnsafeBytes { bytes in
                 starling_host_recent_keep(nameBytes.baseAddress, UInt32(nameBytes.count),
-                                          bytes.baseAddress, UInt32(bytes.count))
+                                          bytes.baseAddress, UInt32(bytes.count), UInt32(handle ?? 0))
             }
         }
     }
@@ -154,18 +155,20 @@ public enum WebFiles {
         return row
     }
 
-    /// The kept copy of `name`, read back from the page's storage; nil (and gone from the list) when it is not
-    /// there any more.
-    public static func openRecent(_ name: String, _ done: @escaping (Data?) -> Void) {
+    /// The kept file `name`: read through its kept handle when the user lets the page (asked once), with that
+    /// handle to save back into, else the copy from the page's storage without one; nil (and gone from the list)
+    /// when neither is there any more.
+    public static func openRecent(_ name: String, _ done: @escaping (Picked?) -> Void) {
         recentPending[name, default: []].append(done)
         var name = name
         name.withUTF8 { starling_host_recent_open($0.baseAddress, UInt32($0.count)) }
     }
 
-    static func recentOpened(_ name: String, _ data: Data?) {
+    static func recentOpened(_ name: String, _ data: Data?, handle: Int?) {
         if data == nil { recentNames.removeAll { $0 == name } }
         let waiting = recentPending.removeValue(forKey: name) ?? []
-        for done in waiting { done(data) }
+        let picked = data.map { Picked(name: name, data: $0, handle: handle) }
+        for done in waiting { done(picked) }
     }
 
     static func opened(_ picked: Picked?) {
