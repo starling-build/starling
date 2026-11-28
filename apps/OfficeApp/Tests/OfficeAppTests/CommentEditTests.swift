@@ -3,6 +3,7 @@
 
 import XCTest
 import OfficeText
+import Flutter
 import FlutterSwiftBridge
 @testable import OfficeApp
 
@@ -107,5 +108,24 @@ final class CommentEditTests: XCTestCase {
         let parsed = RichDocumentController._parseComments(xml)
         XCTAssertEqual(parsed, [.init(id: "7", author: "A & B", initials: "AB", date: "", text: "x < y\tz \nnext")])
         XCTAssertEqual(RichDocumentController._removingComment("7", from: xml), "<w:comments></w:comments>")
+    }
+}
+
+/// The New Comment box takes the keys as it opens: typing goes into the comment, not over the selected word.
+final class NewCommentDialogTests: XCTestCase {
+    func testTheBoxHasTheFocusWhenItOpens() {
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "t"),
+                              size: Size(1440, 932))
+        let state = ui.state(OfficeShellState.self)!
+        let c = state.session.controller
+        c.insertText("hello world"); ui.pump()
+        c.moveTo(RichPosition(paragraph: 0, offset: 0), extend: false)
+        c.moveTo(RichPosition(paragraph: 0, offset: 5), extend: true)
+        state.session.onNewComment?(); ui.pump(); ui.pump()
+        ui.type("Why?")
+        ui.press(.enter); ui.pump()
+        XCTAssertEqual(c.document.paragraphs[0].text, "hello world")
+        XCTAssertEqual(c.comments().map(\.text), ["Why?"])
+        XCTAssertEqual(c.commentRanges().map(\.end.offset), [5])
     }
 }
