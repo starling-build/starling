@@ -86,6 +86,12 @@ public final class RichEditable: StatefulWidget {
     public let onNestedTableEnter: ((Int, Rect, Offset, (layout: RichLayout, document: RichDocument)?) -> Void)?
     /// The layout of a box's text on the page (`RichLayout.boxFrame`): this editor sets its text at that width, by its rules.
     public let boxRules: RichLayout?
+    /// W-TB-5: in the editor of a table nested in a cell, an arrow key (no Shift) that would go past the table's first
+    /// (`false`) or last (`true`) caret position: the host leaves the table for the outer cell, as Word does. True if it did.
+    public let onArrowOut: ((Bool) -> Bool)?
+    /// W-TB-5: Left or Right put the caret on a table nested in a cell: the host opens it with the caret at its last
+    /// (Left) or first (Right, `true`) position. Paragraph index, drawn rect and the page's layout of its text, as `onNestedTableEnter`.
+    public let onNestedTableEdge: ((Int, Rect, Bool, (layout: RichLayout, document: RichDocument)?) -> Void)?
     /// A point in this widget's coordinates where the caret goes once the text is laid out (the click that opened it).
     public let caretAt: Offset?
     /// Reported after a paint whenever the selected picture's drawn rect moved (scroll, zoom, layout): lets an editor laid
@@ -123,7 +129,11 @@ public final class RichEditable: StatefulWidget {
                 onContentHeight: ((Double) -> Void)? = nil,
                 onNestedTableEnter: ((Int, Rect, Offset, (layout: RichLayout, document: RichDocument)?) -> Void)? = nil,
                 caretAt: Offset? = nil,
-                boxRules: RichLayout? = nil) {
+                boxRules: RichLayout? = nil,
+                onArrowOut: ((Bool) -> Bool)? = nil,
+                onNestedTableEdge: ((Int, Rect, Bool, (layout: RichLayout, document: RichDocument)?) -> Void)? = nil) {
+        self.onArrowOut = onArrowOut
+        self.onNestedTableEdge = onNestedTableEdge
         self.onContentHeight = onContentHeight
         self.boxRules = boxRules
         self.onNestedTableEnter = onNestedTableEnter
@@ -574,6 +584,9 @@ public final class RichEditableState: State<StatefulWidget> {
             return true
         }
         var keepStickyX = false
+        let plainArrow = !shift && !_chords.word && !_chords.primary && !_chords.alt && (key == .left || key == .right || key == .up || key == .down)
+        if plainArrow, let out = _w.onArrowOut, _arrowLeavesDocument(key), out(key == .right || key == .down) { _stickyX = nil; return true }
+        let before = c.caret.paragraph
 
         switch key {
         case .left:
@@ -655,8 +668,39 @@ public final class RichEditableState: State<StatefulWidget> {
                 return false
             }
         }
+        if plainArrow, let t = c.selectedImageIndex ?? (c.hasSelection ? nil : c.caret.paragraph), t != before { _enterNestedByArrow(t, from: key) }
         if !keepStickyX { _stickyX = nil }
         return true
+    }
+
+    /// Whether the arrow `key` would take the caret past the document's first or last position (its first or last line for Up and Down).
+    private func _arrowLeavesDocument(_ key: NamedKey) -> Bool {
+        let c = _controller!
+        if c.hasSelection { return false }
+        switch key {
+        case .left: return c.caret == .start
+        case .right: return c.caret == _shownDocument.endPosition
+        case .up, .down:
+            _syncLayoutIfNeeded()
+            let x = _stickyX ?? _layout.caretRect(c.caret, _shownDocument).left
+            return _layout.verticalNeighbour(of: c.caret, x: x, down: key == .down, _shownDocument) == nil
+        default: return false
+        }
+    }
+
+    /// W-TB-5: an arrow that put the caret on a table nested in a cell goes on into it, as in Word: into its first cell
+    /// coming from above or the left, its last cell from below or the right (Up and Down keep the caret's column).
+    private func _enterNestedByArrow(_ i: Int, from key: NamedKey) {
+        guard !_controller.readOnly, let enter = _w.onNestedTableEnter, i < _shownDocument.paragraphs.count,
+              _shownDocument.paragraphs[i].isImage, _controller.isNestedTable(at: i) else { return }
+        _syncLayoutIfNeeded()
+        guard let r = imageRectOnScreen(i) else { return }
+        if key == .left || key == .right {
+            _w.onNestedTableEdge?(i, r, key == .right, _nestedFrame(i))
+            return
+        }
+        let x = min(max(_stickyX ?? r.left + 1, r.left + 1), r.right - 1)
+        enter(i, r, Offset(x, key == .down ? r.top + 1 : r.bottom - 1), _nestedFrame(i))
     }
 
     private func _moveLineEdge(home: Bool, extend: Bool) {

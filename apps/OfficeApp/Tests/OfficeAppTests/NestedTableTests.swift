@@ -207,6 +207,8 @@ final class NestedTableShellTests: XCTestCase {
         let boxEditor = try XCTUnwrap(ui.elements().first { ($0.widget as? RichEditable)?.controller === inside })
         let boxState = try XCTUnwrap((boxEditor as? StatefulElement)?.state as? RichEditableState)
         XCTAssertEqual(boxState._layoutForTests.width, pageFrame.layout.width, accuracy: 0.01, "editing must not change the layout")
+        // Not filled: a white editor hid the outer table's border just past the inner table's corner.
+        XCTAssertNil((boxEditor.widget as? RichEditable)?.backgroundColor, "the page shows through the nested table's editor")
         let wordsBefore = shell.session.summary.words
         shell.session.controller.insertText("typed inside")
         settle()
@@ -220,12 +222,24 @@ final class NestedTableShellTests: XCTestCase {
         XCTAssertTrue(shell.session.controller === c)
         XCTAssertEqual(c.selection.focus.paragraph, i + 1, "leaving it puts the caret in the outer cell under it")
         XCTAssertNil(c.selectedImageIndex)
-        // The gesture that picks it as an object: Left arrow from the start of the line under it (or Up). It is a table: the
-        // Table tabs, no Shape Format with a size box.
+        // Arrows step into and out of it, as in Word: Left from the line under it goes to the end of its last cell,
+        // Right from there back out; Up from under it goes into its last row, Down out again.
         ui.press(.left); settle(2)
-        XCTAssertEqual(c.selectedImageIndex, i, "Left from the line under it picks the nested table")
+        XCTAssertNotNil(shell._boxEdit, "Left from the line under it goes into the nested table")
+        var inBox = shell.session.controller
+        XCTAssertEqual(inBox.selection.focus, inBox.document.endPosition, "at the end of its last cell")
         XCTAssertTrue(ui.has(text: "Table Design"))
-        XCTAssertFalse(ui.has(text: "Shape Format"))
+        ui.press(.right); settle(2)
+        XCTAssertNil(shell._boxEdit, "Right past its last cell leaves it")
+        XCTAssertEqual(c.selection.focus, RichPosition(paragraph: i + 1, offset: 0))
+        ui.press(.up); settle(2)
+        XCTAssertNotNil(shell._boxEdit, "Up from the line under it goes into the nested table")
+        inBox = shell.session.controller
+        XCTAssertEqual(inBox.document.paragraphs[inBox.selection.focus.paragraph].cell?.row, 1, "into its last row")
+        ui.press(.down); settle(2)
+        XCTAssertNil(shell._boxEdit, "Down past its last row leaves it")
+        XCTAssertEqual(c.selection.focus.paragraph, i + 1)
+        XCTAssertNil(c.selectedImageIndex)
         c.moveTo(RichPosition(paragraph: i + 1, offset: 0), extend: false); settle()
         let inner = try XCTUnwrap(c.document.paragraphs[i].image?.textBox)
         XCTAssertEqual(inner.paragraphs.first { $0.text == "typed inside" }?.cell?.column, 1, "\(inner.paragraphs.map(\.text))")
