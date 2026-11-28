@@ -246,6 +246,69 @@ final class SlideIdentityTests: XCTestCase {
         XCTAssertEqual(try picture(try load(try Pptx.write(again))).pictureAlpha, 0.35, accuracy: 1e-6)
     }
 
+    func testPictureBorderAndEffectsSaveOnKeptAndNewPictures() throws {
+        func picture(_ d: DeckController) throws -> SlideShape {
+            let pic = try XCTUnwrap(d.slides.flatMap(\.shapes).first { $0.picture != nil })
+            d.select(try XCTUnwrap(d.slides.firstIndex { $0.shapes.contains { $0 === pic } }))
+            d.selectShapes([pic])
+            return pic
+        }
+        func spPr(_ data: Data) throws -> [String] {
+            let package = PptxPackage(try Zip.read(data))
+            return package.parts.keys.sorted().filter { $0.hasPrefix("ppt/slides/slide") && $0.hasSuffix(".xml") }.flatMap { part -> [String] in
+                let xml = String(decoding: package.parts[part] ?? Data(), as: UTF8.self)
+                return xml.components(separatedBy: "<p:pic>").dropFirst().map { String($0.components(separatedBy: "</p:spPr>")[0]) }
+            }
+        }
+        func check(_ d: DeckController, _ why: String) throws {
+            let saved = try Pptx.write(d)
+            let pics = try spPr(saved).filter { $0.containsSubstring("a:outerShdw") }
+            XCTAssertEqual(pics.count, 1, why)
+            let x = pics.first ?? ""
+            let ln = x.rangeOfSubstring("<a:ln w=\"38100\"")?.lowerBound, fx = x.rangeOfSubstring("<a:effectLst>")?.lowerBound
+            let geom = x.rangeOfSubstring("<a:prstGeom")?.lowerBound
+            XCTAssertNotNil(ln, why); XCTAssertNotNil(fx, why); XCTAssertNotNil(geom, why)
+            if let ln, let fx, let geom { XCTAssertTrue(geom < ln && ln < fx, "spPr order: geometry, line, effects (\(why))") }
+            XCTAssertTrue(x.containsSubstring("<a:glow rad=\"127000\">"), why)
+            XCTAssertTrue(x.containsSubstring("<a:softEdge rad=\"63500\"/>"), why)
+            XCTAssertTrue(x.containsSubstring("<a:prstDash val=\"dash\"/>"), why)
+            let back = try picture(try load(saved))
+            XCTAssertEqual(back.outline, Color(0xFFC00000), why)
+            XCTAssertEqual(back.outlineWidth, 3, accuracy: 1e-6, why)
+            XCTAssertEqual(back.outlineDash, "dash", why)
+            XCTAssertNotNil(back.shadow, why)
+            XCTAssertEqual(back.glowRadius ?? 0, 10, accuracy: 1e-6, why)
+            XCTAssertEqual(back.softEdge ?? 0, 5, accuracy: 1e-6, why)
+        }
+        let d = try load(try Pptx.write(SlidesSample.make()))
+        let pic = try picture(d)
+        XCTAssertNotNil(pic.keptPicture)
+        d.setOutline(Color(0xFFC00000))
+        d.setOutlineWidth(3)
+        d.setOutlineDash("dash")
+        d.setShadow(ShapeEffectPresets.shadow(angle: 45))
+        d.setGlow(radius: 10, color: Color(0xFF4472C4))
+        d.setSoftEdge(5)
+        d.undo()
+        XCTAssertNil(try picture(d).softEdge, "each choice is one undo step")
+        d.redo()
+        // A picture read from the file keeps its element: the line and the effects are patched into its spPr.
+        try check(d, "kept")
+        // Saved again after a reload, still one ln and one effectLst.
+        let again = try load(try Pptx.write(d))
+        let twice = try spPr(try Pptx.write(again)).filter { $0.containsSubstring("a:outerShdw") }.first ?? ""
+        XCTAssertEqual(twice.components(separatedBy: "<a:effectLst>").count, 2)
+        XCTAssertEqual(twice.components(separatedBy: "<a:ln ").count, 2)
+        // Removing them takes them out of the file.
+        _ = try picture(again)
+        again.clearEffects()
+        again.setOutline(nil)
+        XCTAssertEqual(try spPr(try Pptx.write(again)).filter { $0.containsSubstring("a:outerShdw") || $0.containsSubstring("a:glow") }.count, 0)
+        // A new picture (no kept element) is written with them too.
+        try picture(d).keptPicture = nil
+        try check(d, "new")
+    }
+
     func testPictureCorrectionsAreOneUndoStepAndSave() throws {
         func picture(_ d: DeckController) throws -> SlideShape {
             let pic = try XCTUnwrap(d.slides.flatMap(\.shapes).first { $0.picture != nil })

@@ -713,6 +713,42 @@ final class UIShellHarnessTests: XCTestCase {
         XCTAssertEqual(pic.crop?.left ?? 9, 0, accuracy: 1e-6)
     }
 
+    func testSlidesCorrectionsGridPreviewsThePictureAndPicksOnePair() throws {
+        let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAQAAAADCAIAAAA7ljmRAAAAEElEQVR4nGP4z8AARww4OQD1MQv1NXv7ggAAAABJRU5ErkJggg==")!
+        let made = DeckController()
+        _ = made.addPicture(ImageAttachment(data: png, width: 4, height: 3), naturalSize: Size(240, 180), at: Rect.fromLTWH(100, 100, 240, 180))
+        let path = NSTemporaryDirectory() + "corrections-\(UUID().uuidString).pptx"
+        try Pptx.write(made).write(to: URL(fileURLWithPath: path))
+        defer { try? FileManager.default.removeItem(atPath: path) }
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: SlidesShell(initialPath: path, onSwitch: { _, _ in }), title: "Test"), size: Size(1440, 932))
+        let deck = try XCTUnwrap(ui.state(SlidesShellState.self)?.session.deck)
+        XCTAssertNotNil(deck.pictureImages, "the shell hands the deck its decoded pictures")
+        let pic = try XCTUnwrap(deck.currentSlide.shapes.first { $0.picture != nil })
+        deck.selectShapes([pic]); ui.pump()
+        // The picture decodes off the main thread; the grid draws it once it has.
+        let att = try XCTUnwrap(pic.picture)
+        for _ in 0..<200 where deck.pictureImages?.image(att) == nil { RunLoop.main.run(until: Date().addingTimeInterval(0.01)); ui.pump() }
+        XCTAssertNotNil(deck.pictureImages?.image(att))
+        XCTAssertTrue(ui.tap(text: "Picture Format")); ui.pump()
+        XCTAssertTrue(ui.tap(text: "Corrections")); ui.pump()
+        // A 5 x 5 grid of previews, each named by its pair; no text rows.
+        XCTAssertTrue(ui.has(id: "corrections-grid-panel"))
+        XCTAssertEqual(ui.tips().filter { $0.hasPrefix("Brightness: ") }.count, 25)
+        XCTAssertFalse(ui.tap(text: "Brightness: +20% Contrast: -40%"), "the pairs are tooltips, not menu rows")
+        XCTAssertTrue(ui.tap(id: "corrections-20--40")); ui.pump(); ui.pump()
+        XCTAssertEqual(pic.pictureBrightness, 0.2, accuracy: 1e-9)
+        XCTAssertEqual(pic.pictureContrast, -0.4, accuracy: 1e-9)
+        XCTAssertFalse(ui.has(id: "corrections-grid-panel"), "picking one closes the grid")
+        deck.undo(); ui.pump()
+        XCTAssertEqual(pic.pictureBrightness, 0, "one undo step")
+        // Picture Effects offers no bevel or 3-D rotation (a picture's scene3d/sp3d is not saved).
+        XCTAssertTrue(ui.tap(text: "Picture Effects")); ui.pump()
+        XCTAssertTrue(ui.texts().contains("No Effects"))
+        XCTAssertTrue(ui.texts().contains("Glow"))
+        XCTAssertFalse(ui.texts().contains("Bevel"))
+        XCTAssertFalse(ui.texts().contains("3-D Rotation"))
+    }
+
     func testSlidesTableSizeMarginsAndUndo() throws {
         let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: SlidesShell(initialPath: nil, startBlank: true, onSwitch: { _, _ in }), title: "Test"), size: Size(1440, 932))
         let shell = try XCTUnwrap(ui.state(SlidesShellState.self))

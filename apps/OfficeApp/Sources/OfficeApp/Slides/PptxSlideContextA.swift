@@ -295,6 +295,10 @@ extension SlideContext {
            let soft = el.first("p:spPr")?.first("a:effectLst")?.first("a:softEdge")?["rad"].flatMap(Double.init), soft > 0 {
             s.softEdge = soft / Pptx.emu
         }
+        if let g = el.first("p:spPr")?.first("a:effectLst")?.first("a:glow"), let c = colors.color(in: g) {
+            s.glowRadius = (g["rad"].flatMap(Double.init) ?? 0) / Pptx.emu
+            s.glowColor = c
+        }
         // A fill of its own, behind the picture (showing through its
         // transparent parts and around one padded by a negative crop).
         if let pr = el.first("p:spPr") {
@@ -310,7 +314,7 @@ extension SlideContext {
         s.altText = el.descendant("p:cNvPr")?["descr"].flatMap { $0.isEmpty ? nil : $0 }
         s.keptPicture = KeptPicture(imageId: image.id, alt: s.altText, crop: crop, rotation: rotation, alpha: s.pictureAlpha,
                                     brightness: s.pictureBrightness, contrast: s.pictureContrast,
-                                    geometry: s.pictureGeometry, freeform: s.customPath != nil)
+                                    geometry: s.pictureGeometry, freeform: s.customPath != nil, look: s.pictureLook)
         return s
     }
 

@@ -269,7 +269,7 @@ extension Ribbon {
     }
 
     /// Shape Effects: PowerPoint's presets for shadow, glow, reflection, soft edges and bevel.
-    private func _effectItems(_ deck: DeckController, _ fluent: FluentThemeData) -> [MenuFlyoutItemBase] {
+    private func _effectItems(_ deck: DeckController, _ fluent: FluentThemeData, threeD: Bool = true) -> [MenuFlyoutItemBase] {
         let some = !deck.selection.isEmpty
         func item(_ id: String, _ text: String, _ act: @escaping () -> Void) -> MenuFlyoutItem {
             MenuFlyoutItem(key: ValueKey(id), text: Text(text), onPressed: some ? act : nil)
@@ -310,9 +310,8 @@ extension Ribbon {
             MenuFlyoutSubItem(text: Text("Reflection"), items: reflections),
             MenuFlyoutSubItem(text: Text("Glow"), items: glows),
             MenuFlyoutSubItem(text: Text("Soft Edges"), items: soft),
-            MenuFlyoutSubItem(text: Text("Bevel"), items: bevels),
-            MenuFlyoutSubItem(text: Text("3-D Rotation"), items: rotations),
-        ]
+        ] + (threeD ? [MenuFlyoutSubItem(text: Text("Bevel"), items: bevels),
+                       MenuFlyoutSubItem(text: Text("3-D Rotation"), items: rotations)] : [])
     }
 
     /// The theme's accents first, then the neutrals and standard colours.
@@ -327,7 +326,7 @@ extension Ribbon {
 
     /// Shape Fill / Shape Outline: the shared colour picker in a drop-down.
     private func _shapeColorMenu(_ icon: IconData, _ tip: String, _ deck: DeckController, _ fluent: FluentThemeData,
-                                 outline: Bool) -> Widget {
+                                 outline: Bool, arrows: Bool = true) -> Widget {
         var items: [MenuFlyoutItemBase] = [
             ColorGridMenuItem(theme: deck.theme.slots, recent: deck.recentShapeColors.list,
                               noneLabel: outline ? "No Outline" : "No Fill",
@@ -360,7 +359,7 @@ extension Ribbon {
             }))
             let heads: [(String?, String)] = [(nil, "None"), ("triangle", "Arrow"), ("arrow", "Open arrow"), ("stealth", "Stealth arrow"),
                                               ("diamond", "Diamond"), ("oval", "Oval")]
-            for (start, label) in [(true, "Arrow start"), (false, "Arrow end")] {
+            for (start, label) in arrows ? [(true, "Arrow start"), (false, "Arrow end")] : [] {
                 items.append(MenuFlyoutSubItem(text: Text(label), items: heads.map { kind, name in
                     entry("shape-\(start ? "head" : "tail")-\(kind ?? "none")", name) { deck.setLineEnd(start: start, kind: kind) }
                 }))
@@ -792,19 +791,14 @@ extension Ribbon {
     /// Picture Format > Corrections: PowerPoint's Brightness/Contrast grid (-40...+40 % in steps of 20 each), and a reset.
     private func _pictureCorrectionsMenu(_ deck: DeckController, _ fluent: FluentThemeData) -> Widget {
         let pic = deck.selection.first { $0.picture != nil }
-        let steps: [Double] = [-40, -20, 0, 20, 40]
-        func sign(_ v: Double) -> String { v > 0 ? "+\(Int(v))%" : "\(Int(v))%" }
-        var items: [MenuFlyoutItem] = []
-        for c in steps {
-            for b in steps {
-                let on = pic.map { abs($0.pictureBrightness * 100 - b) < 0.5 && abs($0.pictureContrast * 100 - c) < 0.5 } ?? false
-                let icon = Icon(on ? FluentSystemIcons.check : FluentSystemIcons.brightness,
-                                size: Chrome.iconSize, color: fluent.resources.textFillColorPrimary)
-                items.append(MenuFlyoutItem(text: Text("Brightness: \(sign(b)) Contrast: \(sign(c))"), leading: icon,
-                                            onPressed: { deck.setPictureCorrection(brightness: b, contrast: c) }))
-            }
-        }
-        return Chrome.menuButton(FluentSystemIcons.brightness, "Corrections", "Brightness and contrast of the picture", fluent, items: items)
+        let aspect = pic.map { $0.frame.width / max(1, $0.frame.height) } ?? 4.0 / 3
+        let grid = CorrectionsGridMenuItem(
+            image: { [weak deck] in pic?.picture.flatMap { deck?.pictureImages?.image($0) } }, aspect: aspect,
+            current: pic.map { ($0.pictureBrightness * 100, $0.pictureContrast * 100) },
+            accent: fluent.accentColor.defaultBrushFor(fluent.brightness), hover: fluent.resources.subtleFillColorSecondary,
+            onChoose: { b, c in deck.setPictureCorrection(brightness: b, contrast: c) })
+        return Chrome.menuButton(FluentSystemIcons.brightness, "Corrections", "Brightness and contrast of the picture", fluent,
+                                 items: pic == nil ? [] : [grid])
     }
 
     private func _slidePictureFormat(_ deck: DeckController, _ fluent: FluentThemeData) -> [Widget] {
@@ -817,6 +811,14 @@ extension Ribbon {
                 _pictureCorrectionsMenu(deck, fluent),
                 _pictureTransparencyMenu(deck, fluent),
             ]),
+            // Picture Styles: the border (colour, weight, dashes; no arrowheads) and the effects (shadow, glow,
+            // reflection, soft edges) a shape has; bevel and 3-D rotation are not offered (pictures do not save scene3d/sp3d yet). (The gallery of PowerPoint's named styles waits on its values.)
+            Chrome.group("Picture Styles", fluent, [Chrome.rows([
+                _shapeColorMenu(FluentSystemIcons.edit, "Picture Border", deck, fluent, outline: true, arrows: false),
+                Chrome.vgap(4),
+                Chrome.menuButton(FluentSystemIcons.textEffects, "Picture Effects", "Shadow, glow, reflection, soft edges",
+                                  fluent, items: _effectItems(deck, fluent, threeD: false)),
+            ])]),
             Chrome.group("Size", fluent, [
                 Chrome.bigToggle(FluentSystemIcons.cut, "Crop", deck.cropping != nil, fluent) {
                     if deck.cropping != nil { deck.endCrop() } else { deck.beginCrop() }
