@@ -1063,14 +1063,22 @@ public final class RichEditableState: State<StatefulWidget> {
         for box in doc.paragraphs[pos.paragraph].checkBoxes {
             let l = _layout.caretRect(RichPosition(paragraph: pos.paragraph, offset: box.range.lowerBound), doc)
             let r = _layout.caretRect(RichPosition(paragraph: pos.paragraph, offset: box.range.upperBound), doc)
-            if flow.dx >= l.left - 1, flow.dx <= r.left + 1, flow.dy >= l.top, flow.dy <= l.top + l.height { return (pos.paragraph, box.id, box.range.lowerBound) }
+            if Self._over(flow, l, r) { return (pos.paragraph, box.id, box.range.lowerBound) }
         }
         for box in doc.paragraphs[pos.paragraph].formCheckBoxes {
             let l = _layout.caretRect(RichPosition(paragraph: pos.paragraph, offset: box.offset), doc)
             let r = _layout.caretRect(RichPosition(paragraph: pos.paragraph, offset: box.offset + 1), doc)
-            if flow.dx >= l.left - 1, flow.dx <= r.left + 1, flow.dy >= l.top, flow.dy <= l.top + l.height { return (pos.paragraph, nil, box.offset) }
+            if Self._over(flow, l, r) { return (pos.paragraph, nil, box.offset) }
         }
         return nil
+    }
+
+    /// Whether a flow point is over the text between two caret rects of one line: across, between them; down, the line's
+    /// height. (Not one caret's: a legacy box's glyph is hidden behind its drawn square, and its caret is 0.1pt tall, so a
+    /// click anywhere but that sliver missed the box.)
+    static func _over(_ flow: Offset, _ l: Rect, _ r: Rect) -> Bool {
+        flow.dx >= min(l.left, r.left) - 1 && flow.dx <= max(l.left, r.left) + 1
+            && flow.dy >= min(l.top, r.top) && flow.dy <= max(l.top + l.height, r.top + r.height)
     }
 
     private func _toggle(_ box: (paragraph: Int, id: Int?, offset: Int)) {

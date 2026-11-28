@@ -8347,9 +8347,18 @@ final class DocxTests: XCTestCase {
         for (i, at, want) in [(0, 12, true), (1, 11, false), (2, control, true)] {
             let r = try XCTUnwrap(st.caretRectOnScreen(RichPosition(paragraph: i, offset: at)))
             let next = try XCTUnwrap(st.caretRectOnScreen(RichPosition(paragraph: i, offset: at + 1)))
-            let p = rbox.localToGlobal(Offset((r.left + next.left) / 2, r.top + r.height / 2))
+            // The middle of the drawn box: across, between the box's carets; down, the middle of its line (the hidden
+            // glyph's own caret is 0.1pt tall, and #3402's hit test matched only that sliver, so the Mac's clicks missed).
+            let top = min(r.top, next.top), bottom = max(r.top + r.height, next.top + next.height)
+            let p = rbox.localToGlobal(Offset((r.left + next.left) / 2, (top + bottom) / 2))
             if let dir = ProcessInfo.processInfo.environment["FORMS1_OUT"] {
                 try "box \(i): \(Int(p.dx)) \(Int(p.dy))\n".write(toFile: dir + "/points-\(i).txt", atomically: true, encoding: .utf8)
+            }
+            // (and a few points round it, still on the box)
+            for d in [Offset(-3, -4), Offset(3, 4)] where i < 2 {
+                ui.click(at: Offset(p.dx + d.dx, p.dy + d.dy), kind: .mouse); ui.pump()
+                XCTAssertEqual(doc.document.paragraphs[i].formCheckBoxes.first?.checked, want, "box \(i) clicked off its middle by \(d)")
+                doc.undo(); ui.pump()
             }
             ui.click(at: p, kind: .mouse); ui.pump()
             XCTAssertEqual(i == 2 ? doc.document.paragraphs[i].checkBoxes.first?.checked : doc.document.paragraphs[i].formCheckBoxes.first?.checked,
