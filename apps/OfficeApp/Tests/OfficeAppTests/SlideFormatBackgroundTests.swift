@@ -265,6 +265,11 @@ final class SlideFormatBackgroundTests: XCTestCase {
         ui.tap(id: "bg.kind.pattern"); settle(ui)
         XCTAssertEqual(deck.currentSlide.background?.isPattern, true)
         ui.tap(id: "bg.pattern.dkUpDiag"); settle(ui)
+        // The chosen swatch wears the ring (it moves with the choice).
+        let ring = try XCTUnwrap(ui.centre(id: "bg.pattern.ring")), cell = try XCTUnwrap(ui.centre(id: "bg.pattern.dkUpDiag"))
+        XCTAssertLessThanOrEqual((ring - cell).distance, 1)
+        XCTAssertFalse(ui.has(id: "bg.pattern.cell.dkUpDiag"))
+        XCTAssertTrue(ui.has(id: "bg.pattern.cell.pct5"))
         enter(ui, "bg.pattern.fg", "C00000")
         let f = try XCTUnwrap(deck.currentSlide.background)
         XCTAssertEqual(f.patternPreset, "dkUpDiag")
@@ -338,5 +343,42 @@ final class SlideFormatBackgroundTests: XCTestCase {
         deck.undo()
         XCTAssertNotNil(deck.slides[0].background)
         XCTAssertTrue(deck.slides[0].hideMasterShapes)
+    }
+}
+
+/// ⌘Z after a change made from the pane undoes it, even while a pane field had the keyboard (the fields keep
+/// no undo of their own, and a field passes no undo chord on).
+final class SlideFormatBackgroundUndoTests: XCTestCase {
+    private func settle(_ ui: WidgetTester) {
+        for _ in 0 ..< 3 { ui.pump(); for cb in FrameCallbackScheduler.shared.takePostFrameCallbacks() { cb(.zero) } }
+        ui.pump()
+    }
+
+    private func undoChord(_ ui: WidgetTester) {
+        let main: Int64 = KeyModifiers.primary == .meta ? 0xFFE7 : 0xFFE3
+        func send(_ l: Int64, _ t: KeyEventType) {
+            FocusManager.instance.dispatchKeyData(KeyData(timeStamp: 0, type: t, physical: 0, logical: l, character: nil, synthesized: false))
+        }
+        send(main, .down); send(0x7A, .down); send(0x7A, .up); send(main, .up); settle(ui)
+    }
+
+    func testUndoChordAfterAPaneChangeWhileAFieldHadTheKeyboard() throws {
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light),
+                                        home: SlidesShell(initialPath: nil, startBlank: true, onSwitch: { _, _ in }), title: "Test"),
+                              size: Size(1440, 932))
+        settle(ui)
+        let shell = try XCTUnwrap(ui.state(SlidesShellState.self))
+        let deck = try XCTUnwrap(shell.session.deck)
+        shell.session.onFormatBackground?(); settle(ui)
+        ui.tap(id: "bg.kind.gradient"); settle(ui)
+        // A field takes the keyboard, then a control that is not a field changes the background.
+        ui.tap(id: "bg.stop.transparency"); settle(ui)
+        XCTAssertNotNil(FocusManager.instance.focusedNode, "the field has the keyboard")
+        ui.tap(id: "bg.gradtype"); settle(ui)
+        XCTAssertTrue(ui.tap(text: "Radial")); settle(ui)
+        XCTAssertEqual(deck.currentSlide.background?.path, .circle)
+        undoChord(ui)
+        XCTAssertNil(deck.currentSlide.background?.path, "⌘Z took the background back to linear")
+        XCTAssertEqual(deck.currentSlide.background?.stops.count, 2)
     }
 }

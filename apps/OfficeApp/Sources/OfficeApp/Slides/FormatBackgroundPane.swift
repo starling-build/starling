@@ -108,7 +108,12 @@ final class FormatBackgroundPaneState: State<StatefulWidget> {
 
     private func _panel(_ context: any BuildContext) -> Widget {
         let deck = _w.deck
-        let onPicture = _w.onPicture
+        // A change made from the pane takes the keyboard from its fields, so the next ⌘Z undoes that change:
+        // the fields keep no undo of their own, and a chord from a field never reaches the slide's undo.
+        let letGo = { FocusManager.instance.focusedNode?.unfocus() }
+        func set(_ g: SlideFill?) { letGo(); deck.setBackground(g) }
+        let pick = _w.onPicture
+        let onPicture = { letGo(); pick() }
         let fluent = FluentTheme.of(context)
         let caption = fluent.typography.caption?.copyWith(color: fluent.resources.textFillColorSecondary)
         let fill = deck.currentSlide.background ?? deck.currentSlide.inheritedBackground
@@ -118,7 +123,7 @@ final class FormatBackgroundPaneState: State<StatefulWidget> {
         func radio(_ id: String, _ label: String, _ k: Kind, _ make: @escaping () -> SlideFill?) -> Widget {
             RadioButton<Kind>(key: ValueKey(id), value: k, groupValue: kind,
                               onChanged: { _ in
-                                  if k == .picture { onPicture() } else { deck.setBackground(make()) }
+                                  if k == .picture { onPicture() } else { set(make()) }
                               }, content: Text(label))
         }
         func hexRow(_ id: String, _ label: String, _ colour: Color, _ apply: @escaping (Color) -> Void) -> Widget {
@@ -161,9 +166,9 @@ final class FormatBackgroundPaneState: State<StatefulWidget> {
         case .solid:
             let colour = fill?.color ?? base
             controls = [
-                hexRow("bg.color", "Colour (hex)", colour) { c in deck.setBackground(SlideFill(color: c.withAlpha(colour.alpha))) }, gap(6),
+                hexRow("bg.color", "Colour (hex)", colour) { c in set(SlideFill(color: c.withAlpha(colour.alpha))) }, gap(6),
                 numRow("bg.transparency", "Transparency", Self.transparency(colour), unit: "%", 0...100) { t in
-                    deck.setBackground(SlideFill(color: Self.transparent(colour, t)))
+                    set(SlideFill(color: Self.transparent(colour, t)))
                 },
             ]
         case .gradient:
@@ -171,10 +176,10 @@ final class FormatBackgroundPaneState: State<StatefulWidget> {
                 let i = min(_stop, f.stops.count - 1)
                 let stop = f.stops[i]
                 let type = Self.gradientType(f)
-                func with(_ edit: (inout SlideFill) -> Void) { var g = f; edit(&g); g.color = g.stops.first?.color; deck.setBackground(g) }
+                func with(_ edit: (inout SlideFill) -> Void) { var g = f; edit(&g); g.color = g.stops.first?.color; set(g) }
                 controls = [
                     comboRow("bg.gradtype", "Type", type, [(.linear, "Linear"), (.radial, "Radial"), (.rectangular, "Rectangular")]) { t in
-                        var g = Self.withType(f, t); g.color = g.stops.first?.color; deck.setBackground(g)
+                        var g = Self.withType(f, t); g.color = g.stops.first?.color; set(g)
                     }, gap(6),
                 ] + (type == .linear ? [numRow("bg.angle", "Angle", f.angle, unit: "°", -360...360) { a in with { $0.angle = a } }, gap(10)] : [gap(4)]) + [
                     Text("Gradient stops", style: caption), gap(4),
@@ -184,7 +189,7 @@ final class FormatBackgroundPaneState: State<StatefulWidget> {
                     hexRow("bg.stop.color", "Colour (hex)", stop.color) { c in with { $0.stops[i].color = c.withAlpha(stop.color.alpha) } }, gap(6),
                     numRow("bg.stop.position", "Position", (stop.position * 100).rounded(), unit: "%", 0...100) { [weak self] p in
                         var g = f; let at = Self.moveStop(&g, i, to: p / 100); g.color = g.stops.first?.color
-                        self?._stop = at; deck.setBackground(g)
+                        self?._stop = at; set(g)
                     }, gap(6),
                     numRow("bg.stop.transparency", "Transparency", Self.transparency(stop.color), unit: "%", 0...100) { t in
                         with { $0.stops[i].color = Self.transparent(stop.color, t) }
@@ -192,12 +197,12 @@ final class FormatBackgroundPaneState: State<StatefulWidget> {
                     Row(children: [
                         Button(key: ValueKey("bg.stop.add"), onPressed: { [weak self] in
                             var g = f; let at = Self.addStop(&g, after: i); g.color = g.stops.first?.color
-                            self?._stop = at; deck.setBackground(g)
+                            self?._stop = at; set(g)
                         }, child: Text("Add stop")),
                         SizedBox(width: 8, height: nil, child: nil),
                         Button(key: ValueKey("bg.stop.remove"), onPressed: f.stops.count > 2 ? { [weak self] in
                             var g = f; g.stops.remove(at: i); g.color = g.stops.first?.color
-                            self?._stop = max(0, i - 1); deck.setBackground(g)
+                            self?._stop = max(0, i - 1); set(g)
                         } : nil, child: Text("Remove stop")),
                     ]),
                 ]
@@ -209,16 +214,21 @@ final class FormatBackgroundPaneState: State<StatefulWidget> {
                 let tiles = Wrap(children: Self.patterns.map { preset in
                     Tooltip(message: preset, child: GestureDetector(
                         key: ValueKey("bg.pattern.\(preset)"),
-                        onTap: { deck.setBackground(PatternFill.fill(preset: preset, foreground: fg, background: bg)) },
-                        child: Padding(padding: EdgeInsets(left: 0, top: 0, right: 2, bottom: 2), child: DecoratedBox(
-                            decoration: BoxDecoration(border: Border.all(color: preset == chosen ? fluent.accentColor.normal : fluent.resources.controlStrokeColorDefault,
-                                                                         width: preset == chosen ? 2 : 1)),
-                            child: SizedBox(width: 26, height: 26, child: CustomPaint(painter: PatternSwatchPainter(preset: preset, fg: fg, bg: bg)))))))
+                        onTap: { set(PatternFill.fill(preset: preset, foreground: fg, background: bg)) },
+                        // The chosen swatch has a ring in the accent colour round it, clear of the pattern (a border
+                        // drawn under the swatch was covered by it).
+                        child: Padding(padding: EdgeInsets(left: 0, top: 0, right: 1, bottom: 1), child: DecoratedBox(
+                            key: ValueKey(preset == chosen ? "bg.pattern.ring" : "bg.pattern.cell.\(preset)"),
+                            decoration: BoxDecoration(border: Border.all(color: preset == chosen ? fluent.accentColor.normal : Color(0x00000000), width: 2)),
+                            child: Padding(padding: EdgeInsets(all: 3), child: DecoratedBox(
+                                decoration: BoxDecoration(border: Border.all(color: fluent.resources.controlStrokeColorDefault, width: 1)),
+                                child: Padding(padding: EdgeInsets(all: 1), child: SizedBox(width: 22, height: 22,
+                                    child: CustomPaint(painter: PatternSwatchPainter(preset: preset, fg: fg, bg: bg))))))))))
                 })
                 controls = [
                     tiles, gap(8),
-                    hexRow("bg.pattern.fg", "Foreground", fg) { c in deck.setBackground(PatternFill.fill(preset: chosen ?? "pct5", foreground: c, background: bg)) }, gap(6),
-                    hexRow("bg.pattern.bg", "Background", bg) { c in deck.setBackground(PatternFill.fill(preset: chosen ?? "pct5", foreground: fg, background: c)) },
+                    hexRow("bg.pattern.fg", "Foreground", fg) { c in set(PatternFill.fill(preset: chosen ?? "pct5", foreground: c, background: bg)) }, gap(6),
+                    hexRow("bg.pattern.bg", "Background", bg) { c in set(PatternFill.fill(preset: chosen ?? "pct5", foreground: fg, background: c)) },
                 ]
             }
         case .picture:
@@ -226,10 +236,10 @@ final class FormatBackgroundPaneState: State<StatefulWidget> {
                 controls = [
                     Button(key: ValueKey("bg.choose"), onPressed: onPicture, child: Text("Choose picture…")), gap(6),
                     numRow("bg.transparency", "Transparency", (1 - f.imageAlpha) * 100, unit: "%", 0...100) { t in
-                        var g = f; g.imageAlpha = 1 - t / 100; deck.setBackground(g)
+                        var g = f; g.imageAlpha = 1 - t / 100; set(g)
                     }, gap(6),
                     Checkbox(key: ValueKey("bg.tile"), checked: f.tiled, onChanged: { v in
-                        var g = f; g.tiled = v ?? false; deck.setBackground(g)
+                        var g = f; g.tiled = v ?? false; set(g)
                     }, content: Text("Tile picture as texture")),
                 ]
             }
@@ -249,14 +259,14 @@ final class FormatBackgroundPaneState: State<StatefulWidget> {
             radio("bg.kind.pattern", "Pattern fill", .pattern) { PatternFill.fill(preset: "pct5", foreground: deck.theme.text, background: base) }, gap(4),
             radio("bg.kind.theme", "Theme background", .theme) { nil }, gap(8),
             Checkbox(key: ValueKey("bg.hide"), checked: deck.currentSlide.hideMasterShapes, onChanged: { (v: Bool?) in
-                deck.setHideBackgroundGraphics(v ?? false)
+                letGo(); deck.setHideBackgroundGraphics(v ?? false)
             }, content: Text("Hide background graphics")), gap(14),
         ] + controls + [
             gap(16),
             Row(children: [
-                Button(key: ValueKey("bg.all"), onPressed: { deck.applyBackgroundToAll() }, child: Text("Apply to All")),
+                Button(key: ValueKey("bg.all"), onPressed: { letGo(); deck.applyBackgroundToAll() }, child: Text("Apply to All")),
                 SizedBox(width: 8, height: nil, child: nil),
-                Button(key: ValueKey("bg.reset"), onPressed: { deck.resetBackground() }, child: Text("Reset Background")),
+                Button(key: ValueKey("bg.reset"), onPressed: { letGo(); deck.resetBackground() }, child: Text("Reset Background")),
             ]),
         ])
         return SizedBox(width: 300, height: nil, child: DecoratedBox(
