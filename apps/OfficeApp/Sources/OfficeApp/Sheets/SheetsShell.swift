@@ -1362,6 +1362,7 @@ final class SheetsShellState: State<StatefulWidget> {
                 onContextMenu: { [weak self] point, area in self?._showContextMenu(at: point, area) },
                 onFilterMenu: { [weak self] point, col in self?._showFilterMenu(at: point, col: col) },
                 onListMenu: { [weak self] point, cell, choices in self?._showListMenu(at: point, cell: cell, choices) },
+                onPasteOptions: { [weak self] point in self?._showPasteOptions(at: point) },
                 onZoom: { [weak self] f in self?.setState { self?._zoom = max(0.25, min(4, (self?._zoom ?? 1) * f)) } }))),
                 PivotFieldsPane(controller: wb, onChange: { [weak self] in self?.setState {} },
                                 onValueSettings: { [weak self] k in self?.setState { self?._pvValueOpen = k } },
@@ -1857,6 +1858,28 @@ final class SheetsShellState: State<StatefulWidget> {
                 self?.wb.setInputs([(cell, choice)])
                 self?._grid?.focus.requestFocus()
             })
+        }
+        _contextMenu.showFlyout(in: context, at: point) { _ in MenuFlyout(items: items) }
+    }
+
+    /// Excel's Paste Options button menu (X-CL-1): the last paste made again another way, in one undo step.
+    /// The way it was made is ticked.
+    static let pasteOptionChoices: [(String, PasteSpecial)] = [
+        ("Paste", PasteSpecial()),
+        ("Formulas", PasteSpecial(what: .formulas)),
+        ("Transpose", PasteSpecial(transpose: true)),
+        ("Values", PasteSpecial(what: .values)),
+        ("Formatting", PasteSpecial(what: .formats)),
+    ]
+
+    private func _showPasteOptions(at point: Offset) {
+        guard let context, let last = wb.pasteOptions else { return }
+        let items: [MenuFlyoutItemBase] = Self.pasteOptionChoices.map { label, how in
+            ToggleMenuFlyoutItem(text: Text(label, key: ValueKey("paste-options.\(label)")), isChecked: last.how == how,
+                                 onChanged: { [weak self] _ in
+                                     self?.wb.repaste(how)
+                                     self?._grid?.focus.requestFocus()
+                                 })
         }
         _contextMenu.showFlyout(in: context, at: point) { _ in MenuFlyout(items: items) }
     }

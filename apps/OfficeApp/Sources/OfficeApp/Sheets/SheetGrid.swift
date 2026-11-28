@@ -124,6 +124,8 @@ final class SheetGrid: StatefulWidget {
     let onFilterMenu: (Offset, Int) -> Void
     /// A validation list's arrow was pressed: where (global), the cell, its choices.
     let onListMenu: (Offset, CellAddress, [String]) -> Void
+    /// The Paste Options button was pressed: where to open its menu (global).
+    let onPasteOptions: (Offset) -> Void
     /// Two fingers pinch: the factor to multiply the zoom by.
     let onZoom: (Double) -> Void
 
@@ -134,6 +136,7 @@ final class SheetGrid: StatefulWidget {
          onContextMenu: @escaping (Offset, GridMenuArea) -> Void = { _, _ in },
          onFilterMenu: @escaping (Offset, Int) -> Void = { _, _ in },
          onListMenu: @escaping (Offset, CellAddress, [String]) -> Void = { _, _, _ in },
+         onPasteOptions: @escaping (Offset) -> Void = { _ in },
          onZoom: @escaping (Double) -> Void = { _ in }) {
         self.controller = controller
         self.zoom = zoom
@@ -143,6 +146,7 @@ final class SheetGrid: StatefulWidget {
         self.onContextMenu = onContextMenu
         self.onFilterMenu = onFilterMenu
         self.onListMenu = onListMenu
+        self.onPasteOptions = onPasteOptions
         self.onZoom = onZoom
         super.init(key: key)
     }
@@ -1111,6 +1115,38 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         return Rect.fromLTWH(r.right + 1, r.top, min(16 * zoom, max(10, r.height)), r.height)
     }
 
+    /// Excel's Paste Options button: just below and right of what the last paste filled, until the cells change.
+    func pasteButton() -> Rect? {
+        let c = controller
+        guard !printing, edit == nil, c.selectedDrawing == nil, let l = c.pasteOptions else { return nil }
+        let r = rect(l.range.bottomRight)
+        return Rect.fromLTWH(r.right + 2, r.bottom + 2, 24, 20)
+    }
+
+    /// A clipboard with a small arrow after it, as Excel draws the button.
+    private func _paintPasteButton(_ canvas: any Canvas, _ b: Rect, ink: Color, dark: Bool) {
+        let fill = Paint()
+        fill.color = dark ? Color(0xFF3A3A3A) : Color(0xFFF3F3F3)
+        canvas.drawRect(b, fill)
+        let edge = Paint()
+        edge.style = .stroke
+        edge.strokeWidth = 1
+        edge.color = dark ? Color(0xFF6A6A6A) : Color(0xFFABABAB)
+        canvas.drawRect(b.deflate(0.5), edge)
+        let line = Paint()
+        line.style = .stroke
+        line.strokeWidth = 1
+        line.color = ink
+        let x = b.left.rounded() + 4.5, y = b.top.rounded() + 4.5
+        canvas.drawRect(Rect.fromLTWH(x, y, 10, 12), line)
+        canvas.drawRect(Rect.fromLTWH(x + 3, y - 1, 4, 2), line)
+        let tri = Path()
+        let cx = b.right - 5, cy = b.center.dy
+        tri.moveTo(cx - 2.5, cy - 1.5); tri.lineTo(cx + 2.5, cy - 1.5); tri.lineTo(cx, cy + 1.5); tri.close()
+        fill.color = ink
+        canvas.drawPath(tri, fill)
+    }
+
     /// A filter dropdown: a square in the header cell's bottom-right corner.
     func filterButton(_ a: CellAddress) -> Rect {
         let r = rect(a)
@@ -1897,6 +1933,12 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         if p.dx < headerWidth && p.dy < headerHeight {
             commitEdit()
             c.select(range: CellRange(top: 0, left: 0, bottom: CellAddress.maxRows - 1, right: CellAddress.maxCols - 1), active: c.active)
+            return
+        }
+        // The Paste Options button.
+        if let b = pasteButton(), b.contains(p) {
+            commitEdit()
+            _w.onPasteOptions(_box?.localToGlobal(Offset(b.left, b.bottom)) ?? Offset(b.left, b.bottom))
             return
         }
         // A validation list's arrow.
@@ -2711,6 +2753,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             p.color = ink
             canvas.drawPath(tri, p)
         }
+        if let b = pasteButton() { _paintPasteButton(canvas, b, ink: ink, dark: dark) }
         _paintNote(canvas, ink: ink)
         _paintPrompt(canvas)
         _paintCircles(canvas)
