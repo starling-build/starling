@@ -36,3 +36,23 @@ extension String {
         #endif
     }
 }
+
+/// What the accelerator with G does in Writer. Word for Windows opens Go To on Ctrl+G; Mac Word keeps
+/// Cmd+G as Find Next (Cmd+Shift+G Find Previous), the Mac's convention. Ctrl+Shift+G (Word Count in Word
+/// for Windows, which this app has no dialog for) stays Find Previous.
+enum PrimaryG: Equatable {
+    case goTo, findNext, findPrevious
+
+    static func of(mac: Bool, shift: Bool) -> PrimaryG {
+        if shift { return .findPrevious }
+        return mac ? .findNext : .goTo
+    }
+
+    static var platformIsMac: Bool {
+        #if os(macOS) || os(iOS)
+        return true
+        #else
+        return false
+        #endif
+    }
+}

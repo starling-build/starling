@@ -626,11 +626,14 @@ final class Ribbon: StatelessWidget {
 
     private func _insert(_ fluent: FluentThemeData) -> [Widget] {
         let c = session.controller
-        let symbols: [(String, () -> Void)] = [("— Em dash", "—"), ("– En dash", "–"), ("… Ellipsis", "…"),
-                                                ("© Copyright", "©"), ("® Registered", "®"), ("™ Trademark", "™"),
-                                                ("• Bullet", "•"), ("§ Section", "§"), ("° Degree", "°"),
-                                                ("€ Euro", "€"), ("£ Pound", "£"), ("¥ Yen", "¥")]
-            .map { name, ch in (name, { c.insertText(ch) }) }
+        // Word's Symbol gallery: the 20 most recently used symbols (shared with the Symbol
+        // dialog), filled from Word's defaults; picking one moves it to the front.
+        let symbols: [(String, () -> Void)] = SymbolData.gallery(SymbolData.decodeRecent(OfficeSettings.string(SymbolPickerState.recentKey)))
+            .compactMap { v in Unicode.Scalar(v).map { u in (String(Character(u)) + "  " + SymbolData.name(v), {
+                c.insertSymbol(String(Character(u)), font: nil)
+                let recent = SymbolData.remember(v, in: SymbolData.decodeRecent(OfficeSettings.string(SymbolPickerState.recentKey)))
+                OfficeSettings.setString(SymbolPickerState.recentKey, SymbolData.encodeRecent(recent))
+            }) } }
             + [("More Symbols…", { [session] in session.onSymbolDialog?() })]
         let shapeChoices: [(String, () -> Void)] = [("Rectangle", "rect"), ("Rounded Rectangle", "roundRect"), ("Oval", "ellipse"),
                                                     ("Triangle", "triangle"), ("Right Arrow", "rightArrow")]

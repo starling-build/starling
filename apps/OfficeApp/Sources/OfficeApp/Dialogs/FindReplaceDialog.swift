@@ -106,8 +106,10 @@ final class FindReplaceDialogState: State<StatefulWidget> {
     private(set) var replaceFormat = FindFormat()
     /// Which box Special and Format work on: 0 Find what, 1 Replace with (the last one clicked).
     private(set) var target = 0
-    private(set) var specialOpen = false
     private(set) var formatOpen = false
+    /// Building the invisible Replace tab that sizes the dialog: no keys, no text boxes.
+    private var _ghost = false
+    private func _k(_ id: String, _ w: Widget) -> Widget { _ghost ? w : PKeyed(id, w) }
     private(set) var goToIndex = 0
 
     override func initState() {
@@ -117,7 +119,7 @@ final class FindReplaceDialogState: State<StatefulWidget> {
         target = 0
     }
 
-    func setTab(_ t: Int) { setState { tab = t; specialOpen = false; formatOpen = false; if t == 0 { target = 0 } } }
+    func setTab(_ t: Int) { setState { tab = t; formatOpen = false; if t == 0 { target = 0 } } }
     func setTarget(_ t: Int) { setState { target = t } }
     /// The two boxes' text (tests, and Special's insertions).
     var queryText: String { get { _query.text } set { _query.text = newValue } }
@@ -140,7 +142,7 @@ final class FindReplaceDialogState: State<StatefulWidget> {
         let text = (String(decoding: u[0 ..< lo], as: UTF16.self)) + code + String(decoding: u[hi...], as: UTF16.self)
         let at = lo + code.utf16.count
         c.value = TextEditingValue(text: text, selection: TextSelection(baseOffset: at, extentOffset: at))
-        setState { specialOpen = false }
+        setState {}
     }
 
     /// Word's Special menu: (label, code). Find what offers the search-only codes; wildcards drop the
@@ -274,14 +276,15 @@ final class FindReplaceDialogState: State<StatefulWidget> {
         let caption = fluent.typography.caption?.copyWith(color: fluent.resources.textFillColorSecondary)
         func label(_ t: String) -> Widget { SizedBox(width: 90, height: nil, child: Text(t, style: body)) }
         func field(_ c: TextEditingController, _ key: String, submit: @escaping () -> Void, autofocus: Bool = false, box: Int? = nil) -> Widget {
-            let tb: Widget = PKeyed(key, FluentTextBox(controller: c, onSubmitted: { _ in submit() }, autofocus: autofocus))
+            if _ghost { return Expanded(child: SizedBox(width: nil, height: Chrome.fieldHeight, child: nil)) }
+            let tb: Widget = _k(key, FluentTextBox(controller: c, onSubmitted: { _ in submit() }, autofocus: autofocus))
             let inner: Widget = box.map { b in Listener(onPointerDown: { [weak self] _ in self?.setTarget(b) }, behavior: .translucent, child: tb) } ?? tb
             return Expanded(child: SizedBox(width: nil, height: Chrome.fieldHeight, child: inner))
         }
         let gap = SizedBox(width: nil, height: 10, child: nil)
         func hgap(_ w: Double = 8) -> Widget { SizedBox(width: w, height: nil, child: nil) }
         func combo(_ key: String, _ items: [String], _ at: Int, width: Double = 190, _ set: @escaping (FindReplaceDialogState, Int) -> Void) -> Widget {
-            SizedBox(width: width, height: nil, child: PKeyed(key, ComboBox<String>(
+            SizedBox(width: width, height: nil, child: _k(key, ComboBox<String>(
                 value: items[min(max(at, 0), items.count - 1)],
                 items: items.map { ComboBoxItem<String>(value: $0, child: Text($0, style: body)) },
                 onChanged: { [weak self] v in
@@ -290,113 +293,120 @@ final class FindReplaceDialogState: State<StatefulWidget> {
                 })))
         }
         func check(_ key: String, _ text: String, _ on: Bool, _ set: @escaping (FindReplaceDialogState, Bool) -> Void) -> Widget {
-            PKeyed(key, Checkbox(checked: on, onChanged: { [weak self] v in guard let self else { return }; self.setState { set(self, v ?? false) } },
+            _k(key, Checkbox(checked: on, onChanged: { [weak self] v in guard let self else { return }; self.setState { set(self, v ?? false) } },
                                  content: Text(text, style: body)))
         }
-        var page: [Widget] = []
-        if h.wordTabs {
-            func tabButton(_ key: String, _ name: String, _ t: Int) -> Widget {
-                PKeyed(key, Chrome.textToggle(name, tab == t, fluent) { [weak self] in self?.setTab(t) })
+        func makePage(_ tab: Int) -> [Widget] {
+            var page: [Widget] = []
+            if h.wordTabs {
+                func tabButton(_ key: String, _ name: String, _ t: Int) -> Widget {
+                    _k(key, Chrome.textToggle(name, tab == t, fluent) { [weak self] in self?.setTab(t) })
+                }
+                page.append(Padding(padding: EdgeInsets(left: 0, top: 0, right: 0, bottom: 12), child: Row(children: [
+                    tabButton("fr-tab-find", "Find", 0), tabButton("fr-tab-replace", "Replace", 1),
+                ] + (h.goToKinds.isEmpty ? [] : [tabButton("fr-tab-goto", "Go To", 2)]))))
             }
-            page.append(Padding(padding: EdgeInsets(left: 0, top: 0, right: 0, bottom: 12), child: Row(children: [
-                tabButton("fr-tab-find", "Find", 0), tabButton("fr-tab-replace", "Replace", 1),
-            ] + (h.goToKinds.isEmpty ? [] : [tabButton("fr-tab-goto", "Go To", 2)]))))
-        }
-        if tab == 2 {
-            page += _goToPage(fluent, label: label, field: field, combo: combo)
-        } else {
-            page.append(Row(crossAxisAlignment: .center, children: [label("Find what"),
-                field(_query, "fr-query", submit: { [weak self] in self?.next() }, autofocus: true, box: 0)]))
-            if !format.isEmpty {
-                page.append(Padding(padding: EdgeInsets(left: 90, top: 2, right: 0, bottom: 0),
-                                    child: PKeyed("fr-format-find", Text("Format: " + format.describe(styleName: _styleName), style: caption))))
-            }
-            if tab == 1 {
-                page.append(gap)
-                page.append(Row(crossAxisAlignment: .center, children: [label("Replace with"),
-                    field(_replacement, "fr-replace", submit: { [weak self] in self?.replaceOne() }, box: 1)]))
-                if !replaceFormat.isEmpty {
+            if tab == 2 {
+                page += _goToPage(fluent, label: label, field: field, combo: combo)
+            } else {
+                page.append(Row(crossAxisAlignment: .center, children: [label("Find what"),
+                    field(_query, "fr-query", submit: { [weak self] in self?.next() }, autofocus: true, box: 0)]))
+                if !format.isEmpty {
                     page.append(Padding(padding: EdgeInsets(left: 90, top: 2, right: 0, bottom: 0),
-                                        child: PKeyed("fr-format-replace", Text("Format: " + replaceFormat.describe(styleName: _styleName), style: caption))))
+                                        child: _k("fr-format-find", Text("Format: " + format.describe(styleName: _styleName), style: caption))))
+                }
+                if tab == 1 {
+                    page.append(gap)
+                    page.append(Row(crossAxisAlignment: .center, children: [label("Replace with"),
+                        field(_replacement, "fr-replace", submit: { [weak self] in self?.replaceOne() }, box: 1)]))
+                    if !replaceFormat.isEmpty {
+                        page.append(Padding(padding: EdgeInsets(left: 90, top: 2, right: 0, bottom: 0),
+                                            child: _k("fr-format-replace", Text("Format: " + replaceFormat.describe(styleName: _styleName), style: caption))))
+                    }
+                }
+                page.append(gap)
+                page.append(check("fr-case", "Match case", matchCase) { $0.matchCase = $1 })
+                page.append(check("fr-whole", h.wholeLabel, whole) { $0.whole = $1 })
+                if h.wordTabs {
+                    page.append(check("fr-prefix", "Match prefix", prefix) { $0.prefix = $1 })
+                    page.append(check("fr-suffix", "Match suffix", suffix) { $0.suffix = $1 })
+                    page.append(check("fr-ignore-punct", "Ignore punctuation characters", ignorePunctuation) { $0.ignorePunctuation = $1 })
+                    page.append(check("fr-ignore-space", "Ignore white-space characters", ignoreSpace) { $0.ignoreSpace = $1 })
+                }
+                page.append(gap)
+                page.append(Row(crossAxisAlignment: .center, children: [label("Match using"),
+                    combo("fr-mode", Self.modes, modeIndex) { $0.modeIndex = $1 }]))
+                func choice(_ name: String, _ key: String, _ items: [String], _ at: Int, _ set: @escaping (FindReplaceDialogState, Int) -> Void) {
+                    guard !items.isEmpty else { return }
+                    page.append(gap)
+                    page.append(Row(crossAxisAlignment: .center, children: [label(name), combo(key, items, at, set)]))
+                }
+                choice("Search in", "fr-scope", h.scopes, scope) { $0.scope = $1 }
+                choice("Search", "fr-order", h.orders, order) { $0.order = $1 }
+                choice("Look in", "fr-lookin", h.lookIns, lookIn) { $0.lookIn = $1 }
+                if h.wordTabs {
+                    page.append(gap)
+                    let box = target == 1 ? "Replace with" : "Find what"
+                    page.append(Row(crossAxisAlignment: .center, children: [
+                        _k("fr-format", Chrome.textToggle("Format…", formatOpen, fluent) { [weak self] in
+                            self?.setState { self?.formatOpen.toggle() } }),
+                        hgap(),
+                        _k("fr-special", Chrome.menuButton(nil, "Special", nil, fluent, items: specials.map { s in
+                            MenuFlyoutItem(text: Padding(key: ValueKey("fr-sp-" + s.1), padding: EdgeInsets(left: 0, top: 0, right: 0, bottom: 0), child: Text(s.0)),
+                                           onPressed: { [weak self] in self?.insertSpecial(s.1) }) as MenuFlyoutItemBase })),
+                        hgap(),
+                        _k("fr-no-format", Chrome.textToggle("No Formatting", false, fluent) { [weak self] in self?.setFormat(FindFormat()) }),
+                        hgap(12),
+                        Text("For: " + box, style: caption),
+                    ]))
+                    if formatOpen, !_ghost { page.append(_formatPanel(fluent, label: label, combo: combo)) }
+                }
+                page.append(gap)
+                var buttons: [Widget] = [Button(onPressed: { [weak self] in self?.next(backwards: true) }, child: Text("Find Previous"))]
+                if tab == 1 {
+                    buttons += [hgap(), Button(onPressed: { [weak self] in self?.replaceOne() }, child: Text("Replace")),
+                                hgap(), Button(onPressed: { [weak self] in self?.replaceEvery() }, child: Text("Replace All"))]
+                }
+                if h.findAll != nil {
+                    buttons += [hgap(), Button(onPressed: { [weak self] in self?.listAll() }, child: Text("Find All"))]
+                }
+                page.append(Row(children: buttons))
+                if let hits, !_ghost {
+                    page.append(gap)
+                    page.append(_list(hits, fluent))
+                }
+                if h.goTo != nil, !h.wordTabs {
+                    page.append(SizedBox(width: nil, height: 14, child: nil))
+                    page.append(Row(crossAxisAlignment: .center, children: [label(h.goToLabel),
+                        field(_goTo, "fr-goto", submit: { [weak self] in self?.goTo() }),
+                        hgap(),
+                        Button(onPressed: { [weak self] in self?.goTo() }, child: Text("Go"))]
+                        + (h.goToSpecial.map { special in [hgap(),
+                            Button(key: ValueKey("fr-gotospecial"), onPressed: { [weak self] in self?._w.onClose(); special() }, child: Text("Special…"))] } ?? [])))
+                    if !h.goToHint.isEmpty {
+                        page.append(Padding(padding: EdgeInsets(left: 90, top: 2, right: 0, bottom: 0), child: Text(h.goToHint, style: caption)))
+                    }
                 }
             }
-            page.append(gap)
-            page.append(check("fr-case", "Match case", matchCase) { $0.matchCase = $1 })
-            page.append(check("fr-whole", h.wholeLabel, whole) { $0.whole = $1 })
-            if h.wordTabs {
-                page.append(check("fr-prefix", "Match prefix", prefix) { $0.prefix = $1 })
-                page.append(check("fr-suffix", "Match suffix", suffix) { $0.suffix = $1 })
-                page.append(check("fr-ignore-punct", "Ignore punctuation characters", ignorePunctuation) { $0.ignorePunctuation = $1 })
-                page.append(check("fr-ignore-space", "Ignore white-space characters", ignoreSpace) { $0.ignoreSpace = $1 })
-            }
-            page.append(gap)
-            page.append(Row(crossAxisAlignment: .center, children: [label("Match using"),
-                combo("fr-mode", Self.modes, modeIndex) { $0.modeIndex = $1 }]))
-            func choice(_ name: String, _ key: String, _ items: [String], _ at: Int, _ set: @escaping (FindReplaceDialogState, Int) -> Void) {
-                guard !items.isEmpty else { return }
-                page.append(gap)
-                page.append(Row(crossAxisAlignment: .center, children: [label(name), combo(key, items, at, set)]))
-            }
-            choice("Search in", "fr-scope", h.scopes, scope) { $0.scope = $1 }
-            choice("Search", "fr-order", h.orders, order) { $0.order = $1 }
-            choice("Look in", "fr-lookin", h.lookIns, lookIn) { $0.lookIn = $1 }
-            if h.wordTabs {
-                page.append(gap)
-                let box = target == 1 ? "Replace with" : "Find what"
-                page.append(Row(crossAxisAlignment: .center, children: [
-                    PKeyed("fr-format", Chrome.textToggle("Format…", formatOpen, fluent) { [weak self] in
-                        self?.setState { self?.formatOpen.toggle(); self?.specialOpen = false } }),
-                    hgap(),
-                    PKeyed("fr-special", Chrome.textToggle("Special…", specialOpen, fluent) { [weak self] in
-                        self?.setState { self?.specialOpen.toggle(); self?.formatOpen = false } }),
-                    hgap(),
-                    PKeyed("fr-no-format", Chrome.textToggle("No Formatting", false, fluent) { [weak self] in self?.setFormat(FindFormat()) }),
-                    hgap(12),
-                    Text("For: " + box, style: caption),
-                ]))
-                if specialOpen {
-                    page.append(Padding(padding: EdgeInsets(left: 0, top: 6, right: 0, bottom: 0), child: Wrap(spacing: 4, runSpacing: 4, children: specials.map { s in
-                        PKeyed("fr-sp-" + s.1, Chrome.textToggle(s.0, false, fluent) { [weak self] in self?.insertSpecial(s.1) })
-                    })))
-                }
-                if formatOpen { page.append(_formatPanel(fluent, label: label, combo: combo)) }
-            }
-            page.append(gap)
-            var buttons: [Widget] = [Button(onPressed: { [weak self] in self?.next(backwards: true) }, child: Text("Find Previous"))]
-            if tab == 1 {
-                buttons += [hgap(), Button(onPressed: { [weak self] in self?.replaceOne() }, child: Text("Replace")),
-                            hgap(), Button(onPressed: { [weak self] in self?.replaceEvery() }, child: Text("Replace All"))]
-            }
-            if h.findAll != nil {
-                buttons += [hgap(), Button(onPressed: { [weak self] in self?.listAll() }, child: Text("Find All"))]
-            }
-            page.append(Row(children: buttons))
-            if let hits {
-                page.append(gap)
-                page.append(_list(hits, fluent))
-            }
-            if h.goTo != nil, !h.wordTabs {
-                page.append(SizedBox(width: nil, height: 14, child: nil))
-                page.append(Row(crossAxisAlignment: .center, children: [label(h.goToLabel),
-                    field(_goTo, "fr-goto", submit: { [weak self] in self?.goTo() }),
-                    hgap(),
-                    Button(onPressed: { [weak self] in self?.goTo() }, child: Text("Go"))]
-                    + (h.goToSpecial.map { special in [hgap(),
-                        Button(key: ValueKey("fr-gotospecial"), onPressed: { [weak self] in self?._w.onClose(); special() }, child: Text("Special…"))] } ?? [])))
-                if !h.goToHint.isEmpty {
-                    page.append(Padding(padding: EdgeInsets(left: 90, top: 2, right: 0, bottom: 0), child: Text(h.goToHint, style: caption)))
-                }
-            }
+            page.append(SizedBox(width: nil, height: 10, child: nil))
+            page.append(Text(status, style: caption))
+            return page
         }
-        page.append(SizedBox(width: nil, height: 10, child: nil))
-        page.append(Text(status, style: caption))
+        let page = makePage(tab)
+        // Word keeps the dialog one size on its three tabs: each is laid out over an invisible Replace tab
+        // (Format's panel and Find All's list still make it taller, as Word's More does).
+        var content: Widget = Column(crossAxisAlignment: .stretch, children: page)
+        if h.wordTabs {
+            _ghost = true; let sizer = makePage(1); _ghost = false
+            content = Stack(children: [content, IgnorePointer(child: ExcludeSemantics(child: Opacity(opacity: 0, child: Column(crossAxisAlignment: .stretch, children: sizer))))])
+        }
         if tab == 2 {
-            return DialogShell(title: "Find and Replace", page: Column(crossAxisAlignment: .stretch, children: page),
+            return DialogShell(title: "Find and Replace", page: content,
                                okLabel: _goTo.text.isEmpty ? "Next" : "Go To", cancelLabel: "Close", width: 520,
                                onOK: { [weak self] in guard let self else { return }; self.goToStep(self._goTo.text.isEmpty ? 1 : 0) },
                                onCancel: _w.onClose)
         }
-        return DialogShell(title: "Find and Replace", page: Column(crossAxisAlignment: .stretch, children: page),
+        return DialogShell(title: "Find and Replace", page: content,
                            okLabel: "Find Next", cancelLabel: "Close", width: 520,
                            onOK: { [weak self] in self?.next() }, onCancel: _w.onClose)
     }
