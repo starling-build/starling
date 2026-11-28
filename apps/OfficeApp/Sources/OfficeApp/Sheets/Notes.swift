@@ -451,7 +451,8 @@ final class NoteEditorState: State<StatefulWidget> {
     override func build(_ context: any BuildContext) -> Widget {
         let fluent = FluentTheme.of(context)
         let save = _w.onSave, cancel = _w.onCancel, text = _text
-        return FlyoutContent(child: SizedBox(width: 260, height: nil, child: Column(mainAxisSize: .min, crossAxisAlignment: .stretch, children: [
+        // Modal like Writer's note box: Tab stays in it and a screen reader reads only it until Save or Cancel.
+        return KeyboardRegion(name: "Note", modal: true, child: FlyoutContent(child: SizedBox(width: 260, height: nil, child: Column(mainAxisSize: .min, crossAxisAlignment: .stretch, children: [
             Text("Note", style: fluent.typography.bodyStrong),
             Chrome.gap(6),
             SizedBox(width: nil, height: 110, child: FluentTextBox(controller: _text, placeholderText: "Type a note", maxLines: 6, autofocus: true)),
@@ -461,6 +462,6 @@ final class NoteEditorState: State<StatefulWidget> {
                 Chrome.gap(6),
                 Button(onPressed: cancel, child: Text("Cancel")),
             ]),
-        ])))
+        ]))))
     }
 }
