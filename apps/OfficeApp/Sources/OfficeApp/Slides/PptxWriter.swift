@@ -1455,7 +1455,7 @@ private struct SlideXML {
             spPr += fillXML + lineXML + effectsXML
             var openPath = false
             if case .geometry(let p) = s.kind { openPath = p.isOpenPath }
-            let style: String = look?.style ?? (s.themeStyle ? Self._themeStyle(line: openPath) : "")
+            let style: String = s.quickStyle?.xml ?? look?.style ?? (s.themeStyle ? Self._themeStyle(line: openPath) : "")
             var xml = "<p:sp><p:nvSpPr>\(nv)<p:nvPr>\(ph)</p:nvPr></p:nvSpPr><p:spPr>\(spPr)</p:spPr>\(style)"
             if let doc = s.text {
                 let anchor = s.anchor.rawValue

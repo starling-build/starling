@@ -191,7 +191,10 @@ extension Ribbon {
             Chrome.group("Insert Shapes", fluent, [Chrome.rows([
                 Chrome.menuButton(FluentSystemIcons.shapes, "Shapes", "Insert a shape", fluent, items: _shapeItems(deck, fluent)),
             ])]),
-            Chrome.group("Shape Styles", fluent, [Chrome.rows([
+            Chrome.group("Shape Styles", fluent, [Chrome.menuButton(FluentSystemIcons.paintBrush, "Quick Styles",
+                                                                    "Theme Styles: a fill, outline and effect from the theme", fluent,
+                                                                    items: [ShapeQuickStyleMenuItem(deck: deck, hover: fluent.resources.subtleFillColorSecondary)]),
+                                                  Chrome.rows([
                 Chrome.row([
                     _shapeColorMenu(FluentSystemIcons.paintBrush, "Shape Fill", deck, fluent, outline: false),
                     _shapeColorMenu(FluentSystemIcons.edit, "Shape Outline", deck, fluent, outline: true),

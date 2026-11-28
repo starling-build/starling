@@ -683,6 +683,8 @@ final class SlideShape {
     var outlineScheme: String? = nil
     /// A shape drawn here: saved with PowerPoint's default style refs (`p:style`), as PowerPoint saves its new shapes.
     var themeStyle = false
+    /// A Shape Styles gallery entry given here: saved as its refs (`p:style`).
+    var quickStyle: ShapeQuickStyle? = nil
     var outlineWidth = 0.75
     /// The text body, if the shape has one.
     let text: RichDocumentController?

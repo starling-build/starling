@@ -8,7 +8,8 @@ import OfficeText
 
 extension DeckController {
     /// The theme's colours as the style definitions name them (`accent1`, `lt1`...).
-    func tableStyleColors() -> ColorContext {
+    func tableStyleColors(_ deckTheme: DeckTheme? = nil) -> ColorContext {
+        let theme = deckTheme ?? self.theme
         var t = PptxTheme(nil)
         t.colors["dk1"] = theme.text
         t.colors["lt1"] = theme.background
