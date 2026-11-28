@@ -74,6 +74,9 @@ final class SlideCanvasState: State<StatefulWidget> {
         case resize(shape: SlideShape, handle: Int, start: Offset, frame: Rect)
         /// A crop handle of a picture in crop mode: the frame moves over the picture, which stays.
         case crop(shape: SlideShape, handle: Int, start: Offset, frame: Rect, crop: EdgeInsets?)
+        /// A handle of one shape in a multi-selection: that shape resizes as alone, and every other selected shape
+        /// scales by the same factors about its own opposite handle (PowerPoint's way).
+        case resizeAll(lead: SlideShape, handle: Int, start: Offset, frames: [(SlideShape, Rect)])
         case rotate(shape: SlideShape, startAngle: Double, startRotation: Double)
         /// The yellow handle of an elbow's middle run.
         case elbowRun(shape: SlideShape, key: String, alongWidth: Bool)
@@ -387,8 +390,8 @@ final class SlideCanvasState: State<StatefulWidget> {
                                        revision: deck.revision, cache: _w.cache),
                 child: SizedBox(expand: ())))))
         }
-        // Several shapes selected: each shows its own sizing handles, as PowerPoint's do, so a selection drawn over shapes
-        // with an outline of the accent's colour still reads as selected. They are marks only: a press on one moves the
+        // Several shapes selected: each shows its own sizing handles, as PowerPoint's do. Dragging a box's handle resizes
+        // every selected shape (see `.resizeAll`); a line's end handles are marks only, and a press there moves the
         // selection, as a press on the shape does.
         if deck.selection.count > 1 {
             let s = _touchSeen ? 14.0 : 9.0
@@ -397,13 +400,24 @@ final class SlideCanvasState: State<StatefulWidget> {
                 let units: [(Double, Double)] = isLine ? [(0, 0), (1, 1)] : Self.handleUnits
                 for (i, u) in units.enumerated() {
                     let p = shape.isElbow ? (i == 0 ? shape.lineStart : shape.lineEndPoint) : Self._framePoint(shape, u.0, u.1)
+                    let mark: Widget
+                    if isLine {
+                        mark = IgnorePointer(child: DecoratedBox(
+                            decoration: BoxDecoration(color: Color(0xFFFFFFFF),
+                                                      border: Border.all(color: accent, width: 1.5),
+                                                      borderRadius: BorderRadius.all(Radius(circular: 1))),
+                            child: SizedBox(expand: ())))
+                    } else {
+                        mark = _handle(accent: accent, shown: s, cursor: Self._cursor(i, shape.rotation)) { [weak self] e in
+                            guard let self else { return }
+                            self._drag = .resizeAll(lead: shape, handle: i, start: self._slidePoint(e.position),
+                                                    frames: self.deck.selection.map { ($0, $0.frame) })
+                            self.deck.beginFrameEdit()
+                        }
+                    }
                     children.append(Positioned(key: ValueKey("multi-handle-\(n)-\(i)"),
                                                left: ox + p.dx * px - s / 2, top: oy + p.dy * px - s / 2, width: s, height: s,
-                                               child: IgnorePointer(child: DecoratedBox(
-                                                   decoration: BoxDecoration(color: Color(0xFFFFFFFF),
-                                                                             border: Border.all(color: accent, width: 1.5),
-                                                                             borderRadius: BorderRadius.all(Radius(circular: 1))),
-                                                   child: SizedBox(expand: ())))))
+                                               child: mark))
                 }
             }
         }
@@ -809,6 +823,11 @@ final class SlideCanvasState: State<StatefulWidget> {
             } else {
                 deck.setFramesLive([(shape, r)])
             }
+        case .resizeAll(let lead, let handle, let start, let frames):
+            guard let leadFrame = frames.first(where: { $0.0 === lead })?.1 else { break }
+            let r = _resized(lead, leadFrame, handle: handle, delta: Offset(p.dx - start.dx, p.dy - start.dy))
+            deck.setFramesLive(Self.scaledTogether(frames, lead: lead, leadFrame: leadFrame, to: r, handle: handle,
+                                                    fromCentre: _w.modifiers().contains(.control)))
         case .elbowRun(let shape, let key, let alongWidth):
             deck.setElbowRunLive(shape, key, alongWidth: alongWidth, to: p)
         case .adjust(let shape, let handle):
@@ -871,7 +890,7 @@ final class SlideCanvasState: State<StatefulWidget> {
                 }
                 PlatformDispatcher.instance.scheduleFrame()
             }
-        case .resize, .crop, .rotate, .elbowRun, .adjust:
+        case .resize, .resizeAll, .crop, .rotate, .elbowRun, .adjust:
             deck.endFrameEdit()
         case .draw(let preset, let a, let b):
             let m = _w.modifiers()
@@ -928,6 +947,30 @@ final class SlideCanvasState: State<StatefulWidget> {
         let e = Offset(anchor.dx + len * cos(a), anchor.dy + len * sin(a))
         return handle == 0 ? Rect.fromLTRB(e.dx, e.dy, frame.right, frame.bottom)
                            : Rect.fromLTRB(frame.left, frame.top, e.dx, e.dy)
+    }
+
+    /// A multi-selection resized from `handle` of `lead`, whose frame went from `leadFrame` to `to`: every other shape
+    /// takes the same width and height factors, about its own handle opposite `handle` (its centre when the lead was
+    /// resized about its centre), turned by its own rotation. A line scales its box the same way.
+    static func scaledTogether(_ frames: [(SlideShape, Rect)], lead: SlideShape, leadFrame: Rect, to r: Rect,
+                               handle: Int, fromCentre aboutCentre: Bool = false) -> [(SlideShape, Rect)] {
+        let kx = leadFrame.width > 0 ? r.width / leadFrame.width : 1
+        let ky = leadFrame.height > 0 ? r.height / leadFrame.height : 1
+        return frames.map { shape, f in
+            if shape === lead { return (shape, r) }
+            let isLine = shape.preset?.isLine == true || shape.isElbow
+            let w = isLine ? f.width * kx : max(4, f.width * kx)
+            let h = isLine ? f.height * ky : max(4, f.height * ky)
+            if aboutCentre { return (shape, Rect.fromLTWH(f.center.dx - w / 2, f.center.dy - h / 2, w, h)) }
+            let (hx, hy) = handleUnits[handle]
+            let ax = 1 - hx, ay = 1 - hy
+            let rot = shape.rotation
+            let before = rotate(Offset((ax - 0.5) * f.width, (ay - 0.5) * f.height), rot)
+            let anchor = Offset(f.center.dx + before.dx, f.center.dy + before.dy)
+            let after = rotate(Offset((ax - 0.5) * w, (ay - 0.5) * h), rot)
+            let c = Offset(anchor.dx - after.dx, anchor.dy - after.dy)
+            return (shape, Rect.fromLTWH(c.dx - w / 2, c.dy - h / 2, w, h))
+        }
     }
 
     /// Pure resize geometry, for tests: the opposite handle stays put.
