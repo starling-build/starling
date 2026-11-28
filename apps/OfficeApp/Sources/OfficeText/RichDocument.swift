@@ -198,6 +198,10 @@ public struct CharStyle: Hashable, Codable, Sendable {
     public var linkKeepsLook = false
     /// The file's w:hyperlink carried w:history (a link made in the app gets it on save).
     public var linkHistory = false
+    /// Slides: the action when the pointer passes over the text (`a:hlinkMouseOver`), kept like `link` (a URL, "slide:<part>",
+    /// "action:<ppaction>"), and its screen tip.
+    public var hoverLink: String? = nil
+    public var hoverLinkTip: String? = nil
     public var script: ScriptPosition = .normal
     /// Slides fontAlgn t, ctr or b on a line that mixes faces or sizes: where this run's baseline stands below the line's top, and where the engine's own line puts it, in ems of the run's size (nil: the paragraph is moved as a whole).
     public var alignTop: Double? = nil

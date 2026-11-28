@@ -251,7 +251,7 @@ extension CharStyle {
         case ruby
         case fieldCodeChanged
         case fieldResult
-        case linkField, linkFieldID, fieldCodeID, linkKeepsLook, linkHistory
+        case linkField, linkFieldID, fieldCodeID, linkKeepsLook, linkHistory, hoverLink, hoverLinkTip
     }
 
     public init(from decoder: Decoder) throws {
@@ -301,6 +301,8 @@ extension CharStyle {
         fieldCodeID = try c.decodeIfPresent(Int.self, forKey: .fieldCodeID) ?? d.fieldCodeID
         linkKeepsLook = try c.decodeIfPresent(Bool.self, forKey: .linkKeepsLook) ?? d.linkKeepsLook
         linkHistory = try c.decodeIfPresent(Bool.self, forKey: .linkHistory) ?? d.linkHistory
+        hoverLink = try c.decodeIfPresent(String.self, forKey: .hoverLink) ?? d.hoverLink
+        hoverLinkTip = try c.decodeIfPresent(String.self, forKey: .hoverLinkTip) ?? d.hoverLinkTip
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -349,6 +351,8 @@ extension CharStyle {
         if fieldCodeID != d.fieldCodeID { try c.encode(fieldCodeID, forKey: .fieldCodeID) }
         if linkKeepsLook != d.linkKeepsLook { try c.encode(linkKeepsLook, forKey: .linkKeepsLook) }
         if linkHistory != d.linkHistory { try c.encode(linkHistory, forKey: .linkHistory) }
+        if hoverLink != d.hoverLink, let v = hoverLink { try c.encode(v, forKey: .hoverLink) }
+        if hoverLinkTip != d.hoverLinkTip, let v = hoverLinkTip { try c.encode(v, forKey: .hoverLinkTip) }
     }
 }
 

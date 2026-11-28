@@ -1559,7 +1559,8 @@ private struct SlideXML {
         let fillChanged = read.fill != s.fill || read.fillScheme != s.fillScheme
         let lineChanged = read.outline != s.outline || read.outlineScheme != s.outlineScheme || read.outlineWidth != s.outlineWidth
         let clickChanged = read.link != s.link || read.linkTip != s.linkTip
-        let click = clickChanged ? (PptxText.links?.xml(s.link, s.linkTip) ?? "") : ""
+            || read.hoverLink != s.hoverLink || read.hoverLinkTip != s.hoverLinkTip
+        let click = clickChanged ? (PptxText.links?.xml(click: s.link, s.linkTip, hover: s.hoverLink, s.hoverLinkTip) ?? "") : ""
         let fit: String? = {
             guard read.autofit != s.autofit || read.fontScale != s.fontScale else { return nil }
             if s.autofit {
@@ -1576,7 +1577,7 @@ private struct SlideXML {
             if let c = node.descendant("p:cNvPr") {
                 if read.name != s.name { c.attrs["name"] = s.name }
                 if clickChanged {
-                    c.children.removeAll { $0.name == "a:hlinkClick" }
+                    c.children.removeAll { $0.name == "a:hlinkClick" || $0.name == "a:hlinkMouseOver" }
                     c.children.insert(contentsOf: _fragment(click), at: 0)
                 }
             }
@@ -1779,6 +1780,15 @@ private struct SlideXML {
                 } else if r.type.hasSuffix("/hyperlink"), p.parts[r.target] == nil, r.target.contains("#" as Character) {
                     // A jump to a bookmark in the same file (Word's footnote links, `#_ftn1`): no part, and the link stays.
                     n.attrs[k] = _rel(r.type, Pptx.relative(r.target, from: part), external: false, preferred: v)
+                } else if r.type.hasSuffix("/slide") {
+                    // A jump to another slide: to that slide as this save writes it. Copying the source part would put the
+                    // slide as read over the one just written (its edits lost) or leave an orphan; a jump to a deleted slide goes.
+                    if let new = PptxText.slideParts[r.target] {
+                        n.attrs[k] = _rel(r.type, Pptx.relative(new, from: part), preferred: v)
+                    } else {
+                        n.attrs[k] = nil
+                        dead = true
+                    }
                 } else if p.parts[r.target] == nil {
                     // A part the file names but does not have (a damaged
                     // file): no relationship to nowhere.
@@ -1867,11 +1877,12 @@ final class PptxLinks {
     var slideParts: [String: String] = [:]
     private var ids: [String: String] = [:]
 
-    func xml(_ link: String?, _ tip: String?) -> String {
+    /// `tag` is a:hlinkClick (a click) or a:hlinkMouseOver (the pointer passing over).
+    func xml(_ link: String?, _ tip: String?, tag: String = "a:hlinkClick") -> String {
         guard let link, !link.isEmpty else { return "" }
         let tipAttr = tip.map { " tooltip=\"\(PptxXML.escape($0, attribute: true))\"" } ?? ""
         if link.hasPrefix("action:") {
-            return "<a:hlinkClick r:id=\"\" action=\"\(PptxXML.escape(String(link.dropFirst(7)), attribute: true))\"\(tipAttr)/>"
+            return "<\(tag) r:id=\"\" action=\"\(PptxXML.escape(String(link.dropFirst(7)), attribute: true))\"\(tipAttr)/>"
         }
         var type = RT.hyperlink, target = link, external = true, action = ""
         if link.hasPrefix("slide:") {
@@ -1886,7 +1897,12 @@ final class PptxLinks {
             rels.append(Rel(id: id, type: type, target: target, external: external))
             ids[key] = id
         }
-        return "<a:hlinkClick r:id=\"\(id)\"\(action)\(tipAttr)/>"
+        return "<\(tag) r:id=\"\(id)\"\(action)\(tipAttr)/>"
+    }
+
+    /// A click action, then a mouse-over one (the schema's order, in a:rPr and p:cNvPr alike).
+    func xml(click: String?, _ clickTip: String?, hover: String?, _ hoverTip: String?) -> String {
+        xml(click, clickTip) + xml(hover, hoverTip, tag: "a:hlinkMouseOver")
     }
 }
 
@@ -1905,7 +1921,7 @@ enum PptxText {
     }
     /// The end of a `p:cNvPr`: a click action on the shape is its child.
     static func cNvPrEnd(_ s: ShapeState) -> String {
-        let l = links?.xml(s.link, s.linkTip) ?? ""
+        let l = links?.xml(click: s.link, s.linkTip, hover: s.hoverLink, s.hoverLinkTip) ?? ""
         return l.isEmpty ? "/>" : ">" + l + "</p:cNvPr>"
     }
     static func hex(_ c: Color) -> String { String(printf: "%06X", UInt32(truncatingIfNeeded: c.value & 0xFFFFFF)) }
@@ -2013,7 +2029,7 @@ enum PptxText {
                 + "<a:srgbClr val=\"\(hex(sh.color))\">\(alpha)</a:srgbClr></a:outerShdw></a:effectLst>"
         }
         let highlight = c.highlight.map { "<a:highlight><a:srgbClr val=\"\(hex($0))\"/></a:highlight>" } ?? ""
-        let click = tag == "a:endParaRPr" ? "" : (links?.xml(c.link, c.linkTip) ?? "")
+        let click = tag == "a:endParaRPr" ? "" : (links?.xml(click: c.link, c.linkTip, hover: c.hoverLink, c.hoverLinkTip) ?? "")
         return "<\(tag)\(a)><a:solidFill><a:srgbClr val=\"\(hex(color))\"/></a:solidFill>\(shadow)\(highlight)"
             + "<a:latin typeface=\"\(font)\"/><a:cs typeface=\"\(font)\"/>\(click)</\(tag)>"
     }

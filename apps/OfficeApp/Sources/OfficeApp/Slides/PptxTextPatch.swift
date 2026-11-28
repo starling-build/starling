@@ -192,6 +192,7 @@ enum PptxTextPatch {
         x.bold = o.bold; x.italic = o.italic; x.underline = o.underline; x.strikethrough = o.strikethrough
         x.fontSize = o.fontSize; x.color = o.color; x.fontFamily = o.fontFamily; x.highlight = o.highlight
         x.script = o.script; x.caps = o.caps; x.smallCaps = o.smallCaps
+        x.link = o.link; x.linkTip = o.linkTip; x.hoverLink = o.hoverLink; x.hoverLinkTip = o.hoverLinkTip
         return x
     }
 
@@ -295,6 +296,16 @@ enum PptxTextPatch {
         if o.fontFamily != w.fontFamily {
             rPr.children.removeAll { $0.name == "a:latin" }
             if let face = w.fontFamily { insert(XNode(name: "a:latin", attrs: ["typeface": face]), into: rPr, before: afterLatin) }
+        }
+        if o.link != w.link || o.linkTip != w.linkTip || o.hoverLink != w.hoverLink || o.hoverLinkTip != w.hoverLinkTip {
+            // A link made, changed or removed here: the run's click and mouse-over actions are written anew (a break carries none).
+            guard run.name == "a:r", let links = PptxText.links else { return run.name == "a:br" }
+            rPr.children.removeAll { $0.name == "a:hlinkClick" || $0.name == "a:hlinkMouseOver" }
+            let xml = links.xml(click: w.link, w.linkTip, hover: w.hoverLink, w.hoverLinkTip)
+            if !xml.isEmpty, let frag = XNode.parse(Data("<r>\(xml)</r>".utf8)) {
+                let at = rPr.children.firstIndex { $0.name == "a:rtl" || $0.name == "a:extLst" } ?? rPr.children.count
+                rPr.children.insert(contentsOf: frag.children, at: at)
+            }
         }
         return true
     }

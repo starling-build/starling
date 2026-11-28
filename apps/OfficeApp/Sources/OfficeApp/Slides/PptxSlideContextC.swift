@@ -372,6 +372,8 @@ extension SlideContext {
                 if symbolRun { cs.symbolFace = "Symbol" }
                 let click = package.clickAction(rPr?.first("a:hlinkClick"), part: part)
                 cs.link = click.link; cs.linkTip = click.tip
+                let hover = package.clickAction(rPr?.first("a:hlinkMouseOver"), part: part)
+                cs.hoverLink = hover.link; cs.hoverLinkTip = hover.tip
                 let plain = cs
                 Self.faceSpacing(&cs)
                 cs.shadow = s.shadow

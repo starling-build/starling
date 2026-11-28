@@ -225,11 +225,13 @@ struct ReadShape: Equatable {
     var invisible: Bool
     var link: String?
     var linkTip: String?
+    var hoverLink: String?
+    var hoverLinkTip: String?
     /// A preset's adjust values (`a:avLst`): its yellow handles. A change is patched into the shape's own `a:prstGeom`.
     var adjusts: [String: Double]
 
     init(_ s: ShapeState) {
-        link = s.link; linkTip = s.linkTip; adjusts = s.adjusts
+        link = s.link; linkTip = s.linkTip; hoverLink = s.hoverLink; hoverLinkTip = s.hoverLinkTip; adjusts = s.adjusts
         altText = s.altText; altTitle = s.altTitle
         name = s.name; kind = s.kind; frame = s.frame; rotation = s.rotation; flipH = s.flipH; flipV = s.flipV; aspectLock = s.aspectLock
         fill = s.fill; fillScheme = s.fillScheme; outlineScheme = s.outlineScheme; outline = s.outline; outlineWidth = s.outlineWidth
@@ -257,7 +259,7 @@ struct ReadShape: Equatable {
         a.frame = b.frame; a.rotation = b.rotation; a.flipH = b.flipH; a.flipV = b.flipV; a.invisible = b.invisible; a.aspectLock = b.aspectLock
         a.fill = b.fill; a.fillScheme = b.fillScheme; a.outlineScheme = b.outlineScheme; a.outline = b.outline; a.outlineWidth = b.outlineWidth
         a.anchor = b.anchor; a.insets = b.insets; a.autofit = b.autofit; a.fontScale = b.fontScale
-        a.name = b.name; a.link = b.link; a.linkTip = b.linkTip; a.altText = b.altText; a.altTitle = b.altTitle
+        a.name = b.name; a.link = b.link; a.linkTip = b.linkTip; a.hoverLink = b.hoverLink; a.hoverLinkTip = b.hoverLinkTip; a.altText = b.altText; a.altTitle = b.altTitle
         a.adjusts = b.adjusts
         return a == b
     }
@@ -904,6 +906,9 @@ final class SlideShape {
     /// The click action on the whole shape (a:hlinkClick on its cNvPr): a URL, "slide:<part>" or "action:<ppaction>".
     var link: String? = nil
     var linkTip: String? = nil
+    /// The mouse-over action on the whole shape (a:hlinkMouseOver on its cNvPr), kept like `link`.
+    var hoverLink: String? = nil
+    var hoverLinkTip: String? = nil
     var keptPicture: KeptPicture? = nil
     /// Shrink the text to fit the shape (PowerPoint's `normAutofit`), and
     /// the scale it is drawn at now (its sizes stay as typed).

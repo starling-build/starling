@@ -1683,12 +1683,14 @@ struct SlideContext {
             s.group = group
             let click = package.clickAction(el.descendant("p:cNvPr")?.first("a:hlinkClick"), part: part)
             s.link = click.link; s.linkTip = click.tip
+            let hover = package.clickAction(el.descendant("p:cNvPr")?.first("a:hlinkMouseOver"), part: part)
+            s.hoverLink = hover.link; s.hoverLinkTip = hover.tip
             // Alt text (`descr`) and its title, on any kind of shape.
             if let nv = el.descendant("p:cNvPr") {
                 let d = nv["descr"].flatMap { $0.isEmpty ? nil : $0 }, t = nv["title"].flatMap { $0.isEmpty ? nil : $0 }
                 if d != s.altText || t != s.altTitle { s.altText = d; s.altTitle = t; if s.readShape != nil { s.readShape = ReadShape(s) } }
             }
-            if click.link != nil, s.readShape != nil { s.readShape = ReadShape(s) }
+            if click.link != nil || hover.link != nil, s.readShape != nil { s.readShape = ReadShape(s) }
             // Hidden (`cNvPr hidden="1"`), itself or by its group: in the
             // file, and not drawn — lo-hidden_group_shape's red square.
             if group?.hidden == true || el.descendant("p:cNvPr")?["hidden"] == "1" { s.invisible = true }
