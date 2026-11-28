@@ -31,6 +31,8 @@ struct HyperlinkHooks {
     var place: String? = nil
     /// An E-mail Address and Subject pair under the address (Slides): makes "mailto:address?subject=...".
     var hasEmail = false
+    /// The subject as Word writes it (text kept, only what would break the link escaped) instead of fully percent-encoded.
+    var wordMailSubject = false
     /// The caret is on a link: shows Remove Link.
     var canRemove = false
     /// address (already made absolute), place id, text to show, tip. Returns "" when done, else a message.
@@ -48,12 +50,26 @@ enum HyperlinkAddress {
     }
 
     /// "mailto:" + the address, with "?subject=" when one is given; the subject percent-encoded (UTF-8), as PowerPoint writes it.
-    static func mail(_ address: String, subject: String) -> String {
+    static func mail(_ address: String, subject: String, word: Bool = false) -> String {
         let to = address.trimmingWhitespace()
         if to.isEmpty { return "" }
         let base = to.hasPrefix("mailto:") ? to : "mailto:" + to
         let sub = subject.trimmingWhitespace()
-        return sub.isEmpty ? base : base + "?subject=" + percentEncode(sub)
+        return sub.isEmpty ? base : base + "?subject=" + (word ? wordEncode(sub) : percentEncode(sub))
+    }
+
+    /// Word's e-mail subject: letters (accented ones too) stay as typed and a space is %20, so Word shows the subject
+    /// as typed. "&" is %26 where Word writes it raw: Word's own reader stops the subject at a raw "&". "%", "#" and
+    /// control characters are escaped so the link reads back whole.
+    static func wordEncode(_ s: String) -> String {
+        let hex = Array("0123456789ABCDEF")
+        var out = ""
+        for ch in s.unicodeScalars {
+            if ch.value < 0x21 || ch == "%" || ch == "&" || ch == "#" || ch.value == 0x7F {
+                let b = UInt8(ch.value); out.append("%"); out.append(hex[Int(b >> 4)]); out.append(hex[Int(b & 15)])
+            } else { out.unicodeScalars.append(ch) }
+        }
+        return out
     }
 
     /// A mailto link split back into its address and subject (nil when it is not a mailto link).
@@ -138,7 +154,7 @@ final class HyperlinkDialogState: State<StatefulWidget> {
     func ok() {
         let h = _w.hooks
         let typed = _address.text.trimmingWhitespace()
-        let mail = h.hasEmail && typed.isEmpty ? HyperlinkAddress.mail(_mail.text, subject: _subject.text) : ""
+        let mail = h.hasEmail && typed.isEmpty ? HyperlinkAddress.mail(_mail.text, subject: _subject.text, word: h.wordMailSubject) : ""
         if place == nil && typed.isEmpty && mail.isEmpty {
             setState { status = h.hasEmail ? "Type an address, pick a place or type an e-mail address" : "Type an address or pick a place" }
             return

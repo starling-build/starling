@@ -79,17 +79,18 @@ final class HyperlinkTests: XCTestCase {
     /// W-LK-1: Word's E-mail Address pane (address and subject) and editing a link to a place in the document.
     func testEmailWithSubjectSavesAsWordWritesIt() throws {
         let c = controller(); select(c, 4, 8)
-        let mail = HyperlinkAddress.mail("a@b.com", subject: "Grüße & more")
-        XCTAssertEqual(mail, "mailto:a@b.com?subject=Gr%C3%BC%C3%9Fe%20%26%20more")
+        // (Word writes ü and ß as typed and a space as %20; "&" is %26, as Word's own raw "&" cuts its subject short.)
+        let mail = HyperlinkAddress.mail("a@b.com", subject: "Grüße & more 100%", word: true)
+        XCTAssertEqual(mail, "mailto:a@b.com?subject=Grüße%20%26%20more%20100%25")
         XCTAssertTrue(c.applyHyperlink(address: mail))
         let data = try DocxFormat.write(c.document, pageSetup: .letter)
         let rels = String(decoding: try XCTUnwrap(try Zip.read(data).first { $0.name == "word/_rels/document.xml.rels" }).data, as: UTF8.self)
-        XCTAssertTrue(rels.containsSubstring("Target=\"mailto:a@b.com?subject=Gr%C3%BC%C3%9Fe%20%26%20more\" TargetMode=\"External\""), rels)
+        XCTAssertTrue(rels.containsSubstring("Target=\"mailto:a@b.com?subject=Grüße%20%26%20more%20100%25\" TargetMode=\"External\""), rels)
         let back = try DocxFormat.read(data).document
         let link = try XCTUnwrap(back.paragraphs[1].runs.compactMap { $0.style.link }.first)
         XCTAssertEqual(link, mail)
         let split = try XCTUnwrap(HyperlinkAddress.splitMail(link))
-        XCTAssertEqual(split.address, "a@b.com"); XCTAssertEqual(split.subject, "Grüße & more")
+        XCTAssertEqual(split.address, "a@b.com"); XCTAssertEqual(split.subject, "Grüße & more 100%")
     }
 
     func testEditingALinkToAHeadingFindsTheHeading() {
@@ -108,7 +109,7 @@ final class HyperlinkTests: XCTestCase {
     func testWriteLabFile() throws {
         guard let out = ProcessInfo.processInfo.environment["LKMAIL_OUT"] else { return }
         let c = controller(); select(c, 0, 3)
-        c.applyHyperlink(address: HyperlinkAddress.mail("a@b.com", subject: "Grüße & more"), tip: "Mail tip")
+        c.applyHyperlink(address: HyperlinkAddress.mail("a@b.com", subject: "Grüße & more", word: true), tip: "Mail tip")
         select(c, 4, 8)
         c.applyHyperlink(address: "", target: c.linkTargets().first { $0.kind == .heading }!)
         try DocxFormat.write(c.document, pageSetup: .letter).write(to: URL(fileURLWithPath: out + "/lkmail.docx"))
