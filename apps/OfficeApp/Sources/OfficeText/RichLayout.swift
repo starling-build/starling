@@ -1556,6 +1556,13 @@ public struct PageSetup: Hashable, Codable, Sendable {
     /// writer must not add what the file did not say, or the saved copy
     /// prints differently from the original. True for the editor's own.
     public var orientStated = true
+    /// Whether the file's `w:orient` names the other way round from the page's own shape (an unstated one counts as
+    /// portrait). With 2 pages per sheet or book fold it names the SHEET, which the page is half of: Word pairs the
+    /// pages along it (lab pg1c). Kept through a turn of the page, and written back so (W-PG-1).
+    public var orientAcrossShape: Bool { get { _orientAcross ?? false } set { _orientAcross = newValue ? true : nil } }
+    var _orientAcross: Bool?
+    /// The sheet's orientation as the file says it: the page's shape unless `orientAcrossShape`.
+    public var sheetLandscape: Bool { isLandscape != orientAcrossShape }
     /// The section's line grid (`w:docGrid` of lines: the pitch in
     /// points) and what its grid of characters adds to each one —
     /// nil where the section keeps to none. See
@@ -2303,6 +2310,8 @@ public final class RichLayout {
     /// from the first column's edge.
     var _fullWidthCover: Set<Int> = []
     var _mirrorsMargins = false
+    /// 2 pages per sheet (`w:printTwoOnOne`): each section's first page of a pair, by page index (see `_twoUpPair`).
+    var _twoUpFirst: [PageSetup] = []
 
     // MARK: Sections
     //

@@ -3760,7 +3760,7 @@ extension RichLayout {
         }
         // (A continuous section sets its columns from its own side margin:
         // lo-ff3b52d1's second section, 87.9pt after a first of 90.)
-        if theme.wordRules, RichTextTheme.wordWindowsPages, !_mirrorsMargins, s.marginLeft != pageSetup(forPage: page).marginLeft {
+        if theme.wordRules, RichTextTheme.wordWindowsPages, !_mirrorsMargins, _twoUpFirst.isEmpty, s.marginLeft != pageSetup(forPage: page).marginLeft {
             RuleTrace.hit("continuous-section-columns-from-its-own-margin")
             return _px(s.marginLeft + s.gutter) + _px(s.columnOffset(column))
         }
@@ -3793,13 +3793,14 @@ extension RichLayout {
         // the right margin's distance instead (zh-457a8d62, a gutter
         // of 11.35pt: its even pages begin at 70.9 and its odd ones at
         // 82.25).
-        if _mirrorsMargins, page % 2 == 1 { return _px(s.marginRight) }
+        if _mirrorsMargins, _twoUpFirst.isEmpty, page % 2 == 1 { return _px(s.marginRight) }
         return _px(s.marginLeft + s.gutter)
     }
 
     /// Page `p`'s setup: its section's.
     public func pageSetup(forPage p: Int) -> PageSetup {
         guard p >= 0, p < _pageSection.count, _pageSection[p] < _sectionSetups.count else { return pageSetup ?? .letter }
+        if p % 2 == 0, _pageSection[p] < _twoUpFirst.count { return _twoUpFirst[_pageSection[p]] }
         return _sectionSetups[_pageSection[p]]
     }
 
@@ -3831,9 +3832,9 @@ extension RichLayout {
     }
 
     /// The width paragraph `i` wraps at: the layout's, in the measure of
-    /// its section's column to the document's.
+    /// its section's column to the document's (2 pages per sheet may take the gutter off the width: `_twoUpPair`).
     func _flowWidth(_ i: Int) -> Double {
-        guard let base = pageSetup, _sectionSetups.count > 1, base.columnWidth > 0 else { return width }
+        guard let base = pageSetup, _sectionSetups.count > 1 || !_twoUpFirst.isEmpty, base.columnWidth > 0 else { return width }
         if _fullWidthCover.contains(i) { return width * _setup(ofParagraph: i).contentWidth / base.columnWidth }
         return width * _setup(ofParagraph: i).columnWidth / base.columnWidth
     }
@@ -4015,6 +4016,7 @@ extension RichLayout {
             _sectionSetups = []
             _sectionOf = []
             _mirrorsMargins = false
+            _twoUpFirst = []
             return had
         }
         _mirrorsMargins = document.marginSettingsXML.map { $0.containsSubstring("<w:mirrorMargins") && !$0.containsSubstring("<w:mirrorMargins w:val=\"0\"") } ?? false
@@ -4125,9 +4127,44 @@ extension RichLayout {
             final.marginRight += final.contentWidth - twips / 20
         }
         setups.append(final)
+        _twoUpFirst = []
+        if RichTextTheme.wordWindowsPages, RichDocumentController._multiplePages(document.marginSettingsXML) == .twoOnOne {
+            let top = RichDocumentController._settingOn(document.marginSettingsXML, "w:gutterAtTop")
+            RuleTrace.hit("two-pages-per-sheet-pairs-the-margins")
+            let pairs = setups.map { Self._twoUpPair($0, gutterAtTop: top) }
+            setups = pairs.map { $0.second }
+            _twoUpFirst = pairs.map { $0.first }
+        }
         let changed = setups != _sectionSetups || (setups.count > 1 && of != _sectionOf)
         _sectionSetups = setups
         _sectionOf = of
         return changed
+    }
+}
+
+extension RichLayout {
+    /// 2 pages per sheet (`w:printTwoOnOne`): the page is the stored size, and the two pages of a sheet are paired along
+    /// the sheet's orientation, the stored `w:orient` (`sheetLandscape`), not the page's shape. Word's prints of lab pg1c
+    /// (margins T72 B36 L90 R54, gutter 18):
+    ///   landscape sheet, side by side: page 1 left 72 right 90, page 2 left 90 right 72 — the left margin is the inside,
+    ///     the right one and the gutter the outside; top and bottom as set;
+    ///   portrait sheet, one above the other: left 90 right 54 on both (no gutter across); page 1 top 54, page 2 top 72,
+    ///     page 1's bottom 18pt higher — the top margin is the inside, the bottom and gutter the outside;
+    ///   gutter at top: every top 90 (72+18), no swap up and down; page 1 left 72 right 72, page 2 left 90 right 54.
+    /// Mirror margins changes nothing beside it. (A portrait sheet with the gutter at top was not printed: as on a
+    /// landscape one, the top takes the gutter, and the pages are not swapped.) Odd and even by page index.
+    static func _twoUpPair(_ s: PageSetup, gutterAtTop: Bool) -> (first: PageSetup, second: PageSetup) {
+        var second = s
+        let g = s.gutter
+        second.gutter = 0
+        if gutterAtTop { second.marginTop += g } else if s.sheetLandscape { second.marginRight += g } else { second.marginBottom += g }
+        var first = second
+        if s.sheetLandscape {
+            first.marginLeft = second.marginRight; first.marginRight = second.marginLeft
+            if gutterAtTop { first.marginLeft += g; first.marginRight -= g }
+        } else if !gutterAtTop {
+            first.marginTop = second.marginBottom; first.marginBottom = second.marginTop
+        }
+        return (first, second)
     }
 }

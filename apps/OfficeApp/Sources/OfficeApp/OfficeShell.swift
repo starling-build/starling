@@ -2247,7 +2247,7 @@ final class OfficeShellState: State<StatefulWidget> {
                 Positioned(left: 0, top: 0, right: 0, bottom: 0, child: PageSetupDialog(
                     initial: session.sectionSetup(), sectionCount: sections,
                     options: controller.pageOptions(sectionMark: controller.sectionMark(containing: controller.selection.focus.paragraph)),
-                    mirrorMargins: controller.mirrorMargins,
+                    multiplePages: controller.multiplePages,
                     onOK: { [weak self] v in
                         guard let self else { return }
                         self.setState {
@@ -2255,7 +2255,7 @@ final class OfficeShellState: State<StatefulWidget> {
                             self.controller.edit {
                                 self.controller.changePageSetup(allSections: v.allSections, lastSetup: self.session.pageSetup) { v.apply(to: &$0) }
                                 self.controller.changePageOptions(allSections: v.allSections, v.options, lastSetup: self.session.pageSetup)
-                                self.controller.setMirrorMargins(v.mirror)
+                                self.controller.setMultiplePages(v.pages)
                             }
                             self.session.syncPageSetup()
                             self._pageSetupOpen = false

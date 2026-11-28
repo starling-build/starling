@@ -3113,8 +3113,9 @@ public struct RichDocument: Hashable, Codable, Sendable {
     public var columnsXML: String? = nil
     public var columnsKeptUnder: Int? = nil
     /// The last section's binding gutter in twips (`w:pgMar w:gutter`)
-    /// and the settings' `w:mirrorMargins`/`w:gutterAtTop`: the page the
-    /// editor shows has neither, the saved file keeps both.
+    /// and the settings' `w:mirrorMargins`/`w:gutterAtTop`, with the rest of
+    /// Multiple pages (`w:printTwoOnOne`, `w:bookFold*`): the saved file
+    /// keeps them, each at its place in the schema.
     public var gutterTwips: Int? = nil
     public var marginSettingsXML: String? = nil
     /// More settings Word lays out by, kept as written, by name:

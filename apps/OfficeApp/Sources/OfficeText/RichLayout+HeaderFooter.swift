@@ -3353,7 +3353,7 @@ extension RichLayout {
                         var left = _perSection ? _pxColumnLeft(p, column: column, paragraph: piece.paragraph) : pageLeft
                         // (A continuous section with a side margin of its own
                         // sets its text from that: lo-eae9bbb1.)
-                        if !_perSection, theme.wordRules, RichTextTheme.wordWindowsPages, !_mirrorsMargins, _columns == 1, _sectionSetups.count > 1 {
+                        if !_perSection, theme.wordRules, RichTextTheme.wordWindowsPages, !_mirrorsMargins, _twoUpFirst.isEmpty, _columns == 1, _sectionSetups.count > 1 {
                             let s = _setup(ofParagraph: piece.paragraph)
                             if s.marginLeft != pageSetup(forPage: p).marginLeft { left = _px(s.marginLeft + s.gutter) }
                         }

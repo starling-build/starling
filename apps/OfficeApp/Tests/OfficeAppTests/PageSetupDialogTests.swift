@@ -139,4 +139,24 @@ final class PageSetupDialogTests: XCTestCase {
         XCTAssertFalse(ui.has(text: "Different First Page"), "the tab goes with the strip")
         XCTAssertTrue(s.controller.document.titlePage, "closing keeps what was set")
     }
+
+    /// W-PG-1: 2 pages per sheet keeps Left and Right; Book fold names them Inside and Outside, offers Sheets per booklet,
+    /// and OK sets it in one undo step.
+    func testTwoPagesPerSheetAndBookFold() {
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(1440, 932))
+        let s = ui.state(OfficeShellState.self)!.session
+        s.onPageSetupDialog?(); ui.pump()
+        XCTAssertTrue(ui.tap(id: "ps-twoonone"))
+        XCTAssertFalse(ui.has(text: "Inside"))
+        XCTAssertFalse(ui.has(id: "ps-booklet"))
+        XCTAssertTrue(ui.tap(id: "ps-bookfold"))
+        XCTAssertTrue(ui.has(text: "Inside") && ui.has(text: "Outside"))
+        XCTAssertTrue(ui.has(id: "ps-booklet"))
+        XCTAssertEqual(ui.overflowingFlexes(), 0)
+        ui.press(.enter); ui.pump()
+        XCTAssertEqual(s.controller.multiplePages, .bookFold(pagesPerBooklet: nil))
+        s.controller.undo()
+        XCTAssertEqual(s.controller.multiplePages, .normal)
+        XCTAssertFalse(s.controller.canUndo, "one step")
+    }
 }

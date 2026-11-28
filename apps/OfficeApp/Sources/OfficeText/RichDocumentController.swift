@@ -4094,12 +4094,71 @@ public final class RichDocumentController: ChangeNotifier {
     /// W-PG-1: Multiple pages Normal or Mirror margins, one undo step; the gutter position the file names stays.
     public func setMirrorMargins(_ on: Bool) {
         guard on != mirrorMargins else { return }
+        setMultiplePages(on ? .mirror : .normal)
+    }
+
+    /// W-PG-1: Page Setup's Multiple pages, as the settings say it: facing pages (`w:mirrorMargins`), two pages on each
+    /// sheet (`w:printTwoOnOne`), or a booklet folded down the middle (`w:bookFoldPrinting`, or `w:bookFoldRevPrinting`
+    /// for one read right to left), with `w:bookFoldPrintingSheets` its pages per booklet (none: all).
+    public enum MultiplePages: Equatable, Sendable {
+        case normal, mirror, twoOnOne
+        case bookFold(pagesPerBooklet: Int?)
+        /// The margin beside the fold or the binding is the inside one, and the opposite one the outside.
+        public var isBookFold: Bool { if case .bookFold = self { return true }; return false }
+        public var facing: Bool { if case .normal = self { return false }; if case .twoOnOne = self { return false }; return true }
+    }
+    /// The settings' elements Multiple pages is made of (with `w:gutterAtTop` beside them, which it leaves alone).
+    public static let _multiplePagesNames = ["w:mirrorMargins", "w:bookFoldRevPrinting", "w:bookFoldPrinting", "w:bookFoldPrintingSheets", "w:printTwoOnOne"]
+    /// The first `<name .../>` element of `xml`, whole.
+    public static func _settingElement(_ xml: String, _ name: String) -> Range<String.Index>? {
+        var from = xml.startIndex
+        while let r = xml[from...].rangeOfSubstring("<" + name) {
+            if let c = xml[r.upperBound...].first, c == " " || c == "/" || c == ">", let close = xml[r.upperBound...].rangeOfSubstring(">") {
+                return r.lowerBound ..< close.upperBound
+            }
+            from = r.upperBound
+        }
+        return nil
+    }
+    /// Whether a toggle setting is on (present and not `w:val="0"`, "false" or "off").
+    static func _settingOn(_ xml: String?, _ name: String) -> Bool {
+        guard let xml, let r = _settingElement(xml, name) else { return false }
+        let tag = xml[r]
+        return !(tag.containsSubstring("\"0\"") || tag.containsSubstring("\"false\"") || tag.containsSubstring("\"off\""))
+    }
+    public var multiplePages: MultiplePages { Self._multiplePages(document.marginSettingsXML) }
+    static func _multiplePages(_ xml: String?) -> MultiplePages {
+        if _settingOn(xml, "w:bookFoldPrinting") || _settingOn(xml, "w:bookFoldRevPrinting") {
+            var pages: Int? = nil
+            if let xml, let r = _settingElement(xml, "w:bookFoldPrintingSheets"), let v = xml[r].rangeOfSubstring("w:val=\"") {
+                let digits = xml[v.upperBound...].prefix { $0.isNumber }
+                pages = Int(digits).flatMap { $0 > 0 ? $0 : nil }
+            }
+            return .bookFold(pagesPerBooklet: pages)
+        }
+        if _settingOn(xml, "w:printTwoOnOne") { return .twoOnOne }
+        return _mirrorMargins(xml) ? .mirror : .normal
+    }
+    /// Sets Multiple pages, one undo step. A booklet the file already reads right to left stays so; the gutter's
+    /// position (`w:gutterAtTop`) stays as it is.
+    public func setMultiplePages(_ m: MultiplePages) {
+        guard m != multiplePages else { return }
         let old = document.marginSettingsXML
         var rest = old ?? ""
-        if let r = rest.rangeOfSubstring("<w:mirrorMargins"), let close = rest[r.lowerBound...].rangeOfSubstring(">") {
-            rest.removeSubrange(r.lowerBound ..< close.upperBound)
+        let reversed = Self._settingOn(old, "w:bookFoldRevPrinting")
+        for name in Self._multiplePagesNames {
+            while let r = Self._settingElement(rest, name) { rest.removeSubrange(r) }
         }
-        let new = (on ? "<w:mirrorMargins/>" : "") + rest
+        var made = ""
+        switch m {
+        case .normal: break
+        case .mirror: made = "<w:mirrorMargins/>"
+        case .twoOnOne: made = "<w:printTwoOnOne/>"
+        case .bookFold(let pages):
+            made = reversed ? "<w:bookFoldRevPrinting/>" : "<w:bookFoldPrinting/>"
+            if let pages { made += "<w:bookFoldPrintingSheets w:val=\"\(pages)\"/>" }
+        }
+        let new = made + rest
         edit { perform(.setMarginSettings(old: old, new: new.isEmpty ? nil : new)) }
     }
 

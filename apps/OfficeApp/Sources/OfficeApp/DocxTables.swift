@@ -324,8 +324,8 @@ extension DocxFormat {
         }
         let size = sect.first("w:pgSz") ?? { let n = XNode(name: "w:pgSz", attrs: [:]); sect.children.insert(n, at: 0); return n }()
         put(size, "w:w", page.width); put(size, "w:h", page.height)
-        if page.isLandscape != (size.attrs["w:orient"] == "landscape"), page.orientStated || size.attrs["w:orient"] != nil {
-            size.attrs["w:orient"] = page.isLandscape ? "landscape" : "portrait"; changed = true
+        if page.sheetLandscape != (size.attrs["w:orient"] == "landscape"), page.orientStated || size.attrs["w:orient"] != nil {
+            size.attrs["w:orient"] = page.sheetLandscape ? "landscape" : "portrait"; changed = true
         }
         if let mar = sect.first("w:pgMar") {
             put(mar, "w:top", page.marginTop); put(mar, "w:bottom", page.marginBottom)
@@ -2333,7 +2333,7 @@ extension DocxFormat {
             body += "<w:\(k.kind == .header ? "headerReference" : "footerReference") w:type=\"\(k.type)\" r:id=\"rIdKeptHF\(i)\"/>"
         }
         if let type { body += type }
-        body += "<w:pgSz w:w=\"\(pw)\" w:h=\"\(ph)\"\(pageSetup.isLandscape && pageSetup.orientStated ? " w:orient=\"landscape\"" : "")/>"
+        body += "<w:pgSz w:w=\"\(pw)\" w:h=\"\(ph)\"\(pageSetup.orientAcrossShape ? " w:orient=\"\(pageSetup.sheetLandscape ? "landscape" : "portrait")\"" : pageSetup.sheetLandscape && pageSetup.orientStated ? " w:orient=\"landscape\"" : "")/>"
         body += "<w:pgMar w:top=\"\(Int(pageSetup.marginTop * 20))\" w:right=\"\(Int(pageSetup.marginRight * 20))\" w:bottom=\"\(Int(pageSetup.marginBottom * 20))\" w:left=\"\(Int(pageSetup.marginLeft * 20))\" w:header=\"\(Int((pageSetup.headerDistance * 20).rounded()))\" w:footer=\"\(Int((pageSetup.footerDistance * 20).rounded()))\" w:gutter=\"\(Int((pageSetup.gutter * 20).rounded()))\"/>"
         if let pb = borders { body += pb }
         if let lead = Self._leadPatched(Self._lineNumbersPatched(doc.sectionLeadXML, page.lineNumbers), start: doc.pageNumberStart, format: doc.pageNumberFormat,
@@ -2519,8 +2519,6 @@ extension DocxFormat {
             settings = settings.replacingAll("<w:characterSpacingControl w:val=\"doNotCompress\"/>", with: "<w:characterSpacingControl w:val=\"\(_esc(csc))\"/>")
         }
         if let lang = doc.themeFontLangXML { settings = settings.replacingAll("</w:settings>", with: lang + "</w:settings>") }
-        // (Schema order: both stand before the default tab stop.)
-        if let margins = doc.marginSettingsXML { settings = settings.replacingAll("<w:defaultTabStop", with: margins + "<w:defaultTabStop") }
         if let tab = doc.defaultTabStop {
             settings = settings.replacingAll("<w:defaultTabStop w:val=\"720\"/>", with: "<w:defaultTabStop w:val=\"\(Int((tab * 20).rounded()))\"/>")
         }
@@ -2537,6 +2535,7 @@ extension DocxFormat {
         settings = Self._withNoteProperties(settings, footnote: doc.footnotePropertiesXML, endnote: doc.endnotePropertiesXML,
                                             original: doc.keptParts["word/settings.xml"].flatMap(XNode.parse))
         settings = Self._trackRevisionsSetting(settings, on: doc.trackRevisions)
+        settings = Self._marginSettings(settings, doc.marginSettingsXML)
         // W-PG-3: Word shows (and prints) a page colour only where the settings say so.
         if doc.backgroundColor != nil { settings = Self._displayBackgroundShapeSetting(settings) }
         extraParts.append(ZipEntry(name: "word/settings.xml", data: Data(settings.utf8)))
@@ -2864,6 +2863,50 @@ extension DocxFormat {
         if at == nil, let r = xml.rangeOfSubstring("<w:compat") { at = r.lowerBound }
         if at == nil, let r = xml.rangeOfSubstring("</w:settings>") { at = r.lowerBound }
         if let at { xml.insert(contentsOf: "<w:trackRevisions/>", at: at) }
+        return xml
+    }
+
+    /// The order `w:settings` keeps its children in (CT_Settings).
+    static let _settingsOrder = [
+        "writeProtection", "view", "zoom", "removePersonalInformation", "removeDateAndTime", "doNotDisplayPageBoundaries",
+        "displayBackgroundShape", "printPostScriptOverText", "printFractionalCharacterWidth", "printFormsData", "embedTrueTypeFonts",
+        "embedSystemFonts", "saveSubsetFonts", "saveFormsData", "mirrorMargins", "alignBordersAndEdges", "bordersDoNotSurroundHeader",
+        "bordersDoNotSurroundFooter", "gutterAtTop", "hideSpellingErrors", "hideGrammaticalErrors", "activeWritingStyle", "proofState",
+        "formsDesign", "attachedTemplate", "linkStyles", "stylePaneFormatFilter", "stylePaneSortMethod", "documentType", "mailMerge",
+        "revisionView", "trackRevisions", "doNotTrackMoves", "doNotTrackFormatting", "documentProtection", "autoFormatOverride",
+        "styleLockTheme", "styleLockQFSet", "defaultTabStop", "autoHyphenation", "consecutiveHyphenLimit", "hyphenationZone",
+        "doNotHyphenateCaps", "showEnvelope", "summaryLength", "clickAndTypeStyle", "defaultTableStyle", "evenAndOddHeaders",
+        "bookFoldRevPrinting", "bookFoldPrinting", "bookFoldPrintingSheets", "drawingGridHorizontalSpacing", "drawingGridVerticalSpacing",
+        "displayHorizontalDrawingGridEvery", "displayVerticalDrawingGridEvery", "doNotUseMarginsForDrawingGridOrigin",
+        "drawingGridHorizontalOrigin", "drawingGridVerticalOrigin", "doNotShadeFormData", "noPunctuationKerning", "characterSpacingControl",
+        "printTwoOnOne", "strictFirstAndLastChars", "noLineBreaksAfter", "noLineBreaksBefore", "savePreviewPicture",
+        "doNotValidateAgainstSchema", "saveInvalidXml", "ignoreMixedContent", "alwaysShowPlaceholderText", "doNotDemarcateInvalidXml",
+        "saveXmlDataOnly", "useXSLTWhenSaving", "saveThroughXslt", "showXMLTags", "alwaysMergeEmptyNamespace", "updateFields",
+        "hdrShapeDefaults", "footnotePr", "endnotePr", "compat", "docVars", "rsids", "m:mathPr", "attachedSchema", "themeFontLang",
+        "clrSchemeMapping", "doNotIncludeSubdocsInStats", "doNotAutoCompressPictures", "forceUpgrade", "captions", "readModeInkLockDown",
+        "smartTagType", "sl:schemaLibrary", "shapeDefaults", "doNotEmbedSmartTags", "decimalSymbol", "listSeparator",
+    ]
+
+    /// W-PG-1: the document's Multiple pages and gutter position (`marginSettingsXML`) in place of the settings' own,
+    /// each element where the schema puts it: before the first later one the settings hold. A file whose settings
+    /// already say the same is left byte for byte.
+    static func _marginSettings(_ original: String, _ margins: String?) -> String {
+        var xml = original
+        let names = RichDocumentController._multiplePagesNames + ["w:gutterAtTop"]
+        func element(_ s: String, _ name: String) -> String? { RichDocumentController._settingElement(s, name).map { String(s[$0]) } }
+        if names.allSatisfy({ n in element(xml, n) == margins.flatMap { element($0, n) } }) { return xml }
+        for name in names { while let r = RichDocumentController._settingElement(xml, name) { xml.removeSubrange(r) } }
+        guard let margins else { return xml }
+        for (i, name) in _settingsOrder.enumerated() {
+            guard let tag = element(margins, "w:" + name) else { continue }
+            var at: String.Index? = nil
+            for later in _settingsOrder[(i + 1)...] {
+                let n = later.containsSubstring(":") ? later : "w:" + later
+                if let r = RichDocumentController._settingElement(xml, n), at.map({ r.lowerBound < $0 }) ?? true { at = r.lowerBound }
+            }
+            if at == nil, let r = xml.rangeOfSubstring("</w:settings>") { at = r.lowerBound }
+            if let at { xml.insert(contentsOf: tag, at: at) }
+        }
         return xml
     }
 
