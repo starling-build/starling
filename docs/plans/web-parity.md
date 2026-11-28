@@ -141,9 +141,8 @@ CDP) checks the page side: the print frame, IndexedDB rows, recovery after a rel
    which it hands on) and what Save downloads; Home lists the names, a click reads
    the copy back (a copy the browser evicted says so and leaves the list).
    BrowserRecentTests (native, a stand-in page; fail before), test/office-recent-web.sh
-   (Chromium, 6/6). Not yet: file handles (they come with item 4's pickers: today's
-   picker is an <input>, which gives none); Open in a tab goes straight to the
-   browser's picker, so only Home lists Recent.
+   (Chromium, 6/6). (File handles: done with item 4 below.) Open in a tab goes
+   straight to the browser's picker, so only Home lists Recent.
    DONE 2026-11-28 (Slides and Sheets, amd-11): both remember what they open or save
    in the page's Recent, Backstage lists it and a click reopens the copy, as Word.
 4. **Save As and Save.** Where `showSaveFilePicker` exists (Chrome, Edge), Save As
@@ -180,6 +179,20 @@ CDP) checks the page side: the print frame, IndexedDB rows, recovery after a rel
 
 Order: 1, 2, 3 (2 and 3 share the IndexedDB layer), 4, then 5. One PR each, Word
 first; Slides and Sheets follow in the same PR where the shell code is shared.
+
+## 4b. Shortcuts the browser steals (2026-11-28, amd-11)
+
+Before: the page left every Ctrl (Cmd) chord to the browser as well as the app, so
+Ctrl+S saved the document AND opened Chrome's Save Page dialog, Ctrl+P printed the
+page over our Print pane, Ctrl+F opened Chrome's find bar, Ctrl+D bookmarked, Ctrl+0
+and Ctrl+= zoomed the page, and a Ctrl+V into the hidden text field could paste twice.
+DONE: the app answers whether it used a key (starling_key returns it), and the page
+prevents the browser's default only for a chord the app used; one the app leaves
+(Ctrl+4, Ctrl+Shift+R, Ctrl+Tab) stays the browser's. Chrome never lets a page take
+Ctrl+N, Ctrl+T or Ctrl+W outside an installed app's window. BrowserShortcutTests
+(native: Word, Slides and Sheets use Save, Open, Print and Find, and leave Ctrl+4);
+test/office-shortcuts-web.sh in Chromium (8/8: b, d, f, p, s and 0 prevented, 4 not,
+Save downloads the document).
 
 ## 5. Screen readers in the browser (amd-perf, 2026-11-26)
 

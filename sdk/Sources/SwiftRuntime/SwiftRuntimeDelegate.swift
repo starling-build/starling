@@ -117,9 +117,11 @@ public class SwiftRuntimeDelegate: @unchecked Sendable {
   }
 
   /// The same, for a host that has the fields rather than the packet
-  /// (the web host builds them from a DOM event).
-  public func dispatchKeyData(_ keyData: KeyData) {
-    _ = platformDispatcher.onKeyData?(keyData)
+  /// (the web host builds them from a DOM event). Whether the framework
+  /// consumed it: the page then keeps the browser's own shortcut away.
+  @discardableResult
+  public func dispatchKeyData(_ keyData: KeyData) -> Bool {
+    platformDispatcher.onKeyData?(keyData) ?? false
   }
 
   // MARK: - Platform Messages

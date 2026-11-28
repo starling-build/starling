@@ -209,12 +209,14 @@ public final class WebHost {
 
     // MARK: Keys
 
+    /// Whether the app used the key (a shortcut it acted on, text a field took).
+    @discardableResult
     func key(
         type: Int32, physical: Int64, logical: Int64, character: String?, milliseconds: Double
-    ) {
+    ) -> Bool {
         let types: [KeyEventType] = [.down, .up, .repeat]
-        guard types.indices.contains(Int(type)) else { return }
-        delegate.dispatchKeyData(
+        guard types.indices.contains(Int(type)) else { return false }
+        return delegate.dispatchKeyData(
             KeyData(
                 timeStamp: milliseconds / 1000, type: types[Int(type)],
                 physical: physical, logical: logical, character: character,
@@ -312,16 +314,16 @@ func starlingPointer(
 func starlingKey(
     _ type: Int32, _ physical: Int64, _ logical: Int64,
     _ character: UnsafePointer<UInt8>?, _ characterLength: Int32, _ milliseconds: Double
-) {
+) -> Int32 {
     var text: String? = nil
     if let character, characterLength > 0 {
         text = String(
             decoding: UnsafeBufferPointer(start: character, count: Int(characterLength)),
             as: UTF8.self)
     }
-    WebHost.shared.key(
+    return WebHost.shared.key(
         type: type, physical: physical, logical: logical, character: text,
-        milliseconds: milliseconds)
+        milliseconds: milliseconds) ? 1 : 0
 }
 
 /// Composed text (UTF-8, in OUR memory) from the page's hidden text field.
