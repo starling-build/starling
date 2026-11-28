@@ -149,7 +149,9 @@ final class SheetsMultiRangeTests: XCTestCase {
                 lines.append("cell\t\(k)\t\(c.dx) \(c.dy)\t0 0")
             }
         }
-        XCTAssertTrue(ui.tap(text: "Go To Special…")); ui.pump()
+        // Open it by the ribbon's command, not by tapping the label: on the Mac the tester's ribbon can fold the
+        // button away (font metrics), and the dialog is what this test checks. The marks above still carry the button.
+        wb.onCommand?(.goToSpecial); ui.pump()
         XCTAssertTrue(ui.has(id: "gts-0"))
         XCTAssertEqual(ui.overflowingFlexes(), 0)
         lines += ["# Go To Special open"] + ScreenMarks.lines(root: ui.elements().first, view: size)
