@@ -34,7 +34,7 @@ extension RichLayout {
     }
 
     func _paintPageBorders(_ p: Int, _ canvas: any Canvas, _ document: RichDocument) {
-        guard theme.wordRules, RichTextTheme.wordWindowsPages, let xml = _pageBordersXML(p, document) else { return }
+        guard theme.wordRules, RichTextTheme.wordWindowsPages || theme.drawsPageDesign, let xml = _pageBordersXML(p, document) else { return }
         let headEnd = xml.firstIndex(of: ">") ?? xml.endIndex
         let head = xml[xml.startIndex ..< headEnd]
         let display = Self._attr(head, "w:display") ?? "allPages"

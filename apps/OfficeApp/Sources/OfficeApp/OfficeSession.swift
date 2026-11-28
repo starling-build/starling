@@ -419,6 +419,11 @@ final class OfficeSession {
     var onBookmarkDialog: (() -> Void)?
     var onCrossReferenceDialog: (() -> Void)?
     var onCaptionDialog: (() -> Void)?
+    /// W-PG-3: Design > Watermark (a preset, Remove, or the Custom dialog), Design > Page Borders, Layout > Line Numbers.
+    var onWatermark: ((WatermarkChoice) -> Void)?
+    var onWatermarkDialog: (() -> Void)?
+    var onPageBordersDialog: (() -> Void)?
+    var onLineNumbersDialog: (() -> Void)?
     var onPropertiesDialog: (() -> Void)?
     var onUpdateFields: (() -> Void)?
     /// Opens Define New Number Format (false) or Define New Bullet (true).

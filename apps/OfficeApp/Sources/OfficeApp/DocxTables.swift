@@ -252,6 +252,42 @@ extension DocxFormat {
         return xml.isEmpty ? nil : xml
     }
 
+    /// W-PG-3: the section's `w:lnNumType` as `numbering` says (none when nil). The file's element stays byte for byte
+    /// while it already says the same.
+    static func _lineNumbersXML(_ n: LineNumbering) -> String {
+        var el = "<w:lnNumType w:countBy=\"\(n.countBy)\""
+        if n.start != 1 { el += " w:start=\"\(n.start)\"" }
+        if let d = n.distance { el += " w:distance=\"\(Int((d * 20).rounded()))\"" }
+        if n.restart != .newPage { el += " w:restart=\"\(n.restart.rawValue)\"" }
+        return el + "/>"
+    }
+    static func _readLineNumbers(_ ln: XNode) -> LineNumbering {
+        var n = LineNumbering()
+        n.countBy = max(1, Int(ln["w:countBy"] ?? "") ?? 1)
+        n.start = Int(ln["w:start"] ?? "") ?? 1
+        n.distance = Double(ln["w:distance"] ?? "").map { $0 / 20 }
+        n.restart = LineNumbering.Restart(rawValue: ln["w:restart"] ?? "") ?? .newPage
+        return n
+    }
+    static func _lineNumbersPatched(_ lead: String?, _ numbering: LineNumbering?) -> String? {
+        var xml = lead ?? ""
+        var have: LineNumbering? = nil
+        var range: Range<String.Index>? = nil
+        if let r = xml.rangeOfSubstring("<w:lnNumType"), let gt = xml[r.lowerBound...].firstIndex(of: ">") {
+            var end = xml.index(after: gt)
+            if xml[xml.index(before: gt)] != "/" {
+                guard let close = xml[gt...].rangeOfSubstring("</w:lnNumType>") else { return lead }
+                end = close.upperBound
+            }
+            range = r.lowerBound ..< end
+            have = XNode.parse(Data(xml[r.lowerBound ..< end].utf8)).map(_readLineNumbers)
+        }
+        guard have != numbering else { return lead }
+        let fresh = numbering.map(_lineNumbersXML) ?? ""
+        if let range { xml.replaceSubrange(range, with: fresh) } else { xml = fresh + xml }
+        return xml.isEmpty ? nil : xml
+    }
+
     /// One start tag with `key` set to `value` (removed when nil); unchanged when it already says so.
     static func _attrPatched(_ tag: String, _ key: String, _ value: String?) -> String {
         var el = tag
@@ -318,6 +354,16 @@ extension DocxFormat {
                 let later: Set<String> = ["w:textDirection", "w:bidi", "w:rtlGutter", "w:docGrid", "w:printerSettings", "w:sectPrChange"]
                 let at = sect.children.firstIndex { later.contains($0.name) } ?? sect.children.count
                 sect.children.insert(XNode(name: "w:titlePg", attrs: [:]), at: at)
+            }
+            changed = true
+        }
+        // W-PG-3: the section's line numbers (Layout > Line Numbers).
+        if sect.first("w:lnNumType").map(_readLineNumbers) != page.lineNumbers {
+            let at = sect.children.firstIndex { $0.name == "w:lnNumType" }
+            sect.children.removeAll { $0.name == "w:lnNumType" }
+            if let n = page.lineNumbers, let fresh = XNode.parse(Data(_lineNumbersXML(n).utf8)) {
+                let after = sect.children.lastIndex { ["w:pgSz", "w:pgMar", "w:paperSrc", "w:pgBorders"].contains($0.name) }
+                sect.children.insert(fresh, at: at ?? after.map { $0 + 1 } ?? 0)
             }
             changed = true
         }
@@ -2288,7 +2334,7 @@ extension DocxFormat {
         body += "<w:pgSz w:w=\"\(pw)\" w:h=\"\(ph)\"\(pageSetup.isLandscape && pageSetup.orientStated ? " w:orient=\"landscape\"" : "")/>"
         body += "<w:pgMar w:top=\"\(Int(pageSetup.marginTop * 20))\" w:right=\"\(Int(pageSetup.marginRight * 20))\" w:bottom=\"\(Int(pageSetup.marginBottom * 20))\" w:left=\"\(Int(pageSetup.marginLeft * 20))\" w:header=\"\(Int((pageSetup.headerDistance * 20).rounded()))\" w:footer=\"\(Int((pageSetup.footerDistance * 20).rounded()))\" w:gutter=\"\(Int((pageSetup.gutter * 20).rounded()))\"/>"
         if let pb = doc.pageBordersXML { body += pb }
-        if let lead = Self._leadPatched(doc.sectionLeadXML, start: doc.pageNumberStart, format: doc.pageNumberFormat,
+        if let lead = Self._leadPatched(Self._lineNumbersPatched(doc.sectionLeadXML, page.lineNumbers), start: doc.pageNumberStart, format: doc.pageNumberFormat,
                                           chapterStyle: doc.chapterStyle, chapterSeparator: doc.chapterSeparator) { body += lead }
         if let cols = doc.columnsXML, let node = XNode.parse(Data(cols.utf8)), _sameColumns(node, pageSetup) {
             // The file's own columns (an exam paper's two unequal ones, 0.3in
@@ -2489,6 +2535,8 @@ extension DocxFormat {
         settings = Self._withNoteProperties(settings, footnote: doc.footnotePropertiesXML, endnote: doc.endnotePropertiesXML,
                                             original: doc.keptParts["word/settings.xml"].flatMap(XNode.parse))
         settings = Self._trackRevisionsSetting(settings, on: doc.trackRevisions)
+        // W-PG-3: Word shows (and prints) a page colour only where the settings say so.
+        if doc.backgroundColor != nil { settings = Self._displayBackgroundShapeSetting(settings) }
         extraParts.append(ZipEntry(name: "word/settings.xml", data: Data(settings.utf8)))
         extraOverrides += "<Override PartName=\"/word/settings.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml\"/>"
         relsXML += "</Relationships>"
@@ -2760,6 +2808,29 @@ extension DocxFormat {
 
     /// Review > Track Changes: `w:trackRevisions` in the settings, in its schema place (after `w:revisionView`, before
     /// `w:doNotTrackMoves` and the rest). A file that already says what the document says is left byte for byte.
+    /// W-PG-3: `w:displayBackgroundShape` added where the schema puts it (after the view and privacy settings that come
+    /// first), unless the settings already have it. Never removed: a file that has it keeps it.
+    static func _displayBackgroundShapeSetting(_ original: String) -> String {
+        var xml = original
+        if xml.containsSubstring("<w:displayBackgroundShape") { return xml }
+        var at: String.Index? = nil
+        for name in ["writeProtection", "view", "zoom", "removePersonalInformation", "removeDateAndTime", "doNotDisplayPageBoundaries"] {
+            var from = xml.startIndex
+            while let r = xml[from...].rangeOfSubstring("<w:\(name)") {
+                if let c = xml[r.upperBound...].first, c == " " || c == "/" || c == ">", let gt = xml[r.upperBound...].firstIndex(of: ">") {
+                    var end = xml.index(after: gt)
+                    if xml[xml.index(before: gt)] != "/", let close = xml[gt...].rangeOfSubstring("</w:\(name)>") { end = close.upperBound }
+                    if at.map({ end > $0 }) ?? true { at = end }
+                    break
+                }
+                from = r.upperBound
+            }
+        }
+        if at == nil, let r = xml.rangeOfSubstring("<w:settings"), let gt = xml[r.upperBound...].firstIndex(of: ">") { at = xml.index(after: gt) }
+        if let at { xml.insert(contentsOf: "<w:displayBackgroundShape/>", at: at) }
+        return xml
+    }
+
     static func _trackRevisionsSetting(_ original: String, on: Bool) -> String {
         var xml = original
         var present: Range<String.Index>? = nil

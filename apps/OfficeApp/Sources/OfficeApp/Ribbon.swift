@@ -33,7 +33,7 @@ enum RibbonTab: Int, CaseIterable {
     /// The tabs a kind shows, in strip order (contextual ones aside).
     static func strip(for kind: DocumentKind) -> [RibbonTab] {
         switch kind {
-        case .document: return [.home, .insert, .layout, .references, .review, .view]
+        case .document: return [.home, .insert, .design, .layout, .references, .review, .view]
         case .presentation: return [.home, .insert, .design, .transitions, .animations, .slideShow, .review, .view]
         case .workbook: return [.home, .insert, .layout, .formulas, .data, .review, .view]
         }
@@ -191,6 +191,7 @@ final class Ribbon: StatelessWidget {
         case .home: return _home(fluent)
         case .insert: return _insert(fluent)
         case .layout: return _layout(fluent)
+        case .design: return _design(fluent)
         case .view: return _view(fluent)
         case .pictureFormat: return _pictureFormat(fluent, shape: session.imageTab == .shapeFormat)
         case .shapeFormat: return _pictureFormat(fluent, shape: true)
@@ -199,8 +200,36 @@ final class Ribbon: StatelessWidget {
         case .review: return _review(fluent)
         case .tableDesign: return session.summary.inCell ? _tableDesign(fluent) : []
         case .headerFooter: return session.headerFooterOpen ? _headerFooter(fluent) : []
-        case .design, .transitions, .slideShow, .chartDesign, .slideMaster, .animations, .formulas, .data: return []
+        case .transitions, .slideShow, .chartDesign, .slideMaster, .animations, .formulas, .data: return []
         }
+    }
+
+    // MARK: Design
+
+    /// W-PG-3: Design > Page Background: Watermark, Page Color, Page Borders.
+    func _design(_ fluent: FluentThemeData) -> [Widget] {
+        let c = session.controller
+        let presets: [(String, () -> Void)] = WordWatermark.presets.map { p in
+            (p, { [session] in
+                var t = WordWatermark.TextMark(); t.text = p
+                session.onWatermark?(.text(t))
+            })
+        }
+        let watermark = Chrome.menu(Text("Watermark"), Icon(FluentSystemIcons.textT, size: Chrome.iconSize,
+                                                             color: fluent.resources.textFillColorPrimary), fluent,
+                                    presets + [("Custom Watermark…", { [session] in session.onWatermarkDialog?() }),
+                                               ("Remove Watermark", { [session] in session.onWatermark?(WatermarkChoice.none) })],
+                                    keyPrefix: "watermark")
+        let pageColor = Chrome.colorMenu(FluentSystemIcons.paintBrush, "Page Color", fluent,
+                                         colors: OfficeColors.highlight, none: "No Color", title: "Page Color") { [session] color in
+            c.setPageColor(color.map { UInt32(truncatingIfNeeded: $0.value) & 0xFFFFFF })
+            session.syncPageSetup()
+        }
+        return [Chrome.group("Page Background", fluent, [
+            Chrome.rows([watermark, Chrome.vgap(2), pageColor]),
+            Chrome.gap(),
+            Chrome.big(FluentSystemIcons.onePage, "Page Borders", fluent) { [session] in session.onPageBordersDialog?() },
+        ])]
     }
 
     // MARK: References
@@ -1210,6 +1239,26 @@ final class Ribbon: StatelessWidget {
 
     // MARK: Layout
 
+    /// Layout > Line Numbers: None, Continuous, Restart Each Page, Restart Each Section, Suppress for Current Paragraph,
+    /// Line Numbering Options…. A restart choice keeps the section's count-by, start and distance.
+    static func lineNumberChoices(_ session: OfficeSession) -> [(String, () -> Void)] {
+        func numbering(_ restart: LineNumbering.Restart?) -> () -> Void {
+            { [session] in
+                var p = session.sectionSetup()
+                if let restart {
+                    var n = p.lineNumbers ?? LineNumbering()
+                    n.restart = restart
+                    p.lineNumbers = n
+                } else { p.lineNumbers = nil }
+                session.onPageSetup?(p)
+            }
+        }
+        return [("None", numbering(nil)), ("Continuous", numbering(.continuous)), ("Restart Each Page", numbering(.newPage)),
+                ("Restart Each Section", numbering(.newSection)),
+                ("Suppress for Current Paragraph", { [session] in session.controller.toggleSuppressLineNumbers() }),
+                ("Line Numbering Options…", { [session] in session.onLineNumbersDialog?() })]
+    }
+
     private func _layout(_ fluent: FluentThemeData) -> [Widget] {
         let c = session.controller
         let setup = session.sectionSetup()
@@ -1274,6 +1323,10 @@ final class Ribbon: StatelessWidget {
                              ("Section: Continuous", { [session] in c.insertSectionBreak(.continuous, lastSetup: session.pageSetup) }),
                              ("Section: Even Page", { [session] in c.insertSectionBreak(.evenPage, lastSetup: session.pageSetup) }),
                              ("Section: Odd Page", { [session] in c.insertSectionBreak(.oddPage, lastSetup: session.pageSetup) })]),
+                Chrome.vgap(2),
+                Chrome.menu(Text("Line Numbers"), Icon(FluentSystemIcons.numberList, size: Chrome.iconSize,
+                                                       color: fluent.resources.textFillColorPrimary), fluent,
+                            Self.lineNumberChoices(session), keyPrefix: "line-numbers"),
             ]),
         ])
         let paragraph = Chrome.group("Paragraph", fluent, [

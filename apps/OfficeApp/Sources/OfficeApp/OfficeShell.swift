@@ -125,6 +125,9 @@ final class OfficeShellState: State<StatefulWidget> {
     private var _dateTimeOpen = false
     private var _fieldOpen = false
     private var _bookmarkOpen = false, _crossReferenceOpen = false, _captionOpen = false
+    /// W-PG-3: which of Design's Watermark and Page Borders dialogs, or Layout's Line Numbers, is open.
+    enum PageDesignDialog { case watermark, pageBorders, lineNumbers }
+    private(set) var _pageDesign: PageDesignDialog?
     private var _propertiesOpen = false
     private var _listSymbolPick: ((String, String?) -> Void)? = nil   // the Symbol picker is open for the Define Bullet dialog
     private var _listFormatOpen: Bool? = nil   // the dialog is open: true for a bullet
@@ -368,6 +371,8 @@ final class OfficeShellState: State<StatefulWidget> {
     }
 
     private func _wireSession() {
+        // W-PG-3: the window shows the page colour and page borders, as Word's does.
+        session.theme.drawsPageDesign = true
         session.onZoom = { [weak self] z in
             guard let self else { return }
             self.setState { self.session.zoom = max(0.5, min(3.0, (z * 10).rounded() / 10)) }
@@ -562,6 +567,14 @@ final class OfficeShellState: State<StatefulWidget> {
             guard let self else { return }
             self.controller.breakUndoCoalescing()
             self.setState { self._captionOpen = true }
+        }
+        session.onWatermark = { [weak self] choice in self?._applyWatermark(choice) }
+        for (hook, kind) in [(\OfficeSession.onWatermarkDialog, PageDesignDialog.watermark), (\.onPageBordersDialog, .pageBorders), (\.onLineNumbersDialog, .lineNumbers)] {
+            session[keyPath: hook] = { [weak self] in
+                guard let self else { return }
+                self.controller.breakUndoCoalescing()
+                self.setState { self._pageDesign = kind }
+            }
         }
         session.onFieldDialog = { [weak self] in
             guard let self else { return }
@@ -1259,6 +1272,49 @@ final class OfficeShellState: State<StatefulWidget> {
     // MARK: Pictures
 
     /// Decode for the intrinsic size (pixels read as 96/in), then insert.
+    /// W-PG-3: a watermark in every header, or none, as one undo step. A picture is read and measured first.
+    func _applyWatermark(_ choice: WatermarkChoice) {
+        switch choice {
+        case .none: _setWatermark(nil)
+        case .text(let t): _setWatermark(.text(t))
+        case .picture(let path, let scale, let washout):
+            guard let data = FileManager.default.contents(atPath: path) else {
+                _flash("Could not read \(path.lastPathComponent)")
+                return
+            }
+            let name = path.lastPathComponent
+            let ext = name.split(separator: ".").count > 1 ? String(name.split(separator: ".").last!).lowercased() : "png"
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                do {
+                    let codec = try await instantiateImageCodec([UInt8](data))
+                    let frame = try await codec.getNextFrame()
+                    codec.dispose()
+                    let px = Double(frame.image.width), py = Double(frame.image.height)
+                    frame.image.dispose()
+                    self._setWatermark(.picture(WordWatermark.PictureMark(data: data, ext: ext == "jpg" ? "jpeg" : ext, name: name,
+                                                                          naturalWidth: px * 0.75, naturalHeight: py * 0.75,
+                                                                          scale: scale, washout: washout)))
+                } catch {
+                    self._flash("\(name) is not a picture this app can read")
+                }
+            }
+        }
+    }
+
+    private func _setWatermark(_ mark: WordWatermark?) {
+        guard mark != nil || WordWatermark.has(in: controller.document) else { return }
+        do {
+            let d = try WordWatermark.setting(mark, in: controller.document, page: session.pageSetup)
+            setState {
+                controller.replaceDocument(with: d)
+                session.summary = session.summarize()
+            }
+        } catch {
+            _flash("The watermark could not be set")
+        }
+    }
+
     private func _insertPicture(_ path: String) {
         setState { _backstage = nil }
         guard let data = FileManager.default.contents(atPath: path) else {
@@ -1681,7 +1737,7 @@ final class OfficeShellState: State<StatefulWidget> {
             if _shortcutsOpen { return false }   // the dialog's own Esc closes it
             if LinkCard.link(caret: _cardLink, hover: _hoverCard, dismissed: _cardDismissed) != nil { setState { _cardDismissed = true }; return true }
             if _listSymbolPick != nil { setState { _listSymbolPick = nil }; return true }
-            if _paragraphOpen || _tablePropsOpen || _fontOpen || _insertTableOpen || _splitCellOpen || _contentsOpen || _noteOptionsOpen || _convertTextTable != nil || _formulaOpen || _sortTable != nil || _bordersOpen || _pictureDialog != nil || _linkDialogOpen || _numberingValueOpen || _commentOpen || _dateTimeOpen || _fieldOpen || _bookmarkOpen || _crossReferenceOpen || _captionOpen || _propertiesOpen || _listFormatOpen != nil || _newStyleOpen || _pasteSpecialData != nil { return false }   // the dialog's own Esc closes it
+            if _paragraphOpen || _tablePropsOpen || _fontOpen || _insertTableOpen || _splitCellOpen || _contentsOpen || _noteOptionsOpen || _convertTextTable != nil || _formulaOpen || _sortTable != nil || _bordersOpen || _pictureDialog != nil || _linkDialogOpen || _numberingValueOpen || _commentOpen || _dateTimeOpen || _fieldOpen || _bookmarkOpen || _crossReferenceOpen || _captionOpen || _pageDesign != nil || _propertiesOpen || _listFormatOpen != nil || _newStyleOpen || _pasteSpecialData != nil { return false }   // the dialog's own Esc closes it
             if _headerFooterOpen { setState { _headerFooterOpen = false }; return true }
             if _findOpen { setState { _findOpen = false }; _editorFocus.requestFocus(); return true }
             if _backstage != nil { setState { _backstage = nil }; return true }
@@ -2316,6 +2372,28 @@ final class OfficeShellState: State<StatefulWidget> {
                     self._editorFocus.requestFocus()
                 })),
             ])
+        }
+        if let kind = _pageDesign {
+            let close: () -> Void = { [weak self] in
+                guard let self else { return }
+                self.setState { self._pageDesign = nil; self.session.summary = self.session.summarize() }
+                self._editorFocus.requestFocus()
+            }
+            let dialog: Widget
+            switch kind {
+            case .watermark:
+                dialog = WatermarkDialog(current: WordWatermark.current(in: controller.document), pickPicture: officeScene.pictureRequested,
+                                         onOK: { [weak self] c in close(); self?._applyWatermark(c) }, onCancel: close)
+            case .pageBorders:
+                dialog = PageBordersDialog(initial: controller.sectionPageBorders(), onOK: { [weak self] b, scope in
+                    self?.controller.setPageBorders(b, scope: scope); close() }, onCancel: close)
+            case .lineNumbers:
+                dialog = LineNumbersDialog(initial: session.sectionSetup().lineNumbers, onOK: { [weak self] n in
+                    guard let self else { return }
+                    var p = self.session.sectionSetup(); p.lineNumbers = n
+                    self.session.applyPageSetup(p); close() }, onCancel: close)
+            }
+            return Stack(children: [window, Positioned(left: 0, top: 0, right: 0, bottom: 0, child: dialog)])
         }
         if _captionOpen {
             return Stack(children: [

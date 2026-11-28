@@ -171,6 +171,9 @@ public final class RichTextTheme {
     /// out as the engine sets it (and PowerPoint's indent places the
     /// bullet, which `markersAtHang` handles).
     public var wordRules = false
+    /// W-PG-3: draw the page colour and page borders whatever fonts are in use. The editor's own window sets it (Word
+    /// shows both on screen); a headless render leaves them to `wordWindowsPages`, as before.
+    public var drawsPageDesign = false
     /// Latin text parted at spaces and after hyphens alone, as Office
     /// parts it — not after a slash or a closing bracket, where the
     /// engine, by Unicode's rules, may: PowerPoint keeps

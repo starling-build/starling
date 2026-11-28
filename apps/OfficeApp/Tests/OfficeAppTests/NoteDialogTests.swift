@@ -69,7 +69,7 @@ final class NoteDialogTests: XCTestCase {
         XCTAssertNil(state._noteOpen)
         var opened = false
         search: for x in stride(from: 200.0, to: 1000.0, by: 50.0) {
-            for y in stride(from: 80.0, to: 1100.0, by: 6.0) {
+            for y in stride(from: 250.0, to: 1100.0, by: 6.0) {   // below the ribbon: a tap there would press its buttons
                 ui.tap(at: Offset(x, y)); ui.pump()
                 if state._noteOpen != nil { opened = true; break search }
             }
