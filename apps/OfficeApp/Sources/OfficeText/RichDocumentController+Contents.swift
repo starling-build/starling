@@ -12,10 +12,17 @@ public struct ContentsOptions: Equatable, Sendable {
     public var rightAlignNumbers = true
     public var hyperlinks = true
     public var showPageNumbers = true
+    /// W-FD-3: a table of figures lists the captions of this label (`\c "Figure"`) in place of the headings.
+    public var caption: String? = nil
     public init() {}
 
     /// Word's instruction for these options.
-    var instruction: String {
+    public var instruction: String {
+        if let caption {
+            var s = hyperlinks ? "TOC \\h \\z \\c \"\(caption)\"" : "TOC \\c \"\(caption)\""
+            if !showPageNumbers { s += " \\n" }
+            return s
+        }
         var s = "TOC \\o \"1-\(levels)\""
         s += hyperlinks ? " \\h \\z \\u" : " \\u"
         if !showPageNumbers { s += " \\n" }
@@ -23,11 +30,14 @@ public struct ContentsOptions: Equatable, Sendable {
     }
 
     /// The options an existing instruction stands for.
-    init(instruction: String) {
+    public init(instruction: String) {
         let parts = instruction.split(separator: " ").map(String.init)
         if let i = parts.firstIndex(of: "\\o"), i + 1 < parts.count {
             let range = parts[i + 1].filter { $0 != "\"" }.split(separator: "-")
             if let last = range.last, let n = Int(last) { levels = max(1, min(9, n)) }
+        }
+        if let i = parts.firstIndex(where: { $0.lowercased() == "\\c" }), i + 1 < parts.count {
+            caption = parts[i + 1].filter { $0 != "\"" }
         }
         hyperlinks = parts.contains("\\h")
         showPageNumbers = !parts.contains("\\n")
@@ -59,7 +69,15 @@ extension RichDocumentController {
         var out: [RichParagraph] = []
         for (i, p) in document.paragraphs.enumerated() {
             if let skip, skip.contains(i) { continue }
-            guard let level = p.style.heading, level <= options.levels, !p.text.isEmpty else { continue }
+            // (Level 0: a caption of the table of figures' label, Word's "table of figures" style.)
+            let level: Int
+            if let label = options.caption?.lowercased() {
+                guard !p.text.isEmpty, p.runs.contains(where: { $0.style.preservedField.flatMap(Self.sequenceName)?.lowercased() == label }) else { continue }
+                level = 0
+            } else {
+                guard let h = p.style.heading, h <= options.levels, !p.text.isEmpty else { continue }
+                level = h
+            }
             var name = p.bookmarks.first { $0.hasPrefix("_Toc") }
             if name == nil {
                 var n = 100_000 + i
@@ -149,6 +167,10 @@ extension RichDocumentController {
 
     /// The paragraph style of TOC level `level` (Word's "toc N"): the document's own, else a new one to add.
     private func _contentsStyle(_ level: Int) -> (id: String, new: RichNamedStyle?) {
+        if level == 0 {
+            if let e = document.styles.styles.first(where: { $0.name.lowercased() == "table of figures" }) { return (e.id, nil) }
+            return ("TableofFigures", RichNamedStyle(id: "TableofFigures", name: "table of figures", paragraph: RichParagraphStyle(spaceAfter: 0), next: RichNamedStyle.normalId))
+        }
         if let e = document.styles.styles.first(where: { $0.name.lowercased() == "toc \(level)" }) { return (e.id, nil) }
         var p = RichParagraphStyle(spaceAfter: 5)
         p.indentLeft = Double(level - 1) * 11
@@ -159,7 +181,7 @@ extension RichDocumentController {
     private func _missingContentsStyles(_ entries: [RichParagraph]) -> [RichNamedStyle] {
         var out: [RichNamedStyle] = []
         for p in entries {
-            guard let n = p.style.named, n.hasPrefix("TOC"), let level = Int(n.dropFirst(3)),
+            guard let n = p.style.named, let level = n == "TableofFigures" ? 0 : n.hasPrefix("TOC") ? Int(n.dropFirst(3)) : nil,
                   document.styles[n] == nil, !out.contains(where: { $0.id == n }) else { continue }
             if let new = _contentsStyle(level).new { out.append(new) }
         }

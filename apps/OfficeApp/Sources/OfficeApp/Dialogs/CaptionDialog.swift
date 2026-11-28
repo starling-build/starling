@@ -3,7 +3,8 @@
 
 // W-FD-3: References > Insert Caption. The label (Equation, Figure, Table, or a new one), the caption's own text after
 // "Figure 1", above or below the selected item (a table's caption goes by the whole table), and "Exclude label from
-// caption". OK inserts a "Caption" paragraph numbered by a SEQ field, one undo step.
+// caption". Numbering: "Include chapter number" puts the last heading's number and a separator before the count, which
+// starts again in each chapter. OK inserts a "Caption" paragraph numbered by a SEQ field, one undo step.
 
 import Flutter
 import FlutterSwiftBridge
@@ -28,6 +29,14 @@ final class CaptionDialogState: State<StatefulWidget> {
     private(set) var label = "Figure"
     private(set) var place: RichDocumentController.CaptionPlace = .below
     private(set) var excludeLabel = false
+    private(set) var includeChapter = false
+    private(set) var chapter = RichDocumentController.CaptionChapter()
+
+    /// Word's refusal when the chapter's headings carry no numbers.
+    var chapterRefusal: String? {
+        guard includeChapter, !_w.controller.headingsNumbered(level: chapter.level) else { return nil }
+        return "Heading \(chapter.level) is not numbered: number the headings (Home > Multilevel List) to include chapter numbers."
+    }
 
     override func initState() {
         super.initState()
@@ -37,7 +46,9 @@ final class CaptionDialogState: State<StatefulWidget> {
     }
 
     func insert() {
-        _w.controller.insertCaption(label: label, title: title.text, place: place, excludeLabel: excludeLabel)
+        guard chapterRefusal == nil else { return }
+        _w.controller.insertCaption(label: label, title: title.text, place: place, excludeLabel: excludeLabel,
+                                    chapter: includeChapter ? chapter : nil)
         _w.onDone()
     }
 
@@ -53,8 +64,38 @@ final class CaptionDialogState: State<StatefulWidget> {
 
     override func build(_ context: any BuildContext) -> Widget {
         let fluent = FluentTheme.of(context)
-        let number = _w.controller.nextCaptionNumber(label, place)
-        let lead = (excludeLabel ? "" : label + " ") + String(number)
+        let c = _w.controller
+        let number = c.nextCaptionNumber(label, place, chapter: includeChapter ? chapter.level : nil)
+        var lead = excludeLabel ? "" : label + " "
+        if includeChapter {
+            lead += (c.chapterNumber(level: chapter.level, at: c.captionIndex(place) - 1) ?? "?") + chapter.separator
+        }
+        lead += String(number)
+        var numbering: [Widget] = [
+            SizedBox(width: nil, height: 10),
+            PKeyed("cap-chapter", Checkbox(checked: includeChapter, onChanged: { [weak self] v in self?.setState { self?.includeChapter = v ?? false } },
+                                           content: Text("Include chapter number", style: fluent.typography.body))),
+        ]
+        if includeChapter {
+            numbering.append(SizedBox(width: nil, height: 6))
+            numbering.append(Text("Chapter starts with style:", style: fluent.typography.body))
+            numbering.append(SizedBox(width: nil, height: 4))
+            numbering.append(Wrap(spacing: 6, runSpacing: 6, children: (1 ... 9).map { n in
+                PKeyed("cap-chapter-\(n)", Chrome.textToggle("Heading \(n)", n == chapter.level, fluent,
+                                                             action: { [weak self] in self?.setState { self?.chapter.level = n } }))
+            }))
+            numbering.append(SizedBox(width: nil, height: 6))
+            numbering.append(Text("Use separator:", style: fluent.typography.body))
+            numbering.append(SizedBox(width: nil, height: 4))
+            numbering.append(Wrap(spacing: 6, runSpacing: 6, children: RichDocumentController.CaptionChapter.separators.map { sep in
+                PKeyed("cap-sep-\(sep.title)", Chrome.textToggle("\(sep.mark) (\(sep.title))", sep.mark == chapter.separator, fluent,
+                                                                 action: { [weak self] in self?.setState { self?.chapter.separator = sep.mark } }))
+            }))
+            if let refusal = chapterRefusal {
+                numbering.append(SizedBox(width: nil, height: 6))
+                numbering.append(PKeyed("cap-chapter-refusal", Text(refusal, style: fluent.typography.caption)))
+            }
+        }
         let labelRow: [Widget] = labels.map { l in
             PKeyed("cap-label-\(l)", Chrome.textToggle(l, l == label, fluent, action: { [weak self] in self?.setState { self?.label = l } }))
         }
@@ -83,6 +124,7 @@ final class CaptionDialogState: State<StatefulWidget> {
             SizedBox(width: nil, height: 8),
             PKeyed("cap-exclude", Checkbox(checked: excludeLabel, onChanged: { [weak self] v in self?.setState { self?.excludeLabel = v ?? false } },
                                            content: Text("Exclude label from caption", style: fluent.typography.body))),
+        ] + numbering + [
             SizedBox(width: nil, height: 10),
             Row(crossAxisAlignment: .center, children: [
                 SizedBox(width: 160, height: Chrome.fieldHeight, child: PKeyed("cap-new-label", FluentTextBox(
@@ -91,7 +133,7 @@ final class CaptionDialogState: State<StatefulWidget> {
                 PKeyed("cap-add-label", Button(onPressed: newLabel.text.isEmpty ? nil : { [weak self] in self?.addLabel() }, child: Text("New Label"))),
             ]),
         ])
-        return DialogShell(title: "Caption", page: page, okEnabled: true, width: 460,
+        return DialogShell(title: "Caption", page: page, okEnabled: chapterRefusal == nil, width: 460,
                            onOK: { [weak self] in self?.insert() },
                            onCancel: { [weak self] in self?._w.onDone() })
     }

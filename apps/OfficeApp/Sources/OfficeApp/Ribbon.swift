@@ -265,6 +265,7 @@ final class Ribbon: StatelessWidget {
             Chrome.big(FluentSystemIcons.textT, "Footnote and Endnote…", fluent) { [session] in session.onNoteOptions?() },
         ]), Chrome.group("Captions", fluent, [
             Chrome.big(FluentSystemIcons.textT, "Insert Caption", fluent) { [session] in session.onCaptionDialog?() },
+            Chrome.big(FluentSystemIcons.textT, "Insert Table of Figures", fluent) { [session] in session.onFiguresDialog?() },
             Chrome.big(FluentSystemIcons.link, "Cross-reference", fluent) { [session] in session.onCrossReferenceDialog?() },
         ])]
     }

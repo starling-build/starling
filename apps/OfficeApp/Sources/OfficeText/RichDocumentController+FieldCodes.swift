@@ -183,6 +183,10 @@ extension RichDocumentController {
         case "NUMPAGES": return String(pageCount)
         case "SEQ":
             return (sequence ?? sequenceNumbers())[field]
+        case "STYLEREF" where words.contains { $0.lowercased() == "\\s" }:
+            // A caption's chapter number: the paragraph number of the last heading of that level above.
+            guard words.count > 1, let level = Int(words[1].filter { $0 != "\"" }), (1 ... 9).contains(level) else { return nil }
+            return chapterNumber(level: level, at: paragraph) ?? Self.styleRefMissing
         case "REF" where words.contains("\\p") && !words.contains("\\n") && !words.contains("\\r") && !words.contains("\\w"),
              "NOTEREF" where words.contains("\\p"), "PAGEREF" where words.contains("\\p"):
             // "above" or "below": where the bookmark starts against the field (Insert > Cross-reference, Above/below).

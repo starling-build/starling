@@ -150,4 +150,43 @@ final class ReferenceTests: XCTestCase {
         XCTAssertNil(ui.state(BookmarkDialogState.self))
         XCTAssertEqual(state.session.controller.bookmarkEntries().map(\.name), ["Greeting"])
     }
+
+    /// Insert Caption with "Include chapter number": the last Heading 1's number, the separator, then the count, which
+    /// starts again in each chapter (Word's `{ STYLEREF 1 \s }-{ SEQ Figure \* ARABIC \s 1 }`); saved and F9 keep it.
+    func testChapterNumberedCaptions() throws {
+        func heading(_ t: String) -> RichParagraph {
+            var p = RichParagraph(text: t)
+            p.style.heading = 1; p.style.list = .numbered; p.style.listId = "7"
+            return p
+        }
+        let c = RichDocumentController()
+        c.load(RichDocument(paragraphs: [heading("Start"), RichParagraph(text: "Pic a"), RichParagraph(text: "Pic b"),
+                                         heading("Next"), RichParagraph(text: "Pic c")]))
+        XCTAssertTrue(c.headingsNumbered(level: 1))
+        XCTAssertFalse(c.headingsNumbered(level: 2))
+        let chapter = RichDocumentController.CaptionChapter(level: 1, separator: "-")
+        for k in [4, 2, 1] {
+            c.moveTo(RichPosition(paragraph: k, offset: 0), extend: false)
+            XCTAssertEqual(c.nextCaptionNumber("Figure", .below, chapter: 1), 1, "inserted last-first: none before")
+            c.insertCaption(label: "Figure", title: ": x", place: .below, excludeLabel: false, chapter: chapter)
+        }
+        let texts = c.document.paragraphs.map(\.text)
+        XCTAssertEqual(texts, ["Start", "Pic a", "Figure 1-1: x", "Pic b", "Figure 1-2: x", "Next", "Pic c", "Figure 2-1: x"])
+        XCTAssertEqual(c.fieldSpans().map(\.instruction).prefix(2), [" STYLEREF 1 \\s ", " SEQ Figure \\* ARABIC \\s 1 "])
+        // Saved and reopened, then every field updated: the same numbers.
+        let back = try DocxFormat.read(try DocxFormat.write(c.document, pageSetup: .letter)).document
+        let d = RichDocumentController(); d.load(back)
+        d.updateFields(pageOf: { _ in nil }, pageCount: 1, everywhere: true)
+        XCTAssertEqual(d.document.paragraphs.map(\.text), texts)
+        // An em dash, and the chapter's words and period dropped ("Chapter 2." shows 2).
+        XCTAssertEqual(d.chapterNumber(level: 1, at: 7, labels: [nil, nil, nil, nil, nil, "Chapter 2.", nil, nil]), "2")
+        c.moveTo(RichPosition(paragraph: 6, offset: 0), extend: false)
+        c.insertCaption(label: "Table", title: "", place: .above, excludeLabel: false,
+                        chapter: .init(level: 1, separator: "\u{2014}"))
+        XCTAssertEqual(c.document.paragraphs[6].text, "Table 2\u{2014}1")
+        // Before any heading, Word's STYLEREF error.
+        c.moveTo(RichPosition(paragraph: 0, offset: 0), extend: false)
+        c.insertCaption(label: "Table", title: "", place: .above, excludeLabel: true, chapter: chapter)
+        XCTAssertEqual(c.document.paragraphs[0].text, RichDocumentController.styleRefMissing + "-1")
+    }
 }
