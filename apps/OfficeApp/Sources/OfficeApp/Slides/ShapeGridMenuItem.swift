@@ -13,10 +13,13 @@ final class ShapeGridMenuItem: MenuFlyoutItemBase {
     static let height = 420.0
 
     let ink: Color
+    let hover: Color
+    let recent: [ShapePreset]
     let onChoose: (ShapePreset) -> Void
 
-    init(ink: Color, onChoose: @escaping (ShapePreset) -> Void) {
-        self.ink = ink; self.onChoose = onChoose
+    /// `recent`: the shapes picked lately, newest first, shown as PowerPoint's Recently Used Shapes row.
+    init(ink: Color, hover: Color, recent: [ShapePreset] = [], onChoose: @escaping (ShapePreset) -> Void) {
+        self.ink = ink; self.hover = hover; self.recent = recent; self.onChoose = onChoose
         super.init(key: ValueKey("shape-grid"))
     }
 
@@ -25,19 +28,51 @@ final class ShapeGridMenuItem: MenuFlyoutItemBase {
             if let scope = FlyoutScope.maybeOf(context) { scope.close() } else { Navigator.maybeOf(context)?.maybePop() }
         }
         var rows: [Widget] = []
-        for group in ShapeGallery.groups {
+        let groups = (recent.isEmpty ? [] : [ShapeGallery.Group(name: "Recently Used Shapes", presets: recent)]) + ShapeGallery.groups
+        for (gi, group) in groups.enumerated() {
+            let recentRow = gi == 0 && !recent.isEmpty
             rows.append(Padding(padding: EdgeInsets(left: 2, top: rows.isEmpty ? 0 : 8, right: 0, bottom: 4),
                                 child: Text(group.name, style: TextStyle(fontWeight: .w600))))
             rows.append(Wrap(children: group.presets.map { preset in
-                Tooltip(message: preset.name, child: GestureDetector(
-                    key: ValueKey("shape-grid-\(preset.rawValue)"),
-                    onTap: { [onChoose] in close(); onChoose(preset) },
-                    child: SizedBox(width: Self.cell, height: Self.cell,
-                                    child: CustomPaint(painter: _ShapeIconPainter(preset: preset, ink: ink)))))
+                Tooltip(message: preset.name, child: _ShapeCell(
+                    key: ValueKey(recentRow ? "shape-grid-recent-\(preset.rawValue)" : "shape-grid-\(preset.rawValue)"),
+                    preset: preset, ink: ink, hover: hover, size: Self.cell,
+                    onTap: { [onChoose] in close(); onChoose(preset) }))
             }))
         }
         return SizedBox(key: ValueKey("shape-grid-panel"), width: Double(Self.columns) * Self.cell, height: Self.height,
                         child: SingleChildScrollView(child: Column(crossAxisAlignment: .start, children: rows)))
+    }
+}
+
+/// One icon of the grid, shaded while the pointer is over it.
+private final class _ShapeCell: StatefulWidget {
+    let preset: ShapePreset
+    let ink: Color
+    let hover: Color
+    let size: Double
+    let onTap: () -> Void
+
+    init(key: (any Key)?, preset: ShapePreset, ink: Color, hover: Color, size: Double, onTap: @escaping () -> Void) {
+        self.preset = preset; self.ink = ink; self.hover = hover; self.size = size; self.onTap = onTap
+        super.init(key: key)
+    }
+
+    override func createState() -> State<StatefulWidget> { _ShapeCellState() }
+}
+
+private final class _ShapeCellState: State<StatefulWidget> {
+    var hovered = false
+    private var w: _ShapeCell { widget as! _ShapeCell }
+
+    override func build(_ context: any BuildContext) -> Widget {
+        let icon = SizedBox(width: w.size, height: w.size,
+                            child: CustomPaint(painter: _ShapeIconPainter(preset: w.preset, ink: w.ink)))
+        return MouseRegion(onEnter: { [weak self] _ in self?.setState { self?.hovered = true } },
+                           onExit: { [weak self] _ in self?.setState { self?.hovered = false } },
+                           child: GestureDetector(onTap: w.onTap, child: hovered
+                               ? DecoratedBox(decoration: BoxDecoration(color: w.hover, borderRadius: BorderRadius.circular(3)), child: icon)
+                               : icon))
     }
 }
 
@@ -53,18 +88,19 @@ private final class _ShapeIconPainter: CustomPainter {
 
     override func paint(_ canvas: any Canvas, _ size: Size) {
         let r = Rect.fromLTWH(4, 5, size.width - 8, size.height - 10)
-        let path: Path
-        if preset.isLine {
-            path = Path(); path.moveTo(r.left, r.bottom); path.lineTo(r.right, r.top)
-        } else if let p = PresetGeometry.path(preset.rawValue, in: r) {
-            path = p
-        } else { return }
         let p = Paint()
         p.style = .stroke
         p.isAntiAlias = true
         p.strokeWidth = 1
         p.color = ink
-        canvas.drawPath(path, p)
+        if preset.isLine {
+            let path = Path(); path.moveTo(r.left, r.bottom); path.lineTo(r.right, r.top)
+            canvas.drawPath(path, p)
+            return
+        }
+        // Every contour the shape strokes, so a smiley's mouth and a bracket show as well as the outline.
+        guard let g = PresetGeometry.geometry(preset.rawValue, width: r.width * Pptx.emu, height: r.height * Pptx.emu) else { return }
+        for sub in g.subpaths where sub.stroke { canvas.drawPath(FreeformGeometry.path(sub, in: r), p) }
     }
 
     override func shouldRepaint(_ oldDelegate: CustomPainter) -> Bool {

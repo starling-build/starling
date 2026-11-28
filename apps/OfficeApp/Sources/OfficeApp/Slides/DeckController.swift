@@ -46,6 +46,7 @@ struct ShapeState: Equatable {
     var fillScheme: String? = nil
     /// The same for the outline (`SchemeColor`).
     var outlineScheme: String? = nil
+    var themeStyle = false
     /// A picture's crop, as fractions cut from each edge.
     var crop: EdgeInsets? = nil
     var flipH = false
@@ -1210,8 +1211,11 @@ final class DeckController: ChangeNotifier {
                                    : _textController(RichDocument(paragraphs: [RichParagraph(text: "", style: style)])),
                                textTheme: preset.isLine || preset.isElbow ? nil : theme, anchor: .middle)
         shape.fill = open ? nil : accent
-        shape.outline = open ? accent : Self.darker(accent)
+        // PowerPoint's default shape style: accent1 fill, an accent1 shade 50%
+        // outline (a line takes plain accent1), saved as the style's refs.
+        shape.outline = open ? accent : Self.shadeLinear(accent, 0.5)
         shape.fillScheme = "accent1"
+        shape.themeStyle = true
         shape.outlineWidth = open ? 1.5 : 1
         if preset.rawValue == "straightConnector1" { shape.tailEnd = LineEnd(kind: "triangle", width: 3, length: 3) }
         if preset.isElbow {
@@ -2248,6 +2252,15 @@ final class DeckController: ChangeNotifier {
         _changed()
     }
 
+    /// Shapes picked lately in the Shapes gallery, newest first (not part of the document, not undone).
+    private(set) var recentShapes: [ShapePreset] = []
+    func useRecentShape(_ preset: ShapePreset) {
+        recentShapes.removeAll { $0 == preset }
+        recentShapes.insert(preset, at: 0)
+        if recentShapes.count > ShapeGridMenuItem.columns { recentShapes.removeLast() }
+        _notify()
+    }
+
     /// Colours picked lately in Shape Fill and Outline (not part of the document, not undone).
     var recentShapeColors = RecentColors()
     /// Set while the eyedropper waits for a click on the slide (false: for the fill, true: for the outline).
@@ -2391,7 +2404,7 @@ final class DeckController: ChangeNotifier {
                     let plainAccent = SchemeColor.parse(scheme).map { $0.slot >= 4 && $0.mod == 100 && $0.off == 0 } ?? false
                     if shape.preset?.isLine == true { shape.outline = c } else {
                         shape.fill = c
-                        if plainAccent { shape.outline = Self.darker(c) }
+                        if plainAccent { shape.outline = shape.themeStyle ? Self.shadeLinear(c, 0.5) : Self.darker(c) }
                     }
                 }
                 if let scheme = shape.outlineScheme, let c = SchemeColor.resolve(scheme, slots: new.slots) { shape.outline = c }
@@ -2938,6 +2951,7 @@ final class DeckController: ChangeNotifier {
         st.media = s.media
         st.outlineFill = s.outlineFill
         st.outlineScheme = s.outlineScheme
+        st.themeStyle = s.themeStyle
         st.headEnd = s.headEnd
         st.connStart = s.connStart
         st.adjusts = s.adjusts
@@ -3062,6 +3076,7 @@ final class DeckController: ChangeNotifier {
         shape.fileId = st.fileId
         shape.fillScheme = st.fillScheme
         shape.outlineScheme = st.outlineScheme
+        shape.themeStyle = st.themeStyle
         shape.sourceXML = st.sourceXML
         shape.sourceText = st.sourceText
         shape.sourcePart = st.sourcePart
@@ -3288,6 +3303,18 @@ final class DeckController: ChangeNotifier {
     }
 
     static func darker(_ c: Color) -> Color { shade(c, 0.7) }
+
+    /// DrawingML's `a:shade` as PowerPoint draws it: mixed with black in
+    /// linear light (accent1 4472C4 at 50% is 2F528F).
+    static func shadeLinear(_ c: Color, _ amount: Double) -> Color {
+        func lin(_ c: Double) -> Double { c <= 0.04045 ? c / 12.92 : pow((c + 0.055) / 1.055, 2.4) }
+        func srgb(_ l: Double) -> Double { l <= 0.0031308 ? l * 12.92 : 1.055 * pow(l, 1 / 2.4) - 0.055 }
+        let v = c.value
+        func ch(_ shift: Int64) -> Int64 {
+            Int64((srgb(lin(Double((v >> shift) & 0xFF) / 255) * amount) * 255).rounded())
+        }
+        return Color(0xFF00_0000 | (ch(16) << 16) | (ch(8) << 8) | ch(0))
+    }
 
     /// DrawingML's `shade`: each channel scaled toward black.
     static func shade(_ c: Color, _ amount: Double) -> Color {

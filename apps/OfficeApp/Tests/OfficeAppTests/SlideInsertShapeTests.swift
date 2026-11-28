@@ -26,6 +26,35 @@ final class SlideInsertShapeTests: XCTestCase {
         XCTAssertEqual(back, names)
     }
 
+    /// Every icon in the gallery draws something, so the grid flows with no blank cells.
+    func testEveryGalleryShapeHasAnIcon() {
+        for g in ShapeGallery.groups { for p in g.presets where !p.isLine {
+            let geo = PresetGeometry.geometry(p.rawValue, width: 914_400, height: 914_400)
+            XCTAssertFalse(geo?.subpaths.filter(\.stroke).isEmpty ?? true, "\(g.name): \(p.rawValue) draws nothing")
+        } }
+    }
+
+    /// A drawn shape takes PowerPoint's default style: accent1 fill, an accent1
+    /// shade 50% outline (so a smiley's mouth shows), saved as the style refs.
+    func testANewShapeHasPowerPointsDefaultStyle() throws {
+        XCTAssertEqual(DeckController.shadeLinear(Color(0xFF4472C4), 0.5).value, 0xFF2F528F)
+        let deck = DeckController()
+        let accent = deck.theme.accents[0]
+        let s = deck.placeInsert(ShapePreset(rawValue: "smileyFace"), from: Offset(50, 50), to: Offset(250, 170), keepProportions: false)
+        XCTAssertEqual(s.fill, accent)
+        XCTAssertEqual(s.outline, DeckController.shadeLinear(accent, 0.5))
+        let l = deck.placeInsert(.line, from: Offset(0, 300), to: Offset(200, 320), keepProportions: false)
+        XCTAssertEqual(l.outline, accent)
+        let data = try Pptx.write(deck)
+        let xml = String(data: PptxPackage(try Zip.read(data)).parts["ppt/slides/slide1.xml"]!, encoding: .utf8)!
+        XCTAssertTrue(xml.contains("<a:lnRef idx=\"2\"><a:schemeClr val=\"accent1\"><a:shade val=\"50000\"/></a:schemeClr></a:lnRef><a:fillRef idx=\"1\">"))
+        XCTAssertTrue(xml.contains("<a:fontRef idx=\"minor\"><a:schemeClr val=\"lt1\"/></a:fontRef>"))
+        XCTAssertTrue(xml.contains("<a:lnRef idx=\"1\"><a:schemeClr val=\"accent1\"/></a:lnRef><a:fillRef idx=\"0\">"))
+        let (state, _, _) = try Pptx.read(data)
+        let back = state.slides[0].shapes.first { if case .geometry(let p) = $0.kind { return p.rawValue == "smileyFace" }; return false }
+        XCTAssertEqual(back?.outline, s.outline)
+    }
+
     func testAClickDropsAnInchSquareAndUndoRemovesIt() {
         let deck = DeckController()
         let n = deck.currentSlide.shapes.count
@@ -96,5 +125,12 @@ final class SlideShapeGridUITests: XCTestCase {
         XCTAssertTrue(ui.tap(id: "shape-grid-smileyFace"))
         XCTAssertEqual(picked, ["smileyFace"])
         XCTAssertFalse(ui.has(id: "shape-grid-smileyFace"))
+        // The shape just picked heads a Recently Used Shapes row the next time.
+        XCTAssertFalse(ui.has(id: "shape-grid-recent-smileyFace"))
+        ui.pump()
+        XCTAssertTrue(ui.tap(tip: "Insert a shape"))
+        XCTAssertTrue(ui.has(text: "Recently Used Shapes"))
+        XCTAssertTrue(ui.tap(id: "shape-grid-recent-smileyFace"))
+        XCTAssertEqual(picked, ["smileyFace", "smileyFace"])
     }
 }
