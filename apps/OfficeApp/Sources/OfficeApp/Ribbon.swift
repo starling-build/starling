@@ -301,7 +301,33 @@ final class Ribbon: StatelessWidget {
                 },
             ]),
         ])
-        return [proofing, tracking, changes]
+        /// Where Previous / Next landed: the comment's author and text, on the status line.
+        func showComment() {
+            guard let m = c.currentComment() else { return }
+            let text = m.text.split(separator: "\n").joined(separator: " ")
+            session.onStatus?("Comment by \(m.author.isEmpty ? "unknown" : m.author): \(text.count > 120 ? String(text.prefix(120)) + "…" : text)")
+        }
+        let comments = Chrome.group("Comments", fluent, [
+            Chrome.big(FluentSystemIcons.comment, "New Comment", fluent) { [session] in session.onNewComment?() },
+            Chrome.rows([
+                Chrome.menuButton(FluentSystemIcons.delete, "Delete", "Delete the comment", fluent, items: [
+                    MenuFlyoutItem(text: Text("Delete"), onPressed: { [session] in
+                        if c.deleteComments() == 0 { session.onStatus?("No comment here") }
+                    }),
+                    MenuFlyoutItem(text: Text("Delete All Comments in Document"), onPressed: { [session] in
+                        let n = c.deleteAllComments()
+                        session.onStatus?(n == 0 ? "The document has no comments" : "\(n) comment\(n == 1 ? "" : "s") deleted")
+                    }),
+                ]),
+                Chrome.small(FluentSystemIcons.chevronUp, "Previous", fluent) { [session] in
+                    if c.selectAdjacentComment(forward: false) { showComment() } else { session.onStatus?("The document has no comments") }
+                },
+                Chrome.small(FluentSystemIcons.chevronDown, "Next", fluent) { [session] in
+                    if c.selectAdjacentComment(forward: true) { showComment() } else { session.onStatus?("The document has no comments") }
+                },
+            ]),
+        ])
+        return [proofing, comments, tracking, changes]
     }
 
     // MARK: Home

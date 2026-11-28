@@ -320,6 +320,38 @@ final class TrackedEditTests: XCTestCase {
         XCTAssertNil(c.document.paragraphs[0].style.propertyChange)
     }
 
+    /// Enter at a line's end and typing, under tracking, is one change for Next (the new mark and the text), as in
+    /// Word: the Mac run of the Review script stopped on the mark alone first.
+    func testEnterAndTypingIsOneStopForNext() throws {
+        let c = try open(["First line", "Other"], tracking: true)
+        c.moveTo(RichPosition(paragraph: 0, offset: 10), extend: false)
+        c.insertParagraphBreak()
+        c.insertText("Typed")
+        XCTAssertEqual(c.trackedChanges(), [.init(start: RichPosition(paragraph: 0, offset: 10), end: RichPosition(paragraph: 1, offset: 5))])
+        c.moveTo(RichPosition(paragraph: 0, offset: 0), extend: false)
+        XCTAssertTrue(c.selectAdjacentChange(forward: true))
+        XCTAssertEqual(c.selection.end, RichPosition(paragraph: 1, offset: 5))
+        XCTAssertEqual(c.resolveChanges(accept: false), 2)
+        XCTAssertEqual(c.document.paragraphs.map(\.text), ["First line", "Other"])
+    }
+
+    /// Show Markup > Original draws the old formatting too, as Word does: "Second" not bold, its paragraph not centred.
+    /// The document itself keeps the change, and every position stays where it was.
+    func testOriginalViewShowsTheOldFormatting() throws {
+        let c = try everyKind()
+        let shown = c.originalDocument
+        XCTAssertFalse(shown.paragraphs[1].runs[0].style.bold)
+        XCTAssertNotEqual(shown.paragraphs[1].style.alignment, .center)
+        XCTAssertEqual(shown.paragraphs.map(\.length), c.document.paragraphs.map(\.length))
+        XCTAssertTrue(c.document.paragraphs[1].runs[0].style.bold)
+        XCTAssertEqual(c.document.paragraphs[1].style.alignment, .center)
+        // Made again after an edit.
+        c.moveTo(RichPosition(paragraph: 1, offset: 0), extend: false)
+        c.moveTo(RichPosition(paragraph: 1, offset: 6), extend: true)
+        c.resolveChanges(accept: true)
+        XCTAssertTrue(c.originalDocument.paragraphs[1].runs[0].style.bold)
+    }
+
     /// Track Changes on and off: the save writes w:trackRevisions in the settings, or takes it out.
     func testTrackChangesSwitchIsSaved() throws {
         let c = try open("Hello", tracking: false)

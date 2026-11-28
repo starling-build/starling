@@ -128,6 +128,8 @@ public indirect enum EditOp: Equatable, Sendable {
     case setLastSectionType(old: String?, new: String?)
     /// The settings' margin options (`w:mirrorMargins`, `w:gutterAtTop`) as the file writes them (W-PG-1).
     case setMarginSettings(old: String?, new: String?)
+    /// A part the file carries as is (the comments' `word/comments.xml`), set or removed (nil).
+    case setKeptPart(String, old: Data?, new: Data?)
     /// A picture's shown size (its attachment replaced; the id survives).
     case setImage(Int, old: ImageAttachment, new: ImageAttachment)
     /// An inline picture in a paragraph's text, replaced (its id survives).
@@ -259,6 +261,10 @@ public indirect enum EditOp: Equatable, Sendable {
             doc.marginSettingsXML = new
             changes.append(.all)
             return .setMarginSettings(old: new, new: old)
+        case .setKeptPart(let name, let old, let new):
+            doc.keptParts[name] = new
+            changes.append(.all)
+            return .setKeptPart(name, old: new, new: old)
         case .setImage(let index, let old, let new):
             doc.paragraphs[index].image = new
             changes.append(.changed(index))
@@ -343,7 +349,15 @@ private struct UndoEntry {
 /// Owns a `RichDocument`, its selection, and the undo history.
 public final class RichDocumentController: ChangeNotifier {
     private let _leakProbe = LeakProbe("RichDocumentController")
-    public private(set) var document: RichDocument
+    public private(set) var document: RichDocument { didSet { _originalView = nil } }
+    private var _originalView: RichDocument?
+    /// The document as Show Markup > Original draws it (`originalView(of:)`), made once per change.
+    public var originalDocument: RichDocument {
+        if let v = _originalView { return v }
+        let v = Self.originalView(of: document)
+        _originalView = v
+        return v
+    }
 
     /// Track Changes (Ctrl+Shift+E): the editor's own edits are recorded from now on, and the save writes
     /// `w:trackRevisions` in the settings. Word keeps the switch off the undo stack; so does this.

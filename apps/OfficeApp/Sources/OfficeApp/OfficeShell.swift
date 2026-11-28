@@ -121,6 +121,7 @@ final class OfficeShellState: State<StatefulWidget> {
     /// Set while the picker is open for Change Picture: the picture (paragraph, inline id) the chosen file replaces.
     private var _replaceTarget: (index: Int, inline: String?)?
     private var _numberingValueOpen = false
+    private var _commentOpen = false
     private var _dateTimeOpen = false
     private var _fieldOpen = false
     private var _propertiesOpen = false
@@ -420,6 +421,11 @@ final class OfficeShellState: State<StatefulWidget> {
             let on = !self.controller.document.trackRevisions
             self.setState { self.controller.setTrackRevisions(on) }
             self.session.onStatus?(on ? "Track Changes on" : "Track Changes off")
+        }
+        session.onNewComment = { [weak self] in
+            guard let self, !self.controller.readOnly else { return }
+            self.controller.breakUndoCoalescing()
+            self.setState { self._commentOpen = true }
         }
         session.onMarkup = { [weak self] mode in
             guard let self else { return }
@@ -1659,7 +1665,7 @@ final class OfficeShellState: State<StatefulWidget> {
             if _shortcutsOpen { return false }   // the dialog's own Esc closes it
             if LinkCard.link(caret: _cardLink, hover: _hoverCard, dismissed: _cardDismissed) != nil { setState { _cardDismissed = true }; return true }
             if _listSymbolPick != nil { setState { _listSymbolPick = nil }; return true }
-            if _paragraphOpen || _tablePropsOpen || _fontOpen || _insertTableOpen || _splitCellOpen || _contentsOpen || _noteOptionsOpen || _convertTextTable != nil || _formulaOpen || _sortTable != nil || _bordersOpen || _pictureDialog != nil || _linkDialogOpen || _numberingValueOpen || _dateTimeOpen || _fieldOpen || _propertiesOpen || _listFormatOpen != nil || _newStyleOpen || _pasteSpecialData != nil { return false }   // the dialog's own Esc closes it
+            if _paragraphOpen || _tablePropsOpen || _fontOpen || _insertTableOpen || _splitCellOpen || _contentsOpen || _noteOptionsOpen || _convertTextTable != nil || _formulaOpen || _sortTable != nil || _bordersOpen || _pictureDialog != nil || _linkDialogOpen || _numberingValueOpen || _commentOpen || _dateTimeOpen || _fieldOpen || _propertiesOpen || _listFormatOpen != nil || _newStyleOpen || _pasteSpecialData != nil { return false }   // the dialog's own Esc closes it
             if _headerFooterOpen { setState { _headerFooterOpen = false }; return true }
             if _findOpen { setState { _findOpen = false }; _editorFocus.requestFocus(); return true }
             if _backstage != nil { setState { _backstage = nil }; return true }
@@ -1724,6 +1730,8 @@ final class OfficeShellState: State<StatefulWidget> {
             session.onInsertNote?(letter == "f" ? .footnote : .endnote)
             return true
         }
+        // Ctrl+Alt+M: New Comment, as in Word.
+        if mods.contains(.alt), !mods.contains(.shift), letter == "m" { session.onNewComment?(); return true }
         if mods.contains(.alt) { return false }
         switch letter {
         case "s":
@@ -2306,6 +2314,24 @@ final class OfficeShellState: State<StatefulWidget> {
                     },
                     onCancel: { [weak self] in
                         self?.setState { self?._dateTimeOpen = false }
+                        self?._editorFocus.requestFocus()
+                    })),
+            ])
+        }
+        if _commentOpen {
+            return Stack(children: [
+                window,
+                Positioned(left: 0, top: 0, right: 0, bottom: 0, child: PictureAltTextDialog(
+                    initial: "", title: "New Comment", prompt: "Type the comment. It goes on the selected text, or on the word at the cursor.",
+                    onOK: { [weak self] text in
+                        guard let self else { return }
+                        let id = self.controller.addComment(text)
+                        self.setState { self._commentOpen = false }
+                        if id == nil { self.session.onStatus?("Select some text to comment on") }
+                        self._editorFocus.requestFocus()
+                    },
+                    onCancel: { [weak self] in
+                        self?.setState { self?._commentOpen = false }
                         self?._editorFocus.requestFocus()
                     })),
             ])
