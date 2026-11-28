@@ -45,4 +45,15 @@ final class SheetsFormatFontTabTests: XCTestCase {
         // Laid out at the dialog's real width: no row runs past it.
         XCTAssertEqual(ui.overflowingFlexes(), 0)
     }
+
+    func testTheFontFieldsAndChecksHaveTheDialogSpacing() throws {
+        let ui = dialog(CellFormatEdit.Values(.plain))
+        XCTAssertTrue(ui.tap(text: "Font"))
+        let name = try XCTUnwrap(ui.centre(id: "fc-font-name")), size = try XCTUnwrap(ui.centre(id: "fc-font-size"))
+        XCTAssertEqual(size.dy - name.dy, Chrome.fieldHeight + FormatCellsDialog.fieldGap, accuracy: 0.5)
+        let bold = try XCTUnwrap(ui.centre(id: "fc-bold")), strike = try XCTUnwrap(ui.centre(id: "fc-strike"))
+        // (A check box row is as tall as the distance between the two rows' centres.)
+        let checkHeight = strike.dy - bold.dy
+        XCTAssertEqual(bold.dy - checkHeight / 2 - (size.dy + Chrome.fieldHeight / 2), FormatCellsDialog.groupGap, accuracy: 0.5)
+    }
 }

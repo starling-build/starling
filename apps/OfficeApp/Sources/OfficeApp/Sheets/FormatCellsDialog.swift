@@ -23,6 +23,10 @@ final class FormatCellsDialog: StatefulWidget {
     }
     override func createState() -> State<StatefulWidget> { FormatCellsDialogState() }
 
+    /// Space between two fields stacked in one group, and between groups (the Fluent dialog spacing).
+    static let fieldGap = 8.0
+    static let groupGap = 12.0
+
     static let numberFormats: [(String, String)] = [
         ("General", "General"), ("Number", "0.00"), ("Currency", "$#,##0.00"),
         ("Percentage", "0.00%"), ("Scientific", "0.00E+00"), ("Text", "@"),
@@ -191,6 +195,7 @@ final class FormatCellsDialogState: State<StatefulWidget> {
                     self?._set { $0.fontName = t.isEmpty ? nil : t }
                 })),
             ]),
+            SizedBox(height: FormatCellsDialog.fieldGap),
             Row(children: [
                 SizedBox(width: 60, child: Text("Size")),
                 SizedBox(key: ValueKey("fc-font-size"), width: 80, height: Chrome.fieldHeight, child: FluentTextBox(controller: _fontSize, onChanged: { [weak self] t in
@@ -198,6 +203,7 @@ final class FormatCellsDialogState: State<StatefulWidget> {
                     if let z = Double(t), z > 0, z < 410 { self?._set { $0.fontSize = z } } else if t.isEmpty { self?._set { $0.fontSize = nil } }
                 })),
             ]),
+            SizedBox(height: FormatCellsDialog.groupGap),
             Row(children: [
                 _rowCheck("fc-bold", "Bold", values.bold) { $0.bold = $1 },
                 _rowCheck("fc-italic", "Italic", values.italic) { $0.italic = $1 },
@@ -210,6 +216,7 @@ final class FormatCellsDialogState: State<StatefulWidget> {
                 _rowCheck("fc-superscript", "Superscript", values.script == 1) { $0.script = $1 ? 1 : 0 },
                 _rowCheck("fc-subscript", "Subscript", values.script == -1) { $0.script = $1 ? -1 : 0 },
             ]),
+            SizedBox(height: FormatCellsDialog.groupGap),
             Text("Text colour", style: fluent.typography.bodyStrong),
             _swatches("fc-color", values.color, noneLabel: "Automatic") { [weak self] c in self?._set { $0.color = c } },
         ])
