@@ -114,6 +114,40 @@ final class PictureWrapTests: XCTestCase {
     }
 
     /// The Picture Format tab's Fix Position on Page keeps the picture where the editor draws it.
+    /// What the Picture Format tab shows: the tips (a folded group is a "… group" button) and the captions.
+    /// A control whose state changes (checked, on or off) must not change how the ribbon folds at the same width.
+    private func fold(_ ui: WidgetTester) -> [String] {
+        (ui.tips().filter { $0.hasSuffix(" group") } + ["|"] + ui.texts()).sorted()
+    }
+
+    func testPicturePinDoesNotChangeTheFold() throws {
+        var report: [String] = []
+        for width in stride(from: 1100.0, through: 1700.0, by: 50.0) {
+            let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"),
+                                  size: Size(width, 800))
+            let c = try XCTUnwrap(ui.state(OfficeShellState.self)).session.controller
+            c.load(try DocxFormat.read(try floatingDocument()).document)
+            let i = try XCTUnwrap(c.document.paragraphs.firstIndex { $0.image?.float != nil })
+            c.selectImage(at: i)
+            for _ in 0 ..< 4 { ui.pump() }
+            let before = fold(ui)
+            func press(_ name: String) {
+                if ui.tap(tip: "Position group") { ui.pump() }
+                XCTAssertTrue(ui.tap(text: name) || ui.tap(tip: name), "\(Int(width)) \(name)")
+            }
+            press("Fix Position on Page")
+            for _ in 0 ..< 4 { ui.pump() }
+            let pinned = fold(ui)
+            press("Move with Text")
+            for _ in 0 ..< 4 { ui.pump() }
+            let back = fold(ui)
+            if before != pinned || before != back {
+                report.append("\(Int(width)): pin +\(Set(pinned).subtracting(before).sorted()) -\(Set(before).subtracting(pinned).sorted()) back +\(Set(back).subtracting(before).sorted()) -\(Set(before).subtracting(back).sorted())")
+            }
+        }
+        XCTAssertEqual(report, [], report.joined(separator: "\n"))
+    }
+
     func testPictureFormatTabFixesPositionOnPage() throws {
         let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(1280, 800))
         let c = try XCTUnwrap(ui.state(OfficeShellState.self)).session.controller
