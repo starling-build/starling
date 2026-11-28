@@ -5,7 +5,7 @@ import FlutterSwiftBridge
 @testable import OfficeText
 
 /// AutoFit and Distribute Rows.
-final class AutoFitTests: XCTestCase {
+final class TableAutoFitMenuTests: XCTestCase {
     private func table() -> RichDocumentController {
         let c = RichDocumentController(plainText: "")
         c.insertTable(rows: 3, columns: 2)
