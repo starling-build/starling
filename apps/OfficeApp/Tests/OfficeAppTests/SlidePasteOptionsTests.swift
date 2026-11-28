@@ -46,7 +46,7 @@ final class SlidePasteOptionsTests: XCTestCase {
         deck.selectShapes([]); ui.pump()
         XCTAssertTrue(deck.pasteOnSlide(data))
         XCTAssertEqual(deck.currentSlide.shapes.count, n + 2)
-        XCTAssertEqual(deck.slidePasteOptions, .keepSource)
+        XCTAssertEqual(deck.slidePasteOptions, .destinationTheme)
         XCTAssertTrue(deck.canRepaste(.picture))
         XCTAssertTrue(deck.canRepaste(.textOnly))
 
