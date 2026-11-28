@@ -57,10 +57,14 @@ public struct FormatChange: Hashable, Codable, Sendable {
     /// A change made in the editor: the paragraph style before it, which the save writes as the old `w:pPr`
     /// (a file's change has `oldRPrXML` instead).
     public var previous: Previous? = nil
-    public indirect enum Previous: Hashable, Codable, Sendable { case paragraph(RichParagraphStyle) }
-    public init(author: String, date: String, oldRPrXML: String, newPPrXML: String = "", styleName: String = "", previous: Previous? = nil) {
+    /// What Reject puts back: the run's look (or the paragraph's formatting) before the change, as read from the
+    /// file's old properties or kept by the editor. The save never writes it; nil leaves Reject only clearing the mark.
+    public var restore: Previous? = nil
+    public indirect enum Previous: Hashable, Codable, Sendable { case paragraph(RichParagraphStyle), run(CharStyle) }
+    public init(author: String, date: String, oldRPrXML: String, newPPrXML: String = "", styleName: String = "", previous: Previous? = nil,
+                restore: Previous? = nil) {
         self.author = author; self.date = date; self.oldRPrXML = oldRPrXML
-        self.newPPrXML = newPPrXML; self.styleName = styleName; self.previous = previous
+        self.newPPrXML = newPPrXML; self.styleName = styleName; self.previous = previous; self.restore = restore
     }
 }
 

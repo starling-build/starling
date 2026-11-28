@@ -36,6 +36,11 @@ public final class RichTextTheme {
     /// Word's Show/Hide ¶: a pilcrow at every paragraph's end (¤ in a
     /// table cell, as Word draws it).
     public var showMarks = false
+    /// Review > Show Markup, as Word's Display for Review: every change marked (All Markup), changes shown as made with
+    /// only a bar beside each changed line (Simple Markup), the text as if every change were accepted (No Markup), or as
+    /// before any change (Original). On screen only: a print keeps its own markup.
+    public enum Markup: Sendable { case all, simple, none, original }
+    public var markup: Markup = .all
     /// Maps a family name in the document to the family the engine draws
     /// with. The document keeps its own names — "Times New Roman" stays
     /// so, and is written back — while the app decides which shipped face
@@ -962,11 +967,18 @@ public final class RichTextTheme {
         var decorations: [TextDecoration] = []
         if style.underline || (((style.link != nil && style.linkField == nil) || (named?.char.underline ?? false)) && !style.off.contains(.underline)) { decorations.append(.underline) }
         if style.strikethrough || ((named?.char.strikethrough ?? false) && !style.off.contains(.strikethrough)) { decorations.append(.lineThrough) }
+        var markupHides = false
         if let revision = style.revision {
-            // Tracked changes as Word marks them: insertions underlined,
-            // deletions struck through, both in the reviewer's colour.
-            decorations.append(revision.kind == .deleted ? .lineThrough : .underline)
-            if style.color == nil { color = Color(0xFFC00000) }
+            switch markup {
+            case .all:
+                // Tracked changes as Word marks them: insertions underlined,
+                // deletions struck through, both in the reviewer's colour.
+                decorations.append(revision.kind == .deleted ? .lineThrough : .underline)
+                if style.color == nil { color = Color(0xFFC00000) }
+            case .simple: markupHides = revision.kind == .deleted
+            case .none: markupHides = revision.kind == .deleted
+            case .original: markupHides = revision.kind == .inserted
+            }
         }
         // A raised or lowered run holds its place in the line unseen: the
         // engine has no baseline to shift, so the layout draws it again
@@ -1011,7 +1023,7 @@ public final class RichTextTheme {
             // (Meiryo says 65% like a Latin face: 934bd3e5's "３" in 10.5pt Meiryo Bold is 7.0pt in its print.)
             && !meiryoScript && !jpScript && !malgunScript ? 0.5 : 0.65
         if style.unseen { color = color.withOpacity(1.0 / 255) }
-        if style.hidden || ((named?.char.hidden ?? false) && !style.hidden) {
+        if style.hidden || ((named?.char.hidden ?? false) && !style.hidden) || markupHides {
             // Hidden text takes no room and shows nothing, as Word prints it;
             // a hair of a size keeps the span (and the caret) in the line.
             px = 0.01

@@ -7,6 +7,8 @@ extension RichLayout {
     /// formatting), as Word shows them on screen. Screen only: the PDF's markup draws its own.
     public func canvasChangeBars(_ document: RichDocument, visible: Rect) -> [Rect] {
         var spans: [Rect] = []
+        // (Word draws them in All and Simple Markup; No Markup and Original show the text alone.)
+        guard theme.markup == .all || theme.markup == .simple else { return [] }
         let n = min(count, document.paragraphs.count)
         for i in 0 ..< n {
             let p = document.paragraphs[i]

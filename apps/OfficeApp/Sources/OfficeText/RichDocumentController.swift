@@ -345,6 +345,14 @@ public final class RichDocumentController: ChangeNotifier {
     private let _leakProbe = LeakProbe("RichDocumentController")
     public private(set) var document: RichDocument
 
+    /// Track Changes (Ctrl+Shift+E): the editor's own edits are recorded from now on, and the save writes
+    /// `w:trackRevisions` in the settings. Word keeps the switch off the undo stack; so does this.
+    public func setTrackRevisions(_ on: Bool) {
+        guard document.trackRevisions != on else { return }
+        document.trackRevisions = on
+        notifyListeners()
+    }
+
     /// Add a part the file carries as is (a picture file a box names). Outside undo: a part nothing names is not saved.
     func _keepPart(_ name: String, _ data: Data) { document.keptParts[name] = data }
 
@@ -1408,7 +1416,7 @@ public final class RichDocumentController: ChangeNotifier {
             let own = o.revision?.kind == .inserted && !(o.revision?.moved ?? false) && o.revision?.author == who.author
             if n > 0, !own, s.formatChange == o.formatChange, xml(plain(o)) != xml(plain(s)) {
                 s.formatChange = o.formatChange ?? FormatChange(author: who.author, date: who.date,
-                                                                oldRPrXML: "<w:rPr>" + xml(plain(o)) + "</w:rPr>")
+                                                                oldRPrXML: "<w:rPr>" + xml(plain(o)) + "</w:rPr>", restore: .run(plain(o)))
             }
             if n > 0 {
                 if let last = out.last, last.style == s { out[out.count - 1].length += n } else { out.append(Run(length: n, style: s)) }
