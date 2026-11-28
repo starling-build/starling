@@ -3388,6 +3388,10 @@ public struct RichDocument: Hashable, Codable, Sendable {
     public var endnoteContinuation: [RichParagraph] = []
     /// Endnotes set at the end of the section whose marks they are (`w:endnotePr`'s `w:pos` `sectEnd`), not the document's.
     public var endnotesAtSectionEnd = false
+    /// The settings' `w:footnotePr` and `w:endnotePr` as the file writes them (where, in what form and from what number
+    /// the notes are numbered); nil where the file says none. W-FN-1's Footnote and Endnote dialog edits them.
+    public var footnotePropertiesXML: String? = nil
+    public var endnotePropertiesXML: String? = nil
     /// The number of the first page where the last section says one
     /// (`w:pgNumType w:start`), and how page numbers are written where it
     /// says that (`w:fmt`: "lowerRoman", "numberInDash"…).

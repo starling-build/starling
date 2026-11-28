@@ -221,6 +221,11 @@ final class Ribbon: StatelessWidget {
             Chrome.big(FluentSystemIcons.textT, "Insert Footnote", fluent) { [session] in session.onInsertNote?(.footnote) },
             Chrome.big(FluentSystemIcons.textT, "Insert Endnote", fluent) { [session] in session.onInsertNote?(.endnote) },
             Chrome.big(FluentSystemIcons.textT, "Edit Note", fluent) { [session] in session.onEditNote?() },
+            Chrome.menuButton(FluentSystemIcons.textT, "Next Footnote", nil, fluent, items: [
+                MenuFlyoutItem(text: Text("Next Footnote"), onPressed: { [session] in session.onNextNote?(.footnote) }),
+                MenuFlyoutItem(text: Text("Next Endnote"), onPressed: { [session] in session.onNextNote?(.endnote) }),
+            ]),
+            Chrome.big(FluentSystemIcons.textT, "Footnote and Endnote…", fluent) { [session] in session.onNoteOptions?() },
         ])]
     }
 

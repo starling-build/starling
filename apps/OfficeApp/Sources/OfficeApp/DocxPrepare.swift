@@ -108,12 +108,13 @@ extension DocxFormat {
     /// numRestart eachSect: Word numbers that section's notes from 1 again
     /// (471e57de: the second section's note prints "1", ours "2").
     @inline(never)
-    static func _footnoteRestartIDs(_ body: XNode) -> Set<Int> {
+    /// A section whose own footnotePr names no numRestart takes the settings' (`settingsRestart`).
+    static func _footnoteRestartIDs(_ body: XNode, settingsRestart: String? = nil) -> Set<Int> {
         var out: Set<Int> = []
         var first: Int? = nil
         func close(_ sect: XNode?) {
             guard sect != nil else { return }
-            if let f = first, sect?.first("w:footnotePr")?.first("w:numRestart")?["w:val"] == "eachSect" { out.insert(f) }
+            if let f = first, (sect?.first("w:footnotePr")?.first("w:numRestart")?["w:val"] ?? settingsRestart) == "eachSect" { out.insert(f) }
             first = nil
         }
         func walk(_ n: XNode) {

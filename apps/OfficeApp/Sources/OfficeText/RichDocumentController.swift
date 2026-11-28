@@ -47,12 +47,20 @@ public struct NotesState: Equatable, Sendable {
     public var endnotes: [Int: [RichParagraph]]
     public var footnotePart: Data?
     public var endnotePart: Data?
+    /// The settings' note properties (`w:footnotePr`, `w:endnotePr`) and where the endnotes stand.
+    public var footnoteProperties: String?
+    public var endnoteProperties: String?
+    public var endnotesAtSectionEnd: Bool
     public init(_ doc: RichDocument) {
         footnotes = doc.footnotes; endnotes = doc.endnotes
         footnotePart = doc.keptParts["word/footnotes.xml"]; endnotePart = doc.keptParts["word/endnotes.xml"]
+        footnoteProperties = doc.footnotePropertiesXML; endnoteProperties = doc.endnotePropertiesXML
+        endnotesAtSectionEnd = doc.endnotesAtSectionEnd
     }
     func put(into doc: inout RichDocument) {
         doc.footnotes = footnotes; doc.endnotes = endnotes
+        doc.footnotePropertiesXML = footnoteProperties; doc.endnotePropertiesXML = endnoteProperties
+        doc.endnotesAtSectionEnd = endnotesAtSectionEnd
         doc.keptParts["word/footnotes.xml"] = footnotePart
         doc.keptParts["word/endnotes.xml"] = endnotePart
     }

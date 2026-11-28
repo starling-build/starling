@@ -2442,6 +2442,8 @@ extension DocxFormat {
             settings = Self._patchedSettings(String(decoding: original, as: UTF8.self), even: doc.evenAndOddHeaders,
                                              tab: doc.defaultTabStop, spacing: doc.characterSpacingControl)
         }
+        settings = Self._withNoteProperties(settings, footnote: doc.footnotePropertiesXML, endnote: doc.endnotePropertiesXML,
+                                            original: doc.keptParts["word/settings.xml"].flatMap(XNode.parse))
         extraParts.append(ZipEntry(name: "word/settings.xml", data: Data(settings.utf8)))
         extraOverrides += "<Override PartName=\"/word/settings.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml\"/>"
         relsXML += "</Relationships>"
@@ -2654,6 +2656,30 @@ extension DocxFormat {
     /// The file's own settings with only what the app sets changed: the even/odd headers switch, the default tab stop and the
     /// character spacing control. Everything else (zoom, colour map, revision ids, math and shape defaults, note settings...)
     /// stays as the file had it.
+    /// The settings with the document's note properties (`w:footnotePr`, `w:endnotePr`, W-FN-1) where they differ
+    /// from the file's own (`original`): the old element out, the new one in at its place in the schema.
+    static func _withNoteProperties(_ settings: String, footnote: String?, endnote: String?, original: XNode?) -> String {
+        var xml = settings
+        for (name, value) in [("footnotePr", footnote), ("endnotePr", endnote)] {
+            guard original?.first("w:\(name)").map({ PptxXML.serialize($0) }) != value else { continue }
+            if let start = xml.rangeOfSubstring("<w:\(name)"), let c = xml[start.upperBound...].first, c == " " || c == "/" || c == ">",
+               let close = xml[start.upperBound...].firstIndex(of: ">") {
+                let end = xml[xml.index(before: close)] == "/" ? xml.index(after: close)
+                    : (xml[close...].rangeOfSubstring("</w:\(name)>")?.upperBound ?? xml.index(after: close))
+                xml.removeSubrange(start.lowerBound ..< end)
+            }
+            guard let value else { continue }
+            // (CT_Settings: footnotePr, endnotePr, then compat and what follows it.)
+            let after = (name == "footnotePr" ? ["<w:endnotePr"] : []) + ["<w:compat", "<w:docVars", "<w:rsids", "<m:mathPr", "<w:attachedSchema",
+                "<w:themeFontLang", "<w:clrSchemeMapping", "<w:doNotIncludeSubdocsInStats", "<w:doNotAutoCompressPictures", "<w:forceUpgrade",
+                "<w:captions", "<w:readModeInkLockDown", "<w:smartTagType", "<sl:schemaLibrary", "<w:shapeDefaults", "<w:doNotEmbedSmartTags",
+                "<w:decimalSymbol", "<w:listSeparator", "<w14:", "<w15:", "<w16", "</w:settings>"]
+            let at = after.compactMap { xml.rangeOfSubstring($0)?.lowerBound }.min()
+            if let at { xml.insert(contentsOf: value, at: at) }
+        }
+        return xml
+    }
+
     static func _patchedSettings(_ original: String, even: Bool, tab: Double?, spacing: String?) -> String {
         var xml = original
         /// The range of the first `<w:name .../>` (or `<w:name ...>...</w:name>`) element.

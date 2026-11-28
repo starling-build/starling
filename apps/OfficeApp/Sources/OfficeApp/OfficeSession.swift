@@ -379,6 +379,9 @@ final class OfficeSession {
     var onContentsDialog: (() -> Void)?
     var onUpdateContents: ((Bool) -> Void)?
     var onEditNote: (() -> Void)?
+    /// W-FN-1: the Footnote and Endnote dialog, and Next Footnote.
+    var onNoteOptions: (() -> Void)?
+    var onNextNote: ((NoteReference.Kind) -> Void)?
     var onSymbolDialog: (() -> Void)?
     var onMoreColors: (() -> Void)?
     /// Slides: More Colors… of Shape Fill (false) or Shape Outline (true).
