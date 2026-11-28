@@ -55,6 +55,8 @@ struct PptFile {
     private(set) var firstSlideNumber = 1
     /// The deck's font names, by the index a text run's font reference holds (FontCollection).
     private(set) var fonts: [String] = []
+    /// Each font's character set (its FontEntityAtom's lfCharSet), by the same index.
+    private(set) var fontCharsets: [Int] = []
     /// The document's default character properties (the Environment's TextCFExceptionAtom): what text that
     /// names no font of its own, at any level of the master styles, is drawn with.
     private(set) var defaultChar = PptCharRun()
@@ -106,6 +108,7 @@ struct PptFile {
                         units.append(u); k += 2
                     }
                     fonts.append(String(decoding: units, as: UTF16.self))
+                    fontCharsets.append(e.body.lowerBound + 64 < e.body.upperBound ? Int(document[e.body.lowerBound + 64]) : 0)
                 }
             }
         }

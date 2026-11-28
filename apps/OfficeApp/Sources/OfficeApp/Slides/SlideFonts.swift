@@ -369,6 +369,47 @@ enum SlideFonts {
             face.boldOtherAdvances = OfficeFonts.thSarabunPSKBoldThai
             face.classScales = [1, 1, 1, 1, 0.82]
             return face
+        case "dilleniaupc":
+            // (DilleniaUPC, on PowerPoint's machine and not ours: its bold's advances as PowerPoint prints them, where the stand-in set
+            // th-64b2b9cce4's Thai a third wider and wrapped its lines early. The decks print only spaces in its regular, so the
+            // regular takes the bold's widths.)
+            var face = RichResolvedFace(family: resolve(family))
+            var bold = OfficeFonts.cordiaNewBoldAdvances
+            for (cp, w) in OfficeFonts.dilleniaUPCBoldLatin where Int(cp) - 0x20 < bold.count { bold[Int(cp) - 0x20] = w }
+            face.advances = bold
+            face.boldAdvances = bold
+            face.otherAdvances = OfficeFonts.dilleniaUPCBoldThai
+            face.boldOtherAdvances = OfficeFonts.dilleniaUPCBoldThai
+            return face
+        case "angsana new", "angsanaupc":
+            // (Angsana New: its own advances, as Word for Windows draws the real face (OfficeFonts.angsanaNew*, read from the prints'
+            // subsets). Browallia's widths set it about a fifth wide and wrapped th-e7813af3d5's lines early.)
+            var face = RichResolvedFace(family: resolve(family))
+            var regular = OfficeFonts.cordiaNewAdvances, bold = OfficeFonts.cordiaNewBoldAdvances
+            for (cp, w) in OfficeFonts.angsanaNewLatin where Int(cp) - 0x20 < regular.count { regular[Int(cp) - 0x20] = w }
+            for (cp, w) in OfficeFonts.angsanaNewBoldLatin where Int(cp) - 0x20 < bold.count { bold[Int(cp) - 0x20] = w }
+            face.advances = regular
+            face.boldAdvances = bold
+            face.otherAdvances = OfficeFonts.angsanaNewThai
+            face.boldOtherAdvances = OfficeFonts.angsanaNewBoldThai
+            return face
+        case "th sarabun new", "th sarabunit๙", "browallia new", "browalliaupc", "cordia new", "cordiaupc":
+            // (The other narrow Thai faces PowerPoint's machine has and ours lacks, set as Word sets them (OfficeFonts' thaiWordFaces):
+            // Cordia's Latin, Browallia's for the Sarabuns and Browallia, Browallia's Thai widths. Without them the Noto Sans Thai
+            // stand-in drew their Thai a third wide.)
+            var face = RichResolvedFace(family: resolve(family))
+            var regular = OfficeFonts.cordiaNewAdvances, bold = OfficeFonts.cordiaNewBoldAdvances
+            regular[0] = 0.222
+            bold[0] = 0.181
+            if ["browallia new", "browalliaupc", "th sarabun new", "th sarabunit๙"].contains(windowsName(family)) {
+                for (j, w) in OfficeFonts.browalliaLatinAdvances.enumerated() { regular[j + 1] = w }
+            }
+            face.advances = regular
+            face.boldAdvances = bold
+            face.otherAdvances = OfficeFonts.browalliaAdvances
+            face.boldOtherAdvances = OfficeFonts.browalliaBoldAdvances
+            face.classScales = [1, 1, 1, 1, 0.82]
+            return face
         case "lucida sans unicode":
             var face = RichResolvedFace(family: resolve(family))
             face.advances = OfficeFonts.lucidaSansUnicodeAdvances
@@ -444,9 +485,12 @@ enum SlideFonts {
                 face.boldItalicOtherAdvances = OfficeFonts.trebuchet_msBoldItalicOther.merging(OfficeFonts.trebuchetBoldItalicCyrillic) { a, _ in a }
             }
             if n == "tahoma" {
-                // (Tahoma's own Arabic, as the Word path sets it.)
+                // (Tahoma's own Arabic and Thai, as the Word path sets them: PowerPoint draws Thai in Tahoma in Tahoma itself,
+                // 0.595 em for U+0E01 where the Noto stand-in sets 0.7 and wrapped th-e7813af3d5's lines early.)
                 face.joinedAdvances = WindowsArabicAdvances.tahoma
                 face.boldJoinedAdvances = WindowsArabicAdvances.tahomaBold
+                face.otherAdvances = (face.otherAdvances ?? [:]).merging(OfficeFonts.tahomaThaiAdvances) { $1 }
+                face.boldOtherAdvances = (face.boldOtherAdvances ?? [:]).merging(OfficeFonts.tahomaThaiBoldAdvances) { $1 }
             }
             return face
         case "open sans":
@@ -597,6 +641,11 @@ enum SlideFonts {
         case "ms gothic", "ms pgothic": return (220.0 / 256, 36.0 / 256)
         // (Lab mixrun, 35 pt lines of fontAlgn t, ctr and b: Book Antiqua 0.96 and 0.277, PMingLiU and DFKai-SB 0.803 and 0.231.)
         case "book antiqua": return (0.96, 0.277)
+        case "th sarabunpsk": return (0.85, 0.46)
+        case "browallia new", "browalliaupc", "th sarabun new", "th sarabunit๙": return (1770.0 / 2048, 789.0 / 2048)
+        case "cordia new", "cordiaupc": return (0.892, 0.496)
+        case "angsana new", "angsanaupc": return (0.941, 0.41)
+        case "dilleniaupc": return (3625.0 / 4096, 1720.0 / 4096)
         case "pmingliu", "新細明體", "dfkai-sb", "標楷體": return (0.803, 0.231)
         default: return nil
         }
@@ -708,6 +757,13 @@ enum SlideFonts {
         // MS Mincho/Gothic 220+36 of 256; Meiryo and Yu Gothic from their first baselines, .847 and .921 em at 18 pt.)
         switch n {
         case "microsoft yahei": return 536.0 / 2703
+        // (Thai faces by their own hhea ascent and descent, as Word sets them: Browallia New (and the TH Sarabun faces printed in it)
+        // 1770 + 789 of 2048, Cordia New 0.892 + 0.496 em, Angsana New 0.941 + 0.41 em.)
+        case "browallia new", "browalliaupc", "th sarabun new", "th sarabunit๙": return 789.0 / 2559
+        case "cordia new", "cordiaupc": return 0.496 / 1.388
+        case "angsana new", "angsanaupc": return 0.41 / 1.351
+        case "dilleniaupc": return 1720.0 / 5345
+        case "th sarabunpsk": return 460.0 / 1310   // (win ascent 850, descent 460 of 1000; th-cb034815ae: titles 8 pt and the cover's first line 15 pt low in Noto Sans Thai's)
         case "candara": return 550.0 / 2500   // (win ascent 1950, descent 550)
         case "malgun gothic", "맑은 고딕": return 495.0 / 2724
         case "simsun", "宋体", "nsimsun", "ms mincho", "ｍｓ 明朝", "ms pmincho", "ｍｓ ｐ明朝": return 36.0 / 256

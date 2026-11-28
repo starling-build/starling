@@ -1,0 +1,46 @@
+// Copyright the Starling authors
+// SPDX-License-Identifier: Apache-2.0
+
+import XCTest
+@testable import OfficeApp
+
+final class SlidesThaiLineTests: XCTestCase {
+    /// TH SarabunPSK is on PowerPoint's machine and not on ours. PowerPoint stands its baseline by the face's own Windows
+    /// ascent and descent (850 and 460 of 1000) in the 1.2 em line, not by the stand-in's (Noto Sans Thai), which stood every
+    /// title of th-cb034815ae 8 pt low and its cover's first line 15 pt low; table cells take the same ascent and descent.
+    func testTHSarabunPSKStandsOnItsOwnWindowsMetrics() {
+        XCTAssertEqual(SlideFonts.ownDescentShare("TH SarabunPSK") ?? 0, 460.0 / 1310, accuracy: 0.0001)
+        let m = SlideFonts.windowsAscentDescent("TH SarabunPSK")
+        XCTAssertEqual(m?.ascent ?? 0, 0.85, accuracy: 0.0001)
+        XCTAssertEqual(m?.descent ?? 0, 0.46, accuracy: 0.0001)
+    }
+
+    /// Cordia New, Browallia New (and the TH Sarabun faces printed in it) and Angsana New stand the same way, on their own ascent and
+    /// descent as Word sets them: th-bd26062a73 (Cordia) stood 5-7 pt low, th-1ad142d29c (TH Sarabun New) 45 -> 97% of lines.
+    func testCordiaBrowalliaAngsanaStandOnTheirOwnMetrics() {
+        XCTAssertEqual(SlideFonts.ownDescentShare("Cordia New") ?? 0, 0.496 / 1.388, accuracy: 0.0001)
+        XCTAssertEqual(SlideFonts.ownDescentShare("Browallia New") ?? 0, 789.0 / 2559, accuracy: 0.0001)
+        XCTAssertEqual(SlideFonts.ownDescentShare("TH Sarabun New") ?? 0, 789.0 / 2559, accuracy: 0.0001)
+        XCTAssertEqual(SlideFonts.ownDescentShare("Angsana New") ?? 0, 0.41 / 1.351, accuracy: 0.0001)
+        XCTAssertEqual(SlideFonts.windowsAscentDescent("Cordia New")?.descent ?? 0, 0.496, accuracy: 0.0001)
+    }
+
+    /// DilleniaUPC (th-64b2b9cce4's theme Thai face) sets its Thai at its own advances, as PowerPoint prints them, not the stand-in's
+    /// (which wrapped the deck's lines early: 37.9 -> 83.5% of lines), and stands on its own Windows ascent and descent (3625 and 1720 of 4096).
+    func testDilleniaUPCSetsItsOwnWidthsAndLine() {
+        let face = SlideFonts.face("DilleniaUPC", false)
+        XCTAssertEqual(face?.boldOtherAdvances?[0x0E19] ?? 0, 0.418, accuracy: 0.0001)
+        XCTAssertEqual(face?.otherAdvances?[0x0E32] ?? 0, 0.268, accuracy: 0.0001)
+        XCTAssertEqual(face?.boldAdvances?[0] ?? 0, 0.222, accuracy: 0.0001)
+        XCTAssertEqual(SlideFonts.ownDescentShare("DilleniaUPC") ?? 0, 1720.0 / 5345, accuracy: 0.0001)
+    }
+
+    /// Angsana New sets its own advances (Word for Windows draws the real face), not Browallia's, which set th-e7813af3d5's
+    /// Angsana runs about a fifth wide; Tahoma sets its Thai at Tahoma's own advances (0.595 em for U+0E01), as the Word path does.
+    func testAngsanaAndTahomaSetTheirOwnThai() {
+        let angsana = SlideFonts.face("Angsana New", false)
+        XCTAssertEqual(angsana?.otherAdvances?[0x0E01] ?? 0, OfficeFonts.angsanaNewThai[0x0E01] ?? -1, accuracy: 0.0001)
+        XCTAssertEqual(SlideFonts.face("Tahoma", false)?.otherAdvances?[0x0E01] ?? 0, 0.5952, accuracy: 0.0001)
+        XCTAssertEqual(SlideFonts.face("Tahoma", false)?.boldOtherAdvances?[0x0E01] ?? 0, 0.6802, accuracy: 0.0001)
+    }
+}
