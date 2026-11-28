@@ -1176,6 +1176,47 @@ final class DeepGroupTests: XCTestCase {
         XCTAssertNil(fill(1, 0))
     }
 
+    /// S-TB-1g: Table Layout's cell alignment, row height and cell margins survive a save; a cell left at the top
+    /// stays at the top (the writer used to stamp every cell anchor="ctr"). Each is one undo step.
+    func testTableLayoutAlignmentRowHeightAndMarginsRoundTrip() throws {
+        let deck = DeckController()
+        deck.slides[0].shapes.removeAll()
+        let t = deck.addTable(rows: 3, columns: 2)
+        let c = try XCTUnwrap(t.text)
+        c.moveTo(.start, extend: false)
+        XCTAssertEqual(c.currentCell?.row, 0)
+        XCTAssertEqual(c.currentCell?.column, 0)
+        c.setCellAlignment(vertical: "bottom", horizontal: .center)
+        c.setRowHeight(80)
+        c.setCellMargins(top: 0, left: 0, bottom: 0, right: 0)
+        func cell(_ d: RichDocument, _ r: Int, _ k: Int) -> (CellRef, RichParagraph)? {
+            d.paragraphs.first { $0.cell?.row == r && $0.cell?.column == k }.map { ($0.cell!, $0) }
+        }
+        let data = try Pptx.write(deck)
+        let xml = String(decoding: PptxPackage(try Zip.read(data)).parts["ppt/slides/slide1.xml"] ?? Data(), as: UTF8.self)
+        XCTAssertEqual(xml.components(separatedBy: "anchor=\"b\"").count - 1, 1)
+        XCTAssertFalse(xml.containsSubstring("anchor=\"ctr\""))
+        XCTAssertTrue(xml.containsSubstring("<a:tr h=\"1016000\">"))     // 80 pt
+        let (state, _, _) = try Pptx.read(data)
+        let again = DeckController(); again.restore(state)
+        let d = try XCTUnwrap(again.slides[0].shapes.first { $0.kind == .table }?.text?.document)
+        let a = try XCTUnwrap(cell(d, 0, 0)), b = try XCTUnwrap(cell(d, 0, 1)), low = try XCTUnwrap(cell(d, 2, 1))
+        XCTAssertEqual(a.0.verticalAlign, "bottom")
+        XCTAssertEqual(a.1.style.alignment, .center)
+        XCTAssertEqual(a.0.padding, EdgeInsets(left: 0, top: 0, right: 0, bottom: 0))
+        XCTAssertNil(b.0.verticalAlign)
+        XCTAssertNil(low.0.verticalAlign)
+        XCTAssertEqual(b.0.padding, EdgeInsets(left: 7.2, top: 3.6, right: 7.2, bottom: 3.6))
+        XCTAssertEqual(try XCTUnwrap(d.tableStyles[a.0.table]?.rowHeights[0]), 80, accuracy: 0.01)
+        // Undo takes the three back one at a time.
+        c.undo()
+        XCTAssertNotEqual(cell(c.document, 0, 0)?.0.padding, EdgeInsets(left: 0, top: 0, right: 0, bottom: 0))
+        c.undo()
+        XCTAssertNil(c.document.tableStyles[t.tableId!]?.rowHeights[0])
+        c.undo()
+        XCTAssertNil(cell(c.document, 0, 0)?.0.verticalAlign)
+    }
+
     /// S-TB-1a: a table's header row and banded rows switch off and on, undo, and survive a save.
     func testTableOptionsRoundTripAndUndo() throws {
         let deck = DeckController()

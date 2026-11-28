@@ -458,7 +458,7 @@ final class TableCellTests: XCTestCase {
         var package = PptxPackage(try Zip.read(try Pptx.write(deck)))
         let part = try tableSlide(package)
         var slide = String(data: package.parts[part]!, encoding: .utf8)!
-        let first = try XCTUnwrap(slide.range(of: "<a:tcPr anchor=\"ctr\">"))
+        let first = try XCTUnwrap(slide.range(of: "<a:tcPr>"))
         let end = try XCTUnwrap(slide.range(of: "</a:tcPr>", range: first.upperBound ..< slide.endIndex))
         slide.replaceSubrange(first.lowerBound ..< end.upperBound,
                               with: "<a:tcPr marL=\"137160\" marT=\"91440\" vert=\"vert270\">"
