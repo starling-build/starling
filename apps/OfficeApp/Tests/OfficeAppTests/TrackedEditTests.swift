@@ -109,6 +109,30 @@ final class TrackedEditTests: XCTestCase {
         XCTAssertTrue(out.containsSubstring("<w:del w:id=\"") && out.containsSubstring("w:author=\"Tester\" w:date=\"2026-11-27T10:00:00Z\""), out)
     }
 
+    /// Enter and the typing after it are one change for Accept This Change, even when the clock ticks between
+    /// them (the Mac script at rv-07 accepted only the mark and left the typed text red).
+    func testEnterThenTypingAcrossASecondIsAcceptedInOneStep() throws {
+        let c = try open("First", tracking: true)
+        c.moveTo(RichPosition(paragraph: 0, offset: 5), extend: false)
+        c.insertParagraphBreak()
+        RichDocumentController.reviewer = { ("Tester", "2026-11-27T10:00:01Z") }
+        c.insertText("typed line")
+        XCTAssertEqual(c.trackedChanges().count, 1)
+        c.moveTo(RichPosition(paragraph: 1, offset: 4), extend: false)
+        XCTAssertGreaterThan(c.resolveChanges(accept: true), 0)
+        XCTAssertTrue(c.trackedChanges().isEmpty)
+        XCTAssertEqual(c.document.paragraphs.map(\.text), ["First", "typed line"])
+        XCTAssertNil(c.document.paragraphs[0].style.markRevision)
+        XCTAssertTrue(c.document.paragraphs[1].runs.allSatisfy { $0.style.revision == nil })
+        // Another reviewer's typing next to it stays a change of its own.
+        RichDocumentController.reviewer = { ("Other", "2026-11-27T10:00:02Z") }
+        c.moveTo(RichPosition(paragraph: 1, offset: 10), extend: false)
+        c.insertParagraphBreak()
+        RichDocumentController.reviewer = { ("Tester", "2026-11-27T10:00:03Z") }
+        c.insertText("x")
+        XCTAssertEqual(c.trackedChanges().count, 2)
+    }
+
     /// Deleting what the reviewer typed takes it away, leaving no change behind.
     func testDeletingOwnInsertionRemovesIt() throws {
         let c = try open("Hello world", tracking: true)

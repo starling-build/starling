@@ -86,6 +86,23 @@ final class CommentBalloonTests: XCTestCase {
         XCTAssertEqual(state._status, "Comment deleted")      // (never the deleted comment's text: job 71)
     }
 
+    /// A status message stands until the next edit, undo or caret move: "3 changes accepted" stayed through Cmd+Z and Next
+    /// (job 71 rerun). The move a command makes itself (Accept and Move to Next) keeps it.
+    func testTheStatusClearsOnTheNextAction() {
+        let (ui, state) = shell()
+        let c = state.session.controller
+        func settle() { RunLoop.main.run(until: Date().addingTimeInterval(0.05)); ui.pump() }
+        state.session.onStatus?("3 changes accepted")
+        c.moveTo(RichPosition(paragraph: 0, offset: 2), extend: false)     // the command's own move
+        settle()
+        XCTAssertEqual(state._status, "3 changes accepted")
+        c.moveTo(RichPosition(paragraph: 0, offset: 3), extend: false); ui.pump()
+        XCTAssertNil(state._status)
+        state.session.onStatus?("1 change accepted"); settle()
+        c.undo(); ui.pump()
+        XCTAssertNil(state._status)
+    }
+
     /// The card is white paper in every app theme, so its labels and text boxes take a light theme: in the dark app theme
     /// they were pale lavender (about 1.1:1) and the boxes dark grey (job 71).
     func testTheCardReadsDarkOnWhiteInTheDarkAppTheme() {
