@@ -1698,7 +1698,7 @@ final class SheetsShellState: State<StatefulWidget> {
             layers.append(Positioned(left: 0, top: 0, right: 0, bottom: 0, child: CustomColorDialog(
                 initial: wb.borderPenColor ?? 0,
                 onOK: { [weak self] rgb in
-                    self?.wb.borderPenColor = rgb
+                    self?.wb.borderPenColor = rgb; self?.wb.penPicked()
                     self?.setState { self?._lineColorOpen = false }; self?._grid?.focus.requestFocus()
                 },
                 onCancel: { [weak self] in self?.setState { self?._lineColorOpen = false }; self?._grid?.focus.requestFocus() })))
