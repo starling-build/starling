@@ -903,6 +903,39 @@ public final class RichTextTheme {
         0.299 * Double(fill.red) + 0.587 * Double(fill.green) + 0.114 * Double(fill.blue) < autoTextWhiteBelow
     }
 
+    /// The underline a run draws itself, past the engine's plain line: its kind (`w:u w:val`, nil for single) and colour
+    /// (`w:color`), the run's or else its style's; nil when the run has none of its own (a plain or link underline).
+    static func ownUnderline(_ style: CharStyle, named: RichNamedStyle?) -> (kind: String?, color: String?)? {
+        let own: (String?, String?)
+        if style.underline { own = (style.underlineKind, style.underlineColor) }
+        else if named?.char.underline == true, !style.off.contains(.underline) { own = (named?.char.underlineKind, named?.char.underlineColor) }
+        else { return nil }
+        let kind = own.0 == "single" ? nil : own.0
+        let color = own.1.flatMap { ruleColor($0) == nil ? nil : $0 }
+        return kind == nil && color == nil ? nil : (kind, color)
+    }
+
+    /// PowerPoint's underline names (`a:rPr u`) as Word's (`w:u w:val`); nil for none and single.
+    public static func drawingMLUnderline(_ u: String?) -> String? {
+        switch u {
+        case "dbl": return "double"
+        case "heavy": return "thick"
+        case "dotted", "dottedHeavy", "dash", "dashLong", "dashLongHeavy", "dotDash", "dotDotDash", "wavyHeavy", "words": return u
+        case "dashHeavy": return "dashedHeavy"
+        case "dotDashHeavy": return "dashDotHeavy"
+        case "dotDotDashHeavy": return "dashDotDotHeavy"
+        case "wavy": return "wave"
+        case "wavyDbl": return "wavyDouble"
+        default: return nil
+        }
+    }
+
+    /// An underline colour as the file gives it ("RRGGBB"); "auto" and anything else follow the text.
+    static func ruleColor(_ hex: String) -> Color? {
+        guard hex.utf8.count == 6, let v = UInt32(hex, radix: 16) else { return nil }
+        return Color(0xFF000000 | Int64(v))
+    }
+
     public func textStyle(for style: CharStyle, in paragraph: RichParagraphStyle, backdrop: Color? = nil,
                           named: RichNamedStyle? = nil, normal: CharStyle? = nil,
                           scale: Double, fontScale: Double = 1,
@@ -965,7 +998,10 @@ public final class RichTextTheme {
         }
         if style.link != nil && style.linkField == nil && style.color == nil { color = linkColor }
         var decorations: [TextDecoration] = []
-        if style.underline || (((style.link != nil && style.linkField == nil) || (named?.char.underline ?? false)) && !style.off.contains(.underline)) { decorations.append(.underline) }
+        let underlined = style.underline || (((style.link != nil && style.linkField == nil) || (named?.char.underline ?? false)) && !style.off.contains(.underline))
+        if underlined { decorations.append(.underline) }
+        // An underline of its own kind or colour is drawn by `_paintRules` at Word's sizes (a tracked change keeps the engine's line).
+        if wordRules, underlined, style.revision == nil, Self.ownUnderline(style, named: named) != nil { decorations.removeAll() }
         if style.strikethrough || ((named?.char.strikethrough ?? false) && !style.off.contains(.strikethrough)) { decorations.append(.lineThrough) }
         var markupHides = false
         if let revision = style.revision {

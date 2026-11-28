@@ -2831,12 +2831,11 @@ extension DocxFormat {
         let normalParagraph = sheet[RichNamedStyle.normalId]?.paragraph ?? .body
         let defaultSpacing = _spacingXML(normalParagraph)
         out += "<w:styles xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:docDefaults><w:rPrDefault><w:rPr>\(defaultFonts)\(defaultKern)<w:sz w:val=\"\(defaultSize)\"/><w:szCs w:val=\"\(defaultSize)\"/><w:lang w:val=\"en-US\"/></w:rPr></w:rPrDefault><w:pPrDefault><w:pPr>\(defaultSpacing)</w:pPr></w:pPrDefault></w:docDefaults>"
-        out += "<w:style w:type=\"paragraph\" w:default=\"1\" w:styleId=\"Normal\"><w:name w:val=\"Normal\"/><w:qFormat/></w:style>"
-        for entry in sheet.styles where entry.id != RichNamedStyle.normalId {
-            let name = entry.paragraph.heading.map { "heading \($0)" } ?? entry.name
-            out += "<w:style w:type=\"paragraph\" w:styleId=\"\(_esc(entry.id))\"><w:name w:val=\"\(_esc(name))\"/><w:basedOn w:val=\"Normal\"/>"
-            if let next = entry.next { out += "<w:next w:val=\"\(_esc(next))\"/>" }
-            out += "<w:qFormat/><w:pPr>"
+        // A style's own look, its pPr and rPr. Normal's too: its spacing and fonts are also the defaults, but its alignment,
+        // indents, tabs and underline are said only here (they were lost on save, and a changed Normal from a file lost its pPr and rPr).
+        func look(_ entry: RichNamedStyle) -> String {
+            let isNormal = entry.id == RichNamedStyle.normalId
+            var out = "<w:pPr>"
             // Our own headings keep with the next paragraph; a file's say
             // for themselves. (A Taiwanese impeachment text numbers every
             // paragraph as a "heading": kept with the next, Word carried
@@ -2852,9 +2851,10 @@ extension DocxFormat {
             // The style's tab stops: a header style's centre and right
             // tabs place what the kept header part lays out with them
             // (issue_51265_3's header pictures, 4.2% -> 0.00).
-            out += _tabsXML(entry.paragraph.tabStops, under: normalParagraph.tabStops)
+            out += _tabsXML(entry.paragraph.tabStops, under: isNormal ? [] : normalParagraph.tabStops)
             out += _eastAsianSwitchesXML(entry.paragraph)
-            out += _withEastAsian(_spacingXML(entry.paragraph), "w:spacing", _eastAsianSpacing, entry.paragraph)
+            // (Normal's spacing is the document default above; said again here, it would lie over a table style's.)
+            if !isNormal { out += _withEastAsian(_spacingXML(entry.paragraph), "w:spacing", _eastAsianSpacing, entry.paragraph) }
             var ind = ""
             if entry.paragraph.indentLeft != 0 { ind += " w:left=\"\(Int(entry.paragraph.indentLeft * 20))\"" }
             if entry.paragraph.indentRight != 0 { ind += " w:right=\"\(Int(entry.paragraph.indentRight * 20))\"" }
@@ -2897,7 +2897,21 @@ extension DocxFormat {
             if let k = entry.char.kerningFrom { out += "<w:kern w:val=\"\(Int((k * 2).rounded()))\"/>" }
             if let size = entry.char.fontSize { out += "<w:sz w:val=\"\(Int(size * 2))\"/><w:szCs w:val=\"\(Int(size * 2))\"/>" }
             if let kept = entry.char.keptXML { out += kept }
-            out += "</w:rPr></w:style>"
+            out += "</w:rPr>"
+            return out
+        }
+        if let n = sheet[RichNamedStyle.normalId] {
+            out += "<w:style w:type=\"paragraph\" w:default=\"1\" w:styleId=\"Normal\"><w:name w:val=\"Normal\"/>"
+            if let next = n.next, next != n.id { out += "<w:next w:val=\"\(_esc(next))\"/>" }
+            out += "<w:qFormat/>" + look(n) + "</w:style>"
+        } else {
+            out += "<w:style w:type=\"paragraph\" w:default=\"1\" w:styleId=\"Normal\"><w:name w:val=\"Normal\"/><w:qFormat/></w:style>"
+        }
+        for entry in sheet.styles where entry.id != RichNamedStyle.normalId {
+            let name = entry.paragraph.heading.map { "heading \($0)" } ?? entry.name
+            out += "<w:style w:type=\"paragraph\" w:styleId=\"\(_esc(entry.id))\"><w:name w:val=\"\(_esc(name))\"/><w:basedOn w:val=\"Normal\"/>"
+            if let next = entry.next { out += "<w:next w:val=\"\(_esc(next))\"/>" }
+            out += "<w:qFormat/>" + look(entry) + "</w:style>"
         }
         // Unless the file brought a "List Paragraph" of its own under
         // another id: two styles of one name, and Word took ours — half an
