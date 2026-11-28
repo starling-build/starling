@@ -1977,6 +1977,34 @@ final class DeckController: ChangeNotifier {
         notifyListeners()
     }
 
+    /// A table's width follows its grid once an edit changes the grid (Column Width, Table Size, a column inserted):
+    /// no undo step of its own, as `fitHeight`.
+    func fitWidth(_ shape: SlideShape, _ width: Double) {
+        guard abs(shape.frame.width - width) > 0.5 else { return }
+        let f = shape.frame
+        shape.frame = Rect.fromLTWH(f.left, f.top, width, f.height)
+        revision += 1
+        notifyListeners()
+    }
+
+    /// A table's columns as drawn: the grid it states, else equal columns across its frame.
+    static func drawnGrid(_ shape: SlideShape) -> [Double] {
+        guard let doc = shape.text?.document, let id = shape.tableId else { return [] }
+        let cols = doc.paragraphs.compactMap(\.cell).filter { $0.table == id }.map { $0.column + $0.span }.max() ?? 0
+        guard cols > 0 else { return [] }
+        if let g = doc.tableColumns[id], g.count == cols { return g }
+        let w = shape.frame.width - shape.insets.left - shape.insets.right
+        return Array(repeating: w / Double(cols), count: cols)
+    }
+
+    /// Table Size's Lock Aspect Ratio (`graphicFrameLocks noChangeAspect`): one undo step.
+    func setAspectLock(_ shape: SlideShape, _ on: Bool) {
+        guard shape.aspectLocked != on else { return }
+        _checkpoint()
+        shape.aspectLock = on
+        _changed()
+    }
+
     static func tint(_ c: Color, _ amount: Double) -> Color {
         let v = c.value
         func mix(_ x: Int) -> Int { Int(Double(x) * amount + 255 * (1 - amount)) }

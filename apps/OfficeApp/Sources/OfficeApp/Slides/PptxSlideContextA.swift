@@ -868,6 +868,7 @@ extension SlideContext {
                             listIndent: 18)
         st.fillStyle = tableGradient
         st.shadow = tableShadow
+        if el.first("p:nvGraphicFramePr")?.first("p:cNvGraphicFramePr")?.first("a:graphicFrameLocks")?["noChangeAspect"] == "1" { st.aspectLock = true }
         // The table's own fill (a fill in `a:tblPr`), behind every cell:
         // tdf127237's cells all say no fill, and stand on the table's blue.
         if let pr = tbl.first("a:tblPr") {

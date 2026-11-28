@@ -1011,8 +1011,9 @@ private struct SlideXML {
     /// Sets or clears `noChangeAspect` on a kept shape's own lock element (`spLocks`, `picLocks`).
     static func _lockEdit(_ on: Bool) -> (XNode) -> Void {
         return { node in
-            guard let c = node.first("p:nvSpPr")?.first("p:cNvSpPr") ?? node.first("p:nvPicPr")?.first("p:cNvPicPr") else { return }
-            let name = node.name == "p:pic" ? "a:picLocks" : "a:spLocks"
+            guard let c = node.first("p:nvSpPr")?.first("p:cNvSpPr") ?? node.first("p:nvPicPr")?.first("p:cNvPicPr")
+                    ?? node.first("p:nvGraphicFramePr")?.first("p:cNvGraphicFramePr") else { return }
+            let name = node.name == "p:pic" ? "a:picLocks" : node.name == "p:graphicFrame" ? "a:graphicFrameLocks" : "a:spLocks"
             let l = c.first(name) ?? { let n = XNode(name: name, attrs: [:]); c.children.insert(n, at: 0); return n }()
             l.attrs["noChangeAspect"] = on ? "1" : nil
         }
@@ -1260,14 +1261,17 @@ private struct SlideXML {
         case .table:
             // Unedited since it was read: the table as it was, in place.
             if let xml = s.sourceXML, let doc = s.text, doc == s.sourceText, let p = source, let part = s.sourcePart {
-                return kept(xml, sourcePart: part, package: p, builder: &builder, patch: s.frame, fileId: s.fileId, alt: _altChange(s))
+                let lock = s.readShape.flatMap { $0.aspectLock != s.aspectLock ? Self._lockEdit(s.aspectLocked) : nil }
+                return kept(xml, sourcePart: part, package: p, builder: &builder, patch: s.frame, fileId: s.fileId, alt: _altChange(s), edit: lock)
             }
             // Only text typed or restyled inside cells: the table as it was, those cells' own runs patched.
             if let xml = s.sourceXML, let read = s.readShape, read.patchable(s), let old = s.sourceText, let new = s.text,
                let p = source, let part = s.sourcePart, let patched = Self._tableCellsPatched(xml, old: old, new: new) {
                 let flipped = read.flipH != s.flipH || read.flipV != s.flipV
                 let moved = read.frame != s.frame || read.rotation != s.rotation || flipped
-                let edit = Self._shapeEdit(s, read)
+                let shapeEdit = Self._shapeEdit(s, read)
+                let lock = read.aspectLock != s.aspectLock ? Self._lockEdit(s.aspectLocked) : nil
+                let edit: (XNode) -> Void = { shapeEdit($0); lock?($0) }
                 return kept(patched, sourcePart: part, package: p, builder: &builder, patch: s.frame, fileId: s.fileId, alt: _altChange(s),
                             rotation: nil, placeIfMissing: moved, flips: nil, hidden: nil, edit: edit)
             }
@@ -1642,7 +1646,7 @@ private struct SlideXML {
         }
         let borders = style.styleId != nil ? "" : border("a:lnL") + border("a:lnR") + border("a:lnT") + border("a:lnB")
         var xml = "<p:graphicFrame><p:nvGraphicFramePr><p:cNvPr id=\"\(_id(s.fileId))\" name=\"\(name)\"" + PptxText.altAttrs(s) + PptxText.cNvPrEnd(s)
-            + "<p:cNvGraphicFramePr><a:graphicFrameLocks noGrp=\"1\"/></p:cNvGraphicFramePr><p:nvPr/></p:nvGraphicFramePr>"
+            + "<p:cNvGraphicFramePr><a:graphicFrameLocks noGrp=\"1\"\(s.aspectLock == true ? " noChangeAspect=\"1\"" : "")/></p:cNvGraphicFramePr><p:nvPr/></p:nvGraphicFramePr>"
             + Self._xfrm(s.frame, rotation: 0, tag: "p:xfrm")
             + "<a:graphic><a:graphicData uri=\"http://schemas.openxmlformats.org/drawingml/2006/table\"><a:tbl>"
             + "<a:tblPr firstRow=\"\(style.headerRow ? 1 : 0)\" bandRow=\"\((style.bandRows ?? (style.bandFill != nil)) ? 1 : 0)\"\(style.totalRow ? " lastRow=\"1\"" : "")\(style.firstColumn ? " firstCol=\"1\"" : "")\(style.lastColumn ? " lastCol=\"1\"" : "")\(style.bandedColumns ? " bandCol=\"1\"" : "")>"

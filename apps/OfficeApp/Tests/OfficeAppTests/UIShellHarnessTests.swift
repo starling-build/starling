@@ -557,6 +557,80 @@ final class UIShellHarnessTests: XCTestCase {
         XCTAssertEqual(first?.text, "Hi there")
     }
 
+    /// S-TB-1h: Table Layout's Column Width sets the caret's column and the table's frame follows its grid; Table Size
+    /// scales the columns and rows, the other side following with Lock Aspect Ratio on; the lock is saved.
+    func testSlidesColumnWidthAndTableSize() throws {
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: SlidesShell(initialPath: nil, startBlank: true, onSwitch: { _, _ in }), title: "Test"), size: Size(1440, 932))
+        let shell = try XCTUnwrap(ui.state(SlidesShellState.self))
+        let deck = try XCTUnwrap(shell.session.deck)
+        shell.session.onInsertTable?(2, 2)
+        ui.pump(); ui.pump()
+        let t = try XCTUnwrap(deck.currentSlide.shapes.first { $0.kind == .table })
+        let c = shell.session.controller
+        XCTAssertTrue(t.text === c)
+        XCTAssertTrue(ui.tap(text: "Table Layout"))
+        ui.pump()
+        for word in ["Column Width", "Table Size", "Lock Aspect Ratio", "288 pt"] { XCTAssertTrue(ui.has(text: word), word) }
+        let w0 = t.frame.width, h0 = t.frame.height
+        c.setColumnWidth(200, drawn: DeckController.drawnGrid(t))
+        ui.pump(); ui.pump()
+        XCTAssertEqual(t.text?.document.tableColumns[t.tableId ?? ""], [200, w0 / 2])
+        XCTAssertEqual(t.frame.width, 200 + w0 / 2, accuracy: 0.01)
+        XCTAssertTrue(ui.has(text: "200 pt"))
+        // Undo takes the column and the frame back.
+        c.undo(); ui.pump(); ui.pump()
+        XCTAssertEqual(t.frame.width, w0, accuracy: 0.01)
+        // Width with the lock off leaves the rows; with it on the rows scale too.
+        c.scaleTable(kx: 1.5, ky: 1, drawn: DeckController.drawnGrid(t))
+        ui.pump(); ui.pump()
+        XCTAssertEqual(t.frame.width, w0 * 1.5, accuracy: 0.01)
+        XCTAssertEqual(t.frame.height, h0, accuracy: 0.5)
+        XCTAssertTrue(ui.tap(text: "Lock Aspect Ratio")); ui.pump()
+        XCTAssertTrue(t.aspectLocked)
+        c.scaleTable(kx: 2, ky: 2, drawn: DeckController.drawnGrid(t))
+        ui.pump(); ui.pump()
+        XCTAssertEqual(t.frame.width, w0 * 3, accuracy: 0.01)
+        XCTAssertGreaterThan(t.frame.height, h0 * 1.8)
+        let (state, _, _) = try Pptx.read(Pptx.write(deck))
+        let back = try XCTUnwrap(state.slides[0].shapes.first { $0.name == t.name })
+        XCTAssertTrue(back.aspectLocked)
+        XCTAssertEqual(back.frame.width, w0 * 3, accuracy: 0.5)
+    }
+
+    /// S-TB-1h: Cell Margins > Custom Margins opens Cell Text Layout; its four boxes (inches) set the caret cell's margins.
+    func testSlidesCustomCellMargins() throws {
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: SlidesShell(initialPath: nil, startBlank: true, onSwitch: { _, _ in }), title: "Test"), size: Size(1440, 932))
+        let shell = try XCTUnwrap(ui.state(SlidesShellState.self))
+        let deck = try XCTUnwrap(shell.session.deck)
+        shell.session.onInsertTable?(2, 2)
+        ui.pump(); ui.pump()
+        let t = try XCTUnwrap(deck.currentSlide.shapes.first { $0.kind == .table })
+        XCTAssertTrue(ui.tap(text: "Table Layout")); ui.pump()
+        XCTAssertTrue(ui.tap(text: "Cell Margins")); ui.pump()
+        XCTAssertTrue(ui.tap(text: "Custom Margins…")); ui.pump()
+        XCTAssertTrue(ui.has(text: "Internal margin"))
+        XCTAssertTrue(ui.has(text: "0.1\""))
+        XCTAssertTrue(ui.tap(id: "cellmargins.left"))
+        for _ in 0..<6 { ui.press(.backspace) }
+        ui.type("0.25"); ui.pump()
+        XCTAssertTrue(ui.tap(id: "cellmargins.bottom"))
+        for _ in 0..<6 { ui.press(.backspace) }
+        ui.type("0"); ui.pump()
+        XCTAssertTrue(ui.tap(text: "OK")); ui.pump()
+        XCTAssertFalse(ui.has(text: "Internal margin"))
+        XCTAssertEqual(t.text?.document.paragraphs.first?.cell?.padding, EdgeInsets(left: 18, top: 3.6, right: 7.2, bottom: 0))
+        XCTAssertNil(t.text?.document.paragraphs.first { $0.cell?.column == 1 }?.cell?.padding)
+    }
+
+    func testCellMarginsDialogParsesInches() {
+        XCTAssertEqual(CellMarginsDialogState.parse("0.1\""), 7.2)
+        XCTAssertEqual(CellMarginsDialogState.parse(" 0.5 in"), 36)
+        XCTAssertEqual(CellMarginsDialogState.parse("1"), 72)
+        XCTAssertNil(CellMarginsDialogState.parse("-1"))
+        XCTAssertNil(CellMarginsDialogState.parse("abc"))
+        XCTAssertEqual(CellMarginsDialogState.inches(7.2), "0.1\"")
+    }
+
     /// S-TB-1a: selecting a table opens Table Design; its two switches reach the deck.
     func testSelectedTableOpensTableDesignAndTheSwitchesApply() throws {
         let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: SlidesShell(initialPath: nil, startBlank: true, onSwitch: { _, _ in }), title: "Test"), size: Size(1280, 800))
