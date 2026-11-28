@@ -198,6 +198,13 @@ final class UpdateCheck {
     /// Opens the page in the system browser.
     static func openInBrowser(_ url: String) {
         guard url.hasPrefix("https://") else { return }
+        openWithSystem(url)
+    }
+
+    /// Hands a web or e-mail address to the system (browser, mail program): a link followed in a document.
+    static func openWithSystem(_ url: String) {
+        let l = url.lowercased()
+        guard l.hasPrefix("https://") || l.hasPrefix("http://") || l.hasPrefix("mailto:") else { return }
         let p = Process()
         #if os(macOS)
         p.executableURL = URL(fileURLWithPath: "/usr/bin/open")

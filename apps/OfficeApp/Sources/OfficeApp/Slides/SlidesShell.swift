@@ -1782,6 +1782,21 @@ final class SlidesShellState: State<StatefulWidget> {
         setState { _linkOpen = true }
     }
 
+    /// Link… with no link; Edit Link…, Open Link and Remove Link on one (text at the caret, or the selected shape).
+    private func _linkItems(_ m: ContextMenuBuilder, link: String?, remove: @escaping () -> Void) {
+        m.separator()
+        guard let link, !link.isEmpty else { m.item("Link…") { [weak self] in self?._openLink() }; return }
+        m.item("Edit Link…") { [weak self] in self?._openLink() }
+        m.item("Open Link") { [weak self] in self?._followLink(link) }
+        m.item("Remove Link") { remove() }
+    }
+
+    /// Ctrl/Cmd+click on a link, or Open Link: a slide jump leaves the text and shows that slide, an address opens.
+    private func _followLink(_ link: String) {
+        if SlideLinks.target(link, from: deck.current, in: deck) != nil { _endEditing() }
+        if !SlideLinks.follow(link, in: deck, openURL: { hostOpenURL?($0) }) { _flash("This link goes nowhere") }
+    }
+
     private var _linkHooks: HyperlinkHooks {
         let typing = _active != nil || _notesActive
         let c = session.controller
@@ -1790,18 +1805,26 @@ final class SlidesShellState: State<StatefulWidget> {
         let isJump = now.0?.hasPrefix("slide:") == true || now.0?.hasPrefix("action:") == true
         var h = HyperlinkHooks(apply: { [weak self] addr, place, text, tip in
             guard let self else { return "" }
-            let link = place.map { "slide:" + $0 } ?? addr
+            let link = place.map { $0.hasPrefix("action:") ? $0 : "slide:" + $0 } ?? addr
             if link.isEmpty { return "Type an address or pick a slide" }
             if typing {
-                guard self.session.controller.applyHyperlink(address: link, text: text, tip: tip) else { return "Nothing to link" }
+                // A caret with no text and no text typed to show: a place link shows the place's name, not its key.
+                var shown = text
+                if shown.isEmpty, let place, !self.session.controller.hasSelection {
+                    shown = SlideLinks.relativePlaces.first { $0.id == place }?.title
+                        ?? targets.first { $0.key == place }.map { SlideLinks.shownName($0.title) } ?? ""
+                }
+                guard self.session.controller.applyHyperlink(address: link, text: shown, tip: tip) else { return "Nothing to link" }
             } else if !self.deck.setShapeLink(link, tip: tip) { return "Select text or a shape" }
             self._flash("Linked")
             return ""
         })
         h.placesLabel = "Place in this document"
-        h.places = targets.map { HyperlinkPlace(id: $0.key, title: $0.title, kind: "Slide") }
+        h.places = SlideLinks.relativePlaces + targets.map { HyperlinkPlace(id: $0.key, title: $0.title, kind: "Slide") }
         h.hasDisplayText = typing
+        h.hasEmail = true
         h.address = isJump ? "" : (now.0 ?? "")
+        h.place = now.0.flatMap { SlideLinks.place(of: $0) }
         h.displayText = typing ? c.selectedText : ""
         h.tip = now.1 ?? ""
         h.canRemove = now.0 != nil
@@ -1852,7 +1875,8 @@ final class SlidesShellState: State<StatefulWidget> {
             spellChecker: session.checkSpelling ? _spelling : nil,
             animationBadges: _tab == .animations || _animationPane,
             onContextMenu: { [weak self] at, shape in self?._showSlideMenu(at: at, on: shape) },
-            onPasteOptions: { [weak self] at in self?._showPasteOptions(at: at) })))]
+            onPasteOptions: { [weak self] at in self?._showPasteOptions(at: at) },
+            onFollowLink: { [weak self] link in self?._followLink(link) })))]
         if _showNotes { work.append(_notesPane(fluent)) }
         if deck.notesPageView && !_sorter {
             work = [Expanded(child: _notesPageView(fluent))]
@@ -2476,6 +2500,7 @@ final class SlidesShellState: State<StatefulWidget> {
             m.miniButton(FluentSystemIcons.textBold, "Bold", on: c.selectionAll { $0.bold }) { c.toggleBold() }
             m.miniButton(FluentSystemIcons.textItalic, "Italic", on: c.selectionAll { $0.italic }) { c.toggleItalic() }
             m.miniButton(FluentSystemIcons.textUnderline, "Underline", on: c.selectionAll { $0.underline }) { c.toggleUnderline() }
+            _linkItems(m, link: c.currentLink, remove: { c.setLink(nil) })
             if c.isInCell {
                 m.separator()
                 m.item("Insert Row Above") { c.insertRow(below: false) }
@@ -2501,6 +2526,7 @@ final class SlidesShellState: State<StatefulWidget> {
             m.item("Ungroup", enabled: deck.canUngroup) { deck.ungroupSelection() }
             m.separator()
             m.item("Format Shape…") { [weak self] in self?.setState { self?._formatShape = true } }
+            _linkItems(m, link: deck.selectedShapeLink.link, remove: { deck.setShapeLink(nil, tip: nil) })
             m.separator()
             m.item("Rotate Right 90°") { deck.rotateSelection(by: 90) }
             m.item("Rotate Left 90°") { deck.rotateSelection(by: -90) }

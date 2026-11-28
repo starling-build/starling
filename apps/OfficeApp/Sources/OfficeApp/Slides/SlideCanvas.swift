@@ -35,6 +35,8 @@ final class SlideCanvas: StatefulWidget {
     let onContextMenu: ((Offset, SlideShape?) -> Void)?
     /// The Paste Options button was pressed: open its menu at this window point (S-ED-1 step 3).
     let onPasteOptions: ((Offset) -> Void)?
+    /// Ctrl/Cmd+click on a link in the text being edited (S-TX-4).
+    let onFollowLink: ((String) -> Void)?
 
     init(key: (any Key)? = nil, deck: DeckController, cache: SlideTextCache, active: SlideShape?,
          onEdit: @escaping (SlideShape?) -> Void,
@@ -42,7 +44,9 @@ final class SlideCanvas: StatefulWidget {
          modifiers: @escaping () -> KeyModifiers = { [] },
          spellChecker: RichSpellChecker?, animationBadges: Bool = false,
          onContextMenu: ((Offset, SlideShape?) -> Void)? = nil,
-         onPasteOptions: ((Offset) -> Void)? = nil) {
+         onPasteOptions: ((Offset) -> Void)? = nil,
+         onFollowLink: ((String) -> Void)? = nil) {
+        self.onFollowLink = onFollowLink
         self.modifiers = modifiers
         self.onPasteOptions = onPasteOptions
         self.onContextMenu = onContextMenu
@@ -365,6 +369,7 @@ final class SlideCanvasState: State<StatefulWidget> {
                 onCellEdge: shape.kind == .table && deck.tableTool != .none
                     ? { [weak deck, weak shape] _, row, column, side in if let deck, let shape { deck.penTouch(shape, row: row, column: column, side: side) } } : nil,
                 onCellEdgeStroke: shape.kind == .table && deck.tableTool != .none ? { [weak deck] on in deck?.penStroke(on) } : nil,
+                onLinkActivate: _w.onFollowLink,
                 onContextMenu: { [weak self] at in
                     // (A right click already opened the menu from the layer above: the editor's own would be a second.)
                     guard let self, Date().timeIntervalSince1970 - self._rightClickAt > 0.3 else { return }
