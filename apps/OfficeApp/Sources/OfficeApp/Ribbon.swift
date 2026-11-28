@@ -659,6 +659,13 @@ final class Ribbon: StatelessWidget {
                                 if let art = TextBoxInsert.makeWordArt(style: k, number: TextBoxInsert.nextShapeNumber(in: c.document)) { c.insertImage(art) }
                                 else { session.onStatus?("Could not insert WordArt") }
                             }) }),
+                // A chart of Word's sample data at the caret, its data opened beside it as Word opens its sheet.
+                Chrome.menu(Text("Chart"), Icon(FluentSystemIcons.chartColumn, size: Chrome.iconSize,
+                                                color: fluent.resources.textFillColorPrimary), fluent,
+                            ChartType.allCases.map { type in (type.name, { [session] in
+                                if WordChartInsert.insert(type, into: c) { session.onChartData?(true) }
+                                else { session.onStatus?("Could not insert a chart") }
+                            }) }),
             ]),
             Chrome.group("Links", fluent, [
                 Chrome.big(FluentSystemIcons.link, "Link", fluent) { [session] in session.onLink?() },

@@ -741,8 +741,11 @@ public final class RichDocumentController: ChangeNotifier {
     /// Kept parts set (nil takes one away) as one undo step named `label`. With a `coalesce` key, a change right after
     /// another under the same key (nothing else edited, undone or redone between) joins that step: typing in one cell of
     /// a chart's data is one step, as typing is.
-    public func setKeptParts(_ parts: [(String, Data?)], label: String, coalesce key: String? = nil) {
+    /// `types` are the new parts' content types (`keptPartTypes`), kept outside the history: a type names no part
+    /// once an undo takes the part away, and the writer writes types only for the parts there are.
+    public func setKeptParts(_ parts: [(String, Data?)], label: String, coalesce key: String? = nil, types: [String: String] = [:]) {
         guard !readOnly else { return }
+        for (name, t) in types.sorted(by: { $0.key < $1.key }) where document.keptPartTypes[name] != t { document.keptPartTypes[name] = t }
         let changed = parts.filter { document.keptParts[$0.0] != $0.1 }
         guard !changed.isEmpty else { return }
         if let key, let last = _partsCoalesce, last.key == key, last.revision == revision, !_undo.isEmpty {

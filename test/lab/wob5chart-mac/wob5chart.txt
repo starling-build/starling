@@ -7,10 +7,10 @@ click 668 81
 wait 400
 shot ${OUT}/01-chart-design.png
 # Elements on, then two undos put them back.
-click 265.5 112.5
+click 407.5 112.5
 wait 400
 shot ${OUT}/02-chart-title-toggled.png
-click 268.5 154.5
+click 410.5 154.5
 wait 400
 shot ${OUT}/03-data-labels-toggled.png
 chord cmd z

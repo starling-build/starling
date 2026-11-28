@@ -19,20 +19,25 @@ final class ChartDataPane: StatefulWidget {
     /// Sets the chart; the key names the cell typed in, so typing in one cell is one undo step (nil: a step of its own).
     let set: (Chart, String?) -> Void
     let onClose: () -> Void
+    /// Called with true while one of the pane's fields has the keyboard and false once none has: the shell points
+    /// ⌘Z and ⌘⇧Z from a field at the document's undo meanwhile (`OfficeSession.fieldUndo`).
+    let onFieldFocus: ((Bool) -> Void)?
 
     init(key: (any Key)? = nil, chart: @escaping () -> Chart?, set: @escaping (Chart, String?) -> Void,
-         onClose: @escaping () -> Void) {
+         onClose: @escaping () -> Void, onFieldFocus: ((Bool) -> Void)? = nil) {
         self.chart = chart
         self.set = set
         self.onClose = onClose
+        self.onFieldFocus = onFieldFocus
         super.init(key: key)
     }
 
     /// A slide's chart.
-    convenience init(key: (any Key)? = nil, deck: DeckController, shape: SlideShape, onClose: @escaping () -> Void) {
+    convenience init(key: (any Key)? = nil, deck: DeckController, shape: SlideShape, onClose: @escaping () -> Void,
+                     onFieldFocus: ((Bool) -> Void)? = nil) {
         self.init(key: key, chart: { shape.chart }, set: { chart, cell in
             deck.setChart(shape, chart, coalesce: cell.map { "\(shape.id):\($0)" })
-        }, onClose: onClose)
+        }, onClose: onClose, onFieldFocus: onFieldFocus)
     }
 
     override func createState() -> State<StatefulWidget> { ChartDataPaneState() }
@@ -46,10 +51,20 @@ final class ChartDataPaneState: State<StatefulWidget> {
     /// The chart as this pane last left it: anything else (an undo, the
     /// ribbon) reloads every field.
     private var _expected: Chart?
+    /// The fields that have the keyboard (one, or two for the instant focus moves between them).
+    private var _focused: Set<String> = []
 
     override func dispose() {
         for c in _fields.values { c.dispose() }
+        if !_focused.isEmpty { _w.onFieldFocus?(false) }
         super.dispose()
+    }
+
+    /// `key`'s field gained or lost the keyboard.
+    func fieldFocus(_ key: String, _ on: Bool) {
+        let was = !_focused.isEmpty
+        if on { _focused.insert(key) } else { _focused.remove(key) }
+        if was != !_focused.isEmpty { _w.onFieldFocus?(!_focused.isEmpty) }
     }
 
     private func _field(_ key: String, _ text: String) -> TextEditingController {
@@ -116,7 +131,8 @@ final class ChartDataPaneState: State<StatefulWidget> {
                     controller: _field(key, Self._cell(chart, r, c)),
                     onChanged: { [weak self] text in self?._changed(r, c, text) },
                     readOnly: r < 0 && c < 0,
-                    style: Flutter.TextStyle(fontSize: 12, fontWeight: r < 0 || c < 0 ? .w600 : .normal))))
+                    style: Flutter.TextStyle(fontSize: 12, fontWeight: r < 0 || c < 0 ? .w600 : .normal),
+                    onFocusChanged: { [weak self] on in self?.fieldFocus(key, on) })))
         }
         var rows: [Widget] = []
         rows.append(Row(mainAxisSize: .min, children: [cell(-1, -1)] + (0 ..< seriesCount).map { cell(-1, $0) }))
@@ -131,7 +147,8 @@ final class ChartDataPaneState: State<StatefulWidget> {
                 guard let self, var chart = self._w.chart() else { return }
                 chart.title = text.isEmpty ? nil : text
                 self._commit(chart, key: "title")
-            })
+            },
+            onFocusChanged: { [weak self] on in self?.fieldFocus("title", on) })
 
         let buttons = Wrap(spacing: 4, runSpacing: 4, children: [
             Button(onPressed: { [weak self] in

@@ -1,0 +1,32 @@
+# W-OB-5 Insert > Chart in Word: a column chart of Word's sample data at the caret, its data pane open beside it.
+# Run with OFFICE_FILE=test/lab/wobins-mac/wobins.docx (lab/wobins/i0-text.docx: one line, then an empty paragraph),
+# window 1440x932 (harness points from ScreenMarksTests.testInsertChartMarks).
+wait 1500
+shot ${OUT}/00-open.png
+# The caret to the empty paragraph at the end.
+chord cmd down
+wait 200
+click 154.5 81
+wait 400
+shot ${OUT}/01-insert-tab.png
+click 523.5 116
+wait 400
+shot ${OUT}/02-chart-menu.png
+click 514.5 154
+wait 800
+shot ${OUT}/03-chart-inserted.png
+# The first value (4.3) becomes 9.6; the first undo puts it back, the second takes the chart away.
+click 1210 378
+wait 200
+chord cmd a
+type 9.6
+key enter
+wait 500
+shot ${OUT}/04-first-value-9.6.png
+chord cmd z
+wait 500
+shot ${OUT}/05-value-undone.png
+chord cmd z
+wait 500
+shot ${OUT}/06-chart-removed.png
+quit

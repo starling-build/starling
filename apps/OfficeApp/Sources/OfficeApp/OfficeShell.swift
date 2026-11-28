@@ -2134,7 +2134,10 @@ final class OfficeShellState: State<StatefulWidget> {
                                           WordChartEdit.set(chart, of: image, in: c, label: "Edit Data",
                                                             coalesce: cell.map { "chart \(image.id) \($0)" })
                                       },
-                                      onClose: { [weak self] in self?.setState { self?._chartData = false } })
+                                      onClose: { [weak self] in self?.setState { self?._chartData = false } },
+                                      onFieldFocus: { [weak self] on in
+                                          self?.session.fieldUndo = on ? { [weak c] redo in redo ? c?.redo() : c?.undo() } : nil
+                                      })
             sidePanes.append(chartPane!)
         }
         if _narrow, let pane = sidePanes.last {

@@ -1,4 +1,6 @@
 import XCTest
+import Flutter
+import FlutterSwiftBridge
 import OfficeText
 @testable import OfficeApp
 
@@ -70,6 +72,35 @@ final class WordChartEditTests: XCTestCase {
         XCTAssertEqual(WriterCharts.chart(id)?.series[0].values[0], 123)
         c.undo()
         XCTAssertEqual(c.document.keptParts["word/charts/chart1.xml"], before)
+    }
+
+    /// ⌘Z from the Edit Data grid, after Enter committed a value, undoes it (and ⌘⇧Z redoes it): the cell keeps no
+    /// undo of its own, so the chord goes to the document while a data cell has the keyboard (Mac run of #3369: the
+    /// grid swallowed it and nothing changed). Outside such a field the chord stays the field's.
+    func testUndoFromADataCellUndoesTheDocument() throws {
+        WriterCharts.installHooks()
+        let c = RichDocumentController(document: try chartDocument(Chart.sample(.column)))
+        c.onKeptPartChange = { [unowned c] path, data in WordChartEdit.partChanged(path, data, in: c.document) }
+        let i = try XCTUnwrap(c.document.paragraphs.firstIndex { !$0.inlineImages.isEmpty })
+        let id = try XCTUnwrap(c.document.paragraphs[i].inlineImages.keys.first)
+        let image = try XCTUnwrap(WordChartEdit.image(c.document, index: i, inline: id))
+        let old = WriterCharts.chart(id)?.series[0].values[0]
+        var new = try XCTUnwrap(WriterCharts.chart(id))
+        new.series[0].values[0] = 9.6
+        XCTAssertTrue(WordChartEdit.set(new, of: image, in: c, label: "Edit Data", coalesce: "chart B2"))
+
+        let session = OfficeSession()
+        session.routeFieldChords()
+        defer { FluentTextBox.unhandledCommandChord = nil }
+        let z = KeyData(timeStamp: 0, type: .down, physical: 0, logical: 0x7A, character: nil, synthesized: false)
+        XCTAssertFalse(FluentTextBox.unhandledCommandChord?(z, false) ?? false, "no data cell has the keyboard")
+        XCTAssertEqual(WriterCharts.chart(id)?.series[0].values[0], 9.6)
+
+        session.fieldUndo = { [weak c] redo in redo ? c?.redo() : c?.undo() }   // as the shell sets it on a cell's focus
+        XCTAssertTrue(FluentTextBox.unhandledCommandChord?(z, false) ?? false)
+        XCTAssertEqual(WriterCharts.chart(id)?.series[0].values[0], old)
+        XCTAssertTrue(FluentTextBox.unhandledCommandChord?(z, true) ?? false)
+        XCTAssertEqual(WriterCharts.chart(id)?.series[0].values[0], 9.6)
     }
 
     /// The chart's elements a Chart Design edit turns on are written into the part (they used to be dropped on save).
@@ -206,6 +237,59 @@ final class WordChartEditTests: XCTestCase {
             var chart = try XCTUnwrap(WordChartEdit.chart(image, in: c.document))
             edit(&chart)
             if name != "c0-saved" { XCTAssertTrue(WordChartEdit.set(chart, of: image, in: c), name) }
+            try DocxFormat.write(c.document, pageSetup: .letter).write(to: URL(fileURLWithPath: out + "/" + name + ".docx"))
+        }
+    }
+
+    /// Insert > Chart: Word's sample chart in line at the caret, its part, workbook and their types written as Word writes
+    /// them, read back as a chart; one undo takes it all away, and the second chart takes the next names.
+    func testInsertChartWritesItsPartsAndUndoes() throws {
+        WriterCharts.installHooks()
+        let c = RichDocumentController(document: RichDocument(paragraphs: [RichParagraph(text: "")]))
+        c.onKeptPartChange = { [unowned c] path, data in WordChartEdit.partChanged(path, data, in: c.document) }
+        XCTAssertTrue(WordChartInsert.insert(.column, into: c))
+        let i = try XCTUnwrap(c.selectedImageIndex, "the new chart is selected")
+        let image = try XCTUnwrap(c.document.paragraphs[i].image)
+        XCTAssertNil(image.float, "in line with the text")
+        XCTAssertEqual(image.width, 432); XCTAssertEqual(image.height, 252)
+        XCTAssertEqual(WordChartEdit.partPath(image), "word/charts/chart1.xml")
+        XCTAssertEqual(WordChartEdit.chart(image, in: c.document)?.series.map(\.values), Chart.sample(.column).series.map(\.values))
+        XCTAssertEqual(WordChartEdit.workbookPath("word/charts/chart1.xml", in: c.document), "word/embeddings/Microsoft_Excel_Worksheet.xlsx")
+
+        let saved = try Zip.read(try DocxFormat.write(c.document, pageSetup: .letter))
+        func text(_ name: String) -> String { String(decoding: saved.first { $0.name == name }?.data ?? Data(), as: UTF8.self) }
+        let types = text("[Content_Types].xml")
+        XCTAssertTrue(types.containsSubstring("PartName=\"/word/charts/chart1.xml\" ContentType=\"\(ChartXML.contentType)\""), types)
+        XCTAssertTrue(types.containsSubstring("PartName=\"/word/embeddings/Microsoft_Excel_Worksheet.xlsx\" ContentType=\"\(ChartXML.xlsxType)\""), types)
+        XCTAssertTrue(text("word/_rels/document.xml.rels").containsSubstring("Target=\"charts/chart1.xml\""))
+        XCTAssertTrue(text("word/charts/_rels/chart1.xml.rels").containsSubstring("Target=\"../embeddings/Microsoft_Excel_Worksheet.xlsx\""))
+        XCTAssertTrue(text("word/document.xml").containsSubstring("<wp:inline"))
+        let back = try DocxFormat.read(try Zip.write(saved)).document
+        let reread = try XCTUnwrap(back.paragraphs.compactMap(\.image).first)
+        XCTAssertEqual(WordChartEdit.chart(reread, in: back)?.categories, Chart.sample(.column).categories, "read back as a chart")
+
+        XCTAssertTrue(WordChartInsert.insert(.pie, into: c))
+        XCTAssertNotNil(c.document.keptParts["word/charts/chart2.xml"])
+        XCTAssertNotNil(c.document.keptParts["word/embeddings/Microsoft_Excel_Worksheet1.xlsx"])
+        c.undo()
+        XCTAssertNil(c.document.keptParts["word/charts/chart2.xml"], "one undo step")
+        c.undo()
+        XCTAssertNil(c.document.keptParts["word/charts/chart1.xml"])
+        XCTAssertTrue(c.document.paragraphs.allSatisfy { $0.image == nil })
+    }
+
+    /// The Insert > Chart lab: new charts saved here, for Word to open and print (WORD_CHART_INSERT_LAB_OUT).
+    func testWriteInsertChartLab() throws {
+        guard let out = ProcessInfo.processInfo.environment["WORD_CHART_INSERT_LAB_OUT"] else { throw XCTSkip("no WORD_CHART_INSERT_LAB_OUT") }
+        WriterCharts.installHooks()
+        for (name, types) in [("i0-text", [ChartType]()), ("i1-column", [.column]), ("i2-pie", [.pie]), ("i3-line", [.line]), ("i4-bar", [.bar]),
+                              ("i5-two", [.column, .area])] {
+            let c = RichDocumentController(document: RichDocument(paragraphs: [RichParagraph(text: "Before the chart."), RichParagraph(text: "")]))
+            c.onKeptPartChange = { [unowned c] path, data in WordChartEdit.partChanged(path, data, in: c.document) }
+            for t in types {
+                c.selection = RichSelection(caret: RichPosition(paragraph: c.document.paragraphs.count - 1, offset: 0))
+                XCTAssertTrue(WordChartInsert.insert(t, into: c), name)
+            }
             try DocxFormat.write(c.document, pageSetup: .letter).write(to: URL(fileURLWithPath: out + "/" + name + ".docx"))
         }
     }

@@ -102,7 +102,9 @@ enum TextBoxInsert {
     /// `drawing` read as a file would read it. `rels` are the relationships it names (a picture's file), with the bytes of
     /// their parts in `parts` (package path): the drawing is read with them, so a picture in it draws, and the attachment
     /// carries them as its own (`sourceRels`, renamed; the parts stay the document's).
-    static func read(_ drawing: String, rels: [KeptRel] = [], parts: [String: Data] = [:], _ wanted: (ImageAttachment) -> Bool) -> ImageAttachment? {
+    /// `inline` takes a drawing in line with the text (`wp:inline`, a new chart); otherwise only a floating one is wanted.
+    static func read(_ drawing: String, rels: [KeptRel] = [], parts: [String: Data] = [:], inline: Bool = false,
+                     _ wanted: (ImageAttachment) -> Bool) -> ImageAttachment? {
         guard let base = try? DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "x")]), pageSetup: .letter),
               var entries = try? Zip.read(base), let di = entries.firstIndex(where: { $0.name == "word/document.xml" }) else { return nil }
         var xml = String(decoding: entries[di].data, as: UTF8.self)
@@ -130,8 +132,8 @@ enum TextBoxInsert {
         entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
         guard let data = try? Zip.write(entries), let doc = try? DocxFormat.read(data).document else { return nil }
         for p in doc.paragraphs {
-            if let image = p.image, wanted(image), image.float != nil { return image }
-            if let image = p.inlineImages.values.first(where: { wanted($0) && $0.float != nil }) { return image }
+            if let image = p.image, wanted(image), (image.float != nil) != inline { return image }
+            if let image = p.inlineImages.values.first(where: { wanted($0) && ($0.float != nil) != inline }) { return image }
         }
         return nil
     }
