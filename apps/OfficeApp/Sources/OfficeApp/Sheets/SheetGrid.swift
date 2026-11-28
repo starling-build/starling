@@ -1844,6 +1844,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         case .escape:
             // Escape lets go of the copied cells first, as Excel's does.
             if c.painterSource != nil { c.cancelFormatPainter(); return true }
+            if c.borderDrawMode != nil { c.borderDrawMode = nil; return true }
             if marquee != nil { marquee = nil; _repaint.notifyListeners(); return true }
             return _w.onShortcut("\u{1B}", _chords)  // the shell closes its find bar
         default:
@@ -2556,7 +2557,12 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             _groupStart = []
         }
         switch _drag {
-        case .cells?, .columns?, .rows?: if controller.painterSource != nil { controller.applyFormatPainter() }
+        case .cells?, .columns?, .rows?:
+            if controller.painterSource != nil { controller.applyFormatPainter() }
+            else if let mode = controller.borderDrawMode {
+                // A stroke is not half a double click: the next one draws again, it does not open the cell.
+                controller.drawBorders(on: controller.selection, mode: mode); _lastClick = nil
+            }
         default: break
         }
         if case .fill(let target)? = _drag {

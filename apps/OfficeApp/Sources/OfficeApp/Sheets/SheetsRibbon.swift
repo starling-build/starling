@@ -124,17 +124,24 @@ extension Ribbon {
                             WorkbookController.BorderPreset.allCases.map { p in (p.title, { wb.applyBorders(p) }) },
                             keyPrefix: "borders", tip: "Borders", tail: [
                                 MenuFlyoutSeparator(),
-                                // The pen the presets draw with (Excel's Draw Borders section).
+                                // Excel's Draw Borders section: the three pen modes (checked while on), then the pen.
+                                // Picking a colour or style turns Draw Border on, as Excel does.
+                                ToggleMenuFlyoutItem(text: Text("Draw Border"), isChecked: wb.borderDrawMode == .draw,
+                                                     onChanged: { _ in wb.borderDrawMode = wb.borderDrawMode == .draw ? nil : .draw }),
+                                ToggleMenuFlyoutItem(text: Text("Draw Border Grid"), isChecked: wb.borderDrawMode == .grid,
+                                                     onChanged: { _ in wb.borderDrawMode = wb.borderDrawMode == .grid ? nil : .grid }),
+                                ToggleMenuFlyoutItem(text: Text("Erase Border"), isChecked: wb.borderDrawMode == .erase,
+                                                     onChanged: { _ in wb.borderDrawMode = wb.borderDrawMode == .erase ? nil : .erase }),
                                 MenuFlyoutSubItem(text: Text("Line Color"), items:
-                                    [MenuFlyoutItem(text: Text("Automatic"), onPressed: { wb.borderPenColor = nil }) as MenuFlyoutItemBase,
+                                    [MenuFlyoutItem(text: Text("Automatic"), onPressed: { wb.borderPenColor = nil; wb.penPicked() }) as MenuFlyoutItemBase,
                                      MenuFlyoutSeparator()]
                                     + colors.map { name, c in MenuFlyoutItem(text: Text(name), leading: Chrome.swatch(c, fluent),
-                                                                             onPressed: { wb.borderPenColor = rgb(c) }) as MenuFlyoutItemBase }
+                                                                             onPressed: { wb.borderPenColor = rgb(c); wb.penPicked() }) as MenuFlyoutItemBase }
                                     + [MenuFlyoutSeparator(),
                                        MenuFlyoutItem(text: Text("More Colors…"), onPressed: { wb.onCommand?(.moreLineColor) })]),
                                 MenuFlyoutSubItem(text: Text("Line Style"), items: FormatCellsDialog.lineKinds.map { name, kind in
                                     ToggleMenuFlyoutItem(text: Text(name), isChecked: wb.borderPenKind == kind,
-                                                         onChanged: { _ in wb.borderPenKind = kind }) as MenuFlyoutItemBase }),
+                                                         onChanged: { _ in wb.borderPenKind = kind; wb.penPicked() }) as MenuFlyoutItemBase }),
                                 MenuFlyoutItem(text: Padding(key: ValueKey("borders.More Borders…"), padding: EdgeInsets(left: 0, top: 0, right: 0, bottom: 0), child: Text("More Borders…")), onPressed: { wb.onCommand?(.formatCells(tab: 3)) }),
                             ]),
                 Chrome.colorMenu(FluentSystemIcons.paintBrush, "Fill Color", fluent, colors: colors, none: "No Fill",

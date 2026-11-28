@@ -33,6 +33,7 @@ extension WorkbookController {
     /// Draw a Borders preset on the selection, as one undo step.
     func applyBorders(_ preset: BorderPreset) {
         if refuses("formatCells") { return }
+        borderDrawMode = nil  // a preset puts the pen down, as in Excel
         if _eachRange({ applyBorders(preset) }) { return }
         let r = selection
         let topRow = CellRange(top: r.top, left: r.left, bottom: r.top, right: r.right)
@@ -79,4 +80,47 @@ extension WorkbookController {
             }
         }
     }
+
+    enum BorderDrawMode: Equatable { case draw, grid, erase }
+
+    /// Draw Border draws the range's outline, Draw Border Grid every cell's edges, both with the
+    /// pen; Erase Border takes every line in and around the range away (the neighbour's side of a
+    /// shared edge too, since either cell may hold it). One undo step.
+    func drawBorders(on r: CellRange, mode: BorderDrawMode) {
+        if refuses("formatCells") { return }
+        let pen = (color: borderPenColor, kind: borderPenKind)
+        func on(_ st: inout CellStyle, _ side: WritableKeyPath<CellStyle.Borders, Bool>, _ name: String) {
+            st.borders[keyPath: side] = true
+            st.borders.kinds[name] = pen.kind == "thin" ? nil : pen.kind
+            st.borders.colors[name] = pen.color
+        }
+        func off(_ st: inout CellStyle, _ side: WritableKeyPath<CellStyle.Borders, Bool>, _ name: String) {
+            st.borders[keyPath: side] = false
+            st.borders.kinds[name] = nil; st.borders.colors[name] = nil
+        }
+        func row(_ y: Int) -> CellRange { CellRange(top: y, left: r.left, bottom: y, right: r.right) }
+        func col(_ x: Int) -> CellRange { CellRange(top: r.top, left: x, bottom: r.bottom, right: x) }
+        asOneStep {
+            switch mode {
+            case .draw:
+                setStyle({ on(&$0, \.top, "top") }, range: row(r.top))
+                setStyle({ on(&$0, \.bottom, "bottom") }, range: row(r.bottom))
+                setStyle({ on(&$0, \.left, "left") }, range: col(r.left))
+                setStyle({ on(&$0, \.right, "right") }, range: col(r.right))
+            case .grid:
+                setStyle({ st in
+                    on(&st, \.top, "top"); on(&st, \.bottom, "bottom"); on(&st, \.left, "left"); on(&st, \.right, "right")
+                }, range: r)
+            case .erase:
+                setStyle({ $0.borders = .init() }, range: r)
+                if r.top > 0 { setStyle({ off(&$0, \.bottom, "bottom") }, range: row(r.top - 1)) }
+                if r.bottom + 1 < CellAddress.maxRows { setStyle({ off(&$0, \.top, "top") }, range: row(r.bottom + 1)) }
+                if r.left > 0 { setStyle({ off(&$0, \.right, "right") }, range: col(r.left - 1)) }
+                if r.right + 1 < CellAddress.maxCols { setStyle({ off(&$0, \.left, "left") }, range: col(r.right + 1)) }
+            }
+        }
+    }
+
+    /// A Line Color or Line Style pick arms the pen: Draw Border, unless Grid is already on.
+    func penPicked() { if borderDrawMode != .grid { borderDrawMode = .draw } }
 }

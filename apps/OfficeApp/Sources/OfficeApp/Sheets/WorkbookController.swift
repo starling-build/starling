@@ -778,6 +778,9 @@ final class WorkbookController: ChangeNotifier {
     /// (nil colour is Automatic; "thin" is the default style). Not saved with the file.
     var borderPenColor: UInt32? { didSet { notifyListeners() } }
     var borderPenKind = "thin" { didSet { notifyListeners() } }
+    /// Home > Borders > Draw Border / Draw Border Grid / Erase Border: while on, each cell
+    /// drag (or click) on the grid draws or erases with the pen; Escape turns it off.
+    var borderDrawMode: BorderDrawMode? { didSet { notifyListeners() } }
     /// Asks the user about an entry its validation rule objects to; the shell answers through the
     /// callback. Unset (tests, headless): the entry is handled by the rule's style alone.
     var onValidationAlert: ((ValidationAlert, @escaping (ValidationChoice) -> Void) -> Void)?
