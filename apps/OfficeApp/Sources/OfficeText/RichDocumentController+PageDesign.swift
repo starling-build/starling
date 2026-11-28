@@ -48,7 +48,7 @@ extension RichDocumentController {
     /// The page borders of the section holding the caret, as the dialog shows them (nil: none).
     public func sectionPageBorders() -> PageBorders? {
         let mark = sectionMark(containing: selection.focus.paragraph)
-        let xml = mark < 0 ? document.pageBordersXML : document.paragraphs[mark].style.sectionXML.flatMap(PageBorders.element(in:))
+        let xml = mark < 0 ? document.pageBordersXML : PageBorders.ofSection(document.paragraphs[mark].style.sectionXML, document)
         return xml.flatMap(PageBorders.init(xml:))
     }
 
@@ -65,8 +65,15 @@ extension RichDocumentController {
         let mark = sectionMark(containing: selection.focus.paragraph)
         if scope == .wholeDocument || mark < 0 { d.pageBordersXML = xml }
         for (i, p) in d.paragraphs.enumerated() where p.cell == nil && p.style.sectionPage != nil && i < d.paragraphs.count - 1 {
-            guard scope == .wholeDocument || i == mark, let sect = p.style.sectionXML else { continue }
-            d.paragraphs[i].style.sectionXML = PageBorders.replacing(in: sect, with: xml)
+            guard let sect = p.style.sectionXML else { continue }
+            let asLast = sect.containsSubstring(Self.sectionAsLast)
+            if scope == .wholeDocument || i == mark {
+                // A section made by a break in the last one is written as a copy of it: "none" needs its own mark there.
+                d.paragraphs[i].style.sectionXML = PageBorders.replacing(in: sect, with: xml ?? (asLast && scope != .wholeDocument ? PageBorders.none : nil))
+            } else if mark < 0, asLast, PageBorders.element(in: sect) == nil {
+                // Only the last section changes: a copy of it keeps the borders it had.
+                d.paragraphs[i].style.sectionXML = PageBorders.replacing(in: sect, with: document.pageBordersXML ?? PageBorders.none)
+            }
         }
         replaceDocument(with: d)
     }
@@ -163,6 +170,17 @@ public struct PageBorders: Equatable, Sendable {
     }
 
     /// The `w:pgBorders` element inside a section's XML.
+    /// Stands for "no borders" in a section that is otherwise written as a copy of the last one; never written to a file.
+    public static let none = "<w:pgBorders x-none=\"1\"/>"
+
+    /// The `w:pgBorders` a section mark's `sectionXML` gives its section, or nil for none: its own element, else, for a
+    /// section made by a break in the last one, the last section's.
+    public static func ofSection(_ sect: String?, _ document: RichDocument) -> String? {
+        guard let sect else { return nil }
+        if let own = element(in: sect) { return own == none ? nil : own }
+        return sect.containsSubstring(RichDocumentController.sectionAsLast) ? document.pageBordersXML : nil
+    }
+
     public static func element(in sect: String) -> String? {
         guard let r = sect.rangeOfSubstring("<w:pgBorders"), let gt = sect[r.upperBound...].firstIndex(of: ">") else { return nil }
         if sect[sect.index(before: gt)] == "/" { return String(sect[r.lowerBound ... gt]) }

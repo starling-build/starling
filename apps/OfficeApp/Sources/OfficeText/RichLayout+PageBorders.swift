@@ -16,9 +16,7 @@ extension RichLayout {
         for (i, para) in document.paragraphs.enumerated() where para.cell == nil {
             guard para.style.sectionPage != nil, i < document.paragraphs.count - 1 else { continue }
             if n == section {
-                guard let xml = para.style.sectionXML, let r = xml.rangeOfSubstring("<w:pgBorders"),
-                      let e = xml.rangeOfSubstring("</w:pgBorders>") else { return nil }
-                return String(xml[r.lowerBound ..< e.upperBound])
+                return PageBorders.ofSection(para.style.sectionXML, document)
             }
             n += 1
         }

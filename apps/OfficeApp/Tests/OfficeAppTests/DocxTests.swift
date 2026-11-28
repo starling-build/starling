@@ -1953,7 +1953,7 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(setup.verticalAlign, "center")
         let numbering = try XCTUnwrap(setup.lineNumbers)
         XCTAssertEqual(numbering.countBy, 5)
-        XCTAssertEqual(numbering.start, 3)
+        XCTAssertEqual(numbering.start, 4)   // w:start is zero-based: Word starts this file at 4 (lab/pg3)
         XCTAssertEqual(try XCTUnwrap(numbering.distance), 14.15, accuracy: 0.01)
         XCTAssertEqual(numbering.restart, .continuous)
     }

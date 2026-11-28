@@ -1542,7 +1542,7 @@ extension DocxFormat {
         if let ln = sect.first("w:lnNumType") {
             var numbering = LineNumbering()
             numbering.countBy = max(1, Int(ln["w:countBy"] ?? "") ?? 1)
-            numbering.start = Int(ln["w:start"] ?? "") ?? 1
+            numbering.start = (Int(ln["w:start"] ?? "") ?? 0) + 1   // zero-based in the file (lab/pg3)
             numbering.distance = Double(ln["w:distance"] ?? "").map { $0 / 20 }
             switch ln["w:restart"] {
             case "continuous": numbering.restart = .continuous

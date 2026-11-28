@@ -3320,9 +3320,10 @@ extension RichLayout {
         canvas.save()
         canvas.translate(origin.dx, origin.dy)
         for (k, m) in lines.enumerated() {
-            let n = ordinal + k + 1
-            guard n % numbering.countBy == 0 else { continue }
-            let tp = TextPainter(text: TextSpan(text: String(numbering.start + n - 1), style: style), textDirection: .ltr)
+            // Count by N shows the numbers that are multiples of N (Word, lab/pg3: start 4 by 5 shows 5, 10…).
+            let number = numbering.start + ordinal + k
+            guard number % numbering.countBy == 0 else { continue }
+            let tp = TextPainter(text: TextSpan(text: String(number), style: style), textDirection: .ltr)
             tp.layout(minWidth: 0, maxWidth: .infinity)
             let base = tp.computeDistanceToActualBaseline(TextBaseline.alphabetic)
             tp.paint(canvas, Offset(-distance - tp.width, g.inkTop + _baselineShift(i, document) + m.baseline - base))
