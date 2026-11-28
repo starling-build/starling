@@ -1,3 +1,4 @@
+#if os(macOS)  // ScriptedInput is the Mac driver; it does not exist on Linux
 import XCTest
 @testable import OfficeApp
 
@@ -9,3 +10,4 @@ final class ScriptedInputTests: XCTestCase {
                        "it used to trim every line, so \"type Today: \" typed \"Today:\"")
     }
 }
+#endif
