@@ -1,6 +1,6 @@
 # Writer Review tab (W-RV): track changes, Previous / Next, Accept / Reject, Show Markup.
 # Run with OFFICE_FILE=lab/review1/review-ui.docx (amd-5's checkout; settings have w:trackRevisions on), window 1440x932.
-# Harness points at 1440x932 (mac-ipad runs with STARLING_WINDOW_H=932; ScreenMarksTests writes writer-review-1440x932.txt): Review tab 363,81; Show Markup 573,116;
+# Harness points at 1440x932 (mac-ipad runs with STARLING_WINDOW_H=932; ScreenMarksTests writes writer-review-1440x932.txt): Review tab 427,81; Show Markup 573,116;
 # Accept 691,116, Reject 691,144; Previous 772,112, Next 772,133; Show Comments 368,130. Menu items are 28 apart, the first 37 below the button. Delete any review-ui.docx~ first.
 # Every click is followed by a picture, so a miss shows at once.
 # The edits move by paragraph (Option+Down/Up) and by word (Option+Right), never by line.
@@ -40,7 +40,7 @@ shot ${OUT}/rv-01-tracking-off.png
 chord cmd,shift e
 wait 300
 # The Review tab: Track Changes shows on.
-click 363 81
+click 427 81
 wait 400
 shot ${OUT}/rv-02-review-tab.png
 # Next from the top selects the first change (the typed paragraph), then the second (the deleted "gone").
