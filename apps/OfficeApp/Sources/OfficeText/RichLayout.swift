@@ -2003,6 +2003,8 @@ public final class RichLayout {
     var _paintMode = 0
     /// Floating objects the flow keeps back to draw in stacking order (`_recordFloat`); nil when it draws them in place.
     var _deferredFloats: [_DeferredFloat]? = nil
+    /// Set by the page that paints this story as its header or footer: takes the objects over the text (`_flushFloats`).
+    var _keepFloats: (([_DeferredFloat]) -> Void)? = nil
     /// The flow piece now painting: its page, its clip and the shift its paragraph is drawn under.
     var _pieceFrame: (page: Int, clip: _PieceClip, dx: Double, dy: Double)? = nil
     /// The first paragraph of a page whose header holds a box the body may not run under
