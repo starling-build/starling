@@ -81,8 +81,11 @@ public final class RichEditable: StatefulWidget {
     /// A click (no drag) on a selected plain text box: its paragraph index, inline id and drawn rect in this widget's coordinates.
     public let onTextBoxEnter: ((Int, String?, Rect) -> Void)?
     /// W-TB-5: a click in a table nested in a cell (Word puts the caret in the inner cell at once): the block's paragraph
-    /// index, its drawn rect and the click point, both in this widget's coordinates.
-    public let onNestedTableEnter: ((Int, Rect, Offset) -> Void)?
+    /// index, its drawn rect and the click point, both in this widget's coordinates, and the page's layout of its text
+    /// (`RichLayout.boxFrame`) for the editor to lay it out the same way.
+    public let onNestedTableEnter: ((Int, Rect, Offset, (layout: RichLayout, document: RichDocument)?) -> Void)?
+    /// The layout of a box's text on the page (`RichLayout.boxFrame`): this editor sets its text at that width, by its rules.
+    public let boxRules: RichLayout?
     /// A point in this widget's coordinates where the caret goes once the text is laid out (the click that opened it).
     public let caretAt: Offset?
     /// Reported after a paint whenever the selected picture's drawn rect moved (scroll, zoom, layout): lets an editor laid
@@ -118,9 +121,11 @@ public final class RichEditable: StatefulWidget {
                 onTextBoxEnter: ((Int, String?, Rect) -> Void)? = nil,
                 onBoxRect: ((Rect?) -> Void)? = nil,
                 onContentHeight: ((Double) -> Void)? = nil,
-                onNestedTableEnter: ((Int, Rect, Offset) -> Void)? = nil,
-                caretAt: Offset? = nil) {
+                onNestedTableEnter: ((Int, Rect, Offset, (layout: RichLayout, document: RichDocument)?) -> Void)? = nil,
+                caretAt: Offset? = nil,
+                boxRules: RichLayout? = nil) {
         self.onContentHeight = onContentHeight
+        self.boxRules = boxRules
         self.onNestedTableEnter = onNestedTableEnter
         self.caretAt = caretAt
         self.onTextBoxEnter = onTextBoxEnter
@@ -166,6 +171,8 @@ public final class RichEditableState: State<StatefulWidget> {
     private var _focus: FocusNode!
     private let _chords = KeyChordTracker()
     private var _layout: RichLayout!
+    /// The editor's layout, for tests.
+    public var _layoutForTests: RichLayout { _layout }
     private let _repaint = ChangeNotifier()
     private var _painter: _RichEditablePainter!
     private var _controller: RichDocumentController!
@@ -948,6 +955,12 @@ public final class RichEditableState: State<StatefulWidget> {
         return (index, rect, inline)
     }
 
+    /// The page's layout of the nested table at paragraph `i` (`RichLayout.boxFrame`).
+    private func _nestedFrame(_ i: Int) -> (layout: RichLayout, document: RichDocument)? {
+        guard i < _shownDocument.paragraphs.count, let image = _shownDocument.paragraphs[i].image else { return nil }
+        return _layout.boxFrame(of: image, _shownDocument)
+    }
+
     /// The table nested in a cell under the point (editable coordinates) that opens for typing: its paragraph and drawn rect.
     private func _nestedTable(at local: Offset) -> (Int, Rect)? {
         guard _layout.width > 0 else { return nil }
@@ -1383,7 +1396,7 @@ public final class RichEditableState: State<StatefulWidget> {
             if !_chords.shift, !_controller.readOnly, let enter = _w.onNestedTableEnter, let (i, r) = _nestedTable(at: event.localPosition) {
                 // W-TB-5: a click in a table nested in a cell types in the inner cell under it, as Word does.
                 _dragging = false
-                enter(i, r, event.localPosition)
+                enter(i, r, event.localPosition, _nestedFrame(i))
                 return
             }
             _dragging = true
@@ -1781,7 +1794,7 @@ public final class RichEditableState: State<StatefulWidget> {
                 _controller.giveShapeText(at: drag.index, inline: drag.inline)   // a plain shape takes text when entered
             }
             if d.dx == 0, d.dy == 0, let box, drag.inline == nil, let enter = _w.onNestedTableEnter, _controller.isNestedTable(at: drag.index) {
-                enter(drag.index, box.rect, drag.start)   // (a nested table picked as an object: the caret goes where clicked)
+                enter(drag.index, box.rect, drag.start, _nestedFrame(drag.index))   // (a nested table picked as an object: the caret goes where clicked)
                 return
             }
             if d.dx == 0, d.dy == 0, let box, let enter = _w.onTextBoxEnter, _controller.textBoxDocument(at: drag.index, inline: drag.inline) != nil {
@@ -1893,7 +1906,9 @@ public final class RichEditableState: State<StatefulWidget> {
         } else {
             contentWidth = max(1, size.width - pad.left - pad.right)
         }
-        if _layout.width != contentWidth {
+        if let rules = _w.boxRules {
+            _layout.adoptBoxRules(from: rules)
+        } else if _layout.width != contentWidth {
             _layout.width = contentWidth
         }
         _layout.hiddenFrameID = _w.hiddenFrameID
