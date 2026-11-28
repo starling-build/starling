@@ -57,22 +57,45 @@ final class SheetsShowNotesTests: XCTestCase {
         XCTAssertEqual(said, "This cell has no note")
     }
 
-    func testShowAllNotesIsTheWorkbookViewsShowComments() throws {
+    /// Show All Notes sets every note's own flag, as Excel does, so Show/Hide Note then hides just one, and Show All is
+    /// lit only while every note is shown (#3344 on the Mac: B2 stayed shown).
+    func testShowAllNotesSetsEachNoteAndShowHideThenHidesOne() throws {
         let c = WorkbookController()
         c.load(try Xlsx.read(try SheetsNoteTests.withNotes()))
+        let e4 = CellAddress("E4")!, f6 = CellAddress("F6")!
         XCTAssertFalse(c.showAllNotes)
         c.toggleShowAllNotes()
         XCTAssertTrue(c.showAllNotes)
-        let wb = try part(try Zip.read(try Xlsx.write(c.book)), "xl/workbook.xml")
-        XCTAssertTrue(wb.containsSubstring("showComments=\"commIndAndComment\""), wb)
+        XCTAssertEqual(c.note(at: e4)?.shown, true)
+        XCTAssertEqual(c.note(at: f6)?.shown, true)
+        c.toggleNoteShown(at: e4)
+        XCTAssertEqual(c.note(at: e4)?.shown, false, "Show/Hide hides that note")
+        XCTAssertEqual(c.note(at: f6)?.shown, true, "and leaves the other shown")
+        XCTAssertFalse(c.showAllNotes, "Show All is no longer lit")
         let back = WorkbookController()
         back.load(try Xlsx.read(try Xlsx.write(c.book)))
+        XCTAssertEqual(back.note(at: e4)?.shown, false)
+        XCTAssertEqual(back.note(at: f6)?.shown, true)
+        // Show All again shows both; once more hides both.
+        back.toggleShowAllNotes()
         XCTAssertTrue(back.showAllNotes)
         back.toggleShowAllNotes()
-        XCTAssertFalse(try part(try Zip.read(try Xlsx.write(back.book)), "xl/workbook.xml").containsSubstring("showComments"))
-        // A new workbook writes it too.
-        let fresh = WorkbookController()
-        fresh.toggleShowAllNotes()
-        XCTAssertTrue(try Xlsx.read(try Xlsx.write(fresh.book)).showComments == "commIndAndComment")
+        XCTAssertEqual(back.sheet.notes.filter(\.shown).count, 0)
+    }
+
+    /// A file whose workbook view shows comments and indicators opens with Show All lit; the first change here moves that
+    /// onto the notes' own flags and drops the attribute.
+    func testAFilesShowCommentsBecomesTheNotesFlags() throws {
+        let c = WorkbookController()
+        c.load(try Xlsx.read(try SheetsNoteTests.withNotes()))
+        c.book.showComments = "commIndAndComment"
+        let opened = WorkbookController()
+        opened.load(try Xlsx.read(try Xlsx.write(c.book)))
+        XCTAssertTrue(opened.showAllNotes)
+        opened.toggleNoteShown(at: CellAddress("E4")!)
+        XCTAssertNil(opened.book.showComments)
+        XCTAssertEqual(opened.note(at: CellAddress("E4")!)?.shown, false)
+        XCTAssertEqual(opened.note(at: CellAddress("F6")!)?.shown, true)
+        XCTAssertFalse(try part(try Zip.read(try Xlsx.write(opened.book)), "xl/workbook.xml").containsSubstring("showComments"))
     }
 }
