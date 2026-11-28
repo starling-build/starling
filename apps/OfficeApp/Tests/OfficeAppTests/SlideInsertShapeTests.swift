@@ -77,3 +77,24 @@ final class SlideInsertShapeTests: XCTestCase {
         try Pptx.write(deck).write(to: URL(fileURLWithPath: dir + "/shapes.pptx"))
     }
 }
+
+final class SlideShapeGridUITests: XCTestCase {
+    /// Home > Shapes is one grid panel that fits a small window; a click on an icon picks that shape.
+    func testShapesGalleryIsOneGridThatFitsTheWindow() throws {
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light),
+                                        home: SlidesShell(initialPath: nil, startBlank: true, onSwitch: { _, _ in }), title: "Test"),
+                              size: Size(1200, 700))
+        let session = try XCTUnwrap(ui.state(SlidesShellState.self)?.session)
+        var picked: [String] = []
+        session.onInsertShape = { picked.append($0.rawValue) }
+        XCTAssertTrue(ui.tap(tip: "Insert a shape"))
+        let grid = try XCTUnwrap(ui.elements().first { ($0.widget.key as? ValueKey<String>)?.value == "shape-grid-panel" }?
+            .findRenderObject() as? RenderBox)
+        let top = grid.localToGlobal(Offset(0, 0)).dy
+        XCTAssertLessThanOrEqual(top + grid.size.height, 700)
+        XCTAssertTrue(ui.has(tip: "Smiley Face"))
+        XCTAssertTrue(ui.tap(id: "shape-grid-smileyFace"))
+        XCTAssertEqual(picked, ["smileyFace"])
+        XCTAssertFalse(ui.has(id: "shape-grid-smileyFace"))
+    }
+}

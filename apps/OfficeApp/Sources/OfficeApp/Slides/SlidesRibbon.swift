@@ -144,14 +144,7 @@ extension Ribbon {
     }
 
     private func _shapeItems(_ fluent: FluentThemeData) -> [MenuFlyoutItemBase] {
-        ShapeGallery.groups.map { group in
-            MenuFlyoutSubItem(text: Text(group.name), items: group.presets.map { preset in
-                MenuFlyoutItem(text: Text(preset.name),
-                               leading: Icon(FluentSystemIcons.shapes, size: Chrome.iconSize,
-                                             color: fluent.resources.textFillColorPrimary),
-                               onPressed: { [session] in session.onInsertShape?(preset) })
-            })
-        }
+        [ShapeGridMenuItem(ink: fluent.resources.textFillColorPrimary) { [session] preset in session.onInsertShape?(preset) }]
     }
 
     /// Shapes, Arrange, Shape Fill and Shape Outline — PowerPoint's Drawing
