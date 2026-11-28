@@ -106,6 +106,8 @@ final class OfficeShellState: State<StatefulWidget> {
     private var _pasteSpecialData: ClipboardData?
     private var _formulaOpen = false
     private var _contentsOpen = false
+    /// Table of Figures: the contents dialog opens for these caption labels.
+    private var _figureLabels: [String]?
     private var _noteOptionsOpen = false
     private var _tableTool: String? = nil
     private var _sortTable: SortTableValues? = nil   // the open Sort dialog
@@ -677,7 +679,13 @@ final class OfficeShellState: State<StatefulWidget> {
         session.onContentsDialog = { [weak self] in
             guard let self else { return }
             self.controller.breakUndoCoalescing()
-            self.setState { self._contentsOpen = true }
+            self.setState { self._contentsOpen = true; self._figureLabels = nil }
+        }
+        session.onFiguresDialog = { [weak self] in
+            guard let self else { return }
+            self.controller.breakUndoCoalescing()
+            let labels = self.controller.crossReferenceTypes().compactMap { t -> String? in if case .caption(let l) = t { return l }; return nil }
+            self.setState { self._contentsOpen = true; self._figureLabels = labels }
         }
         session.onUpdateContents = { [weak self] pagesOnly in
             guard let self else { return }
@@ -1265,7 +1273,8 @@ final class OfficeShellState: State<StatefulWidget> {
     private func _insertContents(_ options: ContentsOptions) {
         let labels = PdfExport.pageLabels(controller.document, pageSetup: session.pageSetup, theme: session.theme)
         if !controller.insertTableOfContents(options, width: session.pageSetup.columnWidth, pageOf: labels, layout: { PdfExport.pageLabels($0, pageSetup: self.session.pageSetup, theme: self.session.theme) }) {
-            _flash("There are no headings to list: give a paragraph a Heading style first")
+            _flash(options.caption.map { "There are no \($0) captions to list: use References > Insert Caption first" }
+                   ?? "There are no headings to list: give a paragraph a Heading style first")
         }
     }
 
@@ -2354,6 +2363,7 @@ final class OfficeShellState: State<StatefulWidget> {
             return Stack(children: [
                 window,
                 Positioned(left: 0, top: 0, right: 0, bottom: 0, child: ContentsDialog(
+                    figureLabels: _figureLabels,
                     onOK: { [weak self] options in
                         guard let self else { return }
                         self.setState { self._contentsOpen = false }

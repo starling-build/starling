@@ -196,10 +196,12 @@ extension RichDocumentController {
     }
 
     /// The number a new caption of `label` would get at `place` (the SEQ fields of that label before it, plus one).
-    public func nextCaptionNumber(_ label: String, _ place: CaptionPlace) -> Int {
+    /// `chapter`: the count starts again after each heading of that level or above (`SEQ … \s n`).
+    public func nextCaptionNumber(_ label: String, _ place: CaptionPlace, chapter: Int? = nil) -> Int {
         let at = captionIndex(place), key = label.lowercased()
         var seen = Set<Int>()
         for p in document.paragraphs.prefix(at) {
+            if let chapter, let h = p.style.heading, h <= chapter { seen = [] }
             for r in p.runs where r.style.fieldResult != 0 {
                 if let instr = r.style.preservedField, Self.sequenceName(instr)?.lowercased() == key { seen.insert(r.style.fieldResult) }
             }
@@ -207,26 +209,72 @@ extension RichDocumentController {
         return seen.count + 1
     }
 
+    /// Insert Caption > Numbering > Include chapter number: the heading level a chapter starts with and the mark
+    /// between its number and the caption's (Word writes `{ STYLEREF 1 \s }-{ SEQ Figure \* ARABIC \s 1 }`).
+    public struct CaptionChapter: Equatable, Sendable {
+        public var level: Int
+        public var separator: String
+        public init(level: Int = 1, separator: String = "-") { self.level = level; self.separator = separator }
+        /// Word's separators, with the names its dialog gives them.
+        public static let separators: [(mark: String, title: String)] = [
+            ("-", "hyphen"), (".", "period"), (":", "colon"), ("\u{2014}", "em-dash"), ("\u{2013}", "en-dash"),
+        ]
+    }
+
+    /// What STYLEREF shows where it finds no heading of its level before it.
+    public static let styleRefMissing = "Error! No text of specified style in document."
+
+    /// `STYLEREF n \s` at paragraph `at`: the number of the last "Heading n" paragraph at or before it, without its
+    /// words or closing punctuation ("Chapter 2." gives "2"). Nil where there is none, or it is not numbered.
+    public func chapterNumber(level: Int, at: Int, labels: [String?]? = nil) -> String? {
+        let ps = document.paragraphs
+        guard !ps.isEmpty else { return nil }
+        guard let k = stride(from: min(at, ps.count - 1), through: 0, by: -1).first(where: { ps[$0].style.heading == level }) else { return nil }
+        guard let label = (labels ?? RichListNumbering.labels(document))[k] else { return nil }
+        var number = String(label.split(separator: " ", omittingEmptySubsequences: true).last ?? "")
+        while let last = number.last, !last.isLetter, !last.isNumber { number.removeLast() }
+        return number.isEmpty ? nil : number
+    }
+
+    /// Whether any "Heading n" paragraph carries a number (Word refuses chapter numbers otherwise).
+    public func headingsNumbered(level: Int) -> Bool {
+        let labels = RichListNumbering.labels(document)
+        return document.paragraphs.indices.contains { document.paragraphs[$0].style.heading == level && labels[$0] != nil }
+    }
+
     /// References > Insert Caption: a new "Caption" paragraph above or below (the label, unless `excludeLabel`, a space,
     /// the SEQ field, then `title` as typed, e.g. ": A cat"). Later captions of the label are renumbered. One undo step.
-    public func insertCaption(label: String, title: String, place: CaptionPlace, excludeLabel: Bool) {
+    /// `chapter`: the number is the chapter's, a separator, then the count within the chapter.
+    public func insertCaption(label: String, title: String, place: CaptionPlace, excludeLabel: Bool, chapter: CaptionChapter? = nil) {
         guard !readOnly, !label.isEmpty else { return }
         let at = captionIndex(place)
-        let id = (document.paragraphs.flatMap { $0.runs }.map { $0.style.fieldResult }.max() ?? 0) + 1
-        let number = String(nextCaptionNumber(label, place))
+        var id = (document.paragraphs.flatMap { $0.runs }.map { $0.style.fieldResult }.max() ?? 0) + 1
+        let number = String(nextCaptionNumber(label, place, chapter: chapter?.level))
         let lead = excludeLabel ? "" : label + " "
-        var field = CharStyle.plain
-        field.preservedField = " SEQ \(label) \\* ARABIC "
-        field.fieldResult = id
         var runs: [Run] = []
+        var text = lead
         if !lead.isEmpty { runs.append(Run(length: lead.utf16.count, style: .plain)) }
+        if let chapter {
+            var ref = CharStyle.plain
+            ref.preservedField = " STYLEREF \(chapter.level) \\s "
+            ref.fieldResult = id
+            id += 1
+            let shown = chapterNumber(level: chapter.level, at: at - 1) ?? Self.styleRefMissing
+            runs.append(Run(length: shown.utf16.count, style: ref))
+            runs.append(Run(length: chapter.separator.utf16.count, style: .plain))
+            text += shown + chapter.separator
+        }
+        var field = CharStyle.plain
+        field.preservedField = chapter.map { " SEQ \(label) \\* ARABIC \\s \($0.level) " } ?? " SEQ \(label) \\* ARABIC "
+        field.fieldResult = id
         runs.append(Run(length: number.utf16.count, style: field))
         if !title.isEmpty { runs.append(Run(length: title.utf16.count, style: .plain)) }
+        text += number + title
         edit {
             if document.styles["Caption"] == nil, let entry = RichStyleSheet.word["Caption"] { perform(.addStyle(entry)) }
             var style = RichParagraphStyle()
             document.styles.apply("Caption", to: &style)
-            perform(.insertParagraphs(at: at, [RichParagraph(text: lead + number + title, runs: runs, style: style)]))
+            perform(.insertParagraphs(at: at, [RichParagraph(text: text, runs: runs, style: style)]))
             _renumberSequence(label)
             moveTo(RichPosition(paragraph: at, offset: document.paragraphs[at].length), extend: false)
         }

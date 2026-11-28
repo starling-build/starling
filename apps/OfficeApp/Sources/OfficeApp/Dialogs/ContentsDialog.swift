@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // W-FD-2: Custom Table of Contents. Levels shown, the tab leader, right-aligned numbers, hyperlinks.
+// W-FD-3: the same dialog as Insert Table of Figures, with the caption label in place of the levels.
 
 import Flutter
 import FlutterSwiftBridge
@@ -16,8 +17,10 @@ private final class TocKeyed: StatelessWidget {
 final class ContentsDialog: StatefulWidget {
     let onOK: (ContentsOptions) -> Void
     let onCancel: () -> Void
-    init(onOK: @escaping (ContentsOptions) -> Void, onCancel: @escaping () -> Void) {
-        self.onOK = onOK; self.onCancel = onCancel
+    /// Table of Figures: the caption labels to pick from (nil: a table of contents).
+    let figureLabels: [String]?
+    init(figureLabels: [String]? = nil, onOK: @escaping (ContentsOptions) -> Void, onCancel: @escaping () -> Void) {
+        self.onOK = onOK; self.onCancel = onCancel; self.figureLabels = figureLabels
         super.init()
     }
     override func createState() -> State<StatefulWidget> { ContentsDialogState() }
@@ -31,6 +34,7 @@ final class ContentsDialogState: State<StatefulWidget> {
     override func initState() {
         super.initState()
         _levels.text = String(options.levels)
+        if let labels = _w.figureLabels { options.caption = labels.contains("Figure") ? "Figure" : labels.first ?? "Figure" }
     }
 
     func commit() {
@@ -50,7 +54,16 @@ final class ContentsDialogState: State<StatefulWidget> {
             check("Show page numbers", options.showPageNumbers) { $0.showPageNumbers = $1 },
             check("Right align page numbers", options.rightAlignNumbers) { $0.rightAlignNumbers = $1 },
             check("Use hyperlinks", options.hyperlinks) { $0.hyperlinks = $1 },
-            Padding(padding: EdgeInsets(left: 0, top: 4, right: 0, bottom: 8), child: Row(crossAxisAlignment: .center, children: [
+            _w.figureLabels.map { labels in
+                Padding(padding: EdgeInsets(left: 0, top: 4, right: 0, bottom: 8), child: Row(crossAxisAlignment: .center, children: [
+                    SizedBox(width: 130, height: nil, child: Text("Caption label")),
+                ] + labels.map { label in
+                    Padding(padding: EdgeInsets(left: 0, top: 0, right: 12, bottom: 0), child: Checkbox(
+                        checked: options.caption == label,
+                        onChanged: { [weak self] v in if v == true { self?.setState { self?.options.caption = label } } },
+                        content: Text(label))) as Widget
+                })) as Widget
+            } ?? Padding(padding: EdgeInsets(left: 0, top: 4, right: 0, bottom: 8), child: Row(crossAxisAlignment: .center, children: [
                 SizedBox(width: 130, height: nil, child: Text("Show levels")),
                 SizedBox(width: 70, height: Chrome.fieldHeight, child: TocKeyed("toc-levels", FluentTextBox(
                     controller: _levels, onSubmitted: { [weak self] _ in self?.commit() },
@@ -64,7 +77,7 @@ final class ContentsDialogState: State<StatefulWidget> {
                     content: Text(name)))
             }),
         ])
-        return DialogShell(title: "Table of Contents", page: page, width: 460,
+        return DialogShell(title: _w.figureLabels == nil ? "Table of Contents" : "Table of Figures", page: page, width: 460,
                            onOK: { [weak self] in guard let self else { return }; self.commit(); self._w.onOK(self.options) },
                            onCancel: { [weak self] in self?._w.onCancel() })
     }

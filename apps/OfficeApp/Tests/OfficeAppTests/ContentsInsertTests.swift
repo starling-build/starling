@@ -149,4 +149,48 @@ final class ContentsInsertTests: XCTestCase {
         XCTAssertTrue(c.insertTableOfContents(ContentsOptions(), width: 451, pageOf: layout(c.document), layout: layout))
         try DocxFormat.write(c.document, pageSetup: .letter).write(to: URL(fileURLWithPath: out))
     }
+
+    /// W-FD-3: Insert Table of Figures lists the captions of one label, in Word's "table of figures" style, as a
+    /// `TOC \c` field that saves, reopens and updates (a new caption joins the list).
+    func testTableOfFiguresListsTheCaptionsOfOneLabel() throws {
+        let c = RichDocumentController()
+        c.load(RichDocument(paragraphs: [
+            RichParagraph(text: ""),
+            RichParagraph(text: "Intro", style: RichParagraphStyle(heading: 1)),
+            RichParagraph(text: "A picture"),
+            RichParagraph(text: "A table"),
+            RichParagraph(text: "Another picture"),
+        ]))
+        c.moveTo(RichPosition(paragraph: 2, offset: 0), extend: false)
+        c.insertCaption(label: "Figure", title: ": A cat", place: .below, excludeLabel: false)
+        c.moveTo(RichPosition(paragraph: 4, offset: 0), extend: false)
+        c.insertCaption(label: "Table", title: ": Sizes", place: .below, excludeLabel: false)
+        c.moveTo(RichPosition(paragraph: 6, offset: 0), extend: false)
+        c.insertCaption(label: "Figure", title: ": A dog", place: .below, excludeLabel: false)
+        c.moveTo(RichPosition(paragraph: 0, offset: 0), extend: false)
+        var options = ContentsOptions()
+        options.caption = "Figure"
+        XCTAssertTrue(c.insertTableOfContents(options, width: 400, pageOf: { _ in "3" }))
+        var ps = c.document.paragraphs
+        XCTAssertEqual(ps[0].text, "Figure 1: A cat\t3")
+        XCTAssertEqual(ps[1].text, "Figure 2: A dog\t3", "the Table caption is not listed")
+        XCTAssertTrue(ps[2].style.contentsEnd)
+        XCTAssertEqual(ps[0].style.contentsStart, "TOC \\h \\z \\c \"Figure\"")
+        XCTAssertEqual(ps[0].style.named, "TableofFigures")
+        XCTAssertEqual(c.document.styles["TableofFigures"]?.name, "table of figures")
+        XCTAssertEqual(ContentsOptions(instruction: "TOC \\h \\z \\c \"Figure\"").caption, "Figure")
+        // Saved and reopened, the field still names the label.
+        let back = try DocxFormat.read(DocxFormat.write(c.document, pageSetup: .letter)).document
+        XCTAssertEqual(back.paragraphs[0].style.contentsStart, "TOC \\h \\z \\c \"Figure\"")
+        // A new figure caption, then Update Entire Table: it joins the list.
+        let last = c.document.paragraphs.count - 1
+        c.moveTo(RichPosition(paragraph: last, offset: 0), extend: false)
+        c.insertCaption(label: "Figure", title: ": A bird", place: .below, excludeLabel: false)
+        c.moveTo(RichPosition(paragraph: 0, offset: 0), extend: false)
+        XCTAssertTrue(c.updateTableOfContents(pagesOnly: false, width: 400, pageOf: { _ in "4" }))
+        ps = c.document.paragraphs
+        XCTAssertEqual(ps[0].text, "Figure 1: A cat\t4")
+        XCTAssertEqual(ps[2].text, "Figure 3: A bird\t4")
+        XCTAssertTrue(ps[3].style.contentsEnd)
+    }
 }

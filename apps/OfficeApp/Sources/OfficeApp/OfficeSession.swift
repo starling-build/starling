@@ -395,6 +395,8 @@ final class OfficeSession {
     /// (page numbers only, or the whole table).
     var onInsertContents: ((ContentsOptions) -> Void)?
     var onContentsDialog: (() -> Void)?
+    /// W-FD-3: References > Insert Table of Figures.
+    var onFiguresDialog: (() -> Void)?
     var onUpdateContents: ((Bool) -> Void)?
     var onEditNote: (() -> Void)?
     /// W-FN-1: the Footnote and Endnote dialog, and Next Footnote.
