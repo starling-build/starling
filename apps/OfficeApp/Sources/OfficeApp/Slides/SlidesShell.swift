@@ -1879,7 +1879,10 @@ final class SlidesShellState: State<StatefulWidget> {
             }
             if _chartData, let chart = deck.selectedChart {
                 panes.append(ChartDataPane(key: ValueKey("chart data \(chart.id)"), deck: deck, shape: chart,
-                                           onClose: { [weak self] in self?.setState { self?._chartData = false } }))
+                                           onClose: { [weak self] in self?.setState { self?._chartData = false } },
+                                           onFieldFocus: { [weak self] on in
+                                               self?.session.fieldUndo = on ? { [weak self] redo in redo ? self?._redo() : self?._undo() } : nil
+                                           }))
             }
             // The newest pane is a bottom sheet in a narrow window, a slide-over on a touch device, else docked beside the slide.
             column.append(Expanded(child: PaneArrangement.arrange(

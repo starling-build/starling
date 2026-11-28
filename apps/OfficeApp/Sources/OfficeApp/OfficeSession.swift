@@ -281,14 +281,25 @@ final class OfficeSession {
         #endif
     }
 
+    /// Undo (false) and redo (true) of the document, while the focused field is one whose committed edits are the
+    /// document's own steps (a chart's data cell): set while such a field has the keyboard, nil otherwise.
+    var fieldUndo: ((Bool) -> Void)?
+
     /// The app's own chords from inside a text field — the find box, a
     /// chart's data cell, the name box: Save, Open, New, Print, Find and
-    /// Replace go where they go from the document. Only those: a field's
-    /// editing chords (copy, paste, undo) are its own business.
+    /// Replace go where they go from the document. Only those, and undo and
+    /// redo from a field whose edits are document steps (`fieldUndo`): a
+    /// field's editing chords (copy, paste) are its own business. (A chart
+    /// data cell's ⌘Z did nothing: the field keeps no undo of its own, and
+    /// the typed value was already a step of the document. Excel's data
+    /// sheet undoes it there.)
     func routeFieldChords() {
         FluentTextBox.unhandledCommandChord = { [weak self] key, shift in
             guard let self, let letter = KeyChordTracker.letter(key.logical) else { return false }
             switch letter {
+            case "z", "y":
+                guard let undo = self.fieldUndo else { return false }
+                undo(letter == "y" || shift)
             case "s": if shift { self.onSaveAs?() } else { self.onSave?() }
             case "o": self.onOpen?()
             case "n": self.replacing { [weak self] in self?.onNew?() }

@@ -95,4 +95,26 @@ final class ScreenMarksTests: XCTestCase {
         out += marks("edit data")
         FileManager.default.createFile(atPath: dir + "/chart-1440x932.txt", contents: Data(out.utf8))
     }
+
+    /// Insert > Chart in Word (the Mac script test/lab/wobins-mac): the Insert tab, the Chart menu, and the new chart with
+    /// its data pane open. SCREEN_MARKS_INSERT_CHART is a document to insert into (lab/wobins/i0-text.docx).
+    func testInsertChartMarks() throws {
+        let env = ProcessInfo.processInfo.environment
+        guard let path = env["SCREEN_MARKS_INSERT_CHART"], let dir = env["SCREEN_MARKS_DIR"] else { throw XCTSkip("no SCREEN_MARKS_INSERT_CHART") }
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: path), title: "Test"),
+                              size: Self.size)
+        ui.pump()
+        func marks(_ head: String) -> String {
+            "--- " + head + "\n" + ScreenMarks.lines(root: ui.elements().first, view: Self.size).joined(separator: "\n") + "\n"
+        }
+        XCTAssertTrue(ui.tap(text: "Insert")); ui.pump()
+        var out = marks("insert")
+        XCTAssertTrue(ui.tap(text: "Chart")); ui.pump()
+        out += marks("chart menu")
+        let box = ui.elements().last { ($0.widget as? Text)?.data == "Column" }?.findRenderObject() as? RenderBox
+        XCTAssertNotNil(box, "Column")
+        if let box { ui.tap(at: box.localToGlobal(Offset(box.size.width / 2, box.size.height / 2))); ui.pump() }
+        out += marks("after Column")
+        FileManager.default.createFile(atPath: dir + "/insert-chart-1440x932.txt", contents: Data(out.utf8))
+    }
 }
