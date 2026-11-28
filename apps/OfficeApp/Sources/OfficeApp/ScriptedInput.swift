@@ -25,6 +25,8 @@
 //   chord MODS LETTER           e.g. "chord cmd d", "chord cmd,shift z"
 //   shot PATH                   screencapture -l of this window; ${OUT} expands
 //                               to $OFFICE_SCRIPT_OUT
+//   marks PATH                  every labelled control's centre and size in these points (ScreenMarks), to
+//                               compare with the Linux harness's list (ScreenMarksTests); ${OUT} expands
 //   pdf PATH                    what File → Export → PDF would write (Sheets)
 //   close                       the window's close button (performClose): the app ends the way a user's close does
 //   quit                        exit(0): no window close, no termination notice
@@ -153,6 +155,16 @@ enum ScriptedInput {
                 PointerData(timeStamp: t, change: .hover, kind: .mouse, signalKind: .scroll, device: _device, physicalX: x, physicalY: y,
                             scrollDeltaX: Double(parts[3])! * dpr, scrollDeltaY: Double(parts[4])! * dpr),
             ]))
+        case "marks":
+            // Where every labelled control is, in this driver's own points (ScreenMarks): compare with the Linux
+            // harness's list for the same window size instead of reading positions off a screenshot.
+            let out = ProcessInfo.processInfo.environment["OFFICE_SCRIPT_OUT"] ?? NSTemporaryDirectory()
+            let path = parts[1].replacingAll("${OUT}", with: out)
+            let view = PlatformDispatcher.instance.implicitView
+            let dpr = view?.devicePixelRatio ?? 2
+            let size = Size((view?.physicalSize.width ?? 0) / dpr, (view?.physicalSize.height ?? 0) / dpr)
+            let text = ScreenMarks.lines(root: SemanticsRoot.provider?(), view: size).joined(separator: "\n") + "\n"
+            FileManager.default.createFile(atPath: path, contents: Data(text.utf8))
         case "shot":
             // ${OUT} is the directory the runner passes (OFFICE_SCRIPT_OUT).
             let out = ProcessInfo.processInfo.environment["OFFICE_SCRIPT_OUT"] ?? NSTemporaryDirectory()
