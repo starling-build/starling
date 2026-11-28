@@ -83,14 +83,14 @@ final class PasteSpecialDialogState: State<StatefulWidget> {
             },
             onCancel: { [weak self] in self?._w.onClose() })
         // Paste Link: each pasted cell refers to its copied one (Excel greys it for the choices it cannot link).
-        if how.what == .all || how.what == .allExceptBorders, how.operation == .none, !how.skipBlanks, !how.transpose {
-            shell.middle = ("Paste Link", { [weak self] in
-                guard let self else { return }
-                var link = PasteSpecial(); link.link = true
-                self._w.onApply(link)
-                self._w.onClose()
-            })
-        }
+        // It stays in its place, greyed when it cannot link, so OK and Cancel never move.
+        shell.middle = ("Paste Link", { [weak self] in
+            guard let self else { return }
+            var link = PasteSpecial(); link.link = true
+            self._w.onApply(link)
+            self._w.onClose()
+        })
+        shell.middleEnabled = (how.what == .all || how.what == .allExceptBorders) && how.operation == .none && !how.skipBlanks && !how.transpose
         return shell
     }
 }

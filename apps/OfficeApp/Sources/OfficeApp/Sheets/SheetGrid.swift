@@ -1687,7 +1687,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             case "x" where edit == nil: copySelection(cut: true); return true
             case "d" where edit == nil: c.fillDown(); return true
             case "r" where edit == nil: c.fillRight(); return true
-            case "v" where _chords.alt && edit == nil:
+            case "v" where isPasteSpecialChord(control: _chords.control, alt: _chords.alt, meta: _chords.meta) && edit == nil:
                 _ = _w.onShortcut("v", _chords)   // the shell opens Paste Special
                 return true
             case "v" where _chords.shift && edit == nil:
@@ -3315,9 +3315,9 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 cf = d
             }
             if let m = merges.first(where: { $0.topLeft == a }) {
-                _paintCell(canvas, a, cell, in: rect(m), spill: false, ws: ws, book: book, ink: colors.ink, cf: cf)
+                _paintCell(canvas, a, cell, in: rect(m), spill: false, ws: ws, book: book, ink: colors.ink, cf: cf, under: mono ? nil : (looks[a]?.dxf.fill ?? looks[a]?.fill))
             } else {
-                _paintCell(canvas, a, cell, in: rect(a), spill: true, ws: ws, book: book, ink: colors.ink, cf: cf)
+                _paintCell(canvas, a, cell, in: rect(a), spill: true, ws: ws, book: book, ink: colors.ink, cf: cf, under: mono ? nil : (looks[a]?.dxf.fill ?? looks[a]?.fill))
             }
         } }
         // Notes: a red triangle in the cell's top-right corner.
@@ -3481,6 +3481,17 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         let dpu = printTextScale / scale * 600 / 72
         return max(1, (((width - indent) * dpu + 1e-6 - (3 + 23.5 * printRowScale)).rounded(.down)) / dpu)
     }
+    /// The automatic text colour over a cell's fill: black over a light fill
+    /// when the theme's ink is light too, else the theme's ink.
+    static func autoInk(over fill: UInt32?, ink: Color) -> Color {
+        func light(_ v: UInt32) -> Bool {
+            let r = Double((v >> 16) & 0xFF), g = Double((v >> 8) & 0xFF), b = Double(v & 0xFF)
+            return 0.299 * r + 0.587 * g + 0.114 * b > 140
+        }
+        guard let f = fill, light(f & 0xFF_FFFF), light(UInt32(truncatingIfNeeded: ink.value) & 0xFF_FFFF) else { return ink }
+        return Color(0xFF00_0000)
+    }
+
     func _textStyle(_ st: CellStyle, color: UInt32?, ink: Color) -> GridTextStyle {
         let c = printing && printMono ? Int64(0xFF00_0000) : (color ?? st.color).map { Int64(0xFF00_0000) | Int64($0) } ?? Int64(ink.value)
         let book = controller.book
@@ -3563,8 +3574,12 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
     }
 
     private func _paintCell(_ canvas: any Canvas, _ a: CellAddress, _ cell: Cell, in r: Rect, spill: Bool,
-                            ws: Worksheet, book: Workbook, ink: Color, cf: DxfStyle? = nil) {
+                            ws: Worksheet, book: Workbook, ink: Color, cf: DxfStyle? = nil, under: UInt32? = nil) {
         var st = book.style(cell.style)
+        // Automatic text over a fill is dark where the fill is light, as
+        // Excel draws it, whatever the theme (the dark theme's pale ink on a
+        // pale conditional-format fill was all but invisible).
+        let ink = Self.autoInk(over: under ?? st.fill, ink: ink)
         if let d = cf {
             // A conditional format's font settings over the cell's own.
             if let v = d.bold { st.bold = v }

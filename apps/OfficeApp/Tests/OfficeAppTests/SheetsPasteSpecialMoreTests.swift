@@ -102,22 +102,35 @@ final class SheetsPasteSpecialMoreTests: XCTestCase {
         XCTAssertEqual(c.sheet.cells[a("D2")]?.value, .number(5))
     }
 
-    func testAllMergingConditionalFormatsAddsTheRulesAfterTheCellsOwn() throws {
+    /// Excel (lab xcl-pastespecial, 2026-11-28): the pasted rule comes first (priority 1, the sheet's own pushed
+    /// down), and the paste is a full one, so the copied cells' notes and validation come too.
+    func testAllMergingConditionalFormatsPutsTheCopiedRulesFirstAndBringsNotesAndValidation() throws {
         let c = book()
+        c.setNote("check this", at: a("A1"))
+        let v = ValidationRule(ranges: [CellRange("A1:A3")!], type: "custom", op: "between", formula1: nil, formula2: nil,
+                               allowBlank: true, refuses: true, arrow: true, errorTitle: nil, error: nil)
+        XCTAssertNil(c.setValidation(v, formula1: "A1<B1"))
         XCTAssertNil(c.addConditionalFormat(CFSpec(kind: .expression("A1>1"), look: DxfStyle(fill: 0xFFFFC7CE)), on: [CellRange("A1:A2")!]))
         XCTAssertNil(c.addConditionalFormat(CFSpec(kind: .expression("D1<0"), look: DxfStyle(fill: 0xFFC6EFCE)), on: [CellRange("D1:D9")!]))
         let clip = copyA1B2(c)
         go(c, clip, to: "D1", PasteSpecial(what: .allMergingConditionalFormats))
         XCTAssertEqual(c.sheet.cells[a("E1")]?.formula.map(Formula.text), "=D1*10", "pasted as All")
-        let rules = c.conditionalRules(over: CellRange("D1")!)
-        XCTAssertEqual(rules.count, 2, "the cell's own rule and the copied one")
-        XCTAssertEqual(rules.first?.ranges, [CellRange("D1:D9")!], "the cell's own rule still comes first")
-        XCTAssertEqual(rules.last?.ranges, [CellRange("D1:D2")!])
-        let priorities = rules.map(\.priority)
-        XCTAssertEqual(Set(priorities).count, priorities.count)
-        XCTAssertEqual(try roundTrip(c).conditionalRules(over: CellRange("D2")!).count, 2)
+        func check(_ c: WorkbookController) {
+            let rules = c.conditionalRules(over: CellRange("D1")!).sorted { $0.priority < $1.priority }
+            XCTAssertEqual(rules.map(\.priority), [1, 3], "the copied rule first; A1:A2's own is 2, D1:D9's 3")
+            XCTAssertEqual(rules.first?.ranges, [CellRange("D1:D2")!])
+            XCTAssertEqual(rules.last?.ranges, [CellRange("D1:D9")!])
+            XCTAssertEqual(c.conditionalRules(over: CellRange("A1")!).map(\.priority), [2])
+            XCTAssertEqual(c.note(at: a("D1"))?.body, "check this")
+            XCTAssertEqual(c.validationRules(over: CellRange("D1:D2")!).first?.ranges, [CellRange("D1:D2")!])
+            XCTAssertEqual(c.validationRules(over: CellRange("D1")!).first?.formula1.map(Formula.print), "D1<E1")
+        }
+        check(c)
+        check(try roundTrip(c))
         c.undo()
         XCTAssertEqual(c.conditionalRules(over: CellRange("D1")!).count, 1)
+        XCTAssertNil(c.note(at: a("D1")))
+        XCTAssertTrue(c.validationRules(over: CellRange("D1")!).isEmpty)
         XCTAssertNil(c.sheet.cells[a("E1")])
     }
 
@@ -143,8 +156,13 @@ final class SheetsPasteSpecialDialogLayoutTests: XCTestCase {
         for (name, _) in PasteSpecialDialog.whats { XCTAssertTrue(ui.has(id: "ps-what-\(name)"), name) }
         XCTAssertEqual(ui.overflowingFlexes(), 0)
         XCTAssertTrue(ui.has(id: "dialog-middle"), "Paste Link is offered for All")
+        let ok = ui.centre(ofText: "OK"), link = ui.centre(id: "dialog-middle")
         ui.tap(id: "ps-what-Validation"); ui.pump()
-        XCTAssertFalse(ui.has(id: "dialog-middle"), "and greyed (gone) for a choice it cannot link")
+        XCTAssertTrue(ui.has(id: "dialog-middle"), "greyed, not gone, for a choice it cannot link")
+        XCTAssertEqual(ui.centre(ofText: "OK"), ok, "so OK never moves")
+        XCTAssertEqual(ui.centre(id: "dialog-middle"), link)
+        ui.tap(id: "dialog-middle"); ui.pump()
+        XCTAssertTrue(applied.isEmpty, "a greyed Paste Link does nothing")
         XCTAssertEqual(ui.overflowingFlexes(), 0)
         ui.tap(id: "ps-what-All"); ui.pump()
         ui.tap(id: "dialog-middle"); ui.pump()
@@ -167,5 +185,28 @@ final class SheetsPasteSpecialDialogLayoutTests: XCTestCase {
             let lines = ScreenMarks.lines(root: ui.elements().first, view: size)
             FileManager.default.createFile(atPath: dir + "/sheets-pastespecial-1440x932.txt", contents: Data((lines.joined(separator: "\n") + "\n").utf8))
         }
+    }
+}
+
+/// Paste Special's chord: Ctrl+Alt+V on Windows and Linux, Ctrl+Cmd+V on the Mac (as Excel for Mac).
+final class SheetsPasteSpecialChordTests: XCTestCase {
+    func testTheChordPerPlatform() {
+        XCTAssertTrue(isPasteSpecialChord(control: true, alt: true, meta: false, macKeys: false))
+        XCTAssertFalse(isPasteSpecialChord(control: true, alt: false, meta: false, macKeys: false))
+        XCTAssertTrue(isPasteSpecialChord(control: true, alt: false, meta: true, macKeys: true))
+        XCTAssertFalse(isPasteSpecialChord(control: true, alt: true, meta: false, macKeys: true), "Ctrl+Option+V is not it on the Mac")
+        XCTAssertFalse(isPasteSpecialChord(control: false, alt: false, meta: true, macKeys: true), "Cmd+V alone pastes")
+    }
+}
+
+/// The dark theme's automatic text over a light fill is dark, as Excel draws it.
+final class SheetsAutoInkTests: XCTestCase {
+    func testAutomaticTextOverALightFillIsDark() {
+        let pale = Color(0xFFF0F0F0), dark = Color(0xFF1B1B1B)
+        XCTAssertEqual(SheetGridState.autoInk(over: 0xC6EFCE, ink: pale).value, 0xFF000000)     // pale green
+        XCTAssertEqual(SheetGridState.autoInk(over: 0xFFFFC7CE, ink: pale).value, 0xFF000000)   // pink, with alpha
+        XCTAssertEqual(SheetGridState.autoInk(over: 0x1F3864, ink: pale), pale)                 // a dark fill keeps it
+        XCTAssertEqual(SheetGridState.autoInk(over: nil, ink: pale), pale)                      // no fill
+        XCTAssertEqual(SheetGridState.autoInk(over: 0xC6EFCE, ink: dark), dark)                 // the light theme's own
     }
 }

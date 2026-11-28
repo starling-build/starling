@@ -1,3 +1,4 @@
+import Flutter
 // Paste Special for Sheets: what to take from the copied cells (all, values,
 // formulas, formats, column widths), an arithmetic operation against what is
 // already there, skip blanks, and transpose. One undoable step.
@@ -148,7 +149,12 @@ extension WorkbookController {
                     }
                 }
             }
-            if how.what == .allMergingConditionalFormats, let source { _mergeConditionalFormats(clip, source: source, dst: dst, transpose: how.transpose) }
+            if how.what == .allMergingConditionalFormats, let source {
+                // A full paste: the notes and validation come too (Excel's lab, 2026-11-28), then the merged rules.
+                _pasteNotes(clip, source: source, at: at, transpose: how.transpose, skipBlanks: how.skipBlanks)
+                _pasteValidation(clip, source: source, dst: dst, transpose: how.transpose)
+                _mergeConditionalFormats(clip, source: source, dst: dst, transpose: how.transpose)
+            }
         }
         select(range: dst, active: at)
     }
@@ -306,26 +312,39 @@ extension WorkbookController {
         for p in pasted { _appendValidation(p) }
     }
 
-    /// All merging conditional formats: the copied cells' conditional formats are added after the pasted
-    /// cells' own (numbered after them, so the cells' own rules still come first).
+    /// All merging conditional formats: the copied cells' conditional formats join the pasted cells' own and
+    /// come first, as Excel does (the pasted rules take priorities 1, 2, …; the sheet's own move down after them).
     func _mergeConditionalFormats(_ clip: Clip, source: Worksheet, dst: CellRange, transpose: Bool) {
         var pasted: [String] = []
         for (name, text) in source.keptElements where name == "conditionalFormatting" {
             if let p = _pastedRule(text, clip: clip, at: dst.topLeft, transpose: transpose) { pasted.append(p) }
         }
-        for p in pasted {
-            // Renumber each rule's priority: the text after every ` priority="` starts with the old number.
-            var next = _nextCFPriority()
-            var parts = p.components(separatedBy: " priority=\"")
-            for k in parts.indices.dropFirst() {
-                guard let q = parts[k].firstIndex(of: "\"") else { continue }
-                parts[k] = "\(next)" + parts[k][q...]
-                next += 1
-            }
-            let s = parts.joined(separator: " priority=\"")
-            sheet.keptElements.append(("conditionalFormatting", s))
+        guard !pasted.isEmpty else { return }
+        var next = 1
+        pasted = pasted.map { Self._renumberPriorities($0) { _ in defer { next += 1 }; return next } }
+        let shift = next - 1
+        let ws = sheet
+        for k in ws.keptElements.indices where ws.keptElements[k].name == "conditionalFormatting" {
+            ws.keptElements[k].text = Self._renumberPriorities(ws.keptElements[k].text) { $0 + shift }
         }
+        let at = ws.keptElements.firstIndex { $0.name == "conditionalFormatting" } ?? ws.keptElements.count
+        ws.keptElements.insert(contentsOf: pasted.map { (name: "conditionalFormatting", text: $0) }, at: at)
     }
+
+    /// Each rule's ` priority="n"` in `text`, given the number `to` makes of it.
+    static func _renumberPriorities(_ text: String, _ to: (Int) -> Int) -> String {
+        var parts = text.components(separatedBy: " priority=\"")
+        for k in parts.indices.dropFirst() {
+            guard let q = parts[k].firstIndex(of: "\""), let old = Int(parts[k][..<q]) else { continue }
+            parts[k] = "\(to(old))" + parts[k][q...]
+        }
+        return parts.joined(separator: " priority=\"")
+    }
+}
+
+/// Paste Special's chord, with V: Ctrl+Alt (Windows, Linux) or Ctrl+Cmd (Excel for Mac), where the primary key is Cmd.
+func isPasteSpecialChord(control: Bool, alt: Bool, meta: Bool, macKeys: Bool = KeyModifiers.primary == .meta) -> Bool {
+    macKeys ? control && meta && !alt : control && alt && !meta
 }
 
 private extension Cell {

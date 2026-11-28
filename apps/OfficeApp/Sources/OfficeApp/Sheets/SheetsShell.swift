@@ -1732,7 +1732,8 @@ final class SheetsShellState: State<StatefulWidget> {
         case "p": _print(); return true
         case "/": session.onShortcuts?(); return true
         case "f": _openFind(replace: false); return true
-        case "v" where chords.alt && _grid?.edit == nil: _openPasteSpecial(); return true
+        case "v" where isPasteSpecialChord(control: chords.control, alt: chords.alt, meta: chords.meta) && _grid?.edit == nil:
+            _openPasteSpecial(); return true
         case "1" where _grid?.edit == nil: _openFormatCells(); return true
         case "+" where _grid?.edit == nil: _openCellsDialog(insert: true); return true
         case "-" where _grid?.edit == nil: _openCellsDialog(insert: false); return true
