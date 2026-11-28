@@ -29,6 +29,7 @@ enum SheetCommand {
     case dataValidation            // Data → Data Validation
     case consolidate               // Data → Consolidate
     case fillSeries                // Home → Fill → Series
+    case goToSpecial               // Home → Find & Select → Go To Special
     case scenarioManager           // Data → What-If Analysis → Scenario Manager
     case chartTitles(Int)          // Chart Design → Edit Titles
     case dataTable                 // Data → What-If Analysis → Data Table
@@ -248,6 +249,7 @@ extension Ribbon {
         ]), Chrome.rows([
             Chrome.small(FluentSystemIcons.search, "Find", fluent) { [session] in session.onFind?(false) },
             Chrome.small(FluentSystemIcons.textGrammarWand, "Replace", fluent) { [session] in session.onFind?(true) },
+            Chrome.small(FluentSystemIcons.chevronRight, "Go To Special…", fluent) { wb.onCommand?(.goToSpecial) },
             // A finger has no Shift: while this is on, a tap on a cell, row or column heading extends the selection from its anchor.
             Chrome.small(FluentSystemIcons.check, "Select Multiple", fluent, checked: wb.selectMultiple) {
                 wb.selectMultiple.toggle()

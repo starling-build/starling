@@ -93,6 +93,7 @@ final class SheetsShellState: State<StatefulWidget> {
     private var _sortOpen: (range: CellRange, hasHeader: Bool)?
     private var _consOpen = false
     private var _seriesOpen = false
+    private var _goToSpecialOpen = false
     private var _scnOpen = false
     private var _goalOpen = false
     private var _chartTitlesOpen: Int? = nil
@@ -543,6 +544,8 @@ final class SheetsShellState: State<StatefulWidget> {
             setState { _consOpen = true }
         case .fillSeries:
             setState { _seriesOpen = true }
+        case .goToSpecial:
+            setState { _goToSpecialOpen = true }
         case .scenarioManager:
             setState { _scnOpen = true }
         case .chartTitles(let i):
@@ -1408,6 +1411,13 @@ final class SheetsShellState: State<StatefulWidget> {
                     self?._grid?.focus.requestFocus()
                 }))])
         }
+        if _goToSpecialOpen {
+            return Stack(children: [window, Positioned(left: 0, top: 0, right: 0, bottom: 0, child: GoToSpecialDialog(
+                controller: wb, onClose: { [weak self] in
+                    self?.setState { self?._goToSpecialOpen = false }
+                    if let self, let g = self._grid { g.reveal(self.wb.active); g.focus.requestFocus() }
+                }))])
+        }
         if _seriesOpen {
             return Stack(children: [window, Positioned(left: 0, top: 0, right: 0, bottom: 0, child: SeriesDialog(
                 controller: wb, onClose: { [weak self] in
@@ -1846,6 +1856,7 @@ final class SheetsShellState: State<StatefulWidget> {
         hooks.scopes = ["Sheet", "Workbook"]
         hooks.goToLabel = "Go to cell"
         hooks.goToHint = "A cell or range, like B7 or Sheet2!A1:C3"
+        hooks.goToSpecial = { [unowned self] in wb.onCommand?(.goToSpecial) }
         hooks.goTo = { [unowned self] text in
             let problem = wb.goTo(text)
             if problem == nil { _grid?.reveal(wb.active) }

@@ -47,6 +47,8 @@ struct FindHooks {
     var goTo: ((String) -> String?)? = nil
     var goToLabel = "Go to"
     var goToHint = ""
+    /// Sheets: Special… beside Go, opening Go To Special.
+    var goToSpecial: (() -> Void)? = nil
 }
 
 final class FindReplaceDialog: StatefulWidget {
@@ -230,7 +232,9 @@ final class FindReplaceDialogState: State<StatefulWidget> {
             page.append(Row(crossAxisAlignment: .center, children: [label(h.goToLabel),
                 field(_goTo, "fr-goto", submit: { [weak self] in self?.goTo() }),
                 SizedBox(width: 8, height: nil, child: nil),
-                Button(onPressed: { [weak self] in self?.goTo() }, child: Text("Go"))]))
+                Button(onPressed: { [weak self] in self?.goTo() }, child: Text("Go"))]
+                + (h.goToSpecial.map { special in [SizedBox(width: 8, height: nil, child: nil),
+                    Button(key: ValueKey("fr-gotospecial"), onPressed: { [weak self] in self?._w.onClose(); special() }, child: Text("Special…"))] } ?? [])))
             if !h.goToHint.isEmpty {
                 page.append(Padding(padding: EdgeInsets(left: 90, top: 2, right: 0, bottom: 0),
                                     child: Text(h.goToHint, style: fluent.typography.caption?.copyWith(color: fluent.resources.textFillColorSecondary))))

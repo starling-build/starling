@@ -394,6 +394,7 @@ extension WorkbookController {
 
     /// Clear Comments: take every note in `r` (the selection by default) off its cell. One undo step.
     func clearComments(_ r: CellRange? = nil) {
+        if r == nil, _eachRange({ clearComments(selection) }) { return }
         let r = r ?? selection, ws = sheet
         guard ws.notes.contains(where: { $0.at.map { r.contains($0) } ?? false }) else { return }
         structural { Self._dropNotes(ws, in: r) }

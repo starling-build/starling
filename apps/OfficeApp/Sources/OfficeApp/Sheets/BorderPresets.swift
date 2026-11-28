@@ -33,6 +33,7 @@ extension WorkbookController {
     /// Draw a Borders preset on the selection, as one undo step.
     func applyBorders(_ preset: BorderPreset) {
         if refuses("formatCells") { return }
+        if _eachRange({ applyBorders(preset) }) { return }
         let r = selection
         let topRow = CellRange(top: r.top, left: r.left, bottom: r.top, right: r.right)
         let bottomRow = CellRange(top: r.bottom, left: r.left, bottom: r.bottom, right: r.right)
