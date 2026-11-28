@@ -24,12 +24,10 @@ final class SlideMultiSelectTests: XCTestCase {
         let c = deck.addShape(.line); c.frame = Rect.fromLTWH(500, 300, 100, 0)
         deck.selectShapes([a]); ui.pump()
         XCTAssertEqual(handles(ui), [], "one shape keeps its own grabbable handles")
-        // Cmd+A (Ctrl+A here) from the deck selects all three.
-        _ = FocusManager.instance.dispatchKeyData(KeyData(timeStamp: 0, type: .down, physical: 0, logical: 0xFFE3, character: nil, synthesized: false))
-        for t in [KeyEventType.down, .up] {
-            _ = FocusManager.instance.dispatchKeyData(KeyData(timeStamp: 0, type: t, physical: 0, logical: 0x61, character: t == .down ? "a" : nil, synthesized: false))
-        }
-        _ = FocusManager.instance.dispatchKeyData(KeyData(timeStamp: 0, type: .up, physical: 0, logical: 0xFFE3, character: nil, synthesized: false))
+        // Select All through the shell's own shortcut table, with the platform's primary key (Cmd on a Mac, Ctrl elsewhere;
+        // a bare Ctrl+A key event selects nothing on the Mac).
+        let state = try XCTUnwrap(ui.state(SlidesShellState.self))
+        XCTAssertTrue(state._shortcut(KeyData(timeStamp: 0, type: .down, physical: 0, logical: 0x61, character: nil, synthesized: false), .primary))
         ui.pump()
         XCTAssertEqual(deck.selection.count, 3)
         let h = handles(ui)
