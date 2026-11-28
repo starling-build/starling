@@ -16,8 +16,16 @@ extension RichDocumentController {
         public var date: String
         /// Its paragraphs' text, one line each.
         public var text: String
-        public init(id: String, author: String, initials: String, date: String, text: String) {
+        /// Its last paragraph's `w14:paraId`, by which `commentsExtended.xml` names it ("" when it has none).
+        public var paraId: String = ""
+        /// The comment this one replies to (from `commentsExtended.xml`), nil for a comment of its own.
+        public var parent: String? = nil
+        /// Resolved (Word's "done").
+        public var done: Bool = false
+        public init(id: String, author: String, initials: String, date: String, text: String,
+                    paraId: String = "", parent: String? = nil, done: Bool = false) {
             self.id = id; self.author = author; self.initials = initials; self.date = date; self.text = text
+            self.paraId = paraId; self.parent = parent; self.done = done
         }
     }
 
@@ -32,7 +40,18 @@ extension RichDocumentController {
     /// Every comment in the file, in the file's order.
     public func comments() -> [DocComment] {
         guard let data = document.keptParts[Self.commentsPart] else { return [] }
-        return Self._parseComments(String(decoding: data, as: UTF8.self))
+        var all = Self._parseComments(String(decoding: data, as: UTF8.self))
+        // (Replies and the done state live in commentsExtended, keyed by each comment's last paragraph id.)
+        let ext = Self._parseCommentsEx(document.keptParts[Self.commentsExtendedPart].map { String(decoding: $0, as: UTF8.self) } ?? "")
+        guard !ext.isEmpty else { return all }
+        var byPara: [String: String] = [:]
+        for c in all where !c.paraId.isEmpty { byPara[c.paraId] = c.id }
+        for k in all.indices where !all[k].paraId.isEmpty {
+            guard let e = ext[all[k].paraId] else { continue }
+            all[k].done = e.done
+            if let p = e.parent, let id = byPara[p], id != all[k].id { all[k].parent = id }
+        }
+        return all
     }
 
     /// Every comment that covers some text, in reading order (by where it starts).
@@ -73,7 +92,9 @@ extension RichDocumentController {
     /// Next / Previous Comment: select the next (previous) comment's text, wrapping round. False when there is none.
     @discardableResult
     public func selectAdjacentComment(forward: Bool) -> Bool {
-        let all = commentRanges()
+        // (A reply covers its comment's text: one stop per thread.)
+        let replies = Set(comments().filter { $0.parent != nil }.map(\.id))
+        let all = commentRanges().filter { !replies.contains($0.id) }
         guard !all.isEmpty else { return false }
         let lo = selection.start, hi = selection.end
         let pick: CommentRange
@@ -102,21 +123,12 @@ extension RichDocumentController {
             lo = RichPosition(paragraph: p.paragraph, offset: r.lowerBound)
             hi = RichPosition(paragraph: p.paragraph, offset: r.upperBound)
         }
-        let old = document.keptParts[Self.commentsPart]
-        let xml = old.map { String(decoding: $0, as: UTF8.self) }
+        let xml = document.keptParts[Self.commentsPart].map { String(decoding: $0, as: UTF8.self) }
         // A new id above every one in use (the file's comments and the ranges on the text).
         var used = Set(Self._parseComments(xml ?? "").compactMap { Int($0.id) })
         for p in document.paragraphs { for run in p.runs { for id in run.style.comments { if let n = Int(id) { used.insert(n) } } } }
         let id = String((used.max() ?? -1) + 1)
-        let who = Self.reviewer()
-        let element = Self._commentXML(id: id, author: who.author.isEmpty ? "Author" : who.author, date: who.date, text: text)
-        let newXML: String
-        if let xml, let close = xml.rangeOfSubstring("</w:comments>") {
-            newXML = String(xml[..<close.lowerBound]) + element + String(xml[close.lowerBound...])
-        } else {
-            newXML = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\r\n<w:comments xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\">"
-                + element + "</w:comments>"
-        }
+        let parts = _commentParts(adding: id, text: text, parent: nil)
         let first = lo.paragraph, last = hi.paragraph
         var slice = Array(document.paragraphs[first ... last])
         for k in slice.indices {
@@ -129,7 +141,7 @@ extension RichDocumentController {
             slice[k].normalize()
         }
         edit {
-            perform(.setKeptPart(Self.commentsPart, old: old, new: Data(newXML.utf8)))
+            for (name, data) in parts { perform(.setKeptPart(name, old: document.keptParts[name], new: data)) }
             perform(.restoreParagraphs(first, count: slice.count, slice))
         }
         moveTo(lo, extend: false)
@@ -143,6 +155,12 @@ extension RichDocumentController {
         _deleteComments(Set(commentsAtSelection().map(\.id)), all: false)
     }
 
+    /// Delete comment `id` (from its balloon) with its replies. One undo step. False when there is none.
+    @discardableResult
+    public func deleteComment(_ id: String) -> Bool {
+        _deleteComments([id], all: false) > 0
+    }
+
     /// Delete All Comments in Document. One undo step.
     @discardableResult
     public func deleteAllComments() -> Int {
@@ -150,8 +168,17 @@ extension RichDocumentController {
         return _deleteComments(ids, all: true)
     }
 
-    private func _deleteComments(_ ids: Set<String>, all: Bool) -> Int {
-        guard !readOnly, !ids.isEmpty else { return 0 }
+    private func _deleteComments(_ picked: Set<String>, all: Bool) -> Int {
+        guard !readOnly, !picked.isEmpty else { return 0 }
+        // (A comment goes with its replies, as in Word.)
+        let known = comments()
+        var ids = picked
+        var grew = true
+        while grew {
+            grew = false
+            for c in known where !ids.contains(c.id) { if let p = c.parent, ids.contains(p) { ids.insert(c.id); grew = true } }
+        }
+        let paraIds = Set(known.filter { ids.contains($0.id) && !$0.paraId.isEmpty }.map(\.paraId))
         var changed: [(Int, RichParagraph)] = []
         for (i, p) in document.paragraphs.enumerated() where p.runs.contains(where: { !Set($0.style.comments).isDisjoint(with: ids) }) {
             var q = p
@@ -170,11 +197,14 @@ extension RichDocumentController {
                 var xml = String(decoding: old, as: UTF8.self)
                 for id in ids { xml = Self._removingComment(id, from: xml) }
                 perform(.setKeptPart(Self.commentsPart, old: old, new: Data(xml.utf8)))
+                for (name, data) in _sidePartsWithout(paraIds: paraIds) {
+                    perform(.setKeptPart(name, old: document.keptParts[name], new: data))
+                }
             }
             for (i, q) in changed { perform(.restoreParagraphs(i, count: 1, [q])) }
         }
         if let lo = changed.first { moveTo(document.clamped(RichPosition(paragraph: lo.0, offset: 0)), extend: false) }
-        return ids.count
+        return picked.count
     }
 
     /// `runs` with `change` applied to the stretch [a, b), the runs split at its ends.
@@ -196,7 +226,7 @@ extension RichDocumentController {
 
     // MARK: The part's XML
 
-    static func _commentXML(id: String, author: String, date: String, text: String) -> String {
+    static func _commentXML(id: String, author: String, date: String, text: String, paraIds: [String] = []) -> String {
         let initials = String(author.split(separator: " ").compactMap(\.first))
         var out = "<w:comment w:id=\"\(id)\" w:author=\"\(_xmlEscaped(author))\""
         if !date.isEmpty { out += " w:date=\"\(_xmlEscaped(date))\"" }
@@ -204,7 +234,7 @@ extension RichDocumentController {
         out += ">"
         let lines = text.split(separator: "\n", omittingEmptySubsequences: false)
         for (k, line) in lines.enumerated() {
-            out += "<w:p>"
+            out += k < paraIds.count ? "<w:p w14:paraId=\"\(paraIds[k])\" w14:textId=\"77777777\">" : "<w:p>"
             if k == 0 { out += "<w:r><w:annotationRef/></w:r>" }
             if !line.isEmpty { out += "<w:r><w:t xml:space=\"preserve\">\(_xmlEscaped(String(line)))</w:t></w:r>" }
             out += "</w:p>"
@@ -228,7 +258,7 @@ extension RichDocumentController {
             }
             out.append(DocComment(id: _attribute("w:id", in: tag) ?? "", author: _attribute("w:author", in: tag) ?? "",
                                   initials: _attribute("w:initials", in: tag) ?? "", date: _attribute("w:date", in: tag) ?? "",
-                                  text: _plainText(body)))
+                                  text: _plainText(body), paraId: _lastParaId(body)))
         }
         return out
     }

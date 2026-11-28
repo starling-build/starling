@@ -1,7 +1,7 @@
 # Writer Review tab (W-RV): track changes, Previous / Next, Accept / Reject, Show Markup.
 # Run with OFFICE_FILE=lab/review1/review-ui.docx (amd-5's checkout; settings have w:trackRevisions on), window 1440x932.
-# Harness points at 1440x932 (mac-ipad runs with STARLING_WINDOW_H=932): Review tab 363,81; Show Markup 478,116;
-# Accept 596,116, Reject 596,144; Previous 677,112, Next 677,133. Menu items are 28 apart, the first 37 below the button. Delete any review-ui.docx~ first.
+# Harness points at 1440x932 (mac-ipad runs with STARLING_WINDOW_H=932; ScreenMarksTests writes writer-review-1440x932.txt): Review tab 363,81; Show Markup 573,116;
+# Accept 691,116, Reject 691,144; Previous 772,112, Next 772,133; Show Comments 368,130. Menu items are 28 apart, the first 37 below the button. Delete any review-ui.docx~ first.
 # Every click is followed by a picture, so a miss shows at once.
 # The edits move by paragraph (Option+Down/Up) and by word (Option+Right), never by line.
 wait 1500
@@ -45,57 +45,57 @@ wait 400
 shot ${OUT}/rv-02-review-tab.png
 # Next from the top selects the first change (the typed paragraph), then the second (the deleted "gone").
 key up cmd
-click 673 133
+click 768 133
 wait 300
 shot ${OUT}/rv-03-next-1.png
-click 673 133
+click 768 133
 wait 300
 shot ${OUT}/rv-04-next-2.png
-click 673 112
+click 768 112
 wait 300
 shot ${OUT}/rv-05-previous.png
 # Accept menu, then Accept This Change: the typed paragraph loses its underline and colour.
-click 596 115
+click 691 115
 wait 400
 shot ${OUT}/rv-06-accept-menu.png
-click 638 180
+click 733 180
 wait 400
 shot ${OUT}/rv-07-accepted-one.png
 # Next selects the deletion; Reject menu, Reject This Change: "gone" comes back as plain text.
-click 673 133
+click 768 133
 wait 300
-click 596 144
+click 691 144
 wait 400
 shot ${OUT}/rv-08-reject-menu.png
-click 638 209
+click 733 209
 wait 400
 shot ${OUT}/rv-09-rejected-one.png
 # Show Markup: Simple (red bars, no strike or underline), No Markup, Original, back to All.
-click 478 115
+click 573 115
 wait 400
 shot ${OUT}/rv-10-markup-menu.png
-click 520 152
+click 615 152
 wait 400
 shot ${OUT}/rv-11-simple.png
-click 478 115
+click 573 115
 wait 300
-click 520 208
+click 615 208
 wait 400
 shot ${OUT}/rv-12-no-markup.png
-click 478 115
+click 573 115
 wait 300
-click 520 236
+click 615 236
 wait 400
 shot ${OUT}/rv-13-original.png
-click 478 115
+click 573 115
 wait 300
-click 520 180
+click 615 180
 wait 400
 shot ${OUT}/rv-14-all.png
 # Reject All (the third item; the fourth also stops tracking): the bold and the centring go back, tracking stays on.
-click 596 144
+click 691 144
 wait 300
-click 638 237
+click 733 237
 wait 400
 shot ${OUT}/rv-15-reject-all.png
 # Undo brings every change back in one step.
@@ -103,9 +103,9 @@ chord cmd z
 wait 400
 shot ${OUT}/rv-16-undo.png
 # Accept All: no marks left.
-click 596 115
+click 691 115
 wait 300
-click 638 208
+click 733 208
 wait 400
 shot ${OUT}/rv-17-accept-all.png
 quit

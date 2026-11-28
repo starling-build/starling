@@ -40,6 +40,21 @@ final class ScreenMarksTests: XCTestCase {
         XCTAssertGreaterThan(try XCTUnwrap(centre(lines, "tip", "Zoom In")).1, 900, "the status bar sits at the bottom")
     }
 
+    /// The Review tab's controls, where the Mac review script clicks them.
+    func testWriterReviewTabMarks() throws {
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true),
+                                        title: "Test"), size: Self.size)
+        ui.pump()
+        let tab = try XCTUnwrap(centre(ScreenMarks.lines(root: ui.elements().first, view: Self.size), "text", "Review"))
+        ui.tap(at: Offset(tab.0, tab.1))
+        ui.pump()
+        let lines = ScreenMarks.lines(root: ui.elements().first, view: Self.size)
+        if let dir = ProcessInfo.processInfo.environment["SCREEN_MARKS_DIR"], !dir.isEmpty {
+            FileManager.default.createFile(atPath: dir + "/writer-review-1440x932.txt", contents: Data((lines.joined(separator: "\n") + "\n").utf8))
+        }
+        XCTAssertNotNil(centre(lines, "tip", "Show Comments") ?? centre(lines, "text", "Show Comments"), "the Comments group's toggle is listed")
+    }
+
     func testSlidesAndSheetsMarks() {
         XCTAssertNotNil(centre(marks("slides", SlidesShell(initialPath: nil, startBlank: true, onSwitch: { _, _ in })), "text", "Home"))
         XCTAssertNotNil(centre(marks("sheets", SheetsShell(initialPath: nil, onSwitch: { _, _ in })), "text", "Home"))

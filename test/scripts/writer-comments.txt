@@ -1,4 +1,4 @@
-# Writer Review > Comments (W-RV-1): New Comment (Ctrl+Alt+M and the button), Previous / Next, Delete, Delete All.
+# Writer Review > Comments (W-RV-1): New Comment (Cmd+Option+A on the Mac, Ctrl+Alt+M elsewhere, and the button), Previous / Next, Delete, Delete All.
 # Run with OFFICE_FILE=lab/comments1/comments-ui.docx, window 1440x932. Delete any comments-ui.docx~ first.
 # Harness points at 1440x932 (mac-ipad runs with STARLING_WINDOW_H=932): Review tab 363,81;
 # New Comment 195,133; Delete 279,115 (menu: Delete 279,152, Delete All Comments in Document 279,180);
@@ -9,7 +9,7 @@ click 400 300
 key up cmd
 # Select "Hello" (the first word) and comment on it with the shortcut.
 key right alt shift
-chord cmd,alt m
+chord cmd,alt a
 wait 400
 shot ${OUT}/cm-00-dialog.png
 type First comment.

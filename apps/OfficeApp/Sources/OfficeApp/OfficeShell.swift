@@ -131,6 +131,12 @@ final class OfficeShellState: State<StatefulWidget> {
     var _noteOpen: NoteReference? = nil
     private var _noteBox = Rect.zero
     private var _noteKeys: Int?
+    /// The comment card open over a balloon: the thread's top comment, where its balloon is, its text and a reply.
+    var _cardOpen: String? = nil
+    private var _cardBox = Rect.zero
+    private var _cardKeys: Int?
+    private let _cardText = TextEditingController()
+    private let _replyText = TextEditingController()
     private let _noteText = TextEditingController()
     private var _newStyleOpen = false
     private let _colorText = TextEditingController()
@@ -362,6 +368,8 @@ final class OfficeShellState: State<StatefulWidget> {
         _editorFocus.dispose()
         _headerText.dispose()
         _noteText.dispose()
+        _cardText.dispose()
+        _replyText.dispose()
         _colorText.dispose()
         _footerText.dispose()
         super.dispose()
@@ -427,6 +435,12 @@ final class OfficeShellState: State<StatefulWidget> {
             guard let self, !self.controller.readOnly else { return }
             self.controller.breakUndoCoalescing()
             self.setState { self._commentOpen = true }
+        }
+        session.onShowComments = { [weak self] in
+            guard let self else { return }
+            self.setState { self.session.theme.showComments.toggle() }
+            self.controller.invalidateLayout()
+            self.session.onStatus?(self.session.theme.showComments ? "Comments shown" : "Comments hidden")
         }
         session.onMarkup = { [weak self] mode in
             guard let self else { return }
@@ -1614,6 +1628,88 @@ final class OfficeShellState: State<StatefulWidget> {
         _editorFocus.requestFocus()
     }
 
+    // MARK: Comment card
+
+    /// A click on a comment's balloon: its card, to edit its text in place, reply, resolve or reopen, or delete it.
+    func _openCommentCard(_ id: String, box: Rect) {
+        guard !controller.readOnly, let t = controller.commentThread(id) else { return }
+        _cardText.text = t.comment.text
+        _replyText.text = ""
+        if let k = _cardKeys { FocusManager.instance.removeKeyInterceptor(k) }
+        // Escape keeps what was typed and goes back to the page.
+        _cardKeys = FocusManager.instance.addKeyInterceptor { [weak self] key in
+            guard let self, self._cardOpen != nil, key.type == .down, key.logical == 0x1_0000_001B || key.logical == 0xFF1B else { return false }
+            self._commitCommentCard()
+            return true
+        }
+        controller.breakUndoCoalescing()
+        setState { _cardOpen = t.comment.id; _cardBox = box }
+        ScreenReader.announce("Comment by \(t.comment.author). Escape to finish.", priority: .assertive)
+    }
+
+    /// Keeps the card's edits: the comment's new text, and a reply when one was typed.
+    func _commitCommentCard() {
+        if let id = _cardOpen, let t = controller.commentThread(id) {
+            if _cardText.text != t.comment.text { controller.setCommentText(id, _cardText.text) }
+            if !_replyText.text.isEmpty { controller.replyToComment(id, text: _replyText.text) }
+        }
+        _closeCommentCard()
+    }
+
+    private func _closeCommentCard() {
+        if let k = _cardKeys { FocusManager.instance.removeKeyInterceptor(k) }
+        _cardKeys = nil
+        setState { _cardOpen = nil }
+        controller.invalidateLayout()
+        _editorFocus.requestFocus()
+    }
+
+    private func _commentCard(_ id: String, _ fluent: FluentThemeData) -> Widget {
+        guard let t = controller.commentThread(id) else { return SizedBox(width: 0, height: 0) }
+        let px = 96.0 / 72 * session.zoom
+        let ink = Color(0xFF1B1B1B)
+        func name(_ c: RichDocumentController.DocComment) -> String { c.author.isEmpty ? "Comment" : c.author }
+        func box(_ key: String, _ c: TextEditingController, _ lines: Int, _ focus: Bool, _ hint: String) -> Widget {
+            CardKeyed(key, FluentTextBox(controller: c, placeholderText: hint, maxLines: lines,
+                style: TextStyle(color: ink, fontSize: 9 * px), autofocus: focus))
+        }
+        var rows: [Widget] = [Text(name(t.comment), style: TextStyle(color: ink, fontSize: 9 * px, fontWeight: .bold)),
+                              box("comment-text", _cardText, 6, true, "Comment")]
+        for r in t.replies {
+            rows.append(Padding(padding: EdgeInsets(left: 8, top: 6, right: 0, bottom: 0), child: Column(crossAxisAlignment: .start, children: [
+                Text(name(r), style: TextStyle(color: ink, fontSize: 8 * px, fontWeight: .bold)),
+                Text(r.text, style: TextStyle(color: ink, fontSize: 8 * px)),
+            ])))
+        }
+        rows.append(SizedBox(height: 6))
+        rows.append(box("comment-reply", _replyText, 3, false, "Reply"))
+        rows.append(SizedBox(height: 6))
+        func button(_ key: String, _ label: String, _ action: @escaping () -> Void) -> Widget {
+            Padding(padding: EdgeInsets(left: 0, top: 0, right: 6, bottom: 0),
+                    child: CardKeyed(key, FlatButton(
+                        child: Padding(padding: EdgeInsets(left: 6, top: 0, right: 6, bottom: 0), child: Text(label)), width: nil, action: action)))
+        }
+        rows.append(Row(children: [
+            button("comment-post", "Reply") { [weak self] in self?._commitCommentCard() },
+            button("comment-resolve", t.comment.done ? "Reopen" : "Resolve") { [weak self] in
+                guard let self else { return }
+                self._commitCommentCard()
+                self.controller.setCommentResolved(id, !t.comment.done)
+                self.session.onStatus?(t.comment.done ? "Comment reopened" : "Comment resolved")
+            },
+            button("comment-delete", "Delete") { [weak self] in
+                guard let self else { return }
+                self.controller.deleteComment(id)
+                self._closeCommentCard()
+                self.session.onStatus?("Comment deleted")
+            },
+        ]))
+        return DecoratedBox(decoration: BoxDecoration(color: Color(0xFFFFFFFF), border: Border.all(color: Color(0xFF2B579A), width: 1.5),
+                                                      borderRadius: BorderRadius.circular(4)),
+                            child: Padding(padding: EdgeInsets(all: 8),
+                                child: KeyboardRegion(name: "Comment", modal: true, child: Column(mainAxisSize: .min, crossAxisAlignment: .start, children: rows))))
+    }
+
     // MARK: Shortcuts
 
     func _cancelPainter() {
@@ -1751,8 +1847,13 @@ final class OfficeShellState: State<StatefulWidget> {
             session.onInsertNote?(letter == "f" ? .footnote : .endnote)
             return true
         }
-        // Ctrl+Alt+M: New Comment, as in Word.
-        if mods.contains(.alt), !mods.contains(.shift), letter == "m" { session.onNewComment?(); return true }
+        // New Comment, as in Word: Ctrl+Alt+M, and on the Mac Cmd+Option+A.
+        #if os(macOS) || os(iOS)
+        let newComment: Character = "a"
+        #else
+        let newComment: Character = "m"
+        #endif
+        if mods.contains(.alt), !mods.contains(.shift), letter == newComment { session.onNewComment?(); return true }
         // Alt+Ctrl+Shift+S opens and closes the Styles pane, as in Word.
         if mods.contains(.alt), mods.contains(.shift), letter == "s" { session.onToggleStyles?(); return true }
         if mods.contains(.alt) { return false }
@@ -1975,6 +2076,17 @@ final class OfficeShellState: State<StatefulWidget> {
                         self?.setState { self?._printOpen = false }
                         self?._editorFocus.requestFocus()
                     })),
+            ])
+        }
+        if let card = _cardOpen {
+            // The comment is edited in its balloon: a card over it. Escape or a click outside keeps the text.
+            let box = _cardBox
+            return Stack(children: [
+                window,
+                Positioned(left: 0, top: 0, right: 0, bottom: 0, child: Listener(
+                    onPointerDown: { [weak self] _ in self?._commitCommentCard() }, behavior: .translucent, child: SizedBox(expand: ()))),
+                Positioned(left: box.left, top: box.top, child: SizedBox(width: max(box.width, 240),
+                    child: _commentCard(card, FluentTheme.of(context)))),
             ])
         }
         if let note = _noteOpen {
@@ -2494,6 +2606,7 @@ final class OfficeShellState: State<StatefulWidget> {
             },
             onLinkActivate: { [weak self] link in self?._followLink(link) },
             onNoteActivate: { [weak self] n, box in self?._openNote(n, box: box) },
+            onCommentActivate: { [weak self] id, box in self?._openCommentCard(id, box: box) },
             // Format Painter applies when a selection gesture ends, as Word does.
             onSelectionGestureEnd: { [weak self] in self?._applyPainter() },
             onHeaderFooterEdit: { [weak self] _ in self?.session.onHeaderFooter?() },
@@ -2709,4 +2822,11 @@ func _utf16Slice(_ text: String, _ r: Range<Int>) -> String {
 final class SettingsUpdateStore: UpdateStore {
     func get(_ key: String) -> String? { OfficeSettings.string(key) }
     func set(_ key: String, _ value: String) { OfficeSettings.setString(key, value) }
+}
+
+/// Gives a control of the comment card a stable id, for tests and the Mac driver.
+private final class CardKeyed: StatelessWidget {
+    let child: Widget
+    init(_ id: String, _ child: Widget) { self.child = child; super.init(key: ValueKey(id)) }
+    override func build(_ context: any BuildContext) -> Widget { child }
 }
