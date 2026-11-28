@@ -107,6 +107,11 @@ final class FormatCellsDialogState: State<StatefulWidget> {
         Checkbox(key: ValueKey(id), checked: on, onChanged: { [weak self] v in self?._set { set(&$0, v ?? false) } }, content: Text(label))
     }
 
+    /// A check box in a row of them: each gets its own column, so a label never runs into the next box.
+    private func _rowCheck(_ id: String, _ label: String, _ on: Bool, _ set: @escaping (inout CellFormatEdit.Values, Bool) -> Void) -> Widget {
+        SizedBox(width: 112, child: _check(id, label, on, set))
+    }
+
     /// Picking a ready-made format also fills the code box, so it can be edited from there.
     private func _pickFormat(_ c: String) {
         _code.text = c
@@ -194,15 +199,15 @@ final class FormatCellsDialogState: State<StatefulWidget> {
                 })),
             ]),
             Row(children: [
-                _check("fc-bold", "Bold", values.bold) { $0.bold = $1 },
-                _check("fc-italic", "Italic", values.italic) { $0.italic = $1 },
-                _check("fc-underline", "Underline", values.underline) { $0.underline = $1 },
-                _check("fc-strike", "Strikethrough", values.strike) { $0.strike = $1 },
+                _rowCheck("fc-bold", "Bold", values.bold) { $0.bold = $1 },
+                _rowCheck("fc-italic", "Italic", values.italic) { $0.italic = $1 },
+                _rowCheck("fc-underline", "Underline", values.underline) { $0.underline = $1 },
+                _rowCheck("fc-strike", "Strikethrough", values.strike) { $0.strike = $1 },
             ]),
             Row(children: [
                 // Excel's Effects: the two are exclusive, so ticking one clears the other.
-                _check("fc-superscript", "Superscript", values.script == 1) { $0.script = $1 ? 1 : 0 },
-                _check("fc-subscript", "Subscript", values.script == -1) { $0.script = $1 ? -1 : 0 },
+                _rowCheck("fc-superscript", "Superscript", values.script == 1) { $0.script = $1 ? 1 : 0 },
+                _rowCheck("fc-subscript", "Subscript", values.script == -1) { $0.script = $1 ? -1 : 0 },
             ]),
             Text("Text colour", style: fluent.typography.bodyStrong),
             _swatches("fc-color", values.color, noneLabel: "Automatic") { [weak self] c in self?._set { $0.color = c } },

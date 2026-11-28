@@ -1696,7 +1696,7 @@ final class SheetsShellState: State<StatefulWidget> {
             return Stack(children: layers + [
                 { () -> Widget in
                     let d = FormatCellsDialog(
-                        start: CellFormatEdit.Values(wb.style(at: wb.selection.topLeft)),
+                        start: wb.formatCellsStart,
                         onApply: { [weak self] edit in self?.wb.formatCells(edit) },
                         onClose: { [weak self] in self?._closeFormatCells() })
                     d.startTab = _formatTab
