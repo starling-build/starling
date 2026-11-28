@@ -122,6 +122,7 @@ final class OfficeShellState: State<StatefulWidget> {
     private var _replaceTarget: (index: Int, inline: String?)?
     private var _numberingValueOpen = false
     private var _dateTimeOpen = false
+    private var _fieldOpen = false
     private var _propertiesOpen = false
     private var _listSymbolPick: ((String, String?) -> Void)? = nil   // the Symbol picker is open for the Define Bullet dialog
     private var _listFormatOpen: Bool? = nil   // the dialog is open: true for a bullet
@@ -529,6 +530,11 @@ final class OfficeShellState: State<StatefulWidget> {
             guard let self else { return }
             if let n = self.controller.noteAtCaret() { self._openNote(n) } else { self._flash("Put the caret next to a footnote or endnote mark") }
         }
+        session.onFieldDialog = { [weak self] in
+            guard let self else { return }
+            self.controller.breakUndoCoalescing()
+            self.setState { self._fieldOpen = true }
+        }
         session.onDateTimeDialog = { [weak self] in
             guard let self else { return }
             self.controller.breakUndoCoalescing()
@@ -539,7 +545,7 @@ final class OfficeShellState: State<StatefulWidget> {
             self.controller.breakUndoCoalescing()
             self.setState { self._propertiesOpen = true }
         }
-        session.onUpdateFields = { [weak self] in self?._updateFields() }
+        session.onUpdateFields = { [weak self] in self?._updateFields(everywhere: true) }
         session.onSymbolDialog = { [weak self] in
             guard let self else { return }
             self.controller.breakUndoCoalescing()
@@ -1596,19 +1602,45 @@ final class OfficeShellState: State<StatefulWidget> {
         setState { session.summary = session.summarize() }
     }
 
-    /// F9: bring the fields in the selection (all of them when nothing is selected) up to date.
-    func _updateFields() {
-        let c = controller
+    /// F9 (`everywhere` false): the fields in the selection, or the one at the caret, brought up to date. The ribbon's
+    /// Update Fields (`everywhere`): every field when nothing is selected.
+    @discardableResult
+    func _updateFields(everywhere: Bool) -> Int {
+        let info = PdfExport.pageInfo(controller.document, pageSetup: session.pageSetup, theme: session.theme)
         let clock = FieldClock.current()
-        let props = FieldEvaluator.properties(keptParts: c.document.keptParts)
-        let n = c.updateFields { FieldEvaluator.evaluate($0, shown: $1, clock: clock, properties: props) }
-        _flash(n == 0 ? "No fields changed" : (n == 1 ? "Updated 1 field" : "Updated \(n) fields"))
+        let props = FieldEvaluator.properties(keptParts: controller.document.keptParts)
+        let n = controller.updateFields(pageOf: info.label, pageCount: info.count, everywhere: everywhere,
+                                        other: { [session] in FieldEvaluator.evaluate($0, shown: $1, clock: clock, properties: props, path: session.path) })
+        _flash(n == 0 ? "No field here needs updating" : "Fields updated")
+        setState { session.summary = session.summarize() }
+        return n
+    }
+
+    /// Insert → Field: put the field at the caret showing what it evaluates to now. A property the document has not
+    /// set (an empty Title) has nothing to show, so nothing is inserted and the message says where to set it.
+    func _insertField(_ instruction: String) {
+        let c = controller
+        let word = instruction.split(separator: " ").first.map(String.init) ?? ""
+        let info = PdfExport.pageInfo(c.document, pageSetup: session.pageSetup, theme: session.theme)
+        var result: String?
+        switch word {
+        case "PAGE": result = info.label(c.document.clamped(c.selection.focus).paragraph) ?? "1"
+        case "NUMPAGES": result = String(info.count)
+        default:
+            result = FieldEvaluator.evaluate(instruction, shown: "", clock: FieldClock.current(),
+                                             properties: FieldEvaluator.properties(keptParts: c.document.keptParts), path: session.path)
+        }
+        guard let result, !result.isEmpty else {
+            _flash(word == "FILENAME" ? "Save the document first: it has no file name yet"
+                                      : "The document has no \(word.lowercased()) yet: set it in File > Info")
+            return
+        }
+        c.insertField(instruction, result: result)
         setState { session.summary = session.summarize() }
     }
 
     func _shortcut(_ key: KeyData, _ mods: KeyModifiers) -> Bool {
         let named = KeyChordTracker.named(key.logical)
-        if named == .function(9), !_dateTimeOpen { _updateFields(); return true }
         if named == .escape {
             if _boxEdit != nil { _leaveBox(); return true }
             if session.paintedStyle != nil { _cancelPainter(); return true }
@@ -1616,7 +1648,7 @@ final class OfficeShellState: State<StatefulWidget> {
             if _shortcutsOpen { return false }   // the dialog's own Esc closes it
             if LinkCard.link(caret: _cardLink, hover: _hoverCard, dismissed: _cardDismissed) != nil { setState { _cardDismissed = true }; return true }
             if _listSymbolPick != nil { setState { _listSymbolPick = nil }; return true }
-            if _paragraphOpen || _tablePropsOpen || _fontOpen || _insertTableOpen || _splitCellOpen || _contentsOpen || _noteOptionsOpen || _convertTextTable != nil || _formulaOpen || _sortTable != nil || _bordersOpen || _pictureDialog != nil || _linkDialogOpen || _numberingValueOpen || _dateTimeOpen || _propertiesOpen || _listFormatOpen != nil || _newStyleOpen || _pasteSpecialData != nil { return false }   // the dialog's own Esc closes it
+            if _paragraphOpen || _tablePropsOpen || _fontOpen || _insertTableOpen || _splitCellOpen || _contentsOpen || _noteOptionsOpen || _convertTextTable != nil || _formulaOpen || _sortTable != nil || _bordersOpen || _pictureDialog != nil || _linkDialogOpen || _numberingValueOpen || _dateTimeOpen || _fieldOpen || _propertiesOpen || _listFormatOpen != nil || _newStyleOpen || _pasteSpecialData != nil { return false }   // the dialog's own Esc closes it
             if _headerFooterOpen { setState { _headerFooterOpen = false }; return true }
             if _findOpen { setState { _findOpen = false }; _editorFocus.requestFocus(); return true }
             if _backstage != nil { setState { _backstage = nil }; return true }
@@ -1625,14 +1657,13 @@ final class OfficeShellState: State<StatefulWidget> {
             return false
         }
         // F9 brings the fields in the selection (or at the caret) up to date.
-        if named == .function(9), !mods.contains(.shift), !mods.contains(.alt), !mods.contains(.primary) {
+        if named == .function(9), !_dateTimeOpen, !_fieldOpen, !mods.contains(.shift), !mods.contains(.alt), !mods.contains(.primary) {
             // In a table of contents F9 brings the whole table up to date (new and renamed headings, page numbers).
             if controller.contentsRange(containing: controller.document.clamped(controller.selection.end).paragraph) != nil {
                 session.onUpdateContents?(false)
                 return true
             }
-            let info = PdfExport.pageInfo(controller.document, pageSetup: session.pageSetup, theme: session.theme)
-            if controller.updateFields(pageOf: info.label, pageCount: info.count) == 0 { _flash("No field here needs updating") }
+            _updateFields(everywhere: false)
             return true
         }
         // Alt+Shift+P puts a page-number field at the caret.
@@ -1641,8 +1672,13 @@ final class OfficeShellState: State<StatefulWidget> {
             controller.insertField(" PAGE ", result: info.label(controller.document.clamped(controller.selection.focus).paragraph) ?? "1")
             return true
         }
+        // Ctrl+Shift+F9 turns the fields in the selection (or at the caret) into plain text.
+        if named == .function(9), mods.contains(.primary), mods.contains(.shift), !mods.contains(.alt) {
+            if controller.unlinkFields() == 0 { _flash("No field here to unlink") }
+            return true
+        }
         // Shift+F9 shows or hides the field code at the caret; Alt+F9 all of them.
-        if named == .function(9), mods.contains(.shift) || mods.contains(.alt) {
+        if named == .function(9), !mods.contains(.primary), mods.contains(.shift) || mods.contains(.alt) {
             controller.toggleFieldCodes(all: mods.contains(.alt))
             return true
         }
@@ -2219,6 +2255,23 @@ final class OfficeShellState: State<StatefulWidget> {
                     },
                     onCancel: { [weak self] in
                         self?.setState { self?._propertiesOpen = false }
+                        self?._editorFocus.requestFocus()
+                    })),
+            ])
+        }
+        if _fieldOpen {
+            return Stack(children: [
+                window,
+                Positioned(left: 0, top: 0, right: 0, bottom: 0, child: FieldDialog(
+                    clock: FieldClock.current() ?? FieldClock(year: 2000, month: 1, day: 1, hour: 0, minute: 0, second: 0),
+                    onOK: { [weak self] instruction in
+                        guard let self else { return }
+                        self.setState { self._fieldOpen = false }
+                        self._insertField(instruction)
+                        self._editorFocus.requestFocus()
+                    },
+                    onCancel: { [weak self] in
+                        self?.setState { self?._fieldOpen = false }
                         self?._editorFocus.requestFocus()
                     })),
             ])
