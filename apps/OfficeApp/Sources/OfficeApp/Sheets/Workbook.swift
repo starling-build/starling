@@ -38,7 +38,10 @@ enum CellValue: Hashable, Sendable {
 struct CellStyle: Hashable, Sendable {
     var bold = false
     var italic = false
-    var underline = false
+    /// Any underline; off takes the kind (double, accounting) with it, as Ctrl+U does in Excel.
+    var underline = false { didSet { if !underline { doubleUnderline = false; accounting = 0 } } }
+    /// A plain double underline (`u val="double"`); the accounting double is `accounting == 2`.
+    var doubleUnderline = false
     /// The cell wears the built-in Hyperlink cell style (`cellStyle` builtinId 8).
     var linkStyle = false
     /// A pivot's field button (the page field's name, the Row and Column Labels headings): `pivotButton="1"` on the xf.
@@ -46,6 +49,19 @@ struct CellStyle: Hashable, Sendable {
     /// The underline is an accounting one: 1 single, 2 double (they sit at
     /// the cell's foot, and make its row taller).
     var accounting = 0
+    /// Excel's Underline list, as the font's `u` names it: nil (None), "single", "double",
+    /// "singleAccounting" or "doubleAccounting".
+    var underlineKind: String? {
+        get {
+            guard underline else { return nil }
+            return accounting == 1 ? "singleAccounting" : accounting == 2 ? "doubleAccounting" : doubleUnderline ? "double" : "single"
+        }
+        set {
+            underline = newValue != nil
+            doubleUnderline = newValue == "double"
+            accounting = newValue == "singleAccounting" ? 1 : newValue == "doubleAccounting" ? 2 : 0
+        }
+    }
     var strike = false
     /// The font's `vertAlign`: 1 superscript, -1 subscript.
     var script = 0
