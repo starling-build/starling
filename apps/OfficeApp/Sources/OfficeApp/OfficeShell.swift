@@ -1477,7 +1477,7 @@ final class OfficeShellState: State<StatefulWidget> {
               sel.focus.paragraph < c.document.paragraphs.count else { return nil }
         let text = c.document.paragraphs[sel.focus.paragraph].text
         let lo = min(sel.anchor.offset, sel.focus.offset), hi = max(sel.anchor.offset, sel.focus.offset)
-        guard let r = checker.misspelledRanges(in: text).first(where: { $0.lowerBound <= lo && hi <= $0.upperBound }) else { return nil }
+        guard let r = c.document.paragraphs[sel.focus.paragraph].outsideFieldCodes(checker.misspelledRanges(in: text)).first(where: { $0.lowerBound <= lo && hi <= $0.upperBound }) else { return nil }
         return (sel.focus.paragraph, r, _utf16Slice(text, r))
     }
 

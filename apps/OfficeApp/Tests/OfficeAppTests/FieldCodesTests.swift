@@ -34,6 +34,19 @@ final class FieldCodesTests: XCTestCase {
         XCTAssertEqual(c.document.paragraphs[0].runs.compactMap { $0.style.preservedField?.trimmingWhitespace(newlines: true) }, ["PAGES"])
     }
 
+    /// A shown code is not checked for spelling ("PAGE" inside braces); words outside it still are.
+    func testSpellingSkipsAShownCode() {
+        let c = make()
+        c.toggleFieldCodes(all: true)
+        let p = c.document.paragraphs[0]
+        let t = p.text.utf16
+        let page = t.count - " } of".utf16.count - 4
+        let code = page ..< page + 4, word = 0 ..< 4
+        XCTAssertEqual(p.outsideFieldCodes([word, code]), [word])
+        c.toggleFieldCodes(all: true)
+        XCTAssertEqual(c.document.paragraphs[0].outsideFieldCodes([word]), [word])
+    }
+
     func testShowingIsOneUndoStep() {
         let c = make()
         c.toggleFieldCodes(all: true)
