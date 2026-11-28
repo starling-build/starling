@@ -1972,7 +1972,7 @@ public final class RichEditableState: State<StatefulWidget> {
         }
         _layout.paint(canvas, visible: visible, document: _shownDocument,
                       selection: _controller.selection,
-                      caret: (focused && _caretVisible && _controller.selection.isCollapsed) ? caretRect : nil,
+                      caret: (focused && _caretVisible && _controller.showsCaret) ? caretRect : nil,
                       pageBackground: pageBackground)
         // A caret inside a field shades the field gray, as Word does.
         if focused, let field = _controller.fieldRangeAtCaret() {

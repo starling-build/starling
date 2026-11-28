@@ -59,6 +59,8 @@ enum ChartPartPatcher {
         }
         if old.valueGrid != new.valueGrid { valueGrid(plot, new.valueGrid) }
         if old.gapWidth != new.gapWidth || old.overlap != new.overlap { spacing(plot, new) }
+        if old.valueAxisDeleted != new.valueAxisDeleted { valueAxis(plot, deleted: new.valueAxisDeleted) }
+        if old.dataTable != new.dataTable { guard dataTable(plot, new.dataTable) else { return nil } }
         // Labels set series by series (a Quick Layout's size, position, or labels on one series only).
         let perSeries = old.series.count == new.series.count && zip(old.series, new.series).contains {
             $0.labelsShown != $1.labelsShown || $0.labelPos != $1.labelPos || $0.labelSize != $1.labelSize
@@ -113,6 +115,32 @@ enum ChartPartPatcher {
             let at = (ax.children.firstIndex { $0.name == "c:axPos" }).map { $0 + 1 } ?? ax.children.count
             ax.children.insert(ChartPartType.node("c:majorGridlines", [:]), at: at)
         }
+    }
+
+    /// The value axis (the one across the categories, where a chart has two) deleted, as Word's Quick Layout 2 hides
+    /// it: no labels and no room for them, its scale and number format kept; or shown again.
+    static func valueAxis(_ plot: XNode, deleted: Bool) {
+        let axes = plot.children.filter { $0.name == "c:valAx" }
+        let crossing = Set(plot.children.filter { $0.name == "c:catAx" || $0.name == "c:dateAx" }.compactMap { $0.first("c:axId")?["val"] })
+        guard let ax = axes.first(where: { crossing.contains($0.first("c:crossAx")?["val"] ?? "") }) ?? axes.first else { return }
+        if let d = ax.first("c:delete") { d.attrs["val"] = deleted ? "1" : "0"; return }
+        let at = (ax.children.firstIndex { $0.name == "c:scaling" }).map { $0 + 1 } ?? 0
+        ax.children.insert(ChartPartType.node("c:delete", ["val": deleted ? "1" : "0"]), at: at)
+    }
+
+    /// The plot's data table (`c:dTable`, after its axes) as Word's Quick Layout 5 adds it, or removed. A table the
+    /// part already has gives way to the new one. false where the new table cannot be made.
+    static func dataTable(_ plot: XNode, _ t: DataTable?) -> Bool {
+        guard let t else { plot.children.removeAll { $0.name == "c:dTable" }; return true }
+        let wrapped = "<c:chartSpace xmlns:c=\"http://schemas.openxmlformats.org/drawingml/2006/chart\" "
+            + "xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\">" + ChartXML.dataTable(t) + "</c:chartSpace>"
+        guard let parsed = XNode.parse(Data(wrapped.utf8)), let table = ChartXML.canonical(parsed).first("c:dTable") else { return false }
+        if let i = plot.children.firstIndex(where: { $0.name == "c:dTable" }) { plot.children[i] = table; return true }
+        let axes = ["c:catAx", "c:valAx", "c:dateAx", "c:serAx"]
+        let at = (plot.children.lastIndex { axes.contains($0.name) }).map { $0 + 1 }
+            ?? plot.children.firstIndex { $0.name == "c:spPr" || $0.name == "c:extLst" } ?? plot.children.count
+        plot.children.insert(table, at: at)
+        return true
     }
 
     /// A bar or column group's gap width and overlap as `c` has them (an overlap of 0 is left out, as Word writes it).
