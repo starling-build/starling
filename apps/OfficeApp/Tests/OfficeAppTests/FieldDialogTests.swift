@@ -76,4 +76,28 @@ final class FieldDialogTests: XCTestCase {
         c.undo()
         XCTAssertEqual(c.fieldSpans().count, 2)
     }
+
+    /// Sends `logical` down and up through the focus manager with `held` (modifier keysyms) pressed around it.
+    private func send(_ ui: WidgetTester, _ logical: Int64, held: [Int64]) {
+        func k(_ t: KeyEventType, _ l: Int64) { _ = FocusManager.instance.dispatchKeyData(KeyData(timeStamp: 0, type: t, physical: 0, logical: l, character: nil, synthesized: false)) }
+        for h in held { k(.down, h) }
+        k(.down, logical); k(.up, logical)
+        for h in held.reversed() { k(.up, h) }
+        ui.pump()
+    }
+
+    /// Shift+F9 and Alt+F9 from the keyboard, with the caret at the end of a field the dialog put in.
+    func testShiftF9AndAltF9KeysShowTheCodeOfADialogField() {
+        let (ui, state) = shell()
+        state.session.onFieldDialog?(); ui.pump()
+        ui.press(.enter); ui.pump()
+        let c = state.session.controller
+        XCTAssertEqual(c.selection.focus.offset, c.document.paragraphs[0].text.utf16.count)
+        send(ui, 0x1_0000_0809, held: [0xFFE1])
+        XCTAssertTrue(c.document.paragraphs[0].text.hasPrefix("{ DATE"), c.document.paragraphs[0].text)
+        send(ui, 0x1_0000_0809, held: [0xFFE1])
+        XCTAssertFalse(c.document.paragraphs[0].text.hasPrefix("{"), c.document.paragraphs[0].text)
+        send(ui, 0x1_0000_0809, held: [0xFFE9])
+        XCTAssertTrue(c.document.paragraphs[0].text.hasPrefix("{ DATE"), c.document.paragraphs[0].text)
+    }
 }

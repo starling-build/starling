@@ -139,6 +139,13 @@ enum PdfExport {
                 layout = laidOut(document)
             }
         }
+        // (Footnotes numbered afresh on each page, numRestart eachPage: their marks take the number of their
+        // place among the page's notes, which only a layout knows. zh-424775e4 marks one note on each of its
+        // pages 8, 10 and 13, and Word prints each "①".)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, let updated = footnotesNumberedByPage(document, layout) {
+            document = updated
+            layout = laidOut(document)
+        }
         // (A header's or a text box's own layout is made when it is first
         // painted, and its pictures asked for then: the pages are painted
         // once to nowhere.)
@@ -280,6 +287,70 @@ extension PdfExport {
         }
         if changed { RuleTrace.hit("page-references-brought-up-to-date") }
         return changed ? result : nil
+    }
+
+    /// The document with its footnote marks, and each note's own mark, numbered from the notes' first number
+    /// on every page of `layout` where the notes restart each page (`w:numRestart` eachPage); nil where none
+    /// changes. A custom mark (customMarkFollows, held as U+200B) takes no number.
+    static func footnotesNumberedByPage(_ document: RichDocument, _ layout: RichLayout) -> RichDocument? {
+        guard let xml = document.footnotePropertiesXML,
+              RichDocumentController.noteProperty(xml, "numRestart") == "eachPage",
+              let pages = layout.footnotesByPage() else { return nil }
+        let format = RichDocumentController.noteProperty(xml, "numFmt") ?? "decimal"
+        let start = RichDocumentController.noteProperty(xml, "numStart").flatMap { Int($0) } ?? 1
+        // Each note's mark as the reader numbered it (through the whole document), from the body's first mark for it.
+        var old: [Int: String] = [:]
+        for p in document.paragraphs {
+            var at = p.text.utf16.startIndex
+            for run in p.runs {
+                let end = p.text.utf16.index(at, offsetBy: run.length, limitedBy: p.text.utf16.endIndex) ?? p.text.utf16.endIndex
+                if let n = run.style.note, n.kind == .footnote, old[n.id] == nil { old[n.id] = String(p.text[at ..< end]) }
+                at = end
+            }
+        }
+        var label: [Int: String] = [:]
+        for ids in pages {
+            var n = start
+            for id in ids {
+                guard let was = old[id], was != "\u{200B}" else { continue }
+                label[id] = DocxFormat.noteLabel(n, format: format)
+                n += 1
+            }
+        }
+        guard label.contains(where: { old[$0.key] != $0.value }) else { return nil }
+        var result = document
+        for k in document.paragraphs.indices {
+            let p = document.paragraphs[k]
+            guard p.runs.contains(where: { $0.style.note.map { $0.kind == .footnote && label[$0.id] != nil } == true }) else { continue }
+            var text = ""
+            var runs: [Run] = []
+            var at = p.text.utf16.startIndex
+            for run in p.runs {
+                let end = p.text.utf16.index(at, offsetBy: run.length, limitedBy: p.text.utf16.endIndex) ?? p.text.utf16.endIndex
+                var piece = String(p.text[at ..< end])
+                at = end
+                if let n = run.style.note, n.kind == .footnote, let new = label[n.id] { piece = new }
+                guard !piece.isEmpty else { continue }
+                text += piece
+                runs.append(Run(length: piece.utf16.count, style: run.style))
+            }
+            result.paragraphs[k].text = text
+            result.paragraphs[k].runs = runs
+        }
+        // The note's own mark leads its first paragraph, as the reader wrote it.
+        for (id, new) in label {
+            guard let was = old[id], was != new, var note = result.footnotes[id], var first = note.first,
+                  first.text.hasPrefix(was), let lead = first.runs.first, lead.length >= was.utf16.count else { continue }
+            first.text = new + String(first.text.dropFirst(was.count))
+            var runs = first.runs
+            runs[0].length = lead.length - was.utf16.count + new.utf16.count
+            if runs[0].length == 0 { runs.removeFirst() }
+            first.runs = runs
+            note[0] = first
+            result.footnotes[id] = note
+        }
+        RuleTrace.hit("footnotes-numbered-afresh-on-each-page")
+        return result
     }
 
     /// Whether Word prints the document with its markup: it carries a

@@ -675,6 +675,13 @@ extension RichLayout {
         return out
     }
 
+    /// The footnotes set at the foot of each page, page by page, as the last pagination placed them (a note
+    /// parted over two pages counts on the first); nil on pages of columns, whose notes are kept by column.
+    public func footnotesByPage() -> [[Int]]? {
+        guard isPaged, _columns == 1 else { return nil }
+        return _pageNotes.keys.sorted().map { _pageNotes[$0] ?? [] }
+    }
+
     /// The footnotes whose marks paragraph `i` holds, in its order.
     func _footnotes(in i: Int, _ document: RichDocument) -> [Int] {
         guard i >= 0, i < document.paragraphs.count else { return [] }
@@ -2735,6 +2742,13 @@ extension RichLayout {
         let bottom = rect.bottom - _bodyInsets(page: p, document).bottom
         let separator = _note(-1, width: width, document)
         var top = bottom - notes.reduce(0.0) { $0 + $1.to - $1.from } - (separator?.height ?? 0)
+        // Footnote and Endnote > Location "Below text" (`w:pos` beneathText): the separator comes straight under the
+        // page's last paragraph and its space after, not at the page's foot (lab fn-below, to 0.1 pt). The room the notes
+        // take is the same either way.
+        if let xml = document.footnotePropertiesXML, RichDocumentController.noteProperty(xml, "pos") == "beneathText",
+           let foot = _textFoot(p, document) {
+            top = min(top, rect.top + _pxMarginTop(p) + foot)
+        }
         let left = rect.left + _pxMarginLeft(p)
         if let separator {
             let line = Paint()
@@ -2768,6 +2782,22 @@ extension RichLayout {
             noteRects[id] = Rect.fromLTWH(left, top, width, to - from)
             top += to - from
         }
+    }
+
+    /// Where the text on page `p` ends: the foot of its lowest piece, the space after its last paragraph included (lab
+    /// fn-below: Word's separator follows the space after, 24 pt of it as much as 8). Nil on a page with no text, and on
+    /// one the text fills and runs on from (no page or section break ends it): there Word keeps the notes at the page's
+    /// foot (lab fn-below page 4, 0.7 pt above the foot by the last line's space after, prints them at the foot).
+    func _textFoot(_ p: Int, _ document: RichDocument) -> Double? {
+        guard p >= 0, p < _pages.count, let last = _pages[p].max(by: { $0.pageY + $0.height < $1.pageY + $1.height }) else { return nil }
+        if p + 1 < _pages.count, let next = _pages[p + 1].first(where: { !$0.repeated }) {
+            let k = next.paragraph
+            let broken = k > last.paragraph && k < document.paragraphs.count
+                && (document.paragraphs[k].style.pageBreakBefore || (k < _pageBreak.count && _pageBreak[k])
+                    || (k < _sectionOf.count && last.paragraph < _sectionOf.count && _sectionOf[k] != _sectionOf[last.paragraph]))
+            if !broken { return nil }
+        }
+        return last.pageY + last.height
     }
 
     /// Columns > Line between (`w:sep`): a rule 0.72pt wide down the middle of each gap, from the top of the section's text

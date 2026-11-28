@@ -22,6 +22,22 @@ import FoundationXML
 // Part of the .docx reader/writer (split from Docx.swift, members unchanged).
 
 extension DocxFormat {
+    /// Note number `n` in the notes' `w:numFmt` (`format`).
+    static func noteLabel(_ n: Int, format: String) -> String {
+        switch format {
+        case "lowerRoman": return ListNumberFormat.lowerRoman.string(n)
+        case "upperRoman": return ListNumberFormat.upperRoman.string(n)
+        case "lowerLetter": return ListNumberFormat.lowerLetter.string(n)
+        case "upperLetter": return ListNumberFormat.upperLetter.string(n)
+        // (The East Asian forms as a list writes them: zh-424775e4's footnotePr says
+        // decimalEnclosedCircleChinese, and Word's print marks its notes "①".)
+        case let raw:
+            var f = ListLevelFormat(text: "")
+            f.rawFormat = raw
+            return f.number(n)
+        }
+    }
+
     static func _bindCoreProperties(_ root: XNode, part: (String) -> Data?) {
         func texts(_ n: XNode, _ out: inout [XNode]) {
             if n.name == "w:t" { out.append(n) }
@@ -1676,15 +1692,7 @@ extension DocxFormat {
         /// An endnote's own mark, in its numbering's form ("i").
         var currentNoteLabel: String? = nil
         var endnoteFormat = "lowerRoman", footnoteFormat = "decimal"
-        func label(_ n: Int, footnote: Bool) -> String {
-            switch footnote ? footnoteFormat : endnoteFormat {
-            case "lowerRoman": return ListNumberFormat.lowerRoman.string(n)
-            case "upperRoman": return ListNumberFormat.upperRoman.string(n)
-            case "lowerLetter": return ListNumberFormat.lowerLetter.string(n)
-            case "upperLetter": return ListNumberFormat.upperLetter.string(n)
-            default: return String(n)
-            }
-        }
+        func label(_ n: Int, footnote: Bool) -> String { DocxFormat.noteLabel(n, format: footnote ? footnoteFormat : endnoteFormat) }
         var rels: [String: KeptRel]
         /// Reading a header or footer part: its page fields stay fields
         /// (the layout fills them for each page).

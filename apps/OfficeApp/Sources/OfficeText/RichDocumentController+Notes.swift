@@ -369,6 +369,9 @@ public struct NoteOptions: Equatable, Sendable {
 
 extension RichDocumentController {
     /// The `w:val` of the first `<w:name …>` in `xml`.
+    /// The `w:val` of the child `name` of a note properties element (`numRestart` → "eachPage"), or nil.
+    public static func noteProperty(_ xml: String, _ name: String) -> String? { _value(xml, name) }
+
     private static func _value(_ xml: String, _ name: String) -> String? {
         let bytes = Array(xml.utf8)
         var from = 0
