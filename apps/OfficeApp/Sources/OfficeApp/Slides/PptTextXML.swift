@@ -74,10 +74,13 @@ extension PptFile {
         // own conversion writes it as the East Asian face when the font is declared with an East Asian character set
         // (Shift-JIS, Hangul, Johab, GB2312, Big5), and as the complex-script face otherwise (th-e7813af3d5's Thai in Tahoma,
         // ar-1c38229e3f's Arabic in Traditional Arabic and Arial); our runs then name a face in the same slot as PowerPoint's
-        // conversion 171 times in 182 across the .ppt corpus.
+        // conversion 171 times in 182 across the .ppt corpus. A font declared with DEFAULT_CHARSET (1) goes to both slots
+        // (ko-9eaa58ada6's FZBeiWeiKaiShu-S19S: 1215 of 1284 such characters across the corpus print with it as both the
+        // East Asian and the complex-script face).
         if let i = c.eastAsianFont, let f = face(i) {
             let cs = i < fontCharsets.count ? fontCharsets[i] : 0
-            kids += [128, 129, 130, 134, 136].contains(cs) ? "<a:ea typeface=\"\(f)\"/>" : "<a:cs typeface=\"\(f)\"/>"
+            if cs == 1 { kids += "<a:ea typeface=\"\(f)\"/><a:cs typeface=\"\(f)\"/>" }
+            else { kids += [128, 129, 130, 134, 136].contains(cs) ? "<a:ea typeface=\"\(f)\"/>" : "<a:cs typeface=\"\(f)\"/>" }
         }
         if let f = face(c.symbolFont) { kids += "<a:sym typeface=\"\(f)\"/>" }
         return attrs.isEmpty && kids.isEmpty ? "" : (kids.isEmpty ? "<\(tag)\(attrs)/>" : "<\(tag)\(attrs)>\(kids)</\(tag)>")
