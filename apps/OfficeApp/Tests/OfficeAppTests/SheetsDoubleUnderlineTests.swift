@@ -2,6 +2,7 @@ import XCTest
 import Flutter
 import FlutterSwiftBridge
 @testable import OfficeApp
+import OfficeText
 
 /// X-FM-3: Excel's underline kinds (Single, Double, Single Accounting, Double Accounting): the Font tab's
 /// Underline list and Home's Underline split set them, and a file keeps each as the font's `u val`.
@@ -93,5 +94,34 @@ final class SheetsDoubleUnderlineTests: XCTestCase {
         XCTAssertTrue(ui.tap(text: "Double Underline")); ui.pump()
         XCTAssertEqual(wb.style(at: a("A1")).underlineKind, "double")
         XCTAssertNil(ui.centre(ofText: "Double Underline"), "the list closed")
+    }
+
+    /// Excel's print (the underline lab, Calibri 11 and 20): single 1.2 / 2.28 pt under the baseline, 0.72 / 1.32 thick;
+    /// a double's first rule 0.48 / 0.72 under it with a clear gap of one rule; accounting 3.0 / 5.4 under it,
+    /// across the span given (a text cell's room) or under the text.
+    func testTheRulesStandWhereExcelsDo() throws {
+        let m = try XCTUnwrap(RichTextTheme.ruleMetrics("Calibri", bold: false, italic: false))
+        func rects(_ size: Double, double: Bool = false, accounting: Bool = false, span: (Double, Double)? = nil) -> [Rect] {
+            var s = GridTextStyle(family: "Calibri", size: size, color: 0xFF000000)
+            s.underline = true; s.doubleUnderline = double; s.accounting = accounting
+            s.rule = [m.up, m.ut, m.sp, m.st]
+            return GridTextStyle.underlineRects(s, glyph: 100, descent: size * 0.2686, left: 10, width: 30, span: span)
+        }
+        let single = rects(11)
+        XCTAssertEqual(single.count, 1)
+        XCTAssertEqual(single[0].top - 100, 1.2, accuracy: 0.06)
+        XCTAssertEqual(single[0].height, 0.72, accuracy: 0.01)
+        XCTAssertEqual(rects(20)[0].top - 100, 2.28, accuracy: 0.06)
+        let double = rects(11, double: true)
+        XCTAssertEqual(double.count, 2)
+        XCTAssertEqual(double[0].top - 100, 0.48, accuracy: 0.06)
+        XCTAssertEqual(double[1].top - double[0].bottom, double[0].height, accuracy: 0.001, "a clear gap of one rule")
+        let acc = rects(11, accounting: true, span: (5, 60))
+        XCTAssertEqual(acc[0].top - 100, 3.0, accuracy: 0.06)
+        XCTAssertEqual(acc[0].left, 5); XCTAssertEqual(acc[0].right, 60)
+        XCTAssertEqual(rects(20, double: true, accounting: true)[0].top - 100, 5.4, accuracy: 0.06)
+        let number = rects(11, double: true, accounting: true)
+        XCTAssertEqual(number.count, 2)
+        XCTAssertEqual(number[0].left, 10); XCTAssertEqual(number[0].width, 30)
     }
 }
