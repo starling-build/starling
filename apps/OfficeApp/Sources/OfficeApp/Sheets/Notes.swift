@@ -358,18 +358,38 @@ extension WorkbookController {
         select(next)
     }
 
-    /// Review > Notes > Show All Notes: every note's box on screen (the workbook's showComments), or back to hover only.
-    var showAllNotes: Bool { book.showComments == "commIndAndComment" }
-    func toggleShowAllNotes() { viewChange { book.showComments = showAllNotes ? nil : "commIndAndComment" } }
+    /// Review > Notes > Show All Notes: lit while every note in the workbook is shown. As in Excel it sets each note's own
+    /// flag (all shown, or all back to hover only), so Show/Hide Note can then hide one. A file whose workbook view says
+    /// "comments and indicators" (showComments) shows them all too; the first change here turns that into the notes' flags.
+    var showAllNotes: Bool {
+        let notes = book.sheets.flatMap(\.notes).filter { $0.at != nil }
+        return !notes.isEmpty && (book.showComments == "commIndAndComment" || notes.allSatisfy(\.shown))
+    }
+
+    func toggleShowAllNotes() {
+        let on = !showAllNotes
+        viewChange {
+            _noteFlagsFromView()
+            for ws in book.sheets { for i in ws.notes.indices where ws.notes[i].shown != on { ws.notes[i].shown = on; ws.notes[i].shownChanged = true } }
+        }
+    }
 
     /// Review > Notes > Show/Hide Note: the active cell's note stays on screen, or goes back to showing on hover.
     func toggleNoteShown(at a: CellAddress? = nil) {
         let a = a ?? active, ws = sheet
         guard let i = ws.notes.firstIndex(where: { $0.at == a }) else { onCommand?(.status("This cell has no note")); return }
         viewChange {
+            _noteFlagsFromView()
             ws.notes[i].shown.toggle()
             ws.notes[i].shownChanged = true
         }
+    }
+
+    /// A workbook view showing every note becomes every note's own shown flag (the view goes back to Excel's default).
+    private func _noteFlagsFromView() {
+        guard book.showComments == "commIndAndComment" else { return }
+        book.showComments = nil
+        for ws in book.sheets { for i in ws.notes.indices where !ws.notes[i].shown { ws.notes[i].shown = true; ws.notes[i].shownChanged = true } }
     }
 
     /// Clear Comments: take every note in `r` (the selection by default) off its cell. One undo step.

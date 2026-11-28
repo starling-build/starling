@@ -2596,7 +2596,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         // the cell selects it, and it goes when another cell is selected.)
         let touched = _touchSeen && controller.sheet.notes.contains(where: { $0.at == controller.active }) ? controller.active : nil
         let hover = _hoverNote ?? touched
-        let all = controller.showAllNotes
+        let all = controller.book.showComments == "commIndAndComment"
         for note in controller.sheet.notes {
             guard let a = note.at, a != hover, all || note.shown else { continue }
             let r = rect(a)
