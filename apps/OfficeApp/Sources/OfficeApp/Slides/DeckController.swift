@@ -47,7 +47,17 @@ struct ShapeState: Equatable {
     /// The same for the outline (`SchemeColor`).
     var outlineScheme: String? = nil
     var themeStyle = false
-    var quickStyle: ShapeQuickStyle? = nil
+    /// The Shape Styles entry and its look, boxed: the look is large and a state is kept per shape (deep groups
+    /// hold thousands), so an unstyled shape pays one pointer for it.
+    var _quickStyleBox: QuickStyleBox? = nil
+    var quickStyle: ShapeQuickStyle? {
+        get { _quickStyleBox?.style }
+        set { _quickStyleBox = QuickStyleBox.make(newValue, _quickStyleBox?.look) }
+    }
+    var quickStyleLook: ShapeQuickStyle.Look? {
+        get { _quickStyleBox?.look }
+        set { _quickStyleBox = QuickStyleBox.make(_quickStyleBox?.style, newValue) }
+    }
     /// A picture's crop, as fractions cut from each edge.
     var crop: EdgeInsets? = nil
     var flipH = false
@@ -148,6 +158,20 @@ struct ShapeState: Equatable {
     var keptLook: KeptLook? = nil
     /// Set for a text shape read from a file: see `ReadShape`.
     var readShape: ReadShape? = nil
+}
+
+/// A shape state's Shape Styles entry and look, shared by value (never changed once made).
+final class QuickStyleBox: Equatable {
+    let style: ShapeQuickStyle?
+    let look: ShapeQuickStyle.Look?
+
+    private init(_ style: ShapeQuickStyle?, _ look: ShapeQuickStyle.Look?) { self.style = style; self.look = look }
+
+    static func make(_ style: ShapeQuickStyle?, _ look: ShapeQuickStyle.Look?) -> QuickStyleBox? {
+        style == nil && look == nil ? nil : QuickStyleBox(style, look)
+    }
+
+    static func == (a: QuickStyleBox, b: QuickStyleBox) -> Bool { a.style == b.style && a.look == b.look }
 }
 
 extension ShapeState {
@@ -2628,10 +2652,13 @@ final class DeckController: ChangeNotifier {
     /// `new`'s, and text that followed `old`'s fonts and colours follows `new`'s (Design > Themes, and a paste in
     /// Use Destination Theme).
     func restyleShape(_ shape: SlideShape, from old: DeckTheme, to new: DeckTheme) {
-        // A Shape Styles entry is redrawn whole in the new colours, its text included, unless its fill or
-        // line was changed since.
-        if let q = shape.quickStyle, Self._showsLook(shape, q.look(tableStyleColors(old))) { _giveQuickStyle(q, to: shape) }
-        else if shape.kind == .table, shape.fillScheme?.hasPrefix("accent") == true, let id = shape.tableId, let text = shape.text {
+        // A Shape Styles entry is redrawn in the new colours, its text included, except for what was changed
+        // since (as in PowerPoint, where those are saved as the shape's own and the rest as the style's refs).
+        if let q = shape.quickStyle, let given = shape.quickStyleLook {
+            let ownFill = !given.fillShown(by: shape)
+            _giveQuickStyle(q, to: shape, over: given)
+            if ownFill, let scheme = shape.fillScheme, let c = SchemeColor.resolve(scheme, slots: new.slots) { shape.fill = c }
+        } else if shape.kind == .table, shape.fillScheme?.hasPrefix("accent") == true, let id = shape.tableId, let text = shape.text {
             var doc = text.document
             let kept = doc.tableStyles[id]?.styleId
             doc.tableStyles[id] = tableStyle(accent: new.accents[0])
@@ -2649,8 +2676,8 @@ final class DeckController: ChangeNotifier {
         let heading = shape.role == .title || shape.role == .ctrTitle
         if shape.role != nil || shape.kind == .textBox {
             let fresh = _textTheme(font: heading ? new.headingFont : new.bodyFont, size: tt.fontSize,
-                                   color: shape.quickStyle.map { $0.look(tableStyleColors(new)).text }
-                                       ?? (tt.textColor == old.subtle ? new.subtle : new.text))
+                                   color: shape.quickStyleLook != nil ? tt.textColor
+                                       : (tt.textColor == old.subtle ? new.subtle : new.text))
             fresh.listIndent = tt.listIndent
             shape.textTheme = fresh
         }
@@ -3224,6 +3251,7 @@ final class DeckController: ChangeNotifier {
         st.outlineScheme = s.outlineScheme
         st.themeStyle = s.themeStyle
         st.quickStyle = s.quickStyle
+        st.quickStyleLook = s.quickStyleLook
         st.headEnd = s.headEnd
         st.connStart = s.connStart
         st.adjusts = s.adjusts
@@ -3358,6 +3386,7 @@ final class DeckController: ChangeNotifier {
         shape.outlineScheme = st.outlineScheme
         shape.themeStyle = st.themeStyle
         shape.quickStyle = st.quickStyle
+        shape.quickStyleLook = st.quickStyleLook
         shape.sourceXML = st.sourceXML
         shape.sourceText = st.sourceText
         shape.sourcePart = st.sourcePart

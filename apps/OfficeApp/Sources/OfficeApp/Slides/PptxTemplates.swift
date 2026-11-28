@@ -38,6 +38,8 @@ struct PptxTemplates {
         func clr(_ name: String, _ c: Color) -> String { "<a:\(name)><a:srgbClr val=\"\(_hex(c))\"/></a:\(name)>" }
         let fonts = { (f: String) in "<a:latin typeface=\"\(PptxXML.escape(f, attribute: true))\"/><a:ea typeface=\"\"/><a:cs typeface=\"\"/>" }
         let solid = "<a:solidFill><a:schemeClr val=\"phClr\"/></a:solidFill>"
+        // Office's format scheme (2013 and later): the gradients and shadow its Shape Styles refer to.
+        let office = ShapeQuickStyle.officeXML()
         let ln = { (w: Int) in "<a:ln w=\"\(w)\" cap=\"flat\" cmpd=\"sng\" algn=\"ctr\"><a:solidFill><a:schemeClr val=\"phClr\"/></a:solidFill><a:prstDash val=\"solid\"/><a:miter lim=\"800000\"/></a:ln>" }
         return Self.head + """
         <a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="\(PptxXML.escape(theme.name, attribute: true))"><a:themeElements>\
@@ -48,9 +50,9 @@ struct PptxTemplates {
         <a:fontScheme name="\(PptxXML.escape(theme.name, attribute: true))"><a:majorFont>\(fonts(theme.headingFont))</a:majorFont>\
         <a:minorFont>\(fonts(theme.bodyFont))</a:minorFont></a:fontScheme>\
         <a:fmtScheme name="\(PptxXML.escape(theme.name, attribute: true))">\
-        <a:fillStyleLst>\(solid)\(solid)\(solid)</a:fillStyleLst>\
+        <a:fillStyleLst>\(solid)\(office.subtle)\(office.intense)</a:fillStyleLst>\
         <a:lnStyleLst>\(ln(6350))\(ln(12700))\(ln(19050))</a:lnStyleLst>\
-        <a:effectStyleLst><a:effectStyle><a:effectLst/></a:effectStyle><a:effectStyle><a:effectLst/></a:effectStyle><a:effectStyle><a:effectLst/></a:effectStyle></a:effectStyleLst>\
+        <a:effectStyleLst><a:effectStyle><a:effectLst/></a:effectStyle><a:effectStyle><a:effectLst/></a:effectStyle><a:effectStyle>\(office.shadow)</a:effectStyle></a:effectStyleLst>\
         <a:bgFillStyleLst>\(solid)\(solid)\(solid)</a:bgFillStyleLst>\
         </a:fmtScheme></a:themeElements><a:objectDefaults/><a:extraClrSchemeLst/></a:theme>
         """
