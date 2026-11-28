@@ -40,10 +40,11 @@ final class PictureAltTextDialogState: State<StatefulWidget> {
     override func dispose() { _text.dispose(); super.dispose() }
 
     override func build(_ context: any BuildContext) -> Widget {
+        // (The box takes the keys at once: typing must not go on to the page behind, New Comment's selected word.)
         let page = Column(crossAxisAlignment: .start, children: [
             Padding(padding: EdgeInsets(left: 0, top: 0, right: 0, bottom: 8),
                     child: Text(_w.prompt)),
-            PicKeyed(_w.title == "Alt Text" ? "alt-text" : "box-text", SizedBox(height: 90, child: FluentTextBox(controller: _text, maxLines: 4))),
+            PicKeyed(_w.title == "Alt Text" ? "alt-text" : "box-text", SizedBox(height: 90, child: FluentTextBox(controller: _text, maxLines: 4, autofocus: true))),
         ])
         return DialogShell(title: _w.title, page: page,
                            onOK: { [weak self] in guard let self else { return }; self._w.onOK(self._text.text) },

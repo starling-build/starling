@@ -92,10 +92,10 @@ wait 300
 click 520 180
 wait 400
 shot ${OUT}/rv-14-all.png
-# Reject All: the bold and the centring go back to the original.
+# Reject All (the third item; the fourth also stops tracking): the bold and the centring go back, tracking stays on.
 click 596 144
 wait 300
-click 638 265
+click 638 237
 wait 400
 shot ${OUT}/rv-15-reject-all.png
 # Undo brings every change back in one step.
