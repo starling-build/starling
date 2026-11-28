@@ -885,6 +885,8 @@ public final class RichDocumentController: ChangeNotifier {
     /// Text typed at the end of a field's result (or after it) is not part of the field: the field marks are dropped
     /// from the style it would inherit. Inside the result, typing stays in it.
     func _leavingField(_ style: CharStyle, at pos: RichPosition) -> CharStyle {
+        // (Text typed beside a legacy check box is never part of it: the box is its glyph alone.)
+        if style.formBox { var out = style; out.formBox = false; out.formField = nil; return _leavingField(out, at: pos) }
         guard style.fieldResult != 0 || style.preservedField != nil else { return style }
         let p = document.paragraphs[pos.paragraph]
         if pos.offset < p.text.utf16.count, p.style(at: pos.offset + 1).fieldResult == style.fieldResult { return style }
@@ -1821,6 +1823,16 @@ public final class RichDocumentController: ChangeNotifier {
         guard index >= 0, index < document.paragraphs.count,
               let box = document.paragraphs[index].checkBoxes.first(where: { $0.id == id }),
               let after = document.paragraphs[index].settingCheckBox(id, to: !box.checked) else { return false }
+        edit { perform(.restoreParagraphs(index, count: 1, [after])) }
+        return true
+    }
+
+    /// Flip the legacy form check box (FORMCHECKBOX) at `offset` of paragraph `index` (one undo step). Returns whether it changed.
+    @discardableResult
+    public func toggleFormCheckBox(in index: Int, at offset: Int) -> Bool {
+        guard index >= 0, index < document.paragraphs.count,
+              let box = document.paragraphs[index].formCheckBoxes.first(where: { $0.offset == offset }),
+              let after = document.paragraphs[index].settingFormCheckBox(at: offset, to: !box.checked) else { return false }
         edit { perform(.restoreParagraphs(index, count: 1, [after])) }
         return true
     }

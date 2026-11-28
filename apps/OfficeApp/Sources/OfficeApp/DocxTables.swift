@@ -625,6 +625,20 @@ extension DocxFormat {
         return copy
     }
 
+    /// A legacy check box's kept `w:ffData` with its state set as Word saves a clicked box: `w:checked` after `w:default`
+    /// (CT_FFCheckBox: size or sizeAuto, default, checked). Nil when the XML is not a check box's.
+    static func _formCheckBoxData(_ xml: String, checked: Bool) -> String? {
+        guard let node = XNode.parse(Data(xml.utf8)), node.name == "w:ffData", let box = node.first("w:checkBox") else { return nil }
+        // A box at its default with no w:checked stays as it came (Word writes w:checked only once it is set).
+        let byDefault = box.first("w:default").map { ["1", "true", "on"].contains($0.attrs["w:val"] ?? "1") } ?? false
+        if checked == byDefault, box.first("w:checked") == nil { return PptxXML.serialize(node) }
+        box.children.removeAll { $0.name == "w:checked" }
+        let mark = XNode(name: "w:checked", attrs: [:])
+        if !checked { mark.attrs["w:val"] = "0" }
+        box.children.append(mark)
+        return PptxXML.serialize(node)
+    }
+
     static func _keptFragment(_ given: XNode, _ notes: _Shared) -> (xml: String, rels: [KeptRel])? {
         let node = given.mirroredFrom ?? given
         var found: [KeptRel] = []
@@ -1917,7 +1931,10 @@ extension DocxFormat {
                         if isBox(ch) {
                             flush()
                             checkboxCount += 1
-                            runXML += "<w:r>\(rPrXML)<w:fldChar w:fldCharType=\"begin\"><w:ffData><w:name w:val=\"Check\(checkboxCount)\"/><w:enabled/><w:calcOnExit w:val=\"0\"/><w:checkBox><w:sizeAuto/><w:default w:val=\"\(ch == "\u{2612}" ? 1 : 0)\"/></w:checkBox></w:ffData></w:fldChar></w:r>"
+                            // A box read from a form field goes back with its own settings, its state as now shown.
+                            let data = s.formField.flatMap { Self._formCheckBoxData($0, checked: ch == "\u{2612}") }
+                                ?? "<w:ffData><w:name w:val=\"Check\(checkboxCount)\"/><w:enabled/><w:calcOnExit w:val=\"0\"/><w:checkBox><w:sizeAuto/><w:default w:val=\"\(ch == "\u{2612}" ? 1 : 0)\"/></w:checkBox></w:ffData>"
+                            runXML += "<w:r>\(rPrXML)<w:fldChar w:fldCharType=\"begin\">\(data)</w:fldChar></w:r>"
                             runXML += "<w:r>\(rPrXML)<w:instrText xml:space=\"preserve\"> FORMCHECKBOX </w:instrText></w:r><w:r>\(rPrXML)<w:fldChar w:fldCharType=\"end\"/></w:r>"
                         } else {
                             text.append(ch)

@@ -1407,6 +1407,7 @@ extension DocxFormat {
         var hyperlinkHistory = false       // the enclosing w:hyperlink's w:history
         var hyperlinkTip: String? = nil    // the enclosing w:hyperlink's w:tooltip
         var pendingCheckbox: Bool? = nil   // a FORMCHECKBOX field's state, from its begin
+        var pendingCheckboxData: String? = nil   // and its w:ffData as the file had it (kept for the save)
         var pendingDropdown: String? = nil // a FORMDROPDOWN field's chosen entry, from its begin
         func walkRun(_ r: XNode, link: String?, revision: RevisionMark? = nil) {
             // (A run nested in a run, which the schema does not allow: Word prints the inner run's text. lab gridlift2 / f42177d2's title holds
@@ -1766,9 +1767,10 @@ extension DocxFormat {
                         let chosen = Int(list.first("w:result")?["w:val"] ?? list.first("w:default")?["w:val"] ?? "0") ?? 0
                         pendingDropdown = chosen >= 0 && chosen < entries.count ? entries[chosen] : nil
                     }
-                    if child["w:fldCharType"] == "begin", let box = child.first("w:ffData")?.first("w:checkBox") {
+                    if child["w:fldCharType"] == "begin", let data = child.first("w:ffData"), let box = data.first("w:checkBox") {
                         let on = box.first("w:checked").map { !_isOff($0) } ?? (box.first("w:default")?["w:val"] == "1")
                         pendingCheckbox = on
+                        pendingCheckboxData = PptxXML.serialize(data)
                     }
                 case "w:instrText":
                     // MACROBUTTON <macro> <display text>: Word draws the display
@@ -1790,9 +1792,9 @@ extension DocxFormat {
                     }
                     if cs.formatChange != nil { notes.fieldCodeChanged = true }
                     if let on = pendingCheckbox, child.text.uppercased().containsSubstring("FORMCHECKBOX") {
-                        var box = cs; box.formBox = true
+                        var box = cs; box.formBox = true; box.formField = pendingCheckboxData
                         addText(on ? "\u{2612}" : "\u{2610}", box)
-                        pendingCheckbox = nil
+                        pendingCheckbox = nil; pendingCheckboxData = nil
                     }
                     if let entry = pendingDropdown, child.text.uppercased().containsSubstring("FORMDROPDOWN") {
                         addText(entry, cs)

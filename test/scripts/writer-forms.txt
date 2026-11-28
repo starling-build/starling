@@ -1,0 +1,29 @@
+# Writer forms (W-RV-3): a click toggles a legacy check box (FORMCHECKBOX) or a check box content control.
+# Run with OFFICE_FILE=lab/forms1/start.docx (amd-5's checkout; "Legacy off:" box, "Legacy on:" box ticked by default,
+# "Control:" a check box control), window 1440x932. Delete any start.docx~ first.
+# Harness points at 1440x932, from DocxTests.testFormCheckBoxesClickedOnceEach (FORMS1_OUT writes them):
+# Legacy off box 484,356; Legacy on box 483,386; Control box 466,411.
+# Every click is followed by a picture, so a miss shows at once.
+wait 1500
+shot ${OUT}/fm-00-start.png
+# The first legacy box gets its X; the caret does not land inside the field.
+click 484 356
+wait 300
+shot ${OUT}/fm-01-legacy-ticked.png
+# The second (ticked by default) is cleared.
+click 483 386
+wait 300
+shot ${OUT}/fm-02-legacy-cleared.png
+# The content control's ballot box becomes the checked one.
+click 466 411
+wait 300
+shot ${OUT}/fm-03-control-ticked.png
+# Each click is one undo step: Cmd+Z three times puts all three back as they opened.
+chord cmd z
+wait 200
+chord cmd z
+wait 200
+chord cmd z
+wait 300
+shot ${OUT}/fm-04-undone.png
+quit

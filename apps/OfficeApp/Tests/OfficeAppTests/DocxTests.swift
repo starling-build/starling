@@ -8261,6 +8261,106 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(c.document.paragraphs[0].text, "Agree \u{2610} yes")
     }
 
+    /// W-RV-3: a click flips a legacy form check box (FORMCHECKBOX); the save keeps the field's own settings (name, help
+    /// text) and writes the state as Word does, w:checked after w:default; one undo step; text typed beside it is plain.
+    func testLegacyFormCheckBoxTogglesAndKeepsItsSettings() throws {
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .letter))
+        let di = try XCTUnwrap(entries.firstIndex { $0.name == "word/document.xml" })
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let body = try XCTUnwrap(xml.range(of: "<w:body>")).upperBound ..< (try XCTUnwrap(xml.range(of: "<w:sectPr"))).lowerBound
+        xml.replaceSubrange(body, with: "<w:p><w:r><w:t xml:space=\"preserve\">Agree </w:t></w:r>"
+            + "<w:r><w:fldChar w:fldCharType=\"begin\"><w:ffData><w:name w:val=\"Consent\"/><w:enabled/><w:calcOnExit w:val=\"0\"/>"
+            + "<w:statusText w:type=\"text\" w:val=\"Tick to agree\"/><w:checkBox><w:size w:val=\"20\"/><w:default w:val=\"0\"/></w:checkBox></w:ffData></w:fldChar></w:r>"
+            + "<w:r><w:instrText xml:space=\"preserve\"> FORMCHECKBOX </w:instrText></w:r><w:r><w:fldChar w:fldCharType=\"end\"/></w:r>"
+            + "<w:r><w:t xml:space=\"preserve\"> yes</w:t></w:r></w:p>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let doc = try DocxFormat.read(try Zip.write(entries)).document
+        let c = RichDocumentController(document: doc)
+        XCTAssertEqual(c.document.paragraphs[0].formCheckBoxes.map(\.offset), [6])
+        XCTAssertEqual(c.document.paragraphs[0].formCheckBoxes.first?.checked, false)
+        XCTAssertTrue(c.toggleFormCheckBox(in: 0, at: 6))
+        XCTAssertFalse(c.toggleFormCheckBox(in: 0, at: 2))       // (not a box)
+        XCTAssertEqual(c.document.paragraphs[0].text, "Agree \u{2612} yes")
+        func saved(_ d: RichDocument) throws -> String {
+            String(decoding: try XCTUnwrap(try Zip.read(try DocxFormat.write(d, pageSetup: .letter)).first { $0.name == "word/document.xml" }).data, as: UTF8.self)
+        }
+        var out = try saved(c.document)
+        XCTAssertTrue(out.containsSubstring("<w:name w:val=\"Consent\"/>"), out)
+        XCTAssertTrue(out.containsSubstring("Tick to agree"), out)
+        XCTAssertTrue(out.containsSubstring("<w:size w:val=\"20\"/><w:default w:val=\"0\"/><w:checked/></w:checkBox>"), out)
+        XCTAssertEqual(try DocxFormat.read(try DocxFormat.write(c.document, pageSetup: .letter)).document.paragraphs[0].formCheckBoxes.first?.checked, true)
+        XCTAssertTrue(c.toggleFormCheckBox(in: 0, at: 6))
+        out = try saved(c.document)
+        // Clicked back to its default, it saves as it was authored.
+        XCTAssertTrue(out.containsSubstring("<w:size w:val=\"20\"/><w:default w:val=\"0\"/></w:checkBox>"), out)
+        c.undo()
+        XCTAssertEqual(c.document.paragraphs[0].formCheckBoxes.first?.checked, true)
+        // Typing right after the box is plain text, not part of it.
+        c.moveTo(RichPosition(paragraph: 0, offset: 7), extend: false)
+        c.insertText("!")
+        XCTAssertFalse(c.document.paragraphs[0].style(at: 8).formBox)
+        XCTAssertEqual(c.document.paragraphs[0].formCheckBoxes.count, 1)
+    }
+
+    /// W-RV-3 lab forms1: two legacy check boxes (one ticked by default) and a check box control, each clicked once.
+    /// FORMS1_OUT=<dir>: leaves start.docx (as authored) and clicked.docx (our save) for Word.
+    func testFormCheckBoxesClickedOnceEach() throws {
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .letter))
+        let di = try XCTUnwrap(entries.firstIndex { $0.name == "word/document.xml" })
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let body = try XCTUnwrap(xml.range(of: "<w:body>")).upperBound ..< (try XCTUnwrap(xml.range(of: "<w:sectPr"))).lowerBound
+        func legacy(_ name: String, _ on: Bool) -> String {
+            "<w:r><w:fldChar w:fldCharType=\"begin\"><w:ffData><w:name w:val=\"\(name)\"/><w:enabled/><w:calcOnExit w:val=\"0\"/>"
+                + "<w:statusText w:type=\"text\" w:val=\"Status of \(name)\"/><w:checkBox><w:sizeAuto/><w:default w:val=\"\(on ? 1 : 0)\"/></w:checkBox></w:ffData></w:fldChar></w:r>"
+                + "<w:r><w:instrText xml:space=\"preserve\"> FORMCHECKBOX </w:instrText></w:r><w:r><w:fldChar w:fldCharType=\"end\"/></w:r>"
+        }
+        xml.replaceSubrange(body, with: "<w:p><w:r><w:t xml:space=\"preserve\">Legacy off: </w:t></w:r>\(legacy("Off", false))</w:p>"
+            + "<w:p><w:r><w:t xml:space=\"preserve\">Legacy on: </w:t></w:r>\(legacy("On", true))</w:p>"
+            + "<w:p><w:r><w:t xml:space=\"preserve\">Control: </w:t></w:r>"
+            + "<w:sdt><w:sdtPr><w:id w:val=\"11\"/><w14:checkbox><w14:checked w14:val=\"0\"/><w14:checkedState w14:val=\"2612\" w14:font=\"MS Gothic\"/><w14:uncheckedState w14:val=\"2610\" w14:font=\"MS Gothic\"/></w14:checkbox></w:sdtPr>"
+            + "<w:sdtContent><w:r><w:rPr><w:rFonts w:ascii=\"MS Gothic\" w:eastAsia=\"MS Gothic\" w:hAnsi=\"MS Gothic\"/></w:rPr><w:t>\u{2610}</w:t></w:r></w:sdtContent></w:sdt></w:p>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let start = try Zip.write(entries)
+        let c = RichDocumentController(document: try DocxFormat.read(start).document)
+        XCTAssertTrue(c.toggleFormCheckBox(in: 0, at: 12))
+        XCTAssertTrue(c.toggleFormCheckBox(in: 1, at: 11))
+        let box = try XCTUnwrap(c.document.paragraphs[2].checkBoxes.first)
+        XCTAssertTrue(c.toggleCheckBox(in: 2, control: box.id))
+        let clicked = try DocxFormat.write(c.document, pageSetup: .letter)
+        let back = try DocxFormat.read(clicked).document
+        XCTAssertEqual(back.paragraphs[0].formCheckBoxes.first?.checked, true)
+        XCTAssertEqual(back.paragraphs[1].formCheckBoxes.first?.checked, false)
+        XCTAssertEqual(back.paragraphs[2].checkBoxes.first?.checked, true)
+        // In the app: one click on each legacy box ticks the first and clears the second. FORMS1_OUT also gets the
+        // window points (1440x932) the Mac script clicks.
+        let path = NSTemporaryDirectory() + "forms1-\(getpid()).docx"
+        try start.write(to: URL(fileURLWithPath: path))
+        defer { try? FileManager.default.removeItem(atPath: path) }
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: path), title: "t"), size: Size(1440, 932))
+        for _ in 0 ..< 20 { ui.pump() }
+        let shell = try XCTUnwrap(ui.state(OfficeShellState.self))
+        let doc = shell.session.controller
+        let editor = try XCTUnwrap(ui.elements().first { ($0.widget as? RichEditable)?.controller === doc })
+        let rbox = try XCTUnwrap(editor.findRenderObject() as? RenderBox)
+        let st = try XCTUnwrap((editor as? StatefulElement)?.state as? RichEditableState)
+        let control = try XCTUnwrap(doc.document.paragraphs[2].checkBoxes.first).range.lowerBound
+        for (i, at, want) in [(0, 12, true), (1, 11, false), (2, control, true)] {
+            let r = try XCTUnwrap(st.caretRectOnScreen(RichPosition(paragraph: i, offset: at)))
+            let next = try XCTUnwrap(st.caretRectOnScreen(RichPosition(paragraph: i, offset: at + 1)))
+            let p = rbox.localToGlobal(Offset((r.left + next.left) / 2, r.top + r.height / 2))
+            if let dir = ProcessInfo.processInfo.environment["FORMS1_OUT"] {
+                try "box \(i): \(Int(p.dx)) \(Int(p.dy))\n".write(toFile: dir + "/points-\(i).txt", atomically: true, encoding: .utf8)
+            }
+            ui.click(at: p, kind: .mouse); ui.pump()
+            XCTAssertEqual(i == 2 ? doc.document.paragraphs[i].checkBoxes.first?.checked : doc.document.paragraphs[i].formCheckBoxes.first?.checked,
+                           want, "box \(i) clicked")
+        }
+        if let dir = ProcessInfo.processInfo.environment["FORMS1_OUT"] {
+            try start.write(to: URL(fileURLWithPath: dir + "/start.docx"))
+            try clicked.write(to: URL(fileURLWithPath: dir + "/clicked.docx"))
+        }
+    }
+
     /// W-RV-3: a content control over runs (check box, drop-down list, text) survives open and save with its
     /// properties whole, and the text around it is untouched; an edit that deletes across its end keeps the file valid.
     func testContentControlsOverRunsSurviveASave() throws {
