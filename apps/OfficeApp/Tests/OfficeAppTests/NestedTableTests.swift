@@ -147,6 +147,42 @@ final class NestedTableTests: XCTestCase {
         XCTAssertTrue(back.isNestedTable(at: j), "still editable after the save")
     }
 
+    /// A table three deep (in a cell of a nested table of two rows, which the reader keeps as a block holding a block)
+    /// opens for typing at each level: an edit three deep and one two deep both reach the save, and stay editable.
+    func testTheThirdNestingLevelIsEditable() throws {
+        let deep = "<w:tbl><w:tblPr><w:tblW w:w=\"0\" w:type=\"auto\"/></w:tblPr><w:tblGrid><w:gridCol w:w=\"800\"/><w:gridCol w:w=\"800\"/></w:tblGrid>"
+            + "<w:tr><w:tc><w:p><w:r><w:t>p</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>q</w:t></w:r></w:p></w:tc></w:tr></w:tbl>"
+        let row2 = "<w:p><w:r><w:t>b</w:t></w:r></w:p></w:tc></w:tr><w:tr><w:tc>" + deep + "<w:p/></w:tc><w:tc><w:p><w:r><w:t>d</w:t></w:r></w:p>"
+        let c = try fileNested("<w:p><w:r><w:t>a</w:t></w:r></w:p>", row2)
+        let i = try XCTUnwrap(c.document.paragraphs.firstIndex { $0.keptTable != nil })
+        XCTAssertTrue(c.isNestedTable(at: i), "the second level, holding the third, is editable")
+        let box = RichDocumentController(document: try XCTUnwrap(c.textBoxDocument(at: i)))
+        let j = try XCTUnwrap(box.document.paragraphs.firstIndex { $0.keptTable != nil }, "the third level is a block in it")
+        XCTAssertTrue(box.isNestedTable(at: j), "and editable from there")
+        let inner = RichDocumentController(document: try XCTUnwrap(box.textBoxDocument(at: j)))
+        let q = try XCTUnwrap(inner.document.paragraphs.firstIndex { $0.text == "q" })
+        inner.moveTo(RichPosition(paragraph: q, offset: 1), extend: false)
+        inner.insertText("uiet")
+        let (x3, r3, _) = try XCTUnwrap(TextBoxInsert.contentAndMedia(inner.document))
+        XCTAssertTrue(box.setTextBoxContent(at: j, document: inner.document, contentXML: x3, rels: r3))
+        let d = try XCTUnwrap(box.document.paragraphs.firstIndex { $0.text == "d" })
+        box.moveTo(RichPosition(paragraph: d, offset: 1), extend: false)
+        box.insertText("og")
+        let (x2, r2, _) = try XCTUnwrap(TextBoxInsert.contentAndMedia(box.document))
+        XCTAssertTrue(c.setTextBoxContent(at: i, document: box.document, contentXML: x2, rels: r2))
+        let file = try DocxFormat.write(c.document, pageSetup: .letter)
+        let saved = try body(file)
+        for kept in ["quiet", "dog", ">p<", ">a<", ">b<"] { XCTAssertTrue(saved.containsSubstring(kept), "\(kept) in \(saved)") }
+        XCTAssertEqual(saved.components(separatedBy: "</w:tbl>").count - 1, 3, saved)
+        let back = RichDocumentController(document: try DocxFormat.read(file).document)
+        let i2 = try XCTUnwrap(back.document.paragraphs.firstIndex { $0.keptTable != nil })
+        XCTAssertTrue(back.isNestedTable(at: i2))
+        let box2 = RichDocumentController(document: try XCTUnwrap(back.textBoxDocument(at: i2)))
+        let j2 = try XCTUnwrap(box2.document.paragraphs.firstIndex { $0.keptTable != nil })
+        XCTAssertTrue(box2.isNestedTable(at: j2))
+        XCTAssertTrue(try XCTUnwrap(box2.textBoxDocument(at: j2)).paragraphs.contains { $0.text == "quiet" })
+    }
+
     /// Content controls in the inner cells (one round a word, one round a whole paragraph) no longer make it read-only:
     /// an edit beside them keeps both, settings and all.
     func testANestedTableWithContentControlsIsEditable() throws {
@@ -231,6 +267,59 @@ final class NestedTableTests: XCTestCase {
 /// The same through the app: one click in an inner cell puts the caret there (as Word), typing fills that cell,
 /// Escape puts it back as one undo step.
 final class NestedTableShellTests: XCTestCase {
+    /// A table put in a cell of a nested table (three deep) opens for typing in an editor over the one holding it, with that
+    /// one still shown; Escape goes back to it, and a second Escape to the page. All of it reaches the document.
+    func testTypeInATableThreeDeep() throws {
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(1440, 932))
+        func settle(_ n: Int = 8) { for _ in 0 ..< n { ui.pump(); RunLoop.main.run(until: Date().addingTimeInterval(0.03)) } }
+        settle(20)
+        let shell = try XCTUnwrap(ui.state(OfficeShellState.self))
+        let c = shell.session.controller
+        c.insertTable(rows: 2, columns: 2)
+        c.moveTo(RichPosition(paragraph: try XCTUnwrap(c.document.paragraphs.firstIndex { $0.cell != nil }), offset: 0), extend: false)
+        c.insertTable(rows: 2, columns: 2, textWidth: shell.session.pageSetup.contentWidth)
+        settle()
+        let i = try XCTUnwrap(c.document.paragraphs.firstIndex { $0.keptTable != nil })
+        let editor = try XCTUnwrap(ui.elements().first { ($0.widget as? RichEditable)?.controller === c })
+        let state = try XCTUnwrap((editor as? StatefulElement)?.state as? RichEditableState)
+        shell._enterBox(i, nil, try XCTUnwrap(state.imageRectOnScreen(i)), frame: state._nestedFrame(i)); settle()
+        let second = shell.session.controller
+        XCTAssertFalse(second === c)
+        second.moveTo(.start, extend: false)
+        second.insertTable(rows: 1, columns: 2, textWidth: 200)
+        settle()
+        let j = try XCTUnwrap(second.document.paragraphs.firstIndex { $0.keptTable != nil })
+        XCTAssertTrue(second.isNestedTable(at: j), "the table three deep is editable")
+        let boxEditor = try XCTUnwrap(ui.elements().first { ($0.widget as? RichEditable)?.controller === second })
+        let boxState = try XCTUnwrap((boxEditor as? StatefulElement)?.state as? RichEditableState)
+        let r = try XCTUnwrap(boxState.imageRectOnScreen(j))
+        // Right onto it from the paragraph before it: into its first cell.
+        shell._enterDeeper(j, r, at: nil, first: true, frame: boxState._nestedFrame(j)); settle()
+        let third = shell.session.controller
+        XCTAssertFalse(third === second, "a third editor is open")
+        XCTAssertNotNil(shell._boxParent)
+        XCTAssertTrue(ui.elements().contains { ($0.widget as? RichEditable)?.controller === second }, "the one holding it is still shown")
+        third.insertText("deep")
+        settle()
+        ui.press(.escape); settle(2)
+        XCTAssertTrue(shell.session.controller === second, "Escape goes back to the table holding it")
+        XCTAssertNil(shell._boxParent)
+        XCTAssertNotNil(shell._boxEdit)
+        let k = try XCTUnwrap(second.document.paragraphs.firstIndex { $0.keptTable != nil })
+        XCTAssertTrue(try XCTUnwrap(second.textBoxDocument(at: k)).paragraphs.contains { $0.text == "deep" })
+        ui.press(.escape); settle(2)
+        XCTAssertNil(shell._boxEdit)
+        XCTAssertTrue(shell.session.controller === c)
+        let saved = String(decoding: try XCTUnwrap(try Zip.read(try DocxFormat.write(c.document, pageSetup: .letter)).first { $0.name == "word/document.xml" }).data, as: UTF8.self)
+        XCTAssertTrue(saved.containsSubstring(">deep<"))
+        XCTAssertEqual(saved.components(separatedBy: "</w:tbl>").count - 1, 3)
+        // And it opens again from the page, all three deep.
+        XCTAssertTrue(c.isNestedTable(at: i))
+        let again = RichDocumentController(document: try XCTUnwrap(c.textBoxDocument(at: i)))
+        let k2 = try XCTUnwrap(again.document.paragraphs.firstIndex { $0.keptTable != nil })
+        XCTAssertTrue(again.isNestedTable(at: k2))
+    }
+
     func testClickIntoTheNestedTableAndType() throws {
         setvbuf(stdout, nil, _IONBF, 0)
         let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(1440, 932))

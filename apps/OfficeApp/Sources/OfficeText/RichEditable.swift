@@ -1005,7 +1005,7 @@ public final class RichEditableState: State<StatefulWidget> {
     }
 
     /// The page's layout of the nested table at paragraph `i` (`RichLayout.boxFrame`).
-    private func _nestedFrame(_ i: Int) -> (layout: RichLayout, document: RichDocument)? {
+    func _nestedFrame(_ i: Int) -> (layout: RichLayout, document: RichDocument)? {
         guard i < _shownDocument.paragraphs.count, let image = _shownDocument.paragraphs[i].image else { return nil }
         return _layout.boxFrame(of: image, _shownDocument)
     }

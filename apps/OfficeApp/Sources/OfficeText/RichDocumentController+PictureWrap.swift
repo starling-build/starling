@@ -738,17 +738,24 @@ extension RichDocumentController {
         where kept.xml.containsSubstring(marker) { return nil }
         // (Content controls too, when each is one the paragraphs hold, round words or round whole paragraphs; one round a
         // row or a cell is not modelled, so the counts differ and the table stays as read.)
-        guard Self._controlsAreKept(kept.xml, box.paragraphs) else { return nil }
+        // (A table a level deeper is a block of its own, not a picture or a control of this one's; any in it leave the counts
+        // short, so it stays as read.)
+        let own = box.paragraphs.filter { $0.keptTable == nil }
+        guard Self._controlsAreKept(kept.xml, own) else { return nil }
         // (Pictures too, when each is an inline one the file carried, as in a text box.)
-        guard Self._picturesAreKept(kept.xml, box.paragraphs) else { return nil }
-        // (One table, none in its cells: a second `<w:tbl` is a table inside it.)
-        guard let first = kept.xml.rangeOfSubstring("<w:tbl"), kept.xml.rangeOfSubstring("<w:tbl>", in: first.upperBound ..< kept.xml.endIndex) == nil,
-              kept.xml.rangeOfSubstring("<w:tbl ", in: first.upperBound ..< kept.xml.endIndex) == nil else { return nil }
-        guard !box.paragraphs.isEmpty, box.paragraphs.allSatisfy({ $0.cell != nil && $0.keptTable == nil }),
+        guard Self._picturesAreKept(kept.xml, own) else { return nil }
+        // (One table, and in its cells only tables read as blocks of their own, a third level, kept for the save: every
+        // other `<w:tbl` in it is one of theirs. A table flattened into its cells would not be written back.)
+        let deeper = Set(box.paragraphs.compactMap(\.keptTable))
+        var held: [String: KeptTable] = [:]
+        for k in deeper { guard let t = document.keptTables[k] else { return nil }; held[k] = t }
+        guard Self._tableCount(kept.xml) == 1 + held.values.reduce(0, { $0 + Self._tableCount($1.xml) }) else { return nil }
+        guard !box.paragraphs.isEmpty, box.paragraphs.allSatisfy({ $0.cell != nil }),
               Set(box.paragraphs.compactMap { $0.cell?.table }).count == 1 else { return nil }
         var doc = RichDocument(paragraphs: box.paragraphs)
         doc.tableStyles = box.tableStyles
         doc.tableColumns = box.tableColumns
+        doc.keptTables = held
         return doc
     }
 
@@ -836,7 +843,10 @@ extension RichDocumentController {
         // (Its revision and bookmark ids, numbered from 1, moved above every other id, as a text box's are.)
         let xml = Self._shiftRevisionIds(made, by: _highestIdOutside(index, image: nil, keptTable: kid))
         let ids = Set(box.paragraphs.compactMap { $0.cell?.table })
-        guard xml != old.xml || box.paragraphs != tb.paragraphs else { return false }
+        // (The tables a level deeper, edited in their own box or put in while typing, go back to the document's kept markup too.)
+        let used = Set(box.paragraphs.compactMap(\.keptTable))
+        let deeper = box.keptTables.filter { used.contains($0.key) && self.document.keptTables[$0.key] != $0.value }
+        guard xml != old.xml || box.paragraphs != tb.paragraphs || !deeper.isEmpty else { return false }
         let before = image
         tb.paragraphs = box.paragraphs
         tb.tableStyles = box.tableStyles.filter { ids.contains($0.key) }
@@ -845,6 +855,7 @@ extension RichDocumentController {
         edit {
             _store(index, nil, old: before, new: image)
             perform(.setKeptTable(kid, old: old, new: KeptTable(xml: xml, rels: rels, texts: [self.document.paragraphs[index].text])))
+            for (k, t) in deeper.sorted(by: { $0.key < $1.key }) { perform(.setKeptTable(k, old: self.document.keptTables[k], new: t)) }
         }
         return true
     }
@@ -884,6 +895,16 @@ extension RichDocumentController {
         var images: [ImageAttachment] = []
         for p in paragraphs { images += [p.image].compactMap { $0 } + Array(p.inlineImages.values) }
         return images.count == drawings && images.allSatisfy { $0.sourceXML != nil && $0.float == nil && $0.textBox == nil }
+    }
+
+    /// How many tables `xml` holds (each `w:tbl` start tag).
+    static func _tableCount(_ xml: String) -> Int {
+        var n = 0, from = xml.startIndex
+        while let r = xml.rangeOfSubstring("<w:tbl", in: from ..< xml.endIndex) {
+            from = r.upperBound
+            if from < xml.endIndex, xml[from] == ">" || xml[from] == " " { n += 1 }
+        }
+        return n
     }
 
     /// Every `w:sdt` of `inner` is a control the paragraphs hold (an inline start or a block start), so the writer puts them all back.
