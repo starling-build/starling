@@ -44,4 +44,25 @@ final class TableMoveHandleTests: XCTestCase {
         XCTAssertEqual(block.rows, 0 ... 1)
         XCTAssertEqual(block.columns, 0 ... 2)
     }
+
+    /// The first click into a table puts the caret in the cell, in the whole app (the Mac run seemed to need two).
+    func testTheFirstClickInATableCellPutsTheCaretThere() throws {
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(1280, 800))
+        let c = try XCTUnwrap(ui.state(OfficeShellState.self)).session.controller
+        c.insertText("Some text before the table.")
+        c.insertParagraphBreak()
+        c.insertTable(rows: 2, columns: 3)
+        c.moveTo(RichPosition(paragraph: 0, offset: 2), extend: false)
+        for _ in 0 ..< 5 { ui.pump(); RunLoop.main.run(until: Date().addingTimeInterval(0.05)) }
+        XCTAssertNil(c.currentCell)
+        let table = try XCTUnwrap(c.document.paragraphs.compactMap(\.cell).first?.table)
+        let editor = try XCTUnwrap(ui.elements().first { $0.widget is RichEditable })
+        let box = try XCTUnwrap(editor.findRenderObject() as? RenderBox)
+        let state = try XCTUnwrap(ui.state(RichEditableState.self))
+        let handle = try XCTUnwrap(state.tableHandleRect(of: table))
+        ui.click(at: box.localToGlobal(Offset(handle.right + 40, handle.bottom + 8)), kind: .mouse)
+        for _ in 0 ..< 3 { ui.pump() }
+        XCTAssertNotNil(c.currentCell, "one click puts the caret in the cell")
+        XCTAssertTrue(ui.has(text: "Table Design"), "and the table tabs show")
+    }
 }
