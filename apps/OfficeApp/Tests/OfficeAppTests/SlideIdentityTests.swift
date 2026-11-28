@@ -271,4 +271,44 @@ final class SlideIdentityTests: XCTestCase {
         XCTAssertTrue(saved.contains("<a:srcRect"), "the crop is written")
         XCTAssertTrue(saved.contains("rot=\"5400000\""), "the turn is written")
     }
+    func testCropToShapeIsOneUndoStepAndSavesInPlace() throws {
+        func picture(_ d: DeckController) throws -> SlideShape {
+            let pic = try XCTUnwrap(d.slides.flatMap(\.shapes).first { $0.picture != nil })
+            d.select(try XCTUnwrap(d.slides.firstIndex { $0.shapes.contains { $0 === pic } }))
+            d.selectShapes([pic])
+            return pic
+        }
+        func geoms(_ data: Data) throws -> [String] {
+            let package = PptxPackage(try Zip.read(data))
+            return package.parts.keys.sorted().filter { $0.hasPrefix("ppt/slides/slide") && $0.hasSuffix(".xml") }.flatMap { part -> [String] in
+                let xml = String(decoding: package.parts[part] ?? Data(), as: UTF8.self)
+                return xml.components(separatedBy: "<p:pic>").dropFirst().map { (pic: String) -> String in
+                    let tail: String = pic.components(separatedBy: "<p:spPr>").dropFirst().first ?? ""
+                    let spPr: String = tail.components(separatedBy: "</p:spPr>").first ?? ""
+                    let count: Int = spPr.components(separatedBy: "prstGeom").count - 1
+                    let after: String = spPr.components(separatedBy: "prst=\"").dropFirst().first ?? ""
+                    let name: String = String(after.prefix { $0 != "\"" })
+                    return "\(count):\(name)"
+                }
+            }
+        }
+        let d = try load(try Pptx.write(SlidesSample.make()))
+        let pic = try picture(d)
+        XCTAssertNil(pic.pictureGeometry)
+        d.setPictureGeometry(.ellipse)
+        XCTAssertEqual(pic.pictureGeometry, .ellipse)
+        d.undo()
+        XCTAssertNil(try picture(d).pictureGeometry, "one undo step")
+        d.redo()
+        // The picture as read, its element kept: the one outline in it is the oval.
+        let saved = try Pptx.write(d)
+        XCTAssertEqual(try geoms(saved), ["2:ellipse"])
+        let again = try load(saved)
+        XCTAssertEqual(try picture(again).pictureGeometry, .ellipse)
+        // Back to a rectangle: no shape kept, and nothing written twice.
+        again.setPictureGeometry(.rect)
+        let rect = try Pptx.write(again)
+        XCTAssertEqual(try geoms(rect), ["2:rect"])
+        XCTAssertNil(try picture(try load(rect)).pictureGeometry)
+    }
 }

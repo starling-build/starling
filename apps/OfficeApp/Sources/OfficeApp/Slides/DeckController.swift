@@ -1992,6 +1992,16 @@ final class DeckController: ChangeNotifier {
         _changed()
     }
 
+    /// Picture Format > Crop to Shape: the selected pictures cut to the outline of `preset` (a rectangle undoes it), one undo step.
+    func setPictureGeometry(_ preset: ShapePreset) {
+        let pics = selection.filter { $0.picture != nil }
+        let geometry: ShapePreset? = preset == .rect ? nil : preset
+        guard pics.contains(where: { $0.pictureGeometry != geometry || $0.customPath != nil }) else { return }
+        _checkpoint()
+        for s in pics { s.pictureGeometry = geometry; s.customPath = nil; s.adjusts = [:] }
+        _changed()
+    }
+
     func cropPictures(aspect: Double) {
         let pics = selection.filter { $0.picture != nil }
         guard !pics.isEmpty, aspect > 0 else { return }

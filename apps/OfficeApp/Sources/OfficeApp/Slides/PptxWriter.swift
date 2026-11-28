@@ -1233,7 +1233,7 @@ private struct SlideXML {
             // picture as it was, at its frame — its recolouring, transparency,
             // shape crop, flip, fill and outline are not modelled here.
             if let xml = s.sourceXML, let k = s.keptPicture, k.imageId == image.id, k.crop == s.crop,
-               k.rotation == s.rotation, k.alpha == s.pictureAlpha, let p = source, let part = s.sourcePart {
+               k.rotation == s.rotation, k.alpha == s.pictureAlpha, k.geometry == s.pictureGeometry, k.freeform == (s.customPath != nil), let p = source, let part = s.sourcePart {
                 return kept(xml, sourcePart: part, package: p, builder: &builder, patch: s.frame, fileId: s.fileId, alt: _altChange(s, pictureAlt: .some(k.alt)))
             }
             // The same image, turned or cropped since it was read: the picture as it was with only the turn and the crop changed, so its
@@ -1241,12 +1241,22 @@ private struct SlideXML {
             if let xml = s.sourceXML, let k = s.keptPicture, k.imageId == image.id, let p = source, let part = s.sourcePart {
                 let crop = s.crop, rotation = s.rotation, flipH = s.flipH, flipV = s.flipV
                 let lock = s.aspectLock, alpha = s.pictureAlpha, alphaChanged = k.alpha != s.pictureAlpha
+                let geometry = s.pictureGeometry, geometryChanged = k.geometry != s.pictureGeometry || (k.freeform && s.customPath == nil)
                 return kept(xml, sourcePart: part, package: p, builder: &builder, patch: s.frame, fileId: s.fileId, alt: _altChange(s, pictureAlt: .some(k.alt)), edit: { node in
                     if let lock { Self._lockEdit(lock)(node) }
                     if let x = node.first("p:spPr")?.first("a:xfrm") {
                         if rotation != 0 { x.attrs["rot"] = "\(Int((rotation * 60000).rounded()))" } else { x.attrs["rot"] = nil }
                         x.attrs["flipH"] = flipH ? "1" : nil
                         x.attrs["flipV"] = flipV ? "1" : nil
+                    }
+                    // Cut to another shape: the new preset in place of the old outline (preset or freeform).
+                    if geometryChanged, let spPr = node.first("p:spPr") {
+                        let at = spPr.children.firstIndex { $0.name == "a:prstGeom" || $0.name == "a:custGeom" }
+                            ?? ((spPr.children.firstIndex { $0.name == "a:xfrm" } ?? -1) + 1)
+                        spPr.children.removeAll { $0.name == "a:prstGeom" || $0.name == "a:custGeom" }
+                        let g = XNode(name: "a:prstGeom", attrs: ["prst": geometry?.rawValue ?? "rect"])
+                        g.children = [XNode(name: "a:avLst", attrs: [:])]
+                        spPr.children.insert(g, at: min(at, spPr.children.count))
                     }
                     guard let fill = node.first("p:blipFill") else { return }
                     if alphaChanged, let blip = fill.first("a:blip") {

@@ -160,6 +160,10 @@ struct KeptPicture: Equatable {
     var rotation: Double
     /// The blip's opacity (`a:alphaModFix`) as read: a changed one is patched into the kept element.
     var alpha: Double = 1
+    /// The preset outline it was cut to (`nil`: a rectangle or a freeform) as read: a changed one is written in place of the old.
+    var geometry: ShapePreset? = nil
+    /// Whether it was cut to a freeform outline (`a:custGeom`): one cleared since is replaced by the preset.
+    var freeform = false
 }
 
 /// A shape's look as its file spelled it: the fill, line and effects in its
