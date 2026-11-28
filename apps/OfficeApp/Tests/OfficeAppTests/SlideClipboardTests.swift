@@ -134,7 +134,7 @@ final class SlideClipboardTests: XCTestCase {
         XCTAssertEqual(pasted.frame.left, 100, accuracy: 0.01)
         XCTAssertEqual(pasted.frame.top, 120, accuracy: 0.01)
         // Paste Options remakes it as a picture in place of the shapes, and one Undo still takes it all out.
-        XCTAssertEqual(target.slidePasteOptions, .keepSource)
+        XCTAssertEqual(target.slidePasteOptions, .destinationTheme)
         target.repaste(.picture)
         XCTAssertEqual(target.currentSlide.shapes.count, n + 1)
         guard case .picture = try XCTUnwrap(target.selection.first).kind else { return XCTFail("repaste is not a picture") }

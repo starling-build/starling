@@ -1448,6 +1448,46 @@ final class SlidesShellState: State<StatefulWidget> {
         }
     }
 
+    /// A paste in the thumbnail pane or the sorter: the clipboard's slides (this deck's or another's) after the
+    /// picked one; anything else goes onto the slide.
+    private func _pasteSlides() {
+        _endEditing()
+        DeckController.registerClipboardFormats()
+        Clipboard.getData(Clipboard.kAll) { [weak self] data in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                if !self.deck.pasteSlides(from: data) { self.deck.pasteOnSlide(data) }
+            }
+        }
+    }
+
+    /// The Paste Options button under pasted slides: Use Destination Theme or Keep Source Formatting, by click or
+    /// by H and K.
+    func _showSlidesPasteOptions(at point: Offset) {
+        let deck = self.deck
+        guard deck.slidesPasteOptions != nil, let context else { return }
+        let m = ContextMenuBuilder()
+        for way in SlidePasteWay.slideWays {
+            m.item(way.label, enabled: way != deck.slidesPasteOptions) { [weak self] in self?._repasteSlides(way) }
+        }
+        m.show(_thumbMenu, in: context, at: point)
+        _endPasteKeys()
+        _pasteKeys = FocusManager.instance.addKeyInterceptor { [weak self] key in
+            guard let self else { return false }
+            guard self._thumbMenu.isOpen, self.deck.slidesPasteOptions != nil else { self._endPasteKeys(); return false }
+            guard let letter = KeyChordTracker.letter(key.logical),
+                  let way = SlidePasteWay.slideWays.first(where: { $0.letter == letter }) else { return false }
+            if key.type == .down { self._repasteSlides(way) }
+            return true
+        }
+    }
+
+    private func _repasteSlides(_ way: SlidePasteWay) {
+        _endPasteKeys()
+        if _thumbMenu.isOpen { _thumbMenu.closeFlyout() }
+        deck.repasteSlides(way)
+    }
+
     /// Paste Special (Ctrl+Alt+V): reads the whole clipboard, then asks which format to paste.
     private func _openPasteSpecial() {
         _endEditing()
@@ -1690,7 +1730,7 @@ final class SlidesShellState: State<StatefulWidget> {
         case "a" where !typing: deck.selectShapes(deck.currentSlide.shapes)
         case "c" where !typing && !shapes && (_paneFocused || _sorter): deck.copySlides(); _flash("Copied")
         case "x" where !typing && !shapes && (_paneFocused || _sorter): deck.cutSlides()
-        case "v" where !typing && !shapes && (_paneFocused || _sorter) && deck.canPasteSlides: deck.pasteSlides()
+        case "v" where !typing && !shapes && (_paneFocused || _sorter): _pasteSlides()
         case "c" where shapes: deck.copyShapes(); _flash("Copied")
         case "x" where shapes: deck.cutShapes()
         case "v" where !typing: _pasteOnSlide()
@@ -1959,7 +1999,7 @@ final class SlidesShellState: State<StatefulWidget> {
             ])
         }
         if let data = _pasteSpecialData {
-            let ways = SlidePasteWay.allCases.filter { deck.canPaste(data, way: $0) }
+            let ways = SlidePasteWay.specialWays.filter { deck.canPaste(data, way: $0) }
             return Stack(children: [
                 IgnorePointer(ignoring: true, child: window),
                 Positioned(left: 0, top: 0, right: 0, bottom: 0, child: WriterPasteSpecialDialog(
@@ -2122,7 +2162,7 @@ final class SlidesShellState: State<StatefulWidget> {
                             dropAbove ? line : SizedBox(width: thumbW, height: 3, child: nil),
                             frame,
                             !dropAbove ? line : SizedBox(width: thumbW, height: 3, child: nil),
-                        ]),
+                        ] + (deck.lastPastedSlide == i ? [_slidesPasteButton(fluent, width: thumbW)] : [])),
                     ]))))))
         }
         if deck.sections.isEmpty {
@@ -2143,6 +2183,22 @@ final class SlidesShellState: State<StatefulWidget> {
             child: SingleChildScrollView(controller: _thumbScroll, child: Padding(
                 padding: EdgeInsets(left: 0, top: 6, right: 0, bottom: 12),
                 child: KeyboardRegion(name: "thumbnails", child: Column(crossAxisAlignment: .start, children: items)))))))
+    }
+
+    /// The Paste Options button under the last pasted slide, at its right, as PowerPoint puts it.
+    private func _slidesPasteButton(_ fluent: FluentThemeData, width: Double) -> Widget {
+        let ink = fluent.resources.textFillColorPrimary
+        return SizedBox(width: width, height: 22, child: Align(alignment: Alignment.topRight, child: DecoratedBox(
+            decoration: BoxDecoration(color: OfficeAppearance.surface(fluent),
+                                      border: Border.all(color: fluent.resources.controlStrokeColorDefault, width: 1),
+                                      borderRadius: BorderRadius.circular(3)),
+            child: Builder { [weak self] context in
+                FlatButton(child: Icon(FluentSystemIcons.paste, size: 14, color: ink), tip: "Paste Options", width: 30, height: 20,
+                           action: {
+                    guard let self, let box = context.findRenderObject() as? RenderBox else { return }
+                    self._showSlidesPasteOptions(at: box.localToGlobal(Offset(0, 20)))
+                })
+            })))
     }
 
     /// The header row of a section in the thumbnail rail and the Slide Sorter: a fold arrow, the name and the slide count. Right-click for the section's commands.
@@ -2366,7 +2422,7 @@ final class SlidesShellState: State<StatefulWidget> {
         m.item("New Slide") { [weak self] in self?.deck.addSlide() }
         m.item("Cut") { [weak self] in self?.deck.cutSlides() }
         m.item("Copy") { [weak self] in self?.deck.copySlides() }
-        m.item("Paste", enabled: deck.canPasteSlides) { [weak self] in self?.deck.pasteSlides() }
+        m.item("Paste") { [weak self] in self?._pasteSlides() }
         m.separator()
         m.item("Duplicate Slide") { [weak self] in self?.deck.duplicateSelectedSlides() }
         m.item("Delete Slide", enabled: deck.slides.count > 1) { [weak self] in self?.deck.deleteSelectedSlides() }

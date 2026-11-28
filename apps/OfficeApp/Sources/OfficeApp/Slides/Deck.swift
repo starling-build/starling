@@ -986,6 +986,13 @@ struct DeckTheme: Equatable {
         Color(0xFF2B6CB0), Color(0xFFDD6B20), Color(0xFF718096),
         Color(0xFFD69E2E), Color(0xFF319795), Color(0xFF38A169),
     ]
+    /// What a new text box's text looks like in a deck read from a file: the presentation's default text style, then
+    /// the master's `otherStyle`, at the first level, as PowerPoint draws a text box that says nothing itself. Each is
+    /// nil where the file leaves it to the theme (its body font, 18 pt, its text colour, left aligned).
+    var textBoxFont: String?
+    var textBoxSize: Double?
+    var textBoxColor: Color?
+    var textBoxAlign: String?
 
     /// The slide background this theme paints.
     var backgroundFill: SlideFill {
