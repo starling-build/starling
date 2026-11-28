@@ -295,7 +295,9 @@ public final class KeyboardTraversal {
 
     /// Moves the ring one control on, or back.
     public func move(reverse: Bool) {
-        let list = reachable(inRegion: _modalOpen ? nil : (focused?.region ?? _currentRegion ?? regions().first))
+        // A text box the pointer clicked walks its own region (a pane's box Tabs on within the pane).
+        let current = focused == nil ? _stops.first(where: { $0.isCurrent() && $0.isEnabled() && $0.origin() != nil }) : nil
+        let list = reachable(inRegion: _modalOpen ? nil : (focused?.region ?? current?.region ?? _currentRegion ?? regions().first))
         guard !list.isEmpty else { return }
         guard let f = focused ?? list.first(where: { $0.isCurrent() }), let i = list.firstIndex(where: { $0 === f }) else {
             _focus(reverse ? list.last : list.first); return
@@ -318,6 +320,13 @@ public final class KeyboardTraversal {
     }
 
     /// Takes the ring away (the keyboard is back with the editor).
+    /// Drops the ring without moving the keyboard: for a view that takes the keyboard itself (a slide show), so
+    /// its Esc reaches it instead of sending the focus back to what the ring left.
+    public func release() {
+        _focus(nil)
+        _saved = nil
+    }
+
     public func leave() {
         _focus(nil)
         _saved?.requestFocus()

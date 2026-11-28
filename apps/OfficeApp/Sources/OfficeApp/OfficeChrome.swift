@@ -99,11 +99,14 @@ private final class _FlatButtonState: State<StatefulWidget> {
         stop.label = { [weak self] in
             guard let self, self.mounted else { return nil }
             if let b = self.widget as? FlatButton, let t = b.name ?? b.tip, !t.isEmpty { return t }
-            // else the first words it shows (a big button's caption)
+            // else the first words it shows (a big button's caption); an icon's glyph is not a word
             var found: String?
             func walk(_ e: Element) {
                 if found != nil { return }
-                if let t = e.widget as? Text, let d = t.data, !d.isEmpty { found = d; return }
+                if let t = e.widget as? Text, let d = t.data,
+                   d.unicodeScalars.contains(where: { !($0.properties.generalCategory == .privateUse || $0 == " ") }) {
+                    found = d; return
+                }
                 e.visitChildElements(walk)
             }
             if let e = self.context as? Element { walk(e) }
@@ -326,23 +329,25 @@ enum Chrome {
     /// A menu button: optional icon, optional title, a chevron; the menu
     /// opens below.
     static func menuButton(_ icon: IconData?, _ title: String?, _ tip: String?, _ fluent: FluentThemeData,
-                           items: [MenuFlyoutItemBase]) -> Widget {
+                           items: [MenuFlyoutItemBase], enabled: Bool = true) -> Widget {
+        // Greyed when it has nothing to offer, as PowerPoint's Effect Options for a transition without any.
+        let ink = enabled ? fluent.resources.textFillColorPrimary : fluent.resources.textFillColorDisabled
         var parts: [Widget] = []
-        if let icon { parts.append(Icon(icon, size: iconSize, color: fluent.resources.textFillColorPrimary)) }
+        if let icon { parts.append(Icon(icon, size: iconSize, color: ink)) }
         if let title {
             if icon != nil { parts.append(gap(6)) }
-            parts.append(Text(title, style: fluent.typography.body))
+            parts.append(Text(title, style: fluent.typography.body?.copyWith(color: ink)))
         }
         parts.append(gap(4))
         parts.append(chevron(fluent))
         let full = FlatButton(child: Padding(padding: EdgeInsets(left: 6, top: 0, right: 5, bottom: 0),
                                              child: Row(mainAxisSize: .min, crossAxisAlignment: .center, children: parts)),
-                              tip: tip, width: nil, menu: items)
+                              tip: tip, enabled: enabled, width: nil, menu: items)
         // A titled button with an icon can give up its title (and keep the title as its name).
         guard let icon, let title else { return full }
         let compact = FlatButton(child: Padding(padding: EdgeInsets(left: 6, top: 0, right: 5, bottom: 0), child: Row(mainAxisSize: .min, crossAxisAlignment: .center, children: [
-                                     Icon(icon, size: iconSize, color: fluent.resources.textFillColorPrimary), gap(4), chevron(fluent)])),
-                                 tip: tip ?? title, name: title, width: nil, menu: items)
+                                     Icon(icon, size: iconSize, color: ink), gap(4), chevron(fluent)])),
+                                 tip: tip ?? title, name: title, enabled: enabled, width: nil, menu: items)
         return RibbonDensityButton(full: full, iconsOnly: compact)
     }
 

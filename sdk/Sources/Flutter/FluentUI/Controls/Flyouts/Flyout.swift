@@ -115,10 +115,25 @@ public class FlyoutController {
             // A flyout whose overlay is gone (its window was torn down without closing it) is not on screen:
             // it must leave Escape to the live window.
             guard let self, self.isOpen, self._barrierEntry?._overlay != nil, data.logical == 0xFF1B || data.logical == 0x1_0000_001B else { return false }
-            if data.type == .down { self.closeFlyout() }
+            if data.type == .down {
+                // Escape hands the keyboard ring back to the control that opened the popup by keyboard, as Office
+                // does; a command chosen from the popup instead leaves the keyboard where that command puts it.
+                let opener = self._opener
+                self.closeFlyout()
+                if let opener {
+                    FrameCallbackScheduler.shared.addPostFrameCallback { _ in
+                        let kt = KeyboardTraversal.shared
+                        if kt.focused == nil, kt.reachable().contains(where: { $0 === opener }) { kt.focus(opener) }
+                    }
+                    PlatformDispatcher.instance.scheduleFrame()
+                }
+            }
             return true
         }
     }
+
+    /// The control that held the keyboard ring when the popup opened (nil when the pointer opened it).
+    private weak var _opener: KeyStop?
 
     // MARK: - Show Flyout
 
@@ -182,6 +197,7 @@ public class FlyoutController {
 
         overlayState.insert(barrierEntry)
         overlayState.insert(flyoutEntry)
+        _opener = KeyboardTraversal.shared.focused
         _watchEscape()
     }
 
@@ -210,6 +226,7 @@ public class FlyoutController {
         _flyoutEntry = flyoutEntry
         overlayState.insert(barrierEntry)
         overlayState.insert(flyoutEntry)
+        _opener = KeyboardTraversal.shared.focused
         _watchEscape()
     }
 

@@ -2217,6 +2217,9 @@ final class OfficeShellState: State<StatefulWidget> {
                                       })
             sidePanes.append(chartPane!)
         }
+        // Each side pane is a stop of its own for F6, between the page and the status bar, as in Word.
+        sidePanes = sidePanes.map { KeyboardRegion(name: "pane", child: $0) }
+        chartPane = chartPane.map { KeyboardRegion(name: "pane", child: $0) }
         if _narrow, let pane = sidePanes.last {
             // A side pane beside the page would leave a narrow window (Split View) no page: the newest is a sheet along
             // the bottom instead, full width, with the page above it. (A pane fills the width it is given.)

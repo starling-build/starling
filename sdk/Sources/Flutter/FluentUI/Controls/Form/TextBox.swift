@@ -298,6 +298,9 @@ class _TextBoxState: State<StatefulWidget>, TextInputClient {
         _ime?.detach()
         _ime = nil
         Self._tabPeers.removeAll { $0.state == nil || $0.state === self }
+        // A box taken away while it holds the focus tells nobody: its owner may be unmounting too, and a commit
+        // from here would set state in the middle of the tree being torn down.
+        _focusNode.onFocusChange = nil
         _focusNode.dispose()
         if let listener = _boundListener {
             _effectiveController.removeListener(listener)

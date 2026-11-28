@@ -139,6 +139,8 @@ final class SlideShowState: State<StatefulWidget>, TickerProvider {
         })
         _enterSlide(forward: true)
         _focus.onKeyData = { [weak self] key in self?._key(key) ?? false }
+        // Started from the ribbon by keyboard, the ring is still on the button: the show takes the keyboard.
+        KeyboardTraversal.shared.release()
         _focus.requestFocus()
         if _w.presenter || _w.rehearse { _tickClock() }
         if !_w.presenter { _hideCursorSoon() }
@@ -453,6 +455,8 @@ final class SlideShowState: State<StatefulWidget>, TickerProvider {
         if _chords.track(key) { return false }
         guard key.type == .down || key.type == .repeat else { return true }
         let named = KeyChordTracker.named(key.logical)
+        // Esc at "keep the new timings?" is No: the show ends and the old timings stay.
+        if _asking, named == .escape { keepRehearsedTimes(false); return true }
         if let letter = KeyChordTracker.letter(key.logical), !_chords.primary {
             switch letter {
             case "b": setState { _blank = _blank == nil ? Color(0xFF000000) : nil }; return true

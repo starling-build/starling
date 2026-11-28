@@ -40,6 +40,8 @@ final class ControlSweepTests: XCTestCase {
     private static let idle: Set<String> = Set([
         "Redo (⇧⌘Z)", "Undo (⌘Z)", "Decrease", "Cancel", "Enter", "Double-click to rename",
         "Direction and sequence", "Normal", "Print Layout",
+        // Greyed, as PowerPoint's: a blank slide has no transition, so there are no effect options.
+        "Effect Options",
         // Nothing to select on a fresh blank slide (an icon-only button of the Editing group once that group gives way).
         "Select All",
         // Already the paragraph's state in the fixture (left, no indent, no formatting): idempotent.

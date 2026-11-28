@@ -201,13 +201,23 @@ final class CustomShowsDialogState: State<StatefulWidget> {
     private var _draftPick = -1
     private let _name = TextEditingController()
 
+    private var _keys: Int?
+
     override func initState() {
         super.initState()
         _shows = _w.shows
         _picked = _shows.isEmpty ? -1 : 0
+        // Esc is Cancel in Define Custom Show and Close in the list, as in PowerPoint (the list's edits are kept).
+        _keys = FocusManager.instance.addKeyInterceptor { [weak self] key in
+            if KeyboardTraversal.shared.handle(key) { return true }
+            guard let self, key.type == .down, key.logical == 0x1_0000_001B || key.logical == 0xFF1B else { return false }
+            if self._draft != nil { self.setState { self._draft = nil } } else { self._w.onClose(self._shows) }
+            return true
+        }
     }
 
     override func dispose() {
+        if let k = _keys { FocusManager.instance.removeKeyInterceptor(k) }
         _name.dispose()
         super.dispose()
     }

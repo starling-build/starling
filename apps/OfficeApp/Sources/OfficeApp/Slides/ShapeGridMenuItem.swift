@@ -41,10 +41,12 @@ final class ShapeGridMenuItem: MenuFlyoutItemBase, RibbonPopupChoosing {
             rows.append(Padding(padding: EdgeInsets(left: 2, top: rows.isEmpty ? 0 : 8, right: 0, bottom: 4),
                                 child: Text(group.name, style: TextStyle(fontWeight: .w600))))
             rows.append(Wrap(children: group.presets.map { preset in
-                Tooltip(message: preset.name, child: _ShapeCell(
+                // Each shape is a keyboard stop named as its tooltip names it, so Tab and the arrows walk the grid.
+                KeyboardRow(label: preset.name, activate: { [onChoose] in close(); onChoose(preset) },
+                            child: Tooltip(message: preset.name, child: _ShapeCell(
                     key: ValueKey(recentRow ? "shape-grid-recent-\(preset.rawValue)" : "shape-grid-\(preset.rawValue)"),
                     preset: preset, ink: ink, hover: hover, size: Self.cell,
-                    onTap: { [onChoose] in close(); onChoose(preset) }))
+                    onTap: { [onChoose] in close(); onChoose(preset) })))
             }))
         }
         return SizedBox(key: ValueKey("shape-grid-panel"), width: Double(Self.columns) * Self.cell, height: Self.height,

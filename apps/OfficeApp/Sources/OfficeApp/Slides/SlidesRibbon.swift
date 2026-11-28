@@ -535,13 +535,14 @@ extension Ribbon {
             options = [option("In", t.zoomIn) { deck.setTransition(zoomIn: true) },
                        option("Out", !t.zoomIn) { deck.setTransition(zoomIn: false) }]
         case .none, .fade:
-            options = [MenuFlyoutItem(text: Text("No options"), onPressed: nil)]
+            options = []
         }
         let after = t.advanceAfter
         return [
             Chrome.group("Transition to This Slide", fluent, kinds + [
                 Chrome.gap(4),
-                Chrome.rows([Chrome.menuButton(FluentSystemIcons.settings, "Effect Options", "Effect Options", fluent, items: options)]),
+                Chrome.rows([Chrome.menuButton(FluentSystemIcons.settings, "Effect Options", "Effect Options", fluent, items: options,
+                                                 enabled: !options.isEmpty)]),
             ]),
             Chrome.group("Timing", fluent, [Chrome.rows([
                 // Stepped in hundredths of a second, shown in seconds like the
@@ -669,7 +670,8 @@ extension Ribbon {
         return [
             preview,
             Chrome.group("Animation", fluent, gallery + [
-                Chrome.menuButton(FluentSystemIcons.settings, "Effect Options", "Direction and sequence", fluent, items: options),
+                Chrome.menuButton(FluentSystemIcons.settings, "Effect Options", "Direction and sequence", fluent, items: options,
+                                  enabled: !options.isEmpty),
             ]),
             timing,
             Chrome.group("Advanced", fluent, [

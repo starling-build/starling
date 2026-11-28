@@ -1708,6 +1708,8 @@ final class SlidesShellState: State<StatefulWidget> {
             // up — seen on screen 2026-10-13.)
             if _headerFooter { setState { _headerFooter = false }; return true }
             if _slideSize { setState { _slideSize = false }; return true }
+            if _setUpShow { setState { _setUpShow = false }; return true }
+            if _sectionDialog != nil { setState { _sectionDialog = nil }; return true }
             if _altText { setState { _altText = false }; return true }
             if _zoomDialog { setState { _zoomDialog = false }; return true }
             if _cellMargins { setState { _cellMargins = false }; return true }
@@ -1908,6 +1910,8 @@ final class SlidesShellState: State<StatefulWidget> {
                                                self?.session.fieldUndo = on ? { [weak self] redo in redo ? self?._redo() : self?._undo() } : nil
                                            }))
             }
+            // Each side pane is a stop of its own for F6, as in PowerPoint.
+            panes = panes.map { KeyboardRegion(name: "pane", child: $0) }
             // The newest pane is a bottom sheet in a narrow window, a slide-over on a touch device, else docked beside the slide.
             column.append(Expanded(child: PaneArrangement.arrange(
                 style: PaneArrangement.style(narrow: _narrow, touch: PaneArrangement.isTouchDevice), fluent: fluent,
