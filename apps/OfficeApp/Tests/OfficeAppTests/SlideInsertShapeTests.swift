@@ -108,15 +108,24 @@ final class SlideInsertShapeTests: XCTestCase {
 }
 
 final class SlideShapeGridUITests: XCTestCase {
+    /// Home > Shapes. With wider (Mac) fonts the ribbon can fold Home's Drawing group into one button at the
+    /// tester's width: then that button opens the group first.
+    private func openShapes(_ ui: WidgetTester) -> Bool {
+        if ui.tap(tip: "Insert a shape") { return true }
+        guard ui.tap(tip: "Drawing group") else { return false }
+        ui.pump()
+        return ui.tap(tip: "Insert a shape")
+    }
+
     /// Home > Shapes is one grid panel that fits a small window; a click on an icon picks that shape.
     func testShapesGalleryIsOneGridThatFitsTheWindow() throws {
         let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light),
                                         home: SlidesShell(initialPath: nil, startBlank: true, onSwitch: { _, _ in }), title: "Test"),
-                              size: Size(1200, 700))
+                              size: Size(1000, 700))
         let session = try XCTUnwrap(ui.state(SlidesShellState.self)?.session)
         var picked: [String] = []
         session.onInsertShape = { picked.append($0.rawValue) }
-        XCTAssertTrue(ui.tap(tip: "Insert a shape"))
+        XCTAssertTrue(openShapes(ui))
         let grid = try XCTUnwrap(ui.elements().first { ($0.widget.key as? ValueKey<String>)?.value == "shape-grid-panel" }?
             .findRenderObject() as? RenderBox)
         let top = grid.localToGlobal(Offset(0, 0)).dy
@@ -125,10 +134,11 @@ final class SlideShapeGridUITests: XCTestCase {
         XCTAssertTrue(ui.tap(id: "shape-grid-smileyFace"))
         XCTAssertEqual(picked, ["smileyFace"])
         XCTAssertFalse(ui.has(id: "shape-grid-smileyFace"))
+        XCTAssertFalse(ui.has(tip: "Insert a shape") && ui.has(tip: "Drawing group"), "a pick closes a folded group's popup too")
         // The shape just picked heads a Recently Used Shapes row the next time.
         XCTAssertFalse(ui.has(id: "shape-grid-recent-smileyFace"))
         ui.pump()
-        XCTAssertTrue(ui.tap(tip: "Insert a shape"))
+        XCTAssertTrue(openShapes(ui))
         XCTAssertTrue(ui.has(text: "Recently Used Shapes"))
         XCTAssertTrue(ui.tap(id: "shape-grid-recent-smileyFace"))
         XCTAssertEqual(picked, ["smileyFace", "smileyFace"])

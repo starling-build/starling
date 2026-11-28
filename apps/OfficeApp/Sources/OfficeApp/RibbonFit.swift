@@ -31,6 +31,12 @@ final class RibbonDensity: InheritedWidget {
 
 /// Around the controls of a folded group's popup: what closes it. A command's button calls it once the command has run, unless
 /// the button keeps editing (a stepper, Grow Font), so the popup stays for the next press.
+/// A menu item that chooses from a panel of its own (the shape grid): in a folded group's popup, `closing` gives the
+/// same item also closing that popup once a choice has run, as a plain menu item's press does.
+protocol RibbonPopupChoosing {
+    func closing(_ also: @escaping () -> Void) -> MenuFlyoutItemBase
+}
+
 final class RibbonPopupScope: InheritedWidget {
     let close: () -> Void
 
