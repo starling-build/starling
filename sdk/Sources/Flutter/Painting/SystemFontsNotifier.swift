@@ -7,6 +7,7 @@
 /// **Dart Source:** `packages/flutter/lib/src/painting/binding.dart`
 
 import FlutterSwiftBridge
+import Foundation
 
 // MARK: - SystemFontsNotifier
 
@@ -39,6 +40,10 @@ public final class SystemFontsNotifier: Listenable {
     ///
     /// **Dart Source:** `binding.dart:189`
     private var _listeners = ListenerList()
+    /// Text layouts subscribe as they are made and leave as they go, and a PDF export makes and drops them off the
+    /// main thread while the screen does the same on it: unguarded, the two corrupted the list, and a later
+    /// notification crashed (signal 11 in SlideTextCacheFontsTests, now and then, in a full unit run).
+    private let _lock = NSLock()
 
     /// Notifies all registered listeners that the system fonts have changed.
     ///
@@ -47,7 +52,10 @@ public final class SystemFontsNotifier: Listenable {
     ///
     /// **Dart Source:** `binding.dart:191-195`
     public func notifyListeners() {
-        for listener in _listeners {
+        _lock.lock()
+        let listeners = _listeners
+        _lock.unlock()
+        for listener in listeners {
             listener()
         }
     }
@@ -58,6 +66,7 @@ public final class SystemFontsNotifier: Listenable {
     ///
     /// **Dart Source:** `binding.dart:197-200`
     public func addListener(_ listener: @escaping VoidCallback) {
+        _lock.lock(); defer { _lock.unlock() }
         _listeners.append(listener)
     }
 
@@ -65,14 +74,17 @@ public final class SystemFontsNotifier: Listenable {
     ///
     /// **Dart Source:** `binding.dart:202-205`
     public func removeListener(_ listener: @escaping VoidCallback) {
+        _lock.lock(); defer { _lock.unlock() }
         _listeners.removeLast()
     }
 
     public func addListener(_ listener: @escaping VoidCallback, owner: AnyObject) {
+        _lock.lock(); defer { _lock.unlock() }
         _listeners.append(listener, owner: owner)
     }
 
     public func removeListeners(owner: AnyObject) {
+        _lock.lock(); defer { _lock.unlock() }
         _listeners.remove(owner: owner)
     }
 
@@ -80,6 +92,7 @@ public final class SystemFontsNotifier: Listenable {
     ///
     /// This is useful for testing to verify listener registration.
     public var listenerCount: Int {
-        _listeners.count
+        _lock.lock(); defer { _lock.unlock() }
+        return _listeners.count
     }
 }
