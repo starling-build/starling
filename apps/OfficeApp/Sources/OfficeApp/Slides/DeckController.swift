@@ -1206,11 +1206,18 @@ final class DeckController: ChangeNotifier {
         let shape = SlideShape(id: _id(), name: "TextBox \(_nextId)", kind: .textBox, frame: frame,
                                text: _textController(RichDocument(paragraphs: lines.map { RichParagraph(text: String($0), style: style) })),
                                textTheme: theme)
+        // It sizes itself to its text (spAutoFit), as PowerPoint's text boxes do: lines that wrap make it taller.
+        if let fitted = SlideTextCache.fittedHeight(shape) { shape.frame = Rect.fromLTWH(frame.left, frame.top, w, fitted) }
         currentSlide.shapes.append(shape)
         _watch(shape)
         selection = [shape]
         _changed()
         return shape
+    }
+
+    /// Whether `shape`'s box follows its text's height (spAutoFit; a text box that states no fit does too).
+    static func resizesToText(_ s: SlideShape) -> Bool {
+        !s.autofit && (s.fitRule == "a:spAutoFit" || (s.fitRule == nil && s.kind == .textBox))
     }
 
     func addTextBox(at frame: Rect) -> SlideShape {

@@ -321,6 +321,21 @@ final class SlideTextCache {
         return autofitSteps.last!
     }
 
+    /// The height a box that sizes itself to its text (spAutoFit) takes: its text laid out at its width, plus its top and
+    /// bottom insets, in whole points.
+    static func fittedHeight(_ shape: SlideShape) -> Double? {
+        guard let text = shape.text, let theme = shape.textTheme, shape.textTurn == 0 else { return nil }
+        let ins = shape.insets(atFontScale: shape.fontScale)
+        let res = 20.0
+        let layout = RichLayout(theme: theme, paragraphCount: text.document.paragraphs.count)
+        layout.scale = res / theme.pixelsPerPoint
+        layout.fontScale = shape.fontScale
+        layout.spacingFollowsFont = shape.insetsFollowFont
+        layout.width = (shape.noWrap ? 100_000 : max(1, shape.frame.width - ins.left - ins.right)) * res
+        layout.ensureLaidOut(text.document)
+        return (layout.totalHeight / res + ins.top + ins.bottom).rounded(.up)
+    }
+
     /// The widest single word of the document at `scale`, as laid out.
     private static func widestWord(_ doc: RichDocument, _ theme: RichTextTheme, scale: Double) -> Double {
         var widest = 0.0
