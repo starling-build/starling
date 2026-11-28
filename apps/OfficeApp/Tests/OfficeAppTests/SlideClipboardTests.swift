@@ -92,7 +92,11 @@ final class SlideClipboardTests: XCTestCase {
         Clipboard.setData(ClipboardData(text: "from elsewhere"))
         deck.selectShapes([]); ui.pump()
         ctrlV(ui); drain(ui)
-        XCTAssertEqual(deck.currentSlide.shapes.count, n, "plain text with nothing being edited adds no shape")
+        // Plain text with nothing being edited goes in a new text box, as in PowerPoint (S-ED-1 step 3).
+        XCTAssertEqual(deck.currentSlide.shapes.count, n + 1)
+        XCTAssertEqual(deck.selection.first?.text?.document.plainText(), "from elsewhere")
+        deck.undo()
+        XCTAssertEqual(deck.currentSlide.shapes.count, n)
         // Another deck's copy (a token not ours) and a picture alone both paste the picture.
         let foreign = ClipboardData(text: "words", png: picture, custom: [DeckController.shapesMime: Data("slides:x:1".utf8)])
         XCTAssertEqual(deck.pasteChoice(for: foreign), .picture(picture))
@@ -129,6 +133,11 @@ final class SlideClipboardTests: XCTestCase {
         XCTAssertEqual(pasted.text?.document.plainText(), "Crossing over")
         XCTAssertEqual(pasted.frame.left, 100, accuracy: 0.01)
         XCTAssertEqual(pasted.frame.top, 120, accuracy: 0.01)
+        // Paste Options remakes it as a picture in place of the shapes, and one Undo still takes it all out.
+        XCTAssertEqual(target.slidePasteOptions, .keepSource)
+        target.repaste(.picture)
+        XCTAssertEqual(target.currentSlide.shapes.count, n + 1)
+        guard case .picture = try XCTUnwrap(target.selection.first).kind else { return XCTFail("repaste is not a picture") }
         target.undo()
         XCTAssertEqual(target.currentSlide.shapes.count, n)
         // Bytes that are not a deck fall back to the picture.

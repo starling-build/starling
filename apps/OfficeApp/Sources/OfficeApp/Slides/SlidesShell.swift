@@ -97,6 +97,10 @@ final class SlidesShellState: State<StatefulWidget> {
     private var _customShowsOpen = false
     /// Add or Rename Section: the dialog's title, the name it starts with and what OK does with it.
     private var _sectionDialog: (title: String, initial: String, apply: (String) -> Void)? = nil
+    /// Paste Special is open on this clipboard (S-ED-1 step 3).
+    private var _pasteSpecialData: ClipboardData? = nil
+    /// The Paste Options menu's K, U and T while it is open.
+    private var _pasteKeys: Int? = nil
     private var _slideSize = false
     private var _slideSizeInitial = Size(960, 540)
     /// Font Color > More Colors is open.
@@ -228,6 +232,7 @@ final class SlidesShellState: State<StatefulWidget> {
         _thumbScroll.dispose()
         _sorterScroll.dispose()
         if let token = _f5Token { FocusManager.instance.removeKeyInterceptor(token) }
+        _endPasteKeys()
         super.dispose()
     }
 
@@ -1319,6 +1324,50 @@ final class SlidesShellState: State<StatefulWidget> {
         }
     }
 
+    /// Paste Special (Ctrl+Alt+V): reads the whole clipboard, then asks which format to paste.
+    private func _openPasteSpecial() {
+        _endEditing()
+        DeckController.registerClipboardFormats()
+        Clipboard.getData(Clipboard.kAll) { [weak self] data in
+            DispatchQueue.main.async {
+                guard let self, self.mounted else { return }
+                let data = data ?? ClipboardData(text: nil)
+                self.setState { self._pasteSpecialData = data }
+            }
+        }
+    }
+
+    /// The Paste Options button's menu: the last paste made again another way, in one undo step. While it is open
+    /// K, U and T pick, as PowerPoint's underlined letters do.
+    func _showPasteOptions(at point: Offset) {
+        let deck = self.deck
+        guard deck.slidePasteOptions != nil, let context else { return }
+        let m = ContextMenuBuilder()
+        for way in SlidePasteWay.allCases {
+            m.item(way.label, enabled: deck.canRepaste(way)) { [weak self] in self?._repaste(way) }
+        }
+        m.show(_thumbMenu, in: context, at: point)
+        _endPasteKeys()
+        _pasteKeys = FocusManager.instance.addKeyInterceptor { [weak self] key in
+            guard let self else { return false }
+            guard self._thumbMenu.isOpen, self.deck.slidePasteOptions != nil else { self._endPasteKeys(); return false }
+            guard let letter = KeyChordTracker.letter(key.logical),
+                  let way = SlidePasteWay.allCases.first(where: { $0.letter == letter }) else { return false }
+            if key.type == .down, self.deck.canRepaste(way) { self._repaste(way) }
+            return true
+        }
+    }
+
+    private func _repaste(_ way: SlidePasteWay) {
+        _endPasteKeys()
+        if _thumbMenu.isOpen { _thumbMenu.closeFlyout() }
+        deck.repaste(way)
+    }
+
+    private func _endPasteKeys() {
+        if let k = _pasteKeys { FocusManager.instance.removeKeyInterceptor(k); _pasteKeys = nil }
+    }
+
     private func _insertTextBox() {
         _endEditing()
         let size = deck.slideSize
@@ -1494,6 +1543,10 @@ final class SlidesShellState: State<StatefulWidget> {
             return false
         }
         if key.logical == 0x2F, mods.contains(.primary) { session.onShortcuts?(); return true }   // ⌘/ the shortcut list
+        // Ctrl+Alt+V: Paste Special (the letter chords below leave Alt chords alone).
+        if mods.contains(.primary), mods.contains(.alt), !typing, KeyChordTracker.letter(key.logical) == "v" {
+            _openPasteSpecial(); return true
+        }
         guard mods.contains(.primary), !mods.contains(.alt),
               let letter = KeyChordTracker.letter(key.logical) else { return false }
         let c = session.controller
@@ -1616,7 +1669,8 @@ final class SlidesShellState: State<StatefulWidget> {
             modifiers: { [weak self] in self?._deckChords.modifiers ?? [] },
             spellChecker: session.checkSpelling ? _spelling : nil,
             animationBadges: _tab == .animations || _animationPane,
-            onContextMenu: { [weak self] at, shape in self?._showSlideMenu(at: at, on: shape) })))]
+            onContextMenu: { [weak self] at, shape in self?._showSlideMenu(at: at, on: shape) },
+            onPasteOptions: { [weak self] at in self?._showPasteOptions(at: at) })))]
         if _showNotes { work.append(_notesPane(fluent)) }
         if deck.notesPageView && !_sorter {
             work = [Expanded(child: _notesPageView(fluent))]
@@ -1764,6 +1818,24 @@ final class SlidesShellState: State<StatefulWidget> {
                         self?.setState { self?._setUpShow = false }
                     },
                     onCancel: { [weak self] in self?.setState { self?._setUpShow = false } })),
+            ])
+        }
+        if let data = _pasteSpecialData {
+            let ways = SlidePasteWay.allCases.filter { deck.canPaste(data, way: $0) }
+            return Stack(children: [
+                IgnorePointer(ignoring: true, child: window),
+                Positioned(left: 0, top: 0, right: 0, bottom: 0, child: WriterPasteSpecialDialog(
+                    source: WriterPasteSpecialDialog.sourceLine(data.text), labels: ways.map(\.formatLabel),
+                    emptyNote: "The clipboard holds nothing Slides can paste.",
+                    onPick: { [weak self] i in
+                        self?.setState { self?._pasteSpecialData = nil }
+                        self?.deck.paste(data, way: ways[i])
+                        self?._deckFocus.requestFocus()
+                    },
+                    onCancel: { [weak self] in
+                        self?.setState { self?._pasteSpecialData = nil }
+                        self?._deckFocus.requestFocus()
+                    })),
             ])
         }
         if let d = _sectionDialog {
