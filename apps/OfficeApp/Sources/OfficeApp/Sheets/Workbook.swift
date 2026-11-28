@@ -543,6 +543,9 @@ final class Workbook {
     var package: [ZipEntry]? = nil
     /// The sheet that was in front when the file was saved.
     var activeTab = 0
+    /// workbookView showComments: "commIndAndComment" is Review > Show All Notes on, "commNone" hides the red
+    /// triangles too; nil (Excel's default, "commIndicator") shows a note only on hover.
+    var showComments: String? = nil
     /// Dates count from 1904 (workbookPr date1904): kept as read.
     var date1904 = false
     /// calcPr iterate: circular references compute iteratively, up to

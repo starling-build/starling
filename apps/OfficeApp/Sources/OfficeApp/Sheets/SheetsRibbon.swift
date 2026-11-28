@@ -466,6 +466,11 @@ extension Ribbon {
                 Chrome.small(FluentSystemIcons.chevronUp, "Previous", fluent) { wb.goToNote(-1) },
                 Chrome.small(FluentSystemIcons.chevronDown, "Next", fluent) { wb.goToNote(1) },
             ]),
+            Chrome.rows([
+                Chrome.small(FluentSystemIcons.comment, "Show/Hide Note", fluent, enabled: has,
+                             checked: wb.note(at: wb.active)?.shown ?? false) { wb.toggleNoteShown() },
+                Chrome.small(FluentSystemIcons.comment, "Show All Notes", fluent, checked: wb.showAllNotes) { wb.toggleShowAllNotes() },
+            ]),
         ])
     }
 

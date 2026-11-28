@@ -27,6 +27,10 @@ struct SheetNote: Equatable, Sendable {
     var edited = false
     /// A threaded comment's legacy copy (edited in Excel, not here).
     var threaded = false
+    /// Review > Show/Hide Note: the box stays on screen (the VML shape's `<x:Visible/>`).
+    var shown = false
+    /// `shown` was changed here, so the save writes it.
+    var shownChanged = false
 
     /// The note without Excel's "Author:" heading line.
     var body: String {
@@ -81,6 +85,12 @@ enum NotesXML {
             notes.append(SheetNote(origin: a, at: a, author: author, text: text,
                                    threaded: author.hasPrefix("tc=") || text.hasPrefix("[Threaded comment]")))
         }
+        // A note shown all the time has `<x:Visible/>` in its VML shape (found by its x:Row / x:Column).
+        if let vml = p.vml.flatMap({ parts[$0] }).map({ String(decoding: $0, as: UTF8.self) }), vml.containsSubstring("<x:Visible") {
+            _eachShape(vml) { shape, at in
+                if shape.containsSubstring("<x:Visible"), let i = notes.firstIndex(where: { $0.at == at }) { notes[i].shown = true }
+            }
+        }
         return (notes, p)
     }
 
@@ -96,7 +106,7 @@ enum NotesXML {
         var out = NoteParts()
         let notes = ws.notes, p = ws.noteParts
         let added = notes.filter { $0.origin == nil && $0.at != nil }
-        guard notes.contains(where: { $0.origin != $0.at || $0.edited }) else { return out }
+        guard notes.contains(where: { $0.origin != $0.at || $0.edited || $0.shownChanged }) else { return out }
         var map: [CellAddress: SheetNote] = [:]
         for n in notes { if let o = n.origin { map[o] = n } }
 
@@ -169,7 +179,7 @@ enum NotesXML {
             for n in added {
                 next += 1
                 let a = n.at!
-                vml = _insert(vml, before: "</xml>", "<v:shape id=\"_x0000_s\(next)\" type=\"#_x0000_t202\" style=\"position:absolute;margin-left:59.25pt;margin-top:1.5pt;width:108pt;height:59.25pt;z-index:\(next - 1024);visibility:hidden\" fillcolor=\"#ffffe1\" o:insetmode=\"auto\"><v:fill color2=\"#ffffe1\"/><v:shadow on=\"t\" color=\"black\" obscured=\"t\"/><v:path o:connecttype=\"none\"/><v:textbox style=\"mso-direction-alt:auto\"><div style=\"text-align:left\"></div></v:textbox><x:ClientData ObjectType=\"Note\"><x:MoveWithCells/><x:SizeWithCells/><x:Anchor>\(a.col + 1), 15, \(max(0, a.row - 1)), 10, \(a.col + 3), 15, \(a.row + 3), 4</x:Anchor><x:AutoFill>False</x:AutoFill><x:Row>\(a.row)</x:Row><x:Column>\(a.col)</x:Column></x:ClientData></v:shape>", orEmpty: nil)
+                vml = _insert(vml, before: "</xml>", "<v:shape id=\"_x0000_s\(next)\" type=\"#_x0000_t202\" style=\"position:absolute;margin-left:59.25pt;margin-top:1.5pt;width:108pt;height:59.25pt;z-index:\(next - 1024);visibility:\(n.shown ? "visible" : "hidden")\" fillcolor=\"#ffffe1\" o:insetmode=\"auto\"><v:fill color2=\"#ffffe1\"/><v:shadow on=\"t\" color=\"black\" obscured=\"t\"/><v:path o:connecttype=\"none\"/><v:textbox style=\"mso-direction-alt:auto\"><div style=\"text-align:left\"></div></v:textbox><x:ClientData ObjectType=\"Note\"><x:MoveWithCells/><x:SizeWithCells/><x:Anchor>\(a.col + 1), 15, \(max(0, a.row - 1)), 10, \(a.col + 3), 15, \(a.row + 3), 4</x:Anchor><x:AutoFill>False</x:AutoFill><x:Row>\(a.row)</x:Row><x:Column>\(a.col)</x:Column>\(n.shown ? "<x:Visible/>" : "")</x:ClientData></v:shape>", orEmpty: nil)
             }
         }
         out.parts[vmlPath!] = Data(vml.utf8)
@@ -247,6 +257,36 @@ enum NotesXML {
         return s + xml[at...]
     }
 
+    /// Each `<v:shape>…</v:shape>` that names a cell (x:Row / x:Column), with that cell.
+    private static func _eachShape(_ xml: String, _ f: (String, CellAddress) -> Void) {
+        var at = xml.startIndex
+        while let a = xml.findRange(of: "<v:shape ", in: at ..< xml.endIndex),
+              let b = xml.findRange(of: "</v:shape>", in: a.upperBound ..< xml.endIndex) {
+            let shape = String(xml[a.lowerBound ..< b.upperBound])
+            at = b.upperBound
+            if let r0 = shape.findRange(of: "<x:Row>"), let r1 = shape.findRange(of: "</x:Row>", in: r0.upperBound ..< shape.endIndex),
+               let c0 = shape.findRange(of: "<x:Column>"), let c1 = shape.findRange(of: "</x:Column>", in: c0.upperBound ..< shape.endIndex),
+               let row = Int(shape[r0.upperBound ..< r1.lowerBound].trimmingWhitespace()),
+               let col = Int(shape[c0.upperBound ..< c1.lowerBound].trimmingWhitespace()) {
+                f(shape, CellAddress(row: row, col: col))
+            }
+        }
+    }
+
+    /// A note shape shown or hidden, as Excel writes it: `<x:Visible/>` in its ClientData and visibility in its style.
+    static func _setShown(_ shape: String, _ shown: Bool) -> String {
+        var s = shape
+        if let a = s.findRange(of: "<x:Visible") {
+            let end = s.findRange(of: "</x:Visible>", in: a.upperBound ..< s.endIndex)?.upperBound
+                ?? s.findRange(of: "/>", in: a.upperBound ..< s.endIndex)?.upperBound ?? a.upperBound
+            s.removeSubrange(a.lowerBound ..< end)
+        }
+        if shown, let r = s.findRange(of: "</x:ClientData>") { s.insert(contentsOf: "<x:Visible/>", at: r.lowerBound) }
+        let from = shown ? "visibility:hidden" : "visibility:visible", to = shown ? "visibility:visible" : "visibility:hidden"
+        if let r = s.findRange(of: from) { s.replaceSubrange(r, with: to) }
+        return s
+    }
+
     /// Each note shape's x:Row / x:Column moved, or the shape removed.
     private static func _patchShapes(_ xml: String, _ map: [CellAddress: SheetNote]) -> String {
         var s = ""
@@ -262,7 +302,9 @@ enum NotesXML {
                let col = Int(shape[c0.upperBound ..< c1.lowerBound].trimmingWhitespace()),
                let note = map[CellAddress(row: row, col: col)] {
                 guard let new = note.at else { continue }
-                if new != note.origin {
+                if note.shownChanged { shape = _setShown(shape, note.shown) }
+                if new != note.origin, let r0 = shape.findRange(of: "<x:Row>"), let r1 = shape.findRange(of: "</x:Row>", in: r0.upperBound ..< shape.endIndex),
+                   let c0 = shape.findRange(of: "<x:Column>"), let c1 = shape.findRange(of: "</x:Column>", in: c0.upperBound ..< shape.endIndex) {
                     // The later of the two first, so the earlier's range still holds.
                     if c0.lowerBound > r0.lowerBound {
                         shape.replaceSubrange(c0.upperBound ..< c1.lowerBound, with: "\(new.col)")
@@ -314,6 +356,20 @@ extension WorkbookController {
         guard !cells.isEmpty else { onCommand?(.status("This sheet has no notes")); return }
         let next = step > 0 ? cells.first { $0 > active } ?? cells[0] : cells.last { $0 < active } ?? cells[cells.count - 1]
         select(next)
+    }
+
+    /// Review > Notes > Show All Notes: every note's box on screen (the workbook's showComments), or back to hover only.
+    var showAllNotes: Bool { book.showComments == "commIndAndComment" }
+    func toggleShowAllNotes() { viewChange { book.showComments = showAllNotes ? nil : "commIndAndComment" } }
+
+    /// Review > Notes > Show/Hide Note: the active cell's note stays on screen, or goes back to showing on hover.
+    func toggleNoteShown(at a: CellAddress? = nil) {
+        let a = a ?? active, ws = sheet
+        guard let i = ws.notes.firstIndex(where: { $0.at == a }) else { onCommand?(.status("This cell has no note")); return }
+        viewChange {
+            ws.notes[i].shown.toggle()
+            ws.notes[i].shownChanged = true
+        }
     }
 
     /// Clear Comments: take every note in `r` (the selection by default) off its cell. One undo step.
