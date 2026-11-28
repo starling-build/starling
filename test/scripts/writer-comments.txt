@@ -1,0 +1,64 @@
+# Writer Review > Comments (W-RV-1): New Comment (Ctrl+Alt+M and the button), Previous / Next, Delete, Delete All.
+# Run with OFFICE_FILE=lab/comments1/comments-ui.docx, window 1440x932. Delete any comments-ui.docx~ first.
+# Harness points at 1440x932 (mac-ipad runs with STARLING_WINDOW_H=932): Review tab 363,81;
+# New Comment 195,133; Delete 279,115 (menu: Delete 279,152, Delete All Comments in Document 279,180);
+# Previous 286,139; Next 277,160. The New Comment dialog's OK is at 828,560.
+# Every click is followed by a picture, so a miss shows at once.
+wait 1500
+click 400 300
+key up cmd
+# Select "Hello" (the first word) and comment on it with the shortcut.
+key right alt shift
+chord cmd,alt m
+wait 400
+shot ${OUT}/cm-00-dialog.png
+type First comment.
+click 828 560
+wait 400
+shot ${OUT}/cm-01-commented.png
+# Down one paragraph, caret in its first word: the Review tab's New Comment takes that word.
+key down alt
+key right
+click 363 81
+wait 400
+shot ${OUT}/cm-02-review-tab.png
+click 195 133
+wait 400
+type Second comment.
+click 828 560
+wait 400
+shot ${OUT}/cm-03-second.png
+# From the top, Next selects "Hello" and the status line shows "Comment by ...: First comment."; Next again the
+# second; Previous goes back to the first.
+key up cmd
+click 277 160
+wait 300
+shot ${OUT}/cm-04-next-1.png
+click 277 160
+wait 300
+shot ${OUT}/cm-05-next-2.png
+click 286 139
+wait 300
+shot ${OUT}/cm-06-previous.png
+# Delete menu > Delete: the first comment goes (Next then finds only the second).
+click 279 115
+wait 400
+shot ${OUT}/cm-07-delete-menu.png
+click 279 152
+wait 400
+shot ${OUT}/cm-08-deleted-one.png
+click 277 160
+wait 300
+shot ${OUT}/cm-09-next-left.png
+# Undo brings it back; Delete All Comments in Document takes both.
+chord cmd z
+wait 300
+click 279 115
+wait 400
+click 279 180
+wait 400
+shot ${OUT}/cm-10-deleted-all.png
+click 277 160
+wait 300
+shot ${OUT}/cm-11-next-none.png
+quit

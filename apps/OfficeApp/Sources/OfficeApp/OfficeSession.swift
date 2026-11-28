@@ -221,6 +221,8 @@ final class OfficeSession {
     /// Review > Track Changes (⌘⇧E / Ctrl+Shift+E) and Show Markup.
     var onToggleTrackChanges: (() -> Void)?
     var onMarkup: ((RichTextTheme.Markup) -> Void)?
+    /// Review > New Comment (Ctrl+Alt+M): the box the comment is typed in.
+    var onNewComment: (() -> Void)?
     var onToggleSpelling: (() -> Void)?
     var onFormatPainter: (() -> Void)?
     var onToggleAutoSave: (() -> Void)?

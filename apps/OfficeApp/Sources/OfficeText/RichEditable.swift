@@ -156,6 +156,11 @@ public final class RichEditableState: State<StatefulWidget> {
     private let _repaint = ChangeNotifier()
     private var _painter: _RichEditablePainter!
     private var _controller: RichDocumentController!
+    /// What the editor lays out and draws: the document, or in Show Markup > Original its old formatting (same text,
+    /// same positions).
+    private var _shownDocument: RichDocument {
+        _layout?.theme.markup == .original ? _controller.originalDocument : _controller.document
+    }
 
     // Viewport state.
     private var _scrollY = 0.0
@@ -249,7 +254,7 @@ public final class RichEditableState: State<StatefulWidget> {
     private func _edgeTool(_ local: Offset) -> Bool {
         guard let tool = _w.onCellEdge, _layout.width > 0, _layout.count > 0 else { return false }
         _syncLayoutIfNeeded()
-                guard let e = _layout.cellEdge(at: _layout.flowPoint(_canvasPoint(local)), tolerance: 8, _controller.document) else { return false }
+                guard let e = _layout.cellEdge(at: _layout.flowPoint(_canvasPoint(local)), tolerance: 8, _shownDocument) else { return false }
         let key = "\(e.table).\(e.row).\(e.column).\(e.side)"
         if key != _edgeStroke { _edgeStroke = key; tool(e.table, e.row, e.column, e.side) }
         return true
@@ -306,7 +311,7 @@ public final class RichEditableState: State<StatefulWidget> {
     /// The page the caret is on, 1-based.
     public var caretPage: Int {
         guard let layout = _layout, layout.isPaged, layout.width > 0 else { return 1 }
-        let r = layout.canvasCaretRect(_controller.caret, _controller.document)
+        let r = layout.canvasCaretRect(_controller.caret, _shownDocument)
         return layout.page(atCanvasY: r.top) + 1
     }
 
@@ -359,7 +364,7 @@ public final class RichEditableState: State<StatefulWidget> {
             self._restartBlink()
             self._repaint.notifyListeners()
         }
-        _layout = RichLayout(theme: _w.theme, paragraphCount: _controller.document.paragraphs.count)
+        _layout = RichLayout(theme: _w.theme, paragraphCount: _shownDocument.paragraphs.count)
         _controller.rowHeightProbe = { [weak self] i in self?._layout?.rowRect(i)?.height }
         _controller.pictureSpotProbe = { [weak self] i, id in self?._pictureSpot(i, id) }
         _layout.scale = _w.zoom
@@ -396,10 +401,10 @@ public final class RichEditableState: State<StatefulWidget> {
             _controller.addListener({ [weak self] in self?._onControllerChanged() }, owner: self)
             _controller.rowHeightProbe = { [weak self] i in self?._layout?.rowRect(i)?.height }
             _controller.pictureSpotProbe = { [weak self] i, id in self?._pictureSpot(i, id) }
-            _layout = RichLayout(theme: _w.theme, paragraphCount: _controller.document.paragraphs.count)
+            _layout = RichLayout(theme: _w.theme, paragraphCount: _shownDocument.paragraphs.count)
             _layout.onNeedsRepaint = { [weak self] in self?._repaint.notifyListeners() }
         } else if old.theme !== _w.theme {
-            _layout = RichLayout(theme: _w.theme, paragraphCount: _controller.document.paragraphs.count)
+            _layout = RichLayout(theme: _w.theme, paragraphCount: _shownDocument.paragraphs.count)
             _layout.onNeedsRepaint = { [weak self] in self?._repaint.notifyListeners() }
         }
         if _layout.scale != _w.zoom { _layout.scale = _w.zoom }
@@ -433,9 +438,9 @@ public final class RichEditableState: State<StatefulWidget> {
     private func _syncLayout() {
         let changes = _controller.drainChanges()
         if !changes.isEmpty {
-            _layout.apply(changes, paragraphCount: _controller.document.paragraphs.count)
+            _layout.apply(changes, paragraphCount: _shownDocument.paragraphs.count)
         }
-        if _layout.width > 0 { _layout.ensureLaidOut(_controller.document) }
+        if _layout.width > 0 { _layout.ensureLaidOut(_shownDocument) }
     }
 
     private func _clampScroll() {
@@ -445,7 +450,7 @@ public final class RichEditableState: State<StatefulWidget> {
 
     private func _ensureCaretVisible() {
         guard _viewport.height > 0, _layout.width > 0 else { return }
-        let c = _layout.canvasCaretRect(_controller.caret, _controller.document)
+        let c = _layout.canvasCaretRect(_controller.caret, _shownDocument)
         let top = c.top + _w.padding.top
         let bottom = c.bottom + _w.padding.top
         let margin = 8.0
@@ -618,7 +623,7 @@ public final class RichEditableState: State<StatefulWidget> {
     private func _moveLineEdge(home: Bool, extend: Bool) {
         _syncLayoutIfNeeded()
         let pos = _controller.caret
-        let (start, end) = _layout.lineBounds(pos, _controller.document)
+        let (start, end) = _layout.lineBounds(pos, _shownDocument)
         _controller.moveTo(RichPosition(paragraph: pos.paragraph, offset: home ? start : end), extend: extend)
     }
 
@@ -626,27 +631,27 @@ public final class RichEditableState: State<StatefulWidget> {
     private func _deleteToLineStart() {
         _syncLayoutIfNeeded()
         let pos = _controller.caret
-        let (start, _) = _layout.lineBounds(pos, _controller.document)
+        let (start, _) = _layout.lineBounds(pos, _shownDocument)
         _controller.deleteBackward(toOffset: start)
     }
 
     private func _moveVertical(down: Bool, extend: Bool) {
         _syncLayoutIfNeeded()
         let pos = _controller.caret
-        let rect = _layout.caretRect(pos, _controller.document)
+        let rect = _layout.caretRect(pos, _shownDocument)
         let x = _stickyX ?? rect.left
         _stickyX = x
-        if let next = _layout.verticalNeighbour(of: pos, x: x, down: down, _controller.document) {
+        if let next = _layout.verticalNeighbour(of: pos, x: x, down: down, _shownDocument) {
             _controller.moveTo(next, extend: extend)
         } else {
-            _controller.moveTo(down ? _controller.document.endPosition : .start, extend: extend)
+            _controller.moveTo(down ? _shownDocument.endPosition : .start, extend: extend)
         }
     }
 
     private func _movePage(down: Bool, extend: Bool) {
         _syncLayoutIfNeeded()
         let pos = _controller.caret
-        let rect = _layout.caretRect(pos, _controller.document)
+        let rect = _layout.caretRect(pos, _shownDocument)
         let x = _stickyX ?? rect.left
         _stickyX = x
         let step = max(40, _viewport.height - _w.padding.top - _w.padding.bottom) * 0.9
@@ -654,9 +659,9 @@ public final class RichEditableState: State<StatefulWidget> {
         if y < 0 {
             _controller.moveTo(.start, extend: extend)
         } else if y >= _layout.totalHeight {
-            _controller.moveTo(_controller.document.endPosition, extend: extend)
+            _controller.moveTo(_shownDocument.endPosition, extend: extend)
         } else {
-            _controller.moveTo(_layout.position(at: Offset(x, y), _controller.document), extend: extend)
+            _controller.moveTo(_layout.position(at: Offset(x, y), _shownDocument), extend: extend)
         }
         _scrollY += down ? step : -step
         _clampScroll()
@@ -668,15 +673,15 @@ public final class RichEditableState: State<StatefulWidget> {
     }
 
     private func _syncLayoutIfNeeded() {
-        if _controller.hasPendingChanges || _layout.count != _controller.document.paragraphs.count {
+        if _controller.hasPendingChanges || _layout.count != _shownDocument.paragraphs.count {
             _syncLayout()
         }
-        if _layout.width > 0 { _layout.ensureLaidOut(_controller.document) }
+        if _layout.width > 0 { _layout.ensureLaidOut(_shownDocument) }
     }
 
     /// The misspelled word under the caret, once its paragraph was checked.
     public func misspelling(at pos: RichPosition) -> Range<Int>? {
-        _layout.misspelling(at: pos, _controller.document)
+        _layout.misspelling(at: pos, _shownDocument)
     }
 
     // MARK: Clipboard
@@ -732,8 +737,8 @@ public final class RichEditableState: State<StatefulWidget> {
     /// puts it; nil while there is none to show.
     private func _pasteButtonRect() -> Rect? {
         guard _w.onPasteOptions != nil, let p = _controller.pasteOptions, _layout.count > p.end.paragraph,
-              p.end.paragraph < _controller.document.paragraphs.count else { return nil }
-        let r = _layout.canvasCaretRect(p.end, _controller.document)
+              p.end.paragraph < _shownDocument.paragraphs.count else { return nil }
+        let r = _layout.canvasCaretRect(p.end, _shownDocument)
         return Rect.fromLTWH(r.right + 4, r.bottom + 2, 30, 20)
     }
 
@@ -759,7 +764,7 @@ public final class RichEditableState: State<StatefulWidget> {
         guard !sel.isCollapsed, sel.block == nil, _controller.selectedImageIndex == nil else { return nil }
         _syncLayoutIfNeeded()
         func box(_ p: RichPosition) -> Rect {
-            let c = _layout.canvasCaretRect(p, _controller.document)
+            let c = _layout.canvasCaretRect(p, _shownDocument)
             return Rect.fromLTWH(c.left + _originX, c.top + _w.padding.top - _scrollY, max(c.width, 2), c.height)
         }
         return (box(sel.start), box(sel.end))
@@ -771,7 +776,7 @@ public final class RichEditableState: State<StatefulWidget> {
         let sel = _controller.selection
         guard sel.isCollapsed, sel.block == nil, _controller.selectedImageIndex == nil else { return nil }
         _syncLayoutIfNeeded()
-        let c = _layout.canvasCaretRect(sel.focus, _controller.document)
+        let c = _layout.canvasCaretRect(sel.focus, _shownDocument)
         return Rect.fromLTWH(c.left + _originX, c.top + _w.padding.top - _scrollY, max(c.width, 2), c.height)
     }
 
@@ -805,8 +810,8 @@ public final class RichEditableState: State<StatefulWidget> {
         }
         _syncLayoutIfNeeded()
         let sel = _controller.selection
-        var rects = sel.isCollapsed ? [] : _layout.canvasSelectionRects(sel, _controller.document)
-        if rects.isEmpty { rects = [_layout.canvasCaretRect(sel.focus, _controller.document)] }
+        var rects = sel.isCollapsed ? [] : _layout.canvasSelectionRects(sel, _shownDocument)
+        if rects.isEmpty { rects = [_layout.canvasCaretRect(sel.focus, _shownDocument)] }
         var r = rects[0]
         for q in rects.dropFirst() { r = Rect.fromLTRB(min(r.left, q.left), min(r.top, q.top), max(r.right, q.right), max(r.bottom, q.bottom)) }
         let local = Rect.fromLTWH(r.left + _originX, r.top + _w.padding.top - _scrollY, max(r.width, 2), r.height)
@@ -825,7 +830,7 @@ public final class RichEditableState: State<StatefulWidget> {
         _focus.requestFocus()
         _textInput?.show()
         _syncLayoutIfNeeded()
-        _controller.selectWord(at: _layout.canvasPosition(at: _canvasPoint(at), _controller.document))
+        _controller.selectWord(at: _layout.canvasPosition(at: _canvasPoint(at), _shownDocument))
         // A picture set in a line of text is selected, as a click on it does; one of its own is selected by the caret.
         if let hit = _inlineImage(at: at) { _controller.selectInlineImage(in: hit.paragraph, id: hit.id) }
         if _controller.hasSelection { _w.onSelectionGestureEnd?() }
@@ -840,7 +845,7 @@ public final class RichEditableState: State<StatefulWidget> {
         _focus.requestFocus()
         if _layout.width > 0 {
             _syncLayoutIfNeeded()
-            let pos = _layout.canvasPosition(at: _canvasPoint(local), _controller.document)
+            let pos = _layout.canvasPosition(at: _canvasPoint(local), _shownDocument)
             if !_controller.hasSelection || pos < _controller.selection.start || pos > _controller.selection.end {
                 _controller.moveTo(pos, extend: false)
                 if let hit = _inlineImage(at: local) { _controller.selectInlineImage(in: hit.paragraph, id: hit.id) }
@@ -873,7 +878,7 @@ public final class RichEditableState: State<StatefulWidget> {
         if let i = _controller.selectedImageIndex, let flow = _layout.imageRect(i), let c = _layout.floatCanvasRect(i, flow) {
             canvas = c; index = i
         } else if let hit = _controller.selectedInlineImage,
-                  let c = _layout.canvasSelectionRects(_controller.selection, _controller.document).first {
+                  let c = _layout.canvasSelectionRects(_controller.selection, _shownDocument).first {
             // (A picture set in a line of text: the box its character takes; one that floats, the box it is drawn in.)
             canvas = _layout.inlineFloatRect(hit.paragraph, id: hit.id).flatMap { _layout.floatCanvasRect(hit.paragraph, $0) } ?? c
             index = hit.paragraph; inline = hit.id
@@ -896,7 +901,7 @@ public final class RichEditableState: State<StatefulWidget> {
         guard _layout.width > 0 else { return nil }
         _syncLayoutIfNeeded()
         let canvasPoint = _canvasPoint(local)
-        let doc = _controller.document
+        let doc = _shownDocument
         // (The one on top where they overlap: the highest in the stack, then the latest in the text — the paint's order.)
         var best: (z: Int64, i: Int)? = nil
         for i in doc.paragraphs.indices where doc.paragraphs[i].isImage && _controller.pictureWrap(at: i) != nil {
@@ -918,7 +923,7 @@ public final class RichEditableState: State<StatefulWidget> {
     /// The picture set in a line of text under the point (editable coordinates), if any.
     private func _inlineImage(at local: Offset) -> (paragraph: Int, id: String)? {
         guard _layout.width > 0 else { return nil }
-        let doc = _controller.document
+        let doc = _shownDocument
         let pos = _layout.canvasPosition(at: _canvasPoint(local), doc)
         let canvasPoint = _canvasPoint(local)
         // A picture that floats clear of the text is hit where it is drawn, not at its anchor mark.
@@ -974,7 +979,7 @@ public final class RichEditableState: State<StatefulWidget> {
     private func _checkBox(at local: Offset) -> (paragraph: Int, id: Int)? {
         guard _layout.width > 0, _layout.count > 0 else { return nil }
         _syncLayoutIfNeeded()
-        let doc = _controller.document
+        let doc = _shownDocument
         let flow = _layout.flowPoint(_canvasPoint(local))
         let pos = _layout.canvasPosition(at: _canvasPoint(local), doc)
         guard pos.paragraph < doc.paragraphs.count, !doc.paragraphs[pos.paragraph].isImage else { return nil }
@@ -998,7 +1003,7 @@ public final class RichEditableState: State<StatefulWidget> {
 
     /// The note whose mark is at a body position, with the mark's box.
     private func _noteMark(at pos: RichPosition) -> NoteReference? {
-        let doc = _controller.document
+        let doc = _shownDocument
         guard pos.paragraph < doc.paragraphs.count, !doc.paragraphs[pos.paragraph].isImage else { return nil }
         let para = doc.paragraphs[pos.paragraph]
         for o in [pos.offset, pos.offset - 1] where o >= 0 && o < para.length {
@@ -1011,13 +1016,13 @@ public final class RichEditableState: State<StatefulWidget> {
     private func _link(at local: Offset) -> String? {
         guard _layout.width > 0, _layout.count > 0 else { return nil }
         _syncLayoutIfNeeded()
-        let pos = _layout.canvasPosition(at: _canvasPoint(local), _controller.document)
-        let para = _controller.document.paragraphs[pos.paragraph]
+        let pos = _layout.canvasPosition(at: _canvasPoint(local), _shownDocument)
+        let para = _shownDocument.paragraphs[pos.paragraph]
         guard !para.isImage, pos.offset < para.length else { return nil }
         // Only when the point is actually on the line's text, not past its end.
-        let rect = _layout.caretRect(pos, _controller.document)
-        let (_, lineEnd) = _layout.lineBounds(pos, _controller.document)
-        let endRect = _layout.caretRect(RichPosition(paragraph: pos.paragraph, offset: lineEnd), _controller.document)
+        let rect = _layout.caretRect(pos, _shownDocument)
+        let (_, lineEnd) = _layout.lineBounds(pos, _shownDocument)
+        let endRect = _layout.caretRect(RichPosition(paragraph: pos.paragraph, offset: lineEnd), _shownDocument)
         // Caret rectangles use text-flow coordinates; the canvas also
         // includes page margins and the column's horizontal offset.
         let x = _layout.flowPoint(_canvasPoint(local)).dx
@@ -1099,7 +1104,7 @@ public final class RichEditableState: State<StatefulWidget> {
         if let drag = _columnDrag {
             _columnDrag = nil
             _columnDragWidths = nil
-            _layout.previewColumns(drag.table, nil, _controller.document)
+            _layout.previewColumns(drag.table, nil, _shownDocument)
         }
         if _rowDrag != nil { _rowDrag = nil; _rowDragHeight = nil; _repaint.notifyListeners() }
         if hadDrop { _repaint.notifyListeners() }
@@ -1218,7 +1223,7 @@ public final class RichEditableState: State<StatefulWidget> {
             // ⌘-click selects the sentence, as in Word.
             _focus.requestFocus()
             _syncLayoutIfNeeded()
-            _controller.selectSentence(at: _layout.canvasPosition(at: _canvasPoint(event.localPosition), _controller.document))
+            _controller.selectSentence(at: _layout.canvasPosition(at: _canvasPoint(event.localPosition), _shownDocument))
             if _controller.hasSelection { _w.onSelectionGestureEnd?() }
             return
         }
@@ -1281,7 +1286,7 @@ public final class RichEditableState: State<StatefulWidget> {
         _clickStreak = (now - _lastClickAt < 0.45 && near) ? _clickStreak + 1 : 1
         _lastClickAt = now
         _lastClickPos = event.localPosition
-        let pos = _layout.canvasPosition(at: _canvasPoint(event.localPosition), _controller.document)
+        let pos = _layout.canvasPosition(at: _canvasPoint(event.localPosition), _shownDocument)
         _stickyX = nil
         switch _clickStreak {
         case 1:
@@ -1309,13 +1314,13 @@ public final class RichEditableState: State<StatefulWidget> {
         case 2:
             if !_controller.readOnly, let activate = _w.onNoteActivate, let n = _noteMark(at: pos) {
                 _dragging = false
-                let r = _layout.noteRects[n.id] ?? _layout.caretRect(pos, _controller.document)
+                let r = _layout.noteRects[n.id] ?? _layout.caretRect(pos, _shownDocument)
                 activate(n, Rect.fromLTWH(r.left + _originX + event.position.dx - event.localPosition.dx, r.top + _w.padding.top - _scrollY + event.position.dy - event.localPosition.dy,
                                           max(r.width, 200), max(r.height, 20)))
                 return
             }
             if let edit = _w.onHeaderFooterEdit,
-               let kind = _layout.headerFooterZone(atCanvas: _canvasPoint(event.localPosition), _controller.document) {
+               let kind = _layout.headerFooterZone(atCanvas: _canvasPoint(event.localPosition), _shownDocument) {
                 _dragging = false
                 edit(kind)
                 return
@@ -1346,7 +1351,7 @@ public final class RichEditableState: State<StatefulWidget> {
             let y = event.localPosition.dy
             if y < 30 { _scrollY -= 12 } else if y > _viewport.height - 30 { _scrollY += 12 }
             _clampScroll()
-            let pos = _layout.canvasPosition(at: _canvasPoint(Offset(event.localPosition.dx, y - h.grabDY)), _controller.document)
+            let pos = _layout.canvasPosition(at: _canvasPoint(Offset(event.localPosition.dx, y - h.grabDY)), _shownDocument)
             if let fixed = h.fixed {
                 _controller.selection = RichSelection(anchor: fixed, focus: pos)
             } else {
@@ -1391,7 +1396,7 @@ public final class RichEditableState: State<StatefulWidget> {
             let y = event.localPosition.dy
             if y < 0 { _scrollY -= min(40, -y) } else if y > _viewport.height { _scrollY += min(40, y - _viewport.height) }
             _clampScroll()
-            let pos = _layout.canvasPosition(at: _canvasPoint(event.localPosition), _controller.document)
+            let pos = _layout.canvasPosition(at: _canvasPoint(event.localPosition), _shownDocument)
             if pos != _dropPosition {
                 _dropPosition = pos
                 _repaint.notifyListeners()
@@ -1413,7 +1418,7 @@ public final class RichEditableState: State<StatefulWidget> {
             w[k] += dx
             if hasNext { w[k + 1] -= dx }
             _columnDragWidths = w
-            _layout.previewColumns(drag.table, w, _controller.document)
+            _layout.previewColumns(drag.table, w, _shownDocument)
             _repaint.notifyListeners()
             return
         }
@@ -1427,7 +1432,7 @@ public final class RichEditableState: State<StatefulWidget> {
             if _controller.isInText(at: drag.index, inline: drag.inline) {
                 let moved = abs(event.localPosition.dx - drag.start.dx) > 4 || abs(event.localPosition.dy - drag.start.dy) > 4
                 guard moved || _dropPosition != nil, _layout.width > 0 else { return }
-                let pos = _layout.canvasPosition(at: _canvasPoint(event.localPosition), _controller.document)
+                let pos = _layout.canvasPosition(at: _canvasPoint(event.localPosition), _shownDocument)
                 if pos != _dropPosition {
                     _dropPosition = pos
                     _repaint.notifyListeners()
@@ -1461,7 +1466,7 @@ public final class RichEditableState: State<StatefulWidget> {
         let y = event.localPosition.dy
         if y < 0 { _scrollY -= min(40, -y) } else if y > _viewport.height { _scrollY += min(40, y - _viewport.height) }
         _clampScroll()
-        let pos = _layout.canvasPosition(at: _canvasPoint(event.localPosition), _controller.document)
+        let pos = _layout.canvasPosition(at: _canvasPoint(event.localPosition), _shownDocument)
         if let unit = _unitDrag {
             _controller.extendSelection(to: pos, byParagraph: unit.paragraphs, from: unit.origin)
         } else {
@@ -1534,7 +1539,7 @@ public final class RichEditableState: State<StatefulWidget> {
                 }
                 _focus.requestFocus()
                 _textInput?.show()
-                let pos = _layout.canvasPosition(at: _canvasPoint(event.localPosition), _controller.document)
+                let pos = _layout.canvasPosition(at: _canvasPoint(event.localPosition), _shownDocument)
                 let now = Date().timeIntervalSince1970
                 let again = now - _lastTap.at < 0.4
                     && abs(event.localPosition.dx - _lastTap.pos.dx) < 24 && abs(event.localPosition.dy - _lastTap.pos.dy) < 24
@@ -1569,11 +1574,11 @@ public final class RichEditableState: State<StatefulWidget> {
             _dropPosition = nil
             if _layout.width > 0 {
                 if drag.active {
-                    let pos = _layout.canvasPosition(at: _canvasPoint(event.localPosition), _controller.document)
+                    let pos = _layout.canvasPosition(at: _canvasPoint(event.localPosition), _shownDocument)
                     _controller.moveSelection(to: pos, copy: _chords.alt)
                     setState {}   // back to the I-beam
                 } else {
-                    _controller.moveTo(_layout.canvasPosition(at: _canvasPoint(drag.start), _controller.document), extend: false)
+                    _controller.moveTo(_layout.canvasPosition(at: _canvasPoint(drag.start), _shownDocument), extend: false)
                 }
             }
             _repaint.notifyListeners()
@@ -1587,7 +1592,7 @@ public final class RichEditableState: State<StatefulWidget> {
             _columnDrag = nil
             let final = _columnDragWidths
             _columnDragWidths = nil
-            _layout.previewColumns(drag.table, nil, _controller.document)
+            _layout.previewColumns(drag.table, nil, _shownDocument)
             if let final, final != drag.widths {
                 _controller.setTableColumnWidths(drag.table, final)
             } else {
@@ -1610,7 +1615,7 @@ public final class RichEditableState: State<StatefulWidget> {
             let w = dragged ? abs(b.dx - a.dx) / pt : 96, h = dragged ? abs(b.dy - a.dy) / pt : 72
             let x = (min(a.dx, b.dx) - origin.left) / pt, y = (min(a.dy, b.dy) - origin.top) / pt
             _controller.placePendingShape(x: max(0, x.rounded()), y: max(0, y.rounded()), width: w.rounded(), height: h.rounded(),
-                                          at: _layout.canvasPosition(at: a, _controller.document))
+                                          at: _layout.canvasPosition(at: a, _shownDocument))
             _repaint.notifyListeners()
             return
         }
@@ -1777,7 +1782,7 @@ public final class RichEditableState: State<StatefulWidget> {
         canvas.translate(_originX, pad.top - _scrollY)
         let visible = Rect.fromLTWH(-_originX, _scrollY - pad.top, size.width, size.height)
         let focused = _focus.hasFocus
-        let caretRect = _layout.count > 0 ? _layout.canvasCaretRect(_controller.caret, _controller.document) : nil
+        let caretRect = _layout.count > 0 ? _layout.canvasCaretRect(_controller.caret, _shownDocument) : nil
         let pageColor = _w.pageColor
         let pageBackground: (Int, Rect) -> Void = { _, rect in
             let shadow = Paint()
@@ -1789,7 +1794,7 @@ public final class RichEditableState: State<StatefulWidget> {
             paper.style = .fill
             canvas.drawRect(rect, paper)
         }
-        _layout.paint(canvas, visible: visible, document: _controller.document,
+        _layout.paint(canvas, visible: visible, document: _shownDocument,
                       selection: _controller.selection,
                       caret: (focused && _caretVisible && _controller.selection.isCollapsed) ? caretRect : nil,
                       pageBackground: pageBackground)
@@ -1798,7 +1803,7 @@ public final class RichEditableState: State<StatefulWidget> {
             let shade = Paint()
             shade.style = .fill
             shade.color = Color(0x30808080)
-            for r in _layout.canvasSelectionRects(field, _controller.document) { canvas.drawRect(r, shade) }
+            for r in _layout.canvasSelectionRects(field, _shownDocument) { canvas.drawRect(r, shade) }
         }
         // Paragraphs shown for the first time get checked after an idle,
         // not in the paint: NSSpellChecker takes milliseconds on a bad one.
@@ -1807,12 +1812,12 @@ public final class RichEditableState: State<StatefulWidget> {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in
                 guard let self else { return }
                 self._spellScheduled = false
-                if self._layout.runSpellChecks(self._controller.document) { self._repaint.notifyListeners() }
+                if self._layout.runSpellChecks(self._shownDocument) { self._repaint.notifyListeners() }
             }
         }
         // Where dragged text will drop: a caret that follows the pointer.
         if let drop = _dropPosition, _layout.count > drop.paragraph {
-            let r = _layout.canvasCaretRect(drop, _controller.document)
+            let r = _layout.canvasCaretRect(drop, _shownDocument)
             let paint = Paint()
             paint.style = .fill
             paint.color = _layout.theme.caretColor
@@ -1849,7 +1854,7 @@ public final class RichEditableState: State<StatefulWidget> {
             }
         }
         // Tracked changes: a change bar beside each changed line, as Word draws it.
-        let bars = _layout.canvasChangeBars(_controller.document, visible: visible)
+        let bars = _layout.canvasChangeBars(_shownDocument, visible: visible)
         if !bars.isEmpty {
             let bar = Paint()
             bar.style = .fill
@@ -1865,7 +1870,7 @@ public final class RichEditableState: State<StatefulWidget> {
             line.style = .stroke
             line.strokeWidth = 1
             line.color = _layout.theme.textColor
-            for r in _layout.canvasSelectionRects(sel, _controller.document) {
+            for r in _layout.canvasSelectionRects(sel, _shownDocument) {
                 canvas.drawLine(Offset(r.left, r.bottom - 1.5), Offset(r.right, r.bottom - 1.5), line)
             }
         }
@@ -1980,7 +1985,7 @@ public final class RichEditableState: State<StatefulWidget> {
         if let finger = _loupeAt, _selHandle != nil, size.width > 0, _layout.count > 0 {
             let r = Self.loupeRadius, z = Self.loupeZoom
             // What it shows: the caret being dragged, in view coordinates.
-            let cb = _layout.canvasCaretRect(_controller.caret, _controller.document)
+            let cb = _layout.canvasCaretRect(_controller.caret, _shownDocument)
             let src = Offset(cb.left + _originX, cb.top + cb.height / 2 + pad.top - _scrollY)
             let cx = min(max(finger.dx, r + 4), size.width - r - 4)
             var cy = src.dy - r - 46
@@ -2002,7 +2007,7 @@ public final class RichEditableState: State<StatefulWidget> {
             canvas.translate(_originX, pad.top - _scrollY)
             let half = r / z
             let around = Rect.fromLTWH(src.dx - _originX - half, src.dy - pad.top + _scrollY - half, half * 2, half * 2)
-            _layout.paint(canvas, visible: around, document: _controller.document,
+            _layout.paint(canvas, visible: around, document: _shownDocument,
                           selection: _controller.selection, caret: nil, pageBackground: pageBackground)
             canvas.restore()
             let rim = Paint()

@@ -6,21 +6,32 @@ extension RichDocumentController {
     public struct TrackedChange: Equatable, Sendable {
         public var start: RichPosition
         public var end: RichPosition
+        public init(start: RichPosition, end: RichPosition) { self.start = start; self.end = end }
     }
 
     /// Every tracked change in reading order: a stretch of inserted, deleted or reformatted text, a changed
     /// paragraph mark (from the paragraph's end to the next one's start), a paragraph whose formatting changed.
+    /// Word steps over a run of one kind by one reviewer as one change, across paragraph marks: Enter and typing
+    /// under tracking is one insertion (the new mark and the text after it), not two stops.
     public func trackedChanges() -> [TrackedChange] {
         var out: [TrackedChange] = []
+        var keys: [String?] = []
+        func add(_ c: TrackedChange, _ key: String?) {
+            if let key, let last = out.last, keys.last == key, last.end == c.start {
+                out[out.count - 1].end = c.end
+            } else {
+                out.append(c); keys.append(key)
+            }
+        }
         let ps = document.paragraphs
         for (i, p) in ps.enumerated() {
             if p.style.propertyChange != nil {
-                out.append(TrackedChange(start: RichPosition(paragraph: i, offset: 0), end: RichPosition(paragraph: i, offset: p.length)))
+                add(TrackedChange(start: RichPosition(paragraph: i, offset: 0), end: RichPosition(paragraph: i, offset: p.length)), nil)
             }
             var at = 0
             var open: (start: Int, key: String)? = nil
             func close(_ end: Int) {
-                if let o = open { out.append(TrackedChange(start: RichPosition(paragraph: i, offset: o.start), end: RichPosition(paragraph: i, offset: end))) }
+                if let o = open { add(TrackedChange(start: RichPosition(paragraph: i, offset: o.start), end: RichPosition(paragraph: i, offset: end)), o.key) }
                 open = nil
             }
             for run in p.runs {
@@ -31,7 +42,8 @@ extension RichDocumentController {
             close(at)
             if p.style.markRevision != nil {
                 let next = i + 1 < ps.count ? RichPosition(paragraph: i + 1, offset: 0) : RichPosition(paragraph: i, offset: p.length)
-                out.append(TrackedChange(start: RichPosition(paragraph: i, offset: p.length), end: next))
+                let m = p.style.markRevision!
+                add(TrackedChange(start: RichPosition(paragraph: i, offset: p.length), end: next), "\(m.kind.rawValue)|\(m.author)|\(m.date)|")
             }
         }
         return out
@@ -107,11 +119,7 @@ extension RichDocumentController {
             if touched, let change = slice[k].style.propertyChange {
                 count += 1
                 var style = slice[k].style
-                if !accept, let was = change.restore ?? change.previous, case .paragraph(let old) = was {
-                    let keep = style
-                    style = old
-                    style.markRevision = keep.markRevision; style.mark = keep.mark
-                }
+                if !accept, let old = Self._oldParagraphStyle(style) { style = old }
                 style.propertyChange = nil
                 slice[k].style = style
             }
@@ -134,12 +142,8 @@ extension RichDocumentController {
                             if removes { gone.append(cuts[j] ..< cuts[j + 1]) }
                             style.revision = nil
                         }
-                        if let f = style.formatChange {
-                            if !accept, case .run(let old)? = f.restore {
-                                var restored = old
-                                restored.revision = style.revision
-                                style = restored
-                            }
+                        if style.formatChange != nil {
+                            if !accept, let old = Self._oldCharStyle(style) { style = old }
                             style.formatChange = nil
                         }
                     }
@@ -171,5 +175,44 @@ extension RichDocumentController {
         }
         moveTo(document.clamped(lo), extend: false)
         return count
+    }
+
+    /// The paragraph's look before its tracked formatting change, keeping what the change does not cover (its mark's
+    /// revision and look, the section it ends). Nil when the file gave no old look.
+    static func _oldParagraphStyle(_ style: RichParagraphStyle) -> RichParagraphStyle? {
+        guard let change = style.propertyChange, let was = change.restore ?? change.previous, case .paragraph(var old) = was else { return nil }
+        old.markRevision = style.markRevision; old.mark = style.mark
+        old.sectionXML = style.sectionXML; old.sectionPage = style.sectionPage
+        old.sectionRels = style.sectionRels; old.sectionBreaksPage = style.sectionBreaksPage
+        old.propertyChange = change
+        return old
+    }
+
+    /// The run's look before its tracked formatting change (its insertion or deletion kept). Nil when the file gave none.
+    static func _oldCharStyle(_ style: CharStyle) -> CharStyle? {
+        guard case .run(var old)? = style.formatChange?.restore else { return nil }
+        old.revision = style.revision
+        old.formatChange = style.formatChange
+        old.comments = style.comments
+        return old
+    }
+
+    /// The document as Show Markup > Original shows it: every tracked formatting change undone on screen (the text's
+    /// insertions and deletions are the layout's to hide). Same lengths, so every position is the same.
+    public static func originalView(of doc: RichDocument) -> RichDocument {
+        var out = doc
+        for i in out.paragraphs.indices {
+            let p = out.paragraphs[i]
+            let changedRuns = p.runs.contains { $0.style.formatChange != nil }
+            guard p.style.propertyChange != nil || changedRuns else { continue }
+            if let old = _oldParagraphStyle(p.style) { out.paragraphs[i].style = old }
+            if changedRuns {
+                out.paragraphs[i].runs = p.runs.map { r in
+                    guard let old = _oldCharStyle(r.style) else { return r }
+                    return Run(length: r.length, style: old)
+                }
+            }
+        }
+        return out
     }
 }
