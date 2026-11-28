@@ -704,6 +704,15 @@ extension Ribbon {
             Chrome.group("Data", fluent, [
                 Chrome.big(FluentSystemIcons.tableEdit, "Edit Data", fluent) { [session] in session.onChartData?(true) },
             ]),
+            Chrome.group("Chart Layouts", fluent, [Chrome.rows([
+                Chrome.menuButton(FluentSystemIcons.grid, "Quick Layout", "Set the chart's elements in one step", fluent,
+                                  items: ChartQuickLayout.all.map { layout in
+                                      MenuFlyoutItem(text: Text(layout.name + "  (" + layout.summary + ")"),
+                                                     leading: Icon(layout.matches(chart) ? FluentSystemIcons.check : FluentSystemIcons.grid,
+                                                                   size: Chrome.iconSize, color: fluent.resources.textFillColorPrimary),
+                                                     onPressed: { apply(layout.applied(to: chart)) })
+                                  }),
+            ])]),
             Chrome.group("Chart Elements", fluent, [
                 Chrome.rows([
                     Chrome.small(chart.title != nil ? FluentSystemIcons.check : FluentSystemIcons.textT, "Chart Title", fluent,

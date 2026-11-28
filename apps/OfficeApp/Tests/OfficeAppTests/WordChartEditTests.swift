@@ -94,6 +94,32 @@ final class WordChartEditTests: XCTestCase {
         XCTAssertFalse(r2.xml.containsSubstring("<c:overlap"), "clustered bars drop the full overlap")
     }
 
+    /// Quick Layout sets every element it names, on or off, so a layout after another gives that layout alone; a title
+    /// the chart has keeps its text, and the patched part reads back with the layout's elements.
+    func testQuickLayoutSetsTheElementsAndPatchesThePart() throws {
+        var old = Chart.sample(.column)
+        old.title = "Sales"
+        let nine = try XCTUnwrap(ChartQuickLayout.all.first { $0.name == "Layout 9" })
+        let four = try XCTUnwrap(ChartQuickLayout.all.first { $0.name == "Layout 4" })
+        let a = nine.applied(to: old)
+        XCTAssertEqual(a.title, "Sales")
+        XCTAssertTrue(a.legend); XCTAssertEqual(a.legendPosition, "r")
+        XCTAssertEqual(a.valueAxisTitle, "Axis Title"); XCTAssertFalse(a.dataLabels)
+        XCTAssertTrue(nine.matches(a)); XCTAssertFalse(four.matches(a))
+        XCTAssertEqual(four.applied(to: a), four.applied(to: old))
+        let r = try XCTUnwrap(ChartPartPatcher.patch(ChartXML.chartSpace(old), old: old, new: a))
+        let back = try XCTUnwrap(XNode.parse(Data(r.xml.utf8)).flatMap { ChartXML.read(ChartXML.canonical($0), color: { _ in nil }) })
+        XCTAssertEqual(back.title, "Sales"); XCTAssertEqual(back.legendPosition, "r")
+        XCTAssertEqual(back.categoryAxisTitle, "Axis Title")
+        let b = four.applied(to: a)
+        let r2 = try XCTUnwrap(ChartPartPatcher.patch(r.xml, old: a, new: b))
+        let b2 = try XCTUnwrap(XNode.parse(Data(r2.xml.utf8)).flatMap { ChartXML.read(ChartXML.canonical($0), color: { _ in nil }) })
+        XCTAssertNil(b2.title); XCTAssertNil(b2.valueAxisTitle); XCTAssertTrue(b2.dataLabels); XCTAssertEqual(b2.legendPosition, "b")
+        var pie = Chart.sample(.pie)
+        pie.valueAxisTitle = nil
+        XCTAssertNil(nine.applied(to: pie).valueAxisTitle, "a pie has no axes to title")
+    }
+
     /// A two-level category axis (names under years) keeps its outer level when a name is edited: only the inner names
     /// change, in the part and in the workbook's inner column (Word's lab wob5chart c5 had it flattened to one level).
     func testMultiLevelCategoriesKeepTheirOuterLevel() throws {
@@ -144,6 +170,8 @@ final class WordChartEditTests: XCTestCase {
                 if !c.categories.isEmpty { c.categories[0] = "Edited" }
             }),
             ("c6-axistitles", { $0.valueAxisTitle = "Axis Title"; $0.categoryAxisTitle = "Axis Title" }),
+            ("c7-layout9", { $0 = ChartQuickLayout.all.first { $0.name == "Layout 9" }!.applied(to: $0) }),
+            ("c8-layout4", { $0 = ChartQuickLayout.all.first { $0.name == "Layout 4" }!.applied(to: $0) }),
         ]
         for (name, edit) in edits {
             let c = RichDocumentController(document: try DocxFormat.read(try Data(contentsOf: URL(fileURLWithPath: input))).document)
